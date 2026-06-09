@@ -1,0 +1,617 @@
+"""
+PenoDecorPro ERP — CRUD operatsiyalari
+========================================
+CRUD = Create (yaratish), Read (o'qish), Update (yangilash), Delete (o'chirish).
+Bu fayl bazaga yozish va o'qish funksiyalarini saqlaydi.
+"""
+
+from typing import List, Optional
+from datetime import datetime
+from sqlalchemy.orm import Session
+
+from models import Master
+from schemas import MasterCreate, MasterUpdate
+
+
+# ============================================================
+# MASTER CRUD
+# ============================================================
+
+def create_master(db: Session, master_data: MasterCreate) -> Master:
+    """Yangi ustani bazaga qo'shadi."""
+    db_master = Master(
+        name=master_data.name,
+        phone=master_data.phone,
+        cashback_percent=master_data.cashback_percent,
+        telegram_id=master_data.telegram_id,
+        notes=master_data.notes,
+        is_active=True
+    )
+    db.add(db_master)
+    db.commit()
+    db.refresh(db_master)
+    return db_master
+
+
+def get_masters(db: Session, only_active: bool = False) -> List[Master]:
+    """Barcha ustalarni qaytaradi."""
+    query = db.query(Master)
+    if only_active:
+        query = query.filter(Master.is_active == True)
+    return query.order_by(Master.name).all()
+
+
+def get_master(db: Session, master_id: int) -> Optional[Master]:
+    """ID bo'yicha bitta ustani qaytaradi."""
+    return db.query(Master).filter(Master.id == master_id).first()
+
+
+def update_master(db: Session, master_id: int, master_data: MasterUpdate) -> Optional[Master]:
+    """Mavjud ustani yangilaydi."""
+    db_master = get_master(db, master_id)
+    if not db_master:
+        return None
+
+    # Faqat berilgan maydonlarni yangilaymiz
+    update_data = master_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_master, field, value)
+
+    db.commit()
+    db.refresh(db_master)
+    return db_master
+
+
+def delete_master(db: Session, master_id: int) -> bool:
+    """Ustani o'chiradi (haqiqatda is_active=False qilamiz, ma'lumot saqlanadi)."""
+    db_master = get_master(db, master_id)
+    if not db_master:
+        return False
+    db_master.is_active = False
+    db.commit()
+    return True
+
+
+# ============================================================
+# INVENTORY CRUD
+# ============================================================
+
+from models import Inventory
+from schemas import InventoryCreate, InventoryUpdate
+
+
+def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
+    """Yangi xomashyo qo'shadi."""
+    db_item = Inventory(
+        item_name=item_data.item_name,
+        stock_quantity=item_data.stock_quantity,
+        unit=item_data.unit,
+        min_stock=item_data.min_stock,
+        price_per_unit=item_data.price_per_unit,
+        volume_per_unit=item_data.volume_per_unit,
+        notes=item_data.notes
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def get_inventory(db: Session) -> List[Inventory]:
+    """Barcha xomashyo ro'yxatini qaytaradi."""
+    return db.query(Inventory).order_by(Inventory.item_name).all()
+
+
+def get_item(db: Session, item_id: int) -> Optional[Inventory]:
+    """ID bo'yicha bitta xomashyoni qaytaradi."""
+    return db.query(Inventory).filter(Inventory.id == item_id).first()
+
+
+def get_item_by_name(db: Session, name: str) -> Optional[Inventory]:
+    """Nom bo'yicha xomashyoni topadi."""
+    return db.query(Inventory).filter(Inventory.item_name == name).first()
+
+
+def update_stock(db: Session, item_id: int, quantity_change: float) -> Optional[Inventory]:
+    """Mahsulot qoldig'ini yangilaydi (musbat = qo'shish, manfiy = ayirish).
+    Keyinchalik buyurtma bajarilganda avtomatik ishlatiladi."""
+    db_item = get_item(db, item_id)
+    if not db_item:
+        return None
+    new_qty = db_item.stock_quantity + quantity_change
+    if new_qty < 0:
+        new_qty = 0  # Manfiy bo'lmasin
+    db_item.stock_quantity = new_qty
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Optional[Inventory]:
+    """Xomashyo ma'lumotlarini yangilaydi."""
+    db_item = get_item(db, item_id)
+    if not db_item:
+        return None
+    update_data = item_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_item, field, value)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def delete_item(db: Session, item_id: int) -> bool:
+    """Xomashyoni o'chiradi."""
+    db_item = get_item(db, item_id)
+    if not db_item:
+        return False
+    db.delete(db_item)
+    db.commit()
+    return True
+
+
+def get_low_stock_items(db: Session) -> List[Inventory]:
+    """Qoldiq min_stock dan kam bo'lgan xomashyolar (ogohlantirish)."""
+    return db.query(Inventory).filter(Inventory.stock_quantity <= Inventory.min_stock).all()
+
+
+# ============================================================
+# RECIPE CRUD
+# ============================================================
+
+from models import Recipe, RecipeType
+from schemas import RecipeCreate
+
+
+def create_recipe(db: Session, recipe_data: RecipeCreate) -> Recipe:
+    """Yangi retsept qo'shadi.
+    name: 'Kvars' yoki 'Oq Marmar' — RecipeType enum bo'yicha."""
+    # String ni enum ga aylantiramiz
+    if recipe_data.name.lower() in ['kvars', 'quartz']:
+        recipe_type = RecipeType.QUARTZ
+    elif recipe_data.name.lower() in ['oq marmar', 'marble', 'marmar']:
+        recipe_type = RecipeType.MARBLE
+    else:
+        # Default
+        recipe_type = RecipeType.QUARTZ
+
+    db_recipe = Recipe(
+        name=recipe_type,
+        akril_kg=recipe_data.akril_kg,
+        pva_kg=recipe_data.pva_kg,
+        qum_kg=recipe_data.qum_kg,
+        kroshka_kg=recipe_data.kroshka_kg,
+        penogasitel_kg=recipe_data.penogasitel_kg,
+        shtukaturka_kg=recipe_data.shtukaturka_kg,
+        suv_kg=recipe_data.suv_kg,
+        biotsid_ml=recipe_data.biotsid_ml,
+        batch_size_kg=recipe_data.batch_size_kg,
+        notes=recipe_data.notes
+    )
+    db.add(db_recipe)
+    db.commit()
+    db.refresh(db_recipe)
+    return db_recipe
+
+
+def get_recipes(db: Session) -> List[Recipe]:
+    """Barcha retseptlarni qaytaradi."""
+    return db.query(Recipe).all()
+
+
+def get_recipe(db: Session, recipe_id: int) -> Optional[Recipe]:
+    """ID bo'yicha bitta retseptni qaytaradi."""
+    return db.query(Recipe).filter(Recipe.id == recipe_id).first()
+
+
+def get_recipe_by_name(db: Session, name: str) -> Optional[Recipe]:
+    """Nom bo'yicha retseptni topadi (Kvars yoki Oq Marmar)."""
+    if name.lower() in ['kvars', 'quartz']:
+        return db.query(Recipe).filter(Recipe.name == RecipeType.QUARTZ).first()
+    elif name.lower() in ['oq marmar', 'marble', 'marmar']:
+        return db.query(Recipe).filter(Recipe.name == RecipeType.MARBLE).first()
+    return None
+
+
+def delete_recipe(db: Session, recipe_id: int) -> bool:
+    """Retseptni o'chiradi."""
+    db_recipe = get_recipe(db, recipe_id)
+    if not db_recipe:
+        return False
+    db.delete(db_recipe)
+    db.commit()
+    return True
+
+
+# ============================================================
+# PROJECT CRUD
+# ============================================================
+
+from models import Project, Order, OrderItem, ProjectStatus, OrderStatus, OrderType
+from schemas import ProjectCreate, OrderCreate
+
+
+def create_project(db: Session, project_data: ProjectCreate) -> Project:
+    """Yangi loyiha qo'shadi."""
+    # Eng katta raqamni topib +1 qilamiz (count emas, chunki o'chirilgan bo'lishi mumkin)
+    last = db.query(Project).order_by(Project.id.desc()).first()
+    next_num = (last.id + 1) if last else 1
+    # Agar shu raqamli loyiha mavjud bo'lsa, keyingisini olamiz
+    while db.query(Project).filter(Project.project_number == f"PRJ-{next_num:03d}").first():
+        next_num += 1
+    project_number = f"PRJ-{next_num:03d}"
+
+    db_project = Project(
+        project_number=project_number,
+        project_name=project_data.project_name,
+        client_name=project_data.client_name,
+        client_phone=project_data.client_phone,
+        client_address=project_data.client_address,
+        description=project_data.description,
+        total_budget=project_data.total_budget or 0,
+        notes=project_data.notes,
+        status=ProjectStatus.ACTIVE
+    )
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+
+def get_projects(db: Session) -> List[Project]:
+    return db.query(Project).order_by(Project.start_date.desc()).all()
+
+
+def get_projects_with_stats(db: Session) -> List:
+    """Loyihalar + buyurtmalar summasi + qarz hisobi (orders ham qo'shilgan)."""
+    projects = db.query(Project).order_by(Project.start_date.desc()).all()
+    for p in projects:
+        orders_count = len(p.orders) if p.orders else 0
+        orders_sum = sum(float(o.total_amount or 0) for o in (p.orders or []))
+        budget = float(p.total_budget or 0)
+        paid = float(p.total_paid or 0)
+        actual = budget if budget > 0 else orders_sum
+        debt = actual - paid
+
+        # Atributlar qo'shamiz (template uchun)
+        p.orders_count = orders_count
+        p.orders_sum = orders_sum
+        p.debt = debt
+        p.actual_sum = actual
+    return projects
+
+
+def add_payment(db: Session, project_id: int, amount: float) -> Optional[Project]:
+    """Loyihaga zaklat (avans) qo'shish."""
+    db_project = db.query(Project).filter(Project.id == project_id).first()
+    if not db_project:
+        return None
+    db_project.total_paid = (float(db_project.total_paid or 0) + amount)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+
+def get_project(db: Session, project_id: int) -> Optional[Project]:
+    return db.query(Project).filter(Project.id == project_id).first()
+
+
+# ============================================================
+# ORDER CRUD
+# ============================================================
+
+def create_order(db: Session, order_data: OrderCreate) -> Order:
+    """Yangi buyurtma + detallar qo'shadi.
+
+    Mantiq:
+    - is_coated=True bo'lsa, narx 2 barobar qilinadi (qoplama qo'shimcha xizmat)
+    - Har bir item ning total_price = quantity * unit_price (qoplamali bo'lsa x2)
+    - Buyurtma umumiy summasi avtomatik hisoblanadi
+    """
+    # Order raqami: ORD-{project_id}-{seq}
+    seq = db.query(Order).filter(Order.project_id == order_data.project_id).count() + 1
+    order_number = f"ORD-{order_data.project_id:03d}-{seq}"
+
+    # OrderType ni aniqlash
+    order_type = OrderType.PRODUCT if order_data.order_type == "product" else OrderType.SERVICE
+
+    db_order = Order(
+        order_number=order_number,
+        project_id=order_data.project_id,
+        order_type=order_type,
+        status=OrderStatus.IN_PROGRESS,
+        master_id=order_data.master_id,
+        notes=order_data.notes,
+        total_amount=0
+    )
+    db.add(db_order)
+    db.flush()  # ID olish uchun
+
+    # Detallarni qo'shamiz va umumiy summani hisoblaymiz
+    total_amount = 0
+    for item_data in order_data.items:
+        # unit_price allaqachon frontend tomonida hisoblangan (qoplamali bo'lsa x2)
+        item_total = item_data.unit_price * item_data.quantity
+        total_amount += item_total
+
+        db_item = OrderItem(
+            order_id=db_order.id,
+            name=item_data.name,
+            category=item_data.category,
+            width=item_data.width,
+            thickness=item_data.thickness,
+            length=item_data.length,
+            quantity=item_data.quantity,
+            is_coated=item_data.is_coated,
+            recipe_id=order_data.recipe_id,
+            unit_price=item_data.unit_price,
+            total_price=item_total,
+            notes=item_data.notes
+        )
+        db.add(db_item)
+
+    db_order.total_amount = total_amount
+    db.commit()
+    db.refresh(db_order)
+    return db_order
+
+
+def get_orders(db: Session, project_id: Optional[int] = None) -> List[Order]:
+    query = db.query(Order)
+    if project_id:
+        query = query.filter(Order.project_id == project_id)
+    return query.order_by(Order.created_at.desc()).all()
+
+
+def get_order(db: Session, order_id: int) -> Optional[Order]:
+    return db.query(Order).filter(Order.id == order_id).first()
+
+
+def mark_order_ready(db: Session, order_id: int) -> dict:
+    """Buyurtmani 'Tayyor' qilib belgilash + avtomatik mantiq.
+
+    MUHIM AVTOMATIKA:
+    1. Status -> READY
+    2. Recipe bo'yicha Inventory dan xomashyo ayrish
+    3. Usta KPI hisoblash (3% cashback + 1000 so'm/metr)
+    """
+    db_order = get_order(db, order_id)
+    if not db_order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+
+    if db_order.status == OrderStatus.READY:
+        return {"success": False, "message": "Bu buyurtma allaqachon tayyor"}
+
+    # 1. Status yangilash
+    db_order.status = OrderStatus.READY
+    db_order.completed_at = datetime.utcnow()
+
+    # 2. Recipe asosida Inventory kamaytirish
+    inventory_log = []
+    if db_order.items and db_order.items[0].recipe_id:
+        recipe = db.query(Recipe).filter(Recipe.id == db_order.items[0].recipe_id).first()
+        if recipe:
+            # Qancha qoplama qilinishi kerak (qoplamali itemlar yig'indisi)
+            total_coated_qty = sum(
+                (item.length or 0) * item.quantity if item.length else item.quantity
+                for item in db_order.items if item.is_coated
+            )
+
+            # Retsept asosida har bir komponentni hisoblaymiz
+            # batch_size_kg uchun retsept bor, total_coated_qty metr uchun
+            # Taxminiy: 1 metr karniz ~0.5 kg qoplama ishlatadi
+            kg_per_meter = 0.5
+            total_kg_needed = total_coated_qty * kg_per_meter
+
+            # Necha partiya kerak
+            batches = total_kg_needed / recipe.batch_size_kg if recipe.batch_size_kg else 0
+
+            # Komponentlarni kamaytiramiz
+            components = {
+                "Akril": recipe.akril_kg * batches,
+                "PVA": recipe.pva_kg * batches,
+                "Qum": recipe.qum_kg * batches,
+                "Kroshka": recipe.kroshka_kg * batches,
+                "Penogasitel": recipe.penogasitel_kg * batches,
+                "Shtukaturka": recipe.shtukaturka_kg * batches,
+                "Suv": recipe.suv_kg * batches,
+                "Biotsid": recipe.biotsid_ml * batches,
+            }
+
+            for comp_name, qty in components.items():
+                if qty > 0:
+                    # Inventoryda topish (qisman moslik bilan)
+                    inv_item = db.query(Inventory).filter(
+                        Inventory.item_name.ilike(f"%{comp_name}%")
+                    ).first()
+                    if inv_item:
+                        inv_item.stock_quantity = max(0, inv_item.stock_quantity - qty)
+                        inventory_log.append(f"{inv_item.item_name}: -{qty:.2f} {inv_item.unit}")
+
+    # 3. Usta KPI hisoblash
+    kpi_info = None
+    if db_order.master_id:
+        master = db.query(Master).filter(Master.id == db_order.master_id).first()
+        if master:
+            # 3% cashback
+            cashback = float(db_order.total_amount) * 0.03
+            # 1000 so'm har metr uchun
+            total_meters = sum(
+                (item.length or 0) * item.quantity for item in db_order.items if item.is_coated
+            )
+            meter_bonus = total_meters * 1000
+            total_kpi = cashback + meter_bonus
+            kpi_info = {
+                "master": master.name,
+                "cashback_3%": round(cashback),
+                "meter_bonus": round(meter_bonus),
+                "total_kpi": round(total_kpi),
+                "total_meters": total_meters
+            }
+
+    db.commit()
+    db.refresh(db_order)
+
+    return {
+        "success": True,
+        "message": "Buyurtma tayyor!",
+        "inventory_changes": inventory_log,
+        "master_kpi": kpi_info
+    }
+
+
+# ============================================================
+# ORDER edit/delete
+# ============================================================
+
+def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[OrderItem]:
+    """Buyurtma detalini yangilash."""
+    db_item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    if not db_item:
+        return None
+    for field, value in item_data.items():
+        if hasattr(db_item, field):
+            setattr(db_item, field, value)
+    # Total price ni qayta hisoblash
+    db_item.total_price = db_item.unit_price * db_item.quantity
+    # Order umumiy summasi
+    db_item.order.total_amount = sum(it.total_price for it in db_item.order.items)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+
+def delete_order(db: Session, order_id: int) -> bool:
+    """Buyurtmani o'chirish."""
+    db_order = db.query(Order).filter(Order.id == order_id).first()
+    if not db_order:
+        return False
+    db.delete(db_order)
+    db.commit()
+    return True
+
+
+def delete_order_item(db: Session, item_id: int) -> bool:
+    """Detal o'chirish."""
+    db_item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    if not db_item:
+        return False
+    order = db_item.order
+    db.delete(db_item)
+    db.flush()
+    order.total_amount = sum(it.total_price for it in order.items)
+    db.commit()
+    return True
+
+
+def update_project(db: Session, project_id: int, project_data) -> Optional[Project]:
+    """Loyihani yangilash."""
+    db_project = db.query(Project).filter(Project.id == project_id).first()
+    if not db_project:
+        return None
+    # Pydantic v2 model_dump yoki dict
+    if hasattr(project_data, 'model_dump'):
+        update_data = project_data.model_dump(exclude_unset=True)
+    else:
+        update_data = {k: v for k, v in project_data.items() if v is not None}
+
+    for field, value in update_data.items():
+        if hasattr(db_project, field) and value is not None:
+            setattr(db_project, field, value)
+
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+
+def delete_project(db: Session, project_id: int) -> bool:
+    """Loyihani o'chirish."""
+    db_project = db.query(Project).filter(Project.id == project_id).first()
+    if not db_project:
+        return False
+    db.delete(db_project)
+    db.commit()
+    return True
+
+
+# ============================================================
+# RETURN ITEM CRUD
+# ============================================================
+
+from models import ReturnItem, ReturnReason
+from schemas import ReturnItemCreate
+
+
+def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
+    """Yangi qaytarishni bazaga qo'shadi."""
+    try:
+        reason_enum = ReturnReason(data.reason)
+    except ValueError:
+        reason_enum = ReturnReason.DEFECT
+
+    item = ReturnItem(
+        order_id=data.order_id,
+        item_name=data.item_name,
+        quantity=data.quantity,
+        unit=data.unit,
+        reason=reason_enum,
+        refund_amount=data.refund_amount,
+        is_refunded=False,
+        notes=data.notes
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def get_return_items(db: Session, order_id: Optional[int] = None) -> List:
+    """Barcha qaytarishlar yoki bitta buyurtma bo'yicha."""
+    query = db.query(ReturnItem)
+    if order_id:
+        query = query.filter(ReturnItem.order_id == order_id)
+    return query.order_by(ReturnItem.returned_at.desc()).all()
+
+
+def get_return_item(db: Session, return_id: int) -> Optional[ReturnItem]:
+    return db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
+
+
+def mark_refunded(db: Session, return_id: int) -> Optional[ReturnItem]:
+    """Qaytarishni 'to'landi' deb belgilaydi."""
+    item = get_return_item(db, return_id)
+    if not item:
+        return None
+    item.is_refunded = True
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def delete_return_item(db: Session, return_id: int) -> bool:
+    item = get_return_item(db, return_id)
+    if not item:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
+
+
+def get_return_stats(db: Session) -> dict:
+    """Qaytarishlar statistikasi."""
+    all_returns = db.query(ReturnItem).all()
+    total_count = len(all_returns)
+    total_refund = sum(float(r.refund_amount) for r in all_returns)
+    pending_refund = sum(float(r.refund_amount) for r in all_returns if not r.is_refunded)
+
+    from models import ReturnReason
+    by_reason = {}
+    for r in ReturnReason:
+        by_reason[r.value] = sum(1 for i in all_returns if i.reason == r)
+
+    return {
+        "total_count": total_count,
+        "total_refund": total_refund,
+        "pending_refund": pending_refund,
+        "by_reason": by_reason
+    }
