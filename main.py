@@ -17,7 +17,7 @@ import schemas
 import crud
 import services
 import auth
-from models import UserRole
+from models import UserRole, Inventory
 
 # ============================================================
 # TELEGRAM XABAR (qoplamachi hodimga)
@@ -314,6 +314,18 @@ def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = De
     if not updated:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
     return updated
+
+@app.post("/api/inventory/{item_id}/price")
+def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db),
+                     current_user=Depends(auth.admin_only)):
+    """Xomashyo narxini yangilash."""
+    item = db.query(crud.Inventory).filter(crud.Inventory.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    item.price_per_unit = data.get("price_per_unit", 0)
+    db.commit()
+    return {"status": "ok", "price_per_unit": item.price_per_unit}
+
 
 @app.delete("/api/inventory/{item_id}")
 def api_delete_item(item_id: int, db: Session = Depends(get_db),
