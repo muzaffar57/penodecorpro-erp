@@ -612,11 +612,10 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
         coated_area_m2 = 0.0
         for item in coated_items:
             if item.width and item.length:
-                # Perimetr × uzunlik × miqdor / 1000 (mm → m)
                 perimetr_m = (item.width * 2 + (item.thickness or item.width) * 2) / 1000
                 coated_area_m2 += perimetr_m * (item.length or 1) * item.quantity
 
-        # Retsept xomashyosi narxlari
+        # Retsept
         recipe = None
         for item in order.items:
             if item.recipe_id:
@@ -625,31 +624,48 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
 
         if recipe and coated_area_m2 > 0:
             materials = calculate_coating_materials(coated_area_m2, recipe)
-            material_names = {
-                "Akril": "akril", "PVA": "pva", "Qum": "qum",
-                "Kroshka": "kroshka", "Shtukaturka": "shtukaturka",
+            # Loy miqdori (kg)
+            loy_kg = coated_area_m2 * 2.0  # 2 kg/m²
+
+            # Har bir ingredient narxini hisoblaymiz
+            material_map = {
+                "Akril": ("akril", recipe.akril_kg),
+                "PVA": ("pva", recipe.pva_kg),
+                "Qum": ("qum", recipe.qum_kg),
+                "Kroshka": ("kroshka", recipe.kroshka_kg),
+                "Shtukaturka": ("shtukaturka", recipe.shtukaturka_kg),
+                "Kvars qum": ("kvars qum", recipe.qum_kg),
             }
-            for mat_name, inv_key in material_names.items():
-                kg_used = materials["materials"].get(mat_name, 0)
-                if kg_used <= 0:
+
+            # 1 kg loy narxini hisoblash
+            batch = float(recipe.batch_size_kg or 100)
+            narx_per_kg = 0.0
+            for mat_name, (inv_key, mat_kg) in material_map.items():
+                if float(mat_kg or 0) <= 0:
                     continue
                 inv = db.query(Inventory).filter(
                     Inventory.item_name.ilike(f"%{inv_key}%")
                 ).first()
                 if inv and inv.price_per_unit:
-                    xarajat = kg_used * float(inv.price_per_unit)
-                    breakdown.append({
-                        "nomi": f"{mat_name} ({kg_used:.1f} kg × {float(inv.price_per_unit):,.0f} so'm)",
-                        "summa": xarajat
-                    })
-                    tan_narxi_jami += xarajat
+                    narx_per_kg += (float(mat_kg) / batch) * float(inv.price_per_unit)
 
-    # ── 3. USTA HAQI (cashback%) ─────────────────────────────
+            qoplama_xarajat = loy_kg * narx_per_kg
+
+            if qoplama_xarajat > 0:
+                breakdown.append({
+                    "nomi": f"Qoplama ({loy_kg:.1f} kg loy × {narx_per_kg:,.0f} so'm/kg)",
+                    "summa": qoplama_xarajat
+                })
+                tan_narxi_jami += qoplama_xarajat
+
+    # ── 3. USTA HAQI (cashback% — foydadan) ─────────────────
     usta_haqi = 0.0
     if order.master and order.master.cashback_percent > 0:
-        usta_haqi = sotuv_narxi * order.master.cashback_percent / 100
+        # Avval foydani hisoblaymiz (tan narxisiz)
+        foyda_before_usta = sotuv_narxi - tan_narxi_jami
+        usta_haqi = max(0, foyda_before_usta * order.master.cashback_percent / 100)
         breakdown.append({
-            "nomi": f"Usta haqi ({order.master.name}, {order.master.cashback_percent}%)",
+            "nomi": f"Usta haqi ({order.master.name}, {order.master.cashback_percent}% foydadan)",
             "summa": usta_haqi
         })
         tan_narxi_jami += usta_haqi
