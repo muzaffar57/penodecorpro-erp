@@ -279,7 +279,34 @@ async def orders_page(request: Request, db: Session = Depends(get_db),
 @app.post("/api/masters", response_model=schemas.MasterRead)
 def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db),
                       current_user=Depends(auth.admin_or_manager)):
-    return crud.create_master(db, master)
+    new_master = crud.create_master(db, master)
+
+    # Usta Telegram ID si bo'lsa — xush kelibsiz SMS yuboramiz
+    tg_id = getattr(master, 'telegram_id', None)
+    if tg_id and str(tg_id).strip().lstrip('-').isdigit():
+        msg = (
+            f"Assalomu alaykum, hurmatli hamkor! 🤝\n\n"
+            f"Siz bizning rasmiy ustalar bazamizga\n"
+            f"muvaffaqiyatli qo'shildingiz.\n"
+            f"Hamkorligingiz uchun tashakkur!\n\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 *{new_master.name}*\n"
+            f"📱 {new_master.phone}\n"
+            f"🎯 Bonus foizi: *{new_master.cashback_percent}%*\n"
+            f"━━━━━━━━━━━━━━━━━━━\n\n"
+            f"💰 *Siz uchun maxsus imkoniyat:*\n"
+            f"Bizda har bir buyurtmangiz uchun muntazam\n"
+            f"hisoblab boriladigan bonus tizimi mavjud.\n"
+            f"O'z bonuslaringizni va buyurtmalar holatini\n"
+            f"botimiz orqali istalgan vaqtda kuzatib\n"
+            f"borishingiz mumkin. 📊\n\n"
+            f"Ishlaringizda rivoj va baraka tilaymiz! 🌟\n\n"
+            f"🏗 *PenoDecorPro* — Zamonaviy fasad dekorlari\n"
+            f"📍 Andijon, O'zbekiston"
+        )
+        _send_telegram_to(str(tg_id).strip(), msg)
+
+    return new_master
 
 @app.get("/api/masters", response_model=List[schemas.MasterRead])
 def api_get_masters(only_active: bool = False, db: Session = Depends(get_db),
