@@ -3,24 +3,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "sqlite:///./penodecor_erp.db"
-)
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./penodecor_erp.db")
 
-# Railway postgres:// → postgresql://
+# Railway postgres:// → postgresql+psycopg2://
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-# asyncpg driver ishlatamiz (psycopg2 o'rniga)
-if "postgresql" in DATABASE_URL and "postgresql+asyncpg" not in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 if "sqlite" in DATABASE_URL:
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False}
-    )
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
     engine = create_engine(DATABASE_URL)
 
