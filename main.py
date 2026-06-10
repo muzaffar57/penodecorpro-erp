@@ -564,6 +564,31 @@ def api_low_stock(db: Session = Depends(get_db)):
     return {"warnings": services.get_low_stock_warnings(db)}
 
 
+@app.get("/debts", response_class=HTMLResponse)
+async def debts_page(request: Request, db: Session = Depends(get_db),
+                     current_user=Depends(auth.admin_or_manager)):
+    """Qarzdorlar sahifasi."""
+    from models import Project
+    from sqlalchemy import func
+    all_projects = db.query(Project).filter(
+        Project.total_budget > Project.total_paid
+    ).order_by(Project.total_budget.desc()).all()
+
+    debts = [p for p in all_projects if float(p.total_budget or 0) - float(p.total_paid or 0) > 0]
+    total_debt = sum(float(p.total_budget or 0) - float(p.total_paid or 0) for p in debts)
+    total_paid = sum(float(p.total_paid or 0) for p in debts)
+    total_budget = sum(float(p.total_budget or 0) for p in debts)
+
+    return templates.TemplateResponse(request, "debts.html", {
+        "debts": debts,
+        "total_debt": total_debt,
+        "total_paid": total_paid,
+        "total_budget": total_budget,
+        "current_user": current_user,
+        "active_page": "debts"
+    })
+
+
 @app.get("/finance", response_class=HTMLResponse)
 async def finance_page(
     request: Request,
