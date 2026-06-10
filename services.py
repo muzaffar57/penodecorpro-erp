@@ -457,6 +457,16 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     # 4. Status yangilash
     order.status = OrderStatus.READY
     order.completed_at = datetime.utcnow()
+    # Loy miqdorini notes ga saqlaymiz (foyda hisoblash uchun)
+    if loy_kg and loy_kg > 0:
+        existing_notes = order.notes or ''
+        if 'loy_kg=' not in existing_notes:
+            order.notes = (existing_notes + f',loy_kg={loy_kg}').strip(',')
+        else:
+            # Yangilaymiz
+            parts = [p for p in existing_notes.split(',') if 'loy_kg=' not in p]
+            parts.append(f'loy_kg={loy_kg}')
+            order.notes = ','.join(parts)
     db.commit()
     db.refresh(order)
 
@@ -586,61 +596,82 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
 
     total_volume_m3 = 0.0
     for item in order.items:
-        if item.width and item.thickness and item.length:
-            if item.category == "profil":
-                vol = (item.width * item.thickness / 2) * item.length * 100 * item.quantity / 1_000_000
-            elif item.category == "panel":
-                vol = (item.width * item.thickness * item.length * 100 * item.quantity) / 1_000_000
-            else:
-                vol = (item.width * item.thickness * item.length * 100 * item.quantity) / 1_000_000
-            total_volume_m3 += vol
+        cat = (item.category or '').lower()
+        qty = float(item.quantity or 1)
+        if cat == 'profil':
+            if item.width and item.thickness and item.length:
+                # Eni(m) × Kengligi(m) / 2 × Uzunlik(m)
+                vol = (item.width/100) * (item.thickness/100) / 2 * item.length * qty
+                total_volume_m3 += vol
+        elif cat == 'panel':
+            if item.width and item.thickness:
+                # Eni(m) × Qalinlik(m) × Miqdor
+                vol = (item.width/100) * (item.thickness/100) * qty
+                total_volume_m3 += vol
+        elif cat == 'dona':
+            # Donali: narx / penoplast m³ narxi orqali hisoblash
+            if item.unit_price and float(item.unit_price) > 0:
+                p = db.query(Inventory).filter(
+                    Inventory.item_name.ilike("%penoplast%")
+                ).first()
+                if p and p.price_per_unit and p.volume_per_unit:
+                    narx_per_m3 = float(p.price_per_unit) / float(p.volume_per_unit)
+                    if narx_per_m3 > 0:
+                        vol = float(item.unit_price) / narx_per_m3 * qty
+                        total_volume_m3 += vol
 
     penoplast_xarajat = 0.0
     if penoplast and penoplast.price_per_unit and total_volume_m3 > 0:
-        blocks_needed = int(total_volume_m3 / (penoplast.volume_per_unit or 1.0)) + 1
-        penoplast_xarajat = blocks_needed * float(penoplast.price_per_unit)
+        # 1 m³ narxi = 1 blok narxi ÷ 1 blok hajmi (m³)
+        volume_per_unit = float(penoplast.volume_per_unit or 1.0)
+        narx_per_m3 = float(penoplast.price_per_unit) / volume_per_unit
+        penoplast_xarajat = total_volume_m3 * narx_per_m3
         breakdown.append({
-            "nomi": f"Penoplast ({blocks_needed} blok × {float(penoplast.price_per_unit):,.0f} so'm)",
+            "nomi": f"Penoplast ({total_volume_m3:.2f} m³ × {narx_per_m3:,.0f} so'm/m³)",
             "summa": penoplast_xarajat
         })
         tan_narxi_jami += penoplast_xarajat
 
     # ── 2. QOPLAMA XOMASHYOSI XARAJATI ──────────────────────
     coated_items = [i for i in order.items if i.is_coated]
-    if coated_items and order.items:
-        # Qoplangan maydon hisoblash (m²)
-        coated_area_m2 = 0.0
-        for item in coated_items:
-            if item.width and item.length:
-                perimetr_m = (item.width * 2 + (item.thickness or item.width) * 2) / 1000
-                coated_area_m2 += perimetr_m * (item.length or 1) * item.quantity
+    if coated_items:
+        # Loy miqdorini order.notes dan olamiz (tayyor bosilganda saqlangan)
+        loy_kg = 0.0
+        if order.notes and 'loy_kg=' in order.notes:
+            try:
+                for part in order.notes.split(','):
+                    if 'loy_kg=' in part:
+                        loy_kg = float(part.split('=')[1].strip())
+                        break
+            except:
+                pass
 
-        # Retsept
+        # Agar loy_kg saqlanmagan bo'lsa — 2 kg/m² dan hisoblash
+        if loy_kg <= 0:
+            for item in coated_items:
+                if item.width and item.length:
+                    perimetr_m = (item.width * 2 + (item.thickness or item.width) * 2) / 100
+                    loy_kg += perimetr_m * (item.length or 1) * float(item.quantity or 1) * 2.0
+
+        # Retsept bo'yicha 1 kg loy narxi
         recipe = None
         for item in order.items:
             if item.recipe_id:
                 recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
                 break
 
-        if recipe and coated_area_m2 > 0:
-            materials = calculate_coating_materials(coated_area_m2, recipe)
-            # Loy miqdori (kg)
-            loy_kg = coated_area_m2 * 2.0  # 2 kg/m²
-
-            # Har bir ingredient narxini hisoblaymiz
-            material_map = {
-                "Akril": ("akril", recipe.akril_kg),
-                "PVA": ("pva", recipe.pva_kg),
-                "Qum": ("qum", recipe.qum_kg),
-                "Kroshka": ("kroshka", recipe.kroshka_kg),
-                "Shtukaturka": ("shtukaturka", recipe.shtukaturka_kg),
-                "Kvars qum": ("kvars qum", recipe.qum_kg),
-            }
-
-            # 1 kg loy narxini hisoblash
+        if recipe and loy_kg > 0:
             batch = float(recipe.batch_size_kg or 100)
+            material_map = {
+                "akril": recipe.akril_kg,
+                "pva": recipe.pva_kg,
+                "kvars qum": recipe.qum_kg,
+                "kroshka": recipe.kroshka_kg,
+                "mel": recipe.shtukaturka_kg,
+                "suv": recipe.suv_kg,
+            }
             narx_per_kg = 0.0
-            for mat_name, (inv_key, mat_kg) in material_map.items():
+            for inv_key, mat_kg in material_map.items():
                 if float(mat_kg or 0) <= 0:
                     continue
                 inv = db.query(Inventory).filter(
@@ -650,7 +681,6 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
                     narx_per_kg += (float(mat_kg) / batch) * float(inv.price_per_unit)
 
             qoplama_xarajat = loy_kg * narx_per_kg
-
             if qoplama_xarajat > 0:
                 breakdown.append({
                     "nomi": f"Qoplama ({loy_kg:.1f} kg loy × {narx_per_kg:,.0f} so'm/kg)",
