@@ -260,6 +260,14 @@
       </div>
     </div>
 
+    <!-- Yangi buyurtma yig'indisi -->
+    <div class="card" id="liveTotal" style="display:none;border-left:3px solid #C9A55A;border-radius:0 12px 12px 0">
+      <div class="card-head"><h3>💰 Buyurtma hisob-kitobi</h3></div>
+      <div style="padding:12px;max-height:400px;overflow-y:auto" id="liveTotalBody">
+        <div style="text-align:center;color:#bbb;padding:20px">Detal qo'shing...</div>
+      </div>
+    </div>
+
   </div>
 </div>
 </div>
@@ -379,6 +387,8 @@ function showNewForm() {
 }
 function hideNewForm() {
   document.getElementById('newOrderForm').style.display = 'none';
+  const livePanel = document.getElementById('liveTotal');
+  if (livePanel) livePanel.style.display = 'none';
 }
 
 // ── Detal qo'shish ────────────────────────────────────────
@@ -516,7 +526,68 @@ function calculateItem(row) {
 
 function updateTotal() {
   let total = 0;
-  document.querySelectorAll('.detal').forEach(row => total += parseFloat(row.dataset.price || 0));
+  const rows = document.querySelectorAll('.detal');
+  const livePanel = document.getElementById('liveTotal');
+  const liveBody = document.getElementById('liveTotalBody');
+
+  if (rows.length === 0) {
+    if (livePanel) livePanel.style.display = 'none';
+    const ts = document.getElementById('total_sum');
+    if (ts && ts.tagName !== 'INPUT') ts.textContent = '0 so\'m';
+    return;
+  }
+
+  // Har bir detal uchun qator
+  let html = '';
+  rows.forEach((row, i) => {
+    const price = parseFloat(row.dataset.price || 0);
+    const name = row.querySelector('.i-name')?.value || ('Detal #' + (i+1));
+    const type = row.querySelector('.i-type')?.value || '';
+    const perm = parseFloat(row.querySelector('.i-perm')?.value?.replace(/\s/g,'') || 0);
+    total += price;
+
+    // Miqdor va o'lchov
+    let qtyText = '';
+    if (type === 'profil') {
+      const l = parseFloat(row.querySelector('.i-l')?.value || 0);
+      if (l > 0 && perm > 0)
+        qtyText = `${l}m × ${Number(perm).toLocaleString('uz')} so'm`;
+    } else if (type === 'panel') {
+      const q = parseFloat(row.querySelector('.i-q')?.value || 1);
+      if (q > 0 && perm > 0)
+        qtyText = `${q} dona × ${Number(perm).toLocaleString('uz')} so'm`;
+    } else {
+      const q = parseFloat(row.querySelector('.i-q')?.value || 1);
+      const up = parseFloat(row.querySelector('.i-unitprice')?.value || 0);
+      if (q > 0 && up > 0)
+        qtyText = `${q} dona × ${Number(up).toLocaleString('uz')} so'm`;
+    }
+
+    if (price > 0) {
+      html += `
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px">
+          <div>
+            <div style="font-weight:500;color:#111">${name || ('Detal #'+(i+1))}</div>
+            <div style="font-size:11px;color:#aaa">${qtyText}</div>
+          </div>
+          <div style="font-weight:600;color:#2980B9">${Number(price).toLocaleString('uz')} so'm</div>
+        </div>`;
+    }
+  });
+
+  // Jami
+  html += `
+    <div style="display:flex;justify-content:space-between;align-items:center;
+                padding:10px 0 0;font-size:15px;font-weight:700;
+                border-top:2px solid #C9A55A;margin-top:6px">
+      <span>JAMI:</span>
+      <span style="color:#C9A55A">${Number(total).toLocaleString('uz')} so'm</span>
+    </div>`;
+
+  if (liveBody) liveBody.innerHTML = html;
+  if (livePanel) livePanel.style.display = 'block';
+
   const ts = document.getElementById('total_sum');
   if (ts && ts.tagName !== 'INPUT') ts.textContent = formatNum(total) + ' so\'m';
   calcDiscount();
