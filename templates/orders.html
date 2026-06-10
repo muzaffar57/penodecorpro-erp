@@ -419,7 +419,8 @@ function addItem() {
       <span>1m narxi: <input type="text" class="i-perm" readonly style="background:transparent;border:none;width:100px;padding:0;font-size:11px;color:#2980B9"></span>
       <span class="val">Jami: <input type="text" class="i-price" readonly style="background:transparent;border:none;width:110px;padding:0;font-size:12px;color:#27AE60;font-weight:600"></span>
     </div>`;
-  document.getElementById('items').appendChild(div);
+  const container = document.getElementById('items');
+  container.prepend(div);
   toggleFields(div);
   calculateItem(div);
 }
@@ -628,32 +629,20 @@ async function saveOrder() {
 // ── Tahrirlash ────────────────────────────────────────────
 async function editSelected() {
   if (!selectedOrderId) return;
-
-  // Buyurtma ma'lumotlarini API dan olamiz
-  const res = await fetch(`/api/orders?project_id=0`);
-  // Sahifadagi tanlangan item dan ma'lumot olamiz
-  const el = document.querySelector(`.ord-item.active`);
-  if (!el) return;
-
-  // Yangi forma ochib, detallarni API dan yuklash
   showNewForm();
-
-  // Loyiha va boshqa ma'lumotlarni o'rnatish
-  const projSel = document.getElementById('project_id');
-  const masterSel = document.getElementById('master_id');
-
-  // Barcha detallarni o'chiramiz
   document.getElementById('items').innerHTML = '';
   itemCount = 0;
 
-  // Buyurtma detallarini serverdan olamiz
   try {
-    const ordRes = await fetch(`/api/orders`);
+    // Barcha buyurtmalarni olamiz va selectedOrderId bilan topamiz
+    const ordRes = await fetch('/api/orders');
     const orders = await ordRes.json();
-    const order = orders.find(o => o.id === selectedOrderId);
+    const order = orders.find(o => o.id === parseInt(selectedOrderId));
     if (!order) { showMsg('Buyurtma topilmadi', 'error'); return; }
 
     // Loyiha va ustani o'rnatish
+    const projSel = document.getElementById('project_id');
+    const masterSel = document.getElementById('master_id');
     if (projSel) projSel.value = order.project_id || '';
     if (masterSel) masterSel.value = order.master_id || '';
 
@@ -664,16 +653,13 @@ async function editSelected() {
         const row = document.getElementById('item_' + itemCount);
         if (!row) return;
 
-        // Nom
         row.querySelector('.i-name').value = item.name || '';
 
-        // Tur
         const typeEl = row.querySelector('.i-type');
         const cat = item.category || 'profil';
         typeEl.value = cat;
         toggleFields(row);
 
-        // O'lchamlar
         if (cat === 'dona') {
           row.querySelector('.i-q').value = item.quantity || 1;
           const upEl = row.querySelector('.i-unitprice');
@@ -686,24 +672,19 @@ async function editSelected() {
           row.querySelector('.i-t').value = item.thickness || 0;
           row.querySelector('.i-q').value = item.quantity || 1;
         } else {
-          // profil
           row.querySelector('.i-h').value = item.width || 0;
           row.querySelector('.i-w').value = item.thickness || 0;
           row.querySelector('.i-l').value = item.length || 0;
         }
 
-        // Qoplama
         const coatEl = row.querySelector('.i-c');
         if (coatEl) coatEl.value = item.is_coated ? 'true' : 'false';
-
         calculateItem(row);
       });
     }
 
-    // Forma sarlavhasini o'zgartirish
     showMsg(`✏️ ${order.order_number} tahrirlash rejimida`, 'success');
 
-    // Saqlash tugmasini "Yangilash" ga o'zgartirish
     const saveBtn = document.querySelector('#newOrderForm .btn-dark');
     if (saveBtn) {
       saveBtn.textContent = '💾 O\'zgarishlarni saqlash';
@@ -711,7 +692,7 @@ async function editSelected() {
     }
 
   } catch(e) {
-    showMsg('Server xatosi', 'error');
+    showMsg('Server xatosi: ' + e.message, 'error');
   }
 }
 
