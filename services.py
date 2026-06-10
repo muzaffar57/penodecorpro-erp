@@ -598,18 +598,20 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
     for item in order.items:
         cat = (item.category or '').lower()
         qty = float(item.quantity or 1)
+
         if cat == 'profil':
             if item.width and item.thickness and item.length:
-                # Eni(m) × Kengligi(m) / 2 × Uzunlik(m)
-                vol = (item.width/100) * (item.thickness/100) / 2 * item.length * qty
+                # JS bilan bir xil: Eni(m) × Kengligi(m) × Uzunlik(m)
+                vol = (item.width/100) * (item.thickness/100) * float(item.length)
                 total_volume_m3 += vol
+
         elif cat == 'panel':
             if item.width and item.thickness:
-                # Eni(m) × Qalinlik(m) × Miqdor
+                # JS bilan bir xil: Eni(m) × Qalinlik(m) × Miqdor
                 vol = (item.width/100) * (item.thickness/100) * qty
                 total_volume_m3 += vol
+
         elif cat == 'dona':
-            # Donali: narx / penoplast m³ narxi orqali hisoblash
             if item.unit_price and float(item.unit_price) > 0:
                 p = db.query(Inventory).filter(
                     Inventory.item_name.ilike("%penoplast%")
