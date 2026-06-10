@@ -788,6 +788,105 @@ def api_delete_return(
     return {"status": "ok"}
 
 
+
+
+# ============================================================
+# TELEGRAM WEBHOOK — USTA BONUS TEKSHIRUVI
+# ============================================================
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request):
+    """Telegram bot webhook — ustalar bonus so'rovini qabul qiladi."""
+    try:
+        data = await request.json()
+    except:
+        return {"ok": True}
+
+    message = data.get("message", {})
+    if not message:
+        return {"ok": True}
+
+    chat_id = str(message.get("chat", {}).get("id", ""))
+    text = (message.get("text") or "").strip().lower()
+
+    if not chat_id:
+        return {"ok": True}
+
+    # Faqat /bonus va /start komandalarini qabul qilamiz
+    if text in ["/bonus", "/start", "/balanс", "/balans"]:
+        db = SessionLocal()
+        try:
+            from models import Master, Order, OrderStatus
+            from sqlalchemy import func
+
+            # Telegram ID bo'yicha ustani topamiz
+            master = db.query(Master).filter(
+                Master.telegram_id == chat_id,
+                Master.is_active == True
+            ).first()
+
+            if not master:
+                reply = (
+                    "❌ Siz ustalar ro'yxatida topilmadingiz.\n\n"
+                    "Iltimos, administrator bilan bog'laning.\n\n"
+                    "📞 PenoDecorPro — Andijon"
+                )
+            else:
+                # Barcha tayyor buyurtmalarni topamiz
+                orders = db.query(Order).filter(
+                    Order.master_id == master.id,
+                    Order.status == OrderStatus.READY
+                ).order_by(Order.completed_at.desc()).all()
+
+                jami_bonus = 0.0
+                buyurtmalar_text = ""
+
+                for i, o in enumerate(orders[:10]):  # Oxirgi 10 ta
+                    sotuv = float(o.total_amount or 0)
+                    bonus = sotuv * float(master.cashback_percent) / 100
+                    jami_bonus += bonus
+                    buyurtmalar_text += (
+                        f"• {o.order_number} — "
+                        f"{int(sotuv):,} so'm → "
+                        f"*{int(bonus):,} so'm* ✅\n"
+                    )
+
+                # Faol buyurtmalar
+                faol = db.query(Order).filter(
+                    Order.master_id == master.id,
+                    Order.status != OrderStatus.READY
+                ).count()
+
+                reply = (
+                    f"📊 *Sizning bonuslaringiz*\n\n"
+                    f"👤 {master.name}\n"
+                    f"🎯 Bonus foizi: *{master.cashback_percent}%*\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                )
+
+                if buyurtmalar_text:
+                    reply += f"📋 *Oxirgi buyurtmalar:*\n{buyurtmalar_text}\n"
+
+                if faol > 0:
+                    reply += f"⏳ Jarayondagi buyurtmalar: *{faol} ta*\n\n"
+
+                reply += (
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"💰 *Jami bonus: {int(jami_bonus):,} so'm*\n\n"
+                    f"🏗 PenoDecorPro — Andijon"
+                )
+
+        except Exception as e:
+            reply = f"⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
+        finally:
+            db.close()
+
+        # Javob yuboramiz
+        _send_telegram_to(chat_id, reply)
+
+    return {"ok": True}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
