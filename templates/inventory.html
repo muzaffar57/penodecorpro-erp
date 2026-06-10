@@ -62,7 +62,12 @@
               </div>
             </td>
             <td style="color:#aaa">{{ item.min_stock }} {{ item.unit }}</td>
-            <td style="color:#111">{{ "{:,.0f}".format(item.price_per_unit).replace(","," ") if item.price_per_unit else "—" }} so'm</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(","," ") if item.price_per_unit else "—" }} so'm</span>
+                <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})">✏️</button>
+              </div>
+            </td>
             <td>
               {% if qty <= minq %}
               <span class="badge badge-danger">Kam!</span>
@@ -165,6 +170,20 @@
 <script>
 function showAddModal(){document.getElementById('addModal').style.display='flex'}
 function closeModal(){document.getElementById('addModal').style.display='none'}
+
+async function editPrice(id, currentPrice) {
+  const newPrice = prompt(`Yangi narxni kiriting (so'm):\nHozirgi narx: ${Number(currentPrice).toLocaleString('uz')} so'm`);
+  if (!newPrice || isNaN(parseFloat(newPrice))) return;
+  const res = await fetch(`/api/inventory/${id}/price`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({price_per_unit: parseFloat(newPrice)})
+  });
+  if (res.ok) {
+    document.getElementById('price-'+id).textContent = Number(parseFloat(newPrice)).toLocaleString('uz') + ' so\'m';
+    alert('✓ Narx yangilandi!');
+  } else alert('Xato yuz berdi');
+}
 
 async function changeStock(id, dir, btn) {
   const qty = parseFloat(document.getElementById('qty-'+id).value) || 1;
