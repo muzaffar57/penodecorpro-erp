@@ -409,13 +409,17 @@ def api_get_orders(project_id: Optional[int] = None, db: Session = Depends(get_d
                    current_user=Depends(auth.admin_or_manager)):
     return crud.get_orders(db, project_id=project_id)
 
-@app.get("/api/orders/{order_id}")
+@app.get("/api/orders/{order_id}", response_model=schemas.OrderRead)
 def api_get_order(order_id: int, db: Session = Depends(get_db),
                   current_user=Depends(auth.admin_or_manager)):
     """Bitta buyurtmani olish."""
     order = crud.get_order(db, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # items ni yuklash
+    _ = order.items
+    _ = order.project
+    _ = order.master
     return order
 
 
