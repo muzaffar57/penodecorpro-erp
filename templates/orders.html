@@ -707,13 +707,14 @@ async function saveOrder() {
 // ── Tahrirlash ────────────────────────────────────────────
 async function editSelected() {
   if (!selectedOrderId) return;
+  const editId = selectedOrderId; // showNewForm null qilishidan oldin saqlab qo'yamiz
+
   showNewForm();
   document.getElementById('items').innerHTML = '';
   itemCount = 0;
 
   try {
-    // To'g'ridan-to'g'ri bitta buyurtmani olamiz
-    const ordRes = await fetch(`/api/orders/${selectedOrderId}`);
+    const ordRes = await fetch(`/api/orders/${editId}`);
     if (!ordRes.ok) {
       const err = await ordRes.json();
       showMsg('Xato: ' + (err.detail || 'Server xatosi'), 'error');
@@ -773,7 +774,7 @@ async function editSelected() {
     const saveBtn = document.querySelector('#newOrderForm .btn-dark');
     if (saveBtn) {
       saveBtn.textContent = '💾 O\'zgarishlarni saqlash';
-      saveBtn.onclick = () => updateOrder(selectedOrderId);
+      saveBtn.onclick = () => updateOrder(editId);
     }
 
   } catch(e) {
