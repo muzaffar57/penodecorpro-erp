@@ -1,0 +1,140 @@
+{# PenoDecorPro ERP — Asosiy layout shabloni #}
+{# Barcha sahifalar shu shablonni extends qiladi #}
+
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}PenoDecorPro ERP{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="erp-layout">
+
+  {# ── SIDEBAR ── #}
+  <aside class="sidebar">
+    <div class="s-logo">
+      <div style="display:flex;align-items:center;gap:10px">
+        <img src="/static/logo_round.jpg" alt="PenoDecorPro"
+             style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
+        <div>
+          <div class="logo-name">Penodecor<span>Pro</span></div>
+          <div class="logo-ver">ERP · Andijon</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="s-user">
+      <div class="u-avatar">{{ (current_user.full_name or current_user.username)[0].upper() }}</div>
+      <div>
+        <div class="u-name">{{ current_user.full_name or current_user.username }}</div>
+        <div class="u-role">{{ current_user.role.value | capitalize }}</div>
+      </div>
+    </div>
+
+    <nav class="s-nav">
+      {% set role = current_user.role.value %}
+
+      <div class="nav-label">Asosiy</div>
+
+      <a href="/" class="nav-item {% if active_page == 'home' %}active{% endif %}">
+        <span class="n-ico">🏠</span>
+        <span class="n-txt">Bosh sahifa</span>
+      </a>
+
+      {% if role == 'admin' %}
+      <a href="/dashboard" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+        <span class="n-ico">📊</span>
+        <span class="n-txt">Dashboard</span>
+      </a>
+      {% endif %}
+
+      {% if role in ['admin', 'manager', 'accountant'] %}
+      <a href="/projects" class="nav-item {% if active_page == 'projects' %}active{% endif %}">
+        <span class="n-ico">📋</span>
+        <span class="n-txt">Loyihalar</span>
+      </a>
+      {% endif %}
+
+      <a href="/orders" class="nav-item {% if active_page == 'orders' %}active{% endif %}">
+        <span class="n-ico">🧾</span>
+        <span class="n-txt">Buyurtmalar</span>
+      </a>
+
+      <div class="nav-label">Ishlab chiqarish</div>
+
+      {% if role == 'admin' %}
+      <a href="/inventory" class="nav-item {% if active_page == 'inventory' %}active{% endif %}">
+        <span class="n-ico">📦</span>
+        <span class="n-txt">Omborxona</span>
+      </a>
+
+      <a href="/recipes" class="nav-item {% if active_page == 'recipes' %}active{% endif %}">
+        <span class="n-ico">🧪</span>
+        <span class="n-txt">Retseptlar</span>
+      </a>
+      {% endif %}
+
+      {% if role in ['admin', 'manager'] %}
+      <a href="/masters" class="nav-item {% if active_page == 'masters' %}active{% endif %}">
+        <span class="n-ico">👷</span>
+        <span class="n-txt">Ustalar</span>
+      </a>
+      {% endif %}
+
+      <div class="nav-label">Hisobot</div>
+
+      {% if role in ['admin', 'manager'] %}
+      <a href="/returns" class="nav-item {% if active_page == 'returns' %}active{% endif %}">
+        <span class="n-ico">↩️</span>
+        <span class="n-txt">Qaytarishlar</span>
+      </a>
+      {% endif %}
+
+      {% if role == 'admin' %}
+      <a href="/finance" class="nav-item {% if active_page == 'finance' %}active{% endif %}">
+        <span class="n-ico">💹</span>
+        <span class="n-txt">Moliya</span>
+      </a>
+
+      <div class="nav-label">Boshqaruv</div>
+
+      <a href="/users" class="nav-item {% if active_page == 'users' %}active{% endif %}">
+        <span class="n-ico">👥</span>
+        <span class="n-txt">Foydalanuvchilar</span>
+      </a>
+      {% endif %}
+    </nav>
+
+    <div class="s-bottom">
+      <a href="/logout" class="s-logout">
+        <span>🚪</span>
+        <span>Chiqish</span>
+      </a>
+    </div>
+  </aside>
+
+  {# ── MAIN ── #}
+  <div class="erp-main">
+    {# Topbar #}
+    <header class="erp-topbar">
+      <div class="tb-left">
+        <div class="page-title">{% block page_title %}{% endblock %}</div>
+        <div class="page-sub">{% block page_sub %}{% endblock %}</div>
+      </div>
+      <div class="tb-right">
+        {% block topbar_actions %}{% endblock %}
+      </div>
+    </header>
+
+    {# Kontent #}
+    {% block content %}{% endblock %}
+  </div>
+
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>
