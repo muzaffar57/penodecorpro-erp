@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Qarzdorlar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Qarzdorlar{% endblock %}
+{% block page_sub %}To'liq to'lanmagan loyihalar{% endblock %}
+
+{% block head %}
+<style>
+.debt-grid{display:grid;grid-template-columns:1fr 320px;gap:14px;height:calc(100vh - 90px)}
+.debt-list{overflow-y:auto;flex:1}
+.debt-item{padding:14px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
+.debt-item:hover{background:#fafaf8}
+.debt-item.active{background:#fff8f0;border-left:3px solid #E74C3C}
+.debt-amount{font-size:18px;font-weight:700;color:#E74C3C}
+.debt-client{font-size:13px;font-weight:500;color:#111;margin:2px 0}
+.debt-info{font-size:11px;color:#aaa}
+.progress-bar{height:6px;background:#f0f0f0;border-radius:3px;margin-top:8px}
+.progress-fill{height:100%;background:#27AE60;border-radius:3px}
+.sum-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
+.sum-item:last-child{border-bottom:none}
+</style>
+{% endblock %}
+
+{% block topbar_actions %}
+<div style="display:flex;gap:8px;align-items:center">
+  <span style="font-size:13px;color:#E74C3C;font-weight:600">
+    Jami qarz: {{ "{:,.0f}".format(total_debt).replace(","," ") }} so'm
+  </span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="padding:14px;height:calc(100vh - 58px);overflow:hidden">
+<div class="debt-grid">
+
+  <!-- Chap: Qarzdorlar ro'yxati -->
+  <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
+    <div class="card-head">
+      <h3>Qarzdorlar ({{ debts|length }} ta)</h3>
+      <input placeholder="Qidirish..." oninput="searchDebts(this.value)"
+             style="padding:5px 10px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;width:140px;outline:none">
+    </div>
+    <div class="debt-list">
+      {% if debts %}
+        {% for p in debts %}
+        {% set qarz = p.total_budget|float - p.total_paid|float %}
+        {% set pct = [(p.total_paid|float / p.total_budget|float * 100)|round if p.total_budget|float > 0 else 0, 100]|min %}
+        <div class="debt-item {% if loop.first %}active{% endif %}"
+             onclick="selectDebt(this)"
+             data-id="{{ p.id }}"
+             data-client="{{ p.client_name }}"
+             data-phone="{{ p.client_phone or '—' }}"
+             data-project="{{ p.project_name }}"
+             data-budget="{{ p.total_budget }}"
+             data-paid="{{ p.total_paid }}"
+             data-qarz="{{ qarz }}"
+             data-notes="{{ p.notes or '' }}"
+             data-deadline="{{ p.deadline.strftime('%d.%m.%Y') if p.deadline else '—' }}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div class="debt-client">{{ p.client_name }}</div>
+              <div class="debt-info">{{ p.project_name }} · {{ p.client_phone or '' }}</div>
+            </div>
+            <div class="debt-amount">{{ "{:,.0f}".format(qarz).replace(","," ") }} so'm</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#aaa">
+            <span>{{ pct }}% to'langan</span>
+            {% if p.deadline %}
+            <span style="color:#E67E22">⏰ {{ p.deadline.strftime('%d.%m.%Y') }}</span>
+            {% endif %}
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:{{ pct }}%"></div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="text-align:center;padding:60px;color:#27AE60">
+          <div style="font-size:40px;margin-bottom:12px">✅</div>
+          <div style="font-size:16px;font-weight:500">Barcha to'lovlar amalga oshirilgan!</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- O'ng: Tafsilot -->
+  <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+
+    <!-- Mijoz ma'lumotlari -->
+    <div class="card" id="debtDetail">
+      <div class="card-head"><h3 id="d-client">Mijoz tanlang</h3></div>
+      <div style="padding:12px" id="d-body">
+        <div style="text-align:center;padding:30px;color:#bbb">Chapdan mijozni tanlang</div>
+      </div>
+    </div>
+
+    <!-- To'lov qo'shish -->
+    <div class="card" id="payCard" style="display:none;border-left:3px solid #27AE60;border-radius:0 12px 12px 0">
+      <div class="card-head"><h3>💰 To'lov qabul qilish</h3></div>
+      <div style="padding:12px">
+        <div class="form-group">
+          <label>Summa (so'm)</label>
+          <input type="number" id="pay-amount" placeholder="0" min="0"
+                 style="width:100%;padding:9px 12px;border:1px solid #e8e8e8;border-radius:8px;font-size:14px;outline:none">
+        </div>
+        <div class="form-group">
+          <label>Izoh (ixtiyoriy)</label>
+          <input type="text" id="pay-note" placeholder="To'lov sababi..."
+                 style="width:100%;padding:9px 12px;border:1px solid #e8e8e8;border-radius:8px;font-size:13px;outline:none">
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-green w-full" onclick="savePayment()">✓ To'lovni qabul qilish</button>
+        </div>
+        <div id="pay-msg" style="display:none;margin-top:8px;padding:8px;border-radius:7px;font-size:13px"></div>
+      </div>
+    </div>
+
+    <!-- Umumiy statistika -->
+    <div class="card">
+      <div class="card-head"><h3>📊 Umumiy holat</h3></div>
+      <div style="padding:12px">
+        <div class="sum-item">
+          <span style="color:#aaa">Jami qarzdorlar</span>
+          <span style="font-weight:600">{{ debts|length }} ta</span>
+        </div>
+        <div class="sum-item">
+          <span style="color:#aaa">Jami qarz</span>
+          <span style="font-weight:600;color:#E74C3C">{{ "{:,.0f}".format(total_debt).replace(","," ") }} so'm</span>
+        </div>
+        <div class="sum-item">
+          <span style="color:#aaa">Jami to'langan</span>
+          <span style="font-weight:600;color:#27AE60">{{ "{:,.0f}".format(total_paid).replace(","," ") }} so'm</span>
+        </div>
+        <div class="sum-item">
+          <span style="color:#aaa">Jami byudjet</span>
+          <span style="font-weight:600">{{ "{:,.0f}".format(total_budget).replace(","," ") }} so'm</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedProjId = null;
+
+function selectDebt(el) {
+  document.querySelectorAll('.debt-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  selectedProjId = el.dataset.id;
+  const d = el.dataset;
+  const qarz = parseFloat(d.qarz);
+  const budget = parseFloat(d.budget);
+  const paid = parseFloat(d.paid);
+  const pct = budget > 0 ? Math.min(100, (paid/budget*100)).toFixed(0) : 0;
+
+  document.getElementById('d-client').textContent = d.client;
+  document.getElementById('d-body').innerHTML = `
+    <div class="sum-item"><span style="color:#aaa">Loyiha</span><span style="font-weight:500">${d.project}</span></div>
+    <div class="sum-item"><span style="color:#aaa">Telefon</span><span>${d.phone}</span></div>
+    <div class="sum-item"><span style="color:#aaa">Muddat</span><span style="color:#E67E22">${d.deadline}</span></div>
+    <div class="sum-item"><span style="color:#aaa">Jami byudjet</span><span style="font-weight:500">${Number(budget).toLocaleString('uz')} so'm</span></div>
+    <div class="sum-item"><span style="color:#aaa">To'langan</span><span style="font-weight:500;color:#27AE60">${Number(paid).toLocaleString('uz')} so'm</span></div>
+    <div class="sum-item" style="border-top:2px solid #E74C3C;padding-top:10px;margin-top:4px">
+      <span style="font-weight:600">QARZ:</span>
+      <span style="font-weight:700;font-size:16px;color:#E74C3C">${Number(qarz).toLocaleString('uz')} so'm</span>
+    </div>
+    <div style="margin-top:10px">
+      <div style="height:8px;background:#f0f0f0;border-radius:4px">
+        <div style="height:100%;width:${pct}%;background:#27AE60;border-radius:4px"></div>
+      </div>
+      <div style="font-size:11px;color:#aaa;margin-top:4px;text-align:right">${pct}% to'langan</div>
+    </div>
+    ${d.notes ? `<div style="margin-top:10px;padding:10px;background:#FEF9E7;border-radius:8px;font-size:12px;color:#b7770d">📝 ${d.notes}</div>` : ''}`;
+
+  document.getElementById('payCard').style.display = 'block';
+  document.getElementById('pay-amount').value = '';
+  document.getElementById('pay-note').value = '';
+  document.getElementById('pay-msg').style.display = 'none';
+}
+
+async function savePayment() {
+  if (!selectedProjId) return;
+  const amount = parseFloat(document.getElementById('pay-amount').value);
+  if (!amount || amount <= 0) { alert('Summa kiriting!'); return; }
+
+  const res = await fetch(`/api/projects/${selectedProjId}/payment?amount=${amount}`, {
+    method: 'POST'
+  });
+
+  const msg = document.getElementById('pay-msg');
+  if (res.ok) {
+    msg.style.display = 'block';
+    msg.style.background = '#E9F7EF';
+    msg.style.color = '#1e7e34';
+    msg.textContent = `✓ ${Number(amount).toLocaleString('uz')} so'm qabul qilindi!`;
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    msg.style.display = 'block';
+    msg.style.background = '#FDEDEC';
+    msg.style.color = '#c0392b';
+    msg.textContent = 'Xato yuz berdi';
+  }
+}
+
+function searchDebts(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.debt-item').forEach(el => {
+    const txt = (el.dataset.client + el.dataset.project + el.dataset.phone).toLowerCase();
+    el.style.display = txt.includes(q) ? '' : 'none';
+  });
+}
+
+window.addEventListener('load', () => {
+  const first = document.querySelector('.debt-item');
+  if (first) first.click();
+});
+</script>
+{% endblock %}
