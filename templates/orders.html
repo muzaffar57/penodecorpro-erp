@@ -819,6 +819,8 @@ async function loadProfit() {
   const res = await fetch(`/api/orders/${selectedOrderId}/profit`);
   if (!res.ok) return;
   const d = await res.json();
+
+  // Asosiy ko'rsatkichlar
   const pR = document.getElementById('profitRow');
   const pR2 = document.getElementById('profitRow2');
   const sC = document.getElementById('s-cost');
@@ -826,6 +828,62 @@ async function loadProfit() {
   if (pR && sC) { pR.style.display='flex'; sC.textContent=Number(d.tan_narxi).toLocaleString('uz')+' so\'m'; }
   if (pR2 && sP) { pR2.style.display='flex'; sP.textContent=Number(d.foyda).toLocaleString('uz')+' so\'m ('+d.foyda_foiz+'%)'; }
   if (sP) sP.style.color = d.foyda >= 0 ? '#C9A55A' : '#E74C3C';
+
+  // Tafsilot modali
+  let modal = document.getElementById('profitModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'profitModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
+    document.body.appendChild(modal);
+  }
+
+  let breakdownHTML = '';
+  if (d.breakdown && d.breakdown.length) {
+    breakdownHTML = d.breakdown.map(b => {
+      const ico = b.nomi.toLowerCase().includes('penoplast') ? '🪵' :
+                  b.nomi.toLowerCase().includes('usta') ? '👷' : '🎨';
+      return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px">
+        <span style="color:#555">${ico} ${b.nomi}</span>
+        <span style="font-weight:600;color:#E74C3C">−${Number(b.summa).toLocaleString('uz')} so'm</span>
+      </div>`;
+    }).join('');
+  } else {
+    breakdownHTML = '<div style="color:#aaa;text-align:center;padding:12px">Tafsilot yo\'q — omborxonada narxlar kiritilmagan</div>';
+  }
+
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:24px;max-width:480px;width:100%;position:relative">
+      <button onclick="document.getElementById('profitModal').remove()"
+              style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:#aaa">✕</button>
+      <div style="font-size:16px;font-weight:600;margin-bottom:16px">💰 Foyda tahlili</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+        <div style="background:#EBF5FB;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:11px;color:#aaa;margin-bottom:4px">Sotuv narxi</div>
+          <div style="font-size:14px;font-weight:600;color:#2980B9">${Number(d.sotuv_narxi).toLocaleString('uz')} so'm</div>
+        </div>
+        <div style="background:#FDEDEC;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:11px;color:#aaa;margin-bottom:4px">Tan narxi</div>
+          <div style="font-size:14px;font-weight:600;color:#E74C3C">${Number(d.tan_narxi).toLocaleString('uz')} so'm</div>
+        </div>
+        <div style="background:${d.foyda>=0?'#E9F7EF':'#FDEDEC'};border-radius:8px;padding:12px;text-align:center;border:2px solid ${d.foyda>=0?'#27AE60':'#E74C3C'}">
+          <div style="font-size:11px;color:#aaa;margin-bottom:4px">Foyda</div>
+          <div style="font-size:14px;font-weight:600;color:${d.foyda>=0?'#27AE60':'#E74C3C'}">${Number(d.foyda).toLocaleString('uz')} so'm</div>
+          <div style="font-size:10px;color:#aaa">${d.foyda_foiz}%</div>
+        </div>
+      </div>
+
+      <div style="background:#f8f8f6;border-radius:10px;padding:14px">
+        <div style="font-size:12px;font-weight:600;color:#111;margin-bottom:10px">📋 Xarajatlar tafsiloti</div>
+        ${breakdownHTML}
+        <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-weight:700;border-top:2px solid #ddd;margin-top:6px">
+          <span>Jami tan narxi:</span>
+          <span style="color:#E74C3C">${Number(d.tan_narxi).toLocaleString('uz')} so'm</span>
+        </div>
+      </div>
+    </div>`;
+  modal.style.display = 'flex';
 }
 
 // ── O'chirish ─────────────────────────────────────────────
