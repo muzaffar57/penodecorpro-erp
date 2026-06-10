@@ -3,6 +3,10 @@
 {% block page_title %}Retseptlar{% endblock %}
 {% block page_sub %}Kvars va marmar qoplama retsepturalari{% endblock %}
 
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="showAddModal()">+ Yangi retsept</button>
+{% endblock %}
+
 {% block head %}
 <style>
 .rec-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -98,5 +102,68 @@ function calcRecipe(id, batch, akril, pva, qum, shtu, suv) {
     <div class="calc-row"><span>Suv:</span><span>${(suv*k).toFixed(2)} kg</span></div>
     <div class="calc-row total"><span>Jami loy:</span><span>${needed.toFixed(1)} kg (${(k).toFixed(2)} batch)</span></div>`;
 }
+
+function showAddModal(){document.getElementById('addModal').style.display='flex'}
+function closeModal(){document.getElementById('addModal').style.display='none'}
+
+async function saveRecipe() {
+  const name = document.getElementById('f-name').value;
+  if(!name){alert('Nom shart!');return;}
+  const data = {
+    name: name,
+    batch_size_kg: parseFloat(document.getElementById('f-batch').value)||100,
+    akril_kg: parseFloat(document.getElementById('f-akril').value)||0,
+    pva_kg: parseFloat(document.getElementById('f-pva').value)||0,
+    qum_kg: parseFloat(document.getElementById('f-qum').value)||0,
+    kroshka_kg: parseFloat(document.getElementById('f-kroshka').value)||0,
+    shtukaturka_kg: parseFloat(document.getElementById('f-shtu').value)||0,
+    suv_kg: parseFloat(document.getElementById('f-suv').value)||0,
+    penogasitel_kg: parseFloat(document.getElementById('f-peno').value)||0,
+    biotsid_ml: parseFloat(document.getElementById('f-bio').value)||0,
+  };
+  const res = await fetch('/api/recipes', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  if(res.ok){alert('✓ Retsept qo\'shildi!');location.reload();}
+  else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+}
 </script>
+
+<!-- Qo'shish modali -->
+<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:500px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi retsept</div>
+    <div class="form-group"><label>Retsept nomi</label>
+      <select id="f-name">
+        <option value="Kvars">Kvars</option>
+        <option value="Oq marmar">Oq marmar</option>
+        <option value="Kulrang marmar">Kulrang marmar</option>
+        <option value="Sariq marmar">Sariq marmar</option>
+        <option value="Boshqa">Boshqa</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Batch hajmi (kg)</label><input type="number" id="f-batch" value="100" min="1"></div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Akril (kg)</label><input type="number" id="f-akril" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>PVA (kg)</label><input type="number" id="f-pva" placeholder="0" step="0.1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Qum (kg)</label><input type="number" id="f-qum" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Kroshka (kg)</label><input type="number" id="f-kroshka" placeholder="0" step="0.1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Shtukaturka (kg)</label><input type="number" id="f-shtu" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Suv (kg)</label><input type="number" id="f-suv" placeholder="0" step="0.1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Penogasitel (kg)</label><input type="number" id="f-peno" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Biotsid (ml)</label><input type="number" id="f-bio" placeholder="0" step="0.1"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-dark w-full" onclick="saveRecipe()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
