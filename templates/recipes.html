@@ -114,9 +114,9 @@ async function saveRecipe() {
     batch_size_kg: parseFloat(document.getElementById('f-batch').value)||100,
     akril_kg: parseFloat(document.getElementById('f-akril').value)||0,
     pva_kg: parseFloat(document.getElementById('f-pva').value)||0,
-    qum_kg: parseFloat(document.getElementById('f-qum').value)||0,
+    qum_kg: parseFloat(document.getElementById('f-kvars-qum').value)||0,
     kroshka_kg: parseFloat(document.getElementById('f-kroshka').value)||0,
-    shtukaturka_kg: parseFloat(document.getElementById('f-shtu').value)||0,
+    shtukaturka_kg: parseFloat(document.getElementById('f-mel').value)||0,
     suv_kg: parseFloat(document.getElementById('f-suv').value)||0,
     penogasitel_kg: parseFloat(document.getElementById('f-peno').value)||0,
     biotsid_ml: parseFloat(document.getElementById('f-bio').value)||0,
@@ -149,16 +149,20 @@ async function saveRecipe() {
       <div class="form-group" style="margin:0"><label>PVA (kg)</label><input type="number" id="f-pva" placeholder="0" step="0.1"></div>
     </div>
     <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Qum (kg)</label><input type="number" id="f-qum" placeholder="0" step="0.1"></div>
-      <div class="form-group" style="margin:0"><label>Kroshka (kg)</label><input type="number" id="f-kroshka" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Kvars qum (kg)</label><input type="number" id="f-kvars-qum" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Travertin qum (kg)</label><input type="number" id="f-trav-qum" placeholder="0" step="0.1"></div>
     </div>
     <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Shtukaturka (kg)</label><input type="number" id="f-shtu" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Marmar kroshka (kg)</label><input type="number" id="f-kroshka" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Mel (kg)</label><input type="number" id="f-mel" placeholder="0" step="0.1"></div>
+    </div>
+    <div class="form-row">
       <div class="form-group" style="margin:0"><label>Suv (kg)</label><input type="number" id="f-suv" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Penogasitel (kg)</label><input type="number" id="f-peno" placeholder="0" step="0.1"></div>
     </div>
     <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Penogasitel (kg)</label><input type="number" id="f-peno" placeholder="0" step="0.1"></div>
-      <div class="form-group" style="margin:0"><label>Biotsid (ml)</label><input type="number" id="f-bio" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Zagustitel (kg)</label><input type="number" id="f-zagustitel" placeholder="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Biosid (ml)</label><input type="number" id="f-bio" placeholder="0" step="0.1"></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-dark w-full" onclick="saveRecipe()">Saqlash</button>
