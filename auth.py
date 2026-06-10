@@ -253,6 +253,6 @@ def create_default_admin(db: Session):
         print("=" * 50)
         print("✓ Standart admin yaratildi!")
         print("  Login:    admin")
-        print("  Parol:    Admin123!")
+        print("  Parol:    M797797m@")
         print("  !! Birinchi kirishda parolni o'zgartiring !!")
         print("=" * 50)
