@@ -239,20 +239,26 @@ def change_password(db: Session, user_id: int, new_password: str) -> bool:
 # ============================================================
 
 def create_default_admin(db: Session):
-    """Agar hech qanday foydalanuvchi bo'lmasa — standart admin yaratadi.
-    Birinchi ishga tushirishda ishlaydi."""
+    """Agar hech qanday foydalanuvchi bo'lmasa — standart admin yaratadi."""
+    import os
+    password = os.environ.get("ADMIN_PASSWORD", "Admin123!")
+
     count = db.query(User).count()
     if count == 0:
         create_user(
             db=db,
             username="admin",
-            password="Admin123!",  # <-- BIRINCHI KIRISHDA O'ZGARTIRING!
+            password=password,
             role=UserRole.ADMIN,
             full_name="Bosh Administrator"
         )
-        print("=" * 50)
         print("✓ Standart admin yaratildi!")
-        print("  Login:    admin")
-        print("  Parol:    M797797m@")
-        print("  !! Birinchi kirishda parolni o'zgartiring !!")
-        print("=" * 50)
+    else:
+        # Agar RESET_ADMIN_PASSWORD=true bo'lsa — admin parolini yangilaydi
+        reset = os.environ.get("RESET_ADMIN_PASSWORD", "false").lower()
+        if reset == "true":
+            admin = db.query(User).filter(User.username == "admin").first()
+            if admin:
+                admin.password_hash = hash_password(password)
+                db.commit()
+                print(f"✓ Admin paroli yangilandi!")
