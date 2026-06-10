@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Moliyaviy hisobot — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Moliyaviy hisobot{% endblock %}
+{% block page_sub %}Oylik daromad, xarajat va sof foyda{% endblock %}
+
+{% block head %}
+<style>
+.fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.exp-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
+.exp-row:last-child{border-bottom:none}
+.exp-name{color:#555}
+.exp-val{font-weight:500;color:#E74C3C}
+.total-row{display:flex;justify-content:space-between;font-size:14px;font-weight:600;padding:10px 0 0;border-top:2px solid #ebebeb;margin-top:6px}
+.profit-big{font-size:32px;font-weight:600;text-align:center;padding:20px 0}
+</style>
+{% endblock %}
+
+{% block topbar_actions %}
+<div style="display:flex;gap:8px;align-items:center">
+  <select id="sel-month" style="padding:7px 10px;border:1px solid #e8e8e8;border-radius:7px;font-size:13px;outline:none">
+    <option value="1">Yanvar</option><option value="2">Fevral</option><option value="3">Mart</option>
+    <option value="4">Aprel</option><option value="5">May</option><option value="6">Iyun</option>
+    <option value="7">Iyul</option><option value="8">Avgust</option><option value="9">Sentabr</option>
+    <option value="10">Oktabr</option><option value="11">Noyabr</option><option value="12">Dekabr</option>
+  </select>
+  <input type="number" id="sel-year" value="2026" min="2024" max="2030" style="width:80px;padding:7px 10px;border:1px solid #e8e8e8;border-radius:7px;font-size:13px;outline:none">
+  <button class="btn btn-dark" onclick="loadReport()">Ko'rish</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content" id="finReport" style="display:none">
+
+  <!-- KPI -->
+  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(6,1fr)">
+    <div class="kpi-card"><div class="kpi-val text-green" id="r-daromad">—</div><div class="kpi-label">Daromad</div></div>
+    <div class="kpi-card"><div class="kpi-val text-red" id="r-xarajat">—</div><div class="kpi-label">Xarajat</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="r-foyda" style="color:#8E44AD">—</div><div class="kpi-label">Sof foyda</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="r-foiz">—</div><div class="kpi-label">Foyda %</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="r-buyurtma">—</div><div class="kpi-label">Buyurtmalar</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="r-metr">—</div><div class="kpi-label">Qoplama</div></div>
+  </div>
+
+  <div class="fin-grid">
+
+    <!-- Xarajat kiritish -->
+    <div class="card">
+      <div class="card-head"><h3>Xarajatlarni kiritish</h3><button class="btn btn-green btn-sm" onclick="saveExpense()">💾 Saqlash</button></div>
+      <div class="card-body">
+        <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px">Doimiy xarajatlar</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:10px"><label>Arenda</label><input type="number" id="f-arenda" placeholder="0" min="0"></div>
+          <div class="form-group" style="margin-bottom:10px"><label>Elektr</label><input type="number" id="f-elektr" placeholder="0" min="0"></div>
+          <div class="form-group" style="margin-bottom:10px"><label>Tushlik</label><input type="number" id="f-tushlik" placeholder="0" min="0"></div>
+        </div>
+
+        <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin:14px 0 10px;padding-top:12px;border-top:1px solid #f0f0f0">Hodimlar oyliqi</div>
+        {% for i in [1,2,3] %}
+        <div class="form-row" style="margin-bottom:8px">
+          <div class="form-group" style="margin:0"><label>{{ i }}-hodim ismi</label><input type="text" id="f-h{{ i }}-ism" placeholder="Ismi"></div>
+          <div class="form-group" style="margin:0"><label>Oylik (so'm)</label><input type="number" id="f-h{{ i }}-oylik" placeholder="0"></div>
+        </div>
+        {% endfor %}
+
+        <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin:14px 0 10px;padding-top:12px;border-top:1px solid #f0f0f0">Qoplamachi hodim</div>
+        <div class="alert" style="background:#EBF5FB;border:1px solid #AED6F1;color:#1a6fa8;margin-bottom:10px;font-size:12px" id="bonusInfo">
+          Avtomatik hisoblanmoqda...
+        </div>
+        <div class="form-row" style="margin-bottom:8px">
+          <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="f-qop-ism" placeholder="Qoplamachi"></div>
+          <div class="form-group" style="margin:0"><label>Oylik (so'm)</label><input type="number" id="f-qop-oylik" placeholder="0"></div>
+        </div>
+        <div class="form-group"><label>Bonus (avtomatik, o'zgartirish mumkin)</label><input type="number" id="f-qop-bonus" placeholder="0"></div>
+        <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
+      </div>
+    </div>
+
+    <!-- Xarajat tafsiloti -->
+    <div class="card">
+      <div class="card-head"><h3>Xarajatlar tafsiloti</h3></div>
+      <div class="card-body">
+        <div id="expDetail"><div style="text-align:center;color:#bbb;padding:20px">Ma'lumot yo'q</div></div>
+        <div id="profitBlock" style="display:none;margin-top:16px;padding:16px;background:#f8f8f6;border-radius:10px;border:1px solid #ebebeb;text-align:center">
+          <div style="font-size:11px;color:#aaa;margin-bottom:6px">SOF FOYDA</div>
+          <div class="profit-big" id="profitBig">—</div>
+          <div style="font-size:13px;color:#aaa" id="profitPct">—</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="emptyState" style="text-align:center;padding:60px;color:#bbb">
+  <div style="font-size:40px;margin-bottom:12px">📊</div>
+  <div style="font-size:16px;font-weight:500;color:#aaa;margin-bottom:6px">Oy tanlang</div>
+  <div style="font-size:13px">Yuqoridagi filtrdan oy va yilni tanlab "Ko'rish" ni bosing</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const now=new Date();
+document.getElementById('sel-month').value=now.getMonth()+1;
+document.getElementById('sel-year').value=now.getFullYear();
+
+function fmt(n){if(n>=1e6)return(n/1e6).toFixed(1)+' mln';if(n>=1e3)return(n/1e3).toFixed(0)+' ming';return Math.round(n).toString();}
+
+let currentData=null;
+
+async function loadReport(){
+  const month=document.getElementById('sel-month').value;
+  const year=document.getElementById('sel-year').value;
+  const res=await fetch(`/api/finance/report?year=${year}&month=${month}`);
+  if(!res.ok){alert('Xato');return;}
+  const d=await res.json();
+  currentData=d;
+  document.getElementById('finReport').style.display='block';
+  document.getElementById('emptyState').style.display='none';
+
+  document.getElementById('r-daromad').textContent=fmt(d.daromad)+' so\'m';
+  document.getElementById('r-xarajat').textContent=fmt(d.jami_xarajat)+' so\'m';
+  document.getElementById('r-foyda').textContent=fmt(d.sof_foyda)+' so\'m';
+  document.getElementById('r-foyda').style.color=d.sof_foyda>=0?'#8E44AD':'#E74C3C';
+  document.getElementById('r-foiz').textContent=d.foyda_foiz+'%';
+  document.getElementById('r-buyurtma').textContent=d.buyurtmalar_soni+' ta';
+  document.getElementById('r-metr').textContent=(d.jami_metr||0)+'m / '+(d.jami_dona||0)+' dona';
+
+  const x=d.xarajatlar;
+  document.getElementById('f-arenda').value=x.arenda||'';
+  document.getElementById('f-elektr').value=x.elektr||'';
+  document.getElementById('f-tushlik').value=x.tushlik||'';
+  document.getElementById('f-h1-ism').value=x.hodim1_ism||'';document.getElementById('f-h1-oylik').value=x.hodim1_oylik||'';
+  document.getElementById('f-h2-ism').value=x.hodim2_ism||'';document.getElementById('f-h2-oylik').value=x.hodim2_oylik||'';
+  document.getElementById('f-h3-ism').value=x.hodim3_ism||'';document.getElementById('f-h3-oylik').value=x.hodim3_oylik||'';
+  document.getElementById('f-qop-ism').value=x.qoplamachi_ism||'';
+  document.getElementById('f-qop-oylik').value=x.qoplamachi_oylik||'';
+  document.getElementById('f-qop-bonus').value=x.qoplamachi_bonus||d.qoplamachi_bonus_avtomatik||'';
+  document.getElementById('f-notes').value=x.notes||'';
+  document.getElementById('bonusInfo').textContent=`Profil/panel: ${d.jami_metr||0}m × 1,000 + Donali: ${d.jami_dona||0} dona × 1,000 = ${Number(d.qoplamachi_bonus_avtomatik).toLocaleString('uz')} so'm bonus`;
+  buildExpDetail(d);
+}
+
+function buildExpDetail(d){
+  const x=d.xarajatlar;
+  const rows=[
+    {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},
+    {n:x.hodim1_ism+' (oylik)',v:x.hodim1_oylik},{n:x.hodim2_ism+' (oylik)',v:x.hodim2_oylik},
+    {n:x.hodim3_ism+' (oylik)',v:x.hodim3_oylik},{n:x.qoplamachi_ism+' (oylik)',v:x.qoplamachi_oylik},
+    {n:x.qoplamachi_ism+' (bonus)',v:x.qoplamachi_bonus}
+  ].filter(r=>r.v>0);
+  const el=document.getElementById('expDetail');
+  if(!rows.length){el.innerHTML='<div style="text-align:center;color:#bbb;padding:20px">Xarajat kiritilmagan</div>';return;}
+  el.innerHTML=rows.map(r=>`<div class="exp-row"><span class="exp-name">${r.n}</span><span class="exp-val">${Number(r.v).toLocaleString('uz')} so'm</span></div>`).join('')
+    +`<div class="total-row"><span>Jami xarajat:</span><span style="color:#E74C3C">${Number(d.jami_xarajat).toLocaleString('uz')} so'm</span></div>
+       <div class="total-row" style="margin-top:6px"><span>Daromad:</span><span style="color:#27AE60">${Number(d.daromad).toLocaleString('uz')} so'm</span></div>`;
+  const pb=document.getElementById('profitBlock');
+  pb.style.display='block';
+  document.getElementById('profitBig').textContent=Number(d.sof_foyda).toLocaleString('uz')+' so\'m';
+  document.getElementById('profitBig').style.color=d.sof_foyda>=0?'#8E44AD':'#E74C3C';
+  document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
+}
+
+async function saveExpense(){
+  if(!currentData){alert('Avval oyni tanlang!');return;}
+  const month=document.getElementById('sel-month').value;
+  const year=document.getElementById('sel-year').value;
+  const data={
+    arenda:parseFloat(document.getElementById('f-arenda').value)||0,
+    elektr:parseFloat(document.getElementById('f-elektr').value)||0,
+    tushlik:parseFloat(document.getElementById('f-tushlik').value)||0,
+    hodim1_ism:document.getElementById('f-h1-ism').value||'Hodim 1',hodim1_oylik:parseFloat(document.getElementById('f-h1-oylik').value)||0,
+    hodim2_ism:document.getElementById('f-h2-ism').value||'Hodim 2',hodim2_oylik:parseFloat(document.getElementById('f-h2-oylik').value)||0,
+    hodim3_ism:document.getElementById('f-h3-ism').value||'Hodim 3',hodim3_oylik:parseFloat(document.getElementById('f-h3-oylik').value)||0,
+    qoplamachi_ism:document.getElementById('f-qop-ism').value||'Qoplamachi',
+    qoplamachi_oylik:parseFloat(document.getElementById('f-qop-oylik').value)||0,
+    qoplamachi_bonus:parseFloat(document.getElementById('f-qop-bonus').value)||0,
+    notes:document.getElementById('f-notes').value||''
+  };
+  const res=await fetch(`/api/finance/expense?year=${year}&month=${month}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  if(res.ok){alert('✓ Saqlandi!');loadReport();}else alert('Xato');
+}
+loadReport();
+</script>
+{% endblock %}

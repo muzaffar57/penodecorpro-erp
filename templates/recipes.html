@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Retseptlar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Retseptlar{% endblock %}
+{% block page_sub %}Kvars va marmar qoplama retsepturalari{% endblock %}
+
+{% block head %}
+<style>
+.rec-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ing-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5}
+.ing-row:last-child{border-bottom:none}
+.ing-name{font-size:13px;color:#555}
+.ing-val{font-size:13px;font-weight:600;color:#111}
+.ing-bar{height:3px;background:#f0f0f0;border-radius:2px;margin-top:4px}
+.ing-fill{height:100%;background:#C9A55A;border-radius:2px}
+.calc-result{background:#f8f8f6;border-radius:10px;padding:14px;border:1px solid #ebebeb;margin-top:12px}
+.calc-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;color:#555}
+.calc-row.total{font-weight:600;color:#111;border-top:1px solid #e8e8e8;padding-top:8px;margin-top:4px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content">
+<div class="rec-grid">
+
+  {% for recipe in recipes %}
+  <div class="card">
+    <div class="card-head">
+      <h3>{{ recipe.name.value }} retsepti</h3>
+      <span style="font-size:11px;color:#aaa">{{ recipe.batch_size_kg }} kg batch</span>
+    </div>
+    <div class="card-body">
+      <!-- Ingredientlar -->
+      {% set total = recipe.akril_kg + recipe.pva_kg + recipe.qum_kg + recipe.kroshka_kg + recipe.penogasitel_kg + recipe.shtukaturka_kg + recipe.suv_kg %}
+      {% for name, val in [('Akril', recipe.akril_kg), ('PVA', recipe.pva_kg), ('Qum', recipe.qum_kg), ('Kroshka', recipe.kroshka_kg), ('Penogasitel', recipe.penogasitel_kg), ('Shtukaturka', recipe.shtukaturka_kg), ('Suv', recipe.suv_kg)] %}
+      {% if val > 0 %}
+      <div class="ing-row">
+        <div>
+          <div class="ing-name">{{ name }}</div>
+          <div class="ing-bar"><div class="ing-fill" style="width:{{ (val/recipe.batch_size_kg*100)|round }}%"></div></div>
+        </div>
+        <div style="text-align:right">
+          <div class="ing-val">{{ val }} kg</div>
+          <div style="font-size:10px;color:#aaa">{{ "%.1f"|format(val/recipe.batch_size_kg*100) }}%</div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% if recipe.biotsid_ml > 0 %}
+      <div class="ing-row">
+        <div class="ing-name">Biotsid</div>
+        <div class="ing-val">{{ recipe.biotsid_ml }} ml</div>
+      </div>
+      {% endif %}
+
+      <!-- Hisoblash -->
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f0">
+        <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Hisoblash</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" id="area-{{ recipe.id }}" placeholder="m²" min="0" step="0.1"
+                 style="width:100px;padding:7px 10px;border:1px solid #e8e8e8;border-radius:7px;font-size:13px;outline:none"
+                 oninput="calcRecipe({{ recipe.id }}, {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.suv_kg }})">
+          <span style="font-size:13px;color:#aaa">m² uchun</span>
+          <button class="btn btn-outline btn-sm" onclick="calcRecipe({{ recipe.id }}, {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.suv_kg }})">Hisobla</button>
+        </div>
+        <div id="calc-{{ recipe.id }}" class="calc-result" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not recipes %}
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-body" style="text-align:center;padding:40px;color:#bbb">Retsept yo'q</div>
+  </div>
+  {% endif %}
+
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const KG_PER_M2 = 2.0;
+function calcRecipe(id, batch, akril, pva, qum, shtu, suv) {
+  const area = parseFloat(document.getElementById('area-'+id).value)||0;
+  if(area <= 0) return;
+  const needed = area * KG_PER_M2;
+  const k = needed / batch;
+  const el = document.getElementById('calc-'+id);
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="calc-row"><span>Qoplama maydoni:</span><span>${area} m²</span></div>
+    <div class="calc-row"><span>Kerakli loy:</span><span>${needed.toFixed(1)} kg</span></div>
+    <div class="calc-row"><span>Akril:</span><span>${(akril*k).toFixed(2)} kg</span></div>
+    <div class="calc-row"><span>PVA:</span><span>${(pva*k).toFixed(2)} kg</span></div>
+    <div class="calc-row"><span>Qum:</span><span>${(qum*k).toFixed(2)} kg</span></div>
+    <div class="calc-row"><span>Shtukaturka:</span><span>${(shtu*k).toFixed(2)} kg</span></div>
+    <div class="calc-row"><span>Suv:</span><span>${(suv*k).toFixed(2)} kg</span></div>
+    <div class="calc-row total"><span>Jami loy:</span><span>${needed.toFixed(1)} kg (${(k).toFixed(2)} batch)</span></div>`;
+}
+</script>
+{% endblock %}

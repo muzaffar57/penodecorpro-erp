@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_sub %}Umumiy statistika va ko'rsatkichlar{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-outline btn-sm" onclick="loadAll()">↻ Yangilash</button>
+{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.dash-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px}
+.dash-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.chart-wrap{position:relative;height:220px}
+.master-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f5f5f5}
+.master-item:last-child{border-bottom:none}
+.master-rank{width:24px;height:24px;border-radius:6px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#999;flex-shrink:0}
+.master-rank.top{background:#C9A55A;color:#fff}
+.alert-item{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#FEF9E7;border-radius:8px;margin-bottom:8px;border:1px solid #F5CBA7}
+.alert-item:last-child{margin-bottom:0}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content">
+
+  <!-- KPI -->
+  <div class="kpi-grid mb-16">
+    <div class="kpi-card">
+      <div class="kpi-val" id="k-projects">{{ stats.total_projects }}</div>
+      <div class="kpi-label">Loyihalar</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val" id="k-orders">{{ stats.total_orders }}</div>
+      <div class="kpi-label">Jami buyurtmalar</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val" id="k-active">{{ stats.active_orders }}</div>
+      <div class="kpi-label">Faol buyurtmalar</div>
+      <span class="kpi-badge warn">Jarayonda</span>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val" id="k-ready">{{ stats.ready_orders }}</div>
+      <div class="kpi-label">Tayyor</div>
+      <span class="kpi-badge up">Bajarildi</span>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val" id="k-masters">{{ stats.total_masters }}</div>
+      <div class="kpi-label">Faol ustalar</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val" id="k-inventory">{{ stats.total_inventory_items }}</div>
+      <div class="kpi-label">Xomashyo turi</div>
+    </div>
+  </div>
+
+  <!-- Moliya (faqat admin) -->
+  {% if current_user.role.value == 'admin' %}
+  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(4,1fr)" id="finGrid">
+    <div class="kpi-card"><div class="kpi-val text-green" id="f-revenue">—</div><div class="kpi-label">Jami daromad</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#2980B9" id="f-paid">—</div><div class="kpi-label">To'langan</div></div>
+    <div class="kpi-card"><div class="kpi-val text-gold" id="f-budget">—</div><div class="kpi-label">Jami byudjet</div></div>
+    <div class="kpi-card"><div class="kpi-val text-red" id="f-debt">—</div><div class="kpi-label">Qarz</div></div>
+  </div>
+  {% endif %}
+
+  <!-- Grafiklar -->
+  <div class="dash-grid">
+    <div class="card">
+      <div class="card-head"><h3>Oylik buyurtmalar va daromad</h3></div>
+      <div class="card-body"><div class="chart-wrap"><canvas id="monthChart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Buyurtma holatlari</h3></div>
+      <div class="card-body"><div class="chart-wrap"><canvas id="statusChart"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="dash-grid2">
+    <div class="card">
+      <div class="card-head"><h3>Usta reytingi (top 5)</h3></div>
+      <div class="card-body" style="padding:0 16px">
+        <div id="masterList"><div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div></div>
+      </div>
+    </div>
+    <div class="card" style="border-left:3px solid #E74C3C;border-radius:0 12px 12px 0">
+      <div class="card-head"><h3 style="color:#c0392b">⚠ Xomashyo ogohlantirishlari</h3></div>
+      <div class="card-body" id="alertList">
+        {% if stats.low_stock_items %}
+          {% for item in stats.low_stock_items %}
+          <div class="alert-item">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:#111">{{ item.item_name }}</div>
+              <div style="font-size:11px;color:#aaa">Qoldi: {{ item.stock_quantity }} {{ item.unit }} · Min: {{ item.min_stock }}</div>
+            </div>
+            <div style="font-size:13px;font-weight:600;color:#E74C3C">−{{ "%.1f"|format(item.deficit) }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="text-align:center;padding:20px;color:#27AE60;font-weight:500">✓ Hammasi yetarli</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const COLORS={gold:'#C9A55A',green:'#27AE60',blue:'#2980B9',orange:'#E67E22',red:'#E74C3C',gray:'#BDC3C7',purple:'#8E44AD'};
+const ST_COLORS={'new':COLORS.blue,'in_progress':COLORS.orange,'coating':COLORS.purple,'ready':COLORS.green,'delivered':COLORS.gold,'cancelled':COLORS.gray};
+const ST_LABELS={'new':'Yangi','in_progress':'Jarayonda','coating':'Qoplama','ready':'Tayyor','delivered':'Yetkazildi','cancelled':'Bekor'};
+let mC,sC;
+function fmt(n){if(n>=1e6)return(n/1e6).toFixed(1)+' mln';if(n>=1000)return(n/1000).toFixed(0)+' ming';return n.toFixed(0);}
+
+async function loadAll(){
+  const [s,c]=await Promise.all([fetch('/api/dashboard/stats').then(r=>r.json()),fetch('/api/dashboard/charts').then(r=>r.json())]);
+  document.getElementById('k-projects').textContent=s.total_projects;
+  document.getElementById('k-orders').textContent=s.total_orders;
+  document.getElementById('k-active').textContent=s.active_orders;
+  document.getElementById('k-ready').textContent=s.ready_orders;
+  document.getElementById('k-masters').textContent=s.total_masters;
+  document.getElementById('k-inventory').textContent=s.total_inventory_items;
+  const fg=document.getElementById('finGrid');
+  if(fg){
+    document.getElementById('f-revenue').textContent=fmt(c.finance.total_revenue)+' so\'m';
+    document.getElementById('f-paid').textContent=fmt(c.finance.total_paid)+' so\'m';
+    document.getElementById('f-budget').textContent=fmt(c.finance.total_budget)+' so\'m';
+    document.getElementById('f-debt').textContent=fmt(c.finance.total_debt)+' so\'m';
+  }
+  buildMonthChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
+}
+
+function buildMonthChart(months){
+  if(mC)mC.destroy();
+  mC=new Chart(document.getElementById('monthChart').getContext('2d'),{
+    data:{labels:months.map(m=>m.label),datasets:[
+      {type:'bar',label:'Buyurtmalar',data:months.map(m=>m.orders),backgroundColor:'rgba(201,165,90,0.2)',borderColor:COLORS.gold,borderWidth:2,borderRadius:6,yAxisID:'y1'},
+      {type:'line',label:'Daromad',data:months.map(m=>m.revenue),borderColor:COLORS.green,backgroundColor:'rgba(39,174,96,0.08)',borderWidth:2,pointBackgroundColor:COLORS.green,pointRadius:4,tension:.4,fill:true,yAxisID:'y2'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{y1:{position:'left',beginAtZero:true,ticks:{stepSize:1}},y2:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{callback:v=>fmt(v)}}}}
+  });
+}
+function buildStatusChart(statuses){
+  if(sC)sC.destroy();
+  const keys=Object.keys(statuses).filter(k=>statuses[k]>0);
+  if(!keys.length)return;
+  sC=new Chart(document.getElementById('statusChart').getContext('2d'),{
+    type:'doughnut',
+    data:{labels:keys.map(k=>ST_LABELS[k]||k),datasets:[{data:keys.map(k=>statuses[k]),backgroundColor:keys.map(k=>ST_COLORS[k]||COLORS.gray),borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:10}}}}
+  });
+}
+function buildMasterList(masters){
+  const el=document.getElementById('masterList');
+  if(!masters||!masters.length){el.innerHTML='<div style="text-align:center;padding:20px;color:#bbb">Ma\'lumot yo\'q</div>';return;}
+  el.innerHTML=masters.map((m,i)=>`
+    <div class="master-item">
+      <div class="master-rank ${i===0?'top':''}">${i+1}</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:11px;color:#aaa">${m.orders} ta buyurtma</div></div>
+      <div style="font-size:13px;font-weight:600;color:#27AE60">${fmt(m.total)} so'm</div>
+    </div>`).join('');
+}
+loadAll();
+setInterval(loadAll,5*60*1000);
+</script>
+{% endblock %}

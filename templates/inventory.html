@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Omborxona — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Omborxona{% endblock %}
+{% block page_sub %}Xomashyo va materiallar qoldig'i{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="showAddModal()">+ Xomashyo qo'shish</button>
+{% endblock %}
+
+{% block head %}
+<style>
+.inv-grid{display:grid;grid-template-columns:1fr 340px;gap:14px;height:calc(100vh - 90px)}
+.inv-table-wrap{overflow-y:auto}
+.stock-bar{height:4px;background:#f0f0f0;border-radius:2px;margin-top:6px}
+.stock-fill{height:100%;border-radius:2px;background:#27AE60}
+.stock-fill.warn{background:#E67E22}
+.stock-fill.danger{background:#E74C3C}
+.qty-input{width:80px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;text-align:center;outline:none}
+.qty-input:focus{border-color:#C9A55A}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="padding:14px;height:calc(100vh - 58px);overflow:hidden">
+<div class="inv-grid">
+
+  <!-- Jadval -->
+  <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
+    <div class="card-head">
+      <h3>Xomashyolar ({{ items|length }} tur)</h3>
+      <span id="low-count" style="font-size:11px;color:#E74C3C"></span>
+    </div>
+    <div class="inv-table-wrap" style="flex:1">
+      <table class="erp-table" style="width:100%">
+        <thead>
+          <tr>
+            <th>Nomi</th>
+            <th>Qoldi</th>
+            <th>Min</th>
+            <th>Birlik narxi</th>
+            <th>Holat</th>
+            <th>Kirim / Chiqim</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          {% set qty = item.stock_quantity|float %}
+          {% set minq = item.min_stock|float %}
+          {% set pct = [[((qty / minq * 100)|round if minq > 0 else 100), 0]|max, 100]|min %}
+          <tr>
+            <td>
+              <div style="font-weight:500;color:#111">{{ item.item_name }}</div>
+              <div style="font-size:11px;color:#aaa">{{ item.unit }}</div>
+            </td>
+            <td>
+              <div style="font-weight:600;color:{% if qty <= minq %}#E74C3C{% elif qty <= minq * 1.5 %}#E67E22{% else %}#111{% endif %}">
+                {{ "%.1f"|format(item.stock_quantity) }} {{ item.unit }}
+              </div>
+              <div class="stock-bar">
+                <div class="stock-fill {% if pct < 50 %}danger{% elif pct < 80 %}warn{% endif %}" style="width:{{ pct }}%"></div>
+              </div>
+            </td>
+            <td style="color:#aaa">{{ item.min_stock }} {{ item.unit }}</td>
+            <td style="color:#111">{{ "{:,.0f}".format(item.price_per_unit).replace(","," ") if item.price_per_unit else "—" }} so'm</td>
+            <td>
+              {% if qty <= minq %}
+              <span class="badge badge-danger">Kam!</span>
+              {% elif qty <= minq * 1.5 %}
+              <span class="badge badge-warning">Oz</span>
+              {% else %}
+              <span class="badge badge-ready">Yetarli</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <button class="btn btn-outline btn-xs" onclick="changeStock({{ item.id }}, -1, this)">−</button>
+                <input type="number" class="qty-input" id="qty-{{ item.id }}" value="1" min="0.1" step="0.1">
+                <button class="btn btn-dark btn-xs" onclick="changeStock({{ item.id }}, 1, this)">+</button>
+              </div>
+            </td>
+            <td>
+              <button class="btn btn-outline btn-xs" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteItem({{ item.id }})">O'chir</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- O'ng: statistika -->
+  <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+    <div class="card">
+      <div class="card-head"><h3>Umumiy holat</h3></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="kpi-card" style="padding:12px">
+            <div class="kpi-val" style="font-size:20px">{{ items|length }}</div>
+            <div class="kpi-label">Xomashyo turi</div>
+          </div>
+          <div class="kpi-card" style="padding:12px">
+          <div class="kpi-val" style="font-size:20px;color:#E74C3C" id="low-count-kpi">0</div>
+            <div class="kpi-label">Kam qolgan</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kam qolganlar -->
+    <div class="card" style="border-left:3px solid #E74C3C;border-radius:0 12px 12px 0">
+      <div class="card-head"><h3 style="color:#c0392b">⚠ Kam qolganlar</h3></div>
+      <div class="card-body" style="padding:0 16px">
+        {% set low_items = [] %}
+        {% for item in items %}
+          {% if item.stock_quantity|float <= item.min_stock|float %}
+            {% set _ = low_items.append(item) %}
+          {% endif %}
+        {% endfor %}
+        {% if low_items %}
+        {% for item in items %}
+          {% if item.stock_quantity|float <= item.min_stock|float %}
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5">
+            <div>
+              <div style="font-size:13px;font-weight:500">{{ item.item_name }}</div>
+              <div style="font-size:11px;color:#aaa">{{ item.stock_quantity }} / {{ item.min_stock }} {{ item.unit }}</div>
+            </div>
+            <span class="badge badge-danger">−{{ "%.1f"|format(item.min_stock|float - item.stock_quantity|float) }}</span>
+          </div>
+          {% endif %}
+        {% endfor %}
+        {% else %}
+          <div style="text-align:center;padding:20px;color:#27AE60;font-weight:500">✓ Hammasi yetarli</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Qo'shish modali -->
+<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:440px">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi xomashyo</div>
+    <div class="form-group"><label>Nomi</label><input type="text" id="f-name" placeholder="Penoplast"></div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Miqdor</label><input type="number" id="f-qty" placeholder="0" min="0"></div>
+      <div class="form-group" style="margin:0"><label>O'lchov</label><select id="f-unit"><option>dona</option><option>kg</option><option>litr</option><option>m³</option><option>m</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Min qoldiq</label><input type="number" id="f-min" placeholder="0" min="0"></div>
+      <div class="form-group" style="margin:0"><label>Birlik narxi (so'm)</label><input type="number" id="f-price" placeholder="0" min="0"></div>
+    </div>
+    <div class="form-group"><label>Blok hajmi (m³, penoplast uchun)</label><input type="number" id="f-volume" placeholder="1.0" step="0.1" min="0.1"></div>
+    <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" onclick="saveItem()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showAddModal(){document.getElementById('addModal').style.display='flex'}
+function closeModal(){document.getElementById('addModal').style.display='none'}
+
+async function changeStock(id, dir, btn) {
+  const qty = parseFloat(document.getElementById('qty-'+id).value) || 1;
+  const change = dir * qty;
+  const res = await fetch(`/api/inventory/${id}/stock`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({quantity_change: change})
+  });
+  if(res.ok) location.reload();
+  else alert('Xato yuz berdi');
+}
+
+async function deleteItem(id) {
+  if(!confirm('Bu xomashyoni o\'chirasizmi?')) return;
+  const res = await fetch(`/api/inventory/${id}`, {method:'DELETE'});
+  if(res.ok) location.reload();
+  else alert('Xato yuz berdi');
+}
+
+async function saveItem() {
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){alert('Nom shart!');return;}
+  const res = await fetch('/api/inventory', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      item_name: name,
+      stock_quantity: parseFloat(document.getElementById('f-qty').value)||0,
+      unit: document.getElementById('f-unit').value,
+      min_stock: parseFloat(document.getElementById('f-min').value)||0,
+      price_per_unit: parseFloat(document.getElementById('f-price').value)||null,
+      volume_per_unit: parseFloat(document.getElementById('f-volume').value)||1.0,
+      notes: document.getElementById('f-notes').value||null
+    })
+  });
+  if(res.ok) location.reload();
+  else{const e=await res.json();alert('Xato: '+(e.detail||'Noma\'lum'));}
+}
+
+// Kam qolganlar sonini topbar ga
+const low = document.querySelectorAll('.badge-danger').length;
+if(low>0) document.getElementById('low-count').textContent = low+' ta kam!';
+const kpiLow = document.getElementById('low-count-kpi');
+if(kpiLow) kpiLow.textContent = low;
+</script>
+{% endblock %}

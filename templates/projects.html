@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Loyihalar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Loyihalar{% endblock %}
+{% block page_sub %}Mijoz loyihalari va holati{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="showAddModal()">+ Yangi loyiha</button>
+{% endblock %}
+
+{% block head %}
+<style>
+.proj-grid{display:grid;grid-template-columns:1fr 320px;gap:14px;height:calc(100vh - 90px)}
+.proj-list{overflow-y:auto;flex:1}
+.proj-item{padding:14px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
+.proj-item:hover{background:#fafaf8}
+.proj-item.active{background:#fdf8f0}
+.proj-num{font-size:10px;color:#aaa;font-weight:500}
+.proj-name{font-size:14px;font-weight:500;color:#111;margin:2px 0}
+.proj-client{font-size:12px;color:#aaa}
+.proj-footer{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.pay-bar{height:4px;background:#f0f0f0;border-radius:2px;margin-top:6px}
+.pay-fill{height:100%;background:#C9A55A;border-radius:2px;transition:width .3s}
+.info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
+.info-row:last-child{border-bottom:none}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="padding:14px;height:calc(100vh - 58px);overflow:hidden">
+<div class="proj-grid">
+
+  <!-- Chap: loyihalar ro'yxati -->
+  <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
+    <div class="card-head">
+      <h3>Loyihalar ({{ projects|length }} ta)</h3>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="search" placeholder="Qidirish..." oninput="searchProj(this.value)"
+               style="padding:5px 10px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;width:150px;outline:none">
+      </div>
+    </div>
+    <div class="proj-list">
+      {% if projects %}
+      {% for p in projects %}
+      {% set paid_pct = [(p.total_paid / p.total_budget * 100)|round if p.total_budget > 0 else 0, 100]|min %}
+      <div class="proj-item {% if loop.first %}active{% endif %}" onclick="selectProj(this)"
+           data-id="{{ p.id }}"
+           data-num="{{ p.project_number }}"
+           data-name="{{ p.project_name }}"
+           data-client="{{ p.client_name }}"
+           data-phone="{{ p.client_phone or '—' }}"
+           data-address="{{ p.client_address or '—' }}"
+           data-status="{{ p.status.value }}"
+           data-budget="{{ p.total_budget }}"
+           data-paid="{{ p.total_paid }}"
+           data-start="{{ p.start_date.strftime('%d.%m.%Y') if p.start_date else '—' }}"
+           data-deadline="{{ p.deadline.strftime('%d.%m.%Y') if p.deadline else '—' }}"
+           data-orders="{{ p.order_count if p.order_count is defined else 0 }}"
+           data-notes="{{ p.notes or '' }}">
+        <div class="proj-num">{{ p.project_number }}</div>
+        <div class="proj-name">{{ p.project_name }}</div>
+        <div class="proj-client">{{ p.client_name }} · {{ p.client_phone or '' }}</div>
+        <div class="proj-footer">
+          {% if p.status.value == 'active' %}<span class="badge badge-ready">Faol</span>
+          {% elif p.status.value == 'draft' %}<span class="badge badge-info">Qoralama</span>
+          {% elif p.status.value == 'completed' %}<span class="badge" style="background:#E9F7EF;color:#1e7e34">Tugagan</span>
+          {% elif p.status.value == 'on_hold' %}<span class="badge badge-warning">Kutmoqda</span>
+          {% else %}<span class="badge badge-cancelled">Bekor</span>{% endif %}
+          <span style="font-size:11px;color:#aaa">{{ paid_pct }}% to'langan</span>
+        </div>
+        <div class="pay-bar"><div class="pay-fill" style="width:{{ paid_pct }}%"></div></div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div style="text-align:center;padding:40px;color:#bbb">Loyiha yo'q</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- O'ng: detal -->
+  <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto" id="rightPanel">
+    <div class="card" id="projDetail">
+      <div class="card-head">
+        <h3 id="d-name">Loyiha tanlang</h3>
+        <span class="badge" id="d-status"></span>
+      </div>
+      <div class="card-body" id="d-body">
+        <div style="text-align:center;padding:30px;color:#bbb">Chapdan loyiha tanlang</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Yangi loyiha modal -->
+<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi loyiha</div>
+    <div class="form-row">
+      <div class="form-group" style="margin-bottom:12px"><label>Mijoz ismi</label><input type="text" id="f-client" placeholder="Karimov Botir"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Telefon</label><input type="text" id="f-phone" placeholder="+998901234567"></div>
+    </div>
+    <div class="form-group"><label>Loyiha nomi</label><input type="text" id="f-pname" placeholder="Hovli fasadi"></div>
+    <div class="form-group"><label>Manzil</label><input type="text" id="f-address" placeholder="Andijon, ..."></div>
+    <div class="form-group">
+      <label>Mijoz Telegram ID <span style="color:#aaa;font-weight:400">(buyurtma tayyor bo'lganda SMS uchun)</span></label>
+      <input type="text" id="f-tg-id" placeholder="Masalan: 123456789">
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Byudjet (so'm)</label><input type="number" id="f-budget" placeholder="0" min="0"></div>
+      <div class="form-group" style="margin:0"><label>Muddati</label><input type="date" id="f-deadline"></div>
+    </div>
+    <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-dark w-full" onclick="saveProject()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- To'lov modal -->
+<div id="payModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:360px">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px">💰 To'lov qo'shish</div>
+    <div class="form-group"><label>Summa (so'm)</label><input type="number" id="pay-amount" placeholder="0" min="0"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-gold w-full" onclick="savePayment()">Qo'shish</button>
+      <button class="btn btn-outline w-full" onclick="document.getElementById('payModal').style.display='none'">Bekor</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedProjId = null;
+
+const STATUS_MAP = {
+  'active':'<span class="badge badge-ready">Faol</span>',
+  'draft':'<span class="badge badge-info">Qoralama</span>',
+  'completed':'<span class="badge" style="background:#E9F7EF;color:#1e7e34">Tugagan</span>',
+  'on_hold':'<span class="badge badge-warning">Kutmoqda</span>',
+  'cancelled':'<span class="badge badge-cancelled">Bekor</span>'
+};
+
+function selectProj(el) {
+  document.querySelectorAll('.proj-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  const d = el.dataset;
+  selectedProjId = d.id;
+  document.getElementById('d-name').textContent = d.name;
+  document.getElementById('d-status').outerHTML = `<span class="badge" id="d-status">${STATUS_MAP[d.status]||d.status}</span>`;
+  const budget = parseFloat(d.budget)||0;
+  const paid = parseFloat(d.paid)||0;
+  const debt = Math.max(0, budget - paid);
+  const pct = budget > 0 ? Math.min(100, (paid/budget*100)).toFixed(0) : 0;
+  document.getElementById('d-body').innerHTML = `
+    <div class="info-row"><span style="color:#aaa">Mijoz</span><span style="font-weight:500">${d.client}</span></div>
+    <div class="info-row"><span style="color:#aaa">Telefon</span><span>${d.phone}</span></div>
+    <div class="info-row"><span style="color:#aaa">Manzil</span><span>${d.address}</span></div>
+    <div class="info-row"><span style="color:#aaa">Boshlangan</span><span>${d.start}</span></div>
+    <div class="info-row"><span style="color:#aaa">Muddat</span><span>${d.deadline}</span></div>
+    <div class="info-row"><span style="color:#aaa">Buyurtmalar</span><span>${d.orders} ta</span></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f0f0f0">
+      <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px">Moliya</div>
+      <div class="info-row"><span style="color:#aaa">Byudjet</span><span style="font-weight:500">${Number(budget).toLocaleString('uz')} so'm</span></div>
+      <div class="info-row"><span style="color:#aaa">To'langan</span><span style="font-weight:500;color:#27AE60">${Number(paid).toLocaleString('uz')} so'm</span></div>
+      <div class="info-row"><span style="color:#aaa">Qarz</span><span style="font-weight:500;color:#E74C3C">${Number(debt).toLocaleString('uz')} so'm</span></div>
+      <div class="pay-bar mt-8"><div class="pay-fill" style="width:${pct}%"></div></div>
+      <div style="font-size:11px;color:#aaa;margin-top:4px;text-align:right">${pct}% to'langan</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-gold w-full btn-sm" onclick="showPayModal()">💰 To'lov qo'shish</button>
+      <button class="btn btn-outline w-full btn-sm" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteProj()">O'chir</button>
+    </div>`;
+}
+
+function showPayModal(){document.getElementById('payModal').style.display='flex';}
+function showAddModal(){document.getElementById('addModal').style.display='flex';}
+function closeModal(){
+  document.getElementById('addModal').style.display='none';
+  document.getElementById('payModal').style.display='none';
+}
+
+async function savePayment(){
+  const amount=parseFloat(document.getElementById('pay-amount').value);
+  if(!amount||amount<=0){alert('Summa kiriting!');return;}
+  const res=await fetch(`/api/projects/${selectedProjId}/payment?amount=${amount}`,{method:'POST'});
+  if(res.ok){alert('✓ To\'lov qo\'shildi!');location.reload();}else alert('Xato');
+}
+
+async function deleteProj(){
+  if(!confirm('Loyihani o\'chirasizmi? Barcha buyurtmalar ham o\'chadi!'))return;
+  const res=await fetch(`/api/projects/${selectedProjId}`,{method:'DELETE'});
+  if(res.ok)location.reload();else alert('Xato');
+}
+
+function searchProj(q){
+  q=q.toLowerCase();
+  document.querySelectorAll('.proj-item').forEach(el=>{
+    const txt=(el.dataset.name+el.dataset.client+el.dataset.num).toLowerCase();
+    el.style.display=txt.includes(q)?'':'none';
+  });
+}
+
+async function saveProject(){
+  const client=document.getElementById('f-client').value.trim();
+  const pname=document.getElementById('f-pname').value.trim();
+  if(!client||!pname){alert('Mijoz va loyiha nomi shart!');return;}
+  const res=await fetch('/api/projects',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      client_name:client,client_phone:document.getElementById('f-phone').value||null,
+      client_address:document.getElementById('f-address').value||null,
+      notes: document.getElementById('f-tg-id').value ? `tg_id=${document.getElementById('f-tg-id').value.trim()}` : (document.getElementById('f-notes').value||null),
+      project_name:pname,
+      total_budget:parseFloat(document.getElementById('f-budget').value)||0,
+      deadline:document.getElementById('f-deadline').value||null,
+      notes:document.getElementById('f-notes').value||null
+    })});
+  if(res.ok){alert('✓ Loyiha yaratildi!');location.reload();}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+}
+
+window.addEventListener('load',()=>{
+  const first=document.querySelector('.proj-item');
+  if(first)first.click();
+});
+</script>
+{% endblock %}

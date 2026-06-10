@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Foydalanuvchilar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Foydalanuvchilar{% endblock %}
+{% block page_sub %}Tizim foydalanuvchilari va ruxsatlar{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="showAddModal()">+ Yangi foydalanuvchi</button>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content">
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:14px">
+
+    <!-- Jadval -->
+    <div class="card">
+      <div class="card-head"><h3>Foydalanuvchilar ({{ users|length }} ta)</h3></div>
+      <table class="erp-table">
+        <thead>
+          <tr><th>#</th><th>Login</th><th>Ismi</th><th>Rol</th><th>Holat</th><th>Yaratilgan</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr id="urow-{{ u.id }}">
+            <td style="color:#aaa">{{ loop.index }}</td>
+            <td><span style="font-weight:500;color:#111">{{ u.username }}</span></td>
+            <td>{{ u.full_name or '—' }}</td>
+            <td>
+              {% if u.role.value == 'admin' %}<span class="badge" style="background:#111;color:#C9A55A">Admin</span>
+              {% elif u.role.value == 'manager' %}<span class="badge badge-info">Menejer</span>
+              {% elif u.role.value == 'accountant' %}<span class="badge badge-ready">Buxgalter</span>
+              {% else %}<span class="badge badge-warning">Usta</span>{% endif %}
+            </td>
+            <td>
+              {% if u.is_active %}<span class="badge badge-ready">Faol</span>
+              {% else %}<span class="badge badge-cancelled">O'chirilgan</span>{% endif %}
+            </td>
+            <td style="color:#aaa;font-size:12px">{{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}</td>
+            <td>
+              {% if u.username != current_user.username %}
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-outline btn-xs" onclick="toggleUser({{ u.id }}, {{ 'true' if u.is_active else 'false' }})">
+                  {{ 'O\'chir' if u.is_active else 'Faollashtir' }}
+                </button>
+                <button class="btn btn-outline btn-xs" onclick="changePass({{ u.id }}, '{{ u.username }}')">Parol</button>
+              </div>
+              {% else %}
+              <span style="font-size:11px;color:#aaa">Joriy</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- O'ng: rollar haqida -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card">
+        <div class="card-head"><h3>Rollar va huquqlar</h3></div>
+        <div class="card-body">
+          {% for role, label, color, perms in [
+            ('admin', 'Admin', '#111', 'Hamma narsa + moliya + foydalanuvchilar'),
+            ('manager', 'Menejer', '#1a6fa8', 'Loyiha, buyurtma, ustalar, qaytarish'),
+            ('accountant', 'Buxgalter', '#1e7e34', 'Loyihalar va dashboard (ko\'rish)'),
+            ('master', 'Usta', '#b7770d', 'Faqat buyurtmalar')
+          ] %}
+          <div style="padding:12px 0;border-bottom:1px solid #f5f5f5">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span class="badge" style="background:{% if role == 'admin' %}#111{% elif role == 'manager' %}#EBF5FB{% elif role == 'accountant' %}#E9F7EF{% else %}#FEF9E7{% endif %};color:{{ color }}">{{ label }}</span>
+            </div>
+            <div style="font-size:12px;color:#aaa">{{ perms }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card" style="border-left:3px solid #C9A55A;border-radius:0 12px 12px 0">
+        <div class="card-body">
+          <div style="font-size:13px;font-weight:500;color:#111;margin-bottom:6px">👤 Joriy siz</div>
+          <div style="font-size:13px;color:#555">{{ current_user.full_name or current_user.username }}</div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px">{{ now }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi foydalanuvchi</div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Login</label><input type="text" id="f-username" placeholder="menejer1"></div>
+      <div class="form-group" style="margin:0"><label>To'liq ismi</label><input type="text" id="f-fullname" placeholder="Sardor A."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Parol</label><input type="password" id="f-password" placeholder="Kamida 6 belgi"></div>
+      <div class="form-group" style="margin:0"><label>Rol</label>
+        <select id="f-role">
+          <option value="manager">Menejer</option>
+          <option value="accountant">Buxgalter</option>
+          <option value="master">Usta</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" onclick="saveUser()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showAddModal(){document.getElementById('addModal').style.display='flex'}
+function closeModal(){document.getElementById('addModal').style.display='none'}
+async function toggleUser(id, isActive){
+  if(!confirm(isActive?'O\'chirilsinmi?':'Faollashtirilsinmi?'))return;
+  const res=await fetch(`/api/users/${id}/toggle`,{method:'POST'});
+  if(res.ok)location.reload();else alert('Xato');
+}
+async function changePass(id, username){
+  const p=prompt(`"${username}" uchun yangi parol:`);
+  if(!p)return;
+  if(p.length<6){alert('Kamida 6 belgi!');return;}
+  const res=await fetch(`/api/users/${id}/password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:p})});
+  if(res.ok)alert('✓ Parol o\'zgartirildi!');else alert('Xato');
+}
+async function saveUser(){
+  const username=document.getElementById('f-username').value.trim();
+  const password=document.getElementById('f-password').value;
+  if(!username||!password){alert('Login va parol shart!');return;}
+  if(password.length<6){alert('Parol kamida 6 belgi!');return;}
+  const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username,password,role:document.getElementById('f-role').value,full_name:document.getElementById('f-fullname').value})});
+  if(res.ok){alert('✓ Qo\'shildi!');location.reload();}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+}
+</script>
+{% endblock %}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kirish — PenoDecorPro ERP</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body{background:#f8f8f6;display:flex;align-items:center;justify-content:center;height:100vh;overflow:auto}
+    .login-wrap{width:100%;max-width:400px;padding:20px}
+    .login-logo{text-align:center;margin-bottom:32px}
+    .login-logo .name{font-size:26px;font-weight:600;color:#111;letter-spacing:-.5px}
+    .login-logo .name span{color:#C9A55A}
+    .login-logo .sub{font-size:13px;color:#999;margin-top:6px}
+    .login-card{background:#fff;border-radius:16px;border:1px solid #ebebeb;padding:32px}
+    .login-title{font-size:18px;font-weight:600;color:#111;margin-bottom:6px}
+    .login-sub{font-size:13px;color:#999;margin-bottom:24px}
+    .field-label{font-size:11px;color:#999;font-weight:500;text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;display:block}
+    .field-input{width:100%;padding:10px 14px;border:1px solid #e8e8e8;border-radius:9px;font-size:14px;color:#111;outline:none;background:#fafafa;transition:border .15s,background .15s;margin-bottom:16px}
+    .field-input:focus{border-color:#C9A55A;background:#fff}
+    .login-btn{width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s;margin-top:4px}
+    .login-btn:hover{background:#222}
+    .error-box{background:#FDEDEC;border:1px solid #F1948A;border-radius:8px;padding:11px 14px;color:#c0392b;font-size:13px;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+    .roles-info{margin-top:24px;padding-top:20px;border-top:1px solid #f0f0f0}
+    .roles-title{font-size:11px;color:#bbb;text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px}
+    .role-row{display:flex;align-items:center;gap:10px;padding:5px 0}
+    .role-pill{font-size:10px;font-weight:600;padding:3px 10px;border-radius:6px;min-width:80px;text-align:center}
+    .pill-admin{background:#111;color:#C9A55A}
+    .pill-manager{background:#EBF5FB;color:#1a6fa8}
+    .pill-accountant{background:#E9F7EF;color:#1e7e34}
+    .pill-master{background:#FEF9E7;color:#b7770d}
+    .role-desc{font-size:12px;color:#aaa}
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="name">Penodecor<span>Pro</span></div>
+      <div class="sub">Ishlab chiqarish boshqaruv tizimi</div>
+    </div>
+
+    <div class="login-card">
+      <div class="login-title">Tizimga kirish</div>
+      <div class="login-sub">Login va parolingizni kiriting</div>
+
+      {% if error %}
+      <div class="error-box">⚠ {{ error }}</div>
+      {% endif %}
+
+      <form method="POST" action="/login">
+        <label class="field-label">Foydalanuvchi nomi</label>
+        <input class="field-input" type="text" name="username"
+               placeholder="admin" required autocomplete="username"
+               value="{{ username or '' }}">
+
+        <label class="field-label">Parol</label>
+        <input class="field-input" type="password" name="password"
+               placeholder="••••••••" required autocomplete="current-password">
+
+        <button class="login-btn" type="submit">Kirish →</button>
+      </form>
+
+      <div class="roles-info">
+        <div class="roles-title">Rollar va huquqlar</div>
+        <div class="role-row">
+          <span class="role-pill pill-admin">Admin</span>
+          <span class="role-desc">Hamma narsaga to'liq kirish</span>
+        </div>
+        <div class="role-row">
+          <span class="role-pill pill-manager">Menejer</span>
+          <span class="role-desc">Buyurtma, loyiha, ustalar</span>
+        </div>
+        <div class="role-row">
+          <span class="role-pill pill-accountant">Buxgalter</span>
+          <span class="role-desc">Loyihalar va dashboard</span>
+        </div>
+        <div class="role-row">
+          <span class="role-pill pill-master">Usta</span>
+          <span class="role-desc">Faqat buyurtmalar</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

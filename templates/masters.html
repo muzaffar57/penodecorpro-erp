@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Ustalar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Ustalar{% endblock %}
+{% block page_sub %}Qoplamachi ustalar va KPI{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="showAddForm()">+ Yangi usta</button>
+{% endblock %}
+
+{% block head %}
+<style>
+.masters-grid{display:grid;grid-template-columns:340px 1fr;gap:14px;height:calc(100vh - 90px);overflow:hidden}
+.master-list{overflow-y:auto}
+.master-card{padding:14px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:12px}
+.master-card:hover{background:#fafaf8}
+.master-card.active{background:#fdf8f0}
+.m-avatar{width:38px;height:38px;border-radius:10px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:#C9A55A;flex-shrink:0;border:1px solid #ebebeb}
+.m-name{font-size:13px;font-weight:500;color:#111}
+.m-phone{font-size:11px;color:#aaa;margin-top:2px}
+.m-cashback{font-size:11px;font-weight:600;color:#C9A55A;margin-top:2px}
+.detail-panel{overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
+.info-row:last-child{border-bottom:none}
+.info-label{color:#aaa}
+.info-val{font-weight:500;color:#111}
+.kpi-mini{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.kpi-mini-card{background:#f8f8f6;border-radius:8px;padding:12px;text-align:center;border:1px solid #ebebeb}
+.kpi-mini-val{font-size:20px;font-weight:600;color:#111}
+.kpi-mini-lbl{font-size:10px;color:#aaa;margin-top:3px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="padding:14px;height:calc(100vh - 58px);overflow:hidden">
+<div class="masters-grid">
+
+  <!-- Chap: ustalar ro'yxati -->
+  <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
+    <div class="card-head">
+      <h3>Ustalar ({{ masters|length }} ta)</h3>
+      <span style="font-size:11px;color:#aaa">Faol / Jami</span>
+    </div>
+    <div class="master-list" style="flex:1">
+      {% if masters %}
+        {% for m in masters %}
+        <div class="master-card {% if loop.first %}active{% endif %}" onclick="selectMaster({{ m.id }}, this)"
+             data-id="{{ m.id }}" data-name="{{ m.name }}" data-phone="{{ m.phone }}"
+             data-cashback="{{ m.cashback_percent }}" data-active="{{ m.is_active }}"
+             data-notes="{{ m.notes or '' }}" data-hire="{{ m.hire_date.strftime('%d.%m.%Y') if m.hire_date else '—' }}">
+          <div class="m-avatar">{{ m.name[0].upper() }}</div>
+          <div>
+            <div class="m-name">{{ m.name }}</div>
+            <div class="m-phone">{{ m.phone }}</div>
+            <div class="m-cashback">KPI: {{ m.cashback_percent }}%</div>
+          </div>
+          {% if not m.is_active %}
+          <span class="badge badge-cancelled" style="margin-left:auto">Nofaol</span>
+          {% else %}
+          <span class="badge badge-ready" style="margin-left:auto">Faol</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="text-align:center;padding:40px;color:#bbb">Usta yo'q</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- O'ng: detal -->
+  <div class="detail-panel">
+    <div class="card" id="masterDetail">
+      <div class="card-head">
+        <h3 id="d-name">Usta tanlang</h3>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm" id="d-toggle" onclick="toggleMaster()" style="display:none">O'chir</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="kpi-mini mb-12" id="d-kpi" style="display:none">
+          <div class="kpi-mini-card"><div class="kpi-mini-val" id="d-orders">—</div><div class="kpi-mini-lbl">Buyurtmalar</div></div>
+          <div class="kpi-mini-card"><div class="kpi-mini-val text-gold" id="d-cashback">—</div><div class="kpi-mini-lbl">KPI foizi</div></div>
+          <div class="kpi-mini-card"><div class="kpi-mini-val text-green" id="d-earned">—</div><div class="kpi-mini-lbl">Jami KPI</div></div>
+        </div>
+        <div id="d-info">
+          <div style="text-align:center;padding:40px;color:#bbb">Chap tomondagi ustani tanlang</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Yangi usta modal -->
+<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi usta qo'shish</div>
+    <div class="form-group"><label>To'liq ismi</label><input type="text" id="f-name" placeholder="Sardor Toshmatov"></div>
+    <div class="form-group"><label>Telefon</label><input type="text" id="f-phone" placeholder="+998901234567"></div>
+    <div class="form-group"><label>KPI foizi (%)</label><input type="number" id="f-cashback" placeholder="3" min="0" max="100" step="0.5"></div>
+    <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="Qo'shimcha ma'lumot..."></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" onclick="saveMaster()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedId = null;
+
+function selectMaster(id, el) {
+  document.querySelectorAll('.master-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  selectedId = id;
+  const d = el.dataset;
+  document.getElementById('d-name').textContent = d.name;
+  document.getElementById('d-toggle').style.display = 'inline-flex';
+  document.getElementById('d-toggle').textContent = d.active === 'True' ? "Nofaol qilish" : "Faollashtirish";
+  document.getElementById('d-kpi').style.display = 'grid';
+  document.getElementById('d-cashback').textContent = d.cashback + '%';
+  document.getElementById('d-info').innerHTML = `
+    <div class="info-row"><span class="info-label">Telefon</span><span class="info-val">${d.phone}</span></div>
+    <div class="info-row"><span class="info-label">Yollangan sana</span><span class="info-val">${d.hire}</span></div>
+    <div class="info-row"><span class="info-label">Holat</span><span class="info-val">${d.active === 'True' ? '<span class="badge badge-ready">Faol</span>' : '<span class="badge badge-cancelled">Nofaol</span>'}</span></div>
+    <div class="info-row"><span class="info-label">Izoh</span><span class="info-val">${d.notes || '—'}</span></div>`;
+  fetch(`/api/orders?master_id=${id}`).then(r=>r.json()).then(orders=>{
+    document.getElementById('d-orders').textContent = orders.length;
+    const earned = orders.reduce((s,o)=>s+parseFloat(o.total_amount||0)*parseFloat(d.cashback)/100,0);
+    document.getElementById('d-earned').textContent = Math.round(earned).toLocaleString('uz');
+  }).catch(()=>{});
+}
+
+function toggleMaster() {
+  if(!selectedId) return;
+  if(!confirm('Usta holatini o\'zgartirish?')) return;
+  fetch(`/api/masters/${selectedId}`, {method:'DELETE'}).then(()=>location.reload());
+}
+
+function showAddForm() {
+  document.getElementById('addModal').style.display = 'flex';
+}
+function closeModal() {
+  document.getElementById('addModal').style.display = 'none';
+}
+
+async function saveMaster() {
+  const name = document.getElementById('f-name').value.trim();
+  const phone = document.getElementById('f-phone').value.trim();
+  if(!name || !phone) { alert('Ism va telefon shart!'); return; }
+  const res = await fetch('/api/masters', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name, phone, cashback_percent: parseFloat(document.getElementById('f-cashback').value)||0, notes: document.getElementById('f-notes').value})
+  });
+  if(res.ok) location.reload();
+  else { const e=await res.json(); alert('Xato: '+(e.detail||'Noma\'lum')); }
+}
+
+// Birinchi ustani tanlash
+window.addEventListener('load', () => {
+  const first = document.querySelector('.master-card');
+  if(first) first.click();
+});
+</script>
+{% endblock %}
