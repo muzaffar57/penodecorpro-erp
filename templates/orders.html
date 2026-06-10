@@ -705,11 +705,10 @@ async function editSelected() {
   itemCount = 0;
 
   try {
-    // Barcha buyurtmalarni olamiz va selectedOrderId bilan topamiz
-    const ordRes = await fetch('/api/orders');
-    const orders = await ordRes.json();
-    const order = orders.find(o => o.id === parseInt(selectedOrderId));
-    if (!order) { showMsg('Buyurtma topilmadi', 'error'); return; }
+    // To'g'ridan-to'g'ri bitta buyurtmani olamiz
+    const ordRes = await fetch(`/api/orders/${selectedOrderId}`);
+    if (!ordRes.ok) { showMsg('Buyurtma topilmadi', 'error'); return; }
+    const order = await ordRes.json();
 
     // Loyiha va ustani o'rnatish
     const projSel = document.getElementById('project_id');
