@@ -382,8 +382,16 @@ def api_delete_project(project_id: int, db: Session = Depends(get_db),
 # ============================================================
 # API — ORDER
 # ============================================================
+@app.post("/api/orders/coating-notify-new")
+def api_coating_notify_with_loy(order_id: int, loy_kg: float,
+                                 db: Session = Depends(get_db),
+                                 current_user=Depends(auth.admin_or_manager)):
+    pass
+
+
 @app.post("/api/orders", response_model=schemas.OrderRead)
-def api_create_order(order: schemas.OrderCreate, db: Session = Depends(get_db),
+def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
+                     db: Session = Depends(get_db),
                      current_user=Depends(auth.admin_or_manager)):
     """Buyurtma yaratish — ombordan xomashyo ayiradi, yetmasa xabar beradi."""
 
@@ -427,11 +435,23 @@ def api_get_order(order_id: int, db: Session = Depends(get_db),
 def api_coating_notify(order_id: int, loy_kg: float,
                        db: Session = Depends(get_db),
                        current_user=Depends(auth.admin_or_manager)):
-    """Yangi buyurtma uchun qoplamachi hodimga loy SMS yuborish."""
+    """Yangi buyurtma uchun qoplamachi hodimga loy SMS yuborish va loy_kg ni saqlash."""
     order = crud.get_order(db, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+
+    # loy_kg ni order.notes ga saqlaymiz
     if loy_kg > 0:
+        existing = order.notes or ''
+        if 'loy_kg=' not in existing:
+            order.notes = (existing + f',loy_kg={loy_kg}').strip(',')
+        else:
+            parts = [p for p in existing.split(',') if 'loy_kg=' not in p]
+            parts.append(f'loy_kg={loy_kg}')
+            order.notes = ','.join(parts)
+        db.commit()
+
+        # SMS yuborish
         msg = (
             f"🏗 *PenoDecorPro — Yangi buyurtma*\n\n"
             f"📋 Buyurtma: *{order.order_number}*\n"
