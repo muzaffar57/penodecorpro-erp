@@ -4,6 +4,8 @@
 {% block page_sub %}Xomashyo va materiallar qoldig'i{% endblock %}
 
 {% block topbar_actions %}
+<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#2980B9;color:#2980B9">📋 Ombor hisoboti SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#E74C3C;color:#E74C3C">📢 Kam qoldiqlar SMS</button>
 <button class="btn btn-dark" onclick="showAddModal()">+ Xomashyo qo'shish</button>
 {% endblock %}
 
@@ -170,6 +172,24 @@
 <script>
 function showAddModal(){document.getElementById('addModal').style.display='flex'}
 function closeModal(){document.getElementById('addModal').style.display='none'}
+
+async function sendFullStockReport() {
+  const res = await fetch('/api/inventory/full-stock-report', {method:'POST'});
+  const d = await res.json();
+  if (res.ok) alert('✅ ' + d.message);
+  else alert('❌ Xato yuz berdi');
+}
+
+async function sendLowStockAlert() {
+  const res = await fetch('/api/inventory/low-stock-alert', {method:'POST'});
+  const d = await res.json();
+  if (res.ok) {
+    if (d.sent) alert('✅ SMS yuborildi!\n\n' + d.message);
+    else alert('ℹ️ ' + d.message);
+  } else {
+    alert('❌ Xato yuz berdi');
+  }
+}
 
 async function editPrice(id, currentPrice) {
   const newPrice = prompt(`Yangi narxni kiriting (so'm):\nHozirgi narx: ${Number(currentPrice).toLocaleString('uz')} so'm`);
