@@ -96,6 +96,7 @@
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi usta qo'shish</div>
     <div class="form-group"><label>To'liq ismi</label><input type="text" id="f-name" placeholder="Sardor Toshmatov"></div>
     <div class="form-group"><label>Telefon</label><input type="text" id="f-phone" placeholder="+998901234567"></div>
+    <div class="form-group"><label>Telegram ID <span style="color:#aaa;font-weight:400;font-size:11px">(SMS yuborish uchun)</span></label><input type="text" id="f-tgid" placeholder="Masalan: 123456789"></div>
     <div class="form-group"><label>KPI foizi (%)</label><input type="number" id="f-cashback" placeholder="3" min="0" max="100" step="0.5"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="Qo'shimcha ma'lumot..."></div>
     <div style="display:flex;gap:8px;margin-top:4px">
@@ -151,7 +152,12 @@ async function saveMaster() {
   if(!name || !phone) { alert('Ism va telefon shart!'); return; }
   const res = await fetch('/api/masters', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({name, phone, cashback_percent: parseFloat(document.getElementById('f-cashback').value)||0, notes: document.getElementById('f-notes').value})
+    body: JSON.stringify({
+      name, phone,
+      cashback_percent: parseFloat(document.getElementById('f-cashback').value)||0,
+      notes: document.getElementById('f-notes').value,
+      telegram_id: document.getElementById('f-tgid').value.trim() || null
+    })
   });
   if(res.ok) location.reload();
   else { const e=await res.json(); alert('Xato: '+(e.detail||'Noma\'lum')); }
