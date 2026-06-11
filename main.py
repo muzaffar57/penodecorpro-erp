@@ -354,6 +354,82 @@ def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db),
     return {"status": "ok", "price_per_unit": item.price_per_unit}
 
 
+@app.post("/api/inventory/full-stock-report")
+def api_full_stock_report(db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Barcha xomashyolar holati haqida Telegram SMS yuborish."""
+    from models import Inventory as Inv
+    from datetime import datetime
+    items = db.query(Inv).order_by(Inv.item_name).all()
+
+    if not items:
+        return {"message": "Omborxona bo'sh!"}
+
+    yetarli = []
+    kam = []
+
+    for item in items:
+        qty = float(item.stock_quantity)
+        min_q = float(item.min_stock or 0)
+        if min_q > 0 and qty <= min_q:
+            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+            kam.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit}")
+        else:
+            yetarli.append(f"✅ {item.item_name}: {qty:.1f} {item.unit}")
+
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    msg = f"📋 *Ombor hisoboti*\n_{now}_\n\n"
+
+    if kam:
+        msg += f"━━━ KAM QOLGANLAR ({len(kam)} ta) ━━━\n"
+        msg += "\n".join(kam) + "\n\n"
+
+    msg += f"━━━ YETARLI ({len(yetarli)} ta) ━━━\n"
+    msg += "\n".join(yetarli)
+    msg += f"\n\n🏗 *PenoDecorPro* — Andijon"
+
+    _send_telegram(msg)
+    return {"message": f"Ombor hisoboti yuborildi! ({len(items)} ta xomashyo)"}
+
+
+@app.post("/api/inventory/low-stock-alert")
+def api_low_stock_alert(db: Session = Depends(get_db),
+                        current_user=Depends(auth.admin_only)):
+    """Kam qolgan xomashyolar haqida Telegram SMS yuborish."""
+    low_items = crud.get_low_stock_items(db)
+
+    if not low_items:
+        return {"sent": False, "message": "Barcha xomashyolar yetarli — SMS yuborilmadi!"}
+
+    lines = []
+    for item in low_items:
+        qty = float(item.stock_quantity)
+        min_q = float(item.min_stock)
+        deficit = min_q - qty
+        emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+        lines.append(
+            f"{emoji} {item.item_name}: "
+            f"{qty:.1f} {item.unit} qoldi "
+            f"(min: {min_q:.0f}, yetishmaydi: {deficit:.1f})"
+        )
+
+    msg = (
+        f"⚠️ *Ombor ogohlantirishlari!*\n\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        + "\n".join(lines) +
+        f"\n━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Zudlik bilan buyurtma bering! 🚨\n\n"
+        f"🏗 *PenoDecorPro* — Andijon"
+    )
+
+    _send_telegram(msg)
+
+    return {
+        "sent": True,
+        "message": f"{len(low_items)} ta kam qolgan xomashyo haqida SMS yuborildi!"
+    }
+
+
 @app.delete("/api/inventory/{item_id}")
 def api_delete_item(item_id: int, db: Session = Depends(get_db),
                     current_user=Depends(auth.admin_only)):
@@ -436,6 +512,31 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
 
     # Ombordan ayiramiz
     services.deduct_inventory_for_order(db, new_order)
+
+    # Ombor min qoldiqqa yetganini tekshiramiz — yetgan bo'lsa SMS
+    low_items = crud.get_low_stock_items(db)
+    if low_items:
+        lines = []
+        for item in low_items:
+            qty = float(item.stock_quantity)
+            min_q = float(item.min_stock)
+            deficit = min_q - qty
+            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+            lines.append(
+                f"{emoji} {item.item_name}: "
+                f"{qty:.1f} {item.unit} qoldi "
+                f"(min: {min_q:.0f}, yetishmaydi: {deficit:.1f})"
+            )
+        msg = (
+            f"⚠️ *Ombor ogohlantirishlari!*\n\n"
+            f"*{new_order.order_number}* buyurtmadan keyin:\n\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            + "\n".join(lines) +
+            f"\n━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Zudlik bilan buyurtma bering! 🚨\n\n"
+            f"🏗 *PenoDecorPro* — Andijon"
+        )
+        _send_telegram(msg)
 
     return new_order
 
