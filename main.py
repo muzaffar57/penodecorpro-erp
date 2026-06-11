@@ -308,6 +308,19 @@ def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db
 
     return new_master
 
+@app.delete("/api/masters/{master_id}/delete")
+def api_delete_master_permanent(master_id: int, db: Session = Depends(get_db),
+                                current_user=Depends(auth.admin_only)):
+    """Ustani bazadan to'liq o'chirish (faqat Admin)."""
+    from models import Master
+    master = db.query(Master).filter(Master.id == master_id).first()
+    if not master:
+        raise HTTPException(status_code=404, detail="Usta topilmadi")
+    db.delete(master)
+    db.commit()
+    return {"status": "ok"}
+
+
 @app.get("/api/masters", response_model=List[schemas.MasterRead])
 def api_get_masters(only_active: bool = False, db: Session = Depends(get_db),
                     current_user=Depends(auth.admin_or_manager)):
