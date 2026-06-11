@@ -73,6 +73,7 @@
         <h3 id="d-name">Usta tanlang</h3>
         <div style="display:flex;gap:6px">
           <button class="btn btn-outline btn-sm" id="d-toggle" onclick="toggleMaster()" style="display:none">O'chir</button>
+          <button class="btn btn-outline btn-sm" id="d-delete" onclick="deleteMaster()" style="display:none;border-color:#E74C3C;color:#E74C3C">🗑 O'chirish</button>
         </div>
       </div>
       <div class="card-body">
@@ -119,6 +120,7 @@ function selectMaster(id, el) {
   document.getElementById('d-name').textContent = d.name;
   document.getElementById('d-toggle').style.display = 'inline-flex';
   document.getElementById('d-toggle').textContent = d.active === 'True' ? "Nofaol qilish" : "Faollashtirish";
+  document.getElementById('d-delete').style.display = 'inline-flex';
   document.getElementById('d-kpi').style.display = 'grid';
   document.getElementById('d-cashback').textContent = d.cashback + '%';
   document.getElementById('d-info').innerHTML = `
@@ -137,6 +139,14 @@ function toggleMaster() {
   if(!selectedId) return;
   if(!confirm('Usta holatini o\'zgartirish?')) return;
   fetch(`/api/masters/${selectedId}`, {method:'DELETE'}).then(()=>location.reload());
+}
+
+async function deleteMaster() {
+  if(!selectedId) return;
+  if(!confirm('Ustani bazadan TO\'LIQ o\'chirasizmi?\nBu amalni ortga qaytarib bo\'lmaydi!')) return;
+  const res = await fetch(`/api/masters/${selectedId}/delete`, {method:'DELETE'});
+  if(res.ok) location.reload();
+  else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
 }
 
 function showAddForm() {
