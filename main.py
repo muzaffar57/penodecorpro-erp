@@ -26,14 +26,18 @@ import urllib.request
 import json as _json
 
 # @penodecorprobot tokeni — o'zgartirmang
-TELEGRAM_BOT_TOKEN  = "BOT_TOKENINGIZNI_SHU_YERGA_YOZING"
+TELEGRAM_BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 # Qoplamachi hodimning Telegram chat_id si
 TELEGRAM_COATING_ID = "8461987934"
 
 def _send_telegram(text: str):
     """Qoplamachi hodimga Telegram xabar yuboradi."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        print("⚠ TELEGRAM_BOT_TOKEN yo'q")
+        return
     try:
-        url  = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        url  = f"https://api.telegram.org/bot{token}/sendMessage"
         data = _json.dumps({
             "chat_id":    TELEGRAM_COATING_ID,
             "text":       text,
@@ -44,15 +48,19 @@ def _send_telegram(text: str):
             headers={"Content-Type": "application/json"}
         )
         urllib.request.urlopen(req, timeout=5)
-        print(f"✓ Telegram xabar yuborildi: {TELEGRAM_COATING_ID}")
+        print(f"✓ Telegram xabar yuborildi")
     except Exception as e:
         print(f"⚠ Telegram xabar yuborilmadi: {e}")
 
 
 def _send_telegram_to(chat_id: str, text: str):
-    """Berilgan chat_id ga Telegram xabar yuboradi (mijoz uchun)."""
+    """Berilgan chat_id ga Telegram xabar yuboradi."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        print("⚠ TELEGRAM_BOT_TOKEN yo'q")
+        return
     try:
-        url  = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        url  = f"https://api.telegram.org/bot{token}/sendMessage"
         data = _json.dumps({
             "chat_id":    chat_id,
             "text":       text,
@@ -63,7 +71,7 @@ def _send_telegram_to(chat_id: str, text: str):
             headers={"Content-Type": "application/json"}
         )
         urllib.request.urlopen(req, timeout=5)
-        print(f"✓ Mijozga Telegram xabar yuborildi: {chat_id}")
+        print(f"✓ Telegram xabar yuborildi: {chat_id}")
     except Exception as e:
         print(f"⚠ Mijozga Telegram xabar yuborilmadi: {e}")
 
@@ -948,7 +956,7 @@ async def telegram_webhook(request: Request):
                 )
                 # Klaviatura bilan yuborish
                 try:
-                    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+                    url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
                     send_data = _json.dumps({
                         "chat_id": chat_id,
                         "text": welcome_msg,
@@ -1056,7 +1064,7 @@ async def telegram_webhook(request: Request):
             "persistent": True
         }
         try:
-            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
             send_data = _json.dumps({
                 "chat_id": chat_id,
                 "text": reply,
