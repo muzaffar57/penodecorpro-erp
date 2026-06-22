@@ -976,3 +976,51 @@ def deduct_inventory_for_order(db: Session, order) -> list:
             log.append(f"Penoplast: -{blocks_needed:.2f} blok")
 
     return log
+
+
+def return_inventory_for_order(db: Session, order) -> list:
+    """
+    Buyurtma o'chirilganda omborga xomashyo qaytaradi.
+    deduct_inventory_for_order ning teskarisi.
+    """
+    from models import Inventory
+
+    log = []
+    total_volume_m3 = 0.0
+
+    for item in order.items:
+        cat = (item.category or '').lower()
+        qty = float(item.quantity or 1)
+
+        if cat == 'profil':
+            if item.width and item.thickness and item.length:
+                vol = (item.width/100) * (item.thickness/100) * float(item.length)
+                total_volume_m3 += vol
+        elif cat == 'panel':
+            if item.width and item.thickness:
+                vol = (item.width/100) * (item.thickness/100) * qty
+                total_volume_m3 += vol
+        elif cat == 'dona':
+            if item.unit_price and float(item.unit_price) > 0:
+                p = db.query(Inventory).filter(
+                    Inventory.item_name.ilike("%penoplast%")
+                ).first()
+                if p and p.price_per_unit and p.volume_per_unit:
+                    narx_per_m3 = float(p.price_per_unit) / float(p.volume_per_unit)
+                    if narx_per_m3 > 0:
+                        vol = float(item.unit_price) / narx_per_m3 * qty
+                        total_volume_m3 += vol
+
+    # Penoplast qaytarish
+    if total_volume_m3 > 0:
+        penoplast = db.query(Inventory).filter(
+            Inventory.item_name.ilike("%penoplast%")
+        ).first()
+        if penoplast:
+            vol_per_unit = float(penoplast.volume_per_unit or 1.0)
+            blocks_to_return = total_volume_m3 / vol_per_unit
+            penoplast.stock_quantity = float(penoplast.stock_quantity) + blocks_to_return
+            db.commit()
+            log.append(f"Penoplast: +{blocks_to_return:.2f} blok qaytarildi")
+
+    return log
