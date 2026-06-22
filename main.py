@@ -467,6 +467,32 @@ def api_create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db
                       current_user=Depends(auth.admin_only)):
     return crud.create_recipe(db, recipe)
 
+
+@app.put("/api/recipes/{recipe_id}")
+def api_update_recipe(recipe_id: int, data: dict, db: Session = Depends(get_db),
+                      current_user=Depends(auth.admin_only)):
+    from models import Recipe
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Retsept topilmadi")
+    for key, val in data.items():
+        if hasattr(recipe, key):
+            setattr(recipe, key, val)
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.delete("/api/recipes/{recipe_id}")
+def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db),
+                      current_user=Depends(auth.admin_only)):
+    from models import Recipe
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Retsept topilmadi")
+    db.delete(recipe)
+    db.commit()
+    return {"status": "ok"}
+
 @app.get("/api/recipes", response_model=List[schemas.RecipeRead])
 def api_get_recipes(db: Session = Depends(get_db),
                     current_user=Depends(auth.admin_or_manager)):
