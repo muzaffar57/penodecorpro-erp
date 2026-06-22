@@ -142,10 +142,12 @@ class Recipe(Base):
 
     akril_kg = Column(Float, default=0.0)
     pva_kg = Column(Float, default=0.0)
-    qum_kg = Column(Float, default=0.0)
+    qum_kg = Column(Float, default=0.0)          # Kvars qum
+    travertin_qum_kg = Column(Float, default=0.0) # Travertin qum
     kroshka_kg = Column(Float, default=0.0)
     penogasitel_kg = Column(Float, default=0.0)
-    shtukaturka_kg = Column(Float, default=0.0)
+    shtukaturka_kg = Column(Float, default=0.0)  # Mel
+    zagustitel_kg = Column(Float, default=0.0)   # Zagustitel
     suv_kg = Column(Float, default=0.0)
     biotsid_ml = Column(Float, default=0.0)
 
