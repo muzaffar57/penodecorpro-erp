@@ -348,7 +348,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 total_volume_m3 += volume
         elif item.category == "profil":
             if item.width and item.thickness and item.length:
-                volume = (item.width * item.thickness / 2) * item.length * 100 * item.quantity / 1_000_000
+                volume = (item.width/100) * (item.thickness/100) * item.length * float(item.quantity or 1)
                 total_volume_m3 += volume
         elif item.category == "dona":
             # Donali detal: 1 dona narxi / 1 kub narxi = 1 dona uchun kub
