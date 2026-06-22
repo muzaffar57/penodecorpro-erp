@@ -601,7 +601,7 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
 
         if cat == 'profil':
             if item.width and item.thickness and item.length:
-                # JS bilan bir xil: Eni(m) × Kengligi(m) × Uzunlik(m)
+                # Profil kesimi uchburchak shaklda — /2 bilan bo'linadi
                 vol = (item.width/100) * (item.thickness/100) * float(item.length)
                 total_volume_m3 += vol
 
