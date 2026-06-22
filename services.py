@@ -731,20 +731,26 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     from sqlalchemy import func, extract
     from datetime import datetime
 
-    # ── 1. DAROMAD (tayyor buyurtmalar) ─────────────────────
-    daromad = db.query(func.sum(Order.total_amount)).filter(
+    # ── 1. DAROMAD va SOF FOYDA (tayyor buyurtmalar) ────────
+    ready_orders = db.query(Order).filter(
         Order.status == OrderStatus.READY,
         extract('year',  Order.completed_at) == year,
         extract('month', Order.completed_at) == month
-    ).scalar() or 0
-    daromad = float(daromad)
+    ).all()
 
-    # Tayyor buyurtmalar soni
-    buyurtmalar_soni = db.query(Order).filter(
-        Order.status == OrderStatus.READY,
-        extract('year',  Order.completed_at) == year,
-        extract('month', Order.completed_at) == month
-    ).count()
+    daromad = sum(float(o.total_amount or 0) for o in ready_orders)
+    buyurtmalar_soni = len(ready_orders)
+
+    # Har buyurtma uchun foyda hisoblaymiz
+    ishlab_chiqarish_xarajat = 0.0
+    for order in ready_orders:
+        try:
+            profit_data = calculate_order_profit(db, order.id)
+            ishlab_chiqarish_xarajat += float(profit_data.get("tan_narxi", 0))
+        except:
+            pass
+
+    sof_daromad = daromad - ishlab_chiqarish_xarajat
 
     # ── 2. QOPLAMACHI BONUS hisoblash ───────────────────────
     # Profil/karniz → uzunlik (metr) × miqdor × 1000 so'm
@@ -825,7 +831,7 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         xarajatlar["qoplamachi_bonus"]
     )
 
-    sof_foyda = daromad - jami_xarajat
+    sof_foyda = sof_daromad - jami_xarajat
     foyda_foiz = (sof_foyda / daromad * 100) if daromad > 0 else 0
 
     return {
@@ -836,6 +842,8 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
             "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"
         ][month],
         "daromad": daromad,
+        "ishlab_chiqarish_xarajat": ishlab_chiqarish_xarajat,
+        "sof_daromad": sof_daromad,
         "buyurtmalar_soni": buyurtmalar_soni,
         "jami_m2": round(jami_m2, 2),
         "jami_metr": round(jami_metr, 2),
