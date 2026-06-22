@@ -409,32 +409,13 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
             "shortages": shortages
         }
 
-    # === HAMMA NARSA YETARLI — BAJARAMIZ ===
+    # === HAMMA NARSA TAYYOR — BAJARAMIZ ===
     result = {
         "success": True,
         "message": "✓ Buyurtma yakunlandi!",
-        "inventory_changes": [],
+        "inventory_changes": ["Ombor buyurtma saqlanganda yangilangan"],
         "master_kpi": None
     }
-
-    # 1. PENOPLAST AYIRISH
-    if total_volume_m3 > 0:
-        cutting_result = process_cutting(db, order_id, total_volume_m3)
-        if cutting_result.get("inventory_updated"):
-            iu = cutting_result["inventory_updated"]
-            result["inventory_changes"].append(
-                f"{iu['item']}: -{iu['deducted']} (qoldi {iu['remaining']})"
-            )
-
-    # 2. QOPLAMA — RETSEPT BO'YICHA
-    if loy_kg and loy_kg > 0:
-        area_m2 = loy_kg / KG_PER_SQUARE_METER
-        coating_result = process_coating(db, order_id, area_m2)
-        if coating_result["success"] and coating_result.get("deducted_items"):
-            for d in coating_result["deducted_items"]:
-                result["inventory_changes"].append(
-                    f"{d['item']}: -{d['deducted']} {d['unit']} (qoldi {d['remaining']})"
-                )
 
     # 3. USTA KPI
     if order.master_id:
