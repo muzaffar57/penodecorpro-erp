@@ -615,8 +615,8 @@ def api_coating_notify(order_id: int, loy_kg: float,
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
-    # loy_kg ni order.notes ga saqlaymiz
     if loy_kg > 0:
+        # loy_kg ni order.notes ga saqlaymiz
         existing = order.notes or ''
         if 'loy_kg=' not in existing:
             order.notes = (existing + f',loy_kg={loy_kg}').strip(',')
@@ -625,6 +625,10 @@ def api_coating_notify(order_id: int, loy_kg: float,
             parts.append(f'loy_kg={loy_kg}')
             order.notes = ','.join(parts)
         db.commit()
+        db.refresh(order)
+
+        # Loy ingredientlarini ombordan ayiramiz
+        services.deduct_loy_ingredients(db, order, loy_kg)
 
         # SMS yuborish
         msg = (
@@ -728,6 +732,18 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db),
     from models import OrderStatus, Inventory
     if order.status != OrderStatus.READY:
         services.return_inventory_for_order(db, order)
+        # Loy ingredientlarini ham qaytaramiz
+        loy_kg = 0.0
+        if order.notes and 'loy_kg=' in str(order.notes):
+            try:
+                for part in str(order.notes).split(','):
+                    if 'loy_kg=' in part:
+                        loy_kg = float(part.split('=')[1].strip())
+                        break
+            except:
+                pass
+        if loy_kg > 0:
+            services.return_loy_ingredients(db, order, loy_kg)
 
     if not crud.delete_order(db, order_id):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
