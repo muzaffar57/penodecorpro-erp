@@ -975,53 +975,6 @@ def deduct_inventory_for_order(db: Session, order) -> list:
             db.commit()
             log.append(f"Penoplast: -{blocks_needed:.2f} blok")
 
-    # Loy ingredientlarini ayirish
-    loy_kg = 0.0
-    if order.notes and 'loy_kg=' in str(order.notes):
-        try:
-            for part in str(order.notes).split(','):
-                if 'loy_kg=' in part:
-                    loy_kg = float(part.split('=')[1].strip())
-                    break
-        except:
-            pass
-
-    if loy_kg > 0:
-        # Retsept topamiz
-        recipe = None
-        if hasattr(order, 'recipe_id') and order.recipe_id:
-            from models import Recipe
-            recipe = db.query(Recipe).filter(Recipe.id == order.recipe_id).first()
-        if not recipe:
-            # Birinchi retseptni olamiz
-            from models import Recipe
-            recipe = db.query(Recipe).first()
-
-        if recipe:
-            batch = float(recipe.batch_size_kg or 100)
-            # Har ingredient uchun necha kg kerak
-            ingredient_map = [
-                ("akril", recipe.akril_kg),
-                ("pva", recipe.pva_kg),
-                ("kvars qum", recipe.qum_kg),
-                ("kroshka", recipe.kroshka_kg),
-                ("mel", recipe.shtukaturka_kg),
-                ("suv", recipe.suv_kg),
-                ("penogasitel", recipe.penogasitel_kg),
-            ]
-            for inv_name, recipe_kg in ingredient_map:
-                if float(recipe_kg or 0) <= 0:
-                    continue
-                # Necha kg kerak = loy_kg * (ingredient_kg / batch)
-                needed_kg = loy_kg * (float(recipe_kg) / batch)
-                inv_item = db.query(Inventory).filter(
-                    Inventory.item_name.ilike(f"%{inv_name}%")
-                ).first()
-                if inv_item:
-                    inv_item.stock_quantity = max(0, float(inv_item.stock_quantity) - needed_kg)
-                    log.append(f"{inv_item.item_name}: -{needed_kg:.2f} {inv_item.unit}")
-            db.commit()
-
     return log
 
 
@@ -1070,46 +1023,102 @@ def return_inventory_for_order(db: Session, order) -> list:
             db.commit()
             log.append(f"Penoplast: +{blocks_to_return:.2f} blok qaytarildi")
 
-    # Loy ingredientlarini qaytarish
-    loy_kg = 0.0
-    if order.notes and 'loy_kg=' in str(order.notes):
-        try:
-            for part in str(order.notes).split(','):
-                if 'loy_kg=' in part:
-                    loy_kg = float(part.split('=')[1].strip())
-                    break
-        except:
-            pass
+    return log
 
-    if loy_kg > 0:
-        from models import Recipe
-        recipe = None
-        if hasattr(order, 'recipe_id') and order.recipe_id:
-            recipe = db.query(Recipe).filter(Recipe.id == order.recipe_id).first()
-        if not recipe:
-            recipe = db.query(Recipe).first()
 
-        if recipe:
-            batch = float(recipe.batch_size_kg or 100)
-            ingredient_map = [
-                ("akril", recipe.akril_kg),
-                ("pva", recipe.pva_kg),
-                ("kvars qum", recipe.qum_kg),
-                ("kroshka", recipe.kroshka_kg),
-                ("mel", recipe.shtukaturka_kg),
-                ("suv", recipe.suv_kg),
-                ("penogasitel", recipe.penogasitel_kg),
-            ]
-            for inv_name, recipe_kg in ingredient_map:
-                if float(recipe_kg or 0) <= 0:
-                    continue
-                needed_kg = loy_kg * (float(recipe_kg) / batch)
-                inv_item = db.query(Inventory).filter(
-                    Inventory.item_name.ilike(f"%{inv_name}%")
-                ).first()
-                if inv_item:
-                    inv_item.stock_quantity = float(inv_item.stock_quantity) + needed_kg
-                    log.append(f"{inv_item.item_name}: +{needed_kg:.2f} qaytarildi")
-            db.commit()
+def deduct_loy_ingredients(db: Session, order, loy_kg: float) -> list:
+    """
+    Loy (qoplama) uchun ingredientlarni ombordan ayiradi.
+    Retsept bo'yicha hisoblanadi.
+    """
+    from models import Inventory, Recipe
 
+    if loy_kg <= 0:
+        return []
+
+    log = []
+
+    # Retseptni topamiz
+    recipe = None
+    if hasattr(order, 'recipe_id') and order.recipe_id:
+        recipe = db.query(Recipe).filter(Recipe.id == order.recipe_id).first()
+    if not recipe:
+        recipe = db.query(Recipe).first()
+
+    if not recipe:
+        return []
+
+    batch = float(recipe.batch_size_kg or 100)
+
+    # Har bir ingredient uchun necha kg kerak
+    ingredient_map = [
+        ("akril", recipe.akril_kg),
+        ("pva", recipe.pva_kg),
+        ("kvars qum", recipe.qum_kg),
+        ("kroshka", recipe.kroshka_kg),
+        ("mel", recipe.shtukaturka_kg),
+        ("suv", recipe.suv_kg),
+        ("penogasitel", recipe.penogasitel_kg),
+    ]
+
+    for inv_name, recipe_kg in ingredient_map:
+        if float(recipe_kg or 0) <= 0:
+            continue
+        # Necha kg kerak = loy_kg * (ingredient_kg / batch)
+        needed_kg = loy_kg * (float(recipe_kg) / batch)
+        inv_item = db.query(Inventory).filter(
+            Inventory.item_name.ilike(f"%{inv_name}%")
+        ).first()
+        if inv_item:
+            inv_item.stock_quantity = max(0, float(inv_item.stock_quantity) - needed_kg)
+            log.append(f"{inv_item.item_name}: -{needed_kg:.2f} {inv_item.unit}")
+
+    db.commit()
+    return log
+
+
+def return_loy_ingredients(db: Session, order, loy_kg: float) -> list:
+    """
+    Loy ingredientlarini omborga qaytaradi (buyurtma o'chirilganda).
+    """
+    from models import Inventory, Recipe
+
+    if loy_kg <= 0:
+        return []
+
+    log = []
+
+    recipe = None
+    if hasattr(order, 'recipe_id') and order.recipe_id:
+        recipe = db.query(Recipe).filter(Recipe.id == order.recipe_id).first()
+    if not recipe:
+        recipe = db.query(Recipe).first()
+
+    if not recipe:
+        return []
+
+    batch = float(recipe.batch_size_kg or 100)
+
+    ingredient_map = [
+        ("akril", recipe.akril_kg),
+        ("pva", recipe.pva_kg),
+        ("kvars qum", recipe.qum_kg),
+        ("kroshka", recipe.kroshka_kg),
+        ("mel", recipe.shtukaturka_kg),
+        ("suv", recipe.suv_kg),
+        ("penogasitel", recipe.penogasitel_kg),
+    ]
+
+    for inv_name, recipe_kg in ingredient_map:
+        if float(recipe_kg or 0) <= 0:
+            continue
+        needed_kg = loy_kg * (float(recipe_kg) / batch)
+        inv_item = db.query(Inventory).filter(
+            Inventory.item_name.ilike(f"%{inv_name}%")
+        ).first()
+        if inv_item:
+            inv_item.stock_quantity = float(inv_item.stock_quantity) + needed_kg
+            log.append(f"{inv_item.item_name}: +{needed_kg:.2f} qaytarildi")
+
+    db.commit()
     return log
