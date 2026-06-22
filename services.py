@@ -1060,8 +1060,10 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float) -> list:
         ("akril", recipe.akril_kg),
         ("pva", recipe.pva_kg),
         ("kvars qum", recipe.qum_kg),
+        ("travertin qum", recipe.travertin_qum_kg),
         ("kroshka", recipe.kroshka_kg),
         ("mel", recipe.shtukaturka_kg),
+        ("zagustitel", recipe.zagustitel_kg),
         ("suv", recipe.suv_kg),
         ("penogasitel", recipe.penogasitel_kg),
     ]
@@ -1111,8 +1113,10 @@ def return_loy_ingredients(db: Session, order, loy_kg: float) -> list:
         ("akril", recipe.akril_kg),
         ("pva", recipe.pva_kg),
         ("kvars qum", recipe.qum_kg),
+        ("travertin qum", recipe.travertin_qum_kg),
         ("kroshka", recipe.kroshka_kg),
         ("mel", recipe.shtukaturka_kg),
+        ("zagustitel", recipe.zagustitel_kg),
         ("suv", recipe.suv_kg),
         ("penogasitel", recipe.penogasitel_kg),
     ]
