@@ -32,7 +32,7 @@
       <h3>{{ recipe.name.value }} retsepti</h3>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:11px;color:#aaa">{{ recipe.batch_size_kg }} kg batch</span>
-        <button class="btn btn-outline btn-xs" onclick="editRecipe({{ recipe.id }}, '{{ recipe.name.value }}', {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.kroshka_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.suv_kg }}, {{ recipe.penogasitel_kg }}, {{ recipe.biotsid_ml }})">✏️ Tahrirlash</button>
+        <button class="btn btn-outline btn-xs" onclick="editRecipe({{ recipe.id }}, '{{ recipe.name.value }}', {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.travertin_qum_kg or 0 }}, {{ recipe.kroshka_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.zagustitel_kg or 0 }}, {{ recipe.suv_kg }}, {{ recipe.penogasitel_kg }}, {{ recipe.biotsid_ml }})">✏️ Tahrirlash</button>
         <button class="btn btn-outline btn-xs" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteRecipe({{ recipe.id }})">🗑</button>
       </div>
     </div>
@@ -110,15 +110,17 @@ function calcRecipe(id, batch, akril, pva, qum, shtu, suv) {
 function showAddModal(){document.getElementById('addModal').style.display='flex'}
 function closeModal(){document.getElementById('addModal').style.display='none'}
 
-function editRecipe(id, name, batch, akril, pva, qum, kroshka, shtu, suv, peno, bio) {
+function editRecipe(id, name, batch, akril, pva, qum, trav_qum, kroshka, shtu, zagustitel, suv, peno, bio) {
   document.getElementById('edit-id').value = id;
   document.getElementById('edit-name').value = name;
   document.getElementById('edit-batch').value = batch;
   document.getElementById('edit-akril').value = akril;
   document.getElementById('edit-pva').value = pva;
   document.getElementById('edit-kvars-qum').value = qum;
+  document.getElementById('edit-trav-qum').value = trav_qum;
   document.getElementById('edit-kroshka').value = kroshka;
   document.getElementById('edit-mel').value = shtu;
+  document.getElementById('edit-zagustitel').value = zagustitel;
   document.getElementById('edit-suv').value = suv;
   document.getElementById('edit-peno').value = peno;
   document.getElementById('edit-bio').value = bio;
@@ -132,8 +134,10 @@ async function saveEditRecipe() {
     akril_kg: parseFloat(document.getElementById('edit-akril').value)||0,
     pva_kg: parseFloat(document.getElementById('edit-pva').value)||0,
     qum_kg: parseFloat(document.getElementById('edit-kvars-qum').value)||0,
+    travertin_qum_kg: parseFloat(document.getElementById('edit-trav-qum').value)||0,
     kroshka_kg: parseFloat(document.getElementById('edit-kroshka').value)||0,
     shtukaturka_kg: parseFloat(document.getElementById('edit-mel').value)||0,
+    zagustitel_kg: parseFloat(document.getElementById('edit-zagustitel').value)||0,
     suv_kg: parseFloat(document.getElementById('edit-suv').value)||0,
     penogasitel_kg: parseFloat(document.getElementById('edit-peno').value)||0,
     biotsid_ml: parseFloat(document.getElementById('edit-bio').value)||0,
@@ -231,14 +235,18 @@ async function saveRecipe() {
     </div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Kvars qum (kg)</label><input type="number" id="edit-kvars-qum" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Travertin qum (kg)</label><input type="number" id="edit-trav-qum" step="0.1"></div>
+    </div>
+    <div class="form-row">
       <div class="form-group" style="margin:0"><label>Marmar kroshka (kg)</label><input type="number" id="edit-kroshka" step="0.1"></div>
-    </div>
-    <div class="form-row">
       <div class="form-group" style="margin:0"><label>Mel (kg)</label><input type="number" id="edit-mel" step="0.1"></div>
-      <div class="form-group" style="margin:0"><label>Suv (kg)</label><input type="number" id="edit-suv" step="0.1"></div>
     </div>
     <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Suv (kg)</label><input type="number" id="edit-suv" step="0.1"></div>
       <div class="form-group" style="margin:0"><label>Penogasitel (kg)</label><input type="number" id="edit-peno" step="0.1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Zagustitel (kg)</label><input type="number" id="edit-zagustitel" step="0.1"></div>
       <div class="form-group" style="margin:0"><label>Biosid (ml)</label><input type="number" id="edit-bio" step="0.1"></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
