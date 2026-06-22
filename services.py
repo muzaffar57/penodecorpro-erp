@@ -755,24 +755,29 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         extract('month', Order.completed_at) == month
     ).all()
 
-    jami_metr = 0.0   # Profil/karniz uchun (metr)
-    jami_dona = 0.0   # Panel/boshqa uchun (dona)
+    jami_metr = 0.0   # Profil uchun (metr)
+    jami_panel_metr = 0.0  # Panel uchun (metr)
+    jami_dona = 0.0   # Donali uchun (dona)
 
     for order in orders_this_month:
         for item in order.items:
             if not item.is_coated:
                 continue
             category = (item.category or "").lower()
-            if category in ["profil", "karniz", "panel"]:
-                # Metrli: uzunlik (mm → metr) × miqdor
-                uzunlik_m = (item.length or 0) / 1000 if (item.length or 0) > 10 else (item.length or 0)
-                jami_metr += uzunlik_m * item.quantity
+            if category in ["profil", "karniz"]:
+                # Profil: uzunlik (m) × miqdor
+                uzunlik_m = float(item.length or 0)
+                jami_metr += uzunlik_m * float(item.quantity or 1)
+            elif category == "panel":
+                # Panel: eni (m) × miqdor
+                uzunlik_m = float(item.length or 0)
+                jami_panel_metr += uzunlik_m * float(item.quantity or 1)
             else:
-                # Donali: dona, boshqa
-                jami_dona += item.quantity
+                # Donali
+                jami_dona += float(item.quantity or 1)
 
-    qoplamachi_bonus_avtomatik = (jami_metr + jami_dona) * 1000
-    jami_m2 = jami_metr  # Ko'rsatish uchun (asosan metr)
+    qoplamachi_bonus_avtomatik = (jami_metr + jami_panel_metr + jami_dona) * 1000
+    jami_m2 = jami_metr + jami_panel_metr
 
     # ── 3. XARAJATLAR (bazadan) ──────────────────────────────
     expense = db.query(MonthlyExpense).filter(
@@ -994,7 +999,7 @@ def return_inventory_for_order(db: Session, order) -> list:
 
         if cat == 'profil':
             if item.width and item.thickness and item.length:
-                vol = (item.width/100) * (item.thickness/100) * float(item.length)
+                vol = (item.width/100) * (item.thickness/100) / 2 * float(item.length)
                 total_volume_m3 += vol
         elif cat == 'panel':
             if item.width and item.thickness:
