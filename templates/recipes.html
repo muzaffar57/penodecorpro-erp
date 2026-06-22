@@ -30,7 +30,11 @@
   <div class="card">
     <div class="card-head">
       <h3>{{ recipe.name.value }} retsepti</h3>
-      <span style="font-size:11px;color:#aaa">{{ recipe.batch_size_kg }} kg batch</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:#aaa">{{ recipe.batch_size_kg }} kg batch</span>
+        <button class="btn btn-outline btn-xs" onclick="editRecipe({{ recipe.id }}, '{{ recipe.name.value }}', {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.kroshka_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.suv_kg }}, {{ recipe.penogasitel_kg }}, {{ recipe.biotsid_ml }})">✏️ Tahrirlash</button>
+        <button class="btn btn-outline btn-xs" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteRecipe({{ recipe.id }})">🗑</button>
+      </div>
     </div>
     <div class="card-body">
       <!-- Ingredientlar -->
@@ -106,6 +110,49 @@ function calcRecipe(id, batch, akril, pva, qum, shtu, suv) {
 function showAddModal(){document.getElementById('addModal').style.display='flex'}
 function closeModal(){document.getElementById('addModal').style.display='none'}
 
+function editRecipe(id, name, batch, akril, pva, qum, kroshka, shtu, suv, peno, bio) {
+  document.getElementById('edit-id').value = id;
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-batch').value = batch;
+  document.getElementById('edit-akril').value = akril;
+  document.getElementById('edit-pva').value = pva;
+  document.getElementById('edit-kvars-qum').value = qum;
+  document.getElementById('edit-kroshka').value = kroshka;
+  document.getElementById('edit-mel').value = shtu;
+  document.getElementById('edit-suv').value = suv;
+  document.getElementById('edit-peno').value = peno;
+  document.getElementById('edit-bio').value = bio;
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+async function saveEditRecipe() {
+  const id = document.getElementById('edit-id').value;
+  const data = {
+    batch_size_kg: parseFloat(document.getElementById('edit-batch').value)||100,
+    akril_kg: parseFloat(document.getElementById('edit-akril').value)||0,
+    pva_kg: parseFloat(document.getElementById('edit-pva').value)||0,
+    qum_kg: parseFloat(document.getElementById('edit-kvars-qum').value)||0,
+    kroshka_kg: parseFloat(document.getElementById('edit-kroshka').value)||0,
+    shtukaturka_kg: parseFloat(document.getElementById('edit-mel').value)||0,
+    suv_kg: parseFloat(document.getElementById('edit-suv').value)||0,
+    penogasitel_kg: parseFloat(document.getElementById('edit-peno').value)||0,
+    biotsid_ml: parseFloat(document.getElementById('edit-bio').value)||0,
+  };
+  const res = await fetch(`/api/recipes/${id}`, {
+    method: 'PUT', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  if(res.ok){alert('✓ Retsept yangilandi!');location.reload();}
+  else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+}
+
+async function deleteRecipe(id) {
+  if(!confirm('Retseptni o\'chirasizmi?')) return;
+  const res = await fetch(`/api/recipes/${id}`, {method:'DELETE'});
+  if(res.ok) location.reload();
+  else alert('Xato yuz berdi');
+}
+
 async function saveRecipe() {
   const name = document.getElementById('f-name').value;
   if(!name){alert('Nom shart!');return;}
@@ -167,6 +214,36 @@ async function saveRecipe() {
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-dark w-full" onclick="saveRecipe()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tahrirlash modali -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:500px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px">✏️ Retseptni tahrirlash</div>
+    <input type="hidden" id="edit-id">
+    <div class="form-group"><label>Retsept nomi</label><input type="text" id="edit-name" readonly style="background:#f5f5f5;color:#aaa"></div>
+    <div class="form-group"><label>Batch hajmi (kg)</label><input type="number" id="edit-batch" min="1"></div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Akril (kg)</label><input type="number" id="edit-akril" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>PVA (kg)</label><input type="number" id="edit-pva" step="0.1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Kvars qum (kg)</label><input type="number" id="edit-kvars-qum" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Marmar kroshka (kg)</label><input type="number" id="edit-kroshka" step="0.1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Mel (kg)</label><input type="number" id="edit-mel" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Suv (kg)</label><input type="number" id="edit-suv" step="0.1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Penogasitel (kg)</label><input type="number" id="edit-peno" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>Biosid (ml)</label><input type="number" id="edit-bio" step="0.1"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-dark w-full" onclick="saveEditRecipe()">💾 Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="document.getElementById('editModal').style.display='none'">Bekor</button>
     </div>
   </div>
 </div>
