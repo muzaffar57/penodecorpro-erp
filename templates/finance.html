@@ -152,8 +152,12 @@ function buildExpDetail(d){
   const el=document.getElementById('expDetail');
   if(!rows.length){el.innerHTML='<div style="text-align:center;color:#bbb;padding:20px">Xarajat kiritilmagan</div>';return;}
   el.innerHTML=rows.map(r=>`<div class="exp-row"><span class="exp-name">${r.n}</span><span class="exp-val">${Number(r.v).toLocaleString('uz')} so'm</span></div>`).join('')
-    +`<div class="total-row"><span>Jami xarajat:</span><span style="color:#E74C3C">${Number(d.jami_xarajat).toLocaleString('uz')} so'm</span></div>
-       <div class="total-row" style="margin-top:6px"><span>Daromad:</span><span style="color:#27AE60">${Number(d.daromad).toLocaleString('uz')} so'm</span></div>`;
+    +`<div class="exp-row" style="border-top:1px dashed #e8e8e8;margin-top:6px;padding-top:6px">
+        <span class="exp-name" style="color:#2980B9">🏭 Ishlab chiqarish xarajati</span>
+        <span class="exp-val" style="color:#2980B9">${Number(d.ishlab_chiqarish_xarajat||0).toLocaleString('uz')} so'm</span>
+      </div>
+      <div class="total-row"><span>Jami xarajat:</span><span style="color:#E74C3C">${Number(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0)).toLocaleString('uz')} so'm</span></div>
+      <div class="total-row" style="margin-top:6px"><span>Jami daromad:</span><span style="color:#27AE60">${Number(d.daromad).toLocaleString('uz')} so'm</span></div>`;
   const pb=document.getElementById('profitBlock');
   pb.style.display='block';
   document.getElementById('profitBig').textContent=Number(d.sof_foyda).toLocaleString('uz')+' so\'m';
