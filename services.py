@@ -1038,19 +1038,24 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float) -> list:
 
     log = []
 
-    # Retseptni topamiz
+    # Retseptni order.items dan topamiz
     recipe = None
-    if hasattr(order, 'recipe_id') and order.recipe_id:
-        recipe = db.query(Recipe).filter(Recipe.id == order.recipe_id).first()
+    for item in order.items:
+        if hasattr(item, 'recipe_id') and item.recipe_id:
+            recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
+            if recipe:
+                break
+
+    # Topilmasa — birinchi retseptni olamiz
     if not recipe:
         recipe = db.query(Recipe).first()
 
     if not recipe:
+        print("⚠ Retsept topilmadi — loy ingredientlari ayirilmadi")
         return []
 
     batch = float(recipe.batch_size_kg or 100)
 
-    # Har bir ingredient uchun necha kg kerak
     ingredient_map = [
         ("akril", recipe.akril_kg),
         ("pva", recipe.pva_kg),
@@ -1064,7 +1069,6 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float) -> list:
     for inv_name, recipe_kg in ingredient_map:
         if float(recipe_kg or 0) <= 0:
             continue
-        # Necha kg kerak = loy_kg * (ingredient_kg / batch)
         needed_kg = loy_kg * (float(recipe_kg) / batch)
         inv_item = db.query(Inventory).filter(
             Inventory.item_name.ilike(f"%{inv_name}%")
@@ -1072,6 +1076,7 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float) -> list:
         if inv_item:
             inv_item.stock_quantity = max(0, float(inv_item.stock_quantity) - needed_kg)
             log.append(f"{inv_item.item_name}: -{needed_kg:.2f} {inv_item.unit}")
+            print(f"✓ {inv_item.item_name}: -{needed_kg:.2f} ayirildi")
 
     db.commit()
     return log
@@ -1089,8 +1094,11 @@ def return_loy_ingredients(db: Session, order, loy_kg: float) -> list:
     log = []
 
     recipe = None
-    if hasattr(order, 'recipe_id') and order.recipe_id:
-        recipe = db.query(Recipe).filter(Recipe.id == order.recipe_id).first()
+    for item in order.items:
+        if hasattr(item, 'recipe_id') and item.recipe_id:
+            recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
+            if recipe:
+                break
     if not recipe:
         recipe = db.query(Recipe).first()
 
