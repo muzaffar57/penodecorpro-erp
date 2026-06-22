@@ -104,9 +104,11 @@ class RecipeCreate(BaseModel):
     akril_kg: float = Field(default=0.0, ge=0)
     pva_kg: float = Field(default=0.0, ge=0)
     qum_kg: float = Field(default=0.0, ge=0)
+    travertin_qum_kg: float = Field(default=0.0, ge=0)
     kroshka_kg: float = Field(default=0.0, ge=0)
     penogasitel_kg: float = Field(default=0.0, ge=0)
     shtukaturka_kg: float = Field(default=0.0, ge=0)
+    zagustitel_kg: float = Field(default=0.0, ge=0)
     suv_kg: float = Field(default=0.0, ge=0)
     biotsid_ml: float = Field(default=0.0, ge=0)
     batch_size_kg: float = Field(default=150.0, gt=0)
@@ -120,9 +122,11 @@ class RecipeRead(BaseModel):
     akril_kg: float
     pva_kg: float
     qum_kg: float
+    travertin_qum_kg: float = 0.0
     kroshka_kg: float
     penogasitel_kg: float
     shtukaturka_kg: float
+    zagustitel_kg: float = 0.0
     suv_kg: float
     biotsid_ml: float
     batch_size_kg: float
