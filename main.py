@@ -719,6 +719,16 @@ def api_mark_all_ready(loy_kg: Optional[float] = None, db: Session = Depends(get
 @app.delete("/api/orders/{order_id}")
 def api_delete_order(order_id: int, db: Session = Depends(get_db),
                      current_user=Depends(auth.admin_or_manager)):
+    """Buyurtmani o'chirish — omborga xomashyo qaytariladi."""
+    order = crud.get_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+
+    # Agar buyurtma tayyor bo'lmagan bo'lsa — omborga qaytaramiz
+    from models import OrderStatus, Inventory
+    if order.status != OrderStatus.READY:
+        services.return_inventory_for_order(db, order)
+
     if not crud.delete_order(db, order_id):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     return {"status": "ok"}
