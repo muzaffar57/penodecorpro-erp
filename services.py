@@ -348,7 +348,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 total_volume_m3 += volume
         elif item.category == "profil":
             if item.width and item.thickness and item.length:
-                volume = (item.width/100) * (item.thickness/100) * item.length * float(item.quantity or 1)
+                volume = (item.width/100) * (item.thickness/100) / 2 * item.length * float(item.quantity or 1)
                 total_volume_m3 += volume
         elif item.category == "dona":
             # Donali detal: 1 dona narxi / 1 kub narxi = 1 dona uchun kub
@@ -601,8 +601,8 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
 
         if cat == 'profil':
             if item.width and item.thickness and item.length:
-                # Profil kesimi uchburchak shaklda — /2 bilan bo'linadi
-                vol = (item.width/100) * (item.thickness/100) * float(item.length)
+                # Profil: /2 bilan (narx formulasi bilan bir xil)
+                vol = (item.width/100) * (item.thickness/100) / 2 * float(item.length)
                 total_volume_m3 += vol
 
         elif cat == 'panel':
@@ -896,7 +896,7 @@ def check_inventory_for_order(db: Session, order_data) -> dict:
 
         if cat == 'profil':
             if item.width and item.thickness and item.length:
-                vol = (item.width/100) * (item.thickness/100) * item.length
+                vol = (item.width/100) * (item.thickness/100) / 2 * item.length
                 total_volume_m3 += vol
         elif cat == 'panel':
             if item.width and item.thickness:
@@ -948,7 +948,7 @@ def deduct_inventory_for_order(db: Session, order) -> list:
 
         if cat == 'profil':
             if item.width and item.thickness and item.length:
-                vol = (item.width/100) * (item.thickness/100) * item.length
+                vol = (item.width/100) * (item.thickness/100) / 2 * item.length
                 total_volume_m3 += vol
         elif cat == 'panel':
             if item.width and item.thickness:
