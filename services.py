@@ -413,9 +413,14 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     result = {
         "success": True,
         "message": "✓ Buyurtma yakunlandi!",
-        "inventory_changes": ["Ombor buyurtma saqlanganda yangilangan"],
+        "inventory_changes": [],
         "master_kpi": None
     }
+
+    # LOY INGREDIENTLARINI AYIRISH (tayyor bosilganda haqiqiy miqdor)
+    if loy_kg and loy_kg > 0:
+        loy_log = deduct_loy_ingredients(db, order, loy_kg)
+        result["inventory_changes"].extend(loy_log)
 
     # 3. USTA KPI
     if order.master_id:
