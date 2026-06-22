@@ -627,10 +627,7 @@ def api_coating_notify(order_id: int, loy_kg: float,
         db.commit()
         db.refresh(order)
 
-        # Loy ingredientlarini ombordan ayiramiz
-        services.deduct_loy_ingredients(db, order, loy_kg)
-
-        # SMS yuborish
+        # Faqat SMS yuboramiz — loy ingredientlari tayyor bosilganda ayiriladi
         msg = (
             f"🏗 *PenoDecorPro — Yangi buyurtma*\n\n"
             f"📋 Buyurtma: *{order.order_number}*\n"
