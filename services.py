@@ -820,9 +820,11 @@ def check_inventory_for_order(db: Session, order_data) -> dict:
                 penoplast = db.query(Inventory).filter(
                     Inventory.item_name.ilike("%penoplast%")
                 ).first()
-                if penoplast and penoplast.price_per_unit:
-                    vol = float(item.unit_price) / float(penoplast.price_per_unit) * qty
-                    total_volume_m3 += vol
+                if penoplast and penoplast.price_per_unit and penoplast.volume_per_unit:
+                    narx_per_m3 = float(penoplast.price_per_unit) / float(penoplast.volume_per_unit)
+                    if narx_per_m3 > 0:
+                        vol = float(item.unit_price) / narx_per_m3 * qty
+                        total_volume_m3 += vol
 
     # Penoplast tekshiruvi
     if total_volume_m3 > 0:
@@ -872,9 +874,11 @@ def deduct_inventory_for_order(db: Session, order) -> list:
                 penoplast = db.query(Inventory).filter(
                     Inventory.item_name.ilike("%penoplast%")
                 ).first()
-                if penoplast and penoplast.price_per_unit:
-                    vol = float(item.unit_price) / float(penoplast.price_per_unit) * qty
-                    total_volume_m3 += vol
+                if penoplast and penoplast.price_per_unit and penoplast.volume_per_unit:
+                    narx_per_m3 = float(penoplast.price_per_unit) / float(penoplast.volume_per_unit)
+                    if narx_per_m3 > 0:
+                        vol = float(item.unit_price) / narx_per_m3 * qty
+                        total_volume_m3 += vol
 
     # Penoplast ayirish
     if total_volume_m3 > 0:
