@@ -568,8 +568,10 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
                 "akril": recipe.akril_kg,
                 "pva": recipe.pva_kg,
                 "kvars qum": recipe.qum_kg,
+                "travertin qum": getattr(recipe, "travertin_qum_kg", 0) or 0,
                 "kroshka": recipe.kroshka_kg,
                 "mel": recipe.shtukaturka_kg,
+                "zagustitel": getattr(recipe, "zagustitel_kg", 0) or 0,
                 "suv": recipe.suv_kg,
             }
             narx_per_kg = 0.0
