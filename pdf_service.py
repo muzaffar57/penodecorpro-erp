@@ -211,11 +211,11 @@ def generate_nakladnoy(order, db=None) -> bytes:
         # Miqdor: profil uchun uzunlik, panel uchun miqdor, donali uchun dona
         item_cat = (item.category or "").lower()
         if item_cat == "profil":
-            miqdor_txt = f"{float(item.length or 0):.0f} M"
+            miqdor_txt = f"{float(item.length or 0):.0f}"
         elif item_cat == "panel":
-            miqdor_txt = f"{float(item.quantity or 0):.0f} TA"
+            miqdor_txt = f"{float(item.quantity or 0):.0f}"
         else:
-            miqdor_txt = f"{float(item.quantity or 0):.0f} TA"
+            miqdor_txt = f"{float(item.quantity or 0):.0f}"
 
         table_data.append([
             Paragraph(str(i+1), st["table_cell_c"]),
