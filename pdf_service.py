@@ -25,9 +25,9 @@ from reportlab.lib import colors
 # ============================================================
 # Ranglar (kompaniya uslubi)
 # ============================================================
-DARK   = colors.HexColor("#1A252F")   # Sarlavha foni
-GOLD   = colors.HexColor("#C9A55A")   # Urg'u rangi
-LIGHT  = colors.HexColor("#F4F6F8")   # Jadval qatori foni
+DARK   = colors.HexColor("#1A252F")
+GOLD   = colors.HexColor("#C9A55A")
+LIGHT  = colors.HexColor("#F4F6F8")
 WHITE  = colors.white
 RED    = colors.HexColor("#E74C3C")
 GREEN  = colors.HexColor("#27AE60")
@@ -35,104 +35,35 @@ GRAY   = colors.HexColor("#7F8C8D")
 LGRAY  = colors.HexColor("#BDC3C7")
 
 
-# ============================================================
-# Shriftlar va uslublar
-# ============================================================
-
 def get_styles():
     return {
-        "company": ParagraphStyle(
-            "company", fontName="Helvetica-Bold",
-            fontSize=20, textColor=GOLD, leading=24
-        ),
-        "company_sub": ParagraphStyle(
-            "company_sub", fontName="Helvetica",
-            fontSize=9, textColor=LGRAY, leading=12
-        ),
-        "doc_title": ParagraphStyle(
-            "doc_title", fontName="Helvetica-Bold",
-            fontSize=14, textColor=DARK, leading=18,
-            alignment=TA_RIGHT
-        ),
-        "doc_num": ParagraphStyle(
-            "doc_num", fontName="Helvetica",
-            fontSize=10, textColor=GRAY, leading=14,
-            alignment=TA_RIGHT
-        ),
-        "section_label": ParagraphStyle(
-            "section_label", fontName="Helvetica",
-            fontSize=8, textColor=GRAY, leading=10,
-            spaceAfter=2
-        ),
-        "section_value": ParagraphStyle(
-            "section_value", fontName="Helvetica-Bold",
-            fontSize=10, textColor=DARK, leading=13
-        ),
-        "section_value_sm": ParagraphStyle(
-            "section_value_sm", fontName="Helvetica",
-            fontSize=9, textColor=DARK, leading=12
-        ),
-        "table_header": ParagraphStyle(
-            "table_header", fontName="Helvetica-Bold",
-            fontSize=9, textColor=WHITE, leading=11,
-            alignment=TA_CENTER
-        ),
-        "table_cell": ParagraphStyle(
-            "table_cell", fontName="Helvetica",
-            fontSize=9, textColor=DARK, leading=11
-        ),
-        "table_cell_c": ParagraphStyle(
-            "table_cell_c", fontName="Helvetica",
-            fontSize=9, textColor=DARK, leading=11,
-            alignment=TA_CENTER
-        ),
-        "table_cell_r": ParagraphStyle(
-            "table_cell_r", fontName="Helvetica",
-            fontSize=9, textColor=DARK, leading=11,
-            alignment=TA_RIGHT
-        ),
-        "total_label": ParagraphStyle(
-            "total_label", fontName="Helvetica-Bold",
-            fontSize=11, textColor=DARK, leading=14,
-            alignment=TA_RIGHT
-        ),
-        "total_value": ParagraphStyle(
-            "total_value", fontName="Helvetica-Bold",
-            fontSize=13, textColor=GOLD, leading=16,
-            alignment=TA_RIGHT
-        ),
-        "footer": ParagraphStyle(
-            "footer", fontName="Helvetica",
-            fontSize=8, textColor=GRAY, leading=10,
-            alignment=TA_CENTER
-        ),
-        "note": ParagraphStyle(
-            "note", fontName="Helvetica",
-            fontSize=9, textColor=GRAY, leading=12
-        ),
-        "status_ok": ParagraphStyle(
-            "status_ok", fontName="Helvetica-Bold",
-            fontSize=9, textColor=GREEN, leading=11,
-            alignment=TA_CENTER
-        ),
-        "status_new": ParagraphStyle(
-            "status_new", fontName="Helvetica-Bold",
-            fontSize=9, textColor=GRAY, leading=11,
-            alignment=TA_CENTER
-        ),
+        "company": ParagraphStyle("company", fontName="Helvetica-Bold", fontSize=20, textColor=GOLD, leading=24),
+        "company_sub": ParagraphStyle("company_sub", fontName="Helvetica", fontSize=9, textColor=LGRAY, leading=12),
+        "doc_title": ParagraphStyle("doc_title", fontName="Helvetica-Bold", fontSize=14, textColor=DARK, leading=18, alignment=TA_RIGHT),
+        "doc_num": ParagraphStyle("doc_num", fontName="Helvetica", fontSize=10, textColor=GRAY, leading=14, alignment=TA_RIGHT),
+        "section_label": ParagraphStyle("section_label", fontName="Helvetica", fontSize=8, textColor=GRAY, leading=10, spaceAfter=2),
+        "section_value": ParagraphStyle("section_value", fontName="Helvetica-Bold", fontSize=10, textColor=DARK, leading=13),
+        "section_value_sm": ParagraphStyle("section_value_sm", fontName="Helvetica", fontSize=9, textColor=DARK, leading=12),
+        "table_header": ParagraphStyle("table_header", fontName="Helvetica-Bold", fontSize=9, textColor=WHITE, leading=11, alignment=TA_CENTER),
+        "table_cell": ParagraphStyle("table_cell", fontName="Helvetica", fontSize=9, textColor=DARK, leading=11),
+        "table_cell_c": ParagraphStyle("table_cell_c", fontName="Helvetica", fontSize=9, textColor=DARK, leading=11, alignment=TA_CENTER),
+        "table_cell_r": ParagraphStyle("table_cell_r", fontName="Helvetica", fontSize=9, textColor=DARK, leading=11, alignment=TA_RIGHT),
+        "total_label": ParagraphStyle("total_label", fontName="Helvetica-Bold", fontSize=11, textColor=DARK, leading=14, alignment=TA_RIGHT),
+        "total_value": ParagraphStyle("total_value", fontName="Helvetica-Bold", fontSize=13, textColor=GOLD, leading=16, alignment=TA_RIGHT),
+        "footer": ParagraphStyle("footer", fontName="Helvetica", fontSize=8, textColor=GRAY, leading=10, alignment=TA_CENTER),
+        "note": ParagraphStyle("note", fontName="Helvetica", fontSize=9, textColor=GRAY, leading=12),
+        "status_ok": ParagraphStyle("status_ok", fontName="Helvetica-Bold", fontSize=9, textColor=GREEN, leading=11, alignment=TA_CENTER),
+        "status_new": ParagraphStyle("status_new", fontName="Helvetica-Bold", fontSize=9, textColor=GRAY, leading=11, alignment=TA_CENTER),
     }
 
 
-# ============================================================
-# Status tarjimasi
-# ============================================================
 STATUS_UZ = {
-    "new":         "Yangi",
+    "new": "Yangi",
     "in_progress": "Jarayonda",
-    "coating":     "Qoplama",
-    "ready":       "Tayyor",
-    "delivered":   "Yetkazildi",
-    "cancelled":   "Bekor qilindi",
+    "coating": "Qoplama",
+    "ready": "Tayyor",
+    "delivered": "Yetkazildi",
+    "cancelled": "Bekor qilindi",
 }
 
 ORDER_TYPE_UZ = {
@@ -141,36 +72,26 @@ ORDER_TYPE_UZ = {
 }
 
 
-# ============================================================
-# Asosiy funksiya
-# ============================================================
-
 def generate_nakladnoy(order, db=None) -> bytes:
-    """
-    Buyurtma uchun PDF nakladnoy yaratadi.
-    Qaytaradi: PDF baytlari (io.BytesIO content).
-    """
+    """Buyurtma uchun PDF nakladnoy yaratadi."""
     buf = io.BytesIO()
     st  = get_styles()
 
     doc = SimpleDocTemplate(
-        buf,
-        pagesize=A4,
+        buf, pagesize=A4,
         leftMargin=18*mm, rightMargin=18*mm,
-        topMargin=15*mm,  bottomMargin=15*mm,
+        topMargin=15*mm, bottomMargin=15*mm,
     )
 
-    W = A4[0] - 36*mm   # Ish kengligi
+    W = A4[0] - 36*mm
     story = []
 
-    # ── SARLAVHA QATORI ──────────────────────────────────────
+    # ── SARLAVHA ──────────────────────────────────────────────
     import os
     from reportlab.platypus import Image as RLImage
 
-    # Logo fayl yo'li
     logo_path = os.path.join(os.path.dirname(__file__), "static", "logo_wide.jpg")
 
-    # Logo mavjud bo'lsa ishlatamiz
     if os.path.exists(logo_path):
         logo_img = RLImage(logo_path, width=50*mm, height=18*mm)
         logo_img.hAlign = 'LEFT'
@@ -197,29 +118,22 @@ def generate_nakladnoy(order, db=None) -> bytes:
 
     header_tbl = Table(header_data, colWidths=[W*0.6, W*0.4])
     header_tbl.setStyle(TableStyle([
-        ("VALIGN",       (0,0), (-1,-1), "TOP"),
-        ("ALIGN",        (1,0), (1,0),   "RIGHT"),
-        ("BOTTOMPADDING",(0,0), (-1,-1), 8),
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("ALIGN", (1,0), (1,0), "RIGHT"),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 8),
     ]))
     story.append(header_tbl)
+    story.append(HRFlowable(width="100%", thickness=2, color=GOLD, spaceAfter=10))
 
-    # Oltin chiziq
-    story.append(HRFlowable(width="100%", thickness=2,
-                            color=GOLD, spaceAfter=10))
-
-    # ── MIJOZ VA BUYURTMA MA'LUMOTLARI ───────────────────────
+    # ── MIJOZ MA'LUMOTLARI ────────────────────────────────────
     project = order.project
-
-    # Status belgisi
     status_val = order.status.value if hasattr(order.status, 'value') else str(order.status)
     status_txt = STATUS_UZ.get(status_val, status_val)
-    order_type  = ORDER_TYPE_UZ.get(
-        order.order_type.value if hasattr(order.order_type, 'value') else str(order.order_type),
-        "—"
+    order_type = ORDER_TYPE_UZ.get(
+        order.order_type.value if hasattr(order.order_type, 'value') else str(order.order_type), "—"
     )
 
     info_data = [[
-        # Mijoz ma'lumotlari
         [
             Paragraph("MIJOZ", st["section_label"]),
             Paragraph(project.client_name if project else "—", st["section_value"]),
@@ -230,7 +144,6 @@ def generate_nakladnoy(order, db=None) -> bytes:
             Paragraph("MANZIL", st["section_label"]),
             Paragraph(project.client_address or "—", st["section_value_sm"]),
         ],
-        # Loyiha ma'lumotlari
         [
             Paragraph("LOYIHA", st["section_label"]),
             Paragraph(project.project_name if project else "—", st["section_value"]),
@@ -239,12 +152,8 @@ def generate_nakladnoy(order, db=None) -> bytes:
             Paragraph(order.order_number, st["section_value_sm"]),
             Spacer(1, 4),
             Paragraph("YARATILGAN SANA", st["section_label"]),
-            Paragraph(
-                order.created_at.strftime("%d.%m.%Y") if order.created_at else "—",
-                st["section_value_sm"]
-            ),
+            Paragraph(order.created_at.strftime("%d.%m.%Y") if order.created_at else "—", st["section_value_sm"]),
         ],
-        # Qo'shimcha
         [
             Paragraph("HOLATI", st["section_label"]),
             Paragraph(status_txt, st["section_value"]),
@@ -253,28 +162,24 @@ def generate_nakladnoy(order, db=None) -> bytes:
             Paragraph(order_type, st["section_value_sm"]),
             Spacer(1, 4),
             Paragraph("USTA", st["section_label"]),
-            Paragraph(
-                order.master.name if order.master else "Belgilanmagan",
-                st["section_value_sm"]
-            ),
+            Paragraph(order.master.name if order.master else "Belgilanmagan", st["section_value_sm"]),
         ],
     ]]
 
     info_tbl = Table(info_data, colWidths=[W/3, W/3, W/3])
     info_tbl.setStyle(TableStyle([
-        ("VALIGN",       (0,0), (-1,-1), "TOP"),
-        ("BACKGROUND",   (0,0), (-1,-1), LIGHT),
-        ("ROUNDEDCORNERS", (0,0), (-1,-1), [4]),
-        ("TOPPADDING",   (0,0), (-1,-1), 10),
-        ("BOTTOMPADDING",(0,0), (-1,-1), 10),
-        ("LEFTPADDING",  (0,0), (-1,-1), 12),
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("BACKGROUND", (0,0), (-1,-1), LIGHT),
+        ("TOPPADDING", (0,0), (-1,-1), 10),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 10),
+        ("LEFTPADDING", (0,0), (-1,-1), 12),
         ("RIGHTPADDING", (0,0), (-1,-1), 12),
-        ("LINEAFTER",    (0,0), (1,-1),  0.5, LGRAY),
+        ("LINEAFTER", (0,0), (1,-1), 0.5, LGRAY),
     ]))
     story.append(info_tbl)
     story.append(Spacer(1, 12))
 
-    # ── MAHSULOTLAR JADVALI ──────────────────────────────────
+    # ── MAHSULOTLAR JADVALI ───────────────────────────────────
     def get_unit(item):
         cat = (item.category or '').lower()
         if cat == 'profil': return 'M'
@@ -285,12 +190,12 @@ def generate_nakladnoy(order, db=None) -> bytes:
     col_widths = [W*0.05, W*0.35, W*0.10, W*0.12, W*0.19, W*0.19]
 
     table_data = [[
-        Paragraph("#",                    st["table_header"]),
-        Paragraph("Mahsulot nomi",        st["table_header"]),
-        Paragraph("O'lchov\nbirligi",   st["table_header"]),
-        Paragraph("Miqdori",              st["table_header"]),
+        Paragraph("#", st["table_header"]),
+        Paragraph("Mahsulot nomi", st["table_header"]),
+        Paragraph("O'lchov\nbirligi", st["table_header"]),
+        Paragraph("Miqdori", st["table_header"]),
         Paragraph("Birlik narxi\n(so'm)", st["table_header"]),
-        Paragraph("Jami\n(so'm)",       st["table_header"]),
+        Paragraph("Jami\n(so'm)", st["table_header"]),
     ]]
 
     items = order.items if order.items else []
@@ -302,13 +207,23 @@ def generate_nakladnoy(order, db=None) -> bytes:
         unit = get_unit(item)
         bg = WHITE if i % 2 == 0 else LIGHT
         row_bg.append(bg)
+
+        # Miqdor: profil uchun uzunlik, panel uchun miqdor, donali uchun dona
+        item_cat = (item.category or "").lower()
+        if item_cat == "profil":
+            miqdor_txt = f"{float(item.length or 0):.0f} M"
+        elif item_cat == "panel":
+            miqdor_txt = f"{float(item.quantity or 0):.0f} TA"
+        else:
+            miqdor_txt = f"{float(item.quantity or 0):.0f} TA"
+
         table_data.append([
-            Paragraph(str(i+1),                    st["table_cell_c"]),
-            Paragraph(str(item.name),              st["table_cell"]),
-            Paragraph(unit,                        st["table_cell_c"]),
-            Paragraph(f"{item.quantity:.0f} {unit}", st["table_cell_c"]),
-            Paragraph(f"{unit_price:,.0f}",        st["table_cell_r"]),
-            Paragraph(f"{total_price:,.0f}",       st["table_cell_r"]),
+            Paragraph(str(i+1), st["table_cell_c"]),
+            Paragraph(str(item.name), st["table_cell"]),
+            Paragraph(unit, st["table_cell_c"]),
+            Paragraph(miqdor_txt, st["table_cell_c"]),
+            Paragraph(f"{unit_price:,.0f}", st["table_cell_r"]),
+            Paragraph(f"{total_price:,.0f}", st["table_cell_r"]),
         ])
 
     if not items:
@@ -321,19 +236,19 @@ def generate_nakladnoy(order, db=None) -> bytes:
 
     items_tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
     tbl_style = [
-        ("BACKGROUND",    (0,0), (-1,0),  DARK),
-        ("TEXTCOLOR",     (0,0), (-1,0),  WHITE),
-        ("ALIGN",         (0,0), (-1,-1), "CENTER"),
-        ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
-        ("FONTNAME",      (0,0), (-1,0),  "Helvetica-Bold"),
-        ("FONTSIZE",      (0,0), (-1,0),  8),
-        ("TOPPADDING",    (0,0), (-1,-1), 5),
+        ("BACKGROUND", (0,0), (-1,0), DARK),
+        ("TEXTCOLOR", (0,0), (-1,0), WHITE),
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,0), 8),
+        ("TOPPADDING", (0,0), (-1,-1), 5),
         ("BOTTOMPADDING", (0,0), (-1,-1), 5),
-        ("LEFTPADDING",   (0,0), (-1,-1), 4),
-        ("RIGHTPADDING",  (0,0), (-1,-1), 4),
-        ("GRID",          (0,0), (-1,-1), 0.3, LGRAY),
-        ("LINEBELOW",     (0,0), (-1,0),  1.5, GOLD),
-        ("ALIGN",         (4,1), (-1,-1), "RIGHT"),
+        ("LEFTPADDING", (0,0), (-1,-1), 4),
+        ("RIGHTPADDING", (0,0), (-1,-1), 4),
+        ("GRID", (0,0), (-1,-1), 0.3, LGRAY),
+        ("LINEBELOW", (0,0), (-1,0), 1.5, GOLD),
+        ("ALIGN", (4,1), (-1,-1), "RIGHT"),
     ]
     for idx, bg in enumerate(row_bg):
         tbl_style.append(("BACKGROUND", (0,idx), (-1,idx), bg))
@@ -341,10 +256,10 @@ def generate_nakladnoy(order, db=None) -> bytes:
     story.append(items_tbl)
     story.append(Spacer(1, 10))
 
-    # ── JAMI HISOB ───────────────────────────────────────────
+    # ── JAMI HISOB ────────────────────────────────────────────
     subtotal = sum(float(i.total_price or 0) for i in items)
     total    = float(order.total_amount or 0)
-    discount = subtotal - total  # chegirma summasi
+    discount = subtotal - total
     paid     = float(project.total_paid or 0) if project else 0
     qarz     = max(0, total - paid)
 
@@ -375,27 +290,32 @@ def generate_nakladnoy(order, db=None) -> bytes:
 
     totals_tbl = Table(totals_data, colWidths=[W*0.7, W*0.3])
     totals_tbl.setStyle(TableStyle([
-        ("ALIGN",        (0,0), (-1,-1), "RIGHT"),
-        ("VALIGN",       (0,0), (-1,-1), "MIDDLE"),
-        ("TOPPADDING",   (0,0), (-1,-1), 4),
-        ("BOTTOMPADDING",(0,0), (-1,-1), 4),
-        ("GRID",         (0,0), (-1,-1), 0.3, LGRAY),
-        ("BACKGROUND",   (0,0), (-1,0),  LIGHT),
-        ("LINEABOVE",    (0,2), (-1,2),  1.5, GOLD),
-        ("BACKGROUND",   (0,2), (-1,2),  colors.HexColor("#FDF8F0")),
+        ("ALIGN", (0,0), (-1,-1), "RIGHT"),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("TOPPADDING", (0,0), (-1,-1), 4),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ("GRID", (0,0), (-1,-1), 0.3, LGRAY),
+        ("BACKGROUND", (0,0), (-1,0), LIGHT),
+        ("LINEABOVE", (0,2), (-1,2), 1.5, GOLD),
+        ("BACKGROUND", (0,2), (-1,2), colors.HexColor("#FDF8F0")),
     ]))
     story.append(totals_tbl)
     story.append(Spacer(1, 16))
 
-    # ── IZOH ─────────────────────────────────────────────────
+    # ── IZOH ──────────────────────────────────────────────────
     if order.notes:
-        story.append(HRFlowable(width="100%", thickness=0.5,
-                                color=LGRAY, spaceAfter=6))
-        story.append(Paragraph("Izoh:", st["section_label"]))
-        story.append(Paragraph(order.notes, st["note"]))
-        story.append(Spacer(1, 10))
+        # loy_kg ni izohdan chiqarib tashlaymiz
+        notes_clean = ', '.join([
+            p for p in (order.notes or '').split(',')
+            if 'loy_kg=' not in p
+        ]).strip(', ')
+        if notes_clean:
+            story.append(HRFlowable(width="100%", thickness=0.5, color=LGRAY, spaceAfter=6))
+            story.append(Paragraph("Izoh:", st["section_label"]))
+            story.append(Paragraph(notes_clean, st["note"]))
+            story.append(Spacer(1, 10))
 
-    # ── IMZO QATORI ──────────────────────────────────────────
+    # ── IMZO QATORI ───────────────────────────────────────────
     story.append(Spacer(1, 20))
     sign_data = [[
         [
@@ -414,15 +334,14 @@ def generate_nakladnoy(order, db=None) -> bytes:
     sign_tbl = Table(sign_data, colWidths=[W/2, W/2])
     sign_tbl.setStyle(TableStyle([
         ("VALIGN", (0,0), (-1,-1), "BOTTOM"),
-        ("LEFTPADDING",  (0,0), (-1,-1), 0),
+        ("LEFTPADDING", (0,0), (-1,-1), 0),
         ("RIGHTPADDING", (0,0), (-1,-1), 0),
     ]))
     story.append(sign_tbl)
 
-    # ── PASTKI QISM ──────────────────────────────────────────
+    # ── PASTKI QISM ───────────────────────────────────────────
     story.append(Spacer(1, 16))
-    story.append(HRFlowable(width="100%", thickness=0.5,
-                            color=LGRAY, spaceAfter=6))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=LGRAY, spaceAfter=6))
     story.append(Paragraph(
         f"PenoDecorPro ERP · Chiqarilgan: {datetime.now().strftime('%d.%m.%Y %H:%M')} · "
         f"Buyurtma: {order.order_number}",
