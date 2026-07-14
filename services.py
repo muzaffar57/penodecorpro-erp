@@ -323,7 +323,93 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     if order.status == OrderStatus.READY:
         return {"success": False, "message": "Bu buyurtma allaqachon tayyor"}
 
-    # === BAJARAMIZ ===
+    # === AVVAL TEKSHIRUV ===
+    shortages = []
+
+    # 1. Penoplast hajmi tekshirish
+    # Formula:
+    # PROFIL: (h × w / 2) sm² × length(m) × 100 / 1,000,000 = m³
+    # PANEL:  h × w × t sm³ × quantity / 1,000,000 = m³
+    total_volume_m3 = 0
+    for item in order.items:
+        if item.category == "panel":
+            if item.width and item.thickness:
+                w2 = item.width
+                if item.notes and "width2=" in str(item.notes):
+                    try:
+                        for part in item.notes.split(","):
+                            if "width2=" in part:
+                                w2 = float(part.split("=")[1].strip())
+                                break
+                    except:
+                        pass
+                len_sm = (item.length * 100) if item.length and item.length > 0 else 1
+                volume = (item.width * w2 * item.thickness * len_sm * item.quantity) / 1_000_000
+                total_volume_m3 += volume
+        elif item.category == "profil":
+            if item.width and item.thickness and item.length:
+                volume = (item.width/100) * (item.thickness/100) / 2 * item.length * float(item.quantity or 1)
+                total_volume_m3 += volume
+        elif item.category == "dona":
+            # Donali detal: 1 dona narxi / 1 kub narxi = 1 dona uchun kub
+            # Misol: 25,000 / 1,100,000 = 0.0227 m³ × miqdor
+            if item.unit_price and float(item.unit_price) > 0:
+                penoplast_check = db.query(Inventory).filter(
+                    Inventory.item_name.ilike("%penoplast%")
+                ).first()
+                if penoplast_check and penoplast_check.price_per_unit and float(penoplast_check.price_per_unit) > 0:
+                    volume_per_dona = float(item.unit_price) / float(penoplast_check.price_per_unit)
+                    total_volume_m3 += volume_per_dona * float(item.quantity)
+        else:
+            if item.width and item.thickness and item.length:
+                volume = (item.width * item.thickness * item.length * 100 * item.quantity) / 1_000_000
+                total_volume_m3 += volume
+
+    if total_volume_m3 > 0:
+        calc = calculate_blocks_needed(total_volume_m3)
+        blocks_needed = calc["blocks_needed"]
+        penoplast = db.query(Inventory).filter(
+            Inventory.item_name.ilike("%penoplast%")
+        ).first()
+        if not penoplast:
+            shortages.append(f"⚠️ Omborda 'Penoplast' yo'q (kerak: {blocks_needed} dona)")
+        elif penoplast.stock_quantity < blocks_needed:
+            shortages.append(
+                f"⚠️ Penoplast yetarli emas: kerak {blocks_needed}, omborda {penoplast.stock_quantity:.0f} {penoplast.unit}"
+            )
+
+    # 2. Qoplama xomashyolarini tekshirish
+    if loy_kg and loy_kg > 0:
+        recipe_id = None
+        for item in order.items:
+            if item.recipe_id:
+                recipe_id = item.recipe_id
+                break
+        if recipe_id:
+            recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+            if recipe:
+                area_m2 = loy_kg / KG_PER_SQUARE_METER
+                calc = calculate_coating_materials(area_m2, recipe)
+                for comp_name, qty_needed in calc["materials"].items():
+                    inv_item = db.query(Inventory).filter(
+                        Inventory.item_name.ilike(f"%{comp_name}%")
+                    ).first()
+                    if not inv_item:
+                        shortages.append(f"⚠️ '{comp_name}' omborda yo'q (kerak: {qty_needed:.2f})")
+                    elif inv_item.stock_quantity < qty_needed:
+                        shortages.append(
+                            f"⚠️ {inv_item.item_name}: kerak {qty_needed:.2f}, bor {inv_item.stock_quantity:.2f} {inv_item.unit}"
+                        )
+
+    # Agar yetarli emas — buyurtmani tasdiqlamaymiz!
+    if shortages:
+        return {
+            "success": False,
+            "message": "❌ Buyurtmani tasdiqlash mumkin emas — xomashyo yetarli emas!",
+            "shortages": shortages
+        }
+
+    # === HAMMA NARSA TAYYOR — BAJARAMIZ ===
     result = {
         "success": True,
         "message": "✓ Buyurtma yakunlandi!",
@@ -568,10 +654,8 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
                 "akril": recipe.akril_kg,
                 "pva": recipe.pva_kg,
                 "kvars qum": recipe.qum_kg,
-                "travertin qum": getattr(recipe, 'travertin_qum_kg', 0) or 0,
                 "kroshka": recipe.kroshka_kg,
                 "mel": recipe.shtukaturka_kg,
-                "zagustitel": getattr(recipe, 'zagustitel_kg', 0) or 0,
                 "suv": recipe.suv_kg,
             }
             narx_per_kg = 0.0
@@ -822,11 +906,9 @@ def check_inventory_for_order(db: Session, order_data) -> dict:
                 penoplast = db.query(Inventory).filter(
                     Inventory.item_name.ilike("%penoplast%")
                 ).first()
-                if penoplast and penoplast.price_per_unit and penoplast.volume_per_unit:
-                    narx_per_m3 = float(penoplast.price_per_unit) / float(penoplast.volume_per_unit)
-                    if narx_per_m3 > 0:
-                        vol = float(item.unit_price) / narx_per_m3 * qty
-                        total_volume_m3 += vol
+                if penoplast and penoplast.price_per_unit:
+                    vol = float(item.unit_price) / float(penoplast.price_per_unit) * qty
+                    total_volume_m3 += vol
 
     # Penoplast tekshiruvi
     if total_volume_m3 > 0:
@@ -876,11 +958,9 @@ def deduct_inventory_for_order(db: Session, order) -> list:
                 penoplast = db.query(Inventory).filter(
                     Inventory.item_name.ilike("%penoplast%")
                 ).first()
-                if penoplast and penoplast.price_per_unit and penoplast.volume_per_unit:
-                    narx_per_m3 = float(penoplast.price_per_unit) / float(penoplast.volume_per_unit)
-                    if narx_per_m3 > 0:
-                        vol = float(item.unit_price) / narx_per_m3 * qty
-                        total_volume_m3 += vol
+                if penoplast and penoplast.price_per_unit:
+                    vol = float(item.unit_price) / float(penoplast.price_per_unit) * qty
+                    total_volume_m3 += vol
 
     # Penoplast ayirish
     if total_volume_m3 > 0:
