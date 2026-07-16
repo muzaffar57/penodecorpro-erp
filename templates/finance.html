@@ -72,6 +72,10 @@
           <div class="form-group" style="margin-bottom:10px"><label>Elektr</label><input type="number" id="f-elektr" placeholder="0" min="0"></div>
           <div class="form-group" style="margin-bottom:10px"><label>Tushlik</label><input type="number" id="f-tushlik" placeholder="0" min="0"></div>
         </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label>Soliqlar (jami, qo'lda kiritiladi)</label>
+          <input type="number" id="f-soliqlar" placeholder="0" min="0">
+        </div>
 
         <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin:14px 0 10px;padding-top:12px;border-top:1px solid #f0f0f0">Hodimlar oyliqi</div>
         {% for i in [1,2,3] %}
@@ -149,6 +153,7 @@ async function loadReport(){
   document.getElementById('f-arenda').value=x.arenda||'';
   document.getElementById('f-elektr').value=x.elektr||'';
   document.getElementById('f-tushlik').value=x.tushlik||'';
+  document.getElementById('f-soliqlar').value=x.soliqlar||'';
   document.getElementById('f-h1-ism').value=x.hodim1_ism||'';document.getElementById('f-h1-oylik').value=x.hodim1_oylik||'';
   document.getElementById('f-h2-ism').value=x.hodim2_ism||'';document.getElementById('f-h2-oylik').value=x.hodim2_oylik||'';
   document.getElementById('f-h3-ism').value=x.hodim3_ism||'';document.getElementById('f-h3-oylik').value=x.hodim3_oylik||'';
@@ -184,14 +189,31 @@ function buildCashSection(d){
 function buildExpDetail(d){
   const x=d.xarajatlar;
   const rows=[
-    {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},
+    {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},{n:'Soliqlar',v:x.soliqlar},
     {n:x.hodim1_ism+' (oylik)',v:x.hodim1_oylik},{n:x.hodim2_ism+' (oylik)',v:x.hodim2_oylik},
     {n:x.hodim3_ism+' (oylik)',v:x.hodim3_oylik},{n:x.qoplamachi_ism+' (oylik)',v:x.qoplamachi_oylik},
     {n:x.qoplamachi_ism+' (bonus)',v:x.qoplamachi_bonus}
   ].filter(r=>r.v>0);
   const el=document.getElementById('expDetail');
   if(!rows.length){el.innerHTML='<div style="text-align:center;color:#bbb;padding:20px">Xarajat kiritilmagan</div>';return;}
+  let extraHtml = '';
+
+  if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
+    extraHtml += `<div style="font-size:10.5px;color:#8B6914;font-weight:600;margin:8px 0 2px">🏆 Usta yillik KPI</div>`;
+    extraHtml += d.usta_kpi_breakdown.map(b =>
+      `<div class="exp-row"><span class="exp-name">${b.master_name} (${b.kpi_percent}% × ${fmt(b.monthly_sales)})</span><span class="exp-val">${Number(b.kpi_amount).toLocaleString('uz')} so'm</span></div>`
+    ).join('');
+  }
+
+  if (d.hodimlar_moslashuvchan_breakdown && d.hodimlar_moslashuvchan_breakdown.length) {
+    extraHtml += `<div style="font-size:10.5px;color:#8B6914;font-weight:600;margin:8px 0 2px">👷 Hodimlar (moslashuvchan)</div>`;
+    extraHtml += d.hodimlar_moslashuvchan_breakdown.map(b =>
+      `<div class="exp-row"><span class="exp-name">${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}</span><span class="exp-val">${Number(b.amount).toLocaleString('uz')} so'm</span></div>`
+    ).join('');
+  }
+
   el.innerHTML=rows.map(r=>`<div class="exp-row"><span class="exp-name">${r.n}</span><span class="exp-val">${Number(r.v).toLocaleString('uz')} so'm</span></div>`).join('')
+    + extraHtml
     +`<div class="exp-row" style="border-top:1px dashed #e8e8e8;margin-top:6px;padding-top:6px">
         <span class="exp-name" style="color:#2980B9">🏭 Ishlab chiqarish xarajati</span>
         <span class="exp-val" style="color:#2980B9">${Number(d.ishlab_chiqarish_xarajat||0).toLocaleString('uz')} so'm</span>
@@ -213,6 +235,7 @@ async function saveExpense(){
     arenda:parseFloat(document.getElementById('f-arenda').value)||0,
     elektr:parseFloat(document.getElementById('f-elektr').value)||0,
     tushlik:parseFloat(document.getElementById('f-tushlik').value)||0,
+    soliqlar:parseFloat(document.getElementById('f-soliqlar').value)||0,
     hodim1_ism:document.getElementById('f-h1-ism').value||'Hodim 1',hodim1_oylik:parseFloat(document.getElementById('f-h1-oylik').value)||0,
     hodim2_ism:document.getElementById('f-h2-ism').value||'Hodim 2',hodim2_oylik:parseFloat(document.getElementById('f-h2-oylik').value)||0,
     hodim3_ism:document.getElementById('f-h3-ism').value||'Hodim 3',hodim3_oylik:parseFloat(document.getElementById('f-h3-oylik').value)||0,
