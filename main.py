@@ -17,7 +17,7 @@ import schemas
 import crud
 import services
 import auth
-from models import UserRole, Inventory
+from models import UserRole, Inventory, OrderStatus
 
 import urllib.request
 import json as _json
@@ -80,6 +80,20 @@ def _migrate_payment_columns():
         if 'closed_at' not in cols:
             migrations.append("ALTER TABLE orders ADD COLUMN closed_at TIMESTAMP")
 
+        # Inventory — penoplast ustunlari
+        inv_cols = [c['name'] for c in inspector.get_columns('inventory')]
+        if 'is_penoplast' not in inv_cols:
+            migrations.append("ALTER TABLE inventory ADD COLUMN is_penoplast BOOLEAN DEFAULT FALSE")
+        if 'is_default_penoplast' not in inv_cols:
+            migrations.append("ALTER TABLE inventory ADD COLUMN is_default_penoplast BOOLEAN DEFAULT FALSE")
+
+        # OrderItem — plotnost ustunlari
+        oi_cols = [c['name'] for c in inspector.get_columns('order_items')]
+        if 'penoplast_id' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN penoplast_id INTEGER")
+        if 'price_per_m3' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN price_per_m3 NUMERIC(12,2)")
+
         if migrations:
             with engine.connect() as conn:
                 for sql in migrations:
@@ -98,6 +112,30 @@ def _migrate_payment_columns():
                     "WHERE agreed_amount IS NULL OR agreed_amount = 0"
                 ))
                 conn.commit()
+            except Exception:
+                pass
+
+            # Mavjud "Penoplast" nomli pozitsiyalarni belgilaymiz
+            try:
+                conn.execute(text(
+                    "UPDATE inventory SET is_penoplast = TRUE "
+                    "WHERE LOWER(item_name) LIKE '%penoplast%' AND is_penoplast = FALSE"
+                ))
+                conn.commit()
+            except Exception:
+                pass
+
+            # Agar asosiy plotnost yo'q bo'lsa — birinchisini asosiy qilamiz
+            try:
+                r = conn.execute(text(
+                    "SELECT COUNT(*) FROM inventory WHERE is_default_penoplast = TRUE"
+                )).scalar()
+                if not r:
+                    conn.execute(text(
+                        "UPDATE inventory SET is_default_penoplast = TRUE "
+                        "WHERE id = (SELECT id FROM inventory WHERE is_penoplast = TRUE LIMIT 1)"
+                    ))
+                    conn.commit()
             except Exception:
                 pass
     except Exception as e:
@@ -240,7 +278,14 @@ async def orders_page(request: Request, db: Session = Depends(get_db), current_u
     projects = crud.get_projects(db)
     masters = crud.get_masters(db, only_active=True)
     recipes = crud.get_recipes(db)
-    return templates.TemplateResponse(request, "orders.html", {"orders": orders, "projects": projects, "masters": masters, "recipes": recipes, "current_user": current_user, "active_page": "orders"})
+    penoplasts = services.get_penoplast_list(db)
+    default_p = services.get_default_penoplast(db)
+    return templates.TemplateResponse(request, "orders.html", {
+        "orders": orders, "projects": projects, "masters": masters,
+        "recipes": recipes, "penoplasts": penoplasts,
+        "default_penoplast_id": default_p.id if default_p else None,
+        "current_user": current_user, "active_page": "orders"
+    })
 
 
 @app.post("/api/masters", response_model=schemas.MasterRead)
@@ -465,15 +510,61 @@ def api_get_orders(project_id: Optional[int] = None, db: Session = Depends(get_d
     return crud.get_orders(db, project_id=project_id)
 
 
-@app.get("/api/orders/{order_id}", response_model=schemas.OrderRead)
+@app.get("/api/orders/{order_id}")
 def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     order = crud.get_order(db, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    _ = order.items
-    _ = order.project
-    _ = order.master
-    return order
+
+    return {
+        "id": order.id,
+        "order_number": order.order_number,
+        "project_id": order.project_id,
+        "order_type": order.order_type.value if order.order_type else None,
+        "status": order.status.value if order.status else None,
+        "total_amount": float(order.total_amount or 0),
+        "agreed_amount": float(order.agreed_amount or order.total_amount or 0),
+        "discount_percent": order.discount_percent or 0,
+        "payment_status": order.payment_status.value if order.payment_status else "unpaid",
+        "paid_amount": order.paid_amount,
+        "debt_amount": order.debt_amount,
+        "is_archived": bool(order.is_archived),
+        "is_draft": order.status == OrderStatus.DRAFT if order.status else False,
+        "master_id": order.master_id,
+        "master_name": order.master.name if order.master else None,
+        "client_name": order.project.client_name if order.project else None,
+        "project_name": order.project.project_name if order.project else None,
+        "created_at": order.created_at.isoformat() if order.created_at else None,
+        "deadline": order.deadline.isoformat() if order.deadline else None,
+        "closed_at": order.closed_at.isoformat() if order.closed_at else None,
+        "notes": order.notes,
+        "items": [{
+            "id": i.id,
+            "name": i.name,
+            "category": i.category,
+            "width": i.width,
+            "thickness": i.thickness,
+            "length": i.length,
+            "quantity": i.quantity,
+            "is_coated": i.is_coated,
+            "unit_price": float(i.unit_price or 0),
+            "total_price": float(i.total_price or 0),
+            "penoplast_id": i.penoplast_id,
+            "penoplast_name": i.penoplast.item_name if i.penoplast else None,
+            "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
+            "notes": i.notes
+        } for i in order.items],
+        "payments": [{
+            "id": p.id,
+            "order_id": p.order_id,
+            "amount": float(p.amount),
+            "payment_type": p.payment_type.value,
+            "payment_method": p.payment_method.value,
+            "paid_at": p.paid_at.isoformat() if p.paid_at else None,
+            "received_by": p.received_by,
+            "notes": p.notes
+        } for p in order.payments]
+    }
 
 
 @app.post("/api/orders/{order_id}/coating-notify")
@@ -771,6 +862,51 @@ def api_update_agreed_amount(order_id: int, data: schemas.OrderAgreedUpdate, db:
         "debt_amount": order.debt_amount,
         "payment_status": order.payment_status.value
     }
+
+
+@app.get("/api/penoplasts")
+def api_get_penoplasts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Penoplast (plotnost) turlari ro'yxati."""
+    items = services.get_penoplast_list(db)
+    default_p = services.get_default_penoplast(db)
+    return {
+        "items": [{
+            "id": p.id,
+            "name": p.item_name,
+            "stock": float(p.stock_quantity or 0),
+            "unit": p.unit,
+            "volume_per_unit": float(p.volume_per_unit or 1.0),
+            "price_per_unit": float(p.price_per_unit or 0),
+            "is_default": bool(p.is_default_penoplast)
+        } for p in items],
+        "default_id": default_p.id if default_p else None
+    }
+
+
+@app.post("/api/inventory/{item_id}/set-default-penoplast")
+def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Asosiy plotnost qilib belgilash."""
+    item = db.query(Inventory).filter(Inventory.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
+    if not item.is_penoplast:
+        raise HTTPException(status_code=400, detail="Bu penoplast emas")
+
+    db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
+        {"is_default_penoplast": False}
+    )
+    item.is_default_penoplast = True
+    db.commit()
+    return {"status": "ok", "default_id": item.id, "name": item.item_name}
+
+
+@app.post("/api/orders/{order_id}/activate")
+def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Qoralamani jarayonga olish — ombordan xomashyo yechiladi."""
+    result = crud.activate_draft_order(db, order_id)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
 
 
 @app.get("/api/dashboard/debts")
