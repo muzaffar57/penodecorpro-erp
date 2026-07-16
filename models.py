@@ -133,6 +133,7 @@ class Master(Base):
     phone = Column(String(20), unique=True, nullable=False)
     telegram_id = Column(String(50), unique=True, nullable=True)
     cashback_percent = Column(Float, default=0.0)
+    kpi_percent = Column(Float, default=0.0)   # Yillik KPI % — yillik sotuvdan, yil oxiri sovg'a uchun
     is_active = Column(Boolean, default=True)
     hire_date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
@@ -433,6 +434,42 @@ class InventoryPurchase(Base):
 
 
 # ============================================================
+# 8b. EMPLOYEE — Moslashuvchan hodim to'lovi
+# ============================================================
+
+class PayType(PyEnum):
+    """Hodim to'lov turi — korxonaga qarab har xil bo'lishi mumkin."""
+    FIXED = "fixed"                    # Doimiy oylik
+    PERCENT_SALES = "percent_sales"    # Sotuvdan foiz
+    PERCENT_PROFIT = "percent_profit"  # Foydadan foiz
+    PER_UNIT = "per_unit"              # Har birlik uchun (blok/metr/dona)
+
+
+class Employee(Base):
+    """Hodim — moslashuvchan to'lov tizimi bilan.
+    Har korxona xodimga turlicha haq to'lashi mumkin (SaaS uchun)."""
+    __tablename__ = "employees"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    position = Column(String(100), nullable=True)   # Lavozimi: "Kesuvchi", "Qoplovchi" va h.k.
+
+    pay_type = Column(Enum(PayType), default=PayType.FIXED, nullable=False)
+
+    fixed_amount = Column(Numeric(12, 2), default=0)      # FIXED uchun
+    percent_value = Column(Float, default=0.0)             # PERCENT_SALES / PERCENT_PROFIT uchun
+    per_unit_rate = Column(Numeric(12, 2), default=0)      # PER_UNIT uchun — 1 birlik narxi
+    per_unit_type = Column(String(20), default="blok")     # blok / metr / dona
+
+    is_active = Column(Boolean, default=True)
+    hire_date = Column(DateTime, default=datetime.utcnow)
+    notes = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<Employee {self.name} ({self.pay_type.value})>"
+
+
+# ============================================================
 # 9b. TRANSPORT EXPENSE — Kirish transporti (xomashyo tashish)
 # ============================================================
 
@@ -615,6 +652,7 @@ class MonthlyExpense(Base):
     arenda     = Column(Numeric(12, 2), default=0)
     elektr     = Column(Numeric(12, 2), default=0)
     tushlik    = Column(Numeric(12, 2), default=0)
+    soliqlar   = Column(Numeric(12, 2), default=0)  # Qo'lda kiritiladi (yagona/ijtimoiy va h.k. jami)
 
     # Hodimlar oyliqi (3 ta doimiy hodim)
     hodim1_ism    = Column(String(100), default="Hodim 1")
