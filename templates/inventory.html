@@ -6,6 +6,7 @@
 {% block topbar_actions %}
 <button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#2980B9;color:#2980B9">📋 Ombor hisoboti SMS</button>
 <button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#E74C3C;color:#E74C3C">📢 Kam qoldiqlar SMS</button>
+<button class="btn btn-outline btn-sm" onclick="openTransportModal()" style="border-color:#2980B9;color:#2980B9">🚚 Transport xarajati</button>
 <button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()" style="border-color:#27AE60;color:#1e7e34">🧾 Xaridlar tarixi</button>
 <button class="btn btn-dark" onclick="showAddModal()">+ Xomashyo qo'shish</button>
 {% endblock %}
@@ -303,6 +304,44 @@
     </div>
   </div>
 </div>
+
+<!-- ══ TRANSPORT XARAJATI MODALI ══ -->
+<div id="transportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:460px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600">🚚 Kirish transporti</div>
+      <button onclick="closeTransportModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+
+    <div style="padding:16px 22px">
+      <div class="form-group">
+        <label>Summasi (so'm)</label>
+        <input type="number" id="tp-amount" placeholder="0" min="1" step="1000">
+      </div>
+      <div class="form-group">
+        <label>Qaysi materiallar uchun</label>
+        <input type="text" id="tp-materials" placeholder="Masalan: Akril, Kroshka, Mel">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Izoh (ixtiyoriy)</label>
+        <input type="text" id="tp-notes" placeholder="...">
+      </div>
+      <div id="tp-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+    </div>
+
+    <div style="padding:14px 22px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
+      <button class="btn btn-outline w-full" onclick="closeTransportModal()">Bekor</button>
+      <button class="btn btn-dark w-full" onclick="saveTransport()">✓ Saqlash</button>
+    </div>
+
+    <div style="padding:0 22px 18px">
+      <div style="font-size:12px;font-weight:600;color:#777;margin:10px 0 6px">So'nggi xarajatlar</div>
+      <div id="tp-history" style="max-height:180px;overflow-y:auto">
+        <div style="text-align:center;padding:14px;color:#bbb;font-size:12px">Yuklanmoqda...</div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -507,6 +546,83 @@ async function openPurchaseHistory() {
 
 function closePurchaseHistory() {
   document.getElementById('historyModal').style.display = 'none';
+}
+
+// ── TRANSPORT XARAJATI (KIRISH) ────────────────────────────
+async function openTransportModal() {
+  document.getElementById('tp-amount').value = '';
+  document.getElementById('tp-materials').value = '';
+  document.getElementById('tp-notes').value = '';
+  document.getElementById('tp-error').style.display = 'none';
+  document.getElementById('transportModal').style.display = 'flex';
+  document.getElementById('tp-amount').focus();
+  loadTransportHistory();
+}
+
+function closeTransportModal() {
+  document.getElementById('transportModal').style.display = 'none';
+}
+
+async function loadTransportHistory() {
+  const box = document.getElementById('tp-history');
+  try {
+    const items = await fetch('/api/transport-expenses?limit=10').then(r => r.json());
+    if (!items.length) {
+      box.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">Hali yozuv yo\'q</div>';
+      return;
+    }
+    box.innerHTML = items.map(e => {
+      const dt = new Date(e.expense_date);
+      const ds = dt.toLocaleDateString('uz');
+      return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#1a1a1a">${fmt(e.amount)} so'm</div>
+          <div style="font-size:10.5px;color:#aaa">${e.materials_note || '—'} · ${ds}</div>
+        </div>
+        <button onclick="deleteTransport(${e.id})" style="width:22px;height:22px;border-radius:5px;background:#FEE;border:none;color:#C0392B;font-size:11px;cursor:pointer">✕</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    box.innerHTML = '<div style="text-align:center;padding:14px;color:#c0392b;font-size:12px">Xato</div>';
+  }
+}
+
+async function saveTransport() {
+  const amount = parseFloat(document.getElementById('tp-amount').value) || 0;
+  const err = document.getElementById('tp-error');
+  if (!amount || amount <= 0) { err.style.display='block'; err.textContent='❌ Summani kiriting'; return; }
+  err.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/transport-expenses', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        amount,
+        materials_note: document.getElementById('tp-materials').value.trim() || null,
+        notes: document.getElementById('tp-notes').value.trim() || null
+      })
+    });
+    if (res.ok) {
+      document.getElementById('tp-amount').value = '';
+      document.getElementById('tp-materials').value = '';
+      document.getElementById('tp-notes').value = '';
+      loadTransportHistory();
+    } else {
+      err.style.display = 'block';
+      err.textContent = '❌ Xato yuz berdi';
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server xatosi';
+  }
+}
+
+async function deleteTransport(id) {
+  if (!confirm('O\'chirilsinmi?')) return;
+  const res = await fetch(`/api/transport-expenses/${id}`, {method:'DELETE'});
+  if (res.ok) loadTransportHistory();
 }
 
 async function deleteItem(id) {
