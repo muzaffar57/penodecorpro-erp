@@ -1138,6 +1138,11 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
     } for fp in items]
 
 
+@app.get("/api/finished/stats")
+def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    return crud.get_finished_stats(db)
+
+
 @app.get("/api/finished/search")
 def api_search_finished(q: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Nom bo'yicha qidirish — buyurtmada taklif uchun."""
@@ -1170,27 +1175,20 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
 
 
 @app.post("/api/finished/{fp_id}/complete")
-def api_complete_production(fp_id: int, data: schemas.ProduceComplete,
-                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Ishlab chiqarishni yakunlash — haqiqiy loy sarfi bilan."""
-    result = crud.complete_production(db, fp_id, data.actual_loy_kg)
+def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
+    result = crud.complete_production(db, fp_id)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
+    return result
 
-    # Ombor ogohlantirishi
-    low_items = crud.get_low_stock_items(db)
-    if low_items:
-        lines = []
-        for item in low_items:
-            qty = float(item.stock_quantity)
-            min_q = float(item.min_stock)
-            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
-        msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nIshlab chiqarish yakunlangandan keyin:\n\n"
-               + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
-               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
-        _send_telegram(msg)
 
+@app.get("/api/finished/{fp_id}/profit")
+def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Tayyor mahsulot foydasi (faqat admin)."""
+    result = crud.get_finished_profit(db, fp_id)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["message"])
     return result
 
 
@@ -1211,11 +1209,6 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
     if not crud.delete_finished_product(db, fp_id, return_to_stock=return_to_stock):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
-
-
-@app.get("/api/finished/stats")
-def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.get_finished_stats(db)
 
 
 # ============================================================
