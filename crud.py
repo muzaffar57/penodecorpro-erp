@@ -1502,7 +1502,10 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
         delivery_number=delivery_number,
         delivered_by=delivered_by,
         received_by=data.received_by,
-        notes=data.notes
+        notes=data.notes,
+        transport_carrier=getattr(data, 'transport_carrier', None),
+        transport_cost=getattr(data, 'transport_cost', 0) or 0,
+        transport_payer=getattr(data, 'transport_payer', 'none') or 'none'
     )
     db.add(db_delivery)
     db.flush()
@@ -1635,6 +1638,10 @@ def _delivery_dict(d) -> dict:
         "delivered_by": d.delivered_by,
         "received_by": d.received_by,
         "notes": d.notes,
+        "transport_carrier": d.transport_carrier,
+        "transport_cost": float(d.transport_cost or 0),
+        "transport_payer": d.transport_payer or "none",
+        "company_transport_cost": d.company_transport_cost,
         "total_sum": round(dsum),
         "items": items
     }
@@ -2302,3 +2309,79 @@ def get_purchase_stats_range(db: Session, months: int = 6) -> dict:
             m = 12
             y -= 1
     return {"months": list(reversed(result))}
+
+
+# ============================================================
+# TRANSPORT EXPENSE — Kirish transporti
+# ============================================================
+
+from models import TransportExpense
+from schemas import TransportExpenseCreate
+
+
+def create_transport_expense(db: Session, data: TransportExpenseCreate, created_by: str = None) -> TransportExpense:
+    """Kirish transporti xarajatini yozadi."""
+    exp = TransportExpense(
+        amount=data.amount,
+        materials_note=data.materials_note,
+        created_by=created_by,
+        notes=data.notes
+    )
+    db.add(exp)
+    db.commit()
+    db.refresh(exp)
+    return exp
+
+
+def get_transport_expenses(db: Session, limit: int = 100) -> List[TransportExpense]:
+    return db.query(TransportExpense).order_by(TransportExpense.expense_date.desc()).limit(limit).all()
+
+
+def delete_transport_expense(db: Session, exp_id: int) -> bool:
+    exp = db.query(TransportExpense).filter(TransportExpense.id == exp_id).first()
+    if not exp:
+        return False
+    db.delete(exp)
+    db.commit()
+    return True
+
+
+def get_transport_stats(db: Session, year: int = None, month: int = None) -> dict:
+    """Transport xarajatlari statistikasi (kirish + chiqish) — joriy oy bo'yicha."""
+    from models import Delivery
+    from datetime import datetime as dt
+
+    now = dt.utcnow()
+    year = year or now.year
+    month = month or now.month
+    start = dt(year, month, 1)
+    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+
+    # Kirish transporti
+    inbound = db.query(TransportExpense).filter(
+        TransportExpense.expense_date >= start,
+        TransportExpense.expense_date < end
+    ).all()
+    inbound_total = sum(float(e.amount) for e in inbound)
+
+    # Chiqish transporti (kompaniya ulushi)
+    deliveries = db.query(Delivery).filter(
+        Delivery.delivered_at >= start,
+        Delivery.delivered_at < end,
+        Delivery.transport_cost > 0
+    ).all()
+    outbound_company = sum(d.company_transport_cost for d in deliveries)
+    outbound_client = sum(d.client_transport_cost for d in deliveries)
+    outbound_total = sum(float(d.transport_cost or 0) for d in deliveries)
+
+    return {
+        "year": year,
+        "month": month,
+        "inbound_total": round(inbound_total),
+        "inbound_count": len(inbound),
+        "outbound_total": round(outbound_total),
+        "outbound_company": round(outbound_company),
+        "outbound_client": round(outbound_client),
+        "outbound_count": len(deliveries),
+        "grand_total_company": round(inbound_total + outbound_company)
+    }
