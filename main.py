@@ -80,6 +80,16 @@ def _migrate_payment_columns():
         if 'closed_at' not in cols:
             migrations.append("ALTER TABLE orders ADD COLUMN closed_at TIMESTAMP")
 
+        # Delivery — transport ustunlari
+        if 'deliveries' in inspector.get_table_names():
+            dlv_cols = [c['name'] for c in inspector.get_columns('deliveries')]
+            if 'transport_carrier' not in dlv_cols:
+                migrations.append("ALTER TABLE deliveries ADD COLUMN transport_carrier VARCHAR(150)")
+            if 'transport_cost' not in dlv_cols:
+                migrations.append("ALTER TABLE deliveries ADD COLUMN transport_cost NUMERIC(12,2) DEFAULT 0")
+            if 'transport_payer' not in dlv_cols:
+                migrations.append("ALTER TABLE deliveries ADD COLUMN transport_payer VARCHAR(20) DEFAULT 'none'")
+
         # FinishedProduct — production status va loy ustunlari
         if 'finished_products' in inspector.get_table_names():
             fp_cols = [c['name'] for c in inspector.get_columns('finished_products')]
@@ -508,6 +518,42 @@ def api_purchase_stats(year: Optional[int] = None, month: Optional[int] = None,
                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Material bo'yicha xarid statistikasi (oylik)."""
     return crud.get_purchase_stats(db, year=year, month=month)
+
+
+@app.post("/api/transport-expenses")
+def api_create_transport(data: schemas.TransportExpenseCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Kirish transporti xarajatini qo'shish."""
+    who = current_user.full_name or current_user.username
+    exp = crud.create_transport_expense(db, data, created_by=who)
+    return {"status": "ok", "id": exp.id, "amount": float(exp.amount)}
+
+
+@app.get("/api/transport-expenses")
+def api_get_transport(limit: int = 100, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Kirish transporti tarixi."""
+    items = crud.get_transport_expenses(db, limit=limit)
+    return [{
+        "id": e.id,
+        "amount": float(e.amount),
+        "materials_note": e.materials_note,
+        "expense_date": e.expense_date.isoformat() if e.expense_date else None,
+        "created_by": e.created_by,
+        "notes": e.notes
+    } for e in items]
+
+
+@app.delete("/api/transport-expenses/{exp_id}")
+def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    if not crud.delete_transport_expense(db, exp_id):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
+
+
+@app.get("/api/transport-stats")
+def api_transport_stats(year: Optional[int] = None, month: Optional[int] = None,
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Transport xarajatlari statistikasi (kirish + chiqish)."""
+    return crud.get_transport_stats(db, year=year, month=month)
 
 
 @app.get("/api/inventory/purchase-trend")
