@@ -928,7 +928,14 @@ function calculateItem(row) {
     perMeterPrice = unitPrice;              // 1 dona narxi (qoplamasiz)
     price = unitPrice * qty;
     if (isCoated) { price *= 2; perMeterPrice *= 2; }
-    row.querySelector('.i-vol').value = '—';
+
+    // Hajm = (1 dona narxi ÷ 1 m³ narxi) × miqdor — qoplamasiz narxdan
+    if (basePrice > 0 && unitPrice > 0) {
+      volume_total = (unitPrice / basePrice) * qty;
+      row.querySelector('.i-vol').value = volume_total.toFixed(4);
+    } else {
+      row.querySelector('.i-vol').value = '—';
+    }
     row.dataset.unitprice = unitPrice;
   } else if (type === 'profil') {
     const eni_m  = h / 100;
@@ -1340,9 +1347,11 @@ function collectItems() {
                    notes: `width2=${w}`, quantity: qty, unit_price: unitPrice, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: m3price });
     } else if (type === 'dona') {
+      // Dona uchun 1 m³ narxi majburiy — hajm shundan hisoblanadi
+      const effM3 = m3price || parseNum(document.getElementById('base_price')?.value || '0') || null;
       items.push({ name, category: 'dona', width: null, thickness: null, length: null,
                    quantity: qty, unit_price: parseFloat(row.dataset.unitprice || 0), is_coated: isCoated,
-                   penoplast_id: penoId, price_per_m3: m3price });
+                   penoplast_id: penoId, price_per_m3: effM3 });
     } else {
       items.push({ name, category: type, width: h, thickness: w, length: l,
                    quantity: qty, unit_price: unitPrice, is_coated: isCoated,
