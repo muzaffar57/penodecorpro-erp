@@ -1391,18 +1391,41 @@ def get_delivery_status(db: Session, order_id: int) -> dict:
         "is_fully_delivered": order.is_fully_delivered,
         "status": order.status.value,
         "items": items,
-        "deliveries": [{
-            "id": d.id,
-            "delivery_number": d.delivery_number,
-            "delivered_at": d.delivered_at.isoformat() if d.delivered_at else None,
-            "delivered_by": d.delivered_by,
-            "received_by": d.received_by,
-            "notes": d.notes,
-            "items": [{
-                "order_item_id": di.order_item_id,
-                "item_name": di.order_item.name if di.order_item else "—",
-                "quantity": float(di.quantity),
-                "unit": di.unit
-            } for di in d.items]
-        } for d in sorted(order.deliveries, key=lambda x: x.delivered_at or datetime.min, reverse=True)]
+        "deliveries": [_delivery_dict(d) for d in
+                       sorted(order.deliveries, key=lambda x: x.delivered_at or datetime.min, reverse=True)]
+    }
+
+
+def _delivery_dict(d) -> dict:
+    """Yetkazishni dict ga aylantiradi — summasi bilan."""
+    items = []
+    dsum = 0.0
+    for di in d.items:
+        oi = di.order_item
+        if not oi:
+            continue
+        ordered = oi.order_qty_normalized
+        total_price = float(oi.total_price or 0)
+        unit_p = (total_price / ordered) if ordered > 0 else 0.0
+        line_sum = unit_p * float(di.quantity or 0)
+        dsum += line_sum
+        items.append({
+            "order_item_id": di.order_item_id,
+            "item_name": oi.name,
+            "quantity": float(di.quantity),
+            "unit": di.unit,
+            "unit_price": round(unit_p),
+            "sum": round(line_sum)
+        })
+
+    return {
+        "id": d.id,
+        "delivery_number": d.delivery_number,
+        "short_number": (d.delivery_number or "").split('/')[-1],
+        "delivered_at": d.delivered_at.isoformat() if d.delivered_at else None,
+        "delivered_by": d.delivered_by,
+        "received_by": d.received_by,
+        "notes": d.notes,
+        "total_sum": round(dsum),
+        "items": items
     }
