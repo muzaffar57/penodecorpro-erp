@@ -312,8 +312,38 @@ async def orders_page(request: Request, db: Session = Depends(get_db), current_u
     recipes = crud.get_recipes(db)
     penoplasts = services.get_penoplast_list(db)
     default_p = services.get_default_penoplast(db)
+
+    # Loyiha bo'yicha guruhlaymiz
+    groups = {}
+    for o in orders:
+        pid = o.project_id
+        if pid not in groups:
+            groups[pid] = {
+                "project_id": pid,
+                "project_name": o.project.project_name if o.project else "Loyihasiz",
+                "client_name": o.project.client_name if o.project else "—",
+                "orders": [],
+                "total": 0.0,
+                "debt": 0.0,
+                "active": 0,
+            }
+        g = groups[pid]
+        g["orders"].append(o)
+        g["total"] += float(o.agreed_amount or o.total_amount or 0)
+        g["debt"] += o.debt_amount
+        if o.status.value not in ("ready", "delivered", "cancelled"):
+            g["active"] += 1
+
+    # Eng yangi buyurtmasi bo'yicha tartiblaymiz
+    grouped = sorted(
+        groups.values(),
+        key=lambda g: max((x.created_at for x in g["orders"] if x.created_at), default=datetime.min),
+        reverse=True
+    )
+
     return templates.TemplateResponse(request, "orders.html", {
-        "orders": orders, "projects": projects, "masters": masters,
+        "orders": orders, "grouped": grouped,
+        "projects": projects, "masters": masters,
         "recipes": recipes, "penoplasts": penoplasts,
         "default_penoplast_id": default_p.id if default_p else None,
         "current_user": current_user, "active_page": "orders"
