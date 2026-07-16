@@ -1019,10 +1019,23 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     order.master_id = order_data.master_id
     if getattr(order_data, 'deadline', None):
         order.deadline = order_data.deadline
+
+    old_total = float(order.total_amount or 0)
+    old_discount_pct = float(order.discount_percent or 0)
     order.total_amount = total_amount
 
     agreed = getattr(order_data, 'agreed_amount', None)
-    order.agreed_amount = agreed if agreed else total_amount
+
+    if agreed:
+        # Xodim qo'lda summa kiritdi — shuni olamiz
+        order.agreed_amount = agreed
+    elif old_discount_pct > 0 and abs(total_amount - old_total) > 0.01:
+        # Jami o'zgardi, chegirma foizi saqlanadi
+        order.agreed_amount = round(total_amount * (1 - old_discount_pct / 100))
+    else:
+        order.agreed_amount = total_amount
+
+    # Chegirma foizini qayta hisoblaymiz
     if total_amount > 0 and float(order.agreed_amount) < total_amount:
         order.discount_percent = round(
             (total_amount - float(order.agreed_amount)) / total_amount * 100, 2)
@@ -1049,8 +1062,16 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         "inventory_log": inventory_log,
         "total_amount": float(order.total_amount or 0),
         "agreed_amount": float(order.agreed_amount or 0),
+        "discount_percent": float(order.discount_percent or 0),
         "paid_amount": order.paid_amount,
-        "debt_amount": order.debt_amount
+        "debt_amount": order.debt_amount,
+        "price_changed": {
+            "old_total": old_total,
+            "new_total": total_amount,
+            "old_discount_pct": old_discount_pct,
+            "new_discount_pct": float(order.discount_percent or 0),
+            "auto_applied": (not agreed and old_discount_pct > 0 and abs(total_amount - old_total) > 0.01)
+        }
     }
 
 
