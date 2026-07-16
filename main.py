@@ -163,6 +163,7 @@ def _migrate_payment_columns():
             ("paytype", "PERCENT_SALES"),
             ("paytype", "PERCENT_PROFIT"),
             ("paytype", "PER_UNIT"),
+            ("paytype", "FIXED_PLUS_COATING"),
         ]
         for enum_name, value in enum_additions:
             try:
