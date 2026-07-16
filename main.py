@@ -341,10 +341,11 @@ async def dashboard_page(request: Request, db: Session = Depends(get_db), curren
     return templates.TemplateResponse(request, "dashboard.html", {"stats": stats, "current_user": current_user, "active_page": "dashboard"})
 
 
-@app.get("/masters", response_class=HTMLResponse)
-async def masters_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    masters = crud.get_masters(db)
-    return templates.TemplateResponse(request, "masters.html", {"masters": masters, "current_user": current_user, "active_page": "masters"})
+@app.get("/masters")
+async def masters_page_redirect():
+    """Eski Ustalar sahifasi endi Ustalar KPI / Hodimlar bo'limiga ko'chdi."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/kpi", status_code=307)
 
 
 @app.get("/inventory", response_class=HTMLResponse)
@@ -462,6 +463,14 @@ def api_delete_master_permanent(master_id: int, db: Session = Depends(get_db), c
 @app.get("/api/masters", response_model=List[schemas.MasterRead])
 def api_get_masters(only_active: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     return crud.get_masters(db, only_active=only_active)
+
+
+@app.put("/api/masters/{master_id}", response_model=schemas.MasterRead)
+def api_update_master(master_id: int, data: schemas.MasterUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    updated = crud.update_master(db, master_id, data)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Usta topilmadi")
+    return updated
 
 
 @app.delete("/api/masters/{master_id}")
