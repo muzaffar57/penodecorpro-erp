@@ -97,6 +97,35 @@
     </div>
   </div>
 
+  <!-- YETKAZISH -->
+  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpi-card" style="border-left:3px solid #27AE60">
+      <div class="kpi-val text-green" id="dl-full">—</div>
+      <div class="kpi-label">To'liq topshirilgan</div>
+    </div>
+    <div class="kpi-card" style="border-left:3px solid #E67E22">
+      <div class="kpi-val" style="color:#E67E22" id="dl-partial">—</div>
+      <div class="kpi-label">Qisman topshirilgan</div>
+    </div>
+    <div class="kpi-card" style="border-left:3px solid #BDC3C7">
+      <div class="kpi-val" style="color:#7F8C8D" id="dl-none">—</div>
+      <div class="kpi-label">Topshirilmagan</div>
+    </div>
+  </div>
+
+  <!-- QISMAN TOPSHIRILGANLAR -->
+  <div class="card mb-16" style="border-left:3px solid #E67E22;border-radius:0 12px 12px 0" id="partialCard">
+    <div class="card-head">
+      <h3 style="color:#d35400">📦 Qisman topshirilgan buyurtmalar</h3>
+      <span style="font-size:11px;color:#aaa" id="partial-label">—</span>
+    </div>
+    <div class="card-body" style="padding:0">
+      <div id="partialList" style="max-height:300px;overflow-y:auto">
+        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+      </div>
+    </div>
+  </div>
+
   <!-- QARZDOR BUYURTMALAR -->
   <div class="card mb-16" style="border-left:3px solid #C0392B;border-radius:0 12px 12px 0">
     <div class="card-head">
@@ -143,8 +172,8 @@
 {% block scripts %}
 <script>
 const COLORS={gold:'#C9A55A',green:'#27AE60',blue:'#2980B9',orange:'#E67E22',red:'#E74C3C',gray:'#BDC3C7',purple:'#8E44AD'};
-const ST_COLORS={'new':COLORS.blue,'in_progress':COLORS.orange,'coating':COLORS.purple,'ready':COLORS.green,'delivered':COLORS.gold,'cancelled':COLORS.gray};
-const ST_LABELS={'new':'Yangi','in_progress':'Jarayonda','coating':'Qoplama','ready':'Tayyor','delivered':'Yetkazildi','cancelled':'Bekor'};
+const ST_COLORS={'draft':'#95A5A6','new':COLORS.blue,'in_progress':COLORS.orange,'coating':COLORS.purple,'ready':COLORS.green,'delivered':COLORS.gold,'cancelled':COLORS.gray};
+const ST_LABELS={'draft':'Qoralama','new':'Yangi','in_progress':'Jarayonda','coating':'Qoplama','ready':'Tayyor','delivered':'Yetkazildi','cancelled':'Bekor'};
 let mC,sC;
 function fmt(n){if(n>=1e6)return(n/1e6).toFixed(1)+' mln';if(n>=1000)return(n/1000).toFixed(0)+' ming';return n.toFixed(0);}
 
@@ -165,6 +194,42 @@ async function loadAll(){
   }
   buildMonthChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
   loadDebts();
+  loadDeliveryStats();
+}
+
+async function loadDeliveryStats(){
+  try{
+    const d = await fetch('/api/dashboard/deliveries').then(r=>r.json());
+    document.getElementById('dl-full').textContent    = d.fully_delivered+' ta';
+    document.getElementById('dl-partial').textContent = d.partial_count+' ta';
+    document.getElementById('dl-none').textContent    = d.not_started+' ta';
+    document.getElementById('partial-label').textContent = d.partial_count+' ta buyurtma';
+
+    const el = document.getElementById('partialList');
+    const card = document.getElementById('partialCard');
+    if(!d.partial_orders || !d.partial_orders.length){
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = '';
+    el.innerHTML = d.partial_orders.map(o=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid #f5f5f5">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${o.order_number}</span>
+            <span style="font-size:10px;background:#FEF9E7;color:#b7770d;padding:2px 6px;border-radius:8px;font-weight:600">${o.items_pending} ta detal qoldi</span>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:2px">${o.client_name}</div>
+          <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${o.percent}%;background:#E67E22;border-radius:2px"></div>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:14px;font-weight:700;color:#E67E22">${o.percent}%</div>
+          ${o.debt_amount>0?`<div style="font-size:10px;color:#C0392B;margin-top:1px">qarz ${fmt(o.debt_amount)}</div>`:''}
+        </div>
+      </div>`).join('');
+  }catch(e){console.error('Yetkazish statistikasi:',e);}
 }
 
 async function loadDebts(){
