@@ -78,7 +78,8 @@
              data-order-id="{{ o.id }}">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="ord-num">{{ o.order_number }}</div>
-            {% if o.status.value == 'ready' %}<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>
+            {% if o.status.value == 'draft' %}<span class="badge" style="font-size:9px;background:#F0F0F0;color:#666">📝 Qoralama</span>
+            {% elif o.status.value == 'ready' %}<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>
             {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>
             {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
           </div>
@@ -212,8 +213,9 @@
           </div>
         </div>
 
-        <div style="padding:0 12px 12px">
-          <button class="btn btn-dark w-full" onclick="saveOrder()">💾 Buyurtmani saqlash</button>
+        <div style="padding:0 12px 12px;display:flex;gap:8px">
+          <button class="btn btn-outline" style="flex:1;border-color:#8E8E93;color:#666" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
+          <button class="btn btn-dark" style="flex:2" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
         </div>
       </div>
     </div>
@@ -231,6 +233,17 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="od-items-container">
             <!-- Detallar bu yerda -->
           </div>
+        </div>
+      </div>
+
+      <!-- DRAFT BANNER -->
+      <div id="draftBanner" style="display:none;background:#FEF9E7;border:1.5px solid #F5CBA7;border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#b7770d">📝 Bu buyurtma qoralama holatida</div>
+            <div style="font-size:12px;color:#997;margin-top:3px">Ombordan xomashyo hali yechilmagan. Mijoz tasdiqlaganda "Jarayonga olish" tugmasini bosing.</div>
+          </div>
+          <button class="btn btn-dark btn-sm" style="flex-shrink:0" onclick="activateDraft()">▶️ Jarayonga olish</button>
         </div>
       </div>
 
@@ -392,6 +405,37 @@
 let selectedOrderId = null;
 let itemCount = 0;
 
+// ── PLOTNOST ──────────────────────────────────────────────
+const PENOPLASTS = [
+  {% for p in penoplasts %}
+  {id: {{ p.id }}, name: "{{ p.item_name }}", stock: {{ p.stock_quantity|float }}, isDefault: {{ 'true' if p.is_default_penoplast else 'false' }}},
+  {% endfor %}
+];
+const DEFAULT_PENO_ID = {{ default_penoplast_id or 'null' }};
+
+const PENO_OPTIONS = PENOPLASTS.length
+  ? PENOPLASTS.map(p => `<option value="${p.id}" ${p.id===DEFAULT_PENO_ID?'selected':''}>${p.name}${p.isDefault?' ⭐':''}</option>`).join('')
+  : '<option value="">— Ombor bo\'sh —</option>';
+
+function onPenoChange(row) {
+  updatePenoWarn(row);
+  calculateItem(row);
+}
+
+function updatePenoWarn(row) {
+  const sel = row.querySelector('.i-peno');
+  const warn = row.querySelector('.i-peno-warn');
+  if (!sel || !warn) return;
+  const pid = parseInt(sel.value);
+  if (pid && DEFAULT_PENO_ID && pid !== DEFAULT_PENO_ID) {
+    const p = PENOPLASTS.find(x => x.id === pid);
+    warn.style.display = 'inline';
+    warn.textContent = '⚠️ ' + (p ? p.name : 'Boshqa plotnost');
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
 // ── Yordamchi funksiyalar ─────────────────────────────────
 function formatNum(num) {
   if (!num || isNaN(num)) return '0';
@@ -434,16 +478,21 @@ function selectOrder(id, el) {
   if (sTotal) sTotal.textContent = Number(d.total).toLocaleString('uz') + ' so\'m';
 
   // Status
+  const isDraft = d.status === 'draft';
   const isReady = d.status === 'ready' || d.status === 'delivered';
   const statusEl = document.getElementById('od-status');
-  statusEl.innerHTML = isReady
-    ? '<span class="badge badge-ready">✓ Tayyor</span>'
-    : '<span class="badge badge-progress">Jarayonda</span>';
+  statusEl.innerHTML = isDraft
+    ? '<span class="badge" style="background:#F0F0F0;color:#666">📝 Qoralama</span>'
+    : (isReady ? '<span class="badge badge-ready">✓ Tayyor</span>'
+               : '<span class="badge badge-progress">Jarayonda</span>');
+
+  // Draft banner
+  document.getElementById('draftBanner').style.display = isDraft ? 'block' : 'none';
 
   document.getElementById('od-num').textContent = d.num + ' · ' + d.client;
 
   // Amallar tugmalari
-  document.getElementById('btn-ready').style.display  = isReady ? 'none' : 'block';
+  document.getElementById('btn-ready').style.display  = (isReady || isDraft) ? 'none' : 'block';
   document.getElementById('btn-edit').style.display   = isReady ? 'none' : 'block';
   document.getElementById('btn-pdf').style.display    = 'block';
   document.getElementById('btn-pdf').href = `/api/orders/${id}/pdf`;
@@ -490,6 +539,36 @@ function loadOrderItems(id) {
     <div style="grid-column:1/-1;background:#f8f8f6;border-radius:8px;padding:12px;font-size:12px;color:#555">
       Bu buyurtma detallari uchun PDF bosing yoki sahifani yangilang
     </div>`;
+}
+
+// ── DRAFT ─────────────────────────────────────────────────
+async function activateDraft() {
+  if (!selectedOrderId) return;
+  if (!confirm('Buyurtmani jarayonga olasizmi?\n\nOmbordan xomashyo yechiladi.')) return;
+
+  try {
+    const res = await fetch(`/api/orders/${selectedOrderId}/activate`, { method: 'POST' });
+    const d = await res.json();
+    if (res.ok) {
+      showMsg('✓ Buyurtma jarayonga olindi!', 'success');
+      setTimeout(()=>location.reload(), 1000);
+    } else {
+      const det = d.detail || {};
+      if (det.shortages && det.shortages.length) {
+        showMsg('❌ ' + det.message + '\n' + det.shortages.join('\n'), 'error');
+        const box = document.getElementById('resultBox');
+        if (box) {
+          box.innerHTML = `<b>❌ ${det.message}</b><br><br>` + det.shortages.map(x=>`• ${x}`).join('<br>');
+          box.className = 'result-box error';
+          box.style.display = 'block';
+        }
+      } else {
+        showMsg('❌ ' + (det.message || 'Xato'), 'error');
+      }
+    }
+  } catch(e) {
+    showMsg('❌ Server xatosi', 'error');
+  }
 }
 
 // ── TO'LOVLAR ─────────────────────────────────────────────
@@ -671,11 +750,22 @@ function addItem() {
           <option value="false">Yo'q</option>
         </select>
       </div>
+      <div class="dif"><label>Plotnost</label>
+        <select class="i-peno" onchange="onPenoChange(this.closest('.detal'))">
+          ${PENO_OPTIONS}
+        </select>
+      </div>
+      <div class="dif"><label>1 m³ narxi</label>
+        <input type="text" class="i-m3price" placeholder="asosiy"
+               oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"
+               style="border-color:#C9A55A">
+      </div>
     </div>
     <div class="detal-result">
       <span>Hajm: <input type="text" class="i-vol" readonly style="background:transparent;border:none;width:70px;padding:0;font-size:11px;color:#aaa"></span>
       <span>1m narxi: <input type="text" class="i-perm" readonly style="background:transparent;border:none;width:100px;padding:0;font-size:11px;color:#2980B9"></span>
       <span class="val">Jami: <input type="text" class="i-price" readonly style="background:transparent;border:none;width:110px;padding:0;font-size:12px;color:#27AE60;font-weight:600"></span>
+      <span class="i-peno-warn" style="display:none;font-size:11px;color:#E67E22;font-weight:600"></span>
     </div>`;
   const container = document.getElementById('items');
   container.prepend(div);
@@ -722,7 +812,14 @@ function calculateItem(row) {
   const l = parseFloat(row.querySelector('.i-l').value) || 0;
   const qty = parseFloat(row.querySelector('.i-q').value) || 1;
   const isCoated = row.querySelector('.i-c').value === 'true';
-  const basePrice = parseNum(document.getElementById('base_price').value);
+
+  // Detal o'z 1 m³ narxi bo'lsa — shuni, bo'lmasa asosiy narxni olamiz
+  const m3El = row.querySelector('.i-m3price');
+  const ownPrice = m3El ? parseNum(m3El.value) : 0;
+  const basePrice = ownPrice > 0 ? ownPrice : parseNum(document.getElementById('base_price').value);
+
+  // Plotnost ogohlantirishi
+  updatePenoWarn(row);
 
   let volume_total = 0, price = 0, perMeterPrice = 0;
 
@@ -899,7 +996,7 @@ function recalcAll() {
 }
 
 // ── Buyurtmani saqlash ────────────────────────────────────
-async function saveOrder() {
+async function saveOrder(isDraft = false) {
   const projId = parseInt(document.getElementById('project_id').value);
   if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
@@ -916,17 +1013,23 @@ async function saveOrder() {
     const unitPrice = parseFloat(row.dataset.price || 0) / qty;
     const isCoated = row.querySelector('.i-c').value === 'true';
 
+    const penoId = parseInt(row.querySelector('.i-peno')?.value) || null;
+    const m3price = parseNum(row.querySelector('.i-m3price')?.value || '0') || null;
+
     let itemData;
     if (type === 'panel') {
       itemData = { name, category: type, width: h, thickness: t, length: l,
-                   notes: `width2=${w}`, quantity: qty, unit_price: unitPrice, is_coated: isCoated };
+                   notes: `width2=${w}`, quantity: qty, unit_price: unitPrice, is_coated: isCoated,
+                   penoplast_id: penoId, price_per_m3: m3price };
     } else if (type === 'dona') {
       const unitPrice = parseFloat(row.dataset.unitprice || 0);
       itemData = { name, category: 'dona', width: null, thickness: null, length: null,
-                   quantity: qty, unit_price: unitPrice, is_coated: isCoated };
+                   quantity: qty, unit_price: unitPrice, is_coated: isCoated,
+                   penoplast_id: penoId, price_per_m3: m3price };
     } else {
       itemData = { name, category: type, width: h, thickness: w, length: l,
-                   quantity: qty, unit_price: unitPrice, is_coated: isCoated };
+                   quantity: qty, unit_price: unitPrice, is_coated: isCoated,
+                   penoplast_id: penoId, price_per_m3: m3price };
     }
     items.push(itemData);
   });
@@ -943,6 +1046,7 @@ async function saveOrder() {
     recipe_id: parseInt(document.getElementById('recipe_id').value) || null,
     master_id: parseInt(document.getElementById('master_id').value) || null,
     agreed_amount: finalPrice || undefined,
+    is_draft: isDraft,
     items
   };
 
@@ -971,8 +1075,8 @@ async function saveOrder() {
           })
         });
       }
-      showMsg('✓ Buyurtma yaratildi!', 'success');
-      setTimeout(()=>location.reload(), 800);
+      showMsg(isDraft ? '📝 Qoralama saqlandi! Ombordan xomashyo yechilmadi.' : '✓ Buyurtma yaratildi!', 'success');
+      setTimeout(()=>location.reload(), 1000);
     } else {
       const e = await res.json();
       // Xomashyo yetishmasa — aniq xabar
