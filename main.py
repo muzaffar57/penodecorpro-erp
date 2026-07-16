@@ -151,6 +151,27 @@ def _migrate_payment_columns():
             except Exception:
                 pass
 
+            # Panel detallar birligini metrga o'zgartiramiz (eski yozuvlar)
+            try:
+                conn.execute(text("""
+                    UPDATE delivery_items SET unit = 'metr'
+                    WHERE order_item_id IN (
+                        SELECT id FROM order_items WHERE LOWER(category) = 'panel'
+                    ) AND unit != 'metr'
+                """))
+                conn.commit()
+            except Exception:
+                pass
+
+            try:
+                conn.execute(text("""
+                    UPDATE finished_products SET unit = 'metr'
+                    WHERE LOWER(category) = 'panel' AND unit != 'metr'
+                """))
+                conn.commit()
+            except Exception:
+                pass
+
             # Mavjud "Penoplast" nomli pozitsiyalarni belgilaymiz
             try:
                 conn.execute(text(
