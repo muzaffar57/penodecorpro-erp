@@ -1212,3 +1212,114 @@ def return_loy_ingredients(db: Session, order, loy_kg: float) -> list:
 
     db.commit()
     return log
+
+
+# ============================================================
+# BUYURTMANI TAHRIRLASH — OMBORNI FARQ BO'YICHA TO'G'RILASH
+# ============================================================
+
+class _FakeItem:
+    """Ombor hisobi uchun soxta detal (schema yoki dict dan)."""
+    def __init__(self, d):
+        self.category = d.get('category')
+        self.width = d.get('width')
+        self.thickness = d.get('thickness')
+        self.length = d.get('length')
+        self.quantity = d.get('quantity', 1)
+        self.unit_price = d.get('unit_price', 0)
+        self.penoplast_id = d.get('penoplast_id')
+
+
+def adjust_inventory_diff(db: Session, old_items, new_items) -> list:
+    """Eski va yangi detallarni solishtirib, ombordagi penoplastni
+    faqat farq miqdorida to'g'rilaydi.
+
+    old_items / new_items — OrderItem obyektlari yoki dict lar ro'yxati.
+    """
+    from models import Inventory
+
+    def _norm(items):
+        out = []
+        for it in items:
+            out.append(_FakeItem(it) if isinstance(it, dict) else it)
+        return out
+
+    old_vol = _group_volumes_by_penoplast(db, _norm(old_items))
+    new_vol = _group_volumes_by_penoplast(db, _norm(new_items))
+
+    log = []
+    all_ids = set(old_vol.keys()) | set(new_vol.keys())
+
+    for pid in all_ids:
+        old_v = old_vol.get(pid, 0.0)
+        new_v = new_vol.get(pid, 0.0)
+        diff = new_v - old_v          # + = ko'paydi, − = kamaydi
+
+        if abs(diff) < 0.0001:
+            continue
+
+        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        if not p:
+            continue
+
+        vol_per_unit = float(p.volume_per_unit or 1.0)
+        blocks = diff / vol_per_unit
+
+        if blocks > 0:
+            p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
+            log.append(f"{p.item_name}: -{blocks:.2f} blok (qo'shildi)")
+        else:
+            p.stock_quantity = float(p.stock_quantity) + abs(blocks)
+            log.append(f"{p.item_name}: +{abs(blocks):.2f} blok (qaytdi)")
+
+    if log:
+        db.commit()
+    return log
+
+
+def check_inventory_diff(db: Session, old_items, new_items) -> dict:
+    """Tahrirlashdan keyin xomashyo yetadimi — tekshiradi."""
+    from models import Inventory
+
+    def _norm(items):
+        return [_FakeItem(it) if isinstance(it, dict) else it for it in items]
+
+    old_vol = _group_volumes_by_penoplast(db, _norm(old_items))
+    new_vol = _group_volumes_by_penoplast(db, _norm(new_items))
+
+    shortages = []
+    for pid in set(old_vol.keys()) | set(new_vol.keys()):
+        diff = new_vol.get(pid, 0.0) - old_vol.get(pid, 0.0)
+        if diff <= 0:
+            continue
+        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        if not p:
+            continue
+        vol_per_unit = float(p.volume_per_unit or 1.0)
+        blocks = diff / vol_per_unit
+        if float(p.stock_quantity) < blocks:
+            shortages.append(
+                f"{p.item_name}: qo'shimcha {blocks:.1f} blok kerak, "
+                f"qoldi {float(p.stock_quantity):.1f} blok"
+            )
+
+    return {"enough": len(shortages) == 0, "shortages": shortages}
+
+
+def adjust_loy_diff(db: Session, order, old_loy: float, new_loy: float) -> list:
+    """Loy rejasi o'zgarganda ombordagi xomashyoni to'g'rilaydi."""
+    diff = float(new_loy or 0) - float(old_loy or 0)
+    if abs(diff) < 0.01:
+        return []
+
+    log = []
+    recipe = _get_order_recipe(db, order)
+
+    if diff > 0:
+        # Loy ko'paydi — farq uchun xomashyo ayiramiz
+        log.extend(deduct_loy_ingredients(db, order, diff))
+    else:
+        # Loy kamaydi — farqni omborga qaytaramiz
+        log.extend(return_loy_ingredients(db, order, abs(diff)))
+
+    return log
