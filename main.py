@@ -456,10 +456,64 @@ def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.a
 
 @app.post("/api/inventory/{item_id}/stock", response_model=schemas.InventoryRead)
 def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.)."""
     updated = crud.update_stock(db, item_id, change.quantity_change)
     if not updated:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
     return updated
+
+
+@app.post("/api/inventory/{item_id}/purchase")
+def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi."""
+    who = current_user.full_name or current_user.username
+    result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
+                                  purchased_by=who, notes=data.notes)
+    if not result:
+        raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
+
+    item = result["item"]
+    return {
+        "status": "ok",
+        "item_name": item.item_name,
+        "new_quantity": float(item.stock_quantity),
+        "old_price": result["old_price"],
+        "new_price": result["new_price"],
+        "purchase_total": result["purchase_total"],
+        "price_changed": abs(result["old_price"] - result["new_price"]) > 0.01
+    }
+
+
+@app.get("/api/inventory/purchases")
+def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
+                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Xaridlar tarixi."""
+    items = crud.get_purchases(db, limit=limit, item_id=item_id)
+    return [{
+        "id": p.id,
+        "inventory_id": p.inventory_id,
+        "item_name": p.item_name,
+        "quantity": float(p.quantity),
+        "unit": p.unit,
+        "price_per_unit": float(p.price_per_unit),
+        "total_amount": float(p.total_amount),
+        "purchased_at": p.purchased_at.isoformat() if p.purchased_at else None,
+        "purchased_by": p.purchased_by,
+        "notes": p.notes
+    } for p in items]
+
+
+@app.get("/api/inventory/purchase-stats")
+def api_purchase_stats(year: Optional[int] = None, month: Optional[int] = None,
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Material bo'yicha xarid statistikasi (oylik)."""
+    return crud.get_purchase_stats(db, year=year, month=month)
+
+
+@app.get("/api/inventory/purchase-trend")
+def api_purchase_trend(months: int = 6, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Oxirgi N oy xarid tendensiyasi."""
+    return crud.get_purchase_stats_range(db, months=months)
 
 
 @app.post("/api/inventory/{item_id}/price")
@@ -820,8 +874,21 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=
     log = []
     order_num = order.order_number
 
-    # Qoralamada ombordan hech narsa yechilmagan — qaytarish shart emas
-    if order.status not in (OrderStatus.READY, OrderStatus.DRAFT):
+    # ── Xomashyo qaytadimi? ──
+    # Qoralama    → ombordan hech narsa yechilmagan, qaytarish shart emas
+    # Tayyor      → mahsulot ishlab chiqarilgan, xomashyo sarflangan — qaytmaydi
+    # Yetkazilgan → mijozga berilgan — qaytmaydi
+    # Topshirila boshlagan (qisman) → qaytmaydi, chunki bir qismi allaqachon ketgan
+    finished_statuses = (OrderStatus.READY, OrderStatus.DELIVERED)
+    has_delivery = bool(order.deliveries)
+
+    can_return = (
+        order.status not in finished_statuses
+        and order.status != OrderStatus.DRAFT
+        and not has_delivery
+    )
+
+    if can_return:
         # 1) Penoplast qaytadi
         log.extend(services.return_inventory_for_order(db, order))
 
@@ -846,11 +913,27 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=
         if loy_kg > 0:
             log.extend(services.return_loy_ingredients(db, order, loy_kg))
 
+    # Nima uchun qaytmagani — foydalanuvchiga aytamiz
+    reason = None
+    if not can_return:
+        if order.status == OrderStatus.DRAFT:
+            reason = "Qoralama — ombordan hech narsa yechilmagan edi"
+        elif order.status == OrderStatus.READY:
+            reason = "Buyurtma TAYYOR — mahsulot ishlab chiqarilgan, xomashyo qaytmaydi"
+        elif order.status == OrderStatus.DELIVERED:
+            reason = "Buyurtma YETKAZILGAN — mahsulot mijozda, xomashyo qaytmaydi"
+        elif has_delivery:
+            reason = f"Mahsulot topshirila boshlagan ({len(order.deliveries)} ta yuk xati) — xomashyo qaytmaydi"
+
     if not crud.delete_order(db, order_id):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
-    print(f"✓ {order_num} o'chirildi. Omborga qaytdi: {log}")
-    return {"status": "ok", "inventory_log": log}
+    if log:
+        print(f"✓ {order_num} o'chirildi. Omborga qaytdi: {log}")
+    else:
+        print(f"✓ {order_num} o'chirildi. Xomashyo qaytmadi: {reason}")
+
+    return {"status": "ok", "inventory_log": log, "returned": can_return, "reason": reason}
 
 
 @app.delete("/api/order-items/{item_id}")
