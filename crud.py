@@ -1660,8 +1660,9 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
 
     log = []
     peno_cost = 0.0
+    loy_cost = 0.0
 
-    # Penoplastni DARHOL yechamiz
+    # 1) Penoplastni DARHOL yechamiz
     if volume > 0 and pid:
         p = db.query(Inventory).filter(Inventory.id == pid).first()
         if p:
@@ -1671,10 +1672,32 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
             peno_cost = blocks * float(p.price_per_unit or 0)
             log.append(f"{p.item_name}: -{blocks:.2f} blok")
 
+    # 2) Loyni ham DARHOL yechamiz (bir marta so'raladi)
+    loy_kg = float(data.loy_kg or 0)
+    if loy_kg > 0:
+        from models import Recipe
+        recipe = None
+        if data.recipe_id:
+            recipe = db.query(Recipe).filter(Recipe.id == data.recipe_id).first()
+        if not recipe:
+            recipe = db.query(Recipe).first()
+
+        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
+        loy_cost = loy_kg * float(loy_info.get("cost_per_kg", 0))
+
+        class _FakeOrder:
+            def __init__(self, rid):
+                class _It:
+                    recipe_id = rid
+                self.items = [_It()]
+        fake = _FakeOrder(recipe.id if recipe else None)
+        log.extend(services.deduct_loy_ingredients(db, fake, loy_kg, use_stock=False))
+
     db.flush()
 
-    # Har safar YANGI yozuv — bir xili bo'lsa ham birlashtirmaymiz,
-    # chunki loy sarfi har birida boshqacha bo'lishi mumkin
+    total_cost = peno_cost + loy_cost
+
+    # Har safar YANGI yozuv — birlashtirmaymiz (loy sarfi har birida boshqacha)
     unit = _fp_unit(data.category)
     fp = FinishedProduct(
         name=data.name.strip(),
@@ -1685,12 +1708,12 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
         quantity=qty,
         unit=unit,
         unit_price=data.unit_price,
-        cost_price=peno_cost,
+        cost_price=total_cost,
         source=StockSource.PRODUCED,
         penoplast_id=pid,
         volume_m3=volume,
-        planned_loy_kg=data.loy_kg or 0,
-        actual_loy_kg=None,
+        planned_loy_kg=loy_kg,
+        actual_loy_kg=loy_kg,          # Darhol yechilgani uchun aniq
         recipe_id=data.recipe_id,
         production_status=ProductionStatus.IN_PROGRESS,
         created_by=created_by,
@@ -1700,23 +1723,32 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     db.commit()
     db.refresh(fp)
 
+    revenue = float(data.unit_price or 0) * qty
+    profit = revenue - total_cost
+    margin = (profit / revenue * 100) if revenue > 0 else 0
+
     return {
         "success": True,
-        "message": "Ishlab chiqarish boshlandi! Tayyor bo'lgach 'Tayyor' tugmasini bosing.",
+        "message": "Ishlab chiqarish boshlandi!",
         "product_id": fp.id,
         "name": fp.name,
         "quantity": float(fp.quantity),
         "unit": fp.unit,
         "volume_m3": round(volume, 4),
         "penoplast_cost": round(peno_cost),
-        "planned_loy_kg": data.loy_kg or 0,
+        "loy_cost": round(loy_cost),
+        "total_cost": round(total_cost),
+        "revenue": round(revenue),
+        "profit": round(profit),
+        "margin": round(margin, 1),
+        "loy_kg": loy_kg,
         "inventory_log": log
     }
 
 
-def complete_production(db: Session, fp_id: int, actual_loy_kg: float) -> dict:
-    """Ishlab chiqarishni yakunlaydi — haqiqiy loy sarfini yechadi."""
-    import services
+def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0) -> dict:
+    """Ishlab chiqarishni yakunlaydi — mahsulot sotuvga tayyor.
+    Xomashyo allaqachon yechilgan, bu faqat status o'zgartirish."""
     from models import ProductionStatus
 
     fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
@@ -1727,54 +1759,36 @@ def complete_production(db: Session, fp_id: int, actual_loy_kg: float) -> dict:
         return {"success": False, "message": "Faqat ishlab chiqarilgan mahsulot yakunlanadi"}
 
     if fp.production_status == ProductionStatus.READY:
-        return {"success": False, "message": "Bu mahsulot allaqachon tayyor deb belgilangan"}
+        return {"success": False, "message": "Bu mahsulot allaqachon tayyor"}
 
-    log = []
-    loy_cost = 0.0
-
-    if actual_loy_kg > 0:
-        from models import Recipe
-        recipe = db.query(Recipe).filter(Recipe.id == fp.recipe_id).first() if fp.recipe_id else None
-        if not recipe:
-            recipe = db.query(Recipe).first()
-
-        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
-        loy_cost = actual_loy_kg * float(loy_info.get("cost_per_kg", 0))
-
-        class _FakeOrder:
-            def __init__(self, rid):
-                class _It:
-                    recipe_id = rid
-                self.items = [_It()]
-        fake = _FakeOrder(recipe.id if recipe else None)
-        log.extend(services.deduct_loy_ingredients(db, fake, actual_loy_kg, use_stock=False))
-
-    fp.actual_loy_kg = actual_loy_kg
-    fp.cost_price = float(fp.cost_price or 0) + loy_cost
     fp.production_status = ProductionStatus.READY
     fp.finished_production_at = datetime.utcnow()
 
     db.commit()
     db.refresh(fp)
 
-    revenue = float(fp.unit_price or 0) * float(fp.quantity or 0)
+    qty = float(fp.quantity or 0)
+    revenue = float(fp.unit_price or 0) * qty
     total_cost = float(fp.cost_price or 0)
     profit = revenue - total_cost
     margin = (profit / revenue * 100) if revenue > 0 else 0
 
+    # 1 birlik uchun tan narxi — qisman sotilganda foyda hisoblash uchun
+    cost_per_unit = (total_cost / qty) if qty > 0 else 0
+
     return {
         "success": True,
-        "message": "Tayyor deb belgilandi!",
+        "message": "Sotuvga tayyor!",
         "product_id": fp.id,
         "name": fp.name,
-        "planned_loy_kg": fp.planned_loy_kg,
-        "actual_loy_kg": actual_loy_kg,
-        "loy_cost": round(loy_cost),
+        "quantity": qty,
+        "unit": fp.unit,
+        "loy_kg": float(fp.actual_loy_kg or 0),
         "total_cost": round(total_cost),
+        "cost_per_unit": round(cost_per_unit),
         "revenue": round(revenue),
         "profit": round(profit),
-        "margin": round(margin, 1),
-        "inventory_log": log
+        "margin": round(margin, 1)
     }
 
 
@@ -1824,8 +1838,8 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
             if p:
                 vol_per_unit = float(p.volume_per_unit or 1.0)
                 p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) / vol_per_unit)
-        # Loy qaytadi — faqat "Tayyor" bo'lgan bo'lsa (haqiqiy sarf ma'lum)
-        if fp.production_status == ProductionStatus.READY and fp.actual_loy_kg and fp.actual_loy_kg > 0:
+        # Loy qaytadi (ishlab chiqarishda darhol yechilgan)
+        if fp.actual_loy_kg and fp.actual_loy_kg > 0:
             class _FakeOrder:
                 def __init__(self, rid):
                     class _It:
