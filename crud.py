@@ -853,8 +853,14 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
             "shortages": check["shortages"]
         }
 
-    # Ombordan yechamiz
+    # Ombordan penoplast yechamiz
     log = services.deduct_inventory_for_order(db, order)
+
+    # Rejalashtirilgan loy bo'lsa — uni ham yechamiz
+    planned_loy = services._get_planned_loy(order)
+    if planned_loy > 0:
+        loy_log = services.deduct_loy_ingredients(db, order, planned_loy)
+        log.extend(loy_log)
 
     order.status = OrderStatus.IN_PROGRESS
     db.commit()
