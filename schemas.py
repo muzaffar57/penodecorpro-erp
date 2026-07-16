@@ -218,6 +218,43 @@ class OrderItemRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ============================================================
+# DELIVERY (Yetkazishlar)
+# ============================================================
+
+class DeliveryItemCreate(BaseModel):
+    order_item_id: int
+    quantity: float = Field(..., gt=0)
+
+
+class DeliveryCreate(BaseModel):
+    order_id: int
+    items: List[DeliveryItemCreate] = []
+    received_by: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class DeliveryItemRead(BaseModel):
+    id: int
+    order_item_id: int
+    quantity: float
+    unit: str
+    item_name: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+class DeliveryRead(BaseModel):
+    id: int
+    order_id: int
+    delivery_number: Optional[str] = None
+    delivered_at: datetime
+    delivered_by: Optional[str] = None
+    received_by: Optional[str] = None
+    notes: Optional[str] = None
+    items: List[DeliveryItemRead] = []
+    model_config = {"from_attributes": True}
+
+
 class PaymentCreate(BaseModel):
     """Yangi to'lov qo'shish."""
     order_id: int
