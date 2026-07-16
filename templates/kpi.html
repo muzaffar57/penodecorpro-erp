@@ -93,6 +93,7 @@
         <option value="percent_sales">Sotuvdan foiz</option>
         <option value="percent_profit">Foydadan foiz</option>
         <option value="per_unit">Har birlik uchun (blok/metr/dona)</option>
+        <option value="fixed_plus_coating">Doimiy oylik + qoplama qo'shimchasi</option>
       </select>
     </div>
 
@@ -121,6 +122,12 @@
       </div>
     </div>
 
+    <div class="form-group" id="e-coating-wrap" style="display:none">
+      <label>1 metr/dona uchun qo'shimcha (qoplangan detallardan)</label>
+      <input type="number" id="e-coatingrate" placeholder="1000" min="0" value="1000">
+      <div style="font-size:11px;color:#aaa;margin-top:4px">Tizim buyurtmalardagi qoplamali profil/panel metrini va donali detallar sonini avtomatik hisoblab, shu narxga ko'paytiradi.</div>
+    </div>
+
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes" placeholder="..."></div>
 
     <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
@@ -141,10 +148,12 @@ const PAY_LABELS = {
   fixed: 'Doimiy oylik',
   percent_sales: 'Sotuvdan %',
   percent_profit: 'Foydadan %',
-  per_unit: 'Birlik uchun'
+  per_unit: 'Birlik uchun',
+  fixed_plus_coating: 'Oylik + qoplama'
 };
 const PAY_COLORS = {
-  fixed: '#2980B9', percent_sales: '#27AE60', percent_profit: '#8E44AD', per_unit: '#E67E22'
+  fixed: '#2980B9', percent_sales: '#27AE60', percent_profit: '#8E44AD', per_unit: '#E67E22',
+  fixed_plus_coating: '#C9A55A'
 };
 
 // ── USTA YILLIK KPI ────────────────────────────────────────
@@ -215,6 +224,7 @@ async function loadEmployees() {
       else if (e.pay_type === 'percent_sales') detail = `Sotuvdan ${e.percent_value}%`;
       else if (e.pay_type === 'percent_profit') detail = `Foydadan ${e.percent_value}%`;
       else if (e.pay_type === 'per_unit') detail = `${fmt(e.per_unit_rate)} / ${e.per_unit_type}`;
+      else if (e.pay_type === 'fixed_plus_coating') detail = `${fmt(e.fixed_amount)} + ${fmt(e.per_unit_rate)}/metr-dona`;
 
       return `
       <div class="emp-row">
@@ -254,9 +264,13 @@ function closeEmpModal() {
 
 function empToggle() {
   const t = document.getElementById('e-paytype').value;
-  document.getElementById('e-fixed-wrap').style.display = (t === 'fixed') ? 'block' : 'none';
+  document.getElementById('e-fixed-wrap').style.display = (t === 'fixed' || t === 'fixed_plus_coating') ? 'block' : 'none';
   document.getElementById('e-percent-wrap').style.display = (t === 'percent_sales' || t === 'percent_profit') ? 'block' : 'none';
   document.getElementById('e-unit-wrap').style.display = (t === 'per_unit') ? 'flex' : 'none';
+  document.getElementById('e-coating-wrap').style.display = (t === 'fixed_plus_coating') ? 'block' : 'none';
+
+  const fixedLabel = document.querySelector('#e-fixed-wrap label');
+  if (fixedLabel) fixedLabel.textContent = (t === 'fixed_plus_coating') ? "Doimiy oylik (baza)" : "Oylik summasi (so'm)";
 }
 
 function editEmployee(id) {
@@ -271,6 +285,7 @@ function editEmployee(id) {
   document.getElementById('e-percent').value = e.percent_value || '';
   document.getElementById('e-unittype').value = e.per_unit_type || 'blok';
   document.getElementById('e-unitrate').value = e.per_unit_rate || '';
+  document.getElementById('e-coatingrate').value = e.per_unit_rate || 1000;
   document.getElementById('e-notes').value = e.notes || '';
   document.getElementById('emp-error').style.display = 'none';
   empToggle();
@@ -283,13 +298,18 @@ async function saveEmployee() {
   if (!name) { err.style.display='block'; err.textContent='❌ Ismni kiriting'; return; }
   err.style.display = 'none';
 
+  const payType = document.getElementById('e-paytype').value;
+  const unitRate = (payType === 'fixed_plus_coating')
+    ? (parseFloat(document.getElementById('e-coatingrate').value) || 1000)
+    : (parseFloat(document.getElementById('e-unitrate').value) || 0);
+
   const data = {
     name,
     position: document.getElementById('e-position').value.trim() || null,
-    pay_type: document.getElementById('e-paytype').value,
+    pay_type: payType,
     fixed_amount: parseFloat(document.getElementById('e-fixed').value) || 0,
     percent_value: parseFloat(document.getElementById('e-percent').value) || 0,
-    per_unit_rate: parseFloat(document.getElementById('e-unitrate').value) || 0,
+    per_unit_rate: unitRate,
     per_unit_type: document.getElementById('e-unittype').value,
     notes: document.getElementById('e-notes').value.trim() || null
   };
