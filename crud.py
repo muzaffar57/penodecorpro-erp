@@ -2385,3 +2385,116 @@ def get_transport_stats(db: Session, year: int = None, month: int = None) -> dic
         "outbound_count": len(deliveries),
         "grand_total_company": round(inbound_total + outbound_company)
     }
+
+
+# ============================================================
+# EMPLOYEE — Moslashuvchan hodim to'lovi
+# ============================================================
+
+from models import Employee, PayType
+from schemas import EmployeeCreate, EmployeeUpdate
+
+
+def create_employee(db: Session, data: EmployeeCreate) -> Employee:
+    try:
+        pt = PayType(data.pay_type)
+    except ValueError:
+        pt = PayType.FIXED
+
+    emp = Employee(
+        name=data.name.strip(),
+        position=data.position,
+        pay_type=pt,
+        fixed_amount=data.fixed_amount,
+        percent_value=data.percent_value,
+        per_unit_rate=data.per_unit_rate,
+        per_unit_type=data.per_unit_type,
+        notes=data.notes
+    )
+    db.add(emp)
+    db.commit()
+    db.refresh(emp)
+    return emp
+
+
+def get_employees(db: Session, only_active: bool = True) -> List[Employee]:
+    q = db.query(Employee)
+    if only_active:
+        q = q.filter(Employee.is_active == True)
+    return q.order_by(Employee.name).all()
+
+
+def get_employee(db: Session, emp_id: int) -> Optional[Employee]:
+    return db.query(Employee).filter(Employee.id == emp_id).first()
+
+
+def update_employee(db: Session, emp_id: int, data: EmployeeUpdate) -> Optional[Employee]:
+    emp = get_employee(db, emp_id)
+    if not emp:
+        return None
+    update_data = data.model_dump(exclude_unset=True)
+    if "pay_type" in update_data:
+        try:
+            update_data["pay_type"] = PayType(update_data["pay_type"])
+        except ValueError:
+            del update_data["pay_type"]
+    for k, v in update_data.items():
+        setattr(emp, k, v)
+    db.commit()
+    db.refresh(emp)
+    return emp
+
+
+def delete_employee(db: Session, emp_id: int) -> bool:
+    emp = get_employee(db, emp_id)
+    if not emp:
+        return False
+    db.delete(emp)
+    db.commit()
+    return True
+
+
+# ============================================================
+# MASTER KPI — Yillik KPI (sotuvdan %, yil oxiri sovg'a)
+# ============================================================
+
+def update_master_kpi(db: Session, master_id: int, kpi_percent: float) -> Optional[Master]:
+    m = db.query(Master).filter(Master.id == master_id).first()
+    if not m:
+        return None
+    m.kpi_percent = kpi_percent
+    db.commit()
+    db.refresh(m)
+    return m
+
+
+def get_masters_kpi_report(db: Session, year: int) -> dict:
+    """Har usta uchun yillik sotuv, KPI% va hisoblangan sovg'a."""
+    from models import Order, OrderStatus
+    from sqlalchemy import extract
+
+    masters = db.query(Master).filter(Master.is_active == True).all()
+    rows = []
+    total_gift = 0.0
+
+    for m in masters:
+        orders = db.query(Order).filter(
+            Order.master_id == m.id,
+            Order.status == OrderStatus.READY,
+            extract('year', Order.completed_at) == year
+        ).all()
+        yearly_sales = sum(float(o.total_amount or 0) for o in orders)
+        gift = yearly_sales * (m.kpi_percent or 0) / 100
+        total_gift += gift
+
+        rows.append({
+            "id": m.id,
+            "name": m.name,
+            "kpi_percent": m.kpi_percent or 0,
+            "yearly_sales": round(yearly_sales),
+            "orders_count": len(orders),
+            "gift_amount": round(gift)
+        })
+
+    rows.sort(key=lambda x: x["gift_amount"], reverse=True)
+    return {"year": year, "masters": rows, "total_gift": round(total_gift)}
