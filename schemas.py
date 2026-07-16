@@ -101,6 +101,27 @@ class StockChange(BaseModel):
     reason: Optional[str] = None
 
 
+class StockPurchase(BaseModel):
+    """Ombor kirimi — xarid narxi bilan (o'rtacha vaznli narx hisoblanadi)."""
+    quantity: float = Field(..., gt=0, description="Necha birlik kirim qilindi")
+    price_per_unit: float = Field(..., gt=0, description="Shu xariddagi 1 birlik narxi")
+    notes: Optional[str] = None
+
+
+class PurchaseRead(BaseModel):
+    id: int
+    inventory_id: int
+    item_name: str
+    quantity: float
+    unit: Optional[str] = None
+    price_per_unit: float
+    total_amount: float
+    purchased_at: datetime
+    purchased_by: Optional[str] = None
+    notes: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
 # ============================================================
 # RECIPE (Retseptlar)
 # ============================================================
