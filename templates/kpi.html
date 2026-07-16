@@ -1,3 +1,4 @@
+
 {% extends "base.html" %}
 {% block title %}Ustalar KPI va Hodimlar — PenoDecorPro ERP{% endblock %}
 {% block page_title %}Ustalar KPI va Hodimlar{% endblock %}
@@ -96,15 +97,9 @@
       <div class="form-group" style="margin:0"><label>Telefon</label><input type="text" id="m-phone" placeholder="+998901234567"></div>
     </div>
 
-    <div class="form-row">
-      <div class="form-group" style="margin:0">
-        <label>Bonus % (har buyurtmadan, darhol)</label>
-        <input type="number" id="m-cashback" placeholder="0" min="0" max="100" step="0.5">
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>Yillik KPI % (yil oxiri sovg'a)</label>
-        <input type="number" id="m-kpi" placeholder="0" min="0" max="100" step="0.5">
-      </div>
+    <div class="form-group">
+      <label>Yillik KPI % (yil oxiri sovg'a — sof foydadan)</label>
+      <input type="number" id="m-kpi" placeholder="0" min="0" max="100" step="0.5">
     </div>
 
     <div class="form-group"><label>Telegram ID (ixtiyoriy)</label><input type="text" id="m-telegram" placeholder="123456789"></div>
@@ -294,7 +289,7 @@ let editingMasterId = null;
 function openMasterModal() {
   editingMasterId = null;
   document.getElementById('master-modal-title').textContent = "+ Yangi usta";
-  ['m-name','m-phone','m-cashback','m-kpi','m-telegram','m-notes'].forEach(id => document.getElementById(id).value = '');
+  ['m-name','m-phone','m-kpi','m-telegram','m-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('master-error').style.display = 'none';
   document.getElementById('masterModal').style.display = 'flex';
 }
@@ -310,7 +305,6 @@ function editMaster(id) {
   document.getElementById('master-modal-title').textContent = "✏️ " + m.name;
   document.getElementById('m-name').value = m.name || '';
   document.getElementById('m-phone').value = m.phone || '';
-  document.getElementById('m-cashback').value = m.cashback_percent || '';
   document.getElementById('m-kpi').value = m.kpi_percent || '';
   document.getElementById('m-telegram').value = m.telegram_id || '';
   document.getElementById('m-notes').value = m.notes || '';
@@ -329,7 +323,6 @@ async function saveMaster() {
 
   const data = {
     name,
-    cashback_percent: parseFloat(document.getElementById('m-cashback').value) || 0,
     kpi_percent: parseFloat(document.getElementById('m-kpi').value) || 0,
     telegram_id: document.getElementById('m-telegram').value.trim() || null,
     notes: document.getElementById('m-notes').value.trim() || null
