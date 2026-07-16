@@ -330,3 +330,237 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     pdf = buf.getvalue()
     buf.close()
     return pdf
+
+
+# ============================================================
+# HISOB-KITOB VARAQASI — bir necha nakladnoy birlashtirilgan
+# ============================================================
+
+def generate_summary_pdf(order, deliveries, db=None) -> bytes:
+    """Tanlangan nakladnoylar bo'yicha umumiy hisob-kitob varaqasi."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=1.4*cm, rightMargin=1.4*cm,
+        topMargin=1.2*cm, bottomMargin=1.2*cm,
+        title=f"Hisob-kitob {order.order_number}"
+    )
+
+    project = order.project
+
+    st_title = ParagraphStyle('t', fontName='Helvetica-Bold', fontSize=16,
+                              textColor=colors.white, alignment=TA_CENTER, leading=20)
+    st_sub = ParagraphStyle('s', fontName='Helvetica', fontSize=9,
+                            textColor=GOLD, alignment=TA_CENTER, leading=12)
+    st_norm = ParagraphStyle('n', fontName='Helvetica', fontSize=9,
+                             textColor=DARK, leading=13)
+    st_small = ParagraphStyle('sm', fontName='Helvetica', fontSize=7.5,
+                              textColor=GRAY, leading=10)
+    st_item = ParagraphStyle('it', fontName='Helvetica', fontSize=7.5,
+                             textColor=DARK, leading=10)
+
+    el = []
+
+    # ---- Sarlavha ----
+    header = Table([
+        [Paragraph("PENODECORPRO", st_title)],
+        [Paragraph("Fasad bezaklari  ·  Andijon  ·  +998 97 999 57 57", st_sub)],
+    ], colWidths=[18.2*cm])
+    header.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), DARK),
+        ('TOPPADDING', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
+    ]))
+    el.append(header)
+    el.append(Spacer(1, 6))
+
+    # ---- Hujjat nomi ----
+    title2 = Table([[Paragraph(
+        f"<font size=13><b>HISOB-KITOB VARAQASI</b></font>  "
+        f"<font size=11 color='#8E8E93'>{order.order_number}</font>",
+        ParagraphStyle('x', fontName='Helvetica', fontSize=12,
+                       textColor=DARK, alignment=TA_CENTER)
+    )]], colWidths=[18.2*cm])
+    title2.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), LIGHT),
+        ('TOPPADDING', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+        ('LINEBELOW', (0, 0), (-1, -1), 2, GOLD),
+    ]))
+    el.append(title2)
+    el.append(Spacer(1, 10))
+
+    # ---- Ma'lumotlar ----
+    dts = [d.delivered_at for d in deliveries if d.delivered_at]
+    if dts:
+        d1, d2 = min(dts), max(dts)
+        for x in (d1, d2):
+            if x.tzinfo is None:
+                pass
+        davr = (f"{d1.strftime('%d.%m.%Y')} — {d2.strftime('%d.%m.%Y')}"
+                if d1.date() != d2.date() else d1.strftime('%d.%m.%Y'))
+    else:
+        davr = "—"
+
+    info = Table([
+        ["Mijoz:", (project.client_name if project else "—"),
+         "Davr:", davr],
+        ["Loyiha:", (project.project_name if project else "—"),
+         "Yuk xatlari:", f"{len(deliveries)} ta"],
+        ["Telefon:", (project.client_phone if project and project.client_phone else "—"),
+         "Sana:", datetime.now(UZB_TZ).strftime("%d.%m.%Y %H:%M")],
+    ], colWidths=[2*cm, 7*cm, 2.4*cm, 6.8*cm])
+    info.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+        ('FONTNAME', (2, 0), (2, -1), 'Helvetica'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (3, 0), (3, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, -1), GRAY),
+        ('TEXTCOLOR', (2, 0), (2, -1), GRAY),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    el.append(info)
+    el.append(Spacer(1, 11))
+
+    # ---- Nakladnoylar jadvali ----
+    el.append(Paragraph("<b>Berilgan mahsulotlar (yuk xatlari bo'yicha)</b>", st_norm))
+    el.append(Spacer(1, 5))
+
+    data = [["№", "Sana", "Yuk xati", "Mahsulotlar", "Summa"]]
+
+    grand_total = 0.0
+    for idx, d in enumerate(deliveries, 1):
+        dt = d.delivered_at
+        date_s = dt.strftime("%d.%m.%Y") if dt else "—"
+
+        lines = []
+        dsum = 0.0
+        for di in d.items:
+            oi = di.order_item
+            if not oi:
+                continue
+            ordered = oi.order_qty_normalized
+            total_price = float(oi.total_price or 0)
+            unit_p = (total_price / ordered) if ordered > 0 else 0.0
+            line_sum = unit_p * float(di.quantity or 0)
+            dsum += line_sum
+            u = 'm' if di.unit == 'metr' else ' ta'
+            lines.append(f"{oi.name} — {_num(di.quantity)}{u}")
+
+        grand_total += dsum
+        data.append([
+            str(idx),
+            date_s,
+            (d.delivery_number or "").split('/')[-1],
+            Paragraph("<br/>".join(lines) if lines else "—", st_item),
+            _fmt(dsum),
+        ])
+
+    data.append(["", "", "", "JAMI BERILGAN MAHSULOT:", _fmt(grand_total)])
+
+    tbl = Table(data, colWidths=[0.9*cm, 2.2*cm, 1.8*cm, 10.3*cm, 3*cm], repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), DARK),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -2), 8),
+        ('FONTNAME', (2, 1), (2, -2), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (2, 1), (2, -2), GOLD),
+        ('FONTNAME', (4, 1), (4, -2), 'Helvetica-Bold'),
+        ('ALIGN', (0, 0), (2, -1), 'CENTER'),
+        ('ALIGN', (4, 0), (4, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -2), 0.4, colors.HexColor("#E5E1D8")),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor("#FAFAF8")]),
+        # Jami qatori
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#F0EBE0")),
+        ('SPAN', (0, -1), (3, -1)),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, -1), (-1, -1), 9.5),
+        ('ALIGN', (0, -1), (3, -1), 'RIGHT'),
+        ('TEXTCOLOR', (4, -1), (4, -1), GOLD),
+        ('LINEABOVE', (0, -1), (-1, -1), 1.2, DARK),
+        ('RIGHTPADDING', (3, -1), (3, -1), 10),
+    ]))
+    el.append(tbl)
+    el.append(Spacer(1, 12))
+
+    # ---- Moliyaviy hisob ----
+    total_amount = float(order.total_amount or 0)
+    agreed = float(order.agreed_amount or total_amount)
+    disc_pct = float(order.discount_percent or 0)
+    paid = order.paid_amount
+    debt = order.debt_amount
+
+    fin_rows = [["Buyurtma jami:", _fmt(total_amount) + " so'm"]]
+    if disc_pct > 0:
+        fin_rows.append([f"Chegirma ({disc_pct:g}%):", "-" + _fmt(total_amount - agreed) + " so'm"])
+        fin_rows.append(["Kelishilgan summa:", _fmt(agreed) + " so'm"])
+    fin_rows.append(["Berilgan mahsulot:", _fmt(grand_total) + " so'm"])
+    fin_rows.append(["To'langan:", _fmt(paid) + " so'm"])
+    fin_rows.append(["QARZ QOLDI:", _fmt(debt) + " so'm"])
+
+    fin = Table(fin_rows, colWidths=[4.6*cm, 4.4*cm], hAlign='RIGHT')
+    fin_style = [
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, -1), GRAY),
+        ('TEXTCOLOR', (1, 0), (1, -1), DARK),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
+        ('LINEBELOW', (0, 0), (-1, -2), 0.3, colors.HexColor("#EEEEEE")),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, -1), (-1, -1), 10.5),
+        ('TEXTCOLOR', (0, -1), (0, -1), DARK),
+        ('TEXTCOLOR', (1, -1), (1, -1), RED if debt > 0 else GREEN),
+        ('LINEABOVE', (0, -1), (-1, -1), 1.2, DARK),
+        ('TOPPADDING', (0, -1), (-1, -1), 6),
+    ]
+    if disc_pct > 0:
+        fin_style.append(('TEXTCOLOR', (1, 1), (1, 1), colors.HexColor("#E67E22")))
+    fin.setStyle(TableStyle(fin_style))
+    el.append(fin)
+
+    # ---- Imzo ----
+    el.append(Spacer(1, 26))
+    sign = Table([
+        ["Topshirdi:", "_" * 30, "", "Qabul qildi:", "_" * 30],
+        ["", Paragraph("imzo / F.I.Sh.", st_small), "", "", Paragraph("imzo / F.I.Sh.", st_small)],
+    ], colWidths=[2.2*cm, 6.2*cm, 1.4*cm, 2.4*cm, 6*cm])
+    sign.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, 0), GRAY),
+        ('TEXTCOLOR', (3, 0), (3, 0), GRAY),
+        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+        ('ALIGN', (1, 1), (1, 1), 'CENTER'),
+        ('ALIGN', (4, 1), (4, 1), 'CENTER'),
+    ]))
+    el.append(sign)
+
+    # ---- Footer ----
+    el.append(Spacer(1, 14))
+    footer = Table([[Paragraph(
+        f"PenoDecorPro ERP  ·  {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
+        f"Ushbu hujjat {len(deliveries)} ta yuk xati bo'yicha hisob-kitobni tasdiqlaydi",
+        ParagraphStyle('f', fontName='Helvetica', fontSize=7,
+                       textColor=GRAY, alignment=TA_CENTER)
+    )]], colWidths=[18.2*cm])
+    footer.setStyle(TableStyle([
+        ('LINEABOVE', (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E1D8")),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    el.append(footer)
+
+    doc.build(el)
+    pdf = buf.getvalue()
+    buf.close()
+    return pdf
