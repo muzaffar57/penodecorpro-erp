@@ -6,6 +6,7 @@
 {% block topbar_actions %}
 <button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#2980B9;color:#2980B9">📋 Ombor hisoboti SMS</button>
 <button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#E74C3C;color:#E74C3C">📢 Kam qoldiqlar SMS</button>
+<button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()" style="border-color:#27AE60;color:#1e7e34">🧾 Xaridlar tarixi</button>
 <button class="btn btn-dark" onclick="showAddModal()">+ Xomashyo qo'shish</button>
 {% endblock %}
 
@@ -131,8 +132,9 @@
             <td>
               <div style="display:flex;align-items:center;gap:6px">
                 <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(","," ") if item.price_per_unit else "—" }} so'm</span>
-                <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})">✏️</button>
+                <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Qo'lda tuzatish (narxni to'g'ridan-to'g'ri o'zgartiradi)">✏️</button>
               </div>
+              <div style="font-size:9px;color:#bbb;margin-top:1px">o'rtacha narx</div>
             </td>
             <td>
               {% if qty <= minq %}
@@ -145,9 +147,9 @@
             </td>
             <td>
               <div style="display:flex;align-items:center;gap:6px">
-                <button class="btn btn-outline btn-xs" onclick="changeStock({{ item.id }}, -1, this)">−</button>
+                <button class="btn btn-outline btn-xs" style="color:#C0392B;border-color:#F5B7B1" onclick="changeStock({{ item.id }}, -1, this)" title="Chiqim (narxsiz)">−</button>
                 <input type="number" class="qty-input" id="qty-{{ item.id }}" value="1" min="0.1" step="0.1">
-                <button class="btn btn-dark btn-xs" onclick="changeStock({{ item.id }}, 1, this)">+</button>
+                <button class="btn btn-dark btn-xs" style="background:#27AE60" onclick="openPurchaseModal({{ item.id }}, {{ item.item_name|tojson }}, {{ item.unit|tojson }}, {{ item.price_per_unit or 0 }})" title="Kirim (xarid narxi bilan)">+ Kirim</button>
               </div>
             </td>
             <td>
@@ -241,6 +243,63 @@
     </div>
   </div>
 </div>
+
+<!-- ══ KIRIM (XARID) MODALI ══ -->
+<div id="purchaseModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px">📥 Ombor kirimi</div>
+    <div style="font-size:12px;color:#aaa;margin-bottom:18px" id="pm-item-name">—</div>
+
+    <div class="form-row">
+      <div class="form-group" style="margin:0">
+        <label>Miqdor (<span id="pm-unit">kg</span>)</label>
+        <input type="number" id="pm-qty" placeholder="0" min="0.01" step="0.1" oninput="pmCalc()">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>1 <span id="pm-unit2">kg</span> narxi (so'm)</label>
+        <input type="number" id="pm-price" placeholder="0" min="1" step="100" oninput="pmCalc()">
+      </div>
+    </div>
+
+    <div style="background:#F8F5EF;border-radius:9px;padding:11px 14px;margin:10px 0;font-size:12.5px;line-height:1.8" id="pm-calc">
+      Miqdor va narxni kiriting
+    </div>
+
+    <div class="form-group">
+      <label>Izoh (ixtiyoriy)</label>
+      <input type="text" id="pm-notes" placeholder="Masalan: Andijon bozoridan">
+    </div>
+
+    <div id="pm-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" onclick="savePurchase()">✓ Kirim qilish</button>
+      <button class="btn btn-outline w-full" onclick="closePurchaseModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ XARIDLAR TARIXI MODALI ══ -->
+<div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600">🧾 Xaridlar tarixi</div>
+      <button onclick="closePurchaseHistory()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+
+    <div style="padding:14px 22px;border-bottom:1px solid #f0f0f0;background:#FAFAF8">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:#777">Bu oy jami xarid</span>
+        <span id="hist-total" style="font-weight:700;color:#C9A55A">—</span>
+      </div>
+      <div id="hist-by-material" style="margin-top:8px;font-size:11.5px;color:#666;line-height:1.9"></div>
+    </div>
+
+    <div style="padding:0 22px;overflow-y:auto;flex:1" id="hist-list">
+      <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -299,15 +358,148 @@ async function editPrice(id, currentPrice) {
   } else alert('Xato yuz berdi');
 }
 
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+
 async function changeStock(id, dir, btn) {
+  // Faqat CHIQIM (narxsiz tuzatish) uchun — kirim endi alohida modal orqali
+  if (dir > 0) return;
   const qty = parseFloat(document.getElementById('qty-'+id).value) || 1;
-  const change = dir * qty;
+  if (!confirm(`${qty} birlik ayrilsinmi? (Bu narxga ta'sir qilmaydi)`)) return;
   const res = await fetch(`/api/inventory/${id}/stock`, {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({quantity_change: change})
+    body: JSON.stringify({quantity_change: -qty})
   });
   if(res.ok) location.reload();
   else alert('Xato yuz berdi');
+}
+
+// ── OMBOR KIRIMI (XARID) ──────────────────────────────────
+let pmItemId = null;
+
+function openPurchaseModal(id, name, unit, currentPrice) {
+  pmItemId = id;
+  document.getElementById('pm-item-name').textContent = name;
+  document.getElementById('pm-unit').textContent = unit;
+  document.getElementById('pm-unit2').textContent = unit;
+  document.getElementById('pm-qty').value = '';
+  document.getElementById('pm-price').value = currentPrice > 0 ? currentPrice : '';
+  document.getElementById('pm-notes').value = '';
+  document.getElementById('pm-error').style.display = 'none';
+  document.getElementById('purchaseModal').style.display = 'flex';
+  pmCalc();
+  document.getElementById('pm-qty').focus();
+}
+
+function closePurchaseModal() {
+  document.getElementById('purchaseModal').style.display = 'none';
+  pmItemId = null;
+}
+
+function pmCalc() {
+  const qty = parseFloat(document.getElementById('pm-qty').value) || 0;
+  const price = parseFloat(document.getElementById('pm-price').value) || 0;
+  const box = document.getElementById('pm-calc');
+  if (!qty || !price) {
+    box.innerHTML = 'Miqdor va narxni kiriting';
+    return;
+  }
+  const total = qty * price;
+  box.innerHTML = `
+    💰 Jami: <b style="color:#C9A55A;font-size:14px">${fmt(total)} so'm</b><br>
+    <span style="color:#888;font-size:11px">Eski qoldiq bilan o'rtacha vaznli narx hisoblanadi — eski qoldiq qayta baholanmaydi.</span>`;
+}
+
+async function savePurchase() {
+  const qty = parseFloat(document.getElementById('pm-qty').value) || 0;
+  const price = parseFloat(document.getElementById('pm-price').value) || 0;
+  const err = document.getElementById('pm-error');
+
+  if (!qty || qty <= 0) { err.style.display='block'; err.textContent='❌ Miqdorni kiriting'; return; }
+  if (!price || price <= 0) { err.style.display='block'; err.textContent='❌ Narxni kiriting'; return; }
+  err.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/inventory/${pmItemId}/purchase`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        quantity: qty,
+        price_per_unit: price,
+        notes: document.getElementById('pm-notes').value.trim() || null
+      })
+    });
+    const r = await res.json();
+
+    if (res.ok) {
+      let msg = `✓ ${r.item_name}: +${qty} kirim qilindi\n💰 Jami: ${fmt(r.purchase_total)} so'm`;
+      if (r.price_changed) {
+        msg += `\n\n📊 O'rtacha narx: ${fmt(r.old_price)} → ${fmt(r.new_price)} so'm`;
+      }
+      alert(msg);
+      location.reload();
+    } else {
+      err.style.display = 'block';
+      err.textContent = '❌ ' + ((r.detail || {}).message || 'Xato');
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server xatosi';
+  }
+}
+
+// ── XARIDLAR TARIXI ────────────────────────────────────────
+async function openPurchaseHistory() {
+  document.getElementById('historyModal').style.display = 'flex';
+  document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>';
+
+  try {
+    const [stats, purchases] = await Promise.all([
+      fetch('/api/inventory/purchase-stats').then(r => r.json()),
+      fetch('/api/inventory/purchases?limit=60').then(r => r.json())
+    ]);
+
+    document.getElementById('hist-total').textContent = fmt(stats.total_amount) + " so'm";
+
+    const byMat = document.getElementById('hist-by-material');
+    if (stats.by_material.length) {
+      byMat.innerHTML = stats.by_material.map(m =>
+        `<div style="display:flex;justify-content:space-between">
+          <span>${m.name} (${m.quantity}${m.unit ? ' '+m.unit : ''})</span>
+          <span style="font-weight:600">${fmt(m.total)} so'm</span>
+        </div>`).join('');
+    } else {
+      byMat.innerHTML = '<div style="color:#bbb">Bu oy kirim bo\'lmagan</div>';
+    }
+
+    const list = document.getElementById('hist-list');
+    if (!purchases.length) {
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:#bbb">Xaridlar tarixi bo\'sh</div>';
+      return;
+    }
+
+    list.innerHTML = purchases.map(p => {
+      const dt = new Date(p.purchased_at);
+      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+      return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#1a1a1a">${p.item_name}</div>
+          <div style="font-size:11px;color:#aaa;margin-top:2px">
+            ${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}
+            ${p.purchased_by ? ' · '+p.purchased_by : ''}
+            ${p.notes ? ' · '+p.notes : ''}
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:#27AE60;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#c0392b">Yuklashda xato</div>';
+  }
+}
+
+function closePurchaseHistory() {
+  document.getElementById('historyModal').style.display = 'none';
 }
 
 async function deleteItem(id) {
