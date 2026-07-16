@@ -54,6 +54,9 @@
             <td>
               <div style="font-weight:500;color:#111;display:flex;align-items:center;gap:6px">
                 {{ item.item_name }}
+                {% if 'Tayyor loy' in item.item_name %}
+                <span style="font-size:9px;background:#E9F7EF;color:#1e7e34;padding:2px 7px;border-radius:10px;font-weight:600">♻️ ZAXIRA</span>
+                {% endif %}
                 {% if item.is_penoplast %}
                   {% if item.is_default_penoplast %}
                   <span style="font-size:9px;background:#C9A55A;color:#fff;padding:2px 7px;border-radius:10px;font-weight:600">⭐ ASOSIY</span>
