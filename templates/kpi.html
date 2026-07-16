@@ -47,8 +47,11 @@
     <!-- USTA YILLIK KPI -->
     <div class="card">
       <div class="card-head">
-        <h3>🏆 Ustalar yillik KPI</h3>
-        <input type="number" id="kpi-year" style="width:80px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px" onchange="loadMasterKpi()">
+        <h3>👷‍♂️ Ustalar</h3>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" id="kpi-year" style="width:76px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px" onchange="loadMasterKpi()">
+          <button class="btn btn-dark btn-sm" onclick="openMasterModal()">+ Usta</button>
+        </div>
       </div>
       <div class="card-body" style="padding-top:0">
         <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#8B6914;line-height:1.6">
@@ -56,6 +59,13 @@
         </div>
         <div id="mkList">
           <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+        </div>
+        <div id="mkInactiveWrap" style="display:none;margin-top:6px">
+          <button onclick="toggleInactiveMasters()" id="mkInactiveBtn"
+                  style="background:none;border:none;color:#999;font-size:11.5px;cursor:pointer;padding:6px 0">
+            ▼ Nofaol ustalarni ko'rsatish
+          </button>
+          <div id="mkInactiveList" style="display:none"></div>
         </div>
       </div>
     </div>
@@ -73,6 +83,39 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ══ USTA QO'SHISH/TAHRIRLASH MODALI ══ -->
+<div id="masterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="master-modal-title">+ Yangi usta</div>
+
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="m-name" placeholder="Usta ismi"></div>
+      <div class="form-group" style="margin:0"><label>Telefon</label><input type="text" id="m-phone" placeholder="+998901234567"></div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group" style="margin:0">
+        <label>Bonus % (har buyurtmadan, darhol)</label>
+        <input type="number" id="m-cashback" placeholder="0" min="0" max="100" step="0.5">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Yillik KPI % (yil oxiri sovg'a)</label>
+        <input type="number" id="m-kpi" placeholder="0" min="0" max="100" step="0.5">
+      </div>
+    </div>
+
+    <div class="form-group"><label>Telegram ID (ixtiyoriy)</label><input type="text" id="m-telegram" placeholder="123456789"></div>
+    <div class="form-group"><label>Izoh</label><input type="text" id="m-notes" placeholder="..."></div>
+
+    <div id="master-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" onclick="saveMaster()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeMasterModal()">Bekor</button>
+    </div>
   </div>
 </div>
 
@@ -171,6 +214,7 @@ async function loadMasterKpi() {
       return;
     }
 
+    allMasterKpiData = d.masters;
     list.innerHTML = d.masters.map(m => `
       <div class="mk-row">
         <div style="flex:1;min-width:0">
@@ -183,12 +227,53 @@ async function loadMasterKpi() {
                  onchange="saveMasterKpi(${m.id})">
           <span style="font-size:11px;color:#aaa">%</span>
         </div>
-        <div style="text-align:right;min-width:100px">
+        <div style="text-align:right;min-width:90px">
           <div style="font-size:13px;font-weight:700;color:#27AE60">${fmt(m.gift_amount)}</div>
           <div style="font-size:9.5px;color:#bbb">sovg'a</div>
         </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="mini-btn" onclick="editMaster(${m.id})">✏️</button>
+          <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="deactivateMaster(${m.id}, '${m.name.replace(/'/g,"&apos;")}')" title="Nofaollashtirish">🚫</button>
+        </div>
       </div>`).join('');
+
+    document.getElementById('mkInactiveWrap').style.display = 'block';
   } catch(e) { console.error(e); }
+}
+
+let allMasterKpiData = [];
+let allMastersFull = [];
+
+async function loadAllMastersFull() {
+  try {
+    allMastersFull = await fetch('/api/masters?only_active=false').then(r => r.json());
+  } catch(e) {}
+}
+
+function toggleInactiveMasters() {
+  const list = document.getElementById('mkInactiveList');
+  const btn = document.getElementById('mkInactiveBtn');
+  const show = list.style.display === 'none';
+  list.style.display = show ? 'block' : 'none';
+  btn.textContent = show ? '▲ Nofaol ustalarni yashirish' : '▼ Nofaol ustalarni ko\'rsatish';
+  if (show) renderInactiveMasters();
+}
+
+function renderInactiveMasters() {
+  const inactive = allMastersFull.filter(m => !m.is_active);
+  const list = document.getElementById('mkInactiveList');
+  if (!inactive.length) {
+    list.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">Nofaol usta yo\'q</div>';
+    return;
+  }
+  list.innerHTML = inactive.map(m => `
+    <div class="mk-row" style="opacity:.6">
+      <div style="flex:1;min-width:0">
+        <div class="mk-name">${m.name}</div>
+        <div class="mk-meta">${m.phone || '—'}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="reactivateMaster(${m.id})">✓ Faollashtirish</button>
+    </div>`).join('');
 }
 
 async function saveMasterKpi(id) {
@@ -200,6 +285,97 @@ async function saveMasterKpi(id) {
       body: JSON.stringify({kpi_percent: val})
     });
     loadMasterKpi();
+  } catch(e) {}
+}
+
+// ── USTA BOSHQARUVI ────────────────────────────────────────
+let editingMasterId = null;
+
+function openMasterModal() {
+  editingMasterId = null;
+  document.getElementById('master-modal-title').textContent = "+ Yangi usta";
+  ['m-name','m-phone','m-cashback','m-kpi','m-telegram','m-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('master-error').style.display = 'none';
+  document.getElementById('masterModal').style.display = 'flex';
+}
+
+function closeMasterModal() {
+  document.getElementById('masterModal').style.display = 'none';
+}
+
+function editMaster(id) {
+  const m = allMasterKpiData.find(x => x.id === id) || allMastersFull.find(x => x.id === id);
+  if (!m) return;
+  editingMasterId = id;
+  document.getElementById('master-modal-title').textContent = "✏️ " + m.name;
+  document.getElementById('m-name').value = m.name || '';
+  document.getElementById('m-phone').value = m.phone || '';
+  document.getElementById('m-cashback').value = m.cashback_percent || '';
+  document.getElementById('m-kpi').value = m.kpi_percent || '';
+  document.getElementById('m-telegram').value = m.telegram_id || '';
+  document.getElementById('m-notes').value = m.notes || '';
+  document.getElementById('master-error').style.display = 'none';
+  document.getElementById('masterModal').style.display = 'flex';
+}
+
+async function saveMaster() {
+  const name = document.getElementById('m-name').value.trim();
+  const phone = document.getElementById('m-phone').value.trim();
+  const err = document.getElementById('master-error');
+
+  if (!name) { err.style.display='block'; err.textContent='❌ Ismni kiriting'; return; }
+  if (!editingMasterId && !phone) { err.style.display='block'; err.textContent='❌ Telefon raqamini kiriting'; return; }
+  err.style.display = 'none';
+
+  const data = {
+    name,
+    cashback_percent: parseFloat(document.getElementById('m-cashback').value) || 0,
+    kpi_percent: parseFloat(document.getElementById('m-kpi').value) || 0,
+    telegram_id: document.getElementById('m-telegram').value.trim() || null,
+    notes: document.getElementById('m-notes').value.trim() || null
+  };
+  if (phone) data.phone = phone;
+
+  try {
+    const url = editingMasterId ? `/api/masters/${editingMasterId}` : '/api/masters';
+    const method = editingMasterId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if (res.ok) {
+      closeMasterModal();
+      loadMasterKpi();
+      loadAllMastersFull();
+    } else {
+      const e = await res.json();
+      err.style.display = 'block';
+      err.textContent = '❌ ' + (e.detail || 'Xato yuz berdi');
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server xatosi';
+  }
+}
+
+async function deactivateMaster(id, name) {
+  if (!confirm(`${name} nofaol qilinsinmi?\n\nBuyurtma tarixi saqlanadi, faqat yangi buyurtmalarda tanlab bo'lmaydi.`)) return;
+  try {
+    await fetch(`/api/masters/${id}`, { method: 'DELETE' });
+    loadMasterKpi();
+    loadAllMastersFull();
+  } catch(e) {}
+}
+
+async function reactivateMaster(id) {
+  try {
+    await fetch(`/api/masters/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({is_active: true})
+    });
+    loadMasterKpi();
+    loadAllMastersFull();
+    renderInactiveMasters();
   } catch(e) {}
 }
 
@@ -341,6 +517,7 @@ async function deleteEmployee(id) {
 
 document.getElementById('kpi-year').value = new Date().getFullYear();
 loadMasterKpi();
+loadAllMastersFull();
 loadEmployees();
 </script>
 {% endblock %}
