@@ -118,6 +118,36 @@
             <option value="dona">Donali</option>
           </select>
         </div>
+        <div class="form-group" style="margin:0" id="p-h-wrap">
+          <label>Eni (sm)</label>
+          <input type="number" id="p-h" step="0.1" oninput="pCalc()">
+        </div>
+        <div class="form-group" style="margin:0" id="p-w-wrap">
+          <label>Kengligi (sm)</label>
+          <input type="number" id="p-w" step="0.1" oninput="pCalc()">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin:0;display:none" id="p-t-wrap">
+          <label>Qalinlik (sm)</label>
+          <input type="number" id="p-t" step="0.1" oninput="pCalc()">
+        </div>
+        <div class="form-group" style="margin:0" id="p-l-wrap">
+          <label>Uzunlik (m)</label>
+          <input type="number" id="p-l" step="0.1" value="0" oninput="pCalc()">
+        </div>
+        <div class="form-group" style="margin:0;display:none" id="p-q-wrap">
+          <label>Miqdor (dona)</label>
+          <input type="number" id="p-q" step="1" min="1" value="1" oninput="pCalc()">
+        </div>
+        <div class="form-group" style="margin:0;display:none" id="p-up-wrap">
+          <label>1 dona narxi (so'm)</label>
+          <input type="number" id="p-up" step="100" oninput="pCalc()">
+        </div>
+      </div>
+
+      <div class="form-row">
         <div class="form-group" style="margin:0">
           <label>Qoplama</label>
           <select id="p-coated" onchange="pCalc()">
@@ -125,39 +155,6 @@
             <option value="false">Yo'q</option>
           </select>
         </div>
-      </div>
-
-      <div class="form-row" id="p-dims">
-        <div class="form-group" style="margin:0">
-          <label>Eni (sm)</label>
-          <input type="number" id="p-w" step="0.1" oninput="pCalc()">
-        </div>
-        <div class="form-group" id="p-w2-wrap" style="margin:0;display:none">
-          <label>Kengligi (sm)</label>
-          <input type="number" id="p-w2" step="0.1" oninput="pCalc()">
-        </div>
-        <div class="form-group" style="margin:0" id="p-t-wrap">
-          <label id="p-t-label">Kengligi (sm)</label>
-          <input type="number" id="p-t" step="0.1" oninput="pCalc()">
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0" id="p-len-wrap">
-          <label>Uzunlik (m)</label>
-          <input type="number" id="p-len" step="0.5" oninput="pCalc()">
-        </div>
-        <div class="form-group" style="margin:0;display:none" id="p-qty-wrap">
-          <label>Miqdor (dona)</label>
-          <input type="number" id="p-qty" step="1" min="1" oninput="pCalc()">
-        </div>
-        <div class="form-group" style="margin:0;display:none" id="p-unitcost-wrap">
-          <label>1 dona tan narxi</label>
-          <input type="number" id="p-unitcost" step="100" oninput="pCalc()">
-        </div>
-      </div>
-
-      <div class="form-row">
         <div class="form-group" style="margin:0">
           <label>Plotnost</label>
           <select id="p-peno" onchange="pCalc()">
@@ -169,8 +166,9 @@
           </select>
         </div>
         <div class="form-group" style="margin:0">
-          <label>1 m³ narxi (so'm)</label>
-          <input type="text" id="p-m3" value="1 200 000" oninput="formatPriceInput(this);pCalc()">
+          <label>1 m³ narxi</label>
+          <input type="text" id="p-m3" value="1 200 000" oninput="formatPriceInput(this);pCalc()"
+                 style="border-color:#C9A55A">
         </div>
       </div>
 
@@ -196,6 +194,7 @@
         <label>Sotuv narxi (1 <span id="p-unit-label">metr</span> uchun)</label>
         <input type="text" id="p-price" placeholder="0" oninput="formatPriceInput(this);pCalc()"
                style="border-color:#C9A55A;font-weight:600">
+        <div style="font-size:11px;color:#aaa;margin-top:4px">Bo'sh qolsa — hisoblangan narx olinadi</div>
       </div>
 
       <div class="form-group" style="margin-bottom:0">
@@ -414,13 +413,17 @@ async function delFp(id, source) {
   } catch(e) { showMsg('Xato', 'error'); }
 }
 
-// ── Ishlab chiqarish ──────────────────────────────────────
+// ── Ishlab chiqarish (buyurtma oynasidagi kabi) ───────────
 function openProduceModal() {
   document.getElementById('prodModal').style.display = 'flex';
-  ['p-name','p-w','p-w2','p-t','p-len','p-qty','p-unitcost','p-loy','p-price','p-notes'].forEach(id => {
+  ['p-name','p-h','p-w','p-t','p-up','p-loy','p-price','p-notes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  document.getElementById('p-l').value = '0';
+  document.getElementById('p-q').value = '1';
+  document.getElementById('p-type').value = 'profil';
+  document.getElementById('p-coated').value = 'true';
   document.getElementById('p-error').style.display = 'none';
   pToggle();
   pCalc();
@@ -431,50 +434,82 @@ function closeProduceModal() {
   document.getElementById('prodModal').style.display = 'none';
 }
 
+// Buyurtmadagi toggleFields bilan bir xil
 function pToggle() {
-  const t = document.getElementById('p-type').value;
-  const isDona = t === 'dona';
-  const isPanel = t === 'panel';
+  const type = document.getElementById('p-type').value;
+  const hW = document.getElementById('p-h-wrap');
+  const wW = document.getElementById('p-w-wrap');
+  const tW = document.getElementById('p-t-wrap');
+  const lW = document.getElementById('p-l-wrap');
+  const qW = document.getElementById('p-q-wrap');
+  const upW = document.getElementById('p-up-wrap');
 
-  document.getElementById('p-dims').style.display = isDona ? 'none' : 'flex';
-  // Panel — 3 o'lcham: eni, kengligi, qalinligi
-  document.getElementById('p-w2-wrap').style.display = isPanel ? 'block' : 'none';
-  document.getElementById('p-t-wrap').style.display = isDona ? 'none' : 'block';
-  document.getElementById('p-len-wrap').style.display = (t === 'profil') ? 'block' : 'none';
-  document.getElementById('p-qty-wrap').style.display = (t === 'profil') ? 'none' : 'block';
-  document.getElementById('p-unitcost-wrap').style.display = isDona ? 'block' : 'none';
-  document.getElementById('p-t-label').textContent = isPanel ? 'Qalinligi (sm)' : 'Kengligi (sm)';
-  document.getElementById('p-unit-label').textContent = (t === 'profil') ? 'metr' : 'dona';
+  if (type === 'dona') {
+    hW.style.display = 'none'; wW.style.display = 'none';
+    tW.style.display = 'none'; lW.style.display = 'none';
+    qW.style.display = 'block'; upW.style.display = 'block';
+    ['p-h','p-w','p-t','p-l'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  } else if (type === 'panel') {
+    hW.style.display = 'block'; wW.style.display = 'block';
+    tW.style.display = 'block'; lW.style.display = 'none';
+    qW.style.display = 'block'; upW.style.display = 'none';
+    document.getElementById('p-l').value = '0';
+  } else {
+    hW.style.display = 'block'; wW.style.display = 'block';
+    tW.style.display = 'none';  lW.style.display = 'block';
+    qW.style.display = 'none';  upW.style.display = 'none';
+    const tEl = document.getElementById('p-t'); if(tEl) tEl.value = '';
+    document.getElementById('p-q').value = '1';
+  }
+  document.getElementById('p-unit-label').textContent = (type === 'profil') ? 'metr' : 'dona';
 }
 
+// Buyurtmadagi calculateItem bilan bir xil
 function pCalc() {
-  const t = document.getElementById('p-type').value;
+  const type = document.getElementById('p-type').value;
+  const h = parseFloat(document.getElementById('p-h').value) || 0;
   const w = parseFloat(document.getElementById('p-w').value) || 0;
-  const th = parseFloat(document.getElementById('p-t').value) || 0;
-  const len = parseFloat(document.getElementById('p-len').value) || 0;
-  const qty = parseFloat(document.getElementById('p-qty').value) || 0;
-  const uc = parseFloat(document.getElementById('p-unitcost').value) || 0;
-  const m3 = parseNum(document.getElementById('p-m3').value);
-  const coated = document.getElementById('p-coated').value === 'true';
+  const t = parseFloat(document.getElementById('p-t').value) || 0;
+  const l = parseFloat(document.getElementById('p-l').value) || 0;
+  const qty = parseFloat(document.getElementById('p-q').value) || 1;
+  const isCoated = document.getElementById('p-coated').value === 'true';
+  const basePrice = parseNum(document.getElementById('p-m3').value);
   const box = document.getElementById('p-calc');
 
-  let vol = 0, count = 0, unit = 'metr';
+  let volume_total = 0, price = 0, perUnitPrice = 0, count = 0, unit = 'metr';
 
-  if (t === 'profil') {
-    vol = (w/100) * (th/100) / 2 * len;
-    count = len;
-  } else if (t === 'panel') {
-    // Buyurtmadagiday: eni × qalinlik × miqdor
-    vol = (w/100) * (th/100) * qty;
-    count = qty;
-    unit = 'dona';
-  } else {
-    vol = m3 > 0 && uc > 0 ? (uc / m3) * qty : 0;
-    count = qty;
-    unit = 'dona';
+  if (type === 'dona') {
+    const unitPrice = parseFloat(document.getElementById('p-up').value) || 0;
+    perUnitPrice = unitPrice;
+    price = unitPrice * qty;
+    if (isCoated) { price *= 2; perUnitPrice *= 2; }
+    if (basePrice > 0 && unitPrice > 0) {
+      volume_total = (unitPrice / basePrice) * qty;
+    }
+    count = qty; unit = 'dona';
+  } else if (type === 'profil') {
+    const eni_m  = h / 100;
+    const keng_m = w / 100;
+    const perMeter_base = (eni_m * keng_m * basePrice) / 2;
+    price = perMeter_base * l;
+    if (isCoated) { price *= 2; perUnitPrice = perMeter_base * 2; }
+    else { perUnitPrice = perMeter_base; }
+    volume_total = (eni_m * keng_m * l) / 2;
+    count = l; unit = 'metr';
+  } else if (type === 'panel') {
+    const eni_m   = h / 100;
+    const qalin_m = t / 100;
+    const perDona_base = eni_m * qalin_m * basePrice;
+    price = perDona_base * qty;
+    if (isCoated) { price *= 2; perUnitPrice = perDona_base * 2; }
+    else { perUnitPrice = perDona_base; }
+    volume_total = eni_m * qalin_m * qty;
+    count = qty; unit = 'dona';
   }
 
-  if (!vol || !count) {
+  window._pCalc = { volume: volume_total, price, perUnitPrice, count, unit };
+
+  if (!volume_total || !count) {
     box.innerHTML = '<span style="color:#aaa">O\'lchamlarni kiriting</span>';
     return;
   }
@@ -484,19 +519,22 @@ function pCalc() {
   const p = PENOS.find(x => x.id === pid);
   let cost = 0, blocks = 0;
   if (p && p.vol > 0) {
-    blocks = vol / p.vol;
+    blocks = volume_total / p.vol;
     cost = blocks * p.price;
   }
 
-  const price = parseNum(document.getElementById('p-price').value);
-  const revenue = price * count;
+  // Sotuv narxi — kiritilmagan bo'lsa hisoblangani
+  const inputPrice = parseNum(document.getElementById('p-price').value);
+  const effPrice = inputPrice || perUnitPrice;
+  const revenue = effPrice * count;
   const profit = revenue - cost;
 
   box.innerHTML = `
-    📦 Hajm: <b>${vol.toFixed(4)} m³</b> · ${p ? `${p.name}: <b>${blocks.toFixed(2)} blok</b>` : ''}<br>
-    💰 Tan narxi: <b>${fmt(cost)} so'm</b>${price > 0 ? ` · Sotuv: <b>${fmt(revenue)} so'm</b>` : ''}
-    ${price > 0 ? `<br>📈 Foyda: <b style="color:${profit>0?'#27AE60':'#C0392B'}">${fmt(profit)} so'm</b> (loysiz)` : ''}
-    <br>🏭 Natija: <b style="color:#C9A55A">${count} ${unit}</b>`;
+    📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b>` : ''}<br>
+    💵 1 ${unit} narxi: <b style="color:#2980B9">${fmt(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:#aaa">(kiritilgan: ${fmt(inputPrice)})</span>` : ''}<br>
+    💰 Tan narxi: <b>${fmt(cost)} so'm</b> · Sotuv: <b style="color:#27AE60">${fmt(revenue)} so'm</b><br>
+    📈 Foyda: <b style="color:${profit>0?'#27AE60':'#C0392B'}">${fmt(profit)} so'm</b> <span style="color:#aaa">(loysiz)</span><br>
+    🏭 Natija: <b style="color:#C9A55A">${count} ${unit}</b>`;
 }
 
 async function saveProduce() {
@@ -504,25 +542,31 @@ async function saveProduce() {
   const name = document.getElementById('p-name').value.trim();
   if (!name) { err.style.display='block'; err.textContent='❌ Mahsulot nomini kiriting'; return; }
 
-  const t = document.getElementById('p-type').value;
-  const len = parseFloat(document.getElementById('p-len').value) || null;
-  const qty = parseFloat(document.getElementById('p-qty').value) || null;
+  const type = document.getElementById('p-type').value;
+  const c = window._pCalc || {};
+  if (!c.count || c.count <= 0) {
+    err.style.display='block';
+    err.textContent = (type === 'profil') ? '❌ Uzunlikni kiriting' : '❌ Miqdorni kiriting';
+    return;
+  }
 
-  if (t === 'profil' && !len) { err.style.display='block'; err.textContent='❌ Uzunlikni kiriting'; return; }
-  if (t !== 'profil' && !qty) { err.style.display='block'; err.textContent='❌ Miqdorni kiriting'; return; }
+  const h = parseFloat(document.getElementById('p-h').value) || null;
+  const w = parseFloat(document.getElementById('p-w').value) || null;
+  const t = parseFloat(document.getElementById('p-t').value) || null;
+  const l = parseFloat(document.getElementById('p-l').value) || null;
+  const qty = parseFloat(document.getElementById('p-q').value) || 1;
+  const up = parseFloat(document.getElementById('p-up').value) || null;
 
-  const price = parseNum(document.getElementById('p-price').value);
+  // Sotuv narxi — kiritilmagan bo'lsa hisoblangani
+  const price = parseNum(document.getElementById('p-price').value) || Math.round(c.perUnitPrice || 0);
   if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
 
   err.style.display = 'none';
 
+  // Buyurtmadagi kabi maydonlarni joylashtiramiz
   const data = {
     name,
-    category: t,
-    width: parseFloat(document.getElementById('p-w').value) || null,
-    thickness: parseFloat(document.getElementById('p-t').value) || null,
-    length: len,
-    quantity: t === 'dona' ? qty : (t === 'panel' ? qty : 1),
+    category: type,
     is_coated: document.getElementById('p-coated').value === 'true',
     penoplast_id: parseInt(document.getElementById('p-peno').value) || null,
     price_per_m3: parseNum(document.getElementById('p-m3').value) || null,
@@ -532,19 +576,25 @@ async function saveProduce() {
     notes: document.getElementById('p-notes').value.trim() || null
   };
 
-  // Panel — kenglikni saqlaymiz (buyurtmadagiday notes ga)
-  if (t === 'panel') {
-    const w2 = parseFloat(document.getElementById('p-w2').value) || 0;
-    if (w2 > 0) {
-      data.notes = (data.notes ? data.notes + ' · ' : '') + `width2=${w2}`;
-    }
-  }
-
-  // Dona uchun unit_price maydoni tan narxini hisoblashda ishlatiladi
-  if (t === 'dona') {
-    const uc = parseFloat(document.getElementById('p-unitcost').value) || 0;
-    if (!uc) { err.style.display='block'; err.textContent='❌ 1 dona tan narxini kiriting (hajm hisobi uchun)'; return; }
-    data.unit_price_for_volume = uc;
+  if (type === 'panel') {
+    // Buyurtmadagi kabi: width=eni, thickness=qalinlik, kenglik notes ga
+    data.width = h;
+    data.thickness = t;
+    data.length = null;
+    data.quantity = qty;
+    if (w) data.notes = (data.notes ? data.notes + ' · ' : '') + `width2=${w}`;
+  } else if (type === 'dona') {
+    data.width = null;
+    data.thickness = null;
+    data.length = null;
+    data.quantity = qty;
+    data.unit_price_for_volume = up;   // hajm hisobi uchun
+  } else {
+    // profil: width=eni, thickness=kenglik, length=uzunlik
+    data.width = h;
+    data.thickness = w;
+    data.length = l;
+    data.quantity = 1;
   }
 
   try {
