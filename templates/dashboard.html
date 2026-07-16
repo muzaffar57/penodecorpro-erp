@@ -65,6 +65,26 @@
   </div>
   {% endif %}
 
+  <!-- QARZDORLIK -->
+  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi-card" style="border-left:3px solid #C0392B">
+      <div class="kpi-val text-red" id="d-total">—</div>
+      <div class="kpi-label">Jami qarzdorlik</div>
+    </div>
+    <div class="kpi-card" style="border-left:3px solid #E67E22">
+      <div class="kpi-val" style="color:#E67E22" id="d-count">—</div>
+      <div class="kpi-label">Qarzdor buyurtmalar</div>
+    </div>
+    <div class="kpi-card" style="border-left:3px solid #8E44AD">
+      <div class="kpi-val" style="color:#8E44AD" id="d-overdue">—</div>
+      <div class="kpi-label">Muddati o'tgan (30+ kun)</div>
+    </div>
+    <div class="kpi-card" style="border-left:3px solid #27AE60">
+      <div class="kpi-val text-green" id="d-today">—</div>
+      <div class="kpi-label">Bugungi to'lovlar</div>
+    </div>
+  </div>
+
   <!-- Grafiklar -->
   <div class="dash-grid">
     <div class="card">
@@ -74,6 +94,19 @@
     <div class="card">
       <div class="card-head"><h3>Buyurtma holatlari</h3></div>
       <div class="card-body"><div class="chart-wrap"><canvas id="statusChart"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- QARZDOR BUYURTMALAR -->
+  <div class="card mb-16" style="border-left:3px solid #C0392B;border-radius:0 12px 12px 0">
+    <div class="card-head">
+      <h3 style="color:#c0392b">💰 Qarzdor buyurtmalar</h3>
+      <span style="font-size:11px;color:#aaa" id="debt-count-label">—</span>
+    </div>
+    <div class="card-body" style="padding:0">
+      <div id="debtList" style="max-height:340px;overflow-y:auto">
+        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+      </div>
     </div>
   </div>
 
@@ -131,6 +164,50 @@ async function loadAll(){
     document.getElementById('f-debt').textContent=fmt(c.finance.total_debt)+' so\'m';
   }
   buildMonthChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
+  loadDebts();
+}
+
+async function loadDebts(){
+  try{
+    const d = await fetch('/api/dashboard/debts').then(r=>r.json());
+    document.getElementById('d-total').textContent   = fmt(d.total_debt)+' so\'m';
+    document.getElementById('d-count').textContent   = d.debt_orders_count+' ta';
+    document.getElementById('d-overdue').textContent = d.overdue_count+' ta';
+    document.getElementById('d-today').textContent   = fmt(d.today_payments)+' so\'m';
+    document.getElementById('debt-count-label').textContent = d.debt_orders_count+' ta buyurtma';
+    buildDebtList(d.debt_orders);
+  }catch(e){console.error('Qarzdorlik yuklashda xato:',e);}
+}
+
+function buildDebtList(debts){
+  const el=document.getElementById('debtList');
+  if(!debts||!debts.length){
+    el.innerHTML='<div style="text-align:center;padding:24px;color:#27AE60;font-weight:500">✓ Qarzdorlik yo\'q</div>';
+    return;
+  }
+  const ST={'unpaid':['🔴','To\'lanmagan','#C0392B'],'partial':['🟡','Qisman','#E67E22'],'paid':['✅','To\'langan','#27AE60']};
+  el.innerHTML=debts.map(d=>{
+    const s=ST[d.payment_status]||ST['unpaid'];
+    const pct=d.agreed_amount>0?(d.paid_amount/d.agreed_amount*100).toFixed(0):0;
+    return `
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid #f5f5f5">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:13px;font-weight:600;color:#1a1a1a">${d.order_number}</span>
+          <span style="font-size:10px;color:${s[2]};font-weight:600">${s[0]} ${s[1]}</span>
+          ${d.is_overdue?'<span style="font-size:9px;background:#FDEDEC;color:#c0392b;padding:2px 6px;border-radius:8px;font-weight:600">'+d.days_passed+' kun</span>':''}
+        </div>
+        <div style="font-size:11px;color:#888;margin-top:2px">${d.client_name} · ${d.project_name}</div>
+        <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${s[2]};border-radius:2px"></div>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:13px;font-weight:700;color:#C0392B">${fmt(d.debt_amount)} so'm</div>
+        <div style="font-size:10px;color:#aaa;margin-top:1px">${fmt(d.paid_amount)} / ${fmt(d.agreed_amount)}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function buildMonthChart(months){
