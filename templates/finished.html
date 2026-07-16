@@ -91,7 +91,9 @@
         <b style="color:#1a1a1a">Ishlab chiqarish</b> — penoplast va loy darhol ombordan yechiladi, tan narxi hisoblanadi. Mahsulot <b>⏳ ishlab chiqarilmoqda</b> holatida turadi.<br><br>
         <b style="color:#1a1a1a">✓ Sotuvga tayyor</b> — kesish va qoplash tugagach bosiladi. Endi do'konga jo'natish yoki buyurtmada ishlatish mumkin.<br><br>
         <b style="color:#1a1a1a">Qaytgan mahsulot</b> — Qaytarishlar bo'limida yozilganda avtomatik tushadi, narxi buyurtmadagiday saqlanadi.<br><br>
-        <b style="color:#1a1a1a">Buyurtmada</b> — detal nomini yozganda tizim shu ombordan taklif qiladi. Tanlansa xomashyo qayta hisoblanmaydi.
+        <b style="color:#1a1a1a">Buyurtmada</b> — detal nomini yozganda tizim shu ombordan taklif qiladi. Tanlansa xomashyo qayta hisoblanmaydi.<br><br>
+        <b style="color:#27AE60">+ qo'shish</b> — penoplast va loy proporsional hisoblanib yechiladi.<br>
+        <b style="color:#C0392B">− ayirish</b> — brak/singan, xomashyo qaytmaydi.
       </div>
     </div>
   </div>
@@ -362,7 +364,10 @@ function rowHtml(i) {
   meta.push(i.is_coated ? 'qoplamali' : 'qoplamasiz');
   if (isRet && i.from_order_number) meta.push(`${i.from_order_number} dan`);
   if (isRet && i.return_reason) meta.push(i.return_reason);
-  if (i.source === 'produced' && i.actual_loy_kg > 0) meta.push(`${i.actual_loy_kg} kg loy`);
+  if (i.source === 'produced' && i.actual_loy_kg > 0) {
+    const perUnit = i.quantity > 0 ? (i.actual_loy_kg / i.quantity) : 0;
+    meta.push(`${i.actual_loy_kg} kg loy${perUnit > 0 ? ` (${perUnit.toFixed(2)} kg/${i.unit === 'metr' ? 'm' : 'ta'})` : ''}`);
+  }
   if (i.source === 'produced' && i.cost_price > 0) {
     const cpu = i.quantity > 0 ? (i.cost_price / i.quantity) : 0;
     meta.push(`tan narxi ${fmt(cpu)}/${i.unit === 'metr' ? 'm' : 'ta'}`);
@@ -380,9 +385,13 @@ function rowHtml(i) {
     <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8"
             onclick="delFp(${i.id}, '${i.source}')" title="Bekor qilish">✕</button>
   ` : `
-    <button class="mini-btn" onclick="stepFp(${i.id},-1)">−</button>
-    <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1">
-    <button class="mini-btn" onclick="stepFp(${i.id},1)">+</button>
+    <button class="mini-btn" onclick="stepFp(${i.id},-1)"
+            title="${i.source === 'produced' ? 'Brak/singan — xomashyo qaytmaydi' : 'Kamaytirish'}"
+            style="color:#C0392B">−</button>
+    <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1" placeholder="0">
+    <button class="mini-btn" onclick="stepFp(${i.id},1)"
+            title="${i.source === 'produced' ? 'Qo\'shish — xomashyo proporsional yechiladi' : 'Oshirish'}"
+            style="color:#27AE60">+</button>
     <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
     {% if current_user.role.value == 'admin' %}
     <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
@@ -425,19 +434,98 @@ function filterFp(q) { renderFp(q); }
 
 async function stepFp(id, dir) {
   const el = document.getElementById('fq-' + id);
-  const step = parseFloat(el?.value) || 1;
+  const qty = parseFloat(el?.value) || 0;
   const item = fpItems.find(i => i.id === id);
-  if (!item) return;
+  if (!item || qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
 
-  const newQty = Math.max(0, item.quantity + dir * step);
+  // Qaytgan mahsulot — oddiy o'zgartirish (xomashyo hisobi yo'q)
+  if (item.source === 'returned') {
+    const newQty = Math.max(0, item.quantity + dir * qty);
+    try {
+      const res = await fetch(`/api/finished/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({quantity: newQty})
+      });
+      if (res.ok) loadFp();
+    } catch(e) { showMsg('Xato', 'error'); }
+    return;
+  }
+
+  // Ishlab chiqarilgan — proporsional hisob
+  if (dir > 0) {
+    await addProduction(id, qty, item);
+  } else {
+    await reduceProduction(id, qty, item);
+  }
+}
+
+async function addProduction(id, qty, item) {
+  // Proporsiyani ko'rsatamiz
+  const ratio = item.quantity > 0 ? qty / item.quantity : 0;
+  const addVol = (item.volume_m3 || 0) * ratio;
+  const addLoy = (item.actual_loy_kg || 0) * ratio;
+
+  const txt = `${item.name} — yana ${qty} ${item.unit} qo'shilsinmi?\n\n` +
+    `📊 Hozirgi: ${item.quantity} ${item.unit}` +
+    (item.actual_loy_kg > 0 ? ` · ${item.actual_loy_kg} kg loy` : '') + `\n` +
+    `➕ Qo'shiladi: ${qty} ${item.unit}\n\n` +
+    `Ombordan yechiladi:\n` +
+    `📦 Penoplast: ${addVol.toFixed(4)} m³\n` +
+    (addLoy > 0 ? `🧱 Loy: ${addLoy.toFixed(1)} kg\n` : '') +
+    `\n✅ Natija: ${(item.quantity + qty)} ${item.unit}`;
+
+  if (!confirm(txt)) return;
+
   try {
-    const res = await fetch(`/api/finished/${id}`, {
-      method: 'PUT',
+    const res = await fetch(`/api/finished/${id}/add`, {
+      method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({quantity: newQty})
+      body: JSON.stringify({quantity: qty})
     });
-    if (res.ok) loadFp();
-  } catch(e) { showMsg('Xato', 'error'); }
+    const r = await res.json();
+
+    if (res.ok) {
+      loadFp();
+      let msg = `✓ +${r.added_qty} ${r.unit} qo'shildi (jami ${r.new_qty} ${r.unit})`;
+      if (r.inventory_log?.length) msg += '\n\n📦 ' + r.inventory_log.join('\n');
+      showMsg(msg, 'success');
+    } else {
+      const d = r.detail || {};
+      showMsg('❌ ' + (d.message || 'Xato') +
+        (d.shortages?.length ? '\n' + d.shortages.join('\n') : ''), 'error');
+    }
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+}
+
+async function reduceProduction(id, qty, item) {
+  const lost = qty * (item.unit_price || 0);
+  const txt = `${item.name} — ${qty} ${item.unit} chiqarilsinmi?\n\n` +
+    `⚠️ Bu BRAK/SINGAN deb hisoblanadi:\n` +
+    `• Xomashyo omborga QAYTARILMAYDI\n` +
+    `• Yo'qotilgan qiymat: ${fmt(lost)} so'm\n\n` +
+    `📊 Qoladi: ${(item.quantity - qty).toFixed(1)} ${item.unit}`;
+
+  if (!confirm(txt)) return;
+
+  const reason = prompt('Sabab (ixtiyoriy):\n\nMasalan: singan, brak, yo\'qolgan', '');
+  if (reason === null) return;
+
+  try {
+    const res = await fetch(`/api/finished/${id}/reduce`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({quantity: qty, reason: reason.trim() || null})
+    });
+    const r = await res.json();
+
+    if (res.ok) {
+      loadFp();
+      showMsg(`✓ -${qty} ${r.unit} chiqarildi (brak)\n💸 Yo'qotish: ${fmt(r.lost_value)} so'm`, 'success');
+    } else {
+      showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
+    }
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
 async function editPrice(id) {
