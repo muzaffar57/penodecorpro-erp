@@ -74,6 +74,12 @@ class StockSource(PyEnum):
     RETURNED = "returned"    # Buyurtmadan qaytgan
 
 
+class ProductionStatus(PyEnum):
+    """Ishlab chiqarish jarayoni holati."""
+    IN_PROGRESS = "in_progress"   # Kesilmoqda/qoplanmoqda
+    READY = "ready"                # Tayyor — loy sarfi aniqlangan
+
+
 class PaymentType(PyEnum):
     """To'lov turi."""
     ZAKLAT = "zaklat"        # Oldindan to'lov
@@ -433,14 +439,23 @@ class FinishedProduct(Base):
     # Ishlab chiqarilgan bo'lsa — sarflangan xomashyo
     penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)
     penoplast = relationship("Inventory")
-    volume_m3 = Column(Float, default=0.0)
-    loy_kg = Column(Float, default=0.0)
+    volume_m3 = Column(Float, default=0.0)          # Penoplast hajmi (darhol yechiladi)
+    planned_loy_kg = Column(Float, default=0.0)      # Reja qilingan loy
+    actual_loy_kg = Column(Float, nullable=True)     # Haqiqiy sarflangan loy ("Tayyor" bosilganda)
     recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True)
     recipe = relationship("Recipe")
+
+    production_status = Column(Enum(ProductionStatus), default=ProductionStatus.IN_PROGRESS, nullable=False)
+    finished_production_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
+
+    @property
+    def loy_kg(self):
+        """Qaysi loy qiymati aniq — haqiqiysi bo'lsa shuni, bo'lmasa reja."""
+        return self.actual_loy_kg if self.actual_loy_kg is not None else self.planned_loy_kg
 
     def __repr__(self):
         return f"<FinishedProduct {self.name} {self.quantity}{self.unit}>"
