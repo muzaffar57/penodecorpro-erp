@@ -116,9 +116,13 @@
 
     <!-- YANGI BUYURTMA FORMASI (boshlangʻichda yashirin) -->
     <div id="newOrderForm" style="display:none">
+      <div id="editBanner" style="display:none;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;padding:11px 14px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;color:#1a6fa8">✏️ Tahrirlash rejimi — <span id="editOrderNum"></span></div>
+        <div style="font-size:11px;color:#5499C7;margin-top:3px">Saqlaganda ombor faqat farq miqdorida to'g'rilanadi. Buyurtma raqami va to'lovlar saqlanadi.</div>
+      </div>
       <div class="card">
         <div class="card-head">
-          <h3>Yangi buyurtma</h3>
+          <h3 id="formTitle">Yangi buyurtma</h3>
           <button class="btn btn-outline btn-sm" onclick="hideNewForm()">✕ Yopish</button>
         </div>
         <div style="padding:12px">
@@ -742,6 +746,17 @@ async function deletePayment(paymentId) {
 // ── Yangi forma ───────────────────────────────────────────
 function showNewForm() {
   document.getElementById('newOrderForm').style.display = 'block';
+  // Tahrirlash rejimidan qaytish
+  const eb = document.getElementById('editBanner');
+  if (eb) eb.style.display = 'none';
+  const ft = document.getElementById('formTitle');
+  if (ft) ft.textContent = 'Yangi buyurtma';
+  const saveBtn = document.querySelector('#newOrderForm .btn-dark');
+  if (saveBtn) { saveBtn.textContent = '💾 Buyurtmani saqlash'; saveBtn.onclick = () => saveOrder(false); }
+  const draftBtn = document.querySelector('#newOrderForm .btn-outline');
+  if (draftBtn && draftBtn.textContent.includes('Vaqtincha')) draftBtn.style.display = '';
+  const zWrap = document.getElementById('zaklat_amount')?.closest('div[style*="border-top"]');
+  if (zWrap) zWrap.style.display = '';
   document.getElementById('orderDetail').style.display  = 'none';
   document.getElementById('emptyMid').style.display     = 'none';
   document.getElementById('sumCard').style.display      = 'none';
@@ -1037,40 +1052,7 @@ async function saveOrder(isDraft = false) {
   const projId = parseInt(document.getElementById('project_id').value);
   if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
-  const items = [];
-  document.querySelectorAll('.detal').forEach(row => {
-    const name = row.querySelector('.i-name').value.trim();
-    if (!name) return;
-    const type = row.querySelector('.i-type').value;
-    const h = parseFloat(row.querySelector('.i-h').value) || 0;
-    const w = parseFloat(row.querySelector('.i-w').value) || 0;
-    const t = parseFloat(row.querySelector('.i-t').value) || 0;
-    const l = parseFloat(row.querySelector('.i-l').value) || 0;
-    const qty = parseFloat(row.querySelector('.i-q').value) || 1;
-    const unitPrice = parseFloat(row.dataset.price || 0) / qty;
-    const isCoated = row.querySelector('.i-c').value === 'true';
-
-    const penoId = parseInt(row.querySelector('.i-peno')?.value) || null;
-    const m3price = parseNum(row.querySelector('.i-m3price')?.value || '0') || null;
-
-    let itemData;
-    if (type === 'panel') {
-      itemData = { name, category: type, width: h, thickness: t, length: l,
-                   notes: `width2=${w}`, quantity: qty, unit_price: unitPrice, is_coated: isCoated,
-                   penoplast_id: penoId, price_per_m3: m3price };
-    } else if (type === 'dona') {
-      const unitPrice = parseFloat(row.dataset.unitprice || 0);
-      itemData = { name, category: 'dona', width: null, thickness: null, length: null,
-                   quantity: qty, unit_price: unitPrice, is_coated: isCoated,
-                   penoplast_id: penoId, price_per_m3: m3price };
-    } else {
-      itemData = { name, category: type, width: h, thickness: w, length: l,
-                   quantity: qty, unit_price: unitPrice, is_coated: isCoated,
-                   penoplast_id: penoId, price_per_m3: m3price };
-    }
-    items.push(itemData);
-  });
-
+  const items = collectItems();
   if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
 
   const finalPrice = parseNum(document.getElementById('final_price')?.value || '0');
@@ -1192,9 +1174,42 @@ async function editSelected() {
 
         const coatEl = row.querySelector('.i-c');
         if (coatEl) coatEl.value = item.is_coated ? 'true' : 'false';
+
+        // Plotnost
+        const penoEl = row.querySelector('.i-peno');
+        if (penoEl && item.penoplast_id) penoEl.value = item.penoplast_id;
+
+        // 1 m³ narxi
+        const m3El = row.querySelector('.i-m3price');
+        if (m3El && item.price_per_m3) m3El.value = formatNum(item.price_per_m3);
+
         calculateItem(row);
       });
     }
+
+    // Kelishilgan summa
+    const fpEl = document.getElementById('final_price');
+    if (fpEl && order.agreed_amount) fpEl.value = formatNum(order.agreed_amount);
+
+    // Loy rejasi
+    try {
+      const lr = await fetch(`/api/orders/${editId}/planned-loy`);
+      if (lr.ok) {
+        const ld = await lr.json();
+        const loyEl = document.getElementById('loy_kg');
+        if (loyEl && ld.planned_loy) { loyEl.value = ld.planned_loy; checkLoyStock(); }
+      }
+    } catch(e) {}
+
+    // Zaklat maydonini yashiramiz (tahrirlashda to'lov "To'lovlar" bo'limidan qo'shiladi)
+    const zWrap = document.getElementById('zaklat_amount')?.closest('div[style*="border-top"]');
+    if (zWrap) zWrap.style.display = 'none';
+
+    calcDiscount();
+
+    document.getElementById('editBanner').style.display = 'block';
+    document.getElementById('editOrderNum').textContent = order.order_number;
+    document.getElementById('formTitle').textContent = 'Buyurtmani tahrirlash';
 
     showMsg(`✏️ ${order.order_number} tahrirlash rejimida`, 'success');
 
@@ -1203,6 +1218,9 @@ async function editSelected() {
       saveBtn.textContent = '💾 O\'zgarishlarni saqlash';
       saveBtn.onclick = () => updateOrder(editId);
     }
+    // Draft tugmasini yashiramiz
+    const draftBtn = document.querySelector('#newOrderForm .btn-outline');
+    if (draftBtn && draftBtn.textContent.includes('Vaqtincha')) draftBtn.style.display = 'none';
 
   } catch(e) {
     showMsg('Server xatosi: ' + e.message, 'error');
@@ -1210,15 +1228,97 @@ async function editSelected() {
 }
 
 // ── Buyurtmani yangilash ──────────────────────────────────
+function collectItems() {
+  const items = [];
+  document.querySelectorAll('.detal').forEach(row => {
+    const name = row.querySelector('.i-name').value.trim();
+    if (!name) return;
+    const type = row.querySelector('.i-type').value;
+    const h = parseFloat(row.querySelector('.i-h').value) || 0;
+    const w = parseFloat(row.querySelector('.i-w').value) || 0;
+    const t = parseFloat(row.querySelector('.i-t').value) || 0;
+    const l = parseFloat(row.querySelector('.i-l').value) || 0;
+    const qty = parseFloat(row.querySelector('.i-q').value) || 1;
+    const unitPrice = parseFloat(row.dataset.price || 0) / qty;
+    const isCoated = row.querySelector('.i-c').value === 'true';
+    const penoId = parseInt(row.querySelector('.i-peno')?.value) || null;
+    const m3price = parseNum(row.querySelector('.i-m3price')?.value || '0') || null;
+
+    if (type === 'panel') {
+      items.push({ name, category: type, width: h, thickness: t, length: l,
+                   notes: `width2=${w}`, quantity: qty, unit_price: unitPrice, is_coated: isCoated,
+                   penoplast_id: penoId, price_per_m3: m3price });
+    } else if (type === 'dona') {
+      items.push({ name, category: 'dona', width: null, thickness: null, length: null,
+                   quantity: qty, unit_price: parseFloat(row.dataset.unitprice || 0), is_coated: isCoated,
+                   penoplast_id: penoId, price_per_m3: m3price });
+    } else {
+      items.push({ name, category: type, width: h, thickness: w, length: l,
+                   quantity: qty, unit_price: unitPrice, is_coated: isCoated,
+                   penoplast_id: penoId, price_per_m3: m3price });
+    }
+  });
+  return items;
+}
+
 async function updateOrder(orderId) {
-  // Avval eski buyurtmani o'chiramiz, keyin yangi saqlaymiz
-  if (!confirm('Buyurtma o\'zgartirilsinmi? Eski detallar o\'chiriladi.')) return;
+  const projId = parseInt(document.getElementById('project_id').value);
+  if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
-  const delRes = await fetch(`/api/orders/${orderId}`, { method:'DELETE' });
-  if (!delRes.ok) { showMsg('Xato: o\'chirib bo\'lmadi', 'error'); return; }
+  const items = collectItems();
+  if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
 
-  // Yangi saqlaymiz
-  await saveOrder();
+  if (!confirm('O\'zgarishlar saqlansinmi?\n\nOmbor faqat farq miqdorida to\'g\'rilanadi:\n• Ko\'paysa — xomashyo qo\'shimcha ayiriladi\n• Kamaysa — omborga qaytariladi')) return;
+
+  const finalPrice = parseNum(document.getElementById('final_price')?.value || '0');
+  const loyKg = parseFloat(document.getElementById('loy_kg')?.value || 0);
+
+  const data = {
+    project_id: projId,
+    order_type: document.getElementById('order_type').value,
+    recipe_id: parseInt(document.getElementById('recipe_id').value) || null,
+    master_id: parseInt(document.getElementById('master_id').value) || null,
+    agreed_amount: finalPrice || undefined,
+    items
+  };
+
+  const url = `/api/orders/${orderId}?loy_kg=${loyKg}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    const box = document.getElementById('resultBox');
+
+    if (res.ok) {
+      let html = '<b>✓ Buyurtma yangilandi!</b><br>';
+      if (result.inventory_log?.length) {
+        html += '<br>📦 Ombor to\'g\'rilandi:<br>' + result.inventory_log.join('<br>');
+      } else {
+        html += '<br>📦 Ombor o\'zgarmadi';
+      }
+      if (result.loy_changed && result.loy_changed.old !== result.loy_changed.new) {
+        html += `<br><br>🧱 Loy rejasi: ${result.loy_changed.old} kg → ${result.loy_changed.new} kg`;
+      }
+      if (result.debt_amount > 0) {
+        html += `<br><br>💰 Qarz: ${formatNum(result.debt_amount)} so'm`;
+      }
+      if (box) { box.innerHTML = html; box.className = 'result-box success'; box.style.display = 'block'; }
+      showMsg('✓ Saqlandi!', 'success');
+      setTimeout(()=>location.reload(), 3000);
+    } else {
+      const det = result.detail || {};
+      let html = '<b>❌ ' + (det.message || 'Xato') + '</b>';
+      if (det.shortages?.length) html += '<br><br>' + det.shortages.map(x=>`• ${x}`).join('<br>');
+      if (box) { box.innerHTML = html; box.className = 'result-box error'; box.style.display = 'block'; }
+      showMsg('❌ ' + (det.message || 'Xato'), 'error');
+    }
+  } catch(e) {
+    showMsg('Server xatosi: ' + e.message, 'error');
+  }
 }
 async function markReadySelected() {
   if (!selectedOrderId) return;
