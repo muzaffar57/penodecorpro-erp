@@ -120,7 +120,7 @@
         <input type="number" id="f-qty" placeholder="0" min="0.1" step="0.1" oninput="calcValue()">
       </div>
       <div class="form-group" style="margin:0">
-        <label>1 birlik narxi</label>
+        <label id="f-price-label">1 birlik narxi</label>
         <input type="text" id="f-unit-price" disabled style="background:#f5f5f5;color:#888">
       </div>
     </div>
@@ -213,6 +213,11 @@ async function onOrderChange(){
   }
 }
 
+function currentUnitPrice(item){
+  const reason = document.querySelector('input[name="f-reason"]:checked')?.value;
+  return (reason === 'Brak') ? (item.cost_price_per_unit || 0) : (item.price_per_unit_final || 0);
+}
+
 function onItemChange(){
   const itemId = parseInt(document.getElementById('f-item').value);
   const item = currentOrderItems.find(i => i.id === itemId);
@@ -222,7 +227,6 @@ function onItemChange(){
     return;
   }
   document.getElementById('f-unit-label').textContent = item.delivery_unit === 'metr' ? 'm' : 'dona';
-  document.getElementById('f-unit-price').value = fmt(item.price_per_unit_final) + " so'm";
   document.getElementById('f-qty').max = item.order_qty_normalized;
   calcValue();
 }
@@ -241,10 +245,18 @@ function calcValue(){
   updateReasonHint();
   const itemId = parseInt(document.getElementById('f-item').value);
   const item = currentOrderItems.find(i => i.id === itemId);
+  const reason = document.querySelector('input[name="f-reason"]:checked')?.value;
+  const priceLabel = document.getElementById('f-price-label');
+
+  if (!item) return;
+
+  const unitPrice = currentUnitPrice(item);
+  priceLabel.textContent = (reason === 'Brak') ? "1 birlik TAN narxi (xomashyo)" : "1 birlik SOTUV narxi";
+  document.getElementById('f-unit-price').value = fmt(unitPrice) + " so'm";
+
   const qty = parseFloat(document.getElementById('f-qty').value) || 0;
-  if (!item || !qty) return;
-  const value = Math.round(qty * (item.price_per_unit_final || 0));
-  document.getElementById('f-value').value = value;
+  if (!qty) return;
+  document.getElementById('f-value').value = Math.round(qty * unitPrice);
 }
 
 async function deleteReturn(id){
