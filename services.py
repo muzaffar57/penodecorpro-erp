@@ -737,6 +737,34 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     qoplamachi_bonus_avtomatik = (jami_metr + jami_panel_metr + jami_dona) * 1000
     jami_m2 = jami_metr + jami_panel_metr
 
+    # Jami ishlatilgan blok (hodim to'lovi "per_unit: blok" uchun)
+    jami_blok = 0.0
+    default_p = get_default_penoplast(db)
+    for order in orders_this_month:
+        for item in order.items:
+            if getattr(item, 'finished_product_id', None):
+                continue
+            vol = _item_volume_m3(db, item, default_p)
+            pid = item.penoplast_id or (default_p.id if default_p else None)
+            p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else None
+            if p and p.volume_per_unit:
+                jami_blok += vol / float(p.volume_per_unit)
+
+    from models import FinishedProduct, StockSource
+    from datetime import datetime as _dt
+    fp_start = _dt(year, month, 1)
+    fp_end = _dt(year + 1, 1, 1) if month == 12 else _dt(year, month + 1, 1)
+    finished_this_month = db.query(FinishedProduct).filter(
+        FinishedProduct.source == StockSource.PRODUCED,
+        FinishedProduct.created_at >= fp_start,
+        FinishedProduct.created_at < fp_end
+    ).all()
+    for fp in finished_this_month:
+        if fp.penoplast_id and fp.volume_m3:
+            p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+            if p and p.volume_per_unit:
+                jami_blok += float(fp.volume_m3) / float(p.volume_per_unit)
+
     # ── 3. XARAJATLAR (bazadan) ──────────────────────────────
     expense = db.query(MonthlyExpense).filter(
         MonthlyExpense.year  == year,
@@ -746,7 +774,7 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     if not expense:
         # Bo'sh xarajat
         xarajatlar = {
-            "arenda": 0, "elektr": 0, "tushlik": 0,
+            "arenda": 0, "elektr": 0, "tushlik": 0, "soliqlar": 0,
             "hodim1_ism": "Hodim 1", "hodim1_oylik": 0,
             "hodim2_ism": "Hodim 2", "hodim2_oylik": 0,
             "hodim3_ism": "Hodim 3", "hodim3_oylik": 0,
@@ -759,6 +787,7 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
             "arenda":    float(expense.arenda or 0),
             "elektr":    float(expense.elektr or 0),
             "tushlik":   float(expense.tushlik or 0),
+            "soliqlar":  float(expense.soliqlar or 0),
             "hodim1_ism":   expense.hodim1_ism,
             "hodim1_oylik": float(expense.hodim1_oylik or 0),
             "hodim2_ism":   expense.hodim2_ism,
@@ -772,16 +801,33 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         }
 
     # Jami xarajat
-    jami_xarajat = (
+    # Jami xarajat (eski, avvalgi maydonlar)
+    jami_xarajat_eski = (
         xarajatlar["arenda"] +
         xarajatlar["elektr"] +
         xarajatlar["tushlik"] +
+        xarajatlar["soliqlar"] +
         xarajatlar["hodim1_oylik"] +
         xarajatlar["hodim2_oylik"] +
         xarajatlar["hodim3_oylik"] +
         xarajatlar["qoplamachi_oylik"] +
         xarajatlar["qoplamachi_bonus"]
     )
+
+    # ── 4b. USTA YILLIK KPI (oylik ulush) ─────────────────────
+    kpi_result = calculate_monthly_master_kpi(db, year, month)
+    usta_kpi_xarajat = kpi_result["total"]
+
+    # ── 4c. MOSLASHUVCHAN HODIMLAR ─────────────────────────────
+    # Foyda (hodim xarajatigacha) — sotuvdan% / foydadan% hisoblash uchun
+    sof_foyda_before_emp = sof_daromad - jami_xarajat_eski - usta_kpi_xarajat
+    emp_result = calculate_monthly_employee_pay(
+        db, year, month, daromad, sof_foyda_before_emp,
+        jami_metr + jami_panel_metr, jami_dona, jami_blok
+    )
+    hodimlar_moslashuvchan_xarajat = emp_result["total"]
+
+    jami_xarajat = jami_xarajat_eski + usta_kpi_xarajat + hodimlar_moslashuvchan_xarajat
 
     sof_foyda = sof_daromad - jami_xarajat
     foyda_foiz = (sof_foyda / daromad * 100) if daromad > 0 else 0
@@ -818,6 +864,13 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         "sof_foyda": sof_foyda,
         "foyda_foiz": round(foyda_foiz, 1),
         "expense_id": expense.id if expense else None,
+        # Usta yillik KPI (oylik ulush)
+        "usta_kpi_xarajat": usta_kpi_xarajat,
+        "usta_kpi_breakdown": kpi_result["breakdown"],
+        # Moslashuvchan hodimlar
+        "hodimlar_moslashuvchan_xarajat": hodimlar_moslashuvchan_xarajat,
+        "hodimlar_moslashuvchan_breakdown": emp_result["breakdown"],
+        "jami_blok": round(jami_blok, 2),
         # Naqd xarajatlar (alohida ko'rsatkich — foyda hisobiga kirmaydi)
         "xomashyo_xaridi": xomashyo_xaridi,
         "xomashyo_by_material": purchase_stats["by_material"],
@@ -900,6 +953,7 @@ def save_monthly_expense(db: Session, year: int, month: int, data: dict):
     expense.arenda   = data.get("arenda", 0)
     expense.elektr   = data.get("elektr", 0)
     expense.tushlik  = data.get("tushlik", 0)
+    expense.soliqlar = data.get("soliqlar", 0)
     expense.hodim1_ism    = data.get("hodim1_ism", "Hodim 1")
     expense.hodim1_oylik  = data.get("hodim1_oylik", 0)
     expense.hodim2_ism    = data.get("hodim2_ism", "Hodim 2")
@@ -1475,3 +1529,95 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None) -> dict:
         "batch_size": batch,
         "breakdown": breakdown
     }
+
+
+# ============================================================
+# USTA KPI VA HODIM TO'LOVI — Oylik hisobga qo'shish
+# ============================================================
+
+def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
+    """Shu oy sotuvidan usta KPI xarajatini hisoblaydi (yillik jamlanadi,
+    lekin har oy tegishli ulushi xarajat sifatida yoziladi)."""
+    from models import Order, OrderStatus, Master
+    from sqlalchemy import extract
+
+    masters = db.query(Master).filter(Master.is_active == True, Master.kpi_percent > 0).all()
+    breakdown = []
+    total = 0.0
+
+    for m in masters:
+        orders = db.query(Order).filter(
+            Order.master_id == m.id,
+            Order.status == OrderStatus.READY,
+            extract('year', Order.completed_at) == year,
+            extract('month', Order.completed_at) == month
+        ).all()
+        monthly_sales = sum(float(o.total_amount or 0) for o in orders)
+        if monthly_sales <= 0:
+            continue
+        kpi_amount = monthly_sales * m.kpi_percent / 100
+        total += kpi_amount
+        breakdown.append({
+            "master_name": m.name,
+            "kpi_percent": m.kpi_percent,
+            "monthly_sales": round(monthly_sales),
+            "kpi_amount": round(kpi_amount)
+        })
+
+    return {"total": round(total), "breakdown": breakdown}
+
+
+def calculate_monthly_employee_pay(db: Session, year: int, month: int,
+                                   daromad: float, sof_foyda_before: float,
+                                   jami_metr: float, jami_dona: float,
+                                   jami_blok: float) -> dict:
+    """Moslashuvchan hodimlar uchun oylik to'lovni hisoblaydi.
+    daromad, sof_foyda_before — shu oy uchun (hodim xarajatlarigacha).
+    jami_metr/dona/blok — shu oy ishlab chiqarilgan miqdorlar."""
+    from models import Employee, PayType
+
+    employees = db.query(Employee).filter(Employee.is_active == True).all()
+    breakdown = []
+    total = 0.0
+
+    unit_map = {"metr": jami_metr, "dona": jami_dona, "blok": jami_blok}
+
+    for e in employees:
+        amount = 0.0
+        detail = ""
+
+        if e.pay_type == PayType.FIXED:
+            amount = float(e.fixed_amount or 0)
+            detail = f"Doimiy oylik"
+
+        elif e.pay_type == PayType.PERCENT_SALES:
+            amount = daromad * float(e.percent_value or 0) / 100
+            detail = f"Sotuv {fmt_num(daromad)} × {e.percent_value}%"
+
+        elif e.pay_type == PayType.PERCENT_PROFIT:
+            amount = max(0, sof_foyda_before) * float(e.percent_value or 0) / 100
+            detail = f"Foyda {fmt_num(sof_foyda_before)} × {e.percent_value}%"
+
+        elif e.pay_type == PayType.PER_UNIT:
+            qty = unit_map.get(e.per_unit_type, 0)
+            amount = qty * float(e.per_unit_rate or 0)
+            detail = f"{qty:g} {e.per_unit_type} × {fmt_num(e.per_unit_rate)}"
+
+        if amount > 0:
+            total += amount
+            breakdown.append({
+                "name": e.name,
+                "position": e.position,
+                "pay_type": e.pay_type.value,
+                "detail": detail,
+                "amount": round(amount)
+            })
+
+    return {"total": round(total), "breakdown": breakdown}
+
+
+def fmt_num(n):
+    try:
+        return f"{n:,.0f}".replace(",", " ")
+    except (TypeError, ValueError):
+        return "0"
