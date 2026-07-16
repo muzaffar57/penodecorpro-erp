@@ -2122,3 +2122,55 @@ def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = 
         "unit": fp.unit,
         "lost_value": round(lost_value)
     }
+
+
+def get_finished_profit(db: Session, fp_id: int) -> dict:
+    """Tayyor mahsulot foydasi — to'liq tafsilot bilan."""
+    import services
+
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if not fp:
+        return {"success": False, "message": "Topilmadi"}
+
+    qty = float(fp.quantity or 0)
+    unit_price = float(fp.unit_price or 0)
+    revenue = qty * unit_price
+    total_cost = float(fp.cost_price or 0)
+
+    # Loy narxi
+    loy_cost = 0.0
+    loy_per_kg = 0.0
+    recipe_name = None
+    loy_kg = float(fp.actual_loy_kg or 0)
+    if loy_kg > 0:
+        info = services.get_loy_cost_per_kg(db, fp.recipe_id)
+        loy_per_kg = float(info.get("cost_per_kg", 0))
+        loy_cost = loy_kg * loy_per_kg
+        recipe_name = info.get("recipe")
+
+    peno_cost = max(total_cost - loy_cost, 0)
+    profit = revenue - total_cost
+    margin = (profit / revenue * 100) if revenue > 0 else 0
+
+    return {
+        "success": True,
+        "id": fp.id,
+        "name": fp.name,
+        "quantity": qty,
+        "unit": fp.unit,
+        "unit_price": unit_price,
+        "revenue": round(revenue),
+        "penoplast_cost": round(peno_cost),
+        "loy_kg": loy_kg,
+        "loy_cost_per_kg": round(loy_per_kg),
+        "loy_cost": round(loy_cost),
+        "recipe": recipe_name,
+        "total_cost": round(total_cost),
+        "profit": round(profit),
+        "margin": round(margin, 1),
+        "cost_per_unit": round(total_cost / qty) if qty > 0 else 0,
+        "profit_per_unit": round(profit / qty) if qty > 0 else 0,
+        "volume_m3": float(fp.volume_m3 or 0),
+        "source": fp.source.value,
+        "production_status": fp.production_status.value if fp.production_status else None,
+    }
