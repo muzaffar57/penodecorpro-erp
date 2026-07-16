@@ -195,6 +195,7 @@
                      style="flex:1;padding:7px 10px;border:1.5px solid #C9A55A;border-radius:7px;font-size:13px;font-weight:600;outline:none">
             </div>
             <div style="font-size:11px;color:#aaa;margin-top:4px">Bo'sh qolsa chegirmasiz hisoblanadi</div>
+            <div id="discount-auto-hint" style="display:none;margin-top:6px;padding:7px 10px;background:#EBF5FB;border-radius:7px;font-size:11px;color:#1a6fa8;line-height:1.5"></div>
             <div id="discount_info" style="display:none;margin-top:8px;padding:8px;background:#FEF9E7;border-radius:7px;font-size:12px"></div>
 
             <!-- ZAKLAT -->
@@ -269,9 +270,12 @@
               <span style="color:#777">Chegirma:</span>
               <span id="pay-discount" style="font-weight:600;color:#E67E22">—</span>
             </div>
-            <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-top:1px solid #eee;margin-top:4px;padding-top:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-top:1px solid #eee;margin-top:4px;padding-top:8px">
               <span style="color:#555;font-weight:600">Kelishilgan:</span>
-              <span id="pay-agreed" style="font-weight:700;color:#1a1a1a">—</span>
+              <span style="display:flex;align-items:center;gap:6px">
+                <span id="pay-agreed" style="font-weight:700;color:#1a1a1a">—</span>
+                <button onclick="editAgreedAmount()" style="width:22px;height:22px;border-radius:5px;background:#f5f5f5;border:none;font-size:11px;cursor:pointer" title="Kelishilgan summani o'zgartirish">✏️</button>
+              </span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
               <span style="color:#777">To'langan:</span>
@@ -409,6 +413,9 @@
 <script>
 let selectedOrderId = null;
 let itemCount = 0;
+let editMode = false;          // tahrirlash rejimidamizmi
+let editDiscountPct = 0;       // tahrirlashdagi saqlangan chegirma foizi
+let editUserTouched = false;   // xodim kelishilgan summani qo'lda o'zgartirdimi
 
 // ── PLOTNOST ──────────────────────────────────────────────
 const PENOPLASTS = [
@@ -682,6 +689,41 @@ async function loadPayments(orderId) {
   }
 }
 
+async function editAgreedAmount() {
+  if (!selectedOrderId) return;
+  try {
+    const r = await fetch(`/api/orders/${selectedOrderId}`);
+    if (!r.ok) return;
+    const o = await r.json();
+    const total = o.total_amount || 0;
+    const cur = o.agreed_amount || total;
+
+    const v = prompt(
+      `Kelishilgan summani kiriting (so'm):\n\n` +
+      `Jami summa: ${formatNum(total)}\n` +
+      `Hozirgi kelishilgan: ${formatNum(cur)}\n` +
+      `Chegirma: ${(o.discount_percent||0).toFixed(2)}%`,
+      String(Math.round(cur))
+    );
+    if (v === null) return;
+    const val = parseNum(v);
+    if (!val || val <= 0) { showMsg('Noto\'g\'ri summa', 'error'); return; }
+
+    const res = await fetch(`/api/orders/${selectedOrderId}/agreed-amount`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ agreed_amount: val })
+    });
+    if (res.ok) {
+      const d = await res.json();
+      loadPayments(selectedOrderId);
+      showMsg(`✓ Yangilandi! Chegirma: ${d.discount_percent.toFixed(2)}% · Qarz: ${formatNum(d.debt_amount)} so'm`, 'success');
+    } else {
+      showMsg('❌ Xato', 'error');
+    }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
+}
+
 function openPaymentForm() {
   document.getElementById('paymentForm').style.display = 'block';
   document.getElementById('pf-amount').value = '';
@@ -747,6 +789,11 @@ async function deletePayment(paymentId) {
 function showNewForm() {
   document.getElementById('newOrderForm').style.display = 'block';
   // Tahrirlash rejimidan qaytish
+  editMode = false;
+  editDiscountPct = 0;
+  editUserTouched = false;
+  const hint = document.getElementById('discount-auto-hint');
+  if (hint) hint.style.display = 'none';
   const eb = document.getElementById('editBanner');
   if (eb) eb.style.display = 'none';
   const ft = document.getElementById('formTitle');
@@ -987,6 +1034,7 @@ function updateTotal() {
 
   const ts = document.getElementById('total_sum');
   if (ts && ts.tagName !== 'INPUT') ts.textContent = formatNum(total) + ' so\'m';
+  reapplyDiscount();
   calcDiscount();
 }
 
@@ -994,6 +1042,14 @@ function calcDiscount() {
   const fp = document.getElementById('final_price');
   const di = document.getElementById('discount_info');
   if (!fp || !di) return;
+  // Tahrirlashda xodim summani qo'lda o'zgartirsa — foizni yangilaymiz
+  if (editMode && document.activeElement === fp) {
+    editUserTouched = true;
+    let tot = 0;
+    document.querySelectorAll('.detal').forEach(r => tot += parseFloat(r.dataset.price || 0));
+    const fv = parseNum(fp.value);
+    editDiscountPct = (tot > 0 && fv > 0 && fv < tot) ? ((tot - fv) / tot * 100) : 0;
+  }
   let total = 0;
   document.querySelectorAll('.detal').forEach(row => total += parseFloat(row.dataset.price || 0));
   const finalPrice = parseNum(fp.value);
@@ -1045,6 +1101,27 @@ function calcDebt() {
 
 function recalcAll() {
   document.querySelectorAll('.detal').forEach(row => calculateItem(row));
+}
+
+// Tahrirlashda jami o'zgarsa — kelishilgan summani foiz bo'yicha qayta hisoblaymiz
+function reapplyDiscount() {
+  if (!editMode || editDiscountPct <= 0) return;
+  const fp = document.getElementById('final_price');
+  if (!fp || document.activeElement === fp) return;   // xodim yozayotgan bo'lsa tegmaymiz
+
+  let total = 0;
+  document.querySelectorAll('.detal').forEach(r => total += parseFloat(r.dataset.price || 0));
+  if (total <= 0) return;
+
+  const newAgreed = Math.round(total * (1 - editDiscountPct / 100));
+  fp.value = formatNum(newAgreed);
+
+  const hint = document.getElementById('discount-auto-hint');
+  if (hint) {
+    hint.style.display = 'block';
+    hint.innerHTML = `🔄 Chegirma <b>${editDiscountPct.toFixed(2)}%</b> saqlandi — kelishilgan summa avtomatik qayta hisoblandi. Kerak bo'lsa qo'lda o'zgartiring.`;
+  }
+  calcDiscount();
 }
 
 // ── Buyurtmani saqlash ────────────────────────────────────
@@ -1187,9 +1264,23 @@ async function editSelected() {
       });
     }
 
+    // Tahrirlash rejimi + saqlangan chegirma foizi
+    editMode = true;
+    editUserTouched = false;
+    editDiscountPct = parseFloat(order.discount_percent || 0);
+
     // Kelishilgan summa
     const fpEl = document.getElementById('final_price');
     if (fpEl && order.agreed_amount) fpEl.value = formatNum(order.agreed_amount);
+
+    // Chegirma haqida ma'lumot
+    if (editDiscountPct > 0) {
+      const hint = document.getElementById('discount-auto-hint');
+      if (hint) {
+        hint.style.display = 'block';
+        hint.innerHTML = `💡 Bu buyurtmada <b>${editDiscountPct.toFixed(2)}%</b> chegirma bor. Detallar o'zgarsa — kelishilgan summa shu foiz bo'yicha avtomatik qayta hisoblanadi.`;
+      }
+    }
 
     // Loy rejasi
     try {
@@ -1283,6 +1374,7 @@ async function updateOrder(orderId) {
   };
 
   const url = `/api/orders/${orderId}?loy_kg=${loyKg}`;
+  console.log('Tahrirlash:', data);
 
   try {
     const res = await fetch(url, {
@@ -1299,6 +1391,15 @@ async function updateOrder(orderId) {
         html += '<br>📦 Ombor to\'g\'rilandi:<br>' + result.inventory_log.join('<br>');
       } else {
         html += '<br>📦 Ombor o\'zgarmadi';
+      }
+      if (result.price_changed) {
+        const pc = result.price_changed;
+        if (Math.abs(pc.new_total - pc.old_total) > 1) {
+          html += `<br><br>💵 Jami: ${formatNum(pc.old_total)} → <b>${formatNum(pc.new_total)} so'm</b>`;
+          if (pc.new_discount_pct > 0) {
+            html += `<br>📉 Chegirma: <b>${pc.new_discount_pct.toFixed(2)}%</b> → Kelishilgan: <b>${formatNum(result.agreed_amount)} so'm</b>`;
+          }
+        }
       }
       if (result.loy_changed && result.loy_changed.old !== result.loy_changed.new) {
         html += `<br><br>🧱 Loy rejasi: ${result.loy_changed.old} kg → ${result.loy_changed.new} kg`;
