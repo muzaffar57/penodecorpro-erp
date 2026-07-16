@@ -249,7 +249,7 @@ def delete_recipe(db: Session, recipe_id: int) -> bool:
 # PROJECT CRUD
 # ============================================================
 
-from models import Project, Order, OrderItem, ProjectStatus, OrderStatus, OrderType
+from models import Project, Order, OrderItem, ProjectStatus, OrderStatus, OrderType, FinishedProduct, StockSource
 from schemas import ProjectCreate, OrderCreate
 
 
@@ -371,6 +371,7 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
             recipe_id=order_data.recipe_id,
             penoplast_id=getattr(item_data, 'penoplast_id', None),
             price_per_m3=getattr(item_data, 'price_per_m3', None),
+            finished_product_id=getattr(item_data, 'finished_product_id', None),
             unit_price=item_data.unit_price,
             total_price=item_total,
             notes=item_data.notes
@@ -382,9 +383,131 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
     db_order.agreed_amount = getattr(order_data, 'agreed_amount', None) or total_amount
     if total_amount > 0 and float(db_order.agreed_amount) < total_amount:
         db_order.discount_percent = round((total_amount - float(db_order.agreed_amount)) / total_amount * 100, 2)
+
+    db.flush()
+
+    # Tayyor mahsulotlardan yechamiz (qoralama bo'lmasa)
+    if not is_draft:
+        _take_finished_for_order(db, db_order)
+
     db.commit()
     db.refresh(db_order)
     return db_order
+
+
+def _fp_item_qty(item) -> float:
+    """Detalning tayyor mahsulotdan olinadigan miqdori."""
+    cat = (item.category or '').lower()
+    if cat == 'profil':
+        return float(item.length or 0)
+    return float(item.quantity or 0)
+
+
+def _take_finished_for_order(db: Session, order) -> list:
+    """Buyurtmadagi tayyor mahsulot detallarini ombordan yechadi."""
+    log = []
+    for it in order.items:
+        fpid = getattr(it, 'finished_product_id', None)
+        if not fpid:
+            continue
+        qty = _fp_item_qty(it)
+        if qty <= 0:
+            continue
+        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        if not fp:
+            continue
+        fp.quantity = max(0, float(fp.quantity or 0) - qty)
+        log.append(f"🏭 {fp.name}: -{qty:g} {fp.unit} (tayyor mahsulotdan)")
+    if log:
+        db.flush()
+    return log
+
+
+def _return_finished_for_order(db: Session, order) -> list:
+    """Buyurtma o'chirilganda tayyor mahsulotlarni qaytaradi."""
+    log = []
+    for it in order.items:
+        fpid = getattr(it, 'finished_product_id', None)
+        if not fpid:
+            continue
+        qty = _fp_item_qty(it)
+        if qty <= 0:
+            continue
+        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        if not fp:
+            continue
+        fp.quantity = float(fp.quantity or 0) + qty
+        log.append(f"🏭 {fp.name}: +{qty:g} {fp.unit} qaytarildi")
+    if log:
+        db.flush()
+    return log
+
+
+def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
+    """Tayyor mahsulot farqini to'g'rilaydi."""
+    def _group(items):
+        out = {}
+        for d in items:
+            fpid = d.get('finished_product_id') if isinstance(d, dict) else getattr(d, 'finished_product_id', None)
+            if not fpid:
+                continue
+            cat = (d.get('category') if isinstance(d, dict) else d.category) or ''
+            if cat.lower() == 'profil':
+                q = float((d.get('length') if isinstance(d, dict) else d.length) or 0)
+            else:
+                q = float((d.get('quantity') if isinstance(d, dict) else d.quantity) or 0)
+            out[fpid] = out.get(fpid, 0.0) + q
+        return out
+
+    old_g = _group(old_items)
+    new_g = _group(new_items)
+    log = []
+
+    for fpid in set(old_g) | set(new_g):
+        diff = new_g.get(fpid, 0.0) - old_g.get(fpid, 0.0)
+        if abs(diff) < 0.001:
+            continue
+        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        if not fp:
+            continue
+        if diff > 0:
+            fp.quantity = max(0, float(fp.quantity or 0) - diff)
+            log.append(f"🏭 {fp.name}: -{diff:g} {fp.unit}")
+        else:
+            fp.quantity = float(fp.quantity or 0) + abs(diff)
+            log.append(f"🏭 {fp.name}: +{abs(diff):g} {fp.unit} qaytdi")
+
+    if log:
+        db.flush()
+    return log
+
+
+def check_finished_for_order(db: Session, items) -> dict:
+    """Tayyor mahsulot yetadimi — tekshiradi."""
+    shortages = []
+    need = {}
+
+    for it in items:
+        fpid = getattr(it, 'finished_product_id', None)
+        if not fpid:
+            continue
+        cat = (it.category or '').lower()
+        qty = float(it.length or 0) if cat == 'profil' else float(it.quantity or 0)
+        if qty <= 0:
+            continue
+        need[fpid] = need.get(fpid, 0.0) + qty
+
+    for fpid, qty in need.items():
+        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        if not fp:
+            shortages.append("Tayyor mahsulot topilmadi")
+            continue
+        if float(fp.quantity or 0) < qty - 0.001:
+            shortages.append(
+                f"🏭 {fp.name}: omborda {float(fp.quantity):g} {fp.unit}, kerak {qty:g} {fp.unit}"
+            )
+
+    return {"enough": len(shortages) == 0, "shortages": shortages}
 
 
 def get_orders(db: Session, project_id: Optional[int] = None) -> List[Order]:
@@ -651,7 +774,8 @@ from schemas import ReturnItemCreate
 
 
 def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
-    """Yangi qaytarishni bazaga qo'shadi."""
+    """Yangi qaytarishni bazaga qo'shadi.
+    to_stock=True bo'lsa — tayyor mahsulotlar omboriga ham tushadi."""
     try:
         reason_enum = ReturnReason(data.reason)
     except ValueError:
@@ -668,6 +792,31 @@ def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
         notes=data.notes
     )
     db.add(item)
+    db.flush()
+
+    # Tayyor mahsulotlar omboriga qo'shamiz (brak bo'lmasa)
+    to_stock = getattr(data, 'to_stock', True)
+    if to_stock and reason_enum != ReturnReason.DEFECT:
+        oi = None
+        oi_id = getattr(data, 'order_item_id', None)
+        if oi_id:
+            oi = db.query(OrderItem).filter(OrderItem.id == oi_id).first()
+        if not oi:
+            # Nom bo'yicha topamiz
+            oi = db.query(OrderItem).filter(
+                OrderItem.order_id == data.order_id,
+                OrderItem.name == data.item_name
+            ).first()
+
+        if oi:
+            fp = add_returned_to_stock(
+                db, oi, float(data.quantity), reason_enum.value,
+                order_id=data.order_id,
+                notes=f"{data.notes or ''}".strip() or None
+            )
+            if fp:
+                print(f"✓ Tayyor mahsulotlar omboriga: {fp.name} +{data.quantity} {fp.unit}")
+
     db.commit()
     db.refresh(item)
     return item
@@ -975,6 +1124,9 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
         loy_log = services.deduct_loy_ingredients(db, order, planned_loy)
         log.extend(loy_log)
 
+    # Tayyor mahsulotlarni yechamiz
+    log.extend(_take_finished_for_order(db, order))
+
     order.status = OrderStatus.IN_PROGRESS
     db.commit()
     db.refresh(order)
@@ -1013,7 +1165,9 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         "length": i.length,
         "quantity": float(i.quantity or 1),
         "unit_price": float(i.unit_price or 0),
-        "penoplast_id": i.penoplast_id
+        "penoplast_id": i.penoplast_id,
+        "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
+        "finished_product_id": i.finished_product_id
     } for i in order.items]
 
     new_snapshot = [{
@@ -1023,7 +1177,9 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         "length": it.length,
         "quantity": float(it.quantity or 1),
         "unit_price": float(it.unit_price or 0),
-        "penoplast_id": getattr(it, 'penoplast_id', None)
+        "penoplast_id": getattr(it, 'penoplast_id', None),
+        "price_per_m3": getattr(it, 'price_per_m3', None),
+        "finished_product_id": getattr(it, 'finished_product_id', None)
     } for it in order_data.items]
 
     is_draft = order.status == OrderStatus.DRAFT
@@ -1113,6 +1269,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         oi.recipe_id = order_data.recipe_id
         oi.penoplast_id = getattr(nd, 'penoplast_id', None)
         oi.price_per_m3 = getattr(nd, 'price_per_m3', None)
+        oi.finished_product_id = getattr(nd, 'finished_product_id', None)
         oi.unit_price = nd.unit_price
         oi.total_price = item_total
         oi.notes = nd.notes
@@ -1136,6 +1293,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
             recipe_id=order_data.recipe_id,
             penoplast_id=getattr(nd, 'penoplast_id', None),
             price_per_m3=getattr(nd, 'price_per_m3', None),
+            finished_product_id=getattr(nd, 'finished_product_id', None),
             unit_price=nd.unit_price,
             total_price=item_total,
             notes=nd.notes
@@ -1174,6 +1332,8 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     inventory_log = []
     if not is_draft:
         inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot)
+        # Tayyor mahsulot farqi
+        inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot))
 
     # 7) To'lov holatini qayta hisoblaymiz
     db.refresh(order)
@@ -1428,4 +1588,335 @@ def _delivery_dict(d) -> dict:
         "notes": d.notes,
         "total_sum": round(dsum),
         "items": items
+    }
+
+
+# ============================================================
+# FINISHED PRODUCT — Tayyor mahsulotlar ombori
+# ============================================================
+
+from models import FinishedProduct, StockSource
+from schemas import ProduceCreate
+
+
+def _fp_unit(category: str) -> str:
+    return 'metr' if (category or '').lower() == 'profil' else 'dona'
+
+
+def _fp_qty(data) -> float:
+    """Ishlab chiqarilayotgan miqdor."""
+    cat = (data.category or '').lower()
+    if cat == 'profil':
+        return float(data.length or 0)
+    return float(data.quantity or 0)
+
+
+def produce_finished_product(db: Session, data: ProduceCreate, created_by: str = None) -> dict:
+    """Tayyor mahsulot ishlab chiqarish — ombordan xomashyo yechiladi."""
+    import services
+
+    qty = _fp_qty(data)
+    if qty <= 0:
+        return {"success": False, "message": "Miqdor kiritilmagan"}
+
+    # Hajmni hisoblaymiz
+    class _Tmp:
+        pass
+    tmp = _Tmp()
+    tmp.category = data.category
+    tmp.width = data.width
+    tmp.thickness = data.thickness
+    tmp.length = data.length
+    tmp.quantity = data.quantity or 1
+    # Dona uchun hajm 1 dona tan narxidan hisoblanadi (sotuv narxidan emas)
+    tmp.unit_price = getattr(data, 'unit_price_for_volume', None) or data.unit_price
+    tmp.penoplast_id = data.penoplast_id
+    tmp.price_per_m3 = data.price_per_m3
+    tmp.finished_product_id = None
+
+    default_p = services.get_default_penoplast(db)
+    volume = services._item_volume_m3(db, tmp, default_p)
+
+    pid = data.penoplast_id or (default_p.id if default_p else None)
+
+    # Xomashyo yetadimi
+    shortages = []
+    if volume > 0 and pid:
+        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        if p:
+            vol_per_unit = float(p.volume_per_unit or 1.0)
+            blocks = volume / vol_per_unit
+            if float(p.stock_quantity) < blocks:
+                shortages.append(
+                    f"{p.item_name}: kerak {blocks:.1f} blok, qoldi {float(p.stock_quantity):.1f} blok"
+                )
+    if shortages:
+        return {"success": False, "message": "Xomashyo yetishmayapti!", "shortages": shortages}
+
+    log = []
+    cost = 0.0
+
+    # 1) Penoplastni yechamiz
+    if volume > 0 and pid:
+        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        if p:
+            vol_per_unit = float(p.volume_per_unit or 1.0)
+            blocks = volume / vol_per_unit
+            p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
+            cost += blocks * float(p.price_per_unit or 0)
+            log.append(f"{p.item_name}: -{blocks:.2f} blok")
+
+    # 2) Loy ingredientlarini yechamiz
+    if data.loy_kg and data.loy_kg > 0:
+        from models import Recipe
+        recipe = None
+        if data.recipe_id:
+            recipe = db.query(Recipe).filter(Recipe.id == data.recipe_id).first()
+        if not recipe:
+            recipe = db.query(Recipe).first()
+
+        # Soxta order — deduct_loy_ingredients uchun
+        class _FakeOrder:
+            def __init__(self, rid):
+                class _It:
+                    recipe_id = rid
+                self.items = [_It()]
+        fake = _FakeOrder(recipe.id if recipe else None)
+        log.extend(services.deduct_loy_ingredients(db, fake, float(data.loy_kg)))
+
+    db.flush()
+
+    # 3) Tayyor mahsulotga qo'shamiz — bir xili bo'lsa birlashtiramiz
+    unit = _fp_unit(data.category)
+    existing = db.query(FinishedProduct).filter(
+        FinishedProduct.name == data.name.strip(),
+        FinishedProduct.source == StockSource.PRODUCED,
+        FinishedProduct.width == data.width,
+        FinishedProduct.thickness == data.thickness,
+        FinishedProduct.is_coated == data.is_coated,
+        FinishedProduct.unit_price == data.unit_price,
+    ).first()
+
+    if existing:
+        existing.quantity = float(existing.quantity or 0) + qty
+        existing.volume_m3 = float(existing.volume_m3 or 0) + volume
+        existing.loy_kg = float(existing.loy_kg or 0) + float(data.loy_kg or 0)
+        existing.cost_price = float(existing.cost_price or 0) + cost
+        fp = existing
+    else:
+        fp = FinishedProduct(
+            name=data.name.strip(),
+            category=data.category,
+            width=data.width,
+            thickness=data.thickness,
+            is_coated=data.is_coated,
+            quantity=qty,
+            unit=unit,
+            unit_price=data.unit_price,
+            cost_price=cost,
+            source=StockSource.PRODUCED,
+            penoplast_id=pid,
+            volume_m3=volume,
+            loy_kg=data.loy_kg or 0,
+            recipe_id=data.recipe_id,
+            created_by=created_by,
+            notes=data.notes
+        )
+        db.add(fp)
+
+    db.commit()
+    db.refresh(fp)
+
+    return {
+        "success": True,
+        "message": "Tayyor mahsulot ishlab chiqarildi!",
+        "product_id": fp.id,
+        "name": fp.name,
+        "quantity": float(fp.quantity),
+        "unit": fp.unit,
+        "volume_m3": round(volume, 4),
+        "cost": round(cost),
+        "inventory_log": log
+    }
+
+
+def get_finished_products(db: Session, source: Optional[str] = None, only_available: bool = False) -> List[FinishedProduct]:
+    """Tayyor mahsulotlar ro'yxati."""
+    q = db.query(FinishedProduct)
+    if source:
+        try:
+            q = q.filter(FinishedProduct.source == StockSource(source))
+        except ValueError:
+            pass
+    if only_available:
+        q = q.filter(FinishedProduct.quantity > 0)
+    return q.order_by(FinishedProduct.source, FinishedProduct.name).all()
+
+
+def get_finished_product(db: Session, fp_id: int) -> Optional[FinishedProduct]:
+    return db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+
+
+def update_finished_product(db: Session, fp_id: int, data: dict) -> Optional[FinishedProduct]:
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if not fp:
+        return None
+    for k, v in data.items():
+        if v is not None and hasattr(fp, k):
+            setattr(fp, k, v)
+    db.commit()
+    db.refresh(fp)
+    return fp
+
+
+def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = False) -> bool:
+    """Tayyor mahsulotni o'chirish.
+    return_to_stock=True bo'lsa — xomashyo omborga qaytariladi."""
+    import services
+
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if not fp:
+        return False
+
+    if return_to_stock and fp.source == StockSource.PRODUCED:
+        # Penoplast qaytadi
+        if fp.penoplast_id and fp.volume_m3:
+            p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+            if p:
+                vol_per_unit = float(p.volume_per_unit or 1.0)
+                p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) / vol_per_unit)
+        # Loy qaytadi
+        if fp.loy_kg and fp.loy_kg > 0:
+            class _FakeOrder:
+                def __init__(self, rid):
+                    class _It:
+                        recipe_id = rid
+                    self.items = [_It()]
+            services.return_loy_ingredients(db, _FakeOrder(fp.recipe_id), float(fp.loy_kg))
+
+    db.delete(fp)
+    db.commit()
+    return True
+
+
+def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
+                          order_id: int = None, notes: str = None) -> Optional[FinishedProduct]:
+    """Buyurtmadan qaytgan detalni tayyor mahsulotlar omboriga qo'shadi.
+    Narx — buyurtmadagi narx."""
+    if quantity <= 0 or not order_item:
+        return None
+
+    ordered = order_item.order_qty_normalized
+    total_price = float(order_item.total_price or 0)
+    unit_p = (total_price / ordered) if ordered > 0 else 0.0
+    unit = order_item.delivery_unit
+
+    # Bir xili bo'lsa birlashtiramiz
+    existing = db.query(FinishedProduct).filter(
+        FinishedProduct.name == order_item.name,
+        FinishedProduct.source == StockSource.RETURNED,
+        FinishedProduct.width == order_item.width,
+        FinishedProduct.thickness == order_item.thickness,
+        FinishedProduct.is_coated == order_item.is_coated,
+        FinishedProduct.unit_price == unit_p,
+    ).first()
+
+    if existing:
+        existing.quantity = float(existing.quantity or 0) + quantity
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    fp = FinishedProduct(
+        name=order_item.name,
+        category=order_item.category,
+        width=order_item.width,
+        thickness=order_item.thickness,
+        is_coated=order_item.is_coated,
+        quantity=quantity,
+        unit=unit,
+        unit_price=unit_p,
+        cost_price=0,
+        source=StockSource.RETURNED,
+        from_order_id=order_id or order_item.order_id,
+        return_reason=reason,
+        penoplast_id=order_item.penoplast_id,
+        notes=notes
+    )
+    db.add(fp)
+    db.commit()
+    db.refresh(fp)
+    return fp
+
+
+def search_finished_products(db: Session, query: str) -> List[dict]:
+    """Nom bo'yicha tayyor mahsulot qidirish — buyurtmada taklif uchun."""
+    q = (query or '').strip()
+    if len(q) < 2:
+        return []
+
+    items = db.query(FinishedProduct).filter(
+        FinishedProduct.quantity > 0,
+        FinishedProduct.name.ilike(f"%{q}%")
+    ).order_by(FinishedProduct.name).limit(10).all()
+
+    return [{
+        "id": fp.id,
+        "name": fp.name,
+        "category": fp.category,
+        "width": fp.width,
+        "thickness": fp.thickness,
+        "is_coated": fp.is_coated,
+        "quantity": float(fp.quantity),
+        "unit": fp.unit,
+        "unit_price": float(fp.unit_price or 0),
+        "source": fp.source.value,
+        "source_label": "♻️ Qaytgan" if fp.source == StockSource.RETURNED else "🏭 Tayyor",
+    } for fp in items]
+
+
+def take_from_finished_stock(db: Session, fp_id: int, quantity: float) -> dict:
+    """Tayyor mahsulotdan miqdor olish (buyurtmaga)."""
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if not fp:
+        return {"success": False, "message": "Tayyor mahsulot topilmadi"}
+
+    available = float(fp.quantity or 0)
+    if quantity > available + 0.001:
+        return {
+            "success": False,
+            "message": f"{fp.name}: omborda {available:g} {fp.unit} bor, {quantity:g} olib bo'lmaydi"
+        }
+
+    fp.quantity = available - quantity
+    db.commit()
+    return {"success": True, "remaining": float(fp.quantity)}
+
+
+def return_to_finished_stock(db: Session, fp_id: int, quantity: float) -> bool:
+    """Tayyor mahsulotga qaytarish (buyurtma o'chirilganda)."""
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if not fp:
+        return False
+    fp.quantity = float(fp.quantity or 0) + quantity
+    db.commit()
+    return True
+
+
+def get_finished_stats(db: Session) -> dict:
+    """Tayyor mahsulotlar statistikasi."""
+    items = db.query(FinishedProduct).filter(FinishedProduct.quantity > 0).all()
+
+    produced = [i for i in items if i.source == StockSource.PRODUCED]
+    returned = [i for i in items if i.source == StockSource.RETURNED]
+
+    def _val(lst):
+        return sum(float(i.quantity or 0) * float(i.unit_price or 0) for i in lst)
+
+    return {
+        "produced_count": len(produced),
+        "returned_count": len(returned),
+        "produced_value": round(_val(produced)),
+        "returned_value": round(_val(returned)),
+        "total_value": round(_val(items)),
     }
