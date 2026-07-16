@@ -34,11 +34,13 @@ def _fmt(n):
         return "0"
 
 
-def _num(n):
-    """Kasr bo'lmasa butun ko'rsatadi: 12.0 -> 12, 12.5 -> 12.5"""
+def _num(n, digits=2):
+    """Kasr bo'lmasa butun: 12.0 -> 12, 12.5 -> 12.5, 13.1313 -> 13.13"""
     try:
         f = float(n)
-        return str(int(f)) if f == int(f) else f"{f:g}"
+        if f == int(f):
+            return str(int(f))
+        return f"{round(f, digits):g}"
     except (TypeError, ValueError):
         return "0"
 
@@ -141,7 +143,9 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     el.append(Paragraph("<b>Topshirilgan mahsulotlar</b>", st_norm))
     el.append(Spacer(1, 5))
 
-    data = [["№", "Mahsulot nomi", "O'lcham", "Miqdor", "Jami bo'yicha", "Qoldi"]]
+    data = [["№", "Mahsulot nomi", "O'lcham", "Miqdor", "Birlik narxi", "Summa", "Jami bo'yicha", "Qoldi"]]
+
+    delivery_total = 0.0
 
     for i, di in enumerate(delivery.items, 1):
         oi = di.order_item
@@ -150,9 +154,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
         # O'lcham matni
         cat = (oi.category or '').lower()
-        if cat == 'profil':
-            olcham = f"{_num(oi.width)}×{_num(oi.thickness)} sm"
-        elif cat == 'panel':
+        if cat in ('profil', 'panel'):
             olcham = f"{_num(oi.width)}×{_num(oi.thickness)} sm"
         else:
             olcham = "—"
@@ -160,38 +162,105 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         ordered = oi.order_qty_normalized
         delivered_total = oi.delivered_qty
         remaining = max(ordered - delivered_total, 0)
+        qty = float(di.quantity or 0)
+
+        # Birlik narxi: buyurtma summasini miqdorga bo'lamiz
+        total_price = float(oi.total_price or 0)
+        unit_p = (total_price / ordered) if ordered > 0 else 0.0
+        line_sum = unit_p * qty
+        delivery_total += line_sum
 
         data.append([
             str(i),
             oi.name or "—",
             olcham,
-            f"{_num(di.quantity)} {di.unit}",
-            f"{_num(delivered_total)} / {_num(ordered)} {di.unit}",
-            f"{_num(remaining)} {di.unit}" if remaining > 0.001 else "tugadi",
+            f"{_num(qty)} {di.unit}",
+            _fmt(unit_p),
+            _fmt(line_sum),
+            f"{_num(delivered_total)} / {_num(ordered)}",
+            f"{_num(remaining)}" if remaining > 0.001 else "tugadi",
         ])
 
-    tbl = Table(data, colWidths=[1*cm, 6*cm, 2.6*cm, 2.6*cm, 3.4*cm, 2.4*cm], repeatRows=1)
+    # Shu yuk uchun jami
+    data.append(["", "", "", "", "SHU YUK JAMI:", _fmt(delivery_total), "", ""])
+
+    tbl = Table(
+        data,
+        colWidths=[0.8*cm, 4.5*cm, 2.2*cm, 2.1*cm, 2.3*cm, 2.5*cm, 2.1*cm, 1.5*cm],
+        repeatRows=1
+    )
     style = [
         ('BACKGROUND', (0, 0), (-1, 0), DARK),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 8),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8.5),
-        ('TEXTCOLOR', (0, 1), (-1, -1), DARK),
-        ('FONTNAME', (3, 1), (3, -1), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (3, 1), (3, -1), GREEN),
+        ('FONTSIZE', (0, 0), (-1, 0), 7.5),
+        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -2), 8),
+        ('TEXTCOLOR', (0, 1), (-1, -2), DARK),
+        ('FONTNAME', (3, 1), (3, -2), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (3, 1), (3, -2), GREEN),
+        ('FONTNAME', (5, 1), (5, -2), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (5, 1), (5, -2), DARK),
         ('ALIGN', (0, 0), (0, -1), 'CENTER'),
         ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (4, 1), (5, -1), 'RIGHT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor("#E5E1D8")),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#FAFAF8")]),
+        ('GRID', (0, 0), (-1, -2), 0.4, colors.HexColor("#E5E1D8")),
+        ('TOPPADDING', (0, 0), (-1, -1), 4.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4.5),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor("#FAFAF8")]),
+        # Oxirgi qator — jami
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#F0EBE0")),
+        ('FONTNAME', (4, -1), (5, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (4, -1), (5, -1), 9),
+        ('TEXTCOLOR', (5, -1), (5, -1), GOLD),
+        ('LINEABOVE', (0, -1), (-1, -1), 1.2, DARK),
+        ('SPAN', (0, -1), (3, -1)),
+        ('ALIGN', (4, -1), (4, -1), 'RIGHT'),
     ]
     tbl.setStyle(TableStyle(style))
     el.append(tbl)
-    el.append(Spacer(1, 10))
+    el.append(Spacer(1, 9))
+
+    # ---- Umumiy moliyaviy holat ----
+    if order:
+        total_amount = float(order.total_amount or 0)
+        agreed = float(order.agreed_amount or total_amount)
+        disc_pct = float(order.discount_percent or 0)
+        paid = order.paid_amount
+        debt = order.debt_amount
+
+        fin_rows = [["Buyurtma jami:", _fmt(total_amount) + " so'm"]]
+        if disc_pct > 0:
+            fin_rows.append([f"Chegirma ({disc_pct:g}%):", "-" + _fmt(total_amount - agreed) + " so'm"])
+            fin_rows.append(["Kelishilgan summa:", _fmt(agreed) + " so'm"])
+        fin_rows.append(["To'langan:", _fmt(paid) + " so'm"])
+        fin_rows.append(["QARZ QOLDI:", _fmt(debt) + " so'm"])
+
+        fin = Table(fin_rows, colWidths=[4.2*cm, 4*cm], hAlign='RIGHT')
+        fin_style = [
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ('TEXTCOLOR', (0, 0), (0, -1), GRAY),
+            ('TEXTCOLOR', (1, 0), (1, -1), DARK),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LINEBELOW', (0, 0), (-1, -2), 0.3, colors.HexColor("#EEEEEE")),
+            # Qarz qatori
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 9.5),
+            ('TEXTCOLOR', (0, -1), (0, -1), DARK),
+            ('TEXTCOLOR', (1, -1), (1, -1), RED if debt > 0 else GREEN),
+            ('LINEABOVE', (0, -1), (-1, -1), 1, DARK),
+            ('TOPPADDING', (0, -1), (-1, -1), 5),
+        ]
+        if disc_pct > 0:
+            fin_style.append(('TEXTCOLOR', (1, 1), (1, 1), colors.HexColor("#E67E22")))
+        fin.setStyle(TableStyle(fin_style))
+        el.append(fin)
+        el.append(Spacer(1, 9))
 
     # ---- Umumiy holat ----
     pct = order.delivery_percent if order else 0
