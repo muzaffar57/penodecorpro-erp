@@ -267,8 +267,8 @@ class FinishedProductRead(BaseModel):
 
 
 class ProduceComplete(BaseModel):
-    """Ishlab chiqarishni yakunlash — haqiqiy loy miqdori."""
-    actual_loy_kg: float = Field(default=0, ge=0)
+    """Ishlab chiqarishni yakunlash (status o'zgartirish)."""
+    actual_loy_kg: float = Field(default=0, ge=0, description="Ishlatilmaydi — moslik uchun")
 
 
 class FinishedProductUpdate(BaseModel):
