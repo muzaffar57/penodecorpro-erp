@@ -941,7 +941,7 @@ function calculateItem(row) {
     } else {
       perMeterPrice = perMeter_base;
     }
-    volume_total = eni_m * keng_m * l;
+    volume_total = (eni_m * keng_m * l) / 2;   // profil — yarim kesim
     row.querySelector('.i-vol').value = volume_total.toFixed(4);
   } else if (type === 'panel') {
     // 1 dona narxi = Eni(m) × Qalinlik(m) × Narx — qoplamasiz
