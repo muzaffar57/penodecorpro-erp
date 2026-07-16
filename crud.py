@@ -2469,7 +2469,8 @@ def update_master_kpi(db: Session, master_id: int, kpi_percent: float) -> Option
 
 
 def get_masters_kpi_report(db: Session, year: int) -> dict:
-    """Har usta uchun yillik sotuv, KPI% va hisoblangan sovg'a."""
+    """Har usta uchun yillik SOF FOYDA, KPI% va hisoblangan sovg'a."""
+    import services
     from models import Order, OrderStatus
     from sqlalchemy import extract
 
@@ -2483,8 +2484,18 @@ def get_masters_kpi_report(db: Session, year: int) -> dict:
             Order.status == OrderStatus.READY,
             extract('year', Order.completed_at) == year
         ).all()
-        yearly_sales = sum(float(o.total_amount or 0) for o in orders)
-        gift = yearly_sales * (m.kpi_percent or 0) / 100
+
+        yearly_sales = 0.0
+        yearly_profit = 0.0
+        for o in orders:
+            yearly_sales += float(o.total_amount or 0)
+            try:
+                profit_data = services.calculate_order_profit(db, o.id)
+                yearly_profit += float(profit_data.get("foyda", 0))
+            except Exception:
+                pass
+
+        gift = yearly_profit * (m.kpi_percent or 0) / 100
         total_gift += gift
 
         rows.append({
@@ -2492,6 +2503,7 @@ def get_masters_kpi_report(db: Session, year: int) -> dict:
             "name": m.name,
             "kpi_percent": m.kpi_percent or 0,
             "yearly_sales": round(yearly_sales),
+            "yearly_profit": round(yearly_profit),
             "orders_count": len(orders),
             "gift_amount": round(gift)
         })
