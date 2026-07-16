@@ -736,26 +736,42 @@ def api_mark_all_ready(loy_kg: Optional[float] = None, db: Session = Depends(get
 
 @app.delete("/api/orders/{order_id}")
 def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Buyurtmani o'chirish — xomashyo omborga qaytariladi."""
     order = crud.get_order(db, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    from models import OrderStatus, Inventory
-    if order.status != OrderStatus.READY:
-        services.return_inventory_for_order(db, order)
+
+    log = []
+    order_num = order.order_number
+
+    # Qoralamada ombordan hech narsa yechilmagan — qaytarish shart emas
+    if order.status not in (OrderStatus.READY, OrderStatus.DRAFT):
+        # 1) Penoplast qaytadi
+        log.extend(services.return_inventory_for_order(db, order))
+
+        # 2) Loy ingredientlari qaytadi
+        #    Haqiqiy (loy_kg) bo'lsa — shuni, aks holda rejalashtirilgan (planned_loy) ni
         loy_kg = 0.0
-        if order.notes and 'loy_kg=' in str(order.notes):
-            try:
-                for part in str(order.notes).split(','):
-                    if 'loy_kg=' in part:
-                        loy_kg = float(part.split('=')[1].strip())
-                        break
-            except:
-                pass
+        if order.notes:
+            for part in str(order.notes).split(','):
+                p = part.strip()
+                if p.startswith('loy_kg='):
+                    try:
+                        loy_kg = float(p.split('=')[1])
+                    except (ValueError, IndexError):
+                        pass
+                    break
+        if loy_kg <= 0:
+            loy_kg = services._get_planned_loy(order)
+
         if loy_kg > 0:
-            services.return_loy_ingredients(db, order, loy_kg)
+            log.extend(services.return_loy_ingredients(db, order, loy_kg))
+
     if not crud.delete_order(db, order_id):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    return {"status": "ok"}
+
+    print(f"✓ {order_num} o'chirildi. Omborga qaytdi: {log}")
+    return {"status": "ok", "inventory_log": log}
 
 
 @app.delete("/api/order-items/{item_id}")
