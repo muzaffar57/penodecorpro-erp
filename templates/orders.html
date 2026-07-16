@@ -148,7 +148,7 @@
             </div>
             <div class="form-group" style="margin:0">
               <label>Retsept</label>
-              <select id="recipe_id">
+              <select id="recipe_id" onchange="checkLoyStock()">
                 <option value="">— Yo'q —</option>
                 {% for r in recipes %}<option value="{{ r.id }}">{{ r.name.value }}</option>{% endfor %}
               </select>
@@ -163,10 +163,11 @@
           <div class="form-group">
             <label style="display:flex;align-items:center;gap:6px">
               Loy miqdori (kg)
-              <span style="color:#aaa;font-weight:400;font-size:11px">— faqat narx hisoblash uchun</span>
+              <span style="color:#aaa;font-weight:400;font-size:11px">— taxminiy reja</span>
             </label>
             <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
-                   style="border-color:#C9A55A">
+                   oninput="checkLoyStock()" style="border-color:#C9A55A">
+            <div id="loy-stock-info" style="display:none;font-size:11px;margin-top:5px;padding:7px 10px;border-radius:6px"></div>
           </div>
         </div>
       </div>
@@ -543,6 +544,38 @@ function loadOrderItems(id) {
     <div style="grid-column:1/-1;background:#f8f8f6;border-radius:8px;padding:12px;font-size:12px;color:#555">
       Bu buyurtma detallari uchun PDF bosing yoki sahifani yangilang
     </div>`;
+}
+
+// ── LOY ZAXIRASI ──────────────────────────────────────────
+let loyStockCache = null;
+
+async function checkLoyStock() {
+  const el = document.getElementById('loy-stock-info');
+  const kg = parseFloat(document.getElementById('loy_kg')?.value) || 0;
+  if (!el) return;
+  if (kg <= 0) { el.style.display = 'none'; return; }
+
+  const recipeId = parseInt(document.getElementById('recipe_id')?.value) || null;
+
+  try {
+    const url = recipeId ? `/api/loy-stock?recipe_id=${recipeId}` : '/api/loy-stock';
+    const res = await fetch(url);
+    if (!res.ok) { el.style.display = 'none'; return; }
+    const d = await res.json();
+    const stock = d.stock_kg || 0;
+
+    el.style.display = 'block';
+    if (stock <= 0) {
+      el.style.background = '#F5F5F5'; el.style.color = '#888';
+      el.innerHTML = `Omborda tayyor loy yo'q — ${kg} kg uchun xomashyo ayiriladi`;
+    } else if (stock >= kg) {
+      el.style.background = '#E9F7EF'; el.style.color = '#1e7e34';
+      el.innerHTML = `🟢 Omborda <b>${stock.toFixed(1)} kg</b> tayyor loy bor — hammasi zaxiradan olinadi, xomashyo ayirilmaydi`;
+    } else {
+      el.style.background = '#FEF9E7'; el.style.color = '#b7770d';
+      el.innerHTML = `🟡 Omborda <b>${stock.toFixed(1)} kg</b> tayyor loy bor — qolgan <b>${(kg-stock).toFixed(1)} kg</b> uchun xomashyo ayiriladi`;
+    }
+  } catch(e) { el.style.display = 'none'; }
 }
 
 // ── DRAFT ─────────────────────────────────────────────────
@@ -1189,7 +1222,19 @@ async function updateOrder(orderId) {
 }
 async function markReadySelected() {
   if (!selectedOrderId) return;
-  const loyKg = prompt('Necha kg loy ishlatildi? (qoplama uchun)\n\nBo\'sh qoldirsangiz faqat kesish hisoblanadi.');
+
+  // Rejalashtirilgan loyni olamiz
+  let planned = 0;
+  try {
+    const r = await fetch(`/api/orders/${selectedOrderId}/planned-loy`);
+    if (r.ok) { const d = await r.json(); planned = d.planned_loy || 0; }
+  } catch(e) {}
+
+  const promptTxt = planned > 0
+    ? `Haqiqatda necha kg loy ishlatildi?\n\n📋 Rejada: ${planned} kg (xomashyo allaqachon ayirilgan)\n\n• Ko'proq ketgan bo'lsa → farq uchun xomashyo ayiriladi\n• Kamroq ketgan bo'lsa → ortgani omborga qo'shiladi`
+    : 'Necha kg loy ishlatildi? (qoplama uchun)\n\nBo\'sh qoldirsangiz faqat kesish hisoblanadi.';
+
+  const loyKg = prompt(promptTxt, planned > 0 ? String(planned) : '');
   if (loyKg === null) return;
   if (!confirm('Buyurtmani TAYYOR deb belgilaymizmi?')) return;
   const url = loyKg ? `/api/orders/${selectedOrderId}/ready?loy_kg=${parseFloat(loyKg)}` : `/api/orders/${selectedOrderId}/ready`;
@@ -1199,13 +1244,19 @@ async function markReadySelected() {
     const box = document.getElementById('resultBox');
     if (res.ok) {
       let html = '<b>✓ Buyurtma tayyor!</b><br>';
-      if (result.inventory_changes?.length) html += '<br>📦 Ombordan ayrildi:<br>' + result.inventory_changes.join('<br>');
+      if (result.loy_info) {
+        const li = result.loy_info;
+        const icon = li.action === 'ortdi' ? '🟢' : (li.action === 'qoshimcha' ? '🟠' : '✓');
+        html += `<br>🧱 Loy: reja ${li.planned} kg → haqiqiy ${li.actual} kg<br>${icon} ${li.message}`;
+      }
+      if (result.inventory_changes?.length) html += '<br><br>📦 Ombor:<br>' + result.inventory_changes.join('<br>');
       if (result.master_kpi) {
         const k = result.master_kpi;
-        html += `<br>👷 Usta KPI: ${formatNum(k.total_kpi)} so'm`;
+        html += `<br><br>👷 Usta KPI: ${formatNum(k.total_kpi)} so'm`;
       }
       box.innerHTML = html; box.className = 'result-box success';
-      setTimeout(()=>location.reload(), 5000);
+      box.style.display = 'block';
+      setTimeout(()=>location.reload(), 6000);
     } else {
       let html = '<b>❌ Xato!</b><br>';
       if (result.detail?.shortages) html += result.detail.shortages.join('<br>');
