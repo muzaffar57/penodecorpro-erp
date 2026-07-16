@@ -351,6 +351,10 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
         db.add(db_item)
 
     db_order.total_amount = total_amount
+    # Kelishilgan summa — boshida jami summaga teng (chegirmasiz)
+    db_order.agreed_amount = getattr(order_data, 'agreed_amount', None) or total_amount
+    if total_amount > 0 and float(db_order.agreed_amount) < total_amount:
+        db_order.discount_percent = round((total_amount - float(db_order.agreed_amount)) / total_amount * 100, 2)
     db.commit()
     db.refresh(db_order)
     return db_order
@@ -614,4 +618,185 @@ def get_return_stats(db: Session) -> dict:
         "total_refund": total_refund,
         "pending_refund": pending_refund,
         "by_reason": by_reason
+    }
+
+
+# ============================================================
+# PAYMENT — To'lovlar CRUD
+# ============================================================
+
+from models import Payment, PaymentType, PaymentMethod, PaymentStatus
+from schemas import PaymentCreate
+
+
+def _update_order_payment_status(db: Session, order: Order) -> None:
+    """Buyurtmaning to'lov holatini yangilaydi.
+    Qarz to'liq to'lansa — avtomatik arxivga o'tkazadi."""
+    agreed = float(order.agreed_amount or order.total_amount or 0)
+    paid = sum(float(p.amount or 0) for p in (order.payments or []))
+
+    if paid <= 0:
+        order.payment_status = PaymentStatus.UNPAID
+        order.is_archived = False
+        order.closed_at = None
+    elif paid < agreed:
+        order.payment_status = PaymentStatus.PARTIAL
+        order.is_archived = False
+        order.closed_at = None
+    else:
+        # To'liq to'landi — avtomatik yopish
+        order.payment_status = PaymentStatus.PAID
+        order.is_archived = True
+        if not order.closed_at:
+            order.closed_at = datetime.utcnow()
+
+
+def create_payment(db: Session, payment_data: PaymentCreate) -> Payment:
+    """Yangi to'lov qo'shish."""
+    order = db.query(Order).filter(Order.id == payment_data.order_id).first()
+    if not order:
+        raise ValueError("Buyurtma topilmadi")
+
+    # Enum ga aylantirish
+    try:
+        p_type = PaymentType(payment_data.payment_type)
+    except ValueError:
+        p_type = PaymentType.PARTIAL
+
+    try:
+        p_method = PaymentMethod(payment_data.payment_method)
+    except ValueError:
+        p_method = PaymentMethod.CASH
+
+    db_payment = Payment(
+        order_id=payment_data.order_id,
+        amount=payment_data.amount,
+        payment_type=p_type,
+        payment_method=p_method,
+        received_by=payment_data.received_by,
+        notes=payment_data.notes
+    )
+    db.add(db_payment)
+    db.flush()
+
+    # Buyurtmani yangilash
+    db.refresh(order)
+    _update_order_payment_status(db, order)
+
+    # Loyihaning to'langan summasini yangilash
+    project = order.project
+    if project:
+        project.total_paid = sum(
+            sum(float(p.amount or 0) for p in (o.payments or []))
+            for o in (project.orders or [])
+        )
+
+    db.commit()
+    db.refresh(db_payment)
+    return db_payment
+
+
+def get_payments(db: Session, order_id: Optional[int] = None) -> List[Payment]:
+    """To'lovlar ro'yxati."""
+    query = db.query(Payment)
+    if order_id:
+        query = query.filter(Payment.order_id == order_id)
+    return query.order_by(Payment.paid_at.desc()).all()
+
+
+def delete_payment(db: Session, payment_id: int) -> bool:
+    """To'lovni o'chirish."""
+    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    if not payment:
+        return False
+
+    order = payment.order
+    db.delete(payment)
+    db.flush()
+
+    if order:
+        db.refresh(order)
+        _update_order_payment_status(db, order)
+        project = order.project
+        if project:
+            project.total_paid = sum(
+                sum(float(p.amount or 0) for p in (o.payments or []))
+                for o in (project.orders or [])
+            )
+
+    db.commit()
+    return True
+
+
+def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float) -> Optional[Order]:
+    """Kelishilgan summani (chegirmadan keyingi narx) yangilash."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        return None
+
+    total = float(order.total_amount or 0)
+    order.agreed_amount = agreed_amount
+
+    # Chegirma foizini hisoblash
+    if total > 0 and agreed_amount < total:
+        order.discount_percent = round((total - agreed_amount) / total * 100, 2)
+    else:
+        order.discount_percent = 0.0
+
+    _update_order_payment_status(db, order)
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+def get_debt_stats(db: Session) -> dict:
+    """Qarzdorlik statistikasi — dashboard uchun."""
+    orders = db.query(Order).filter(Order.is_archived == False).all()
+
+    total_agreed = 0.0
+    total_paid = 0.0
+    debt_orders = []
+
+    for o in orders:
+        agreed = float(o.agreed_amount or o.total_amount or 0)
+        paid = sum(float(p.amount or 0) for p in (o.payments or []))
+        debt = max(agreed - paid, 0)
+
+        total_agreed += agreed
+        total_paid += paid
+
+        if debt > 0:
+            days_passed = (datetime.utcnow() - o.created_at).days if o.created_at else 0
+            debt_orders.append({
+                "order_id": o.id,
+                "order_number": o.order_number,
+                "client_name": o.project.client_name if o.project else "—",
+                "project_name": o.project.project_name if o.project else "—",
+                "agreed_amount": agreed,
+                "paid_amount": paid,
+                "debt_amount": debt,
+                "payment_status": o.payment_status.value if o.payment_status else "unpaid",
+                "days_passed": days_passed,
+                "is_overdue": days_passed > 30,
+                "created_at": o.created_at.isoformat() if o.created_at else None
+            })
+
+    debt_orders.sort(key=lambda x: x["debt_amount"], reverse=True)
+
+    # Bugungi to'lovlar
+    today = datetime.utcnow().date()
+    today_payments = db.query(Payment).all()
+    today_sum = sum(
+        float(p.amount or 0) for p in today_payments
+        if p.paid_at and p.paid_at.date() == today
+    )
+
+    return {
+        "total_agreed": total_agreed,
+        "total_paid": total_paid,
+        "total_debt": total_agreed - total_paid,
+        "debt_orders_count": len(debt_orders),
+        "overdue_count": sum(1 for d in debt_orders if d["is_overdue"]),
+        "today_payments": today_sum,
+        "debt_orders": debt_orders[:20]
     }
