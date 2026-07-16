@@ -599,6 +599,51 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
     }
 
 
+@app.put("/api/orders/{order_id}")
+def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional[float] = None,
+                     db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Buyurtmani tahrirlash — ombor faqat FARQ bo'yicha to'g'rilanadi."""
+    result = crud.update_order_full(db, order_id, order)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+
+    # Loy rejasi o'zgargan bo'lsa
+    if loy_kg is not None:
+        loy_res = crud.update_order_loy(db, order_id, float(loy_kg))
+        if loy_res.get("inventory_log"):
+            result["inventory_log"].extend(loy_res["inventory_log"])
+        result["loy_changed"] = {
+            "old": loy_res.get("old_loy"),
+            "new": loy_res.get("new_loy")
+        }
+
+    # Ombor ogohlantirishlari
+    low_items = crud.get_low_stock_items(db)
+    if low_items:
+        lines = []
+        for item in low_items:
+            qty = float(item.stock_quantity)
+            min_q = float(item.min_stock)
+            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
+        ord_obj = crud.get_order(db, order_id)
+        msg = (f"⚠️ *Ombor ogohlantirishlari!*\n\n*{ord_obj.order_number}* tahrirlangandan keyin:\n\n"
+               + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
+               + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon")
+        _send_telegram(msg)
+
+    return result
+
+
+@app.put("/api/orders/{order_id}/loy")
+def api_update_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Loy rejasini o'zgartirish."""
+    result = crud.update_order_loy(db, order_id, loy_kg)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
 @app.post("/api/orders/{order_id}/coating-notify")
 def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Rejalashtirilgan loy: xomashyoni ayiradi + qoplamachiga xabar."""
