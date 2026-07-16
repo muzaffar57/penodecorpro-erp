@@ -138,8 +138,8 @@
           <input type="number" id="p-l" step="0.1" value="0" oninput="pCalc()">
         </div>
         <div class="form-group" style="margin:0;display:none" id="p-q-wrap">
-          <label>Miqdor (dona)</label>
-          <input type="number" id="p-q" step="1" min="1" value="1" oninput="pCalc()">
+          <label id="p-q-label">Miqdor (dona)</label>
+          <input type="number" id="p-q" step="0.5" min="0" value="1" oninput="pCalc()">
         </div>
         <div class="form-group" style="margin:0;display:none" id="p-up-wrap">
           <label>1 dona narxi (so'm)</label>
@@ -461,7 +461,11 @@ function pToggle() {
     const tEl = document.getElementById('p-t'); if(tEl) tEl.value = '';
     document.getElementById('p-q').value = '1';
   }
-  document.getElementById('p-unit-label').textContent = (type === 'profil') ? 'metr' : 'dona';
+  // Yozuvlar: profil/panel — metr, dona — dona
+  const isMetr = (type === 'profil' || type === 'panel');
+  document.getElementById('p-unit-label').textContent = isMetr ? 'metr' : 'dona';
+  const qLbl = document.getElementById('p-q-label');
+  if (qLbl) qLbl.textContent = (type === 'panel') ? 'Uzunlik (m)' : 'Miqdor (dona)';
 }
 
 // Buyurtmadagi calculateItem bilan bir xil
@@ -504,7 +508,7 @@ function pCalc() {
     if (isCoated) { price *= 2; perUnitPrice = perDona_base * 2; }
     else { perUnitPrice = perDona_base; }
     volume_total = eni_m * qalin_m * qty;
-    count = qty; unit = 'dona';
+    count = qty; unit = 'metr';
   }
 
   window._pCalc = { volume: volume_total, price, perUnitPrice, count, unit };
@@ -546,7 +550,7 @@ async function saveProduce() {
   const c = window._pCalc || {};
   if (!c.count || c.count <= 0) {
     err.style.display='block';
-    err.textContent = (type === 'profil') ? '❌ Uzunlikni kiriting' : '❌ Miqdorni kiriting';
+    err.textContent = (type === 'profil' || type === 'panel') ? '❌ Uzunlikni kiriting' : '❌ Miqdorni kiriting';
     return;
   }
 
