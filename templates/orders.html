@@ -84,6 +84,16 @@
           </div>
           <div class="ord-client">{{ o.project.client_name if o.project else '—' }}</div>
           <div class="ord-date">{{ o.project.project_name if o.project else '' }} · {{ o.created_at.strftime('%d.%m.%Y') }}</div>
+          {% set debt = o.debt_amount %}
+          {% if debt > 0 %}
+          <div style="margin-top:5px;font-size:10px;color:#C0392B;font-weight:600">
+            🔴 Qarz: {{ "{:,.0f}".format(debt).replace(",", " ") }} so'm
+          </div>
+          {% elif o.payment_status and o.payment_status.value == 'paid' %}
+          <div style="margin-top:5px;font-size:10px;color:#27AE60;font-weight:600">
+            ✅ To'liq to'langan
+          </div>
+          {% endif %}
         </div>
         {% endfor %}
       {% else %}
@@ -170,15 +180,35 @@
 
         <div style="padding:0 12px 12px">
           <div class="total-box">
-            <div class="trow"><span>Jami:</span><span id="total_sum" style="font-weight:600">0 so'm</span></div>
+            <div class="trow"><span>Jami summa:</span><span id="total_sum" style="font-weight:600">0 so'm</span></div>
+
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-              <span style="font-size:12px;color:#555">Mijoz to'lagan summa:</span>
+              <span style="font-size:12px;color:#555;min-width:130px">Kelishilgan summa:</span>
               <input type="text" id="final_price" placeholder="0"
                      oninput="formatPriceInput(this);calcDiscount()"
                      style="flex:1;padding:7px 10px;border:1.5px solid #C9A55A;border-radius:7px;font-size:13px;font-weight:600;outline:none">
             </div>
             <div style="font-size:11px;color:#aaa;margin-top:4px">Bo'sh qolsa chegirmasiz hisoblanadi</div>
             <div id="discount_info" style="display:none;margin-top:8px;padding:8px;background:#FEF9E7;border-radius:7px;font-size:12px"></div>
+
+            <!-- ZAKLAT -->
+            <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #ddd">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:12px;color:#555;min-width:130px">Zaklat (oldindan):</span>
+                <input type="text" id="zaklat_amount" placeholder="0"
+                       oninput="formatPriceInput(this);calcDebt()"
+                       style="flex:1;padding:7px 10px;border:1.5px solid #27AE60;border-radius:7px;font-size:13px;font-weight:600;outline:none">
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+                <span style="font-size:12px;color:#555;min-width:130px">To'lov usuli:</span>
+                <select id="zaklat_method" style="flex:1;padding:7px 10px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+                  <option value="naqd">💵 Naqd</option>
+                  <option value="plastik">💳 Plastik</option>
+                  <option value="o'tkazma">🏦 O'tkazma</option>
+                </select>
+              </div>
+              <div id="debt_info" style="display:none;margin-top:8px;padding:8px;background:#FDEDEC;border-radius:7px;font-size:12px"></div>
+            </div>
           </div>
         </div>
 
@@ -201,6 +231,81 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="od-items-container">
             <!-- Detallar bu yerda -->
           </div>
+        </div>
+      </div>
+
+      <!-- TO'LOVLAR BO'LIMI -->
+      <div class="card" style="margin-top:12px">
+        <div class="card-head">
+          <h3>💰 To'lovlar</h3>
+          <button class="btn btn-green btn-sm" onclick="openPaymentForm()">+ To'lov qo'shish</button>
+        </div>
+        <div style="padding:12px">
+          <!-- Hisob -->
+          <div style="background:#FAFAF8;border-radius:8px;padding:12px;margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
+              <span style="color:#777">Jami summa:</span>
+              <span id="pay-total" style="font-weight:600">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px" id="pay-discount-row">
+              <span style="color:#777">Chegirma:</span>
+              <span id="pay-discount" style="font-weight:600;color:#E67E22">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-top:1px solid #eee;margin-top:4px;padding-top:8px">
+              <span style="color:#555;font-weight:600">Kelishilgan:</span>
+              <span id="pay-agreed" style="font-weight:700;color:#1a1a1a">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
+              <span style="color:#777">To'langan:</span>
+              <span id="pay-paid" style="font-weight:600;color:#27AE60">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:14px;border-top:2px solid #1a1a1a;margin-top:6px">
+              <span style="font-weight:700">Qarz qoldi:</span>
+              <span id="pay-debt" style="font-weight:800;color:#C0392B">—</span>
+            </div>
+            <div id="pay-status-badge" style="margin-top:8px;text-align:center"></div>
+          </div>
+
+          <!-- To'lov qo'shish formasi -->
+          <div id="paymentForm" style="display:none;background:#F0F9F4;border:1.5px solid #27AE60;border-radius:8px;padding:12px;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#1e7e34">Yangi to'lov</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px">
+              <div style="flex:1">
+                <div style="font-size:11px;color:#777;margin-bottom:3px">Summa</div>
+                <input type="text" id="pf-amount" placeholder="0" oninput="formatPriceInput(this)"
+                       style="width:100%;padding:7px 10px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;font-weight:600;outline:none">
+              </div>
+              <div style="flex:1">
+                <div style="font-size:11px;color:#777;margin-bottom:3px">Turi</div>
+                <select id="pf-type" style="width:100%;padding:7px 10px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+                  <option value="partial">Qisman to'lov</option>
+                  <option value="zaklat">Zaklat</option>
+                  <option value="final">Yakuniy to'lov</option>
+                </select>
+              </div>
+              <div style="flex:1">
+                <div style="font-size:11px;color:#777;margin-bottom:3px">Usuli</div>
+                <select id="pf-method" style="width:100%;padding:7px 10px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+                  <option value="naqd">💵 Naqd</option>
+                  <option value="plastik">💳 Plastik</option>
+                  <option value="o'tkazma">🏦 O'tkazma</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-bottom:8px">
+              <div style="font-size:11px;color:#777;margin-bottom:3px">Izoh (ixtiyoriy)</div>
+              <input type="text" id="pf-notes" placeholder="Masalan: yuk borganda berildi"
+                     style="width:100%;padding:7px 10px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-green btn-sm" style="flex:1" onclick="savePayment()">💾 Saqlash</button>
+              <button class="btn btn-outline btn-sm" onclick="closePaymentForm()">Bekor</button>
+            </div>
+          </div>
+
+          <!-- To'lovlar tarixi -->
+          <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:6px">Tarix</div>
+          <div id="paymentList"></div>
         </div>
       </div>
     </div>
@@ -355,6 +460,9 @@ function selectOrder(id, el) {
   // Detallar
   loadOrderItems(id);
 
+  // To'lovlar
+  loadPayments(id);
+
   // Ombor ogohlantirishlari
   fetch('/api/warnings/low-stock').then(r=>r.json()).then(d=>{
     const ac = document.getElementById('alertCard');
@@ -382,6 +490,137 @@ function loadOrderItems(id) {
     <div style="grid-column:1/-1;background:#f8f8f6;border-radius:8px;padding:12px;font-size:12px;color:#555">
       Bu buyurtma detallari uchun PDF bosing yoki sahifani yangilang
     </div>`;
+}
+
+// ── TO'LOVLAR ─────────────────────────────────────────────
+const PAY_TYPE_LABEL = {'zaklat':'Zaklat','partial':'Qisman','final':'Yakuniy'};
+const PAY_METHOD_ICON = {'naqd':'💵','plastik':'💳',"o'tkazma":'🏦'};
+
+async function loadPayments(orderId) {
+  try {
+    const res = await fetch(`/api/orders/${orderId}`);
+    if (!res.ok) return;
+    const order = await res.json();
+
+    const total = order.total_amount || 0;
+    const agreed = order.agreed_amount || total;
+    const paid = order.paid_amount || 0;
+    const debt = order.debt_amount || 0;
+    const discount = total - agreed;
+
+    document.getElementById('pay-total').textContent = formatNum(total) + " so'm";
+    document.getElementById('pay-agreed').textContent = formatNum(agreed) + " so'm";
+    document.getElementById('pay-paid').textContent = formatNum(paid) + " so'm";
+    document.getElementById('pay-debt').textContent = formatNum(debt) + " so'm";
+
+    const dRow = document.getElementById('pay-discount-row');
+    if (discount > 0) {
+      dRow.style.display = 'flex';
+      document.getElementById('pay-discount').textContent =
+        '−' + formatNum(discount) + " so'm (" + (order.discount_percent || 0).toFixed(1) + "%)";
+    } else {
+      dRow.style.display = 'none';
+    }
+
+    // Status badge
+    const badge = document.getElementById('pay-status-badge');
+    const st = order.payment_status || 'unpaid';
+    if (st === 'paid') {
+      badge.innerHTML = '<span style="background:#E9F7EF;color:#1e7e34;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600">✅ To\'liq to\'langan — Arxivda</span>';
+    } else if (st === 'partial') {
+      badge.innerHTML = '<span style="background:#FEF9E7;color:#b7770d;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600">🟡 Qisman to\'langan</span>';
+    } else {
+      badge.innerHTML = '<span style="background:#FDEDEC;color:#c0392b;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600">🔴 To\'lanmagan</span>';
+    }
+
+    // Tarix
+    const list = document.getElementById('paymentList');
+    const payments = order.payments || [];
+    if (!payments.length) {
+      list.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">To\'lov qilinmagan</div>';
+      return;
+    }
+    list.innerHTML = payments.map(p => {
+      const d = new Date(p.paid_at);
+      const dStr = d.toLocaleDateString('uz') + ' ' + d.toLocaleTimeString('uz', {hour:'2-digit',minute:'2-digit'});
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:#1a1a1a">
+              ${PAY_METHOD_ICON[p.payment_method]||''} ${formatNum(p.amount)} so'm
+              <span style="font-size:10px;background:#f0f0f0;color:#777;padding:2px 7px;border-radius:10px;margin-left:5px">${PAY_TYPE_LABEL[p.payment_type]||p.payment_type}</span>
+            </div>
+            <div style="font-size:11px;color:#aaa;margin-top:2px">
+              ${dStr}${p.received_by ? ' · ' + p.received_by : ''}${p.notes ? ' · ' + p.notes : ''}
+            </div>
+          </div>
+          <button onclick="deletePayment(${p.id})" style="width:24px;height:24px;border-radius:50%;background:#FEE;border:none;color:#C0392B;font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    console.error('To\'lovlarni yuklashda xato:', e);
+  }
+}
+
+function openPaymentForm() {
+  document.getElementById('paymentForm').style.display = 'block';
+  document.getElementById('pf-amount').value = '';
+  document.getElementById('pf-notes').value = '';
+  document.getElementById('pf-amount').focus();
+}
+
+function closePaymentForm() {
+  document.getElementById('paymentForm').style.display = 'none';
+}
+
+async function savePayment() {
+  if (!selectedOrderId) return;
+  const amount = parseNum(document.getElementById('pf-amount').value);
+  if (!amount || amount <= 0) { showMsg('To\'lov summasini kiriting!', 'error'); return; }
+
+  const data = {
+    order_id: selectedOrderId,
+    amount: amount,
+    payment_type: document.getElementById('pf-type').value,
+    payment_method: document.getElementById('pf-method').value,
+    notes: document.getElementById('pf-notes').value.trim() || null
+  };
+
+  try {
+    const res = await fetch('/api/payments', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    if (res.ok) {
+      const r = await res.json();
+      closePaymentForm();
+      loadPayments(selectedOrderId);
+      if (r.is_archived) {
+        showMsg('✅ To\'lov qabul qilindi! Qarz yopildi — buyurtma arxivga o\'tdi.', 'success');
+        setTimeout(()=>location.reload(), 1500);
+      } else {
+        showMsg('✓ To\'lov qo\'shildi! Qarz: ' + formatNum(r.debt_amount) + ' so\'m', 'success');
+      }
+    } else {
+      showMsg('❌ To\'lovni saqlashda xato', 'error');
+    }
+  } catch(e) {
+    showMsg('❌ Server xatosi', 'error');
+  }
+}
+
+async function deletePayment(paymentId) {
+  if (!confirm('Bu to\'lovni o\'chirishni tasdiqlaysizmi?')) return;
+  try {
+    const res = await fetch(`/api/payments/${paymentId}`, { method: 'DELETE' });
+    if (res.ok) {
+      loadPayments(selectedOrderId);
+      showMsg('✓ To\'lov o\'chirildi', 'success');
+    }
+  } catch(e) {
+    showMsg('❌ Xato', 'error');
+  }
 }
 
 // ── Yangi forma ───────────────────────────────────────────
@@ -623,6 +862,36 @@ function calcDiscount() {
     di.innerHTML = '✓ Chegirmasiz — standart narxda';
     di.style.background = '#E9F7EF'; di.style.color = '#1e7e34';
   }
+  calcDebt();
+}
+
+function calcDebt() {
+  const zi = document.getElementById('zaklat_amount');
+  const dbi = document.getElementById('debt_info');
+  const fp = document.getElementById('final_price');
+  if (!zi || !dbi) return;
+
+  let total = 0;
+  document.querySelectorAll('.detal').forEach(row => total += parseFloat(row.dataset.price || 0));
+  const agreed = parseNum(fp.value) || total;
+  const zaklat = parseNum(zi.value);
+
+  if (!agreed) { dbi.style.display = 'none'; return; }
+  if (!zaklat) { dbi.style.display = 'none'; return; }
+
+  const debt = agreed - zaklat;
+  dbi.style.display = 'block';
+
+  if (debt > 0) {
+    dbi.innerHTML = `💰 Kelishilgan: <b>${formatNum(agreed)}</b> — Zaklat: <b>${formatNum(zaklat)}</b><br>🔴 <b>Qarz qoladi: ${formatNum(debt)} so'm</b>`;
+    dbi.style.background = '#FDEDEC'; dbi.style.color = '#c0392b';
+  } else if (debt === 0) {
+    dbi.innerHTML = `✅ <b>To'liq to'landi!</b> Buyurtma avtomatik yopiladi.`;
+    dbi.style.background = '#E9F7EF'; dbi.style.color = '#1e7e34';
+  } else {
+    dbi.innerHTML = `⚠️ Ortiqcha to'lov: +${formatNum(Math.abs(debt))} so'm`;
+    dbi.style.background = '#EBF5FB'; dbi.style.color = '#1a6fa8';
+  }
 }
 
 function recalcAll() {
@@ -665,12 +934,15 @@ async function saveOrder() {
   if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
 
   const finalPrice = parseNum(document.getElementById('final_price')?.value || '0');
+  const zaklat = parseNum(document.getElementById('zaklat_amount')?.value || '0');
+  const zaklatMethod = document.getElementById('zaklat_method')?.value || 'naqd';
+
   const data = {
     project_id: projId,
     order_type: document.getElementById('order_type').value,
     recipe_id: parseInt(document.getElementById('recipe_id').value) || null,
     master_id: parseInt(document.getElementById('master_id').value) || null,
-    total_amount: finalPrice || undefined,
+    agreed_amount: finalPrice || undefined,
     items
   };
 
@@ -683,6 +955,20 @@ async function saveOrder() {
       if (loyKg > 0) {
         await fetch(`/api/orders/${saved.id}/coating-notify?loy_kg=${loyKg}`, {
           method: 'POST'
+        });
+      }
+      // Zaklat bo'lsa — to'lov qo'shamiz
+      if (zaklat > 0) {
+        await fetch('/api/payments', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            order_id: saved.id,
+            amount: zaklat,
+            payment_type: 'zaklat',
+            payment_method: zaklatMethod,
+            notes: 'Buyurtma yaratilganda'
+          })
         });
       }
       showMsg('✓ Buyurtma yaratildi!', 'success');
