@@ -1600,7 +1600,8 @@ from schemas import ProduceCreate
 
 
 def _fp_unit(category: str) -> str:
-    return 'metr' if (category or '').lower() == 'profil' else 'dona'
+    """Profil va panel — metr, qolgani — dona."""
+    return 'metr' if (category or '').lower() in ('profil', 'panel') else 'dona'
 
 
 def _fp_qty(data) -> float:
