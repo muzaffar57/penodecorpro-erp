@@ -271,6 +271,12 @@ class ProduceComplete(BaseModel):
     actual_loy_kg: float = Field(default=0, ge=0, description="Ishlatilmaydi — moslik uchun")
 
 
+class StockAdjust(BaseModel):
+    """Tayyor mahsulot miqdorini o'zgartirish (+ qo'shish / − brak)."""
+    quantity: float = Field(..., gt=0)
+    reason: Optional[str] = None
+
+
 class FinishedProductUpdate(BaseModel):
     name: Optional[str] = None
     quantity: Optional[float] = None
