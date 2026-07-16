@@ -786,6 +786,18 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     sof_foyda = sof_daromad - jami_xarajat
     foyda_foiz = (sof_foyda / daromad * 100) if daromad > 0 else 0
 
+    # ── 5. NAQD XARAJATLAR (xomashyo xaridi + transport) ─────
+    # Diqqat: bu "ishlab_chiqarish_xarajat" dan FARQ QILADI —
+    # u shu oy TUGAGAN buyurtmalarga sarflangan xomashyo tan narxi,
+    # bu esa shu oy SOTIB OLINGAN xomashyo puli (hali ishlatilmagan bo'lishi mumkin).
+    purchase_stats = get_purchase_stats_for_period(db, year, month)
+    transport_stats = get_transport_stats_for_period(db, year, month)
+
+    xomashyo_xaridi = purchase_stats["total_amount"]
+    transport_kirish = transport_stats["inbound_total"]
+    transport_chiqish = transport_stats["outbound_company"]
+    naqd_xarajat_jami = xomashyo_xaridi + transport_kirish + transport_chiqish
+
     return {
         "year": year,
         "month": month,
@@ -805,7 +817,70 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         "jami_xarajat": jami_xarajat,
         "sof_foyda": sof_foyda,
         "foyda_foiz": round(foyda_foiz, 1),
-        "expense_id": expense.id if expense else None
+        "expense_id": expense.id if expense else None,
+        # Naqd xarajatlar (alohida ko'rsatkich — foyda hisobiga kirmaydi)
+        "xomashyo_xaridi": xomashyo_xaridi,
+        "xomashyo_by_material": purchase_stats["by_material"],
+        "transport_kirish": transport_kirish,
+        "transport_chiqish_company": transport_chiqish,
+        "naqd_xarajat_jami": naqd_xarajat_jami,
+    }
+
+
+def get_purchase_stats_for_period(db: Session, year: int, month: int) -> dict:
+    """Berilgan oy uchun xomashyo xaridi statistikasi."""
+    from models import InventoryPurchase
+    from datetime import datetime as dt
+
+    start = dt(year, month, 1)
+    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+
+    purchases = db.query(InventoryPurchase).filter(
+        InventoryPurchase.purchased_at >= start,
+        InventoryPurchase.purchased_at < end
+    ).all()
+
+    by_material = {}
+    total = 0.0
+    for p in purchases:
+        key = p.item_name
+        if key not in by_material:
+            by_material[key] = {"name": key, "quantity": 0.0, "total": 0.0, "unit": p.unit}
+        by_material[key]["quantity"] += float(p.quantity)
+        by_material[key]["total"] += float(p.total_amount)
+        total += float(p.total_amount)
+
+    items = sorted(by_material.values(), key=lambda x: x["total"], reverse=True)
+    for it in items:
+        it["total"] = round(it["total"])
+
+    return {"total_amount": round(total), "by_material": items}
+
+
+def get_transport_stats_for_period(db: Session, year: int, month: int) -> dict:
+    """Berilgan oy uchun transport xarajatlari."""
+    from models import TransportExpense, Delivery
+    from datetime import datetime as dt
+
+    start = dt(year, month, 1)
+    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+
+    inbound = db.query(TransportExpense).filter(
+        TransportExpense.expense_date >= start,
+        TransportExpense.expense_date < end
+    ).all()
+    inbound_total = sum(float(e.amount) for e in inbound)
+
+    deliveries = db.query(Delivery).filter(
+        Delivery.delivered_at >= start,
+        Delivery.delivered_at < end,
+        Delivery.transport_cost > 0
+    ).all()
+    outbound_company = sum(d.company_transport_cost for d in deliveries)
+
+    return {
+        "inbound_total": round(inbound_total),
+        "outbound_company": round(outbound_company),
     }
 
 
