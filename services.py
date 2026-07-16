@@ -1348,3 +1348,55 @@ def adjust_loy_diff(db: Session, order, old_loy: float, new_loy: float) -> list:
         log.extend(return_loy_ingredients(db, order, abs(diff)))
 
     return log
+
+
+def get_loy_cost_per_kg(db: Session, recipe_id: int = None) -> dict:
+    """Retsept bo'yicha 1 kg loyning tan narxi."""
+    from models import Recipe, Inventory
+
+    recipe = None
+    if recipe_id:
+        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    if not recipe:
+        recipe = db.query(Recipe).first()
+
+    if not recipe:
+        return {"cost_per_kg": 0, "recipe": None, "breakdown": []}
+
+    batch = float(recipe.batch_size_kg or 100)
+    material_map = {
+        "akril": recipe.akril_kg,
+        "pva": recipe.pva_kg,
+        "kvars qum": recipe.qum_kg,
+        "travertin qum": getattr(recipe, "travertin_qum_kg", 0) or 0,
+        "kroshka": recipe.kroshka_kg,
+        "mel": recipe.shtukaturka_kg,
+        "zagustitel": getattr(recipe, "zagustitel_kg", 0) or 0,
+        "suv": recipe.suv_kg,
+        "penogasitel": getattr(recipe, "penogasitel_kg", 0) or 0,
+    }
+
+    cost = 0.0
+    breakdown = []
+    for key, kg in material_map.items():
+        if float(kg or 0) <= 0:
+            continue
+        inv = db.query(Inventory).filter(Inventory.item_name.ilike(f"%{key}%")).first()
+        if inv and inv.price_per_unit:
+            per_kg = (float(kg) / batch) * float(inv.price_per_unit)
+            cost += per_kg
+            breakdown.append({
+                "name": inv.item_name,
+                "kg_per_batch": float(kg),
+                "price": float(inv.price_per_unit),
+                "cost_per_kg": round(per_kg, 2)
+            })
+
+    recipe_name = recipe.name.value if hasattr(recipe.name, 'value') else str(recipe.name)
+    return {
+        "cost_per_kg": round(cost, 2),
+        "recipe": recipe_name,
+        "recipe_id": recipe.id,
+        "batch_size": batch,
+        "breakdown": breakdown
+    }
