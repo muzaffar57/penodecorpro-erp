@@ -839,6 +839,42 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
     return order
 
 
+def get_delivery_stats(db: Session) -> dict:
+    """Yetkazish statistikasi — dashboard uchun."""
+    orders = db.query(Order).filter(
+        Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED])
+    ).all()
+
+    partial = []
+    not_started = 0
+    fully = 0
+
+    for o in orders:
+        pct = o.delivery_percent
+        if pct >= 100:
+            fully += 1
+        elif pct > 0:
+            partial.append({
+                "order_id": o.id,
+                "order_number": o.order_number,
+                "client_name": o.project.client_name if o.project else "—",
+                "percent": pct,
+                "items_pending": sum(1 for i in o.items if i.remaining_qty > 0.001),
+                "debt_amount": o.debt_amount
+            })
+        else:
+            not_started += 1
+
+    partial.sort(key=lambda x: x["percent"], reverse=True)
+
+    return {
+        "fully_delivered": fully,
+        "partial_count": len(partial),
+        "not_started": not_started,
+        "partial_orders": partial[:15]
+    }
+
+
 def get_debt_stats(db: Session) -> dict:
     """Qarzdorlik statistikasi — dashboard uchun."""
     orders = db.query(Order).filter(Order.is_archived == False).all()
@@ -954,6 +990,17 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
 
     if order.status == OrderStatus.READY:
         return {"success": False, "message": "Tayyor buyurtmani tahrirlab bo'lmaydi"}
+
+    # Yetkazish boshlangan bo'lsa — tahrirlash xavfli
+    if order.deliveries:
+        return {
+            "success": False,
+            "message": "Mahsulot topshirila boshlagan — tahrirlab bo'lmaydi!",
+            "shortages": [
+                f"Bu buyurtma bo'yicha {len(order.deliveries)} marta mahsulot topshirilgan.",
+                "Detallarni o'zgartirish uchun avval topshirishlarni o'chiring."
+            ]
+        }
 
     # 1) Eski detallarni snapshot qilamiz (ombor hisobi uchun)
     old_snapshot = [{
@@ -1097,4 +1144,176 @@ def update_order_loy(db: Session, order_id: int, new_loy: float) -> dict:
         "old_loy": old_loy,
         "new_loy": new_loy,
         "inventory_log": log
+    }
+
+
+# ============================================================
+# DELIVERY — Yetkazishlar
+# ============================================================
+
+from models import Delivery, DeliveryItem
+from schemas import DeliveryCreate
+
+
+def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None) -> dict:
+    """Yangi yetkazish qo'shadi.
+    Ombor tegilmaydi — bu faqat mijozga topshirish hisobi."""
+    order = db.query(Order).filter(Order.id == data.order_id).first()
+    if not order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+
+    if order.status == OrderStatus.DRAFT:
+        return {"success": False, "message": "Qoralama buyurtmani yetkazib bo'lmaydi"}
+
+    if not data.items:
+        return {"success": False, "message": "Kamida bitta detal kiriting"}
+
+    # Tekshirish: qoldiqdan ko'p berilmasin
+    errors = []
+    valid_items = []
+    for di in data.items:
+        if di.quantity <= 0:
+            continue
+        oi = db.query(OrderItem).filter(
+            OrderItem.id == di.order_item_id,
+            OrderItem.order_id == order.id
+        ).first()
+        if not oi:
+            continue
+        remaining = oi.remaining_qty
+        if di.quantity > remaining + 0.001:
+            errors.append(
+                f"{oi.name}: {di.quantity:g} {oi.delivery_unit} berilmoqchi, "
+                f"lekin qoldi {remaining:g} {oi.delivery_unit}"
+            )
+            continue
+        valid_items.append((oi, di.quantity))
+
+    if errors:
+        return {"success": False, "message": "Qoldiqdan ko'p berib bo'lmaydi!", "shortages": errors}
+
+    if not valid_items:
+        return {"success": False, "message": "Yetkazish uchun miqdor kiritilmagan"}
+
+    # Yetkazish raqami: ORD-010-1/Y-2
+    seq = db.query(Delivery).filter(Delivery.order_id == order.id).count() + 1
+    delivery_number = f"{order.order_number}/Y-{seq}"
+
+    db_delivery = Delivery(
+        order_id=order.id,
+        delivery_number=delivery_number,
+        delivered_by=delivered_by,
+        received_by=data.received_by,
+        notes=data.notes
+    )
+    db.add(db_delivery)
+    db.flush()
+
+    for oi, qty in valid_items:
+        db.add(DeliveryItem(
+            delivery_id=db_delivery.id,
+            order_item_id=oi.id,
+            quantity=qty,
+            unit=oi.delivery_unit
+        ))
+
+    db.flush()
+    db.refresh(order)
+
+    # Hammasi berilgan bo'lsa — status
+    fully = order.is_fully_delivered
+    if fully and order.status not in (OrderStatus.DELIVERED, OrderStatus.CANCELLED):
+        order.status = OrderStatus.DELIVERED
+        if not order.completed_at:
+            order.completed_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(db_delivery)
+    db.refresh(order)
+
+    return {
+        "success": True,
+        "message": "Yetkazish saqlandi!",
+        "delivery_id": db_delivery.id,
+        "delivery_number": delivery_number,
+        "delivery_percent": order.delivery_percent,
+        "is_fully_delivered": fully,
+        "order_status": order.status.value
+    }
+
+
+def get_deliveries(db: Session, order_id: int) -> List[Delivery]:
+    """Buyurtmaning yetkazishlari."""
+    return db.query(Delivery).filter(
+        Delivery.order_id == order_id
+    ).order_by(Delivery.delivered_at.desc()).all()
+
+
+def get_delivery(db: Session, delivery_id: int) -> Optional[Delivery]:
+    return db.query(Delivery).filter(Delivery.id == delivery_id).first()
+
+
+def delete_delivery(db: Session, delivery_id: int) -> bool:
+    """Yetkazishni o'chirish."""
+    d = db.query(Delivery).filter(Delivery.id == delivery_id).first()
+    if not d:
+        return False
+    order = d.order
+    db.delete(d)
+    db.flush()
+
+    # Status qayta hisoblanadi
+    if order:
+        db.refresh(order)
+        if not order.is_fully_delivered and order.status == OrderStatus.DELIVERED:
+            order.status = OrderStatus.READY
+
+    db.commit()
+    return True
+
+
+def get_delivery_status(db: Session, order_id: int) -> dict:
+    """Buyurtmaning yetkazish holati — har detal bo'yicha."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        return {"error": "Buyurtma topilmadi"}
+
+    items = []
+    for it in order.items:
+        ordered = it.order_qty_normalized
+        delivered = it.delivered_qty
+        items.append({
+            "id": it.id,
+            "name": it.name,
+            "category": it.category,
+            "unit": it.delivery_unit,
+            "ordered": round(ordered, 2),
+            "delivered": round(delivered, 2),
+            "remaining": round(max(ordered - delivered, 0), 2),
+            "percent": round(delivered / ordered * 100, 1) if ordered > 0 else 0,
+            "is_done": (ordered - delivered) <= 0.001
+        })
+
+    return {
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "client_name": order.project.client_name if order.project else None,
+        "delivery_percent": order.delivery_percent,
+        "is_fully_delivered": order.is_fully_delivered,
+        "status": order.status.value,
+        "items": items,
+        "deliveries": [{
+            "id": d.id,
+            "delivery_number": d.delivery_number,
+            "delivered_at": d.delivered_at.isoformat() if d.delivered_at else None,
+            "delivered_by": d.delivered_by,
+            "received_by": d.received_by,
+            "notes": d.notes,
+            "items": [{
+                "order_item_id": di.order_item_id,
+                "item_name": di.order_item.name if di.order_item else "—",
+                "quantity": float(di.quantity),
+                "unit": di.unit
+            } for di in d.items]
+        } for d in sorted(order.deliveries, key=lambda x: x.delivered_at or datetime.min, reverse=True)]
     }
