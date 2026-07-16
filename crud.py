@@ -904,22 +904,41 @@ def delete_return_item(db: Session, return_id: int) -> bool:
 
 
 def get_return_stats(db: Session) -> dict:
-    """Qaytarishlar statistikasi."""
+    """Qaytarishlar statistikasi — jami va shu oy bo'yicha."""
+    from datetime import datetime
+    from models import ReturnReason
+
     all_returns = db.query(ReturnItem).all()
     total_count = len(all_returns)
     total_refund = sum(float(r.refund_amount) for r in all_returns)
     pending_refund = sum(float(r.refund_amount) for r in all_returns if not r.is_refunded)
 
-    from models import ReturnReason
     by_reason = {}
     for r in ReturnReason:
         by_reason[r.value] = sum(1 for i in all_returns if i.reason == r)
+
+    # Brak qiymati — jami va shu oy
+    brak_items = [r for r in all_returns if r.reason == ReturnReason.DEFECT]
+    brak_total_value = sum(float(r.refund_amount or 0) for r in brak_items)
+
+    now = datetime.utcnow()
+    month_brak = [r for r in brak_items if r.returned_at and r.returned_at.year == now.year and r.returned_at.month == now.month]
+    brak_month_value = sum(float(r.refund_amount or 0) for r in month_brak)
+    brak_month_count = len(month_brak)
+
+    whole_items = [r for r in all_returns if r.reason != ReturnReason.DEFECT]
+    month_whole = [r for r in whole_items if r.returned_at and r.returned_at.year == now.year and r.returned_at.month == now.month]
 
     return {
         "total_count": total_count,
         "total_refund": total_refund,
         "pending_refund": pending_refund,
-        "by_reason": by_reason
+        "by_reason": by_reason,
+        "brak_total_value": round(brak_total_value),
+        "brak_total_count": len(brak_items),
+        "brak_month_value": round(brak_month_value),
+        "brak_month_count": brak_month_count,
+        "whole_month_count": len(month_whole),
     }
 
 
