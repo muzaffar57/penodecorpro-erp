@@ -421,8 +421,13 @@ def get_chart_data(db: Session) -> Dict:
     # --- 2. Buyurtma holatlari (donut chart) ---
     statuses = {}
     for status in OrderStatus:
-        cnt = db.query(Order).filter(Order.status == status).count()
-        statuses[status.value] = cnt
+        try:
+            cnt = db.query(Order).filter(Order.status == status).count()
+            statuses[status.value] = cnt
+        except Exception:
+            # Enum bazada hali yo'q bo'lsa
+            db.rollback()
+            statuses[status.value] = 0
 
     # --- 3. Ustalar KPI (top 5) ---
     masters = db.query(Master).filter(Master.is_active == True).all()
@@ -798,13 +803,20 @@ def save_monthly_expense(db: Session, year: int, month: int, data: dict):
 def get_penoplast_list(db: Session):
     """Barcha penoplast (plotnost) turlari."""
     from models import Inventory
-    items = db.query(Inventory).filter(Inventory.is_penoplast == True).all()
-    if not items:
-        # Eski tizim uchun: nom bo'yicha topamiz
+    from sqlalchemy import or_
+    try:
         items = db.query(Inventory).filter(
+            or_(
+                Inventory.is_penoplast == True,
+                Inventory.item_name.ilike("%penoplast%")
+            )
+        ).order_by(Inventory.item_name).all()
+        return items
+    except Exception:
+        db.rollback()
+        return db.query(Inventory).filter(
             Inventory.item_name.ilike("%penoplast%")
         ).all()
-    return items
 
 
 def get_default_penoplast(db: Session):
