@@ -120,6 +120,33 @@
     </div>
   </div>
 
+  <!-- BU OY MOLIYAVIY HOLAT -->
+  <div class="card mb-16" style="border-left:3px solid #8E44AD;border-radius:0 12px 12px 0">
+    <div class="card-head">
+      <h3 style="color:#8E44AD">💰 Bu oy moliyaviy holat</h3>
+      <span id="mf-period" style="font-size:11px;color:#aaa"></span>
+    </div>
+    <div class="card-body">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+        <span style="color:#777">Daromad</span>
+        <span id="mf-daromad" style="font-weight:700;color:#27AE60">—</span>
+      </div>
+      <div style="border-top:1px dashed #eee;margin:8px 0"></div>
+
+      <div id="mf-expense-lines" style="font-size:12.5px"></div>
+
+      <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-weight:700;font-size:13px;border-top:1px solid #f0f0f0;margin-top:6px">
+        <span>Jami xarajat</span>
+        <span id="mf-jami-xarajat" style="color:#E74C3C">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px;border-top:2px solid #1a1a1a;margin-top:4px">
+        <span style="font-size:14px;font-weight:700">SOF FOYDA</span>
+        <span id="mf-sof-foyda" style="font-size:18px;font-weight:800">—</span>
+      </div>
+      <div style="text-align:right;font-size:11px;color:#aaa" id="mf-foiz"></div>
+    </div>
+  </div>
+
   <!-- YETKAZISH -->
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
     <div class="kpi-card" style="border-left:3px solid #27AE60">
@@ -220,6 +247,45 @@ async function loadAll(){
   loadDeliveryStats();
   loadPurchaseStats();
   loadTransportStats();
+  loadMonthlyFinance();
+}
+
+async function loadMonthlyFinance(){
+  try{
+    const now = new Date();
+    const year = now.getFullYear(), month = now.getMonth()+1;
+    const d = await fetch(`/api/finance/report?year=${year}&month=${month}`).then(r=>r.json());
+
+    const monthNames = ['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+    document.getElementById('mf-period').textContent = `${monthNames[month]} ${year}`;
+    document.getElementById('mf-daromad').textContent = fmt(d.daromad) + " so'm";
+
+    const x = d.xarajatlar || {};
+    const fixedTotal = (x.arenda||0)+(x.elektr||0)+(x.tushlik||0)+(x.soliqlar||0);
+    const salaryTotal = (x.hodim1_oylik||0)+(x.hodim2_oylik||0)+(x.hodim3_oylik||0)+(x.qoplamachi_oylik||0)+(x.qoplamachi_bonus||0);
+
+    const lines = [
+      ['🏭 Ishlab chiqarish (COGS)', d.ishlab_chiqarish_xarajat||0],
+      ['🏢 Arenda/Elektr/Tushlik/Soliq', fixedTotal],
+      ['👷 Hodimlar oyliqi (doimiy)', salaryTotal],
+      ['🏆 Usta yillik KPI', d.usta_kpi_xarajat||0],
+      ['👷 Hodimlar (moslashuvchan)', d.hodimlar_moslashuvchan_xarajat||0],
+    ].filter(l => l[1] > 0);
+
+    document.getElementById('mf-expense-lines').innerHTML = lines.map(l =>
+      `<div style="display:flex;justify-content:space-between;padding:4px 0;color:#888">
+        <span>${l[0]}</span><span>${fmt(l[1])} so'm</span>
+      </div>`).join('') || '<div style="text-align:center;color:#bbb;padding:6px 0">Xarajat kiritilmagan</div>';
+
+    const jamiXarajatFull = (d.jami_xarajat||0) + (d.ishlab_chiqarish_xarajat||0);
+    document.getElementById('mf-jami-xarajat').textContent = fmt(jamiXarajatFull) + " so'm";
+
+    const sofFoyda = d.sof_foyda||0;
+    const sf = document.getElementById('mf-sof-foyda');
+    sf.textContent = fmt(sofFoyda) + " so'm";
+    sf.style.color = sofFoyda >= 0 ? '#8E44AD' : '#E74C3C';
+    document.getElementById('mf-foiz').textContent = (d.foyda_foiz||0) + "% foyda";
+  }catch(e){console.error('Oylik moliya:',e);}
 }
 
 async function loadTransportStats(){
