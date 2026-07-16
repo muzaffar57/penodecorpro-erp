@@ -282,6 +282,38 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     ]))
     el.append(stat)
 
+    # ---- Transport ----
+    carrier = getattr(delivery, 'transport_carrier', None)
+    t_cost = float(getattr(delivery, 'transport_cost', 0) or 0)
+    t_payer = getattr(delivery, 'transport_payer', 'none') or 'none'
+
+    if carrier or t_cost > 0:
+        payer_label = {
+            "client": "Mijoz to'laydi",
+            "company": "Kompaniya to'laydi",
+            "split": "Teng bo'lingan (50/50)",
+        }.get(t_payer, "")
+
+        parts = []
+        if carrier:
+            parts.append(f"<b>{carrier}</b>")
+        if t_cost > 0:
+            parts.append(f"{_fmt(t_cost)} so'm")
+        if payer_label:
+            parts.append(payer_label)
+
+        el.append(Spacer(1, 8))
+        transport = Table([[Paragraph(
+            "🚚 <b>Transport:</b> " + "  ·  ".join(parts), st_small
+        )]], colWidths=[18*cm])
+        transport.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F0F6FA")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        el.append(transport)
+
     # ---- Izoh ----
     if delivery.notes:
         el.append(Spacer(1, 8))
