@@ -67,6 +67,27 @@ class ReturnReason(PyEnum):
     CUSTOMER_REQUEST = "Mijoz iltimosi"
 
 
+class PaymentType(PyEnum):
+    """To'lov turi."""
+    ZAKLAT = "zaklat"        # Oldindan to'lov
+    PARTIAL = "partial"      # Qisman to'lov
+    FINAL = "final"          # Yakuniy to'lov
+
+
+class PaymentMethod(PyEnum):
+    """To'lov usuli."""
+    CASH = "naqd"
+    CARD = "plastik"
+    TRANSFER = "o'tkazma"
+
+
+class PaymentStatus(PyEnum):
+    """Buyurtma to'lov holati."""
+    UNPAID = "unpaid"        # To'lanmagan
+    PARTIAL = "partial"      # Qisman to'langan
+    PAID = "paid"            # To'liq to'langan
+
+
 # ============================================================
 # 1. USER
 # ============================================================
@@ -211,8 +232,11 @@ class Order(Base):
     order_type = Column(Enum(OrderType), nullable=False)
     status = Column(Enum(OrderStatus), default=OrderStatus.NEW, nullable=False)
 
-    total_amount = Column(Numeric(12, 2), default=0)
+    total_amount = Column(Numeric(12, 2), default=0)      # Jami summa (chegirmasiz)
+    agreed_amount = Column(Numeric(12, 2), default=0)      # Kelishilgan summa (chegirmadan keyin)
     discount_percent = Column(Float, default=0.0)
+    payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.UNPAID, nullable=False)
+    is_archived = Column(Boolean, default=False)           # Arxivga o'tdimi
 
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True)
     master = relationship("Master", back_populates="orders")
@@ -220,11 +244,24 @@ class Order(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     deadline = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)            # Qarz yopilgan sana
 
     notes = Column(Text, nullable=True)
 
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     returns = relationship("ReturnItem", back_populates="order", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
+
+    @property
+    def paid_amount(self):
+        """To'langan jami summa."""
+        return sum(float(p.amount or 0) for p in (self.payments or []))
+
+    @property
+    def debt_amount(self):
+        """Qarz qoldi."""
+        agreed = float(self.agreed_amount or self.total_amount or 0)
+        return max(agreed - self.paid_amount, 0)
 
     def __repr__(self):
         return f"<Order #{self.order_number} (Project #{self.project_id})>"
@@ -292,7 +329,33 @@ class ReturnItem(Base):
 
 
 # ============================================================
-# 9. MONTHLY EXPENSE — Oylik xarajatlar
+# 9. PAYMENT — To'lovlar tarixi
+# ============================================================
+
+class Payment(Base):
+    """Buyurtma bo'yicha to'lovlar tarixi.
+    Bir buyurtmaga bir necha marta to'lash mumkin."""
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+
+    amount = Column(Numeric(12, 2), nullable=False)
+    payment_type = Column(Enum(PaymentType), default=PaymentType.PARTIAL, nullable=False)
+    payment_method = Column(Enum(PaymentMethod), default=PaymentMethod.CASH, nullable=False)
+
+    paid_at = Column(DateTime, default=datetime.utcnow)
+    received_by = Column(String(100), nullable=True)   # Kim qabul qildi
+    notes = Column(Text, nullable=True)
+
+    order = relationship("Order", back_populates="payments")
+
+    def __repr__(self):
+        return f"<Payment {self.amount} ({self.payment_type.value})>"
+
+
+# ============================================================
+# 10. MONTHLY EXPENSE — Oylik xarajatlar
 # ============================================================
 
 class MonthlyExpense(Base):
