@@ -149,7 +149,10 @@
               <div style="display:flex;align-items:center;gap:6px">
                 <button class="btn btn-outline btn-xs" style="color:#C0392B;border-color:#F5B7B1" onclick="changeStock({{ item.id }}, -1, this)" title="Chiqim (narxsiz)">−</button>
                 <input type="number" class="qty-input" id="qty-{{ item.id }}" value="1" min="0.1" step="0.1">
-                <button class="btn btn-dark btn-xs" style="background:#27AE60" onclick="openPurchaseModal({{ item.id }}, {{ item.item_name|tojson }}, {{ item.unit|tojson }}, {{ item.price_per_unit or 0 }})" title="Kirim (xarid narxi bilan)">+ Kirim</button>
+                <button class="btn btn-dark btn-xs" style="background:#27AE60"
+                        data-id="{{ item.id }}" data-name="{{ item.item_name }}"
+                        data-unit="{{ item.unit }}" data-price="{{ item.price_per_unit or 0 }}"
+                        onclick="openPurchaseModal(this)" title="Kirim (xarid narxi bilan)">+ Kirim</button>
               </div>
             </td>
             <td>
@@ -376,8 +379,12 @@ async function changeStock(id, dir, btn) {
 // ── OMBOR KIRIMI (XARID) ──────────────────────────────────
 let pmItemId = null;
 
-function openPurchaseModal(id, name, unit, currentPrice) {
-  pmItemId = id;
+function openPurchaseModal(btn) {
+  pmItemId = parseInt(btn.dataset.id);
+  const name = btn.dataset.name;
+  const unit = btn.dataset.unit;
+  const currentPrice = parseFloat(btn.dataset.price) || 0;
+
   document.getElementById('pm-item-name').textContent = name;
   document.getElementById('pm-unit').textContent = unit;
   document.getElementById('pm-unit2').textContent = unit;
