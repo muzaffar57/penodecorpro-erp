@@ -104,6 +104,38 @@ def _migrate_payment_columns():
                     except Exception as e:
                         print(f"⚠ Migratsiya o'tkazib yuborildi: {e}")
 
+        # PostgreSQL enum ga yangi qiymatlarni qo'shish
+        enum_additions = [
+            ("orderstatus", "DRAFT"),
+            ("paymentstatus", "UNPAID"),
+            ("paymentstatus", "PARTIAL"),
+            ("paymentstatus", "PAID"),
+            ("paymenttype", "ZAKLAT"),
+            ("paymenttype", "PARTIAL"),
+            ("paymenttype", "FINAL"),
+            ("paymentmethod", "CASH"),
+            ("paymentmethod", "CARD"),
+            ("paymentmethod", "TRANSFER"),
+        ]
+        for enum_name, value in enum_additions:
+            try:
+                with engine.connect() as conn:
+                    # Enum mavjudligini tekshiramiz
+                    exists = conn.execute(text(
+                        "SELECT 1 FROM pg_type WHERE typname = :n"
+                    ), {"n": enum_name}).scalar()
+                    if not exists:
+                        continue
+                    conn.execute(text(
+                        f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{value}'"
+                    ))
+                    conn.commit()
+                    print(f"✓ Enum {enum_name} += {value}")
+            except Exception as e:
+                msg = str(e)
+                if 'already exists' not in msg and 'does not exist' not in msg:
+                    print(f"⚠ Enum {enum_name}.{value}: {e}")
+
         # agreed_amount bo'sh bo'lganlarni total_amount ga tenglashtiramiz
         with engine.connect() as conn:
             try:
