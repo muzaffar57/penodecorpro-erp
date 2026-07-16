@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+{% block title %}Ustalar KPI va Hodimlar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Ustalar KPI va Hodimlar{% endblock %}
+{% block page_sub %}Yillik KPI sovg'asi va moslashuvchan hodim to'lovi{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="openEmpModal()">+ Hodim qo'shish</button>
+{% endblock %}
+
+{% block head %}
+<style>
+.kpi-two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mk-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f5f5f5}
+.mk-row:last-child{border-bottom:none}
+.mk-name{font-size:13px;font-weight:600;color:#1a1a1a}
+.mk-meta{font-size:11px;color:#aaa;margin-top:2px}
+.mk-inp{width:64px;height:30px;text-align:center;border:1.5px solid #e5e5e5;border-radius:6px;font-size:12px;font-weight:600;outline:none}
+.mk-inp:focus{border-color:#C9A55A}
+.emp-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f5f5f5}
+.emp-row:last-child{border-bottom:none}
+.emp-tag{font-size:9.5px;padding:2px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
+.mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:13px;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mini-btn:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content">
+
+  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpi-card">
+      <div class="kpi-val" style="color:#C9A55A" id="k-year">—</div>
+      <div class="kpi-label">Hisob yili</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val text-green" id="k-total-gift">—</div>
+      <div class="kpi-label">Jami usta sovg'asi (yillik)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val" style="color:#2980B9" id="k-emp-count">—</div>
+      <div class="kpi-label">Faol hodimlar</div>
+    </div>
+  </div>
+
+  <div class="kpi-two">
+
+    <!-- USTA YILLIK KPI -->
+    <div class="card">
+      <div class="card-head">
+        <h3>🏆 Ustalar yillik KPI</h3>
+        <input type="number" id="kpi-year" style="width:80px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px" onchange="loadMasterKpi()">
+      </div>
+      <div class="card-body" style="padding-top:0">
+        <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#8B6914;line-height:1.6">
+          💡 KPI% × yillik sotuv summasi = yil oxiri sovg'a. Har oy tegishli ulushi avtomatik xarajat sifatida yoziladi.
+        </div>
+        <div id="mkList">
+          <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HODIMLAR -->
+    <div class="card">
+      <div class="card-head"><h3>👷 Hodimlar (moslashuvchan to'lov)</h3></div>
+      <div class="card-body" style="padding-top:0">
+        <div style="background:#EBF5FB;border:1px solid #AED6F1;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#1a6fa8;line-height:1.6">
+          💡 Har hodimga alohida to'lov turi belgilanadi. Oylik hisob-kitobda avtomatik hisoblanib, Moliya bo'limidagi xarajatga qo'shiladi.
+        </div>
+        <div id="empList">
+          <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ HODIM QO'SHISH/TAHRIRLASH MODALI ══ -->
+<div id="empModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:440px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="emp-modal-title">+ Yangi hodim</div>
+
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="e-name" placeholder="Hodim ismi"></div>
+      <div class="form-group" style="margin:0"><label>Lavozimi</label><input type="text" id="e-position" placeholder="Kesuvchi"></div>
+    </div>
+
+    <div class="form-group">
+      <label>To'lov turi</label>
+      <select id="e-paytype" onchange="empToggle()">
+        <option value="fixed">Doimiy oylik</option>
+        <option value="percent_sales">Sotuvdan foiz</option>
+        <option value="percent_profit">Foydadan foiz</option>
+        <option value="per_unit">Har birlik uchun (blok/metr/dona)</option>
+      </select>
+    </div>
+
+    <div class="form-group" id="e-fixed-wrap">
+      <label>Oylik summasi (so'm)</label>
+      <input type="number" id="e-fixed" placeholder="0" min="0">
+    </div>
+
+    <div class="form-group" id="e-percent-wrap" style="display:none">
+      <label>Foiz (%)</label>
+      <input type="number" id="e-percent" placeholder="0" min="0" max="100" step="0.5">
+    </div>
+
+    <div class="form-row" id="e-unit-wrap" style="display:none">
+      <div class="form-group" style="margin:0">
+        <label>Birlik turi</label>
+        <select id="e-unittype">
+          <option value="blok">Blok (penoplast)</option>
+          <option value="metr">Metr</option>
+          <option value="dona">Dona</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>1 birlik narxi (so'm)</label>
+        <input type="number" id="e-unitrate" placeholder="0" min="0">
+      </div>
+    </div>
+
+    <div class="form-group"><label>Izoh</label><input type="text" id="e-notes" placeholder="..."></div>
+
+    <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" onclick="saveEmployee()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeEmpModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+
+const PAY_LABELS = {
+  fixed: 'Doimiy oylik',
+  percent_sales: 'Sotuvdan %',
+  percent_profit: 'Foydadan %',
+  per_unit: 'Birlik uchun'
+};
+const PAY_COLORS = {
+  fixed: '#2980B9', percent_sales: '#27AE60', percent_profit: '#8E44AD', per_unit: '#E67E22'
+};
+
+// ── USTA YILLIK KPI ────────────────────────────────────────
+async function loadMasterKpi() {
+  const year = parseInt(document.getElementById('kpi-year').value) || new Date().getFullYear();
+  document.getElementById('k-year').textContent = year;
+
+  try {
+    const d = await fetch(`/api/masters/kpi-report?year=${year}`).then(r => r.json());
+    document.getElementById('k-total-gift').textContent = fmt(d.total_gift) + " so'm";
+
+    const list = document.getElementById('mkList');
+    if (!d.masters.length) {
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Usta yo\'q</div>';
+      return;
+    }
+
+    list.innerHTML = d.masters.map(m => `
+      <div class="mk-row">
+        <div style="flex:1;min-width:0">
+          <div class="mk-name">${m.name}</div>
+          <div class="mk-meta">Yillik sotuv: ${fmt(m.yearly_sales)} so'm · ${m.orders_count} ta buyurtma</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <input class="mk-inp" type="number" step="0.5" min="0" max="100"
+                 value="${m.kpi_percent}" id="mk-${m.id}"
+                 onchange="saveMasterKpi(${m.id})">
+          <span style="font-size:11px;color:#aaa">%</span>
+        </div>
+        <div style="text-align:right;min-width:100px">
+          <div style="font-size:13px;font-weight:700;color:#27AE60">${fmt(m.gift_amount)}</div>
+          <div style="font-size:9.5px;color:#bbb">sovg'a</div>
+        </div>
+      </div>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function saveMasterKpi(id) {
+  const val = parseFloat(document.getElementById('mk-' + id).value) || 0;
+  try {
+    await fetch(`/api/masters/${id}/kpi`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({kpi_percent: val})
+    });
+    loadMasterKpi();
+  } catch(e) {}
+}
+
+// ── HODIMLAR ───────────────────────────────────────────────
+let empItems = [];
+let editingEmpId = null;
+
+async function loadEmployees() {
+  try {
+    empItems = await fetch('/api/employees').then(r => r.json());
+    document.getElementById('k-emp-count').textContent = empItems.length;
+
+    const list = document.getElementById('empList');
+    if (!empItems.length) {
+      list.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Hodim qo\'shilmagan</div>';
+      return;
+    }
+
+    list.innerHTML = empItems.map(e => {
+      let detail = '';
+      if (e.pay_type === 'fixed') detail = `${fmt(e.fixed_amount)} so'm/oy`;
+      else if (e.pay_type === 'percent_sales') detail = `Sotuvdan ${e.percent_value}%`;
+      else if (e.pay_type === 'percent_profit') detail = `Foydadan ${e.percent_value}%`;
+      else if (e.pay_type === 'per_unit') detail = `${fmt(e.per_unit_rate)} / ${e.per_unit_type}`;
+
+      return `
+      <div class="emp-row">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${e.name}</span>
+            ${e.position ? `<span style="font-size:10.5px;color:#aaa">${e.position}</span>` : ''}
+          </div>
+          <div style="margin-top:3px">
+            <span class="emp-tag" style="background:${PAY_COLORS[e.pay_type]}15;color:${PAY_COLORS[e.pay_type]}">${PAY_LABELS[e.pay_type]}</span>
+            <span style="font-size:11px;color:#888;margin-left:6px">${detail}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="mini-btn" onclick="editEmployee(${e.id})">✏️</button>
+          <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="deleteEmployee(${e.id})">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+function openEmpModal() {
+  editingEmpId = null;
+  document.getElementById('emp-modal-title').textContent = "+ Yangi hodim";
+  ['e-name','e-position','e-fixed','e-percent','e-unitrate','e-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('e-paytype').value = 'fixed';
+  document.getElementById('e-unittype').value = 'blok';
+  document.getElementById('emp-error').style.display = 'none';
+  empToggle();
+  document.getElementById('empModal').style.display = 'flex';
+}
+
+function closeEmpModal() {
+  document.getElementById('empModal').style.display = 'none';
+}
+
+function empToggle() {
+  const t = document.getElementById('e-paytype').value;
+  document.getElementById('e-fixed-wrap').style.display = (t === 'fixed') ? 'block' : 'none';
+  document.getElementById('e-percent-wrap').style.display = (t === 'percent_sales' || t === 'percent_profit') ? 'block' : 'none';
+  document.getElementById('e-unit-wrap').style.display = (t === 'per_unit') ? 'flex' : 'none';
+}
+
+function editEmployee(id) {
+  const e = empItems.find(x => x.id === id);
+  if (!e) return;
+  editingEmpId = id;
+  document.getElementById('emp-modal-title').textContent = "✏️ " + e.name;
+  document.getElementById('e-name').value = e.name;
+  document.getElementById('e-position').value = e.position || '';
+  document.getElementById('e-paytype').value = e.pay_type;
+  document.getElementById('e-fixed').value = e.fixed_amount || '';
+  document.getElementById('e-percent').value = e.percent_value || '';
+  document.getElementById('e-unittype').value = e.per_unit_type || 'blok';
+  document.getElementById('e-unitrate').value = e.per_unit_rate || '';
+  document.getElementById('e-notes').value = e.notes || '';
+  document.getElementById('emp-error').style.display = 'none';
+  empToggle();
+  document.getElementById('empModal').style.display = 'flex';
+}
+
+async function saveEmployee() {
+  const name = document.getElementById('e-name').value.trim();
+  const err = document.getElementById('emp-error');
+  if (!name) { err.style.display='block'; err.textContent='❌ Ismni kiriting'; return; }
+  err.style.display = 'none';
+
+  const data = {
+    name,
+    position: document.getElementById('e-position').value.trim() || null,
+    pay_type: document.getElementById('e-paytype').value,
+    fixed_amount: parseFloat(document.getElementById('e-fixed').value) || 0,
+    percent_value: parseFloat(document.getElementById('e-percent').value) || 0,
+    per_unit_rate: parseFloat(document.getElementById('e-unitrate').value) || 0,
+    per_unit_type: document.getElementById('e-unittype').value,
+    notes: document.getElementById('e-notes').value.trim() || null
+  };
+
+  try {
+    const url = editingEmpId ? `/api/employees/${editingEmpId}` : '/api/employees';
+    const method = editingEmpId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if (res.ok) {
+      closeEmpModal();
+      loadEmployees();
+    } else {
+      err.style.display = 'block';
+      err.textContent = '❌ Xato yuz berdi';
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server xatosi';
+  }
+}
+
+async function deleteEmployee(id) {
+  if (!confirm("O'chirilsinmi?")) return;
+  const res = await fetch(`/api/employees/${id}`, {method:'DELETE'});
+  if (res.ok) loadEmployees();
+}
+
+document.getElementById('kpi-year').value = new Date().getFullYear();
+loadMasterKpi();
+loadEmployees();
+</script>
+{% endblock %}
