@@ -1071,6 +1071,43 @@ def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db)):
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
+@app.get("/api/orders/{order_id}/summary-pdf")
+def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db)):
+    """Hisob-kitob varaqasi — tanlangan nakladnoylar bo'yicha.
+    ids — vergul bilan ajratilgan delivery ID lar: '3,5,7'. Bo'sh bo'lsa — hammasi."""
+    from fastapi.responses import Response
+    import delivery_pdf
+    import traceback
+
+    order = crud.get_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+
+    all_dlv = sorted(order.deliveries, key=lambda x: x.delivered_at or datetime.min)
+
+    if ids.strip():
+        try:
+            wanted = {int(x) for x in ids.split(',') if x.strip()}
+        except ValueError:
+            raise HTTPException(status_code=400, detail="ids noto'g'ri")
+        deliveries = [d for d in all_dlv if d.id in wanted]
+    else:
+        deliveries = all_dlv
+
+    if not deliveries:
+        raise HTTPException(status_code=400, detail="Yuk xati tanlanmagan")
+
+    try:
+        pdf_bytes = delivery_pdf.generate_summary_pdf(order, deliveries, db)
+    except Exception as e:
+        print("Hisob-kitob PDF XATO:\n", traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+
+    filename = f"hisob_kitob_{order.order_number}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
+
+
 @app.delete("/api/deliveries/{delivery_id}")
 def api_delete_delivery(delivery_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yetkazishni o'chirish."""
