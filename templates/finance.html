@@ -77,24 +77,11 @@
           <input type="number" id="f-soliqlar" placeholder="0" min="0">
         </div>
 
-        <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin:14px 0 10px;padding-top:12px;border-top:1px solid #f0f0f0">Hodimlar oyliqi</div>
-        {% for i in [1,2,3] %}
-        <div class="form-row" style="margin-bottom:8px">
-          <div class="form-group" style="margin:0"><label>{{ i }}-hodim ismi</label><input type="text" id="f-h{{ i }}-ism" placeholder="Ismi"></div>
-          <div class="form-group" style="margin:0"><label>Oylik (so'm)</label><input type="number" id="f-h{{ i }}-oylik" placeholder="0"></div>
+        <div style="background:#EBF5FB;border:1px solid #AED6F1;border-radius:8px;padding:10px 12px;margin-top:14px;font-size:12px;color:#1a6fa8;line-height:1.6">
+          💡 Hodimlar oyliqi va usta KPI endi <b>Ustalar KPI / Hodimlar</b> bo'limida boshqariladi —
+          u yerda har hodimga alohida to'lov turi (oylik, sotuvdan %, foydadan %, birlik uchun) belgilanadi.
         </div>
-        {% endfor %}
-
-        <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin:14px 0 10px;padding-top:12px;border-top:1px solid #f0f0f0">Qoplamachi hodim</div>
-        <div class="alert" style="background:#EBF5FB;border:1px solid #AED6F1;color:#1a6fa8;margin-bottom:10px;font-size:12px" id="bonusInfo">
-          Avtomatik hisoblanmoqda...
-        </div>
-        <div class="form-row" style="margin-bottom:8px">
-          <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="f-qop-ism" placeholder="Qoplamachi"></div>
-          <div class="form-group" style="margin:0"><label>Oylik (so'm)</label><input type="number" id="f-qop-oylik" placeholder="0"></div>
-        </div>
-        <div class="form-group"><label>Bonus (avtomatik, o'zgartirish mumkin)</label><input type="number" id="f-qop-bonus" placeholder="0"></div>
-        <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
+        <div class="form-group" style="margin-top:12px"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
       </div>
     </div>
 
@@ -154,14 +141,7 @@ async function loadReport(){
   document.getElementById('f-elektr').value=x.elektr||'';
   document.getElementById('f-tushlik').value=x.tushlik||'';
   document.getElementById('f-soliqlar').value=x.soliqlar||'';
-  document.getElementById('f-h1-ism').value=x.hodim1_ism||'';document.getElementById('f-h1-oylik').value=x.hodim1_oylik||'';
-  document.getElementById('f-h2-ism').value=x.hodim2_ism||'';document.getElementById('f-h2-oylik').value=x.hodim2_oylik||'';
-  document.getElementById('f-h3-ism').value=x.hodim3_ism||'';document.getElementById('f-h3-oylik').value=x.hodim3_oylik||'';
-  document.getElementById('f-qop-ism').value=x.qoplamachi_ism||'';
-  document.getElementById('f-qop-oylik').value=x.qoplamachi_oylik||'';
-  document.getElementById('f-qop-bonus').value=x.qoplamachi_bonus||d.qoplamachi_bonus_avtomatik||'';
   document.getElementById('f-notes').value=x.notes||'';
-  document.getElementById('bonusInfo').textContent=`Profil/panel: ${d.jami_metr||0}m × 1,000 + Donali: ${d.jami_dona||0} dona × 1,000 = ${Number(d.qoplamachi_bonus_avtomatik).toLocaleString('uz')} so'm bonus`;
   buildExpDetail(d);
   buildCashSection(d);
 }
@@ -189,10 +169,7 @@ function buildCashSection(d){
 function buildExpDetail(d){
   const x=d.xarajatlar;
   const rows=[
-    {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},{n:'Soliqlar',v:x.soliqlar},
-    {n:x.hodim1_ism+' (oylik)',v:x.hodim1_oylik},{n:x.hodim2_ism+' (oylik)',v:x.hodim2_oylik},
-    {n:x.hodim3_ism+' (oylik)',v:x.hodim3_oylik},{n:x.qoplamachi_ism+' (oylik)',v:x.qoplamachi_oylik},
-    {n:x.qoplamachi_ism+' (bonus)',v:x.qoplamachi_bonus}
+    {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},{n:'Soliqlar',v:x.soliqlar}
   ].filter(r=>r.v>0);
   const el=document.getElementById('expDetail');
   if(!rows.length){el.innerHTML='<div style="text-align:center;color:#bbb;padding:20px">Xarajat kiritilmagan</div>';return;}
@@ -236,12 +213,6 @@ async function saveExpense(){
     elektr:parseFloat(document.getElementById('f-elektr').value)||0,
     tushlik:parseFloat(document.getElementById('f-tushlik').value)||0,
     soliqlar:parseFloat(document.getElementById('f-soliqlar').value)||0,
-    hodim1_ism:document.getElementById('f-h1-ism').value||'Hodim 1',hodim1_oylik:parseFloat(document.getElementById('f-h1-oylik').value)||0,
-    hodim2_ism:document.getElementById('f-h2-ism').value||'Hodim 2',hodim2_oylik:parseFloat(document.getElementById('f-h2-oylik').value)||0,
-    hodim3_ism:document.getElementById('f-h3-ism').value||'Hodim 3',hodim3_oylik:parseFloat(document.getElementById('f-h3-oylik').value)||0,
-    qoplamachi_ism:document.getElementById('f-qop-ism').value||'Qoplamachi',
-    qoplamachi_oylik:parseFloat(document.getElementById('f-qop-oylik').value)||0,
-    qoplamachi_bonus:parseFloat(document.getElementById('f-qop-bonus').value)||0,
     notes:document.getElementById('f-notes').value||''
   };
   const res=await fetch(`/api/finance/expense?year=${year}&month=${month}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
