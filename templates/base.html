@@ -78,6 +78,13 @@
       {% endif %}
 
       {% if role in ['admin', 'manager'] %}
+      <a href="/finished" class="nav-item {% if active_page == 'finished' %}active{% endif %}">
+        <span class="n-ico">🏭</span>
+        <span class="n-txt">Tayyor mahsulotlar</span>
+      </a>
+      {% endif %}
+
+      {% if role in ['admin', 'manager'] %}
       <a href="/masters" class="nav-item {% if active_page == 'masters' %}active{% endif %}">
         <span class="n-ico">👷</span>
         <span class="n-txt">Ustalar</span>
