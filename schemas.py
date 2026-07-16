@@ -185,6 +185,7 @@ class OrderCreate(BaseModel):
     master_id: Optional[int] = None
     recipe_id: Optional[int] = None
     items: List[OrderItemCreate] = []
+    agreed_amount: Optional[float] = None
     notes: Optional[str] = None
 
 
@@ -202,6 +203,29 @@ class OrderItemRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PaymentCreate(BaseModel):
+    """Yangi to'lov qo'shish."""
+    order_id: int
+    amount: float = Field(..., gt=0, description="To'lov summasi")
+    payment_type: str = Field(default="partial", description="zaklat / partial / final")
+    payment_method: str = Field(default="naqd", description="naqd / plastik / o'tkazma")
+    received_by: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class PaymentRead(BaseModel):
+    """To'lovni ko'rish."""
+    id: int
+    order_id: int
+    amount: float
+    payment_type: str
+    payment_method: str
+    paid_at: datetime
+    received_by: Optional[str] = None
+    notes: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
 class OrderRead(BaseModel):
     id: int
     order_number: Optional[str] = None
@@ -209,10 +233,23 @@ class OrderRead(BaseModel):
     order_type: str
     status: str
     total_amount: float
+    agreed_amount: Optional[float] = 0
+    discount_percent: Optional[float] = 0
+    payment_status: Optional[str] = "unpaid"
+    paid_amount: Optional[float] = 0
+    debt_amount: Optional[float] = 0
+    is_archived: Optional[bool] = False
     master_id: Optional[int] = None
     created_at: datetime
+    closed_at: Optional[datetime] = None
     items: List[OrderItemRead] = []
+    payments: List[PaymentRead] = []
     model_config = {"from_attributes": True}
+
+
+class OrderAgreedUpdate(BaseModel):
+    """Kelishilgan summani yangilash."""
+    agreed_amount: float = Field(..., ge=0)
 
 
 class ProjectUpdate(BaseModel):
