@@ -254,6 +254,36 @@ class Order(Base):
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     returns = relationship("ReturnItem", back_populates="order", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
+    deliveries = relationship("Delivery", back_populates="order", cascade="all, delete-orphan")
+
+    @property
+    def delivery_percent(self):
+        """Yetkazish foizi (0-100)."""
+        items = self.items or []
+        if not items:
+            return 0.0
+        total_ordered = 0.0
+        total_delivered = 0.0
+        for it in items:
+            ordered = it.order_qty_normalized
+            if ordered <= 0:
+                continue
+            total_ordered += ordered
+            total_delivered += min(it.delivered_qty, ordered)
+        if total_ordered <= 0:
+            return 0.0
+        return round(total_delivered / total_ordered * 100, 1)
+
+    @property
+    def is_fully_delivered(self):
+        """Hamma detal to'liq berildimi."""
+        items = self.items or []
+        if not items:
+            return False
+        for it in items:
+            if it.remaining_qty > 0.001:
+                return False
+        return True
 
     @property
     def paid_amount(self):
@@ -302,6 +332,31 @@ class OrderItem(Base):
     notes = Column(Text, nullable=True)
 
     order = relationship("Order", back_populates="items")
+    deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan")
+
+    @property
+    def order_qty_normalized(self):
+        """Buyurtmadagi miqdor — profil uchun metr, qolganlarga dona."""
+        cat = (self.category or '').lower()
+        if cat == 'profil':
+            return float(self.length or 0)
+        return float(self.quantity or 0)
+
+    @property
+    def delivery_unit(self):
+        """O'lchov birligi."""
+        cat = (self.category or '').lower()
+        return 'metr' if cat == 'profil' else 'dona'
+
+    @property
+    def delivered_qty(self):
+        """Jami yetkazilgan miqdor."""
+        return sum(float(d.quantity or 0) for d in (self.deliveries or []))
+
+    @property
+    def remaining_qty(self):
+        """Qolgan miqdor."""
+        return max(self.order_qty_normalized - self.delivered_qty, 0)
 
     def __repr__(self):
         return f"<OrderItem {self.name} x{self.quantity}>"
@@ -336,7 +391,49 @@ class ReturnItem(Base):
 
 
 # ============================================================
-# 9. PAYMENT — To'lovlar tarixi
+# 9. DELIVERY — Yetkazishlar (bosqichma-bosqich topshirish)
+# ============================================================
+
+class Delivery(Base):
+    """Buyurtma bo'yicha bir marta yetkazish (bir mashina / bir borish)."""
+    __tablename__ = "deliveries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+
+    delivery_number = Column(String(30), index=True)   # ORD-010-1/Y-2
+    delivered_at = Column(DateTime, default=datetime.utcnow)
+    delivered_by = Column(String(100), nullable=True)  # Kim topshirdi
+    received_by = Column(String(100), nullable=True)   # Kim qabul qildi
+    notes = Column(Text, nullable=True)
+
+    order = relationship("Order", back_populates="deliveries")
+    items = relationship("DeliveryItem", back_populates="delivery", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Delivery {self.delivery_number}>"
+
+
+class DeliveryItem(Base):
+    """Yetkazishdagi bitta detal miqdori."""
+    __tablename__ = "delivery_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    delivery_id = Column(Integer, ForeignKey("deliveries.id"), nullable=False)
+    order_item_id = Column(Integer, ForeignKey("order_items.id"), nullable=False)
+
+    quantity = Column(Float, nullable=False)   # Shu safar berilgan miqdor
+    unit = Column(String(20), default="dona")  # metr / dona
+
+    delivery = relationship("Delivery", back_populates="items")
+    order_item = relationship("OrderItem", back_populates="deliveries")
+
+    def __repr__(self):
+        return f"<DeliveryItem {self.quantity}>"
+
+
+# ============================================================
+# 10. PAYMENT — To'lovlar tarixi
 # ============================================================
 
 class Payment(Base):
@@ -362,7 +459,7 @@ class Payment(Base):
 
 
 # ============================================================
-# 10. MONTHLY EXPENSE — Oylik xarajatlar
+# 11. MONTHLY EXPENSE — Oylik xarajatlar
 # ============================================================
 
 class MonthlyExpense(Base):
