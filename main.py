@@ -80,6 +80,21 @@ def _migrate_payment_columns():
         if 'closed_at' not in cols:
             migrations.append("ALTER TABLE orders ADD COLUMN closed_at TIMESTAMP")
 
+        # FinishedProduct — production status va loy ustunlari
+        if 'finished_products' in inspector.get_table_names():
+            fp_cols = [c['name'] for c in inspector.get_columns('finished_products')]
+            if 'planned_loy_kg' not in fp_cols:
+                migrations.append("ALTER TABLE finished_products ADD COLUMN planned_loy_kg FLOAT DEFAULT 0")
+            if 'actual_loy_kg' not in fp_cols:
+                migrations.append("ALTER TABLE finished_products ADD COLUMN actual_loy_kg FLOAT")
+            if 'production_status' not in fp_cols:
+                migrations.append("ALTER TABLE finished_products ADD COLUMN production_status VARCHAR(20) DEFAULT 'READY'")
+            if 'finished_production_at' not in fp_cols:
+                migrations.append("ALTER TABLE finished_products ADD COLUMN finished_production_at TIMESTAMP")
+            # Eski loy_kg ustuni bo'lsa — planned_loy_kg ga ko'chiramiz
+            if 'loy_kg' in fp_cols and 'planned_loy_kg' in fp_cols:
+                migrations.append("UPDATE finished_products SET planned_loy_kg = loy_kg WHERE planned_loy_kg = 0 AND loy_kg > 0")
+
         # Inventory — penoplast ustunlari
         inv_cols = [c['name'] for c in inspector.get_columns('inventory')]
         if 'is_penoplast' not in inv_cols:
@@ -120,6 +135,8 @@ def _migrate_payment_columns():
             ("paymentmethod", "TRANSFER"),
             ("stocksource", "PRODUCED"),
             ("stocksource", "RETURNED"),
+            ("productionstatus", "IN_PROGRESS"),
+            ("productionstatus", "READY"),
         ]
         for enum_name, value in enum_additions:
             try:
@@ -1110,7 +1127,10 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "from_order_number": fp.from_order.order_number if fp.from_order else None,
         "return_reason": fp.return_reason,
         "volume_m3": float(fp.volume_m3 or 0),
-        "loy_kg": float(fp.loy_kg or 0),
+        "planned_loy_kg": float(fp.planned_loy_kg or 0),
+        "actual_loy_kg": float(fp.actual_loy_kg) if fp.actual_loy_kg is not None else None,
+        "production_status": fp.production_status.value if fp.production_status else None,
+        "recipe_id": fp.recipe_id,
         "created_at": fp.created_at.isoformat() if fp.created_at else None,
         "created_by": fp.created_by,
         "notes": fp.notes,
@@ -1142,6 +1162,31 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTayyor mahsulot ishlab chiqarilgandan keyin:\n\n"
+               + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
+               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
+        _send_telegram(msg)
+
+    return result
+
+
+@app.post("/api/finished/{fp_id}/complete")
+def api_complete_production(fp_id: int, data: schemas.ProduceComplete,
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Ishlab chiqarishni yakunlash — haqiqiy loy sarfi bilan."""
+    result = crud.complete_production(db, fp_id, data.actual_loy_kg)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+
+    # Ombor ogohlantirishi
+    low_items = crud.get_low_stock_items(db)
+    if low_items:
+        lines = []
+        for item in low_items:
+            qty = float(item.stock_quantity)
+            min_q = float(item.min_stock)
+            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
+        msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nIshlab chiqarish yakunlangandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
         _send_telegram(msg)
@@ -1280,6 +1325,12 @@ def api_delete_delivery(delivery_id: int, db: Session = Depends(get_db), current
     if not crud.delete_delivery(db, delivery_id):
         raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
     return {"status": "ok"}
+
+
+@app.get("/api/loy-cost")
+def api_loy_cost(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """1 kg loyning tan narxi (retsept bo'yicha)."""
+    return services.get_loy_cost_per_kg(db, recipe_id)
 
 
 @app.get("/api/loy-stock")
