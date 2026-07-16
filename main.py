@@ -1160,7 +1160,37 @@ async def health():
 async def returns_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     returns = crud.get_return_items(db)
     orders  = crud.get_orders(db)
-    return templates.TemplateResponse(request, "returns.html", {"returns": returns, "orders": orders, "current_user": current_user})
+    projects = crud.get_projects(db)
+    return templates.TemplateResponse(request, "returns.html", {
+        "returns": returns, "orders": orders, "projects": projects,
+        "current_user": current_user
+    })
+
+
+@app.get("/api/projects/{project_id}/items")
+def api_get_project_items(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Loyihadagi barcha buyurtmalar detallari — brak yozish uchun (narxsiz)."""
+    from models import Order, OrderStatus
+
+    orders = db.query(Order).filter(
+        Order.project_id == project_id,
+        Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED])
+    ).order_by(Order.created_at.desc()).all()
+
+    items = []
+    for o in orders:
+        for i in o.items:
+            items.append({
+                "order_id": o.id,
+                "order_number": o.order_number,
+                "item_id": i.id,
+                "name": i.name,
+                "category": i.category,
+                "is_coated": i.is_coated,
+                "order_qty_normalized": i.order_qty_normalized,
+                "delivery_unit": i.delivery_unit
+            })
+    return {"items": items}
 
 
 @app.post("/api/returns")
