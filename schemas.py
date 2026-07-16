@@ -185,6 +185,7 @@ class OrderItemCreate(BaseModel):
     unit_price: float = Field(default=0, ge=0)
     penoplast_id: Optional[int] = None
     price_per_m3: Optional[float] = None
+    finished_product_id: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -214,8 +215,60 @@ class OrderItemRead(BaseModel):
     penoplast_id: Optional[int] = None
     penoplast_name: Optional[str] = None
     price_per_m3: Optional[float] = None
+    finished_product_id: Optional[int] = None
     notes: Optional[str] = None
     model_config = {"from_attributes": True}
+
+
+# ============================================================
+# FINISHED PRODUCT (Tayyor mahsulotlar)
+# ============================================================
+
+class ProduceCreate(BaseModel):
+    """Tayyor mahsulot ishlab chiqarish."""
+    name: str = Field(..., min_length=2, max_length=150)
+    category: str = Field(default="profil", description="profil / panel / dona")
+    width: Optional[float] = None
+    thickness: Optional[float] = None
+    length: Optional[float] = None      # profil uchun — necha metr
+    quantity: Optional[float] = None    # panel/dona uchun — necha dona
+    is_coated: bool = True
+    penoplast_id: Optional[int] = None
+    price_per_m3: Optional[float] = None
+    unit_price: float = Field(default=0, ge=0, description="Sotuv narxi (1 metr / 1 dona)")
+    unit_price_for_volume: Optional[float] = Field(default=None, description="Dona uchun: 1 dona tan narxi (hajm hisobi)")
+    loy_kg: float = Field(default=0, ge=0)
+    recipe_id: Optional[int] = None
+    notes: Optional[str] = None
+
+
+class FinishedProductRead(BaseModel):
+    id: int
+    name: str
+    category: Optional[str] = None
+    width: Optional[float] = None
+    thickness: Optional[float] = None
+    is_coated: bool = True
+    quantity: float
+    unit: str
+    unit_price: float
+    cost_price: Optional[float] = 0
+    source: str
+    from_order_id: Optional[int] = None
+    return_reason: Optional[str] = None
+    volume_m3: Optional[float] = 0
+    loy_kg: Optional[float] = 0
+    created_at: datetime
+    created_by: Optional[str] = None
+    notes: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+class FinishedProductUpdate(BaseModel):
+    name: Optional[str] = None
+    quantity: Optional[float] = None
+    unit_price: Optional[float] = None
+    notes: Optional[str] = None
 
 
 # ============================================================
@@ -329,6 +382,8 @@ class ReturnItemCreate(BaseModel):
     unit: str = "dona"
     reason: str
     refund_amount: float = 0
+    to_stock: bool = Field(default=True, description="Tayyor mahsulotlar omboriga qo'shilsinmi")
+    order_item_id: Optional[int] = None
     notes: Optional[str] = None
 
 class ReturnItemRead(BaseModel):
