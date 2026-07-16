@@ -348,6 +348,47 @@ class DeliveryRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class EmployeeCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100)
+    position: Optional[str] = None
+    pay_type: str = Field(..., description="fixed/percent_sales/percent_profit/per_unit")
+    fixed_amount: float = Field(default=0, ge=0)
+    percent_value: float = Field(default=0, ge=0, le=100)
+    per_unit_rate: float = Field(default=0, ge=0)
+    per_unit_type: str = Field(default="blok", description="blok/metr/dona")
+    notes: Optional[str] = None
+
+
+class EmployeeUpdate(BaseModel):
+    name: Optional[str] = None
+    position: Optional[str] = None
+    pay_type: Optional[str] = None
+    fixed_amount: Optional[float] = None
+    percent_value: Optional[float] = None
+    per_unit_rate: Optional[float] = None
+    per_unit_type: Optional[str] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class EmployeeRead(BaseModel):
+    id: int
+    name: str
+    position: Optional[str] = None
+    pay_type: str
+    fixed_amount: float
+    percent_value: float
+    per_unit_rate: float
+    per_unit_type: str
+    is_active: bool
+    notes: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+class MasterKpiUpdate(BaseModel):
+    kpi_percent: float = Field(..., ge=0, le=100)
+
+
 class TransportExpenseCreate(BaseModel):
     """Kirish transporti — xomashyo olib kelish xarajati."""
     amount: float = Field(..., gt=0)
