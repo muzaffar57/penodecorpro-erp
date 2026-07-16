@@ -132,6 +132,10 @@
           <label>Eni (sm)</label>
           <input type="number" id="p-w" step="0.1" oninput="pCalc()">
         </div>
+        <div class="form-group" id="p-w2-wrap" style="margin:0;display:none">
+          <label>Kengligi (sm)</label>
+          <input type="number" id="p-w2" step="0.1" oninput="pCalc()">
+        </div>
         <div class="form-group" style="margin:0" id="p-t-wrap">
           <label id="p-t-label">Kengligi (sm)</label>
           <input type="number" id="p-t" step="0.1" oninput="pCalc()">
@@ -301,14 +305,25 @@ function renderFp(filter) {
   list.innerHTML = html;
 }
 
+function fpWidth2(i) {
+  // Panel uchun kenglik notes da: width2=100
+  const m = (i.notes || '').match(/width2=([\d.]+)/);
+  return m ? parseFloat(m[1]) : null;
+}
+
 function rowHtml(i) {
   const isRet = i.source === 'returned';
-  const dims = (i.width && i.thickness) ? `${i.width}×${i.thickness} sm` : '';
+  const w2 = fpWidth2(i);
+  const dims = (i.width && i.thickness)
+    ? (w2 ? `${i.width}×${w2}×${i.thickness} sm` : `${i.width}×${i.thickness} sm`)
+    : '';
   const meta = [];
   if (dims) meta.push(dims);
   meta.push(i.is_coated ? 'qoplamali' : 'qoplamasiz');
   if (isRet && i.from_order_number) meta.push(`${i.from_order_number} dan`);
   if (isRet && i.return_reason) meta.push(i.return_reason);
+  const cleanNote = (i.notes || '').replace(/·?\s*width2=[\d.]+/g, '').trim().replace(/^·\s*/, '');
+  if (cleanNote) meta.push(cleanNote);
 
   const low = i.quantity <= 0;
 
@@ -402,7 +417,7 @@ async function delFp(id, source) {
 // ── Ishlab chiqarish ──────────────────────────────────────
 function openProduceModal() {
   document.getElementById('prodModal').style.display = 'flex';
-  ['p-name','p-w','p-t','p-len','p-qty','p-unitcost','p-loy','p-price','p-notes'].forEach(id => {
+  ['p-name','p-w','p-w2','p-t','p-len','p-qty','p-unitcost','p-loy','p-price','p-notes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -422,10 +437,13 @@ function pToggle() {
   const isPanel = t === 'panel';
 
   document.getElementById('p-dims').style.display = isDona ? 'none' : 'flex';
+  // Panel — 3 o'lcham: eni, kengligi, qalinligi
+  document.getElementById('p-w2-wrap').style.display = isPanel ? 'block' : 'none';
+  document.getElementById('p-t-wrap').style.display = isDona ? 'none' : 'block';
   document.getElementById('p-len-wrap').style.display = (t === 'profil') ? 'block' : 'none';
   document.getElementById('p-qty-wrap').style.display = (t === 'profil') ? 'none' : 'block';
   document.getElementById('p-unitcost-wrap').style.display = isDona ? 'block' : 'none';
-  document.getElementById('p-t-label').textContent = isPanel ? 'Qalinlik (sm)' : 'Kengligi (sm)';
+  document.getElementById('p-t-label').textContent = isPanel ? 'Qalinligi (sm)' : 'Kengligi (sm)';
   document.getElementById('p-unit-label').textContent = (t === 'profil') ? 'metr' : 'dona';
 }
 
@@ -446,6 +464,7 @@ function pCalc() {
     vol = (w/100) * (th/100) / 2 * len;
     count = len;
   } else if (t === 'panel') {
+    // Buyurtmadagiday: eni × qalinlik × miqdor
     vol = (w/100) * (th/100) * qty;
     count = qty;
     unit = 'dona';
@@ -512,6 +531,14 @@ async function saveProduce() {
     recipe_id: parseInt(document.getElementById('p-recipe').value) || null,
     notes: document.getElementById('p-notes').value.trim() || null
   };
+
+  // Panel — kenglikni saqlaymiz (buyurtmadagiday notes ga)
+  if (t === 'panel') {
+    const w2 = parseFloat(document.getElementById('p-w2').value) || 0;
+    if (w2 > 0) {
+      data.notes = (data.notes ? data.notes + ' · ' : '') + `width2=${w2}`;
+    }
+  }
 
   // Dona uchun unit_price maydoni tan narxini hisoblashda ishlatiladi
   if (t === 'dona') {
