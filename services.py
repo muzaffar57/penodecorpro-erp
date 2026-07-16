@@ -882,7 +882,12 @@ def get_default_penoplast(db: Session):
 
 
 def _item_volume_m3(db, item, default_penoplast=None) -> float:
-    """Bitta detalning hajmini (m³) hisoblaydi."""
+    """Bitta detalning hajmini (m³) hisoblaydi.
+
+    Donali mahsulot uchun:
+        hajm = (1 dona narxi ÷ 1 m³ sotuv narxi) × miqdor
+    unit_price — QOPLAMASIZ narx (qoplama hajmga ta'sir qilmaydi).
+    """
     from models import Inventory
 
     cat = (item.category or '').lower()
@@ -890,17 +895,31 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
 
     if cat == 'profil':
         if item.width and item.thickness and item.length:
-            return (item.width/100) * (item.thickness/100) / 2 * item.length
+            return (item.width/100) * (item.thickness/100) / 2 * float(item.length)
     elif cat == 'panel':
         if item.width and item.thickness:
             return (item.width/100) * (item.thickness/100) * qty
     elif cat == 'dona':
-        if item.unit_price and float(item.unit_price) > 0:
-            # Shu detalning plotnosti
+        unit_price = float(item.unit_price or 0)
+        if unit_price <= 0:
+            return 0.0
+
+        # 1 m³ sotuv narxi — detalda saqlangan bo'lsa shuni olamiz
+        price_m3 = float(getattr(item, 'price_per_m3', None) or 0)
+
+        # Bo'lmasa — buyurtmadagi boshqa detallardan, oxirida penoplast tan narxidan
+        if price_m3 <= 0:
             pid = getattr(item, 'penoplast_id', None)
             p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast
-            if p and p.price_per_unit:
-                return float(item.unit_price) / float(p.price_per_unit) * qty
+            if p and p.price_per_unit and p.volume_per_unit:
+                # Tan narxi: blok narxi ÷ blok hajmi = 1 m³ tan narxi
+                price_m3 = float(p.price_per_unit) / float(p.volume_per_unit)
+
+        if price_m3 <= 0:
+            return 0.0
+
+        return (unit_price / price_m3) * qty
+
     return 0.0
 
 
