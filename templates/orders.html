@@ -13,6 +13,21 @@
 <style>
 .ord-layout{display:grid;grid-template-columns:300px 1fr 280px;gap:12px;height:calc(100vh - 90px);overflow:hidden}
 .ord-list{overflow-y:auto;flex:1}
+/* Loyiha guruhlari */
+.proj-group{border-bottom:1px solid #f0f0f0}
+.proj-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;transition:background .15s;user-select:none}
+.proj-head:hover{background:#fafaf8}
+.proj-group.open .proj-head{background:#FDF8F0}
+.proj-arrow{font-size:9px;color:#aaa;transition:transform .2s;flex-shrink:0;width:10px}
+.proj-group.open .proj-arrow{transform:rotate(90deg);color:#C9A55A}
+.proj-name{font-size:12.5px;font-weight:600;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-client{font-size:10.5px;color:#aaa;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-count{font-size:10.5px;color:#888;font-weight:500;white-space:nowrap}
+.proj-debt{font-size:10px;color:#C0392B;font-weight:600;margin-top:2px;white-space:nowrap}
+.proj-paid{font-size:10px;color:#27AE60;font-weight:600;margin-top:2px;white-space:nowrap}
+.proj-body{background:#FCFCFB;border-top:1px solid #f5f5f5}
+.proj-body .ord-item{padding-left:24px}
+.proj-body .ord-item:last-child{border-bottom:none}
 .step-btn2{width:30px;height:30px;border-radius:7px;border:1.5px solid #e5e5e5;background:#fff;font-size:16px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
 .step-btn2:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
 .dlv-inp:focus{border-color:#C9A55A !important}
@@ -67,48 +82,76 @@
              style="padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:11px;width:100px;outline:none">
     </div>
     <div class="ord-list">
-      {% if orders %}
-        {% for o in orders %}
-        <div class="ord-item {% if loop.first %}active{% endif %}"
-             id="oi-{{ o.id }}" onclick="selectOrder({{ o.id }}, this)"
-             data-num="{{ o.order_number }}"
-             data-client="{{ o.project.client_name if o.project else '—' }}"
-             data-project="{{ o.project.project_name if o.project else '—' }}"
-             data-status="{{ o.status.value }}"
-             data-total="{{ o.total_amount }}"
-             data-master="{{ o.master.name if o.master else '—' }}"
-             data-date="{{ o.created_at.strftime('%d.%m.%Y') }}"
-             data-order-id="{{ o.id }}">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="ord-num">{{ o.order_number }}</div>
-            {% if o.status.value == 'draft' %}<span class="badge" style="font-size:9px;background:#F0F0F0;color:#666">📝 Qoralama</span>
-            {% elif o.status.value == 'ready' %}<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>
-            {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>
-            {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
-          </div>
-          <div class="ord-client">{{ o.project.client_name if o.project else '—' }}</div>
-          <div class="ord-date">{{ o.project.project_name if o.project else '' }} · {{ o.created_at.strftime('%d.%m.%Y') }}</div>
-          {% set debt = o.debt_amount %}
-          {% set dpct = o.delivery_percent %}
-          {% if dpct > 0 and dpct < 100 %}
-          <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
-            <div style="flex:1;height:3px;background:#f0f0f0;border-radius:2px;overflow:hidden">
-              <div style="height:100%;width:{{ dpct }}%;background:#E67E22;border-radius:2px"></div>
+      {% if grouped %}
+        {% for g in grouped %}
+        <div class="proj-group" data-project-id="{{ g.project_id }}">
+          <!-- Loyiha sarlavhasi -->
+          <div class="proj-head" onclick="toggleProject({{ g.project_id }})">
+            <div style="display:flex;align-items:center;gap:7px;min-width:0">
+              <span class="proj-arrow" id="pa-{{ g.project_id }}">▶</span>
+              <div style="min-width:0;flex:1">
+                <div class="proj-name">{{ g.project_name }}</div>
+                <div class="proj-client">{{ g.client_name }}</div>
+              </div>
             </div>
-            <span style="font-size:9px;color:#E67E22;font-weight:600">📦 {{ dpct }}%</span>
+            <div style="text-align:right;flex-shrink:0">
+              <div class="proj-count">
+                {{ g.orders|length }} ta{% if g.active %} · <span style="color:#E67E22">{{ g.active }} faol</span>{% endif %}
+              </div>
+              {% if g.debt > 0 %}
+              <div class="proj-debt">🔴 {{ "{:,.0f}".format(g.debt/1000000).replace(",", " ") }} mln</div>
+              {% elif g.total > 0 %}
+              <div class="proj-paid">✅ To'langan</div>
+              {% endif %}
+            </div>
           </div>
-          {% elif dpct >= 100 %}
-          <div style="margin-top:5px;font-size:10px;color:#27AE60;font-weight:600">📦 To'liq topshirildi</div>
-          {% endif %}
-          {% if debt > 0 %}
-          <div style="margin-top:3px;font-size:10px;color:#C0392B;font-weight:600">
-            🔴 Qarz: {{ "{:,.0f}".format(debt).replace(",", " ") }} so'm
+
+          <!-- Buyurtmalar -->
+          <div class="proj-body" id="pb-{{ g.project_id }}" style="display:none">
+          {% for o in g.orders %}
+            <div class="ord-item"
+                 id="oi-{{ o.id }}" onclick="selectOrder({{ o.id }}, this)"
+                 data-num="{{ o.order_number }}"
+                 data-client="{{ o.project.client_name if o.project else '—' }}"
+                 data-project="{{ o.project.project_name if o.project else '—' }}"
+                 data-status="{{ o.status.value }}"
+                 data-total="{{ o.total_amount }}"
+                 data-master="{{ o.master.name if o.master else '—' }}"
+                 data-date="{{ o.created_at.strftime('%d.%m.%Y') }}"
+                 data-project-id="{{ g.project_id }}"
+                 data-order-id="{{ o.id }}">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div class="ord-num">{{ o.order_number }}</div>
+                {% if o.status.value == 'draft' %}<span class="badge" style="font-size:9px;background:#F0F0F0;color:#666">📝 Qoralama</span>
+                {% elif o.status.value == 'ready' %}<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>
+                {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>
+                {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
+              </div>
+              <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.agreed_amount or o.total_amount or 0).replace(",", " ") }} so'm</div>
+              {% set debt = o.debt_amount %}
+              {% set dpct = o.delivery_percent %}
+              {% if dpct > 0 and dpct < 100 %}
+              <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
+                <div style="flex:1;height:3px;background:#f0f0f0;border-radius:2px;overflow:hidden">
+                  <div style="height:100%;width:{{ dpct }}%;background:#E67E22;border-radius:2px"></div>
+                </div>
+                <span style="font-size:9px;color:#E67E22;font-weight:600">📦 {{ dpct }}%</span>
+              </div>
+              {% elif dpct >= 100 %}
+              <div style="margin-top:5px;font-size:10px;color:#27AE60;font-weight:600">📦 To'liq topshirildi</div>
+              {% endif %}
+              {% if debt > 0 %}
+              <div style="margin-top:3px;font-size:10px;color:#C0392B;font-weight:600">
+                🔴 Qarz: {{ "{:,.0f}".format(debt).replace(",", " ") }} so'm
+              </div>
+              {% elif o.payment_status and o.payment_status.value == 'paid' %}
+              <div style="margin-top:3px;font-size:10px;color:#27AE60;font-weight:600">
+                ✅ To'liq to'langan
+              </div>
+              {% endif %}
+            </div>
+          {% endfor %}
           </div>
-          {% elif o.payment_status and o.payment_status.value == 'paid' %}
-          <div style="margin-top:3px;font-size:10px;color:#27AE60;font-weight:600">
-            ✅ To'liq to'langan
-          </div>
-          {% endif %}
         </div>
         {% endfor %}
       {% else %}
@@ -294,7 +337,10 @@
           <div id="dlvItemList"></div>
 
           <!-- Tarix -->
-          <div style="font-size:12px;font-weight:600;color:#777;margin:14px 0 6px">Topshirishlar tarixi</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px">
+            <span style="font-size:12px;font-weight:600;color:#777">Topshirishlar tarixi</span>
+            <span id="dlv-hist-count" style="font-size:11px;color:#aaa"></span>
+          </div>
           <div id="dlvHistory"></div>
         </div>
       </div>
@@ -471,6 +517,7 @@
         <div style="display:flex;gap:6px">
           <button class="btn btn-outline btn-sm" onclick="sumCheckAll(true)">Hammasi</button>
           <button class="btn btn-outline btn-sm" onclick="sumCheckAll(false)">Hech biri</button>
+          <button class="btn btn-outline btn-sm" onclick="sumCheckDays(30)" style="border-color:#2980B9;color:#2980B9">Oxirgi 30 kun</button>
         </div>
       </div>
 
@@ -627,9 +674,28 @@ function showMsg(text, type) {
 }
 
 // ── Buyurtma tanlash ──────────────────────────────────────
+// ── LOYIHA GURUHLARI ──────────────────────────────────────
+function toggleProject(pid) {
+  const g = document.querySelector(`.proj-group[data-project-id="${pid}"]`);
+  const body = document.getElementById('pb-' + pid);
+  if (!g || !body) return;
+  const open = g.classList.toggle('open');
+  body.style.display = open ? 'block' : 'none';
+  try { localStorage.setItem('proj_' + pid, open ? '1' : '0'); } catch(e) {}
+}
+
+function openProject(pid) {
+  const g = document.querySelector(`.proj-group[data-project-id="${pid}"]`);
+  const body = document.getElementById('pb-' + pid);
+  if (!g || !body) return;
+  g.classList.add('open');
+  body.style.display = 'block';
+}
+
 function selectOrder(id, el) {
   document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
+  try { localStorage.setItem('last_order', id); } catch(e) {}
   selectedOrderId = id;
   const d = el.dataset;
 
@@ -747,6 +813,10 @@ async function loadDeliveries(orderId) {
     const sbtn = document.getElementById('btn-summary');
     if (sbtn) sbtn.style.display = (d.deliveries?.length) ? '' : 'none';
 
+    // Tarix soni
+    const hc = document.getElementById('dlv-hist-count');
+    if (hc) hc.textContent = d.deliveries?.length ? `${d.deliveries.length} ta` : '';
+
     // Detallar
     const list = document.getElementById('dlvItemList');
     if (!d.items?.length) {
@@ -777,11 +847,30 @@ async function loadDeliveries(orderId) {
     }
 
     // Tarix
-    const hist = document.getElementById('dlvHistory');
-    if (!d.deliveries?.length) {
-      hist.innerHTML = '<div style="text-align:center;padding:12px;color:#bbb;font-size:12px">Hali topshirilmagan</div>';
-    } else {
-      hist.innerHTML = d.deliveries.map(dl => {
+    renderDeliveryHistory(false);
+  } catch(e) { console.error('Yetkazishlarni yuklashda xato:', e); }
+}
+
+let dlvHistoryExpanded = false;
+const DLV_HISTORY_LIMIT = 10;
+
+function renderDeliveryHistory(showAll) {
+  dlvHistoryExpanded = showAll;
+  const d = dlvData;
+  const hist = document.getElementById('dlvHistory');
+  if (!hist || !d) return;
+
+  if (!d.deliveries?.length) {
+    hist.innerHTML = '<div style="text-align:center;padding:12px;color:#bbb;font-size:12px">Hali topshirilmagan</div>';
+    return;
+  }
+
+  const all = d.deliveries;
+  const shown = showAll ? all : all.slice(0, DLV_HISTORY_LIMIT);
+  const hidden = all.length - shown.length;
+
+  {
+      hist.innerHTML = shown.map(dl => {
         const dt = new Date(dl.delivered_at);
         const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
         const items = dl.items.map(i => `${i.item_name}: <b>${i.quantity}${i.unit==='metr'?'m':' ta'}</b>`).join(' · ');
@@ -807,8 +896,26 @@ async function loadDeliveries(orderId) {
           </div>
         </div>`;
       }).join('');
-    }
-  } catch(e) { console.error('Yetkazishlarni yuklashda xato:', e); }
+
+      // "Yana ko'rsatish" tugmasi
+      if (hidden > 0) {
+        hist.innerHTML += `
+          <div style="text-align:center;padding:10px 0 2px">
+            <button onclick="renderDeliveryHistory(true)"
+                    style="background:#F5F5F5;border:none;border-radius:16px;padding:6px 16px;font-size:11.5px;color:#666;cursor:pointer;font-weight:500">
+              ▼ Yana ${hidden} ta yuk xatini ko'rsatish
+            </button>
+          </div>`;
+      } else if (showAll && all.length > DLV_HISTORY_LIMIT) {
+        hist.innerHTML += `
+          <div style="text-align:center;padding:10px 0 2px">
+            <button onclick="renderDeliveryHistory(false)"
+                    style="background:#F5F5F5;border:none;border-radius:16px;padding:6px 16px;font-size:11.5px;color:#666;cursor:pointer;font-weight:500">
+              ▲ Yig'ish
+            </button>
+          </div>`;
+      }
+  }
 }
 
 // ── HISOB-KITOB VARAQASI ──────────────────────────────────
@@ -833,7 +940,7 @@ function openSummaryModal() {
     return `
     <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">
       <input type="checkbox" class="sum-chk" value="${d.id}" data-sum="${d.total_sum || 0}"
-             checked onchange="updateSumTotal()"
+             data-ts="${dt.getTime()}" checked onchange="updateSumTotal()"
              style="width:17px;height:17px;cursor:pointer;margin-top:2px;flex-shrink:0">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:7px">
@@ -859,6 +966,15 @@ function closeSummaryModal() {
 
 function sumCheckAll(state) {
   document.querySelectorAll('.sum-chk').forEach(c => c.checked = state);
+  updateSumTotal();
+}
+
+function sumCheckDays(days) {
+  const limit = Date.now() - days * 86400000;
+  document.querySelectorAll('.sum-chk').forEach(c => {
+    const t = parseInt(c.dataset.ts) || 0;
+    c.checked = t >= limit;
+  });
   updateSumTotal();
 }
 
@@ -2125,17 +2241,55 @@ async function markAllReady() {
 
 // ── Qidiruv ───────────────────────────────────────────────
 function searchOrders(q) {
-  q = q.toLowerCase();
-  document.querySelectorAll('.ord-item').forEach(el => {
-    const txt = (el.dataset.num + el.dataset.client + el.dataset.project).toLowerCase();
-    el.style.display = txt.includes(q) ? '' : 'none';
+  const query = (q || '').trim().toLowerCase();
+
+  document.querySelectorAll('.proj-group').forEach(g => {
+    const pid = g.dataset.projectId;
+    const body = document.getElementById('pb-' + pid);
+    const head = g.querySelector('.proj-head');
+    const pname = (g.querySelector('.proj-name')?.textContent || '').toLowerCase();
+    const pclient = (g.querySelector('.proj-client')?.textContent || '').toLowerCase();
+    const projMatch = !query || pname.includes(query) || pclient.includes(query);
+
+    let visible = 0;
+    g.querySelectorAll('.ord-item').forEach(el => {
+      const txt = ((el.dataset.num||'') + (el.dataset.client||'') + (el.dataset.project||'')).toLowerCase();
+      const show = !query || projMatch || txt.includes(query);
+      el.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    if (!query) {
+      // Qidiruv bo'sh — hammasi ko'rinadi, ochiq holat saqlanadi
+      g.style.display = '';
+      if (body && !g.classList.contains('open')) body.style.display = 'none';
+    } else if (visible > 0) {
+      g.style.display = '';
+      g.classList.add('open');
+      if (body) body.style.display = 'block';
+    } else {
+      g.style.display = 'none';
+    }
   });
 }
 
-// ── Birinchi buyurtmani tanlash ───────────────────────────
+// ── Sahifa yuklanganda ────────────────────────────────────
 window.addEventListener('load', () => {
-  const first = document.querySelector('.ord-item');
-  if (first) first.click();
+  // Oxirgi tanlangan buyurtmani tiklaymiz
+  let lastId = null;
+  try { lastId = localStorage.getItem('last_order'); } catch(e) {}
+
+  let target = lastId ? document.getElementById('oi-' + lastId) : null;
+  if (!target) {
+    // Topilmasa — birinchi guruhning birinchi buyurtmasi
+    target = document.querySelector('.ord-item');
+  }
+  if (target) {
+    const pid = target.dataset.projectId;
+    if (pid) openProject(pid);
+    target.click();
+    setTimeout(()=>target.scrollIntoView({block:'nearest'}), 100);
+  }
 });
 </script>
 {% endblock %}
