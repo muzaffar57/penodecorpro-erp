@@ -845,7 +845,10 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "penoplast_id": i.penoplast_id,
             "penoplast_name": i.penoplast.item_name if i.penoplast else None,
             "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
-            "notes": i.notes
+            "notes": i.notes,
+            "order_qty_normalized": i.order_qty_normalized,
+            "delivery_unit": i.delivery_unit,
+            "price_per_unit_final": round(float(i.total_price or 0) / i.order_qty_normalized) if i.order_qty_normalized else 0
         } for i in order.items],
         "payments": [{
             "id": p.id,
