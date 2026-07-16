@@ -273,6 +273,8 @@
           <h3>📦 Yetkazish</h3>
           <div style="display:flex;align-items:center;gap:8px">
             <span id="dlv-pct-badge" style="font-size:11px;font-weight:600"></span>
+            <button class="btn btn-outline btn-sm" id="btn-summary" onclick="openSummaryModal()"
+                    style="display:none;border-color:#2980B9;color:#2980B9">🧾 Hisob-kitob</button>
             <button class="btn btn-dark btn-sm" id="btn-new-delivery" onclick="openDeliveryModal()">+ Mahsulot topshirish</button>
           </div>
         </div>
@@ -450,6 +452,42 @@
 
   </div>
 </div>
+</div>
+
+<!-- ══ HISOB-KITOB MODALI ══ -->
+<div id="sumModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:720px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1a1a1a">🧾 Hisob-kitob varaqasi</div>
+        <div style="font-size:12px;color:#aaa;margin-top:2px" id="sum-modal-sub">—</div>
+      </div>
+      <button onclick="closeSummaryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+
+    <div style="padding:12px 22px;overflow-y:auto;flex:1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:12px;color:#777">Qaysi yuk xatlari kirsin?</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm" onclick="sumCheckAll(true)">Hammasi</button>
+          <button class="btn btn-outline btn-sm" onclick="sumCheckAll(false)">Hech biri</button>
+        </div>
+      </div>
+
+      <div id="sumList"></div>
+    </div>
+
+    <div style="padding:12px 22px 18px;border-top:1px solid #f0f0f0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#FAFAF8;border-radius:8px;margin-bottom:10px">
+        <span style="font-size:13px;color:#555;font-weight:600">Tanlangan jami:</span>
+        <span id="sum-total" style="font-size:16px;font-weight:800;color:#C9A55A">0 so'm</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" style="flex:1" onclick="closeSummaryModal()">Bekor</button>
+        <button class="btn btn-dark" style="flex:2" onclick="openSummaryPdf()">📄 Hisob-kitob PDF olish</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ══ YETKAZISH MODALI ══ -->
@@ -705,6 +743,10 @@ async function loadDeliveries(orderId) {
     const btn = document.getElementById('btn-new-delivery');
     if (btn) btn.style.display = d.is_fully_delivered ? 'none' : '';
 
+    // Hisob-kitob tugmasi — kamida 1 ta yuk xati bo'lsa
+    const sbtn = document.getElementById('btn-summary');
+    if (sbtn) sbtn.style.display = (d.deliveries?.length) ? '' : 'none';
+
     // Detallar
     const list = document.getElementById('dlvItemList');
     if (!d.items?.length) {
@@ -746,7 +788,10 @@ async function loadDeliveries(orderId) {
         return `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f0f0f0;gap:8px">
           <div style="flex:1;min-width:0">
-            <div style="font-size:12px;font-weight:600;color:#1a1a1a">${dl.delivery_number}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;font-weight:600;color:#1a1a1a">${dl.delivery_number}</span>
+              ${dl.total_sum ? `<span style="font-size:11px;font-weight:700;color:#8B6914">${formatNum(dl.total_sum)} so'm</span>` : ''}
+            </div>
             <div style="font-size:11px;color:#666;margin-top:3px;line-height:1.5">${items}</div>
             <div style="font-size:10px;color:#aaa;margin-top:2px">
               ${ds}${dl.received_by ? ' · qabul: '+dl.received_by : ''}${dl.notes ? ' · '+dl.notes : ''}
@@ -764,6 +809,79 @@ async function loadDeliveries(orderId) {
       }).join('');
     }
   } catch(e) { console.error('Yetkazishlarni yuklashda xato:', e); }
+}
+
+// ── HISOB-KITOB VARAQASI ──────────────────────────────────
+function openSummaryModal() {
+  if (!dlvData || !dlvData.deliveries?.length) {
+    showMsg('Hali yuk xati yo\'q', 'error');
+    return;
+  }
+
+  document.getElementById('sum-modal-sub').textContent =
+    `${dlvData.order_number} · ${dlvData.client_name || '—'} · ${dlvData.deliveries.length} ta yuk xati`;
+
+  // Eskidan yangiga tartib (Y-1, Y-2, ...)
+  const sorted = [...dlvData.deliveries].sort((a,b) =>
+    new Date(a.delivered_at) - new Date(b.delivered_at));
+
+  document.getElementById('sumList').innerHTML = sorted.map(d => {
+    const dt = new Date(d.delivered_at);
+    const ds = dt.toLocaleDateString('uz');
+    const items = d.items.map(i =>
+      `${i.item_name} — ${i.quantity}${i.unit==='metr'?'m':' ta'}`).join(' · ');
+    return `
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">
+      <input type="checkbox" class="sum-chk" value="${d.id}" data-sum="${d.total_sum || 0}"
+             checked onchange="updateSumTotal()"
+             style="width:17px;height:17px;cursor:pointer;margin-top:2px;flex-shrink:0">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px">
+          <span style="font-size:13px;font-weight:700;color:#C9A55A">${d.short_number}</span>
+          <span style="font-size:11px;color:#888">${ds}</span>
+          ${d.received_by ? `<span style="font-size:10px;color:#aaa">· ${d.received_by}</span>` : ''}
+        </div>
+        <div style="font-size:11px;color:#666;margin-top:3px;line-height:1.5">${items}</div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:#1a1a1a;white-space:nowrap;flex-shrink:0">
+        ${formatNum(d.total_sum || 0)}
+      </div>
+    </label>`;
+  }).join('');
+
+  updateSumTotal();
+  document.getElementById('sumModal').style.display = 'flex';
+}
+
+function closeSummaryModal() {
+  document.getElementById('sumModal').style.display = 'none';
+}
+
+function sumCheckAll(state) {
+  document.querySelectorAll('.sum-chk').forEach(c => c.checked = state);
+  updateSumTotal();
+}
+
+function updateSumTotal() {
+  let total = 0, n = 0;
+  document.querySelectorAll('.sum-chk:checked').forEach(c => {
+    total += parseFloat(c.dataset.sum) || 0;
+    n++;
+  });
+  document.getElementById('sum-total').textContent = formatNum(total) + " so'm";
+  const btn = document.querySelector('#sumModal .btn-dark');
+  if (btn) {
+    btn.disabled = n === 0;
+    btn.style.opacity = n === 0 ? '.4' : '1';
+    btn.textContent = n === 0 ? '📄 Yuk xati tanlang' : `📄 Hisob-kitob PDF olish (${n} ta)`;
+  }
+}
+
+function openSummaryPdf() {
+  const ids = [...document.querySelectorAll('.sum-chk:checked')].map(c => c.value);
+  if (!ids.length) return;
+  window.open(`/api/orders/${selectedOrderId}/summary-pdf?ids=${ids.join(',')}`, '_blank');
+  closeSummaryModal();
 }
 
 function openDeliveryModal() {
