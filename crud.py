@@ -136,7 +136,8 @@ def get_item_by_name(db: Session, name: str) -> Optional[Inventory]:
 
 def update_stock(db: Session, item_id: int, quantity_change: float) -> Optional[Inventory]:
     """Mahsulot qoldig'ini yangilaydi (musbat = qo'shish, manfiy = ayirish).
-    Keyinchalik buyurtma bajarilganda avtomatik ishlatiladi."""
+    Narxsiz oddiy tuzatish uchun (masalan inventarizatsiya). Xarid uchun
+    purchase_stock() dan foydalaning — u narxni ham hisobga oladi."""
     db_item = get_item(db, item_id)
     if not db_item:
         return None
@@ -147,6 +148,54 @@ def update_stock(db: Session, item_id: int, quantity_change: float) -> Optional[
     db.commit()
     db.refresh(db_item)
     return db_item
+
+
+def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: float,
+                   purchased_by: str = None, notes: str = None):
+    """Ombor kirimi — xarid narxi bilan.
+    O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
+
+        yangi_narx = (eski_qty × eski_narx + yangi_qty × xarid_narxi) / (eski_qty + yangi_qty)
+    """
+    from models import InventoryPurchase
+
+    db_item = get_item(db, item_id)
+    if not db_item:
+        return None
+
+    old_qty = float(db_item.stock_quantity or 0)
+    old_price = float(db_item.price_per_unit or 0)
+
+    total_qty = old_qty + quantity
+    if total_qty > 0:
+        weighted_price = (old_qty * old_price + quantity * price_per_unit) / total_qty
+    else:
+        weighted_price = price_per_unit
+
+    db_item.stock_quantity = total_qty
+    db_item.price_per_unit = round(weighted_price, 2)
+
+    purchase = InventoryPurchase(
+        inventory_id=db_item.id,
+        item_name=db_item.item_name,
+        quantity=quantity,
+        unit=db_item.unit,
+        price_per_unit=price_per_unit,
+        total_amount=quantity * price_per_unit,
+        purchased_by=purchased_by,
+        notes=notes
+    )
+    db.add(purchase)
+    db.commit()
+    db.refresh(db_item)
+
+    return {
+        "item": db_item,
+        "old_price": old_price,
+        "new_price": float(db_item.price_per_unit),
+        "old_qty": old_qty,
+        "purchase_total": quantity * price_per_unit
+    }
 
 
 def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Optional[Inventory]:
@@ -2174,3 +2223,82 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
         "source": fp.source.value,
         "production_status": fp.production_status.value if fp.production_status else None,
     }
+
+
+# ============================================================
+# INVENTORY PURCHASES — Xarid statistikasi
+# ============================================================
+
+def get_purchases(db: Session, limit: int = 100, item_id: int = None) -> List:
+    """Xaridlar tarixi."""
+    from models import InventoryPurchase
+    q = db.query(InventoryPurchase)
+    if item_id:
+        q = q.filter(InventoryPurchase.inventory_id == item_id)
+    return q.order_by(InventoryPurchase.purchased_at.desc()).limit(limit).all()
+
+
+def get_purchase_stats(db: Session, year: int = None, month: int = None) -> dict:
+    """Material bo'yicha xarid statistikasi — Moliya/Dashboard uchun.
+    year/month berilmasa — joriy oy."""
+    from models import InventoryPurchase
+    from datetime import datetime as dt
+
+    now = dt.utcnow()
+    year = year or now.year
+    month = month or now.month
+
+    start = dt(year, month, 1)
+    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+
+    purchases = db.query(InventoryPurchase).filter(
+        InventoryPurchase.purchased_at >= start,
+        InventoryPurchase.purchased_at < end
+    ).all()
+
+    by_material = {}
+    total = 0.0
+    for p in purchases:
+        key = p.item_name
+        if key not in by_material:
+            by_material[key] = {"name": key, "quantity": 0.0, "total": 0.0, "unit": p.unit}
+        by_material[key]["quantity"] += float(p.quantity)
+        by_material[key]["total"] += float(p.total_amount)
+        total += float(p.total_amount)
+
+    items = sorted(by_material.values(), key=lambda x: x["total"], reverse=True)
+    for it in items:
+        it["avg_price"] = round(it["total"] / it["quantity"]) if it["quantity"] > 0 else 0
+        it["total"] = round(it["total"])
+
+    return {
+        "year": year,
+        "month": month,
+        "total_amount": round(total),
+        "purchase_count": len(purchases),
+        "by_material": items
+    }
+
+
+def get_purchase_stats_range(db: Session, months: int = 6) -> dict:
+    """Oxirgi N oy bo'yicha xarid tendensiyasi (dashboard grafik uchun)."""
+    from models import InventoryPurchase
+    from datetime import datetime as dt
+
+    now = dt.utcnow()
+    result = []
+    y, m = now.year, now.month
+    for _ in range(months):
+        start = dt(y, m, 1)
+        end = dt(y + 1, 1, 1) if m == 12 else dt(y, m + 1, 1)
+        total = db.query(InventoryPurchase).filter(
+            InventoryPurchase.purchased_at >= start,
+            InventoryPurchase.purchased_at < end
+        ).all()
+        s = sum(float(p.total_amount) for p in total)
+        result.append({"year": y, "month": m, "total": round(s)})
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    return {"months": list(reversed(result))}
