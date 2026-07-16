@@ -68,6 +68,12 @@ class ReturnReason(PyEnum):
     CUSTOMER_REQUEST = "Mijoz iltimosi"
 
 
+class StockSource(PyEnum):
+    """Tayyor mahsulot qayerdan keldi."""
+    PRODUCED = "produced"    # Ishlab chiqarilgan
+    RETURNED = "returned"    # Buyurtmadan qaytgan
+
+
 class PaymentType(PyEnum):
     """To'lov turi."""
     ZAKLAT = "zaklat"        # Oldindan to'lov
@@ -326,6 +332,10 @@ class OrderItem(Base):
     penoplast = relationship("Inventory")
     price_per_m3 = Column(Numeric(12, 2), nullable=True)  # Shu detal uchun 1 m³ narxi
 
+    # Tayyor mahsulotdan olingan bo'lsa — xomashyo hisoblanmaydi
+    finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True)
+    finished_product = relationship("FinishedProduct")
+
     unit_price = Column(Numeric(12, 2), default=0)
     total_price = Column(Numeric(12, 2), default=0)
 
@@ -391,7 +401,53 @@ class ReturnItem(Base):
 
 
 # ============================================================
-# 9. DELIVERY — Yetkazishlar (bosqichma-bosqich topshirish)
+# 9. FINISHED PRODUCT — Tayyor mahsulotlar ombori
+# ============================================================
+
+class FinishedProduct(Base):
+    """Tayyor mahsulot: ishlab chiqarilgan yoki buyurtmadan qaytgan."""
+    __tablename__ = "finished_products"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    name = Column(String(150), nullable=False, index=True)
+    category = Column(String(50), nullable=True)     # profil / panel / dona
+
+    width = Column(Float, nullable=True)
+    thickness = Column(Float, nullable=True)
+    is_coated = Column(Boolean, default=True)
+
+    quantity = Column(Float, default=0.0)            # Qoldiq (metr yoki dona)
+    unit = Column(String(20), default="metr")
+
+    unit_price = Column(Numeric(12, 2), default=0)   # Sotuv narxi (1 metr / 1 dona)
+    cost_price = Column(Numeric(12, 2), default=0)   # Tan narxi (jami)
+
+    source = Column(Enum(StockSource), default=StockSource.PRODUCED, nullable=False)
+
+    # Qaytgan bo'lsa — qaysi buyurtmadan
+    from_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    from_order = relationship("Order")
+    return_reason = Column(String(50), nullable=True)
+
+    # Ishlab chiqarilgan bo'lsa — sarflangan xomashyo
+    penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)
+    penoplast = relationship("Inventory")
+    volume_m3 = Column(Float, default=0.0)
+    loy_kg = Column(Float, default=0.0)
+    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True)
+    recipe = relationship("Recipe")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<FinishedProduct {self.name} {self.quantity}{self.unit}>"
+
+
+# ============================================================
+# 10. DELIVERY — Yetkazishlar (bosqichma-bosqich topshirish)
 # ============================================================
 
 class Delivery(Base):
@@ -433,7 +489,7 @@ class DeliveryItem(Base):
 
 
 # ============================================================
-# 10. PAYMENT — To'lovlar tarixi
+# 11. PAYMENT — To'lovlar tarixi
 # ============================================================
 
 class Payment(Base):
@@ -459,7 +515,7 @@ class Payment(Base):
 
 
 # ============================================================
-# 11. MONTHLY EXPENSE — Oylik xarajatlar
+# 12. MONTHLY EXPENSE — Oylik xarajatlar
 # ============================================================
 
 class MonthlyExpense(Base):
