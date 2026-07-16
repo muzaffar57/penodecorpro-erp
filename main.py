@@ -601,28 +601,33 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
 
 @app.post("/api/orders/{order_id}/coating-notify")
 def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Rejalashtirilgan loy: xomashyoni ayiradi + qoplamachiga xabar."""
     order = crud.get_order(db, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+
+    inventory_log = []
+
     if loy_kg > 0:
-        existing = order.notes or ''
-        if 'loy_kg=' not in existing:
-            order.notes = (existing + f',loy_kg={loy_kg}').strip(',')
-        else:
-            parts = [p for p in existing.split(',') if 'loy_kg=' not in p]
-            parts.append(f'loy_kg={loy_kg}')
-            order.notes = ','.join(parts)
+        # Rejani notes ga yozamiz
+        services._set_planned_loy(order, loy_kg)
         db.commit()
         db.refresh(order)
-        msg = (
-            f"🏗 *PenoDecorPro — Yangi buyurtma*\n\n"
-            f"📋 Buyurtma: *{order.order_number}*\n"
-            f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
-            f"🧱 Loy tayyorlang: *{int(loy_kg)} kg*\n\n"
-            f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-        )
-        _send_telegram(msg)
-    return {"status": "ok"}
+
+        # Qoralama bo'lmasa — xomashyoni darhol ayiramiz
+        if order.status != OrderStatus.DRAFT:
+            inventory_log = services.deduct_loy_ingredients(db, order, loy_kg)
+
+            msg = (
+                f"🏗 *PenoDecorPro — Yangi buyurtma*\n\n"
+                f"📋 Buyurtma: *{order.order_number}*\n"
+                f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
+                f"🧱 Loy tayyorlang: *{int(loy_kg)} kg*\n\n"
+                f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            )
+            _send_telegram(msg)
+
+    return {"status": "ok", "inventory_log": inventory_log}
 
 
 @app.post("/api/orders/{order_id}/ready")
@@ -939,6 +944,37 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
+
+
+@app.get("/api/loy-stock")
+def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Tayyor loy zaxirasi."""
+    from models import Recipe
+    recipe = None
+    if recipe_id:
+        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    if not recipe:
+        recipe = db.query(Recipe).first()
+    if not recipe:
+        return {"stock_kg": 0, "name": None}
+
+    stock = services.get_or_create_loy_stock(db, recipe)
+    if not stock:
+        return {"stock_kg": 0, "name": None}
+    return {
+        "stock_kg": float(stock.stock_quantity or 0),
+        "name": stock.item_name,
+        "recipe": recipe.name.value if hasattr(recipe.name, 'value') else str(recipe.name)
+    }
+
+
+@app.get("/api/orders/{order_id}/planned-loy")
+def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Buyurtmada rejalashtirilgan loy miqdori."""
+    order = crud.get_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    return {"planned_loy": services._get_planned_loy(order)}
 
 
 @app.get("/api/dashboard/debts")
