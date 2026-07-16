@@ -82,6 +82,15 @@ from schemas import InventoryCreate, InventoryUpdate
 
 def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
     """Yangi xomashyo qo'shadi."""
+    is_peno = getattr(item_data, 'is_penoplast', False)
+    is_default = getattr(item_data, 'is_default_penoplast', False)
+
+    # Agar asosiy deb belgilangan bo'lsa — eskisini bekor qilamiz
+    if is_peno and is_default:
+        db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
+            {"is_default_penoplast": False}
+        )
+
     db_item = Inventory(
         item_name=item_data.item_name,
         stock_quantity=item_data.stock_quantity,
@@ -89,11 +98,24 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
         min_stock=item_data.min_stock,
         price_per_unit=item_data.price_per_unit,
         volume_per_unit=item_data.volume_per_unit,
+        is_penoplast=is_peno,
+        is_default_penoplast=(is_default and is_peno),
         notes=item_data.notes
     )
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
+
+    # Agar birinchi penoplast bo'lsa — avtomatik asosiy qilamiz
+    if is_peno:
+        has_default = db.query(Inventory).filter(
+            Inventory.is_default_penoplast == True
+        ).first()
+        if not has_default:
+            db_item.is_default_penoplast = True
+            db.commit()
+            db.refresh(db_item)
+
     return db_item
 
 
@@ -315,12 +337,15 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
     # OrderType ni aniqlash
     order_type = OrderType.PRODUCT if order_data.order_type == "product" else OrderType.SERVICE
 
+    is_draft = getattr(order_data, 'is_draft', False)
+
     db_order = Order(
         order_number=order_number,
         project_id=order_data.project_id,
         order_type=order_type,
-        status=OrderStatus.IN_PROGRESS,
+        status=OrderStatus.DRAFT if is_draft else OrderStatus.IN_PROGRESS,
         master_id=order_data.master_id,
+        deadline=getattr(order_data, 'deadline', None),
         notes=order_data.notes,
         total_amount=0
     )
@@ -344,6 +369,8 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
             quantity=item_data.quantity,
             is_coated=item_data.is_coated,
             recipe_id=order_data.recipe_id,
+            penoplast_id=getattr(item_data, 'penoplast_id', None),
+            price_per_m3=getattr(item_data, 'price_per_m3', None),
             unit_price=item_data.unit_price,
             total_price=item_total,
             notes=item_data.notes
@@ -799,4 +826,42 @@ def get_debt_stats(db: Session) -> dict:
         "overdue_count": sum(1 for d in debt_orders if d["is_overdue"]),
         "today_payments": today_sum,
         "debt_orders": debt_orders[:20]
+    }
+
+
+# ============================================================
+# DRAFT — Qoralama buyurtmalar
+# ============================================================
+
+def activate_draft_order(db: Session, order_id: int) -> dict:
+    """Qoralama buyurtmani jarayonga oladi — ombordan xomashyo yechiladi."""
+    import services
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+
+    if order.status != OrderStatus.DRAFT:
+        return {"success": False, "message": "Bu buyurtma qoralama emas"}
+
+    # Xomashyo yetarliligini tekshiramiz
+    check = services.check_inventory_for_order(db, order)
+    if not check["enough"]:
+        return {
+            "success": False,
+            "message": "Xomashyo yetishmayapti!",
+            "shortages": check["shortages"]
+        }
+
+    # Ombordan yechamiz
+    log = services.deduct_inventory_for_order(db, order)
+
+    order.status = OrderStatus.IN_PROGRESS
+    db.commit()
+    db.refresh(order)
+
+    return {
+        "success": True,
+        "message": "Buyurtma jarayonga olindi!",
+        "inventory_log": log
     }
