@@ -506,6 +506,15 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
     order = db_item.order
     is_draft = order.status == OrderStatus.DRAFT if order else False
 
+    # Topshirilgandan kam qilib bo'lmaydi
+    delivered = db_item.delivered_qty
+    if delivered > 0.001:
+        cat = (item_data.get('category') or db_item.category or '').lower()
+        new_qty = float(item_data.get('length') or db_item.length or 0) if cat == 'profil' \
+                  else float(item_data.get('quantity') or db_item.quantity or 0)
+        if new_qty < delivered - 0.001:
+            return None
+
     # Eski holat snapshot
     old_snap = [{
         "category": db_item.category,
@@ -562,11 +571,16 @@ def delete_order(db: Session, order_id: int) -> bool:
 
 
 def delete_order_item(db: Session, item_id: int) -> bool:
-    """Detal o'chirish — xomashyo omborga qaytariladi."""
+    """Detal o'chirish — xomashyo omborga qaytariladi.
+    Topshirilgan detalni o'chirib bo'lmaydi."""
     import services
 
     db_item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not db_item:
+        return False
+
+    # Topshirilgan bo'lsa — o'chirib bo'lmaydi
+    if db_item.delivered_qty > 0.001:
         return False
 
     order = db_item.order
@@ -991,17 +1005,6 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     if order.status == OrderStatus.READY:
         return {"success": False, "message": "Tayyor buyurtmani tahrirlab bo'lmaydi"}
 
-    # Yetkazish boshlangan bo'lsa — tahrirlash xavfli
-    if order.deliveries:
-        return {
-            "success": False,
-            "message": "Mahsulot topshirila boshlagan — tahrirlab bo'lmaydi!",
-            "shortages": [
-                f"Bu buyurtma bo'yicha {len(order.deliveries)} marta mahsulot topshirilgan.",
-                "Detallarni o'zgartirish uchun avval topshirishlarni o'chiring."
-            ]
-        }
-
     # 1) Eski detallarni snapshot qilamiz (ombor hisobi uchun)
     old_snapshot = [{
         "category": i.category,
@@ -1035,31 +1038,107 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
                 "shortages": check["shortages"]
             }
 
-    # 3) Eski detallarni o'chiramiz
-    for i in list(order.items):
-        db.delete(i)
-    db.flush()
+    # 3) TOPSHIRISH TEKSHIRUVI — topshirilgandan kam qilib bo'lmaydi
+    old_items = list(order.items)
+    delivery_errors = []
 
-    # 4) Yangi detallarni qo'shamiz
+    def _qty_of(it_data):
+        """Yangi detal miqdori (profil — metr, qolganlar — dona)."""
+        cat = (it_data.category or '').lower()
+        if cat == 'profil':
+            return float(it_data.length or 0)
+        return float(it_data.quantity or 0)
+
+    # Eski detallarni yangilar bilan moslashtiramiz (nom + tur bo'yicha)
+    matched = {}       # old_item.id -> new_item_data
+    used_new = set()
+
+    for oi in old_items:
+        key = ((oi.name or '').strip().lower(), (oi.category or '').lower())
+        for idx, nd in enumerate(order_data.items):
+            if idx in used_new:
+                continue
+            nkey = ((nd.name or '').strip().lower(), (nd.category or '').lower())
+            if key == nkey:
+                matched[oi.id] = nd
+                used_new.add(idx)
+                break
+
+    # Tekshiramiz
+    for oi in old_items:
+        delivered = oi.delivered_qty
+        if delivered <= 0.001:
+            continue          # topshirilmagan — hech qanday cheklov yo'q
+
+        nd = matched.get(oi.id)
+        if nd is None:
+            delivery_errors.append(
+                f"«{oi.name}» — {delivered:g} {oi.delivery_unit} topshirilgan, o'chirib bo'lmaydi"
+            )
+            continue
+
+        new_qty = _qty_of(nd)
+        if new_qty < delivered - 0.001:
+            delivery_errors.append(
+                f"«{oi.name}» — {delivered:g} {oi.delivery_unit} topshirilgan, "
+                f"{new_qty:g} qilib bo'lmaydi (kamida {delivered:g})"
+            )
+
+    if delivery_errors:
+        return {
+            "success": False,
+            "message": "Topshirilgan miqdordan kam qilib bo'lmaydi!",
+            "shortages": delivery_errors
+        }
+
+    # 4) Detallarni yangilaymiz — topshirilganlarini SAQLAB
     total_amount = 0
-    for item_data in order_data.items:
-        item_total = float(item_data.unit_price or 0) * float(item_data.quantity or 1)
+    keep_ids = set()
+
+    for oi in old_items:
+        nd = matched.get(oi.id)
+        if nd is None:
+            # Yangi ro'yxatda yo'q — o'chiramiz (topshirilmagani tekshirildi)
+            db.delete(oi)
+            continue
+
+        item_total = float(nd.unit_price or 0) * float(nd.quantity or 1)
+        total_amount += item_total
+
+        oi.width = nd.width
+        oi.thickness = nd.thickness
+        oi.length = nd.length
+        oi.quantity = nd.quantity
+        oi.is_coated = nd.is_coated
+        oi.recipe_id = order_data.recipe_id
+        oi.penoplast_id = getattr(nd, 'penoplast_id', None)
+        oi.price_per_m3 = getattr(nd, 'price_per_m3', None)
+        oi.unit_price = nd.unit_price
+        oi.total_price = item_total
+        oi.notes = nd.notes
+        keep_ids.add(oi.id)
+
+    # Yangi qo'shilgan detallar
+    for idx, nd in enumerate(order_data.items):
+        if idx in used_new:
+            continue
+        item_total = float(nd.unit_price or 0) * float(nd.quantity or 1)
         total_amount += item_total
         db.add(OrderItem(
             order_id=order.id,
-            name=item_data.name,
-            category=item_data.category,
-            width=item_data.width,
-            thickness=item_data.thickness,
-            length=item_data.length,
-            quantity=item_data.quantity,
-            is_coated=item_data.is_coated,
+            name=nd.name,
+            category=nd.category,
+            width=nd.width,
+            thickness=nd.thickness,
+            length=nd.length,
+            quantity=nd.quantity,
+            is_coated=nd.is_coated,
             recipe_id=order_data.recipe_id,
-            penoplast_id=getattr(item_data, 'penoplast_id', None),
-            price_per_m3=getattr(item_data, 'price_per_m3', None),
-            unit_price=item_data.unit_price,
+            penoplast_id=getattr(nd, 'penoplast_id', None),
+            price_per_m3=getattr(nd, 'price_per_m3', None),
+            unit_price=nd.unit_price,
             total_price=item_total,
-            notes=item_data.notes
+            notes=nd.notes
         ))
 
     # 5) Buyurtma ma'lumotlarini yangilaymiz
@@ -1100,6 +1179,15 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     db.refresh(order)
     _update_order_payment_status(db, order)
 
+    # 8) Yetkazish holatini qayta hisoblaymiz
+    #    (miqdor oshsa "Yetkazildi" dan qaytadi, kamaysa aksincha)
+    if order.deliveries:
+        if order.is_fully_delivered:
+            if order.status not in (OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.DRAFT):
+                order.status = OrderStatus.DELIVERED
+        elif order.status == OrderStatus.DELIVERED:
+            order.status = OrderStatus.IN_PROGRESS
+
     db.commit()
     db.refresh(order)
 
@@ -1107,6 +1195,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         "success": True,
         "message": "Buyurtma yangilandi!",
         "inventory_log": inventory_log,
+        "delivery_percent": order.delivery_percent,
         "total_amount": float(order.total_amount or 0),
         "agreed_amount": float(order.agreed_amount or 0),
         "discount_percent": float(order.discount_percent or 0),
