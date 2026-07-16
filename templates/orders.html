@@ -408,14 +408,18 @@ let itemCount = 0;
 // ── PLOTNOST ──────────────────────────────────────────────
 const PENOPLASTS = [
   {% for p in penoplasts %}
-  {id: {{ p.id }}, name: "{{ p.item_name }}", stock: {{ p.stock_quantity|float }}, isDefault: {{ 'true' if p.is_default_penoplast else 'false' }}},
+  {id: {{ p.id }}, name: {{ p.item_name|tojson }}, stock: {{ p.stock_quantity|float }}, isDefault: {{ 'true' if p.is_default_penoplast else 'false' }}},
   {% endfor %}
 ];
-const DEFAULT_PENO_ID = {{ default_penoplast_id or 'null' }};
+const DEFAULT_PENO_ID = {{ default_penoplast_id if default_penoplast_id else 'null' }};
 
 const PENO_OPTIONS = PENOPLASTS.length
-  ? PENOPLASTS.map(p => `<option value="${p.id}" ${p.id===DEFAULT_PENO_ID?'selected':''}>${p.name}${p.isDefault?' ⭐':''}</option>`).join('')
-  : '<option value="">— Ombor bo\'sh —</option>';
+  ? PENOPLASTS.map(p => `<option value="${p.id}" ${p.id===DEFAULT_PENO_ID?'selected':''}>${p.name}${p.isDefault?' ⭐':''} (${p.stock.toFixed(0)})</option>`).join('')
+  : '<option value="">— Omborda penoplast yo\'q —</option>';
+
+if (!PENOPLASTS.length) {
+  console.warn('Omborda penoplast topilmadi. Omborxona → xomashyo qo\'shishda "Bu penoplast turi" ni belgilang.');
+}
 
 function onPenoChange(row) {
   updatePenoWarn(row);
