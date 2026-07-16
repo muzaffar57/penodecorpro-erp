@@ -800,18 +800,13 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
             "notes": expense.notes or ""
         }
 
-    # Jami xarajat
-    # Jami xarajat (eski, avvalgi maydonlar)
+    # Jami xarajat (arenda/elektr/tushlik/soliq — hodim to'lovi endi
+    # "Ustalar KPI / Hodimlar" bo'limida alohida hisoblanadi)
     jami_xarajat_eski = (
         xarajatlar["arenda"] +
         xarajatlar["elektr"] +
         xarajatlar["tushlik"] +
-        xarajatlar["soliqlar"] +
-        xarajatlar["hodim1_oylik"] +
-        xarajatlar["hodim2_oylik"] +
-        xarajatlar["hodim3_oylik"] +
-        xarajatlar["qoplamachi_oylik"] +
-        xarajatlar["qoplamachi_bonus"]
+        xarajatlar["soliqlar"]
     )
 
     # ── 4b. USTA YILLIK KPI (oylik ulush) ─────────────────────
