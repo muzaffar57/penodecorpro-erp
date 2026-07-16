@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Qaytarishlar — PenoDecorPro ERP{% endblock %}
 {% block page_title %}Qaytarishlar{% endblock %}
-{% block page_sub %}Brak va ortiqcha mahsulotlar hisobi{% endblock %}
+{% block page_sub %}Butun mahsulot (omborga qaytadi) va brak (yo'qotish hisobi){% endblock %}
 
 {% block topbar_actions %}
 <button class="btn btn-dark" onclick="showAddModal()">+ Qaytarish qo'shish</button>
@@ -24,20 +24,11 @@
   <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
     <div class="card-head">
       <h3>Qaytarishlar ({{ returns|length }} ta)</h3>
-      <div style="display:flex;gap:6px">
-        <select id="filter-reason" onchange="filterTable()" style="padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;outline:none">
-          <option value="">Barcha sabablar</option>
-          <option value="Brak">Brak</option>
-          <option value="Ortiqcha">Ortiqcha</option>
-          <option value="Notog'ri o'lcham">Notog'ri o'lcham</option>
-          <option value="Mijoz iltimosi">Mijoz iltimosi</option>
-        </select>
-        <select id="filter-status" onchange="filterTable()" style="padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;outline:none">
-          <option value="">Barcha holat</option>
-          <option value="pending">Kutilmoqda</option>
-          <option value="refunded">To'landi</option>
-        </select>
-      </div>
+      <select id="filter-reason" onchange="filterTable()" style="padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;outline:none">
+        <option value="">Barchasi</option>
+        <option value="Ortiqcha">🟢 Butun (omborga qaytgan)</option>
+        <option value="Brak">🔴 Brak (yo'qotish)</option>
+      </select>
     </div>
     <div class="ret-table">
       <table class="erp-table" style="width:100%">
@@ -46,9 +37,8 @@
             <th>Buyurtma</th>
             <th>Mahsulot</th>
             <th>Miqdor</th>
-            <th>Sabab</th>
-            <th>Summa</th>
-            <th>Holat</th>
+            <th>Holati</th>
+            <th>Qiymati</th>
             <th>Sana</th>
             <th></th>
           </tr>
@@ -56,9 +46,7 @@
         <tbody id="retTable">
           {% if returns %}
           {% for r in returns %}
-          <tr id="row-{{ r.id }}"
-              data-reason="{{ r.reason.value }}"
-              data-status="{{ 'refunded' if r.is_refunded else 'pending' }}">
+          <tr id="row-{{ r.id }}" data-reason="{{ r.reason.value }}">
             <td>
               <div style="font-weight:500;color:#111">{{ r.order.order_number if r.order else '—' }}</div>
               <div style="font-size:11px;color:#aaa">{{ r.order.project.client_name if r.order and r.order.project else '' }}</div>
@@ -66,31 +54,22 @@
             <td style="font-weight:500">{{ r.item_name }}</td>
             <td>{{ r.quantity }} {{ r.unit }}</td>
             <td>
-              {% if r.reason.value == 'Brak' %}<span class="badge badge-danger">Brak</span>
-              {% elif r.reason.value == 'Ortiqcha' %}<span class="badge badge-warning">Ortiqcha</span>
-              {% elif r.reason.value == "Notog'ri o'lcham" %}<span class="badge badge-info">Noto'g'ri</span>
-              {% else %}<span class="badge" style="background:#f5f5f5;color:#888">Mijoz</span>{% endif %}
+              {% if r.reason.value == 'Brak' %}<span class="badge badge-danger">🔴 Brak</span>
+              {% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
             </td>
             <td style="font-weight:500">
-              {% if r.refund_amount > 0 %}{{ "{:,.0f}".format(r.refund_amount) }} so'm{% else %}—{% endif %}
-            </td>
-            <td>
-              {% if r.is_refunded %}<span class="badge badge-ready">To'landi</span>
-              {% else %}<span class="badge badge-warning">Kutilmoqda</span>{% endif %}
+              {% if r.refund_amount > 0 %}
+                <span style="color:{{ '#C0392B' if r.reason.value == 'Brak' else '#27AE60' }}">{{ "{:,.0f}".format(r.refund_amount).replace(",", " ") }} so'm</span>
+              {% else %}—{% endif %}
             </td>
             <td style="color:#aaa;font-size:12px">{{ r.returned_at.strftime('%d.%m.%Y') }}</td>
             <td>
-              <div style="display:flex;gap:4px">
-                {% if not r.is_refunded and r.refund_amount > 0 %}
-                <button class="btn btn-outline btn-xs" style="color:#27AE60;border-color:#27AE60" onclick="markRefunded({{ r.id }})">✓</button>
-                {% endif %}
-                <button class="btn btn-outline btn-xs" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteReturn({{ r.id }})">✕</button>
-              </div>
+              <button class="btn btn-outline btn-xs" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteReturn({{ r.id }})">✕</button>
             </td>
           </tr>
           {% endfor %}
           {% else %}
-          <tr><td colspan="8" style="text-align:center;padding:40px;color:#bbb">Qaytarish yo'q</td></tr>
+          <tr><td colspan="7" style="text-align:center;padding:40px;color:#bbb">Qaytarish yo'q</td></tr>
           {% endif %}
         </tbody>
       </table>
@@ -100,7 +79,13 @@
   <!-- O'ng: statistika -->
   <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
     <div class="card">
-      <div class="card-head"><h3>Statistika</h3></div>
+      <div class="card-head"><h3>Bu oy</h3></div>
+      <div class="card-body" id="statsMonth">
+        <div style="text-align:center;color:#bbb;padding:20px">Yuklanmoqda...</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Jami (barcha vaqt)</h3></div>
       <div class="card-body" id="statsBox">
         <div style="text-align:center;color:#bbb;padding:20px">Yuklanmoqda...</div>
       </div>
@@ -110,30 +95,60 @@
 </div>
 
 <!-- Modal -->
-<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;padding:24px;width:440px;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi qaytarish</div>
-    <div class="form-group"><label>Buyurtma</label>
-      <select id="f-order">
+
+    <div class="form-group">
+      <label>Buyurtma</label>
+      <select id="f-order" onchange="onOrderChange()">
         <option value="">— Buyurtma tanlang —</option>
         {% for o in orders %}<option value="{{ o.id }}">{{ o.order_number }} — {{ o.project.client_name if o.project else '?' }}</option>{% endfor %}
       </select>
     </div>
-    <div class="form-group"><label>Mahsulot nomi</label><input type="text" id="f-name" placeholder="Karniz 100mm"></div>
-    <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Miqdor</label><input type="number" id="f-qty" placeholder="0" min="0.1" step="0.1"></div>
-      <div class="form-group" style="margin:0"><label>O'lchov</label><select id="f-unit"><option value="dona">dona</option><option value="m">m</option><option value="kg">kg</option></select></div>
-    </div>
-    <div class="form-group"><label>Sabab</label>
-      <select id="f-reason">
-        <option value="Brak">Brak — nuqsonli</option>
-        <option value="Ortiqcha">Ortiqcha</option>
-        <option value="Notog'ri o'lcham">Noto'g'ri o'lcham</option>
-        <option value="Mijoz iltimosi">Mijoz iltimosi</option>
+
+    <div class="form-group">
+      <label>Detal</label>
+      <select id="f-item" onchange="onItemChange()" disabled>
+        <option value="">— Avval buyurtma tanlang —</option>
       </select>
     </div>
-    <div class="form-group"><label>Qaytariladigan summa (so'm)</label><input type="number" id="f-refund" placeholder="0" min="0"></div>
-    <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
+
+    <div class="form-row">
+      <div class="form-group" style="margin:0">
+        <label>Miqdor (<span id="f-unit-label">—</span>)</label>
+        <input type="number" id="f-qty" placeholder="0" min="0.1" step="0.1" oninput="calcValue()">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>1 birlik narxi</label>
+        <input type="text" id="f-unit-price" disabled style="background:#f5f5f5;color:#888">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Holati</label>
+      <div style="display:flex;gap:8px">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #27AE60;border-radius:8px;cursor:pointer;background:#F0F9F4">
+          <input type="radio" name="f-reason" value="Ortiqcha" checked onchange="calcValue()" style="width:16px;height:16px">
+          <span style="font-size:13px;font-weight:600;color:#1e7e34">🟢 Butun</span>
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #E74C3C;border-radius:8px;cursor:pointer;background:#FDEDEC">
+          <input type="radio" name="f-reason" value="Brak" onchange="calcValue()" style="width:16px;height:16px">
+          <span style="font-size:13px;font-weight:600;color:#C0392B">🔴 Brak</span>
+        </label>
+      </div>
+      <div id="reason-hint" style="font-size:11px;color:#aaa;margin-top:6px">Butun — tayyor mahsulotlar omboriga qaytadi</div>
+    </div>
+
+    <div class="form-group">
+      <label>Qiymati (avtomatik, o'zgartirish mumkin)</label>
+      <input type="number" id="f-value" placeholder="0" min="0">
+    </div>
+
+    <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="Masalan: kesish jarayonida sinib ketdi"></div>
+
+    <div id="add-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" onclick="saveReturn()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
@@ -144,49 +159,152 @@
 
 {% block scripts %}
 <script>
-function showAddModal(){document.getElementById('addModal').style.display='flex'}
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+
+let currentOrderItems = [];
+
+function showAddModal(){
+  document.getElementById('addModal').style.display='flex';
+  document.getElementById('f-order').value = '';
+  document.getElementById('f-item').innerHTML = '<option value="">— Avval buyurtma tanlang —</option>';
+  document.getElementById('f-item').disabled = true;
+  document.getElementById('f-qty').value = '';
+  document.getElementById('f-unit-price').value = '';
+  document.getElementById('f-value').value = '';
+  document.getElementById('f-notes').value = '';
+  document.getElementById('f-unit-label').textContent = '—';
+  document.getElementById('add-error').style.display = 'none';
+  document.querySelector('input[name="f-reason"][value="Ortiqcha"]').checked = true;
+  updateReasonHint();
+}
 function closeModal(){document.getElementById('addModal').style.display='none'}
+
 function filterTable(){
   const r=document.getElementById('filter-reason').value;
-  const s=document.getElementById('filter-status').value;
   document.querySelectorAll('#retTable tr[data-reason]').forEach(row=>{
-    const mr=!r||row.dataset.reason===r;
-    const ms=!s||row.dataset.status===s;
-    row.style.display=(mr&&ms)?'':'none';
+    row.style.display=(!r||row.dataset.reason===r)?'':'none';
   });
 }
-async function markRefunded(id){
-  if(!confirm('To\'landi deb belgilansinmi?'))return;
-  const res=await fetch(`/api/returns/${id}/refund`,{method:'POST'});
-  if(res.ok)location.reload();else alert('Xato');
+
+async function onOrderChange(){
+  const orderId = document.getElementById('f-order').value;
+  const itemSel = document.getElementById('f-item');
+  itemSel.innerHTML = '<option value="">Yuklanmoqda...</option>';
+  itemSel.disabled = true;
+  currentOrderItems = [];
+
+  if (!orderId) {
+    itemSel.innerHTML = '<option value="">— Avval buyurtma tanlang —</option>';
+    return;
+  }
+
+  try {
+    const order = await fetch(`/api/orders/${orderId}`).then(r => r.json());
+    currentOrderItems = order.items || [];
+    if (!currentOrderItems.length) {
+      itemSel.innerHTML = '<option value="">Bu buyurtmada detal yo\'q</option>';
+      return;
+    }
+    itemSel.innerHTML = '<option value="">— Detal tanlang —</option>' +
+      currentOrderItems.map(i => `<option value="${i.id}">${i.name} (${i.order_qty_normalized} ${i.delivery_unit})</option>`).join('');
+    itemSel.disabled = false;
+  } catch(e) {
+    itemSel.innerHTML = '<option value="">Xato yuz berdi</option>';
+  }
 }
+
+function onItemChange(){
+  const itemId = parseInt(document.getElementById('f-item').value);
+  const item = currentOrderItems.find(i => i.id === itemId);
+  if (!item) {
+    document.getElementById('f-unit-label').textContent = '—';
+    document.getElementById('f-unit-price').value = '';
+    return;
+  }
+  document.getElementById('f-unit-label').textContent = item.delivery_unit === 'metr' ? 'm' : 'dona';
+  document.getElementById('f-unit-price').value = fmt(item.price_per_unit_final) + " so'm";
+  document.getElementById('f-qty').max = item.order_qty_normalized;
+  calcValue();
+}
+
+function updateReasonHint(){
+  const reason = document.querySelector('input[name="f-reason"]:checked')?.value;
+  const hint = document.getElementById('reason-hint');
+  if (reason === 'Brak') {
+    hint.innerHTML = '🔴 Brak — omborga <b>qaytmaydi</b>, faqat yo\'qotish sifatida hisobga yoziladi';
+  } else {
+    hint.textContent = "🟢 Butun — tayyor mahsulotlar omboriga qaytadi, keyin sotish/ishlatish mumkin";
+  }
+}
+
+function calcValue(){
+  updateReasonHint();
+  const itemId = parseInt(document.getElementById('f-item').value);
+  const item = currentOrderItems.find(i => i.id === itemId);
+  const qty = parseFloat(document.getElementById('f-qty').value) || 0;
+  if (!item || !qty) return;
+  const value = Math.round(qty * (item.price_per_unit_final || 0));
+  document.getElementById('f-value').value = value;
+}
+
 async function deleteReturn(id){
   if(!confirm('O\'chirasizmi?'))return;
   const res=await fetch(`/api/returns/${id}`,{method:'DELETE'});
   if(res.ok)document.getElementById('row-'+id)?.remove();else alert('Xato');
 }
+
 async function saveReturn(){
-  const order_id=document.getElementById('f-order').value;
-  const item_name=document.getElementById('f-name').value.trim();
-  const quantity=parseFloat(document.getElementById('f-qty').value);
-  if(!order_id){alert('Buyurtma tanlang!');return;}
-  if(!item_name){alert('Mahsulot nomini kiriting!');return;}
-  if(!quantity||quantity<=0){alert('Miqdorni kiriting!');return;}
-  const res=await fetch('/api/returns',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({order_id:parseInt(order_id),item_name,quantity,
-      unit:document.getElementById('f-unit').value,
-      reason:document.getElementById('f-reason').value,
-      refund_amount:parseFloat(document.getElementById('f-refund').value)||0,
-      notes:document.getElementById('f-notes').value||null})});
-  if(res.ok){alert('✓ Qo\'shildi!');location.reload();}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+  const err = document.getElementById('add-error');
+  const orderId = document.getElementById('f-order').value;
+  const itemId = parseInt(document.getElementById('f-item').value);
+  const item = currentOrderItems.find(i => i.id === itemId);
+  const quantity = parseFloat(document.getElementById('f-qty').value);
+  const reason = document.querySelector('input[name="f-reason"]:checked').value;
+
+  if (!orderId) { err.style.display='block'; err.textContent='❌ Buyurtma tanlang'; return; }
+  if (!item) { err.style.display='block'; err.textContent='❌ Detal tanlang'; return; }
+  if (!quantity || quantity <= 0) { err.style.display='block'; err.textContent='❌ Miqdorni kiriting'; return; }
+  if (quantity > item.order_qty_normalized + 0.001) {
+    err.style.display='block';
+    err.textContent = `❌ Buyurtmada ${item.order_qty_normalized} ${item.delivery_unit} bor, ${quantity} qaytarib bo'lmaydi`;
+    return;
+  }
+  err.style.display = 'none';
+
+  const res = await fetch('/api/returns', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      order_id: parseInt(orderId),
+      order_item_id: itemId,
+      item_name: item.name,
+      quantity,
+      unit: item.delivery_unit,
+      reason,
+      refund_amount: parseFloat(document.getElementById('f-value').value) || 0,
+      to_stock: true,
+      notes: document.getElementById('f-notes').value || null
+    })
+  });
+
+  if (res.ok) {
+    location.reload();
+  } else {
+    const e = await res.json();
+    err.style.display='block';
+    err.textContent = '❌ ' + (e.detail?.message || e.detail || 'Xato');
+  }
 }
+
 fetch('/api/returns/stats').then(r=>r.json()).then(s=>{
-  document.getElementById('statsBox').innerHTML=`
+  document.getElementById('statsMonth').innerHTML = `
+    <div class="stat-item"><span style="color:#aaa">🔴 Brak (bu oy)</span><span style="font-weight:700;color:#C0392B">${s.brak_month_count} ta</span></div>
+    <div class="stat-item"><span style="color:#aaa">Brak yo'qotish qiymati</span><span style="font-weight:700;color:#C0392B">${fmt(s.brak_month_value)} so'm</span></div>
+    <div class="stat-item"><span style="color:#aaa">🟢 Butun qaytgan</span><span style="font-weight:700;color:#27AE60">${s.whole_month_count} ta</span></div>`;
+
+  document.getElementById('statsBox').innerHTML = `
     <div class="stat-item"><span style="color:#aaa">Jami qaytarishlar</span><span style="font-weight:600">${s.total_count} ta</span></div>
-    <div class="stat-item"><span style="color:#aaa">Brak</span><span style="font-weight:600;color:#E74C3C">${s.by_reason['Brak']||0} ta</span></div>
-    <div class="stat-item"><span style="color:#aaa">Ortiqcha</span><span style="font-weight:600;color:#E67E22">${s.by_reason['Ortiqcha']||0} ta</span></div>
-    <div class="stat-item"><span style="color:#aaa">Kutilayotgan to'lov</span><span style="font-weight:600;color:#E74C3C">${Number(s.pending_refund).toLocaleString('uz')} so'm</span></div>
-    <div class="stat-item"><span style="color:#aaa">Qaytarilgan</span><span style="font-weight:600;color:#27AE60">${Number(s.total_refund-s.pending_refund).toLocaleString('uz')} so'm</span></div>`;
+    <div class="stat-item"><span style="color:#aaa">Jami brak</span><span style="font-weight:600;color:#E74C3C">${s.brak_total_count} ta</span></div>
+    <div class="stat-item"><span style="color:#aaa">Jami brak qiymati</span><span style="font-weight:600;color:#E74C3C">${fmt(s.brak_total_value)} so'm</span></div>`;
 }).catch(()=>{});
 </script>
 {% endblock %}
