@@ -755,6 +755,14 @@ function pickFinished(el, fpId) {
     const t = (fp.category === 'panel') ? row.querySelector('.i-t') : row.querySelector('.i-w');
     if (t) t.value = fp.thickness;
   }
+  // Panel — kenglik notes da: width2=100
+  if (fp.category === 'panel' && fp.notes) {
+    const m = String(fp.notes).match(/width2=([\d.]+)/);
+    if (m) {
+      const wEl = row.querySelector('.i-w');
+      if (wEl) wEl.value = parseFloat(m[1]);
+    }
+  }
   const coatEl = row.querySelector('.i-c');
   if (coatEl) coatEl.value = fp.is_coated ? 'true' : 'false';
 
