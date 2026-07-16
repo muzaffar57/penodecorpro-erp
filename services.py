@@ -1637,3 +1637,57 @@ def fmt_num(n):
         return f"{n:,.0f}".replace(",", " ")
     except (TypeError, ValueError):
         return "0"
+
+
+def get_order_item_unit_cost(db: Session, order, item) -> float:
+    """Bitta detalning 1 birlik (metr/dona) TAN NARXI — penoplast + loy (qoplamali bo'lsa).
+    Brak qiymatini hisoblash uchun — sotuv narxi emas, xomashyo qiymati."""
+    from models import Inventory
+
+    if getattr(item, 'finished_product_id', None):
+        return 0.0  # Tayyor mahsulotdan olingan — o'z tan narxi bor
+
+    default_p = get_default_penoplast(db)
+    volume = _item_volume_m3(db, item, default_p)
+    pid = item.penoplast_id or (default_p.id if default_p else None)
+
+    peno_cost_total = 0.0
+    if volume > 0 and pid:
+        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        if p and p.volume_per_unit:
+            blocks = volume / float(p.volume_per_unit)
+            peno_cost_total = blocks * float(p.price_per_unit or 0)
+
+    qty_units = item.order_qty_normalized
+    peno_cost_per_unit = (peno_cost_total / qty_units) if qty_units > 0 else 0.0
+
+    loy_cost_per_unit = 0.0
+    if item.is_coated and order:
+        loy_kg = 0.0
+        if order.notes:
+            for part in str(order.notes).split(','):
+                p2 = part.strip()
+                if p2.startswith('loy_kg='):
+                    try:
+                        loy_kg = float(p2.split('=')[1])
+                    except (ValueError, IndexError):
+                        pass
+                    break
+        if loy_kg <= 0:
+            loy_kg = _get_planned_loy(order)
+
+        total_coated_units = 0.0
+        recipe_id = None
+        for oi in order.items:
+            if not oi.is_coated:
+                continue
+            total_coated_units += oi.order_qty_normalized
+            if not recipe_id and oi.recipe_id:
+                recipe_id = oi.recipe_id
+
+        if loy_kg > 0 and total_coated_units > 0:
+            loy_kg_per_unit = loy_kg / total_coated_units
+            loy_info = get_loy_cost_per_kg(db, recipe_id)
+            loy_cost_per_unit = loy_kg_per_unit * float(loy_info.get("cost_per_kg", 0))
+
+    return round(peno_cost_per_unit + loy_cost_per_unit)
