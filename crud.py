@@ -824,11 +824,36 @@ from schemas import ReturnItemCreate
 
 def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
     """Yangi qaytarishni bazaga qo'shadi.
-    to_stock=True bo'lsa — tayyor mahsulotlar omboriga ham tushadi."""
+    to_stock=True bo'lsa — tayyor mahsulotlar omboriga ham tushadi.
+    refund_amount kelmasa (masalan hodim narx ko'rmasdan yozganda) —
+    server o'zi tan narx/sotuv narxdan hisoblab qo'yadi."""
+    import services
+
     try:
         reason_enum = ReturnReason(data.reason)
     except ValueError:
         reason_enum = ReturnReason.DEFECT
+
+    order_item = None
+    oi_id = getattr(data, 'order_item_id', None)
+    if oi_id:
+        order_item = db.query(OrderItem).filter(OrderItem.id == oi_id).first()
+    if not order_item:
+        order_item = db.query(OrderItem).filter(
+            OrderItem.order_id == data.order_id,
+            OrderItem.name == data.item_name
+        ).first()
+
+    refund_amount = float(data.refund_amount or 0)
+    if refund_amount <= 0 and order_item:
+        ordered = order_item.order_qty_normalized
+        if reason_enum == ReturnReason.DEFECT:
+            # Brak — tan narx (xomashyo qiymati)
+            unit_price = services.get_order_item_unit_cost(db, order_item.order, order_item)
+        else:
+            # Butun — sotuv narxi
+            unit_price = (float(order_item.total_price or 0) / ordered) if ordered else 0
+        refund_amount = round(unit_price * float(data.quantity or 0))
 
     item = ReturnItem(
         order_id=data.order_id,
@@ -836,7 +861,7 @@ def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
         quantity=data.quantity,
         unit=data.unit,
         reason=reason_enum,
-        refund_amount=data.refund_amount,
+        refund_amount=refund_amount,
         is_refunded=False,
         notes=data.notes
     )
@@ -846,17 +871,7 @@ def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
     # Tayyor mahsulotlar omboriga qo'shamiz (brak bo'lmasa)
     to_stock = getattr(data, 'to_stock', True)
     if to_stock and reason_enum != ReturnReason.DEFECT:
-        oi = None
-        oi_id = getattr(data, 'order_item_id', None)
-        if oi_id:
-            oi = db.query(OrderItem).filter(OrderItem.id == oi_id).first()
-        if not oi:
-            # Nom bo'yicha topamiz
-            oi = db.query(OrderItem).filter(
-                OrderItem.order_id == data.order_id,
-                OrderItem.name == data.item_name
-            ).first()
-
+        oi = order_item
         if oi:
             fp = add_returned_to_stock(
                 db, oi, float(data.quantity), reason_enum.value,
