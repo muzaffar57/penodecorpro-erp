@@ -818,7 +818,8 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     sof_foyda_before_emp = sof_daromad - jami_xarajat_eski - usta_kpi_xarajat
     emp_result = calculate_monthly_employee_pay(
         db, year, month, daromad, sof_foyda_before_emp,
-        jami_metr + jami_panel_metr, jami_dona, jami_blok
+        jami_metr + jami_panel_metr, jami_dona, jami_blok,
+        jami_qoplama_birlik=jami_metr + jami_panel_metr + jami_dona
     )
     hodimlar_moslashuvchan_xarajat = emp_result["total"]
 
@@ -1576,10 +1577,12 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
 def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                                    daromad: float, sof_foyda_before: float,
                                    jami_metr: float, jami_dona: float,
-                                   jami_blok: float) -> dict:
+                                   jami_blok: float, jami_qoplama_birlik: float = 0.0) -> dict:
     """Moslashuvchan hodimlar uchun oylik to'lovni hisoblaydi.
     daromad, sof_foyda_before — shu oy uchun (hodim xarajatlarigacha).
-    jami_metr/dona/blok — shu oy ishlab chiqarilgan miqdorlar."""
+    jami_metr/dona/blok — shu oy ishlab chiqarilgan miqdorlar (hammasi).
+    jami_qoplama_birlik — shu oy QOPLANGAN detallar: metr + dona (profil/panel metrda,
+    donali dona bilan, bittalashtirib qo'shilgan) — qoplamachi bonusi uchun."""
     from models import Employee, PayType
 
     employees = db.query(Employee).filter(Employee.is_active == True).all()
@@ -1608,6 +1611,13 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
             qty = unit_map.get(e.per_unit_type, 0)
             amount = qty * float(e.per_unit_rate or 0)
             detail = f"{qty:g} {e.per_unit_type} × {fmt_num(e.per_unit_rate)}"
+
+        elif e.pay_type == PayType.FIXED_PLUS_COATING:
+            base = float(e.fixed_amount or 0)
+            rate = float(e.per_unit_rate or 1000)
+            bonus = jami_qoplama_birlik * rate
+            amount = base + bonus
+            detail = f"Oylik {fmt_num(base)} + {jami_qoplama_birlik:g} metr/dona × {fmt_num(rate)} = {fmt_num(bonus)}"
 
         if amount > 0:
             total += amount
