@@ -1872,6 +1872,7 @@ def search_finished_products(db: Session, query: str) -> List[dict]:
         "unit_price": float(fp.unit_price or 0),
         "source": fp.source.value,
         "source_label": "♻️ Qaytgan" if fp.source == StockSource.RETURNED else "🏭 Tayyor",
+        "notes": fp.notes,
     } for fp in items]
 
 
