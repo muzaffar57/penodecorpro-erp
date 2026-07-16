@@ -1007,6 +1007,78 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
     return result
 
 
+# ============================================================
+# DELIVERIES — Yetkazishlar
+# ============================================================
+
+@app.get("/api/orders/{order_id}/delivery-status")
+def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Buyurtmaning yetkazish holati."""
+    result = crud.get_delivery_status(db, order_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@app.post("/api/deliveries")
+def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yangi yetkazish."""
+    who = current_user.full_name or current_user.username
+    result = crud.create_delivery(db, data, delivered_by=who)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+
+    # Telegram xabar
+    d = crud.get_delivery(db, result["delivery_id"])
+    if d and d.order:
+        lines = []
+        for di in d.items:
+            nm = di.order_item.name if di.order_item else "—"
+            lines.append(f"• {nm}: {di.quantity:g} {di.unit}")
+        client = d.order.project.client_name if d.order.project else "—"
+        msg = (
+            f"📦 *Mahsulot topshirildi*\n\n"
+            f"📋 {d.delivery_number}\n"
+            f"👤 Mijoz: {client}\n\n"
+            + "\n".join(lines)
+            + f"\n\n📊 Bajarilish: *{result['delivery_percent']}%*"
+            + ("\n✅ *Buyurtma to'liq topshirildi!*" if result["is_fully_delivered"] else "")
+            + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+        )
+        _send_telegram(msg)
+
+    return result
+
+
+@app.get("/api/deliveries/{delivery_id}/pdf")
+def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db)):
+    """Yetkazish nakladnoyi (PDF)."""
+    from fastapi.responses import Response
+    import delivery_pdf
+    import traceback
+
+    d = crud.get_delivery(db, delivery_id)
+    if not d:
+        raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
+    try:
+        pdf_bytes = delivery_pdf.generate_delivery_pdf(d, db)
+    except Exception as e:
+        print("Yetkazish PDF XATO:\n", traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+
+    filename = f"nakladnoy_{d.delivery_number.replace('/', '_')}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
+
+
+@app.delete("/api/deliveries/{delivery_id}")
+def api_delete_delivery(delivery_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yetkazishni o'chirish."""
+    if not crud.delete_delivery(db, delivery_id):
+        raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
+    return {"status": "ok"}
+
+
 @app.get("/api/loy-stock")
 def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Tayyor loy zaxirasi."""
@@ -1036,6 +1108,12 @@ def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=D
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     return {"planned_loy": services._get_planned_loy(order)}
+
+
+@app.get("/api/dashboard/deliveries")
+def api_delivery_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yetkazish statistikasi."""
+    return crud.get_delivery_stats(db)
 
 
 @app.get("/api/dashboard/debts")
