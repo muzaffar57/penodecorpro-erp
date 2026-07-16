@@ -496,17 +496,56 @@ def mark_order_ready(db: Session, order_id: int) -> dict:
 # ============================================================
 
 def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[OrderItem]:
-    """Buyurtma detalini yangilash."""
+    """Buyurtma detalini yangilash — ombor farq bo'yicha to'g'rilanadi."""
+    import services
+
     db_item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not db_item:
         return None
+
+    order = db_item.order
+    is_draft = order.status == OrderStatus.DRAFT if order else False
+
+    # Eski holat snapshot
+    old_snap = [{
+        "category": db_item.category,
+        "width": db_item.width,
+        "thickness": db_item.thickness,
+        "length": db_item.length,
+        "quantity": float(db_item.quantity or 1),
+        "unit_price": float(db_item.unit_price or 0),
+        "penoplast_id": db_item.penoplast_id
+    }]
+
     for field, value in item_data.items():
         if hasattr(db_item, field):
             setattr(db_item, field, value)
-    # Total price ni qayta hisoblash
-    db_item.total_price = db_item.unit_price * db_item.quantity
-    # Order umumiy summasi
-    db_item.order.total_amount = sum(it.total_price for it in db_item.order.items)
+
+    db_item.total_price = float(db_item.unit_price or 0) * float(db_item.quantity or 1)
+    db.flush()
+
+    # Yangi holat snapshot
+    new_snap = [{
+        "category": db_item.category,
+        "width": db_item.width,
+        "thickness": db_item.thickness,
+        "length": db_item.length,
+        "quantity": float(db_item.quantity or 1),
+        "unit_price": float(db_item.unit_price or 0),
+        "penoplast_id": db_item.penoplast_id
+    }]
+
+    # Omborni farq bo'yicha to'g'rilaymiz
+    if not is_draft:
+        services.adjust_inventory_diff(db, old_snap, new_snap)
+
+    # Order summasi
+    if order:
+        order.total_amount = sum(float(it.total_price or 0) for it in order.items)
+        db.flush()
+        db.refresh(order)
+        _update_order_payment_status(db, order)
+
     db.commit()
     db.refresh(db_item)
     return db_item
@@ -523,14 +562,38 @@ def delete_order(db: Session, order_id: int) -> bool:
 
 
 def delete_order_item(db: Session, item_id: int) -> bool:
-    """Detal o'chirish."""
+    """Detal o'chirish — xomashyo omborga qaytariladi."""
+    import services
+
     db_item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not db_item:
         return False
+
     order = db_item.order
+    is_draft = order.status == OrderStatus.DRAFT if order else False
+
+    # O'chiriladigan detalning xomashyosini qaytaramiz
+    if not is_draft:
+        old_snap = [{
+            "category": db_item.category,
+            "width": db_item.width,
+            "thickness": db_item.thickness,
+            "length": db_item.length,
+            "quantity": float(db_item.quantity or 1),
+            "unit_price": float(db_item.unit_price or 0),
+            "penoplast_id": db_item.penoplast_id
+        }]
+        services.adjust_inventory_diff(db, old_snap, [])
+
     db.delete(db_item)
     db.flush()
-    order.total_amount = sum(it.total_price for it in order.items)
+
+    if order:
+        order.total_amount = sum(float(it.total_price or 0) for it in order.items)
+        db.flush()
+        db.refresh(order)
+        _update_order_payment_status(db, order)
+
     db.commit()
     return True
 
@@ -869,5 +932,148 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
     return {
         "success": True,
         "message": "Buyurtma jarayonga olindi!",
+        "inventory_log": log
+    }
+
+
+# ============================================================
+# BUYURTMANI TAHRIRLASH (ombor farq bo'yicha to'g'rilanadi)
+# ============================================================
+
+def update_order_full(db: Session, order_id: int, order_data) -> dict:
+    """Buyurtmani to'liq yangilaydi:
+    - Detallarni almashtiradi
+    - Omborni faqat FARQ miqdorida to'g'rilaydi
+    - Buyurtma raqami, to'lovlar, sana saqlanadi
+    """
+    import services
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+
+    if order.status == OrderStatus.READY:
+        return {"success": False, "message": "Tayyor buyurtmani tahrirlab bo'lmaydi"}
+
+    # 1) Eski detallarni snapshot qilamiz (ombor hisobi uchun)
+    old_snapshot = [{
+        "category": i.category,
+        "width": i.width,
+        "thickness": i.thickness,
+        "length": i.length,
+        "quantity": float(i.quantity or 1),
+        "unit_price": float(i.unit_price or 0),
+        "penoplast_id": i.penoplast_id
+    } for i in order.items]
+
+    new_snapshot = [{
+        "category": it.category,
+        "width": it.width,
+        "thickness": it.thickness,
+        "length": it.length,
+        "quantity": float(it.quantity or 1),
+        "unit_price": float(it.unit_price or 0),
+        "penoplast_id": getattr(it, 'penoplast_id', None)
+    } for it in order_data.items]
+
+    is_draft = order.status == OrderStatus.DRAFT
+
+    # 2) Qoralama bo'lmasa — xomashyo yetishini tekshiramiz
+    if not is_draft:
+        check = services.check_inventory_diff(db, old_snapshot, new_snapshot)
+        if not check["enough"]:
+            return {
+                "success": False,
+                "message": "Xomashyo yetishmayapti!",
+                "shortages": check["shortages"]
+            }
+
+    # 3) Eski detallarni o'chiramiz
+    for i in list(order.items):
+        db.delete(i)
+    db.flush()
+
+    # 4) Yangi detallarni qo'shamiz
+    total_amount = 0
+    for item_data in order_data.items:
+        item_total = float(item_data.unit_price or 0) * float(item_data.quantity or 1)
+        total_amount += item_total
+        db.add(OrderItem(
+            order_id=order.id,
+            name=item_data.name,
+            category=item_data.category,
+            width=item_data.width,
+            thickness=item_data.thickness,
+            length=item_data.length,
+            quantity=item_data.quantity,
+            is_coated=item_data.is_coated,
+            recipe_id=order_data.recipe_id,
+            penoplast_id=getattr(item_data, 'penoplast_id', None),
+            price_per_m3=getattr(item_data, 'price_per_m3', None),
+            unit_price=item_data.unit_price,
+            total_price=item_total,
+            notes=item_data.notes
+        ))
+
+    # 5) Buyurtma ma'lumotlarini yangilaymiz
+    order.master_id = order_data.master_id
+    if getattr(order_data, 'deadline', None):
+        order.deadline = order_data.deadline
+    order.total_amount = total_amount
+
+    agreed = getattr(order_data, 'agreed_amount', None)
+    order.agreed_amount = agreed if agreed else total_amount
+    if total_amount > 0 and float(order.agreed_amount) < total_amount:
+        order.discount_percent = round(
+            (total_amount - float(order.agreed_amount)) / total_amount * 100, 2)
+    else:
+        order.discount_percent = 0.0
+
+    db.flush()
+
+    # 6) Omborni farq bo'yicha to'g'rilaymiz (qoralama emas bo'lsa)
+    inventory_log = []
+    if not is_draft:
+        inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot)
+
+    # 7) To'lov holatini qayta hisoblaymiz
+    db.refresh(order)
+    _update_order_payment_status(db, order)
+
+    db.commit()
+    db.refresh(order)
+
+    return {
+        "success": True,
+        "message": "Buyurtma yangilandi!",
+        "inventory_log": inventory_log,
+        "total_amount": float(order.total_amount or 0),
+        "agreed_amount": float(order.agreed_amount or 0),
+        "paid_amount": order.paid_amount,
+        "debt_amount": order.debt_amount
+    }
+
+
+def update_order_loy(db: Session, order_id: int, new_loy: float) -> dict:
+    """Loy rejasini o'zgartiradi — ombor farq bo'yicha to'g'rilanadi."""
+    import services
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+
+    old_loy = services._get_planned_loy(order)
+
+    log = []
+    if order.status != OrderStatus.DRAFT:
+        log = services.adjust_loy_diff(db, order, old_loy, new_loy)
+
+    services._set_planned_loy(order, new_loy)
+    db.commit()
+
+    return {
+        "success": True,
+        "old_loy": old_loy,
+        "new_loy": new_loy,
         "inventory_log": log
     }
