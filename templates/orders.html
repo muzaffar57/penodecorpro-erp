@@ -1543,10 +1543,48 @@ async function loadProfit() {
 // ── O'chirish ─────────────────────────────────────────────
 async function deleteSelected() {
   if (!selectedOrderId) return;
-  if (!confirm('Buyurtmani o\'chirasizmi?')) return;
-  const res = await fetch(`/api/orders/${selectedOrderId}`, { method:'DELETE' });
-  if (res.ok) location.reload();
-  else alert('Xato yuz berdi');
+
+  // Buyurtma holatini olamiz
+  let info = '';
+  try {
+    const r = await fetch(`/api/orders/${selectedOrderId}`);
+    if (r.ok) {
+      const o = await r.json();
+      if (o.is_draft) {
+        info = '\n\n📝 Qoralama — ombordan hech narsa yechilmagan.';
+      } else if (o.status === 'ready' || o.status === 'delivered') {
+        info = '\n\n⚠️ Buyurtma TAYYOR — xomashyo omborga QAYTARILMAYDI!';
+      } else {
+        info = '\n\n♻️ Xomashyo (penoplast va loy) omborga qaytariladi.';
+      }
+      if (o.paid_amount > 0) {
+        info += `\n\n💰 Diqqat! Bu buyurtmaga ${formatNum(o.paid_amount)} so'm to'lov qilingan — to'lovlar ham o'chadi.`;
+      }
+    }
+  } catch(e) {}
+
+  if (!confirm(`${selectedOrderId} raqamli buyurtma o'chirilsinmi?${info}`)) return;
+
+  try {
+    const res = await fetch(`/api/orders/${selectedOrderId}`, { method:'DELETE' });
+    const d = await res.json();
+    if (res.ok) {
+      if (d.inventory_log?.length) {
+        const box = document.getElementById('resultBox');
+        if (box) {
+          box.innerHTML = '<b>✓ Buyurtma o\'chirildi!</b><br><br>♻️ Omborga qaytdi:<br>' + d.inventory_log.join('<br>');
+          box.className = 'result-box success';
+          box.style.display = 'block';
+        }
+        showMsg('✓ O\'chirildi, xomashyo qaytarildi', 'success');
+        setTimeout(()=>location.reload(), 3000);
+      } else {
+        location.reload();
+      }
+    } else {
+      showMsg('❌ Xato yuz berdi', 'error');
+    }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
 }
 
 // ── Hammasini tayyor ─────────────────────────────────────
