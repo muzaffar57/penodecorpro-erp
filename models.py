@@ -346,7 +346,7 @@ class OrderItem(Base):
 
     @property
     def order_qty_normalized(self):
-        """Buyurtmadagi miqdor — profil uchun metr, qolganlarga dona."""
+        """Buyurtmadagi miqdor — profil uzunlik, panel metr, dona dona."""
         cat = (self.category or '').lower()
         if cat == 'profil':
             return float(self.length or 0)
@@ -354,9 +354,9 @@ class OrderItem(Base):
 
     @property
     def delivery_unit(self):
-        """O'lchov birligi."""
+        """O'lchov birligi — profil va panel metrda, qolgani donada."""
         cat = (self.category or '').lower()
-        return 'metr' if cat == 'profil' else 'dona'
+        return 'metr' if cat in ('profil', 'panel') else 'dona'
 
     @property
     def delivered_qty(self):
