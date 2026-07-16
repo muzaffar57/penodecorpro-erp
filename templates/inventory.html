@@ -29,7 +29,7 @@
   <!-- Jadval -->
   <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
     <div class="card-head">
-      <h3>Xomashyolar ({{ items|length }} tur)</h3>
+      <h3 id="inv-title">Xomashyolar</h3>
       <span id="low-count" style="font-size:11px;color:#E74C3C"></span>
     </div>
     <div class="inv-table-wrap" style="flex:1">
@@ -46,15 +46,36 @@
           </tr>
         </thead>
         <tbody>
-          {% for item in items %}
+          {% set normal_items = [] %}
+          {% set loy_items = [] %}
+          {% for it in items %}
+            {% if 'Tayyor loy' in it.item_name %}
+              {% set _ = loy_items.append(it) %}
+            {% else %}
+              {% set _ = normal_items.append(it) %}
+            {% endif %}
+          {% endfor %}
+          {% for item in normal_items + loy_items %}
+          {% if loop.index0 == normal_items|length and loy_items %}
+          <tr>
+            <td colspan="7" style="padding:0;border:none">
+              <div style="display:flex;align-items:center;gap:10px;padding:14px 0 8px">
+                <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,#ddd)"></div>
+                <span style="font-size:11px;font-weight:600;color:#1e7e34;letter-spacing:.5px;white-space:nowrap">♻️ BUYURTMALARDAN ORTGAN LOY</span>
+                <div style="flex:1;height:1px;background:linear-gradient(90deg,#ddd,transparent)"></div>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
           {% set qty = item.stock_quantity|float %}
           {% set minq = item.min_stock|float %}
           {% set pct = [[((qty / minq * 100)|round if minq > 0 else 100), 0]|max, 100]|min %}
-          <tr>
+          {% set is_loy = 'Tayyor loy' in item.item_name %}
+          <tr {% if is_loy %}style="background:#FAFDFB"{% endif %}>
             <td>
               <div style="font-weight:500;color:#111;display:flex;align-items:center;gap:6px">
                 {{ item.item_name }}
-                {% if 'Tayyor loy' in item.item_name %}
+                {% if is_loy %}
                 <span style="font-size:9px;background:#E9F7EF;color:#1e7e34;padding:2px 7px;border-radius:10px;font-weight:600">♻️ ZAXIRA</span>
                 {% endif %}
                 {% if item.is_penoplast %}
@@ -117,7 +138,7 @@
       <div class="card-body">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="kpi-card" style="padding:12px">
-            <div class="kpi-val" style="font-size:20px">{{ items|length }}</div>
+            <div class="kpi-val" style="font-size:20px" id="kpi-inv-count">—</div>
             <div class="kpi-label">Xomashyo turi</div>
           </div>
           <div class="kpi-card" style="padding:12px">
@@ -287,6 +308,22 @@ async function saveItem() {
   if(res.ok) location.reload();
   else{const e=await res.json();alert('Xato: '+(e.detail||'Noma\'lum'));}
 }
+
+// Sarlavha: xomashyo turi (tayyor loysiz)
+(function(){
+  const rows = document.querySelectorAll('tbody tr');
+  let n = 0;
+  rows.forEach(r => {
+    if (r.querySelector('td[colspan]')) return;      // ajratuvchi
+    const nm = r.querySelector('td div');
+    if (nm && nm.textContent.includes('Tayyor loy')) return;
+    n++;
+  });
+  const t = document.getElementById('inv-title');
+  if (t) t.textContent = `Xomashyolar (${n} tur)`;
+  const k = document.getElementById('kpi-inv-count');
+  if (k) k.textContent = n;
+})();
 
 // Kam qolganlar sonini topbar ga
 const low = document.querySelectorAll('.badge-danger').length;
