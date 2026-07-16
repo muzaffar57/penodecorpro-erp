@@ -599,7 +599,7 @@ let editUserTouched = false;   // xodim kelishilgan summani qo'lda o'zgartirdimi
 // ── PLOTNOST ──────────────────────────────────────────────
 const PENOPLASTS = [
   {% for p in penoplasts %}
-  {id: {{ p.id }}, name: {{ p.item_name|tojson }}, stock: {{ p.stock_quantity|float }}, isDefault: {{ 'true' if p.is_default_penoplast else 'false' }}},
+  {id: {{ p.id }}, name: {{ p.item_name|tojson }}, stock: {{ p.stock_quantity|float }}, isDefault: {{ 'true' if p.is_default_penoplast else 'false' }}, volPerUnit: {{ (p.volume_per_unit or 1)|float }}, pricePerUnit: {{ (p.price_per_unit or 0)|float }}},
   {% endfor %}
 ];
 const DEFAULT_PENO_ID = {{ default_penoplast_id if default_penoplast_id else 'null' }};
