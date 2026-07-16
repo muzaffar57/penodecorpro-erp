@@ -1596,7 +1596,7 @@ function addItem() {
       <div class="dif i-w-wrap"><label>Kengligi (sm)</label><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-t-wrap" style="display:none"><label>Qalinlik (sm)</label><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-l-wrap"><label>Uzunlik (m)</label><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-q-wrap"><label>Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="1" step="1" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-unitprice-wrap" style="display:none"><label>1 dona narxi (so'm)</label><input type="number" placeholder="" class="i-unitprice" step="100" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif"><label>Qoplama</label>
         <select class="i-c" onchange="calculateItem(this.closest('.detal'))">
@@ -1656,6 +1656,10 @@ function toggleFields(row) {
     const tEl = row.querySelector('.i-t'); if(tEl) tEl.value = '';
     const qEl = row.querySelector('.i-q'); if(qEl) qEl.value = '1';
   }
+
+  // Miqdor maydonining nomi: panel — metr, dona — dona
+  const qLabel = row.querySelector('.i-q-label');
+  if (qLabel) qLabel.textContent = (type === 'panel') ? 'Uzunlik (m)' : 'Miqdor (dona)';
 }
 
 function calculateItem(row) {
@@ -1710,16 +1714,16 @@ function calculateItem(row) {
     volume_total = (eni_m * keng_m * l) / 2;   // profil — yarim kesim
     row.querySelector('.i-vol').value = volume_total.toFixed(4);
   } else if (type === 'panel') {
-    // 1 dona narxi = Eni(m) × Qalinlik(m) × Narx — qoplamasiz
+    // 1 metr narxi = Eni(m) × Qalinlik(m) × Narx — qoplamasiz
     const eni_m   = h / 100;
     const qalin_m = t / 100;
-    const perDona_base = eni_m * qalin_m * basePrice;  // qoplamasiz 1 dona narxi
+    const perDona_base = eni_m * qalin_m * basePrice;  // qoplamasiz 1 metr narxi
     price = perDona_base * qty;
     if (isCoated) {
       price *= 2;
-      perMeterPrice = perDona_base * 2;  // qoplama bilan 1 dona narxi
+      perMeterPrice = perDona_base * 2;  // qoplama bilan 1 metr narxi
     } else {
-      perMeterPrice = perDona_base;      // qoplamasiz 1 dona narxi
+      perMeterPrice = perDona_base;      // qoplamasiz 1 metr narxi
     }
     volume_total = eni_m * qalin_m * qty;
     row.querySelector('.i-vol').value = volume_total.toFixed(4);
@@ -1765,7 +1769,7 @@ function updateTotal() {
     } else if (type === 'panel') {
       const q = parseFloat(row.querySelector('.i-q')?.value || 1);
       if (q > 0 && perm > 0)
-        qtyText = `${q} dona × ${Number(perm).toLocaleString('uz')} so'm`;
+        qtyText = `${q}m × ${Number(perm).toLocaleString('uz')} so'm`;
     } else {
       const q = parseFloat(row.querySelector('.i-q')?.value || 1);
       const up = parseFloat(row.querySelector('.i-unitprice')?.value || 0);
