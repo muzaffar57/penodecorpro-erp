@@ -46,23 +46,51 @@
           </tr>
         </thead>
         <tbody>
+          {% set peno_items = [] %}
           {% set normal_items = [] %}
           {% set loy_items = [] %}
           {% for it in items %}
             {% if 'Tayyor loy' in it.item_name %}
               {% set _ = loy_items.append(it) %}
+            {% elif it.is_penoplast or 'penoplast' in it.item_name|lower %}
+              {% set _ = peno_items.append(it) %}
             {% else %}
               {% set _ = normal_items.append(it) %}
             {% endif %}
           {% endfor %}
-          {% for item in normal_items + loy_items %}
-          {% if loop.index0 == normal_items|length and loy_items %}
+          {% set n_peno = peno_items|length %}
+          {% set n_normal = normal_items|length %}
+
+          {% if peno_items %}
           <tr>
             <td colspan="7" style="padding:0;border:none">
-              <div style="display:flex;align-items:center;gap:10px;padding:14px 0 8px">
-                <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,#ddd)"></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:4px 0 8px">
+                <span style="font-size:11px;font-weight:600;color:#8B6914;letter-spacing:.5px;white-space:nowrap">🧱 PENOPLAST (PLOTNOST)</span>
+                <div style="flex:1;height:1px;background:linear-gradient(90deg,#E5DFD3,transparent)"></div>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% for item in peno_items + normal_items + loy_items %}
+
+          {% if loop.index0 == n_peno and normal_items %}
+          <tr>
+            <td colspan="7" style="padding:0;border:none">
+              <div style="display:flex;align-items:center;gap:10px;padding:16px 0 8px">
+                <span style="font-size:11px;font-weight:600;color:#888;letter-spacing:.5px;white-space:nowrap">📦 XOMASHYO</span>
+                <div style="flex:1;height:1px;background:linear-gradient(90deg,#eee,transparent)"></div>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% if loop.index0 == n_peno + n_normal and loy_items %}
+          <tr>
+            <td colspan="7" style="padding:0;border:none">
+              <div style="display:flex;align-items:center;gap:10px;padding:16px 0 8px">
                 <span style="font-size:11px;font-weight:600;color:#1e7e34;letter-spacing:.5px;white-space:nowrap">♻️ BUYURTMALARDAN ORTGAN LOY</span>
-                <div style="flex:1;height:1px;background:linear-gradient(90deg,#ddd,transparent)"></div>
+                <div style="flex:1;height:1px;background:linear-gradient(90deg,#D5EDDD,transparent)"></div>
               </div>
             </td>
           </tr>
@@ -71,7 +99,8 @@
           {% set minq = item.min_stock|float %}
           {% set pct = [[((qty / minq * 100)|round if minq > 0 else 100), 0]|max, 100]|min %}
           {% set is_loy = 'Tayyor loy' in item.item_name %}
-          <tr {% if is_loy %}style="background:#FAFDFB"{% endif %}>
+          {% set is_peno = item.is_penoplast or 'penoplast' in item.item_name|lower %}
+          <tr {% if is_loy %}style="background:#FAFDFB"{% elif is_peno %}style="background:#FEFCF7"{% endif %}>
             <td>
               <div style="font-weight:500;color:#111;display:flex;align-items:center;gap:6px">
                 {{ item.item_name }}
@@ -314,7 +343,7 @@ async function saveItem() {
   const rows = document.querySelectorAll('tbody tr');
   let n = 0;
   rows.forEach(r => {
-    if (r.querySelector('td[colspan]')) return;      // ajratuvchi
+    if (r.querySelector('td[colspan]')) return;      // ajratuvchi qatorlar
     const nm = r.querySelector('td div');
     if (nm && nm.textContent.includes('Tayyor loy')) return;
     n++;
