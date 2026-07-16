@@ -80,6 +80,18 @@ def _migrate_payment_columns():
         if 'closed_at' not in cols:
             migrations.append("ALTER TABLE orders ADD COLUMN closed_at TIMESTAMP")
 
+        # Master — kpi_percent ustuni
+        if 'masters' in inspector.get_table_names():
+            master_cols = [c['name'] for c in inspector.get_columns('masters')]
+            if 'kpi_percent' not in master_cols:
+                migrations.append("ALTER TABLE masters ADD COLUMN kpi_percent FLOAT DEFAULT 0")
+
+        # MonthlyExpense — soliqlar ustuni
+        if 'monthly_expenses' in inspector.get_table_names():
+            me_cols = [c['name'] for c in inspector.get_columns('monthly_expenses')]
+            if 'soliqlar' not in me_cols:
+                migrations.append("ALTER TABLE monthly_expenses ADD COLUMN soliqlar NUMERIC(12,2) DEFAULT 0")
+
         # Delivery — transport ustunlari
         if 'deliveries' in inspector.get_table_names():
             dlv_cols = [c['name'] for c in inspector.get_columns('deliveries')]
@@ -147,6 +159,10 @@ def _migrate_payment_columns():
             ("stocksource", "RETURNED"),
             ("productionstatus", "IN_PROGRESS"),
             ("productionstatus", "READY"),
+            ("paytype", "FIXED"),
+            ("paytype", "PERCENT_SALES"),
+            ("paytype", "PERCENT_PROFIT"),
+            ("paytype", "PER_UNIT"),
         ]
         for enum_name, value in enum_additions:
             try:
@@ -547,6 +563,65 @@ def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_use
     if not crud.delete_transport_expense(db, exp_id):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
+
+
+# ============================================================
+# EMPLOYEES — Moslashuvchan hodim to'lovi
+# ============================================================
+
+@app.post("/api/employees")
+def api_create_employee(data: schemas.EmployeeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    emp = crud.create_employee(db, data)
+    return {"status": "ok", "id": emp.id}
+
+
+@app.get("/api/employees")
+def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    items = crud.get_employees(db, only_active=only_active)
+    return [{
+        "id": e.id, "name": e.name, "position": e.position,
+        "pay_type": e.pay_type.value,
+        "fixed_amount": float(e.fixed_amount or 0),
+        "percent_value": float(e.percent_value or 0),
+        "per_unit_rate": float(e.per_unit_rate or 0),
+        "per_unit_type": e.per_unit_type,
+        "is_active": e.is_active,
+        "notes": e.notes
+    } for e in items]
+
+
+@app.put("/api/employees/{emp_id}")
+def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    emp = crud.update_employee(db, emp_id, data)
+    if not emp:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
+
+
+@app.delete("/api/employees/{emp_id}")
+def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    if not crud.delete_employee(db, emp_id):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
+
+
+# ============================================================
+# MASTER KPI — Yillik KPI (sotuvdan %)
+# ============================================================
+
+@app.put("/api/masters/{master_id}/kpi")
+def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    m = crud.update_master_kpi(db, master_id, data.kpi_percent)
+    if not m:
+        raise HTTPException(status_code=404, detail="Usta topilmadi")
+    return {"status": "ok", "kpi_percent": m.kpi_percent}
+
+
+@app.get("/api/masters/kpi-report")
+def api_masters_kpi_report(year: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    from datetime import datetime
+    y = year or datetime.now().year
+    return crud.get_masters_kpi_report(db, y)
 
 
 @app.get("/api/transport-stats")
@@ -1232,6 +1307,14 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
         "default_penoplast_id": default_p.id if default_p else None,
         "recipes": recipes, "stats": stats,
         "current_user": current_user, "active_page": "finished"
+    })
+
+
+@app.get("/kpi", response_class=HTMLResponse)
+async def kpi_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ustalar yillik KPI va moslashuvchan hodim to'lovi sahifasi."""
+    return templates.TemplateResponse(request, "kpi.html", {
+        "current_user": current_user, "active_page": "kpi"
     })
 
 
