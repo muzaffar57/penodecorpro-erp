@@ -407,7 +407,33 @@ class ReturnItem(Base):
 
 
 # ============================================================
-# 9. FINISHED PRODUCT — Tayyor mahsulotlar ombori
+# 9. INVENTORY PURCHASE — Xomashyo xaridlari jurnali
+# ============================================================
+
+class InventoryPurchase(Base):
+    """Har bir ombor kirimi (xarid) — narxi bilan birga saqlanadi."""
+    __tablename__ = "inventory_purchases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False)
+    inventory = relationship("Inventory")
+
+    item_name = Column(String(150), nullable=False)   # Xarid vaqtidagi nom (tarix uchun)
+    quantity = Column(Float, nullable=False)            # Necha kg/dona/litr
+    unit = Column(String(20), nullable=True)
+    price_per_unit = Column(Numeric(12, 2), nullable=False)  # Shu xariddagi narx
+    total_amount = Column(Numeric(12, 2), nullable=False)    # quantity × price_per_unit
+
+    purchased_at = Column(DateTime, default=datetime.utcnow)
+    purchased_by = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<InventoryPurchase {self.item_name} {self.quantity}>"
+
+
+# ============================================================
+# 10. FINISHED PRODUCT — Tayyor mahsulotlar ombori
 # ============================================================
 
 class FinishedProduct(Base):
@@ -462,7 +488,7 @@ class FinishedProduct(Base):
 
 
 # ============================================================
-# 10. DELIVERY — Yetkazishlar (bosqichma-bosqich topshirish)
+# 11. DELIVERY — Yetkazishlar (bosqichma-bosqich topshirish)
 # ============================================================
 
 class Delivery(Base):
@@ -504,7 +530,7 @@ class DeliveryItem(Base):
 
 
 # ============================================================
-# 11. PAYMENT — To'lovlar tarixi
+# 12. PAYMENT — To'lovlar tarixi
 # ============================================================
 
 class Payment(Base):
@@ -530,7 +556,7 @@ class Payment(Base):
 
 
 # ============================================================
-# 12. MONTHLY EXPENSE — Oylik xarajatlar
+# 13. MONTHLY EXPENSE — Oylik xarajatlar
 # ============================================================
 
 class MonthlyExpense(Base):
