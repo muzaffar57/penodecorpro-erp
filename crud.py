@@ -1978,3 +1978,147 @@ def get_finished_stats(db: Session) -> dict:
         "returned_value": round(_val(returned)),
         "total_value": round(_val(items)),
     }
+
+
+def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
+    """Mavjud tayyor mahsulotga miqdor qo'shadi.
+    Penoplast va loy proporsional hisoblanib ombordan yechiladi.
+
+    Masalan: 100 m uchun 1.2 m³ penoplast va 120 kg loy ketgan bo'lsa,
+             +50 m qo'shilsa → 0.6 m³ penoplast va 60 kg loy yechiladi.
+    """
+    import services
+    from models import Recipe
+
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if not fp:
+        return {"success": False, "message": "Topilmadi"}
+
+    if add_qty <= 0:
+        return {"success": False, "message": "Miqdor musbat bo'lishi kerak"}
+
+    if fp.source != StockSource.PRODUCED:
+        return {"success": False, "message": "Faqat ishlab chiqarilgan mahsulotga qo'shiladi"}
+
+    base_qty = float(fp.quantity or 0)
+    if base_qty <= 0:
+        return {
+            "success": False,
+            "message": "Qoldiq 0 — proporsiya hisoblab bo'lmaydi. Yangi ishlab chiqarish yarating."
+        }
+
+    # Proporsiya: 1 birlik uchun qancha
+    ratio = add_qty / base_qty
+    add_volume = float(fp.volume_m3 or 0) * ratio
+    add_loy = float(fp.actual_loy_kg or 0) * ratio
+
+    # Xomashyo yetadimi
+    shortages = []
+    if add_volume > 0 and fp.penoplast_id:
+        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        if p:
+            vol_per_unit = float(p.volume_per_unit or 1.0)
+            blocks = add_volume / vol_per_unit
+            if float(p.stock_quantity) < blocks:
+                shortages.append(
+                    f"{p.item_name}: kerak {blocks:.2f} blok, qoldi {float(p.stock_quantity):.2f} blok"
+                )
+    if shortages:
+        return {"success": False, "message": "Xomashyo yetishmayapti!", "shortages": shortages}
+
+    log = []
+    peno_cost = 0.0
+    loy_cost = 0.0
+
+    # 1) Penoplast
+    if add_volume > 0 and fp.penoplast_id:
+        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        if p:
+            vol_per_unit = float(p.volume_per_unit or 1.0)
+            blocks = add_volume / vol_per_unit
+            p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
+            peno_cost = blocks * float(p.price_per_unit or 0)
+            log.append(f"{p.item_name}: -{blocks:.2f} blok")
+
+    # 2) Loy
+    if add_loy > 0:
+        recipe = db.query(Recipe).filter(Recipe.id == fp.recipe_id).first() if fp.recipe_id else None
+        if not recipe:
+            recipe = db.query(Recipe).first()
+
+        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
+        loy_cost = add_loy * float(loy_info.get("cost_per_kg", 0))
+
+        class _FakeOrder:
+            def __init__(self, rid):
+                class _It:
+                    recipe_id = rid
+                self.items = [_It()]
+        fake = _FakeOrder(recipe.id if recipe else None)
+        log.extend(services.deduct_loy_ingredients(db, fake, add_loy, use_stock=False))
+
+    # 3) Mahsulotni yangilaymiz
+    fp.quantity = base_qty + add_qty
+    fp.volume_m3 = float(fp.volume_m3 or 0) + add_volume
+    fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
+    fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
+    fp.cost_price = float(fp.cost_price or 0) + peno_cost + loy_cost
+
+    db.commit()
+    db.refresh(fp)
+
+    return {
+        "success": True,
+        "message": f"+{add_qty:g} {fp.unit} qo'shildi",
+        "product_id": fp.id,
+        "name": fp.name,
+        "added_qty": add_qty,
+        "new_qty": float(fp.quantity),
+        "unit": fp.unit,
+        "add_volume": round(add_volume, 4),
+        "add_loy": round(add_loy, 1),
+        "add_cost": round(peno_cost + loy_cost),
+        "inventory_log": log
+    }
+
+
+def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = None) -> dict:
+    """Tayyor mahsulot miqdorini kamaytiradi (brak/singan).
+    Xomashyo omborga QAYTARILMAYDI — tan narxi saqlanadi."""
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if not fp:
+        return {"success": False, "message": "Topilmadi"}
+
+    if reduce_qty <= 0:
+        return {"success": False, "message": "Miqdor musbat bo'lishi kerak"}
+
+    current = float(fp.quantity or 0)
+    if reduce_qty > current + 0.001:
+        return {
+            "success": False,
+            "message": f"Omborda {current:g} {fp.unit} bor, {reduce_qty:g} ayirib bo'lmaydi"
+        }
+
+    fp.quantity = max(0, current - reduce_qty)
+
+    # Izohga yozib qo'yamiz
+    note = f"brak: -{reduce_qty:g}{fp.unit}"
+    if reason:
+        note += f" ({reason})"
+    fp.notes = (fp.notes + " · " + note) if fp.notes else note
+
+    db.commit()
+    db.refresh(fp)
+
+    # Yo'qotilgan qiymat
+    lost_value = reduce_qty * float(fp.unit_price or 0)
+
+    return {
+        "success": True,
+        "message": f"-{reduce_qty:g} {fp.unit} chiqarildi (brak)",
+        "product_id": fp.id,
+        "name": fp.name,
+        "new_qty": float(fp.quantity),
+        "unit": fp.unit,
+        "lost_value": round(lost_value)
+    }
