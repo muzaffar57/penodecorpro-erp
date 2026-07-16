@@ -524,6 +524,37 @@ function onPenoChange(row) {
   calculateItem(row);
 }
 
+function checkDeliveredLimit(row) {
+  const delivered = parseFloat(row.dataset.delivered || 0);
+  if (!delivered) return;
+
+  const type = row.querySelector('.i-type')?.value;
+  const unit = row.dataset.dlvUnit || 'dona';
+  const cur = type === 'profil'
+    ? parseFloat(row.querySelector('.i-l')?.value || 0)
+    : parseFloat(row.querySelector('.i-q')?.value || 0);
+
+  const inp = type === 'profil' ? row.querySelector('.i-l') : row.querySelector('.i-q');
+  const warn = row.querySelector('.i-peno-warn');
+
+  if (cur < delivered - 0.001) {
+    if (inp) inp.style.borderColor = '#C0392B';
+    if (warn) {
+      warn.style.display = 'inline';
+      warn.style.color = '#C0392B';
+      warn.textContent = `❌ ${delivered} ${unit} topshirilgan — kamida shuncha bo'lishi kerak`;
+    }
+    row.dataset.dlvError = '1';
+  } else {
+    if (inp) inp.style.borderColor = '';
+    row.dataset.dlvError = '';
+    if (warn && warn.textContent.includes('topshirilgan')) {
+      warn.style.display = 'none';
+      warn.style.color = '#E67E22';
+    }
+  }
+}
+
 function updatePenoWarn(row) {
   const sel = row.querySelector('.i-peno');
   const warn = row.querySelector('.i-peno-warn');
@@ -1229,6 +1260,8 @@ function calculateItem(row) {
 
   // Plotnost ogohlantirishi
   updatePenoWarn(row);
+  // Topshirilgandan kam bo'lsa ogohlantiramiz
+  checkDeliveredLimit(row);
 
   let volume_total = 0, price = 0, perMeterPrice = 0;
 
@@ -1569,6 +1602,25 @@ async function editSelected() {
         const coatEl = row.querySelector('.i-c');
         if (coatEl) coatEl.value = item.is_coated ? 'true' : 'false';
 
+        // Topshirilgan bo'lsa — belgilaymiz
+        const dlvInfo = (window._dlvMap || {})[(item.name || '').trim().toLowerCase()];
+        if (dlvInfo && dlvInfo.delivered > 0) {
+          row.dataset.delivered = dlvInfo.delivered;
+          row.dataset.dlvUnit = dlvInfo.unit;
+          const badge = row.querySelector('.detal-badge');
+          if (badge) {
+            badge.innerHTML += ` <span style="background:#FEF9E7;color:#b7770d;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px">📦 ${dlvInfo.delivered} ${dlvInfo.unit} topshirilgan</span>`;
+          }
+          // O'chirish tugmasini bloklaymiz
+          const rm = row.querySelector('.detal-rm');
+          if (rm) {
+            rm.style.opacity = '.3';
+            rm.style.cursor = 'not-allowed';
+            rm.onclick = () => showMsg('❌ Topshirilgan detalni o\'chirib bo\'lmaydi', 'error');
+            rm.title = 'Topshirilgan — o\'chirib bo\'lmaydi';
+          }
+        }
+
         // Plotnost
         const penoEl = row.querySelector('.i-peno');
         if (penoEl && item.penoplast_id) penoEl.value = item.penoplast_id;
@@ -1585,6 +1637,27 @@ async function editSelected() {
     editMode = true;
     editUserTouched = false;
     editDiscountPct = parseFloat(order.discount_percent || 0);
+
+    // Topshirish holati — tahrirlashda cheklov uchun
+    let dlvMap = {};
+    try {
+      const dr = await fetch(`/api/orders/${editId}/delivery-status`);
+      if (dr.ok) {
+        const dd = await dr.json();
+        (dd.items || []).forEach(i => { if (i.delivered > 0) dlvMap[i.name.trim().toLowerCase()] = i; });
+        if (Object.keys(dlvMap).length) {
+          const eb2 = document.getElementById('editBanner');
+          if (eb2) {
+            eb2.style.background = '#FEF9E7';
+            eb2.style.borderColor = '#F5CBA7';
+            eb2.innerHTML = `
+              <div style="font-size:13px;font-weight:600;color:#b7770d">📦 Bu buyurtmada mahsulot topshirila boshlagan (${dd.delivery_percent}%)</div>
+              <div style="font-size:11px;color:#997;margin-top:3px">Topshirilgan miqdordan kam qilib bo'lmaydi. Yangi detal qo'shish yoki miqdorni oshirish mumkin.</div>`;
+          }
+        }
+      }
+    } catch(e) {}
+    window._dlvMap = dlvMap;
 
     // Kelishilgan summa
     const fpEl = document.getElementById('final_price');
@@ -1675,6 +1748,14 @@ async function updateOrder(orderId) {
   const projId = parseInt(document.getElementById('project_id').value);
   if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
+  // Topshirish cheklovini tekshiramiz
+  const errRows = document.querySelectorAll('.detal[data-dlv-error="1"]');
+  if (errRows.length) {
+    showMsg('❌ Topshirilgan miqdordan kam qilib bo\'lmaydi — qizil maydonlarni to\'g\'rilang', 'error');
+    errRows[0].scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+
   const items = collectItems();
   if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
 
@@ -1722,6 +1803,9 @@ async function updateOrder(orderId) {
       }
       if (result.loy_changed && result.loy_changed.old !== result.loy_changed.new) {
         html += `<br><br>🧱 Loy rejasi: ${result.loy_changed.old} kg → ${result.loy_changed.new} kg`;
+      }
+      if (result.delivery_percent !== undefined && result.delivery_percent > 0) {
+        html += `<br><br>📦 Topshirish: <b>${result.delivery_percent}%</b>`;
       }
       if (result.debt_amount > 0) {
         html += `<br><br>💰 Qarz: ${formatNum(result.debt_amount)} so'm`;
