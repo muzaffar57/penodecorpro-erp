@@ -68,7 +68,7 @@
         </div>
         <div class="kpi-card" style="padding:12px;margin-bottom:12px;border-left:3px solid #E67E22">
           <div class="kpi-val" style="font-size:20px;color:#E67E22" id="k-progress">—</div>
-          <div class="kpi-label">⏳ Jarayonda (loy kutmoqda)</div>
+          <div class="kpi-label">⏳ Ishlab chiqarilmoqda</div>
         </div>
         <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid #f0f0f0;font-size:12px">
           <span style="color:#777">Ishlab chiqarilgan qiymati</span>
@@ -88,7 +88,8 @@
     <div class="card" style="border-left:3px solid #C9A55A;border-radius:0 12px 12px 0">
       <div class="card-head"><h3 style="color:#8B6914">💡 Qanday ishlaydi</h3></div>
       <div class="card-body" style="font-size:12px;color:#666;line-height:1.7">
-        <b style="color:#1a1a1a">Ishlab chiqarish</b> — ombordan penoplast va loy yechiladi, mahsulot shu yerga tushadi.<br><br>
+        <b style="color:#1a1a1a">Ishlab chiqarish</b> — penoplast va loy darhol ombordan yechiladi, tan narxi hisoblanadi. Mahsulot <b>⏳ ishlab chiqarilmoqda</b> holatida turadi.<br><br>
+        <b style="color:#1a1a1a">✓ Sotuvga tayyor</b> — kesish va qoplash tugagach bosiladi. Endi do'konga jo'natish yoki buyurtmada ishlatish mumkin.<br><br>
         <b style="color:#1a1a1a">Qaytgan mahsulot</b> — Qaytarishlar bo'limida yozilganda avtomatik tushadi, narxi buyurtmadagiday saqlanadi.<br><br>
         <b style="color:#1a1a1a">Buyurtmada</b> — detal nomini yozganda tizim shu ombordan taklif qiladi. Tanlansa xomashyo qayta hisoblanmaydi.
       </div>
@@ -217,34 +218,25 @@
     </div>
   </div>
 
-<!-- ══ TAYYOR / YAKUNLASH MODALI ══ -->
-<div id="completeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:460px;max-width:100%">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0">
-      <div style="font-size:16px;font-weight:600;color:#1a1a1a">✓ Ishlab chiqarishni yakunlash</div>
-      <div style="font-size:12px;color:#aaa;margin-top:2px" id="cm-sub">—</div>
-    </div>
+</div>
 
-    <div style="padding:18px 22px">
-      <div style="background:#F8F5EF;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px" id="cm-plan"></div>
-
-      <div class="form-group">
-        <label>Haqiqatda necha kg loy ketdi?</label>
-        <input type="number" id="cm-loy" step="0.5" min="0" placeholder="0" oninput="cmCalc()"
-               style="border-color:#C9A55A;font-weight:600;font-size:15px">
+<!-- ══ FOYDA MODALI ══ -->
+<div id="profitModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:520px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1a1a1a">💰 Foyda hisobi</div>
+        <div style="font-size:12px;color:#aaa;margin-top:2px" id="pm-sub">—</div>
       </div>
-
-      <div style="background:#FAFAF8;border-radius:9px;padding:12px 14px;font-size:12px;line-height:1.9" id="cm-result">
-        Loy miqdorini kiriting
-      </div>
+      <button onclick="closeProfitModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
-
-    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeCompleteModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2" onclick="saveComplete()">✓ Tayyor deb belgilash</button>
+    <div style="padding:18px 22px;overflow-y:auto;flex:1" id="pm-body">
+      <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+    </div>
+    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0">
+      <button class="btn btn-dark w-full" onclick="closeProfitModal()">Yopish</button>
     </div>
   </div>
-</div>
 </div>
 {% endblock %}
 
@@ -370,7 +362,11 @@ function rowHtml(i) {
   meta.push(i.is_coated ? 'qoplamali' : 'qoplamasiz');
   if (isRet && i.from_order_number) meta.push(`${i.from_order_number} dan`);
   if (isRet && i.return_reason) meta.push(i.return_reason);
-  if (inProgress && i.planned_loy_kg > 0) meta.push(`reja: ${i.planned_loy_kg} kg loy`);
+  if (i.source === 'produced' && i.actual_loy_kg > 0) meta.push(`${i.actual_loy_kg} kg loy`);
+  if (i.source === 'produced' && i.cost_price > 0) {
+    const cpu = i.quantity > 0 ? (i.cost_price / i.quantity) : 0;
+    meta.push(`tan narxi ${fmt(cpu)}/${i.unit === 'metr' ? 'm' : 'ta'}`);
+  }
   const cleanNote = (i.notes || '').replace(/·?\s*width2=[\d.]+/g, '').trim().replace(/^·\s*/, '');
   if (cleanNote) meta.push(cleanNote);
 
@@ -378,7 +374,9 @@ function rowHtml(i) {
 
   // Jarayonda bo'lsa — faqat "Tayyor" va o'chirish tugmalari
   const actionBtns = inProgress ? `
-    <button class="btn btn-dark btn-sm" style="padding:5px 12px;font-size:11px" onclick="openCompleteModal(${i.id})">✓ Tayyor</button>
+    <button class="btn btn-dark btn-sm" style="padding:5px 12px;font-size:11px;white-space:nowrap"
+            onclick="markReady(${i.id})">✓ Sotuvga tayyor</button>
+    <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
     <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8"
             onclick="delFp(${i.id}, '${i.source}')" title="Bekor qilish">✕</button>
   ` : `
@@ -386,6 +384,10 @@ function rowHtml(i) {
     <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1">
     <button class="mini-btn" onclick="stepFp(${i.id},1)">+</button>
     <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
+    {% if current_user.role.value == 'admin' %}
+    <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
+            style="color:#8B6914;border-color:#E5DFD3">💰</button>
+    {% endif %}
     <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8"
             onclick="delFp(${i.id}, '${i.source}')" title="O'chirish">✕</button>
   `;
@@ -396,7 +398,7 @@ function rowHtml(i) {
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:7px">
         <span class="fp-name">${i.name}</span>
-        ${inProgress ? '<span class="fp-badge" style="background:#FEF9E7;color:#b7770d">⏳ JARAYONDA</span>' : ''}
+        ${inProgress ? '<span class="fp-badge" style="background:#FEF9E7;color:#b7770d">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
         ${isRet ? '<span class="fp-badge" style="background:#E9F7EF;color:#1e7e34">♻️ QAYTGAN</span>' : ''}
         ${low && !inProgress ? '<span class="fp-badge" style="background:#FDEDEC;color:#c0392b">TUGADI</span>' : ''}
       </div>
@@ -599,14 +601,25 @@ function pCalc() {
   const profit = revenue - cost;
   const margin = revenue > 0 ? (profit / revenue * 100) : 0;
 
+  const loyLine = loyKg > 0
+    ? (loyCostPerKg > 0
+        ? `<br>🧱 Loy: <b>${loyKg} kg × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm</b>${loyRecipeName ? ` <span style="color:#aaa">(${loyRecipeName})</span>` : ''}`
+        : `<br>🧱 Loy: <b>${loyKg} kg</b> <span style="color:#E67E22">— retsept tanlanmagan</span>`)
+    : '';
+
+  const costPerUnit = count > 0 ? cost / count : 0;
+
   box.innerHTML = `
-    📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b> = ${fmt(penoCost)} so'm` : ''}<br>
+    📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b> = ${fmt(penoCost)} so'm` : ''}${loyLine}<br>
     💵 1 ${unit} narxi: <b style="color:#2980B9">${fmt(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:#aaa">(kiritilgan: ${fmt(inputPrice)})</span>` : ''}<br>
-    🏭 Natija: <b style="color:#C9A55A">${count} ${unit}</b>
-    ${loyKg > 0 ? `<br>🧱 Reja: <b>${loyKg} kg loy</b> <span style="color:#aaa">— aniq xarajat "Tayyor" bosilganda hisoblanadi</span>` : ''}
-    <div style="margin-top:6px;padding-top:6px;border-top:1px dashed #ddd;color:#888;font-size:11px">
-      ⏳ Penoplast darhol yechiladi. Loy "Tayyor" bosilgandagina hisoblanadi.
-    </div>`;
+    <div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">
+      💰 Tan narxi: <b style="color:#C0392B">${fmt(cost)} so'm</b>
+      <span style="color:#aaa">(1 ${unit} = ${fmt(costPerUnit)})</span><br>
+      💵 Sotuv: <b style="color:#27AE60">${fmt(revenue)} so'm</b><br>
+      📈 Foyda: <b style="color:${profit>0?'#27AE60':'#C0392B'};font-size:13px">${fmt(profit)} so'm</b>
+      <span style="color:#aaa">(${margin.toFixed(1)}%)</span>
+    </div>
+    🏭 Natija: <b style="color:#C9A55A">${count} ${unit}</b>`;
 }
 
 async function saveProduce() {
@@ -681,8 +694,10 @@ async function saveProduce() {
       closeProduceModal();
       loadFp();
       let msg = `⏳ ${r.name}: ${r.quantity} ${r.unit} — ishlab chiqarish boshlandi`;
-      if (r.inventory_log?.length) msg += '\n\n📦 ' + r.inventory_log.join('\n');
-      msg += '\n\n✓ Tayyor bo\'lganda "Tayyor" tugmasini bosing';
+      if (r.inventory_log?.length) msg += '\n\n📦 Ombordan:\n' + r.inventory_log.join('\n');
+      msg += `\n\n💰 Tan narxi: ${fmt(r.total_cost)} so'm`;
+      msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
+      msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
       showMsg(msg, 'success');
     } else {
       const d = r.detail || {};
@@ -696,103 +711,170 @@ async function saveProduce() {
   }
 }
 
-// ── TAYYOR / YAKUNLASH ────────────────────────────────────
-let completeItem = null;
-
-function openCompleteModal(id) {
+// ── TAYYOR (sotuvga tayyor) ───────────────────────────────
+async function markReady(id) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
-  completeItem = item;
 
-  document.getElementById('cm-sub').textContent = `${item.name} · ${item.quantity} ${item.unit}`;
-  document.getElementById('cm-plan').innerHTML =
-    `📋 Rejalashtirilgan: <b>${item.planned_loy_kg || 0} kg</b> loy` +
-    (item.planned_loy_kg > 0 ? `` : ` <span style="color:#aaa">(loy ishlatilmagan deb belgilangan)</span>`);
+  const txt = `${item.name} sotuvga tayyor deb belgilansinmi?\n\n` +
+    `📦 ${item.quantity} ${item.unit}\n\n` +
+    `Xomashyo allaqachon yechilgan — bu faqat holat o'zgarishi.`;
 
-  document.getElementById('cm-loy').value = item.planned_loy_kg || '';
-  document.getElementById('completeModal').style.display = 'flex';
-  cmCalc();
-  document.getElementById('cm-loy').focus();
-  document.getElementById('cm-loy').select();
-}
-
-function closeCompleteModal() {
-  document.getElementById('completeModal').style.display = 'none';
-  completeItem = null;
-}
-
-async function cmCalc() {
-  const box = document.getElementById('cm-result');
-  if (!completeItem) return;
-  const loyKg = parseFloat(document.getElementById('cm-loy').value) || 0;
-
-  const revenue = completeItem.unit_price * completeItem.quantity;
-  const penoCost = completeItem.cost_price || 0;
-
-  let loyCostTxt = '';
-  if (loyKg > 0) {
-    try {
-      const url = completeItem.recipe_id ? `/api/loy-cost?recipe_id=${completeItem.recipe_id}` : '/api/loy-cost';
-      const d = await fetch(url).then(r => r.json());
-      const loyCost = loyKg * (d.cost_per_kg || 0);
-      const totalCost = penoCost + loyCost;
-      const profit = revenue - totalCost;
-      const margin = revenue > 0 ? (profit / revenue * 100) : 0;
-
-      box.innerHTML = `
-        📦 Penoplast: <b>${fmt(penoCost)} so'm</b><br>
-        🧱 Loy: ${loyKg} kg × ${fmt(d.cost_per_kg)} = <b>${fmt(loyCost)} so'm</b><br>
-        <div style="border-top:1px solid #eee;margin:6px 0;padding-top:6px">
-          💰 Tan narxi: <b style="color:#C0392B">${fmt(totalCost)} so'm</b><br>
-          💵 Sotuv: <b style="color:#27AE60">${fmt(revenue)} so'm</b><br>
-          📈 Foyda: <b style="color:${profit>0?'#27AE60':'#C0392B'};font-size:14px">${fmt(profit)} so'm</b>
-          <span style="color:#aaa">(${margin.toFixed(1)}%)</span>
-        </div>`;
-    } catch(e) {
-      box.innerHTML = 'Hisoblashda xato';
-    }
-  } else {
-    const profit = revenue - penoCost;
-    const margin = revenue > 0 ? (profit / revenue * 100) : 0;
-    box.innerHTML = `
-      📦 Penoplast: <b>${fmt(penoCost)} so'm</b> · Loy ishlatilmadi<br>
-      <div style="border-top:1px solid #eee;margin:6px 0;padding-top:6px">
-        💰 Tan narxi: <b style="color:#C0392B">${fmt(penoCost)} so'm</b><br>
-        💵 Sotuv: <b style="color:#27AE60">${fmt(revenue)} so'm</b><br>
-        📈 Foyda: <b style="color:${profit>0?'#27AE60':'#C0392B'};font-size:14px">${fmt(profit)} so'm</b>
-        <span style="color:#aaa">(${margin.toFixed(1)}%)</span>
-      </div>`;
-  }
-}
-
-async function saveComplete() {
-  if (!completeItem) return;
-  const loyKg = parseFloat(document.getElementById('cm-loy').value) || 0;
+  if (!confirm(txt)) return;
 
   try {
-    const res = await fetch(`/api/finished/${completeItem.id}/complete`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({actual_loy_kg: loyKg})
-    });
+    const res = await fetch(`/api/finished/${id}/complete`, { method: 'POST' });
     const r = await res.json();
 
     if (res.ok) {
-      closeCompleteModal();
       loadFp();
-      showMsg(
-        `✅ ${r.name} — TAYYOR!\n\n` +
-        `💰 Tan narxi: ${fmt(r.total_cost)} so'm\n` +
-        `💵 Sotuv: ${fmt(r.revenue)} so'm\n` +
-        `📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`,
-        'success'
-      );
+      showMsg(`✅ ${r.name} — SOTUVGA TAYYOR! (${r.quantity} ${r.unit})`, 'success');
     } else {
-      const d = r.detail || {};
-      showMsg('❌ ' + (d.message || 'Xato'), 'error');
+      showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
+  }
+}
+
+// ── FOYDA ─────────────────────────────────────────────────
+function closeProfitModal() {
+  document.getElementById('profitModal').style.display = 'none';
+}
+
+async function openProfitModal(id) {
+  const i = fpItems.find(x => x.id === id);
+  if (!i) return;
+
+  document.getElementById('pm-sub').textContent = `${i.name} · ${i.quantity} ${i.unit}`;
+  document.getElementById('profitModal').style.display = 'flex';
+  document.getElementById('pm-body').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>';
+
+  const revenue = i.unit_price * i.quantity;
+  const totalCost = i.cost_price || 0;
+  const profit = revenue - totalCost;
+  const margin = revenue > 0 ? (profit / revenue * 100) : 0;
+
+  // Loy narxini olamiz
+  let loyCost = 0, loyPerKg = 0, recipeName = '';
+  if (i.actual_loy_kg > 0) {
+    try {
+      const url = i.recipe_id ? `/api/loy-cost?recipe_id=${i.recipe_id}` : '/api/loy-cost';
+      const d = await fetch(url).then(r => r.json());
+      loyPerKg = d.cost_per_kg || 0;
+      loyCost = i.actual_loy_kg * loyPerKg;
+      recipeName = d.recipe || '';
+    } catch(e) {}
+  }
+  const penoCost = Math.max(totalCost - loyCost, 0);
+
+  const w2 = fpWidth2(i);
+  const dims = (i.width && i.thickness)
+    ? (w2 ? `${i.width}×${w2}×${i.thickness} sm` : `${i.width}×${i.thickness} sm`) : '—';
+
+  const row = (label, val, color, bold) => `
+    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px${bold?';font-weight:700':''}">
+      <span style="color:${bold?'#1a1a1a':'#777'}">${label}</span>
+      <span style="color:${color||'#1a1a1a'};font-weight:${bold?'700':'600'}">${val}</span>
+    </div>`;
+
+  document.getElementById('pm-body').innerHTML = `
+    <div style="background:#FAFAF8;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#666;line-height:1.8">
+      📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}<br>
+      📦 Hajm: <b>${(i.volume_m3 || 0).toFixed(4)} m³</b>
+      ${i.actual_loy_kg > 0 ? `· 🧱 Loy: <b>${i.actual_loy_kg} kg</b>${recipeName ? ` (${recipeName})` : ''}` : ''}
+      ${i.created_by ? `<br>👤 ${i.created_by}` : ''}
+    </div>
+
+    <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
+    ${row('📦 Penoplast', fmt(penoCost) + " so'm")}
+    ${loyCost > 0 ? row(`🧱 Loy (${i.actual_loy_kg} kg × ${fmt(loyPerKg)})`, fmt(loyCost) + " so'm") : ''}
+    <div style="border-top:1px solid #eee;margin:4px 0"></div>
+    ${row('Tan narxi', fmt(totalCost) + " so'm", '#C0392B', true)}
+
+    <div style="font-size:12px;font-weight:600;color:#777;margin:14px 0 4px">SOTUV</div>
+    ${row(`1 ${i.unit} narxi`, fmt(i.unit_price) + " so'm")}
+    ${row(`${i.quantity} ${i.unit} × ${fmt(i.unit_price)}`, fmt(revenue) + " so'm", '#27AE60', true)}
+
+    <div style="border-top:2px solid #1a1a1a;margin:12px 0 6px"></div>
+    ${row('📈 FOYDA', `${fmt(profit)} so'm`, profit > 0 ? '#27AE60' : '#C0392B', true)}
+    <div style="text-align:right;font-size:12px;color:#aaa;margin-top:-2px">
+      Rentabellik: <b style="color:${margin>0?'#27AE60':'#C0392B'}">${margin.toFixed(1)}%</b>
+    </div>
+
+    ${i.quantity > 0 ? `
+    <div style="margin-top:14px;padding:10px 12px;background:#F8F5EF;border-radius:8px;font-size:12px;color:#666">
+      💡 1 ${i.unit} tan narxi: <b>${fmt(totalCost / i.quantity)} so'm</b> ·
+      Foyda: <b style="color:#27AE60">${fmt(profit / i.quantity)} so'm</b>
+    </div>` : ''}`;
+}
+
+async function showProfit(id) {
+  const item = fpItems.find(i => i.id === id);
+  if (!item) return;
+
+  document.getElementById('pm-sub').textContent = `${item.name} · ${item.quantity} ${item.unit}`;
+  document.getElementById('pm-body').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>';
+  document.getElementById('profitModal').style.display = 'flex';
+
+  try {
+    const res = await fetch(`/api/finished/${id}/profit`);
+    if (!res.ok) {
+      document.getElementById('pm-body').innerHTML =
+        '<div style="text-align:center;padding:20px;color:#c0392b">Ruxsat yo\'q yoki xato</div>';
+      return;
+    }
+    const d = await res.json();
+
+    const rows = (d.breakdown || []).map(b => `
+      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:12.5px">
+        <span style="color:#666;flex:1;min-width:0;padding-right:10px">${b.name}</span>
+        <span style="font-weight:600;color:#1a1a1a;white-space:nowrap">${fmt(b.cost)} so'm</span>
+      </div>`).join('');
+
+    document.getElementById('pm-body').innerHTML = `
+      <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:8px">Xarajat tarkibi</div>
+      ${rows || '<div style="color:#bbb;font-size:12px;padding:8px 0">Xarajat ma\'lumoti yo\'q</div>'}
+
+      <div style="display:flex;justify-content:space-between;padding:10px 0 8px;border-top:2px solid #1a1a1a;margin-top:6px">
+        <span style="font-size:13px;font-weight:700">Jami tan narxi</span>
+        <span style="font-size:14px;font-weight:700;color:#C0392B">${fmt(d.total_cost)} so'm</span>
+      </div>
+
+      <div style="background:#FAFAF8;border-radius:9px;padding:12px 14px;margin-top:10px">
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px">
+          <span style="color:#777">Sotuv narxi (1 ${d.unit})</span>
+          <span style="font-weight:600">${fmt(d.unit_price)} so'm</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px">
+          <span style="color:#777">Tan narxi (1 ${d.unit})</span>
+          <span style="font-weight:600;color:#C0392B">${fmt(d.cost_per_unit)} so'm</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0 4px;font-size:12.5px;border-top:1px solid #eee;margin-top:3px">
+          <span style="color:#555;font-weight:600">Foyda (1 ${d.unit})</span>
+          <span style="font-weight:700;color:${d.profit_per_unit>0?'#27AE60':'#C0392B'}">${fmt(d.profit_per_unit)} so'm</span>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;padding:12px 0 4px;margin-top:10px;border-top:1px dashed #ddd">
+        <span style="font-size:13px;color:#777">Jami sotuv (${d.quantity} ${d.unit})</span>
+        <span style="font-size:14px;font-weight:700;color:#27AE60">${fmt(d.revenue)} so'm</span>
+      </div>
+
+      <div style="background:${d.profit>0?'#E9F7EF':'#FDEDEC'};border-radius:10px;padding:14px;margin-top:10px;text-align:center">
+        <div style="font-size:12px;color:#777;margin-bottom:3px">📈 UMUMIY FOYDA</div>
+        <div style="font-size:22px;font-weight:800;color:${d.profit>0?'#1e7e34':'#c0392b'}">
+          ${fmt(d.profit)} so'm
+        </div>
+        <div style="font-size:12px;color:#888;margin-top:2px">Rentabellik: ${d.margin}%</div>
+      </div>
+
+      <div style="font-size:10.5px;color:#bbb;margin-top:10px;text-align:center">
+        Hajm: ${d.volume_m3.toFixed(4)} m³${d.loy_kg > 0 ? ` · Loy: ${d.loy_kg} kg` : ''}
+      </div>`;
+  } catch(e) {
+    document.getElementById('pm-body').innerHTML =
+      '<div style="text-align:center;padding:20px;color:#c0392b">Server xatosi</div>';
   }
 }
 
