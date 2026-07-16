@@ -52,7 +52,7 @@
       </div>
       <div class="card-body" style="padding-top:0">
         <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#8B6914;line-height:1.6">
-          💡 KPI% × yillik sotuv summasi = yil oxiri sovg'a. Har oy tegishli ulushi avtomatik xarajat sifatida yoziladi.
+          💡 KPI% × yillik <b>sof foyda</b> = yil oxiri sovg'a (sotuv summasidan emas). Har oy tegishli ulushi avtomatik xarajat sifatida yoziladi.
         </div>
         <div id="mkList">
           <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
@@ -166,7 +166,7 @@ async function loadMasterKpi() {
       <div class="mk-row">
         <div style="flex:1;min-width:0">
           <div class="mk-name">${m.name}</div>
-          <div class="mk-meta">Yillik sotuv: ${fmt(m.yearly_sales)} so'm · ${m.orders_count} ta buyurtma</div>
+          <div class="mk-meta">Sotuv: ${fmt(m.yearly_sales)} · Foyda: <b style="color:#8E44AD">${fmt(m.yearly_profit)}</b> so'm · ${m.orders_count} ta buyurtma</div>
         </div>
         <div style="display:flex;align-items:center;gap:5px">
           <input class="mk-inp" type="number" step="0.5" min="0" max="100"
