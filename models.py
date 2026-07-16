@@ -439,10 +439,11 @@ class InventoryPurchase(Base):
 
 class PayType(PyEnum):
     """Hodim to'lov turi — korxonaga qarab har xil bo'lishi mumkin."""
-    FIXED = "fixed"                    # Doimiy oylik
-    PERCENT_SALES = "percent_sales"    # Sotuvdan foiz
-    PERCENT_PROFIT = "percent_profit"  # Foydadan foiz
-    PER_UNIT = "per_unit"              # Har birlik uchun (blok/metr/dona)
+    FIXED = "fixed"                          # Doimiy oylik
+    PERCENT_SALES = "percent_sales"          # Sotuvdan foiz
+    PERCENT_PROFIT = "percent_profit"        # Foydadan foiz
+    PER_UNIT = "per_unit"                    # Har birlik uchun (blok/metr/dona)
+    FIXED_PLUS_COATING = "fixed_plus_coating"  # Doimiy oylik + qoplangan metr/dona uchun qo'shimcha
 
 
 class Employee(Base):
