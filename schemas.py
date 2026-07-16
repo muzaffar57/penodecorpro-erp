@@ -30,6 +30,7 @@ class MasterRead(BaseModel):
     phone: str
     telegram_id: Optional[str] = None
     cashback_percent: float
+    kpi_percent: Optional[float] = 0
     is_active: bool
     hire_date: datetime
     notes: Optional[str] = None
@@ -43,6 +44,7 @@ class MasterUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
     cashback_percent: Optional[float] = None
+    kpi_percent: Optional[float] = None
     telegram_id: Optional[str] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
