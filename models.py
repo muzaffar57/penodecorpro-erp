@@ -433,6 +433,25 @@ class InventoryPurchase(Base):
 
 
 # ============================================================
+# 9b. TRANSPORT EXPENSE — Kirish transporti (xomashyo tashish)
+# ============================================================
+
+class TransportExpense(Base):
+    """Xomashyo olib kelish uchun transport xarajati (bir mashina, bir necha material)."""
+    __tablename__ = "transport_expenses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    amount = Column(Numeric(12, 2), nullable=False)
+    materials_note = Column(String(255), nullable=True)   # "Akril, Kroshka, Mel uchun"
+    expense_date = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<TransportExpense {self.amount}>"
+
+
+# ============================================================
 # 10. FINISHED PRODUCT — Tayyor mahsulotlar ombori
 # ============================================================
 
@@ -503,6 +522,31 @@ class Delivery(Base):
     delivered_by = Column(String(100), nullable=True)  # Kim topshirdi
     received_by = Column(String(100), nullable=True)   # Kim qabul qildi
     notes = Column(Text, nullable=True)
+
+    # Transport (yetkazib berish)
+    transport_carrier = Column(String(150), nullable=True)     # "ABC Transport" / "Mijoz o'zi"
+    transport_cost = Column(Numeric(12, 2), default=0)
+    transport_payer = Column(String(20), default="none")       # none / client / company / split
+
+    @property
+    def company_transport_cost(self):
+        """Kompaniya to'laydigan qism."""
+        cost = float(self.transport_cost or 0)
+        if self.transport_payer == "company":
+            return cost
+        if self.transport_payer == "split":
+            return round(cost / 2)
+        return 0.0
+
+    @property
+    def client_transport_cost(self):
+        """Mijoz to'laydigan qism."""
+        cost = float(self.transport_cost or 0)
+        if self.transport_payer == "client":
+            return cost
+        if self.transport_payer == "split":
+            return cost - round(cost / 2)
+        return 0.0
 
     order = relationship("Order", back_populates="deliveries")
     items = relationship("DeliveryItem", back_populates="delivery", cascade="all, delete-orphan")
