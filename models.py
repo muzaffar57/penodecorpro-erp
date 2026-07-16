@@ -42,6 +42,7 @@ class ProjectStatus(PyEnum):
 
 
 class OrderStatus(PyEnum):
+    DRAFT = "draft"
     NEW = "new"
     IN_PROGRESS = "in_progress"
     COATING = "coating"
@@ -144,6 +145,8 @@ class Inventory(Base):
     min_stock = Column(Float, default=0.0)
     price_per_unit = Column(Numeric(12, 2), nullable=True)
     volume_per_unit = Column(Float, default=1.0)  # m³ — penoplast blok hajmi
+    is_penoplast = Column(Boolean, default=False)  # Penoplast (plotnost) turimi
+    is_default_penoplast = Column(Boolean, default=False)  # Asosiy plotnost
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     notes = Column(Text, nullable=True)
 
@@ -288,6 +291,10 @@ class OrderItem(Base):
     is_coated = Column(Boolean, default=True)
     recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True)
     recipe = relationship("Recipe")
+
+    penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Qaysi plotnost
+    penoplast = relationship("Inventory")
+    price_per_m3 = Column(Numeric(12, 2), nullable=True)  # Shu detal uchun 1 m³ narxi
 
     unit_price = Column(Numeric(12, 2), default=0)
     total_price = Column(Numeric(12, 2), default=0)
