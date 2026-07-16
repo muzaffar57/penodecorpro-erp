@@ -178,7 +178,7 @@ function buildExpDetail(d){
   if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
     extraHtml += `<div style="font-size:10.5px;color:#8B6914;font-weight:600;margin:8px 0 2px">🏆 Usta yillik KPI</div>`;
     extraHtml += d.usta_kpi_breakdown.map(b =>
-      `<div class="exp-row"><span class="exp-name">${b.master_name} (${b.kpi_percent}% × ${fmt(b.monthly_sales)})</span><span class="exp-val">${Number(b.kpi_amount).toLocaleString('uz')} so'm</span></div>`
+      `<div class="exp-row"><span class="exp-name">${b.master_name} (${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)})</span><span class="exp-val">${Number(b.kpi_amount).toLocaleString('uz')} so'm</span></div>`
     ).join('');
   }
 
