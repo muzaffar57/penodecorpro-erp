@@ -93,6 +93,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE order_items ADD COLUMN penoplast_id INTEGER")
         if 'price_per_m3' not in oi_cols:
             migrations.append("ALTER TABLE order_items ADD COLUMN price_per_m3 NUMERIC(12,2)")
+        if 'finished_product_id' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN finished_product_id INTEGER")
 
         if migrations:
             with engine.connect() as conn:
@@ -116,6 +118,8 @@ def _migrate_payment_columns():
             ("paymentmethod", "CASH"),
             ("paymentmethod", "CARD"),
             ("paymentmethod", "TRANSFER"),
+            ("stocksource", "PRODUCED"),
+            ("stocksource", "RETURNED"),
         ]
         for enum_name, value in enum_additions:
             try:
@@ -551,6 +555,10 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     check = services.check_inventory_for_order(db, order)
     if not check["enough"]:
         raise HTTPException(status_code=400, detail={"success": False, "message": "Xomashyo yetishmayapti!", "shortages": check["shortages"]})
+    # Tayyor mahsulot yetadimi
+    fcheck = crud.check_finished_for_order(db, order.items)
+    if not fcheck["enough"]:
+        raise HTTPException(status_code=400, detail={"success": False, "message": "Tayyor mahsulot yetishmayapti!", "shortages": fcheck["shortages"]})
     new_order = crud.create_order(db, order)
     services.deduct_inventory_for_order(db, new_order)
     low_items = crud.get_low_stock_items(db)
@@ -778,6 +786,9 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=
     if order.status not in (OrderStatus.READY, OrderStatus.DRAFT):
         # 1) Penoplast qaytadi
         log.extend(services.return_inventory_for_order(db, order))
+
+        # 1b) Tayyor mahsulotlar qaytadi
+        log.extend(crud._return_finished_for_order(db, order))
 
         # 2) Loy ingredientlari qaytadi
         #    Haqiqiy (loy_kg) bo'lsa — shuni, aks holda rejalashtirilgan (planned_loy) ni
@@ -1035,6 +1046,110 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
+
+
+# ============================================================
+# FINISHED PRODUCTS — Tayyor mahsulotlar ombori
+# ============================================================
+
+@app.get("/finished", response_class=HTMLResponse)
+async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Tayyor mahsulotlar sahifasi."""
+    items = crud.get_finished_products(db)
+    penoplasts = services.get_penoplast_list(db)
+    default_p = services.get_default_penoplast(db)
+    recipes = crud.get_recipes(db)
+    stats = crud.get_finished_stats(db)
+    return templates.TemplateResponse(request, "finished.html", {
+        "items": items, "penoplasts": penoplasts,
+        "default_penoplast_id": default_p.id if default_p else None,
+        "recipes": recipes, "stats": stats,
+        "current_user": current_user, "active_page": "finished"
+    })
+
+
+@app.get("/api/finished")
+def api_get_finished(source: Optional[str] = None, only_available: bool = False,
+                     db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Tayyor mahsulotlar ro'yxati."""
+    items = crud.get_finished_products(db, source=source, only_available=only_available)
+    return [{
+        "id": fp.id,
+        "name": fp.name,
+        "category": fp.category,
+        "width": fp.width,
+        "thickness": fp.thickness,
+        "is_coated": fp.is_coated,
+        "quantity": float(fp.quantity or 0),
+        "unit": fp.unit,
+        "unit_price": float(fp.unit_price or 0),
+        "cost_price": float(fp.cost_price or 0),
+        "source": fp.source.value,
+        "from_order_id": fp.from_order_id,
+        "from_order_number": fp.from_order.order_number if fp.from_order else None,
+        "return_reason": fp.return_reason,
+        "volume_m3": float(fp.volume_m3 or 0),
+        "loy_kg": float(fp.loy_kg or 0),
+        "created_at": fp.created_at.isoformat() if fp.created_at else None,
+        "created_by": fp.created_by,
+        "notes": fp.notes,
+        "total_value": round(float(fp.quantity or 0) * float(fp.unit_price or 0))
+    } for fp in items]
+
+
+@app.get("/api/finished/search")
+def api_search_finished(q: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Nom bo'yicha qidirish — buyurtmada taklif uchun."""
+    return {"items": crud.search_finished_products(db, q)}
+
+
+@app.post("/api/finished/produce")
+def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Tayyor mahsulot ishlab chiqarish."""
+    who = current_user.full_name or current_user.username
+    result = crud.produce_finished_product(db, data, created_by=who)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+
+    # Ombor ogohlantirishi
+    low_items = crud.get_low_stock_items(db)
+    if low_items:
+        lines = []
+        for item in low_items:
+            qty = float(item.stock_quantity)
+            min_q = float(item.min_stock)
+            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
+        msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTayyor mahsulot ishlab chiqarilgandan keyin:\n\n"
+               + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
+               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
+        _send_telegram(msg)
+
+    return result
+
+
+@app.put("/api/finished/{fp_id}")
+def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Tayyor mahsulotni tahrirlash."""
+    fp = crud.update_finished_product(db, fp_id, data.model_dump(exclude_unset=True))
+    if not fp:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok", "quantity": float(fp.quantity), "unit_price": float(fp.unit_price or 0)}
+
+
+@app.delete("/api/finished/{fp_id}")
+def api_delete_finished(fp_id: int, return_to_stock: bool = False,
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Tayyor mahsulotni o'chirish."""
+    if not crud.delete_finished_product(db, fp_id, return_to_stock=return_to_stock):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
+
+
+@app.get("/api/finished/stats")
+def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    return crud.get_finished_stats(db)
 
 
 # ============================================================
