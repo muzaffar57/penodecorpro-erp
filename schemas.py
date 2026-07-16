@@ -60,6 +60,8 @@ class InventoryCreate(BaseModel):
     min_stock: float = Field(default=0.0, ge=0)
     price_per_unit: Optional[float] = None
     volume_per_unit: float = Field(default=1.0, gt=0, description="Blok hajmi (m³)")
+    is_penoplast: bool = Field(default=False, description="Penoplast (plotnost) turimi")
+    is_default_penoplast: bool = Field(default=False, description="Asosiy plotnost")
     notes: Optional[str] = None
 
 
@@ -72,6 +74,8 @@ class InventoryRead(BaseModel):
     min_stock: float
     price_per_unit: Optional[float] = None
     volume_per_unit: float = 1.0
+    is_penoplast: bool = False
+    is_default_penoplast: bool = False
     last_updated: datetime
     notes: Optional[str] = None
 
@@ -85,6 +89,9 @@ class InventoryUpdate(BaseModel):
     unit: Optional[str] = None
     min_stock: Optional[float] = None
     price_per_unit: Optional[float] = None
+    volume_per_unit: Optional[float] = None
+    is_penoplast: Optional[bool] = None
+    is_default_penoplast: Optional[bool] = None
     notes: Optional[str] = None
 
 
@@ -176,6 +183,8 @@ class OrderItemCreate(BaseModel):
     quantity: float = Field(default=1.0, gt=0)
     is_coated: bool = True
     unit_price: float = Field(default=0, ge=0)
+    penoplast_id: Optional[int] = None
+    price_per_m3: Optional[float] = None
     notes: Optional[str] = None
 
 
@@ -186,6 +195,8 @@ class OrderCreate(BaseModel):
     recipe_id: Optional[int] = None
     items: List[OrderItemCreate] = []
     agreed_amount: Optional[float] = None
+    is_draft: bool = False
+    deadline: Optional[datetime] = None
     notes: Optional[str] = None
 
 
@@ -200,6 +211,10 @@ class OrderItemRead(BaseModel):
     is_coated: bool
     unit_price: float
     total_price: float
+    penoplast_id: Optional[int] = None
+    penoplast_name: Optional[str] = None
+    price_per_m3: Optional[float] = None
+    notes: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -241,6 +256,7 @@ class OrderRead(BaseModel):
     is_archived: Optional[bool] = False
     master_id: Optional[int] = None
     created_at: datetime
+    deadline: Optional[datetime] = None
     closed_at: Optional[datetime] = None
     items: List[OrderItemRead] = []
     payments: List[PaymentRead] = []
