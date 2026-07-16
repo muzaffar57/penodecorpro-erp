@@ -319,6 +319,9 @@ class DeliveryCreate(BaseModel):
     items: List[DeliveryItemCreate] = []
     received_by: Optional[str] = None
     notes: Optional[str] = None
+    transport_carrier: Optional[str] = None
+    transport_cost: float = Field(default=0, ge=0)
+    transport_payer: str = Field(default="none", description="none/client/company/split")
 
 
 class DeliveryItemRead(BaseModel):
@@ -338,8 +341,18 @@ class DeliveryRead(BaseModel):
     delivered_by: Optional[str] = None
     received_by: Optional[str] = None
     notes: Optional[str] = None
+    transport_carrier: Optional[str] = None
+    transport_cost: Optional[float] = 0
+    transport_payer: Optional[str] = "none"
     items: List[DeliveryItemRead] = []
     model_config = {"from_attributes": True}
+
+
+class TransportExpenseCreate(BaseModel):
+    """Kirish transporti — xomashyo olib kelish xarajati."""
+    amount: float = Field(..., gt=0)
+    materials_note: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class PaymentCreate(BaseModel):
