@@ -56,6 +56,56 @@ def _send_telegram_to(chat_id: str, text: str):
 
 init_database()
 
+
+def _migrate_payment_columns():
+    """Mavjud bazaga to'lov ustunlarini qo'shadi (agar yo'q bo'lsa)."""
+    from sqlalchemy import text, inspect
+    try:
+        from database import engine
+    except ImportError:
+        from database import SessionLocal
+        engine = SessionLocal().get_bind()
+
+    try:
+        inspector = inspect(engine)
+        cols = [c['name'] for c in inspector.get_columns('orders')]
+
+        migrations = []
+        if 'agreed_amount' not in cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN agreed_amount NUMERIC(12,2) DEFAULT 0")
+        if 'payment_status' not in cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN payment_status VARCHAR(20) DEFAULT 'UNPAID'")
+        if 'is_archived' not in cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN is_archived BOOLEAN DEFAULT FALSE")
+        if 'closed_at' not in cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN closed_at TIMESTAMP")
+
+        if migrations:
+            with engine.connect() as conn:
+                for sql in migrations:
+                    try:
+                        conn.execute(text(sql))
+                        conn.commit()
+                        print(f"✓ Migratsiya: {sql[:60]}...")
+                    except Exception as e:
+                        print(f"⚠ Migratsiya o'tkazib yuborildi: {e}")
+
+        # agreed_amount bo'sh bo'lganlarni total_amount ga tenglashtiramiz
+        with engine.connect() as conn:
+            try:
+                conn.execute(text(
+                    "UPDATE orders SET agreed_amount = total_amount "
+                    "WHERE agreed_amount IS NULL OR agreed_amount = 0"
+                ))
+                conn.commit()
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"⚠ Migratsiya xatosi: {e}")
+
+
+_migrate_payment_columns()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
@@ -655,6 +705,78 @@ def api_delete_return(return_id: int, db: Session = Depends(get_db), current_use
     if not crud.delete_return_item(db, return_id):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     return {"status": "ok"}
+
+
+# ============================================================
+# PAYMENTS — To'lovlar API
+# ============================================================
+
+@app.post("/api/payments")
+def api_create_payment(data: schemas.PaymentCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yangi to'lov qo'shish."""
+    if not data.received_by:
+        data.received_by = current_user.full_name or current_user.username
+    try:
+        payment = crud.create_payment(db, data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    order = crud.get_order(db, data.order_id)
+    return {
+        "status": "ok",
+        "payment_id": payment.id,
+        "paid_amount": order.paid_amount,
+        "debt_amount": order.debt_amount,
+        "payment_status": order.payment_status.value,
+        "is_archived": order.is_archived
+    }
+
+
+@app.get("/api/payments")
+def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """To'lovlar ro'yxati."""
+    payments = crud.get_payments(db, order_id=order_id)
+    return [{
+        "id": p.id,
+        "order_id": p.order_id,
+        "amount": float(p.amount),
+        "payment_type": p.payment_type.value,
+        "payment_method": p.payment_method.value,
+        "paid_at": p.paid_at.isoformat() if p.paid_at else None,
+        "received_by": p.received_by,
+        "notes": p.notes
+    } for p in payments]
+
+
+@app.delete("/api/payments/{payment_id}")
+def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """To'lovni o'chirish."""
+    if not crud.delete_payment(db, payment_id):
+        raise HTTPException(status_code=404, detail="To'lov topilmadi")
+    return {"status": "ok"}
+
+
+@app.put("/api/orders/{order_id}/agreed-amount")
+def api_update_agreed_amount(order_id: int, data: schemas.OrderAgreedUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Kelishilgan summani (chegirmadan keyingi narx) yangilash."""
+    order = crud.update_order_agreed_amount(db, order_id, data.agreed_amount)
+    if not order:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    return {
+        "status": "ok",
+        "total_amount": float(order.total_amount or 0),
+        "agreed_amount": float(order.agreed_amount or 0),
+        "discount_percent": order.discount_percent,
+        "paid_amount": order.paid_amount,
+        "debt_amount": order.debt_amount,
+        "payment_status": order.payment_status.value
+    }
+
+
+@app.get("/api/dashboard/debts")
+def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Qarzdorlik statistikasi."""
+    return crud.get_debt_stats(db)
 
 
 @app.post("/telegram/webhook")
