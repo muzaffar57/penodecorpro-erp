@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+{% block title %}Tayyor mahsulotlar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Tayyor mahsulotlar{% endblock %}
+{% block page_sub %}Sotuvga tayyor va qaytgan mahsulotlar{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="openProduceModal()">+ Ishlab chiqarish</button>
+{% endblock %}
+
+{% block head %}
+<style>
+.fp-grid{display:grid;grid-template-columns:1fr 320px;gap:14px;height:calc(100vh - 90px)}
+.fp-wrap{overflow-y:auto}
+.fp-sec{display:flex;align-items:center;gap:10px;padding:14px 0 8px}
+.fp-sec-label{font-size:11px;font-weight:600;letter-spacing:.5px;white-space:nowrap}
+.fp-sec-line{flex:1;height:1px}
+.fp-row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid #f5f5f5;transition:background .15s}
+.fp-row:hover{background:#fafaf8}
+.fp-row.returned{background:#FAFDFB}
+.fp-row.returned:hover{background:#F5FBF7}
+.fp-name{font-size:13px;font-weight:600;color:#1a1a1a}
+.fp-meta{font-size:11px;color:#aaa;margin-top:2px}
+.fp-qty{font-size:14px;font-weight:700;color:#1a1a1a;white-space:nowrap}
+.fp-price{font-size:11px;color:#8B6914;font-weight:600;margin-top:1px;white-space:nowrap}
+.fp-empty{text-align:center;padding:26px;color:#bbb;font-size:13px}
+.fp-badge{font-size:9px;padding:2px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
+.mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:14px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
+.mini-btn:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
+.fp-inp{width:70px;height:30px;text-align:center;border:1.5px solid #e5e5e5;border-radius:6px;font-size:12px;font-weight:600;outline:none}
+.fp-inp:focus{border-color:#C9A55A}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="padding:14px;height:calc(100vh - 58px);overflow:hidden">
+<div class="fp-grid">
+
+  <!-- Ro'yxat -->
+  <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
+    <div class="card-head">
+      <h3>Ombordagi mahsulotlar</h3>
+      <input placeholder="Qidirish..." oninput="filterFp(this.value)"
+             style="padding:5px 10px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;width:160px;outline:none">
+    </div>
+    <div class="fp-wrap" style="flex:1;padding:0 14px 14px">
+      <div id="fpList">
+        <div class="fp-empty">Yuklanmoqda...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- O'ng panel -->
+  <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+    <div class="card">
+      <div class="card-head"><h3>Umumiy holat</h3></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div class="kpi-card" style="padding:12px">
+            <div class="kpi-val" style="font-size:20px;color:#C9A55A" id="k-produced">—</div>
+            <div class="kpi-label">Ishlab chiqarilgan</div>
+          </div>
+          <div class="kpi-card" style="padding:12px">
+            <div class="kpi-val" style="font-size:20px;color:#27AE60" id="k-returned">—</div>
+            <div class="kpi-label">Qaytgan</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid #f0f0f0;font-size:12px">
+          <span style="color:#777">Ishlab chiqarilgan qiymati</span>
+          <span style="font-weight:600" id="v-produced">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:12px">
+          <span style="color:#777">Qaytgan qiymati</span>
+          <span style="font-weight:600" id="v-returned">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0 4px;border-top:2px solid #1a1a1a;margin-top:4px">
+          <span style="font-size:13px;font-weight:700">Jami qiymat</span>
+          <span style="font-size:15px;font-weight:800;color:#C9A55A" id="v-total">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="border-left:3px solid #C9A55A;border-radius:0 12px 12px 0">
+      <div class="card-head"><h3 style="color:#8B6914">💡 Qanday ishlaydi</h3></div>
+      <div class="card-body" style="font-size:12px;color:#666;line-height:1.7">
+        <b style="color:#1a1a1a">Ishlab chiqarish</b> — ombordan penoplast va loy yechiladi, mahsulot shu yerga tushadi.<br><br>
+        <b style="color:#1a1a1a">Qaytgan mahsulot</b> — Qaytarishlar bo'limida yozilganda avtomatik tushadi, narxi buyurtmadagiday saqlanadi.<br><br>
+        <b style="color:#1a1a1a">Buyurtmada</b> — detal nomini yozganda tizim shu ombordan taklif qiladi. Tanlansa xomashyo qayta hisoblanmaydi.
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══ ISHLAB CHIQARISH MODALI ══ -->
+<div id="prodModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1a1a1a">🏭 Tayyor mahsulot ishlab chiqarish</div>
+        <div style="font-size:12px;color:#aaa;margin-top:2px">Ombordan xomashyo yechiladi</div>
+      </div>
+      <button onclick="closeProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+
+    <div style="padding:16px 22px;overflow-y:auto;flex:1">
+      <div class="form-group">
+        <label>Mahsulot nomi</label>
+        <input type="text" id="p-name" placeholder="Masalan: Karniz 20 sm M-06">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin:0">
+          <label>Tur</label>
+          <select id="p-type" onchange="pToggle();pCalc()">
+            <option value="profil">Profil</option>
+            <option value="panel">Panel</option>
+            <option value="dona">Donali</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Qoplama</label>
+          <select id="p-coated" onchange="pCalc()">
+            <option value="true">Ha (×2)</option>
+            <option value="false">Yo'q</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row" id="p-dims">
+        <div class="form-group" style="margin:0">
+          <label>Eni (sm)</label>
+          <input type="number" id="p-w" step="0.1" oninput="pCalc()">
+        </div>
+        <div class="form-group" style="margin:0" id="p-t-wrap">
+          <label id="p-t-label">Kengligi (sm)</label>
+          <input type="number" id="p-t" step="0.1" oninput="pCalc()">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin:0" id="p-len-wrap">
+          <label>Uzunlik (m)</label>
+          <input type="number" id="p-len" step="0.5" oninput="pCalc()">
+        </div>
+        <div class="form-group" style="margin:0;display:none" id="p-qty-wrap">
+          <label>Miqdor (dona)</label>
+          <input type="number" id="p-qty" step="1" min="1" oninput="pCalc()">
+        </div>
+        <div class="form-group" style="margin:0;display:none" id="p-unitcost-wrap">
+          <label>1 dona tan narxi</label>
+          <input type="number" id="p-unitcost" step="100" oninput="pCalc()">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin:0">
+          <label>Plotnost</label>
+          <select id="p-peno" onchange="pCalc()">
+            {% for p in penoplasts %}
+            <option value="{{ p.id }}" {% if p.id == default_penoplast_id %}selected{% endif %}>
+              {{ p.item_name }}{% if p.is_default_penoplast %} ⭐{% endif %} ({{ "%.0f"|format(p.stock_quantity) }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>1 m³ narxi (so'm)</label>
+          <input type="text" id="p-m3" value="1 200 000" oninput="formatPriceInput(this);pCalc()">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin:0">
+          <label>Retsept (loy uchun)</label>
+          <select id="p-recipe">
+            <option value="">— Yo'q —</option>
+            {% for r in recipes %}<option value="{{ r.id }}">{{ r.name.value }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Loy miqdori (kg)</label>
+          <input type="number" id="p-loy" step="0.5" min="0" placeholder="0">
+        </div>
+      </div>
+
+      <div style="background:#F8F5EF;border-radius:9px;padding:11px 14px;margin:6px 0 12px;font-size:12px;line-height:1.8" id="p-calc">
+        O'lchamlarni kiriting
+      </div>
+
+      <div class="form-group">
+        <label>Sotuv narxi (1 <span id="p-unit-label">metr</span> uchun)</label>
+        <input type="text" id="p-price" placeholder="0" oninput="formatPriceInput(this);pCalc()"
+               style="border-color:#C9A55A;font-weight:600">
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <label>Izoh</label>
+        <input type="text" id="p-notes" placeholder="Ixtiyoriy">
+      </div>
+
+      <div id="p-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+    </div>
+
+    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
+      <button class="btn btn-dark" style="flex:2" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PENOS = [
+  {% for p in penoplasts %}
+  {id: {{ p.id }}, name: {{ p.item_name|tojson }}, vol: {{ p.volume_per_unit|float }}, price: {{ (p.price_per_unit or 0)|float }}},
+  {% endfor %}
+];
+
+let fpItems = [];
+
+function fmt(n) {
+  return Math.round(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+}
+function parseNum(s) {
+  return parseFloat(String(s || '').replace(/\s/g, '')) || 0;
+}
+function formatPriceInput(el) {
+  const v = el.value.replace(/\s/g, '');
+  if (!v || isNaN(v)) return;
+  const pos = el.selectionStart;
+  const old = el.value.length;
+  el.value = Number(v).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const diff = el.value.length - old;
+  el.setSelectionRange(pos + diff, pos + diff);
+}
+function showMsg(t, type) {
+  const box = document.createElement('div');
+  box.style.cssText = `position:fixed;bottom:22px;right:22px;z-index:2000;padding:12px 18px;border-radius:10px;
+    font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.18);white-space:pre-line;max-width:380px;
+    background:${type==='error'?'#FDEDEC':'#E9F7EF'};color:${type==='error'?'#c0392b':'#1e7e34'}`;
+  box.textContent = t;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 4000);
+}
+
+// ── Ro'yxat ──────────────────────────────────────────────
+async function loadFp() {
+  try {
+    const res = await fetch('/api/finished');
+    fpItems = await res.json();
+    renderFp();
+    loadStats();
+  } catch(e) {
+    document.getElementById('fpList').innerHTML = '<div class="fp-empty">Yuklashda xato</div>';
+  }
+}
+
+async function loadStats() {
+  try {
+    const s = await fetch('/api/finished/stats').then(r => r.json());
+    document.getElementById('k-produced').textContent = s.produced_count + ' tur';
+    document.getElementById('k-returned').textContent = s.returned_count + ' tur';
+    document.getElementById('v-produced').textContent = fmt(s.produced_value) + " so'm";
+    document.getElementById('v-returned').textContent = fmt(s.returned_value) + " so'm";
+    document.getElementById('v-total').textContent = fmt(s.total_value) + " so'm";
+  } catch(e) {}
+}
+
+function renderFp(filter) {
+  const q = (filter || '').trim().toLowerCase();
+  const list = document.getElementById('fpList');
+
+  const match = i => !q || i.name.toLowerCase().includes(q);
+  const produced = fpItems.filter(i => i.source === 'produced' && match(i));
+  const returned = fpItems.filter(i => i.source === 'returned' && match(i));
+
+  let html = '';
+
+  if (produced.length) {
+    html += `<div class="fp-sec">
+      <span class="fp-sec-label" style="color:#8B6914">🏭 ISHLAB CHIQARILGAN</span>
+      <div class="fp-sec-line" style="background:linear-gradient(90deg,#E5DFD3,transparent)"></div>
+    </div>` + produced.map(rowHtml).join('');
+  }
+
+  if (returned.length) {
+    html += `<div class="fp-sec">
+      <span class="fp-sec-label" style="color:#1e7e34">♻️ QAYTGAN MAHSULOTLAR</span>
+      <div class="fp-sec-line" style="background:linear-gradient(90deg,#D5EDDD,transparent)"></div>
+    </div>` + returned.map(rowHtml).join('');
+  }
+
+  if (!html) {
+    html = `<div class="fp-empty">
+      ${q ? 'Topilmadi' : 'Ombor bo\'sh<br><br><span style="font-size:12px">Yuqoridagi <b>+ Ishlab chiqarish</b> tugmasini bosing</span>'}
+    </div>`;
+  }
+
+  list.innerHTML = html;
+}
+
+function rowHtml(i) {
+  const isRet = i.source === 'returned';
+  const dims = (i.width && i.thickness) ? `${i.width}×${i.thickness} sm` : '';
+  const meta = [];
+  if (dims) meta.push(dims);
+  meta.push(i.is_coated ? 'qoplamali' : 'qoplamasiz');
+  if (isRet && i.from_order_number) meta.push(`${i.from_order_number} dan`);
+  if (isRet && i.return_reason) meta.push(i.return_reason);
+
+  const low = i.quantity <= 0;
+
+  return `
+  <div class="fp-row ${isRet ? 'returned' : ''}" data-name="${i.name.toLowerCase()}"
+       style="${low ? 'opacity:.45' : ''}">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:7px">
+        <span class="fp-name">${i.name}</span>
+        ${isRet ? '<span class="fp-badge" style="background:#E9F7EF;color:#1e7e34">♻️ QAYTGAN</span>' : ''}
+        ${low ? '<span class="fp-badge" style="background:#FDEDEC;color:#c0392b">TUGADI</span>' : ''}
+      </div>
+      <div class="fp-meta">${meta.join(' · ')}</div>
+    </div>
+
+    <div style="text-align:right;flex-shrink:0;min-width:88px">
+      <div class="fp-qty">${i.quantity} ${i.unit}</div>
+      <div class="fp-price">${fmt(i.unit_price)}/${i.unit === 'metr' ? 'm' : 'ta'}</div>
+    </div>
+
+    <div style="text-align:right;flex-shrink:0;min-width:92px">
+      <div style="font-size:13px;font-weight:700;color:#27AE60">${fmt(i.total_value)}</div>
+      <div style="font-size:10px;color:#bbb">jami</div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <button class="mini-btn" onclick="stepFp(${i.id},-1)">−</button>
+      <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1">
+      <button class="mini-btn" onclick="stepFp(${i.id},1)">+</button>
+      <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
+      <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8"
+              onclick="delFp(${i.id}, '${i.source}')" title="O'chirish">✕</button>
+    </div>
+  </div>`;
+}
+
+function filterFp(q) { renderFp(q); }
+
+async function stepFp(id, dir) {
+  const el = document.getElementById('fq-' + id);
+  const step = parseFloat(el?.value) || 1;
+  const item = fpItems.find(i => i.id === id);
+  if (!item) return;
+
+  const newQty = Math.max(0, item.quantity + dir * step);
+  try {
+    const res = await fetch(`/api/finished/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({quantity: newQty})
+    });
+    if (res.ok) loadFp();
+  } catch(e) { showMsg('Xato', 'error'); }
+}
+
+async function editPrice(id) {
+  const item = fpItems.find(i => i.id === id);
+  if (!item) return;
+  const v = prompt(`${item.name}\n\nSotuv narxi (1 ${item.unit} uchun):`, String(Math.round(item.unit_price)));
+  if (v === null) return;
+  const val = parseNum(v);
+  if (!val || val <= 0) return;
+  try {
+    const res = await fetch(`/api/finished/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({unit_price: val})
+    });
+    if (res.ok) { loadFp(); showMsg('✓ Narx yangilandi', 'success'); }
+  } catch(e) { showMsg('Xato', 'error'); }
+}
+
+async function delFp(id, source) {
+  const item = fpItems.find(i => i.id === id);
+  if (!item) return;
+
+  let back = false;
+  if (source === 'produced' && item.volume_m3 > 0) {
+    back = confirm(`${item.name} o'chirilsinmi?\n\nOK — xomashyo omborga QAYTARILADI\nBekor — quyidagi savolga o'ting`);
+    if (!back && !confirm(`${item.name} xomashyo qaytarilmasdan o'chirilsinmi?`)) return;
+  } else {
+    if (!confirm(`${item.name} o'chirilsinmi?`)) return;
+  }
+
+  try {
+    const res = await fetch(`/api/finished/${id}?return_to_stock=${back}`, {method:'DELETE'});
+    if (res.ok) { loadFp(); showMsg('✓ O\'chirildi', 'success'); }
+  } catch(e) { showMsg('Xato', 'error'); }
+}
+
+// ── Ishlab chiqarish ──────────────────────────────────────
+function openProduceModal() {
+  document.getElementById('prodModal').style.display = 'flex';
+  ['p-name','p-w','p-t','p-len','p-qty','p-unitcost','p-loy','p-price','p-notes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('p-error').style.display = 'none';
+  pToggle();
+  pCalc();
+  document.getElementById('p-name').focus();
+}
+
+function closeProduceModal() {
+  document.getElementById('prodModal').style.display = 'none';
+}
+
+function pToggle() {
+  const t = document.getElementById('p-type').value;
+  const isDona = t === 'dona';
+  const isPanel = t === 'panel';
+
+  document.getElementById('p-dims').style.display = isDona ? 'none' : 'flex';
+  document.getElementById('p-len-wrap').style.display = (t === 'profil') ? 'block' : 'none';
+  document.getElementById('p-qty-wrap').style.display = (t === 'profil') ? 'none' : 'block';
+  document.getElementById('p-unitcost-wrap').style.display = isDona ? 'block' : 'none';
+  document.getElementById('p-t-label').textContent = isPanel ? 'Qalinlik (sm)' : 'Kengligi (sm)';
+  document.getElementById('p-unit-label').textContent = (t === 'profil') ? 'metr' : 'dona';
+}
+
+function pCalc() {
+  const t = document.getElementById('p-type').value;
+  const w = parseFloat(document.getElementById('p-w').value) || 0;
+  const th = parseFloat(document.getElementById('p-t').value) || 0;
+  const len = parseFloat(document.getElementById('p-len').value) || 0;
+  const qty = parseFloat(document.getElementById('p-qty').value) || 0;
+  const uc = parseFloat(document.getElementById('p-unitcost').value) || 0;
+  const m3 = parseNum(document.getElementById('p-m3').value);
+  const coated = document.getElementById('p-coated').value === 'true';
+  const box = document.getElementById('p-calc');
+
+  let vol = 0, count = 0, unit = 'metr';
+
+  if (t === 'profil') {
+    vol = (w/100) * (th/100) / 2 * len;
+    count = len;
+  } else if (t === 'panel') {
+    vol = (w/100) * (th/100) * qty;
+    count = qty;
+    unit = 'dona';
+  } else {
+    vol = m3 > 0 && uc > 0 ? (uc / m3) * qty : 0;
+    count = qty;
+    unit = 'dona';
+  }
+
+  if (!vol || !count) {
+    box.innerHTML = '<span style="color:#aaa">O\'lchamlarni kiriting</span>';
+    return;
+  }
+
+  // Tan narxi
+  const pid = parseInt(document.getElementById('p-peno').value);
+  const p = PENOS.find(x => x.id === pid);
+  let cost = 0, blocks = 0;
+  if (p && p.vol > 0) {
+    blocks = vol / p.vol;
+    cost = blocks * p.price;
+  }
+
+  const price = parseNum(document.getElementById('p-price').value);
+  const revenue = price * count;
+  const profit = revenue - cost;
+
+  box.innerHTML = `
+    📦 Hajm: <b>${vol.toFixed(4)} m³</b> · ${p ? `${p.name}: <b>${blocks.toFixed(2)} blok</b>` : ''}<br>
+    💰 Tan narxi: <b>${fmt(cost)} so'm</b>${price > 0 ? ` · Sotuv: <b>${fmt(revenue)} so'm</b>` : ''}
+    ${price > 0 ? `<br>📈 Foyda: <b style="color:${profit>0?'#27AE60':'#C0392B'}">${fmt(profit)} so'm</b> (loysiz)` : ''}
+    <br>🏭 Natija: <b style="color:#C9A55A">${count} ${unit}</b>`;
+}
+
+async function saveProduce() {
+  const err = document.getElementById('p-error');
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { err.style.display='block'; err.textContent='❌ Mahsulot nomini kiriting'; return; }
+
+  const t = document.getElementById('p-type').value;
+  const len = parseFloat(document.getElementById('p-len').value) || null;
+  const qty = parseFloat(document.getElementById('p-qty').value) || null;
+
+  if (t === 'profil' && !len) { err.style.display='block'; err.textContent='❌ Uzunlikni kiriting'; return; }
+  if (t !== 'profil' && !qty) { err.style.display='block'; err.textContent='❌ Miqdorni kiriting'; return; }
+
+  const price = parseNum(document.getElementById('p-price').value);
+  if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
+
+  err.style.display = 'none';
+
+  const data = {
+    name,
+    category: t,
+    width: parseFloat(document.getElementById('p-w').value) || null,
+    thickness: parseFloat(document.getElementById('p-t').value) || null,
+    length: len,
+    quantity: t === 'dona' ? qty : (t === 'panel' ? qty : 1),
+    is_coated: document.getElementById('p-coated').value === 'true',
+    penoplast_id: parseInt(document.getElementById('p-peno').value) || null,
+    price_per_m3: parseNum(document.getElementById('p-m3').value) || null,
+    unit_price: price,
+    loy_kg: parseFloat(document.getElementById('p-loy').value) || 0,
+    recipe_id: parseInt(document.getElementById('p-recipe').value) || null,
+    notes: document.getElementById('p-notes').value.trim() || null
+  };
+
+  // Dona uchun unit_price maydoni tan narxini hisoblashda ishlatiladi
+  if (t === 'dona') {
+    const uc = parseFloat(document.getElementById('p-unitcost').value) || 0;
+    if (!uc) { err.style.display='block'; err.textContent='❌ 1 dona tan narxini kiriting (hajm hisobi uchun)'; return; }
+    data.unit_price_for_volume = uc;
+  }
+
+  try {
+    const res = await fetch('/api/finished/produce', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    const r = await res.json();
+
+    if (res.ok) {
+      closeProduceModal();
+      loadFp();
+      let msg = `✓ ${r.name}: ${r.quantity} ${r.unit} ishlab chiqarildi`;
+      if (r.inventory_log?.length) msg += '\n\n📦 ' + r.inventory_log.join('\n');
+      showMsg(msg, 'success');
+    } else {
+      const d = r.detail || {};
+      err.style.display = 'block';
+      err.innerHTML = '❌ ' + (d.message || 'Xato') +
+        (d.shortages?.length ? '<br>' + d.shortages.join('<br>') : '');
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server xatosi';
+  }
+}
+
+loadFp();
+</script>
+{% endblock %}
