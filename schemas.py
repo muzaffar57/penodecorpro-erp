@@ -257,11 +257,18 @@ class FinishedProductRead(BaseModel):
     from_order_id: Optional[int] = None
     return_reason: Optional[str] = None
     volume_m3: Optional[float] = 0
-    loy_kg: Optional[float] = 0
+    planned_loy_kg: Optional[float] = 0
+    actual_loy_kg: Optional[float] = None
+    production_status: Optional[str] = None
     created_at: datetime
     created_by: Optional[str] = None
     notes: Optional[str] = None
     model_config = {"from_attributes": True}
+
+
+class ProduceComplete(BaseModel):
+    """Ishlab chiqarishni yakunlash — haqiqiy loy miqdori."""
+    actual_loy_kg: float = Field(default=0, ge=0)
 
 
 class FinishedProductUpdate(BaseModel):
