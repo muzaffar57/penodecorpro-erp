@@ -331,10 +331,57 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
         "master_kpi": None
     }
 
-    # LOY INGREDIENTLARINI AYIRISH (tayyor bosilganda haqiqiy miqdor)
-    if loy_kg and loy_kg > 0:
-        loy_log = deduct_loy_ingredients(db, order, loy_kg)
-        result["inventory_changes"].extend(loy_log)
+    # === LOY HISOB-KITOBI ===
+    # Buyurtma yaratilganda rejalashtirilgan loy allaqachon ayirilgan.
+    # Endi haqiqiy miqdor bilan solishtiramiz.
+    planned_loy = _get_planned_loy(order)
+    actual_loy = float(loy_kg or 0)
+
+    if actual_loy > 0:
+        recipe = _get_order_recipe(db, order)
+        diff = actual_loy - planned_loy
+
+        if diff > 0.01:
+            # Ko'proq ketdi — farq uchun xomashyo ayiramiz
+            loy_log = deduct_loy_ingredients(db, order, diff)
+            result["inventory_changes"].extend(loy_log)
+            result["loy_info"] = {
+                "planned": planned_loy,
+                "actual": actual_loy,
+                "diff": round(diff, 1),
+                "action": "qoshimcha",
+                "message": f"Rejadan {diff:.1f} kg ko'p ketdi — xomashyo ayirildi"
+            }
+        elif diff < -0.01:
+            # Kam ketdi — ortgani omborga
+            extra = abs(diff)
+            msg = add_loy_to_stock(db, recipe, extra)
+            if msg:
+                result["inventory_changes"].append(msg)
+            result["loy_info"] = {
+                "planned": planned_loy,
+                "actual": actual_loy,
+                "diff": round(diff, 1),
+                "action": "ortdi",
+                "message": f"{extra:.1f} kg loy ortdi — omborga qo'shildi"
+            }
+        else:
+            result["loy_info"] = {
+                "planned": planned_loy,
+                "actual": actual_loy,
+                "diff": 0,
+                "action": "teng",
+                "message": "Reja bo'yicha ketdi"
+            }
+    elif planned_loy > 0:
+        # Haqiqiy miqdor kiritilmadi — reja bo'yicha deb hisoblaymiz
+        result["loy_info"] = {
+            "planned": planned_loy,
+            "actual": planned_loy,
+            "diff": 0,
+            "action": "teng",
+            "message": "Reja bo'yicha hisoblandi"
+        }
 
     # 3. USTA KPI
     if order.master_id:
@@ -360,13 +407,10 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     # Loy miqdorini notes ga saqlaymiz (foyda hisoblash uchun)
     if loy_kg and loy_kg > 0:
         existing_notes = order.notes or ''
-        if 'loy_kg=' not in existing_notes:
-            order.notes = (existing_notes + f',loy_kg={loy_kg}').strip(',')
-        else:
-            # Yangilaymiz
-            parts = [p for p in existing_notes.split(',') if 'loy_kg=' not in p]
-            parts.append(f'loy_kg={loy_kg}')
-            order.notes = ','.join(parts)
+        parts = [p.strip() for p in existing_notes.split(',')
+                 if p.strip() and not p.strip().startswith('loy_kg=')]
+        parts.append(f'loy_kg={loy_kg}')
+        order.notes = ','.join(parts)
     db.commit()
     db.refresh(order)
 
@@ -544,11 +588,12 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
     if coated_items:
         # Loy miqdorini order.notes dan olamiz (tayyor bosilganda saqlangan)
         loy_kg = 0.0
-        if order.notes and 'loy_kg=' in order.notes:
+        if order.notes:
             try:
                 for part in order.notes.split(','):
-                    if 'loy_kg=' in part:
-                        loy_kg = float(part.split('=')[1].strip())
+                    p = part.strip()
+                    if p.startswith('loy_kg='):
+                        loy_kg = float(p.split('=')[1].strip())
                         break
             except:
                 pass
@@ -958,10 +1003,113 @@ def return_inventory_for_order(db: Session, order) -> list:
     return log
 
 
-def deduct_loy_ingredients(db: Session, order, loy_kg: float) -> list:
+# ============================================================
+# TAYYOR LOY ZAXIRASI
+# ============================================================
+
+def _get_planned_loy(order) -> float:
+    """Buyurtma yaratilganda rejalashtirilgan loy miqdorini notes dan oladi."""
+    notes = order.notes or ''
+    for part in notes.split(','):
+        part = part.strip()
+        if part.startswith('planned_loy='):
+            try:
+                return float(part.split('=')[1])
+            except (ValueError, IndexError):
+                pass
+    return 0.0
+
+
+def _set_planned_loy(order, kg: float) -> None:
+    """Rejalashtirilgan loyni notes ga yozadi."""
+    notes = order.notes or ''
+    parts = [p.strip() for p in notes.split(',') if p.strip() and not p.strip().startswith('planned_loy=')]
+    parts.append(f'planned_loy={kg}')
+    order.notes = ','.join(parts)
+
+
+def _get_order_recipe(db: Session, order):
+    """Buyurtmaning retseptini topadi."""
+    from models import Recipe
+    for item in order.items:
+        if getattr(item, 'recipe_id', None):
+            r = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
+            if r:
+                return r
+    return db.query(Recipe).first()
+
+
+def get_or_create_loy_stock(db: Session, recipe):
+    """Retsept uchun 'Tayyor loy' ombor pozitsiyasini topadi yoki yaratadi."""
+    from models import Inventory
+
+    if not recipe:
+        return None
+
+    recipe_name = recipe.name.value if hasattr(recipe.name, 'value') else str(recipe.name)
+    item_name = f"Tayyor loy ({recipe_name})"
+
+    stock = db.query(Inventory).filter(Inventory.item_name == item_name).first()
+    if stock:
+        return stock
+
+    stock = Inventory(
+        item_name=item_name,
+        stock_quantity=0.0,
+        unit="kg",
+        min_stock=0.0,
+        price_per_unit=None,
+        volume_per_unit=1.0,
+        is_penoplast=False,
+        notes="Buyurtmalardan ortgan tayyor loy — avtomatik yaratilgan"
+    )
+    db.add(stock)
+    db.commit()
+    db.refresh(stock)
+    print(f"✓ Ombor pozitsiyasi yaratildi: {item_name}")
+    return stock
+
+
+def add_loy_to_stock(db: Session, recipe, kg: float) -> str:
+    """Ortgan loyni omborga qo'shadi."""
+    if kg <= 0:
+        return ""
+    stock = get_or_create_loy_stock(db, recipe)
+    if not stock:
+        return ""
+    stock.stock_quantity = float(stock.stock_quantity or 0) + kg
+    db.commit()
+    msg = f"{stock.item_name}: +{kg:.1f} kg (ortdi)"
+    print(f"✓ {msg}")
+    return msg
+
+
+def take_loy_from_stock(db: Session, recipe, kg_needed: float):
+    """Ombordagi tayyor loydan oladi.
+    Qaytaradi: (olingan_kg, qolgan_ehtiyoj_kg, log_matni)"""
+    if kg_needed <= 0:
+        return 0.0, 0.0, ""
+
+    stock = get_or_create_loy_stock(db, recipe)
+    if not stock:
+        return 0.0, kg_needed, ""
+
+    available = float(stock.stock_quantity or 0)
+    if available <= 0:
+        return 0.0, kg_needed, ""
+
+    taken = min(available, kg_needed)
+    stock.stock_quantity = available - taken
+    db.commit()
+    msg = f"{stock.item_name}: -{taken:.1f} kg (zaxiradan)"
+    print(f"✓ {msg}")
+    return taken, kg_needed - taken, msg
+
+
+def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True) -> list:
     """
     Loy (qoplama) uchun ingredientlarni ombordan ayiradi.
-    Retsept bo'yicha hisoblanadi.
+    use_stock=True bo'lsa — avval tayyor loy zaxirasidan oladi.
     """
     from models import Inventory, Recipe
 
@@ -970,21 +1118,19 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float) -> list:
 
     log = []
 
-    # Retseptni order.items dan topamiz
-    recipe = None
-    for item in order.items:
-        if hasattr(item, 'recipe_id') and item.recipe_id:
-            recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
-            if recipe:
-                break
-
-    # Topilmasa — birinchi retseptni olamiz
-    if not recipe:
-        recipe = db.query(Recipe).first()
+    recipe = _get_order_recipe(db, order)
 
     if not recipe:
         print("⚠ Retsept topilmadi — loy ingredientlari ayirilmadi")
         return []
+
+    # 1) Avval tayyor loy zaxirasidan olamiz
+    if use_stock:
+        taken, loy_kg, msg = take_loy_from_stock(db, recipe, loy_kg)
+        if msg:
+            log.append(msg)
+        if loy_kg <= 0:
+            return log  # Zaxira yetdi, xomashyo kerak emas
 
     batch = float(recipe.batch_size_kg or 100)
 
