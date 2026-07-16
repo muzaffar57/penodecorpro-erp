@@ -97,6 +97,19 @@
     </div>
   </div>
 
+  <!-- XOMASHYO XARIDLARI -->
+  <div class="card mb-16" style="border-left:3px solid #8B6914;border-radius:0 12px 12px 0">
+    <div class="card-head">
+      <h3 style="color:#8B6914">🛒 Xomashyo xaridlari (bu oy)</h3>
+      <span id="purch-total" style="font-size:15px;font-weight:800;color:#C9A55A">—</span>
+    </div>
+    <div class="card-body" style="padding:0">
+      <div id="purchList" style="max-height:280px;overflow-y:auto">
+        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+      </div>
+    </div>
+  </div>
+
   <!-- YETKAZISH -->
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
     <div class="kpi-card" style="border-left:3px solid #27AE60">
@@ -195,6 +208,38 @@ async function loadAll(){
   buildMonthChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
   loadDebts();
   loadDeliveryStats();
+  loadPurchaseStats();
+}
+
+async function loadPurchaseStats(){
+  try{
+    const d = await fetch('/api/inventory/purchase-stats').then(r=>r.json());
+    document.getElementById('purch-total').textContent = fmt(d.total_amount) + " so'm";
+
+    const el = document.getElementById('purchList');
+    if(!d.by_material || !d.by_material.length){
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Bu oy xomashyo xaridi bo\'lmagan</div>';
+      return;
+    }
+
+    const maxTotal = Math.max(...d.by_material.map(m=>m.total));
+    el.innerHTML = d.by_material.map(m=>{
+      const pct = maxTotal>0 ? (m.total/maxTotal*100) : 0;
+      return `
+      <div style="padding:10px 16px;border-bottom:1px solid #f5f5f5">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span style="font-size:13px;font-weight:600;color:#1a1a1a">${m.name}</span>
+          <span style="font-size:13px;font-weight:700;color:#8B6914">${fmt(m.total)} so'm</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:#C9A55A;border-radius:3px"></div>
+          </div>
+          <span style="font-size:10.5px;color:#aaa;white-space:nowrap">${m.quantity}${m.unit?' '+m.unit:''} · ~${fmt(m.avg_price)}/${m.unit||'dona'}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){console.error('Xarid statistikasi:',e);}
 }
 
 async function loadDeliveryStats(){
