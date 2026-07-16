@@ -1192,6 +1192,41 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
     return result
 
 
+@app.post("/api/finished/{fp_id}/add")
+def api_add_production(fp_id: int, data: schemas.StockAdjust,
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
+    result = crud.add_to_production(db, fp_id, data.quantity)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+
+    # Ombor ogohlantirishi
+    low_items = crud.get_low_stock_items(db)
+    if low_items:
+        lines = []
+        for item in low_items:
+            qty = float(item.stock_quantity)
+            min_q = float(item.min_stock)
+            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
+        msg = ("⚠️ *Ombor ogohlantirishlari!*\n\n"
+               + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
+               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
+        _send_telegram(msg)
+
+    return result
+
+
+@app.post("/api/finished/{fp_id}/reduce")
+def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
+                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
+    result = crud.reduce_production(db, fp_id, data.quantity, data.reason)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
 @app.put("/api/finished/{fp_id}")
 def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
