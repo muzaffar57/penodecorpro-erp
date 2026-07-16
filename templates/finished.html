@@ -17,6 +17,8 @@
 .fp-row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid #f5f5f5;transition:background .15s}
 .fp-row:hover{background:#fafaf8}
 .fp-row.returned{background:#FAFDFB}
+.fp-row.progress{background:#FFFBF0}
+.fp-row.progress:hover{background:#FFF7E5}
 .fp-row.returned:hover{background:#F5FBF7}
 .fp-name{font-size:13px;font-weight:600;color:#1a1a1a}
 .fp-meta{font-size:11px;color:#aaa;margin-top:2px}
@@ -54,7 +56,7 @@
     <div class="card">
       <div class="card-head"><h3>Umumiy holat</h3></div>
       <div class="card-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
           <div class="kpi-card" style="padding:12px">
             <div class="kpi-val" style="font-size:20px;color:#C9A55A" id="k-produced">—</div>
             <div class="kpi-label">Ishlab chiqarilgan</div>
@@ -63,6 +65,10 @@
             <div class="kpi-val" style="font-size:20px;color:#27AE60" id="k-returned">—</div>
             <div class="kpi-label">Qaytgan</div>
           </div>
+        </div>
+        <div class="kpi-card" style="padding:12px;margin-bottom:12px;border-left:3px solid #E67E22">
+          <div class="kpi-val" style="font-size:20px;color:#E67E22" id="k-progress">—</div>
+          <div class="kpi-label">⏳ Jarayonda (loy kutmoqda)</div>
         </div>
         <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid #f0f0f0;font-size:12px">
           <span style="color:#777">Ishlab chiqarilgan qiymati</span>
@@ -175,14 +181,14 @@
       <div class="form-row">
         <div class="form-group" style="margin:0">
           <label>Retsept (loy uchun)</label>
-          <select id="p-recipe">
+          <select id="p-recipe" onchange="loadLoyCost(this.value)">
             <option value="">— Yo'q —</option>
             {% for r in recipes %}<option value="{{ r.id }}">{{ r.name.value }}</option>{% endfor %}
           </select>
         </div>
         <div class="form-group" style="margin:0">
           <label>Loy miqdori (kg)</label>
-          <input type="number" id="p-loy" step="0.5" min="0" placeholder="0">
+          <input type="number" id="p-loy" step="0.5" min="0" placeholder="0" oninput="pCalc()">
         </div>
       </div>
 
@@ -210,6 +216,35 @@
       <button class="btn btn-dark" style="flex:2" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
     </div>
   </div>
+
+<!-- ══ TAYYOR / YAKUNLASH MODALI ══ -->
+<div id="completeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:460px;max-width:100%">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0">
+      <div style="font-size:16px;font-weight:600;color:#1a1a1a">✓ Ishlab chiqarishni yakunlash</div>
+      <div style="font-size:12px;color:#aaa;margin-top:2px" id="cm-sub">—</div>
+    </div>
+
+    <div style="padding:18px 22px">
+      <div style="background:#F8F5EF;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px" id="cm-plan"></div>
+
+      <div class="form-group">
+        <label>Haqiqatda necha kg loy ketdi?</label>
+        <input type="number" id="cm-loy" step="0.5" min="0" placeholder="0" oninput="cmCalc()"
+               style="border-color:#C9A55A;font-weight:600;font-size:15px">
+      </div>
+
+      <div style="background:#FAFAF8;border-radius:9px;padding:12px 14px;font-size:12px;line-height:1.9" id="cm-result">
+        Loy miqdorini kiriting
+      </div>
+    </div>
+
+    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeCompleteModal()">Bekor</button>
+      <button class="btn btn-dark" style="flex:2" onclick="saveComplete()">✓ Tayyor deb belgilash</button>
+    </div>
+  </div>
+</div>
 </div>
 {% endblock %}
 
@@ -222,6 +257,18 @@ const PENOS = [
 ];
 
 let fpItems = [];
+let loyCostPerKg = 0;
+let loyRecipeName = '';
+
+async function loadLoyCost(recipeId) {
+  try {
+    const url = recipeId ? `/api/loy-cost?recipe_id=${recipeId}` : '/api/loy-cost';
+    const d = await fetch(url).then(r => r.json());
+    loyCostPerKg = d.cost_per_kg || 0;
+    loyRecipeName = d.recipe || '';
+    pCalc();
+  } catch(e) { loyCostPerKg = 0; }
+}
 
 function fmt(n) {
   return Math.round(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
@@ -265,6 +312,7 @@ async function loadStats() {
     const s = await fetch('/api/finished/stats').then(r => r.json());
     document.getElementById('k-produced').textContent = s.produced_count + ' tur';
     document.getElementById('k-returned').textContent = s.returned_count + ' tur';
+    document.getElementById('k-progress').textContent = s.in_progress_count + ' tur';
     document.getElementById('v-produced').textContent = fmt(s.produced_value) + " so'm";
     document.getElementById('v-returned').textContent = fmt(s.returned_value) + " so'm";
     document.getElementById('v-total').textContent = fmt(s.total_value) + " so'm";
@@ -312,6 +360,7 @@ function fpWidth2(i) {
 
 function rowHtml(i) {
   const isRet = i.source === 'returned';
+  const inProgress = i.source === 'produced' && i.production_status === 'in_progress';
   const w2 = fpWidth2(i);
   const dims = (i.width && i.thickness)
     ? (w2 ? `${i.width}×${w2}×${i.thickness} sm` : `${i.width}×${i.thickness} sm`)
@@ -321,19 +370,35 @@ function rowHtml(i) {
   meta.push(i.is_coated ? 'qoplamali' : 'qoplamasiz');
   if (isRet && i.from_order_number) meta.push(`${i.from_order_number} dan`);
   if (isRet && i.return_reason) meta.push(i.return_reason);
+  if (inProgress && i.planned_loy_kg > 0) meta.push(`reja: ${i.planned_loy_kg} kg loy`);
   const cleanNote = (i.notes || '').replace(/·?\s*width2=[\d.]+/g, '').trim().replace(/^·\s*/, '');
   if (cleanNote) meta.push(cleanNote);
 
   const low = i.quantity <= 0;
 
+  // Jarayonda bo'lsa — faqat "Tayyor" va o'chirish tugmalari
+  const actionBtns = inProgress ? `
+    <button class="btn btn-dark btn-sm" style="padding:5px 12px;font-size:11px" onclick="openCompleteModal(${i.id})">✓ Tayyor</button>
+    <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8"
+            onclick="delFp(${i.id}, '${i.source}')" title="Bekor qilish">✕</button>
+  ` : `
+    <button class="mini-btn" onclick="stepFp(${i.id},-1)">−</button>
+    <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1">
+    <button class="mini-btn" onclick="stepFp(${i.id},1)">+</button>
+    <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
+    <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8"
+            onclick="delFp(${i.id}, '${i.source}')" title="O'chirish">✕</button>
+  `;
+
   return `
-  <div class="fp-row ${isRet ? 'returned' : ''}" data-name="${i.name.toLowerCase()}"
-       style="${low ? 'opacity:.45' : ''}">
+  <div class="fp-row ${isRet ? 'returned' : ''} ${inProgress ? 'progress' : ''}" data-name="${i.name.toLowerCase()}"
+       style="${low && !inProgress ? 'opacity:.45' : ''}">
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:7px">
         <span class="fp-name">${i.name}</span>
+        ${inProgress ? '<span class="fp-badge" style="background:#FEF9E7;color:#b7770d">⏳ JARAYONDA</span>' : ''}
         ${isRet ? '<span class="fp-badge" style="background:#E9F7EF;color:#1e7e34">♻️ QAYTGAN</span>' : ''}
-        ${low ? '<span class="fp-badge" style="background:#FDEDEC;color:#c0392b">TUGADI</span>' : ''}
+        ${low && !inProgress ? '<span class="fp-badge" style="background:#FDEDEC;color:#c0392b">TUGADI</span>' : ''}
       </div>
       <div class="fp-meta">${meta.join(' · ')}</div>
     </div>
@@ -349,12 +414,7 @@ function rowHtml(i) {
     </div>
 
     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-      <button class="mini-btn" onclick="stepFp(${i.id},-1)">−</button>
-      <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1">
-      <button class="mini-btn" onclick="stepFp(${i.id},1)">+</button>
-      <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
-      <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8"
-              onclick="delFp(${i.id}, '${i.source}')" title="O'chirish">✕</button>
+      ${actionBtns}
     </div>
   </div>`;
 }
@@ -518,27 +578,35 @@ function pCalc() {
     return;
   }
 
-  // Tan narxi
+  // ── TAN NARXI ──
   const pid = parseInt(document.getElementById('p-peno').value);
   const p = PENOS.find(x => x.id === pid);
-  let cost = 0, blocks = 0;
+  let penoCost = 0, blocks = 0;
   if (p && p.vol > 0) {
     blocks = volume_total / p.vol;
-    cost = blocks * p.price;
+    penoCost = blocks * p.price;
   }
+
+  // Loy xarajati
+  const loyKg = parseFloat(document.getElementById('p-loy').value) || 0;
+  const loyCost = loyKg * loyCostPerKg;
+  const cost = penoCost + loyCost;
 
   // Sotuv narxi — kiritilmagan bo'lsa hisoblangani
   const inputPrice = parseNum(document.getElementById('p-price').value);
   const effPrice = inputPrice || perUnitPrice;
   const revenue = effPrice * count;
   const profit = revenue - cost;
+  const margin = revenue > 0 ? (profit / revenue * 100) : 0;
 
   box.innerHTML = `
-    📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b>` : ''}<br>
+    📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b> = ${fmt(penoCost)} so'm` : ''}<br>
     💵 1 ${unit} narxi: <b style="color:#2980B9">${fmt(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:#aaa">(kiritilgan: ${fmt(inputPrice)})</span>` : ''}<br>
-    💰 Tan narxi: <b>${fmt(cost)} so'm</b> · Sotuv: <b style="color:#27AE60">${fmt(revenue)} so'm</b><br>
-    📈 Foyda: <b style="color:${profit>0?'#27AE60':'#C0392B'}">${fmt(profit)} so'm</b> <span style="color:#aaa">(loysiz)</span><br>
-    🏭 Natija: <b style="color:#C9A55A">${count} ${unit}</b>`;
+    🏭 Natija: <b style="color:#C9A55A">${count} ${unit}</b>
+    ${loyKg > 0 ? `<br>🧱 Reja: <b>${loyKg} kg loy</b> <span style="color:#aaa">— aniq xarajat "Tayyor" bosilganda hisoblanadi</span>` : ''}
+    <div style="margin-top:6px;padding-top:6px;border-top:1px dashed #ddd;color:#888;font-size:11px">
+      ⏳ Penoplast darhol yechiladi. Loy "Tayyor" bosilgandagina hisoblanadi.
+    </div>`;
 }
 
 async function saveProduce() {
@@ -612,8 +680,9 @@ async function saveProduce() {
     if (res.ok) {
       closeProduceModal();
       loadFp();
-      let msg = `✓ ${r.name}: ${r.quantity} ${r.unit} ishlab chiqarildi`;
+      let msg = `⏳ ${r.name}: ${r.quantity} ${r.unit} — ishlab chiqarish boshlandi`;
       if (r.inventory_log?.length) msg += '\n\n📦 ' + r.inventory_log.join('\n');
+      msg += '\n\n✓ Tayyor bo\'lganda "Tayyor" tugmasini bosing';
       showMsg(msg, 'success');
     } else {
       const d = r.detail || {};
@@ -624,6 +693,106 @@ async function saveProduce() {
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
+  }
+}
+
+// ── TAYYOR / YAKUNLASH ────────────────────────────────────
+let completeItem = null;
+
+function openCompleteModal(id) {
+  const item = fpItems.find(i => i.id === id);
+  if (!item) return;
+  completeItem = item;
+
+  document.getElementById('cm-sub').textContent = `${item.name} · ${item.quantity} ${item.unit}`;
+  document.getElementById('cm-plan').innerHTML =
+    `📋 Rejalashtirilgan: <b>${item.planned_loy_kg || 0} kg</b> loy` +
+    (item.planned_loy_kg > 0 ? `` : ` <span style="color:#aaa">(loy ishlatilmagan deb belgilangan)</span>`);
+
+  document.getElementById('cm-loy').value = item.planned_loy_kg || '';
+  document.getElementById('completeModal').style.display = 'flex';
+  cmCalc();
+  document.getElementById('cm-loy').focus();
+  document.getElementById('cm-loy').select();
+}
+
+function closeCompleteModal() {
+  document.getElementById('completeModal').style.display = 'none';
+  completeItem = null;
+}
+
+async function cmCalc() {
+  const box = document.getElementById('cm-result');
+  if (!completeItem) return;
+  const loyKg = parseFloat(document.getElementById('cm-loy').value) || 0;
+
+  const revenue = completeItem.unit_price * completeItem.quantity;
+  const penoCost = completeItem.cost_price || 0;
+
+  let loyCostTxt = '';
+  if (loyKg > 0) {
+    try {
+      const url = completeItem.recipe_id ? `/api/loy-cost?recipe_id=${completeItem.recipe_id}` : '/api/loy-cost';
+      const d = await fetch(url).then(r => r.json());
+      const loyCost = loyKg * (d.cost_per_kg || 0);
+      const totalCost = penoCost + loyCost;
+      const profit = revenue - totalCost;
+      const margin = revenue > 0 ? (profit / revenue * 100) : 0;
+
+      box.innerHTML = `
+        📦 Penoplast: <b>${fmt(penoCost)} so'm</b><br>
+        🧱 Loy: ${loyKg} kg × ${fmt(d.cost_per_kg)} = <b>${fmt(loyCost)} so'm</b><br>
+        <div style="border-top:1px solid #eee;margin:6px 0;padding-top:6px">
+          💰 Tan narxi: <b style="color:#C0392B">${fmt(totalCost)} so'm</b><br>
+          💵 Sotuv: <b style="color:#27AE60">${fmt(revenue)} so'm</b><br>
+          📈 Foyda: <b style="color:${profit>0?'#27AE60':'#C0392B'};font-size:14px">${fmt(profit)} so'm</b>
+          <span style="color:#aaa">(${margin.toFixed(1)}%)</span>
+        </div>`;
+    } catch(e) {
+      box.innerHTML = 'Hisoblashda xato';
+    }
+  } else {
+    const profit = revenue - penoCost;
+    const margin = revenue > 0 ? (profit / revenue * 100) : 0;
+    box.innerHTML = `
+      📦 Penoplast: <b>${fmt(penoCost)} so'm</b> · Loy ishlatilmadi<br>
+      <div style="border-top:1px solid #eee;margin:6px 0;padding-top:6px">
+        💰 Tan narxi: <b style="color:#C0392B">${fmt(penoCost)} so'm</b><br>
+        💵 Sotuv: <b style="color:#27AE60">${fmt(revenue)} so'm</b><br>
+        📈 Foyda: <b style="color:${profit>0?'#27AE60':'#C0392B'};font-size:14px">${fmt(profit)} so'm</b>
+        <span style="color:#aaa">(${margin.toFixed(1)}%)</span>
+      </div>`;
+  }
+}
+
+async function saveComplete() {
+  if (!completeItem) return;
+  const loyKg = parseFloat(document.getElementById('cm-loy').value) || 0;
+
+  try {
+    const res = await fetch(`/api/finished/${completeItem.id}/complete`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({actual_loy_kg: loyKg})
+    });
+    const r = await res.json();
+
+    if (res.ok) {
+      closeCompleteModal();
+      loadFp();
+      showMsg(
+        `✅ ${r.name} — TAYYOR!\n\n` +
+        `💰 Tan narxi: ${fmt(r.total_cost)} so'm\n` +
+        `💵 Sotuv: ${fmt(r.revenue)} so'm\n` +
+        `📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`,
+        'success'
+      );
+    } else {
+      const d = r.detail || {};
+      showMsg('❌ ' + (d.message || 'Xato'), 'error');
+    }
+  } catch(e) {
+    showMsg('❌ Server xatosi', 'error');
   }
 }
 
