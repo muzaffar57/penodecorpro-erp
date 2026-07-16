@@ -1531,7 +1531,7 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None) -> dict:
 # ============================================================
 
 def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
-    """Shu oy sotuvidan usta KPI xarajatini hisoblaydi (yillik jamlanadi,
+    """Shu oy SOF FOYDASIDAN usta KPI xarajatini hisoblaydi (yillik jamlanadi,
     lekin har oy tegishli ulushi xarajat sifatida yoziladi)."""
     from models import Order, OrderStatus, Master
     from sqlalchemy import extract
@@ -1547,15 +1547,26 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
             extract('year', Order.completed_at) == year,
             extract('month', Order.completed_at) == month
         ).all()
-        monthly_sales = sum(float(o.total_amount or 0) for o in orders)
-        if monthly_sales <= 0:
+        if not orders:
             continue
-        kpi_amount = monthly_sales * m.kpi_percent / 100
+
+        monthly_profit = 0.0
+        for o in orders:
+            try:
+                profit_data = calculate_order_profit(db, o.id)
+                monthly_profit += float(profit_data.get("foyda", 0))
+            except Exception:
+                pass
+
+        if monthly_profit <= 0:
+            continue
+
+        kpi_amount = monthly_profit * m.kpi_percent / 100
         total += kpi_amount
         breakdown.append({
             "master_name": m.name,
             "kpi_percent": m.kpi_percent,
-            "monthly_sales": round(monthly_sales),
+            "monthly_profit": round(monthly_profit),
             "kpi_amount": round(kpi_amount)
         })
 
