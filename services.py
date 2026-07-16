@@ -890,6 +890,10 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
     """
     from models import Inventory
 
+    # Tayyor mahsulotdan olingan — xomashyo hisoblanmaydi
+    if getattr(item, 'finished_product_id', None):
+        return 0.0
+
     cat = (item.category or '').lower()
     qty = float(item.quantity or 1)
 
@@ -1247,6 +1251,8 @@ class _FakeItem:
         self.quantity = d.get('quantity', 1)
         self.unit_price = d.get('unit_price', 0)
         self.penoplast_id = d.get('penoplast_id')
+        self.price_per_m3 = d.get('price_per_m3')
+        self.finished_product_id = d.get('finished_product_id')
 
 
 def adjust_inventory_diff(db: Session, old_items, new_items) -> list:
