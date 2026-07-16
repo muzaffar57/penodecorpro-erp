@@ -13,6 +13,9 @@
 <style>
 .ord-layout{display:grid;grid-template-columns:300px 1fr 280px;gap:12px;height:calc(100vh - 90px);overflow:hidden}
 .ord-list{overflow-y:auto;flex:1}
+.step-btn2{width:30px;height:30px;border-radius:7px;border:1.5px solid #e5e5e5;background:#fff;font-size:16px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
+.step-btn2:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
+.dlv-inp:focus{border-color:#C9A55A !important}
 .ord-item{padding:12px 14px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
 .ord-item:hover{background:#fafaf8}
 .ord-item.active{background:#fdf8f0;border-left:3px solid #C9A55A}
@@ -86,12 +89,23 @@
           <div class="ord-client">{{ o.project.client_name if o.project else '—' }}</div>
           <div class="ord-date">{{ o.project.project_name if o.project else '' }} · {{ o.created_at.strftime('%d.%m.%Y') }}</div>
           {% set debt = o.debt_amount %}
+          {% set dpct = o.delivery_percent %}
+          {% if dpct > 0 and dpct < 100 %}
+          <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
+            <div style="flex:1;height:3px;background:#f0f0f0;border-radius:2px;overflow:hidden">
+              <div style="height:100%;width:{{ dpct }}%;background:#E67E22;border-radius:2px"></div>
+            </div>
+            <span style="font-size:9px;color:#E67E22;font-weight:600">📦 {{ dpct }}%</span>
+          </div>
+          {% elif dpct >= 100 %}
+          <div style="margin-top:5px;font-size:10px;color:#27AE60;font-weight:600">📦 To'liq topshirildi</div>
+          {% endif %}
           {% if debt > 0 %}
-          <div style="margin-top:5px;font-size:10px;color:#C0392B;font-weight:600">
+          <div style="margin-top:3px;font-size:10px;color:#C0392B;font-weight:600">
             🔴 Qarz: {{ "{:,.0f}".format(debt).replace(",", " ") }} so'm
           </div>
           {% elif o.payment_status and o.payment_status.value == 'paid' %}
-          <div style="margin-top:5px;font-size:10px;color:#27AE60;font-weight:600">
+          <div style="margin-top:3px;font-size:10px;color:#27AE60;font-weight:600">
             ✅ To'liq to'langan
           </div>
           {% endif %}
@@ -253,6 +267,36 @@
         </div>
       </div>
 
+      <!-- YETKAZISH BO'LIMI -->
+      <div class="card" style="margin-top:12px">
+        <div class="card-head">
+          <h3>📦 Yetkazish</h3>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="dlv-pct-badge" style="font-size:11px;font-weight:600"></span>
+            <button class="btn btn-dark btn-sm" id="btn-new-delivery" onclick="openDeliveryModal()">+ Mahsulot topshirish</button>
+          </div>
+        </div>
+        <div style="padding:12px">
+          <!-- Umumiy progress -->
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+              <span style="color:#777">Umumiy bajarilish</span>
+              <span id="dlv-pct-text" style="font-weight:700;color:#1a1a1a">—</span>
+            </div>
+            <div style="height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden">
+              <div id="dlv-pct-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#C9A55A,#2E7D52);border-radius:4px;transition:width .4s"></div>
+            </div>
+          </div>
+
+          <!-- Detallar bo'yicha -->
+          <div id="dlvItemList"></div>
+
+          <!-- Tarix -->
+          <div style="font-size:12px;font-weight:600;color:#777;margin:14px 0 6px">Topshirishlar tarixi</div>
+          <div id="dlvHistory"></div>
+        </div>
+      </div>
+
       <!-- TO'LOVLAR BO'LIMI -->
       <div class="card" style="margin-top:12px">
         <div class="card-head">
@@ -407,6 +451,48 @@
   </div>
 </div>
 </div>
+
+<!-- ══ YETKAZISH MODALI ══ -->
+<div id="dlvModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1a1a1a">📦 Mahsulot topshirish</div>
+        <div style="font-size:12px;color:#aaa;margin-top:2px" id="dlv-modal-sub">—</div>
+      </div>
+      <button onclick="closeDeliveryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+
+    <div style="padding:14px 22px;overflow-y:auto;flex:1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:12px;color:#777">Qancha berilayotganini kiriting</div>
+        <button class="btn btn-outline btn-sm" onclick="fillAllRemaining()" style="border-color:#C9A55A;color:#8B6914">⚡ Qoldiqni to'ldirish</button>
+      </div>
+
+      <div id="dlvForm"></div>
+
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <div style="flex:1">
+          <div style="font-size:11px;color:#777;margin-bottom:4px">Kim qabul qildi</div>
+          <input type="text" id="dlv-received-by" placeholder="Mijoz ismi yoki haydovchi"
+                 style="width:100%;height:36px;padding:0 11px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+        </div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:#777;margin-bottom:4px">Izoh</div>
+          <input type="text" id="dlv-notes" placeholder="Masalan: birinchi mashina"
+                 style="width:100%;height:36px;padding:0 11px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+        </div>
+      </div>
+
+      <div id="dlv-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+    </div>
+
+    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeDeliveryModal()">Bekor</button>
+      <button class="btn btn-dark" style="flex:2" onclick="saveDelivery()">💾 Saqlash va nakladnoy olish</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -528,6 +614,9 @@ function selectOrder(id, el) {
   // To'lovlar
   loadPayments(id);
 
+  // Yetkazishlar
+  loadDeliveries(id);
+
   // Ombor ogohlantirishlari
   fetch('/api/warnings/low-stock').then(r=>r.json()).then(d=>{
     const ac = document.getElementById('alertCard');
@@ -555,6 +644,227 @@ function loadOrderItems(id) {
     <div style="grid-column:1/-1;background:#f8f8f6;border-radius:8px;padding:12px;font-size:12px;color:#555">
       Bu buyurtma detallari uchun PDF bosing yoki sahifani yangilang
     </div>`;
+}
+
+// ── YETKAZISH ─────────────────────────────────────────────
+let dlvData = null;
+
+async function loadDeliveries(orderId) {
+  try {
+    const res = await fetch(`/api/orders/${orderId}/delivery-status`);
+    if (!res.ok) return;
+    const d = await res.json();
+    dlvData = d;
+
+    // Progress
+    const pct = d.delivery_percent || 0;
+    document.getElementById('dlv-pct-text').textContent = pct + '%';
+    document.getElementById('dlv-pct-bar').style.width = pct + '%';
+
+    const badge = document.getElementById('dlv-pct-badge');
+    if (d.is_fully_delivered) {
+      badge.innerHTML = '<span style="background:#E9F7EF;color:#1e7e34;padding:3px 10px;border-radius:12px">✅ To\'liq topshirildi</span>';
+    } else if (pct > 0) {
+      badge.innerHTML = `<span style="background:#FEF9E7;color:#b7770d;padding:3px 10px;border-radius:12px">🟡 ${pct}%</span>`;
+    } else {
+      badge.innerHTML = '<span style="background:#F5F5F5;color:#888;padding:3px 10px;border-radius:12px">Topshirilmagan</span>';
+    }
+
+    // Yangi topshirish tugmasi
+    const btn = document.getElementById('btn-new-delivery');
+    if (btn) btn.style.display = d.is_fully_delivered ? 'none' : '';
+
+    // Detallar
+    const list = document.getElementById('dlvItemList');
+    if (!d.items?.length) {
+      list.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">Detal yo\'q</div>';
+    } else {
+      list.innerHTML = d.items.map(it => {
+        const color = it.is_done ? '#27AE60' : (it.percent > 0 ? '#E67E22' : '#ddd');
+        return `
+        <div style="padding:9px 0;border-bottom:1px solid #f5f5f5">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+            <div style="font-size:13px;font-weight:500;color:#1a1a1a">
+              ${it.is_done ? '✅' : '📦'} ${it.name}
+            </div>
+            <div style="font-size:12px;font-weight:600;color:${it.is_done?'#27AE60':'#C0392B'}">
+              ${it.is_done ? 'tugadi' : `qoldi ${it.remaining} ${it.unit}`}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${it.percent}%;background:${color};border-radius:3px"></div>
+            </div>
+            <div style="font-size:11px;color:#aaa;white-space:nowrap;min-width:95px;text-align:right">
+              ${it.delivered} / ${it.ordered} ${it.unit}
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // Tarix
+    const hist = document.getElementById('dlvHistory');
+    if (!d.deliveries?.length) {
+      hist.innerHTML = '<div style="text-align:center;padding:12px;color:#bbb;font-size:12px">Hali topshirilmagan</div>';
+    } else {
+      hist.innerHTML = d.deliveries.map(dl => {
+        const dt = new Date(dl.delivered_at);
+        const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+        const items = dl.items.map(i => `${i.item_name}: <b>${i.quantity}${i.unit==='metr'?'m':' ta'}</b>`).join(' · ');
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f0f0f0;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:#1a1a1a">${dl.delivery_number}</div>
+            <div style="font-size:11px;color:#666;margin-top:3px;line-height:1.5">${items}</div>
+            <div style="font-size:10px;color:#aaa;margin-top:2px">
+              ${ds}${dl.received_by ? ' · qabul: '+dl.received_by : ''}${dl.notes ? ' · '+dl.notes : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0">
+            <a href="/api/deliveries/${dl.id}/pdf" target="_blank"
+               style="width:26px;height:26px;border-radius:6px;background:#EBF5FB;border:none;color:#2980B9;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none"
+               title="Nakladnoy PDF">📄</a>
+            <button onclick="deleteDelivery(${dl.id})"
+               style="width:26px;height:26px;border-radius:6px;background:#FEE;border:none;color:#C0392B;font-size:12px;cursor:pointer"
+               title="O'chirish">✕</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  } catch(e) { console.error('Yetkazishlarni yuklashda xato:', e); }
+}
+
+function openDeliveryModal() {
+  if (!dlvData) return;
+  const pending = dlvData.items.filter(i => !i.is_done);
+  if (!pending.length) { showMsg('Hamma mahsulot topshirilgan', 'success'); return; }
+
+  document.getElementById('dlv-modal-sub').textContent =
+    `${dlvData.order_number} · ${dlvData.client_name || '—'}`;
+
+  document.getElementById('dlvForm').innerHTML = dlvData.items.map(it => {
+    const dis = it.is_done ? 'opacity:.45;pointer-events:none' : '';
+    return `
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f5f5f5;${dis}">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;color:#1a1a1a">${it.name}</div>
+        <div style="font-size:11px;color:#aaa;margin-top:1px">
+          ${it.is_done ? '✅ To\'liq topshirilgan' : `Qoldi: <b style="color:#C0392B">${it.remaining} ${it.unit}</b> · Jami ${it.ordered} ${it.unit}`}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+        <button class="step-btn2" onclick="dlvStep(${it.id},-1)">−</button>
+        <input type="number" class="dlv-inp" id="dlv-${it.id}" data-max="${it.remaining}"
+               min="0" max="${it.remaining}" step="any" placeholder="0" ${it.is_done?'disabled':''}
+               style="width:78px;height:34px;text-align:center;border:1.5px solid #ddd;border-radius:7px;font-size:13px;font-weight:600;outline:none">
+        <button class="step-btn2" onclick="dlvStep(${it.id},1)">+</button>
+        <span style="font-size:11px;color:#aaa;width:32px">${it.unit==='metr'?'m':'ta'}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('dlv-received-by').value = '';
+  document.getElementById('dlv-notes').value = '';
+  document.getElementById('dlv-error').style.display = 'none';
+  document.getElementById('dlvModal').style.display = 'flex';
+}
+
+function closeDeliveryModal() {
+  document.getElementById('dlvModal').style.display = 'none';
+}
+
+function dlvStep(id, dir) {
+  const el = document.getElementById('dlv-' + id);
+  if (!el) return;
+  const max = parseFloat(el.dataset.max) || 0;
+  const step = max > 20 ? 10 : 1;
+  let v = (parseFloat(el.value) || 0) + dir * step;
+  v = Math.max(0, Math.min(v, max));
+  el.value = v || '';
+}
+
+function fillAllRemaining() {
+  document.querySelectorAll('.dlv-inp').forEach(el => {
+    if (el.disabled) return;
+    el.value = parseFloat(el.dataset.max) || '';
+  });
+}
+
+async function saveDelivery() {
+  if (!selectedOrderId) return;
+
+  const items = [];
+  let hasOver = false;
+  document.querySelectorAll('.dlv-inp').forEach(el => {
+    const q = parseFloat(el.value) || 0;
+    if (q <= 0) return;
+    const max = parseFloat(el.dataset.max) || 0;
+    if (q > max + 0.001) { hasOver = true; el.style.borderColor = '#C0392B'; }
+    items.push({ order_item_id: parseInt(el.id.replace('dlv-','')), quantity: q });
+  });
+
+  const err = document.getElementById('dlv-error');
+  if (hasOver) {
+    err.style.display = 'block';
+    err.textContent = '❌ Qoldiqdan ko\'p miqdor kiritilgan!';
+    return;
+  }
+  if (!items.length) {
+    err.style.display = 'block';
+    err.textContent = '❌ Kamida bitta mahsulot miqdorini kiriting';
+    return;
+  }
+  err.style.display = 'none';
+
+  const data = {
+    order_id: selectedOrderId,
+    items,
+    received_by: document.getElementById('dlv-received-by').value.trim() || null,
+    notes: document.getElementById('dlv-notes').value.trim() || null
+  };
+
+  try {
+    const res = await fetch('/api/deliveries', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    const r = await res.json();
+
+    if (res.ok) {
+      closeDeliveryModal();
+      // Nakladnoy PDF ni ochamiz
+      window.open(`/api/deliveries/${r.delivery_id}/pdf`, '_blank');
+      loadDeliveries(selectedOrderId);
+
+      if (r.is_fully_delivered) {
+        showMsg('✅ Buyurtma to\'liq topshirildi! Nakladnoy tayyor.', 'success');
+        setTimeout(()=>location.reload(), 2500);
+      } else {
+        showMsg(`✓ ${r.delivery_number} saqlandi · Bajarilish: ${r.delivery_percent}%`, 'success');
+      }
+    } else {
+      const det = r.detail || {};
+      err.style.display = 'block';
+      err.innerHTML = '❌ ' + (det.message || 'Xato') +
+        (det.shortages?.length ? '<br>' + det.shortages.join('<br>') : '');
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server xatosi';
+  }
+}
+
+async function deleteDelivery(id) {
+  if (!confirm('Bu topshirishni o\'chirasizmi?\n\nMiqdorlar qoldiqqa qaytadi.')) return;
+  try {
+    const res = await fetch(`/api/deliveries/${id}`, { method:'DELETE' });
+    if (res.ok) {
+      loadDeliveries(selectedOrderId);
+      showMsg('✓ O\'chirildi', 'success');
+    }
+  } catch(e) { showMsg('❌ Xato', 'error'); }
 }
 
 // ── LOY ZAXIRASI ──────────────────────────────────────────
