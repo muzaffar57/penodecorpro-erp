@@ -1763,6 +1763,34 @@ function hideNewForm() {
 }
 
 // ── Detal qo'shish ────────────────────────────────────────
+function previewPendingImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const thumb = input.closest('.prod-thumb');
+  const icon = thumb.querySelector('i');
+  const url = URL.createObjectURL(file);
+  if (icon) icon.remove();
+  let img = thumb.querySelector('img');
+  if (!img) { img = document.createElement('img'); thumb.prepend(img); }
+  img.src = url;
+}
+
+async function uploadPendingItemImages(savedItems) {
+  const rows = Array.from(document.querySelectorAll('#items .detal'))
+    .filter(row => row.querySelector('.i-name')?.value.trim());
+  const sortedItems = [...savedItems].sort((a, b) => a.id - b.id);
+  for (let i = 0; i < rows.length && i < sortedItems.length; i++) {
+    const fileInput = rows[i].querySelector('.i-pending-image');
+    const file = fileInput?.files?.[0];
+    if (!file) continue;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      await fetch(`/api/order-items/${sortedItems[i].id}/image`, { method: 'POST', body: fd });
+    } catch (e) { console.error('Rasm yuklashda xato:', e); }
+  }
+}
+
 function addItem() {
   itemCount++;
   const div = document.createElement('div');
@@ -1770,7 +1798,13 @@ function addItem() {
   div.id = 'item_' + itemCount;
   div.innerHTML = `
     <div class="detal-top">
-      <span class="detal-badge">Detal #${itemCount}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label class="prod-thumb" style="width:28px;height:28px;border-radius:6px" title="Rasm tanlash">
+          <i class="ti ti-camera-plus" style="font-size:14px" aria-hidden="true"></i>
+          <input type="file" accept="image/*" class="i-pending-image" onchange="previewPendingImage(this)">
+        </label>
+        <span class="detal-badge">Detal #${itemCount}</span>
+      </div>
       <button class="detal-rm" onclick="this.closest('.detal').remove();updateTotal()">✕</button>
     </div>
     <div class="detal-grid">
@@ -2223,6 +2257,9 @@ async function saveOrder(isDraft = false) {
       headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
     if (res.ok) {
       const saved = await res.json();
+      if (saved.items && saved.items.length) {
+        await uploadPendingItemImages(saved.items);
+      }
       const loyKg = parseFloat(document.getElementById('loy_kg')?.value || 0);
       if (loyKg > 0) {
         await fetch(`/api/orders/${saved.id}/coating-notify?loy_kg=${loyKg}`, {
@@ -2610,6 +2647,13 @@ async function updateOrder(orderId) {
         html += `<br><br>💰 Qarz: ${formatNum(result.debt_amount)} so'm`;
       }
       if (box) { box.innerHTML = html; box.className = 'result-box success'; box.style.display = 'block'; }
+      try {
+        const freshRes = await fetch(`/api/orders/${orderId}`);
+        if (freshRes.ok) {
+          const fresh = await freshRes.json();
+          if (fresh.items && fresh.items.length) await uploadPendingItemImages(fresh.items);
+        }
+      } catch (e) { console.error('Rasmlarni yuklashda xato:', e); }
       showMsg('✓ Saqlandi!', 'success');
       setTimeout(()=>location.reload(), 3000);
     } else {
