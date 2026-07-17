@@ -364,7 +364,40 @@ templates = Jinja2Templates(directory=templates_dir)
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 os.makedirs(static_dir, exist_ok=True)
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# Ba'zi serverlarda .woff2/.woff kengaytmalari noto'g'ri MIME turi bilan
+# yuborilishi mumkin (masalan application/json) — brauzerlar buni rad etadi
+# va ikonka shrifti yuklanmaydi. Shu sabab to'g'ri turlarni majburiy belgilaymiz.
+import mimetypes
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("font/woff", ".woff")
+mimetypes.add_type("font/ttf", ".ttf")
+mimetypes.add_type("text/css", ".css")
+
+class ReliableStaticFiles(StaticFiles):
+    """Ba'zi hosting muhitlarida (masalan Railway) tizimning o'z MIME
+    jadvali noto'g'ri yoki mavjud bo'lmasligi mumkin, natijada .woff2/.woff
+    kabi shrift fayllari 'text/plain' deb yuborilib, brauzer ularni rad etadi.
+    Bu klass kengaytmaga qarab TO'G'RIDAN-TO'G'RI to'g'ri turni majburlaydi —
+    tizim sozlamalariga umuman bog'liq emas."""
+    _FORCED_TYPES = {
+        ".woff2": "font/woff2",
+        ".woff": "font/woff",
+        ".ttf": "font/ttf",
+        ".css": "text/css; charset=utf-8",
+    }
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        path = str(args[0]) if args else str(kwargs.get("full_path", ""))
+        for ext, forced_type in self._FORCED_TYPES.items():
+            if path.lower().endswith(ext):
+                response.headers["content-type"] = forced_type
+                break
+        return response
+
+
+app.mount("/static", ReliableStaticFiles(directory=static_dir), name="static")
 
 
 @app.get("/login", response_class=HTMLResponse)
