@@ -906,7 +906,7 @@ function selectOrder(id, el) {
   document.getElementById('s-date').textContent    = d.date;
 
   const sTotal = document.getElementById('s-total');
-  if (sTotal) sTotal.textContent = Number(d.total).toLocaleString('uz') + ' so\'m';
+  if (sTotal) sTotal.textContent = Number(d.total).toLocaleString('ru-RU') + ' so\'m';
 
   // Status
   const isDraft = d.status === 'draft';
@@ -1903,22 +1903,22 @@ function updateTotal() {
     if (type === 'profil') {
       const l = parseFloat(row.querySelector('.i-l')?.value || 0);
       if (l > 0 && perm > 0)
-        qtyText = `${l}m × ${Number(perm).toLocaleString('uz')} so'm`;
+        qtyText = `${l}m × ${Number(perm).toLocaleString('ru-RU')} so'm`;
     } else if (type === 'panel') {
       const q = parseFloat(row.querySelector('.i-q')?.value || 1);
       if (q > 0 && perm > 0)
-        qtyText = `${q}m × ${Number(perm).toLocaleString('uz')} so'm`;
+        qtyText = `${q}m × ${Number(perm).toLocaleString('ru-RU')} so'm`;
     } else if (type === 'blok') {
       const kerakMetr = parseFloat(row.querySelector('.i-q')?.value || 0);
       const chiqadiPerBlok = parseFloat(row.querySelector('.i-l')?.value || 0);
       const blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;
       if (kerakMetr > 0 && perm > 0)
-        qtyText = `${blokKerak.toFixed(2)} blok → ${kerakMetr}m × ${Number(perm).toLocaleString('uz')} so'm/m`;
+        qtyText = `${blokKerak.toFixed(2)} blok → ${kerakMetr}m × ${Number(perm).toLocaleString('ru-RU')} so'm/m`;
     } else {
       const q = parseFloat(row.querySelector('.i-q')?.value || 1);
       const up = parseFloat(row.querySelector('.i-unitprice')?.value || 0);
       if (q > 0 && up > 0)
-        qtyText = `${q} dona × ${Number(up).toLocaleString('uz')} so'm`;
+        qtyText = `${q} dona × ${Number(up).toLocaleString('ru-RU')} so'm`;
     }
 
     if (price > 0) {
@@ -1929,7 +1929,7 @@ function updateTotal() {
             <div style="font-weight:500;color:#111">${name || ('Detal #'+(i+1))}</div>
             <div style="font-size:11px;color:#aaa">${qtyText}</div>
           </div>
-          <div style="font-weight:600;color:#2980B9">${Number(price).toLocaleString('uz')} so'm</div>
+          <div style="font-weight:600;color:#2980B9">${Number(price).toLocaleString('ru-RU')} so'm</div>
         </div>`;
     }
   });
@@ -1940,7 +1940,7 @@ function updateTotal() {
                 padding:10px 0 0;font-size:15px;font-weight:700;
                 border-top:2px solid #C9A55A;margin-top:6px">
       <span>JAMI:</span>
-      <span style="color:#C9A55A">${Number(total).toLocaleString('uz')} so'm</span>
+      <span style="color:#C9A55A">${Number(total).toLocaleString('ru-RU')} so'm</span>
     </div>`;
 
   if (liveBody) liveBody.innerHTML = html;
@@ -2528,8 +2528,8 @@ async function loadProfit() {
   const pR2 = document.getElementById('profitRow2');
   const sC = document.getElementById('s-cost');
   const sP = document.getElementById('s-profit');
-  if (pR && sC) { pR.style.display='flex'; sC.textContent=Number(d.tan_narxi).toLocaleString('uz')+' so\'m'; }
-  if (pR2 && sP) { pR2.style.display='flex'; sP.textContent=Number(d.foyda).toLocaleString('uz')+' so\'m ('+d.foyda_foiz+'%)'; }
+  if (pR && sC) { pR.style.display='flex'; sC.textContent=Number(d.tan_narxi).toLocaleString('ru-RU')+' so\'m'; }
+  if (pR2 && sP) { pR2.style.display='flex'; sP.textContent=Number(d.foyda).toLocaleString('ru-RU')+' so\'m ('+d.foyda_foiz+'%)'; }
   if (sP) sP.style.color = d.foyda >= 0 ? '#C9A55A' : '#E74C3C';
 
   // Tafsilot modali
@@ -2548,7 +2548,7 @@ async function loadProfit() {
                   b.nomi.toLowerCase().includes('usta') ? '👷' : '🎨';
       return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px">
         <span style="color:#555">${ico} ${b.nomi}</span>
-        <span style="font-weight:600;color:#E74C3C">−${Number(b.summa).toLocaleString('uz')} so'm</span>
+        <span style="font-weight:600;color:#E74C3C">−${Number(b.summa).toLocaleString('ru-RU')} so'm</span>
       </div>`;
     }).join('');
   } else {
@@ -2564,15 +2564,15 @@ async function loadProfit() {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
         <div style="background:#EBF5FB;border-radius:8px;padding:12px;text-align:center">
           <div style="font-size:11px;color:#aaa;margin-bottom:4px">Sotuv narxi</div>
-          <div style="font-size:14px;font-weight:600;color:#2980B9">${Number(d.sotuv_narxi).toLocaleString('uz')} so'm</div>
+          <div style="font-size:14px;font-weight:600;color:#2980B9">${Number(d.sotuv_narxi).toLocaleString('ru-RU')} so'm</div>
         </div>
         <div style="background:#FDEDEC;border-radius:8px;padding:12px;text-align:center">
           <div style="font-size:11px;color:#aaa;margin-bottom:4px">Tan narxi</div>
-          <div style="font-size:14px;font-weight:600;color:#E74C3C">${Number(d.tan_narxi).toLocaleString('uz')} so'm</div>
+          <div style="font-size:14px;font-weight:600;color:#E74C3C">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</div>
         </div>
         <div style="background:${d.foyda>=0?'#E9F7EF':'#FDEDEC'};border-radius:8px;padding:12px;text-align:center;border:2px solid ${d.foyda>=0?'#27AE60':'#E74C3C'}">
           <div style="font-size:11px;color:#aaa;margin-bottom:4px">Foyda</div>
-          <div style="font-size:14px;font-weight:600;color:${d.foyda>=0?'#27AE60':'#E74C3C'}">${Number(d.foyda).toLocaleString('uz')} so'm</div>
+          <div style="font-size:14px;font-weight:600;color:${d.foyda>=0?'#27AE60':'#E74C3C'}">${Number(d.foyda).toLocaleString('ru-RU')} so'm</div>
           <div style="font-size:10px;color:#aaa">${d.foyda_foiz}%</div>
         </div>
       </div>
@@ -2582,7 +2582,7 @@ async function loadProfit() {
         ${breakdownHTML}
         <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-weight:700;border-top:2px solid #ddd;margin-top:6px">
           <span>Jami tan narxi:</span>
-          <span style="color:#E74C3C">${Number(d.tan_narxi).toLocaleString('uz')} so'm</span>
+          <span style="color:#E74C3C">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</span>
         </div>
       </div>
     </div>`;
