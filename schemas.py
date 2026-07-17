@@ -20,6 +20,7 @@ class MasterCreate(BaseModel):
     phone: str = Field(..., min_length=7, max_length=20, description="Telefon raqami")
     cashback_percent: float = Field(default=0.0, ge=0, le=100, description="KPI foizi (0-100)")
     telegram_id: Optional[str] = None
+    region: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -33,6 +34,7 @@ class MasterRead(BaseModel):
     kpi_percent: Optional[float] = 0
     is_active: bool
     hire_date: datetime
+    region: Optional[str] = None
     notes: Optional[str] = None
 
     # SQLAlchemy ob'ektlarini qabul qilish
@@ -47,6 +49,7 @@ class MasterUpdate(BaseModel):
     kpi_percent: Optional[float] = None
     telegram_id: Optional[str] = None
     is_active: Optional[bool] = None
+    region: Optional[str] = None
     notes: Optional[str] = None
 
 
