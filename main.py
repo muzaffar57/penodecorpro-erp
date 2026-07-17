@@ -1443,6 +1443,11 @@ def api_low_stock(db: Session = Depends(get_db)):
     return {"warnings": services.get_low_stock_warnings(db)}
 
 
+@app.get("/api/notifications")
+def api_notifications(db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
+    return services.get_notifications(db)
+
+
 @app.get("/api/inventory/movements")
 def api_inventory_movements(item_id: Optional[int] = None, movement_type: Optional[str] = None,
                              order_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db)):
