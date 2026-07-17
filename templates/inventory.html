@@ -217,7 +217,28 @@
 <div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:24px;width:440px">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi xomashyo</div>
-    <div class="form-group"><label>Nomi</label><input type="text" id="f-name" placeholder="Penoplast"></div>
+    <div class="form-group">
+      <label>Nomi</label>
+      <input type="text" id="f-name" list="material-suggest" placeholder="Ro'yxatdan tanlang yoki yozing" autocomplete="off">
+      <datalist id="material-suggest">
+        <option value="Akril">
+        <option value="PVA">
+        <option value="Zagustitel">
+        <option value="Penogasitel">
+        <option value="Texanol">
+        <option value="Biosid">
+        <option value="HPMC">
+        <option value="Kvars qum">
+        <option value="Travertin qum">
+        <option value="Mramor kroshka">
+        <option value="Mel">
+        <option value="Mikrokalsit">
+        <option value="Shag'al">
+        <option value="Suv">
+        <option value="Penoplast">
+      </datalist>
+      <div style="font-size:11px;color:#aaa;margin-top:4px">Ro'yxatdan tanlang — xato yozilmasligi uchun. Yangi material bo'lsa, qo'lda yozishingiz ham mumkin.</div>
+    </div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Miqdor</label><input type="number" id="f-qty" placeholder="0" min="0"></div>
       <div class="form-group" style="margin:0"><label>O'lchov</label><select id="f-unit"><option>dona</option><option>kg</option><option>litr</option><option>m³</option><option>m</option></select></div>
