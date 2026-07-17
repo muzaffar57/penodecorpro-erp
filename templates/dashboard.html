@@ -59,6 +59,14 @@
     </div>
   </div>
 
+  <!-- BUGUNGI VAZIFALAR -->
+  <div class="card mb-16" id="tasksCard">
+    <div class="card-head"><h3><i class="ti ti-checklist" style="font-size:14px;vertical-align:-2px;color:var(--gold-dark)"></i> Bugungi vazifalar</h3></div>
+    <div class="card-body" id="tasksList" style="padding:10px 20px">
+      <div style="text-align:center;padding:10px;color:#bbb">Yuklanmoqda...</div>
+    </div>
+  </div>
+
   <!-- ISHLAB CHIQARISH HOLATI / BUYURTMALAR HOLATI / OGOHLANTIRISHLAR / TEZKOR AMALLAR -->
   <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1fr 1fr;gap:14px;margin-bottom:14px" id="topGrid">
     <div class="card">
@@ -291,6 +299,29 @@
     </div>
   </div>
 
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px" id="bottomGrid">
+    <div class="card">
+      <div class="card-head"><h3>Ishlab chiqarish</h3></div>
+      <div class="card-body" id="prodPeriods" style="display:flex;justify-content:space-around;text-align:center;padding:18px 12px">
+        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Eng ko'p sotilgan</h3></div>
+      <div class="card-body" id="topProducts" style="padding:8px 16px">
+        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Pul oqimi (bu oy)</h3></div>
+      <div class="card-body" id="cashFlow" style="padding:12px 16px">
+        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+      </div>
+    </div>
+  </div>
+  <style>@media(max-width:1100px){ #bottomGrid{grid-template-columns:1fr 1fr} }
+  @media(max-width:700px){ #bottomGrid{grid-template-columns:1fr} }</style>
+
 </div>
 {% endblock %}
 
@@ -340,6 +371,57 @@ async function loadAll(){
   loadSupplierDebt();
   loadFinishedStats();
   loadReturnStats();
+  loadTasks();
+  loadProdPeriods();
+  loadTopProducts();
+  loadCashFlow();
+}
+
+async function loadTasks(){
+  try{
+    const tasks = await fetch('/api/dashboard/today-tasks').then(r=>r.json());
+    document.getElementById('tasksList').innerHTML = tasks.map(t=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;font-size:12.5px">
+        <span>${t.icon}</span><span style="color:var(--text)">${t.text}</span>
+      </div>`).join('');
+  }catch(e){}
+}
+
+async function loadProdPeriods(){
+  try{
+    const p = await fetch('/api/dashboard/production-periods').then(r=>r.json());
+    document.getElementById('prodPeriods').innerHTML = `
+      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.today}</div><div style="font-size:11px;color:#aaa">Bugun</div></div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.week}</div><div style="font-size:11px;color:#aaa">Hafta</div></div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.month}</div><div style="font-size:11px;color:#aaa">Oy</div></div>`;
+  }catch(e){}
+}
+
+async function loadTopProducts(){
+  try{
+    const rows = await fetch('/api/reports/top-products?days=30&limit=5').then(r=>r.json());
+    if(!rows.length){document.getElementById('topProducts').innerHTML='<div style="text-align:center;padding:16px;color:#bbb;font-size:12px">Ma\'lumot yo\'q</div>';return;}
+    document.getElementById('topProducts').innerHTML = rows.map(r=>`
+      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border2);font-size:12.5px">
+        <span style="color:var(--text)">${r.name}</span><span style="font-weight:600;color:var(--gold-dark)">${fmt(r.revenue)}</span>
+      </div>`).join('');
+  }catch(e){}
+}
+
+async function loadCashFlow(){
+  try{
+    const now = new Date();
+    const d = await fetch(`/api/finance/report?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const kirim = d.daromad||0;
+    const chiqim = (d.jami_xarajat||0)+(d.naqd_xarajat_jami||0);
+    const balans = kirim-chiqim;
+    document.getElementById('cashFlow').innerHTML = `
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#166534">Kirim</span><span style="font-weight:600;color:#166534">${fmt(kirim)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="font-size:12px;color:#991B1B">Chiqim</span><span style="font-weight:600;color:#991B1B">${fmt(chiqim)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border2);margin-top:4px"><span style="font-size:12px;font-weight:600">Balans</span><span style="font-weight:700;color:${balans>=0?'#1D4ED8':'#DC2626'}">${fmt(balans)}</span></div>`;
+  }catch(e){
+    document.getElementById('cashFlow').innerHTML = '<div style="text-align:center;padding:16px;color:#bbb;font-size:12px">Ma\'lumot yo\'q</div>';
+  }
 }
 
 function buildStageList(statuses){
