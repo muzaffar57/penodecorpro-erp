@@ -160,6 +160,7 @@ class Inventory(Base):
     volume_per_unit = Column(Float, default=1.0)  # m³ — penoplast blok hajmi
     is_penoplast = Column(Boolean, default=False)  # Penoplast (plotnost) turimi
     is_default_penoplast = Column(Boolean, default=False)  # Asosiy plotnost
+    category = Column(String(50), nullable=True)  # Penoplast / Qumlar / Kimyoviy moddalar / Boshqa
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     notes = Column(Text, nullable=True)
 
@@ -433,6 +434,7 @@ class InventoryPurchase(Base):
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     supplier = relationship("Supplier", back_populates="purchases")
     is_credit = Column(Boolean, default=False)
+    category = Column(String(50), nullable=True)  # Xarid vaqtidagi kategoriya (tarix uchun saqlanadi)
 
     def __repr__(self):
         return f"<InventoryPurchase {self.item_name} {self.quantity}>"
