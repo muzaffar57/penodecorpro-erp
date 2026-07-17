@@ -148,9 +148,9 @@ async function loadReport(){
 
 function buildCashSection(d){
   document.getElementById('cash-total').textContent = fmt(d.naqd_xarajat_jami||0) + " so'm";
-  document.getElementById('cash-purchase').textContent = Number(d.xomashyo_xaridi||0).toLocaleString('uz') + " so'm";
-  document.getElementById('cash-tr-in').textContent = Number(d.transport_kirish||0).toLocaleString('uz') + " so'm";
-  document.getElementById('cash-tr-out').textContent = Number(d.transport_chiqish_company||0).toLocaleString('uz') + " so'm";
+  document.getElementById('cash-purchase').textContent = Number(d.xomashyo_xaridi||0).toLocaleString('ru-RU') + " so'm";
+  document.getElementById('cash-tr-in').textContent = Number(d.transport_kirish||0).toLocaleString('ru-RU') + " so'm";
+  document.getElementById('cash-tr-out').textContent = Number(d.transport_chiqish_company||0).toLocaleString('ru-RU') + " so'm";
 
   const box = document.getElementById('cash-by-material');
   if (d.xomashyo_by_material && d.xomashyo_by_material.length) {
@@ -159,7 +159,7 @@ function buildCashSection(d){
       d.xomashyo_by_material.map(m =>
         `<div style="display:flex;justify-content:space-between;padding:2px 0">
           <span>${m.name} (${m.quantity}${m.unit?' '+m.unit:''})</span>
-          <span style="font-weight:600">${Number(m.total).toLocaleString('uz')} so'm</span>
+          <span style="font-weight:600">${Number(m.total).toLocaleString('ru-RU')} so'm</span>
         </div>`).join('');
   } else {
     box.style.display = 'none';
@@ -178,28 +178,28 @@ function buildExpDetail(d){
   if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
     extraHtml += `<div style="font-size:10.5px;color:#8B6914;font-weight:600;margin:8px 0 2px">🏆 Usta yillik KPI</div>`;
     extraHtml += d.usta_kpi_breakdown.map(b =>
-      `<div class="exp-row"><span class="exp-name">${b.master_name} (${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)})</span><span class="exp-val">${Number(b.kpi_amount).toLocaleString('uz')} so'm</span></div>`
+      `<div class="exp-row"><span class="exp-name">${b.master_name} (${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)})</span><span class="exp-val">${Number(b.kpi_amount).toLocaleString('ru-RU')} so'm</span></div>`
     ).join('');
   }
 
   if (d.hodimlar_moslashuvchan_breakdown && d.hodimlar_moslashuvchan_breakdown.length) {
     extraHtml += `<div style="font-size:10.5px;color:#8B6914;font-weight:600;margin:8px 0 2px">👷 Hodimlar (moslashuvchan)</div>`;
     extraHtml += d.hodimlar_moslashuvchan_breakdown.map(b =>
-      `<div class="exp-row"><span class="exp-name">${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}</span><span class="exp-val">${Number(b.amount).toLocaleString('uz')} so'm</span></div>`
+      `<div class="exp-row"><span class="exp-name">${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}</span><span class="exp-val">${Number(b.amount).toLocaleString('ru-RU')} so'm</span></div>`
     ).join('');
   }
 
-  el.innerHTML=rows.map(r=>`<div class="exp-row"><span class="exp-name">${r.n}</span><span class="exp-val">${Number(r.v).toLocaleString('uz')} so'm</span></div>`).join('')
+  el.innerHTML=rows.map(r=>`<div class="exp-row"><span class="exp-name">${r.n}</span><span class="exp-val">${Number(r.v).toLocaleString('ru-RU')} so'm</span></div>`).join('')
     + extraHtml
     +`<div class="exp-row" style="border-top:1px dashed #e8e8e8;margin-top:6px;padding-top:6px">
         <span class="exp-name" style="color:#2980B9">🏭 Ishlab chiqarish xarajati</span>
-        <span class="exp-val" style="color:#2980B9">${Number(d.ishlab_chiqarish_xarajat||0).toLocaleString('uz')} so'm</span>
+        <span class="exp-val" style="color:#2980B9">${Number(d.ishlab_chiqarish_xarajat||0).toLocaleString('ru-RU')} so'm</span>
       </div>
-      <div class="total-row"><span>Jami xarajat:</span><span style="color:#E74C3C">${Number(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0)).toLocaleString('uz')} so'm</span></div>
-      <div class="total-row" style="margin-top:6px"><span>Jami daromad:</span><span style="color:#27AE60">${Number(d.daromad).toLocaleString('uz')} so'm</span></div>`;
+      <div class="total-row"><span>Jami xarajat:</span><span style="color:#E74C3C">${Number(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0)).toLocaleString('ru-RU')} so'm</span></div>
+      <div class="total-row" style="margin-top:6px"><span>Jami daromad:</span><span style="color:#27AE60">${Number(d.daromad).toLocaleString('ru-RU')} so'm</span></div>`;
   const pb=document.getElementById('profitBlock');
   pb.style.display='block';
-  document.getElementById('profitBig').textContent=Number(d.sof_foyda).toLocaleString('uz')+' so\'m';
+  document.getElementById('profitBig').textContent=Number(d.sof_foyda).toLocaleString('ru-RU')+' so\'m';
   document.getElementById('profitBig').style.color=d.sof_foyda>=0?'#8E44AD':'#E74C3C';
   document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
 }
