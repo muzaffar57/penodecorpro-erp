@@ -1506,6 +1506,21 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
     return templates.TemplateResponse(request, "debts.html", {"debts": debts, "total_debt": total_debt, "total_paid": total_paid, "total_budget": total_budget, "current_user": current_user, "active_page": "debts"})
 
 
+@app.get("/reports", response_class=HTMLResponse)
+async def reports_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return templates.TemplateResponse(request, "reports.html", {"current_user": current_user, "active_page": "reports"})
+
+
+@app.get("/api/reports/top-products")
+def api_reports_top_products(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_top_products_report(db, days=days)
+
+
+@app.get("/api/reports/top-materials")
+def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_top_materials_report(db, days=days)
+
+
 @app.get("/finance", response_class=HTMLResponse)
 async def finance_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     return templates.TemplateResponse(request, "finance.html", {"current_user": current_user, "active_page": "finance"})
