@@ -121,6 +121,7 @@
             <option value="profil">Profil</option>
             <option value="panel">Panel</option>
             <option value="dona">Donali</option>
+            <option value="blok">Blok (butun narxda)</option>
           </select>
         </div>
         <div class="form-group" style="margin:0" id="p-h-wrap">
@@ -139,7 +140,7 @@
           <input type="number" id="p-t" step="0.1" oninput="pCalc()">
         </div>
         <div class="form-group" style="margin:0" id="p-l-wrap">
-          <label>Uzunlik (m)</label>
+          <label id="p-l-label">Uzunlik (m)</label>
           <input type="number" id="p-l" step="0.1" value="0" oninput="pCalc()">
         </div>
         <div class="form-group" style="margin:0;display:none" id="p-q-wrap">
@@ -149,6 +150,17 @@
         <div class="form-group" style="margin:0;display:none" id="p-up-wrap">
           <label>1 dona narxi (so'm)</label>
           <input type="number" id="p-up" step="100" oninput="pCalc()">
+        </div>
+      </div>
+
+      <div class="form-row" id="p-blok-row" style="display:none">
+        <div class="form-group" style="margin:0" id="p-blokprice-wrap">
+          <label>1 blok narxi (so'm, tayyor)</label>
+          <input type="number" id="p-blokprice" placeholder="1500000" step="1000" oninput="onBlokPriceInput()">
+        </div>
+        <div class="form-group" style="margin:0" id="p-blokmult-wrap">
+          <label>Qoplama koeffitsienti (masalan 2)</label>
+          <input type="number" id="p-blokmult" value="2" step="0.1" min="1" oninput="recalcBlokPrice()">
         </div>
       </div>
 
@@ -696,29 +708,67 @@ function pToggle() {
   const lW = document.getElementById('p-l-wrap');
   const qW = document.getElementById('p-q-wrap');
   const upW = document.getElementById('p-up-wrap');
+  const blokRow = document.getElementById('p-blok-row');
+  const m3Wrap = document.getElementById('p-m3').closest('.form-group');
+
+  blokRow.style.display = (type === 'blok') ? 'flex' : 'none';
 
   if (type === 'dona') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none'; lW.style.display = 'none';
     qW.style.display = 'block'; upW.style.display = 'block';
+    m3Wrap.style.display = '';
     ['p-h','p-w','p-t','p-l'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
   } else if (type === 'panel') {
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'block'; lW.style.display = 'none';
     qW.style.display = 'block'; upW.style.display = 'none';
+    m3Wrap.style.display = '';
     document.getElementById('p-l').value = '0';
+  } else if (type === 'blok') {
+    hW.style.display = 'none'; wW.style.display = 'none';
+    tW.style.display = 'none';
+    lW.style.display = 'block';   // 1 blokdan chiqadigan metr (taxminan)
+    qW.style.display = 'block';   // Necha metr kerak
+    upW.style.display = 'none';
+    m3Wrap.style.display = 'none';  // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
+    document.getElementById('p-l-label').textContent = "1 blokdan chiqadigan metr (taxminan)";
+    document.getElementById('p-q-label').textContent = "Necha metr kerak";
+    const tEl = document.getElementById('p-t'); if(tEl) tEl.value = '';
+    window._blokBase = '';
   } else {
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'none';  lW.style.display = 'block';
     qW.style.display = 'none';  upW.style.display = 'none';
+    m3Wrap.style.display = '';
+    document.getElementById('p-l-label').textContent = 'Uzunlik (m)';
     const tEl = document.getElementById('p-t'); if(tEl) tEl.value = '';
     document.getElementById('p-q').value = '1';
   }
-  // Yozuvlar: profil/panel — metr, dona — dona
-  const isMetr = (type === 'profil' || type === 'panel');
+  if (type !== 'blok') document.getElementById('p-l-label').textContent = 'Uzunlik (m)';
+  // Yozuvlar: profil/panel/blok — metr, dona — dona
+  const isMetr = (type === 'profil' || type === 'panel' || type === 'blok');
   document.getElementById('p-unit-label').textContent = isMetr ? 'metr' : 'dona';
   const qLbl = document.getElementById('p-q-label');
-  if (qLbl) qLbl.textContent = (type === 'panel') ? 'Uzunlik (m)' : 'Miqdor (dona)';
+  if (qLbl && type !== 'blok') qLbl.textContent = (type === 'panel') ? 'Uzunlik (m)' : 'Miqdor (dona)';
+}
+
+function recalcBlokPrice() {
+  const bpEl = document.getElementById('p-blokprice');
+  const isCoated = document.getElementById('p-coated').value === 'true';
+  const mult = parseFloat(document.getElementById('p-blokmult').value) || 2;
+  const base = parseFloat(window._blokBase) || 0;
+  if (base > 0) bpEl.value = Math.round(isCoated ? base * mult : base);
+  pCalc();
+}
+
+function onBlokPriceInput() {
+  const bpEl = document.getElementById('p-blokprice');
+  const isCoated = document.getElementById('p-coated').value === 'true';
+  const mult = parseFloat(document.getElementById('p-blokmult').value) || 2;
+  const typed = parseFloat(bpEl.value) || 0;
+  window._blokBase = isCoated ? (typed / mult) : typed;
+  pCalc();
 }
 
 // Buyurtmadagi calculateItem bilan bir xil
@@ -762,6 +812,22 @@ function pCalc() {
     else { perUnitPrice = perDona_base; }
     volume_total = eni_m * qalin_m * qty;
     count = qty; unit = 'metr';
+  } else if (type === 'blok') {
+    // l = "1 blokdan chiqadigan metr" (taxminan), qty = "Necha metr kerak"
+    const blokPrice = parseFloat(document.getElementById('p-blokprice').value) || 0;
+    const chiqadiPerBlok = l;
+    const kerakMetr = qty;
+
+    perUnitPrice = chiqadiPerBlok > 0 ? (blokPrice / chiqadiPerBlok) : 0;
+    price = perUnitPrice * kerakMetr;
+
+    const blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;
+    window._blokKerak = blokKerak;
+
+    const pid = parseInt(document.getElementById('p-peno').value);
+    const p = PENOS.find(x => x.id === pid);
+    volume_total = p ? (p.vol * blokKerak) : 0;
+    count = kerakMetr; unit = 'metr';
   }
 
   window._pCalc = { volume: volume_total, price, perUnitPrice, count, unit };
@@ -865,6 +931,13 @@ async function saveProduce() {
     data.length = null;
     data.quantity = qty;
     data.unit_price_for_volume = up;   // hajm hisobi uchun
+  } else if (type === 'blok') {
+    // length = ishlatilgan blok soni (ombordan shuncha yechiladi)
+    // quantity = blokdan chiqqan metr (mijozga ko'rsatiladigan/tayyor mahsulot miqdori)
+    data.width = null;
+    data.thickness = null;
+    data.length = window._blokKerak || 0;
+    data.quantity = qty;
   } else {
     // profil: width=eni, thickness=kenglik, length=uzunlik
     data.width = h;
