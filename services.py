@@ -479,6 +479,38 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     return result
 
 
+def get_inventory_kpi(db: Session) -> Dict:
+    """Omborxona sahifasi uchun KPI ko'rsatkichlari — faqat o'qish, hech narsani o'zgartirmaydi."""
+    from models import Inventory, InventoryMovement
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    items = db.query(Inventory).all()
+    total_items = len(items)
+    low_count = sum(1 for i in items if float(i.stock_quantity or 0) <= float(i.min_stock or 0))
+    total_value = sum(float(i.stock_quantity or 0) * float(i.price_per_unit or 0) for i in items)
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+
+    today_in = db.query(func.count(InventoryMovement.id)).filter(
+        InventoryMovement.movement_type == "in",
+        InventoryMovement.created_at >= today_start, InventoryMovement.created_at < today_end
+    ).scalar() or 0
+    today_out = db.query(func.count(InventoryMovement.id)).filter(
+        InventoryMovement.movement_type == "out",
+        InventoryMovement.created_at >= today_start, InventoryMovement.created_at < today_end
+    ).scalar() or 0
+
+    return {
+        "total_items": total_items,
+        "low_count": low_count,
+        "total_value": total_value,
+        "today_in_count": today_in,
+        "today_out_count": today_out,
+    }
+
+
 def get_low_stock_warnings(db: Session) -> List[Dict]:
     """check_low_stock ning alias — eski kodlarga moslik uchun."""
     return check_low_stock(db)
