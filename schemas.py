@@ -198,6 +198,8 @@ class RecipeRead(BaseModel):
     batch_size_kg: float
     notes: Optional[str] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    image_url: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
