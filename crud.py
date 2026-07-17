@@ -135,7 +135,30 @@ def get_item_by_name(db: Session, name: str) -> Optional[Inventory]:
     return db.query(Inventory).filter(Inventory.item_name == name).first()
 
 
-def update_stock(db: Session, item_id: int, quantity_change: float) -> Optional[Inventory]:
+def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movement_type: str,
+                  quantity: float, unit: Optional[str] = None, reason: Optional[str] = None,
+                  order_id: Optional[int] = None, supplier_id: Optional[int] = None,
+                  performed_by: Optional[str] = None, notes: Optional[str] = None):
+    """Ombor harakati jurnaliga bitta yozuv qo'shadi.
+
+    MUHIM: bu funksiya faqat LOG yozadi — hech qanday hisob-kitobga yoki
+    stock_quantity qiymatiga ta'sir qilmaydi. Xato yuz bersa ham asosiy
+    amalni to'xtatmaslik uchun try/except bilan o'ralgan."""
+    from models import InventoryMovement
+    try:
+        if quantity is None or quantity == 0:
+            return
+        db.add(InventoryMovement(
+            inventory_id=inventory_id, item_name=item_name, movement_type=movement_type,
+            quantity=abs(float(quantity)), unit=unit, reason=reason,
+            order_id=order_id, supplier_id=supplier_id,
+            performed_by=performed_by, notes=notes
+        ))
+    except Exception:
+        pass
+
+
+def update_stock(db: Session, item_id: int, quantity_change: float, performed_by: Optional[str] = None) -> Optional[Inventory]:
     """Mahsulot qoldig'ini yangilaydi (musbat = qo'shish, manfiy = ayirish).
     Narxsiz oddiy tuzatish uchun (masalan inventarizatsiya). Xarid uchun
     purchase_stock() dan foydalaning — u narxni ham hisobga oladi."""
@@ -146,6 +169,12 @@ def update_stock(db: Session, item_id: int, quantity_change: float) -> Optional[
     if new_qty < 0:
         new_qty = 0  # Manfiy bo'lmasin
     db_item.stock_quantity = new_qty
+    log_movement(
+        db, db_item.id, db_item.item_name,
+        movement_type="in" if quantity_change > 0 else "out",
+        quantity=quantity_change, unit=db_item.unit,
+        reason="Qo'lda tuzatish (inventarizatsiya)", performed_by=performed_by
+    )
     db.commit()
     db.refresh(db_item)
     return db_item
@@ -231,6 +260,17 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         category=db_item.category
     )
     db.add(purchase)
+    supplier_name = None
+    if supplier_id:
+        from models import Supplier
+        sup = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+        supplier_name = sup.name if sup else None
+    log_movement(
+        db, db_item.id, db_item.item_name, movement_type="in",
+        quantity=quantity, unit=db_item.unit,
+        reason=f"Yetkazib beruvchi: {supplier_name}" if supplier_name else "Xarid",
+        supplier_id=supplier_id, performed_by=purchased_by, notes=notes
+    )
     db.commit()
     db.refresh(db_item)
 
@@ -678,6 +718,11 @@ def mark_order_ready(db: Session, order_id: int) -> dict:
                     if inv_item:
                         inv_item.stock_quantity = max(0, inv_item.stock_quantity - qty)
                         inventory_log.append(f"{inv_item.item_name}: -{qty:.2f} {inv_item.unit}")
+                        log_movement(
+                            db, inv_item.id, inv_item.item_name, movement_type="out",
+                            quantity=qty, unit=inv_item.unit,
+                            reason=f"Buyurtma {db_order.order_number}", order_id=db_order.id
+                        )
 
     # 3. Usta KPI hisoblash
     kpi_info = None
