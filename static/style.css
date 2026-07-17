@@ -4,29 +4,33 @@
 *, *::before, *::after {
   margin: 0; padding: 0;
   box-sizing: border-box;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 :root {
   --sidebar-w: 240px;
   --topbar-h: 58px;
-  --gold: #C9A55A;
-  --gold-dark: #B8924A;
-  --dark: #111111;
-  --dark2: #1a1a1a;
-  --dark3: #222222;
-  --bg: #f8f8f6;
+  --gold: #2563EB;
+  --gold-dark: #1D4ED8;
+  --gold-tint: #EFF6FF;
+  --dark: #111827;
+  --dark2: #1E293B;
+  --dark3: #2A3749;
+  --bg: #F8FAFC;
   --white: #ffffff;
-  --border: #ebebeb;
-  --border2: #f0f0f0;
-  --text: #111111;
-  --text2: #555555;
-  --text3: #999999;
-  --green: #27AE60;
-  --red: #E74C3C;
-  --blue: #2980B9;
-  --orange: #E67E22;
+  --border: #E2E8F0;
+  --border2: #EDF2F7;
+  --text: #0F172A;
+  --text2: #475569;
+  --text3: #94A3B8;
+  --green: #22C55E;
+  --red: #EF4444;
+  --blue: #2563EB;
+  --orange: #F59E0B;
+  --radius-card: 16px;
+  --shadow-card: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
 }
+
 
 body {
   background: var(--bg);
@@ -202,8 +206,9 @@ body {
    ============================================================ */
 .card {
   background: var(--white);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 .card-head {
@@ -221,8 +226,9 @@ body {
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .kpi-card {
   background: var(--white);
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
   padding: 14px 16px;
 }
 .kpi-val { font-size: 24px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
@@ -235,9 +241,9 @@ body {
   margin-top: 6px;
   font-weight: 500;
 }
-.kpi-badge.up { background: #E9F7EF; color: #1e7e34; }
-.kpi-badge.warn { background: #FEF9E7; color: #b7770d; }
-.kpi-badge.info { background: #EBF5FB; color: #1a6fa8; }
+.kpi-badge.up { background: #DCFCE7; color: #1e7e34; }
+.kpi-badge.warn { background: #FEF3C7; color: #b7770d; }
+.kpi-badge.info { background: #EFF6FF; color: #1a6fa8; }
 
 /* ============================================================
    JADVAL
@@ -276,19 +282,19 @@ body {
   font-weight: 500;
 }
 .badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
-.badge-new { background: #EBF5FB; color: #1a6fa8; }
+.badge-new { background: #EFF6FF; color: #1a6fa8; }
 .badge-new::before { background: #1a6fa8; }
-.badge-progress { background: #FEF9E7; color: #b7770d; }
-.badge-progress::before { background: #E67E22; }
-.badge-ready { background: #E9F7EF; color: #1e7e34; }
-.badge-ready::before { background: #27AE60; }
-.badge-delivered { background: #F0E6FF; color: #6c3483; }
+.badge-progress { background: #FEF3C7; color: #b7770d; }
+.badge-progress::before { background: #F59E0B; }
+.badge-ready { background: #DCFCE7; color: #1e7e34; }
+.badge-ready::before { background: #22C55E; }
+.badge-delivered { background: #F3E8FF; color: #6c3483; }
 .badge-delivered::before { background: #8E44AD; }
 .badge-cancelled { background: #f5f5f5; color: #888; }
 .badge-cancelled::before { background: #aaa; }
-.badge-warning { background: #FEF9E7; color: #b7770d; }
-.badge-danger { background: #FDEDEC; color: #c0392b; }
-.badge-info { background: #EBF5FB; color: #1a6fa8; }
+.badge-warning { background: #FEF3C7; color: #b7770d; }
+.badge-danger { background: #FEE2E2; color: #DC2626; }
+.badge-info { background: #EFF6FF; color: #1a6fa8; }
 
 /* ============================================================
    FORMA ELEMENTLARI
@@ -345,10 +351,10 @@ body {
   margin-bottom: 14px;
   font-size: 13px;
 }
-.alert-warning { background: #FEF9E7; border: 1px solid #F5CBA7; color: #b7770d; }
-.alert-danger { background: #FDEDEC; border: 1px solid #F1948A; color: #c0392b; }
-.alert-success { background: #E9F7EF; border: 1px solid #A9DFBF; color: #1e7e34; }
-.alert-info { background: #EBF5FB; border: 1px solid #AED6F1; color: #1a6fa8; }
+.alert-warning { background: #FEF3C7; border: 1px solid #FDE68A; color: #b7770d; }
+.alert-danger { background: #FEE2E2; border: 1px solid #F1948A; color: #DC2626; }
+.alert-success { background: #DCFCE7; border: 1px solid #A9DFBF; color: #1e7e34; }
+.alert-info { background: #EFF6FF; border: 1px solid #AED6F1; color: #1a6fa8; }
 
 /* ============================================================
    MODAL
@@ -408,14 +414,15 @@ body {
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .stat-card {
   background: var(--white);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
   padding: 16px;
 }
 .stat-icon {
   width: 34px; height: 34px;
   border-radius: 9px;
-  background: #FBF5E9;
+  background: var(--gold-tint);
   color: var(--gold-dark);
   display: flex; align-items: center; justify-content: center;
   font-size: 17px;
