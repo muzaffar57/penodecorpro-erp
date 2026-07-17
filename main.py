@@ -728,6 +728,15 @@ def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Sess
     return {"status": "ok"}
 
 
+@app.delete("/api/suppliers/{supplier_id}")
+def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yetkazib beruvchini o'chirish. Qarzi bo'lsa force=true kerak."""
+    result = crud.delete_supplier(db, supplier_id, force=force)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return {"status": "ok"}
+
+
 @app.get("/api/suppliers/{supplier_id}/history")
 def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
