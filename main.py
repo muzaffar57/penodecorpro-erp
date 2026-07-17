@@ -1750,8 +1750,22 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "created_at": fp.created_at.isoformat() if fp.created_at else None,
         "created_by": fp.created_by,
         "notes": fp.notes,
+        "image_url": fp.image_url,
         "total_value": round(float(fp.quantity or 0) * float(fp.unit_price or 0))
     } for fp in items]
+
+
+@app.post("/api/finished/{fp_id}/image")
+def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                               current_user=Depends(auth.admin_or_manager)):
+    from models import FinishedProduct
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if not fp:
+        raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
+    url = _save_upload(file, "finished", ALLOWED_IMAGE_EXT)
+    fp.image_url = url
+    db.commit()
+    return {"image_url": url}
 
 
 @app.get("/api/finished/stats")
