@@ -4,6 +4,15 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
+<script>
+(function(){
+  try {
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch(e) {}
+})();
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}PenoDecorPro ERP{% endblock %}</title>
@@ -149,6 +158,9 @@
         <div class="page-sub">{% block page_sub %}{% endblock %}</div>
       </div>
       <div class="tb-right">
+        <button id="themeToggle" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
+          <i class="ti ti-moon" id="themeIcon" style="font-size:16px"></i>
+        </button>
         <div id="notifWrap" style="position:relative;margin-right:10px">
           <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
             <i class="ti ti-bell" style="font-size:17px"></i>
@@ -168,6 +180,25 @@
     <script>
     (function() {
       const NOTIF_BG = { red: '#FEE2E2', orange: '#FEF3C7', green: '#DCFCE7' };
+
+      function applyThemeIcon() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const icon = document.getElementById('themeIcon');
+        if (icon) icon.className = isDark ? 'ti ti-sun' : 'ti ti-moon';
+      }
+      window.toggleTheme = function() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+          document.documentElement.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          localStorage.setItem('theme', 'dark');
+        }
+        applyThemeIcon();
+      };
+      applyThemeIcon();
+
       function toggleNotifPanel() {
         const p = document.getElementById('notifPanel');
         p.style.display = p.style.display === 'none' ? 'block' : 'none';
