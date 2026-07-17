@@ -282,6 +282,33 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     ]))
     el.append(stat)
 
+    # ---- Qolgan mahsulotlar (faqat qisman yetkazishda) ----
+    if order and not done:
+        pending_items = [it for it in (order.items or []) if it.remaining_qty > 0.001]
+        if pending_items:
+            el.append(Spacer(1, 9))
+            el.append(Paragraph("<b>Keyingi yetkazishda kutilayotgan mahsulotlar</b>", st_norm))
+            el.append(Spacer(1, 4))
+            pend_data = [["Mahsulot nomi", "Qoldi"]]
+            for it in pending_items:
+                unit_label = "m" if it.delivery_unit == "metr" else "ta"
+                pend_data.append([it.name or "—", f"{_num(it.remaining_qty)} {unit_label}"])
+            pend_tbl = Table(pend_data, colWidths=[13*cm, 5*cm])
+            pend_tbl.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#FEF9E7")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), GOLD),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+                ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor("#DC2626")),
+                ('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'),
+                ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+                ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor("#E5E1D8")),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]))
+            el.append(pend_tbl)
+
     # ---- Transport ----
     carrier = getattr(delivery, 'transport_carrier', None)
     t_cost = float(getattr(delivery, 'transport_cost', 0) or 0)
