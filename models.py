@@ -192,6 +192,8 @@ class Recipe(Base):
     batch_size_kg = Column(Float, default=150.0)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True)  # Faqat UI uchun — tahrirlanganda yangilanadi
+    image_url = Column(String(255), nullable=True)  # Faqat UI uchun — hisob-kitobga ta'siri yo'q
 
     def __repr__(self):
         return f"<Recipe {self.name.value}>"
