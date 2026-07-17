@@ -19,7 +19,13 @@
 .fp-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
 .fp-row.returned{background:#FAFDFB}
 .fp-row.progress{background:#FFFBF0}
-.fp-thumb{width:38px;height:38px;border-radius:9px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.fp-thumb{width:38px;height:38px;border-radius:9px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+.fp-thumb img{width:100%;height:100%;object-fit:cover}
+.fp-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.fp-thumb .cam-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;pointer-events:none}
+.fp-thumb:hover .cam-overlay{opacity:1}
+#lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out}
+#lightbox img{max-width:88vw;max-height:88vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
 .fp-name{font-size:13px;font-weight:600;color:var(--text)}
 .fp-sku{font-size:10px;color:var(--text3);font-family:monospace}
 .fp-meta{font-size:11px;color:var(--text3);margin-top:2px}
@@ -73,6 +79,11 @@
   <div id="fpList">
     <div class="fp-empty">Yuklanmoqda...</div>
   </div>
+</div>
+
+<!-- ══ RASM KATTALASHTIRISH (LIGHTBOX) ══ -->
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="">
 </div>
 
 <!-- ══ TARIX MODALI ══ -->
@@ -380,6 +391,24 @@ function fpWidth2(i) {
 
 function fpSku(i) { return 'FP-' + String(i.id).padStart(4, '0'); }
 
+async function uploadFpImage(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`/api/finished/${id}/image`, { method: 'POST', body: fd });
+    if (res.ok) { loadFp(); }
+    else showMsg('Rasm yuklanmadi', 'error');
+  } catch(e) { showMsg('Server xatosi', 'error'); }
+}
+
+function openLightbox(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').style.display = 'flex';
+}
+function closeLightbox() { document.getElementById('lightbox').style.display = 'none'; }
+
 function rowHtml(i) {
   const isRet = i.source === 'returned';
   const inProgress = i.source === 'produced' && i.production_status === 'in_progress';
@@ -436,7 +465,13 @@ function rowHtml(i) {
 
   return `
   <div class="fp-row ${isRet ? 'returned' : ''} ${inProgress ? 'progress' : ''}" data-name="${i.name.toLowerCase()}">
-    <div class="fp-thumb"><i class="ti ${i.category==='profil'?'ti-ruler-2':i.category==='panel'?'ti-square':'ti-box'}"></i></div>
+    <label class="fp-thumb" onclick="event.stopPropagation()">
+      ${i.image_url
+        ? `<img src="${i.image_url}" alt="" onclick="openLightbox('${i.image_url}')">`
+        : `<i class="ti ${i.category==='profil'?'ti-ruler-2':i.category==='panel'?'ti-square':'ti-box'}" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
+      <div class="cam-overlay" onclick="document.getElementById('fpimg-${i.id}').click()"><i class="ti ti-camera-plus"></i></div>
+      <input type="file" id="fpimg-${i.id}" accept="image/*" onchange="uploadFpImage(${i.id}, this)">
+    </label>
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
         <span class="fp-name">${i.name}</span>
