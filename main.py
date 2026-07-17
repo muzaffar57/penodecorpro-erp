@@ -1450,9 +1450,32 @@ def api_finance_history(months: int = 12, db: Session = Depends(get_db), current
     return services.get_finance_history(db, months)
 
 
+@app.post("/api/finance/transactions")
+def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: Session = Depends(get_db),
+                                    current_user=Depends(auth.admin_only)):
+    tx = crud.create_expense_transaction(db, data.model_dump(), performed_by=current_user.full_name or current_user.username, source="manual")
+    return schemas.ExpenseTransactionRead.model_validate(tx)
+
+
+@app.get("/api/finance/transactions")
+def api_list_expense_transactions(year: Optional[int] = None, month: Optional[int] = None,
+                                   category: Optional[str] = None, db: Session = Depends(get_db),
+                                   current_user=Depends(auth.admin_only)):
+    rows = crud.get_expense_transactions(db, year=year, month=month, category=category)
+    return [schemas.ExpenseTransactionRead.model_validate(r) for r in rows]
+
+
+@app.delete("/api/finance/transactions/{tx_id}")
+def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    ok = crud.delete_expense_transaction(db, tx_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+    return {"status": "ok"}
+
+
 @app.post("/api/finance/expense")
 def api_save_expense(year: int, month: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    services.save_monthly_expense(db, year, month, data)
+    services.save_monthly_expense(db, year, month, data, performed_by=current_user.full_name or current_user.username)
     return {"status": "ok"}
 
 
