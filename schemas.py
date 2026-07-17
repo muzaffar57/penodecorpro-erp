@@ -64,6 +64,7 @@ class InventoryCreate(BaseModel):
     volume_per_unit: float = Field(default=1.0, gt=0, description="Blok hajmi (m³)")
     is_penoplast: bool = Field(default=False, description="Penoplast (plotnost) turimi")
     is_default_penoplast: bool = Field(default=False, description="Asosiy plotnost")
+    category: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -78,6 +79,7 @@ class InventoryRead(BaseModel):
     volume_per_unit: float = 1.0
     is_penoplast: bool = False
     is_default_penoplast: bool = False
+    category: Optional[str] = None
     last_updated: datetime
     notes: Optional[str] = None
 
@@ -94,6 +96,7 @@ class InventoryUpdate(BaseModel):
     volume_per_unit: Optional[float] = None
     is_penoplast: Optional[bool] = None
     is_default_penoplast: Optional[bool] = None
+    category: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -110,6 +113,8 @@ class StockPurchase(BaseModel):
     notes: Optional[str] = None
     supplier_id: Optional[int] = None
     is_credit: bool = Field(default=False, description="Nasiya (keyin to'lash) bilan olindimi")
+    transport_cost: float = Field(default=0, ge=0)
+    transport_payer: str = Field(default="none", description="none/self/supplier")
 
 
 class SupplierCreate(BaseModel):
