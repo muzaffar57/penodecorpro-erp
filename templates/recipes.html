@@ -15,7 +15,7 @@
 .ing-name{font-size:13px;color:#555}
 .ing-val{font-size:13px;font-weight:600;color:#111}
 .ing-bar{height:3px;background:#f0f0f0;border-radius:2px;margin-top:4px}
-.ing-fill{height:100%;background:#C9A55A;border-radius:2px}
+.ing-fill{height:100%;background:#2563EB;border-radius:2px}
 .calc-result{background:#f8f8f6;border-radius:10px;padding:14px;border:1px solid #ebebeb;margin-top:12px}
 .calc-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;color:#555}
 .calc-row.total{font-weight:600;color:#111;border-top:1px solid #e8e8e8;padding-top:8px;margin-top:4px}
@@ -33,7 +33,7 @@
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:11px;color:#aaa">{{ recipe.batch_size_kg }} kg batch</span>
         <button class="btn btn-outline btn-xs" onclick="editRecipe({{ recipe.id }}, '{{ recipe.name.value }}', {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.travertin_qum_kg or 0 }}, {{ recipe.kroshka_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.zagustitel_kg or 0 }}, {{ recipe.suv_kg }}, {{ recipe.penogasitel_kg }}, {{ recipe.biotsid_ml }})">✏️ Tahrirlash</button>
-        <button class="btn btn-outline btn-xs" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteRecipe({{ recipe.id }})">🗑</button>
+        <button class="btn btn-outline btn-xs" style="color:#EF4444;border-color:#EF4444" onclick="deleteRecipe({{ recipe.id }})">🗑</button>
       </div>
     </div>
     <div class="card-body">
