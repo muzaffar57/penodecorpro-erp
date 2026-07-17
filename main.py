@@ -823,10 +823,11 @@ def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Ses
 
 
 @app.get("/api/masters/kpi-report")
-def api_masters_kpi_report(year: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     from datetime import datetime
     y = year or datetime.now().year
-    return crud.get_masters_kpi_report(db, y)
+    return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive)
 
 
 @app.get("/api/transport-stats")
