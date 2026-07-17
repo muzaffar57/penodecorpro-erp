@@ -165,11 +165,16 @@ def guess_category(item_name: str, is_penoplast: bool = False) -> str:
 
 def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: float,
                    purchased_by: str = None, notes: str = None,
-                   supplier_id: int = None, is_credit: bool = False):
+                   supplier_id: int = None, is_credit: bool = False,
+                   volume_per_unit: float = None):
     """Ombor kirimi — xarid narxi bilan.
     O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
 
         yangi_narx = (eski_qty × eski_narx + yangi_qty × xarid_narxi) / (eski_qty + yangi_qty)
+
+    Penoplast uchun volume_per_unit (1 blok necha m³) ham partiyadan partiyaga
+    farq qilishi mumkin — shu sabab u ham xuddi shu tarzda o'rtacha vaznli hisoblanadi,
+    aks holda tan narx/hajm hisob-kitobi noto'g'ri chiqib qoladi.
 
     is_credit=True bo'lsa — nasiya (keyin to'lash), Supplierga qarz sifatida yoziladi.
     supplier_id — kredit bo'lmasa ham saqlanadi (tarix uchun, "kimdan olganimiz" bilinsin).
@@ -182,6 +187,7 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
 
     old_qty = float(db_item.stock_quantity or 0)
     old_price = float(db_item.price_per_unit or 0)
+    old_volume = float(db_item.volume_per_unit or 1.0)
 
     total_qty = old_qty + quantity
     if total_qty > 0:
@@ -191,6 +197,16 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
 
     db_item.stock_quantity = total_qty
     db_item.price_per_unit = round(weighted_price, 2)
+
+    volume_changed = False
+    if db_item.is_penoplast and volume_per_unit and volume_per_unit > 0:
+        if abs(volume_per_unit - old_volume) > 0.001:
+            volume_changed = True
+        if total_qty > 0:
+            weighted_volume = (old_qty * old_volume + quantity * volume_per_unit) / total_qty
+        else:
+            weighted_volume = volume_per_unit
+        db_item.volume_per_unit = round(weighted_volume, 4)
 
     if not db_item.category:
         db_item.category = guess_category(db_item.item_name, db_item.is_penoplast)
@@ -217,7 +233,10 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         "old_price": old_price,
         "new_price": float(db_item.price_per_unit),
         "old_qty": old_qty,
-        "purchase_total": quantity * price_per_unit
+        "purchase_total": quantity * price_per_unit,
+        "old_volume": old_volume,
+        "new_volume": float(db_item.volume_per_unit),
+        "volume_changed": volume_changed
     }
 
 
@@ -2628,20 +2647,73 @@ def get_supplier_debt(db: Session, supplier_id: int) -> dict:
 
 
 def get_suppliers_with_debt(db: Session) -> List[dict]:
-    """Barcha yetkazib beruvchilar va ularning qarzdorligi."""
+    """Barcha yetkazib beruvchilar va ularning qarzdorligi + oxirgi xarid, oylik statistika."""
+    from datetime import datetime as dt
+
+    now = dt.utcnow()
     suppliers = get_suppliers(db, only_active=True)
     result = []
     for s in suppliers:
         debt_info = get_supplier_debt(db, s.id)
+
+        all_purchases = db.query(InventoryPurchase).filter(
+            InventoryPurchase.supplier_id == s.id
+        ).order_by(InventoryPurchase.purchased_at.desc()).all()
+
+        last_purchase_at = all_purchases[0].purchased_at.isoformat() if all_purchases else None
+
+        month_purchases = [p for p in all_purchases
+                           if p.purchased_at and p.purchased_at.year == now.year
+                           and p.purchased_at.month == now.month]
+        month_total = sum(float(p.total_amount) for p in month_purchases)
+
         result.append({
             "id": s.id,
             "name": s.name,
             "phone": s.phone,
             "notes": s.notes,
+            "last_purchase_at": last_purchase_at,
+            "month_count": len(month_purchases),
+            "month_total": round(month_total),
             **debt_info
         })
     result.sort(key=lambda x: x["debt"], reverse=True)
     return result
+
+
+def update_purchase(db: Session, purchase_id: int, data: dict) -> Optional[InventoryPurchase]:
+    """Xarid yozuvini tahrirlaydi.
+    DIQQAT: ombordagi joriy miqdor/o'rtacha narxni orqaga qaytarib hisoblamaydi —
+    faqat tarixiy yozuv va qarz hisobi (u har safar yangidan hisoblanadi) to'g'rilanadi."""
+    p = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id).first()
+    if not p:
+        return None
+
+    if "quantity" in data and data["quantity"] is not None:
+        p.quantity = data["quantity"]
+    if "price_per_unit" in data and data["price_per_unit"] is not None:
+        p.price_per_unit = data["price_per_unit"]
+    if "is_credit" in data and data["is_credit"] is not None:
+        p.is_credit = data["is_credit"]
+    if "notes" in data:
+        p.notes = data["notes"]
+
+    p.total_amount = float(p.quantity) * float(p.price_per_unit)
+
+    db.commit()
+    db.refresh(p)
+    return p
+
+
+def delete_purchase(db: Session, purchase_id: int) -> bool:
+    """Xarid yozuvini o'chiradi.
+    DIQQAT: ombordagi joriy miqdor/o'rtacha narxni orqaga qaytarib hisoblamaydi."""
+    p = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id).first()
+    if not p:
+        return False
+    db.delete(p)
+    db.commit()
+    return True
 
 
 def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None) -> SupplierPayment:
@@ -2658,11 +2730,17 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
     return p
 
 
-def get_supplier_history(db: Session, supplier_id: int) -> dict:
-    """Yetkazib beruvchining xaridlar va to'lovlar tarixi."""
-    purchases = db.query(InventoryPurchase).filter(
-        InventoryPurchase.supplier_id == supplier_id
-    ).order_by(InventoryPurchase.purchased_at.desc()).all()
+def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_date=None) -> dict:
+    """Yetkazib beruvchining xaridlar va to'lovlar tarixi.
+    start_date/end_date berilsa — faqat shu oraliqdagi xaridlar qaytariladi
+    (to'lovlar va umumiy qarz har doim to'liq hisoblanadi)."""
+    q = db.query(InventoryPurchase).filter(InventoryPurchase.supplier_id == supplier_id)
+    if start_date:
+        q = q.filter(InventoryPurchase.purchased_at >= start_date)
+    if end_date:
+        from datetime import timedelta
+        q = q.filter(InventoryPurchase.purchased_at < end_date + timedelta(days=1))
+    purchases = q.order_by(InventoryPurchase.purchased_at.desc()).all()
 
     payments = db.query(SupplierPayment).filter(
         SupplierPayment.supplier_id == supplier_id
