@@ -1459,9 +1459,9 @@ def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: S
 
 @app.get("/api/finance/transactions")
 def api_list_expense_transactions(year: Optional[int] = None, month: Optional[int] = None,
-                                   category: Optional[str] = None, db: Session = Depends(get_db),
-                                   current_user=Depends(auth.admin_only)):
-    rows = crud.get_expense_transactions(db, year=year, month=month, category=category)
+                                   day: Optional[int] = None, category: Optional[str] = None,
+                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    rows = crud.get_expense_transactions(db, year=year, month=month, day=day, category=category)
     return [schemas.ExpenseTransactionRead.model_validate(r) for r in rows]
 
 
