@@ -413,6 +413,8 @@ class DeliveryCreate(BaseModel):
     transport_carrier: Optional[str] = None
     transport_cost: float = Field(default=0, ge=0)
     transport_payer: str = Field(default="none", description="none/client/company/split")
+    payment_amount: Optional[float] = Field(default=None, ge=0, description="Shu yukka bog'liq to'lov (ixtiyoriy)")
+    payment_method: Optional[str] = Field(default="naqd", description="naqd/plastik/o'tkazma")
 
 
 class DeliveryItemRead(BaseModel):
