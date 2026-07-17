@@ -158,7 +158,7 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
         pass
 
 
-def update_stock(db: Session, item_id: int, quantity_change: float, performed_by: Optional[str] = None) -> Optional[Inventory]:
+def update_stock(db: Session, item_id: int, quantity_change: float, performed_by: Optional[str] = None, notes: Optional[str] = None) -> Optional[Inventory]:
     """Mahsulot qoldig'ini yangilaydi (musbat = qo'shish, manfiy = ayirish).
     Narxsiz oddiy tuzatish uchun (masalan inventarizatsiya). Xarid uchun
     purchase_stock() dan foydalaning — u narxni ham hisobga oladi."""
@@ -173,7 +173,7 @@ def update_stock(db: Session, item_id: int, quantity_change: float, performed_by
         db, db_item.id, db_item.item_name,
         movement_type="in" if quantity_change > 0 else "out",
         quantity=quantity_change, unit=db_item.unit,
-        reason="Qo'lda tuzatish (inventarizatsiya)", performed_by=performed_by
+        reason=notes or "Qo'lda tuzatish (inventarizatsiya)", performed_by=performed_by
     )
     db.commit()
     db.refresh(db_item)
