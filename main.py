@@ -546,7 +546,8 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
     who = current_user.full_name or current_user.username
     result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
                                   purchased_by=who, notes=data.notes,
-                                  supplier_id=data.supplier_id, is_credit=data.is_credit)
+                                  supplier_id=data.supplier_id, is_credit=data.is_credit,
+                                  volume_per_unit=data.volume_per_unit)
     if not result:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
 
@@ -571,7 +572,10 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
         "old_price": result["old_price"],
         "new_price": result["new_price"],
         "purchase_total": result["purchase_total"],
-        "price_changed": abs(result["old_price"] - result["new_price"]) > 0.01
+        "price_changed": abs(result["old_price"] - result["new_price"]) > 0.01,
+        "old_volume": result["old_volume"],
+        "new_volume": result["new_volume"],
+        "volume_changed": result["volume_changed"]
     }
 
 
@@ -725,12 +729,37 @@ def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Sess
 
 
 @app.get("/api/suppliers/{supplier_id}/history")
-def api_supplier_history(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yetkazib beruvchi tarixi. start_date/end_date — YYYY-MM-DD formatida (ixtiyoriy)."""
+    from datetime import datetime as dt
+
     s = crud.get_supplier(db, supplier_id)
     if not s:
         raise HTTPException(status_code=404, detail="Topilmadi")
-    history = crud.get_supplier_history(db, supplier_id)
+
+    sd = dt.strptime(start_date, "%Y-%m-%d") if start_date else None
+    ed = dt.strptime(end_date, "%Y-%m-%d") if end_date else None
+
+    history = crud.get_supplier_history(db, supplier_id, start_date=sd, end_date=ed)
     return {"name": s.name, "phone": s.phone, **history}
+
+
+@app.put("/api/inventory/purchases/{purchase_id}")
+def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Xarid yozuvini tahrirlash — ombordagi joriy miqdor/narxga ta'sir qilmaydi."""
+    updated = crud.update_purchase(db, purchase_id, data.model_dump(exclude_unset=True))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok", "total_amount": float(updated.total_amount)}
+
+
+@app.delete("/api/inventory/purchases/{purchase_id}")
+def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Xarid yozuvini o'chirish — ombordagi joriy miqdor/narxga ta'sir qilmaydi."""
+    if not crud.delete_purchase(db, purchase_id):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
 
 
 @app.post("/api/suppliers/{supplier_id}/payment")
