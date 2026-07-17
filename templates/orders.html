@@ -12,6 +12,31 @@
 {% block head %}
 <style>
 .ord-layout{display:grid;grid-template-columns:300px 1fr 280px;gap:12px;height:calc(100vh - 90px);overflow:hidden}
+@media (max-width:1150px){
+  .ord-layout{grid-template-columns:260px 1fr 260px}
+}
+@media (max-width:900px){
+  .ord-layout{grid-template-columns:1fr;height:auto;overflow:visible}
+  .ord-list{max-height:280px}
+  .right-panel{flex-direction:column-reverse}
+}
+.asosiy-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media (max-width:700px){.asosiy-grid{grid-template-columns:1fr 1fr}}
+.prod-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--white);margin-bottom:8px}
+.prod-thumb{width:40px;height:40px;border-radius:8px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:16px;position:relative;cursor:pointer}
+.prod-thumb img{width:100%;height:100%;object-fit:cover}
+.prod-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.prod-info{flex:1;min-width:0}
+.prod-name{font-size:13px;font-weight:500;color:var(--text)}
+.prod-meta{font-size:11px;color:var(--text3);margin-top:1px}
+.prod-total{font-size:13px;font-weight:600;color:var(--gold-dark);white-space:nowrap}
+.attach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:10px}
+.attach-thumb{width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg);border:1px solid var(--border);position:relative}
+.attach-thumb img{width:100%;height:100%;object-fit:cover}
+.attach-thumb .rm{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1}
+.dropzone{border:1.5px dashed var(--border-strong);border-radius:10px;padding:18px;text-align:center;cursor:pointer;transition:border-color .15s;background:var(--bg)}
+.dropzone:hover{border-color:var(--gold)}
+.dropzone input[type=file]{display:none}
 .ord-list{overflow-y:auto;flex:1}
 /* Tayyor mahsulot taklifi */
 .fp-suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #2563EB;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:60;max-height:210px;overflow-y:auto;margin-top:3px}
@@ -191,16 +216,14 @@
           <button class="btn btn-outline btn-sm" onclick="hideNewForm()">✕ Yopish</button>
         </div>
         <div style="padding:12px">
-          <div class="form-row" style="margin-bottom:10px">
-            <div class="form-group" style="margin:0">
+          <div class="asosiy-grid" style="margin-bottom:10px">
+            <div class="form-group" style="margin:0;grid-column:span 1">
               <label>Loyiha</label>
               <select id="project_id">
                 <option value="">— Tanlang —</option>
                 {% for p in projects %}<option value="{{ p.id }}">{{ p.project_number }} — {{ p.project_name }}</option>{% endfor %}
               </select>
             </div>
-          </div>
-          <div class="form-row" style="margin-bottom:10px">
             <div class="form-group" style="margin:0">
               <label>Usta</label>
               <select id="master_id">
@@ -215,22 +238,21 @@
                 {% for r in recipes %}<option value="{{ r.id }}">{{ r.name.value }}</option>{% endfor %}
               </select>
             </div>
+            <div class="form-group" style="margin:0">
+              <label>1 m³ asosiy narxi (so'm)</label>
+              <input type="text" id="base_price" value="1 200 000" oninput="formatPriceInput(this);recalcAll()">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label style="display:flex;align-items:center;gap:6px">Loy miqdori (kg)</label>
+              <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
+                     oninput="checkLoyStock()" style="border-color:var(--gold)">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Topshirish sanasi</label>
+              <input type="date" id="deadline_input">
+            </div>
           </div>
-
-          <div class="form-group">
-            <label>1 m³ asosiy narxi (so'm)</label>
-            <input type="text" id="base_price" value="1 200 000" oninput="formatPriceInput(this);recalcAll()">
-          </div>
-
-          <div class="form-group">
-            <label style="display:flex;align-items:center;gap:6px">
-              Loy miqdori (kg)
-              <span style="color:#aaa;font-weight:400;font-size:11px">— taxminiy reja</span>
-            </label>
-            <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
-                   oninput="checkLoyStock()" style="border-color:#2563EB">
-            <div id="loy-stock-info" style="display:none;font-size:11px;margin-top:5px;padding:7px 10px;border-radius:6px"></div>
-          </div>
+          <div id="loy-stock-info" style="display:none;font-size:11px;margin:-2px 0 10px;padding:7px 10px;border-radius:6px"></div>
         </div>
       </div>
 
@@ -294,9 +316,23 @@
           </div>
         </div>
         <div style="padding:12px">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="od-items-container">
+          <div id="od-items-container">
             <!-- Detallar bu yerda -->
           </div>
+        </div>
+      </div>
+
+      <!-- FAYLLAR VA RASMLAR -->
+      <div class="card" style="margin-top:12px">
+        <div class="card-head"><h3>Fayllar va rasmlar</h3></div>
+        <div style="padding:12px">
+          <label class="dropzone">
+            <i class="ti ti-cloud-upload" style="font-size:22px;color:var(--gold-dark)" aria-hidden="true"></i>
+            <div style="font-size:12.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">JPG, PNG yoki PDF, 8 MB gacha</div>
+            <input type="file" accept="image/*,.pdf" onchange="uploadOrderAttachment(this)">
+          </label>
+          <div class="attach-grid" id="attachGrid"></div>
         </div>
       </div>
 
@@ -353,34 +389,6 @@
           <button class="btn btn-green btn-sm" onclick="openPaymentForm()">+ To'lov qo'shish</button>
         </div>
         <div style="padding:12px">
-          <!-- Hisob -->
-          <div style="background:#FAFAF8;border-radius:8px;padding:12px;margin-bottom:12px">
-            <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
-              <span style="color:#777">Jami summa:</span>
-              <span id="pay-total" style="font-weight:600">—</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px" id="pay-discount-row">
-              <span style="color:#777">Chegirma:</span>
-              <span id="pay-discount" style="font-weight:600;color:#F59E0B">—</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-top:1px solid #eee;margin-top:4px;padding-top:8px">
-              <span style="color:#555;font-weight:600">Kelishilgan:</span>
-              <span style="display:flex;align-items:center;gap:6px">
-                <span id="pay-agreed" style="font-weight:700;color:#1a1a1a">—</span>
-                <button onclick="editAgreedAmount()" style="width:22px;height:22px;border-radius:5px;background:#f5f5f5;border:none;font-size:11px;cursor:pointer" title="Kelishilgan summani o'zgartirish">✏️</button>
-              </span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
-              <span style="color:#777">To'langan:</span>
-              <span id="pay-paid" style="font-weight:600;color:#22C55E">—</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:14px;border-top:2px solid #1a1a1a;margin-top:6px">
-              <span style="font-weight:700">Qarz qoldi:</span>
-              <span id="pay-debt" style="font-weight:800;color:#DC2626">—</span>
-            </div>
-            <div id="pay-status-badge" style="margin-top:8px;text-align:center"></div>
-          </div>
-
           <!-- To'lov qo'shish formasi -->
           <div id="paymentForm" style="display:none;background:#F0F9F4;border:1.5px solid #22C55E;border-radius:8px;padding:12px;margin-bottom:12px">
             <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#1e7e34">Yangi to'lov</div>
@@ -448,6 +456,36 @@
         <div class="sum-item"><span class="si-l">Loyiha</span><span class="si-v" id="s-project">—</span></div>
         <div class="sum-item"><span class="si-l">Usta</span><span class="si-v" id="s-master">—</span></div>
         <div class="sum-item"><span class="si-l">Sana</span><span class="si-v" id="s-date">—</span></div>
+        <div class="sum-item"><span class="si-l">Topshirish</span><span class="si-v" id="s-deadline">—</span></div>
+        <div class="sum-item"><span class="si-l">Holati</span><span class="si-v" id="s-status">—</span></div>
+
+        <div class="sum-title">Hisob-kitob</div>
+        <div style="background:var(--bg);border-radius:8px;padding:12px;margin-bottom:4px">
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
+            <span style="color:var(--text2)">Jami summa:</span>
+            <span id="pay-total" style="font-weight:600">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px" id="pay-discount-row">
+            <span style="color:var(--text2)">Chegirma:</span>
+            <span id="pay-discount" style="font-weight:600;color:#F59E0B">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-top:1px solid var(--border2);margin-top:4px;padding-top:8px">
+            <span style="color:var(--text2);font-weight:600">Kelishilgan:</span>
+            <span style="display:flex;align-items:center;gap:6px">
+              <span id="pay-agreed" style="font-weight:700;color:var(--text)">—</span>
+              <button onclick="editAgreedAmount()" style="width:22px;height:22px;border-radius:5px;background:var(--border2);border:none;font-size:11px;cursor:pointer" title="Kelishilgan summani o'zgartirish">✏️</button>
+            </span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
+            <span style="color:var(--text2)">To'langan:</span>
+            <span id="pay-paid" style="font-weight:600;color:#22C55E">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:14px;border-top:2px solid var(--text);margin-top:6px">
+            <span style="font-weight:700">Qarz qoldi:</span>
+            <span id="pay-debt" style="font-weight:800;color:#DC2626">—</span>
+          </div>
+          <div id="pay-status-badge" style="margin-top:8px;text-align:center"></div>
+        </div>
 
         {% if current_user.role.value == 'admin' %}
         <div class="sum-title">Moliya (Admin)</div>
@@ -940,6 +978,9 @@ function selectOrder(id, el) {
   // Detallar
   loadOrderItems(id);
 
+  // Fayllar va rasmlar
+  loadOrderAttachments(id);
+
   // To'lovlar
   loadPayments(id);
 
@@ -963,16 +1004,104 @@ function selectOrder(id, el) {
   }).catch(()=>{});
 }
 
-function loadOrderItems(id) {
-  fetch(`/api/orders?project_id=0`).then(()=>{}).catch(()=>{});
-  // Detallarni ko'rsatish uchun sahifadagi ma'lumotlardan foydalanamiz
+const ITEM_TYPE_ICON = {profil: 'ti-ruler-2', panel: 'ti-square', dona: 'ti-box', blok: 'ti-cube'};
+
+function itemParamsText(item) {
+  const cat = (item.category || '').toLowerCase();
+  if (cat === 'profil') return `${item.width || 0}×${item.thickness || 0} sm · ${item.length || 0} m`;
+  if (cat === 'panel') return `${item.width || 0}×${item.thickness || 0} sm`;
+  if (cat === 'blok') return `${item.quantity || 0} m kerak`;
+  return `${item.quantity || 0} dona`;
+}
+
+async function loadOrderItems(id) {
   const container = document.getElementById('od-items-container');
-  const item = document.querySelector(`#oi-${id}`);
-  if (!item) return;
-  container.innerHTML = `
-    <div style="grid-column:1/-1;background:#f8f8f6;border-radius:8px;padding:12px;font-size:12px;color:#555">
-      Bu buyurtma detallari uchun PDF bosing yoki sahifani yangilang
-    </div>`;
+  container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:12px">Yuklanmoqda...</div>`;
+  try {
+    const res = await fetch(`/api/orders/${id}`);
+    if (!res.ok) throw new Error('so\'rov xato');
+    const order = await res.json();
+    const items = order.items || [];
+    if (!items.length) {
+      container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:12px">Detallar yo'q</div>`;
+      return;
+    }
+    container.innerHTML = items.map(item => {
+      const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
+      const thumb = item.image_url
+        ? `<img src="${item.image_url}" alt="">`
+        : `<i class="ti ${icon}" aria-hidden="true"></i>`;
+      return `
+      <div class="prod-row" style="grid-column:1/-1" data-item-id="${item.id}">
+        <div class="prod-thumb" title="Rasm yuklash">
+          ${thumb}
+          <input type="file" accept="image/*" onchange="uploadItemImage(${item.id}, this)">
+        </div>
+        <div class="prod-info">
+          <div class="prod-name">${item.name}</div>
+          <div class="prod-meta">${itemParamsText(item)}${item.is_coated ? ' · Qoplama bor' : ''}</div>
+        </div>
+        <div class="prod-total">${formatNum(item.total_price)} so'm</div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:12px">Yuklab bo'lmadi — sahifani yangilang</div>`;
+    console.error('Detallarni yuklashda xato:', e);
+  }
+}
+
+async function uploadItemImage(itemId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`/api/order-items/${itemId}/image`, { method: 'POST', body: fd });
+    if (!res.ok) { showMsg('Rasm yuklanmadi', 'error'); return; }
+    if (selectedOrderId) loadOrderItems(selectedOrderId);
+  } catch (e) {
+    showMsg('Server xatosi', 'error');
+  }
+}
+
+async function loadOrderAttachments(orderId) {
+  const grid = document.getElementById('attachGrid');
+  if (!grid) return;
+  try {
+    const res = await fetch(`/api/orders/${orderId}/attachments`);
+    if (!res.ok) return;
+    const atts = await res.json();
+    grid.innerHTML = atts.map(a => {
+      const isImg = /\.(jpg|jpeg|png|webp)$/i.test(a.file_url);
+      const inner = isImg
+        ? `<img src="${a.file_url}" alt="">`
+        : `<a href="${a.file_url}" target="_blank" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)"><i class="ti ti-file-text" style="font-size:20px" aria-hidden="true"></i></a>`;
+      return `<div class="attach-thumb">${inner}<button class="rm" onclick="deleteOrderAttachment(${a.id}, ${orderId})" aria-label="O'chirish">✕</button></div>`;
+    }).join('');
+  } catch (e) { console.error('Fayllarni yuklashda xato:', e); }
+}
+
+async function uploadOrderAttachment(input) {
+  const file = input.files[0];
+  if (!file || !selectedOrderId) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`/api/orders/${selectedOrderId}/attachments`, { method: 'POST', body: fd });
+    if (!res.ok) { showMsg('Fayl yuklanmadi', 'error'); return; }
+    loadOrderAttachments(selectedOrderId);
+  } catch (e) {
+    showMsg('Server xatosi', 'error');
+  }
+  input.value = '';
+}
+
+async function deleteOrderAttachment(attId, orderId) {
+  if (!confirm("Fayl o'chirilsinmi?")) return;
+  try {
+    await fetch(`/api/orders/attachments/${attId}`, { method: 'DELETE' });
+    loadOrderAttachments(orderId);
+  } catch (e) { showMsg('Server xatosi', 'error'); }
 }
 
 // ── YETKAZISH ─────────────────────────────────────────────
@@ -1436,6 +1565,24 @@ async function loadPayments(orderId) {
     document.getElementById('pay-paid').textContent = formatNum(paid) + " so'm";
     document.getElementById('pay-debt').textContent = formatNum(debt) + " so'm";
 
+    const sDeadline = document.getElementById('s-deadline');
+    if (sDeadline) {
+      sDeadline.textContent = order.deadline
+        ? new Date(order.deadline).toLocaleDateString('uz')
+        : '—';
+    }
+    const sStatus = document.getElementById('s-status');
+    if (sStatus) {
+      const STATUS_BADGE = {
+        draft: ['badge', "📝 Qoralama"], new: ['badge-new', 'Yangi'],
+        in_progress: ['badge-progress', 'Jarayonda'], coating: ['badge-progress', 'Qoplashda'],
+        ready: ['badge-ready', '✓ Tayyor'], delivered: ['badge-delivered', 'Yetkazildi'],
+        cancelled: ['badge-cancelled', 'Bekor qilingan']
+      };
+      const [cls, label] = STATUS_BADGE[order.status] || ['badge', order.status];
+      sStatus.innerHTML = `<span class="badge ${cls}">${label}</span>`;
+    }
+
     const dRow = document.getElementById('pay-discount-row');
     if (discount > 0) {
       dRow.style.display = 'flex';
@@ -1584,6 +1731,8 @@ async function deletePayment(paymentId) {
 // ── Yangi forma ───────────────────────────────────────────
 function showNewForm() {
   document.getElementById('newOrderForm').style.display = 'block';
+  const dlInp = document.getElementById('deadline_input');
+  if (dlInp) dlInp.value = '';
   // Tahrirlash rejimidan qaytish
   editMode = false;
   editDiscountPct = 0;
@@ -2064,6 +2213,7 @@ async function saveOrder(isDraft = false) {
     recipe_id: parseInt(document.getElementById('recipe_id').value) || null,
     master_id: parseInt(document.getElementById('master_id').value) || null,
     agreed_amount: finalPrice || undefined,
+    deadline: document.getElementById('deadline_input')?.value || null,
     is_draft: isDraft,
     items
   };
@@ -2139,6 +2289,8 @@ async function editSelected() {
     const masterSel = document.getElementById('master_id');
     if (projSel) projSel.value = order.project_id || '';
     if (masterSel) masterSel.value = order.master_id || '';
+    const deadlineInp = document.getElementById('deadline_input');
+    if (deadlineInp) deadlineInp.value = order.deadline ? order.deadline.slice(0, 10) : '';
 
     // Har bir detalga forma qo'shamiz
     if (order.items && order.items.length > 0) {
@@ -2416,6 +2568,7 @@ async function updateOrder(orderId) {
     recipe_id: parseInt(document.getElementById('recipe_id').value) || null,
     master_id: parseInt(document.getElementById('master_id').value) || null,
     agreed_amount: finalPrice || undefined,
+    deadline: document.getElementById('deadline_input')?.value || null,
     items
   };
 
