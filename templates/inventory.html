@@ -25,6 +25,9 @@
   .mat-col-min,.mat-col-updated{display:none}}
 @media (max-width:640px){.mat-row{grid-template-columns:1fr}}
 .mat-name{font-size:13.5px;font-weight:500;color:var(--text)}
+.mat-thumb{width:36px;height:36px;border-radius:8px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:15px;position:relative;cursor:pointer}
+.mat-thumb img{width:100%;height:100%;object-fit:cover}
+.mat-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
 .mat-sub{font-size:11px;color:var(--text3);margin-top:2px}
 .cat-badge{display:inline-block;font-size:10px;font-weight:500;padding:2px 9px;border-radius:20px;margin-top:5px}
 .cat-Penoplast{background:#E6F1FB;color:#0C447C}
@@ -123,7 +126,12 @@
     {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% endif %}
     <div class="mat-row" style="animation-delay:{{ (loop.index0 % 20) * 0.02 }}s"
          data-name="{{ item.item_name|lower }}" data-category="{{ item.category or '' }}" data-status="{{ st }}" data-qty="{{ qty }}">
-      <div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <label class="mat-thumb" title="Rasm yuklash">
+          {% if item.image_url %}<img src="{{ item.image_url }}" alt="">{% else %}<i class="ti ti-flask-2"></i>{% endif %}
+          <input type="file" accept="image/*" onchange="uploadInventoryImage({{ item.id }}, this)">
+        </label>
+        <div>
         <div class="mat-name">
           {{ item.item_name }}
           {% if item.is_penoplast %}
@@ -136,6 +144,7 @@
         </div>
         <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% endif %}</div>
         <span class="cat-badge {{ cat_css }}" onclick="editCategory(this)" data-id="{{ item.id }}" data-category="{{ item.category or '' }}" style="cursor:pointer" title="O'zgartirish">{{ cat_label }}</span>
+        </div>
       </div>
       <div>
         <div class="mat-qty-val" style="color:{% if st=='danger' %}#DC2626{% elif st=='warn' %}#B45309{% else %}var(--text){% endif %}">{{ "%.1f"|format(qty) }} {{ item.unit }}</div>
@@ -290,6 +299,18 @@ function toggleDefaultCheck(){
 }
 
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+
+async function uploadInventoryImage(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`/api/inventory/${id}/image`, { method: 'POST', body: fd });
+    if (res.ok) location.reload();
+    else alert('Rasm yuklanmadi');
+  } catch(e) { alert('Server xatosi'); }
+}
 
 async function setDefaultPenoplast(id){
   if(!confirm('Bu plotnostni asosiy qilib belgilaysizmi?\n\nBuyurtma oynasida standart shu tanlanadi.')) return;
