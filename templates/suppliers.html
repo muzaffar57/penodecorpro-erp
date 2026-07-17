@@ -27,11 +27,11 @@
       <div class="kpi-label">Jami nasiya qarzi</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-val" style="color:#E67E22" id="k-supplier-count">—</div>
+      <div class="kpi-val" style="color:#F59E0B" id="k-supplier-count">—</div>
       <div class="kpi-label">Qarzdor yetkazib beruvchi</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-val" style="color:#2980B9" id="k-total-count">—</div>
+      <div class="kpi-val" style="color:#0EA5E9" id="k-total-count">—</div>
       <div class="kpi-label">Jami yetkazib beruvchi</div>
     </div>
   </div>
@@ -55,7 +55,7 @@
     <div class="form-group"><label>Nomi</label><input type="text" id="s-name" placeholder="Masalan: Andijon bozori, Rustam aka"></div>
     <div class="form-group"><label>Telefon</label><input type="text" id="s-phone" placeholder="+998901234567"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="s-notes" placeholder="..."></div>
-    <div id="sup-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+    <div id="sup-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" onclick="saveSupplier()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeSupplierModal()">Bekor</button>
@@ -79,10 +79,10 @@
         <span style="color:#777">Jami nasiya</span><span style="font-weight:600" id="hist-credit">—</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
-        <span style="color:#777">To'langan</span><span style="font-weight:600;color:#27AE60" id="hist-paid">—</span>
+        <span style="color:#777">To'langan</span><span style="font-weight:600;color:#22C55E" id="hist-paid">—</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;border-top:1px solid #F0E6D2;padding-top:6px;margin-top:6px">
-        <span>QARZ</span><span style="color:#C0392B" id="hist-debt">—</span>
+        <span>QARZ</span><span style="color:#DC2626" id="hist-debt">—</span>
       </div>
     </div>
 
@@ -92,14 +92,14 @@
     </div>
 
     <div style="padding:12px 22px;border-bottom:1px solid #f0f0f0">
-      <button class="btn btn-outline btn-sm" style="width:100%;border-color:#8B6914;color:#8B6914" onclick="openAddPurchase()">+ Xarid qo'shish</button>
+      <button class="btn btn-outline btn-sm" style="width:100%;border-color:#1E40AF;color:#1E40AF" onclick="openAddPurchase()">+ Xarid qo'shish</button>
       <div id="addPurchaseForm" style="display:none;margin-top:10px">
         <div class="form-group" style="margin-bottom:8px">
           <label style="font-size:11px">Material</label>
           <select id="ap-item" style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none" onchange="apOnItemChange()"></select>
         </div>
         <div id="ap-volume-wrap" style="display:none;margin-bottom:8px;padding:8px 10px;background:#FDF8F0;border-radius:7px">
-          <label style="font-size:11px;color:#8B6914;font-weight:600">📦 1 blok necha m³? (kubasi)</label>
+          <label style="font-size:11px;color:#1E40AF;font-weight:600">📦 1 blok necha m³? (kubasi)</label>
           <input type="number" id="ap-volume" placeholder="1.2" min="0.01" step="0.01" oninput="apCalc()"
                  style="width:100%;height:34px;padding:0 10px;border:1.5px solid #E5DFD3;border-radius:7px;font-size:12.5px;outline:none;margin-top:4px">
           <div id="ap-volume-hint" style="font-size:10.5px;color:#999;margin-top:4px"></div>
@@ -116,12 +116,12 @@
                    style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
           </div>
         </div>
-        <div id="ap-total" style="font-size:12.5px;color:#8B6914;margin-bottom:10px">Jami: —</div>
+        <div id="ap-total" style="font-size:12.5px;color:#1E40AF;margin-bottom:10px">Jami: —</div>
 
         <div style="background:#FDF8F0;border:1.5px solid #F0E6D2;border-radius:7px;padding:10px;margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <label style="font-size:11.5px;font-weight:600;color:#8B6914">💰 Hoziroq to'langan summa</label>
-            <button type="button" onclick="apFillFullPaid()" style="font-size:10.5px;color:#2980B9;background:none;border:none;cursor:pointer;text-decoration:underline">To'liq to'lash</button>
+            <label style="font-size:11.5px;font-weight:600;color:#1E40AF">💰 Hoziroq to'langan summa</label>
+            <button type="button" onclick="apFillFullPaid()" style="font-size:10.5px;color:#0EA5E9;background:none;border:none;cursor:pointer;text-decoration:underline">To'liq to'lash</button>
           </div>
           <input type="number" id="ap-paid-now" placeholder="0" min="0" step="1000" oninput="apCalc()"
                  style="width:100%;height:36px;padding:0 10px;border:1.5px solid #E5DFD3;border-radius:7px;font-size:12.5px;outline:none;margin-top:4px">
@@ -130,7 +130,7 @@
         </div>
 
         <div style="background:#F0F6FA;border-radius:7px;padding:10px;margin-bottom:10px">
-          <div style="font-size:11.5px;font-weight:600;color:#2980B9;margin-bottom:6px">🚚 Transport (ixtiyoriy)</div>
+          <div style="font-size:11.5px;font-weight:600;color:#0EA5E9;margin-bottom:6px">🚚 Transport (ixtiyoriy)</div>
           <div style="display:flex;gap:8px">
             <select id="ap-transport-payer" style="flex:1.2;height:34px;padding:0 8px;border:1.5px solid #ddd;border-radius:7px;font-size:12px;outline:none" onchange="apToggleTransport()">
               <option value="none">Transport yo'q</option>
@@ -174,7 +174,7 @@ function showMsg(t, type){
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;bottom:22px;right:22px;z-index:2000;padding:12px 18px;border-radius:10px;
     font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.18);white-space:pre-line;max-width:380px;
-    background:${type==='error'?'#FDEDEC':'#E9F7EF'};color:${type==='error'?'#c0392b':'#1e7e34'}`;
+    background:${type==='error'?'#FEE2E2':'#DCFCE7'};color:${type==='error'?'#DC2626':'#1e7e34'}`;
   box.textContent = t;
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 4000);
@@ -225,11 +225,11 @@ function renderSupplierList(list){
       </div>
       <div style="text-align:right;min-width:120px">
         ${s.debt > 0
-          ? `<div style="font-size:14px;font-weight:700;color:#C0392B">${fmt(s.debt)} so'm</div><div style="font-size:9.5px;color:#bbb">qarz</div>`
-          : `<div style="font-size:12px;font-weight:600;color:#27AE60">✓ Qarzi yo'q</div>`}
+          ? `<div style="font-size:14px;font-weight:700;color:#DC2626">${fmt(s.debt)} so'm</div><div style="font-size:9.5px;color:#bbb">qarz</div>`
+          : `<div style="font-size:12px;font-weight:600;color:#22C55E">✓ Qarzi yo'q</div>`}
       </div>
       <button class="mini-btn" onclick="event.stopPropagation();editSupplier(${s.id})">✏️</button>
-      <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="event.stopPropagation();deleteSupplier(${s.id}, ${s.debt})" title="O'chirish">✕</button>
+      <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="event.stopPropagation();deleteSupplier(${s.id}, ${s.debt})" title="O'chirish">✕</button>
     </div>`).join('');
 }
 
@@ -414,9 +414,9 @@ function apCalc() {
   if (total > 0) {
     const debt = Math.max(0, total - paidNow);
     if (debt > 0.01) {
-      hint.innerHTML = `To'landi: <b style="color:#27AE60">${fmt(paidNow)}</b> · Qarz qoladi: <b style="color:#C0392B">${fmt(debt)} so'm</b>`;
+      hint.innerHTML = `To'landi: <b style="color:#22C55E">${fmt(paidNow)}</b> · Qarz qoladi: <b style="color:#DC2626">${fmt(debt)} so'm</b>`;
     } else {
-      hint.innerHTML = `<b style="color:#27AE60">✓ To'liq to'landi — qarz yo'q</b>`;
+      hint.innerHTML = `<b style="color:#22C55E">✓ To'liq to'landi — qarz yo'q</b>`;
     }
   } else {
     hint.textContent = '';
@@ -537,13 +537,13 @@ async function openHistory(id, keepFilter){
           return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5">
             <div>
-              <div style="font-size:12.5px;font-weight:600;color:#1a1a1a">${p.item_name} ${p.is_credit ? '<span style="color:#E67E22;font-size:10px">(nasiya)</span>' : ''}</div>
+              <div style="font-size:12.5px;font-weight:600;color:#1a1a1a">${p.item_name} ${p.is_credit ? '<span style="color:#F59E0B;font-size:10px">(nasiya)</span>' : ''}</div>
               <div style="font-size:11px;color:#aaa">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}</div>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
-              <div style="font-size:12.5px;font-weight:700;color:#8B6914">${fmt(p.total_amount)} so'm</div>
+              <div style="font-size:12.5px;font-weight:700;color:#1E40AF">${fmt(p.total_amount)} so'm</div>
               <button class="mini-btn" onclick="editPurchase(${p.id}, ${p.quantity}, ${p.price_per_unit}, ${p.is_credit})" title="Tahrirlash">✏️</button>
-              <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="deletePurchase(${p.id})" title="O'chirish">✕</button>
+              <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deletePurchase(${p.id})" title="O'chirish">✕</button>
             </div>
           </div>`;
         }).join('');
@@ -551,8 +551,8 @@ async function openHistory(id, keepFilter){
         return `
         <div style="margin-bottom:12px">
           <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:2px solid #E5DFD3;margin-bottom:2px">
-            <span style="font-size:12px;font-weight:700;color:#8B6914">${catIcons[cat]||'📦'} ${cat}</span>
-            <span style="font-size:12px;font-weight:700;color:#8B6914">${fmt(g.total)} so'm</span>
+            <span style="font-size:12px;font-weight:700;color:#1E40AF">${catIcons[cat]||'📦'} ${cat}</span>
+            <span style="font-size:12px;font-weight:700;color:#1E40AF">${fmt(g.total)} so'm</span>
           </div>
           ${rows}
         </div>`;
@@ -573,8 +573,8 @@ async function openHistory(id, keepFilter){
             ${p.notes ? `<div style="font-size:11px;color:#aaa">${p.notes}</div>` : ''}
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="font-size:12.5px;font-weight:700;color:#27AE60">+${fmt(p.amount)} so'm</div>
-            <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="deletePayment(${p.id})">✕</button>
+            <div style="font-size:12.5px;font-weight:700;color:#22C55E">+${fmt(p.amount)} so'm</div>
+            <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deletePayment(${p.id})">✕</button>
           </div>
         </div>`;
       }).join('');
