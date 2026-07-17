@@ -6,7 +6,7 @@ PenoDecorPro ERP — Asosiy server
 import os
 from datetime import datetime
 from typing import List, Optional
-from fastapi import FastAPI, Request, Depends, HTTPException, Form
+from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -1843,6 +1843,99 @@ def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db))
     """Hisob-kitob varaqasi — tanlangan nakladnoylar bo'yicha.
     ids — vergul bilan ajratilgan delivery ID lar: '3,5,7'. Bo'sh bo'lsa — hammasi."""
     from fastapi.responses import Response
+
+
+# ============================================================
+# MAHSULOT RASMI VA BUYURTMA FAYLLARI (faqat qo'shimcha — hisob-kitobga ta'sir qilmaydi)
+# ============================================================
+
+ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
+ALLOWED_FILE_EXT = ALLOWED_IMAGE_EXT | {".pdf"}
+MAX_UPLOAD_SIZE = 8 * 1024 * 1024  # 8 MB
+
+
+def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
+    import uuid
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"Ruxsat etilmagan fayl turi: {ext}")
+    contents = file.file.read()
+    if len(contents) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="Fayl hajmi 8 MB dan katta bo'lmasin")
+    folder = os.path.join(static_dir, "uploads", subfolder)
+    os.makedirs(folder, exist_ok=True)
+    fname = f"{uuid.uuid4().hex}{ext}"
+    with open(os.path.join(folder, fname), "wb") as f:
+        f.write(contents)
+    return f"/static/uploads/{subfolder}/{fname}"
+
+
+@app.post("/api/order-items/{item_id}/image")
+def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                                 current_user=Depends(auth.require_login)):
+    from models import OrderItem
+    item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Detal topilmadi")
+    url = _save_upload(file, "order_items", ALLOWED_IMAGE_EXT)
+    item.image_url = url
+    db.commit()
+    return {"image_url": url}
+
+
+@app.delete("/api/order-items/{item_id}/image")
+def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
+                                 current_user=Depends(auth.require_login)):
+    from models import OrderItem
+    item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Detal topilmadi")
+    item.image_url = None
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/orders/{order_id}/attachments")
+def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                                 current_user=Depends(auth.require_login)):
+    from models import OrderAttachment, Order
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    url = _save_upload(file, "order_attachments", ALLOWED_FILE_EXT)
+    att = OrderAttachment(
+        order_id=order_id, file_url=url, file_name=file.filename,
+        uploaded_by=current_user.full_name or current_user.username
+    )
+    db.add(att)
+    db.commit()
+    db.refresh(att)
+    return schemas.OrderAttachmentRead.model_validate(att)
+
+
+@app.get("/api/orders/{order_id}/attachments")
+def api_list_order_attachments(order_id: int, db: Session = Depends(get_db)):
+    from models import OrderAttachment
+    atts = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).order_by(OrderAttachment.uploaded_at.desc()).all()
+    return [schemas.OrderAttachmentRead.model_validate(a) for a in atts]
+
+
+@app.delete("/api/orders/attachments/{attachment_id}")
+def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db),
+                                 current_user=Depends(auth.require_login)):
+    from models import OrderAttachment
+    att = db.query(OrderAttachment).filter(OrderAttachment.id == attachment_id).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="Fayl topilmadi")
+    try:
+        fpath = os.path.join(static_dir, att.file_url.replace("/static/", "", 1))
+        if os.path.exists(fpath):
+            os.remove(fpath)
+    except Exception:
+        pass
+    db.delete(att)
+    db.commit()
+    return {"status": "ok"}
     import delivery_pdf
     import traceback
 
