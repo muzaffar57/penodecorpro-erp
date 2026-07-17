@@ -333,7 +333,7 @@ async function sendLowStockAlert() {
 }
 
 async function editPrice(id, currentPrice) {
-  const newPrice = prompt(`Yangi narxni kiriting (so'm):\nHozirgi narx: ${Number(currentPrice).toLocaleString('uz')} so'm`);
+  const newPrice = prompt(`Yangi narxni kiriting (so'm):\nHozirgi narx: ${Number(currentPrice).toLocaleString('ru-RU')} so'm`);
   if (!newPrice || isNaN(parseFloat(newPrice))) return;
   const res = await fetch(`/api/inventory/${id}/price`, {
     method: 'POST',
@@ -341,7 +341,7 @@ async function editPrice(id, currentPrice) {
     body: JSON.stringify({price_per_unit: parseFloat(newPrice)})
   });
   if (res.ok) {
-    document.getElementById('price-'+id).textContent = Number(parseFloat(newPrice)).toLocaleString('uz') + ' so\'m';
+    document.getElementById('price-'+id).textContent = Number(parseFloat(newPrice)).toLocaleString('ru-RU') + ' so\'m';
     alert('✓ Narx yangilandi!');
   } else alert('Xato yuz berdi');
 }
