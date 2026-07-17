@@ -144,10 +144,58 @@
         <div class="page-sub">{% block page_sub %}{% endblock %}</div>
       </div>
       <div class="tb-right">
+        <div id="notifWrap" style="position:relative;margin-right:10px">
+          <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
+            <i class="ti ti-bell" style="font-size:17px"></i>
+            <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
+          </button>
+          <div id="notifPanel" style="display:none;position:absolute;top:44px;right:0;width:340px;max-height:420px;overflow-y:auto;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);z-index:1000">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text)">Bildirishnomalar</div>
+            <div id="notifList" style="padding:6px 0">
+              <div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklanmoqda...</div>
+            </div>
+          </div>
+        </div>
         {% block topbar_actions %}{% endblock %}
       </div>
     </header>
 
+    <script>
+    (function() {
+      const NOTIF_BG = { red: '#FEE2E2', orange: '#FEF3C7', green: '#DCFCE7' };
+      function toggleNotifPanel() {
+        const p = document.getElementById('notifPanel');
+        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+      }
+      window.toggleNotifPanel = toggleNotifPanel;
+
+      document.addEventListener('click', function(e) {
+        const wrap = document.getElementById('notifWrap');
+        if (wrap && !wrap.contains(e.target)) document.getElementById('notifPanel').style.display = 'none';
+      });
+
+      fetch('/api/notifications').then(r => r.ok ? r.json() : []).then(items => {
+        const badge = document.getElementById('notifBadge');
+        const list = document.getElementById('notifList');
+        if (!items.length) {
+          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Bildirishnoma yo\'q</div>';
+          return;
+        }
+        const urgent = items.filter(i => i.level !== 'green').length;
+        if (urgent > 0) {
+          badge.style.display = 'flex';
+          badge.textContent = urgent;
+        }
+        list.innerHTML = items.map(n => `
+          <div style="display:flex;gap:10px;padding:9px 16px;align-items:flex-start">
+            <span style="font-size:14px">${n.icon}</span>
+            <span style="font-size:12.5px;color:var(--text);line-height:1.4">${n.text}</span>
+          </div>`).join('');
+      }).catch(() => {
+        document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklab bo\'lmadi</div>';
+      });
+    })();
+    </script>
     {# Kontent #}
     {% block content %}{% endblock %}
   </div>
