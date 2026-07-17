@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}Yetkazib beruvchilar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Yetkazib beruvchilar{% endblock %}
+{% block page_sub %}Nasiya (kredit) bilan olingan xomashyo qarzdorligi{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="openSupplierModal()">+ Yetkazib beruvchi</button>
+{% endblock %}
+
+{% block head %}
+<style>
+.sup-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
+.sup-row:hover{background:#fafaf8}
+.sup-name{font-size:13.5px;font-weight:600;color:#1a1a1a}
+.sup-meta{font-size:11px;color:#aaa;margin-top:2px}
+.mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:13px;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mini-btn:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content">
+
+  <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpi-card">
+      <div class="kpi-val text-red" id="k-total-debt">—</div>
+      <div class="kpi-label">Jami nasiya qarzi</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val" style="color:#E67E22" id="k-supplier-count">—</div>
+      <div class="kpi-label">Qarzdor yetkazib beruvchi</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-val" style="color:#2980B9" id="k-total-count">—</div>
+      <div class="kpi-label">Jami yetkazib beruvchi</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Yetkazib beruvchilar ro'yxati</h3></div>
+    <div class="card-body" style="padding:0" id="supList">
+      <div style="text-align:center;padding:30px;color:#bbb">Yuklanmoqda...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ YETKAZIB BERUVCHI QO'SHISH/TAHRIRLASH ══ -->
+<div id="supplierModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="sup-modal-title">+ Yangi yetkazib beruvchi</div>
+    <div class="form-group"><label>Nomi</label><input type="text" id="s-name" placeholder="Masalan: Andijon bozori, Rustam aka"></div>
+    <div class="form-group"><label>Telefon</label><input type="text" id="s-phone" placeholder="+998901234567"></div>
+    <div class="form-group"><label>Izoh</label><input type="text" id="s-notes" placeholder="..."></div>
+    <div id="sup-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" onclick="saveSupplier()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeSupplierModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TARIX / TO'LOV MODALI ══ -->
+<div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:600px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1a1a1a" id="hist-name">—</div>
+        <div style="font-size:12px;color:#aaa;margin-top:2px" id="hist-phone">—</div>
+      </div>
+      <button onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+
+    <div style="padding:14px 22px;background:#FDF8F0;border-bottom:1px solid #F0E6D2">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+        <span style="color:#777">Jami nasiya</span><span style="font-weight:600" id="hist-credit">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+        <span style="color:#777">To'langan</span><span style="font-weight:600;color:#27AE60" id="hist-paid">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;border-top:1px solid #F0E6D2;padding-top:6px;margin-top:6px">
+        <span>QARZ</span><span style="color:#C0392B" id="hist-debt">—</span>
+      </div>
+    </div>
+
+    <div style="padding:12px 22px;border-bottom:1px solid #f0f0f0;display:flex;gap:8px">
+      <input type="number" id="pay-amount" placeholder="To'lov summasi" style="flex:1;height:38px;padding:0 12px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+      <button class="btn btn-dark" onclick="savePayment()">💰 To'lov qilish</button>
+    </div>
+
+    <div style="padding:14px 22px;overflow-y:auto;flex:1">
+      <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:8px">📦 Xaridlar tarixi</div>
+      <div id="hist-purchases"></div>
+
+      <div style="font-size:12px;font-weight:600;color:#777;margin:16px 0 8px">💰 To'lovlar tarixi</div>
+      <div id="hist-payments"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+function showMsg(t, type){
+  const box = document.createElement('div');
+  box.style.cssText = `position:fixed;bottom:22px;right:22px;z-index:2000;padding:12px 18px;border-radius:10px;
+    font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.18);white-space:pre-line;max-width:380px;
+    background:${type==='error'?'#FDEDEC':'#E9F7EF'};color:${type==='error'?'#c0392b':'#1e7e34'}`;
+  box.textContent = t;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 4000);
+}
+
+let suppliers = [];
+let currentSupplierId = null;
+let editingSupplierId = null;
+
+async function loadSuppliers(){
+  try{
+    suppliers = await fetch('/api/suppliers').then(r=>r.json());
+    const totalDebt = suppliers.reduce((s,x)=>s+x.debt,0);
+    const debtCount = suppliers.filter(x=>x.debt>0).length;
+
+    document.getElementById('k-total-debt').textContent = fmt(totalDebt) + " so'm";
+    document.getElementById('k-supplier-count').textContent = debtCount + ' ta';
+    document.getElementById('k-total-count').textContent = suppliers.length + ' ta';
+
+    const list = document.getElementById('supList');
+    if (!suppliers.length){
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:#bbb">Yetkazib beruvchi qo\'shilmagan</div>';
+      return;
+    }
+
+    list.innerHTML = suppliers.map(s => `
+      <div class="sup-row" onclick="openHistory(${s.id})">
+        <div style="flex:1;min-width:0">
+          <div class="sup-name">${s.name}</div>
+          <div class="sup-meta">${s.phone || '—'} · ${s.purchase_count} ta nasiya xarid</div>
+        </div>
+        <div style="text-align:right;min-width:120px">
+          ${s.debt > 0
+            ? `<div style="font-size:14px;font-weight:700;color:#C0392B">${fmt(s.debt)} so'm</div><div style="font-size:9.5px;color:#bbb">qarz</div>`
+            : `<div style="font-size:12px;font-weight:600;color:#27AE60">✓ Qarzi yo'q</div>`}
+        </div>
+        <button class="mini-btn" onclick="event.stopPropagation();editSupplier(${s.id})">✏️</button>
+      </div>`).join('');
+  }catch(e){console.error(e);}
+}
+
+function openSupplierModal(){
+  editingSupplierId = null;
+  document.getElementById('sup-modal-title').textContent = "+ Yangi yetkazib beruvchi";
+  ['s-name','s-phone','s-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('sup-error').style.display = 'none';
+  document.getElementById('supplierModal').style.display = 'flex';
+}
+function closeSupplierModal(){ document.getElementById('supplierModal').style.display = 'none'; }
+
+function editSupplier(id){
+  const s = suppliers.find(x => x.id === id);
+  if (!s) return;
+  editingSupplierId = id;
+  document.getElementById('sup-modal-title').textContent = "✏️ " + s.name;
+  document.getElementById('s-name').value = s.name;
+  document.getElementById('s-phone').value = s.phone || '';
+  document.getElementById('s-notes').value = s.notes || '';
+  document.getElementById('sup-error').style.display = 'none';
+  document.getElementById('supplierModal').style.display = 'flex';
+}
+
+async function saveSupplier(){
+  const name = document.getElementById('s-name').value.trim();
+  const err = document.getElementById('sup-error');
+  if (!name){ err.style.display='block'; err.textContent='❌ Nomni kiriting'; return; }
+  err.style.display = 'none';
+
+  const data = {
+    name,
+    phone: document.getElementById('s-phone').value.trim() || null,
+    notes: document.getElementById('s-notes').value.trim() || null
+  };
+
+  try{
+    const url = editingSupplierId ? `/api/suppliers/${editingSupplierId}` : '/api/suppliers';
+    const method = editingSupplierId ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    if (res.ok){ closeSupplierModal(); loadSuppliers(); }
+    else { err.style.display='block'; err.textContent='❌ Xato yuz berdi'; }
+  }catch(e){ err.style.display='block'; err.textContent='❌ Server xatosi'; }
+}
+
+async function openHistory(id){
+  currentSupplierId = id;
+  document.getElementById('historyModal').style.display = 'flex';
+  document.getElementById('pay-amount').value = '';
+
+  try{
+    const d = await fetch(`/api/suppliers/${id}/history`).then(r=>r.json());
+    document.getElementById('hist-name').textContent = d.name;
+    document.getElementById('hist-phone').textContent = d.phone || '—';
+    document.getElementById('hist-credit').textContent = fmt(d.total_credit) + " so'm";
+    document.getElementById('hist-paid').textContent = fmt(d.total_paid) + " so'm";
+    document.getElementById('hist-debt').textContent = fmt(d.debt) + " so'm";
+
+    const pu = document.getElementById('hist-purchases');
+    if (!d.purchases.length){
+      pu.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">Xarid yo\'q</div>';
+    } else {
+      pu.innerHTML = d.purchases.map(p => {
+        const dt = new Date(p.purchased_at);
+        const ds = dt.toLocaleDateString('uz');
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">
+          <div>
+            <div style="font-size:12.5px;font-weight:600;color:#1a1a1a">${p.item_name} ${p.is_credit ? '<span style=\'color:#E67E22;font-size:10px\'>(nasiya)</span>' : ''}</div>
+            <div style="font-size:11px;color:#aaa">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}</div>
+          </div>
+          <div style="font-size:12.5px;font-weight:700;color:#8B6914">${fmt(p.total_amount)} so'm</div>
+        </div>`;
+      }).join('');
+    }
+
+    const pa = document.getElementById('hist-payments');
+    if (!d.payments.length){
+      pa.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">To\'lov yo\'q</div>';
+    } else {
+      pa.innerHTML = d.payments.map(p => {
+        const dt = new Date(p.paid_at);
+        const ds = dt.toLocaleDateString('uz');
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">
+          <div>
+            <div style="font-size:12.5px;color:#1a1a1a">${ds}${p.paid_by ? ' · '+p.paid_by : ''}</div>
+            ${p.notes ? `<div style="font-size:11px;color:#aaa">${p.notes}</div>` : ''}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:12.5px;font-weight:700;color:#27AE60">+${fmt(p.amount)} so'm</div>
+            <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="deletePayment(${p.id})">✕</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }catch(e){console.error(e);}
+}
+function closeHistoryModal(){ document.getElementById('historyModal').style.display='none'; }
+
+async function savePayment(){
+  const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
+  if (!amount || amount <= 0){ showMsg('❌ Summani kiriting', 'error'); return; }
+
+  try{
+    const res = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ supplier_id: currentSupplierId, amount })
+    });
+    if (res.ok){
+      showMsg(`✓ ${fmt(amount)} so'm to'lov qilindi`, 'success');
+      openHistory(currentSupplierId);
+      loadSuppliers();
+    } else showMsg('❌ Xato', 'error');
+  }catch(e){ showMsg('❌ Server xatosi', 'error'); }
+}
+
+async function deletePayment(id){
+  if (!confirm("O'chirilsinmi? Qarz qayta oshadi.")) return;
+  const res = await fetch(`/api/suppliers/payments/${id}`, {method:'DELETE'});
+  if (res.ok){ openHistory(currentSupplierId); loadSuppliers(); }
+}
+
+loadSuppliers();
+</script>
+{% endblock %}
