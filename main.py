@@ -597,7 +597,8 @@ def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.a
 @app.post("/api/inventory/{item_id}/stock", response_model=schemas.InventoryRead)
 def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.)."""
-    updated = crud.update_stock(db, item_id, change.quantity_change)
+    updated = crud.update_stock(db, item_id, change.quantity_change,
+                                 performed_by=current_user.full_name or current_user.username)
     if not updated:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
     return updated
@@ -1371,6 +1372,20 @@ def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(aut
 @app.get("/api/warnings/low-stock")
 def api_low_stock(db: Session = Depends(get_db)):
     return {"warnings": services.get_low_stock_warnings(db)}
+
+
+@app.get("/api/inventory/movements")
+def api_inventory_movements(item_id: Optional[int] = None, movement_type: Optional[str] = None,
+                             limit: int = 100, db: Session = Depends(get_db)):
+    """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish)."""
+    from models import InventoryMovement
+    q = db.query(InventoryMovement)
+    if item_id:
+        q = q.filter(InventoryMovement.inventory_id == item_id)
+    if movement_type in ("in", "out"):
+        q = q.filter(InventoryMovement.movement_type == movement_type)
+    rows = q.order_by(InventoryMovement.created_at.desc()).limit(limit).all()
+    return [schemas.InventoryMovementRead.model_validate(r) for r in rows]
 
 
 @app.get("/debts", response_class=HTMLResponse)
