@@ -705,6 +705,7 @@ class Payment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    delivery_id = Column(Integer, ForeignKey("deliveries.id"), nullable=True)  # Qaysi yukka bog'liq (ixtiyoriy)
 
     amount = Column(Numeric(12, 2), nullable=False)
     payment_type = Column(Enum(PaymentType), default=PaymentType.PARTIAL, nullable=False)
