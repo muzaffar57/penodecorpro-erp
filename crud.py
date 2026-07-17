@@ -1773,6 +1773,24 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
         if not order.completed_at:
             order.completed_at = datetime.utcnow()
 
+    # Shu yukka bog'liq to'lov (ixtiyoriy) — mavjud to'lov tizimidan foydalanadi
+    payment_amount = getattr(data, 'payment_amount', None)
+    if payment_amount and payment_amount > 0:
+        try:
+            method_map = {"naqd": PaymentMethod.CASH, "plastik": PaymentMethod.CARD, "o'tkazma": PaymentMethod.TRANSFER}
+            pay_method = method_map.get(getattr(data, 'payment_method', None) or 'naqd', PaymentMethod.CASH)
+            db.add(Payment(
+                order_id=order.id,
+                delivery_id=db_delivery.id,
+                amount=payment_amount,
+                payment_type=PaymentType.PARTIAL,
+                payment_method=pay_method,
+                received_by=data.received_by,
+                notes=f"{delivery_number} yuki uchun to'lov"
+            ))
+        except Exception:
+            pass  # To'lov yozishda xato bo'lsa ham, yetkazish saqlanishida davom etadi
+
     db.commit()
     db.refresh(db_delivery)
     db.refresh(order)
