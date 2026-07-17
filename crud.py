@@ -2350,7 +2350,7 @@ def get_purchase_stats(db: Session, year: int = None, month: int = None) -> dict
     for p in purchases:
         key = p.item_name
         if key not in by_material:
-            by_material[key] = {"name": key, "quantity": 0.0, "total": 0.0, "unit": p.unit}
+            by_material[key] = {"name": key, "quantity": 0.0, "total": 0.0, "unit": p.unit, "category": p.category or "Boshqa"}
         by_material[key]["quantity"] += float(p.quantity)
         by_material[key]["total"] += float(p.total_amount)
         total += float(p.total_amount)
