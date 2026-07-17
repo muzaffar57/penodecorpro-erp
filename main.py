@@ -455,7 +455,14 @@ async def masters_page_redirect():
 @app.get("/inventory", response_class=HTMLResponse)
 async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     items = crud.get_inventory(db)
-    return templates.TemplateResponse(request, "inventory.html", {"items": items, "current_user": current_user, "active_page": "inventory"})
+    kpi = services.get_inventory_kpi(db)
+    suppliers = crud.get_suppliers(db)
+    return templates.TemplateResponse(request, "inventory.html", {"items": items, "kpi": kpi, "suppliers": suppliers, "current_user": current_user, "active_page": "inventory"})
+
+
+@app.get("/api/inventory/kpi")
+def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_inventory_kpi(db)
 
 
 @app.get("/recipes", response_class=HTMLResponse)
@@ -598,7 +605,8 @@ def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.a
 def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.)."""
     updated = crud.update_stock(db, item_id, change.quantity_change,
-                                 performed_by=current_user.full_name or current_user.username)
+                                 performed_by=current_user.full_name or current_user.username,
+                                 notes=change.reason)
     if not updated:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
     return updated
