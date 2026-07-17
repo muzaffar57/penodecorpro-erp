@@ -284,6 +284,25 @@ class OrderItemRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ExpenseTransactionCreate(BaseModel):
+    date: Optional[datetime] = None
+    category: str
+    amount: float = Field(..., ge=0)
+    notes: Optional[str] = None
+
+
+class ExpenseTransactionRead(BaseModel):
+    id: int
+    date: datetime
+    category: str
+    amount: float
+    notes: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: datetime
+    source: str = "manual"
+    model_config = {"from_attributes": True}
+
+
 class InventoryMovementRead(BaseModel):
     id: int
     inventory_id: Optional[int] = None
