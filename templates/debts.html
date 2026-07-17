@@ -9,12 +9,12 @@
 .debt-list{overflow-y:auto;flex:1}
 .debt-item{padding:14px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
 .debt-item:hover{background:#fafaf8}
-.debt-item.active{background:#fff8f0;border-left:3px solid #E74C3C}
-.debt-amount{font-size:18px;font-weight:700;color:#E74C3C}
+.debt-item.active{background:#fff8f0;border-left:3px solid #EF4444}
+.debt-amount{font-size:18px;font-weight:700;color:#EF4444}
 .debt-client{font-size:13px;font-weight:500;color:#111;margin:2px 0}
 .debt-info{font-size:11px;color:#aaa}
 .progress-bar{height:6px;background:#f0f0f0;border-radius:3px;margin-top:8px}
-.progress-fill{height:100%;background:#27AE60;border-radius:3px}
+.progress-fill{height:100%;background:#22C55E;border-radius:3px}
 .sum-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
 .sum-item:last-child{border-bottom:none}
 </style>
@@ -22,7 +22,7 @@
 
 {% block topbar_actions %}
 <div style="display:flex;gap:8px;align-items:center">
-  <span style="font-size:13px;color:#E74C3C;font-weight:600">
+  <span style="font-size:13px;color:#EF4444;font-weight:600">
     Jami qarz: {{ "{:,.0f}".format(total_debt).replace(","," ") }} so'm
   </span>
 </div>
@@ -65,7 +65,7 @@
           <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#aaa">
             <span>{{ pct }}% to'langan</span>
             {% if p.deadline %}
-            <span style="color:#E67E22">⏰ {{ p.deadline.strftime('%d.%m.%Y') }}</span>
+            <span style="color:#F59E0B">⏰ {{ p.deadline.strftime('%d.%m.%Y') }}</span>
             {% endif %}
           </div>
           <div class="progress-bar">
@@ -74,7 +74,7 @@
         </div>
         {% endfor %}
       {% else %}
-        <div style="text-align:center;padding:60px;color:#27AE60">
+        <div style="text-align:center;padding:60px;color:#22C55E">
           <div style="font-size:40px;margin-bottom:12px">✅</div>
           <div style="font-size:16px;font-weight:500">Barcha to'lovlar amalga oshirilgan!</div>
         </div>
@@ -94,7 +94,7 @@
     </div>
 
     <!-- To'lov qo'shish -->
-    <div class="card" id="payCard" style="display:none;border-left:3px solid #27AE60;border-radius:0 12px 12px 0">
+    <div class="card" id="payCard" style="display:none;border-left:3px solid #22C55E;border-radius:0 12px 12px 0">
       <div class="card-head"><h3>💰 To'lov qabul qilish</h3></div>
       <div style="padding:12px">
         <div class="form-group">
@@ -124,11 +124,11 @@
         </div>
         <div class="sum-item">
           <span style="color:#aaa">Jami qarz</span>
-          <span style="font-weight:600;color:#E74C3C">{{ "{:,.0f}".format(total_debt).replace(","," ") }} so'm</span>
+          <span style="font-weight:600;color:#EF4444">{{ "{:,.0f}".format(total_debt).replace(","," ") }} so'm</span>
         </div>
         <div class="sum-item">
           <span style="color:#aaa">Jami to'langan</span>
-          <span style="font-weight:600;color:#27AE60">{{ "{:,.0f}".format(total_paid).replace(","," ") }} so'm</span>
+          <span style="font-weight:600;color:#22C55E">{{ "{:,.0f}".format(total_paid).replace(","," ") }} so'm</span>
         </div>
         <div class="sum-item">
           <span style="color:#aaa">Jami byudjet</span>
@@ -160,20 +160,20 @@ function selectDebt(el) {
   document.getElementById('d-body').innerHTML = `
     <div class="sum-item"><span style="color:#aaa">Loyiha</span><span style="font-weight:500">${d.project}</span></div>
     <div class="sum-item"><span style="color:#aaa">Telefon</span><span>${d.phone}</span></div>
-    <div class="sum-item"><span style="color:#aaa">Muddat</span><span style="color:#E67E22">${d.deadline}</span></div>
+    <div class="sum-item"><span style="color:#aaa">Muddat</span><span style="color:#F59E0B">${d.deadline}</span></div>
     <div class="sum-item"><span style="color:#aaa">Jami byudjet</span><span style="font-weight:500">${Number(budget).toLocaleString('uz')} so'm</span></div>
-    <div class="sum-item"><span style="color:#aaa">To'langan</span><span style="font-weight:500;color:#27AE60">${Number(paid).toLocaleString('uz')} so'm</span></div>
-    <div class="sum-item" style="border-top:2px solid #E74C3C;padding-top:10px;margin-top:4px">
+    <div class="sum-item"><span style="color:#aaa">To'langan</span><span style="font-weight:500;color:#22C55E">${Number(paid).toLocaleString('uz')} so'm</span></div>
+    <div class="sum-item" style="border-top:2px solid #EF4444;padding-top:10px;margin-top:4px">
       <span style="font-weight:600">QARZ:</span>
-      <span style="font-weight:700;font-size:16px;color:#E74C3C">${Number(qarz).toLocaleString('uz')} so'm</span>
+      <span style="font-weight:700;font-size:16px;color:#EF4444">${Number(qarz).toLocaleString('uz')} so'm</span>
     </div>
     <div style="margin-top:10px">
       <div style="height:8px;background:#f0f0f0;border-radius:4px">
-        <div style="height:100%;width:${pct}%;background:#27AE60;border-radius:4px"></div>
+        <div style="height:100%;width:${pct}%;background:#22C55E;border-radius:4px"></div>
       </div>
       <div style="font-size:11px;color:#aaa;margin-top:4px;text-align:right">${pct}% to'langan</div>
     </div>
-    ${d.notes ? `<div style="margin-top:10px;padding:10px;background:#FEF9E7;border-radius:8px;font-size:12px;color:#b7770d">📝 ${d.notes}</div>` : ''}`;
+    ${d.notes ? `<div style="margin-top:10px;padding:10px;background:#FEF3C7;border-radius:8px;font-size:12px;color:#b7770d">📝 ${d.notes}</div>` : ''}`;
 
   document.getElementById('payCard').style.display = 'block';
   document.getElementById('pay-amount').value = '';
@@ -193,14 +193,14 @@ async function savePayment() {
   const msg = document.getElementById('pay-msg');
   if (res.ok) {
     msg.style.display = 'block';
-    msg.style.background = '#E9F7EF';
+    msg.style.background = '#DCFCE7';
     msg.style.color = '#1e7e34';
     msg.textContent = `✓ ${Number(amount).toLocaleString('uz')} so'm qabul qilindi!`;
     setTimeout(() => location.reload(), 1500);
   } else {
     msg.style.display = 'block';
-    msg.style.background = '#FDEDEC';
-    msg.style.color = '#c0392b';
+    msg.style.background = '#FEE2E2';
+    msg.style.color = '#DC2626';
     msg.textContent = 'Xato yuz berdi';
   }
 }
