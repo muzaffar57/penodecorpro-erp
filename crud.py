@@ -130,6 +130,49 @@ def get_item(db: Session, item_id: int) -> Optional[Inventory]:
     return db.query(Inventory).filter(Inventory.id == item_id).first()
 
 
+def create_expense_transaction(db: Session, data, performed_by: Optional[str] = None, source: str = "manual"):
+    """Yangi xarajat tranzaksiyasini yaratadi. Bu funksiya faqat YANGI ExpenseTransaction
+    jadvaliga yozadi — mavjud MonthlyExpense yoki hisob-kitob logikasiga umuman tegmaydi."""
+    from models import ExpenseTransaction
+    tx = ExpenseTransaction(
+        date=data.get("date") or datetime.utcnow(),
+        category=data["category"],
+        amount=data.get("amount", 0),
+        notes=data.get("notes"),
+        created_by=performed_by,
+        source=source,
+    )
+    db.add(tx)
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
+def get_expense_transactions(db: Session, year: Optional[int] = None, month: Optional[int] = None,
+                              category: Optional[str] = None, limit: int = 200):
+    """Xarajat tranzaksiyalari ro'yxati — faqat o'qish."""
+    from models import ExpenseTransaction
+    from sqlalchemy import extract
+    q = db.query(ExpenseTransaction)
+    if year:
+        q = q.filter(extract('year', ExpenseTransaction.date) == year)
+    if month:
+        q = q.filter(extract('month', ExpenseTransaction.date) == month)
+    if category:
+        q = q.filter(ExpenseTransaction.category == category)
+    return q.order_by(ExpenseTransaction.date.desc()).limit(limit).all()
+
+
+def delete_expense_transaction(db: Session, tx_id: int) -> bool:
+    from models import ExpenseTransaction
+    tx = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id).first()
+    if not tx:
+        return False
+    db.delete(tx)
+    db.commit()
+    return True
+
+
 def get_item_by_name(db: Session, name: str) -> Optional[Inventory]:
     """Nom bo'yicha xomashyoni topadi."""
     return db.query(Inventory).filter(Inventory.item_name == name).first()
