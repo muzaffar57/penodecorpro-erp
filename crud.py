@@ -2678,6 +2678,43 @@ def update_master_kpi(db: Session, master_id: int, kpi_percent: float) -> Option
     return m
 
 
+def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
+    """Bitta usta uchun — shu yilgi HAR BIR buyurtmadan qancha KPI (sovg'a ulushi)
+    chiqqanini ko'rsatadi. Faqat o'qish — hech qanday hisob-kitobga ta'sir qilmaydi,
+    calculate_order_profit() dan olingan tayyor foyda asosida hisoblanadi."""
+    import services
+    from models import Order, OrderStatus, Master
+    from sqlalchemy import extract
+
+    master = db.query(Master).filter(Master.id == master_id).first()
+    if not master:
+        return []
+
+    orders = db.query(Order).filter(
+        Order.master_id == master_id,
+        Order.status == OrderStatus.READY,
+        extract('year', Order.completed_at) == year
+    ).order_by(Order.completed_at.desc()).all()
+
+    kpi_pct = float(master.kpi_percent or 0)
+    result = []
+    for o in orders:
+        try:
+            profit_data = services.calculate_order_profit(db, o.id)
+            profit = float(profit_data.get("foyda", 0))
+        except Exception:
+            profit = 0.0
+        result.append({
+            "order_id": o.id,
+            "order_number": o.order_number,
+            "completed_at": o.completed_at.isoformat() if o.completed_at else None,
+            "total_amount": float(o.total_amount or 0),
+            "profit": round(profit),
+            "kpi_amount": round(profit * kpi_pct / 100),
+        })
+    return result
+
+
 def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = False) -> dict:
     """Har usta uchun yillik SOF FOYDA, KPI% va hisoblangan sovg'a.
     include_inactive=False bo'lsa — avvalgidek faqat faol ustalar (eski xatti-harakat saqlanadi)."""
