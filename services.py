@@ -1376,6 +1376,13 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
             inv_item.stock_quantity = max(0, float(inv_item.stock_quantity) - needed_kg)
             log.append(f"{inv_item.item_name}: -{needed_kg:.2f} {inv_item.unit}")
             print(f"✓ {inv_item.item_name}: -{needed_kg:.2f} ayirildi")
+            import crud as _crud
+            _crud.log_movement(
+                db, inv_item.id, inv_item.item_name, movement_type="out",
+                quantity=needed_kg, unit=inv_item.unit,
+                reason=f"Buyurtma {getattr(order, 'order_number', order.id)} (loy)",
+                order_id=order.id
+            )
 
     db.commit()
     return log
@@ -1428,6 +1435,13 @@ def return_loy_ingredients(db: Session, order, loy_kg: float) -> list:
         if inv_item:
             inv_item.stock_quantity = float(inv_item.stock_quantity) + needed_kg
             log.append(f"{inv_item.item_name}: +{needed_kg:.2f} qaytarildi")
+            import crud as _crud
+            _crud.log_movement(
+                db, inv_item.id, inv_item.item_name, movement_type="in",
+                quantity=needed_kg, unit=inv_item.unit,
+                reason=f"Buyurtma {getattr(order, 'order_number', order.id)} bekor qilindi (loy qaytarildi)",
+                order_id=order.id
+            )
 
     db.commit()
     return log
