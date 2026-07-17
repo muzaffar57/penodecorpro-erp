@@ -5,7 +5,7 @@ CRUD = Create (yaratish), Read (o'qish), Update (yangilash), Delete (o'chirish).
 Bu fayl bazaga yozish va o'qish funksiyalarini saqlaydi.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -320,6 +320,43 @@ def get_low_stock_items(db: Session) -> List[Inventory]:
 
 from models import Recipe, RecipeType
 from schemas import RecipeCreate
+
+
+def get_recipe_insights(db: Session, recipe_id: int) -> Dict:
+    """Retsept uchun qo'shimcha ma'lumot — faqat ko'rsatish uchun, hech narsani o'zgartirmaydi.
+    - cost_per_kg: 1 kg tayyor aralashma tannarxi (ombordagi joriy narxlar bo'yicha)
+    - used_in: shu retseptni ishlatgan buyurtma detallari (nomi bo'yicha noyob)
+    """
+    from models import Recipe, Inventory, OrderItem, Order
+
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    if not recipe:
+        return {"cost_per_kg": 0, "used_in": []}
+
+    ingredient_map = [
+        ("akril", recipe.akril_kg), ("pva", recipe.pva_kg),
+        ("kvars qum", recipe.qum_kg), ("travertin qum", recipe.travertin_qum_kg),
+        ("kroshka", recipe.kroshka_kg), ("mel", recipe.shtukaturka_kg),
+        ("zagustitel", recipe.zagustitel_kg), ("suv", recipe.suv_kg),
+        ("penogasitel", recipe.penogasitel_kg),
+    ]
+    total_cost = 0.0
+    for inv_name, kg in ingredient_map:
+        if not kg or kg <= 0:
+            continue
+        inv_item = db.query(Inventory).filter(Inventory.item_name.ilike(f"%{inv_name}%")).first()
+        if inv_item and inv_item.price_per_unit:
+            total_cost += float(kg) * float(inv_item.price_per_unit)
+
+    batch = float(recipe.batch_size_kg or 1)
+    cost_per_kg = total_cost / batch if batch > 0 else 0
+
+    items = db.query(OrderItem.name).join(Order, OrderItem.order_id == Order.id).filter(
+        OrderItem.recipe_id == recipe_id
+    ).distinct().limit(12).all()
+    used_in = [i[0] for i in items]
+
+    return {"cost_per_kg": round(cost_per_kg, 2), "used_in": used_in}
 
 
 def create_recipe(db: Session, recipe_data: RecipeCreate) -> Recipe:
