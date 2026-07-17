@@ -614,11 +614,19 @@ def api_update_inventory_item(item_id: int, data: schemas.InventoryUpdate, db: S
 
 @app.post("/api/inventory/{item_id}/purchase")
 def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi."""
+    """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi.
+    paid_now > 0 bo'lsa — bir vaqtning o'zida xarid HAM yoziladi, HAM to'lov qilinadi,
+    qolgan qismi avtomatik qarz sifatida qoladi."""
     who = current_user.full_name or current_user.username
+
+    total_amount = round(data.quantity * data.price_per_unit)
+    paid_now = min(data.paid_now, total_amount)   # ortiqcha to'lanmasin
+    debt_remains = total_amount - paid_now
+    is_credit = debt_remains > 0.01   # server o'zi hisoblaydi — frontenddan kelgan is_credit e'tiborga olinmaydi
+
     result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
                                   purchased_by=who, notes=data.notes,
-                                  supplier_id=data.supplier_id, is_credit=data.is_credit,
+                                  supplier_id=data.supplier_id, is_credit=is_credit,
                                   volume_per_unit=data.volume_per_unit)
     if not result:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
@@ -637,17 +645,31 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
             created_by=who
         )
 
+    # Hoziroq to'langan summa bo'lsa — darhol to'lov sifatida yoziladi (qarzdan ayiriladi)
+    if is_credit and data.supplier_id and paid_now > 0:
+        crud.create_supplier_payment(
+            db,
+            schemas.SupplierPaymentCreate(
+                supplier_id=data.supplier_id,
+                amount=paid_now,
+                notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan"
+            ),
+            paid_by=who
+        )
+
     # Nasiya bo'lsa — kompaniya qarzi oshgani haqida ogohlantirish
-    if data.is_credit and data.supplier_id:
+    if is_credit and data.supplier_id:
         supplier = crud.get_supplier(db, data.supplier_id)
         if supplier:
             debt_info = crud.get_supplier_debt(db, data.supplier_id)
             all_debt = sum(s["debt"] for s in crud.get_suppliers_with_debt(db))
+            paid_line = f"✅ Hoziroq to'landi: {fmt_money(paid_now)} so'm\\n" if paid_now > 0 else ""
             msg = (
                 f"🚚 *Nasiya xarid qilindi*\n\n"
                 f"📦 {item.item_name}: {data.quantity:g} {item.unit} × {fmt_money(data.price_per_unit)}\n"
-                f"💰 Summasi: {fmt_money(result['purchase_total'])} so'm\n\n"
-                f"🏪 Yetkazib beruvchi: *{supplier.name}*\n"
+                f"💰 Jami summasi: {fmt_money(total_amount)} so'm\n"
+                f"{paid_line}"
+                f"\n🏪 Yetkazib beruvchi: *{supplier.name}*\n"
                 f"🔴 Shu hamkorga qarz: {fmt_money(debt_info['debt'])} so'm\n"
                 f"📊 Jami barcha qarz: {fmt_money(all_debt)} so'm\n\n"
                 f"🏗 *PenoDecorPro* — {who}"
@@ -661,6 +683,8 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
         "old_price": result["old_price"],
         "new_price": result["new_price"],
         "purchase_total": result["purchase_total"],
+        "paid_now": paid_now,
+        "debt_remains": debt_remains,
         "price_changed": abs(result["old_price"] - result["new_price"]) > 0.01,
         "old_volume": result["old_volume"],
         "new_volume": result["new_volume"],
