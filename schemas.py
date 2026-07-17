@@ -108,6 +108,27 @@ class StockPurchase(BaseModel):
     quantity: float = Field(..., gt=0, description="Necha birlik kirim qilindi")
     price_per_unit: float = Field(..., gt=0, description="Shu xariddagi 1 birlik narxi")
     notes: Optional[str] = None
+    supplier_id: Optional[int] = None
+    is_credit: bool = Field(default=False, description="Nasiya (keyin to'lash) bilan olindimi")
+
+
+class SupplierCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=150)
+    phone: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class SupplierUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class SupplierPaymentCreate(BaseModel):
+    supplier_id: int
+    amount: float = Field(..., gt=0)
+    notes: Optional[str] = None
 
 
 class PurchaseRead(BaseModel):
