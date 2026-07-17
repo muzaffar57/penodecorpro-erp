@@ -14,12 +14,12 @@
 .ord-layout{display:grid;grid-template-columns:300px 1fr 280px;gap:12px;height:calc(100vh - 90px);overflow:hidden}
 .ord-list{overflow-y:auto;flex:1}
 /* Tayyor mahsulot taklifi */
-.fp-suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #C9A55A;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:60;max-height:210px;overflow-y:auto;margin-top:3px}
+.fp-suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #2563EB;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:60;max-height:210px;overflow-y:auto;margin-top:3px}
 .fp-sg-item{padding:8px 11px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .12s}
 .fp-sg-item:last-child{border-bottom:none}
 .fp-sg-item:hover{background:#FDF8F0}
-.fp-tag{display:inline-flex;align-items:center;gap:4px;background:#FDF8F0;border:1.5px solid #C9A55A;border-radius:7px;padding:3px 8px;font-size:10.5px;font-weight:600;color:#8B6914;margin-left:6px}
-.fp-tag button{background:none;border:none;color:#C0392B;cursor:pointer;font-size:11px;padding:0;line-height:1}
+.fp-tag{display:inline-flex;align-items:center;gap:4px;background:#FDF8F0;border:1.5px solid #2563EB;border-radius:7px;padding:3px 8px;font-size:10.5px;font-weight:600;color:#1E40AF;margin-left:6px}
+.fp-tag button{background:none;border:none;color:#DC2626;cursor:pointer;font-size:11px;padding:0;line-height:1}
 
 /* Loyiha guruhlari */
 .proj-group{border-bottom:1px solid #f0f0f0}
@@ -27,54 +27,54 @@
 .proj-head:hover{background:#fafaf8}
 .proj-group.open .proj-head{background:#FDF8F0}
 .proj-arrow{font-size:9px;color:#aaa;transition:transform .2s;flex-shrink:0;width:10px}
-.proj-group.open .proj-arrow{transform:rotate(90deg);color:#C9A55A}
+.proj-group.open .proj-arrow{transform:rotate(90deg);color:#2563EB}
 .proj-name{font-size:12.5px;font-weight:600;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-client{font-size:10.5px;color:#aaa;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-count{font-size:10.5px;color:#888;font-weight:500;white-space:nowrap}
-.proj-debt{font-size:10px;color:#C0392B;font-weight:600;margin-top:2px;white-space:nowrap}
-.proj-paid{font-size:10px;color:#27AE60;font-weight:600;margin-top:2px;white-space:nowrap}
+.proj-debt{font-size:10px;color:#DC2626;font-weight:600;margin-top:2px;white-space:nowrap}
+.proj-paid{font-size:10px;color:#22C55E;font-weight:600;margin-top:2px;white-space:nowrap}
 .proj-body{background:#FCFCFB;border-top:1px solid #f5f5f5}
 .proj-body .ord-item{padding-left:24px}
 .proj-body .ord-item:last-child{border-bottom:none}
 .step-btn2{width:30px;height:30px;border-radius:7px;border:1.5px solid #e5e5e5;background:#fff;font-size:16px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
 .step-btn2:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
-.dlv-inp:focus{border-color:#C9A55A !important}
+.dlv-inp:focus{border-color:#2563EB !important}
 .ord-item{padding:12px 14px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
 .ord-item:hover{background:#fafaf8}
-.ord-item.active{background:#fdf8f0;border-left:3px solid #C9A55A}
-.ord-num{font-size:11px;font-weight:600;color:#C9A55A}
+.ord-item.active{background:#fdf8f0;border-left:3px solid #2563EB}
+.ord-num{font-size:11px;font-weight:600;color:#2563EB}
 .ord-client{font-size:13px;font-weight:500;color:#111;margin:2px 0}
 .ord-date{font-size:11px;color:#aaa}
 .mid-panel{overflow-y:auto;display:flex;flex-direction:column;gap:10px}
 .right-panel{overflow-y:auto;display:flex;flex-direction:column;gap:10px}
 .detal{background:#f8f8f6;border-radius:10px;padding:12px;border:1px solid #ebebeb}
 .detal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.detal-badge{font-size:10px;font-weight:600;color:#C9A55A;background:#fdf8f0;padding:3px 10px;border-radius:6px;border:1px solid #f0e0c0}
+.detal-badge{font-size:10px;font-weight:600;color:#2563EB;background:#fdf8f0;padding:3px 10px;border-radius:6px;border:1px solid #f0e0c0}
 .detal-rm{background:none;border:none;color:#ddd;cursor:pointer;font-size:16px;line-height:1;transition:color .15s}
-.detal-rm:hover{color:#E74C3C}
+.detal-rm:hover{color:#EF4444}
 .detal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .dif label{font-size:9px;color:#aaa;display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.2px}
 .dif input,.dif select{width:100%;padding:7px 9px;border:1px solid #e8e8e8;border-radius:7px;font-size:12px;color:#111;background:#fff;outline:none;transition:border .15s}
-.dif input:focus,.dif select:focus{border-color:#C9A55A}
+.dif input:focus,.dif select:focus{border-color:#2563EB}
 .dif input[readonly]{background:#f8f8f6;color:#aaa;cursor:not-allowed}
 .detal-result{margin-top:8px;padding-top:8px;border-top:1px dashed #e8e8e8;display:flex;gap:14px;font-size:11px;color:#aaa;flex-wrap:wrap}
-.detal-result .val{color:#27AE60;font-weight:600;font-size:12px}
+.detal-result .val{color:#22C55E;font-weight:600;font-size:12px}
 .total-box{background:#f8f8f6;border-radius:10px;padding:12px;border:1px solid #ebebeb}
 .trow{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:#555}
 .trow.main{font-size:15px;font-weight:600;color:#111;border-top:1px solid #e0e0e0;padding-top:8px;margin-top:6px}
-.trow.main .tv{color:#C9A55A}
+.trow.main .tv{color:#2563EB}
 .sum-title{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px}
 .sum-item{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
 .sum-item:last-child{border-bottom:none}
 .si-l{color:#aaa}
 .si-v{font-weight:500;color:#111}
-.si-v.green{color:#27AE60}.si-v.red{color:#E74C3C}.si-v.gold{color:#C9A55A}
+.si-v.green{color:#22C55E}.si-v.red{color:#EF4444}.si-v.gold{color:#2563EB}
 .result-box{border-radius:8px;padding:12px;font-size:13px;margin-bottom:10px;display:none}
-.result-box.success{background:#E9F7EF;border:1px solid #A9DFBF;color:#1e7e34}
-.result-box.error{background:#FDEDEC;border:1px solid #F1948A;color:#c0392b}
+.result-box.success{background:#DCFCE7;border:1px solid #A9DFBF;color:#1e7e34}
+.result-box.error{background:#FEE2E2;border:1px solid #F1948A;color:#DC2626}
 .msg-bar{border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:8px;display:none}
-.msg-bar.success{background:#E9F7EF;color:#1e7e34;display:block}
-.msg-bar.error{background:#FDEDEC;color:#c0392b;display:block}
+.msg-bar.success{background:#DCFCE7;color:#1e7e34;display:block}
+.msg-bar.error{background:#FEE2E2;color:#DC2626;display:block}
 </style>
 {% endblock %}
 
@@ -104,7 +104,7 @@
             </div>
             <div style="text-align:right;flex-shrink:0">
               <div class="proj-count">
-                {{ g.orders|length }} ta{% if g.active %} · <span style="color:#E67E22">{{ g.active }} faol</span>{% endif %}
+                {{ g.orders|length }} ta{% if g.active %} · <span style="color:#F59E0B">{{ g.active }} faol</span>{% endif %}
               </div>
               {% if g.debt > 0 %}
               <div class="proj-debt">🔴 {{ "{:,.0f}".format(g.debt/1000000).replace(",", " ") }} mln</div>
@@ -141,19 +141,19 @@
               {% if dpct > 0 and dpct < 100 %}
               <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
                 <div style="flex:1;height:3px;background:#f0f0f0;border-radius:2px;overflow:hidden">
-                  <div style="height:100%;width:{{ dpct }}%;background:#E67E22;border-radius:2px"></div>
+                  <div style="height:100%;width:{{ dpct }}%;background:#F59E0B;border-radius:2px"></div>
                 </div>
-                <span style="font-size:9px;color:#E67E22;font-weight:600">📦 {{ dpct }}%</span>
+                <span style="font-size:9px;color:#F59E0B;font-weight:600">📦 {{ dpct }}%</span>
               </div>
               {% elif dpct >= 100 %}
-              <div style="margin-top:5px;font-size:10px;color:#27AE60;font-weight:600">📦 To'liq topshirildi</div>
+              <div style="margin-top:5px;font-size:10px;color:#22C55E;font-weight:600">📦 To'liq topshirildi</div>
               {% endif %}
               {% if debt > 0 %}
-              <div style="margin-top:3px;font-size:10px;color:#C0392B;font-weight:600">
+              <div style="margin-top:3px;font-size:10px;color:#DC2626;font-weight:600">
                 🔴 Qarz: {{ "{:,.0f}".format(debt).replace(",", " ") }} so'm
               </div>
               {% elif o.payment_status and o.payment_status.value == 'paid' %}
-              <div style="margin-top:3px;font-size:10px;color:#27AE60;font-weight:600">
+              <div style="margin-top:3px;font-size:10px;color:#22C55E;font-weight:600">
                 ✅ To'liq to'langan
               </div>
               {% endif %}
@@ -181,7 +181,7 @@
 
     <!-- YANGI BUYURTMA FORMASI (boshlangʻichda yashirin) -->
     <div id="newOrderForm" style="display:none">
-      <div id="editBanner" style="display:none;background:#EBF5FB;border:1.5px solid #AED6F1;border-radius:10px;padding:11px 14px;margin-bottom:12px">
+      <div id="editBanner" style="display:none;background:#EFF6FF;border:1.5px solid #AED6F1;border-radius:10px;padding:11px 14px;margin-bottom:12px">
         <div style="font-size:13px;font-weight:600;color:#1a6fa8">✏️ Tahrirlash rejimi — <span id="editOrderNum"></span></div>
         <div style="font-size:11px;color:#5499C7;margin-top:3px">Saqlaganda ombor faqat farq miqdorida to'g'rilanadi. Buyurtma raqami va to'lovlar saqlanadi.</div>
       </div>
@@ -228,7 +228,7 @@
               <span style="color:#aaa;font-weight:400;font-size:11px">— taxminiy reja</span>
             </label>
             <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
-                   oninput="checkLoyStock()" style="border-color:#C9A55A">
+                   oninput="checkLoyStock()" style="border-color:#2563EB">
             <div id="loy-stock-info" style="display:none;font-size:11px;margin-top:5px;padding:7px 10px;border-radius:6px"></div>
           </div>
         </div>
@@ -250,11 +250,11 @@
               <span style="font-size:12px;color:#555;min-width:130px">Kelishilgan summa:</span>
               <input type="text" id="final_price" placeholder="0"
                      oninput="formatPriceInput(this);calcDiscount()"
-                     style="flex:1;padding:7px 10px;border:1.5px solid #C9A55A;border-radius:7px;font-size:13px;font-weight:600;outline:none">
+                     style="flex:1;padding:7px 10px;border:1.5px solid #2563EB;border-radius:7px;font-size:13px;font-weight:600;outline:none">
             </div>
             <div style="font-size:11px;color:#aaa;margin-top:4px">Bo'sh qolsa chegirmasiz hisoblanadi</div>
-            <div id="discount-auto-hint" style="display:none;margin-top:6px;padding:7px 10px;background:#EBF5FB;border-radius:7px;font-size:11px;color:#1a6fa8;line-height:1.5"></div>
-            <div id="discount_info" style="display:none;margin-top:8px;padding:8px;background:#FEF9E7;border-radius:7px;font-size:12px"></div>
+            <div id="discount-auto-hint" style="display:none;margin-top:6px;padding:7px 10px;background:#EFF6FF;border-radius:7px;font-size:11px;color:#1a6fa8;line-height:1.5"></div>
+            <div id="discount_info" style="display:none;margin-top:8px;padding:8px;background:#FEF3C7;border-radius:7px;font-size:12px"></div>
 
             <!-- ZAKLAT -->
             <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #ddd">
@@ -262,7 +262,7 @@
                 <span style="font-size:12px;color:#555;min-width:130px">Zaklat (oldindan):</span>
                 <input type="text" id="zaklat_amount" placeholder="0"
                        oninput="formatPriceInput(this);calcDebt()"
-                       style="flex:1;padding:7px 10px;border:1.5px solid #27AE60;border-radius:7px;font-size:13px;font-weight:600;outline:none">
+                       style="flex:1;padding:7px 10px;border:1.5px solid #22C55E;border-radius:7px;font-size:13px;font-weight:600;outline:none">
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
                 <span style="font-size:12px;color:#555;min-width:130px">To'lov usuli:</span>
@@ -272,7 +272,7 @@
                   <option value="o'tkazma">🏦 O'tkazma</option>
                 </select>
               </div>
-              <div id="debt_info" style="display:none;margin-top:8px;padding:8px;background:#FDEDEC;border-radius:7px;font-size:12px"></div>
+              <div id="debt_info" style="display:none;margin-top:8px;padding:8px;background:#FEE2E2;border-radius:7px;font-size:12px"></div>
             </div>
           </div>
         </div>
@@ -301,7 +301,7 @@
       </div>
 
       <!-- DRAFT BANNER -->
-      <div id="draftBanner" style="display:none;background:#FEF9E7;border:1.5px solid #F5CBA7;border-radius:10px;padding:14px;margin-bottom:12px">
+      <div id="draftBanner" style="display:none;background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:10px;padding:14px;margin-bottom:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
           <div>
             <div style="font-size:14px;font-weight:600;color:#b7770d">📝 Bu buyurtma qoralama holatida</div>
@@ -318,7 +318,7 @@
           <div style="display:flex;align-items:center;gap:8px">
             <span id="dlv-pct-badge" style="font-size:11px;font-weight:600"></span>
             <button class="btn btn-outline btn-sm" id="btn-summary" onclick="openSummaryModal()"
-                    style="display:none;border-color:#2980B9;color:#2980B9">🧾 Hisob-kitob</button>
+                    style="display:none;border-color:#0EA5E9;color:#0EA5E9">🧾 Hisob-kitob</button>
             <button class="btn btn-dark btn-sm" id="btn-new-delivery" onclick="openDeliveryModal()">+ Mahsulot topshirish</button>
           </div>
         </div>
@@ -330,7 +330,7 @@
               <span id="dlv-pct-text" style="font-weight:700;color:#1a1a1a">—</span>
             </div>
             <div style="height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden">
-              <div id="dlv-pct-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#C9A55A,#2E7D52);border-radius:4px;transition:width .4s"></div>
+              <div id="dlv-pct-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#2563EB,#2E7D52);border-radius:4px;transition:width .4s"></div>
             </div>
           </div>
 
@@ -361,7 +361,7 @@
             </div>
             <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px" id="pay-discount-row">
               <span style="color:#777">Chegirma:</span>
-              <span id="pay-discount" style="font-weight:600;color:#E67E22">—</span>
+              <span id="pay-discount" style="font-weight:600;color:#F59E0B">—</span>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-top:1px solid #eee;margin-top:4px;padding-top:8px">
               <span style="color:#555;font-weight:600">Kelishilgan:</span>
@@ -372,17 +372,17 @@
             </div>
             <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
               <span style="color:#777">To'langan:</span>
-              <span id="pay-paid" style="font-weight:600;color:#27AE60">—</span>
+              <span id="pay-paid" style="font-weight:600;color:#22C55E">—</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:14px;border-top:2px solid #1a1a1a;margin-top:6px">
               <span style="font-weight:700">Qarz qoldi:</span>
-              <span id="pay-debt" style="font-weight:800;color:#C0392B">—</span>
+              <span id="pay-debt" style="font-weight:800;color:#DC2626">—</span>
             </div>
             <div id="pay-status-badge" style="margin-top:8px;text-align:center"></div>
           </div>
 
           <!-- To'lov qo'shish formasi -->
-          <div id="paymentForm" style="display:none;background:#F0F9F4;border:1.5px solid #27AE60;border-radius:8px;padding:12px;margin-bottom:12px">
+          <div id="paymentForm" style="display:none;background:#F0F9F4;border:1.5px solid #22C55E;border-radius:8px;padding:12px;margin-bottom:12px">
             <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#1e7e34">Yangi to'lov</div>
             <div style="display:flex;gap:8px;margin-bottom:8px">
               <div style="flex:1">
@@ -463,19 +463,19 @@
         <div class="sum-title">Amallar</div>
         <div style="display:flex;flex-direction:column;gap:7px">
           <button class="btn btn-green w-full btn-sm" id="btn-ready" onclick="markReadySelected()" style="display:none">✓ Tayyor deb belgilash</button>
-          <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#2980B9;color:#2980B9">✏️ Tahrirlash</button>
+          <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#0EA5E9;color:#0EA5E9">✏️ Tahrirlash</button>
           <a id="btn-pdf" href="#" target="_blank" class="btn btn-outline w-full btn-sm" style="text-align:center;display:none">📄 PDF chiqarish</a>
           {% if current_user.role.value == 'admin' %}
-          <button class="btn btn-outline w-full btn-sm" id="btn-profit" onclick="loadProfit()" style="display:none;border-color:#C9A55A;color:#C9A55A">💰 Foyda hisoblash</button>
+          <button class="btn btn-outline w-full btn-sm" id="btn-profit" onclick="loadProfit()" style="display:none;border-color:#2563EB;color:#2563EB">💰 Foyda hisoblash</button>
           {% endif %}
-          <button class="btn btn-outline w-full btn-sm" id="btn-delete" onclick="deleteSelected()" style="display:none;border-color:#E74C3C;color:#E74C3C">🗑 O'chirish</button>
+          <button class="btn btn-outline w-full btn-sm" id="btn-delete" onclick="deleteSelected()" style="display:none;border-color:#EF4444;color:#EF4444">🗑 O'chirish</button>
         </div>
       </div>
     </div>
 
     <!-- Ombor ogohlantirishlari -->
-    <div class="card" id="alertCard" style="display:none;border-left:3px solid #E74C3C;border-radius:0 12px 12px 0">
-      <div class="card-head"><h3 style="color:#c0392b;font-size:13px">⚠ Ombor</h3></div>
+    <div class="card" id="alertCard" style="display:none;border-left:3px solid #EF4444;border-radius:0 12px 12px 0">
+      <div class="card-head"><h3 style="color:#DC2626;font-size:13px">⚠ Ombor</h3></div>
       <div style="padding:12px" id="alertBody"></div>
     </div>
 
@@ -490,7 +490,7 @@
     </div>
 
     <!-- Yangi buyurtma yig'indisi -->
-    <div class="card" id="liveTotal" style="display:none;border-left:3px solid #C9A55A;border-radius:0 12px 12px 0">
+    <div class="card" id="liveTotal" style="display:none;border-left:3px solid #2563EB;border-radius:0 12px 12px 0">
       <div class="card-head"><h3>💰 Buyurtma hisob-kitobi</h3></div>
       <div style="padding:12px;max-height:400px;overflow-y:auto" id="liveTotalBody">
         <div style="text-align:center;color:#bbb;padding:20px">Detal qo'shing...</div>
@@ -518,7 +518,7 @@
         <div style="display:flex;gap:6px">
           <button class="btn btn-outline btn-sm" onclick="sumCheckAll(true)">Hammasi</button>
           <button class="btn btn-outline btn-sm" onclick="sumCheckAll(false)">Hech biri</button>
-          <button class="btn btn-outline btn-sm" onclick="sumCheckDays(30)" style="border-color:#2980B9;color:#2980B9">Oxirgi 30 kun</button>
+          <button class="btn btn-outline btn-sm" onclick="sumCheckDays(30)" style="border-color:#0EA5E9;color:#0EA5E9">Oxirgi 30 kun</button>
         </div>
       </div>
 
@@ -528,7 +528,7 @@
     <div style="padding:12px 22px 18px;border-top:1px solid #f0f0f0">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#FAFAF8;border-radius:8px;margin-bottom:10px">
         <span style="font-size:13px;color:#555;font-weight:600">Tanlangan jami:</span>
-        <span id="sum-total" style="font-size:16px;font-weight:800;color:#C9A55A">0 so'm</span>
+        <span id="sum-total" style="font-size:16px;font-weight:800;color:#2563EB">0 so'm</span>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" style="flex:1" onclick="closeSummaryModal()">Bekor</button>
@@ -552,7 +552,7 @@
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div style="font-size:12px;color:#777">Qancha berilayotganini kiriting</div>
-        <button class="btn btn-outline btn-sm" onclick="fillAllRemaining()" style="border-color:#C9A55A;color:#8B6914">⚡ Qoldiqni to'ldirish</button>
+        <button class="btn btn-outline btn-sm" onclick="fillAllRemaining()" style="border-color:#2563EB;color:#1E40AF">⚡ Qoldiqni to'ldirish</button>
       </div>
 
       <div id="dlvForm"></div>
@@ -571,7 +571,7 @@
       </div>
 
       <div style="margin-top:12px;padding:11px 12px;background:#F0F6FA;border-radius:9px">
-        <div style="font-size:12px;font-weight:600;color:#2980B9;margin-bottom:8px">🚚 Transport (ixtiyoriy)</div>
+        <div style="font-size:12px;font-weight:600;color:#0EA5E9;margin-bottom:8px">🚚 Transport (ixtiyoriy)</div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <div style="flex:1.3">
             <div style="font-size:11px;color:#777;margin-bottom:4px">Tashuvchi</div>
@@ -595,7 +595,7 @@
         <div id="dlv-payer-hint" style="font-size:11px;color:#999;margin-top:6px"></div>
       </div>
 
-      <div id="dlv-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+      <div id="dlv-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     </div>
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
@@ -650,10 +650,10 @@ function checkDeliveredLimit(row) {
   const warn = row.querySelector('.i-peno-warn');
 
   if (cur < delivered - 0.001) {
-    if (inp) inp.style.borderColor = '#C0392B';
+    if (inp) inp.style.borderColor = '#DC2626';
     if (warn) {
       warn.style.display = 'inline';
-      warn.style.color = '#C0392B';
+      warn.style.color = '#DC2626';
       warn.textContent = `❌ ${delivered} ${unit} topshirilgan — kamida shuncha bo'lishi kerak`;
     }
     row.dataset.dlvError = '1';
@@ -662,7 +662,7 @@ function checkDeliveredLimit(row) {
     row.dataset.dlvError = '';
     if (warn && warn.textContent.includes('topshirilgan')) {
       warn.style.display = 'none';
-      warn.style.color = '#E67E22';
+      warn.style.color = '#F59E0B';
     }
   }
 }
@@ -739,8 +739,8 @@ function searchFinished(input) {
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
-              <div style="font-size:12px;font-weight:700;color:#27AE60">${i.quantity} ${i.unit}</div>
-              <div style="font-size:10px;color:#8B6914">${formatNum(i.unit_price)}/${i.unit==='metr'?'m':'ta'}</div>
+              <div style="font-size:12px;font-weight:700;color:#22C55E">${i.quantity} ${i.unit}</div>
+              <div style="font-size:10px;color:#1E40AF">${formatNum(i.unit_price)}/${i.unit==='metr'?'m':'ta'}</div>
             </div>
           </div>
         </div>`).join('');
@@ -858,12 +858,12 @@ function checkFpLimit(row) {
   const tag = document.getElementById('fptag-' + row.id);
 
   if (cur > max + 0.001) {
-    if (inp) inp.style.borderColor = '#C0392B';
-    if (tag) { tag.style.background = '#FDEDEC'; tag.style.borderColor = '#C0392B'; tag.style.color = '#c0392b'; }
+    if (inp) inp.style.borderColor = '#DC2626';
+    if (tag) { tag.style.background = '#FEE2E2'; tag.style.borderColor = '#DC2626'; tag.style.color = '#DC2626'; }
     row.dataset.fpError = '1';
   } else {
     if (inp) inp.style.borderColor = '';
-    if (tag) { tag.style.background = '#FDF8F0'; tag.style.borderColor = '#C9A55A'; tag.style.color = '#8B6914'; }
+    if (tag) { tag.style.background = '#FDF8F0'; tag.style.borderColor = '#2563EB'; tag.style.color = '#1E40AF'; }
     row.dataset.fpError = '';
   }
 }
@@ -955,7 +955,7 @@ function selectOrder(id, el) {
       ab.innerHTML = d.warnings.slice(0,3).map(w=>`
         <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #f5f5f5">
           <span style="color:#555">${w.item_name}</span>
-          <span style="color:#E74C3C;font-weight:500">${w.stock_quantity} ${w.unit}</span>
+          <span style="color:#EF4444;font-weight:500">${w.stock_quantity} ${w.unit}</span>
         </div>`).join('');
     } else {
       ac.style.display = 'none';
@@ -992,9 +992,9 @@ async function loadDeliveries(orderId) {
 
     const badge = document.getElementById('dlv-pct-badge');
     if (d.is_fully_delivered) {
-      badge.innerHTML = '<span style="background:#E9F7EF;color:#1e7e34;padding:3px 10px;border-radius:12px">✅ To\'liq topshirildi</span>';
+      badge.innerHTML = '<span style="background:#DCFCE7;color:#1e7e34;padding:3px 10px;border-radius:12px">✅ To\'liq topshirildi</span>';
     } else if (pct > 0) {
-      badge.innerHTML = `<span style="background:#FEF9E7;color:#b7770d;padding:3px 10px;border-radius:12px">🟡 ${pct}%</span>`;
+      badge.innerHTML = `<span style="background:#FEF3C7;color:#b7770d;padding:3px 10px;border-radius:12px">🟡 ${pct}%</span>`;
     } else {
       badge.innerHTML = '<span style="background:#F5F5F5;color:#888;padding:3px 10px;border-radius:12px">Topshirilmagan</span>';
     }
@@ -1017,14 +1017,14 @@ async function loadDeliveries(orderId) {
       list.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">Detal yo\'q</div>';
     } else {
       list.innerHTML = d.items.map(it => {
-        const color = it.is_done ? '#27AE60' : (it.percent > 0 ? '#E67E22' : '#ddd');
+        const color = it.is_done ? '#22C55E' : (it.percent > 0 ? '#F59E0B' : '#ddd');
         return `
         <div style="padding:9px 0;border-bottom:1px solid #f5f5f5">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
             <div style="font-size:13px;font-weight:500;color:#1a1a1a">
               ${it.is_done ? '✅' : '📦'} ${it.name}
             </div>
-            <div style="font-size:12px;font-weight:600;color:${it.is_done?'#27AE60':'#C0392B'}">
+            <div style="font-size:12px;font-weight:600;color:${it.is_done?'#22C55E':'#DC2626'}">
               ${it.is_done ? 'tugadi' : `qoldi ${it.remaining} ${it.unit}`}
             </div>
           </div>
@@ -1073,11 +1073,11 @@ function renderDeliveryHistory(showAll) {
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-size:12px;font-weight:600;color:#1a1a1a">${dl.delivery_number}</span>
-              ${dl.total_sum ? `<span style="font-size:11px;font-weight:700;color:#8B6914">${formatNum(dl.total_sum)} so'm</span>` : ''}
+              ${dl.total_sum ? `<span style="font-size:11px;font-weight:700;color:#1E40AF">${formatNum(dl.total_sum)} so'm</span>` : ''}
             </div>
             <div style="font-size:11px;color:#666;margin-top:3px;line-height:1.5">${items}</div>
             ${dl.transport_carrier || dl.transport_cost > 0 ? `
-            <div style="font-size:10.5px;color:#2980B9;margin-top:3px">
+            <div style="font-size:10.5px;color:#0EA5E9;margin-top:3px">
               🚚 ${dl.transport_carrier || ''}${dl.transport_cost > 0 ? ` · ${formatNum(dl.transport_cost)} so'm` : ''}${dl.transport_payer && dl.transport_payer !== 'none' ? ` (${dl.transport_payer==='client'?'mijoz':dl.transport_payer==='company'?'kompaniya':'50/50'})` : ''}
             </div>` : ''}
             <div style="font-size:10px;color:#aaa;margin-top:2px">
@@ -1086,10 +1086,10 @@ function renderDeliveryHistory(showAll) {
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0">
             <a href="/api/deliveries/${dl.id}/pdf" target="_blank"
-               style="width:26px;height:26px;border-radius:6px;background:#EBF5FB;border:none;color:#2980B9;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none"
+               style="width:26px;height:26px;border-radius:6px;background:#EFF6FF;border:none;color:#0EA5E9;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none"
                title="Nakladnoy PDF">📄</a>
             <button onclick="deleteDelivery(${dl.id})"
-               style="width:26px;height:26px;border-radius:6px;background:#FEE;border:none;color:#C0392B;font-size:12px;cursor:pointer"
+               style="width:26px;height:26px;border-radius:6px;background:#FEE;border:none;color:#DC2626;font-size:12px;cursor:pointer"
                title="O'chirish">✕</button>
           </div>
         </div>`;
@@ -1142,7 +1142,7 @@ function openSummaryModal() {
              style="width:17px;height:17px;cursor:pointer;margin-top:2px;flex-shrink:0">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:7px">
-          <span style="font-size:13px;font-weight:700;color:#C9A55A">${d.short_number}</span>
+          <span style="font-size:13px;font-weight:700;color:#2563EB">${d.short_number}</span>
           <span style="font-size:11px;color:#888">${ds}</span>
           ${d.received_by ? `<span style="font-size:10px;color:#aaa">· ${d.received_by}</span>` : ''}
         </div>
@@ -1213,7 +1213,7 @@ function openDeliveryModal() {
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:500;color:#1a1a1a">${it.name}</div>
         <div style="font-size:11px;color:#aaa;margin-top:1px">
-          ${it.is_done ? '✅ To\'liq topshirilgan' : `Qoldi: <b style="color:#C0392B">${it.remaining} ${it.unit}</b> · Jami ${it.ordered} ${it.unit}`}
+          ${it.is_done ? '✅ To\'liq topshirilgan' : `Qoldi: <b style="color:#DC2626">${it.remaining} ${it.unit}</b> · Jami ${it.ordered} ${it.unit}`}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
@@ -1246,10 +1246,10 @@ function dlvUpdatePayerHint() {
   if (payer === 'client') {
     hint.textContent = `Mijoz to'laydi: ${formatNum(cost)} so'm · Kompaniyaga xarajat yo'q`;
   } else if (payer === 'company') {
-    hint.innerHTML = `<span style="color:#C0392B">Kompaniya xarajati: ${formatNum(cost)} so'm</span>`;
+    hint.innerHTML = `<span style="color:#DC2626">Kompaniya xarajati: ${formatNum(cost)} so'm</span>`;
   } else if (payer === 'split') {
     const half = Math.round(cost / 2);
-    hint.innerHTML = `Mijoz: ${formatNum(half)} so'm · <span style="color:#C0392B">Kompaniya: ${formatNum(cost - half)} so'm</span>`;
+    hint.innerHTML = `Mijoz: ${formatNum(half)} so'm · <span style="color:#DC2626">Kompaniya: ${formatNum(cost - half)} so'm</span>`;
   }
 }
 
@@ -1283,7 +1283,7 @@ async function saveDelivery() {
     const q = parseFloat(el.value) || 0;
     if (q <= 0) return;
     const max = parseFloat(el.dataset.max) || 0;
-    if (q > max + 0.001) { hasOver = true; el.style.borderColor = '#C0392B'; }
+    if (q > max + 0.001) { hasOver = true; el.style.borderColor = '#DC2626'; }
     items.push({ order_item_id: parseInt(el.id.replace('dlv-','')), quantity: q });
   });
 
@@ -1376,10 +1376,10 @@ async function checkLoyStock() {
       el.style.background = '#F5F5F5'; el.style.color = '#888';
       el.innerHTML = `Omborda tayyor loy yo'q — ${kg} kg uchun xomashyo ayiriladi`;
     } else if (stock >= kg) {
-      el.style.background = '#E9F7EF'; el.style.color = '#1e7e34';
+      el.style.background = '#DCFCE7'; el.style.color = '#1e7e34';
       el.innerHTML = `🟢 Omborda <b>${stock.toFixed(1)} kg</b> tayyor loy bor — hammasi zaxiradan olinadi, xomashyo ayirilmaydi`;
     } else {
-      el.style.background = '#FEF9E7'; el.style.color = '#b7770d';
+      el.style.background = '#FEF3C7'; el.style.color = '#b7770d';
       el.innerHTML = `🟡 Omborda <b>${stock.toFixed(1)} kg</b> tayyor loy bor — qolgan <b>${(kg-stock).toFixed(1)} kg</b> uchun xomashyo ayiriladi`;
     }
   } catch(e) { el.style.display = 'none'; }
@@ -1449,11 +1449,11 @@ async function loadPayments(orderId) {
     const badge = document.getElementById('pay-status-badge');
     const st = order.payment_status || 'unpaid';
     if (st === 'paid') {
-      badge.innerHTML = '<span style="background:#E9F7EF;color:#1e7e34;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600">✅ To\'liq to\'langan — Arxivda</span>';
+      badge.innerHTML = '<span style="background:#DCFCE7;color:#1e7e34;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600">✅ To\'liq to\'langan — Arxivda</span>';
     } else if (st === 'partial') {
-      badge.innerHTML = '<span style="background:#FEF9E7;color:#b7770d;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600">🟡 Qisman to\'langan</span>';
+      badge.innerHTML = '<span style="background:#FEF3C7;color:#b7770d;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600">🟡 Qisman to\'langan</span>';
     } else {
-      badge.innerHTML = '<span style="background:#FDEDEC;color:#c0392b;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600">🔴 To\'lanmagan</span>';
+      badge.innerHTML = '<span style="background:#FEE2E2;color:#DC2626;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600">🔴 To\'lanmagan</span>';
     }
 
     // Tarix
@@ -1477,7 +1477,7 @@ async function loadPayments(orderId) {
               ${dStr}${p.received_by ? ' · ' + p.received_by : ''}${p.notes ? ' · ' + p.notes : ''}
             </div>
           </div>
-          <button onclick="deletePayment(${p.id})" style="width:24px;height:24px;border-radius:50%;background:#FEE;border:none;color:#C0392B;font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
+          <button onclick="deletePayment(${p.id})" style="width:24px;height:24px;border-radius:50%;background:#FEE;border:none;color:#DC2626;font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
         </div>`;
     }).join('');
   } catch(e) {
@@ -1661,14 +1661,14 @@ function addItem() {
       <div class="dif"><label>1 m³ narxi</label>
         <input type="text" class="i-m3price" placeholder="asosiy"
                oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"
-               style="border-color:#C9A55A">
+               style="border-color:#2563EB">
       </div>
     </div>
     <div class="detal-result">
       <span>Hajm: <input type="text" class="i-vol" readonly style="background:transparent;border:none;width:70px;padding:0;font-size:11px;color:#aaa"></span>
-      <span>1m narxi: <input type="text" class="i-perm" readonly style="background:transparent;border:none;width:100px;padding:0;font-size:11px;color:#2980B9"></span>
-      <span class="val">Jami: <input type="text" class="i-price" readonly style="background:transparent;border:none;width:110px;padding:0;font-size:12px;color:#27AE60;font-weight:600"></span>
-      <span class="i-peno-warn" style="display:none;font-size:11px;color:#E67E22;font-weight:600"></span>
+      <span>1m narxi: <input type="text" class="i-perm" readonly style="background:transparent;border:none;width:100px;padding:0;font-size:11px;color:#0EA5E9"></span>
+      <span class="val">Jami: <input type="text" class="i-price" readonly style="background:transparent;border:none;width:110px;padding:0;font-size:12px;color:#22C55E;font-weight:600"></span>
+      <span class="i-peno-warn" style="display:none;font-size:11px;color:#F59E0B;font-weight:600"></span>
     </div>`;
   const container = document.getElementById('items');
   container.prepend(div);
@@ -1929,7 +1929,7 @@ function updateTotal() {
             <div style="font-weight:500;color:#111">${name || ('Detal #'+(i+1))}</div>
             <div style="font-size:11px;color:#aaa">${qtyText}</div>
           </div>
-          <div style="font-weight:600;color:#2980B9">${Number(price).toLocaleString('ru-RU')} so'm</div>
+          <div style="font-weight:600;color:#0EA5E9">${Number(price).toLocaleString('ru-RU')} so'm</div>
         </div>`;
     }
   });
@@ -1938,9 +1938,9 @@ function updateTotal() {
   html += `
     <div style="display:flex;justify-content:space-between;align-items:center;
                 padding:10px 0 0;font-size:15px;font-weight:700;
-                border-top:2px solid #C9A55A;margin-top:6px">
+                border-top:2px solid #2563EB;margin-top:6px">
       <span>JAMI:</span>
-      <span style="color:#C9A55A">${Number(total).toLocaleString('ru-RU')} so'm</span>
+      <span style="color:#2563EB">${Number(total).toLocaleString('ru-RU')} so'm</span>
     </div>`;
 
   if (liveBody) liveBody.innerHTML = html;
@@ -1973,13 +1973,13 @@ function calcDiscount() {
   if (discount > 0) {
     const pct = (discount / total * 100).toFixed(1);
     di.innerHTML = `📉 <b>Chegirma:</b> ${formatNum(discount)} so'm (${pct}%) — Jami: ${formatNum(total)} → <b>${formatNum(finalPrice)} so'm</b>`;
-    di.style.background = '#FEF9E7'; di.style.color = '#b7770d';
+    di.style.background = '#FEF3C7'; di.style.color = '#b7770d';
   } else if (discount < 0) {
     di.innerHTML = `📈 Standartdan ortiq: +${formatNum(Math.abs(discount))} so'm`;
-    di.style.background = '#EBF5FB'; di.style.color = '#1a6fa8';
+    di.style.background = '#EFF6FF'; di.style.color = '#1a6fa8';
   } else {
     di.innerHTML = '✓ Chegirmasiz — standart narxda';
-    di.style.background = '#E9F7EF'; di.style.color = '#1e7e34';
+    di.style.background = '#DCFCE7'; di.style.color = '#1e7e34';
   }
   calcDebt();
 }
@@ -2003,13 +2003,13 @@ function calcDebt() {
 
   if (debt > 0) {
     dbi.innerHTML = `💰 Kelishilgan: <b>${formatNum(agreed)}</b> — Zaklat: <b>${formatNum(zaklat)}</b><br>🔴 <b>Qarz qoladi: ${formatNum(debt)} so'm</b>`;
-    dbi.style.background = '#FDEDEC'; dbi.style.color = '#c0392b';
+    dbi.style.background = '#FEE2E2'; dbi.style.color = '#DC2626';
   } else if (debt === 0) {
     dbi.innerHTML = `✅ <b>To'liq to'landi!</b> Buyurtma avtomatik yopiladi.`;
-    dbi.style.background = '#E9F7EF'; dbi.style.color = '#1e7e34';
+    dbi.style.background = '#DCFCE7'; dbi.style.color = '#1e7e34';
   } else {
     dbi.innerHTML = `⚠️ Ortiqcha to'lov: +${formatNum(Math.abs(debt))} so'm`;
-    dbi.style.background = '#EBF5FB'; dbi.style.color = '#1a6fa8';
+    dbi.style.background = '#EFF6FF'; dbi.style.color = '#1a6fa8';
   }
 }
 
@@ -2211,7 +2211,7 @@ async function editSelected() {
           row.dataset.dlvUnit = dlvInfo.unit;
           const badge = row.querySelector('.detal-badge');
           if (badge) {
-            badge.innerHTML += ` <span style="background:#FEF9E7;color:#b7770d;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px">📦 ${dlvInfo.delivered} ${dlvInfo.unit} topshirilgan</span>`;
+            badge.innerHTML += ` <span style="background:#FEF3C7;color:#b7770d;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px">📦 ${dlvInfo.delivered} ${dlvInfo.unit} topshirilgan</span>`;
           }
           // O'chirish tugmasini bloklaymiz
           const rm = row.querySelector('.detal-rm');
@@ -2275,8 +2275,8 @@ async function editSelected() {
         if (Object.keys(dlvMap).length) {
           const eb2 = document.getElementById('editBanner');
           if (eb2) {
-            eb2.style.background = '#FEF9E7';
-            eb2.style.borderColor = '#F5CBA7';
+            eb2.style.background = '#FEF3C7';
+            eb2.style.borderColor = '#FDE68A';
             eb2.innerHTML = `
               <div style="font-size:13px;font-weight:600;color:#b7770d">📦 Bu buyurtmada mahsulot topshirila boshlagan (${dd.delivery_percent}%)</div>
               <div style="font-size:11px;color:#997;margin-top:3px">Topshirilgan miqdordan kam qilib bo'lmaydi. Yangi detal qo'shish yoki miqdorni oshirish mumkin.</div>`;
@@ -2530,7 +2530,7 @@ async function loadProfit() {
   const sP = document.getElementById('s-profit');
   if (pR && sC) { pR.style.display='flex'; sC.textContent=Number(d.tan_narxi).toLocaleString('ru-RU')+' so\'m'; }
   if (pR2 && sP) { pR2.style.display='flex'; sP.textContent=Number(d.foyda).toLocaleString('ru-RU')+' so\'m ('+d.foyda_foiz+'%)'; }
-  if (sP) sP.style.color = d.foyda >= 0 ? '#C9A55A' : '#E74C3C';
+  if (sP) sP.style.color = d.foyda >= 0 ? '#2563EB' : '#EF4444';
 
   // Tafsilot modali
   let modal = document.getElementById('profitModal');
@@ -2548,7 +2548,7 @@ async function loadProfit() {
                   b.nomi.toLowerCase().includes('usta') ? '👷' : '🎨';
       return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px">
         <span style="color:#555">${ico} ${b.nomi}</span>
-        <span style="font-weight:600;color:#E74C3C">−${Number(b.summa).toLocaleString('ru-RU')} so'm</span>
+        <span style="font-weight:600;color:#EF4444">−${Number(b.summa).toLocaleString('ru-RU')} so'm</span>
       </div>`;
     }).join('');
   } else {
@@ -2562,17 +2562,17 @@ async function loadProfit() {
       <div style="font-size:16px;font-weight:600;margin-bottom:16px">💰 Foyda tahlili</div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
-        <div style="background:#EBF5FB;border-radius:8px;padding:12px;text-align:center">
+        <div style="background:#EFF6FF;border-radius:8px;padding:12px;text-align:center">
           <div style="font-size:11px;color:#aaa;margin-bottom:4px">Sotuv narxi</div>
-          <div style="font-size:14px;font-weight:600;color:#2980B9">${Number(d.sotuv_narxi).toLocaleString('ru-RU')} so'm</div>
+          <div style="font-size:14px;font-weight:600;color:#0EA5E9">${Number(d.sotuv_narxi).toLocaleString('ru-RU')} so'm</div>
         </div>
-        <div style="background:#FDEDEC;border-radius:8px;padding:12px;text-align:center">
+        <div style="background:#FEE2E2;border-radius:8px;padding:12px;text-align:center">
           <div style="font-size:11px;color:#aaa;margin-bottom:4px">Tan narxi</div>
-          <div style="font-size:14px;font-weight:600;color:#E74C3C">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</div>
+          <div style="font-size:14px;font-weight:600;color:#EF4444">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</div>
         </div>
-        <div style="background:${d.foyda>=0?'#E9F7EF':'#FDEDEC'};border-radius:8px;padding:12px;text-align:center;border:2px solid ${d.foyda>=0?'#27AE60':'#E74C3C'}">
+        <div style="background:${d.foyda>=0?'#DCFCE7':'#FEE2E2'};border-radius:8px;padding:12px;text-align:center;border:2px solid ${d.foyda>=0?'#22C55E':'#EF4444'}">
           <div style="font-size:11px;color:#aaa;margin-bottom:4px">Foyda</div>
-          <div style="font-size:14px;font-weight:600;color:${d.foyda>=0?'#27AE60':'#E74C3C'}">${Number(d.foyda).toLocaleString('ru-RU')} so'm</div>
+          <div style="font-size:14px;font-weight:600;color:${d.foyda>=0?'#22C55E':'#EF4444'}">${Number(d.foyda).toLocaleString('ru-RU')} so'm</div>
           <div style="font-size:10px;color:#aaa">${d.foyda_foiz}%</div>
         </div>
       </div>
@@ -2582,7 +2582,7 @@ async function loadProfit() {
         ${breakdownHTML}
         <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-weight:700;border-top:2px solid #ddd;margin-top:6px">
           <span>Jami tan narxi:</span>
-          <span style="color:#E74C3C">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</span>
+          <span style="color:#EF4444">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</span>
         </div>
       </div>
     </div>`;
