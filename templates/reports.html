@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}Hisobotlar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Hisobotlar{% endblock %}
+{% block page_sub %}Ombor, sotuv, moliya va ishlab chiqarish bo'yicha umumiy tahlil{% endblock %}
+
+{% block head %}
+<style>
+.rep-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.rep-tab{padding:8px 14px;font-size:12.5px;font-weight:500;border-radius:8px;border:1px solid var(--border);background:var(--white);color:var(--text2);cursor:pointer}
+.rep-tab.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+.rep-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.rep-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.rep-table th{text-align:left;padding:10px 12px;color:var(--text3);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)}
+.rep-table td{padding:10px 12px;border-bottom:1px solid var(--border2)}
+.rep-table tbody tr:hover{background:var(--bg)}
+@media print{
+  .sidebar,.topbar,.rep-tabs,.rep-toolbar,.no-print{display:none !important}
+  body,.erp-content{background:#fff !important}
+}
+</style>
+{% endblock %}
+
+{% block topbar_actions %}
+<select id="periodSel" onchange="loadReport()" style="height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px">
+  <option value="30">Oxirgi 30 kun</option>
+  <option value="90" selected>Oxirgi 90 kun</option>
+  <option value="180">Oxirgi 6 oy</option>
+  <option value="365">Oxirgi 1 yil</option>
+</select>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content">
+
+  <div class="rep-tabs" id="repTabs">
+    <button class="rep-tab active" data-r="inventory" onclick="switchReport('inventory')">📦 Ombor</button>
+    <button class="rep-tab" data-r="sales" onclick="switchReport('sales')">💰 Sotuv</button>
+    <button class="rep-tab" data-r="products" onclick="switchReport('products')">🏭 Mahsulotlar</button>
+    <button class="rep-tab" data-r="masters" onclick="switchReport('masters')">👷 Hamkor ustalar / KPI</button>
+    <button class="rep-tab" data-r="finance" onclick="switchReport('finance')">📊 Moliya</button>
+    <button class="rep-tab" data-r="production" onclick="switchReport('production')">⚙️ Ishlab chiqarish</button>
+    <button class="rep-tab" data-r="top-products" onclick="switchReport('top-products')">🏆 Eng foydali mahsulotlar</button>
+    <button class="rep-tab" data-r="top-materials" onclick="switchReport('top-materials')">🧱 Eng ko'p ishlatilgan xomashyo</button>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3 id="repTitle">Ombor hisoboti</h3>
+      <div style="display:flex;gap:6px" class="no-print">
+        <button class="btn btn-outline btn-sm" onclick="exportCSV()"><i class="ti ti-file-spreadsheet" style="font-size:13px;vertical-align:-2px"></i> Excel</button>
+        <button class="btn btn-outline btn-sm" onclick="window.print()"><i class="ti ti-file-type-pdf" style="font-size:13px;vertical-align:-2px"></i> PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="window.print()"><i class="ti ti-printer" style="font-size:13px;vertical-align:-2px"></i> Chop etish</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="stat-grid mb-16" id="repSummary"></div>
+      <div style="overflow-x:auto">
+        <table class="rep-table" id="repTable">
+          <thead id="repThead"></thead>
+          <tbody id="repBody"><tr><td style="text-align:center;padding:30px;color:var(--text3)">Yuklanmoqda...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentReport = 'inventory';
+let currentRows = [];
+let currentHeaders = [];
+
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+
+const TITLES = {
+  'inventory': 'Ombor hisoboti', 'sales': 'Sotuv hisoboti', 'products': 'Mahsulotlar hisoboti',
+  'masters': 'Hamkor ustalar / KPI hisoboti', 'finance': 'Moliyaviy hisobot', 'production': 'Ishlab chiqarish hisoboti',
+  'top-products': 'Eng foydali mahsulotlar', 'top-materials': 'Eng ko\'p ishlatilgan xomashyo'
+};
+
+function switchReport(r) {
+  currentReport = r;
+  document.querySelectorAll('.rep-tab').forEach(b => b.classList.toggle('active', b.dataset.r === r));
+  document.getElementById('repTitle').textContent = TITLES[r];
+  loadReport();
+}
+
+function setSummary(cards) {
+  document.getElementById('repSummary').innerHTML = cards.map(c => `
+    <div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-val" style="font-size:18px">${c[1]}</div></div>`).join('');
+}
+
+function setTable(headers, rows) {
+  currentHeaders = headers.map(h => h[0]);
+  currentRows = rows;
+  document.getElementById('repThead').innerHTML = '<tr>' + headers.map(h => `<th>${h[0]}</th>`).join('') + '</tr>';
+  if (!rows.length) {
+    document.getElementById('repBody').innerHTML = `<tr><td colspan="${headers.length}" style="text-align:center;padding:30px;color:var(--text3)">Ma'lumot yo'q</td></tr>`;
+    return;
+  }
+  document.getElementById('repBody').innerHTML = rows.map(row => '<tr>' + headers.map(h => `<td>${h[1](row)}</td>`).join('') + '</tr>').join('');
+}
+
+async function loadReport() {
+  const days = document.getElementById('periodSel').value;
+  document.getElementById('repSummary').innerHTML = '';
+  document.getElementById('repBody').innerHTML = '<tr><td style="text-align:center;padding:30px;color:var(--text3)">Yuklanmoqda...</td></tr>';
+
+  try {
+    if (currentReport === 'inventory') await loadInventoryReport();
+    else if (currentReport === 'sales') await loadSalesReport(days);
+    else if (currentReport === 'products') await loadProductsReport();
+    else if (currentReport === 'masters') await loadMastersReport();
+    else if (currentReport === 'finance') await loadFinanceReport();
+    else if (currentReport === 'production') await loadProductionReport();
+    else if (currentReport === 'top-products') await loadTopProducts(days);
+    else if (currentReport === 'top-materials') await loadTopMaterials(days);
+  } catch(e) {
+    document.getElementById('repBody').innerHTML = `<tr><td style="text-align:center;padding:30px;color:#DC2626">Yuklashda xato</td></tr>`;
+    console.error(e);
+  }
+}
+
+async function loadInventoryReport() {
+  const [items, kpi] = await Promise.all([
+    fetch('/api/inventory').then(r=>r.json()),
+    fetch('/api/inventory/kpi').then(r=>r.json())
+  ]);
+  setSummary([
+    ["Jami xomashyo turi", kpi.total_items + ' tur'],
+    ["Kam qolganlar", kpi.low_count + ' tur'],
+    ["Ombor qiymati", fmt(kpi.total_value) + " so'm"],
+  ]);
+  setTable([
+    ["Nomi", i => i.item_name],
+    ["Kategoriya", i => i.category || '—'],
+    ["Qoldiq", i => `${i.stock_quantity} ${i.unit}`],
+    ["Min. qoldiq", i => `${i.min_stock} ${i.unit}`],
+    ["1 birlik narxi", i => fmt(i.price_per_unit) + " so'm"],
+    ["Jami qiymat", i => fmt(i.stock_quantity * (i.price_per_unit||0)) + " so'm"],
+  ], items);
+}
+
+async function loadSalesReport(days) {
+  const months = Math.max(1, Math.round(days/30));
+  const hist = await fetch(`/api/finance/history?months=${months}`).then(r=>r.json());
+  const totalRevenue = hist.reduce((s,h)=>s+h.daromad,0);
+  const totalOrders = hist.reduce((s,h)=>s+h.buyurtmalar_soni,0);
+  setSummary([
+    ["Jami daromad", fmt(totalRevenue) + " so'm"],
+    ["Jami buyurtmalar", totalOrders + ' ta'],
+    ["O'rtacha oylik", fmt(totalRevenue/Math.max(1,hist.length)) + " so'm"],
+  ]);
+  const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+  setTable([
+    ["Oy", h => MONTH_NAMES[h.month]+' '+h.year],
+    ["Daromad", h => fmt(h.daromad) + " so'm"],
+    ["Buyurtmalar soni", h => h.buyurtmalar_soni + ' ta'],
+    ["Sof foyda", h => fmt(h.sof_foyda) + " so'm"],
+    ["Rentabellik", h => h.foyda_foiz + '%'],
+  ], hist);
+}
+
+async function loadProductsReport() {
+  const [items, stats] = await Promise.all([
+    fetch('/api/finished').then(r=>r.json()),
+    fetch('/api/finished/stats').then(r=>r.json())
+  ]);
+  setSummary([
+    ["Ishlab chiqarilgan turlari", stats.produced_count + ' tur'],
+    ["Qaytgan turlari", stats.returned_count + ' tur'],
+    ["Jami qiymat", fmt(stats.total_value) + " so'm"],
+  ]);
+  setTable([
+    ["Nomi", i => i.name],
+    ["Manba", i => i.source === 'produced' ? 'Ishlab chiqarilgan' : 'Qaytgan'],
+    ["Qoldiq", i => `${i.quantity} ${i.unit}`],
+    ["Sotuv narxi", i => fmt(i.unit_price) + " so'm"],
+    ["Jami qiymat", i => fmt(i.total_value) + " so'm"],
+  ], items);
+}
+
+async function loadMastersReport() {
+  const year = new Date().getFullYear();
+  const rep = await fetch(`/api/masters/kpi-report?year=${year}&include_inactive=true`).then(r=>r.json());
+  setSummary([
+    ["Hamkor ustalar", rep.masters.length + ' ta'],
+    ["Jami bonus (yillik)", fmt(rep.total_gift) + " so'm"],
+    ["Hisob yili", String(year)],
+  ]);
+  setTable([
+    ["Ism", m => m.name],
+    ["Hudud", m => m.region || '—'],
+    ["Buyurtmalar", m => m.orders_count + ' ta'],
+    ["Yillik savdo", m => fmt(m.yearly_sales) + " so'm"],
+    ["Yillik foyda", m => fmt(m.yearly_profit) + " so'm"],
+    ["KPI %", m => m.kpi_percent + '%'],
+    ["Bonus", m => fmt(m.gift_amount) + " so'm"],
+  ], rep.masters);
+}
+
+async function loadFinanceReport() {
+  const days = document.getElementById('periodSel').value;
+  const months = Math.max(1, Math.round(days/30));
+  const hist = await fetch(`/api/finance/history?months=${months}`).then(r=>r.json());
+  const revenue = hist.reduce((s,h)=>s+h.daromad,0);
+  const expense = hist.reduce((s,h)=>s+h.jami_xarajat,0);
+  const profit = hist.reduce((s,h)=>s+h.sof_foyda,0);
+  setSummary([
+    ["Jami daromad", fmt(revenue) + " so'm"],
+    ["Jami xarajat", fmt(expense) + " so'm"],
+    ["Sof foyda", fmt(profit) + " so'm"],
+  ]);
+  const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+  setTable([
+    ["Oy", h => MONTH_NAMES[h.month]+' '+h.year],
+    ["Daromad", h => fmt(h.daromad) + " so'm"],
+    ["Xarajat", h => fmt(h.jami_xarajat) + " so'm"],
+    ["Sof foyda", h => fmt(h.sof_foyda) + " so'm"],
+    ["Rentabellik", h => h.foyda_foiz + '%'],
+  ], hist);
+}
+
+async function loadProductionReport() {
+  const [stats, items] = await Promise.all([
+    fetch('/api/finished/stats').then(r=>r.json()),
+    fetch('/api/finished?source=produced').then(r=>r.json())
+  ]);
+  setSummary([
+    ["Ishlab chiqarilmoqda", stats.in_progress_count + ' tur'],
+    ["Tayyor", stats.produced_count + ' tur'],
+    ["Ishlab chiqarish qiymati", fmt(stats.produced_value) + " so'm"],
+  ]);
+  setTable([
+    ["Nomi", i => i.name],
+    ["Holati", i => i.production_status === 'in_progress' ? "Jarayonda" : "Tayyor"],
+    ["Miqdor", i => `${i.quantity} ${i.unit}`],
+    ["Sarflangan penoplast", i => (i.volume_m3||0).toFixed(3) + ' m³'],
+    ["Tan narxi", i => fmt(i.cost_price) + " so'm"],
+  ], items);
+}
+
+async function loadTopProducts(days) {
+  const rows = await fetch(`/api/reports/top-products?days=${days}`).then(r=>r.json());
+  const totalRev = rows.reduce((s,r)=>s+r.revenue,0);
+  setSummary([
+    ["Tahlil davri", days + ' kun'],
+    ["Jami daromad (TOP mahsulotlar)", fmt(totalRev) + " so'm"],
+    ["Mahsulot turi", rows.length + ' ta'],
+  ]);
+  setTable([
+    ["Mahsulot nomi", r => r.name],
+    ["Buyurtmalar soni", r => r.times_ordered + ' marta'],
+    ["Jami miqdor", r => r.quantity],
+    ["Jami daromad", r => fmt(r.revenue) + " so'm"],
+  ], rows);
+}
+
+async function loadTopMaterials(days) {
+  const rows = await fetch(`/api/reports/top-materials?days=${days}`).then(r=>r.json());
+  setSummary([
+    ["Tahlil davri", days + ' kun'],
+    ["Xomashyo turi", rows.length + ' ta'],
+    ["Jami harakatlar", rows.reduce((s,r)=>s+r.movement_count,0) + ' ta'],
+  ]);
+  setTable([
+    ["Xomashyo nomi", r => r.item_name],
+    ["Jami sarflangan", r => `${r.total_qty} ${r.unit||''}`],
+    ["Harakatlar soni", r => r.movement_count + ' marta'],
+  ], rows);
+}
+
+function exportCSV(){
+  if (!currentRows.length) { alert('Avval ma\'lumot yuklanishini kuting'); return; }
+  const bodyRows = document.querySelectorAll('#repBody tr');
+  let csv = currentHeaders.join(';') + '\n';
+  bodyRows.forEach(tr => {
+    const cells = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim().replace(/;/g,','));
+    csv += cells.join(';') + '\n';
+  });
+  const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `hisobot_${currentReport}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+loadReport();
+</script>
+{% endblock %}
