@@ -347,6 +347,8 @@ class OrderItem(Base):
     unit_price = Column(Numeric(12, 2), default=0)
     total_price = Column(Numeric(12, 2), default=0)
 
+    image_url = Column(String(255), nullable=True)  # Mahsulot rasmi (ixtiyoriy, hisob-kitobga ta'sir qilmaydi)
+
     notes = Column(Text, nullable=True)
 
     order = relationship("Order", back_populates="items")
@@ -685,6 +687,26 @@ class Payment(Base):
 
     def __repr__(self):
         return f"<Payment {self.amount} ({self.payment_type.value})>"
+
+
+# ============================================================
+# 12b. ORDER ATTACHMENT — Buyurtmaga biriktirilgan fayl/rasmlar
+# ============================================================
+
+class OrderAttachment(Base):
+    """Buyurtmaga biriktirilgan umumiy fayl yoki rasmlar (obyekt fotosi, hujjat va h.k.).
+    Hisob-kitobga hech qanday ta'siri yo'q — faqat ma'lumot uchun."""
+    __tablename__ = "order_attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+
+    file_url = Column(String(255), nullable=False)
+    file_name = Column(String(150), nullable=True)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_by = Column(String(100), nullable=True)
+
+    order = relationship("Order")
 
 
 # ============================================================
