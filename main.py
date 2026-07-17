@@ -1448,6 +1448,16 @@ def api_notifications(db: Session = Depends(get_db), current_user=Depends(auth.r
     return services.get_notifications(db)
 
 
+@app.get("/api/dashboard/today-tasks")
+def api_today_tasks(db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
+    return services.get_today_tasks(db)
+
+
+@app.get("/api/dashboard/production-periods")
+def api_production_periods(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+    return services.get_production_period_stats(db)
+
+
 @app.get("/api/inventory/movements")
 def api_inventory_movements(item_id: Optional[int] = None, movement_type: Optional[str] = None,
                              order_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db)):
@@ -1512,8 +1522,8 @@ async def reports_page(request: Request, db: Session = Depends(get_db), current_
 
 
 @app.get("/api/reports/top-products")
-def api_reports_top_products(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    return services.get_top_products_report(db, days=days)
+def api_reports_top_products(days: int = 90, limit: int = 15, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_top_products_report(db, days=days, limit=limit)
 
 
 @app.get("/api/reports/top-materials")
