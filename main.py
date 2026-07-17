@@ -92,6 +92,11 @@ def _migrate_payment_columns():
             if 'soliqlar' not in me_cols:
                 migrations.append("ALTER TABLE monthly_expenses ADD COLUMN soliqlar NUMERIC(12,2) DEFAULT 0")
 
+        # Inventory — category ustuni + avtomatik taxmin
+        inv_cols_pre = [c['name'] for c in inspector.get_columns('inventory')]
+        if 'category' not in inv_cols_pre:
+            migrations.append("ALTER TABLE inventory ADD COLUMN category VARCHAR(50)")
+
         # InventoryPurchase — supplier ustunlari
         if 'inventory_purchases' in inspector.get_table_names():
             ip_cols = [c['name'] for c in inspector.get_columns('inventory_purchases')]
@@ -99,6 +104,8 @@ def _migrate_payment_columns():
                 migrations.append("ALTER TABLE inventory_purchases ADD COLUMN supplier_id INTEGER")
             if 'is_credit' not in ip_cols:
                 migrations.append("ALTER TABLE inventory_purchases ADD COLUMN is_credit BOOLEAN DEFAULT FALSE")
+            if 'category' not in ip_cols:
+                migrations.append("ALTER TABLE inventory_purchases ADD COLUMN category VARCHAR(50)")
 
         # Delivery — transport ustunlari
         if 'deliveries' in inspector.get_table_names():
@@ -199,6 +206,23 @@ def _migrate_payment_columns():
                     "UPDATE orders SET agreed_amount = total_amount "
                     "WHERE agreed_amount IS NULL OR agreed_amount = 0"
                 ))
+                conn.commit()
+            except Exception:
+                pass
+
+            # Mavjud xomashyolarga kategoriya taxmin qilib qo'yamiz
+            try:
+                conn.execute(text("""
+                    UPDATE inventory SET category = CASE
+                        WHEN is_penoplast = TRUE OR LOWER(item_name) LIKE '%penoplast%' THEN 'Penoplast'
+                        WHEN LOWER(item_name) LIKE '%qum%' OR LOWER(item_name) LIKE '%kroshka%' THEN 'Qumlar'
+                        WHEN LOWER(item_name) LIKE '%akril%' OR LOWER(item_name) LIKE '%pva%'
+                             OR LOWER(item_name) LIKE '%zagustitel%' OR LOWER(item_name) LIKE '%penogasitel%'
+                             OR LOWER(item_name) LIKE '%mel%' OR LOWER(item_name) LIKE '%shtukaturka%' THEN 'Kimyoviy moddalar'
+                        ELSE 'Boshqa'
+                    END
+                    WHERE category IS NULL
+                """))
                 conn.commit()
             except Exception:
                 pass
@@ -507,6 +531,15 @@ def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = De
     return updated
 
 
+@app.put("/api/inventory/{item_id}")
+def api_update_inventory_item(item_id: int, data: schemas.InventoryUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Xomashyo ma'lumotlarini yangilash (nomi, min qoldiq, kategoriya va h.k.)."""
+    updated = crud.update_item(db, item_id, data)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok", "category": updated.category}
+
+
 @app.post("/api/inventory/{item_id}/purchase")
 def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi."""
@@ -518,6 +551,19 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
 
     item = result["item"]
+
+    # Transport — "O'z hisobimdan" tanlansa xarajat sifatida yoziladi
+    if data.transport_payer == "self" and data.transport_cost > 0:
+        crud.create_transport_expense(
+            db,
+            schemas.TransportExpenseCreate(
+                amount=data.transport_cost,
+                materials_note=item.item_name,
+                notes=f"{item.item_name} xaridi bilan birga"
+            ),
+            created_by=who
+        )
+
     return {
         "status": "ok",
         "item_name": item.item_name,
