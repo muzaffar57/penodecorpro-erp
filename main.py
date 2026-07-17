@@ -460,6 +460,19 @@ async def inventory_page(request: Request, db: Session = Depends(get_db), curren
     return templates.TemplateResponse(request, "inventory.html", {"items": items, "kpi": kpi, "suppliers": suppliers, "current_user": current_user, "active_page": "inventory"})
 
 
+@app.post("/api/inventory/{item_id}/image")
+def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                                current_user=Depends(auth.admin_only)):
+    from models import Inventory
+    item = db.query(Inventory).filter(Inventory.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
+    url = _save_upload(file, "inventory", ALLOWED_IMAGE_EXT)
+    item.image_url = url
+    db.commit()
+    return {"image_url": url}
+
+
 @app.get("/api/inventory/kpi")
 def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     return services.get_inventory_kpi(db)
