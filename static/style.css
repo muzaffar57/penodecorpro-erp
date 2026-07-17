@@ -8,6 +8,12 @@
 * {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
+/* Barcha ikonkalar uchun standart o'lcham — Bosh sahifadagi bilan bir xil.
+   Kerak bo'lgan joyda (masalan kichik tugmalar, sidebar) alohida
+   belgilangan o'lcham bundan ustun turadi. */
+.ti {
+  font-size: 19px;
+}
 
 :root {
   --sidebar-w: 240px;
