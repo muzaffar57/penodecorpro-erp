@@ -616,6 +616,7 @@ class FinishedProduct(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
+    image_url = Column(String(255), nullable=True)  # Faqat UI uchun — hisob-kitobga ta'siri yo'q
 
     @property
     def loy_kg(self):
