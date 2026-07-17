@@ -115,6 +115,7 @@ class StockPurchase(BaseModel):
     is_credit: bool = Field(default=False, description="Nasiya (keyin to'lash) bilan olindimi")
     transport_cost: float = Field(default=0, ge=0)
     transport_payer: str = Field(default="none", description="none/self/supplier")
+    volume_per_unit: Optional[float] = Field(default=None, gt=0, description="Penoplast uchun: 1 blok necha m³")
 
 
 class SupplierCreate(BaseModel):
@@ -133,6 +134,14 @@ class SupplierUpdate(BaseModel):
 class SupplierPaymentCreate(BaseModel):
     supplier_id: int
     amount: float = Field(..., gt=0)
+    notes: Optional[str] = None
+
+
+class PurchaseUpdate(BaseModel):
+    """Xarid yozuvini tahrirlash — faqat berilgan maydonlar o'zgaradi."""
+    quantity: Optional[float] = Field(default=None, gt=0)
+    price_per_unit: Optional[float] = Field(default=None, gt=0)
+    is_credit: Optional[bool] = None
     notes: Optional[str] = None
 
 
