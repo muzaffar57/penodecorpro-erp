@@ -24,6 +24,7 @@ def create_master(db: Session, master_data: MasterCreate) -> Master:
         phone=master_data.phone,
         cashback_percent=master_data.cashback_percent,
         telegram_id=master_data.telegram_id,
+        region=master_data.region,
         notes=master_data.notes,
         is_active=True
     )
@@ -2677,13 +2678,17 @@ def update_master_kpi(db: Session, master_id: int, kpi_percent: float) -> Option
     return m
 
 
-def get_masters_kpi_report(db: Session, year: int) -> dict:
-    """Har usta uchun yillik SOF FOYDA, KPI% va hisoblangan sovg'a."""
+def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = False) -> dict:
+    """Har usta uchun yillik SOF FOYDA, KPI% va hisoblangan sovg'a.
+    include_inactive=False bo'lsa — avvalgidek faqat faol ustalar (eski xatti-harakat saqlanadi)."""
     import services
     from models import Order, OrderStatus
     from sqlalchemy import extract
 
-    masters = db.query(Master).filter(Master.is_active == True).all()
+    q = db.query(Master)
+    if not include_inactive:
+        q = q.filter(Master.is_active == True)
+    masters = q.all()
     rows = []
     total_gift = 0.0
 
@@ -2707,14 +2712,22 @@ def get_masters_kpi_report(db: Session, year: int) -> dict:
         gift = yearly_profit * (m.kpi_percent or 0) / 100
         total_gift += gift
 
+        last_order = db.query(Order).filter(
+            Order.master_id == m.id, Order.status == OrderStatus.READY
+        ).order_by(Order.completed_at.desc()).first()
+
         rows.append({
             "id": m.id,
             "name": m.name,
+            "phone": m.phone,
+            "region": m.region,
+            "is_active": m.is_active,
             "kpi_percent": m.kpi_percent or 0,
             "yearly_sales": round(yearly_sales),
             "yearly_profit": round(yearly_profit),
             "orders_count": len(orders),
-            "gift_amount": round(gift)
+            "gift_amount": round(gift),
+            "last_order_date": last_order.completed_at.isoformat() if last_order and last_order.completed_at else None
         })
 
     rows.sort(key=lambda x: x["gift_amount"], reverse=True)
