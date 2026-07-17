@@ -4,213 +4,158 @@
 {% block page_sub %}Xomashyo va materiallar qoldig'i{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#0EA5E9;color:#0EA5E9">📋 Ombor hisoboti SMS</button>
-<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444">📢 Kam qoldiqlar SMS</button>
-<button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()" style="border-color:#22C55E;color:#1e7e34">🧾 Xaridlar tarixi</button>
-<button class="btn btn-dark" onclick="showAddModal()">+ Xomashyo qo'shish</button>
+<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#0EA5E9;color:#0EA5E9"><i class="ti ti-clipboard-list" style="font-size:13px;vertical-align:-2px"></i> Ombor hisoboti SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444"><i class="ti ti-bell" style="font-size:13px;vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
+<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="font-size:13px;vertical-align:-2px"></i> Xomashyo qo'shish</button>
 {% endblock %}
 
 {% block head %}
 <style>
-.inv-grid{display:grid;grid-template-columns:1fr 340px;gap:14px;height:calc(100vh - 90px)}
-.inv-table-wrap{overflow-y:auto}
-.stock-bar{height:4px;background:#f0f0f0;border-radius:2px;margin-top:6px}
-.stock-fill{height:100%;border-radius:2px;background:#22C55E}
-.stock-fill.warn{background:#F59E0B}
-.stock-fill.danger{background:#EF4444}
-.qty-input{width:80px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;text-align:center;outline:none}
-.qty-input:focus{border-color:#2563EB}
+.inv-kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+@media (max-width:1200px){.inv-kpi-grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:700px){.inv-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.inv-filters{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.inv-filters input,.inv-filters select{height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--white)}
+.inv-filters input:focus,.inv-filters select:focus{border-color:var(--gold)}
+.inv-search{flex:1;min-width:180px}
+.mat-row{display:grid;grid-template-columns:2.2fr 1.3fr 1fr .9fr 1fr 1.1fr;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:10px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:matFadeIn .3s ease forwards}
+@keyframes matFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.mat-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
+@media (max-width:1100px){.mat-row{grid-template-columns:1.8fr 1fr .8fr;row-gap:10px}
+  .mat-col-min,.mat-col-updated{display:none}}
+@media (max-width:640px){.mat-row{grid-template-columns:1fr}}
+.mat-name{font-size:13.5px;font-weight:500;color:var(--text)}
+.mat-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.cat-badge{display:inline-block;font-size:10px;font-weight:500;padding:2px 9px;border-radius:20px;margin-top:5px}
+.cat-Penoplast{background:#E6F1FB;color:#0C447C}
+.cat-Kimyoviy{background:#F3E8FF;color:#6B21A8}
+.cat-Qattiq{background:#FEF3C7;color:#854F0B}
+.cat-Boshqa{background:var(--border2);color:var(--text2)}
+.cat-Tayyor{background:#DCFCE7;color:#166534}
+.mat-qty-val{font-size:14px;font-weight:600}
+.stat-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px}
+.stat-badge.ok{background:#DCFCE7;color:#166534}
+.stat-badge.warn{background:#FEF3C7;color:#92400E}
+.stat-badge.danger{background:#FEE2E2;color:#991B1B}
+.mat-actions{display:flex;gap:6px;justify-content:flex-end}
+.act-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,border-color .15s;color:var(--text2);font-size:14px}
+.act-btn:hover{background:var(--bg)}
+.act-btn.in{color:#166534;border-color:#BBF7D0}
+.act-btn.in:hover{background:#F0FDF4}
+.act-btn.out{color:#991B1B;border-color:#FECACA}
+.act-btn.out:hover{background:#FEF2F2}
+.act-btn.danger{color:#DC2626}
+.act-btn.danger:hover{background:#FEF2F2}
+.section-label{display:flex;align-items:center;gap:10px;padding:16px 0 8px}
+.section-label span{font-size:11px;font-weight:600;letter-spacing:.5px;white-space:nowrap}
+.section-label .line{flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent)}
+.skeleton{background:linear-gradient(90deg,var(--border2) 25%,var(--bg) 50%,var(--border2) 75%);background-size:200% 100%;animation:sk 1.2s ease-in-out infinite}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.mv-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2);font-size:12.5px}
+.mv-row:last-child{border-bottom:none}
+.mv-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:6px}
+.mv-badge.in{background:#DCFCE7;color:#166534}
+.mv-badge.out{background:#FEE2E2;color:#991B1B}
 </style>
 {% endblock %}
 
 {% block content %}
-<div style="padding:14px;height:calc(100vh - 58px);overflow:hidden">
-<div class="inv-grid">
+<div style="padding:14px;height:calc(100vh - 58px);overflow-y:auto">
 
-  <!-- Jadval -->
-  <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
-    <div class="card-head">
-      <h3 id="inv-title">Xomashyolar</h3>
-      <span id="low-count" style="font-size:11px;color:#EF4444"></span>
-    </div>
-    <div class="inv-table-wrap" style="flex:1">
-      <table class="erp-table" style="width:100%">
-        <thead>
-          <tr>
-            <th>Nomi</th>
-            <th>Qoldi</th>
-            <th>Min</th>
-            <th>Birlik narxi</th>
-            <th>Holat</th>
-            <th>Kirim / Chiqim</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% set peno_items = [] %}
-          {% set normal_items = [] %}
-          {% set loy_items = [] %}
-          {% for it in items %}
-            {% if 'Tayyor loy' in it.item_name %}
-              {% set _ = loy_items.append(it) %}
-            {% elif it.is_penoplast or 'penoplast' in it.item_name|lower %}
-              {% set _ = peno_items.append(it) %}
+  <div class="inv-kpi-grid">
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-boxes"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">{{ kpi.total_items }} tur</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ "%.1f"|format(kpi.total_value/1000000) }} mln</div></div>
+  </div>
+
+  <div class="inv-filters">
+    <input type="text" id="matSearch" class="inv-search" placeholder="Material qidirish..." oninput="filterMaterials()">
+    <select id="catFilter" onchange="filterMaterials()">
+      <option value="">Barcha kategoriya</option>
+      <option value="Penoplast">Penoplast</option>
+      <option value="Kimyoviy qo'shimchalar">Kimyoviy qo'shimchalar</option>
+      <option value="Qattiq qotishmalar">Minerallar</option>
+      <option value="Boshqa">Boshqa</option>
+    </select>
+    <select id="statusFilter" onchange="filterMaterials()">
+      <option value="">Barcha holat</option>
+      <option value="ok">Yetarli</option>
+      <option value="warn">Kam</option>
+      <option value="danger">Tugagan</option>
+    </select>
+    <select id="sortFilter" onchange="filterMaterials()">
+      <option value="name">Nomi bo'yicha</option>
+      <option value="qty_asc">Qoldiq (kamdan-ko'pga)</option>
+      <option value="qty_desc">Qoldiq (ko'pdan-kamga)</option>
+    </select>
+    <button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()"><i class="ti ti-receipt" style="font-size:13px;vertical-align:-2px"></i> Xaridlar tarixi</button>
+    <button class="btn btn-outline btn-sm" onclick="openMovements()"><i class="ti ti-history" style="font-size:13px;vertical-align:-2px"></i> Ombor harakatlari</button>
+  </div>
+
+  <span id="low-count" style="display:none"></span>
+  <div id="matList">
+    {% set peno_items = [] %}
+    {% set normal_items = [] %}
+    {% set loy_items = [] %}
+    {% for it in items %}
+      {% if 'Tayyor loy' in it.item_name %}
+        {% set _ = loy_items.append(it) %}
+      {% elif it.is_penoplast or 'penoplast' in it.item_name|lower %}
+        {% set _ = peno_items.append(it) %}
+      {% else %}
+        {% set _ = normal_items.append(it) %}
+      {% endif %}
+    {% endfor %}
+
+    {% for item in peno_items + normal_items + loy_items %}
+    {% set qty = item.stock_quantity|float %}
+    {% set minq = item.min_stock|float %}
+    {% set pct = [[((qty / minq * 100)|round if minq > 0 else 100), 0]|max, 100]|min %}
+    {% set is_loy = 'Tayyor loy' in item.item_name %}
+    {% set is_peno = item.is_penoplast or 'penoplast' in item.item_name|lower %}
+    {% set cat_label = 'Tayyor loy' if is_loy else (item.category or 'Boshqa') %}
+    {% set cat_class = 'Tayyor' if is_loy else ('Penoplast' if is_peno else (item.category if item.category in ['Kimyoviy qo\'shimchalar','Qattiq qotishmalar'] else 'Boshqa')) %}
+    {% set cat_css = 'cat-Kimyoviy' if cat_class == "Kimyoviy qo'shimchalar" else ('cat-Qattiq' if cat_class == 'Qattiq qotishmalar' else 'cat-' + cat_class) %}
+    {% if qty <= minq %}{% set st = 'danger' %}{% set st_label = 'Tugagan' if qty <= 0 else 'Kam!' %}
+    {% elif qty <= minq * 1.5 %}{% set st = 'warn' %}{% set st_label = 'Oz' %}
+    {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% endif %}
+    <div class="mat-row" style="animation-delay:{{ (loop.index0 % 20) * 0.02 }}s"
+         data-name="{{ item.item_name|lower }}" data-category="{{ item.category or '' }}" data-status="{{ st }}" data-qty="{{ qty }}">
+      <div>
+        <div class="mat-name">
+          {{ item.item_name }}
+          {% if item.is_penoplast %}
+            {% if item.is_default_penoplast %}
+            <span style="font-size:9px;background:var(--gold);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;margin-left:4px">★ Asosiy</span>
             {% else %}
-              {% set _ = normal_items.append(it) %}
+            <button onclick="setDefaultPenoplast({{ item.id }})" style="font-size:9px;background:var(--border2);color:var(--text3);padding:2px 7px;border-radius:10px;border:none;cursor:pointer;margin-left:4px" title="Asosiy qilish">☆ Asosiy qilish</button>
             {% endif %}
-          {% endfor %}
-          {% set n_peno = peno_items|length %}
-          {% set n_normal = normal_items|length %}
-
-          {% if peno_items %}
-          <tr>
-            <td colspan="7" style="padding:0;border:none">
-              <div style="display:flex;align-items:center;gap:10px;padding:4px 0 8px">
-                <span style="font-size:11px;font-weight:600;color:#1E40AF;letter-spacing:.5px;white-space:nowrap">🧱 PENOPLAST (PLOTNOST)</span>
-                <div style="flex:1;height:1px;background:linear-gradient(90deg,#E5DFD3,transparent)"></div>
-              </div>
-            </td>
-          </tr>
           {% endif %}
-
-          {% for item in peno_items + normal_items + loy_items %}
-
-          {% if loop.index0 == n_peno and normal_items %}
-          <tr>
-            <td colspan="7" style="padding:0;border:none">
-              <div style="display:flex;align-items:center;gap:10px;padding:16px 0 8px">
-                <span style="font-size:11px;font-weight:600;color:#888;letter-spacing:.5px;white-space:nowrap">📦 XOMASHYO</span>
-                <div style="flex:1;height:1px;background:linear-gradient(90deg,#eee,transparent)"></div>
-              </div>
-            </td>
-          </tr>
-          {% endif %}
-
-          {% if loop.index0 == n_peno + n_normal and loy_items %}
-          <tr>
-            <td colspan="7" style="padding:0;border:none">
-              <div style="display:flex;align-items:center;gap:10px;padding:16px 0 8px">
-                <span style="font-size:11px;font-weight:600;color:#1e7e34;letter-spacing:.5px;white-space:nowrap">♻️ BUYURTMALARDAN ORTGAN LOY</span>
-                <div style="flex:1;height:1px;background:linear-gradient(90deg,#D5EDDD,transparent)"></div>
-              </div>
-            </td>
-          </tr>
-          {% endif %}
-          {% set qty = item.stock_quantity|float %}
-          {% set minq = item.min_stock|float %}
-          {% set pct = [[((qty / minq * 100)|round if minq > 0 else 100), 0]|max, 100]|min %}
-          {% set is_loy = 'Tayyor loy' in item.item_name %}
-          {% set is_peno = item.is_penoplast or 'penoplast' in item.item_name|lower %}
-          <tr {% if is_loy %}style="background:#FAFDFB"{% elif is_peno %}style="background:#FEFCF7"{% endif %}>
-            <td>
-              <div style="font-weight:500;color:#111;display:flex;align-items:center;gap:6px">
-                {{ item.item_name }}
-                {% if is_loy %}
-                <span style="font-size:9px;background:#DCFCE7;color:#1e7e34;padding:2px 7px;border-radius:10px;font-weight:600">♻️ ZAXIRA</span>
-                {% endif %}
-                {% if item.is_penoplast %}
-                  {% if item.is_default_penoplast %}
-                  <span style="font-size:9px;background:#2563EB;color:#fff;padding:2px 7px;border-radius:10px;font-weight:600">⭐ ASOSIY</span>
-                  {% else %}
-                  <button onclick="setDefaultPenoplast({{ item.id }})" style="font-size:9px;background:#f5f5f5;color:#888;padding:2px 7px;border-radius:10px;border:none;cursor:pointer" title="Asosiy qilish">☆ Asosiy qilish</button>
-                  {% endif %}
-                {% endif %}
-              </div>
-              <div style="font-size:11px;color:#aaa">
-                {{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% endif %}
-                · <span class="cat-edit" data-id="{{ item.id }}" data-category="{{ item.category or '' }}"
-                        onclick="editCategory(this)" style="cursor:pointer;text-decoration:underline dotted" title="Kategoriyani o'zgartirish">{{ item.category or 'Boshqa' }} ✏️</span>
-              </div>
-            </td>
-            <td>
-              <div style="font-weight:600;color:{% if qty <= minq %}#EF4444{% elif qty <= minq * 1.5 %}#F59E0B{% else %}#111{% endif %}">
-                {{ "%.1f"|format(item.stock_quantity) }} {{ item.unit }}
-              </div>
-              <div class="stock-bar">
-                <div class="stock-fill {% if pct < 50 %}danger{% elif pct < 80 %}warn{% endif %}" style="width:{{ pct }}%"></div>
-              </div>
-            </td>
-            <td style="color:#aaa">{{ item.min_stock }} {{ item.unit }}</td>
-            <td>
-              <div style="display:flex;align-items:center;gap:6px">
-                <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(","," ") if item.price_per_unit else "—" }} so'm</span>
-                <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Qo'lda tuzatish (narxni to'g'ridan-to'g'ri o'zgartiradi)">✏️</button>
-              </div>
-              <div style="font-size:9px;color:#bbb;margin-top:1px">o'rtacha narx</div>
-            </td>
-            <td>
-              {% if qty <= minq %}
-              <span class="badge badge-danger">Kam!</span>
-              {% elif qty <= minq * 1.5 %}
-              <span class="badge badge-warning">Oz</span>
-              {% else %}
-              <span class="badge badge-ready">Yetarli</span>
-              {% endif %}
-            </td>
-            <td>
-              <div style="display:flex;align-items:center;gap:6px">
-                <button class="btn btn-outline btn-xs" style="color:#DC2626;border-color:#F5B7B1" onclick="changeStock({{ item.id }}, -1, this)" title="Chiqim / tuzatish (narxsiz)">−</button>
-                <input type="number" class="qty-input" id="qty-{{ item.id }}" value="1" min="0.1" step="0.1">
-                <span style="font-size:10px;color:#bbb;padding:0 4px">Kirim uchun: Yetkazib beruvchilar →</span>
-              </div>
-            </td>
-            <td>
-              <button class="btn btn-outline btn-xs" style="color:#EF4444;border-color:#EF4444" onclick="deleteItem({{ item.id }})">O'chir</button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- O'ng: statistika -->
-  <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
-    <div class="card">
-      <div class="card-head"><h3>Umumiy holat</h3></div>
-      <div class="card-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div class="kpi-card" style="padding:12px">
-            <div class="kpi-val" style="font-size:20px" id="kpi-inv-count">—</div>
-            <div class="kpi-label">Xomashyo turi</div>
-          </div>
-          <div class="kpi-card" style="padding:12px">
-          <div class="kpi-val" style="font-size:20px;color:#EF4444" id="low-count-kpi">0</div>
-            <div class="kpi-label">Kam qolgan</div>
-          </div>
         </div>
+        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% endif %}</div>
+        <span class="cat-badge {{ cat_css }}" onclick="editCategory(this)" data-id="{{ item.id }}" data-category="{{ item.category or '' }}" style="cursor:pointer" title="O'zgartirish">{{ cat_label }}</span>
+      </div>
+      <div>
+        <div class="mat-qty-val" style="color:{% if st=='danger' %}#DC2626{% elif st=='warn' %}#B45309{% else %}var(--text){% endif %}">{{ "%.1f"|format(qty) }} {{ item.unit }}</div>
+        <div class="stock-bar" style="margin-top:6px"><div class="stock-fill {{ st if st != 'ok' else '' }}" style="width:{{ pct }}%"></div></div>
+      </div>
+      <div class="mat-col-min" style="color:var(--text3);font-size:12.5px">{{ item.min_stock }} {{ item.unit }}</div>
+      <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
+      <div class="mat-col-updated" style="font-size:11.5px;color:var(--text3)">
+        <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(",", " ") if item.price_per_unit else "—" }} so'm</span>
+        <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:10px"></i></button>
+      </div>
+      <div class="mat-actions">
+        <button class="act-btn in" onclick="openKirimModal({{ item.id }}, '{{ item.item_name|replace("'", "\\'") }}', '{{ item.unit }}')" title="Kirim"><i class="ti ti-plus"></i></button>
+        <button class="act-btn out" onclick="openChiqimModal({{ item.id }}, '{{ item.item_name|replace("'", "\\'") }}', '{{ item.unit }}', {{ qty }})" title="Chiqim"><i class="ti ti-minus"></i></button>
+        <button class="act-btn danger" onclick="deleteItem({{ item.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
       </div>
     </div>
-
-    <!-- Kam qolganlar -->
-    <div class="card" style="border-left:3px solid #EF4444;border-radius:0 12px 12px 0">
-      <div class="card-head"><h3 style="color:#DC2626">⚠ Kam qolganlar</h3></div>
-      <div class="card-body" style="padding:0 16px">
-        {% set low_items = [] %}
-        {% for item in items %}
-          {% if item.stock_quantity|float <= item.min_stock|float %}
-            {% set _ = low_items.append(item) %}
-          {% endif %}
-        {% endfor %}
-        {% if low_items %}
-        {% for item in items %}
-          {% if item.stock_quantity|float <= item.min_stock|float %}
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5">
-            <div>
-              <div style="font-size:13px;font-weight:500">{{ item.item_name }}</div>
-              <div style="font-size:11px;color:#aaa">{{ item.stock_quantity }} / {{ item.min_stock }} {{ item.unit }}</div>
-            </div>
-            <span class="badge badge-danger">−{{ "%.1f"|format(item.min_stock|float - item.stock_quantity|float) }}</span>
-          </div>
-          {% endif %}
-        {% endfor %}
-        {% else %}
-          <div style="text-align:center;padding:20px;color:#22C55E;font-weight:500">✓ Hammasi yetarli</div>
-        {% endif %}
-      </div>
-    </div>
+    {% endfor %}
   </div>
-</div>
+  <div id="emptyFilter" style="display:none;text-align:center;padding:40px;color:var(--text3)">Hech narsa topilmadi</div>
 </div>
 
 <!-- Qo'shish modali -->
@@ -221,23 +166,12 @@
       <label>Nomi</label>
       <input type="text" id="f-name" list="material-suggest" placeholder="Ro'yxatdan tanlang yoki yozing" autocomplete="off">
       <datalist id="material-suggest">
-        <option value="Akril">
-        <option value="PVA">
-        <option value="Zagustitel">
-        <option value="Penogasitel">
-        <option value="Texanol">
-        <option value="Biosid">
-        <option value="HPMC">
-        <option value="Kvars qum">
-        <option value="Travertin qum">
-        <option value="Mramor kroshka">
-        <option value="Mel">
-        <option value="Mikrokalsit">
-        <option value="Shag'al">
-        <option value="Suv">
-        <option value="Penoplast">
+        <option value="Akril"><option value="PVA"><option value="Zagustitel"><option value="Penogasitel">
+        <option value="Texanol"><option value="Biosid"><option value="HPMC"><option value="Kvars qum">
+        <option value="Travertin qum"><option value="Mramor kroshka"><option value="Mel"><option value="Mikrokalsit">
+        <option value="Shag'al"><option value="Suv"><option value="Penoplast">
       </datalist>
-      <div style="font-size:11px;color:#aaa;margin-top:4px">Ro'yxatdan tanlang — xato yozilmasligi uchun. Yangi material bo'lsa, qo'lda yozishingiz ham mumkin.</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Ro'yxatdan tanlang — xato yozilmasligi uchun. Yangi material bo'lsa, qo'lda yozishingiz ham mumkin.</div>
     </div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Miqdor</label><input type="number" id="f-qty" placeholder="0" min="0"></div>
@@ -248,15 +182,15 @@
       <div class="form-group" style="margin:0"><label>Birlik narxi (so'm)</label><input type="number" id="f-price" placeholder="0" min="0"></div>
     </div>
     <div class="form-group"><label>Blok hajmi (m³, penoplast uchun)</label><input type="number" id="f-volume" placeholder="1.0" step="0.1" min="0.1"></div>
-    <div class="form-group" style="background:#FDF8F0;border:1.5px solid #2563EB;border-radius:8px;padding:10px">
+    <div class="form-group" style="background:var(--gold-tint);border:1.5px solid var(--gold);border-radius:8px;padding:10px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
         <input type="checkbox" id="f-is-penoplast" style="width:16px;height:16px;cursor:pointer" onchange="toggleDefaultCheck()">
-        <span style="font-weight:600;color:#1E40AF">Bu penoplast (plotnost) turi</span>
+        <span style="font-weight:600;color:var(--gold-dark)">Bu penoplast (plotnost) turi</span>
       </label>
-      <div style="font-size:11px;color:#aaa;margin-top:4px;margin-left:24px">Masalan: Penoplast 14P, Penoplast 18P</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;margin-left:24px">Masalan: Penoplast 14P, Penoplast 18P</div>
       <label id="default-check-wrap" style="display:none;align-items:center;gap:8px;cursor:pointer;margin:8px 0 0 24px">
         <input type="checkbox" id="f-is-default" style="width:16px;height:16px;cursor:pointer">
-        <span style="font-size:12px;color:#555">⭐ Asosiy plotnost qilib belgilash</span>
+        <span style="font-size:12px;color:var(--text2)">★ Asosiy plotnost qilib belgilash</span>
       </label>
     </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
@@ -267,24 +201,78 @@
   </div>
 </div>
 
-<!-- ══ XARIDLAR TARIXI MODALI ══ -->
+<!-- Kirim modali -->
+<div id="kirimModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:400px">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px"><i class="ti ti-arrow-down-left" style="color:#166534"></i> Kirim — <span id="kirim-name"></span></div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Ombor kirimi xarid narxi bilan qayd etiladi</div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Miqdor</label><input type="number" id="kirim-qty" placeholder="0" min="0" step="0.1"></div>
+      <div class="form-group" style="margin:0"><label>1 birlik narxi (so'm)</label><input type="number" id="kirim-price" placeholder="0" min="0"></div>
+    </div>
+    <div class="form-group">
+      <label>Yetkazib beruvchi (ixtiyoriy)</label>
+      <select id="kirim-supplier">
+        <option value="">— Tanlanmagan —</option>
+        {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group"><label>Izoh</label><input type="text" id="kirim-notes" placeholder="..."></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" onclick="saveKirim()">Kirim qilish</button>
+      <button class="btn btn-outline w-full" onclick="closeKirimModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chiqim modali -->
+<div id="chiqimModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:400px">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px"><i class="ti ti-arrow-up-right" style="color:#991B1B"></i> Chiqim — <span id="chiqim-name"></span></div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Narxsiz tuzatish (masalan inventarizatsiya, kamomad). Hozirgi qoldiq: <b id="chiqim-current"></b></div>
+    <div class="form-group"><label>Miqdor</label><input type="number" id="chiqim-qty" placeholder="0" min="0" step="0.1"></div>
+    <div class="form-group"><label>Sabab / izoh</label><input type="text" id="chiqim-notes" placeholder="Masalan: inventarizatsiyada aniqlandi"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" style="background:#DC2626" onclick="saveChiqim()">Chiqim qilish</button>
+      <button class="btn btn-outline w-full" onclick="closeChiqimModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Xaridlar tarixi modali -->
 <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:16px;font-weight:600">🧾 Xaridlar tarixi</div>
-      <button onclick="closePurchaseHistory()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600"><i class="ti ti-receipt"></i> Xaridlar tarixi</div>
+      <button onclick="closePurchaseHistory()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
-
-    <div style="padding:14px 22px;border-bottom:1px solid #f0f0f0;background:#FAFAF8">
+    <div style="padding:14px 22px;border-bottom:1px solid var(--border2);background:var(--bg)">
       <div style="display:flex;justify-content:space-between;font-size:13px">
-        <span style="color:#777">Bu oy jami xarid</span>
-        <span id="hist-total" style="font-weight:700;color:#2563EB">—</span>
+        <span style="color:var(--text2)">Bu oy jami xarid</span>
+        <span id="hist-total" style="font-weight:700;color:var(--gold-dark)">—</span>
       </div>
-      <div id="hist-by-material" style="margin-top:8px;font-size:11.5px;color:#666;line-height:1.9"></div>
+      <div id="hist-by-material" style="margin-top:8px;font-size:11.5px;color:var(--text2);line-height:1.9"></div>
     </div>
-
     <div style="padding:0 22px;overflow-y:auto;flex:1" id="hist-list">
-      <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+      <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Ombor harakatlari (Timeline) modali -->
+<div id="movementsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600"><i class="ti ti-history"></i> Ombor harakatlari</div>
+      <button onclick="closeMovements()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:12px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px">
+      <button class="btn btn-outline btn-sm" onclick="loadMovements('')">Barchasi</button>
+      <button class="btn btn-outline btn-sm" style="border-color:#BBF7D0;color:#166534" onclick="loadMovements('in')">Faqat kirim</button>
+      <button class="btn btn-outline btn-sm" style="border-color:#FECACA;color:#991B1B" onclick="loadMovements('out')">Faqat chiqim</button>
+    </div>
+    <div style="padding:8px 22px;overflow-y:auto;flex:1" id="mv-list">
+      <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
     </div>
   </div>
 </div>
@@ -300,6 +288,8 @@ function toggleDefaultCheck(){
   document.getElementById('default-check-wrap').style.display = isPeno ? 'flex' : 'none';
   if(!isPeno) document.getElementById('f-is-default').checked = false;
 }
+
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
 
 async function setDefaultPenoplast(id){
   if(!confirm('Bu plotnostni asosiy qilib belgilaysizmi?\n\nBuyurtma oynasida standart shu tanlanadi.')) return;
@@ -346,8 +336,6 @@ async function editPrice(id, currentPrice) {
   } else alert('Xato yuz berdi');
 }
 
-function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
-
 async function editCategory(el) {
   const id = el.dataset.id;
   const current = el.dataset.category || 'Boshqa';
@@ -367,22 +355,64 @@ async function editCategory(el) {
   } catch(e) { alert('Server xatosi'); }
 }
 
-async function changeStock(id, dir, btn) {
-  if (dir > 0) return;
-  const qty = parseFloat(document.getElementById('qty-'+id).value) || 1;
-  if (!confirm(`${qty} birlik ayrilsinmi? (Bu narxga ta'sir qilmaydi)`)) return;
-  const res = await fetch(`/api/inventory/${id}/stock`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({quantity_change: -qty})
-  });
-  if(res.ok) location.reload();
-  else alert('Xato yuz berdi');
+// ── KIRIM MODALI ──────────────────────────────────────────
+let kirimItemId = null;
+function openKirimModal(id, name, unit) {
+  kirimItemId = id;
+  document.getElementById('kirim-name').textContent = name;
+  document.getElementById('kirim-qty').value = '';
+  document.getElementById('kirim-price').value = '';
+  document.getElementById('kirim-supplier').value = '';
+  document.getElementById('kirim-notes').value = '';
+  document.getElementById('kirimModal').style.display = 'flex';
+}
+function closeKirimModal(){ document.getElementById('kirimModal').style.display = 'none'; }
+
+async function saveKirim() {
+  const qty = parseFloat(document.getElementById('kirim-qty').value);
+  const price = parseFloat(document.getElementById('kirim-price').value);
+  if (!qty || qty <= 0 || !price || price <= 0) { alert('Miqdor va narxni to\'g\'ri kiriting'); return; }
+  const supplierId = document.getElementById('kirim-supplier').value || null;
+  const notes = document.getElementById('kirim-notes').value || null;
+  try {
+    const res = await fetch(`/api/inventory/${kirimItemId}/purchase`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ quantity: qty, price_per_unit: price, supplier_id: supplierId ? parseInt(supplierId) : null, notes })
+    });
+    if (res.ok) location.reload();
+    else { const e = await res.json(); alert('Xato: ' + (e.detail || 'Noma\'lum')); }
+  } catch(e) { alert('Server xatosi'); }
+}
+
+// ── CHIQIM MODALI ─────────────────────────────────────────
+let chiqimItemId = null;
+function openChiqimModal(id, name, unit, currentQty) {
+  chiqimItemId = id;
+  document.getElementById('chiqim-name').textContent = name;
+  document.getElementById('chiqim-current').textContent = currentQty + ' ' + unit;
+  document.getElementById('chiqim-qty').value = '';
+  document.getElementById('chiqim-notes').value = '';
+  document.getElementById('chiqimModal').style.display = 'flex';
+}
+function closeChiqimModal(){ document.getElementById('chiqimModal').style.display = 'none'; }
+
+async function saveChiqim() {
+  const qty = parseFloat(document.getElementById('chiqim-qty').value);
+  if (!qty || qty <= 0) { alert('Miqdorni to\'g\'ri kiriting'); return; }
+  try {
+    const res = await fetch(`/api/inventory/${chiqimItemId}/stock`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({quantity_change: -qty, reason: document.getElementById('chiqim-notes').value || null})
+    });
+    if(res.ok) location.reload();
+    else alert('Xato yuz berdi');
+  } catch(e) { alert('Server xatosi'); }
 }
 
 // ── XARIDLAR TARIXI ────────────────────────────────────────
 async function openPurchaseHistory() {
   document.getElementById('historyModal').style.display = 'flex';
-  document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>';
+  document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
 
   try {
     const [stats, purchases] = await Promise.all([
@@ -400,12 +430,12 @@ async function openPurchaseHistory() {
           <span style="font-weight:600">${fmt(m.total)} so'm</span>
         </div>`).join('');
     } else {
-      byMat.innerHTML = '<div style="color:#bbb">Bu oy kirim bo\'lmagan</div>';
+      byMat.innerHTML = '<div style="color:var(--text3)">Bu oy kirim bo\'lmagan</div>';
     }
 
     const list = document.getElementById('hist-list');
     if (!purchases.length) {
-      list.innerHTML = '<div style="text-align:center;padding:30px;color:#bbb">Xaridlar tarixi bo\'sh</div>';
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Xaridlar tarixi bo\'sh</div>';
       return;
     }
 
@@ -413,10 +443,10 @@ async function openPurchaseHistory() {
       const dt = new Date(p.purchased_at);
       const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
       return `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
         <div>
-          <div style="font-size:13px;font-weight:600;color:#1a1a1a">${p.item_name}</div>
-          <div style="font-size:11px;color:#aaa;margin-top:2px">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${p.item_name}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">
             ${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}
             ${p.purchased_by ? ' · '+p.purchased_by : ''}
             ${p.notes ? ' · '+p.notes : ''}
@@ -429,9 +459,44 @@ async function openPurchaseHistory() {
     document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
   }
 }
+function closePurchaseHistory() { document.getElementById('historyModal').style.display = 'none'; }
 
-function closePurchaseHistory() {
-  document.getElementById('historyModal').style.display = 'none';
+// ── OMBOR HARAKATLARI (TIMELINE) ───────────────────────────
+function openMovements() {
+  document.getElementById('movementsModal').style.display = 'flex';
+  loadMovements('');
+}
+function closeMovements() { document.getElementById('movementsModal').style.display = 'none'; }
+
+async function loadMovements(type) {
+  const list = document.getElementById('mv-list');
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+  try {
+    const url = '/api/inventory/movements' + (type ? `?movement_type=${type}` : '');
+    const res = await fetch(url);
+    const rows = await res.json();
+    if (!rows.length) {
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Harakatlar yo\'q</div>';
+      return;
+    }
+    list.innerHTML = rows.map(m => {
+      const dt = new Date(m.created_at);
+      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+      return `
+      <div class="mv-row">
+        <div style="flex:1">
+          <div style="font-weight:500;color:var(--text)">${m.item_name}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${ds}${m.reason ? ' · '+m.reason : ''}${m.performed_by ? ' · '+m.performed_by : ''}</div>
+        </div>
+        <div style="text-align:right">
+          <span class="mv-badge ${m.movement_type}">${m.movement_type === 'in' ? 'Kirim' : 'Chiqim'}</span>
+          <div style="font-weight:600;margin-top:3px">${m.movement_type === 'in' ? '+' : '−'}${m.quantity} ${m.unit||''}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
+  }
 }
 
 async function deleteItem(id) {
@@ -462,26 +527,38 @@ async function saveItem() {
   else{const e=await res.json();alert('Xato: '+(e.detail||'Noma\'lum'));}
 }
 
-// Sarlavha: xomashyo turi (tayyor loysiz)
-(function(){
-  const rows = document.querySelectorAll('tbody tr');
-  let n = 0;
-  rows.forEach(r => {
-    if (r.querySelector('td[colspan]')) return;      // ajratuvchi qatorlar
-    const nm = r.querySelector('td div');
-    if (nm && nm.textContent.includes('Tayyor loy')) return;
-    n++;
+// ── FILTRLASH / SARALASH ───────────────────────────────────
+function filterMaterials() {
+  const q = document.getElementById('matSearch').value.trim().toLowerCase();
+  const cat = document.getElementById('catFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  const sort = document.getElementById('sortFilter').value;
+  const list = document.getElementById('matList');
+  const rows = Array.from(list.querySelectorAll('.mat-row'));
+  let visibleCount = 0;
+
+  rows.forEach(row => {
+    const matchQ = !q || row.dataset.name.includes(q);
+    const matchCat = !cat || row.dataset.category === cat;
+    const matchStatus = !status || row.dataset.status === status;
+    const show = matchQ && matchCat && matchStatus;
+    row.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
   });
-  const t = document.getElementById('inv-title');
-  if (t) t.textContent = `Xomashyolar (${n} tur)`;
-  const k = document.getElementById('kpi-inv-count');
-  if (k) k.textContent = n;
-})();
+
+  if (sort === 'qty_asc' || sort === 'qty_desc') {
+    const visible = rows.filter(r => r.style.display !== 'none');
+    visible.sort((a, b) => sort === 'qty_asc'
+      ? parseFloat(a.dataset.qty) - parseFloat(b.dataset.qty)
+      : parseFloat(b.dataset.qty) - parseFloat(a.dataset.qty));
+    visible.forEach(r => list.appendChild(r));
+  }
+
+  document.getElementById('emptyFilter').style.display = visibleCount === 0 ? 'block' : 'none';
+}
 
 // Kam qolganlar sonini topbar ga
-const low = document.querySelectorAll('.badge-danger').length;
+const low = document.querySelectorAll('.stat-badge.danger').length;
 if(low>0) document.getElementById('low-count').textContent = low+' ta kam!';
-const kpiLow = document.getElementById('low-count-kpi');
-if(kpiLow) kpiLow.textContent = low;
 </script>
 {% endblock %}
