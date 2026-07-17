@@ -468,7 +468,8 @@ def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.a
 @app.get("/recipes", response_class=HTMLResponse)
 async def recipes_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     recipes = crud.get_recipes(db)
-    return templates.TemplateResponse(request, "recipes.html", {"recipes": recipes, "current_user": current_user, "active_page": "recipes"})
+    insights = {r.id: crud.get_recipe_insights(db, r.id) for r in recipes}
+    return templates.TemplateResponse(request, "recipes.html", {"recipes": recipes, "insights": insights, "current_user": current_user, "active_page": "recipes"})
 
 
 @app.get("/projects", response_class=HTMLResponse)
@@ -999,8 +1000,22 @@ def api_update_recipe(recipe_id: int, data: dict, db: Session = Depends(get_db),
     for key, val in data.items():
         if hasattr(recipe, key):
             setattr(recipe, key, val)
+    recipe.updated_at = datetime.utcnow()  # Faqat UI uchun — hisob-kitobga ta'siri yo'q
     db.commit()
     return {"status": "ok"}
+
+
+@app.post("/api/recipes/{recipe_id}/image")
+def api_upload_recipe_image(recipe_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    from models import Recipe
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Retsept topilmadi")
+    url = _save_upload(file, "recipes", ALLOWED_IMAGE_EXT)
+    recipe.image_url = url
+    db.commit()
+    return {"image_url": url}
 
 
 @app.delete("/api/recipes/{recipe_id}")
