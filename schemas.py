@@ -245,6 +245,7 @@ class OrderItemCreate(BaseModel):
     penoplast_id: Optional[int] = None
     price_per_m3: Optional[float] = None
     finished_product_id: Optional[int] = None
+    image_url: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -275,7 +276,18 @@ class OrderItemRead(BaseModel):
     penoplast_name: Optional[str] = None
     price_per_m3: Optional[float] = None
     finished_product_id: Optional[int] = None
+    image_url: Optional[str] = None
     notes: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+class OrderAttachmentRead(BaseModel):
+    id: int
+    order_id: int
+    file_url: str
+    file_name: Optional[str] = None
+    uploaded_at: datetime
+    uploaded_by: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
