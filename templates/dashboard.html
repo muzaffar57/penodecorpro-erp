@@ -4,7 +4,7 @@
 {% block page_sub %}Umumiy statistika va ko'rsatkichlar{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline btn-sm" onclick="loadAll()">↻ Yangilash</button>
+<button class="btn btn-outline btn-sm" onclick="loadAll()"><i class="ti ti-refresh" style="font-size:13px"></i> Yangilash</button>
 {% endblock %}
 
 {% block head %}
@@ -25,35 +25,74 @@
 {% block content %}
 <div class="erp-content">
 
-  <!-- KPI -->
-  <div class="kpi-grid mb-16">
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-projects">{{ stats.total_projects }}</div>
-      <div class="kpi-label">Loyihalar</div>
+  <!-- BUGUNGI KUN — KPI -->
+  <div class="stat-grid mb-16">
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-cash"></i></div>
+      <div class="stat-label">Bugungi tushum</div>
+      <div class="stat-val" id="t-revenue">—</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-orders">{{ stats.total_orders }}</div>
-      <div class="kpi-label">Jami buyurtmalar</div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-clipboard-list"></i></div>
+      <div class="stat-label">Faol buyurtmalar</div>
+      <div class="stat-val" id="t-active">{{ stats.active_orders }}</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-active">{{ stats.active_orders }}</div>
-      <div class="kpi-label">Faol buyurtmalar</div>
-      <span class="kpi-badge warn">Jarayonda</span>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-tools"></i></div>
+      <div class="stat-label">Ishlab chiqarishda</div>
+      <div class="stat-val" id="t-production">—</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-ready">{{ stats.ready_orders }}</div>
-      <div class="kpi-label">Tayyor</div>
-      <span class="kpi-badge up">Bajarildi</span>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-truck-delivery"></i></div>
+      <div class="stat-label">Bugun topshiriladi</div>
+      <div class="stat-val" id="t-due">—</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-masters">{{ stats.total_masters }}</div>
-      <div class="kpi-label">Faol ustalar</div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-hammer"></i></div>
+      <div class="stat-label">Ishlayotgan ustalar</div>
+      <div class="stat-val" id="t-masters">—</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-inventory">{{ stats.total_inventory_items }}</div>
-      <div class="kpi-label">Xomashyo turi</div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-chart-bar"></i></div>
+      <div class="stat-label">Sof foyda (bugun)</div>
+      <div class="stat-val" id="t-profit">—</div>
     </div>
   </div>
+
+  <!-- ISHLAB CHIQARISH HOLATI / BUYURTMALAR HOLATI / OGOHLANTIRISHLAR / TEZKOR AMALLAR -->
+  <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1fr 1fr;gap:14px;margin-bottom:14px" id="topGrid">
+    <div class="card">
+      <div class="card-head"><h3>Ishlab chiqarish holati</h3></div>
+      <div class="card-body" id="stageList">
+        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda…</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Buyurtmalar holati</h3></div>
+      <div class="card-body">
+        <div class="chart-wrap" style="height:150px"><canvas id="statusChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Ogohlantirishlar</h3></div>
+      <div class="card-body" id="warnList" style="padding:8px 16px">
+        <div style="text-align:center;padding:12px;color:#bbb;font-size:12px">Yuklanmoqda…</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Tezkor amallar</h3></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:8px;padding:12px">
+        <a href="/orders" style="text-decoration:none;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);padding:6px 0"><i class="ti ti-plus" style="color:var(--gold-dark)"></i>Yangi buyurtma</a>
+        <a href="/inventory" style="text-decoration:none;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);padding:6px 0"><i class="ti ti-package" style="color:var(--gold-dark)"></i>Xarajat qo'shish</a>
+        <a href="/finance" style="text-decoration:none;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);padding:6px 0"><i class="ti ti-file-report" style="color:var(--gold-dark)"></i>Hisobot yaratish</a>
+        <a href="/debts" style="text-decoration:none;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);padding:6px 0"><i class="ti ti-credit-card" style="color:var(--gold-dark)"></i>Qarzdorlarni ko'rish</a>
+      </div>
+    </div>
+  </div>
+  <style>@media(max-width:1200px){ #topGrid{grid-template-columns:1fr 1fr} }</style>
 
   <!-- Moliya (faqat admin) -->
   {% if current_user.role.value == 'admin' %}
@@ -85,31 +124,25 @@
     </div>
   </div>
 
-  <!-- Grafiklar -->
-  <div class="dash-grid">
-    <div class="card">
-      <div class="card-head"><h3>Oylik buyurtmalar va daromad</h3></div>
-      <div class="card-body"><div class="chart-wrap"><canvas id="monthChart"></canvas></div></div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h3>Buyurtma holatlari</h3></div>
-      <div class="card-body"><div class="chart-wrap"><canvas id="statusChart"></canvas></div></div>
-    </div>
+  <!-- Grafik -->
+  <div class="card mb-16">
+    <div class="card-head"><h3>Oylik buyurtmalar va daromad</h3></div>
+    <div class="card-body"><div class="chart-wrap"><canvas id="monthChart"></canvas></div></div>
   </div>
 
   <!-- XOMASHYO XARIDLARI -->
   <div class="card mb-16" style="border-left:3px solid #8B6914;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#8B6914">🛒 Xomashyo xaridlari (bu oy)</h3>
+      <h3 style="color:#8B6914"><i class="ti ti-shopping-cart"></i> Xomashyo xaridlari (bu oy)</h3>
       <span id="purch-total" style="font-size:15px;font-weight:800;color:#C9A55A">—</span>
     </div>
     <div style="padding:10px 16px;border-bottom:1px solid #f0f0f0;background:#FAFAF8">
       <div style="display:flex;justify-content:space-between;font-size:12.5px">
-        <span style="color:#777">🚚 Transport (kirish)</span>
+        <span style="color:#777"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kirish)</span>
         <span id="tr-inbound" style="font-weight:700;color:#2980B9">—</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-top:4px">
-        <span style="color:#777">🚚 Transport (yetkazish, kompaniya ulushi)</span>
+        <span style="color:#777"><i class="ti ti-truck" style="font-size:13px"></i> Transport (yetkazish, kompaniya ulushi)</span>
         <span id="tr-outbound" style="font-weight:700;color:#2980B9">—</span>
       </div>
     </div>
@@ -123,7 +156,7 @@
   <!-- YETKAZIB BERUVCHI QARZI -->
   <div class="card mb-16" style="border-left:3px solid #E67E22;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#E67E22">🚚 Yetkazib beruvchilarga nasiya qarzi</h3>
+      <h3 style="color:#E67E22"><i class="ti ti-truck"></i> Yetkazib beruvchilarga nasiya qarzi</h3>
       <span id="sup-debt-total" style="font-size:16px;font-weight:800;color:#C0392B">—</span>
     </div>
     <div class="card-body" style="padding:10px 16px">
@@ -135,7 +168,7 @@
   <div class="dash-grid2">
     <div class="card" style="border-left:3px solid #C9A55A;border-radius:0 12px 12px 0">
       <div class="card-head">
-        <h3 style="color:#8B6914">🏭 Tayyor mahsulotlar</h3>
+        <h3 style="color:#8B6914"><i class="ti ti-building-factory-2"></i> Tayyor mahsulotlar</h3>
       </div>
       <div class="card-body">
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
@@ -143,11 +176,11 @@
           <span id="fp-produced-value" style="font-weight:700;color:#8B6914">—</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
-          <span style="color:#777">⏳ Jarayonda (loy kutmoqda)</span>
+          <span style="color:#777"><i class="ti ti-hourglass" style="font-size:13px"></i> Jarayonda (loy kutmoqda)</span>
           <span id="fp-progress-count" style="font-weight:700;color:#E67E22">—</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
-          <span style="color:#777">♻️ Qaytgan mahsulot qiymati</span>
+          <span style="color:#777"><i class="ti ti-recycle" style="font-size:13px"></i> Qaytgan mahsulot qiymati</span>
           <span id="fp-returned-value" style="font-weight:700;color:#27AE60">—</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:8px 0 2px;font-weight:700;font-size:13px;border-top:1px solid #f0f0f0;margin-top:4px">
@@ -159,7 +192,7 @@
 
     <div class="card" style="border-left:3px solid #C0392B;border-radius:0 12px 12px 0">
       <div class="card-head">
-        <h3 style="color:#c0392b">🔴 Brak (bu oy)</h3>
+        <h3 style="color:#c0392b"><i class="ti ti-alert-circle"></i> Brak (bu oy)</h3>
       </div>
       <div class="card-body">
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
@@ -171,7 +204,7 @@
           <span id="brk-month-value" style="font-weight:700;color:#C0392B">—</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
-          <span style="color:#777">🟢 Butun qaytgan (bu oy)</span>
+          <span style="color:#777"><i class="ti ti-circle-check" style="font-size:13px;color:#27AE60"></i> Butun qaytgan (bu oy)</span>
           <span id="brk-whole-count" style="font-weight:700;color:#27AE60">—</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:8px 0 2px;font-weight:700;font-size:13px;border-top:1px solid #f0f0f0;margin-top:4px">
@@ -185,7 +218,7 @@
   <!-- BU OY MOLIYAVIY HOLAT -->
   <div class="card mb-16" style="border-left:3px solid #8E44AD;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#8E44AD">💰 Bu oy moliyaviy holat</h3>
+      <h3 style="color:#8E44AD"><i class="ti ti-report-money"></i> Bu oy moliyaviy holat</h3>
       <span id="mf-period" style="font-size:11px;color:#aaa"></span>
     </div>
     <div class="card-body">
@@ -228,7 +261,7 @@
   <!-- QISMAN TOPSHIRILGANLAR -->
   <div class="card mb-16" style="border-left:3px solid #E67E22;border-radius:0 12px 12px 0" id="partialCard">
     <div class="card-head">
-      <h3 style="color:#d35400">📦 Qisman topshirilgan buyurtmalar</h3>
+      <h3 style="color:#d35400"><i class="ti ti-package"></i> Qisman topshirilgan buyurtmalar</h3>
       <span style="font-size:11px;color:#aaa" id="partial-label">—</span>
     </div>
     <div class="card-body" style="padding:0">
@@ -241,7 +274,7 @@
   <!-- QARZDOR BUYURTMALAR -->
   <div class="card mb-16" style="border-left:3px solid #C0392B;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#c0392b">💰 Qarzdor buyurtmalar</h3>
+      <h3 style="color:#c0392b"><i class="ti ti-credit-card"></i> Qarzdor buyurtmalar</h3>
       <span style="font-size:11px;color:#aaa" id="debt-count-label">—</span>
     </div>
     <div class="card-body" style="padding:0">
@@ -251,30 +284,10 @@
     </div>
   </div>
 
-  <div class="dash-grid2">
-    <div class="card">
-      <div class="card-head"><h3>Usta reytingi (top 5)</h3></div>
-      <div class="card-body" style="padding:0 16px">
-        <div id="masterList"><div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div></div>
-      </div>
-    </div>
-    <div class="card" style="border-left:3px solid #E74C3C;border-radius:0 12px 12px 0">
-      <div class="card-head"><h3 style="color:#c0392b">⚠ Xomashyo ogohlantirishlari</h3></div>
-      <div class="card-body" id="alertList">
-        {% if stats.low_stock_items %}
-          {% for item in stats.low_stock_items %}
-          <div class="alert-item">
-            <div>
-              <div style="font-size:13px;font-weight:600;color:#111">{{ item.item_name }}</div>
-              <div style="font-size:11px;color:#aaa">Qoldi: {{ item.stock_quantity }} {{ item.unit }} · Min: {{ item.min_stock }}</div>
-            </div>
-            <div style="font-size:13px;font-weight:600;color:#E74C3C">−{{ "%.1f"|format(item.deficit) }}</div>
-          </div>
-          {% endfor %}
-        {% else %}
-          <div style="text-align:center;padding:20px;color:#27AE60;font-weight:500">✓ Hammasi yetarli</div>
-        {% endif %}
-      </div>
+  <div class="card mb-16">
+    <div class="card-head"><h3>Usta reytingi (top 5)</h3></div>
+    <div class="card-body" style="padding:0 16px">
+      <div id="masterList"><div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div></div>
     </div>
   </div>
 
@@ -290,7 +303,11 @@ let mC,sC;
 function fmt(n){if(n>=1e6)return(n/1e6).toFixed(1)+' mln';if(n>=1000)return(n/1000).toFixed(0)+' ming';return n.toFixed(0);}
 
 async function loadAll(){
-  const [s,c]=await Promise.all([fetch('/api/dashboard/stats').then(r=>r.json()),fetch('/api/dashboard/charts').then(r=>r.json())]);
+  const [s,c,t]=await Promise.all([
+    fetch('/api/dashboard/stats').then(r=>r.json()),
+    fetch('/api/dashboard/charts').then(r=>r.json()),
+    fetch('/api/dashboard/today').then(r=>r.json())
+  ]);
   document.getElementById('k-projects').textContent=s.total_projects;
   document.getElementById('k-orders').textContent=s.total_orders;
   document.getElementById('k-active').textContent=s.active_orders;
@@ -304,6 +321,16 @@ async function loadAll(){
     document.getElementById('f-budget').textContent=fmt(c.finance.total_budget)+' so\'m';
     document.getElementById('f-debt').textContent=fmt(c.finance.total_debt)+' so\'m';
   }
+
+  document.getElementById('t-revenue').textContent=fmt(t.today_revenue)+' so\'m';
+  document.getElementById('t-active').textContent=t.active_orders+' ta';
+  document.getElementById('t-production').textContent=t.in_production+' ta';
+  document.getElementById('t-due').textContent=t.due_today+' ta';
+  document.getElementById('t-masters').textContent=t.active_masters+' ta';
+  document.getElementById('t-profit').textContent=fmt(t.today_profit)+' so\'m';
+
+  buildStageList(c.statuses);
+  buildWarnList(s.low_stock_items);
   buildMonthChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
   loadDebts();
   loadDeliveryStats();
@@ -313,6 +340,42 @@ async function loadAll(){
   loadSupplierDebt();
   loadFinishedStats();
   loadReturnStats();
+}
+
+function buildStageList(statuses){
+  const el=document.getElementById('stageList');
+  const stages=[
+    {key:'new',label:'Yangi',color:COLORS.blue},
+    {key:'in_progress',label:'Jarayonda',color:COLORS.orange},
+    {key:'coating',label:'Qoplashda',color:COLORS.purple},
+    {key:'ready',label:'Tayyor',color:COLORS.green}
+  ];
+  const total=stages.reduce((sum,st)=>sum+(statuses[st.key]||0),0)||1;
+  el.innerHTML=stages.map(st=>{
+    const count=statuses[st.key]||0;
+    const pct=Math.round(count/total*100);
+    return `<div class="stock-row">
+      <div class="stock-head"><span class="stock-name">${st.label}</span><span class="stock-qty" style="color:${st.color}">${count} ta</span></div>
+      <div class="stock-bar"><div class="stock-bar-fill" style="width:${pct}%;background:${st.color}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function buildWarnList(lowStockItems){
+  const el=document.getElementById('warnList');
+  const items=(lowStockItems||[]).slice(0,4);
+  if(!items.length){
+    el.innerHTML='<div style="text-align:center;padding:12px;color:#27AE60;font-size:12px;font-weight:500">✓ Ogohlantirish yo\'q</div>';
+    return;
+  }
+  el.innerHTML=items.map(item=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border2)">
+      <div>
+        <div style="font-size:12.5px;font-weight:500;color:var(--text)">${item.item_name}</div>
+        <div style="font-size:10.5px;color:var(--text3)">Kam qoldi</div>
+      </div>
+      <span class="badge badge-danger">${item.stock_quantity} ${item.unit}</span>
+    </div>`).join('');
 }
 
 async function loadFinishedStats(){
