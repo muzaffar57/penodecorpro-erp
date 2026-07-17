@@ -100,6 +100,7 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
         volume_per_unit=item_data.volume_per_unit,
         is_penoplast=is_peno,
         is_default_penoplast=(is_default and is_peno),
+        category=guess_category(item_data.item_name, is_peno),
         notes=item_data.notes
     )
     db.add(db_item)
@@ -150,6 +151,18 @@ def update_stock(db: Session, item_id: int, quantity_change: float) -> Optional[
     return db_item
 
 
+def guess_category(item_name: str, is_penoplast: bool = False) -> str:
+    """Material nomidan kategoriyani taxmin qiladi."""
+    name = (item_name or '').lower()
+    if is_penoplast or 'penoplast' in name or 'penopleks' in name:
+        return "Penoplast"
+    if any(k in name for k in ['qum', 'kroshka', 'shag\'al']):
+        return "Qumlar"
+    if any(k in name for k in ['akril', 'pva', 'zagustitel', 'penogasitel', 'mel', 'shtukaturka']):
+        return "Kimyoviy moddalar"
+    return "Boshqa"
+
+
 def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: float,
                    purchased_by: str = None, notes: str = None,
                    supplier_id: int = None, is_credit: bool = False):
@@ -159,6 +172,7 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         yangi_narx = (eski_qty × eski_narx + yangi_qty × xarid_narxi) / (eski_qty + yangi_qty)
 
     is_credit=True bo'lsa — nasiya (keyin to'lash), Supplierga qarz sifatida yoziladi.
+    supplier_id — kredit bo'lmasa ham saqlanadi (tarix uchun, "kimdan olganimiz" bilinsin).
     """
     from models import InventoryPurchase
 
@@ -178,6 +192,9 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
     db_item.stock_quantity = total_qty
     db_item.price_per_unit = round(weighted_price, 2)
 
+    if not db_item.category:
+        db_item.category = guess_category(db_item.item_name, db_item.is_penoplast)
+
     purchase = InventoryPurchase(
         inventory_id=db_item.id,
         item_name=db_item.item_name,
@@ -187,8 +204,9 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         total_amount=quantity * price_per_unit,
         purchased_by=purchased_by,
         notes=notes,
-        supplier_id=supplier_id if is_credit else None,
-        is_credit=is_credit
+        supplier_id=supplier_id,
+        is_credit=is_credit,
+        category=db_item.category
     )
     db.add(purchase)
     db.commit()
@@ -2662,6 +2680,7 @@ def get_supplier_history(db: Session, supplier_id: int) -> dict:
             "price_per_unit": float(p.price_per_unit),
             "total_amount": float(p.total_amount),
             "is_credit": p.is_credit,
+            "category": p.category or "Boshqa",
             "purchased_at": p.purchased_at.isoformat() if p.purchased_at else None,
             "purchased_by": p.purchased_by,
             "notes": p.notes
