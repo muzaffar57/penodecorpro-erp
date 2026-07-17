@@ -418,6 +418,32 @@ class ReturnItem(Base):
 # 9. INVENTORY PURCHASE — Xomashyo xaridlari jurnali
 # ============================================================
 
+class InventoryMovement(Base):
+    """Ombor harakatlari jurnali — har bir kirim va chiqim alohida yozuv sifatida.
+    Faqat ma'lumot uchun (log) — hisob-kitob va inventar logikasiga hech qanday ta'siri yo'q."""
+    __tablename__ = "inventory_movements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)
+    item_name = Column(String(150), nullable=False)
+
+    movement_type = Column(String(10), nullable=False)  # "in" yoki "out"
+    quantity = Column(Float, nullable=False)
+    unit = Column(String(20), nullable=True)
+
+    reason = Column(String(200), nullable=True)   # masalan "Yetkazib beruvchi: ABC" yoki "Buyurtma ORD-001-3"
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+
+    performed_by = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    inventory = relationship("Inventory")
+    order = relationship("Order")
+    supplier = relationship("Supplier")
+
+
 class InventoryPurchase(Base):
     """Har bir ombor kirimi (xarid) — narxi bilan birga saqlanadi."""
     __tablename__ = "inventory_purchases"
