@@ -1445,6 +1445,11 @@ def api_finance_report(year: int, month: int, db: Session = Depends(get_db), cur
     return services.get_monthly_report(db, year, month)
 
 
+@app.get("/api/finance/history")
+def api_finance_history(months: int = 12, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_finance_history(db, months)
+
+
 @app.post("/api/finance/expense")
 def api_save_expense(year: int, month: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     services.save_monthly_expense(db, year, month, data)
