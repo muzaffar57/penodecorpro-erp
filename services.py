@@ -792,6 +792,35 @@ def get_finance_history(db: Session, months_count: int = 12) -> list:
     return list(reversed(history))  # eskisidan yangisiga
 
 
+def _monthly_category_amount(db: Session, year: int, month: int, category: str, fallback: float) -> float:
+    """Berilgan oy/kategoriya uchun ExpenseTransaction yig'indisini qaytaradi.
+
+    Agar shu oy/kategoriya uchun BIRON-BIR tranzaksiya bo'lsa — ularning yig'indisi qaytadi
+    (bu — SaaS uchun yangi, tranzaksiya-asosidagi hisoblash).
+    Agar tranzaksiya UMUMAN topilmasa (masalan, bu funksiya qo'shilishidan oldingi eski oy) —
+    eski `fallback` qiymati (MonthlyExpense'dan) qaytadi. Shu tariqa hech qanday eski
+    hisobot o'zgarmaydi, faqat yangi tranzaksiyalar mavjud bo'lgan oylar aniqroq hisoblanadi.
+    """
+    from models import ExpenseTransaction
+    from sqlalchemy import func, extract
+    try:
+        exists = db.query(ExpenseTransaction.id).filter(
+            extract('year', ExpenseTransaction.date) == year,
+            extract('month', ExpenseTransaction.date) == month,
+            ExpenseTransaction.category == category
+        ).first()
+        if not exists:
+            return float(fallback or 0)
+        total = db.query(func.sum(ExpenseTransaction.amount)).filter(
+            extract('year', ExpenseTransaction.date) == year,
+            extract('month', ExpenseTransaction.date) == month,
+            ExpenseTransaction.category == category
+        ).scalar()
+        return float(total or 0)
+    except Exception:
+        return float(fallback or 0)
+
+
 def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     """
     Berilgan oy uchun to'liq moliyaviy hisobot:
@@ -917,6 +946,13 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
             "qoplamachi_bonus": float(expense.qoplamachi_bonus or qoplamachi_bonus_avtomatik),
             "notes": expense.notes or ""
         }
+
+    # ── YANGI: mavjud bo'lsa, ExpenseTransaction yig'indisidan olamiz;
+    # aks holda yuqoridagi (MonthlyExpense'dan) qiymat saqlanadi (orqaga moslik) ──
+    xarajatlar["arenda"]   = _monthly_category_amount(db, year, month, "arenda",   xarajatlar["arenda"])
+    xarajatlar["elektr"]   = _monthly_category_amount(db, year, month, "elektr",   xarajatlar["elektr"])
+    xarajatlar["tushlik"]  = _monthly_category_amount(db, year, month, "tushlik",  xarajatlar["tushlik"])
+    xarajatlar["soliqlar"] = _monthly_category_amount(db, year, month, "soliqlar", xarajatlar["soliqlar"])
 
     # Jami xarajat (arenda/elektr/tushlik/soliq — hodim to'lovi endi
     # "Ustalar KPI / Hodimlar" bo'limida alohida hisoblanadi)
@@ -1051,9 +1087,21 @@ def get_transport_stats_for_period(db: Session, year: int, month: int) -> dict:
     }
 
 
-def save_monthly_expense(db: Session, year: int, month: int, data: dict):
-    """Oylik xarajatlarni saqlaydi yoki yangilaydi."""
-    from models import MonthlyExpense
+def save_monthly_expense(db: Session, year: int, month: int, data: dict, performed_by: Optional[str] = None):
+    """Oylik xarajatlarni saqlaydi yoki yangilaydi.
+
+    O'ZGARMAGAN: MonthlyExpense jadvaliga yozish — bu hech qanday o'zgarishsiz,
+    avvalgi holatidek ishlaydi (backward compatibility).
+
+    YANGI (qo'shimcha): shu bilan bir vaqtda 4 ta asosiy kategoriya
+    (arenda/elektr/tushlik/soliqlar) uchun ExpenseTransaction yozuvlari ham
+    sinxronlanadi — bu get_monthly_report() endi shu tranzaksiyalardan
+    hisoblashi uchun kerak. Faqat 'monthly_form' manbali eski tranzaksiyalar
+    almashtiriladi — qo'lda kiritilgan tranzaksiyalarga tegilmaydi.
+    """
+    from models import MonthlyExpense, ExpenseTransaction
+    from sqlalchemy import extract
+    from datetime import datetime as _datetime
 
     expense = db.query(MonthlyExpense).filter(
         MonthlyExpense.year  == year,
@@ -1081,6 +1129,30 @@ def save_monthly_expense(db: Session, year: int, month: int, data: dict):
 
     db.commit()
     db.refresh(expense)
+
+    # ── YANGI: ExpenseTransaction sinxronlash (xato bo'lsa ham asosiy saqlashga ta'sir qilmasin) ──
+    try:
+        tx_date = _datetime(year, month, 1)
+        for cat in ("arenda", "elektr", "tushlik", "soliqlar"):
+            amount = data.get(cat, 0) or 0
+            # Avvalgi 'monthly_form' manbali tranzaksiyani o'chirib, yangisini yozamiz
+            db.query(ExpenseTransaction).filter(
+                extract('year', ExpenseTransaction.date) == year,
+                extract('month', ExpenseTransaction.date) == month,
+                ExpenseTransaction.category == cat,
+                ExpenseTransaction.source == "monthly_form"
+            ).delete(synchronize_session=False)
+            if amount > 0:
+                db.add(ExpenseTransaction(
+                    date=tx_date, category=cat, amount=amount,
+                    notes=data.get("notes") or None,
+                    created_by=performed_by, source="monthly_form"
+                ))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"⚠️ ExpenseTransaction sinxronlashda xato (asosiy saqlash bajarildi): {e}")
+
     return expense
 
 
