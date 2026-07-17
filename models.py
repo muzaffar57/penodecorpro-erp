@@ -742,6 +742,33 @@ class OrderAttachment(Base):
 # 13. MONTHLY EXPENSE — Oylik xarajatlar
 # ============================================================
 
+class ExpenseTransaction(Base):
+    """Har bir xarajatni ALOHIDA tranzaksiya sifatida saqlaydi (SaaS arxitekturasi uchun).
+
+    MUHIM: bu jadval MonthlyExpense'ni ALMASHTIRMAYDI — ikkalasi parallel ishlaydi.
+    Oylik hisobot (get_monthly_report) avval shu jadvaldan tranzaksiyalarni qidiradi;
+    agar topilmasa (eski oylar), MonthlyExpense'dan o'qishda davom etadi — to'liq
+    orqaga moslik saqlanadi.
+    """
+    __tablename__ = "expense_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    category = Column(String(30), nullable=False)  # arenda / elektr / tushlik / soliqlar / boshqa
+    amount = Column(Numeric(12, 2), nullable=False, default=0)
+    notes = Column(Text, nullable=True)
+
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # 'monthly_form' — Moliya sahifasidagi oylik forma orqali avtomatik yaratilgan
+    # 'manual'       — kelajakda alohida "xarajat qo'shish" orqali qo'lda kiritilgan
+    source = Column(String(20), default="manual")
+
+    def __repr__(self):
+        return f"<ExpenseTransaction {self.category}: {self.amount}>"
+
+
 class MonthlyExpense(Base):
     """Oylik xarajatlar: arenda, elektr, tushlik, hodim oyliqlari."""
     __tablename__ = "monthly_expenses"
