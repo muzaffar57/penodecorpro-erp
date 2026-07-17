@@ -82,6 +82,7 @@ class InventoryRead(BaseModel):
     category: Optional[str] = None
     last_updated: datetime
     notes: Optional[str] = None
+    image_url: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
