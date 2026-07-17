@@ -19,7 +19,7 @@
 .proj-client{font-size:12px;color:#aaa}
 .proj-footer{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
 .pay-bar{height:4px;background:#f0f0f0;border-radius:2px;margin-top:6px}
-.pay-fill{height:100%;background:#C9A55A;border-radius:2px;transition:width .3s}
+.pay-fill{height:100%;background:#2563EB;border-radius:2px;transition:width .3s}
 .info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
 .info-row:last-child{border-bottom:none}
 </style>
@@ -62,7 +62,7 @@
         <div class="proj-footer">
           {% if p.status.value == 'active' %}<span class="badge badge-ready">Faol</span>
           {% elif p.status.value == 'draft' %}<span class="badge badge-info">Qoralama</span>
-          {% elif p.status.value == 'completed' %}<span class="badge" style="background:#E9F7EF;color:#1e7e34">Tugagan</span>
+          {% elif p.status.value == 'completed' %}<span class="badge" style="background:#DCFCE7;color:#1e7e34">Tugagan</span>
           {% elif p.status.value == 'on_hold' %}<span class="badge badge-warning">Kutmoqda</span>
           {% else %}<span class="badge badge-cancelled">Bekor</span>{% endif %}
           <span style="font-size:11px;color:#aaa">{{ paid_pct }}% to'langan</span>
@@ -137,7 +137,7 @@ let selectedProjId = null;
 const STATUS_MAP = {
   'active':'<span class="badge badge-ready">Faol</span>',
   'draft':'<span class="badge badge-info">Qoralama</span>',
-  'completed':'<span class="badge" style="background:#E9F7EF;color:#1e7e34">Tugagan</span>',
+  'completed':'<span class="badge" style="background:#DCFCE7;color:#1e7e34">Tugagan</span>',
   'on_hold':'<span class="badge badge-warning">Kutmoqda</span>',
   'cancelled':'<span class="badge badge-cancelled">Bekor</span>'
 };
@@ -163,14 +163,14 @@ function selectProj(el) {
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f0f0f0">
       <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px">Moliya</div>
       <div class="info-row"><span style="color:#aaa">Byudjet</span><span style="font-weight:500">${Number(budget).toLocaleString('uz')} so'm</span></div>
-      <div class="info-row"><span style="color:#aaa">To'langan</span><span style="font-weight:500;color:#27AE60">${Number(paid).toLocaleString('uz')} so'm</span></div>
-      <div class="info-row"><span style="color:#aaa">Qarz</span><span style="font-weight:500;color:#E74C3C">${Number(debt).toLocaleString('uz')} so'm</span></div>
+      <div class="info-row"><span style="color:#aaa">To'langan</span><span style="font-weight:500;color:#22C55E">${Number(paid).toLocaleString('uz')} so'm</span></div>
+      <div class="info-row"><span style="color:#aaa">Qarz</span><span style="font-weight:500;color:#EF4444">${Number(debt).toLocaleString('uz')} so'm</span></div>
       <div class="pay-bar mt-8"><div class="pay-fill" style="width:${pct}%"></div></div>
       <div style="font-size:11px;color:#aaa;margin-top:4px;text-align:right">${pct}% to'langan</div>
     </div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn btn-gold w-full btn-sm" onclick="showPayModal()">💰 To'lov qo'shish</button>
-      <button class="btn btn-outline w-full btn-sm" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteProj()">O'chir</button>
+      <button class="btn btn-outline w-full btn-sm" style="color:#EF4444;border-color:#EF4444" onclick="deleteProj()">O'chir</button>
     </div>`;
 }
 
