@@ -1,42 +1,111 @@
 {% extends "base.html" %}
 
 {% block title %}Bosh sahifa — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Bosh sahifa{% endblock %}
-{% block page_sub %}Xush kelibsiz, {{ current_user.full_name or current_user.username }}!{% endblock %}
+{% block page_title %}Assalomu alaykum, {{ current_user.full_name or current_user.username }}{% endblock %}
+{% block page_sub %}Bugungi holat va tezkor kirish{% endblock %}
+
+{% block head %}
+{% set role = current_user.role.value %}
+{% if role in ['admin','manager','accountant'] %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endif %}
+<style>
+.chart-wrap { position: relative; height: 200px; }
+.section-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.section-row2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-bottom: 14px; }
+@media (max-width: 1100px) {
+  .section-row, .section-row2 { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
 
 {% block content %}
 {% set role = current_user.role.value %}
 <div class="erp-content">
 
-  <!-- KPI qator -->
-  <div class="kpi-grid mb-16" id="kpiGrid">
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-projects">—</div>
-      <div class="kpi-label">Jami loyihalar</div>
+  {% if role in ['admin','manager','accountant'] %}
+  {# ============ BOY ANALITIKA — ADMIN / MANAGER / ACCOUNTANT ============ #}
+
+  <div class="stat-grid mb-16" id="statGrid">
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-clipboard-list"></i></div>
+      <div class="stat-label">Jami buyurtmalar</div>
+      <div class="stat-val" id="k-orders">—</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-orders">—</div>
-      <div class="kpi-label">Jami buyurtmalar</div>
-      <span class="kpi-badge warn" id="k-active-badge"></span>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-progress"></i></div>
+      <div class="stat-label">Faol buyurtmalar</div>
+      <div class="stat-val" id="k-active">—</div>
+      <div class="stat-trend warn">Jarayonda</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-ready">—</div>
-      <div class="kpi-label">Tayyor buyurtmalar</div>
-      <span class="kpi-badge up">✓ Bajarildi</span>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-circle-check"></i></div>
+      <div class="stat-label">Tayyor buyurtmalar</div>
+      <div class="stat-val" id="k-ready">—</div>
+      <div class="stat-trend up">Bajarildi</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-masters">—</div>
-      <div class="kpi-label">Faol ustalar</div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="ti ti-hammer"></i></div>
+      <div class="stat-label">Faol ustalar</div>
+      <div class="stat-val" id="k-masters">—</div>
+    </div>
+    <div class="stat-card emph">
+      <div class="stat-icon"><i class="ti ti-credit-card"></i></div>
+      <div class="stat-label">Jami qarzdorlik</div>
+      <div class="stat-val" id="k-debt">—</div>
+      <a href="/debts" style="font-size:11px;color:var(--gold);text-decoration:none;display:inline-block;margin-top:8px">Ko'rish →</a>
     </div>
   </div>
 
-  <!-- Navigatsiya kartochkalar -->
+  <div class="section-row">
+    <div class="card">
+      <div class="card-head"><h3>Buyurtmalar holati</h3></div>
+      <div class="card-body">
+        <div class="chart-wrap" style="height:170px"><canvas id="statusChart"></canvas></div>
+        <div class="gauge-legend" id="statusLegend"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>So'nggi buyurtmalar</h3><a href="/orders" class="ch-action">Barchasi →</a></div>
+      <div class="card-body" id="recentOrders">
+        <div class="list-row"><span class="list-sub">Yuklanmoqda…</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Kam qolgan xomashyo</h3><a href="/inventory" class="ch-action">Barchasi →</a></div>
+      <div class="card-body" id="lowStock">
+        <div class="list-sub">Yuklanmoqda…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-row2">
+    <div class="card">
+      <div class="card-head"><h3>Oylik daromad</h3></div>
+      <div class="card-body">
+        <div class="chart-wrap"><canvas id="revenueChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Top ustalar</h3><a href="/kpi" class="ch-action">Barchasi →</a></div>
+      <div class="card-body">
+        <div class="leaderboard" id="leaderboard"></div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ============ TEZKOR KIRISH — HAMMA ROLLAR ============ #}
+  <div class="card-head" style="border:none;padding:0 0 12px"><h3>Tezkor kirish</h3></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">
 
     {% if role in ['admin','manager','accountant'] %}
     <a href="/projects" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#C9A55A'" onmouseout="this.style.borderColor='#ebebeb'">
-        <div style="font-size:28px;margin-bottom:10px">📋</div>
+        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-briefcase"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Loyihalar</div>
         <div style="font-size:12px;color:#999">Mijoz loyihalarini boshqarish</div>
       </div>
@@ -45,7 +114,7 @@
 
     <a href="/orders" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s;border-color:#C9A55A" onmouseover="this.style.borderColor='#B8924A'" onmouseout="this.style.borderColor='#C9A55A'">
-        <div style="font-size:28px;margin-bottom:10px">🧾</div>
+        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-receipt"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Buyurtmalar</div>
         <div style="font-size:12px;color:#999">Yangi va faol buyurtmalar</div>
       </div>
@@ -54,7 +123,7 @@
     {% if role in ['admin','manager'] %}
     <a href="/masters" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#C9A55A'" onmouseout="this.style.borderColor='#ebebeb'">
-        <div style="font-size:28px;margin-bottom:10px">👷</div>
+        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-hammer"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Ustalar</div>
         <div style="font-size:12px;color:#999">KPI va reyting</div>
       </div>
@@ -64,7 +133,7 @@
     {% if role == 'admin' %}
     <a href="/inventory" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#C9A55A'" onmouseout="this.style.borderColor='#ebebeb'">
-        <div style="font-size:28px;margin-bottom:10px">📦</div>
+        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-package"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Omborxona</div>
         <div style="font-size:12px;color:#999">Xomashyo va materiallar</div>
       </div>
@@ -72,7 +141,7 @@
 
     <a href="/recipes" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#C9A55A'" onmouseout="this.style.borderColor='#ebebeb'">
-        <div style="font-size:28px;margin-bottom:10px">🧪</div>
+        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-flask"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Retseptlar</div>
         <div style="font-size:12px;color:#999">Kvars va marmar qoplama</div>
       </div>
@@ -82,7 +151,7 @@
     {% if role in ['admin','manager'] %}
     <a href="/returns" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#C9A55A'" onmouseout="this.style.borderColor='#ebebeb'">
-        <div style="font-size:28px;margin-bottom:10px">↩️</div>
+        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-arrow-back-up"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Qaytarishlar</div>
         <div style="font-size:12px;color:#999">Brak va ortiqcha mahsulotlar</div>
       </div>
@@ -90,7 +159,7 @@
 
     <a href="/debts" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s;border-color:#FDEDEC" onmouseover="this.style.borderColor='#E74C3C'" onmouseout="this.style.borderColor='#FDEDEC'">
-        <div style="font-size:28px;margin-bottom:10px">💳</div>
+        <div class="stat-icon" style="margin-bottom:12px;background:#FDEDEC;color:#c0392b"><i class="ti ti-credit-card"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Qarzdorlar</div>
         <div style="font-size:12px;color:#999">To'liq to'lanmagan loyihalar</div>
       </div>
@@ -100,17 +169,15 @@
     {% if role == 'admin' %}
     <a href="/dashboard" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#C9A55A'" onmouseout="this.style.borderColor='#ebebeb'">
-        <div style="font-size:28px;margin-bottom:10px">📊</div>
+        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-chart-bar"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Dashboard</div>
         <div style="font-size:12px;color:#999">Statistika va KPI</div>
       </div>
     </a>
-    {% endif %}
 
-    {% if role == 'admin' %}
     <a href="/finance" style="text-decoration:none">
       <div class="card" style="padding:20px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='#C9A55A'" onmouseout="this.style.borderColor='#ebebeb'">
-        <div style="font-size:28px;margin-bottom:10px">💹</div>
+        <div class="stat-icon" style="margin-bottom:12px"><i class="ti ti-trending-up"></i></div>
         <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:4px">Moliya</div>
         <div style="font-size:12px;color:#999">Oylik hisobot va xarajatlar</div>
       </div>
@@ -122,19 +189,114 @@
 {% endblock %}
 
 {% block scripts %}
+{% set role = current_user.role.value %}
+{% if role in ['admin','manager','accountant'] %}
 <script>
-  fetch('/api/dashboard/stats')
-    .then(r => r.json())
-    .then(s => {
-      document.getElementById('k-projects').textContent = s.total_projects;
-      document.getElementById('k-orders').textContent   = s.total_orders;
-      document.getElementById('k-ready').textContent    = s.ready_orders;
-      document.getElementById('k-masters').textContent  = s.total_masters;
-      const b = document.getElementById('k-active-badge');
-      if (s.active_orders > 0) {
-        b.textContent = s.active_orders + ' faol';
-        b.style.display = 'inline-block';
-      }
-    }).catch(() => {});
+const fmt = n => new Intl.NumberFormat('uz-UZ').format(Math.round(n));
+const fmtM = n => (n / 1000000).toFixed(1) + ' mln';
+
+const STATUS_LABELS = {new: "Yangi", in_progress: "Jarayonda", ready: "Tayyor", delivered: "Yetkazilgan", cancelled: "Bekor qilingan"};
+const STATUS_COLORS = {new: "#1a6fa8", in_progress: "#E67E22", ready: "#27AE60", delivered: "#8E44AD", cancelled: "#aaaaaa"};
+
+fetch('/api/dashboard/stats').then(r => r.json()).then(s => {
+  document.getElementById('k-orders').textContent = fmt(s.total_orders);
+  document.getElementById('k-active').textContent = fmt(s.active_orders);
+  document.getElementById('k-ready').textContent = fmt(s.ready_orders);
+  document.getElementById('k-masters').textContent = fmt(s.total_masters);
+
+  const lowStockEl = document.getElementById('lowStock');
+  if (!s.low_stock_items || s.low_stock_items.length === 0) {
+    lowStockEl.innerHTML = '<div class="list-sub">Barcha xomashyo yetarli</div>';
+  } else {
+    lowStockEl.innerHTML = s.low_stock_items.slice(0, 5).map(item => {
+      const pct = Math.min(100, Math.round((item.stock_quantity / item.min_stock) * 100));
+      const color = pct < 40 ? '#E74C3C' : '#E67E22';
+      return `<div class="stock-row">
+        <div class="stock-head">
+          <span class="stock-name">${item.item_name}</span>
+          <span class="stock-qty" style="color:${color}">${item.stock_quantity} ${item.unit}</span>
+        </div>
+        <div class="stock-bar"><div class="stock-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>`;
+    }).join('');
+  }
+}).catch(() => {});
+
+fetch('/api/dashboard/charts').then(r => r.json()).then(c => {
+  document.getElementById('k-debt').textContent = fmtM(c.finance.total_debt) + " so'm";
+
+  new Chart(document.getElementById('revenueChart'), {
+    type: 'line',
+    data: {
+      labels: c.months.map(m => m.label),
+      datasets: [{
+        label: 'Daromad',
+        data: c.months.map(m => m.revenue),
+        borderColor: '#C9A55A',
+        backgroundColor: 'rgba(201,165,90,.1)',
+        fill: true, tension: 0.3, pointRadius: 3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => fmtM(v) } } }
+    }
+  });
+
+  const statusEntries = Object.entries(c.statuses).filter(([k, v]) => v > 0);
+  new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: statusEntries.map(([k]) => STATUS_LABELS[k] || k),
+      datasets: [{
+        data: statusEntries.map(([, v]) => v),
+        backgroundColor: statusEntries.map(([k]) => STATUS_COLORS[k] || '#ccc'),
+        borderWidth: 0
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
+  });
+  document.getElementById('statusLegend').innerHTML = statusEntries.map(([k, v]) => `
+    <div class="gauge-legend-row">
+      <span><span class="gauge-dot" style="background:${STATUS_COLORS[k] || '#ccc'}"></span>${STATUS_LABELS[k] || k}</span>
+      <span style="font-weight:500">${v} ta</span>
+    </div>`).join('');
+
+  const board = document.getElementById('leaderboard');
+  if (!c.master_kpi || c.master_kpi.length === 0) {
+    board.innerHTML = '<div class="list-sub">Ma\'lumot yo\'q</div>';
+  } else {
+    board.innerHTML = c.master_kpi.map((m, i) => {
+      const initials = m.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+      return `<div class="lb-item ${i === 0 ? 'rank1' : ''}">
+        <div class="lb-avatar">${initials}</div>
+        <div class="lb-name">${m.name}</div>
+        <div class="lb-meta">${m.orders} ta buyurtma</div>
+      </div>`;
+    }).join('');
+  }
+}).catch(() => {});
+
+fetch('/api/orders').then(r => r.json()).then(orders => {
+  const recentEl = document.getElementById('recentOrders');
+  const recent = [...orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
+  if (recent.length === 0) {
+    recentEl.innerHTML = '<div class="list-sub">Buyurtmalar yo\'q</div>';
+    return;
+  }
+  const badgeClass = {new: 'badge-new', in_progress: 'badge-progress', ready: 'badge-ready', delivered: 'badge-delivered', cancelled: 'badge-cancelled'};
+  recentEl.innerHTML = recent.map(o => `
+    <div class="list-row">
+      <div>
+        <div class="list-title">${o.order_number || ('#' + o.id)}</div>
+        <div class="list-sub">${o.order_type}</div>
+      </div>
+      <span class="badge ${badgeClass[o.status] || 'badge-info'}">${STATUS_LABELS[o.status] || o.status}</span>
+    </div>`).join('');
+}).catch(() => {
+  document.getElementById('recentOrders').innerHTML = '<div class="list-sub">Yuklab bo\'lmadi</div>';
+});
 </script>
+{% endif %}
 {% endblock %}
