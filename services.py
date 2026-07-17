@@ -277,6 +277,68 @@ def check_low_stock(db: Session) -> List[Dict]:
     return result
 
 
+def get_today_stats(db: Session) -> Dict:
+    """Dashboard yuqori qatori uchun 'bugungi kun' statistikasi.
+
+    Barchasi bazadagi haqiqiy yozuvlardan hisoblanadi:
+    - Bugungi tushum: bugun qabul qilingan to'lovlar summasi (Payment.paid_at)
+    - Ishlab chiqarishda: status = in_progress yoki coating bo'lgan buyurtmalar
+    - Bugun topshiriladi: deadline bugunga to'g'ri keladigan, hali yopilmagan buyurtmalar
+    - Ishlayotgan ustalar: hozir faol buyurtmasi bor noyob ustalar soni
+    - Sof foyda (bugun): bugun yakunlangan (completed_at) buyurtmalar bo'yicha calculate_order_profit yig'indisi
+    """
+    from models import Order, OrderStatus, Master, Payment
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+
+    today_revenue = db.query(func.sum(Payment.amount)).filter(
+        Payment.paid_at >= today_start, Payment.paid_at < today_end
+    ).scalar() or 0
+
+    active_orders = db.query(Order).filter(
+        Order.status.notin_([OrderStatus.READY, OrderStatus.DELIVERED, OrderStatus.CANCELLED])
+    ).count()
+
+    in_production = db.query(Order).filter(
+        Order.status.in_([OrderStatus.IN_PROGRESS, OrderStatus.COATING])
+    ).count()
+
+    due_today = db.query(Order).filter(
+        Order.deadline >= today_start, Order.deadline < today_end,
+        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED])
+    ).count()
+
+    active_masters = db.query(Order.master_id).filter(
+        Order.master_id.isnot(None),
+        Order.status.in_([OrderStatus.NEW, OrderStatus.IN_PROGRESS, OrderStatus.COATING])
+    ).distinct().count()
+
+    completed_today = db.query(Order).filter(
+        Order.completed_at >= today_start, Order.completed_at < today_end,
+        Order.status == OrderStatus.READY
+    ).all()
+    today_profit = 0.0
+    for o in completed_today:
+        try:
+            p = calculate_order_profit(db, o.id)
+            if p.get("success"):
+                today_profit += p.get("foyda", 0)
+        except Exception:
+            db.rollback()
+
+    return {
+        "today_revenue": float(today_revenue),
+        "active_orders": active_orders,
+        "in_production": in_production,
+        "due_today": due_today,
+        "active_masters": active_masters,
+        "today_profit": today_profit,
+    }
+
+
 def get_dashboard_stats(db: Session) -> Dict:
     """Admin dashboard uchun umumiy statistika."""
     from models import Project, Master
