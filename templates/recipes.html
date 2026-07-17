@@ -4,21 +4,32 @@
 {% block page_sub %}Kvars va marmar qoplama retsepturalari{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="showAddModal()">+ Yangi retsept</button>
+<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="font-size:13px;vertical-align:-2px"></i> Yangi retsept</button>
 {% endblock %}
 
 {% block head %}
 <style>
-.rec-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.ing-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5}
+.rec-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.rec-grid{grid-template-columns:1fr}}
+.rec-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);overflow:hidden}
+.rec-head{display:flex;align-items:center;gap:12px;padding:16px;border-bottom:1px solid var(--border2)}
+.rec-thumb{width:48px;height:48px;border-radius:10px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:20px;position:relative;cursor:pointer}
+.rec-thumb img{width:100%;height:100%;object-fit:cover}
+.rec-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.rec-meta{font-size:11px;color:var(--text3);margin-top:2px}
+.ing-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2)}
 .ing-row:last-child{border-bottom:none}
-.ing-name{font-size:13px;color:#555}
-.ing-val{font-size:13px;font-weight:600;color:#111}
-.ing-bar{height:3px;background:#f0f0f0;border-radius:2px;margin-top:4px}
-.ing-fill{height:100%;background:#2563EB;border-radius:2px}
-.calc-result{background:#f8f8f6;border-radius:10px;padding:14px;border:1px solid #ebebeb;margin-top:12px}
-.calc-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;color:#555}
-.calc-row.total{font-weight:600;color:#111;border-top:1px solid #e8e8e8;padding-top:8px;margin-top:4px}
+.ing-name{font-size:12.5px;color:var(--text2)}
+.ing-val{font-size:13px;font-weight:600;color:var(--text)}
+.ing-bar{height:4px;background:var(--border2);border-radius:2px;margin-top:5px;width:140px}
+.ing-fill{height:100%;background:var(--gold);border-radius:2px}
+.calc-result{background:var(--bg);border-radius:10px;padding:14px;border:1px solid var(--border);margin-top:12px}
+.calc-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;color:var(--text2)}
+.calc-row.total{font-weight:600;color:var(--text);border-top:1px solid var(--border2);padding-top:8px;margin-top:4px}
+.rec-stat{background:var(--bg);border-radius:10px;padding:12px;text-align:center}
+.rec-stat-val{font-size:16px;font-weight:600;color:var(--gold-dark)}
+.rec-stat-label{font-size:10.5px;color:var(--text3);margin-top:2px}
+.used-tag{display:inline-block;font-size:11px;background:var(--border2);color:var(--text2);padding:3px 10px;border-radius:14px;margin:2px 4px 2px 0}
 </style>
 {% endblock %}
 
@@ -27,17 +38,45 @@
 <div class="rec-grid">
 
   {% for recipe in recipes %}
-  <div class="card">
-    <div class="card-head">
-      <h3>{{ recipe.name.value }} retsepti</h3>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:11px;color:#aaa">{{ recipe.batch_size_kg }} kg batch</span>
-        <button class="btn btn-outline btn-xs" onclick="editRecipe({{ recipe.id }}, '{{ recipe.name.value }}', {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.travertin_qum_kg or 0 }}, {{ recipe.kroshka_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.zagustitel_kg or 0 }}, {{ recipe.suv_kg }}, {{ recipe.penogasitel_kg }}, {{ recipe.biotsid_ml }})">✏️ Tahrirlash</button>
-        <button class="btn btn-outline btn-xs" style="color:#EF4444;border-color:#EF4444" onclick="deleteRecipe({{ recipe.id }})">🗑</button>
+  {% set ins = insights.get(recipe.id, {'cost_per_kg': 0, 'used_in': []}) %}
+  <div class="rec-card">
+    <div class="rec-head">
+      <label class="rec-thumb" title="Rasm yuklash">
+        {% if recipe.image_url %}<img src="{{ recipe.image_url }}" alt="">{% else %}<i class="ti ti-flask"></i>{% endif %}
+        <input type="file" accept="image/*" onchange="uploadRecipeImage({{ recipe.id }}, this)">
+      </label>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:500;color:var(--text)">{{ recipe.name.value }} retsepti</div>
+        <div class="rec-meta">
+          {{ recipe.batch_size_kg }} kg batch
+          {% if recipe.updated_at %} · Yangilangan: {{ recipe.updated_at.strftime('%d.%m.%Y') }}
+          {% else %} · Yaratilgan: {{ recipe.created_at.strftime('%d.%m.%Y') }}{% endif %}
+        </div>
       </div>
+      <button class="btn btn-outline btn-xs" onclick="editRecipe({{ recipe.id }}, '{{ recipe.name.value }}', {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.travertin_qum_kg or 0 }}, {{ recipe.kroshka_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.zagustitel_kg or 0 }}, {{ recipe.suv_kg }}, {{ recipe.penogasitel_kg }}, {{ recipe.biotsid_ml }})" title="Tahrirlash"><i class="ti ti-edit"></i></button>
+      <button class="btn btn-outline btn-xs" style="color:#EF4444;border-color:#EF4444" onclick="deleteRecipe({{ recipe.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
     </div>
     <div class="card-body">
-      <!-- Ingredientlar -->
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div class="rec-stat">
+          <div class="rec-stat-val">{{ "{:,.0f}".format(ins.cost_per_kg).replace(",", " ") }} so'm</div>
+          <div class="rec-stat-label">1 kg tannarxi (joriy narxda)</div>
+        </div>
+        <div class="rec-stat">
+          <div class="rec-stat-val">{{ ins.used_in|length }}{% if ins.used_in|length == 12 %}+{% endif %}</div>
+          <div class="rec-stat-label">ishlatilgan mahsulot turi</div>
+        </div>
+      </div>
+
+      {% if ins.used_in %}
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Qaysi mahsulotlarda ishlatiladi</div>
+        {% for name in ins.used_in %}<span class="used-tag">{{ name }}</span>{% endfor %}
+      </div>
+      {% endif %}
+
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Tarkibi</div>
       {% set total = recipe.akril_kg + recipe.pva_kg + recipe.qum_kg + recipe.kroshka_kg + recipe.penogasitel_kg + recipe.shtukaturka_kg + recipe.suv_kg %}
       {% for name, val in [('Akril', recipe.akril_kg), ('PVA', recipe.pva_kg), ('Qum', recipe.qum_kg), ('Kroshka', recipe.kroshka_kg), ('Penogasitel', recipe.penogasitel_kg), ('Shtukaturka', recipe.shtukaturka_kg), ('Suv', recipe.suv_kg)] %}
       {% if val > 0 %}
@@ -48,7 +87,7 @@
         </div>
         <div style="text-align:right">
           <div class="ing-val">{{ val }} kg</div>
-          <div style="font-size:10px;color:#aaa">{{ "%.1f"|format(val/recipe.batch_size_kg*100) }}%</div>
+          <div style="font-size:10px;color:var(--text3)">{{ "%.1f"|format(val/recipe.batch_size_kg*100) }}%</div>
         </div>
       </div>
       {% endif %}
@@ -61,13 +100,13 @@
       {% endif %}
 
       <!-- Hisoblash -->
-      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f0">
-        <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Hisoblash</div>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border2)">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Hisoblash</div>
         <div style="display:flex;align-items:center;gap:8px">
           <input type="number" id="area-{{ recipe.id }}" placeholder="m²" min="0" step="0.1"
-                 style="width:100px;padding:7px 10px;border:1px solid #e8e8e8;border-radius:7px;font-size:13px;outline:none"
+                 style="width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;outline:none"
                  oninput="calcRecipe({{ recipe.id }}, {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.suv_kg }})">
-          <span style="font-size:13px;color:#aaa">m² uchun</span>
+          <span style="font-size:13px;color:var(--text3)">m² uchun</span>
           <button class="btn btn-outline btn-sm" onclick="calcRecipe({{ recipe.id }}, {{ recipe.batch_size_kg }}, {{ recipe.akril_kg }}, {{ recipe.pva_kg }}, {{ recipe.qum_kg }}, {{ recipe.shtukaturka_kg }}, {{ recipe.suv_kg }})">Hisobla</button>
         </div>
         <div id="calc-{{ recipe.id }}" class="calc-result" style="display:none"></div>
@@ -78,7 +117,7 @@
 
   {% if not recipes %}
   <div class="card" style="grid-column:1/-1">
-    <div class="card-body" style="text-align:center;padding:40px;color:#bbb">Retsept yo'q</div>
+    <div class="card-body" style="text-align:center;padding:40px;color:var(--text3)">Retsept yo'q</div>
   </div>
   {% endif %}
 
@@ -109,6 +148,18 @@ function calcRecipe(id, batch, akril, pva, qum, shtu, suv) {
 
 function showAddModal(){document.getElementById('addModal').style.display='flex'}
 function closeModal(){document.getElementById('addModal').style.display='none'}
+
+async function uploadRecipeImage(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`/api/recipes/${id}/image`, { method: 'POST', body: fd });
+    if (res.ok) location.reload();
+    else alert('Rasm yuklanmadi');
+  } catch(e) { alert('Server xatosi'); }
+}
 
 function editRecipe(id, name, batch, akril, pva, qum, trav_qum, kroshka, shtu, zagustitel, suv, peno, bio) {
   document.getElementById('edit-id').value = id;
@@ -227,7 +278,7 @@ async function saveRecipe() {
   <div style="background:#fff;border-radius:14px;padding:24px;width:500px;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">✏️ Retseptni tahrirlash</div>
     <input type="hidden" id="edit-id">
-    <div class="form-group"><label>Retsept nomi</label><input type="text" id="edit-name" readonly style="background:#f5f5f5;color:#aaa"></div>
+    <div class="form-group"><label>Retsept nomi</label><input type="text" id="edit-name" readonly style="background:var(--border2);color:var(--text3)"></div>
     <div class="form-group"><label>Batch hajmi (kg)</label><input type="number" id="edit-batch" min="1"></div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Akril (kg)</label><input type="number" id="edit-akril" step="0.1"></div>
