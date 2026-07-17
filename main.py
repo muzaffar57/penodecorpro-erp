@@ -92,6 +92,14 @@ def _migrate_payment_columns():
             if 'soliqlar' not in me_cols:
                 migrations.append("ALTER TABLE monthly_expenses ADD COLUMN soliqlar NUMERIC(12,2) DEFAULT 0")
 
+        # InventoryPurchase — supplier ustunlari
+        if 'inventory_purchases' in inspector.get_table_names():
+            ip_cols = [c['name'] for c in inspector.get_columns('inventory_purchases')]
+            if 'supplier_id' not in ip_cols:
+                migrations.append("ALTER TABLE inventory_purchases ADD COLUMN supplier_id INTEGER")
+            if 'is_credit' not in ip_cols:
+                migrations.append("ALTER TABLE inventory_purchases ADD COLUMN is_credit BOOLEAN DEFAULT FALSE")
+
         # Delivery — transport ustunlari
         if 'deliveries' in inspector.get_table_names():
             dlv_cols = [c['name'] for c in inspector.get_columns('deliveries')]
@@ -504,7 +512,8 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi."""
     who = current_user.full_name or current_user.username
     result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
-                                  purchased_by=who, notes=data.notes)
+                                  purchased_by=who, notes=data.notes,
+                                  supplier_id=data.supplier_id, is_credit=data.is_credit)
     if not result:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
 
@@ -639,6 +648,67 @@ def api_transport_stats(year: Optional[int] = None, month: Optional[int] = None,
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Transport xarajatlari statistikasi (kirish + chiqish)."""
     return crud.get_transport_stats(db, year=year, month=month)
+
+
+# ============================================================
+# SUPPLIERS — Yetkazib beruvchilar va nasiya qarzi
+# ============================================================
+
+@app.get("/suppliers", response_class=HTMLResponse)
+async def suppliers_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    return templates.TemplateResponse(request, "suppliers.html", {"current_user": current_user, "active_page": "suppliers"})
+
+
+@app.post("/api/suppliers")
+def api_create_supplier(data: schemas.SupplierCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    s = crud.create_supplier(db, data)
+    return {"status": "ok", "id": s.id}
+
+
+@app.get("/api/suppliers")
+def api_get_suppliers(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    return crud.get_suppliers_with_debt(db)
+
+
+@app.put("/api/suppliers/{supplier_id}")
+def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    s = crud.update_supplier(db, supplier_id, data)
+    if not s:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
+
+
+@app.get("/api/suppliers/{supplier_id}/history")
+def api_supplier_history(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    s = crud.get_supplier(db, supplier_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    history = crud.get_supplier_history(db, supplier_id)
+    return {"name": s.name, "phone": s.phone, **history}
+
+
+@app.post("/api/suppliers/{supplier_id}/payment")
+def api_supplier_payment(supplier_id: int, data: schemas.SupplierPaymentCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    who = current_user.full_name or current_user.username
+    data.supplier_id = supplier_id
+    p = crud.create_supplier_payment(db, data, paid_by=who)
+    debt_info = crud.get_supplier_debt(db, supplier_id)
+    return {"status": "ok", "payment_id": p.id, **debt_info}
+
+
+@app.delete("/api/suppliers/payments/{payment_id}")
+def api_delete_supplier_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    if not crud.delete_supplier_payment(db, payment_id):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
+
+
+@app.get("/api/suppliers/debt-total")
+def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Barcha yetkazib beruvchilarga jami qarz — dashboard uchun."""
+    suppliers = crud.get_suppliers_with_debt(db)
+    total = sum(s["debt"] for s in suppliers)
+    return {"total_debt": total, "supplier_count": sum(1 for s in suppliers if s["debt"] > 0)}
 
 
 @app.get("/api/inventory/purchase-trend")
