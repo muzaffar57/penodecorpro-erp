@@ -1654,7 +1654,7 @@ function addItem() {
       <div class="dif i-unitprice-wrap" style="display:none"><label>1 dona narxi (so'm)</label><input type="number" placeholder="" class="i-unitprice" step="100" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="number" placeholder="1500000" class="i-blokprice" step="1000" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif"><label>Qoplama</label>
-        <select class="i-c" onchange="calculateItem(this.closest('.detal'))">
+        <select class="i-c" onchange="onCoatToggle(this.closest('.detal'))">
           <option value="true">Ha (×2)</option>
           <option value="false">Yo'q</option>
         </select>
@@ -1678,8 +1678,29 @@ function addItem() {
     </div>`;
   const container = document.getElementById('items');
   container.prepend(div);
+  div.dataset.wasCoated = 'true';   // standart qoplama holati — "Ha" bilan mos
   toggleFields(div);
   calculateItem(div);
+}
+
+function onCoatToggle(row) {
+  // Blok turi uchun: qoplama belgisi almashtirilsa narx avtomatik ×2 / ÷2 bo'ladi
+  // (qulaylik uchun), lekin xodim istalgan vaqt qo'lda tuzatishi mumkin —
+  // chunki ayrim detallarda kelishilgan narx formula bilan mos kelmasligi mumkin.
+  const type = row.querySelector('.i-type')?.value;
+  if (type === 'blok') {
+    const isCoatedNow = row.querySelector('.i-c').value === 'true';
+    const wasCoated = row.dataset.wasCoated === 'true';
+    const bpEl = row.querySelector('.i-blokprice');
+    if (bpEl && isCoatedNow !== wasCoated) {
+      const cur = parseFloat(bpEl.value) || 0;
+      if (cur > 0) {
+        bpEl.value = Math.round(isCoatedNow ? cur * 2 : cur / 2);
+      }
+    }
+    row.dataset.wasCoated = String(isCoatedNow);
+  }
+  calculateItem(row);
 }
 
 function toggleFields(row) {
@@ -2154,6 +2175,7 @@ async function editSelected() {
 
         const coatEl = row.querySelector('.i-c');
         if (coatEl) coatEl.value = item.is_coated ? 'true' : 'false';
+        row.dataset.wasCoated = item.is_coated ? 'true' : 'false';
 
         // Topshirilgan bo'lsa — belgilaymiz
         const dlvInfo = (window._dlvMap || {})[(item.name || '').trim().toLowerCase()];
