@@ -1653,6 +1653,7 @@ function addItem() {
       <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-unitprice-wrap" style="display:none"><label>1 dona narxi (so'm)</label><input type="number" placeholder="" class="i-unitprice" step="100" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="number" placeholder="1500000" class="i-blokprice" step="1000" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti (masalan 2)</label><input type="number" value="2" class="i-blokmult" step="0.1" min="1"></div>
       <div class="dif"><label>Qoplama</label>
         <select class="i-c" onchange="onCoatToggle(this.closest('.detal'))">
           <option value="true">Ha (×2)</option>
@@ -1692,10 +1693,12 @@ function onCoatToggle(row) {
     const isCoatedNow = row.querySelector('.i-c').value === 'true';
     const wasCoated = row.dataset.wasCoated === 'true';
     const bpEl = row.querySelector('.i-blokprice');
+    const multEl = row.querySelector('.i-blokmult');
+    const mult = parseFloat(multEl?.value) || 2;
     if (bpEl && isCoatedNow !== wasCoated) {
       const cur = parseFloat(bpEl.value) || 0;
       if (cur > 0) {
-        bpEl.value = Math.round(isCoatedNow ? cur * 2 : cur / 2);
+        bpEl.value = Math.round(isCoatedNow ? cur * mult : cur / mult);
       }
     }
     row.dataset.wasCoated = String(isCoatedNow);
@@ -1712,6 +1715,7 @@ function toggleFields(row) {
   const qW = row.querySelector('.i-q-wrap');
   const upW = row.querySelector('.i-unitprice-wrap');
   const bpW = row.querySelector('.i-blokprice-wrap');
+  const bmW = row.querySelector('.i-blokmult-wrap');
   const m3Field = row.querySelector('.i-m3price')?.closest('.dif');
   const coatField = row.querySelector('.i-c')?.closest('.dif');
 
@@ -1721,6 +1725,7 @@ function toggleFields(row) {
     qW.style.display = 'block';
     if (upW) upW.style.display = 'block';
     if (bpW) bpW.style.display = 'none';
+    if (bmW) bmW.style.display = 'none';
     if (m3Field) m3Field.style.display = '';
     if (coatField) coatField.style.display = '';
     ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
@@ -1730,6 +1735,7 @@ function toggleFields(row) {
     qW.style.display = 'block';
     if (upW) upW.style.display = 'none';
     if (bpW) bpW.style.display = 'none';
+    if (bmW) bmW.style.display = 'none';
     if (m3Field) m3Field.style.display = '';
     if (coatField) coatField.style.display = '';
     const lEl = row.querySelector('.i-l'); if(lEl) lEl.value = '0';
@@ -1740,6 +1746,7 @@ function toggleFields(row) {
     qW.style.display = 'block';   // Blokdan chiqqan metr (mijozga)
     if (upW) upW.style.display = 'none';
     if (bpW) bpW.style.display = 'block';
+    if (bmW) bmW.style.display = 'block';
     if (m3Field) m3Field.style.display = 'none';   // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
     if (coatField) coatField.style.display = '';   // qoplamali/qoplamasiz — faqat yozuv uchun, narxni ko'paytirmaydi
     ['i-h','i-w','i-t'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
@@ -1750,6 +1757,7 @@ function toggleFields(row) {
     qW.style.display = 'none';
     if (upW) upW.style.display = 'none';
     if (bpW) bpW.style.display = 'none';
+    if (bmW) bmW.style.display = 'none';
     if (m3Field) m3Field.style.display = '';
     if (coatField) coatField.style.display = '';
     const tEl = row.querySelector('.i-t'); if(tEl) tEl.value = '';
