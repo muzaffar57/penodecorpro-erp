@@ -1358,6 +1358,11 @@ def api_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth
     return services.get_dashboard_stats(db)
 
 
+@app.get("/api/dashboard/today")
+def api_dashboard_today(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+    return services.get_today_stats(db)
+
+
 @app.get("/api/dashboard/charts")
 def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
     return services.get_chart_data(db)
