@@ -152,14 +152,20 @@ def update_stock(db: Session, item_id: int, quantity_change: float) -> Optional[
 
 
 def guess_category(item_name: str, is_penoplast: bool = False) -> str:
-    """Material nomidan kategoriyani taxmin qiladi."""
+    """Material nomidan kategoriyani taxmin qiladi.
+
+    3 asosiy guruh:
+    1) Penoplast — penoplast xomashyosi
+    2) Kimyoviy qo'shimchalar — suyuq/kimyoviy moddalar (akril, pva, zagustitel, penogasitel)
+    3) Qattiq qotishmalar — qum, mel, kroshka va shunga o'xshash quruq materiallar
+    """
     name = (item_name or '').lower()
     if is_penoplast or 'penoplast' in name or 'penopleks' in name:
         return "Penoplast"
-    if any(k in name for k in ['qum', 'kroshka', 'shag\'al']):
-        return "Qumlar"
-    if any(k in name for k in ['akril', 'pva', 'zagustitel', 'penogasitel', 'mel', 'shtukaturka']):
-        return "Kimyoviy moddalar"
+    if any(k in name for k in ['akril', 'pva', 'zagustitel', 'penogasitel']):
+        return "Kimyoviy qo'shimchalar"
+    if any(k in name for k in ['qum', 'kroshka', "shag'al", 'mel', 'shtukaturka']):
+        return "Qattiq qotishmalar"
     return "Boshqa"
 
 
