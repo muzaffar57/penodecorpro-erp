@@ -163,6 +163,7 @@ class Inventory(Base):
     category = Column(String(50), nullable=True)  # Penoplast / Qumlar / Kimyoviy moddalar / Boshqa
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     notes = Column(Text, nullable=True)
+    image_url = Column(String(255), nullable=True)  # Faqat UI uchun — hisob-kitobga ta'siri yo'q
 
     def __repr__(self):
         return f"<Inventory {self.item_name}: {self.stock_quantity} {self.unit}>"
