@@ -151,11 +151,14 @@ def update_stock(db: Session, item_id: int, quantity_change: float) -> Optional[
 
 
 def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: float,
-                   purchased_by: str = None, notes: str = None):
+                   purchased_by: str = None, notes: str = None,
+                   supplier_id: int = None, is_credit: bool = False):
     """Ombor kirimi — xarid narxi bilan.
     O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
 
         yangi_narx = (eski_qty × eski_narx + yangi_qty × xarid_narxi) / (eski_qty + yangi_qty)
+
+    is_credit=True bo'lsa — nasiya (keyin to'lash), Supplierga qarz sifatida yoziladi.
     """
     from models import InventoryPurchase
 
@@ -183,7 +186,9 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         price_per_unit=price_per_unit,
         total_amount=quantity * price_per_unit,
         purchased_by=purchased_by,
-        notes=notes
+        notes=notes,
+        supplier_id=supplier_id if is_credit else None,
+        is_credit=is_credit
     )
     db.add(purchase)
     db.commit()
@@ -2544,3 +2549,137 @@ def get_masters_kpi_report(db: Session, year: int) -> dict:
 
     rows.sort(key=lambda x: x["gift_amount"], reverse=True)
     return {"year": year, "masters": rows, "total_gift": round(total_gift)}
+
+
+# ============================================================
+# SUPPLIER — Yetkazib beruvchilar va nasiya qarzi
+# ============================================================
+
+from models import Supplier, SupplierPayment, InventoryPurchase
+from schemas import SupplierCreate, SupplierUpdate, SupplierPaymentCreate
+
+
+def create_supplier(db: Session, data: SupplierCreate) -> Supplier:
+    s = Supplier(name=data.name.strip(), phone=data.phone, notes=data.notes)
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    return s
+
+
+def get_suppliers(db: Session, only_active: bool = True) -> List[Supplier]:
+    q = db.query(Supplier)
+    if only_active:
+        q = q.filter(Supplier.is_active == True)
+    return q.order_by(Supplier.name).all()
+
+
+def get_supplier(db: Session, supplier_id: int) -> Optional[Supplier]:
+    return db.query(Supplier).filter(Supplier.id == supplier_id).first()
+
+
+def update_supplier(db: Session, supplier_id: int, data: SupplierUpdate) -> Optional[Supplier]:
+    s = get_supplier(db, supplier_id)
+    if not s:
+        return None
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(s, k, v)
+    db.commit()
+    db.refresh(s)
+    return s
+
+
+def get_supplier_debt(db: Session, supplier_id: int) -> dict:
+    """Yetkazib beruvchiga qancha qarzdorlik bor."""
+    purchases = db.query(InventoryPurchase).filter(
+        InventoryPurchase.supplier_id == supplier_id,
+        InventoryPurchase.is_credit == True
+    ).all()
+    payments = db.query(SupplierPayment).filter(SupplierPayment.supplier_id == supplier_id).all()
+
+    total_credit = sum(float(p.total_amount) for p in purchases)
+    total_paid = sum(float(p.amount) for p in payments)
+    debt = max(0, total_credit - total_paid)
+
+    return {
+        "total_credit": round(total_credit),
+        "total_paid": round(total_paid),
+        "debt": round(debt),
+        "purchase_count": len(purchases)
+    }
+
+
+def get_suppliers_with_debt(db: Session) -> List[dict]:
+    """Barcha yetkazib beruvchilar va ularning qarzdorligi."""
+    suppliers = get_suppliers(db, only_active=True)
+    result = []
+    for s in suppliers:
+        debt_info = get_supplier_debt(db, s.id)
+        result.append({
+            "id": s.id,
+            "name": s.name,
+            "phone": s.phone,
+            "notes": s.notes,
+            **debt_info
+        })
+    result.sort(key=lambda x: x["debt"], reverse=True)
+    return result
+
+
+def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None) -> SupplierPayment:
+    """Yetkazib beruvchiga to'lov — bir nechta xaridni birdaniga yopishi mumkin."""
+    p = SupplierPayment(
+        supplier_id=data.supplier_id,
+        amount=data.amount,
+        paid_by=paid_by,
+        notes=data.notes
+    )
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return p
+
+
+def get_supplier_history(db: Session, supplier_id: int) -> dict:
+    """Yetkazib beruvchining xaridlar va to'lovlar tarixi."""
+    purchases = db.query(InventoryPurchase).filter(
+        InventoryPurchase.supplier_id == supplier_id
+    ).order_by(InventoryPurchase.purchased_at.desc()).all()
+
+    payments = db.query(SupplierPayment).filter(
+        SupplierPayment.supplier_id == supplier_id
+    ).order_by(SupplierPayment.paid_at.desc()).all()
+
+    debt_info = get_supplier_debt(db, supplier_id)
+
+    return {
+        **debt_info,
+        "purchases": [{
+            "id": p.id,
+            "item_name": p.item_name,
+            "quantity": float(p.quantity),
+            "unit": p.unit,
+            "price_per_unit": float(p.price_per_unit),
+            "total_amount": float(p.total_amount),
+            "is_credit": p.is_credit,
+            "purchased_at": p.purchased_at.isoformat() if p.purchased_at else None,
+            "purchased_by": p.purchased_by,
+            "notes": p.notes
+        } for p in purchases],
+        "payments": [{
+            "id": pay.id,
+            "amount": float(pay.amount),
+            "paid_at": pay.paid_at.isoformat() if pay.paid_at else None,
+            "paid_by": pay.paid_by,
+            "notes": pay.notes
+        } for pay in payments]
+    }
+
+
+def delete_supplier_payment(db: Session, payment_id: int) -> bool:
+    p = db.query(SupplierPayment).filter(SupplierPayment.id == payment_id).first()
+    if not p:
+        return False
+    db.delete(p)
+    db.commit()
+    return True
