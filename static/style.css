@@ -31,6 +31,31 @@
   --shadow-card: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
 }
 
+/* ============================================================
+   DARK MODE — <html data-theme="dark"> bo'lganda ishga tushadi
+   Faqat rang o'zgaruvchilari qayta belgilanadi — boshqa hech narsa
+   o'zgarmaydi, shuning uchun BARCHA sahifalarga avtomatik ta'sir qiladi.
+   ============================================================ */
+html[data-theme="dark"] {
+  --gold-tint: #1E2A47;
+  --bg: #0F1420;
+  --white: #171D2C;
+  --border: #2A3345;
+  --border2: #232B3B;
+  --text: #E7EAF0;
+  --text2: #9AA5B8;
+  --text3: #6B7688;
+  --shadow-card: 0 1px 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
+}
+html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+html[data-theme="dark"] .kpi-card,
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .stat-card { background: var(--white); border-color: var(--border); }
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea { background: var(--white); color: var(--text); border-color: var(--border); }
+html[data-theme="dark"] .erp-topbar { background: var(--white); border-color: var(--border); }
+
 
 body {
   background: var(--bg);
