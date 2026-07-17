@@ -131,6 +131,57 @@
     </div>
   </div>
 
+  <!-- TAYYOR MAHSULOTLAR VA BRAK -->
+  <div class="dash-grid2">
+    <div class="card" style="border-left:3px solid #C9A55A;border-radius:0 12px 12px 0">
+      <div class="card-head">
+        <h3 style="color:#8B6914">🏭 Tayyor mahsulotlar</h3>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+          <span style="color:#777">Ishlab chiqarilgan qiymati</span>
+          <span id="fp-produced-value" style="font-weight:700;color:#8B6914">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+          <span style="color:#777">⏳ Jarayonda (loy kutmoqda)</span>
+          <span id="fp-progress-count" style="font-weight:700;color:#E67E22">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+          <span style="color:#777">♻️ Qaytgan mahsulot qiymati</span>
+          <span id="fp-returned-value" style="font-weight:700;color:#27AE60">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0 2px;font-weight:700;font-size:13px;border-top:1px solid #f0f0f0;margin-top:4px">
+          <span>Jami ombor qiymati</span>
+          <span id="fp-total-value" style="color:#C9A55A">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="border-left:3px solid #C0392B;border-radius:0 12px 12px 0">
+      <div class="card-head">
+        <h3 style="color:#c0392b">🔴 Brak (bu oy)</h3>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+          <span style="color:#777">Brak soni (bu oy)</span>
+          <span id="brk-month-count" style="font-weight:700;color:#C0392B">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+          <span style="color:#777">Yo'qotish qiymati (bu oy)</span>
+          <span id="brk-month-value" style="font-weight:700;color:#C0392B">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+          <span style="color:#777">🟢 Butun qaytgan (bu oy)</span>
+          <span id="brk-whole-count" style="font-weight:700;color:#27AE60">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0 2px;font-weight:700;font-size:13px;border-top:1px solid #f0f0f0;margin-top:4px">
+          <span>Jami brak (barcha vaqt)</span>
+          <span id="brk-total-value" style="color:#C0392B">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- BU OY MOLIYAVIY HOLAT -->
   <div class="card mb-16" style="border-left:3px solid #8E44AD;border-radius:0 12px 12px 0">
     <div class="card-head">
@@ -260,6 +311,28 @@ async function loadAll(){
   loadTransportStats();
   loadMonthlyFinance();
   loadSupplierDebt();
+  loadFinishedStats();
+  loadReturnStats();
+}
+
+async function loadFinishedStats(){
+  try{
+    const d = await fetch('/api/finished/stats').then(r=>r.json());
+    document.getElementById('fp-produced-value').textContent = fmt(d.produced_value) + " so'm";
+    document.getElementById('fp-progress-count').textContent = d.in_progress_count + ' ta';
+    document.getElementById('fp-returned-value').textContent = fmt(d.returned_value) + " so'm";
+    document.getElementById('fp-total-value').textContent = fmt(d.total_value) + " so'm";
+  }catch(e){console.error('Finished stats:',e);}
+}
+
+async function loadReturnStats(){
+  try{
+    const d = await fetch('/api/returns/stats').then(r=>r.json());
+    document.getElementById('brk-month-count').textContent = (d.brak_month_count||0) + ' ta';
+    document.getElementById('brk-month-value').textContent = fmt(d.brak_month_value||0) + " so'm";
+    document.getElementById('brk-whole-count').textContent = (d.whole_month_count||0) + ' ta';
+    document.getElementById('brk-total-value').textContent = fmt(d.brak_total_value||0) + " so'm";
+  }catch(e){console.error('Return stats:',e);}
 }
 
 async function loadSupplierDebt(){
@@ -282,12 +355,10 @@ async function loadMonthlyFinance(){
 
     const x = d.xarajatlar || {};
     const fixedTotal = (x.arenda||0)+(x.elektr||0)+(x.tushlik||0)+(x.soliqlar||0);
-    const salaryTotal = (x.hodim1_oylik||0)+(x.hodim2_oylik||0)+(x.hodim3_oylik||0)+(x.qoplamachi_oylik||0)+(x.qoplamachi_bonus||0);
 
     const lines = [
       ['🏭 Ishlab chiqarish (COGS)', d.ishlab_chiqarish_xarajat||0],
       ['🏢 Arenda/Elektr/Tushlik/Soliq', fixedTotal],
-      ['👷 Hodimlar oyliqi (doimiy)', salaryTotal],
       ['🏆 Usta yillik KPI', d.usta_kpi_xarajat||0],
       ['👷 Hodimlar (moslashuvchan)', d.hodimlar_moslashuvchan_xarajat||0],
     ].filter(l => l[1] > 0);
@@ -327,22 +398,44 @@ async function loadPurchaseStats(){
       return;
     }
 
+    const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Boshqa'];
+    const catIcons = { 'Penoplast':'🧱', "Kimyoviy qo'shimchalar":'🧪', 'Qattiq qotishmalar':'⛱️', 'Boshqa':'📦' };
+
+    const groups = {};
+    d.by_material.forEach(m => {
+      const cat = m.category || 'Boshqa';
+      if (!groups[cat]) groups[cat] = { items: [], total: 0 };
+      groups[cat].items.push(m);
+      groups[cat].total += m.total;
+    });
+    const sortedCats = Object.keys(groups).sort((a,b) => catOrder.indexOf(a) - catOrder.indexOf(b));
+
     const maxTotal = Math.max(...d.by_material.map(m=>m.total));
-    el.innerHTML = d.by_material.map(m=>{
-      const pct = maxTotal>0 ? (m.total/maxTotal*100) : 0;
-      return `
-      <div style="padding:10px 16px;border-bottom:1px solid #f5f5f5">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-          <span style="font-size:13px;font-weight:600;color:#1a1a1a">${m.name}</span>
-          <span style="font-size:13px;font-weight:700;color:#8B6914">${fmt(m.total)} so'm</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden">
-            <div style="height:100%;width:${pct}%;background:#C9A55A;border-radius:3px"></div>
+
+    el.innerHTML = sortedCats.map(cat => {
+      const g = groups[cat];
+      const rows = g.items.map(m=>{
+        const pct = maxTotal>0 ? (m.total/maxTotal*100) : 0;
+        return `
+        <div style="padding:8px 16px;border-bottom:1px solid #f5f5f5">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${m.name}</span>
+            <span style="font-size:13px;font-weight:700;color:#8B6914">${fmt(m.total)} so'm</span>
           </div>
-          <span style="font-size:10.5px;color:#aaa;white-space:nowrap">${m.quantity}${m.unit?' '+m.unit:''} · ~${fmt(m.avg_price)}/${m.unit||'dona'}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:#C9A55A;border-radius:3px"></div>
+            </div>
+            <span style="font-size:10.5px;color:#aaa;white-space:nowrap">${m.quantity}${m.unit?' '+m.unit:''} · ~${fmt(m.avg_price)}/${m.unit||'dona'}</span>
+          </div>
+        </div>`;
+      }).join('');
+      return `
+        <div style="padding:6px 16px;background:#FAFAF8;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between">
+          <span style="font-size:11.5px;font-weight:700;color:#8B6914">${catIcons[cat]||'📦'} ${cat}</span>
+          <span style="font-size:11.5px;font-weight:700;color:#8B6914">${fmt(g.total)} so'm</span>
         </div>
-      </div>`;
+        ${rows}`;
     }).join('');
   }catch(e){console.error('Xarid statistikasi:',e);}
 }
