@@ -199,13 +199,6 @@
                 {% for p in projects %}<option value="{{ p.id }}">{{ p.project_number }} — {{ p.project_name }}</option>{% endfor %}
               </select>
             </div>
-            <div class="form-group" style="margin:0">
-              <label>Buyurtma turi</label>
-              <select id="order_type">
-                <option value="product">Mahsulot</option>
-                <option value="service">Xizmat</option>
-              </select>
-            </div>
           </div>
           <div class="form-row" style="margin-bottom:10px">
             <div class="form-group" style="margin:0">
@@ -2067,7 +2060,7 @@ async function saveOrder(isDraft = false) {
 
   const data = {
     project_id: projId,
-    order_type: document.getElementById('order_type').value,
+    order_type: 'product',   // Buyurtma turi tanlovi olib tashlandi — doim mahsulot
     recipe_id: parseInt(document.getElementById('recipe_id').value) || null,
     master_id: parseInt(document.getElementById('master_id').value) || null,
     agreed_amount: finalPrice || undefined,
@@ -2419,7 +2412,7 @@ async function updateOrder(orderId) {
 
   const data = {
     project_id: projId,
-    order_type: document.getElementById('order_type').value,
+    order_type: 'product',   // Buyurtma turi tanlovi olib tashlandi — doim mahsulot
     recipe_id: parseInt(document.getElementById('recipe_id').value) || null,
     master_id: parseInt(document.getElementById('master_id').value) || null,
     agreed_amount: finalPrice || undefined,
