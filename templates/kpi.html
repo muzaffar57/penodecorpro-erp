@@ -146,6 +146,19 @@
   </div>
 </div>
 
+<!-- ══ USTA BUYURTMA-KPI TAFSILOT MODALI ══ -->
+<div id="masterDetailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:520px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600" id="md-title">Buyurtmalar bo'yicha KPI</div>
+      <button onclick="closeMasterDetail()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:0 22px;overflow-y:auto;flex:1" id="md-list">
+      <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ HODIM QO'SHISH/TAHRIRLASH MODALI ══ -->
 <div id="empModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;padding:24px;width:440px;max-width:100%">
@@ -297,6 +310,7 @@ function renderMasterKpiList() {
         <div style="font-size:9.5px;color:#bbb">sovg'a</div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="mini-btn" onclick="openMasterDetail(${m.id}, '${m.name.replace(/'/g,"&apos;")}')" title="Har buyurtma bo'yicha KPI"><i class="ti ti-list-details" style="font-size:13px"></i></button>
         <button class="mini-btn" onclick="editMaster(${m.id})">✏️</button>
         <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deactivateMaster(${m.id}, '${m.name.replace(/'/g,"&apos;")}')" title="Nofaollashtirish">🚫</button>
       </div>
@@ -338,6 +352,40 @@ function renderInactiveMasters() {
       <button class="btn btn-outline btn-sm" onclick="reactivateMaster(${m.id})">✓ Faollashtirish</button>
     </div>`).join('');
 }
+
+async function openMasterDetail(id, name) {
+  const year = parseInt(document.getElementById('kpi-year').value) || new Date().getFullYear();
+  document.getElementById('md-title').textContent = `${name} — buyurtmalar bo'yicha KPI (${year})`;
+  document.getElementById('masterDetailModal').style.display = 'flex';
+  const list = document.getElementById('md-list');
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+  try {
+    const res = await fetch(`/api/masters/${id}/kpi-detail?year=${year}`);
+    const rows = await res.json();
+    if (!rows.length) {
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Shu yil buyurtma yo\'q</div>';
+      return;
+    }
+    const totalKpi = rows.reduce((s,r)=>s+r.kpi_amount, 0);
+    list.innerHTML = rows.map(r => {
+      const dt = r.completed_at ? new Date(r.completed_at).toLocaleDateString('uz') : '—';
+      return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${r.order_number || ('#'+r.order_id)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${dt} · Savdo: ${fmt(r.total_amount)} · Foyda: ${fmt(r.profit)}</div>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#22C55E;white-space:nowrap">+${fmt(r.kpi_amount)}</div>
+      </div>`;
+    }).join('') + `
+      <div style="display:flex;justify-content:space-between;padding:12px 0;font-weight:700;font-size:14px">
+        <span>Jami:</span><span style="color:#22C55E">${fmt(totalKpi)} so'm</span>
+      </div>`;
+  } catch(e) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
+  }
+}
+function closeMasterDetail(){ document.getElementById('masterDetailModal').style.display = 'none'; }
 
 async function saveMasterKpi(id) {
   const val = parseFloat(document.getElementById('mk-' + id).value) || 0;
