@@ -223,13 +223,37 @@ def _migrate_payment_columns():
                 conn.execute(text("""
                     UPDATE inventory SET category = CASE
                         WHEN is_penoplast = TRUE OR LOWER(item_name) LIKE '%penoplast%' THEN 'Penoplast'
-                        WHEN LOWER(item_name) LIKE '%qum%' OR LOWER(item_name) LIKE '%kroshka%' THEN 'Qumlar'
                         WHEN LOWER(item_name) LIKE '%akril%' OR LOWER(item_name) LIKE '%pva%'
-                             OR LOWER(item_name) LIKE '%zagustitel%' OR LOWER(item_name) LIKE '%penogasitel%'
-                             OR LOWER(item_name) LIKE '%mel%' OR LOWER(item_name) LIKE '%shtukaturka%' THEN 'Kimyoviy moddalar'
+                             OR LOWER(item_name) LIKE '%zagustitel%' OR LOWER(item_name) LIKE '%penogasitel%' THEN 'Kimyoviy qo''shimchalar'
+                        WHEN LOWER(item_name) LIKE '%qum%' OR LOWER(item_name) LIKE '%kroshka%'
+                             OR LOWER(item_name) LIKE '%mel%' OR LOWER(item_name) LIKE '%shtukaturka%' THEN 'Qattiq qotishmalar'
                         ELSE 'Boshqa'
                     END
                     WHERE category IS NULL
+                """))
+                conn.commit()
+            except Exception:
+                pass
+
+            # Eski kategoriya nomlarini yangi nomlarga o'tkazamiz (oldingi deploydan qolgan bo'lsa)
+            try:
+                conn.execute(text("UPDATE inventory SET category = 'Qattiq qotishmalar' WHERE category = 'Qumlar'"))
+                conn.execute(text("""
+                    UPDATE inventory SET category = CASE
+                        WHEN LOWER(item_name) LIKE '%akril%' OR LOWER(item_name) LIKE '%pva%'
+                             OR LOWER(item_name) LIKE '%zagustitel%' OR LOWER(item_name) LIKE '%penogasitel%' THEN 'Kimyoviy qo''shimchalar'
+                        ELSE 'Qattiq qotishmalar'
+                    END
+                    WHERE category = 'Kimyoviy moddalar'
+                """))
+                conn.execute(text("UPDATE inventory_purchases SET category = 'Qattiq qotishmalar' WHERE category = 'Qumlar'"))
+                conn.execute(text("""
+                    UPDATE inventory_purchases SET category = CASE
+                        WHEN LOWER(item_name) LIKE '%akril%' OR LOWER(item_name) LIKE '%pva%'
+                             OR LOWER(item_name) LIKE '%zagustitel%' OR LOWER(item_name) LIKE '%penogasitel%' THEN 'Kimyoviy qo''shimchalar'
+                        ELSE 'Qattiq qotishmalar'
+                    END
+                    WHERE category = 'Kimyoviy moddalar'
                 """))
                 conn.commit()
             except Exception:
