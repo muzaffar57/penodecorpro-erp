@@ -1862,7 +1862,7 @@ function calculateItem(row) {
     perMeterPrice = chiqadiPerBlok > 0 ? (blokPrice / chiqadiPerBlok) : 0;   // 1 metr narxi
     price = perMeterPrice * kerakMetr;   // Mijozdan olinadigan jami summa
 
-    const blokKerak = chiqadiPerBlok > 0 ? Math.ceil(kerakMetr / chiqadiPerBlok) : 0;   // Omborga — yaxlitlab
+    const blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;   // Omborga — aniq kasr son (yaxlitlanmaydi)
     row.dataset.blokKerak = blokKerak;
 
     const penoSel = row.querySelector('.i-peno');
@@ -1870,7 +1870,7 @@ function calculateItem(row) {
     const p = PENOPLASTS.find(x => x.id === pid) || PENOPLASTS.find(x => x.isDefault);
     volume_total = p ? (p.volPerUnit * blokKerak) : 0;
     row.querySelector('.i-vol').value = volume_total > 0
-      ? `${volume_total.toFixed(3)} m³ (${blokKerak} blok kerak)`
+      ? `${volume_total.toFixed(3)} m³ (${blokKerak.toFixed(2)} blok)`
       : '—';
   }
 
@@ -1918,9 +1918,9 @@ function updateTotal() {
     } else if (type === 'blok') {
       const kerakMetr = parseFloat(row.querySelector('.i-q')?.value || 0);
       const chiqadiPerBlok = parseFloat(row.querySelector('.i-l')?.value || 0);
-      const blokKerak = chiqadiPerBlok > 0 ? Math.ceil(kerakMetr / chiqadiPerBlok) : 0;
+      const blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;
       if (kerakMetr > 0 && perm > 0)
-        qtyText = `${blokKerak} blok kerak → ${kerakMetr}m × ${Number(perm).toLocaleString('uz')} so'm/m`;
+        qtyText = `${blokKerak.toFixed(2)} blok → ${kerakMetr}m × ${Number(perm).toLocaleString('uz')} so'm/m`;
     } else {
       const q = parseFloat(row.querySelector('.i-q')?.value || 1);
       const up = parseFloat(row.querySelector('.i-unitprice')?.value || 0);
@@ -2376,7 +2376,7 @@ function collectItems() {
       const chiqadiPerBlok = l;         // "1 blokdan chiqadigan metr" — i-l dan
       const kerakMetr = qty;            // "Necha metr kerak" — i-q dan
       const perMetr = chiqadiPerBlok > 0 ? (blokPrice / chiqadiPerBlok) : 0;
-      const blokKerak = chiqadiPerBlok > 0 ? Math.ceil(kerakMetr / chiqadiPerBlok) : 0;
+      const blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;
       items.push({ name, category: 'blok', width: null, thickness: null, length: blokKerak,
                    quantity: kerakMetr, unit_price: perMetr, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: null, finished_product_id: fpId,
