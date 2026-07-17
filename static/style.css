@@ -401,3 +401,82 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #ccc; }
+
+/* ============================================================
+   BOSH SAHIFA — STAT KARTOCHKA (ikonka bilan)
+   ============================================================ */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.stat-card {
+  background: var(--white);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 16px;
+}
+.stat-icon {
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  background: #FBF5E9;
+  color: var(--gold-dark);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  margin-bottom: 12px;
+}
+.stat-label { font-size: 12px; color: var(--text3); font-weight: 500; margin-bottom: 3px; }
+.stat-val { font-size: 22px; font-weight: 600; color: var(--text); }
+.stat-trend { font-size: 11px; margin-top: 6px; font-weight: 500; }
+.stat-trend.up { color: #1e7e34; }
+.stat-trend.warn { color: #b7770d; }
+.stat-card.emph {
+  background: var(--dark);
+  border: none;
+}
+.stat-card.emph .stat-label { color: #999; }
+.stat-card.emph .stat-val { color: var(--white); }
+.stat-card.emph .stat-icon { background: rgba(201,165,90,.15); color: var(--gold); }
+
+/* ============================================================
+   GAUGE (ishlab chiqarish holati)
+   ============================================================ */
+.gauge-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.gauge-legend-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.gauge-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 7px; }
+
+/* ============================================================
+   RO'YXAT SATRLARI (buyurtmalar, faoliyat)
+   ============================================================ */
+.list-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border2);
+}
+.list-row:last-child { border-bottom: none; }
+.list-title { font-size: 13px; color: var(--text); font-weight: 500; }
+.list-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.list-time { font-size: 11px; color: var(--text3); white-space: nowrap; margin-left: 10px; }
+
+/* ============================================================
+   XOMASHYO ZAXIRA CHIZIG'I
+   ============================================================ */
+.stock-row { margin-bottom: 12px; }
+.stock-row:last-child { margin-bottom: 0; }
+.stock-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+.stock-name { color: var(--text); }
+.stock-qty { font-weight: 500; }
+.stock-bar { height: 5px; background: var(--border2); border-radius: 4px; overflow: hidden; }
+.stock-bar-fill { height: 100%; border-radius: 4px; }
+
+/* ============================================================
+   USTALAR REYTINGI
+   ============================================================ */
+.leaderboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+.lb-item { text-align: center; }
+.lb-avatar {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600;
+  margin: 0 auto 8px;
+  background: var(--border2); color: var(--text2);
+}
+.lb-item.rank1 .lb-avatar { background: var(--gold); color: var(--white); }
+.lb-name { font-size: 12px; font-weight: 500; color: var(--text); }
+.lb-meta { font-size: 11px; color: var(--text3); margin-top: 1px; }
