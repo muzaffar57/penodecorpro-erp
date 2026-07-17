@@ -120,6 +120,17 @@
     </div>
   </div>
 
+  <!-- YETKAZIB BERUVCHI QARZI -->
+  <div class="card mb-16" style="border-left:3px solid #E67E22;border-radius:0 12px 12px 0">
+    <div class="card-head">
+      <h3 style="color:#E67E22">🚚 Yetkazib beruvchilarga nasiya qarzi</h3>
+      <span id="sup-debt-total" style="font-size:16px;font-weight:800;color:#C0392B">—</span>
+    </div>
+    <div class="card-body" style="padding:10px 16px">
+      <span id="sup-debt-count" style="font-size:12px;color:#888"></span>
+    </div>
+  </div>
+
   <!-- BU OY MOLIYAVIY HOLAT -->
   <div class="card mb-16" style="border-left:3px solid #8E44AD;border-radius:0 12px 12px 0">
     <div class="card-head">
@@ -248,6 +259,15 @@ async function loadAll(){
   loadPurchaseStats();
   loadTransportStats();
   loadMonthlyFinance();
+  loadSupplierDebt();
+}
+
+async function loadSupplierDebt(){
+  try{
+    const d = await fetch('/api/suppliers/debt-total').then(r=>r.json());
+    document.getElementById('sup-debt-total').textContent = fmt(d.total_debt) + " so'm";
+    document.getElementById('sup-debt-count').textContent = d.supplier_count + " ta yetkazib beruvchiga qarzdormiz";
+  }catch(e){console.error('Supplier debt:',e);}
 }
 
 async function loadMonthlyFinance(){
