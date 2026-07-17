@@ -252,6 +252,78 @@ def process_coating(db: Session, order_id: int, coated_area_m2: float) -> Dict:
 # 4. MINIMAL QOLDIQ OGOHLANTIRISHI
 # ============================================================
 
+def get_notifications(db: Session) -> list:
+    """Bosh sahifa va butun tizim uchun bildirishnomalar — faqat o'qish.
+
+    Uch turi:
+    - 🔴 Xomashyo butunlay tugagan
+    - 🟠 Joriy sarf tezligiga qarab, N kun ichida tugashi kutilmoqda
+      (InventoryMovement jurnalidagi oxirgi 14 kunlik 'chiqim' asosida)
+    - 🟢 Bugun yetkazilgan/tayyor buyurtmalar soni
+    """
+    from models import Inventory, InventoryMovement, Order, OrderStatus
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    notifications = []
+    now = datetime.utcnow()
+
+    # ── 🔴 Butunlay tugagan ──────────────────────────────────
+    empty_items = db.query(Inventory).filter(Inventory.stock_quantity <= 0).all()
+    for item in empty_items:
+        notifications.append({
+            "level": "red",
+            "icon": "🔴",
+            "text": f"{item.item_name} qolmadi",
+            "category": "stock_empty",
+            "created_at": now.isoformat(),
+        })
+
+    # ── 🟠 Sarf tezligiga qarab tugash bashorati ─────────────
+    period_start = now - timedelta(days=14)
+    items = db.query(Inventory).filter(Inventory.stock_quantity > 0).all()
+    for item in items:
+        total_out = db.query(func.sum(InventoryMovement.quantity)).filter(
+            InventoryMovement.inventory_id == item.id,
+            InventoryMovement.movement_type == "out",
+            InventoryMovement.created_at >= period_start
+        ).scalar()
+        total_out = float(total_out or 0)
+        if total_out <= 0:
+            continue  # Sarf tarixi yo'q — bashorat qilib bo'lmaydi
+        daily_rate = total_out / 14
+        days_left = float(item.stock_quantity) / daily_rate if daily_rate > 0 else None
+        if days_left is not None and days_left <= 7:
+            notifications.append({
+                "level": "orange",
+                "icon": "🟠",
+                "text": f"{item.item_name} {max(1, round(days_left))} kundan keyin tugaydi",
+                "category": "stock_predicted",
+                "created_at": now.isoformat(),
+            })
+
+    # ── 🟢 Bugun yetkazilgan/tayyor buyurtmalar ──────────────
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+    today_count = db.query(Order).filter(
+        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
+        Order.completed_at >= today_start, Order.completed_at < today_end
+    ).count()
+    if today_count > 0:
+        notifications.append({
+            "level": "green",
+            "icon": "🟢",
+            "text": f"Bugun {today_count} ta buyurtma topshirildi",
+            "category": "orders_today",
+            "created_at": now.isoformat(),
+        })
+
+    # Muhimlik bo'yicha: qizil > sariq > yashil
+    order_map = {"red": 0, "orange": 1, "green": 2}
+    notifications.sort(key=lambda n: order_map.get(n["level"], 9))
+    return notifications
+
+
 def check_low_stock(db: Session) -> List[Dict]:
     """Min qoldiqdan kam bo'lgan xomashyolar ro'yxati.
 
