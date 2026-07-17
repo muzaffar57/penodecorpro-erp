@@ -220,6 +220,31 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     ]
     tbl.setStyle(TableStyle(style))
     el.append(tbl)
+
+    # ---- Shu yukka bog'liq to'lov (agar bo'lsa) ----
+    delivery_payment = None
+    if db is not None:
+        try:
+            from models import Payment
+            delivery_payment = db.query(Payment).filter(Payment.delivery_id == delivery.id).first()
+        except Exception:
+            delivery_payment = None
+
+    if delivery_payment:
+        el.append(Spacer(1, 4))
+        pay_note = Table([[
+            Paragraph(f"💰 <b>Shu yuk uchun to'lov qilindi:</b> {_fmt(float(delivery_payment.amount))} so'm",
+                      ParagraphStyle('pn', fontName='Helvetica-Bold', fontSize=9, textColor=colors.HexColor("#166534")))
+        ]], colWidths=[18*cm])
+        pay_note.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F0F9F4")),
+            ('BOX', (0, 0), (-1, -1), 0.8, colors.HexColor("#22C55E")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        el.append(pay_note)
+
     el.append(Spacer(1, 9))
 
     # ---- Umumiy moliyaviy holat ----
