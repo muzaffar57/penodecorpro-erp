@@ -281,6 +281,22 @@ class OrderItemRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class InventoryMovementRead(BaseModel):
+    id: int
+    inventory_id: Optional[int] = None
+    item_name: str
+    movement_type: str
+    quantity: float
+    unit: Optional[str] = None
+    reason: Optional[str] = None
+    order_id: Optional[int] = None
+    supplier_id: Optional[int] = None
+    performed_by: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
 class OrderAttachmentRead(BaseModel):
     id: int
     order_id: int
