@@ -252,6 +252,58 @@ def process_coating(db: Session, order_id: int, coated_area_m2: float) -> Dict:
 # 4. MINIMAL QOLDIQ OGOHLANTIRISHI
 # ============================================================
 
+def get_top_products_report(db: Session, days: int = 90, limit: int = 15) -> list:
+    """Eng ko'p daromad keltirgan mahsulotlar — nomi bo'yicha guruhlangan,
+    tayyor (READY/DELIVERED) buyurtmalardagi OrderItem'lardan. Faqat o'qish."""
+    from models import OrderItem, Order, OrderStatus
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    period_start = datetime.utcnow() - timedelta(days=days)
+    rows = db.query(
+        OrderItem.name,
+        func.sum(OrderItem.total_price).label("revenue"),
+        func.sum(OrderItem.quantity).label("qty"),
+        func.count(OrderItem.id).label("times_ordered")
+    ).join(Order, OrderItem.order_id == Order.id).filter(
+        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
+        Order.completed_at >= period_start
+    ).group_by(OrderItem.name).order_by(func.sum(OrderItem.total_price).desc()).limit(limit).all()
+
+    return [{
+        "name": r.name,
+        "revenue": round(float(r.revenue or 0)),
+        "quantity": round(float(r.qty or 0), 1),
+        "times_ordered": r.times_ordered,
+    } for r in rows]
+
+
+def get_top_materials_report(db: Session, days: int = 90, limit: int = 15) -> list:
+    """Eng ko'p ishlatilgan (chiqim bo'lgan) xomashyolar — InventoryMovement
+    jurnalidan, nomi bo'yicha guruhlangan. Faqat o'qish."""
+    from models import InventoryMovement
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    period_start = datetime.utcnow() - timedelta(days=days)
+    rows = db.query(
+        InventoryMovement.item_name,
+        InventoryMovement.unit,
+        func.sum(InventoryMovement.quantity).label("total_qty"),
+        func.count(InventoryMovement.id).label("movement_count")
+    ).filter(
+        InventoryMovement.movement_type == "out",
+        InventoryMovement.created_at >= period_start
+    ).group_by(InventoryMovement.item_name, InventoryMovement.unit).order_by(func.sum(InventoryMovement.quantity).desc()).limit(limit).all()
+
+    return [{
+        "item_name": r.item_name,
+        "unit": r.unit,
+        "total_qty": round(float(r.total_qty or 0), 2),
+        "movement_count": r.movement_count,
+    } for r in rows]
+
+
 def get_notifications(db: Session) -> list:
     """Bosh sahifa va butun tizim uchun bildirishnomalar — faqat o'qish.
 
