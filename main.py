@@ -25,6 +25,14 @@ import json as _json
 TELEGRAM_BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_COATING_ID = "8461987934"
 
+def fmt_money(n) -> str:
+    """1234567.5 -> '1 234 568'"""
+    try:
+        return f"{round(float(n)):,}".replace(",", " ")
+    except (TypeError, ValueError):
+        return "0"
+
+
 def _send_telegram(text: str):
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
@@ -564,6 +572,23 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
             ),
             created_by=who
         )
+
+    # Nasiya bo'lsa — kompaniya qarzi oshgani haqida ogohlantirish
+    if data.is_credit and data.supplier_id:
+        supplier = crud.get_supplier(db, data.supplier_id)
+        if supplier:
+            debt_info = crud.get_supplier_debt(db, data.supplier_id)
+            all_debt = sum(s["debt"] for s in crud.get_suppliers_with_debt(db))
+            msg = (
+                f"🚚 *Nasiya xarid qilindi*\n\n"
+                f"📦 {item.item_name}: {data.quantity:g} {item.unit} × {fmt_money(data.price_per_unit)}\n"
+                f"💰 Summasi: {fmt_money(result['purchase_total'])} so'm\n\n"
+                f"🏪 Yetkazib beruvchi: *{supplier.name}*\n"
+                f"🔴 Shu hamkorga qarz: {fmt_money(debt_info['debt'])} so'm\n"
+                f"📊 Jami barcha qarz: {fmt_money(all_debt)} so'm\n\n"
+                f"🏗 *PenoDecorPro* — {who}"
+            )
+            _send_telegram(msg)
 
     return {
         "status": "ok",
