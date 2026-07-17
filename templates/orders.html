@@ -1643,14 +1643,16 @@ function addItem() {
           <option value="profil">Profil</option>
           <option value="panel">Panel</option>
           <option value="dona">Donali</option>
+          <option value="blok">Blok (butun narxda)</option>
         </select>
       </div>
       <div class="dif i-h-wrap"><label>Eni (sm)</label><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-w-wrap"><label>Kengligi (sm)</label><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-t-wrap" style="display:none"><label>Qalinlik (sm)</label><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-l-wrap"><label>Uzunlik (m)</label><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik (m)</label><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-unitprice-wrap" style="display:none"><label>1 dona narxi (so'm)</label><input type="number" placeholder="" class="i-unitprice" step="100" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="number" placeholder="1500000" class="i-blokprice" step="1000" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif"><label>Qoplama</label>
         <select class="i-c" onchange="calculateItem(this.closest('.detal'))">
           <option value="true">Ha (×2)</option>
@@ -1688,31 +1690,60 @@ function toggleFields(row) {
   const lW = row.querySelector('.i-l-wrap');
   const qW = row.querySelector('.i-q-wrap');
   const upW = row.querySelector('.i-unitprice-wrap');
+  const bpW = row.querySelector('.i-blokprice-wrap');
+  const m3Field = row.querySelector('.i-m3price')?.closest('.dif');
+  const coatField = row.querySelector('.i-c')?.closest('.dif');
 
   if (type === 'dona') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none'; lW.style.display = 'none';
     qW.style.display = 'block';
     if (upW) upW.style.display = 'block';
+    if (bpW) bpW.style.display = 'none';
+    if (m3Field) m3Field.style.display = '';
+    if (coatField) coatField.style.display = '';
     ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
   } else if (type === 'panel') {
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'block'; lW.style.display = 'none';
     qW.style.display = 'block';
     if (upW) upW.style.display = 'none';
+    if (bpW) bpW.style.display = 'none';
+    if (m3Field) m3Field.style.display = '';
+    if (coatField) coatField.style.display = '';
     const lEl = row.querySelector('.i-l'); if(lEl) lEl.value = '0';
+  } else if (type === 'blok') {
+    hW.style.display = 'none'; wW.style.display = 'none';
+    tW.style.display = 'none';
+    lW.style.display = 'block';   // Nechta blok (ishlatilgan)
+    qW.style.display = 'block';   // Blokdan chiqqan metr (mijozga)
+    if (upW) upW.style.display = 'none';
+    if (bpW) bpW.style.display = 'block';
+    if (m3Field) m3Field.style.display = 'none';   // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
+    if (coatField) coatField.style.display = '';   // qoplamali/qoplamasiz — faqat yozuv uchun, narxni ko'paytirmaydi
+    ['i-h','i-w','i-t'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
+    const lEl2 = row.querySelector('.i-l'); if(lEl2) lEl2.value = '1';
   } else {
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'none';  lW.style.display = 'block';
     qW.style.display = 'none';
     if (upW) upW.style.display = 'none';
+    if (bpW) bpW.style.display = 'none';
+    if (m3Field) m3Field.style.display = '';
+    if (coatField) coatField.style.display = '';
     const tEl = row.querySelector('.i-t'); if(tEl) tEl.value = '';
     const qEl = row.querySelector('.i-q'); if(qEl) qEl.value = '1';
   }
 
-  // Miqdor maydonining nomi: panel — metr, dona — dona
+  // Miqdor maydonining nomi: panel — metr, blok — chiqqan metr, dona — dona
   const qLabel = row.querySelector('.i-q-label');
-  if (qLabel) qLabel.textContent = (type === 'panel') ? 'Uzunlik (m)' : 'Miqdor (dona)';
+  if (qLabel) {
+    qLabel.textContent = (type === 'panel') ? 'Uzunlik (m)' : (type === 'blok') ? "Blokdan chiqqan metr (jami)" : 'Miqdor (dona)';
+  }
+  const lLabel = row.querySelector('.i-l-label');
+  if (lLabel) {
+    lLabel.textContent = (type === 'blok') ? 'Nechta blok ishlatildi' : 'Uzunlik (m)';
+  }
 }
 
 function calculateItem(row) {
@@ -1780,6 +1811,23 @@ function calculateItem(row) {
     }
     volume_total = eni_m * qalin_m * qty;
     row.querySelector('.i-vol').value = volume_total.toFixed(4);
+  } else if (type === 'blok') {
+    // Nechta blok (l) ishlatilib, undan qty metr chiqadi.
+    // Jami narx = blok narxi × blok soni. 1 metr narxi shundan hisoblanadi —
+    // aynan shu narx nakladnoy/yetkazishda ko'rinadi.
+    const bpEl = row.querySelector('.i-blokprice');
+    const blokPrice = bpEl ? parseFloat(bpEl.value) || 0 : 0;
+    const blokSoni = l;              // "Nechta blok" — i-l maydonidan
+    const chiqqanMetr = qty;         // "Blokdan chiqqan metr" — i-q maydonidan
+
+    price = blokPrice * blokSoni;    // Jami summa — blokka bog'liq, metrga emas
+    perMeterPrice = chiqqanMetr > 0 ? (price / chiqqanMetr) : 0;   // 1 metr narxi — mijozga ko'rsatiladigan
+
+    const penoSel = row.querySelector('.i-peno');
+    const pid = penoSel ? parseInt(penoSel.value) : null;
+    const p = PENOPLASTS.find(x => x.id === pid) || PENOPLASTS.find(x => x.isDefault);
+    volume_total = p ? (p.volPerUnit * blokSoni) : 0;
+    row.querySelector('.i-vol').value = volume_total > 0 ? `${volume_total.toFixed(3)} (${blokSoni} blok)` : '—';
   }
 
   const priceEl = row.querySelector('.i-price');
@@ -1823,6 +1871,11 @@ function updateTotal() {
       const q = parseFloat(row.querySelector('.i-q')?.value || 1);
       if (q > 0 && perm > 0)
         qtyText = `${q}m × ${Number(perm).toLocaleString('uz')} so'm`;
+    } else if (type === 'blok') {
+      const chiqqanMetr = parseFloat(row.querySelector('.i-q')?.value || 0);
+      const blokSoni = parseFloat(row.querySelector('.i-l')?.value || 0);
+      if (chiqqanMetr > 0 && perm > 0)
+        qtyText = `${blokSoni} blok → ${chiqqanMetr}m × ${Number(perm).toLocaleString('uz')} so'm/m`;
     } else {
       const q = parseFloat(row.querySelector('.i-q')?.value || 1);
       const up = parseFloat(row.querySelector('.i-unitprice')?.value || 0);
@@ -2074,6 +2127,25 @@ async function editSelected() {
           row.querySelector('.i-h').value = item.width || 0;
           row.querySelector('.i-t').value = item.thickness || 0;
           row.querySelector('.i-q').value = item.quantity || 1;
+        } else if (cat === 'blok') {
+          row.querySelector('.i-q').value = item.quantity || 0;   // Chiqqan metr
+          row.querySelector('.i-l').value = item.length || 1;     // Nechta blok
+          const bpEl = row.querySelector('.i-blokprice');
+          if (bpEl) {
+            // Blok narxini notes dan tiklaymiz (blok_narxi=...), bo'lmasa taxminiy hisoblaymiz
+            let blokPrice = 0;
+            const m = (item.notes || '').match(/blok_narxi=([\d.]+)/);
+            if (m) {
+              blokPrice = parseFloat(m[1]);
+            } else if (item.length > 0) {
+              blokPrice = (parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 0)) / item.length;
+            }
+            bpEl.value = Math.round(blokPrice);
+          }
+          if (item.penoplast_id) {
+            const peEl = row.querySelector('.i-peno');
+            if (peEl) peEl.value = item.penoplast_id;
+          }
         } else {
           row.querySelector('.i-h').value = item.width || 0;
           row.querySelector('.i-w').value = item.thickness || 0;
@@ -2242,6 +2314,16 @@ function collectItems() {
       items.push({ name, category: 'dona', width: null, thickness: null, length: null,
                    quantity: qty, unit_price: parseFloat(row.dataset.unitprice || 0), is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: effM3, finished_product_id: fpId });
+    } else if (type === 'blok') {
+      const bpEl = row.querySelector('.i-blokprice');
+      const blokPrice = bpEl ? parseFloat(bpEl.value) || 0 : 0;
+      const blokSoni = l;              // "Nechta blok" — i-l dan
+      const chiqqanMetr = qty;         // "Blokdan chiqqan metr" — i-q dan
+      const perMetr = chiqqanMetr > 0 ? (blokPrice * blokSoni / chiqqanMetr) : 0;
+      items.push({ name, category: 'blok', width: null, thickness: null, length: blokSoni,
+                   quantity: chiqqanMetr, unit_price: perMetr, is_coated: isCoated,
+                   penoplast_id: penoId, price_per_m3: null, finished_product_id: fpId,
+                   notes: `blok_narxi=${blokPrice}` });
     } else {
       items.push({ name, category: type, width: h, thickness: w, length: l,
                    quantity: qty, unit_price: unitPrice, is_coated: isCoated,
