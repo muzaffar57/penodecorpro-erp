@@ -2626,6 +2626,35 @@ def update_supplier(db: Session, supplier_id: int, data: SupplierUpdate) -> Opti
     return s
 
 
+def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
+    """Yetkazib beruvchini o'chiradi.
+    Qarzi bo'lsa force=True bo'lmaguncha o'chirmaydi (xato qaytaradi).
+    force=True bo'lsa — tarixi (xaridlar, to'lovlar) bilan birga butunlay o'chadi."""
+    s = get_supplier(db, supplier_id)
+    if not s:
+        return {"success": False, "message": "Topilmadi"}
+
+    debt_info = get_supplier_debt(db, supplier_id)
+    if debt_info["debt"] > 0 and not force:
+        return {
+            "success": False,
+            "message": f"Bu yetkazib beruvchida {debt_info['debt']:,.0f} so'm qarz bor".replace(",", " "),
+            "has_debt": True,
+            "debt": debt_info["debt"]
+        }
+
+    # Bog'liq xaridlarni supplier_id=NULL qilamiz (tarixi Omborxonada saqlanib qoladi,
+    # lekin endi hech kimga bog'lanmaydi) — to'lovlarni esa o'chiramiz (faqat shu supplierga tegishli)
+    db.query(InventoryPurchase).filter(InventoryPurchase.supplier_id == supplier_id).update(
+        {"supplier_id": None}
+    )
+    db.query(SupplierPayment).filter(SupplierPayment.supplier_id == supplier_id).delete()
+
+    db.delete(s)
+    db.commit()
+    return {"success": True}
+
+
 def get_supplier_debt(db: Session, supplier_id: int) -> dict:
     """Yetkazib beruvchiga qancha qarzdorlik bor."""
     purchases = db.query(InventoryPurchase).filter(
