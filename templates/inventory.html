@@ -331,7 +331,7 @@ async function editCategory(el) {
   const id = el.dataset.id;
   const current = el.dataset.category || 'Boshqa';
   const val = prompt(
-    "Kategoriya (masalan: Penoplast, Qumlar, Kimyoviy moddalar, Boshqa):",
+    "Kategoriya (masalan: Penoplast, Kimyoviy qo'shimchalar, Qattiq qotishmalar, Boshqa):",
     current
   );
   if (val === null || !val.trim()) return;
