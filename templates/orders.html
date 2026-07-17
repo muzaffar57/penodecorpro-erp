@@ -1652,8 +1652,8 @@ function addItem() {
       <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik (m)</label><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-unitprice-wrap" style="display:none"><label>1 dona narxi (so'm)</label><input type="number" placeholder="" class="i-unitprice" step="100" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="number" placeholder="1500000" class="i-blokprice" step="1000" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti (masalan 2)</label><input type="number" value="2" class="i-blokmult" step="0.1" min="1"></div>
+      <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="number" placeholder="1500000" class="i-blokprice" step="1000" oninput="onBlokPriceInput(this.closest('.detal'))"></div>
+      <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti (masalan 2)</label><input type="number" value="2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div>
       <div class="dif"><label>Qoplama</label>
         <select class="i-c" onchange="onCoatToggle(this.closest('.detal'))">
           <option value="true">Ha (×2)</option>
@@ -1679,29 +1679,41 @@ function addItem() {
     </div>`;
   const container = document.getElementById('items');
   container.prepend(div);
-  div.dataset.wasCoated = 'true';   // standart qoplama holati — "Ha" bilan mos
+  div.dataset.blokBase = '';   // Blok tanlanganda "1 blok narxi" kiritilganda o'zi to'ldiriladi
   toggleFields(div);
   calculateItem(div);
 }
 
+function recalcBlokPrice(row) {
+  // Asosiy (qoplamasiz) narxdan — qoplama holati va koeffitsientga qarab
+  // yakuniy "1 blok narxi"ni jonli qayta hisoblaydi.
+  const bpEl = row.querySelector('.i-blokprice');
+  if (!bpEl) return;
+  const isCoated = row.querySelector('.i-c')?.value === 'true';
+  const mult = parseFloat(row.querySelector('.i-blokmult')?.value) || 2;
+  const base = parseFloat(row.dataset.blokBase) || 0;
+  if (base > 0) {
+    bpEl.value = Math.round(isCoated ? base * mult : base);
+  }
+  calculateItem(row);
+}
+
+function onBlokPriceInput(row) {
+  // Xodim narxni qo'lda yozganda — buni "asos" sifatida saqlab qo'yamiz,
+  // shunda koeffitsient yoki qoplama keyin o'zgarsa ham izchil hisoblanadi.
+  const bpEl = row.querySelector('.i-blokprice');
+  const isCoated = row.querySelector('.i-c')?.value === 'true';
+  const mult = parseFloat(row.querySelector('.i-blokmult')?.value) || 2;
+  const typed = parseFloat(bpEl.value) || 0;
+  row.dataset.blokBase = isCoated ? (typed / mult) : typed;
+  calculateItem(row);
+}
+
 function onCoatToggle(row) {
-  // Blok turi uchun: qoplama belgisi almashtirilsa narx avtomatik ×2 / ÷2 bo'ladi
-  // (qulaylik uchun), lekin xodim istalgan vaqt qo'lda tuzatishi mumkin —
-  // chunki ayrim detallarda kelishilgan narx formula bilan mos kelmasligi mumkin.
   const type = row.querySelector('.i-type')?.value;
   if (type === 'blok') {
-    const isCoatedNow = row.querySelector('.i-c').value === 'true';
-    const wasCoated = row.dataset.wasCoated === 'true';
-    const bpEl = row.querySelector('.i-blokprice');
-    const multEl = row.querySelector('.i-blokmult');
-    const mult = parseFloat(multEl?.value) || 2;
-    if (bpEl && isCoatedNow !== wasCoated) {
-      const cur = parseFloat(bpEl.value) || 0;
-      if (cur > 0) {
-        bpEl.value = Math.round(isCoatedNow ? cur * mult : cur / mult);
-      }
-    }
-    row.dataset.wasCoated = String(isCoatedNow);
+    recalcBlokPrice(row);
+    return;
   }
   calculateItem(row);
 }
@@ -2170,6 +2182,11 @@ async function editSelected() {
               blokPrice = (parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 0)) / item.length;
             }
             bpEl.value = Math.round(blokPrice);
+
+            // Asosiy (qoplamasiz) narxni joriy qoplama holatidan kelib chiqib hisoblaymiz
+            const isCoated = item.is_coated;
+            const mult = parseFloat(row.querySelector('.i-blokmult')?.value) || 2;
+            row.dataset.blokBase = isCoated ? (blokPrice / mult) : blokPrice;
           }
           if (item.penoplast_id) {
             const peEl = row.querySelector('.i-peno');
