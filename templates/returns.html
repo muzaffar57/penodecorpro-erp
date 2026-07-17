@@ -4,7 +4,7 @@
 {% block page_sub %}Butun mahsulot (omborga qaytadi) va brak (yo'qotish hisobi){% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline btn-sm" style="border-color:#C0392B;color:#C0392B" onclick="showBrakModal()">🔴 Brak yozish (loyihadan)</button>
+<button class="btn btn-outline btn-sm" style="border-color:#DC2626;color:#DC2626" onclick="showBrakModal()">🔴 Brak yozish (loyihadan)</button>
 <button class="btn btn-dark" onclick="showAddModal()">+ Qaytarish qo'shish</button>
 {% endblock %}
 
@@ -61,13 +61,13 @@
             {% if current_user.role.value == 'admin' %}
             <td style="font-weight:500">
               {% if r.refund_amount > 0 %}
-                <span style="color:{{ '#C0392B' if r.reason.value == 'Brak' else '#27AE60' }}">{{ "{:,.0f}".format(r.refund_amount).replace(",", " ") }} so'm</span>
+                <span style="color:{{ '#DC2626' if r.reason.value == 'Brak' else '#22C55E' }}">{{ "{:,.0f}".format(r.refund_amount).replace(",", " ") }} so'm</span>
               {% else %}—{% endif %}
             </td>
             {% endif %}
             <td style="color:#aaa;font-size:12px">{{ r.returned_at.strftime('%d.%m.%Y') }}</td>
             <td>
-              <button class="btn btn-outline btn-xs" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteReturn({{ r.id }})">✕</button>
+              <button class="btn btn-outline btn-xs" style="color:#EF4444;border-color:#EF4444" onclick="deleteReturn({{ r.id }})">✕</button>
             </td>
           </tr>
           {% endfor %}
@@ -142,13 +142,13 @@
     <div class="form-group">
       <label>Holati</label>
       <div style="display:flex;gap:8px">
-        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #27AE60;border-radius:8px;cursor:pointer;background:#F0F9F4">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #22C55E;border-radius:8px;cursor:pointer;background:#F0F9F4">
           <input type="radio" name="f-reason" value="Ortiqcha" checked onchange="calcValue()" style="width:16px;height:16px">
           <span style="font-size:13px;font-weight:600;color:#1e7e34">🟢 Butun</span>
         </label>
-        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #E74C3C;border-radius:8px;cursor:pointer;background:#FDEDEC">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #EF4444;border-radius:8px;cursor:pointer;background:#FEE2E2">
           <input type="radio" name="f-reason" value="Brak" onchange="calcValue()" style="width:16px;height:16px">
-          <span style="font-size:13px;font-weight:600;color:#C0392B">🔴 Brak</span>
+          <span style="font-size:13px;font-weight:600;color:#DC2626">🔴 Brak</span>
         </label>
       </div>
       <div id="reason-hint" style="font-size:11px;color:#aaa;margin-top:6px">Butun — tayyor mahsulotlar omboriga qaytadi</div>
@@ -165,7 +165,7 @@
 
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="Masalan: kesish jarayonida sinib ketdi"></div>
 
-    <div id="add-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+    <div id="add-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" onclick="saveReturn()">Saqlash</button>
@@ -178,7 +178,7 @@
 <div id="brakModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0">
-      <div style="font-size:16px;font-weight:600;color:#C0392B">🔴 Brak yozish</div>
+      <div style="font-size:16px;font-weight:600;color:#DC2626">🔴 Brak yozish</div>
       <div style="font-size:12px;color:#aaa;margin-top:2px">Loyihani tanlang, ro'yxatdan brak bo'lgan detallarni belgilang</div>
     </div>
 
@@ -200,12 +200,12 @@
         <input type="text" id="brak-notes" placeholder="Masalan: kesish jarayonida sinib ketdi">
       </div>
 
-      <div id="brak-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+      <div id="brak-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     </div>
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeBrakModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2;background:#C0392B" onclick="saveBrakBatch()">🔴 Brak sifatida saqlash</button>
+      <button class="btn btn-dark" style="flex:2;background:#DC2626" onclick="saveBrakBatch()">🔴 Brak sifatida saqlash</button>
     </div>
   </div>
 </div>
@@ -407,7 +407,7 @@ async function onBrakProjectChange(){
         <span style="font-size:11px;color:#aaa;width:32px">${it.delivery_unit === 'metr' ? 'm' : 'dona'}</span>
       </div>`).join('');
   } catch(e) {
-    list.innerHTML = '<div style="text-align:center;padding:20px;color:#c0392b;font-size:13px">Yuklashda xato</div>';
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626;font-size:13px">Yuklashda xato</div>';
   }
 }
 
@@ -427,7 +427,7 @@ async function saveBrakBatch(){
     if (!it) return;
     if (qty > it.order_qty_normalized + 0.001) {
       hasOver = true;
-      el.style.borderColor = '#C0392B';
+      el.style.borderColor = '#DC2626';
     } else {
       el.style.borderColor = '';
       toSave.push({ item: it, qty });
@@ -468,20 +468,20 @@ async function saveBrakBatch(){
 fetch('/api/returns/stats').then(r=>r.json()).then(s=>{
   if (IS_ADMIN) {
     document.getElementById('statsMonth').innerHTML = `
-      <div class="stat-item"><span style="color:#aaa">🔴 Brak (bu oy)</span><span style="font-weight:700;color:#C0392B">${s.brak_month_count} ta</span></div>
-      <div class="stat-item"><span style="color:#aaa">Brak yo'qotish qiymati</span><span style="font-weight:700;color:#C0392B">${fmt(s.brak_month_value)} so'm</span></div>
-      <div class="stat-item"><span style="color:#aaa">🟢 Butun qaytgan</span><span style="font-weight:700;color:#27AE60">${s.whole_month_count} ta</span></div>`;
+      <div class="stat-item"><span style="color:#aaa">🔴 Brak (bu oy)</span><span style="font-weight:700;color:#DC2626">${s.brak_month_count} ta</span></div>
+      <div class="stat-item"><span style="color:#aaa">Brak yo'qotish qiymati</span><span style="font-weight:700;color:#DC2626">${fmt(s.brak_month_value)} so'm</span></div>
+      <div class="stat-item"><span style="color:#aaa">🟢 Butun qaytgan</span><span style="font-weight:700;color:#22C55E">${s.whole_month_count} ta</span></div>`;
 
     const box = document.getElementById('statsBox');
     if (box) box.innerHTML = `
       <div class="stat-item"><span style="color:#aaa">Jami qaytarishlar</span><span style="font-weight:600">${s.total_count} ta</span></div>
-      <div class="stat-item"><span style="color:#aaa">Jami brak</span><span style="font-weight:600;color:#E74C3C">${s.brak_total_count} ta</span></div>
-      <div class="stat-item"><span style="color:#aaa">Jami brak qiymati</span><span style="font-weight:600;color:#E74C3C">${fmt(s.brak_total_value)} so'm</span></div>`;
+      <div class="stat-item"><span style="color:#aaa">Jami brak</span><span style="font-weight:600;color:#EF4444">${s.brak_total_count} ta</span></div>
+      <div class="stat-item"><span style="color:#aaa">Jami brak qiymati</span><span style="font-weight:600;color:#EF4444">${fmt(s.brak_total_value)} so'm</span></div>`;
   } else {
     // Hodim — faqat soni, pul yo'q
     document.getElementById('statsMonth').innerHTML = `
-      <div class="stat-item"><span style="color:#aaa">🔴 Brak (bu oy)</span><span style="font-weight:700;color:#C0392B">${s.brak_month_count} ta</span></div>
-      <div class="stat-item"><span style="color:#aaa">🟢 Butun qaytgan</span><span style="font-weight:700;color:#27AE60">${s.whole_month_count} ta</span></div>`;
+      <div class="stat-item"><span style="color:#aaa">🔴 Brak (bu oy)</span><span style="font-weight:700;color:#DC2626">${s.brak_month_count} ta</span></div>
+      <div class="stat-item"><span style="color:#aaa">🟢 Butun qaytgan</span><span style="font-weight:700;color:#22C55E">${s.whole_month_count} ta</span></div>`;
   }
 }).catch(()=>{});
 </script>
