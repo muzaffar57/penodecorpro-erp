@@ -137,6 +137,7 @@ class Master(Base):
     is_active = Column(Boolean, default=True)
     hire_date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
+    region = Column(String(50), nullable=True)  # Faqat UI/tahlil uchun — hisob-kitobga ta'siri yo'q
 
     orders = relationship("Order", back_populates="master")
 
