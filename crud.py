@@ -504,6 +504,41 @@ def get_projects(db: Session) -> List[Project]:
     return db.query(Project).order_by(Project.start_date.desc()).all()
 
 
+def get_projects_dashboard_stats(db: Session) -> dict:
+    """Loyihalar sahifasi uchun KPI ko'rsatkichlari — faqat o'qish, mavjud hisob-kitoblarga
+    (get_projects_with_stats, calculate_order_profit) tegmaydi, faqat ulardan foydalanadi."""
+    import services
+    from models import Order, OrderStatus
+    from datetime import datetime
+
+    projects = db.query(Project).all()
+    now = datetime.utcnow()
+
+    active = sum(1 for p in projects if p.status == ProjectStatus.ACTIVE)
+    completed = sum(1 for p in projects if p.status == ProjectStatus.COMPLETED)
+    on_hold = sum(1 for p in projects if p.status == ProjectStatus.ON_HOLD)
+    started_this_month = sum(1 for p in projects if p.start_date and p.start_date.year == now.year and p.start_date.month == now.month)
+    completed_this_month = sum(1 for p in projects if p.completed_at and p.completed_at.year == now.year and p.completed_at.month == now.month)
+
+    total_profit = 0.0
+    for p in projects:
+        for o in (p.orders or []):
+            if o.status == OrderStatus.READY:
+                try:
+                    total_profit += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+                except Exception:
+                    pass
+
+    return {
+        "active": active,
+        "completed": completed,
+        "on_hold": on_hold,
+        "started_this_month": started_this_month,
+        "completed_this_month": completed_this_month,
+        "total_profit": round(total_profit),
+    }
+
+
 def get_projects_with_stats(db: Session) -> List:
     """Loyihalar + buyurtmalar summasi + qarz hisobi (orders ham qo'shilgan)."""
     projects = db.query(Project).order_by(Project.start_date.desc()).all()
