@@ -429,6 +429,11 @@ class InventoryPurchase(Base):
     purchased_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
 
+    # Nasiya (kredit) bilan olingan bo'lsa
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    supplier = relationship("Supplier", back_populates="purchases")
+    is_credit = Column(Boolean, default=False)
+
     def __repr__(self):
         return f"<InventoryPurchase {self.item_name} {self.quantity}>"
 
@@ -468,6 +473,45 @@ class Employee(Base):
 
     def __repr__(self):
         return f"<Employee {self.name} ({self.pay_type.value})>"
+
+
+# ============================================================
+# 9c. SUPPLIER — Yetkazib beruvchilar va nasiya qarzi
+# ============================================================
+
+class Supplier(Base):
+    """Yetkazib beruvchi — xomashyo sotib olinadigan tomon."""
+    __tablename__ = "suppliers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), nullable=False)
+    phone = Column(String(20), nullable=True)
+    notes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    purchases = relationship("InventoryPurchase", back_populates="supplier")
+    payments = relationship("SupplierPayment", back_populates="supplier", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Supplier {self.name}>"
+
+
+class SupplierPayment(Base):
+    """Yetkazib beruvchiga qilingan to'lov (nasiya qarzini yopish uchun)."""
+    __tablename__ = "supplier_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
+    supplier = relationship("Supplier", back_populates="payments")
+
+    amount = Column(Numeric(12, 2), nullable=False)
+    paid_at = Column(DateTime, default=datetime.utcnow)
+    paid_by = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<SupplierPayment {self.amount}>"
 
 
 # ============================================================
