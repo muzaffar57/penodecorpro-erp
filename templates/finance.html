@@ -9,7 +9,7 @@
 .exp-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
 .exp-row:last-child{border-bottom:none}
 .exp-name{color:#555}
-.exp-val{font-weight:500;color:#E74C3C}
+.exp-val{font-weight:500;color:#EF4444}
 .total-row{display:flex;justify-content:space-between;font-size:14px;font-weight:600;padding:10px 0 0;border-top:2px solid #ebebeb;margin-top:6px}
 .profit-big{font-size:32px;font-weight:600;text-align:center;padding:20px 0}
 </style>
@@ -42,13 +42,13 @@
   </div>
 
   <!-- NAQD XARAJATLAR -->
-  <div class="card mb-16" style="border-left:3px solid #8B6914;border-radius:0 12px 12px 0">
+  <div class="card mb-16" style="border-left:3px solid #1E40AF;border-radius:0 12px 12px 0">
     <div class="card-head">
-      <h3 style="color:#8B6914">💵 Naqd xarajatlar (bu oy — xomashyo va transport)</h3>
-      <span id="cash-total" style="font-size:16px;font-weight:800;color:#C9A55A">—</span>
+      <h3 style="color:#1E40AF">💵 Naqd xarajatlar (bu oy — xomashyo va transport)</h3>
+      <span id="cash-total" style="font-size:16px;font-weight:800;color:#2563EB">—</span>
     </div>
     <div class="card-body" style="padding-top:0">
-      <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:#8B6914;line-height:1.6">
+      <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:#1E40AF;line-height:1.6">
         💡 Bu ko'rsatkich <b>Sof foyda</b>ga kirmaydi — chunki bu shu oy <b>sotib olingan</b> xomashyo puli,
         "Ishlab chiqarish xarajati" esa shu oy <b>tugagan buyurtmalarga sarflangan</b> xomashyo tan narxi.
         Ular ko'pincha farq qiladi (masalan bugun olingan material ertaga ishlatiladi).
@@ -77,7 +77,7 @@
           <input type="number" id="f-soliqlar" placeholder="0" min="0">
         </div>
 
-        <div style="background:#EBF5FB;border:1px solid #AED6F1;border-radius:8px;padding:10px 12px;margin-top:14px;font-size:12px;color:#1a6fa8;line-height:1.6">
+        <div style="background:#EFF6FF;border:1px solid #AED6F1;border-radius:8px;padding:10px 12px;margin-top:14px;font-size:12px;color:#1a6fa8;line-height:1.6">
           💡 Hodimlar oyliqi va usta KPI endi <b>Ustalar KPI / Hodimlar</b> bo'limida boshqariladi —
           u yerda har hodimga alohida to'lov turi (oylik, sotuvdan %, foydadan %, birlik uchun) belgilanadi.
         </div>
@@ -131,7 +131,7 @@ async function loadReport(){
   document.getElementById('r-daromad').textContent=fmt(d.daromad)+' so\'m';
   document.getElementById('r-xarajat').textContent=fmt(d.jami_xarajat)+' so\'m';
   document.getElementById('r-foyda').textContent=fmt(d.sof_foyda)+' so\'m';
-  document.getElementById('r-foyda').style.color=d.sof_foyda>=0?'#8E44AD':'#E74C3C';
+  document.getElementById('r-foyda').style.color=d.sof_foyda>=0?'#8E44AD':'#EF4444';
   document.getElementById('r-foiz').textContent=d.foyda_foiz+'%';
   document.getElementById('r-buyurtma').textContent=d.buyurtmalar_soni+' ta';
   document.getElementById('r-metr').textContent=(d.jami_metr||0)+'m / '+(d.jami_dona||0)+' dona';
@@ -176,14 +176,14 @@ function buildExpDetail(d){
   let extraHtml = '';
 
   if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
-    extraHtml += `<div style="font-size:10.5px;color:#8B6914;font-weight:600;margin:8px 0 2px">🏆 Usta yillik KPI</div>`;
+    extraHtml += `<div style="font-size:10.5px;color:#1E40AF;font-weight:600;margin:8px 0 2px">🏆 Usta yillik KPI</div>`;
     extraHtml += d.usta_kpi_breakdown.map(b =>
       `<div class="exp-row"><span class="exp-name">${b.master_name} (${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)})</span><span class="exp-val">${Number(b.kpi_amount).toLocaleString('ru-RU')} so'm</span></div>`
     ).join('');
   }
 
   if (d.hodimlar_moslashuvchan_breakdown && d.hodimlar_moslashuvchan_breakdown.length) {
-    extraHtml += `<div style="font-size:10.5px;color:#8B6914;font-weight:600;margin:8px 0 2px">👷 Hodimlar (moslashuvchan)</div>`;
+    extraHtml += `<div style="font-size:10.5px;color:#1E40AF;font-weight:600;margin:8px 0 2px">👷 Hodimlar (moslashuvchan)</div>`;
     extraHtml += d.hodimlar_moslashuvchan_breakdown.map(b =>
       `<div class="exp-row"><span class="exp-name">${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}</span><span class="exp-val">${Number(b.amount).toLocaleString('ru-RU')} so'm</span></div>`
     ).join('');
@@ -192,15 +192,15 @@ function buildExpDetail(d){
   el.innerHTML=rows.map(r=>`<div class="exp-row"><span class="exp-name">${r.n}</span><span class="exp-val">${Number(r.v).toLocaleString('ru-RU')} so'm</span></div>`).join('')
     + extraHtml
     +`<div class="exp-row" style="border-top:1px dashed #e8e8e8;margin-top:6px;padding-top:6px">
-        <span class="exp-name" style="color:#2980B9">🏭 Ishlab chiqarish xarajati</span>
-        <span class="exp-val" style="color:#2980B9">${Number(d.ishlab_chiqarish_xarajat||0).toLocaleString('ru-RU')} so'm</span>
+        <span class="exp-name" style="color:#0EA5E9">🏭 Ishlab chiqarish xarajati</span>
+        <span class="exp-val" style="color:#0EA5E9">${Number(d.ishlab_chiqarish_xarajat||0).toLocaleString('ru-RU')} so'm</span>
       </div>
-      <div class="total-row"><span>Jami xarajat:</span><span style="color:#E74C3C">${Number(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0)).toLocaleString('ru-RU')} so'm</span></div>
-      <div class="total-row" style="margin-top:6px"><span>Jami daromad:</span><span style="color:#27AE60">${Number(d.daromad).toLocaleString('ru-RU')} so'm</span></div>`;
+      <div class="total-row"><span>Jami xarajat:</span><span style="color:#EF4444">${Number(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0)).toLocaleString('ru-RU')} so'm</span></div>
+      <div class="total-row" style="margin-top:6px"><span>Jami daromad:</span><span style="color:#22C55E">${Number(d.daromad).toLocaleString('ru-RU')} so'm</span></div>`;
   const pb=document.getElementById('profitBlock');
   pb.style.display='block';
   document.getElementById('profitBig').textContent=Number(d.sof_foyda).toLocaleString('ru-RU')+' so\'m';
-  document.getElementById('profitBig').style.color=d.sof_foyda>=0?'#8E44AD':'#E74C3C';
+  document.getElementById('profitBig').style.color=d.sof_foyda>=0?'#8E44AD':'#EF4444';
   document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
 }
 
