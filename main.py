@@ -488,7 +488,31 @@ async def recipes_page(request: Request, db: Session = Depends(get_db), current_
 @app.get("/projects", response_class=HTMLResponse)
 async def projects_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
     projects = crud.get_projects_with_stats(db)
-    return templates.TemplateResponse(request, "projects.html", {"projects": projects, "current_user": current_user, "active_page": "projects"})
+    kpi = crud.get_projects_dashboard_stats(db)
+    return templates.TemplateResponse(request, "projects.html", {"projects": projects, "kpi": kpi, "current_user": current_user, "active_page": "projects"})
+
+
+@app.get("/api/projects/progress-map")
+def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+    """Har bir loyiha uchun bajarilish foizi (tayyor/yetkazilgan buyurtmalar ulushi) — faqat o'qish."""
+    from models import Order, OrderStatus
+    from sqlalchemy import func, case
+
+    rows = db.query(
+        Order.project_id,
+        func.count(Order.id).label("total"),
+        func.sum(case((Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]), 1), else_=0)).label("ready")
+    ).filter(Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED])).group_by(Order.project_id).all()
+
+    result = {}
+    for project_id, total, ready in rows:
+        result[project_id] = round((ready / total) * 100) if total else 0
+    return result
+
+
+@app.get("/api/projects/dashboard-stats")
+def api_projects_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+    return crud.get_projects_dashboard_stats(db)
 
 
 @app.post("/api/projects/{project_id}/payment")
@@ -1421,7 +1445,7 @@ def api_low_stock(db: Session = Depends(get_db)):
 
 @app.get("/api/inventory/movements")
 def api_inventory_movements(item_id: Optional[int] = None, movement_type: Optional[str] = None,
-                             limit: int = 100, db: Session = Depends(get_db)):
+                             order_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db)):
     """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish)."""
     from models import InventoryMovement
     q = db.query(InventoryMovement)
@@ -1429,8 +1453,41 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
         q = q.filter(InventoryMovement.inventory_id == item_id)
     if movement_type in ("in", "out"):
         q = q.filter(InventoryMovement.movement_type == movement_type)
+    if order_id:
+        q = q.filter(InventoryMovement.order_id == order_id)
     rows = q.order_by(InventoryMovement.created_at.desc()).limit(limit).all()
     return [schemas.InventoryMovementRead.model_validate(r) for r in rows]
+
+
+@app.get("/api/projects/{project_id}/detail-stats")
+def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+    """Loyiha detali uchun qo'shimcha ko'rsatkichlar — faqat o'qish, mavjud
+    calculate_order_profit() dan foydalanadi, hech narsani o'zgartirmaydi."""
+    import services
+    from models import Order, OrderStatus
+
+    orders = db.query(Order).filter(Order.project_id == project_id).all()
+    status_counts = {}
+    total_profit = 0.0
+    for o in orders:
+        st = o.status.value
+        status_counts[st] = status_counts.get(st, 0) + 1
+        if o.status == OrderStatus.READY:
+            try:
+                total_profit += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+            except Exception:
+                pass
+
+    ready_count = status_counts.get("ready", 0) + status_counts.get("delivered", 0)
+    total_count = len(orders)
+    progress_pct = round((ready_count / total_count) * 100) if total_count else 0
+
+    return {
+        "status_counts": status_counts,
+        "total_profit": round(total_profit),
+        "progress_pct": progress_pct,
+        "total_orders": total_count,
+    }
 
 
 @app.get("/debts", response_class=HTMLResponse)
