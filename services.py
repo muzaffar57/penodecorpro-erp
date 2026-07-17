@@ -304,6 +304,69 @@ def get_top_materials_report(db: Session, days: int = 90, limit: int = 15) -> li
     } for r in rows]
 
 
+def get_today_tasks(db: Session) -> list:
+    """Bosh sahifadagi 'Bugungi vazifalar' bloki uchun — faqat o'qish,
+    mavjud funksiyalardan (get_today_stats, low stock, loyihalar) foydalanadi."""
+    from models import Order, OrderStatus, Project, ProjectStatus, Inventory
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+
+    tasks = []
+
+    due_today = db.query(Order).filter(
+        Order.deadline >= today_start, Order.deadline < today_end,
+        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED])
+    ).count()
+    if due_today > 0:
+        tasks.append({"level": "red", "icon": "🔴", "text": f"{due_today} ta buyurtma bugun topshirilishi kerak"})
+
+    low_count = db.query(Inventory).filter(
+        Inventory.stock_quantity <= Inventory.min_stock, Inventory.min_stock > 0
+    ).count()
+    if low_count > 0:
+        tasks.append({"level": "orange", "icon": "🟡", "text": f"{low_count} ta xomashyo minimal qoldiqdan past"})
+
+    completed_today = db.query(Project).filter(
+        Project.completed_at >= today_start, Project.completed_at < today_end,
+        Project.status == ProjectStatus.COMPLETED
+    ).count()
+    if completed_today > 0:
+        tasks.append({"level": "green", "icon": "🟢", "text": f"{completed_today} ta loyiha bugun yakunlandi"})
+
+    if not tasks:
+        tasks.append({"level": "green", "icon": "✅", "text": "Bugun shoshilinch vazifalar yo'q"})
+
+    return tasks
+
+
+def get_production_period_stats(db: Session) -> dict:
+    """Ishlab chiqarish — bugun/hafta/oy bo'yicha nechta mahsulot chiqqani.
+    Faqat o'qish, FinishedProduct.created_at (source=produced) asosida."""
+    from models import FinishedProduct, StockSource
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    month_start = today_start.replace(day=1)
+
+    def _count_since(since):
+        items = db.query(FinishedProduct).filter(
+            FinishedProduct.source == StockSource.PRODUCED,
+            FinishedProduct.created_at >= since
+        ).all()
+        return round(sum(float(i.quantity or 0) for i in items))
+
+    return {
+        "today": _count_since(today_start),
+        "week": _count_since(week_start),
+        "month": _count_since(month_start),
+    }
+
+
 def get_notifications(db: Session) -> list:
     """Bosh sahifa va butun tizim uchun bildirishnomalar — faqat o'qish.
 
