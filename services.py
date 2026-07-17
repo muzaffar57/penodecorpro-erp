@@ -1049,6 +1049,15 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
 
         return (unit_price / price_m3) * qty
 
+    elif cat == 'blok':
+        # Butun blok evaziga hisoblanadi. quantity = blokdan CHIQQAN metr (mijozga
+        # ko'rsatiladigan), length = ISHLATILGAN blok soni (ombordan shuncha yechiladi).
+        blok_soni = float(item.length or 0)
+        pid = getattr(item, 'penoplast_id', None)
+        p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast
+        if p and p.volume_per_unit and blok_soni > 0:
+            return blok_soni * float(p.volume_per_unit)
+
     return 0.0
 
 
