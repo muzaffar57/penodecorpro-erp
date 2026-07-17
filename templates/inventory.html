@@ -4,9 +4,9 @@
 {% block page_sub %}Xomashyo va materiallar qoldig'i{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#0EA5E9;color:#0EA5E9"><i class="ti ti-clipboard-list" style="font-size:13px;vertical-align:-2px"></i> Ombor hisoboti SMS</button>
-<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444"><i class="ti ti-bell" style="font-size:13px;vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
-<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="font-size:13px;vertical-align:-2px"></i> Xomashyo qo'shish</button>
+<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#0EA5E9;color:#0EA5E9"><i class="ti ti-clipboard-list" style="vertical-align:-2px"></i> Ombor hisoboti SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444"><i class="ti ti-bell" style="vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
+<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Xomashyo qo'shish</button>
 {% endblock %}
 
 {% block head %}
@@ -93,8 +93,8 @@
       <option value="qty_asc">Qoldiq (kamdan-ko'pga)</option>
       <option value="qty_desc">Qoldiq (ko'pdan-kamga)</option>
     </select>
-    <button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()"><i class="ti ti-receipt" style="font-size:13px;vertical-align:-2px"></i> Xaridlar tarixi</button>
-    <button class="btn btn-outline btn-sm" onclick="openMovements()"><i class="ti ti-history" style="font-size:13px;vertical-align:-2px"></i> Ombor harakatlari</button>
+    <button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()"><i class="ti ti-receipt" style="vertical-align:-2px"></i> Xaridlar tarixi</button>
+    <button class="btn btn-outline btn-sm" onclick="openMovements()"><i class="ti ti-history" style="vertical-align:-2px"></i> Ombor harakatlari</button>
   </div>
 
   <span id="low-count" style="display:none"></span>
