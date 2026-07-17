@@ -313,7 +313,27 @@ async function loadInvItemsForAp() {
   try {
     invItems = await fetch('/api/inventory').then(r => r.json());
     const sel = document.getElementById('ap-item');
-    sel.innerHTML = invItems.map(i => `<option value="${i.id}" data-unit="${i.unit}">${i.item_name} (${i.unit})</option>`).join('');
+
+    const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Boshqa'];
+    const groups = {};
+    invItems.forEach(i => {
+      const cat = i.category || 'Boshqa';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(i);
+    });
+
+    const sortedCats = Object.keys(groups).sort((a, b) => {
+      const ia = catOrder.indexOf(a), ib = catOrder.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+
+    sel.innerHTML = sortedCats.map(cat => {
+      const opts = groups[cat].map(i =>
+        `<option value="${i.id}" data-unit="${i.unit}">${i.item_name} (${i.unit})</option>`
+      ).join('');
+      return `<optgroup label="${cat}">${opts}</optgroup>`;
+    }).join('');
+
     apOnItemChange();
   } catch(e) {}
 }
@@ -468,8 +488,8 @@ async function openHistory(id, keepFilter){
         groups[cat].total += p.total_amount;
       });
 
-      const catOrder = ['Penoplast', 'Qumlar', 'Kimyoviy moddalar', 'Boshqa'];
-      const catIcons = { 'Penoplast':'🧱', 'Qumlar':'⛱️', 'Kimyoviy moddalar':'🧪', 'Boshqa':'📦' };
+      const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Boshqa'];
+      const catIcons = { 'Penoplast':'🧱', "Kimyoviy qo'shimchalar":'🧪', 'Qattiq qotishmalar':'⛱️', 'Boshqa':'📦' };
       const sortedCats = Object.keys(groups).sort((a,b) => catOrder.indexOf(a) - catOrder.indexOf(b));
 
       pu.innerHTML = sortedCats.map(cat => {
