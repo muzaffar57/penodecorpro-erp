@@ -228,7 +228,7 @@ def _migrate_payment_columns():
                              OR LOWER(item_name) LIKE '%texanol%' OR LOWER(item_name) LIKE '%biosid%'
                              OR LOWER(item_name) LIKE '%hpmc%' THEN 'Kimyoviy qo''shimchalar'
                         WHEN LOWER(item_name) LIKE '%qum%' OR LOWER(item_name) LIKE '%kroshka%'
-                             OR LOWER(item_name) LIKE '%mel%' OR LOWER(item_name) LIKE '%shtukaturka%'
+                             OR LOWER(item_name) LIKE '%mel%' OR LOWER(item_name) LIKE '%kvars%'
                              OR LOWER(item_name) LIKE '%mikrokalsit%' OR LOWER(item_name) LIKE '%mikroklasit%' THEN 'Qattiq qotishmalar'
                         ELSE 'Boshqa'
                     END
@@ -257,6 +257,43 @@ def _migrate_payment_columns():
                         ELSE 'Qattiq qotishmalar'
                     END
                     WHERE category = 'Kimyoviy moddalar'
+                """))
+
+                # "Boshqa"da qolib ketganlarni yangi kalit so'zlar bo'yicha qayta tekshiramiz
+                # (masalan Texanol/Biosid/HPMC/Mikrokalsit — fix qo'shilishidan oldin "Boshqa" bo'lib qolgan bo'lishi mumkin)
+                conn.execute(text("""
+                    UPDATE inventory SET category = 'Kimyoviy qo''shimchalar'
+                    WHERE category = 'Boshqa' AND (
+                        LOWER(item_name) LIKE '%texanol%' OR LOWER(item_name) LIKE '%biosid%'
+                        OR LOWER(item_name) LIKE '%hpmc%' OR LOWER(item_name) LIKE '%akril%'
+                        OR LOWER(item_name) LIKE '%pva%' OR LOWER(item_name) LIKE '%zagustitel%'
+                        OR LOWER(item_name) LIKE '%penogasitel%'
+                    )
+                """))
+                conn.execute(text("""
+                    UPDATE inventory SET category = 'Qattiq qotishmalar'
+                    WHERE category = 'Boshqa' AND (
+                        LOWER(item_name) LIKE '%mikrokalsit%' OR LOWER(item_name) LIKE '%mikroklasit%'
+                        OR LOWER(item_name) LIKE '%qum%' OR LOWER(item_name) LIKE '%kroshka%'
+                        OR LOWER(item_name) LIKE '%mel%' OR LOWER(item_name) LIKE '%kvars%'
+                    )
+                """))
+                conn.execute(text("""
+                    UPDATE inventory_purchases SET category = 'Kimyoviy qo''shimchalar'
+                    WHERE category = 'Boshqa' AND (
+                        LOWER(item_name) LIKE '%texanol%' OR LOWER(item_name) LIKE '%biosid%'
+                        OR LOWER(item_name) LIKE '%hpmc%' OR LOWER(item_name) LIKE '%akril%'
+                        OR LOWER(item_name) LIKE '%pva%' OR LOWER(item_name) LIKE '%zagustitel%'
+                        OR LOWER(item_name) LIKE '%penogasitel%'
+                    )
+                """))
+                conn.execute(text("""
+                    UPDATE inventory_purchases SET category = 'Qattiq qotishmalar'
+                    WHERE category = 'Boshqa' AND (
+                        LOWER(item_name) LIKE '%mikrokalsit%' OR LOWER(item_name) LIKE '%mikroklasit%'
+                        OR LOWER(item_name) LIKE '%qum%' OR LOWER(item_name) LIKE '%kroshka%'
+                        OR LOWER(item_name) LIKE '%mel%' OR LOWER(item_name) LIKE '%kvars%'
+                    )
                 """))
                 conn.commit()
             except Exception:
