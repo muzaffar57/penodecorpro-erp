@@ -112,7 +112,8 @@ class StockPurchase(BaseModel):
     price_per_unit: float = Field(..., gt=0, description="Shu xariddagi 1 birlik narxi")
     notes: Optional[str] = None
     supplier_id: Optional[int] = None
-    is_credit: bool = Field(default=False, description="Nasiya (keyin to'lash) bilan olindimi")
+    is_credit: bool = Field(default=False, description="Nasiya (keyin to'lash) bilan olindimi — server hisoblaydi")
+    paid_now: float = Field(default=0, ge=0, description="Xarid vaqtida hoziroq to'langan summa")
     transport_cost: float = Field(default=0, ge=0)
     transport_payer: str = Field(default="none", description="none/self/supplier")
     volume_per_unit: Optional[float] = Field(default=None, gt=0, description="Penoplast uchun: 1 blok necha m³")
