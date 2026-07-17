@@ -355,6 +355,8 @@
             <span id="dlv-pct-badge" style="font-size:11px;font-weight:600"></span>
             <button class="btn btn-outline btn-sm" id="btn-summary" onclick="openSummaryModal()"
                     style="display:none;border-color:#0EA5E9;color:#0EA5E9">🧾 Hisob-kitob</button>
+            <button class="btn btn-green btn-sm" id="btn-quick-deliver" onclick="quickFullDelivery()"
+                    style="display:none">✅ Bir yo'la to'liq topshirish</button>
             <button class="btn btn-dark btn-sm" id="btn-new-delivery" onclick="openDeliveryModal()">+ Mahsulot topshirish</button>
           </div>
         </div>
@@ -1132,6 +1134,10 @@ async function loadDeliveries(orderId) {
     const btn = document.getElementById('btn-new-delivery');
     if (btn) btn.style.display = d.is_fully_delivered ? 'none' : '';
 
+    // Tezkor "bir yo'la to'liq topshirish" tugmasi — qolganlari bo'lsa ko'rinadi
+    const qbtn = document.getElementById('btn-quick-deliver');
+    if (qbtn) qbtn.style.display = d.is_fully_delivered ? 'none' : '';
+
     // Hisob-kitob tugmasi — kamida 1 ta yuk xati bo'lsa
     const sbtn = document.getElementById('btn-summary');
     if (sbtn) sbtn.style.display = (d.deliveries?.length) ? '' : 'none';
@@ -1401,6 +1407,48 @@ function fillAllRemaining() {
     if (el.disabled) return;
     el.value = parseFloat(el.dataset.max) || '';
   });
+}
+
+async function quickFullDelivery() {
+  if (!selectedOrderId || !dlvData) return;
+
+  const pending = dlvData.items.filter(i => !i.is_done && i.remaining > 0);
+  if (!pending.length) { showMsg('Hamma mahsulot allaqachon topshirilgan', 'success'); return; }
+
+  const summary = pending.map(i => `${i.name}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('\n');
+  if (!confirm(`Qolgan hamma mahsulot BIR YO'LA to'liq topshiriladi:\n\n${summary}\n\nTasdiqlaysizmi?`)) return;
+
+  const items = pending.map(i => ({ order_item_id: i.id, quantity: i.remaining }));
+  const data = {
+    order_id: selectedOrderId,
+    items,
+    received_by: null,
+    notes: null,
+    transport_carrier: null,
+    transport_cost: 0,
+    transport_payer: 'none'
+  };
+
+  try {
+    const res = await fetch('/api/deliveries', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    const r = await res.json();
+
+    if (res.ok) {
+      window.open(`/api/deliveries/${r.delivery_id}/pdf`, '_blank');
+      loadDeliveries(selectedOrderId);
+      showMsg('✅ Buyurtma to\'liq topshirildi! Nakladnoy tayyor.', 'success');
+      setTimeout(()=>location.reload(), 2500);
+    } else {
+      const det = r.detail || {};
+      showMsg('❌ ' + (det.message || 'Xato') + (det.shortages?.length ? '\n' + det.shortages.join('\n') : ''), 'error');
+    }
+  } catch(e) {
+    showMsg('❌ Server xatosi', 'error');
+  }
 }
 
 async function saveDelivery() {
