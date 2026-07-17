@@ -87,6 +87,50 @@
       <button class="btn btn-dark" onclick="savePayment()">💰 To'lov qilish</button>
     </div>
 
+    <div style="padding:12px 22px;border-bottom:1px solid #f0f0f0">
+      <button class="btn btn-outline btn-sm" style="width:100%;border-color:#8B6914;color:#8B6914" onclick="openAddPurchase()">+ Xarid qo'shish</button>
+      <div id="addPurchaseForm" style="display:none;margin-top:10px">
+        <div class="form-group" style="margin-bottom:8px">
+          <label style="font-size:11px">Material</label>
+          <select id="ap-item" style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none" onchange="apCalc()"></select>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div style="flex:1">
+            <label style="font-size:11px;color:#777">Miqdor</label>
+            <input type="number" id="ap-qty" placeholder="0" min="0.01" step="0.1" oninput="apCalc()"
+                   style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:11px;color:#777">1 birlik narxi</label>
+            <input type="number" id="ap-price" placeholder="0" min="1" step="100" oninput="apCalc()"
+                   style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+          </div>
+        </div>
+        <div id="ap-total" style="font-size:12.5px;color:#8B6914;margin-bottom:10px">Jami: —</div>
+
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:10px;padding:8px 10px;background:#FDF8F0;border-radius:7px">
+          <input type="checkbox" id="ap-credit" style="width:16px;height:16px">
+          <span style="font-size:12.5px;font-weight:600;color:#8B6914">🚚 Nasiya (bu yetkazib beruvchiga qarz sifatida yoziladi)</span>
+        </label>
+
+        <div style="background:#F0F6FA;border-radius:7px;padding:10px;margin-bottom:10px">
+          <div style="font-size:11.5px;font-weight:600;color:#2980B9;margin-bottom:6px">🚚 Transport (ixtiyoriy)</div>
+          <div style="display:flex;gap:8px">
+            <select id="ap-transport-payer" style="flex:1.2;height:34px;padding:0 8px;border:1.5px solid #ddd;border-radius:7px;font-size:12px;outline:none" onchange="apToggleTransport()">
+              <option value="none">Transport yo'q</option>
+              <option value="supplier">Yetkazib beruvchidan (bepul)</option>
+              <option value="self">O'z hisobimdan</option>
+            </select>
+            <input type="number" id="ap-transport-cost" placeholder="Summasi" disabled
+                   style="flex:1;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none;background:#f5f5f5">
+          </div>
+          <div id="ap-transport-hint" style="font-size:10.5px;color:#999;margin-top:5px"></div>
+        </div>
+
+        <button class="btn btn-dark btn-sm" style="width:100%" onclick="saveAddPurchase()">✓ Saqlash</button>
+      </div>
+    </div>
+
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
       <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:8px">📦 Xaridlar tarixi</div>
       <div id="hist-purchases"></div>
@@ -189,10 +233,101 @@ async function saveSupplier(){
   }catch(e){ err.style.display='block'; err.textContent='❌ Server xatosi'; }
 }
 
+let invItems = [];
+
+async function loadInvItemsForAp() {
+  if (invItems.length) return;
+  try {
+    invItems = await fetch('/api/inventory').then(r => r.json());
+    const sel = document.getElementById('ap-item');
+    sel.innerHTML = invItems.map(i => `<option value="${i.id}" data-unit="${i.unit}">${i.item_name} (${i.unit})</option>`).join('');
+  } catch(e) {}
+}
+
+function openAddPurchase() {
+  const form = document.getElementById('addPurchaseForm');
+  const show = form.style.display === 'none';
+  form.style.display = show ? 'block' : 'none';
+  if (show) {
+    loadInvItemsForAp();
+    document.getElementById('ap-qty').value = '';
+    document.getElementById('ap-price').value = '';
+    document.getElementById('ap-total').textContent = 'Jami: —';
+    document.getElementById('ap-credit').checked = false;
+    document.getElementById('ap-transport-payer').value = 'none';
+    document.getElementById('ap-transport-cost').value = '';
+    document.getElementById('ap-transport-cost').disabled = true;
+    document.getElementById('ap-transport-hint').textContent = '';
+  }
+}
+
+function apToggleTransport() {
+  const payer = document.getElementById('ap-transport-payer').value;
+  const costInp = document.getElementById('ap-transport-cost');
+  const hint = document.getElementById('ap-transport-hint');
+  costInp.disabled = (payer === 'none');
+  costInp.style.background = (payer === 'none') ? '#f5f5f5' : '#fff';
+  if (payer === 'supplier') {
+    costInp.value = '';
+    hint.innerHTML = "✅ Bepul — yetkazib beruvchi o'z hisobidan olib keladi, bizga xarajat yozilmaydi";
+  } else if (payer === 'self') {
+    hint.innerHTML = '⚠️ Bu summa Moliya bo\'limidagi transport xarajatiga avtomatik qo\'shiladi';
+  } else {
+    hint.textContent = '';
+  }
+}
+
+function apCalc() {
+  const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
+  const price = parseFloat(document.getElementById('ap-price').value) || 0;
+  document.getElementById('ap-total').textContent = 'Jami: ' + fmt(qty * price) + " so'm";
+}
+
+async function saveAddPurchase() {
+  const itemId = parseInt(document.getElementById('ap-item').value);
+  const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
+  const price = parseFloat(document.getElementById('ap-price').value) || 0;
+  const isCredit = document.getElementById('ap-credit').checked;
+  const transportPayer = document.getElementById('ap-transport-payer').value;
+  const transportCost = parseFloat(document.getElementById('ap-transport-cost').value) || 0;
+
+  if (!itemId) { showMsg('❌ Materialni tanlang', 'error'); return; }
+  if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
+  if (transportPayer === 'self' && transportCost <= 0) {
+    showMsg("❌ Transport summasini kiriting", 'error'); return;
+  }
+
+  try {
+    const res = await fetch(`/api/inventory/${itemId}/purchase`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        quantity: qty,
+        price_per_unit: price,
+        is_credit: isCredit,
+        supplier_id: currentSupplierId,
+        notes: 'Yetkazib beruvchi sahifasidan qo\'shildi',
+        transport_payer: transportPayer,
+        transport_cost: transportCost
+      })
+    });
+    if (res.ok) {
+      showMsg(isCredit ? '✓ Nasiyaga yozildi' : '✓ Xarid qo\'shildi (naqd)', 'success');
+      document.getElementById('addPurchaseForm').style.display = 'none';
+      openHistory(currentSupplierId);
+      loadSuppliers();
+    } else {
+      const e = await res.json();
+      showMsg('❌ ' + ((e.detail || {}).message || 'Xato'), 'error');
+    }
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+}
+
 async function openHistory(id){
   currentSupplierId = id;
   document.getElementById('historyModal').style.display = 'flex';
   document.getElementById('pay-amount').value = '';
+  document.getElementById('addPurchaseForm').style.display = 'none';
 
   try{
     const d = await fetch(`/api/suppliers/${id}/history`).then(r=>r.json());
@@ -206,16 +341,41 @@ async function openHistory(id){
     if (!d.purchases.length){
       pu.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">Xarid yo\'q</div>';
     } else {
-      pu.innerHTML = d.purchases.map(p => {
-        const dt = new Date(p.purchased_at);
-        const ds = dt.toLocaleDateString('uz');
+      // Kategoriya bo'yicha guruhlaymiz
+      const groups = {};
+      d.purchases.forEach(p => {
+        const cat = p.category || 'Boshqa';
+        if (!groups[cat]) groups[cat] = { items: [], total: 0 };
+        groups[cat].items.push(p);
+        groups[cat].total += p.total_amount;
+      });
+
+      const catOrder = ['Penoplast', 'Qumlar', 'Kimyoviy moddalar', 'Boshqa'];
+      const catIcons = { 'Penoplast':'🧱', 'Qumlar':'⛱️', 'Kimyoviy moddalar':'🧪', 'Boshqa':'📦' };
+      const sortedCats = Object.keys(groups).sort((a,b) => catOrder.indexOf(a) - catOrder.indexOf(b));
+
+      pu.innerHTML = sortedCats.map(cat => {
+        const g = groups[cat];
+        const rows = g.items.map(p => {
+          const dt = new Date(p.purchased_at);
+          const ds = dt.toLocaleDateString('uz');
+          return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5">
+            <div>
+              <div style="font-size:12.5px;font-weight:600;color:#1a1a1a">${p.item_name} ${p.is_credit ? '<span style="color:#E67E22;font-size:10px">(nasiya)</span>' : ''}</div>
+              <div style="font-size:11px;color:#aaa">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}</div>
+            </div>
+            <div style="font-size:12.5px;font-weight:700;color:#8B6914">${fmt(p.total_amount)} so'm</div>
+          </div>`;
+        }).join('');
+
         return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">
-          <div>
-            <div style="font-size:12.5px;font-weight:600;color:#1a1a1a">${p.item_name} ${p.is_credit ? '<span style=\'color:#E67E22;font-size:10px\'>(nasiya)</span>' : ''}</div>
-            <div style="font-size:11px;color:#aaa">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}</div>
+        <div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:2px solid #E5DFD3;margin-bottom:2px">
+            <span style="font-size:12px;font-weight:700;color:#8B6914">${catIcons[cat]||'📦'} ${cat}</span>
+            <span style="font-size:12px;font-weight:700;color:#8B6914">${fmt(g.total)} so'm</span>
           </div>
-          <div style="font-size:12.5px;font-weight:700;color:#8B6914">${fmt(p.total_amount)} so'm</div>
+          ${rows}
         </div>`;
       }).join('');
     }
