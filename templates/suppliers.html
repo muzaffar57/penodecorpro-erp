@@ -223,6 +223,7 @@ function renderSupplierList(list){
           : `<div style="font-size:12px;font-weight:600;color:#27AE60">✓ Qarzi yo'q</div>`}
       </div>
       <button class="mini-btn" onclick="event.stopPropagation();editSupplier(${s.id})">✏️</button>
+      <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="event.stopPropagation();deleteSupplier(${s.id}, ${s.debt})" title="O'chirish">✕</button>
     </div>`).join('');
 }
 
@@ -274,6 +275,35 @@ async function saveSupplier(){
     if (res.ok){ closeSupplierModal(); loadSuppliers(); }
     else { err.style.display='block'; err.textContent='❌ Xato yuz berdi'; }
   }catch(e){ err.style.display='block'; err.textContent='❌ Server xatosi'; }
+}
+
+async function deleteSupplier(id, debt){
+  const s = suppliers.find(x => x.id === id);
+  const name = s ? s.name : 'Bu yetkazib beruvchi';
+
+  if (debt > 0) {
+    const ok = confirm(
+      `${name} — ${fmt(debt)} so'm QARZ bor!\n\n` +
+      `Baribir o'chirilsinmi? Qarz tarixi ham butunlay yo'qoladi, ` +
+      `bu amalni ORQAGA QAYTARIB BO'LMAYDI.`
+    );
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/suppliers/${id}?force=true`, { method: 'DELETE' });
+      if (res.ok) { showMsg('✓ O\'chirildi', 'success'); loadSuppliers(); }
+      else showMsg('❌ Xato', 'error');
+    } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+    return;
+  }
+
+  if (!confirm(`${name} o'chirilsinmi?\n\nXaridlar tarixi Omborxonada saqlanib qoladi, faqat bu hamkorga bog'lanmaydi.`)) return;
+
+  try {
+    const res = await fetch(`/api/suppliers/${id}`, { method: 'DELETE' });
+    if (res.ok) { showMsg('✓ O\'chirildi', 'success'); loadSuppliers(); }
+    else showMsg('❌ Xato', 'error');
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
 let invItems = [];
