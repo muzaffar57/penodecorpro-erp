@@ -16,7 +16,7 @@
 .mk-name{font-size:13px;font-weight:600;color:#1a1a1a}
 .mk-meta{font-size:11px;color:#aaa;margin-top:2px}
 .mk-inp{width:64px;height:30px;text-align:center;border:1.5px solid #e5e5e5;border-radius:6px;font-size:12px;font-weight:600;outline:none}
-.mk-inp:focus{border-color:#C9A55A}
+.mk-inp:focus{border-color:#2563EB}
 .emp-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f5f5f5}
 .emp-row:last-child{border-bottom:none}
 .emp-tag{font-size:9.5px;padding:2px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
@@ -30,7 +30,7 @@
 
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(3,1fr)">
     <div class="kpi-card">
-      <div class="kpi-val" style="color:#C9A55A" id="k-year">—</div>
+      <div class="kpi-val" style="color:#2563EB" id="k-year">—</div>
       <div class="kpi-label">Hisob yili</div>
     </div>
     <div class="kpi-card">
@@ -38,7 +38,7 @@
       <div class="kpi-label">Jami usta sovg'asi (yillik)</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-val" style="color:#2980B9" id="k-emp-count">—</div>
+      <div class="kpi-val" style="color:#0EA5E9" id="k-emp-count">—</div>
       <div class="kpi-label">Faol hodimlar</div>
     </div>
   </div>
@@ -55,7 +55,7 @@
         </div>
       </div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#8B6914;line-height:1.6">
+        <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#1E40AF;line-height:1.6">
           💡 KPI% × yillik <b>sof foyda</b> = yil oxiri sovg'a (sotuv summasidan emas). Har oy tegishli ulushi avtomatik xarajat sifatida yoziladi.
         </div>
         <div id="mkList">
@@ -75,7 +75,7 @@
     <div class="card">
       <div class="card-head"><h3>👷 Hodimlar (moslashuvchan to'lov)</h3></div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:#EBF5FB;border:1px solid #AED6F1;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#1a6fa8;line-height:1.6">
+        <div style="background:#EFF6FF;border:1px solid #AED6F1;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#1a6fa8;line-height:1.6">
           💡 Har hodimga alohida to'lov turi belgilanadi. Oylik hisob-kitobda avtomatik hisoblanib, Moliya bo'limidagi xarajatga qo'shiladi.
         </div>
         <div id="empList">
@@ -105,7 +105,7 @@
     <div class="form-group"><label>Telegram ID (ixtiyoriy)</label><input type="text" id="m-telegram" placeholder="123456789"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="m-notes" placeholder="..."></div>
 
-    <div id="master-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+    <div id="master-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" onclick="saveMaster()">Saqlash</button>
@@ -168,7 +168,7 @@
 
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes" placeholder="..."></div>
 
-    <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FDEDEC;border-radius:7px;font-size:12px;color:#c0392b"></div>
+    <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" onclick="saveEmployee()">Saqlash</button>
@@ -190,8 +190,8 @@ const PAY_LABELS = {
   fixed_plus_coating: 'Oylik + qoplama'
 };
 const PAY_COLORS = {
-  fixed: '#2980B9', percent_sales: '#27AE60', percent_profit: '#8E44AD', per_unit: '#E67E22',
-  fixed_plus_coating: '#C9A55A'
+  fixed: '#0EA5E9', percent_sales: '#22C55E', percent_profit: '#8E44AD', per_unit: '#F59E0B',
+  fixed_plus_coating: '#2563EB'
 };
 
 // ── USTA YILLIK KPI ────────────────────────────────────────
@@ -223,12 +223,12 @@ async function loadMasterKpi() {
           <span style="font-size:11px;color:#aaa">%</span>
         </div>
         <div style="text-align:right;min-width:90px">
-          <div style="font-size:13px;font-weight:700;color:#27AE60">${fmt(m.gift_amount)}</div>
+          <div style="font-size:13px;font-weight:700;color:#22C55E">${fmt(m.gift_amount)}</div>
           <div style="font-size:9.5px;color:#bbb">sovg'a</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button class="mini-btn" onclick="editMaster(${m.id})">✏️</button>
-          <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="deactivateMaster(${m.id}, '${m.name.replace(/'/g,"&apos;")}')" title="Nofaollashtirish">🚫</button>
+          <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deactivateMaster(${m.id}, '${m.name.replace(/'/g,"&apos;")}')" title="Nofaollashtirish">🚫</button>
         </div>
       </div>`).join('');
 
@@ -409,7 +409,7 @@ async function loadEmployees() {
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button class="mini-btn" onclick="editEmployee(${e.id})">✏️</button>
-          <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="deleteEmployee(${e.id})">✕</button>
+          <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deleteEmployee(${e.id})">✕</button>
         </div>
       </div>`;
     }).join('');
