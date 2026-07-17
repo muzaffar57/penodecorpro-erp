@@ -269,6 +269,19 @@
       Miqdor va narxni kiriting
     </div>
 
+    <div class="form-group" style="background:#FDF8F0;border:1.5px solid #F0E6D2;border-radius:9px;padding:11px 12px;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+        <input type="checkbox" id="pm-credit" onchange="toggleCredit()" style="width:16px;height:16px">
+        <span style="font-size:13px;font-weight:600;color:#8B6914">🚚 Nasiya (keyin to'lash)</span>
+      </label>
+      <div id="pm-supplier-wrap" style="display:none;margin-top:10px">
+        <label>Yetkazib beruvchi</label>
+        <select id="pm-supplier">
+          <option value="">— Tanlang —</option>
+        </select>
+      </div>
+    </div>
+
     <div class="form-group">
       <label>Izoh (ixtiyoriy)</label>
       <input type="text" id="pm-notes" placeholder="Masalan: Andijon bozoridan">
@@ -418,6 +431,23 @@ async function changeStock(id, dir, btn) {
 // ── OMBOR KIRIMI (XARID) ──────────────────────────────────
 let pmItemId = null;
 
+let pmSuppliers = [];
+
+async function loadPmSuppliers() {
+  try {
+    pmSuppliers = await fetch('/api/suppliers').then(r => r.json());
+    const sel = document.getElementById('pm-supplier');
+    sel.innerHTML = '<option value="">— Tanlang —</option>' +
+      pmSuppliers.map(s => `<option value="${s.id}">${s.name}${s.debt > 0 ? ' (qarz: ' + fmt(s.debt) + ')' : ''}</option>`).join('');
+  } catch(e) {}
+}
+
+function toggleCredit() {
+  const checked = document.getElementById('pm-credit').checked;
+  document.getElementById('pm-supplier-wrap').style.display = checked ? 'block' : 'none';
+  if (checked && !pmSuppliers.length) loadPmSuppliers();
+}
+
 function openPurchaseModal(btn) {
   pmItemId = parseInt(btn.dataset.id);
   const name = btn.dataset.name;
@@ -429,6 +459,8 @@ function openPurchaseModal(btn) {
   document.getElementById('pm-unit2').textContent = unit;
   document.getElementById('pm-qty').value = '';
   document.getElementById('pm-price').value = currentPrice > 0 ? currentPrice : '';
+  document.getElementById('pm-credit').checked = false;
+  document.getElementById('pm-supplier-wrap').style.display = 'none';
   document.getElementById('pm-notes').value = '';
   document.getElementById('pm-error').style.display = 'none';
   document.getElementById('purchaseModal').style.display = 'flex';
@@ -465,13 +497,24 @@ async function savePurchase() {
   err.style.display = 'none';
 
   try {
+    const isCredit = document.getElementById('pm-credit').checked;
+    const supplierId = parseInt(document.getElementById('pm-supplier').value) || null;
+
+    if (isCredit && !supplierId) {
+      err.style.display = 'block';
+      err.textContent = "❌ Nasiya bo'lsa, yetkazib beruvchini tanlang";
+      return;
+    }
+
     const res = await fetch(`/api/inventory/${pmItemId}/purchase`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         quantity: qty,
         price_per_unit: price,
-        notes: document.getElementById('pm-notes').value.trim() || null
+        notes: document.getElementById('pm-notes').value.trim() || null,
+        is_credit: isCredit,
+        supplier_id: supplierId
       })
     });
     const r = await res.json();
