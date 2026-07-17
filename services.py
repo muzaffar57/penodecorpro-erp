@@ -768,6 +768,30 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
 # OYLIK HISOBOT
 # ============================================================
 
+def get_finance_history(db: Session, months_count: int = 12) -> list:
+    """Oxirgi N oy uchun moliyaviy tarix — grafik va 'Xarajatlar tarixi' jadvali uchun.
+    MUHIM: hech qanday yangi hisob-kitob yo'q — faqat mavjud get_monthly_report()
+    funksiyasini har oy uchun alohida chaqiradi va natijalarni ro'yxatga yig'adi."""
+    from datetime import datetime
+
+    today = datetime.utcnow()
+    y, m = today.year, today.month
+    history = []
+    for i in range(months_count):
+        yy, mm = y, m - i
+        while mm <= 0:
+            mm += 12
+            yy -= 1
+        try:
+            rep = get_monthly_report(db, yy, mm)
+            rep["year"] = yy
+            rep["month"] = mm
+            history.append(rep)
+        except Exception:
+            continue
+    return list(reversed(history))  # eskisidan yangisiga
+
+
 def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     """
     Berilgan oy uchun to'liq moliyaviy hisobot:
