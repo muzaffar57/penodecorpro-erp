@@ -4,9 +4,9 @@
 {% block page_sub %}Xomashyo va materiallar qoldig'i{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#2980B9;color:#2980B9">📋 Ombor hisoboti SMS</button>
-<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#E74C3C;color:#E74C3C">📢 Kam qoldiqlar SMS</button>
-<button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()" style="border-color:#27AE60;color:#1e7e34">🧾 Xaridlar tarixi</button>
+<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#0EA5E9;color:#0EA5E9">📋 Ombor hisoboti SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444">📢 Kam qoldiqlar SMS</button>
+<button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()" style="border-color:#22C55E;color:#1e7e34">🧾 Xaridlar tarixi</button>
 <button class="btn btn-dark" onclick="showAddModal()">+ Xomashyo qo'shish</button>
 {% endblock %}
 
@@ -15,11 +15,11 @@
 .inv-grid{display:grid;grid-template-columns:1fr 340px;gap:14px;height:calc(100vh - 90px)}
 .inv-table-wrap{overflow-y:auto}
 .stock-bar{height:4px;background:#f0f0f0;border-radius:2px;margin-top:6px}
-.stock-fill{height:100%;border-radius:2px;background:#27AE60}
-.stock-fill.warn{background:#E67E22}
-.stock-fill.danger{background:#E74C3C}
+.stock-fill{height:100%;border-radius:2px;background:#22C55E}
+.stock-fill.warn{background:#F59E0B}
+.stock-fill.danger{background:#EF4444}
 .qty-input{width:80px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;text-align:center;outline:none}
-.qty-input:focus{border-color:#C9A55A}
+.qty-input:focus{border-color:#2563EB}
 </style>
 {% endblock %}
 
@@ -31,7 +31,7 @@
   <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
     <div class="card-head">
       <h3 id="inv-title">Xomashyolar</h3>
-      <span id="low-count" style="font-size:11px;color:#E74C3C"></span>
+      <span id="low-count" style="font-size:11px;color:#EF4444"></span>
     </div>
     <div class="inv-table-wrap" style="flex:1">
       <table class="erp-table" style="width:100%">
@@ -66,7 +66,7 @@
           <tr>
             <td colspan="7" style="padding:0;border:none">
               <div style="display:flex;align-items:center;gap:10px;padding:4px 0 8px">
-                <span style="font-size:11px;font-weight:600;color:#8B6914;letter-spacing:.5px;white-space:nowrap">🧱 PENOPLAST (PLOTNOST)</span>
+                <span style="font-size:11px;font-weight:600;color:#1E40AF;letter-spacing:.5px;white-space:nowrap">🧱 PENOPLAST (PLOTNOST)</span>
                 <div style="flex:1;height:1px;background:linear-gradient(90deg,#E5DFD3,transparent)"></div>
               </div>
             </td>
@@ -106,11 +106,11 @@
               <div style="font-weight:500;color:#111;display:flex;align-items:center;gap:6px">
                 {{ item.item_name }}
                 {% if is_loy %}
-                <span style="font-size:9px;background:#E9F7EF;color:#1e7e34;padding:2px 7px;border-radius:10px;font-weight:600">♻️ ZAXIRA</span>
+                <span style="font-size:9px;background:#DCFCE7;color:#1e7e34;padding:2px 7px;border-radius:10px;font-weight:600">♻️ ZAXIRA</span>
                 {% endif %}
                 {% if item.is_penoplast %}
                   {% if item.is_default_penoplast %}
-                  <span style="font-size:9px;background:#C9A55A;color:#fff;padding:2px 7px;border-radius:10px;font-weight:600">⭐ ASOSIY</span>
+                  <span style="font-size:9px;background:#2563EB;color:#fff;padding:2px 7px;border-radius:10px;font-weight:600">⭐ ASOSIY</span>
                   {% else %}
                   <button onclick="setDefaultPenoplast({{ item.id }})" style="font-size:9px;background:#f5f5f5;color:#888;padding:2px 7px;border-radius:10px;border:none;cursor:pointer" title="Asosiy qilish">☆ Asosiy qilish</button>
                   {% endif %}
@@ -123,7 +123,7 @@
               </div>
             </td>
             <td>
-              <div style="font-weight:600;color:{% if qty <= minq %}#E74C3C{% elif qty <= minq * 1.5 %}#E67E22{% else %}#111{% endif %}">
+              <div style="font-weight:600;color:{% if qty <= minq %}#EF4444{% elif qty <= minq * 1.5 %}#F59E0B{% else %}#111{% endif %}">
                 {{ "%.1f"|format(item.stock_quantity) }} {{ item.unit }}
               </div>
               <div class="stock-bar">
@@ -149,13 +149,13 @@
             </td>
             <td>
               <div style="display:flex;align-items:center;gap:6px">
-                <button class="btn btn-outline btn-xs" style="color:#C0392B;border-color:#F5B7B1" onclick="changeStock({{ item.id }}, -1, this)" title="Chiqim / tuzatish (narxsiz)">−</button>
+                <button class="btn btn-outline btn-xs" style="color:#DC2626;border-color:#F5B7B1" onclick="changeStock({{ item.id }}, -1, this)" title="Chiqim / tuzatish (narxsiz)">−</button>
                 <input type="number" class="qty-input" id="qty-{{ item.id }}" value="1" min="0.1" step="0.1">
                 <span style="font-size:10px;color:#bbb;padding:0 4px">Kirim uchun: Yetkazib beruvchilar →</span>
               </div>
             </td>
             <td>
-              <button class="btn btn-outline btn-xs" style="color:#E74C3C;border-color:#E74C3C" onclick="deleteItem({{ item.id }})">O'chir</button>
+              <button class="btn btn-outline btn-xs" style="color:#EF4444;border-color:#EF4444" onclick="deleteItem({{ item.id }})">O'chir</button>
             </td>
           </tr>
           {% endfor %}
@@ -175,7 +175,7 @@
             <div class="kpi-label">Xomashyo turi</div>
           </div>
           <div class="kpi-card" style="padding:12px">
-          <div class="kpi-val" style="font-size:20px;color:#E74C3C" id="low-count-kpi">0</div>
+          <div class="kpi-val" style="font-size:20px;color:#EF4444" id="low-count-kpi">0</div>
             <div class="kpi-label">Kam qolgan</div>
           </div>
         </div>
@@ -183,8 +183,8 @@
     </div>
 
     <!-- Kam qolganlar -->
-    <div class="card" style="border-left:3px solid #E74C3C;border-radius:0 12px 12px 0">
-      <div class="card-head"><h3 style="color:#c0392b">⚠ Kam qolganlar</h3></div>
+    <div class="card" style="border-left:3px solid #EF4444;border-radius:0 12px 12px 0">
+      <div class="card-head"><h3 style="color:#DC2626">⚠ Kam qolganlar</h3></div>
       <div class="card-body" style="padding:0 16px">
         {% set low_items = [] %}
         {% for item in items %}
@@ -205,7 +205,7 @@
           {% endif %}
         {% endfor %}
         {% else %}
-          <div style="text-align:center;padding:20px;color:#27AE60;font-weight:500">✓ Hammasi yetarli</div>
+          <div style="text-align:center;padding:20px;color:#22C55E;font-weight:500">✓ Hammasi yetarli</div>
         {% endif %}
       </div>
     </div>
@@ -248,10 +248,10 @@
       <div class="form-group" style="margin:0"><label>Birlik narxi (so'm)</label><input type="number" id="f-price" placeholder="0" min="0"></div>
     </div>
     <div class="form-group"><label>Blok hajmi (m³, penoplast uchun)</label><input type="number" id="f-volume" placeholder="1.0" step="0.1" min="0.1"></div>
-    <div class="form-group" style="background:#FDF8F0;border:1.5px solid #C9A55A;border-radius:8px;padding:10px">
+    <div class="form-group" style="background:#FDF8F0;border:1.5px solid #2563EB;border-radius:8px;padding:10px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
         <input type="checkbox" id="f-is-penoplast" style="width:16px;height:16px;cursor:pointer" onchange="toggleDefaultCheck()">
-        <span style="font-weight:600;color:#8B6914">Bu penoplast (plotnost) turi</span>
+        <span style="font-weight:600;color:#1E40AF">Bu penoplast (plotnost) turi</span>
       </label>
       <div style="font-size:11px;color:#aaa;margin-top:4px;margin-left:24px">Masalan: Penoplast 14P, Penoplast 18P</div>
       <label id="default-check-wrap" style="display:none;align-items:center;gap:8px;cursor:pointer;margin:8px 0 0 24px">
@@ -278,7 +278,7 @@
     <div style="padding:14px 22px;border-bottom:1px solid #f0f0f0;background:#FAFAF8">
       <div style="display:flex;justify-content:space-between;font-size:13px">
         <span style="color:#777">Bu oy jami xarid</span>
-        <span id="hist-total" style="font-weight:700;color:#C9A55A">—</span>
+        <span id="hist-total" style="font-weight:700;color:#2563EB">—</span>
       </div>
       <div id="hist-by-material" style="margin-top:8px;font-size:11.5px;color:#666;line-height:1.9"></div>
     </div>
@@ -422,11 +422,11 @@ async function openPurchaseHistory() {
             ${p.notes ? ' · '+p.notes : ''}
           </div>
         </div>
-        <div style="font-size:13px;font-weight:700;color:#27AE60;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+        <div style="font-size:13px;font-weight:700;color:#22C55E;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
       </div>`;
     }).join('');
   } catch(e) {
-    document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#c0392b">Yuklashda xato</div>';
+    document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
   }
 }
 
