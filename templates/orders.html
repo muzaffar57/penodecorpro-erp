@@ -610,6 +610,26 @@
         </div>
       </div>
 
+      <div style="margin-top:12px;padding:11px 12px;background:#F0F9F4;border:1.5px solid #BBF7D0;border-radius:9px">
+        <div style="font-size:12px;font-weight:600;color:#166534;margin-bottom:8px">💰 Shu yuk uchun to'lov (ixtiyoriy)</div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1">
+            <div style="font-size:11px;color:#777;margin-bottom:4px">Summa (so'm)</div>
+            <input type="text" id="dlv-payment-amount" placeholder="0" oninput="formatPriceInput(this)"
+                   style="width:100%;height:36px;padding:0 11px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none;font-weight:600">
+          </div>
+          <div style="flex:1">
+            <div style="font-size:11px;color:#777;margin-bottom:4px">To'lov usuli</div>
+            <select id="dlv-payment-method" style="width:100%;height:36px;padding:0 8px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+              <option value="naqd">Naqd</option>
+              <option value="plastik">Plastik</option>
+              <option value="o'tkazma">O'tkazma</option>
+            </select>
+          </div>
+        </div>
+        <div style="font-size:10.5px;color:#4B7A5A;margin-top:6px">Mijoz aynan shu yetkazish uchun to'lov qilgan bo'lsa, shu yerga yozing — buyurtma to'lovlariga avtomatik qo'shiladi.</div>
+      </div>
+
       <div style="margin-top:12px;padding:11px 12px;background:#F0F6FA;border-radius:9px">
         <div style="font-size:12px;font-weight:600;color:#0EA5E9;margin-bottom:8px">🚚 Transport (ixtiyoriy)</div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -1364,6 +1384,8 @@ function openDeliveryModal() {
 
   document.getElementById('dlv-received-by').value = '';
   document.getElementById('dlv-notes').value = '';
+  document.getElementById('dlv-payment-amount').value = '';
+  document.getElementById('dlv-payment-method').value = 'naqd';
   document.getElementById('dlv-transport-carrier').value = '';
   document.getElementById('dlv-transport-cost').value = '';
   document.getElementById('dlv-transport-payer').value = 'none';
@@ -1418,6 +1440,9 @@ async function quickFullDelivery() {
   const summary = pending.map(i => `${i.name}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('\n');
   if (!confirm(`Qolgan hamma mahsulot BIR YO'LA to'liq topshiriladi:\n\n${summary}\n\nTasdiqlaysizmi?`)) return;
 
+  const payAns = prompt("Mijoz shu yuk uchun to'lov qildimi? Summasini kiriting (yo'q bo'lsa bo'sh qoldiring):", '');
+  const paymentAmount = payAns ? parseFloat(payAns.replace(/\s/g,'')) || null : null;
+
   const items = pending.map(i => ({ order_item_id: i.id, quantity: i.remaining }));
   const data = {
     order_id: selectedOrderId,
@@ -1426,7 +1451,9 @@ async function quickFullDelivery() {
     notes: null,
     transport_carrier: null,
     transport_cost: 0,
-    transport_payer: 'none'
+    transport_payer: 'none',
+    payment_amount: paymentAmount,
+    payment_method: 'naqd'
   };
 
   try {
@@ -1482,6 +1509,8 @@ async function saveDelivery() {
     items,
     received_by: document.getElementById('dlv-received-by').value.trim() || null,
     notes: document.getElementById('dlv-notes').value.trim() || null,
+    payment_amount: parseNum(document.getElementById('dlv-payment-amount').value) || null,
+    payment_method: document.getElementById('dlv-payment-method').value || 'naqd',
     transport_carrier: document.getElementById('dlv-transport-carrier').value.trim() || null,
     transport_cost: parseFloat(document.getElementById('dlv-transport-cost').value) || 0,
     transport_payer: document.getElementById('dlv-transport-payer').value || 'none'
