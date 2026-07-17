@@ -162,9 +162,9 @@ def guess_category(item_name: str, is_penoplast: bool = False) -> str:
     name = (item_name or '').lower()
     if is_penoplast or 'penoplast' in name or 'penopleks' in name:
         return "Penoplast"
-    if any(k in name for k in ['akril', 'pva', 'zagustitel', 'penogasitel']):
+    if any(k in name for k in ['akril', 'pva', 'zagustitel', 'penogasitel', 'texanol', 'biosid', 'hpmc']):
         return "Kimyoviy qo'shimchalar"
-    if any(k in name for k in ['qum', 'kroshka', "shag'al", 'mel', 'shtukaturka']):
+    if any(k in name for k in ['qum', 'kroshka', "shag'al", 'mel', 'shtukaturka', 'mikroklasit', 'mikrokalsit']):
         return "Qattiq qotishmalar"
     return "Boshqa"
 
