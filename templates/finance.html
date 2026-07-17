@@ -134,8 +134,14 @@
 
   </div>
 
+  <!-- TAB TUGMALARI -->
+  <div style="display:flex;gap:8px;margin-bottom:14px" class="no-print">
+    <button class="btn btn-dark btn-sm" id="tabBtnMonthly" onclick="switchFinTab('monthly')">Oylik ko'rinish</button>
+    <button class="btn btn-outline btn-sm" id="tabBtnDaily" onclick="switchFinTab('daily')">Kunlik tranzaksiyalar</button>
+  </div>
+
   <!-- XARAJATLAR TARIXI -->
-  <div class="card mt-16">
+  <div class="card mt-16" id="tabMonthly">
     <div class="card-head">
       <h3>Moliyaviy tarix (oylar bo'yicha)</h3>
       <div style="display:flex;gap:6px" class="no-print">
@@ -160,6 +166,61 @@
         </table>
       </div>
       <div id="hist-pagination" style="display:flex;justify-content:center;gap:6px;margin-top:14px" class="no-print"></div>
+    </div>
+  </div>
+
+  <!-- KUNLIK TRANZAKSIYALAR -->
+  <div class="card mt-16" id="tabDaily" style="display:none">
+    <div class="card-head">
+      <h3>Kunlik xarajat tranzaksiyalari</h3>
+      <button class="btn btn-dark btn-sm" onclick="openTxModal()"><i class="ti ti-plus" style="font-size:13px;vertical-align:-2px"></i> Xarajat qo'shish</button>
+    </div>
+    <div class="card-body">
+      <div class="fin-filters no-print">
+        <input type="date" id="tx-date" onchange="loadDailyTransactions()">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);cursor:pointer">
+          <input type="checkbox" id="tx-whole-month" checked onchange="loadDailyTransactions()" style="width:15px;height:15px">
+          Butun oy
+        </label>
+        <select id="tx-category" onchange="loadDailyTransactions()">
+          <option value="">Barcha kategoriya</option>
+          <option value="arenda">Arenda</option>
+          <option value="elektr">Elektr</option>
+          <option value="tushlik">Tushlik</option>
+          <option value="soliqlar">Soliqlar</option>
+          <option value="boshqa">Boshqa</option>
+        </select>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="hist-table">
+          <thead><tr><th>Sana</th><th>Kategoriya</th><th>Summa</th><th>Izoh</th><th>Kim</th><th>Manba</th><th class="no-print"></th></tr></thead>
+          <tbody id="tx-body"><tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Sana tanlang</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Xarajat qo'shish modali -->
+<div id="txModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:400px">
+    <div style="font-size:16px;font-weight:600;margin-bottom:16px">+ Yangi xarajat tranzaksiyasi</div>
+    <div class="form-group"><label>Sana</label><input type="date" id="tx-f-date"></div>
+    <div class="form-group">
+      <label>Kategoriya</label>
+      <select id="tx-f-category">
+        <option value="arenda">Arenda</option>
+        <option value="elektr">Elektr</option>
+        <option value="tushlik">Tushlik</option>
+        <option value="soliqlar">Soliqlar</option>
+        <option value="boshqa">Boshqa</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Summa (so'm)</label><input type="number" id="tx-f-amount" placeholder="0" min="0"></div>
+    <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-dark w-full" onclick="saveTx()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeTxModal()">Bekor</button>
     </div>
   </div>
 </div>
@@ -417,6 +478,94 @@ function exportCSV(){
   const a = document.createElement('a');
   a.href = url; a.download = 'moliyaviy_tarix.csv'; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ── TAB ALMASHTIRISH ────────────────────────────────────────
+function switchFinTab(tab){
+  const isMonthly = tab === 'monthly';
+  document.getElementById('tabMonthly').style.display = isMonthly ? 'block' : 'none';
+  document.getElementById('tabDaily').style.display = isMonthly ? 'none' : 'block';
+  document.getElementById('tabBtnMonthly').className = 'btn btn-sm ' + (isMonthly ? 'btn-dark' : 'btn-outline');
+  document.getElementById('tabBtnDaily').className = 'btn btn-sm ' + (isMonthly ? 'btn-outline' : 'btn-dark');
+  if (!isMonthly) {
+    const y = document.getElementById('sel-year').value, m = document.getElementById('sel-month').value;
+    document.getElementById('tx-date').value = `${y}-${String(m).padStart(2,'0')}-01`;
+    loadDailyTransactions();
+  }
+}
+
+const CAT_LABELS = {arenda:'Arenda', elektr:'Elektr', tushlik:'Tushlik', soliqlar:'Soliqlar', boshqa:'Boshqa'};
+const SOURCE_LABELS = {monthly_form:'Oylik forma', manual:'Qo\'lda kiritilgan'};
+
+async function loadDailyTransactions(){
+  const dateVal = document.getElementById('tx-date').value;
+  if (!dateVal) return;
+  const [y, m, d] = dateVal.split('-').map(Number);
+  const wholeMonth = document.getElementById('tx-whole-month').checked;
+  const category = document.getElementById('tx-category').value;
+
+  let url = `/api/finance/transactions?year=${y}&month=${m}`;
+  if (!wholeMonth) url += `&day=${d}`;
+  if (category) url += `&category=${category}`;
+
+  const tbody = document.getElementById('tx-body');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</td></tr>';
+  try {
+    const res = await fetch(url);
+    const rows = await res.json();
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Tranzaksiya topilmadi</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(t => {
+      const dt = new Date(t.date);
+      return `<tr>
+        <td>${dt.toLocaleDateString('uz')}</td>
+        <td>${CAT_LABELS[t.category] || t.category}</td>
+        <td style="font-weight:600;color:#EF4444">${fmtFull(t.amount)} so'm</td>
+        <td style="color:var(--text3)">${t.notes || '—'}</td>
+        <td style="color:var(--text3)">${t.created_by || '—'}</td>
+        <td style="color:var(--text3);font-size:11px">${SOURCE_LABELS[t.source] || t.source}</td>
+        <td class="no-print"><button class="act-btn danger" style="width:26px;height:26px" onclick="deleteTx(${t.id})" title="O'chirish"><i class="ti ti-trash" style="font-size:12px"></i></button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</td></tr>';
+  }
+}
+
+function openTxModal(){
+  const dateVal = document.getElementById('tx-date').value || new Date().toISOString().slice(0,10);
+  document.getElementById('tx-f-date').value = dateVal;
+  document.getElementById('tx-f-amount').value = '';
+  document.getElementById('tx-f-notes').value = '';
+  document.getElementById('txModal').style.display = 'flex';
+}
+function closeTxModal(){ document.getElementById('txModal').style.display = 'none'; }
+
+async function saveTx(){
+  const date = document.getElementById('tx-f-date').value;
+  const category = document.getElementById('tx-f-category').value;
+  const amount = parseFloat(document.getElementById('tx-f-amount').value);
+  if (!date || !amount || amount <= 0) { alert('Sana va summani to\'g\'ri kiriting'); return; }
+  try {
+    const res = await fetch('/api/finance/transactions', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ date: date+'T00:00:00', category, amount, notes: document.getElementById('tx-f-notes').value || null })
+    });
+    if (res.ok) {
+      closeTxModal();
+      loadDailyTransactions();
+    } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  } catch(e) { alert('Server xatosi'); }
+}
+
+async function deleteTx(id){
+  if (!confirm('Bu tranzaksiyani o\'chirasizmi?')) return;
+  try {
+    await fetch(`/api/finance/transactions/${id}`, {method:'DELETE'});
+    loadDailyTransactions();
+  } catch(e) { alert('Server xatosi'); }
 }
 
 loadReport();
