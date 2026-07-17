@@ -37,7 +37,11 @@
   </div>
 
   <div class="card">
-    <div class="card-head"><h3>Yetkazib beruvchilar ro'yxati</h3></div>
+    <div class="card-head">
+      <h3>Yetkazib beruvchilar ro'yxati</h3>
+      <input id="sup-search" placeholder="Qidirish..." oninput="filterSuppliers(this.value)"
+             style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:7px;font-size:12px;width:180px;outline:none">
+    </div>
     <div class="card-body" style="padding:0" id="supList">
       <div style="text-align:center;padding:30px;color:#bbb">Yuklanmoqda...</div>
     </div>
@@ -92,7 +96,13 @@
       <div id="addPurchaseForm" style="display:none;margin-top:10px">
         <div class="form-group" style="margin-bottom:8px">
           <label style="font-size:11px">Material</label>
-          <select id="ap-item" style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none" onchange="apCalc()"></select>
+          <select id="ap-item" style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none" onchange="apOnItemChange()"></select>
+        </div>
+        <div id="ap-volume-wrap" style="display:none;margin-bottom:8px;padding:8px 10px;background:#FDF8F0;border-radius:7px">
+          <label style="font-size:11px;color:#8B6914;font-weight:600">📦 1 blok necha m³? (kubasi)</label>
+          <input type="number" id="ap-volume" placeholder="1.2" min="0.01" step="0.01" oninput="apCalc()"
+                 style="width:100%;height:34px;padding:0 10px;border:1.5px solid #E5DFD3;border-radius:7px;font-size:12.5px;outline:none;margin-top:4px">
+          <div id="ap-volume-hint" style="font-size:10.5px;color:#999;margin-top:4px"></div>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <div style="flex:1">
@@ -132,7 +142,16 @@
     </div>
 
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
-      <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:8px">📦 Xaridlar tarixi</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:#777">📦 Xaridlar tarixi</span>
+        <div style="display:flex;gap:5px;align-items:center">
+          <input type="date" id="hist-from" style="height:28px;padding:0 6px;border:1.5px solid #ddd;border-radius:6px;font-size:11px;outline:none">
+          <span style="font-size:11px;color:#aaa">—</span>
+          <input type="date" id="hist-to" style="height:28px;padding:0 6px;border:1.5px solid #ddd;border-radius:6px;font-size:11px;outline:none">
+          <button class="mini-btn" onclick="applyHistoryFilter()" title="Filtrlash">🔍</button>
+          <button class="mini-btn" onclick="clearHistoryFilter()" title="Tozalash">✕</button>
+        </div>
+      </div>
       <div id="hist-purchases"></div>
 
       <div style="font-size:12px;font-weight:600;color:#777;margin:16px 0 8px">💰 To'lovlar tarixi</div>
@@ -169,26 +188,50 @@ async function loadSuppliers(){
     document.getElementById('k-supplier-count').textContent = debtCount + ' ta';
     document.getElementById('k-total-count').textContent = suppliers.length + ' ta';
 
-    const list = document.getElementById('supList');
-    if (!suppliers.length){
-      list.innerHTML = '<div style="text-align:center;padding:30px;color:#bbb">Yetkazib beruvchi qo\'shilmagan</div>';
-      return;
-    }
-
-    list.innerHTML = suppliers.map(s => `
-      <div class="sup-row" onclick="openHistory(${s.id})">
-        <div style="flex:1;min-width:0">
-          <div class="sup-name">${s.name}</div>
-          <div class="sup-meta">${s.phone || '—'} · ${s.purchase_count} ta nasiya xarid</div>
-        </div>
-        <div style="text-align:right;min-width:120px">
-          ${s.debt > 0
-            ? `<div style="font-size:14px;font-weight:700;color:#C0392B">${fmt(s.debt)} so'm</div><div style="font-size:9.5px;color:#bbb">qarz</div>`
-            : `<div style="font-size:12px;font-weight:600;color:#27AE60">✓ Qarzi yo'q</div>`}
-        </div>
-        <button class="mini-btn" onclick="event.stopPropagation();editSupplier(${s.id})">✏️</button>
-      </div>`).join('');
+    renderSupplierList(suppliers);
   }catch(e){console.error(e);}
+}
+
+function daysAgoText(iso) {
+  if (!iso) return "Hali xarid yo'q";
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (diff <= 0) return "Bugun";
+  if (diff === 1) return "Kecha";
+  if (diff < 30) return `${diff} kun oldin`;
+  return new Date(iso).toLocaleDateString('uz');
+}
+
+function renderSupplierList(list){
+  const box = document.getElementById('supList');
+  if (!list.length){
+    box.innerHTML = '<div style="text-align:center;padding:30px;color:#bbb">Topilmadi</div>';
+    return;
+  }
+
+  box.innerHTML = list.map(s => `
+    <div class="sup-row" onclick="openHistory(${s.id})">
+      <div style="flex:1;min-width:0">
+        <div class="sup-name">${s.name}</div>
+        <div class="sup-meta">
+          ${s.phone || '—'} · Oxirgi xarid: ${daysAgoText(s.last_purchase_at)}
+          ${s.month_count > 0 ? ` · Bu oy: ${s.month_count} ta / ${fmt(s.month_total)} so'm` : ''}
+        </div>
+      </div>
+      <div style="text-align:right;min-width:120px">
+        ${s.debt > 0
+          ? `<div style="font-size:14px;font-weight:700;color:#C0392B">${fmt(s.debt)} so'm</div><div style="font-size:9.5px;color:#bbb">qarz</div>`
+          : `<div style="font-size:12px;font-weight:600;color:#27AE60">✓ Qarzi yo'q</div>`}
+      </div>
+      <button class="mini-btn" onclick="event.stopPropagation();editSupplier(${s.id})">✏️</button>
+    </div>`).join('');
+}
+
+function filterSuppliers(q){
+  const query = (q||'').trim().toLowerCase();
+  if (!query) { renderSupplierList(suppliers); return; }
+  renderSupplierList(suppliers.filter(s =>
+    s.name.toLowerCase().includes(query) || (s.phone||'').includes(query)
+  ));
 }
 
 function openSupplierModal(){
@@ -241,7 +284,26 @@ async function loadInvItemsForAp() {
     invItems = await fetch('/api/inventory').then(r => r.json());
     const sel = document.getElementById('ap-item');
     sel.innerHTML = invItems.map(i => `<option value="${i.id}" data-unit="${i.unit}">${i.item_name} (${i.unit})</option>`).join('');
+    apOnItemChange();
   } catch(e) {}
+}
+
+function apOnItemChange() {
+  const itemId = parseInt(document.getElementById('ap-item').value);
+  const item = invItems.find(i => i.id === itemId);
+  const wrap = document.getElementById('ap-volume-wrap');
+  const volInp = document.getElementById('ap-volume');
+
+  if (item && item.is_penoplast) {
+    wrap.style.display = 'block';
+    volInp.value = item.volume_per_unit || '';
+    document.getElementById('ap-volume-hint').textContent =
+      `Hozirgi o'rtacha: ${item.volume_per_unit} m³/blok. Farq qilsa — yangi qiymat bilan o'rtacha vaznli qayta hisoblanadi.`;
+  } else {
+    wrap.style.display = 'none';
+    volInp.value = '';
+  }
+  apCalc();
 }
 
 function openAddPurchase() {
@@ -249,7 +311,7 @@ function openAddPurchase() {
   const show = form.style.display === 'none';
   form.style.display = show ? 'block' : 'none';
   if (show) {
-    loadInvItemsForAp();
+    loadInvItemsForAp().then(() => apOnItemChange());
     document.getElementById('ap-qty').value = '';
     document.getElementById('ap-price').value = '';
     document.getElementById('ap-total').textContent = 'Jami: —';
@@ -290,9 +352,16 @@ async function saveAddPurchase() {
   const isCredit = document.getElementById('ap-credit').checked;
   const transportPayer = document.getElementById('ap-transport-payer').value;
   const transportCost = parseFloat(document.getElementById('ap-transport-cost').value) || 0;
+  const item = invItems.find(i => i.id === itemId);
+  const volumePerUnit = (item && item.is_penoplast)
+    ? (parseFloat(document.getElementById('ap-volume').value) || null)
+    : null;
 
   if (!itemId) { showMsg('❌ Materialni tanlang', 'error'); return; }
   if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
+  if (item && item.is_penoplast && !volumePerUnit) {
+    showMsg('❌ Penoplast uchun 1 blok necha m³ ekanini kiriting', 'error'); return;
+  }
   if (transportPayer === 'self' && transportCost <= 0) {
     showMsg("❌ Transport summasini kiriting", 'error'); return;
   }
@@ -308,11 +377,18 @@ async function saveAddPurchase() {
         supplier_id: currentSupplierId,
         notes: 'Yetkazib beruvchi sahifasidan qo\'shildi',
         transport_payer: transportPayer,
-        transport_cost: transportCost
+        transport_cost: transportCost,
+        volume_per_unit: volumePerUnit
       })
     });
     if (res.ok) {
-      showMsg(isCredit ? '✓ Nasiyaga yozildi' : '✓ Xarid qo\'shildi (naqd)', 'success');
+      const r = await res.json();
+      let msg = isCredit ? '✓ Nasiyaga yozildi' : '✓ Xarid qo\'shildi (naqd)';
+      if (r.volume_changed) {
+        msg += `\n📦 Blok hajmi: ${r.old_volume} → ${r.new_volume} m³ (o'rtacha qayta hisoblandi)`;
+      }
+      showMsg(msg, 'success');
+      invItems = []; // keyingi safar yangi narx/hajm bilan qayta yuklansin
       document.getElementById('addPurchaseForm').style.display = 'none';
       openHistory(currentSupplierId);
       loadSuppliers();
@@ -323,14 +399,26 @@ async function saveAddPurchase() {
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
-async function openHistory(id){
+async function openHistory(id, keepFilter){
   currentSupplierId = id;
   document.getElementById('historyModal').style.display = 'flex';
   document.getElementById('pay-amount').value = '';
   document.getElementById('addPurchaseForm').style.display = 'none';
+  if (!keepFilter) {
+    document.getElementById('hist-from').value = '';
+    document.getElementById('hist-to').value = '';
+  }
+
+  const from = document.getElementById('hist-from').value;
+  const to = document.getElementById('hist-to').value;
+  let url = `/api/suppliers/${id}/history`;
+  const params = [];
+  if (from) params.push(`start_date=${from}`);
+  if (to) params.push(`end_date=${to}`);
+  if (params.length) url += '?' + params.join('&');
 
   try{
-    const d = await fetch(`/api/suppliers/${id}/history`).then(r=>r.json());
+    const d = await fetch(url).then(r=>r.json());
     document.getElementById('hist-name').textContent = d.name;
     document.getElementById('hist-phone').textContent = d.phone || '—';
     document.getElementById('hist-credit').textContent = fmt(d.total_credit) + " so'm";
@@ -365,7 +453,11 @@ async function openHistory(id){
               <div style="font-size:12.5px;font-weight:600;color:#1a1a1a">${p.item_name} ${p.is_credit ? '<span style="color:#E67E22;font-size:10px">(nasiya)</span>' : ''}</div>
               <div style="font-size:11px;color:#aaa">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}</div>
             </div>
-            <div style="font-size:12.5px;font-weight:700;color:#8B6914">${fmt(p.total_amount)} so'm</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:12.5px;font-weight:700;color:#8B6914">${fmt(p.total_amount)} so'm</div>
+              <button class="mini-btn" onclick="editPurchase(${p.id}, ${p.quantity}, ${p.price_per_unit}, ${p.is_credit})" title="Tahrirlash">✏️</button>
+              <button class="mini-btn" style="color:#C0392B;border-color:#FADBD8" onclick="deletePurchase(${p.id})" title="O'chirish">✕</button>
+            </div>
           </div>`;
         }).join('');
 
@@ -403,6 +495,65 @@ async function openHistory(id){
   }catch(e){console.error(e);}
 }
 function closeHistoryModal(){ document.getElementById('historyModal').style.display='none'; }
+
+function applyHistoryFilter() {
+  if (!currentSupplierId) return;
+  openHistory(currentSupplierId, true);
+}
+
+function clearHistoryFilter() {
+  document.getElementById('hist-from').value = '';
+  document.getElementById('hist-to').value = '';
+  if (currentSupplierId) openHistory(currentSupplierId, true);
+}
+
+async function editPurchase(id, qty, price, isCredit) {
+  const newQtyStr = prompt("Miqdor:", qty);
+  if (newQtyStr === null) return;
+  const newQty = parseFloat(newQtyStr);
+  if (!newQty || newQty <= 0) { showMsg('❌ Noto\'g\'ri miqdor', 'error'); return; }
+
+  const newPriceStr = prompt("1 birlik narxi:", price);
+  if (newPriceStr === null) return;
+  const newPrice = parseFloat(newPriceStr);
+  if (!newPrice || newPrice <= 0) { showMsg('❌ Noto\'g\'ri narx', 'error'); return; }
+
+  if (!confirm(
+    "Tarixiy yozuv yangilanadi va qarz hisobi qayta hisoblanadi.\\n\\n" +
+    "⚠️ DIQQAT: Ombordagi joriy miqdor va o'rtacha narxga TA'SIR QILMAYDI " +
+    "(agar kerak bo'lsa Omborxonada qo'lda tuzating).\\n\\nDavom etilsinmi?"
+  )) return;
+
+  try {
+    const res = await fetch(`/api/inventory/purchases/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ quantity: newQty, price_per_unit: newPrice })
+    });
+    if (res.ok) {
+      showMsg('✓ Yangilandi', 'success');
+      openHistory(currentSupplierId, true);
+      loadSuppliers();
+    } else showMsg('❌ Xato', 'error');
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+}
+
+async function deletePurchase(id) {
+  if (!confirm(
+    "Bu xarid yozuvi o'chirilsinmi?\\n\\n" +
+    "⚠️ Qarz hisobi qayta hisoblanadi, lekin ombordagi joriy miqdor/narx " +
+    "AVTOMATIK o'zgarmaydi.\\n\\nDavom etilsinmi?"
+  )) return;
+
+  try {
+    const res = await fetch(`/api/inventory/purchases/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      showMsg('✓ O\'chirildi', 'success');
+      openHistory(currentSupplierId, true);
+      loadSuppliers();
+    } else showMsg('❌ Xato', 'error');
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+}
 
 async function savePayment(){
   const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
