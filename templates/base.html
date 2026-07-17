@@ -7,6 +7,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}PenoDecorPro ERP{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css">
   <link rel="stylesheet" href="/static/style.css">
   {% block head %}{% endblock %}
 </head>
@@ -40,26 +41,26 @@
       <div class="nav-label">Asosiy</div>
 
       <a href="/" class="nav-item {% if active_page == 'home' %}active{% endif %}">
-        <span class="n-ico">🏠</span>
+        <i class="ti ti-home n-ico"></i>
         <span class="n-txt">Bosh sahifa</span>
       </a>
 
       {% if role == 'admin' %}
       <a href="/dashboard" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
-        <span class="n-ico">📊</span>
+        <i class="ti ti-chart-bar n-ico"></i>
         <span class="n-txt">Dashboard</span>
       </a>
       {% endif %}
 
       {% if role in ['admin', 'manager', 'accountant'] %}
       <a href="/projects" class="nav-item {% if active_page == 'projects' %}active{% endif %}">
-        <span class="n-ico">📋</span>
+        <i class="ti ti-clipboard-list n-ico"></i>
         <span class="n-txt">Loyihalar</span>
       </a>
       {% endif %}
 
       <a href="/orders" class="nav-item {% if active_page == 'orders' %}active{% endif %}">
-        <span class="n-ico">🧾</span>
+        <i class="ti ti-receipt n-ico"></i>
         <span class="n-txt">Buyurtmalar</span>
       </a>
 
@@ -67,24 +68,24 @@
 
       {% if role == 'admin' %}
       <a href="/inventory" class="nav-item {% if active_page == 'inventory' %}active{% endif %}">
-        <span class="n-ico">📦</span>
+        <i class="ti ti-package n-ico"></i>
         <span class="n-txt">Omborxona</span>
       </a>
 
       <a href="/suppliers" class="nav-item {% if active_page == 'suppliers' %}active{% endif %}">
-        <span class="n-ico">🚚</span>
+        <i class="ti ti-truck n-ico"></i>
         <span class="n-txt">Yetkazib beruvchilar</span>
       </a>
 
       <a href="/recipes" class="nav-item {% if active_page == 'recipes' %}active{% endif %}">
-        <span class="n-ico">🧪</span>
+        <i class="ti ti-flask n-ico"></i>
         <span class="n-txt">Retseptlar</span>
       </a>
       {% endif %}
 
       {% if role in ['admin', 'manager'] %}
       <a href="/finished" class="nav-item {% if active_page == 'finished' %}active{% endif %}">
-        <span class="n-ico">🏭</span>
+        <i class="ti ti-building-factory-2 n-ico"></i>
         <span class="n-txt">Tayyor mahsulotlar</span>
       </a>
       {% endif %}
@@ -93,31 +94,31 @@
 
       {% if role in ['admin', 'manager'] %}
       <a href="/returns" class="nav-item {% if active_page == 'returns' %}active{% endif %}">
-        <span class="n-ico">↩️</span>
+        <i class="ti ti-arrow-back-up n-ico"></i>
         <span class="n-txt">Qaytarishlar</span>
       </a>
 
       <a href="/debts" class="nav-item {% if active_page == 'debts' %}active{% endif %}">
-        <span class="n-ico">💳</span>
+        <i class="ti ti-credit-card n-ico"></i>
         <span class="n-txt">Qarzdorlar</span>
       </a>
       {% endif %}
 
       {% if role == 'admin' %}
       <a href="/finance" class="nav-item {% if active_page == 'finance' %}active{% endif %}">
-        <span class="n-ico">💹</span>
+        <i class="ti ti-trending-up n-ico"></i>
         <span class="n-txt">Moliya</span>
       </a>
 
       <a href="/kpi" class="nav-item {% if active_page == 'kpi' %}active{% endif %}">
-        <span class="n-ico">🏆</span>
+        <i class="ti ti-trophy n-ico"></i>
         <span class="n-txt">Ustalar KPI / Hodimlar</span>
       </a>
 
       <div class="nav-label">Boshqaruv</div>
 
       <a href="/users" class="nav-item {% if active_page == 'users' %}active{% endif %}">
-        <span class="n-ico">👥</span>
+        <i class="ti ti-users n-ico"></i>
         <span class="n-txt">Foydalanuvchilar</span>
       </a>
       {% endif %}
@@ -125,7 +126,7 @@
 
     <div class="s-bottom">
       <a href="/logout" class="s-logout">
-        <span>🚪</span>
+        <i class="ti ti-logout"></i>
         <span>Chiqish</span>
       </a>
     </div>
