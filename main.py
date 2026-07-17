@@ -830,6 +830,14 @@ def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = 
     return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive)
 
 
+@app.get("/api/masters/{master_id}/kpi-detail")
+def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
+                           db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    from datetime import datetime
+    y = year or datetime.now().year
+    return crud.get_master_kpi_detail(db, master_id, y)
+
+
 @app.get("/api/transport-stats")
 def api_transport_stats(year: Optional[int] = None, month: Optional[int] = None,
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
