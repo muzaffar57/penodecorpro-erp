@@ -85,7 +85,7 @@ def process_cutting(db: Session, order_id: int, volume_m3: float) -> Dict:
     # Inventory dan penoplast topish
     penoplast = db.query(Inventory).filter(
         Inventory.item_name.ilike("%penoplast%")
-    ).first()
+    ).with_for_update().first()
 
     if not penoplast:
         return {
@@ -207,7 +207,7 @@ def process_coating(db: Session, order_id: int, coated_area_m2: float) -> Dict:
     for comp_name, qty_needed in calc["materials"].items():
         inv_item = db.query(Inventory).filter(
             Inventory.item_name.ilike(f"%{comp_name}%")
-        ).first()
+        ).with_for_update().first()
 
         if not inv_item:
             shortages.append(f"{comp_name}: omborda yo'q")
@@ -1500,7 +1500,7 @@ def deduct_inventory_for_order(db: Session, order) -> list:
     volumes = _group_volumes_by_penoplast(db, order.items)
 
     for pid, vol in volumes.items():
-        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
         if not p:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
@@ -1524,7 +1524,7 @@ def return_inventory_for_order(db: Session, order) -> list:
     volumes = _group_volumes_by_penoplast(db, order.items)
 
     for pid, vol in volumes.items():
-        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
         if not p:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
@@ -1583,7 +1583,7 @@ def get_or_create_loy_stock(db: Session, recipe):
     recipe_name = recipe.name.value if hasattr(recipe.name, 'value') else str(recipe.name)
     item_name = f"Tayyor loy ({recipe_name})"
 
-    stock = db.query(Inventory).filter(Inventory.item_name == item_name).first()
+    stock = db.query(Inventory).filter(Inventory.item_name == item_name).with_for_update().first()
     if stock:
         return stock
 
@@ -1686,7 +1686,7 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
         needed_kg = loy_kg * (float(recipe_kg) / batch)
         inv_item = db.query(Inventory).filter(
             Inventory.item_name.ilike(f"%{inv_name}%")
-        ).first()
+        ).with_for_update().first()
         if inv_item:
             inv_item.stock_quantity = max(0, float(inv_item.stock_quantity) - needed_kg)
             log.append(f"{inv_item.item_name}: -{needed_kg:.2f} {inv_item.unit}")
@@ -1746,7 +1746,7 @@ def return_loy_ingredients(db: Session, order, loy_kg: float) -> list:
         needed_kg = loy_kg * (float(recipe_kg) / batch)
         inv_item = db.query(Inventory).filter(
             Inventory.item_name.ilike(f"%{inv_name}%")
-        ).first()
+        ).with_for_update().first()
         if inv_item:
             inv_item.stock_quantity = float(inv_item.stock_quantity) + needed_kg
             log.append(f"{inv_item.item_name}: +{needed_kg:.2f} qaytarildi")
@@ -1808,7 +1808,7 @@ def adjust_inventory_diff(db: Session, old_items, new_items) -> list:
         if abs(diff) < 0.0001:
             continue
 
-        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
         if not p:
             continue
 
