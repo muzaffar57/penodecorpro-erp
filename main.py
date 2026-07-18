@@ -1198,6 +1198,7 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "debt_amount": order.debt_amount,
         "is_archived": bool(order.is_archived),
         "is_draft": order.status == OrderStatus.DRAFT if order.status else False,
+        "delivery_percent": order.delivery_percent,
         "master_id": order.master_id,
         "master_name": order.master.name if order.master else None,
         "client_name": order.project.client_name if order.project else None,
@@ -1394,60 +1395,66 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=
     order_num = order.order_number
 
     # ── Xomashyo qaytadimi? ──
-    # Qoralama    → ombordan hech narsa yechilmagan, qaytarish shart emas
-    # Tayyor      → mahsulot ishlab chiqarilgan, xomashyo sarflangan — qaytmaydi
-    # Yetkazilgan → mijozga berilgan — qaytmaydi
-    # Topshirila boshlagan (qisman) → qaytmaydi, chunki bir qismi allaqachon ketgan
-    finished_statuses = (OrderStatus.READY, OrderStatus.DELIVERED)
+    # Qoralama            → ombordan hech narsa yechilmagan, qaytarish shart emas
+    # Hech narsa topshirilmagan → hammasi qaytadi
+    # QISMAN topshirilgan  → FAQAT qolgan (topshirilmagan) qismi qaytadi
+    # To'liq YETKAZILGAN   → hech narsa qaytmaydi (hammasi mijozda)
     has_delivery = bool(order.deliveries)
-
-    can_return = (
-        order.status not in finished_statuses
-        and order.status != OrderStatus.DRAFT
-        and not has_delivery
-    )
+    is_fully_delivered = order.status == OrderStatus.DELIVERED or order.is_fully_delivered
+    can_return = order.status != OrderStatus.DRAFT and not is_fully_delivered
 
     if can_return:
-        # 1) Penoplast qaytadi
-        log.extend(services.return_inventory_for_order(db, order))
+        if has_delivery:
+            # Qisman topshirilgan — faqat qolgan qismi qaytadi
+            log.extend(services.return_inventory_for_order_partial(db, order))
+        else:
+            # Hech narsa topshirilmagan — hammasi qaytadi
+            log.extend(services.return_inventory_for_order(db, order))
+            log.extend(services.return_termopanel_for_order(db, order))
 
-        # 1a) Termopanel (bazalt/serpiyanka/kley) qaytadi
-        log.extend(services.return_termopanel_for_order(db, order))
+        # Tayyor mahsulotlar qaytadi (faqat hech narsa topshirilmagan bo'lsa)
+        if not has_delivery:
+            log.extend(crud._return_finished_for_order(db, order))
 
-        # 1b) Tayyor mahsulotlar qaytadi
-        log.extend(crud._return_finished_for_order(db, order))
+        # Loy ingredientlari qaytadi — faqat hech narsa topshirilmagan bo'lsa
+        # (qisman topshirilganda loy allaqachon aralashtirilgan/ishlatilgan
+        # bo'lishi mumkin, aniq qaysi qismga tegishli ekanini bilib bo'lmaydi)
+        if not has_delivery:
+            loy_kg = 0.0
+            if order.notes:
+                for part in str(order.notes).split(','):
+                    p = part.strip()
+                    if p.startswith('loy_kg='):
+                        try:
+                            loy_kg = float(p.split('=')[1])
+                        except (ValueError, IndexError):
+                            pass
+                        break
+            if loy_kg <= 0:
+                loy_kg = services._get_planned_loy(order)
 
-        # 2) Loy ingredientlari qaytadi
-        #    Haqiqiy (loy_kg) bo'lsa — shuni, aks holda rejalashtirilgan (planned_loy) ni
-        loy_kg = 0.0
-        if order.notes:
-            for part in str(order.notes).split(','):
-                p = part.strip()
-                if p.startswith('loy_kg='):
-                    try:
-                        loy_kg = float(p.split('=')[1])
-                    except (ValueError, IndexError):
-                        pass
-                    break
-        if loy_kg <= 0:
-            loy_kg = services._get_planned_loy(order)
+            if loy_kg > 0:
+                log.extend(services.return_loy_ingredients(db, order, loy_kg))
 
-        if loy_kg > 0:
-            log.extend(services.return_loy_ingredients(db, order, loy_kg))
-
-    # Nima uchun qaytmagani — foydalanuvchiga aytamiz
+    # Nima uchun (to'liq) qaytmagani — foydalanuvchiga aytamiz
     reason = None
-    if not can_return:
-        if order.status == OrderStatus.DRAFT:
-            reason = "Qoralama — ombordan hech narsa yechilmagan edi"
-        elif order.status == OrderStatus.READY:
-            reason = "Buyurtma TAYYOR — mahsulot ishlab chiqarilgan, xomashyo qaytmaydi"
-        elif order.status == OrderStatus.DELIVERED:
-            reason = "Buyurtma YETKAZILGAN — mahsulot mijozda, xomashyo qaytmaydi"
-        elif has_delivery:
-            reason = f"Mahsulot topshirila boshlagan ({len(order.deliveries)} ta yuk xati) — xomashyo qaytmaydi"
+    if order.status == OrderStatus.DRAFT:
+        reason = "Qoralama — ombordan hech narsa yechilmagan edi"
+    elif is_fully_delivered:
+        reason = "Buyurtma TO'LIQ YETKAZILGAN — mahsulot mijozda, xomashyo qaytmaydi"
+    elif has_delivery:
+        pct = order.delivery_percent
+        reason = f"Qisman topshirilgan ({pct:.0f}%) — faqat QOLGAN ({100-pct:.0f}%) qismi uchun xomashyo qaytdi"
 
-    if not crud.delete_order(db, order_id, soft=not can_return):
+    # Kelajakda KPI/hisobotlar uchun saqlanishi kerakmi?
+    # Har qanday haqiqiy ish izi bo'lsa (yetkazish, tayyor, to'langan) — yumshoq o'chiramiz.
+    should_soft_delete = (
+        has_delivery
+        or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
+        or float(order.paid_amount or 0) > 0
+    )
+
+    if not crud.delete_order(db, order_id, soft=should_soft_delete):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
     if log:
@@ -1455,8 +1462,8 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=
     else:
         print(f"✓ {order_num} o'chirildi. Xomashyo qaytmadi: {reason}")
 
-    return {"status": "ok", "inventory_log": log, "returned": can_return, "reason": reason,
-            "soft_deleted": not can_return}
+    return {"status": "ok", "inventory_log": log, "returned": bool(log), "reason": reason,
+            "soft_deleted": should_soft_delete}
 
 
 @app.delete("/api/order-items/{item_id}")
