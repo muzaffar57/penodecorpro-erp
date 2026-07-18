@@ -53,7 +53,16 @@ async function doReset() {
 
   try {
     const res = await fetch('/api/system/factory-reset?confirm=HAMMASINI-OCHIR', { method: 'POST' });
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch(parseErr) {
+      const rawText = await res.text().catch(()=>'(bo\'sh)');
+      document.getElementById('result').innerHTML = '<span style="color:#DC2626">❌ Server javobi JSON emas (status: ' + res.status + ').<br><br>Xom javob (birinchi 300 belgi):<br><code style="font-size:11px;word-break:break-all">' + rawText.slice(0,300).replace(/</g,'&lt;') + '</code></span>';
+      btn.disabled = false;
+      btn.textContent = '🗑 Ha, hammasini tozalash';
+      return;
+    }
     if (res.ok) {
       let html = '<div class="ok"><b>✅ Tozalandi!</b><br><br>';
       for (const [k, v] of Object.entries(data.deleted)) {
@@ -68,7 +77,7 @@ async function doReset() {
       btn.textContent = '🗑 Ha, hammasini tozalash';
     }
   } catch(e) {
-    document.getElementById('result').innerHTML = '<span style="color:#DC2626">❌ Server bilan bog\'lanib bo\'lmadi</span>';
+    document.getElementById('result').innerHTML = '<span style="color:#DC2626">❌ Tarmoq xatosi: ' + (e.message || e.toString()) + '<br><br>Ehtimoliy sabab: server hali qayta ishga tushmagan, yoki manzil xato.</span>';
     btn.disabled = false;
     btn.textContent = '🗑 Ha, hammasini tozalash';
   }
