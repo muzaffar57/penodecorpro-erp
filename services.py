@@ -644,6 +644,20 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
             "message": "Reja bo'yicha hisoblandi"
         }
 
+    # === QISMAN TOPSHIRILGAN HOLATDA YAKUNLASH ===
+    # Agar buyurtma ALLAQACHON qisman topshirilgan bo'lsa-yu (masalan 64%),
+    # shu holda "Tayyor" bosilsa — bu "qolgani kerak emas, shu bilan yakunlaymiz"
+    # degani. Qolgan (topshirilmagan) qism uchun xomashyo omborga qaytadi.
+    # (Hali hech narsa topshirilmagan — oddiy holat — bunga tegilmaydi.)
+    if order.deliveries and not order.is_fully_delivered:
+        partial_log = return_inventory_for_order_partial(db, order)
+        if partial_log:
+            result["inventory_changes"].extend(partial_log)
+            result["partial_return"] = {
+                "delivery_percent": order.delivery_percent,
+                "message": f"Qisman topshirilgan ({order.delivery_percent:.0f}%) — qolgan qism uchun xomashyo omborga qaytdi"
+            }
+
     # 3. USTA KPI
     if order.master_id:
         master = db.query(Master).filter(Master.id == order.master_id).first()
@@ -1726,6 +1740,105 @@ def return_termopanel_for_order(db: Session, order) -> list:
             if k:
                 k.stock_quantity = float(k.stock_quantity) + float(parts['kley_qty'])
                 log.append(f"{k.item_name}: +{float(parts['kley_qty']):.2f} kg qaytarildi")
+
+    if log:
+        db.commit()
+    return log
+
+
+class _ProratedItem:
+    """Buyurtma detalining faqat 'qolgan (topshirilmagan) qismi'ni ifodalovchi
+    vaqtinchalik obyekt — mavjud hajm hisoblash funksiyalarini o'zgartirmasdan
+    qayta ishlatish uchun."""
+    def __init__(self, real_item, fraction):
+        self.category = real_item.category
+        self.width = real_item.width
+        self.thickness = real_item.thickness
+        self.penoplast_id = real_item.penoplast_id
+        self.is_coated = real_item.is_coated
+        self.price_per_m3 = real_item.price_per_m3
+        self.finished_product_id = real_item.finished_product_id
+        self.recipe_id = real_item.recipe_id
+        cat = (real_item.category or '').lower()
+        if cat == 'profil':
+            self.length = float(real_item.length or 0) * fraction
+            self.quantity = float(real_item.quantity or 1)
+        else:
+            self.length = real_item.length
+            self.quantity = float(real_item.quantity or 0) * fraction
+
+
+def get_undelivered_items(order):
+    """Buyurtmadagi har bir detal uchun 'hali topshirilmagan' ulushni hisoblaydi.
+    Qaytaradi: [(real_item, fraction, remaining_qty, ordered_qty), ...]
+    fraction — 0 dan 1 gacha (masalan 0.36 — 36% hali topshirilmagan)."""
+    result = []
+    for item in order.items:
+        if (item.finished_product_id or None):
+            continue  # Tayyor mahsulotdan olingan — bu yerda hisoblanmaydi
+        ordered = item.order_qty_normalized
+        if ordered <= 0:
+            continue
+        delivered = item.delivered_qty
+        remaining = max(ordered - delivered, 0)
+        if remaining <= 0.001:
+            continue  # To'liq topshirilgan — qaytariladigan narsa yo'q
+        fraction = remaining / ordered
+        result.append((item, fraction, remaining, ordered))
+    return result
+
+
+def return_inventory_for_order_partial(db: Session, order) -> list:
+    """Qisman topshirilgan buyurtma bekor qilinganda/o'chirilganda —
+    FAQAT hali topshirilmagan (mijozga berilmagan) qismi uchun xomashyoni
+    omborga qaytaradi. Topshirib bo'lingan qism — mijozda, qaytmaydi."""
+    from models import Inventory
+
+    log = []
+    undelivered = get_undelivered_items(order)
+    if not undelivered:
+        return log
+
+    prorated_items = [_ProratedItem(item, fraction) for item, fraction, _, _ in undelivered]
+
+    # 1) Penoplast — qolgan qism bo'yicha
+    volumes = _group_volumes_by_penoplast(db, prorated_items)
+    for pid, vol in volumes.items():
+        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
+        if not p:
+            continue
+        vol_per_unit = float(p.volume_per_unit or 1.0)
+        blocks_to_return = vol / vol_per_unit
+        p.stock_quantity = float(p.stock_quantity) + blocks_to_return
+        log.append(f"{p.item_name}: +{blocks_to_return:.2f} blok qaytarildi (qolgan qism)")
+
+    # 2) Termopanel (bazalt/serpiyanka/kley) — qolgan qism bo'yicha
+    for item, fraction, remaining, ordered in undelivered:
+        if (item.category or '').lower() != 'termopanel':
+            continue
+        import re as _re
+        m = _re.search(r'\[TERMO:([^\]]+)\]', item.notes or '')
+        if not m:
+            continue
+        parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
+        if 'bazalt_id' in parts and 'bazalt_qty' in parts:
+            b = db.query(Inventory).filter(Inventory.id == int(parts['bazalt_id'])).with_for_update().first()
+            if b:
+                qty = float(parts['bazalt_qty']) * fraction
+                b.stock_quantity = float(b.stock_quantity) + qty
+                log.append(f"{b.item_name}: +{qty:.2f} dona qaytarildi (qolgan qism)")
+        if 'serp_id' in parts and 'serp_qty' in parts:
+            s = db.query(Inventory).filter(Inventory.id == int(parts['serp_id'])).with_for_update().first()
+            if s:
+                qty = float(parts['serp_qty']) * fraction
+                s.stock_quantity = float(s.stock_quantity) + qty
+                log.append(f"{s.item_name}: +{qty:.2f} rulon qaytarildi (qolgan qism)")
+        if 'kley_id' in parts and 'kley_qty' in parts:
+            k = db.query(Inventory).filter(Inventory.id == int(parts['kley_id'])).with_for_update().first()
+            if k:
+                qty = float(parts['kley_qty']) * fraction
+                k.stock_quantity = float(k.stock_quantity) + qty
+                log.append(f"{k.item_name}: +{qty:.2f} kg qaytarildi (qolgan qism)")
 
     if log:
         db.commit()
