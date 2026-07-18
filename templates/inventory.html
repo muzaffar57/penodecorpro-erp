@@ -28,6 +28,10 @@
 .mat-thumb{width:44px;height:44px;border-radius:10px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:18px;position:relative;cursor:pointer}
 .mat-thumb img{width:100%;height:100%;object-fit:cover}
 .mat-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.stock-bar{height:6px;background:#F0F0F0;border-radius:6px;overflow:hidden;width:160px;max-width:100%}
+.stock-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#22C55E,#16A34A);transition:width .4s ease}
+.stock-fill.warn{background:linear-gradient(90deg,#F59E0B,#D97706)}
+.stock-fill.danger{background:linear-gradient(90deg,#EF4444,#DC2626)}
 .mat-sub{font-size:13px;color:var(--text3);margin-top:3px}
 .cat-badge{display:inline-block;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;margin-top:6px}
 .cat-Penoplast{background:#E6F1FB;color:#0C447C}
@@ -323,9 +327,15 @@ async function uploadInventoryImage(id, input) {
   fd.append('file', file);
   try {
     const res = await fetch(`/api/inventory/${id}/image`, { method: 'POST', body: fd });
-    if (res.ok) location.reload();
-    else alert('Rasm yuklanmadi');
-  } catch(e) { alert('Server xatosi'); }
+    if (res.ok) {
+      location.reload();
+    } else {
+      const err = await res.json().catch(()=>({}));
+      alert('❌ Rasm yuklanmadi.\n\nSabab: ' + (err.detail || `Server xatosi (${res.status})`));
+    }
+  } catch(e) {
+    alert('❌ Server bilan bog\'lanib bo\'lmadi: ' + e.message);
+  }
 }
 
 async function setDefaultPenoplast(id){
