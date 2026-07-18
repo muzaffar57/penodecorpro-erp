@@ -1730,8 +1730,11 @@ def api_delete_return(return_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.post("/api/payments")
-def api_create_payment(data: schemas.PaymentCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Yangi to'lov qo'shish."""
+def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yangi to'lov qo'shish.
+    write_off_remainder=true bo'lsa — to'lovdan keyin qolgan (kichik) qarz
+    CHEGIRMA sifatida yozib yuboriladi (jami summadan ham ayiriladi —
+    shuning uchun FOYDA hisobotida ham to'g'ri, kamroq ko'rsatiladi)."""
     if not data.received_by:
         data.received_by = current_user.full_name or current_user.username
     try:
@@ -1740,13 +1743,32 @@ def api_create_payment(data: schemas.PaymentCreate, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail=str(e))
 
     order = crud.get_order(db, data.order_id)
+
+    write_off_info = None
+    if write_off_remainder and order:
+        remaining = order.debt_amount
+        if remaining > 0.5:
+            order.total_amount = float(order.total_amount or 0) - remaining
+            order.agreed_amount = float(order.agreed_amount or 0) - remaining
+            import re as _re
+            base_notes = _re.sub(r'\s*\[WRITEOFF:[\d.]+\]', '', order.notes or '').strip()
+            order.notes = (base_notes + f" [WRITEOFF:{remaining:.0f}]").strip()
+            crud._update_order_payment_status(db, order)
+            db.commit()
+            db.refresh(order)
+            write_off_info = {
+                "amount": round(remaining),
+                "message": f"Qolgan {remaining:.0f} so'm chegirma sifatida yozildi (foydadan ham ayirildi)"
+            }
+
     return {
         "status": "ok",
         "payment_id": payment.id,
         "paid_amount": order.paid_amount,
         "debt_amount": order.debt_amount,
         "payment_status": order.payment_status.value,
-        "is_archived": order.is_archived
+        "is_archived": order.is_archived,
+        "write_off": write_off_info
     }
 
 
