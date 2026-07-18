@@ -1662,14 +1662,7 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
             used_parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
 
         if loy_kg > 0:
-            recipe = db.query(Recipe).filter(Recipe.id == db_item.recipe_id).first() if db_item.recipe_id else db.query(Recipe).first()
-            class _FakeOrder:
-                def __init__(self, rid):
-                    class _It:
-                        recipe_id = rid
-                    self.items = [_It()]
-            fake = _FakeOrder(recipe.id if recipe else None)
-            log.extend(deduct_loy_ingredients(db, fake, loy_kg, use_stock=False))
+            log.extend(deduct_loy_ingredients(db, order, loy_kg, use_stock=False))
             used_parts.append(f"loy_kg={loy_kg:.4f}")
 
         if used_parts:
@@ -2151,6 +2144,8 @@ def adjust_termopanel_diff(db: Session, old_items, new_items, recipe_id=None) ->
                     pass
                 it = _It(); it.recipe_id = rid
                 self.items = [it]
+                self.id = None
+                self.order_number = "TAHRIRLASH"
         log.extend(deduct_loy_ingredients(db, _FakeOrder(recipe_id), loy_diff, use_stock=False))
     elif loy_diff < -0.001:
         class _FakeOrder:
@@ -2159,6 +2154,8 @@ def adjust_termopanel_diff(db: Session, old_items, new_items, recipe_id=None) ->
                     pass
                 it = _It(); it.recipe_id = rid
                 self.items = [it]
+                self.id = None
+                self.order_number = "TAHRIRLASH"
         log.extend(return_loy_ingredients(db, _FakeOrder(recipe_id), abs(loy_diff)))
 
     if log:
