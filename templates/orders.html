@@ -82,7 +82,7 @@
 .dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid #e5e5e5;border-radius:10px;font-size:14.5px;color:#111;background:#fff;outline:none;transition:border .15s}
 .dif input:focus,.dif select:focus{border-color:#2563EB}
 .dif input[readonly]{background:#f8f8f6;color:#aaa;cursor:not-allowed}
-.detal-result{margin-top:12px;padding-top:12px;border-top:1px dashed #e8e8e8;display:flex;gap:18px;font-size:13px;color:#888;flex-wrap:wrap}
+.detal-result{margin-top:14px;padding:14px 16px;background:#fff;border-radius:12px;border:1px solid #ebebeb;display:flex;gap:20px;font-size:14.5px;color:#888;flex-wrap:wrap;align-items:center}
 .detal-result .val{color:#22C55E;font-weight:700;font-size:15px}
 .total-box{background:#f8f8f6;border-radius:14px;padding:18px;border:1px solid #ebebeb}
 .trow{display:flex;justify-content:space-between;font-size:14.5px;padding:5px 0;color:#555}
@@ -100,6 +100,14 @@
 .msg-bar{border-radius:10px;padding:13px 16px;font-size:14.5px;margin-bottom:10px;display:none}
 .msg-bar.success{background:#DCFCE7;color:#1e7e34;display:block}
 .msg-bar.error{background:#FEE2E2;color:#DC2626;display:block}
+/* Ikonka-belgili sarlavha (rasmga mos) */
+.card-head h3{display:flex;align-items:center;gap:10px;font-size:15.5px}
+.ico-badge{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.ico-badge.blue{background:#EFF6FF;color:#2563EB}
+.ico-badge.green{background:#DCFCE7;color:#16A34A}
+.ico-badge.orange{background:#FEF3C7;color:#D97706}
+.ico-badge.purple{background:#F3EEFF;color:#7C3AED}
+.ico-badge.red{background:#FEE2E2;color:#DC2626}
 </style>
 {% endblock %}
 
@@ -324,7 +332,7 @@
 
       <!-- FAYLLAR VA RASMLAR -->
       <div class="card" style="margin-top:12px">
-        <div class="card-head"><h3>Fayllar va rasmlar</h3></div>
+        <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3></div>
         <div style="padding:12px">
           <label class="dropzone">
             <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
@@ -349,7 +357,7 @@
       <!-- YETKAZISH BO'LIMI -->
       <div class="card" style="margin-top:12px">
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('dlvBody', 'dlv-toggle-ic')">
-          <h3>📦 Yetkazish</h3>
+          <h3><span class="ico-badge blue"><i class="ti ti-truck-delivery"></i></span> Yetkazish</h3>
           <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
             <span id="dlv-pct-badge" style="font-size:13px;font-weight:600"></span>
             <button class="btn btn-outline btn-sm" id="btn-summary" onclick="openSummaryModal()"
@@ -389,7 +397,7 @@
       <!-- TO'LOVLAR BO'LIMI -->
       <div class="card" style="margin-top:12px">
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('payBody', 'pay-toggle-ic')">
-          <h3>💰 To'lovlar</h3>
+          <h3><span class="ico-badge green"><i class="ti ti-cash"></i></span> To'lovlar</h3>
           <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
             <button class="btn btn-green btn-sm" onclick="openPaymentForm()">+ To'lov qo'shish</button>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('payBody','pay-toggle-ic')" title="Yig'ish/yoyish">
@@ -457,7 +465,7 @@
 
     <!-- Tanlangan buyurtma xulosasi -->
     <div class="card" id="sumCard" style="display:none">
-      <div class="card-head"><h3>Buyurtma xulosasi</h3></div>
+      <div class="card-head"><h3><span class="ico-badge blue"><i class="ti ti-clipboard-list"></i></span> Buyurtma xulosasi</h3></div>
       <div style="padding:12px">
         <div class="sum-title">Ma'lumotlar</div>
         <div class="sum-item"><span class="si-l">Raqam</span><span class="si-v" id="s-num">—</span></div>
@@ -469,23 +477,23 @@
         <div class="sum-item"><span class="si-l">Holati</span><span class="si-v" id="s-status">—</span></div>
 
         <div class="sum-title">Hisob-kitob</div>
-        <div style="background:var(--bg);border-radius:8px;padding:12px;margin-bottom:4px">
-          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
+        <div style="background:var(--bg);border-radius:12px;padding:16px;margin-bottom:4px">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px">
             <span style="color:var(--text2)">Jami summa:</span>
             <span id="pay-total" style="font-weight:600">—</span>
           </div>
-          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px" id="pay-discount-row">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-discount-row">
             <span style="color:var(--text2)">Chegirma:</span>
             <span id="pay-discount" style="font-weight:600;color:#F59E0B">—</span>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-top:1px solid var(--border2);margin-top:4px;padding-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 6px;font-size:14.5px;border-top:1px solid var(--border2);margin-top:6px;padding-top:12px">
             <span style="color:var(--text2);font-weight:600">Kelishilgan:</span>
-            <span style="display:flex;align-items:center;gap:6px">
-              <span id="pay-agreed" style="font-weight:700;color:var(--text)">—</span>
-              <button onclick="editAgreedAmount()" style="width:22px;height:22px;border-radius:5px;background:var(--border2);border:none;font-size:13px;cursor:pointer" title="Kelishilgan summani o'zgartirish">✏️</button>
+            <span style="display:flex;align-items:center;gap:8px">
+              <span id="pay-agreed" style="font-weight:800;color:var(--gold);font-size:24px">—</span>
+              <button onclick="editAgreedAmount()" style="width:26px;height:26px;border-radius:7px;background:var(--border2);border:none;font-size:14px;cursor:pointer" title="Kelishilgan summani o'zgartirish">✏️</button>
             </span>
           </div>
-          <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px">
             <span style="color:var(--text2)">To'langan:</span>
             <span id="pay-paid" style="font-weight:600;color:#22C55E">—</span>
           </div>
@@ -528,7 +536,7 @@
 
     <!-- Buyurtmalar statistikasi -->
     <div class="card">
-      <div class="card-head"><h3>Statistika</h3></div>
+      <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-chart-bar"></i></span> Statistika</h3></div>
       <div style="padding:12px">
         <div class="sum-item"><span class="si-l">Jami</span><span class="si-v">{{ orders|length }} ta</span></div>
         <div class="sum-item"><span class="si-l">Tayyor</span><span class="si-v green">{{ orders|selectattr('status.value', 'equalto', 'ready')|list|length }} ta</span></div>
@@ -538,7 +546,7 @@
 
     <!-- Yangi buyurtma yig'indisi -->
     <div class="card" id="liveTotal" style="display:none;border-left:3px solid #2563EB;border-radius:0 12px 12px 0">
-      <div class="card-head"><h3>💰 Buyurtma hisob-kitobi</h3></div>
+      <div class="card-head"><h3><span class="ico-badge green"><i class="ti ti-calculator"></i></span> Buyurtma hisob-kitobi</h3></div>
       <div style="padding:12px;max-height:400px;overflow-y:auto" id="liveTotalBody">
         <div style="text-align:center;color:#bbb;padding:20px">Detal qo'shing...</div>
       </div>
@@ -1954,10 +1962,10 @@ function addItem() {
       </div>
     </div>
     <div class="detal-result">
-      <span>Hajm: <input type="text" class="i-vol" readonly style="background:transparent;border:none;width:70px;padding:0;font-size:13px;color:#aaa"></span>
-      <span>1m narxi: <input type="text" class="i-perm" readonly style="background:transparent;border:none;width:100px;padding:0;font-size:13px;color:#0EA5E9"></span>
-      <span class="val">Jami: <input type="text" class="i-price" readonly style="background:transparent;border:none;width:110px;padding:0;font-size:14px;color:#22C55E;font-weight:600"></span>
-      <span class="i-peno-warn" style="display:none;font-size:13px;color:#F59E0B;font-weight:600"></span>
+      <span>Hajm: <input type="text" class="i-vol" readonly style="background:transparent;border:none;width:75px;padding:0;font-size:14.5px;color:#999;font-weight:600"></span>
+      <span>1m narxi: <input type="text" class="i-perm" readonly style="background:transparent;border:none;width:105px;padding:0;font-size:14.5px;color:#0EA5E9;font-weight:600"></span>
+      <span class="val">Jami: <input type="text" class="i-price" readonly style="background:transparent;border:none;width:125px;padding:0;font-size:19px;color:#22C55E;font-weight:800"></span>
+      <span class="i-peno-warn" style="display:none;font-size:14.5px;color:#F59E0B;font-weight:600"></span>
     </div>`;
   const container = document.getElementById('items');
   container.prepend(div);
