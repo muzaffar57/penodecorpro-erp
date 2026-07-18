@@ -2873,6 +2873,10 @@ async function markReadySelected() {
       }
       box.innerHTML = html; box.className = 'result-box success';
       box.style.display = 'block';
+
+      // Termopanel detali bo'lsa — uning loyi uchun ALOHIDA so'raymiz
+      await maybeAskTermopanelLoy(selectedOrderId);
+
       setTimeout(()=>location.reload(), 6000);
     } else {
       let html = '<b>❌ Xato!</b><br>';
@@ -2881,6 +2885,36 @@ async function markReadySelected() {
       box.innerHTML = html; box.className = 'result-box error';
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
+}
+
+async function maybeAskTermopanelLoy(orderId) {
+  try {
+    const order = await fetch(`/api/orders/${orderId}`).then(r => r.json());
+    const termoItems = (order.items || []).filter(i => (i.category || '').toLowerCase() === 'termopanel');
+    if (!termoItems.length) return;
+
+    // Rejalashtirilgan loyni notes'dan taxminiy o'qiymiz (server aniq hisoblaydi,
+    // bu yerda faqat foydalanuvchiga taxminiy ko'rsatish uchun)
+    let plannedGuess = 0;
+    termoItems.forEach(i => {
+      const m = (i.notes || '').match(/loy_kg=([\d.]+)/);
+      if (m) plannedGuess += parseFloat(m[1]) || 0;
+    });
+
+    const txt = plannedGuess > 0
+      ? `🧱 Termopanel uchun rejada ${plannedGuess.toFixed(1)} kg loy bor edi.\n\nHaqiqatda nechta kg ishlatildi?\n\n• Ko'proq ketgan bo'lsa → farq uchun xomashyo ayiriladi\n• Kamroq ketgan bo'lsa → ortgani omborga qo'shiladi`
+      : '🧱 Termopanel uchun necha kg loy ishlatildi?';
+    const actualLoy = prompt(txt, plannedGuess > 0 ? String(plannedGuess) : '');
+    if (actualLoy === null || actualLoy === '') return;
+
+    const res = await fetch(`/api/orders/${orderId}/termopanel-loy?actual_loy_kg=${parseFloat(actualLoy) || 0}`, { method: 'POST' });
+    const r = await res.json();
+    if (res.ok) {
+      showMsg(`🧱 Termopanel loy: reja ${r.planned} kg → haqiqiy ${r.actual} kg\n${r.message}`, 'success');
+    } else {
+      showMsg('❌ Termopanel loy: ' + (r.detail?.message || 'Xato'), 'error');
+    }
+  } catch(e) { /* jim — asosiy "Tayyor" amali muvaffaqiyatli bo'lgan, shu muhim */ }
 }
 
 // ── Foyda hisoblash ───────────────────────────────────────
