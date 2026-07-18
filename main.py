@@ -1607,6 +1607,18 @@ def api_finance_report(year: int, month: int, db: Session = Depends(get_db), cur
     return services.get_monthly_report(db, year, month)
 
 
+@app.get("/api/finance/daily")
+def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Bitta kun uchun moliyaviy ko'rinish (savdo/foyda/tan narx + xarajatlar).
+    target_date berilmasa — bugungi kun olinadi. Format: YYYY-MM-DD"""
+    from datetime import date as date_cls
+    if target_date:
+        d = date_cls.fromisoformat(target_date)
+    else:
+        d = date_cls.today()
+    return services.get_daily_finance_summary(db, d)
+
+
 @app.get("/api/finance/history")
 def api_finance_history(months: int = 12, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     return services.get_finance_history(db, months)
