@@ -5,6 +5,7 @@
 
 {% block topbar_actions %}
 <button class="btn btn-dark" onclick="openProduceModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Ishlab chiqarish</button>
+<button class="btn btn-outline" style="border-color:#8B5E3C;color:#8B5E3C" onclick="openTermoModal()"><i class="ti ti-square" style="vertical-align:-2px"></i> Termopanel (Bazalt)</button>
 {% endblock %}
 
 {% block head %}
@@ -94,6 +95,83 @@
       <button onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1" id="hist-body"></div>
+  </div>
+</div>
+
+<!-- ══ TERMOPANEL (BAZALT) ISHLAB CHIQARISH MODALI ══ -->
+<div id="termoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1a1a1a">🧱 Termopanel ishlab chiqarish</div>
+        <div style="font-size:12px;color:#aaa;margin-top:2px">Bazalt + Serpiyanka + Kley + Qoplama</div>
+      </div>
+      <button onclick="closeTermoModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+
+    <div style="padding:16px 22px;overflow-y:auto;flex:1">
+      <div class="form-group">
+        <label>Mahsulot nomi</label>
+        <input type="text" id="t-name" placeholder="Masalan: Termopanel bazalt 5sm">
+      </div>
+
+      <div class="form-group">
+        <label>Kerakli kvadrat metr (m²)</label>
+        <input type="number" id="t-m2" step="0.1" min="0" placeholder="0" oninput="tCalc()">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin:0">
+          <label>Bazalt plita (ombordan)</label>
+          <select id="t-bazalt" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Serpiyanka (ombordan)</label>
+          <select id="t-serpiyanka" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Kley miqdori (kg) <span style="color:#aaa;font-weight:400;font-size:11px">— qo'lda kiriting</span></label>
+        <input type="number" id="t-kley" step="0.1" min="0" placeholder="0" oninput="tCalc()">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin:0">
+          <label>Retsept (qoplama uchun)</label>
+          <select id="t-recipe" onchange="loadLoyCost(this.value)">
+            <option value="">— Yo'q —</option>
+            {% for r in recipes %}<option value="{{ r.id }}">{{ r.name.value }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Loy miqdori (kg)</label>
+          <input type="number" id="t-loy" step="0.5" min="0" placeholder="0" oninput="tCalc()">
+        </div>
+      </div>
+
+      <div style="background:#F8F5EF;border-radius:9px;padding:11px 14px;margin:6px 0 12px;font-size:12px;line-height:1.8" id="t-calc">
+        Ma'lumotlarni kiriting
+      </div>
+
+      <div class="form-group">
+        <label>Sotuv narxi (1 m² uchun)</label>
+        <input type="text" id="t-price" placeholder="0" oninput="formatPriceInput(this);tCalc()"
+               style="border-color:#8B5E3C;font-weight:600">
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <label>Izoh</label>
+        <input type="text" id="t-notes" placeholder="Ixtiyoriy">
+      </div>
+
+      <div id="t-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
+    </div>
+
+    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeTermoModal()">Bekor</button>
+      <button class="btn btn-dark" style="flex:2;background:#8B5E3C" onclick="saveTermopanel()">🧱 Ishlab chiqarish</button>
+    </div>
   </div>
 </div>
 
@@ -402,6 +480,7 @@ function fpWidth2(i) {
 }
 
 function fpSku(i) { return 'FP-' + String(i.id).padStart(4, '0'); }
+function unitLabel(u) { return u === 'metr' ? 'm' : (u === 'kvadrat' ? 'm²' : 'ta'); }
 
 async function uploadFpImage(id, input) {
   const file = input.files[0];
@@ -435,7 +514,7 @@ function rowHtml(i) {
   if (isRet && i.return_reason) meta.push(i.return_reason);
   if (i.source === 'produced' && i.actual_loy_kg > 0) {
     const perUnit = i.quantity > 0 ? (i.actual_loy_kg / i.quantity) : 0;
-    meta.push(`${i.actual_loy_kg} kg loy${perUnit > 0 ? ` (${perUnit.toFixed(2)} kg/${i.unit === 'metr' ? 'm' : 'ta'})` : ''}`);
+    meta.push(`${i.actual_loy_kg} kg loy${perUnit > 0 ? ` (${perUnit.toFixed(2)} kg/${unitLabel(i.unit)})` : ''}`);
   }
   const cleanNote = (i.notes || '').replace(/·?\s*width2=[\d.]+/g, '').trim().replace(/^·\s*/, '');
   if (cleanNote) meta.push(cleanNote);
@@ -480,7 +559,7 @@ function rowHtml(i) {
     <label class="fp-thumb" onclick="event.stopPropagation()">
       ${i.image_url
         ? `<img src="${i.image_url}" alt="" onclick="openLightbox('${i.image_url}')">`
-        : `<i class="ti ${i.category==='profil'?'ti-ruler-2':i.category==='panel'?'ti-square':'ti-box'}" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
+        : `<i class="ti ${i.category==='profil'?'ti-ruler-2':i.category==='panel'?'ti-square':i.category==='termopanel'?'ti-square-rounded':'ti-box'}" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
       <div class="cam-overlay" onclick="document.getElementById('fpimg-${i.id}').click()"><i class="ti ti-camera-plus"></i></div>
       <input type="file" id="fpimg-${i.id}" accept="image/*" onchange="uploadFpImage(${i.id}, this)">
     </label>
@@ -495,13 +574,13 @@ function rowHtml(i) {
     </div>
 
     <div class="fp-stock-col">
-      <div class="fp-qty" style="color:${stColor}">${i.quantity} ${i.unit}</div>
+      <div class="fp-qty" style="color:${stColor}">${i.quantity} ${unitLabel(i.unit)}</div>
       ${!inProgress ? `<div class="fp-mini-bar"><div class="fp-mini-fill" style="width:${pct}%;background:${stColor}"></div></div>
       <span class="fp-badge" style="background:${stColor}22;color:${stColor};margin-top:3px;display:inline-block">${stLabel}</span>` : ''}
     </div>
 
     <div style="text-align:right;flex-shrink:0;min-width:82px">
-      <div class="fp-price">${fmt(i.unit_price)}/${i.unit === 'metr' ? 'm' : 'ta'}</div>
+      <div class="fp-price">${fmt(i.unit_price)}/${unitLabel(i.unit)}</div>
       ${i.source === 'produced' ? `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>` : ''}
     </div>
 
@@ -679,6 +758,137 @@ async function delFp(id, source) {
 }
 
 // ── Ishlab chiqarish (buyurtma oynasidagi kabi) ───────────
+// ── Termopanel (Bazalt) ────────────────────────────────────
+let termoInventory = [];
+
+async function openTermoModal() {
+  document.getElementById('termoModal').style.display = 'flex';
+  ['t-name','t-m2','t-kley','t-loy','t-price','t-notes'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('t-recipe').value = '';
+  document.getElementById('t-error').style.display = 'none';
+  document.getElementById('t-calc').innerHTML = "Ma'lumotlarni kiriting";
+
+  try {
+    termoInventory = await fetch('/api/inventory').then(r => r.json());
+    const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
+    document.getElementById('t-bazalt').innerHTML =
+      '<option value="">— Tanlang —</option>' + termoInventory.map(opts).join('');
+    document.getElementById('t-serpiyanka').innerHTML =
+      '<option value="">— Tanlang —</option>' + termoInventory.map(opts).join('');
+
+    // Nomi bo'yicha avtomatik tanlashga urinib ko'ramiz (qulaylik uchun)
+    const bazaltGuess = termoInventory.find(i => i.item_name.toLowerCase().includes('bazalt'));
+    const serpGuess = termoInventory.find(i => i.item_name.toLowerCase().includes('serpiyank'));
+    if (bazaltGuess) document.getElementById('t-bazalt').value = bazaltGuess.id;
+    if (serpGuess) document.getElementById('t-serpiyanka').value = serpGuess.id;
+  } catch(e) {
+    document.getElementById('t-bazalt').innerHTML = '<option value="">Xato — qayta urinib ko\'ring</option>';
+  }
+}
+
+function closeTermoModal() {
+  document.getElementById('termoModal').style.display = 'none';
+}
+
+function tCalc() {
+  const m2 = parseFloat(document.getElementById('t-m2').value) || 0;
+  const bazaltId = parseInt(document.getElementById('t-bazalt').value);
+  const serpId = parseInt(document.getElementById('t-serpiyanka').value);
+  const kleyKg = parseFloat(document.getElementById('t-kley').value) || 0;
+  const loyKg = parseFloat(document.getElementById('t-loy').value) || 0;
+  const price = parseNum(document.getElementById('t-price').value);
+  const box = document.getElementById('t-calc');
+
+  if (!m2) { box.innerHTML = '<span style="color:#aaa">Kvadrat metrni kiriting</span>'; return; }
+
+  const bazalt = termoInventory.find(i => i.id === bazaltId);
+  const serp = termoInventory.find(i => i.id === serpId);
+
+  let html = `📐 Kerak: <b>${m2} m²</b><br>`;
+  if (bazalt) {
+    const areaPerSheet = parseFloat(bazalt.volume_per_unit) || 0.72;
+    const sheets = m2 / areaPerSheet;
+    const cost = sheets * (bazalt.price_per_unit || 0);
+    html += `🧱 Bazalt: <b>${sheets.toFixed(2)} dona</b> (${fmt(cost)} so'm)<br>`;
+  } else {
+    html += `<span style="color:#F59E0B">🧱 Bazaltni tanlang</span><br>`;
+  }
+  if (serp) {
+    const areaPerRulon = parseFloat(serp.volume_per_unit) || 50;
+    const rulon = (m2 * 2) / areaPerRulon;
+    const cost = rulon * (serp.price_per_unit || 0);
+    html += `🕸️ Serpiyanka (2 tomon): <b>${rulon.toFixed(2)} rulon</b> (${fmt(cost)} so'm)<br>`;
+  } else {
+    html += `<span style="color:#F59E0B">🕸️ Serpiyankani tanlang</span><br>`;
+  }
+  if (kleyKg > 0) html += `🧴 Kley: <b>${kleyKg} kg</b><br>`;
+  if (loyKg > 0) {
+    const loyCost = loyKg * loyCostPerKg;
+    html += `🪣 Loy: <b>${loyKg} kg</b>${loyCostPerKg > 0 ? ` × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm` : ''}<br>`;
+  }
+  if (price > 0) {
+    const revenue = price * m2;
+    html += `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #ddd">💵 Sotuv: <b style="color:#22C55E">${fmt(revenue)} so'm</b> (${fmt(price)}/m²)</div>`;
+  }
+  box.innerHTML = html;
+}
+
+async function saveTermopanel() {
+  const err = document.getElementById('t-error');
+  const name = document.getElementById('t-name').value.trim();
+  const m2 = parseFloat(document.getElementById('t-m2').value) || 0;
+  const bazaltId = parseInt(document.getElementById('t-bazalt').value);
+  const serpId = parseInt(document.getElementById('t-serpiyanka').value);
+  const price = parseNum(document.getElementById('t-price').value);
+
+  if (!name) { err.style.display='block'; err.textContent='❌ Mahsulot nomini kiriting'; return; }
+  if (!m2) { err.style.display='block'; err.textContent='❌ Kvadrat metrni kiriting'; return; }
+  if (!bazaltId) { err.style.display='block'; err.textContent='❌ Bazalt plitani tanlang'; return; }
+  if (!serpId) { err.style.display='block'; err.textContent='❌ Serpiyankani tanlang'; return; }
+  if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
+  err.style.display = 'none';
+
+  const data = {
+    name,
+    required_m2: m2,
+    bazalt_item_id: bazaltId,
+    serpiyanka_item_id: serpId,
+    kley_kg: parseFloat(document.getElementById('t-kley').value) || 0,
+    recipe_id: parseInt(document.getElementById('t-recipe').value) || null,
+    loy_kg: parseFloat(document.getElementById('t-loy').value) || 0,
+    unit_price: price,
+    notes: document.getElementById('t-notes').value.trim() || null
+  };
+
+  try {
+    const res = await fetch('/api/finished/produce-termopanel', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    const r = await res.json();
+
+    if (res.ok) {
+      closeTermoModal();
+      loadFp();
+      let msg = `⏳ ${r.name}: ${r.quantity} m² — ishlab chiqarish boshlandi\n\n`;
+      msg += `🧱 Bazalt: ${r.bazalt_sheets} dona\n🕸️ Serpiyanka: ${r.serpiyanka_rulon} rulon\n`;
+      if (r.kley_kg > 0) msg += `🧴 Kley: ${r.kley_kg} kg\n`;
+      msg += `\n💰 Tan narxi: ${fmt(r.total_cost)} so'm\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
+      msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
+      showMsg(msg, 'success');
+    } else {
+      const d = r.detail || {};
+      err.style.display = 'block';
+      err.innerHTML = '❌ ' + (d.message || 'Xato') +
+        (d.shortages?.length ? '<br>' + d.shortages.join('<br>') : '');
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server xatosi';
+  }
+}
+
 function openProduceModal() {
   document.getElementById('prodModal').style.display = 'flex';
   ['p-name','p-h','p-w','p-t','p-up','p-loy','p-price','p-notes'].forEach(id => {
