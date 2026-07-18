@@ -1935,7 +1935,6 @@ function addItem() {
         <label>Plotnost (Bazalt turi)</label>
         <select class="i-termo-bazalt" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
       </div>
-      <div class="dif i-termo-kley-wrap" style="display:none"><label>Kley (kg, qo'lda)</label><input type="number" class="i-termo-kley" step="0.1" min="0" placeholder="0" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-termo-loy-wrap" style="display:none"><label>Loy (kg, qoplama)</label><input type="number" class="i-termo-loy" step="0.5" min="0" placeholder="0" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif"><label>Qoplama</label>
         <select class="i-c" onchange="onCoatToggle(this.closest('.detal'))">
@@ -2015,11 +2014,10 @@ function toggleFields(row) {
   const coatField = row.querySelector('.i-c')?.closest('.dif');
   const penoField = row.querySelector('.i-peno')?.closest('.dif');
   const tBazaltW = row.querySelector('.i-termo-bazalt-wrap');
-  const tKleyW = row.querySelector('.i-termo-kley-wrap');
   const tLoyW = row.querySelector('.i-termo-loy-wrap');
 
   // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
-  [tBazaltW, tKleyW, tLoyW].forEach(el => { if (el) el.style.display = 'none'; });
+  [tBazaltW, tLoyW].forEach(el => { if (el) el.style.display = 'none'; });
   if (penoField) penoField.style.display = '';
 
   if (type === 'dona') {
@@ -2064,7 +2062,6 @@ function toggleFields(row) {
     if (coatField) coatField.style.display = 'none';  // Termopanel doim qoplamali — Loy maydoni orqali
     if (penoField) penoField.style.display = 'none';  // Penoplast ishlatilmaydi
     if (tBazaltW) tBazaltW.style.display = '';
-    if (tKleyW) tKleyW.style.display = '';
     if (tLoyW) tLoyW.style.display = '';
     ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
     loadTermoInventoryFor(row);
@@ -2211,10 +2208,8 @@ function calculateItem(row) {
     row.querySelector('.i-vol').value = '— (bazalt alohida hisoblanadi)';
 
     const bazaltEl = row.querySelector('.i-termo-bazalt');
-    const kleyEl = row.querySelector('.i-termo-kley');
     const loyEl = row.querySelector('.i-termo-loy');
     row.dataset.termoBazaltId = bazaltEl ? bazaltEl.value : '';
-    row.dataset.termoKley = kleyEl ? (parseFloat(kleyEl.value) || 0) : 0;
     row.dataset.termoLoy = loyEl ? (parseFloat(loyEl.value) || 0) : 0;
   }
 
@@ -2737,7 +2732,6 @@ function collectItems() {
                    quantity: qty, unit_price: unitP, is_coated: true,
                    penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
                    bazalt_item_id: parseInt(row.dataset.termoBazaltId) || null,
-                   kley_kg: parseFloat(row.dataset.termoKley) || 0,
                    termo_loy_kg: parseFloat(row.dataset.termoLoy) || 0 });
     } else {
       items.push({ name, category: type, width: h, thickness: w, length: l,
