@@ -2888,6 +2888,9 @@ async function markReadySelected() {
     const box = document.getElementById('resultBox');
     if (res.ok) {
       let html = '<b>✓ Buyurtma tayyor!</b><br>';
+      if (result.partial_return) {
+        html += `<br>📦 ${result.partial_return.message}`;
+      }
       if (result.loy_info) {
         const li = result.loy_info;
         const icon = li.action === 'ortdi' ? '🟢' : (li.action === 'qoshimcha' ? '🟠' : '✓');
