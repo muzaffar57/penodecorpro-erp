@@ -190,7 +190,10 @@
       <div class="form-group" style="margin:0"><label>Min qoldiq</label><input type="number" id="f-min" placeholder="0" min="0"></div>
       <div class="form-group" style="margin:0"><label>Birlik narxi (so'm)</label><input type="number" id="f-price" placeholder="0" min="0"></div>
     </div>
-    <div class="form-group"><label>Blok hajmi (m³, penoplast uchun)</label><input type="number" id="f-volume" placeholder="1.0" step="0.1" min="0.1"></div>
+    <div class="form-group">
+      <label>Hajm/nisbat birligi <span style="color:var(--text3);font-weight:400;font-size:11px">— penoplast uchun m³, bazalt uchun 1 donadagi m², serpiyanka uchun 1 rulondagi m², kley uchun 1 m²ga kg</span></label>
+      <input type="number" id="f-volume" placeholder="1.0" step="0.01" min="0.01">
+    </div>
     <div class="form-group" style="background:var(--gold-tint);border:1.5px solid var(--gold);border-radius:8px;padding:10px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
         <input type="checkbox" id="f-is-penoplast" style="width:16px;height:16px;cursor:pointer" onchange="toggleDefaultCheck()">
