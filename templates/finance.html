@@ -18,7 +18,7 @@
 .chart-wrap-sm{position:relative;height:200px}
 .cash-flow-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:10px;margin-bottom:8px}
 .hist-table{width:100%;border-collapse:collapse;font-size:12.5px}
-.hist-table th{text-align:left;padding:10px 12px;color:var(--text3);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)}
+.hist-table th{text-align:left;padding:10px 12px;color:var(--text3);font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)}
 .hist-table td{padding:10px 12px;border-bottom:1px solid var(--border2)}
 .hist-table tr{transition:background .15s}
 .hist-table tbody tr:hover{background:var(--bg)}
@@ -82,7 +82,7 @@
       <span id="cash-total" style="font-size:16px;font-weight:800;color:var(--gold-dark)">—</span>
     </div>
     <div class="card-body" style="padding-top:0">
-      <div style="background:var(--gold-tint);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:var(--gold-dark);line-height:1.6">
+      <div style="background:var(--gold-tint);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;color:var(--gold-dark);line-height:1.6">
         <i class="ti ti-info-circle"></i> Bu ko'rsatkich <b>Sof foyda</b>ga kirmaydi — chunki bu shu oy <b>sotib olingan</b> xomashyo puli,
         "Ishlab chiqarish xarajati" esa shu oy <b>tugagan buyurtmalarga sarflangan</b> xomashyo tan narxi.
         Ular ko'pincha farq qiladi (masalan bugun olingan material ertaga ishlatiladi).
@@ -90,7 +90,7 @@
       <div class="exp-row"><span class="exp-name"><i class="ti ti-shopping-cart" style="font-size:13px"></i> Xomashyo xaridi</span><span class="exp-val" id="cash-purchase">—</span></div>
       <div class="exp-row"><span class="exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kirish)</span><span class="exp-val" id="cash-tr-in">—</span></div>
       <div class="exp-row"><span class="exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (yetkazish, kompaniya ulushi)</span><span class="exp-val" id="cash-tr-out">—</span></div>
-      <div id="cash-by-material" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border2);font-size:11.5px;color:var(--text3);display:none"></div>
+      <div id="cash-by-material" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border2);font-size:13.5px;color:var(--text3);display:none"></div>
     </div>
   </div>
 
@@ -100,7 +100,7 @@
     <div class="card" id="expenseFormCard">
       <div class="card-head"><h3>Xarajatlarni kiritish</h3><button class="btn btn-green btn-sm" onclick="saveExpense()"><i class="ti ti-device-floppy" style="vertical-align:-2px"></i> Saqlash</button></div>
       <div class="card-body">
-        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px">Doimiy xarajatlar</div>
+        <div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px">Doimiy xarajatlar</div>
         <div class="form-row-3">
           <div class="form-group" style="margin-bottom:10px"><label>Arenda</label><input type="number" id="f-arenda" placeholder="0" min="0"></div>
           <div class="form-group" style="margin-bottom:10px"><label>Elektr</label><input type="number" id="f-elektr" placeholder="0" min="0"></div>
@@ -125,7 +125,7 @@
       <div class="card-body">
         <div id="expDetail"><div style="text-align:center;color:var(--text3);padding:20px">Ma'lumot yo'q</div></div>
         <div id="profitBlock" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:10px;border:1px solid var(--border);text-align:center">
-          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">SOF FOYDA</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:6px">SOF FOYDA</div>
           <div class="profit-big" id="profitBig">—</div>
           <div style="font-size:13px;color:var(--text3)" id="profitPct">—</div>
         </div>
@@ -359,14 +359,14 @@ function buildExpDetail(d){
   let extraHtml = '';
 
   if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
-    extraHtml += `<div style="font-size:10.5px;color:var(--gold-dark);font-weight:600;margin:8px 0 2px">🏆 Usta yillik KPI</div>`;
+    extraHtml += `<div style="font-size:12.5px;color:var(--gold-dark);font-weight:600;margin:8px 0 2px">🏆 Usta yillik KPI</div>`;
     extraHtml += d.usta_kpi_breakdown.map(b =>
       `<div class="exp-row"><span class="exp-name">${b.master_name} (${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)})</span><span class="exp-val">${fmtFull(b.kpi_amount)} so'm</span></div>`
     ).join('');
   }
 
   if (d.hodimlar_moslashuvchan_breakdown && d.hodimlar_moslashuvchan_breakdown.length) {
-    extraHtml += `<div style="font-size:10.5px;color:var(--gold-dark);font-weight:600;margin:8px 0 2px">👷 Hodimlar (moslashuvchan)</div>`;
+    extraHtml += `<div style="font-size:12.5px;color:var(--gold-dark);font-weight:600;margin:8px 0 2px">👷 Hodimlar (moslashuvchan)</div>`;
     extraHtml += d.hodimlar_moslashuvchan_breakdown.map(b =>
       `<div class="exp-row"><span class="exp-name">${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}</span><span class="exp-val">${fmtFull(b.amount)} so'm</span></div>`
     ).join('');
@@ -525,7 +525,7 @@ async function loadDailyTransactions(){
         <td style="font-weight:600;color:#EF4444">${fmtFull(t.amount)} so'm</td>
         <td style="color:var(--text3)">${t.notes || '—'}</td>
         <td style="color:var(--text3)">${t.created_by || '—'}</td>
-        <td style="color:var(--text3);font-size:11px">${SOURCE_LABELS[t.source] || t.source}</td>
+        <td style="color:var(--text3);font-size:13px">${SOURCE_LABELS[t.source] || t.source}</td>
         <td class="no-print"><button class="act-btn danger" style="width:26px;height:26px" onclick="deleteTx(${t.id})" title="O'chirish"><i class="ti ti-trash" style="font-size:12px"></i></button></td>
       </tr>`;
     }).join('');
