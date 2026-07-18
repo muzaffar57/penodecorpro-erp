@@ -131,6 +131,18 @@ def get_item(db: Session, item_id: int) -> Optional[Inventory]:
     return db.query(Inventory).filter(Inventory.id == item_id).first()
 
 
+def get_item_locked(db: Session, item_id: int) -> Optional[Inventory]:
+    """ID bo'yicha xomashyoni QULFLAB qaytaradi (SELECT ... FOR UPDATE).
+
+    Bir nechta foydalanuvchi AYNI shu xomashyoni bir vaqtda o'zgartirmoqchi
+    bo'lsa — ikkinchisi birinchisi tugaguncha (millisekundlar) kutadi,
+    shunda hech kimning o'zgartirishi "yo'qolib" ketmaydi.
+    Faqat MIQDORNI O'ZGARTIRISH kerak bo'lgan joylarda ishlatiladi —
+    oddiy ko'rish/ro'yxat uchun emas (aks holda keraksiz sekinlik yaratadi).
+    PostgreSQL'da haqiqiy qulflaydi; SQLite'da (test muhiti) e'tiborsiz qoldiriladi."""
+    return db.query(Inventory).filter(Inventory.id == item_id).with_for_update().first()
+
+
 def create_expense_transaction(db: Session, data, performed_by: Optional[str] = None, source: str = "manual"):
     """Yangi xarajat tranzaksiyasini yaratadi. Bu funksiya faqat YANGI ExpenseTransaction
     jadvaliga yozadi — mavjud MonthlyExpense yoki hisob-kitob logikasiga umuman tegmaydi."""
@@ -208,7 +220,7 @@ def update_stock(db: Session, item_id: int, quantity_change: float, performed_by
     """Mahsulot qoldig'ini yangilaydi (musbat = qo'shish, manfiy = ayirish).
     Narxsiz oddiy tuzatish uchun (masalan inventarizatsiya). Xarid uchun
     purchase_stock() dan foydalaning — u narxni ham hisobga oladi."""
-    db_item = get_item(db, item_id)
+    db_item = get_item_locked(db, item_id)
     if not db_item:
         return None
     new_qty = db_item.stock_quantity + quantity_change
@@ -262,7 +274,7 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
     """
     from models import InventoryPurchase
 
-    db_item = get_item(db, item_id)
+    db_item = get_item_locked(db, item_id)
     if not db_item:
         return None
 
@@ -586,26 +598,39 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
     - Buyurtma umumiy summasi avtomatik hisoblanadi
     """
     # Order raqami: ORD-{project_id}-{seq}
-    seq = db.query(Order).filter(Order.project_id == order_data.project_id).count() + 1
-    order_number = f"ORD-{order_data.project_id:03d}-{seq}"
+    # Bir necha kishi AYNAN BIR VAQTDA shu loyihaga buyurtma yaratsa,
+    # ikkalasi bir xil raqamni olib qolishi mumkin — shu holatni xavfsiz
+    # tarzda avtomatik qayta urinib, o'zi tuzatib qo'yadi.
+    from sqlalchemy.exc import IntegrityError
 
     # OrderType ni aniqlash
     order_type = OrderType.PRODUCT if order_data.order_type == "product" else OrderType.SERVICE
 
     is_draft = getattr(order_data, 'is_draft', False)
 
-    db_order = Order(
-        order_number=order_number,
-        project_id=order_data.project_id,
-        order_type=order_type,
-        status=OrderStatus.DRAFT if is_draft else OrderStatus.IN_PROGRESS,
-        master_id=order_data.master_id,
-        deadline=getattr(order_data, 'deadline', None),
-        notes=order_data.notes,
-        total_amount=0
-    )
-    db.add(db_order)
-    db.flush()  # ID olish uchun
+    db_order = None
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        seq = db.query(Order).filter(Order.project_id == order_data.project_id).count() + 1 + attempt
+        order_number = f"ORD-{order_data.project_id:03d}-{seq}"
+        db_order = Order(
+            order_number=order_number,
+            project_id=order_data.project_id,
+            order_type=order_type,
+            status=OrderStatus.DRAFT if is_draft else OrderStatus.IN_PROGRESS,
+            master_id=order_data.master_id,
+            deadline=getattr(order_data, 'deadline', None),
+            notes=order_data.notes,
+            total_amount=0
+        )
+        db.add(db_order)
+        try:
+            db.flush()  # ID olish uchun
+            break  # Muvaffaqiyatli — raqam band emas edi
+        except IntegrityError:
+            db.rollback()
+            if attempt == max_attempts - 1:
+                raise  # 5 marta urinib bo'lmasa, haqiqiy xato bor demak
 
     # Detallarni qo'shamiz va umumiy summani hisoblaymiz
     total_amount = 0
@@ -829,10 +854,11 @@ def mark_order_ready(db: Session, order_id: int) -> dict:
 
             for comp_name, qty in components.items():
                 if qty > 0:
-                    # Inventoryda topish (qisman moslik bilan)
+                    # Inventoryda topish (qisman moslik bilan) — QULFLAB olamiz, shunda
+                    # boshqa foydalanuvchi shu vaqtda aynan shu xomashyoni o'zgartira olmaydi
                     inv_item = db.query(Inventory).filter(
                         Inventory.item_name.ilike(f"%{comp_name}%")
-                    ).first()
+                    ).with_for_update().first()
                     if inv_item:
                         inv_item.stock_quantity = max(0, inv_item.stock_quantity - qty)
                         inventory_log.append(f"{inv_item.item_name}: -{qty:.2f} {inv_item.unit}")
@@ -1983,7 +2009,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
 
     # 1) Penoplastni DARHOL yechamiz
     if volume > 0 and pid:
-        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = volume / vol_per_unit
@@ -2153,7 +2179,7 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     if return_to_stock and fp.source == StockSource.PRODUCED:
         # Penoplast qaytadi
         if fp.penoplast_id and fp.volume_m3:
-            p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+            p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
             if p:
                 vol_per_unit = float(p.volume_per_unit or 1.0)
                 p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) / vol_per_unit)
@@ -2351,7 +2377,7 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
 
     # 1) Penoplast
     if add_volume > 0 and fp.penoplast_id:
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = add_volume / vol_per_unit
