@@ -11,12 +11,12 @@
 
 {% block head %}
 <style>
-.ord-layout{display:grid;grid-template-columns:300px 1fr 280px;gap:12px;height:calc(100vh - 90px);overflow:hidden}
+.ord-layout{display:grid;grid-template-columns:300px 1fr 280px;gap:12px;align-items:start}
 @media (max-width:1150px){
   .ord-layout{grid-template-columns:260px 1fr 260px}
 }
 @media (max-width:900px){
-  .ord-layout{grid-template-columns:1fr;height:auto;overflow:visible}
+  .ord-layout{grid-template-columns:1fr}
   .ord-list{max-height:280px}
   .right-panel{flex-direction:column-reverse}
 }
@@ -37,7 +37,7 @@
 .dropzone{border:1.5px dashed var(--border-strong);border-radius:14px;padding:22px;text-align:center;cursor:pointer;transition:border-color .15s;background:var(--bg)}
 .dropzone:hover{border-color:var(--gold)}
 .dropzone input[type=file]{display:none}
-.ord-list{overflow-y:auto;flex:1;min-height:0}
+.ord-list{max-height:calc(100vh - 260px);overflow-y:auto}
 /* Tayyor mahsulot taklifi */
 .fp-suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #2563EB;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:60;max-height:210px;overflow-y:auto;margin-top:3px}
 .fp-sg-item{padding:8px 11px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .12s}
@@ -70,8 +70,8 @@
 .ord-num{font-size:13px;font-weight:700;color:#2563EB}
 .ord-client{font-size:15px;font-weight:600;color:#111;margin:4px 0}
 .ord-date{font-size:12.5px;color:#888}
-.mid-panel{overflow-y:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
-.right-panel{overflow-y:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
+.mid-panel{display:flex;flex-direction:column;gap:10px}
+.right-panel{display:flex;flex-direction:column;gap:10px}
 .right-panel::-webkit-scrollbar{width:6px}
 .right-panel::-webkit-scrollbar-track{background:transparent}
 .right-panel::-webkit-scrollbar-thumb{background:#d4d4d4;border-radius:6px}
@@ -3109,22 +3109,5 @@ window.addEventListener('load', () => {
     setTimeout(()=>target.scrollIntoView({block:'nearest'}), 100);
   }
 });
-
-// CSS calc(100vh...) ba'zi brauzer/masshtablarda noaniq ishlashi mumkin —
-// shuning uchun panel balandligini JAVASCRIPT orqali, ANIQ piksel bilan
-// hisoblab, majburiy o'rnatamiz. Bu — eng ishonchli variant.
-function fixPanelHeights() {
-  const layout = document.querySelector('.ord-layout');
-  if (!layout) return;
-  const top = layout.getBoundingClientRect().top;
-  const h = Math.max(300, window.innerHeight - top - 12); // 12px — pastki bo'shliq
-  layout.style.height = h + 'px';
-  document.querySelectorAll('.right-panel, .mid-panel, .ord-list').forEach(el => {
-    el.style.maxHeight = h + 'px';
-  });
-}
-window.addEventListener('load', fixPanelHeights);
-window.addEventListener('resize', fixPanelHeights);
-setTimeout(fixPanelHeights, 300);  // Shrift/rasm yuklanib bo'lgach, qayta hisoblaymiz
 </script>
 {% endblock %}
