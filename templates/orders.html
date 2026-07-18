@@ -2903,6 +2903,12 @@ async function markReadySelected() {
     const box = document.getElementById('resultBox');
     if (res.ok) {
       let html = '<b>✓ Buyurtma tayyor!</b><br>';
+      if (result.auto_delivery) {
+        html += `<br>🚚 ${result.auto_delivery.message}`;
+        if (result.auto_delivery.delivery_id) {
+          window.open(`/api/deliveries/${result.auto_delivery.delivery_id}/pdf`, '_blank');
+        }
+      }
       if (result.partial_return) {
         html += `<br>📦 ${result.partial_return.message}`;
       }
