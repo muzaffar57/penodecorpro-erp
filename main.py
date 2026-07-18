@@ -1275,6 +1275,15 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
     return result
 
 
+@app.post("/api/orders/{order_id}/termopanel-loy")
+def api_complete_termopanel_loy(order_id: int, actual_loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Termopanel buyurtmasi yakunlanganda — reja/haqiqiy loy farqini to'g'irlaydi."""
+    result = crud.complete_termopanel_loy(db, order_id, actual_loy_kg)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
 @app.put("/api/orders/{order_id}/loy")
 def api_update_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Loy rejasini o'zgartirish."""
