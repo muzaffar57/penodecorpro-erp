@@ -1701,7 +1701,6 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
             if nd is None:
                 continue
             bazalt_id = getattr(nd, 'bazalt_item_id', None)
-            serp_id = getattr(nd, 'serpiyanka_item_id', None)
             kley_kg = float(getattr(nd, 'kley_kg', None) or 0)
             loy_kg = float(getattr(nd, 'termo_loy_kg', None) or 0)
             base_notes = re.sub(r'\s*\[TERMO:[^\]]+\]', '', oi.notes or '').strip()
@@ -1711,11 +1710,11 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
                 area = float(b.volume_per_unit or 0.72) if b else 0.72
                 sheets = float(oi.quantity or 0) / area if area else 0
                 parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
-            if serp_id:
-                s = db.query(Inventory).filter(Inventory.id == serp_id).first()
-                area = float(s.volume_per_unit or 50.0) if s else 50.0
+            s = services.find_serpiyanka(db)
+            if s:
+                area = float(s.volume_per_unit or 50.0)
                 rulon = (float(oi.quantity or 0) * 2) / area if area else 0
-                parts.append(f"serp_id={serp_id},serp_qty={rulon:.4f}")
+                parts.append(f"serp_id={s.id},serp_qty={rulon:.4f}")
             if kley_kg > 0:
                 k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).first()
                 if k:
@@ -2063,10 +2062,11 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     if float(bazalt.stock_quantity) < sheets_needed:
         shortages.append(f"{bazalt.item_name}: kerak {sheets_needed:.2f} dona, qoldi {float(bazalt.stock_quantity):.2f} dona")
 
-    # 2) Serpiyanka — ikkala tomonga (old+orqa) yopishtiriladi, shuning uchun 2×
-    serpiyanka = db.query(Inventory).filter(Inventory.id == data.serpiyanka_item_id).with_for_update().first()
+    # 2) Serpiyanka — ikkala tomonga (old+orqa) yopishtiriladi, shuning uchun 2×.
+    # Omborda yagona turi deb hisoblanadi — avtomatik topiladi (tanlash shart emas).
+    serpiyanka = services.find_serpiyanka(db, lock=True)
     if not serpiyanka:
-        return {"success": False, "message": "Serpiyanka ombordan topilmadi"}
+        return {"success": False, "message": "Serpiyanka ombordan topilmadi (nomida 'serpiyanka' so'zi bo'lishi kerak)"}
     serp_area_per_rulon = float(serpiyanka.volume_per_unit or 50.0)  # m² — 1 rulondan
     serp_area_needed = required_m2 * 2
     rulon_needed = serp_area_needed / serp_area_per_rulon
