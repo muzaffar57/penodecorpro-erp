@@ -20,13 +20,13 @@
 @keyframes pIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .proj-card:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
 .proj-card.active{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-tint)}
-.proj-num{font-size:10px;color:var(--text3);font-weight:500}
+.proj-num{font-size:12px;color:var(--text3);font-weight:500}
 .proj-name{font-size:14px;font-weight:600;color:var(--text);margin:2px 0}
 .proj-client{font-size:12px;color:var(--text3)}
 .proj-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
 .progress-bar{height:5px;background:var(--border2);border-radius:3px;margin-top:8px;overflow:hidden}
 .progress-fill{height:100%;border-radius:3px;background:var(--gold);transition:width .3s}
-.status-badge{font-size:9.5px;font-weight:600;padding:2px 9px;border-radius:20px}
+.status-badge{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:20px}
 .st-active{background:#E6F1FB;color:#0C447C}
 .st-draft{background:#F1F5F9;color:#475569}
 .st-completed{background:#DCFCE7;color:#166534}
@@ -38,7 +38,7 @@
 @media (max-width:900px){.status-panel{grid-template-columns:repeat(2,1fr)}}
 .status-panel-item{text-align:center}
 .status-panel-val{font-size:14px;font-weight:700;color:var(--text)}
-.status-panel-lbl{font-size:10px;color:var(--text3);margin-top:2px}
+.status-panel-lbl{font-size:12px;color:var(--text3);margin-top:2px}
 .tab-bar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;flex-shrink:0}
 .tab-btn{padding:9px 14px;font-size:12.5px;font-weight:500;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
 .tab-btn.active{color:var(--gold-dark);border-color:var(--gold)}
@@ -104,15 +104,15 @@
           <div>
             <div class="proj-num">{{ p.project_number }}</div>
             <div class="proj-name">{{ p.project_name }}</div>
-            <div class="proj-client"><i class="ti ti-user" style="font-size:11px"></i> {{ p.client_name }} · {{ p.client_phone or '' }}</div>
+            <div class="proj-client"><i class="ti ti-user" style="font-size:13px"></i> {{ p.client_name }} · {{ p.client_phone or '' }}</div>
           </div>
           <span class="status-badge st-{{ p.status.value }}">
             {% if p.status.value == 'active' %}Faol{% elif p.status.value == 'draft' %}Yangi{% elif p.status.value == 'completed' %}Yakunlangan{% elif p.status.value == 'on_hold' %}Kutmoqda{% else %}Bekor{% endif %}
           </span>
         </div>
         <div class="proj-footer">
-          <span style="font-size:11px;color:var(--text3)"><i class="ti ti-clipboard-list" style="font-size:11px"></i> {{ p.orders_count }} ta buyurtma</span>
-          <span style="font-size:11px;color:var(--text3)">{{ paid_pct }}% to'langan</span>
+          <span style="font-size:13px;color:var(--text3)"><i class="ti ti-clipboard-list" style="font-size:13px"></i> {{ p.orders_count }} ta buyurtma</span>
+          <span style="font-size:13px;color:var(--text3)">{{ paid_pct }}% to'langan</span>
         </div>
         <div class="progress-bar" id="progress-{{ p.id }}"><div class="progress-fill" style="width:0%"></div></div>
       </div>
@@ -331,7 +331,7 @@ async function renderOrders(d) {
       <div class="info-row" style="cursor:pointer" onclick="window.location.href='/orders'">
         <div>
           <div style="font-weight:600;font-size:13px">${o.order_number}</div>
-          <div style="font-size:11px;color:var(--text3)">${o.created_at ? new Date(o.created_at).toLocaleDateString('uz') : ''}</div>
+          <div style="font-size:13px;color:var(--text3)">${o.created_at ? new Date(o.created_at).toLocaleDateString('uz') : ''}</div>
         </div>
         <div style="text-align:right">
           <span class="badge">${STATUS_LABELS[o.status]||o.status}</span>
@@ -364,7 +364,7 @@ async function renderPayments(d) {
       <div class="info-row">
         <div>
           <div style="font-weight:500;font-size:13px">${fmt(p.amount)} so'm</div>
-          <div style="font-size:11px;color:var(--text3)">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${p.payment_method || ''}${p.received_by ? ' · '+p.received_by : ''}</div>
+          <div style="font-size:13px;color:var(--text3)">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${p.payment_method || ''}${p.received_by ? ' · '+p.received_by : ''}</div>
         </div>
       </div>`).join('');
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
@@ -379,7 +379,7 @@ async function renderProducts(d) {
       <div class="info-row">
         <div>
           <div style="font-weight:500;font-size:13px">${i.name}</div>
-          <div style="font-size:11px;color:var(--text3)">${i.order_number} · ${i.category||''}${i.is_coated?' · qoplamali':''}</div>
+          <div style="font-size:13px;color:var(--text3)">${i.order_number} · ${i.category||''}${i.is_coated?' · qoplamali':''}</div>
         </div>
         <span style="font-size:12.5px;font-weight:600">${i.order_qty_normalized} ${i.delivery_unit||''}</span>
       </div>`).join('');
@@ -398,7 +398,7 @@ async function renderMaterials(d) {
       <div class="info-row">
         <div>
           <div style="font-weight:500;font-size:13px">${m.item_name}</div>
-          <div style="font-size:11px;color:var(--text3)">${new Date(m.created_at).toLocaleDateString('uz')} · ${m.reason||''}</div>
+          <div style="font-size:13px;color:var(--text3)">${new Date(m.created_at).toLocaleDateString('uz')} · ${m.reason||''}</div>
         </div>
         <span style="font-size:12.5px;font-weight:600;color:#DC2626">−${m.quantity} ${m.unit||''}</span>
       </div>`).join('');
@@ -434,7 +434,7 @@ async function renderTimeline(d) {
         <div class="timeline-dot"></div>
         <div>
           <div style="font-size:13px;font-weight:500">${e.icon} ${e.text}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">${new Date(e.date).toLocaleString('uz')}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">${new Date(e.date).toLocaleString('uz')}</div>
         </div>
       </div>`).join('');
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
@@ -442,7 +442,7 @@ async function renderTimeline(d) {
 
 function renderNotes(d) {
   document.getElementById('tabContent').innerHTML = `
-    <div style="background:var(--bg);border-radius:8px;padding:6px 12px;margin-bottom:12px;font-size:11px;color:var(--text3);line-height:1.6">
+    <div style="background:var(--bg);border-radius:8px;padding:6px 12px;margin-bottom:12px;font-size:13px;color:var(--text3);line-height:1.6">
       Hozircha bitta umumiy izoh maydoni mavjud — ketma-ket sharhlar tarixi hali qo'llab-quvvatlanmaydi.
     </div>
     <div style="font-size:13px;color:var(--text);white-space:pre-wrap">${d.notes || 'Izoh yo\'q'}</div>`;
