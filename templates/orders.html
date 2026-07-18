@@ -154,7 +154,10 @@
           <!-- Buyurtmalar -->
           <div class="proj-body" id="pb-{{ g.project_id }}" style="display:none">
           {% for o in g.orders %}
-            <div class="ord-item"
+            {% set debt = o.debt_amount %}
+            {% set is_finished = o.status.value in ('ready', 'delivered') %}
+            {% set row_bg = 'background:#F0FDF4' if (is_finished and debt <= 0) else ('background:#FEF2F2' if (is_finished and debt > 0) else '') %}
+            <div class="ord-item" style="{{ row_bg }}"
                  id="oi-{{ o.id }}" onclick="selectOrder({{ o.id }}, this)"
                  data-num="{{ o.order_number }}"
                  data-client="{{ o.project.client_name if o.project else '—' }}"
@@ -173,7 +176,6 @@
                 {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
               </div>
               <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.agreed_amount or o.total_amount or 0).replace(",", " ") }} so'm</div>
-              {% set debt = o.debt_amount %}
               {% set dpct = o.delivery_percent %}
               {% if dpct > 0 and dpct < 100 %}
               <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
