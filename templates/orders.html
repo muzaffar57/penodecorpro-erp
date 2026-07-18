@@ -3109,5 +3109,22 @@ window.addEventListener('load', () => {
     setTimeout(()=>target.scrollIntoView({block:'nearest'}), 100);
   }
 });
+
+// CSS calc(100vh...) ba'zi brauzer/masshtablarda noaniq ishlashi mumkin —
+// shuning uchun panel balandligini JAVASCRIPT orqali, ANIQ piksel bilan
+// hisoblab, majburiy o'rnatamiz. Bu — eng ishonchli variant.
+function fixPanelHeights() {
+  const layout = document.querySelector('.ord-layout');
+  if (!layout) return;
+  const top = layout.getBoundingClientRect().top;
+  const h = Math.max(300, window.innerHeight - top - 12); // 12px — pastki bo'shliq
+  layout.style.height = h + 'px';
+  document.querySelectorAll('.right-panel, .mid-panel, .ord-list').forEach(el => {
+    el.style.maxHeight = h + 'px';
+  });
+}
+window.addEventListener('load', fixPanelHeights);
+window.addEventListener('resize', fixPanelHeights);
+setTimeout(fixPanelHeights, 300);  // Shrift/rasm yuklanib bo'lgach, qayta hisoblaymiz
 </script>
 {% endblock %}
