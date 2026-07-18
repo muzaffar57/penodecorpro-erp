@@ -253,6 +253,11 @@ class OrderItemCreate(BaseModel):
     finished_product_id: Optional[int] = None
     image_url: Optional[str] = None
     notes: Optional[str] = None
+    # Termopanel (Bazalt) uchun — category='termopanel' bo'lganda ishlatiladi
+    bazalt_item_id: Optional[int] = None
+    serpiyanka_item_id: Optional[int] = None
+    kley_kg: Optional[float] = None
+    termo_loy_kg: Optional[float] = None
 
 
 class OrderCreate(BaseModel):
