@@ -1365,6 +1365,17 @@ def get_default_bazalt(db: Session):
     ).order_by(Inventory.id).first()
 
 
+def find_kley(db: Session, lock: bool = False):
+    """Kleyni avtomatik topadi — omborda faqat bitta turi bo'ladi deb hisoblanadi.
+    volume_per_unit maydonida '1 m² serpiyankaga necha kg kley ketishi' saqlanadi —
+    Omborxonada bu qiymatni tahrirlasangiz, tizim darhol yangisidan hisoblaydi."""
+    from models import Inventory
+    q = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%"))
+    if lock:
+        q = q.with_for_update()
+    return q.first()
+
+
 def find_serpiyanka(db: Session, lock: bool = False):
     """Serpiyankani avtomatik topadi — omborda faqat bitta turi bo'ladi
     deb hisoblanadi (Kley kabi), shuning uchun tanlash shart emas."""
@@ -1549,7 +1560,6 @@ def check_termopanel_for_order(db: Session, order_data) -> dict:
     shortages = []
     bazalt_needed = {}   # {item_id: jami dona}
     total_serp_m2 = 0.0
-    total_kley_kg = 0.0
 
     for item in order_data.items:
         if (getattr(item, 'category', None) or '').lower() != 'termopanel':
@@ -1568,7 +1578,6 @@ def check_termopanel_for_order(db: Session, order_data) -> dict:
                 shortages.append("Tanlangan bazalt turi ombordan topilmadi")
 
         total_serp_m2 += m2 * 2
-        total_kley_kg += float(getattr(item, 'kley_kg', None) or 0)
 
     for bazalt_id, needed in bazalt_needed.items():
         b = db.query(Inventory).filter(Inventory.id == bazalt_id).first()
@@ -1585,13 +1594,15 @@ def check_termopanel_for_order(db: Session, order_data) -> dict:
             if float(s.stock_quantity) < needed:
                 shortages.append(f"{s.item_name}: kerak {needed:.2f} rulon, qoldi {float(s.stock_quantity):.2f} rulon")
 
-    if total_kley_kg > 0:
-        k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).first()
-        if k:
-            if float(k.stock_quantity) < total_kley_kg:
-                shortages.append(f"{k.item_name}: kerak {total_kley_kg:.2f} kg, qoldi {float(k.stock_quantity):.2f} kg")
+        # Kley — serpiyanka yuzasiga nisbatan avtomatik hisoblanadi (kg/m²)
+        k = find_kley(db)
+        if not k:
+            shortages.append("Kley ombordan topilmadi (nomida 'kley' so'zi bo'lishi kerak)")
         else:
-            shortages.append("Kley ombordan topilmadi")
+            kley_ratio = float(k.volume_per_unit or 0.4)  # kg/m² — Omborxonada tahrirlanadi
+            kley_needed = total_serp_m2 * kley_ratio
+            if float(k.stock_quantity) < kley_needed:
+                shortages.append(f"{k.item_name}: kerak {kley_needed:.2f} kg, qoldi {float(k.stock_quantity):.2f} kg")
 
     return {"enough": len(shortages) == 0, "shortages": shortages}
 
@@ -1618,7 +1629,6 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
             continue
 
         bazalt_id = getattr(item_data, 'bazalt_item_id', None)
-        kley_kg = float(getattr(item_data, 'kley_kg', None) or 0)
         loy_kg = float(getattr(item_data, 'termo_loy_kg', None) or 0)
 
         used_parts = []
@@ -1633,20 +1643,23 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
                 used_parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
 
         # Serpiyanka — omborda yagona turi deb hisoblanadi, avtomatik topiladi
+        serp_m2 = m2 * 2
         s = find_serpiyanka(db, lock=True)
         if s:
             area = float(s.volume_per_unit or 50.0)
-            rulon = (m2 * 2) / area
+            rulon = serp_m2 / area
             s.stock_quantity = max(0, float(s.stock_quantity) - rulon)
             log.append(f"{s.item_name}: -{rulon:.2f} rulon")
             used_parts.append(f"serp_id={s.id},serp_qty={rulon:.4f}")
 
-        if kley_kg > 0:
-            k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).with_for_update().first()
-            if k:
-                k.stock_quantity = max(0, float(k.stock_quantity) - kley_kg)
-                log.append(f"{k.item_name}: -{kley_kg:.2f} kg")
-                used_parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
+        # Kley — serpiyanka yuzasiga nisbatan (kg/m²) avtomatik hisoblanadi
+        k = find_kley(db, lock=True)
+        if k:
+            kley_ratio = float(k.volume_per_unit or 0.4)
+            kley_kg = serp_m2 * kley_ratio
+            k.stock_quantity = max(0, float(k.stock_quantity) - kley_kg)
+            log.append(f"{k.item_name}: -{kley_kg:.2f} kg")
+            used_parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
 
         if loy_kg > 0:
             recipe = db.query(Recipe).filter(Recipe.id == db_item.recipe_id).first() if db_item.recipe_id else db.query(Recipe).first()
@@ -2023,9 +2036,10 @@ def adjust_inventory_diff(db: Session, old_items, new_items) -> list:
 def _group_termo_materials(items) -> dict:
     """Termopanel detallarini xomashyo bo'yicha guruhlaydi.
     Qaytaradi: {'bazalt': {item_id: jami_dona}, 'serp_m2': jami_m2 (2 tomon),
-                'kley_kg': jami_kg, 'loy_kg': jami_kg}
-    Serpiyanka omborda yagona turi deb hisoblanadi — ID bo'yicha guruhlash shart emas."""
-    result = {'bazalt': {}, 'serp_m2': 0.0, 'kley_kg': 0.0, 'loy_kg': 0.0}
+                'loy_kg': jami_kg}
+    Serpiyanka omborda yagona turi deb hisoblanadi — ID bo'yicha guruhlash shart emas.
+    Kley alohida yig'ilmaydi — serp_m2 dan avtomatik hisoblanadi (kg/m² nisbati orqali)."""
+    result = {'bazalt': {}, 'serp_m2': 0.0, 'loy_kg': 0.0}
     for it in items:
         cat = (it.get('category') if isinstance(it, dict) else getattr(it, 'category', None)) or ''
         if cat.lower() != 'termopanel':
@@ -2038,7 +2052,6 @@ def _group_termo_materials(items) -> dict:
         if bazalt_id:
             result['bazalt'][bazalt_id] = result['bazalt'].get(bazalt_id, 0.0) + m2  # m² — keyin bo'linadi
         result['serp_m2'] += m2 * 2   # 2 tomon
-        result['kley_kg'] += float(get('kley_kg') or 0)
         result['loy_kg'] += float(get('termo_loy_kg') or 0)
     return result
 
@@ -2078,13 +2091,16 @@ def check_termopanel_diff(db: Session, old_items, new_items) -> dict:
             if float(s.stock_quantity) < needed:
                 shortages.append(f"{s.item_name}: qo'shimcha {needed:.2f} rulon kerak, qoldi {float(s.stock_quantity):.2f} rulon")
 
-    kley_diff = new_g['kley_kg'] - old_g['kley_kg']
-    if kley_diff > 0:
-        k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).first()
+    kley_diff_m2 = serp_diff_m2  # Kley serpiyanka yuzasiga proporsional
+    if kley_diff_m2 > 0:
+        k = find_kley(db)
         if not k:
             shortages.append("Kley ombordan topilmadi")
-        elif float(k.stock_quantity) < kley_diff:
-            shortages.append(f"{k.item_name}: qo'shimcha {kley_diff:.2f} kg kerak, qoldi {float(k.stock_quantity):.2f} kg")
+        else:
+            kley_ratio = float(k.volume_per_unit or 0.4)
+            kley_diff = kley_diff_m2 * kley_ratio
+            if float(k.stock_quantity) < kley_diff:
+                shortages.append(f"{k.item_name}: qo'shimcha {kley_diff:.2f} kg kerak, qoldi {float(k.stock_quantity):.2f} kg")
 
     return {"enough": len(shortages) == 0, "shortages": shortages}
 
@@ -2119,10 +2135,11 @@ def adjust_termopanel_diff(db: Session, old_items, new_items, recipe_id=None) ->
             s.stock_quantity = max(0, float(s.stock_quantity) - diff_rulon)
             log.append(f"{s.item_name}: {'-' if diff_rulon > 0 else '+'}{abs(diff_rulon):.2f} rulon (tahrirlash)")
 
-    kley_diff = new_g['kley_kg'] - old_g['kley_kg']
-    if abs(kley_diff) >= 0.001:
-        k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).with_for_update().first()
+    if abs(serp_diff_m2) >= 0.001:
+        k = find_kley(db, lock=True)
         if k:
+            kley_ratio = float(k.volume_per_unit or 0.4)
+            kley_diff = serp_diff_m2 * kley_ratio
             k.stock_quantity = max(0, float(k.stock_quantity) - kley_diff)
             log.append(f"{k.item_name}: {'-' if kley_diff > 0 else '+'}{abs(kley_diff):.2f} kg (tahrirlash)")
 
