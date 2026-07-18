@@ -691,6 +691,26 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
         else:
             msg += " To'lov to'liq yopilgan."
         result["finalized"]["message"] = msg
+    elif not order.deliveries:
+        # Hali HECH NARSA topshirilmagan — bu odatiy holat.
+        # "Tayyor" bosilishi bilan — mahsulot BIR YO'LA, TO'LIQ topshirilgan deb
+        # avtomatik yozib qo'yamiz (alohida "Bir yo'la to'liq topshirish"
+        # tugmasini bosish shart emas).
+        from schemas import DeliveryCreate, DeliveryItemCreate
+        delivery_items = []
+        for item in order.items:
+            remaining = item.remaining_qty
+            if remaining > 0.001:
+                delivery_items.append(DeliveryItemCreate(order_item_id=item.id, quantity=remaining))
+
+        if delivery_items:
+            dcreate = DeliveryCreate(order_id=order.id, items=delivery_items)
+            dres = _crud.create_delivery(db, dcreate, delivered_by="Avtomatik (Tayyor deb belgilashda)")
+            if dres.get("success"):
+                result["auto_delivery"] = {
+                    "delivery_id": dres.get("delivery_id"),
+                    "message": "✅ Barcha mahsulot avtomatik ravishda BIR YO'LA topshirilgan deb belgilandi."
+                }
 
     # 3. USTA KPI
     if order.master_id:
