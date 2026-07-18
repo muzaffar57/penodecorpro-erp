@@ -1436,7 +1436,7 @@ def get_bazalt_list(db: Session):
     from models import Inventory
     items = db.query(Inventory).filter(
         Inventory.item_name.ilike("%bazalt%"),
-        Inventory.is_deleted == False
+        Inventory.is_deleted.isnot(True)
     ).order_by(Inventory.item_name).all()
     return items
 
@@ -1446,7 +1446,7 @@ def get_default_bazalt(db: Session):
     from models import Inventory
     return db.query(Inventory).filter(
         Inventory.item_name.ilike("%bazalt%"),
-        Inventory.is_deleted == False
+        Inventory.is_deleted.isnot(True)
     ).order_by(Inventory.id).first()
 
 
@@ -1455,7 +1455,7 @@ def find_kley(db: Session, lock: bool = False):
     volume_per_unit maydonida '1 m² serpiyankaga necha kg kley ketishi' saqlanadi —
     Omborxonada bu qiymatni tahrirlasangiz, tizim darhol yangisidan hisoblaydi."""
     from models import Inventory
-    q = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%"), Inventory.is_deleted == False)
+    q = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%"), Inventory.is_deleted.isnot(True))
     if lock:
         q = q.with_for_update()
     return q.first()
@@ -1465,7 +1465,7 @@ def find_serpiyanka(db: Session, lock: bool = False):
     """Serpiyankani avtomatik topadi — omborda faqat bitta turi bo'ladi
     deb hisoblanadi (Kley kabi), shuning uchun tanlash shart emas."""
     from models import Inventory
-    q = db.query(Inventory).filter(Inventory.item_name.ilike("%serpiyank%"), Inventory.is_deleted == False)
+    q = db.query(Inventory).filter(Inventory.item_name.ilike("%serpiyank%"), Inventory.is_deleted.isnot(True))
     if lock:
         q = q.with_for_update()
     return q.first()
@@ -1481,7 +1481,7 @@ def get_penoplast_list(db: Session):
                 Inventory.is_penoplast == True,
                 Inventory.item_name.ilike("%penoplast%")
             ),
-            Inventory.is_deleted == False
+            Inventory.is_deleted.isnot(True)
         ).order_by(Inventory.item_name).all()
         return items
     except Exception:
@@ -1497,15 +1497,15 @@ def get_default_penoplast(db: Session):
     p = db.query(Inventory).filter(
         Inventory.is_penoplast == True,
         Inventory.is_default_penoplast == True,
-        Inventory.is_deleted == False
+        Inventory.is_deleted.isnot(True)
     ).first()
     if p:
         return p
-    p = db.query(Inventory).filter(Inventory.is_penoplast == True, Inventory.is_deleted == False).first()
+    p = db.query(Inventory).filter(Inventory.is_penoplast == True, Inventory.is_deleted.isnot(True)).first()
     if p:
         return p
     return db.query(Inventory).filter(
-        Inventory.item_name.ilike("%penoplast%"), Inventory.is_deleted == False
+        Inventory.item_name.ilike("%penoplast%"), Inventory.is_deleted.isnot(True)
     ).first()
 
 
