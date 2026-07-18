@@ -405,7 +405,7 @@
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('payBody', 'pay-toggle-ic')">
           <h3><span class="ico-badge green"><i class="ti ti-cash"></i></span> To'lovlar</h3>
           <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
-            <button class="btn btn-green btn-sm" onclick="openPaymentForm()">+ To'lov qo'shish</button>
+            <button class="btn btn-green btn-sm" id="btn-add-payment" onclick="openPaymentForm()">+ To'lov qo'shish</button>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('payBody','pay-toggle-ic')" title="Yig'ish/yoyish">
               <i class="ti ti-chevron-down" id="pay-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
             </button>
@@ -1738,6 +1738,12 @@ async function loadPayments(orderId) {
       badgeHtml += '<span style="background:#FEE2E2;color:#DC2626;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">🔴 To\'lanmagan</span>';
     }
     badge.innerHTML = badgeHtml;
+
+    // To'liq to'langan bo'lsa — "To'lov qo'shish" tugmasi kerak emas
+    const addPayBtn = document.getElementById('btn-add-payment');
+    if (addPayBtn) {
+      addPayBtn.style.display = (st === 'paid') ? 'none' : '';
+    }
 
     // Tarix
     const list = document.getElementById('paymentList');
