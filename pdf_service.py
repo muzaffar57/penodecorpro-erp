@@ -258,33 +258,54 @@ def generate_nakladnoy(order, db=None) -> bytes:
 
     # ── JAMI HISOB ────────────────────────────────────────────
     subtotal = sum(float(i.total_price or 0) for i in items)
-    total    = float(order.total_amount or 0)
-    discount = subtotal - total
-    paid     = float(project.total_paid or 0) if project else 0
-    qarz     = max(0, total - paid)
+    total    = float(order.total_amount or subtotal or 0)
+    agreed   = float(order.agreed_amount or total)
+    discount = max(total - agreed, 0)
+
+    # Yetkazib berish xizmati — agar mijozning o'zi to'laydigan bo'lsa,
+    # jami summaga qo'shiladi (buyurtmaning barcha yuklari bo'yicha)
+    transport_client_cost = 0.0
+    if getattr(order, 'deliveries', None):
+        for d in order.deliveries:
+            if getattr(d, 'transport_payer', None) in ('client', 'split'):
+                transport_client_cost += float(getattr(d, 'client_transport_cost', 0) or 0)
+
+    grand_total = agreed + transport_client_cost
+    paid  = order.paid_amount if hasattr(order, 'paid_amount') else 0
+    qarz  = max(0, grand_total - paid)
 
     totals_data = []
     totals_data.append([
         Paragraph("Umumiy jami:", st["total_label"]),
-        Paragraph(f"{subtotal:,.0f} so'm", st["total_label"]),
+        Paragraph(f"{total:,.0f} so'm", st["total_label"]),
     ])
     if discount > 1:
         totals_data.append([
             Paragraph("Chegirma:", st["total_label"]),
             Paragraph(f"- {discount:,.0f} so'm", st["total_label"]),
         ])
+        totals_data.append([
+            Paragraph("Kelishilgan summa:", st["total_label"]),
+            Paragraph(f"{agreed:,.0f} so'm", st["total_label"]),
+        ])
+    if transport_client_cost > 1:
+        totals_data.append([
+            Paragraph("Yetkazib berish xizmati:", st["total_label"]),
+            Paragraph(f"+ {transport_client_cost:,.0f} so'm", st["total_label"]),
+        ])
+    grand_total_row = len(totals_data)
     totals_data.append([
         Paragraph("TO'LOV SUMMASI:", st["total_label"]),
-        Paragraph(f"{total:,.0f} so'm", st["total_value"]),
+        Paragraph(f"{grand_total:,.0f} so'm", st["total_value"]),
     ])
     if paid > 0:
         totals_data.append([
-            Paragraph("Zaklat (to'langan):", st["doc_num"]),
+            Paragraph("To'langan:", st["doc_num"]),
             Paragraph(f"{paid:,.0f} so'm", st["doc_num"]),
         ])
     if qarz > 0:
         totals_data.append([
-            Paragraph("QZR QOLDI:", st["total_label"]),
+            Paragraph("QARZ QOLDI:", st["total_label"]),
             Paragraph(f"{qarz:,.0f} so'm", st["total_value"]),
         ])
 
@@ -296,8 +317,8 @@ def generate_nakladnoy(order, db=None) -> bytes:
         ("BOTTOMPADDING", (0,0), (-1,-1), 4),
         ("GRID", (0,0), (-1,-1), 0.3, LGRAY),
         ("BACKGROUND", (0,0), (-1,0), LIGHT),
-        ("LINEABOVE", (0,2), (-1,2), 1.5, GOLD),
-        ("BACKGROUND", (0,2), (-1,2), colors.HexColor("#FDF8F0")),
+        ("LINEABOVE", (0,grand_total_row), (-1,grand_total_row), 1.5, GOLD),
+        ("BACKGROUND", (0,grand_total_row), (-1,grand_total_row), colors.HexColor("#FDF8F0")),
     ]))
     story.append(totals_tbl)
     story.append(Spacer(1, 16))
