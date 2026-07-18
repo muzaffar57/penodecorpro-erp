@@ -1038,6 +1038,77 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
 # OYLIK HISOBOT
 # ============================================================
 
+def get_daily_finance_summary(db: Session, target_date) -> Dict:
+    """Bitta kun uchun to'liq moliyaviy ko'rinish:
+    - Savdo (shu kun 'Tayyor' bo'lgan buyurtmalar): sotuv, tan narx, foyda
+    - Xarajat: xomashyo xaridi (nimaga qancha) + boshqa xarajatlar (nimaga qancha)
+    """
+    from models import InventoryPurchase, ExpenseTransaction
+    from datetime import datetime as dt, timedelta
+
+    start = dt.combine(target_date, dt.min.time())
+    end = start + timedelta(days=1)
+
+    # ── 1) SAVDO — shu kun yakunlangan buyurtmalar ──
+    orders_today = db.query(Order).filter(
+        Order.completed_at >= start,
+        Order.completed_at < end,
+        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED])
+    ).all()
+
+    total_sales = 0.0
+    total_cost = 0.0
+    for o in orders_today:
+        p = calculate_order_profit(db, o.id)
+        if p.get("success"):
+            total_sales += p["sotuv_narxi"]
+            total_cost += p["tan_narxi"]
+    total_profit = total_sales - total_cost
+
+    # ── 2) XARAJAT — xomashyo xaridi (nimaga qancha) ──
+    purchases_today = db.query(InventoryPurchase).filter(
+        InventoryPurchase.purchased_at >= start,
+        InventoryPurchase.purchased_at < end
+    ).all()
+    material_total = sum(float(p.total_amount or 0) for p in purchases_today)
+    material_breakdown = {}
+    for p in purchases_today:
+        material_breakdown[p.item_name] = material_breakdown.get(p.item_name, 0.0) + float(p.total_amount or 0)
+
+    # ── 3) XARAJAT — boshqa (arenda, elektr va h.k.) ──
+    other_today = db.query(ExpenseTransaction).filter(
+        ExpenseTransaction.date >= start,
+        ExpenseTransaction.date < end
+    ).all()
+    other_total = sum(float(e.amount or 0) for e in other_today)
+    other_breakdown = {}
+    for e in other_today:
+        other_breakdown[e.category] = other_breakdown.get(e.category, 0.0) + float(e.amount or 0)
+
+    total_expense = material_total + other_total
+
+    return {
+        "date": target_date.isoformat(),
+        "sales": {
+            "orders_count": len(orders_today),
+            "total": round(total_sales),
+            "cost": round(total_cost),
+            "profit": round(total_profit),
+        },
+        "expenses": {
+            "total": round(total_expense),
+            "material": {
+                "total": round(material_total),
+                "breakdown": [{"nomi": k, "summa": round(v)} for k, v in sorted(material_breakdown.items(), key=lambda x: -x[1])]
+            },
+            "other": {
+                "total": round(other_total),
+                "breakdown": [{"nomi": k, "summa": round(v)} for k, v in sorted(other_breakdown.items(), key=lambda x: -x[1])]
+            }
+        }
+    }
+
+
 def get_finance_history(db: Session, months_count: int = 12) -> list:
     """Oxirgi N oy uchun moliyaviy tarix — grafik va 'Xarajatlar tarixi' jadvali uchun.
     MUHIM: hech qanday yangi hisob-kitob yo'q — faqat mavjud get_monthly_report()
