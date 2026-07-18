@@ -1295,13 +1295,30 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     xarajatlar["tushlik"]  = _monthly_category_amount(db, year, month, "tushlik",  xarajatlar["tushlik"])
     xarajatlar["soliqlar"] = _monthly_category_amount(db, year, month, "soliqlar", xarajatlar["soliqlar"])
 
-    # Jami xarajat (arenda/elektr/tushlik/soliq — hodim to'lovi endi
-    # "Ustalar KPI / Hodimlar" bo'limida alohida hisoblanadi)
+    # ── 4a2. YANGI (moslashuvchan) kategoriyalar — Reklama, Kutilmagan xarajat
+    # va h.k. — bular MonthlyExpense'da "qattiq" maydon sifatida yo'q,
+    # shuning uchun ExpenseTransaction'dan TO'G'RIDAN-TO'G'RI, dinamik yig'ib olinadi.
+    from models import ExpenseTransaction
+    from sqlalchemy import func as _func, extract as _extract
+    KNOWN_FIXED_CATEGORIES = {"arenda", "elektr", "tushlik", "soliqlar"}
+    extra_rows = db.query(
+        ExpenseTransaction.category, _func.sum(ExpenseTransaction.amount)
+    ).filter(
+        _extract('year', ExpenseTransaction.date) == year,
+        _extract('month', ExpenseTransaction.date) == month,
+        ~ExpenseTransaction.category.in_(KNOWN_FIXED_CATEGORIES)
+    ).group_by(ExpenseTransaction.category).all()
+    qoshimcha_xarajatlar = {cat: float(total or 0) for cat, total in extra_rows}
+    qoshimcha_xarajat_jami = sum(qoshimcha_xarajatlar.values())
+
+    # Jami xarajat (arenda/elektr/tushlik/soliq/reklama/kutilmagan va h.k. — hodim
+    # to'lovi endi "Ustalar KPI / Hodimlar" bo'limida alohida hisoblanadi)
     jami_xarajat_eski = (
         xarajatlar["arenda"] +
         xarajatlar["elektr"] +
         xarajatlar["tushlik"] +
-        xarajatlar["soliqlar"]
+        xarajatlar["soliqlar"] +
+        qoshimcha_xarajat_jami
     )
 
     # ── 4b. USTA YILLIK KPI (oylik ulush) ─────────────────────
@@ -1351,6 +1368,7 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         "jami_dona": int(jami_dona),
         "qoplamachi_bonus_avtomatik": qoplamachi_bonus_avtomatik,
         "xarajatlar": xarajatlar,
+        "qoshimcha_xarajatlar": qoshimcha_xarajatlar,
         "jami_xarajat": jami_xarajat,
         "sof_foyda": sof_foyda,
         "foyda_foiz": round(foyda_foiz, 1),
