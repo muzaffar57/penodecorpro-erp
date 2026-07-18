@@ -45,7 +45,55 @@
 {% endblock %}
 
 {% block content %}
+
+<!-- BUGUNGI HOLAT — har doim, oy tanlashdan qat'i nazar ko'rinadi -->
+<div class="card" id="dailyCard" style="margin-bottom:16px;border:1.5px solid var(--gold);border-radius:14px;padding:18px 20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <h3 style="margin:0;font-size:15px;display:flex;align-items:center;gap:8px">
+      <i class="ti ti-calendar-event" style="color:var(--gold-dark)"></i> Bugungi holat
+      <span id="daily-date" style="font-weight:400;color:var(--text3);font-size:12.5px"></span>
+    </h3>
+    <span id="daily-loading" style="font-size:12px;color:var(--text3)"></span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+    <div style="background:#F0FDF4;border-radius:10px;padding:12px 14px">
+      <div style="font-size:11.5px;color:#166534;font-weight:600">SAVDO (bugun yakunlangan)</div>
+      <div id="d-savdo" style="font-size:19px;font-weight:800;color:#166534;margin-top:4px">—</div>
+      <div id="d-orders-count" style="font-size:11px;color:#166534;margin-top:2px">—</div>
+    </div>
+    <div style="background:#FEF3C7;border-radius:10px;padding:12px 14px">
+      <div style="font-size:11.5px;color:#92400E;font-weight:600">TAN NARX</div>
+      <div id="d-tannarx" style="font-size:19px;font-weight:800;color:#92400E;margin-top:4px">—</div>
+    </div>
+    <div style="background:#EFF6FF;border-radius:10px;padding:12px 14px">
+      <div style="font-size:11.5px;color:#1E40AF;font-weight:600">SOF FOYDA</div>
+      <div id="d-foyda" style="font-size:19px;font-weight:800;color:#1E40AF;margin-top:4px">—</div>
+    </div>
+    <div style="background:#FEE2E2;border-radius:10px;padding:12px 14px">
+      <div style="font-size:11.5px;color:#991B1B;font-weight:600">XARAJAT (jami)</div>
+      <div id="d-xarajat" style="font-size:19px;font-weight:800;color:#991B1B;margin-top:4px">—</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:6px">📦 Xomashyo xaridi — nimaga ketdi</div>
+      <div id="d-material-list" style="font-size:12.5px;color:var(--text2)">
+        <div style="color:var(--text3)">Bugun xarid bo'lmagan</div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:6px">🧾 Boshqa xarajatlar — nimaga ketdi</div>
+      <div id="d-other-list" style="font-size:12.5px;color:var(--text2)">
+        <div style="color:var(--text3)">Bugun boshqa xarajat yo'q</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="erp-content" id="finReport" style="display:none">
+
 
   <!-- KPI -->
   <div class="stat-grid mb-16" style="grid-template-columns:repeat(6,1fr)">
@@ -568,6 +616,48 @@ async function deleteTx(id){
   } catch(e) { alert('Server xatosi'); }
 }
 
+async function loadDailyFinance() {
+  const loadingEl = document.getElementById('daily-loading');
+  loadingEl.textContent = 'Yuklanmoqda...';
+  try {
+    const res = await fetch('/api/finance/daily');
+    const d = await res.json();
+    loadingEl.textContent = '';
+
+    const dt = new Date(d.date);
+    document.getElementById('daily-date').textContent = dt.toLocaleDateString('uz', {day:'numeric', month:'long', year:'numeric'});
+
+    document.getElementById('d-savdo').textContent = fmtFull(d.sales.total) + " so'm";
+    document.getElementById('d-orders-count').textContent = d.sales.orders_count + " ta buyurtma yakunlandi";
+    document.getElementById('d-tannarx').textContent = fmtFull(d.sales.cost) + " so'm";
+    document.getElementById('d-foyda').textContent = fmtFull(d.sales.profit) + " so'm";
+    document.getElementById('d-xarajat').textContent = fmtFull(d.expenses.total) + " so'm";
+
+    const matList = document.getElementById('d-material-list');
+    if (d.expenses.material.breakdown.length) {
+      matList.innerHTML = d.expenses.material.breakdown.map(m =>
+        `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
+           <span>${m.nomi}</span><span style="font-weight:600">${fmtFull(m.summa)} so'm</span>
+         </div>`).join('');
+    } else {
+      matList.innerHTML = '<div style="color:var(--text3)">Bugun xarid bo\'lmagan</div>';
+    }
+
+    const othList = document.getElementById('d-other-list');
+    if (d.expenses.other.breakdown.length) {
+      othList.innerHTML = d.expenses.other.breakdown.map(m =>
+        `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
+           <span>${m.nomi}</span><span style="font-weight:600">${fmtFull(m.summa)} so'm</span>
+         </div>`).join('');
+    } else {
+      othList.innerHTML = '<div style="color:var(--text3)">Bugun boshqa xarajat yo\'q</div>';
+    }
+  } catch(e) {
+    loadingEl.textContent = 'Xato yuz berdi';
+  }
+}
+
 loadReport();
+loadDailyFinance();
 </script>
 {% endblock %}
