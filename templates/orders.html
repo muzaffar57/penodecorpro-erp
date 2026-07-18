@@ -3156,21 +3156,8 @@ function searchOrders(q) {
 
 // ── Sahifa yuklanganda ────────────────────────────────────
 window.addEventListener('load', () => {
-  // Oxirgi tanlangan buyurtmani tiklaymiz
-  let lastId = null;
-  try { lastId = localStorage.getItem('last_order'); } catch(e) {}
-
-  let target = lastId ? document.getElementById('oi-' + lastId) : null;
-  if (!target) {
-    // Topilmasa — birinchi guruhning birinchi buyurtmasi
-    target = document.querySelector('.ord-item');
-  }
-  if (target) {
-    const pid = target.dataset.projectId;
-    if (pid) openProject(pid);
-    target.click();
-    setTimeout(()=>target.scrollIntoView({block:'nearest'}), 100);
-  }
+  // Sahifa ochilganda HECH QANDAY buyurtma avtomatik tanlanmaydi —
+  // hodim o'zi ro'yxatdan bosib tanlaguncha, o'ng va o'rta panel toza turadi.
 });
 </script>
 {% endblock %}
