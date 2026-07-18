@@ -211,18 +211,26 @@ def generate_nakladnoy(order, db=None) -> bytes:
         # Miqdor: profil uchun uzunlik, panel uchun miqdor, donali uchun dona
         item_cat = (item.category or "").lower()
         if item_cat == "profil":
-            miqdor_txt = f"{float(item.length or 0):.0f}"
+            miqdor = float(item.length or 0)
         elif item_cat == "panel":
-            miqdor_txt = f"{float(item.quantity or 0):.0f}"
+            miqdor = float(item.quantity or 0)
         else:
-            miqdor_txt = f"{float(item.quantity or 0):.0f}"
+            miqdor = float(item.quantity or 0)
+        miqdor_txt = f"{miqdor:.0f}"
+
+        # MUHIM: item.unit_price ba'zi turlarda (masalan Profil) DETALNING
+        # UMUMIY narxini saqlaydi (miqdor=1 bo'lgani uchun), 1 birlik narxini
+        # emas. Shuning uchun haqiqiy "1 birlik narxi"ni Jami ÷ Miqdor orqali
+        # qayta hisoblaymiz — shunda jadvaldagi 3 ustun (Birlik × Miqdor = Jami)
+        # doim bir-biriga mos keladi.
+        true_unit_price = (total_price / miqdor) if miqdor > 0 else unit_price
 
         table_data.append([
             Paragraph(str(i+1), st["table_cell_c"]),
             Paragraph(str(item.name), st["table_cell"]),
             Paragraph(unit, st["table_cell_c"]),
             Paragraph(miqdor_txt, st["table_cell_c"]),
-            Paragraph(f"{unit_price:,.0f}", st["table_cell_r"]),
+            Paragraph(f"{true_unit_price:,.0f}", st["table_cell_r"]),
             Paragraph(f"{total_price:,.0f}", st["table_cell_r"]),
         ])
 
