@@ -417,7 +417,10 @@
             <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#1e7e34">Yangi to'lov</div>
             <div style="display:flex;gap:8px;margin-bottom:8px">
               <div style="flex:1">
-                <div style="font-size:13px;color:#777;margin-bottom:3px">Summa</div>
+                <div style="font-size:13px;color:#777;margin-bottom:3px;display:flex;justify-content:space-between;align-items:center">
+                  <span>Summa</span>
+                  <span onclick="fillFullDebt()" style="color:#2563EB;font-weight:600;cursor:pointer;font-size:11.5px">To'liq qarz</span>
+                </div>
                 <input type="text" id="pf-amount" placeholder="0" oninput="formatPriceInput(this)"
                        style="width:100%;padding:11px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:15px;font-weight:600;outline:none">
               </div>
@@ -443,6 +446,10 @@
               <input type="text" id="pf-notes" placeholder="Masalan: yuk borganda berildi"
                      style="width:100%;padding:11px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:15px;outline:none">
             </div>
+            <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;padding:9px 11px;background:#fff;border:1.5px solid #FDE68A;border-radius:8px;cursor:pointer">
+              <input type="checkbox" id="pf-writeoff" style="margin-top:2px;width:16px;height:16px;cursor:pointer">
+              <span style="font-size:12.5px;color:#92400E;line-height:1.4">Agar to'lovdan keyin ozgina qarz qolsa (masalan mijoz "qolganini kechiring" desa) — <b>qolgan summa chegirma sifatida yozilsin</b> (foyda hisobotidan ham to'g'ri ayiriladi)</span>
+            </label>
             <div style="display:flex;gap:6px">
               <button class="btn btn-green btn-sm" style="flex:1" onclick="savePayment()">💾 Saqlash</button>
               <button class="btn btn-outline btn-sm" onclick="closePaymentForm()">Bekor</button>
@@ -1820,10 +1827,19 @@ function closePaymentForm() {
   document.getElementById('paymentForm').style.display = 'none';
 }
 
+function fillFullDebt() {
+  const debtText = (document.getElementById('pay-debt')?.textContent || '0').replace(/[^\d]/g, '');
+  const debt = parseInt(debtText) || 0;
+  if (debt <= 0) { showMsg("Qarz yo'q", 'success'); return; }
+  document.getElementById('pf-amount').value = formatNum(debt);
+}
+
 async function savePayment() {
   if (!selectedOrderId) return;
   const amount = parseNum(document.getElementById('pf-amount').value);
   if (!amount || amount <= 0) { showMsg('To\'lov summasini kiriting!', 'error'); return; }
+
+  const writeOff = document.getElementById('pf-writeoff')?.checked || false;
 
   const data = {
     order_id: selectedOrderId,
@@ -1834,7 +1850,8 @@ async function savePayment() {
   };
 
   try {
-    const res = await fetch('/api/payments', {
+    const url = writeOff ? '/api/payments?write_off_remainder=true' : '/api/payments';
+    const res = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(data)
@@ -1843,7 +1860,10 @@ async function savePayment() {
       const r = await res.json();
       closePaymentForm();
       loadPayments(selectedOrderId);
-      if (r.is_archived) {
+      if (r.write_off) {
+        showMsg('✓ To\'lov qo\'shildi! ' + r.write_off.message, 'success');
+        setTimeout(()=>location.reload(), 2000);
+      } else if (r.is_archived) {
         showMsg('✅ To\'lov qabul qilindi! Qarz yopildi — buyurtma arxivga o\'tdi.', 'success');
         setTimeout(()=>location.reload(), 1500);
       } else {
