@@ -3007,7 +3007,7 @@ async function deleteSelected() {
         info = '\n\n⚠️ Buyurtma YETKAZILGAN — mahsulot mijozda.\n   Xomashyo omborga QAYTARILMAYDI!\n   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.';
         isSoftCase = true;
       } else if (hasDelivery) {
-        info = `\n\n⚠️ Mahsulot topshirila boshlagan (${o.deliveries.length} ta yuk xati).\n   Xomashyo omborga QAYTARILMAYDI!\n   ℹ️ Buyurtma "Buyurtmalar" ro'yxatidan yo'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.`;
+        info = `\n\n📦 Mahsulot qisman topshirilgan (${o.delivery_percent || 0}%).\n   ♻️ Faqat QOLGAN (${(100-(o.delivery_percent||0)).toFixed(0)}%) qism uchun xomashyo omborga qaytadi — topshirilgan qism (mijozda) tegilmaydi.\n   ℹ️ Buyurtma "Buyurtmalar" ro'yxatidan yo'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.`;
         isSoftCase = true;
       } else {
         info = '\n\n♻️ Xomashyo (penoplast va loy) omborga qaytariladi. Butunlay o\'chiriladi.';
