@@ -89,8 +89,21 @@ def sync_missing_columns():
                 continue
             try:
                 sql_type = _sql_type_for_column(col)
+                default_clause = ""
+                # MUHIM: standart qiymatni ham SQL darajasida yozamiz — aks holda
+                # ESKI qatorlar bu ustunda NULL bo'lib qoladi (Python darajasidagi
+                # "default=" faqat YANGI qatorlarga ta'sir qiladi, eskilarga emas).
+                if col.default is not None and getattr(col.default, "is_scalar", False):
+                    val = col.default.arg
+                    if isinstance(val, bool):
+                        default_clause = f" DEFAULT {'TRUE' if val else 'FALSE'}"
+                    elif isinstance(val, (int, float)):
+                        default_clause = f" DEFAULT {val}"
+                    elif isinstance(val, str):
+                        escaped = val.replace("'", "''")
+                        default_clause = f" DEFAULT '{escaped}'"
                 with engine.connect() as conn:
-                    conn.execute(text(f'ALTER TABLE {table_name} ADD COLUMN {col.name} {sql_type}'))
+                    conn.execute(text(f'ALTER TABLE {table_name} ADD COLUMN {col.name} {sql_type}{default_clause}'))
                     conn.commit()
                 added.append(f"{table_name}.{col.name}")
             except Exception as e:
