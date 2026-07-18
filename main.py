@@ -1943,6 +1943,48 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
     })
 
 
+@app.get("/api/system/telegram-debug")
+def api_telegram_debug(current_user=Depends(auth.admin_only)):
+    """Diagnostika: server qaysi botga ulanganini va oxirgi kimlar
+    botga 'Start' bosganini (chat_id'lari bilan) ko'rsatadi."""
+    import urllib.request as _ur
+    import json as _json_mod
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    result = {"token_configured": bool(token)}
+    if not token:
+        return result
+
+    try:
+        me_url = f"https://api.telegram.org/bot{token}/getMe"
+        with _ur.urlopen(me_url, timeout=10) as r:
+            me_data = _json_mod.loads(r.read())
+        result["bot_info"] = me_data.get("result", {})
+    except Exception as e:
+        result["bot_info_error"] = str(e)
+
+    try:
+        updates_url = f"https://api.telegram.org/bot{token}/getUpdates?limit=10"
+        with _ur.urlopen(updates_url, timeout=10) as r:
+            upd_data = _json_mod.loads(r.read())
+        recent_chats = []
+        for u in upd_data.get("result", []):
+            msg = u.get("message") or u.get("my_chat_member", {})
+            chat = msg.get("chat", {}) if msg else {}
+            if chat:
+                recent_chats.append({
+                    "chat_id": chat.get("id"),
+                    "first_name": chat.get("first_name"),
+                    "username": chat.get("username"),
+                })
+        result["recent_chats"] = recent_chats
+        result["configured_backup_chat_id"] = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "(sozlanmagan)")
+    except Exception as e:
+        result["updates_error"] = str(e)
+
+    return result
+
+
 @app.post("/api/system/backup/send-now")
 def api_backup_send_now(current_user=Depends(auth.admin_only)):
     """Kunlik avtomatik backup vazifasini HOZIROQ, qo'lda ishga tushiradi
