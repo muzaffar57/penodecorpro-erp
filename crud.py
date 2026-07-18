@@ -1568,54 +1568,50 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
     }
 
 
-def factory_reset(db: Session, confirm_phrase: str) -> dict:
-    """XAVFLI AMAL: Foydalanuvchilardan (User) TASHQARI barcha ma'lumotni
-    o'chiradi — Buyurtmalar, Omborxona, Retseptlar, Loyihalar, To'lovlar,
-    Ustalar, Yetkazib beruvchilar va h.k. Faqat login/parollar saqlanadi.
+def export_full_backup(db: Session) -> dict:
+    """Butun bazaning TO'LIQ zaxira nusxasini (barcha 21 jadval) JSON
+    formatida qaytaradi. Muammo yuz berganda, shu faylni qayta yuklab
+    (import_full_backup orqali) ma'lumotni tiklash mumkin bo'ladi."""
+    import decimal
+    from datetime import datetime as _dt, date as _date
+    from enum import Enum as _Enum
+    from sqlalchemy import inspect as sa_inspect
+    import models as _models
 
-    Xavfsizlik uchun aniq tasdiqlash so'zi talab qilinadi.
-    Qaytarib bo'lmaydi — ehtiyot bo'ling."""
-    if confirm_phrase != "HAMMASINI OCHIRAMAN":
-        return {"success": False, "message": "Tasdiqlash so'zi noto'g'ri — hech narsa o'chirilmadi"}
+    def serialize_value(v):
+        if v is None:
+            return None
+        if isinstance(v, decimal.Decimal):
+            return float(v)
+        if isinstance(v, (_dt, _date)):
+            return v.isoformat()
+        if isinstance(v, _Enum):
+            return v.value
+        return v
 
-    from models import (
-        DeliveryItem, Payment, Delivery, OrderAttachment, ReturnItem, OrderItem, Order,
-        FinishedProduct, InventoryMovement, InventoryPurchase, SupplierPayment,
-        TransportExpense, Inventory, Recipe, Project, Master, Supplier, Employee,
-        ExpenseTransaction, MonthlyExpense
-    )
+    # Barcha model klasslarini avtomatik topamiz (User dan tashqari — u ham
+    # kiritiladi, chunki to'liq zaxira nusxa deganda HAMMASI saqlanishi kerak)
+    all_models = []
+    for name in dir(_models):
+        obj = getattr(_models, name)
+        if isinstance(obj, type) and issubclass(obj, _models.Base) and obj is not _models.Base:
+            all_models.append(obj)
 
-    # Bog'liqlik tartibida — avval "bola" jadvallar, keyin "ota" jadvallar
-    order_of_deletion = [
-        ("Yuk topshirish detallari", DeliveryItem),
-        ("To'lovlar", Payment),
-        ("Yetkazishlar", Delivery),
-        ("Buyurtma fayllari", OrderAttachment),
-        ("Qaytarishlar", ReturnItem),
-        ("Buyurtma detallari", OrderItem),
-        ("Buyurtmalar", Order),
-        ("Tayyor mahsulotlar", FinishedProduct),
-        ("Ombor harakatlari", InventoryMovement),
-        ("Ombor xaridlari", InventoryPurchase),
-        ("Hamkor to'lovlari", SupplierPayment),
-        ("Transport xarajatlari", TransportExpense),
-        ("Xomashyo (Omborxona)", Inventory),
-        ("Retseptlar", Recipe),
-        ("Loyihalar", Project),
-        ("Ustalar", Master),
-        ("Yetkazib beruvchilar", Supplier),
-        ("Hodimlar", Employee),
-        ("Kunlik xarajatlar", ExpenseTransaction),
-        ("Oylik xarajatlar", MonthlyExpense),
-    ]
+    backup = {}
+    for model in all_models:
+        table_name = model.__tablename__
+        mapper = sa_inspect(model)
+        columns = [c.key for c in mapper.columns]
+        rows = db.query(model).all()
+        backup[table_name] = [
+            {col: serialize_value(getattr(row, col)) for col in columns}
+            for row in rows
+        ]
 
-    log = []
-    for label, model in order_of_deletion:
-        count = db.query(model).delete()
-        log.append(f"{label}: {count} ta o'chirildi")
-
-    db.commit()
-    return {"success": True, "message": "Tizim (Foydalanuvchilardan tashqari) to'liq tozalandi", "log": log}
+    return {
+        "backup_created_at": datetime.utcnow().isoformat(),
+        "tables": backup
+    }
 
 
 def factory_reset_all_data(db: Session) -> dict:
