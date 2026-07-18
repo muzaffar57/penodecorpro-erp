@@ -895,7 +895,10 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
-    sotuv_narxi = float(order.total_amount or 0)
+    # Kelishilgan (chegirmadan keyingi, haqiqatan mijoz to'laydigan) summadan
+    # hisoblanadi — shunda har qanday chegirma (boshidagi ham, keyin
+    # "kechirilgan" ham) foyda hisobotida to'g'ri, avtomatik hisobga olinadi.
+    sotuv_narxi = float(order.agreed_amount or order.total_amount or 0)
     breakdown = []
     tan_narxi_jami = 0.0
 
