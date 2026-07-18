@@ -120,15 +120,9 @@
         <input type="number" id="t-m2" step="0.1" min="0" placeholder="0" oninput="tCalc()">
       </div>
 
-      <div class="form-row">
-        <div class="form-group" style="margin:0">
-          <label>Bazalt plita (ombordan)</label>
-          <select id="t-bazalt" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Serpiyanka (ombordan)</label>
-          <select id="t-serpiyanka" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
-        </div>
+      <div class="form-group">
+        <label>Plotnost (Bazalt turi)</label>
+        <select id="t-bazalt" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
       </div>
 
       <div class="form-group">
@@ -770,17 +764,12 @@ async function openTermoModal() {
 
   try {
     termoInventory = await fetch('/api/inventory').then(r => r.json());
+    const bazaltItems = termoInventory.filter(i => i.item_name.toLowerCase().includes('bazalt'));
     const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
-    document.getElementById('t-bazalt').innerHTML =
-      '<option value="">— Tanlang —</option>' + termoInventory.map(opts).join('');
-    document.getElementById('t-serpiyanka').innerHTML =
-      '<option value="">— Tanlang —</option>' + termoInventory.map(opts).join('');
-
-    // Nomi bo'yicha avtomatik tanlashga urinib ko'ramiz (qulaylik uchun)
-    const bazaltGuess = termoInventory.find(i => i.item_name.toLowerCase().includes('bazalt'));
-    const serpGuess = termoInventory.find(i => i.item_name.toLowerCase().includes('serpiyank'));
-    if (bazaltGuess) document.getElementById('t-bazalt').value = bazaltGuess.id;
-    if (serpGuess) document.getElementById('t-serpiyanka').value = serpGuess.id;
+    document.getElementById('t-bazalt').innerHTML = bazaltItems.length
+      ? bazaltItems.map(opts).join('')
+      : '<option value="">Omborda bazalt yo\'q — avval kirim qiling</option>';
+    if (bazaltItems.length) document.getElementById('t-bazalt').value = bazaltItems[0].id;
   } catch(e) {
     document.getElementById('t-bazalt').innerHTML = '<option value="">Xato — qayta urinib ko\'ring</option>';
   }
@@ -793,7 +782,6 @@ function closeTermoModal() {
 function tCalc() {
   const m2 = parseFloat(document.getElementById('t-m2').value) || 0;
   const bazaltId = parseInt(document.getElementById('t-bazalt').value);
-  const serpId = parseInt(document.getElementById('t-serpiyanka').value);
   const kleyKg = parseFloat(document.getElementById('t-kley').value) || 0;
   const loyKg = parseFloat(document.getElementById('t-loy').value) || 0;
   const price = parseNum(document.getElementById('t-price').value);
@@ -802,7 +790,7 @@ function tCalc() {
   if (!m2) { box.innerHTML = '<span style="color:#aaa">Kvadrat metrni kiriting</span>'; return; }
 
   const bazalt = termoInventory.find(i => i.id === bazaltId);
-  const serp = termoInventory.find(i => i.id === serpId);
+  const serp = termoInventory.find(i => i.item_name.toLowerCase().includes('serpiyank'));
 
   let html = `📐 Kerak: <b>${m2} m²</b><br>`;
   if (bazalt) {
@@ -817,9 +805,9 @@ function tCalc() {
     const areaPerRulon = parseFloat(serp.volume_per_unit) || 50;
     const rulon = (m2 * 2) / areaPerRulon;
     const cost = rulon * (serp.price_per_unit || 0);
-    html += `🕸️ Serpiyanka (2 tomon): <b>${rulon.toFixed(2)} rulon</b> (${fmt(cost)} so'm)<br>`;
+    html += `🕸️ Serpiyanka (avtomatik, 2 tomon): <b>${rulon.toFixed(2)} rulon</b> (${fmt(cost)} so'm)<br>`;
   } else {
-    html += `<span style="color:#F59E0B">🕸️ Serpiyankani tanlang</span><br>`;
+    html += `<span style="color:#DC2626">🕸️ Ombordа serpiyanka topilmadi — kirim qiling</span><br>`;
   }
   if (kleyKg > 0) html += `🧴 Kley: <b>${kleyKg} kg</b><br>`;
   if (loyKg > 0) {
@@ -838,13 +826,11 @@ async function saveTermopanel() {
   const name = document.getElementById('t-name').value.trim();
   const m2 = parseFloat(document.getElementById('t-m2').value) || 0;
   const bazaltId = parseInt(document.getElementById('t-bazalt').value);
-  const serpId = parseInt(document.getElementById('t-serpiyanka').value);
   const price = parseNum(document.getElementById('t-price').value);
 
   if (!name) { err.style.display='block'; err.textContent='❌ Mahsulot nomini kiriting'; return; }
   if (!m2) { err.style.display='block'; err.textContent='❌ Kvadrat metrni kiriting'; return; }
-  if (!bazaltId) { err.style.display='block'; err.textContent='❌ Bazalt plitani tanlang'; return; }
-  if (!serpId) { err.style.display='block'; err.textContent='❌ Serpiyankani tanlang'; return; }
+  if (!bazaltId) { err.style.display='block'; err.textContent='❌ Plotnost (bazalt turi)ni tanlang'; return; }
   if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
   err.style.display = 'none';
 
@@ -852,7 +838,6 @@ async function saveTermopanel() {
     name,
     required_m2: m2,
     bazalt_item_id: bazaltId,
-    serpiyanka_item_id: serpId,
     kley_kg: parseFloat(document.getElementById('t-kley').value) || 0,
     recipe_id: parseInt(document.getElementById('t-recipe').value) || null,
     loy_kg: parseFloat(document.getElementById('t-loy').value) || 0,
