@@ -474,16 +474,6 @@ async def users_page(request: Request, db: Session = Depends(get_db), current_us
     return templates.TemplateResponse(request, "users.html", {"users": users, "current_user": current_user, "now": datetime.now().strftime("%d.%m.%Y %H:%M"), "active_page": "users"})
 
 
-@app.post("/api/admin/factory-reset")
-def api_factory_reset(confirm_phrase: str, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """⚠️ XAVFLI: Foydalanuvchilardan TASHQARI barcha ma'lumotni o'chiradi.
-    Faqat aniq tasdiqlash so'zi bilan ishlaydi. Qaytarib bo'lmaydi."""
-    result = crud.factory_reset(db, confirm_phrase)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result["message"])
-    return result
-
-
 @app.post("/api/users")
 def api_create_user(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     try:
