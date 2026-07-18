@@ -339,12 +339,6 @@ async function loadAll(){
     fetch('/api/dashboard/charts').then(r=>r.json()),
     fetch('/api/dashboard/today').then(r=>r.json())
   ]);
-  document.getElementById('k-projects').textContent=s.total_projects;
-  document.getElementById('k-orders').textContent=s.total_orders;
-  document.getElementById('k-active').textContent=s.active_orders;
-  document.getElementById('k-ready').textContent=s.ready_orders;
-  document.getElementById('k-masters').textContent=s.total_masters;
-  document.getElementById('k-inventory').textContent=s.total_inventory_items;
   const fg=document.getElementById('finGrid');
   if(fg){
     document.getElementById('f-revenue').textContent=fmt(c.finance.total_revenue)+' so\'m';
