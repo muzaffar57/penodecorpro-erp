@@ -1568,6 +1568,89 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
     }
 
 
+def factory_reset(db: Session, confirm_phrase: str) -> dict:
+    """XAVFLI AMAL: Foydalanuvchilardan (User) TASHQARI barcha ma'lumotni
+    o'chiradi — Buyurtmalar, Omborxona, Retseptlar, Loyihalar, To'lovlar,
+    Ustalar, Yetkazib beruvchilar va h.k. Faqat login/parollar saqlanadi.
+
+    Xavfsizlik uchun aniq tasdiqlash so'zi talab qilinadi.
+    Qaytarib bo'lmaydi — ehtiyot bo'ling."""
+    if confirm_phrase != "HAMMASINI OCHIRAMAN":
+        return {"success": False, "message": "Tasdiqlash so'zi noto'g'ri — hech narsa o'chirilmadi"}
+
+    from models import (
+        DeliveryItem, Payment, Delivery, OrderAttachment, ReturnItem, OrderItem, Order,
+        FinishedProduct, InventoryMovement, InventoryPurchase, SupplierPayment,
+        TransportExpense, Inventory, Recipe, Project, Master, Supplier, Employee,
+        ExpenseTransaction, MonthlyExpense
+    )
+
+    # Bog'liqlik tartibida — avval "bola" jadvallar, keyin "ota" jadvallar
+    order_of_deletion = [
+        ("Yuk topshirish detallari", DeliveryItem),
+        ("To'lovlar", Payment),
+        ("Yetkazishlar", Delivery),
+        ("Buyurtma fayllari", OrderAttachment),
+        ("Qaytarishlar", ReturnItem),
+        ("Buyurtma detallari", OrderItem),
+        ("Buyurtmalar", Order),
+        ("Tayyor mahsulotlar", FinishedProduct),
+        ("Ombor harakatlari", InventoryMovement),
+        ("Ombor xaridlari", InventoryPurchase),
+        ("Hamkor to'lovlari", SupplierPayment),
+        ("Transport xarajatlari", TransportExpense),
+        ("Xomashyo (Omborxona)", Inventory),
+        ("Retseptlar", Recipe),
+        ("Loyihalar", Project),
+        ("Ustalar", Master),
+        ("Yetkazib beruvchilar", Supplier),
+        ("Hodimlar", Employee),
+        ("Kunlik xarajatlar", ExpenseTransaction),
+        ("Oylik xarajatlar", MonthlyExpense),
+    ]
+
+    log = []
+    for label, model in order_of_deletion:
+        count = db.query(model).delete()
+        log.append(f"{label}: {count} ta o'chirildi")
+
+    db.commit()
+    return {"success": True, "message": "Tizim (Foydalanuvchilardan tashqari) to'liq tozalandi", "log": log}
+
+
+def factory_reset_all_data(db: Session) -> dict:
+    """DIQQAT: BU QAYTARIB BO'LMAYDIGAN AMAL!
+    Foydalanuvchilar (User) dan TASHQARI — barcha ma'lumotni butunlay o'chiradi:
+    buyurtmalar, ombor, retseptlar, ustalar, yetkazib beruvchilar, loyihalar,
+    tayyor mahsulotlar, qaytarishlar, xarajatlar — HAMMASI.
+    Chet el kaliti (ForeignKey) xatosi bermasligi uchun, jadvallar to'g'ri
+    (avval "bola", keyin "ota") tartibda tozalanadi."""
+    from models import (
+        DeliveryItem, Payment, OrderAttachment, ReturnItem, Delivery,
+        OrderItem, Order, InventoryMovement, InventoryPurchase,
+        SupplierPayment, FinishedProduct, TransportExpense,
+        ExpenseTransaction, MonthlyExpense, Employee, Recipe,
+        Inventory, Master, Project, Supplier
+    )
+
+    # Tartib MUHIM: avval bog'liq ("bola") jadvallar, keyin asosiy ("ota") jadvallar
+    tables_in_order = [
+        DeliveryItem, Payment, OrderAttachment, ReturnItem, Delivery,
+        OrderItem, Order,
+        InventoryMovement, InventoryPurchase, SupplierPayment,
+        FinishedProduct, TransportExpense, ExpenseTransaction, MonthlyExpense,
+        Employee, Recipe, Inventory, Master, Project, Supplier,
+    ]
+
+    counts = {}
+    for model in tables_in_order:
+        n = db.query(model).delete(synchronize_session=False)
+        counts[model.__tablename__] = n
+
+    db.commit()
+    return counts
+
+
 def get_termopanel_planned_loy(order) -> float:
     """Buyurtmadagi barcha termopanel detallarining rejalashtirilgan
     (yaratishda kiritilgan) loy miqdorini yig'indisini qaytaradi."""
