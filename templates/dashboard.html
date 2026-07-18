@@ -15,7 +15,7 @@
 .chart-wrap{position:relative;height:220px}
 .master-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f5f5f5}
 .master-item:last-child{border-bottom:none}
-.master-rank{width:24px;height:24px;border-radius:6px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#999;flex-shrink:0}
+.master-rank{width:24px;height:24px;border-radius:6px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#999;flex-shrink:0}
 .master-rank.top{background:#2563EB;color:#fff}
 .alert-item{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#FEF3C7;border-radius:8px;margin-bottom:8px;border:1px solid #FDE68A}
 .alert-item:last-child{margin-bottom:0}
@@ -227,7 +227,7 @@
   <div class="card mb-16" style="border-left:3px solid #8E44AD;border-radius:0 12px 12px 0">
     <div class="card-head">
       <h3 style="color:#8E44AD"><i class="ti ti-report-money"></i> Bu oy moliyaviy holat</h3>
-      <span id="mf-period" style="font-size:11px;color:#aaa"></span>
+      <span id="mf-period" style="font-size:13px;color:#aaa"></span>
     </div>
     <div class="card-body">
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
@@ -246,7 +246,7 @@
         <span style="font-size:14px;font-weight:700">SOF FOYDA</span>
         <span id="mf-sof-foyda" style="font-size:18px;font-weight:800">—</span>
       </div>
-      <div style="text-align:right;font-size:11px;color:#aaa" id="mf-foiz"></div>
+      <div style="text-align:right;font-size:13px;color:#aaa" id="mf-foiz"></div>
     </div>
   </div>
 
@@ -270,7 +270,7 @@
   <div class="card mb-16" style="border-left:3px solid #F59E0B;border-radius:0 12px 12px 0" id="partialCard">
     <div class="card-head">
       <h3 style="color:#d35400"><i class="ti ti-package"></i> Qisman topshirilgan buyurtmalar</h3>
-      <span style="font-size:11px;color:#aaa" id="partial-label">—</span>
+      <span style="font-size:13px;color:#aaa" id="partial-label">—</span>
     </div>
     <div class="card-body" style="padding:0">
       <div id="partialList" style="max-height:300px;overflow-y:auto">
@@ -283,7 +283,7 @@
   <div class="card mb-16" style="border-left:3px solid #DC2626;border-radius:0 12px 12px 0">
     <div class="card-head">
       <h3 style="color:#DC2626"><i class="ti ti-credit-card"></i> Qarzdor buyurtmalar</h3>
-      <span style="font-size:11px;color:#aaa" id="debt-count-label">—</span>
+      <span style="font-size:13px;color:#aaa" id="debt-count-label">—</span>
     </div>
     <div class="card-body" style="padding:0">
       <div id="debtList" style="max-height:340px;overflow-y:auto">
@@ -391,9 +391,9 @@ async function loadProdPeriods(){
   try{
     const p = await fetch('/api/dashboard/production-periods').then(r=>r.json());
     document.getElementById('prodPeriods').innerHTML = `
-      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.today}</div><div style="font-size:11px;color:#aaa">Bugun</div></div>
-      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.week}</div><div style="font-size:11px;color:#aaa">Hafta</div></div>
-      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.month}</div><div style="font-size:11px;color:#aaa">Oy</div></div>`;
+      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.today}</div><div style="font-size:13px;color:#aaa">Bugun</div></div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.week}</div><div style="font-size:13px;color:#aaa">Hafta</div></div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--gold-dark)">${p.month}</div><div style="font-size:13px;color:#aaa">Oy</div></div>`;
   }catch(e){}
 }
 
@@ -454,7 +454,7 @@ function buildWarnList(lowStockItems){
     <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border2)">
       <div>
         <div style="font-size:12.5px;font-weight:500;color:var(--text)">${item.item_name}</div>
-        <div style="font-size:10.5px;color:var(--text3)">Kam qoldi</div>
+        <div style="font-size:12.5px;color:var(--text3)">Kam qoldi</div>
       </div>
       <span class="badge badge-danger">${item.stock_quantity} ${item.unit}</span>
     </div>`).join('');
@@ -571,14 +571,14 @@ async function loadPurchaseStats(){
             <div style="flex:1;height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden">
               <div style="height:100%;width:${pct}%;background:#2563EB;border-radius:3px"></div>
             </div>
-            <span style="font-size:10.5px;color:#aaa;white-space:nowrap">${m.quantity}${m.unit?' '+m.unit:''} · ~${fmt(m.avg_price)}/${m.unit||'dona'}</span>
+            <span style="font-size:12.5px;color:#aaa;white-space:nowrap">${m.quantity}${m.unit?' '+m.unit:''} · ~${fmt(m.avg_price)}/${m.unit||'dona'}</span>
           </div>
         </div>`;
       }).join('');
       return `
         <div style="padding:6px 16px;background:#FAFAF8;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between">
-          <span style="font-size:11.5px;font-weight:700;color:#1E40AF">${catIcons[cat]||'📦'} ${cat}</span>
-          <span style="font-size:11.5px;font-weight:700;color:#1E40AF">${fmt(g.total)} so'm</span>
+          <span style="font-size:13.5px;font-weight:700;color:#1E40AF">${catIcons[cat]||'📦'} ${cat}</span>
+          <span style="font-size:13.5px;font-weight:700;color:#1E40AF">${fmt(g.total)} so'm</span>
         </div>
         ${rows}`;
     }).join('');
@@ -605,16 +605,16 @@ async function loadDeliveryStats(){
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:13px;font-weight:600;color:#1a1a1a">${o.order_number}</span>
-            <span style="font-size:10px;background:#FEF3C7;color:#b7770d;padding:2px 6px;border-radius:8px;font-weight:600">${o.items_pending} ta detal qoldi</span>
+            <span style="font-size:12px;background:#FEF3C7;color:#b7770d;padding:2px 6px;border-radius:8px;font-weight:600">${o.items_pending} ta detal qoldi</span>
           </div>
-          <div style="font-size:11px;color:#888;margin-top:2px">${o.client_name}</div>
+          <div style="font-size:13px;color:#888;margin-top:2px">${o.client_name}</div>
           <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
             <div style="height:100%;width:${o.percent}%;background:#F59E0B;border-radius:2px"></div>
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-size:14px;font-weight:700;color:#F59E0B">${o.percent}%</div>
-          ${o.debt_amount>0?`<div style="font-size:10px;color:#DC2626;margin-top:1px">qarz ${fmt(o.debt_amount)}</div>`:''}
+          ${o.debt_amount>0?`<div style="font-size:12px;color:#DC2626;margin-top:1px">qarz ${fmt(o.debt_amount)}</div>`:''}
         </div>
       </div>`).join('');
   }catch(e){console.error('Yetkazish statistikasi:',e);}
@@ -647,17 +647,17 @@ function buildDebtList(debts){
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:13px;font-weight:600;color:#1a1a1a">${d.order_number}</span>
-          <span style="font-size:10px;color:${s[2]};font-weight:600">${s[0]} ${s[1]}</span>
-          ${d.is_overdue?'<span style="font-size:9px;background:#FEE2E2;color:#DC2626;padding:2px 6px;border-radius:8px;font-weight:600">'+d.days_passed+' kun</span>':''}
+          <span style="font-size:12px;color:${s[2]};font-weight:600">${s[0]} ${s[1]}</span>
+          ${d.is_overdue?'<span style="font-size:11px;background:#FEE2E2;color:#DC2626;padding:2px 6px;border-radius:8px;font-weight:600">'+d.days_passed+' kun</span>':''}
         </div>
-        <div style="font-size:11px;color:#888;margin-top:2px">${d.client_name} · ${d.project_name}</div>
+        <div style="font-size:13px;color:#888;margin-top:2px">${d.client_name} · ${d.project_name}</div>
         <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
           <div style="height:100%;width:${pct}%;background:${s[2]};border-radius:2px"></div>
         </div>
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-size:13px;font-weight:700;color:#DC2626">${fmt(d.debt_amount)} so'm</div>
-        <div style="font-size:10px;color:#aaa;margin-top:1px">${fmt(d.paid_amount)} / ${fmt(d.agreed_amount)}</div>
+        <div style="font-size:12px;color:#aaa;margin-top:1px">${fmt(d.paid_amount)} / ${fmt(d.agreed_amount)}</div>
       </div>
     </div>`;
   }).join('');
@@ -689,7 +689,7 @@ function buildMasterList(masters){
   el.innerHTML=masters.map((m,i)=>`
     <div class="master-item">
       <div class="master-rank ${i===0?'top':''}">${i+1}</div>
-      <div style="flex:1"><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:11px;color:#aaa">${m.orders} ta buyurtma</div></div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:13px;color:#aaa">${m.orders} ta buyurtma</div></div>
       <div style="font-size:13px;font-weight:600;color:#22C55E">${fmt(m.total)} so'm</div>
     </div>`).join('');
 }
