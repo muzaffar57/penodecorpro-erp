@@ -680,6 +680,18 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 "message": f"Qisman topshirilgan ({order.delivery_percent:.0f}%) — qolgan qism uchun xomashyo omborga qaytdi"
             }
 
+        # Buyurtma miqdori/summasi — HAQIQATDA berilgan miqdorga tushiriladi
+        fin = _crud.finalize_partial_order_quantities(db, order)
+        result["finalized"] = fin
+        msg = f"Buyurtma summasi {fin['old_total']:.0f} → {fin['new_total']:.0f} so'mga tushirildi (haqiqatda berilgan miqdorga mos)."
+        if fin["overpaid"]:
+            msg += f" ⚠️ Mijoz {fin['overpaid']:.0f} so'm ortiqcha to'lagan — QAYTARILISHI kerak!"
+        elif fin["debt"] > 0:
+            msg += f" Qarz qoldi: {fin['debt']:.0f} so'm."
+        else:
+            msg += " To'lov to'liq yopilgan."
+        result["finalized"]["message"] = msg
+
     # 3. USTA KPI
     if order.master_id:
         master = db.query(Master).filter(Master.id == order.master_id).first()
