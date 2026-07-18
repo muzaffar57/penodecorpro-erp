@@ -13,19 +13,19 @@
 .mk-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f5f5f5}
 .mk-row:last-child{border-bottom:none}
 .mk-name{font-size:13px;font-weight:600;color:#1a1a1a}
-.mk-meta{font-size:11px;color:#aaa;margin-top:2px}
+.mk-meta{font-size:13px;color:#aaa;margin-top:2px}
 .mk-inp{width:64px;height:30px;text-align:center;border:1.5px solid #e5e5e5;border-radius:6px;font-size:12px;font-weight:600;outline:none}
 .mk-inp:focus{border-color:#2563EB}
 .mk-card{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:var(--white);position:relative;transition:box-shadow .15s}
 .mk-card:hover{box-shadow:var(--shadow-card)}
 .mk-avatar{width:38px;height:38px;border-radius:10px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex-shrink:0}
-.mk-rank{position:absolute;top:-6px;left:32px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--gold);color:#fff}
-.mk-region{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text3)}
+.mk-rank{position:absolute;top:-6px;left:32px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--gold);color:#fff}
+.mk-region{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--text3)}
 .mk-filters{display:flex;gap:6px;margin-bottom:10px}
-.mk-filters input,.mk-filters select{height:30px;padding:0 8px;border:1px solid var(--border);border-radius:6px;font-size:11.5px;outline:none;flex:1}
+.mk-filters input,.mk-filters select{height:30px;padding:0 8px;border:1px solid var(--border);border-radius:6px;font-size:13.5px;outline:none;flex:1}
 .emp-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f5f5f5}
 .emp-row:last-child{border-bottom:none}
-.emp-tag{font-size:9.5px;padding:2px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
+.emp-tag{font-size:11.5px;padding:2px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
 .mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:13px;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mini-btn:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
 </style>
@@ -69,7 +69,7 @@
         </div>
       </div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#1E40AF;line-height:1.6">
+        <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:#1E40AF;line-height:1.6">
           💡 KPI% × yillik <b>sof foyda</b> = yil oxiri sovg'a (sotuv summasidan emas). Har oy tegishli ulushi avtomatik xarajat sifatida yoziladi.
         </div>
         <div class="mk-filters">
@@ -85,7 +85,7 @@
         </div>
         <div id="mkInactiveWrap" style="display:none;margin-top:6px">
           <button onclick="toggleInactiveMasters()" id="mkInactiveBtn"
-                  style="background:none;border:none;color:#999;font-size:11.5px;cursor:pointer;padding:6px 0">
+                  style="background:none;border:none;color:#999;font-size:13.5px;cursor:pointer;padding:6px 0">
             ▼ Nofaol ustalarni ko'rsatish
           </button>
           <div id="mkInactiveList" style="display:none"></div>
@@ -97,7 +97,7 @@
     <div class="card">
       <div class="card-head"><h3>👷 Hodimlar (moslashuvchan to'lov)</h3></div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:#EFF6FF;border:1px solid #AED6F1;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:11px;color:#1a6fa8;line-height:1.6">
+        <div style="background:#EFF6FF;border:1px solid #AED6F1;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:#1a6fa8;line-height:1.6">
           💡 Har hodimga alohida to'lov turi belgilanadi. Oylik hisob-kitobda avtomatik hisoblanib, Moliya bo'limidagi xarajatga qo'shiladi.
         </div>
         <div id="empList">
@@ -208,7 +208,7 @@
     <div class="form-group" id="e-coating-wrap" style="display:none">
       <label>1 metr/dona uchun qo'shimcha (qoplangan detallardan)</label>
       <input type="number" id="e-coatingrate" placeholder="1000" min="0" value="1000">
-      <div style="font-size:11px;color:#aaa;margin-top:4px">Tizim buyurtmalardagi qoplamali profil/panel metrini va donali detallar sonini avtomatik hisoblab, shu narxga ko'paytiradi.</div>
+      <div style="font-size:13px;color:#aaa;margin-top:4px">Tizim buyurtmalardagi qoplamali profil/panel metrini va donali detallar sonini avtomatik hisoblab, shu narxga ko'paytiradi.</div>
     </div>
 
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes" placeholder="..."></div>
@@ -296,18 +296,18 @@ function renderMasterKpiList() {
         <div class="mk-name">${m.name}</div>
         <div class="mk-meta">
           Sotuv: ${fmt(m.yearly_sales)} · Foyda: <b style="color:#8E44AD">${fmt(m.yearly_profit)}</b> · ${m.orders_count} ta
-          ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:10px"></i> ${m.region}</span>` : ''}
+          ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${m.region}</span>` : ''}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:5px">
         <input class="mk-inp" type="number" step="0.5" min="0" max="100"
                value="${m.kpi_percent}" id="mk-${m.id}"
                onchange="saveMasterKpi(${m.id})">
-        <span style="font-size:11px;color:#aaa">%</span>
+        <span style="font-size:13px;color:#aaa">%</span>
       </div>
       <div style="text-align:right;min-width:90px">
         <div style="font-size:13px;font-weight:700;color:#22C55E">${fmt(m.gift_amount)}</div>
-        <div style="font-size:9.5px;color:#bbb">sovg'a</div>
+        <div style="font-size:11.5px;color:#bbb">sovg'a</div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
         <button class="mini-btn" onclick="openMasterDetail(${m.id}, '${m.name.replace(/'/g,"&apos;")}')" title="Har buyurtma bo'yicha KPI"><i class="ti ti-list-details" style="font-size:13px"></i></button>
@@ -373,7 +373,7 @@ async function openMasterDetail(id, name) {
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
         <div>
           <div style="font-size:13px;font-weight:600;color:var(--text)">${r.order_number || ('#'+r.order_id)}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">${dt} · Savdo: ${fmt(r.total_amount)} · Foyda: ${fmt(r.profit)}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">${dt} · Savdo: ${fmt(r.total_amount)} · Foyda: ${fmt(r.profit)}</div>
         </div>
         <div style="font-size:14px;font-weight:700;color:#22C55E;white-space:nowrap">+${fmt(r.kpi_amount)}</div>
       </div>`;
@@ -518,11 +518,11 @@ async function loadEmployees() {
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:13px;font-weight:600;color:#1a1a1a">${e.name}</span>
-            ${e.position ? `<span style="font-size:10.5px;color:#aaa">${e.position}</span>` : ''}
+            ${e.position ? `<span style="font-size:12.5px;color:#aaa">${e.position}</span>` : ''}
           </div>
           <div style="margin-top:3px">
             <span class="emp-tag" style="background:${PAY_COLORS[e.pay_type]}15;color:${PAY_COLORS[e.pay_type]}">${PAY_LABELS[e.pay_type]}</span>
-            <span style="font-size:11px;color:#888;margin-left:6px">${detail}</span>
+            <span style="font-size:13px;color:#888;margin-left:6px">${detail}</span>
           </div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
