@@ -122,8 +122,8 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
 
 
 def get_inventory(db: Session) -> List[Inventory]:
-    """Barcha xomashyo ro'yxatini qaytaradi."""
-    return db.query(Inventory).order_by(Inventory.item_name).all()
+    """Barcha xomashyo ro'yxatini qaytaradi (o'chirilganlar bundan mustasno)."""
+    return db.query(Inventory).filter(Inventory.is_deleted == False).order_by(Inventory.item_name).all()
 
 
 def get_item(db: Session, item_id: int) -> Optional[Inventory]:
@@ -357,14 +357,32 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
     return db_item
 
 
-def delete_item(db: Session, item_id: int) -> bool:
-    """Xomashyoni o'chiradi."""
+def delete_item(db: Session, item_id: int) -> dict:
+    """Xomashyoni o'chiradi.
+    Agar bu xomashyo biror buyurtma/harakat/xarid tarixida ISHLATILGAN bo'lsa —
+    bazadan butunlay o'chirib bo'lmaydi (eski hisobotlar buziladi). Shunday holatda
+    XAVFSIZ tarzda 'yumshoq o'chirish' qilinadi — Omborxona ro'yxatidan yo'qoladi,
+    lekin eski buyurtmalarda ko'rinishda davom etadi."""
+    from sqlalchemy.exc import IntegrityError
+
     db_item = get_item(db, item_id)
     if not db_item:
-        return False
-    db.delete(db_item)
-    db.commit()
-    return True
+        return {"success": False, "message": "Xomashyo topilmadi"}
+
+    try:
+        db.delete(db_item)
+        db.commit()
+        return {"success": True, "soft": False, "message": "Xomashyo butunlay o'chirildi"}
+    except IntegrityError:
+        db.rollback()
+        db_item = get_item(db, item_id)
+        db_item.is_deleted = True
+        db.commit()
+        return {
+            "success": True, "soft": True,
+            "message": "Bu xomashyo eski buyurtma/harakatlarda ishlatilgan — butunlay o'chirib bo'lmadi. "
+                       "Shuning uchun ro'yxatdan YASHIRILDI (eski hisobotlar buzilmasligi uchun)."
+        }
 
 
 def get_low_stock_items(db: Session) -> List[Inventory]:
