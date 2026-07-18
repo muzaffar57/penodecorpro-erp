@@ -1447,7 +1447,7 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=
         elif has_delivery:
             reason = f"Mahsulot topshirila boshlagan ({len(order.deliveries)} ta yuk xati) — xomashyo qaytmaydi"
 
-    if not crud.delete_order(db, order_id):
+    if not crud.delete_order(db, order_id, soft=not can_return):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
     if log:
@@ -1455,7 +1455,8 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=
     else:
         print(f"✓ {order_num} o'chirildi. Xomashyo qaytmadi: {reason}")
 
-    return {"status": "ok", "inventory_log": log, "returned": can_return, "reason": reason}
+    return {"status": "ok", "inventory_log": log, "returned": can_return, "reason": reason,
+            "soft_deleted": not can_return}
 
 
 @app.delete("/api/order-items/{item_id}")
