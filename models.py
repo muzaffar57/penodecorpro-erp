@@ -259,7 +259,8 @@ class Order(Base):
     agreed_amount = Column(Numeric(12, 2), default=0)      # Kelishilgan summa (chegirmadan keyin)
     discount_percent = Column(Float, default=0.0)
     payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.UNPAID, nullable=False)
-    is_archived = Column(Boolean, default=False)           # Arxivga o'tdimi
+    is_archived = Column(Boolean, default=False)           # Arxivga o'tdimi (to'lov to'liq yopilganda)
+    is_deleted = Column(Boolean, default=False)             # "O'chirilgan" — lekin KPI/hisobot uchun saqlanadi
 
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True)
     master = relationship("Master", back_populates="orders")
