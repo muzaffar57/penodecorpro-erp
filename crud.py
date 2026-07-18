@@ -1801,12 +1801,17 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
             loy_kg = float(getattr(nd, 'termo_loy_kg', None) or 0)
             base_notes = re.sub(r'\s*\[TERMO:[^\]]+\]', '', oi.notes or '').strip()
             parts = []
+            serp_ratio, kley_ratio = 2.0, 0.8
             if bazalt_id:
                 b = db.query(Inventory).filter(Inventory.id == bazalt_id).first()
                 area = float(b.volume_per_unit or 0.72) if b else 0.72
                 sheets = float(oi.quantity or 0) / area if area else 0
                 parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
-            serp_m2 = float(oi.quantity or 0) * 2
+                if b and b.serp_ratio_per_m2:
+                    serp_ratio = float(b.serp_ratio_per_m2)
+                if b and b.kley_ratio_per_m2:
+                    kley_ratio = float(b.kley_ratio_per_m2)
+            serp_m2 = float(oi.quantity or 0) * serp_ratio
             s = services.find_serpiyanka(db)
             if s:
                 area = float(s.volume_per_unit or 50.0)
@@ -1814,8 +1819,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
                 parts.append(f"serp_id={s.id},serp_qty={rulon:.4f}")
             k = services.find_kley(db)
             if k:
-                kley_ratio = float(k.volume_per_unit or 0.4)
-                kley_kg = serp_m2 * kley_ratio
+                kley_kg = float(oi.quantity or 0) * kley_ratio
                 parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
             if loy_kg > 0:
                 parts.append(f"loy_kg={loy_kg:.4f}")
@@ -2160,25 +2164,25 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     if float(bazalt.stock_quantity) < sheets_needed:
         shortages.append(f"{bazalt.item_name}: kerak {sheets_needed:.2f} dona, qoldi {float(bazalt.stock_quantity):.2f} dona")
 
-    # 2) Serpiyanka — ikkala tomonga (old+orqa) yopishtiriladi, shuning uchun 2×.
-    # Omborda yagona turi deb hisoblanadi — avtomatik topiladi (tanlash shart emas).
+    # 2) Serpiyanka — bazaltning o'zida saqlangan nisbat bo'yicha (standart: 2×, ikkala tomon)
     serpiyanka = services.find_serpiyanka(db, lock=True)
     if not serpiyanka:
         return {"success": False, "message": "Serpiyanka ombordan topilmadi (nomida 'serpiyanka' so'zi bo'lishi kerak)"}
     serp_area_per_rulon = float(serpiyanka.volume_per_unit or 50.0)  # m² — 1 rulondan
-    serp_area_needed = required_m2 * 2
+    serp_ratio = float(bazalt.serp_ratio_per_m2) if bazalt.serp_ratio_per_m2 else 2.0
+    serp_area_needed = required_m2 * serp_ratio
     rulon_needed = serp_area_needed / serp_area_per_rulon
     if float(serpiyanka.stock_quantity) < rulon_needed:
         shortages.append(f"{serpiyanka.item_name}: kerak {rulon_needed:.2f} rulon, qoldi {float(serpiyanka.stock_quantity):.2f} rulon")
 
-    # 3) Kley — serpiyanka yuzasiga nisbatan (kg/m²) avtomatik hisoblanadi
+    # 3) Kley — bazaltning o'zida saqlangan nisbat bo'yicha (1 m² bazaltga necha kg)
     kley = services.find_kley(db, lock=True)
     kley_kg = 0.0
     if not kley:
         shortages.append("Kley ombordan topilmadi (nomi 'kley' so'zini o'z ichiga olishi kerak)")
     else:
-        kley_ratio = float(kley.volume_per_unit or 0.4)  # kg/m² — Omborxonada tahrirlanadi
-        kley_kg = serp_area_needed * kley_ratio
+        kley_ratio = float(bazalt.kley_ratio_per_m2) if bazalt.kley_ratio_per_m2 else 0.8
+        kley_kg = required_m2 * kley_ratio
         if float(kley.stock_quantity) < kley_kg:
             shortages.append(f"{kley.item_name}: kerak {kley_kg:.2f} kg, qoldi {float(kley.stock_quantity):.2f} kg")
 
