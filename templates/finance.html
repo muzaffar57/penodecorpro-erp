@@ -144,31 +144,8 @@
 
   <div class="fin-grid">
 
-    <!-- Xarajat kiritish -->
-    <div class="card" id="expenseFormCard">
-      <div class="card-head"><h3>Xarajatlarni kiritish</h3><button class="btn btn-green btn-sm" onclick="saveExpense()"><i class="ti ti-device-floppy" style="vertical-align:-2px"></i> Saqlash</button></div>
-      <div class="card-body">
-        <div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px">Doimiy xarajatlar</div>
-        <div class="form-row-3">
-          <div class="form-group" style="margin-bottom:10px"><label>Arenda</label><input type="number" id="f-arenda" placeholder="0" min="0"></div>
-          <div class="form-group" style="margin-bottom:10px"><label>Elektr</label><input type="number" id="f-elektr" placeholder="0" min="0"></div>
-          <div class="form-group" style="margin-bottom:10px"><label>Tushlik</label><input type="number" id="f-tushlik" placeholder="0" min="0"></div>
-        </div>
-        <div class="form-group" style="margin-bottom:10px">
-          <label>Soliqlar (jami, qo'lda kiritiladi)</label>
-          <input type="number" id="f-soliqlar" placeholder="0" min="0">
-        </div>
-
-        <div style="background:var(--gold-tint);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:14px;font-size:12px;color:var(--gold-dark);line-height:1.6">
-          <i class="ti ti-info-circle"></i> Hodimlar oyliqi va usta KPI endi <b>Ustalar KPI / Hodimlar</b> bo'limida boshqariladi —
-          u yerda har hodimga alohida to'lov turi (oylik, sotuvdan %, foydadan %, birlik uchun) belgilanadi.
-        </div>
-        <div class="form-group" style="margin-top:12px"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
-      </div>
-    </div>
-
     <!-- Xarajat tafsiloti -->
-    <div class="card">
+    <div class="card" id="expenseFormCard">
       <div class="card-head"><h3>Xarajatlar tafsiloti</h3></div>
       <div class="card-body">
         <div id="expDetail"><div style="text-align:center;color:var(--text3);padding:20px">Ma'lumot yo'q</div></div>
@@ -182,43 +159,8 @@
 
   </div>
 
-  <!-- TAB TUGMALARI -->
-  <div style="display:flex;gap:8px;margin-bottom:14px" class="no-print">
-    <button class="btn btn-dark btn-sm" id="tabBtnMonthly" onclick="switchFinTab('monthly')">Oylik ko'rinish</button>
-    <button class="btn btn-outline btn-sm" id="tabBtnDaily" onclick="switchFinTab('daily')">Kunlik tranzaksiyalar</button>
-  </div>
-
-  <!-- XARAJATLAR TARIXI -->
-  <div class="card mt-16" id="tabMonthly">
-    <div class="card-head">
-      <h3>Moliyaviy tarix (oylar bo'yicha)</h3>
-      <div style="display:flex;gap:6px" class="no-print">
-        <button class="btn btn-outline btn-sm" onclick="exportCSV()"><i class="ti ti-file-spreadsheet" style="vertical-align:-2px"></i> Excel</button>
-        <button class="btn btn-outline btn-sm" onclick="window.print()"><i class="ti ti-file-type-pdf" style="vertical-align:-2px"></i> PDF</button>
-        <button class="btn btn-outline btn-sm" onclick="window.print()"><i class="ti ti-printer" style="vertical-align:-2px"></i> Chop etish</button>
-      </div>
-    </div>
-    <div class="card-body">
-      <div class="fin-filters no-print">
-        <input type="text" id="hist-search" placeholder="Oy nomi bo'yicha qidirish..." oninput="renderHistory()" style="min-width:200px">
-        <select id="hist-sort" onchange="renderHistory()">
-          <option value="date_desc">Yangidan eskiga</option>
-          <option value="date_asc">Eskidan yangiga</option>
-          <option value="profit_desc">Foyda (ko'pdan-kamga)</option>
-        </select>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="hist-table">
-          <thead><tr><th>Oy</th><th>Daromad</th><th>Xarajat</th><th>Sof foyda</th><th>Rentabellik</th><th>Buyurtmalar</th></tr></thead>
-          <tbody id="hist-body"><tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</td></tr></tbody>
-        </table>
-      </div>
-      <div id="hist-pagination" style="display:flex;justify-content:center;gap:6px;margin-top:14px" class="no-print"></div>
-    </div>
-  </div>
-
   <!-- KUNLIK TRANZAKSIYALAR -->
-  <div class="card mt-16" id="tabDaily" style="display:none">
+  <div class="card mt-16" id="tabDaily">
     <div class="card-head">
       <h3>Kunlik xarajat tranzaksiyalari</h3>
       <button class="btn btn-dark btn-sm" onclick="openTxModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Xarajat qo'shish</button>
@@ -326,16 +268,12 @@ async function loadReport(){
   }
 
   const x=d.xarajatlar;
-  document.getElementById('f-arenda').value=x.arenda||'';
-  document.getElementById('f-elektr').value=x.elektr||'';
-  document.getElementById('f-tushlik').value=x.tushlik||'';
-  document.getElementById('f-soliqlar').value=x.soliqlar||'';
-  document.getElementById('f-notes').value=x.notes||'';
   buildExpDetail(d);
   buildCashSection(d);
   buildDonut(d);
   buildCashFlowCard(d);
   loadHistory();
+  initDailyTx();
 }
 
 function buildDonut(d){
@@ -447,20 +385,8 @@ function buildExpDetail(d){
   document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
 }
 
-async function saveExpense(){
-  if(!currentData){alert('Avval oyni tanlang!');return;}
-  const month=document.getElementById('sel-month').value;
-  const year=document.getElementById('sel-year').value;
-  const data={
-    arenda:parseFloat(document.getElementById('f-arenda').value)||0,
-    elektr:parseFloat(document.getElementById('f-elektr').value)||0,
-    tushlik:parseFloat(document.getElementById('f-tushlik').value)||0,
-    soliqlar:parseFloat(document.getElementById('f-soliqlar').value)||0,
-    notes:document.getElementById('f-notes').value||''
-  };
-  const res=await fetch(`/api/finance/expense?year=${year}&month=${month}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  if(res.ok){alert('✓ Saqlandi!');loadReport();}else alert('Xato');
-}
+// (Eski "Xarajatlarni kiritish" formasi va saveExpense() olib tashlandi —
+// endi barcha xarajatlar "Kunlik tranzaksiyalar" orqali kiritiladi)
 
 // ── TARIX, GRAFIK, JADVAL, EKSPORT ─────────────────────────
 async function loadHistory(){
@@ -468,8 +394,6 @@ async function loadHistory(){
     const res = await fetch('/api/finance/history?months=12');
     historyData = await res.json();
     buildTrendChart(historyData);
-    historyPage = 1;
-    renderHistory();
   }catch(e){ console.error('Tarixni yuklashda xato:', e); }
 }
 
@@ -490,71 +414,14 @@ function buildTrendChart(hist){
   });
 }
 
-function renderHistory(){
-  const q = (document.getElementById('hist-search').value||'').trim().toLowerCase();
-  const sort = document.getElementById('hist-sort').value;
-  let rows = historyData.filter(h => !q || MONTH_NAMES[h.month].toLowerCase().includes(q) || String(h.year).includes(q));
-
-  if (sort === 'date_asc') rows = [...rows];
-  else if (sort === 'date_desc') rows = [...rows].reverse();
-  else if (sort === 'profit_desc') rows = [...rows].sort((a,b)=>b.sof_foyda-a.sof_foyda);
-
-  const totalPages = Math.max(1, Math.ceil(rows.length / HIST_PAGE_SIZE));
-  if (historyPage > totalPages) historyPage = totalPages;
-  const pageRows = rows.slice((historyPage-1)*HIST_PAGE_SIZE, historyPage*HIST_PAGE_SIZE);
-
-  const tbody = document.getElementById('hist-body');
-  if (!pageRows.length){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Ma\'lumot topilmadi</td></tr>';
-  } else {
-    tbody.innerHTML = pageRows.map(h => `
-      <tr>
-        <td style="font-weight:500">${MONTH_NAMES[h.month]} ${h.year}</td>
-        <td style="color:#22C55E">${fmtFull(h.daromad)} so'm</td>
-        <td style="color:#EF4444">${fmtFull(h.jami_xarajat)} so'm</td>
-        <td style="font-weight:600;color:${h.sof_foyda>=0?'#8E44AD':'#EF4444'}">${fmtFull(h.sof_foyda)} so'm</td>
-        <td>${h.foyda_foiz}%</td>
-        <td>${h.buyurtmalar_soni} ta</td>
-      </tr>`).join('');
-  }
-
-  const pag = document.getElementById('hist-pagination');
-  if (totalPages <= 1) { pag.innerHTML = ''; return; }
-  let html = '';
-  for (let p=1; p<=totalPages; p++){
-    html += `<button class="btn btn-outline btn-xs" style="${p===historyPage?'background:var(--gold);color:#fff;border-color:var(--gold)':''}" onclick="historyPage=${p};renderHistory()">${p}</button>`;
-  }
-  pag.innerHTML = html;
+// ── KUNLIK TRANZAKSIYALARNI BOSHLASH ────────────────────────
+function initDailyTx(){
+  const y = document.getElementById('sel-year').value, m = document.getElementById('sel-month').value;
+  document.getElementById('tx-date').value = `${y}-${String(m).padStart(2,'0')}-01`;
+  loadDailyTransactions();
 }
 
-function exportCSV(){
-  if (!historyData.length) { alert('Avval ma\'lumot yuklanishini kuting'); return; }
-  let csv = 'Oy;Daromad;Xarajat;Sof foyda;Rentabellik;Buyurtmalar\n';
-  historyData.forEach(h=>{
-    csv += `${MONTH_NAMES[h.month]} ${h.year};${h.daromad};${h.jami_xarajat};${h.sof_foyda};${h.foyda_foiz}%;${h.buyurtmalar_soni}\n`;
-  });
-  const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'moliyaviy_tarix.csv'; a.click();
-  URL.revokeObjectURL(url);
-}
-
-// ── TAB ALMASHTIRISH ────────────────────────────────────────
-function switchFinTab(tab){
-  const isMonthly = tab === 'monthly';
-  document.getElementById('tabMonthly').style.display = isMonthly ? 'block' : 'none';
-  document.getElementById('tabDaily').style.display = isMonthly ? 'none' : 'block';
-  document.getElementById('tabBtnMonthly').className = 'btn btn-sm ' + (isMonthly ? 'btn-dark' : 'btn-outline');
-  document.getElementById('tabBtnDaily').className = 'btn btn-sm ' + (isMonthly ? 'btn-outline' : 'btn-dark');
-  if (!isMonthly) {
-    const y = document.getElementById('sel-year').value, m = document.getElementById('sel-month').value;
-    document.getElementById('tx-date').value = `${y}-${String(m).padStart(2,'0')}-01`;
-    loadDailyTransactions();
-  }
-}
-
-const CAT_LABELS = {arenda:'Arenda', elektr:'Elektr', tushlik:'Tushlik', soliqlar:'Soliqlar', boshqa:'Boshqa'};
+const CAT_LABELS = {arenda:'Arenda', elektr:'Elektr', tushlik:'Tushlik', soliqlar:'Soliqlar', reklama:'Reklama', kutilmagan:'Kutilmagan xarajat', boshqa:'Boshqa'};
 const SOURCE_LABELS = {monthly_form:'Oylik forma', manual:'Qo\'lda kiritilgan'};
 
 async function loadDailyTransactions(){
