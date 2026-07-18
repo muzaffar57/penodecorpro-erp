@@ -749,6 +749,8 @@ function updatePenoWarn(row) {
 }
 
 // ── Yordamchi funksiyalar ─────────────────────────────────
+function fpUnitLabel(u) { return u === 'metr' ? 'm' : (u === 'kvadrat' ? 'm²' : 'ta'); }
+
 function formatNum(num) {
   if (!num || isNaN(num)) return '0';
   return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -844,7 +846,12 @@ function pickFinished(el, fpId) {
   // Maydonlarni to'ldiramiz
   row.querySelector('.i-name').value = fp.name;
   const typeEl = row.querySelector('.i-type');
-  if (typeEl) { typeEl.value = fp.category || 'profil'; toggleFields(row); }
+  // Forma faqat profil/panel/dona/blok turlarini biladi — boshqa (masalan
+  // "termopanel" kabi kvadrat metr bo'yicha o'lchanadigan) kategoriyalar
+  // xavfsiz tarzda "dona" rejimida ko'rsatiladi (miqdor + narx maydoni bilan).
+  const knownTypes = ['profil', 'panel', 'dona', 'blok'];
+  const effectiveType = knownTypes.includes(fp.category) ? fp.category : 'dona';
+  if (typeEl) { typeEl.value = effectiveType; toggleFields(row); }
   if (fp.width) row.querySelector('.i-h').value = fp.width;
   if (fp.thickness) {
     const t = (fp.category === 'panel') ? row.querySelector('.i-t') : row.querySelector('.i-w');
@@ -875,7 +882,7 @@ function pickFinished(el, fpId) {
   if (badge && !badge.querySelector('.fp-tag')) {
     badge.insertAdjacentHTML('afterend', `
       <span class="fp-tag" id="fptag-${row.id}">
-        🏭 Tayyor mahsulotdan · ${fp.quantity} ${fp.unit} bor
+        🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor
         <button onclick="clearFinished('${row.id}')" title="Bekor qilish">✕</button>
       </span>`);
   }
@@ -899,7 +906,7 @@ function pickFinished(el, fpId) {
   if (qEl) qEl.focus();
 
   calculateItem(row);
-  showMsg(`🏭 ${fp.name} — tayyor mahsulotdan olinadi (${fp.quantity} ${fp.unit} bor)`, 'success');
+  showMsg(`🏭 ${fp.name} — tayyor mahsulotdan olinadi (${fp.quantity} ${fpUnitLabel(fp.unit)} bor)`, 'success');
 }
 
 function clearFinished(rowId) {
@@ -2525,7 +2532,7 @@ async function editSelected() {
               const used = (item.category === 'profil') ? (item.length||0) : (item.quantity||0);
               row.dataset.fpMax = fp.quantity + used;
               const tg = document.getElementById('fptag-' + row.id);
-              if (tg) tg.firstChild.textContent = `🏭 Tayyor mahsulotdan · ${fp.quantity} ${fp.unit} bor `;
+              if (tg) tg.firstChild.textContent = `🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor `;
             }
           }).catch(()=>{});
         }
