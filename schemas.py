@@ -57,20 +57,6 @@ class MasterUpdate(BaseModel):
 # INVENTORY (Omborxona)
 # ============================================================
 
-class InventoryCreate(BaseModel):
-    """Yangi xomashyo qo'shish uchun."""
-    item_name: str = Field(..., min_length=2, max_length=100)
-    stock_quantity: float = Field(default=0.0, ge=0)
-    unit: str = Field(..., description="O'lchov birligi: kg, litr, dona, m")
-    min_stock: float = Field(default=0.0, ge=0)
-    price_per_unit: Optional[float] = None
-    volume_per_unit: float = Field(default=1.0, gt=0, description="Blok hajmi (m³)")
-    is_penoplast: bool = Field(default=False, description="Penoplast (plotnost) turimi")
-    is_default_penoplast: bool = Field(default=False, description="Asosiy plotnost")
-    category: Optional[str] = None
-    notes: Optional[str] = None
-
-
 class InventoryRead(BaseModel):
     """Xomashyoni ko'rish uchun."""
     id: int
@@ -86,8 +72,26 @@ class InventoryRead(BaseModel):
     last_updated: datetime
     notes: Optional[str] = None
     image_url: Optional[str] = None
+    serp_ratio_per_m2: Optional[float] = None
+    kley_ratio_per_m2: Optional[float] = None
 
     model_config = {"from_attributes": True}
+
+
+class InventoryCreate(BaseModel):
+    """Yangi xomashyo qo'shish uchun."""
+    item_name: str = Field(..., min_length=2, max_length=100)
+    stock_quantity: float = Field(default=0.0, ge=0)
+    unit: str = Field(..., description="O'lchov birligi: kg, litr, dona, m")
+    min_stock: float = Field(default=0.0, ge=0)
+    price_per_unit: Optional[float] = None
+    volume_per_unit: float = Field(default=1.0, gt=0, description="Blok hajmi (m³)")
+    is_penoplast: bool = Field(default=False, description="Penoplast (plotnost) turimi")
+    is_default_penoplast: bool = Field(default=False, description="Asosiy plotnost")
+    category: Optional[str] = None
+    notes: Optional[str] = None
+    serp_ratio_per_m2: Optional[float] = Field(default=None, description="Bazalt uchun: 1 m² bazaltga necha m² serpiyanka")
+    kley_ratio_per_m2: Optional[float] = Field(default=None, description="Bazalt uchun: 1 m² bazaltga necha kg kley")
 
 
 class InventoryUpdate(BaseModel):
@@ -102,6 +106,8 @@ class InventoryUpdate(BaseModel):
     is_default_penoplast: Optional[bool] = None
     category: Optional[str] = None
     notes: Optional[str] = None
+    serp_ratio_per_m2: Optional[float] = None
+    kley_ratio_per_m2: Optional[float] = None
 
 
 class StockChange(BaseModel):
