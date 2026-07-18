@@ -1148,12 +1148,17 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     check = services.check_inventory_for_order(db, order)
     if not check["enough"]:
         raise HTTPException(status_code=400, detail={"success": False, "message": "Xomashyo yetishmayapti!", "shortages": check["shortages"]})
+    # Termopanel (bazalt) uchun ham tekshiramiz
+    tcheck = services.check_termopanel_for_order(db, order)
+    if not tcheck["enough"]:
+        raise HTTPException(status_code=400, detail={"success": False, "message": "Bazalt xomashyosi yetishmayapti!", "shortages": tcheck["shortages"]})
     # Tayyor mahsulot yetadimi
     fcheck = crud.check_finished_for_order(db, order.items)
     if not fcheck["enough"]:
         raise HTTPException(status_code=400, detail={"success": False, "message": "Tayyor mahsulot yetishmayapti!", "shortages": fcheck["shortages"]})
     new_order = crud.create_order(db, order)
     services.deduct_inventory_for_order(db, new_order)
+    services.deduct_termopanel_for_order(db, new_order, order)
     low_items = crud.get_low_stock_items(db)
     if low_items:
         lines = []
@@ -1396,6 +1401,9 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=
     if can_return:
         # 1) Penoplast qaytadi
         log.extend(services.return_inventory_for_order(db, order))
+
+        # 1a) Termopanel (bazalt/serpiyanka/kley) qaytadi
+        log.extend(services.return_termopanel_for_order(db, order))
 
         # 1b) Tayyor mahsulotlar qaytadi
         log.extend(crud._return_finished_for_order(db, order))
