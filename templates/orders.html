@@ -2997,22 +2997,28 @@ async function deleteSelected() {
       orderNum = o.order_number || selectedOrderId;
       const hasDelivery = (o.deliveries?.length || 0) > 0;
 
+      let isSoftCase = false;
       if (o.is_draft) {
-        info = '\n\n📝 Qoralama — ombordan hech narsa yechilmagan edi.';
+        info = '\n\n📝 Qoralama — ombordan hech narsa yechilmagan edi. Butunlay o\'chiriladi.';
       } else if (o.status === 'ready') {
-        info = '\n\n⚠️ Buyurtma TAYYOR — mahsulot ishlab chiqarilgan.\n   Xomashyo omborga QAYTARILMAYDI!';
+        info = '\n\n⚠️ Buyurtma TAYYOR — mahsulot ishlab chiqarilgan.\n   Xomashyo omborga QAYTARILMAYDI!\n   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.';
+        isSoftCase = true;
       } else if (o.status === 'delivered') {
-        info = '\n\n⚠️ Buyurtma YETKAZILGAN — mahsulot mijozda.\n   Xomashyo omborga QAYTARILMAYDI!';
+        info = '\n\n⚠️ Buyurtma YETKAZILGAN — mahsulot mijozda.\n   Xomashyo omborga QAYTARILMAYDI!\n   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.';
+        isSoftCase = true;
       } else if (hasDelivery) {
-        info = `\n\n⚠️ Mahsulot topshirila boshlagan (${o.deliveries.length} ta yuk xati).\n   Xomashyo omborga QAYTARILMAYDI!`;
+        info = `\n\n⚠️ Mahsulot topshirila boshlagan (${o.deliveries.length} ta yuk xati).\n   Xomashyo omborga QAYTARILMAYDI!\n   ℹ️ Buyurtma "Buyurtmalar" ro'yxatidan yo'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.`;
+        isSoftCase = true;
       } else {
-        info = '\n\n♻️ Xomashyo (penoplast va loy) omborga qaytariladi.';
+        info = '\n\n♻️ Xomashyo (penoplast va loy) omborga qaytariladi. Butunlay o\'chiriladi.';
       }
 
       if (o.paid_amount > 0) {
-        info += `\n\n💰 Diqqat! ${formatNum(o.paid_amount)} so'm to'lov qilingan — to'lovlar ham o'chadi.`;
+        info += isSoftCase
+          ? `\n\n💰 ${formatNum(o.paid_amount)} so'm to'lov — hisobotlar uchun saqlanib qoladi.`
+          : `\n\n💰 Diqqat! ${formatNum(o.paid_amount)} so'm to'lov qilingan — to'lovlar ham o'chadi.`;
       }
-      if (hasDelivery) {
+      if (hasDelivery && !isSoftCase) {
         info += `\n📦 ${o.deliveries.length} ta yuk xati ham o'chadi.`;
       }
     }
