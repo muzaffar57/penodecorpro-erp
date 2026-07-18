@@ -1494,6 +1494,62 @@ def _parse_termo_note(notes, key, is_float=False):
         return None
 
 
+def finalize_partial_order_quantities(db: Session, order) -> dict:
+    """Buyurtma QISMAN topshirilgan holatda yakunlanganda —
+    har bir detalning miqdorini (va narxini) HAQIQATDA berilgan
+    miqdorga moslab qisqartiradi. Boshida yozilgan (lekin berilmagan)
+    ortiqcha miqdor — buyurtma yozuvidan ham olib tashlanadi.
+
+    Keyin: jami summa qayta hisoblanadi, to'langan pul bilan solishtiriladi —
+    ortiqcha to'lov bo'lsa 'qaytarilishi kerak' deb belgilanadi,
+    yetmasa — oddiy qarz sifatida qoladi (avtomatik, debt_amount orqali)."""
+    import re as _re
+
+    for item in order.items:
+        ordered = item.order_qty_normalized
+        if ordered <= 0:
+            continue
+        delivered = item.delivered_qty
+        fraction = min(delivered / ordered, 1.0)
+
+        old_total = float(item.total_price or 0)
+        new_total = round(old_total * fraction, 2)
+
+        cat = (item.category or '').lower()
+        if cat == 'profil':
+            item.length = delivered
+        else:
+            item.quantity = delivered
+        item.total_price = new_total
+
+    new_total_amount = round(sum(float(i.total_price or 0) for i in order.items), 2)
+    old_total_amount = float(order.total_amount or 0)
+    order.total_amount = new_total_amount
+
+    discount_pct = float(order.discount_percent or 0)
+    new_agreed = round(new_total_amount * (1 - discount_pct / 100), 2)
+    order.agreed_amount = new_agreed
+
+    paid = order.paid_amount
+    overpaid = None
+    if paid > new_agreed + 1:
+        overpaid = round(paid - new_agreed, 2)
+        base_notes = _re.sub(r'\s*\[OVERPAID:[\d.]+\]', '', order.notes or '').strip()
+        order.notes = (base_notes + f" [OVERPAID:{overpaid}]").strip()
+
+    db.commit()
+    db.refresh(order)
+
+    return {
+        "old_total": old_total_amount,
+        "new_total": new_total_amount,
+        "new_agreed": new_agreed,
+        "paid": paid,
+        "overpaid": overpaid,
+        "debt": order.debt_amount
+    }
+
+
 def get_termopanel_planned_loy(order) -> float:
     """Buyurtmadagi barcha termopanel detallarining rejalashtirilgan
     (yaratishda kiritilgan) loy miqdorini yig'indisini qaytaradi."""
