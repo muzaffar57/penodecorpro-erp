@@ -1385,8 +1385,10 @@ def api_mark_all_ready(loy_kg: Optional[float] = None, db: Session = Depends(get
 
 
 @app.delete("/api/orders/{order_id}")
-def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Buyurtmani o'chirish — xomashyo omborga qaytariladi."""
+def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Buyurtmani o'chirish — xomashyo omborga qaytariladi.
+    actual_loy_kg — agar berilsa, rejalashtirilgan loy bilan solishtirilib,
+    ortgan qismi omborga qaytariladi (xuddi buyurtma yakunlanganidagi kabi)."""
     order = crud.get_order(db, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
@@ -1416,25 +1418,20 @@ def api_delete_order(order_id: int, db: Session = Depends(get_db), current_user=
         if not has_delivery:
             log.extend(crud._return_finished_for_order(db, order))
 
-        # Loy ingredientlari qaytadi — faqat hech narsa topshirilmagan bo'lsa
-        # (qisman topshirilganda loy allaqachon aralashtirilgan/ishlatilgan
-        # bo'lishi mumkin, aniq qaysi qismga tegishli ekanini bilib bo'lmaydi)
-        if not has_delivery:
-            loy_kg = 0.0
-            if order.notes:
-                for part in str(order.notes).split(','):
-                    p = part.strip()
-                    if p.startswith('loy_kg='):
-                        try:
-                            loy_kg = float(p.split('=')[1])
-                        except (ValueError, IndexError):
-                            pass
-                        break
-            if loy_kg <= 0:
-                loy_kg = services._get_planned_loy(order)
+        # Loy ingredientlari — reja/haqiqiy solishtirib qaytariladi.
+        # actual_loy_kg berilgan bo'lsa (hodim "qancha ishlatildi" deb yozgan) —
+        # ortgan qismi aniq qaytadi. Berilmagan va hech narsa topshirilmagan
+        # bo'lsa — eski xulq: to'liq rejalashtirilgan miqdor qaytadi.
+        planned_loy = services._get_planned_loy(order) + crud.get_termopanel_planned_loy(order)
 
-            if loy_kg > 0:
-                log.extend(services.return_loy_ingredients(db, order, loy_kg))
+        if actual_loy_kg is not None:
+            diff = planned_loy - float(actual_loy_kg)
+            if diff > 0.01:
+                log.extend(services.return_loy_ingredients(db, order, diff))
+            elif diff < -0.01:
+                log.extend(services.deduct_loy_ingredients(db, order, abs(diff)))
+        elif not has_delivery and planned_loy > 0:
+            log.extend(services.return_loy_ingredients(db, order, planned_loy))
 
     # Nima uchun (to'liq) qaytmagani — foydalanuvchiga aytamiz
     reason = None
