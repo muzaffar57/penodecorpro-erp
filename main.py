@@ -1924,6 +1924,30 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
     return result
 
 
+@app.post("/api/finished/produce-termopanel")
+def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
+    who = current_user.full_name or current_user.username
+    result = crud.produce_termopanel(db, data, created_by=who)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+
+    low_items = crud.get_low_stock_items(db)
+    if low_items:
+        lines = []
+        for item in low_items:
+            qty = float(item.stock_quantity)
+            min_q = float(item.min_stock)
+            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
+        msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTermopanel ishlab chiqarilgandan keyin:\n\n"
+               + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
+               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
+        _send_telegram(msg)
+
+    return result
+
+
 @app.post("/api/finished/{fp_id}/complete")
 def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
