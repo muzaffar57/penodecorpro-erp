@@ -534,14 +534,21 @@
 
     <!-- Ombor ogohlantirishlari -->
     <div class="card" id="alertCard" style="display:none;border-left:3px solid #EF4444;border-radius:0 12px 12px 0">
-      <div class="card-head"><h3 style="color:#DC2626;font-size:13px">⚠ Ombor</h3></div>
+      <div class="card-head">
+        <h3 style="color:#DC2626;font-size:13px">⚠ Ombor</h3>
+      </div>
       <div style="padding:12px" id="alertBody"></div>
     </div>
 
     <!-- Buyurtmalar statistikasi -->
     <div class="card">
-      <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-chart-bar"></i></span> Statistika</h3></div>
-      <div style="padding:12px">
+      <div class="card-head" style="cursor:pointer" onclick="toggleSection('statBody','stat-toggle-ic')">
+        <h3><span class="ico-badge purple"><i class="ti ti-chart-bar"></i></span> Statistika</h3>
+        <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('statBody','stat-toggle-ic')" title="Yig'ish/yoyish">
+          <i class="ti ti-chevron-down" id="stat-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+        </button>
+      </div>
+      <div style="padding:12px;display:none" id="statBody">
         <div class="sum-item"><span class="si-l">Jami</span><span class="si-v">{{ orders|length }} ta</span></div>
         <div class="sum-item"><span class="si-l">Tayyor</span><span class="si-v green">{{ orders|selectattr('status.value', 'equalto', 'ready')|list|length }} ta</span></div>
         <div class="sum-item"><span class="si-l">Faol</span><span class="si-v gold">{{ orders|selectattr('status.value', 'ne', 'ready')|list|length }} ta</span></div>
