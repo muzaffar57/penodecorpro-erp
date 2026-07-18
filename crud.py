@@ -791,7 +791,7 @@ def check_finished_for_order(db: Session, items) -> dict:
 
 
 def get_orders(db: Session, project_id: Optional[int] = None) -> List[Order]:
-    query = db.query(Order)
+    query = db.query(Order).filter(Order.is_deleted == False)
     if project_id:
         query = query.filter(Order.project_id == project_id)
     return query.order_by(Order.created_at.desc()).all()
@@ -973,13 +973,22 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
     return db_item
 
 
-def delete_order(db: Session, order_id: int) -> bool:
-    """Buyurtmani o'chirish."""
+def delete_order(db: Session, order_id: int, soft: bool = False) -> bool:
+    """Buyurtmani o'chirish.
+    soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.
+    Shu tufayli buyurtma "Buyurtmalar" ro'yxatidan yo'qoladi, lekin usta KPI'si
+    va moliyaviy hisobotlarda (oylik/yillik) hisobga olinishda davom etadi —
+    chunki bu joylar Order jadvalini to'g'ridan-to'g'ri, is_deleted'ga
+    qaramasdan o'qiydi."""
     db_order = db.query(Order).filter(Order.id == order_id).first()
     if not db_order:
         return False
-    db.delete(db_order)
-    db.commit()
+    if soft:
+        db_order.is_deleted = True
+        db.commit()
+    else:
+        db.delete(db_order)
+        db.commit()
     return True
 
 
