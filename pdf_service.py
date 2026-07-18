@@ -184,6 +184,8 @@ def generate_nakladnoy(order, db=None) -> bytes:
         cat = (item.category or '').lower()
         if cat == 'profil': return 'M'
         elif cat == 'panel': return 'M'
+        elif cat == 'blok': return 'M'
+        elif cat == 'termopanel': return 'M²'
         elif cat == 'dona': return 'TA'
         else: return 'TA'
 
