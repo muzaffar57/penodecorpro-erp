@@ -2269,11 +2269,13 @@ def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db)
 
 @app.get("/api/orders/{order_id}/planned-loy")
 def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Buyurtmada rejalashtirilgan loy miqdori."""
+    """Buyurtmada rejalashtirilgan loy miqdori — oddiy detallar + termopanel (bazalt) birga."""
     order = crud.get_order(db, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    return {"planned_loy": services._get_planned_loy(order)}
+    order_planned = services._get_planned_loy(order)
+    termo_planned = crud.get_termopanel_planned_loy(order)
+    return {"planned_loy": order_planned + termo_planned}
 
 
 @app.get("/api/dashboard/deliveries")
