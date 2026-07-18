@@ -62,6 +62,39 @@ def _send_telegram_to(chat_id: str, text: str):
     except Exception as e:
         print(f"⚠ Mijozga Telegram xabar yuborilmadi: {e}")
 
+def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, caption: str = ""):
+    """Telegram orqali fayl (masalan zaxira nusxa) yuboradi."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token or not chat_id:
+        print("⚠ TELEGRAM_BOT_TOKEN yoki chat_id yo'q — fayl yuborilmadi")
+        return False
+    try:
+        import urllib.request as _ur
+
+        boundary = "----PenoDecorProBoundary"
+        body = bytearray()
+
+        def add_field(name, value):
+            body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+
+        add_field("chat_id", chat_id)
+        if caption:
+            add_field("caption", caption)
+
+        body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="document"; filename="{filename}"\r\nContent-Type: application/json\r\n\r\n'.encode())
+        body.extend(file_bytes)
+        body.extend(f'\r\n--{boundary}--\r\n'.encode())
+
+        url = f"https://api.telegram.org/bot{token}/sendDocument"
+        req = _ur.Request(url, data=bytes(body), headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+        _ur.urlopen(req, timeout=30)
+        print(f"✓ Telegram fayl yuborildi: {filename}")
+        return True
+    except Exception as e:
+        print(f"⚠ Telegram fayl yuborilmadi: {e}")
+        return False
+
+
 init_database()
 
 
@@ -1905,6 +1938,30 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
     })
 
 
+@app.post("/api/system/backup/send-now")
+def api_backup_send_now(current_user=Depends(auth.admin_only)):
+    """Kunlik avtomatik backup vazifasini HOZIROQ, qo'lda ishga tushiradi
+    (23:30 ni kutmasdan, Telegram ulanishini sinab ko'rish uchun)."""
+    run_daily_backup()
+    return {"status": "ok", "message": "Backup yuborildi (agar BACKUP_TELEGRAM_CHAT_ID sozlangan bo'lsa)"}
+
+
+@app.get("/api/system/backup")
+def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Butun bazaning to'liq zaxira nusxasini JSON fayl sifatida yuklab beradi."""
+    import json
+    from fastapi.responses import Response
+
+    backup_data = crud.export_full_backup(db)
+    filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d_%H-%M')}.json"
+    content = json.dumps(backup_data, ensure_ascii=False, indent=2)
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
 @app.post("/api/system/factory-reset")
 def api_factory_reset(confirm: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """DIQQAT: QAYTARIB BO'LMAYDIGAN AMAL!
@@ -2430,6 +2487,50 @@ async def telegram_webhook(request: Request):
             _send_telegram_to(chat_id, reply)
 
     return {"ok": True}
+
+
+# ============================================================
+# KUNLIK AVTOMATIK ZAXIRA NUSXA (Telegram orqali)
+# ============================================================
+
+def run_daily_backup():
+    """Har kuni bir marta ishga tushadi: butun bazaning zaxira nusxasini
+    JSON fayl qilib, Telegram orqali admin(lar)ga yuboradi."""
+    import json as _json_mod
+
+    chat_ids_raw = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "").strip()
+    if not chat_ids_raw:
+        print("⚠ BACKUP_TELEGRAM_CHAT_ID sozlanmagan — avtomatik backup o'tkazib yuborildi")
+        return
+
+    chat_ids = [c.strip() for c in chat_ids_raw.split(",") if c.strip()]
+
+    db = SessionLocal()
+    try:
+        backup_data = crud.export_full_backup(db)
+        content = _json_mod.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
+        filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d')}.json"
+
+        total_rows = sum(len(rows) for rows in backup_data["tables"].values())
+        caption = f"🗄 Kunlik avtomatik zaxira nusxa\n📅 {datetime.utcnow().strftime('%d.%m.%Y')}\n📊 Jami {total_rows} ta yozuv"
+
+        for chat_id in chat_ids:
+            _send_telegram_document(chat_id, content, filename, caption)
+    except Exception as e:
+        print(f"⚠ Kunlik backup xatosi: {e}")
+    finally:
+        db.close()
+
+
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    _scheduler = BackgroundScheduler(timezone="Asia/Tashkent")
+    # Har kuni tunda soat 23:30 da (Toshkent vaqti bilan) ishga tushadi
+    _scheduler.add_job(run_daily_backup, "cron", hour=23, minute=30, id="daily_backup")
+    _scheduler.start()
+    print("✓ Kunlik avtomatik backup rejalashtiruvchisi ishga tushdi (har kuni 23:30, Toshkent vaqti)")
+except Exception as e:
+    print(f"⚠ Backup rejalashtiruvchisini ishga tushirib bo'lmadi: {e}")
 
 
 if __name__ == "__main__":
