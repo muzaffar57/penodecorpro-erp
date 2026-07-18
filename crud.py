@@ -1481,6 +1481,79 @@ def _parse_termo_note(notes, key, is_float=False):
         return None
 
 
+def get_termopanel_planned_loy(order) -> float:
+    """Buyurtmadagi barcha termopanel detallarining rejalashtirilgan
+    (yaratishda kiritilgan) loy miqdorini yig'indisini qaytaradi."""
+    total = 0.0
+    for item in order.items:
+        if (item.category or '').lower() != 'termopanel':
+            continue
+        val = _parse_termo_note(item.notes, 'loy_kg', is_float=True)
+        if val:
+            total += val
+    return total
+
+
+def complete_termopanel_loy(db: Session, order_id: int, actual_loy_kg: float) -> dict:
+    """Termopanel buyurtmasi 'Tayyor' bo'lganda — rejalashtirilgan va haqiqiy
+    loy miqdorini solishtiradi, farqni ombordan ayiradi yoki qaytaradi.
+    Aynan penoplastdagi (mark_order_ready) mexanizmi bilan bir xil mantiq."""
+    import services
+    import re
+
+    order = get_order(db, order_id)
+    if not order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+
+    planned = get_termopanel_planned_loy(order)
+    actual = float(actual_loy_kg or 0)
+    diff = actual - planned
+
+    log = []
+    if diff > 0.01:
+        log = services.deduct_loy_ingredients(db, order, diff, use_stock=False)
+        action, message = "qoshimcha", f"Rejadan {diff:.1f} kg ko'p ketdi — xomashyo ayirildi"
+    elif diff < -0.01:
+        log = services.return_loy_ingredients(db, order, abs(diff))
+        action, message = "ortdi", f"{abs(diff):.1f} kg loy ortdi — omborga qo'shildi"
+    else:
+        action, message = "teng", "Reja bo'yicha ketdi"
+
+    # Har bir termopanel detalining belgisidagi loy_kg'ni yangi (haqiqiy) qiymatga yangilaymiz —
+    # bir nechta termopanel detali bo'lsa, ulushiga qarab taqsimlanadi.
+    if planned > 0:
+        for item in order.items:
+            if (item.category or '').lower() != 'termopanel':
+                continue
+            old_val = _parse_termo_note(item.notes, 'loy_kg', is_float=True) or 0
+            if old_val <= 0:
+                continue
+            share = old_val / planned
+            new_val = round(actual * share, 4)
+            item.notes = re.sub(rf'loy_kg=[\d.]+', f'loy_kg={new_val}', item.notes or '')
+    elif actual > 0 and order.items:
+        # Reja yo'q edi, lekin haqiqiy kiritildi — birinchi termopanel detaliga yozamiz
+        for item in order.items:
+            if (item.category or '').lower() != 'termopanel':
+                continue
+            marker = f" [TERMO:loy_kg={actual}]" if '[TERMO:' not in (item.notes or '') else None
+            if marker:
+                item.notes = (item.notes or '') + marker
+            break
+
+    db.commit()
+
+    return {
+        "success": True,
+        "planned": round(planned, 2),
+        "actual": round(actual, 2),
+        "diff": round(diff, 2),
+        "action": action,
+        "message": message,
+        "inventory_log": log
+    }
+
+
 def update_order_full(db: Session, order_id: int, order_data) -> dict:
     """Buyurtmani to'liq yangilaydi:
     - Detallarni almashtiradi
@@ -2121,6 +2194,8 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
                 class _It:
                     recipe_id = rid
                 self.items = [_It()]
+                self.id = None
+                self.order_number = "ISHLAB CHIQARISH"
         fake = _FakeOrder(recipe.id if recipe else None)
         log.extend(services.deduct_loy_ingredients(db, fake, loy_kg, use_stock=False))
 
@@ -2254,6 +2329,8 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
                 class _It:
                     recipe_id = rid
                 self.items = [_It()]
+                self.id = None
+                self.order_number = "ISHLAB CHIQARISH"
         fake = _FakeOrder(recipe.id if recipe else None)
         log.extend(services.deduct_loy_ingredients(db, fake, loy_kg, use_stock=False))
 
@@ -2409,6 +2486,8 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
                     class _It:
                         recipe_id = rid
                     self.items = [_It()]
+                    self.id = None
+                    self.order_number = "ISHLAB CHIQARISH"
             services.return_loy_ingredients(db, _FakeOrder(fp.recipe_id), float(fp.actual_loy_kg))
 
     db.delete(fp)
@@ -2618,6 +2697,8 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
                 class _It:
                     recipe_id = rid
                 self.items = [_It()]
+                self.id = None
+                self.order_number = "ISHLAB CHIQARISH"
         fake = _FakeOrder(recipe.id if recipe else None)
         log.extend(services.deduct_loy_ingredients(db, fake, add_loy, use_stock=False))
 
