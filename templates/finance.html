@@ -236,6 +236,8 @@
           <option value="elektr">Elektr</option>
           <option value="tushlik">Tushlik</option>
           <option value="soliqlar">Soliqlar</option>
+          <option value="reklama">Reklama</option>
+          <option value="kutilmagan">Kutilmagan xarajat</option>
           <option value="boshqa">Boshqa</option>
         </select>
       </div>
@@ -261,6 +263,8 @@
         <option value="elektr">Elektr</option>
         <option value="tushlik">Tushlik</option>
         <option value="soliqlar">Soliqlar</option>
+        <option value="reklama">Reklama</option>
+        <option value="kutilmagan">Kutilmagan xarajat (ta'mirlash, zapchastka va h.k.)</option>
         <option value="boshqa">Boshqa</option>
       </select>
     </div>
@@ -336,22 +340,30 @@ async function loadReport(){
 
 function buildDonut(d){
   const x = d.xarajatlar || {};
+  const qoshimcha = d.qoshimcha_xarajatlar || {};
+  const CATEGORY_LABELS = {reklama: 'Reklama', kutilmagan: 'Kutilmagan xarajat', boshqa: 'Boshqa'};
+  const PALETTE = ['#2563EB','#F59E0B','#22C55E','#8E44AD','#0EA5E9','#EF4444','#EC4899','#14B8A6'];
+  let ci = 0;
   const entries = [
-    ['Arenda', x.arenda||0, '#2563EB'],
-    ['Elektr', x.elektr||0, '#F59E0B'],
-    ['Tushlik', x.tushlik||0, '#22C55E'],
-    ['Soliqlar', x.soliqlar||0, '#8E44AD'],
-    ['Ishlab chiqarish', d.ishlab_chiqarish_xarajat||0, '#0EA5E9'],
-    ['Naqd xarajat', d.naqd_xarajat_jami||0, '#EF4444'],
-  ].filter(e => e[1] > 0);
+    ['Arenda', x.arenda||0, PALETTE[ci++]],
+    ['Elektr', x.elektr||0, PALETTE[ci++]],
+    ['Tushlik', x.tushlik||0, PALETTE[ci++]],
+    ['Soliqlar', x.soliqlar||0, PALETTE[ci++]],
+    ['Ishlab chiqarish', d.ishlab_chiqarish_xarajat||0, PALETTE[ci++]],
+    ['Naqd xarajat', d.naqd_xarajat_jami||0, PALETTE[ci++]],
+  ];
+  for (const [cat, amt] of Object.entries(qoshimcha)) {
+    entries.push([CATEGORY_LABELS[cat] || cat, amt, PALETTE[ci++ % PALETTE.length]]);
+  }
+  const filtered = entries.filter(e => e[1] > 0);
 
   if (donutChartInst) donutChartInst.destroy();
-  if (!entries.length) return;
+  if (!filtered.length) return;
   donutChartInst = new Chart(document.getElementById('expDonut'), {
     type: 'doughnut',
     data: {
-      labels: entries.map(e=>e[0]),
-      datasets: [{ data: entries.map(e=>e[1]), backgroundColor: entries.map(e=>e[2]), borderWidth: 0 }]
+      labels: filtered.map(e=>e[0]),
+      datasets: [{ data: filtered.map(e=>e[1]), backgroundColor: filtered.map(e=>e[2]), borderWidth: 0 }]
     },
     options: { responsive:true, maintainAspectRatio:false, cutout:'62%',
       plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5} } } } }
