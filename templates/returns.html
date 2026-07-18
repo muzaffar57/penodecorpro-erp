@@ -19,10 +19,10 @@
 .ret-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 .ret-icon.whole{background:#DCFCE7;color:#166534}
 .ret-icon.defect{background:#FEE2E2;color:#991B1B}
-.dest-badge{font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.dest-badge{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
 .dest-stock{background:#E6F1FB;color:#0C447C}
 .dest-scrap{background:#F1F5F9;color:#475569}
-.refund-badge{font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:20px}
+.refund-badge{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px}
 .refund-yes{background:#DCFCE7;color:#166534}
 .refund-no{background:#FEF3C7;color:#92400E}
 </style>
@@ -67,7 +67,7 @@
       <div class="ret-icon {{ 'defect' if is_defect else 'whole' }}"><i class="ti {{ 'ti-x' if is_defect else 'ti-recycle' }}"></i></div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;color:var(--text)">{{ r.item_name }}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">
+        <div style="font-size:13px;color:var(--text3);margin-top:2px">
           {{ r.order.order_number if r.order else '—' }} · {{ r.order.project.client_name if r.order and r.order.project else '—' }}
           {% if r.notes %} · {{ r.notes }}{% endif %}
         </div>
@@ -79,8 +79,8 @@
         {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
       </div>
       <div style="min-width:130px;text-align:center">
-        {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash" style="font-size:10px"></i> Chiqindiga ketdi</span>
-        {% else %}<span class="dest-badge dest-stock"><i class="ti ti-building-warehouse" style="font-size:10px"></i> Omborga qaytdi</span>{% endif %}
+        {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash" style="font-size:12px"></i> Chiqindiga ketdi</span>
+        {% else %}<span class="dest-badge dest-stock"><i class="ti ti-building-warehouse" style="font-size:12px"></i> Omborga qaytdi</span>{% endif %}
       </div>
       {% if current_user.role.value == 'admin' %}
       <div style="text-align:right;min-width:110px">
@@ -94,7 +94,7 @@
         {% endif %}
       </div>
       {% endif %}
-      <div style="min-width:80px;text-align:right;font-size:11px;color:var(--text3)">{{ r.returned_at.strftime('%d.%m.%Y') }}</div>
+      <div style="min-width:80px;text-align:right;font-size:13px;color:var(--text3)">{{ r.returned_at.strftime('%d.%m.%Y') }}</div>
       <button class="mini-btn" style="color:#EF4444;border-color:#FADBD8" onclick="deleteReturn({{ r.id }})" title="O'chirish"><i class="ti ti-trash" style="font-size:12px"></i></button>
     </div>
     {% endfor %}
@@ -150,7 +150,7 @@
           <span style="font-size:13px;font-weight:600;color:#DC2626">🔴 Brak</span>
         </label>
       </div>
-      <div id="reason-hint" style="font-size:11px;color:#aaa;margin-top:6px">Butun — tayyor mahsulotlar omboriga qaytadi</div>
+      <div id="reason-hint" style="font-size:13px;color:#aaa;margin-top:6px">Butun — tayyor mahsulotlar omboriga qaytadi</div>
     </div>
 
     {% if current_user.role.value == 'admin' %}
@@ -413,14 +413,14 @@ async function onBrakProjectChange(){
       <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f5f5f5">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${it.name}</div>
-          <div style="font-size:11px;color:#aaa;margin-top:1px">
+          <div style="font-size:13px;color:#aaa;margin-top:1px">
             ${it.order_number} · jami ${it.order_qty_normalized} ${it.delivery_unit === 'metr' ? 'm' : 'dona'}${it.is_coated ? ' · qoplamali' : ''}
           </div>
         </div>
         <input type="number" class="brak-qty-inp" data-idx="${idx}" placeholder="0"
                min="0" max="${it.order_qty_normalized}" step="0.1"
                style="width:74px;height:32px;text-align:center;border:1.5px solid #e5e5e5;border-radius:7px;font-size:13px;font-weight:600;outline:none">
-        <span style="font-size:11px;color:#aaa;width:32px">${it.delivery_unit === 'metr' ? 'm' : 'dona'}</span>
+        <span style="font-size:13px;color:#aaa;width:32px">${it.delivery_unit === 'metr' ? 'm' : 'dona'}</span>
       </div>`).join('');
   } catch(e) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626;font-size:13px">Yuklashda xato</div>';
