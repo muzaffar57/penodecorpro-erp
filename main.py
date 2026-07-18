@@ -1060,9 +1060,10 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
 
 @app.delete("/api/inventory/{item_id}")
 def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    if not crud.delete_item(db, item_id):
-        raise HTTPException(status_code=404, detail="Topilmadi")
-    return {"status": "ok"}
+    result = crud.delete_item(db, item_id)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["message"])
+    return {"status": "ok", "soft": result["soft"], "message": result["message"]}
 
 
 @app.post("/api/recipes", response_model=schemas.RecipeRead)
