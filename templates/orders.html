@@ -1722,13 +1722,20 @@ async function loadPayments(orderId) {
     // Status badge
     const badge = document.getElementById('pay-status-badge');
     const st = order.payment_status || 'unpaid';
-    if (st === 'paid') {
-      badge.innerHTML = '<span style="background:#DCFCE7;color:#1e7e34;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">✅ To\'liq to\'langan — Arxivda</span>';
-    } else if (st === 'partial') {
-      badge.innerHTML = '<span style="background:#FEF3C7;color:#b7770d;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">🟡 Qisman to\'langan</span>';
-    } else {
-      badge.innerHTML = '<span style="background:#FEE2E2;color:#DC2626;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">🔴 To\'lanmagan</span>';
+    let badgeHtml = '';
+    const overpaidMatch = (order.notes || '').match(/\[OVERPAID:([\d.]+)\]/);
+    if (overpaidMatch) {
+      const overpaidAmt = parseFloat(overpaidMatch[1]);
+      badgeHtml += `<div style="background:#FEE2E2;border:1.5px solid #DC2626;color:#DC2626;padding:8px 12px;border-radius:9px;font-size:13px;font-weight:700;margin-bottom:8px">⚠️ Mijozga ${formatNum(overpaidAmt)} so'm QAYTARILISHI kerak (ortiqcha to'langan)</div>`;
     }
+    if (st === 'paid') {
+      badgeHtml += '<span style="background:#DCFCE7;color:#1e7e34;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">✅ To\'liq to\'langan — Arxivda</span>';
+    } else if (st === 'partial') {
+      badgeHtml += '<span style="background:#FEF3C7;color:#b7770d;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">🟡 Qisman to\'langan</span>';
+    } else {
+      badgeHtml += '<span style="background:#FEE2E2;color:#DC2626;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">🔴 To\'lanmagan</span>';
+    }
+    badge.innerHTML = badgeHtml;
 
     // Tarix
     const list = document.getElementById('paymentList');
@@ -2890,6 +2897,11 @@ async function markReadySelected() {
       let html = '<b>✓ Buyurtma tayyor!</b><br>';
       if (result.partial_return) {
         html += `<br>📦 ${result.partial_return.message}`;
+      }
+      if (result.finalized) {
+        const f = result.finalized;
+        const clr = f.overpaid ? '#DC2626' : (f.debt > 0 ? '#F59E0B' : '#22C55E');
+        html += `<br><br><div style="border:1.5px solid ${clr};border-radius:8px;padding:10px;color:${clr};font-weight:600">💰 ${f.message}</div>`;
       }
       if (result.loy_info) {
         const li = result.loy_info;
