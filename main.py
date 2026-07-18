@@ -1748,8 +1748,12 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
     if write_off_remainder and order:
         remaining = order.debt_amount
         if remaining > 0.5:
-            order.total_amount = float(order.total_amount or 0) - remaining
-            order.agreed_amount = float(order.agreed_amount or 0) - remaining
+            # MUHIM: faqat "Kelishilgan"(agreed_amount)ni kamaytiramiz.
+            # "Jami summa"(total_amount)ga TEGMAYMIZ — shunda u har doim
+            # buyurtmaning asl (chegirmasiz) qiymatini ko'rsatib turadi,
+            # "Chegirma" esa (Jami - Kelishilgan) o'zi avtomatik kattalashadi —
+            # boshidagi chegirma bilan bu "kechirilgan" summa TABIIY qo'shilib boradi.
+            order.agreed_amount = float(order.agreed_amount or order.total_amount or 0) - remaining
             import re as _re
             base_notes = _re.sub(r'\s*\[WRITEOFF:[\d.]+\]', '', order.notes or '').strip()
             order.notes = (base_notes + f" [WRITEOFF:{remaining:.0f}]").strip()
@@ -1758,7 +1762,7 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
             db.refresh(order)
             write_off_info = {
                 "amount": round(remaining),
-                "message": f"Qolgan {remaining:.0f} so'm chegirma sifatida yozildi (foydadan ham ayirildi)"
+                "message": f"Qolgan {remaining:.0f} so'm chegirmaga qo'shildi (foyda hisobotida ham to'g'ri ayiriladi)"
             }
 
     return {
