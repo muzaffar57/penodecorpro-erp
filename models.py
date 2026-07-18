@@ -167,6 +167,7 @@ class Inventory(Base):
     image_url = Column(String(255), nullable=True)  # Faqat UI uchun — hisob-kitobga ta'siri yo'q
     serp_ratio_per_m2 = Column(Float, nullable=True)  # Bazalt uchun: 1 m² bazaltga necha m² serpiyanka
     kley_ratio_per_m2 = Column(Float, nullable=True)  # Bazalt uchun: 1 m² bazaltga necha kg kley
+    is_deleted = Column(Boolean, default=False)  # "O'chirilgan" — lekin eski buyurtma/harakat tarixi uchun saqlanadi
 
     def __repr__(self):
         return f"<Inventory {self.item_name}: {self.stock_quantity} {self.unit}>"
