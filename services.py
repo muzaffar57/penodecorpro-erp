@@ -1513,6 +1513,163 @@ def deduct_inventory_for_order(db: Session, order) -> list:
     return log
 
 
+def check_termopanel_for_order(db: Session, order_data) -> dict:
+    """Buyurtmadagi termopanel (bazalt) detallari uchun xomashyo yetarliligini tekshiradi."""
+    from models import Inventory
+    import re as _re
+
+    shortages = []
+    for item in order_data.items:
+        if (getattr(item, 'category', None) or '').lower() != 'termopanel':
+            continue
+        m2 = float(item.quantity or 0)
+        if m2 <= 0:
+            continue
+
+        bazalt_id = getattr(item, 'bazalt_item_id', None)
+        serp_id = getattr(item, 'serpiyanka_item_id', None)
+        kley_kg = float(getattr(item, 'kley_kg', None) or 0)
+
+        if bazalt_id:
+            b = db.query(Inventory).filter(Inventory.id == bazalt_id).first()
+            if b:
+                area = float(b.volume_per_unit or 0.72)
+                needed = m2 / area
+                if float(b.stock_quantity) < needed:
+                    shortages.append(f"{b.item_name}: kerak {needed:.2f} dona, qoldi {float(b.stock_quantity):.2f} dona")
+            else:
+                shortages.append("Bazalt plita ombordan topilmadi")
+        if serp_id:
+            s = db.query(Inventory).filter(Inventory.id == serp_id).first()
+            if s:
+                area = float(s.volume_per_unit or 50.0)
+                needed = (m2 * 2) / area
+                if float(s.stock_quantity) < needed:
+                    shortages.append(f"{s.item_name}: kerak {needed:.2f} rulon, qoldi {float(s.stock_quantity):.2f} rulon")
+            else:
+                shortages.append("Serpiyanka ombordan topilmadi")
+        if kley_kg > 0:
+            k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).first()
+            if k:
+                if float(k.stock_quantity) < kley_kg:
+                    shortages.append(f"{k.item_name}: kerak {kley_kg:.2f} kg, qoldi {float(k.stock_quantity):.2f} kg")
+            else:
+                shortages.append("Kley ombordan topilmadi")
+
+    return {"enough": len(shortages) == 0, "shortages": shortages}
+
+
+def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
+    """Buyurtma yaratilgandan keyin — termopanel detallari uchun
+    bazalt/serpiyanka/kley/loy'ni QULFLAB ombordan yechadi.
+
+    order_data — asl so'rov (bazalt_item_id va h.k. shu yerda bor),
+    order — yangi yaratilgan, ID'lari bor buyurtma. Ikkalasi bir xil
+    tartibda kiritilgani uchun INDEKS bo'yicha mos qilinadi.
+
+    Har bir detalning notes maydoniga qancha ishlatilgani yoziladi —
+    keyinchalik buyurtma o'chirilsa, aynan shu miqdor qaytariladi."""
+    from models import Inventory, Recipe
+
+    log = []
+    db_items = sorted(order.items, key=lambda x: x.id)
+    for db_item, item_data in zip(db_items, order_data.items):
+        if (db_item.category or '').lower() != 'termopanel':
+            continue
+        m2 = float(db_item.quantity or 0)
+        if m2 <= 0:
+            continue
+
+        bazalt_id = getattr(item_data, 'bazalt_item_id', None)
+        serp_id = getattr(item_data, 'serpiyanka_item_id', None)
+        kley_kg = float(getattr(item_data, 'kley_kg', None) or 0)
+        loy_kg = float(getattr(item_data, 'termo_loy_kg', None) or 0)
+
+        used_parts = []
+
+        if bazalt_id:
+            b = db.query(Inventory).filter(Inventory.id == bazalt_id).with_for_update().first()
+            if b:
+                area = float(b.volume_per_unit or 0.72)
+                sheets = m2 / area
+                b.stock_quantity = max(0, float(b.stock_quantity) - sheets)
+                log.append(f"{b.item_name}: -{sheets:.2f} dona")
+                used_parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
+
+        if serp_id:
+            s = db.query(Inventory).filter(Inventory.id == serp_id).with_for_update().first()
+            if s:
+                area = float(s.volume_per_unit or 50.0)
+                rulon = (m2 * 2) / area
+                s.stock_quantity = max(0, float(s.stock_quantity) - rulon)
+                log.append(f"{s.item_name}: -{rulon:.2f} rulon")
+                used_parts.append(f"serp_id={serp_id},serp_qty={rulon:.4f}")
+
+        if kley_kg > 0:
+            k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).with_for_update().first()
+            if k:
+                k.stock_quantity = max(0, float(k.stock_quantity) - kley_kg)
+                log.append(f"{k.item_name}: -{kley_kg:.2f} kg")
+                used_parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
+
+        if loy_kg > 0:
+            recipe = db.query(Recipe).filter(Recipe.id == db_item.recipe_id).first() if db_item.recipe_id else db.query(Recipe).first()
+            class _FakeOrder:
+                def __init__(self, rid):
+                    class _It:
+                        recipe_id = rid
+                    self.items = [_It()]
+            fake = _FakeOrder(recipe.id if recipe else None)
+            log.extend(deduct_loy_ingredients(db, fake, loy_kg, use_stock=False))
+            used_parts.append(f"loy_kg={loy_kg:.4f}")
+
+        if used_parts:
+            marker = " [TERMO:" + ",".join(used_parts) + "]"
+            db_item.notes = (db_item.notes or "") + marker
+
+    if log:
+        db.commit()
+    return log
+
+
+def return_termopanel_for_order(db: Session, order) -> list:
+    """Buyurtma o'chirilganda — termopanel detallari uchun ilgari yechilgan
+    bazalt/serpiyanka/kley ombordan qaytariladi (loy qaytarilmaydi — ishlatib bo'lingan)."""
+    from models import Inventory
+    import re as _re
+
+    log = []
+    for item in order.items:
+        if (item.category or '').lower() != 'termopanel' or not item.notes:
+            continue
+        m = _re.search(r'\[TERMO:([^\]]+)\]', item.notes)
+        if not m:
+            continue
+        parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
+
+        if 'bazalt_id' in parts and 'bazalt_qty' in parts:
+            b = db.query(Inventory).filter(Inventory.id == int(parts['bazalt_id'])).with_for_update().first()
+            if b:
+                b.stock_quantity = float(b.stock_quantity) + float(parts['bazalt_qty'])
+                log.append(f"{b.item_name}: +{float(parts['bazalt_qty']):.2f} dona qaytarildi")
+
+        if 'serp_id' in parts and 'serp_qty' in parts:
+            s = db.query(Inventory).filter(Inventory.id == int(parts['serp_id'])).with_for_update().first()
+            if s:
+                s.stock_quantity = float(s.stock_quantity) + float(parts['serp_qty'])
+                log.append(f"{s.item_name}: +{float(parts['serp_qty']):.2f} rulon qaytarildi")
+
+        if 'kley_id' in parts and 'kley_qty' in parts:
+            k = db.query(Inventory).filter(Inventory.id == int(parts['kley_id'])).with_for_update().first()
+            if k:
+                k.stock_quantity = float(k.stock_quantity) + float(parts['kley_qty'])
+                log.append(f"{k.item_name}: +{float(parts['kley_qty']):.2f} kg qaytarildi")
+
+    if log:
+        db.commit()
+    return log
+
+
 def return_inventory_for_order(db: Session, order) -> list:
     """
     Buyurtma o'chirilganda omborga xomashyo qaytaradi.
