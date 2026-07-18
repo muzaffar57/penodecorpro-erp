@@ -1462,6 +1462,25 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
 # BUYURTMANI TAHRIRLASH (ombor farq bo'yicha to'g'rilanadi)
 # ============================================================
 
+def _parse_termo_note(notes, key, is_float=False):
+    """Detal notes ichidagi '[TERMO:...]' belgisidan bitta qiymatni o'qiydi.
+    Masalan: '[TERMO:bazalt_id=1,bazalt_qty=13.89,...]' dan 'bazalt_id'ni oladi."""
+    import re
+    if not notes:
+        return None
+    m = re.search(r'\[TERMO:([^\]]+)\]', notes)
+    if not m:
+        return None
+    parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
+    val = parts.get(key)
+    if val is None:
+        return None
+    try:
+        return float(val) if is_float else int(float(val))
+    except (ValueError, TypeError):
+        return None
+
+
 def update_order_full(db: Session, order_id: int, order_data) -> dict:
     """Buyurtmani to'liq yangilaydi:
     - Detallarni almashtiradi
@@ -1469,6 +1488,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     - Buyurtma raqami, to'lovlar, sana saqlanadi
     """
     import services
+    import re
 
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
@@ -1487,7 +1507,11 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         "unit_price": float(i.unit_price or 0),
         "penoplast_id": i.penoplast_id,
         "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
-        "finished_product_id": i.finished_product_id
+        "finished_product_id": i.finished_product_id,
+        "bazalt_item_id": _parse_termo_note(i.notes, 'bazalt_id'),
+        "serpiyanka_item_id": _parse_termo_note(i.notes, 'serp_id'),
+        "kley_kg": _parse_termo_note(i.notes, 'kley_qty', is_float=True),
+        "termo_loy_kg": _parse_termo_note(i.notes, 'loy_kg', is_float=True),
     } for i in order.items]
 
     new_snapshot = [{
@@ -1499,7 +1523,11 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         "unit_price": float(it.unit_price or 0),
         "penoplast_id": getattr(it, 'penoplast_id', None),
         "price_per_m3": getattr(it, 'price_per_m3', None),
-        "finished_product_id": getattr(it, 'finished_product_id', None)
+        "finished_product_id": getattr(it, 'finished_product_id', None),
+        "bazalt_item_id": getattr(it, 'bazalt_item_id', None),
+        "serpiyanka_item_id": getattr(it, 'serpiyanka_item_id', None),
+        "kley_kg": getattr(it, 'kley_kg', None) or 0,
+        "termo_loy_kg": getattr(it, 'termo_loy_kg', None) or 0,
     } for it in order_data.items]
 
     is_draft = order.status == OrderStatus.DRAFT
@@ -1512,6 +1540,13 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
                 "success": False,
                 "message": "Xomashyo yetishmayapti!",
                 "shortages": check["shortages"]
+            }
+        tcheck = services.check_termopanel_diff(db, old_snapshot, new_snapshot)
+        if not tcheck["enough"]:
+            return {
+                "success": False,
+                "message": "Bazalt xomashyosi yetishmayapti!",
+                "shortages": tcheck["shortages"]
             }
 
     # 3) TOPSHIRISH TEKSHIRUVI — topshirilgandan kam qilib bo'lmaydi
@@ -1652,8 +1687,43 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     inventory_log = []
     if not is_draft:
         inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot)
+        inventory_log.extend(services.adjust_termopanel_diff(db, old_snapshot, new_snapshot, recipe_id=order_data.recipe_id))
         # Tayyor mahsulot farqi
         inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot))
+
+        # TERMO belgisini yangi qiymatlar bilan qayta yozamiz — aks holda
+        # notes yangilanganda eski belgi o'chib, keyingi tahrirlash/o'chirish
+        # xomashyoni to'g'ri hisoblay olmay qoladi.
+        for oi in order.items:
+            if (oi.category or '').lower() != 'termopanel':
+                continue
+            nd = matched.get(oi.id)
+            if nd is None:
+                continue
+            bazalt_id = getattr(nd, 'bazalt_item_id', None)
+            serp_id = getattr(nd, 'serpiyanka_item_id', None)
+            kley_kg = float(getattr(nd, 'kley_kg', None) or 0)
+            loy_kg = float(getattr(nd, 'termo_loy_kg', None) or 0)
+            base_notes = re.sub(r'\s*\[TERMO:[^\]]+\]', '', oi.notes or '').strip()
+            parts = []
+            if bazalt_id:
+                b = db.query(Inventory).filter(Inventory.id == bazalt_id).first()
+                area = float(b.volume_per_unit or 0.72) if b else 0.72
+                sheets = float(oi.quantity or 0) / area if area else 0
+                parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
+            if serp_id:
+                s = db.query(Inventory).filter(Inventory.id == serp_id).first()
+                area = float(s.volume_per_unit or 50.0) if s else 50.0
+                rulon = (float(oi.quantity or 0) * 2) / area if area else 0
+                parts.append(f"serp_id={serp_id},serp_qty={rulon:.4f}")
+            if kley_kg > 0:
+                k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).first()
+                if k:
+                    parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
+            if loy_kg > 0:
+                parts.append(f"loy_kg={loy_kg:.4f}")
+            oi.notes = (base_notes + " [TERMO:" + ",".join(parts) + "]") if parts else base_notes
+        db.commit()
 
     # 7) To'lov holatini qayta hisoblaymiz
     db.refresh(order)
