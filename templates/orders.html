@@ -1920,6 +1920,7 @@ function addItem() {
           <option value="panel">Panel</option>
           <option value="dona">Donali</option>
           <option value="blok">Blok (butun narxda)</option>
+          <option value="termopanel">Termopanel (Bazalt)</option>
         </select>
       </div>
       <div class="dif i-h-wrap"><label>Eni (sm)</label><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
@@ -1927,9 +1928,19 @@ function addItem() {
       <div class="dif i-t-wrap" style="display:none"><label>Qalinlik (sm)</label><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik (m)</label><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-unitprice-wrap" style="display:none"><label>1 dona narxi (so'm)</label><input type="number" placeholder="" class="i-unitprice" step="100" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi (so'm)</label><input type="number" placeholder="" class="i-unitprice" step="100" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="number" placeholder="1500000" class="i-blokprice" step="1000" oninput="onBlokPriceInput(this.closest('.detal'))"></div>
       <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti (masalan 2)</label><input type="number" value="2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div>
+      <div class="dif i-termo-bazalt-wrap" style="display:none;grid-column:1/-1">
+        <label>Bazalt plita (ombordan)</label>
+        <select class="i-termo-bazalt" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
+      </div>
+      <div class="dif i-termo-serp-wrap" style="display:none;grid-column:1/-1">
+        <label>Serpiyanka (ombordan)</label>
+        <select class="i-termo-serp" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
+      </div>
+      <div class="dif i-termo-kley-wrap" style="display:none"><label>Kley (kg, qo'lda)</label><input type="number" class="i-termo-kley" step="0.1" min="0" placeholder="0" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-termo-loy-wrap" style="display:none"><label>Loy (kg, qoplama)</label><input type="number" class="i-termo-loy" step="0.5" min="0" placeholder="0" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif"><label>Qoplama</label>
         <select class="i-c" onchange="onCoatToggle(this.closest('.detal'))">
           <option value="false" selected>Yo'q</option>
@@ -2006,6 +2017,15 @@ function toggleFields(row) {
   const bmW = row.querySelector('.i-blokmult-wrap');
   const m3Field = row.querySelector('.i-m3price')?.closest('.dif');
   const coatField = row.querySelector('.i-c')?.closest('.dif');
+  const penoField = row.querySelector('.i-peno')?.closest('.dif');
+  const tBazaltW = row.querySelector('.i-termo-bazalt-wrap');
+  const tSerpW = row.querySelector('.i-termo-serp-wrap');
+  const tKleyW = row.querySelector('.i-termo-kley-wrap');
+  const tLoyW = row.querySelector('.i-termo-loy-wrap');
+
+  // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
+  [tBazaltW, tSerpW, tKleyW, tLoyW].forEach(el => { if (el) el.style.display = 'none'; });
+  if (penoField) penoField.style.display = '';
 
   if (type === 'dona') {
     hW.style.display = 'none'; wW.style.display = 'none';
@@ -2038,6 +2058,22 @@ function toggleFields(row) {
     if (m3Field) m3Field.style.display = 'none';   // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
     if (coatField) coatField.style.display = '';   // qoplamali/qoplamasiz — faqat yozuv uchun, narxni ko'paytirmaydi
     ['i-h','i-w','i-t'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
+  } else if (type === 'termopanel') {
+    hW.style.display = 'none'; wW.style.display = 'none';
+    tW.style.display = 'none'; lW.style.display = 'none';
+    qW.style.display = 'block';   // Necha kvadrat metr
+    if (upW) upW.style.display = 'block';
+    if (bpW) bpW.style.display = 'none';
+    if (bmW) bmW.style.display = 'none';
+    if (m3Field) m3Field.style.display = 'none';
+    if (coatField) coatField.style.display = 'none';  // Termopanel doim qoplamali — Loy maydoni orqali
+    if (penoField) penoField.style.display = 'none';  // Penoplast ishlatilmaydi
+    if (tBazaltW) tBazaltW.style.display = '';
+    if (tSerpW) tSerpW.style.display = '';
+    if (tKleyW) tKleyW.style.display = '';
+    if (tLoyW) tLoyW.style.display = '';
+    ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
+    loadTermoInventoryFor(row);
   } else {
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'none';  lW.style.display = 'block';
@@ -2054,12 +2090,34 @@ function toggleFields(row) {
   // Miqdor maydonining nomi: panel — metr, blok — kerakli metr, dona — dona
   const qLabel = row.querySelector('.i-q-label');
   if (qLabel) {
-    qLabel.textContent = (type === 'panel') ? 'Uzunlik (m)' : (type === 'blok') ? "Necha metr kerak" : 'Miqdor (dona)';
+    qLabel.textContent = (type === 'panel') ? 'Uzunlik (m)' : (type === 'blok') ? "Necha metr kerak" : (type === 'termopanel') ? "Necha kvadrat metr (m²)" : 'Miqdor (dona)';
   }
   const lLabel = row.querySelector('.i-l-label');
   if (lLabel) {
     lLabel.textContent = (type === 'blok') ? "1 blokdan chiqadigan metr (taxminan)" : 'Uzunlik (m)';
   }
+  const upLabel = row.querySelector('.i-unitprice-label');
+  if (upLabel) {
+    upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi (so'm)" : "1 dona narxi (so'm)";
+  }
+}
+
+let termoInvCache = null;
+async function loadTermoInventoryFor(row) {
+  const bazaltSel = row.querySelector('.i-termo-bazalt');
+  const serpSel = row.querySelector('.i-termo-serp');
+  if (!bazaltSel || !serpSel) return;
+  if (!termoInvCache) {
+    try { termoInvCache = await fetch('/api/inventory').then(r => r.json()); }
+    catch(e) { termoInvCache = []; }
+  }
+  const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
+  bazaltSel.innerHTML = '<option value="">— Tanlang —</option>' + termoInvCache.map(opts).join('');
+  serpSel.innerHTML = '<option value="">— Tanlang —</option>' + termoInvCache.map(opts).join('');
+  const bazaltGuess = termoInvCache.find(i => i.item_name.toLowerCase().includes('bazalt'));
+  const serpGuess = termoInvCache.find(i => i.item_name.toLowerCase().includes('serpiyank'));
+  if (bazaltGuess) bazaltSel.value = bazaltGuess.id;
+  if (serpGuess) serpSel.value = serpGuess.id;
 }
 
 function calculateItem(row) {
@@ -2148,6 +2206,24 @@ function calculateItem(row) {
     row.querySelector('.i-vol').value = volume_total > 0
       ? `${volume_total.toFixed(3)} m³ (${blokKerak.toFixed(2)} blok)`
       : '—';
+  } else if (type === 'termopanel') {
+    // qty = kerakli kvadrat metr, i-unitprice = 1 m² narxi
+    const upEl = row.querySelector('.i-unitprice');
+    const unitPrice = upEl ? parseFloat(upEl.value) || 0 : 0;
+    perMeterPrice = unitPrice;
+    price = unitPrice * qty;
+    // Penoplast/m³ hisobiga aloqasi yo'q — bazalt alohida ombordan yechiladi
+    volume_total = 0;
+    row.querySelector('.i-vol').value = '— (bazalt alohida hisoblanadi)';
+
+    const bazaltEl = row.querySelector('.i-termo-bazalt');
+    const serpEl = row.querySelector('.i-termo-serp');
+    const kleyEl = row.querySelector('.i-termo-kley');
+    const loyEl = row.querySelector('.i-termo-loy');
+    row.dataset.termoBazaltId = bazaltEl ? bazaltEl.value : '';
+    row.dataset.termoSerpId = serpEl ? serpEl.value : '';
+    row.dataset.termoKley = kleyEl ? (parseFloat(kleyEl.value) || 0) : 0;
+    row.dataset.termoLoy = loyEl ? (parseFloat(loyEl.value) || 0) : 0;
   }
 
   const priceEl = row.querySelector('.i-price');
@@ -2663,6 +2739,15 @@ function collectItems() {
                    quantity: kerakMetr, unit_price: perMetr, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: null, finished_product_id: fpId,
                    notes: `blok_narxi=${blokPrice},blok_yield=${chiqadiPerBlok}` });
+    } else if (type === 'termopanel') {
+      const unitP = parseFloat(row.querySelector('.i-unitprice')?.value) || 0;
+      items.push({ name, category: 'termopanel', width: null, thickness: null, length: null,
+                   quantity: qty, unit_price: unitP, is_coated: true,
+                   penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
+                   bazalt_item_id: parseInt(row.dataset.termoBazaltId) || null,
+                   serpiyanka_item_id: parseInt(row.dataset.termoSerpId) || null,
+                   kley_kg: parseFloat(row.dataset.termoKley) || 0,
+                   termo_loy_kg: parseFloat(row.dataset.termoLoy) || 0 });
     } else {
       items.push({ name, category: type, width: h, thickness: w, length: l,
                    quantity: qty, unit_price: unitPrice, is_coated: isCoated,
