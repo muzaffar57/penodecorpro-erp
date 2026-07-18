@@ -155,6 +155,9 @@
       <div class="mat-col-updated" style="font-size:11.5px;color:var(--text3)">
         <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(",", " ") if item.price_per_unit else "—" }} so'm</span>
         <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:10px"></i></button>
+        {% if 'bazalt' in item.item_name|lower %}
+        <button class="btn btn-outline btn-xs" onclick="editBazaltRatios({{ item.id }}, {{ item.serp_ratio_per_m2 or 2.0 }}, {{ item.kley_ratio_per_m2 or 0.8 }})" title="Serpiyanka/Kley nisbatini tuzatish" style="margin-left:4px;border-color:#C4B5FD;color:#6D28D9">🧱</button>
+        {% endif %}
       </div>
       <div class="mat-actions">
         <button class="act-btn in" onclick="openKirimModal({{ item.id }}, '{{ item.item_name|replace("'", "\\'") }}', '{{ item.unit }}')" title="Kirim"><i class="ti ti-plus"></i></button>
@@ -191,8 +194,18 @@
       <div class="form-group" style="margin:0"><label>Birlik narxi (so'm)</label><input type="number" id="f-price" placeholder="0" min="0"></div>
     </div>
     <div class="form-group">
-      <label>Hajm/nisbat birligi <span style="color:var(--text3);font-weight:400;font-size:11px">— penoplast uchun m³, bazalt uchun 1 donadagi m², serpiyanka uchun 1 rulondagi m², kley uchun 1 m²ga kg</span></label>
+      <label>Hisoblash koeffitsienti <span style="color:var(--text3);font-weight:400;font-size:11px">(faqat quyidagi holatlar uchun kerak, boshqa oddiy xomashyo uchun bo'sh qoldiring)</span></label>
       <input type="number" id="f-volume" placeholder="1.0" step="0.01" min="0.01">
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.8">
+        📦 <b>Penoplast</b> bo'lsa → 1 blokning m³ hajmi (masalan <b>1</b>)<br>
+        🧱 <b>Bazalt</b> bo'lsa → 1 plitaning m² si (masalan <b>0.72</b>)<br>
+        🕸️ <b>Serpiyanka</b> bo'lsa → 1 rulonning m² si (masalan <b>50</b>)
+      </div>
+    </div>
+    <div class="form-row" style="background:#F3EEFF;border:1.5px solid #C4B5FD;border-radius:8px;padding:10px;margin:0 0 10px">
+      <div class="form-group" style="margin:0;grid-column:1/-1;font-size:11px;font-weight:600;color:#6D28D9">🧱 Faqat Bazalt uchun — 1 m² bazaltga kerak bo'ladigan miqdor:</div>
+      <div class="form-group" style="margin:0"><label style="font-size:11px">Serpiyanka (m²)</label><input type="number" id="f-serp-ratio" placeholder="2.0" step="0.1" min="0"></div>
+      <div class="form-group" style="margin:0"><label style="font-size:11px">Kley (kg)</label><input type="number" id="f-kley-ratio" placeholder="0.8" step="0.05" min="0"></div>
     </div>
     <div class="form-group" style="background:var(--gold-tint);border:1.5px solid var(--gold);border-radius:8px;padding:10px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
@@ -344,6 +357,26 @@ async function sendLowStockAlert() {
   } else {
     alert('❌ Xato yuz berdi');
   }
+}
+
+async function editBazaltRatios(id, currentSerp, currentKley) {
+  const newSerp = prompt(`1 m² BAZALTGA necha m² SERPIYANKA ketadi?\nHozirgi: ${currentSerp}`, currentSerp);
+  if (newSerp === null || isNaN(parseFloat(newSerp))) return;
+  const newKley = prompt(`1 m² BAZALTGA necha kg KLEY ketadi?\nHozirgi: ${currentKley}`, currentKley);
+  if (newKley === null || isNaN(parseFloat(newKley))) return;
+
+  const res = await fetch(`/api/inventory/${id}`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      serp_ratio_per_m2: parseFloat(newSerp),
+      kley_ratio_per_m2: parseFloat(newKley)
+    })
+  });
+  if (res.ok) {
+    alert('✓ Nisbatlar yangilandi! Keyingi barcha hisob-kitoblar shu yangi qiymatdan foydalanadi.');
+    location.reload();
+  } else alert('Xato yuz berdi');
 }
 
 async function editPrice(id, currentPrice) {
@@ -544,7 +577,9 @@ async function saveItem() {
       volume_per_unit: parseFloat(document.getElementById('f-volume').value)||1.0,
       is_penoplast: document.getElementById('f-is-penoplast').checked,
       is_default_penoplast: document.getElementById('f-is-default').checked,
-      notes: document.getElementById('f-notes').value||null
+      notes: document.getElementById('f-notes').value||null,
+      serp_ratio_per_m2: parseFloat(document.getElementById('f-serp-ratio').value)||null,
+      kley_ratio_per_m2: parseFloat(document.getElementById('f-kley-ratio').value)||null
     })
   });
   if(res.ok) location.reload();
