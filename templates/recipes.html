@@ -16,7 +16,7 @@
 .rec-thumb{width:48px;height:48px;border-radius:10px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:20px;position:relative;cursor:pointer}
 .rec-thumb img{width:100%;height:100%;object-fit:cover}
 .rec-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
-.rec-meta{font-size:11px;color:var(--text3);margin-top:2px}
+.rec-meta{font-size:13px;color:var(--text3);margin-top:2px}
 .ing-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2)}
 .ing-row:last-child{border-bottom:none}
 .ing-name{font-size:12.5px;color:var(--text2)}
@@ -28,8 +28,8 @@
 .calc-row.total{font-weight:600;color:var(--text);border-top:1px solid var(--border2);padding-top:8px;margin-top:4px}
 .rec-stat{background:var(--bg);border-radius:10px;padding:12px;text-align:center}
 .rec-stat-val{font-size:16px;font-weight:600;color:var(--gold-dark)}
-.rec-stat-label{font-size:10.5px;color:var(--text3);margin-top:2px}
-.used-tag{display:inline-block;font-size:11px;background:var(--border2);color:var(--text2);padding:3px 10px;border-radius:14px;margin:2px 4px 2px 0}
+.rec-stat-label{font-size:12.5px;color:var(--text3);margin-top:2px}
+.used-tag{display:inline-block;font-size:13px;background:var(--border2);color:var(--text2);padding:3px 10px;border-radius:14px;margin:2px 4px 2px 0}
 </style>
 {% endblock %}
 
@@ -71,12 +71,12 @@
 
       {% if ins.used_in %}
       <div style="margin-bottom:14px">
-        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Qaysi mahsulotlarda ishlatiladi</div>
+        <div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Qaysi mahsulotlarda ishlatiladi</div>
         {% for name in ins.used_in %}<span class="used-tag">{{ name }}</span>{% endfor %}
       </div>
       {% endif %}
 
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Tarkibi</div>
+      <div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Tarkibi</div>
       {% set total = recipe.akril_kg + recipe.pva_kg + recipe.qum_kg + recipe.kroshka_kg + recipe.penogasitel_kg + recipe.shtukaturka_kg + recipe.suv_kg %}
       {% for name, val in [('Akril', recipe.akril_kg), ('PVA', recipe.pva_kg), ('Qum', recipe.qum_kg), ('Kroshka', recipe.kroshka_kg), ('Penogasitel', recipe.penogasitel_kg), ('Shtukaturka', recipe.shtukaturka_kg), ('Suv', recipe.suv_kg)] %}
       {% if val > 0 %}
@@ -87,7 +87,7 @@
         </div>
         <div style="text-align:right">
           <div class="ing-val">{{ val }} kg</div>
-          <div style="font-size:10px;color:var(--text3)">{{ "%.1f"|format(val/recipe.batch_size_kg*100) }}%</div>
+          <div style="font-size:12px;color:var(--text3)">{{ "%.1f"|format(val/recipe.batch_size_kg*100) }}%</div>
         </div>
       </div>
       {% endif %}
@@ -101,7 +101,7 @@
 
       <!-- Hisoblash -->
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border2)">
-        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Hisoblash</div>
+        <div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Hisoblash</div>
         <div style="display:flex;align-items:center;gap:8px">
           <input type="number" id="area-{{ recipe.id }}" placeholder="m²" min="0" step="0.1"
                  style="width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;outline:none"
