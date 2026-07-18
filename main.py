@@ -71,7 +71,7 @@ def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, capt
     try:
         import urllib.request as _ur
 
-        boundary = "----PenoDecorProBoundary"
+        boundary = "PenoDecorProBoundary1234567890"
         body = bytearray()
 
         def add_field(name, value):
@@ -87,7 +87,12 @@ def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, capt
 
         url = f"https://api.telegram.org/bot{token}/sendDocument"
         req = _ur.Request(url, data=bytes(body), headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
-        _ur.urlopen(req, timeout=30)
+        try:
+            _ur.urlopen(req, timeout=30)
+        except _ur.HTTPError as http_err:
+            error_body = http_err.read().decode('utf-8', errors='replace')
+            print(f"⚠ Telegram fayl yuborilmadi — server javobi: {error_body}")
+            return False
         print(f"✓ Telegram fayl yuborildi: {filename}")
         return True
     except Exception as e:
