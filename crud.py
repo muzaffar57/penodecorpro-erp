@@ -123,7 +123,7 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
 
 def get_inventory(db: Session) -> List[Inventory]:
     """Barcha xomashyo ro'yxatini qaytaradi (o'chirilganlar bundan mustasno)."""
-    return db.query(Inventory).filter(Inventory.is_deleted == False).order_by(Inventory.item_name).all()
+    return db.query(Inventory).filter(Inventory.is_deleted.isnot(True)).order_by(Inventory.item_name).all()
 
 
 def get_item(db: Session, item_id: int) -> Optional[Inventory]:
@@ -809,7 +809,7 @@ def check_finished_for_order(db: Session, items) -> dict:
 
 
 def get_orders(db: Session, project_id: Optional[int] = None) -> List[Order]:
-    query = db.query(Order).filter(Order.is_deleted == False)
+    query = db.query(Order).filter(Order.is_deleted.isnot(True))
     if project_id:
         query = query.filter(Order.project_id == project_id)
     return query.order_by(Order.created_at.desc()).all()
