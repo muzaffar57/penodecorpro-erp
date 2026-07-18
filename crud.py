@@ -1633,13 +1633,29 @@ def factory_reset_all_data(db: Session) -> dict:
         Inventory, Master, Project, Supplier
     )
 
-    # Tartib MUHIM: avval bog'liq ("bola") jadvallar, keyin asosiy ("ota") jadvallar
+    # Tartib MUHIM va TO'LIQ tekshirilgan (har bir ForeignKey hisobga olingan):
+    # 1) DeliveryItem — deliveries, order_items ga bog'langan
+    # 2) Payment — orders, deliveries ga bog'langan
+    # 3) OrderAttachment — orders ga bog'langan
+    # 4) ReturnItem — orders ga bog'langan
+    # 5) InventoryMovement — inventory, orders, suppliers ga bog'langan
+    # 6) Delivery — orders ga bog'langan (DeliveryItem, Payment dan keyin xavfsiz)
+    # 7) OrderItem — orders, recipes, inventory, finished_products ga bog'langan
+    # 8) FinishedProduct — orders, inventory, recipes ga bog'langan (OrderItem dan keyin)
+    # 9) Order — endi barcha "bolalari" tozalangan, xavfsiz
+    # 10) InventoryPurchase — inventory, suppliers ga bog'langan
+    # 11) SupplierPayment — suppliers ga bog'langan
+    # 12-15) Mustaqil jadvallar
+    # 16) Recipe — endi xavfsiz (OrderItem, FinishedProduct tozalangan)
+    # 17) Inventory — endi xavfsiz
+    # 18) Master, 19) Project — endi xavfsiz (Order tozalangan)
+    # 20) Supplier — endi xavfsiz (barcha unga bog'langanlar tozalangan)
     tables_in_order = [
-        DeliveryItem, Payment, OrderAttachment, ReturnItem, Delivery,
-        OrderItem, Order,
-        InventoryMovement, InventoryPurchase, SupplierPayment,
-        FinishedProduct, TransportExpense, ExpenseTransaction, MonthlyExpense,
-        Employee, Recipe, Inventory, Master, Project, Supplier,
+        DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
+        Delivery, OrderItem, FinishedProduct, Order,
+        InventoryPurchase, SupplierPayment,
+        TransportExpense, ExpenseTransaction, MonthlyExpense, Employee,
+        Recipe, Inventory, Master, Project, Supplier,
     ]
 
     counts = {}
