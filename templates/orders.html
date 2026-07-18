@@ -469,8 +469,13 @@
 
     <!-- Tanlangan buyurtma xulosasi -->
     <div class="card" id="sumCard" style="display:none">
-      <div class="card-head"><h3><span class="ico-badge blue"><i class="ti ti-clipboard-list"></i></span> Buyurtma xulosasi</h3></div>
-      <div style="padding:12px">
+      <div class="card-head" style="cursor:pointer" onclick="toggleSection('sumBody','sum-toggle-ic')">
+        <h3><span class="ico-badge blue"><i class="ti ti-clipboard-list"></i></span> Buyurtma xulosasi</h3>
+        <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('sumBody','sum-toggle-ic')" title="Yig'ish/yoyish">
+          <i class="ti ti-chevron-down" id="sum-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
+        </button>
+      </div>
+      <div style="padding:12px" id="sumBody">
         <div class="sum-title">Ma'lumotlar</div>
         <div class="sum-item"><span class="si-l">Raqam</span><span class="si-v" id="s-num">—</span></div>
         <div class="sum-item"><span class="si-l">Mijoz</span><span class="si-v" id="s-client">—</span></div>
@@ -534,8 +539,11 @@
 
     <!-- Ombor ogohlantirishlari -->
     <div class="card" id="alertCard" style="display:none;border-left:3px solid #EF4444;border-radius:0 12px 12px 0">
-      <div class="card-head">
+      <div class="card-head" style="cursor:pointer" onclick="toggleSection('alertBody','alert-toggle-ic')">
         <h3 style="color:#DC2626;font-size:13px">⚠ Ombor</h3>
+        <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('alertBody','alert-toggle-ic')" title="Yig'ish/yoyish">
+          <i class="ti ti-chevron-down" id="alert-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
+        </button>
       </div>
       <div style="padding:12px" id="alertBody"></div>
     </div>
