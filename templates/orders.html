@@ -72,18 +72,18 @@
 .ord-date{font-size:12.5px;color:#888}
 .mid-panel{overflow-y:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
 .right-panel{overflow-y:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
-.detal{background:#f8f8f6;border-radius:14px;padding:18px;border:1px solid #ebebeb}
-.detal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-.detal-badge{font-size:12px;font-weight:600;color:#2563EB;background:#fdf8f0;padding:5px 12px;border-radius:8px;border:1px solid #f0e0c0}
-.detal-rm{background:none;border:none;color:#ddd;cursor:pointer;font-size:19px;line-height:1;transition:color .15s}
+.detal{background:#f8f8f6;border-radius:18px;padding:26px;border:1px solid #ebebeb}
+.detal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.detal-badge{font-size:15px;font-weight:700;color:#2563EB;background:#fdf8f0;padding:7px 16px;border-radius:10px;border:1px solid #f0e0c0}
+.detal-rm{background:none;border:none;color:#ddd;cursor:pointer;font-size:26px;line-height:1;transition:color .15s}
 .detal-rm:hover{color:#EF4444}
-.detal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-.dif label{font-size:11.5px;color:#888;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;font-weight:600}
-.dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid #e5e5e5;border-radius:10px;font-size:14.5px;color:#111;background:#fff;outline:none;transition:border .15s}
+.detal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+.dif label{font-size:15px;color:#777;display:block;margin-bottom:7px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
+.dif input,.dif select{width:100%;padding:15px 17px;border:2px solid #e5e5e5;border-radius:13px;font-size:19px;color:#111;background:#fff;outline:none;transition:border .15s}
 .dif input:focus,.dif select:focus{border-color:#2563EB}
 .dif input[readonly]{background:#f8f8f6;color:#aaa;cursor:not-allowed}
-.detal-result{margin-top:14px;padding:14px 16px;background:#fff;border-radius:12px;border:1px solid #ebebeb;display:flex;gap:20px;font-size:14.5px;color:#888;flex-wrap:wrap;align-items:center}
-.detal-result .val{color:#22C55E;font-weight:700;font-size:15px}
+.detal-result{margin-top:20px;padding:20px 22px;background:#fff;border-radius:16px;border:1.5px solid #ebebeb;display:flex;gap:28px;font-size:18px;color:#888;flex-wrap:wrap;align-items:center}
+.detal-result .val{color:#22C55E;font-weight:800;font-size:20px}
 .total-box{background:#f8f8f6;border-radius:14px;padding:18px;border:1px solid #ebebeb}
 .trow{display:flex;justify-content:space-between;font-size:14.5px;padding:5px 0;color:#555}
 .trow.main{font-size:19px;font-weight:700;color:#111;border-top:1px solid #e0e0e0;padding-top:12px;margin-top:8px}
@@ -486,12 +486,12 @@
             <span style="color:var(--text2)">Chegirma:</span>
             <span id="pay-discount" style="font-weight:600;color:#F59E0B">—</span>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 6px;font-size:14.5px;border-top:1px solid var(--border2);margin-top:6px;padding-top:12px">
-            <span style="color:var(--text2);font-weight:600">Kelishilgan:</span>
-            <span style="display:flex;align-items:center;gap:8px">
-              <span id="pay-agreed" style="font-weight:800;color:var(--gold);font-size:24px">—</span>
-              <button onclick="editAgreedAmount()" style="width:26px;height:26px;border-radius:7px;background:var(--border2);border:none;font-size:14px;cursor:pointer" title="Kelishilgan summani o'zgartirish">✏️</button>
-            </span>
+          <div style="padding:10px 0 8px;border-top:1px solid var(--border2);margin-top:6px;padding-top:12px">
+            <div style="color:var(--text2);font-weight:600;font-size:14.5px;margin-bottom:6px">Kelishilgan:</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <span id="pay-agreed" style="font-weight:800;color:var(--gold);font-size:22px;line-height:1.2">—</span>
+              <button onclick="editAgreedAmount()" style="width:28px;height:28px;flex-shrink:0;border-radius:8px;background:var(--border2);border:none;font-size:14px;cursor:pointer" title="Kelishilgan summani o'zgartirish">✏️</button>
+            </div>
           </div>
           <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px">
             <span style="color:var(--text2)">To'langan:</span>
