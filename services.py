@@ -1984,6 +1984,143 @@ def adjust_inventory_diff(db: Session, old_items, new_items) -> list:
     return log
 
 
+def _group_termo_materials(items) -> dict:
+    """Termopanel detallarini xomashyo bo'yicha guruhlaydi.
+    Qaytaradi: {'bazalt': {item_id: jami_dona}, 'serp': {item_id: jami_rulon},
+                'kley_kg': jami_kg, 'loy_kg': jami_kg}"""
+    result = {'bazalt': {}, 'serp': {}, 'kley_kg': 0.0, 'loy_kg': 0.0}
+    for it in items:
+        cat = (it.get('category') if isinstance(it, dict) else getattr(it, 'category', None)) or ''
+        if cat.lower() != 'termopanel':
+            continue
+        get = (lambda k: it.get(k)) if isinstance(it, dict) else (lambda k: getattr(it, k, None))
+        m2 = float(get('quantity') or 0)
+        if m2 <= 0:
+            continue
+        bazalt_id = get('bazalt_item_id')
+        serp_id = get('serpiyanka_item_id')
+        if bazalt_id:
+            result['bazalt'][bazalt_id] = result['bazalt'].get(bazalt_id, 0.0) + m2  # m² — keyin bo'linadi
+        if serp_id:
+            result['serp'][serp_id] = result['serp'].get(serp_id, 0.0) + (m2 * 2)   # m² (2 tomon)
+        result['kley_kg'] += float(get('kley_kg') or 0)
+        result['loy_kg'] += float(get('termo_loy_kg') or 0)
+    return result
+
+
+def check_termopanel_diff(db: Session, old_items, new_items) -> dict:
+    """Buyurtma TAHRIRLANGANDA — termopanel xomashyosi farqi yetarli ekanini tekshiradi.
+    Faqat ORTIQCHA kerak bo'lgan qism uchun (kamaygan bo'lsa — tekshiruv shart emas)."""
+    from models import Inventory
+
+    old_g = _group_termo_materials(old_items)
+    new_g = _group_termo_materials(new_items)
+    shortages = []
+
+    for bid in set(old_g['bazalt']) | set(new_g['bazalt']):
+        old_m2 = old_g['bazalt'].get(bid, 0.0)
+        new_m2 = new_g['bazalt'].get(bid, 0.0)
+        diff_m2 = new_m2 - old_m2
+        if diff_m2 <= 0:
+            continue
+        b = db.query(Inventory).filter(Inventory.id == bid).first()
+        if not b:
+            shortages.append("Bazalt plita ombordan topilmadi")
+            continue
+        area = float(b.volume_per_unit or 0.72)
+        needed = diff_m2 / area
+        if float(b.stock_quantity) < needed:
+            shortages.append(f"{b.item_name}: qo'shimcha {needed:.2f} dona kerak, qoldi {float(b.stock_quantity):.2f} dona")
+
+    for sid in set(old_g['serp']) | set(new_g['serp']):
+        old_m2 = old_g['serp'].get(sid, 0.0)
+        new_m2 = new_g['serp'].get(sid, 0.0)
+        diff_m2 = new_m2 - old_m2
+        if diff_m2 <= 0:
+            continue
+        s = db.query(Inventory).filter(Inventory.id == sid).first()
+        if not s:
+            shortages.append("Serpiyanka ombordan topilmadi")
+            continue
+        area = float(s.volume_per_unit or 50.0)
+        needed = diff_m2 / area
+        if float(s.stock_quantity) < needed:
+            shortages.append(f"{s.item_name}: qo'shimcha {needed:.2f} rulon kerak, qoldi {float(s.stock_quantity):.2f} rulon")
+
+    kley_diff = new_g['kley_kg'] - old_g['kley_kg']
+    if kley_diff > 0:
+        k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).first()
+        if not k:
+            shortages.append("Kley ombordan topilmadi")
+        elif float(k.stock_quantity) < kley_diff:
+            shortages.append(f"{k.item_name}: qo'shimcha {kley_diff:.2f} kg kerak, qoldi {float(k.stock_quantity):.2f} kg")
+
+    return {"enough": len(shortages) == 0, "shortages": shortages}
+
+
+def adjust_termopanel_diff(db: Session, old_items, new_items, recipe_id=None) -> list:
+    """Buyurtma TAHRIRLANGANDA — termopanel xomashyosini FARQ bo'yicha to'g'irlaydi.
+    Ko'proq kerak bo'lsa — ombordan yechadi; kamroq kerak bo'lsa — qaytaradi."""
+    from models import Inventory
+
+    old_g = _group_termo_materials(old_items)
+    new_g = _group_termo_materials(new_items)
+    log = []
+
+    for bid in set(old_g['bazalt']) | set(new_g['bazalt']):
+        diff_m2 = new_g['bazalt'].get(bid, 0.0) - old_g['bazalt'].get(bid, 0.0)
+        if abs(diff_m2) < 0.001:
+            continue
+        b = db.query(Inventory).filter(Inventory.id == bid).with_for_update().first()
+        if not b:
+            continue
+        area = float(b.volume_per_unit or 0.72)
+        diff_sheets = diff_m2 / area
+        b.stock_quantity = max(0, float(b.stock_quantity) - diff_sheets)
+        log.append(f"{b.item_name}: {'-' if diff_sheets > 0 else '+'}{abs(diff_sheets):.2f} dona (tahrirlash)")
+
+    for sid in set(old_g['serp']) | set(new_g['serp']):
+        diff_m2 = new_g['serp'].get(sid, 0.0) - old_g['serp'].get(sid, 0.0)
+        if abs(diff_m2) < 0.001:
+            continue
+        s = db.query(Inventory).filter(Inventory.id == sid).with_for_update().first()
+        if not s:
+            continue
+        area = float(s.volume_per_unit or 50.0)
+        diff_rulon = diff_m2 / area
+        s.stock_quantity = max(0, float(s.stock_quantity) - diff_rulon)
+        log.append(f"{s.item_name}: {'-' if diff_rulon > 0 else '+'}{abs(diff_rulon):.2f} rulon (tahrirlash)")
+
+    kley_diff = new_g['kley_kg'] - old_g['kley_kg']
+    if abs(kley_diff) >= 0.001:
+        k = db.query(Inventory).filter(Inventory.item_name.ilike("%kley%")).with_for_update().first()
+        if k:
+            k.stock_quantity = max(0, float(k.stock_quantity) - kley_diff)
+            log.append(f"{k.item_name}: {'-' if kley_diff > 0 else '+'}{abs(kley_diff):.2f} kg (tahrirlash)")
+
+    loy_diff = new_g['loy_kg'] - old_g['loy_kg']
+    if loy_diff > 0.001:
+        class _FakeOrder:
+            def __init__(self, rid):
+                class _It:
+                    pass
+                it = _It(); it.recipe_id = rid
+                self.items = [it]
+        log.extend(deduct_loy_ingredients(db, _FakeOrder(recipe_id), loy_diff, use_stock=False))
+    elif loy_diff < -0.001:
+        class _FakeOrder:
+            def __init__(self, rid):
+                class _It:
+                    pass
+                it = _It(); it.recipe_id = rid
+                self.items = [it]
+        log.extend(return_loy_ingredients(db, _FakeOrder(recipe_id), abs(loy_diff)))
+
+    if log:
+        db.commit()
+    return log
+
+
 def check_inventory_diff(db: Session, old_items, new_items) -> dict:
     """Tahrirlashdan keyin xomashyo yetadimi — tekshiradi."""
     from models import Inventory
