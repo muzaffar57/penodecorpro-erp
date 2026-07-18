@@ -354,6 +354,19 @@ class ProduceCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class TermopanelProduceCreate(BaseModel):
+    """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
+    name: str = Field(..., min_length=2, max_length=150)
+    required_m2: float = Field(..., gt=0, description="Kerakli kvadrat metr")
+    bazalt_item_id: int
+    serpiyanka_item_id: int
+    kley_kg: float = Field(default=0, ge=0)
+    recipe_id: Optional[int] = None
+    loy_kg: float = Field(default=0, ge=0)
+    unit_price: float = Field(default=0, ge=0, description="Sotuv narxi (1 kvadrat metr uchun)")
+    notes: Optional[str] = None
+
+
 class FinishedProductRead(BaseModel):
     id: int
     name: str
