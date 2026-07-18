@@ -583,7 +583,13 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     # === LOY HISOB-KITOBI ===
     # Buyurtma yaratilganda rejalashtirilgan loy allaqachon ayirilgan.
     # Endi haqiqiy miqdor bilan solishtiramiz.
-    planned_loy = _get_planned_loy(order)
+    # MUHIM: agar shu buyurtmada Termopanel (bazalt) detali ham bo'lsa, uning
+    # rejalashtirilgan loyi ham SHU YAGONA savolga qo'shib hisoblanadi —
+    # hodim faqat BITTA umumiy raqam kiritadi.
+    import crud as _crud
+    order_planned = _get_planned_loy(order)
+    termo_planned = _crud.get_termopanel_planned_loy(order)
+    planned_loy = order_planned + termo_planned
     actual_loy = float(loy_kg or 0)
 
     if actual_loy > 0:
@@ -622,6 +628,12 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 "action": "teng",
                 "message": "Reja bo'yicha ketdi"
             }
+
+        # Termopanel detallarining "reja" belgisini ham — o'z ulushiga qarab —
+        # haqiqiy qiymatga yangilaymiz (keyingi audit/tarix uchun to'g'ri saqlansin).
+        if termo_planned > 0:
+            _crud.settle_termopanel_loy_share(order, planned_loy, actual_loy)
+            db.commit()
     elif planned_loy > 0:
         # Haqiqiy miqdor kiritilmadi — reja bo'yicha deb hisoblaymiz
         result["loy_info"] = {
