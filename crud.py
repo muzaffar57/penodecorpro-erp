@@ -825,10 +825,14 @@ def mark_order_ready(db: Session, order_id: int) -> dict:
     if db_order.items and db_order.items[0].recipe_id:
         recipe = db.query(Recipe).filter(Recipe.id == db_order.items[0].recipe_id).first()
         if recipe:
-            # Qancha qoplama qilinishi kerak (qoplamali itemlar yig'indisi)
+            # Qancha qoplama qilinishi kerak (qoplamali itemlar yig'indisi).
+            # MUHIM: Termopanel (bazalt) detallari BU YERGA KIRMAYDI — ularning
+            # loyi alohida, aniqroq tizim orqali (complete_termopanel_loy) hisoblanadi.
+            # Aks holda ikki marta xomashyo yechilib qolar edi.
             total_coated_qty = sum(
                 (item.length or 0) * item.quantity if item.length else item.quantity
-                for item in db_order.items if item.is_coated
+                for item in db_order.items
+                if item.is_coated and (item.category or '').lower() != 'termopanel'
             )
 
             # Retsept asosida har bir komponentni hisoblaymiz
@@ -1492,6 +1496,26 @@ def get_termopanel_planned_loy(order) -> float:
         if val:
             total += val
     return total
+
+
+def settle_termopanel_loy_share(order, total_planned: float, total_actual: float) -> None:
+    """Umumiy (Karniz + Termopanel) loy yakunlanganda — termopanel
+    detallarining 'reja' belgisini o'z ULUSHIGA qarab haqiqiy qiymatga
+    yangilaydi (keyingi tarix/audit uchun to'g'ri saqlansin).
+    Xomashyoni QAYTA yechmaydi — buni chaqiruvchi funksiya (complete_order)
+    allaqachon UMUMIY farq sifatida bir marta hisoblab bo'lgan."""
+    import re
+    if total_planned <= 0:
+        return
+    for item in order.items:
+        if (item.category or '').lower() != 'termopanel':
+            continue
+        old_val = _parse_termo_note(item.notes, 'loy_kg', is_float=True) or 0
+        if old_val <= 0:
+            continue
+        share = old_val / total_planned
+        new_val = round(total_actual * share, 4)
+        item.notes = re.sub(r'loy_kg=[\d.]+', f'loy_kg={new_val}', item.notes or '')
 
 
 def complete_termopanel_loy(db: Session, order_id: int, actual_loy_kg: float) -> dict:
