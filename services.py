@@ -592,12 +592,22 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     planned_loy = order_planned + termo_planned
     actual_loy = float(loy_kg or 0)
 
+    # MUHIM FARQ:
+    # - TO'LIQ yakunlashda (yoki hali hech narsa topshirilmagan holatda) —
+    #   hodim REJA bo'yicha loy aralashtirgan, ortgani — HAQIQATAN aralashtirilgan,
+    #   faqat ishlatilmagan tayyor loy. "Tayyor loy" ombor pozitsiyasiga qo'shiladi.
+    # - QISMAN yakunlashda — hodim FAQAT bajargan ishiga yarasha loy tayyorlaydi,
+    # rejadagi qolgan qismni umuman ARALASHTIRMAYDI HAM. Demak "ortgan" qism —
+    # bu XOM XOMASHYO (Akril, Qum va h.k.), ular o'z joyiga qaytishi kerak,
+    # "Tayyor loy" ga emas.
+    is_partial_completion = bool(order.deliveries) and not order.is_fully_delivered
+
     if actual_loy > 0:
         recipe = _get_order_recipe(db, order)
         diff = actual_loy - planned_loy
 
         if diff > 0.01:
-            # Ko'proq ketdi — farq uchun xomashyo ayiramiz
+            # Ko'proq ketdi — farq uchun xomashyo ayiramiz (ikkala holatda ham bir xil)
             loy_log = deduct_loy_ingredients(db, order, diff)
             result["inventory_changes"].extend(loy_log)
             result["loy_info"] = {
@@ -608,18 +618,30 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 "message": f"Rejadan {diff:.1f} kg ko'p ketdi — xomashyo ayirildi"
             }
         elif diff < -0.01:
-            # Kam ketdi — ortgani omborga
             extra = abs(diff)
-            msg = add_loy_to_stock(db, recipe, extra)
-            if msg:
-                result["inventory_changes"].append(msg)
-            result["loy_info"] = {
-                "planned": planned_loy,
-                "actual": actual_loy,
-                "diff": round(diff, 1),
-                "action": "ortdi",
-                "message": f"{extra:.1f} kg loy ortdi — omborga qo'shildi"
-            }
+            if is_partial_completion:
+                # Aralashtirilmagan — xom xomashyo o'z joyiga qaytadi
+                ing_log = return_loy_ingredients(db, order, extra)
+                result["inventory_changes"].extend(ing_log)
+                result["loy_info"] = {
+                    "planned": planned_loy,
+                    "actual": actual_loy,
+                    "diff": round(diff, 1),
+                    "action": "ortdi",
+                    "message": f"Qisman yakunlandi — {extra:.1f} kg uchun XOM XOMASHYO (aralashtirilmagan) o'z joyiga qaytdi"
+                }
+            else:
+                # To'liq yakunlangan — haqiqatan aralashtirilgan, tayyor loy sifatida saqlanadi
+                msg = add_loy_to_stock(db, recipe, extra)
+                if msg:
+                    result["inventory_changes"].append(msg)
+                result["loy_info"] = {
+                    "planned": planned_loy,
+                    "actual": actual_loy,
+                    "diff": round(diff, 1),
+                    "action": "ortdi",
+                    "message": f"{extra:.1f} kg loy ortdi — omborga (Tayyor loy) qo'shildi"
+                }
         else:
             result["loy_info"] = {
                 "planned": planned_loy,
@@ -649,7 +671,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     # shu holda "Tayyor" bosilsa — bu "qolgani kerak emas, shu bilan yakunlaymiz"
     # degani. Qolgan (topshirilmagan) qism uchun xomashyo omborga qaytadi.
     # (Hali hech narsa topshirilmagan — oddiy holat — bunga tegilmaydi.)
-    if order.deliveries and not order.is_fully_delivered:
+    if is_partial_completion:
         partial_log = return_inventory_for_order_partial(db, order)
         if partial_log:
             result["inventory_changes"].extend(partial_log)
