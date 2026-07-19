@@ -3219,6 +3219,30 @@ def get_employees(db: Session, only_active: bool = True) -> List[Employee]:
     return q.order_by(Employee.name).all()
 
 
+def create_employee_advance(db: Session, employee_id: int, amount: float, notes: str = None, given_by: str = None):
+    """Hodimga avans (oldindan pul) berilganini qayd etadi."""
+    from models import EmployeeAdvance
+
+    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not emp:
+        return None
+    adv = EmployeeAdvance(employee_id=employee_id, amount=amount, notes=notes, given_by=given_by)
+    db.add(adv)
+    db.commit()
+    db.refresh(adv)
+    return adv
+
+
+def delete_employee_advance(db: Session, advance_id: int) -> bool:
+    from models import EmployeeAdvance
+    adv = db.query(EmployeeAdvance).filter(EmployeeAdvance.id == advance_id).first()
+    if not adv:
+        return False
+    db.delete(adv)
+    db.commit()
+    return True
+
+
 def get_employee(db: Session, emp_id: int) -> Optional[Employee]:
     return db.query(Employee).filter(Employee.id == emp_id).first()
 
