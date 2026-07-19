@@ -316,9 +316,20 @@ let invItems = [];
 
 async function loadInvItemsForAp() {
   if (invItems.length) return;
+  const sel = document.getElementById('ap-item');
   try {
-    invItems = await fetch('/api/inventory').then(r => r.json());
-    const sel = document.getElementById('ap-item');
+    const res = await fetch('/api/inventory');
+    if (!res.ok) {
+      sel.innerHTML = `<option value="">❌ Xato (status: ${res.status}) — Omborxonani yuklab bo'lmadi</option>`;
+      console.error('Inventory fetch failed:', res.status, await res.text().catch(()=>''));
+      return;
+    }
+    invItems = await res.json();
+
+    if (!invItems.length) {
+      sel.innerHTML = '<option value="">⚠️ Omborxonada hech qanday xomashyo yo\'q</option>';
+      return;
+    }
 
     const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Boshqa'];
     const groups = {};
@@ -341,7 +352,10 @@ async function loadInvItemsForAp() {
     }).join('');
 
     apOnItemChange();
-  } catch(e) {}
+  } catch(e) {
+    sel.innerHTML = `<option value="">❌ Tarmoq xatosi: ${e.message}</option>`;
+    console.error('loadInvItemsForAp xatosi:', e);
+  }
 }
 
 function apOnItemChange() {
