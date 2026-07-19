@@ -3576,17 +3576,26 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
     return p
 
 
-def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_date=None) -> dict:
+def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_date=None,
+                          page: int = 1, page_size: int = 20) -> dict:
     """Yetkazib beruvchining xaridlar va to'lovlar tarixi.
     start_date/end_date berilsa — faqat shu oraliqdagi xaridlar qaytariladi
-    (to'lovlar va umumiy qarz har doim to'liq hisoblanadi)."""
+    (to'lovlar va umumiy qarz har doim to'liq hisoblanadi).
+    page/page_size — XARIDLAR ro'yxati SAHIFALANGAN holda qaytariladi
+    (tarix uzoq bo'lib ketsa ham, har doim tez yuklanishi uchun)."""
     q = db.query(InventoryPurchase).filter(InventoryPurchase.supplier_id == supplier_id)
     if start_date:
         q = q.filter(InventoryPurchase.purchased_at >= start_date)
     if end_date:
         from datetime import timedelta
         q = q.filter(InventoryPurchase.purchased_at < end_date + timedelta(days=1))
-    purchases = q.order_by(InventoryPurchase.purchased_at.desc()).all()
+
+    total_count = q.count()
+    total_pages = max(1, (total_count + page_size - 1) // page_size)
+    page = max(1, min(page, total_pages))
+
+    purchases = q.order_by(InventoryPurchase.purchased_at.desc()) \
+                 .offset((page - 1) * page_size).limit(page_size).all()
 
     payments = db.query(SupplierPayment).filter(
         SupplierPayment.supplier_id == supplier_id
@@ -3609,6 +3618,12 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
             "purchased_by": p.purchased_by,
             "notes": p.notes
         } for p in purchases],
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total_count": total_count,
+            "total_pages": total_pages
+        },
         "payments": [{
             "id": pay.id,
             "amount": float(pay.amount),
