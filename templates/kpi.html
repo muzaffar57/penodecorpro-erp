@@ -199,7 +199,7 @@
 
     <div class="form-group" id="e-fixed-wrap">
       <label>Oylik summasi (so'm)</label>
-      <input type="number" id="e-fixed" placeholder="0" min="0">
+      <input type="text" id="e-fixed" placeholder="0" oninput="formatPriceInput(this)">
     </div>
 
     <div class="form-group" id="e-percent-wrap" style="display:none">
@@ -218,7 +218,7 @@
       </div>
       <div class="form-group" style="margin:0">
         <label>1 birlik narxi (so'm)</label>
-        <input type="number" id="e-unitrate" placeholder="0" min="0">
+        <input type="text" id="e-unitrate" placeholder="0" oninput="formatPriceInput(this)">
       </div>
     </div>
 
@@ -646,6 +646,10 @@ async function deleteAdvance(id) {
 function parseNum(v) {
   return parseFloat(String(v).replace(/[^\d.]/g, '')) || 0;
 }
+function formatPriceInput(input) {
+  const val = parseNum(input.value);
+  if (val > 0) input.value = fmt(val);
+}
 
 function openEmpModal() {
   editingEmpId = null;
@@ -681,10 +685,10 @@ function editEmployee(id) {
   document.getElementById('e-name').value = e.name;
   document.getElementById('e-position').value = e.position || '';
   document.getElementById('e-paytype').value = e.pay_type;
-  document.getElementById('e-fixed').value = e.fixed_amount || '';
+  document.getElementById('e-fixed').value = e.fixed_amount ? fmt(e.fixed_amount) : '';
   document.getElementById('e-percent').value = e.percent_value || '';
   document.getElementById('e-unittype').value = e.per_unit_type || 'blok';
-  document.getElementById('e-unitrate').value = e.per_unit_rate || '';
+  document.getElementById('e-unitrate').value = e.per_unit_rate ? fmt(e.per_unit_rate) : '';
   document.getElementById('e-coatingrate').value = e.per_unit_rate || 1000;
   document.getElementById('e-notes').value = e.notes || '';
   document.getElementById('emp-error').style.display = 'none';
@@ -701,13 +705,13 @@ async function saveEmployee() {
   const payType = document.getElementById('e-paytype').value;
   const unitRate = (payType === 'fixed_plus_coating')
     ? (parseFloat(document.getElementById('e-coatingrate').value) || 1000)
-    : (parseFloat(document.getElementById('e-unitrate').value) || 0);
+    : (parseNum(document.getElementById('e-unitrate').value) || 0);
 
   const data = {
     name,
     position: document.getElementById('e-position').value.trim() || null,
     pay_type: payType,
-    fixed_amount: parseFloat(document.getElementById('e-fixed').value) || 0,
+    fixed_amount: parseNum(document.getElementById('e-fixed').value) || 0,
     percent_value: parseFloat(document.getElementById('e-percent').value) || 0,
     per_unit_rate: unitRate,
     per_unit_type: document.getElementById('e-unittype').value,
