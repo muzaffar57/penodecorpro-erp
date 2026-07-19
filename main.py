@@ -892,10 +892,19 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
 
 @app.post("/api/employees/{employee_id}/advance")
 def api_create_employee_advance(employee_id: int, amount: float, notes: Optional[str] = None,
+                                  adv_date: Optional[str] = None,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Hodimga avans (oldindan pul) berilganini qayd etadi."""
+    """Hodimga avans (oldindan pul) berilganini qayd etadi.
+    adv_date — YYYY-MM-DD formatida, ixtiyoriy (berilmasa — bugungi sana)."""
+    parsed_date = None
+    if adv_date:
+        try:
+            parsed_date = datetime.strptime(adv_date, "%Y-%m-%d")
+        except ValueError:
+            pass
     adv = crud.create_employee_advance(db, employee_id, amount, notes,
-                                        given_by=current_user.full_name or current_user.username)
+                                        given_by=current_user.full_name or current_user.username,
+                                        adv_date=parsed_date)
     if not adv:
         raise HTTPException(status_code=404, detail="Hodim topilmadi")
     return {"status": "ok", "id": adv.id}
