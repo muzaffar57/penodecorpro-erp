@@ -116,7 +116,17 @@
                    style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
           </div>
         </div>
-        <div id="ap-total" style="font-size:12.5px;color:#1E40AF;margin-bottom:10px">Jami: —</div>
+        <div id="ap-total" style="font-size:12.5px;color:#1E40AF;margin-bottom:6px">Jami: —</div>
+        <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;border-color:#22C55E;color:#22C55E" onclick="apAddToBasket()">🛒 Ro'yxatga qo'shish (yana material qo'shish uchun)</button>
+
+        <div id="ap-basket" style="display:none;margin-bottom:12px;background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:8px;padding:10px">
+          <div style="font-size:11.5px;font-weight:700;color:#166534;margin-bottom:6px">🛒 Xarid ro'yxati (shu safar birga saqlanadi)</div>
+          <div id="ap-basket-list"></div>
+          <div style="display:flex;justify-content:space-between;font-weight:700;font-size:12.5px;color:#166534;margin-top:6px;padding-top:6px;border-top:1px solid #BBF7D0">
+            <span>Ro'yxat jami:</span><span id="ap-basket-total">0 so'm</span>
+          </div>
+        </div>
+
 
         <div style="background:#FDF8F0;border:1.5px solid #F0E6D2;border-radius:7px;padding:10px;margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -143,7 +153,7 @@
           <div id="ap-transport-hint" style="font-size:10.5px;color:#999;margin-top:5px"></div>
         </div>
 
-        <button class="btn btn-dark btn-sm" style="width:100%" onclick="saveAddPurchase()">✓ Saqlash</button>
+        <button class="btn btn-dark btn-sm" style="width:100%" id="ap-save-btn" onclick="saveAddPurchase()">✓ Saqlash</button>
       </div>
     </div>
 
@@ -381,6 +391,8 @@ function openAddPurchase() {
   const show = form.style.display === 'none';
   form.style.display = show ? 'block' : 'none';
   if (show) {
+    apBasket = [];
+    renderApBasket();
     loadInvItemsForAp().then(() => apOnItemChange());
     document.getElementById('ap-qty').value = '';
     document.getElementById('ap-price').value = '';
@@ -437,67 +449,125 @@ function apCalc() {
   }
 }
 
+let apBasket = [];
+
+function apAddToBasket() {
+  const itemId = parseInt(document.getElementById('ap-item').value);
+  const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
+  const price = parseFloat(document.getElementById('ap-price').value) || 0;
+  const item = invItems.find(i => i.id === itemId);
+
+  if (!itemId) { showMsg('❌ Materialni tanlang', 'error'); return; }
+  if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
+  if (item && item.is_penoplast) { showMsg('❌ Penoplast — savatga qo\'shib bo\'lmaydi, alohida saqlang', 'error'); return; }
+
+  apBasket.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: qty*price });
+
+  document.getElementById('ap-item').value = '';
+  document.getElementById('ap-qty').value = '';
+  document.getElementById('ap-price').value = '';
+  document.getElementById('ap-total').textContent = 'Jami: —';
+  renderApBasket();
+}
+
+function apRemoveFromBasket(idx) {
+  apBasket.splice(idx, 1);
+  renderApBasket();
+}
+
+function renderApBasket() {
+  const box = document.getElementById('ap-basket');
+  const list = document.getElementById('ap-basket-list');
+  if (!apBasket.length) { box.style.display = 'none'; document.getElementById('ap-save-btn').textContent = '✓ Saqlash'; return; }
+  box.style.display = 'block';
+  list.innerHTML = apBasket.map((b, i) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:#166534">
+      <span>${b.itemName} — ${b.qty} ${b.unit} × ${fmt(b.price)}</span>
+      <span style="display:flex;align-items:center;gap:6px"><b>${fmt(b.total)}</b>
+        <button onclick="apRemoveFromBasket(${i})" style="border:none;background:none;color:#DC2626;cursor:pointer">✕</button></span>
+    </div>`).join('');
+  const grandTotal = apBasket.reduce((s,b)=>s+b.total, 0);
+  document.getElementById('ap-basket-total').textContent = fmt(grandTotal) + " so'm";
+  document.getElementById('ap-save-btn').textContent = `✓ Barchasini saqlash (${apBasket.length + 1} tagacha material)`;
+}
+
+function round2(n) { return Math.round(n * 100) / 100; }
+
 async function saveAddPurchase() {
   const itemId = parseInt(document.getElementById('ap-item').value);
   const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
   const price = parseFloat(document.getElementById('ap-price').value) || 0;
+
+  // Joriy formadagi to'ldirilgan qatorni ham ro'yxatga qo'shamiz (agar to'ldirilgan bo'lsa)
+  const lines = [...apBasket];
+  if (itemId && qty && price) {
+    const item = invItems.find(i => i.id === itemId);
+    lines.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: qty*price });
+  }
+  if (!lines.length) { showMsg('❌ Kamida bitta material kiriting', 'error'); return; }
+
   const paidNow = parseFloat(document.getElementById('ap-paid-now').value) || 0;
   const transportPayer = document.getElementById('ap-transport-payer').value;
   const transportCost = parseFloat(document.getElementById('ap-transport-cost').value) || 0;
-  const item = invItems.find(i => i.id === itemId);
-  const volumePerUnit = (item && item.is_penoplast)
-    ? (parseFloat(document.getElementById('ap-volume').value) || null)
-    : null;
+  const grandTotal = lines.reduce((s,l)=>s+l.total, 0);
 
-  if (!itemId) { showMsg('❌ Materialni tanlang', 'error'); return; }
-  if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
-  if (item && item.is_penoplast && !volumePerUnit) {
-    showMsg('❌ Penoplast uchun 1 blok necha m³ ekanini kiriting', 'error'); return;
+  if (paidNow > grandTotal + 0.01) {
+    showMsg("❌ To'langan summa jami summadan ko'p bo'lishi mumkin emas", 'error'); return;
   }
   if (transportPayer === 'self' && transportCost <= 0) {
     showMsg("❌ Transport summasini kiriting", 'error'); return;
   }
-  const total = qty * price;
-  if (paidNow > total + 0.01) {
-    showMsg("❌ To'langan summa jami summadan ko'p bo'lishi mumkin emas", 'error'); return;
+
+  const singleItem = lines.length === 1 ? invItems.find(i => i.id === lines[0].itemId) : null;
+  let volumePerUnit = null;
+  if (singleItem && singleItem.is_penoplast) {
+    volumePerUnit = parseFloat(document.getElementById('ap-volume').value) || null;
+    if (!volumePerUnit) { showMsg('❌ Penoplast uchun 1 blok necha m³ ekanini kiriting', 'error'); return; }
   }
 
-  try {
-    const res = await fetch(`/api/inventory/${itemId}/purchase`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        quantity: qty,
-        price_per_unit: price,
-        paid_now: paidNow,
-        supplier_id: currentSupplierId,
-        notes: 'Yetkazib beruvchi sahifasidan qo\'shildi',
-        transport_payer: transportPayer,
-        transport_cost: transportCost,
-        volume_per_unit: volumePerUnit
-      })
-    });
-    if (res.ok) {
-      const r = await res.json();
-      let msg;
-      if (r.debt_remains > 0.01) {
-        msg = `✓ Xarid yozildi\n💰 To'landi: ${fmt(r.paid_now)} so'm\n🔴 Qarz: ${fmt(r.debt_remains)} so'm`;
-      } else {
-        msg = "✓ Xarid qo'shildi (to'liq to'landi)";
-      }
-      if (r.volume_changed) {
-        msg += `\n📦 Blok hajmi: ${r.old_volume} → ${r.new_volume} m³ (o'rtacha qayta hisoblandi)`;
-      }
-      showMsg(msg, 'success');
-      invItems = []; // keyingi safar yangi narx/hajm bilan qayta yuklansin
-      document.getElementById('addPurchaseForm').style.display = 'none';
-      openHistory(currentSupplierId);
-      loadSuppliers();
-    } else {
-      const e = await res.json();
-      showMsg('❌ ' + ((e.detail || {}).message || 'Xato'), 'error');
-    }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+  let totalPaid = 0, totalDebt = 0, hadError = false;
+  document.getElementById('ap-save-btn').disabled = true;
+
+  for (const line of lines) {
+    const linePaid = grandTotal > 0 ? round2(paidNow * (line.total / grandTotal)) : 0;
+    try {
+      const res = await fetch(`/api/inventory/${line.itemId}/purchase`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          quantity: line.qty,
+          price_per_unit: line.price,
+          paid_now: linePaid,
+          supplier_id: currentSupplierId,
+          notes: lines.length > 1 ? "Bir vaqtda ko'p material xaridi" : 'Yetkazib beruvchi sahifasidan qo\'shildi',
+          transport_payer: line === lines[0] ? transportPayer : 'none',
+          transport_cost: line === lines[0] ? transportCost : 0,
+          volume_per_unit: volumePerUnit
+        })
+      });
+      if (res.ok) {
+        const r = await res.json();
+        totalPaid += r.paid_now || 0;
+        totalDebt += r.debt_remains || 0;
+      } else { hadError = true; }
+    } catch(e) { hadError = true; }
+  }
+
+  document.getElementById('ap-save-btn').disabled = false;
+
+  if (hadError) {
+    showMsg('⚠️ Ba\'zi materiallar saqlanmadi — qaytadan tekshiring', 'error');
+  } else {
+    let msg = `✓ ${lines.length} ta material xaridi yozildi\n💰 To'landi: ${fmt(totalPaid)} so'm`;
+    if (totalDebt > 0.01) msg += `\n🔴 Qarz: ${fmt(totalDebt)} so'm`;
+    showMsg(msg, 'success');
+  }
+
+  apBasket = [];
+  invItems = [];
+  document.getElementById('addPurchaseForm').style.display = 'none';
+  openHistory(currentSupplierId);
+  loadSuppliers();
 }
 
 async function openHistory(id, keepFilter){
