@@ -2636,6 +2636,25 @@ async function editSelected() {
           row.querySelector('.i-h').value = item.width || 0;
           row.querySelector('.i-t').value = item.thickness || 0;
           row.querySelector('.i-q').value = item.quantity || 1;
+        } else if (cat === 'termopanel') {
+          // MUHIM TUZATISH: avval bu tur uchun umuman tiklash yozilmagan edi —
+          // shuning uchun m² va tanlangan Bazalt "unutilib", saqlaganda
+          // noto'g'ri (standart) qiymat yuborilib, ombor xato tuzatilar edi.
+          row.querySelector('.i-q').value = item.quantity || 0;
+
+          const bm = (item.notes || '').match(/bazalt_id=(\d+)/);
+          const originalBazaltId = bm ? bm[1] : null;
+
+          loadTermoInventoryFor(row).then(() => {
+            const bazaltSel = row.querySelector('.i-termo-bazalt');
+            if (bazaltSel && originalBazaltId) {
+              // Agar shu bazalt hali ro'yxatda bo'lmasa (masalan nomi
+              // o'zgargan) — mavjud tanlovni qoldiramiz, aks holda aslini tiklaymiz
+              const exists = Array.from(bazaltSel.options).some(o => o.value === originalBazaltId);
+              if (exists) bazaltSel.value = originalBazaltId;
+            }
+            calculateItem(row);
+          });
         } else if (cat === 'blok') {
           row.querySelector('.i-q').value = item.quantity || 0;   // Necha metr kerak
 
