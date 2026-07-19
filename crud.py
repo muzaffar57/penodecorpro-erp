@@ -108,6 +108,26 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
     db.commit()
     db.refresh(db_item)
 
+    # MUHIM: agar boshlang'ich miqdor (va narx) kiritilgan bo'lsa —
+    # bu ham HAQIQIY xarajat, shuning uchun uni ham "xarid" tarixiga
+    # yozamiz. Aks holda bu pul Moliya hisobotlarida umuman ko'rinmay
+    # qolar edi (faqat ombor miqdori yozilib, xarajat qayd etilmasdi).
+    qty = float(item_data.stock_quantity or 0)
+    price = float(item_data.price_per_unit or 0)
+    if qty > 0 and price > 0:
+        from models import InventoryPurchase
+        purchase = InventoryPurchase(
+            inventory_id=db_item.id,
+            item_name=db_item.item_name,
+            quantity=qty,
+            unit=db_item.unit,
+            price_per_unit=price,
+            total_amount=round(qty * price, 2),
+            notes="Boshlang'ich qoldiq (material yaratilganda kiritilgan)"
+        )
+        db.add(purchase)
+        db.commit()
+
     # Agar birinchi penoplast bo'lsa — avtomatik asosiy qilamiz
     if is_peno:
         has_default = db.query(Inventory).filter(
