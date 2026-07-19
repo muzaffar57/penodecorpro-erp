@@ -221,6 +221,28 @@
     </div>
   </div>
 </div>
+
+<!-- ══ AVANS BERISH MODALI ══ -->
+<div id="advanceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px">💰 Avans berish — <span id="adv-emp-name" style="color:#D97706"></span></div>
+    <div style="font-size:12.5px;color:#888;margin-bottom:16px">Bu summa oy oxirida hisoblangan oylikdan avtomatik ayriladi</div>
+
+    <div class="form-group"><label>Summa (so'm)</label><input type="text" id="adv-amount" placeholder="0"></div>
+    <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="adv-notes" placeholder="Masalan: bayram sovg'asi uchun"></div>
+    <button class="btn btn-dark w-full" onclick="saveAdvance()">+ Avans qo'shish</button>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #eee">
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:8px">
+        <span>Shu oy jami avans:</span>
+        <span id="adv-total" style="color:#D97706">0 so'm</span>
+      </div>
+      <div id="adv-history"></div>
+    </div>
+
+    <button class="btn btn-outline w-full" style="margin-top:16px" onclick="closeAdvanceModal()">Yopish</button>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -524,14 +546,85 @@ async function loadEmployees() {
             <span class="emp-tag" style="background:${PAY_COLORS[e.pay_type]}15;color:${PAY_COLORS[e.pay_type]}">${PAY_LABELS[e.pay_type]}</span>
             <span style="font-size:13px;color:#888;margin-left:6px">${detail}</span>
           </div>
+          <div id="emp-avans-${e.id}" style="margin-top:4px;font-size:12px;color:#D97706"></div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="mini-btn" style="color:#D97706;border-color:#FDE68A" onclick="openAdvanceModal(${e.id}, '${e.name.replace(/'/g,"\\'")}')" title="Avans berish">💰</button>
           <button class="mini-btn" onclick="editEmployee(${e.id})">✏️</button>
           <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deleteEmployee(${e.id})">✕</button>
         </div>
       </div>`;
     }).join('');
+
+    // Har bir hodim uchun — shu oy berilgan avans summasini yuklaymiz
+    const now = new Date();
+    empItems.forEach(e => {
+      fetch(`/api/employees/${e.id}/advances?year=${now.getFullYear()}&month=${now.getMonth()+1}`)
+        .then(r => r.json())
+        .then(d => {
+          const el = document.getElementById(`emp-avans-${e.id}`);
+          if (el && d.total > 0) el.textContent = `💰 Bu oy avans: ${fmt(d.total)} so'm`;
+        }).catch(()=>{});
+    });
   } catch(e) { console.error(e); }
+}
+
+let advanceEmpId = null;
+function openAdvanceModal(empId, empName) {
+  advanceEmpId = empId;
+  document.getElementById('adv-emp-name').textContent = empName;
+  document.getElementById('adv-amount').value = '';
+  document.getElementById('adv-notes').value = '';
+  document.getElementById('advanceModal').style.display = 'flex';
+  loadAdvanceHistory(empId);
+}
+
+function closeAdvanceModal() {
+  document.getElementById('advanceModal').style.display = 'none';
+  advanceEmpId = null;
+}
+
+async function loadAdvanceHistory(empId) {
+  const now = new Date();
+  const res = await fetch(`/api/employees/${empId}/advances?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
+  const d = await res.json();
+  const list = document.getElementById('adv-history');
+  document.getElementById('adv-total').textContent = fmt(d.total) + " so'm";
+  if (!d.advances.length) {
+    list.innerHTML = '<div style="color:#bbb;font-size:12.5px;text-align:center;padding:8px">Bu oy hali avans berilmagan</div>';
+    return;
+  }
+  list.innerHTML = d.advances.map(a => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:12.5px">
+      <span>${new Date(a.date).toLocaleDateString('uz')} ${a.notes ? '— '+a.notes : ''}</span>
+      <span style="display:flex;align-items:center;gap:6px">
+        <b>${fmt(a.amount)} so'm</b>
+        <button onclick="deleteAdvance(${a.id})" style="border:none;background:none;color:#DC2626;cursor:pointer;font-size:13px">✕</button>
+      </span>
+    </div>`).join('');
+}
+
+async function saveAdvance() {
+  const amount = parseNum(document.getElementById('adv-amount').value);
+  if (!amount || amount <= 0) { alert("Summani kiriting!"); return; }
+  const notes = document.getElementById('adv-notes').value.trim();
+  const res = await fetch(`/api/employees/${advanceEmpId}/advance?amount=${amount}&notes=${encodeURIComponent(notes)}`, {method:'POST'});
+  if (res.ok) {
+    document.getElementById('adv-amount').value = '';
+    document.getElementById('adv-notes').value = '';
+    loadAdvanceHistory(advanceEmpId);
+    loadEmployees();
+  } else alert('Xato yuz berdi');
+}
+
+async function deleteAdvance(id) {
+  if (!confirm("Bu avans yozuvini o'chirasizmi?")) return;
+  const res = await fetch(`/api/employees/advance/${id}`, {method:'DELETE'});
+  if (res.ok) { loadAdvanceHistory(advanceEmpId); loadEmployees(); }
+}
+
+function parseNum(v) {
+  return parseFloat(String(v).replace(/[^\d.]/g, '')) || 0;
 }
 
 function openEmpModal() {
