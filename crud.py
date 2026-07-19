@@ -3219,14 +3219,19 @@ def get_employees(db: Session, only_active: bool = True) -> List[Employee]:
     return q.order_by(Employee.name).all()
 
 
-def create_employee_advance(db: Session, employee_id: int, amount: float, notes: str = None, given_by: str = None):
-    """Hodimga avans (oldindan pul) berilganini qayd etadi."""
+def create_employee_advance(db: Session, employee_id: int, amount: float, notes: str = None,
+                              given_by: str = None, adv_date=None):
+    """Hodimga avans (oldindan pul) berilganini qayd etadi.
+    adv_date — agar berilsa, aynan shu sana bilan yoziladi (masalan
+    avans kechroq kiritilgan, lekin haqiqatda boshqa kunda berilgan bo'lsa)."""
     from models import EmployeeAdvance
 
     emp = db.query(Employee).filter(Employee.id == employee_id).first()
     if not emp:
         return None
     adv = EmployeeAdvance(employee_id=employee_id, amount=amount, notes=notes, given_by=given_by)
+    if adv_date:
+        adv.date = adv_date
     db.add(adv)
     db.commit()
     db.refresh(adv)
