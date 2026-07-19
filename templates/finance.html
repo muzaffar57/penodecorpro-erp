@@ -76,11 +76,17 @@
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
     <div>
       <div style="font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:6px">📦 Xomashyo xaridi — nimaga ketdi</div>
       <div id="d-material-list" style="font-size:12.5px;color:var(--text2)">
         <div style="color:var(--text3)">Bugun xarid bo'lmagan</div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:6px">🚚 Transport (kompaniya ulushi)</div>
+      <div id="d-transport-total" style="font-size:12.5px;color:var(--text2)">
+        <div style="color:var(--text3)">Bugun transport xarajati yo'q</div>
       </div>
     </div>
     <div>
@@ -520,6 +526,14 @@ async function loadDailyFinance() {
          </div>`).join('');
     } else {
       matList.innerHTML = '<div style="color:var(--text3)">Bugun xarid bo\'lmagan</div>';
+    }
+
+    const transEl = document.getElementById('d-transport-total');
+    if (d.expenses.transport && d.expenses.transport.total > 0) {
+      transEl.innerHTML = `<div style="display:flex;justify-content:space-between;padding:4px 0">
+        <span>Jami</span><span style="font-weight:700">${fmtFull(d.expenses.transport.total)} so'm</span></div>`;
+    } else {
+      transEl.innerHTML = '<div style="color:var(--text3)">Bugun transport xarajati yo\'q</div>';
     }
 
     const othList = document.getElementById('d-other-list');
