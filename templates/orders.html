@@ -2002,8 +2002,8 @@ function addItem() {
       <div class="dif i-t-wrap" style="display:none"><label>Qalinlik (sm)</label><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik (m)</label><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi (so'm)</label><input type="number" placeholder="" class="i-unitprice" step="100" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="number" placeholder="1500000" class="i-blokprice" step="1000" oninput="onBlokPriceInput(this.closest('.detal'))"></div>
+      <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi (so'm)</label><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"></div>
       <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti (masalan 2)</label><input type="number" value="2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div>
       <div class="dif i-termo-bazalt-wrap" style="display:none">
         <label>Plotnost (Bazalt turi)</label>
@@ -2049,7 +2049,7 @@ function recalcBlokPrice(row) {
   const mult = parseFloat(row.querySelector('.i-blokmult')?.value) || 2;
   const base = parseFloat(row.dataset.blokBase) || 0;
   if (base > 0) {
-    bpEl.value = Math.round(isCoated ? base * mult : base);
+    bpEl.value = formatNum(Math.round(isCoated ? base * mult : base));
   }
   calculateItem(row);
 }
@@ -2060,7 +2060,7 @@ function onBlokPriceInput(row) {
   const bpEl = row.querySelector('.i-blokprice');
   const isCoated = row.querySelector('.i-c')?.value === 'true';
   const mult = parseFloat(row.querySelector('.i-blokmult')?.value) || 2;
-  const typed = parseFloat(bpEl.value) || 0;
+  const typed = parseNum(bpEl.value) || 0;
   row.dataset.blokBase = isCoated ? (typed / mult) : typed;
   calculateItem(row);
 }
@@ -2210,7 +2210,7 @@ function calculateItem(row) {
 
   if (type === 'dona') {
     const upEl = row.querySelector('.i-unitprice');
-    const unitPrice = upEl ? parseFloat(upEl.value) || 0 : 0;
+    const unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
     perMeterPrice = unitPrice;              // 1 dona narxi (qoplamasiz)
     price = unitPrice * qty;
     if (isCoated) { price *= 2; perMeterPrice *= 2; }
@@ -2254,7 +2254,7 @@ function calculateItem(row) {
     // l = "1 blokdan chiqadigan metr" (taxminan), qty = "necha metr kerak".
     // Tizim o'zi: kerak bo'lgan blok sonini (yuqoriga yaxlitlab) va 1 metr narxini hisoblaydi.
     const bpEl = row.querySelector('.i-blokprice');
-    const blokPrice = bpEl ? parseFloat(bpEl.value) || 0 : 0;
+    const blokPrice = bpEl ? parseNum(bpEl.value) || 0 : 0;
     const chiqadiPerBlok = l;         // "1 blokdan chiqadigan metr" — i-l maydonidan
     const kerakMetr = qty;            // "Necha metr kerak" — i-q maydonidan
 
@@ -2274,7 +2274,7 @@ function calculateItem(row) {
   } else if (type === 'termopanel') {
     // qty = kerakli kvadrat metr, i-unitprice = 1 m² narxi
     const upEl = row.querySelector('.i-unitprice');
-    const unitPrice = upEl ? parseFloat(upEl.value) || 0 : 0;
+    const unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
     perMeterPrice = unitPrice;
     price = unitPrice * qty;
     // Penoplast/m³ hisobiga aloqasi yo'q — bazalt alohida ombordan yechiladi
@@ -2336,7 +2336,7 @@ function updateTotal() {
         qtyText = `${blokKerak.toFixed(2)} blok → ${kerakMetr}m × ${Number(perm).toLocaleString('ru-RU')} so'm/m`;
     } else {
       const q = parseFloat(row.querySelector('.i-q')?.value || 1);
-      const up = parseFloat(row.querySelector('.i-unitprice')?.value || 0);
+      const up = parseNum(row.querySelector('.i-unitprice')?.value || 0);
       if (q > 0 && up > 0)
         qtyText = `${q} dona × ${Number(up).toLocaleString('ru-RU')} so'm`;
     }
@@ -2629,7 +2629,7 @@ async function editSelected() {
           row.querySelector('.i-q').value = item.quantity || 1;
           const upEl = row.querySelector('.i-unitprice');
           if (upEl) {
-            upEl.value = parseFloat(item.unit_price || 0);
+            upEl.value = formatNum(parseFloat(item.unit_price || 0));
             row.dataset.unitprice = parseFloat(item.unit_price || 0);
           }
         } else if (cat === 'panel') {
@@ -2673,7 +2673,7 @@ async function editSelected() {
             } else if (chiqadiPerBlok > 0) {
               blokPrice = parseFloat(item.unit_price || 0) * chiqadiPerBlok;
             }
-            bpEl.value = Math.round(blokPrice);
+            bpEl.value = formatNum(Math.round(blokPrice));
 
             // Asosiy (qoplamasiz) narxni joriy qoplama holatidan kelib chiqib hisoblaymiz
             const isCoated = item.is_coated;
@@ -2855,7 +2855,7 @@ function collectItems() {
                    penoplast_id: penoId, price_per_m3: effM3, finished_product_id: fpId });
     } else if (type === 'blok') {
       const bpEl = row.querySelector('.i-blokprice');
-      const blokPrice = bpEl ? parseFloat(bpEl.value) || 0 : 0;
+      const blokPrice = bpEl ? parseNum(bpEl.value) || 0 : 0;
       const chiqadiPerBlok = l;         // "1 blokdan chiqadigan metr" — i-l dan
       const kerakMetr = qty;            // "Necha metr kerak" — i-q dan
       const perMetr = chiqadiPerBlok > 0 ? (blokPrice / chiqadiPerBlok) : 0;
@@ -2865,7 +2865,7 @@ function collectItems() {
                    penoplast_id: penoId, price_per_m3: null, finished_product_id: fpId,
                    notes: `blok_narxi=${blokPrice},blok_yield=${chiqadiPerBlok}` });
     } else if (type === 'termopanel') {
-      const unitP = parseFloat(row.querySelector('.i-unitprice')?.value) || 0;
+      const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
       items.push({ name, category: 'termopanel', width: null, thickness: null, length: null,
                    quantity: qty, unit_price: unitP, is_coated: true,
                    penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
