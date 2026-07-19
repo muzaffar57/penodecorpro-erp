@@ -87,7 +87,7 @@
     </div>
 
     <div style="padding:12px 22px;border-bottom:1px solid #f0f0f0;display:flex;gap:8px">
-      <input type="number" id="pay-amount" placeholder="To'lov summasi" style="flex:1;height:38px;padding:0 12px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+      <input type="text" id="pay-amount" placeholder="To'lov summasi" oninput="formatPriceInput(this)" style="flex:1;height:38px;padding:0 12px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
       <button class="btn btn-dark" onclick="savePayment()">💰 To'lov qilish</button>
     </div>
 
@@ -112,7 +112,7 @@
           </div>
           <div style="flex:1">
             <label style="font-size:11px;color:#777">1 birlik narxi</label>
-            <input type="number" id="ap-price" placeholder="0" min="1" step="100" oninput="apCalc()"
+            <input type="text" id="ap-price" placeholder="0" oninput="formatPriceInput(this);apCalc()"
                    style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
           </div>
         </div>
@@ -147,7 +147,7 @@
               <option value="supplier">Yetkazib beruvchidan (bepul)</option>
               <option value="self">O'z hisobimdan</option>
             </select>
-            <input type="number" id="ap-transport-cost" placeholder="Summasi" disabled
+            <input type="text" id="ap-transport-cost" placeholder="Summasi" disabled oninput="formatPriceInput(this)"
                    style="flex:1;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none;background:#f5f5f5">
           </div>
           <div id="ap-transport-hint" style="font-size:10.5px;color:#999;margin-top:5px"></div>
@@ -181,6 +181,13 @@
 {% block scripts %}
 <script>
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+function parseNum(v) {
+  return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
+}
+function formatPriceInput(input) {
+  const val = parseNum(input.value);
+  if (val > 0) input.value = fmt(val);
+}
 function showMsg(t, type){
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;bottom:22px;right:22px;z-index:2000;padding:12px 18px;border-radius:10px;
@@ -425,14 +432,14 @@ function apToggleTransport() {
 
 function apFillFullPaid() {
   const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
-  const price = parseFloat(document.getElementById('ap-price').value) || 0;
+  const price = parseNum(document.getElementById('ap-price').value) || 0;
   document.getElementById('ap-paid-now').value = Math.round(qty * price) || '';
   apCalc();
 }
 
 function apCalc() {
   const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
-  const price = parseFloat(document.getElementById('ap-price').value) || 0;
+  const price = parseNum(document.getElementById('ap-price').value) || 0;
   const total = qty * price;
   document.getElementById('ap-total').textContent = 'Jami: ' + fmt(total) + " so'm";
 
@@ -455,7 +462,7 @@ let apBasket = [];
 function apAddToBasket() {
   const itemId = parseInt(document.getElementById('ap-item').value);
   const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
-  const price = parseFloat(document.getElementById('ap-price').value) || 0;
+  const price = parseNum(document.getElementById('ap-price').value) || 0;
   const item = invItems.find(i => i.id === itemId);
 
   if (!itemId) { showMsg('❌ Materialni tanlang', 'error'); return; }
@@ -497,7 +504,7 @@ function round2(n) { return Math.round(n * 100) / 100; }
 async function saveAddPurchase() {
   const itemId = parseInt(document.getElementById('ap-item').value);
   const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
-  const price = parseFloat(document.getElementById('ap-price').value) || 0;
+  const price = parseNum(document.getElementById('ap-price').value) || 0;
 
   // Joriy formadagi to'ldirilgan qatorni ham ro'yxatga qo'shamiz (agar to'ldirilgan bo'lsa)
   const lines = [...apBasket];
@@ -509,7 +516,7 @@ async function saveAddPurchase() {
 
   const paidNow = parseFloat(document.getElementById('ap-paid-now').value) || 0;
   const transportPayer = document.getElementById('ap-transport-payer').value;
-  const transportCost = parseFloat(document.getElementById('ap-transport-cost').value) || 0;
+  const transportCost = parseNum(document.getElementById('ap-transport-cost').value) || 0;
   const grandTotal = lines.reduce((s,l)=>s+l.total, 0);
 
   if (paidNow > grandTotal + 0.01) {
@@ -740,7 +747,7 @@ async function deletePurchase(id) {
 }
 
 async function savePayment(){
-  const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
+  const amount = parseNum(document.getElementById('pay-amount').value) || 0;
   if (!amount || amount <= 0){ showMsg('❌ Summani kiriting', 'error'); return; }
 
   try{
