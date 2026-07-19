@@ -1085,7 +1085,16 @@ def get_daily_finance_summary(db: Session, target_date) -> Dict:
     for e in other_today:
         other_breakdown[e.category] = other_breakdown.get(e.category, 0.0) + float(e.amount or 0)
 
-    total_expense = material_total + other_total
+    # ── 4) XARAJAT — transport (kompaniya o'z zimmasiga olgan yetkazish xarajati) ──
+    from models import Delivery
+    deliveries_today = db.query(Delivery).filter(
+        Delivery.delivered_at >= start,
+        Delivery.delivered_at < end,
+        Delivery.transport_cost > 0
+    ).all()
+    transport_total = sum(d.company_transport_cost for d in deliveries_today)
+
+    total_expense = material_total + other_total + transport_total
 
     return {
         "date": target_date.isoformat(),
@@ -1100,6 +1109,9 @@ def get_daily_finance_summary(db: Session, target_date) -> Dict:
             "material": {
                 "total": round(material_total),
                 "breakdown": [{"nomi": k, "summa": round(v)} for k, v in sorted(material_breakdown.items(), key=lambda x: -x[1])]
+            },
+            "transport": {
+                "total": round(transport_total)
             },
             "other": {
                 "total": round(other_total),
