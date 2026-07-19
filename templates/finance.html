@@ -216,7 +216,7 @@
         <option value="boshqa">Boshqa</option>
       </select>
     </div>
-    <div class="form-group"><label>Summa (so'm)</label><input type="number" id="tx-f-amount" placeholder="0" min="0"></div>
+    <div class="form-group"><label>Summa (so'm)</label><input type="text" id="tx-f-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-dark w-full" onclick="saveTx()">Saqlash</button>
@@ -241,6 +241,13 @@ document.getElementById('sel-year').value=now.getFullYear();
 const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
 function fmt(n){if(n>=1e6)return(n/1e6).toFixed(1)+' mln';if(n>=1e3)return(n/1e3).toFixed(0)+' ming';return Math.round(n||0).toString();}
 function fmtFull(n){return Number(Math.round(n||0)).toLocaleString('ru-RU');}
+function parseNum(v) {
+  return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
+}
+function formatPriceInput(input) {
+  const val = parseNum(input.value);
+  if (val > 0) input.value = fmtFull(val);
+}
 
 let currentData=null;
 let historyData=[];
@@ -479,7 +486,7 @@ function closeTxModal(){ document.getElementById('txModal').style.display = 'non
 async function saveTx(){
   const date = document.getElementById('tx-f-date').value;
   const category = document.getElementById('tx-f-category').value;
-  const amount = parseFloat(document.getElementById('tx-f-amount').value);
+  const amount = parseNum(document.getElementById('tx-f-amount').value);
   if (!date || !amount || amount <= 0) { alert('Sana va summani to\'g\'ri kiriting'); return; }
   try {
     const res = await fetch('/api/finance/transactions', {
