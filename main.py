@@ -890,6 +890,34 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
     } for e in items]
 
 
+@app.post("/api/employees/{employee_id}/advance")
+def api_create_employee_advance(employee_id: int, amount: float, notes: Optional[str] = None,
+                                  db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Hodimga avans (oldindan pul) berilganini qayd etadi."""
+    adv = crud.create_employee_advance(db, employee_id, amount, notes,
+                                        given_by=current_user.full_name or current_user.username)
+    if not adv:
+        raise HTTPException(status_code=404, detail="Hodim topilmadi")
+    return {"status": "ok", "id": adv.id}
+
+
+@app.get("/api/employees/{employee_id}/advances")
+def api_get_employee_advances(employee_id: int, year: int, month: int,
+                                db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Hodimga shu oyda berilgan barcha avanslar ro'yxati."""
+    return {
+        "advances": services.get_employee_advances_list(db, employee_id, year, month),
+        "total": services.get_employee_advances_total(db, employee_id, year, month)
+    }
+
+
+@app.delete("/api/employees/advance/{advance_id}")
+def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    if not crud.delete_employee_advance(db, advance_id):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
+
+
 @app.put("/api/employees/{emp_id}")
 def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     emp = crud.update_employee(db, emp_id, data)
