@@ -1334,7 +1334,6 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         jami_qoplama_birlik=jami_metr + jami_panel_metr + jami_dona
     )
     hodimlar_moslashuvchan_xarajat = emp_result["total"]
-
     jami_xarajat = jami_xarajat_eski + usta_kpi_xarajat + hodimlar_moslashuvchan_xarajat
 
     sof_foyda = sof_daromad - jami_xarajat
@@ -1369,6 +1368,7 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         "qoplamachi_bonus_avtomatik": qoplamachi_bonus_avtomatik,
         "xarajatlar": xarajatlar,
         "qoshimcha_xarajatlar": qoshimcha_xarajatlar,
+        "hodimlar_breakdown": emp_result["breakdown"],
         "jami_xarajat": jami_xarajat,
         "sof_foyda": sof_foyda,
         "foyda_foiz": round(foyda_foiz, 1),
@@ -2644,15 +2644,51 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
 
         if amount > 0:
             total += amount
+            avans = get_employee_advances_total(db, e.id, year, month)
             breakdown.append({
+                "employee_id": e.id,
                 "name": e.name,
                 "position": e.position,
                 "pay_type": e.pay_type.value,
                 "detail": detail,
-                "amount": round(amount)
+                "amount": round(amount),
+                "avans": round(avans),
+                "qolgan": round(amount - avans)
             })
 
     return {"total": round(total), "breakdown": breakdown}
+
+
+def get_employee_advances_total(db: Session, employee_id: int, year: int, month: int) -> float:
+    """Hodimga shu OYda berilgan barcha avanslar yig'indisi."""
+    from models import EmployeeAdvance
+    from sqlalchemy import extract as _extract, func as _func
+
+    total = db.query(_func.sum(EmployeeAdvance.amount)).filter(
+        EmployeeAdvance.employee_id == employee_id,
+        _extract('year', EmployeeAdvance.date) == year,
+        _extract('month', EmployeeAdvance.date) == month
+    ).scalar()
+    return float(total or 0)
+
+
+def get_employee_advances_list(db: Session, employee_id: int, year: int, month: int) -> list:
+    """Hodimga shu OYda berilgan barcha avanslar ro'yxati (sana, summa, izoh bilan)."""
+    from models import EmployeeAdvance
+    from sqlalchemy import extract as _extract
+
+    rows = db.query(EmployeeAdvance).filter(
+        EmployeeAdvance.employee_id == employee_id,
+        _extract('year', EmployeeAdvance.date) == year,
+        _extract('month', EmployeeAdvance.date) == month
+    ).order_by(EmployeeAdvance.date.desc()).all()
+    return [{
+        "id": r.id,
+        "amount": float(r.amount or 0),
+        "date": r.date.isoformat() if r.date else None,
+        "notes": r.notes,
+        "given_by": r.given_by
+    } for r in rows]
 
 
 def fmt_num(n):
