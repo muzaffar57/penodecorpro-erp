@@ -720,6 +720,7 @@
 let selectedOrderId = null;
 let itemCount = 0;
 let editMode = false;          // tahrirlash rejimidamizmi
+let currentEditOrderId = null; // xavfsizlik uchun — tahrirlanayotgan buyurtma ID'si
 let editDiscountPct = 0;       // tahrirlashdagi saqlangan chegirma foizi
 let editUserTouched = false;   // xodim kelishilgan summani qo'lda o'zgartirdimi
 
@@ -1909,6 +1910,7 @@ function showNewForm() {
   if (dlInp) dlInp.value = '';
   // Tahrirlash rejimidan qaytish
   editMode = false;
+  currentEditOrderId = null;
   editDiscountPct = 0;
   editUserTouched = false;
   const hint = document.getElementById('discount-auto-hint');
@@ -2470,6 +2472,16 @@ function reapplyDiscount() {
 
 // ── Buyurtmani saqlash ────────────────────────────────────
 async function saveOrder(isDraft = false) {
+  // XAVFSIZLIK TO'SIG'I: agar hozir aslida TAHRIRLASH rejimida bo'lsak
+  // (masalan tugma hali to'liq almashmagan yoki boshqa sababdan noto'g'ri
+  // chaqirilib qolsa) — buyurtmani QAYTADAN "yaratish" o'rniga, to'g'ri
+  // "yangilash" funksiyasiga yo'naltiramiz. Aks holda barcha detallar
+  // uchun xomashyo XATO, TAKROR ayrilib ketishi mumkin edi.
+  if (editMode && currentEditOrderId) {
+    console.warn('saveOrder() tahrirlash rejimida chaqirildi — updateOrder ga yo\'naltirilmoqda');
+    return updateOrder(currentEditOrderId);
+  }
+
   const projId = parseInt(document.getElementById('project_id').value);
   if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
@@ -2752,6 +2764,7 @@ async function editSelected() {
 
     // Tahrirlash rejimi + saqlangan chegirma foizi
     editMode = true;
+    currentEditOrderId = editId;
     editUserTouched = false;
     editDiscountPct = parseFloat(order.discount_percent || 0);
 
