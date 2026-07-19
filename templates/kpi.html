@@ -245,6 +245,7 @@
     <div style="font-size:16px;font-weight:600;margin-bottom:4px">💰 Avans berish — <span id="adv-emp-name" style="color:#D97706"></span></div>
     <div style="font-size:12.5px;color:#888;margin-bottom:16px">Bu summa oy oxirida hisoblangan oylikdan avtomatik ayriladi</div>
 
+    <div class="form-group"><label>Sana</label><input type="date" id="adv-date"></div>
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="adv-amount" placeholder="0"></div>
     <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="adv-notes" placeholder="Masalan: bayram sovg'asi uchun"></div>
     <button class="btn btn-dark w-full" onclick="saveAdvance()">+ Avans qo'shish</button>
@@ -592,6 +593,7 @@ function openAdvanceModal(empId, empName) {
   document.getElementById('adv-emp-name').textContent = empName;
   document.getElementById('adv-amount').value = '';
   document.getElementById('adv-notes').value = '';
+  document.getElementById('adv-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('advanceModal').style.display = 'flex';
   loadAdvanceHistory(empId);
 }
@@ -625,7 +627,8 @@ async function saveAdvance() {
   const amount = parseNum(document.getElementById('adv-amount').value);
   if (!amount || amount <= 0) { alert("Summani kiriting!"); return; }
   const notes = document.getElementById('adv-notes').value.trim();
-  const res = await fetch(`/api/employees/${advanceEmpId}/advance?amount=${amount}&notes=${encodeURIComponent(notes)}`, {method:'POST'});
+  const dateVal = document.getElementById('adv-date').value;
+  const res = await fetch(`/api/employees/${advanceEmpId}/advance?amount=${amount}&notes=${encodeURIComponent(notes)}&adv_date=${dateVal}`, {method:'POST'});
   if (res.ok) {
     document.getElementById('adv-amount').value = '';
     document.getElementById('adv-notes').value = '';
