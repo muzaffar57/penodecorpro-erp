@@ -2343,8 +2343,8 @@ function updateTotal() {
 
     if (price > 0) {
       html += `
-        <div style="display:flex;justify-content:space-between;align-items:center;
-                    padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px">
+        <div onclick="scrollToDetail('${row.id}')" style="display:flex;justify-content:space-between;align-items:center;
+                    padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;cursor:pointer" title="Bosib, shu detalga o'ting">
           <div>
             <div style="font-weight:500;color:#111">${name || ('Detal #'+(i+1))}</div>
             <div style="font-size:13px;color:#aaa">${qtyText}</div>
@@ -2431,6 +2431,16 @@ function calcDebt() {
     dbi.innerHTML = `⚠️ Ortiqcha to'lov: +${formatNum(Math.abs(debt))} so'm`;
     dbi.style.background = '#EFF6FF'; dbi.style.color = '#1a6fa8';
   }
+}
+
+function scrollToDetail(rowId) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const prevStyle = row.style.cssText;
+  row.style.transition = 'box-shadow .2s ease';
+  row.style.boxShadow = '0 0 0 3px #2563EB';
+  setTimeout(() => { row.style.cssText = prevStyle; }, 1200);
 }
 
 function recalcAll() {
