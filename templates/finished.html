@@ -223,7 +223,7 @@
       <div class="form-row" id="p-blok-row" style="display:none">
         <div class="form-group" style="margin:0" id="p-blokprice-wrap">
           <label>1 blok narxi (so'm, tayyor)</label>
-          <input type="number" id="p-blokprice" placeholder="1500000" step="1000" oninput="onBlokPriceInput()">
+          <input type="text" id="p-blokprice" placeholder="1 500 000" oninput="formatPriceInput(this);onBlokPriceInput()">
         </div>
         <div class="form-group" style="margin:0" id="p-blokmult-wrap">
           <label>Qoplama koeffitsienti (masalan 2)</label>
@@ -954,7 +954,7 @@ function recalcBlokPrice() {
   const isCoated = document.getElementById('p-coated').value === 'true';
   const mult = parseFloat(document.getElementById('p-blokmult').value) || 2;
   const base = parseFloat(window._blokBase) || 0;
-  if (base > 0) bpEl.value = Math.round(isCoated ? base * mult : base);
+  if (base > 0) bpEl.value = fmt(Math.round(isCoated ? base * mult : base));
   pCalc();
 }
 
@@ -962,7 +962,7 @@ function onBlokPriceInput() {
   const bpEl = document.getElementById('p-blokprice');
   const isCoated = document.getElementById('p-coated').value === 'true';
   const mult = parseFloat(document.getElementById('p-blokmult').value) || 2;
-  const typed = parseFloat(bpEl.value) || 0;
+  const typed = parseNum(bpEl.value) || 0;
   window._blokBase = isCoated ? (typed / mult) : typed;
   pCalc();
 }
@@ -1010,7 +1010,7 @@ function pCalc() {
     count = qty; unit = 'metr';
   } else if (type === 'blok') {
     // l = "1 blokdan chiqadigan metr" (taxminan), qty = "Necha metr kerak"
-    const blokPrice = parseFloat(document.getElementById('p-blokprice').value) || 0;
+    const blokPrice = parseNum(document.getElementById('p-blokprice').value) || 0;
     const chiqadiPerBlok = l;
     const kerakMetr = qty;
 
