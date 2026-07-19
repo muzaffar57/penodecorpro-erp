@@ -517,6 +517,24 @@ class Employee(Base):
         return f"<Employee {self.name} ({self.pay_type.value})>"
 
 
+class EmployeeAdvance(Base):
+    """Hodimga oy davomida berilgan avans (oldindan pul).
+    Oy oxirida hisoblangan oylikdan shu summalar ayriladi."""
+    __tablename__ = "employee_advances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    date = Column(DateTime, default=datetime.utcnow)
+    notes = Column(Text, nullable=True)
+    given_by = Column(String(100), nullable=True)
+
+    employee = relationship("Employee", backref="advances")
+
+    def __repr__(self):
+        return f"<EmployeeAdvance {self.employee_id}: {self.amount}>"
+
+
 # ============================================================
 # 9c. SUPPLIER — Yetkazib beruvchilar va nasiya qarzi
 # ============================================================
