@@ -279,7 +279,7 @@
       <div class="card">
         <div class="card-head">
           <h3>Detallar</h3>
-          <button class="btn btn-outline btn-sm" onclick="addItem()">+ Detal qo'shish</button>
+          <button class="btn btn-dark" style="padding:11px 22px;font-size:14.5px;font-weight:700;background:var(--gold);border-color:var(--gold);color:#fff;border-radius:10px" onclick="addItem()">+ Detal qo'shish</button>
         </div>
         <div style="padding:12px" id="items"></div>
 
@@ -2473,6 +2473,41 @@ async function saveOrder(isDraft = false) {
 
   const items = collectItems();
   if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
+
+  // Ogohlantirish: boshqa (asosiy bo'lmagan) plotnost tanlangan, lekin
+  // shu detalning o'z 1 m³ narxi yozilmagan bo'lsa — asosiy narx sukut
+  // bo'yicha ishlatiladi, bu esa noto'g'ri bo'lishi mumkin.
+  if (!isDraft) {
+    const rowsMissingPrice = [];
+    document.querySelectorAll('.detal').forEach((row, idx) => {
+      const penoSel = row.querySelector('.i-peno');
+      const m3El = row.querySelector('.i-m3price');
+      if (!penoSel || !m3El) return;
+      const pid = parseInt(penoSel.value);
+      const ownPrice = parseNum(m3El.value);
+      if (pid && DEFAULT_PENO_ID && pid !== DEFAULT_PENO_ID && !ownPrice) {
+        rowsMissingPrice.push(idx + 1);
+      }
+    });
+    if (rowsMissingPrice.length) {
+      const proceed = confirm(`⚠️ ${rowsMissingPrice.length}-detal(lar)da (№${rowsMissingPrice.join(', ')}) boshqa plotnost tanlangan, lekin 1 m³ birlik narxi yozilmagan — asosiy narx ishlatiladi.\n\nShunday ham davom etasizmi?`);
+      if (!proceed) return;
+    }
+  }
+
+  // Ogohlantirish: loy miqdori va kelishilgan sana kiritilmagan bo'lsa
+  // (faqat yakuniy saqlashda — qoralama uchun emas)
+  if (!isDraft) {
+    const loyVal = parseFloat(document.getElementById('loy_kg')?.value) || 0;
+    const deadlineVal = document.getElementById('deadline_input')?.value || '';
+    const missing = [];
+    if (!loyVal) missing.push('loy miqdorini yozing');
+    if (!deadlineVal) missing.push('kelishilgan sanani yozing');
+    if (missing.length) {
+      const proceed = confirm(`⚠️ Diqqat: ${missing.join(', ')}!\n\nShunday ham davom etasizmi?`);
+      if (!proceed) return;
+    }
+  }
 
   const finalPrice = parseNum(document.getElementById('final_price')?.value || '0');
   const zaklat = parseNum(document.getElementById('zaklat_amount')?.value || '0');
