@@ -106,6 +106,23 @@
       </div>
     </div>
 
+    <!-- OYLIK HISOB-KITOB (kim qancha oladi) -->
+    <div class="card">
+      <div class="card-head">
+        <h3>💵 Oylik hisob-kitob — kim qancha oladi</h3>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="emp-report-month" style="padding:6px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px"></select>
+          <select id="emp-report-year" style="padding:6px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px"></select>
+          <button class="btn btn-dark btn-sm" onclick="loadEmpMonthlyReport()">Ko'rish</button>
+        </div>
+      </div>
+      <div class="card-body" style="padding-top:0">
+        <div id="empMonthlyReport">
+          <div style="text-align:center;padding:20px;color:#bbb">Oyni tanlab, "Ko'rish"ni bosing</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -719,9 +736,73 @@ async function deleteEmployee(id) {
   if (res.ok) loadEmployees();
 }
 
+const MONTH_NAMES_UZ = ['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+
+function initEmpReportSelectors() {
+  const now = new Date();
+  const monthSel = document.getElementById('emp-report-month');
+  const yearSel = document.getElementById('emp-report-year');
+  monthSel.innerHTML = MONTH_NAMES_UZ.slice(1).map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
+  monthSel.value = now.getMonth()+1;
+  let yearsHtml = '';
+  for (let y = now.getFullYear(); y >= now.getFullYear()-3; y--) yearsHtml += `<option value="${y}">${y}</option>`;
+  yearSel.innerHTML = yearsHtml;
+  yearSel.value = now.getFullYear();
+}
+
+async function loadEmpMonthlyReport() {
+  const month = document.getElementById('emp-report-month').value;
+  const year = document.getElementById('emp-report-year').value;
+  const box = document.getElementById('empMonthlyReport');
+  box.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>';
+  try {
+    const res = await fetch(`/api/finance/report?year=${year}&month=${month}`);
+    const d = await res.json();
+    const list = d.hodimlar_breakdown || [];
+    if (!list.length) {
+      box.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Bu oy uchun hech kimga to\'lov hisoblanmagan</div>';
+      return;
+    }
+    box.innerHTML = `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:2px solid #eee;text-align:left;color:#888">
+              <th style="padding:8px 6px">Hodim</th>
+              <th style="padding:8px 6px">Tafsilot</th>
+              <th style="padding:8px 6px;text-align:right">Hisoblangan</th>
+              <th style="padding:8px 6px;text-align:right">Avans olingan</th>
+              <th style="padding:8px 6px;text-align:right">Qolgan to'lov</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(e => `
+              <tr style="border-bottom:1px solid #f5f5f5">
+                <td style="padding:8px 6px;font-weight:600">${e.name}</td>
+                <td style="padding:8px 6px;color:#888;font-size:12px">${e.detail}</td>
+                <td style="padding:8px 6px;text-align:right">${fmt(e.amount)} so'm</td>
+                <td style="padding:8px 6px;text-align:right;color:#D97706">${e.avans > 0 ? '-'+fmt(e.avans)+" so'm" : '—'}</td>
+                <td style="padding:8px 6px;text-align:right;font-weight:700;color:${e.qolgan >= 0 ? '#22C55E' : '#DC2626'}">${fmt(e.qolgan)} so'm</td>
+              </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="border-top:2px solid #eee;font-weight:700">
+              <td colspan="4" style="padding:10px 6px;text-align:right">Jami qolgan to'lov:</td>
+              <td style="padding:10px 6px;text-align:right;color:#8E44AD">${fmt(list.reduce((s,e)=>s+e.qolgan,0))} so'm</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+  } catch(e) {
+    box.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Xato yuz berdi</div>';
+  }
+}
+
 document.getElementById('kpi-year').value = new Date().getFullYear();
 loadMasterKpi();
 loadAllMastersFull();
 loadEmployees();
+initEmpReportSelectors();
+loadEmpMonthlyReport();
 </script>
 {% endblock %}
