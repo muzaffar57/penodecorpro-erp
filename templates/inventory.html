@@ -196,7 +196,7 @@
     </div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Min qoldiq</label><input type="number" id="f-min" placeholder="0" min="0"></div>
-      <div class="form-group" style="margin:0"><label>Birlik narxi (so'm)</label><input type="number" id="f-price" placeholder="0" min="0"></div>
+      <div class="form-group" style="margin:0"><label>Birlik narxi (so'm)</label><input type="text" id="f-price" placeholder="0" oninput="formatPriceInput(this)"></div>
     </div>
     <div class="form-group">
       <label>Hisoblash koeffitsienti <span style="color:var(--text3);font-weight:400;font-size:13px">(faqat quyidagi holatlar uchun kerak, boshqa oddiy xomashyo uchun bo'sh qoldiring)</span></label>
@@ -238,7 +238,7 @@
     <div style="font-size:14px;color:var(--text3);margin-bottom:16px">Ombor kirimi xarid narxi bilan qayd etiladi</div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Miqdor</label><input type="number" id="kirim-qty" placeholder="0" min="0" step="0.1"></div>
-      <div class="form-group" style="margin:0"><label>1 birlik narxi (so'm)</label><input type="number" id="kirim-price" placeholder="0" min="0"></div>
+      <div class="form-group" style="margin:0"><label>1 birlik narxi (so'm)</label><input type="text" id="kirim-price" placeholder="0" oninput="formatPriceInput(this)"></div>
     </div>
     <div class="form-group">
       <label>Yetkazib beruvchi (ixtiyoriy)</label>
@@ -320,6 +320,13 @@ function toggleDefaultCheck(){
 }
 
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+function parseNum(v) {
+  return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
+}
+function formatPriceInput(input) {
+  const val = parseNum(input.value);
+  if (val > 0) input.value = fmt(val);
+}
 
 async function uploadInventoryImage(id, input) {
   const file = input.files[0];
@@ -438,7 +445,7 @@ function closeKirimModal(){ document.getElementById('kirimModal').style.display 
 
 async function saveKirim() {
   const qty = parseFloat(document.getElementById('kirim-qty').value);
-  const price = parseFloat(document.getElementById('kirim-price').value);
+  const price = parseNum(document.getElementById('kirim-price').value);
   if (!qty || qty <= 0 || !price || price <= 0) { alert('Miqdor va narxni to\'g\'ri kiriting'); return; }
   const supplierId = document.getElementById('kirim-supplier').value || null;
   const notes = document.getElementById('kirim-notes').value || null;
@@ -592,7 +599,7 @@ async function saveItem() {
       stock_quantity: parseFloat(document.getElementById('f-qty').value)||0,
       unit: document.getElementById('f-unit').value,
       min_stock: parseFloat(document.getElementById('f-min').value)||0,
-      price_per_unit: parseFloat(document.getElementById('f-price').value)||null,
+      price_per_unit: parseNum(document.getElementById('f-price').value)||null,
       volume_per_unit: parseFloat(document.getElementById('f-volume').value)||1.0,
       is_penoplast: document.getElementById('f-is-penoplast').checked,
       is_default_penoplast: document.getElementById('f-is-default').checked,
