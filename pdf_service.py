@@ -272,15 +272,13 @@ def generate_nakladnoy(order, db=None) -> bytes:
     agreed   = float(order.agreed_amount or total)
     discount = max(total - agreed, 0)
 
-    # Yetkazib berish xizmati — agar mijozning o'zi to'laydigan bo'lsa,
-    # jami summaga qo'shiladi (buyurtmaning barcha yuklari bo'yicha)
-    transport_client_cost = 0.0
-    if getattr(order, 'deliveries', None):
-        for d in order.deliveries:
-            if getattr(d, 'transport_payer', None) in ('client', 'split'):
-                transport_client_cost += float(getattr(d, 'client_transport_cost', 0) or 0)
-
-    grand_total = agreed + transport_client_cost
+    # MUHIM: Yetkazib berishda mijoz o'z ulushini (masalan 50/50 holatda)
+    # to'g'ridan-to'g'ri HAYDOVCHIGA naqd beradi — kompaniyaning bu pulga
+    # aloqasi yo'q, shuning uchun bu HECH QACHON "qarz" yoki "to'lov
+    # summasi"ga qo'shilmaydi. Faqat kompaniya o'z zimmasiga olgan ulush
+    # (company_transport_cost) — bu alohida, Moliya xarajati sifatida
+    # hisoblanadi (bu yerga umuman aloqasi yo'q).
+    grand_total = agreed
     paid  = order.paid_amount if hasattr(order, 'paid_amount') else 0
     qarz  = max(0, grand_total - paid)
 
@@ -297,11 +295,6 @@ def generate_nakladnoy(order, db=None) -> bytes:
         totals_data.append([
             Paragraph("Kelishilgan summa:", st["total_label"]),
             Paragraph(f"{agreed:,.0f} so'm", st["total_label"]),
-        ])
-    if transport_client_cost > 1:
-        totals_data.append([
-            Paragraph("Yetkazib berish xizmati:", st["total_label"]),
-            Paragraph(f"+ {transport_client_cost:,.0f} so'm", st["total_label"]),
         ])
     grand_total_row = len(totals_data)
     totals_data.append([
