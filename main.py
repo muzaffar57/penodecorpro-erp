@@ -1016,8 +1016,10 @@ def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Dep
 
 @app.get("/api/suppliers/{supplier_id}/history")
 def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                         page: int = 1, page_size: int = 20,
                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Yetkazib beruvchi tarixi. start_date/end_date — YYYY-MM-DD formatida (ixtiyoriy)."""
+    """Yetkazib beruvchi tarixi. start_date/end_date — YYYY-MM-DD formatida (ixtiyoriy).
+    page/page_size — xaridlar ro'yxati sahifalanadi (standart: 20 tadan)."""
     from datetime import datetime as dt
 
     s = crud.get_supplier(db, supplier_id)
@@ -1027,7 +1029,8 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
     sd = dt.strptime(start_date, "%Y-%m-%d") if start_date else None
     ed = dt.strptime(end_date, "%Y-%m-%d") if end_date else None
 
-    history = crud.get_supplier_history(db, supplier_id, start_date=sd, end_date=ed)
+    history = crud.get_supplier_history(db, supplier_id, start_date=sd, end_date=ed,
+                                         page=page, page_size=page_size)
     return {"name": s.name, "phone": s.phone, **history}
 
 
