@@ -169,6 +169,7 @@
         </div>
       </div>
       <div id="hist-purchases"></div>
+      <div id="hist-pagination-purchases" style="display:flex;justify-content:center;align-items:center;gap:8px;margin:10px 0"></div>
 
       <div style="font-size:12px;font-weight:600;color:#777;margin:16px 0 8px">💰 To'lovlar tarixi</div>
       <div id="hist-payments"></div>
@@ -570,7 +571,9 @@ async function saveAddPurchase() {
   loadSuppliers();
 }
 
-async function openHistory(id, keepFilter){
+let historyCurrentPage = 1;
+
+async function openHistory(id, keepFilter, page){
   currentSupplierId = id;
   document.getElementById('historyModal').style.display = 'flex';
   document.getElementById('pay-amount').value = '';
@@ -579,14 +582,13 @@ async function openHistory(id, keepFilter){
     document.getElementById('hist-from').value = '';
     document.getElementById('hist-to').value = '';
   }
+  historyCurrentPage = page || (keepFilter ? historyCurrentPage : 1);
 
   const from = document.getElementById('hist-from').value;
   const to = document.getElementById('hist-to').value;
-  let url = `/api/suppliers/${id}/history`;
-  const params = [];
-  if (from) params.push(`start_date=${from}`);
-  if (to) params.push(`end_date=${to}`);
-  if (params.length) url += '?' + params.join('&');
+  let url = `/api/suppliers/${id}/history?page=${historyCurrentPage}&page_size=20`;
+  if (from) url += `&start_date=${from}`;
+  if (to) url += `&end_date=${to}`;
 
   try{
     const d = await fetch(url).then(r=>r.json());
@@ -643,6 +645,8 @@ async function openHistory(id, keepFilter){
       }).join('');
     }
 
+    renderHistPagination(d.pagination);
+
     const pa = document.getElementById('hist-payments');
     if (!d.payments.length){
       pa.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">To\'lov yo\'q</div>';
@@ -669,7 +673,16 @@ function closeHistoryModal(){ document.getElementById('historyModal').style.disp
 
 function applyHistoryFilter() {
   if (!currentSupplierId) return;
-  openHistory(currentSupplierId, true);
+  openHistory(currentSupplierId, true, 1);
+}
+
+function renderHistPagination(pg) {
+  const box = document.getElementById('hist-pagination-purchases');
+  if (!pg || pg.total_pages <= 1) { box.innerHTML = ''; return; }
+  let html = `<button class="mini-btn" ${pg.page<=1?'disabled':''} onclick="openHistory(currentSupplierId, true, ${pg.page-1})">‹</button>`;
+  html += `<span style="font-size:12px;color:#777">${pg.page} / ${pg.total_pages} (jami ${pg.total_count} ta)</span>`;
+  html += `<button class="mini-btn" ${pg.page>=pg.total_pages?'disabled':''} onclick="openHistory(currentSupplierId, true, ${pg.page+1})">›</button>`;
+  box.innerHTML = html;
 }
 
 function clearHistoryFilter() {
