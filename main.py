@@ -1438,7 +1438,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, db: Sess
 @app.post("/api/orders/mark-all-ready")
 def api_mark_all_ready(loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     from models import Order, OrderStatus
-    pending = db.query(Order).filter(Order.status != OrderStatus.READY).all()
+    pending = db.query(Order).filter(Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).all()
     processed = 0
     failed = []
     total_inventory_changes = []
