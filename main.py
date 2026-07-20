@@ -1725,13 +1725,31 @@ def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=De
 
 @app.post("/api/obligations/recurring")
 def api_set_recurring_obligation(category: str, label: str, monthly_target: float,
+                                   icon: str = "📦", due_day: int = 5,
                                    db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    return services.set_recurring_obligation(db, category, label, monthly_target)
+    return services.set_recurring_obligation(db, category, label, monthly_target, icon=icon, due_day=due_day)
+
+
+@app.delete("/api/obligations/recurring/{obligation_id}")
+def api_delete_recurring_obligation(obligation_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    if not services.delete_recurring_obligation(db, obligation_id):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
 
 
 @app.get("/api/obligations/status")
 def api_obligations_status(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     return services.get_company_obligations_status(db, year, month)
+
+
+@app.get("/api/obligations/timeline")
+def api_obligations_timeline(category: str, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    return services.get_obligation_timeline(db, category, year, month)
+
+
+@app.get("/api/obligations/employee/{employee_id}/timeline")
+def api_employee_obligation_timeline(employee_id: int, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    return services.get_employee_payment_timeline(db, employee_id, year, month)
 
 
 @app.post("/api/obligations/employee/{employee_id}/close")
