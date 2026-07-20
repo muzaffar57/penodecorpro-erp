@@ -56,11 +56,6 @@ class OrderType(PyEnum):
     PRODUCT = "product"
 
 
-class RecipeType(PyEnum):
-    QUARTZ = "Kvars"
-    MARBLE = "Oq Marmar"
-
-
 class ReturnReason(PyEnum):
     DEFECT = "Brak"
     EXCESS = "Ortiqcha"
@@ -181,18 +176,7 @@ class Recipe(Base):
     __tablename__ = "recipes"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(Enum(RecipeType), nullable=False, unique=True)
-
-    akril_kg = Column(Float, default=0.0)
-    pva_kg = Column(Float, default=0.0)
-    qum_kg = Column(Float, default=0.0)          # Kvars qum
-    travertin_qum_kg = Column(Float, default=0.0) # Travertin qum
-    kroshka_kg = Column(Float, default=0.0)
-    penogasitel_kg = Column(Float, default=0.0)
-    shtukaturka_kg = Column(Float, default=0.0)  # Mel
-    zagustitel_kg = Column(Float, default=0.0)   # Zagustitel
-    suv_kg = Column(Float, default=0.0)
-    biotsid_ml = Column(Float, default=0.0)
+    name = Column(String(100), nullable=False, unique=True)  # Endi ISTALGAN nom bo'lishi mumkin
 
     batch_size_kg = Column(Float, default=150.0)
     notes = Column(Text, nullable=True)
@@ -200,8 +184,36 @@ class Recipe(Base):
     updated_at = Column(DateTime, nullable=True)  # Faqat UI uchun — tahrirlanganda yangilanadi
     image_url = Column(String(255), nullable=True)  # Faqat UI uchun — hisob-kitobga ta'siri yo'q
 
+    ingredients = relationship("RecipeIngredient", back_populates="recipe", cascade="all, delete-orphan")
+
     def __repr__(self):
-        return f"<Recipe {self.name.value}>"
+        return f"<Recipe {self.name}>"
+
+
+class RecipeIngredient(Base):
+    """Retsept tarkibidagi bitta qo'shimcha — Omborxonadagi ISTALGAN
+    materialga bog'lanadi (endi qattiq yozilgan ro'yxat emas).
+    quantity_kg — shu qo'shimchadan Recipe.batch_size_kg uchun kerak miqdor (kg)."""
+    __tablename__ = "recipe_ingredients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False)
+    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False)
+    quantity_kg = Column(Float, nullable=False, default=0.0)
+
+    recipe = relationship("Recipe", back_populates="ingredients")
+    inventory = relationship("Inventory")
+
+    @property
+    def item_name(self):
+        return self.inventory.item_name if self.inventory else "—"
+
+    @property
+    def unit(self):
+        return self.inventory.unit if self.inventory else "kg"
+
+    def __repr__(self):
+        return f"<RecipeIngredient {self.item_name}: {self.quantity_kg}kg>"
 
 
 # ============================================================
