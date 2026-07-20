@@ -6,203 +6,415 @@
 {% block head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-.fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media (max-width:900px){.fin-grid{grid-template-columns:1fr}}
-.exp-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);font-size:13px}
-.exp-row:last-child{border-bottom:none}
-.exp-name{color:var(--text2)}
-.exp-val{font-weight:500;color:#EF4444}
-.total-row{display:flex;justify-content:space-between;font-size:14px;font-weight:600;padding:10px 0 0;border-top:2px solid var(--border);margin-top:6px}
-.profit-big{font-size:30px;font-weight:600;text-align:center;padding:16px 0}
-.chart-wrap{position:relative;height:230px}
-.chart-wrap-sm{position:relative;height:200px}
-.cash-flow-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:10px;margin-bottom:8px}
-.hist-table{width:100%;border-collapse:collapse;font-size:12.5px}
-.hist-table th{text-align:left;padding:10px 12px;color:var(--text3);font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)}
-.hist-table td{padding:10px 12px;border-bottom:1px solid var(--border2)}
-.hist-table tr{transition:background .15s}
-.hist-table tbody tr:hover{background:var(--bg)}
-.fin-filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-.fin-filters select,.fin-filters input{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;outline:none}
+/* ============================================================
+   MOLIYA — DIZAYN TOKENLARI
+   ============================================================ */
+.fin-wrap{
+  --f-bg:#F5F7FA; --f-card:#FFFFFF; --f-border:#E5E7EB;
+  --f-primary:#2563EB; --f-primary-tint:#EFF6FF;
+  --f-success:#22C55E; --f-success-tint:#F0FDF4;
+  --f-warning:#F59E0B; --f-warning-tint:#FFFBEB;
+  --f-danger:#EF4444; --f-danger-tint:#FEF2F2;
+  --f-text:#111827; --f-text2:#4B5563; --f-text3:#9CA3AF;
+  --f-radius:16px; --f-radius-sm:10px;
+  --f-shadow:0 1px 2px rgba(16,24,40,.04), 0 4px 16px rgba(16,24,40,.06);
+  --f-shadow-hover:0 4px 8px rgba(16,24,40,.06), 0 12px 28px rgba(16,24,40,.10);
+  background:var(--f-bg);
+  margin:-24px; padding:24px;
+  font-variant-numeric:tabular-nums;
+}
+.fin-wrap * { box-sizing:border-box; }
+
+/* ── Bo'lim boshi ── */
+.fin-section{ margin-bottom:28px; }
+.fin-section-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.fin-section-title{ font-size:18px; font-weight:700; color:var(--f-text); letter-spacing:-.01em; display:flex; align-items:center; gap:8px; }
+.fin-section-title .ti{ color:var(--f-text3); font-size:18px; }
+
+/* ── Filtr paneli ── */
+.fin-filterbar{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:var(--f-card); border:1px solid var(--f-border); border-radius:12px;
+  padding:10px 14px; margin-bottom:24px; box-shadow:var(--f-shadow);
+}
+.fin-filterbar select, .fin-filterbar input[type=number]{
+  height:36px; padding:0 12px; border:1px solid var(--f-border); border-radius:8px;
+  font-size:13.5px; color:var(--f-text); outline:none; background:#fff; transition:border-color .15s;
+}
+.fin-filterbar select:focus, .fin-filterbar input:focus{ border-color:var(--f-primary); }
+.fin-btn{
+  height:36px; padding:0 18px; border-radius:8px; border:none; cursor:pointer;
+  font-size:13.5px; font-weight:600; transition:transform .12s, box-shadow .12s, background .15s;
+}
+.fin-btn-primary{ background:var(--f-primary); color:#fff; }
+.fin-btn-primary:hover{ background:#1D4ED8; box-shadow:0 4px 12px rgba(37,99,235,.3); }
+.fin-btn-primary:active{ transform:scale(.97); }
+.fin-btn-ghost{ background:#fff; color:var(--f-text2); border:1px solid var(--f-border); }
+.fin-btn-ghost:hover{ background:var(--f-bg); }
+
+/* ── HERO KPI kartalar (1-qator) ── */
+.fin-hero-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+.fin-hero-card{
+  background:var(--f-card); border:1px solid var(--f-border); border-radius:var(--f-radius);
+  padding:22px 22px; box-shadow:var(--f-shadow); position:relative; overflow:hidden;
+  transition:transform .18s ease, box-shadow .18s ease;
+  opacity:0; transform:translateY(10px); animation:finFadeIn .5s ease forwards;
+}
+.fin-hero-card:hover{ transform:translateY(-3px); box-shadow:var(--f-shadow-hover); }
+.fin-hero-icon{
+  width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+  font-size:19px; margin-bottom:14px;
+}
+.fin-hero-label{ font-size:12.5px; font-weight:600; color:var(--f-text3); text-transform:uppercase; letter-spacing:.04em; }
+.fin-hero-value{ font-size:30px; font-weight:800; color:var(--f-text); margin-top:6px; letter-spacing:-.02em; line-height:1.15; }
+.fin-hero-sub{ font-size:12.5px; color:var(--f-text3); margin-top:6px; display:flex; align-items:center; gap:5px; }
+
+@keyframes finFadeIn{ to{ opacity:1; transform:translateY(0); } }
+.fin-hero-card:nth-child(1){ animation-delay:.02s; }
+.fin-hero-card:nth-child(2){ animation-delay:.08s; }
+.fin-hero-card:nth-child(3){ animation-delay:.14s; }
+.fin-hero-card:nth-child(4){ animation-delay:.20s; }
+
+/* ── Ikkinchi darajali oylik KPI chizig'i ── */
+.fin-mini-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; }
+.fin-mini-card{
+  background:var(--f-card); border:1px solid var(--f-border); border-radius:12px;
+  padding:14px 16px; box-shadow:var(--f-shadow); transition:box-shadow .15s, transform .15s;
+}
+.fin-mini-card:hover{ box-shadow:var(--f-shadow-hover); transform:translateY(-2px); }
+.fin-mini-label{ font-size:11.5px; color:var(--f-text3); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+.fin-mini-value{ font-size:19px; font-weight:700; color:var(--f-text); margin-top:5px; }
+
+/* ── Kartalar (umumiy) ── */
+.fin-card{
+  background:var(--f-card); border:1px solid var(--f-border); border-radius:var(--f-radius);
+  box-shadow:var(--f-shadow); overflow:hidden;
+}
+.fin-card-body{ padding:20px; }
+.fin-chart-wrap{ position:relative; height:280px; }
+.fin-chart-wrap-sm{ position:relative; height:230px; }
+
+/* ── Grafiklar qatori (2-qator) ── */
+.fin-charts-grid{ display:grid; grid-template-columns:1.5fr 1fr; gap:16px; }
+@media(max-width:1100px){ .fin-charts-grid{ grid-template-columns:1fr; } }
+
+/* ── Donut legend (foiz + summa bilan) ── */
+.fin-legend{ display:flex; flex-direction:column; gap:2px; margin-top:14px; }
+.fin-legend-row{ display:flex; align-items:center; gap:10px; padding:8px 4px; border-radius:8px; transition:background .12s; }
+.fin-legend-row:hover{ background:var(--f-bg); }
+.fin-legend-dot{ width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+.fin-legend-name{ font-size:13px; color:var(--f-text2); flex:1; }
+.fin-legend-pct{ font-size:13px; font-weight:700; color:var(--f-text); width:44px; text-align:right; }
+.fin-legend-amt{ font-size:12px; color:var(--f-text3); width:88px; text-align:right; }
+
+/* ── Pul oqimi bar ── */
+.fin-flow-row{ margin-bottom:16px; }
+.fin-flow-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+.fin-flow-label{ font-size:13px; color:var(--f-text2); font-weight:600; display:flex; align-items:center; gap:6px; }
+.fin-flow-val{ font-size:15px; font-weight:800; color:var(--f-text); }
+.fin-flow-track{ height:10px; background:var(--f-bg); border-radius:6px; overflow:hidden; }
+.fin-flow-fill{ height:100%; border-radius:6px; width:0; transition:width 1s cubic-bezier(.16,1,.3,1); }
+.fin-flow-balance{
+  margin-top:16px; padding:14px 16px; border-radius:12px; text-align:center;
+  display:flex; align-items:center; justify-content:center; gap:10px;
+}
+
+/* ── Accordion (Bugungi xarajatlar) ── */
+.fin-accordion{ background:var(--f-card); border:1px solid var(--f-border); border-radius:var(--f-radius); box-shadow:var(--f-shadow); overflow:hidden; }
+.fin-accordion-head{
+  display:flex; align-items:center; justify-content:space-between; padding:18px 22px; cursor:pointer;
+  user-select:none; transition:background .12s;
+}
+.fin-accordion-head:hover{ background:var(--f-bg); }
+.fin-accordion-head-left{ display:flex; align-items:center; gap:14px; }
+.fin-accordion-icon{ width:42px; height:42px; border-radius:11px; background:var(--f-danger-tint); color:var(--f-danger); display:flex; align-items:center; justify-content:center; font-size:19px; }
+.fin-accordion-title{ font-size:13px; color:var(--f-text3); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+.fin-accordion-value{ font-size:22px; font-weight:800; color:var(--f-text); margin-top:2px; }
+.fin-accordion-chevron{ font-size:18px; color:var(--f-text3); transition:transform .25s ease; }
+.fin-accordion.open .fin-accordion-chevron{ transform:rotate(180deg); }
+.fin-accordion-body{
+  max-height:0; overflow:hidden; transition:max-height .3s ease;
+  border-top:1px solid transparent;
+}
+.fin-accordion.open .fin-accordion-body{ max-height:900px; border-top-color:var(--f-border); }
+.fin-accordion-body-inner{ padding:18px 22px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+@media(max-width:800px){ .fin-accordion-body-inner{ grid-template-columns:1fr; } }
+.fin-breakdown-title{ font-size:12px; font-weight:700; color:var(--f-text3); text-transform:uppercase; letter-spacing:.03em; margin-bottom:8px; }
+.fin-breakdown-row{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--f-border); font-size:13px; }
+.fin-breakdown-row:last-child{ border-bottom:none; }
+.fin-breakdown-empty{ color:var(--f-text3); font-size:12.5px; }
+
+/* ── Tahlillar (naqd xarajat + tafsilot) ── */
+.fin-analytics-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:900px){ .fin-analytics-grid{ grid-template-columns:1fr; } }
+.fin-info-note{
+  background:var(--f-primary-tint); border:1px solid #BFDBFE; border-radius:10px;
+  padding:11px 14px; font-size:12.5px; color:#1E40AF; line-height:1.6; margin-bottom:14px;
+}
+.fin-exp-row{ display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--f-border); font-size:13.5px; }
+.fin-exp-row:last-child{ border-bottom:none; }
+.fin-exp-name{ color:var(--f-text2); display:flex; align-items:center; gap:7px; }
+.fin-exp-val{ font-weight:600; color:var(--f-danger); }
+.fin-total-row{ display:flex; justify-content:space-between; font-size:14.5px; font-weight:700; padding:12px 0 0; border-top:2px solid var(--f-border); margin-top:8px; }
+.fin-profit-block{ margin-top:16px; padding:20px; background:var(--f-bg); border-radius:12px; border:1px solid var(--f-border); text-align:center; }
+.fin-profit-big{ font-size:32px; font-weight:800; }
+
+/* ── Jadval (premium) ── */
+.fin-table-wrap{ overflow-x:auto; border-radius:var(--f-radius); }
+.fin-table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:720px; }
+.fin-table thead th{
+  position:sticky; top:0; z-index:2; background:var(--f-card);
+  text-align:left; padding:12px 16px; color:var(--f-text3); font-weight:600; font-size:11.5px;
+  text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--f-border);
+}
+.fin-table tbody td{ padding:13px 16px; border-bottom:1px solid var(--f-border); color:var(--f-text2); }
+.fin-table tbody tr{ transition:background .12s; }
+.fin-table tbody tr:hover{ background:var(--f-bg); }
+.fin-table tbody tr:last-child td{ border-bottom:none; }
+.fin-cat-badge{
+  display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+  padding:4px 10px; border-radius:20px; background:var(--f-bg); color:var(--f-text2);
+}
+.fin-status-dot{ width:7px; height:7px; border-radius:50%; background:var(--f-success); display:inline-block; }
+.fin-row-action{
+  width:30px; height:30px; border-radius:8px; border:1px solid var(--f-border); background:#fff;
+  color:var(--f-text3); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+  transition:all .12s;
+}
+.fin-row-action:hover{ background:var(--f-danger-tint); border-color:var(--f-danger); color:var(--f-danger); }
+
+/* ── Bo'sh / yuklanish holatlari ── */
+.fin-empty{ text-align:center; padding:56px 24px; color:var(--f-text3); }
+.fin-empty .ti{ font-size:38px; margin-bottom:14px; display:block; color:#D1D5DB; }
+.fin-empty-title{ font-size:15px; font-weight:600; color:var(--f-text2); margin-bottom:5px; }
+.fin-skeleton{ background:linear-gradient(90deg,#F0F1F3 25%,#F7F8F9 37%,#F0F1F3 63%); background-size:400% 100%; animation:finSkeleton 1.4s ease infinite; border-radius:8px; }
+@keyframes finSkeleton{ 0%{background-position:100% 50%} 100%{background-position:0 50%} }
+
+/* ── Kirish (mikro-interaksiyalar) ── */
+.fin-fade-in{ opacity:0; transform:translateY(8px); animation:finFadeIn .45s ease forwards; }
+
 @media print{
-  .sidebar,.topbar,.fin-filters,#expenseFormCard,.no-print{display:none !important}
+  .sidebar,.erp-topbar,.fin-filterbar,.no-print{display:none !important}
   body,.erp-content{background:#fff !important}
+  .fin-wrap{margin:0;padding:0}
 }
 </style>
 {% endblock %}
 
-{% block topbar_actions %}
-<div style="display:flex;gap:8px;align-items:center">
-  <select id="sel-month" style="padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;outline:none">
-    <option value="1">Yanvar</option><option value="2">Fevral</option><option value="3">Mart</option>
-    <option value="4">Aprel</option><option value="5">May</option><option value="6">Iyun</option>
-    <option value="7">Iyul</option><option value="8">Avgust</option><option value="9">Sentabr</option>
-    <option value="10">Oktabr</option><option value="11">Noyabr</option><option value="12">Dekabr</option>
-  </select>
-  <input type="number" id="sel-year" value="2026" min="2024" max="2030" style="width:80px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;outline:none">
-  <button class="btn btn-dark" onclick="loadReport()">Ko'rish</button>
-</div>
-{% endblock %}
+{% block topbar_actions %}{% endblock %}
 
 {% block content %}
+<div class="fin-wrap">
 
-<!-- BUGUNGI HOLAT — har doim, oy tanlashdan qat'i nazar ko'rinadi -->
-<div class="card" id="dailyCard" style="margin-bottom:16px;border:1.5px solid var(--gold);border-radius:14px;padding:18px 20px">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-    <h3 style="margin:0;font-size:15px;display:flex;align-items:center;gap:8px">
-      <i class="ti ti-calendar-event" style="color:var(--gold-dark)"></i> Bugungi holat
-      <span id="daily-date" style="font-weight:400;color:var(--text3);font-size:12.5px"></span>
-    </h3>
-    <span id="daily-loading" style="font-size:12px;color:var(--text3)"></span>
-  </div>
-
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-    <div style="background:#F0FDF4;border-radius:10px;padding:12px 14px">
-      <div style="font-size:11.5px;color:#166534;font-weight:600">SAVDO (bugun yakunlangan)</div>
-      <div id="d-savdo" style="font-size:19px;font-weight:800;color:#166534;margin-top:4px">—</div>
-      <div id="d-orders-count" style="font-size:11px;color:#166534;margin-top:2px">—</div>
+  <!-- ═══ 1-QATOR: HERO KPI (Bugungi holat) ═══ -->
+  <div class="fin-section">
+    <div class="fin-section-head">
+      <div class="fin-section-title"><i class="ti ti-calendar-event"></i> Bugungi holat <span id="daily-date" style="font-weight:500;color:var(--f-text3);font-size:13px"></span></div>
+      <span id="daily-loading" style="font-size:12px;color:var(--f-text3)"></span>
     </div>
-    <div style="background:#FEF3C7;border-radius:10px;padding:12px 14px">
-      <div style="font-size:11.5px;color:#92400E;font-weight:600">TAN NARX</div>
-      <div id="d-tannarx" style="font-size:19px;font-weight:800;color:#92400E;margin-top:4px">—</div>
-    </div>
-    <div style="background:#EFF6FF;border-radius:10px;padding:12px 14px">
-      <div style="font-size:11.5px;color:#1E40AF;font-weight:600">SOF FOYDA</div>
-      <div id="d-foyda" style="font-size:19px;font-weight:800;color:#1E40AF;margin-top:4px">—</div>
-    </div>
-    <div style="background:#FEE2E2;border-radius:10px;padding:12px 14px">
-      <div style="font-size:11.5px;color:#991B1B;font-weight:600">XARAJAT (jami)</div>
-      <div id="d-xarajat" style="font-size:19px;font-weight:800;color:#991B1B;margin-top:4px">—</div>
-    </div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
-    <div>
-      <div style="font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:6px">📦 Xomashyo xaridi — nimaga ketdi</div>
-      <div id="d-material-list" style="font-size:12.5px;color:var(--text2)">
-        <div style="color:var(--text3)">Bugun xarid bo'lmagan</div>
+    <div class="fin-hero-grid" id="heroGrid">
+      <div class="fin-hero-card">
+        <div class="fin-hero-icon" style="background:var(--f-success-tint);color:var(--f-success)"><i class="ti ti-trending-up"></i></div>
+        <div class="fin-hero-label">Savdo</div>
+        <div class="fin-hero-value" id="hero-savdo">—</div>
+        <div class="fin-hero-sub" id="hero-savdo-sub">—</div>
       </div>
-    </div>
-    <div>
-      <div style="font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:6px">🚚 Transport (kompaniya ulushi)</div>
-      <div id="d-transport-total" style="font-size:12.5px;color:var(--text2)">
-        <div style="color:var(--text3)">Bugun transport xarajati yo'q</div>
+      <div class="fin-hero-card">
+        <div class="fin-hero-icon" style="background:var(--f-danger-tint);color:var(--f-danger)"><i class="ti ti-trending-down"></i></div>
+        <div class="fin-hero-label">Xarajat</div>
+        <div class="fin-hero-value" id="hero-xarajat">—</div>
+        <div class="fin-hero-sub">Bugungi jami xarajat</div>
       </div>
-    </div>
-    <div>
-      <div style="font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:6px">🧾 Boshqa xarajatlar — nimaga ketdi</div>
-      <div id="d-other-list" style="font-size:12.5px;color:var(--text2)">
-        <div style="color:var(--text3)">Bugun boshqa xarajat yo'q</div>
+      <div class="fin-hero-card">
+        <div class="fin-hero-icon" style="background:var(--f-primary-tint);color:var(--f-primary)"><i class="ti ti-chart-bar"></i></div>
+        <div class="fin-hero-label">Sof foyda</div>
+        <div class="fin-hero-value" id="hero-foyda">—</div>
+        <div class="fin-hero-sub" id="hero-tannarx-sub">—</div>
+      </div>
+      <div class="fin-hero-card">
+        <div class="fin-hero-icon" style="background:var(--f-warning-tint);color:var(--f-warning)"><i class="ti ti-arrows-exchange"></i></div>
+        <div class="fin-hero-label">Pul oqimi</div>
+        <div class="fin-hero-value" id="hero-oqim">—</div>
+        <div class="fin-hero-sub">Savdo − Xarajat (bugun)</div>
       </div>
     </div>
   </div>
-</div>
 
-<div class="erp-content" id="finReport" style="display:none">
-
-
-  <!-- KPI -->
-  <div class="stat-grid mb-16" style="grid-template-columns:repeat(6,1fr)">
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-trending-up"></i></div><div class="stat-label">Daromad</div><div class="stat-val" id="r-daromad" style="color:#22C55E">—</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#EF4444"><i class="ti ti-trending-down"></i></div><div class="stat-label">Xarajat</div><div class="stat-val" id="r-xarajat" style="color:#EF4444">—</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#F3E8FF;color:#8E44AD"><i class="ti ti-chart-bar"></i></div><div class="stat-label">Sof foyda</div><div class="stat-val" id="r-foyda">—</div></div>
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-building-warehouse"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val" id="r-ombor">—</div></div>
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-clipboard-list"></i></div><div class="stat-label">Buyurtmalar</div><div class="stat-val" id="r-buyurtma">—</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-percentage"></i></div><div class="stat-label">Rentabellik</div><div class="stat-val" id="r-foiz">—</div></div>
-  </div>
-
-  <!-- GRAFIKLAR -->
-  <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:14px;margin-bottom:14px" id="chartGrid">
-    <div class="card">
-      <div class="card-head"><h3>Daromad va sof foyda (oxirgi 12 oy)</h3></div>
-      <div class="card-body"><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div>
+  <!-- ═══ FILTR + IKKINCHI DARAJALI OYLIK KPI ═══ -->
+  <div class="fin-section">
+    <div class="fin-filterbar">
+      <i class="ti ti-filter" style="color:var(--f-text3);font-size:16px;margin-right:2px"></i>
+      <select id="sel-month">
+        <option value="1">Yanvar</option><option value="2">Fevral</option><option value="3">Mart</option>
+        <option value="4">Aprel</option><option value="5">May</option><option value="6">Iyun</option>
+        <option value="7">Iyul</option><option value="8">Avgust</option><option value="9">Sentabr</option>
+        <option value="10">Oktabr</option><option value="11">Noyabr</option><option value="12">Dekabr</option>
+      </select>
+      <input type="number" id="sel-year" value="2026" min="2024" max="2030" style="width:84px">
+      <button class="fin-btn fin-btn-primary" onclick="loadReport()">Ko'rish</button>
+      <span style="font-size:12.5px;color:var(--f-text3);margin-left:auto">Tanlangan oy bo'yicha to'liq hisobot</span>
     </div>
-    <div class="card">
-      <div class="card-head"><h3>Xarajatlar tarkibi</h3></div>
-      <div class="card-body"><div class="chart-wrap-sm"><canvas id="expDonut"></canvas></div></div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h3>Pul oqimi (bu oy)</h3></div>
-      <div class="card-body" id="cashFlowCard"></div>
-    </div>
-  </div>
-  <style>@media(max-width:1150px){ #chartGrid{grid-template-columns:1fr 1fr} #chartGrid>.card:first-child{grid-column:1/-1} }
-  @media(max-width:700px){ #chartGrid{grid-template-columns:1fr} }</style>
 
-  <!-- NAQD XARAJATLAR -->
-  <div class="card mb-16">
-    <div class="card-head">
-      <h3><i class="ti ti-cash" style="vertical-align:-2px;color:var(--gold-dark)"></i> Naqd xarajatlar (bu oy — xomashyo va transport)</h3>
-      <span id="cash-total" style="font-size:16px;font-weight:800;color:var(--gold-dark)">—</span>
+    <div class="fin-mini-grid" id="finReport" style="display:none">
+      <div class="fin-mini-card"><div class="fin-mini-label">Daromad</div><div class="fin-mini-value" id="r-daromad" style="color:var(--f-success)">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Xarajat</div><div class="fin-mini-value" id="r-xarajat" style="color:var(--f-danger)">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Sof foyda</div><div class="fin-mini-value" id="r-foyda">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Ombor qiymati</div><div class="fin-mini-value" id="r-ombor">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Buyurtmalar</div><div class="fin-mini-value" id="r-buyurtma">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Rentabellik</div><div class="fin-mini-value" id="r-foiz" style="color:var(--f-success)">—</div></div>
     </div>
-    <div class="card-body" style="padding-top:0">
-      <div style="background:var(--gold-tint);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13.5px;color:var(--gold-dark);line-height:1.6">
-        <i class="ti ti-info-circle"></i> Bu ko'rsatkich <b>Sof foyda</b>ga kirmaydi — chunki bu shu oy <b>sotib olingan</b> xomashyo puli,
-        "Ishlab chiqarish xarajati" esa shu oy <b>tugagan buyurtmalarga sarflangan</b> xomashyo tan narxi.
-        Ular ko'pincha farq qiladi (masalan bugun olingan material ertaga ishlatiladi).
+
+    <div id="emptyState" class="fin-card">
+      <div class="fin-empty">
+        <i class="ti ti-chart-infographic"></i>
+        <div class="fin-empty-title">Oy tanlang</div>
+        <div style="font-size:13px">Yuqoridagi filtrdan oy va yilni tanlab "Ko'rish" tugmasini bosing</div>
       </div>
-      <div class="exp-row"><span class="exp-name"><i class="ti ti-shopping-cart" style="font-size:13px"></i> Xomashyo xaridi</span><span class="exp-val" id="cash-purchase">—</span></div>
-      <div class="exp-row"><span class="exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kirish)</span><span class="exp-val" id="cash-tr-in">—</span></div>
-      <div class="exp-row"><span class="exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (yetkazish, kompaniya ulushi)</span><span class="exp-val" id="cash-tr-out">—</span></div>
-      <div id="cash-by-material" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border2);font-size:13.5px;color:var(--text3);display:none"></div>
     </div>
   </div>
 
-  <div class="fin-grid">
+  <div id="monthlyReportWrap" style="display:none">
 
-    <!-- Xarajat tafsiloti -->
-    <div class="card" id="expenseFormCard">
-      <div class="card-head"><h3>Xarajatlar tafsiloti</h3></div>
-      <div class="card-body">
-        <div id="expDetail"><div style="text-align:center;color:var(--text3);padding:20px">Ma'lumot yo'q</div></div>
-        <div id="profitBlock" style="display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:10px;border:1px solid var(--border);text-align:center">
-          <div style="font-size:13px;color:var(--text3);margin-bottom:6px">SOF FOYDA</div>
-          <div class="profit-big" id="profitBig">—</div>
-          <div style="font-size:13px;color:var(--text3)" id="profitPct">—</div>
+    <!-- ═══ 2-QATOR: GRAFIKLAR ═══ -->
+    <div class="fin-section">
+      <div class="fin-charts-grid">
+        <div class="fin-card">
+          <div class="fin-card-body">
+            <div class="fin-section-title" style="margin-bottom:14px">Daromad va sof foyda <span style="font-weight:400;color:var(--f-text3);font-size:13px">— oxirgi 12 oy</span></div>
+            <div class="fin-chart-wrap"><canvas id="trendChart"></canvas></div>
+          </div>
+        </div>
+        <div class="fin-card">
+          <div class="fin-card-body">
+            <div class="fin-section-title" style="margin-bottom:14px">Xarajatlar tarkibi</div>
+            <div class="fin-chart-wrap-sm"><canvas id="expDonut"></canvas></div>
+            <div class="fin-legend" id="donutLegend"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 3-QATOR: BUGUNGI XARAJATLAR (ACCORDION) ═══ -->
+    <div class="fin-section">
+      <div class="fin-accordion" id="todayAccordion">
+        <div class="fin-accordion-head" onclick="toggleTodayAccordion()">
+          <div class="fin-accordion-head-left">
+            <div class="fin-accordion-icon"><i class="ti ti-receipt-2"></i></div>
+            <div>
+              <div class="fin-accordion-title">Bugungi xarajat</div>
+              <div class="fin-accordion-value" id="acc-total">—</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12.5px;color:var(--f-text3)">Batafsil</span>
+            <i class="ti ti-chevron-down fin-accordion-chevron"></i>
+          </div>
+        </div>
+        <div class="fin-accordion-body">
+          <div class="fin-accordion-body-inner">
+            <div>
+              <div class="fin-breakdown-title"><i class="ti ti-box" style="vertical-align:-2px"></i> Xomashyo xaridi</div>
+              <div id="d-material-list"><div class="fin-breakdown-empty">Bugun xarid bo'lmagan</div></div>
+            </div>
+            <div>
+              <div class="fin-breakdown-title"><i class="ti ti-truck" style="vertical-align:-2px"></i> Transport (kompaniya ulushi)</div>
+              <div id="d-transport-total"><div class="fin-breakdown-empty">Bugun transport xarajati yo'q</div></div>
+            </div>
+            <div>
+              <div class="fin-breakdown-title"><i class="ti ti-file-invoice" style="vertical-align:-2px"></i> Boshqa xarajatlar</div>
+              <div id="d-other-list"><div class="fin-breakdown-empty">Bugun boshqa xarajat yo'q</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 4-QATOR: MOLIYAVIY TAHLILLAR ═══ -->
+    <div class="fin-section">
+      <div class="fin-analytics-grid">
+
+        <!-- Naqd xarajatlar -->
+        <div class="fin-card">
+          <div class="fin-card-body">
+            <div class="fin-section-title" style="margin-bottom:12px"><i class="ti ti-cash"></i> Naqd xarajatlar <span style="font-weight:400;color:var(--f-text3);font-size:13px">— bu oy</span></div>
+            <div class="fin-info-note">
+              Bu ko'rsatkich <b>Sof foyda</b>ga kirmaydi — chunki bu shu oy <b>sotib olingan</b> xomashyo puli,
+              "Ishlab chiqarish xarajati" esa shu oy <b>tugagan buyurtmalarga sarflangan</b> xomashyo tan narxi.
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+              <span id="cash-total" style="font-size:19px;font-weight:800;color:var(--f-warning)">—</span>
+            </div>
+            <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-shopping-cart" style="font-size:13px"></i> Xomashyo xaridi</span><span class="fin-exp-val" id="cash-purchase">—</span></div>
+            <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kirish)</span><span class="fin-exp-val" id="cash-tr-in">—</span></div>
+            <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kompaniya ulushi)</span><span class="fin-exp-val" id="cash-tr-out">—</span></div>
+            <div id="cash-by-material" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--f-border);font-size:13px;color:var(--f-text3);display:none"></div>
+          </div>
+        </div>
+
+        <!-- Xarajat tafsiloti + Sof foyda -->
+        <div class="fin-card">
+          <div class="fin-card-body">
+            <div class="fin-section-title" style="margin-bottom:12px"><i class="ti ti-list-details"></i> Xarajatlar tafsiloti</div>
+            <div id="expDetail"><div class="fin-empty" style="padding:24px"><span style="font-size:13px">Ma'lumot yo'q</span></div></div>
+            <div class="fin-profit-block" id="profitBlock" style="display:none">
+              <div style="font-size:12.5px;color:var(--f-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">Sof foyda</div>
+              <div class="fin-profit-big" id="profitBig">—</div>
+              <div style="font-size:13px;color:var(--f-text3);margin-top:4px" id="profitPct">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pul oqimi (bar ko'rinishida) -->
+        <div class="fin-card" style="grid-column:1/-1">
+          <div class="fin-card-body">
+            <div class="fin-section-title" style="margin-bottom:16px"><i class="ti ti-arrows-left-right"></i> Pul oqimi <span style="font-weight:400;color:var(--f-text3);font-size:13px">— bu oy</span></div>
+            <div id="cashFlowBars"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══ 5-QATOR: TRANZAKSIYALAR JADVALI ═══ -->
+    <div class="fin-section">
+      <div class="fin-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--f-border);flex-wrap:wrap;gap:10px">
+          <div class="fin-section-title" style="margin:0"><i class="ti ti-list"></i> Kunlik xarajat tranzaksiyalari</div>
+          <button class="fin-btn fin-btn-primary" onclick="openTxModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Xarajat qo'shish</button>
+        </div>
+        <div style="padding:16px 20px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap" class="no-print">
+          <input type="date" id="tx-date" onchange="loadDailyTransactions()" style="height:36px;padding:0 10px;border:1px solid var(--f-border);border-radius:8px;font-size:13px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--f-text2);cursor:pointer">
+            <input type="checkbox" id="tx-whole-month" checked onchange="loadDailyTransactions()" style="width:15px;height:15px">
+            Butun oy
+          </label>
+          <select id="tx-category" onchange="loadDailyTransactions()" style="height:36px;padding:0 10px;border:1px solid var(--f-border);border-radius:8px;font-size:13px">
+            <option value="">Barcha kategoriya</option>
+            <option value="arenda">Arenda</option>
+            <option value="elektr">Elektr</option>
+            <option value="tushlik">Tushlik</option>
+            <option value="soliqlar">Soliqlar</option>
+            <option value="reklama">Reklama</option>
+            <option value="kutilmagan">Kutilmagan xarajat</option>
+            <option value="boshqa">Boshqa</option>
+          </select>
+        </div>
+        <div class="fin-table-wrap" style="padding:16px 20px 20px">
+          <table class="fin-table">
+            <thead><tr><th>Sana</th><th>Kategoriya</th><th>Summa</th><th>Izoh</th><th>Kim</th><th>Manba</th><th class="no-print"></th></tr></thead>
+            <tbody id="tx-body"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--f-text3)">Sana tanlang</td></tr></tbody>
+          </table>
         </div>
       </div>
     </div>
 
   </div>
-
-  <!-- KUNLIK TRANZAKSIYALAR -->
-  <div class="card mt-16" id="tabDaily">
-    <div class="card-head">
-      <h3>Kunlik xarajat tranzaksiyalari</h3>
-      <button class="btn btn-dark btn-sm" onclick="openTxModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Xarajat qo'shish</button>
-    </div>
-    <div class="card-body">
-      <div class="fin-filters no-print">
-        <input type="date" id="tx-date" onchange="loadDailyTransactions()">
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);cursor:pointer">
-          <input type="checkbox" id="tx-whole-month" checked onchange="loadDailyTransactions()" style="width:15px;height:15px">
-          Butun oy
-        </label>
-        <select id="tx-category" onchange="loadDailyTransactions()">
-          <option value="">Barcha kategoriya</option>
-          <option value="arenda">Arenda</option>
-          <option value="elektr">Elektr</option>
-          <option value="tushlik">Tushlik</option>
-          <option value="soliqlar">Soliqlar</option>
-          <option value="reklama">Reklama</option>
-          <option value="kutilmagan">Kutilmagan xarajat</option>
-          <option value="boshqa">Boshqa</option>
-        </select>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="hist-table">
-          <thead><tr><th>Sana</th><th>Kategoriya</th><th>Summa</th><th>Izoh</th><th>Kim</th><th>Manba</th><th class="no-print"></th></tr></thead>
-          <tbody id="tx-body"><tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Sana tanlang</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- Xarajat qo'shish modali -->
-<div id="txModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:400px">
-    <div style="font-size:16px;font-weight:600;margin-bottom:16px">+ Yangi xarajat tranzaksiyasi</div>
+<div id="txModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:16px;padding:26px;width:400px;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px;color:var(--f-text,#111827)">+ Yangi xarajat tranzaksiyasi</div>
     <div class="form-group"><label>Sana</label><input type="date" id="tx-f-date"></div>
     <div class="form-group">
       <label>Kategoriya</label>
@@ -218,17 +430,11 @@
     </div>
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="tx-f-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-dark w-full" onclick="saveTx()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeTxModal()">Bekor</button>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="fin-btn fin-btn-primary w-full" onclick="saveTx()" style="flex:1">Saqlash</button>
+      <button class="fin-btn fin-btn-ghost w-full" onclick="closeTxModal()" style="flex:1">Bekor</button>
     </div>
   </div>
-</div>
-
-<div id="emptyState" style="text-align:center;padding:60px;color:var(--text3)">
-  <i class="ti ti-chart-infographic" style="margin-bottom:12px;display:block"></i>
-  <div style="font-size:16px;font-weight:500;color:var(--text2);margin-bottom:6px">Oy tanlang</div>
-  <div style="font-size:13px">Yuqoridagi filtrdan oy va yilni tanlab "Ko'rish" ni bosing</div>
 </div>
 {% endblock %}
 
@@ -249,10 +455,23 @@ function formatPriceInput(input) {
   if (val > 0) input.value = fmtFull(val);
 }
 
+// Raqamni animatsiya bilan hisoblab ko'rsatish (counter animation)
+function animateCounter(el, target, suffix, isNegativeOk) {
+  const start = 0;
+  const duration = 700;
+  const startTime = performance.now();
+  function step(t) {
+    const progress = Math.min((t - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const val = start + (target - start) * eased;
+    el.textContent = fmtFull(val) + (suffix || " so'm");
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
 let currentData=null;
 let historyData=[];
-let historyPage=1;
-const HIST_PAGE_SIZE=6;
 let trendChartInst=null, donutChartInst=null;
 
 async function loadReport(){
@@ -265,7 +484,8 @@ async function loadReport(){
   if(!res.ok){alert('Xato');return;}
   const d=await res.json();
   currentData=d;
-  document.getElementById('finReport').style.display='block';
+  document.getElementById('finReport').style.display='grid';
+  document.getElementById('monthlyReportWrap').style.display='block';
   document.getElementById('emptyState').style.display='none';
 
   document.getElementById('r-daromad').textContent=fmt(d.daromad)+" so'm";
@@ -280,11 +500,10 @@ async function loadReport(){
     document.getElementById('r-ombor').textContent = fmt(inv.total_value)+" so'm";
   }
 
-  const x=d.xarajatlar;
   buildExpDetail(d);
   buildCashSection(d);
   buildDonut(d);
-  buildCashFlowCard(d);
+  buildCashFlowBars(d);
   loadHistory();
   initDailyTx();
 }
@@ -307,37 +526,79 @@ function buildDonut(d){
     entries.push([CATEGORY_LABELS[cat] || cat, amt, PALETTE[ci++ % PALETTE.length]]);
   }
   const filtered = entries.filter(e => e[1] > 0);
+  const total = filtered.reduce((s,e)=>s+e[1], 0);
 
   if (donutChartInst) donutChartInst.destroy();
-  if (!filtered.length) return;
+  const legendEl = document.getElementById('donutLegend');
+
+  if (!filtered.length) {
+    legendEl.innerHTML = '<div class="fin-breakdown-empty" style="text-align:center;padding:16px 0">Xarajat tarkibi yo\'q</div>';
+    return;
+  }
+
   donutChartInst = new Chart(document.getElementById('expDonut'), {
     type: 'doughnut',
     data: {
       labels: filtered.map(e=>e[0]),
-      datasets: [{ data: filtered.map(e=>e[1]), backgroundColor: filtered.map(e=>e[2]), borderWidth: 0 }]
+      datasets: [{ data: filtered.map(e=>e[1]), backgroundColor: filtered.map(e=>e[2]), borderWidth:2, borderColor:'#fff', hoverOffset:6 }]
     },
-    options: { responsive:true, maintainAspectRatio:false, cutout:'62%',
-      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5} } } } }
+    options: {
+      responsive:true, maintainAspectRatio:false, cutout:'68%',
+      animation:{ animateRotate:true, animateScale:true, duration:700, easing:'easeOutQuart' },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#111827', padding:10, cornerRadius:8, titleFont:{size:12}, bodyFont:{size:12.5,weight:'600'},
+          callbacks:{ label: ctx => `${ctx.label}: ${fmtFull(ctx.parsed)} so'm` }
+        }
+      }
+    }
   });
+
+  legendEl.innerHTML = filtered.map(([name, amt, color]) => {
+    const pct = total > 0 ? (amt/total*100) : 0;
+    return `<div class="fin-legend-row">
+      <span class="fin-legend-dot" style="background:${color}"></span>
+      <span class="fin-legend-name">${name}</span>
+      <span class="fin-legend-pct">${pct.toFixed(0)}%</span>
+      <span class="fin-legend-amt">${fmtFull(amt)}</span>
+    </div>`;
+  }).join('');
 }
 
-function buildCashFlowCard(d){
+function buildCashFlowBars(d){
   const kirim = d.daromad || 0;
   const chiqim = (d.jami_xarajat||0) + (d.naqd_xarajat_jami||0);
   const balans = kirim - chiqim;
-  document.getElementById('cashFlowCard').innerHTML = `
-    <div class="cash-flow-row" style="background:#F0FDF4">
-      <span style="font-size:12.5px;color:#166534"><i class="ti ti-arrow-down-left"></i> Kirim</span>
-      <span style="font-weight:700;color:#166534">${fmtFull(kirim)} so'm</span>
+  const maxVal = Math.max(kirim, chiqim, 1);
+
+  document.getElementById('cashFlowBars').innerHTML = `
+    <div class="fin-flow-row">
+      <div class="fin-flow-top">
+        <span class="fin-flow-label"><i class="ti ti-arrow-down-left" style="color:var(--f-success)"></i> Kirim</span>
+        <span class="fin-flow-val" style="color:var(--f-success)">${fmtFull(kirim)} so'm</span>
+      </div>
+      <div class="fin-flow-track"><div class="fin-flow-fill" id="flow-kirim" style="background:var(--f-success)"></div></div>
     </div>
-    <div class="cash-flow-row" style="background:#FEF2F2">
-      <span style="font-size:12.5px;color:#991B1B"><i class="ti ti-arrow-up-right"></i> Chiqim</span>
-      <span style="font-weight:700;color:#991B1B">${fmtFull(chiqim)} so'm</span>
+    <div class="fin-flow-row">
+      <div class="fin-flow-top">
+        <span class="fin-flow-label"><i class="ti ti-arrow-up-right" style="color:var(--f-danger)"></i> Chiqim</span>
+        <span class="fin-flow-val" style="color:var(--f-danger)">${fmtFull(chiqim)} so'm</span>
+      </div>
+      <div class="fin-flow-track"><div class="fin-flow-fill" id="flow-chiqim" style="background:var(--f-danger)"></div></div>
     </div>
-    <div class="cash-flow-row" style="background:${balans>=0?'#EFF6FF':'#FEF3C7'}">
-      <span style="font-size:12.5px;color:${balans>=0?'#1D4ED8':'#92400E'}"><i class="ti ti-scale"></i> Balans</span>
-      <span style="font-weight:700;color:${balans>=0?'#1D4ED8':'#92400E'}">${fmtFull(balans)} so'm</span>
+    <div class="fin-flow-balance" style="background:${balans>=0?'var(--f-primary-tint)':'var(--f-warning-tint)'}">
+      <i class="ti ti-scale" style="font-size:18px;color:${balans>=0?'#1D4ED8':'#92400E'}"></i>
+      <span style="font-size:13px;color:${balans>=0?'#1D4ED8':'#92400E'};font-weight:600">Balans:</span>
+      <span style="font-size:17px;font-weight:800;color:${balans>=0?'#1D4ED8':'#92400E'}">${fmtFull(balans)} so'm</span>
     </div>`;
+
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      document.getElementById('flow-kirim').style.width = (kirim/maxVal*100) + '%';
+      document.getElementById('flow-chiqim').style.width = (chiqim/maxVal*100) + '%';
+    }, 30);
+  });
 }
 
 function buildCashSection(d){
@@ -349,7 +610,7 @@ function buildCashSection(d){
   const box = document.getElementById('cash-by-material');
   if (d.xomashyo_by_material && d.xomashyo_by_material.length) {
     box.style.display = 'block';
-    box.innerHTML = '<div style="font-weight:600;color:var(--text2);margin-bottom:4px">Material bo\'yicha:</div>' +
+    box.innerHTML = '<div style="font-weight:600;color:var(--f-text2);margin-bottom:4px">Material bo\'yicha:</div>' +
       d.xomashyo_by_material.map(m =>
         `<div style="display:flex;justify-content:space-between;padding:2px 0">
           <span>${m.name} (${m.quantity}${m.unit?' '+m.unit:''})</span>
@@ -366,31 +627,35 @@ function buildExpDetail(d){
     {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},{n:'Soliqlar',v:x.soliqlar}
   ].filter(r=>r.v>0);
   const el=document.getElementById('expDetail');
-  if(!rows.length){el.innerHTML='<div style="text-align:center;color:var(--text3);padding:20px">Xarajat kiritilmagan</div>';return;}
+  if(!rows.length && !(d.usta_kpi_breakdown&&d.usta_kpi_breakdown.length) && !(d.hodimlar_moslashuvchan_breakdown&&d.hodimlar_moslashuvchan_breakdown.length)){
+    el.innerHTML='<div class="fin-empty" style="padding:24px"><span style="font-size:13px">Xarajat kiritilmagan</span></div>';
+    document.getElementById('profitBlock').style.display='none';
+    return;
+  }
   let extraHtml = '';
 
   if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
-    extraHtml += `<div style="font-size:12.5px;color:var(--gold-dark);font-weight:600;margin:8px 0 2px">🏆 Usta yillik KPI</div>`;
+    extraHtml += `<div style="font-size:12px;color:var(--f-warning);font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:10px 0 4px">🏆 Usta yillik KPI</div>`;
     extraHtml += d.usta_kpi_breakdown.map(b =>
-      `<div class="exp-row"><span class="exp-name">${b.master_name} (${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)})</span><span class="exp-val">${fmtFull(b.kpi_amount)} so'm</span></div>`
+      `<div class="fin-exp-row"><span class="fin-exp-name">${b.master_name} (${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)})</span><span class="fin-exp-val">${fmtFull(b.kpi_amount)} so'm</span></div>`
     ).join('');
   }
 
   if (d.hodimlar_moslashuvchan_breakdown && d.hodimlar_moslashuvchan_breakdown.length) {
-    extraHtml += `<div style="font-size:12.5px;color:var(--gold-dark);font-weight:600;margin:8px 0 2px">👷 Hodimlar (moslashuvchan)</div>`;
+    extraHtml += `<div style="font-size:12px;color:var(--f-warning);font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:10px 0 4px">👷 Hodimlar (moslashuvchan)</div>`;
     extraHtml += d.hodimlar_moslashuvchan_breakdown.map(b =>
-      `<div class="exp-row"><span class="exp-name">${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}</span><span class="exp-val">${fmtFull(b.amount)} so'm</span></div>`
+      `<div class="fin-exp-row"><span class="fin-exp-name">${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}</span><span class="fin-exp-val">${fmtFull(b.amount)} so'm</span></div>`
     ).join('');
   }
 
-  el.innerHTML=rows.map(r=>`<div class="exp-row"><span class="exp-name">${r.n}</span><span class="exp-val">${fmtFull(r.v)} so'm</span></div>`).join('')
+  el.innerHTML=rows.map(r=>`<div class="fin-exp-row"><span class="fin-exp-name">${r.n}</span><span class="fin-exp-val">${fmtFull(r.v)} so'm</span></div>`).join('')
     + extraHtml
-    +`<div class="exp-row" style="border-top:1px dashed var(--border2);margin-top:6px;padding-top:6px">
-        <span class="exp-name" style="color:#0EA5E9">🏭 Ishlab chiqarish xarajati</span>
-        <span class="exp-val" style="color:#0EA5E9">${fmtFull(d.ishlab_chiqarish_xarajat||0)} so'm</span>
+    +`<div class="fin-exp-row" style="border-top:1px dashed var(--f-border);margin-top:8px;padding-top:8px">
+        <span class="fin-exp-name" style="color:#0EA5E9">🏭 Ishlab chiqarish xarajati</span>
+        <span class="fin-exp-val" style="color:#0EA5E9">${fmtFull(d.ishlab_chiqarish_xarajat||0)} so'm</span>
       </div>
-      <div class="total-row"><span>Jami xarajat:</span><span style="color:#EF4444">${fmtFull(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0))} so'm</span></div>
-      <div class="total-row" style="margin-top:6px"><span>Jami daromad:</span><span style="color:#22C55E">${fmtFull(d.daromad)} so'm</span></div>`;
+      <div class="fin-total-row"><span>Jami xarajat:</span><span style="color:var(--f-danger)">${fmtFull(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0))} so'm</span></div>
+      <div class="fin-total-row" style="margin-top:6px;border-top:none;padding-top:0"><span>Jami daromad:</span><span style="color:var(--f-success)">${fmtFull(d.daromad)} so'm</span></div>`;
   const pb=document.getElementById('profitBlock');
   pb.style.display='block';
   document.getElementById('profitBig').textContent=fmtFull(d.sof_foyda)+" so'm";
@@ -398,10 +663,12 @@ function buildExpDetail(d){
   document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
 }
 
-// (Eski "Xarajatlarni kiritish" formasi va saveExpense() olib tashlandi —
-// endi barcha xarajatlar "Kunlik tranzaksiyalar" orqali kiritiladi)
+// ── ACCORDION (Bugungi xarajatlar) ──
+function toggleTodayAccordion(){
+  document.getElementById('todayAccordion').classList.toggle('open');
+}
 
-// ── TARIX, GRAFIK, JADVAL, EKSPORT ─────────────────────────
+// ── TARIX, GRAFIK, JADVAL ─────────────────────────
 async function loadHistory(){
   try{
     const res = await fetch('/api/finance/history?months=12');
@@ -417,13 +684,24 @@ function buildTrendChart(hist){
     data: {
       labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
       datasets: [
-        { label: 'Daromad', data: hist.map(h=>h.daromad), borderColor:'#2563EB', backgroundColor:'rgba(37,99,235,.08)', fill:true, tension:.3, pointRadius:3 },
-        { label: 'Sof foyda', data: hist.map(h=>h.sof_foyda), borderColor:'#8E44AD', backgroundColor:'rgba(142,68,173,.08)', fill:true, tension:.3, pointRadius:3 }
+        { label: 'Daromad', data: hist.map(h=>h.daromad), borderColor:'#2563EB', backgroundColor:'rgba(37,99,235,.08)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
+        { label: 'Sof foyda', data: hist.map(h=>h.sof_foyda), borderColor:'#8E44AD', backgroundColor:'rgba(142,68,173,.08)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 }
       ]
     },
-    options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{boxWidth:10,font:{size:10.5}} } },
-      scales:{ y:{ ticks:{ callback:v=>fmt(v) } } } }
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:800, easing:'easeOutQuart' },
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ position:'top', align:'end', labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12},color:'#4B5563'} },
+        tooltip:{ backgroundColor:'#111827', padding:11, cornerRadius:8, titleFont:{size:12}, bodyFont:{size:12.5}, bodySpacing:4,
+          callbacks:{ label: ctx => `${ctx.dataset.label}: ${fmtFull(ctx.parsed.y)} so'm` } }
+      },
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ font:{size:11.5}, color:'#9CA3AF' } },
+        y:{ grid:{ color:'#F0F1F3' }, border:{display:false}, ticks:{ font:{size:11}, color:'#9CA3AF', callback:v=>fmt(v) } }
+      }
+    }
   });
 }
 
@@ -436,6 +714,7 @@ function initDailyTx(){
 
 const CAT_LABELS = {arenda:'Arenda', elektr:'Elektr', tushlik:'Tushlik', soliqlar:'Soliqlar', reklama:'Reklama', kutilmagan:'Kutilmagan xarajat', boshqa:'Boshqa'};
 const SOURCE_LABELS = {monthly_form:'Oylik forma', manual:'Qo\'lda kiritilgan'};
+const CAT_ICONS = {arenda:'🏠', elektr:'⚡', tushlik:'🍽️', soliqlar:'📋', reklama:'📢', kutilmagan:'⚠️', boshqa:'📦'};
 
 async function loadDailyTransactions(){
   const dateVal = document.getElementById('tx-date').value;
@@ -449,28 +728,29 @@ async function loadDailyTransactions(){
   if (category) url += `&category=${category}`;
 
   const tbody = document.getElementById('tx-body');
-  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</td></tr>';
+  tbody.innerHTML = `<tr><td colspan="7" style="padding:20px"><div class="fin-skeleton" style="height:16px;width:100%"></div></td></tr>`.repeat(1);
   try {
     const res = await fetch(url);
     const rows = await res.json();
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Tranzaksiya topilmadi</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="7"><div class="fin-empty" style="padding:32px"><i class="ti ti-receipt-off"></i><div class="fin-empty-title">Tranzaksiya topilmadi</div><div style="font-size:12.5px">Tanlangan davrda hech qanday xarajat yozilmagan</div></div></td></tr>`;
       return;
     }
     tbody.innerHTML = rows.map(t => {
       const dt = new Date(t.date);
+      const icon = CAT_ICONS[t.category] || '📄';
       return `<tr>
         <td>${dt.toLocaleDateString('uz')}</td>
-        <td>${CAT_LABELS[t.category] || t.category}</td>
-        <td style="font-weight:600;color:#EF4444">${fmtFull(t.amount)} so'm</td>
-        <td style="color:var(--text3)">${t.notes || '—'}</td>
-        <td style="color:var(--text3)">${t.created_by || '—'}</td>
-        <td style="color:var(--text3);font-size:13px">${SOURCE_LABELS[t.source] || t.source}</td>
-        <td class="no-print"><button class="act-btn danger" style="width:26px;height:26px" onclick="deleteTx(${t.id})" title="O'chirish"><i class="ti ti-trash" style="font-size:12px"></i></button></td>
+        <td><span class="fin-cat-badge">${icon} ${CAT_LABELS[t.category] || t.category}</span></td>
+        <td style="font-weight:700;color:var(--f-danger)">${fmtFull(t.amount)} so'm</td>
+        <td style="color:var(--f-text3)">${t.notes || '—'}</td>
+        <td style="color:var(--f-text3)">${t.created_by || '—'}</td>
+        <td style="color:var(--f-text3);font-size:12.5px">${SOURCE_LABELS[t.source] || t.source}</td>
+        <td class="no-print" style="text-align:right"><button class="fin-row-action" onclick="deleteTx(${t.id})" title="O'chirish"><i class="ti ti-trash" style="font-size:13px"></i></button></td>
       </tr>`;
     }).join('');
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--f-danger)">Yuklashda xato</td></tr>';
   }
 }
 
@@ -519,38 +799,40 @@ async function loadDailyFinance() {
     const dt = new Date(d.date);
     document.getElementById('daily-date').textContent = dt.toLocaleDateString('uz', {day:'numeric', month:'long', year:'numeric'});
 
-    document.getElementById('d-savdo').textContent = fmtFull(d.sales.total) + " so'm";
-    document.getElementById('d-orders-count').textContent = d.sales.orders_count + " ta buyurtma yakunlandi";
-    document.getElementById('d-tannarx').textContent = fmtFull(d.sales.cost) + " so'm";
-    document.getElementById('d-foyda').textContent = fmtFull(d.sales.profit) + " so'm";
-    document.getElementById('d-xarajat').textContent = fmtFull(d.expenses.total) + " so'm";
+    animateCounter(document.getElementById('hero-savdo'), d.sales.total);
+    document.getElementById('hero-savdo-sub').textContent = d.sales.orders_count + " ta buyurtma yakunlandi";
+    animateCounter(document.getElementById('hero-xarajat'), d.expenses.total);
+    animateCounter(document.getElementById('hero-foyda'), d.sales.profit);
+    document.getElementById('hero-tannarx-sub').textContent = "Tan narx: " + fmtFull(d.sales.cost) + " so'm";
+
+    const oqim = d.sales.total - d.expenses.total;
+    const oqimEl = document.getElementById('hero-oqim');
+    animateCounter(oqimEl, Math.abs(oqim), " so'm");
+    if (oqim < 0) oqimEl.style.color = 'var(--f-danger)';
+
+    document.getElementById('acc-total').textContent = fmtFull(d.expenses.total) + " so'm";
 
     const matList = document.getElementById('d-material-list');
     if (d.expenses.material.breakdown.length) {
       matList.innerHTML = d.expenses.material.breakdown.map(m =>
-        `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
-           <span>${m.nomi}</span><span style="font-weight:600">${fmtFull(m.summa)} so'm</span>
-         </div>`).join('');
+        `<div class="fin-breakdown-row"><span>${m.nomi}</span><span style="font-weight:600">${fmtFull(m.summa)} so'm</span></div>`).join('');
     } else {
-      matList.innerHTML = '<div style="color:var(--text3)">Bugun xarid bo\'lmagan</div>';
+      matList.innerHTML = '<div class="fin-breakdown-empty">Bugun xarid bo\'lmagan</div>';
     }
 
     const transEl = document.getElementById('d-transport-total');
     if (d.expenses.transport && d.expenses.transport.total > 0) {
-      transEl.innerHTML = `<div style="display:flex;justify-content:space-between;padding:4px 0">
-        <span>Jami</span><span style="font-weight:700">${fmtFull(d.expenses.transport.total)} so'm</span></div>`;
+      transEl.innerHTML = `<div class="fin-breakdown-row"><span>Jami</span><span style="font-weight:700">${fmtFull(d.expenses.transport.total)} so'm</span></div>`;
     } else {
-      transEl.innerHTML = '<div style="color:var(--text3)">Bugun transport xarajati yo\'q</div>';
+      transEl.innerHTML = '<div class="fin-breakdown-empty">Bugun transport xarajati yo\'q</div>';
     }
 
     const othList = document.getElementById('d-other-list');
     if (d.expenses.other.breakdown.length) {
       othList.innerHTML = d.expenses.other.breakdown.map(m =>
-        `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">
-           <span>${m.nomi}</span><span style="font-weight:600">${fmtFull(m.summa)} so'm</span>
-         </div>`).join('');
+        `<div class="fin-breakdown-row"><span>${m.nomi}</span><span style="font-weight:600">${fmtFull(m.summa)} so'm</span></div>`).join('');
     } else {
-      othList.innerHTML = '<div style="color:var(--text3)">Bugun boshqa xarajat yo\'q</div>';
+      othList.innerHTML = '<div class="fin-breakdown-empty">Bugun boshqa xarajat yo\'q</div>';
     }
   } catch(e) {
     loadingEl.textContent = 'Xato yuz berdi';
