@@ -174,42 +174,40 @@ class PurchaseRead(BaseModel):
 # RECIPE (Retseptlar)
 # ============================================================
 
+class RecipeIngredientCreate(BaseModel):
+    """Retsept tarkibidagi bitta qo'shimcha — Omborxonadagi istalgan material."""
+    inventory_id: int
+    quantity_kg: float = Field(..., gt=0, description="Shu qo'shimchadan batch_size_kg uchun kerak miqdor (kg)")
+
+
+class RecipeIngredientRead(BaseModel):
+    inventory_id: int
+    item_name: str
+    unit: str
+    quantity_kg: float
+
+    model_config = {"from_attributes": True}
+
+
 class RecipeCreate(BaseModel):
-    """Yangi retsept qo'shish uchun."""
-    name: str = Field(..., description="Kvars yoki Oq Marmar")
-    akril_kg: float = Field(default=0.0, ge=0)
-    pva_kg: float = Field(default=0.0, ge=0)
-    qum_kg: float = Field(default=0.0, ge=0)
-    travertin_qum_kg: float = Field(default=0.0, ge=0)
-    kroshka_kg: float = Field(default=0.0, ge=0)
-    penogasitel_kg: float = Field(default=0.0, ge=0)
-    shtukaturka_kg: float = Field(default=0.0, ge=0)
-    zagustitel_kg: float = Field(default=0.0, ge=0)
-    suv_kg: float = Field(default=0.0, ge=0)
-    biotsid_ml: float = Field(default=0.0, ge=0)
+    """Yangi retsept qo'shish uchun. Nomi ISTALGAN bo'lishi mumkin,
+    tarkibi Omborxonadagi istalgan materiallardan tuziladi."""
+    name: str = Field(..., min_length=1, max_length=100, description="Masalan: Kvars, Oq Marmar, Bej va h.k.")
     batch_size_kg: float = Field(default=150.0, gt=0)
     notes: Optional[str] = None
+    ingredients: List[RecipeIngredientCreate] = Field(default_factory=list)
 
 
 class RecipeRead(BaseModel):
     """Retseptni ko'rish uchun."""
     id: int
     name: str
-    akril_kg: float
-    pva_kg: float
-    qum_kg: float
-    travertin_qum_kg: float = 0.0
-    kroshka_kg: float
-    penogasitel_kg: float
-    shtukaturka_kg: float
-    zagustitel_kg: float = 0.0
-    suv_kg: float
-    biotsid_ml: float
     batch_size_kg: float
     notes: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     image_url: Optional[str] = None
+    ingredients: List[RecipeIngredientRead] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
