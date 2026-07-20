@@ -59,7 +59,8 @@
 
   <div class="dbt-tabs">
     <button class="dbt-tab active" data-t="customers" onclick="switchTab('customers')">👤 Bizga qarzdorlar ({{ order_debts|length }})</button>
-    <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')">🚚 Biz qarzdormiz ({{ supplier_debts|length }})</button>
+    <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')">🚚 Hamkorlarga qarzimiz ({{ supplier_debts|length }})</button>
+    <button class="dbt-tab" data-t="company" onclick="switchTab('company')">🏢 Boshqa majburiyatlarimiz ({{ (company_obligations.employees|length) + (company_obligations.recurring|length) }})</button>
   </div>
 
   <!-- MIJOZ QARZLARI -->
@@ -158,6 +159,76 @@
     </div>
   </div>
 
+  <!-- KOMPANIYA O'ZI QARZDOR -->
+  <div id="tab-company" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+      <!-- Hodimlarga qarz -->
+      <div class="dbt-card">
+        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px">👷 Hodimlarga qarzimiz — shu oy</div>
+        <div style="padding:8px 18px 18px">
+          {% if company_obligations.employees %}
+            {% for e in company_obligations.employees %}
+            <div style="padding:12px 0;border-bottom:1px solid #F3F4F6">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div>
+                  <div style="font-weight:600;font-size:13.5px">{{ e.name }}</div>
+                  <div style="font-size:11.5px;color:var(--d-text3)">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }} so'm, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }} so'm</div>
+                </div>
+                <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }} so'm</div>
+              </div>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" onclick="closeEmployeeDebt({{ e.employee_id }}, '{{ e.name }}', {{ e.qolgan }})">✓ To'liq to'landi deb belgilash</button>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="dbt-empty" style="padding:30px 0"><i class="ti ti-circle-check"></i><div style="font-size:13.5px;font-weight:600;color:var(--d-text2)">Barcha hodimlarga to'liq to'langan</div></div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Doimiy majburiyatlar (Arenda, Soliq) -->
+      <div class="dbt-card">
+        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;font-size:15px">🏛️ Doimiy majburiyatlar</span>
+          <button class="btn btn-outline btn-xs" onclick="toggleObligationSettings()">⚙️ Sozlash</button>
+        </div>
+        <div style="padding:8px 18px 18px">
+
+          <div id="obligationSettings" style="display:none;background:var(--d-bg);border-radius:10px;padding:14px;margin-bottom:14px">
+            <div style="font-size:12px;color:var(--d-text3);margin-bottom:10px">Har oy qancha to'lanishi kerakligini belgilang — tizim haqiqiy to'lovlar bilan solishtirib, qarzni o'zi hisoblaydi</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+              <span style="font-size:13px;width:80px">Arenda</span>
+              <input type="text" id="target-arenda" placeholder="0" style="flex:1;height:34px;padding:0 10px;border:1px solid var(--d-border);border-radius:7px;font-size:13px" oninput="formatPriceInput(this)" value="{{ (recurring_targets|selectattr('category','equalto','arenda')|first).monthly_target if recurring_targets|selectattr('category','equalto','arenda')|list else '' }}">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+              <span style="font-size:13px;width:80px">Soliqlar</span>
+              <input type="text" id="target-soliqlar" placeholder="0" style="flex:1;height:34px;padding:0 10px;border:1px solid var(--d-border);border-radius:7px;font-size:13px" oninput="formatPriceInput(this)" value="{{ (recurring_targets|selectattr('category','equalto','soliqlar')|first).monthly_target if recurring_targets|selectattr('category','equalto','soliqlar')|list else '' }}">
+            </div>
+            <button class="btn btn-dark btn-sm w-full" onclick="saveObligationTargets()">Saqlash</button>
+          </div>
+
+          {% if company_obligations.recurring %}
+            {% for r in company_obligations.recurring %}
+            <div style="padding:12px 0;border-bottom:1px solid #F3F4F6">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div>
+                  <div style="font-weight:600;font-size:13.5px">{{ r.label }}</div>
+                  <div style="font-size:11.5px;color:var(--d-text3)">Maqsad: {{ "{:,.0f}".format(r.target).replace(",", " ") }} · To'langan: {{ "{:,.0f}".format(r.paid).replace(",", " ") }}</div>
+                </div>
+                <div style="font-weight:800;color:#F59E0B;font-size:15px">{{ "{:,.0f}".format(r.debt).replace(",", " ") }} so'm</div>
+              </div>
+              <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:#F59E0B"></div></div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="dbt-empty" style="padding:30px 0"><i class="ti ti-circle-check"></i><div style="font-size:13.5px;font-weight:600;color:var(--d-text2)">Doimiy majburiyatlar to'liq to'langan (yoki hali sozlanmagan)</div></div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -171,6 +242,34 @@ function switchTab(t){
   document.querySelectorAll('.dbt-tab').forEach(b => b.classList.toggle('active', b.dataset.t === t));
   document.getElementById('tab-customers').style.display = t === 'customers' ? 'block' : 'none';
   document.getElementById('tab-suppliers').style.display = t === 'suppliers' ? 'block' : 'none';
+  document.getElementById('tab-company').style.display = t === 'company' ? 'block' : 'none';
+}
+
+function toggleObligationSettings(){
+  const el = document.getElementById('obligationSettings');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function saveObligationTargets(){
+  const arenda = parseNum(document.getElementById('target-arenda').value);
+  const soliqlar = parseNum(document.getElementById('target-soliqlar').value);
+  try {
+    await Promise.all([
+      fetch(`/api/obligations/recurring?category=arenda&label=${encodeURIComponent('Arenda (arendator)')}&monthly_target=${arenda}`, {method:'POST'}),
+      fetch(`/api/obligations/recurring?category=soliqlar&label=${encodeURIComponent('Soliqlar')}&monthly_target=${soliqlar}`, {method:'POST'})
+    ]);
+    location.reload();
+  } catch(e) { alert('Xato yuz berdi'); }
+}
+
+async function closeEmployeeDebt(empId, name, amount){
+  if (!confirm(`${name} ga ${fmt(amount)} so'm to'liq to'landi deb belgilaysizmi?`)) return;
+  const now = new Date();
+  try {
+    const res = await fetch(`/api/obligations/employee/${empId}/close?year=${now.getFullYear()}&month=${now.getMonth()+1}&amount=${amount}`, {method:'POST'});
+    if (res.ok) location.reload();
+    else alert('Xato yuz berdi');
+  } catch(e) { alert('Server xatosi'); }
 }
 
 let selectedOrderId = null;
