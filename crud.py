@@ -101,7 +101,7 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
         volume_per_unit=item_data.volume_per_unit,
         is_penoplast=is_peno,
         is_default_penoplast=(is_default and is_peno),
-        category=guess_category(item_data.item_name, is_peno),
+        category=(item_data.category if getattr(item_data, 'category', None) else guess_category(item_data.item_name, is_peno)),
         notes=item_data.notes
     )
     db.add(db_item)
