@@ -1149,18 +1149,12 @@ def api_create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db
     return crud.create_recipe(db, recipe)
 
 
-@app.put("/api/recipes/{recipe_id}")
-def api_update_recipe(recipe_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    from models import Recipe
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+@app.put("/api/recipes/{recipe_id}", response_model=schemas.RecipeRead)
+def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    recipe = crud.update_recipe(db, recipe_id, data)
     if not recipe:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
-    for key, val in data.items():
-        if hasattr(recipe, key):
-            setattr(recipe, key, val)
-    recipe.updated_at = datetime.utcnow()  # Faqat UI uchun — hisob-kitobga ta'siri yo'q
-    db.commit()
-    return {"status": "ok"}
+    return recipe
 
 
 @app.post("/api/recipes/{recipe_id}/image")
@@ -1803,7 +1797,8 @@ def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.ad
 
 @app.post("/api/returns/{return_id}/refund")
 def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    item = crud.mark_refunded(db, return_id)
+    who = current_user.full_name or current_user.username
+    item = crud.mark_refunded(db, return_id, refunded_by=who)
     if not item:
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     return {"status": "ok", "is_refunded": item.is_refunded}
