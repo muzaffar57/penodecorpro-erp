@@ -1684,6 +1684,12 @@ def api_reports_top_products(days: int = 90, limit: int = 15, db: Session = Depe
     return services.get_top_products_report(db, days=days, limit=limit)
 
 
+@app.get("/api/dashboard/top-finished-products")
+def api_dashboard_top_finished_products(days: int = 30, limit: int = 5, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Dashboard uchun — faqat Tayyor mahsulotlardan sotilgan tovarlar (qaytganlari ayrilgan)."""
+    return services.get_top_finished_products_sold(db, days=days, limit=limit)
+
+
 @app.get("/api/reports/top-materials")
 def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     return services.get_top_materials_report(db, days=days)
