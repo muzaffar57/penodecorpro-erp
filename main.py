@@ -1635,13 +1635,34 @@ def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), cur
 
 @app.get("/debts", response_class=HTMLResponse)
 async def debts_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    from models import Project
-    all_projects = db.query(Project).filter(Project.total_budget > Project.total_paid).order_by(Project.total_budget.desc()).all()
-    debts = [p for p in all_projects if float(p.total_budget or 0) - float(p.total_paid or 0) > 0]
-    total_debt = sum(float(p.total_budget or 0) - float(p.total_paid or 0) for p in debts)
-    total_paid = sum(float(p.total_paid or 0) for p in debts)
-    total_budget = sum(float(p.total_budget or 0) for p in debts)
-    return templates.TemplateResponse(request, "debts.html", {"debts": debts, "total_debt": total_debt, "total_paid": total_paid, "total_budget": total_budget, "current_user": current_user, "active_page": "debts"})
+    """Qarzdorlar sahifasi — ikkita yo'nalish:
+    1) Bizga qarzdorlar — mijozlar (Order.debt_amount asosida, ESKI
+       Project.total_budget emas — bu qadimgi, buyurtma to'lovlariga
+       umuman bog'lanmagan maydon edi, shuning uchun almashtirildi).
+    2) Biz qarzdormiz — yetkazib beruvchilar (mavjud, sinalgan
+       get_suppliers_with_debt() funksiyasidan)."""
+    from models import Order, OrderStatus
+
+    orders = db.query(Order).filter(
+        Order.is_deleted.isnot(True),
+        Order.status != OrderStatus.DRAFT
+    ).all()
+    order_debts = [o for o in orders if float(o.debt_amount or 0) > 0.5]
+    order_debts.sort(key=lambda o: float(o.debt_amount or 0), reverse=True)
+    total_customer_debt = sum(float(o.debt_amount or 0) for o in order_debts)
+
+    suppliers_all = crud.get_suppliers_with_debt(db)
+    supplier_debts = [s for s in suppliers_all if s['debt'] > 0]
+    supplier_debts.sort(key=lambda s: s['debt'], reverse=True)
+    total_supplier_debt = sum(s['debt'] for s in supplier_debts)
+
+    return templates.TemplateResponse(request, "debts.html", {
+        "order_debts": order_debts,
+        "supplier_debts": supplier_debts,
+        "total_customer_debt": total_customer_debt,
+        "total_supplier_debt": total_supplier_debt,
+        "current_user": current_user, "active_page": "debts"
+    })
 
 
 @app.get("/reports", response_class=HTMLResponse)
