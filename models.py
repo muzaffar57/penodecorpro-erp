@@ -552,6 +552,24 @@ class EmployeeAdvance(Base):
         return f"<EmployeeAdvance {self.employee_id}: {self.amount}>"
 
 
+class RecurringObligation(Base):
+    """Har oy takrorlanadigan majburiy xarajat (Arenda, Soliq va h.k.) uchun
+    'har oy qancha to'lanishi KERAK' maqsadini saqlaydi. Admin buni BIR
+    MARTA belgilaydi (yoki kerak bo'lganda o'zgartiradi), tizim esa har
+    oy buni haqiqiy to'lovlar (ExpenseTransaction, shu kategoriyada)
+    bilan solishtirib, avtomatik qarz/ogohlantirish chiqaradi."""
+    __tablename__ = "recurring_obligations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String(30), unique=True, nullable=False)  # 'arenda', 'soliqlar' — ExpenseTransaction kategoriyasiga mos
+    label = Column(String(60), nullable=False)  # "Arenda (arendator)", "Soliqlar"
+    monthly_target = Column(Numeric(12, 2), default=0)  # Har oy qancha to'lanishi kerak
+    is_active = Column(Boolean, default=True)
+
+    def __repr__(self):
+        return f"<RecurringObligation {self.label}: {self.monthly_target}/oy>"
+
+
 # ============================================================
 # 9c. SUPPLIER — Yetkazib beruvchilar va nasiya qarzi
 # ============================================================
