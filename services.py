@@ -908,9 +908,9 @@ def get_dashboard_stats(db: Session) -> Dict:
     from models import Project, Master
 
     total_projects = db.query(Project).count()
-    total_orders = db.query(Order).count()
-    active_orders = db.query(Order).filter(Order.status != OrderStatus.READY).count()
-    ready_orders = db.query(Order).filter(Order.status == OrderStatus.READY).count()
+    total_orders = db.query(Order).filter(Order.is_deleted.isnot(True)).count()
+    active_orders = db.query(Order).filter(Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
+    ready_orders = db.query(Order).filter(Order.status == OrderStatus.READY, Order.is_deleted.isnot(True)).count()
     total_masters = db.query(Master).filter(Master.is_active == True).count()
     total_inventory_items = db.query(Inventory).count()
     low_stock = check_low_stock(db)
@@ -1204,7 +1204,7 @@ def get_chart_data(db: Session) -> Dict:
     statuses = {}
     for status in OrderStatus:
         try:
-            cnt = db.query(Order).filter(Order.status == status).count()
+            cnt = db.query(Order).filter(Order.status == status, Order.is_deleted.isnot(True)).count()
             statuses[status.value] = cnt
         except Exception:
             # Enum bazada hali yo'q bo'lsa
