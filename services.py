@@ -480,80 +480,136 @@ def get_business_health(db: Session) -> dict:
 
 
 def get_recurring_obligations(db: Session) -> list:
-    """Barcha sozlangan doimiy majburiyatlar (Arenda, Soliq) ro'yxati —
-    sozlash sahifasi uchun."""
+    """Barcha sozlangan doimiy majburiyatlar (Arenda, Soliq, Transport va
+    ISTALGAN boshqa kategoriya) ro'yxati — sozlash sahifasi uchun."""
     from models import RecurringObligation
     rows = db.query(RecurringObligation).order_by(RecurringObligation.label).all()
     return [{
-        "id": r.id, "category": r.category, "label": r.label,
-        "monthly_target": float(r.monthly_target or 0), "is_active": r.is_active
+        "id": r.id, "category": r.category, "label": r.label, "icon": r.icon or "📦",
+        "monthly_target": float(r.monthly_target or 0), "due_day": r.due_day or 5,
+        "is_active": r.is_active
     } for r in rows]
 
 
-def set_recurring_obligation(db: Session, category: str, label: str, monthly_target: float) -> dict:
-    """Doimiy majburiyat maqsadini yaratadi yoki yangilaydi (masalan
-    'Arenda — har oy 2,000,000 so'm to'lanishi kerak')."""
+def set_recurring_obligation(db: Session, category: str, label: str, monthly_target: float,
+                              icon: str = "📦", due_day: int = 5) -> dict:
+    """Doimiy majburiyat kategoriyasini yaratadi yoki yangilaydi. Admin
+    ISTALGAN yangi kategoriya nomini kiritishi mumkin."""
     from models import RecurringObligation
     obl = db.query(RecurringObligation).filter(RecurringObligation.category == category).first()
     if obl:
         obl.label = label
         obl.monthly_target = monthly_target
+        obl.icon = icon
+        obl.due_day = due_day
     else:
-        obl = RecurringObligation(category=category, label=label, monthly_target=monthly_target, is_active=True)
+        obl = RecurringObligation(category=category, label=label, monthly_target=monthly_target,
+                                   icon=icon, due_day=due_day, is_active=True)
         db.add(obl)
     db.commit()
     db.refresh(obl)
     return {"id": obl.id, "category": obl.category, "label": obl.label, "monthly_target": float(obl.monthly_target)}
 
 
+def delete_recurring_obligation(db: Session, obligation_id: int) -> bool:
+    """Doimiy majburiyat kategoriyasini o'chiradi (xarajat tarixi saqlanib qoladi)."""
+    from models import RecurringObligation
+    obl = db.query(RecurringObligation).filter(RecurringObligation.id == obligation_id).first()
+    if not obl:
+        return False
+    db.delete(obl)
+    db.commit()
+    return True
+
+
+def _obligation_status(debt: float, due_day: int, today) -> str:
+    """Holatni avtomatik aniqlaydi: to'liq/qisman/muddat yaqin/muddati o'tgan."""
+    if debt <= 0.5:
+        return "full"
+    if today.day > due_day:
+        return "overdue"
+    if due_day - today.day <= 3:
+        return "due_soon"
+    return "partial"
+
+
 def get_company_obligations_status(db: Session, year: int, month: int) -> dict:
     """Kompaniyaning O'ZI kimlarga qarzdorligini — bitta joyda yig'ib beradi:
-    1) Hodimlarga (oylik hisob-kitobdagi 'qolgan' — avans ayrilgandan keyingi qism)
-    2) Doimiy majburiyatlar (Arenda, Soliq — maqsad va haqiqiy to'lov solishtirilib)
+    1) Hodimlarga (oylik hisob-kitobdagi 'qolgan')
+    2) Doimiy majburiyatlar (Arenda, Soliq, Transport va h.k.)
     Ikkalasi ham — FAQAT o'qish, mavjud, sinalgan hisob-kitoblardan foydalanadi."""
     from models import RecurringObligation, ExpenseTransaction
     from sqlalchemy import func
     from datetime import datetime
 
-    # 1) Hodimlar
+    today = datetime.utcnow()
+
     emp_result = calculate_monthly_employee_pay(db, year, month, 0, 0, 0, 0, 0)
     employees = [
         {
             "employee_id": e["employee_id"], "name": e["name"], "detail": e["detail"],
-            "amount": e["amount"], "avans": e["avans"], "qolgan": e["qolgan"]
+            "amount": e["amount"], "avans": e["avans"], "qolgan": e["qolgan"],
+            "status": "overdue" if (e["qolgan"] > 0.5 and today.day > 5) else ("partial" if e["qolgan"] > 0.5 else "full")
         }
-        for e in emp_result["breakdown"] if e["qolgan"] > 0.5
+        for e in emp_result["breakdown"]
     ]
-    total_employee_debt = sum(e["qolgan"] for e in employees)
+    employees_with_debt = [e for e in employees if e["qolgan"] > 0.5]
+    total_employee_debt = sum(e["qolgan"] for e in employees_with_debt)
 
-    # 2) Doimiy majburiyatlar (Arenda, Soliq)
     recurring = []
     obligations = db.query(RecurringObligation).filter(RecurringObligation.is_active == True).all()
     for obl in obligations:
         target = float(obl.monthly_target or 0)
         if target <= 0:
             continue
-        paid = db.query(func.sum(ExpenseTransaction.amount)).filter(
+        txs = db.query(ExpenseTransaction).filter(
             ExpenseTransaction.category == obl.category,
             func.extract('year', ExpenseTransaction.date) == year,
             func.extract('month', ExpenseTransaction.date) == month
-        ).scalar() or 0
-        paid = float(paid)
+        ).order_by(ExpenseTransaction.date.desc()).all()
+        paid = sum(float(t.amount or 0) for t in txs)
         debt = max(0, target - paid)
-        if debt > 0.5:
-            recurring.append({
-                "category": obl.category, "label": obl.label,
-                "target": round(target), "paid": round(paid), "debt": round(debt)
-            })
-    total_recurring_debt = sum(r["debt"] for r in recurring)
+        last_payment = txs[0].date.isoformat() if txs else None
+
+        recurring.append({
+            "category": obl.category, "label": obl.label, "icon": obl.icon or "📦",
+            "target": round(target), "paid": round(paid), "debt": round(debt),
+            "due_day": obl.due_day or 5, "last_payment": last_payment,
+            "status": _obligation_status(debt, obl.due_day or 5, today)
+        })
+    recurring_with_debt = [r for r in recurring if r["debt"] > 0.5]
+    total_recurring_debt = sum(r["debt"] for r in recurring_with_debt)
 
     return {
-        "employees": employees,
+        "employees": employees_with_debt,
         "total_employee_debt": round(total_employee_debt),
-        "recurring": recurring,
+        "recurring": recurring_with_debt,
+        "recurring_all": recurring,
         "total_recurring_debt": round(total_recurring_debt),
         "total_company_debt": round(total_employee_debt + total_recurring_debt),
     }
+
+
+def get_obligation_timeline(db: Session, category: str, year: int, month: int) -> list:
+    """Bitta kategoriya uchun, shu oydagi barcha to'lovlar tarixi (timeline)."""
+    from models import ExpenseTransaction
+    from sqlalchemy import func
+    txs = db.query(ExpenseTransaction).filter(
+        ExpenseTransaction.category == category,
+        func.extract('year', ExpenseTransaction.date) == year,
+        func.extract('month', ExpenseTransaction.date) == month
+    ).order_by(ExpenseTransaction.date.desc()).all()
+    return [{
+        "date": t.date.isoformat(), "amount": float(t.amount or 0),
+        "notes": t.notes, "created_by": t.created_by
+    } for t in txs]
+
+
+def get_employee_payment_timeline(db: Session, employee_id: int, year: int, month: int) -> list:
+    """Bitta hodim uchun, shu oydagi barcha to'lovlar (avans+yakuniy) tarixi."""
+    advances = get_employee_advances_list(db, employee_id, year, month)
+    return [{"date": a["date"], "amount": a["amount"], "notes": a["notes"] or "Avans/to'lov",
+              "created_by": a["given_by"]} for a in advances]
 
 
 def close_employee_debt(db: Session, employee_id: int, year: int, month: int, amount: float, paid_by: str = None) -> dict:
