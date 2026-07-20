@@ -1025,6 +1025,17 @@ def delete_order(db: Session, order_id: int, soft: bool = False) -> bool:
         db_order.is_deleted = True
         db.commit()
     else:
+        # MUHIM: "Ombor harakatlari jurnali" (InventoryMovement) — bu buyurtmaga
+        # FK orqali bog'langan, lekin bu yozuvlar TARIXIY LOG bo'lgani uchun
+        # o'chirilmasligi kerak — faqat buyurtmaga bog'lanishi uziladi (order_id=NULL),
+        # aks holda ma'lumotlar bazasi FK cheklovi tufayli o'chirishga yo'l qo'ymaydi.
+        from models import InventoryMovement, FinishedProduct
+        db.query(InventoryMovement).filter(InventoryMovement.order_id == order_id).update(
+            {"order_id": None}
+        )
+        db.query(FinishedProduct).filter(FinishedProduct.from_order_id == order_id).update(
+            {"from_order_id": None}
+        )
         db.delete(db_order)
         db.commit()
     return True
