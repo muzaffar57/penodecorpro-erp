@@ -97,6 +97,40 @@
         <div class="form-group" style="margin-bottom:8px">
           <label style="font-size:11px">Material</label>
           <select id="ap-item" style="width:100%;height:36px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none" onchange="apOnItemChange()"></select>
+          <div style="margin-top:5px">
+            <button type="button" onclick="apToggleNewItem()" style="border:none;background:none;color:#1E40AF;font-size:11.5px;cursor:pointer;padding:0">
+              <span id="ap-newitem-toggle-text">🆕 Ro'yxatda yo'q, yangi material yozaman</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="ap-newitem-form" style="display:none;margin-bottom:8px;padding:10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:7px">
+          <div class="form-group" style="margin-bottom:8px">
+            <label style="font-size:11px">Yangi material nomi</label>
+            <input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat" style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="form-group" style="margin:0">
+              <label style="font-size:11px">Turi</label>
+              <select id="ap-newitem-category" style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+                <option value="Penoplast">Penoplast</option>
+                <option value="Kimyoviy qo'shimchalar" selected>Kimyoviy qo'shimcha</option>
+                <option value="Qattiq qotishmalar">Mineral qo'shimcha</option>
+                <option value="Boshqa">Boshqa</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label style="font-size:11px">O'lchov</label>
+              <select id="ap-newitem-unit" style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+                <option value="kg">kg</option>
+                <option value="dona">dona</option>
+                <option value="litr">litr</option>
+                <option value="m³">m³</option>
+                <option value="m">m</option>
+                <option value="rulon">rulon</option>
+              </select>
+            </div>
+          </div>
         </div>
         <div id="ap-volume-wrap" style="display:none;margin-bottom:8px;padding:8px 10px;background:#FDF8F0;border-radius:7px">
           <label style="font-size:11px;color:#1E40AF;font-weight:600">📦 1 blok necha m³? (kubasi)</label>
@@ -376,6 +410,54 @@ async function loadInvItemsForAp() {
   }
 }
 
+let apCreatingNewItem = false;
+
+function apToggleNewItem() {
+  apCreatingNewItem = !apCreatingNewItem;
+  document.getElementById('ap-item').style.display = apCreatingNewItem ? 'none' : 'block';
+  document.getElementById('ap-newitem-form').style.display = apCreatingNewItem ? 'block' : 'none';
+  document.getElementById('ap-newitem-toggle-text').textContent = apCreatingNewItem
+    ? '← Ro\'yxatdan tanlayman' : "🆕 Ro'yxatda yo'q, yangi material yozaman";
+  if (apCreatingNewItem) {
+    document.getElementById('ap-newitem-name').value = '';
+    document.getElementById('ap-volume-wrap').style.display = 'none';
+  }
+}
+
+// Agar "yangi material" rejimida bo'lsak — avval uni Omborxonada
+// yaratib, keyin xuddi mavjud materialdek davom etamiz.
+async function apResolveItemId() {
+  if (!apCreatingNewItem) {
+    return parseInt(document.getElementById('ap-item').value) || null;
+  }
+  const name = document.getElementById('ap-newitem-name').value.trim();
+  if (!name) { showMsg('❌ Yangi material nomini kiriting', 'error'); return null; }
+  const category = document.getElementById('ap-newitem-category').value;
+  const unit = document.getElementById('ap-newitem-unit').value;
+
+  try {
+    const res = await fetch('/api/inventory', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ item_name: name, category, unit, stock_quantity: 0, min_stock: 0 })
+    });
+    if (!res.ok) { showMsg('❌ Yangi material yaratib bo\'lmadi', 'error'); return null; }
+    const created = await res.json();
+    invItems.push({ id: created.id, item_name: created.item_name, unit: created.unit,
+                     category: created.category, is_penoplast: created.is_penoplast });
+    apToggleNewItem(); // yangi-material rejimidan chiqamiz, endi u ro'yxatda bor
+    const sel = document.getElementById('ap-item');
+    const opt = document.createElement('option');
+    opt.value = created.id; opt.dataset.unit = created.unit;
+    opt.textContent = `${created.item_name} (${created.unit})`;
+    sel.appendChild(opt);
+    sel.value = created.id;
+    return created.id;
+  } catch(e) {
+    showMsg('❌ Server xatosi', 'error');
+    return null;
+  }
+}
+
 function apOnItemChange() {
   const itemId = parseInt(document.getElementById('ap-item').value);
   const item = invItems.find(i => i.id === itemId);
@@ -459,13 +541,15 @@ function apCalc() {
 
 let apBasket = [];
 
-function apAddToBasket() {
-  const itemId = parseInt(document.getElementById('ap-item').value);
+async function apAddToBasket() {
+  const wasCreatingNew = apCreatingNewItem;
+  const itemId = await apResolveItemId();
+  if (!itemId) { if (!wasCreatingNew) showMsg('❌ Materialni tanlang', 'error'); return; }
+
   const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
   const price = parseNum(document.getElementById('ap-price').value) || 0;
   const item = invItems.find(i => i.id === itemId);
 
-  if (!itemId) { showMsg('❌ Materialni tanlang', 'error'); return; }
   if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
   if (item && item.is_penoplast) { showMsg('❌ Penoplast — savatga qo\'shib bo\'lmaydi, alohida saqlang', 'error'); return; }
 
@@ -502,9 +586,14 @@ function renderApBasket() {
 function round2(n) { return Math.round(n * 100) / 100; }
 
 async function saveAddPurchase() {
-  const itemId = parseInt(document.getElementById('ap-item').value);
   const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
   const price = parseNum(document.getElementById('ap-price').value) || 0;
+  let itemId = null;
+  if (qty && price) {
+    // Faqat joriy qator to'ldirilgan bo'lsa — materialni aniqlaymiz
+    // (agar "yangi material" rejimida bo'lsa, shu yerda avtomatik yaratiladi)
+    itemId = await apResolveItemId();
+  }
 
   // Joriy formadagi to'ldirilgan qatorni ham ro'yxatga qo'shamiz (agar to'ldirilgan bo'lsa)
   const lines = [...apBasket];
