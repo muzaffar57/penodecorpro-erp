@@ -986,6 +986,17 @@ async def suppliers_page(request: Request, db: Session = Depends(get_db), curren
     return templates.TemplateResponse(request, "suppliers.html", {"current_user": current_user, "active_page": "suppliers"})
 
 
+@app.get("/suppliers/receive", response_class=HTMLResponse)
+async def supplier_receive_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yetkazib beruvchidan mahsulot kirim qilish — to'liq sahifa ko'rinishi.
+    Backend/API o'zgarmagan — xuddi suppliers.html'dagi (sinalgan) xarid
+    mexanizmining o'zi, faqat kattaroq, tartibli sahifa dizaynida."""
+    suppliers = crud.get_suppliers(db)
+    return templates.TemplateResponse(request, "supplier_receive.html", {
+        "current_user": current_user, "active_page": "supplier_receive", "suppliers": suppliers
+    })
+
+
 @app.post("/api/suppliers")
 def api_create_supplier(data: schemas.SupplierCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     s = crud.create_supplier(db, data)
