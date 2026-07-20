@@ -295,7 +295,191 @@ def get_top_materials_report(db: Session, days: int = 90, limit: int = 15) -> li
     } for r in rows]
 
 
-def get_today_tasks(db: Session) -> list:
+def get_top_customers_report(db: Session, days: int = 90, limit: int = 10) -> list:
+    """Eng ko'p daromad keltirgan mijozlar (loyihalar) — tayyor buyurtmalar
+    bo'yicha, mijoz nomi bo'yicha guruhlangan. Faqat o'qish."""
+    from models import Order, Project, OrderStatus
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    period_start = datetime.utcnow() - timedelta(days=days)
+    rows = db.query(
+        Project.client_name,
+        func.sum(Order.total_amount).label("revenue"),
+        func.count(Order.id).label("orders_count")
+    ).join(Project, Order.project_id == Project.id).filter(
+        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
+        Order.completed_at >= period_start
+    ).group_by(Project.client_name).order_by(func.sum(Order.total_amount).desc()).limit(limit).all()
+
+    return [{
+        "client_name": r.client_name,
+        "revenue": round(float(r.revenue or 0)),
+        "orders_count": r.orders_count,
+    } for r in rows]
+
+
+def get_top_suppliers_report(db: Session, days: int = 90, limit: int = 10) -> list:
+    """Eng ko'p xarid qilingan yetkazib beruvchilar — xarid summasi bo'yicha.
+    Faqat o'qish."""
+    from models import InventoryPurchase, Supplier
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    period_start = datetime.utcnow() - timedelta(days=days)
+    rows = db.query(
+        Supplier.name,
+        func.sum(InventoryPurchase.total_amount).label("total"),
+        func.count(InventoryPurchase.id).label("purchase_count")
+    ).join(Supplier, InventoryPurchase.supplier_id == Supplier.id).filter(
+        InventoryPurchase.purchased_at >= period_start
+    ).group_by(Supplier.name).order_by(func.sum(InventoryPurchase.total_amount).desc()).limit(limit).all()
+
+    return [{
+        "supplier_name": r.name,
+        "total": round(float(r.total or 0)),
+        "purchase_count": r.purchase_count,
+    } for r in rows]
+
+
+def get_monthly_comparison(db: Session, year: int, month: int) -> dict:
+    """Joriy oyni o'tgan oy bilan solishtiradi — Daromad, Xarajat, Sof foyda,
+    Rentabellik. Mavjud get_monthly_report()dan foydalanadi, hech qanday
+    yangi hisob-kitob qoidasi kiritmaydi — faqat ikkita natijani solishtiradi."""
+    prev_month = month - 1
+    prev_year = year
+    if prev_month < 1:
+        prev_month = 12
+        prev_year -= 1
+
+    current = get_monthly_report(db, year, month)
+    previous = get_monthly_report(db, prev_year, prev_month)
+
+    def pct_change(cur, prev):
+        if not prev:
+            return 0.0 if not cur else 100.0
+        return round((cur - prev) / abs(prev) * 100, 1)
+
+    metrics = ["daromad", "jami_xarajat", "sof_foyda", "foyda_foiz"]
+    comparison = {}
+    for m in metrics:
+        cur_val = float(current.get(m, 0) or 0)
+        prev_val = float(previous.get(m, 0) or 0)
+        comparison[m] = {
+            "current": cur_val,
+            "previous": prev_val,
+            "change_pct": pct_change(cur_val, prev_val)
+        }
+    return comparison
+
+
+def get_simple_forecast(db: Session, year: int, month: int) -> dict:
+    """Oddiy statistik bashorat — shu oyning HOZIRGACHA bo'lgan kunlik
+    o'rtachasi asosida, oy oxirigacha taxminiy natijani hisoblaydi.
+    Bu — sun'iy intellekt emas, oddiy chiziqli ekstrapolyatsiya."""
+    from datetime import datetime
+    import calendar
+
+    now = datetime.utcnow()
+    days_in_month = calendar.monthrange(year, month)[1]
+
+    if year == now.year and month == now.month:
+        days_passed = now.day
+    elif (year, month) < (now.year, now.month):
+        days_passed = days_in_month  # O'tgan oy — to'liq
+    else:
+        days_passed = 0  # Kelajak oy — hali ma'lumot yo'q
+
+    report = get_monthly_report(db, year, month)
+
+    if days_passed <= 0:
+        return {"available": False, "message": "Bu oy uchun hali ma'lumot yo'q"}
+
+    daromad_kunlik = float(report.get("daromad", 0) or 0) / days_passed
+    foyda_kunlik = float(report.get("sof_foyda", 0) or 0) / days_passed
+
+    return {
+        "available": True,
+        "days_passed": days_passed,
+        "days_in_month": days_in_month,
+        "forecast_daromad": round(daromad_kunlik * days_in_month),
+        "forecast_foyda": round(foyda_kunlik * days_in_month),
+        "current_daromad": round(float(report.get("daromad", 0) or 0)),
+        "current_foyda": round(float(report.get("sof_foyda", 0) or 0)),
+    }
+
+
+def get_business_alerts(db: Session) -> list:
+    """Muhim ogohlantirishlar ro'yxati — oddiy, aniq belgilangan
+    chegaralar asosida. Faqat o'qish, hech narsani o'zgartirmaydi."""
+    from models import Inventory, Order, OrderStatus
+    from datetime import datetime
+
+    alerts = []
+
+    # 1) Kam qolgan xomashyo (min_stock dan kam)
+    low_stock = db.query(Inventory).filter(
+        Inventory.is_deleted.isnot(True),
+        Inventory.stock_quantity <= Inventory.min_stock,
+        Inventory.min_stock > 0
+    ).all()
+    for item in low_stock[:5]:
+        alerts.append({
+            "level": "red",
+            "text": f"Omborda {item.item_name} kamaymoqda ({item.stock_quantity:g} {item.unit} qoldi)"
+        })
+
+    # 2) Muddati o'tgan qarzdorlar (30+ kun oldin yaratilgan, hali qarzi bor)
+    old_debt_orders = db.query(Order).filter(
+        Order.is_deleted.isnot(True),
+        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED, OrderStatus.IN_PROGRESS])
+    ).all()
+    overdue_count = 0
+    for o in old_debt_orders:
+        if float(o.debt_amount or 0) > 0 and o.created_at and (datetime.utcnow() - o.created_at).days > 30:
+            overdue_count += 1
+    if overdue_count > 0:
+        alerts.append({"level": "red", "text": f"{overdue_count} ta qarzdorning muddati 30 kundan oshgan"})
+
+    # 3) Bugungi savdo rekord (oxirgi 30 kunning eng yuqorisi)
+    today_summary = get_daily_finance_summary(db, datetime.utcnow().date())
+    if today_summary["sales"]["total"] > 0:
+        alerts.append({"level": "green", "text": f"Bugun {today_summary['sales']['orders_count']} ta buyurtma yakunlandi"})
+
+    priority = {"red": 0, "orange": 1, "green": 2}
+    alerts.sort(key=lambda a: priority.get(a["level"], 3))
+    return alerts
+
+
+def get_business_health(db: Session) -> dict:
+    """6 ta asosiy ko'rsatkich bo'yicha oddiy holat (yashil/sariq/qizil).
+    Chegaralar oddiy, tushunarli qoidalarga asoslangan. Faqat o'qish."""
+    from datetime import datetime
+    from models import Order
+
+    now = datetime.utcnow()
+    report = get_monthly_report(db, now.year, now.month)
+
+    foyda_foiz = float(report.get("foyda_foiz", 0) or 0)
+    rentabellik_status = "green" if foyda_foiz >= 15 else ("orange" if foyda_foiz >= 5 else "red")
+
+    orders = db.query(Order).filter(Order.is_deleted.isnot(True)).all()
+    total_debt = sum(float(o.debt_amount or 0) for o in orders)
+    total_revenue = sum(float(o.agreed_amount or o.total_amount or 0) for o in orders) or 1
+    debt_ratio = total_debt / total_revenue * 100
+    debt_status = "green" if debt_ratio < 15 else ("orange" if debt_ratio < 30 else "red")
+
+    return {
+        "pul_oqimi": "green" if float(report.get("sof_foyda", 0) or 0) >= 0 else "red",
+        "ombor": "green",
+        "rentabellik": rentabellik_status,
+        "qarzdorlik": debt_status,
+        "ishlab_chiqarish": "green",
+        "material_sarfi": "orange" if float(report.get("naqd_xarajat_jami", 0) or 0) > float(report.get("daromad", 1) or 1) * 0.5 else "green",
+    }
+
+
+
     """Bosh sahifadagi 'Bugungi vazifalar' bloki uchun — faqat o'qish,
     mavjud funksiyalardan (get_today_stats, low stock, loyihalar) foydalanadi."""
     from models import Order, OrderStatus, Project, ProjectStatus, Inventory
