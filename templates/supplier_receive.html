@@ -1,0 +1,599 @@
+{% extends "base.html" %}
+{% block title %}Yetkazib beruvchidan kirim — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Yetkazib beruvchidan kirim qilish{% endblock %}
+{% block page_sub %}Bosh sahifa · Omborxona · Kirim · Yangi kirim{% endblock %}
+
+{% block head %}
+<style>
+.rcv-wrap{--r-bg:#F5F7FA;--r-card:#FFFFFF;--r-border:#E5E7EB;--r-primary:#2563EB;--r-primary-tint:#EFF6FF;--r-success:#22C55E;--r-success-tint:#F0FDF4;--r-danger:#EF4444;--r-danger-tint:#FEF2F2;--r-warning:#F59E0B;--r-text:#111827;--r-text2:#4B5563;--r-text3:#9CA3AF;background:var(--r-bg);margin:-24px;padding:24px}
+.rcv-wrap *{box-sizing:border-box}
+.rcv-grid{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
+@media(max-width:1150px){.rcv-grid{grid-template-columns:1fr}}
+.rcv-card{background:var(--r-card);border:1px solid var(--r-border);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);margin-bottom:18px}
+.rcv-card-body{padding:22px}
+.rcv-card-title{font-size:15px;font-weight:700;color:var(--r-text);margin-bottom:18px}
+.rcv-field label{display:block;font-size:12px;font-weight:600;color:var(--r-text2);margin-bottom:6px}
+.rcv-field input,.rcv-field select{width:100%;height:42px;padding:0 14px;border:1px solid var(--r-border);border-radius:9px;font-size:13.5px;color:var(--r-text);outline:none;background:#fff;transition:border-color .15s}
+.rcv-field input:focus,.rcv-field select:focus{border-color:var(--r-primary)}
+.rcv-field textarea{width:100%;padding:10px 14px;border:1px solid var(--r-border);border-radius:9px;font-size:13.5px;outline:none;resize:vertical;min-height:42px}
+.rcv-row{display:grid;gap:14px;margin-bottom:14px}
+.rcv-row-3{grid-template-columns:1fr 1fr 1fr}
+.rcv-row-2{grid-template-columns:1fr 1fr}
+@media(max-width:700px){.rcv-row-3,.rcv-row-2{grid-template-columns:1fr}}
+.rcv-supplier-row{display:flex;gap:10px;align-items:flex-end}
+.rcv-supplier-row .rcv-field{flex:1}
+.rcv-btn{height:42px;padding:0 18px;border-radius:9px;border:none;cursor:pointer;font-size:13.5px;font-weight:600;white-space:nowrap;transition:transform .1s,box-shadow .15s}
+.rcv-btn-primary{background:var(--r-primary);color:#fff}
+.rcv-btn-primary:hover{background:#1D4ED8;box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.rcv-btn-ghost{background:#fff;color:var(--r-text2);border:1px solid var(--r-border)}
+.rcv-btn-ghost:hover{background:var(--r-bg)}
+.rcv-btn-success{background:var(--r-success);color:#fff}
+.rcv-btn-dark{background:var(--r-text);color:#fff}
+.rcv-btn:active{transform:scale(.97)}
+.rcv-stat-grid{display:grid;grid-template-columns:repeat(3,1fr) 1.3fr;gap:12px;margin-top:16px}
+@media(max-width:900px){.rcv-stat-grid{grid-template-columns:1fr 1fr}}
+.rcv-stat-box{background:var(--r-bg);border-radius:11px;padding:14px 16px}
+.rcv-stat-label{font-size:11.5px;color:var(--r-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.rcv-stat-value{font-size:19px;font-weight:800;color:var(--r-text);margin-top:4px}
+.rcv-quickpay{background:var(--r-bg);border-radius:11px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.rcv-quickpay input{height:34px;border:1px solid var(--r-border);border-radius:7px;padding:0 10px;font-size:13px;outline:none}
+.rcv-quickpay button{height:34px;border-radius:7px;border:none;background:var(--r-text);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer}
+
+.rcv-newitem-link{display:inline-flex;align-items:center;gap:6px;height:42px;padding:0 14px;border:1.5px dashed var(--r-primary);border-radius:9px;color:var(--r-primary);font-size:12.5px;font-weight:600;cursor:pointer;background:var(--r-primary-tint);white-space:nowrap}
+.rcv-newitem-box{display:none;background:var(--r-primary-tint);border:1px solid #BFDBFE;border-radius:11px;padding:16px;margin-bottom:14px}
+
+.rcv-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+.rcv-table thead th{text-align:left;padding:10px 12px;color:var(--r-text3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;border-bottom:2px solid var(--r-border)}
+.rcv-table tbody td{padding:12px;border-bottom:1px solid var(--r-border);color:var(--r-text2)}
+.rcv-table tbody tr:hover{background:var(--r-bg)}
+.rcv-table tbody tr:last-child td{border-bottom:none}
+.rcv-icon-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--r-border);background:#fff;color:var(--r-text3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;transition:.12s}
+.rcv-icon-btn:hover{background:var(--r-danger-tint);border-color:var(--r-danger);color:var(--r-danger)}
+.rcv-totals-bar{display:flex;justify-content:flex-end;gap:24px;padding:14px 4px 4px;font-size:13px;color:var(--r-text2)}
+
+.rcv-summary-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid #F3F4F6;font-size:13.5px}
+.rcv-summary-row:last-child{border-bottom:none}
+.rcv-summary-row.total{background:var(--r-primary-tint);margin:8px -22px -22px;padding:16px 22px;border-radius:0 0 16px 16px;border-bottom:none}
+.rcv-summary-row.total .rcv-sum-label{font-weight:700;color:var(--r-text)}
+.rcv-summary-row.total .rcv-sum-val{font-weight:800;font-size:17px;color:var(--r-primary)}
+.rcv-summary-row.debt .rcv-sum-val{color:var(--r-danger);font-weight:800;font-size:15px}
+.rcv-sum-label{color:var(--r-text3)}
+.rcv-sum-val{font-weight:600;color:var(--r-text)}
+
+.rcv-upload{border:2px dashed var(--r-border);border-radius:11px;padding:24px;text-align:center;color:var(--r-text3);cursor:pointer;transition:.15s}
+.rcv-upload:hover{border-color:var(--r-primary);background:var(--r-primary-tint)}
+.rcv-upload .ti{font-size:26px;display:block;margin-bottom:8px;color:var(--r-primary)}
+
+.rcv-history-filter{display:flex;gap:8px;align-items:center}
+</style>
+{% endblock %}
+
+{% block topbar_actions %}{% endblock %}
+
+{% block content %}
+<div class="rcv-wrap">
+  <div class="rcv-grid">
+
+    <!-- ═══ CHAP USTUN ═══ -->
+    <div>
+
+      <!-- 1. Yetkazib beruvchi ma'lumotlari -->
+      <div class="rcv-card">
+        <div class="rcv-card-body">
+          <div class="rcv-card-title">Yetkazib beruvchi ma'lumotlari</div>
+
+          <div class="rcv-row rcv-row-3" style="margin-bottom:16px">
+            <div class="rcv-supplier-row" style="grid-column:span 1">
+              <div class="rcv-field" style="flex:1">
+                <label>Yetkazib beruvchi *</label>
+                <select id="r-supplier" onchange="onSupplierChange()">
+                  <option value="">— Tanlang —</option>
+                  {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+                </select>
+              </div>
+              <button class="rcv-btn rcv-btn-primary" style="flex-shrink:0" onclick="openNewSupplier()">+ Yangi</button>
+            </div>
+            <div class="rcv-field"><label>Hujjat raqami (ixtiyoriy)</label><input type="text" id="r-docnum" placeholder="Masalan: AUTO-21072026-001"></div>
+            <div class="rcv-field"><label>Sana *</label><input type="date" id="r-date"></div>
+          </div>
+
+          <div class="rcv-stat-grid">
+            <div class="rcv-stat-box"><div class="rcv-stat-label">Jami nasiya</div><div class="rcv-stat-value" id="sup-credit">—</div></div>
+            <div class="rcv-stat-box"><div class="rcv-stat-label">To'langan</div><div class="rcv-stat-value" style="color:var(--r-success)" id="sup-paid">—</div></div>
+            <div class="rcv-stat-box"><div class="rcv-stat-label">Qarz</div><div class="rcv-stat-value" style="color:var(--r-danger)" id="sup-debt">—</div></div>
+            <div class="rcv-quickpay">
+              <label style="font-size:11px;color:var(--r-text3);font-weight:600;text-transform:uppercase">To'lov summasi</label>
+              <div style="display:flex;gap:6px">
+                <input type="text" id="sup-quickpay-amount" placeholder="0" oninput="formatPriceInput(this)" style="flex:1">
+                <button onclick="quickPaySupplier()">💰 To'lov</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Mahsulot qo'shish -->
+      <div class="rcv-card">
+        <div class="rcv-card-body">
+          <div class="rcv-card-title">Mahsulot qo'shish</div>
+
+          <div class="rcv-row rcv-row-3">
+            <div style="display:flex;gap:8px;align-items:flex-end">
+              <div class="rcv-field" style="flex:1">
+                <label>Mahsulot *</label>
+                <select id="ap-item" onchange="apOnItemChange()"><option value="">Yuklanmoqda...</option></select>
+              </div>
+            </div>
+            <div class="rcv-field" id="ap-volume-wrap" style="display:none">
+              <label>1 blok nechchi m³? (ixtiyoriy)</label>
+              <input type="text" class="i-m3price" id="ap-volume" placeholder="1.4">
+            </div>
+          </div>
+
+          <div style="margin-bottom:14px">
+            <span class="rcv-newitem-link" onclick="apToggleNewItem()">
+              <span id="ap-newitem-toggle-text">🆕 Ro'yxatda yo'q — yangi material yozaman</span>
+            </span>
+          </div>
+
+          <div id="ap-newitem-form" class="rcv-newitem-box">
+            <div class="rcv-row rcv-row-3" style="margin-bottom:0">
+              <div class="rcv-field"><label>Yangi material nomi</label><input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat"></div>
+              <div class="rcv-field">
+                <label>Kategoriya (Tasnif)</label>
+                <select id="ap-newitem-category">
+                  <option value="Penoplast">Penoplast</option>
+                  <option value="Kimyoviy qo'shimchalar" selected>Kimyoviy qo'shimcha</option>
+                  <option value="Qattiq qotishmalar">Mineral qo'shimcha</option>
+                  <option value="Boshqa">Boshqa</option>
+                </select>
+              </div>
+              <div class="rcv-field">
+                <label>O'lchov birligi</label>
+                <select id="ap-newitem-unit">
+                  <option value="kg">kg</option><option value="dona">dona</option><option value="litr">litr</option>
+                  <option value="m³">m³</option><option value="m">m</option><option value="rulon">rulon</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="rcv-row rcv-row-3">
+            <div class="rcv-field"><label>Miqdor *</label><input type="number" id="ap-qty" placeholder="0" min="0" step="0.01"></div>
+            <div class="rcv-field"><label>1 birlik narxi *</label><input type="text" id="ap-price" placeholder="0" oninput="formatPriceInput(this)"></div>
+            <div class="rcv-field"><label>Jami</label><input type="text" id="ap-total" value="—" disabled style="background:var(--r-bg);font-weight:700;color:var(--r-primary)"></div>
+          </div>
+
+          <button class="rcv-btn rcv-btn-primary" style="width:100%;margin-top:4px" onclick="apAddToBasket()">+ Mahsulot ro'yxatga qo'shish</button>
+        </div>
+      </div>
+
+      <!-- 3. Mahsulotlar ro'yxati -->
+      <div class="rcv-card">
+        <div class="rcv-card-body">
+          <div class="rcv-card-title" style="margin-bottom:6px">Mahsulotlar ro'yxati</div>
+          <table class="rcv-table">
+            <thead><tr><th>№</th><th>Mahsulot nomi</th><th>Miqdor</th><th>1 birlik narxi</th><th style="text-align:right">Summa</th><th></th></tr></thead>
+            <tbody id="rcv-basket-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali mahsulot qo'shilmagan</td></tr></tbody>
+          </table>
+          <div class="rcv-totals-bar">
+            <span>Jami pozitsiyalar: <b id="rcv-pos-count">0</b></span>
+            <span>Jami summa: <b id="rcv-pos-total" style="color:var(--r-primary)">0 so'm</b></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. To'lov ma'lumotlari -->
+      <div class="rcv-card">
+        <div class="rcv-card-body">
+          <div class="rcv-card-title">To'lov ma'lumotlari</div>
+          <div class="rcv-row rcv-row-3">
+            <div class="rcv-field">
+              <label>To'lov holati</label>
+              <select id="ap-transport-payer-display" disabled style="background:var(--r-bg)"><option>Pastda "Hozir to'langan summa" orqali belgilanadi</option></select>
+            </div>
+            <div class="rcv-field"><label>Hozir to'langan summa</label><input type="text" id="ap-paid-now" placeholder="0" oninput="formatPriceInput(this)"></div>
+            <div class="rcv-field">
+              <label>Transport (kim to'laydi)</label>
+              <select id="ap-transport-payer" onchange="document.getElementById('ap-transport-cost').disabled = this.value==='none'; if(this.value==='none') document.getElementById('ap-transport-cost').value='';">
+                <option value="none">Transport yo'q</option>
+                <option value="self">Biz to'laymiz</option>
+                <option value="supplier">Yetkazib beruvchi to'laydi</option>
+              </select>
+            </div>
+          </div>
+          <div class="rcv-row rcv-row-2">
+            <div class="rcv-field"><label>Transport xarajati (ixtiyoriy)</label><input type="text" id="ap-transport-cost" placeholder="0" disabled oninput="formatPriceInput(this)"></div>
+            <div class="rcv-field"><label>Izoh</label><input type="text" id="ap-notes" placeholder="Masalan: Naqd pul bilan to'landi"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Kirimlar tarixi -->
+      <div class="rcv-card">
+        <div class="rcv-card-body">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div class="rcv-card-title" style="margin:0">Kirimlar tarixi</div>
+            <div class="rcv-history-filter">
+              <input type="date" id="hist-from" style="height:36px;padding:0 10px;border:1px solid var(--r-border);border-radius:8px;font-size:12.5px">
+              <span style="color:var(--r-text3)">—</span>
+              <input type="date" id="hist-to" style="height:36px;padding:0 10px;border:1px solid var(--r-border);border-radius:8px;font-size:12.5px">
+              <button class="rcv-icon-btn" style="color:var(--r-primary)" onclick="loadHistoryForSupplier()"><i class="ti ti-filter" style="font-size:14px"></i></button>
+            </div>
+          </div>
+          <table class="rcv-table">
+            <thead><tr><th>Sana</th><th>Material</th><th>Miqdor</th><th style="text-align:right">Summa</th><th style="text-align:right">Holati</th></tr></thead>
+            <tbody id="rcv-history-body"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--r-text3)">Yetkazib beruvchi tanlang</td></tr></tbody>
+          </table>
+          <div id="rcv-history-pagination" style="display:flex;justify-content:center;gap:6px;margin-top:12px"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ O'NG USTUN ═══ -->
+    <div>
+      <div class="rcv-card" style="position:sticky;top:14px">
+        <div class="rcv-card-body">
+          <div class="rcv-card-title">Kirim xulosasi</div>
+          <div class="rcv-summary-row"><span class="rcv-sum-label">Mahsulotlar summasi</span><span class="rcv-sum-val" id="sum-products">0 so'm</span></div>
+          <div class="rcv-summary-row"><span class="rcv-sum-label">Transport xarajati</span><span class="rcv-sum-val" id="sum-transport">0 so'm</span></div>
+          <div class="rcv-summary-row total"><span class="rcv-sum-label">Umumiy summa</span><span class="rcv-sum-val" id="sum-grand">0 so'm</span></div>
+        </div>
+        <div class="rcv-card-body" style="padding-top:6px">
+          <div class="rcv-summary-row"><span class="rcv-sum-label">To'langan summa</span><span class="rcv-sum-val" style="color:var(--r-success)" id="sum-paid">0 so'm</span></div>
+          <div class="rcv-summary-row debt"><span class="rcv-sum-label" style="font-weight:700;color:var(--r-text)">Qarzga qoladi</span><span class="rcv-sum-val" id="sum-debt">0 so'm</span></div>
+        </div>
+      </div>
+
+      <div class="rcv-card">
+        <div class="rcv-card-body">
+          <div class="rcv-card-title">Qo'shimcha ma'lumotlar</div>
+          <div class="rcv-field" style="margin-bottom:14px">
+            <label>Ombor</label>
+            <select disabled style="background:var(--r-bg)"><option>Asosiy ombor</option></select>
+          </div>
+          <div class="rcv-field" style="margin-bottom:14px">
+            <label>Mas'ul shaxs</label>
+            <input type="text" value="{{ current_user.full_name or current_user.username }}" disabled style="background:var(--r-bg)">
+          </div>
+          <div class="rcv-field">
+            <label>Hujjat fayli <span style="font-weight:400;color:var(--r-text3)">(hozircha saqlanmaydi)</span></label>
+            <label class="rcv-upload" style="display:block">
+              <i class="ti ti-cloud-upload"></i>
+              <div style="font-size:12.5px">Faylni tanlang yoki bu yerga torting</div>
+              <div style="font-size:11px;margin-top:2px">PDF, JPG, PNG (maks. 5MB)</div>
+              <input type="file" style="display:none">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <button class="rcv-btn rcv-btn-dark" style="width:100%;height:48px;font-size:14px" onclick="submitReceive()">✓ Kirimni tasdiqlash</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Yangi yetkazib beruvchi modali -->
+<div id="newSupplierModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:380px">
+    <div style="font-size:16px;font-weight:700;margin-bottom:16px">+ Yangi yetkazib beruvchi</div>
+    <div class="rcv-field" style="margin-bottom:12px"><label>Nomi</label><input type="text" id="ns-name" placeholder="Masalan: Akmal aka kimyo"></div>
+    <div class="rcv-field" style="margin-bottom:16px"><label>Telefon</label><input type="text" id="ns-phone" placeholder="+998..."></div>
+    <div style="display:flex;gap:8px">
+      <button class="rcv-btn rcv-btn-primary" style="flex:1" onclick="saveNewSupplier()">Saqlash</button>
+      <button class="rcv-btn rcv-btn-ghost" style="flex:1" onclick="document.getElementById('newSupplierModal').style.display='none'">Bekor</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('r-date').value = new Date().toISOString().slice(0,10);
+
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+function parseNum(v) { return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0; }
+function formatPriceInput(input) { const val = parseNum(input.value); if (val > 0) input.value = fmt(val); }
+
+let currentSupplierId = null;
+let invItems = [];
+let apBasket = [];
+let apCreatingNewItem = false;
+
+// ── YETKAZIB BERUVCHI ──
+async function onSupplierChange(){
+  currentSupplierId = parseInt(document.getElementById('r-supplier').value) || null;
+  if (!currentSupplierId) {
+    document.getElementById('sup-credit').textContent = '—';
+    document.getElementById('sup-paid').textContent = '—';
+    document.getElementById('sup-debt').textContent = '—';
+    return;
+  }
+  loadHistoryForSupplier();
+}
+
+async function loadHistoryForSupplier(page){
+  if (!currentSupplierId) { showMsg('Avval yetkazib beruvchini tanlang'); return; }
+  const from = document.getElementById('hist-from').value;
+  const to = document.getElementById('hist-to').value;
+  let url = `/api/suppliers/${currentSupplierId}/history?page=${page||1}&page_size=8`;
+  if (from) url += `&start_date=${from}`;
+  if (to) url += `&end_date=${to}`;
+  const d = await fetch(url).then(r=>r.json());
+
+  document.getElementById('sup-credit').textContent = fmt(d.total_credit)+" so'm";
+  document.getElementById('sup-paid').textContent = fmt(d.total_paid)+" so'm";
+  document.getElementById('sup-debt').textContent = fmt(d.debt)+" so'm";
+
+  const tbody = document.getElementById('rcv-history-body');
+  if (!d.purchases.length){
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--r-text3)">Xarid tarixi yo\'q</td></tr>';
+  } else {
+    tbody.innerHTML = d.purchases.map(p => {
+      const dt = new Date(p.purchased_at);
+      return `<tr>
+        <td>${dt.toLocaleDateString('uz')}</td>
+        <td>${p.item_name}${p.is_credit?' <span style="color:#F59E0B;font-size:11px">(nasiya)</span>':''}</td>
+        <td>${p.quantity} ${p.unit}</td>
+        <td style="text-align:right;font-weight:600">${fmt(p.total_amount)} so'm</td>
+        <td style="text-align:right;font-size:11.5px;color:${p.is_credit?'#F59E0B':'#22C55E'}">${p.is_credit?'Nasiya':'To\'liq'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  const pg = d.pagination;
+  const pagEl = document.getElementById('rcv-history-pagination');
+  if (pg.total_pages <= 1) { pagEl.innerHTML = ''; }
+  else {
+    pagEl.innerHTML = `<button class="rcv-icon-btn" ${pg.page<=1?'disabled':''} onclick="loadHistoryForSupplier(${pg.page-1})">‹</button>
+      <span style="font-size:12px;color:var(--r-text3);padding:0 8px;line-height:30px">${pg.page} / ${pg.total_pages}</span>
+      <button class="rcv-icon-btn" ${pg.page>=pg.total_pages?'disabled':''} onclick="loadHistoryForSupplier(${pg.page+1})">›</button>`;
+  }
+}
+
+async function quickPaySupplier(){
+  if (!currentSupplierId) { showMsg('Avval yetkazib beruvchini tanlang'); return; }
+  const amount = parseNum(document.getElementById('sup-quickpay-amount').value);
+  if (!amount || amount <= 0) { showMsg('Summani kiriting'); return; }
+  const res = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ supplier_id: currentSupplierId, amount })
+  });
+  if (res.ok) {
+    showMsg("✓ To'lov qabul qilindi", 'success');
+    document.getElementById('sup-quickpay-amount').value = '';
+    loadHistoryForSupplier();
+  } else showMsg('Xato yuz berdi', 'error');
+}
+
+function openNewSupplier(){ document.getElementById('newSupplierModal').style.display = 'flex'; }
+async function saveNewSupplier(){
+  const name = document.getElementById('ns-name').value.trim();
+  if (!name) { showMsg('Nomni kiriting'); return; }
+  const phone = document.getElementById('ns-phone').value.trim();
+  const res = await fetch('/api/suppliers', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name, phone: phone || null })
+  });
+  if (res.ok) {
+    const d = await res.json();
+    const sel = document.getElementById('r-supplier');
+    const opt = document.createElement('option');
+    opt.value = d.id; opt.textContent = name;
+    sel.appendChild(opt);
+    sel.value = d.id;
+    document.getElementById('newSupplierModal').style.display = 'none';
+    onSupplierChange();
+  } else showMsg('Xato yuz berdi', 'error');
+}
+
+// ── MATERIAL TANLASH (mavjud, sinalgan mantiq) ──
+async function loadInvItemsForAp() {
+  if (invItems.length) return;
+  const sel = document.getElementById('ap-item');
+  try {
+    const res = await fetch('/api/inventory');
+    if (!res.ok) { sel.innerHTML = `<option value="">❌ Xato (${res.status})</option>`; return; }
+    invItems = await res.json();
+    if (!invItems.length) { sel.innerHTML = '<option value="">⚠️ Omborxonada hech narsa yo\'q</option>'; return; }
+
+    const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Boshqa'];
+    const groups = {};
+    invItems.forEach(i => { const cat = i.category || 'Boshqa'; if (!groups[cat]) groups[cat]=[]; groups[cat].push(i); });
+    const sortedCats = Object.keys(groups).sort((a,b)=>{
+      const ia=catOrder.indexOf(a), ib=catOrder.indexOf(b);
+      return (ia===-1?99:ia)-(ib===-1?99:ib);
+    });
+    sel.innerHTML = sortedCats.map(cat => {
+      const opts = groups[cat].map(i => `<option value="${i.id}" data-unit="${i.unit}">${i.item_name} (${i.unit})</option>`).join('');
+      return `<optgroup label="${cat}">${opts}</optgroup>`;
+    }).join('');
+    apOnItemChange();
+  } catch(e) { sel.innerHTML = `<option value="">❌ ${e.message}</option>`; }
+}
+
+function apOnItemChange(){
+  const itemId = parseInt(document.getElementById('ap-item').value);
+  const item = invItems.find(i=>i.id===itemId);
+  document.getElementById('ap-volume-wrap').style.display = (item && item.is_penoplast) ? 'block' : 'none';
+  apCalc();
+}
+function apCalc(){
+  const qty = parseFloat(document.getElementById('ap-qty').value)||0;
+  const price = parseNum(document.getElementById('ap-price').value)||0;
+  document.getElementById('ap-total').value = (qty*price>0) ? fmt(qty*price)+" so'm" : '—';
+}
+document.getElementById('ap-qty').addEventListener('input', apCalc);
+document.getElementById('ap-price').addEventListener('input', apCalc);
+
+function apToggleNewItem(){
+  apCreatingNewItem = !apCreatingNewItem;
+  document.getElementById('ap-item').style.display = apCreatingNewItem ? 'none' : 'block';
+  document.getElementById('ap-newitem-form').style.display = apCreatingNewItem ? 'block' : 'none';
+  document.getElementById('ap-newitem-toggle-text').textContent = apCreatingNewItem
+    ? '← Ro\'yxatdan tanlayman' : "🆕 Ro'yxatda yo'q — yangi material yozaman";
+  if (apCreatingNewItem) { document.getElementById('ap-newitem-name').value=''; document.getElementById('ap-volume-wrap').style.display='none'; }
+}
+
+async function apResolveItemId(){
+  if (!apCreatingNewItem) return parseInt(document.getElementById('ap-item').value) || null;
+  const name = document.getElementById('ap-newitem-name').value.trim();
+  if (!name) { showMsg('❌ Yangi material nomini kiriting', 'error'); return null; }
+  const category = document.getElementById('ap-newitem-category').value;
+  const unit = document.getElementById('ap-newitem-unit').value;
+  try {
+    const res = await fetch('/api/inventory', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ item_name:name, category, unit, stock_quantity:0, min_stock:0 })
+    });
+    if (!res.ok) { showMsg('❌ Yangi material yaratib bo\'lmadi', 'error'); return null; }
+    const created = await res.json();
+    invItems.push({id:created.id, item_name:created.item_name, unit:created.unit, category:created.category, is_penoplast:created.is_penoplast});
+    apToggleNewItem();
+    const sel = document.getElementById('ap-item');
+    const opt = document.createElement('option');
+    opt.value = created.id; opt.dataset.unit = created.unit; opt.textContent = `${created.item_name} (${created.unit})`;
+    sel.appendChild(opt); sel.value = created.id;
+    return created.id;
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); return null; }
+}
+
+// ── SAVAT (mahsulotlar ro'yxati) ──
+async function apAddToBasket(){
+  const wasCreatingNew = apCreatingNewItem;
+  const itemId = await apResolveItemId();
+  if (!itemId) { if (!wasCreatingNew) showMsg('❌ Materialni tanlang', 'error'); return; }
+  const qty = parseFloat(document.getElementById('ap-qty').value)||0;
+  const price = parseNum(document.getElementById('ap-price').value)||0;
+  const item = invItems.find(i=>i.id===itemId);
+  if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
+  if (item && item.is_penoplast && apBasket.some(b=>b.isPenoplast)) { showMsg('❌ Bir vaqtda faqat bitta Penoplast qo\'shish mumkin', 'error'); return; }
+
+  apBasket.push({ itemId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:qty*price, isPenoplast: item?item.is_penoplast:false, volumePerUnit: parseFloat(document.getElementById('ap-volume').value)||null });
+
+  document.getElementById('ap-item').value='';
+  document.getElementById('ap-qty').value='';
+  document.getElementById('ap-price').value='';
+  document.getElementById('ap-total').value='—';
+  document.getElementById('ap-volume-wrap').style.display='none';
+  renderBasket();
+}
+
+function apRemoveFromBasket(idx){ apBasket.splice(idx,1); renderBasket(); }
+
+function renderBasket(){
+  const tbody = document.getElementById('rcv-basket-body');
+  if (!apBasket.length){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali mahsulot qo\'shilmagan</td></tr>';
+  } else {
+    tbody.innerHTML = apBasket.map((b,i)=>`
+      <tr>
+        <td>${i+1}</td>
+        <td style="font-weight:600;color:var(--r-text)">${b.itemName}${b.isPenoplast?' <span style="color:#2563EB;font-size:11px">(Penoplast)</span>':''}</td>
+        <td>${b.qty} ${b.unit}</td>
+        <td>${fmt(b.price)} so'm</td>
+        <td style="text-align:right;font-weight:700">${fmt(b.total)} so'm</td>
+        <td style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})"><i class="ti ti-trash" style="font-size:14px"></i></button></td>
+      </tr>`).join('');
+  }
+  const total = apBasket.reduce((s,b)=>s+b.total,0);
+  document.getElementById('rcv-pos-count').textContent = apBasket.length;
+  document.getElementById('rcv-pos-total').textContent = fmt(total)+" so'm";
+  updateSummary();
+}
+
+function updateSummary(){
+  const productsTotal = apBasket.reduce((s,b)=>s+b.total,0);
+  const transport = parseNum(document.getElementById('ap-transport-cost').value)||0;
+  const grand = productsTotal + transport;
+  const paid = parseNum(document.getElementById('ap-paid-now').value)||0;
+  const debt = Math.max(0, grand - paid);
+
+  document.getElementById('sum-products').textContent = fmt(productsTotal)+" so'm";
+  document.getElementById('sum-transport').textContent = fmt(transport)+" so'm";
+  document.getElementById('sum-grand').textContent = fmt(grand)+" so'm";
+  document.getElementById('sum-paid').textContent = fmt(paid)+" so'm";
+  document.getElementById('sum-debt').textContent = fmt(debt)+" so'm";
+}
+document.getElementById('ap-transport-cost').addEventListener('input', updateSummary);
+document.getElementById('ap-paid-now').addEventListener('input', updateSummary);
+
+// ── YAKUNIY SAQLASH ──
+async function submitReceive(){
+  if (!currentSupplierId) { showMsg('❌ Yetkazib beruvchini tanlang', 'error'); return; }
+
+  const wasCreatingNew = apCreatingNewItem;
+  const pendingId = await (async () => {
+    const qty = parseFloat(document.getElementById('ap-qty').value)||0;
+    const price = parseNum(document.getElementById('ap-price').value)||0;
+    if (qty && price) return await apResolveItemId();
+    return null;
+  })();
+  if (pendingId) {
+    const item = invItems.find(i=>i.id===pendingId);
+    const qty = parseFloat(document.getElementById('ap-qty').value)||0;
+    const price = parseNum(document.getElementById('ap-price').value)||0;
+    apBasket.push({ itemId:pendingId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:qty*price, isPenoplast:item?item.is_penoplast:false, volumePerUnit: parseFloat(document.getElementById('ap-volume').value)||null });
+  }
+
+  if (!apBasket.length) { showMsg('❌ Kamida bitta mahsulot qo\'shing', 'error'); return; }
+
+  const paidNowTotal = parseNum(document.getElementById('ap-paid-now').value)||0;
+  const transportPayer = document.getElementById('ap-transport-payer').value;
+  const transportCost = parseNum(document.getElementById('ap-transport-cost').value)||0;
+  const notes = document.getElementById('ap-notes').value || '';
+  const docNum = document.getElementById('r-docnum').value || '';
+  const grandTotal = apBasket.reduce((s,l)=>s+l.total,0);
+
+  let totalPaid = 0, totalDebt = 0, hadError = false;
+  for (const line of apBasket){
+    const linePaid = grandTotal>0 ? round2(paidNowTotal*(line.total/grandTotal)) : 0;
+    try {
+      const res = await fetch(`/api/inventory/${line.itemId}/purchase`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          quantity: line.qty, price_per_unit: line.price, paid_now: linePaid,
+          supplier_id: currentSupplierId,
+          notes: (docNum ? `[${docNum}] `:'') + (notes || 'Kirim sahifasidan qo\'shildi'),
+          transport_payer: line===apBasket[0] ? transportPayer : 'none',
+          transport_cost: line===apBasket[0] ? transportCost : 0,
+          volume_per_unit: line.volumePerUnit
+        })
+      });
+      if (res.ok){ const r = await res.json(); totalPaid += r.paid_now||0; totalDebt += r.debt_remains||0; }
+      else hadError = true;
+    } catch(e){ hadError = true; }
+  }
+
+  if (hadError) { showMsg('⚠️ Ba\'zi mahsulotlar saqlanmadi', 'error'); return; }
+
+  showMsg(`✓ Kirim saqlandi! To'landi: ${fmt(totalPaid)} so'm${totalDebt>0.5?`, Qarz: ${fmt(totalDebt)} so'm`:''}`, 'success');
+  apBasket = []; invItems = [];
+  renderBasket();
+  document.getElementById('ap-paid-now').value = '';
+  document.getElementById('ap-transport-cost').value = '';
+  document.getElementById('ap-notes').value = '';
+  loadHistoryForSupplier();
+}
+function round2(n){ return Math.round(n*100)/100; }
+
+function showMsg(text, type){
+  let box = document.getElementById('rcvMsgBox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'rcvMsgBox';
+    box.style.cssText = 'position:fixed;top:20px;right:20px;z-index:2000;padding:14px 20px;border-radius:10px;font-size:13.5px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.15);white-space:pre-line';
+    document.body.appendChild(box);
+  }
+  box.textContent = text;
+  box.style.background = type==='error' ? '#FEE2E2' : (type==='success' ? '#DCFCE7' : '#EFF6FF');
+  box.style.color = type==='error' ? '#DC2626' : (type==='success' ? '#166534' : '#1E40AF');
+  box.style.display = 'block';
+  setTimeout(()=>{ box.style.display='none'; }, 3500);
+}
+
+loadInvItemsForAp();
+</script>
+{% endblock %}
