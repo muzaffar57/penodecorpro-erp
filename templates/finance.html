@@ -223,7 +223,9 @@
         <div class="fin-hero-icon" style="background:var(--f-danger-tint);color:var(--f-danger)"><i class="ti ti-trending-down"></i></div>
         <div class="fin-hero-label">Xarajat</div>
         <div class="fin-hero-value" id="hero-xarajat">—</div>
-        <div class="fin-hero-sub">Bugungi jami xarajat</div>
+        <div class="fin-hero-sub" style="cursor:pointer;color:var(--f-primary);font-weight:600" onclick="toggleTodayDetail()">
+          Batafsil <i class="ti ti-chevron-down" id="todayDetailChevron" style="font-size:12px;vertical-align:-1px;transition:transform .2s"></i>
+        </div>
       </div>
       <div class="fin-hero-card">
         <div class="fin-hero-icon" style="background:var(--f-primary-tint);color:var(--f-primary)"><i class="ti ti-chart-bar"></i></div>
@@ -236,6 +238,24 @@
         <div class="fin-hero-label">Pul oqimi</div>
         <div class="fin-hero-value" id="hero-oqim">—</div>
         <div class="fin-hero-sub">Savdo − Xarajat (bugun)</div>
+      </div>
+    </div>
+
+    <!-- Bugungi xarajat — ixcham batafsil panel (Xarajat kartasidagi "Batafsil" bosilganda ochiladi) -->
+    <div id="todayDetailPanel" style="display:none;margin-top:14px;background:var(--f-card);border:1px solid var(--f-border);border-radius:12px;padding:18px 20px;box-shadow:var(--f-shadow)">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+        <div>
+          <div class="fin-breakdown-title"><i class="ti ti-box" style="vertical-align:-2px"></i> Xomashyo xaridi</div>
+          <div id="d-material-list"><div class="fin-breakdown-empty">Bugun xarid bo'lmagan</div></div>
+        </div>
+        <div>
+          <div class="fin-breakdown-title"><i class="ti ti-truck" style="vertical-align:-2px"></i> Transport (kompaniya ulushi)</div>
+          <div id="d-transport-total"><div class="fin-breakdown-empty">Bugun transport xarajati yo'q</div></div>
+        </div>
+        <div>
+          <div class="fin-breakdown-title"><i class="ti ti-file-invoice" style="vertical-align:-2px"></i> Boshqa xarajatlar</div>
+          <div id="d-other-list"><div class="fin-breakdown-empty">Bugun boshqa xarajat yo'q</div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -289,41 +309,6 @@
             <div class="fin-section-title" style="margin-bottom:14px">Xarajatlar tarkibi</div>
             <div class="fin-chart-wrap-sm"><canvas id="expDonut"></canvas></div>
             <div class="fin-legend" id="donutLegend"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══ 3-QATOR: BUGUNGI XARAJATLAR (ACCORDION) ═══ -->
-    <div class="fin-section">
-      <div class="fin-accordion" id="todayAccordion">
-        <div class="fin-accordion-head" onclick="toggleTodayAccordion()">
-          <div class="fin-accordion-head-left">
-            <div class="fin-accordion-icon"><i class="ti ti-receipt-2"></i></div>
-            <div>
-              <div class="fin-accordion-title">Bugungi xarajat</div>
-              <div class="fin-accordion-value" id="acc-total">—</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:12.5px;color:var(--f-text3)">Batafsil</span>
-            <i class="ti ti-chevron-down fin-accordion-chevron"></i>
-          </div>
-        </div>
-        <div class="fin-accordion-body">
-          <div class="fin-accordion-body-inner">
-            <div>
-              <div class="fin-breakdown-title"><i class="ti ti-box" style="vertical-align:-2px"></i> Xomashyo xaridi</div>
-              <div id="d-material-list"><div class="fin-breakdown-empty">Bugun xarid bo'lmagan</div></div>
-            </div>
-            <div>
-              <div class="fin-breakdown-title"><i class="ti ti-truck" style="vertical-align:-2px"></i> Transport (kompaniya ulushi)</div>
-              <div id="d-transport-total"><div class="fin-breakdown-empty">Bugun transport xarajati yo'q</div></div>
-            </div>
-            <div>
-              <div class="fin-breakdown-title"><i class="ti ti-file-invoice" style="vertical-align:-2px"></i> Boshqa xarajatlar</div>
-              <div id="d-other-list"><div class="fin-breakdown-empty">Bugun boshqa xarajat yo'q</div></div>
-            </div>
           </div>
         </div>
       </div>
@@ -663,9 +648,13 @@ function buildExpDetail(d){
   document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
 }
 
-// ── ACCORDION (Bugungi xarajatlar) ──
-function toggleTodayAccordion(){
-  document.getElementById('todayAccordion').classList.toggle('open');
+// ── BUGUNGI XARAJAT BATAFSIL (Xarajat kartasidan ochiladi) ──
+function toggleTodayDetail(){
+  const panel = document.getElementById('todayDetailPanel');
+  const chevron = document.getElementById('todayDetailChevron');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
 // ── TARIX, GRAFIK, JADVAL ─────────────────────────
@@ -810,7 +799,7 @@ async function loadDailyFinance() {
     animateCounter(oqimEl, Math.abs(oqim), " so'm");
     if (oqim < 0) oqimEl.style.color = 'var(--f-danger)';
 
-    document.getElementById('acc-total').textContent = fmtFull(d.expenses.total) + " so'm";
+    // (Jami xarajat summasi allaqachon "hero-xarajat" kartasida ko'rsatilgan)
 
     const matList = document.getElementById('d-material-list');
     if (d.expenses.material.breakdown.length) {
