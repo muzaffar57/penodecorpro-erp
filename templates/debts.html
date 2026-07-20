@@ -32,6 +32,10 @@
 .dbt-sum-row:last-child{border-bottom:none}
 .dbt-empty{text-align:center;padding:56px 20px;color:var(--d-text3)}
 .dbt-empty .ti{font-size:38px;margin-bottom:12px;display:block;color:var(--d-success)}
+.oblig-status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+.oblig-item:hover{background:var(--d-bg);border-radius:8px;margin:0 -8px;padding-left:8px!important;padding-right:8px!important}
+.tl-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F3F4F6;font-size:13px}
+.tl-row:last-child{border-bottom:none}
 </style>
 {% endblock %}
 
@@ -169,15 +173,18 @@
         <div style="padding:8px 18px 18px">
           {% if company_obligations.employees %}
             {% for e in company_obligations.employees %}
-            <div style="padding:12px 0;border-bottom:1px solid #F3F4F6">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" onclick="openEmpTimeline({{ e.employee_id }}, '{{ e.name }}')">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
-                  <div style="font-weight:600;font-size:13.5px">{{ e.name }}</div>
-                  <div style="font-size:11.5px;color:var(--d-text3)">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }} so'm, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }} so'm</div>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="oblig-status-dot" style="background:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }}"></span>
+                    <span style="font-weight:600;font-size:13.5px">{{ e.name }}</span>
+                  </div>
+                  <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
                 </div>
-                <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }} so'm</div>
+                <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
               </div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" onclick="closeEmployeeDebt({{ e.employee_id }}, '{{ e.name }}', {{ e.qolgan }})">✓ To'liq to'landi deb belgilash</button>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" onclick="event.stopPropagation();closeEmployeeDebt({{ e.employee_id }}, '{{ e.name }}', {{ e.qolgan }})">✓ To'liq to'landi deb belgilash</button>
             </div>
             {% endfor %}
           {% else %}
@@ -186,42 +193,49 @@
         </div>
       </div>
 
-      <!-- Doimiy majburiyatlar (Arenda, Soliq) -->
+      <!-- Doimiy majburiyatlar -->
       <div class="dbt-card">
         <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;display:flex;justify-content:space-between;align-items:center">
           <span style="font-weight:700;font-size:15px">🏛️ Doimiy majburiyatlar</span>
-          <button class="btn btn-outline btn-xs" onclick="toggleObligationSettings()">⚙️ Sozlash</button>
+          <button class="btn btn-dark btn-xs" onclick="openAddCategoryModal()">+ Yangi kategoriya</button>
         </div>
         <div style="padding:8px 18px 18px">
-
-          <div id="obligationSettings" style="display:none;background:var(--d-bg);border-radius:10px;padding:14px;margin-bottom:14px">
-            <div style="font-size:12px;color:var(--d-text3);margin-bottom:10px">Har oy qancha to'lanishi kerakligini belgilang — tizim haqiqiy to'lovlar bilan solishtirib, qarzni o'zi hisoblaydi</div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-              <span style="font-size:13px;width:80px">Arenda</span>
-              <input type="text" id="target-arenda" placeholder="0" style="flex:1;height:34px;padding:0 10px;border:1px solid var(--d-border);border-radius:7px;font-size:13px" oninput="formatPriceInput(this)" value="{{ (recurring_targets|selectattr('category','equalto','arenda')|first).monthly_target if recurring_targets|selectattr('category','equalto','arenda')|list else '' }}">
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-              <span style="font-size:13px;width:80px">Soliqlar</span>
-              <input type="text" id="target-soliqlar" placeholder="0" style="flex:1;height:34px;padding:0 10px;border:1px solid var(--d-border);border-radius:7px;font-size:13px" oninput="formatPriceInput(this)" value="{{ (recurring_targets|selectattr('category','equalto','soliqlar')|first).monthly_target if recurring_targets|selectattr('category','equalto','soliqlar')|list else '' }}">
-            </div>
-            <button class="btn btn-dark btn-sm w-full" onclick="saveObligationTargets()">Saqlash</button>
-          </div>
-
           {% if company_obligations.recurring %}
             {% for r in company_obligations.recurring %}
-            <div style="padding:12px 0;border-bottom:1px solid #F3F4F6">
+            {% set status_color = {'overdue':'#EF4444','due_soon':'#F59E0B','partial':'#F59E0B','full':'#22C55E'} %}
+            {% set status_label = {'overdue':'Muddati o\'tgan','due_soon':'Muddat yaqin','partial':'Qisman to\'langan','full':'To\'liq yopilgan'} %}
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" onclick="openObligTimeline('{{ r.category }}', '{{ r.label }}')">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
-                  <div style="font-weight:600;font-size:13.5px">{{ r.label }}</div>
-                  <div style="font-size:11.5px;color:var(--d-text3)">Maqsad: {{ "{:,.0f}".format(r.target).replace(",", " ") }} · To'langan: {{ "{:,.0f}".format(r.paid).replace(",", " ") }}</div>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="oblig-status-dot" style="background:{{ status_color[r.status] }}"></span>
+                    <span style="font-weight:600;font-size:13.5px">{{ r.icon }} {{ r.label }}</span>
+                  </div>
+                  <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">Maqsad: {{ "{:,.0f}".format(r.target).replace(",", " ") }} · To'langan: {{ "{:,.0f}".format(r.paid).replace(",", " ") }} · Har oy {{ r.due_day }}-sanagacha</div>
                 </div>
-                <div style="font-weight:800;color:#F59E0B;font-size:15px">{{ "{:,.0f}".format(r.debt).replace(",", " ") }} so'm</div>
+                <div style="text-align:right">
+                  <div style="font-weight:800;color:{{ status_color[r.status] }};font-size:15px">{{ "{:,.0f}".format(r.debt).replace(",", " ") }}</div>
+                  <div style="font-size:10.5px;color:{{ status_color[r.status] }};font-weight:600">{{ status_label[r.status] }}</div>
+                </div>
               </div>
-              <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:#F59E0B"></div></div>
+              <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:{{ status_color[r.status] }}"></div></div>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" onclick="event.stopPropagation();quickPayObligation('{{ r.category }}', '{{ r.label }}', {{ r.debt }})">💰 To'lov qo'shish</button>
             </div>
             {% endfor %}
           {% else %}
             <div class="dbt-empty" style="padding:30px 0"><i class="ti ti-circle-check"></i><div style="font-size:13.5px;font-weight:600;color:var(--d-text2)">Doimiy majburiyatlar to'liq to'langan (yoki hali sozlanmagan)</div></div>
+          {% endif %}
+
+          {% if recurring_targets %}
+          <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--d-border)">
+            <div style="font-size:11px;color:var(--d-text3);margin-bottom:6px">Barcha sozlangan kategoriyalar:</div>
+            {% for t in recurring_targets %}
+            <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;background:var(--d-bg);padding:4px 9px;border-radius:12px;margin:2px 4px 2px 0">
+              {{ t.icon }} {{ t.label }}
+              <span onclick="deleteCategory({{ t.id }}, '{{ t.label }}')" style="cursor:pointer;color:#EF4444;margin-left:2px">✕</span>
+            </span>
+            {% endfor %}
+          </div>
           {% endif %}
         </div>
       </div>
@@ -229,6 +243,31 @@
     </div>
   </div>
 
+</div>
+
+<!-- Yangi kategoriya qo'shish modali -->
+<div id="addCategoryModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:380px">
+    <div style="font-size:16px;font-weight:700;margin-bottom:16px">+ Yangi doimiy majburiyat</div>
+    <div class="form-group"><label>Belgi (emoji, ixtiyoriy)</label><input type="text" id="cat-icon" placeholder="📦" maxlength="2" style="width:60px"></div>
+    <div class="form-group"><label>Nomi</label><input type="text" id="cat-label" placeholder="Masalan: Kommunal xizmatlar"></div>
+    <div class="form-group"><label>Har oy to'lanishi kerak (so'm)</label><input type="text" id="cat-target" placeholder="0" oninput="formatPriceInput(this)"></div>
+    <div class="form-group"><label>Har oy nechinchi sanagacha</label><input type="number" id="cat-dueday" value="5" min="1" max="28"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-dark w-full" onclick="saveNewCategory()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeAddCategoryModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Timeline modali -->
+<div id="timelineModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:420px;max-height:80vh;overflow-y:auto">
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px" id="tl-title">To'lovlar tarixi</div>
+    <div style="font-size:12.5px;color:var(--d-text3);margin-bottom:16px" id="tl-sub"></div>
+    <div id="tl-list"></div>
+    <button class="btn btn-outline w-full" style="margin-top:16px" onclick="closeTimelineModal()">Yopish</button>
+  </div>
 </div>
 {% endblock %}
 
@@ -245,22 +284,90 @@ function switchTab(t){
   document.getElementById('tab-company').style.display = t === 'company' ? 'block' : 'none';
 }
 
-function toggleObligationSettings(){
-  const el = document.getElementById('obligationSettings');
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+function openAddCategoryModal(){
+  document.getElementById('cat-icon').value = '';
+  document.getElementById('cat-label').value = '';
+  document.getElementById('cat-target').value = '';
+  document.getElementById('cat-dueday').value = 5;
+  document.getElementById('addCategoryModal').style.display = 'flex';
+}
+function closeAddCategoryModal(){ document.getElementById('addCategoryModal').style.display = 'none'; }
+
+async function saveNewCategory(){
+  const label = document.getElementById('cat-label').value.trim();
+  const target = parseNum(document.getElementById('cat-target').value);
+  const dueDay = parseInt(document.getElementById('cat-dueday').value) || 5;
+  const icon = document.getElementById('cat-icon').value.trim() || '📦';
+  if (!label || !target) { alert("Nom va summani to'ldiring"); return; }
+  // Kategoriya kodini nomdan avtomatik yasaymiz (lotin harflarga, bo'shliqsiz)
+  const category = label.toLowerCase().replace(/[^a-z0-9а-яёʻʼ]+/gi, '_').replace(/^_+|_+$/g, '') + '_' + Date.now().toString().slice(-4);
+  try {
+    const res = await fetch(`/api/obligations/recurring?category=${encodeURIComponent(category)}&label=${encodeURIComponent(label)}&monthly_target=${target}&icon=${encodeURIComponent(icon)}&due_day=${dueDay}`, {method:'POST'});
+    if (res.ok) location.reload();
+    else alert('Xato yuz berdi');
+  } catch(e) { alert('Server xatosi'); }
 }
 
-async function saveObligationTargets(){
-  const arenda = parseNum(document.getElementById('target-arenda').value);
-  const soliqlar = parseNum(document.getElementById('target-soliqlar').value);
+async function deleteCategory(id, label){
+  if (!confirm(`"${label}" kategoriyasini o'chirasizmi? (Tarix saqlanadi, faqat maqsad o'chadi)`)) return;
   try {
-    await Promise.all([
-      fetch(`/api/obligations/recurring?category=arenda&label=${encodeURIComponent('Arenda (arendator)')}&monthly_target=${arenda}`, {method:'POST'}),
-      fetch(`/api/obligations/recurring?category=soliqlar&label=${encodeURIComponent('Soliqlar')}&monthly_target=${soliqlar}`, {method:'POST'})
-    ]);
-    location.reload();
-  } catch(e) { alert('Xato yuz berdi'); }
+    const res = await fetch(`/api/obligations/recurring/${id}`, {method:'DELETE'});
+    if (res.ok) location.reload();
+    else alert('Xato yuz berdi');
+  } catch(e) { alert('Server xatosi'); }
 }
+
+async function quickPayObligation(category, label, debt){
+  const amountStr = prompt(`${label} uchun bugun qancha to'landi?`, String(Math.round(debt)));
+  if (!amountStr) return;
+  const amount = parseNum(amountStr);
+  if (!amount || amount <= 0) return;
+  try {
+    const res = await fetch('/api/finance/transactions', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ date: new Date().toISOString().slice(0,10)+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)" })
+    });
+    if (res.ok) location.reload();
+    else alert('Xato yuz berdi');
+  } catch(e) { alert('Server xatosi'); }
+}
+
+async function openObligTimeline(category, label){
+  document.getElementById('tl-title').textContent = `📋 ${label} — to'lovlar tarixi`;
+  document.getElementById('tl-sub').textContent = 'Shu oy';
+  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Yuklanmoqda...</div>';
+  document.getElementById('timelineModal').style.display = 'flex';
+  const now = new Date();
+  try {
+    const rows = await fetch(`/api/obligations/timeline?category=${category}&year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    renderTimeline(rows);
+  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444">Xato yuz berdi</div>'; }
+}
+
+async function openEmpTimeline(empId, name){
+  document.getElementById('tl-title').textContent = `👷 ${name} — to'lovlar tarixi`;
+  document.getElementById('tl-sub').textContent = 'Shu oy (avans + yakuniy to\'lovlar)';
+  document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Yuklanmoqda...</div>';
+  document.getElementById('timelineModal').style.display = 'flex';
+  const now = new Date();
+  try {
+    const rows = await fetch(`/api/obligations/employee/${empId}/timeline?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    renderTimeline(rows);
+  } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444">Xato yuz berdi</div>'; }
+}
+
+function renderTimeline(rows){
+  const el = document.getElementById('tl-list');
+  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Bu oy hali to\'lov bo\'lmagan</div>'; return; }
+  el.innerHTML = rows.map(r => {
+    const d = new Date(r.date);
+    return `<div class="tl-row">
+      <div><div style="font-weight:500">${d.toLocaleDateString('uz')}</div><div style="font-size:11.5px;color:#9CA3AF">${r.notes||''} ${r.created_by?'· '+r.created_by:''}</div></div>
+      <div style="font-weight:700;color:#22C55E">${fmt(r.amount)} so'm</div>
+    </div>`;
+  }).join('');
+}
+function closeTimelineModal(){ document.getElementById('timelineModal').style.display = 'none'; }
 
 async function closeEmployeeDebt(empId, name, amount){
   if (!confirm(`${name} ga ${fmt(amount)} so'm to'liq to'landi deb belgilaysizmi?`)) return;
