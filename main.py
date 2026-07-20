@@ -1659,6 +1659,36 @@ def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), cur
     return services.get_top_materials_report(db, days=days)
 
 
+@app.get("/api/reports/top-customers")
+def api_reports_top_customers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_top_customers_report(db, days=days, limit=limit)
+
+
+@app.get("/api/reports/top-suppliers")
+def api_reports_top_suppliers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_top_suppliers_report(db, days=days, limit=limit)
+
+
+@app.get("/api/reports/comparison")
+def api_reports_comparison(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_monthly_comparison(db, year, month)
+
+
+@app.get("/api/reports/forecast")
+def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_simple_forecast(db, year, month)
+
+
+@app.get("/api/reports/alerts")
+def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_business_alerts(db)
+
+
+@app.get("/api/reports/business-health")
+def api_reports_business_health(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_business_health(db)
+
+
 @app.get("/finance", response_class=HTMLResponse)
 async def finance_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     return templates.TemplateResponse(request, "finance.html", {"current_user": current_user, "active_page": "finance"})
