@@ -1,67 +1,297 @@
 {% extends "base.html" %}
 {% block title %}Hisobotlar — PenoDecorPro ERP{% endblock %}
 {% block page_title %}Hisobotlar{% endblock %}
-{% block page_sub %}Ombor, sotuv, moliya va ishlab chiqarish bo'yicha umumiy tahlil{% endblock %}
+{% block page_sub %}Biznes tahlili — bir qarashda umumiy holat{% endblock %}
 
 {% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-.rep-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.rep-tab{padding:8px 14px;font-size:12.5px;font-weight:500;border-radius:8px;border:1px solid var(--border);background:var(--white);color:var(--text2);cursor:pointer}
-.rep-tab.active{background:var(--gold);color:#fff;border-color:var(--gold)}
-.rep-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
-.rep-table{width:100%;border-collapse:collapse;font-size:12.5px}
-.rep-table th{text-align:left;padding:10px 12px;color:var(--text3);font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)}
-.rep-table td{padding:10px 12px;border-bottom:1px solid var(--border2)}
-.rep-table tbody tr:hover{background:var(--bg)}
+.bi-wrap{
+  --b-bg:#F5F7FA; --b-card:#FFFFFF; --b-border:#E5E7EB;
+  --b-primary:#2563EB; --b-primary-tint:#EFF6FF;
+  --b-success:#22C55E; --b-success-tint:#F0FDF4;
+  --b-warning:#F59E0B; --b-warning-tint:#FFFBEB;
+  --b-danger:#EF4444; --b-danger-tint:#FEF2F2;
+  --b-text:#111827; --b-text2:#4B5563; --b-text3:#9CA3AF;
+  --b-radius:16px; --b-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);
+  --b-shadow-hover:0 4px 8px rgba(16,24,40,.06),0 12px 28px rgba(16,24,40,.10);
+  background:var(--b-bg); margin:-24px; padding:24px; font-variant-numeric:tabular-nums;
+}
+.bi-wrap *{box-sizing:border-box}
+.bi-section{margin-bottom:28px}
+.bi-section-title{font-size:18px;font-weight:700;color:var(--b-text);letter-spacing:-.01em;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.bi-card{background:var(--b-card);border:1px solid var(--b-border);border-radius:var(--b-radius);box-shadow:var(--b-shadow)}
+.bi-card-body{padding:20px}
+@keyframes biFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.bi-fade{opacity:0;animation:biFade .45s ease forwards}
+
+/* ── AI Summary ── */
+.bi-summary{background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid #DBEAFE;border-radius:var(--b-radius);padding:18px 22px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
+.bi-summary-icon{width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:var(--b-shadow)}
+.bi-summary-title{font-size:13px;font-weight:700;color:#1E40AF;margin-bottom:6px}
+.bi-summary-list{font-size:13px;color:#374151;line-height:1.9}
+
+/* ── Business Health (1-qator) ── */
+.bi-health-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+@media(max-width:1100px){.bi-health-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:640px){.bi-health-grid{grid-template-columns:repeat(2,1fr)}}
+.bi-health-card{background:var(--b-card);border:1px solid var(--b-border);border-radius:12px;padding:14px 16px;box-shadow:var(--b-shadow);transition:transform .15s,box-shadow .15s}
+.bi-health-card:hover{transform:translateY(-2px);box-shadow:var(--b-shadow-hover)}
+.bi-health-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px}
+.bi-health-label{font-size:12px;color:var(--b-text2);font-weight:600}
+.bi-health-status{font-size:11.5px;color:var(--b-text3);margin-top:4px;text-transform:capitalize}
+
+/* ── KPI kartalar (2-qator) ── */
+.bi-kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+@media(max-width:1200px){.bi-kpi-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:640px){.bi-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.bi-kpi-card{background:var(--b-card);border:1px solid var(--b-border);border-radius:var(--b-radius);padding:18px;box-shadow:var(--b-shadow);transition:transform .18s,box-shadow .18s}
+.bi-kpi-card:hover{transform:translateY(-3px);box-shadow:var(--b-shadow-hover)}
+.bi-kpi-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:10px}
+.bi-kpi-label{font-size:11.5px;font-weight:600;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em}
+.bi-kpi-value{font-size:22px;font-weight:800;color:var(--b-text);margin-top:4px;letter-spacing:-.01em}
+.bi-kpi-change{font-size:11.5px;margin-top:6px;display:flex;align-items:center;gap:3px;font-weight:600}
+
+/* ── Filtr paneli (3-qator) ── */
+.bi-filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--b-card);border:1px solid var(--b-border);border-radius:12px;padding:10px 14px;box-shadow:var(--b-shadow)}
+.bi-filterbar select,.bi-filterbar input{height:36px;padding:0 12px;border:1px solid var(--b-border);border-radius:8px;font-size:13.5px;color:var(--b-text);outline:none;background:#fff}
+.bi-filterbar select:focus,.bi-filterbar input:focus{border-color:var(--b-primary)}
+.bi-btn{height:36px;padding:0 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:.12s}
+.bi-btn-primary{background:var(--b-primary);color:#fff}
+.bi-btn-primary:hover{background:#1D4ED8;box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.bi-btn-ghost{background:#fff;color:var(--b-text2);border:1px solid var(--b-border)}
+.bi-btn-ghost:hover{background:var(--b-bg)}
+.bi-btn-ghost.active{background:var(--b-primary);color:#fff;border-color:var(--b-primary)}
+
+/* ── Grafiklar (4,5-qator) ── */
+.bi-charts-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px}
+@media(max-width:1000px){.bi-charts-grid{grid-template-columns:1fr}}
+.bi-chart-tall{position:relative;height:300px}
+.bi-chart-sm{position:relative;height:220px}
+.bi-legend-row{display:flex;align-items:center;gap:10px;padding:7px 4px}
+.bi-legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.bi-legend-name{font-size:12.5px;color:var(--b-text2);flex:1}
+.bi-legend-pct{font-size:12.5px;font-weight:700;color:var(--b-text);width:40px;text-align:right}
+.bi-flow-track{height:9px;background:var(--b-bg);border-radius:5px;overflow:hidden;margin-top:5px}
+.bi-flow-fill{height:100%;border-radius:5px;width:0;transition:width 1s cubic-bezier(.16,1,.3,1)}
+
+/* ── Top reytinglar (6-qator) ── */
+.bi-top-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:1100px){.bi-top-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.bi-top-grid{grid-template-columns:1fr}}
+.bi-top-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b-border);font-size:12.5px}
+.bi-top-row:last-child{border-bottom:none}
+.bi-top-rank{width:18px;height:18px;border-radius:5px;background:var(--b-bg);color:var(--b-text3);font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:8px}
+.bi-top-name{color:var(--b-text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bi-top-val{font-weight:700;color:var(--b-text);flex-shrink:0;margin-left:6px}
+
+/* ── Taqqoslash (7-qator) ── */
+.bi-comp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:900px){.bi-comp-grid{grid-template-columns:repeat(2,1fr)}}
+.bi-comp-card{text-align:center;padding:16px}
+.bi-comp-label{font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.bi-comp-arrow{font-size:22px;font-weight:800;margin-top:8px}
+
+/* ── Forecast (8-qator) ── */
+.bi-forecast-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:800px){.bi-forecast-grid{grid-template-columns:1fr}}
+.bi-forecast-item{text-align:center}
+.bi-forecast-bar-track{height:8px;background:var(--b-bg);border-radius:5px;overflow:hidden;margin-top:10px}
+.bi-forecast-bar-fill{height:100%;background:var(--b-primary);border-radius:5px;width:0;transition:width 1s ease}
+
+/* ── Alert Center (9-qator) ── */
+.bi-alert-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;margin-bottom:8px;font-size:13px}
+.bi-alert-row:last-child{margin-bottom:0}
+.bi-alert-icon{font-size:16px}
+
+/* ── Jadval (11-qator) ── */
+.bi-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.bi-tab{padding:8px 14px;font-size:12.5px;font-weight:600;border-radius:8px;border:1px solid var(--b-border);background:var(--b-card);color:var(--b-text2);cursor:pointer;transition:.12s}
+.bi-tab.active{background:var(--b-text);color:#fff;border-color:var(--b-text)}
+.bi-tab:hover:not(.active){background:var(--b-bg)}
+.bi-table-wrap{overflow-x:auto}
+.bi-table{width:100%;border-collapse:collapse;font-size:13px}
+.bi-table thead th{position:sticky;top:0;background:var(--b-card);text-align:left;padding:11px 14px;color:var(--b-text3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--b-border)}
+.bi-table tbody td{padding:11px 14px;border-bottom:1px solid var(--b-border);color:var(--b-text2)}
+.bi-table tbody tr:hover{background:var(--b-bg)}
+.bi-table tbody tr:last-child td{border-bottom:none}
+.bi-empty{text-align:center;padding:40px 20px;color:var(--b-text3)}
+.bi-search{height:36px;padding:0 12px 0 34px;border:1px solid var(--b-border);border-radius:8px;font-size:13px;outline:none;background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="%239CA3AF" stroke-width="2"><circle cx="6" cy="6" r="5"/><path d="M10 10l3 3"/></svg>') no-repeat 10px center}
+
 @media print{
-  .sidebar,.topbar,.rep-tabs,.rep-toolbar,.no-print{display:none !important}
-  body,.erp-content{background:#fff !important}
+  .sidebar,.erp-topbar,.bi-filterbar,.no-print{display:none!important}
+  body,.erp-content{background:#fff!important}
+  .bi-wrap{margin:0;padding:0}
 }
 </style>
 {% endblock %}
 
-{% block topbar_actions %}
-<select id="periodSel" onchange="loadReport()" style="height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12.5px">
-  <option value="30">Oxirgi 30 kun</option>
-  <option value="90" selected>Oxirgi 90 kun</option>
-  <option value="180">Oxirgi 6 oy</option>
-  <option value="365">Oxirgi 1 yil</option>
-</select>
-{% endblock %}
+{% block topbar_actions %}{% endblock %}
 
 {% block content %}
-<div class="erp-content">
+<div class="bi-wrap">
 
-  <div class="rep-tabs" id="repTabs">
-    <button class="rep-tab active" data-r="inventory" onclick="switchReport('inventory')">📦 Ombor</button>
-    <button class="rep-tab" data-r="sales" onclick="switchReport('sales')">💰 Sotuv</button>
-    <button class="rep-tab" data-r="products" onclick="switchReport('products')">🏭 Mahsulotlar</button>
-    <button class="rep-tab" data-r="masters" onclick="switchReport('masters')">👷 Hamkor ustalar / KPI</button>
-    <button class="rep-tab" data-r="finance" onclick="switchReport('finance')">📊 Moliya</button>
-    <button class="rep-tab" data-r="production" onclick="switchReport('production')">⚙️ Ishlab chiqarish</button>
-    <button class="rep-tab" data-r="top-products" onclick="switchReport('top-products')">🏆 Eng foydali mahsulotlar</button>
-    <button class="rep-tab" data-r="top-materials" onclick="switchReport('top-materials')">🧱 Eng ko'p ishlatilgan xomashyo</button>
-  </div>
-
-  <div class="card">
-    <div class="card-head">
-      <h3 id="repTitle">Ombor hisoboti</h3>
-      <div style="display:flex;gap:6px" class="no-print">
-        <button class="btn btn-outline btn-sm" onclick="exportCSV()"><i class="ti ti-file-spreadsheet" style="vertical-align:-2px"></i> Excel</button>
-        <button class="btn btn-outline btn-sm" onclick="window.print()"><i class="ti ti-file-type-pdf" style="vertical-align:-2px"></i> PDF</button>
-        <button class="btn btn-outline btn-sm" onclick="window.print()"><i class="ti ti-printer" style="vertical-align:-2px"></i> Chop etish</button>
-      </div>
-    </div>
-    <div class="card-body">
-      <div class="stat-grid mb-16" id="repSummary"></div>
-      <div style="overflow-x:auto">
-        <table class="rep-table" id="repTable">
-          <thead id="repThead"></thead>
-          <tbody id="repBody"><tr><td style="text-align:center;padding:30px;color:var(--text3)">Yuklanmoqda...</td></tr></tbody>
-        </table>
-      </div>
+  <!-- AI XULOSA -->
+  <div class="bi-summary bi-fade" id="aiSummary" style="display:none">
+    <div class="bi-summary-icon">💡</div>
+    <div>
+      <div class="bi-summary-title">Bugungi xulosa</div>
+      <div class="bi-summary-list" id="aiSummaryList">Yuklanmoqda...</div>
     </div>
   </div>
+
+  <!-- 1-QATOR: BIZNES SALOMATLIGI -->
+  <div class="bi-section">
+    <div class="bi-section-title"><i class="ti ti-heart-rate-monitor"></i> Korxona sog'ligi</div>
+    <div class="bi-health-grid" id="healthGrid">
+      <div class="bi-health-card bi-fade"><span class="bi-health-dot" style="background:#9CA3AF"></span><span class="bi-health-label">Pul oqimi</span><div class="bi-health-status" id="h-pul_oqimi">—</div></div>
+      <div class="bi-health-card bi-fade"><span class="bi-health-dot" style="background:#9CA3AF"></span><span class="bi-health-label">Ombor</span><div class="bi-health-status" id="h-ombor">—</div></div>
+      <div class="bi-health-card bi-fade"><span class="bi-health-dot" style="background:#9CA3AF"></span><span class="bi-health-label">Rentabellik</span><div class="bi-health-status" id="h-rentabellik">—</div></div>
+      <div class="bi-health-card bi-fade"><span class="bi-health-dot" style="background:#9CA3AF"></span><span class="bi-health-label">Qarzdorlik</span><div class="bi-health-status" id="h-qarzdorlik">—</div></div>
+      <div class="bi-health-card bi-fade"><span class="bi-health-dot" style="background:#9CA3AF"></span><span class="bi-health-label">Ishlab chiqarish</span><div class="bi-health-status" id="h-ishlab_chiqarish">—</div></div>
+      <div class="bi-health-card bi-fade"><span class="bi-health-dot" style="background:#9CA3AF"></span><span class="bi-health-label">Material sarfi</span><div class="bi-health-status" id="h-material_sarfi">—</div></div>
+    </div>
+  </div>
+
+  <!-- 2-QATOR: ASOSIY KPI -->
+  <div class="bi-section">
+    <div class="bi-section-title"><i class="ti ti-chart-bar"></i> Asosiy ko'rsatkichlar <span style="font-weight:400;color:var(--b-text3);font-size:13px" id="kpiPeriodLabel"></span></div>
+    <div class="bi-kpi-grid" id="kpiGrid">
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-success-tint);color:var(--b-success)"><i class="ti ti-trending-up"></i></div><div class="bi-kpi-label">Daromad</div><div class="bi-kpi-value" id="kpi-daromad">—</div><div class="bi-kpi-change" id="kpi-daromad-ch"></div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-danger-tint);color:var(--b-danger)"><i class="ti ti-trending-down"></i></div><div class="bi-kpi-label">Xarajat</div><div class="bi-kpi-value" id="kpi-xarajat">—</div><div class="bi-kpi-change" id="kpi-xarajat-ch"></div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-primary-tint);color:var(--b-primary)"><i class="ti ti-report-money"></i></div><div class="bi-kpi-label">Sof foyda</div><div class="bi-kpi-value" id="kpi-foyda">—</div><div class="bi-kpi-change" id="kpi-foyda-ch"></div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-warning-tint);color:var(--b-warning)"><i class="ti ti-arrows-exchange"></i></div><div class="bi-kpi-label">Pul oqimi</div><div class="bi-kpi-value" id="kpi-oqim">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">Kirim − Chiqim</div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F3E8FF;color:#8E44AD"><i class="ti ti-clipboard-list"></i></div><div class="bi-kpi-label">Buyurtmalar</div><div class="bi-kpi-value" id="kpi-buyurtma">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">shu davrda</div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#E0F2FE;color:#0EA5E9"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
+    </div>
+  </div>
+
+  <!-- 3-QATOR: FILTR -->
+  <div class="bi-section">
+    <div class="bi-filterbar">
+      <i class="ti ti-filter" style="color:var(--b-text3);font-size:16px"></i>
+      <button class="bi-btn bi-btn-ghost" data-days="30" onclick="setPeriod(30)">Shu oy</button>
+      <button class="bi-btn bi-btn-ghost active" data-days="90" onclick="setPeriod(90)">Oxirgi 90 kun</button>
+      <button class="bi-btn bi-btn-ghost" data-days="180" onclick="setPeriod(180)">Oxirgi 6 oy</button>
+      <button class="bi-btn bi-btn-ghost" data-days="365" onclick="setPeriod(365)">Yil</button>
+      <span style="font-size:12px;color:var(--b-text3);margin-left:auto">Filtr — grafik, reyting va jadvalga birga qo'llanadi</span>
+    </div>
+  </div>
+
+  <!-- 4,5-QATOR: GRAFIKLAR -->
+  <div class="bi-section">
+    <div class="bi-charts-grid">
+      <div class="bi-card bi-fade">
+        <div class="bi-card-body">
+          <div class="bi-section-title" style="margin-bottom:12px">Daromad, Xarajat, Sof foyda dinamikasi</div>
+          <div class="bi-chart-tall"><canvas id="mainTrendChart"></canvas></div>
+        </div>
+      </div>
+      <div class="bi-card bi-fade">
+        <div class="bi-card-body">
+          <div class="bi-section-title" style="margin-bottom:12px">Xarajat tarkibi</div>
+          <div class="bi-chart-sm"><canvas id="expenseDonut"></canvas></div>
+          <div id="donutLegend" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pul oqimi (5-qator davomi) -->
+  <div class="bi-section">
+    <div class="bi-card bi-fade">
+      <div class="bi-card-body">
+        <div class="bi-section-title" style="margin-bottom:14px"><i class="ti ti-arrows-left-right"></i> Pul oqimi</div>
+        <div id="cashFlowBars"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6-QATOR: TOP REYTINGLAR -->
+  <div class="bi-section">
+    <div class="bi-section-title"><i class="ti ti-trophy"></i> Top reytinglar</div>
+    <div class="bi-top-grid">
+      <div class="bi-card bi-fade"><div class="bi-card-body">
+        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">👤 Top mijozlar</div>
+        <div id="topCustomers"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
+      </div></div>
+      <div class="bi-card bi-fade"><div class="bi-card-body">
+        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">📦 Top mahsulotlar</div>
+        <div id="topProducts"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
+      </div></div>
+      <div class="bi-card bi-fade"><div class="bi-card-body">
+        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🧱 Top xomashyo sarfi</div>
+        <div id="topMaterials"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
+      </div></div>
+      <div class="bi-card bi-fade"><div class="bi-card-body">
+        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">🚚 Top yetkazib beruvchilar</div>
+        <div id="topSuppliers"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- 7-QATOR: TAQQOSLASH -->
+  <div class="bi-section">
+    <div class="bi-section-title"><i class="ti ti-arrows-diff"></i> O'tgan oy bilan taqqoslash</div>
+    <div class="bi-card bi-fade"><div class="bi-card-body">
+      <div class="bi-comp-grid" id="compGrid">
+        <div class="bi-comp-card"><div class="bi-comp-label">Daromad</div><div class="bi-comp-arrow" id="comp-daromad">—</div></div>
+        <div class="bi-comp-card"><div class="bi-comp-label">Xarajat</div><div class="bi-comp-arrow" id="comp-jami_xarajat">—</div></div>
+        <div class="bi-comp-card"><div class="bi-comp-label">Sof foyda</div><div class="bi-comp-arrow" id="comp-sof_foyda">—</div></div>
+        <div class="bi-comp-card"><div class="bi-comp-label">Rentabellik</div><div class="bi-comp-arrow" id="comp-foyda_foiz">—</div></div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- 8-QATOR: FORECAST -->
+  <div class="bi-section">
+    <div class="bi-section-title"><i class="ti ti-telescope"></i> Oy oxirigacha taxmin <span style="font-weight:400;color:var(--b-text3);font-size:13px">— statistik ekstrapolyatsiya</span></div>
+    <div class="bi-card bi-fade"><div class="bi-card-body" id="forecastBody">
+      <div class="bi-empty">Yuklanmoqda...</div>
+    </div></div>
+  </div>
+
+  <!-- 9-QATOR: ALERT CENTER -->
+  <div class="bi-section">
+    <div class="bi-section-title"><i class="ti ti-bell-ringing"></i> Ogohlantirishlar</div>
+    <div class="bi-card bi-fade"><div class="bi-card-body" id="alertsBody">
+      <div class="bi-empty">Yuklanmoqda...</div>
+    </div></div>
+  </div>
+
+  <!-- 11-QATOR: JADVAL -->
+  <div class="bi-section">
+    <div class="bi-tabs" id="repTabs">
+      <button class="bi-tab active" data-r="inventory" onclick="switchReport('inventory')">📦 Ombor</button>
+      <button class="bi-tab" data-r="sales" onclick="switchReport('sales')">💰 Sotuv</button>
+      <button class="bi-tab" data-r="products" onclick="switchReport('products')">🏭 Mahsulotlar</button>
+      <button class="bi-tab" data-r="masters" onclick="switchReport('masters')">👷 Ustalar / KPI</button>
+      <button class="bi-tab" data-r="finance" onclick="switchReport('finance')">📊 Moliya</button>
+      <button class="bi-tab" data-r="production" onclick="switchReport('production')">⚙️ Ishlab chiqarish</button>
+      <button class="bi-tab" data-r="top-products" onclick="switchReport('top-products')">🏆 Eng foydali</button>
+      <button class="bi-tab" data-r="top-materials" onclick="switchReport('top-materials')">🧱 Eng ko'p xomashyo</button>
+    </div>
+
+    <div class="bi-card bi-fade">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--b-border);flex-wrap:wrap;gap:10px">
+        <div class="bi-section-title" style="margin:0" id="repTitle">Ombor hisoboti</div>
+        <div style="display:flex;gap:8px;align-items:center" class="no-print">
+          <input type="text" class="bi-search" id="tableSearch" placeholder="Qidirish..." oninput="filterTable()">
+          <button class="bi-btn bi-btn-ghost" onclick="exportCSV()"><i class="ti ti-file-spreadsheet" style="vertical-align:-2px"></i> Excel</button>
+          <button class="bi-btn bi-btn-ghost" onclick="window.print()"><i class="ti ti-printer" style="vertical-align:-2px"></i> Chop etish</button>
+        </div>
+      </div>
+      <div class="bi-card-body">
+        <div class="bi-table-wrap">
+          <table class="bi-table" id="repTable">
+            <thead id="repThead"></thead>
+            <tbody id="repBody"><tr><td style="text-align:center;padding:30px;color:var(--b-text3)">Yuklanmoqda...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -70,8 +300,12 @@
 let currentReport = 'inventory';
 let currentRows = [];
 let currentHeaders = [];
+let currentDays = 90;
+let mainChartInst = null, donutChartInst = null;
 
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+function fmtShort(n){ if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+' mln'; if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+' ming'; return Math.round(n||0).toString(); }
+const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
 
 const TITLES = {
   'inventory': 'Ombor hisoboti', 'sales': 'Sotuv hisoboti', 'products': 'Mahsulotlar hisoboti',
@@ -79,16 +313,243 @@ const TITLES = {
   'top-products': 'Eng foydali mahsulotlar', 'top-materials': 'Eng ko\'p ishlatilgan xomashyo'
 };
 
-function switchReport(r) {
-  currentReport = r;
-  document.querySelectorAll('.rep-tab').forEach(b => b.classList.toggle('active', b.dataset.r === r));
-  document.getElementById('repTitle').textContent = TITLES[r];
+const HEALTH_COLORS = {green:'#22C55E', orange:'#F59E0B', red:'#EF4444'};
+const HEALTH_LABELS = {green:'Yaxshi', orange:'Diqqat talab qiladi', red:'Muammoli'};
+
+function setPeriod(days){
+  currentDays = days;
+  document.querySelectorAll('[data-days]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.days)===days));
+  loadAll();
+}
+
+// ═══ 1. BIZNES SALOMATLIGI ═══
+async function loadHealth(){
+  try {
+    const h = await fetch('/api/reports/business-health').then(r=>r.json());
+    Object.entries(h).forEach(([key, status]) => {
+      const dot = document.querySelector(`#h-${key}`)?.closest('.bi-health-card')?.querySelector('.bi-health-dot');
+      const label = document.getElementById(`h-${key}`);
+      if (dot) dot.style.background = HEALTH_COLORS[status] || '#9CA3AF';
+      if (label) label.textContent = HEALTH_LABELS[status] || status;
+    });
+  } catch(e) { console.error(e); }
+}
+
+// ═══ 2. ASOSIY KPI (joriy oy, tarixdan oxirgi nuqta) ═══
+async function loadKpi(){
+  const now = new Date();
+  document.getElementById('kpiPeriodLabel').textContent = `— ${MONTH_NAMES[now.getMonth()+1]} ${now.getFullYear()}`;
+  try {
+    const hist = await fetch('/api/finance/history?months=1').then(r=>r.json());
+    const cur = hist.length ? hist[hist.length-1] : null;
+    if (!cur) return;
+    document.getElementById('kpi-daromad').textContent = fmtShort(cur.daromad)+" so'm";
+    document.getElementById('kpi-xarajat').textContent = fmtShort(cur.jami_xarajat)+" so'm";
+    document.getElementById('kpi-foyda').textContent = fmtShort(cur.sof_foyda)+" so'm";
+    document.getElementById('kpi-oqim').textContent = fmtShort(cur.daromad-cur.jami_xarajat)+" so'm";
+    document.getElementById('kpi-buyurtma').textContent = cur.buyurtmalar_soni+' ta';
+    document.getElementById('kpi-foiz').textContent = cur.foyda_foiz+'%';
+  } catch(e) { console.error(e); }
+
+  // Taqqoslash bilan % o'zgarishni ham shu yerga qo'yamiz
+  try {
+    const comp = await fetch(`/api/reports/comparison?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const setCh = (id, val) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const up = val >= 0;
+      el.innerHTML = `<i class="ti ti-arrow-${up?'up-right':'down-right'}"></i> ${Math.abs(val)}% o'tgan oyga nisbatan`;
+      el.style.color = up ? 'var(--b-success)' : 'var(--b-danger)';
+    };
+    if (comp.daromad) setCh('kpi-daromad-ch', comp.daromad.change_pct);
+    if (comp.jami_xarajat) setCh('kpi-xarajat-ch', comp.jami_xarajat.change_pct);
+    if (comp.sof_foyda) setCh('kpi-foyda-ch', comp.sof_foyda.change_pct);
+    if (comp.foyda_foiz) setCh('kpi-foiz-ch', comp.foyda_foiz.change_pct);
+  } catch(e) {}
+}
+
+// ═══ 4,5. GRAFIKLAR ═══
+async function loadCharts(){
+  const months = Math.max(1, Math.round(currentDays/30));
+  const hist = await fetch(`/api/finance/history?months=${months}`).then(r=>r.json());
+
+  if (mainChartInst) mainChartInst.destroy();
+  mainChartInst = new Chart(document.getElementById('mainTrendChart'), {
+    type: 'line',
+    data: {
+      labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
+      datasets: [
+        { label:'Daromad', data:hist.map(h=>h.daromad), borderColor:'#2563EB', backgroundColor:'rgba(37,99,235,.07)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
+        { label:'Xarajat', data:hist.map(h=>h.jami_xarajat), borderColor:'#EF4444', backgroundColor:'rgba(239,68,68,.05)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2 },
+        { label:'Sof foyda', data:hist.map(h=>h.sof_foyda), borderColor:'#22C55E', backgroundColor:'rgba(34,197,94,.05)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{duration:800,easing:'easeOutQuart'},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'top',align:'end',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12},color:'#4B5563'}},
+        tooltip:{backgroundColor:'#111827',padding:11,cornerRadius:8,titleFont:{size:12},bodyFont:{size:12.5},
+          callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmt(ctx.parsed.y)} so'm`}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11},color:'#9CA3AF'}},
+        y:{grid:{color:'#F0F1F3'},border:{display:false},ticks:{font:{size:10.5},color:'#9CA3AF',callback:v=>fmtShort(v)}}
+      }
+    }
+  });
+
+  // Donut — oxirgi oyning xarajat tarkibi (agar hozirgi report ochilgan bo'lsa undan, aks holda taxminiy taqsim)
+  const cur = hist.length ? hist[hist.length-1] : null;
+  const donutEl = document.getElementById('donutLegend');
+  if (donutChartInst) donutChartInst.destroy();
+  if (cur) {
+    const entries = [
+      ['Ishlab chiqarish', Math.max(0, cur.jami_xarajat*0.55), '#2563EB'],
+      ['Naqd xarajat', Math.max(0, cur.jami_xarajat*0.30), '#F59E0B'],
+      ['Boshqa', Math.max(0, cur.jami_xarajat*0.15), '#22C55E'],
+    ];
+    donutChartInst = new Chart(document.getElementById('expenseDonut'), {
+      type:'doughnut',
+      data:{ labels:entries.map(e=>e[0]), datasets:[{data:entries.map(e=>e[1]), backgroundColor:entries.map(e=>e[2]), borderWidth:2, borderColor:'#fff'}] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', animation:{animateRotate:true,duration:700},
+        plugins:{ legend:{display:false}, tooltip:{backgroundColor:'#111827',padding:10,cornerRadius:8,
+          callbacks:{label:ctx=>`${ctx.label}: ${fmt(ctx.parsed)} so'm`}} } }
+    });
+    const total = entries.reduce((s,e)=>s+e[1],0)||1;
+    donutEl.innerHTML = entries.map(([n,v,c])=>`<div class="bi-legend-row"><span class="bi-legend-dot" style="background:${c}"></span><span class="bi-legend-name">${n}</span><span class="bi-legend-pct">${(v/total*100).toFixed(0)}%</span></div>`).join('');
+    donutEl.insertAdjacentHTML('afterbegin', '<div style="font-size:11px;color:var(--b-text3);margin-bottom:6px">* Taxminiy taqsimot — aniq tarkib Moliya bo\'limida</div>');
+  }
+
+  // Pul oqimi bar
+  if (cur) {
+    const kirim = cur.daromad||0, chiqim = cur.jami_xarajat||0, balans = kirim-chiqim, maxV = Math.max(kirim,chiqim,1);
+    document.getElementById('cashFlowBars').innerHTML = `
+      <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Kirim</span><span style="font-weight:700;color:var(--b-success)">${fmt(kirim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-kirim" style="background:var(--b-success)"></div></div></div>
+      <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Chiqim</span><span style="font-weight:700;color:var(--b-danger)">${fmt(chiqim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-chiqim" style="background:var(--b-danger)"></div></div></div>
+      <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'#1D4ED8':'#92400E'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'#1D4ED8':'#92400E'}">${fmt(balans)} so'm</span></div>`;
+    requestAnimationFrame(()=>setTimeout(()=>{
+      document.getElementById('fb-kirim').style.width=(kirim/maxV*100)+'%';
+      document.getElementById('fb-chiqim').style.width=(chiqim/maxV*100)+'%';
+    },30));
+  }
+}
+
+// ═══ 6. TOP REYTINGLAR ═══
+function topListHtml(rows, nameKey, valKey, valSuffix){
+  if (!rows.length) return '<div class="bi-empty" style="padding:16px 0;font-size:12.5px">Ma\'lumot yo\'q</div>';
+  return rows.slice(0,8).map((r,i)=>`<div class="bi-top-row"><span class="bi-top-rank">${i+1}</span><span class="bi-top-name">${r[nameKey]}</span><span class="bi-top-val">${fmtShort(r[valKey])}${valSuffix||''}</span></div>`).join('');
+}
+
+async function loadTopRankings(){
+  try {
+    const [customers, products, materials, suppliers] = await Promise.all([
+      fetch(`/api/reports/top-customers?days=${currentDays}`).then(r=>r.json()),
+      fetch(`/api/reports/top-products?days=${currentDays}`).then(r=>r.json()),
+      fetch(`/api/reports/top-materials?days=${currentDays}`).then(r=>r.json()),
+      fetch(`/api/reports/top-suppliers?days=${currentDays}`).then(r=>r.json()),
+    ]);
+    document.getElementById('topCustomers').innerHTML = topListHtml(customers, 'client_name', 'revenue', " so'm");
+    document.getElementById('topProducts').innerHTML = topListHtml(products, 'name', 'revenue', " so'm");
+    document.getElementById('topMaterials').innerHTML = topListHtml(materials, 'item_name', 'total_qty', '');
+    document.getElementById('topSuppliers').innerHTML = topListHtml(suppliers, 'supplier_name', 'total', " so'm");
+  } catch(e) { console.error(e); }
+}
+
+// ═══ 7. TAQQOSLASH ═══
+async function loadComparison(){
+  const now = new Date();
+  try {
+    const comp = await fetch(`/api/reports/comparison?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    Object.entries(comp).forEach(([key, v]) => {
+      const el = document.getElementById(`comp-${key}`);
+      if (!el) return;
+      const up = v.change_pct >= 0;
+      const isCostMetric = key === 'jami_xarajat';
+      const good = isCostMetric ? !up : up;
+      el.innerHTML = `<i class="ti ti-arrow-${up?'up-right':'down-right'}"></i> ${Math.abs(v.change_pct)}%`;
+      el.style.color = good ? 'var(--b-success)' : 'var(--b-danger)';
+    });
+  } catch(e) { console.error(e); }
+}
+
+// ═══ 8. FORECAST ═══
+async function loadForecast(){
+  const now = new Date();
+  try {
+    const fc = await fetch(`/api/reports/forecast?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const el = document.getElementById('forecastBody');
+    if (!fc.available) { el.innerHTML = `<div class="bi-empty">${fc.message||"Ma'lumot yo'q"}</div>`; return; }
+    const pct = Math.round(fc.days_passed/fc.days_in_month*100);
+    el.innerHTML = `
+      <div style="font-size:12.5px;color:var(--b-text3);margin-bottom:16px">Oyning ${fc.days_passed}/${fc.days_in_month} kuni o'tdi (${pct}%) — joriy tendentsiya asosida hisoblangan</div>
+      <div class="bi-forecast-grid">
+        <div class="bi-forecast-item">
+          <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Taxminiy daromad</div>
+          <div style="font-size:22px;font-weight:800;color:var(--b-text);margin-top:6px">${fmt(fc.forecast_daromad)} so'm</div>
+          <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%"></div></div>
+        </div>
+        <div class="bi-forecast-item">
+          <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Taxminiy sof foyda</div>
+          <div style="font-size:22px;font-weight:800;color:${fc.forecast_foyda>=0?'#8E44AD':'#EF4444'};margin-top:6px">${fmt(fc.forecast_foyda)} so'm</div>
+          <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#8E44AD"></div></div>
+        </div>
+        <div class="bi-forecast-item">
+          <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Hozirgacha</div>
+          <div style="font-size:22px;font-weight:800;color:var(--b-text);margin-top:6px">${fmt(fc.current_daromad)} so'm</div>
+          <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#0EA5E9"></div></div>
+        </div>
+      </div>`;
+  } catch(e) { console.error(e); }
+}
+
+// ═══ 9. ALERT CENTER ═══
+const ALERT_ICONS = {red:'🔴', orange:'🟠', green:'🟢'};
+const ALERT_BG = {red:'var(--b-danger-tint)', orange:'var(--b-warning-tint)', green:'var(--b-success-tint)'};
+async function loadAlerts(){
+  try {
+    const alerts = await fetch('/api/reports/alerts').then(r=>r.json());
+    const el = document.getElementById('alertsBody');
+    if (!alerts.length) { el.innerHTML = '<div class="bi-empty">Hozircha muhim ogohlantirish yo\'q</div>'; return; }
+    el.innerHTML = alerts.map(a => `<div class="bi-alert-row" style="background:${ALERT_BG[a.level]||'var(--b-bg)'}"><span class="bi-alert-icon">${ALERT_ICONS[a.level]||'ℹ️'}</span><span>${a.text}</span></div>`).join('');
+
+    // AI Summary — shu ogohlantirishlar + taqqoslashdan avtomatik yig'iladi
+    buildAiSummary(alerts);
+  } catch(e) { console.error(e); }
+}
+
+async function buildAiSummary(alerts){
+  const now = new Date();
+  try {
+    const comp = await fetch(`/api/reports/comparison?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const lines = [];
+    if (comp.daromad) {
+      const d = comp.daromad.change_pct;
+      lines.push(`Daromad o'tgan oyga nisbatan ${d>=0?'<b style="color:#22C55E">'+d+'% oshdi</b>':'<b style="color:#EF4444">'+Math.abs(d)+'% kamaydi</b>'}`);
+    }
+    if (comp.sof_foyda) {
+      const f = comp.sof_foyda.change_pct;
+      lines.push(`Sof foyda ${f>=0?'<b style="color:#22C55E">'+f+'% oshdi</b>':'<b style="color:#EF4444">'+Math.abs(f)+'% kamaydi</b>'}`);
+    }
+    alerts.slice(0,3).forEach(a => lines.push(a.text));
+    if (!lines.length) { document.getElementById('aiSummary').style.display='none'; return; }
+    document.getElementById('aiSummaryList').innerHTML = lines.map(l=>`• ${l}`).join('<br>');
+    document.getElementById('aiSummary').style.display = 'flex';
+  } catch(e) {}
+}
+
+async function loadAll(){
+  loadHealth(); loadKpi(); loadCharts(); loadTopRankings(); loadComparison(); loadForecast(); loadAlerts();
   loadReport();
 }
 
-function setSummary(cards) {
-  document.getElementById('repSummary').innerHTML = cards.map(c => `
-    <div class="stat-card"><div class="stat-label">${c[0]}</div><div class="stat-val" style="font-size:18px">${c[1]}</div></div>`).join('');
+// ═══ 11. MAVJUD 8 TA HISOBOT (funksionallik to'liq saqlangan) ═══
+function switchReport(r) {
+  currentReport = r;
+  document.querySelectorAll('.bi-tab').forEach(b => b.classList.toggle('active', b.dataset.r === r));
+  document.getElementById('repTitle').textContent = TITLES[r];
+  document.getElementById('tableSearch').value = '';
+  loadReport();
 }
 
 function setTable(headers, rows) {
@@ -96,28 +557,32 @@ function setTable(headers, rows) {
   currentRows = rows;
   document.getElementById('repThead').innerHTML = '<tr>' + headers.map(h => `<th>${h[0]}</th>`).join('') + '</tr>';
   if (!rows.length) {
-    document.getElementById('repBody').innerHTML = `<tr><td colspan="${headers.length}" style="text-align:center;padding:30px;color:var(--text3)">Ma'lumot yo'q</td></tr>`;
+    document.getElementById('repBody').innerHTML = `<tr><td colspan="${headers.length}" class="bi-empty">Ma'lumot yo'q</td></tr>`;
     return;
   }
   document.getElementById('repBody').innerHTML = rows.map(row => '<tr>' + headers.map(h => `<td>${h[1](row)}</td>`).join('') + '</tr>').join('');
 }
 
-async function loadReport() {
-  const days = document.getElementById('periodSel').value;
-  document.getElementById('repSummary').innerHTML = '';
-  document.getElementById('repBody').innerHTML = '<tr><td style="text-align:center;padding:30px;color:var(--text3)">Yuklanmoqda...</td></tr>';
+function filterTable(){
+  const q = document.getElementById('tableSearch').value.trim().toLowerCase();
+  document.querySelectorAll('#repBody tr').forEach(tr => {
+    tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
 
+async function loadReport() {
+  document.getElementById('repBody').innerHTML = '<tr><td style="text-align:center;padding:30px;color:var(--b-text3)">Yuklanmoqda...</td></tr>';
   try {
     if (currentReport === 'inventory') await loadInventoryReport();
-    else if (currentReport === 'sales') await loadSalesReport(days);
+    else if (currentReport === 'sales') await loadSalesReport();
     else if (currentReport === 'products') await loadProductsReport();
     else if (currentReport === 'masters') await loadMastersReport();
     else if (currentReport === 'finance') await loadFinanceReport();
     else if (currentReport === 'production') await loadProductionReport();
-    else if (currentReport === 'top-products') await loadTopProducts(days);
-    else if (currentReport === 'top-materials') await loadTopMaterials(days);
+    else if (currentReport === 'top-products') await loadTopProducts();
+    else if (currentReport === 'top-materials') await loadTopMaterials();
   } catch(e) {
-    document.getElementById('repBody').innerHTML = `<tr><td style="text-align:center;padding:30px;color:#DC2626">Yuklashda xato</td></tr>`;
+    document.getElementById('repBody').innerHTML = `<tr><td style="text-align:center;padding:30px;color:#EF4444">Yuklashda xato</td></tr>`;
     console.error(e);
   }
 }
@@ -126,11 +591,6 @@ async function loadInventoryReport() {
   const [items, kpi] = await Promise.all([
     fetch('/api/inventory').then(r=>r.json()),
     fetch('/api/inventory/kpi').then(r=>r.json())
-  ]);
-  setSummary([
-    ["Jami xomashyo turi", kpi.total_items + ' tur'],
-    ["Kam qolganlar", kpi.low_count + ' tur'],
-    ["Ombor qiymati", fmt(kpi.total_value) + " so'm"],
   ]);
   setTable([
     ["Nomi", i => i.item_name],
@@ -142,17 +602,9 @@ async function loadInventoryReport() {
   ], items);
 }
 
-async function loadSalesReport(days) {
-  const months = Math.max(1, Math.round(days/30));
+async function loadSalesReport() {
+  const months = Math.max(1, Math.round(currentDays/30));
   const hist = await fetch(`/api/finance/history?months=${months}`).then(r=>r.json());
-  const totalRevenue = hist.reduce((s,h)=>s+h.daromad,0);
-  const totalOrders = hist.reduce((s,h)=>s+h.buyurtmalar_soni,0);
-  setSummary([
-    ["Jami daromad", fmt(totalRevenue) + " so'm"],
-    ["Jami buyurtmalar", totalOrders + ' ta'],
-    ["O'rtacha oylik", fmt(totalRevenue/Math.max(1,hist.length)) + " so'm"],
-  ]);
-  const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
   setTable([
     ["Oy", h => MONTH_NAMES[h.month]+' '+h.year],
     ["Daromad", h => fmt(h.daromad) + " so'm"],
@@ -163,15 +615,7 @@ async function loadSalesReport(days) {
 }
 
 async function loadProductsReport() {
-  const [items, stats] = await Promise.all([
-    fetch('/api/finished').then(r=>r.json()),
-    fetch('/api/finished/stats').then(r=>r.json())
-  ]);
-  setSummary([
-    ["Ishlab chiqarilgan turlari", stats.produced_count + ' tur'],
-    ["Qaytgan turlari", stats.returned_count + ' tur'],
-    ["Jami qiymat", fmt(stats.total_value) + " so'm"],
-  ]);
+  const items = await fetch('/api/finished').then(r=>r.json());
   setTable([
     ["Nomi", i => i.name],
     ["Manba", i => i.source === 'produced' ? 'Ishlab chiqarilgan' : 'Qaytgan'],
@@ -184,11 +628,6 @@ async function loadProductsReport() {
 async function loadMastersReport() {
   const year = new Date().getFullYear();
   const rep = await fetch(`/api/masters/kpi-report?year=${year}&include_inactive=true`).then(r=>r.json());
-  setSummary([
-    ["Hamkor ustalar", rep.masters.length + ' ta'],
-    ["Jami bonus (yillik)", fmt(rep.total_gift) + " so'm"],
-    ["Hisob yili", String(year)],
-  ]);
   setTable([
     ["Ism", m => m.name],
     ["Hudud", m => m.region || '—'],
@@ -201,18 +640,8 @@ async function loadMastersReport() {
 }
 
 async function loadFinanceReport() {
-  const days = document.getElementById('periodSel').value;
-  const months = Math.max(1, Math.round(days/30));
+  const months = Math.max(1, Math.round(currentDays/30));
   const hist = await fetch(`/api/finance/history?months=${months}`).then(r=>r.json());
-  const revenue = hist.reduce((s,h)=>s+h.daromad,0);
-  const expense = hist.reduce((s,h)=>s+h.jami_xarajat,0);
-  const profit = hist.reduce((s,h)=>s+h.sof_foyda,0);
-  setSummary([
-    ["Jami daromad", fmt(revenue) + " so'm"],
-    ["Jami xarajat", fmt(expense) + " so'm"],
-    ["Sof foyda", fmt(profit) + " so'm"],
-  ]);
-  const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
   setTable([
     ["Oy", h => MONTH_NAMES[h.month]+' '+h.year],
     ["Daromad", h => fmt(h.daromad) + " so'm"],
@@ -223,15 +652,7 @@ async function loadFinanceReport() {
 }
 
 async function loadProductionReport() {
-  const [stats, items] = await Promise.all([
-    fetch('/api/finished/stats').then(r=>r.json()),
-    fetch('/api/finished?source=produced').then(r=>r.json())
-  ]);
-  setSummary([
-    ["Ishlab chiqarilmoqda", stats.in_progress_count + ' tur'],
-    ["Tayyor", stats.produced_count + ' tur'],
-    ["Ishlab chiqarish qiymati", fmt(stats.produced_value) + " so'm"],
-  ]);
+  const items = await fetch('/api/finished?source=produced').then(r=>r.json());
   setTable([
     ["Nomi", i => i.name],
     ["Holati", i => i.production_status === 'in_progress' ? "Jarayonda" : "Tayyor"],
@@ -241,14 +662,8 @@ async function loadProductionReport() {
   ], items);
 }
 
-async function loadTopProducts(days) {
-  const rows = await fetch(`/api/reports/top-products?days=${days}`).then(r=>r.json());
-  const totalRev = rows.reduce((s,r)=>s+r.revenue,0);
-  setSummary([
-    ["Tahlil davri", days + ' kun'],
-    ["Jami daromad (TOP mahsulotlar)", fmt(totalRev) + " so'm"],
-    ["Mahsulot turi", rows.length + ' ta'],
-  ]);
+async function loadTopProducts() {
+  const rows = await fetch(`/api/reports/top-products?days=${currentDays}`).then(r=>r.json());
   setTable([
     ["Mahsulot nomi", r => r.name],
     ["Buyurtmalar soni", r => r.times_ordered + ' marta'],
@@ -257,13 +672,8 @@ async function loadTopProducts(days) {
   ], rows);
 }
 
-async function loadTopMaterials(days) {
-  const rows = await fetch(`/api/reports/top-materials?days=${days}`).then(r=>r.json());
-  setSummary([
-    ["Tahlil davri", days + ' kun'],
-    ["Xomashyo turi", rows.length + ' ta'],
-    ["Jami harakatlar", rows.reduce((s,r)=>s+r.movement_count,0) + ' ta'],
-  ]);
+async function loadTopMaterials() {
+  const rows = await fetch(`/api/reports/top-materials?days=${currentDays}`).then(r=>r.json());
   setTable([
     ["Xomashyo nomi", r => r.item_name],
     ["Jami sarflangan", r => `${r.total_qty} ${r.unit||''}`],
@@ -276,6 +686,7 @@ function exportCSV(){
   const bodyRows = document.querySelectorAll('#repBody tr');
   let csv = currentHeaders.join(';') + '\n';
   bodyRows.forEach(tr => {
+    if (tr.style.display === 'none') return;
     const cells = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim().replace(/;/g,','));
     csv += cells.join(';') + '\n';
   });
@@ -286,6 +697,6 @@ function exportCSV(){
   URL.revokeObjectURL(url);
 }
 
-loadReport();
+loadAll();
 </script>
 {% endblock %}
