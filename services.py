@@ -149,16 +149,7 @@ def calculate_coating_materials(coated_area_m2: float, recipe: Recipe) -> Dict:
     total_kg_needed = coated_area_m2 * KG_PER_SQUARE_METER
     coefficient = total_kg_needed / recipe.batch_size_kg if recipe.batch_size_kg else 0
 
-    materials = {
-        "Akril": recipe.akril_kg * coefficient,
-        "PVA": recipe.pva_kg * coefficient,
-        "Qum": recipe.qum_kg * coefficient,
-        "Kroshka": recipe.kroshka_kg * coefficient,
-        "Penogasitel": recipe.penogasitel_kg * coefficient,
-        "Shtukaturka": recipe.shtukaturka_kg * coefficient,
-        "Suv": recipe.suv_kg * coefficient,
-        "Biotsid": recipe.biotsid_ml * coefficient,  # ml da
-    }
+    materials = {ing.item_name: float(ing.quantity_kg or 0) * coefficient for ing in recipe.ingredients}
 
     # Faqat qiymati 0 dan katta bo'lganlarini qoldiramiz
     materials = {k: v for k, v in materials.items() if v > 0}
@@ -978,25 +969,12 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
 
         if recipe and loy_kg > 0:
             batch = float(recipe.batch_size_kg or 100)
-            material_map = {
-                "akril": recipe.akril_kg,
-                "pva": recipe.pva_kg,
-                "kvars qum": recipe.qum_kg,
-                "travertin qum": getattr(recipe, "travertin_qum_kg", 0) or 0,
-                "kroshka": recipe.kroshka_kg,
-                "mel": recipe.shtukaturka_kg,
-                "zagustitel": getattr(recipe, "zagustitel_kg", 0) or 0,
-                "suv": recipe.suv_kg,
-            }
             narx_per_kg = 0.0
-            for inv_key, mat_kg in material_map.items():
-                if float(mat_kg or 0) <= 0:
+            for ing in recipe.ingredients:
+                mat_kg = float(ing.quantity_kg or 0)
+                if mat_kg <= 0 or not ing.inventory or not ing.inventory.price_per_unit:
                     continue
-                inv = db.query(Inventory).filter(
-                    Inventory.item_name.ilike(f"%{inv_key}%")
-                ).first()
-                if inv and inv.price_per_unit:
-                    narx_per_kg += (float(mat_kg) / batch) * float(inv.price_per_unit)
+                narx_per_kg += (mat_kg / batch) * float(ing.inventory.price_per_unit)
 
             qoplama_xarajat = loy_kg * narx_per_kg
             if qoplama_xarajat > 0:
@@ -2162,24 +2140,13 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
 
     batch = float(recipe.batch_size_kg or 100)
 
-    ingredient_map = [
-        ("akril", recipe.akril_kg),
-        ("pva", recipe.pva_kg),
-        ("kvars qum", recipe.qum_kg),
-        ("travertin qum", recipe.travertin_qum_kg),
-        ("kroshka", recipe.kroshka_kg),
-        ("mel", recipe.shtukaturka_kg),
-        ("zagustitel", recipe.zagustitel_kg),
-        ("suv", recipe.suv_kg),
-        ("penogasitel", recipe.penogasitel_kg),
-    ]
-
-    for inv_name, recipe_kg in ingredient_map:
-        if float(recipe_kg or 0) <= 0:
+    for ing in recipe.ingredients:
+        recipe_kg = float(ing.quantity_kg or 0)
+        if recipe_kg <= 0 or not ing.inventory:
             continue
-        needed_kg = loy_kg * (float(recipe_kg) / batch)
+        needed_kg = loy_kg * (recipe_kg / batch)
         inv_item = db.query(Inventory).filter(
-            Inventory.item_name.ilike(f"%{inv_name}%")
+            Inventory.id == ing.inventory_id
         ).with_for_update().first()
         if inv_item:
             inv_item.stock_quantity = max(0, float(inv_item.stock_quantity) - needed_kg)
@@ -2222,24 +2189,13 @@ def return_loy_ingredients(db: Session, order, loy_kg: float) -> list:
 
     batch = float(recipe.batch_size_kg or 100)
 
-    ingredient_map = [
-        ("akril", recipe.akril_kg),
-        ("pva", recipe.pva_kg),
-        ("kvars qum", recipe.qum_kg),
-        ("travertin qum", recipe.travertin_qum_kg),
-        ("kroshka", recipe.kroshka_kg),
-        ("mel", recipe.shtukaturka_kg),
-        ("zagustitel", recipe.zagustitel_kg),
-        ("suv", recipe.suv_kg),
-        ("penogasitel", recipe.penogasitel_kg),
-    ]
-
-    for inv_name, recipe_kg in ingredient_map:
-        if float(recipe_kg or 0) <= 0:
+    for ing in recipe.ingredients:
+        recipe_kg = float(ing.quantity_kg or 0)
+        if recipe_kg <= 0 or not ing.inventory:
             continue
-        needed_kg = loy_kg * (float(recipe_kg) / batch)
+        needed_kg = loy_kg * (recipe_kg / batch)
         inv_item = db.query(Inventory).filter(
-            Inventory.item_name.ilike(f"%{inv_name}%")
+            Inventory.id == ing.inventory_id
         ).with_for_update().first()
         if inv_item:
             inv_item.stock_quantity = float(inv_item.stock_quantity) + needed_kg
@@ -2524,30 +2480,20 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None) -> dict:
         return {"cost_per_kg": 0, "recipe": None, "breakdown": []}
 
     batch = float(recipe.batch_size_kg or 100)
-    material_map = {
-        "akril": recipe.akril_kg,
-        "pva": recipe.pva_kg,
-        "kvars qum": recipe.qum_kg,
-        "travertin qum": getattr(recipe, "travertin_qum_kg", 0) or 0,
-        "kroshka": recipe.kroshka_kg,
-        "mel": recipe.shtukaturka_kg,
-        "zagustitel": getattr(recipe, "zagustitel_kg", 0) or 0,
-        "suv": recipe.suv_kg,
-        "penogasitel": getattr(recipe, "penogasitel_kg", 0) or 0,
-    }
 
     cost = 0.0
     breakdown = []
-    for key, kg in material_map.items():
-        if float(kg or 0) <= 0:
+    for ing in recipe.ingredients:
+        kg = float(ing.quantity_kg or 0)
+        if kg <= 0 or not ing.inventory:
             continue
-        inv = db.query(Inventory).filter(Inventory.item_name.ilike(f"%{key}%")).first()
-        if inv and inv.price_per_unit:
-            per_kg = (float(kg) / batch) * float(inv.price_per_unit)
+        inv = ing.inventory
+        if inv.price_per_unit:
+            per_kg = (kg / batch) * float(inv.price_per_unit)
             cost += per_kg
             breakdown.append({
                 "name": inv.item_name,
-                "kg_per_batch": float(kg),
+                "kg_per_batch": kg,
                 "price": float(inv.price_per_unit),
                 "cost_per_kg": round(per_kg, 2)
             })
