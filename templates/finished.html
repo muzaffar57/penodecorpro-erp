@@ -130,7 +130,7 @@
           <label>Retsept (qoplama uchun)</label>
           <select id="t-recipe" onchange="loadLoyCost(this.value)">
             <option value="">— Yo'q —</option>
-            {% for r in recipes %}<option value="{{ r.id }}">{{ r.name.value }}</option>{% endfor %}
+            {% for r in recipes %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
           </select>
         </div>
         <div class="form-group" style="margin:0">
@@ -261,7 +261,7 @@
           <label>Retsept (loy uchun)</label>
           <select id="p-recipe" onchange="loadLoyCost(this.value)">
             <option value="">— Yo'q —</option>
-            {% for r in recipes %}<option value="{{ r.id }}">{{ r.name.value }}</option>{% endfor %}
+            {% for r in recipes %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
           </select>
         </div>
         <div class="form-group" style="margin:0">
