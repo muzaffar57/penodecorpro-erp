@@ -1656,11 +1656,19 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
     supplier_debts.sort(key=lambda s: s['debt'], reverse=True)
     total_supplier_debt = sum(s['debt'] for s in supplier_debts)
 
+    from datetime import datetime as _dt
+    now = _dt.utcnow()
+    company_obligations = services.get_company_obligations_status(db, now.year, now.month)
+    recurring_targets = services.get_recurring_obligations(db)
+
     return templates.TemplateResponse(request, "debts.html", {
         "order_debts": order_debts,
         "supplier_debts": supplier_debts,
         "total_customer_debt": total_customer_debt,
         "total_supplier_debt": total_supplier_debt,
+        "company_obligations": company_obligations,
+        "recurring_targets": recurring_targets,
+        "cur_year": now.year, "cur_month": now.month,
         "current_user": current_user, "active_page": "debts"
     })
 
@@ -1708,6 +1716,29 @@ def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.
 @app.get("/api/reports/business-health")
 def api_reports_business_health(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     return services.get_business_health(db)
+
+
+@app.get("/api/obligations/recurring")
+def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.get_recurring_obligations(db)
+
+
+@app.post("/api/obligations/recurring")
+def api_set_recurring_obligation(category: str, label: str, monthly_target: float,
+                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return services.set_recurring_obligation(db, category, label, monthly_target)
+
+
+@app.get("/api/obligations/status")
+def api_obligations_status(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    return services.get_company_obligations_status(db, year, month)
+
+
+@app.post("/api/obligations/employee/{employee_id}/close")
+def api_close_employee_debt(employee_id: int, year: int, month: int, amount: float,
+                              db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    who = current_user.full_name or current_user.username
+    return services.close_employee_debt(db, employee_id, year, month, amount, paid_by=who)
 
 
 @app.get("/finance", response_class=HTMLResponse)
