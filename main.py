@@ -1588,7 +1588,8 @@ def api_production_periods(db: Session = Depends(get_db), current_user=Depends(a
 
 @app.get("/api/inventory/movements")
 def api_inventory_movements(item_id: Optional[int] = None, movement_type: Optional[str] = None,
-                             order_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db)):
+                             order_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_or_manager)):
     """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish)."""
     from models import InventoryMovement
     q = db.query(InventoryMovement)
@@ -1821,7 +1822,7 @@ def api_order_profit(order_id: int, db: Session = Depends(get_db), current_user=
 
 
 @app.get("/api/orders/{order_id}/pdf")
-def api_order_pdf(order_id: int, db: Session = Depends(get_db)):
+def api_order_pdf(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     from fastapi.responses import Response
     import pdf_service
     import traceback
@@ -2381,7 +2382,7 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
 
 
 @app.get("/api/deliveries/{delivery_id}/pdf")
-def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db)):
+def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yetkazish nakladnoyi (PDF)."""
     from fastapi.responses import Response
     import delivery_pdf
@@ -2402,7 +2403,7 @@ def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/orders/{order_id}/summary-pdf")
-def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db)):
+def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Hisob-kitob varaqasi — tanlangan nakladnoylar bo'yicha.
     ids — vergul bilan ajratilgan delivery ID lar: '3,5,7'. Bo'sh bo'lsa — hammasi."""
     from fastapi.responses import Response
@@ -2477,7 +2478,7 @@ def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db:
 
 
 @app.get("/api/orders/{order_id}/attachments")
-def api_list_order_attachments(order_id: int, db: Session = Depends(get_db)):
+def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     from models import OrderAttachment
     atts = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).order_by(OrderAttachment.uploaded_at.desc()).all()
     return [schemas.OrderAttachmentRead.model_validate(a) for a in atts]
