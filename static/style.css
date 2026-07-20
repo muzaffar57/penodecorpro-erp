@@ -335,13 +335,13 @@ body {
 /* ============================================================
    FORMA ELEMENTLARI
    ============================================================ */
-.form-group { margin-bottom: 14px; }
+.form-group { margin-bottom: 16px; }
 .form-group label {
   display: block;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text3);
-  font-weight: 500;
-  margin-bottom: 5px;
+  font-weight: 600;
+  margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: .3px;
 }
@@ -349,10 +349,10 @@ body {
 .form-group select,
 .form-group textarea {
   width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
   color: var(--text);
   outline: none;
   background: #fafafa;
@@ -364,8 +364,8 @@ body {
   border-color: var(--gold);
   background: var(--white);
 }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
 
 /* ============================================================
    CONTENT WRAPPER
@@ -464,9 +464,9 @@ body {
   font-size: 19px;
   margin-bottom: 12px;
 }
-.stat-label { font-size: 12px; color: var(--text3); font-weight: 500; margin-bottom: 3px; }
-.stat-val { font-size: 22px; font-weight: 600; color: var(--text); }
-.stat-trend { font-size: 11px; margin-top: 6px; font-weight: 500; }
+.stat-label { font-size: 13.5px; color: var(--text3); font-weight: 600; margin-bottom: 4px; }
+.stat-val { font-size: 25px; font-weight: 700; color: var(--text); }
+.stat-trend { font-size: 12.5px; margin-top: 6px; font-weight: 500; }
 .stat-trend.up { color: #1e7e34; }
 .stat-trend.warn { color: #b7770d; }
 .stat-card.emph {
@@ -523,3 +523,67 @@ body {
 .lb-item.rank1 .lb-avatar { background: var(--gold); color: var(--white); }
 .lb-name { font-size: 12px; font-weight: 500; color: var(--text); }
 .lb-meta { font-size: 11px; color: var(--text3); margin-top: 1px; }
+
+/* ============================================================
+   MOBIL MOSLASHUV (RESPONSIVE) — 768px va undan tor ekranlar
+   ============================================================ */
+.mobile-menu-btn { display: none; }
+.sidebar-overlay { display: none; }
+
+@media (max-width: 768px) {
+  .erp-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: var(--sidebar-w);
+    max-width: 82vw;
+    z-index: 1300;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,.25);
+  }
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 1250;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+  }
+  .sidebar-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px; height: 38px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--text2);
+    cursor: pointer;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+
+  .erp-topbar { padding: 0 12px; flex-wrap: wrap; gap: 8px; }
+  .tb-left { display: flex; align-items: center; min-width: 0; }
+  .tb-left .page-title { font-size: 15px; }
+  .tb-left .page-sub { display: none; }
+
+  /* Ko'p ustunli setkalar mobil ekranda 1-2 ustunga tushadi */
+  .kpi-grid, .stat-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .form-row, .form-row-3 { grid-template-columns: 1fr; }
+}
