@@ -414,7 +414,7 @@ def get_low_stock_items(db: Session) -> List[Inventory]:
 # RECIPE CRUD
 # ============================================================
 
-from models import Recipe, RecipeType
+from models import Recipe, RecipeIngredient
 from schemas import RecipeCreate
 
 
@@ -429,20 +429,12 @@ def get_recipe_insights(db: Session, recipe_id: int) -> Dict:
     if not recipe:
         return {"cost_per_kg": 0, "used_in": []}
 
-    ingredient_map = [
-        ("akril", recipe.akril_kg), ("pva", recipe.pva_kg),
-        ("kvars qum", recipe.qum_kg), ("travertin qum", recipe.travertin_qum_kg),
-        ("kroshka", recipe.kroshka_kg), ("mel", recipe.shtukaturka_kg),
-        ("zagustitel", recipe.zagustitel_kg), ("suv", recipe.suv_kg),
-        ("penogasitel", recipe.penogasitel_kg),
-    ]
     total_cost = 0.0
-    for inv_name, kg in ingredient_map:
-        if not kg or kg <= 0:
+    for ing in recipe.ingredients:
+        if not ing.quantity_kg or ing.quantity_kg <= 0:
             continue
-        inv_item = db.query(Inventory).filter(Inventory.item_name.ilike(f"%{inv_name}%")).first()
-        if inv_item and inv_item.price_per_unit:
-            total_cost += float(kg) * float(inv_item.price_per_unit)
+        if ing.inventory and ing.inventory.price_per_unit:
+            total_cost += float(ing.quantity_kg) * float(ing.inventory.price_per_unit)
 
     batch = float(recipe.batch_size_kg or 1)
     cost_per_kg = total_cost / batch if batch > 0 else 0
@@ -456,31 +448,49 @@ def get_recipe_insights(db: Session, recipe_id: int) -> Dict:
 
 
 def create_recipe(db: Session, recipe_data: RecipeCreate) -> Recipe:
-    """Yangi retsept qo'shadi.
-    name: 'Kvars' yoki 'Oq Marmar' — RecipeType enum bo'yicha."""
-    # String ni enum ga aylantiramiz
-    if recipe_data.name.lower() in ['kvars', 'quartz']:
-        recipe_type = RecipeType.QUARTZ
-    elif recipe_data.name.lower() in ['oq marmar', 'marble', 'marmar']:
-        recipe_type = RecipeType.MARBLE
-    else:
-        # Default
-        recipe_type = RecipeType.QUARTZ
-
+    """Yangi retsept qo'shadi. Nomi ISTALGAN bo'lishi mumkin,
+    tarkibi Omborxonadagi istalgan materiallardan (ingredients ro'yxati) tuziladi."""
     db_recipe = Recipe(
-        name=recipe_type,
-        akril_kg=recipe_data.akril_kg,
-        pva_kg=recipe_data.pva_kg,
-        qum_kg=recipe_data.qum_kg,
-        kroshka_kg=recipe_data.kroshka_kg,
-        penogasitel_kg=recipe_data.penogasitel_kg,
-        shtukaturka_kg=recipe_data.shtukaturka_kg,
-        suv_kg=recipe_data.suv_kg,
-        biotsid_ml=recipe_data.biotsid_ml,
+        name=recipe_data.name.strip(),
         batch_size_kg=recipe_data.batch_size_kg,
         notes=recipe_data.notes
     )
     db.add(db_recipe)
+    db.flush()
+
+    for ing in recipe_data.ingredients:
+        db.add(RecipeIngredient(
+            recipe_id=db_recipe.id,
+            inventory_id=ing.inventory_id,
+            quantity_kg=ing.quantity_kg
+        ))
+
+    db.commit()
+    db.refresh(db_recipe)
+    return db_recipe
+
+
+def update_recipe(db: Session, recipe_id: int, recipe_data: RecipeCreate) -> Optional[Recipe]:
+    """Mavjud retseptni tahrirlaydi — nomi, hajmi va BUTUN tarkibini
+    (eski ingredientlar o'chirilib, yangilari yoziladi) yangilaydi."""
+    db_recipe = get_recipe(db, recipe_id)
+    if not db_recipe:
+        return None
+
+    db_recipe.name = recipe_data.name.strip()
+    db_recipe.batch_size_kg = recipe_data.batch_size_kg
+    db_recipe.notes = recipe_data.notes
+    db_recipe.updated_at = datetime.utcnow()
+
+    # Eski tarkibni butunlay almashtiramiz
+    db.query(RecipeIngredient).filter(RecipeIngredient.recipe_id == recipe_id).delete()
+    for ing in recipe_data.ingredients:
+        db.add(RecipeIngredient(
+            recipe_id=recipe_id,
+            inventory_id=ing.inventory_id,
+            quantity_kg=ing.quantity_kg
+        ))
+
     db.commit()
     db.refresh(db_recipe)
     return db_recipe
@@ -497,12 +507,13 @@ def get_recipe(db: Session, recipe_id: int) -> Optional[Recipe]:
 
 
 def get_recipe_by_name(db: Session, name: str) -> Optional[Recipe]:
-    """Nom bo'yicha retseptni topadi (Kvars yoki Oq Marmar)."""
-    if name.lower() in ['kvars', 'quartz']:
-        return db.query(Recipe).filter(Recipe.name == RecipeType.QUARTZ).first()
-    elif name.lower() in ['oq marmar', 'marble', 'marmar']:
-        return db.query(Recipe).filter(Recipe.name == RecipeType.MARBLE).first()
-    return None
+    """Nom bo'yicha retseptni topadi (istalgan nom, aniq yoki qisman moslik)."""
+    if not name:
+        return None
+    exact = db.query(Recipe).filter(Recipe.name.ilike(name.strip())).first()
+    if exact:
+        return exact
+    return db.query(Recipe).filter(Recipe.name.ilike(f"%{name.strip()}%")).first()
 
 
 def delete_recipe(db: Session, recipe_id: int) -> bool:
@@ -882,24 +893,14 @@ def mark_order_ready(db: Session, order_id: int) -> dict:
             # Necha partiya kerak
             batches = total_kg_needed / recipe.batch_size_kg if recipe.batch_size_kg else 0
 
-            # Komponentlarni kamaytiramiz
-            components = {
-                "Akril": recipe.akril_kg * batches,
-                "PVA": recipe.pva_kg * batches,
-                "Qum": recipe.qum_kg * batches,
-                "Kroshka": recipe.kroshka_kg * batches,
-                "Penogasitel": recipe.penogasitel_kg * batches,
-                "Shtukaturka": recipe.shtukaturka_kg * batches,
-                "Suv": recipe.suv_kg * batches,
-                "Biotsid": recipe.biotsid_ml * batches,
-            }
-
-            for comp_name, qty in components.items():
-                if qty > 0:
-                    # Inventoryda topish (qisman moslik bilan) — QULFLAB olamiz, shunda
-                    # boshqa foydalanuvchi shu vaqtda aynan shu xomashyoni o'zgartira olmaydi
+            # Har bir tarkibiy qismni (Omborxonadagi ISTALGAN material) kamaytiramiz
+            for ing in recipe.ingredients:
+                qty = float(ing.quantity_kg or 0) * batches
+                if qty > 0 and ing.inventory:
+                    # QULFLAB olamiz, shunda boshqa foydalanuvchi shu vaqtda
+                    # aynan shu xomashyoni o'zgartira olmaydi
                     inv_item = db.query(Inventory).filter(
-                        Inventory.item_name.ilike(f"%{comp_name}%")
+                        Inventory.id == ing.inventory_id
                     ).with_for_update().first()
                     if inv_item:
                         inv_item.stock_quantity = max(0, inv_item.stock_quantity - qty)
@@ -1197,11 +1198,39 @@ def get_return_item(db: Session, return_id: int) -> Optional[ReturnItem]:
     return db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
 
 
-def mark_refunded(db: Session, return_id: int) -> Optional[ReturnItem]:
-    """Qaytarishni 'to'landi' deb belgilaydi."""
+def mark_refunded(db: Session, return_id: int, refunded_by: str = None) -> Optional[ReturnItem]:
+    """Qaytarishni 'pul qaytarildi' deb belgilaydi VA buni moliyaga to'g'ri
+    ta'sir qiladigan qilib yozadi:
+
+    1) Buyurtmaning 'agreed_amount' (kelishilgan summa) — refund_amount ga
+       kamaytiriladi. Shu orqali bu pul endi Moliyadagi daromad/foyda
+       hisob-kitoblarida (calculate_order_profit agreed_amount'dan
+       foydalanadi) AVTOMATIK kamayadi — alohida "kirim" bo'lib qolmaydi.
+    2) MANFIY to'lov yozuvi qo'shiladi (mijozga naqd qaytarilgan puл),
+       shunda "To'langan" va "Qarz qoldi" ham to'g'ri, izchil qoladi.
+    """
     item = get_return_item(db, return_id)
     if not item:
         return None
+    if item.is_refunded:
+        return item  # Allaqachon qaytarilgan — qayta ishlamaymiz
+
+    from models import Payment, PaymentType
+    refund_amount = float(item.refund_amount or 0)
+
+    if refund_amount > 0 and item.order:
+        order = item.order
+        order.agreed_amount = max(0, float(order.agreed_amount or order.total_amount or 0) - refund_amount)
+
+        payment = Payment(
+            order_id=order.id,
+            amount=-refund_amount,
+            payment_type=PaymentType.PARTIAL,
+            received_by=refunded_by,
+            notes=f"Qaytarilgan mahsulot uchun pul qaytarildi: {item.item_name} ({item.quantity} {item.unit})"
+        )
+        db.add(payment)
+
     item.is_refunded = True
     db.commit()
     db.refresh(item)
