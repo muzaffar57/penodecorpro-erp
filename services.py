@@ -269,6 +269,62 @@ def get_top_products_report(db: Session, days: int = 90, limit: int = 15) -> lis
     } for r in rows]
 
 
+def get_top_finished_products_sold(db: Session, days: int = 30, limit: int = 5) -> list:
+    """Dashboard uchun — FAQAT 'Tayyor mahsulotlar' bo'limidan sotilgan
+    tovarlar (OrderItem.finished_product_id to'ldirilgan, ya'ni buyurtma
+    tayyor ombordan berilgan — maxsus buyurtma qilingan detal EMAS).
+    Qaytarilgan miqdor (ReturnItem) — nomi va buyurtma ID'si bo'yicha
+    moslashtirilib, sotilgan miqdordan AYRIB tashlanadi. Faqat o'qish."""
+    from models import OrderItem, Order, OrderStatus, ReturnItem
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    period_start = datetime.utcnow() - timedelta(days=days)
+
+    sold_rows = db.query(
+        OrderItem.name,
+        OrderItem.order_id,
+        func.sum(OrderItem.total_price).label("revenue"),
+        func.sum(OrderItem.quantity).label("qty")
+    ).join(Order, OrderItem.order_id == Order.id).filter(
+        OrderItem.finished_product_id.isnot(None),
+        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
+        Order.completed_at >= period_start
+    ).group_by(OrderItem.name, OrderItem.order_id).all()
+
+    # Qaytarishlarni (nomi + buyurtma bo'yicha) yig'amiz, keyin ayiramiz
+    returns = db.query(
+        ReturnItem.item_name, ReturnItem.order_id,
+        func.sum(ReturnItem.quantity).label("ret_qty")
+    ).filter(ReturnItem.returned_at >= period_start).group_by(
+        ReturnItem.item_name, ReturnItem.order_id
+    ).all()
+    returned_map = {(r.item_name, r.order_id): float(r.ret_qty or 0) for r in returns}
+
+    totals = {}
+    for r in sold_rows:
+        qty = float(r.qty or 0)
+        revenue = float(r.revenue or 0)
+        ret_qty = returned_map.get((r.name, r.order_id), 0)
+        if ret_qty > 0 and qty > 0:
+            # Qaytgan ulushga mos ravishda, daromadni ham proportsional kamaytiramiz
+            keep_ratio = max(0, (qty - ret_qty) / qty)
+            qty = qty * keep_ratio
+            revenue = revenue * keep_ratio
+
+        if r.name not in totals:
+            totals[r.name] = {"name": r.name, "revenue": 0.0, "quantity": 0.0, "times_ordered": 0}
+        totals[r.name]["revenue"] += revenue
+        totals[r.name]["quantity"] += qty
+        totals[r.name]["times_ordered"] += 1
+
+    result = sorted(totals.values(), key=lambda x: x["revenue"], reverse=True)[:limit]
+    for r in result:
+        r["revenue"] = round(r["revenue"])
+        r["quantity"] = round(r["quantity"], 1)
+    return result
+
+
 def get_top_materials_report(db: Session, days: int = 90, limit: int = 15) -> list:
     """Eng ko'p ishlatilgan (chiqim bo'lgan) xomashyolar — InventoryMovement
     jurnalidan, nomi bo'yicha guruhlangan. Faqat o'qish."""
