@@ -479,6 +479,96 @@ def get_business_health(db: Session) -> dict:
     }
 
 
+def get_recurring_obligations(db: Session) -> list:
+    """Barcha sozlangan doimiy majburiyatlar (Arenda, Soliq) ro'yxati —
+    sozlash sahifasi uchun."""
+    from models import RecurringObligation
+    rows = db.query(RecurringObligation).order_by(RecurringObligation.label).all()
+    return [{
+        "id": r.id, "category": r.category, "label": r.label,
+        "monthly_target": float(r.monthly_target or 0), "is_active": r.is_active
+    } for r in rows]
+
+
+def set_recurring_obligation(db: Session, category: str, label: str, monthly_target: float) -> dict:
+    """Doimiy majburiyat maqsadini yaratadi yoki yangilaydi (masalan
+    'Arenda — har oy 2,000,000 so'm to'lanishi kerak')."""
+    from models import RecurringObligation
+    obl = db.query(RecurringObligation).filter(RecurringObligation.category == category).first()
+    if obl:
+        obl.label = label
+        obl.monthly_target = monthly_target
+    else:
+        obl = RecurringObligation(category=category, label=label, monthly_target=monthly_target, is_active=True)
+        db.add(obl)
+    db.commit()
+    db.refresh(obl)
+    return {"id": obl.id, "category": obl.category, "label": obl.label, "monthly_target": float(obl.monthly_target)}
+
+
+def get_company_obligations_status(db: Session, year: int, month: int) -> dict:
+    """Kompaniyaning O'ZI kimlarga qarzdorligini — bitta joyda yig'ib beradi:
+    1) Hodimlarga (oylik hisob-kitobdagi 'qolgan' — avans ayrilgandan keyingi qism)
+    2) Doimiy majburiyatlar (Arenda, Soliq — maqsad va haqiqiy to'lov solishtirilib)
+    Ikkalasi ham — FAQAT o'qish, mavjud, sinalgan hisob-kitoblardan foydalanadi."""
+    from models import RecurringObligation, ExpenseTransaction
+    from sqlalchemy import func
+    from datetime import datetime
+
+    # 1) Hodimlar
+    emp_result = calculate_monthly_employee_pay(db, year, month, 0, 0, 0, 0, 0)
+    employees = [
+        {
+            "employee_id": e["employee_id"], "name": e["name"], "detail": e["detail"],
+            "amount": e["amount"], "avans": e["avans"], "qolgan": e["qolgan"]
+        }
+        for e in emp_result["breakdown"] if e["qolgan"] > 0.5
+    ]
+    total_employee_debt = sum(e["qolgan"] for e in employees)
+
+    # 2) Doimiy majburiyatlar (Arenda, Soliq)
+    recurring = []
+    obligations = db.query(RecurringObligation).filter(RecurringObligation.is_active == True).all()
+    for obl in obligations:
+        target = float(obl.monthly_target or 0)
+        if target <= 0:
+            continue
+        paid = db.query(func.sum(ExpenseTransaction.amount)).filter(
+            ExpenseTransaction.category == obl.category,
+            func.extract('year', ExpenseTransaction.date) == year,
+            func.extract('month', ExpenseTransaction.date) == month
+        ).scalar() or 0
+        paid = float(paid)
+        debt = max(0, target - paid)
+        if debt > 0.5:
+            recurring.append({
+                "category": obl.category, "label": obl.label,
+                "target": round(target), "paid": round(paid), "debt": round(debt)
+            })
+    total_recurring_debt = sum(r["debt"] for r in recurring)
+
+    return {
+        "employees": employees,
+        "total_employee_debt": round(total_employee_debt),
+        "recurring": recurring,
+        "total_recurring_debt": round(total_recurring_debt),
+        "total_company_debt": round(total_employee_debt + total_recurring_debt),
+    }
+
+
+def close_employee_debt(db: Session, employee_id: int, year: int, month: int, amount: float, paid_by: str = None) -> dict:
+    """Hodimning shu oydagi qolgan qarzini to'lash — mavjud, sinalgan
+    EmployeeAdvance mexanizmining o'zidan foydalanadi (avans va yakuniy
+    to'lov — matematik jihatdan bir xil narsa: ikkalasi ham hisoblangan
+    oylikdan ayriladi)."""
+    from datetime import datetime
+    import crud as _crud
+    adv_date = datetime(year, month, min(28, datetime.utcnow().day) if (year, month) == (datetime.utcnow().year, datetime.utcnow().month) else 28)
+    adv = _crud.create_employee_advance(db, employee_id, amount, notes="Oy oxiri — qolgan oylik to'landi",
+                                         given_by=paid_by, adv_date=adv_date)
+    return {"success": adv is not None}
+
+
 
     """Bosh sahifadagi 'Bugungi vazifalar' bloki uchun — faqat o'qish,
     mavjud funksiyalardan (get_today_stats, low stock, loyihalar) foydalanadi."""
