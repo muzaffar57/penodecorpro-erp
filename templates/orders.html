@@ -3128,12 +3128,13 @@ async function deleteSelected() {
   // Buyurtma holatini olamiz
   let info = '';
   let orderNum = selectedOrderId;
+  let hasDelivery = false;
   try {
     const r = await fetch(`/api/orders/${selectedOrderId}`);
     if (r.ok) {
       const o = await r.json();
       orderNum = o.order_number || selectedOrderId;
-      const hasDelivery = (o.deliveries?.length || 0) > 0;
+      hasDelivery = (o.deliveries?.length || 0) > 0;
 
       let isSoftCase = false;
       if (o.is_draft) {
