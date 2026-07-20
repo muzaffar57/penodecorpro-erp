@@ -277,6 +277,7 @@ class Order(Base):
     returns = relationship("ReturnItem", back_populates="order", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
     deliveries = relationship("Delivery", back_populates="order", cascade="all, delete-orphan")
+    attachments = relationship("OrderAttachment", back_populates="order", cascade="all, delete-orphan")
 
     @property
     def delivery_percent(self):
@@ -764,7 +765,7 @@ class OrderAttachment(Base):
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     uploaded_by = Column(String(100), nullable=True)
 
-    order = relationship("Order")
+    order = relationship("Order", back_populates="attachments")
 
 
 # ============================================================
