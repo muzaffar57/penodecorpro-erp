@@ -149,11 +149,33 @@
     </div>
   </aside>
 
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <script>
+    window.toggleSidebar = function() {
+      document.querySelector('.sidebar').classList.toggle('sidebar-open');
+      document.getElementById('sidebarOverlay').classList.toggle('active');
+    };
+    window.closeSidebar = function() {
+      document.querySelector('.sidebar').classList.remove('sidebar-open');
+      document.getElementById('sidebarOverlay').classList.remove('active');
+    };
+    // Menyudagi havolalardan birini bossa — mobil menyu avtomatik yopilsin
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.sidebar .nav-item').forEach(function(el) {
+        el.addEventListener('click', closeSidebar);
+      });
+    });
+  </script>
+
   {# ── MAIN ── #}
   <div class="erp-main">
     {# Topbar #}
     <header class="erp-topbar">
       <div class="tb-left">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menyu">
+          <i class="ti ti-menu-2" style="font-size:18px"></i>
+        </button>
         <div class="page-title">{% block page_title %}{% endblock %}</div>
         <div class="page-sub">{% block page_sub %}{% endblock %}</div>
       </div>
