@@ -553,17 +553,20 @@ class EmployeeAdvance(Base):
 
 
 class RecurringObligation(Base):
-    """Har oy takrorlanadigan majburiy xarajat (Arenda, Soliq va h.k.) uchun
-    'har oy qancha to'lanishi KERAK' maqsadini saqlaydi. Admin buni BIR
-    MARTA belgilaydi (yoki kerak bo'lganda o'zgartiradi), tizim esa har
-    oy buni haqiqiy to'lovlar (ExpenseTransaction, shu kategoriyada)
-    bilan solishtirib, avtomatik qarz/ogohlantirish chiqaradi."""
+    """Har oy takrorlanadigan majburiy xarajat (Arenda, Soliq, Transport,
+    Kommunal va ISTALGAN boshqa kategoriya) uchun 'har oy qancha
+    to'lanishi KERAK' maqsadini saqlaydi. Admin buni sozlaydi (istalgan
+    yangi kategoriya qo'sha oladi), tizim esa har oy buni haqiqiy
+    to'lovlar (ExpenseTransaction, shu kategoriyada) bilan solishtirib,
+    avtomatik qarz/ogohlantirish chiqaradi."""
     __tablename__ = "recurring_obligations"
 
     id = Column(Integer, primary_key=True, index=True)
-    category = Column(String(30), unique=True, nullable=False)  # 'arenda', 'soliqlar' — ExpenseTransaction kategoriyasiga mos
-    label = Column(String(60), nullable=False)  # "Arenda (arendator)", "Soliqlar"
+    category = Column(String(30), unique=True, nullable=False)  # ExpenseTransaction.category bilan bir xil bo'lishi kerak
+    label = Column(String(60), nullable=False)  # "Arenda (arendator)", "Transport"
+    icon = Column(String(10), default="📦")
     monthly_target = Column(Numeric(12, 2), default=0)  # Har oy qancha to'lanishi kerak
+    due_day = Column(Integer, default=5)  # Oyning nechinchi kunigacha to'lanishi kerak (masalan 5 — har oy 5-sanagacha)
     is_active = Column(Boolean, default=True)
 
     def __repr__(self):
