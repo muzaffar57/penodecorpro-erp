@@ -1,221 +1,259 @@
 {% extends "base.html" %}
 {% block title %}Qarzdorlar — PenoDecorPro ERP{% endblock %}
 {% block page_title %}Qarzdorlar{% endblock %}
-{% block page_sub %}To'liq to'lanmagan loyihalar{% endblock %}
+{% block page_sub %}Mijozlarning bizga qarzi va bizning yetkazib beruvchilarga qarzimiz{% endblock %}
 
 {% block head %}
 <style>
-.debt-grid{display:grid;grid-template-columns:1fr 320px;gap:14px;height:calc(100vh - 90px)}
-.debt-list{overflow-y:auto;flex:1}
-.debt-item{padding:14px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
-.debt-item:hover{background:#fafaf8}
-.debt-item.active{background:#fff8f0;border-left:3px solid #EF4444}
-.debt-amount{font-size:18px;font-weight:700;color:#EF4444}
-.debt-client{font-size:13px;font-weight:500;color:#111;margin:2px 0}
-.debt-info{font-size:11px;color:#aaa}
-.progress-bar{height:6px;background:#f0f0f0;border-radius:3px;margin-top:8px}
-.progress-fill{height:100%;background:#22C55E;border-radius:3px}
-.sum-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
-.sum-item:last-child{border-bottom:none}
+.dbt-wrap{--d-bg:#F5F7FA;--d-card:#FFFFFF;--d-border:#E5E7EB;--d-danger:#EF4444;--d-warning:#F59E0B;--d-success:#22C55E;--d-primary:#2563EB;--d-text:#111827;--d-text2:#4B5563;--d-text3:#9CA3AF;background:var(--d-bg);margin:-24px;padding:24px}
+.dbt-wrap *{box-sizing:border-box}
+.dbt-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:800px){.dbt-summary-grid{grid-template-columns:1fr}}
+.dbt-summary-card{background:#fff;border-radius:16px;padding:22px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);display:flex;align-items:center;gap:16px}
+.dbt-summary-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.dbt-summary-label{font-size:12.5px;color:var(--d-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.dbt-summary-value{font-size:24px;font-weight:800;color:var(--d-text);margin-top:2px}
+.dbt-tabs{display:flex;gap:6px;margin-bottom:16px}
+.dbt-tab{padding:9px 16px;font-size:13px;font-weight:600;border-radius:9px;border:1px solid var(--d-border);background:#fff;color:var(--d-text2);cursor:pointer}
+.dbt-tab.active{background:var(--d-text);color:#fff;border-color:var(--d-text)}
+.dbt-grid{display:grid;grid-template-columns:1fr 340px;gap:16px}
+@media(max-width:950px){.dbt-grid{grid-template-columns:1fr}}
+.dbt-card{background:#fff;border:1px solid var(--d-border);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);overflow:hidden}
+.dbt-list{max-height:calc(100vh - 320px);overflow-y:auto}
+.dbt-item{padding:14px 18px;border-bottom:1px solid #F3F4F6;cursor:pointer;transition:background .12s}
+.dbt-item:hover{background:var(--d-bg)}
+.dbt-item.active{background:#FEF2F2;border-left:3px solid var(--d-danger)}
+.dbt-item-name{font-size:13.5px;font-weight:600;color:var(--d-text)}
+.dbt-item-sub{font-size:11.5px;color:var(--d-text3);margin-top:2px}
+.dbt-item-amount{font-size:16px;font-weight:800;color:var(--d-danger)}
+.dbt-progress-track{height:5px;background:#F3F4F6;border-radius:3px;margin-top:8px}
+.dbt-progress-fill{height:100%;background:var(--d-success);border-radius:3px}
+.dbt-sum-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #F3F4F6;font-size:13px}
+.dbt-sum-row:last-child{border-bottom:none}
+.dbt-empty{text-align:center;padding:56px 20px;color:var(--d-text3)}
+.dbt-empty .ti{font-size:38px;margin-bottom:12px;display:block;color:var(--d-success)}
 </style>
 {% endblock %}
 
-{% block topbar_actions %}
-<div style="display:flex;gap:8px;align-items:center">
-  <span style="font-size:13px;color:#EF4444;font-weight:600">
-    Jami qarz: {{ "{:,.0f}".format(total_debt).replace(","," ") }} so'm
-  </span>
-</div>
-{% endblock %}
+{% block topbar_actions %}{% endblock %}
 
 {% block content %}
-<div style="padding:14px;height:calc(100vh - 58px);overflow:hidden">
-<div class="debt-grid">
+<div class="dbt-wrap">
 
-  <!-- Chap: Qarzdorlar ro'yxati -->
-  <div class="card" style="overflow:hidden;display:flex;flex-direction:column">
-    <div class="card-head">
-      <h3>Qarzdorlar ({{ debts|length }} ta)</h3>
-      <input placeholder="Qidirish..." oninput="searchDebts(this.value)"
-             style="padding:5px 10px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px;width:140px;outline:none">
+  <div class="dbt-summary-grid">
+    <div class="dbt-summary-card">
+      <div class="dbt-summary-icon" style="background:#FEF2F2;color:#EF4444"><i class="ti ti-arrow-down-left"></i></div>
+      <div>
+        <div class="dbt-summary-label">Bizga qarzdorlar (mijozlar)</div>
+        <div class="dbt-summary-value">{{ "{:,.0f}".format(total_customer_debt).replace(",", " ") }} so'm</div>
+      </div>
     </div>
-    <div class="debt-list">
-      {% if debts %}
-        {% for p in debts %}
-        {% set qarz = p.total_budget|float - p.total_paid|float %}
-        {% set pct = [(p.total_paid|float / p.total_budget|float * 100)|round if p.total_budget|float > 0 else 0, 100]|min %}
-        <div class="debt-item {% if loop.first %}active{% endif %}"
-             onclick="selectDebt(this)"
-             data-id="{{ p.id }}"
-             data-client="{{ p.client_name }}"
-             data-phone="{{ p.client_phone or '—' }}"
-             data-project="{{ p.project_name }}"
-             data-budget="{{ p.total_budget }}"
-             data-paid="{{ p.total_paid }}"
-             data-qarz="{{ qarz }}"
-             data-notes="{{ p.notes or '' }}"
-             data-deadline="{{ p.deadline.strftime('%d.%m.%Y') if p.deadline else '—' }}">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start">
-            <div>
-              <div class="debt-client">{{ p.client_name }}</div>
-              <div class="debt-info">{{ p.project_name }} · {{ p.client_phone or '' }}</div>
+    <div class="dbt-summary-card">
+      <div class="dbt-summary-icon" style="background:#FFFBEB;color:#F59E0B"><i class="ti ti-arrow-up-right"></i></div>
+      <div>
+        <div class="dbt-summary-label">Biz qarzdormiz (yetkazib beruvchilar)</div>
+        <div class="dbt-summary-value">{{ "{:,.0f}".format(total_supplier_debt).replace(",", " ") }} so'm</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dbt-tabs">
+    <button class="dbt-tab active" data-t="customers" onclick="switchTab('customers')">👤 Bizga qarzdorlar ({{ order_debts|length }})</button>
+    <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')">🚚 Biz qarzdormiz ({{ supplier_debts|length }})</button>
+  </div>
+
+  <!-- MIJOZ QARZLARI -->
+  <div id="tab-customers">
+    <div class="dbt-grid">
+      <div class="dbt-card">
+        <div class="dbt-list">
+          {% if order_debts %}
+            {% for o in order_debts %}
+            {% set paid_pct = ((o.paid_amount|float / o.agreed_amount|float * 100) if o.agreed_amount|float > 0 else 0) %}
+            <div class="dbt-item {% if loop.first %}active{% endif %}" onclick="selectOrderDebt(this)"
+                 data-id="{{ o.id }}"
+                 data-order-number="{{ o.order_number }}"
+                 data-client="{{ o.project.client_name }}"
+                 data-phone="{{ o.project.client_phone or '—' }}"
+                 data-project="{{ o.project.project_name }}"
+                 data-agreed="{{ o.agreed_amount }}"
+                 data-paid="{{ o.paid_amount }}"
+                 data-debt="{{ o.debt_amount }}"
+                 data-deadline="{{ o.deadline.strftime('%d.%m.%Y') if o.deadline else '—' }}">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div>
+                  <div class="dbt-item-name">{{ o.project.client_name }}</div>
+                  <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name }}</div>
+                </div>
+                <div class="dbt-item-amount">{{ "{:,.0f}".format(o.debt_amount).replace(",", " ") }} so'm</div>
+              </div>
+              <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ paid_pct|round }}%"></div></div>
             </div>
-            <div class="debt-amount">{{ "{:,.0f}".format(qarz).replace(","," ") }} so'm</div>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#aaa">
-            <span>{{ pct }}% to'langan</span>
-            {% if p.deadline %}
-            <span style="color:#F59E0B">⏰ {{ p.deadline.strftime('%d.%m.%Y') }}</span>
-            {% endif %}
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width:{{ pct }}%"></div>
+            {% endfor %}
+          {% else %}
+            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:15px;font-weight:600;color:var(--d-text2)">Barcha mijozlar to'liq to'lagan!</div></div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="dbt-card" id="custDetailCard">
+          <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px" id="cd-name">Mijoz tanlang</div>
+          <div style="padding:16px 18px" id="cd-body">
+            <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Chapdan mijozni tanlang</div>
           </div>
         </div>
-        {% endfor %}
-      {% else %}
-        <div style="text-align:center;padding:60px;color:#22C55E">
-          <div style="font-size:40px;margin-bottom:12px">✅</div>
-          <div style="font-size:16px;font-weight:500">Barcha to'lovlar amalga oshirilgan!</div>
+
+        <div class="dbt-card" id="payCard" style="display:none;border-left:3px solid #22C55E">
+          <div style="padding:14px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:14px">💰 To'lov qabul qilish</div>
+          <div style="padding:16px 18px">
+            <div class="form-group"><label>Summa (so'm)</label><input type="text" id="pay-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
+            <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="pay-note" placeholder="..."></div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--d-text2);margin-bottom:12px;cursor:pointer">
+              <input type="checkbox" id="pay-writeoff" style="width:15px;height:15px">
+              Qolgan qarzni chegirma qilib yopish
+            </label>
+            <button class="btn btn-dark w-full" onclick="savePayment()">✓ To'lovni qabul qilish</button>
+            <div id="pay-msg" style="display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px"></div>
+          </div>
         </div>
-      {% endif %}
+      </div>
     </div>
   </div>
 
-  <!-- O'ng: Tafsilot -->
-  <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto">
-
-    <!-- Mijoz ma'lumotlari -->
-    <div class="card" id="debtDetail">
-      <div class="card-head"><h3 id="d-client">Mijoz tanlang</h3></div>
-      <div style="padding:12px" id="d-body">
-        <div style="text-align:center;padding:30px;color:#bbb">Chapdan mijozni tanlang</div>
+  <!-- YETKAZIB BERUVCHI QARZLARI -->
+  <div id="tab-suppliers" style="display:none">
+    <div class="dbt-grid">
+      <div class="dbt-card">
+        <div class="dbt-list">
+          {% if supplier_debts %}
+            {% for s in supplier_debts %}
+            {% set spaid_pct = ((s.total_paid / s.total_credit * 100) if s.total_credit > 0 else 0) %}
+            <div class="dbt-item {% if loop.first %}active{% endif %}" onclick="selectSupplierDebt(this)"
+                 data-id="{{ s.id }}" data-name="{{ s.name }}" data-phone="{{ s.phone or '—' }}"
+                 data-credit="{{ s.total_credit }}" data-paid="{{ s.total_paid }}" data-debt="{{ s.debt }}"
+                 data-count="{{ s.purchase_count }}">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div>
+                  <div class="dbt-item-name">{{ s.name }}</div>
+                  <div class="dbt-item-sub">{{ s.phone or '—' }} · {{ s.purchase_count }} ta xarid</div>
+                </div>
+                <div class="dbt-item-amount" style="color:#F59E0B">{{ "{:,.0f}".format(s.debt).replace(",", " ") }} so'm</div>
+              </div>
+              <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ spaid_pct|round }}%;background:#F59E0B"></div></div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:15px;font-weight:600;color:var(--d-text2)">Barcha yetkazib beruvchilarga to'liq to'langan!</div></div>
+          {% endif %}
+        </div>
       </div>
-    </div>
 
-    <!-- To'lov qo'shish -->
-    <div class="card" id="payCard" style="display:none;border-left:3px solid #22C55E;border-radius:0 12px 12px 0">
-      <div class="card-head"><h3>💰 To'lov qabul qilish</h3></div>
-      <div style="padding:12px">
-        <div class="form-group">
-          <label>Summa (so'm)</label>
-          <input type="number" id="pay-amount" placeholder="0" min="0"
-                 style="width:100%;padding:9px 12px;border:1px solid #e8e8e8;border-radius:8px;font-size:14px;outline:none">
-        </div>
-        <div class="form-group">
-          <label>Izoh (ixtiyoriy)</label>
-          <input type="text" id="pay-note" placeholder="To'lov sababi..."
-                 style="width:100%;padding:9px 12px;border:1px solid #e8e8e8;border-radius:8px;font-size:13px;outline:none">
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-green w-full" onclick="savePayment()">✓ To'lovni qabul qilish</button>
-        </div>
-        <div id="pay-msg" style="display:none;margin-top:8px;padding:8px;border-radius:7px;font-size:13px"></div>
-      </div>
-    </div>
-
-    <!-- Umumiy statistika -->
-    <div class="card">
-      <div class="card-head"><h3>📊 Umumiy holat</h3></div>
-      <div style="padding:12px">
-        <div class="sum-item">
-          <span style="color:#aaa">Jami qarzdorlar</span>
-          <span style="font-weight:600">{{ debts|length }} ta</span>
-        </div>
-        <div class="sum-item">
-          <span style="color:#aaa">Jami qarz</span>
-          <span style="font-weight:600;color:#EF4444">{{ "{:,.0f}".format(total_debt).replace(","," ") }} so'm</span>
-        </div>
-        <div class="sum-item">
-          <span style="color:#aaa">Jami to'langan</span>
-          <span style="font-weight:600;color:#22C55E">{{ "{:,.0f}".format(total_paid).replace(","," ") }} so'm</span>
-        </div>
-        <div class="sum-item">
-          <span style="color:#aaa">Jami byudjet</span>
-          <span style="font-weight:600">{{ "{:,.0f}".format(total_budget).replace(","," ") }} so'm</span>
+      <div class="dbt-card">
+        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px" id="sd-name">Yetkazib beruvchi tanlang</div>
+        <div style="padding:16px 18px" id="sd-body">
+          <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Chapdan tanlang</div>
         </div>
       </div>
     </div>
-
   </div>
-</div>
+
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-let selectedProjId = null;
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+function parseNum(v) { return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0; }
+function formatPriceInput(input) { const val = parseNum(input.value); if (val > 0) input.value = fmt(val); }
 
-function selectDebt(el) {
-  document.querySelectorAll('.debt-item').forEach(i => i.classList.remove('active'));
+function switchTab(t){
+  document.querySelectorAll('.dbt-tab').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+  document.getElementById('tab-customers').style.display = t === 'customers' ? 'block' : 'none';
+  document.getElementById('tab-suppliers').style.display = t === 'suppliers' ? 'block' : 'none';
+}
+
+let selectedOrderId = null;
+
+function selectOrderDebt(el){
+  document.querySelectorAll('#tab-customers .dbt-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
-  selectedProjId = el.dataset.id;
+  selectedOrderId = el.dataset.id;
   const d = el.dataset;
-  const qarz = parseFloat(d.qarz);
-  const budget = parseFloat(d.budget);
-  const paid = parseFloat(d.paid);
-  const pct = budget > 0 ? Math.min(100, (paid/budget*100)).toFixed(0) : 0;
+  const agreed = parseFloat(d.agreed), paid = parseFloat(d.paid), debt = parseFloat(d.debt);
+  const pct = agreed > 0 ? Math.min(100, (paid/agreed*100)).toFixed(0) : 0;
 
-  document.getElementById('d-client').textContent = d.client;
-  document.getElementById('d-body').innerHTML = `
-    <div class="sum-item"><span style="color:#aaa">Loyiha</span><span style="font-weight:500">${d.project}</span></div>
-    <div class="sum-item"><span style="color:#aaa">Telefon</span><span>${d.phone}</span></div>
-    <div class="sum-item"><span style="color:#aaa">Muddat</span><span style="color:#F59E0B">${d.deadline}</span></div>
-    <div class="sum-item"><span style="color:#aaa">Jami byudjet</span><span style="font-weight:500">${Number(budget).toLocaleString('uz')} so'm</span></div>
-    <div class="sum-item"><span style="color:#aaa">To'langan</span><span style="font-weight:500;color:#22C55E">${Number(paid).toLocaleString('uz')} so'm</span></div>
-    <div class="sum-item" style="border-top:2px solid #EF4444;padding-top:10px;margin-top:4px">
-      <span style="font-weight:600">QARZ:</span>
-      <span style="font-weight:700;font-size:16px;color:#EF4444">${Number(qarz).toLocaleString('uz')} so'm</span>
+  document.getElementById('cd-name').textContent = d.client;
+  document.getElementById('cd-body').innerHTML = `
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Buyurtma</span><span style="font-weight:600">${d.orderNumber}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Loyiha</span><span>${d.project}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${d.phone}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Muddat</span><span style="color:#F59E0B">${d.deadline}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Kelishilgan summa</span><span style="font-weight:600">${fmt(agreed)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${fmt(paid)} so'm</span></div>
+    <div class="dbt-sum-row" style="border-top:2px solid #EF4444;padding-top:10px;margin-top:4px">
+      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:17px;color:#EF4444">${fmt(debt)} so'm</span>
     </div>
-    <div style="margin-top:10px">
-      <div style="height:8px;background:#f0f0f0;border-radius:4px">
-        <div style="height:100%;width:${pct}%;background:#22C55E;border-radius:4px"></div>
-      </div>
-      <div style="font-size:11px;color:#aaa;margin-top:4px;text-align:right">${pct}% to'langan</div>
-    </div>
-    ${d.notes ? `<div style="margin-top:10px;padding:10px;background:#FEF3C7;border-radius:8px;font-size:12px;color:#b7770d">📝 ${d.notes}</div>` : ''}`;
+    <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%"></div></div>
+      <div style="font-size:11px;color:#9CA3AF;margin-top:4px;text-align:right">${pct}% to'langan</div></div>
+    <a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#2563EB;text-decoration:none">Buyurtmalar sahifasida ochish →</a>`;
 
   document.getElementById('payCard').style.display = 'block';
-  document.getElementById('pay-amount').value = '';
+  document.getElementById('pay-amount').value = fmt(debt);
   document.getElementById('pay-note').value = '';
+  document.getElementById('pay-writeoff').checked = false;
   document.getElementById('pay-msg').style.display = 'none';
 }
 
-async function savePayment() {
-  if (!selectedProjId) return;
-  const amount = parseFloat(document.getElementById('pay-amount').value);
+async function savePayment(){
+  if (!selectedOrderId) return;
+  const amount = parseNum(document.getElementById('pay-amount').value);
   if (!amount || amount <= 0) { alert('Summa kiriting!'); return; }
+  const writeOff = document.getElementById('pay-writeoff').checked;
+  const notes = document.getElementById('pay-note').value;
 
-  const res = await fetch(`/api/projects/${selectedProjId}/payment?amount=${amount}`, {
-    method: 'POST'
+  const res = await fetch(`/api/payments?write_off_remainder=${writeOff}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ order_id: parseInt(selectedOrderId), amount, notes: notes || null })
   });
 
   const msg = document.getElementById('pay-msg');
+  msg.style.display = 'block';
   if (res.ok) {
-    msg.style.display = 'block';
-    msg.style.background = '#DCFCE7';
-    msg.style.color = '#1e7e34';
-    msg.textContent = `✓ ${Number(amount).toLocaleString('uz')} so'm qabul qilindi!`;
-    setTimeout(() => location.reload(), 1500);
+    msg.style.background = '#DCFCE7'; msg.style.color = '#166534';
+    msg.textContent = `✓ ${fmt(amount)} so'm qabul qilindi!`;
+    setTimeout(() => location.reload(), 1300);
   } else {
-    msg.style.display = 'block';
-    msg.style.background = '#FEE2E2';
-    msg.style.color = '#DC2626';
+    msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
     msg.textContent = 'Xato yuz berdi';
   }
 }
 
-function searchDebts(q) {
-  q = q.toLowerCase();
-  document.querySelectorAll('.debt-item').forEach(el => {
-    const txt = (el.dataset.client + el.dataset.project + el.dataset.phone).toLowerCase();
-    el.style.display = txt.includes(q) ? '' : 'none';
-  });
+function selectSupplierDebt(el){
+  document.querySelectorAll('#tab-suppliers .dbt-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  const d = el.dataset;
+  const credit = parseFloat(d.credit), paid = parseFloat(d.paid), debt = parseFloat(d.debt);
+  const pct = credit > 0 ? Math.min(100, (paid/credit*100)).toFixed(0) : 0;
+
+  document.getElementById('sd-name').textContent = d.name;
+  document.getElementById('sd-body').innerHTML = `
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${d.phone}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Nasiya xaridlar</span><span>${d.count} ta</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Jami nasiya summasi</span><span style="font-weight:600">${fmt(credit)} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${fmt(paid)} so'm</span></div>
+    <div class="dbt-sum-row" style="border-top:2px solid #F59E0B;padding-top:10px;margin-top:4px">
+      <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:17px;color:#F59E0B">${fmt(debt)} so'm</span>
+    </div>
+    <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%;background:#F59E0B"></div></div></div>
+    <a href="/suppliers" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#2563EB;text-decoration:none">Yetkazib beruvchilar sahifasida to'lash →</a>`;
 }
 
 window.addEventListener('load', () => {
-  const first = document.querySelector('.debt-item');
-  if (first) first.click();
+  const first = document.querySelector('#tab-customers .dbt-item');
+  if (first) selectOrderDebt(first);
+  const firstS = document.querySelector('#tab-suppliers .dbt-item');
+  if (firstS) selectSupplierDebt(firstS);
 });
 </script>
 {% endblock %}
