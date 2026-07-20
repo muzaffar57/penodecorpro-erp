@@ -3164,25 +3164,31 @@ async function deleteSelected() {
 
   if (!confirm(`${orderNum} o'chirilsinmi?${info}`)) return;
 
-  // Agar rejalashtirilgan loy bo'lsa — "qancha ishlatilgan edi" deb so'raymiz
-  // (xuddi buyurtma yakunlanganidagi kabi), shunda ortgan qismi aniq qaytadi.
+  // Agar rejalashtirilgan loy bo'lsa VA qisman topshirilgan bo'lsa —
+  // "qancha ishlatilgan edi" deb so'raymiz (chunki haqiqiy miqdor rejadan
+  // farq qilishi mumkin). LEKIN hech narsa topshirilmagan bo'lsa — bu
+  // savolni SO'RAMAYMIZ, chunki mijozga hech narsa yetmagan, demak
+  // REJALASHTIRILGAN LOYNING HAMMASI avtomatik omborga qaytishi kerak
+  // (backend buni o'zi, actual_loy_kg berilmasa, to'g'ri bajaradi).
   let actualLoyParam = '';
-  try {
-    const plr = await fetch(`/api/orders/${selectedOrderId}/planned-loy`);
-    if (plr.ok) {
-      const pld = await plr.json();
-      const planned = pld.planned_loy || 0;
-      if (planned > 0) {
-        const actual = prompt(
-          `🪣 Bu buyurtma uchun rejada ${planned} kg loy bor edi.\n\nHaqiqatda qancha loy ISHLATILGAN edi?\n\n(Ortgan qismi omborga qaytadi. Bilmasangiz — bo'sh qoldiring)`,
-          String(planned)
-        );
-        if (actual !== null && actual !== '' && !isNaN(parseFloat(actual))) {
-          actualLoyParam = `?actual_loy_kg=${parseFloat(actual)}`;
+  if (hasDelivery) {
+    try {
+      const plr = await fetch(`/api/orders/${selectedOrderId}/planned-loy`);
+      if (plr.ok) {
+        const pld = await plr.json();
+        const planned = pld.planned_loy || 0;
+        if (planned > 0) {
+          const actual = prompt(
+            `🪣 Bu buyurtma uchun rejada ${planned} kg loy bor edi.\n\nHaqiqatda qancha loy ISHLATILGAN edi?\n\n(Ortgan qismi omborga qaytadi. Bilmasangiz — bo'sh qoldiring)`,
+            String(planned)
+          );
+          if (actual !== null && actual !== '' && !isNaN(parseFloat(actual))) {
+            actualLoyParam = `?actual_loy_kg=${parseFloat(actual)}`;
+          }
         }
       }
-    }
-  } catch(e) {}
+    } catch(e) {}
+  }
 
   try {
     const res = await fetch(`/api/orders/${selectedOrderId}${actualLoyParam}`, { method:'DELETE' });
