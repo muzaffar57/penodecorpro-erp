@@ -757,6 +757,15 @@ const PENOPLASTS = [
 ];
 const DEFAULT_PENO_ID = {{ default_penoplast_id if default_penoplast_id else 'null' }};
 
+const RECIPES_LIST = [
+  {% for r in recipes %}
+  {id: {{ r.id }}, name: {{ r.name|tojson }}},
+  {% endfor %}
+];
+const RECIPE_OPTIONS = RECIPES_LIST.length
+  ? '<option value="">— Tanlang —</option>' + RECIPES_LIST.map(r => `<option value="${r.id}">${r.name}</option>`).join('')
+  : '<option value="">— Retsept yo\'q —</option>';
+
 const PENO_OPTIONS = PENOPLASTS.length
   ? PENOPLASTS.map(p => `<option value="${p.id}" ${p.id===DEFAULT_PENO_ID?'selected':''}>${p.name}${p.isDefault?' ⭐':''} (${p.stock.toFixed(0)})</option>`).join('')
   : '<option value="">— Omborda penoplast yo\'q —</option>';
@@ -2024,6 +2033,7 @@ function addItem() {
           <option value="dona">Donali</option>
           <option value="blok">Blok (butun narxda)</option>
           <option value="termopanel">Termopanel (Bazalt)</option>
+          <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>
         </select>
       </div>
       <div class="dif i-h-wrap"><label>Eni (sm)</label><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
@@ -2039,6 +2049,10 @@ function addItem() {
         <select class="i-termo-bazalt" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
       </div>
       <div class="dif i-termo-loy-wrap" style="display:none"></div>
+      <div class="dif i-loysale-recipe-wrap" style="display:none">
+        <label>Loy turi (retsept)</label>
+        <select class="i-loysale-recipe" onchange="calculateItem(this.closest('.detal'))">${RECIPE_OPTIONS}</select>
+      </div>
       <div class="dif"><label>Qoplama</label>
         <select class="i-c" onchange="onCoatToggle(this.closest('.detal'))">
           <option value="false" selected>Yo'q</option>
@@ -2118,9 +2132,10 @@ function toggleFields(row) {
   const penoField = row.querySelector('.i-peno')?.closest('.dif');
   const tBazaltW = row.querySelector('.i-termo-bazalt-wrap');
   const tLoyW = row.querySelector('.i-termo-loy-wrap');
+  const lsRecipeW = row.querySelector('.i-loysale-recipe-wrap');
 
   // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
-  [tBazaltW, tLoyW].forEach(el => { if (el) el.style.display = 'none'; });
+  [tBazaltW, tLoyW, lsRecipeW].forEach(el => { if (el) el.style.display = 'none'; });
   if (penoField) penoField.style.display = '';
 
   if (type === 'dona') {
@@ -2168,6 +2183,18 @@ function toggleFields(row) {
     if (tLoyW) tLoyW.style.display = '';
     ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
     loadTermoInventoryFor(row);
+  } else if (type === 'loy_sotish') {
+    hW.style.display = 'none'; wW.style.display = 'none';
+    tW.style.display = 'none'; lW.style.display = 'none';
+    qW.style.display = 'block';   // Necha kg
+    if (upW) upW.style.display = 'block';  // 1 kg narxi
+    if (bpW) bpW.style.display = 'none';
+    if (bmW) bmW.style.display = 'none';
+    if (m3Field) m3Field.style.display = 'none';
+    if (coatField) coatField.style.display = 'none';
+    if (penoField) penoField.style.display = 'none';  // Penoplast ishlatilmaydi
+    if (lsRecipeW) lsRecipeW.style.display = '';
+    ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
   } else {
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'none';  lW.style.display = 'block';
@@ -2184,7 +2211,7 @@ function toggleFields(row) {
   // Miqdor maydonining nomi: panel — metr, blok — kerakli metr, dona — dona
   const qLabel = row.querySelector('.i-q-label');
   if (qLabel) {
-    qLabel.textContent = (type === 'panel') ? 'Uzunlik (m)' : (type === 'blok') ? "Necha metr kerak" : (type === 'termopanel') ? "Necha kvadrat metr (m²)" : 'Miqdor (dona)';
+    qLabel.textContent = (type === 'panel') ? 'Uzunlik (m)' : (type === 'blok') ? "Necha metr kerak" : (type === 'termopanel') ? "Necha kvadrat metr (m²)" : (type === 'loy_sotish') ? "Necha kg" : 'Miqdor (dona)';
   }
   const lLabel = row.querySelector('.i-l-label');
   if (lLabel) {
@@ -2192,7 +2219,7 @@ function toggleFields(row) {
   }
   const upLabel = row.querySelector('.i-unitprice-label');
   if (upLabel) {
-    upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi (so'm)" : "1 dona narxi (so'm)";
+    upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi (so'm)" : (type === 'loy_sotish') ? "1 kg narxi (so'm)" : "1 dona narxi (so'm)";
   }
 }
 
@@ -2314,6 +2341,18 @@ function calculateItem(row) {
     const loyEl = row.querySelector('.i-termo-loy');
     row.dataset.termoBazaltId = bazaltEl ? bazaltEl.value : '';
     row.dataset.termoLoy = loyEl ? (parseFloat(loyEl.value) || 0) : 0;
+  } else if (type === 'loy_sotish') {
+    // qty = necha kg, i-unitprice = 1 kg narxi. Penoplast/m³ ishlatilmaydi —
+    // loy alohida, tanlangan retsept bo'yicha ombordan yechiladi.
+    const upEl = row.querySelector('.i-unitprice');
+    const unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
+    perMeterPrice = unitPrice;
+    price = unitPrice * qty;
+    volume_total = 0;
+    row.querySelector('.i-vol').value = '— (loy retsept bo\'yicha yechiladi)';
+
+    const recipeEl = row.querySelector('.i-loysale-recipe');
+    row.dataset.loysaleRecipeId = recipeEl ? recipeEl.value : '';
   }
 
   const priceEl = row.querySelector('.i-price');
@@ -2971,6 +3010,13 @@ function collectItems() {
                    penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
                    bazalt_item_id: parseInt(row.dataset.termoBazaltId) || null,
                    termo_loy_kg: parseFloat(row.dataset.termoLoy) || 0 });
+    } else if (type === 'loy_sotish') {
+      const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
+      const recipeId = parseInt(row.dataset.loysaleRecipeId) || null;
+      items.push({ name, category: 'loy_sotish', width: null, thickness: null, length: null,
+                   quantity: qty, unit_price: unitP, is_coated: false,
+                   penoplast_id: null, price_per_m3: null, finished_product_id: null,
+                   recipe_id: recipeId });
     } else {
       items.push({ name, category: type, width: h, thickness: w, length: l,
                    quantity: qty, unit_price: unitPrice, is_coated: isCoated,
