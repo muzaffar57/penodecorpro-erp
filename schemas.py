@@ -501,6 +501,7 @@ class EmployeeRead(BaseModel):
     per_unit_type: str
     is_active: bool
     notes: Optional[str] = None
+    phone: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
