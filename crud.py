@@ -867,6 +867,33 @@ def get_orders(db: Session, project_id: Optional[int] = None) -> List[Order]:
     return query.order_by(Order.created_at.desc()).all()
 
 
+def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False) -> List[Order]:
+    """Buyurtmalar sahifasining ASOSIY ro'yxati uchun — tezlik uchun,
+    faqat SO'NGGI `days` kunlik yakunlangan buyurtmalarni ko'rsatadi.
+
+    MUHIM: hali TUGALLANMAGAN (draft/yangi/jarayonda/qoplamada) buyurtmalar
+    — necha kunlik bo'lishidan qat'i nazar, DOIM ko'rsatiladi, chunki ular
+    hali ishlanishi kerak bo'lgan, e'tibor talab qiladigan ish.
+
+    show_all=True bo'lsa — barcha (eski) buyurtmalar ham qo'shiladi
+    ("Eski buyurtmalarni ko'rish" tugmasi uchun)."""
+    from models import OrderStatus
+    from datetime import timedelta
+
+    base = db.query(Order).filter(Order.is_deleted.isnot(True))
+
+    if show_all:
+        return base.order_by(Order.created_at.desc()).all()
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    unfinished_statuses = [OrderStatus.DRAFT, OrderStatus.NEW, OrderStatus.IN_PROGRESS, OrderStatus.COATING]
+
+    result = base.filter(
+        (Order.created_at >= cutoff) | (Order.status.in_(unfinished_statuses))
+    ).order_by(Order.created_at.desc()).all()
+    return result
+
+
 def get_order(db: Session, order_id: int) -> Optional[Order]:
     return db.query(Order).filter(Order.id == order_id).first()
 
