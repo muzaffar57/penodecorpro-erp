@@ -115,10 +115,42 @@ def sync_missing_columns():
         print("✅ Barcha ustunlar bazada mavjud — qo'shish shart emas")
 
 
+def fix_recipe_name_column():
+    """MAXSUS, BIR MARTALIK tuzatish: 'recipes.name' ustuni ilgari qattiq
+    ENUM (faqat 'Kvars'/'Oq Marmar') edi, keyin kod darajasida erkin
+    matn (String)ga o'zgartirilgan edi — lekin sync_missing_columns()
+    hech qachon MAVJUD ustun turini o'zgartirmaydi (faqat yangi ustun
+    qo'shadi), shuning uchun bazada bu ustun ESKI, cheklangan turida
+    qolib ketgan bo'lishi mumkin edi. Bu funksiya buni xavfsiz, mavjud
+    ma'lumotni SAQLAB QOLGAN holda VARCHAR ga o'tkazadi."""
+    from sqlalchemy import inspect, text
+
+    try:
+        inspector = inspect(engine)
+        if "recipes" not in inspector.get_table_names():
+            return
+        cols = {c["name"]: c for c in inspector.get_columns("recipes")}
+        if "name" not in cols:
+            return
+        col_type = str(cols["name"]["type"]).upper()
+        # Agar allaqachon VARCHAR/TEXT bo'lsa — hech narsa qilish shart emas
+        if "VARCHAR" in col_type or "CHAR" in col_type or "TEXT" in col_type:
+            return
+        # ENUM (yoki shunga o'xshash cheklangan) tur — VARCHAR ga o'tkazamiz,
+        # "USING name::text" orqali MAVJUD qiymatlar to'liq saqlanadi
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE recipes ALTER COLUMN name TYPE VARCHAR(100) USING name::text"))
+            conn.commit()
+        print("✅ 'recipes.name' ustuni VARCHAR turiga xavfsiz o'tkazildi (mavjud ma'lumot saqlanib qoldi)")
+    except Exception as e:
+        print(f"⚠️ 'recipes.name' ustunini tekshirishda xato (o'tkazib yuborildi): {e}")
+
+
 def init_database():
     Base.metadata.create_all(bind=engine)
     print("✅ Baza va jadvallar yaratildi!")
     sync_missing_columns()
+    fix_recipe_name_column()
 
 if __name__ == "__main__":
     init_database()
