@@ -761,7 +761,14 @@ def get_notifications(db: Session) -> list:
     now = datetime.utcnow()
 
     # ── 🔴 Butunlay tugagan ──────────────────────────────────
-    empty_items = db.query(Inventory).filter(Inventory.stock_quantity <= 0).all()
+    # "Tayyor loy (...)" — bular oddiy xomashyo emas, balki ISHLAB
+    # CHIQARISHDAN ORTIB QOLGAN qoldiq (keyingi buyurtmaga ishlatish
+    # uchun). Ular ODATDA 0 bo'lib turadi — bu me'yor, muammo emas,
+    # shuning uchun bu ogohlantirishlarga kiritilmaydi.
+    empty_items = db.query(Inventory).filter(
+        Inventory.stock_quantity <= 0,
+        ~Inventory.item_name.like('Tayyor loy%')
+    ).all()
     for item in empty_items:
         notifications.append({
             "level": "red",
@@ -773,7 +780,10 @@ def get_notifications(db: Session) -> list:
 
     # ── 🟠 Sarf tezligiga qarab tugash bashorati ─────────────
     period_start = now - timedelta(days=14)
-    items = db.query(Inventory).filter(Inventory.stock_quantity > 0).all()
+    items = db.query(Inventory).filter(
+        Inventory.stock_quantity > 0,
+        ~Inventory.item_name.like('Tayyor loy%')
+    ).all()
     for item in items:
         total_out = db.query(func.sum(InventoryMovement.quantity)).filter(
             InventoryMovement.inventory_id == item.id,
