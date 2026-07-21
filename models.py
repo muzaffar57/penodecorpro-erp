@@ -433,6 +433,7 @@ class ReturnItem(Base):
     notes = Column(Text, nullable=True)
     returned_at = Column(DateTime, default=datetime.utcnow)
     image_url = Column(String(255), nullable=True)  # Mahsulot rasmi (ixtiyoriy)
+    coating_applied = Column(Boolean, default=False)  # Brak bo'lganda loy allaqachon tortilganmi
 
     order = relationship("Order", back_populates="returns")
 
