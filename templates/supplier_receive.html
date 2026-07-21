@@ -394,18 +394,23 @@ async function loadHistoryForSupplier(page){
   }
 }
 
-async function quickPaySupplier(){
+async function quickPaySupplier(confirmOverpay = false){
   if (!currentSupplierId) { showMsg('Avval yetkazib beruvchini tanlang'); return; }
   const amount = parseNum(document.getElementById('sup-quickpay-amount').value);
   if (!amount || amount <= 0) { showMsg('Summani kiriting'); return; }
   const res = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ supplier_id: currentSupplierId, amount })
+    body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay })
   });
   if (res.ok) {
     showMsg("✓ To'lov qabul qilindi", 'success');
     document.getElementById('sup-quickpay-amount').value = '';
     loadHistoryForSupplier();
+  } else if (res.status === 409) {
+    const e = await res.json();
+    if (e.detail?.type === 'overpayment_warning' && confirm('⚠️ ' + e.detail.message)) {
+      quickPaySupplier(true);
+    }
   } else showMsg('Xato yuz berdi', 'error');
 }
 
