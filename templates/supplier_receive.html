@@ -101,12 +101,13 @@
             <div class="rcv-field"><label>Sana *</label><input type="date" id="r-date"></div>
           </div>
 
+          <div style="font-size:11.5px;color:var(--r-text3);margin-bottom:8px">👤 Quyidagi ma'lumotlar — faqat <b>tanlangan yetkazib beruvchi</b>ga tegishli:</div>
           <div class="rcv-stat-grid">
             <div class="rcv-stat-box"><div class="rcv-stat-label">Jami nasiya</div><div class="rcv-stat-value" id="sup-credit">—</div></div>
             <div class="rcv-stat-box"><div class="rcv-stat-label">To'langan</div><div class="rcv-stat-value" style="color:var(--r-success)" id="sup-paid">—</div></div>
             <div class="rcv-stat-box"><div class="rcv-stat-label">Qarz</div><div class="rcv-stat-value" style="color:var(--r-danger)" id="sup-debt">—</div></div>
             <div class="rcv-quickpay">
-              <label style="font-size:11px;color:var(--r-text3);font-weight:600;text-transform:uppercase">To'lov summasi</label>
+              <label style="font-size:11px;color:var(--r-text3);font-weight:600;text-transform:uppercase">Qarzni to'lash</label>
               <div style="display:flex;gap:6px">
                 <input type="text" id="sup-quickpay-amount" placeholder="0" oninput="formatPriceInput(this)" style="flex:1">
                 <button onclick="quickPaySupplier()">💰 To'lov</button>
