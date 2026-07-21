@@ -614,6 +614,30 @@
 </div>
 </div>
 
+<!-- ══ TO'LDIRILMAGAN MAYDONLAR MODALI ══ -->
+<div id="validationModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:18px;width:440px;max-width:100%;box-shadow:0 24px 60px rgba(0,0,0,.25);overflow:hidden;animation:valPop .2s ease">
+    <div style="padding:28px 26px 20px;text-align:center">
+      <div style="width:56px;height:56px;border-radius:50%;background:#FEF3C7;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+        <i class="ti ti-alert-triangle" style="font-size:28px;color:#D97706"></i>
+      </div>
+      <div style="font-size:17px;font-weight:700;color:#111827;margin-bottom:6px">Buyurtmani saqlashdan oldin</div>
+      <div style="font-size:13.5px;color:#6B7280">Quyidagi maydonlarni to'ldiring:</div>
+    </div>
+    <div id="validationList" style="padding:0 26px 8px"></div>
+    <div style="padding:18px 26px 26px">
+      <button class="btn btn-dark w-full" style="height:46px;font-size:14px" onclick="closeValidationModal()">Tushunarli, to'ldiraman</button>
+    </div>
+  </div>
+</div>
+<style>
+@keyframes valPop{from{opacity:0;transform:scale(.94) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.val-item{display:flex;align-items:center;gap:10px;padding:11px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:background .12s}
+.val-item:hover{background:#FEF3C7}
+.val-item i{font-size:16px;color:#D97706;flex-shrink:0}
+.val-item span{font-size:13.5px;color:#78350F;font-weight:500}
+</style>
+
 <!-- ══ HISOB-KITOB MODALI ══ -->
 <div id="sumModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:720px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
@@ -2597,6 +2621,33 @@ function reapplyDiscount() {
 }
 
 // ── Buyurtmani saqlash ────────────────────────────────────
+function showValidationModal(issues) {
+  const list = document.getElementById('validationList');
+  list.innerHTML = issues.map(it => `
+    <div class="val-item" onclick="scrollToValidationField('${it.targetId}')">
+      <i class="ti ti-point-filled"></i>
+      <span>${it.text}</span>
+    </div>`).join('');
+  document.getElementById('validationModal').style.display = 'flex';
+}
+
+function closeValidationModal() {
+  document.getElementById('validationModal').style.display = 'none';
+}
+
+function scrollToValidationField(targetId) {
+  closeValidationModal();
+  const el = document.getElementById(targetId) || document.getElementById(targetId)?.closest?.('.detal');
+  const target = document.getElementById(targetId);
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof target.focus === 'function') setTimeout(() => target.focus(), 350);
+    target.style.transition = 'box-shadow .3s';
+    target.style.boxShadow = '0 0 0 3px rgba(217,119,6,.4)';
+    setTimeout(() => { target.style.boxShadow = ''; }, 1800);
+  }
+}
+
 async function saveOrder(isDraft = false) {
   // XAVFSIZLIK TO'SIG'I: agar hozir aslida TAHRIRLASH rejimida bo'lsak
   // (masalan tugma hali to'liq almashmagan yoki boshqa sababdan noto'g'ri
@@ -2622,39 +2673,45 @@ async function saveOrder(isDraft = false) {
   const items = collectItems();
   if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
 
-  // Ogohlantirish: boshqa (asosiy bo'lmagan) plotnost tanlangan, lekin
-  // shu detalning o'z 1 m³ narxi yozilmagan bo'lsa — asosiy narx sukut
-  // bo'yicha ishlatiladi, bu esa noto'g'ri bo'lishi mumkin.
-  if (!isDraft) {
-    const rowsMissingPrice = [];
-    document.querySelectorAll('.detal').forEach((row, idx) => {
-      const penoSel = row.querySelector('.i-peno');
-      const m3El = row.querySelector('.i-m3price');
-      if (!penoSel || !m3El) return;
-      const pid = parseInt(penoSel.value);
-      const ownPrice = parseNum(m3El.value);
-      if (pid && DEFAULT_PENO_ID && pid !== DEFAULT_PENO_ID && !ownPrice) {
-        rowsMissingPrice.push(idx + 1);
-      }
-    });
-    if (rowsMissingPrice.length) {
-      const proceed = confirm(`⚠️ ${rowsMissingPrice.length}-detal(lar)da (№${rowsMissingPrice.join(', ')}) boshqa plotnost tanlangan, lekin 1 m³ birlik narxi yozilmagan — asosiy narx ishlatiladi.\n\nShunday ham davom etasizmi?`);
-      if (!proceed) return;
-    }
+  // TO'LIQ TEKSHIRUV -- to'ldirilmagan bo'lsa, SAQLANMAYDI
+  // (Vaqtincha saqlashda ham, yakuniy saqlashda ham qo'llanadi)
+  const issues = [];
+
+  const deadlineVal = document.getElementById('deadline_input')?.value || '';
+  if (!deadlineVal) {
+    issues.push({ text: "Yetkazib berish muddati kiritilmagan", targetId: 'deadline_input' });
   }
 
-  // Ogohlantirish: loy miqdori va kelishilgan sana kiritilmagan bo'lsa
-  // (faqat yakuniy saqlashda — qoralama uchun emas)
-  if (!isDraft) {
-    const loyVal = parseFloat(document.getElementById('loy_kg')?.value) || 0;
-    const deadlineVal = document.getElementById('deadline_input')?.value || '';
-    const missing = [];
-    if (!loyVal) missing.push('loy miqdorini yozing');
-    if (!deadlineVal) missing.push('kelishilgan sanani yozing');
-    if (missing.length) {
-      const proceed = confirm(`⚠️ Diqqat: ${missing.join(', ')}!\n\nShunday ham davom etasizmi?`);
-      if (!proceed) return;
+  // Loy miqdori -- FAQAT agar kamida bitta detalda "Qoplama: Ha" bo'lsa so'raladi.
+  // Hech bir detalda qoplama ishlatilmasa -- tizim buni o'zi bilib, so'ramaydi.
+  const anyCoated = Array.from(document.querySelectorAll('.i-c')).some(el => el.value === 'true');
+  const loyVal = parseFloat(document.getElementById('loy_kg')?.value) || 0;
+  if (anyCoated && !loyVal) {
+    issues.push({ text: "Loy miqdori (kg) kiritilmagan", targetId: 'loy_kg' });
+  }
+
+  // Asosiy bo'lmagan plotnost tanlangan, lekin shu detalning o'z 1 m3 narxi yo'q
+  const rowsMissingPrice = [];
+  document.querySelectorAll('.detal').forEach((row, idx) => {
+    const penoSel = row.querySelector('.i-peno');
+    const m3El = row.querySelector('.i-m3price');
+    if (!penoSel || !m3El) return;
+    const pid = parseInt(penoSel.value);
+    const ownPrice = parseNum(m3El.value);
+    if (pid && DEFAULT_PENO_ID && pid !== DEFAULT_PENO_ID && !ownPrice) {
+      rowsMissingPrice.push({ idx, rowId: row.id });
     }
+  });
+  if (rowsMissingPrice.length) {
+    issues.push({
+      text: `${rowsMissingPrice.length}-detal(lar)da (№${rowsMissingPrice.map(r=>r.idx+1).join(', ')}) boshqa plotnost tanlangan, lekin 1 m³ narxi yozilmagan`,
+      targetId: rowsMissingPrice[0].rowId
+    });
+  }
+
+  if (issues.length) {
+    showValidationModal(issues);
+    return;
   }
 
   const finalPrice = parseNum(document.getElementById('final_price')?.value || '0');
