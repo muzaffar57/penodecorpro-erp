@@ -1912,12 +1912,29 @@ async function savePayment() {
 
   const writeOff = document.getElementById('pf-writeoff')?.checked || false;
 
+  // Qarzdan ko'p summa kiritilsa — tasdiqlashni so'raymiz (tasodifiy xato bo'lishi mumkin,
+  // lekin ba'zan mijoz qasddan ortiqcha to'laydi, shuning uchun QAT'IY bloklamaymiz)
+  if (!writeOff) {
+    const debtText = (document.getElementById('pay-debt')?.textContent || '0').replace(/[^\d]/g, '');
+    const currentDebt = parseInt(debtText) || 0;
+  let overpayConfirmed = false;
+  if (currentDebt > 0 && amount > currentDebt) {
+      const excess = amount - currentDebt;
+      const proceed = confirm(
+        `⚠️ Diqqat: kiritilgan summa (${formatNum(amount)} so'm) — qarzdan (${formatNum(currentDebt)} so'm) ${formatNum(excess)} so'mga ko'p.\n\nBu — xato (masalan, ortiqcha nol yozilgan) bo'lishi mumkin.\n\nShunday ham davom etasizmi?`
+      );
+      if (!proceed) return;
+      overpayConfirmed = true;
+    }
+  }
+
   const data = {
     order_id: selectedOrderId,
     amount: amount,
     payment_type: document.getElementById('pf-type').value,
     payment_method: document.getElementById('pf-method').value,
-    notes: document.getElementById('pf-notes').value.trim() || null
+    notes: document.getElementById('pf-notes').value.trim() || null,
+    confirm_overpay: overpayConfirmed
   };
 
   try {
