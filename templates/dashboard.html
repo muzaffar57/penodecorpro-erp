@@ -703,10 +703,14 @@ async function loadObligationsWidget(){
   if (!widget) return;
   try {
     const now = new Date();
-    const status = await fetch(`/api/obligations/status?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const [status, suppliers] = await Promise.all([
+      fetch(`/api/obligations/status?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json()),
+      fetch('/api/suppliers').then(r=>r.json())
+    ]);
     const items = [];
     (status.recurring || []).forEach(r => items.push({icon: r.icon, label: r.label, amount: r.debt, status: r.status}));
     (status.employees || []).forEach(e => items.push({icon: '👷', label: e.name + ' ish haqi', amount: e.qolgan, status: e.status}));
+    (suppliers || []).filter(s => s.debt > 0).forEach(s => items.push({icon: '🚚', label: s.name, amount: s.debt, status: 'partial'}));
 
     if (!items.length) { widget.style.display = 'none'; return; }
     widget.style.display = 'block';
