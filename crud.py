@@ -102,7 +102,9 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
         is_penoplast=is_peno,
         is_default_penoplast=(is_default and is_peno),
         category=(item_data.category if getattr(item_data, 'category', None) else guess_category(item_data.item_name, is_peno)),
-        notes=item_data.notes
+        notes=item_data.notes,
+        serp_ratio_per_m2=getattr(item_data, 'serp_ratio_per_m2', None),
+        kley_ratio_per_m2=getattr(item_data, 'kley_ratio_per_m2', None)
     )
     db.add(db_item)
     db.commit()
