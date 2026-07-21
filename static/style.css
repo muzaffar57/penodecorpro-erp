@@ -375,8 +375,11 @@ body {
   overflow-y: auto;
   padding: 16px;
 }
-.erp-content::-webkit-scrollbar { width: 4px; }
-.erp-content::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+.erp-content::-webkit-scrollbar { width: 9px; }
+.erp-content::-webkit-scrollbar-track { background: transparent; }
+.erp-content::-webkit-scrollbar-thumb { background: #b8bcc4; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+.erp-content::-webkit-scrollbar-thumb:hover { background: #9a9fab; background-clip: padding-box; }
+.erp-content { scrollbar-width: auto; scrollbar-color: #b8bcc4 transparent; }
 
 /* ============================================================
    ALERT / XABAR
