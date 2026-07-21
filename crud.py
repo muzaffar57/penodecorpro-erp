@@ -281,7 +281,7 @@ def guess_category(item_name: str, is_penoplast: bool = False) -> str:
 def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: float,
                    purchased_by: str = None, notes: str = None,
                    supplier_id: int = None, is_credit: bool = False,
-                   volume_per_unit: float = None):
+                   volume_per_unit: float = None, payment_due_date: str = None):
     """Ombor kirimi — xarid narxi bilan.
     O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
 
@@ -326,6 +326,13 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
     if not db_item.category:
         db_item.category = guess_category(db_item.item_name, db_item.is_penoplast)
 
+    due_date_parsed = None
+    if payment_due_date:
+        try:
+            due_date_parsed = datetime.strptime(payment_due_date, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            due_date_parsed = None
+
     purchase = InventoryPurchase(
         inventory_id=db_item.id,
         item_name=db_item.item_name,
@@ -337,7 +344,8 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         notes=notes,
         supplier_id=supplier_id,
         is_credit=is_credit,
-        category=db_item.category
+        category=db_item.category,
+        payment_due_date=due_date_parsed
     )
     db.add(purchase)
     supplier_name = None
@@ -3532,6 +3540,47 @@ def get_supplier_debt(db: Session, supplier_id: int) -> dict:
         "debt": round(debt),
         "purchase_count": len(purchases)
     }
+
+
+def get_supplier_payment_due_dates(db: Session) -> List[dict]:
+    """Qarzdor yetkazib beruvchilar orasida, TO'LOV MUDDATI belgilangan
+    xaridlarni topadi — har bir yetkazib beruvchi uchun ENG YAQIN
+    (eng shoshilinch) muddatni qaytaradi. Dashboard ogohlantirishi uchun.
+    Faqat o'qish — hech narsani o'zgartirmaydi."""
+    from datetime import datetime as dt
+
+    now = dt.utcnow()
+    unpaid_with_due = db.query(InventoryPurchase).filter(
+        InventoryPurchase.is_credit == True,
+        InventoryPurchase.payment_due_date.isnot(None),
+        InventoryPurchase.supplier_id.isnot(None)
+    ).order_by(InventoryPurchase.payment_due_date.asc()).all()
+
+    # Har bir yetkazib beruvchi uchun eng yaqin muddatni saqlaymiz
+    earliest_by_supplier = {}
+    for p in unpaid_with_due:
+        sid = p.supplier_id
+        if sid not in earliest_by_supplier or p.payment_due_date < earliest_by_supplier[sid]:
+            earliest_by_supplier[sid] = p.payment_due_date
+
+    result = []
+    for sid, due_date in earliest_by_supplier.items():
+        debt_info = get_supplier_debt(db, sid)
+        if debt_info["debt"] <= 0:
+            continue  # To'lab bo'lingan — ogohlantirish kerak emas
+        supplier = db.query(Supplier).filter(Supplier.id == sid).first()
+        if not supplier:
+            continue
+        days_left = (due_date.date() - now.date()).days
+        status = "overdue" if days_left < 0 else ("due_soon" if days_left <= 3 else "ok")
+        result.append({
+            "supplier_id": sid, "supplier_name": supplier.name,
+            "debt": debt_info["debt"], "due_date": due_date.isoformat(),
+            "days_left": days_left, "status": status
+        })
+
+    result.sort(key=lambda x: x["days_left"])
+    return result
 
 
 def get_suppliers_with_debt(db: Session) -> List[dict]:
