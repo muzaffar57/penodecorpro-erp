@@ -235,8 +235,72 @@ def change_password(db: Session, user_id: int, new_password: str) -> bool:
 
 
 # ============================================================
-# Birinchi admin yaratish (baza bo'sh bo'lsa)
+# XODIM PANELI — alohida, cheklangan sessiya tizimi
+# (User/parol tizimidan MUSTAQIL — faqat telefon+PIN bilan)
 # ============================================================
+
+from models import Employee
+
+_employee_sessions: dict = {}
+EMPLOYEE_SESSION_HOURS = 24 * 14  # 14 kun — xodim tez-tez qayta kirmasin
+
+
+def hash_pin(pin: str) -> str:
+    """PIN kodni shifrlaydi (parol bilan bir xil usulda)."""
+    return hash_password(pin)
+
+
+def create_employee_session(employee_id: int) -> str:
+    token = secrets.token_urlsafe(32)
+    _employee_sessions[token] = {
+        "employee_id": employee_id,
+        "expires": datetime.utcnow() + timedelta(hours=EMPLOYEE_SESSION_HOURS)
+    }
+    return token
+
+
+def get_employee_session(token: str) -> Optional[dict]:
+    session = _employee_sessions.get(token)
+    if not session:
+        return None
+    if session["expires"] < datetime.utcnow():
+        del _employee_sessions[token]
+        return None
+    return session
+
+
+def delete_employee_session(token: str):
+    _employee_sessions.pop(token, None)
+
+
+def get_current_employee(request: Request, db: Session = Depends(get_db)) -> Optional[Employee]:
+    """Cookie dan token olib, joriy xodimni qaytaradi."""
+    token = request.cookies.get("emp_session_token")
+    if not token:
+        return None
+    session = get_employee_session(token)
+    if not session:
+        return None
+    employee = db.query(Employee).filter(
+        Employee.id == session["employee_id"],
+        Employee.is_active == True
+    ).first()
+    return employee
+
+
+def require_employee_login(request: Request, db: Session = Depends(get_db)) -> Employee:
+    """Xodim login qilganligini tekshiradi."""
+    employee = get_current_employee(request, db)
+    if not employee:
+        raise HTTPException(
+            status_code=401,
+            detail="Iltimos, tizimga kiring",
+            headers={"Location": "/hodim/login"}
+        )
+    return employee
+
+
+
 
 def create_default_admin(db: Session):
     """Agar hech qanday foydalanuvchi bo'lmasa — standart admin yaratadi."""
