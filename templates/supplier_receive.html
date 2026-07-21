@@ -453,7 +453,7 @@ async function apResolveItemId(){
   try {
     const res = await fetch('/api/inventory', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ item_name:name, category, unit, stock_quantity:0, min_stock:0 })
+      body: JSON.stringify({ item_name:name, category, unit, stock_quantity:0, min_stock:0, is_penoplast: category === 'Penoplast' })
     });
     if (!res.ok) { showMsg('❌ Yangi material yaratib bo\'lmadi', 'error'); return null; }
     const created = await res.json();
@@ -469,13 +469,18 @@ async function apResolveItemId(){
 
 // ── SAVAT (mahsulotlar ro'yxati) ──
 async function apAddToBasket(){
+  // MUHIM: avval miqdor va narxni tekshiramiz — faqat SHUNDAN KEYIN
+  // (agar hammasi to'g'ri bo'lsa) yangi materialni yaratamiz. Aks holda,
+  // miqdor/narx bo'sh qolganda ham material "yaratilib qolib", lekin
+  // ro'yxatga (demak — xaridga) qo'shilmay qolar edi.
+  const qty = parseFloat(document.getElementById('ap-qty').value)||0;
+  const price = parseNum(document.getElementById('ap-price').value)||0;
+  if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
+
   const wasCreatingNew = apCreatingNewItem;
   const itemId = await apResolveItemId();
   if (!itemId) { if (!wasCreatingNew) showMsg('❌ Materialni tanlang', 'error'); return; }
-  const qty = parseFloat(document.getElementById('ap-qty').value)||0;
-  const price = parseNum(document.getElementById('ap-price').value)||0;
   const item = invItems.find(i=>i.id===itemId);
-  if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
   if (item && item.is_penoplast && apBasket.some(b=>b.isPenoplast)) { showMsg('❌ Bir vaqtda faqat bitta Penoplast qo\'shish mumkin', 'error'); return; }
 
   apBasket.push({ itemId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:qty*price, isPenoplast: item?item.is_penoplast:false, volumePerUnit: parseFloat(document.getElementById('ap-volume').value)||null });
