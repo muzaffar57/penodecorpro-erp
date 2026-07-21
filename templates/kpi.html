@@ -290,6 +290,24 @@
     <button class="btn btn-outline w-full" style="margin-top:16px" onclick="closeAdvanceModal()">Yopish</button>
   </div>
 </div>
+
+<!-- ══ PANEL KIRISHI (TELEFON+PIN) MODALI ══ -->
+<div id="panelAccessModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:400px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px">🔑 Panel kirishi — <span id="pa-emp-name" style="color:#2563EB"></span></div>
+    <div style="font-size:12.5px;color:#888;margin-bottom:16px">Xodim shu telefon+PIN bilan <b>/hodim</b> sahifasiga kirib, o'zi avans yozib qo'ya oladi</div>
+
+    <div class="form-group"><label>Telefon raqami</label><input type="tel" id="pa-phone" placeholder="+998901234567"></div>
+    <div class="form-group"><label>PIN kod (4 xonali)</label><input type="text" id="pa-pin" inputmode="numeric" maxlength="4" placeholder="1234"></div>
+
+    <div id="pa-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-dark w-full" onclick="savePanelAccess()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="document.getElementById('panelAccessModal').style.display='none'">Bekor</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -604,6 +622,7 @@ async function loadEmployees() {
         <div id="emp-status-${e.id}" style="flex-shrink:0"></div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button class="mini-btn" style="color:#D97706;border-color:#FDE68A" onclick="openAdvanceModal(${e.id}, '${e.name.replace(/'/g,"\\'")}')" title="Avans berish">💰</button>
+          <button class="mini-btn" style="color:#2563EB;border-color:#DBEAFE" onclick="openPanelAccessModal(${e.id}, '${e.name.replace(/'/g,"\\'")}', '${e.phone||''}')" title="Panel kirishi (telefon+PIN)">🔑</button>
           <button class="mini-btn" onclick="editEmployee(${e.id})">✏️</button>
           <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deleteEmployee(${e.id})">✕</button>
         </div>
@@ -637,6 +656,38 @@ function openAdvanceModal(empId, empName) {
 function closeAdvanceModal() {
   document.getElementById('advanceModal').style.display = 'none';
   advanceEmpId = null;
+}
+
+let panelAccessEmpId = null;
+function openPanelAccessModal(empId, empName, currentPhone) {
+  panelAccessEmpId = empId;
+  document.getElementById('pa-emp-name').textContent = empName;
+  document.getElementById('pa-phone').value = currentPhone || '';
+  document.getElementById('pa-pin').value = '';
+  document.getElementById('pa-error').style.display = 'none';
+  document.getElementById('panelAccessModal').style.display = 'flex';
+}
+
+async function savePanelAccess() {
+  const phone = document.getElementById('pa-phone').value.trim();
+  const pin = document.getElementById('pa-pin').value.trim();
+  const err = document.getElementById('pa-error');
+  if (!phone) { err.textContent = 'Telefon raqamini kiriting'; err.style.display = 'block'; return; }
+  if (!/^\d{4}$/.test(pin)) { err.textContent = "PIN kod aynan 4 xonali raqam bo'lishi kerak"; err.style.display = 'block'; return; }
+
+  const fd = new FormData();
+  fd.append('phone', phone);
+  fd.append('pin', pin);
+  const res = await fetch(`/api/employees/${panelAccessEmpId}/set-login`, { method: 'POST', body: fd });
+  if (res.ok) {
+    document.getElementById('panelAccessModal').style.display = 'none';
+    alert('✅ Panel kirishi saqlandi');
+    loadEmployees();
+  } else {
+    const e = await res.json();
+    err.textContent = '❌ ' + (e.detail || 'Xato');
+    err.style.display = 'block';
+  }
 }
 
 async function loadAdvanceHistory(empId) {
