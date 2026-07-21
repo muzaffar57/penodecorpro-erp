@@ -533,8 +533,43 @@ class Employee(Base):
     hire_date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
 
+    # Hodimning o'z paneliga kirishi uchun (ixtiyoriy — admin belgilaydi)
+    phone = Column(String(20), nullable=True, unique=True)
+    pin_hash = Column(String(64), nullable=True)
+
+    advance_requests = relationship("AdvanceRequest", back_populates="employee", cascade="all, delete-orphan")
+
     def __repr__(self):
         return f"<Employee {self.name} ({self.pay_type.value})>"
+
+
+class AdvanceRequestStatus(str, PyEnum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    REJECTED = "rejected"
+
+
+class AdvanceRequest(Base):
+    """Hodim o'zi 'avans oldim' deb yozib qo'yadigan so'rov — admin
+    tasdiqlagandan keyingina haqiqiy EmployeeAdvance sifatida hisoblanadi."""
+    __tablename__ = "advance_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    requested_date = Column(DateTime, nullable=False)     # "qachon oldim" — hodim yozgan sana
+    notes = Column(Text, nullable=True)
+
+    status = Column(Enum(AdvanceRequestStatus), default=AdvanceRequestStatus.PENDING, nullable=False)
+    submitted_at = Column(DateTime, default=datetime.utcnow)
+    confirmed_at = Column(DateTime, nullable=True)
+    confirmed_by = Column(String(100), nullable=True)
+
+    employee = relationship("Employee", back_populates="advance_requests")
+
+    def __repr__(self):
+        return f"<AdvanceRequest {self.employee_id} {self.amount} ({self.status.value})>"
+
 
 
 class EmployeeAdvance(Base):
