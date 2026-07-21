@@ -592,6 +592,7 @@ class ReturnItemCreate(BaseModel):
     to_stock: bool = Field(default=True, description="Tayyor mahsulotlar omboriga qo'shilsinmi")
     order_item_id: Optional[int] = None
     notes: Optional[str] = None
+    coating_applied: bool = Field(default=False, description="Brak bo'lganda loy allaqachon tortilgan bo'lsa True")
 
 class ReturnItemRead(BaseModel):
     id: int
@@ -605,4 +606,5 @@ class ReturnItemRead(BaseModel):
     notes: Optional[str] = None
     returned_at: datetime
     image_url: Optional[str] = None
+    coating_applied: bool = False
     model_config = {"from_attributes": True}
