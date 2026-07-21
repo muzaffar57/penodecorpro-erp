@@ -3679,18 +3679,19 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
 
 
 def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> dict:
-    """Brak (defekt) sabab ombordan yechilgan XOMASHYO bo'yicha xulosa —
-    har bir material nomi, jami miqdori va tan narxi bo'yicha qiymati.
-    Faqat o'qish. Joriy narx (price_per_unit) asosida hisoblanadi."""
-    from models import Inventory, InventoryMovement
-    from sqlalchemy import func
+    """Brak (defekt) sabab ombordan yechilgan XOMASHYO bo'yicha xulosa.
 
-    q = db.query(
-        InventoryMovement.item_name,
-        InventoryMovement.inventory_id,
-        InventoryMovement.unit,
-        func.sum(InventoryMovement.quantity).label("total_qty")
-    ).filter(
+    Qaytaradi:
+    - by_material: har bir material nomi bo'yicha JAMI (barcha buyurtmalar
+      birlashtirilgan) — Penoplast uchun m³ ham hisoblanadi.
+    - by_order: har bir BUYURTMA bo'yicha ALOHIDA — o'sha buyurtmada qaysi
+      xomashyo qancha brak bo'lganini ko'rsatadi.
+    - total_value, total_penoplast_m3: umumiy jami.
+
+    Faqat o'qish. Joriy narx (price_per_unit) asosida hisoblanadi."""
+    from models import Inventory, InventoryMovement, Order
+
+    q = db.query(InventoryMovement).filter(
         InventoryMovement.movement_type == "out",
         InventoryMovement.reason.like("Brak%")
     )
@@ -3698,21 +3699,85 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> di
         q = q.filter(InventoryMovement.created_at >= start_date)
     if end_date:
         q = q.filter(InventoryMovement.created_at <= end_date)
-    rows = q.group_by(InventoryMovement.item_name, InventoryMovement.inventory_id, InventoryMovement.unit).all()
+    rows = q.order_by(InventoryMovement.created_at.desc()).all()
 
-    result = []
+    if not rows:
+        return {"by_material": [], "by_order": [], "total_value": 0, "total_penoplast_m3": 0}
+
+    # Barcha kerakli Inventory va Order obyektlarini oldindan yuklaymiz
+    inv_ids = {r.inventory_id for r in rows if r.inventory_id}
+    order_ids = {r.order_id for r in rows if r.order_id}
+    inv_map = {i.id: i for i in db.query(Inventory).filter(Inventory.id.in_(inv_ids)).all()} if inv_ids else {}
+    order_map = {o.id: o for o in db.query(Order).filter(Order.id.in_(order_ids)).all()} if order_ids else {}
+
+    def m3_for(inv, qty):
+        """Agar bu Penoplast bo'lsa — blok sonini m³ ga aylantiradi."""
+        if inv and inv.is_penoplast and inv.volume_per_unit:
+            return float(qty) * float(inv.volume_per_unit)
+        return 0.0
+
+    # ── Material bo'yicha JAMI ──
+    by_material_agg = {}
     total_value = 0.0
-    for item_name, inv_id, unit, total_qty in rows:
-        inv = db.query(Inventory).filter(Inventory.id == inv_id).first()
+    total_m3 = 0.0
+    for r in rows:
+        inv = inv_map.get(r.inventory_id)
         price = float(inv.price_per_unit or 0) if inv else 0.0
-        value = float(total_qty or 0) * price
+        value = float(r.quantity or 0) * price
+        m3 = m3_for(inv, r.quantity)
         total_value += value
-        result.append({
-            "item_name": item_name, "quantity": round(float(total_qty or 0), 3),
-            "unit": unit, "unit_price": price, "value": round(value)
+        total_m3 += m3
+        key = r.item_name
+        if key not in by_material_agg:
+            by_material_agg[key] = {"item_name": r.item_name, "quantity": 0.0, "unit": r.unit,
+                                     "unit_price": price, "value": 0.0, "m3": 0.0}
+        by_material_agg[key]["quantity"] += float(r.quantity or 0)
+        by_material_agg[key]["value"] += value
+        by_material_agg[key]["m3"] += m3
+
+    by_material = sorted(by_material_agg.values(), key=lambda x: -x["value"])
+    for m in by_material:
+        m["quantity"] = round(m["quantity"], 3)
+        m["value"] = round(m["value"])
+        m["m3"] = round(m["m3"], 3) if m["m3"] > 0 else None
+
+    # ── Buyurtma bo'yicha ALOHIDA ──
+    by_order_agg = {}
+    for r in rows:
+        if not r.order_id:
+            continue
+        inv = inv_map.get(r.inventory_id)
+        price = float(inv.price_per_unit or 0) if inv else 0.0
+        value = float(r.quantity or 0) * price
+        m3 = m3_for(inv, r.quantity)
+        if r.order_id not in by_order_agg:
+            order = order_map.get(r.order_id)
+            by_order_agg[r.order_id] = {
+                "order_id": r.order_id,
+                "order_number": order.order_number if order else f"#{r.order_id}",
+                "client_name": (order.project.client_name if order and order.project else None),
+                "items": [], "total_value": 0.0, "total_m3": 0.0
+            }
+        by_order_agg[r.order_id]["items"].append({
+            "item_name": r.item_name, "quantity": round(float(r.quantity or 0), 3),
+            "unit": r.unit, "value": round(value), "m3": round(m3, 3) if m3 > 0 else None,
+            "date": r.created_at.isoformat() if r.created_at else None
         })
-    result.sort(key=lambda x: -x["value"])
-    return {"items": result, "total_value": round(total_value)}
+        by_order_agg[r.order_id]["total_value"] += value
+        by_order_agg[r.order_id]["total_m3"] += m3
+
+    by_order = sorted(by_order_agg.values(), key=lambda x: -x["total_value"])
+    for o in by_order:
+        o["total_value"] = round(o["total_value"])
+        o["total_m3"] = round(o["total_m3"], 3) if o["total_m3"] > 0 else None
+
+    return {
+        "by_material": by_material,
+        "by_order": by_order,
+        "total_value": round(total_value),
+        "total_penoplast_m3": round(total_m3, 3)
+    }
+
 
 
 def get_supplier_purchased_items(db: Session, supplier_id: int) -> List[dict]:
