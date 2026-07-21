@@ -745,7 +745,8 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
     result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
                                   purchased_by=who, notes=data.notes,
                                   supplier_id=data.supplier_id, is_credit=is_credit,
-                                  volume_per_unit=data.volume_per_unit)
+                                  volume_per_unit=data.volume_per_unit,
+                                  payment_due_date=data.payment_due_date)
     if not result:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
 
@@ -1084,6 +1085,12 @@ def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends
     suppliers = crud.get_suppliers_with_debt(db)
     total = sum(s["debt"] for s in suppliers)
     return {"total_debt": total, "supplier_count": sum(1 for s in suppliers if s["debt"] > 0)}
+
+
+@app.get("/api/suppliers/due-dates")
+def api_suppliers_due_dates(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Qarz to'lash muddatlari — Dashboard ogohlantirishi uchun."""
+    return crud.get_supplier_payment_due_dates(db)
 
 
 @app.get("/api/inventory/purchase-trend")
