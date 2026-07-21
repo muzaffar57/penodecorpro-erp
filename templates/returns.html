@@ -16,7 +16,11 @@
 .ret-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s;opacity:0;animation:rIn .3s ease forwards}
 @keyframes rIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .ret-row:hover{box-shadow:var(--shadow-card)}
-.ret-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.ret-icon{width:70px;align-self:stretch;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+.ret-icon img{width:100%;height:100%;object-fit:cover}
+.ret-icon input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.ret-icon .cam-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;pointer-events:none}
+.ret-icon:hover .cam-overlay{opacity:1}
 .ret-icon.whole{background:#DCFCE7;color:#166534}
 .ret-icon.defect{background:#FEE2E2;color:#991B1B}
 .dest-badge{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
@@ -64,7 +68,11 @@
     <div class="ret-row" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}"
          data-search="{{ (r.order.order_number if r.order else '') ~ ' ' ~ (r.order.project.client_name if r.order and r.order.project else '') ~ ' ' ~ r.item_name }}"
          style="animation-delay:{{ (loop.index0 % 20)*0.02 }}s">
-      <div class="ret-icon {{ 'defect' if is_defect else 'whole' }}"><i class="ti {{ 'ti-x' if is_defect else 'ti-recycle' }}"></i></div>
+      <label class="ret-icon {{ 'defect' if is_defect else 'whole' }}" style="background:{{ '#FEE2E2' if is_defect else '#DCFCE7' }};color:{{ '#991B1B' if is_defect else '#166534' }}">
+        {% if r.image_url %}<img src="{{ r.image_url }}" alt="" onclick="event.stopPropagation();openReturnLightbox('{{ r.image_url }}')">{% else %}<i class="ti {{ 'ti-x' if is_defect else 'ti-recycle' }}"></i>{% endif %}
+        <span class="cam-overlay"><i class="ti ti-camera"></i></span>
+        <input type="file" accept="image/*" onclick="event.stopPropagation()" onchange="uploadReturnImage({{ r.id }}, this)">
+      </label>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;color:var(--text)">{{ r.item_name }}</div>
         <div style="font-size:13px;color:var(--text3);margin-top:2px">
@@ -103,6 +111,11 @@
     {% endif %}
   </div>
   <div id="retEmpty" style="display:none;text-align:center;padding:40px;color:var(--text3)">Hech narsa topilmadi</div>
+</div>
+
+<!-- ══ RASM KATTALASHTIRISH (LIGHTBOX) ══ -->
+<div id="retLightbox" onclick="closeReturnLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="retLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
 </div>
 
 <!-- Modal -->
@@ -214,6 +227,24 @@
 <script>
 const IS_ADMIN = {{ 'true' if current_user.role.value == 'admin' else 'false' }};
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+
+function openReturnLightbox(url) {
+  document.getElementById('retLightboxImg').src = url;
+  document.getElementById('retLightbox').style.display = 'flex';
+}
+function closeReturnLightbox() { document.getElementById('retLightbox').style.display = 'none'; }
+
+async function uploadReturnImage(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`/api/returns/${id}/image`, { method: 'POST', body: fd });
+    if (res.ok) location.reload();
+    else alert('Rasm yuklanmadi');
+  } catch(e) { alert('Server xatosi'); }
+}
 
 let currentOrderItems = [];
 
