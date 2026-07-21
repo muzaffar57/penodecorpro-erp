@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hodim kirishi — PenoDecorPro</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body{background:#f8f8f6;display:flex;align-items:center;justify-content:center;min-height:100vh;overflow:auto;margin:0}
+    .h-wrap{width:100%;max-width:380px;padding:20px}
+    .h-logo{text-align:center;margin-bottom:28px}
+    .h-logo .name{font-size:24px;font-weight:600;color:#111;letter-spacing:-.5px}
+    .h-logo .name span{color:#2563EB}
+    .h-logo .sub{font-size:13px;color:#999;margin-top:6px}
+    .h-card{background:#fff;border-radius:16px;border:1px solid #ebebeb;padding:30px}
+    .h-title{font-size:18px;font-weight:600;color:#111;margin-bottom:6px;text-align:center}
+    .h-sub{font-size:13px;color:#999;margin-bottom:24px;text-align:center}
+    .field-label{font-size:11px;color:#999;font-weight:500;text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;display:block}
+    .field-input{width:100%;padding:13px 14px;border:1.5px solid #e8e8e8;border-radius:9px;font-size:16px;color:#111;outline:none;background:#fafafa;transition:border .15s,background .15s;margin-bottom:16px;box-sizing:border-box}
+    .field-input:focus{border-color:#2563EB;background:#fff}
+    .pin-input{letter-spacing:8px;font-weight:700;text-align:center}
+    .h-btn{width:100%;padding:14px;background:#111;color:#fff;border:none;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s;margin-top:4px}
+    .h-btn:hover{background:#222}
+    .error-box{background:#FEE2E2;border:1px solid #F1948A;border-radius:8px;padding:11px 14px;color:#DC2626;font-size:13px;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+  </style>
+</head>
+<body>
+  <div class="h-wrap">
+    <div class="h-logo">
+      <div class="name">Penodecor<span>Pro</span></div>
+      <div class="sub">Hodim paneli</div>
+    </div>
+    <div class="h-card">
+      <div class="h-title">👷 Xodim kirishi</div>
+      <div class="h-sub">Telefon raqamingiz va PIN kodingizni kiriting</div>
+
+      {% if error %}
+      <div class="error-box">⚠️ {{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/hodim/login">
+        <label class="field-label">Telefon raqami</label>
+        <input class="field-input" type="tel" name="phone" placeholder="+998901234567" required autofocus>
+
+        <label class="field-label">PIN kod (4 xonali)</label>
+        <input class="field-input pin-input" type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="••••" required>
+
+        <button type="submit" class="h-btn">Kirish</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
