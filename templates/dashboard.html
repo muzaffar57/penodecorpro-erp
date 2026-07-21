@@ -8,7 +8,6 @@
 {% endblock %}
 
 {% block head %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 .dash-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px}
 .dash-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
@@ -337,6 +336,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const COLORS={gold:'#2563EB',green:'#22C55E',blue:'#0EA5E9',orange:'#F59E0B',red:'#EF4444',gray:'#BDC3C7',purple:'#8E44AD'};
 const ST_COLORS={'draft':'#95A5A6','new':COLORS.blue,'in_progress':COLORS.orange,'coating':COLORS.purple,'ready':COLORS.green,'delivered':COLORS.gold,'cancelled':COLORS.gray};
