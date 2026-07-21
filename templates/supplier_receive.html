@@ -218,8 +218,8 @@
           <div class="rcv-card-title">To'lov ma'lumotlari</div>
           <div class="rcv-row rcv-row-3">
             <div class="rcv-field">
-              <label>To'lov holati</label>
-              <select id="ap-transport-payer-display" disabled style="background:var(--r-bg)"><option>Pastda "Hozir to'langan summa" orqali belgilanadi</option></select>
+              <label>To'lov muddati <span style="font-weight:400;color:var(--r-text3)">(qarz qolsa)</span></label>
+              <input type="date" id="ap-due-date">
             </div>
             <div class="rcv-field"><label>Hozir to'langan summa</label><input type="text" id="ap-paid-now" placeholder="0" oninput="formatPriceInput(this)"></div>
             <div class="rcv-field">
@@ -608,6 +608,7 @@ async function submitReceive(){
   const paidNowTotal = parseNum(document.getElementById('ap-paid-now').value)||0;
   const transportPayer = document.getElementById('ap-transport-payer').value;
   const transportCost = parseNum(document.getElementById('ap-transport-cost').value)||0;
+  const dueDate = document.getElementById('ap-due-date').value || null;
   const notes = document.getElementById('ap-notes').value || '';
   const docNum = document.getElementById('r-docnum').value || '';
   const grandTotal = apBasket.reduce((s,l)=>s+l.total,0);
@@ -624,7 +625,8 @@ async function submitReceive(){
           notes: (docNum ? `[${docNum}] `:'') + (notes || 'Kirim sahifasidan qo\'shildi'),
           transport_payer: line===apBasket[0] ? transportPayer : 'none',
           transport_cost: line===apBasket[0] ? transportCost : 0,
-          volume_per_unit: line.volumePerUnit
+          volume_per_unit: line.volumePerUnit,
+          payment_due_date: dueDate
         })
       });
       if (res.ok){ const r = await res.json(); totalPaid += r.paid_now||0; totalDebt += r.debt_remains||0; }
@@ -639,6 +641,7 @@ async function submitReceive(){
   renderBasket();
   document.getElementById('ap-paid-now').value = '';
   document.getElementById('ap-transport-cost').value = '';
+  document.getElementById('ap-due-date').value = '';
   document.getElementById('ap-notes').value = '';
   loadHistoryForSupplier();
 }
