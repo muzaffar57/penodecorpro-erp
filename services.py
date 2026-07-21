@@ -2486,7 +2486,7 @@ def add_loy_to_stock(db: Session, recipe, kg: float) -> str:
     return msg
 
 
-def take_loy_from_stock(db: Session, recipe, kg_needed: float):
+def take_loy_from_stock(db: Session, recipe, kg_needed: float, order=None, reason_override: str = None):
     """Ombordagi tayyor loydan oladi.
     Qaytaradi: (olingan_kg, qolgan_ehtiyoj_kg, log_matni)"""
     if kg_needed <= 0:
@@ -2502,19 +2502,101 @@ def take_loy_from_stock(db: Session, recipe, kg_needed: float):
 
     taken = min(available, kg_needed)
     stock.stock_quantity = available - taken
+    if taken > 0:
+        import crud as _crud
+        _crud.log_movement(
+            db, stock.id, stock.item_name, movement_type="out",
+            quantity=taken, unit=stock.unit,
+            reason=reason_override or f"Buyurtma {getattr(order, 'order_number', order.id) if order else '?'} (tayyor loy zaxirasidan)",
+            order_id=order.id if order else None
+        )
     db.commit()
     msg = f"{stock.item_name}: -{taken:.1f} kg (zaxiradan)"
     print(f"✓ {msg}")
     return taken, kg_needed - taken, msg
 
 
-def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True, recipe_id: int = None) -> list:
+def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float, coating_applied: bool) -> list:
+    """Brak bo'lgan detal uchun xomashyoni ombordan yechadi.
+
+    - Penoplast — HAR DOIM yechiladi (detal shakli kesilgan bo'lsa, xomashyo
+      allaqachon sarflangan — brak bo'lishidan qat'i nazar).
+    - Loy (qoplama) — FAQAT coating_applied=True bo'lsa yechiladi (ya'ni
+      brak AYNAN qoplama tortilgandan keyin, uni sindirib/tirnab
+      yuborilgan bo'lsa). Agar qoplamagacha (masalan kesish jarayonida)
+      brak bo'lgan bo'lsa — loy sarflanmagan, hisoblanmaydi.
+
+    Faqat log qaytaradi, hech qanday moliyaviy hisob-kitobni o'zgartirmaydi
+    (bu — create_return_item() dagi refund_amount hisobidan MUSTAQIL)."""
+    from models import Inventory, InventoryMovement
+
+    log = []
+    if brak_qty <= 0 or not order_item:
+        return log
+
+    default_p = get_default_penoplast(db)
+    total_volume = _item_volume_m3(db, order_item, default_p)
+    qty_units = order_item.order_qty_normalized
+    if total_volume > 0 and qty_units > 0:
+        per_unit_volume = total_volume / qty_units
+        brak_volume = per_unit_volume * brak_qty
+        pid = order_item.penoplast_id or (default_p.id if default_p else None)
+        if pid and brak_volume > 0:
+            p = db.query(Inventory).filter(Inventory.id == pid).first()
+            if p and p.volume_per_unit and p.volume_per_unit > 0:
+                blocks = brak_volume / float(p.volume_per_unit)
+                old_qty = float(p.stock_quantity or 0)
+                p.stock_quantity = max(0, old_qty - blocks)
+                db.add(InventoryMovement(
+                    inventory_id=p.id, item_name=p.item_name, movement_type="out",
+                    quantity=blocks, unit=p.unit,
+                    reason=f"Brak — {order_item.name} ({brak_qty:g} birlik)",
+                    order_id=order.id if order else None
+                ))
+                log.append(f"{p.item_name}: -{blocks:.3f} blok (brak uchun)")
+
+    if coating_applied and order_item.is_coated and order:
+        loy_kg = 0.0
+        if order.notes:
+            for part in str(order.notes).split(','):
+                p2 = part.strip()
+                if p2.startswith('loy_kg='):
+                    try:
+                        loy_kg = float(p2.split('=')[1])
+                    except (ValueError, IndexError):
+                        pass
+                    break
+        if loy_kg <= 0:
+            loy_kg = _get_planned_loy(order)
+
+        total_coated_units = 0.0
+        for oi in order.items:
+            if oi.is_coated:
+                total_coated_units += oi.order_qty_normalized
+
+        if loy_kg > 0 and total_coated_units > 0:
+            loy_per_unit = loy_kg / total_coated_units
+            brak_loy_kg = loy_per_unit * brak_qty
+            if brak_loy_kg > 0:
+                loy_log = deduct_loy_ingredients(
+                    db, order, brak_loy_kg, recipe_id=order_item.recipe_id,
+                    reason_override=f"Brak — {order_item.name} (qoplama, {brak_qty:g} birlik)"
+                )
+                log.extend([f"{l} (brak — qoplama)" for l in loy_log])
+
+    db.commit()
+    return log
+
+
+def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True, recipe_id: int = None, reason_override: str = None) -> list:
     """
     Loy (qoplama) uchun ingredientlarni ombordan ayiradi.
     use_stock=True bo'lsa — avval tayyor loy zaxirasidan oladi.
     recipe_id berilsa — aynan O'SHA retsept ishlatiladi (masalan "Loy sotish"
     detali uchun, buyurtmaning umumiy qoplama retseptidan farqli bo'lishi
     mumkin). Berilmasa — avvalgidek, buyurtmadan avtomatik topiladi.
+    reason_override berilsa — jurnal yozuvida standart "Buyurtma X (loy)"
+    o'rniga shu matn ishlatiladi (masalan brak hisoboti uchun "Brak — ...").
     """
     from models import Inventory, Recipe
 
@@ -2531,7 +2613,7 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
 
     # 1) Avval tayyor loy zaxirasidan olamiz
     if use_stock:
-        taken, loy_kg, msg = take_loy_from_stock(db, recipe, loy_kg)
+        taken, loy_kg, msg = take_loy_from_stock(db, recipe, loy_kg, order=order, reason_override=reason_override)
         if msg:
             log.append(msg)
         if loy_kg <= 0:
@@ -2555,7 +2637,7 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
             _crud.log_movement(
                 db, inv_item.id, inv_item.item_name, movement_type="out",
                 quantity=needed_kg, unit=inv_item.unit,
-                reason=f"Buyurtma {getattr(order, 'order_number', order.id)} (loy)",
+                reason=reason_override or f"Buyurtma {getattr(order, 'order_number', order.id)} (loy)",
                 order_id=order.id
             )
 
