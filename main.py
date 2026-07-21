@@ -595,8 +595,8 @@ def api_add_payment(project_id: int, amount: float, db: Session = Depends(get_db
 
 
 @app.get("/orders", response_class=HTMLResponse)
-async def orders_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    orders = crud.get_orders(db)
+async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all)
     projects = crud.get_projects(db)
     masters = crud.get_masters(db, only_active=True)
     recipes = crud.get_recipes(db)
@@ -636,7 +636,8 @@ async def orders_page(request: Request, db: Session = Depends(get_db), current_u
         "projects": projects, "masters": masters,
         "recipes": recipes, "penoplasts": penoplasts,
         "default_penoplast_id": default_p.id if default_p else None,
-        "current_user": current_user, "active_page": "orders"
+        "current_user": current_user, "active_page": "orders",
+        "show_all": show_all
     })
 
 
