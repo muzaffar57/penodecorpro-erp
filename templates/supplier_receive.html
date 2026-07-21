@@ -121,7 +121,7 @@
         <div class="rcv-card-body">
           <div class="rcv-card-title">Mahsulot qo'shish</div>
 
-          <div class="rcv-row rcv-row-3">
+          <div class="rcv-row rcv-row-3" style="margin-bottom:6px">
             <div style="display:flex;gap:8px;align-items:flex-end">
               <div class="rcv-field" style="flex:1">
                 <label>Mahsulot *</label>
@@ -133,6 +133,8 @@
               <input type="text" class="i-m3price" id="ap-volume" placeholder="1.4">
             </div>
           </div>
+
+          <div id="ap-filter-hint" style="display:none;font-size:12px;color:var(--r-text3);margin:-8px 0 14px;padding:6px 10px;background:var(--r-primary-tint);border-radius:7px"></div>
 
           <div style="margin-bottom:14px">
             <span class="rcv-newitem-link" onclick="apToggleNewItem()">
@@ -345,9 +347,11 @@ async function onSupplierChange(){
     document.getElementById('sup-credit').textContent = '—';
     document.getElementById('sup-paid').textContent = '—';
     document.getElementById('sup-debt').textContent = '—';
+    applySupplierMaterialFilter(null);
     return;
   }
   loadHistoryForSupplier();
+  applySupplierMaterialFilter(currentSupplierId);
 }
 
 async function loadHistoryForSupplier(page){
@@ -426,28 +430,68 @@ async function saveNewSupplier(){
 }
 
 // ── MATERIAL TANLASH (mavjud, sinalgan mantiq) ──
+let supplierFilterIds = null;  // Joriy yetkazib beruvchidan ilgari xarid qilingan material ID'lari (null = filtr yo'q, hammasi)
+let supplierFilterActive = false;
+
 async function loadInvItemsForAp() {
-  if (invItems.length) return;
+  if (invItems.length) { renderInvDropdown(); return; }
   const sel = document.getElementById('ap-item');
   try {
     const res = await fetch('/api/inventory');
     if (!res.ok) { sel.innerHTML = `<option value="">❌ Xato (${res.status})</option>`; return; }
     invItems = await res.json();
     if (!invItems.length) { sel.innerHTML = '<option value="">⚠️ Omborxonada hech narsa yo\'q</option>'; return; }
-
-    const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Boshqa'];
-    const groups = {};
-    invItems.forEach(i => { const cat = i.category || 'Boshqa'; if (!groups[cat]) groups[cat]=[]; groups[cat].push(i); });
-    const sortedCats = Object.keys(groups).sort((a,b)=>{
-      const ia=catOrder.indexOf(a), ib=catOrder.indexOf(b);
-      return (ia===-1?99:ia)-(ib===-1?99:ib);
-    });
-    sel.innerHTML = sortedCats.map(cat => {
-      const opts = groups[cat].map(i => `<option value="${i.id}" data-unit="${i.unit}">${i.item_name} (${i.unit})</option>`).join('');
-      return `<optgroup label="${cat}">${opts}</optgroup>`;
-    }).join('');
+    renderInvDropdown();
     apOnItemChange();
   } catch(e) { sel.innerHTML = `<option value="">❌ ${e.message}</option>`; }
+}
+
+function renderInvDropdown(){
+  const sel = document.getElementById('ap-item');
+  let list = invItems;
+  if (supplierFilterActive && supplierFilterIds && supplierFilterIds.size > 0) {
+    list = invItems.filter(i => supplierFilterIds.has(i.id));
+  }
+  const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Boshqa'];
+  const groups = {};
+  list.forEach(i => { const cat = i.category || 'Boshqa'; if (!groups[cat]) groups[cat]=[]; groups[cat].push(i); });
+  const sortedCats = Object.keys(groups).sort((a,b)=>{
+    const ia=catOrder.indexOf(a), ib=catOrder.indexOf(b);
+    return (ia===-1?99:ia)-(ib===-1?99:ib);
+  });
+  sel.innerHTML = sortedCats.map(cat => {
+    const opts = groups[cat].map(i => `<option value="${i.id}" data-unit="${i.unit}">${i.item_name} (${i.unit})</option>`).join('');
+    return `<optgroup label="${cat}">${opts}</optgroup>`;
+  }).join('');
+
+  const hint = document.getElementById('ap-filter-hint');
+  if (hint) {
+    if (supplierFilterActive && supplierFilterIds && supplierFilterIds.size > 0) {
+      hint.style.display = 'block';
+      hint.innerHTML = `📌 Faqat shu yetkazib beruvchidan oldin olingan materiallar ko'rsatilmoqda. <span style="color:var(--r-primary);cursor:pointer;text-decoration:underline" onclick="showAllMaterials()">Barchasini ko'rsatish</span>`;
+    } else {
+      hint.style.display = 'none';
+    }
+  }
+}
+
+function showAllMaterials(){
+  supplierFilterActive = false;
+  renderInvDropdown();
+}
+
+async function applySupplierMaterialFilter(supplierId){
+  supplierFilterIds = null;
+  supplierFilterActive = false;
+  if (!supplierId) { renderInvDropdown(); return; }
+  try {
+    const items = await fetch(`/api/suppliers/${supplierId}/purchased-items`).then(r=>r.json());
+    if (items && items.length) {
+      supplierFilterIds = new Set(items.map(i => i.id));
+      supplierFilterActive = true;
+    }
+  } catch(e) { /* filtr ishlamasa — hammasi ko'rsatiladi, muammo emas */ }
+  if (invItems.length) renderInvDropdown();
 }
 
 function apOnItemChange(){
