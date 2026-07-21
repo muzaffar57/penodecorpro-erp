@@ -4,7 +4,6 @@
 {% block page_sub %}Biznes tahlili — bir qarashda umumiy holat{% endblock %}
 
 {% block head %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 .bi-wrap{
   --b-bg:#F5F7FA; --b-card:#FFFFFF; --b-border:#E5E7EB;
@@ -296,6 +295,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 let currentReport = 'inventory';
 let currentRows = [];
