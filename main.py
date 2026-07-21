@@ -1750,7 +1750,7 @@ def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), cur
     import services
     from models import Order, OrderStatus
 
-    orders = db.query(Order).filter(Order.project_id == project_id).all()
+    orders = db.query(Order).filter(Order.project_id == project_id, Order.is_deleted.isnot(True)).all()
     status_counts = {}
     total_profit = 0.0
     for o in orders:
@@ -2018,7 +2018,8 @@ def api_get_project_items(project_id: int, db: Session = Depends(get_db), curren
 
     orders = db.query(Order).filter(
         Order.project_id == project_id,
-        Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED])
+        Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]),
+        Order.is_deleted.isnot(True)
     ).order_by(Order.created_at.desc()).all()
 
     items = []
@@ -2799,7 +2800,7 @@ async def telegram_webhook(request: Request):
             if not master:
                 reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
             else:
-                orders = db.query(Order).filter(Order.master_id == master.id, Order.status == OrderStatus.READY).order_by(Order.completed_at.desc()).all()
+                orders = db.query(Order).filter(Order.master_id == master.id, Order.status == OrderStatus.READY, Order.is_deleted.isnot(True)).order_by(Order.completed_at.desc()).all()
                 jami_bonus = 0.0
                 buyurtmalar_text = ""
                 for i, o in enumerate(orders[:10]):
@@ -2807,7 +2808,7 @@ async def telegram_webhook(request: Request):
                     bonus = sotuv * float(master.cashback_percent) / 100
                     jami_bonus += bonus
                     buyurtmalar_text += f"• {o.order_number} — {int(sotuv):,} so'm → *{int(bonus):,} so'm* ✅\n"
-                faol = db.query(Order).filter(Order.master_id == master.id, Order.status != OrderStatus.READY).count()
+                faol = db.query(Order).filter(Order.master_id == master.id, Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
                 reply = f"📊 *Sizning bonuslaringiz*\n\n👤 {master.name}\n🎯 Bonus foizi: *{master.cashback_percent}%*\n\n━━━━━━━━━━━━━━━━━━━\n"
                 if buyurtmalar_text:
                     reply += f"📋 *Oxirgi buyurtmalar:*\n{buyurtmalar_text}\n"
