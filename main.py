@@ -943,6 +943,107 @@ def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user
     return {"status": "ok"}
 
 
+@app.post("/api/employees/{emp_id}/set-login")
+def api_set_employee_login(emp_id: int, phone: str = Form(...), pin: str = Form(...),
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Admin — xodimga telefon+PIN belgilaydi, shu orqali u o'z paneliga kira oladi."""
+    if len(pin.strip()) != 4 or not pin.strip().isdigit():
+        raise HTTPException(status_code=400, detail="PIN kod aynan 4 xonali raqam bo'lishi kerak")
+    try:
+        emp = crud.set_employee_login(db, emp_id, phone, pin)
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Bu telefon raqami boshqa xodimda band")
+    if not emp:
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
+    return {"status": "ok"}
+
+
+# ============================================================
+# XODIM PANELI — telefon+PIN bilan kirish, avans yozish
+# ============================================================
+
+@app.get("/hodim/login", response_class=HTMLResponse)
+async def hodim_login_page(request: Request, db: Session = Depends(get_db)):
+    emp = auth.get_current_employee(request, db)
+    if emp:
+        return RedirectResponse("/hodim", status_code=302)
+    return templates.TemplateResponse(request, "hodim_login.html", {"error": None})
+
+
+@app.post("/hodim/login")
+async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str = Form(...), db: Session = Depends(get_db)):
+    emp = crud.authenticate_employee(db, phone, pin)
+    if not emp:
+        return templates.TemplateResponse(request, "hodim_login.html", {"error": "Telefon yoki PIN noto'g'ri!"})
+    token = auth.create_employee_session(emp.id)
+    response = RedirectResponse("/hodim", status_code=302)
+    response.set_cookie(key="emp_session_token", value=token, httponly=True,
+                         max_age=3600 * auth.EMPLOYEE_SESSION_HOURS, samesite="lax")
+    return response
+
+
+@app.get("/hodim/logout")
+async def hodim_logout(request: Request):
+    token = request.cookies.get("emp_session_token")
+    if token:
+        auth.delete_employee_session(token)
+    response = RedirectResponse("/hodim/login", status_code=302)
+    response.delete_cookie("emp_session_token")
+    return response
+
+
+@app.get("/hodim", response_class=HTMLResponse)
+async def hodim_panel(request: Request, db: Session = Depends(get_db)):
+    emp = auth.get_current_employee(request, db)
+    if not emp:
+        return RedirectResponse("/hodim/login", status_code=302)
+    return templates.TemplateResponse(request, "hodim_panel.html", {"employee": emp})
+
+
+@app.get("/api/hodim/my-requests")
+def api_hodim_my_requests(db: Session = Depends(get_db), emp=Depends(auth.require_employee_login)):
+    return crud.get_employee_own_requests(db, emp.id)
+
+
+@app.post("/api/hodim/advance-request")
+def api_hodim_advance_request(amount: float = Form(...), requested_date: str = Form(...),
+                               notes: str = Form(None), db: Session = Depends(get_db),
+                               emp=Depends(auth.require_employee_login)):
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Summa noto'g'ri")
+    try:
+        rdate = datetime.strptime(requested_date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Sana noto'g'ri")
+    req = crud.create_advance_request(db, emp.id, amount, rdate, notes)
+    return {"status": "ok", "id": req.id}
+
+
+# ============================================================
+# ADMIN — xodim yozgan avans so'rovlarini tasdiqlash
+# ============================================================
+
+@app.get("/api/admin/pending-advance-requests")
+def api_pending_advance_requests(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    return crud.get_pending_advance_requests(db)
+
+
+@app.post("/api/admin/advance-requests/{request_id}/confirm")
+def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username)
+    if not result:
+        raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
+    return result
+
+
+@app.post("/api/admin/advance-requests/{request_id}/reject")
+def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    if not crud.reject_advance_request(db, request_id, current_user.full_name or current_user.username):
+        raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
+    return {"status": "ok"}
+
+
 # ============================================================
 # MASTER KPI — Yillik KPI (sotuvdan %)
 # ============================================================
