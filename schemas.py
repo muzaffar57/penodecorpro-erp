@@ -600,4 +600,5 @@ class ReturnItemRead(BaseModel):
     is_refunded: bool
     notes: Optional[str] = None
     returned_at: datetime
+    image_url: Optional[str] = None
     model_config = {"from_attributes": True}
