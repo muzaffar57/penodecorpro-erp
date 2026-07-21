@@ -47,6 +47,32 @@
     {% endif %}
   </div>
 
+  {% if current_user.role.value == 'admin' %}
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head" style="cursor:pointer;user-select:none" onclick="toggleBrakSummary()">
+      <h3>🧱 Brak — sarflangan xomashyo xulosasi</h3>
+      <i class="ti ti-chevron-down" id="brakSummaryChevron" style="font-size:16px;transition:transform .2s"></i>
+    </div>
+    <div id="brakSummaryBody" style="display:none;padding:14px">
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:12px">Boshlanish sanasi</label>
+          <input type="date" id="brak-sum-start" style="padding:7px 10px;font-size:13px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:12px">Tugash sanasi</label>
+          <input type="date" id="brak-sum-end" style="padding:7px 10px;font-size:13px">
+        </div>
+        <button class="btn btn-dark btn-sm" onclick="loadBrakSummary()">🔍 Ko'rsatish</button>
+        <button class="btn btn-outline btn-sm" onclick="brakSummaryThisMonth()">Shu oy</button>
+      </div>
+      <div id="brakSummaryContent">
+        <div style="text-align:center;padding:24px;color:#bbb;font-size:13px">Sana tanlab, "Ko'rsatish" tugmasini bosing</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="ret-filters">
     <input type="text" id="ret-search" placeholder="Buyurtma, mijoz yoki mahsulot bo'yicha qidirish..." style="flex:1;min-width:220px" oninput="filterTable()">
     <select id="filter-reason" onchange="filterTable()">
@@ -171,6 +197,21 @@
       <div id="reason-hint" style="font-size:13px;color:#aaa;margin-top:6px">Butun — tayyor mahsulotlar omboriga qaytadi</div>
     </div>
 
+    <div class="form-group" id="coating-applied-wrap" style="display:none">
+      <label>Brak bo'lganda loy (qoplama) allaqachon tortilgan edimi?</label>
+      <div style="display:flex;gap:8px">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
+          <input type="radio" name="f-coating-applied" value="no" checked style="width:16px;height:16px">
+          <span style="font-size:13px">✂️ Yo'q — kesish jarayonida (loygacha)</span>
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
+          <input type="radio" name="f-coating-applied" value="yes" style="width:16px;height:16px">
+          <span style="font-size:13px">🎨 Ha — loy tortilgandan keyin</span>
+        </label>
+      </div>
+      <div style="font-size:12px;color:#aaa;margin-top:6px">Bu — sarflangan xomashyoni to'g'ri hisoblash uchun kerak: agar loy tortilmasdan brak bo'lgan bo'lsa, faqat Penoplast hisobga olinadi.</div>
+    </div>
+
     {% if current_user.role.value == 'admin' %}
     <div class="form-group">
       <label>Qiymati (avtomatik, o'zgartirish mumkin)</label>
@@ -217,6 +258,20 @@
         <input type="text" id="brak-notes" placeholder="Masalan: kesish jarayonida sinib ketdi">
       </div>
 
+      <div class="form-group">
+        <label>Bu ro'yxatdagi (qoplamali) detallar loy tortilgandan keyin brak bo'lganmi?</label>
+        <div style="display:flex;gap:8px">
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
+            <input type="radio" name="brak-coating-applied" value="no" checked style="width:16px;height:16px">
+            <span style="font-size:13px">✂️ Yo'q — loygacha</span>
+          </label>
+          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
+            <input type="radio" name="brak-coating-applied" value="yes" style="width:16px;height:16px">
+            <span style="font-size:13px">🎨 Ha — loydan keyin</span>
+          </label>
+        </div>
+      </div>
+
       <div id="brak-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     </div>
 
@@ -231,6 +286,70 @@
 {% block scripts %}
 <script>
 const IS_ADMIN = {{ 'true' if current_user.role.value == 'admin' else 'false' }};
+
+function toggleBrakSummary(){
+  const body = document.getElementById('brakSummaryBody');
+  const chevron = document.getElementById('brakSummaryChevron');
+  const isOpen = body.style.display === 'block';
+  body.style.display = isOpen ? 'none' : 'block';
+  chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+  if (!isOpen && !document.getElementById('brak-sum-start').value) {
+    brakSummaryThisMonth();
+  }
+}
+
+function brakSummaryThisMonth(){
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  document.getElementById('brak-sum-start').value = first.toISOString().slice(0,10);
+  document.getElementById('brak-sum-end').value = now.toISOString().slice(0,10);
+  loadBrakSummary();
+}
+
+async function loadBrakSummary(){
+  const start = document.getElementById('brak-sum-start').value;
+  const end = document.getElementById('brak-sum-end').value;
+  const content = document.getElementById('brakSummaryContent');
+  content.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Yuklanmoqda...</div>';
+  try {
+    let url = '/api/reports/brak-materials';
+    const params = [];
+    if (start) params.push(`start_date=${start}`);
+    if (end) params.push(`end_date=${end}`);
+    if (params.length) url += '?' + params.join('&');
+    const data = await fetch(url).then(r => r.json());
+    if (!data.items || !data.items.length) {
+      content.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Bu davrda brak sababli sarflangan xomashyo topilmadi</div>';
+      return;
+    }
+    const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
+    content.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+        <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+          <th style="padding:8px 6px">Xomashyo</th>
+          <th style="padding:8px 6px;text-align:right">Miqdor</th>
+          <th style="padding:8px 6px;text-align:right">1 birlik narxi</th>
+          <th style="padding:8px 6px;text-align:right">Jami qiymat</th>
+        </tr></thead>
+        <tbody>
+          ${data.items.map(it => `
+            <tr style="border-bottom:1px solid #f5f5f5">
+              <td style="padding:9px 6px;font-weight:600">${it.item_name}</td>
+              <td style="padding:9px 6px;text-align:right">${it.quantity} ${it.unit || ''}</td>
+              <td style="padding:9px 6px;text-align:right;color:#888">${fmt(it.unit_price)} so'm</td>
+              <td style="padding:9px 6px;text-align:right;font-weight:700;color:#DC2626">${fmt(it.value)} so'm</td>
+            </tr>`).join('')}
+        </tbody>
+        <tfoot><tr style="border-top:2px solid #eee;font-weight:700">
+          <td colspan="3" style="padding:12px 6px">Jami yo'qotish:</td>
+          <td style="padding:12px 6px;text-align:right;color:#DC2626;font-size:15px">${fmt(data.total_value)} so'm</td>
+        </tr></tfoot>
+      </table>`;
+  } catch(e) {
+    content.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626;font-size:13px">Xato yuz berdi</div>';
+  }
+}
+
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
 
 function openReturnLightbox(url) {
@@ -338,6 +457,13 @@ function updateReasonHint(){
   } else {
     hint.textContent = "🟢 Butun — tayyor mahsulotlar omboriga qaytadi, keyin sotish/ishlatish mumkin";
   }
+
+  const itemId = parseInt(document.getElementById('f-item').value);
+  const item = currentOrderItems.find(i => i.id === itemId);
+  const coatWrap = document.getElementById('coating-applied-wrap');
+  if (coatWrap) {
+    coatWrap.style.display = (reason === 'Brak' && item && item.is_coated) ? 'block' : 'none';
+  }
 }
 
 function calcValue(){
@@ -402,7 +528,8 @@ async function saveReturn(){
       reason,
       refund_amount: parseFloat(document.getElementById('f-value').value) || 0,
       to_stock: true,
-      notes: document.getElementById('f-notes').value || null
+      notes: document.getElementById('f-notes').value || null,
+      coating_applied: document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes'
     })
   });
 
@@ -504,7 +631,8 @@ async function saveBrakBatch(){
           reason: 'Brak',
           refund_amount: 0,
           to_stock: false,
-          notes
+          notes,
+          coating_applied: document.querySelector('input[name="brak-coating-applied"]:checked')?.value === 'yes'
         })
       });
       if (res.ok) okCount++;
