@@ -296,25 +296,6 @@
 
   <div id="monthlyReportWrap" style="display:none">
 
-    <!-- ═══ 2-QATOR: GRAFIKLAR ═══ -->
-    <div class="fin-section">
-      <div class="fin-charts-grid">
-        <div class="fin-card">
-          <div class="fin-card-body">
-            <div class="fin-section-title" style="margin-bottom:14px">Daromad va sof foyda <span style="font-weight:400;color:var(--f-text3);font-size:13px">— oxirgi 12 oy</span></div>
-            <div class="fin-chart-wrap"><canvas id="trendChart"></canvas></div>
-          </div>
-        </div>
-        <div class="fin-card">
-          <div class="fin-card-body">
-            <div class="fin-section-title" style="margin-bottom:14px">Xarajatlar tarkibi</div>
-            <div class="fin-chart-wrap-sm"><canvas id="expDonut"></canvas></div>
-            <div class="fin-legend" id="donutLegend"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- ═══ 4-QATOR: MOLIYAVIY TAHLILLAR ═══ -->
     <div class="fin-section">
       <div class="fin-analytics-grid">
@@ -347,14 +328,6 @@
               <div class="fin-profit-big" id="profitBig">—</div>
               <div style="font-size:13px;color:var(--f-text3);margin-top:4px" id="profitPct">—</div>
             </div>
-          </div>
-        </div>
-
-        <!-- Pul oqimi (bar ko'rinishida) -->
-        <div class="fin-card" style="grid-column:1/-1">
-          <div class="fin-card-body">
-            <div class="fin-section-title" style="margin-bottom:16px"><i class="ti ti-arrows-left-right"></i> Pul oqimi <span style="font-weight:400;color:var(--f-text3);font-size:13px">— bu oy</span></div>
-            <div id="cashFlowBars"></div>
           </div>
         </div>
 
@@ -425,7 +398,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const now=new Date();
 document.getElementById('sel-month').value=now.getMonth()+1;
@@ -458,8 +430,6 @@ function animateCounter(el, target, suffix, isNegativeOk) {
 }
 
 let currentData=null;
-let historyData=[];
-let trendChartInst=null, donutChartInst=null;
 
 async function loadReport(){
   const month=document.getElementById('sel-month').value;
@@ -489,103 +459,7 @@ async function loadReport(){
 
   buildExpDetail(d);
   buildCashSection(d);
-  buildDonut(d);
-  buildCashFlowBars(d);
-  loadHistory();
   initDailyTx();
-}
-
-function buildDonut(d){
-  const x = d.xarajatlar || {};
-  const qoshimcha = d.qoshimcha_xarajatlar || {};
-  const CATEGORY_LABELS = {reklama: 'Reklama', kutilmagan: 'Kutilmagan xarajat', boshqa: 'Boshqa'};
-  const PALETTE = ['#2563EB','#F59E0B','#22C55E','#8E44AD','#0EA5E9','#EF4444','#EC4899','#14B8A6'];
-  let ci = 0;
-  const entries = [
-    ['Arenda', x.arenda||0, PALETTE[ci++]],
-    ['Elektr', x.elektr||0, PALETTE[ci++]],
-    ['Tushlik', x.tushlik||0, PALETTE[ci++]],
-    ['Soliqlar', x.soliqlar||0, PALETTE[ci++]],
-    ['Ishlab chiqarish', d.ishlab_chiqarish_xarajat||0, PALETTE[ci++]],
-    ['Naqd xarajat', d.naqd_xarajat_jami||0, PALETTE[ci++]],
-  ];
-  for (const [cat, amt] of Object.entries(qoshimcha)) {
-    entries.push([CATEGORY_LABELS[cat] || cat, amt, PALETTE[ci++ % PALETTE.length]]);
-  }
-  const filtered = entries.filter(e => e[1] > 0);
-  const total = filtered.reduce((s,e)=>s+e[1], 0);
-
-  if (donutChartInst) donutChartInst.destroy();
-  const legendEl = document.getElementById('donutLegend');
-
-  if (!filtered.length) {
-    legendEl.innerHTML = '<div class="fin-breakdown-empty" style="text-align:center;padding:16px 0">Xarajat tarkibi yo\'q</div>';
-    return;
-  }
-
-  donutChartInst = new Chart(document.getElementById('expDonut'), {
-    type: 'doughnut',
-    data: {
-      labels: filtered.map(e=>e[0]),
-      datasets: [{ data: filtered.map(e=>e[1]), backgroundColor: filtered.map(e=>e[2]), borderWidth:2, borderColor:'#fff', hoverOffset:6 }]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false, cutout:'68%',
-      animation:{ animateRotate:true, animateScale:true, duration:700, easing:'easeOutQuart' },
-      plugins:{
-        legend:{ display:false },
-        tooltip:{
-          backgroundColor:'#111827', padding:10, cornerRadius:8, titleFont:{size:12}, bodyFont:{size:12.5,weight:'600'},
-          callbacks:{ label: ctx => `${ctx.label}: ${fmtFull(ctx.parsed)} so'm` }
-        }
-      }
-    }
-  });
-
-  legendEl.innerHTML = filtered.map(([name, amt, color]) => {
-    const pct = total > 0 ? (amt/total*100) : 0;
-    return `<div class="fin-legend-row">
-      <span class="fin-legend-dot" style="background:${color}"></span>
-      <span class="fin-legend-name">${name}</span>
-      <span class="fin-legend-pct">${pct.toFixed(0)}%</span>
-      <span class="fin-legend-amt">${fmtFull(amt)}</span>
-    </div>`;
-  }).join('');
-}
-
-function buildCashFlowBars(d){
-  const kirim = d.daromad || 0;
-  const chiqim = (d.jami_xarajat||0) + (d.naqd_xarajat_jami||0);
-  const balans = kirim - chiqim;
-  const maxVal = Math.max(kirim, chiqim, 1);
-
-  document.getElementById('cashFlowBars').innerHTML = `
-    <div class="fin-flow-row">
-      <div class="fin-flow-top">
-        <span class="fin-flow-label"><i class="ti ti-arrow-down-left" style="color:var(--f-success)"></i> Kirim</span>
-        <span class="fin-flow-val" style="color:var(--f-success)">${fmtFull(kirim)} so'm</span>
-      </div>
-      <div class="fin-flow-track"><div class="fin-flow-fill" id="flow-kirim" style="background:var(--f-success)"></div></div>
-    </div>
-    <div class="fin-flow-row">
-      <div class="fin-flow-top">
-        <span class="fin-flow-label"><i class="ti ti-arrow-up-right" style="color:var(--f-danger)"></i> Chiqim</span>
-        <span class="fin-flow-val" style="color:var(--f-danger)">${fmtFull(chiqim)} so'm</span>
-      </div>
-      <div class="fin-flow-track"><div class="fin-flow-fill" id="flow-chiqim" style="background:var(--f-danger)"></div></div>
-    </div>
-    <div class="fin-flow-balance" style="background:${balans>=0?'var(--f-primary-tint)':'var(--f-warning-tint)'}">
-      <i class="ti ti-scale" style="font-size:18px;color:${balans>=0?'#1D4ED8':'#92400E'}"></i>
-      <span style="font-size:13px;color:${balans>=0?'#1D4ED8':'#92400E'};font-weight:600">Balans:</span>
-      <span style="font-size:17px;font-weight:800;color:${balans>=0?'#1D4ED8':'#92400E'}">${fmtFull(balans)} so'm</span>
-    </div>`;
-
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      document.getElementById('flow-kirim').style.width = (kirim/maxVal*100) + '%';
-      document.getElementById('flow-chiqim').style.width = (chiqim/maxVal*100) + '%';
-    }, 30);
-  });
 }
 
 function buildCashSection(d){
@@ -657,43 +531,6 @@ function toggleTodayDetail(){
   const isOpen = panel.style.display !== 'none';
   panel.style.display = isOpen ? 'none' : 'block';
   chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
-}
-
-// ── TARIX, GRAFIK, JADVAL ─────────────────────────
-async function loadHistory(){
-  try{
-    const res = await fetch('/api/finance/history?months=12');
-    historyData = await res.json();
-    buildTrendChart(historyData);
-  }catch(e){ console.error('Tarixni yuklashda xato:', e); }
-}
-
-function buildTrendChart(hist){
-  if (trendChartInst) trendChartInst.destroy();
-  trendChartInst = new Chart(document.getElementById('trendChart'), {
-    type: 'line',
-    data: {
-      labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
-      datasets: [
-        { label: 'Daromad', data: hist.map(h=>h.daromad), borderColor:'#2563EB', backgroundColor:'rgba(37,99,235,.08)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
-        { label: 'Sof foyda', data: hist.map(h=>h.sof_foyda), borderColor:'#8E44AD', backgroundColor:'rgba(142,68,173,.08)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 }
-      ]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      animation:{ duration:800, easing:'easeOutQuart' },
-      interaction:{ mode:'index', intersect:false },
-      plugins:{
-        legend:{ position:'top', align:'end', labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12},color:'#4B5563'} },
-        tooltip:{ backgroundColor:'#111827', padding:11, cornerRadius:8, titleFont:{size:12}, bodyFont:{size:12.5}, bodySpacing:4,
-          callbacks:{ label: ctx => `${ctx.dataset.label}: ${fmtFull(ctx.parsed.y)} so'm` } }
-      },
-      scales:{
-        x:{ grid:{ display:false }, ticks:{ font:{size:11.5}, color:'#9CA3AF' } },
-        y:{ grid:{ color:'#F0F1F3' }, border:{display:false}, ticks:{ font:{size:11}, color:'#9CA3AF', callback:v=>fmt(v) } }
-      }
-    }
-  });
 }
 
 // ── KUNLIK TRANZAKSIYALARNI BOSHLASH ────────────────────────
