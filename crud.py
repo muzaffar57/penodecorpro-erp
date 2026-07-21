@@ -1472,7 +1472,10 @@ def get_delivery_stats(db: Session) -> dict:
 
 def get_debt_stats(db: Session) -> dict:
     """Qarzdorlik statistikasi — dashboard uchun."""
-    orders = db.query(Order).filter(Order.is_archived == False).all()
+    orders = db.query(Order).filter(
+        Order.is_archived == False,
+        Order.is_deleted.isnot(True)
+    ).all()
 
     total_agreed = 0.0
     total_paid = 0.0
