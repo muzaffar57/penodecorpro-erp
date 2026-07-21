@@ -1173,10 +1173,21 @@ def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
         reason=reason_enum,
         refund_amount=refund_amount,
         is_refunded=False,
-        notes=data.notes
+        notes=data.notes,
+        coating_applied=(getattr(data, 'coating_applied', False) if reason_enum == ReturnReason.DEFECT else False)
     )
     db.add(item)
     db.flush()
+
+    # BRAK bo'lsa — sarflangan xomashyoni (Penoplast + shart bo'lsa Loy)
+    # ombordan haqiqatda yechamiz (moliyaviy hisobdan MUSTAQIL, alohida)
+    if reason_enum == ReturnReason.DEFECT and order_item and order_item.order:
+        brak_log = services.deduct_raw_material_for_brak(
+            db, order_item, order_item.order, float(data.quantity or 0),
+            getattr(data, 'coating_applied', False)
+        )
+        if brak_log:
+            print(f"✓ Brak uchun xomashyo yechildi: {brak_log}")
 
     # Tayyor mahsulotlar omboriga qo'shamiz (brak bo'lmasa)
     to_stock = getattr(data, 'to_stock', True)
@@ -3665,6 +3676,43 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
     db.commit()
     db.refresh(p)
     return p
+
+
+def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> dict:
+    """Brak (defekt) sabab ombordan yechilgan XOMASHYO bo'yicha xulosa —
+    har bir material nomi, jami miqdori va tan narxi bo'yicha qiymati.
+    Faqat o'qish. Joriy narx (price_per_unit) asosida hisoblanadi."""
+    from models import Inventory, InventoryMovement
+    from sqlalchemy import func
+
+    q = db.query(
+        InventoryMovement.item_name,
+        InventoryMovement.inventory_id,
+        InventoryMovement.unit,
+        func.sum(InventoryMovement.quantity).label("total_qty")
+    ).filter(
+        InventoryMovement.movement_type == "out",
+        InventoryMovement.reason.like("Brak%")
+    )
+    if start_date:
+        q = q.filter(InventoryMovement.created_at >= start_date)
+    if end_date:
+        q = q.filter(InventoryMovement.created_at <= end_date)
+    rows = q.group_by(InventoryMovement.item_name, InventoryMovement.inventory_id, InventoryMovement.unit).all()
+
+    result = []
+    total_value = 0.0
+    for item_name, inv_id, unit, total_qty in rows:
+        inv = db.query(Inventory).filter(Inventory.id == inv_id).first()
+        price = float(inv.price_per_unit or 0) if inv else 0.0
+        value = float(total_qty or 0) * price
+        total_value += value
+        result.append({
+            "item_name": item_name, "quantity": round(float(total_qty or 0), 3),
+            "unit": unit, "unit_price": price, "value": round(value)
+        })
+    result.sort(key=lambda x: -x["value"])
+    return {"items": result, "total_value": round(total_value)}
 
 
 def get_supplier_purchased_items(db: Session, supplier_id: int) -> List[dict]:
