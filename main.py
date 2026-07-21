@@ -1093,6 +1093,12 @@ def api_suppliers_due_dates(db: Session = Depends(get_db), current_user=Depends(
     return crud.get_supplier_payment_due_dates(db)
 
 
+@app.get("/api/suppliers/{supplier_id}/purchased-items")
+def api_supplier_purchased_items(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Shu yetkazib beruvchidan ilgari xarid qilingan materiallar — Kirim sahifasida qulaylik uchun."""
+    return crud.get_supplier_purchased_items(db, supplier_id)
+
+
 @app.get("/api/inventory/purchase-trend")
 def api_purchase_trend(months: int = 6, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Oxirgi N oy xarid tendensiyasi."""
