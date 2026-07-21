@@ -62,23 +62,12 @@
     </div>
     <div class="card-body">
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="margin-bottom:14px">
         <div class="rec-stat">
           <div class="rec-stat-val">{{ "{:,.0f}".format(ins.cost_per_kg).replace(",", " ") }} so'm</div>
           <div class="rec-stat-label">1 kg tannarxi (joriy narxda)</div>
         </div>
-        <div class="rec-stat">
-          <div class="rec-stat-val">{{ ins.used_in|length }}{% if ins.used_in|length == 12 %}+{% endif %}</div>
-          <div class="rec-stat-label">ishlatilgan mahsulot turi</div>
-        </div>
       </div>
-
-      {% if ins.used_in %}
-      <div style="margin-bottom:14px">
-        <div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Qaysi mahsulotlarda ishlatiladi</div>
-        {% for name in ins.used_in %}<span class="used-tag">{{ name }}</span>{% endfor %}
-      </div>
-      {% endif %}
 
       <div style="font-size:13px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Tarkibi</div>
       {% if not recipe.ingredients %}
