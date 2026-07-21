@@ -141,10 +141,11 @@
               <div class="rcv-field"><label>Yangi material nomi</label><input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat"></div>
               <div class="rcv-field">
                 <label>Kategoriya (Tasnif)</label>
-                <select id="ap-newitem-category">
+                <select id="ap-newitem-category" onchange="onNewItemCategoryChange()">
                   <option value="Penoplast">Penoplast</option>
                   <option value="Kimyoviy qo'shimchalar" selected>Kimyoviy qo'shimcha</option>
                   <option value="Qattiq qotishmalar">Mineral qo'shimcha</option>
+                  <option value="Bazalt">Bazalt (issiqlik plitasi)</option>
                   <option value="Boshqa">Boshqa</option>
                 </select>
               </div>
@@ -154,6 +155,30 @@
                   <option value="kg">kg</option><option value="dona">dona</option><option value="litr">litr</option>
                   <option value="m³">m³</option><option value="m">m</option><option value="rulon">rulon</option>
                 </select>
+              </div>
+            </div>
+
+            <div class="rcv-row rcv-row-2" id="ap-newitem-peno-wrap" style="display:none;margin-top:14px;margin-bottom:0">
+              <div class="rcv-field">
+                <label>1 blok necha m³?</label>
+                <input type="number" id="ap-newitem-volume" placeholder="1.0" step="0.01" min="0.01">
+              </div>
+              <div class="rcv-field" style="display:flex;align-items:flex-end;padding-bottom:10px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:400">
+                  <input type="checkbox" id="ap-newitem-default" style="width:16px;height:16px">
+                  Bu — asosiy (standart) plotnost
+                </label>
+              </div>
+            </div>
+
+            <div class="rcv-row rcv-row-2" id="ap-newitem-bazalt-wrap" style="display:none;margin-top:14px;margin-bottom:0;background:#F3EEFF;border:1px solid #C4B5FD;border-radius:8px;padding:12px">
+              <div class="rcv-field" style="margin:0">
+                <label style="font-size:12.5px">1 m² bazaltga — Serpiyanka (m²)</label>
+                <input type="number" id="ap-newitem-serp" placeholder="2.0" step="0.1" min="0">
+              </div>
+              <div class="rcv-field" style="margin:0">
+                <label style="font-size:12.5px">1 m² bazaltga — Kley (kg)</label>
+                <input type="number" id="ap-newitem-kley" placeholder="0.8" step="0.05" min="0">
               </div>
             </div>
           </div>
@@ -441,7 +466,21 @@ function apToggleNewItem(){
   document.getElementById('ap-newitem-form').style.display = apCreatingNewItem ? 'block' : 'none';
   document.getElementById('ap-newitem-toggle-text').textContent = apCreatingNewItem
     ? '← Ro\'yxatdan tanlayman' : "🆕 Ro'yxatda yo'q — yangi material yozaman";
-  if (apCreatingNewItem) { document.getElementById('ap-newitem-name').value=''; document.getElementById('ap-volume-wrap').style.display='none'; }
+  if (apCreatingNewItem) {
+    document.getElementById('ap-newitem-name').value='';
+    document.getElementById('ap-newitem-volume').value='';
+    document.getElementById('ap-newitem-serp').value='';
+    document.getElementById('ap-newitem-kley').value='';
+    const defEl = document.getElementById('ap-newitem-default'); if (defEl) defEl.checked = false;
+    document.getElementById('ap-volume-wrap').style.display='none';
+    onNewItemCategoryChange();
+  }
+}
+
+function onNewItemCategoryChange(){
+  const cat = document.getElementById('ap-newitem-category').value;
+  document.getElementById('ap-newitem-peno-wrap').style.display = cat === 'Penoplast' ? 'grid' : 'none';
+  document.getElementById('ap-newitem-bazalt-wrap').style.display = cat === 'Bazalt' ? 'grid' : 'none';
 }
 
 async function apResolveItemId(){
@@ -450,10 +489,20 @@ async function apResolveItemId(){
   if (!name) { showMsg('❌ Yangi material nomini kiriting', 'error'); return null; }
   const category = document.getElementById('ap-newitem-category').value;
   const unit = document.getElementById('ap-newitem-unit').value;
+  const isPeno = category === 'Penoplast';
+  const volumePerUnit = parseFloat(document.getElementById('ap-newitem-volume')?.value) || 1.0;
+  const isDefault = document.getElementById('ap-newitem-default')?.checked || false;
+  const serpRatio = parseFloat(document.getElementById('ap-newitem-serp')?.value) || null;
+  const kleyRatio = parseFloat(document.getElementById('ap-newitem-kley')?.value) || null;
   try {
     const res = await fetch('/api/inventory', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ item_name:name, category, unit, stock_quantity:0, min_stock:0, is_penoplast: category === 'Penoplast' })
+      body: JSON.stringify({
+        item_name:name, category, unit, stock_quantity:0, min_stock:0,
+        is_penoplast: isPeno, is_default_penoplast: isPeno && isDefault,
+        volume_per_unit: volumePerUnit,
+        serp_ratio_per_m2: serpRatio, kley_ratio_per_m2: kleyRatio
+      })
     });
     if (!res.ok) { showMsg('❌ Yangi material yaratib bo\'lmadi', 'error'); return null; }
     const created = await res.json();
