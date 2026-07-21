@@ -3363,6 +3363,117 @@ def delete_employee(db: Session, emp_id: int) -> bool:
 
 
 # ============================================================
+# XODIM PANELI — login sozlash va avans so'rovlari
+# ============================================================
+
+def set_employee_login(db: Session, emp_id: int, phone: str, pin: str) -> Optional[Employee]:
+    """Admin xodimga telefon+PIN belgilaydi (xodim panelga kirishi uchun)."""
+    import auth
+    emp = get_employee(db, emp_id)
+    if not emp:
+        return None
+    emp.phone = phone.strip()
+    emp.pin_hash = auth.hash_pin(pin.strip())
+    db.commit()
+    db.refresh(emp)
+    return emp
+
+
+def authenticate_employee(db: Session, phone: str, pin: str):
+    """Telefon+PIN to'g'riligini tekshiradi."""
+    import auth
+    emp = db.query(Employee).filter(
+        Employee.phone == phone.strip(), Employee.is_active == True
+    ).first()
+    if not emp or not emp.pin_hash:
+        return None
+    if auth.hash_pin(pin.strip()) != emp.pin_hash:
+        return None
+    return emp
+
+
+def create_advance_request(db: Session, employee_id: int, amount: float, requested_date, notes: str = None):
+    """Xodim o'zi 'avans oldim' deb yozadi — hali TASDIQLANMAGAN holatda."""
+    from models import AdvanceRequest, AdvanceRequestStatus
+    req = AdvanceRequest(
+        employee_id=employee_id, amount=amount,
+        requested_date=requested_date, notes=notes,
+        status=AdvanceRequestStatus.PENDING
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+def get_pending_advance_requests(db: Session) -> List[dict]:
+    """Admin tasdiqlashi kerak bo'lgan, hali ko'rib chiqilmagan so'rovlar."""
+    from models import AdvanceRequest, AdvanceRequestStatus
+    rows = db.query(AdvanceRequest).filter(
+        AdvanceRequest.status == AdvanceRequestStatus.PENDING
+    ).order_by(AdvanceRequest.requested_date.asc()).all()
+    result = []
+    for r in rows:
+        result.append({
+            "id": r.id, "employee_id": r.employee_id,
+            "employee_name": r.employee.name if r.employee else "—",
+            "amount": float(r.amount), "requested_date": r.requested_date.isoformat(),
+            "notes": r.notes, "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None
+        })
+    return result
+
+
+def confirm_advance_request(db: Session, request_id: int, confirmed_by: str) -> Optional[dict]:
+    """Admin tasdiqlaydi — shu bilan HAQIQIY EmployeeAdvance yozuvi yaratiladi
+    (Moliya/Hisobotga to'g'ridan-to'g'ri ta'sir qiladigan)."""
+    from models import AdvanceRequest, AdvanceRequestStatus, EmployeeAdvance
+    req = db.query(AdvanceRequest).filter(AdvanceRequest.id == request_id).first()
+    if not req or req.status != AdvanceRequestStatus.PENDING:
+        return None
+
+    advance = EmployeeAdvance(
+        employee_id=req.employee_id, amount=req.amount,
+        date=req.requested_date,
+        notes=(req.notes or "") + " (xodim o'zi yozgan, admin tasdiqladi)",
+        given_by=confirmed_by
+    )
+    db.add(advance)
+
+    req.status = AdvanceRequestStatus.CONFIRMED
+    req.confirmed_at = datetime.utcnow()
+    req.confirmed_by = confirmed_by
+    db.commit()
+    return {"success": True, "advance_id": advance.id}
+
+
+def reject_advance_request(db: Session, request_id: int, confirmed_by: str) -> bool:
+    """Admin rad etadi — hech qanday moliyaviy yozuv yaratilmaydi."""
+    from models import AdvanceRequest, AdvanceRequestStatus
+    req = db.query(AdvanceRequest).filter(AdvanceRequest.id == request_id).first()
+    if not req or req.status != AdvanceRequestStatus.PENDING:
+        return False
+    req.status = AdvanceRequestStatus.REJECTED
+    req.confirmed_at = datetime.utcnow()
+    req.confirmed_by = confirmed_by
+    db.commit()
+    return True
+
+
+def get_employee_own_requests(db: Session, employee_id: int, limit: int = 20) -> List[dict]:
+    """Xodimning o'zi yuborgan so'rovlari tarixi (o'z paneli uchun)."""
+    from models import AdvanceRequest
+    rows = db.query(AdvanceRequest).filter(
+        AdvanceRequest.employee_id == employee_id
+    ).order_by(AdvanceRequest.submitted_at.desc()).limit(limit).all()
+    return [{
+        "id": r.id, "amount": float(r.amount),
+        "requested_date": r.requested_date.isoformat(),
+        "status": r.status.value, "notes": r.notes,
+        "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None
+    } for r in rows]
+
+
+# ============================================================
 # MASTER KPI — Yillik KPI (sotuvdan %, yil oxiri sovg'a)
 # ============================================================
 
