@@ -147,6 +147,7 @@ class SupplierPaymentCreate(BaseModel):
     supplier_id: int
     amount: float = Field(..., gt=0)
     notes: Optional[str] = None
+    confirm_overpay: bool = Field(default=False, description="Qarzdan ko'p to'lov kiritilsa, aniq tasdiqlash uchun")
 
 
 class PurchaseUpdate(BaseModel):
@@ -524,6 +525,7 @@ class PaymentCreate(BaseModel):
     payment_method: str = Field(default="naqd", description="naqd / plastik / o'tkazma")
     received_by: Optional[str] = None
     notes: Optional[str] = None
+    confirm_overpay: bool = Field(default=False, description="Qarzdan ko'p to'lov kiritilsa, aniq tasdiqlash uchun")
 
 
 class PaymentRead(BaseModel):
