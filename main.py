@@ -1406,6 +1406,15 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
             )
             _send_telegram(msg)
 
+    # "Loy sotish" turidagi detallar — har biri o'z retseptiga ko'ra,
+    # alohida, mavjud (sinalgan) mexanizm orqali ombordan yechiladi.
+    # Qoralama bo'lsa — hech narsa yechilmaydi (boshqa detallar kabi).
+    if order.status != OrderStatus.DRAFT:
+        for item in order.items:
+            if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
+                sale_log = services.deduct_loy_ingredients(db, order, float(item.quantity), recipe_id=item.recipe_id)
+                inventory_log.extend(sale_log)
+
     return {"status": "ok", "inventory_log": inventory_log}
 
 
@@ -1516,6 +1525,12 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: S
                 log.extend(services.deduct_loy_ingredients(db, order, abs(diff)))
         elif not has_delivery and planned_loy > 0:
             log.extend(services.return_loy_ingredients(db, order, planned_loy))
+
+        # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, alohida qaytariladi
+        if not has_delivery:
+            for item in order.items:
+                if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
+                    log.extend(services.return_loy_ingredients(db, order, float(item.quantity), recipe_id=item.recipe_id))
 
     # Nima uchun (to'liq) qaytmagani — foydalanuvchiga aytamiz
     reason = None
