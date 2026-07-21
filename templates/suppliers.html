@@ -267,7 +267,7 @@ function renderSupplierList(list){
   }
 
   box.innerHTML = list.map(s => `
-    <div class="sup-row" onclick="openHistory(${s.id})">
+    <div class="sup-row" onclick="location.href='/suppliers/receive?supplier_id=${s.id}'">
       <div style="flex:1;min-width:0">
         <div class="sup-name">${s.name}</div>
         <div class="sup-meta">
