@@ -16,15 +16,24 @@
 .mk-meta{font-size:13px;color:#aaa;margin-top:2px}
 .mk-inp{width:64px;height:30px;text-align:center;border:1.5px solid #e5e5e5;border-radius:6px;font-size:12px;font-weight:600;outline:none}
 .mk-inp:focus{border-color:#2563EB}
-.mk-card{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:var(--white);position:relative;transition:box-shadow .15s}
-.mk-card:hover{box-shadow:var(--shadow-card)}
-.mk-avatar{width:38px;height:38px;border-radius:10px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex-shrink:0}
-.mk-rank{position:absolute;top:-6px;left:32px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--gold);color:#fff}
+.mk-card{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--white);position:relative;transition:box-shadow .15s;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.mk-card:hover{box-shadow:0 4px 12px rgba(16,24,40,.08)}
+.mk-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.mk-rank{position:absolute;top:-7px;left:38px;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;background:var(--gold);color:#fff;box-shadow:0 2px 4px rgba(0,0,0,.15)}
+.emp-row{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--white);box-shadow:0 1px 2px rgba(16,24,40,.04);transition:box-shadow .15s}
+.emp-row:hover{box-shadow:0 4px 12px rgba(16,24,40,.08)}
+.emp-avatar{width:44px;height:44px;border-radius:50%;background:#E0F2FE;color:#0369A1;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.status-badge{display:inline-block;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:20px;white-space:nowrap}
+.status-paid{background:#DCFCE7;color:#16A34A}
+.status-partial{background:#FEF3C7;color:#D97706}
+.status-debt{background:#FEE2E2;color:#DC2626}
+.emp-fin-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:2px}
+.emp-fin-item{text-align:center}
+.emp-fin-label{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;font-weight:600}
+.emp-fin-val{font-size:13.5px;font-weight:700;margin-top:2px}
 .mk-region{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--text3)}
 .mk-filters{display:flex;gap:6px;margin-bottom:10px}
 .mk-filters input,.mk-filters select{height:30px;padding:0 8px;border:1px solid var(--border);border-radius:6px;font-size:13.5px;outline:none;flex:1}
-.emp-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f5f5f5}
-.emp-row:last-child{border-bottom:none}
 .emp-tag{font-size:11.5px;padding:2px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
 .mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:13px;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mini-btn:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
@@ -35,26 +44,45 @@
 <div class="erp-content">
 
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(5,1fr)">
-    <div class="kpi-card">
-      <div class="kpi-val" style="color:#2563EB" id="k-year">—</div>
-      <div class="kpi-label">Hisob yili</div>
+    <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
+      <div style="width:46px;height:46px;border-radius:12px;background:#EFF6FF;color:#2563EB;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-users"></i></div>
+      <div>
+        <div class="kpi-val" id="k-master-count">—</div>
+        <div class="kpi-label">Faol ustalar</div>
+        <div style="font-size:11px;color:var(--text3)">Jami hamkor ustalar</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" id="k-master-count">—</div>
-      <div class="kpi-label">Hamkor ustalar</div>
+    <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
+      <div style="width:46px;height:46px;border-radius:12px;background:#F0FDF4;color:#22C55E;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-user"></i></div>
+      <div>
+        <div class="kpi-val" style="color:#22C55E" id="k-emp-count">—</div>
+        <div class="kpi-label">Faol hodimlar</div>
+        <div style="font-size:11px;color:var(--text3)">Jami ichki hodimlar</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val text-green" id="k-total-gift">—</div>
-      <div class="kpi-label">Jami usta sovg'asi (yillik)</div>
+    <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
+      <div style="width:46px;height:46px;border-radius:12px;background:#F3E8FF;color:#8E44AD;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-coins"></i></div>
+      <div>
+        <div class="kpi-val" style="color:#8E44AD" id="k-emp-calculated">—</div>
+        <div class="kpi-label">Hisoblangan oylik</div>
+        <div style="font-size:11px;color:var(--text3)">Joriy oy</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" style="color:var(--gold-dark);font-size:16px" id="k-top-master">—</div>
-      <div class="kpi-label">TOP hamkor</div>
+    <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left;border-left:3px solid #EF4444">
+      <div style="width:46px;height:46px;border-radius:12px;background:#FEF2F2;color:#EF4444;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-wallet"></i></div>
+      <div>
+        <div class="kpi-val" style="color:#EF4444" id="k-emp-unpaid">—</div>
+        <div class="kpi-label">To'lanmagan summa</div>
+        <div style="font-size:11px;color:var(--text3)">Kompaniya qarzdorligi</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-val" style="color:#0EA5E9" id="k-emp-count">—</div>
-      <div class="kpi-label">Faol hodimlar</div>
-    </div>
+    <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
+      <div style="width:46px;height:46px;border-radius:12px;background:#FFFBEB;color:#D97706;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-gift"></i></div>
+      <div>
+        <div class="kpi-val text-green" id="k-total-gift">—</div>
+        <div class="kpi-label">Yillik KPI fondi</div>
+        <div style="font-size:11px;color:var(--text3)">Ustalar sovg'asi uchun</div>
+      </div>
   </div>
 
   <div class="kpi-two">
@@ -62,7 +90,7 @@
     <!-- USTA YILLIK KPI -->
     <div class="card">
       <div class="card-head">
-        <h3>👷‍♂️ Hamkor ustalar</h3>
+        <h3>👷‍♂️ Hamkor ustalar <span style="font-weight:400;color:var(--text3);font-size:12.5px">— <span id="k-year">—</span>-yil TOP: <span id="k-top-master" style="color:var(--gold-dark);font-weight:600">—</span></span></h3>
         <div style="display:flex;align-items:center;gap:8px">
           <input type="number" id="kpi-year" style="width:76px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:12px" onchange="loadMasterKpi()">
           <button class="btn btn-dark btn-sm" onclick="openMasterModal()">+ Usta</button>
@@ -326,14 +354,18 @@ function renderMasterKpiList() {
 
   list.innerHTML = rows.map(m => {
     const rank = rankMap[m.id];
-    const rankBadge = rank <= 3 && m.gift_amount > 0
-      ? `<div class="mk-rank">${rank===1?'🏆 TOP1':'TOP'+rank}</div>` : '';
+    const medalColors = {1:'#F5B301', 2:'#B0B7C3', 3:'#C97F3D'};
+    const rankCircle = rank <= 3 && m.gift_amount > 0
+      ? `<div style="width:26px;height:26px;border-radius:50%;background:${medalColors[rank]};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0">${rank}</div>`
+      : `<div style="width:26px;flex-shrink:0"></div>`;
+    const topBadge = rank === 1 && m.gift_amount > 0
+      ? `<span style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;background:#FFFBEB;color:#D97706;border:1px solid #FDE68A">🏆 TOP 1</span>` : '';
     return `
     <div class="mk-card">
-      ${rankBadge}
+      ${rankCircle}
       <div class="mk-avatar">${initials(m.name)}</div>
       <div style="flex:1;min-width:0">
-        <div class="mk-name">${m.name}</div>
+        <div class="mk-name" style="display:flex;align-items:center;gap:7px">${m.name} ${topBadge}</div>
         <div class="mk-meta">
           Sotuv: ${fmt(m.yearly_sales)} · Foyda: <b style="color:#8E44AD">${fmt(m.yearly_profit)}</b> · ${m.orders_count} ta
           ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${m.region}</span>` : ''}
@@ -555,17 +587,20 @@ async function loadEmployees() {
 
       return `
       <div class="emp-row">
+        <div class="emp-avatar">${initials(e.name)}</div>
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${e.name}</span>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:14.5px;font-weight:700;color:#1a1a1a">${e.name}</span>
             ${e.position ? `<span style="font-size:12.5px;color:#aaa">${e.position}</span>` : ''}
           </div>
-          <div style="margin-top:3px">
+          <div style="margin-top:4px">
             <span class="emp-tag" style="background:${PAY_COLORS[e.pay_type]}15;color:${PAY_COLORS[e.pay_type]}">${PAY_LABELS[e.pay_type]}</span>
             <span style="font-size:13px;color:#888;margin-left:6px">${detail}</span>
           </div>
           <div id="emp-avans-${e.id}" style="margin-top:4px;font-size:12px;color:#D97706"></div>
         </div>
+        <div id="emp-fin-${e.id}" style="flex-shrink:0"></div>
+        <div id="emp-status-${e.id}" style="flex-shrink:0"></div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button class="mini-btn" style="color:#D97706;border-color:#FDE68A" onclick="openAdvanceModal(${e.id}, '${e.name.replace(/'/g,"\\'")}')" title="Avans berish">💰</button>
           <button class="mini-btn" onclick="editEmployee(${e.id})">✏️</button>
@@ -797,8 +832,10 @@ async function loadEmpMonthlyReport() {
           </tbody>
           <tfoot>
             <tr style="border-top:2px solid #eee;font-weight:700">
-              <td colspan="4" style="padding:10px 6px;text-align:right">Jami qolgan to'lov:</td>
-              <td style="padding:10px 6px;text-align:right;color:#8E44AD">${fmt(list.reduce((s,e)=>s+e.qolgan,0))} so'm</td>
+              <td colspan="2" style="padding:12px 6px">Jami:</td>
+              <td style="padding:12px 6px;text-align:right">${fmt(list.reduce((s,e)=>s+e.amount,0))} so'm</td>
+              <td style="padding:12px 6px;text-align:right;color:#D97706">${fmt(list.reduce((s,e)=>s+e.avans,0))} so'm</td>
+              <td style="padding:12px 6px;text-align:right;color:#8E44AD;font-size:15px">${fmt(list.reduce((s,e)=>s+e.qolgan,0))} so'm</td>
             </tr>
           </tfoot>
         </table>
@@ -850,8 +887,49 @@ async function toggleEmpAdvanceDetail(empId, idx, year, month) {
 document.getElementById('kpi-year').value = new Date().getFullYear();
 loadMasterKpi();
 loadAllMastersFull();
-loadEmployees();
+loadEmployees().then(() => loadCurrentMonthEmpStatus());
 initEmpReportSelectors();
 loadEmpMonthlyReport();
+
+// Joriy oy hodimlar holati — yuqoridagi "Hisoblangan oylik" va "To'lanmagan
+// summa" KPI kartalari uchun. Mavjud, sinalgan /api/finance/report dan
+// foydalanadi — yangi hisoblash formulasi yo'q, faqat qo'shimcha ko'rsatish.
+async function loadCurrentMonthEmpStatus() {
+  const now = new Date();
+  try {
+    const d = await fetch(`/api/finance/report?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r => r.json());
+    const list = d.hodimlar_breakdown || [];
+    const totalCalc = list.reduce((s,e) => s + (e.amount||0), 0);
+    const totalUnpaid = list.reduce((s,e) => s + Math.max(0, e.qolgan||0), 0);
+    const elCalc = document.getElementById('k-emp-calculated');
+    const elUnpaid = document.getElementById('k-emp-unpaid');
+    if (elCalc) elCalc.textContent = fmt(totalCalc) + " so'm";
+    if (elUnpaid) elUnpaid.textContent = fmt(totalUnpaid) + " so'm";
+
+    // Har bir hodim kartasiga — shu oy hisob-kitobi va holat belgisini yozamiz
+    list.forEach(e => {
+      const finEl = document.getElementById(`emp-fin-${e.employee_id}`);
+      const statusEl = document.getElementById(`emp-status-${e.employee_id}`);
+      if (!finEl) return;
+      const toLangan = Math.max(0, (e.amount||0) - Math.max(0, e.qolgan||0));
+      finEl.innerHTML = `
+        <div style="display:flex;gap:14px;align-items:center">
+          <div style="text-align:right;padding-right:14px;border-right:1px solid #f0f0f0">
+            <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;font-weight:600">To'langan</div>
+            <div style="font-size:15px;font-weight:800;color:#22C55E">${fmt(toLangan)}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;font-weight:600">Qolgan</div>
+            <div style="font-size:15px;font-weight:800;color:${e.qolgan > 0 ? '#EF4444' : '#22C55E'}">${fmt(Math.max(0,e.qolgan))}</div>
+          </div>
+        </div>`;
+      if (statusEl) {
+        if (e.qolgan <= 0.5) statusEl.innerHTML = `<span class="status-badge status-paid">🟢 To'liq to'langan</span>`;
+        else if (e.avans > 0) statusEl.innerHTML = `<span class="status-badge status-partial">🟡 Qisman to'langan</span>`;
+        else statusEl.innerHTML = `<span class="status-badge status-debt">🔴 Qarzdor</span>`;
+      }
+    });
+  } catch(e) { console.error(e); }
+}
 </script>
 {% endblock %}
