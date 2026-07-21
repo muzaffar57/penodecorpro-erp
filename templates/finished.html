@@ -20,7 +20,7 @@
 .fp-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
 .fp-row.returned{background:#FAFDFB}
 .fp-row.progress{background:#FFFBF0}
-.fp-thumb{width:38px;height:38px;border-radius:9px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+.fp-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .fp-thumb img{width:100%;height:100%;object-fit:cover}
 .fp-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
 .fp-thumb .cam-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:12px;pointer-events:none}
@@ -329,6 +329,11 @@ let fpItems = [];
 let loyCostPerKg = 0;
 let loyRecipeName = '';
 let activeChips = new Set();
+let fpReturnedOpen = false;
+function toggleReturnedSection() {
+  fpReturnedOpen = !fpReturnedOpen;
+  renderFp();
+}
 
 async function loadLoyCost(recipeId) {
   try {
@@ -448,10 +453,13 @@ function renderFp() {
   }
 
   if (returned.length) {
-    html += `<div class="fp-sec">
-      <span class="fp-sec-label" style="color:#1e7e34">♻️ QAYTGAN MAHSULOTLAR</span>
+    const isOpen = fpReturnedOpen;
+    html += `<div class="fp-sec" style="cursor:pointer;user-select:none" onclick="toggleReturnedSection()">
+      <span class="fp-sec-label" style="color:#1e7e34">♻️ QAYTGAN MAHSULOTLAR (${returned.length})</span>
       <div class="fp-sec-line" style="background:linear-gradient(90deg,#D5EDDD,transparent)"></div>
-    </div>` + returned.map(rowHtml).join('');
+      <i class="ti ti-chevron-down" style="font-size:15px;color:#1e7e34;transition:transform .2s;transform:rotate(${isOpen?180:0}deg)"></i>
+    </div>
+    <div id="fpReturnedBody" style="display:${isOpen?'block':'none'}">` + returned.map(rowHtml).join('') + `</div>`;
   }
 
   if (!html) {
