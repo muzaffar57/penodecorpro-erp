@@ -695,7 +695,8 @@ def close_employee_debt(db: Session, employee_id: int, year: int, month: int, am
 
     due_today = db.query(Order).filter(
         Order.deadline >= today_start, Order.deadline < today_end,
-        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED])
+        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED]),
+        Order.is_deleted.isnot(True)
     ).count()
     if due_today > 0:
         tasks.append({"level": "red", "icon": "🔴", "text": f"{due_today} ta buyurtma bugun topshirilishi kerak"})
@@ -809,7 +810,8 @@ def get_notifications(db: Session) -> list:
     today_end = today_start + timedelta(days=1)
     today_count = db.query(Order).filter(
         Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
-        Order.completed_at >= today_start, Order.completed_at < today_end
+        Order.completed_at >= today_start, Order.completed_at < today_end,
+        Order.is_deleted.isnot(True)
     ).count()
     if today_count > 0:
         notifications.append({
@@ -896,7 +898,8 @@ def get_today_stats(db: Session) -> Dict:
 
     completed_today = db.query(Order).filter(
         Order.completed_at >= today_start, Order.completed_at < today_end,
-        Order.status == OrderStatus.READY
+        Order.status == OrderStatus.READY,
+        Order.is_deleted.isnot(True)
     ).all()
     today_profit = 0.0
     for o in completed_today:
@@ -1199,13 +1202,15 @@ def get_chart_data(db: Session) -> Dict:
 
         count = db.query(Order).filter(
             Order.created_at >= month_start,
-            Order.created_at < month_end
+            Order.created_at < month_end,
+            Order.is_deleted.isnot(True)
         ).count()
 
         revenue = db.query(func.sum(Order.total_amount)).filter(
             Order.created_at >= month_start,
             Order.created_at < month_end,
-            Order.status == OrderStatus.READY
+            Order.status == OrderStatus.READY,
+            Order.is_deleted.isnot(True)
         ).scalar() or 0
 
         months_data.append({
@@ -1231,10 +1236,12 @@ def get_chart_data(db: Session) -> Dict:
     for m in masters:
         total = db.query(func.sum(Order.total_amount)).filter(
             Order.master_id == m.id,
-            Order.status == OrderStatus.READY
+            Order.status == OrderStatus.READY,
+            Order.is_deleted.isnot(True)
         ).scalar() or 0
         order_count = db.query(Order).filter(
-            Order.master_id == m.id
+            Order.master_id == m.id,
+            Order.is_deleted.isnot(True)
         ).count()
         master_kpi.append({
             "name": m.name,
@@ -1431,7 +1438,8 @@ def get_daily_finance_summary(db: Session, target_date) -> Dict:
     orders_today = db.query(Order).filter(
         Order.completed_at >= start,
         Order.completed_at < end,
-        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED])
+        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
+        Order.is_deleted.isnot(True)
     ).all()
 
     total_sales = 0.0
@@ -1565,7 +1573,8 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     ready_orders = db.query(Order).filter(
         Order.status == OrderStatus.READY,
         extract('year',  Order.completed_at) == year,
-        extract('month', Order.completed_at) == month
+        extract('month', Order.completed_at) == month,
+        Order.is_deleted.isnot(True)
     ).all()
 
     daromad = sum(float(o.total_amount or 0) for o in ready_orders)
@@ -1588,7 +1597,8 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     orders_this_month = db.query(Order).filter(
         Order.status == OrderStatus.READY,
         extract('year',  Order.completed_at) == year,
-        extract('month', Order.completed_at) == month
+        extract('month', Order.completed_at) == month,
+        Order.is_deleted.isnot(True)
     ).all()
 
     jami_metr = 0.0   # Profil uchun (metr)
@@ -3014,7 +3024,8 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
             Order.master_id == m.id,
             Order.status == OrderStatus.READY,
             extract('year', Order.completed_at) == year,
-            extract('month', Order.completed_at) == month
+            extract('month', Order.completed_at) == month,
+            Order.is_deleted.isnot(True)
         ).all()
         if not orders:
             continue
