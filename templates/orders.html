@@ -2335,8 +2335,11 @@ function updateLiveStats() {
   if (rows.length === 0) { panel.style.display = 'none'; return; }
   panel.style.display = 'block';
 
-  let totalVolume = 0, totalLength = 0, totalPrice = 0;
+  let totalVolume = 0, totalLength = 0, totalPrice = 0, namedCount = 0;
   rows.forEach(row => {
+    const hasName = !!(row.querySelector('.i-name')?.value?.trim());
+    if (!hasName) return;  // Nomi yo'q detal — collectItems() ham buni saqlamaydi
+    namedCount++;
     totalVolume += parseFloat(row.dataset.volume || 0);
     totalPrice += parseFloat(row.dataset.price || 0);
     const lEl = row.querySelector('.i-l');
@@ -2348,12 +2351,26 @@ function updateLiveStats() {
   const zaklat = parseNum(document.getElementById('zaklat_amount')?.value || '');
   const debt = Math.max(0, finalPrice - zaklat);
 
-  document.getElementById('ls-count').textContent = rows.length + ' ta';
+  document.getElementById('ls-count').textContent = namedCount + ' ta';
   document.getElementById('ls-length').textContent = totalLength.toFixed(2) + ' m';
   document.getElementById('ls-volume').textContent = totalVolume.toFixed(3) + ' m³';
   document.getElementById('ls-loy').textContent = loyKg + ' kg';
   document.getElementById('ls-total').textContent = formatNum(finalPrice) + " so'm";
   document.getElementById('ls-debt').textContent = formatNum(debt) + " so'm";
+}
+
+// Yordamchi: faqat NOMI kiritilgan detallarning narxini yig'adi — chunki
+// collectItems() ham xuddi shunday, nomsiz detallarni saqlashda o'tkazib
+// yuboradi. Shu bilan ko'rsatilgan summa va haqiqatda saqlanadigan summa
+// har doim mos keladi.
+function getNamedTotal() {
+  let total = 0;
+  document.querySelectorAll('.detal').forEach(row => {
+    if (row.querySelector('.i-name')?.value?.trim()) {
+      total += parseFloat(row.dataset.price || 0);
+    }
+  });
+  return total;
 }
 
 function updateTotal() {
@@ -2373,9 +2390,21 @@ function updateTotal() {
   let html = '';
   rows.forEach((row, i) => {
     const price = parseFloat(row.dataset.price || 0);
-    const name = row.querySelector('.i-name')?.value || ('Detal #' + (i+1));
+    const name = row.querySelector('.i-name')?.value?.trim() || '';
     const type = row.querySelector('.i-type')?.value || '';
     const perm = parseFloat(row.querySelector('.i-perm')?.value?.replace(/\s/g,'') || 0);
+
+    // MUHIM: nomi yozilmagan detal — saqlashda hisobga OLINMAYDI
+    // (collectItems() shunday ishlaydi), shuning uchun "Jami summa"ga
+    // ham qo'shilmasligi kerak — aks holda ko'rsatilgan summa bilan
+    // haqiqatda saqlanadigan summa mos kelmay qoladi.
+    if (!name) {
+      html += `
+        <div style="padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;color:#F59E0B;cursor:pointer" onclick="scrollToDetail('${row.id}')" title="Bosib, shu detalga o'ting">
+          ⚠️ Detal #${i+1} — nomi kiritilmagan, hisobga olinmaydi
+        </div>`;
+      return;
+    }
     total += price;
 
     // Miqdor va o'lchov
@@ -2441,12 +2470,11 @@ function calcDiscount() {
   if (editMode && document.activeElement === fp) {
     editUserTouched = true;
     let tot = 0;
-    document.querySelectorAll('.detal').forEach(r => tot += parseFloat(r.dataset.price || 0));
+    document.querySelectorAll('.detal').forEach(r => { if (r.querySelector('.i-name')?.value?.trim()) tot += parseFloat(r.dataset.price || 0); });
     const fv = parseNum(fp.value);
     editDiscountPct = (tot > 0 && fv > 0 && fv < tot) ? ((tot - fv) / tot * 100) : 0;
   }
-  let total = 0;
-  document.querySelectorAll('.detal').forEach(row => total += parseFloat(row.dataset.price || 0));
+  let total = getNamedTotal();
   const finalPrice = parseNum(fp.value);
   if (!finalPrice || !total) { di.style.display = 'none'; return; }
   const discount = total - finalPrice;
@@ -2471,8 +2499,7 @@ function calcDebt() {
   const fp = document.getElementById('final_price');
   if (!zi || !dbi) return;
 
-  let total = 0;
-  document.querySelectorAll('.detal').forEach(row => total += parseFloat(row.dataset.price || 0));
+  let total = getNamedTotal();
   const agreed = parseNum(fp.value) || total;
   const zaklat = parseNum(zi.value);
 
