@@ -2223,6 +2223,19 @@ def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Sess
     return {"image_url": url}
 
 
+@app.post("/api/returns/{return_id}/image")
+def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_or_manager)):
+    from models import ReturnItem
+    ret = db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
+    if not ret:
+        raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
+    url = _save_upload(file, "returns", ALLOWED_IMAGE_EXT)
+    ret.image_url = url
+    db.commit()
+    return {"image_url": url}
+
+
 @app.get("/api/finished/stats")
 def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     return crud.get_finished_stats(db)
