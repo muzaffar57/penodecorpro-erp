@@ -333,6 +333,20 @@
   @media(max-width:700px){ #bottomGrid{grid-template-columns:1fr} }</style>
 
 </div>
+
+<!-- ══ XODIM AVANS SO'ROVLARINI TASDIQLASH ══ -->
+<div id="advReqModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:16px;width:460px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.25)">
+    <div style="padding:20px 22px 14px;border-bottom:1px solid #f0f0f0">
+      <div style="font-size:16px;font-weight:700;color:#111">💰 Xodimlar yozgan avans so'rovlari</div>
+      <div style="font-size:13px;color:#888;margin-top:4px">Rostdan ham shu summani berganingizni tasdiqlang</div>
+    </div>
+    <div id="advReqList" style="padding:14px 22px;overflow-y:auto;flex:1"></div>
+    <div style="padding:14px 22px;border-top:1px solid #f0f0f0">
+      <button class="btn btn-outline w-full" onclick="document.getElementById('advReqModal').style.display='none'">Keyinroq ko'raman</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -745,7 +759,55 @@ async function loadObligationsWidget(){
   } catch(e) { console.error(e); }
 }
 
+async function checkPendingAdvanceRequests(){
+  try {
+    const rows = await fetch('/api/admin/pending-advance-requests').then(r => r.json());
+    if (!rows || !rows.length) return;
+    const list = document.getElementById('advReqList');
+    const fmt = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
+    list.innerHTML = rows.map(r => `
+      <div id="adv-row-${r.id}" style="border:1px solid #eee;border-radius:10px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+          <div>
+            <div style="font-weight:700;font-size:14.5px">${r.employee_name}</div>
+            <div style="font-size:12.5px;color:#888;margin-top:2px">${new Date(r.requested_date).toLocaleDateString('uz')} kuni oldim deb yozgan</div>
+          </div>
+          <div style="font-weight:800;font-size:16px;color:#D97706">${fmt(r.amount)} so'm</div>
+        </div>
+        ${r.notes ? `<div style="font-size:12.5px;color:#999;margin-bottom:10px">💬 ${r.notes}</div>` : ''}
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-dark" style="flex:1;height:38px;font-size:13px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
+          <button class="btn btn-outline" style="flex:1;height:38px;font-size:13px;color:#DC2626;border-color:#FADBD8" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>
+        </div>
+      </div>`).join('');
+    document.getElementById('advReqModal').style.display = 'flex';
+  } catch(e) { console.error(e); }
+}
+
+async function confirmAdvReq(id){
+  try {
+    const res = await fetch(`/api/admin/advance-requests/${id}/confirm`, { method: 'POST' });
+    if (res.ok) removeAdvRow(id);
+  } catch(e) {}
+}
+
+async function rejectAdvReq(id){
+  if (!confirm("Bu so'rovni rad etasizmi? Hech qanday moliyaviy yozuv yaratilmaydi.")) return;
+  try {
+    const res = await fetch(`/api/admin/advance-requests/${id}/reject`, { method: 'POST' });
+    if (res.ok) removeAdvRow(id);
+  } catch(e) {}
+}
+
+function removeAdvRow(id){
+  const row = document.getElementById(`adv-row-${id}`);
+  if (row) row.remove();
+  const list = document.getElementById('advReqList');
+  if (!list.children.length) document.getElementById('advReqModal').style.display = 'none';
+}
+
 loadObligationsWidget();
+checkPendingAdvanceRequests();
 loadAll();
 setInterval(loadAll,5*60*1000);
 </script>
