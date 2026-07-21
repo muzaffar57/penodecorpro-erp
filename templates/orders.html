@@ -76,18 +76,19 @@
 .right-panel::-webkit-scrollbar-track{background:transparent}
 .right-panel::-webkit-scrollbar-thumb{background:#d4d4d4;border-radius:6px}
 .right-panel::-webkit-scrollbar-thumb:hover{background:#b8b8b8}
-.detal{background:#f8f8f6;border-radius:18px;padding:26px;border:1px solid #ebebeb}
-.detal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-.detal-badge{font-size:15px;font-weight:700;color:#2563EB;background:#fdf8f0;padding:7px 16px;border-radius:10px;border:1px solid #f0e0c0}
-.detal-rm{background:none;border:none;color:#ddd;cursor:pointer;font-size:26px;line-height:1;transition:color .15s}
+.detal{background:#fff;border-radius:14px;padding:22px;border:1px solid var(--border2);box-shadow:0 1px 2px rgba(16,24,40,.04),0 2px 8px rgba(16,24,40,.05);margin-bottom:14px}
+.detal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border2)}
+.detal-badge{font-size:13px;font-weight:700;color:#2563EB;background:#EFF6FF;padding:6px 14px;border-radius:8px;border:1px solid #DBEAFE}
+.detal-rm{background:none;border:none;color:#ddd;cursor:pointer;font-size:22px;line-height:1;transition:color .15s}
 .detal-rm:hover{color:#EF4444}
-.detal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
-.dif label{font-size:15px;color:#777;display:block;margin-bottom:7px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
-.dif input,.dif select{width:100%;padding:15px 17px;border:2px solid #e5e5e5;border-radius:13px;font-size:19px;color:#111;background:#fff;outline:none;transition:border .15s}
+.detal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media (max-width:900px){.detal-grid{grid-template-columns:1fr 1fr}}
+.dif label{font-size:11.5px;color:#6B7280;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
+.dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid #e5e5e5;border-radius:9px;font-size:14.5px;color:#111;background:#fff;outline:none;transition:border .15s}
 .dif input:focus,.dif select:focus{border-color:#2563EB}
-.dif input[readonly]{background:#f8f8f6;color:#aaa;cursor:not-allowed}
-.detal-result{margin-top:20px;padding:20px 22px;background:#fff;border-radius:16px;border:1.5px solid #ebebeb;display:flex;gap:28px;font-size:18px;color:#888;flex-wrap:wrap;align-items:center}
-.detal-result .val{color:#22C55E;font-weight:800;font-size:20px}
+.dif input[readonly]{background:#F9FAFB;color:#aaa;cursor:not-allowed}
+.detal-result{margin-top:16px;padding:14px 16px;background:#F9FAFB;border-radius:11px;border:1px solid var(--border2);display:flex;gap:22px;font-size:14px;color:#888;flex-wrap:wrap;align-items:center}
+.detal-result .val{color:#22C55E;font-weight:800;font-size:16px}
 .total-box{background:#f8f8f6;border-radius:14px;padding:18px;border:1px solid #ebebeb}
 .trow{display:flex;justify-content:space-between;font-size:14.5px;padding:5px 0;color:#555}
 .trow.main{font-size:19px;font-weight:700;color:#111;border-top:1px solid #e0e0e0;padding-top:12px;margin-top:8px}
@@ -234,21 +235,28 @@
           <h3 id="formTitle">Yangi buyurtma</h3>
           <button class="btn btn-outline btn-sm" onclick="hideNewForm()">✕ Yopish</button>
         </div>
-        <div style="padding:12px">
-          <div class="asosiy-grid" style="margin-bottom:10px">
-            <div class="form-group" style="margin:0;grid-column:span 1">
+        <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+          <!-- Buyurtma ma'lumotlari -->
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">Buyurtma ma'lumotlari</div>
+            <div class="form-group" style="margin-bottom:12px">
               <label>Loyiha</label>
               <select id="project_id">
                 <option value="">— Tanlang —</option>
                 {% for p in projects %}<option value="{{ p.id }}">{{ p.project_number }} — {{ p.project_name }}</option>{% endfor %}
               </select>
             </div>
-            <div class="form-group" style="margin:0">
+            <div class="form-group" style="margin-bottom:12px">
               <label>Usta</label>
               <select id="master_id">
                 <option value="">— Yo'q —</option>
                 {% for m in masters %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}
               </select>
+            </div>
+            <div class="form-group" style="margin-bottom:12px">
+              <label>Topshirish sanasi</label>
+              <input type="date" id="deadline_input">
             </div>
             <div class="form-group" style="margin:0">
               <label>Retsept</label>
@@ -257,21 +265,23 @@
                 {% for r in recipes %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
               </select>
             </div>
-            <div class="form-group" style="margin:0">
+          </div>
+
+          <!-- Narx va ishlab chiqarish -->
+          <div style="border-left:1px solid var(--border2);padding-left:16px">
+            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">Narx va ishlab chiqarish</div>
+            <div class="form-group" style="margin-bottom:12px">
               <label>1 m³ asosiy narxi (so'm)</label>
               <input type="text" id="base_price" value="1 200 000" oninput="formatPriceInput(this);recalcAll()">
             </div>
             <div class="form-group" style="margin:0">
-              <label style="display:flex;align-items:center;gap:6px">Loy miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— barcha detallar uchun, Termopanel ham shu yerga</span></label>
+              <label style="display:flex;align-items:center;gap:6px">Loy miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— barcha detallar uchun</span></label>
               <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
-                     oninput="checkLoyStock()" style="border-color:var(--gold)">
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>Topshirish sanasi</label>
-              <input type="date" id="deadline_input">
+                     oninput="checkLoyStock();updateLiveStats()" style="border-color:var(--gold)">
             </div>
           </div>
-          <div id="loy-stock-info" style="display:none;font-size:13px;margin:-2px 0 10px;padding:7px 10px;border-radius:6px"></div>
+
+          <div id="loy-stock-info" style="display:none;grid-column:1/-1;font-size:13px;margin:-2px 0 0;padding:7px 10px;border-radius:6px"></div>
         </div>
       </div>
 
@@ -287,40 +297,42 @@
           <div class="total-box">
             <div class="trow"><span>Jami summa:</span><span id="total_sum" style="font-weight:600">0 so'm</span></div>
 
-            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-              <span style="font-size:14px;color:#555;min-width:130px">Kelishilgan summa:</span>
-              <input type="text" id="final_price" placeholder="0"
-                     oninput="formatPriceInput(this);calcDiscount()"
-                     style="flex:1;padding:7px 10px;border:1.5px solid #2563EB;border-radius:7px;font-size:13px;font-weight:600;outline:none">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+              <div class="form-group" style="margin:0">
+                <label style="font-size:12px;color:#6B7280;text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">Kelishilgan summa</label>
+                <input type="text" id="final_price" placeholder="Kelishilgan summa kiriting"
+                       oninput="formatPriceInput(this);calcDiscount()"
+                       style="width:100%;padding:11px 13px;border:1.5px solid #2563EB;border-radius:9px;font-size:14.5px;font-weight:600;outline:none">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label style="font-size:12px;color:#6B7280;text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">Zaklat (oldindan)</label>
+                <input type="text" id="zaklat_amount" placeholder="0"
+                       oninput="formatPriceInput(this);calcDebt()"
+                       style="width:100%;padding:11px 13px;border:1.5px solid #22C55E;border-radius:9px;font-size:14.5px;font-weight:600;outline:none">
+              </div>
             </div>
-            <div style="font-size:13px;color:#aaa;margin-top:4px">Bo'sh qolsa chegirmasiz hisoblanadi</div>
+            <div style="font-size:12px;color:#aaa;margin-top:6px">Kelishilgan summa bo'sh qolsa — chegirmasiz hisoblanadi</div>
             <div id="discount-auto-hint" style="display:none;margin-top:6px;padding:7px 10px;background:#EFF6FF;border-radius:7px;font-size:13px;color:#1a6fa8;line-height:1.5"></div>
             <div id="discount_info" style="display:none;margin-top:8px;padding:8px;background:#FEF3C7;border-radius:7px;font-size:14px"></div>
 
-            <!-- ZAKLAT -->
-            <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #ddd">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-size:14px;color:#555;min-width:130px">Zaklat (oldindan):</span>
-                <input type="text" id="zaklat_amount" placeholder="0"
-                       oninput="formatPriceInput(this);calcDebt()"
-                       style="flex:1;padding:7px 10px;border:1.5px solid #22C55E;border-radius:7px;font-size:13px;font-weight:600;outline:none">
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-                <span style="font-size:14px;color:#555;min-width:130px">To'lov usuli:</span>
-                <select id="zaklat_method" style="flex:1;padding:7px 10px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;padding-top:14px;border-top:1px dashed #ddd">
+              <div class="form-group" style="margin:0">
+                <label style="font-size:12px;color:#6B7280;text-transform:uppercase;font-weight:700;letter-spacing:.3px;margin-bottom:6px;display:block">To'lov usuli</label>
+                <select id="zaklat_method" style="width:100%;padding:11px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:14.5px;outline:none">
                   <option value="naqd">💵 Naqd</option>
                   <option value="plastik">💳 Plastik</option>
                   <option value="o'tkazma">🏦 O'tkazma</option>
                 </select>
               </div>
-              <div id="debt_info" style="display:none;margin-top:8px;padding:8px;background:#FEE2E2;border-radius:7px;font-size:14px"></div>
+              <div></div>
             </div>
+            <div id="debt_info" style="display:none;margin-top:8px;padding:8px;background:#FEE2E2;border-radius:7px;font-size:14px"></div>
           </div>
         </div>
 
-        <div style="padding:0 12px 12px;display:flex;gap:8px">
-          <button class="btn btn-outline" style="flex:1;border-color:#8E8E93;color:#666" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
-          <button class="btn btn-dark" style="flex:2" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
+        <div style="padding:0 12px 16px;display:flex;gap:10px">
+          <button class="btn btn-outline" style="flex:1;height:48px;font-size:14px;border-color:#8E8E93;color:#666;border-radius:10px" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
+          <button class="btn btn-dark" style="flex:2;height:48px;font-size:14.5px;font-weight:700;border-radius:10px" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
         </div>
       </div>
     </div>
@@ -574,6 +586,19 @@
         <div class="sum-item"><span class="si-l">Jami</span><span class="si-v">{{ orders|length }} ta</span></div>
         <div class="sum-item"><span class="si-l">Tayyor</span><span class="si-v green">{{ orders|selectattr('status.value', 'equalto', 'ready')|list|length }} ta</span></div>
         <div class="sum-item"><span class="si-l">Faol</span><span class="si-v gold">{{ orders|selectattr('status.value', 'ne', 'ready')|list|length }} ta</span></div>
+      </div>
+    </div>
+
+    <!-- Yangi buyurtma — Statistika (mavjud, hisoblangan qiymatlardan) -->
+    <div class="card" id="liveStats" style="display:none">
+      <div class="card-head"><h3><span class="ico-badge blue"><i class="ti ti-chart-bar"></i></span> Statistika</h3></div>
+      <div style="padding:12px">
+        <div class="sum-item"><span class="si-l">Detallar soni</span><span class="si-v" id="ls-count">0 ta</span></div>
+        <div class="sum-item"><span class="si-l">Umumiy uzunlik</span><span class="si-v" id="ls-length">0 m</span></div>
+        <div class="sum-item"><span class="si-l">Umumiy hajm</span><span class="si-v" id="ls-volume">0 m³</span></div>
+        <div class="sum-item"><span class="si-l">Loy miqdori</span><span class="si-v" id="ls-loy">0 kg</span></div>
+        <div class="sum-item"><span class="si-l">Buyurtma summasi</span><span class="si-v gold" id="ls-total">0 so'm</span></div>
+        <div class="sum-item"><span class="si-l">Qolgan qarz</span><span class="si-v red" id="ls-debt">0 so'm</span></div>
       </div>
     </div>
 
@@ -1936,6 +1961,8 @@ function hideNewForm() {
   document.getElementById('newOrderForm').style.display = 'none';
   const livePanel = document.getElementById('liveTotal');
   if (livePanel) livePanel.style.display = 'none';
+  const statsPanel = document.getElementById('liveStats');
+  if (statsPanel) statsPanel.style.display = 'none';
 }
 
 // ── Detal qo'shish ────────────────────────────────────────
@@ -2298,6 +2325,37 @@ function calculateItem(row) {
   updateTotal();
 }
 
+// Statistika paneli — mavjud, allaqachon hisoblangan qiymatlarni (dataset.volume,
+// dataset.price, loy_kg, final_price, zaklat_amount) o'qib, o'ng panelda ko'rsatadi.
+// Hech qanday yangi hisoblash formulasi yo'q — faqat mavjud ma'lumotni yig'ish.
+function updateLiveStats() {
+  const panel = document.getElementById('liveStats');
+  const rows = document.querySelectorAll('.detal');
+  if (!panel) return;
+  if (rows.length === 0) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+
+  let totalVolume = 0, totalLength = 0, totalPrice = 0;
+  rows.forEach(row => {
+    totalVolume += parseFloat(row.dataset.volume || 0);
+    totalPrice += parseFloat(row.dataset.price || 0);
+    const lEl = row.querySelector('.i-l');
+    if (lEl) totalLength += parseFloat(lEl.value || 0);
+  });
+
+  const loyKg = parseFloat(document.getElementById('loy_kg')?.value || 0);
+  const finalPrice = parseNum(document.getElementById('final_price')?.value || '') || totalPrice;
+  const zaklat = parseNum(document.getElementById('zaklat_amount')?.value || '');
+  const debt = Math.max(0, finalPrice - zaklat);
+
+  document.getElementById('ls-count').textContent = rows.length + ' ta';
+  document.getElementById('ls-length').textContent = totalLength.toFixed(2) + ' m';
+  document.getElementById('ls-volume').textContent = totalVolume.toFixed(3) + ' m³';
+  document.getElementById('ls-loy').textContent = loyKg + ' kg';
+  document.getElementById('ls-total').textContent = formatNum(finalPrice) + " so'm";
+  document.getElementById('ls-debt').textContent = formatNum(debt) + " so'm";
+}
+
 function updateTotal() {
   let total = 0;
   const rows = document.querySelectorAll('.detal');
@@ -2372,6 +2430,7 @@ function updateTotal() {
   if (ts && ts.tagName !== 'INPUT') ts.textContent = formatNum(total) + ' so\'m';
   reapplyDiscount();
   calcDiscount();
+  updateLiveStats();
 }
 
 function calcDiscount() {
@@ -2433,6 +2492,7 @@ function calcDebt() {
     dbi.innerHTML = `⚠️ Ortiqcha to'lov: +${formatNum(Math.abs(debt))} so'm`;
     dbi.style.background = '#EFF6FF'; dbi.style.color = '#1a6fa8';
   }
+  updateLiveStats();
 }
 
 function scrollToDetail(rowId) {
