@@ -1168,7 +1168,14 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
 def api_supplier_payment(supplier_id: int, data: schemas.SupplierPaymentCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     who = current_user.full_name or current_user.username
     data.supplier_id = supplier_id
-    p = crud.create_supplier_payment(db, data, paid_by=who)
+    try:
+        p = crud.create_supplier_payment(db, data, paid_by=who)
+    except crud.OverpaymentWarning as w:
+        raise HTTPException(status_code=409, detail={
+            "type": "overpayment_warning",
+            "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
+            "amount": w.amount, "debt": w.debt, "excess": w.excess
+        })
     debt_info = crud.get_supplier_debt(db, supplier_id)
     return {"status": "ok", "payment_id": p.id, **debt_info}
 
@@ -2083,8 +2090,15 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
         data.received_by = current_user.full_name or current_user.username
     try:
         payment = crud.create_payment(db, data)
+    except crud.OverpaymentWarning as w:
+        raise HTTPException(status_code=409, detail={
+            "type": "overpayment_warning",
+            "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
+            "amount": w.amount, "debt": w.debt, "excess": w.excess
+        })
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        status = 404 if "topilmadi" in str(e) else 400
+        raise HTTPException(status_code=status, detail=str(e))
 
     order = crud.get_order(db, data.order_id)
 
