@@ -132,6 +132,17 @@
       <input placeholder="Qidirish..." oninput="searchOrders(this.value)"
              style="padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:13px;width:100px;outline:none">
     </div>
+    {% if not show_all %}
+    <div style="padding:7px 14px;background:#EFF6FF;font-size:12px;color:#1a6fa8;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <span>📅 So'nggi 90 kunlik (+ tugallanmaganlar)</span>
+      <a href="/orders?show_all=true" style="color:#2563EB;font-weight:600;text-decoration:none">Barchasini ko'rish →</a>
+    </div>
+    {% else %}
+    <div style="padding:7px 14px;background:#FFFBEB;font-size:12px;color:#92400E;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <span>⚠️ Barcha buyurtmalar ko'rsatilmoqda (sekinroq bo'lishi mumkin)</span>
+      <a href="/orders" style="color:#D97706;font-weight:600;text-decoration:none">← Qisqartirish</a>
+    </div>
+    {% endif %}
     <div class="ord-list">
       {% if grouped %}
         {% for g in grouped %}
