@@ -6,9 +6,6 @@
 
 {% block head %}
 {% set role = current_user.role.value %}
-{% if role in ['admin','manager','accountant'] %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-{% endif %}
 <style>
 .chart-wrap { position: relative; height: 200px; }
 .section-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
@@ -191,6 +188,7 @@
 {% block scripts %}
 {% set role = current_user.role.value %}
 {% if role in ['admin','manager','accountant'] %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const fmt = n => new Intl.NumberFormat('uz-UZ').format(Math.round(n));
 const fmtM = n => (n / 1000000).toFixed(1) + ' mln';
