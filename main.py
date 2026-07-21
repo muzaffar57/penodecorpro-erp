@@ -4,7 +4,7 @@ PenoDecorPro ERP — Asosiy server
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -1757,6 +1757,16 @@ def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), c
 @app.get("/api/reports/alerts")
 def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     return services.get_business_alerts(db)
+
+
+@app.get("/api/reports/brak-materials")
+def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optional[str] = None,
+                                 db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Brak sabab sarflangan xomashyo — nomi, miqdori, tan narxi bo'yicha qiymati."""
+    from datetime import datetime as dt
+    sd = dt.strptime(start_date, "%Y-%m-%d") if start_date else None
+    ed = dt.strptime(end_date, "%Y-%m-%d") + timedelta(days=1) if end_date else None
+    return crud.get_brak_material_summary(db, start_date=sd, end_date=ed)
 
 
 @app.get("/api/reports/business-health")
