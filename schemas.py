@@ -127,6 +127,7 @@ class StockPurchase(BaseModel):
     transport_cost: float = Field(default=0, ge=0)
     transport_payer: str = Field(default="none", description="none/self/supplier")
     volume_per_unit: Optional[float] = Field(default=None, gt=0, description="Penoplast uchun: 1 blok necha m³")
+    payment_due_date: Optional[str] = Field(default=None, description="Qarzni qachongacha to'lash kerak (YYYY-MM-DD)")
 
 
 class SupplierCreate(BaseModel):
