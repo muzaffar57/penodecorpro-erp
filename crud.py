@@ -13,6 +13,17 @@ from models import Master
 from schemas import MasterCreate, MasterUpdate
 
 
+class OverpaymentWarning(Exception):
+    """To'lov summasi qarzdan ko'p bo'lganda — xato emas, faqat
+    aniq tasdiqlash talab qilinishini bildiradi (frontend buni
+    ushlab, tasdiqlash oynasini ko'rsatadi)."""
+    def __init__(self, amount: float, debt: float, excess: float):
+        self.amount = amount
+        self.debt = debt
+        self.excess = excess
+        super().__init__(f"Ortiqcha to'lov: {excess:,.0f} so'm qarzdan ko'p")
+
+
 # ============================================================
 # MASTER CRUD
 # ============================================================
@@ -1341,6 +1352,28 @@ def create_payment(db: Session, payment_data: PaymentCreate) -> Payment:
     order = db.query(Order).filter(Order.id == payment_data.order_id).first()
     if not order:
         raise ValueError("Buyurtma topilmadi")
+
+    # Xavfsizlik: agar kiritilgan summa buyurtmaning UMUMIY qiymatidan
+    # 3 baravardan ko'proq bo'lsa — bu, deyarli aniq, tasodifiy xato
+    # (masalan ortiqcha nol qo'shilib ketgan). Kichik-o'rtacha ortiqcha
+    # to'lovlar (mijoz qasddan ko'proq to'lasa) — bunga tegilmaydi.
+    order_total = float(order.total_amount or 0)
+    if order_total > 0 and float(payment_data.amount) > order_total * 3:
+        raise ValueError(
+            f"Kiritilgan summa ({payment_data.amount:,.0f}) buyurtma qiymatidan "
+            f"({order_total:,.0f}) juda katta — xato bo'lishi mumkin. "
+            f"Iltimos, summani tekshirib qayta kiriting."
+        )
+
+    # Ortiqcha to'lov — qarzdan ko'p summa kiritilsa, aniq tasdiqlash talab qilinadi
+    # (ehtiyotkorlik uchun — lekin AVANS sifatida qasddan ko'p to'lash ham mumkin,
+    # shuning uchun BUTUNLAY to'smaymiz, faqat tasdiqlashni so'raymiz)
+    current_debt = order.debt_amount
+    if float(payment_data.amount) > current_debt and not payment_data.confirm_overpay:
+        raise OverpaymentWarning(
+            amount=float(payment_data.amount), debt=current_debt,
+            excess=float(payment_data.amount) - current_debt
+        )
 
     # Enum ga aylantirish
     try:
@@ -3784,6 +3817,14 @@ def delete_purchase(db: Session, purchase_id: int) -> bool:
 
 def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None) -> SupplierPayment:
     """Yetkazib beruvchiga to'lov — bir nechta xaridni birdaniga yopishi mumkin."""
+    debt_info = get_supplier_debt(db, data.supplier_id)
+    current_debt = debt_info["debt"]
+    if float(data.amount) > current_debt and not data.confirm_overpay:
+        raise OverpaymentWarning(
+            amount=float(data.amount), debt=current_debt,
+            excess=float(data.amount) - current_debt
+        )
+
     p = SupplierPayment(
         supplier_id=data.supplier_id,
         amount=data.amount,
