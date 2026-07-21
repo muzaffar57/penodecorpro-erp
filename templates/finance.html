@@ -4,7 +4,6 @@
 {% block page_sub %}Daromad, xarajat, sof foyda va biznes tahlili{% endblock %}
 
 {% block head %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 /* ============================================================
    MOLIYA — DIZAYN TOKENLARI
@@ -424,6 +423,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const now=new Date();
 document.getElementById('sel-month').value=now.getMonth()+1;
