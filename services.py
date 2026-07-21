@@ -873,21 +873,25 @@ def get_today_stats(db: Session) -> Dict:
     ).scalar() or 0
 
     active_orders = db.query(Order).filter(
-        Order.status.notin_([OrderStatus.READY, OrderStatus.DELIVERED, OrderStatus.CANCELLED])
+        Order.status.notin_([OrderStatus.READY, OrderStatus.DELIVERED, OrderStatus.CANCELLED]),
+        Order.is_deleted.isnot(True)
     ).count()
 
     in_production = db.query(Order).filter(
-        Order.status.in_([OrderStatus.IN_PROGRESS, OrderStatus.COATING])
+        Order.status.in_([OrderStatus.IN_PROGRESS, OrderStatus.COATING]),
+        Order.is_deleted.isnot(True)
     ).count()
 
     due_today = db.query(Order).filter(
         Order.deadline >= today_start, Order.deadline < today_end,
-        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED])
+        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED]),
+        Order.is_deleted.isnot(True)
     ).count()
 
     active_masters = db.query(Order.master_id).filter(
         Order.master_id.isnot(None),
-        Order.status.in_([OrderStatus.NEW, OrderStatus.IN_PROGRESS, OrderStatus.COATING])
+        Order.status.in_([OrderStatus.NEW, OrderStatus.IN_PROGRESS, OrderStatus.COATING]),
+        Order.is_deleted.isnot(True)
     ).distinct().count()
 
     completed_today = db.query(Order).filter(
