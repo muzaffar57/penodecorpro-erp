@@ -1437,7 +1437,8 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
 def get_delivery_stats(db: Session) -> dict:
     """Yetkazish statistikasi — dashboard uchun."""
     orders = db.query(Order).filter(
-        Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED])
+        Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]),
+        Order.is_deleted.isnot(True)
     ).all()
 
     partial = []
@@ -3502,7 +3503,8 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
     orders = db.query(Order).filter(
         Order.master_id == master_id,
         Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year
+        extract('year', Order.completed_at) == year,
+        Order.is_deleted.isnot(True)
     ).order_by(Order.completed_at.desc()).all()
 
     kpi_pct = float(master.kpi_percent or 0)
@@ -3542,7 +3544,8 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         orders = db.query(Order).filter(
             Order.master_id == m.id,
             Order.status == OrderStatus.READY,
-            extract('year', Order.completed_at) == year
+            extract('year', Order.completed_at) == year,
+            Order.is_deleted.isnot(True)
         ).all()
 
         yearly_sales = 0.0
@@ -3559,7 +3562,8 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         total_gift += gift
 
         last_order = db.query(Order).filter(
-            Order.master_id == m.id, Order.status == OrderStatus.READY
+            Order.master_id == m.id, Order.status == OrderStatus.READY,
+            Order.is_deleted.isnot(True)
         ).order_by(Order.completed_at.desc()).first()
 
         rows.append({
