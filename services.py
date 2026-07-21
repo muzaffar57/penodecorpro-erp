@@ -2498,10 +2498,13 @@ def take_loy_from_stock(db: Session, recipe, kg_needed: float):
     return taken, kg_needed - taken, msg
 
 
-def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True) -> list:
+def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True, recipe_id: int = None) -> list:
     """
     Loy (qoplama) uchun ingredientlarni ombordan ayiradi.
     use_stock=True bo'lsa — avval tayyor loy zaxirasidan oladi.
+    recipe_id berilsa — aynan O'SHA retsept ishlatiladi (masalan "Loy sotish"
+    detali uchun, buyurtmaning umumiy qoplama retseptidan farqli bo'lishi
+    mumkin). Berilmasa — avvalgidek, buyurtmadan avtomatik topiladi.
     """
     from models import Inventory, Recipe
 
@@ -2510,7 +2513,7 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
 
     log = []
 
-    recipe = _get_order_recipe(db, order)
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first() if recipe_id else _get_order_recipe(db, order)
 
     if not recipe:
         print("⚠ Retsept topilmadi — loy ingredientlari ayirilmadi")
@@ -2550,9 +2553,10 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
     return log
 
 
-def return_loy_ingredients(db: Session, order, loy_kg: float) -> list:
+def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = None) -> list:
     """
     Loy ingredientlarini omborga qaytaradi (buyurtma o'chirilganda).
+    recipe_id berilsa — aynan O'SHA retsept ishlatiladi.
     """
     from models import Inventory, Recipe
 
@@ -2561,10 +2565,11 @@ def return_loy_ingredients(db: Session, order, loy_kg: float) -> list:
 
     log = []
 
-    recipe = None
-    for item in order.items:
-        if hasattr(item, 'recipe_id') and item.recipe_id:
-            recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first() if recipe_id else None
+    if not recipe:
+        for item in order.items:
+            if hasattr(item, 'recipe_id') and item.recipe_id:
+                recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
             if recipe:
                 break
     if not recipe:
