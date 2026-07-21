@@ -215,7 +215,7 @@
         <div id="topCustomers"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
       <div class="bi-card bi-fade"><div class="bi-card-body">
-        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">📦 Top mahsulotlar</div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--b-text3);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px">📦 Top mahsulotlar (Tayyor)</div>
         <div id="topProducts"><div class="bi-empty" style="padding:16px 0">Yuklanmoqda...</div></div>
       </div></div>
       <div class="bi-card bi-fade"><div class="bi-card-body">
@@ -267,7 +267,7 @@
       <button class="bi-tab" data-r="masters" onclick="switchReport('masters')">👷 Ustalar / KPI</button>
       <button class="bi-tab" data-r="finance" onclick="switchReport('finance')">📊 Moliya</button>
       <button class="bi-tab" data-r="production" onclick="switchReport('production')">⚙️ Ishlab chiqarish</button>
-      <button class="bi-tab" data-r="top-products" onclick="switchReport('top-products')">🏆 Eng foydali</button>
+      <button class="bi-tab" data-r="top-products" onclick="switchReport('top-products')">🏆 Eng ko'p sotilgan (Tayyor)</button>
       <button class="bi-tab" data-r="top-materials" onclick="switchReport('top-materials')">🧱 Eng ko'p xomashyo</button>
     </div>
 
@@ -310,7 +310,7 @@ const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgu
 const TITLES = {
   'inventory': 'Ombor hisoboti', 'sales': 'Sotuv hisoboti', 'products': 'Mahsulotlar hisoboti',
   'masters': 'Hamkor ustalar / KPI hisoboti', 'finance': 'Moliyaviy hisobot', 'production': 'Ishlab chiqarish hisoboti',
-  'top-products': 'Eng foydali mahsulotlar', 'top-materials': 'Eng ko\'p ishlatilgan xomashyo'
+  'top-products': 'Eng ko\'p sotilgan (Tayyor mahsulotlar)', 'top-materials': 'Eng ko\'p ishlatilgan xomashyo'
 };
 
 const HEALTH_COLORS = {green:'#22C55E', orange:'#F59E0B', red:'#EF4444'};
@@ -445,7 +445,7 @@ async function loadTopRankings(){
   try {
     const [customers, products, materials, suppliers] = await Promise.all([
       fetch(`/api/reports/top-customers?days=${currentDays}`).then(r=>r.json()),
-      fetch(`/api/reports/top-products?days=${currentDays}`).then(r=>r.json()),
+      fetch(`/api/dashboard/top-finished-products?days=${currentDays}&limit=20`).then(r=>r.json()),
       fetch(`/api/reports/top-materials?days=${currentDays}`).then(r=>r.json()),
       fetch(`/api/reports/top-suppliers?days=${currentDays}`).then(r=>r.json()),
     ]);
@@ -663,7 +663,7 @@ async function loadProductionReport() {
 }
 
 async function loadTopProducts() {
-  const rows = await fetch(`/api/reports/top-products?days=${currentDays}`).then(r=>r.json());
+  const rows = await fetch(`/api/dashboard/top-finished-products?days=${currentDays}&limit=20`).then(r=>r.json());
   setTable([
     ["Mahsulot nomi", r => r.name],
     ["Buyurtmalar soni", r => r.times_ordered + ' marta'],
