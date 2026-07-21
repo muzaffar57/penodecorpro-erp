@@ -262,6 +262,9 @@ class OrderItemCreate(BaseModel):
     serpiyanka_item_id: Optional[int] = None
     kley_kg: Optional[float] = None
     termo_loy_kg: Optional[float] = None
+    # "Loy sotish" turi uchun — shu detalning O'ZIGA tegishli retsept
+    # (buyurtmaning umumiy qoplama retseptidan farq qilishi mumkin)
+    recipe_id: Optional[int] = None
 
 
 class OrderCreate(BaseModel):
