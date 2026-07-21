@@ -835,19 +835,24 @@ async function deletePurchase(id) {
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
-async function savePayment(){
+async function savePayment(confirmOverpay = false){
   const amount = parseNum(document.getElementById('pay-amount').value) || 0;
   if (!amount || amount <= 0){ showMsg('❌ Summani kiriting', 'error'); return; }
 
   try{
     const res = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ supplier_id: currentSupplierId, amount })
+      body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay })
     });
     if (res.ok){
       showMsg(`✓ ${fmt(amount)} so'm to'lov qilindi`, 'success');
       openHistory(currentSupplierId);
       loadSuppliers();
+    } else if (res.status === 409) {
+      const e = await res.json();
+      if (e.detail?.type === 'overpayment_warning' && confirm('⚠️ ' + e.detail.message)) {
+        savePayment(true);
+      }
     } else showMsg('❌ Xato', 'error');
   }catch(e){ showMsg('❌ Server xatosi', 'error'); }
 }
