@@ -491,6 +491,7 @@ class InventoryPurchase(Base):
     # Nasiya (kredit) bilan olingan bo'lsa
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     supplier = relationship("Supplier", back_populates="purchases")
+    payment_due_date = Column(DateTime, nullable=True)  # Qarzni qachongacha to'lash kerak
     is_credit = Column(Boolean, default=False)
     category = Column(String(50), nullable=True)  # Xarid vaqtidagi kategoriya (tarix uchun saqlanadi)
 
