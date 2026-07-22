@@ -481,13 +481,16 @@ function closeMasterDetail(){ document.getElementById('masterDetailModal').style
 async function saveMasterKpi(id) {
   const val = parseFloat(document.getElementById('mk-' + id).value) || 0;
   try {
-    await fetch(`/api/masters/${id}/kpi`, {
+    const res = await fetch(`/api/masters/${id}/kpi`, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({kpi_percent: val})
     });
-    loadMasterKpi();
-  } catch(e) {}
+    if (res.ok) loadMasterKpi();
+    else alert("❌ KPI foizini saqlashda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
 }
 
 // ── USTA BOSHQARUVI ────────────────────────────────────────
@@ -562,23 +565,26 @@ async function saveMaster() {
 async function deactivateMaster(id, name) {
   if (!confirm(`${name} nofaol qilinsinmi?\n\nBuyurtma tarixi saqlanadi, faqat yangi buyurtmalarda tanlab bo'lmaydi.`)) return;
   try {
-    await fetch(`/api/masters/${id}`, { method: 'DELETE' });
-    loadMasterKpi();
-    loadAllMastersFull();
-  } catch(e) {}
+    const res = await fetch(`/api/masters/${id}`, { method: 'DELETE' });
+    if (res.ok) { loadMasterKpi(); loadAllMastersFull(); }
+    else alert("❌ Nofaol qilishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
 }
 
 async function reactivateMaster(id) {
   try {
-    await fetch(`/api/masters/${id}`, {
+    const res = await fetch(`/api/masters/${id}`, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({is_active: true})
     });
-    loadMasterKpi();
-    loadAllMastersFull();
-    renderInactiveMasters();
-  } catch(e) {}
+    if (res.ok) { loadMasterKpi(); loadAllMastersFull(); renderInactiveMasters(); }
+    else alert("❌ Faollashtirishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
 }
 
 // ── HODIMLAR ───────────────────────────────────────────────
