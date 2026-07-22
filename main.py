@@ -258,8 +258,14 @@ def _migrate_payment_columns():
                     "WHERE agreed_amount IS NULL OR agreed_amount = 0"
                 ))
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    from database import SessionLocal as _SL
+                    _ldb = _SL()
+                    crud.log_error(_ldb, str(e), endpoint="_migrate_payment_columns")
+                    _ldb.close()
+                except Exception:
+                    pass
 
             # Mavjud xomashyolarga kategoriya taxmin qilib qo'yamiz
             try:
@@ -278,8 +284,14 @@ def _migrate_payment_columns():
                     WHERE category IS NULL
                 """))
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    from database import SessionLocal as _SL
+                    _ldb = _SL()
+                    crud.log_error(_ldb, str(e), endpoint="_migrate_payment_columns")
+                    _ldb.close()
+                except Exception:
+                    pass
 
             # Eski kategoriya nomlarini yangi nomlarga o'tkazamiz (oldingi deploydan qolgan bo'lsa)
             try:
@@ -339,8 +351,14 @@ def _migrate_payment_columns():
                     )
                 """))
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    from database import SessionLocal as _SL
+                    _ldb = _SL()
+                    crud.log_error(_ldb, str(e), endpoint="_migrate_payment_columns")
+                    _ldb.close()
+                except Exception:
+                    pass
 
             # Panel detallar birligini metrga o'zgartiramiz (eski yozuvlar)
             try:
@@ -351,8 +369,14 @@ def _migrate_payment_columns():
                     ) AND unit != 'metr'
                 """))
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    from database import SessionLocal as _SL
+                    _ldb = _SL()
+                    crud.log_error(_ldb, str(e), endpoint="_migrate_payment_columns")
+                    _ldb.close()
+                except Exception:
+                    pass
 
             try:
                 conn.execute(text("""
@@ -360,8 +384,14 @@ def _migrate_payment_columns():
                     WHERE LOWER(category) = 'panel' AND unit != 'metr'
                 """))
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    from database import SessionLocal as _SL
+                    _ldb = _SL()
+                    crud.log_error(_ldb, str(e), endpoint="_migrate_payment_columns")
+                    _ldb.close()
+                except Exception:
+                    pass
 
             # Mavjud "Penoplast" nomli pozitsiyalarni belgilaymiz
             try:
@@ -370,8 +400,14 @@ def _migrate_payment_columns():
                     "WHERE LOWER(item_name) LIKE '%penoplast%' AND is_penoplast = FALSE"
                 ))
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    from database import SessionLocal as _SL
+                    _ldb = _SL()
+                    crud.log_error(_ldb, str(e), endpoint="_migrate_payment_columns")
+                    _ldb.close()
+                except Exception:
+                    pass
 
             # Agar asosiy plotnost yo'q bo'lsa — birinchisini asosiy qilamiz
             try:
@@ -384,8 +420,14 @@ def _migrate_payment_columns():
                         "WHERE id = (SELECT id FROM inventory WHERE is_penoplast = TRUE LIMIT 1)"
                     ))
                     conn.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    from database import SessionLocal as _SL
+                    _ldb = _SL()
+                    crud.log_error(_ldb, str(e), endpoint="_migrate_payment_columns")
+                    _ldb.close()
+                except Exception:
+                    pass
     except Exception as e:
         print(f"⚠ Migratsiya xatosi: {e}")
 
@@ -1658,8 +1700,11 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, db: Sess
             if 'tg_id=' in notes:
                 try:
                     tg_id = notes.split('tg_id=')[1].split(',')[0].strip()
-                except:
-                    pass
+                except Exception as e:
+                    try:
+                        crud.log_error(db, str(e), endpoint="api_mark_order_ready:tg_id_parse")
+                    except Exception:
+                        pass
             if tg_id and tg_id.lstrip('-').isdigit():
                 client_msg = (
                     f"✅ *Buyurtmangiz tayyor!*\n\n"
@@ -1863,8 +1908,11 @@ def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), cur
         if o.status == OrderStatus.READY:
             try:
                 total_profit += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    crud.log_error(db, str(e), endpoint=f"project_detail:calculate_order_profit order#{o.id}")
+                except Exception:
+                    pass
 
     ready_count = status_counts.get("ready", 0) + status_counts.get("delivered", 0)
     total_count = len(orders)
@@ -2837,8 +2885,11 @@ def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db
         fpath = os.path.join(static_dir, att.file_url.replace("/static/", "", 1))
         if os.path.exists(fpath):
             os.remove(fpath)
-    except Exception:
-        pass
+    except Exception as e:
+        try:
+            crud.log_error(db, str(e), endpoint="api_delete_order_attachment:file_remove")
+        except Exception:
+            pass
     db.delete(att)
     db.commit()
     return {"status": "ok"}
