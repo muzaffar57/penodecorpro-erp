@@ -456,17 +456,23 @@ body {
   background: var(--white);
   border-radius: var(--radius-card);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 14px rgba(16,24,40,.05);
   padding: 16px;
+  transition: box-shadow .15s, transform .15s;
+}
+.stat-card:hover {
+  box-shadow: 0 2px 4px rgba(16,24,40,.05), 0 8px 22px rgba(16,24,40,.09);
+  transform: translateY(-1px);
 }
 .stat-icon {
-  width: 34px; height: 34px;
-  border-radius: 9px;
-  background: var(--gold-tint);
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--gold-tint), rgba(255,255,255,.4));
   color: var(--gold-dark);
   display: flex; align-items: center; justify-content: center;
-  font-size: 19px;
+  font-size: 20px;
   margin-bottom: 12px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
 }
 .stat-label { font-size: 13.5px; color: var(--text3); font-weight: 600; margin-bottom: 4px; }
 .stat-val { font-size: 25px; font-weight: 700; color: var(--text); }
