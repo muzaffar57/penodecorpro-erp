@@ -2431,6 +2431,19 @@ def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Sess
     return {"image_url": url}
 
 
+@app.post("/api/projects/{project_id}/image")
+def api_upload_project_image(project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                              current_user=Depends(auth.admin_manager_accountant)):
+    from models import Project
+    proj = db.query(Project).filter(Project.id == project_id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    url = _save_upload(file, "projects", ALLOWED_IMAGE_EXT)
+    proj.image_url = url
+    db.commit()
+    return {"image_url": url}
+
+
 @app.post("/api/returns/{return_id}/image")
 def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                              current_user=Depends(auth.admin_or_manager)):
