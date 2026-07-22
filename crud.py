@@ -1060,7 +1060,25 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
     return db_item
 
 
-def delete_order(db: Session, order_id: int, soft: bool = False) -> bool:
+def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
+                  entity_label: str = None, performed_by: str = None):
+    """O'chirish/tiklash kabi muhim amallarni audit uchun yozib boradi."""
+    from models import ActivityLog
+    entry = ActivityLog(
+        action=action, entity_type=entity_type, entity_id=entity_id,
+        entity_label=entity_label, performed_by=performed_by
+    )
+    db.add(entry)
+    db.commit()
+
+
+def get_activity_log(db: Session, limit: int = 100) -> List:
+    """So'nggi audit yozuvlari."""
+    from models import ActivityLog
+    return db.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(limit).all()
+
+
+def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None) -> bool:
     """Buyurtmani o'chirish.
     soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.
     Shu tufayli buyurtma "Buyurtmalar" ro'yxatidan yo'qoladi, lekin usta KPI'si
@@ -1070,9 +1088,11 @@ def delete_order(db: Session, order_id: int, soft: bool = False) -> bool:
     db_order = db.query(Order).filter(Order.id == order_id).first()
     if not db_order:
         return False
+    order_num = db_order.order_number
     if soft:
         db_order.is_deleted = True
         db.commit()
+        log_activity(db, "deleted", "order", order_id, order_num, performed_by)
     else:
         # MUHIM: "Ombor harakatlari jurnali" (InventoryMovement) — bu buyurtmaga
         # FK orqali bog'langan, lekin bu yozuvlar TARIXIY LOG bo'lgani uchun
@@ -1087,16 +1107,35 @@ def delete_order(db: Session, order_id: int, soft: bool = False) -> bool:
         )
         db.delete(db_order)
         db.commit()
+        log_activity(db, "deleted", "order", order_id, order_num, performed_by)
     return True
 
 
-def restore_order(db: Session, order_id: int) -> bool:
+def permanent_delete_order(db: Session, order_id: int, performed_by: str = None) -> bool:
+    """YUMSHOQ o'chirilgan buyurtmani BAZADAN BUTUNLAY o'chiradi.
+    Faqat is_deleted=True bo'lgan (allaqachon 'chiqindi qutisi'da turgan)
+    buyurtmalar uchun ishlaydi — himoya sifatida."""
+    db_order = db.query(Order).filter(Order.id == order_id, Order.is_deleted.is_(True)).first()
+    if not db_order:
+        return False
+    order_num = db_order.order_number
+    from models import InventoryMovement, FinishedProduct
+    db.query(InventoryMovement).filter(InventoryMovement.order_id == order_id).update({"order_id": None})
+    db.query(FinishedProduct).filter(FinishedProduct.from_order_id == order_id).update({"from_order_id": None})
+    db.delete(db_order)
+    db.commit()
+    log_activity(db, "permanently_deleted", "order", order_id, order_num, performed_by)
+    return True
+
+
+def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
     """O'chirilgan (yumshoq) buyurtmani tiklaydi."""
     db_order = db.query(Order).filter(Order.id == order_id).first()
     if not db_order:
         return False
     db_order.is_deleted = False
     db.commit()
+    log_activity(db, "restored", "order", order_id, db_order.order_number, performed_by)
     return True
 
 
@@ -1167,24 +1206,46 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
     return db_project
 
 
-def delete_project(db: Session, project_id: int) -> bool:
+def delete_project(db: Session, project_id: int, performed_by: str = None) -> bool:
     """Loyihani o'chirish — YUMSHOQ (is_deleted=True). Ma'lumot yo'qolmaydi,
     'O'chirilganlar' bo'limidan tiklash mumkin (inson xatosidan himoya)."""
     db_project = db.query(Project).filter(Project.id == project_id).first()
     if not db_project:
         return False
+    label = f"{db_project.project_number} — {db_project.project_name}"
     db_project.is_deleted = True
     db.commit()
+    log_activity(db, "deleted", "project", project_id, label, performed_by)
     return True
 
 
-def restore_project(db: Session, project_id: int) -> bool:
+def permanent_delete_project(db: Session, project_id: int, performed_by: str = None) -> tuple:
+    """YUMSHOQ o'chirilgan loyihani BAZADAN BUTUNLAY o'chiradi.
+    Xavfsizlik uchun — agar loyihada HALI HAM buyurtmalar bo'lsa (hatto
+    ular ham o'chirilgan bo'lsa ham) — avval ularni hal qilish so'raladi,
+    chunki loyiha o'chirilsa ular ham katta izsiz o'chib ketadi (cascade)."""
+    db_project = db.query(Project).filter(Project.id == project_id, Project.is_deleted.is_(True)).first()
+    if not db_project:
+        return False, "Loyiha topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)"
+    order_count = db.query(Order).filter(Order.project_id == project_id).count()
+    if order_count > 0:
+        return False, f"Bu loyihada hali {order_count} ta buyurtma bor — avval ularni butunlay o'chiring"
+    label = f"{db_project.project_number} — {db_project.project_name}"
+    db.delete(db_project)
+    db.commit()
+    log_activity(db, "permanently_deleted", "project", project_id, label, performed_by)
+    return True, "ok"
+
+
+def restore_project(db: Session, project_id: int, performed_by: str = None) -> bool:
     """O'chirilgan loyihani tiklaydi."""
     db_project = db.query(Project).filter(Project.id == project_id).first()
     if not db_project:
         return False
     db_project.is_deleted = False
     db.commit()
+    label = f"{db_project.project_number} — {db_project.project_name}"
+    log_activity(db, "restored", "project", project_id, label, performed_by)
     return True
 
 
