@@ -399,16 +399,25 @@ async function loadCharts(){
     }
   });
 
-  // Donut — oxirgi oyning xarajat tarkibi (agar hozirgi report ochilgan bo'lsa undan, aks holda taxminiy taqsim)
+  // Donut — oxirgi oyning HAQIQIY xarajat tarkibi (taxminiy emas —
+  // get_monthly_report() dan kelgan aniq kategoriyalar)
   const cur = hist.length ? hist[hist.length-1] : null;
   const donutEl = document.getElementById('donutLegend');
   if (donutChartInst) donutChartInst.destroy();
   if (cur) {
+    const x = cur.xarajatlar || {};
+    const doimiy = (x.arenda||0) + (x.elektr||0) + (x.tushlik||0) + (x.soliqlar||0);
+    const qoshimcha = Object.values(cur.qoshimcha_xarajatlar || {}).reduce((a,b)=>a+b, 0);
     const entries = [
-      ['Ishlab chiqarish', Math.max(0, cur.jami_xarajat*0.55), '#2563EB'],
-      ['Naqd xarajat', Math.max(0, cur.jami_xarajat*0.30), '#F59E0B'],
-      ['Boshqa', Math.max(0, cur.jami_xarajat*0.15), '#22C55E'],
-    ];
+      ['Doimiy xarajatlar', doimiy, '#2563EB'],
+      ["Usta bonusi", cur.usta_kpi_xarajat || 0, '#F59E0B'],
+      ['Hodimlar oyligi', cur.hodimlar_moslashuvchan_xarajat || 0, '#22C55E'],
+      ["Qo'shimcha", qoshimcha, '#8E44AD'],
+    ].filter(e => e[1] > 0);
+    if (!entries.length) {
+      donutEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--b-text3);font-size:12.5px">Bu oyda xarajat qayd etilmagan</div>';
+      return;
+    }
     donutChartInst = new Chart(document.getElementById('expenseDonut'), {
       type:'doughnut',
       data:{ labels:entries.map(e=>e[0]), datasets:[{data:entries.map(e=>e[1]), backgroundColor:entries.map(e=>e[2]), borderWidth:2, borderColor:'#fff'}] },
@@ -418,7 +427,6 @@ async function loadCharts(){
     });
     const total = entries.reduce((s,e)=>s+e[1],0)||1;
     donutEl.innerHTML = entries.map(([n,v,c])=>`<div class="bi-legend-row"><span class="bi-legend-dot" style="background:${c}"></span><span class="bi-legend-name">${n}</span><span class="bi-legend-pct">${(v/total*100).toFixed(0)}%</span></div>`).join('');
-    donutEl.insertAdjacentHTML('afterbegin', '<div style="font-size:11px;color:var(--b-text3);margin-bottom:6px">* Taxminiy taqsimot — aniq tarkib Moliya bo\'limida</div>');
   }
 
   // Pul oqimi bar
