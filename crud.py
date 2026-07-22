@@ -3632,13 +3632,22 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     rows = []
     total_gift = 0.0
 
+    # N+1 o'rniga — BARCHA ustalarning shu yillik buyurtmalarini
+    # BITTA so'rov bilan olib, keyin usta bo'yicha guruhlaymiz.
+    master_ids = [m.id for m in masters]
+    all_orders = db.query(Order).filter(
+        Order.master_id.in_(master_ids),
+        Order.status == OrderStatus.READY,
+        extract('year', Order.completed_at) == year,
+        Order.is_deleted.isnot(True)
+    ).all() if master_ids else []
+
+    orders_by_master = {}
+    for o in all_orders:
+        orders_by_master.setdefault(o.master_id, []).append(o)
+
     for m in masters:
-        orders = db.query(Order).filter(
-            Order.master_id == m.id,
-            Order.status == OrderStatus.READY,
-            extract('year', Order.completed_at) == year,
-            Order.is_deleted.isnot(True)
-        ).all()
+        orders = orders_by_master.get(m.id, [])
 
         yearly_sales = 0.0
         yearly_profit = 0.0
