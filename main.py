@@ -7,7 +7,7 @@ import os
 from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -399,7 +399,27 @@ try:
 finally:
     _db.close()
 
-app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=True)
+app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False)
+
+
+@app.exception_handler(Exception)
+async def global_error_logger(request: Request, exc: Exception):
+    """Kutilmagan (unhandled) xatolarni avtomatik yozib boradi va foydalanuvchiga
+    tushunarli xato qaytaradi. HTTPException (masalan 404/403/409) — bu yerga
+    kelmaydi, ular FastAPI'ning o'z ichki mexanizmi orqali to'g'ri ishlanadi."""
+    import traceback
+    try:
+        log_db = SessionLocal()
+        try:
+            crud.log_error(
+                log_db, error_message=str(exc), stack_trace=traceback.format_exc(),
+                endpoint=str(request.url.path), method=request.method
+            )
+        finally:
+            log_db.close()
+    except Exception:
+        pass  # Log yozishning o'zi xato bersa — asosiy oqimni to'xtatmaymiz
+    return JSONResponse(status_code=500, content={"detail": "Serverda kutilmagan xato yuz berdi"})
 
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
@@ -454,9 +474,15 @@ async def login_page(request: Request, db: Session = Depends(get_db)):
 @app.post("/login")
 async def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     from models import User
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent", "")[:250]
+
     user = db.query(User).filter(User.username == username, User.is_active == True).first()
     if not user or not auth.verify_password(password, user.password_hash):
+        crud.log_login_attempt(db, username, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "login.html", {"error": "Login yoki parol noto'g'ri!", "username": username})
+
+    crud.log_login_attempt(db, username, success=True, ip_address=ip, user_agent=ua)
     token = auth.create_session(user.id)
     response = RedirectResponse("/", status_code=302)
     response.set_cookie(key="session_token", value=token, httponly=True, max_age=3600 * 8, samesite="lax")
@@ -489,6 +515,18 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
         "deleted_orders": deleted_orders, "deleted_projects": deleted_projects,
         "activity_log": activity_log,
         "current_user": current_user, "active_page": "trash"
+    })
+
+
+@app.get("/logs", response_class=HTMLResponse)
+async def logs_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Tizim jurnallari — kirish tarixi va backend xatoliklari (faqat admin)."""
+    login_history = crud.get_login_history(db, limit=100)
+    error_logs = crud.get_error_logs(db, limit=100)
+    activity_log = crud.get_activity_log(db, limit=100)
+    return templates.TemplateResponse(request, "logs.html", {
+        "login_history": login_history, "error_logs": error_logs, "activity_log": activity_log,
+        "current_user": current_user, "active_page": "logs"
     })
 
 
