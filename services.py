@@ -709,7 +709,8 @@ def close_employee_debt(db: Session, employee_id: int, year: int, month: int, am
 
     completed_today = db.query(Project).filter(
         Project.completed_at >= today_start, Project.completed_at < today_end,
-        Project.status == ProjectStatus.COMPLETED
+        Project.status == ProjectStatus.COMPLETED,
+        Project.is_deleted.isnot(True)
     ).count()
     if completed_today > 0:
         tasks.append({"level": "green", "icon": "🟢", "text": f"{completed_today} ta loyiha bugun yakunlandi"})
@@ -924,7 +925,7 @@ def get_dashboard_stats(db: Session) -> Dict:
     """Admin dashboard uchun umumiy statistika."""
     from models import Project, Master
 
-    total_projects = db.query(Project).count()
+    total_projects = db.query(Project).filter(Project.is_deleted.isnot(True)).count()
     total_orders = db.query(Order).filter(Order.is_deleted.isnot(True)).count()
     active_orders = db.query(Order).filter(Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
     ready_orders = db.query(Order).filter(Order.status == OrderStatus.READY, Order.is_deleted.isnot(True)).count()
