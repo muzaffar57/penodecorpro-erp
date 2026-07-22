@@ -24,6 +24,11 @@ import json as _json
 
 TELEGRAM_BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_COATING_ID = "8461987934"
+# Webhook xavfsizligi — Telegram har bir xabarga shu "imzo"ni qo'shib yuboradi
+# (agar ro'yxatdan o'tkazilgan bo'lsa). Agar env varda o'rnatilmagan bo'lsa,
+# tizim ishlashda davom etadi, lekin imzo tekshiruvi o'chirilgan holda
+# (eski xatti-harakat saqlanadi — hech narsa buzilmaydi).
+TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 
 def fmt_money(n) -> str:
     """1234567.5 -> '1 234 568'"""
@@ -2283,6 +2288,51 @@ def api_telegram_debug(current_user=Depends(auth.admin_only)):
     return result
 
 
+@app.post("/api/system/telegram-setup-webhook-security")
+def api_telegram_setup_webhook_security(request: Request, current_user=Depends(auth.admin_only)):
+    """BIR MARTALIK sozlash: Telegram webhookni, XAVFSIZ IMZO bilan qayta
+    ro'yxatdan o'tkazadi. Shundan keyin — soxta (Telegram'dan bo'lmagan)
+    so'rovlar avtomatik rad etiladi.
+
+    Yangi, tasodifiy imzo o'zi yaratiladi va qaytariladi — buni albatta
+    Railway'dagi TELEGRAM_WEBHOOK_SECRET muhit o'zgaruvchisiga qo'shib,
+    saqlab qo'yish kerak (aks holda, server qayta ishga tushganda,
+    tizim eski imzoni "unutadi" va tekshiruv o'chib qoladi)."""
+    import urllib.request as _ur
+    import json as _json_mod
+    import secrets as _secrets
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
+
+    webhook_url = str(request.base_url).rstrip("/") + "/telegram/webhook"
+    new_secret = _secrets.token_urlsafe(32)
+
+    try:
+        set_url = f"https://api.telegram.org/bot{token}/setWebhook"
+        payload = _json_mod.dumps({"url": webhook_url, "secret_token": new_secret}).encode()
+        req = _ur.Request(set_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with _ur.urlopen(req, timeout=10) as r:
+            tg_response = _json_mod.loads(r.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {e}")
+
+    if not tg_response.get("ok"):
+        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {tg_response.get('description')}")
+
+    return {
+        "status": "ok",
+        "webhook_url": webhook_url,
+        "new_secret": new_secret,
+        "message": (
+            "✅ Webhook xavfsiz imzo bilan qayta ro'yxatdan o'tkazildi. "
+            "MUHIM: yuqoridagi 'new_secret' qiymatini nusxalab, Railway'dagi "
+            "TELEGRAM_WEBHOOK_SECRET muhit o'zgaruvchisiga joylashtiring va saqlang."
+        )
+    }
+
+
 @app.post("/api/system/backup/send-now")
 def api_backup_send_now(current_user=Depends(auth.admin_only)):
     """Kunlik avtomatik backup vazifasini HOZIROQ, qo'lda ishga tushiradi
@@ -2781,6 +2831,14 @@ def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.admi
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request):
+    # Xavfsizlik: agar imzo o'rnatilgan bo'lsa (TELEGRAM_WEBHOOK_SECRET),
+    # kelayotgan xabarning imzosi mos kelishini tekshiramiz. Agar mos
+    # kelmasa — bu, ehtimol, soxta (Telegram'dan emas) so'rov.
+    if TELEGRAM_WEBHOOK_SECRET:
+        incoming_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if incoming_secret != TELEGRAM_WEBHOOK_SECRET:
+            raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
+
     try:
         data = await request.json()
     except:
