@@ -583,7 +583,7 @@ def create_project(db: Session, project_data: ProjectCreate) -> Project:
 
 
 def get_projects(db: Session) -> List[Project]:
-    return db.query(Project).order_by(Project.start_date.desc()).all()
+    return db.query(Project).filter(Project.is_deleted.isnot(True)).order_by(Project.start_date.desc()).all()
 
 
 def get_projects_dashboard_stats(db: Session) -> dict:
@@ -593,7 +593,7 @@ def get_projects_dashboard_stats(db: Session) -> dict:
     from models import Order, OrderStatus
     from datetime import datetime
 
-    projects = db.query(Project).all()
+    projects = db.query(Project).filter(Project.is_deleted.isnot(True)).all()
     now = datetime.utcnow()
 
     active = sum(1 for p in projects if p.status == ProjectStatus.ACTIVE)
@@ -623,7 +623,7 @@ def get_projects_dashboard_stats(db: Session) -> dict:
 
 def get_projects_with_stats(db: Session) -> List:
     """Loyihalar + buyurtmalar summasi + qarz hisobi (orders ham qo'shilgan)."""
-    projects = db.query(Project).order_by(Project.start_date.desc()).all()
+    projects = db.query(Project).filter(Project.is_deleted.isnot(True)).order_by(Project.start_date.desc()).all()
     for p in projects:
         orders_count = len(p.orders) if p.orders else 0
         orders_sum = sum(float(o.total_amount or 0) for o in (p.orders or []))
@@ -1090,6 +1090,21 @@ def delete_order(db: Session, order_id: int, soft: bool = False) -> bool:
     return True
 
 
+def restore_order(db: Session, order_id: int) -> bool:
+    """O'chirilgan (yumshoq) buyurtmani tiklaydi."""
+    db_order = db.query(Order).filter(Order.id == order_id).first()
+    if not db_order:
+        return False
+    db_order.is_deleted = False
+    db.commit()
+    return True
+
+
+def get_deleted_orders(db: Session) -> List[Order]:
+    """O'chirilgan (lekin hali bazada saqlanayotgan) buyurtmalar."""
+    return db.query(Order).filter(Order.is_deleted.is_(True)).order_by(Order.created_at.desc()).all()
+
+
 def delete_order_item(db: Session, item_id: int) -> bool:
     """Detal o'chirish — xomashyo omborga qaytariladi.
     Topshirilgan detalni o'chirib bo'lmaydi."""
@@ -1153,13 +1168,29 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
 
 
 def delete_project(db: Session, project_id: int) -> bool:
-    """Loyihani o'chirish."""
+    """Loyihani o'chirish — YUMSHOQ (is_deleted=True). Ma'lumot yo'qolmaydi,
+    'O'chirilganlar' bo'limidan tiklash mumkin (inson xatosidan himoya)."""
     db_project = db.query(Project).filter(Project.id == project_id).first()
     if not db_project:
         return False
-    db.delete(db_project)
+    db_project.is_deleted = True
     db.commit()
     return True
+
+
+def restore_project(db: Session, project_id: int) -> bool:
+    """O'chirilgan loyihani tiklaydi."""
+    db_project = db.query(Project).filter(Project.id == project_id).first()
+    if not db_project:
+        return False
+    db_project.is_deleted = False
+    db.commit()
+    return True
+
+
+def get_deleted_projects(db: Session) -> List[Project]:
+    """O'chirilgan (lekin hali bazada saqlanayotgan) loyihalar."""
+    return db.query(Project).filter(Project.is_deleted.is_(True)).order_by(Project.start_date.desc()).all()
 
 
 # ============================================================
