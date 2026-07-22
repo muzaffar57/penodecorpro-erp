@@ -1358,8 +1358,12 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
                     if p.startswith('loy_kg='):
                         loy_kg = float(p.split('=')[1].strip())
                         break
-            except:
-                pass
+            except Exception as e:
+                try:
+                    import crud as _crud_log
+                    _crud_log.log_error(db, str(e), endpoint="calculate_order_profit:loy_kg_parse")
+                except Exception:
+                    pass
 
         # Agar loy_kg saqlanmagan bo'lsa — 2 kg/m² dan hisoblash
         if loy_kg <= 0:
@@ -1587,8 +1591,12 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         try:
             profit_data = calculate_order_profit(db, order.id)
             ishlab_chiqarish_xarajat += float(profit_data.get("tan_narxi", 0))
-        except:
-            pass
+        except Exception as e:
+            try:
+                import crud as _crud_log
+                _crud_log.log_error(db, str(e), endpoint=f"get_monthly_report:calculate_order_profit order#{order.id}")
+            except Exception:
+                pass
 
     sof_daromad = daromad - ishlab_chiqarish_xarajat
 
@@ -3078,8 +3086,12 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
             try:
                 profit_data = calculate_order_profit(db, o.id)
                 monthly_profit += float(profit_data.get("foyda", 0))
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    import crud as _crud_log
+                    _crud_log.log_error(db, str(e), endpoint=f"calculate_monthly_master_kpi:calculate_order_profit order#{o.id}")
+                except Exception:
+                    pass
 
         if monthly_profit <= 0:
             continue
