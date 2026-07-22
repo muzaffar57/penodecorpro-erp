@@ -479,6 +479,31 @@ async def users_page(request: Request, db: Session = Depends(get_db), current_us
     return templates.TemplateResponse(request, "users.html", {"users": users, "current_user": current_user, "now": datetime.now().strftime("%d.%m.%Y %H:%M"), "active_page": "users"})
 
 
+@app.get("/trash", response_class=HTMLResponse)
+async def trash_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """O'chirilgan buyurtma va loyihalar — inson xatosidan himoya uchun tiklash imkoni."""
+    deleted_orders = crud.get_deleted_orders(db)
+    deleted_projects = crud.get_deleted_projects(db)
+    return templates.TemplateResponse(request, "trash.html", {
+        "deleted_orders": deleted_orders, "deleted_projects": deleted_projects,
+        "current_user": current_user, "active_page": "trash"
+    })
+
+
+@app.post("/api/orders/{order_id}/restore")
+def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    if not crud.restore_order(db, order_id):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    return {"status": "ok"}
+
+
+@app.post("/api/projects/{project_id}/restore")
+def api_restore_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    if not crud.restore_project(db, project_id):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    return {"status": "ok"}
+
+
 @app.post("/api/users")
 def api_create_user(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     try:
