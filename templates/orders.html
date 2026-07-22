@@ -1626,7 +1626,10 @@ async function quickFullDelivery() {
       openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
       loadDeliveries(selectedOrderId);
       showMsg('✅ Buyurtma to\'liq topshirildi! Nakladnoy tayyor.', 'success');
-      setTimeout(()=>location.reload(), 2500);
+      if (r.payment_warning) {
+        setTimeout(() => showMsg(r.payment_warning, 'error'), 400);
+      }
+      setTimeout(()=>location.reload(), r.payment_warning ? 9000 : 2500);
     } else {
       const det = r.detail || {};
       showMsg('❌ ' + (det.message || 'Xato') + (det.shortages?.length ? '\n' + det.shortages.join('\n') : ''), 'error');
@@ -1688,9 +1691,13 @@ async function saveDelivery() {
       openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
       loadDeliveries(selectedOrderId);
 
+      if (r.payment_warning) {
+        setTimeout(() => showMsg(r.payment_warning, 'error'), 400);
+      }
+
       if (r.is_fully_delivered) {
         showMsg('✅ Buyurtma to\'liq topshirildi! Nakladnoy tayyor.', 'success');
-        setTimeout(()=>location.reload(), 2500);
+        setTimeout(()=>location.reload(), r.payment_warning ? 9000 : 2500);
       } else {
         showMsg(`✓ ${r.delivery_number} saqlandi · Bajarilish: ${r.delivery_percent}%`, 'success');
       }
@@ -2110,6 +2117,10 @@ function addItem() {
       <div class="dif i-t-wrap" style="display:none"><label>Qalinlik (sm)</label><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik (m)</label><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-donavol-wrap" style="display:none">
+        <label>Taxminiy hajm, m³ (ixtiyoriy)</label>
+        <input type="number" placeholder="masalan 0.05" class="i-donavol" step="0.001" min="0" oninput="suggestDonaPrice(this.closest('.detal'))">
+      </div>
       <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi (so'm)</label><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"></div>
       <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti (masalan 2)</label><input type="number" value="2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div>
@@ -2207,17 +2218,22 @@ function toggleFields(row) {
   [tBazaltW, tLoyW, lsRecipeW].forEach(el => { if (el) el.style.display = 'none'; });
   if (penoField) penoField.style.display = '';
 
+  const donaVolW = row.querySelector('.i-donavol-wrap');
+  if (donaVolW) donaVolW.style.display = 'none';
+
   if (type === 'dona') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none'; lW.style.display = 'none';
     qW.style.display = 'block';
     if (upW) upW.style.display = 'block';
+    if (donaVolW) donaVolW.style.display = 'block';
     if (bpW) bpW.style.display = 'none';
     if (bmW) bmW.style.display = 'none';
     if (m3Field) m3Field.style.display = '';
     if (coatField) coatField.style.display = '';
     ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
   } else if (type === 'panel') {
+    if (donaVolW) donaVolW.style.display = 'none';
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'block'; lW.style.display = 'none';
     qW.style.display = 'block';
@@ -2307,6 +2323,27 @@ async function loadTermoInventoryFor(row) {
     ? bazaltItems.map(opts).join('')
     : '<option value="">Omborda bazalt yo\'q — avval kirim qiling</option>';
   if (bazaltItems.length) bazaltSel.value = bazaltItems[0].id;
+  calculateItem(row);
+}
+
+function suggestDonaPrice(row) {
+  // Foydalanuvchi taxminiy hajmni kiritsa — 1m³ narxidan kelib chiqib,
+  // TAKLIF sifatida narxni to'ldiramiz (agar narx maydoni hali bo'sh bo'lsa,
+  // qo'lda kiritilgan narxni bosib yubormaslik uchun).
+  const volEl = row.querySelector('.i-donavol');
+  const upEl = row.querySelector('.i-unitprice');
+  if (!volEl || !upEl) return;
+  const vol = parseFloat(volEl.value) || 0;
+  if (vol <= 0) return;
+  if (parseNum(upEl.value) > 0) return; // narx allaqachon kiritilgan — tegmaymiz
+
+  const m3El = row.querySelector('.i-m3price');
+  const ownPrice = m3El ? parseNum(m3El.value) : 0;
+  const basePrice = ownPrice > 0 ? ownPrice : parseNum(document.getElementById('base_price').value);
+  if (basePrice <= 0) return;
+
+  const suggested = Math.round(vol * basePrice);
+  upEl.value = suggested.toLocaleString('ru-RU').replace(/,/g, ' ');
   calculateItem(row);
 }
 
