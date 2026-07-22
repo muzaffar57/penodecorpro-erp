@@ -20,7 +20,11 @@
 @keyframes pIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .proj-card:hover{box-shadow:0 4px 16px rgba(16,24,40,.09);border-color:var(--border-strong);transform:translateY(-1px)}
 .proj-card.active{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-tint),0 4px 16px rgba(16,24,40,.08);background:var(--gold-tint)}
-.proj-thumb{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--gold-tint),#F3EEE0);display:flex;align-items:center;justify-content:center;color:var(--gold-dark);font-size:22px;flex-shrink:0}
+.proj-thumb{width:52px;height:52px;align-self:flex-start;border-radius:12px;background:linear-gradient(135deg,var(--gold-tint),#F3EEE0);display:flex;align-items:center;justify-content:center;color:var(--gold-dark);font-size:22px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
+.proj-thumb img{width:100%;height:100%;object-fit:cover}
+.proj-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.proj-thumb-cam{position:absolute;right:1px;bottom:1px;width:17px;height:17px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:9px;cursor:pointer;z-index:2}
+.proj-thumb:hover .proj-thumb-cam{opacity:1}
 .proj-card-body{flex:1;min-width:0}
 .proj-num{font-size:11.5px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .proj-name{font-size:14.5px;font-weight:700;color:var(--text);margin:2px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -102,8 +106,17 @@
            data-deadline="{{ p.deadline.strftime('%d.%m.%Y') if p.deadline else '—' }}"
            data-deadline-raw="{{ p.deadline.isoformat() if p.deadline else '' }}"
            data-orders="{{ p.orders_count }}"
-           data-notes="{{ p.notes or '' }}">
-        <div class="proj-thumb"><i class="ti ti-building-skyscraper"></i></div>
+           data-notes="{{ p.notes or '' }}"
+           data-image="{{ p.image_url or '' }}">
+        <label class="proj-thumb" onclick="event.stopPropagation()">
+          {% if p.image_url %}
+          <img src="{{ p.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openProjLightbox('{{ p.image_url }}')">
+          {% else %}
+          <i class="ti ti-building-skyscraper" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-{{ p.id }}').click()"></i>
+          {% endif %}
+          <div class="proj-thumb-cam" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-{{ p.id }}').click()"><i class="ti ti-camera"></i></div>
+          <input type="file" id="pimg-{{ p.id }}" accept="image/*" onchange="uploadProjImage({{ p.id }}, this)">
+        </label>
         <div class="proj-card-body">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
@@ -215,6 +228,11 @@
   </div>
 </div>
 
+<!-- ══ RASM KATTALASHTIRISH (LIGHTBOX) ══ -->
+<div id="projLightbox" onclick="closeProjLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="projLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
+</div>
+
 <!-- To'lov modal -->
 <div id="payModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:24px;width:360px">
@@ -243,6 +261,24 @@ const STATUS_MAP = {
 };
 
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+
+function openProjLightbox(url) {
+  document.getElementById('projLightboxImg').src = url;
+  document.getElementById('projLightbox').style.display = 'flex';
+}
+function closeProjLightbox() { document.getElementById('projLightbox').style.display = 'none'; }
+
+async function uploadProjImage(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`/api/projects/${id}/image`, { method: 'POST', body: fd });
+    if (res.ok) location.reload();
+    else alert('Rasm yuklanmadi');
+  } catch(e) { alert('Server xatosi'); }
+}
 
 async function loadProgressMap(){
   try {
