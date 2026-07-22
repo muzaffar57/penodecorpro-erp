@@ -2748,7 +2748,7 @@ async function saveOrder(isDraft = false) {
 
   const data = {
     project_id: projId,
-    order_type: 'product',   // Buyurtma turi tanlovi olib tashlandi — doim mahsulot
+    order_type: 'product',   // Buyurtma turi tanlovi olib tashlandi -- doim mahsulot
     recipe_id: parseInt(document.getElementById('recipe_id').value) || null,
     master_id: parseInt(document.getElementById('master_id').value) || null,
     agreed_amount: finalPrice || undefined,
@@ -2757,8 +2757,13 @@ async function saveOrder(isDraft = false) {
     items
   };
 
+  await submitOrderRequest(data, isDraft, zaklat, zaklatMethod, false);
+}
+
+async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmShortage) {
   try {
-    const res = await fetch('/api/orders', { method:'POST',
+    const url = '/api/orders' + (confirmShortage ? '?confirm_shortage=true' : '');
+    const res = await fetch(url, { method:'POST',
       headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
     if (res.ok) {
       const saved = await res.json();
@@ -2771,7 +2776,6 @@ async function saveOrder(isDraft = false) {
           method: 'POST'
         });
       }
-      // Zaklat bo'lsa — to'lov qo'shamiz
       if (zaklat > 0) {
         await fetch('/api/payments', {
           method: 'POST',
@@ -2785,23 +2789,38 @@ async function saveOrder(isDraft = false) {
           })
         });
       }
-      showMsg(isDraft ? '📝 Qoralama saqlandi! Ombordan xomashyo yechilmadi.' : '✓ Buyurtma yaratildi!', 'success');
+      showMsg(isDraft ? '\ud83d\udcdd Qoralama saqlandi! Ombordan xomashyo yechilmadi.' : '\u2713 Buyurtma yaratildi!', 'success');
       setTimeout(()=>location.reload(), 1000);
+    } else if (res.status === 409) {
+      const e = await res.json();
+      if (e.detail && e.detail.type === 'stock_shortage_warning') {
+        showStockShortageModal(e.detail.shortages, data, isDraft, zaklat, zaklatMethod);
+      } else {
+        showMsg('\u274c ' + ((e.detail && e.detail.message) || 'Xato'), 'error');
+      }
     } else {
       const e = await res.json();
-      // Xomashyo yetishmasa — aniq xabar
-      if (e.detail && e.detail.shortages) {
-        const shorts = e.detail.shortages.join('\n');
-        showMsg('❌ ' + e.detail.message + '\n' + shorts, 'error');
-        const box = document.getElementById('resultBox');
-        box.innerHTML = `<b>❌ ${e.detail.message}</b><br><br>` +
-          e.detail.shortages.map(s => `• ${s}`).join('<br>');
-        box.className = 'result-box error';
-      } else {
-        showMsg('Xato: ' + JSON.stringify(e.detail), 'error');
-      }
+      showMsg('Xato: ' + JSON.stringify(e.detail), 'error');
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
+}
+
+function showStockShortageModal(shortages, data, isDraft, zaklat, zaklatMethod) {
+  const list = document.getElementById('validationList');
+  list.innerHTML = shortages.map(s => `
+    <div class="val-item">
+      <i class="ti ti-alert-triangle"></i>
+      <span>${s}</span>
+    </div>`).join('') + `
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeValidationModal()">Bekor qilish</button>
+      <button class="btn btn-dark" style="flex:1" id="shortageConfirmBtn">Ha, davom etaman</button>
+    </div>`;
+  document.getElementById('shortageConfirmBtn').onclick = function(){
+    closeValidationModal();
+    submitOrderRequest(data, isDraft, zaklat, zaklatMethod, true);
+  };
+  document.getElementById('validationModal').style.display = 'flex';
 }
 
 // ── Tahrirlash ────────────────────────────────────────────
