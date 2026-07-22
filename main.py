@@ -2009,13 +2009,13 @@ async def health():
 
 
 @app.get("/returns", response_class=HTMLResponse)
-async def returns_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    returns = crud.get_return_items(db)
-    orders  = crud.get_orders(db)
+async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all)
+    orders  = crud.get_orders_for_main_page(db, days=90, show_all=True)
     projects = crud.get_projects(db)
     return templates.TemplateResponse(request, "returns.html", {
         "returns": returns, "orders": orders, "projects": projects,
-        "current_user": current_user
+        "current_user": current_user, "show_all": show_all
     })
 
 
@@ -2333,10 +2333,13 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
 
 
 @app.get("/api/finished")
-def api_get_finished(source: Optional[str] = None, only_available: bool = False,
+def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Tayyor mahsulotlar ro'yxati."""
-    items = crud.get_finished_products(db, source=source, only_available=only_available)
+    if source or only_available:
+        items = crud.get_finished_products(db, source=source, only_available=only_available)
+    else:
+        items = crud.get_finished_products_for_main_page(db, days=90, show_all=show_all)
     return [{
         "id": fp.id,
         "name": fp.name,
