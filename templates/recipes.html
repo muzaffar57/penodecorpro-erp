@@ -228,7 +228,7 @@ async function saveEditRecipe() {
 
 <!-- Qo'shish modali -->
 <div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-height:90vh;overflow-y:auto">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi retsept</div>
     <div class="form-group">
       <label>Retsept nomi</label>
@@ -258,7 +258,7 @@ async function saveEditRecipe() {
 
 <!-- Tahrirlash modali -->
 <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-height:90vh;overflow-y:auto">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">✏️ Retseptni tahrirlash</div>
     <input type="hidden" id="edit-id">
     <div class="form-group"><label>Retsept nomi</label><input type="text" id="edit-name"></div>
