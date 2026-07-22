@@ -2120,7 +2120,10 @@ def deduct_inventory_for_order(db: Session, order) -> list:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
         blocks_needed = vol / vol_per_unit
-        p.stock_quantity = max(0, float(p.stock_quantity) - blocks_needed)
+        # MUHIM: 0 ga cheklamaymiz — agar admin "yetishmasa ham davom et"
+        # deb tasdiqlagan bo'lsa, ombor MANFIY ko'rsatishi kerak (haqiqiy
+        # tanqislik miqdorini yashirmaslik uchun — bu ataylab qilingan).
+        p.stock_quantity = float(p.stock_quantity) - blocks_needed
         log.append(f"{p.item_name}: -{blocks_needed:.2f} blok")
 
     if volumes:
@@ -2218,7 +2221,7 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
             if b:
                 area = float(b.volume_per_unit or 0.72)
                 sheets = m2 / area
-                b.stock_quantity = max(0, float(b.stock_quantity) - sheets)
+                b.stock_quantity = float(b.stock_quantity) - sheets
                 log.append(f"{b.item_name}: -{sheets:.2f} dona")
                 used_parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
                 if b.serp_ratio_per_m2:
@@ -2233,7 +2236,7 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
         if s:
             area = float(s.volume_per_unit or 50.0)
             rulon = serp_m2 / area
-            s.stock_quantity = max(0, float(s.stock_quantity) - rulon)
+            s.stock_quantity = float(s.stock_quantity) - rulon
             log.append(f"{s.item_name}: -{rulon:.2f} rulon")
             used_parts.append(f"serp_id={s.id},serp_qty={rulon:.4f}")
 
@@ -2241,7 +2244,7 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
         k = find_kley(db, lock=True)
         if k:
             kley_kg = m2 * kley_ratio
-            k.stock_quantity = max(0, float(k.stock_quantity) - kley_kg)
+            k.stock_quantity = float(k.stock_quantity) - kley_kg
             log.append(f"{k.item_name}: -{kley_kg:.2f} kg")
             used_parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
 
