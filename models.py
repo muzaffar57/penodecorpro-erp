@@ -245,6 +245,7 @@ class Project(Base):
 
     notes = Column(Text, nullable=True)
     image_url = Column(String(255), nullable=True)  # Loyiha rasmi (ixtiyoriy)
+    is_deleted = Column(Boolean, default=False)  # "O'chirilgan" — lekin tiklash uchun saqlanadi
 
     orders = relationship("Order", back_populates="project", cascade="all, delete-orphan")
 
