@@ -1253,6 +1253,17 @@ def get_return_items(db: Session, order_id: Optional[int] = None) -> List:
     return query.order_by(ReturnItem.returned_at.desc()).all()
 
 
+def get_return_items_for_main_page(db: Session, days: int = 90, show_all: bool = False) -> List:
+    """Qaytarishlar sahifasining ASOSIY ro'yxati uchun — tezlik uchun,
+    faqat so'nggi `days` kunlikni ko'rsatadi (show_all=True — hammasi)."""
+    from datetime import timedelta
+    query = db.query(ReturnItem)
+    if not show_all:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(ReturnItem.returned_at >= cutoff)
+    return query.order_by(ReturnItem.returned_at.desc()).all()
+
+
 def get_return_item(db: Session, return_id: int) -> Optional[ReturnItem]:
     return db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
 
@@ -2795,6 +2806,27 @@ def get_finished_products(db: Session, source: Optional[str] = None, only_availa
     if only_available:
         q = q.filter(FinishedProduct.quantity > 0)
     return q.order_by(FinishedProduct.source, FinishedProduct.name).all()
+
+
+def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: bool = False) -> List[FinishedProduct]:
+    """Tayyor mahsulotlar sahifasi uchun — tezlik uchun.
+
+    MUHIM: ombordagi (quantity > 0) VA hali ishlab chiqarilayotgan
+    (production_status=IN_PROGRESS) mahsulotlar — necha kunlik bo'lishidan
+    qat'i nazar, DOIM ko'rsatiladi. Faqat ALLAQACHON TUGAGAN (quantity=0,
+    tayyor) va ESKI yozuvlar standart holatda yashiriladi."""
+    from models import ProductionStatus
+    from datetime import timedelta
+
+    if show_all:
+        return db.query(FinishedProduct).order_by(FinishedProduct.source, FinishedProduct.name).all()
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    return db.query(FinishedProduct).filter(
+        (FinishedProduct.created_at >= cutoff) |
+        (FinishedProduct.quantity > 0) |
+        (FinishedProduct.production_status == ProductionStatus.IN_PROGRESS)
+    ).order_by(FinishedProduct.source, FinishedProduct.name).all()
 
 
 def get_finished_product(db: Session, fp_id: int) -> Optional[FinishedProduct]:
