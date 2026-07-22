@@ -1355,18 +1355,20 @@ def api_coating_notify_with_loy(order_id: int, loy_kg: float, db: Session = Depe
 
 
 @app.post("/api/orders", response_model=schemas.OrderRead)
-def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
+                      confirm_shortage: bool = False,
+                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     check = services.check_inventory_for_order(db, order)
-    if not check["enough"]:
-        raise HTTPException(status_code=400, detail={"success": False, "message": "Xomashyo yetishmayapti!", "shortages": check["shortages"]})
-    # Termopanel (bazalt) uchun ham tekshiramiz
     tcheck = services.check_termopanel_for_order(db, order)
-    if not tcheck["enough"]:
-        raise HTTPException(status_code=400, detail={"success": False, "message": "Bazalt xomashyosi yetishmayapti!", "shortages": tcheck["shortages"]})
-    # Tayyor mahsulot yetadimi
     fcheck = crud.check_finished_for_order(db, order.items)
-    if not fcheck["enough"]:
-        raise HTTPException(status_code=400, detail={"success": False, "message": "Tayyor mahsulot yetishmayapti!", "shortages": fcheck["shortages"]})
+
+    all_shortages = list(check.get("shortages", [])) + list(tcheck.get("shortages", [])) + list(fcheck.get("shortages", []))
+    if all_shortages and not confirm_shortage:
+        raise HTTPException(status_code=409, detail={
+            "type": "stock_shortage_warning",
+            "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
+            "shortages": all_shortages
+        })
     new_order = crud.create_order(db, order)
     services.deduct_inventory_for_order(db, new_order)
     services.deduct_termopanel_for_order(db, new_order, order)
