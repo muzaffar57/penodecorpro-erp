@@ -546,19 +546,52 @@ class Employee(Base):
 
 
 class ActivityLog(Base):
-    """O'chirish/tiklash kabi muhim amallar tarixi — audit uchun."""
+    """Muhim amallar tarixi — audit uchun (o'chirish/tiklash/yaratish/tahrirlash)."""
     __tablename__ = "activity_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    action = Column(String(30), nullable=False)          # "deleted" / "restored" / "permanently_deleted"
-    entity_type = Column(String(30), nullable=False)      # "order" / "project"
+    action = Column(String(30), nullable=False)          # "deleted" / "restored" / "created" / "updated" / va h.k.
+    entity_type = Column(String(30), nullable=False)      # "order" / "project" / va h.k.
     entity_id = Column(Integer, nullable=False)
     entity_label = Column(String(200), nullable=True)     # masalan "ORD-001-1" yoki "PRJ-001 — Hovli fasad"
+    old_value = Column(Text, nullable=True)                # o'zgargan maydon(lar)ning eski qiymati (matn/JSON)
+    new_value = Column(Text, nullable=True)                # yangi qiymati
     performed_by = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<ActivityLog {self.action} {self.entity_type}#{self.entity_id}>"
+
+
+class LoginHistory(Base):
+    """Tizimga kirish urinishlari tarixi — muvaffaqiyatli va muvaffaqiyatsiz."""
+    __tablename__ = "login_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), nullable=False)
+    success = Column(Boolean, nullable=False)
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<LoginHistory {self.username} success={self.success}>"
+
+
+class ErrorLog(Base):
+    """Backend xatoliklari — avtomatik yozib boriladi (diagnostika uchun)."""
+    __tablename__ = "error_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    error_message = Column(Text, nullable=False)
+    stack_trace = Column(Text, nullable=True)
+    endpoint = Column(String(255), nullable=True)
+    method = Column(String(10), nullable=True)
+    performed_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<ErrorLog {self.endpoint} {self.created_at}>"
 
 
 class AdvanceRequestStatus(str, PyEnum):
