@@ -245,8 +245,11 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
             order_id=order_id, supplier_id=supplier_id,
             performed_by=performed_by, notes=notes
         ))
-    except Exception:
-        pass
+    except Exception as e:
+        try:
+            log_error(db, str(e), endpoint="log_movement")
+        except Exception:
+            pass
 
 
 def update_stock(db: Session, item_id: int, quantity_change: float, performed_by: Optional[str] = None, notes: Optional[str] = None) -> Optional[Inventory]:
@@ -608,8 +611,11 @@ def get_projects_dashboard_stats(db: Session) -> dict:
             if o.status == OrderStatus.READY:
                 try:
                     total_profit += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
-                except Exception:
-                    pass
+                except Exception as e:
+                    try:
+                        log_error(db, str(e), endpoint=f"get_projects_dashboard_stats:calculate_order_profit order#{o.id}")
+                    except Exception:
+                        pass
 
     return {
         "active": active,
@@ -2430,6 +2436,7 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
 
     # Shu yukka bog'liq to'lov (ixtiyoriy) — mavjud to'lov tizimidan foydalanadi
     payment_amount = getattr(data, 'payment_amount', None)
+    payment_warning = None
     if payment_amount and payment_amount > 0:
         try:
             method_map = {"naqd": PaymentMethod.CASH, "plastik": PaymentMethod.CARD, "o'tkazma": PaymentMethod.TRANSFER}
@@ -2443,14 +2450,24 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
                 received_by=data.received_by,
                 notes=f"{delivery_number} yuki uchun to'lov"
             ))
-        except Exception:
-            pass  # To'lov yozishda xato bo'lsa ham, yetkazish saqlanishida davom etadi
+        except Exception as e:
+            # Yetkazish saqlanishida davom etadi (ma'lumot yo'qolmasligi uchun),
+            # lekin xato albatta logga yoziladi va foydalanuvchiga aniq ogohlantirish qaytariladi —
+            # shunda u to'lovni QO'LDA qo'shishi mumkin (pul "yo'qolib qolmasligi" uchun).
+            try:
+                log_error(db, str(e), endpoint="create_delivery:payment_write")
+            except Exception:
+                pass
+            payment_warning = (
+                f"⚠️ Yetkazish saqlandi, LEKIN {payment_amount:,.0f} so'mlik to'lovni yozishda xato "
+                f"yuz berdi. Iltimos, to'lovni QO'LDA qo'shib qo'ying."
+            )
 
     db.commit()
     db.refresh(db_delivery)
     db.refresh(order)
 
-    return {
+    result = {
         "success": True,
         "message": "Yetkazish saqlandi!",
         "delivery_id": db_delivery.id,
@@ -2459,6 +2476,9 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
         "is_fully_delivered": fully,
         "order_status": order.status.value
     }
+    if payment_warning:
+        result["payment_warning"] = payment_warning
+    return result
 
 
 def get_deliveries(db: Session, order_id: int) -> List[Delivery]:
@@ -3780,8 +3800,11 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             try:
                 profit_data = services.calculate_order_profit(db, o.id)
                 yearly_profit += float(profit_data.get("foyda", 0))
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    log_error(db, str(e), endpoint=f"get_masters_kpi_report:calculate_order_profit order#{o.id}")
+                except Exception:
+                    pass
 
         gift = yearly_profit * (m.kpi_percent or 0) / 100
         total_gift += gift
