@@ -244,6 +244,7 @@ class Project(Base):
     completed_at = Column(DateTime, nullable=True)
 
     notes = Column(Text, nullable=True)
+    image_url = Column(String(255), nullable=True)  # Loyiha rasmi (ixtiyoriy)
 
     orders = relationship("Order", back_populates="project", cascade="all, delete-orphan")
 
