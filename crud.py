@@ -1078,6 +1078,38 @@ def get_activity_log(db: Session, limit: int = 100) -> List:
     return db.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(limit).all()
 
 
+def log_login_attempt(db: Session, username: str, success: bool, ip_address: str = None, user_agent: str = None):
+    """Tizimga kirish urinishini yozib boradi (muvaffaqiyatli yoki muvaffaqiyatsiz)."""
+    from models import LoginHistory
+    entry = LoginHistory(username=username, success=success, ip_address=ip_address, user_agent=user_agent)
+    db.add(entry)
+    db.commit()
+
+
+def get_login_history(db: Session, limit: int = 100) -> List:
+    """So'nggi kirish urinishlari."""
+    from models import LoginHistory
+    return db.query(LoginHistory).order_by(LoginHistory.created_at.desc()).limit(limit).all()
+
+
+def log_error(db: Session, error_message: str, stack_trace: str = None,
+              endpoint: str = None, method: str = None, performed_by: str = None):
+    """Backend xatoligini yozib boradi."""
+    from models import ErrorLog
+    entry = ErrorLog(
+        error_message=str(error_message)[:5000], stack_trace=(stack_trace or "")[:8000],
+        endpoint=endpoint, method=method, performed_by=performed_by
+    )
+    db.add(entry)
+    db.commit()
+
+
+def get_error_logs(db: Session, limit: int = 100) -> List:
+    """So'nggi backend xatoliklari."""
+    from models import ErrorLog
+    return db.query(ErrorLog).order_by(ErrorLog.created_at.desc()).limit(limit).all()
+
+
 def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None) -> bool:
     """Buyurtmani o'chirish.
     soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.
