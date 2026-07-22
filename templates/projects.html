@@ -10,23 +10,25 @@
 {% block head %}
 <style>
 .proj-page{padding:14px}
-.proj-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.proj-filters input,.proj-filters select{height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none}
+.proj-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.proj-filters input,.proj-filters select{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;outline:none;transition:border .15s}
 .proj-filters input:focus,.proj-filters select:focus{border-color:var(--gold)}
-.proj-layout{display:grid;grid-template-columns:380px 1fr;gap:14px;height:calc(100vh - 230px);min-height:520px}
+.proj-layout{display:grid;grid-template-columns:400px 1fr;gap:16px;height:calc(100vh - 230px);min-height:520px}
 @media (max-width:1000px){.proj-layout{grid-template-columns:1fr;height:auto}}
-.proj-list{overflow-y:auto}
-.proj-card{padding:14px 16px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:box-shadow .15s,border-color .15s;background:var(--white);opacity:0;animation:pIn .3s ease forwards}
+.proj-list{overflow-y:auto;padding:2px}
+.proj-card{display:flex;gap:12px;padding:14px;border:1px solid var(--border2);border-radius:14px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s,border-color .15s,transform .15s;background:var(--white);opacity:0;animation:pIn .3s ease forwards;box-shadow:0 1px 2px rgba(16,24,40,.03)}
 @keyframes pIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-.proj-card:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
-.proj-card.active{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-tint)}
-.proj-num{font-size:12px;color:var(--text3);font-weight:500}
-.proj-name{font-size:14px;font-weight:600;color:var(--text);margin:2px 0}
-.proj-client{font-size:12px;color:var(--text3)}
-.proj-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
-.progress-bar{height:5px;background:var(--border2);border-radius:3px;margin-top:8px;overflow:hidden}
-.progress-fill{height:100%;border-radius:3px;background:var(--gold);transition:width .3s}
-.status-badge{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:20px}
+.proj-card:hover{box-shadow:0 4px 16px rgba(16,24,40,.09);border-color:var(--border-strong);transform:translateY(-1px)}
+.proj-card.active{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-tint),0 4px 16px rgba(16,24,40,.08);background:var(--gold-tint)}
+.proj-thumb{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--gold-tint),#F3EEE0);display:flex;align-items:center;justify-content:center;color:var(--gold-dark);font-size:22px;flex-shrink:0}
+.proj-card-body{flex:1;min-width:0}
+.proj-num{font-size:11.5px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.proj-name{font-size:14.5px;font-weight:700;color:var(--text);margin:2px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-client{font-size:12.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.progress-bar{height:6px;background:var(--border2);border-radius:4px;margin-top:9px;overflow:hidden}
+.progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--gold),var(--gold-dark));transition:width .5s ease}
+.status-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
 .st-active{background:#E6F1FB;color:#0C447C}
 .st-draft{background:#F1F5F9;color:#475569}
 .st-completed{background:#DCFCE7;color:#166534}
@@ -34,14 +36,15 @@
 .st-cancelled{background:#FEE2E2;color:#991B1B}
 
 .proj-detail{display:flex;flex-direction:column;overflow:hidden}
-.status-panel{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;background:var(--bg);border-radius:12px;padding:14px;margin-bottom:14px}
+.status-panel{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
 @media (max-width:900px){.status-panel{grid-template-columns:repeat(2,1fr)}}
-.status-panel-item{text-align:center}
-.status-panel-val{font-size:14px;font-weight:700;color:var(--text)}
-.status-panel-lbl{font-size:12px;color:var(--text3);margin-top:2px}
-.tab-bar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;flex-shrink:0}
-.tab-btn{padding:9px 14px;font-size:12.5px;font-weight:500;color:var(--text3);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
-.tab-btn.active{color:var(--gold-dark);border-color:var(--gold)}
+.status-panel-item{text-align:left;background:var(--bg);border-radius:12px;padding:14px 16px;border-left:3px solid var(--gold)}
+.status-panel-val{font-size:19px;font-weight:800;color:var(--text)}
+.status-panel-lbl{font-size:12px;color:var(--text3);margin-top:3px;font-weight:600}
+.tab-bar{display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;overflow-x:auto;flex-shrink:0}
+.tab-btn{padding:9px 16px;font-size:12.5px;font-weight:600;color:var(--text3);background:none;border:none;border-radius:9px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--text);background:var(--white);box-shadow:0 1px 3px rgba(16,24,40,.1)}
 .tab-content{flex:1;overflow-y:auto}
 .info-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border2);font-size:13px}
 .info-row:last-child{border-bottom:none}
@@ -100,6 +103,8 @@
            data-deadline-raw="{{ p.deadline.isoformat() if p.deadline else '' }}"
            data-orders="{{ p.orders_count }}"
            data-notes="{{ p.notes or '' }}">
+        <div class="proj-thumb"><i class="ti ti-building-skyscraper"></i></div>
+        <div class="proj-card-body">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div class="proj-num">{{ p.project_number }}</div>
@@ -115,6 +120,7 @@
           <span style="font-size:13px;color:var(--text3)">{{ paid_pct }}% to'langan</span>
         </div>
         <div class="progress-bar" id="progress-{{ p.id }}"><div class="progress-fill" style="width:0%"></div></div>
+        </div>
       </div>
       {% endfor %}
       {% else %}
@@ -128,6 +134,7 @@
         <h3 id="d-name">Loyiha tanlang</h3>
         <span class="status-badge" id="d-status"></span>
       </div>
+      <div id="moneyRow" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:14px 16px 0"></div>
       <div class="card-body" style="display:flex;flex-direction:column;overflow:hidden;flex:1">
 
         <div class="status-panel" id="statusPanel"></div>
@@ -257,6 +264,24 @@ function selectProj(el) {
   statusEl.className = `status-badge st-${d.status}`;
   statusEl.textContent = (STATUS_MAP[d.status] || '').replace(/<[^>]+>/g, '') || d.status;
 
+  const budget = parseFloat(d.budget)||0, paid = parseFloat(d.paid)||0;
+  const qolgan = Math.max(0, budget - paid);
+  const moneyRow = document.getElementById('moneyRow');
+  moneyRow.style.display = 'grid';
+  moneyRow.innerHTML = `
+    <div style="background:#EFF6FF;border-radius:12px;padding:14px 16px">
+      <div style="font-size:11.5px;color:#1D4ED8;font-weight:700;text-transform:uppercase;letter-spacing:.03em">Loyiha qiymati</div>
+      <div style="font-size:18px;font-weight:800;color:#1D4ED8;margin-top:4px">${fmt(budget)} so'm</div>
+    </div>
+    <div style="background:#F0FDF4;border-radius:12px;padding:14px 16px">
+      <div style="font-size:11.5px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:.03em">To'langan</div>
+      <div style="font-size:18px;font-weight:800;color:#166534;margin-top:4px">${fmt(paid)} so'm</div>
+    </div>
+    <div style="background:${qolgan>0?'#FEF2F2':'#F0FDF4'};border-radius:12px;padding:14px 16px">
+      <div style="font-size:11.5px;color:${qolgan>0?'#DC2626':'#166534'};font-weight:700;text-transform:uppercase;letter-spacing:.03em">Qolgan to'lov</div>
+      <div style="font-size:18px;font-weight:800;color:${qolgan>0?'#DC2626':'#166534'};margin-top:4px">${fmt(qolgan)} so'm</div>
+    </div>`;
+
   loadStatusPanel(d);
   switchTab(currentTab, true);
 }
@@ -275,11 +300,11 @@ async function loadStatusPanel(d){
   }
 
   document.getElementById('statusPanel').innerHTML = `
-    <div class="status-panel-item"><div class="status-panel-val">${paidPct}%</div><div class="status-panel-lbl">💰 To'langan</div></div>
-    <div class="status-panel-item"><div class="status-panel-val">${d.orders} ta</div><div class="status-panel-lbl">📦 Buyurtmalar</div></div>
-    <div class="status-panel-item"><div class="status-panel-val">${progress}%</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
-    <div class="status-panel-item"><div class="status-panel-val">${d.status === 'completed' ? 'Yetkazildi' : 'Kutilmoqda'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
-    <div class="status-panel-item"><div class="status-panel-val" style="color:${deadlineColor}">${deadlineTxt}</div><div class="status-panel-lbl">📅 Muddat</div></div>`;
+    <div class="status-panel-item" style="border-color:#2563EB"><div class="status-panel-val">${paidPct}%</div><div class="status-panel-lbl">💰 To'langan</div></div>
+    <div class="status-panel-item" style="border-color:#8E44AD"><div class="status-panel-val">${d.orders} ta</div><div class="status-panel-lbl">📦 Buyurtmalar</div></div>
+    <div class="status-panel-item" style="border-color:#22C55E"><div class="status-panel-val">${progress}%</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
+    <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val">${d.status === 'completed' ? 'Yetkazildi' : 'Kutilmoqda'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
+    <div class="status-panel-item" style="border-color:${deadlineColor==='var(--text)'?'#94A3B8':deadlineColor}"><div class="status-panel-val" style="color:${deadlineColor}">${deadlineTxt}</div><div class="status-panel-lbl">📅 Muddat</div></div>`;
 }
 
 function switchTab(tab, force) {
@@ -429,9 +454,10 @@ async function renderTimeline(d) {
 
     if (!events.length) { document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Voqealar yo\'q</div>'; return; }
 
+    const DOT_COLOR = {'🎯':'#8E44AD','📦':'#2563EB','✅':'#22C55E','🚚':'#F59E0B','💰':'#16A34A'};
     document.getElementById('tabContent').innerHTML = events.map(e => `
       <div class="timeline-item">
-        <div class="timeline-dot"></div>
+        <div class="timeline-dot" style="background:${DOT_COLOR[e.icon]||'var(--gold)'}"></div>
         <div>
           <div style="font-size:13px;font-weight:500">${e.icon} ${e.text}</div>
           <div style="font-size:13px;color:var(--text3);margin-top:2px">${new Date(e.date).toLocaleString('uz')}</div>
