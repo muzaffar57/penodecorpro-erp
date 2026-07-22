@@ -1361,8 +1361,10 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     check = services.check_inventory_for_order(db, order)
     tcheck = services.check_termopanel_for_order(db, order)
     fcheck = crud.check_finished_for_order(db, order.items)
+    lcheck = services.check_loy_ingredients_for_order(db, order.recipe_id, loy_kg or 0)
 
-    all_shortages = list(check.get("shortages", [])) + list(tcheck.get("shortages", [])) + list(fcheck.get("shortages", []))
+    all_shortages = (list(check.get("shortages", [])) + list(tcheck.get("shortages", []))
+                      + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", [])))
     if all_shortages and not confirm_shortage:
         raise HTTPException(status_code=409, detail={
             "type": "stock_shortage_warning",
