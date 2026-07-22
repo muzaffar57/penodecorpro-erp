@@ -545,6 +545,22 @@ class Employee(Base):
         return f"<Employee {self.name} ({self.pay_type.value})>"
 
 
+class ActivityLog(Base):
+    """O'chirish/tiklash kabi muhim amallar tarixi — audit uchun."""
+    __tablename__ = "activity_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    action = Column(String(30), nullable=False)          # "deleted" / "restored" / "permanently_deleted"
+    entity_type = Column(String(30), nullable=False)      # "order" / "project"
+    entity_id = Column(Integer, nullable=False)
+    entity_label = Column(String(200), nullable=True)     # masalan "ORD-001-1" yoki "PRJ-001 — Hovli fasad"
+    performed_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<ActivityLog {self.action} {self.entity_type}#{self.entity_id}>"
+
+
 class AdvanceRequestStatus(str, PyEnum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
