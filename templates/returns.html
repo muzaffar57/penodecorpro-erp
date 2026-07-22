@@ -73,6 +73,18 @@
   </div>
   {% endif %}
 
+  {% if not show_all %}
+  <div style="padding:8px 14px;background:#EFF6FF;font-size:12.5px;color:#1a6fa8;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px">
+    <span>📅 So'nggi 90 kunlik qaytarishlar ko'rsatilmoqda</span>
+    <a href="/returns?show_all=true" style="color:#2563EB;font-weight:600;text-decoration:none">Barchasini ko'rish →</a>
+  </div>
+  {% else %}
+  <div style="padding:8px 14px;background:#FFFBEB;font-size:12.5px;color:#92400E;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px">
+    <span>⚠️ Barcha qaytarishlar ko'rsatilmoqda</span>
+    <a href="/returns" style="color:#D97706;font-weight:600;text-decoration:none">← Qisqartirish</a>
+  </div>
+  {% endif %}
+
   <div class="ret-filters">
     <input type="text" id="ret-search" placeholder="Buyurtma, mijoz yoki mahsulot bo'yicha qidirish..." style="flex:1;min-width:220px" oninput="filterTable()">
     <select id="filter-reason" onchange="filterTable()">
