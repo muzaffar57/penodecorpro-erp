@@ -766,7 +766,7 @@ def _take_finished_for_order(db: Session, order) -> list:
         fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
         if not fp:
             continue
-        fp.quantity = max(0, float(fp.quantity or 0) - qty)
+        fp.quantity = float(fp.quantity or 0) - qty
         log.append(f"🏭 {fp.name}: -{qty:g} {fp.unit} (tayyor mahsulotdan)")
     if log:
         db.flush()
