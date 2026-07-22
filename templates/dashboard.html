@@ -788,7 +788,10 @@ async function confirmAdvReq(id){
   try {
     const res = await fetch(`/api/admin/advance-requests/${id}/confirm`, { method: 'POST' });
     if (res.ok) removeAdvRow(id);
-  } catch(e) {}
+    else alert("❌ Tasdiqlashda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
 }
 
 async function rejectAdvReq(id){
@@ -796,7 +799,10 @@ async function rejectAdvReq(id){
   try {
     const res = await fetch(`/api/admin/advance-requests/${id}/reject`, { method: 'POST' });
     if (res.ok) removeAdvRow(id);
-  } catch(e) {}
+    else alert("❌ Rad etishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
 }
 
 function removeAdvRow(id){
