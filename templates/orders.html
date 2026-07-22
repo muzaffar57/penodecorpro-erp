@@ -882,6 +882,23 @@ function toggleSection(bodyId, iconId) {
   if (icon) icon.style.transform = collapsed ? 'rotate(0deg)' : 'rotate(-90deg)';
 }
 
+function openPdfSafe(url) {
+  // Pop-up blokirovka qilinishi mumkin (window.open async chaqiruvdan keyin
+  // ba'zi brauzerlarda jimgina to'silib qoladi) — shuning uchun natijani
+  // tekshiramiz, agar to'silgan bo'lsa — bosiladigan havola ko'rsatamiz.
+  const win = window.open(url, '_blank');
+  if (!win || win.closed || typeof win.closed === 'undefined') {
+    const box = document.createElement('div');
+    box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
+      padding:13px 22px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
+      background:#FFFBEB;color:#92400E;border:1.5px solid #FDE68A;display:flex;gap:10px;align-items:center`;
+    box.innerHTML = `⚠️ Brauzer nakladnoyni ochishga to'sqinlik qildi.
+      <a href="${url}" target="_blank" style="color:#2563EB;font-weight:700;text-decoration:underline">Shu yerga bosing</a>`;
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 12000);
+  }
+}
+
 function showMsg(text, type) {
   // Ekranning istalgan joyida (pastga aylantirilgan bo'lsa ham) ko'rinib
   // turishi uchun — sahifa bilan birga surilmaydigan, suzib turuvchi xabar.
@@ -1606,7 +1623,7 @@ async function quickFullDelivery() {
     const r = await res.json();
 
     if (res.ok) {
-      window.open(`/api/deliveries/${r.delivery_id}/pdf`, '_blank');
+      openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
       loadDeliveries(selectedOrderId);
       showMsg('✅ Buyurtma to\'liq topshirildi! Nakladnoy tayyor.', 'success');
       setTimeout(()=>location.reload(), 2500);
@@ -1668,7 +1685,7 @@ async function saveDelivery() {
     if (res.ok) {
       closeDeliveryModal();
       // Nakladnoy PDF ni ochamiz
-      window.open(`/api/deliveries/${r.delivery_id}/pdf`, '_blank');
+      openPdfSafe(`/api/deliveries/${r.delivery_id}/pdf`);
       loadDeliveries(selectedOrderId);
 
       if (r.is_fully_delivered) {
@@ -1925,11 +1942,11 @@ async function savePayment() {
 
   // Qarzdan ko'p summa kiritilsa — tasdiqlashni so'raymiz (tasodifiy xato bo'lishi mumkin,
   // lekin ba'zan mijoz qasddan ortiqcha to'laydi, shuning uchun QAT'IY bloklamaymiz)
+  let overpayConfirmed = false;
   if (!writeOff) {
     const debtText = (document.getElementById('pay-debt')?.textContent || '0').replace(/[^\d]/g, '');
     const currentDebt = parseInt(debtText) || 0;
-  let overpayConfirmed = false;
-  if (currentDebt > 0 && amount > currentDebt) {
+    if (currentDebt > 0 && amount > currentDebt) {
       const excess = amount - currentDebt;
       const proceed = confirm(
         `⚠️ Diqqat: kiritilgan summa (${formatNum(amount)} so'm) — qarzdan (${formatNum(currentDebt)} so'm) ${formatNum(excess)} so'mga ko'p.\n\nBu — xato (masalan, ortiqcha nol yozilgan) bo'lishi mumkin.\n\nShunday ham davom etasizmi?`
@@ -3252,7 +3269,7 @@ async function markReadySelected() {
       if (result.auto_delivery) {
         html += `<br>🚚 ${result.auto_delivery.message}`;
         if (result.auto_delivery.delivery_id) {
-          window.open(`/api/deliveries/${result.auto_delivery.delivery_id}/pdf`, '_blank');
+          openPdfSafe(`/api/deliveries/${result.auto_delivery.delivery_id}/pdf`);
         }
       }
       if (result.partial_return) {
