@@ -146,11 +146,62 @@ def fix_recipe_name_column():
         print(f"⚠️ 'recipes.name' ustunini tekshirishda xato (o'tkazib yuborildi): {e}")
 
 
+def add_missing_indexes():
+    """MAXSUS, BIR MARTALIK tuzatish: modelga index=True qo'shilgan
+    ustunlar uchun, MAVJUD (ilgari yaratilgan) jadvallarda ham indeks
+    yaratadi. sync_missing_columns() faqat YANGI USTUN qo'shadi, indeks
+    yaratmaydi — shuning uchun bu alohida, xavfsiz qadam kerak.
+
+    "CREATE INDEX IF NOT EXISTS" — Postgres'da xavfsiz, bir necha marta
+    ishga tushirilsa ham xato bermaydi, jadvalni bloklamaydi."""
+    from sqlalchemy import text
+
+    indexes = [
+        ("recipe_ingredients", "recipe_id"), ("recipe_ingredients", "inventory_id"),
+        ("orders", "project_id"), ("orders", "master_id"),
+        ("order_items", "order_id"), ("order_items", "recipe_id"),
+        ("order_items", "penoplast_id"), ("order_items", "finished_product_id"),
+        ("return_items", "order_id"),
+        ("inventory_movements", "inventory_id"), ("inventory_movements", "order_id"),
+        ("inventory_movements", "supplier_id"),
+        ("inventory_purchases", "inventory_id"), ("inventory_purchases", "supplier_id"),
+        ("advance_requests", "employee_id"), ("employee_advances", "employee_id"),
+        ("supplier_payments", "supplier_id"),
+        ("finished_products", "from_order_id"), ("finished_products", "penoplast_id"),
+        ("finished_products", "recipe_id"),
+        ("deliveries", "order_id"),
+        ("delivery_items", "delivery_id"), ("delivery_items", "order_item_id"),
+        ("payments", "order_id"), ("payments", "delivery_id"),
+        ("order_attachments", "order_id"),
+    ]
+
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    created = 0
+
+    for table, col in indexes:
+        if table not in existing_tables:
+            continue
+        idx_name = f"ix_{table}_{col}"
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({col})"))
+                conn.commit()
+            created += 1
+        except Exception as e:
+            print(f"⚠️ Indeks yaratishda xato ({table}.{col}, o'tkazib yuborildi): {e}")
+
+    if created:
+        print(f"✅ {created} ta indeks tekshirildi/yaratildi (tezlik uchun)")
+
+
 def init_database():
     Base.metadata.create_all(bind=engine)
     print("✅ Baza va jadvallar yaratildi!")
     sync_missing_columns()
     fix_recipe_name_column()
+    add_missing_indexes()
 
 if __name__ == "__main__":
     init_database()
