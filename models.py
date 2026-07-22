@@ -197,8 +197,8 @@ class RecipeIngredient(Base):
     __tablename__ = "recipe_ingredients"
 
     id = Column(Integer, primary_key=True, index=True)
-    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False)
-    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False)
+    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False, index=True)
+    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False, index=True)
     quantity_kg = Column(Float, nullable=False, default=0.0)
 
     recipe = relationship("Recipe", back_populates="ingredients")
@@ -262,7 +262,7 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True)
     order_number = Column(String(20), unique=True, index=True)
 
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     project = relationship("Project", back_populates="orders")
 
     order_type = Column(Enum(OrderType), nullable=False)
@@ -275,7 +275,7 @@ class Order(Base):
     is_archived = Column(Boolean, default=False)           # Arxivga o'tdimi (to'lov to'liq yopilganda)
     is_deleted = Column(Boolean, default=False)             # "O'chirilgan" — lekin KPI/hisobot uchun saqlanadi
 
-    master_id = Column(Integer, ForeignKey("masters.id"), nullable=True)
+    master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)
     master = relationship("Master", back_populates="orders")
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -343,7 +343,7 @@ class OrderItem(Base):
     __tablename__ = "order_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
 
     name = Column(String(150), nullable=False)
     category = Column(String(50), nullable=True)
@@ -354,15 +354,15 @@ class OrderItem(Base):
     quantity = Column(Float, default=1.0)
 
     is_coated = Column(Boolean, default=True)
-    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True, index=True)
     recipe = relationship("Recipe")
 
-    penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Qaysi plotnost
+    penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)  # Qaysi plotnost
     penoplast = relationship("Inventory")
     price_per_m3 = Column(Numeric(12, 2), nullable=True)  # Shu detal uchun 1 m³ narxi
 
     # Tayyor mahsulotdan olingan bo'lsa — xomashyo hisoblanmaydi
-    finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True)
+    finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
     finished_product = relationship("FinishedProduct")
 
     unit_price = Column(Numeric(12, 2), default=0)
@@ -420,7 +420,7 @@ class ReturnItem(Base):
     __tablename__ = "return_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
 
     item_name = Column(String(150), nullable=False)
     quantity = Column(Float, nullable=False)
@@ -451,7 +451,7 @@ class InventoryMovement(Base):
     __tablename__ = "inventory_movements"
 
     id = Column(Integer, primary_key=True, index=True)
-    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)
+    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)
     item_name = Column(String(150), nullable=False)
 
     movement_type = Column(String(10), nullable=False)  # "in" yoki "out"
@@ -459,8 +459,8 @@ class InventoryMovement(Base):
     unit = Column(String(20), nullable=True)
 
     reason = Column(String(200), nullable=True)   # masalan "Yetkazib beruvchi: ABC" yoki "Buyurtma ORD-001-3"
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
 
     performed_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
@@ -476,7 +476,7 @@ class InventoryPurchase(Base):
     __tablename__ = "inventory_purchases"
 
     id = Column(Integer, primary_key=True, index=True)
-    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False)
+    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False, index=True)
     inventory = relationship("Inventory")
 
     item_name = Column(String(150), nullable=False)   # Xarid vaqtidagi nom (tarix uchun)
@@ -490,7 +490,7 @@ class InventoryPurchase(Base):
     notes = Column(Text, nullable=True)
 
     # Nasiya (kredit) bilan olingan bo'lsa
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
     supplier = relationship("Supplier", back_populates="purchases")
     payment_due_date = Column(DateTime, nullable=True)  # Qarzni qachongacha to'lash kerak
     is_credit = Column(Boolean, default=False)
@@ -555,7 +555,7 @@ class AdvanceRequest(Base):
     __tablename__ = "advance_requests"
 
     id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
     amount = Column(Numeric(12, 2), nullable=False)
     requested_date = Column(DateTime, nullable=False)     # "qachon oldim" — hodim yozgan sana
     notes = Column(Text, nullable=True)
@@ -578,7 +578,7 @@ class EmployeeAdvance(Base):
     __tablename__ = "employee_advances"
 
     id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
     amount = Column(Numeric(12, 2), nullable=False)
     date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
@@ -638,7 +638,7 @@ class SupplierPayment(Base):
     __tablename__ = "supplier_payments"
 
     id = Column(Integer, primary_key=True, index=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False, index=True)
     supplier = relationship("Supplier", back_populates="payments")
 
     amount = Column(Numeric(12, 2), nullable=False)
@@ -695,17 +695,17 @@ class FinishedProduct(Base):
     source = Column(Enum(StockSource), default=StockSource.PRODUCED, nullable=False)
 
     # Qaytgan bo'lsa — qaysi buyurtmadan
-    from_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    from_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
     from_order = relationship("Order")
     return_reason = Column(String(50), nullable=True)
 
     # Ishlab chiqarilgan bo'lsa — sarflangan xomashyo
-    penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)
+    penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)
     penoplast = relationship("Inventory")
     volume_m3 = Column(Float, default=0.0)          # Penoplast hajmi (darhol yechiladi)
     planned_loy_kg = Column(Float, default=0.0)      # Reja qilingan loy
     actual_loy_kg = Column(Float, nullable=True)     # Haqiqiy sarflangan loy ("Tayyor" bosilganda)
-    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True, index=True)
     recipe = relationship("Recipe")
 
     production_status = Column(Enum(ProductionStatus), default=ProductionStatus.IN_PROGRESS, nullable=False)
@@ -734,7 +734,7 @@ class Delivery(Base):
     __tablename__ = "deliveries"
 
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
 
     delivery_number = Column(String(30), index=True)   # ORD-010-1/Y-2
     delivered_at = Column(DateTime, default=datetime.utcnow)
@@ -779,8 +779,8 @@ class DeliveryItem(Base):
     __tablename__ = "delivery_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    delivery_id = Column(Integer, ForeignKey("deliveries.id"), nullable=False)
-    order_item_id = Column(Integer, ForeignKey("order_items.id"), nullable=False)
+    delivery_id = Column(Integer, ForeignKey("deliveries.id"), nullable=False, index=True)
+    order_item_id = Column(Integer, ForeignKey("order_items.id"), nullable=False, index=True)
 
     quantity = Column(Float, nullable=False)   # Shu safar berilgan miqdor
     unit = Column(String(20), default="dona")  # metr / dona
@@ -802,8 +802,8 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
-    delivery_id = Column(Integer, ForeignKey("deliveries.id"), nullable=True)  # Qaysi yukka bog'liq (ixtiyoriy)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
+    delivery_id = Column(Integer, ForeignKey("deliveries.id"), nullable=True, index=True)  # Qaysi yukka bog'liq (ixtiyoriy)
 
     amount = Column(Numeric(12, 2), nullable=False)
     payment_type = Column(Enum(PaymentType), default=PaymentType.PARTIAL, nullable=False)
@@ -829,7 +829,7 @@ class OrderAttachment(Base):
     __tablename__ = "order_attachments"
 
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
 
     file_url = Column(String(255), nullable=False)
     file_name = Column(String(150), nullable=True)
