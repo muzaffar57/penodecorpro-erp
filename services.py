@@ -2605,6 +2605,45 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
     return log
 
 
+def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: float) -> dict:
+    """Qoplama (loy) uchun kerakli xomashyo yetarli-yetarli emasligini
+    OLDINDAN tekshiradi (hali hech narsa ayirilmasdan). Avval "tayyor loy"
+    zaxirasi hisobga olinadi, keyin qolgan qism uchun retsept xomashyosi
+    tekshiriladi — deduct_loy_ingredients() bilan BIR XIL mantiq."""
+    from models import Recipe, Inventory
+
+    if loy_kg <= 0:
+        return {"enough": True, "shortages": []}
+
+    recipe = db.query(Recipe).filter(Recipe.id == order_recipe_id).first() if order_recipe_id else db.query(Recipe).first()
+    if not recipe:
+        return {"enough": True, "shortages": []}
+
+    # Tayyor loy zaxirasi bor-yo'qligini tekshiramiz (ayirmasdan, faqat o'qib)
+    stock = get_or_create_loy_stock(db, recipe)
+    available_stock = float(stock.stock_quantity or 0) if stock else 0.0
+    remaining_kg = max(0.0, loy_kg - available_stock)
+
+    if remaining_kg <= 0:
+        return {"enough": True, "shortages": []}
+
+    batch = float(recipe.batch_size_kg or 100)
+    shortages = []
+    for ing in recipe.ingredients:
+        recipe_kg = float(ing.quantity_kg or 0)
+        if recipe_kg <= 0 or not ing.inventory:
+            continue
+        needed_kg = remaining_kg * (recipe_kg / batch)
+        inv_item = db.query(Inventory).filter(Inventory.id == ing.inventory_id).first()
+        if inv_item and float(inv_item.stock_quantity or 0) < needed_kg:
+            shortages.append(
+                f"{inv_item.item_name} (loy uchun): kerak {needed_kg:.2f} {inv_item.unit}, "
+                f"qoldi {float(inv_item.stock_quantity or 0):.2f} {inv_item.unit}"
+            )
+
+    return {"enough": len(shortages) == 0, "shortages": shortages}
+
+
 def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True, recipe_id: int = None, reason_override: str = None) -> list:
     """
     Loy (qoplama) uchun ingredientlarni ombordan ayiradi.
@@ -2647,7 +2686,7 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
             Inventory.id == ing.inventory_id
         ).with_for_update().first()
         if inv_item:
-            inv_item.stock_quantity = max(0, float(inv_item.stock_quantity) - needed_kg)
+            inv_item.stock_quantity = float(inv_item.stock_quantity) - needed_kg
             log.append(f"{inv_item.item_name}: -{needed_kg:.2f} {inv_item.unit}")
             print(f"✓ {inv_item.item_name}: -{needed_kg:.2f} ayirildi")
             import crud as _crud
