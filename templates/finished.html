@@ -77,6 +77,8 @@
     <button class="fp-chip" id="chipOut" onclick="toggleChip('out')">🔴 Tugagan</button>
   </div>
 
+  <div id="fp-range-banner" style="padding:8px 14px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px"></div>
+
   <div id="fpList">
     <div class="fp-empty">Yuklanmoqda...</div>
   </div>
@@ -371,14 +373,33 @@ function showMsg(t, type) {
 }
 
 // ── Ro'yxat ──────────────────────────────────────────────
+let showAllFp = false;
 async function loadFp() {
   try {
-    const res = await fetch('/api/finished');
+    const res = await fetch('/api/finished' + (showAllFp ? '?show_all=true' : ''));
     fpItems = await res.json();
     renderFp();
     loadStats();
+    updateFpRangeBanner();
   } catch(e) {
     document.getElementById('fpList').innerHTML = '<div class="fp-empty">Yuklashda xato</div>';
+  }
+}
+
+function toggleFpShowAll() {
+  showAllFp = !showAllFp;
+  loadFp();
+}
+
+function updateFpRangeBanner() {
+  const el = document.getElementById('fp-range-banner');
+  if (!el) return;
+  if (showAllFp) {
+    el.style.background = '#FFFBEB'; el.style.color = '#92400E';
+    el.innerHTML = `<span>⚠️ Barcha yozuvlar ko'rsatilmoqda</span><span style="color:#D97706;font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">← Qisqartirish</span>`;
+  } else {
+    el.style.background = '#EFF6FF'; el.style.color = '#1a6fa8';
+    el.innerHTML = `<span>📅 So'nggi 90 kunlik (+ ombordagi va jarayondagilar)</span><span style="color:#2563EB;font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">Barchasini ko'rish →</span>`;
   }
 }
 
