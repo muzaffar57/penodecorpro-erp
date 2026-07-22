@@ -87,7 +87,7 @@
 
 <!-- Modal -->
 <div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:420px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi foydalanuvchi</div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Login</label><input type="text" id="f-username" placeholder="menejer1"></div>
@@ -110,6 +110,39 @@
     </div>
   </div>
 </div>
+
+<!-- ══ XAVFLI HUDUD — bir martalik tizimni tozalash ══ -->
+<div class="card" style="margin-top:20px">
+  <div class="card-head">
+    <h3>🔒 Telegram xavfsizligi</h3>
+  </div>
+  <div style="padding:16px">
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">
+      Telegram botiga soxta (Telegram'dan bo'lmagan) xabarlar yuborilishining oldini olish uchun,
+      "xavfsiz imzo"ni yoqib qo'ying. Bu — <b>bir martalik</b> sozlash.
+    </div>
+    <button class="btn btn-dark" onclick="setupTelegramSecurity()" id="tg-security-btn">
+      🔐 Telegram xavfsizligini yoqish
+    </button>
+    <div id="tg-security-result" style="display:none;margin-top:14px;padding:14px;background:var(--bg);border-radius:10px;font-size:13px;line-height:1.7"></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:20px;border:2px solid #FCA5A5">
+  <div class="card-head" style="background:#FEF2F2">
+    <h3 style="color:#DC2626">⚠️ Xavfli hudud</h3>
+  </div>
+  <div style="padding:16px">
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">
+      Bu tugma <b>Foydalanuvchilardan (login/parollar) TASHQARI</b> — barcha Buyurtma, Omborxona,
+      Retsept, Loyiha, To'lov, Usta, Yetkazib beruvchi ma'lumotini <b>butunlay, qaytarib bo'lmaydigan</b>
+      tarzda o'chiradi. Faqat tizimni <b>toza sinovdan boshlash</b> uchun ishlating.
+    </div>
+    <button class="btn" style="background:#DC2626;color:#fff;border:none" onclick="startFactoryReset()">
+      🗑️ Tizimni to'liq tozalash (Foydalanuvchilardan tashqari)
+    </button>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -128,6 +161,66 @@ async function changePass(id, username){
   const res=await fetch(`/api/users/${id}/password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:p})});
   if(res.ok)alert('✓ Parol o\'zgartirildi!');else alert('Xato');
 }
+async function setupTelegramSecurity(){
+  const btn = document.getElementById('tg-security-btn');
+  const resultBox = document.getElementById('tg-security-result');
+  btn.disabled = true; btn.textContent = 'Sozlanmoqda...';
+  try {
+    const res = await fetch('/api/system/telegram-setup-webhook-security', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      resultBox.style.display = 'block';
+      resultBox.style.background = '#DCFCE7'; resultBox.style.color = '#166534';
+      resultBox.innerHTML = `
+        <div style="font-weight:700;margin-bottom:8px">✅ Muvaffaqiyatli sozlandi!</div>
+        <div style="margin-bottom:10px">Endi quyidagi qiymatni nusxalab, <b>Railway → Variables</b> bo'limiga
+        <code style="background:#fff;padding:2px 6px;border-radius:4px">TELEGRAM_WEBHOOK_SECRET</code> nomi bilan qo'shing:</div>
+        <div style="background:#fff;padding:10px 12px;border-radius:8px;font-family:monospace;word-break:break-all;user-select:all;border:1px solid #86EFAC">${data.new_secret}</div>
+        <div style="margin-top:10px;color:#166534">Saqlagach, Railway serverni avtomatik qayta ishga tushiradi — shundan keyin xavfsizlik to'liq yoqiladi.</div>`;
+    } else {
+      resultBox.style.display = 'block';
+      resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+      resultBox.textContent = '❌ ' + (data.detail || 'Xato yuz berdi');
+    }
+  } catch(e) {
+    resultBox.style.display = 'block';
+    resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+    resultBox.textContent = '❌ Server bilan aloqa yo\'q';
+  }
+  btn.disabled = false; btn.textContent = '🔐 Telegram xavfsizligini yoqish';
+}
+
+async function startFactoryReset(){
+  if (!confirm(
+    "⚠️ DIQQAT!\n\nBu amal FOYDALANUVCHILARDAN (login/parol) TASHQARI barcha ma'lumotni " +
+    "(buyurtma, ombor, retsept, loyiha, to'lov, usta, yetkazib beruvchi) BUTUNLAY o'chiradi.\n\n" +
+    "Bu QAYTARIB BO'LMAYDI.\n\nDavom etasizmi?"
+  )) return;
+
+  const phrase = prompt(
+    "Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:\n\nHAMMASINI OCHIRAMAN"
+  );
+  if (phrase === null) return;
+
+  if (phrase !== "HAMMASINI OCHIRAMAN") {
+    alert("❌ So'z mos kelmadi — hech narsa o'chirilmadi.");
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/admin/factory-reset?confirm_phrase=${encodeURIComponent(phrase)}`, { method: 'POST' });
+    const r = await res.json();
+    if (res.ok) {
+      alert("✅ " + r.message + "\n\n" + r.log.join("\n"));
+      location.reload();
+    } else {
+      alert("❌ Xato: " + (r.detail || "Noma'lum xato"));
+    }
+  } catch(e) {
+    alert("❌ Server bilan bog'lanib bo'lmadi: " + e.message);
+  }
+}
+
 async function saveUser(){
   const username=document.getElementById('f-username').value.trim();
   const password=document.getElementById('f-password').value;
