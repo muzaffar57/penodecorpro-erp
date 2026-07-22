@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Tizim jurnallari — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Tizim jurnallari{% endblock %}
+{% block page_sub %}Kirish tarixi, xatoliklar va amallar tarixi — faqat administrator uchun{% endblock %}
+
+{% block content %}
+<div style="padding:14px">
+
+  <div class="tab-bar" style="display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;max-width:520px">
+    <button class="log-tab active" data-tab="login" onclick="switchLogTab('login')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:var(--white);box-shadow:0 1px 3px rgba(16,24,40,.1)">🔑 Kirish tarixi</button>
+    <button class="log-tab" data-tab="errors" onclick="switchLogTab('errors')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚠️ Xatoliklar</button>
+    <button class="log-tab" data-tab="activity" onclick="switchLogTab('activity')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🕓 Audit jurnali</button>
+  </div>
+
+  <!-- KIRISH TARIXI -->
+  <div id="tab-login" class="card">
+    <div class="card-head"><h3>🔑 Kirish urinishlari <span style="color:var(--text3);font-weight:400">(so'nggi {{ login_history|length }})</span></h3></div>
+    <div style="max-height:600px;overflow-y:auto">
+      {% if not login_history %}
+      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Hali hech qanday urinish yo'q</div>
+      {% endif %}
+      {% for l in login_history %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 18px;border-bottom:1px solid var(--border2)">
+        <div style="font-size:13px">
+          {% if l.success %}✅{% else %}❌{% endif %}
+          <b>{{ l.username }}</b>
+          {% if l.success %}muvaffaqiyatli kirdi{% else %}noto'g'ri urinish{% endif %}
+          <span style="color:var(--text3)">· {{ l.ip_address or '—' }}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ l.created_at.strftime('%d.%m.%Y %H:%M') if l.created_at else '' }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- XATOLIKLAR -->
+  <div id="tab-errors" class="card" style="display:none">
+    <div class="card-head"><h3>⚠️ Backend xatoliklari <span style="color:var(--text3);font-weight:400">(so'nggi {{ error_logs|length }})</span></h3></div>
+    <div style="max-height:600px;overflow-y:auto">
+      {% if not error_logs %}
+      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Hech qanday xatolik qayd etilmagan ✅</div>
+      {% endif %}
+      {% for e in error_logs %}
+      <div style="padding:12px 18px;border-bottom:1px solid var(--border2)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+          <div style="font-size:13px;color:#DC2626;font-weight:600">{{ e.error_message[:200] }}</div>
+          <div style="font-size:12px;color:var(--text3);white-space:nowrap;flex-shrink:0">{{ e.created_at.strftime('%d.%m.%Y %H:%M') if e.created_at else '' }}</div>
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-top:4px">{{ e.method or '' }} {{ e.endpoint or '' }} {% if e.performed_by %}· {{ e.performed_by }}{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- AUDIT JURNALI -->
+  <div id="tab-activity" class="card" style="display:none">
+    <div class="card-head"><h3>🕓 Audit jurnali <span style="color:var(--text3);font-weight:400">(so'nggi {{ activity_log|length }})</span></h3></div>
+    <div style="max-height:600px;overflow-y:auto">
+      {% if not activity_log %}
+      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Hali hech qanday amal yo'q</div>
+      {% endif %}
+      {% for a in activity_log %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 18px;border-bottom:1px solid var(--border2)">
+        <div style="font-size:13px">
+          {% if a.action == 'deleted' %}🗑️{% elif a.action == 'restored' %}↩️{% elif a.action == 'permanently_deleted' %}❌{% else %}📝{% endif %}
+          <b>{{ a.entity_label or (a.entity_type ~ '#' ~ a.entity_id) }}</b>
+          {% if a.action == 'deleted' %}o'chirildi{% elif a.action == 'restored' %}tiklandi{% elif a.action == 'permanently_deleted' %}butunlay o'chirildi{% else %}{{ a.action }}{% endif %}
+        </div>
+        <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at.strftime('%d.%m.%Y %H:%M') if a.created_at else '' }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchLogTab(tab) {
+  document.querySelectorAll('.log-tab').forEach(b => {
+    const active = b.dataset.tab === tab;
+    b.style.background = active ? 'var(--white)' : 'none';
+    b.style.boxShadow = active ? '0 1px 3px rgba(16,24,40,.1)' : 'none';
+    b.style.color = active ? 'var(--text)' : 'var(--text3)';
+    b.classList.toggle('active', active);
+  });
+  ['login','errors','activity'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === tab) ? 'block' : 'none';
+  });
+}
+</script>
+{% endblock %}
