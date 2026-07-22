@@ -484,23 +484,46 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
     """O'chirilgan buyurtma va loyihalar — inson xatosidan himoya uchun tiklash imkoni."""
     deleted_orders = crud.get_deleted_orders(db)
     deleted_projects = crud.get_deleted_projects(db)
+    activity_log = crud.get_activity_log(db, limit=50)
     return templates.TemplateResponse(request, "trash.html", {
         "deleted_orders": deleted_orders, "deleted_projects": deleted_projects,
+        "activity_log": activity_log,
         "current_user": current_user, "active_page": "trash"
     })
 
 
 @app.post("/api/orders/{order_id}/restore")
 def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    if not crud.restore_order(db, order_id):
+    who = current_user.full_name or current_user.username
+    if not crud.restore_order(db, order_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     return {"status": "ok"}
 
 
 @app.post("/api/projects/{project_id}/restore")
 def api_restore_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    if not crud.restore_project(db, project_id):
+    who = current_user.full_name or current_user.username
+    if not crud.restore_project(db, project_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    return {"status": "ok"}
+
+
+@app.delete("/api/orders/{order_id}/permanent")
+def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Butunlay o'chirish — faqat 'chiqindi qutisi'dagi (avval yumshoq o'chirilgan) buyurtma uchun."""
+    who = current_user.full_name or current_user.username
+    if not crud.permanent_delete_order(db, order_id, performed_by=who):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
+    return {"status": "ok"}
+
+
+@app.delete("/api/projects/{project_id}/permanent")
+def api_permanent_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Butunlay o'chirish — faqat 'chiqindi qutisi'dagi (avval yumshoq o'chirilgan) loyiha uchun."""
+    who = current_user.full_name or current_user.username
+    ok, msg = crud.permanent_delete_project(db, project_id, performed_by=who)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
     return {"status": "ok"}
 
 
@@ -1369,7 +1392,8 @@ def api_update_project(project_id: int, project: schemas.ProjectUpdate, db: Sess
 
 @app.delete("/api/projects/{project_id}")
 def api_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    if not crud.delete_project(db, project_id):
+    who = current_user.full_name or current_user.username
+    if not crud.delete_project(db, project_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     return {"status": "ok"}
 
@@ -1706,7 +1730,7 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: S
         or float(order.paid_amount or 0) > 0
     )
 
-    if not crud.delete_order(db, order_id, soft=should_soft_delete):
+    if not crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
     if log:
