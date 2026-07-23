@@ -1219,6 +1219,22 @@ def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Ses
     return {"status": "ok", "kpi_percent": m.kpi_percent}
 
 
+@app.get("/api/settings/ehson-percent")
+def api_get_ehson_percent(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """Ehson (xayriya) foizini o'qiydi — admin belgilagan, sof foydadan ajratiladigan ulush."""
+    percent = crud.get_setting(db, "ehson_percent", "0")
+    return {"ehson_percent": float(percent or 0)}
+
+
+@app.put("/api/settings/ehson-percent")
+def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ehson foizini belgilaydi — faqat Admin o'zgartira oladi."""
+    if percent < 0 or percent > 100:
+        raise HTTPException(status_code=400, detail="Foiz 0 dan 100 gacha bo'lishi kerak")
+    crud.set_setting(db, "ehson_percent", str(percent))
+    return {"status": "ok", "ehson_percent": percent}
+
+
 @app.get("/api/masters/kpi-report")
 def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
                             db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
