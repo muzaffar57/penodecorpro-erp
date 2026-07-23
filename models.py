@@ -547,6 +547,16 @@ class Employee(Base):
         return f"<Employee {self.name} ({self.pay_type.value})>"
 
 
+class CompanySetting(Base):
+    """Korxona darajasidagi sozlamalar — kalit/qiymat (masalan Ehson foizi).
+    Kelajakda boshqa umumiy sozlamalar ham shu yerga qo'shilishi mumkin."""
+    __tablename__ = "company_settings"
+
+    key = Column(String(50), primary_key=True)
+    value = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class UserSession(Base):
     """Foydalanuvchi (admin/menejer/omborchi va h.k.) tizimga kirish sessiyasi —
     bazada saqlanadi (xotirada emas), shuning uchun server qayta ishga
