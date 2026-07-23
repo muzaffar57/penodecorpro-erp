@@ -133,14 +133,17 @@ def require_login(
 # ============================================================
 
 # Har bir sahifaga kimlar kira oladi
+# ESLATMA: bu lug'at hozircha DASTURDA ishlatilmaydi — haqiqiy nazorat har bir
+# endpoint'dagi Depends(auth.X) orqali amalga oshadi. Shu yerda faqat izoh/hujjat
+# sifatida yangi tuzilishga moslab qo'yildi.
 PAGE_PERMISSIONS = {
-    "/dashboard":  [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT],
-    "/masters":    [UserRole.ADMIN, UserRole.MANAGER],
-    "/inventory":  [UserRole.ADMIN, UserRole.MANAGER],
-    "/recipes":    [UserRole.ADMIN, UserRole.MANAGER],
+    "/dashboard":  [UserRole.ADMIN, UserRole.ACCOUNTANT],
+    "/masters":    [UserRole.ADMIN, UserRole.ACCOUNTANT],
+    "/inventory":  [UserRole.ADMIN, UserRole.WAREHOUSE, UserRole.MANAGER],
+    "/recipes":    [UserRole.ADMIN, UserRole.WAREHOUSE],
     "/projects":   [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT],
     "/orders":     [UserRole.ADMIN, UserRole.MANAGER, UserRole.MASTER],
-    "/returns":    [UserRole.ADMIN, UserRole.MANAGER],
+    "/returns":    [UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE],
     "/users":      [UserRole.ADMIN],
 }
 
@@ -172,6 +175,7 @@ def admin_only(request: Request, db: Session = Depends(get_db)) -> User:
 
 
 def admin_or_manager(request: Request, db: Session = Depends(get_db)) -> User:
+    """Buyurtma/Loyiha/Yetkazish — Hodim (Menejer)ning asosiy ish maydoni."""
     return require_role([UserRole.ADMIN, UserRole.MANAGER])(request, db)
 
 
@@ -179,8 +183,37 @@ def admin_manager_accountant(request: Request, db: Session = Depends(get_db)) ->
     return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT])(request, db)
 
 
+def admin_or_financier(request: Request, db: Session = Depends(get_db)) -> User:
+    """Moliya, Hisobotlar, Qarzdorlik, Ustalar KPI, xodim avansini tasdiqlash —
+    faqat Admin va Moliyachi (ACCOUNTANT roli)."""
+    return require_role([UserRole.ADMIN, UserRole.ACCOUNTANT])(request, db)
+
+
+def admin_or_warehouse(request: Request, db: Session = Depends(get_db)) -> User:
+    """Omborxona (to'liq boshqarish), Xomashyo ta'minoti, Tayyor mahsulot,
+    Retseptlar — faqat Admin va Omborchi."""
+    return require_role([UserRole.ADMIN, UserRole.WAREHOUSE])(request, db)
+
+
+def inventory_view(request: Request, db: Session = Depends(get_db)) -> User:
+    """Omborni FAQAT KO'RISH (miqdor) — Hodim buyurtma yaratayotganda xomashyo
+    yetarli-yetarli emasligini bilishi uchun, lekin boshqarish huquqisiz."""
+    return require_role([UserRole.ADMIN, UserRole.WAREHOUSE, UserRole.MANAGER])(request, db)
+
+
+def order_payments(request: Request, db: Session = Depends(get_db)) -> User:
+    """To'lov qo'shish — Hodim (o'z buyurtmasiga) va Moliyachi (barchasiga)."""
+    return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT])(request, db)
+
+
+def manager_or_warehouse(request: Request, db: Session = Depends(get_db)) -> User:
+    """Qaytarishlar — ham Hodim (buyurtma tomonidan), ham Omborchi (ombor
+    tomonidan) kirishi kerak bo'lgan, ikkalasiga umumiy joy."""
+    return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE])(request, db)
+
+
 def all_staff(request: Request, db: Session = Depends(get_db)) -> User:
-    return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.MASTER])(request, db)
+    return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.MASTER, UserRole.WAREHOUSE])(request, db)
 
 
 # ============================================================
