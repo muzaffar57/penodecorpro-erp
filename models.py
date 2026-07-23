@@ -31,6 +31,7 @@ class UserRole(PyEnum):
     MANAGER = "manager"
     MASTER = "master"
     ACCOUNTANT = "accountant"
+    WAREHOUSE = "warehouse"
 
 
 class ProjectStatus(PyEnum):
