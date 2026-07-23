@@ -1066,6 +1066,23 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
     return db_item
 
 
+def record_cash_transaction(db: Session, category: str, amount: float, notes: str = None, performed_by: str = None):
+    """Kassaga qo'lda ta'sir qiladigan yozuv qo'shadi (boshlang'ich balans,
+    Usta KPI to'landi, Ehson to'landi). amount — musbat (kirim) yoki
+    manfiy (chiqim) bo'lishi mumkin."""
+    from models import CashTransaction
+    tx = CashTransaction(category=category, amount=amount, notes=notes, performed_by=performed_by)
+    db.add(tx)
+    db.commit()
+    return tx
+
+
+def get_cash_transactions(db: Session, limit: int = 100) -> List:
+    """Kassaga qo'lda qilingan yozuvlar tarixi."""
+    from models import CashTransaction
+    return db.query(CashTransaction).order_by(CashTransaction.created_at.desc()).limit(limit).all()
+
+
 def get_setting(db: Session, key: str, default: str = None) -> str:
     """Korxona sozlamasini o'qiydi (masalan Ehson foizi)."""
     from models import CompanySetting
