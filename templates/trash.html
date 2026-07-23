@@ -57,6 +57,29 @@
     </div>
   </div>
 
+
+  <div class="card" style="margin-bottom:18px">
+    <div class="card-head">
+      <h3>👷 O'chirilgan hodimlar <span style="color:var(--text3);font-weight:400">({{ deleted_employees|length }})</span></h3>
+    </div>
+    <div style="padding:4px 0">
+      {% if not deleted_employees %}
+      <div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">O'chirilgan hodim yo'q</div>
+      {% endif %}
+      {% for emp in deleted_employees %}
+      <div id="row-employee-{{ emp.id }}" style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border2);gap:10px">
+        <div style="min-width:0">
+          <div style="font-weight:700;font-size:14px">{{ emp.name }}</div>
+          <div style="font-size:12.5px;color:var(--text3);margin-top:2px">{{ emp.position or '—' }}{% if emp.phone %} · {{ emp.phone }}{% endif %}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-dark" onclick="restoreItem('employee', {{ emp.id }}, this)">↩️ Tiklash</button>
+          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" onclick="permanentDelete('employee', {{ emp.id }}, '{{ emp.name|replace("'", "\\'") }}', this)">❌ Butunlay o'chirish</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
   <div class="card">
     <div class="card-head">
       <h3>🕓 Audit jurnali <span style="color:var(--text3);font-weight:400">(so'nggi {{ activity_log|length }} amal)</span></h3>
@@ -84,7 +107,7 @@
 {% block scripts %}
 <script>
 async function restoreItem(type, id, btn) {
-  const endpoint = type === 'project' ? `/api/projects/${id}/restore` : `/api/orders/${id}/restore`;
+  const endpoint = type === 'project' ? `/api/projects/${id}/restore` : (type === 'employee' ? `/api/employees/${id}/restore` : `/api/orders/${id}/restore`);
   btn.disabled = true; btn.textContent = 'Tiklanmoqda...';
   try {
     const res = await fetch(endpoint, { method: 'POST' });
@@ -103,11 +126,11 @@ async function restoreItem(type, id, btn) {
 }
 
 async function permanentDelete(type, id, label, btn) {
-  const confirmText = type === 'project' ? "loyiha" : "buyurtma";
+  const confirmText = type === 'project' ? "loyiha" : (type === 'employee' ? "hodim" : "buyurtma");
   if (!confirm(`⚠️ DIQQAT — QAYTARIB BO'LMAYDI!\n\n"${label}" ${confirmText}sini bazadan BUTUNLAY o'chirmoqchimisiz?\n\nBu amalni ORQAGA QAYTARIB BO'LMAYDI.`)) return;
   if (!confirm(`So'nggi tasdiq: rostdan ham butunlay o'chirilsinmi?`)) return;
 
-  const endpoint = type === 'project' ? `/api/projects/${id}/permanent` : `/api/orders/${id}/permanent`;
+  const endpoint = type === 'project' ? `/api/projects/${id}/permanent` : (type === 'employee' ? `/api/employees/${id}/permanent` : `/api/orders/${id}/permanent`);
   btn.disabled = true; btn.textContent = 'O\'chirilmoqda...';
   try {
     const res = await fetch(endpoint, { method: 'DELETE' });
