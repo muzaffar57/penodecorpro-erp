@@ -535,6 +535,7 @@ class Employee(Base):
     is_active = Column(Boolean, default=True)
     hire_date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
+    is_deleted = Column(Boolean, default=False)  # "O'chirilgan" — lekin tiklash uchun saqlanadi
 
     # Hodimning o'z paneliga kirishi uchun (ixtiyoriy — admin belgilaydi)
     phone = Column(String(20), nullable=True, unique=True)
