@@ -23,18 +23,6 @@ from models import User, UserRole
 
 
 # ============================================================
-# Sessiya saqlash (xotirada — oddiy, ishonchli)
-# Keyinchalik Redis yoki DB ga o'tkazish mumkin
-# ============================================================
-
-# { "token_string": {"user_id": 1, "expires": datetime} }
-_sessions: dict = {}
-
-# Sessiya muddati — 8 soat
-SESSION_HOURS = 8
-
-
-# ============================================================
 # Parol funksiyalari
 # ============================================================
 
@@ -53,38 +41,57 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # Sessiya funksiyalari
 # ============================================================
 
-def create_session(user_id: int) -> str:
-    """Yangi sessiya token yaratadi va xotirada saqlaydi."""
+# ============================================================
+# Sessiya saqlash — BAZADA (xotirada emas!)
+# MUHIM: avval xotirada (_sessions dict) saqlanardi — bu, server
+# qayta ishga tushganda (Railway uyqu/uyg'onish, har bir deploy)
+# BARCHA foydalanuvchilarni tizimdan chiqarib yuborar edi, chunki
+# xotira tozalanadi. Endi bazada saqlanadi — server qayta ishga
+# tushsa ham, sessiya SAQLANIB QOLADI.
+# ============================================================
+
+# Sessiya muddati — 8 soat
+SESSION_HOURS = 8
+
+
+def create_session(db: Session, user_id: int) -> str:
+    """Yangi sessiya token yaratadi va BAZAGA saqlaydi."""
+    from models import UserSession
     token = secrets.token_urlsafe(32)
-    _sessions[token] = {
-        "user_id": user_id,
-        "expires": datetime.utcnow() + timedelta(hours=SESSION_HOURS)
-    }
+    entry = UserSession(
+        token=token, user_id=user_id,
+        expires_at=datetime.utcnow() + timedelta(hours=SESSION_HOURS)
+    )
+    db.add(entry)
+    db.commit()
     return token
 
 
-def get_session(token: str) -> Optional[dict]:
-    """Token bo'yicha sessiyani qaytaradi. Muddati o'tgan bo'lsa o'chiradi."""
-    session = _sessions.get(token)
-    if not session:
+def get_session(db: Session, token: str) -> Optional[dict]:
+    """Token bo'yicha sessiyani BAZADAN qaytaradi. Muddati o'tgan bo'lsa o'chiradi."""
+    from models import UserSession
+    entry = db.query(UserSession).filter(UserSession.token == token).first()
+    if not entry:
         return None
-    if session["expires"] < datetime.utcnow():
-        del _sessions[token]
+    if entry.expires_at < datetime.utcnow():
+        db.delete(entry)
+        db.commit()
         return None
-    return session
+    return {"user_id": entry.user_id, "expires": entry.expires_at}
 
 
-def delete_session(token: str):
-    """Sessiyani o'chiradi (logout)."""
-    _sessions.pop(token, None)
+def delete_session(db: Session, token: str):
+    """Sessiyani bazadan o'chiradi (logout)."""
+    from models import UserSession
+    db.query(UserSession).filter(UserSession.token == token).delete()
+    db.commit()
 
 
-def cleanup_expired_sessions():
-    """Muddati o'tgan barcha sessiyalarni tozalaydi."""
-    now = datetime.utcnow()
-    expired = [t for t, s in _sessions.items() if s["expires"] < now]
-    for t in expired:
-        del _sessions[t]
+def cleanup_expired_sessions(db: Session):
+    """Muddati o'tgan barcha sessiyalarni bazadan tozalaydi."""
+    from models import UserSession
+    db.query(UserSession).filter(UserSession.expires_at < datetime.utcnow()).delete()
+    db.commit()
 
 
 # ============================================================
@@ -101,7 +108,7 @@ def get_current_user(
     if not token:
         return None
 
-    session = get_session(token)
+    session = get_session(db, token)
     if not session:
         return None
 
@@ -177,6 +184,12 @@ def admin_only(request: Request, db: Session = Depends(get_db)) -> User:
 def admin_or_manager(request: Request, db: Session = Depends(get_db)) -> User:
     """Buyurtma/Loyiha/Yetkazish — Hodim (Menejer)ning asosiy ish maydoni."""
     return require_role([UserRole.ADMIN, UserRole.MANAGER])(request, db)
+
+
+def orders_page_access(request: Request, db: Session = Depends(get_db)) -> User:
+    """Buyurtmalar SAHIFASI — Admin, Hodim va Usta (Usta faqat o'zining
+    buyurtmalarini ko'rish uchun kiradi)."""
+    return require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.MASTER])(request, db)
 
 
 def admin_manager_accountant(request: Request, db: Session = Depends(get_db)) -> User:
@@ -270,11 +283,11 @@ def change_password(db: Session, user_id: int, new_password: str) -> bool:
 # ============================================================
 # XODIM PANELI — alohida, cheklangan sessiya tizimi
 # (User/parol tizimidan MUSTAQIL — faqat telefon+PIN bilan)
+# Sessiya BAZADA saqlanadi (server qayta ishga tushsa ham chiqarilmasin uchun).
 # ============================================================
 
 from models import Employee
 
-_employee_sessions: dict = {}
 EMPLOYEE_SESSION_HOURS = 24 * 14  # 14 kun — xodim tez-tez qayta kirmasin
 
 
@@ -283,27 +296,34 @@ def hash_pin(pin: str) -> str:
     return hash_password(pin)
 
 
-def create_employee_session(employee_id: int) -> str:
+def create_employee_session(db: Session, employee_id: int) -> str:
+    from models import EmployeeSession
     token = secrets.token_urlsafe(32)
-    _employee_sessions[token] = {
-        "employee_id": employee_id,
-        "expires": datetime.utcnow() + timedelta(hours=EMPLOYEE_SESSION_HOURS)
-    }
+    entry = EmployeeSession(
+        token=token, employee_id=employee_id,
+        expires_at=datetime.utcnow() + timedelta(hours=EMPLOYEE_SESSION_HOURS)
+    )
+    db.add(entry)
+    db.commit()
     return token
 
 
-def get_employee_session(token: str) -> Optional[dict]:
-    session = _employee_sessions.get(token)
-    if not session:
+def get_employee_session(db: Session, token: str) -> Optional[dict]:
+    from models import EmployeeSession
+    entry = db.query(EmployeeSession).filter(EmployeeSession.token == token).first()
+    if not entry:
         return None
-    if session["expires"] < datetime.utcnow():
-        del _employee_sessions[token]
+    if entry.expires_at < datetime.utcnow():
+        db.delete(entry)
+        db.commit()
         return None
-    return session
+    return {"employee_id": entry.employee_id, "expires": entry.expires_at}
 
 
-def delete_employee_session(token: str):
-    _employee_sessions.pop(token, None)
+def delete_employee_session(db: Session, token: str):
+    from models import EmployeeSession
+    db.query(EmployeeSession).filter(EmployeeSession.token == token).delete()
+    db.commit()
 
 
 def get_current_employee(request: Request, db: Session = Depends(get_db)) -> Optional[Employee]:
@@ -311,7 +331,7 @@ def get_current_employee(request: Request, db: Session = Depends(get_db)) -> Opt
     token = request.cookies.get("emp_session_token")
     if not token:
         return None
-    session = get_employee_session(token)
+    session = get_employee_session(db, token)
     if not session:
         return None
     employee = db.query(Employee).filter(
@@ -331,6 +351,7 @@ def require_employee_login(request: Request, db: Session = Depends(get_db)) -> E
             headers={"Location": "/hodim/login"}
         )
     return employee
+
 
 
 
