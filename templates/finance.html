@@ -207,6 +207,23 @@
 {% block content %}
 <div class="fin-wrap">
 
+  <!-- ═══ 0-QATOR: KASSA BALANSI (hozir qancha naqd pul bor) ═══ -->
+  <div class="fin-section">
+    <div style="background:linear-gradient(135deg,#111827,#1F2937);border-radius:16px;padding:22px 26px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+      <div>
+        <div style="font-size:12.5px;color:#9CA3AF;font-weight:600;text-transform:uppercase;letter-spacing:.04em">💰 Kassa balansi — hozir qancha naqd pul bor</div>
+        <div id="cash-balance-val" style="font-size:32px;font-weight:800;margin-top:6px">—</div>
+      </div>
+      {% if current_user.role.value == 'admin' %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" style="border-color:#4B5563;color:#fff" onclick="openCashTxModal('boshlangich')">+ Boshlang'ich balans</button>
+        <button class="btn btn-outline" style="border-color:#4B5563;color:#fff" onclick="openCashTxModal('usta_kpi')">− Usta KPI to'landi</button>
+        <button class="btn btn-outline" style="border-color:#4B5563;color:#fff" onclick="openCashTxModal('ehson')">− Ehson to'landi</button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
   <!-- ═══ 1-QATOR: HERO KPI (Bugungi holat) ═══ -->
   <div class="fin-section">
     <div class="fin-section-head">
@@ -395,10 +412,88 @@
     </div>
   </div>
 </div>
+
+<!-- ═══ KASSA TRANZAKSIYA MODALI ═══ -->
+<div id="cashTxModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:400px;max-width:100%">
+    <div id="cashTxTitle" style="font-size:16px;font-weight:700;margin-bottom:4px">—</div>
+    <div id="cashTxHint" style="font-size:12.5px;color:#888;margin-bottom:16px"></div>
+    <div class="form-group"><label>Summasi (so'm)</label><input type="number" id="cashtx-amount" min="0" placeholder="0"></div>
+    <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="cashtx-notes" placeholder="masalan: Jo'rabekka 500,000 berildi"></div>
+    <div id="cashtx-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
+    <div style="display:flex;gap:8px">
+      <button class="fin-btn fin-btn-primary w-full" onclick="saveCashTx()" style="flex:1">Saqlash</button>
+      <button class="fin-btn fin-btn-ghost w-full" onclick="document.getElementById('cashTxModal').style.display='none'" style="flex:1">Bekor</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+const fmtCash = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
+
+async function loadCashBalance(){
+  try {
+    const d = await fetch('/api/finance/cash-balance').then(r=>r.json());
+    const el = document.getElementById('cash-balance-val');
+    if (el) {
+      el.textContent = fmtCash(d.balance) + " so'm";
+      el.style.color = d.balance >= 0 ? '#fff' : '#FCA5A5';
+    }
+  } catch(e) { console.error(e); }
+}
+
+const CASH_TX_LABELS = {
+  boshlangich: { title: "+ Boshlang'ich balans kiritish", hint: "Tizimni ishlata boshlaganingizda, hozir kassada/qo'lda qancha pul borligini bir marta kiriting.", sign: 1 },
+  usta_kpi: { title: "− Usta KPI to'landi", hint: "Ustaga yillik KPI sovg'asini QO'LDA to'lab bo'lgach, shu yerga summani kiriting — kassadan ayiriladi.", sign: -1 },
+  ehson: { title: "− Ehson to'landi", hint: "Ehson summasini haqiqatda berib bo'lgach, shu yerga kiriting — kassadan ayiriladi.", sign: -1 },
+};
+let currentCashTxCategory = null;
+
+function openCashTxModal(category){
+  currentCashTxCategory = category;
+  const cfg = CASH_TX_LABELS[category];
+  document.getElementById('cashTxTitle').textContent = cfg.title;
+  document.getElementById('cashTxHint').textContent = cfg.hint;
+  document.getElementById('cashtx-amount').value = '';
+  document.getElementById('cashtx-notes').value = '';
+  document.getElementById('cashtx-error').style.display = 'none';
+  document.getElementById('cashTxModal').style.display = 'flex';
+}
+
+async function saveCashTx(){
+  const raw = parseFloat(document.getElementById('cashtx-amount').value) || 0;
+  const err = document.getElementById('cashtx-error');
+  if (raw <= 0) { err.textContent = "Summani to'g'ri kiriting"; err.style.display = 'block'; return; }
+
+  const cfg = CASH_TX_LABELS[currentCashTxCategory];
+  const amount = raw * cfg.sign;  // usta_kpi/ehson -> manfiy, boshlangich -> musbat
+  const notes = document.getElementById('cashtx-notes').value || null;
+
+  const fd = new FormData();
+  fd.append('category', currentCashTxCategory);
+  fd.append('amount', amount);
+  if (notes) fd.append('notes', notes);
+
+  try {
+    const res = await fetch('/api/finance/cash-transaction', { method: 'POST', body: fd });
+    if (res.ok) {
+      document.getElementById('cashTxModal').style.display = 'none';
+      loadCashBalance();
+    } else {
+      const e = await res.json();
+      err.textContent = '❌ ' + (e.detail || 'Xato');
+      err.style.display = 'block';
+    }
+  } catch(e) {
+    err.textContent = "❌ Server bilan aloqa yo'q";
+    err.style.display = 'block';
+  }
+}
+
+loadCashBalance();
+
 const now=new Date();
 document.getElementById('sel-month').value=now.getMonth()+1;
 document.getElementById('sel-year').value=now.getFullYear();
