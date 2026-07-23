@@ -411,6 +411,7 @@ async function loadCharts(){
     const entries = [
       ['Doimiy xarajatlar', doimiy, '#2563EB'],
       ["Usta bonusi", cur.usta_kpi_xarajat || 0, '#F59E0B'],
+      ['Ehson', cur.ehson_xarajat || 0, '#16A34A'],
       ['Hodimlar oyligi', cur.hodimlar_moslashuvchan_xarajat || 0, '#22C55E'],
       ["Qo'shimcha", qoshimcha, '#8E44AD'],
     ].filter(e => e[1] > 0);
