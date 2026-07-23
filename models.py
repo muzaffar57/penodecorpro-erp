@@ -546,6 +546,29 @@ class Employee(Base):
         return f"<Employee {self.name} ({self.pay_type.value})>"
 
 
+class UserSession(Base):
+    """Foydalanuvchi (admin/menejer/omborchi va h.k.) tizimga kirish sessiyasi —
+    bazada saqlanadi (xotirada emas), shuning uchun server qayta ishga
+    tushsa ham (Railway uyqu/uyg'onish, deploy) — foydalanuvchilar
+    TIZIMDAN CHIQARILMAYDI."""
+    __tablename__ = "user_sessions"
+
+    token = Column(String(64), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EmployeeSession(Base):
+    """Xodim (/hodim panel) sessiyasi — bazada saqlanadi, xuddi UserSession kabi."""
+    __tablename__ = "employee_sessions"
+
+    token = Column(String(64), primary_key=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ActivityLog(Base):
     """Muhim amallar tarixi — audit uchun (o'chirish/tiklash/yaratish/tahrirlash)."""
     __tablename__ = "activity_logs"
