@@ -549,12 +549,14 @@ async def users_page(request: Request, db: Session = Depends(get_db), current_us
 
 @app.get("/trash", response_class=HTMLResponse)
 async def trash_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """O'chirilgan buyurtma va loyihalar — inson xatosidan himoya uchun tiklash imkoni."""
+    """O'chirilgan buyurtma, loyiha va xodimlar — inson xatosidan himoya uchun tiklash imkoni."""
     deleted_orders = crud.get_deleted_orders(db)
     deleted_projects = crud.get_deleted_projects(db)
+    deleted_employees = crud.get_deleted_employees(db)
     activity_log = crud.get_activity_log(db, limit=50)
     return templates.TemplateResponse(request, "trash.html", {
         "deleted_orders": deleted_orders, "deleted_projects": deleted_projects,
+        "deleted_employees": deleted_employees,
         "activity_log": activity_log,
         "current_user": current_user, "active_page": "trash"
     })
@@ -1082,8 +1084,25 @@ def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session =
 
 @app.delete("/api/employees/{emp_id}")
 def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    if not crud.delete_employee(db, emp_id):
+    who = current_user.full_name or current_user.username
+    if not crud.delete_employee(db, emp_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"status": "ok"}
+
+
+@app.post("/api/employees/{emp_id}/restore")
+def api_restore_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    who = current_user.full_name or current_user.username
+    if not crud.restore_employee(db, emp_id, performed_by=who):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
+    return {"status": "ok"}
+
+
+@app.delete("/api/employees/{emp_id}/permanent")
+def api_permanent_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    who = current_user.full_name or current_user.username
+    if not crud.permanent_delete_employee(db, emp_id, performed_by=who):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
     return {"status": "ok"}
 
 
