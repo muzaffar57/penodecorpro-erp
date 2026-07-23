@@ -1805,6 +1805,56 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     }
 
 
+def get_cash_balance(db: Session) -> dict:
+    """Kassa balansi — kompaniyada HOZIR haqiqatda qancha naqd pul bor.
+
+    ➕ Kirim: mijozlardan kelgan barcha to'lovlar
+    ➖ Chiqim: naqd to'langan xomashyo xaridi, yetkazib beruvchiga to'lovlar,
+       oylik xarajatlar, transport, xodim avanslari
+    ➕/➖ Qo'lda: boshlang'ich balans, "Usta KPI to'landi", "Ehson to'landi"
+       (bular — FAQAT admin aniq belgilaganda hisoblanadi, oy oxirida
+       o'zi avtomatik chiqib ketmaydi)."""
+    from models import (Payment, InventoryPurchase, SupplierPayment, MonthlyExpense,
+                         ExpenseTransaction, TransportExpense, EmployeeAdvance, CashTransaction)
+    from sqlalchemy import func
+
+    kirim_tolov = float(db.query(func.sum(Payment.amount)).scalar() or 0)
+
+    chiqim_xomashyo_naqd = float(db.query(func.sum(InventoryPurchase.total_amount)).filter(
+        InventoryPurchase.is_credit == False
+    ).scalar() or 0)
+    chiqim_yetkazib_beruvchi = float(db.query(func.sum(SupplierPayment.amount)).scalar() or 0)
+
+    me_rows = db.query(MonthlyExpense).all()
+    chiqim_oylik = sum(
+        float(m.arenda or 0) + float(m.elektr or 0) + float(m.tushlik or 0) + float(m.soliqlar or 0)
+        for m in me_rows
+    )
+    chiqim_qoshimcha = float(db.query(func.sum(ExpenseTransaction.amount)).scalar() or 0)
+    chiqim_transport = float(db.query(func.sum(TransportExpense.amount)).scalar() or 0)
+    chiqim_avans = float(db.query(func.sum(EmployeeAdvance.amount)).scalar() or 0)
+
+    qolda_jami = float(db.query(func.sum(CashTransaction.amount)).scalar() or 0)
+
+    jami_kirim = kirim_tolov
+    jami_chiqim = (chiqim_xomashyo_naqd + chiqim_yetkazib_beruvchi + chiqim_oylik +
+                   chiqim_qoshimcha + chiqim_transport + chiqim_avans)
+
+    balance = jami_kirim - jami_chiqim + qolda_jami
+
+    return {
+        "balance": round(balance),
+        "kirim_tolov": round(kirim_tolov),
+        "chiqim_xomashyo_naqd": round(chiqim_xomashyo_naqd),
+        "chiqim_yetkazib_beruvchi": round(chiqim_yetkazib_beruvchi),
+        "chiqim_oylik": round(chiqim_oylik),
+        "chiqim_qoshimcha": round(chiqim_qoshimcha),
+        "chiqim_transport": round(chiqim_transport),
+        "chiqim_avans": round(chiqim_avans),
+        "qolda_jami": round(qolda_jami),
+    }
+
+
 def get_purchase_stats_for_period(db: Session, year: int, month: int) -> dict:
     """Berilgan oy uchun xomashyo xaridi statistikasi."""
     from models import InventoryPurchase
