@@ -2112,6 +2112,37 @@ def api_close_employee_debt(employee_id: int, year: int, month: int, amount: flo
     return services.close_employee_debt(db, employee_id, year, month, amount, paid_by=who)
 
 
+@app.get("/api/finance/cash-balance")
+def api_get_cash_balance(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """Kassa balansi — kompaniyada hozir haqiqatda qancha naqd pul bor."""
+    return services.get_cash_balance(db)
+
+
+@app.get("/api/finance/cash-transactions")
+def api_get_cash_transactions(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """Kassaga qo'lda qilingan yozuvlar tarixi."""
+    rows = crud.get_cash_transactions(db)
+    return [{
+        "id": r.id, "category": r.category, "amount": float(r.amount),
+        "notes": r.notes, "performed_by": r.performed_by,
+        "created_at": r.created_at.isoformat() if r.created_at else None
+    } for r in rows]
+
+
+@app.post("/api/finance/cash-transaction")
+def api_record_cash_transaction(category: str = Form(...), amount: float = Form(...),
+                                 notes: str = Form(None), db: Session = Depends(get_db),
+                                 current_user=Depends(auth.admin_only)):
+    """Kassaga qo'lda yozuv qo'shadi — faqat Admin.
+    category: 'boshlangich' (musbat) / 'usta_kpi' (manfiy) / 'ehson' (manfiy)."""
+    if category not in ("boshlangich", "usta_kpi", "ehson"):
+        raise HTTPException(status_code=400, detail="Noto'g'ri kategoriya")
+    who = current_user.full_name or current_user.username
+    tx = crud.record_cash_transaction(db, category, amount, notes=notes, performed_by=who)
+    balance = services.get_cash_balance(db)
+    return {"status": "ok", "transaction_id": tx.id, "new_balance": balance["balance"]}
+
+
 @app.get("/finance", response_class=HTMLResponse)
 async def finance_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return templates.TemplateResponse(request, "finance.html", {"current_user": current_user, "active_page": "finance"})
