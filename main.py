@@ -640,11 +640,21 @@ async def home(request: Request, db: Session = Depends(get_db)):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return RedirectResponse("/login", status_code=302)
+    # home.html moliyaviy ko'rsatkichlarni (bugungi foyda va h.k.) ko'rsatadi —
+    # shuning uchun bu faqat Admin/Moliyachi uchun. Boshqa rollar — o'z asosiy
+    # ish maydoniga yo'naltiriladi.
+    role = current_user.role.value
+    if role == "manager":
+        return RedirectResponse("/orders", status_code=302)
+    if role == "warehouse":
+        return RedirectResponse("/inventory", status_code=302)
+    if role == "master":
+        return RedirectResponse("/orders", status_code=302)
     return templates.TemplateResponse(request, "home.html", {"current_user": current_user, "active_page": "home"})
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+async def dashboard_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     stats = services.get_dashboard_stats(db)
     return templates.TemplateResponse(request, "dashboard.html", {"stats": stats, "current_user": current_user, "active_page": "dashboard"})
 
@@ -657,7 +667,7 @@ async def masters_page_redirect():
 
 
 @app.get("/inventory", response_class=HTMLResponse)
-async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     items = crud.get_inventory(db)
     kpi = services.get_inventory_kpi(db)
     suppliers = crud.get_suppliers(db)
@@ -666,7 +676,7 @@ async def inventory_page(request: Request, db: Session = Depends(get_db), curren
 
 @app.post("/api/inventory/{item_id}/image")
 def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                current_user=Depends(auth.admin_only)):
+                                current_user=Depends(auth.admin_or_warehouse)):
     from models import Inventory
     item = db.query(Inventory).filter(Inventory.id == item_id).first()
     if not item:
@@ -678,12 +688,12 @@ def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: S
 
 
 @app.get("/api/inventory/kpi")
-def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     return services.get_inventory_kpi(db)
 
 
 @app.get("/recipes", response_class=HTMLResponse)
-async def recipes_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+async def recipes_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     recipes = crud.get_recipes(db)
     insights = {r.id: crud.get_recipe_insights(db, r.id) for r in recipes}
     return templates.TemplateResponse(request, "recipes.html", {"recipes": recipes, "insights": insights, "current_user": current_user, "active_page": "recipes"})
@@ -835,17 +845,17 @@ def api_delete_master(master_id: int, db: Session = Depends(get_db), current_use
 
 
 @app.post("/api/inventory", response_model=schemas.InventoryRead)
-def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     return crud.add_item(db, item)
 
 
 @app.get("/api/inventory", response_model=List[schemas.InventoryRead])
-def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     return crud.get_inventory(db)
 
 
 @app.post("/api/inventory/{item_id}/stock", response_model=schemas.InventoryRead)
-def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.)."""
     updated = crud.update_stock(db, item_id, change.quantity_change,
                                  performed_by=current_user.full_name or current_user.username,
@@ -856,7 +866,7 @@ def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = De
 
 
 @app.put("/api/inventory/{item_id}")
-def api_update_inventory_item(item_id: int, data: schemas.InventoryUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_inventory_item(item_id: int, data: schemas.InventoryUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xomashyo ma'lumotlarini yangilash (nomi, min qoldiq, kategoriya va h.k.)."""
     updated = crud.update_item(db, item_id, data)
     if not updated:
@@ -865,7 +875,7 @@ def api_update_inventory_item(item_id: int, data: schemas.InventoryUpdate, db: S
 
 
 @app.post("/api/inventory/{item_id}/purchase")
-def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi.
     paid_now > 0 bo'lsa — bir vaqtning o'zida xarid HAM yoziladi, HAM to'lov qilinadi,
     qolgan qismi avtomatik qarz sifatida qoladi."""
@@ -947,7 +957,7 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
 
 @app.get("/api/inventory/purchases")
 def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
-                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                      db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     """Xaridlar tarixi."""
     items = crud.get_purchases(db, limit=limit, item_id=item_id)
     return [{
@@ -966,7 +976,7 @@ def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
 
 @app.get("/api/inventory/purchase-stats")
 def api_purchase_stats(year: Optional[int] = None, month: Optional[int] = None,
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     """Material bo'yicha xarid statistikasi (oylik)."""
     return crud.get_purchase_stats(db, year=year, month=month)
 
@@ -1159,12 +1169,12 @@ def api_hodim_advance_request(amount: float = Form(...), requested_date: str = F
 # ============================================================
 
 @app.get("/api/admin/pending-advance-requests")
-def api_pending_advance_requests(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_pending_advance_requests(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return crud.get_pending_advance_requests(db)
 
 
 @app.post("/api/admin/advance-requests/{request_id}/confirm")
-def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username)
     if not result:
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
@@ -1172,7 +1182,7 @@ def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), 
 
 
 @app.post("/api/admin/advance-requests/{request_id}/reject")
-def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     if not crud.reject_advance_request(db, request_id, current_user.full_name or current_user.username):
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
     return {"status": "ok"}
@@ -1183,7 +1193,7 @@ def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), c
 # ============================================================
 
 @app.put("/api/masters/{master_id}/kpi")
-def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     m = crud.update_master_kpi(db, master_id, data.kpi_percent)
     if not m:
         raise HTTPException(status_code=404, detail="Usta topilmadi")
@@ -1192,15 +1202,14 @@ def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Ses
 
 @app.get("/api/masters/kpi-report")
 def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
-                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    from datetime import datetime
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     y = year or datetime.now().year
     return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive)
 
 
 @app.get("/api/masters/{master_id}/kpi-detail")
 def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
-                           db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                           db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     from datetime import datetime
     y = year or datetime.now().year
     return crud.get_master_kpi_detail(db, master_id, y)
@@ -1218,12 +1227,12 @@ def api_transport_stats(year: Optional[int] = None, month: Optional[int] = None,
 # ============================================================
 
 @app.get("/suppliers", response_class=HTMLResponse)
-async def suppliers_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+async def suppliers_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     return templates.TemplateResponse(request, "suppliers.html", {"current_user": current_user, "active_page": "suppliers"})
 
 
 @app.get("/suppliers/receive", response_class=HTMLResponse)
-async def supplier_receive_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+async def supplier_receive_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Yetkazib beruvchidan mahsulot kirim qilish — to'liq sahifa ko'rinishi.
     Backend/API o'zgarmagan — xuddi suppliers.html'dagi (sinalgan) xarid
     mexanizmining o'zi, faqat kattaroq, tartibli sahifa dizaynida."""
@@ -1234,18 +1243,18 @@ async def supplier_receive_page(request: Request, db: Session = Depends(get_db),
 
 
 @app.post("/api/suppliers")
-def api_create_supplier(data: schemas.SupplierCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_supplier(data: schemas.SupplierCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     s = crud.create_supplier(db, data)
     return {"status": "ok", "id": s.id}
 
 
 @app.get("/api/suppliers")
-def api_get_suppliers(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_suppliers(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     return crud.get_suppliers_with_debt(db)
 
 
 @app.put("/api/suppliers/{supplier_id}")
-def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     s = crud.update_supplier(db, supplier_id, data)
     if not s:
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -1253,7 +1262,7 @@ def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Sess
 
 
 @app.delete("/api/suppliers/{supplier_id}")
-def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Yetkazib beruvchini o'chirish. Qarzi bo'lsa force=true kerak."""
     result = crud.delete_supplier(db, supplier_id, force=force)
     if not result["success"]:
@@ -1264,7 +1273,7 @@ def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Dep
 @app.get("/api/suppliers/{supplier_id}/history")
 def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None,
                          page: int = 1, page_size: int = 20,
-                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Yetkazib beruvchi tarixi. start_date/end_date — YYYY-MM-DD formatida (ixtiyoriy).
     page/page_size — xaridlar ro'yxati sahifalanadi (standart: 20 tadan)."""
     from datetime import datetime as dt
@@ -1282,7 +1291,7 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
 
 
 @app.put("/api/inventory/purchases/{purchase_id}")
-def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xarid yozuvini tahrirlash — ombordagi joriy miqdor/narxga ta'sir qilmaydi."""
     updated = crud.update_purchase(db, purchase_id, data.model_dump(exclude_unset=True))
     if not updated:
@@ -1291,7 +1300,7 @@ def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Sess
 
 
 @app.delete("/api/inventory/purchases/{purchase_id}")
-def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xarid yozuvini o'chirish — ombordagi joriy miqdor/narxga ta'sir qilmaydi."""
     if not crud.delete_purchase(db, purchase_id):
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -1299,7 +1308,7 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
 
 
 @app.post("/api/suppliers/{supplier_id}/payment")
-def api_supplier_payment(supplier_id: int, data: schemas.SupplierPaymentCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_supplier_payment(supplier_id: int, data: schemas.SupplierPaymentCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     who = current_user.full_name or current_user.username
     data.supplier_id = supplier_id
     try:
@@ -1315,14 +1324,14 @@ def api_supplier_payment(supplier_id: int, data: schemas.SupplierPaymentCreate, 
 
 
 @app.delete("/api/suppliers/payments/{payment_id}")
-def api_delete_supplier_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_supplier_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     if not crud.delete_supplier_payment(db, payment_id):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
 
 @app.get("/api/suppliers/debt-total")
-def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Barcha yetkazib beruvchilarga jami qarz — dashboard uchun."""
     suppliers = crud.get_suppliers_with_debt(db)
     total = sum(s["debt"] for s in suppliers)
@@ -1330,25 +1339,25 @@ def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends
 
 
 @app.get("/api/suppliers/due-dates")
-def api_suppliers_due_dates(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_suppliers_due_dates(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Qarz to'lash muddatlari — Dashboard ogohlantirishi uchun."""
     return crud.get_supplier_payment_due_dates(db)
 
 
 @app.get("/api/suppliers/{supplier_id}/purchased-items")
-def api_supplier_purchased_items(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_supplier_purchased_items(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Shu yetkazib beruvchidan ilgari xarid qilingan materiallar — Kirim sahifasida qulaylik uchun."""
     return crud.get_supplier_purchased_items(db, supplier_id)
 
 
 @app.get("/api/inventory/purchase-trend")
-def api_purchase_trend(months: int = 6, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_purchase_trend(months: int = 6, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     """Oxirgi N oy xarid tendensiyasi."""
     return crud.get_purchase_stats_range(db, months=months)
 
 
 @app.post("/api/inventory/{item_id}/price")
-def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     item = db.query(crud.Inventory).filter(crud.Inventory.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -1360,7 +1369,7 @@ def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), cu
 
 
 @app.post("/api/inventory/full-stock-report")
-def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     from models import Inventory as Inv
     items = db.query(Inv).order_by(Inv.item_name).all()
     if not items:
@@ -1386,7 +1395,7 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
 
 
 @app.post("/api/inventory/low-stock-alert")
-def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     low_items = crud.get_low_stock_items(db)
     if not low_items:
         return {"sent": False, "message": "Barcha xomashyolar yetarli — SMS yuborilmadi!"}
@@ -1403,7 +1412,7 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
 
 
 @app.delete("/api/inventory/{item_id}")
-def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     result = crud.delete_item(db, item_id)
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
@@ -1411,12 +1420,12 @@ def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=De
 
 
 @app.post("/api/recipes", response_model=schemas.RecipeRead)
-def api_create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     return crud.create_recipe(db, recipe)
 
 
 @app.put("/api/recipes/{recipe_id}", response_model=schemas.RecipeRead)
-def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     recipe = crud.update_recipe(db, recipe_id, data)
     if not recipe:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
@@ -1425,7 +1434,7 @@ def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = 
 
 @app.post("/api/recipes/{recipe_id}/image")
 def api_upload_recipe_image(recipe_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                             current_user=Depends(auth.admin_only)):
+                             current_user=Depends(auth.admin_or_warehouse)):
     from models import Recipe
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
     if not recipe:
@@ -1437,7 +1446,7 @@ def api_upload_recipe_image(recipe_id: int, file: UploadFile = File(...), db: Se
 
 
 @app.delete("/api/recipes/{recipe_id}")
-def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     from models import Recipe
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
     if not recipe:
@@ -1448,7 +1457,7 @@ def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_use
 
 
 @app.get("/api/recipes", response_model=List[schemas.RecipeRead])
-def api_get_recipes(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_recipes(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     return crud.get_recipes(db)
 
 
@@ -1841,17 +1850,17 @@ def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db
 
 
 @app.get("/api/dashboard/stats")
-def api_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+def api_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_dashboard_stats(db)
 
 
 @app.get("/api/dashboard/today")
-def api_dashboard_today(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+def api_dashboard_today(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_today_stats(db)
 
 
 @app.get("/api/dashboard/charts")
-def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_chart_data(db)
 
 
@@ -1871,14 +1880,14 @@ def api_today_tasks(db: Session = Depends(get_db), current_user=Depends(auth.req
 
 
 @app.get("/api/dashboard/production-periods")
-def api_production_periods(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+def api_production_periods(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_production_period_stats(db)
 
 
 @app.get("/api/inventory/movements")
 def api_inventory_movements(item_id: Optional[int] = None, movement_type: Optional[str] = None,
                              order_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db),
-                             current_user=Depends(auth.admin_or_manager)):
+                             current_user=Depends(auth.inventory_view)):
     """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish)."""
     from models import InventoryMovement
     q = db.query(InventoryMovement)
@@ -1927,7 +1936,7 @@ def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), cur
 
 
 @app.get("/debts", response_class=HTMLResponse)
-async def debts_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+async def debts_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Qarzdorlar sahifasi — ikkita yo'nalish:
     1) Bizga qarzdorlar — mijozlar (Order.debt_amount asosida, ESKI
        Project.total_budget emas — bu qadimgi, buyurtma to'lovlariga
@@ -1967,54 +1976,54 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
 
 
 @app.get("/reports", response_class=HTMLResponse)
-async def reports_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+async def reports_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return templates.TemplateResponse(request, "reports.html", {"current_user": current_user, "active_page": "reports"})
 
 
 @app.get("/api/reports/top-products")
-def api_reports_top_products(days: int = 90, limit: int = 15, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_reports_top_products(days: int = 90, limit: int = 15, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_top_products_report(db, days=days, limit=limit)
 
 
 @app.get("/api/dashboard/top-finished-products")
-def api_dashboard_top_finished_products(days: int = 30, limit: int = 5, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_dashboard_top_finished_products(days: int = 30, limit: int = 5, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Dashboard uchun — faqat Tayyor mahsulotlardan sotilgan tovarlar (qaytganlari ayrilgan)."""
     return services.get_top_finished_products_sold(db, days=days, limit=limit)
 
 
 @app.get("/api/reports/top-materials")
-def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_top_materials_report(db, days=days)
 
 
 @app.get("/api/reports/top-customers")
-def api_reports_top_customers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_reports_top_customers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_top_customers_report(db, days=days, limit=limit)
 
 
 @app.get("/api/reports/top-suppliers")
-def api_reports_top_suppliers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_reports_top_suppliers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_top_suppliers_report(db, days=days, limit=limit)
 
 
 @app.get("/api/reports/comparison")
-def api_reports_comparison(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_reports_comparison(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_monthly_comparison(db, year, month)
 
 
 @app.get("/api/reports/forecast")
-def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_simple_forecast(db, year, month)
 
 
 @app.get("/api/reports/alerts")
-def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_business_alerts(db)
 
 
 @app.get("/api/reports/brak-materials")
 def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optional[str] = None,
-                                 db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                                 db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Brak sabab sarflangan xomashyo — nomi, miqdori, tan narxi bo'yicha qiymati."""
     from datetime import datetime as dt
     sd = dt.strptime(start_date, "%Y-%m-%d") if start_date else None
@@ -2023,12 +2032,12 @@ def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optio
 
 
 @app.get("/api/reports/business-health")
-def api_reports_business_health(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_reports_business_health(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_business_health(db)
 
 
 @app.get("/api/obligations/recurring")
-def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_recurring_obligations(db)
 
 
@@ -2069,17 +2078,17 @@ def api_close_employee_debt(employee_id: int, year: int, month: int, amount: flo
 
 
 @app.get("/finance", response_class=HTMLResponse)
-async def finance_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+async def finance_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return templates.TemplateResponse(request, "finance.html", {"current_user": current_user, "active_page": "finance"})
 
 
 @app.get("/api/finance/report")
-def api_finance_report(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_finance_report(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_monthly_report(db, year, month)
 
 
 @app.get("/api/finance/daily")
-def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Bitta kun uchun moliyaviy ko'rinish (savdo/foyda/tan narx + xarajatlar).
     target_date berilmasa — bugungi kun olinadi. Format: YYYY-MM-DD"""
     from datetime import date as date_cls
@@ -2091,13 +2100,13 @@ def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(g
 
 
 @app.get("/api/finance/history")
-def api_finance_history(months: int = 12, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_finance_history(months: int = 12, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_finance_history(db, months)
 
 
 @app.post("/api/finance/transactions")
 def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: Session = Depends(get_db),
-                                    current_user=Depends(auth.admin_only)):
+                                    current_user=Depends(auth.admin_or_financier)):
     tx = crud.create_expense_transaction(db, data.model_dump(), performed_by=current_user.full_name or current_user.username, source="manual")
     return schemas.ExpenseTransactionRead.model_validate(tx)
 
@@ -2105,13 +2114,13 @@ def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: S
 @app.get("/api/finance/transactions")
 def api_list_expense_transactions(year: Optional[int] = None, month: Optional[int] = None,
                                    day: Optional[int] = None, category: Optional[str] = None,
-                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     rows = crud.get_expense_transactions(db, year=year, month=month, day=day, category=category)
     return [schemas.ExpenseTransactionRead.model_validate(r) for r in rows]
 
 
 @app.delete("/api/finance/transactions/{tx_id}")
-def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     ok = crud.delete_expense_transaction(db, tx_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
@@ -2119,7 +2128,7 @@ def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), cu
 
 
 @app.post("/api/finance/expense")
-def api_save_expense(year: int, month: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_save_expense(year: int, month: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     services.save_monthly_expense(db, year, month, data, performed_by=current_user.full_name or current_user.username)
     return {"status": "ok"}
 
@@ -2153,7 +2162,7 @@ async def health():
 
 
 @app.get("/returns", response_class=HTMLResponse)
-async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
     returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all)
     orders  = crud.get_orders_for_main_page(db, days=90, show_all=True)
     projects = crud.get_projects(db)
@@ -2191,22 +2200,22 @@ def api_get_project_items(project_id: int, db: Session = Depends(get_db), curren
 
 
 @app.post("/api/returns")
-def api_create_return(data: schemas.ReturnItemCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_return(data: schemas.ReturnItemCreate, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
     return crud.create_return_item(db, data)
 
 
 @app.get("/api/returns")
-def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
     return crud.get_return_items(db, order_id=order_id)
 
 
 @app.get("/api/returns/stats")
-def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
     return crud.get_return_stats(db)
 
 
 @app.post("/api/returns/{return_id}/refund")
-def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
     who = current_user.full_name or current_user.username
     item = crud.mark_refunded(db, return_id, refunded_by=who)
     if not item:
@@ -2215,7 +2224,7 @@ def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_use
 
 
 @app.delete("/api/returns/{return_id}")
-def api_delete_return(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_return(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
     if not crud.delete_return_item(db, return_id):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     return {"status": "ok"}
@@ -2226,7 +2235,7 @@ def api_delete_return(return_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.post("/api/payments")
-def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """Yangi to'lov qo'shish.
     write_off_remainder=true bo'lsa — to'lovdan keyin qolgan (kichik) qarz
     CHEGIRMA sifatida yozib yuboriladi (jami summadan ham ayiriladi —
@@ -2280,7 +2289,7 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
 
 
 @app.get("/api/payments")
-def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """To'lovlar ro'yxati."""
     payments = crud.get_payments(db, order_id=order_id)
     return [{
@@ -2296,7 +2305,7 @@ def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_d
 
 
 @app.delete("/api/payments/{payment_id}")
-def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """To'lovni o'chirish."""
     if not crud.delete_payment(db, payment_id):
         raise HTTPException(status_code=404, detail="To'lov topilmadi")
@@ -2340,7 +2349,7 @@ def api_get_penoplasts(db: Session = Depends(get_db), current_user=Depends(auth.
 
 
 @app.post("/api/inventory/{item_id}/set-default-penoplast")
-def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Asosiy plotnost qilib belgilash."""
     item = db.query(Inventory).filter(Inventory.id == item_id).first()
     if not item:
@@ -2370,7 +2379,7 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.get("/finished", response_class=HTMLResponse)
-async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotlar sahifasi."""
     items = crud.get_finished_products(db)
     penoplasts = services.get_penoplast_list(db)
@@ -2514,7 +2523,7 @@ def api_factory_reset(confirm: str = "", db: Session = Depends(get_db), current_
 
 
 @app.get("/kpi", response_class=HTMLResponse)
-async def kpi_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+async def kpi_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Ustalar yillik KPI va moslashuvchan hodim to'lovi sahifasi."""
     return templates.TemplateResponse(request, "kpi.html", {
         "current_user": current_user, "active_page": "kpi"
@@ -2523,7 +2532,7 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
 
 @app.get("/api/finished")
 def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
-                     db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                     db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotlar ro'yxati."""
     if source or only_available:
         items = crud.get_finished_products(db, source=source, only_available=only_available)
@@ -2559,7 +2568,7 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
 
 @app.post("/api/finished/{fp_id}/image")
 def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                               current_user=Depends(auth.admin_or_manager)):
+                               current_user=Depends(auth.admin_or_warehouse)):
     from models import FinishedProduct
     fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
     if not fp:
@@ -2585,7 +2594,7 @@ def api_upload_project_image(project_id: int, file: UploadFile = File(...), db: 
 
 @app.post("/api/returns/{return_id}/image")
 def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                             current_user=Depends(auth.admin_or_manager)):
+                             current_user=Depends(auth.manager_or_warehouse)):
     from models import ReturnItem
     ret = db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
     if not ret:
@@ -2597,18 +2606,18 @@ def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Se
 
 
 @app.get("/api/finished/stats")
-def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     return crud.get_finished_stats(db)
 
 
 @app.get("/api/finished/search")
-def api_search_finished(q: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_search_finished(q: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Nom bo'yicha qidirish — buyurtmada taklif uchun."""
     return {"items": crud.search_finished_products(db, q)}
 
 
 @app.post("/api/finished/produce")
-def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulot ishlab chiqarish."""
     who = current_user.full_name or current_user.username
     result = crud.produce_finished_product(db, data, created_by=who)
@@ -2633,7 +2642,7 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
 
 
 @app.post("/api/finished/produce-termopanel")
-def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
     who = current_user.full_name or current_user.username
     result = crud.produce_termopanel(db, data, created_by=who)
@@ -2657,7 +2666,7 @@ def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = 
 
 
 @app.post("/api/finished/{fp_id}/complete")
-def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
     result = crud.complete_production(db, fp_id)
     if not result["success"]:
@@ -2666,7 +2675,7 @@ def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.get("/api/finished/{fp_id}/profit")
-def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Tayyor mahsulot foydasi (faqat admin)."""
     result = crud.get_finished_profit(db, fp_id)
     if not result["success"]:
@@ -2676,7 +2685,7 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 
 @app.post("/api/finished/{fp_id}/add")
 def api_add_production(fp_id: int, data: schemas.StockAdjust,
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
     result = crud.add_to_production(db, fp_id, data.quantity)
     if not result["success"]:
@@ -2701,7 +2710,7 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
 
 @app.post("/api/finished/{fp_id}/reduce")
 def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
-                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
     result = crud.reduce_production(db, fp_id, data.quantity, data.reason)
     if not result["success"]:
@@ -2711,7 +2720,7 @@ def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
 
 @app.put("/api/finished/{fp_id}")
 def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotni tahrirlash."""
     fp = crud.update_finished_product(db, fp_id, data.model_dump(exclude_unset=True))
     if not fp:
@@ -2721,7 +2730,7 @@ def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
 
 @app.delete("/api/finished/{fp_id}")
 def api_delete_finished(fp_id: int, return_to_stock: bool = False,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotni o'chirish."""
     if not crud.delete_finished_product(db, fp_id, return_to_stock=return_to_stock):
         raise HTTPException(status_code=404, detail="Topilmadi")
