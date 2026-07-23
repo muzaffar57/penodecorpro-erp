@@ -201,20 +201,21 @@ async function startFactoryReset(){
   )) return;
 
   const phrase = prompt(
-    "Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:\n\nHAMMASINI OCHIRAMAN"
+    "Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:\n\nHAMMASINI-OCHIR"
   );
   if (phrase === null) return;
 
-  if (phrase !== "HAMMASINI OCHIRAMAN") {
+  if (phrase !== "HAMMASINI-OCHIR") {
     alert("❌ So'z mos kelmadi — hech narsa o'chirilmadi.");
     return;
   }
 
   try {
-    const res = await fetch(`/api/admin/factory-reset?confirm_phrase=${encodeURIComponent(phrase)}`, { method: 'POST' });
+    const res = await fetch(`/api/system/factory-reset?confirm=${encodeURIComponent(phrase)}`, { method: 'POST' });
     const r = await res.json();
     if (res.ok) {
-      alert("✅ " + r.message + "\n\n" + r.log.join("\n"));
+      const lines = Object.entries(r.deleted || {}).map(([table, n]) => `${table}: ${n} ta`).join("\n");
+      alert("✅ " + r.message + "\n\n" + lines);
       location.reload();
     } else {
       alert("❌ Xato: " + (r.detail || "Noma'lum xato"));
