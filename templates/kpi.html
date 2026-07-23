@@ -836,7 +836,7 @@ async function saveEmployee() {
 }
 
 async function deleteEmployee(id) {
-  if (!confirm("O'chirilsinmi?")) return;
+  if (!confirm("Hodim o'chirilsinmi?\n\n(Ma'lumot yo'qolmaydi — \"O'chirilganlar\" bo'limidan keyin tiklash mumkin)")) return;
   const res = await fetch(`/api/employees/${id}`, {method:'DELETE'});
   if (res.ok) loadEmployees();
 }
