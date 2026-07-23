@@ -525,17 +525,17 @@ async def login_submit(request: Request, username: str = Form(...), password: st
         return templates.TemplateResponse(request, "login.html", {"error": "Login yoki parol noto'g'ri!", "username": username})
 
     crud.log_login_attempt(db, username, success=True, ip_address=ip, user_agent=ua)
-    token = auth.create_session(user.id)
+    token = auth.create_session(db, user.id)
     response = RedirectResponse("/", status_code=302)
     response.set_cookie(key="session_token", value=token, httponly=True, max_age=3600 * 8, samesite="lax")
     return response
 
 
 @app.get("/logout")
-async def logout(request: Request):
+async def logout(request: Request, db: Session = Depends(get_db)):
     token = request.cookies.get("session_token")
     if token:
-        auth.delete_session(token)
+        auth.delete_session(db, token)
     response = RedirectResponse("/login", status_code=302)
     response.delete_cookie("session_token")
     return response
@@ -738,7 +738,7 @@ def api_add_payment(project_id: int, amount: float, db: Session = Depends(get_db
 
 
 @app.get("/orders", response_class=HTMLResponse)
-async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.orders_page_access)):
     orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all)
     projects = crud.get_projects(db)
     masters = crud.get_masters(db, only_active=True)
@@ -1120,7 +1120,7 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
     emp = crud.authenticate_employee(db, phone, pin)
     if not emp:
         return templates.TemplateResponse(request, "hodim_login.html", {"error": "Telefon yoki PIN noto'g'ri!"})
-    token = auth.create_employee_session(emp.id)
+    token = auth.create_employee_session(db, emp.id)
     response = RedirectResponse("/hodim", status_code=302)
     response.set_cookie(key="emp_session_token", value=token, httponly=True,
                          max_age=3600 * auth.EMPLOYEE_SESSION_HOURS, samesite="lax")
@@ -1128,10 +1128,10 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
 
 
 @app.get("/hodim/logout")
-async def hodim_logout(request: Request):
+async def hodim_logout(request: Request, db: Session = Depends(get_db)):
     token = request.cookies.get("emp_session_token")
     if token:
-        auth.delete_employee_session(token)
+        auth.delete_employee_session(db, token)
     response = RedirectResponse("/hodim/login", status_code=302)
     response.delete_cookie("emp_session_token")
     return response
