@@ -3591,9 +3591,15 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate) -> Optional[
 
 
 def delete_employee(db: Session, emp_id: int) -> bool:
+    """Xodimni o'chirish. Avval unga bog'liq barcha yozuvlarni (sessiya,
+    avans tarixi) tozalaydi — aks holda baza (Postgres) "chet el kaliti"
+    xatosi berib, o'chirishga yo'l qo'ymaydi."""
     emp = get_employee(db, emp_id)
     if not emp:
         return False
+    from models import EmployeeSession, EmployeeAdvance
+    db.query(EmployeeSession).filter(EmployeeSession.employee_id == emp_id).delete()
+    db.query(EmployeeAdvance).filter(EmployeeAdvance.employee_id == emp_id).delete()
     db.delete(emp)
     db.commit()
     return True
