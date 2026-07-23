@@ -298,6 +298,7 @@
 {% block scripts %}
 <script>
 const IS_ADMIN = {{ 'true' if current_user.role.value == 'admin' else 'false' }};
+const IS_MANAGER = {{ 'true' if current_user.role.value == 'manager' else 'false' }};
 
 function toggleBrakSummary(){
   const body = document.getElementById('brakSummaryBody');
@@ -520,12 +521,17 @@ function calcValue(){
   const unitPrice = currentUnitPrice(item);
   const priceLabel = document.getElementById('f-price-label');
   const priceInput = document.getElementById('f-unit-price');
+  const hideForManager = IS_MANAGER && reason === 'Brak';  // tan narxi — moliyaviy ma'lumot
   if (priceLabel) priceLabel.textContent = (reason === 'Brak') ? "1 birlik TAN narxi (xomashyo)" : "1 birlik SOTUV narxi";
-  if (priceInput) priceInput.value = fmt(unitPrice) + " so'm";
+  if (priceInput) priceInput.value = hideForManager ? '— (moliyaviy)' : (fmt(unitPrice) + " so'm");
 
   const qty = parseFloat(document.getElementById('f-qty').value) || 0;
   const valEl = document.getElementById('f-value');
+  // MUHIM: f-value HAQIQIY summani saqlashi shart (backendga to'g'ri yuborilishi uchun) —
+  // faqat KO'RSATISH uchun (agar kerak bo'lsa) maxsus css bilan xiralashtiriladi, son o'zgarmaydi.
   if (valEl && qty) valEl.value = Math.round(qty * unitPrice);
+  if (valEl) valEl.style.color = hideForManager ? 'transparent' : '';
+  if (valEl) valEl.style.textShadow = hideForManager ? '0 0 8px rgba(0,0,0,.4)' : 'none';
 }
 
 async function deleteReturn(id){
