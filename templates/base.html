@@ -52,12 +52,14 @@
 
       <div class="nav-label">Asosiy</div>
 
+      {% if role in ['admin', 'accountant'] %}
       <a href="/" class="nav-item {% if active_page == 'home' %}active{% endif %}">
         <i class="ti ti-home n-ico"></i>
         <span class="n-txt">Bosh sahifa</span>
       </a>
+      {% endif %}
 
-      {% if role == 'admin' %}
+      {% if role in ['admin', 'accountant'] %}
       <a href="/dashboard" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
         <i class="ti ti-chart-bar n-ico"></i>
         <span class="n-txt">Dashboard</span>
@@ -71,19 +73,25 @@
       </a>
       {% endif %}
 
+      {% if role in ['admin', 'manager', 'master'] %}
       <a href="/orders" class="nav-item {% if active_page == 'orders' %}active{% endif %}">
         <i class="ti ti-receipt n-ico"></i>
         <span class="n-txt">Buyurtmalar</span>
       </a>
+      {% endif %}
 
+      {% if role in ['admin', 'warehouse', 'manager'] %}
       <div class="nav-label">Ishlab chiqarish</div>
+      {% endif %}
 
-      {% if role == 'admin' %}
+      {% if role in ['admin', 'warehouse', 'manager'] %}
       <a href="/inventory" class="nav-item {% if active_page == 'inventory' %}active{% endif %}">
         <i class="ti ti-package n-ico"></i>
         <span class="n-txt">Omborxona</span>
       </a>
+      {% endif %}
 
+      {% if role in ['admin', 'warehouse'] %}
       <a href="/suppliers/receive" class="nav-item {% if active_page in ['suppliers', 'supplier_receive'] %}active{% endif %}">
         <i class="ti ti-truck n-ico"></i>
         <span class="n-txt">Xomashyo ta'minoti</span>
@@ -93,30 +101,30 @@
         <i class="ti ti-flask n-ico"></i>
         <span class="n-txt">Retseptlar</span>
       </a>
-      {% endif %}
 
-      {% if role in ['admin', 'manager'] %}
       <a href="/finished" class="nav-item {% if active_page == 'finished' %}active{% endif %}">
         <i class="ti ti-building-factory-2 n-ico"></i>
         <span class="n-txt">Tayyor mahsulotlar</span>
       </a>
       {% endif %}
 
+      {% if role in ['admin', 'manager', 'warehouse', 'accountant'] %}
       <div class="nav-label">Hisobot</div>
+      {% endif %}
 
-      {% if role in ['admin', 'manager'] %}
+      {% if role in ['admin', 'manager', 'warehouse'] %}
       <a href="/returns" class="nav-item {% if active_page == 'returns' %}active{% endif %}">
         <i class="ti ti-arrow-back-up n-ico"></i>
         <span class="n-txt">Qaytarishlar</span>
       </a>
+      {% endif %}
 
+      {% if role in ['admin', 'accountant'] %}
       <a href="/debts" class="nav-item {% if active_page == 'debts' %}active{% endif %}">
         <i class="ti ti-credit-card n-ico"></i>
         <span class="n-txt">Qarzdorlar</span>
       </a>
-      {% endif %}
 
-      {% if role == 'admin' %}
       <a href="/finance" class="nav-item {% if active_page == 'finance' %}active{% endif %}">
         <i class="ti ti-trending-up n-ico"></i>
         <span class="n-txt">Moliya</span>
@@ -131,7 +139,9 @@
         <i class="ti ti-report n-ico"></i>
         <span class="n-txt">Hisobotlar</span>
       </a>
+      {% endif %}
 
+      {% if role == 'admin' %}
       <div class="nav-label">Boshqaruv</div>
 
       <a href="/users" class="nav-item {% if active_page == 'users' %}active{% endif %}">
