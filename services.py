@@ -1734,16 +1734,20 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     kpi_result = calculate_monthly_master_kpi(db, year, month)
     usta_kpi_xarajat = kpi_result["total"]
 
+    # ── 4b2. EHSON (admin belgilagan foiz, sof foydadan) ──────
+    ehson_result = calculate_monthly_ehson(db, year, month)
+    ehson_xarajat = ehson_result["ehson_amount"]
+
     # ── 4c. MOSLASHUVCHAN HODIMLAR ─────────────────────────────
     # Foyda (hodim xarajatigacha) — sotuvdan% / foydadan% hisoblash uchun
-    sof_foyda_before_emp = sof_daromad - jami_xarajat_eski - usta_kpi_xarajat
+    sof_foyda_before_emp = sof_daromad - jami_xarajat_eski - usta_kpi_xarajat - ehson_xarajat
     emp_result = calculate_monthly_employee_pay(
         db, year, month, daromad, sof_foyda_before_emp,
         jami_metr + jami_panel_metr, jami_dona, jami_blok,
         jami_qoplama_birlik=jami_metr + jami_panel_metr + jami_dona
     )
     hodimlar_moslashuvchan_xarajat = emp_result["total"]
-    jami_xarajat = jami_xarajat_eski + usta_kpi_xarajat + hodimlar_moslashuvchan_xarajat
+    jami_xarajat = jami_xarajat_eski + usta_kpi_xarajat + ehson_xarajat + hodimlar_moslashuvchan_xarajat
 
     sof_foyda = sof_daromad - jami_xarajat
     foyda_foiz = (sof_foyda / daromad * 100) if daromad > 0 else 0
@@ -1785,6 +1789,9 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         # Usta yillik KPI (oylik ulush)
         "usta_kpi_xarajat": usta_kpi_xarajat,
         "usta_kpi_breakdown": kpi_result["breakdown"],
+        # Ehson (admin belgilagan foiz)
+        "ehson_percent": ehson_result["percent"],
+        "ehson_xarajat": ehson_xarajat,
         # Moslashuvchan hodimlar
         "hodimlar_moslashuvchan_xarajat": hodimlar_moslashuvchan_xarajat,
         "hodimlar_moslashuvchan_breakdown": emp_result["breakdown"],
@@ -3106,6 +3113,43 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
         })
 
     return {"total": round(total), "breakdown": breakdown}
+
+
+def calculate_monthly_ehson(db: Session, year: int, month: int) -> dict:
+    """Shu oy SOF FOYDASIDAN — admin belgilagan foizga ko'ra — Ehson (xayriya)
+    miqdorini hisoblaydi. Usta KPI bilan bir xil mantiqda, lekin bitta,
+    umumiy (butun korxona) foiz asosida — har bir alohida usta emas."""
+    from models import Order, OrderStatus
+    from sqlalchemy import extract
+    import crud as _crud
+
+    percent = float(_crud.get_setting(db, "ehson_percent", "0") or 0)
+    if percent <= 0:
+        return {"percent": 0.0, "monthly_profit": 0, "ehson_amount": 0}
+
+    orders = db.query(Order).filter(
+        Order.status == OrderStatus.READY,
+        extract('year', Order.completed_at) == year,
+        extract('month', Order.completed_at) == month,
+        Order.is_deleted.isnot(True)
+    ).all()
+
+    monthly_profit = 0.0
+    for o in orders:
+        try:
+            profit_data = calculate_order_profit(db, o.id)
+            monthly_profit += float(profit_data.get("foyda", 0))
+        except Exception as e:
+            try:
+                _crud.log_error(db, str(e), endpoint=f"calculate_monthly_ehson:calculate_order_profit order#{o.id}")
+            except Exception:
+                pass
+
+    if monthly_profit <= 0:
+        return {"percent": percent, "monthly_profit": round(monthly_profit), "ehson_amount": 0}
+
+    ehson_amount = monthly_profit * percent / 100
+    return {"percent": percent, "monthly_profit": round(monthly_profit), "ehson_amount": round(ehson_amount)}
 
 
 def calculate_monthly_employee_pay(db: Session, year: int, month: int,
