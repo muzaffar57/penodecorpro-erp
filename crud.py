@@ -1066,6 +1066,25 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
     return db_item
 
 
+def get_setting(db: Session, key: str, default: str = None) -> str:
+    """Korxona sozlamasini o'qiydi (masalan Ehson foizi)."""
+    from models import CompanySetting
+    row = db.query(CompanySetting).filter(CompanySetting.key == key).first()
+    return row.value if row else default
+
+
+def set_setting(db: Session, key: str, value: str):
+    """Korxona sozlamasini saqlaydi/yangilaydi."""
+    from models import CompanySetting
+    row = db.query(CompanySetting).filter(CompanySetting.key == key).first()
+    if row:
+        row.value = value
+    else:
+        row = CompanySetting(key=key, value=value)
+        db.add(row)
+    db.commit()
+
+
 def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
                   entity_label: str = None, performed_by: str = None):
     """O'chirish/tiklash kabi muhim amallarni audit uchun yozib boradi."""
