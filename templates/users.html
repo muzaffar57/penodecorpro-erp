@@ -26,8 +26,9 @@
             <td>{{ u.full_name or '—' }}</td>
             <td>
               {% if u.role.value == 'admin' %}<span class="badge" style="background:#111;color:#2563EB">Admin</span>
-              {% elif u.role.value == 'manager' %}<span class="badge badge-info">Menejer</span>
-              {% elif u.role.value == 'accountant' %}<span class="badge badge-ready">Buxgalter</span>
+              {% elif u.role.value == 'manager' %}<span class="badge badge-info">Hodim</span>
+              {% elif u.role.value == 'accountant' %}<span class="badge badge-ready">Moliyachi</span>
+              {% elif u.role.value == 'warehouse' %}<span class="badge" style="background:#F3E8FF;color:#8E44AD">Omborchi</span>
               {% else %}<span class="badge badge-warning">Usta</span>{% endif %}
             </td>
             <td>
@@ -59,14 +60,15 @@
         <div class="card-head"><h3>Rollar va huquqlar</h3></div>
         <div class="card-body">
           {% for role, label, color, perms in [
-            ('admin', 'Admin', '#111', 'Hamma narsa + moliya + foydalanuvchilar'),
-            ('manager', 'Menejer', '#1a6fa8', 'Loyiha, buyurtma, ustalar, qaytarish'),
-            ('accountant', 'Buxgalter', '#1e7e34', 'Loyihalar va dashboard (ko\'rish)'),
+            ('admin', 'Admin', '#111', 'Hamma narsa - moliya, ombor, foydalanuvchilar, sozlamalar'),
+            ('manager', 'Hodim', '#1a6fa8', "Loyiha va buyurtma yaratish, ombor (ko'rish). Moliya, foyda, Ustalar KPI ko'RINMAYDI"),
+            ('accountant', 'Moliyachi', '#1e7e34', 'Moliya, Hisobotlar, Qarzdorlik, Ustalar KPI, xodim avansini tasdiqlash'),
+            ('warehouse', 'Omborchi', '#8E44AD', "Omborxona, Xomashyo ta'minoti, Tayyor mahsulot, Retseptlar"),
             ('master', 'Usta', '#b7770d', 'Faqat buyurtmalar')
           ] %}
           <div style="padding:12px 0;border-bottom:1px solid #f5f5f5">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span class="badge" style="background:{% if role == 'admin' %}#111{% elif role == 'manager' %}#EFF6FF{% elif role == 'accountant' %}#DCFCE7{% else %}#FEF3C7{% endif %};color:{{ color }}">{{ label }}</span>
+              <span class="badge" style="background:{% if role == 'admin' %}#111{% elif role == 'manager' %}#EFF6FF{% elif role == 'accountant' %}#DCFCE7{% elif role == 'warehouse' %}#F3E8FF{% else %}#FEF3C7{% endif %};color:{{ color }}">{{ label }}</span>
             </div>
             <div style="font-size:12px;color:#aaa">{{ perms }}</div>
           </div>
@@ -97,8 +99,9 @@
       <div class="form-group" style="margin:0"><label>Parol</label><input type="password" id="f-password" placeholder="Kamida 6 belgi"></div>
       <div class="form-group" style="margin:0"><label>Rol</label>
         <select id="f-role">
-          <option value="manager">Menejer</option>
-          <option value="accountant">Buxgalter</option>
+          <option value="manager">Hodim</option>
+          <option value="accountant">Moliyachi</option>
+          <option value="warehouse">Omborchi</option>
           <option value="master">Usta</option>
           <option value="admin">Admin</option>
         </select>
