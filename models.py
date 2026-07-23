@@ -547,6 +547,22 @@ class Employee(Base):
         return f"<Employee {self.name} ({self.pay_type.value})>"
 
 
+class CashTransaction(Base):
+    """Kassa balansiga QO'LDA (admin tomonidan aniq belgilangan) ta'sir
+    qiluvchi harakatlar — boshlang'ich balans, Usta KPI to'landi, Ehson
+    to'landi. Boshqa kirim/chiqim (mijoz to'lovi, xomashyo xaridi va h.k.)
+    — mavjud jadvallardan (Payment, InventoryPurchase va h.k.) to'g'ridan-
+    to'g'ri hisoblanadi, bu yerga yozilmaydi."""
+    __tablename__ = "cash_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String(30), nullable=False)  # "boshlangich" / "usta_kpi" / "ehson"
+    amount = Column(Numeric(12, 2), nullable=False)  # ijobiy=kirim, manfiy=chiqim
+    notes = Column(Text, nullable=True)
+    performed_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class CompanySetting(Base):
     """Korxona darajasidagi sozlamalar — kalit/qiymat (masalan Ehson foizi).
     Kelajakda boshqa umumiy sozlamalar ham shu yerga qo'shilishi mumkin."""
