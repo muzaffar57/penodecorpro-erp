@@ -69,7 +69,9 @@
     <div class="stat-card"><div class="stat-icon" style="background:#FEF3C7;color:#92400E"><i class="ti ti-hourglass"></i></div><div class="stat-label">Kutayotgan</div><div class="stat-val">{{ kpi.on_hold }} ta</div></div>
     <div class="stat-card"><div class="stat-icon"><i class="ti ti-calendar-plus"></i></div><div class="stat-label">Shu oy boshlangan</div><div class="stat-val">{{ kpi.started_this_month }} ta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-calendar-check"></i></div><div class="stat-label">Shu oy yakunlangan</div><div class="stat-val">{{ kpi.completed_this_month }} ta</div></div>
+    {% if current_user.role.value != 'manager' %}
     <div class="stat-card"><div class="stat-icon" style="background:var(--gold);color:#fff"><i class="ti ti-report-money"></i></div><div class="stat-label">Umumiy sof foyda</div><div class="stat-val">{{ "%.1f"|format(kpi.total_profit/1000000) }} mln</div></div>
+    {% endif %}
   </div>
 
   <div class="proj-filters">
@@ -155,7 +157,9 @@
         <div class="tab-bar" id="tabBar">
           <button class="tab-btn active" data-tab="asosiy" onclick="switchTab('asosiy')">Asosiy</button>
           <button class="tab-btn" data-tab="orders" onclick="switchTab('orders')">Buyurtmalar</button>
+          {% if current_user.role.value != 'manager' %}
           <button class="tab-btn" data-tab="finance" onclick="switchTab('finance')">Moliya</button>
+          {% endif %}
           <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">To'lovlar</button>
           <button class="tab-btn" data-tab="products" onclick="switchTab('products')">Mahsulotlar</button>
           <button class="tab-btn" data-tab="materials" onclick="switchTab('materials')">Xomashyo</button>
