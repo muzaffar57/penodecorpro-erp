@@ -3534,7 +3534,7 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
 
 
 def get_employees(db: Session, only_active: bool = True) -> List[Employee]:
-    q = db.query(Employee)
+    q = db.query(Employee).filter(Employee.is_deleted.isnot(True))
     if only_active:
         q = q.filter(Employee.is_active == True)
     return q.order_by(Employee.name).all()
@@ -3590,19 +3590,49 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate) -> Optional[
     return emp
 
 
-def delete_employee(db: Session, emp_id: int) -> bool:
-    """Xodimni o'chirish. Avval unga bog'liq barcha yozuvlarni (sessiya,
-    avans tarixi) tozalaydi — aks holda baza (Postgres) "chet el kaliti"
-    xatosi berib, o'chirishga yo'l qo'ymaydi."""
+def delete_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
+    """Xodimni o'chirish — YUMSHOQ (is_deleted=True). Ma'lumot yo'qolmaydi,
+    'O'chirilganlar' bo'limidan tiklash mumkin (inson xatosidan himoya)."""
     emp = get_employee(db, emp_id)
     if not emp:
         return False
+    emp.is_deleted = True
+    db.commit()
+    log_activity(db, "deleted", "employee", emp_id, emp.name, performed_by)
+    return True
+
+
+def restore_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
+    """O'chirilgan xodimni tiklaydi."""
+    emp = db.query(Employee).filter(Employee.id == emp_id).first()
+    if not emp:
+        return False
+    emp.is_deleted = False
+    db.commit()
+    log_activity(db, "restored", "employee", emp_id, emp.name, performed_by)
+    return True
+
+
+def permanent_delete_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
+    """YUMSHOQ o'chirilgan xodimni BAZADAN BUTUNLAY o'chiradi. Avval unga
+    bog'liq barcha yozuvlarni (sessiya, avans tarixi) tozalaydi — aks holda
+    baza (Postgres) "chet el kaliti" xatosi berib, o'chirishga yo'l qo'ymaydi."""
+    emp = db.query(Employee).filter(Employee.id == emp_id, Employee.is_deleted.is_(True)).first()
+    if not emp:
+        return False
+    name = emp.name
     from models import EmployeeSession, EmployeeAdvance
     db.query(EmployeeSession).filter(EmployeeSession.employee_id == emp_id).delete()
     db.query(EmployeeAdvance).filter(EmployeeAdvance.employee_id == emp_id).delete()
     db.delete(emp)
     db.commit()
+    log_activity(db, "permanently_deleted", "employee", emp_id, name, performed_by)
     return True
+
+
+def get_deleted_employees(db: Session) -> List[Employee]:
+    """O'chirilgan (lekin hali bazada saqlanayotgan) xodimlar."""
+    return db.query(Employee).filter(Employee.is_deleted.is_(True)).order_by(Employee.name).all()
 
 
 # ============================================================
