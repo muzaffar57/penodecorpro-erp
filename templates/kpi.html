@@ -633,7 +633,7 @@ async function loadEmployees() {
         <div id="emp-status-${e.id}" style="flex-shrink:0"></div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button class="mini-btn" style="color:#D97706;border-color:#FDE68A" onclick="openAdvanceModal(${e.id}, '${e.name.replace(/'/g,"\\'")}')" title="Avans berish">💰</button>
-          <button class="mini-btn" style="color:#2563EB;border-color:#DBEAFE" onclick="openPanelAccessModal(${e.id}, '${e.name.replace(/'/g,"\\'")}', '${e.phone||''}')" title="Panel kirishi (telefon+PIN)">🔑</button>
+          <button class="mini-btn" style="width:auto;padding:0 8px;gap:4px;color:#2563EB;border-color:#2563EB;background:#EFF6FF;font-weight:600;font-size:12px" onclick="openPanelAccessModal(${e.id}, '${e.name.replace(/'/g,"\\'")}', '${e.phone||''}')" title="Xodim o'z telefonidan kirishi uchun">🔑 Kirish</button>
           <button class="mini-btn" onclick="editEmployee(${e.id})">✏️</button>
           <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deleteEmployee(${e.id})">✕</button>
         </div>
