@@ -498,6 +498,7 @@ class InventoryPurchase(Base):
     payment_due_date = Column(DateTime, nullable=True)  # Qarzni qachongacha to'lash kerak
     is_credit = Column(Boolean, default=False)
     category = Column(String(50), nullable=True)  # Xarid vaqtidagi kategoriya (tarix uchun saqlanadi)
+    is_opening_stock = Column(Boolean, default=False)  # Boshlang'ich (mavjud) ombor — kassa balansiga TA'SIR QILMAYDI
 
     def __repr__(self):
         return f"<InventoryPurchase {self.item_name} {self.quantity}>"
