@@ -920,7 +920,8 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
                                   purchased_by=who, notes=data.notes,
                                   supplier_id=data.supplier_id, is_credit=is_credit,
                                   volume_per_unit=data.volume_per_unit,
-                                  payment_due_date=data.payment_due_date)
+                                  payment_due_date=data.payment_due_date,
+                                  is_opening_stock=data.is_opening_stock)
     if not result:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
 
