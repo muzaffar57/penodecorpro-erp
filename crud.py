@@ -1936,19 +1936,25 @@ def export_full_backup(db: Session) -> dict:
     }
 
 
-def factory_reset_all_data(db: Session) -> dict:
+def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     """DIQQAT: BU QAYTARIB BO'LMAYDIGAN AMAL!
     Foydalanuvchilar (User) dan TASHQARI — barcha ma'lumotni butunlay o'chiradi:
     buyurtmalar, ombor, retseptlar, ustalar, yetkazib beruvchilar, loyihalar,
-    tayyor mahsulotlar, qaytarishlar, xarajatlar — HAMMASI.
+    tayyor mahsulotlar, qaytarishlar, xarajatlar, xodimlar — HAMMASI.
+
+    keep_only_user_id — agar berilsa, shu ID'dan BOSHQA barcha User (login)
+    hisoblari HAM o'chiriladi (masalan, admin "faqat men qolayin, sinov uchun
+    yaratgan boshqa hisoblarni ham tozalang" desa).
+
     Chet el kaliti (ForeignKey) xatosi bermasligi uchun, jadvallar to'g'ri
     (avval "bola", keyin "ota") tartibda tozalanadi."""
     from models import (
         DeliveryItem, Payment, OrderAttachment, ReturnItem, Delivery,
         OrderItem, Order, InventoryMovement, InventoryPurchase,
         SupplierPayment, FinishedProduct, TransportExpense,
-        ExpenseTransaction, MonthlyExpense, Employee, Recipe,
-        Inventory, Master, Project, Supplier
+        ExpenseTransaction, MonthlyExpense, EmployeeSession, EmployeeAdvance,
+        AdvanceRequest, Employee, Recipe, Inventory, Master, Project, Supplier,
+        CashTransaction, ActivityLog, UserSession, User
     )
 
     # Tartib MUHIM va TO'LIQ tekshirilgan (har bir ForeignKey hisobga olingan):
@@ -1964,22 +1970,36 @@ def factory_reset_all_data(db: Session) -> dict:
     # 10) InventoryPurchase — inventory, suppliers ga bog'langan
     # 11) SupplierPayment — suppliers ga bog'langan
     # 12-15) Mustaqil jadvallar
-    # 16) Recipe — endi xavfsiz (OrderItem, FinishedProduct tozalangan)
-    # 17) Inventory — endi xavfsiz
-    # 18) Master, 19) Project — endi xavfsiz (Order tozalangan)
-    # 20) Supplier — endi xavfsiz (barcha unga bog'langanlar tozalangan)
+    # 16-18) EmployeeSession/EmployeeAdvance/AdvanceRequest — employees ga bog'langan,
+    #        Employee'dan OLDIN tozalanishi SHART (bulk delete cascade ishlatmaydi)
+    # 19) Employee — endi xavfsiz
+    # 20) Recipe — endi xavfsiz (OrderItem, FinishedProduct tozalangan)
+    # 21) Inventory — endi xavfsiz
+    # 22) Master, 23) Project — endi xavfsiz (Order tozalangan)
+    # 24) Supplier — endi xavfsiz (barcha unga bog'langanlar tozalangan)
+    # 25) CashTransaction, 26) ActivityLog — mustaqil, sinov izlarini tozalash uchun
     tables_in_order = [
         DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
         Delivery, OrderItem, FinishedProduct, Order,
         InventoryPurchase, SupplierPayment,
-        TransportExpense, ExpenseTransaction, MonthlyExpense, Employee,
+        TransportExpense, ExpenseTransaction, MonthlyExpense,
+        EmployeeSession, EmployeeAdvance, AdvanceRequest, Employee,
         Recipe, Inventory, Master, Project, Supplier,
+        CashTransaction, ActivityLog,
     ]
 
     counts = {}
     for model in tables_in_order:
         n = db.query(model).delete(synchronize_session=False)
         counts[model.__tablename__] = n
+
+    if keep_only_user_id is not None:
+        # Boshqa foydalanuvchilarning sessiyalarini avval tozalaymiz (FK xatosi bo'lmasligi uchun)
+        other_user_ids = [u.id for u in db.query(User.id).filter(User.id != keep_only_user_id).all()]
+        if other_user_ids:
+            db.query(UserSession).filter(UserSession.user_id.in_(other_user_ids)).delete(synchronize_session=False)
+        n_users = db.query(User).filter(User.id != keep_only_user_id).delete(synchronize_session=False)
+        counts["users"] = n_users
 
     db.commit()
     return counts
