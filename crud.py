@@ -295,7 +295,8 @@ def guess_category(item_name: str, is_penoplast: bool = False) -> str:
 def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: float,
                    purchased_by: str = None, notes: str = None,
                    supplier_id: int = None, is_credit: bool = False,
-                   volume_per_unit: float = None, payment_due_date: str = None):
+                   volume_per_unit: float = None, payment_due_date: str = None,
+                   is_opening_stock: bool = False):
     """Ombor kirimi — xarid narxi bilan.
     O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
 
@@ -307,6 +308,10 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
 
     is_credit=True bo'lsa — nasiya (keyin to'lash), Supplierga qarz sifatida yoziladi.
     supplier_id — kredit bo'lmasa ham saqlanadi (tarix uchun, "kimdan olganimiz" bilinsin).
+    is_opening_stock=True bo'lsa — bu "boshlang'ich (mavjud) ombor" sifatida belgilanadi:
+    ombor miqdori/narxi ODATDAGIDEK qo'shiladi, LEKIN Kassa balansi hisobida bu
+    "naqd sarflangan pul" deb HISOBLANMAYDI (chunki bu — yangi xarid emas, tizimni
+    ishlata boshlashda mavjud xomashyoni hisobga olish).
     """
     from models import InventoryPurchase
 
@@ -359,7 +364,8 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         supplier_id=supplier_id,
         is_credit=is_credit,
         category=db_item.category,
-        payment_due_date=due_date_parsed
+        payment_due_date=due_date_parsed,
+        is_opening_stock=is_opening_stock
     )
     db.add(purchase)
     supplier_name = None
