@@ -1836,7 +1836,7 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: S
     is_fully_delivered = order.status == OrderStatus.DELIVERED or order.is_fully_delivered
     can_return = order.status != OrderStatus.DRAFT and not is_fully_delivered
 
-    if can_return:
+    if can_return and not order.stock_returned:
         if has_delivery:
             # Qisman topshirilgan — faqat qolgan qismi qaytadi
             log.extend(services.return_inventory_for_order_partial(db, order))
@@ -1869,6 +1869,10 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: S
             for item in order.items:
                 if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
                     log.extend(services.return_loy_ingredients(db, order, float(item.quantity), recipe_id=item.recipe_id))
+
+        # MUHIM: "qaytarildi" deb BELGILAYMIZ — shu buyurtma keyinchalik
+        # tiklanib, YANA o'chirilsa ham, ombor IKKINCHI MARTA qaytarilmasin.
+        order.stock_returned = True
 
     # Nima uchun (to'liq) qaytmagani — foydalanuvchiga aytamiz
     reason = None
