@@ -1574,9 +1574,11 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
             "shortages": all_shortages
         })
     new_order = crud.create_order(db, order)
-    services.deduct_inventory_for_order(db, new_order)
-    services.deduct_termopanel_for_order(db, new_order, order)
-    low_items = crud.get_low_stock_items(db)
+    is_draft = getattr(order, 'is_draft', False)
+    if not is_draft:
+        services.deduct_inventory_for_order(db, new_order)
+        services.deduct_termopanel_for_order(db, new_order, order)
+    low_items = crud.get_low_stock_items(db) if not is_draft else []
     if low_items:
         lines = []
         for item in low_items:
