@@ -108,6 +108,32 @@ def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, capt
 init_database()
 
 
+def _migrate_recipe_name_column():
+    """ESKI QOLDIQ TUZATISH: bazada "recipes.name" ustuni, hozir kodda
+    umuman mavjud bo'lmagan "recipetype" maxsus (enum) turi sifatida
+    qolib ketgan edi (eski, allaqachon o'zgartirilgan versiyadan qolgan).
+    Buni oddiy matn (VARCHAR) turiga o'tkazadi — aks holda retsept
+    saqlashda "column is of type recipetype but expression is of type
+    character varying" xatosi chiqadi."""
+    from sqlalchemy import text
+    try:
+        from database import engine
+    except ImportError:
+        from database import SessionLocal
+        engine = SessionLocal().get_bind()
+    try:
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE recipes ALTER COLUMN name TYPE VARCHAR(100) USING name::text"
+            ))
+            conn.commit()
+            print("✓ recipes.name ustuni VARCHAR turiga o'tkazildi")
+    except Exception as e:
+        msg = str(e)
+        if 'does not exist' not in msg and 'already' not in msg.lower():
+            print(f"⚠ recipes.name migratsiyasi: {e}")
+
+
 def _migrate_payment_columns():
     """Mavjud bazaga to'lov ustunlarini qo'shadi (agar yo'q bo'lsa)."""
     from sqlalchemy import text, inspect
@@ -433,6 +459,7 @@ def _migrate_payment_columns():
         print(f"⚠ Migratsiya xatosi: {e}")
 
 
+_migrate_recipe_name_column()
 _migrate_payment_columns()
 
 from database import SessionLocal
