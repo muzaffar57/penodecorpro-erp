@@ -128,6 +128,7 @@ class StockPurchase(BaseModel):
     transport_payer: str = Field(default="none", description="none/self/supplier")
     volume_per_unit: Optional[float] = Field(default=None, gt=0, description="Penoplast uchun: 1 blok necha m³")
     payment_due_date: Optional[str] = Field(default=None, description="Qarzni qachongacha to'lash kerak (YYYY-MM-DD)")
+    is_opening_stock: bool = Field(default=False, description="Boshlang'ich (tizimni ishlata boshlashda mavjud) ombor — kassa balansiga ta'sir qilmasin")
 
 
 class SupplierCreate(BaseModel):
