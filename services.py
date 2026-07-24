@@ -1302,75 +1302,91 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
     tan_narxi_jami = 0.0
 
     # ── 1. PENOPLAST XARAJATI ────────────────────────────────
-    penoplast = db.query(Inventory).filter(
-        Inventory.item_name.ilike("%penoplast%")
-    ).first()
+    # MUHIM: har bir detal O'ZINING penoplast_id'siga (ya'ni aynan tanlangan
+    # plotnost/narxga) qarab hisoblanadi — "birinchi topilgan Penoplast"
+    # emas, chunki turli detallar turli plotnostdan bo'lishi mumkin
+    # (buni biz alohida "1 m³ narxi" maydoni orqali qo'llab-quvvatlaymiz).
+    default_penoplast = get_default_penoplast(db)
 
-    total_volume_m3 = 0.0
+    penoplast_xarajat = 0.0
+    penoplast_breakdown_by_item = {}  # penoplast_id -> {"vol": ..., "narx_per_m3": ...}
     for item in order.items:
         cat = (item.category or '').lower()
         qty = float(item.quantity or 1)
+        vol = 0.0
 
         if cat == 'profil':
             if item.width and item.thickness and item.length:
-                # Profil: /2 bilan (narx formulasi bilan bir xil)
                 vol = (item.width/100) * (item.thickness/100) / 2 * float(item.length)
-                total_volume_m3 += vol
-
         elif cat == 'panel':
             if item.width and item.thickness:
-                # JS bilan bir xil: Eni(m) × Qalinlik(m) × Miqdor
                 vol = (item.width/100) * (item.thickness/100) * qty
-                total_volume_m3 += vol
-
         elif cat == 'dona':
             if item.unit_price and float(item.unit_price) > 0:
-                p = db.query(Inventory).filter(
-                    Inventory.item_name.ilike("%penoplast%")
-                ).first()
-                if p and p.price_per_unit and p.volume_per_unit:
-                    narx_per_m3 = float(p.price_per_unit) / float(p.volume_per_unit)
-                    if narx_per_m3 > 0:
-                        vol = float(item.unit_price) / narx_per_m3 * qty
-                        total_volume_m3 += vol
+                pid_for_dona = item.penoplast_id or (default_penoplast.id if default_penoplast else None)
+                p_dona = db.query(Inventory).filter(Inventory.id == pid_for_dona).first() if pid_for_dona else None
+                if p_dona and p_dona.price_per_unit and p_dona.volume_per_unit:
+                    narx_per_m3_dona = float(p_dona.price_per_unit) / float(p_dona.volume_per_unit)
+                    if narx_per_m3_dona > 0:
+                        vol = float(item.unit_price) / narx_per_m3_dona * qty
 
-    penoplast_xarajat = 0.0
-    if penoplast and penoplast.price_per_unit and total_volume_m3 > 0:
-        # 1 m³ narxi = 1 blok narxi ÷ 1 blok hajmi (m³)
-        volume_per_unit = float(penoplast.volume_per_unit or 1.0)
-        narx_per_m3 = float(penoplast.price_per_unit) / volume_per_unit
-        penoplast_xarajat = total_volume_m3 * narx_per_m3
+        if vol <= 0:
+            continue
+
+        # Shu detal o'zining penoplast_id'si (yoki standart) bo'yicha narxlanadi
+        pid = item.penoplast_id or (default_penoplast.id if default_penoplast else None)
+        if not pid:
+            continue
+        key = pid
+        if key not in penoplast_breakdown_by_item:
+            inv_item = db.query(Inventory).filter(Inventory.id == pid).first()
+            if not inv_item or not inv_item.price_per_unit or not inv_item.volume_per_unit:
+                continue
+            narx_per_m3 = float(inv_item.price_per_unit) / float(inv_item.volume_per_unit)
+            penoplast_breakdown_by_item[key] = {"vol": 0.0, "narx_per_m3": narx_per_m3, "nomi": inv_item.item_name}
+        penoplast_breakdown_by_item[key]["vol"] += vol
+
+    for pid, data in penoplast_breakdown_by_item.items():
+        summa = data["vol"] * data["narx_per_m3"]
+        if summa <= 0:
+            continue
         breakdown.append({
-            "nomi": f"Penoplast ({total_volume_m3:.2f} m³ × {narx_per_m3:,.0f} so'm/m³)",
-            "summa": penoplast_xarajat
+            "nomi": f"{data['nomi']} ({data['vol']:.2f} m³ × {data['narx_per_m3']:,.0f} so'm/m³)",
+            "summa": summa
         })
-        tan_narxi_jami += penoplast_xarajat
+        penoplast_xarajat += summa
+    tan_narxi_jami += penoplast_xarajat
 
     # ── 2. QOPLAMA XOMASHYOSI XARAJATI ──────────────────────
     coated_items = [i for i in order.items if i.is_coated]
-    if coated_items:
-        # Loy miqdorini order.notes dan olamiz (tayyor bosilganda saqlangan)
-        loy_kg = 0.0
-        if order.notes:
+    # MUHIM: loy_kg BUYURTMA DARAJASIDA (notes'da) saqlanadi va, agar u
+    # kiritilgan bo'lsa, HISOBLANISHI kerak — hatto birorta detal aniq
+    # "Qoplama: Ha" deb belgilanmagan bo'lsa ham (masalan foydalanuvchi
+    # umumiy "Loy miqdori" maydoniga to'g'ridan-to'g'ri kiritgan bo'lsa).
+    loy_kg = 0.0
+    if order.notes:
+        try:
+            for part in order.notes.split(','):
+                p = part.strip()
+                if p.startswith('loy_kg='):
+                    loy_kg = float(p.split('=')[1].strip())
+                    break
+        except Exception as e:
             try:
-                for part in order.notes.split(','):
-                    p = part.strip()
-                    if p.startswith('loy_kg='):
-                        loy_kg = float(p.split('=')[1].strip())
-                        break
-            except Exception as e:
-                try:
-                    import crud as _crud_log
-                    _crud_log.log_error(db, str(e), endpoint="calculate_order_profit:loy_kg_parse")
-                except Exception:
-                    pass
+                import crud as _crud_log
+                _crud_log.log_error(db, str(e), endpoint="calculate_order_profit:loy_kg_parse")
+            except Exception:
+                pass
 
-        # Agar loy_kg saqlanmagan bo'lsa — 2 kg/m² dan hisoblash
-        if loy_kg <= 0:
-            for item in coated_items:
-                if item.width and item.length:
-                    perimetr_m = (item.width * 2 + (item.thickness or item.width) * 2) / 100
-                    loy_kg += perimetr_m * (item.length or 1) * float(item.quantity or 1) * 2.0
+    # Agar loy_kg saqlanmagan bo'lsa (va qoplamali detal bor bo'lsa) —
+    # taxminiy, perimetr asosida hisoblaymiz (eski, zaxira usul)
+    if loy_kg <= 0 and coated_items:
+        for item in coated_items:
+            if item.width and item.length:
+                perimetr_m = (item.width * 2 + (item.thickness or item.width) * 2) / 100
+                loy_kg += perimetr_m * (item.length or 1) * float(item.quantity or 1) * 2.0
+
+    if loy_kg > 0:
 
         # Retsept bo'yicha 1 kg loy narxi
         recipe = None
@@ -1420,7 +1436,7 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
         "foyda": foyda,
         "foyda_foiz": round(foyda_foiz, 1),
         "breakdown": breakdown,
-        "volume_m3": round(total_volume_m3, 3),
+        "volume_m3": round(sum(d["vol"] for d in penoplast_breakdown_by_item.values()), 3),
     }
 
 
