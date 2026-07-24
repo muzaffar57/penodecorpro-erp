@@ -1821,7 +1821,8 @@ def get_cash_balance(db: Session) -> dict:
     kirim_tolov = float(db.query(func.sum(Payment.amount)).scalar() or 0)
 
     chiqim_xomashyo_naqd = float(db.query(func.sum(InventoryPurchase.total_amount)).filter(
-        InventoryPurchase.is_credit == False
+        InventoryPurchase.is_credit == False,
+        InventoryPurchase.is_opening_stock.isnot(True)
     ).scalar() or 0)
     chiqim_yetkazib_beruvchi = float(db.query(func.sum(SupplierPayment.amount)).scalar() or 0)
 
