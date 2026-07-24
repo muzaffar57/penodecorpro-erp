@@ -344,6 +344,12 @@
               <div style="font-size:12.5px;color:var(--f-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">Sof foyda</div>
               <div class="fin-profit-big" id="profitBig">—</div>
               <div style="font-size:13px;color:var(--f-text3);margin-top:4px" id="profitPct">—</div>
+              <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--f-border)">
+                <div style="font-size:12.5px;color:var(--f-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">
+                  Buyurtmalardan foyda <span title="Faqat yakunlangan buyurtmalar (sotuv - tan narx), oylik xarajatlarsiz" style="cursor:help;color:#9CA3AF">ⓘ</span>
+                </div>
+                <div style="font-size:22px;font-weight:800" id="ordersFoydaBig">—</div>
+              </div>
             </div>
           </div>
         </div>
@@ -617,6 +623,11 @@ function buildExpDetail(d){
   document.getElementById('profitBig').textContent=fmtFull(d.sof_foyda)+" so'm";
   document.getElementById('profitBig').style.color=d.sof_foyda>=0?'#8E44AD':'#EF4444';
   document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
+  const obEl = document.getElementById('ordersFoydaBig');
+  if (obEl) {
+    obEl.textContent = fmtFull(d.buyurtmalar_foydasi||0)+" so'm";
+    obEl.style.color = (d.buyurtmalar_foydasi||0) >= 0 ? '#2563EB' : '#EF4444';
+  }
 }
 
 // ── BUGUNGI XARAJAT BATAFSIL (Xarajat kartasidan ochiladi) ──
