@@ -238,6 +238,10 @@
             <div class="rcv-field"><label>Transport xarajati (ixtiyoriy)</label><input type="text" id="ap-transport-cost" placeholder="0" disabled oninput="formatPriceInput(this)"></div>
             <div class="rcv-field"><label>Izoh</label><input type="text" id="ap-notes" placeholder="Masalan: Naqd pul bilan to'landi"></div>
           </div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;font-size:12.5px;color:#92400E;cursor:pointer">
+            <input type="checkbox" id="ap-opening-stock" style="width:16px;height:16px;cursor:pointer">
+            Bu — <b>boshlang'ich (allaqachon bor) ombor</b>, yangi xarid emas (Kassa balansiga ta'sir qilmaydi)
+          </label>
         </div>
       </div>
 
@@ -661,6 +665,7 @@ async function submitReceive(){
   const dueDate = document.getElementById('ap-due-date').value || null;
   const notes = document.getElementById('ap-notes').value || '';
   const docNum = document.getElementById('r-docnum').value || '';
+  const isOpeningStock = document.getElementById('ap-opening-stock')?.checked || false;
   const grandTotal = apBasket.reduce((s,l)=>s+l.total,0);
 
   let totalPaid = 0, totalDebt = 0, hadError = false;
@@ -676,7 +681,8 @@ async function submitReceive(){
           transport_payer: line===apBasket[0] ? transportPayer : 'none',
           transport_cost: line===apBasket[0] ? transportCost : 0,
           volume_per_unit: line.volumePerUnit,
-          payment_due_date: dueDate
+          payment_due_date: dueDate,
+          is_opening_stock: isOpeningStock
         })
       });
       if (res.ok){ const r = await res.json(); totalPaid += r.paid_now||0; totalDebt += r.debt_remains||0; }
