@@ -1954,7 +1954,7 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
         SupplierPayment, FinishedProduct, TransportExpense,
         ExpenseTransaction, MonthlyExpense, EmployeeSession, EmployeeAdvance,
         AdvanceRequest, Employee, Recipe, Inventory, Master, Project, Supplier,
-        CashTransaction, ActivityLog, UserSession, User
+        CashTransaction, ActivityLog, ErrorLog, LoginHistory, UserSession, User
     )
 
     # Tartib MUHIM va TO'LIQ tekshirilgan (har bir ForeignKey hisobga olingan):
@@ -1985,7 +1985,7 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
         TransportExpense, ExpenseTransaction, MonthlyExpense,
         EmployeeSession, EmployeeAdvance, AdvanceRequest, Employee,
         Recipe, Inventory, Master, Project, Supplier,
-        CashTransaction, ActivityLog,
+        CashTransaction, ActivityLog, ErrorLog, LoginHistory,
     ]
 
     counts = {}
