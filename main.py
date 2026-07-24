@@ -2572,10 +2572,13 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
 
 
 @app.post("/api/system/factory-reset")
-def api_factory_reset(confirm: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """DIQQAT: QAYTARIB BO'LMAYDIGAN AMAL!
     Foydalanuvchilardan (login) TASHQARI — BARCHA ma'lumotni butunlay o'chiradi:
     buyurtmalar, ombor, retseptlar, ustalar, yetkazib beruvchilar, loyihalar va h.k.
+    Agar keep_only_self=True bo'lsa — FAQAT hozirgi (o'zi) hisobidan tashqari,
+    boshqa BARCHA foydalanuvchilar (login) hisoblari HAM o'chiriladi.
     Xavfsizlik uchun — aniq tasdiqlash so'zisiz ishlamaydi."""
     REQUIRED_PHRASE = "HAMMASINI-OCHIR"
     if confirm != REQUIRED_PHRASE:
@@ -2584,8 +2587,10 @@ def api_factory_reset(confirm: str = "", db: Session = Depends(get_db), current_
             detail=f"Xavfsizlik uchun, so'rovga ?confirm={REQUIRED_PHRASE} qo'shing. "
                    "DIQQAT: bu amal QAYTARIB BO'LMAYDI!"
         )
-    result = crud.factory_reset_all_data(db)
-    return {"status": "ok", "message": "Barcha ma'lumot tozalandi (Foydalanuvchilardan tashqari)", "deleted": result}
+    keep_id = current_user.id if keep_only_self else None
+    result = crud.factory_reset_all_data(db, keep_only_user_id=keep_id)
+    msg = "Barcha ma'lumot tozalandi (faqat siz qoldingiz)" if keep_only_self else "Barcha ma'lumot tozalandi (Foydalanuvchilardan tashqari)"
+    return {"status": "ok", "message": msg, "deleted": result}
 
 
 @app.get("/kpi", response_class=HTMLResponse)
