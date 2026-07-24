@@ -114,6 +114,20 @@
   </div>
 </div>
 
+<!-- ══ XODIM PANELI — QR KOD ══ -->
+<div class="card" style="margin-top:20px">
+  <div class="card-head">
+    <h3>📱 Xodim paneli — QR kod</h3>
+  </div>
+  <div style="padding:16px">
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">
+      Xodimlar manzil yozib o'tirmasdan, telefon kamerasi bilan <b>skanerlab</b>, to'g'ridan-to'g'ri
+      o'z paneliga (avans yozish) kirishlari uchun — shu QR kodni chop etib, ish joyiga osib qo'ying.
+    </div>
+    <button class="btn btn-dark" onclick="showHodimQR()">📱 QR kodni ko'rsatish</button>
+  </div>
+</div>
+
 <!-- ══ XAVFLI HUDUD — bir martalik tizimni tozalash ══ -->
 <div class="card" style="margin-top:20px">
   <div class="card-head">
@@ -131,6 +145,20 @@
   </div>
 </div>
 
+<!-- ══ XODIM QR KOD MODALI ══ -->
+<div id="hodimQrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center">
+    <div style="font-size:16px;font-weight:700;margin-bottom:6px">📱 Xodim paneliga kirish</div>
+    <div style="font-size:12.5px;color:var(--text3);margin-bottom:18px">Telefon kamerasi bilan skanerlang</div>
+    <img id="hodimQrImg" src="" alt="QR kod" style="width:220px;height:220px;border:1px solid #eee;border-radius:12px;margin-bottom:14px">
+    <div id="hodimQrUrl" style="font-size:12px;color:var(--text3);word-break:break-all;margin-bottom:16px;font-family:monospace"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline w-full" onclick="window.print()">🖨️ Chop etish</button>
+      <button class="btn btn-dark w-full" onclick="document.getElementById('hodimQrModal').style.display='none'">Yopish</button>
+    </div>
+  </div>
+</div>
+
 <div class="card" style="margin-top:20px;border:2px solid #FCA5A5">
   <div class="card-head" style="background:#FEF2F2">
     <h3 style="color:#DC2626">⚠️ Xavfli hudud</h3>
@@ -141,8 +169,12 @@
       Retsept, Loyiha, To'lov, Usta, Yetkazib beruvchi ma'lumotini <b>butunlay, qaytarib bo'lmaydigan</b>
       tarzda o'chiradi. Faqat tizimni <b>toza sinovdan boshlash</b> uchun ishlating.
     </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px;color:var(--text2);cursor:pointer">
+      <input type="checkbox" id="fr-keep-only-self" style="width:16px;height:16px;cursor:pointer">
+      Boshqa foydalanuvchi (login) hisoblarini ham o'chirish — <b>faqat men (hozirgi admin) qolaman</b>
+    </label>
     <button class="btn" style="background:#DC2626;color:#fff;border:none" onclick="startFactoryReset()">
-      🗑️ Tizimni to'liq tozalash (Foydalanuvchilardan tashqari)
+      🗑️ Tizimni to'liq tozalash
     </button>
   </div>
 </div>
@@ -164,6 +196,14 @@ async function changePass(id, username){
   const res=await fetch(`/api/users/${id}/password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:p})});
   if(res.ok)alert('✓ Parol o\'zgartirildi!');else alert('Xato');
 }
+function showHodimQR(){
+  const url = window.location.origin + '/hodim';
+  const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
+  document.getElementById('hodimQrImg').src = qrImgUrl;
+  document.getElementById('hodimQrUrl').textContent = url;
+  document.getElementById('hodimQrModal').style.display = 'flex';
+}
+
 async function setupTelegramSecurity(){
   const btn = document.getElementById('tg-security-btn');
   const resultBox = document.getElementById('tg-security-result');
@@ -194,10 +234,16 @@ async function setupTelegramSecurity(){
 }
 
 async function startFactoryReset(){
+  const keepOnlySelf = document.getElementById('fr-keep-only-self')?.checked || false;
+  const extraWarning = keepOnlySelf
+    ? "\n\n⚠️ QO'SHIMCHA: boshqa BARCHA foydalanuvchi (login) hisoblari HAM o'chiriladi — faqat siz qolasiz!"
+    : "";
+
   if (!confirm(
     "⚠️ DIQQAT!\n\nBu amal FOYDALANUVCHILARDAN (login/parol) TASHQARI barcha ma'lumotni " +
-    "(buyurtma, ombor, retsept, loyiha, to'lov, usta, yetkazib beruvchi) BUTUNLAY o'chiradi.\n\n" +
-    "Bu QAYTARIB BO'LMAYDI.\n\nDavom etasizmi?"
+    "(buyurtma, ombor, retsept, loyiha, to'lov, usta, yetkazib beruvchi) BUTUNLAY o'chiradi." +
+    extraWarning +
+    "\n\nBu QAYTARIB BO'LMAYDI.\n\nDavom etasizmi?"
   )) return;
 
   const phrase = prompt(
@@ -211,7 +257,8 @@ async function startFactoryReset(){
   }
 
   try {
-    const res = await fetch(`/api/system/factory-reset?confirm=${encodeURIComponent(phrase)}`, { method: 'POST' });
+    const url = `/api/system/factory-reset?confirm=${encodeURIComponent(phrase)}&keep_only_self=${keepOnlySelf}`;
+    const res = await fetch(url, { method: 'POST' });
     const r = await res.json();
     if (res.ok) {
       const lines = Object.entries(r.deleted || {}).map(([table, n]) => `${table}: ${n} ta`).join("\n");
