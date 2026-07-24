@@ -1792,6 +1792,10 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         # Ehson (admin belgilagan foiz)
         "ehson_percent": ehson_result["percent"],
         "ehson_xarajat": ehson_xarajat,
+        # Faqat yakunlangan BUYURTMALARNING sof foydasi (oylik xarajatlarsiz) —
+        # "Sof foyda"dan FARQLI, qo'shimcha ko'rsatkich. Allaqachon ehson_result
+        # ichida hisoblangan qiymatning o'zi — yangi hisob-kitob emas.
+        "buyurtmalar_foydasi": ehson_result["monthly_profit"],
         # Moslashuvchan hodimlar
         "hodimlar_moslashuvchan_xarajat": hodimlar_moslashuvchan_xarajat,
         "hodimlar_moslashuvchan_breakdown": emp_result["breakdown"],
@@ -3169,14 +3173,17 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
 def calculate_monthly_ehson(db: Session, year: int, month: int) -> dict:
     """Shu oy SOF FOYDASIDAN — admin belgilagan foizga ko'ra — Ehson (xayriya)
     miqdorini hisoblaydi. Usta KPI bilan bir xil mantiqda, lekin bitta,
-    umumiy (butun korxona) foiz asosida — har bir alohida usta emas."""
+    umumiy (butun korxona) foiz asosida — har bir alohida usta emas.
+
+    MUHIM: "monthly_profit" — Ehson foizi 0 bo'lsa ham HAR DOIM to'g'ri
+    hisoblanadi (chunki bu qiymat, Moliyadagi "Buyurtmalardan foyda"
+    ko'rsatkichi uchun ham ishlatiladi — Ehson yoqilgan-yoqilmaganidan
+    qat'i nazar)."""
     from models import Order, OrderStatus
     from sqlalchemy import extract
     import crud as _crud
 
     percent = float(_crud.get_setting(db, "ehson_percent", "0") or 0)
-    if percent <= 0:
-        return {"percent": 0.0, "monthly_profit": 0, "ehson_amount": 0}
 
     orders = db.query(Order).filter(
         Order.status == OrderStatus.READY,
