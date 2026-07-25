@@ -1639,10 +1639,15 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
                 # Profil: uzunlik (m) × miqdor
                 uzunlik_m = float(item.length or 0)
                 jami_metr += uzunlik_m * float(item.quantity or 1)
+
             elif category == "panel":
-                # Panel: eni (m) × miqdor
-                uzunlik_m = float(item.length or 0)
-                jami_panel_metr += uzunlik_m * float(item.quantity or 1)
+                # MUHIM: Panelda "Miqdor" maydonining o'zi — METR ma'nosini
+                # bildiradi (masalan "100 metr panel"), "Uzunlik" maydoni esa
+                # panel uchun ATAYLAB ishlatilmaydi (frontendda har doim 0
+                # qilib qo'yiladi). Shuning uchun panel metri —
+                # item.quantity'dan olinadi, item.length'dan EMAS.
+                jami_panel_metr += float(item.quantity or 0)
+
             else:
                 # Donali
                 jami_dona += float(item.quantity or 1)
