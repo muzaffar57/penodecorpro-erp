@@ -2491,6 +2491,13 @@ function updateLiveStats() {
       // Haqiqiy .i-l maydoni Panelda ishlatilmaydi (har doim 0).
       const qEl = row.querySelector('.i-q');
       if (qEl) totalLength += parseFloat(qEl.value || 0);
+    } else if (rowType === 'blok') {
+      // MUHIM: Blokda ".i-l" — "1 blokdan chiqadigan metr" (bir blokning
+      // o'zi necha metr berishi, ya'ni ISHLAB CHIQARISH normasi), ".i-q"
+      // esa — "Necha metr KERAK" (haqiqiy buyurtma miqdori). Statistikada
+      // haqiqiy kerakli metr (.i-q) hisoblanishi kerak, normasi (.i-l) emas.
+      const qEl = row.querySelector('.i-q');
+      if (qEl) totalLength += parseFloat(qEl.value || 0);
     } else {
       const lEl = row.querySelector('.i-l');
       if (lEl) totalLength += parseFloat(lEl.value || 0);
