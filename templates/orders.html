@@ -2484,8 +2484,17 @@ function updateLiveStats() {
     namedCount++;
     totalVolume += parseFloat(row.dataset.volume || 0);
     totalPrice += parseFloat(row.dataset.price || 0);
-    const lEl = row.querySelector('.i-l');
-    if (lEl) totalLength += parseFloat(lEl.value || 0);
+    const rowType = row.querySelector('.i-type')?.value;
+    if (rowType === 'panel') {
+      // MUHIM: Panelda "Uzunlik (m)" deb ko'rinadigan maydon — aslida
+      // "Miqdor" (.i-q) maydonining o'zi, faqat nomi almashtirilgan.
+      // Haqiqiy .i-l maydoni Panelda ishlatilmaydi (har doim 0).
+      const qEl = row.querySelector('.i-q');
+      if (qEl) totalLength += parseFloat(qEl.value || 0);
+    } else {
+      const lEl = row.querySelector('.i-l');
+      if (lEl) totalLength += parseFloat(lEl.value || 0);
+    }
   });
 
   const loyKg = parseFloat(document.getElementById('loy_kg')?.value || 0);
