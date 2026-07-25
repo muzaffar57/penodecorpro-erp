@@ -2099,7 +2099,7 @@ function addItem() {
       <div class="dif" style="grid-column:1/-1;position:relative">
         <label>Nomi</label>
         <input placeholder="Karniz M-06" class="i-name" autocomplete="off"
-               oninput="searchFinished(this)" onblur="hideFpSuggest(this)">
+               oninput="searchFinished(this);updateTotal();updateLiveStats()" onblur="hideFpSuggest(this)">
         <div class="fp-suggest" style="display:none"></div>
       </div>
       <div class="dif"><label>Tur</label>
