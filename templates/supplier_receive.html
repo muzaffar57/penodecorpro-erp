@@ -224,7 +224,12 @@
               <label>To'lov muddati <span style="font-weight:400;color:var(--r-text3)">(qarz qolsa)</span></label>
               <input type="date" id="ap-due-date">
             </div>
-            <div class="rcv-field"><label>Hozir to'langan summa</label><input type="text" id="ap-paid-now" placeholder="0" oninput="formatPriceInput(this)"></div>
+            <div class="rcv-field"><label>Hozir to'langan summa</label>
+              <div style="display:flex;gap:6px">
+                <input type="text" id="ap-paid-now" placeholder="0" oninput="formatPriceInput(this)" style="flex:1">
+                <button type="button" onclick="apPayFull()" style="flex-shrink:0;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;border-radius:8px;padding:0 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">To'liq to'lash</button>
+              </div>
+            </div>
             <div class="rcv-field">
               <label>Transport (kim to'laydi)</label>
               <select id="ap-transport-payer" onchange="document.getElementById('ap-transport-cost').disabled = this.value==='none'; if(this.value==='none') document.getElementById('ap-transport-cost').value='';">
@@ -637,6 +642,15 @@ function updateSummary(){
   document.getElementById('sum-grand').textContent = fmt(grand)+" so'm";
   document.getElementById('sum-paid').textContent = fmt(paid)+" so'm";
   document.getElementById('sum-debt').textContent = fmt(debt)+" so'm";
+}
+
+function apPayFull(){
+  const productsTotal = apBasket.reduce((s,b)=>s+b.total,0);
+  const transport = parseNum(document.getElementById('ap-transport-cost').value)||0;
+  const grand = productsTotal + transport;
+  if (grand <= 0) { showMsg('❌ Avval mahsulot qo\'shing', 'error'); return; }
+  document.getElementById('ap-paid-now').value = fmt(grand);
+  updateSummary();
 }
 document.getElementById('ap-transport-cost').addEventListener('input', updateSummary);
 document.getElementById('ap-paid-now').addEventListener('input', updateSummary);
