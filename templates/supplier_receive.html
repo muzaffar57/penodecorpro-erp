@@ -685,17 +685,21 @@ async function submitReceive(){
   const grandTotal = apBasket.reduce((s,l)=>s+l.total,0);
 
   let totalPaid = 0, totalDebt = 0, hadError = false;
-  // MUHIM: barcha mahsulotlarni BIR VAQTDA (parallel) yuboramiz — birma-bir,
-  // navbat kutib yuborilganda, har biri ~0.3-0.5 soniya olsa, 8 tasi
-  // ketma-ket 3-4 soniyaga cho'zilib ketardi. Parallel yuborilganda esa,
-  // barchasi TAXMINAN BIR VAQTDA, eng sekin birinchisicha tugaydi.
+  // SODDALASHTIRILDI: har bir mahsulot uchun to'lovni ALOHIDA, nisbatan
+  // taqsimlash o'rniga — barcha mahsulotlar ODDIY, TO'LIQ NASIYA sifatida
+  // yoziladi (bir vaqtda, parallel), so'ngra, agar naqd to'lov kiritilgan
+  // bo'lsa — YAGONA, umumiy to'lov sifatida yetkazib beruvchi qarzidan
+  // ayiriladi. Natija — bir xil (jami qarz to'g'ri), lekin ancha oddiyroq.
   const results = await Promise.all(apBasket.map(async (line) => {
-    const linePaid = grandTotal>0 ? round2(paidNowTotal*(line.total/grandTotal)) : 0;
     try {
+      // Boshlang'ich ombor bo'lsa — bu, haqiqiy xarid emas, shuning uchun
+      // "to'liq to'langan" deb yuboramiz (aks holda, tasodifan yetkazib
+      // beruvchiga qarz sifatida yozilib qolishi mumkin edi).
+      const linePaidNow = isOpeningStock ? (line.qty * line.price) : 0;
       const res = await fetch(`/api/inventory/${line.itemId}/purchase`, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
-          quantity: line.qty, price_per_unit: line.price, paid_now: linePaid,
+          quantity: line.qty, price_per_unit: line.price, paid_now: linePaidNow,
           supplier_id: currentSupplierId,
           notes: (docNum ? `[${docNum}] `:'') + (notes || 'Kirim sahifasidan qo\'shildi'),
           transport_payer: line===apBasket[0] ? transportPayer : 'none',
@@ -705,16 +709,33 @@ async function submitReceive(){
           is_opening_stock: isOpeningStock
         })
       });
-      if (res.ok){ const r = await res.json(); return { ok:true, paid:r.paid_now||0, debt:r.debt_remains||0 }; }
+      if (res.ok){ const r = await res.json(); return { ok:true, debt:r.debt_remains||0 }; }
       return { ok:false };
     } catch(e){ return { ok:false }; }
   }));
   for (const r of results) {
-    if (r.ok) { totalPaid += r.paid; totalDebt += r.debt; }
+    if (r.ok) { totalDebt += r.debt; }
     else hadError = true;
   }
 
   if (hadError) { showMsg('⚠️ Ba\'zi mahsulotlar saqlanmadi', 'error'); return; }
+
+  // Endi, agar naqd to'lov kiritilgan bo'lsa (va boshlang'ich ombor bo'lmasa) —
+  // YAGONA, umumiy to'lov sifatida, yetkazib beruvchi qarzidan ayiramiz.
+  if (!isOpeningStock && paidNowTotal > 0 && currentSupplierId) {
+    try {
+      const payRes = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ supplier_id: currentSupplierId, amount: paidNowTotal,
+                                notes: docNum ? `[${docNum}] Kirim to'lovi` : "Kirim to'lovi",
+                                confirm_overpay: true })
+      });
+      if (payRes.ok) {
+        totalPaid = paidNowTotal;
+        totalDebt = Math.max(0, totalDebt - paidNowTotal);
+      }
+    } catch(e) { /* to'lov saqlanmasa ham, kirimning o'zi saqlangan — jim o'tkazamiz */ }
+  }
 
   showMsg(`✓ Kirim saqlandi! To'landi: ${fmt(totalPaid)} so'm${totalDebt>0.5?`, Qarz: ${fmt(totalDebt)} so'm`:''}`, 'success');
   apBasket = []; invItems = [];
