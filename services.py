@@ -1484,9 +1484,12 @@ def get_daily_finance_summary(db: Session, target_date) -> Dict:
     total_profit = total_sales - total_cost
 
     # ── 2) XARAJAT — xomashyo xaridi (nimaga qancha) ──
+    # MUHIM: "boshlang'ich ombor" kirimlar bu yerga kirmaydi (yuqoridagi
+    # get_purchase_stats_for_period bilan bir xil sabab).
     purchases_today = db.query(InventoryPurchase).filter(
         InventoryPurchase.purchased_at >= start,
-        InventoryPurchase.purchased_at < end
+        InventoryPurchase.purchased_at < end,
+        InventoryPurchase.is_opening_stock.isnot(True)
     ).all()
     material_total = sum(float(p.total_amount or 0) for p in purchases_today)
     material_breakdown = {}
@@ -1893,7 +1896,12 @@ def get_cash_balance(db: Session) -> dict:
 
 
 def get_purchase_stats_for_period(db: Session, year: int, month: int) -> dict:
-    """Berilgan oy uchun xomashyo xaridi statistikasi."""
+    """Berilgan oy uchun xomashyo xaridi statistikasi.
+    MUHIM: "boshlang'ich (mavjud) ombor" sifatida belgilangan kirimlar
+    bu yerga KIRMAYDI — chunki ular yangi xarid emas, tizimni ishlata
+    boshlaganda mavjud xomashyoni hisobga olish uchun (bir martalik
+    kiritish). Aks holda, "shu oy xarajati" noto'g'ri, shishirilgan
+    chiqib qolar edi."""
     from models import InventoryPurchase
     from datetime import datetime as dt
 
@@ -1902,7 +1910,8 @@ def get_purchase_stats_for_period(db: Session, year: int, month: int) -> dict:
 
     purchases = db.query(InventoryPurchase).filter(
         InventoryPurchase.purchased_at >= start,
-        InventoryPurchase.purchased_at < end
+        InventoryPurchase.purchased_at < end,
+        InventoryPurchase.is_opening_stock.isnot(True)
     ).all()
 
     by_material = {}
