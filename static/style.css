@@ -545,6 +545,20 @@ body {
     grid-template-columns: 1fr;
   }
 
+  /* Mobil brauzerlarda 100vh manzil satri/pastki panelni hisobga olmaydi —
+     shu sabab sahifaning pastki qismi ko'rinmay qolar edi.
+     100dvh haqiqiy ko'rinadigan balandlikni hisoblaydi (qo'llab-quvvatlamaydigan
+     brauzerlarda bu qator e'tiborga olinmay, yuqoridagi 100vh kuchda qoladi). */
+  body { height: 100dvh; }
+  .erp-layout { height: 100dvh; }
+  .sidebar { height: 100dvh; }
+
+  /* Sahifaning eng pastki qatori/kartasi mobil brauzer panellari
+     tomonidan yopilib qolmasligi uchun qo'shimcha bo'sh joy */
+  .erp-content {
+    padding-bottom: 90px;
+  }
+
   .sidebar {
     position: fixed;
     top: 0; left: 0;
