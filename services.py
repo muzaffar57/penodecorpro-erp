@@ -1762,6 +1762,19 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     qoshimcha_xarajatlar = {cat: float(total or 0) for cat, total in extra_rows}
     qoshimcha_xarajat_jami = sum(qoshimcha_xarajatlar.values())
 
+    # ── 3b. BRAK (yaroqsiz) SABABLI ISROF BO'LGAN XOMASHYO ─────
+    # Bu — haqiqiy zarar (xomashyo ishlatildi, lekin sotilmadi), shuning
+    # uchun boshqa xarajatlar kabi Sof foydadan ayirilishi kerak.
+    import crud as _crud_brak
+    from datetime import datetime as _dt_brak
+    _brak_start = _dt_brak(year, month, 1)
+    _brak_end = _dt_brak(year + 1, 1, 1) if month == 12 else _dt_brak(year, month + 1, 1)
+    try:
+        brak_summary = _crud_brak.get_brak_material_summary(db, start_date=_brak_start, end_date=_brak_end)
+        brak_xarajat = float(brak_summary.get("total_value", 0) or 0)
+    except Exception:
+        brak_xarajat = 0.0
+
     # Jami xarajat (arenda/elektr/tushlik/soliq/reklama/kutilmagan va h.k. — hodim
     # to'lovi endi "Ustalar KPI / Hodimlar" bo'limida alohida hisoblanadi)
     jami_xarajat_eski = (
@@ -1769,7 +1782,8 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         xarajatlar["elektr"] +
         xarajatlar["tushlik"] +
         xarajatlar["soliqlar"] +
-        qoshimcha_xarajat_jami
+        qoshimcha_xarajat_jami +
+        brak_xarajat
     )
 
     # ── 4b. USTA YILLIK KPI (oylik ulush) ─────────────────────
@@ -1834,6 +1848,7 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         # Ehson (admin belgilagan foiz)
         "ehson_percent": ehson_result["percent"],
         "ehson_xarajat": ehson_xarajat,
+        "brak_xarajat": round(brak_xarajat),
         # Faqat yakunlangan BUYURTMALARNING sof foydasi (oylik xarajatlarsiz) —
         # "Sof foyda"dan FARQLI, qo'shimcha ko'rsatkich. Allaqachon ehson_result
         # ichida hisoblangan qiymatning o'zi — yangi hisob-kitob emas.
