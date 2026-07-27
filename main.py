@@ -904,6 +904,30 @@ def api_update_inventory_item(item_id: int, data: schemas.InventoryUpdate, db: S
     return {"status": "ok", "category": updated.category}
 
 
+@app.post("/api/inventory/receipt")
+def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Session = Depends(get_db),
+                                  current_user=Depends(auth.admin_or_warehouse)):
+    """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
+    (Transport/Tushirish/Yuklash/Boshqa) bilan birga, BITTA yagona
+    tranzaksiyada saqlaydi. Xato bo'lsa — hech narsa saqlanmaydi (rollback)."""
+    who = current_user.full_name or current_user.username
+    try:
+        result = crud.create_inventory_receipt(
+            db,
+            items=[it.model_dump() for it in data.items],
+            transport_cost=data.transport_cost, tushirish_cost=data.tushirish_cost,
+            yuklash_cost=data.yuklash_cost, boshqa_cost=data.boshqa_cost,
+            add_to_cost=data.add_to_cost, supplier_id=data.supplier_id,
+            document_number=data.document_number, paid_now=data.paid_now,
+            notes=data.notes, created_by=who
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Kirim saqlashda xato: {str(e)}")
+
+
 @app.post("/api/inventory/{item_id}/purchase")
 def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi.
