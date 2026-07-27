@@ -904,10 +904,11 @@ def get_today_stats(db: Session) -> Dict:
         Order.is_deleted.isnot(True)
     ).distinct().count()
 
+    # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — "bugungi foyda"
+    # ko'rsatkichi ham, moliyaviy tarix sifatida, o'zgarmasligi kerak.
     completed_today = db.query(Order).filter(
         Order.completed_at >= today_start, Order.completed_at < today_end,
-        Order.status == OrderStatus.READY,
-        Order.is_deleted.isnot(True)
+        Order.status == OrderStatus.READY
     ).all()
     today_profit = 0.0
     for o in completed_today:
@@ -1214,11 +1215,13 @@ def get_chart_data(db: Session) -> Dict:
             Order.is_deleted.isnot(True)
         ).count()
 
+        # MUHIM: daromad (revenue) — moliyaviy tarix, o'chirilgan
+        # buyurtmalar ham hisobga olinishi kerak (faqat "count" — necha ta
+        # buyurtma yaratilgani — o'zgarishsiz qoladi, chunki bu shunchaki son).
         revenue = db.query(func.sum(Order.total_amount)).filter(
             Order.created_at >= month_start,
             Order.created_at < month_end,
-            Order.status == OrderStatus.READY,
-            Order.is_deleted.isnot(True)
+            Order.status == OrderStatus.READY
         ).scalar() or 0
 
         months_data.append({
@@ -1242,10 +1245,11 @@ def get_chart_data(db: Session) -> Dict:
     masters = db.query(Master).filter(Master.is_active == True).all()
     master_kpi = []
     for m in masters:
+        # MUHIM: bu ham daromad (moliyaviy) hisob-kitobi — o'chirilgan
+        # buyurtmalar ham hisobga olinadi.
         total = db.query(func.sum(Order.total_amount)).filter(
             Order.master_id == m.id,
-            Order.status == OrderStatus.READY,
-            Order.is_deleted.isnot(True)
+            Order.status == OrderStatus.READY
         ).scalar() or 0
         order_count = db.query(Order).filter(
             Order.master_id == m.id,
@@ -1474,11 +1478,12 @@ def get_daily_finance_summary(db: Session, target_date) -> Dict:
     end = start + timedelta(days=1)
 
     # ── 1) SAVDO — shu kun yakunlangan buyurtmalar ──
+    # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
+    # tarix (shu kunning haqiqiy savdosi) o'zgarmasligi kerak.
     orders_today = db.query(Order).filter(
         Order.completed_at >= start,
         Order.completed_at < end,
-        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
-        Order.is_deleted.isnot(True)
+        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED])
     ).all()
 
     total_sales = 0.0
