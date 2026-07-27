@@ -835,18 +835,19 @@ function tCalc() {
   }
   if (serp) {
     const areaPerRulon = parseFloat(serp.volume_per_unit) || 50;
-    const rulon = (m2 * 2) / areaPerRulon;
+    const serpRatio = (bazalt && bazalt.serp_ratio_per_m2) ? parseFloat(bazalt.serp_ratio_per_m2) : 2.0;
+    const rulon = (m2 * serpRatio) / areaPerRulon;
     const cost = rulon * (serp.price_per_unit || 0);
-    html += `🕸️ Serpiyanka (avtomatik, 2 tomon): <b>${rulon.toFixed(2)} rulon</b> (${fmt(cost)} so'm)<br>`;
+    html += `🕸️ Serpiyanka (avtomatik, ${serpRatio}× maydon): <b>${rulon.toFixed(2)} rulon</b> (${fmt(cost)} so'm)<br>`;
   } else {
     html += `<span style="color:#DC2626">🕸️ Ombordа serpiyanka topilmadi — kirim qiling</span><br>`;
   }
   const kley = termoInventory.find(i => i.item_name.toLowerCase().includes('kley'));
   if (kley) {
-    const kleyRatio = parseFloat(kley.volume_per_unit) || 0.4;
-    const kleyKg = (m2 * 2) * kleyRatio;
+    const kleyRatio = (bazalt && bazalt.kley_ratio_per_m2) ? parseFloat(bazalt.kley_ratio_per_m2) : 0.8;
+    const kleyKg = m2 * kleyRatio;
     const kleyCost = kleyKg * (kley.price_per_unit || 0);
-    html += `🧴 Kley (avtomatik): <b>${kleyKg.toFixed(2)} kg</b> (${fmt(kleyCost)} so'm)<br>`;
+    html += `🧴 Kley (avtomatik, ${kleyRatio} kg/m²): <b>${kleyKg.toFixed(2)} kg</b> (${fmt(kleyCost)} so'm)<br>`;
   } else {
     html += `<span style="color:#DC2626">🧴 Ombordа kley topilmadi — kirim qiling</span><br>`;
   }
