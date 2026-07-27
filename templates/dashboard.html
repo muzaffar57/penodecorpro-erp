@@ -727,7 +727,10 @@ async function loadObligationsWidget(){
     (dueDates || []).forEach(d => { dueBySupplier[d.supplier_id] = d; });
 
     const items = [];
-    (status.recurring || []).forEach(r => items.push({icon: r.icon, label: r.label, amount: r.debt, status: r.status}));
+    (status.recurring || []).forEach(r => {
+      const dayInfo = r.status === 'overdue' ? `${r.due_day}-kunidan kechikdi!` : `har oy ${r.due_day}-kunigacha`;
+      items.push({icon: r.icon, label: `${r.label} (${dayInfo})`, amount: r.debt, status: r.status});
+    });
     (status.employees || []).forEach(e => items.push({icon: '👷', label: e.name + ' ish haqi', amount: e.qolgan, status: e.status}));
     (suppliers || []).filter(s => s.debt > 0).forEach(s => {
       const due = dueBySupplier[s.id];
