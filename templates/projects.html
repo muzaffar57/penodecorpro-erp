@@ -10,6 +10,14 @@
 {% block head %}
 <style>
 .proj-page{padding:14px}
+@media (max-width:1000px){
+  .proj-page{
+    flex:1;
+    min-height:0;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+}
 .proj-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
 .proj-filters input,.proj-filters select{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;outline:none;transition:border .15s}
 .proj-filters input:focus,.proj-filters select:focus{border-color:var(--gold)}
