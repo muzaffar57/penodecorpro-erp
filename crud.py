@@ -296,8 +296,33 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
                    purchased_by: str = None, notes: str = None,
                    supplier_id: int = None, is_credit: bool = False,
                    volume_per_unit: float = None, payment_due_date: str = None,
-                   is_opening_stock: bool = False):
-    """Ombor kirimi — xarid narxi bilan.
+                   is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0):
+    """Ombor kirimi — xarid narxi bilan (DARHOL commit qiladi — ORQAGA MOSLIK
+    uchun saqlangan, hozirgi barcha eski chaqiruvchilar shu funksiyani
+    ishlatadi). Ko'p mahsulotli, BITTA tranzaksiya kerak bo'lgan hollarda
+    (masalan Ombor Kirim hujjati) — o'rniga _purchase_stock_no_commit()
+    ishlatiladi, va commit FAQAT oxirida, bir marta qilinadi."""
+    result = _purchase_stock_no_commit(
+        db, item_id, quantity, price_per_unit, purchased_by, notes,
+        supplier_id, is_credit, volume_per_unit, payment_due_date,
+        is_opening_stock, extra_cost_per_unit
+    )
+    if result is None:
+        return None
+    db.commit()
+    db.refresh(result["item"])
+    result["new_price"] = float(result["item"].price_per_unit)
+    result["new_volume"] = float(result["item"].volume_per_unit)
+    return result
+
+
+def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_per_unit: float,
+                   purchased_by: str = None, notes: str = None,
+                   supplier_id: int = None, is_credit: bool = False,
+                   volume_per_unit: float = None, payment_due_date: str = None,
+                   is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0):
+    """Ombor kirimi — xarid narxi bilan. COMMIT QILMAYDI (chaqiruvchi
+    o'zi, barcha ishlar tugagach, bitta marta commit qilishi kerak).
     O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
 
         yangi_narx = (eski_qty × eski_narx + yangi_qty × xarid_narxi) / (eski_qty + yangi_qty)
@@ -312,6 +337,12 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
     ombor miqdori/narxi ODATDAGIDEK qo'shiladi, LEKIN Kassa balansi hisobida bu
     "naqd sarflangan pul" deb HISOBLANMAYDI (chunki bu — yangi xarid emas, tizimni
     ishlata boshlashda mavjud xomashyoni hisobga olish).
+
+    extra_cost_per_unit — Ombor Kirim hujjatidagi qo'shimcha xarajatlar (Transport,
+    Tushirish, Yuklash, Boshqa) shu material uchun taqsimlangan ulushi (1 birlikka).
+    MUHIM: bu, faqat OMBORDAGI O'RTACHA TANNARXni oshirish uchun ishlatiladi —
+    InventoryPurchase yozuvidagi price_per_unit/total_amount esa, ASL (tashqi
+    hisobot, yetkazib beruvchi qarzi uchun) narxda, o'zgarishsiz qoladi.
     """
     from models import InventoryPurchase
 
@@ -323,11 +354,15 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
     old_price = float(db_item.price_per_unit or 0)
     old_volume = float(db_item.volume_per_unit or 1.0)
 
+    # O'rtacha tannarx hisoblanadiganda — ASL narx EMAS, "samarali narx"
+    # (asl narx + shu birlikka to'g'ri kelgan qo'shimcha xarajat) ishlatiladi.
+    effective_price_for_avg = price_per_unit + (extra_cost_per_unit or 0.0)
+
     total_qty = old_qty + quantity
     if total_qty > 0:
-        weighted_price = (old_qty * old_price + quantity * price_per_unit) / total_qty
+        weighted_price = (old_qty * old_price + quantity * effective_price_for_avg) / total_qty
     else:
-        weighted_price = price_per_unit
+        weighted_price = effective_price_for_avg
 
     db_item.stock_quantity = total_qty
     db_item.price_per_unit = round(weighted_price, 2)
@@ -365,7 +400,8 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         is_credit=is_credit,
         category=db_item.category,
         payment_due_date=due_date_parsed,
-        is_opening_stock=is_opening_stock
+        is_opening_stock=is_opening_stock,
+        extra_cost_per_unit=round(extra_cost_per_unit or 0.0, 4)
     )
     db.add(purchase)
     supplier_name = None
@@ -379,11 +415,11 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         reason=f"Yetkazib beruvchi: {supplier_name}" if supplier_name else "Xarid",
         supplier_id=supplier_id, performed_by=purchased_by, notes=notes
     )
-    db.commit()
-    db.refresh(db_item)
+    db.flush()
 
     return {
         "item": db_item,
+        "purchase": purchase,
         "old_price": old_price,
         "new_price": float(db_item.price_per_unit),
         "old_qty": old_qty,
@@ -392,6 +428,139 @@ def purchase_stock(db: Session, item_id: int, quantity: float, price_per_unit: f
         "new_volume": float(db_item.volume_per_unit),
         "volume_changed": volume_changed
     }
+
+
+def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0.0,
+                              tushirish_cost: float = 0.0, yuklash_cost: float = 0.0,
+                              boshqa_cost: float = 0.0, add_to_cost: bool = False,
+                              supplier_id: int = None, document_number: str = None,
+                              paid_now: float = 0.0, notes: str = None, created_by: str = None) -> dict:
+    """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
+    (Transport, Tushirish/Grushchik, Yuklash, Boshqa) bilan birga, BITTA
+    yagona tranzaksiya sifatida saqlaydi. Xato bo'lsa — HAMMASI (barcha
+    mahsulotlar, barcha xarajatlar) ROLLBACK qilinadi, hech narsa
+    yarim-yorti saqlanib qolmaydi.
+
+    items — har biri: {inventory_id, quantity, price_per_unit, volume_per_unit
+    (ixtiyoriy), is_opening_stock (ixtiyoriy), notes (ixtiyoriy)}
+
+    add_to_cost=True bo'lsa — 4 ta qo'shimcha xarajat, mahsulotlarning
+    QIYMATIGA (quantity × price_per_unit) NISBATAN PROPORSIONAL taqsimlanadi,
+    va ombordagi o'rtacha tannarxga qo'shiladi. False bo'lsa — bu xarajatlar
+    faqat Moliyada, alohida ko'rinadi, tannarxga ta'sir qilmaydi.
+
+    paid_now — MUHIM: soddalashtirilgan yondashuv (Xomashyo ta'minoti
+    sahifasidagi bilan bir xil mantiq). Har bir mahsulot ALOHIDA-ALOHIDA
+    qisman to'lov taqsimlanmaydi — barcha mahsulotlar TO'LIQ NASIYA
+    (is_credit=True) sifatida yoziladi (agar boshlang'ich ombor bo'lmasa),
+    so'ngra, agar paid_now>0 bo'lsa, YAGONA, umumiy SupplierPayment
+    yaratiladi — bu, yetkazib beruvchi qarzidan avtomatik ayiriladi.
+
+    SaaS uchun kengaytiriladigan: kelajakda yangi xarajat turi qo'shish uchun,
+    shu funksiyaga yangi parametr va extra_costs ro'yxatiga yangi qator
+    qo'shish kifoya."""
+    from models import InventoryReceipt, ExpenseTransaction
+
+    if not items:
+        return {"success": False, "error": "Hech qanday mahsulot kiritilmagan"}
+
+    try:
+        receipt = InventoryReceipt(
+            supplier_id=supplier_id, document_number=document_number,
+            transport_cost=transport_cost or 0, tushirish_cost=tushirish_cost or 0,
+            yuklash_cost=yuklash_cost or 0, boshqa_cost=boshqa_cost or 0,
+            add_to_cost=add_to_cost, notes=notes, created_by=created_by
+        )
+        db.add(receipt)
+        db.flush()  # receipt.id kerak bo'ladi
+
+        total_extra = float(transport_cost or 0) + float(tushirish_cost or 0) + \
+                      float(yuklash_cost or 0) + float(boshqa_cost or 0)
+
+        # Barcha mahsulotlarning BAZA (xomashyoning o'zi) qiymati — proporsional
+        # taqsimlash uchun "og'irlik" sifatida ishlatiladi.
+        items_total_value = sum(float(it["quantity"]) * float(it["price_per_unit"]) for it in items)
+
+        created_results = []
+        purchase_ids = []
+        for it in items:
+            base_value = float(it["quantity"]) * float(it["price_per_unit"])
+            extra_share = 0.0
+            if add_to_cost and total_extra > 0 and items_total_value > 0:
+                extra_share = total_extra * (base_value / items_total_value)
+            extra_per_unit = (extra_share / float(it["quantity"])) if float(it["quantity"]) > 0 else 0.0
+
+            is_opening = bool(it.get("is_opening_stock", False))
+            # Boshlang'ich ombor bo'lmasa — HAMMASI, soddalik uchun, to'liq
+            # nasiya sifatida yoziladi (pastda, yagona to'lov ayiriladi).
+            item_is_credit = (not is_opening) and bool(supplier_id)
+
+            result = _purchase_stock_no_commit(
+                db, it["inventory_id"], float(it["quantity"]), float(it["price_per_unit"]),
+                purchased_by=created_by, notes=it.get("notes") or notes,
+                supplier_id=supplier_id, is_credit=item_is_credit,
+                volume_per_unit=it.get("volume_per_unit"),
+                payment_due_date=it.get("payment_due_date"),
+                is_opening_stock=is_opening,
+                extra_cost_per_unit=extra_per_unit
+            )
+            if result is None:
+                raise ValueError(f"Material topilmadi (id={it['inventory_id']})")
+
+            result["purchase"].receipt_id = receipt.id
+            created_results.append(result)
+            purchase_ids.append(result["purchase"].id)
+
+        # 4 ta qo'shimcha xarajat turini, Moliyada ALOHIDA ko'rinishi uchun,
+        # ExpenseTransaction sifatida yozamiz (add_to_cost holatidan qat'i
+        # nazar — bu, "qancha transportga ketdi" kabi statistik ko'rinish
+        # uchun, hisob-kitobga qo'sh marta qo'shilib ketmaydi, chunki
+        # get_monthly_report o'zi buni alohida qatorga chiqaradi).
+        cost_categories = [
+            ("transport_kirim", transport_cost, "Transport (kirim)"),
+            ("tushirish_kirim", tushirish_cost, "Tushirish (Grushchik)"),
+            ("yuklash_kirim", yuklash_cost, "Yuklash"),
+            ("kirim_boshqa", boshqa_cost, "Boshqa xarajat (kirim)"),
+        ]
+        for cat, amount, label in cost_categories:
+            amount = float(amount or 0)
+            if amount <= 0:
+                continue
+            tx = ExpenseTransaction(
+                date=receipt.receipt_date, category=cat, amount=amount,
+                notes=f"{label} — Kirim #{receipt.id}" + (f" ({document_number})" if document_number else ""),
+                created_by=created_by, source="inventory_receipt"
+            )
+            db.add(tx)
+
+        # Yagona, umumiy to'lov (agar kiritilgan bo'lsa)
+        payment_created = None
+        if paid_now and float(paid_now) > 0 and supplier_id:
+            from models import SupplierPayment
+            payment_created = SupplierPayment(
+                supplier_id=supplier_id, amount=float(paid_now),
+                paid_by=created_by,
+                notes=f"Kirim to'lovi — #{receipt.id}" + (f" ({document_number})" if document_number else "")
+            )
+            db.add(payment_created)
+
+        db.commit()
+        db.refresh(receipt)
+
+        return {
+            "success": True,
+            "receipt_id": receipt.id,
+            "purchase_ids": purchase_ids,
+            "items_total_value": round(items_total_value),
+            "total_extra_cost": round(total_extra),
+            "add_to_cost": add_to_cost,
+            "paid_now": float(paid_now or 0),
+            "results": [{"item_id": r["item"].id, "item_name": r["item"].item_name,
+                         "old_price": r["old_price"], "new_price": r["new_price"]} for r in created_results]
+        }
+    except Exception:
+        db.rollback()
+        raise
 
 
 def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Optional[Inventory]:
