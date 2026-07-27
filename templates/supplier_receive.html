@@ -314,8 +314,8 @@
     <div class="rcv-field" style="margin-bottom:12px"><label>Nomi</label><input type="text" id="ns-name" placeholder="Masalan: Akmal aka kimyo"></div>
     <div class="rcv-field" style="margin-bottom:16px"><label>Telefon</label><input type="text" id="ns-phone" placeholder="+998..."></div>
     <div style="display:flex;gap:8px">
-      <button class="rcv-btn rcv-btn-primary" style="flex:1" onclick="saveNewSupplier()">Saqlash</button>
-      <button class="rcv-btn rcv-btn-ghost" style="flex:1" onclick="document.getElementById('newSupplierModal').style.display='none'">Bekor</button>
+      <button style="flex:1;background:#2563EB;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="saveNewSupplier()">Saqlash</button>
+      <button style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="document.getElementById('newSupplierModal').style.display='none'">Bekor</button>
     </div>
   </div>
 </div>
@@ -588,7 +588,9 @@ async function apAddToBasket(){
   const itemId = await apResolveItemId();
   if (!itemId) { if (!wasCreatingNew) showMsg('❌ Materialni tanlang', 'error'); return; }
   const item = invItems.find(i=>i.id===itemId);
-  if (item && item.is_penoplast && apBasket.some(b=>b.isPenoplast)) { showMsg('❌ Bir vaqtda faqat bitta Penoplast qo\'shish mumkin', 'error'); return; }
+  // MUHIM: har bir Penoplast turi o'zining hajmini (volumePerUnit) alohida
+  // saqlaydi (pastda), shuning uchun bir nechta TURLI plotnostni bir vaqtda
+  // qo'shish xavfsiz — har biri o'z narxi/hajmi bilan to'g'ri hisoblanadi.
 
   apBasket.push({ itemId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:qty*price, isPenoplast: item?item.is_penoplast:false, volumePerUnit: parseFloat(document.getElementById('ap-volume').value)||null });
 
