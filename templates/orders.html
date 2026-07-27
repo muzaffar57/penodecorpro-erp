@@ -244,7 +244,7 @@
       <div class="card">
         <div class="card-head">
           <h3 id="formTitle">Yangi buyurtma</h3>
-          <button class="btn btn-outline btn-sm" onclick="hideNewForm()">✕ Yopish</button>
+          <button class="btn btn-outline btn-sm" onclick="clearDraftLS();hideNewForm()">✕ Yopish</button>
         </div>
         <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
@@ -780,6 +780,108 @@
 let selectedOrderId = null;
 let itemCount = 0;
 let editMode = false;          // tahrirlash rejimidamizmi
+
+// ═══════════════════════════════════════════════════════════════
+// QORALAMANI AVTOMATIK SAQLASH (agar sahifadan tasodifan chiqib
+// ketilsa — "Loyihalar"ga o'tib, qayta qaytilsa — yozilgan
+// ma'lumotlar yo'qolib qolmasligi uchun). Faqat brauzerning o'zida
+// (localStorage) saqlanadi, serverga yuborilmaydi.
+// ═══════════════════════════════════════════════════════════════
+const ORDER_DRAFT_LS_KEY = 'penodecor_new_order_draft_v1';
+
+function saveDraftLS() {
+  try {
+    // Faqat "Yangi buyurtma" formasi ochiq va TAHRIRLASH rejimida
+    // BO'LMASA saqlaymiz (mavjud buyurtmani tahrirlashda bu kerak emas).
+    const form = document.getElementById('newOrderForm');
+    if (!form || form.style.display === 'none' || editMode) return;
+
+    const rows = Array.from(document.querySelectorAll('.detal')).map(row => {
+      const data = {};
+      row.querySelectorAll('input, select').forEach(el => {
+        const cls = Array.from(el.classList).find(c => c.startsWith('i-'));
+        if (cls) data[cls] = el.value;
+      });
+      return data;
+    });
+    // Hech narsa yozilmagan bo'lsa (bo'sh forma) — saqlashning hojati yo'q
+    const hasContent = document.getElementById('project_id')?.value ||
+                        rows.some(r => r['i-name']);
+    if (!hasContent) { localStorage.removeItem(ORDER_DRAFT_LS_KEY); return; }
+
+    const draft = {
+      ts: Date.now(),
+      project_id: document.getElementById('project_id')?.value || '',
+      master_id: document.getElementById('master_id')?.value || '',
+      deadline_input: document.getElementById('deadline_input')?.value || '',
+      recipe_id: document.getElementById('recipe_id')?.value || '',
+      base_price: document.getElementById('base_price')?.value || '',
+      loy_kg: document.getElementById('loy_kg')?.value || '',
+      rows
+    };
+    localStorage.setItem(ORDER_DRAFT_LS_KEY, JSON.stringify(draft));
+  } catch (e) { /* localStorage ishlamasa — jim o'tkazamiz, asosiy ish buzilmasin */ }
+}
+
+function clearDraftLS() {
+  try { localStorage.removeItem(ORDER_DRAFT_LS_KEY); } catch (e) {}
+}
+
+function restoreDraftLS(draft) {
+  showNewForm();
+  // Yuqori maydonlarni tiklaymiz
+  if (draft.project_id) { const el = document.getElementById('project_id'); if (el) el.value = draft.project_id; }
+  if (draft.master_id) { const el = document.getElementById('master_id'); if (el) el.value = draft.master_id; }
+  if (draft.deadline_input) { const el = document.getElementById('deadline_input'); if (el) el.value = draft.deadline_input; }
+  if (draft.recipe_id) { const el = document.getElementById('recipe_id'); if (el) el.value = draft.recipe_id; }
+  if (draft.base_price) { const el = document.getElementById('base_price'); if (el) el.value = draft.base_price; }
+  if (draft.loy_kg) { const el = document.getElementById('loy_kg'); if (el) el.value = draft.loy_kg; }
+
+  // Avval, addItem() orqali yaratilgan bo'sh qatorni tozalaymiz
+  document.getElementById('items').innerHTML = '';
+
+  (draft.rows || []).forEach(rowData => {
+    addItem();
+    const row = document.getElementById('items').lastElementChild;
+    if (!row) return;
+    // AVVAL turini o'rnatamiz (shu orqali kerakli maydonlar ko'rinadi)
+    const typeEl = row.querySelector('.i-type');
+    if (typeEl && rowData['i-type']) { typeEl.value = rowData['i-type']; toggleFields(row); }
+    // Keyin qolgan barcha maydonlarni to'ldiramiz
+    Object.keys(rowData).forEach(cls => {
+      if (cls === 'i-type') return;
+      const el = row.querySelector('.' + cls);
+      if (el) el.value = rowData[cls];
+    });
+    calculateItem(row);
+  });
+
+  updateTotal();
+  updateLiveStats();
+  showMsg('📝 Tugallanmagan buyurtma qayta tiklandi', 'success');
+}
+
+function checkForDraftOnLoad() {
+  try {
+    const raw = localStorage.getItem(ORDER_DRAFT_LS_KEY);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    // 24 soatdan eski bo'lsa — endi kerak emas, o'chirib tashlaymiz
+    if (!draft.ts || (Date.now() - draft.ts) > 24 * 3600 * 1000) { clearDraftLS(); return; }
+    if (confirm('Yozib bo\'lmagan buyurtma davomi bor. Uni davom ettiramizmi?')) {
+      restoreDraftLS(draft);
+    } else {
+      clearDraftLS();
+    }
+  } catch (e) { clearDraftLS(); }
+}
+
+// Sahifadan chiqib ketilganda (boshqa bo'limga o'tilganda ham) — saqlaymiz
+window.addEventListener('pagehide', saveDraftLS);
+window.addEventListener('beforeunload', saveDraftLS);
+// Sahifa ochilganda — qoldirilgan qoralama bormi tekshiramiz
+document.addEventListener('DOMContentLoaded', checkForDraftOnLoad);
+
 let currentEditOrderId = null; // xavfsizlik uchun — tahrirlanayotgan buyurtma ID'si
 let editDiscountPct = 0;       // tahrirlashdagi saqlangan chegirma foizi
 let editUserTouched = false;   // xodim kelishilgan summani qo'lda o'zgartirdimi
@@ -2842,6 +2944,7 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
       headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
     if (res.ok) {
       const saved = await res.json();
+      clearDraftLS();
       if (saved.items && saved.items.length) {
         await uploadPendingItemImages(saved.items);
       }
