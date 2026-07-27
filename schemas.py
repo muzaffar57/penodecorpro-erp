@@ -137,6 +137,31 @@ class SupplierCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class ReceiptItemCreate(BaseModel):
+    """Ombor Kirim hujjatidagi bitta mahsulot qatori."""
+    inventory_id: int
+    quantity: float = Field(..., gt=0)
+    price_per_unit: float = Field(..., gt=0)
+    volume_per_unit: Optional[float] = Field(default=None, gt=0, description="Penoplast uchun: 1 blok necha m³")
+    is_opening_stock: bool = Field(default=False)
+    notes: Optional[str] = None
+
+
+class InventoryReceiptCreate(BaseModel):
+    """Ombor Kirim hujjati — bir nechta mahsulot + qo'shimcha xarajatlar,
+    BITTA yagona tranzaksiya sifatida saqlanadi."""
+    items: list[ReceiptItemCreate] = Field(..., min_length=1)
+    supplier_id: Optional[int] = None
+    document_number: Optional[str] = None
+    paid_now: float = Field(default=0, ge=0, description="Hoziroq to'langan JAMI summa (yetkazib beruvchiga, bitta yagona to'lov sifatida)")
+    transport_cost: float = Field(default=0, ge=0)
+    tushirish_cost: float = Field(default=0, ge=0, description="Grushchik")
+    yuklash_cost: float = Field(default=0, ge=0)
+    boshqa_cost: float = Field(default=0, ge=0)
+    add_to_cost: bool = Field(default=False, description="Qo'shimcha xarajatlarni tannarxga qo'shish")
+    notes: Optional[str] = None
+
+
 class SupplierUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
