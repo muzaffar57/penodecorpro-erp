@@ -1762,7 +1762,11 @@ def get_debt_stats(db: Session) -> dict:
     return {
         "total_agreed": total_agreed,
         "total_paid": total_paid,
-        "total_debt": total_agreed - total_paid,
+        # MUHIM: bu — har bir buyurtmaning (hech qachon manfiy bo'lmaydigan)
+        # qarzlari YIG'INDISI, "jami kelishilgan - jami to'langan" emas.
+        # Aks holda, agar ba'zi mijozlar ORTIQCHA to'lagan bo'lsa (masalan
+        # oldindan to'lov), umumiy natija noto'g'ri, MANFIY chiqib qolar edi.
+        "total_debt": sum(d["debt_amount"] for d in debt_orders),
         "debt_orders_count": len(debt_orders),
         "overdue_count": sum(1 for d in debt_orders if d["is_overdue"]),
         "today_payments": today_sum,
