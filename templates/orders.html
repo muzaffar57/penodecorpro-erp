@@ -1601,6 +1601,9 @@ async function quickFullDelivery() {
   const payAns = prompt("Mijoz shu yuk uchun to'lov qildimi? Summasini kiriting (yo'q bo'lsa bo'sh qoldiring):", '');
   const paymentAmount = payAns ? parseFloat(payAns.replace(/\s/g,'')) || null : null;
 
+  const transportAns = prompt("Yetkazib berish (transport) xarajati bormi? Summasini kiriting (yo'q bo'lsa bo'sh qoldiring):", '');
+  const transportCost = transportAns ? parseFloat(transportAns.replace(/\s/g,'')) || 0 : 0;
+
   const items = pending.map(i => ({ order_item_id: i.id, quantity: i.remaining }));
   const data = {
     order_id: selectedOrderId,
@@ -1608,8 +1611,8 @@ async function quickFullDelivery() {
     received_by: null,
     notes: null,
     transport_carrier: null,
-    transport_cost: 0,
-    transport_payer: 'none',
+    transport_cost: transportCost,
+    transport_payer: transportCost > 0 ? 'company' : 'none',
     payment_amount: paymentAmount,
     payment_method: 'naqd'
   };
