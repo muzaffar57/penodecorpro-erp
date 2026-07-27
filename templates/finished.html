@@ -138,6 +138,17 @@
 
       <div class="form-row">
         <div class="form-group" style="margin:0">
+          <label>Serpiyanka (tur)</label>
+          <select id="t-serp" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Kley (tur)</label>
+          <select id="t-kley" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin:0">
           <label>Retsept (qoplama uchun)</label>
           <select id="t-recipe" onchange="loadLoyCost(this.value)">
             <option value="">— Yo'q —</option>
@@ -797,12 +808,24 @@ async function openTermoModal() {
 
   try {
     termoInventory = await fetch('/api/inventory').then(r => r.json());
-    const bazaltItems = termoInventory.filter(i => i.item_name.toLowerCase().includes('bazalt'));
     const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
-    document.getElementById('t-bazalt').innerHTML = bazaltItems.length
-      ? bazaltItems.map(opts).join('')
-      : '<option value="">Omborda bazalt yo\'q — avval kirim qiling</option>';
-    if (bazaltItems.length) document.getElementById('t-bazalt').value = bazaltItems[0].id;
+
+    // MUHIM: ro'yxat endi NOMIGA qarab cheklanmaydi — istalgan nomdagi
+    // xomashyoni tanlash mumkin (masalan boshqa til/brend nomi bilan
+    // kiritilgan bo'lsa ham). Qulaylik uchun, agar nomida mos so'z
+    // topilsa, o'sha avtomatik oldindan tanlab qo'yiladi — lekin bu
+    // shart emas, xohlagan boshqasini ham tanlash mumkin.
+    const allSorted = [...termoInventory].sort((a,b) => a.item_name.localeCompare(b.item_name));
+    const fillSelect = (selectId, matchWord, emptyMsg) => {
+      const el = document.getElementById(selectId);
+      if (!allSorted.length) { el.innerHTML = `<option value="">${emptyMsg}</option>`; return; }
+      el.innerHTML = '<option value="">— Tanlang —</option>' + allSorted.map(opts).join('');
+      const guess = termoInventory.find(i => i.item_name.toLowerCase().includes(matchWord));
+      if (guess) el.value = guess.id;
+    };
+    fillSelect('t-bazalt', 'bazalt', 'Omborda xomashyo yo\'q — avval kirim qiling');
+    fillSelect('t-serp', 'serpiyank', 'Omborda xomashyo yo\'q — avval kirim qiling');
+    fillSelect('t-kley', 'kley', 'Omborda xomashyo yo\'q — avval kirim qiling');
   } catch(e) {
     document.getElementById('t-bazalt').innerHTML = '<option value="">Xato — qayta urinib ko\'ring</option>';
   }
@@ -822,7 +845,9 @@ function tCalc() {
   if (!m2) { box.innerHTML = '<span style="color:#aaa">Kvadrat metrni kiriting</span>'; return; }
 
   const bazalt = termoInventory.find(i => i.id === bazaltId);
-  const serp = termoInventory.find(i => i.item_name.toLowerCase().includes('serpiyank'));
+  const serpId = parseInt(document.getElementById('t-serp').value);
+  const kleyId = parseInt(document.getElementById('t-kley').value);
+  const serp = termoInventory.find(i => i.id === serpId);
 
   let html = `📐 Kerak: <b>${m2} m²</b><br>`;
   if (bazalt) {
@@ -840,16 +865,16 @@ function tCalc() {
     const cost = rulon * (serp.price_per_unit || 0);
     html += `🕸️ Serpiyanka (avtomatik, ${serpRatio}× maydon): <b>${rulon.toFixed(2)} rulon</b> (${fmt(cost)} so'm)<br>`;
   } else {
-    html += `<span style="color:#DC2626">🕸️ Ombordа serpiyanka topilmadi — kirim qiling</span><br>`;
+    html += `<span style="color:#F59E0B">🕸️ Serpiyankani tanlang</span><br>`;
   }
-  const kley = termoInventory.find(i => i.item_name.toLowerCase().includes('kley'));
+  const kley = termoInventory.find(i => i.id === kleyId);
   if (kley) {
     const kleyRatio = (bazalt && bazalt.kley_ratio_per_m2) ? parseFloat(bazalt.kley_ratio_per_m2) : 0.8;
     const kleyKg = m2 * kleyRatio;
     const kleyCost = kleyKg * (kley.price_per_unit || 0);
     html += `🧴 Kley (avtomatik, ${kleyRatio} kg/m²): <b>${kleyKg.toFixed(2)} kg</b> (${fmt(kleyCost)} so'm)<br>`;
   } else {
-    html += `<span style="color:#DC2626">🧴 Ombordа kley topilmadi — kirim qiling</span><br>`;
+    html += `<span style="color:#F59E0B">🧴 Kleyni tanlang</span><br>`;
   }
   if (loyKg > 0) {
     const loyCost = loyKg * loyCostPerKg;
@@ -867,11 +892,15 @@ async function saveTermopanel() {
   const name = document.getElementById('t-name').value.trim();
   const m2 = parseFloat(document.getElementById('t-m2').value) || 0;
   const bazaltId = parseInt(document.getElementById('t-bazalt').value);
+  const serpId = parseInt(document.getElementById('t-serp').value);
+  const kleyId = parseInt(document.getElementById('t-kley').value);
   const price = parseNum(document.getElementById('t-price').value);
 
   if (!name) { err.style.display='block'; err.textContent='❌ Mahsulot nomini kiriting'; return; }
   if (!m2) { err.style.display='block'; err.textContent='❌ Kvadrat metrni kiriting'; return; }
   if (!bazaltId) { err.style.display='block'; err.textContent='❌ Plotnost (bazalt turi)ni tanlang'; return; }
+  if (!serpId) { err.style.display='block'; err.textContent='❌ Serpiyanka turini tanlang'; return; }
+  if (!kleyId) { err.style.display='block'; err.textContent='❌ Kley turini tanlang'; return; }
   if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
   err.style.display = 'none';
 
@@ -879,6 +908,8 @@ async function saveTermopanel() {
     name,
     required_m2: m2,
     bazalt_item_id: bazaltId,
+    serpiyanka_item_id: serpId,
+    kley_item_id: kleyId,
     recipe_id: parseInt(document.getElementById('t-recipe').value) || null,
     loy_kg: parseFloat(document.getElementById('t-loy').value) || 0,
     unit_price: price,
