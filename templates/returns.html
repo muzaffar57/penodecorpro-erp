@@ -36,6 +36,25 @@
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
   }
+  /* Qaytarish kartochkasi — mobilda tartibli, 2 qatorli ko'rinish */
+  .ret-row{
+    flex-wrap:wrap;
+    align-items:flex-start;
+    row-gap:8px;
+    column-gap:10px;
+    padding:12px;
+  }
+  .ret-icon{ width:44px; height:44px; align-self:flex-start; font-size:18px; }
+  .ret-name{ order:1; flex:1 1 auto; min-width:0 !important; }
+  .mini-btn{ order:99; flex-shrink:0; margin-left:auto; }
+  .ret-qty, .ret-status, .ret-dest, .ret-money, .ret-date{
+    order:3;
+    min-width:0 !important;
+    width:auto;
+    flex:0 0 auto;
+    text-align:left !important;
+  }
+  .ret-money{ text-align:right !important; margin-left:auto; }
 }
 </style>
 {% endblock %}
@@ -124,25 +143,25 @@
         {% endif %}
         <input type="file" id="retimg-{{ r.id }}" accept="image/*" onchange="uploadReturnImage({{ r.id }}, this)">
       </label>
-      <div style="flex:1;min-width:0">
+      <div class="ret-name" style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;color:var(--text)">{{ r.item_name }}</div>
         <div style="font-size:13px;color:var(--text3);margin-top:2px">
           {{ r.order.order_number if r.order else '—' }} · {{ r.order.project.client_name if r.order and r.order.project else '—' }}
           {% if r.notes %} · {{ r.notes }}{% endif %}
         </div>
       </div>
-      <div style="text-align:center;min-width:70px">
+      <div class="ret-qty" style="text-align:center;min-width:70px">
         <div style="font-size:13px;font-weight:600">{{ r.quantity }} {{ r.unit }}</div>
       </div>
-      <div style="min-width:100px;text-align:center">
+      <div class="ret-status" style="min-width:100px;text-align:center">
         {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
       </div>
-      <div style="min-width:130px;text-align:center">
+      <div class="ret-dest" style="min-width:130px;text-align:center">
         {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash" style="font-size:12px"></i> Chiqindiga ketdi</span>
         {% else %}<span class="dest-badge dest-stock"><i class="ti ti-building-warehouse" style="font-size:12px"></i> Omborga qaytdi</span>{% endif %}
       </div>
       {% if current_user.role.value == 'admin' %}
-      <div style="text-align:right;min-width:110px">
+      <div class="ret-money" style="text-align:right;min-width:110px">
         <div style="font-size:12.5px;font-weight:600;color:{{ '#DC2626' if is_defect else '#22C55E' }}">
           {% if r.refund_amount > 0 %}{{ "{:,.0f}".format(r.refund_amount).replace(",", " ") }} so'm{% else %}—{% endif %}
         </div>
@@ -153,7 +172,7 @@
         {% endif %}
       </div>
       {% endif %}
-      <div style="min-width:80px;text-align:right;font-size:13px;color:var(--text3)">{{ r.returned_at.strftime('%d.%m.%Y') }}</div>
+      <div class="ret-date" style="min-width:80px;text-align:right;font-size:13px;color:var(--text3)">{{ r.returned_at.strftime('%d.%m.%Y') }}</div>
       <button class="mini-btn" style="color:#EF4444;border-color:#FADBD8" onclick="deleteReturn({{ r.id }})" title="O'chirish"><i class="ti ti-trash" style="font-size:12px"></i></button>
     </div>
     {% endfor %}
