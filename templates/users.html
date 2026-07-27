@@ -7,13 +7,24 @@
 <button class="btn btn-dark" onclick="showAddModal()">+ Yangi foydalanuvchi</button>
 {% endblock %}
 
+{% block head %}
+<style>
+@media (max-width:768px){
+  .users-grid{ grid-template-columns:1fr !important; }
+  .users-table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .users-table-wrap table{ min-width:640px; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="erp-content">
-  <div style="display:grid;grid-template-columns:1fr 360px;gap:14px">
+  <div class="users-grid" style="display:grid;grid-template-columns:1fr 360px;gap:14px">
 
     <!-- Jadval -->
     <div class="card">
       <div class="card-head"><h3>Foydalanuvchilar ({{ users|length }} ta)</h3></div>
+      <div class="users-table-wrap">
       <table class="erp-table">
         <thead>
           <tr><th>#</th><th>Login</th><th>Ismi</th><th>Rol</th><th>Holat</th><th>Yaratilgan</th><th></th></tr>
@@ -52,6 +63,7 @@
           {% endfor %}
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- O'ng: rollar haqida -->
