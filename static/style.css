@@ -602,7 +602,8 @@ body {
     flex-shrink: 0;
   }
 
-  .erp-topbar { padding: 0 12px; flex-wrap: wrap; gap: 8px; }
+  .erp-topbar { height:auto; min-height:var(--topbar-h); padding:10px 12px; flex-wrap: wrap; gap: 8px; }
+  .tb-right { flex-wrap: wrap; row-gap: 8px; }
   .tb-left { display: flex; align-items: center; min-width: 0; }
   .tb-left .page-title { font-size: 15px; }
   .tb-left .page-sub { display: none; }
