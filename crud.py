@@ -4009,11 +4009,12 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
     if not master:
         return []
 
+    # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
+    # tarix o'zgarmasligi kerak.
     orders = db.query(Order).filter(
         Order.master_id == master_id,
         Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year,
-        Order.is_deleted.isnot(True)
+        extract('year', Order.completed_at) == year
     ).order_by(Order.completed_at.desc()).all()
 
     kpi_pct = float(master.kpi_percent or 0)
@@ -4052,11 +4053,12 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     # N+1 o'rniga — BARCHA ustalarning shu yillik buyurtmalarini
     # BITTA so'rov bilan olib, keyin usta bo'yicha guruhlaymiz.
     master_ids = [m.id for m in masters]
+    # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
+    # tarix (shu jumladan Usta KPI hisoboti) o'zgarmasligi kerak.
     all_orders = db.query(Order).filter(
         Order.master_id.in_(master_ids),
         Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year,
-        Order.is_deleted.isnot(True)
+        extract('year', Order.completed_at) == year
     ).all() if master_ids else []
 
     orders_by_master = {}
@@ -4083,8 +4085,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         total_gift += gift
 
         last_order = db.query(Order).filter(
-            Order.master_id == m.id, Order.status == OrderStatus.READY,
-            Order.is_deleted.isnot(True)
+            Order.master_id == m.id, Order.status == OrderStatus.READY
         ).order_by(Order.completed_at.desc()).first()
 
         rows.append({
