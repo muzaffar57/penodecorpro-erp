@@ -369,6 +369,8 @@ function switchTab(tab, force) {
 }
 
 function renderAsosiy(d) {
+  const _budget = parseFloat(d.budget)||0, _paid = parseFloat(d.paid)||0;
+  const _debtLeft = Math.max(0, _budget - _paid);
   document.getElementById('tabContent').innerHTML = `
     <div class="info-row"><span style="color:var(--text3)">Loyiha raqami</span><span style="font-weight:500">${d.num}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Mijoz</span><span style="font-weight:500">${d.client}</span></div>
@@ -382,7 +384,7 @@ function renderAsosiy(d) {
       <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash" style="font-size:12px"></i> To'lovlarni ko'rish</button>
       <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-file-text" style="font-size:12px"></i> Hujjatlarni ko'rish</button>
       <button class="btn btn-green btn-sm" onclick="markProjectComplete()"><i class="ti ti-check" style="font-size:12px"></i> Yakunlash</button>
-      <button class="btn btn-gold btn-sm" onclick="showPayModal()">💰 To'lov qo'shish</button>
+      <button class="btn btn-gold btn-sm" ${_debtLeft <= 0.5 ? 'disabled title="Qarzdorlik yo\'q — buyurtma to\'liq to\'langan" style="opacity:.45;cursor:not-allowed"' : ''} onclick="showPayModal()">💰 To'lov qo'shish</button>
       <button class="btn btn-outline btn-sm" style="color:#EF4444;border-color:#EF4444" onclick="deleteProj()">O'chirish</button>
     </div>`;
 }
