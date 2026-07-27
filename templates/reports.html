@@ -280,6 +280,9 @@
           <button class="bi-btn bi-btn-ghost" onclick="window.print()"><i class="ti ti-printer" style="vertical-align:-2px"></i> Chop etish</button>
         </div>
       </div>
+      <div id="ehsonSummaryBanner" style="display:none;padding:14px 20px;background:#F0FDF4;border-bottom:1px solid var(--b-border);font-size:13.5px;color:#166534">
+        🤲 <b>Ehson (xayriya)</b> — shu oy: <span id="ehsonSummaryVal">—</span>
+      </div>
       <div class="bi-card-body">
         <div class="bi-table-wrap">
           <table class="bi-table" id="repTable">
@@ -581,6 +584,8 @@ function filterTable(){
 
 async function loadReport() {
   document.getElementById('repBody').innerHTML = '<tr><td style="text-align:center;padding:30px;color:var(--b-text3)">Yuklanmoqda...</td></tr>';
+  const ehsonBanner = document.getElementById('ehsonSummaryBanner');
+  if (ehsonBanner) ehsonBanner.style.display = 'none';
   try {
     if (currentReport === 'inventory') await loadInventoryReport();
     else if (currentReport === 'sales') await loadSalesReport();
@@ -646,6 +651,19 @@ async function loadMastersReport() {
     ["KPI %", m => m.kpi_percent + '%'],
     ["Bonus", m => fmt(m.gift_amount) + " so'm"],
   ], rep.masters);
+
+  // Ehson (xayriya) — shu oy uchun, alohida banner sifatida ko'rsatamiz
+  try {
+    const now = new Date();
+    const fr = await fetch(`/api/finance/report?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const banner = document.getElementById('ehsonSummaryBanner');
+    if ((fr.ehson_xarajat||0) > 0) {
+      document.getElementById('ehsonSummaryVal').textContent = fmt(fr.ehson_xarajat) + " so'm";
+      banner.style.display = 'block';
+    } else {
+      banner.style.display = 'none';
+    }
+  } catch(e) {}
 }
 
 async function loadFinanceReport() {
