@@ -2406,38 +2406,49 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
     return log
 
 
-def return_termopanel_for_order(db: Session, order) -> list:
-    """Buyurtma o'chirilganda — termopanel detallari uchun ilgari yechilgan
-    bazalt/serpiyanka/kley ombordan qaytariladi (loy qaytarilmaydi — ishlatib bo'lingan)."""
+def return_termopanel_for_item(db: Session, item) -> list:
+    """Bitta detal uchun ilgari yechilgan bazalt/serpiyanka/kley ombordan qaytariladi
+    (loy qaytarilmaydi — ishlatib bo'lingan). Committ qilmaydi — chaqiruvchi o'zi commit qiladi.
+    `return_termopanel_for_order` va bitta detal o'chirilganda (`delete_order_item`)
+    ikkalasi ham shu funksiyadan foydalanadi — xatti-harakat bir xil bo'lishi uchun."""
     from models import Inventory
     import re as _re
 
     log = []
+    if (item.category or '').lower() != 'termopanel' or not item.notes:
+        return log
+    m = _re.search(r'\[TERMO:([^\]]+)\]', item.notes)
+    if not m:
+        return log
+    parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
+
+    if 'bazalt_id' in parts and 'bazalt_qty' in parts:
+        b = db.query(Inventory).filter(Inventory.id == int(parts['bazalt_id'])).with_for_update().first()
+        if b:
+            b.stock_quantity = float(b.stock_quantity) + float(parts['bazalt_qty'])
+            log.append(f"{b.item_name}: +{float(parts['bazalt_qty']):.2f} dona qaytarildi")
+
+    if 'serp_id' in parts and 'serp_qty' in parts:
+        s = db.query(Inventory).filter(Inventory.id == int(parts['serp_id'])).with_for_update().first()
+        if s:
+            s.stock_quantity = float(s.stock_quantity) + float(parts['serp_qty'])
+            log.append(f"{s.item_name}: +{float(parts['serp_qty']):.2f} rulon qaytarildi")
+
+    if 'kley_id' in parts and 'kley_qty' in parts:
+        k = db.query(Inventory).filter(Inventory.id == int(parts['kley_id'])).with_for_update().first()
+        if k:
+            k.stock_quantity = float(k.stock_quantity) + float(parts['kley_qty'])
+            log.append(f"{k.item_name}: +{float(parts['kley_qty']):.2f} kg qaytarildi")
+
+    return log
+
+
+def return_termopanel_for_order(db: Session, order) -> list:
+    """Buyurtma o'chirilganda — termopanel detallari uchun ilgari yechilgan
+    bazalt/serpiyanka/kley ombordan qaytariladi (loy qaytarilmaydi — ishlatib bo'lingan)."""
+    log = []
     for item in order.items:
-        if (item.category or '').lower() != 'termopanel' or not item.notes:
-            continue
-        m = _re.search(r'\[TERMO:([^\]]+)\]', item.notes)
-        if not m:
-            continue
-        parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
-
-        if 'bazalt_id' in parts and 'bazalt_qty' in parts:
-            b = db.query(Inventory).filter(Inventory.id == int(parts['bazalt_id'])).with_for_update().first()
-            if b:
-                b.stock_quantity = float(b.stock_quantity) + float(parts['bazalt_qty'])
-                log.append(f"{b.item_name}: +{float(parts['bazalt_qty']):.2f} dona qaytarildi")
-
-        if 'serp_id' in parts and 'serp_qty' in parts:
-            s = db.query(Inventory).filter(Inventory.id == int(parts['serp_id'])).with_for_update().first()
-            if s:
-                s.stock_quantity = float(s.stock_quantity) + float(parts['serp_qty'])
-                log.append(f"{s.item_name}: +{float(parts['serp_qty']):.2f} rulon qaytarildi")
-
-        if 'kley_id' in parts and 'kley_qty' in parts:
-            k = db.query(Inventory).filter(Inventory.id == int(parts['kley_id'])).with_for_update().first()
-            if k:
-                k.stock_quantity = float(k.stock_quantity) + float(parts['kley_qty'])
-                log.append(f"{k.item_name}: +{float(parts['kley_qty']):.2f} kg qaytarildi")
+        log.extend(return_termopanel_for_item(db, item))
 
     if log:
         db.commit()
