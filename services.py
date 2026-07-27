@@ -1330,6 +1330,17 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
                     if narx_per_m3_dona > 0:
                         vol = float(item.unit_price) / narx_per_m3_dona * qty
 
+        elif cat == 'blok':
+            # Blokdan chiqadigan mahsulot uchun — "length" maydonida
+            # ISHLATILGAN BLOK SONI saqlanadi (metr emas). Hajm = blok soni
+            # × 1 blokning hajmi (m³) — xuddi ombordan yechishda ishlatilgan
+            # xuddi shu mantiq (deduct_inventory_for_order bilan bir xil).
+            blok_soni = float(item.length or 0)
+            pid_for_blok = item.penoplast_id or (default_penoplast.id if default_penoplast else None)
+            p_blok = db.query(Inventory).filter(Inventory.id == pid_for_blok).first() if pid_for_blok else None
+            if p_blok and p_blok.volume_per_unit and blok_soni > 0:
+                vol = blok_soni * float(p_blok.volume_per_unit)
+
         if vol <= 0:
             continue
 
