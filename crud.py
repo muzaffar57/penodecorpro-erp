@@ -3442,7 +3442,8 @@ def get_purchase_stats(db: Session, year: int = None, month: int = None) -> dict
 
     purchases = db.query(InventoryPurchase).filter(
         InventoryPurchase.purchased_at >= start,
-        InventoryPurchase.purchased_at < end
+        InventoryPurchase.purchased_at < end,
+        InventoryPurchase.is_opening_stock.isnot(True)
     ).all()
 
     by_material = {}
@@ -3482,7 +3483,8 @@ def get_purchase_stats_range(db: Session, months: int = 6) -> dict:
         end = dt(y + 1, 1, 1) if m == 12 else dt(y, m + 1, 1)
         total = db.query(InventoryPurchase).filter(
             InventoryPurchase.purchased_at >= start,
-            InventoryPurchase.purchased_at < end
+            InventoryPurchase.purchased_at < end,
+            InventoryPurchase.is_opening_stock.isnot(True)
         ).all()
         s = sum(float(p.total_amount) for p in total)
         result.append({"year": y, "month": m, "total": round(s)})
