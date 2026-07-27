@@ -3200,7 +3200,7 @@ async def telegram_webhook(request: Request):
             if not master:
                 reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
             else:
-                orders = db.query(Order).filter(Order.master_id == master.id, Order.status == OrderStatus.READY, Order.is_deleted.isnot(True)).order_by(Order.completed_at.desc()).all()
+                orders = db.query(Order).filter(Order.master_id == master.id, Order.status == OrderStatus.READY).order_by(Order.completed_at.desc()).all()
                 jami_bonus = 0.0
                 buyurtmalar_text = ""
                 for i, o in enumerate(orders[:10]):
