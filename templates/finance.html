@@ -222,6 +222,12 @@
       </div>
       {% endif %}
     </div>
+    <div id="cashTxHistoryWrap" style="margin-top:6px">
+      <div style="cursor:pointer;font-size:12.5px;color:var(--f-text3);padding:6px 4px" onclick="toggleCashTxHistory()">
+        <span id="cashTxHistoryToggleIcon">▸</span> Kassa qo'lda kiritilgan tarix (Boshlang'ich, Usta KPI, Ehson)
+      </div>
+      <div id="cashTxHistoryList" style="display:none;background:var(--f-card);border:1px solid var(--f-border);border-radius:10px;padding:4px 14px"></div>
+    </div>
   </div>
 
   <!-- ═══ 1-QATOR: HERO KPI (Bugungi holat) ═══ -->
@@ -444,6 +450,42 @@ async function loadCashBalance(){
   } catch(e) { console.error(e); }
 }
 
+let cashTxHistoryLoaded = false;
+async function toggleCashTxHistory(){
+  const list = document.getElementById('cashTxHistoryList');
+  const icon = document.getElementById('cashTxHistoryToggleIcon');
+  const opening = list.style.display === 'none';
+  list.style.display = opening ? 'block' : 'none';
+  icon.textContent = opening ? '▾' : '▸';
+  if (opening) await loadCashTxHistory();
+}
+
+async function loadCashTxHistory(){
+  const list = document.getElementById('cashTxHistoryList');
+  try {
+    const rows = await fetch('/api/finance/cash-transactions').then(r=>r.json());
+    if (!rows.length) {
+      list.innerHTML = '<div style="padding:12px 0;color:var(--f-text3);font-size:12.5px">Hali qo\'lda kiritilgan yozuv yo\'q</div>';
+      return;
+    }
+    const labels = {boshlangich: "Boshlang'ich balans", usta_kpi: "Usta KPI to'landi", ehson: "Ehson to'landi"};
+    list.innerHTML = rows.map(r => {
+      const dt = r.created_at ? new Date(r.created_at).toLocaleDateString('ru-RU') : '—';
+      const sign = r.amount >= 0 ? '+' : '';
+      const color = r.amount >= 0 ? '#22C55E' : '#EF4444';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--f-border);font-size:13px">
+        <div>
+          <div style="font-weight:600">${labels[r.category] || r.category}</div>
+          <div style="color:var(--f-text3);font-size:11.5px;margin-top:2px">${dt}${r.performed_by ? ' · ' + r.performed_by : ''}${r.notes ? ' · ' + r.notes : ''}</div>
+        </div>
+        <div style="font-weight:700;color:${color};white-space:nowrap">${sign}${fmtFull(r.amount)} so'm</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="padding:12px 0;color:#EF4444;font-size:12.5px">Yuklashda xato</div>';
+  }
+}
+
 const CASH_TX_LABELS = {
   boshlangich: { title: "+ Boshlang'ich balans kiritish", hint: "Tizimni ishlata boshlaganingizda, hozir kassada/qo'lda qancha pul borligini bir marta kiriting.", sign: 1 },
   usta_kpi: { title: "− Usta KPI to'landi", hint: "Ustaga yillik KPI sovg'asini QO'LDA to'lab bo'lgach, shu yerga summani kiriting — kassadan ayiriladi.", sign: -1 },
@@ -481,6 +523,9 @@ async function saveCashTx(){
     if (res.ok) {
       document.getElementById('cashTxModal').style.display = 'none';
       loadCashBalance();
+      if (document.getElementById('cashTxHistoryList').style.display !== 'none') {
+        await loadCashTxHistory();
+      }
     } else {
       const e = await res.json();
       err.textContent = '❌ ' + (e.detail || 'Xato');
