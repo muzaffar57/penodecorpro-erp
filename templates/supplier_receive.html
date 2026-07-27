@@ -230,20 +230,22 @@
                 <button type="button" onclick="apPayFull()" style="flex-shrink:0;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;border-radius:8px;padding:0 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap">To'liq to'lash</button>
               </div>
             </div>
-            <div class="rcv-field">
-              <label>Transport (kim to'laydi)</label>
-              <select id="ap-transport-payer" onchange="document.getElementById('ap-transport-cost').disabled = this.value==='none'; if(this.value==='none') document.getElementById('ap-transport-cost').value='';">
-                <option value="none">Transport yo'q</option>
-                <option value="self">Biz to'laymiz</option>
-                <option value="supplier">Yetkazib beruvchi to'laydi</option>
-              </select>
-            </div>
-          </div>
-          <div class="rcv-row rcv-row-2">
-            <div class="rcv-field"><label>Transport xarajati (ixtiyoriy)</label><input type="text" id="ap-transport-cost" placeholder="0" disabled oninput="formatPriceInput(this)"></div>
             <div class="rcv-field"><label>Izoh</label><input type="text" id="ap-notes" placeholder="Masalan: Naqd pul bilan to'landi"></div>
           </div>
-          <label style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;font-size:12.5px;color:#92400E;cursor:pointer">
+
+          <div class="rcv-card-title" style="margin-top:16px">Qo'shimcha xarajatlar <span style="font-weight:400;color:var(--r-text3)">(ixtiyoriy)</span></div>
+          <div class="rcv-row rcv-row-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+            <div class="rcv-field"><label>🚚 Transport</label><input type="text" id="ap-cost-transport" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label>📦 Tushirish (Grushchik)</label><input type="text" id="ap-cost-tushirish" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label>⬆️ Yuklash</label><input type="text" id="ap-cost-yuklash" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label>➕ Boshqa xarajat</label><input type="text" id="ap-cost-boshqa" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid #BFDBFE;border-radius:9px;font-size:12.5px;color:#1E40AF;cursor:pointer">
+            <input type="checkbox" id="ap-add-to-cost" style="width:16px;height:16px;cursor:pointer" onchange="updateSummary()">
+            <b>Qo'shimcha xarajatlarni tannarxga qo'shish</b> — yoqilsa, yuqoridagi xarajatlar mahsulotlar qiymatiga proporsional taqsimlanib, ombordagi birlik tannarxiga qo'shiladi. O'chiq bo'lsa — faqat Moliyada alohida ko'rinadi.
+          </label>
+
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;font-size:12.5px;color:#92400E;cursor:pointer">
             <input type="checkbox" id="ap-opening-stock" style="width:16px;height:16px;cursor:pointer">
             Bu — <b>boshlang'ich (allaqachon bor) ombor</b>, yangi xarid emas (Kassa balansiga ta'sir qilmaydi)
           </label>
@@ -278,7 +280,7 @@
         <div class="rcv-card-body">
           <div class="rcv-card-title">Kirim xulosasi</div>
           <div class="rcv-summary-row"><span class="rcv-sum-label">Mahsulotlar summasi</span><span class="rcv-sum-val" id="sum-products">0 so'm</span></div>
-          <div class="rcv-summary-row"><span class="rcv-sum-label">Transport xarajati</span><span class="rcv-sum-val" id="sum-transport">0 so'm</span></div>
+          <div class="rcv-summary-row"><span class="rcv-sum-label">Qo'shimcha xarajatlar</span><span class="rcv-sum-val" id="sum-transport">0 so'm</span></div>
           <div class="rcv-summary-row total"><span class="rcv-sum-label">Umumiy summa</span><span class="rcv-sum-val" id="sum-grand">0 so'm</span></div>
         </div>
         <div class="rcv-card-body" style="padding-top:6px">
@@ -630,15 +632,25 @@ function renderBasket(){
   updateSummary();
 }
 
+function apGetExtraCosts(){
+  return {
+    transport: parseNum(document.getElementById('ap-cost-transport')?.value)||0,
+    tushirish: parseNum(document.getElementById('ap-cost-tushirish')?.value)||0,
+    yuklash: parseNum(document.getElementById('ap-cost-yuklash')?.value)||0,
+    boshqa: parseNum(document.getElementById('ap-cost-boshqa')?.value)||0,
+  };
+}
+
 function updateSummary(){
   const productsTotal = apBasket.reduce((s,b)=>s+b.total,0);
-  const transport = parseNum(document.getElementById('ap-transport-cost').value)||0;
-  const grand = productsTotal + transport;
+  const ec = apGetExtraCosts();
+  const extraTotal = ec.transport + ec.tushirish + ec.yuklash + ec.boshqa;
+  const grand = productsTotal + extraTotal;
   const paid = parseNum(document.getElementById('ap-paid-now').value)||0;
   const debt = Math.max(0, grand - paid);
 
   document.getElementById('sum-products').textContent = fmt(productsTotal)+" so'm";
-  document.getElementById('sum-transport').textContent = fmt(transport)+" so'm";
+  document.getElementById('sum-transport').textContent = fmt(extraTotal)+" so'm";
   document.getElementById('sum-grand').textContent = fmt(grand)+" so'm";
   document.getElementById('sum-paid').textContent = fmt(paid)+" so'm";
   document.getElementById('sum-debt').textContent = fmt(debt)+" so'm";
@@ -646,13 +658,12 @@ function updateSummary(){
 
 function apPayFull(){
   const productsTotal = apBasket.reduce((s,b)=>s+b.total,0);
-  const transport = parseNum(document.getElementById('ap-transport-cost').value)||0;
-  const grand = productsTotal + transport;
+  const ec = apGetExtraCosts();
+  const grand = productsTotal + ec.transport + ec.tushirish + ec.yuklash + ec.boshqa;
   if (grand <= 0) { showMsg('❌ Avval mahsulot qo\'shing', 'error'); return; }
   document.getElementById('ap-paid-now').value = fmt(grand);
   updateSummary();
 }
-document.getElementById('ap-transport-cost').addEventListener('input', updateSummary);
 document.getElementById('ap-paid-now').addEventListener('input', updateSummary);
 
 // ── YAKUNIY SAQLASH ──
@@ -676,72 +687,60 @@ async function submitReceive(){
   if (!apBasket.length) { showMsg('❌ Kamida bitta mahsulot qo\'shing', 'error'); return; }
 
   const paidNowTotal = parseNum(document.getElementById('ap-paid-now').value)||0;
-  const transportPayer = document.getElementById('ap-transport-payer').value;
-  const transportCost = parseNum(document.getElementById('ap-transport-cost').value)||0;
+  const ec = apGetExtraCosts();
+  const addToCost = document.getElementById('ap-add-to-cost')?.checked || false;
   const dueDate = document.getElementById('ap-due-date').value || null;
   const notes = document.getElementById('ap-notes').value || '';
   const docNum = document.getElementById('r-docnum').value || '';
   const isOpeningStock = document.getElementById('ap-opening-stock')?.checked || false;
-  const grandTotal = apBasket.reduce((s,l)=>s+l.total,0);
 
-  let totalPaid = 0, totalDebt = 0, hadError = false;
-  // SODDALASHTIRILDI: har bir mahsulot uchun to'lovni ALOHIDA, nisbatan
-  // taqsimlash o'rniga — barcha mahsulotlar ODDIY, TO'LIQ NASIYA sifatida
-  // yoziladi (bir vaqtda, parallel), so'ngra, agar naqd to'lov kiritilgan
-  // bo'lsa — YAGONA, umumiy to'lov sifatida yetkazib beruvchi qarzidan
-  // ayiriladi. Natija — bir xil (jami qarz to'g'ri), lekin ancha oddiyroq.
-  const results = await Promise.all(apBasket.map(async (line) => {
-    try {
-      // Boshlang'ich ombor bo'lsa — bu, haqiqiy xarid emas, shuning uchun
-      // "to'liq to'langan" deb yuboramiz (aks holda, tasodifan yetkazib
-      // beruvchiga qarz sifatida yozilib qolishi mumkin edi).
-      const linePaidNow = isOpeningStock ? (line.qty * line.price) : 0;
-      const res = await fetch(`/api/inventory/${line.itemId}/purchase`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          quantity: line.qty, price_per_unit: line.price, paid_now: linePaidNow,
-          supplier_id: currentSupplierId,
-          notes: (docNum ? `[${docNum}] `:'') + (notes || 'Kirim sahifasidan qo\'shildi'),
-          transport_payer: line===apBasket[0] ? transportPayer : 'none',
-          transport_cost: line===apBasket[0] ? transportCost : 0,
-          volume_per_unit: line.volumePerUnit,
-          payment_due_date: dueDate,
-          is_opening_stock: isOpeningStock
-        })
-      });
-      if (res.ok){ const r = await res.json(); return { ok:true, debt:r.debt_remains||0 }; }
-      return { ok:false };
-    } catch(e){ return { ok:false }; }
-  }));
-  for (const r of results) {
-    if (r.ok) { totalDebt += r.debt; }
-    else hadError = true;
+  // MUHIM: barcha mahsulotlar VA qo'shimcha xarajatlar (Transport/Tushirish/
+  // Yuklash/Boshqa) — BITTA, yagona so'rov orqali, serverda BITTA yagona
+  // tranzaksiya sifatida saqlanadi. Xato bo'lsa — HECH NARSA saqlanmaydi.
+  const payload = {
+    items: apBasket.map(line => ({
+      inventory_id: line.itemId, quantity: line.qty, price_per_unit: line.price,
+      volume_per_unit: line.volumePerUnit || null, is_opening_stock: isOpeningStock
+    })),
+    supplier_id: currentSupplierId,
+    document_number: docNum || null,
+    paid_now: isOpeningStock ? 0 : paidNowTotal,
+    transport_cost: ec.transport, tushirish_cost: ec.tushirish,
+    yuklash_cost: ec.yuklash, boshqa_cost: ec.boshqa,
+    add_to_cost: addToCost,
+    notes: notes || "Kirim sahifasidan qo'shildi"
+  };
+
+  let resultData;
+  try {
+    const res = await fetch('/api/inventory/receipt', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(()=>({}));
+      showMsg('❌ Xato: ' + (e.detail || "Kirim saqlanmadi"), 'error');
+      return;
+    }
+    resultData = await res.json();
+  } catch(e) {
+    showMsg('❌ Server bilan aloqa yo\'q', 'error');
+    return;
   }
 
-  if (hadError) { showMsg('⚠️ Ba\'zi mahsulotlar saqlanmadi', 'error'); return; }
-
-  // Endi, agar naqd to'lov kiritilgan bo'lsa (va boshlang'ich ombor bo'lmasa) —
-  // YAGONA, umumiy to'lov sifatida, yetkazib beruvchi qarzidan ayiramiz.
-  if (!isOpeningStock && paidNowTotal > 0 && currentSupplierId) {
-    try {
-      const payRes = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ supplier_id: currentSupplierId, amount: paidNowTotal,
-                                notes: docNum ? `[${docNum}] Kirim to'lovi` : "Kirim to'lovi",
-                                confirm_overpay: true })
-      });
-      if (payRes.ok) {
-        totalPaid = paidNowTotal;
-        totalDebt = Math.max(0, totalDebt - paidNowTotal);
-      }
-    } catch(e) { /* to'lov saqlanmasa ham, kirimning o'zi saqlangan — jim o'tkazamiz */ }
-  }
+  const grandTotal = apBasket.reduce((s,l)=>s+l.total,0) + ec.transport + ec.tushirish + ec.yuklash + ec.boshqa;
+  const totalPaid = isOpeningStock ? 0 : Math.min(paidNowTotal, grandTotal);
+  const totalDebt = isOpeningStock ? 0 : Math.max(0, grandTotal - paidNowTotal);
 
   showMsg(`✓ Kirim saqlandi! To'landi: ${fmt(totalPaid)} so'm${totalDebt>0.5?`, Qarz: ${fmt(totalDebt)} so'm`:''}`, 'success');
   apBasket = []; invItems = [];
   renderBasket();
   document.getElementById('ap-paid-now').value = '';
-  document.getElementById('ap-transport-cost').value = '';
+  document.getElementById('ap-cost-transport').value = '';
+  document.getElementById('ap-cost-tushirish').value = '';
+  document.getElementById('ap-cost-yuklash').value = '';
+  document.getElementById('ap-cost-boshqa').value = '';
+  document.getElementById('ap-add-to-cost').checked = false;
   document.getElementById('ap-due-date').value = '';
   document.getElementById('ap-notes').value = '';
   loadHistoryForSupplier();
