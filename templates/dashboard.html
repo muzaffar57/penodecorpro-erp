@@ -18,6 +18,33 @@
 .master-rank.top{background:#2563EB;color:#fff}
 .alert-item{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#FEF3C7;border-radius:8px;margin-bottom:8px;border:1px solid #FDE68A}
 .alert-item:last-child{margin-bottom:0}
+
+/* Mobile carousel — faqat telefon kengligida ishlaydi, desktop o'zgarmaydi */
+@media(max-width:768px){
+  #topGrid{
+    display:flex !important;
+    grid-template-columns:none !important;
+    overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+    gap:12px;
+    padding-bottom:4px;
+    margin-left:-2px;margin-right:-2px;padding-left:2px;padding-right:2px;
+    scrollbar-width:none;
+  }
+  #topGrid::-webkit-scrollbar{display:none}
+  #topGrid > .card{
+    flex:0 0 86%;
+    scroll-snap-align:center;
+    min-width:0;
+  }
+  #topGridDots{
+    display:flex;justify-content:center;gap:6px;margin:-6px 0 14px;
+  }
+}
+#topGridDots{display:none}
+.carousel-dot{width:6px;height:6px;border-radius:50%;background:#D1D5DB;transition:all .2s}
+.carousel-dot.active{background:#2563EB;width:16px;border-radius:3px}
 </style>
 {% endblock %}
 
@@ -99,6 +126,7 @@
       </div>
     </div>
   </div>
+  <div id="topGridDots"></div>
   <style>@media(max-width:1200px){ #topGrid{grid-template-columns:1fr 1fr} }</style>
 
   <!-- Moliya (faqat admin) -->
@@ -820,5 +848,29 @@ loadObligationsWidget();
 checkPendingAdvanceRequests();
 loadAll();
 setInterval(loadAll,5*60*1000);
+
+// ══ Mobil carousel dot-indikator (faqat vizual, hech qanday mavjud funksiyaga tegmaydi) ══
+function initTopGridDots(){
+  const grid = document.getElementById('topGrid');
+  const dotsBox = document.getElementById('topGridDots');
+  if(!grid || !dotsBox) return;
+  const cards = Array.from(grid.children).filter(el=>el.classList.contains('card'));
+  if(!cards.length) return;
+  dotsBox.innerHTML = cards.map((_,i)=>`<span class="carousel-dot${i===0?' active':''}"></span>`).join('');
+  const dots = dotsBox.querySelectorAll('.carousel-dot');
+  let ticking = false;
+  grid.addEventListener('scroll', ()=>{
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(()=>{
+      const cardW = cards[0].getBoundingClientRect().width + 12;
+      const idx = Math.min(dots.length-1, Math.round(grid.scrollLeft / cardW));
+      dots.forEach((d,i)=>d.classList.toggle('active', i===idx));
+      ticking = false;
+    });
+  }, {passive:true});
+}
+window.addEventListener('load', initTopGridDots);
+window.addEventListener('resize', initTopGridDots);
 </script>
 {% endblock %}
