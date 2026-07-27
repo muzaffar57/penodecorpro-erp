@@ -501,8 +501,56 @@ class InventoryPurchase(Base):
     category = Column(String(50), nullable=True)  # Xarid vaqtidagi kategoriya (tarix uchun saqlanadi)
     is_opening_stock = Column(Boolean, default=False)  # Boshlang'ich (mavjud) ombor — kassa balansiga TA'SIR QILMAYDI
 
+    # Ombor Kirim hujjati (qo'shimcha xarajatlar bilan) — ixtiyoriy bog'lanish.
+    # Eski (bu funksiyadan oldingi) yozuvlarda bu — NULL bo'ladi, va tizim
+    # ularni avvalgidek, o'zgarishsiz ishlatishda davom etadi.
+    receipt_id = Column(Integer, ForeignKey("inventory_receipts.id"), nullable=True, index=True)
+    receipt = relationship("InventoryReceipt", back_populates="purchases")
+    # Shu qatorga to'g'ri kelgan qo'shimcha xarajat ulushi (agar hujjatda
+    # "tannarxga qo'shish" yoqilgan bo'lsa) — bir birlikka, tarix uchun saqlanadi
+    extra_cost_per_unit = Column(Numeric(12, 4), default=0)
+
     def __repr__(self):
         return f"<InventoryPurchase {self.item_name} {self.quantity}>"
+
+
+class InventoryReceipt(Base):
+    """Ombor kirim HUJJATI — bir martalik kirim jarayonida kiritilgan barcha
+    mahsulotlarni, va ular bilan bog'liq qo'shimcha xarajatlarni (Transport,
+    Tushirish, Yuklash, Boshqa) birlashtirib turadi.
+
+    MUHIM (SaaS uchun kengaytiriladigan): bu jadval, xomashyo xaridi bilan
+    birga keladigan HAR QANDAY qo'shimcha xarajat turini qo'llab-quvvatlaydi
+    — kelajakda yangi xarajat turi kerak bo'lsa, shu yerga oson qo'shiladi."""
+    __tablename__ = "inventory_receipts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
+    supplier = relationship("Supplier")
+    document_number = Column(String(50), nullable=True)
+    receipt_date = Column(DateTime, default=datetime.utcnow)
+
+    # Qo'shimcha xarajat turlari — har biri ALOHIDA maydonda
+    transport_cost = Column(Numeric(12, 2), default=0)
+    tushirish_cost = Column(Numeric(12, 2), default=0)   # Grushchik
+    yuklash_cost = Column(Numeric(12, 2), default=0)
+    boshqa_cost = Column(Numeric(12, 2), default=0)
+
+    # "☑ Qo'shimcha xarajatlarni tannarxga qo'shish" — yoqilgan bo'lsa,
+    # yuqoridagi 4 ta xarajat, mahsulotlar qiymatiga proporsional taqsimlanib,
+    # ombordagi birlik tannarxiga qo'shiladi. O'chirilgan bo'lsa — bu
+    # xarajatlar faqat Moliyada, alohida qator sifatida ko'rinadi, tannarxga
+    # ta'sir qilmaydi.
+    add_to_cost = Column(Boolean, default=False)
+
+    notes = Column(Text, nullable=True)
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    purchases = relationship("InventoryPurchase", back_populates="receipt")
+
+    def __repr__(self):
+        return f"<InventoryReceipt #{self.id} ({self.document_number or '—'})>"
 
 
 # ============================================================
