@@ -2786,8 +2786,13 @@ async function saveOrder(isDraft = false) {
   }
 
   // Asosiy bo'lmagan plotnost tanlangan, lekin shu detalning o'z 1 m3 narxi yo'q
+  // MUHIM: "Blok (butun narxda)" rejimida — narx "1 blok narxi" orqali
+  // TO'G'RIDAN-TO'G'RI kiritiladi, "1 m³ narxi" bu rejimda ISHLATILMAYDI —
+  // shuning uchun bu turdagi qatorlar shu tekshiruvdan chiqarib tashlanadi.
   const rowsMissingPrice = [];
   document.querySelectorAll('.detal').forEach((row, idx) => {
+    const rowType = row.querySelector('.i-type')?.value;
+    if (rowType === 'blok') return;
     const penoSel = row.querySelector('.i-peno');
     const m3El = row.querySelector('.i-m3price');
     if (!penoSel || !m3El) return;
