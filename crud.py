@@ -2880,10 +2880,16 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     if float(bazalt.stock_quantity) < sheets_needed:
         shortages.append(f"{bazalt.item_name}: kerak {sheets_needed:.2f} dona, qoldi {float(bazalt.stock_quantity):.2f} dona")
 
-    # 2) Serpiyanka — bazaltning o'zida saqlangan nisbat bo'yicha (standart: 2×, ikkala tomon)
-    serpiyanka = services.find_serpiyanka(db, lock=True)
-    if not serpiyanka:
-        return {"success": False, "message": "Serpiyanka ombordan topilmadi (nomida 'serpiyanka' so'zi bo'lishi kerak)"}
+    # 2) Serpiyanka — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik
+    # uchun) nomi bo'yicha avtomatik qidiramiz
+    if data.serpiyanka_item_id:
+        serpiyanka = db.query(Inventory).filter(Inventory.id == data.serpiyanka_item_id).with_for_update().first()
+        if not serpiyanka:
+            return {"success": False, "message": "Tanlangan serpiyanka ombordan topilmadi"}
+    else:
+        serpiyanka = services.find_serpiyanka(db, lock=True)
+        if not serpiyanka:
+            return {"success": False, "message": "Serpiyanka ombordan topilmadi (nomida 'serpiyanka' so'zi bo'lishi kerak, yoki uni aniq tanlang)"}
     serp_area_per_rulon = float(serpiyanka.volume_per_unit or 50.0)  # m² — 1 rulondan
     serp_ratio = float(bazalt.serp_ratio_per_m2) if bazalt.serp_ratio_per_m2 else 2.0
     serp_area_needed = required_m2 * serp_ratio
@@ -2891,11 +2897,17 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     if float(serpiyanka.stock_quantity) < rulon_needed:
         shortages.append(f"{serpiyanka.item_name}: kerak {rulon_needed:.2f} rulon, qoldi {float(serpiyanka.stock_quantity):.2f} rulon")
 
-    # 3) Kley — bazaltning o'zida saqlangan nisbat bo'yicha (1 m² bazaltga necha kg)
-    kley = services.find_kley(db, lock=True)
+    # 3) Kley — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik uchun)
+    # nomi bo'yicha avtomatik qidiramiz
+    if data.kley_item_id:
+        kley = db.query(Inventory).filter(Inventory.id == data.kley_item_id).with_for_update().first()
+        if not kley:
+            return {"success": False, "message": "Tanlangan kley ombordan topilmadi"}
+    else:
+        kley = services.find_kley(db, lock=True)
     kley_kg = 0.0
     if not kley:
-        shortages.append("Kley ombordan topilmadi (nomi 'kley' so'zini o'z ichiga olishi kerak)")
+        shortages.append("Kley ombordan topilmadi (nomi 'kley' so'zini o'z ichiga olishi kerak, yoki uni aniq tanlang)")
     else:
         kley_ratio = float(bazalt.kley_ratio_per_m2) if bazalt.kley_ratio_per_m2 else 0.8
         kley_kg = required_m2 * kley_ratio
