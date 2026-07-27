@@ -624,8 +624,13 @@ function buildCashSection(d){
 
 function buildExpDetail(d){
   const x=d.xarajatlar;
+  const qx = d.qoshimcha_xarajatlar || {};
   const rows=[
-    {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},{n:'Soliqlar',v:x.soliqlar}
+    {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},{n:'Soliqlar',v:x.soliqlar},
+    {n:'🚚 Transport (kirim)',v:qx.transport_kirim||0},
+    {n:'📦 Tushirish (Grushchik)',v:qx.tushirish_kirim||0},
+    {n:'⬆️ Yuklash',v:qx.yuklash_kirim||0},
+    {n:'➕ Boshqa xarajat (kirim)',v:qx.kirim_boshqa||0},
   ].filter(r=>r.v>0);
   const el=document.getElementById('expDetail');
   if(!rows.length && !(d.usta_kpi_breakdown&&d.usta_kpi_breakdown.length) && !(d.hodimlar_moslashuvchan_breakdown&&d.hodimlar_moslashuvchan_breakdown.length)){
