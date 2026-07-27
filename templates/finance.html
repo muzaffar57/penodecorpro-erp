@@ -199,6 +199,36 @@
   body,.erp-content{background:#fff !important}
   .fin-wrap{margin:0;padding:0}
 }
+
+/* ══════════════════════════════════════════════════════════
+   MOBIL LAYOUT (faqat <=640px, desktop o'zgarmaydi)
+   ══════════════════════════════════════════════════════════ */
+@media(max-width:640px){
+  .fin-wrap{ padding:12px; }
+
+  /* Bugungi holat — 4 karta -> 2x2 */
+  .fin-hero-grid{ grid-template-columns:1fr 1fr; gap:10px; }
+  .fin-hero-card{ padding:16px 14px; }
+  .fin-hero-value{ font-size:22px; }
+  .fin-hero-icon{ width:34px; height:34px; margin-bottom:10px; font-size:16px; }
+
+  /* Oylik hisobot mini-KPI — 6 karta -> 2 ustun */
+  .fin-mini-grid{ grid-template-columns:1fr 1fr; gap:8px; }
+  .fin-mini-value{ font-size:16px; }
+
+  /* Bugungi xarajat batafsil paneli — 3 ustun -> 1 ustun */
+  #todayDetailPanel > div{ grid-template-columns:1fr !important; gap:14px !important; }
+
+  /* Filtr paneli — vertikal joylashuv, to'liq kenglikdagi input/tugma */
+  .fin-filterbar{ flex-direction:column; align-items:stretch; }
+  .fin-filterbar > .ti{ display:none; }
+  .fin-filterbar select, .fin-filterbar input[type=number]{ width:100%; }
+  .fin-filterbar .fin-btn{ width:100%; }
+  .fin-filterbar > span{ margin-left:0 !important; text-align:center; }
+
+  /* Kassa balansi tugmalari — mobil uchun to'liq kenglikda, pastma-past */
+  .fin-section > div[style*="linear-gradient"] .btn{ width:100%; text-align:center; }
+}
 </style>
 {% endblock %}
 
