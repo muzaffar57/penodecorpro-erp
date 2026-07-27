@@ -600,7 +600,14 @@ def get_company_obligations_status(db: Session, year: int, month: int) -> dict:
 
     today = datetime.utcnow()
 
-    emp_result = calculate_monthly_employee_pay(db, year, month, 0, 0, 0, 0, 0)
+    # MUHIM: to'g'ridan-to'g'ri calculate_monthly_employee_pay(...,0,0,0,0,0)
+    # chaqirilsa — "necha metr/blok ishlatilgan" kabi HAQIQIY miqdorlar
+    # o'rniga "0" yuborilgan bo'lardi, va shu sabab "har birlik uchun"
+    # turidagi (Blok, Metr) xodimlar SUMMASI har doim "0" chiqib qolar edi.
+    # Shuning uchun, o'sha haqiqiy miqdorlarni ALLAQACHON to'g'ri hisoblab
+    # bergan get_monthly_report()dan foydalanamiz.
+    monthly = get_monthly_report(db, year, month)
+    emp_result = {"breakdown": monthly.get("hodimlar_moslashuvchan_breakdown", [])}
     employees = [
         {
             "employee_id": e["employee_id"], "name": e["name"], "detail": e["detail"],
