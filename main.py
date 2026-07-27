@@ -2912,6 +2912,36 @@ def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db),
     """Hisob-kitob varaqasi — tanlangan nakladnoylar bo'yicha.
     ids — vergul bilan ajratilgan delivery ID lar: '3,5,7'. Bo'sh bo'lsa — hammasi."""
     from fastapi.responses import Response
+    import delivery_pdf as _delivery_pdf
+    import traceback as _tb
+    from models import Order as _Order
+
+    order = db.query(_Order).filter(_Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+
+    all_deliveries = sorted(order.deliveries, key=lambda x: x.delivered_at or datetime.min)
+    if ids:
+        try:
+            wanted_ids = {int(x) for x in ids.split(",") if x.strip()}
+        except ValueError:
+            raise HTTPException(status_code=400, detail="ids parametri noto'g'ri")
+        deliveries = [d for d in all_deliveries if d.id in wanted_ids]
+    else:
+        deliveries = all_deliveries
+
+    if not deliveries:
+        raise HTTPException(status_code=404, detail="Tanlangan yuk xatlari topilmadi")
+
+    try:
+        pdf_bytes = _delivery_pdf.generate_summary_pdf(order, deliveries, db)
+    except Exception as e:
+        print("Hisob-kitob PDF XATO:\n", _tb.format_exc())
+        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+
+    filename = f"hisob-kitob_{order.order_number.replace('/', '_')}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
 # ============================================================
