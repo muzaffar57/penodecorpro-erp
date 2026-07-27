@@ -29,11 +29,19 @@
 .refund-badge{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px}
 .refund-yes{background:#DCFCE7;color:#166534}
 .refund-no{background:#FEF3C7;color:#92400E}
+@media (max-width:768px){
+  .ret-page{
+    flex:1;
+    min-height:0;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div style="padding:14px">
+<div class="ret-page" style="padding:14px">
 
   <div class="stat-grid mb-16" id="kpiRow">
     <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Brak (bu oy)</div><div class="stat-val" id="k-brak-month">—</div></div>
