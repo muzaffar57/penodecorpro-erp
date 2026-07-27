@@ -352,6 +352,60 @@ let invItems = [];
 let apBasket = [];
 let apCreatingNewItem = false;
 
+// ── QORALAMA (localStorage) — sahifadan tasodifan chiqib qolsa,
+// kiritilgan mahsulotlar/qiymatlar yo'qolmasin, qayta kirganda tiklansin ──
+const RCV_DRAFT_KEY = 'pdp_receive_draft_v1';
+
+function saveDraft(){
+  try {
+    const draft = {
+      supplierId: currentSupplierId,
+      docNum: document.getElementById('r-docnum')?.value || '',
+      dueDate: document.getElementById('ap-due-date')?.value || '',
+      notes: document.getElementById('ap-notes')?.value || '',
+      costTransport: document.getElementById('ap-cost-transport')?.value || '',
+      costTushirish: document.getElementById('ap-cost-tushirish')?.value || '',
+      costYuklash: document.getElementById('ap-cost-yuklash')?.value || '',
+      costBoshqa: document.getElementById('ap-cost-boshqa')?.value || '',
+      addToCost: document.getElementById('ap-add-to-cost')?.checked || false,
+      openingStock: document.getElementById('ap-opening-stock')?.checked || false,
+      paidNow: document.getElementById('ap-paid-now')?.value || '',
+      basket: apBasket
+    };
+    localStorage.setItem(RCV_DRAFT_KEY, JSON.stringify(draft));
+  } catch(e) {}
+}
+
+function clearDraft(){
+  try { localStorage.removeItem(RCV_DRAFT_KEY); } catch(e) {}
+}
+
+function restoreDraft(){
+  let draft;
+  try { draft = JSON.parse(localStorage.getItem(RCV_DRAFT_KEY) || 'null'); } catch(e) { draft = null; }
+  if (!draft || !draft.basket || !draft.basket.length) return;
+
+  if (draft.supplierId) {
+    const sel = document.getElementById('r-supplier');
+    sel.value = draft.supplierId;
+    if (sel.value == draft.supplierId) onSupplierChange();
+  }
+  if (document.getElementById('r-docnum')) document.getElementById('r-docnum').value = draft.docNum || '';
+  if (document.getElementById('ap-due-date')) document.getElementById('ap-due-date').value = draft.dueDate || '';
+  if (document.getElementById('ap-notes')) document.getElementById('ap-notes').value = draft.notes || '';
+  if (document.getElementById('ap-cost-transport')) document.getElementById('ap-cost-transport').value = draft.costTransport || '';
+  if (document.getElementById('ap-cost-tushirish')) document.getElementById('ap-cost-tushirish').value = draft.costTushirish || '';
+  if (document.getElementById('ap-cost-yuklash')) document.getElementById('ap-cost-yuklash').value = draft.costYuklash || '';
+  if (document.getElementById('ap-cost-boshqa')) document.getElementById('ap-cost-boshqa').value = draft.costBoshqa || '';
+  if (document.getElementById('ap-add-to-cost')) document.getElementById('ap-add-to-cost').checked = !!draft.addToCost;
+  if (document.getElementById('ap-opening-stock')) document.getElementById('ap-opening-stock').checked = !!draft.openingStock;
+  if (document.getElementById('ap-paid-now')) document.getElementById('ap-paid-now').value = draft.paidNow || '';
+
+  apBasket = draft.basket;
+  renderBasket();
+  showMsg('↩️ Avvalgi tugallanmagan kirim tiklandi (' + apBasket.length + ' ta mahsulot)', 'info');
+}
+
 // ── YETKAZIB BERUVCHI ──
 async function onSupplierChange(){
   currentSupplierId = parseInt(document.getElementById('r-supplier').value) || null;
@@ -630,6 +684,7 @@ function renderBasket(){
   document.getElementById('rcv-pos-count').textContent = apBasket.length;
   document.getElementById('rcv-pos-total').textContent = fmt(total)+" so'm";
   updateSummary();
+  saveDraft();
 }
 
 function apGetExtraCosts(){
@@ -654,6 +709,7 @@ function updateSummary(){
   document.getElementById('sum-grand').textContent = fmt(grand)+" so'm";
   document.getElementById('sum-paid').textContent = fmt(paid)+" so'm";
   document.getElementById('sum-debt').textContent = fmt(debt)+" so'm";
+  saveDraft();
 }
 
 function apPayFull(){
@@ -665,6 +721,10 @@ function apPayFull(){
   updateSummary();
 }
 document.getElementById('ap-paid-now').addEventListener('input', updateSummary);
+document.getElementById('r-docnum')?.addEventListener('input', saveDraft);
+document.getElementById('ap-due-date')?.addEventListener('input', saveDraft);
+document.getElementById('ap-notes')?.addEventListener('input', saveDraft);
+document.getElementById('ap-opening-stock')?.addEventListener('change', saveDraft);
 
 // ── YAKUNIY SAQLASH ──
 async function submitReceive(){
@@ -734,6 +794,7 @@ async function submitReceive(){
 
   showMsg(`✓ Kirim saqlandi! To'landi: ${fmt(totalPaid)} so'm${totalDebt>0.5?`, Qarz: ${fmt(totalDebt)} so'm`:''}`, 'success');
   apBasket = []; invItems = [];
+  clearDraft();
   renderBasket();
   document.getElementById('ap-paid-now').value = '';
   document.getElementById('ap-cost-transport').value = '';
@@ -763,5 +824,6 @@ function showMsg(text, type){
 }
 
 loadInvItemsForAp();
+restoreDraft();
 </script>
 {% endblock %}
