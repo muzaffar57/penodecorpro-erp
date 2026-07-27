@@ -1421,6 +1421,9 @@ def delete_order_item(db: Session, item_id: int) -> bool:
             "penoplast_id": db_item.penoplast_id
         }]
         services.adjust_inventory_diff(db, old_snap, [])
+        # Termopanel (bazalt/serpiyanka/kley) — detal butunlay o'chirilganda
+        # ilgari yechilgan xomashyo omborga qaytishi kerak (Penoplast bilan bir xil mantiq)
+        services.return_termopanel_for_item(db, db_item)
 
     db.delete(db_item)
     db.flush()
