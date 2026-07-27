@@ -14,7 +14,14 @@
 .proj-filters input,.proj-filters select{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;outline:none;transition:border .15s}
 .proj-filters input:focus,.proj-filters select:focus{border-color:var(--gold)}
 .proj-layout{display:grid;grid-template-columns:400px 1fr;gap:16px;height:calc(100vh - 230px);min-height:520px}
-@media (max-width:1000px){.proj-layout{grid-template-columns:1fr;height:auto}}
+@media (max-width:1000px){
+  .proj-layout{grid-template-columns:1fr;height:auto}
+  /* Mobilda ichki scroll konteynerlarni o'chirib, butun sahifa bitta scroll bo'lishini ta'minlaymiz */
+  .proj-list{overflow:visible !important;max-height:none !important}
+  .proj-detail{overflow:visible !important;height:auto !important}
+  .proj-detail .card-body{overflow:visible !important;height:auto !important}
+  .tab-content{overflow:visible !important;max-height:none !important}
+}
 .proj-list{overflow-y:auto;padding:2px}
 .proj-card{display:flex;gap:12px;padding:14px;border:1px solid var(--border2);border-radius:14px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s,border-color .15s,transform .15s;background:var(--white);opacity:0;animation:pIn .3s ease forwards;box-shadow:0 1px 2px rgba(16,24,40,.03)}
 @keyframes pIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
