@@ -659,6 +659,10 @@ function buildExpDetail(d){
         <span class="fin-exp-name" style="color:#22C55E">🤲 Ehson (xayriya)</span>
         <span class="fin-exp-val" style="color:#22C55E">${fmtFull(d.ehson_xarajat||0)} so'm</span>
       </div>` : '')
+    + ((d.brak_xarajat||0) > 0 ? `<div class="fin-exp-row">
+        <span class="fin-exp-name" style="color:#EF4444">🗑️ Brak (yaroqsiz xomashyo)</span>
+        <span class="fin-exp-val" style="color:#EF4444">${fmtFull(d.brak_xarajat||0)} so'm</span>
+      </div>` : '')
     +`<div class="fin-total-row"><span>Jami xarajat:</span><span style="color:var(--f-danger)">${fmtFull(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0))} so'm</span></div>
       <div class="fin-total-row" style="margin-top:6px;border-top:none;padding-top:0"><span>Jami daromad:</span><span style="color:var(--f-success)">${fmtFull(d.daromad)} so'm</span></div>`;
   const pb=document.getElementById('profitBlock');
