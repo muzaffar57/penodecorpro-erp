@@ -685,7 +685,11 @@ async function submitReceive(){
   const grandTotal = apBasket.reduce((s,l)=>s+l.total,0);
 
   let totalPaid = 0, totalDebt = 0, hadError = false;
-  for (const line of apBasket){
+  // MUHIM: barcha mahsulotlarni BIR VAQTDA (parallel) yuboramiz — birma-bir,
+  // navbat kutib yuborilganda, har biri ~0.3-0.5 soniya olsa, 8 tasi
+  // ketma-ket 3-4 soniyaga cho'zilib ketardi. Parallel yuborilganda esa,
+  // barchasi TAXMINAN BIR VAQTDA, eng sekin birinchisicha tugaydi.
+  const results = await Promise.all(apBasket.map(async (line) => {
     const linePaid = grandTotal>0 ? round2(paidNowTotal*(line.total/grandTotal)) : 0;
     try {
       const res = await fetch(`/api/inventory/${line.itemId}/purchase`, {
@@ -701,9 +705,13 @@ async function submitReceive(){
           is_opening_stock: isOpeningStock
         })
       });
-      if (res.ok){ const r = await res.json(); totalPaid += r.paid_now||0; totalDebt += r.debt_remains||0; }
-      else hadError = true;
-    } catch(e){ hadError = true; }
+      if (res.ok){ const r = await res.json(); return { ok:true, paid:r.paid_now||0, debt:r.debt_remains||0 }; }
+      return { ok:false };
+    } catch(e){ return { ok:false }; }
+  }));
+  for (const r of results) {
+    if (r.ok) { totalPaid += r.paid; totalDebt += r.debt; }
+    else hadError = true;
   }
 
   if (hadError) { showMsg('⚠️ Ba\'zi mahsulotlar saqlanmadi', 'error'); return; }
