@@ -1379,6 +1379,47 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
         penoplast_xarajat += summa
     tan_narxi_jami += penoplast_xarajat
 
+    # ── 1B. TERMOPANEL (BAZALT+SERPIYANKA+KLEY) XARAJATI ────
+    # Har bir termopanel detali uchun ombordan yechishda saqlangan
+    # [TERMO:...] belgisidan (notes) aynan o'sha detalga qancha bazalt/
+    # serpiyanka/kley sarflanganini o'qib, o'sha paytdagi ombor narxida
+    # hisoblaymiz — xuddi ombordan ayirish/qaytarish bilan bir xil manbadan.
+    import re as _re_profit
+    termopanel_xarajat = 0.0
+    for item in order.items:
+        if (item.category or '').lower() != 'termopanel' or not item.notes:
+            continue
+        m = _re_profit.search(r'\[TERMO:([^\]]+)\]', item.notes)
+        if not m:
+            continue
+        parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
+
+        if 'bazalt_id' in parts and 'bazalt_qty' in parts:
+            b = db.query(Inventory).filter(Inventory.id == int(parts['bazalt_id'])).first()
+            if b and b.price_per_unit:
+                summa = float(parts['bazalt_qty']) * float(b.price_per_unit)
+                if summa > 0:
+                    breakdown.append({"nomi": f"{b.item_name} ({float(parts['bazalt_qty']):.2f} dona × {float(b.price_per_unit):,.0f} so'm)", "summa": summa})
+                    termopanel_xarajat += summa
+
+        if 'serp_id' in parts and 'serp_qty' in parts:
+            s = db.query(Inventory).filter(Inventory.id == int(parts['serp_id'])).first()
+            if s and s.price_per_unit:
+                summa = float(parts['serp_qty']) * float(s.price_per_unit)
+                if summa > 0:
+                    breakdown.append({"nomi": f"{s.item_name} ({float(parts['serp_qty']):.2f} rulon × {float(s.price_per_unit):,.0f} so'm)", "summa": summa})
+                    termopanel_xarajat += summa
+
+        if 'kley_id' in parts and 'kley_qty' in parts:
+            k = db.query(Inventory).filter(Inventory.id == int(parts['kley_id'])).first()
+            if k and k.price_per_unit:
+                summa = float(parts['kley_qty']) * float(k.price_per_unit)
+                if summa > 0:
+                    breakdown.append({"nomi": f"{k.item_name} ({float(parts['kley_qty']):.2f} kg × {float(k.price_per_unit):,.0f} so'm)", "summa": summa})
+                    termopanel_xarajat += summa
+
+    tan_narxi_jami += termopanel_xarajat
+
     # ── 2. QOPLAMA XOMASHYOSI XARAJATI ──────────────────────
     coated_items = [i for i in order.items if i.is_coated]
     # MUHIM: loy_kg BUYURTMA DARAJASIDA (notes'da) saqlanadi va, agar u
