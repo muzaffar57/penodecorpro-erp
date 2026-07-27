@@ -1612,11 +1612,15 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     from datetime import datetime
 
     # ── 1. DAROMAD va SOF FOYDA (tayyor buyurtmalar) ────────
+    # MUHIM: bu yerda Order.is_deleted ATAYLAB tekshirilmaydi — o'chirilgan
+    # (lekin avval haqiqatan yakunlangan, daromad keltirgan) buyurtmalar ham,
+    # moliyaviy hisobotda (tarixiy haqiqat sifatida) hisobga olinishi kerak.
+    # "O'chirish" — faqat ro'yxatlardan (Buyurtmalar, KPI) yashirish uchun,
+    # moliyaviy tarixni o'chirmasligi kerak.
     ready_orders = db.query(Order).filter(
         Order.status == OrderStatus.READY,
         extract('year',  Order.completed_at) == year,
-        extract('month', Order.completed_at) == month,
-        Order.is_deleted.isnot(True)
+        extract('month', Order.completed_at) == month
     ).all()
 
     daromad = sum(float(o.total_amount or 0) for o in ready_orders)
@@ -1640,11 +1644,13 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     # ── 2. QOPLAMACHI BONUS hisoblash ───────────────────────
     # Profil/karniz → uzunlik (metr) × miqdor × 1000 so'm
     # Panel/boshqa  → miqdor × 1000 so'm
+    # Xuddi yuqoridagidek — o'chirilgan buyurtmalar ham hisobga olinadi
+    # (moliyaviy tarix saqlanishi uchun, "O'chirilganlar" xodim bonusini
+    # ham noto'g'ri kamaytirib yubormasligi kerak).
     orders_this_month = db.query(Order).filter(
         Order.status == OrderStatus.READY,
         extract('year',  Order.completed_at) == year,
-        extract('month', Order.completed_at) == month,
-        Order.is_deleted.isnot(True)
+        extract('month', Order.completed_at) == month
     ).all()
 
     jami_metr = 0.0   # Profil uchun (metr)
@@ -3196,12 +3202,13 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
     total = 0.0
 
     for m in masters:
+        # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
+        # tarix (shu jumladan Usta KPI hisobi) o'zgarmasligi kerak.
         orders = db.query(Order).filter(
             Order.master_id == m.id,
             Order.status == OrderStatus.READY,
             extract('year', Order.completed_at) == year,
-            extract('month', Order.completed_at) == month,
-            Order.is_deleted.isnot(True)
+            extract('month', Order.completed_at) == month
         ).all()
         if not orders:
             continue
@@ -3248,11 +3255,12 @@ def calculate_monthly_ehson(db: Session, year: int, month: int) -> dict:
 
     percent = float(_crud.get_setting(db, "ehson_percent", "0") or 0)
 
+    # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
+    # tarix (shu jumladan Ehson hisobi) o'zgarmasligi kerak.
     orders = db.query(Order).filter(
         Order.status == OrderStatus.READY,
         extract('year', Order.completed_at) == year,
-        extract('month', Order.completed_at) == month,
-        Order.is_deleted.isnot(True)
+        extract('month', Order.completed_at) == month
     ).all()
 
     monthly_profit = 0.0
