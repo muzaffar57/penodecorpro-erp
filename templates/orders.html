@@ -844,9 +844,11 @@ function restoreDraftLS(draft) {
   // Avval, addItem() orqali yaratilgan bo'sh qatorni tozalaymiz
   document.getElementById('items').innerHTML = '';
 
-  (draft.rows || []).forEach(rowData => {
+  // MUHIM: addItem() yangi qatorni RO'YXAT BOSHIGA qo'shadi (prepend),
+  // shuning uchun asl tartibni saqlash uchun teskari yo'nalishda tiklaymiz.
+  [...(draft.rows || [])].reverse().forEach(rowData => {
     addItem();
-    const row = document.getElementById('items').lastElementChild;
+    const row = document.getElementById('items').firstElementChild;
     if (!row) return;
     // AVVAL turini o'rnatamiz (shu orqali kerakli maydonlar ko'rinadi)
     const typeEl = row.querySelector('.i-type');
