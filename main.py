@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from database import init_database, get_db
 import schemas
@@ -257,6 +258,11 @@ def _migrate_payment_columns():
             ("paytype", "PER_UNIT"),
             ("paytype", "FIXED_PLUS_COATING"),
             ("userrole", "WAREHOUSE"),
+            ("projectstatus", "draft"),
+            ("projectstatus", "active"),
+            ("projectstatus", "on_hold"),
+            ("projectstatus", "completed"),
+            ("projectstatus", "cancelled"),
         ]
         for enum_name, value in enum_additions:
             try:
@@ -876,7 +882,15 @@ def api_delete_master(master_id: int, db: Session = Depends(get_db), current_use
 
 @app.post("/api/inventory", response_model=schemas.InventoryRead)
 def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    return crud.add_item(db, item)
+    try:
+        return crud.add_item(db, item)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f'"{item.item_name}" nomli material allaqachon omborda mavjud. '
+                   f'"← Ro\'yxatdan tanlayman" tugmasi orqali uni tanlang, yangi material sifatida qayta yaratmang.'
+        )
 
 
 @app.get("/api/inventory", response_model=List[schemas.InventoryRead])
