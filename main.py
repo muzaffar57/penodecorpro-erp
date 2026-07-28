@@ -258,11 +258,6 @@ def _migrate_payment_columns():
             ("paytype", "PER_UNIT"),
             ("paytype", "FIXED_PLUS_COATING"),
             ("userrole", "WAREHOUSE"),
-            ("projectstatus", "draft"),
-            ("projectstatus", "active"),
-            ("projectstatus", "on_hold"),
-            ("projectstatus", "completed"),
-            ("projectstatus", "cancelled"),
         ]
         for enum_name, value in enum_additions:
             try:
@@ -282,6 +277,20 @@ def _migrate_payment_columns():
                 msg = str(e)
                 if 'already exists' not in msg and 'does not exist' not in msg:
                     print(f"⚠ Enum {enum_name}.{value}: {e}")
+
+        # Loyiha holati (status) ustunida noto'g'ri (kichik harfli) qiymat
+        # qolib ketgan bo'lsa — to'g'ri (katta harfli) qiymatga tuzatamiz.
+        # Bu — bir martalik, o'zini-o'zi davolovchi tuzatish; xavfsiz
+        # (faqat noto'g'ri qatorlarga tegadi, boshqasiga ta'sir qilmaydi).
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("""
+                    UPDATE projects SET status = UPPER(status)
+                    WHERE status IN ('draft','active','on_hold','completed','cancelled')
+                """))
+                conn.commit()
+        except Exception as e:
+            print(f"⚠ Loyiha holati tuzatish o'tkazib yuborildi: {e}")
 
         # agreed_amount bo'sh bo'lganlarni total_amount ga tenglashtiramiz
         with engine.connect() as conn:
