@@ -2230,6 +2230,14 @@ function addItem() {
         <label>Plotnost (Bazalt turi)</label>
         <select class="i-termo-bazalt" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
       </div>
+      <div class="dif i-termo-serp-wrap" style="display:none">
+        <label>Serpiyanka (tur)</label>
+        <select class="i-termo-serp" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
+      </div>
+      <div class="dif i-termo-kley-wrap" style="display:none">
+        <label>Kley (tur)</label>
+        <select class="i-termo-kley" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
+      </div>
       <div class="dif i-termo-loy-wrap" style="display:none"></div>
       <div class="dif i-loysale-recipe-wrap" style="display:none">
         <label>Loy turi (retsept)</label>
@@ -2313,11 +2321,13 @@ function toggleFields(row) {
   const coatField = row.querySelector('.i-c')?.closest('.dif');
   const penoField = row.querySelector('.i-peno')?.closest('.dif');
   const tBazaltW = row.querySelector('.i-termo-bazalt-wrap');
+  const tSerpW = row.querySelector('.i-termo-serp-wrap');
+  const tKleyW = row.querySelector('.i-termo-kley-wrap');
   const tLoyW = row.querySelector('.i-termo-loy-wrap');
   const lsRecipeW = row.querySelector('.i-loysale-recipe-wrap');
 
   // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
-  [tBazaltW, tLoyW, lsRecipeW].forEach(el => { if (el) el.style.display = 'none'; });
+  [tBazaltW, tSerpW, tKleyW, tLoyW, lsRecipeW].forEach(el => { if (el) el.style.display = 'none'; });
   if (penoField) penoField.style.display = '';
 
   if (type === 'dona') {
@@ -2363,6 +2373,8 @@ function toggleFields(row) {
     if (coatField) coatField.style.display = 'none';  // Termopanel doim qoplamali — Loy maydoni orqali
     if (penoField) penoField.style.display = 'none';  // Penoplast ishlatilmaydi
     if (tBazaltW) tBazaltW.style.display = '';
+    if (tSerpW) tSerpW.style.display = '';
+    if (tKleyW) tKleyW.style.display = '';
     if (tLoyW) tLoyW.style.display = '';
     ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
     loadTermoInventoryFor(row);
@@ -2410,18 +2422,29 @@ function toggleFields(row) {
 let termoInvCache = null;
 async function loadTermoInventoryFor(row) {
   const bazaltSel = row.querySelector('.i-termo-bazalt');
+  const serpSel = row.querySelector('.i-termo-serp');
+  const kleySel = row.querySelector('.i-termo-kley');
   if (!bazaltSel) return;
   if (!termoInvCache) {
     try { termoInvCache = await fetch('/api/inventory').then(r => r.json()); }
     catch(e) { termoInvCache = []; }
   }
-  // Faqat nomida "bazalt" so'zi bor xomashyolar — penoplastdagi Plotnost kabi
-  const bazaltItems = termoInvCache.filter(i => i.item_name.toLowerCase().includes('bazalt'));
   const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
-  bazaltSel.innerHTML = bazaltItems.length
-    ? bazaltItems.map(opts).join('')
-    : '<option value="">Omborda bazalt yo\'q — avval kirim qiling</option>';
-  if (bazaltItems.length) bazaltSel.value = bazaltItems[0].id;
+
+  // MUHIM: ro'yxatlar endi nomga qarab CHEKLANMAYDI — butun ombordan
+  // istalgan nomdagi materialni tanlash mumkin. Qulaylik uchun, agar
+  // nomida mos so'z topilsa, avtomatik oldindan tanlab qo'yiladi.
+  const allSorted = [...termoInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
+  const fillSel = (sel, matchWord, emptyMsg) => {
+    if (!sel) return;
+    if (!allSorted.length) { sel.innerHTML = `<option value="">${emptyMsg}</option>`; return; }
+    sel.innerHTML = '<option value="">— Tanlang —</option>' + allSorted.map(opts).join('');
+    const guess = termoInvCache.find(i => i.item_name.toLowerCase().includes(matchWord));
+    if (guess) sel.value = guess.id;
+  };
+  fillSel(bazaltSel, 'bazalt', "Omborda xomashyo yo'q — avval kirim qiling");
+  fillSel(serpSel, 'serpiyank', "Omborda xomashyo yo'q — avval kirim qiling");
+  fillSel(kleySel, 'kley', "Omborda xomashyo yo'q — avval kirim qiling");
   calculateItem(row);
 }
 
@@ -2546,8 +2569,12 @@ function calculateItem(row) {
     row.querySelector('.i-vol').value = '— (bazalt alohida hisoblanadi)';
 
     const bazaltEl = row.querySelector('.i-termo-bazalt');
+    const serpEl = row.querySelector('.i-termo-serp');
+    const kleyEl = row.querySelector('.i-termo-kley');
     const loyEl = row.querySelector('.i-termo-loy');
     row.dataset.termoBazaltId = bazaltEl ? bazaltEl.value : '';
+    row.dataset.termoSerpId = serpEl ? serpEl.value : '';
+    row.dataset.termoKleyId = kleyEl ? kleyEl.value : '';
     row.dataset.termoLoy = loyEl ? (parseFloat(loyEl.value) || 0) : 0;
   } else if (type === 'loy_sotish') {
     // qty = necha kg, i-unitprice = 1 kg narxi. Penoplast/m³ ishlatilmaydi —
@@ -3066,15 +3093,25 @@ async function editSelected() {
 
           const bm = (item.notes || '').match(/bazalt_id=(\d+)/);
           const originalBazaltId = bm ? bm[1] : null;
+          const sm = (item.notes || '').match(/serp_id=(\d+)/);
+          const originalSerpId = sm ? sm[1] : null;
+          const km = (item.notes || '').match(/kley_id=(\d+)/);
+          const originalKleyId = km ? km[1] : null;
 
           loadTermoInventoryFor(row).then(() => {
             const bazaltSel = row.querySelector('.i-termo-bazalt');
-            if (bazaltSel && originalBazaltId) {
-              // Agar shu bazalt hali ro'yxatda bo'lmasa (masalan nomi
+            const serpSel = row.querySelector('.i-termo-serp');
+            const kleySel = row.querySelector('.i-termo-kley');
+            const restoreIfExists = (sel, id) => {
+              if (!sel || !id) return;
+              // Agar shu material hali ro'yxatda bo'lmasa (masalan nomi
               // o'zgargan) — mavjud tanlovni qoldiramiz, aks holda aslini tiklaymiz
-              const exists = Array.from(bazaltSel.options).some(o => o.value === originalBazaltId);
-              if (exists) bazaltSel.value = originalBazaltId;
-            }
+              const exists = Array.from(sel.options).some(o => o.value === id);
+              if (exists) sel.value = id;
+            };
+            restoreIfExists(bazaltSel, originalBazaltId);
+            restoreIfExists(serpSel, originalSerpId);
+            restoreIfExists(kleySel, originalKleyId);
             calculateItem(row);
           });
         } else if (cat === 'blok') {
@@ -3293,6 +3330,8 @@ function collectItems() {
                    quantity: qty, unit_price: unitP, is_coated: true,
                    penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
                    bazalt_item_id: parseInt(row.dataset.termoBazaltId) || null,
+                   serpiyanka_item_id: parseInt(row.dataset.termoSerpId) || null,
+                   kley_item_id: parseInt(row.dataset.termoKleyId) || null,
                    termo_loy_kg: parseFloat(row.dataset.termoLoy) || 0 });
     } else if (type === 'loy_sotish') {
       const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
