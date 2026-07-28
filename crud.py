@@ -1511,19 +1511,7 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
         update_data = {k: v for k, v in project_data.items() if v is not None}
 
     for field, value in update_data.items():
-        if field == 'status' and value is not None:
-            from models import ProjectStatus
-            # "active"/"ACTIVE" — ikkalasi ham qabul qilinadi (frontend
-            # qanday yuborishidan qat'iy nazar), noto'g'ri qiymat bo'lsa
-            # e'tiborga olinmaydi (loyiha holati o'zgarishsiz qoladi).
-            try:
-                setattr(db_project, field, ProjectStatus(str(value).lower()))
-            except ValueError:
-                try:
-                    setattr(db_project, field, ProjectStatus[str(value).upper()])
-                except KeyError:
-                    pass
-        elif hasattr(db_project, field) and value is not None:
+        if hasattr(db_project, field) and value is not None:
             setattr(db_project, field, value)
 
     db.commit()
@@ -2402,6 +2390,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         "finished_product_id": getattr(it, 'finished_product_id', None),
         "bazalt_item_id": getattr(it, 'bazalt_item_id', None),
         "serpiyanka_item_id": getattr(it, 'serpiyanka_item_id', None),
+        "kley_item_id": getattr(it, 'kley_item_id', None),
         "kley_kg": getattr(it, 'kley_kg', None) or 0,
         "termo_loy_kg": getattr(it, 'termo_loy_kg', None) or 0,
     } for it in order_data.items]
