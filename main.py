@@ -285,10 +285,11 @@ def _migrate_payment_columns():
         try:
             with engine.connect() as conn:
                 conn.execute(text("""
-                    UPDATE projects SET status = UPPER(status)
-                    WHERE status IN ('draft','active','on_hold','completed','cancelled')
+                    UPDATE projects SET status = UPPER(status::text)::projectstatus
+                    WHERE status::text IN ('draft','active','on_hold','completed','cancelled')
                 """))
                 conn.commit()
+                print("✓ Loyiha holati (status) tuzatildi")
         except Exception as e:
             print(f"⚠ Loyiha holati tuzatish o'tkazib yuborildi: {e}")
 
@@ -2656,6 +2657,21 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+@app.get("/api/system/fix-project-status")
+def api_fix_project_status(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Bir martalik tuzatish: Loyiha holati (status) ustunida qolib ketgan
+    noto'g'ri (kichik harfli) qiymatlarni to'g'irlaydi. Natijani DARHOL
+    qaytaradi — server qayta ishga tushishini kutish shart emas.
+    Brauzerda to'g'ridan-to'g'ri ochsa ham ishlaydi (GET)."""
+    from sqlalchemy import text as _text
+    result = db.execute(_text("""
+        UPDATE projects SET status = UPPER(status::text)::projectstatus
+        WHERE status::text IN ('draft','active','on_hold','completed','cancelled')
+    """))
+    db.commit()
+    return {"status": "ok", "fixed_rows": result.rowcount}
 
 
 @app.post("/api/system/factory-reset")
