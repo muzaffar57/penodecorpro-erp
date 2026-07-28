@@ -2406,15 +2406,27 @@ def check_termopanel_for_order(db: Session, order_data) -> dict:
             else:
                 shortages.append("Tanlangan bazalt turi ombordan topilmadi")
 
+        # Har bir detalda aniq tanlangan serpiyanka/kley bo'lsa — o'shani
+        # ishlatamiz (backward-compat: tanlanmagan bo'lsa, pastda avtomatik qidiramiz)
+        item_serp_id = getattr(item, 'serpiyanka_item_id', None)
+        item_kley_id = getattr(item, 'kley_item_id', None)
+
     for bazalt_id, needed in bazalt_needed.items():
         b = db.query(Inventory).filter(Inventory.id == bazalt_id).first()
         if b and float(b.stock_quantity) < needed:
             shortages.append(f"{b.item_name}: kerak {needed:.2f} dona, qoldi {float(b.stock_quantity):.2f} dona")
 
     if total_serp_m2 > 0:
-        s = find_serpiyanka(db)
+        s = None
+        for item in order_data.items:
+            sid = getattr(item, 'serpiyanka_item_id', None)
+            if sid:
+                s = db.query(Inventory).filter(Inventory.id == sid).first()
+                break
         if not s:
-            shortages.append("Serpiyanka ombordan topilmadi (nomida 'serpiyanka' so'zi bo'lishi kerak)")
+            s = find_serpiyanka(db)
+        if not s:
+            shortages.append("Serpiyanka ombordan topilmadi (nomida 'serpiyanka' so'zi bo'lishi kerak, yoki uni aniq tanlang)")
         else:
             area = float(s.volume_per_unit or 50.0)
             needed = total_serp_m2 / area
@@ -2422,9 +2434,16 @@ def check_termopanel_for_order(db: Session, order_data) -> dict:
                 shortages.append(f"{s.item_name}: kerak {needed:.2f} rulon, qoldi {float(s.stock_quantity):.2f} rulon")
 
     if total_kley_kg > 0:
-        k = find_kley(db)
+        k = None
+        for item in order_data.items:
+            kid = getattr(item, 'kley_item_id', None)
+            if kid:
+                k = db.query(Inventory).filter(Inventory.id == kid).first()
+                break
         if not k:
-            shortages.append("Kley ombordan topilmadi (nomida 'kley' so'zi bo'lishi kerak)")
+            k = find_kley(db)
+        if not k:
+            shortages.append("Kley ombordan topilmadi (nomida 'kley' so'zi bo'lishi kerak, yoki uni aniq tanlang)")
         elif float(k.stock_quantity) < total_kley_kg:
             shortages.append(f"{k.item_name}: kerak {total_kley_kg:.2f} kg, qoldi {float(k.stock_quantity):.2f} kg")
 
@@ -2472,10 +2491,14 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
                 if b.kley_ratio_per_m2:
                     kley_ratio = float(b.kley_ratio_per_m2)
 
-        # Serpiyanka — omborda yagona turi deb hisoblanadi, avtomatik topiladi.
-        # Miqdori — TANLANGAN BAZALTNING o'zida saqlangan nisbat bo'yicha (standart: 2×)
+        # Serpiyanka — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik
+        # uchun) nomi bo'yicha avtomatik qidiramiz. Miqdori — TANLANGAN
+        # BAZALTNING o'zida saqlangan nisbat bo'yicha (standart: 2×)
         serp_m2 = m2 * serp_ratio
-        s = find_serpiyanka(db, lock=True)
+        serp_id = getattr(item_data, 'serpiyanka_item_id', None)
+        s = db.query(Inventory).filter(Inventory.id == serp_id).with_for_update().first() if serp_id else None
+        if not s:
+            s = find_serpiyanka(db, lock=True)
         if s:
             area = float(s.volume_per_unit or 50.0)
             rulon = serp_m2 / area
@@ -2483,8 +2506,13 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
             log.append(f"{s.item_name}: -{rulon:.2f} rulon")
             used_parts.append(f"serp_id={s.id},serp_qty={rulon:.4f}")
 
-        # Kley — TANLANGAN BAZALTNING o'zida saqlangan nisbat bo'yicha (1 m² bazaltga necha kg)
-        k = find_kley(db, lock=True)
+        # Kley — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik uchun)
+        # nomi bo'yicha avtomatik qidiramiz. Miqdori — TANLANGAN BAZALTNING
+        # o'zida saqlangan nisbat bo'yicha (1 m² bazaltga necha kg)
+        kley_id = getattr(item_data, 'kley_item_id', None)
+        k = db.query(Inventory).filter(Inventory.id == kley_id).with_for_update().first() if kley_id else None
+        if not k:
+            k = find_kley(db, lock=True)
         if k:
             kley_kg = m2 * kley_ratio
             k.stock_quantity = float(k.stock_quantity) - kley_kg
@@ -3139,7 +3167,7 @@ def check_termopanel_diff(db: Session, old_items, new_items) -> dict:
 
     serp_diff_m2 = new_g['serp_m2'] - old_g['serp_m2']
     if serp_diff_m2 > 0:
-        s = find_serpiyanka(db)
+        s = _first_explicit_material(db, new_items, 'serpiyanka_item_id') or find_serpiyanka(db)
         if not s:
             shortages.append("Serpiyanka ombordan topilmadi")
         else:
@@ -3150,13 +3178,27 @@ def check_termopanel_diff(db: Session, old_items, new_items) -> dict:
 
     kley_diff = new_g['kley_kg'] - old_g['kley_kg']
     if kley_diff > 0:
-        k = find_kley(db)
+        k = _first_explicit_material(db, new_items, 'kley_item_id') or find_kley(db)
         if not k:
             shortages.append("Kley ombordan topilmadi")
         elif float(k.stock_quantity) < kley_diff:
             shortages.append(f"{k.item_name}: qo'shimcha {kley_diff:.2f} kg kerak, qoldi {float(k.stock_quantity):.2f} kg")
 
     return {"enough": len(shortages) == 0, "shortages": shortages}
+
+
+def _first_explicit_material(db: Session, items, field_name: str):
+    """Buyurtma detallari ro'yxatidan birinchi aniq tanlangan (masalan
+    serpiyanka_item_id yoki kley_item_id) materialni topadi — bo'lsa
+    o'shani ishlatamiz, bo'lmasa (eski moslik) avtomatik qidiruvga qaytamiz."""
+    from models import Inventory
+    for it in items:
+        val = it.get(field_name) if isinstance(it, dict) else getattr(it, field_name, None)
+        if val:
+            m = db.query(Inventory).filter(Inventory.id == val).first()
+            if m:
+                return m
+    return None
 
 
 def adjust_termopanel_diff(db: Session, old_items, new_items, recipe_id=None) -> list:
@@ -3182,7 +3224,7 @@ def adjust_termopanel_diff(db: Session, old_items, new_items, recipe_id=None) ->
 
     serp_diff_m2 = new_g['serp_m2'] - old_g['serp_m2']
     if abs(serp_diff_m2) >= 0.001:
-        s = find_serpiyanka(db, lock=True)
+        s = _first_explicit_material(db, new_items, 'serpiyanka_item_id') or find_serpiyanka(db, lock=True)
         if s:
             area = float(s.volume_per_unit or 50.0)
             diff_rulon = serp_diff_m2 / area
@@ -3191,7 +3233,7 @@ def adjust_termopanel_diff(db: Session, old_items, new_items, recipe_id=None) ->
 
     kley_diff = new_g['kley_kg'] - old_g['kley_kg']
     if abs(kley_diff) >= 0.001:
-        k = find_kley(db, lock=True)
+        k = _first_explicit_material(db, new_items, 'kley_item_id') or find_kley(db, lock=True)
         if k:
             k.stock_quantity = max(0, float(k.stock_quantity) - kley_diff)
             log.append(f"{k.item_name}: {'-' if kley_diff > 0 else '+'}{abs(kley_diff):.2f} kg (tahrirlash)")
