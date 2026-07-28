@@ -593,7 +593,7 @@ def delete_item(db: Session, item_id: int) -> dict:
     bazadan butunlay o'chirib bo'lmaydi (eski hisobotlar buziladi). Shunday holatda
     XAVFSIZ tarzda 'yumshoq o'chirish' qilinadi — Omborxona ro'yxatidan yo'qoladi,
     lekin eski buyurtmalarda ko'rinishda davom etadi."""
-    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.exc import IntegrityError, ProgrammingError
 
     db_item = get_item(db, item_id)
     if not db_item:
@@ -603,7 +603,7 @@ def delete_item(db: Session, item_id: int) -> dict:
         db.delete(db_item)
         db.commit()
         return {"success": True, "soft": False, "message": "Xomashyo butunlay o'chirildi"}
-    except IntegrityError:
+    except (IntegrityError, ProgrammingError):
         db.rollback()
         db_item = get_item(db, item_id)
         db_item.is_deleted = True
@@ -1511,7 +1511,19 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
         update_data = {k: v for k, v in project_data.items() if v is not None}
 
     for field, value in update_data.items():
-        if hasattr(db_project, field) and value is not None:
+        if field == 'status' and value is not None:
+            from models import ProjectStatus
+            # "active"/"ACTIVE" — ikkalasi ham qabul qilinadi (frontend
+            # qanday yuborishidan qat'iy nazar), noto'g'ri qiymat bo'lsa
+            # e'tiborga olinmaydi (loyiha holati o'zgarishsiz qoladi).
+            try:
+                setattr(db_project, field, ProjectStatus(str(value).lower()))
+            except ValueError:
+                try:
+                    setattr(db_project, field, ProjectStatus[str(value).upper()])
+                except KeyError:
+                    pass
+        elif hasattr(db_project, field) and value is not None:
             setattr(db_project, field, value)
 
     db.commit()
