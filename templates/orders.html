@@ -788,9 +788,13 @@ let editMode = false;          // tahrirlash rejimidamizmi
 // (localStorage) saqlanadi, serverga yuborilmaydi.
 // ═══════════════════════════════════════════════════════════════
 const ORDER_DRAFT_LS_KEY = 'penodecor_new_order_draft_v1';
+let orderJustSubmitted = false; // muvaffaqiyatli saqlangandan keyin, reload paytida qoralama qayta yozilib qolmasligi uchun
 
 function saveDraftLS() {
   try {
+    // Endigina muvaffaqiyatli saqlangan bo'lsa — qayta yozib qo'yilmasin
+    if (orderJustSubmitted) return;
+
     // Faqat "Yangi buyurtma" formasi ochiq va TAHRIRLASH rejimida
     // BO'LMASA saqlaymiz (mavjud buyurtmani tahrirlashda bu kerak emas).
     const form = document.getElementById('newOrderForm');
@@ -868,11 +872,8 @@ function checkForDraftOnLoad() {
     const draft = JSON.parse(raw);
     // 24 soatdan eski bo'lsa — endi kerak emas, o'chirib tashlaymiz
     if (!draft.ts || (Date.now() - draft.ts) > 24 * 3600 * 1000) { clearDraftLS(); return; }
-    if (confirm('Yozib bo\'lmagan buyurtma davomi bor. Uni davom ettiramizmi?')) {
-      restoreDraftLS(draft);
-    } else {
-      clearDraftLS();
-    }
+    // Jim, so'roqsiz tiklaymiz — kelgan joyidan davom etadi
+    restoreDraftLS(draft);
   } catch (e) { clearDraftLS(); }
 }
 
@@ -2944,6 +2945,7 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
       headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
     if (res.ok) {
       const saved = await res.json();
+      orderJustSubmitted = true;
       clearDraftLS();
       if (saved.items && saved.items.length) {
         await uploadPendingItemImages(saved.items);
