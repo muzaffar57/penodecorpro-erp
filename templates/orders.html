@@ -3567,18 +3567,15 @@ async function deleteSelected() {
         info = '\n\n♻️ Xomashyo (penoplast va loy) omborga qaytariladi. Butunlay o\'chiriladi.';
       }
 
-      // MUHIM: agar to'lov qilingan bo'lsa, backend buyurtmani HAR DOIM
-      // "yumshoq" o'chiradi (paid_amount>0 shart bo'lgani uchun) — hatto
-      // hali yetkazilmagan/tayyor bo'lmagan bo'lsa ham. Ya'ni to'lov
-      // yozuvi HECH QACHON avtomatik o'chmaydi, har doim saqlanib qoladi.
       if (o.paid_amount > 0) {
-        isSoftCase = true;
-        info += `\n\n💰 ${formatNum(o.paid_amount)} so'm to'lov — hisobotlar uchun saqlanib qoladi (avtomatik o'chmaydi).`;
-        // Faqat HALI YETKAZILMAGAN (jarayondagi) buyurtmalar uchun —
-        // to'liq yakunlangan/yetkazilgan buyurtmada odatda pul qaytarish
-        // holati bo'lmaydi, shuning uchun bu eslatma faqat shu yerda.
-        if (!hasDelivery && o.status !== 'ready' && o.status !== 'delivered') {
-          info += `\n⚠️ Agar mijozga pulni QAYTARIB BERGAN bo'lsangiz — "To'lovlar" bo'limida shu to'lovni ham QO'LDA o'chiring, aks holda u Moliya/Hisobotlarda hisoblanishda davom etadi.`;
+        if (isSoftCase) {
+          // Nimadir haqiqatan topshirilgan/yakunlangan edi — to'lov
+          // moliyaviy tarix sifatida saqlanib qoladi, o'chmaydi.
+          info += `\n\n💰 ${formatNum(o.paid_amount)} so'm to'lov — hisobotlar uchun saqlanib qoladi (avtomatik o'chmaydi).`;
+        } else {
+          // Hech narsa topshirilmagan — chin bekor qilish. Buyurtma
+          // bilan BIRGA to'lov ham avtomatik, butunlay o'chadi.
+          info += `\n\n⚠️ DIQQAT: ${formatNum(o.paid_amount)} so'm to'lov ham buyurtma bilan BIRGA, AVTOMATIK o'chadi!\n   Agar mijozga hali pulni qaytarib bermagan bo'lsangiz — avval qaytaring, keyin o'chiring.`;
         }
       }
       if (hasDelivery && !isSoftCase) {
