@@ -145,7 +145,7 @@
 
           <div id="ap-newitem-form" class="rcv-newitem-box">
             <div class="rcv-row rcv-row-3" style="margin-bottom:0">
-              <div class="rcv-field"><label>Yangi material nomi</label><input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat"></div>
+              <div class="rcv-field"><label>Yangi material nomi</label><input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat" oninput="updateBazaltWrapVisibility()"></div>
               <div class="rcv-field">
                 <label>Kategoriya (Tasnif)</label>
                 <select id="ap-newitem-category" onchange="onNewItemCategoryChange()">
@@ -599,7 +599,15 @@ function apToggleNewItem(){
 function onNewItemCategoryChange(){
   const cat = document.getElementById('ap-newitem-category').value;
   document.getElementById('ap-newitem-peno-wrap').style.display = cat === 'Penoplast' ? 'grid' : 'none';
-  document.getElementById('ap-newitem-bazalt-wrap').style.display = cat === 'Bazalt' ? 'grid' : 'none';
+  updateBazaltWrapVisibility();
+}
+
+function updateBazaltWrapVisibility(){
+  // MUHIM: kategoriya nomiga emas, MATERIAL NOMIGA qarab ko'rsatamiz —
+  // shunda "Boshqa" yoki istalgan boshqa kategoriya tanlansa ham, agar
+  // nomida "bazalt" so'zi bo'lsa, Serpiyanka/Kley nisbati maydoni chiqadi.
+  const name = (document.getElementById('ap-newitem-name')?.value || '').toLowerCase();
+  document.getElementById('ap-newitem-bazalt-wrap').style.display = name.includes('bazalt') ? 'grid' : 'none';
 }
 
 async function apResolveItemId(){
@@ -623,7 +631,11 @@ async function apResolveItemId(){
         serp_ratio_per_m2: serpRatio, kley_ratio_per_m2: kleyRatio
       })
     });
-    if (!res.ok) { showMsg('❌ Yangi material yaratib bo\'lmadi', 'error'); return null; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showMsg('❌ ' + (err.detail || "Yangi material yaratib bo'lmadi"), 'error');
+      return null;
+    }
     const created = await res.json();
     invItems.push({id:created.id, item_name:created.item_name, unit:created.unit, category:created.category, is_penoplast:created.is_penoplast});
     apToggleNewItem();
