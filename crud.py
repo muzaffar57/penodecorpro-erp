@@ -2185,7 +2185,7 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
         OrderItem, Order, InventoryMovement, InventoryPurchase,
         SupplierPayment, FinishedProduct, TransportExpense,
         ExpenseTransaction, MonthlyExpense, EmployeeSession, EmployeeAdvance,
-        AdvanceRequest, Employee, Recipe, Inventory, Master, Project, Supplier,
+        AdvanceRequest, Employee, RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory, UserSession, User
     )
 
@@ -2205,20 +2205,22 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     # 16-18) EmployeeSession/EmployeeAdvance/AdvanceRequest — employees ga bog'langan,
     #        Employee'dan OLDIN tozalanishi SHART (bulk delete cascade ishlatmaydi)
     # 19) Employee — endi xavfsiz
-    # 20) Recipe — endi xavfsiz (OrderItem, FinishedProduct tozalangan)
-    # 21) Inventory — endi xavfsiz
-    # 22) Master, 23) Project — endi xavfsiz (Order tozalangan)
-    # 24) Supplier — endi xavfsiz (barcha unga bog'langanlar tozalangan)
-    # 25) CashTransaction, 26) ActivityLog — mustaqil, sinov izlarini tozalash uchun
+    # 20) RecipeIngredient — recipes VA inventory ga bog'langan, Recipe/Inventory'dan OLDIN tozalanishi SHART
+    # 21) Recipe — endi xavfsiz (OrderItem, FinishedProduct, RecipeIngredient tozalangan)
+    # 22) Inventory — endi xavfsiz
+    # 23) Master, 24) Project — endi xavfsiz (Order tozalangan)
+    # 25) Supplier — endi xavfsiz (barcha unga bog'langanlar tozalangan)
+    # 26) CashTransaction, 27) ActivityLog — mustaqil, sinov izlarini tozalash uchun
     tables_in_order = [
         DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
         Delivery, OrderItem, FinishedProduct, Order,
         InventoryPurchase, SupplierPayment,
         TransportExpense, ExpenseTransaction, MonthlyExpense,
         EmployeeSession, EmployeeAdvance, AdvanceRequest, Employee,
-        Recipe, Inventory, Master, Project, Supplier,
+        RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory,
     ]
+
 
     counts = {}
     for model in tables_in_order:
