@@ -516,22 +516,33 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
         # nazar — bu, "qancha transportga ketdi" kabi statistik ko'rinish
         # uchun, hisob-kitobga qo'sh marta qo'shilib ketmaydi, chunki
         # get_monthly_report o'zi buni alohida qatorga chiqaradi).
+        # MUHIM: agar BUTUN hujjatdagi barcha mahsulotlar "Ombordagi mavjud
+        # xomashyo" (boshlang'ich ombor) deb belgilangan bo'lsa — bu haqiqiy
+        # xarid/tranzaksiya EMAS, shunchaki mavjud zaxirani tizimga kiritish.
+        # Shu sabab, qo'shimcha xarajatlar (Transport/Tushirish/Yuklash/
+        # Boshqa) ham — xomashyoning o'zi kabi — Moliyada xarajat sifatida
+        # YOZILMAYDI. Agar hujjatda aralash (ba'zisi yangi xarid, ba'zisi
+        # boshlang'ich ombor) bo'lsa — xavfsizlik uchun, xarajatlar odatdagidek
+        # yoziladi (chunki hujjatning bir qismi haqiqiy xarid hisoblanadi).
+        all_opening_stock = all(bool(it.get("is_opening_stock", False)) for it in items)
+
         cost_categories = [
             ("transport_kirim", transport_cost, "Transport (kirim)"),
             ("tushirish_kirim", tushirish_cost, "Tushirish (Grushchik)"),
             ("yuklash_kirim", yuklash_cost, "Yuklash"),
             ("kirim_boshqa", boshqa_cost, "Boshqa xarajat (kirim)"),
         ]
-        for cat, amount, label in cost_categories:
-            amount = float(amount or 0)
-            if amount <= 0:
-                continue
-            tx = ExpenseTransaction(
-                date=receipt.receipt_date, category=cat, amount=amount,
-                notes=f"{label} — Kirim #{receipt.id}" + (f" ({document_number})" if document_number else ""),
-                created_by=created_by, source="inventory_receipt"
-            )
-            db.add(tx)
+        if not all_opening_stock:
+            for cat, amount, label in cost_categories:
+                amount = float(amount or 0)
+                if amount <= 0:
+                    continue
+                tx = ExpenseTransaction(
+                    date=receipt.receipt_date, category=cat, amount=amount,
+                    notes=f"{label} — Kirim #{receipt.id}" + (f" ({document_number})" if document_number else ""),
+                    created_by=created_by, source="inventory_receipt"
+                )
+                db.add(tx)
 
         # Yagona, umumiy to'lov (agar kiritilgan bo'lsa)
         payment_created = None
