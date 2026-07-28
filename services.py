@@ -2447,11 +2447,13 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
     return log
 
 
-def return_termopanel_for_item(db: Session, item) -> list:
+def return_termopanel_for_item(db: Session, item, sign: float = 1.0) -> list:
     """Bitta detal uchun ilgari yechilgan bazalt/serpiyanka/kley ombordan qaytariladi
     (loy qaytarilmaydi — ishlatib bo'lingan). Committ qilmaydi — chaqiruvchi o'zi commit qiladi.
     `return_termopanel_for_order` va bitta detal o'chirilganda (`delete_order_item`)
-    ikkalasi ham shu funksiyadan foydalanadi — xatti-harakat bir xil bo'lishi uchun."""
+    ikkalasi ham shu funksiyadan foydalanadi — xatti-harakat bir xil bo'lishi uchun.
+    sign=1.0 — qaytarish (standart). sign=-1.0 — teskarisi, ya'ni buyurtma
+    TIKLANGANDA xuddi shu miqdorni qayta ombordan yechish uchun."""
     from models import Inventory
     import re as _re
 
@@ -2462,34 +2464,39 @@ def return_termopanel_for_item(db: Session, item) -> list:
     if not m:
         return log
     parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
+    verb = "qaytarildi" if sign > 0 else "qayta yechildi"
 
     if 'bazalt_id' in parts and 'bazalt_qty' in parts:
         b = db.query(Inventory).filter(Inventory.id == int(parts['bazalt_id'])).with_for_update().first()
         if b:
-            b.stock_quantity = float(b.stock_quantity) + float(parts['bazalt_qty'])
-            log.append(f"{b.item_name}: +{float(parts['bazalt_qty']):.2f} dona qaytarildi")
+            delta = float(parts['bazalt_qty']) * sign
+            b.stock_quantity = float(b.stock_quantity) + delta
+            log.append(f"{b.item_name}: {delta:+.2f} dona {verb}")
 
     if 'serp_id' in parts and 'serp_qty' in parts:
         s = db.query(Inventory).filter(Inventory.id == int(parts['serp_id'])).with_for_update().first()
         if s:
-            s.stock_quantity = float(s.stock_quantity) + float(parts['serp_qty'])
-            log.append(f"{s.item_name}: +{float(parts['serp_qty']):.2f} rulon qaytarildi")
+            delta = float(parts['serp_qty']) * sign
+            s.stock_quantity = float(s.stock_quantity) + delta
+            log.append(f"{s.item_name}: {delta:+.2f} rulon {verb}")
 
     if 'kley_id' in parts and 'kley_qty' in parts:
         k = db.query(Inventory).filter(Inventory.id == int(parts['kley_id'])).with_for_update().first()
         if k:
-            k.stock_quantity = float(k.stock_quantity) + float(parts['kley_qty'])
-            log.append(f"{k.item_name}: +{float(parts['kley_qty']):.2f} kg qaytarildi")
+            delta = float(parts['kley_qty']) * sign
+            k.stock_quantity = float(k.stock_quantity) + delta
+            log.append(f"{k.item_name}: {delta:+.2f} kg {verb}")
 
     return log
 
 
-def return_termopanel_for_order(db: Session, order) -> list:
+def return_termopanel_for_order(db: Session, order, sign: float = 1.0) -> list:
     """Buyurtma o'chirilganda — termopanel detallari uchun ilgari yechilgan
-    bazalt/serpiyanka/kley ombordan qaytariladi (loy qaytarilmaydi — ishlatib bo'lingan)."""
+    bazalt/serpiyanka/kley ombordan qaytariladi (loy qaytarilmaydi — ishlatib bo'lingan).
+    sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun."""
     log = []
     for item in order.items:
-        log.extend(return_termopanel_for_item(db, item))
+        log.extend(return_termopanel_for_item(db, item, sign=sign))
 
     if log:
         db.commit()
@@ -2538,10 +2545,11 @@ def get_undelivered_items(order):
     return result
 
 
-def return_inventory_for_order_partial(db: Session, order) -> list:
+def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0) -> list:
     """Qisman topshirilgan buyurtma bekor qilinganda/o'chirilganda —
     FAQAT hali topshirilmagan (mijozga berilmagan) qismi uchun xomashyoni
-    omborga qaytaradi. Topshirib bo'lingan qism — mijozda, qaytmaydi."""
+    omborga qaytaradi. Topshirib bo'lingan qism — mijozda, qaytmaydi.
+    sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun."""
     from models import Inventory
 
     log = []
@@ -2550,6 +2558,7 @@ def return_inventory_for_order_partial(db: Session, order) -> list:
         return log
 
     prorated_items = [_ProratedItem(item, fraction) for item, fraction, _, _ in undelivered]
+    verb = "qaytarildi" if sign > 0 else "qayta yechildi"
 
     # 1) Penoplast — qolgan qism bo'yicha
     volumes = _group_volumes_by_penoplast(db, prorated_items)
@@ -2558,9 +2567,9 @@ def return_inventory_for_order_partial(db: Session, order) -> list:
         if not p:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
-        blocks_to_return = vol / vol_per_unit
-        p.stock_quantity = float(p.stock_quantity) + blocks_to_return
-        log.append(f"{p.item_name}: +{blocks_to_return:.2f} blok qaytarildi (qolgan qism)")
+        blocks = (vol / vol_per_unit) * sign
+        p.stock_quantity = float(p.stock_quantity) + blocks
+        log.append(f"{p.item_name}: {blocks:+.2f} blok {verb} (qolgan qism)")
 
     # 2) Termopanel (bazalt/serpiyanka/kley) — qolgan qism bo'yicha
     for item, fraction, remaining, ordered in undelivered:
@@ -2574,31 +2583,33 @@ def return_inventory_for_order_partial(db: Session, order) -> list:
         if 'bazalt_id' in parts and 'bazalt_qty' in parts:
             b = db.query(Inventory).filter(Inventory.id == int(parts['bazalt_id'])).with_for_update().first()
             if b:
-                qty = float(parts['bazalt_qty']) * fraction
+                qty = float(parts['bazalt_qty']) * fraction * sign
                 b.stock_quantity = float(b.stock_quantity) + qty
-                log.append(f"{b.item_name}: +{qty:.2f} dona qaytarildi (qolgan qism)")
+                log.append(f"{b.item_name}: {qty:+.2f} dona {verb} (qolgan qism)")
         if 'serp_id' in parts and 'serp_qty' in parts:
             s = db.query(Inventory).filter(Inventory.id == int(parts['serp_id'])).with_for_update().first()
             if s:
-                qty = float(parts['serp_qty']) * fraction
+                qty = float(parts['serp_qty']) * fraction * sign
                 s.stock_quantity = float(s.stock_quantity) + qty
-                log.append(f"{s.item_name}: +{qty:.2f} rulon qaytarildi (qolgan qism)")
+                log.append(f"{s.item_name}: {qty:+.2f} rulon {verb} (qolgan qism)")
         if 'kley_id' in parts and 'kley_qty' in parts:
             k = db.query(Inventory).filter(Inventory.id == int(parts['kley_id'])).with_for_update().first()
             if k:
-                qty = float(parts['kley_qty']) * fraction
+                qty = float(parts['kley_qty']) * fraction * sign
                 k.stock_quantity = float(k.stock_quantity) + qty
-                log.append(f"{k.item_name}: +{qty:.2f} kg qaytarildi (qolgan qism)")
+                log.append(f"{k.item_name}: {qty:+.2f} kg {verb} (qolgan qism)")
 
     if log:
         db.commit()
     return log
 
 
-def return_inventory_for_order(db: Session, order) -> list:
+def return_inventory_for_order(db: Session, order, sign: float = 1.0) -> list:
     """
     Buyurtma o'chirilganda omborga xomashyo qaytaradi.
     Har detal o'z plotnostiga qaytariladi.
+    sign=1.0 — qaytarish (standart). sign=-1.0 — teskarisi, ya'ni
+    buyurtma TIKLANGANDA xuddi shu miqdorni qayta ombordan yechish uchun.
     """
     from models import Inventory
 
@@ -2610,9 +2621,10 @@ def return_inventory_for_order(db: Session, order) -> list:
         if not p:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
-        blocks_to_return = vol / vol_per_unit
-        p.stock_quantity = float(p.stock_quantity) + blocks_to_return
-        log.append(f"{p.item_name}: +{blocks_to_return:.2f} blok qaytarildi")
+        blocks = (vol / vol_per_unit) * sign
+        p.stock_quantity = float(p.stock_quantity) + blocks
+        verb = "qaytarildi" if sign > 0 else "qayta yechildi"
+        log.append(f"{p.item_name}: {blocks:+.2f} blok {verb}")
 
     if volumes:
         db.commit()
