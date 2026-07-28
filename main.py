@@ -278,21 +278,6 @@ def _migrate_payment_columns():
                 if 'already exists' not in msg and 'does not exist' not in msg:
                     print(f"⚠ Enum {enum_name}.{value}: {e}")
 
-        # Loyiha holati (status) ustunida noto'g'ri (kichik harfli) qiymat
-        # qolib ketgan bo'lsa — to'g'ri (katta harfli) qiymatga tuzatamiz.
-        # Bu — bir martalik, o'zini-o'zi davolovchi tuzatish; xavfsiz
-        # (faqat noto'g'ri qatorlarga tegadi, boshqasiga ta'sir qilmaydi).
-        try:
-            with engine.connect() as conn:
-                conn.execute(text("""
-                    UPDATE projects SET status = UPPER(status::text)::projectstatus
-                    WHERE status::text IN ('draft','active','on_hold','completed','cancelled')
-                """))
-                conn.commit()
-                print("✓ Loyiha holati (status) tuzatildi")
-        except Exception as e:
-            print(f"⚠ Loyiha holati tuzatish o'tkazib yuborildi: {e}")
-
         # agreed_amount bo'sh bo'lganlarni total_amount ga tenglashtiramiz
         with engine.connect() as conn:
             try:
@@ -2659,19 +2644,15 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
     )
 
 
-@app.get("/api/system/fix-project-status")
-def api_fix_project_status(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Bir martalik tuzatish: Loyiha holati (status) ustunida qolib ketgan
-    noto'g'ri (kichik harfli) qiymatlarni to'g'irlaydi. Natijani DARHOL
-    qaytaradi — server qayta ishga tushishini kutish shart emas.
-    Brauzerda to'g'ridan-to'g'ri ochsa ham ishlaydi (GET)."""
+@app.get("/api/system/debug-project-status")
+def api_debug_project_status(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Diagnostika: har bir loyihaning ID'si va status ustunidagi XOM
+    (o'zgartirilmagan) matnni ko'rsatadi — ORM (Python Enum) orqali emas,
+    to'g'ridan-to'g'ri SQL orqali, shuning uchun buzilgan qiymat bo'lsa ham
+    xato bermaydi."""
     from sqlalchemy import text as _text
-    result = db.execute(_text("""
-        UPDATE projects SET status = UPPER(status::text)::projectstatus
-        WHERE status::text IN ('draft','active','on_hold','completed','cancelled')
-    """))
-    db.commit()
-    return {"status": "ok", "fixed_rows": result.rowcount}
+    rows = db.execute(_text("SELECT id, project_name, status::text AS raw_status FROM projects ORDER BY id")).fetchall()
+    return [{"id": r[0], "name": r[1], "raw_status": r[2]} for r in rows]
 
 
 @app.post("/api/system/factory-reset")
