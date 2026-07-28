@@ -3567,10 +3567,19 @@ async function deleteSelected() {
         info = '\n\n♻️ Xomashyo (penoplast va loy) omborga qaytariladi. Butunlay o\'chiriladi.';
       }
 
+      // MUHIM: agar to'lov qilingan bo'lsa, backend buyurtmani HAR DOIM
+      // "yumshoq" o'chiradi (paid_amount>0 shart bo'lgani uchun) — hatto
+      // hali yetkazilmagan/tayyor bo'lmagan bo'lsa ham. Ya'ni to'lov
+      // yozuvi HECH QACHON avtomatik o'chmaydi, har doim saqlanib qoladi.
       if (o.paid_amount > 0) {
-        info += isSoftCase
-          ? `\n\n💰 ${formatNum(o.paid_amount)} so'm to'lov — hisobotlar uchun saqlanib qoladi.`
-          : `\n\n💰 Diqqat! ${formatNum(o.paid_amount)} so'm to'lov qilingan — to'lovlar ham o'chadi.`;
+        isSoftCase = true;
+        info += `\n\n💰 ${formatNum(o.paid_amount)} so'm to'lov — hisobotlar uchun saqlanib qoladi (avtomatik o'chmaydi).`;
+        // Faqat HALI YETKAZILMAGAN (jarayondagi) buyurtmalar uchun —
+        // to'liq yakunlangan/yetkazilgan buyurtmada odatda pul qaytarish
+        // holati bo'lmaydi, shuning uchun bu eslatma faqat shu yerda.
+        if (!hasDelivery && o.status !== 'ready' && o.status !== 'delivered') {
+          info += `\n⚠️ Agar mijozga pulni QAYTARIB BERGAN bo'lsangiz — "To'lovlar" bo'limida shu to'lovni ham QO'LDA o'chiring, aks holda u Moliya/Hisobotlarda hisoblanishda davom etadi.`;
+        }
       }
       if (hasDelivery && !isSoftCase) {
         info += `\n📦 ${o.deliveries.length} ta yuk xati ham o'chadi.`;
