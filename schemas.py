@@ -288,6 +288,7 @@ class OrderItemCreate(BaseModel):
     # Termopanel (Bazalt) uchun — category='termopanel' bo'lganda ishlatiladi
     bazalt_item_id: Optional[int] = None
     serpiyanka_item_id: Optional[int] = None
+    kley_item_id: Optional[int] = None
     kley_kg: Optional[float] = None
     termo_loy_kg: Optional[float] = None
     # "Loy sotish" turi uchun — shu detalning O'ZIGA tegishli retsept
