@@ -954,9 +954,11 @@ def _take_finished_for_order(db: Session, order) -> list:
     return log
 
 
-def _return_finished_for_order(db: Session, order) -> list:
-    """Buyurtma o'chirilganda tayyor mahsulotlarni qaytaradi."""
+def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
+    """Buyurtma o'chirilganda tayyor mahsulotlarni qaytaradi.
+    sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun."""
     log = []
+    verb = "qaytarildi" if sign > 0 else "qayta yechildi"
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -967,8 +969,9 @@ def _return_finished_for_order(db: Session, order) -> list:
         fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
         if not fp:
             continue
-        fp.quantity = float(fp.quantity or 0) + qty
-        log.append(f"🏭 {fp.name}: +{qty:g} {fp.unit} qaytarildi")
+        delta = qty * sign
+        fp.quantity = float(fp.quantity or 0) + delta
+        log.append(f"🏭 {fp.name}: {delta:+.2f} {fp.unit} {verb}")
     if log:
         db.flush()
     return log
@@ -1378,10 +1381,53 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
 
 
 def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
-    """O'chirilgan (yumshoq) buyurtmani tiklaydi."""
+    """O'chirilgan (yumshoq) buyurtmani tiklaydi.
+
+    MUHIM: agar o'chirishda xomashyo/tayyor mahsulot omborga qaytarilgan
+    bo'lsa (order.stock_returned=True), endi buyurtma qayta faol bo'lgani
+    uchun O'SHA MIQDORNI QAYTA OMBORDAN YECHISH kerak — aks holda material
+    ham "omborda bor", ham "buyurtmada ishlatilgan" bo'lib, ombor sun'iy
+    ravishda ko'payib qoladi. Bu — o'chirishda ishlatilgan return_*
+    funksiyalarning aynan aksi (sign=-1.0), shuning uchun sonlar mos keladi.
+    """
+    import services
+
     db_order = db.query(Order).filter(Order.id == order_id).first()
     if not db_order:
         return False
+
+    if db_order.stock_returned:
+        has_delivery = bool(db_order.deliveries)
+        is_fully_delivered = db_order.status == OrderStatus.DELIVERED or db_order.is_fully_delivered
+
+        if not is_fully_delivered:
+            if has_delivery:
+                # Qisman topshirilgan edi — faqat qolgan qism qayta yechiladi
+                services.return_inventory_for_order_partial(db, db_order, sign=-1.0)
+            else:
+                # Hech narsa topshirilmagan edi — hammasi qayta yechiladi
+                services.return_inventory_for_order(db, db_order, sign=-1.0)
+                services.return_termopanel_for_order(db, db_order, sign=-1.0)
+
+            if not has_delivery:
+                _return_finished_for_order(db, db_order, sign=-1.0)
+
+                # Loy (qoplama) — rejalashtirilgan miqdor qayta yechiladi.
+                # Eslatma: agar o'chirishda "haqiqatda qancha ishlatilgan edi"
+                # deb alohida qiymat kiritilgan bo'lsa, o'sha aniq qiymat
+                # saqlanmaganligi sabab, bu yerda REJADAGI (standart) miqdor
+                # asos qilib olinadi — aksariyat holatlarda bu aynan to'g'ri keladi.
+                planned_loy = services._get_planned_loy(db_order) + get_termopanel_planned_loy(db_order)
+                if planned_loy > 0:
+                    services.deduct_loy_ingredients(db, db_order, planned_loy)
+
+                # "Loy sotish" detallari — har biri o'z retseptiga ko'ra qayta yechiladi
+                for item in db_order.items:
+                    if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
+                        services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
+
+        db_order.stock_returned = False
+
     db_order.is_deleted = False
     db.commit()
     log_activity(db, "restored", "order", order_id, db_order.order_number, performed_by)
