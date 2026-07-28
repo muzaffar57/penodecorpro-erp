@@ -1277,8 +1277,13 @@ def get_chart_data(db: Session) -> Dict:
         Order.status == OrderStatus.READY
     ).scalar() or 0
 
+    from sqlalchemy import or_
     total_budget = db.query(func.sum(Order.total_amount)).filter(
-        Order.status != OrderStatus.DRAFT
+        Order.status != OrderStatus.DRAFT,
+        or_(
+            Order.is_deleted.isnot(True),  # faol buyurtmalar — doim hisoblanadi
+            Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED])  # o'chirilgan, lekin YAKUNLANGAN edi — moliyaviy tarix sifatida saqlanadi
+        )
     ).scalar() or 0
 
     total_paid = db.query(func.sum(Payment.amount)).scalar() or 0
