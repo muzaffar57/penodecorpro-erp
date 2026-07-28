@@ -861,6 +861,47 @@ def check_low_stock(db: Session) -> List[Dict]:
     return result
 
 
+def get_today_tasks(db: Session) -> List[Dict]:
+    """Dashboard 'Bugungi vazifalar' vidjeti uchun — bugun e'tibor talab
+    qiladigan narsalar ro'yxati: bugun topshirilishi kerak bo'lgan
+    buyurtmalar, muddati o'tgan buyurtmalar, va kam qolgan xomashyo.
+    Har biri {icon, text} shaklida qaytariladi."""
+    from models import Order, OrderStatus
+    from datetime import datetime, timedelta
+
+    tasks = []
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+
+    # 1) Bugun topshirilishi kerak bo'lgan buyurtmalar
+    due_today = db.query(Order).filter(
+        Order.deadline >= today_start, Order.deadline < today_end,
+        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED]),
+        Order.is_deleted.isnot(True)
+    ).all()
+    for o in due_today:
+        tasks.append({"icon": "🚚", "text": f"{o.order_number} — bugun topshirilishi kerak"})
+
+    # 2) Muddati o'tgan (kechikkan) buyurtmalar
+    overdue = db.query(Order).filter(
+        Order.deadline < today_start,
+        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.READY]),
+        Order.is_deleted.isnot(True)
+    ).count()
+    if overdue > 0:
+        tasks.append({"icon": "⏰", "text": f"{overdue} ta buyurtma muddati o'tgan"})
+
+    # 3) Kam qolgan xomashyo
+    low_stock = check_low_stock(db)
+    for item in low_stock[:5]:
+        tasks.append({"icon": "⚠️", "text": f"{item['item_name']} kam qolgan ({item['stock_quantity']:g} {item['unit']})"})
+
+    if not tasks:
+        tasks.append({"icon": "✅", "text": "Bugun uchun alohida vazifa yo'q"})
+
+    return tasks
+
+
 def get_today_stats(db: Session) -> Dict:
     """Dashboard yuqori qatori uchun 'bugungi kun' statistikasi.
 
