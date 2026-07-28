@@ -1264,13 +1264,24 @@ def get_chart_data(db: Session) -> Dict:
     master_kpi.sort(key=lambda x: x["total"], reverse=True)
     master_kpi = master_kpi[:5]
 
-    # --- 4. Umumiy moliyaviy ko'rsatkichlar ---
+    # --- 4. Umumiy moliyaviy ko'rsatkichlar ────────────────
+    # MUHIM: barchasi BITTA manbadan — Order/Payment jadvallaridan —
+    # hisoblanadi, xuddi Moliya va Hisobotlar sahifalari kabi. Avval
+    # "To'langan"/"Jami byudjet" Project.total_paid/total_budget kabi
+    # alohida (keshlangan) maydonlardan olinar edi — bu ular haqiqiy
+    # to'lovlardan (Payment) sekin-asta uzoqlashib ketishiga sabab
+    # bo'lishi mumkin edi. Endi hammasi bir xil, izchil manbadan.
+    from models import Payment
+
     total_revenue = db.query(func.sum(Order.total_amount)).filter(
         Order.status == OrderStatus.READY
     ).scalar() or 0
 
-    total_paid = db.query(func.sum(Project.total_paid)).scalar() or 0
-    total_budget = db.query(func.sum(Project.total_budget)).scalar() or 0
+    total_budget = db.query(func.sum(Order.total_amount)).filter(
+        Order.status != OrderStatus.DRAFT
+    ).scalar() or 0
+
+    total_paid = db.query(func.sum(Payment.amount)).scalar() or 0
     total_debt = float(total_budget) - float(total_paid)
 
     # --- 5. Omborxona holati (top yetishmayotganlar) ---
