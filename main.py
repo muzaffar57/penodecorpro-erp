@@ -2644,17 +2644,6 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
     )
 
 
-@app.get("/api/system/debug-project-status")
-def api_debug_project_status(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Diagnostika: har bir loyihaning ID'si va status ustunidagi XOM
-    (o'zgartirilmagan) matnni ko'rsatadi — ORM (Python Enum) orqali emas,
-    to'g'ridan-to'g'ri SQL orqali, shuning uchun buzilgan qiymat bo'lsa ham
-    xato bermaydi."""
-    from sqlalchemy import text as _text
-    rows = db.execute(_text("SELECT id, project_name, status::text AS raw_status FROM projects ORDER BY id")).fetchall()
-    return [{"id": r[0], "name": r[1], "raw_status": r[2]} for r in rows]
-
-
 @app.post("/api/system/factory-reset")
 def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
                        db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
