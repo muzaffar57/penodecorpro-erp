@@ -1910,10 +1910,15 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: S
 
     # Kelajakda KPI/hisobotlar uchun saqlanishi kerakmi?
     # Har qanday haqiqiy ish izi bo'lsa (yetkazish, tayyor, to'langan) — yumshoq o'chiramiz.
+    # MUHIM: "to'lov qilingan" — endi yakka o'zi yumshoq o'chirishga sabab
+    # bo'lmaydi. Agar buyurtmaga HECH NARSA topshirilmagan bo'lsa (hali
+    # ish boshlanmagan, chin bekor qilish) — buyurtma BUTUNLAY o'chadi,
+    # va unga bog'liq TO'LOVLAR HAM avtomatik birga o'chadi (pastda,
+    # crud.delete_order ichida) — moliyaviy iz qoldirishning hojati yo'q,
+    # chunki hech qanday haqiqiy xizmat ko'rsatilmagan edi.
     should_soft_delete = (
         has_delivery
         or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
-        or float(order.paid_amount or 0) > 0
     )
 
     if not crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username)):
