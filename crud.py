@@ -2182,7 +2182,7 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     (avval "bola", keyin "ota") tartibda tozalanadi."""
     from models import (
         DeliveryItem, Payment, OrderAttachment, ReturnItem, Delivery,
-        OrderItem, Order, InventoryMovement, InventoryPurchase,
+        OrderItem, Order, InventoryMovement, InventoryPurchase, InventoryReceipt,
         SupplierPayment, FinishedProduct, TransportExpense,
         ExpenseTransaction, MonthlyExpense, EmployeeSession, EmployeeAdvance,
         AdvanceRequest, Employee, RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
@@ -2199,22 +2199,24 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     # 7) OrderItem — orders, recipes, inventory, finished_products ga bog'langan
     # 8) FinishedProduct — orders, inventory, recipes ga bog'langan (OrderItem dan keyin)
     # 9) Order — endi barcha "bolalari" tozalangan, xavfsiz
-    # 10) InventoryPurchase — inventory, suppliers ga bog'langan
-    # 11) SupplierPayment — suppliers ga bog'langan
-    # 12-15) Mustaqil jadvallar
-    # 16-18) EmployeeSession/EmployeeAdvance/AdvanceRequest — employees ga bog'langan,
+    # 10) InventoryPurchase — inventory, suppliers, inventory_receipts ga bog'langan
+    # 11) InventoryReceipt — suppliers ga bog'langan, InventoryPurchase'dan OLDIN emas, KEYIN tozalanadi
+    #     (chunki InventoryPurchase.receipt_id shu jadvalga ishora qiladi — bola avval, ota keyin)
+    # 12) SupplierPayment — suppliers ga bog'langan
+    # 13-16) Mustaqil jadvallar
+    # 17-19) EmployeeSession/EmployeeAdvance/AdvanceRequest — employees ga bog'langan,
     #        Employee'dan OLDIN tozalanishi SHART (bulk delete cascade ishlatmaydi)
-    # 19) Employee — endi xavfsiz
-    # 20) RecipeIngredient — recipes VA inventory ga bog'langan, Recipe/Inventory'dan OLDIN tozalanishi SHART
-    # 21) Recipe — endi xavfsiz (OrderItem, FinishedProduct, RecipeIngredient tozalangan)
-    # 22) Inventory — endi xavfsiz
-    # 23) Master, 24) Project — endi xavfsiz (Order tozalangan)
-    # 25) Supplier — endi xavfsiz (barcha unga bog'langanlar tozalangan)
-    # 26) CashTransaction, 27) ActivityLog — mustaqil, sinov izlarini tozalash uchun
+    # 20) Employee — endi xavfsiz
+    # 21) RecipeIngredient — recipes VA inventory ga bog'langan, Recipe/Inventory'dan OLDIN tozalanishi SHART
+    # 22) Recipe — endi xavfsiz (OrderItem, FinishedProduct, RecipeIngredient tozalangan)
+    # 23) Inventory — endi xavfsiz
+    # 24) Master, 25) Project — endi xavfsiz (Order tozalangan)
+    # 26) Supplier — endi xavfsiz (InventoryReceipt, InventoryPurchase, SupplierPayment, InventoryMovement tozalangan)
+    # 27) CashTransaction, 28) ActivityLog — mustaqil, sinov izlarini tozalash uchun
     tables_in_order = [
         DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
         Delivery, OrderItem, FinishedProduct, Order,
-        InventoryPurchase, SupplierPayment,
+        InventoryPurchase, InventoryReceipt, SupplierPayment,
         TransportExpense, ExpenseTransaction, MonthlyExpense,
         EmployeeSession, EmployeeAdvance, AdvanceRequest, Employee,
         RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
