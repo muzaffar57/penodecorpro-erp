@@ -1477,6 +1477,33 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
 
     tan_narxi_jami += termopanel_xarajat
 
+    # ── 1C. LOY SOTISH XARAJATI ──────────────────────────────
+    # Har bir "Loy sotish" detali uchun — o'sha detalning O'ZIGA tegishli
+    # retsept bo'yicha, sotilgan necha kg uchun tan narx hisoblanadi.
+    for item in order.items:
+        if (item.category or '').lower() != 'loy_sotish' or not item.recipe_id:
+            continue
+        qty_kg = float(item.quantity or 0)
+        if qty_kg <= 0:
+            continue
+        recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
+        if not recipe:
+            continue
+        batch = float(recipe.batch_size_kg or 100)
+        narx_per_kg = 0.0
+        for ing in recipe.ingredients:
+            mat_kg = float(ing.quantity_kg or 0)
+            if mat_kg <= 0 or not ing.inventory or not ing.inventory.price_per_unit:
+                continue
+            narx_per_kg += (mat_kg / batch) * float(ing.inventory.price_per_unit)
+        loy_sotish_xarajat = qty_kg * narx_per_kg
+        if loy_sotish_xarajat > 0:
+            breakdown.append({
+                "nomi": f"{item.name} — Loy sotish ({qty_kg:.1f} kg × {narx_per_kg:,.0f} so'm/kg)",
+                "summa": loy_sotish_xarajat
+            })
+            tan_narxi_jami += loy_sotish_xarajat
+
     # ── 2. QOPLAMA XOMASHYOSI XARAJATI ──────────────────────
     coated_items = [i for i in order.items if i.is_coated]
     # MUHIM: loy_kg BUYURTMA DARAJASIDA (notes'da) saqlanadi va, agar u
