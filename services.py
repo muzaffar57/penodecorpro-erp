@@ -1190,11 +1190,10 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     order.completed_at = datetime.utcnow()
     # Loy miqdorini notes ga saqlaymiz (foyda hisoblash uchun)
     if loy_kg and loy_kg > 0:
+        import re as _re_loykg_w
         existing_notes = order.notes or ''
-        parts = [p.strip() for p in existing_notes.split(',')
-                 if p.strip() and not p.strip().startswith('loy_kg=')]
-        parts.append(f'loy_kg={loy_kg}')
-        order.notes = ','.join(parts)
+        base_notes = _re_loykg_w.sub(r',?\s*loy_kg=[\d.]+', '', existing_notes).strip().strip(',').strip()
+        order.notes = (base_notes + f", loy_kg={loy_kg}").strip(', ')
     db.commit()
     db.refresh(order)
 
@@ -1524,11 +1523,10 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
     loy_kg = 0.0
     if order.notes:
         try:
-            for part in order.notes.split(','):
-                p = part.strip()
-                if p.startswith('loy_kg='):
-                    loy_kg = float(p.split('=')[1].strip())
-                    break
+            import re as _re_loykg
+            m = _re_loykg.search(r'loy_kg=([\d.]+)', order.notes)
+            if m:
+                loy_kg = float(m.group(1))
         except Exception as e:
             try:
                 import crud as _crud_log
@@ -2924,14 +2922,13 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
     if coating_applied and order_item.is_coated and order:
         loy_kg = 0.0
         if order.notes:
-            for part in str(order.notes).split(','):
-                p2 = part.strip()
-                if p2.startswith('loy_kg='):
-                    try:
-                        loy_kg = float(p2.split('=')[1])
-                    except (ValueError, IndexError):
-                        pass
-                    break
+            import re as _re_loykg2
+            m = _re_loykg2.search(r'loy_kg=([\d.]+)', str(order.notes))
+            if m:
+                try:
+                    loy_kg = float(m.group(1))
+                except ValueError:
+                    pass
         if loy_kg <= 0:
             loy_kg = _get_planned_loy(order)
 
@@ -3633,14 +3630,13 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
     if include_coating and item.is_coated and order:
         loy_kg = 0.0
         if order.notes:
-            for part in str(order.notes).split(','):
-                p2 = part.strip()
-                if p2.startswith('loy_kg='):
-                    try:
-                        loy_kg = float(p2.split('=')[1])
-                    except (ValueError, IndexError):
-                        pass
-                    break
+            import re as _re_loykg3
+            m = _re_loykg3.search(r'loy_kg=([\d.]+)', str(order.notes))
+            if m:
+                try:
+                    loy_kg = float(m.group(1))
+                except ValueError:
+                    pass
         if loy_kg <= 0:
             loy_kg = _get_planned_loy(order)
 
