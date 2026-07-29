@@ -361,12 +361,12 @@ def get_top_customers_report(db: Session, days: int = 90, limit: int = 10) -> li
     period_start = datetime.utcnow() - timedelta(days=days)
     rows = db.query(
         Project.client_name,
-        func.sum(Order.total_amount).label("revenue"),
+        func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0)).label("revenue"),
         func.count(Order.id).label("orders_count")
     ).join(Project, Order.project_id == Project.id).filter(
         Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
         Order.completed_at >= period_start
-    ).group_by(Project.client_name).order_by(func.sum(Order.total_amount).desc()).limit(limit).all()
+    ).group_by(Project.client_name).order_by(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0)).desc()).limit(limit).all()
 
     return [{
         "client_name": r.client_name,
@@ -1269,7 +1269,7 @@ def get_chart_data(db: Session) -> Dict:
         # MUHIM: daromad (revenue) — moliyaviy tarix, o'chirilgan
         # buyurtmalar ham hisobga olinishi kerak (faqat "count" — necha ta
         # buyurtma yaratilgani — o'zgarishsiz qoladi, chunki bu shunchaki son).
-        revenue = db.query(func.sum(Order.total_amount)).filter(
+        revenue = db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
             Order.created_at >= month_start,
             Order.created_at < month_end,
             Order.status == OrderStatus.READY
@@ -1298,7 +1298,7 @@ def get_chart_data(db: Session) -> Dict:
     for m in masters:
         # MUHIM: bu ham daromad (moliyaviy) hisob-kitobi — o'chirilgan
         # buyurtmalar ham hisobga olinadi.
-        total = db.query(func.sum(Order.total_amount)).filter(
+        total = db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
             Order.master_id == m.id,
             Order.status == OrderStatus.READY
         ).scalar() or 0
@@ -1324,12 +1324,12 @@ def get_chart_data(db: Session) -> Dict:
     # bo'lishi mumkin edi. Endi hammasi bir xil, izchil manbadan.
     from models import Payment
 
-    total_revenue = db.query(func.sum(Order.total_amount)).filter(
+    total_revenue = db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
         Order.status == OrderStatus.READY
     ).scalar() or 0
 
     from sqlalchemy import or_
-    total_budget = db.query(func.sum(Order.total_amount)).filter(
+    total_budget = db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
         Order.status != OrderStatus.DRAFT,
         or_(
             Order.is_deleted.isnot(True),  # faol buyurtmalar — doim hisoblanadi
@@ -1754,7 +1754,11 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         extract('month', Order.completed_at) == month
     ).all()
 
-    daromad = sum(float(o.total_amount or 0) for o in ready_orders)
+    # MUHIM: "Kelishilgan summa" (agreed_amount) bo'lsa — shuni, aks holda
+    # "Umumiy jami"ni olamiz. Bu — Buyurtmalar ro'yxati va har bir
+    # buyurtmaning foyda hisobi (calculate_order_profit) bilan BIR XIL
+    # manba — aks holda "Jami daromad" bu ikkisidan farq qilib qolar edi.
+    daromad = sum(float(o.agreed_amount or o.total_amount or 0) for o in ready_orders)
     buyurtmalar_soni = len(ready_orders)
 
     # Har buyurtma uchun foyda hisoblaymiz
