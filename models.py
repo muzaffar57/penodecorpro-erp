@@ -10,7 +10,14 @@ Mantiq:
 - ReturnItem = qaytarilgan mahsulotlar (brak yoki ortiqcha)
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
+
+
+def _uzb_now():
+    """O'zbekiston vaqti (UTC+5) — faqat 'Tizim jurnallari' kabi, faqat
+    inson o'qishi uchun mo'ljallangan yozuvlarda ishlatiladi (biznes
+    hisob-kitoblarida emas, ular hamon UTC bilan ishlaydi)."""
+    return datetime.utcnow() + timedelta(hours=5)
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
@@ -695,7 +702,7 @@ class ErrorLog(Base):
     endpoint = Column(String(255), nullable=True)
     method = Column(String(10), nullable=True)
     performed_by = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_uzb_now)
 
     def __repr__(self):
         return f"<ErrorLog {self.endpoint} {self.created_at}>"
