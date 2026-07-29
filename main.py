@@ -225,6 +225,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE order_items ADD COLUMN price_per_m3 NUMERIC(12,2)")
         if 'finished_product_id' not in oi_cols:
             migrations.append("ALTER TABLE order_items ADD COLUMN finished_product_id INTEGER")
+        if 'unit_price_for_volume' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN unit_price_for_volume NUMERIC(12,2)")
 
         if migrations:
             with engine.connect() as conn:
