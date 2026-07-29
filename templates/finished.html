@@ -695,9 +695,21 @@ async function stepFp(id, dir) {
 }
 
 async function addProduction(id, qty, item) {
-  const ratio = item.quantity > 0 ? qty / item.quantity : 0;
-  const addVol = (item.volume_m3 || 0) * ratio;
-  const addLoy = (item.actual_loy_kg || 0) * ratio;
+  // MUHIM: joriy qoldiqdan hisoblangan nisbat emas — ishlab chiqarilganda
+  // saqlangan BARQAROR "1 birlikka qancha" nisbatidan foydalanamiz
+  // (backend bilan bir xil mantiq — qoldiq 0 bo'lganda ham to'g'ri ishlaydi).
+  let unitVol, unitLoy;
+  if (item.unit_volume_m3 !== null && item.unit_volume_m3 !== undefined) {
+    unitVol = item.unit_volume_m3;
+    unitLoy = item.unit_loy_kg || 0;
+  } else if (item.quantity > 0) {
+    unitVol = (item.volume_m3 || 0) / item.quantity;
+    unitLoy = (item.actual_loy_kg || 0) / item.quantity;
+  } else {
+    unitVol = 0; unitLoy = 0;
+  }
+  const addVol = unitVol * qty;
+  const addLoy = unitLoy * qty;
 
   const txt = `${item.name} — yana ${qty} ${item.unit} qo'shilsinmi?\n\n` +
     `📊 Hozirgi: ${item.quantity} ${item.unit}` +
