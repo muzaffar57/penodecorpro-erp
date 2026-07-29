@@ -293,7 +293,6 @@ class OrderItemCreate(BaseModel):
     bazalt_item_id: Optional[int] = None
     serpiyanka_item_id: Optional[int] = None
     kley_item_id: Optional[int] = None
-    kley_kg: Optional[float] = None
     termo_loy_kg: Optional[float] = None
     # "Loy sotish" turi uchun — shu detalning O'ZIGA tegishli retsept
     # (buyurtmaning umumiy qoplama retseptidan farq qilishi mumkin)
@@ -406,7 +405,6 @@ class TermopanelProduceCreate(BaseModel):
     bazalt_item_id: int
     serpiyanka_item_id: Optional[int] = None  # Ombordagi qaysi serpiyanka turi ishlatilishi (aniq tanlanadi)
     kley_item_id: Optional[int] = None  # Ombordagi qaysi kley turi ishlatilishi (aniq tanlanadi)
-    kley_kg: float = Field(default=0, ge=0)
     recipe_id: Optional[int] = None
     loy_kg: float = Field(default=0, ge=0)
     unit_price: float = Field(default=0, ge=0, description="Sotuv narxi (1 kvadrat metr uchun)")
