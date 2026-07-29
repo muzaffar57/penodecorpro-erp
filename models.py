@@ -870,6 +870,15 @@ class FinishedProduct(Base):
     volume_m3 = Column(Float, default=0.0)          # Penoplast hajmi (darhol yechiladi)
     planned_loy_kg = Column(Float, default=0.0)      # Reja qilingan loy
     actual_loy_kg = Column(Float, nullable=True)     # Haqiqiy sarflangan loy ("Tayyor" bosilganda)
+    # 1 BIRLIKKA (metr/dona) qancha Penoplast (m³) va loy (kg) ketishi —
+    # ishlab chiqarilganda BIR MARTA hisoblab qo'yiladi va keyin
+    # O'ZGARMAYDI. Qoldiq keyinchalik sotilib kamaysa (hatto 0 bo'lsa)
+    # ham, "+" orqali qo'shimcha ishlab chiqarishda shu ANIQ nisbatdan
+    # foydalaniladi — volume_m3/quantity kabi "joriy" nisbatga emas
+    # (bu — sotuv bilan volume_m3 mos ravishda kamaymagani uchun,
+    # vaqt o'tishi bilan noto'g'ri bo'lib qolar edi).
+    unit_volume_m3 = Column(Float, nullable=True)
+    unit_loy_kg = Column(Float, nullable=True)
     recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True, index=True)
     recipe = relationship("Recipe")
 
