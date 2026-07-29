@@ -3180,6 +3180,8 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
         volume_m3=volume,
         planned_loy_kg=loy_kg,
         actual_loy_kg=loy_kg,          # Darhol yechilgani uchun aniq
+        unit_volume_m3=(volume / qty) if qty > 0 else 0,
+        unit_loy_kg=(loy_kg / qty) if qty > 0 else 0,
         recipe_id=data.recipe_id,
         production_status=ProductionStatus.IN_PROGRESS,
         created_by=created_by,
@@ -3490,16 +3492,29 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
         return {"success": False, "message": "Faqat ishlab chiqarilgan mahsulotga qo'shiladi"}
 
     base_qty = float(fp.quantity or 0)
-    if base_qty <= 0:
+
+    # MUHIM: 1 birlikka qancha xomashyo ketishini — JORIY qoldiq/hajmdan
+    # EMAS, balki ishlab chiqarilganda saqlangan BARQAROR nisbatdan
+    # olamiz. Sababi: mahsulot sotilganda faqat "quantity" kamayadi,
+    # "volume_m3" o'zgarmay qoladi — shuning uchun joriy nisbat vaqt
+    # o'tishi bilan (ayniqsa qoldiq 0'ga yaqinlashganda yoki 0 bo'lganda)
+    # noto'g'ri bo'lib qolar edi. Eski (bu tuzatishdan oldingi) yozuvlarda
+    # bu maydon bo'lmasa — orqaga moslik uchun joriy nisbatga qaytamiz.
+    if fp.unit_volume_m3 is not None or fp.unit_loy_kg is not None:
+        unit_volume = float(fp.unit_volume_m3 or 0)
+        unit_loy = float(fp.unit_loy_kg or 0)
+    elif base_qty > 0:
+        unit_volume = float(fp.volume_m3 or 0) / base_qty
+        unit_loy = float(fp.actual_loy_kg or 0) / base_qty
+    else:
         return {
             "success": False,
-            "message": "Qoldiq 0 — proporsiya hisoblab bo'lmaydi. Yangi ishlab chiqarish yarating."
+            "message": "Bu eski yozuv — 1 birlikka qancha xomashyo ketishi noma'lum (qoldiq ham 0). "
+                       "Yangi ishlab chiqarish yarating."
         }
 
-    # Proporsiya: 1 birlik uchun qancha
-    ratio = add_qty / base_qty
-    add_volume = float(fp.volume_m3 or 0) * ratio
-    add_loy = float(fp.actual_loy_kg or 0) * ratio
+    add_volume = unit_volume * add_qty
+    add_loy = unit_loy * add_qty
 
     # Xomashyo yetadimi
     shortages = []
