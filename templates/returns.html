@@ -241,11 +241,11 @@
       <label>Brak bo'lganda loy (qoplama) allaqachon tortilgan edimi?</label>
       <div style="display:flex;gap:8px">
         <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
-          <input type="radio" name="f-coating-applied" value="no" checked style="width:16px;height:16px">
+          <input type="radio" name="f-coating-applied" value="no" checked style="width:16px;height:16px" onchange="calcValue()">
           <span style="font-size:13px">✂️ Yo'q — kesish jarayonida (loygacha)</span>
         </label>
         <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
-          <input type="radio" name="f-coating-applied" value="yes" style="width:16px;height:16px">
+          <input type="radio" name="f-coating-applied" value="yes" style="width:16px;height:16px" onchange="calcValue()">
           <span style="font-size:13px">🎨 Ha — loy tortilgandan keyin</span>
         </label>
       </div>
@@ -505,7 +505,11 @@ async function onOrderChange(){
 
 function currentUnitPrice(item){
   const reason = document.querySelector('input[name="f-reason"]:checked')?.value;
-  return (reason === 'Brak') ? (item.cost_price_per_unit || 0) : (item.price_per_unit_final || 0);
+  if (reason === 'Brak') {
+    const coatingApplied = document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes';
+    return coatingApplied ? (item.cost_price_per_unit || 0) : (item.cost_price_per_unit_no_coating ?? item.cost_price_per_unit ?? 0);
+  }
+  return item.price_per_unit_final || 0;
 }
 
 function onItemChange(){
