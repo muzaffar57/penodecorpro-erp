@@ -371,6 +371,12 @@ class OrderItem(Base):
 
     unit_price = Column(Numeric(12, 2), default=0)
     total_price = Column(Numeric(12, 2), default=0)
+    # "Donali" turi uchun — hajm (ombordan yechiladigan miqdor) shu
+    # narxdan hisoblanadi, unit_price'dan EMAS. Shunday qilib, sotuv
+    # narxini (unit_price) keyinroq o'zgartirsangiz ham (masalan
+    # qimmatroq sotish uchun), haqiqiy ombordan yechiladigan hajm
+    # o'zgarib qolmaydi — "qulflangan" bo'lib qoladi.
+    unit_price_for_volume = Column(Numeric(12, 2), nullable=True)
 
     image_url = Column(String(255), nullable=True)  # Mahsulot rasmi (ixtiyoriy, hisob-kitobga ta'sir qilmaydi)
 
