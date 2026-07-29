@@ -329,6 +329,31 @@
 
 {% block scripts %}
 <script>
+// SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
+// turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
+// chiqarmasligi uchun (statik VA keyinroq qo'shiladigan maydonlar uchun ham).
+(function(){
+  function killAutofill(root){
+    var els = root.querySelectorAll ? root.querySelectorAll('input, textarea, select') : [];
+    for (var i=0; i<els.length; i++){
+      if (!els[i].hasAttribute('autocomplete')) els[i].setAttribute('autocomplete', 'off');
+    }
+  }
+  killAutofill(document);
+  new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if (n.nodeType === 1) {
+          if (n.matches && n.matches('input,textarea,select') && !n.hasAttribute('autocomplete')) n.setAttribute('autocomplete','off');
+          killAutofill(n);
+        }
+      });
+    });
+  }).observe(document.documentElement, {childList:true, subtree:true});
+})();
+</script>
+
+<script>
 document.getElementById('r-date').value = new Date().toISOString().slice(0,10);
 
 // URL orqali kelgan ?supplier_id=X bo'lsa — avtomatik tanlaymiz
