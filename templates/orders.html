@@ -118,6 +118,11 @@
 .ico-badge.orange{background:#FEF3C7;color:#D97706}
 .ico-badge.purple{background:#F3EEFF;color:#7C3AED}
 .ico-badge.red{background:#FEE2E2;color:#DC2626}
+/* Qoplama — Yo'q/Bor tugmasi (rasmdagi uslub) */
+.coat-toggle{display:flex;border:1px solid #E5E1D8;border-radius:9px;overflow:hidden;height:36px}
+.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:600;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
+.coat-opt.coat-no.active{background:#FEE2E2;color:#DC2626}
+.coat-opt.coat-yes.active{background:#DCFCE7;color:#16A34A}
 </style>
 {% endblock %}
 
@@ -859,6 +864,7 @@ function restoreDraftLS(draft) {
       const el = row.querySelector('.' + cls);
       if (el) el.value = rowData[cls];
     });
+    syncCoatingUI(row, row.querySelector('.i-c')?.value === 'true');
     calculateItem(row);
   });
 
@@ -1107,6 +1113,7 @@ function pickFinished(el, fpId) {
   }
   const coatEl = row.querySelector('.i-c');
   if (coatEl) coatEl.value = fp.is_coated ? 'true' : 'false';
+  syncCoatingUI(row, !!fp.is_coated);
 
   // Miqdorni tozalaymiz — xodim kiritadi
   if (fp.unit === 'metr') {
@@ -2246,9 +2253,13 @@ function addItem() {
         <select class="i-loysale-recipe" onchange="calculateItem(this.closest('.detal'))">${RECIPE_OPTIONS}</select>
       </div>
       <div class="dif"><label>Qoplama</label>
-        <select class="i-c" onchange="onCoatToggle(this.closest('.detal'))">
+        <div class="coat-toggle">
+          <div class="coat-opt coat-no active" onclick="setCoating(this, false)">Yo'q</div>
+          <div class="coat-opt coat-yes" onclick="setCoating(this, true)">Bor (×2)</div>
+        </div>
+        <select class="i-c" style="display:none">
           <option value="false" selected>Yo'q</option>
-          <option value="true">Ha (×2)</option>
+          <option value="true">Ha</option>
         </select>
       </div>
       <div class="dif"><label>Plotnost</label>
@@ -2298,6 +2309,23 @@ function onBlokPriceInput(row) {
   const typed = parseNum(bpEl.value) || 0;
   row.dataset.blokBase = isCoated ? (typed / mult) : typed;
   calculateItem(row);
+}
+
+function syncCoatingUI(row, isCoated) {
+  const coatEl = row.querySelector('.i-c');
+  if (coatEl) coatEl.value = isCoated ? 'true' : 'false';
+  row.querySelectorAll('.coat-opt').forEach(o => o.classList.remove('active'));
+  const target = row.querySelector(isCoated ? '.coat-yes' : '.coat-no');
+  if (target) target.classList.add('active');
+}
+
+function setCoating(el, isCoated) {
+  const row = el.closest('.detal');
+  const select = row.querySelector('.i-c');
+  select.value = isCoated ? 'true' : 'false';
+  row.querySelectorAll('.coat-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  onCoatToggle(row);
 }
 
 function onCoatToggle(row) {
@@ -3159,6 +3187,7 @@ async function editSelected() {
 
         const coatEl = row.querySelector('.i-c');
         if (coatEl) coatEl.value = item.is_coated ? 'true' : 'false';
+        syncCoatingUI(row, !!item.is_coated);
         row.dataset.wasCoated = item.is_coated ? 'true' : 'false';
 
         // Topshirilgan bo'lsa — belgilaymiz
