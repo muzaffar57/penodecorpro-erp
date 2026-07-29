@@ -1101,16 +1101,15 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
             _crud.settle_termopanel_loy_share(order, planned_loy, actual_loy)
             db.commit()
 
-        # MUHIM: haqiqiy kiritilgan umumiy loy miqdorining "oddiy" (Termopanel
-        # BO'LMAGAN — Karniz/Panel/Profil) ulushini order.notes'ga yozamiz —
-        # aks holda bu qiymat hech qayerga saqlanmay, foyda hisoblashda
-        # "Qoplama xarajati" umuman ko'rinmay qolar edi. Formula/taxmin EMAS —
-        # aynan hodim "Tayyor" bosganda kiritgan haqiqiy son.
-        regular_actual_loy = (actual_loy * (order_planned / planned_loy)) if planned_loy > 0 else actual_loy
-        if regular_actual_loy > 0:
+        # MUHIM: haqiqiy kiritilgan umumiy loy miqdorini (Termopanel VA
+        # oddiy qismni QO'SHIB, ULUSHGA BO'LMASDAN) order.notes'ga yozamiz —
+        # foyda hisoblashda BITTA umumiy "Qoplama" xarajati sifatida
+        # ko'rsatiladi. Formula/taxmin EMAS — aynan hodim "Tayyor"
+        # bosganda kiritgan haqiqiy son.
+        if actual_loy > 0:
             import re as _re_loy
             base_notes = _re_loy.sub(r',?\s*loy_kg=[\d.]+', '', order.notes or '').strip().strip(',').strip()
-            order.notes = (base_notes + f", loy_kg={regular_actual_loy:.4f}").strip(', ')
+            order.notes = (base_notes + f", loy_kg={actual_loy:.4f}").strip(', ')
             db.commit()
     elif planned_loy > 0:
         # Haqiqiy miqdor kiritilmadi — reja bo'yicha deb hisoblaymiz
