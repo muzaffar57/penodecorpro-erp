@@ -173,7 +173,7 @@
         <div style="padding:8px 18px 18px">
           {% if company_obligations.employees %}
             {% for e in company_obligations.employees %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" onclick="openEmpTimeline({{ e.employee_id }}, '{{ e.name }}')">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name|replace('"', '&quot;') }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName)">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
                   <div style="display:flex;align-items:center;gap:6px">
@@ -184,7 +184,7 @@
                 </div>
                 <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
               </div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" onclick="event.stopPropagation();closeEmployeeDebt({{ e.employee_id }}, '{{ e.name }}', {{ e.qolgan }})">✓ To'liq to'landi deb belgilash</button>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan))">✓ To'liq to'landi deb belgilash</button>
             </div>
             {% endfor %}
           {% else %}
@@ -204,7 +204,7 @@
             {% for r in company_obligations.recurring %}
             {% set status_color = {'overdue':'#EF4444','due_soon':'#F59E0B','partial':'#F59E0B','full':'#22C55E'} %}
             {% set status_label = {'overdue':'Muddati o\'tgan','due_soon':'Muddat yaqin','partial':'Qisman to\'langan','full':'To\'liq yopilgan'} %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" onclick="openObligTimeline('{{ r.category }}', '{{ r.label }}')">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" data-category="{{ r.category }}" data-label="{{ r.label|replace('"', '&quot;') }}" onclick="openObligTimeline(this.dataset.category, this.dataset.label)">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
                   <div style="display:flex;align-items:center;gap:6px">
@@ -219,7 +219,7 @@
                 </div>
               </div>
               <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:{{ status_color[r.status] }}"></div></div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" onclick="event.stopPropagation();quickPayObligation('{{ r.category }}', '{{ r.label }}', {{ r.debt }})">💰 To'lov qo'shish</button>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();quickPayObligation(this.closest('.oblig-item').dataset.category, this.closest('.oblig-item').dataset.label, parseFloat(this.dataset.debt))">💰 To'lov qo'shish</button>
             </div>
             {% endfor %}
           {% else %}
@@ -232,7 +232,7 @@
             {% for t in recurring_targets %}
             <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;background:var(--d-bg);padding:4px 9px;border-radius:12px;margin:2px 4px 2px 0">
               {{ t.icon }} {{ t.label }}
-              <span onclick="deleteCategory({{ t.id }}, '{{ t.label }}')" style="cursor:pointer;color:#EF4444;margin-left:2px">✕</span>
+              <span data-id="{{ t.id }}" data-label="{{ t.label|replace('"', '&quot;') }}" onclick="deleteCategory(this.dataset.id, this.dataset.label)" style="cursor:pointer;color:#EF4444;margin-left:2px">✕</span>
             </span>
             {% endfor %}
           </div>
