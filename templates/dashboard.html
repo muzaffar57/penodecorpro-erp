@@ -380,6 +380,31 @@
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
+// SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
+// turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
+// chiqarmasligi uchun (statik VA keyinroq qo'shiladigan maydonlar uchun ham).
+(function(){
+  function killAutofill(root){
+    var els = root.querySelectorAll ? root.querySelectorAll('input, textarea, select') : [];
+    for (var i=0; i<els.length; i++){
+      if (!els[i].hasAttribute('autocomplete')) els[i].setAttribute('autocomplete', 'off');
+    }
+  }
+  killAutofill(document);
+  new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if (n.nodeType === 1) {
+          if (n.matches && n.matches('input,textarea,select') && !n.hasAttribute('autocomplete')) n.setAttribute('autocomplete','off');
+          killAutofill(n);
+        }
+      });
+    });
+  }).observe(document.documentElement, {childList:true, subtree:true});
+})();
+</script>
+
+<script>
 const COLORS={gold:'#2563EB',green:'#22C55E',blue:'#0EA5E9',orange:'#F59E0B',red:'#EF4444',gray:'#BDC3C7',purple:'#8E44AD'};
 const ST_COLORS={'draft':'#95A5A6','new':COLORS.blue,'in_progress':COLORS.orange,'coating':COLORS.purple,'ready':COLORS.green,'delivered':COLORS.gold,'cancelled':COLORS.gray};
 const ST_LABELS={'draft':'Qoralama','new':'Yangi','in_progress':'Jarayonda','coating':'Qoplama','ready':'Tayyor','delivered':'Yetkazildi','cancelled':'Bekor'};
