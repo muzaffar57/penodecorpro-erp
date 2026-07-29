@@ -175,8 +175,10 @@
         {% endif %}
       </div>
       <div class="mat-actions">
+        {% if current_user.role.value == 'admin' %}
         <button class="act-btn out" onclick="openChiqimModal({{ item.id }}, '{{ item.item_name|replace("'", "\\'") }}', '{{ item.unit }}', {{ qty }})" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
         <button class="act-btn danger" onclick="deleteItem({{ item.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
+        {% endif %}
       </div>
     </div>
     {% endfor %}
