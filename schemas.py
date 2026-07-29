@@ -280,6 +280,10 @@ class OrderItemCreate(BaseModel):
     quantity: float = Field(default=1.0, gt=0)
     is_coated: bool = True
     unit_price: float = Field(default=0, ge=0)
+    # "Donali" turi uchun — hajmni hisoblashda ISHLATILADIGAN (qulflangan)
+    # narx, unit_price'dan farq qilishi mumkin (agar sotuv narxi keyinroq
+    # o'zgartirilgan bo'lsa). Berilmasa — unit_price'ning o'zi ishlatiladi.
+    unit_price_for_volume: Optional[float] = None
     penoplast_id: Optional[int] = None
     price_per_m3: Optional[float] = None
     finished_product_id: Optional[int] = None
