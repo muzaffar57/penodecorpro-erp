@@ -199,21 +199,22 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     el.append(Spacer(1, 14))
 
     # ── YAKUNIY SOF FOYDA ──
-    final = Table([[
-        Paragraph("SOF FOYDA (barcha xarajat va brak ayirilgandan keyin)",
-                  ParagraphStyle('fl', fontName='Helvetica-Bold', fontSize=10, textColor=DARK, alignment=TA_CENTER)),
-    ], [
-        Paragraph(f"{_fmt(sof_foyda)} so'm",
-                  ParagraphStyle('fv', fontName='Helvetica-Bold', fontSize=20,
-                                 textColor=(GREEN if sof_foyda >= 0 else RED), alignment=TA_CENTER)),
-        Paragraph(f"{foyda_foiz}% rentabellik",
-                  ParagraphStyle('fp', fontName='Helvetica', fontSize=9, textColor=GRAY, alignment=TA_CENTER)),
-    ]], colWidths=[W])
+    final = Table([
+        [Paragraph("SOF FOYDA (barcha xarajat va brak ayirilgandan keyin)",
+                   ParagraphStyle('fl', fontName='Helvetica-Bold', fontSize=10, textColor=DARK, alignment=TA_CENTER)), ""],
+        [Paragraph(f"{_fmt(sof_foyda)} so'm",
+                   ParagraphStyle('fv', fontName='Helvetica-Bold', fontSize=20,
+                                  textColor=(GREEN if sof_foyda >= 0 else RED), alignment=TA_CENTER)),
+         Paragraph(f"{foyda_foiz}% rentabellik",
+                   ParagraphStyle('fp', fontName='Helvetica', fontSize=9, textColor=GRAY, alignment=TA_CENTER))],
+    ], colWidths=[W*0.6, W*0.4])
     final.setStyle(TableStyle([
+        ('SPAN', (0, 0), (1, 0)),
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F5F0FA") if sof_foyda >= 0 else colors.HexColor("#FDF2F2")),
         ('BOX', (0, 0), (-1, -1), 1, colors.HexColor("#7C3AED") if sof_foyda >= 0 else RED),
         ('TOPPADDING', (0, 0), (-1, -1), 10),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     el.append(KeepTogether(final))
 
