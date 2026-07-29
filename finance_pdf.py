@@ -15,7 +15,7 @@ from reportlab.lib.units import cm
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.platypus import (
-    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, KeepTogether
 )
 
 DARK = colors.HexColor("#1A252F")
@@ -175,8 +175,8 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
         _add_row(f"📋 {cat}", amt)
 
     # Jami xarajat qatori
-    rows.append([Paragraph("<b>JAMI XARAJAT</b>", ParagraphStyle('tf', fontName='Helvetica-Bold', fontSize=9.5, textColor=colors.white)),
-                 Paragraph(f"<b>{_fmt(jami_xarajat_full)} so'm</b>", ParagraphStyle('tfr', fontName='Helvetica-Bold', fontSize=9.5, textColor=colors.white, alignment=TA_RIGHT))])
+    rows.append([Paragraph("<b>JAMI XARAJAT</b>", ParagraphStyle('tf', fontName='Helvetica-Bold', fontSize=9.5, textColor=DARK)),
+                 Paragraph(f"<b>{_fmt(jami_xarajat_full)} so'm</b>", ParagraphStyle('tfr', fontName='Helvetica-Bold', fontSize=9.5, textColor=RED, alignment=TA_RIGHT))])
     row_colors.append(RED)
 
     tbl = Table(rows, colWidths=[W*0.72, W*0.28], repeatRows=1)
@@ -215,7 +215,7 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
         ('TOPPADDING', (0, 0), (-1, -1), 10),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
     ]))
-    el.append(final)
+    el.append(KeepTogether(final))
 
     # ── FOOTER ──
     el.append(Spacer(1, 12))
