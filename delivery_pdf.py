@@ -50,8 +50,8 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
-        leftMargin=1.5*cm, rightMargin=1.5*cm,
-        topMargin=1.2*cm, bottomMargin=1.2*cm,
+        leftMargin=1.2*cm, rightMargin=1.2*cm,
+        topMargin=1*cm, bottomMargin=1*cm,
         title=f"Nakladnoy {delivery.delivery_number}"
     )
 
@@ -101,7 +101,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         ('LINEBELOW', (0, 0), (-1, -1), 2, GOLD),
     ]))
     el.append(title2)
-    el.append(Spacer(1, 10))
+    el.append(Spacer(1, 8))
 
     # ---- Ma'lumotlar ----
     dt = delivery.delivered_at or datetime.now(UZB_TZ)
@@ -137,13 +137,13 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     el.append(info)
-    el.append(Spacer(1, 12))
+    el.append(Spacer(1, 9))
 
     # ---- Yetkazilgan mahsulotlar ----
     el.append(Paragraph("<b>Topshirilgan mahsulotlar</b>", st_norm))
     el.append(Spacer(1, 5))
 
-    data = [["№", "Mahsulot nomi", "O'lcham", "Miqdor", "Birlik narxi", "Summa", "Jami bo'yicha", "Qoldi"]]
+    data = [["№", "Mahsulot nomi", "Miqdor", "Birlik narxi", "Summa", "Jami bo'yicha", "Qoldi"]]
 
     delivery_total = 0.0
 
@@ -152,28 +152,27 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         if not oi:
             continue
 
-        # O'lcham matni
-        cat = (oi.category or '').lower()
-        if cat in ('profil', 'panel'):
-            olcham = f"{_num(oi.width)}×{_num(oi.thickness)} sm"
-        else:
-            olcham = "—"
-
         ordered = oi.order_qty_normalized
         delivered_total = oi.delivered_qty
         remaining = max(ordered - delivered_total, 0)
         qty = float(di.quantity or 0)
 
-        # Birlik narxi: buyurtma summasini miqdorga bo'lamiz
+        # Birlik narxi: buyurtma summasini miqdorga bo'lamiz.
+        # MUHIM: ba'zi turlarda (masalan Termopanel/Bazalt) total_price
+        # eski buyurtmalarda to'liq hisoblanmagan bo'lishi mumkin — bunday
+        # holatda unit_price'ning o'zidan (agar bor bo'lsa) foydalanamiz,
+        # shunda narx "0" bo'lib ko'rinib qolmaydi.
         total_price = float(oi.total_price or 0)
-        unit_p = (total_price / ordered) if ordered > 0 else 0.0
+        if total_price > 0 and ordered > 0:
+            unit_p = total_price / ordered
+        else:
+            unit_p = float(oi.unit_price or 0)
         line_sum = unit_p * qty
         delivery_total += line_sum
 
         data.append([
             str(i),
             oi.name or "—",
-            olcham,
             f"{_num(qty)} {di.unit}",
             _fmt(unit_p),
             _fmt(line_sum),
@@ -182,11 +181,11 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         ])
 
     # Shu yuk uchun jami
-    data.append(["", "", "", "", "SHU YUK JAMI:", _fmt(delivery_total), "", ""])
+    data.append(["", "", "", "SHU YUK JAMI:", _fmt(delivery_total), "", ""])
 
     tbl = Table(
         data,
-        colWidths=[0.8*cm, 4.5*cm, 2.2*cm, 2.1*cm, 2.3*cm, 2.5*cm, 2.1*cm, 1.5*cm],
+        colWidths=[0.8*cm, 5.7*cm, 2.4*cm, 2.6*cm, 2.8*cm, 2.4*cm, 1.5*cm],
         repeatRows=1
     )
     style = [
@@ -197,13 +196,13 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
         ('FONTSIZE', (0, 1), (-1, -2), 8),
         ('TEXTCOLOR', (0, 1), (-1, -2), DARK),
-        ('FONTNAME', (3, 1), (3, -2), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (3, 1), (3, -2), GREEN),
-        ('FONTNAME', (5, 1), (5, -2), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (5, 1), (5, -2), DARK),
+        ('FONTNAME', (2, 1), (2, -2), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (2, 1), (2, -2), GREEN),
+        ('FONTNAME', (4, 1), (4, -2), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (4, 1), (4, -2), DARK),
         ('ALIGN', (0, 0), (0, -1), 'CENTER'),
         ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
-        ('ALIGN', (4, 1), (5, -1), 'RIGHT'),
+        ('ALIGN', (3, 1), (4, -1), 'RIGHT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -2), 0.4, colors.HexColor("#E5E1D8")),
         ('TOPPADDING', (0, 0), (-1, -1), 4.5),
@@ -211,12 +210,12 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor("#FAFAF8")]),
         # Oxirgi qator — jami
         ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#F0EBE0")),
-        ('FONTNAME', (4, -1), (5, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (4, -1), (5, -1), 9),
-        ('TEXTCOLOR', (5, -1), (5, -1), GOLD),
+        ('FONTNAME', (3, -1), (4, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (3, -1), (4, -1), 9),
+        ('TEXTCOLOR', (4, -1), (4, -1), GOLD),
         ('LINEABOVE', (0, -1), (-1, -1), 1.2, DARK),
-        ('SPAN', (0, -1), (3, -1)),
-        ('ALIGN', (4, -1), (4, -1), 'RIGHT'),
+        ('SPAN', (0, -1), (2, -1)),
+        ('ALIGN', (3, -1), (3, -1), 'RIGHT'),
     ]
     tbl.setStyle(TableStyle(style))
     el.append(tbl)
@@ -245,7 +244,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         ]))
         el.append(pay_note)
 
-    el.append(Spacer(1, 9))
+    el.append(Spacer(1, 7))
 
     # ---- Umumiy moliyaviy holat ----
     if order:
@@ -285,7 +284,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
             fin_style.append(('TEXTCOLOR', (1, 1), (1, 1), colors.HexColor("#E67E22")))
         fin.setStyle(TableStyle(fin_style))
         el.append(fin)
-        el.append(Spacer(1, 9))
+        el.append(Spacer(1, 7))
 
     # ---- Umumiy holat ----
     pct = order.delivery_percent if order else 0
@@ -311,14 +310,21 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     if order and not done:
         pending_items = [it for it in (order.items or []) if it.remaining_qty > 0.001]
         if pending_items:
-            el.append(Spacer(1, 9))
+            el.append(Spacer(1, 7))
             el.append(Paragraph("<b>Keyingi yetkazishda kutilayotgan mahsulotlar</b>", st_norm))
             el.append(Spacer(1, 4))
-            pend_data = [["Mahsulot nomi", "Qoldi"]]
+            pend_data = [["Mahsulot nomi", "Qoldi", "1 birlik narxi"]]
+            unit_labels = {"metr": "m", "kg": "kg", "dona": "ta", "m2": "m²"}
             for it in pending_items:
-                unit_label = "m" if it.delivery_unit == "metr" else "ta"
-                pend_data.append([it.name or "—", f"{_num(it.remaining_qty)} {unit_label}"])
-            pend_tbl = Table(pend_data, colWidths=[13*cm, 5*cm])
+                unit_label = unit_labels.get(it.delivery_unit, "ta")
+                it_ordered = it.order_qty_normalized
+                it_unit_p = (float(it.total_price or 0) / it_ordered) if it_ordered > 0 else float(it.unit_price or 0)
+                pend_data.append([
+                    it.name or "—",
+                    f"{_num(it.remaining_qty)} {unit_label}",
+                    f"{_fmt(it_unit_p)} so'm",
+                ])
+            pend_tbl = Table(pend_data, colWidths=[10.5*cm, 3.5*cm, 4*cm])
             pend_tbl.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#FEF9E7")),
                 ('TEXTCOLOR', (0, 0), (-1, 0), GOLD),
@@ -327,7 +333,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
                 ('FONTSIZE', (0, 0), (-1, -1), 8.5),
                 ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor("#DC2626")),
                 ('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'),
-                ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+                ('ALIGN', (1, 0), (2, -1), 'RIGHT'),
                 ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor("#E5E1D8")),
                 ('TOPPADDING', (0, 0), (-1, -1), 4),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
@@ -354,7 +360,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         if payer_label:
             parts.append(payer_label)
 
-        el.append(Spacer(1, 8))
+        el.append(Spacer(1, 6))
         transport = Table([[Paragraph(
             "🚚 <b>Transport:</b> " + "  ·  ".join(parts), st_small
         )]], colWidths=[18*cm])
@@ -368,7 +374,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
     # ---- Izoh ----
     if delivery.notes:
-        el.append(Spacer(1, 8))
+        el.append(Spacer(1, 6))
         note = Table([[Paragraph(f"<b>Izoh:</b> {delivery.notes}", st_small)]], colWidths=[18*cm])
         note.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), LIGHT),
@@ -379,7 +385,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         el.append(note)
 
     # ---- Imzo ----
-    el.append(Spacer(1, 22))
+    el.append(Spacer(1, 14))
     sign = Table([
         ["Topshirdi:", "_" * 28, "", "Qabul qildi:", "_" * 28],
         ["", Paragraph("imzo / F.I.Sh.", st_small), "", "", Paragraph("imzo / F.I.Sh.", st_small)],
@@ -397,7 +403,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     el.append(sign)
 
     # ---- Footer ----
-    el.append(Spacer(1, 16))
+    el.append(Spacer(1, 10))
     footer = Table([[Paragraph(
         f"PenoDecorPro ERP  ·  {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
         f"Ushbu hujjat mahsulot topshirilganini tasdiqlaydi",
