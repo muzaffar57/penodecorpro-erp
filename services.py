@@ -1812,6 +1812,27 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
                 # Donali
                 jami_dona += float(item.quantity or 1)
 
+    # MUHIM: Tayyor mahsulotlar bo'limida ("Ishlab chiqarish" tugmasi
+    # orqali, mijoz buyurtmasiga bog'lanmasdan) tayyorlangan qoplamali
+    # mahsulotlar ham — xuddi Buyurtmadagi kabi — qoplamachi bonusiga
+    # qo'shilishi kerak (avval bu butunlay hisobga olinmas edi).
+    from models import FinishedProduct as _FP_bonus, StockSource as _SS_bonus
+    from datetime import datetime as _dt_bonus
+    _bonus_start = _dt_bonus(year, month, 1)
+    _bonus_end = _dt_bonus(year + 1, 1, 1) if month == 12 else _dt_bonus(year, month + 1, 1)
+    finished_coated_this_month = db.query(_FP_bonus).filter(
+        _FP_bonus.source == _SS_bonus.PRODUCED,
+        _FP_bonus.is_coated == True,
+        _FP_bonus.created_at >= _bonus_start,
+        _FP_bonus.created_at < _bonus_end
+    ).all()
+    for fp in finished_coated_this_month:
+        unit = (fp.unit or '').lower()
+        if unit == 'metr':
+            jami_panel_metr += float(fp.quantity or 0)
+        else:
+            jami_dona += float(fp.quantity or 0)
+
     qoplamachi_bonus_avtomatik = (jami_metr + jami_panel_metr + jami_dona) * 1000
     jami_m2 = jami_metr + jami_panel_metr
 
