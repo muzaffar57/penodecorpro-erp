@@ -2263,7 +2263,7 @@ function addItem() {
       </div>
     </div>
     <div class="detal-result">
-      <span>Hajm: <input type="text" class="i-vol" readonly style="background:transparent;border:none;width:75px;padding:0;font-size:14.5px;color:#999;font-weight:600"><button type="button" class="i-vol-relock" title="Hajmni joriy narxdan qayta hisoblash (agar birinchi narx xato kiritilgan bo'lsa)" onclick="relockDonaVolume(this.closest('.detal'))" style="display:none;background:none;border:none;cursor:pointer;color:#2563EB;font-size:13px;padding:0 0 0 4px;vertical-align:middle">🔄</button></span>
+      <span>Hajm: <input type="text" class="i-vol" readonly style="background:transparent;border:none;width:75px;padding:0;font-size:14.5px;color:#999;font-weight:600"><button type="button" class="i-vol-relock" title="Hajmni qulflash/qulfdan chiqarish" onclick="toggleDonaVolLock(this.closest('.detal'))" style="display:none;background:none;border:none;cursor:pointer;color:#2563EB;font-size:13px;padding:0 0 0 4px;vertical-align:middle">🔓</button></span>
       <span>1m narxi: <input type="text" class="i-perm" readonly style="background:transparent;border:none;width:105px;padding:0;font-size:14.5px;color:#0EA5E9;font-weight:600"></span>
       <span class="val">Jami: <input type="text" class="i-price" readonly style="background:transparent;border:none;width:125px;padding:0;font-size:19px;color:#22C55E;font-weight:800"></span>
       <span class="i-peno-warn" style="display:none;font-size:14.5px;color:#F59E0B;font-weight:600"></span>
@@ -2450,11 +2450,14 @@ async function loadTermoInventoryFor(row) {
   calculateItem(row);
 }
 
-function relockDonaVolume(row) {
-  // Foydalanuvchi ataylab, joriy narxdan hajmni QAYTA hisoblashni so'raganda
-  // ishlaydi (masalan birinchi marta narxni xato kiritgan bo'lsa).
-  delete row.dataset.donaVolLocked;
-  delete row.dataset.donaVolPerUnit;
+function toggleDonaVolLock(row) {
+  if (row.dataset.donaVolLocked === 'true') {
+    // Qulfdan chiqarish — hajm yana narxga qarab jonli o'zgaradi
+    delete row.dataset.donaVolLocked;
+  } else {
+    // Qulflash — hozirgi hajm nisbatini "muzlatadi"
+    row.dataset.donaVolLocked = 'true';
+  }
   calculateItem(row);
 }
 
@@ -2488,25 +2491,22 @@ function calculateItem(row) {
     price = unitPrice * qty;
     if (isCoated) { price *= 2; perMeterPrice *= 2; }
 
-    // Hajm — BIR MARTA hisoblanadi va "QULFLANADI". Shundan keyin narxni
-    // o'zgartirsangiz ham (masalan qimmatroq sotish uchun foyda oshirish
-    // maqsadida) — ombordan yechiladigan HAJM O'ZGARMAYDI, haqiqiy qoladi.
-    // Faqat MIQDOR (dona soni) o'zgarsa — hajm shunga mos ravishda ko'payadi/
-    // kamayadi (bir xil narsadan ko'proq/kamroq olinganda tabiiy holat).
-    // Foydalanuvchi ataylab qayta hisoblashni xohlasa (masalan birinchi narx
-    // xato kiritilgan bo'lsa) — Hajm yonidagi 🔄 tugmasini bosadi.
+    // Hajm — standart holatda JONLI hisoblanadi (narxni o'zgartirsangiz,
+    // hajm ham darhol yangilanadi — mijoz bilan gaplashib, narxni bir necha
+    // marta o'zgartirish uchun qulay). Faqat 🔒 tugmasi bosilgandagina
+    // hajm "muzlaydi" — shundan keyin narxni o'zgartirsangiz ham (masalan
+    // qimmatroq sotish uchun) ombordan yechiladigan HAJM o'zgarmaydi.
     const volBtn = row.querySelector('.i-vol-relock');
     if (row.dataset.donaVolLocked === 'true') {
       const perUnitVol = parseFloat(row.dataset.donaVolPerUnit) || 0;
       volume_total = perUnitVol * qty;
-      row.querySelector('.i-vol').value = volume_total.toFixed(4);
-      if (volBtn) volBtn.style.display = 'inline';
+      row.querySelector('.i-vol').value = volume_total.toFixed(4) + ' 🔒';
+      if (volBtn) { volBtn.style.display = 'inline'; volBtn.textContent = '🔒'; volBtn.title = "Qulfdan chiqarish (hajm qayta jonli hisoblanadi)"; }
     } else if (basePrice > 0 && unitPrice > 0) {
       volume_total = (unitPrice / basePrice) * qty;
       row.querySelector('.i-vol').value = volume_total.toFixed(4);
-      row.dataset.donaVolLocked = 'true';
       row.dataset.donaVolPerUnit = (unitPrice / basePrice).toString();
-      if (volBtn) volBtn.style.display = 'inline';
+      if (volBtn) { volBtn.style.display = 'inline'; volBtn.textContent = '🔓'; volBtn.title = "Hajmni qulflash (keyin narx o'zgarsa ham hajm o'zgarmaydi)"; }
     } else {
       row.querySelector('.i-vol').value = '—';
       if (volBtn) volBtn.style.display = 'none';
