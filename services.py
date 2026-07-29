@@ -34,15 +34,6 @@ def check_admin_role(user: User):
         )
 
 
-def check_role(user: User, allowed_roles: List[UserRole]):
-    """Belgilangan rollar ro'yxatidagi foydalanuvchilar uchun ruxsat."""
-    if not user or user.role not in allowed_roles:
-        roles_str = ", ".join([r.value for r in allowed_roles])
-        raise HTTPException(
-            status_code=403,
-            detail=f"Bu amal faqat quyidagi rollar uchun: {roles_str}"
-        )
-
 
 # ============================================================
 # 2. AVTOMATIK KESISH (Penoplast bloklari)
@@ -53,24 +44,6 @@ PENOPLAST_BLOCK_VOLUME_M3 = 1.0  # 1 m × 1 m × 1 m = 1 m³
 # Yo'qotish foizi (kesish vaqtida)
 CUTTING_LOSS_PERCENT = 5.0  # 5% yo'qotish
 
-
-def calculate_blocks_needed(volume_m3: float, loss_percent: float = CUTTING_LOSS_PERCENT) -> Dict:
-    """Berilgan hajm uchun necha blok kerakligini hisoblaydi.
-
-    Misol: 2.5 m³ kerak bo'lsa, 5% yo'qotish bilan = 2.625 m³
-    Demak 3 ta blok (har biri 1 m³) kerak bo'ladi.
-    """
-    actual_needed = volume_m3 * (1 + loss_percent / 100)
-    blocks_needed = int(actual_needed / PENOPLAST_BLOCK_VOLUME_M3)
-    if actual_needed % PENOPLAST_BLOCK_VOLUME_M3 > 0:
-        blocks_needed += 1  # Yaxlitlash yuqoriga
-
-    return {
-        "volume_m3_requested": volume_m3,
-        "volume_m3_with_loss": actual_needed,
-        "blocks_needed": blocks_needed,
-        "loss_percent": loss_percent
-    }
 
 
 def process_cutting(db: Session, order_id: int, volume_m3: float) -> Dict:
@@ -2214,25 +2187,6 @@ def save_monthly_expense(db: Session, year: int, month: int, data: dict, perform
 # ============================================================
 # BUYURTMA SAQLASHDA OMBOR TEKSHIRUVI VA AYIRISH
 # ============================================================
-
-def get_bazalt_list(db: Session):
-    """Barcha bazalt (plotnost/qalinlik) turlari — nomi bo'yicha aniqlanadi,
-    xuddi penoplast kabi. Kirim qilishda nomiga 'bazalt' so'zini qo'shish kifoya."""
-    from models import Inventory
-    items = db.query(Inventory).filter(
-        Inventory.item_name.ilike("%bazalt%"),
-        Inventory.is_deleted.isnot(True)
-    ).order_by(Inventory.item_name).all()
-    return items
-
-
-def get_default_bazalt(db: Session):
-    """Asosiy bazalt turi — birinchi topilgani (ID bo'yicha)."""
-    from models import Inventory
-    return db.query(Inventory).filter(
-        Inventory.item_name.ilike("%bazalt%"),
-        Inventory.is_deleted.isnot(True)
-    ).order_by(Inventory.id).first()
 
 
 def find_kley(db: Session, lock: bool = False):
