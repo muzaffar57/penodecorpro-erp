@@ -2294,7 +2294,11 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
         if item.width and item.thickness:
             return (item.width/100) * (item.thickness/100) * qty
     elif cat == 'dona':
-        unit_price = float(item.unit_price or 0)
+        # MUHIM: agar "qulflangan" (unit_price_for_volume) qiymat saqlangan
+        # bo'lsa — o'shani ishlatamiz (sotuv narxi keyinroq o'zgargan bo'lsa
+        # ham, haqiqiy hajm o'zgarmasligi uchun). Eski yozuvlarda bu maydon
+        # bo'lmasa — orqaga moslik uchun unit_price'ning o'zidan olamiz.
+        unit_price = float(getattr(item, 'unit_price_for_volume', None) or item.unit_price or 0)
         if unit_price <= 0:
             return 0.0
 
