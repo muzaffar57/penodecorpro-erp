@@ -679,9 +679,12 @@ function buildExpDetail(d){
 
   if (d.hodimlar_moslashuvchan_breakdown && d.hodimlar_moslashuvchan_breakdown.length) {
     extraHtml += `<div style="font-size:12px;color:var(--f-warning);font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:10px 0 4px">👷 Hodimlar (moslashuvchan)</div>`;
-    extraHtml += d.hodimlar_moslashuvchan_breakdown.map(b =>
-      `<div class="fin-exp-row"><span class="fin-exp-name">${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}</span><span class="fin-exp-val">${fmtFull(b.amount)} so'm</span></div>`
-    ).join('');
+    extraHtml += d.hodimlar_moslashuvchan_breakdown.map(b => {
+      const isPaid = (b.qolgan !== undefined) && b.qolgan <= 0.5;
+      const color = isPaid ? '#22C55E' : '';
+      const mark = isPaid ? ' ✅' : '';
+      return `<div class="fin-exp-row"><span class="fin-exp-name"${color?` style="color:${color}"`:''}>${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}${mark}</span><span class="fin-exp-val"${color?` style="color:${color}"`:''}>${fmtFull(b.amount)} so'm</span></div>`;
+    }).join('');
   }
 
   el.innerHTML=rows.map(r=>`<div class="fin-exp-row"><span class="fin-exp-name">${r.n}</span><span class="fin-exp-val">${fmtFull(r.v)} so'm</span></div>`).join('')
