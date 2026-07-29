@@ -1041,10 +1041,9 @@ function onBlokPriceInput() {
   pCalc();
 }
 
-// Buyurtmadagi calculateItem bilan bir xil
-function pRelockVol() {
-  window._pDonaVolLocked = false;
-  window._pDonaVolPerUnit = 0;
+// Buyurtmadagi toggleDonaVolLock bilan bir xil mantiq
+function pToggleVolLock() {
+  window._pDonaVolLocked = !window._pDonaVolLocked;
   pCalc();
 }
 
@@ -1067,15 +1066,14 @@ function pCalc() {
     price = unitPrice * qty;
     if (isCoated) { price *= 2; perUnitPrice *= 2; }
 
-    // Hajm — BIR MARTA hisoblanadi va QULFLANADI (Buyurtmalar bo'limidagi
-    // bilan bir xil mantiq). Shundan keyin narxni o'zgartirsangiz ham
-    // (masalan qimmatroq sotish uchun) — ombordan yechiladigan HAJM
-    // o'zgarmaydi. Qayta hisoblatish uchun — pastdagi 🔄 tugmasi.
+    // Hajm — standart holatda JONLI hisoblanadi (Buyurtmalar bo'limidagi
+    // bilan bir xil, yangilangan mantiq). Faqat 🔒 tugmasi bosilgandagina
+    // hajm "muzlaydi" — shundan keyin narxni o'zgartirsangiz ham (masalan
+    // qimmatroq sotish uchun) ombordan yechiladigan HAJM o'zgarmaydi.
     if (window._pDonaVolLocked) {
       volume_total = window._pDonaVolPerUnit * qty;
     } else if (basePrice > 0 && unitPrice > 0) {
       volume_total = (unitPrice / basePrice) * qty;
-      window._pDonaVolLocked = true;
       window._pDonaVolPerUnit = unitPrice / basePrice;
     }
     count = qty; unit = 'dona';
@@ -1150,8 +1148,10 @@ function pCalc() {
     : '';
 
   const costPerUnit = count > 0 ? cost / count : 0;
-  const volLockLine = (type === 'dona' && window._pDonaVolLocked)
-    ? ` <button type="button" onclick="pRelockVol()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#0EA5E9" title="Hajmni qayta hisoblash">🔄 qayta hisoblash</button>`
+  const volLockLine = (type === 'dona' && volume_total > 0)
+    ? (window._pDonaVolLocked
+        ? ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#0EA5E9" title="Qulfdan chiqarish (hajm qayta jonli hisoblanadi)">🔒 qulflangan</button>`
+        : ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#0EA5E9" title="Hajmni qulflash (keyin narx o'zgarsa ham hajm o'zgarmaydi)">🔓 qulflash</button>`)
     : '';
 
   box.innerHTML = `
