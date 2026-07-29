@@ -1677,7 +1677,8 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "order_qty_normalized": i.order_qty_normalized,
             "delivery_unit": i.delivery_unit,
             "price_per_unit_final": round(float(i.total_price or 0) / i.order_qty_normalized) if i.order_qty_normalized else 0,
-            "cost_price_per_unit": services.get_order_item_unit_cost(db, order, i)
+            "cost_price_per_unit": services.get_order_item_unit_cost(db, order, i),
+            "cost_price_per_unit_no_coating": services.get_order_item_unit_cost(db, order, i, include_coating=False)
         } for i in order.items],
         "payments": [{
             "id": p.id,
