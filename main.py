@@ -2229,6 +2229,30 @@ def api_finance_report(year: int, month: int, db: Session = Depends(get_db), cur
     return services.get_monthly_report(db, year, month)
 
 
+@app.get("/api/finance/report-pdf")
+def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """Bir oylik to'liq moliyaviy hisobot — PDF (yuklab olish uchun)."""
+    from fastapi.responses import Response
+    import finance_pdf
+    from datetime import datetime as _dt
+
+    report = services.get_monthly_report(db, year, month)
+
+    _start = _dt(year, month, 1)
+    _end = _dt(year + 1, 1, 1) if month == 12 else _dt(year, month + 1, 1)
+    expense_transactions = crud.get_expense_transactions(db, year=year, month=month)
+
+    brak_summary = crud.get_brak_material_summary(db, start_date=_start, end_date=_end)
+    brak_by_material = brak_summary.get("by_material", [])
+
+    pdf_bytes = finance_pdf.generate_finance_report_pdf(
+        report, expense_transactions, brak_by_material, year, month
+    )
+    filename = f"moliyaviy_hisobot_{year}_{month:02d}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
+
+
 @app.get("/api/finance/daily")
 def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Bitta kun uchun moliyaviy ko'rinish (savdo/foyda/tan narx + xarajatlar).
