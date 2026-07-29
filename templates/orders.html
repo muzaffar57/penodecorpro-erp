@@ -3312,8 +3312,17 @@ function collectItems() {
     } else if (type === 'dona') {
       // Dona uchun 1 m³ narxi majburiy — hajm shundan hisoblanadi
       const effM3 = m3price || parseNum(document.getElementById('base_price')?.value || '0') || null;
+      // MUHIM: hajm uchun QULFLANGAN (birinchi kiritilgan) narxni yuboramiz —
+      // hozirgi "1 dona narxi" boshqa (masalan qimmatroq sotish uchun
+      // o'zgartirilgan) bo'lsa ham, ombordan yechiladigan HAQIQIY hajm
+      // o'zgarib qolmasligi uchun (bu qiymat OrderItem'da alohida saqlanadi).
+      const lockedPerUnit = parseFloat(row.dataset.donaVolPerUnit || '0') || 0;
+      const unitPriceForVolume = (row.dataset.donaVolLocked === 'true' && lockedPerUnit > 0 && effM3)
+        ? lockedPerUnit * effM3
+        : parseFloat(row.dataset.unitprice || 0);
       items.push({ name, category: 'dona', width: null, thickness: null, length: null,
-                   quantity: qty, unit_price: parseFloat(row.dataset.unitprice || 0), is_coated: isCoated,
+                   quantity: qty, unit_price: parseFloat(row.dataset.unitprice || 0),
+                   unit_price_for_volume: unitPriceForVolume, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: effM3, finished_product_id: fpId });
     } else if (type === 'blok') {
       const bpEl = row.querySelector('.i-blokprice');
