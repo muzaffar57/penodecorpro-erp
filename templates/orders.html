@@ -2912,9 +2912,15 @@ async function saveOrder(isDraft = false) {
     issues.push({ text: "Yetkazib berish muddati kiritilmagan", targetId: 'deadline_input' });
   }
 
-  // Loy miqdori -- FAQAT agar kamida bitta detalda "Qoplama: Ha" bo'lsa so'raladi.
-  // Hech bir detalda qoplama ishlatilmasa -- tizim buni o'zi bilib, so'ramaydi.
-  const anyCoated = Array.from(document.querySelectorAll('.i-c')).some(el => el.value === 'true');
+  // Loy miqdori -- FAQAT agar kamida bitta YANGI (Tayyor mahsulotdan
+  // OLINMAGAN) detalda "Qoplama: Ha" bo'lsa so'raladi. Tayyor mahsulotdan
+  // olingan detallar — allaqachon qoplangan (ishlab chiqarilganda), shu
+  // buyurtmada YANGI loy sarflanmaydi, shuning uchun ular hisobga olinmaydi.
+  const anyCoated = Array.from(document.querySelectorAll('.detal')).some(row => {
+    if (row.dataset.fpId) return false;
+    const cEl = row.querySelector('.i-c');
+    return cEl && cEl.value === 'true';
+  });
   const loyVal = parseFloat(document.getElementById('loy_kg')?.value) || 0;
   if (anyCoated && !loyVal) {
     issues.push({ text: "Loy miqdori (kg) kiritilmagan", targetId: 'loy_kg' });
