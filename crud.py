@@ -221,11 +221,6 @@ def delete_expense_transaction(db: Session, tx_id: int) -> bool:
     return True
 
 
-def get_item_by_name(db: Session, name: str) -> Optional[Inventory]:
-    """Nom bo'yicha xomashyoni topadi."""
-    return db.query(Inventory).filter(Inventory.item_name == name).first()
-
-
 def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movement_type: str,
                   quantity: float, unit: Optional[str] = None, reason: Optional[str] = None,
                   order_id: Optional[int] = None, supplier_id: Optional[int] = None,
@@ -714,16 +709,6 @@ def get_recipes(db: Session) -> List[Recipe]:
 def get_recipe(db: Session, recipe_id: int) -> Optional[Recipe]:
     """ID bo'yicha bitta retseptni qaytaradi."""
     return db.query(Recipe).filter(Recipe.id == recipe_id).first()
-
-
-def get_recipe_by_name(db: Session, name: str) -> Optional[Recipe]:
-    """Nom bo'yicha retseptni topadi (istalgan nom, aniq yoki qisman moslik)."""
-    if not name:
-        return None
-    exact = db.query(Recipe).filter(Recipe.name.ilike(name.strip())).first()
-    if exact:
-        return exact
-    return db.query(Recipe).filter(Recipe.name.ilike(f"%{name.strip()}%")).first()
 
 
 def delete_recipe(db: Session, recipe_id: int) -> bool:
@@ -2788,13 +2773,6 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
     return result
 
 
-def get_deliveries(db: Session, order_id: int) -> List[Delivery]:
-    """Buyurtmaning yetkazishlari."""
-    return db.query(Delivery).filter(
-        Delivery.order_id == order_id
-    ).order_by(Delivery.delivered_at.desc()).all()
-
-
 def get_delivery(db: Session, delivery_id: int) -> Optional[Delivery]:
     return db.query(Delivery).filter(Delivery.id == delivery_id).first()
 
@@ -3420,32 +3398,6 @@ def search_finished_products(db: Session, query: str) -> List[dict]:
     } for fp in items]
 
 
-def take_from_finished_stock(db: Session, fp_id: int, quantity: float) -> dict:
-    """Tayyor mahsulotdan miqdor olish (buyurtmaga)."""
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
-    if not fp:
-        return {"success": False, "message": "Tayyor mahsulot topilmadi"}
-
-    available = float(fp.quantity or 0)
-    if quantity > available + 0.001:
-        return {
-            "success": False,
-            "message": f"{fp.name}: omborda {available:g} {fp.unit} bor, {quantity:g} olib bo'lmaydi"
-        }
-
-    fp.quantity = available - quantity
-    db.commit()
-    return {"success": True, "remaining": float(fp.quantity)}
-
-
-def return_to_finished_stock(db: Session, fp_id: int, quantity: float) -> bool:
-    """Tayyor mahsulotga qaytarish (buyurtma o'chirilganda)."""
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
-    if not fp:
-        return False
-    fp.quantity = float(fp.quantity or 0) + quantity
-    db.commit()
-    return True
 
 
 def get_finished_stats(db: Session) -> dict:
