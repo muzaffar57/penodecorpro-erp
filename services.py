@@ -3580,9 +3580,11 @@ def fmt_num(n):
         return "0"
 
 
-def get_order_item_unit_cost(db: Session, order, item) -> float:
-    """Bitta detalning 1 birlik (metr/dona) TAN NARXI — penoplast + loy (qoplamali bo'lsa).
-    Brak qiymatini hisoblash uchun — sotuv narxi emas, xomashyo qiymati."""
+def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = True) -> float:
+    """Bitta detalning 1 birlik (metr/dona) TAN NARXI — penoplast + (agar
+    include_coating=True bo'lsa) loy. Brak qiymatini hisoblash uchun —
+    sotuv narxi emas, xomashyo qiymati.
+    include_coating=False — faqat Penoplast (loy hali tortilmagan holat uchun)."""
     from models import Inventory
 
     if getattr(item, 'finished_product_id', None):
@@ -3603,7 +3605,7 @@ def get_order_item_unit_cost(db: Session, order, item) -> float:
     peno_cost_per_unit = (peno_cost_total / qty_units) if qty_units > 0 else 0.0
 
     loy_cost_per_unit = 0.0
-    if item.is_coated and order:
+    if include_coating and item.is_coated and order:
         loy_kg = 0.0
         if order.notes:
             for part in str(order.notes).split(','):
