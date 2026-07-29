@@ -147,6 +147,14 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     # 1) Ishlab chiqarish xarajati (tan narx)
     _add_row("🏭 Ishlab chiqarish xarajati (xomashyo tan narxi)", report.get("ishlab_chiqarish_xarajat", 0))
 
+    # 1b) Arenda/Elektr/Tushlik/Soliqlar — eski (asosiy maydonlar) mexanizmi
+    # orqali kiritilgan bo'lsa (Xarajat qo'shish oynasidagi "asosiy" turlar)
+    x = report.get("xarajatlar", {}) or {}
+    _add_row("🏠 Arenda", x.get("arenda", 0))
+    _add_row("💡 Elektr", x.get("elektr", 0))
+    _add_row("🍽️ Tushlik", x.get("tushlik", 0))
+    _add_row("🧾 Soliqlar", x.get("soliqlar", 0))
+
     # 2) Usta yillik KPI — har bir usta
     for b in report.get("usta_kpi_breakdown", []):
         _add_row(f"🏆 Usta KPI — {b['master_name']} ({b['kpi_percent']}% × foyda {_fmt(b['monthly_profit'])})", b['kpi_amount'])
