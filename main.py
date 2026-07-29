@@ -206,6 +206,10 @@ def _migrate_payment_columns():
                 migrations.append("ALTER TABLE finished_products ADD COLUMN production_status VARCHAR(20) DEFAULT 'READY'")
             if 'finished_production_at' not in fp_cols:
                 migrations.append("ALTER TABLE finished_products ADD COLUMN finished_production_at TIMESTAMP")
+            if 'unit_volume_m3' not in fp_cols:
+                migrations.append("ALTER TABLE finished_products ADD COLUMN unit_volume_m3 FLOAT")
+            if 'unit_loy_kg' not in fp_cols:
+                migrations.append("ALTER TABLE finished_products ADD COLUMN unit_loy_kg FLOAT")
             # Eski loy_kg ustuni bo'lsa — planned_loy_kg ga ko'chiramiz
             if 'loy_kg' in fp_cols and 'planned_loy_kg' in fp_cols:
                 migrations.append("UPDATE finished_products SET planned_loy_kg = loy_kg WHERE planned_loy_kg = 0 AND loy_kg > 0")
@@ -2727,6 +2731,8 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "volume_m3": float(fp.volume_m3 or 0),
         "planned_loy_kg": float(fp.planned_loy_kg or 0),
         "actual_loy_kg": float(fp.actual_loy_kg) if fp.actual_loy_kg is not None else None,
+        "unit_volume_m3": float(fp.unit_volume_m3) if fp.unit_volume_m3 is not None else None,
+        "unit_loy_kg": float(fp.unit_loy_kg) if fp.unit_loy_kg is not None else None,
         "production_status": fp.production_status.value if fp.production_status else None,
         "recipe_id": fp.recipe_id,
         "created_at": fp.created_at.isoformat() if fp.created_at else None,
