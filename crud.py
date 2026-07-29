@@ -915,6 +915,7 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
             price_per_m3=getattr(item_data, 'price_per_m3', None),
             finished_product_id=getattr(item_data, 'finished_product_id', None),
             unit_price=item_data.unit_price,
+            unit_price_for_volume=getattr(item_data, 'unit_price_for_volume', None),
             total_price=item_total,
             notes=item_data.notes
         )
@@ -2491,6 +2492,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         oi.price_per_m3 = getattr(nd, 'price_per_m3', None)
         oi.finished_product_id = getattr(nd, 'finished_product_id', None)
         oi.unit_price = nd.unit_price
+        oi.unit_price_for_volume = getattr(nd, 'unit_price_for_volume', None)
         oi.total_price = item_total
         oi.notes = nd.notes
         keep_ids.add(oi.id)
@@ -2515,6 +2517,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
             price_per_m3=getattr(nd, 'price_per_m3', None),
             finished_product_id=getattr(nd, 'finished_product_id', None),
             unit_price=nd.unit_price,
+            unit_price_for_volume=getattr(nd, 'unit_price_for_volume', None),
             total_price=item_total,
             notes=nd.notes
         ))
