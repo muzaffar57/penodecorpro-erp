@@ -1100,6 +1100,18 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
         if termo_planned > 0:
             _crud.settle_termopanel_loy_share(order, planned_loy, actual_loy)
             db.commit()
+
+        # MUHIM: haqiqiy kiritilgan umumiy loy miqdorining "oddiy" (Termopanel
+        # BO'LMAGAN — Karniz/Panel/Profil) ulushini order.notes'ga yozamiz —
+        # aks holda bu qiymat hech qayerga saqlanmay, foyda hisoblashda
+        # "Qoplama xarajati" umuman ko'rinmay qolar edi. Formula/taxmin EMAS —
+        # aynan hodim "Tayyor" bosganda kiritgan haqiqiy son.
+        regular_actual_loy = (actual_loy * (order_planned / planned_loy)) if planned_loy > 0 else actual_loy
+        if regular_actual_loy > 0:
+            import re as _re_loy
+            base_notes = _re_loy.sub(r',?\s*loy_kg=[\d.]+', '', order.notes or '').strip().strip(',').strip()
+            order.notes = (base_notes + f", loy_kg={regular_actual_loy:.4f}").strip(', ')
+            db.commit()
     elif planned_loy > 0:
         # Haqiqiy miqdor kiritilmadi — reja bo'yicha deb hisoblaymiz
         result["loy_info"] = {
@@ -1505,11 +1517,11 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
             tan_narxi_jami += loy_sotish_xarajat
 
     # ── 2. QOPLAMA XOMASHYOSI XARAJATI ──────────────────────
-    coated_items = [i for i in order.items if i.is_coated]
-    # MUHIM: loy_kg BUYURTMA DARAJASIDA (notes'da) saqlanadi va, agar u
-    # kiritilgan bo'lsa, HISOBLANISHI kerak — hatto birorta detal aniq
-    # "Qoplama: Ha" deb belgilanmagan bo'lsa ham (masalan foydalanuvchi
-    # umumiy "Loy miqdori" maydoniga to'g'ridan-to'g'ri kiritgan bo'lsa).
+    # MUHIM: loy_kg — hech qanday formula/taxmin bilan hisoblanmaydi,
+    # faqat buyurtma "Tayyor" qilinganda hodim kiritgan HAQIQIY miqdor
+    # ishlatiladi (order.notes'dagi loy_kg= belgisi, complete_order
+    # tomonidan yoziladi). Agar buyurtma hali yakunlanmagan bo'lsa —
+    # bu xarajat hali "0" ko'rinadi, bu — to'g'ri (hali ishlatilmagan).
     loy_kg = 0.0
     if order.notes:
         try:
@@ -1524,14 +1536,6 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
                 _crud_log.log_error(db, str(e), endpoint="calculate_order_profit:loy_kg_parse")
             except Exception:
                 pass
-
-    # Agar loy_kg saqlanmagan bo'lsa (va qoplamali detal bor bo'lsa) —
-    # taxminiy, perimetr asosida hisoblaymiz (eski, zaxira usul)
-    if loy_kg <= 0 and coated_items:
-        for item in coated_items:
-            if item.width and item.length:
-                perimetr_m = (item.width * 2 + (item.thickness or item.width) * 2) / 100
-                loy_kg += perimetr_m * (item.length or 1) * float(item.quantity or 1) * 2.0
 
     if loy_kg > 0:
 
