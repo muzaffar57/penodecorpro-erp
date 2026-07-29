@@ -53,6 +53,11 @@
 .fp-sec{display:flex;align-items:center;gap:10px;padding:14px 0 8px}
 .fp-sec-label{font-size:11px;font-weight:600;letter-spacing:.5px;white-space:nowrap}
 .fp-sec-line{flex:1;height:1px}
+/* Qoplama — Yo'q/Bor tugmasi */
+.coat-toggle{display:flex;border:1px solid var(--border2);border-radius:9px;overflow:hidden;height:38px}
+.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:600;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
+.coat-opt.coat-no.active{background:#FEE2E2;color:#DC2626}
+.coat-opt.coat-yes.active{background:#DCFCE7;color:#16A34A}
 </style>
 {% endblock %}
 
@@ -257,7 +262,11 @@
       <div class="form-row">
         <div class="form-group" style="margin:0">
           <label>Qoplama</label>
-          <select id="p-coated" onchange="pCalc()">
+          <div class="coat-toggle" id="p-coat-toggle">
+            <div class="coat-opt coat-no" onclick="setPCoating(this, false)">Yo'q</div>
+            <div class="coat-opt coat-yes active" onclick="setPCoating(this, true)">Bor (×2)</div>
+          </div>
+          <select id="p-coated" style="display:none">
             <option value="true">Ha (×2)</option>
             <option value="false">Yo'q</option>
           </select>
@@ -958,6 +967,20 @@ async function saveTermopanel() {
   }
 }
 
+function syncPCoatingUI(isCoated) {
+  const toggle = document.getElementById('p-coat-toggle');
+  if (!toggle) return;
+  toggle.querySelectorAll('.coat-opt').forEach(o => o.classList.remove('active'));
+  const target = toggle.querySelector(isCoated ? '.coat-yes' : '.coat-no');
+  if (target) target.classList.add('active');
+}
+
+function setPCoating(el, isCoated) {
+  document.getElementById('p-coated').value = isCoated ? 'true' : 'false';
+  syncPCoatingUI(isCoated);
+  pCalc();
+}
+
 function openProduceModal() {
   document.getElementById('prodModal').style.display = 'flex';
   ['p-name','p-h','p-w','p-t','p-up','p-loy','p-price','p-notes'].forEach(id => {
@@ -968,6 +991,7 @@ function openProduceModal() {
   document.getElementById('p-q').value = '1';
   document.getElementById('p-type').value = 'profil';
   document.getElementById('p-coated').value = 'true';
+  syncPCoatingUI(true);
   document.getElementById('p-error').style.display = 'none';
   window._pDonaVolLocked = false;
   window._pDonaVolPerUnit = 0;
