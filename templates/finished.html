@@ -957,6 +957,8 @@ function openProduceModal() {
   document.getElementById('p-type').value = 'profil';
   document.getElementById('p-coated').value = 'true';
   document.getElementById('p-error').style.display = 'none';
+  window._pDonaVolLocked = false;
+  window._pDonaVolPerUnit = 0;
   pToggle();
   pCalc();
   document.getElementById('p-name').focus();
@@ -979,6 +981,7 @@ function pToggle() {
   const m3Wrap = document.getElementById('p-m3').closest('.form-group');
 
   blokRow.style.display = (type === 'blok') ? 'flex' : 'none';
+  if (type !== 'dona') { window._pDonaVolLocked = false; window._pDonaVolPerUnit = 0; }
 
   if (type === 'dona') {
     hW.style.display = 'none'; wW.style.display = 'none';
@@ -1039,6 +1042,12 @@ function onBlokPriceInput() {
 }
 
 // Buyurtmadagi calculateItem bilan bir xil
+function pRelockVol() {
+  window._pDonaVolLocked = false;
+  window._pDonaVolPerUnit = 0;
+  pCalc();
+}
+
 function pCalc() {
   const type = document.getElementById('p-type').value;
   const h = parseFloat(document.getElementById('p-h').value) || 0;
@@ -1057,8 +1066,17 @@ function pCalc() {
     perUnitPrice = unitPrice;
     price = unitPrice * qty;
     if (isCoated) { price *= 2; perUnitPrice *= 2; }
-    if (basePrice > 0 && unitPrice > 0) {
+
+    // Hajm — BIR MARTA hisoblanadi va QULFLANADI (Buyurtmalar bo'limidagi
+    // bilan bir xil mantiq). Shundan keyin narxni o'zgartirsangiz ham
+    // (masalan qimmatroq sotish uchun) — ombordan yechiladigan HAJM
+    // o'zgarmaydi. Qayta hisoblatish uchun — pastdagi 🔄 tugmasi.
+    if (window._pDonaVolLocked) {
+      volume_total = window._pDonaVolPerUnit * qty;
+    } else if (basePrice > 0 && unitPrice > 0) {
       volume_total = (unitPrice / basePrice) * qty;
+      window._pDonaVolLocked = true;
+      window._pDonaVolPerUnit = unitPrice / basePrice;
     }
     count = qty; unit = 'dona';
   } else if (type === 'profil') {
@@ -1132,9 +1150,12 @@ function pCalc() {
     : '';
 
   const costPerUnit = count > 0 ? cost / count : 0;
+  const volLockLine = (type === 'dona' && window._pDonaVolLocked)
+    ? ` <button type="button" onclick="pRelockVol()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#0EA5E9" title="Hajmni qayta hisoblash">🔄 qayta hisoblash</button>`
+    : '';
 
   box.innerHTML = `
-    📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b> = ${fmt(penoCost)} so'm` : ''}${loyLine}<br>
+    📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b> = ${fmt(penoCost)} so'm` : ''}${volLockLine}${loyLine}<br>
     💵 1 ${unit} narxi: <b style="color:#0EA5E9">${fmt(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:#aaa">(kiritilgan: ${fmt(inputPrice)})</span>` : ''}<br>
     <div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">
       💰 Tan narxi: <b style="color:#DC2626">${fmt(cost)} so'm</b>
@@ -1197,7 +1218,14 @@ async function saveProduce() {
     data.thickness = null;
     data.length = null;
     data.quantity = qty;
-    data.unit_price_for_volume = up;   // hajm hisobi uchun
+    // MUHIM: hajm hisobi uchun QULFLANGAN (birinchi kiritilgan) narxni
+    // yuboramiz — hozirgi "1 dona narxi" maydonida boshqa (masalan
+    // qimmatroq sotish uchun o'zgartirilgan) son turgan bo'lsa ham,
+    // ombordan yechiladigan HAQIQIY hajm o'zgarib qolmasligi uchun.
+    const basePriceNow = parseNum(document.getElementById('p-m3').value) || 0;
+    data.unit_price_for_volume = window._pDonaVolLocked
+      ? (window._pDonaVolPerUnit * basePriceNow)
+      : up;
   } else if (type === 'blok') {
     // length = ishlatilgan blok soni (ombordan shuncha yechiladi)
     // quantity = blokdan chiqqan metr (mijozga ko'rsatiladigan/tayyor mahsulot miqdori)
