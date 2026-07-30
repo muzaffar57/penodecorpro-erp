@@ -239,6 +239,14 @@
             <div class="rcv-field"><label>⬆️ Yuklash</label><input type="text" id="ap-cost-yuklash" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
             <div class="rcv-field"><label>➕ Boshqa xarajat</label><input type="text" id="ap-cost-boshqa" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
           </div>
+          <div class="rcv-field" style="margin-top:10px">
+            <label>Yo'nalish <span style="font-weight:400;color:var(--r-text3);font-size:11.5px">— ixtiyoriy, hisobotda ajratib ko'rish uchun</span></label>
+            <select id="ap-prod-type">
+              <option value="">Umumiy</option>
+              <option value="penoplast">🏭 Penoplast</option>
+              <option value="gips">🧱 Gips</option>
+            </select>
+          </div>
           <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid #BFDBFE;border-radius:9px;font-size:12.5px;color:#1E40AF;cursor:pointer">
             <input type="checkbox" id="ap-add-to-cost" style="width:16px;height:16px;cursor:pointer" onchange="updateSummary()">
             <b>Qo'shimcha xarajatlarni tannarxga qo'shish</b> — yoqilsa, yuqoridagi xarajatlar mahsulotlar qiymatiga proporsional taqsimlanib, ombordagi birlik tannarxiga qo'shiladi. O'chiq bo'lsa — faqat Moliyada alohida ko'rinadi.
@@ -804,7 +812,8 @@ async function submitReceive(){
     transport_cost: ec.transport, tushirish_cost: ec.tushirish,
     yuklash_cost: ec.yuklash, boshqa_cost: ec.boshqa,
     add_to_cost: addToCost,
-    notes: notes || "Kirim sahifasidan qo'shildi"
+    notes: notes || "Kirim sahifasidan qo'shildi",
+    production_type: document.getElementById('ap-prod-type')?.value || null
   };
 
   let resultData;
