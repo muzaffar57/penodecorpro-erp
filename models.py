@@ -585,6 +585,9 @@ class InventoryReceipt(Base):
     tushirish_cost = Column(Numeric(12, 2), default=0)   # Grushchik
     yuklash_cost = Column(Numeric(12, 2), default=0)
     boshqa_cost = Column(Numeric(12, 2), default=0)
+    # Yo'nalish (ixtiyoriy): umumiy / penoplast / gips — hisobotda
+    # Transport va boshqa qo'shimcha xarajatlarni ajratib ko'rish uchun
+    production_type = Column(String(20), nullable=True)
 
     # "☑ Qo'shimcha xarajatlarni tannarxga qo'shish" — yoqilgan bo'lsa,
     # yuqoridagi 4 ta xarajat, mahsulotlar qiymatiga proporsional taqsimlanib,
