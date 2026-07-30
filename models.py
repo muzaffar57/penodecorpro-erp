@@ -161,7 +161,7 @@ class Inventory(Base):
     unit = Column(String(20), nullable=False)
     min_stock = Column(Float, default=0.0)
     price_per_unit = Column(Numeric(12, 2), nullable=True)
-    volume_per_unit = Column(Float, default=1.0)  # m³ — penoplast blok hajmi
+    volume_per_unit = Column(Float, default=1.0)  # Umumiy: 1 birlik (blok/rulon/qop) qancha (m³/m²/kg) — Penoplast blok hajmi, Serpiyanka rulon, GIPS qop og'irligi (kg) va h.k. uchun
     is_penoplast = Column(Boolean, default=False)  # Penoplast (plotnost) turimi
     is_default_penoplast = Column(Boolean, default=False)  # Asosiy plotnost
     category = Column(String(50), nullable=True)  # Penoplast / Qumlar / Kimyoviy moddalar / Boshqa
@@ -296,11 +296,20 @@ class Order(Base):
 
     notes = Column(Text, nullable=True)
 
+    # GIPS — asosiy xomashyo miqdori (Loy kabi: boshida taxminiy, "Tayyor"
+    # bosilganda haqiqiy). Alohida ustunlarda saqlanadi (notes matni ichiga
+    # "belgi" qilib yozish EMAS) — shunday qilib boshqa belgilar (masalan
+    # [WRITEOFF:...]) bilan to'qnashib, o'qishda xato bermaydi.
+    planned_gips_kg = Column(Float, nullable=True)
+    actual_gips_kg = Column(Float, nullable=True)
+    gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Aniq qaysi Gips xomashyosi ishlatilgani
+
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     returns = relationship("ReturnItem", back_populates="order", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
     deliveries = relationship("Delivery", back_populates="order", cascade="all, delete-orphan")
     attachments = relationship("OrderAttachment", back_populates="order", cascade="all, delete-orphan")
+    gips_additives = relationship("OrderGipsAdditive", back_populates="order", cascade="all, delete-orphan")
 
     @property
     def delivery_percent(self):
@@ -346,6 +355,29 @@ class Order(Base):
         return f"<Order #{self.order_number} (Project #{self.project_id})>"
 
 
+class OrderGipsAdditive(Base):
+    """Gips buyurtmasiga qo'shiladigan ixtiyoriy xomashyo (po'lat sim,
+    fibra tola, serpiyanka, penoplast granula va h.k.) — erkin, Omborxonadan
+    ISTALGAN materialni tanlab qo'shish mumkin (qattiq ro'yxat emas).
+    Har biri — Loy kabi: boshida taxminiy (planned_qty), "Tayyor" bosilganda
+    haqiqiy (actual_qty) miqdor bilan to'ldiriladi."""
+    __tablename__ = "order_gips_additives"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
+    inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False, index=True)
+
+    planned_qty = Column(Float, nullable=False, default=0.0)
+    actual_qty = Column(Float, nullable=True)
+    unit = Column(String(20), nullable=True)  # kg / metr / dona — inventory'dan olingan, ko'rsatish uchun
+
+    order = relationship("Order", back_populates="gips_additives")
+    inventory = relationship("Inventory")
+
+    def __repr__(self):
+        return f"<OrderGipsAdditive order={self.order_id} inv={self.inventory_id}>"
+
+
 # ============================================================
 # 7. ORDER ITEM
 # ============================================================
@@ -363,6 +395,7 @@ class OrderItem(Base):
     thickness = Column(Float, nullable=True)
     length = Column(Float, nullable=True)
     quantity = Column(Float, default=1.0)
+    gips_unit = Column(String(10), nullable=True)  # GIPS uchun: metr / dona / m2 (foydalanuvchi tanlaydi)
 
     is_coated = Column(Boolean, default=True)
     recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True, index=True)
@@ -406,12 +439,15 @@ class OrderItem(Base):
     @property
     def delivery_unit(self):
         """O'lchov birligi — profil, panel va blok metrda (mijozga metr bo'yicha yetkaziladi),
-        termopanel kvadrat metrda, qolgani donada."""
+        termopanel kvadrat metrda, GIPS — o'zi tanlangan birlik (metr/dona/m²), qolgani donada."""
         cat = (self.category or '').lower()
         if cat in ('profil', 'panel', 'blok'):
             return 'metr'
         if cat == 'termopanel':
             return 'm²'
+        if cat == 'gips':
+            unit = (self.gips_unit or 'metr').lower()
+            return 'm²' if unit == 'm2' else unit
         return 'dona'
 
     @property
@@ -451,6 +487,7 @@ class ReturnItem(Base):
     returned_at = Column(DateTime, default=datetime.utcnow)
     image_url = Column(String(255), nullable=True)  # Mahsulot rasmi (ixtiyoriy)
     coating_applied = Column(Boolean, default=False)  # Brak bo'lganda loy allaqachon tortilganmi
+    gips_kg_used = Column(Float, nullable=True)  # GIPS brak uchun — taxminan qancha gips ketgani (qo'lda kiritiladi)
 
     order = relationship("Order", back_populates="returns")
 
@@ -593,7 +630,10 @@ class Employee(Base):
     fixed_amount = Column(Numeric(12, 2), default=0)      # FIXED uchun
     percent_value = Column(Float, default=0.0)             # PERCENT_SALES / PERCENT_PROFIT uchun
     per_unit_rate = Column(Numeric(12, 2), default=0)      # PER_UNIT uchun — 1 birlik narxi
-    per_unit_type = Column(String(20), default="blok")     # blok / metr / dona
+    per_unit_type = Column(String(20), default="blok")     # blok / metr / dona / gips_metr / gips_qop / gips_kg
+    # GIPS uchun qo'shimcha to'lov turlari:
+    gul_rate = Column(Numeric(12, 2), nullable=True)        # Qoliplik gul (dona) uchun — alohida, qo'shimcha narx
+    extra_monthly = Column(Numeric(12, 2), nullable=True)   # Istalgan to'lov turiga qo'shiladigan, ixtiyoriy doimiy oylik
 
     is_active = Column(Boolean, default=True)
     hire_date = Column(DateTime, default=datetime.utcnow)
@@ -829,6 +869,7 @@ class TransportExpense(Base):
     expense_date = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
+    production_type = Column(String(20), nullable=True)  # umumiy / penoplast / gips
 
     def __repr__(self):
         return f"<TransportExpense {self.amount}>"
@@ -1039,6 +1080,8 @@ class ExpenseTransaction(Base):
     # 'monthly_form' — Moliya sahifasidagi oylik forma orqali avtomatik yaratilgan
     # 'manual'       — kelajakda alohida "xarajat qo'shish" orqali qo'lda kiritilgan
     source = Column(String(20), default="manual")
+    # Yo'nalish bo'yicha ajratish (ixtiyoriy): umumiy / penoplast / gips
+    production_type = Column(String(20), nullable=True)
 
     def __repr__(self):
         return f"<ExpenseTransaction {self.category}: {self.amount}>"
