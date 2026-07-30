@@ -2397,6 +2397,18 @@ function addItem() {
   const container = document.getElementById('items');
   container.prepend(div);
   div.dataset.blokBase = '';   // Blok tanlanganda "1 blok narxi" kiritilganda o'zi to'ldiriladi
+
+  // Oxirgi qo'shilgan detalning turini "eslab qolamiz" — yangi qator
+  // avtomatik o'sha turdan boshlanadi (ketma-ket bir xil tur yozishda qulay).
+  // MUHIM: yangi qator ENDI eng birinchi (prepend), shuning uchun "oldingi"
+  // qator — konteynerdagi IKKINCHI element.
+  const prevRow = container.children[1];
+  const lastType = prevRow ? prevRow.querySelector('.i-type')?.value : null;
+  if (lastType) {
+    const typeSel = div.querySelector('.i-type');
+    if (typeSel) typeSel.value = lastType;
+  }
+
   toggleFields(div);
   calculateItem(div);
 }
