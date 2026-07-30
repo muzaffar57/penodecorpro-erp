@@ -971,7 +971,9 @@ def get_dashboard_stats(db: Session) -> Dict:
 # 5. TO'LIQ BUYURTMA YAKUNLASH (Cutting + Coating + KPI)
 # ============================================================
 
-def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -> Dict:
+def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None,
+                    gips_kg: Optional[float] = None, gips_additives_actual: Optional[list] = None,
+                    gisht_dona: Optional[float] = None) -> Dict:
     """Buyurtmani to'liq yakunlash — barcha avtomatika:
 
     1. AVVAL — xomashyo yetarliligini tekshirish
@@ -1093,6 +1095,64 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
             "action": "teng",
             "message": "Reja bo'yicha hisoblandi"
         }
+
+    # === GIPS HISOB-KITOBI ===
+    # Buyurtma yaratilganda rejalashtirilgan Gips allaqachon ayirilgan
+    # (Loy kabi). Endi haqiqiy miqdor bilan solishtiramiz.
+    planned_gips = float(order.planned_gips_kg or 0)
+    actual_gips = float(gips_kg) if gips_kg is not None else None
+
+    if actual_gips is not None and actual_gips > 0:
+        diff = actual_gips - planned_gips
+        if abs(diff) > 0.01 and order.gips_inventory_id:
+            r = deduct_gips_main(db, order.gips_inventory_id, diff, order,
+                                  reason=f"Buyurtma yakunlandi — farq ({order.order_number})")
+            if r:
+                result["inventory_changes"].append(r)
+        result["gips_info"] = {
+            "planned": planned_gips,
+            "actual": actual_gips,
+            "diff": round(diff, 1),
+            "message": (f"Rejadan {diff:.1f} kg ko'p ketdi — ombordan ayirildi" if diff > 0.01
+                        else (f"Rejadan {abs(diff):.1f} kg kam ketdi — ombordan qaytdi" if diff < -0.01
+                              else "Reja bo'yicha ketdi"))
+        }
+        order.actual_gips_kg = actual_gips
+    elif planned_gips > 0:
+        result["gips_info"] = {"planned": planned_gips, "actual": planned_gips, "diff": 0, "message": "Reja bo'yicha hisoblandi"}
+
+    # Gips qo'shimchalari — har biri uchun haqiqiy miqdor (agar berilgan bo'lsa)
+    if gips_additives_actual:
+        additive_recs = {a.inventory_id: a for a in order.gips_additives}
+        diff_list = []
+        for entry in gips_additives_actual:
+            inv_id = entry.get("inventory_id")
+            actual_qty = float(entry.get("actual_qty") or 0)
+            rec = additive_recs.get(inv_id)
+            if not rec:
+                continue
+            planned_qty = float(rec.planned_qty or 0)
+            diff = actual_qty - planned_qty
+            if abs(diff) > 0.001:
+                diff_list.append({"inventory_id": inv_id, "qty": diff})
+            rec.actual_qty = actual_qty
+        if diff_list:
+            add_log = deduct_gips_additives(db, diff_list, order, reason=f"Buyurtma yakunlandi — farq ({order.order_number})")
+            result["inventory_changes"].extend(add_log)
+
+    db.commit()
+
+    # G'ISHT — ortgan loydan quyilgan qo'shimcha mahsulot (ixtiyoriy).
+    # Xomashyo QAYTA ayirilmaydi — allaqachon shu buyurtmaning o'z Gips
+    # hisobida (yuqorida) hisoblangan.
+    if gisht_dona and float(gisht_dona) > 0:
+        import crud as _crud_gisht
+        gisht_result = _crud_gisht.create_gisht_from_order(db, order, float(gisht_dona))
+        if gisht_result.get("success"):
+            result["gisht_info"] = {
+                "quantity": float(gisht_dona),
+                "message": f"{gisht_dona:g} dona G'isht — Tayyor mahsulotlarga qo'shildi"
+            }
 
     # === QISMAN TOPSHIRILGAN HOLATDA YAKUNLASH ===
     # Agar buyurtma ALLAQACHON qisman topshirilgan bo'lsa-yu (masalan 64%),
@@ -1487,6 +1547,34 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
             })
             tan_narxi_jami += loy_sotish_xarajat
 
+    # ── 1D. GIPS XARAJATI ─────────────────────────────────────
+    # Asosiy Gips — haqiqiy miqdor (agar "Tayyor" bosilib, kiritilgan
+    # bo'lsa) yoki taxminiy (hali yakunlanmagan bo'lsa) × Omborxonadagi
+    # joriy narx. Qo'shimchalar — har biri xuddi shunday, alohida.
+    gips_kg_for_cost = float(order.actual_gips_kg if order.actual_gips_kg is not None else (order.planned_gips_kg or 0))
+    if gips_kg_for_cost > 0 and order.gips_inventory_id:
+        gips_item = db.query(Inventory).filter(Inventory.id == order.gips_inventory_id).first()
+        if gips_item and gips_item.price_per_unit:
+            gips_xarajat = gips_kg_for_cost * float(gips_item.price_per_unit)
+            breakdown.append({
+                "nomi": f"🧱 Gips — {gips_item.item_name} ({gips_kg_for_cost:.1f} kg × {float(gips_item.price_per_unit):,.0f} so'm)",
+                "summa": gips_xarajat
+            })
+            tan_narxi_jami += gips_xarajat
+
+    for add in order.gips_additives:
+        qty_for_cost = float(add.actual_qty if add.actual_qty is not None else (add.planned_qty or 0))
+        if qty_for_cost <= 0 or not add.inventory:
+            continue
+        if not add.inventory.price_per_unit:
+            continue
+        add_xarajat = qty_for_cost * float(add.inventory.price_per_unit)
+        breakdown.append({
+            "nomi": f"🧱 Gips qo'shimchasi — {add.inventory.item_name} ({qty_for_cost:.1f} {add.inventory.unit} × {float(add.inventory.price_per_unit):,.0f} so'm)",
+            "summa": add_xarajat
+        })
+        tan_narxi_jami += add_xarajat
+
     # ── 2. QOPLAMA XOMASHYOSI XARAJATI ──────────────────────
     # MUHIM: loy_kg — hech qanday formula/taxmin bilan hisoblanmaydi,
     # faqat buyurtma "Tayyor" qilinganda hodim kiritgan HAQIQIY miqdor
@@ -1787,6 +1875,39 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
                 # Donali
                 jami_dona += float(item.quantity or 1)
 
+    # GIPS — metr/m² va dona (qoliplik gul) hodim to'lovi uchun.
+    # MUHIM: Gips uchun "Qoplama" tushunchasi yo'q (o'zi tayyor mahsulot),
+    # shuning uchun is_coated filtri qo'llanilmaydi — faqat category='gips'.
+    # Dona birligidagi HAR QANDAY gips detali — qoliplik gul hisoblanadi.
+    jami_gips_metr = 0.0
+    jami_gips_gul = 0.0
+    for order in orders_this_month:
+        for item in order.items:
+            if (item.category or '').lower() != 'gips':
+                continue
+            unit = (item.unit if hasattr(item, 'unit') else None) or ''
+            qty = float(item.quantity or 0)
+            if unit.lower() in ('dona',):
+                jami_gips_gul += qty
+            else:
+                jami_gips_metr += qty
+
+    # GIPS — haqiqiy ishlatilgan kg va qop (faqat yakunlangan, actual_gips_kg
+    # kiritilgan buyurtmalardan; qop soni — HAR BIR buyurtmaning o'z Gips
+    # xomashyosidagi qop og'irligiga (volume_per_unit) bo'lingan holda).
+    jami_gips_kg = 0.0
+    jami_gips_qop = 0.0
+    for order in orders_this_month:
+        actual = float(order.actual_gips_kg or 0)
+        if actual <= 0:
+            continue
+        jami_gips_kg += actual
+        if order.gips_inventory_id:
+            gips_item = db.query(Inventory).filter(Inventory.id == order.gips_inventory_id).first()
+            sack_kg = float(gips_item.volume_per_unit or 0) if gips_item else 0
+            if sack_kg > 0:
+                jami_gips_qop += actual / sack_kg
+
     # MUHIM: Tayyor mahsulotlar bo'limida ("Ishlab chiqarish" tugmasi
     # orqali, mijoz buyurtmasiga bog'lanmasdan) tayyorlangan qoplamali
     # mahsulotlar ham — xuddi Buyurtmadagi kabi — qoplamachi bonusiga
@@ -1935,7 +2056,9 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     emp_result = calculate_monthly_employee_pay(
         db, year, month, daromad, sof_foyda_before_emp,
         jami_metr + jami_panel_metr, jami_dona, jami_blok,
-        jami_qoplama_birlik=jami_metr + jami_panel_metr + jami_dona
+        jami_qoplama_birlik=jami_metr + jami_panel_metr + jami_dona,
+        jami_gips_metr=jami_gips_metr, jami_gips_gul=jami_gips_gul,
+        jami_gips_kg=jami_gips_kg, jami_gips_qop=jami_gips_qop
     )
     hodimlar_moslashuvchan_xarajat = emp_result["total"]
     jami_xarajat = jami_xarajat_eski + usta_kpi_xarajat + ehson_xarajat + hodimlar_moslashuvchan_xarajat
@@ -1954,6 +2077,47 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     transport_kirish = transport_stats["inbound_total"]
     transport_chiqish = transport_stats["outbound_company"]
     naqd_xarajat_jami = xomashyo_xaridi + transport_kirish + transport_chiqish
+
+    # ── 6. TURLAR BO'YICHA TAQSIMOT (informatsion, faqat ko'rsatish uchun) ──
+    # Daromad — har bir detalning ulushi bo'yicha (kelishilgan summaga mos
+    # proporsiyada), Gips va qolgan (Penoplast va h.k.) ga bo'linadi.
+    gips_daromad = 0.0
+    penoplast_daromad = 0.0
+    for order in ready_orders:
+        order_total = float(order.total_amount or 0)
+        order_agreed = float(order.agreed_amount or order_total or 0)
+        if order_total <= 0:
+            continue
+        for item in order.items:
+            share = (float(item.total_price or 0) / order_total) * order_agreed
+            if (item.category or '').lower() == 'gips':
+                gips_daromad += share
+            else:
+                penoplast_daromad += share
+
+    # Xarajat — "Xarajat qo'shish"da yo'nalish belgilangan tranzaksiyalar
+    # (Umumiy/Penoplast/Gips), shu oy uchun.
+    from models import ExpenseTransaction as _ET, TransportExpense as _TE
+    from sqlalchemy import extract as _extract_pt, func as _func_pt
+    gips_qoshimcha_xarajat = float(db.query(_func_pt.sum(_ET.amount)).filter(
+        _ET.production_type == 'gips',
+        _extract_pt('year', _ET.date) == year, _extract_pt('month', _ET.date) == month
+    ).scalar() or 0) + float(db.query(_func_pt.sum(_TE.amount)).filter(
+        _TE.production_type == 'gips',
+        _extract_pt('year', _TE.expense_date) == year, _extract_pt('month', _TE.expense_date) == month
+    ).scalar() or 0)
+    penoplast_qoshimcha_xarajat = float(db.query(_func_pt.sum(_ET.amount)).filter(
+        _ET.production_type == 'penoplast',
+        _extract_pt('year', _ET.date) == year, _extract_pt('month', _ET.date) == month
+    ).scalar() or 0) + float(db.query(_func_pt.sum(_TE.amount)).filter(
+        _TE.production_type == 'penoplast',
+        _extract_pt('year', _TE.expense_date) == year, _extract_pt('month', _TE.expense_date) == month
+    ).scalar() or 0)
+
+    turlar_boyicha = {
+        "gips": {"daromad": round(gips_daromad), "qoshimcha_xarajat": round(gips_qoshimcha_xarajat)},
+        "penoplast": {"daromad": round(penoplast_daromad), "qoshimcha_xarajat": round(penoplast_qoshimcha_xarajat)},
+    }
 
     return {
         "year": year,
@@ -1991,6 +2155,7 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         # Moslashuvchan hodimlar
         "hodimlar_moslashuvchan_xarajat": hodimlar_moslashuvchan_xarajat,
         "hodimlar_moslashuvchan_breakdown": emp_result["breakdown"],
+        "turlar_boyicha": turlar_boyicha,
         "jami_blok": round(jami_blok, 2),
         # Naqd xarajatlar (alohida ko'rsatkich — foyda hisobiga kirmaydi)
         "xomashyo_xaridi": xomashyo_xaridi,
@@ -3055,6 +3220,52 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
     return log
 
 
+def deduct_gips_main(db: Session, gips_inventory_id: Optional[int], kg: float, order, reason: str = None) -> Optional[str]:
+    """Gipsning O'ZINI (asosiy xomashyo, retseptsiz — to'g'ridan-to'g'ri
+    Omborxonadan) ayiradi/qaytaradi. kg manfiy bo'lsa — qaytariladi."""
+    from models import Inventory
+    if not gips_inventory_id or abs(kg) < 0.001:
+        return None
+    item = db.query(Inventory).filter(Inventory.id == gips_inventory_id).with_for_update().first()
+    if not item:
+        return None
+    item.stock_quantity = float(item.stock_quantity or 0) - kg
+    import crud as _crud
+    _crud.log_movement(
+        db, item.id, item.item_name, movement_type=("out" if kg > 0 else "in"),
+        quantity=abs(kg), unit=item.unit,
+        reason=reason or f"Gips — buyurtma {getattr(order, 'order_number', order.id)}",
+        order_id=order.id if order else None
+    )
+    return f"{item.item_name}: {'-' if kg > 0 else '+'}{abs(kg):.1f} {item.unit}"
+
+
+def deduct_gips_additives(db: Session, additives: list, order, reason: str = None) -> list:
+    """Gips qo'shimchalarini (po'lat sim, fibra va h.k.) ombordan
+    ayiradi/qaytaradi. additives — [{"inventory_id": X, "qty": Y}, ...]
+    shaklida (Y manfiy bo'lsa — o'sha miqdor QAYTARILADI)."""
+    from models import Inventory
+    log = []
+    for a in additives:
+        inv_id = a.get("inventory_id")
+        qty = float(a.get("qty") or 0)
+        if not inv_id or abs(qty) < 0.001:
+            continue
+        item = db.query(Inventory).filter(Inventory.id == inv_id).with_for_update().first()
+        if not item:
+            continue
+        item.stock_quantity = float(item.stock_quantity or 0) - qty
+        import crud as _crud
+        _crud.log_movement(
+            db, item.id, item.item_name, movement_type=("out" if qty > 0 else "in"),
+            quantity=abs(qty), unit=item.unit,
+            reason=reason or f"Gips qo'shimchasi — buyurtma {getattr(order, 'order_number', order.id)}",
+            order_id=order.id if order else None
+        )
+        log.append(f"{item.item_name}: {'-' if qty > 0 else '+'}{abs(qty):.1f} {item.unit}")
+    return log
+
+
 # ============================================================
 # BUYURTMANI TAHRIRLASH — OMBORNI FARQ BO'YICHA TO'G'RILASH
 # ============================================================
@@ -3462,19 +3673,29 @@ def calculate_monthly_ehson(db: Session, year: int, month: int) -> dict:
 def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                                    daromad: float, sof_foyda_before: float,
                                    jami_metr: float, jami_dona: float,
-                                   jami_blok: float, jami_qoplama_birlik: float = 0.0) -> dict:
+                                   jami_blok: float, jami_qoplama_birlik: float = 0.0,
+                                   jami_gips_metr: float = 0.0, jami_gips_gul: float = 0.0,
+                                   jami_gips_kg: float = 0.0, jami_gips_qop: float = 0.0) -> dict:
     """Moslashuvchan hodimlar uchun oylik to'lovni hisoblaydi.
     daromad, sof_foyda_before — shu oy uchun (hodim xarajatlarigacha).
     jami_metr/dona/blok — shu oy ishlab chiqarilgan miqdorlar (hammasi).
     jami_qoplama_birlik — shu oy QOPLANGAN detallar: metr + dona (profil/panel metrda,
-    donali dona bilan, bittalashtirib qo'shilgan) — qoplamachi bonusi uchun."""
+    donali dona bilan, bittalashtirib qo'shilgan) — qoplamachi bonusi uchun.
+    jami_gips_metr/jami_gips_gul — shu oy Gips detallaridan metr/m² va dona
+    (qoliplik gul) yig'indisi. jami_gips_kg/jami_gips_qop — shu oy YAKUNLANGAN
+    Gips buyurtmalaridagi HAQIQIY gips miqdori (kg, va qop — har bir buyurtma
+    o'z Gips xomashyosining qop og'irligiga bo'lingan holda)."""
     from models import Employee, PayType
 
     employees = db.query(Employee).filter(Employee.is_active == True).all()
     breakdown = []
     total = 0.0
 
-    unit_map = {"metr": jami_metr, "dona": jami_dona, "blok": jami_blok}
+    unit_map = {
+        "metr": jami_metr, "dona": jami_dona, "blok": jami_blok,
+        "gips_metr": jami_gips_metr, "gips_qop": jami_gips_qop, "gips_kg": jami_gips_kg,
+    }
+    unit_labels = {"gips_metr": "metr (gips)", "gips_qop": "qop", "gips_kg": "kg (gips)"}
 
     for e in employees:
         amount = 0.0
@@ -3495,7 +3716,8 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         elif e.pay_type == PayType.PER_UNIT:
             qty = unit_map.get(e.per_unit_type, 0)
             amount = qty * float(e.per_unit_rate or 0)
-            detail = f"{qty:g} {e.per_unit_type} × {fmt_num(e.per_unit_rate)}"
+            unit_label = unit_labels.get(e.per_unit_type, e.per_unit_type)
+            detail = f"{qty:g} {unit_label} × {fmt_num(e.per_unit_rate)}"
 
         elif e.pay_type == PayType.FIXED_PLUS_COATING:
             base = float(e.fixed_amount or 0)
@@ -3503,6 +3725,20 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
             bonus = jami_qoplama_birlik * rate
             amount = base + bonus
             detail = f"Oylik {fmt_num(base)} + {jami_qoplama_birlik:g} metr/dona × {fmt_num(rate)} = {fmt_num(bonus)}"
+
+        # GIPS — qoliplik gul bonusi: istalgan to'lov turiga QO'SHILADI
+        # (faqat shu hodimga gul_rate belgilangan bo'lsa)
+        if e.gul_rate and jami_gips_gul > 0:
+            gul_bonus = jami_gips_gul * float(e.gul_rate)
+            amount += gul_bonus
+            gul_txt = f"{jami_gips_gul:g} gul × {fmt_num(e.gul_rate)} = {fmt_num(gul_bonus)}"
+            detail = f"{detail} + {gul_txt}" if detail else gul_txt
+
+        # Ixtiyoriy qo'shimcha doimiy oylik — istalgan to'lov turiga qo'shiladi
+        if e.extra_monthly:
+            amount += float(e.extra_monthly)
+            extra_txt = f"qo'shimcha oylik {fmt_num(e.extra_monthly)}"
+            detail = f"{detail} + {extra_txt}" if detail else extra_txt
 
         if amount > 0:
             total += amount
