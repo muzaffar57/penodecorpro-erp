@@ -297,6 +297,25 @@
             </div>
           </div>
 
+          <div id="gips-section-wrap" style="display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border2)">
+            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">🧱 Gips xomashyosi</div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label>Qaysi Gips xomashyosi ishlatiladi</label>
+              <select id="gips_inventory_id"><option value="">— Tanlang —</option></select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label style="display:flex;align-items:center;gap:6px">Gips miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— taxminiy, barcha Gips detallari uchun</span></label>
+              <input type="number" id="gips_kg" placeholder="0" min="0" step="0.5" oninput="updateLiveStats()">
+            </div>
+            <div style="margin-top:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <label style="margin:0">Qo'shimchalar (ixtiyoriy)</label>
+                <button type="button" class="btn btn-outline btn-xs" onclick="addGipsAdditive()">+ Qo'shimcha qo'shish</button>
+              </div>
+              <div id="gips-additives-list"></div>
+            </div>
+          </div>
+
           <div id="loy-stock-info" style="display:none;grid-column:1/-1;font-size:13px;margin:-2px 0 0;padding:7px 10px;border-radius:6px"></div>
         </div>
       </div>
@@ -1867,6 +1886,68 @@ async function deleteDelivery(id) {
 // ── LOY ZAXIRASI ──────────────────────────────────────────
 let loyStockCache = null;
 
+// ── GIPS BO'LIMI ─────────────────────────────────────────────
+let gipsInvCache = null;
+
+function checkGipsSectionVisibility() {
+  const wrap = document.getElementById('gips-section-wrap');
+  if (!wrap) return;
+  const anyGips = Array.from(document.querySelectorAll('.i-type')).some(el => el.value === 'gips');
+  wrap.style.display = anyGips ? '' : 'none';
+  if (anyGips && !gipsInvCache) loadGipsInventoryOptions();
+}
+
+async function loadGipsInventoryOptions() {
+  try {
+    gipsInvCache = await fetch('/api/inventory').then(r => r.json());
+  } catch(e) { gipsInvCache = []; }
+  const sorted = [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
+  const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
+
+  const mainSel = document.getElementById('gips_inventory_id');
+  if (mainSel) {
+    const cur = mainSel.value;
+    mainSel.innerHTML = '<option value="">— Tanlang —</option>' + sorted.map(opts).join('');
+    const guess = gipsInvCache.find(i => i.item_name.toLowerCase().includes('gips'));
+    if (cur) mainSel.value = cur; else if (guess) mainSel.value = guess.id;
+  }
+  // Mavjud qo'shimcha qatorlaridagi dropdownlarni ham yangilaymiz
+  document.querySelectorAll('.gips-add-inv').forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Material tanlang —</option>' + sorted.map(opts).join('');
+    if (cur) sel.value = cur;
+  });
+}
+
+function addGipsAdditive(prefillId, prefillQty) {
+  const list = document.getElementById('gips-additives-list');
+  if (!list) return;
+  const sorted = gipsInvCache ? [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name)) : [];
+  const opts = sorted.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'gips-add-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
+  row.innerHTML = `
+    <select class="gips-add-inv" style="flex:2"><option value="">— Material tanlang —</option>${opts}</select>
+    <input type="number" class="gips-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1">
+    <button type="button" class="btn btn-outline btn-xs" onclick="this.closest('.gips-add-row').remove()">✕</button>
+  `;
+  list.appendChild(row);
+  if (prefillId) row.querySelector('.gips-add-inv').value = prefillId;
+  if (prefillQty) row.querySelector('.gips-add-qty').value = prefillQty;
+}
+
+function collectGipsAdditives() {
+  const rows = document.querySelectorAll('.gips-add-row');
+  const result = [];
+  rows.forEach(row => {
+    const invId = parseInt(row.querySelector('.gips-add-inv')?.value) || null;
+    const qty = parseFloat(row.querySelector('.gips-add-qty')?.value) || 0;
+    if (invId && qty > 0) result.push({ inventory_id: invId, planned_qty: qty });
+  });
+  return result;
+}
+
 async function checkLoyStock() {
   const el = document.getElementById('loy-stock-info');
   const kg = parseFloat(document.getElementById('loy_kg')?.value) || 0;
@@ -2233,7 +2314,7 @@ function addItem() {
         </label>
         <span class="detal-badge">Detal #${itemCount}</span>
       </div>
-      <button class="detal-rm" onclick="this.closest('.detal').remove();updateTotal()">✕</button>
+      <button class="detal-rm" onclick="this.closest('.detal').remove();updateTotal();checkGipsSectionVisibility()">✕</button>
     </div>
     <div class="detal-grid">
       <div class="dif" style="grid-column:1/-1;position:relative">
@@ -2250,6 +2331,7 @@ function addItem() {
           <option value="blok">Blok (butun narxda)</option>
           <option value="termopanel">Termopanel (Bazalt)</option>
           <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>
+          <option value="gips">🧱 Gips</option>
         </select>
       </div>
       <div class="dif i-h-wrap"><label>Eni (sm)</label><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
@@ -2258,6 +2340,14 @@ function addItem() {
       <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik (m)</label><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi (so'm)</label><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-gips-unit-wrap" style="display:none">
+        <label>Birligi</label>
+        <select class="i-gips-unit" onchange="onGipsUnitChange(this.closest('.detal'))">
+          <option value="metr">Metr</option>
+          <option value="dona">Dona</option>
+          <option value="m2">M²</option>
+        </select>
+      </div>
       <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"></div>
       <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti (masalan 2)</label><input type="number" value="2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div>
       <div class="dif i-termo-bazalt-wrap" style="display:none">
@@ -2380,9 +2470,10 @@ function toggleFields(row) {
   const tKleyW = row.querySelector('.i-termo-kley-wrap');
   const tLoyW = row.querySelector('.i-termo-loy-wrap');
   const lsRecipeW = row.querySelector('.i-loysale-recipe-wrap');
+  const gipsUnitW = row.querySelector('.i-gips-unit-wrap');
 
   // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
-  [tBazaltW, tSerpW, tKleyW, tLoyW, lsRecipeW].forEach(el => { if (el) el.style.display = 'none'; });
+  [tBazaltW, tSerpW, tKleyW, tLoyW, lsRecipeW, gipsUnitW].forEach(el => { if (el) el.style.display = 'none'; });
   if (penoField) penoField.style.display = '';
 
   if (type === 'dona') {
@@ -2445,6 +2536,21 @@ function toggleFields(row) {
     if (penoField) penoField.style.display = 'none';  // Penoplast ishlatilmaydi
     if (lsRecipeW) lsRecipeW.style.display = '';
     ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
+  } else if (type === 'gips') {
+    // Erkin qator: Nomi + Birlik (metr/dona/m²) + Narx + Miqdor — hech
+    // qanday retsept/formula yo'q (Penoplast maydonlariga umuman ehtiyoj yo'q)
+    hW.style.display = 'none'; wW.style.display = 'none';
+    tW.style.display = 'none'; lW.style.display = 'none';
+    qW.style.display = 'block';
+    if (upW) upW.style.display = 'block';
+    if (bpW) bpW.style.display = 'none';
+    if (bmW) bmW.style.display = 'none';
+    if (m3Field) m3Field.style.display = 'none';
+    if (coatField) coatField.style.display = 'none';  // Gips — o'zi tayyor mahsulot, qoplama tushunchasi yo'q
+    if (penoField) penoField.style.display = 'none';
+    if (gipsUnitW) gipsUnitW.style.display = '';
+    ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
+    onGipsUnitChange(row);
   } else {
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'none';  lW.style.display = 'block';
@@ -2472,6 +2578,17 @@ function toggleFields(row) {
     upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi (so'm)" : (type === 'loy_sotish') ? "1 kg narxi (so'm)" : "1 dona narxi (so'm)";
   }
   row.dataset.lastType = type;
+  checkGipsSectionVisibility();
+}
+
+function onGipsUnitChange(row) {
+  const unit = row.querySelector('.i-gips-unit')?.value || 'metr';
+  const qLabel = row.querySelector('.i-q-label');
+  const upLabel = row.querySelector('.i-unitprice-label');
+  const unitText = unit === 'metr' ? 'metr' : unit === 'm2' ? 'm²' : 'dona';
+  if (qLabel) qLabel.textContent = `Miqdor (${unitText})`;
+  if (upLabel) upLabel.textContent = `1 ${unitText} narxi (so'm)`;
+  calculateItem(row);
 }
 
 let termoInvCache = null;
@@ -2643,6 +2760,16 @@ function calculateItem(row) {
 
     const recipeEl = row.querySelector('.i-loysale-recipe');
     row.dataset.loysaleRecipeId = recipeEl ? recipeEl.value : '';
+  } else if (type === 'gips') {
+    // Erkin qator: narx = miqdor × 1 birlik narxi. Xomashyo (Gips va
+    // qo'shimchalar) — ITEM darajasida EMAS, butun BUYURTMA darajasida
+    // (pastdagi umumiy "Gips miqdori" bo'limida) alohida hisoblanadi.
+    const upEl = row.querySelector('.i-unitprice');
+    const unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
+    perMeterPrice = unitPrice;
+    price = unitPrice * qty;
+    volume_total = 0;
+    row.querySelector('.i-vol').value = '— (Gips, alohida hisoblanadi)';
   }
 
   const priceEl = row.querySelector('.i-price');
@@ -2979,6 +3106,17 @@ async function saveOrder(isDraft = false) {
     issues.push({ text: "Loy miqdori (kg) kiritilmagan", targetId: 'loy_kg' });
   }
 
+  // Gips miqdori -- faqat kamida bitta Gips turdagi detal bo'lsa so'raladi
+  const anyGips = Array.from(document.querySelectorAll('.i-type')).some(el => el.value === 'gips');
+  const gipsVal = parseFloat(document.getElementById('gips_kg')?.value) || 0;
+  const gipsInvVal = document.getElementById('gips_inventory_id')?.value || '';
+  if (anyGips && !gipsVal) {
+    issues.push({ text: "Gips miqdori (kg) kiritilmagan", targetId: 'gips_kg' });
+  }
+  if (anyGips && gipsVal && !gipsInvVal) {
+    issues.push({ text: "Qaysi Gips xomashyosi ishlatilishi tanlanmagan", targetId: 'gips_inventory_id' });
+  }
+
   // Asosiy bo'lmagan plotnost tanlangan, lekin shu detalning o'z 1 m3 narxi yo'q
   // MUHIM: "Blok (butun narxda)" rejimida — narx "1 blok narxi" orqali
   // TO'G'RIDAN-TO'G'RI kiritiladi, "1 m³ narxi" bu rejimda ISHLATILMAYDI —
@@ -3020,7 +3158,10 @@ async function saveOrder(isDraft = false) {
     agreed_amount: finalPrice || undefined,
     deadline: document.getElementById('deadline_input')?.value || null,
     is_draft: isDraft,
-    items
+    items,
+    gips_inventory_id: parseInt(document.getElementById('gips_inventory_id')?.value) || null,
+    planned_gips_kg: parseFloat(document.getElementById('gips_kg')?.value) || null,
+    gips_additives: collectGipsAdditives()
   };
 
   await submitOrderRequest(data, isDraft, zaklat, zaklatMethod, false);
@@ -3321,6 +3462,17 @@ async function editSelected() {
       }
     } catch(e) {}
 
+    // GIPS — mavjud buyurtmadagi Gips ma'lumotlarini tiklaymiz
+    if (order.planned_gips_kg || order.gips_inventory_id || (order.gips_additives && order.gips_additives.length)) {
+      checkGipsSectionVisibility();
+      await loadGipsInventoryOptions();
+      const gipsKgEl = document.getElementById('gips_kg');
+      if (gipsKgEl && order.planned_gips_kg) gipsKgEl.value = order.planned_gips_kg;
+      const gipsInvEl = document.getElementById('gips_inventory_id');
+      if (gipsInvEl && order.gips_inventory_id) gipsInvEl.value = order.gips_inventory_id;
+      (order.gips_additives || []).forEach(a => addGipsAdditive(a.inventory_id, a.planned_qty));
+    }
+
     // Zaklat maydonini yashiramiz (tahrirlashda to'lov "To'lovlar" bo'limidan qo'shiladi)
     const zWrap = document.getElementById('zaklat_amount')?.closest('div[style*="border-top"]');
     if (zWrap) zWrap.style.display = 'none';
@@ -3411,6 +3563,13 @@ function collectItems() {
                    quantity: qty, unit_price: unitP, is_coated: false,
                    penoplast_id: null, price_per_m3: null, finished_product_id: null,
                    recipe_id: recipeId });
+    } else if (type === 'gips') {
+      const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
+      const gipsUnit = row.querySelector('.i-gips-unit')?.value || 'metr';
+      items.push({ name, category: 'gips', width: null, thickness: null, length: null,
+                   quantity: qty, unit_price: unitP, is_coated: false,
+                   penoplast_id: null, price_per_m3: null, finished_product_id: null,
+                   gips_unit: gipsUnit });
     } else {
       items.push({ name, category: type, width: h, thickness: w, length: l,
                    quantity: qty, unit_price: unitPrice, is_coated: isCoated,
@@ -3454,7 +3613,10 @@ async function updateOrder(orderId) {
     master_id: parseInt(document.getElementById('master_id').value) || null,
     agreed_amount: finalPrice || undefined,
     deadline: document.getElementById('deadline_input')?.value || null,
-    items
+    items,
+    gips_inventory_id: parseInt(document.getElementById('gips_inventory_id')?.value) || null,
+    planned_gips_kg: parseFloat(document.getElementById('gips_kg')?.value) || null,
+    gips_additives: collectGipsAdditives()
   };
 
   const url = `/api/orders/${orderId}?loy_kg=${loyKg}`;
@@ -3531,10 +3693,47 @@ async function markReadySelected() {
 
   const loyKg = prompt(promptTxt, planned > 0 ? String(planned) : '');
   if (loyKg === null) return;
-  if (!confirm('Buyurtmani TAYYOR deb belgilaymizmi?')) return;
-  const url = loyKg ? `/api/orders/${selectedOrderId}/ready?loy_kg=${parseFloat(loyKg)}` : `/api/orders/${selectedOrderId}/ready`;
+
+  // GIPS — agar shu buyurtmada Gips bo'lsa, haqiqiy miqdorni so'raymiz
+  let gipsKg = null;
+  let gipsAdditivesActual = [];
+  let gishtDona = null;
   try {
-    const res = await fetch(url, { method:'POST' });
+    const orderRes = await fetch(`/api/orders/${selectedOrderId}`);
+    if (orderRes.ok) {
+      const orderData = await orderRes.json();
+      if (orderData.planned_gips_kg || orderData.gips_inventory_id) {
+        const gipsPromptTxt = `Haqiqatda necha kg Gips ishlatildi?\n\n📋 Rejada: ${orderData.planned_gips_kg || 0} kg (xomashyo allaqachon ayirilgan)\n\n• Ko'proq ketgan bo'lsa → farq uchun xomashyo ayiriladi\n• Kamroq ketgan bo'lsa → ortgani omborga qaytadi`;
+        const gipsVal = prompt(gipsPromptTxt, orderData.planned_gips_kg ? String(orderData.planned_gips_kg) : '');
+        if (gipsVal !== null && gipsVal !== '') gipsKg = parseFloat(gipsVal);
+
+        const gishtVal = prompt(`G'isht formasiga solingan bormi? (ixtiyoriy — necha dona)\n\nOrtgan loydan quyilgan bo'lsa, shuncha yozing. Bo'sh qoldirsangiz — hech narsa qo'shilmaydi.`, '');
+        if (gishtVal !== null && gishtVal !== '' && parseFloat(gishtVal) > 0) gishtDona = parseFloat(gishtVal);
+      }
+      if (orderData.gips_additives && orderData.gips_additives.length) {
+        for (const add of orderData.gips_additives) {
+          const invName = (gipsInvCache || []).find(i => i.id === add.inventory_id)?.item_name || `Material #${add.inventory_id}`;
+          const aVal = prompt(`"${invName}" — haqiqatda necha ${''} ishlatildi?\n\nRejada: ${add.planned_qty}`, String(add.planned_qty));
+          if (aVal !== null && aVal !== '') {
+            gipsAdditivesActual.push({ inventory_id: add.inventory_id, actual_qty: parseFloat(aVal) });
+          }
+        }
+      }
+    }
+  } catch(e) {}
+
+  if (!confirm('Buyurtmani TAYYOR deb belgilaymizmi?')) return;
+  let url = `/api/orders/${selectedOrderId}/ready`;
+  const qs = [];
+  if (loyKg) qs.push(`loy_kg=${parseFloat(loyKg)}`);
+  if (gipsKg !== null) qs.push(`gips_kg=${gipsKg}`);
+  if (gishtDona !== null) qs.push(`gisht_dona=${gishtDona}`);
+  if (qs.length) url += '?' + qs.join('&');
+  try {
+    const res = await fetch(url, { method:'POST',
+      headers: gipsAdditivesActual.length ? {'Content-Type':'application/json'} : undefined,
+      body: gipsAdditivesActual.length ? JSON.stringify(gipsAdditivesActual) : undefined
+    });
     const result = await res.json();
     const box = document.getElementById('resultBox');
     if (res.ok) {
@@ -3557,6 +3756,13 @@ async function markReadySelected() {
         const li = result.loy_info;
         const icon = li.action === 'ortdi' ? '🟢' : (li.action === 'qoshimcha' ? '🟠' : '✓');
         html += `<br>🧱 Loy: reja ${li.planned} kg → haqiqiy ${li.actual} kg<br>${icon} ${li.message}`;
+      }
+      if (result.gips_info) {
+        const gi = result.gips_info;
+        html += `<br>🧱 Gips: reja ${gi.planned} kg → haqiqiy ${gi.actual} kg<br>${gi.message}`;
+      }
+      if (result.gisht_info) {
+        html += `<br>🧱 ${result.gisht_info.message}`;
       }
       if (result.inventory_changes?.length) html += '<br><br>📦 Ombor:<br>' + result.inventory_changes.join('<br>');
       if (result.master_kpi) {
