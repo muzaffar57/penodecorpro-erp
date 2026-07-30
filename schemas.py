@@ -297,6 +297,21 @@ class OrderItemCreate(BaseModel):
     # "Loy sotish" turi uchun — shu detalning O'ZIGA tegishli retsept
     # (buyurtmaning umumiy qoplama retseptidan farq qilishi mumkin)
     recipe_id: Optional[int] = None
+    # GIPS uchun — tanlangan birlik (metr/dona/m2)
+    gips_unit: Optional[str] = None
+
+
+class GipsAdditiveInput(BaseModel):
+    """Gips buyurtmasiga qo'shiladigan ixtiyoriy xomashyo — erkin,
+    Omborxonadan istalgan material tanlanadi (qattiq ro'yxat emas)."""
+    inventory_id: int
+    planned_qty: float = Field(..., gt=0)
+
+
+class GipsAdditiveActual(BaseModel):
+    """'Tayyor' bosilganda — har bir Gips qo'shimchasining haqiqiy miqdori."""
+    inventory_id: int
+    actual_qty: float = Field(..., ge=0)
 
 
 class OrderCreate(BaseModel):
@@ -309,6 +324,10 @@ class OrderCreate(BaseModel):
     is_draft: bool = False
     deadline: Optional[datetime] = None
     notes: Optional[str] = None
+    # GIPS — asosiy xomashyo (taxminiy) va ixtiyoriy qo'shimchalar
+    gips_inventory_id: Optional[int] = None
+    planned_gips_kg: Optional[float] = None
+    gips_additives: List[GipsAdditiveInput] = []
 
 
 class OrderItemRead(BaseModel):
@@ -328,6 +347,7 @@ class OrderItemRead(BaseModel):
     finished_product_id: Optional[int] = None
     image_url: Optional[str] = None
     notes: Optional[str] = None
+    gips_unit: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -336,6 +356,7 @@ class ExpenseTransactionCreate(BaseModel):
     category: str
     amount: float = Field(..., ge=0)
     notes: Optional[str] = None
+    production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
 
 
 class ExpenseTransactionRead(BaseModel):
@@ -347,6 +368,7 @@ class ExpenseTransactionRead(BaseModel):
     created_by: Optional[str] = None
     created_at: datetime
     source: str = "manual"
+    production_type: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -505,7 +527,9 @@ class EmployeeCreate(BaseModel):
     fixed_amount: float = Field(default=0, ge=0)
     percent_value: float = Field(default=0, ge=0, le=100)
     per_unit_rate: float = Field(default=0, ge=0)
-    per_unit_type: str = Field(default="blok", description="blok/metr/dona")
+    per_unit_type: str = Field(default="blok", description="blok/metr/dona/gips_metr/gips_qop/gips_kg")
+    gul_rate: Optional[float] = Field(default=None, description="Qoliplik gul (dona) uchun — qo'shimcha narx")
+    extra_monthly: Optional[float] = Field(default=None, description="Ixtiyoriy qo'shimcha doimiy oylik")
     notes: Optional[str] = None
 
 
@@ -517,6 +541,8 @@ class EmployeeUpdate(BaseModel):
     percent_value: Optional[float] = None
     per_unit_rate: Optional[float] = None
     per_unit_type: Optional[str] = None
+    gul_rate: Optional[float] = None
+    extra_monthly: Optional[float] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
 
@@ -530,6 +556,8 @@ class EmployeeRead(BaseModel):
     percent_value: float
     per_unit_rate: float
     per_unit_type: str
+    gul_rate: Optional[float] = None
+    extra_monthly: Optional[float] = None
     is_active: bool
     notes: Optional[str] = None
     phone: Optional[str] = None
@@ -545,6 +573,7 @@ class TransportExpenseCreate(BaseModel):
     amount: float = Field(..., gt=0)
     materials_note: Optional[str] = None
     notes: Optional[str] = None
+    production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
 
 
 class PaymentCreate(BaseModel):
@@ -571,6 +600,14 @@ class PaymentRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OrderGipsAdditiveRead(BaseModel):
+    id: int
+    inventory_id: int
+    planned_qty: float
+    actual_qty: Optional[float] = None
+    model_config = {"from_attributes": True}
+
+
 class OrderRead(BaseModel):
     id: int
     order_number: Optional[str] = None
@@ -590,6 +627,11 @@ class OrderRead(BaseModel):
     closed_at: Optional[datetime] = None
     items: List[OrderItemRead] = []
     payments: List[PaymentRead] = []
+    # GIPS
+    planned_gips_kg: Optional[float] = None
+    actual_gips_kg: Optional[float] = None
+    gips_inventory_id: Optional[int] = None
+    gips_additives: List[OrderGipsAdditiveRead] = []
     model_config = {"from_attributes": True}
 
 
@@ -626,6 +668,7 @@ class ReturnItemCreate(BaseModel):
     order_item_id: Optional[int] = None
     notes: Optional[str] = None
     coating_applied: bool = Field(default=False, description="Brak bo'lganda loy allaqachon tortilgan bo'lsa True")
+    gips_kg_used: Optional[float] = Field(default=None, description="GIPS brak uchun — taxminan qancha gips ketgani")
 
 class ReturnItemRead(BaseModel):
     id: int
