@@ -6,7 +6,7 @@ PenoDecorPro ERP — Asosiy server
 import os
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File
+from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, File, Body
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -18,7 +18,7 @@ import schemas
 import crud
 import services
 import auth
-from models import UserRole, Inventory, OrderStatus
+from models import UserRole, Inventory, OrderStatus, OrderGipsAdditive
 
 import urllib.request
 import json as _json
@@ -231,6 +231,35 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE order_items ADD COLUMN finished_product_id INTEGER")
         if 'unit_price_for_volume' not in oi_cols:
             migrations.append("ALTER TABLE order_items ADD COLUMN unit_price_for_volume NUMERIC(12,2)")
+        if 'gips_unit' not in oi_cols:
+            migrations.append("ALTER TABLE order_items ADD COLUMN gips_unit VARCHAR(10)")
+
+        # GIPS — Order, Employee, ReturnItem yangi ustunlari
+        ord_cols = [c['name'] for c in inspector.get_columns('orders')]
+        if 'planned_gips_kg' not in ord_cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN planned_gips_kg FLOAT")
+        if 'actual_gips_kg' not in ord_cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN actual_gips_kg FLOAT")
+        if 'gips_inventory_id' not in ord_cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN gips_inventory_id INTEGER")
+
+        emp_cols = [c['name'] for c in inspector.get_columns('employees')]
+        if 'gul_rate' not in emp_cols:
+            migrations.append("ALTER TABLE employees ADD COLUMN gul_rate NUMERIC(12,2)")
+        if 'extra_monthly' not in emp_cols:
+            migrations.append("ALTER TABLE employees ADD COLUMN extra_monthly NUMERIC(12,2)")
+
+        ret_cols = [c['name'] for c in inspector.get_columns('return_items')]
+        if 'gips_kg_used' not in ret_cols:
+            migrations.append("ALTER TABLE return_items ADD COLUMN gips_kg_used FLOAT")
+
+        et_cols = [c['name'] for c in inspector.get_columns('expense_transactions')]
+        if 'production_type' not in et_cols:
+            migrations.append("ALTER TABLE expense_transactions ADD COLUMN production_type VARCHAR(20)")
+
+        te_cols = [c['name'] for c in inspector.get_columns('transport_expenses')]
+        if 'production_type' not in te_cols:
+            migrations.append("ALTER TABLE transport_expenses ADD COLUMN production_type VARCHAR(20)")
 
         if migrations:
             with engine.connect() as conn:
@@ -1680,6 +1709,7 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "penoplast_name": i.penoplast.item_name if i.penoplast else None,
             "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
             "notes": i.notes,
+            "gips_unit": getattr(i, 'gips_unit', None),
             "order_qty_normalized": i.order_qty_normalized,
             "delivery_unit": i.delivery_unit,
             "price_per_unit_final": round(float(i.total_price or 0) / i.order_qty_normalized) if i.order_qty_normalized else 0,
@@ -1695,7 +1725,16 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "paid_at": p.paid_at.isoformat() if p.paid_at else None,
             "received_by": p.received_by,
             "notes": p.notes
-        } for p in order.payments]
+        } for p in order.payments],
+        "planned_gips_kg": order.planned_gips_kg,
+        "actual_gips_kg": order.actual_gips_kg,
+        "gips_inventory_id": order.gips_inventory_id,
+        "gips_additives": [{
+            "id": a.id,
+            "inventory_id": a.inventory_id,
+            "planned_qty": float(a.planned_qty or 0),
+            "actual_qty": float(a.actual_qty) if a.actual_qty is not None else None
+        } for a in order.gips_additives]
     }
 
 
@@ -1794,8 +1833,13 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
 
 
 @app.post("/api/orders/{order_id}/ready")
-def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    result = services.complete_order(db, order_id, loy_kg)
+def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg: Optional[float] = None,
+                          gisht_dona: Optional[float] = None,
+                          gips_additives_actual: Optional[List[schemas.GipsAdditiveActual]] = Body(default=None),
+                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    additives_list = [a.dict() for a in gips_additives_actual] if gips_additives_actual else None
+    result = services.complete_order(db, order_id, loy_kg, gips_kg=gips_kg,
+                                      gips_additives_actual=additives_list, gisht_dona=gisht_dona)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     order = crud.get_order(db, order_id)
@@ -1856,7 +1900,7 @@ def api_mark_all_ready(loy_kg: Optional[float] = None, db: Session = Depends(get
 
 
 @app.delete("/api/orders/{order_id}")
-def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actual_gips_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani o'chirish — xomashyo omborga qaytariladi.
     actual_loy_kg — agar berilsa, rejalashtirilgan loy bilan solishtirilib,
     ortgan qismi omborga qaytariladi (xuddi buyurtma yakunlanganidagi kabi)."""
@@ -1909,6 +1953,29 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: S
             for item in order.items:
                 if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
                     log.extend(services.return_loy_ingredients(db, order, float(item.quantity), recipe_id=item.recipe_id))
+
+        # GIPS — xuddi Loy kabi: reja/haqiqiy solishtirib qaytariladi.
+        # actual_gips_kg berilgan bo'lsa — ortgan qismi aniq qaytadi.
+        # Berilmagan va hech narsa topshirilmagan bo'lsa — to'liq reja qaytadi.
+        planned_gips = float(order.planned_gips_kg or 0)
+        if planned_gips > 0 and order.gips_inventory_id:
+            if actual_gips_kg is not None:
+                diff = planned_gips - float(actual_gips_kg)
+                if abs(diff) > 0.01:
+                    r = services.deduct_gips_main(db, order.gips_inventory_id, -diff, order, reason=f"Buyurtma o'chirildi ({order_num})")
+                    if r:
+                        log.append(r)
+            elif not has_delivery:
+                r = services.deduct_gips_main(db, order.gips_inventory_id, -planned_gips, order, reason=f"Buyurtma o'chirildi ({order_num})")
+                if r:
+                    log.append(r)
+
+        # Gips qo'shimchalari — hech narsa topshirilmagan bo'lsa, to'liq reja qaytadi
+        if not has_delivery:
+            gips_adds = db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == order.id).all()
+            if gips_adds:
+                return_list = [{"inventory_id": a.inventory_id, "qty": -float(a.planned_qty or 0)} for a in gips_adds]
+                log.extend(services.deduct_gips_additives(db, return_list, order, reason=f"Buyurtma o'chirildi ({order_num})"))
 
         # MUHIM: "qaytarildi" deb BELGILAYMIZ — shu buyurtma keyinchalik
         # tiklanib, YANA o'chirilsa ham, ombor IKKINCHI MARTA qaytarilmasin.
