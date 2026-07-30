@@ -187,6 +187,9 @@ def generate_nakladnoy(order, db=None) -> bytes:
         elif cat == 'blok': return 'M'
         elif cat == 'termopanel': return 'M²'
         elif cat == 'dona': return 'TA'
+        elif cat == 'gips':
+            gu = (getattr(item, 'gips_unit', None) or 'metr').lower()
+            return 'M²' if gu == 'm2' else ('M' if gu == 'metr' else 'TA')
         else: return 'TA'
 
     col_widths = [W*0.05, W*0.35, W*0.10, W*0.12, W*0.19, W*0.19]
