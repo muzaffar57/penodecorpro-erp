@@ -2490,6 +2490,34 @@ def _group_volumes_by_penoplast(db, items) -> dict:
     return volumes
 
 
+def check_gips_for_order(db: Session, order_data) -> dict:
+    """Gips va uning qo'shimchalari uchun omborda yetarli miqdor
+    bor-yo'qligini tekshiradi (Penoplast/Bazalt bilan bir xil naqsh)."""
+    from models import Inventory
+    shortages = []
+
+    gips_kg = float(getattr(order_data, 'planned_gips_kg', None) or 0)
+    gips_inv_id = getattr(order_data, 'gips_inventory_id', None)
+    if gips_kg > 0:
+        if not gips_inv_id:
+            shortages.append("Gips miqdori kiritilgan, lekin qaysi xomashyo ekani tanlanmagan")
+        else:
+            item = db.query(Inventory).filter(Inventory.id == gips_inv_id).first()
+            if not item:
+                shortages.append("Tanlangan Gips xomashyosi ombordan topilmadi")
+            elif float(item.stock_quantity or 0) < gips_kg:
+                shortages.append(f"{item.item_name}: kerak {gips_kg:g} kg, qoldi {float(item.stock_quantity):.1f} kg")
+
+    for add in (getattr(order_data, 'gips_additives', None) or []):
+        item = db.query(Inventory).filter(Inventory.id == add.inventory_id).first()
+        if not item:
+            shortages.append(f"Gips qo'shimchasi (ID {add.inventory_id}) ombordan topilmadi")
+        elif float(item.stock_quantity or 0) < add.planned_qty:
+            shortages.append(f"{item.item_name}: kerak {add.planned_qty:g} {item.unit}, qoldi {float(item.stock_quantity):.1f} {item.unit}")
+
+    return {"enough": len(shortages) == 0, "shortages": shortages}
+
+
 def check_inventory_for_order(db: Session, order_data) -> dict:
     """
     Buyurtma uchun xomashyo yetishini tekshiradi.
