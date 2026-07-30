@@ -252,6 +252,12 @@
       <div style="font-size:12px;color:#aaa;margin-top:6px">Bu — sarflangan xomashyoni to'g'ri hisoblash uchun kerak: agar loy tortilmasdan brak bo'lgan bo'lsa, faqat Penoplast hisobga olinadi.</div>
     </div>
 
+    <div class="form-group" id="gips-brak-wrap" style="display:none">
+      <label>Bu brak uchun taxminan qancha Gips ketgan edi? (kg)</label>
+      <input type="number" id="f-gips-kg-used" placeholder="0" min="0" step="0.1">
+      <div style="font-size:12px;color:#aaa;margin-top:6px">Aniq formula yo'q — o'zingiz taxminiy bilgan miqdorni kiriting. Bu — Moliyada "Brak — Gips" sifatida hisoblanadi.</div>
+    </div>
+
     {% if current_user.role.value == 'admin' %}
     <div class="form-group">
       <label>Qiymati (avtomatik, o'zgartirish mumkin)</label>
@@ -347,6 +353,14 @@
     });
   }).observe(document.documentElement, {childList:true, subtree:true});
 })();
+
+function unitShortLabel(unit) {
+  // 'metr'/'m²'/'kg' — o'zining qisqa ko'rinishida, qolgani (dona va h.k.) 'dona'
+  if (unit === 'metr') return 'm';
+  if (unit === 'm²' || unit === 'm2') return 'm²';
+  if (unit === 'kg') return 'kg';
+  return 'dona';
+}
 </script>
 
 <script>
@@ -545,7 +559,7 @@ function onItemChange(){
     const upEl = document.getElementById('f-unit-price'); if (upEl) upEl.value = '';
     return;
   }
-  document.getElementById('f-unit-label').textContent = item.delivery_unit === 'metr' ? 'm' : 'dona';
+  document.getElementById('f-unit-label').textContent = unitShortLabel(item.delivery_unit);
   document.getElementById('f-qty').max = item.order_qty_normalized;
   calcValue();
 }
@@ -564,6 +578,10 @@ function updateReasonHint(){
   const coatWrap = document.getElementById('coating-applied-wrap');
   if (coatWrap) {
     coatWrap.style.display = (reason === 'Brak' && item && item.is_coated) ? 'block' : 'none';
+  }
+  const gipsBrakWrap = document.getElementById('gips-brak-wrap');
+  if (gipsBrakWrap) {
+    gipsBrakWrap.style.display = (reason === 'Brak' && item && (item.category || '').toLowerCase() === 'gips') ? 'block' : 'none';
   }
 }
 
@@ -635,7 +653,8 @@ async function saveReturn(){
       refund_amount: parseFloat(document.getElementById('f-value').value) || 0,
       to_stock: true,
       notes: document.getElementById('f-notes').value || null,
-      coating_applied: document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes'
+      coating_applied: document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes',
+      gips_kg_used: parseFloat(document.getElementById('f-gips-kg-used')?.value) || null
     })
   });
 
@@ -683,13 +702,13 @@ async function onBrakProjectChange(){
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;color:#1a1a1a">${it.name}</div>
           <div style="font-size:13px;color:#aaa;margin-top:1px">
-            ${it.order_number} · jami ${it.order_qty_normalized} ${it.delivery_unit === 'metr' ? 'm' : 'dona'}${it.is_coated ? ' · qoplamali' : ''}
+            ${it.order_number} · jami ${it.order_qty_normalized} ${unitShortLabel(it.delivery_unit)}${it.is_coated ? ' · qoplamali' : ''}
           </div>
         </div>
         <input type="number" class="brak-qty-inp" data-idx="${idx}" placeholder="0"
                min="0" max="${it.order_qty_normalized}" step="0.1"
                style="width:74px;height:32px;text-align:center;border:1.5px solid #e5e5e5;border-radius:7px;font-size:13px;font-weight:600;outline:none">
-        <span style="font-size:13px;color:#aaa;width:32px">${it.delivery_unit === 'metr' ? 'm' : 'dona'}</span>
+        <span style="font-size:13px;color:#aaa;width:32px">${unitShortLabel(it.delivery_unit)}</span>
       </div>`).join('');
   } catch(e) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626;font-size:13px">Yuklashda xato</div>';
