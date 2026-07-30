@@ -430,7 +430,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                               tushirish_cost: float = 0.0, yuklash_cost: float = 0.0,
                               boshqa_cost: float = 0.0, add_to_cost: bool = False,
                               supplier_id: int = None, document_number: str = None,
-                              paid_now: float = 0.0, notes: str = None, created_by: str = None) -> dict:
+                              paid_now: float = 0.0, notes: str = None, created_by: str = None,
+                              production_type: str = None) -> dict:
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport, Tushirish/Grushchik, Yuklash, Boshqa) bilan birga, BITTA
     yagona tranzaksiya sifatida saqlaydi. Xato bo'lsa — HAMMASI (barcha
@@ -465,7 +466,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
             supplier_id=supplier_id, document_number=document_number,
             transport_cost=transport_cost or 0, tushirish_cost=tushirish_cost or 0,
             yuklash_cost=yuklash_cost or 0, boshqa_cost=boshqa_cost or 0,
-            add_to_cost=add_to_cost, notes=notes, created_by=created_by
+            add_to_cost=add_to_cost, notes=notes, created_by=created_by,
+            production_type=production_type
         )
         db.add(receipt)
         db.flush()  # receipt.id kerak bo'ladi
@@ -536,7 +538,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                 tx = ExpenseTransaction(
                     date=receipt.receipt_date, category=cat, amount=amount,
                     notes=f"{label} — Kirim #{receipt.id}" + (f" ({document_number})" if document_number else ""),
-                    created_by=created_by, source="inventory_receipt"
+                    created_by=created_by, source="inventory_receipt",
+                    production_type=production_type
                 )
                 db.add(tx)
 
