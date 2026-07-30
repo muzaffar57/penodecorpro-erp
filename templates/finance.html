@@ -442,6 +442,14 @@
       </select>
     </div>
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="tx-f-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
+    <div class="form-group">
+      <label>Yo'nalish <span style="font-weight:400;color:#9CA3AF;font-size:11.5px">— ixtiyoriy, hisobotda ajratib ko'rish uchun</span></label>
+      <select id="tx-f-prodtype">
+        <option value="">Umumiy</option>
+        <option value="penoplast">🏭 Penoplast</option>
+        <option value="gips">🧱 Gips</option>
+      </select>
+    </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="fin-btn fin-btn-primary w-full" onclick="saveTx()" style="flex:1">Saqlash</button>
@@ -719,6 +727,19 @@ function buildExpDetail(d){
     }).join('');
   }
 
+  if (d.turlar_boyicha && (d.turlar_boyicha.gips.daromad > 0 || d.turlar_boyicha.penoplast.daromad > 0)) {
+    const tb = d.turlar_boyicha;
+    extraHtml += `<div style="font-size:12px;color:#7C3AED;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:14px 0 6px">📊 Turlar bo'yicha daromad taqsimoti</div>`;
+    extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name">🏭 Penoplast (va boshqa)</span><span class="fin-exp-val" style="color:#0EA5E9">${fmtFull(tb.penoplast.daromad)} so'm</span></div>`;
+    extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name">🧱 Gips</span><span class="fin-exp-val" style="color:#D97706">${fmtFull(tb.gips.daromad)} so'm</span></div>`;
+    if (tb.gips.qoshimcha_xarajat > 0) {
+      extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name" style="padding-left:14px;color:var(--f-text3)">↳ Gips uchun belgilangan qo'shimcha xarajat</span><span class="fin-exp-val" style="color:var(--f-danger)">-${fmtFull(tb.gips.qoshimcha_xarajat)} so'm</span></div>`;
+    }
+    if (tb.penoplast.qoshimcha_xarajat > 0) {
+      extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name" style="padding-left:14px;color:var(--f-text3)">↳ Penoplast uchun belgilangan qo'shimcha xarajat</span><span class="fin-exp-val" style="color:var(--f-danger)">-${fmtFull(tb.penoplast.qoshimcha_xarajat)} so'm</span></div>`;
+    }
+  }
+
   el.innerHTML=rows.map(r=>`<div class="fin-exp-row"><span class="fin-exp-name">${r.n}</span><span class="fin-exp-val">${fmtFull(r.v)} so'm</span></div>`).join('')
     + extraHtml
     +`<div class="fin-exp-row" style="border-top:1px dashed var(--f-border);margin-top:8px;padding-top:8px">
@@ -805,6 +826,7 @@ function openTxModal(){
   document.getElementById('tx-f-date').value = dateVal;
   document.getElementById('tx-f-amount').value = '';
   document.getElementById('tx-f-notes').value = '';
+  document.getElementById('tx-f-prodtype').value = '';
   document.getElementById('txModal').style.display = 'flex';
 }
 function closeTxModal(){ document.getElementById('txModal').style.display = 'none'; }
@@ -817,7 +839,7 @@ async function saveTx(){
   try {
     const res = await fetch('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ date: date+'T00:00:00', category, amount, notes: document.getElementById('tx-f-notes').value || null })
+      body: JSON.stringify({ date: date+'T00:00:00', category, amount, notes: document.getElementById('tx-f-notes').value || null, production_type: document.getElementById('tx-f-prodtype').value || null })
     });
     if (res.ok) {
       closeTxModal();
