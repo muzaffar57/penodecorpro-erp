@@ -314,7 +314,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
             el.append(Paragraph("<b>Keyingi yetkazishda kutilayotgan mahsulotlar</b>", st_norm))
             el.append(Spacer(1, 4))
             pend_data = [["Mahsulot nomi", "Qoldi", "1 birlik narxi"]]
-            unit_labels = {"metr": "m", "kg": "kg", "dona": "ta", "m2": "m²"}
+            unit_labels = {"metr": "m", "kg": "kg", "dona": "ta", "m2": "m²", "m²": "m²"}
             for it in pending_items:
                 unit_label = unit_labels.get(it.delivery_unit, "ta")
                 it_ordered = it.order_qty_normalized
