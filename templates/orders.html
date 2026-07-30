@@ -2825,6 +2825,15 @@ function updateLiveStats() {
       // haqiqiy kerakli metr (.i-q) hisoblanishi kerak, normasi (.i-l) emas.
       const qEl = row.querySelector('.i-q');
       if (qEl) totalLength += parseFloat(qEl.value || 0);
+    } else if (rowType === 'gips') {
+      // Gipsda uzunlik ".i-l" emas, ".i-q" (Miqdor) maydonida — va faqat
+      // birligi "metr" bo'lgan qatorlarni "Umumiy uzunlik"ka qo'shamiz
+      // (dona/m² qatorlar mos emas, chalkashtirmaslik uchun qo'shilmaydi).
+      const gipsUnit = row.querySelector('.i-gips-unit')?.value;
+      if (gipsUnit === 'metr') {
+        const qEl2 = row.querySelector('.i-q');
+        if (qEl2) totalLength += parseFloat(qEl2.value || 0);
+      }
     } else {
       const lEl = row.querySelector('.i-l');
       if (lEl) totalLength += parseFloat(lEl.value || 0);
