@@ -187,6 +187,7 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
         notes=data.get("notes"),
         created_by=performed_by,
         source=source,
+        production_type=data.get("production_type"),
     )
     db.add(tx)
     db.commit()
@@ -725,7 +726,7 @@ def delete_recipe(db: Session, recipe_id: int) -> bool:
 # PROJECT CRUD
 # ============================================================
 
-from models import Project, Order, OrderItem, ProjectStatus, OrderStatus, OrderType, FinishedProduct, StockSource
+from models import Project, Order, OrderItem, ProjectStatus, OrderStatus, OrderType, FinishedProduct, StockSource, OrderGipsAdditive
 from schemas import ProjectCreate, OrderCreate
 
 
@@ -901,6 +902,7 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
             finished_product_id=getattr(item_data, 'finished_product_id', None),
             unit_price=item_data.unit_price,
             unit_price_for_volume=getattr(item_data, 'unit_price_for_volume', None),
+            gips_unit=getattr(item_data, 'gips_unit', None),
             total_price=item_total,
             notes=item_data.notes
         )
@@ -912,11 +914,30 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
     if total_amount > 0 and float(db_order.agreed_amount) < total_amount:
         db_order.discount_percent = round((total_amount - float(db_order.agreed_amount)) / total_amount * 100, 2)
 
+    # GIPS — taxminiy miqdor va qo'shimchalar (Loy kabi: ombordan DARHOL,
+    # rejalashtirilgan (taxminiy) miqdorda ayiriladi; "Tayyor" bosilganda
+    # haqiqiy son bilan solishtirilib, farq tuzatiladi)
+    db_order.planned_gips_kg = getattr(order_data, 'planned_gips_kg', None)
+    db_order.gips_inventory_id = getattr(order_data, 'gips_inventory_id', None)
+    for add_data in (getattr(order_data, 'gips_additives', None) or []):
+        db.add(OrderGipsAdditive(
+            order_id=db_order.id,
+            inventory_id=add_data.inventory_id,
+            planned_qty=add_data.planned_qty
+        ))
+
     db.flush()
 
     # Tayyor mahsulotlardan yechamiz (qoralama bo'lmasa)
     if not is_draft:
         _take_finished_for_order(db, db_order)
+        import services as _services
+        planned_gips = float(db_order.planned_gips_kg or 0)
+        if planned_gips > 0 and db_order.gips_inventory_id:
+            _services.deduct_gips_main(db, db_order.gips_inventory_id, planned_gips, db_order)
+        gips_adds = [{"inventory_id": a.inventory_id, "qty": a.planned_qty} for a in (getattr(order_data, 'gips_additives', None) or [])]
+        if gips_adds:
+            _services.deduct_gips_additives(db, gips_adds, db_order)
 
     db.commit()
     db.refresh(db_order)
@@ -1427,6 +1448,15 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
                     if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
                         services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
 
+                # GIPS — rejalashtirilgan miqdor (asosiy va qo'shimchalar) qayta yechiladi
+                planned_gips = float(db_order.planned_gips_kg or 0)
+                if planned_gips > 0 and db_order.gips_inventory_id:
+                    services.deduct_gips_main(db, db_order.gips_inventory_id, planned_gips, db_order, reason=f"Buyurtma tiklandi ({db_order.order_number})")
+                gips_adds = db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == db_order.id).all()
+                if gips_adds:
+                    redo_list = [{"inventory_id": a.inventory_id, "qty": float(a.planned_qty or 0)} for a in gips_adds]
+                    services.deduct_gips_additives(db, redo_list, db_order, reason=f"Buyurtma tiklandi ({db_order.order_number})")
+
         db_order.stock_returned = False
 
     db_order.is_deleted = False
@@ -1603,14 +1633,26 @@ def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
         refund_amount=refund_amount,
         is_refunded=False,
         notes=data.notes,
-        coating_applied=(getattr(data, 'coating_applied', False) if reason_enum == ReturnReason.DEFECT else False)
+        coating_applied=(getattr(data, 'coating_applied', False) if reason_enum == ReturnReason.DEFECT else False),
+        gips_kg_used=getattr(data, 'gips_kg_used', None)
     )
     db.add(item)
     db.flush()
 
     # BRAK bo'lsa — sarflangan xomashyoni (Penoplast + shart bo'lsa Loy)
     # ombordan haqiqatda yechamiz (moliyaviy hisobdan MUSTAQIL, alohida)
-    if reason_enum == ReturnReason.DEFECT and order_item and order_item.order:
+    is_gips = order_item and (order_item.category or '').lower() == 'gips'
+    if reason_enum == ReturnReason.DEFECT and is_gips and order_item.order:
+        import services
+        gips_kg = float(getattr(data, 'gips_kg_used', None) or 0)
+        if gips_kg > 0 and order_item.order.gips_inventory_id:
+            r = services.deduct_gips_main(
+                db, order_item.order.gips_inventory_id, gips_kg, order_item.order,
+                reason=f"Brak — {data.item_name} (Gips)"
+            )
+            if r:
+                print(f"✓ Gips brak uchun xomashyo yechildi: {r}")
+    elif reason_enum == ReturnReason.DEFECT and order_item and order_item.order:
         brak_log = services.deduct_raw_material_for_brak(
             db, order_item, order_item.order, float(data.quantity or 0),
             getattr(data, 'coating_applied', False)
@@ -2478,6 +2520,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         oi.finished_product_id = getattr(nd, 'finished_product_id', None)
         oi.unit_price = nd.unit_price
         oi.unit_price_for_volume = getattr(nd, 'unit_price_for_volume', None)
+        oi.gips_unit = getattr(nd, 'gips_unit', None)
         oi.total_price = item_total
         oi.notes = nd.notes
         keep_ids.add(oi.id)
@@ -2503,6 +2546,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
             finished_product_id=getattr(nd, 'finished_product_id', None),
             unit_price=nd.unit_price,
             unit_price_for_volume=getattr(nd, 'unit_price_for_volume', None),
+            gips_unit=getattr(nd, 'gips_unit', None),
             total_price=item_total,
             notes=nd.notes
         ))
@@ -2511,6 +2555,55 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     order.master_id = order_data.master_id
     if getattr(order_data, 'deadline', None):
         order.deadline = order_data.deadline
+
+    # GIPS — taxminiy miqdorni va qo'shimchalar ro'yxatini yangilaymiz.
+    # MUHIM: Gips DARHOL (Loy kabi) ayirilgani uchun — tahrirlashda FARQ
+    # bo'yicha to'g'irlaymiz (eski rejani qaytarib, yangi rejani ayiramiz),
+    # xuddi Penoplast/Bazalt kabi. Qoralama (hali is_draft) bo'lsa — ombor
+    # umuman tegilmagan edi, shunchaki yangilab qo'ya qolamiz.
+    old_planned_gips = float(order.planned_gips_kg or 0)
+    old_gips_inv_id = order.gips_inventory_id
+    old_additives = {a.inventory_id: float(a.planned_qty or 0) for a in
+                      db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == order.id).all()}
+
+    new_planned_gips = float(getattr(order_data, 'planned_gips_kg', None) or 0)
+    new_gips_inv_id = getattr(order_data, 'gips_inventory_id', None)
+    new_additives_list = getattr(order_data, 'gips_additives', None) or []
+    new_additives = {a.inventory_id: float(a.planned_qty or 0) for a in new_additives_list}
+
+    if not is_draft:
+        import services as _services
+        # Asosiy Gips — agar bir xil xomashyo bo'lsa, faqat farqni; turi
+        # o'zgargan bo'lsa, eskisini to'liq qaytarib, yangisini to'liq ayiramiz
+        if old_gips_inv_id == new_gips_inv_id:
+            diff = new_planned_gips - old_planned_gips
+            if abs(diff) > 0.001:
+                _services.deduct_gips_main(db, new_gips_inv_id, diff, order, reason=f"Buyurtma tahrirlandi ({order.order_number})")
+        else:
+            if old_planned_gips > 0:
+                _services.deduct_gips_main(db, old_gips_inv_id, -old_planned_gips, order, reason=f"Buyurtma tahrirlandi — eski Gips qaytarildi ({order.order_number})")
+            if new_planned_gips > 0:
+                _services.deduct_gips_main(db, new_gips_inv_id, new_planned_gips, order, reason=f"Buyurtma tahrirlandi — yangi Gips ({order.order_number})")
+
+        # Qo'shimchalar — har bir xomashyo bo'yicha farqni hisoblaymiz
+        all_add_ids = set(old_additives.keys()) | set(new_additives.keys())
+        diff_additives = []
+        for inv_id in all_add_ids:
+            d = new_additives.get(inv_id, 0) - old_additives.get(inv_id, 0)
+            if abs(d) > 0.001:
+                diff_additives.append({"inventory_id": inv_id, "qty": d})
+        if diff_additives:
+            _services.deduct_gips_additives(db, diff_additives, order, reason=f"Buyurtma tahrirlandi ({order.order_number})")
+
+    order.planned_gips_kg = new_planned_gips if new_planned_gips > 0 else None
+    order.gips_inventory_id = new_gips_inv_id
+    db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == order.id).delete()
+    for add_data in new_additives_list:
+        db.add(OrderGipsAdditive(
+            order_id=order.id,
+            inventory_id=add_data.inventory_id,
+            planned_qty=add_data.planned_qty
+        ))
 
     old_total = float(order.total_amount or 0)
     old_discount_pct = float(order.discount_percent or 0)
@@ -3052,6 +3145,38 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
         "margin": round(margin, 1),
         "inventory_log": log
     }
+
+
+def create_gisht_from_order(db: Session, order, quantity: float, created_by: str = None) -> dict:
+    """G'isht — ortgan (loydan qolgan) qismidan quyilgan mahsulot.
+    MUHIM: bu — yo'qotish EMAS (xomashyosi allaqachon shu buyurtmaning
+    o'z Gips hisobida hisoblangan), shuning uchun BU YERDA ombordan
+    QO'SHIMCHA hech narsa ayirilmaydi — faqat Tayyor mahsulotlar
+    ro'yxatiga yangi mahsulot sifatida qo'shiladi (tan narxi 0, sotuv
+    narxini keyin qo'lda belgilaysiz)."""
+    from models import FinishedProduct, StockSource, ProductionStatus
+
+    if quantity <= 0:
+        return {"success": False, "message": "Miqdor 0 dan katta bo'lishi kerak"}
+
+    fp = FinishedProduct(
+        name=f"G'isht — {order.order_number}",
+        category="dona",
+        quantity=quantity,
+        unit="dona",
+        unit_price=0,
+        cost_price=0,
+        source=StockSource.PRODUCED,
+        from_order_id=order.id,
+        production_status=ProductionStatus.READY,
+        finished_production_at=datetime.utcnow(),
+        created_by=created_by,
+        notes=f"Gips buyurtmasidan ({order.order_number}) ortgan loydan quyilgan"
+    )
+    db.add(fp)
+    db.commit()
+    db.refresh(fp)
+    return {"success": True, "finished_product_id": fp.id, "quantity": quantity}
 
 
 def produce_finished_product(db: Session, data: ProduceCreate, created_by: str = None) -> dict:
@@ -3729,7 +3854,8 @@ def create_transport_expense(db: Session, data: TransportExpenseCreate, created_
         amount=data.amount,
         materials_note=data.materials_note,
         created_by=created_by,
-        notes=data.notes
+        notes=data.notes,
+        production_type=getattr(data, 'production_type', None)
     )
     db.add(exp)
     db.commit()
@@ -3813,6 +3939,8 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
         percent_value=data.percent_value,
         per_unit_rate=data.per_unit_rate,
         per_unit_type=data.per_unit_type,
+        gul_rate=getattr(data, 'gul_rate', None),
+        extra_monthly=getattr(data, 'extra_monthly', None),
         notes=data.notes
     )
     db.add(emp)
