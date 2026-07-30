@@ -160,6 +160,7 @@ class InventoryReceiptCreate(BaseModel):
     boshqa_cost: float = Field(default=0, ge=0)
     add_to_cost: bool = Field(default=False, description="Qo'shimcha xarajatlarni tannarxga qo'shish")
     notes: Optional[str] = None
+    production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
 
 
 class SupplierUpdate(BaseModel):
