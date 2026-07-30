@@ -295,24 +295,24 @@
               <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
                      oninput="checkLoyStock();updateLiveStats()" style="border-color:var(--gold)">
             </div>
-          </div>
 
-          <div id="gips-section-wrap" style="display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border2)">
-            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">🧱 Gips xomashyosi</div>
-            <div class="form-group" style="margin-bottom:10px">
-              <label>Qaysi Gips xomashyosi ishlatiladi</label>
-              <select id="gips_inventory_id"><option value="">— Tanlang —</option></select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label style="display:flex;align-items:center;gap:6px">Gips miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— taxminiy, barcha Gips detallari uchun</span></label>
-              <input type="number" id="gips_kg" placeholder="0" min="0" step="0.5" oninput="updateLiveStats()">
-            </div>
-            <div style="margin-top:12px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                <label style="margin:0">Qo'shimchalar (ixtiyoriy)</label>
-                <button type="button" class="btn btn-outline btn-xs" onclick="addGipsAdditive()">+ Qo'shimcha qo'shish</button>
+            <div id="gips-section-wrap" style="display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border2)">
+              <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">🧱 Gips xomashyosi</div>
+              <div class="form-group" style="margin-bottom:10px">
+                <label>Qaysi Gips xomashyosi ishlatiladi</label>
+                <select id="gips_inventory_id"><option value="">— Tanlang —</option></select>
               </div>
-              <div id="gips-additives-list"></div>
+              <div class="form-group" style="margin:0">
+                <label style="display:flex;align-items:center;gap:6px">Gips miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— taxminiy, barcha Gips detallari uchun</span></label>
+                <input type="number" id="gips_kg" placeholder="0" min="0" step="0.5" oninput="updateLiveStats()">
+              </div>
+              <div style="margin-top:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                  <label style="margin:0">Qo'shimchalar (ixtiyoriy)</label>
+                  <button type="button" class="btn btn-outline btn-sm" onclick="addGipsAdditive()" style="font-size:13px;padding:7px 14px">+ Qo'shimcha qo'shish</button>
+                </div>
+                <div id="gips-additives-list"></div>
+              </div>
             </div>
           </div>
 
@@ -1926,11 +1926,11 @@ function addGipsAdditive(prefillId, prefillQty) {
   const opts = sorted.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'gips-add-row';
-  row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
   row.innerHTML = `
-    <select class="gips-add-inv" style="flex:2"><option value="">— Material tanlang —</option>${opts}</select>
-    <input type="number" class="gips-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1">
-    <button type="button" class="btn btn-outline btn-xs" onclick="this.closest('.gips-add-row').remove()">✕</button>
+    <select class="gips-add-inv" style="flex:2;padding:9px 10px;font-size:14px"><option value="">— Material tanlang —</option>${opts}</select>
+    <input type="number" class="gips-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;padding:9px 10px;font-size:14px">
+    <button type="button" onclick="this.closest('.gips-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
   `;
   list.appendChild(row);
   if (prefillId) row.querySelector('.gips-add-inv').value = prefillId;
