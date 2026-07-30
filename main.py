@@ -261,6 +261,10 @@ def _migrate_payment_columns():
         if 'production_type' not in te_cols:
             migrations.append("ALTER TABLE transport_expenses ADD COLUMN production_type VARCHAR(20)")
 
+        ir_cols = [c['name'] for c in inspector.get_columns('inventory_receipts')]
+        if 'production_type' not in ir_cols:
+            migrations.append("ALTER TABLE inventory_receipts ADD COLUMN production_type VARCHAR(20)")
+
         if migrations:
             with engine.connect() as conn:
                 for sql in migrations:
@@ -963,7 +967,7 @@ def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Sessi
             yuklash_cost=data.yuklash_cost, boshqa_cost=data.boshqa_cost,
             add_to_cost=data.add_to_cost, supplier_id=data.supplier_id,
             document_number=data.document_number, paid_now=data.paid_now,
-            notes=data.notes, created_by=who
+            notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None)
         )
         return result
     except ValueError as e:
@@ -1632,9 +1636,11 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     tcheck = services.check_termopanel_for_order(db, order)
     fcheck = crud.check_finished_for_order(db, order.items)
     lcheck = services.check_loy_ingredients_for_order(db, order.recipe_id, loy_kg or 0)
+    gcheck = services.check_gips_for_order(db, order)
 
     all_shortages = (list(check.get("shortages", [])) + list(tcheck.get("shortages", []))
-                      + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", [])))
+                      + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", []))
+                      + list(gcheck.get("shortages", [])))
     if all_shortages and not confirm_shortage:
         raise HTTPException(status_code=409, detail={
             "type": "stock_shortage_warning",
