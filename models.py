@@ -669,6 +669,8 @@ class EmployeeMonthlyAdjustment(Base):
     month = Column(Integer, nullable=False)
     reduction_amount = Column(Numeric(12, 2), default=0)
     reason = Column(Text, nullable=True)
+    bonus_amount = Column(Numeric(12, 2), default=0)
+    bonus_reason = Column(Text, nullable=True)
     created_by = Column(String(100), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
