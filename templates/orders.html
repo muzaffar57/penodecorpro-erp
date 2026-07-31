@@ -238,6 +238,21 @@
 
     <!-- Xabar qutisi -->
     <div id="msgBar" class="msg-bar"></div>
+    <!-- "Tayyor deb belgilash" — chiroyli, markazdagi kartochka -->
+    <div id="readyModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
+      <div style="background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:22px 24px 18px;border-bottom:1px solid #F1F5F9">
+          <div style="font-size:17px;font-weight:700;color:#0F172A">✅ Buyurtmani Tayyor deb belgilash</div>
+          <div style="font-size:13px;color:#64748B;margin-top:3px" id="readyModalSubtitle">Quyidagi ma'lumotlarni tekshiring</div>
+        </div>
+        <div id="readyModalBody" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px"></div>
+        <div style="padding:16px 24px 22px;display:flex;gap:10px;border-top:1px solid #F1F5F9">
+          <button onclick="closeReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+          <button onclick="submitReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
+        </div>
+      </div>
+    </div>
+
     <div id="resultBox" class="result-box"></div>
 
     <!-- YANGI BUYURTMA FORMASI (boshlangʻichda yashirin) -->
@@ -3771,64 +3786,105 @@ async function updateOrder(orderId) {
     showMsg('Server xatosi: ' + e.message, 'error');
   }
 }
+let _readyModalData = null;
+
 async function markReadySelected() {
   if (!selectedOrderId) return;
 
-  // Rejalashtirilgan loyni olamiz
+  // Rejalashtirilgan loy va Gips ma'lumotlarini oldindan yig'amiz
   let planned = 0;
   try {
     const r = await fetch(`/api/orders/${selectedOrderId}/planned-loy`);
     if (r.ok) { const d = await r.json(); planned = d.planned_loy || 0; }
   } catch(e) {}
 
-  const promptTxt = planned > 0
-    ? `Haqiqatda necha kg loy ishlatildi?\n\n📋 Rejada: ${planned} kg (xomashyo allaqachon ayirilgan)\n\n• Ko'proq ketgan bo'lsa → farq uchun xomashyo ayiriladi\n• Kamroq ketgan bo'lsa → ortgani omborga qo'shiladi`
-    : 'Necha kg loy ishlatildi? (qoplama uchun)\n\nBo\'sh qoldirsangiz faqat kesish hisoblanadi.';
-
-  const loyKg = prompt(promptTxt, planned > 0 ? String(planned) : '');
-  if (loyKg === null) return;
-
-  // GIPS — agar shu buyurtmada Gips bo'lsa, haqiqiy miqdorni so'raymiz
-  let gipsKg = null;
-  let gipsAdditivesActual = [];
-  let gishtDona = null;
+  let orderData = null;
   try {
     const orderRes = await fetch(`/api/orders/${selectedOrderId}`);
-    if (orderRes.ok) {
-      const orderData = await orderRes.json();
-      if (orderData.planned_gips_kg || orderData.gips_inventory_id) {
-        const gipsPromptTxt = `Haqiqatda necha kg Gips ishlatildi?\n\n📋 Rejada: ${orderData.planned_gips_kg || 0} kg (xomashyo allaqachon ayirilgan)\n\n• Ko'proq ketgan bo'lsa → farq uchun xomashyo ayiriladi\n• Kamroq ketgan bo'lsa → ortgani omborga qaytadi`;
-        const gipsVal = prompt(gipsPromptTxt, orderData.planned_gips_kg ? String(orderData.planned_gips_kg) : '');
-        if (gipsVal !== null && gipsVal !== '') gipsKg = parseFloat(gipsVal);
-
-        const gishtVal = prompt(`G'isht formasiga solingan bormi? (ixtiyoriy — necha dona)\n\nOrtgan loydan quyilgan bo'lsa, shuncha yozing. Bo'sh qoldirsangiz — hech narsa qo'shilmaydi.`, '');
-        if (gishtVal !== null && gishtVal !== '' && parseFloat(gishtVal) > 0) gishtDona = parseFloat(gishtVal);
-      }
-      if (orderData.gips_additives && orderData.gips_additives.length) {
-        if (!gipsInvCache) {
-          try { gipsInvCache = await fetch('/api/inventory').then(r => r.json()); } catch(e) { gipsInvCache = []; }
-        }
-        for (const add of orderData.gips_additives) {
-          const item = (gipsInvCache || []).find(i => i.id === add.inventory_id);
-          const invName = item?.item_name || `Material #${add.inventory_id}`;
-          const unit = (item?.unit || '').toLowerCase();
-          const ratio = item ? parseFloat(item.volume_per_unit) : 0;
-          const isContainer = ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop');
-          const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
-          const displayUnit = isContainer ? naturalUnit : (item?.unit || '');
-          const plannedDisplay = isContainer ? (add.planned_qty * ratio) : add.planned_qty;
-          const aVal = prompt(`"${invName}" — haqiqatda necha ${displayUnit} ishlatildi?\n\nRejada: ${plannedDisplay.toFixed ? plannedDisplay.toFixed(2) : plannedDisplay} ${displayUnit}`, String(plannedDisplay));
-          if (aVal !== null && aVal !== '') {
-            const enteredVal = parseFloat(aVal) || 0;
-            const actualQty = isContainer ? (enteredVal / ratio) : enteredVal;
-            gipsAdditivesActual.push({ inventory_id: add.inventory_id, actual_qty: actualQty });
-          }
-        }
-      }
-    }
+    if (orderRes.ok) orderData = await orderRes.json();
   } catch(e) {}
 
-  if (!confirm('Buyurtmani TAYYOR deb belgilaymizmi?')) return;
+  const hasGips = orderData && (orderData.planned_gips_kg || orderData.gips_inventory_id);
+  const gipsAdditives = (orderData && orderData.gips_additives) || [];
+  if (gipsAdditives.length && !gipsInvCache) {
+    try { gipsInvCache = await fetch('/api/inventory').then(r => r.json()); } catch(e) { gipsInvCache = []; }
+  }
+
+  _readyModalData = { planned, hasGips, orderData, gipsAdditives };
+
+  // Kartochka ichini quramiz
+  const body = document.getElementById('readyModalBody');
+  let html = '';
+
+  // LOY
+  html += `<div>
+    <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">🪣 Haqiqatda necha kg loy ishlatildi?</label>
+    ${planned > 0 ? `<div style="font-size:12px;color:#94A3B8;margin-bottom:6px">📋 Rejada: ${planned} kg (xomashyo allaqachon ayirilgan)</div>` : `<div style="font-size:12px;color:#94A3B8;margin-bottom:6px">Bo'sh qoldirsangiz faqat kesish hisoblanadi</div>`}
+    <input type="number" id="rm-loy" value="${planned > 0 ? planned : ''}" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+  </div>`;
+
+  // GIPS
+  if (hasGips) {
+    const plannedGips = orderData.planned_gips_kg || 0;
+    html += `<div style="background:#FCE7F3;border-radius:10px;padding:14px">
+      <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">🧱 Haqiqatda necha kg Gips ishlatildi?</label>
+      <div style="font-size:12px;color:#BE185D;margin-bottom:6px">📋 Rejada: ${plannedGips} kg (xomashyo allaqachon ayirilgan)</div>
+      <input type="number" id="rm-gips" value="${plannedGips || ''}" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
+
+      <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin:14px 0 6px">🧱 G'isht formasiga solingan? (ixtiyoriy — necha dona)</label>
+      <input type="number" id="rm-gisht" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
+    </div>`;
+
+    // Qo'shimchalar
+    for (const add of gipsAdditives) {
+      const item = (gipsInvCache || []).find(i => i.id === add.inventory_id);
+      const invName = item?.item_name || `Material #${add.inventory_id}`;
+      const unit = (item?.unit || '').toLowerCase();
+      const ratio = item ? parseFloat(item.volume_per_unit) : 0;
+      const isContainer = ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop');
+      const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
+      const displayUnit = isContainer ? naturalUnit : (item?.unit || '');
+      const plannedDisplay = isContainer ? (add.planned_qty * ratio) : add.planned_qty;
+      html += `<div>
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">📦 "${invName}" — necha ${displayUnit} ishlatildi?</label>
+        <div style="font-size:12px;color:#94A3B8;margin-bottom:6px">Rejada: ${plannedDisplay.toFixed ? plannedDisplay.toFixed(2) : plannedDisplay} ${displayUnit}</div>
+        <input type="number" class="rm-additive" data-inv-id="${add.inventory_id}" data-ratio="${isContainer ? ratio : ''}"
+               value="${plannedDisplay.toFixed ? plannedDisplay.toFixed(2) : plannedDisplay}" placeholder="0"
+               style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      </div>`;
+    }
+  }
+
+  body.innerHTML = html;
+  document.getElementById('readyModalOverlay').style.display = 'flex';
+}
+
+function closeReadyModal() {
+  document.getElementById('readyModalOverlay').style.display = 'none';
+}
+
+async function submitReadyModal() {
+  const loyKg = document.getElementById('rm-loy')?.value || '';
+  let gipsKg = null, gishtDona = null;
+  const gipsAdditivesActual = [];
+
+  if (_readyModalData?.hasGips) {
+    const gVal = document.getElementById('rm-gips')?.value;
+    if (gVal !== '' && gVal !== undefined) gipsKg = parseFloat(gVal);
+    const ghVal = document.getElementById('rm-gisht')?.value;
+    if (ghVal && parseFloat(ghVal) > 0) gishtDona = parseFloat(ghVal);
+
+    document.querySelectorAll('.rm-additive').forEach(inp => {
+      const invId = parseInt(inp.dataset.invId);
+      const ratio = parseFloat(inp.dataset.ratio);
+      let val = parseFloat(inp.value) || 0;
+      if (ratio > 0) val = val / ratio;
+      if (invId && val >= 0) gipsAdditivesActual.push({ inventory_id: invId, actual_qty: val });
+    });
+  }
+
+  closeReadyModal();
+
   let url = `/api/orders/${selectedOrderId}/ready`;
   const qs = [];
   if (loyKg) qs.push(`loy_kg=${parseFloat(loyKg)}`);
