@@ -3250,7 +3250,7 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
         });
       }
       if (zaklat > 0) {
-        await fetch('/api/payments', {
+        const zRes = await fetch('/api/payments', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify({
@@ -3261,6 +3261,12 @@ async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmSh
             notes: 'Buyurtma yaratilganda'
           })
         });
+        if (!zRes.ok) {
+          const zErr = await zRes.json().catch(() => ({}));
+          showMsg('⚠️ Buyurtma yaratildi, lekin ZAKLAT saqlanmadi: ' + (zErr.detail?.message || zErr.detail || 'Server xatosi') + ' — "To\'lovlar" bo\'limidan qo\'lda kiriting!', 'error');
+          setTimeout(()=>location.reload(), 3500);
+          return;
+        }
       }
       showMsg(isDraft ? '\ud83d\udcdd Qoralama saqlandi! Ombordan xomashyo yechilmadi.' : '\u2713 Buyurtma yaratildi!', 'success');
       setTimeout(()=>location.reload(), 1000);
