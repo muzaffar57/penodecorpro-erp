@@ -296,6 +296,15 @@
       </div>
     </div>
 
+    <div class="form-group">
+      <label>Yo'nalish <span style="font-weight:400;color:#aaa;font-size:11.5px">— Gips/Penoplast mustaqil hisobot uchun</span></label>
+      <select id="e-prodtype">
+        <option value="">— Belgilanmagan (Umumiy) —</option>
+        <option value="penoplast">🏭 Penoplast</option>
+        <option value="gips">🧱 Gips</option>
+      </select>
+    </div>
+
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes" placeholder="..."></div>
 
     <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
@@ -817,6 +826,7 @@ function openEmpModal() {
   editingEmpId = null;
   document.getElementById('emp-modal-title').textContent = "+ Yangi hodim";
   ['e-name','e-position','e-fixed','e-percent','e-unitrate','e-notes','e-gulrate','e-extramonthly'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('e-prodtype').value = '';
   document.getElementById('e-paytype').value = 'fixed';
   document.getElementById('e-unittype').value = 'blok';
   document.getElementById('emp-error').style.display = 'none';
@@ -855,6 +865,7 @@ function editEmployee(id) {
   document.getElementById('e-notes').value = e.notes || '';
   document.getElementById('e-gulrate').value = e.gul_rate ? fmt(e.gul_rate) : '';
   document.getElementById('e-extramonthly').value = e.extra_monthly ? fmt(e.extra_monthly) : '';
+  document.getElementById('e-prodtype').value = e.production_type || '';
   document.getElementById('emp-error').style.display = 'none';
   empToggle();
   document.getElementById('empModal').style.display = 'flex';
@@ -881,6 +892,7 @@ async function saveEmployee() {
     per_unit_type: document.getElementById('e-unittype').value,
     gul_rate: parseNum(document.getElementById('e-gulrate').value) || null,
     extra_monthly: parseNum(document.getElementById('e-extramonthly').value) || null,
+    production_type: document.getElementById('e-prodtype').value || null,
     notes: document.getElementById('e-notes').value.trim() || null
   };
 
