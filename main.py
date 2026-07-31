@@ -2912,6 +2912,17 @@ def api_search_finished(q: str = "", db: Session = Depends(get_db), current_user
     return {"items": crud.search_finished_products(db, q)}
 
 
+@app.post("/api/finished/loss")
+def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Session = Depends(get_db),
+                               current_user=Depends(auth.admin_or_warehouse)):
+    """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
+    who = current_user.full_name or current_user.username
+    result = crud.record_finished_product_loss(db, data, created_by=who)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
 @app.post("/api/finished/sell")
 def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Session = Depends(get_db),
                                 current_user=Depends(auth.admin_or_warehouse)):
