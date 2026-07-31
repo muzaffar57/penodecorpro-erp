@@ -602,20 +602,31 @@ function renderFp() {
   let produced = fpItems.filter(i => i.source === 'produced' && match(i));
   let returned = fpItems.filter(i => i.source === 'returned' && match(i));
 
+  // G'isht — Gips guruhida ko'rsatiladi (chunki u ham gips jarayonidan)
+  let producedGips = produced.filter(i => i.category === 'gips' || i.name === "G'isht");
+  let producedOther = produced.filter(i => i.category !== 'gips' && i.name !== "G'isht");
+
   const sortFn = {
     value_desc: (a,b) => b.total_value - a.total_value,
     qty_desc: (a,b) => b.quantity - a.quantity,
     recent: (a,b) => new Date(b.created_at||0) - new Date(a.created_at||0),
   }[sort];
-  if (sortFn) { produced.sort(sortFn); returned.sort(sortFn); }
+  if (sortFn) { producedOther.sort(sortFn); producedGips.sort(sortFn); returned.sort(sortFn); }
 
   let html = '';
 
-  if (produced.length) {
+  if (producedOther.length) {
     html += `<div class="fp-sec">
-      <span class="fp-sec-label" style="color:#1E40AF">🏭 ISHLAB CHIQARILGAN</span>
+      <span class="fp-sec-label" style="color:#1E40AF">🏭 PENOPLAST VA BOSHQA</span>
       <div class="fp-sec-line" style="background:linear-gradient(90deg,#E5DFD3,transparent)"></div>
-    </div>` + produced.map(rowHtml).join('');
+    </div>` + producedOther.map(rowHtml).join('');
+  }
+
+  if (producedGips.length) {
+    html += `<div class="fp-sec">
+      <span class="fp-sec-label" style="color:#9D174D">🧱 GIPS</span>
+      <div class="fp-sec-line" style="background:linear-gradient(90deg,#F9D3E5,transparent)"></div>
+    </div>` + producedGips.map(rowHtml).join('');
   }
 
   if (returned.length) {
