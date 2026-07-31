@@ -3201,20 +3201,82 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     }
 
 
+def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
+    """Tayyor mahsulotni to'g'ridan-to'g'ri sotadi (buyurtma/Yuk xatisiz).
+    Qoldiqdan ayiradi, savdo yozuvini yaratadi. cost_amount — mahsulotning
+    o'z cost_price'iga proporsional (odatda G'isht kabi mahsulotlarda 0)."""
+    from models import FinishedProduct, FinishedProductSale
+
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == data.finished_product_id).with_for_update().first()
+    if not fp:
+        return {"success": False, "message": "Mahsulot topilmadi"}
+
+    available = float(fp.quantity or 0)
+    if data.quantity > available + 0.001:
+        return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} sota olmaysiz"}
+
+    total_amount = data.quantity * data.unit_price
+    # Sotilgan qismning tan narxi — mahsulotning umumiy tan narxidan proporsional
+    unit_cost = (float(fp.cost_price or 0) / available) if available > 0 else 0
+    cost_amount = unit_cost * data.quantity
+
+    fp.quantity = available - data.quantity
+    if fp.cost_price:
+        fp.cost_price = float(fp.cost_price) - cost_amount
+
+    sale = FinishedProductSale(
+        finished_product_id=fp.id,
+        product_name=fp.name,
+        quantity=data.quantity,
+        unit=fp.unit,
+        unit_price=data.unit_price,
+        total_amount=total_amount,
+        cost_amount=cost_amount,
+        buyer_name=data.buyer_name,
+        payment_method=data.payment_method,
+        notes=data.notes,
+        created_by=created_by
+    )
+    db.add(sale)
+    db.commit()
+    db.refresh(sale)
+    return {
+        "success": True,
+        "sale_id": sale.id,
+        "total_amount": float(total_amount),
+        "profit": float(total_amount - cost_amount),
+        "remaining_stock": float(fp.quantity)
+    }
+
+
 def create_gisht_from_order(db: Session, order, quantity: float, created_by: str = None) -> dict:
     """G'isht — ortgan (loydan qolgan) qismidan quyilgan mahsulot.
     MUHIM: bu — yo'qotish EMAS (xomashyosi allaqachon shu buyurtmaning
     o'z Gips hisobida hisoblangan), shuning uchun BU YERDA ombordan
-    QO'SHIMCHA hech narsa ayirilmaydi — faqat Tayyor mahsulotlar
-    ro'yxatiga yangi mahsulot sifatida qo'shiladi (tan narxi 0, sotuv
-    narxini keyin qo'lda belgilaysiz)."""
+    QO'SHIMCHA hech narsa ayirilmaydi. Har bir buyurtmadan chiqqan G'isht
+    — ALOHIDA qator emas, BITTA umumiy "G'isht" mahsulotiga QO'SHILIB
+    boradi (tan narxi doim 0 — mahsulot tan narxiga hech qachon qo'shilmaydi,
+    sotuv narxini qo'lda belgilaysiz)."""
     from models import FinishedProduct, StockSource, ProductionStatus
 
     if quantity <= 0:
         return {"success": False, "message": "Miqdor 0 dan katta bo'lishi kerak"}
 
+    existing = db.query(FinishedProduct).filter(
+        FinishedProduct.name == "G'isht",
+        FinishedProduct.category == "dona",
+        FinishedProduct.source == StockSource.PRODUCED
+    ).with_for_update().first()
+
+    if existing:
+        existing.quantity = float(existing.quantity or 0) + quantity
+        existing.notes = f"Oxirgi qo'shilgan: {order.order_number} orqali (+{quantity:g} dona)"
+        db.commit()
+        db.refresh(existing)
+        return {"success": True, "finished_product_id": existing.id, "quantity": quantity}
+
     fp = FinishedProduct(
-        name=f"G'isht — {order.order_number}",
+        name="G'isht",
         category="dona",
         quantity=quantity,
         unit="dona",
@@ -3225,7 +3287,7 @@ def create_gisht_from_order(db: Session, order, quantity: float, created_by: str
         production_status=ProductionStatus.READY,
         finished_production_at=datetime.utcnow(),
         created_by=created_by,
-        notes=f"Gips buyurtmasidan ({order.order_number}) ortgan loydan quyilgan"
+        notes=f"Birinchi marta {order.order_number} orqali qo'shildi"
     )
     db.add(fp)
     db.commit()
