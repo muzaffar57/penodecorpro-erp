@@ -4006,27 +4006,39 @@ def get_employee_monthly_adjustment(db: Session, employee_id: int, year: int, mo
 
 
 def set_employee_monthly_adjustment(db: Session, employee_id: int, year: int, month: int,
-                                      reduction_amount: float, reason: str = None,
+                                      reduction_amount: float = None, reason: str = None,
+                                      bonus_amount: float = None, bonus_reason: str = None,
                                       created_by: str = None):
-    """Hodim uchun, shu oy uchun qo'lda kamaytirishni yozadi/yangilaydi.
-    reduction_amount=0 bo'lsa — mavjud yozuv o'chiriladi (endi kerak emas)."""
+    """Hodim uchun, shu oy uchun qo'lda kamaytirish VA/YOKI bonusni yozadi/yangilaydi.
+    Faqat berilgan (None bo'lmagan) qiymatlar yangilanadi — ikkinchisiga tegilmaydi.
+    Ikkalasi ham 0/bo'sh bo'lsa — yozuv butunlay o'chiriladi (endi kerak emas)."""
     from models import EmployeeMonthlyAdjustment
 
     existing = get_employee_monthly_adjustment(db, employee_id, year, month)
-    if reduction_amount <= 0:
+
+    new_reduction = float(reduction_amount) if reduction_amount is not None else float(existing.reduction_amount or 0) if existing else 0
+    new_bonus = float(bonus_amount) if bonus_amount is not None else float(existing.bonus_amount or 0) if existing else 0
+
+    if new_reduction <= 0 and new_bonus <= 0:
         if existing:
             db.delete(existing)
             db.commit()
         return None
 
     if existing:
-        existing.reduction_amount = reduction_amount
-        existing.reason = reason
+        if reduction_amount is not None:
+            existing.reduction_amount = new_reduction
+            existing.reason = reason
+        if bonus_amount is not None:
+            existing.bonus_amount = new_bonus
+            existing.bonus_reason = bonus_reason
         existing.created_by = created_by
     else:
         existing = EmployeeMonthlyAdjustment(
             employee_id=employee_id, year=year, month=month,
-            reduction_amount=reduction_amount, reason=reason, created_by=created_by
+            reduction_amount=new_reduction, reason=reason,
+            bonus_amount=new_bonus, bonus_reason=bonus_reason,
+            created_by=created_by
         )
         db.add(existing)
     db.commit()
