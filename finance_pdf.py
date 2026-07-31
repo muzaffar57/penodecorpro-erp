@@ -85,7 +85,7 @@ def generate_split_profit_pdf(split: dict, year: int, month: int) -> bytes:
     def section(title, bg, data):
         rows = [
             ["Daromad", f"{_fmt(data['daromad'])} so'm"],
-            ["Xomashyo tan narxi", f"-{_fmt(data['xomashyo_xarajati'])} so'm"],
+            ["Xomashyo va belgilangan xarajatlar (Yo'nalish tanlanganlar)", f"-{_fmt(data['xomashyo_xarajati'])} so'm"],
             ["Hodim to'lovi", f"-{_fmt(data['hodim_xarajati'])} so'm"],
             ["Brak/yo'qotish (aniq)", f"-{_fmt(data['brak_xarajati'])} so'm"],
             ["Umumiy xarajat ulushi (arenda/svet/soliq/Ehson) — taxminiy", f"-{_fmt(data['umumiy_xarajat_ulushi'])} so'm"],
