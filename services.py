@@ -2278,6 +2278,128 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     }
 
 
+def calculate_split_profit_report(db: Session, year: int, month: int) -> dict:
+    """Gips va Penoplast uchun MUSTAQIL, to'liq ajratilgan sof foyda hisoboti.
+
+    Taqsimlash mantiqi:
+    - To'g'ridan-to'g'ri xarajatlar (xomashyo, brak) — aniq, buyurtma
+      detali darajasida ajratiladi.
+    - Hodim to'lovi — har bir hodimning belgilangan Yo'nalishiga (Employee.
+      production_type) 100% yoziladi. Yo'nalish belgilanmagan hodimlar —
+      daromad nisbatiga qarab bo'linadi.
+    - Umumiy xarajatlar (arenda, svet, soliq, tushlik, Ehson, Yo'nalish
+      belgilanmagan qo'shimcha xarajatlar) — daromad nisbatiga qarab
+      bo'linadi (bitta joyda ikkalasi ham faoliyat yuritgani uchun).
+    """
+    from models import Employee
+    from sqlalchemy import func, extract
+
+    full = get_monthly_report(db, year, month)
+    tb = full.get("turlar_boyicha", {})
+    gips_daromad = float(tb.get("gips", {}).get("daromad", 0))
+    peno_daromad = float(tb.get("penoplast", {}).get("daromad", 0))
+    total_daromad = gips_daromad + peno_daromad
+    gips_share = (gips_daromad / total_daromad) if total_daromad > 0 else 0.5
+    peno_share = 1 - gips_share
+
+    # ── 1. TO'G'RIDAN-TO'G'RI XARAJAT (xomashyo tan narxi) — buyurtma
+    # detali darajasida, calculate_order_profit()ning breakdown'idan,
+    # "🧱 Gips" bilan boshlanuvchi qatorlarni ajratib olamiz.
+    ready_orders = db.query(Order).filter(
+        Order.status == OrderStatus.READY,
+        extract('year', Order.completed_at) == year,
+        extract('month', Order.completed_at) == month
+    ).all()
+    gips_direct_cost = 0.0
+    peno_direct_cost = 0.0
+    for o in ready_orders:
+        try:
+            profit_data = calculate_order_profit(db, o.id)
+        except Exception:
+            continue
+        for line in profit_data.get("breakdown", []):
+            amt = float(line.get("summa", 0))
+            if str(line.get("nomi", "")).startswith("🧱 Gips"):
+                gips_direct_cost += amt
+            else:
+                peno_direct_cost += amt
+
+    # ── 2. HODIM TO'LOVI — Yo'nalish bo'yicha aniq, belgilanmaganlar ulush bo'yicha
+    gips_emp = 0.0
+    peno_emp = 0.0
+    umumiy_emp = 0.0
+    emp_ids = {b["employee_id"] for b in full.get("hodimlar_breakdown", [])}
+    emp_map = {e.id: e for e in db.query(Employee).filter(Employee.id.in_(emp_ids)).all()} if emp_ids else {}
+    for b in full.get("hodimlar_breakdown", []):
+        emp = emp_map.get(b["employee_id"])
+        pt = (emp.production_type if emp else None) or None
+        amt = float(b.get("amount", 0))
+        if pt == "gips":
+            gips_emp += amt
+        elif pt == "penoplast":
+            peno_emp += amt
+        else:
+            umumiy_emp += amt
+    gips_emp += umumiy_emp * gips_share
+    peno_emp += umumiy_emp * peno_share
+
+    # ── 3. UMUMIY XARAJATLAR (arenda/svet/tushlik/soliq/qo'shimcha/Ehson/
+    # brak) — bitta joyda faoliyat yuritilgani uchun, daromad nisbatida
+    xarajatlar = full.get("xarajatlar", {})
+    umumiy_overhead = (
+        float(xarajatlar.get("arenda", 0)) + float(xarajatlar.get("elektr", 0)) +
+        float(xarajatlar.get("tushlik", 0)) + float(xarajatlar.get("soliqlar", 0))
+    )
+    # Yo'nalish BELGILANMAGAN qo'shimcha xarajatlar (production_type=None bo'lganlar)
+    from models import ExpenseTransaction as _ET2
+    from datetime import datetime as _dt2
+    _s = _dt2(year, month, 1)
+    _e = _dt2(year + 1, 1, 1) if month == 12 else _dt2(year, month + 1, 1)
+    untagged_expenses = float(db.query(func.sum(_ET2.amount)).filter(
+        _ET2.date >= _s, _ET2.date < _e,
+        _ET2.production_type.is_(None),
+        _ET2.category.notin_(["arenda", "elektr", "tushlik", "soliqlar"])
+    ).scalar() or 0)
+    umumiy_overhead += untagged_expenses
+
+    ehson_xarajat = float(full.get("ehson_xarajat", 0) or 0)
+    brak_xarajat = float(full.get("brak_xarajat", 0) or 0)
+    umumiy_split_base = umumiy_overhead + ehson_xarajat + brak_xarajat
+
+    gips_overhead = umumiy_split_base * gips_share
+    peno_overhead = umumiy_split_base * peno_share
+
+    # ── 4. YAKUNIY HISOB ──
+    gips_xarajat_jami = gips_direct_cost + gips_emp + gips_overhead
+    peno_xarajat_jami = peno_direct_cost + peno_emp + peno_overhead
+    gips_foyda = gips_daromad - gips_xarajat_jami
+    peno_foyda = peno_daromad - peno_xarajat_jami
+
+    return {
+        "year": year, "month": month,
+        "gips": {
+            "daromad": round(gips_daromad),
+            "xomashyo_xarajati": round(gips_direct_cost),
+            "hodim_xarajati": round(gips_emp),
+            "umumiy_xarajat_ulushi": round(gips_overhead),
+            "jami_xarajat": round(gips_xarajat_jami),
+            "sof_foyda": round(gips_foyda),
+            "foyda_foiz": round((gips_foyda / gips_daromad * 100) if gips_daromad > 0 else 0, 1),
+        },
+        "penoplast": {
+            "daromad": round(peno_daromad),
+            "xomashyo_xarajati": round(peno_direct_cost),
+            "hodim_xarajati": round(peno_emp),
+            "umumiy_xarajat_ulushi": round(peno_overhead),
+            "jami_xarajat": round(peno_xarajat_jami),
+            "sof_foyda": round(peno_foyda),
+            "foyda_foiz": round((peno_foyda / peno_daromad * 100) if peno_daromad > 0 else 0, 1),
+        },
+        "daromad_ulushi": {"gips_foiz": round(gips_share * 100, 1), "penoplast_foiz": round(peno_share * 100, 1)},
+        "umumiy_taqsimlangan": round(umumiy_split_base),
+    }
+
+
 def get_cash_balance(db: Session) -> dict:
     """Kassa balansi — kompaniyada HOZIR haqiqatda qancha naqd pul bor.
 
