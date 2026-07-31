@@ -3110,6 +3110,28 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
     return result
 
 
+@app.get("/api/finished/sales/{sale_id}/pdf")
+def api_finished_sale_pdf(sale_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Tayyor mahsulot sotuvi uchun Yuk xati (PDF)."""
+    from fastapi.responses import Response
+    import delivery_pdf
+    import traceback
+    from models import FinishedProductSale
+
+    sale = db.query(FinishedProductSale).filter(FinishedProductSale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sotuv topilmadi")
+    try:
+        pdf_bytes = delivery_pdf.generate_finished_sale_pdf(sale, db)
+    except Exception as e:
+        print("Sotuv PDF XATO:\n", traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+
+    filename = f"yuk_xati_sotuv_{sale.id}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
+
+
 @app.get("/api/deliveries/{delivery_id}/pdf")
 def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yetkazish nakladnoyi (PDF)."""
