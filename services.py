@@ -1871,6 +1871,14 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         for item in order.items:
             if not item.is_coated:
                 continue
+            if item.finished_product_id:
+                # MUHIM: bu detal "Tayyor mahsulotdan" tanlangan (ombordagi
+                # mavjud zaxiradan olingan) — uning ishlab chiqarilishi
+                # ALLAQACHON, o'sha mahsulot birinchi marta ishlab
+                # chiqarilib "Sotuvga tayyor" bo'lganda hisoblangan edi.
+                # Shu buyurtmada YANA hisoblasak — IKKI MARTA to'lagan
+                # bo'lardik, shuning uchun BU YERDA o'tkazib yuboriladi.
+                continue
             category = (item.category or "").lower()
             if category in ["profil", "karniz"]:
                 # Profil: uzunlik (m) × miqdor
@@ -1928,6 +1936,8 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         for item in order.items:
             if (item.category or '').lower() != 'gips':
                 continue
+            if item.finished_product_id:
+                continue  # Tayyor mahsulotdan tanlangan — ikki marta hisoblanmasin
             unit = (item.unit if hasattr(item, 'unit') else None) or ''
             qty = float(item.quantity or 0)
             if unit.lower() in ('dona',):
