@@ -3243,6 +3243,7 @@ def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
     return {
         "success": True,
         "sale_id": sale.id,
+        "product_name": fp.name,
         "total_amount": float(total_amount),
         "profit": float(total_amount - cost_amount),
         "remaining_stock": float(fp.quantity)
