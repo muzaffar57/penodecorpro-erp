@@ -2363,11 +2363,37 @@ def calculate_split_profit_report(db: Session, year: int, month: int) -> dict:
     umumiy_overhead += untagged_expenses
 
     ehson_xarajat = float(full.get("ehson_xarajat", 0) or 0)
-    brak_xarajat = float(full.get("brak_xarajat", 0) or 0)
-    umumiy_split_base = umumiy_overhead + ehson_xarajat + brak_xarajat
 
-    gips_overhead = umumiy_split_base * gips_share
-    peno_overhead = umumiy_split_base * peno_share
+    # BRAK — endi TAXMINIY emas, ANIQ ajratiladi:
+    # 1) Xomashyo braki — get_brak_material_summary() ombordagi materialning
+    #    o'z kategoriyasidan (Gips yoki boshqa) aniq bilinadi.
+    from datetime import datetime as _dt3
+    import crud as _crud_brak2
+    _bs = _dt3(year, month, 1)
+    _be = _dt3(year + 1, 1, 1) if month == 12 else _dt3(year, month + 1, 1)
+    _brak_mat = _crud_brak2.get_brak_material_summary(db, start_date=_bs, end_date=_be)
+    gips_brak = float(_brak_mat.get("gips_brak_value", 0))
+    peno_brak = float(_brak_mat.get("penoplast_brak_value", 0))
+
+    # 2) Tayyor mahsulot braki (finished.html'dagi "Kamaytirish") — bu
+    #    jadvalning o'zida category maydoni bor, to'g'ridan-to'g'ri ajratamiz
+    from models import FinishedProductLoss as _FPL2
+    _fp_losses = db.query(_FPL2).filter(
+        extract('year', _FPL2.lost_at) == year,
+        extract('month', _FPL2.lost_at) == month
+    ).all()
+    for l in _fp_losses:
+        amt = float(l.cost_amount or 0)
+        if (l.category or '').lower() == 'gips':
+            gips_brak += amt
+        else:
+            peno_brak += amt
+
+    umumiy_split_base = umumiy_overhead + ehson_xarajat
+    gips_overhead_only = umumiy_split_base * gips_share
+    peno_overhead_only = umumiy_split_base * peno_share
+    gips_overhead = gips_overhead_only + gips_brak
+    peno_overhead = peno_overhead_only + peno_brak
 
     # ── 4. YAKUNIY HISOB ──
     gips_xarajat_jami = gips_direct_cost + gips_emp + gips_overhead
@@ -2381,7 +2407,8 @@ def calculate_split_profit_report(db: Session, year: int, month: int) -> dict:
             "daromad": round(gips_daromad),
             "xomashyo_xarajati": round(gips_direct_cost),
             "hodim_xarajati": round(gips_emp),
-            "umumiy_xarajat_ulushi": round(gips_overhead),
+            "brak_xarajati": round(gips_brak),
+            "umumiy_xarajat_ulushi": round(gips_overhead_only),
             "jami_xarajat": round(gips_xarajat_jami),
             "sof_foyda": round(gips_foyda),
             "foyda_foiz": round((gips_foyda / gips_daromad * 100) if gips_daromad > 0 else 0, 1),
@@ -2390,7 +2417,8 @@ def calculate_split_profit_report(db: Session, year: int, month: int) -> dict:
             "daromad": round(peno_daromad),
             "xomashyo_xarajati": round(peno_direct_cost),
             "hodim_xarajati": round(peno_emp),
-            "umumiy_xarajat_ulushi": round(peno_overhead),
+            "brak_xarajati": round(peno_brak),
+            "umumiy_xarajat_ulushi": round(peno_overhead_only),
             "jami_xarajat": round(peno_xarajat_jami),
             "sof_foyda": round(peno_foyda),
             "foyda_foiz": round((peno_foyda / peno_daromad * 100) if peno_daromad > 0 else 0, 1),
