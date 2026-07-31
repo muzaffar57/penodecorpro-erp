@@ -403,6 +403,13 @@ class OrderAttachmentRead(BaseModel):
 # FINISHED PRODUCT (Tayyor mahsulotlar)
 # ============================================================
 
+class FinishedProductLossCreate(BaseModel):
+    """Tayyor mahsulotdan brak/yo'qotish sababli kamaytirish (o'chirish emas)."""
+    finished_product_id: int
+    quantity: float = Field(..., gt=0)
+    reason: Optional[str] = None
+
+
 class FinishedProductSaleCreate(BaseModel):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish."""
     finished_product_id: int
