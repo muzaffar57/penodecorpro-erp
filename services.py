@@ -2355,10 +2355,27 @@ def calculate_split_profit_report(db: Session, year: int, month: int) -> dict:
     from datetime import datetime as _dt2
     _s = _dt2(year, month, 1)
     _e = _dt2(year + 1, 1, 1) if month == 12 else _dt2(year, month + 1, 1)
+    # Yo'nalish BELGILANMAGAN qo'shimcha xarajatlar (production_type=None) —
+    # bular taxminiy (nisbat bo'yicha) taqsimlanadi
     untagged_expenses = float(db.query(func.sum(_ET2.amount)).filter(
         _ET2.date >= _s, _ET2.date < _e,
         _ET2.production_type.is_(None),
         _ET2.category.notin_(["arenda", "elektr", "tushlik", "soliqlar"])
+    ).scalar() or 0)
+
+    # Yo'nalish ANIQ belgilangan xarajatlar (masalan "Kutilmagan xarajat —
+    # Gips" deb belgilangan) — bular TAXMIN qilinmaydi, to'g'ridan-to'g'ri
+    # o'sha turga qo'shiladi (Transport ham shu jumladan)
+    from models import TransportExpense as _TE2
+    gips_tagged_expense = float(db.query(func.sum(_ET2.amount)).filter(
+        _ET2.date >= _s, _ET2.date < _e, _ET2.production_type == 'gips'
+    ).scalar() or 0) + float(db.query(func.sum(_TE2.amount)).filter(
+        _TE2.expense_date >= _s, _TE2.expense_date < _e, _TE2.production_type == 'gips'
+    ).scalar() or 0)
+    peno_tagged_expense = float(db.query(func.sum(_ET2.amount)).filter(
+        _ET2.date >= _s, _ET2.date < _e, _ET2.production_type == 'penoplast'
+    ).scalar() or 0) + float(db.query(func.sum(_TE2.amount)).filter(
+        _TE2.expense_date >= _s, _TE2.expense_date < _e, _TE2.production_type == 'penoplast'
     ).scalar() or 0)
     umumiy_overhead += untagged_expenses
 
@@ -2388,6 +2405,9 @@ def calculate_split_profit_report(db: Session, year: int, month: int) -> dict:
             gips_brak += amt
         else:
             peno_brak += amt
+
+    gips_direct_cost += gips_tagged_expense
+    peno_direct_cost += peno_tagged_expense
 
     umumiy_split_base = umumiy_overhead + ehson_xarajat
     gips_overhead_only = umumiy_split_base * gips_share
