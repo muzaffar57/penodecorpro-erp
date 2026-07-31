@@ -230,9 +230,11 @@ def generate_nakladnoy(order, db=None) -> bytes:
         # doim bir-biriga mos keladi.
         true_unit_price = (total_price / miqdor) if miqdor > 0 else unit_price
 
+        item_label = f"🧱 {item.name} (GIPS)" if (item.category or '').lower() == 'gips' else str(item.name)
+
         table_data.append([
             Paragraph(str(i+1), st["table_cell_c"]),
-            Paragraph(str(item.name), st["table_cell"]),
+            Paragraph(item_label, st["table_cell"]),
             Paragraph(unit, st["table_cell_c"]),
             Paragraph(miqdor_txt, st["table_cell_c"]),
             Paragraph(f"{true_unit_price:,.0f}", st["table_cell_r"]),
