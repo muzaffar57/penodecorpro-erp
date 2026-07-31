@@ -653,6 +653,31 @@ class Employee(Base):
         return f"<Employee {self.name} ({self.pay_type.value})>"
 
 
+class EmployeeMonthlyAdjustment(Base):
+    """Hodim uchun, muayyan oy uchun QO'LDA kiritilgan kamaytirish
+    (masalan — kelmagan kunlar uchun, agar seh ish to'xtagan bo'lsa).
+    MUHIM: bu — avtomatik formula EMAS, faqat admin real vaziyatni bilgan
+    holda kiritadigan, SAQLANADIGAN (tarix bilan) tuzatish. Bir marta
+    kiritilgach, shu oy uchun HAR SAFAR hisob-kitobda (Hodimlar, Moliya,
+    Hisobotlar — barchasida, chunki ular bitta manbadan o'qiydi) hisobga
+    olinadi."""
+    __tablename__ = "employee_monthly_adjustments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    reduction_amount = Column(Numeric(12, 2), default=0)
+    reason = Column(Text, nullable=True)
+    created_by = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    employee = relationship("Employee")
+
+    def __repr__(self):
+        return f"<EmployeeMonthlyAdjustment emp={self.employee_id} {self.year}-{self.month}: -{self.reduction_amount}>"
+
+
 class CashTransaction(Base):
     """Kassa balansiga QO'LDA (admin tomonidan aniq belgilangan) ta'sir
     qiluvchi harakatlar — boshlang'ich balans, Usta KPI to'landi, Ehson
