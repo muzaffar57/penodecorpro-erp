@@ -789,6 +789,7 @@
 
       <div style="margin-top:12px;padding:11px 12px;background:#F0F9F4;border:1.5px solid #BBF7D0;border-radius:9px">
         <div style="font-size:14px;font-weight:600;color:#166534;margin-bottom:8px">💰 Shu yuk uchun to'lov (ixtiyoriy)</div>
+        <div id="dlv-debt-info" style="font-size:12.5px;font-weight:600;margin-bottom:8px"></div>
         <div style="display:flex;gap:8px">
           <div style="flex:1">
             <div style="font-size:13px;color:#777;margin-bottom:4px">Summa (so'm)</div>
@@ -1720,6 +1721,23 @@ function openDeliveryModal() {
   document.getElementById('dlv-modal-sub').textContent =
     `${dlvData.order_number} · ${dlvData.client_name || '—'}`;
 
+  const debtEl = document.getElementById('dlv-debt-info');
+  if (debtEl) {
+    debtEl.textContent = 'Yuklanmoqda...';
+    debtEl.style.color = '#94A3B8';
+    fetch(`/api/orders/${selectedOrderId}`).then(r => r.ok ? r.json() : null).then(o => {
+      if (!o) { debtEl.textContent = ''; return; }
+      const debt = o.debt_amount || 0;
+      if (debt > 0) {
+        debtEl.textContent = `⚠️ Mijozning joriy qarzi: ${formatNum(debt)} so'm`;
+        debtEl.style.color = '#DC2626';
+      } else {
+        debtEl.textContent = '✓ Qarzi yo\'q (to\'liq to\'langan)';
+        debtEl.style.color = '#16A34A';
+      }
+    }).catch(() => { debtEl.textContent = ''; });
+  }
+
   document.getElementById('dlvForm').innerHTML = dlvData.items.map(it => {
     const dis = it.is_done ? 'opacity:.45;pointer-events:none' : '';
     return `
@@ -1792,20 +1810,29 @@ function fillAllRemaining() {
 
 let _fullDlvPending = null;
 
-function quickFullDelivery() {
+async function quickFullDelivery() {
   if (!selectedOrderId || !dlvData) return;
 
   const pending = dlvData.items.filter(i => !i.is_done && i.remaining > 0);
   if (!pending.length) { showMsg('Hamma mahsulot allaqachon topshirilgan', 'success'); return; }
 
+  let currentDebt = 0;
+  try {
+    const r = await fetch(`/api/orders/${selectedOrderId}`);
+    if (r.ok) { const o = await r.json(); currentDebt = o.debt_amount || 0; }
+  } catch(e) {}
+
   _fullDlvPending = pending;
   const summary = pending.map(i => `${i.name}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('<br>');
+  const debtHtml = currentDebt > 0
+    ? `<div style="font-size:12px;color:#DC2626;margin-bottom:6px;font-weight:600">⚠️ Mijozning joriy qarzi: ${formatNum(currentDebt)} so'm</div>`
+    : `<div style="font-size:12px;color:#16A34A;margin-bottom:6px;font-weight:600">✓ Qarzi yo'q (to'liq to'langan)</div>`;
 
   document.getElementById('fullDlvModalBody').innerHTML = `
     <div style="background:#F0FDF4;border-radius:10px;padding:14px;font-size:14px;color:#166534;line-height:1.7">${summary}</div>
     <div>
       <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">💰 Mijoz shu yuk uchun to'lov qildimi?</label>
-      <div style="font-size:12px;color:#94A3B8;margin-bottom:6px">Bo'lmasa bo'sh qoldiring</div>
+      ${debtHtml}
       <input type="number" id="fd-payment" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
     </div>
     <div>
