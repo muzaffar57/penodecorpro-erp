@@ -238,6 +238,36 @@
 
     <!-- Xabar qutisi -->
     <div id="msgBar" class="msg-bar"></div>
+    <!-- Umumiy tasdiqlash kartochkasi (barcha oddiy Ha/Yo'q savollar uchun) -->
+    <div id="genericConfirmOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;align-items:center;justify-content:center;padding:20px">
+      <div style="background:#fff;border-radius:16px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:24px 24px 8px;text-align:center">
+          <div id="genericConfirmIcon" style="font-size:36px;margin-bottom:10px">❓</div>
+          <div id="genericConfirmTitle" style="font-size:16px;font-weight:700;color:#0F172A;margin-bottom:8px">Tasdiqlang</div>
+          <div id="genericConfirmMsg" style="font-size:14px;color:#475569;line-height:1.6"></div>
+        </div>
+        <div style="padding:20px 24px 24px;display:flex;gap:10px">
+          <button id="genericConfirmCancel" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+          <button id="genericConfirmOk" style="flex:1;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Ha</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- "Bir yo'la to'liq topshirish" — chiroyli kartochka -->
+    <div id="fullDlvModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
+      <div style="background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:22px 24px 18px;border-bottom:1px solid #F1F5F9">
+          <div style="font-size:17px;font-weight:700;color:#0F172A">🚚 Bir yo'la to'liq topshirish</div>
+          <div style="font-size:13px;color:#64748B;margin-top:3px">Qolgan hamma mahsulot bir yo'la topshiriladi</div>
+        </div>
+        <div id="fullDlvModalBody" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px"></div>
+        <div style="padding:16px 24px 22px;display:flex;gap:10px;border-top:1px solid #F1F5F9">
+          <button onclick="closeFullDlvModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+          <button onclick="submitFullDlvModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
+        </div>
+      </div>
+    </div>
+
     <!-- "Tayyor deb belgilash" — chiroyli, markazdagi kartochka -->
     <div id="readyModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
       <div style="background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
@@ -1448,7 +1478,7 @@ async function uploadOrderAttachment(input) {
 }
 
 async function deleteOrderAttachment(attId, orderId) {
-  if (!confirm("Fayl o'chirilsinmi?")) return;
+  if (!await showConfirmModal("Fayl o'chirilsinmi?", {danger:true, okText:"O'chirish"})) return;
   try {
     await fetch(`/api/orders/attachments/${attId}`, { method: 'DELETE' });
     loadOrderAttachments(orderId);
@@ -1760,20 +1790,45 @@ function fillAllRemaining() {
   });
 }
 
-async function quickFullDelivery() {
+let _fullDlvPending = null;
+
+function quickFullDelivery() {
   if (!selectedOrderId || !dlvData) return;
 
   const pending = dlvData.items.filter(i => !i.is_done && i.remaining > 0);
   if (!pending.length) { showMsg('Hamma mahsulot allaqachon topshirilgan', 'success'); return; }
 
-  const summary = pending.map(i => `${i.name}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('\n');
-  if (!confirm(`Qolgan hamma mahsulot BIR YO'LA to'liq topshiriladi:\n\n${summary}\n\nTasdiqlaysizmi?`)) return;
+  _fullDlvPending = pending;
+  const summary = pending.map(i => `${i.name}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('<br>');
 
-  const payAns = prompt("Mijoz shu yuk uchun to'lov qildimi? Summasini kiriting (yo'q bo'lsa bo'sh qoldiring):", '');
-  const paymentAmount = payAns ? parseFloat(payAns.replace(/\s/g,'')) || null : null;
+  document.getElementById('fullDlvModalBody').innerHTML = `
+    <div style="background:#F0FDF4;border-radius:10px;padding:14px;font-size:14px;color:#166534;line-height:1.7">${summary}</div>
+    <div>
+      <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">💰 Mijoz shu yuk uchun to'lov qildimi?</label>
+      <div style="font-size:12px;color:#94A3B8;margin-bottom:6px">Bo'lmasa bo'sh qoldiring</div>
+      <input type="number" id="fd-payment" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">🚚 Yetkazib berish (transport) xarajati bormi?</label>
+      <div style="font-size:12px;color:#94A3B8;margin-bottom:6px">Bo'lmasa bo'sh qoldiring</div>
+      <input type="number" id="fd-transport" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+    </div>
+  `;
+  document.getElementById('fullDlvModalOverlay').style.display = 'flex';
+}
 
-  const transportAns = prompt("Yetkazib berish (transport) xarajati bormi? Summasini kiriting (yo'q bo'lsa bo'sh qoldiring):", '');
-  const transportCost = transportAns ? parseFloat(transportAns.replace(/\s/g,'')) || 0 : 0;
+function closeFullDlvModal() {
+  document.getElementById('fullDlvModalOverlay').style.display = 'none';
+}
+
+async function submitFullDlvModal() {
+  const pending = _fullDlvPending;
+  if (!pending) return;
+
+  const paymentAmount = parseFloat(document.getElementById('fd-payment')?.value) || null;
+  const transportCost = parseFloat(document.getElementById('fd-transport')?.value) || 0;
+
+  closeFullDlvModal();
 
   const items = pending.map(i => ({ order_item_id: i.id, quantity: i.remaining }));
   const data = {
@@ -1888,7 +1943,7 @@ async function saveDelivery() {
 }
 
 async function deleteDelivery(id) {
-  if (!confirm('Bu topshirishni o\'chirasizmi?\n\nMiqdorlar qoldiqqa qaytadi.')) return;
+  if (!await showConfirmModal('Bu topshirishni o\'chirasizmi?\n\nMiqdorlar qoldiqqa qaytadi.', {danger:true, okText:"O'chirish"})) return;
   try {
     const res = await fetch(`/api/deliveries/${id}`, { method:'DELETE' });
     if (res.ok) {
@@ -2053,7 +2108,7 @@ async function checkLoyStock() {
 // ── DRAFT ─────────────────────────────────────────────────
 async function activateDraft() {
   if (!selectedOrderId) return;
-  if (!confirm('Buyurtmani jarayonga olasizmi?\n\nOmbordan xomashyo yechiladi.')) return;
+  if (!await showConfirmModal('Buyurtmani jarayonga olasizmi?\n\nOmbordan xomashyo yechiladi.', {icon:'🚀', okText:'Jarayonga olish'})) return;
 
   try {
     const res = await fetch(`/api/orders/${selectedOrderId}/activate`, { method: 'POST' });
@@ -2190,12 +2245,13 @@ async function editAgreedAmount() {
     const total = o.total_amount || 0;
     const cur = o.agreed_amount || total;
 
-    const v = prompt(
+    const v = await showPromptModal(
       `Kelishilgan summani kiriting (so'm):\n\n` +
       `Jami summa: ${formatNum(total)}\n` +
       `Hozirgi kelishilgan: ${formatNum(cur)}\n` +
       `Chegirma: ${(o.discount_percent||0).toFixed(2)}%`,
-      String(Math.round(cur))
+      String(Math.round(cur)),
+      {icon:'💰', title:'Kelishilgan summa', type:'number'}
     );
     if (v === null) return;
     const val = parseNum(v);
@@ -2249,8 +2305,9 @@ async function savePayment() {
     const currentDebt = parseInt(debtText) || 0;
     if (currentDebt > 0 && amount > currentDebt) {
       const excess = amount - currentDebt;
-      const proceed = confirm(
-        `⚠️ Diqqat: kiritilgan summa (${formatNum(amount)} so'm) — qarzdan (${formatNum(currentDebt)} so'm) ${formatNum(excess)} so'mga ko'p.\n\nBu — xato (masalan, ortiqcha nol yozilgan) bo'lishi mumkin.\n\nShunday ham davom etasizmi?`
+      const proceed = await showConfirmModal(
+        `⚠️ Diqqat: kiritilgan summa (${formatNum(amount)} so'm) — qarzdan (${formatNum(currentDebt)} so'm) ${formatNum(excess)} so'mga ko'p.\n\nBu — xato (masalan, ortiqcha nol yozilgan) bo'lishi mumkin.\n\nShunday ham davom etasizmi?`,
+        {danger:true, okText:'Ha, davom etaman'}
       );
       if (!proceed) return;
       overpayConfirmed = true;
@@ -2295,7 +2352,7 @@ async function savePayment() {
 }
 
 async function deletePayment(paymentId) {
-  if (!confirm('Bu to\'lovni o\'chirishni tasdiqlaysizmi?')) return;
+  if (!await showConfirmModal("Bu to'lovni o'chirishni tasdiqlaysizmi?", {danger:true, okText:"O'chirish"})) return;
   try {
     const res = await fetch(`/api/payments/${paymentId}`, { method: 'DELETE' });
     if (res.ok) {
@@ -3710,7 +3767,7 @@ async function updateOrder(orderId) {
   const items = collectItems();
   if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
 
-  if (!confirm('O\'zgarishlar saqlansinmi?\n\nOmbor faqat farq miqdorida to\'g\'rilanadi:\n• Ko\'paysa — xomashyo qo\'shimcha ayiriladi\n• Kamaysa — omborga qaytariladi')) return;
+  if (!await showConfirmModal("O'zgarishlar saqlansinmi?\n\nOmbor faqat farq miqdorida to'g'rilanadi:\n• Ko'paysa — xomashyo qo'shimcha ayiriladi\n• Kamaysa — omborga qaytariladi", {icon:'💾', okText:'Saqlash'})) return;
 
   const finalPrice = parseNum(document.getElementById('final_price')?.value || '0');
   const loyKg = parseFloat(document.getElementById('loy_kg')?.value || 0);
@@ -3786,7 +3843,57 @@ async function updateOrder(orderId) {
     showMsg('Server xatosi: ' + e.message, 'error');
   }
 }
+function showPromptModal(message, defaultValue = '', options = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('genericConfirmOverlay');
+    document.getElementById('genericConfirmIcon').textContent = options.icon || '✏️';
+    document.getElementById('genericConfirmTitle').textContent = options.title || "Ma'lumot kiriting";
+    document.getElementById('genericConfirmMsg').innerHTML =
+      message.replace(/\n/g, '<br>') +
+      `<input type="${options.type || 'text'}" id="genericPromptInput" value="${defaultValue}" placeholder="${options.placeholder || ''}"
+        style="width:100%;margin-top:12px;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">`;
+    const okBtn = document.getElementById('genericConfirmOk');
+    const cancelBtn = document.getElementById('genericConfirmCancel');
+    okBtn.textContent = options.okText || "✓ Tasdiqlash";
+    okBtn.style.background = '#16A34A';
+
+    const cleanup = (result) => {
+      overlay.style.display = 'none';
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      resolve(result);
+    };
+    okBtn.onclick = () => cleanup(document.getElementById('genericPromptInput')?.value ?? null);
+    cancelBtn.onclick = () => cleanup(null);
+    overlay.style.display = 'flex';
+    setTimeout(() => document.getElementById('genericPromptInput')?.focus(), 50);
+  });
+}
+
 let _readyModalData = null;
+
+function showConfirmModal(message, options = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('genericConfirmOverlay');
+    document.getElementById('genericConfirmIcon').textContent = options.danger ? '⚠️' : (options.icon || '❓');
+    document.getElementById('genericConfirmTitle').textContent = options.title || 'Tasdiqlang';
+    document.getElementById('genericConfirmMsg').innerHTML = message.replace(/\n/g, '<br>');
+    const okBtn = document.getElementById('genericConfirmOk');
+    const cancelBtn = document.getElementById('genericConfirmCancel');
+    okBtn.textContent = options.okText || "✓ Ha";
+    okBtn.style.background = options.danger ? '#DC2626' : '#16A34A';
+
+    const cleanup = (result) => {
+      overlay.style.display = 'none';
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      resolve(result);
+    };
+    okBtn.onclick = () => cleanup(true);
+    cancelBtn.onclick = () => cleanup(false);
+    overlay.style.display = 'flex';
+  });
+}
 
 async function markReadySelected() {
   if (!selectedOrderId) return;
@@ -4064,7 +4171,7 @@ async function deleteSelected() {
     }
   } catch(e) {}
 
-  if (!confirm(`${orderNum} o'chirilsinmi?${info}`)) return;
+  if (!await showConfirmModal(`${orderNum} o'chirilsinmi?${info}`, {danger:true, okText:"O'chirish"})) return;
 
   // Agar rejalashtirilgan loy bo'lsa VA qisman topshirilgan bo'lsa —
   // "qancha ishlatilgan edi" deb so'raymiz (chunki haqiqiy miqdor rejadan
@@ -4080,9 +4187,10 @@ async function deleteSelected() {
         const pld = await plr.json();
         const planned = pld.planned_loy || 0;
         if (planned > 0) {
-          const actual = prompt(
+          const actual = await showPromptModal(
             `🪣 Bu buyurtma uchun rejada ${planned} kg loy bor edi.\n\nHaqiqatda qancha loy ISHLATILGAN edi?\n\n(Ortgan qismi omborga qaytadi. Bilmasangiz — bo'sh qoldiring)`,
-            String(planned)
+            String(planned),
+            {icon:'🪣', title:'Haqiqiy loy miqdori', type:'number'}
           );
           if (actual !== null && actual !== '' && !isNaN(parseFloat(actual))) {
             actualLoyParam = `?actual_loy_kg=${parseFloat(actual)}`;
@@ -4124,9 +4232,9 @@ async function deleteSelected() {
 
 // ── Hammasini tayyor ─────────────────────────────────────
 async function markAllReady() {
-  const loyKg = prompt('Barcha buyurtmalar uchun necha kg loy? (bo\'sh = faqat kesish)');
+  const loyKg = await showPromptModal("Barcha buyurtmalar uchun necha kg loy? (bo'sh = faqat kesish)", '', {icon:'🪣', title:'Loy miqdori', type:'number'});
   if (loyKg === null) return;
-  if (!confirm('Barcha faol buyurtmalarni TAYYOR qilamizmi?')) return;
+  if (!await showConfirmModal('Barcha faol buyurtmalarni TAYYOR qilamizmi?', {icon:'✅', okText:'Ha, hammasini'})) return;
   const url = loyKg ? `/api/orders/mark-all-ready?loy_kg=${parseFloat(loyKg)}` : '/api/orders/mark-all-ready';
   const res = await fetch(url, { method:'POST' });
   const result = await res.json();
