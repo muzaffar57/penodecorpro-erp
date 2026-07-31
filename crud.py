@@ -4842,7 +4842,8 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> di
     rows = q.order_by(InventoryMovement.created_at.desc()).all()
 
     if not rows:
-        return {"by_material": [], "by_order": [], "total_value": 0, "total_penoplast_m3": 0}
+        return {"by_material": [], "by_order": [], "total_value": 0, "total_penoplast_m3": 0,
+                "gips_brak_value": 0, "penoplast_brak_value": 0}
 
     # Barcha kerakli Inventory va Order obyektlarini oldindan yuklaymiz
     inv_ids = {r.inventory_id for r in rows if r.inventory_id}
@@ -4860,6 +4861,8 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> di
     by_material_agg = {}
     total_value = 0.0
     total_m3 = 0.0
+    gips_brak_value = 0.0
+    penoplast_brak_value = 0.0
     for r in rows:
         inv = inv_map.get(r.inventory_id)
         price = float(inv.price_per_unit or 0) if inv else 0.0
@@ -4867,6 +4870,10 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> di
         m3 = m3_for(inv, r.quantity)
         total_value += value
         total_m3 += m3
+        if inv and (inv.category or '').lower() == 'gips':
+            gips_brak_value += value
+        else:
+            penoplast_brak_value += value
         key = r.item_name
         if key not in by_material_agg:
             by_material_agg[key] = {"item_name": r.item_name, "quantity": 0.0, "unit": r.unit,
@@ -4915,7 +4922,9 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> di
         "by_material": by_material,
         "by_order": by_order,
         "total_value": round(total_value),
-        "total_penoplast_m3": round(total_m3, 3)
+        "total_penoplast_m3": round(total_m3, 3),
+        "gips_brak_value": round(gips_brak_value),
+        "penoplast_brak_value": round(penoplast_brak_value)
     }
 
 
