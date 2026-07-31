@@ -1890,38 +1890,11 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
                 jami_dona += float(item.quantity or 1)
 
     # GIPS — metr/m² va dona (qoliplik gul) hodim to'lovi uchun.
-    jami_gips_metr = 0.0
-    jami_gips_gul = 0.0
-
-    # TO'G'RIDAN-TO'G'RI ISHLAB CHIQARISH (Tayyor mahsulotlar sahifasidan,
-    # buyurtmasiz) — hodim shu ishni ham qilgani uchun, bu ham hisobga
-    # olinishi kerak. G'isht — BYPRODUCT (chiqindi/ortiqcha), alohida
-    # mehnat sarflanmagani uchun BU YERGA QO'SHILMAYDI.
-    from models import FinishedProduct, StockSource
-    direct_produced = db.query(FinishedProduct).filter(
-        FinishedProduct.source == StockSource.PRODUCED,
-        FinishedProduct.name != "G'isht",
-        extract('year', FinishedProduct.finished_production_at) == year,
-        extract('month', FinishedProduct.finished_production_at) == month
-    ).all()
-    for fp in direct_produced:
-        cat = (fp.category or "").lower()
-        qty = float(fp.quantity or 0)
-        if cat in ["profil", "karniz"]:
-            jami_metr += qty
-        elif cat == "panel":
-            jami_panel_metr += qty
-        elif cat == "gips":
-            if (fp.unit or "").lower() == "dona":
-                jami_gips_gul += qty
-            else:
-                jami_gips_metr += qty
-        else:
-            jami_dona += qty
-
     # MUHIM: Gips uchun "Qoplama" tushunchasi yo'q (o'zi tayyor mahsulot),
     # shuning uchun is_coated filtri qo'llanilmaydi — faqat category='gips'.
     # Dona birligidagi HAR QANDAY gips detali — qoliplik gul hisoblanadi.
+    jami_gips_metr = 0.0
+    jami_gips_gul = 0.0
     for order in orders_this_month:
         for item in order.items:
             if (item.category or '').lower() != 'gips':
