@@ -2084,6 +2084,16 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     except Exception:
         brak_xarajat = 0.0
 
+    # Tayyor mahsulot brak/yo'qotishi (masalan sinib qolgan Gips mahsulot) —
+    # bu ham Brak xarajatiga qo'shiladi, xuddi xomashyo brak'i kabi
+    from models import FinishedProductLoss as _FPL
+    fp_losses = db.query(_FPL).filter(
+        extract('year', _FPL.lost_at) == year,
+        extract('month', _FPL.lost_at) == month
+    ).all()
+    fp_loss_xarajat = sum(float(l.cost_amount or 0) for l in fp_losses)
+    brak_xarajat += fp_loss_xarajat
+
     # Jami xarajat (arenda/elektr/tushlik/soliq/reklama/kutilmagan va h.k. — hodim
     # to'lovi endi "Ustalar KPI / Hodimlar" bo'limida alohida hisoblanadi)
     jami_xarajat_eski = (
@@ -2190,6 +2200,8 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         "fp_sales_daromad": round(fp_sales_daromad),
         "fp_sales_foyda": round(fp_sales_foyda),
         "fp_sales_soni": len(fp_sales),
+        "fp_loss_xarajat": round(fp_loss_xarajat),
+        "fp_loss_soni": len(fp_losses),
         "ishlab_chiqarish_xarajat": ishlab_chiqarish_xarajat,
         "sof_daromad": sof_daromad,
         "buyurtmalar_soni": buyurtmalar_soni,
@@ -2537,12 +2549,18 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
 
 def _group_volumes_by_penoplast(db, items) -> dict:
     """Detallarni plotnost bo'yicha guruhlaydi.
-    Qaytaradi: {penoplast_id: total_volume_m3}"""
+    Qaytaradi: {penoplast_id: total_volume_m3}
+    MUHIM: "Tayyor mahsulotdan" tanlangan detallar (finished_product_id
+    bor) — BU YERGA QO'SHILMAYDI, chunki ularning xomashyosi ALLAQACHON,
+    o'sha mahsulot birinchi marta ishlab chiqarilganda ayirilgan edi.
+    Agar shu yerda ham hisoblasak — IKKI MARTA ayirilgan bo'lardi."""
     default_p = get_default_penoplast(db)
     default_id = default_p.id if default_p else None
 
     volumes = {}
     for item in items:
+        if getattr(item, 'finished_product_id', None):
+            continue
         vol = _item_volume_m3(db, item, default_p)
         if vol <= 0:
             continue
@@ -2656,6 +2674,8 @@ def check_termopanel_for_order(db: Session, order_data) -> dict:
     for item in order_data.items:
         if (getattr(item, 'category', None) or '').lower() != 'termopanel':
             continue
+        if getattr(item, 'finished_product_id', None):
+            continue  # Tayyor mahsulotdan tanlangan — xomashyosi allaqachon ayirilgan
         m2 = float(item.quantity or 0)
         if m2 <= 0:
             continue
