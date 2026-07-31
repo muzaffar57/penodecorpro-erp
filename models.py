@@ -937,12 +937,13 @@ class FinishedProduct(Base):
 
     # Ishlab chiqarilgan bo'lsa — sarflangan xomashyo
     penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)
-    penoplast = relationship("Inventory")
+    penoplast = relationship("Inventory", foreign_keys=[penoplast_id])
     volume_m3 = Column(Float, default=0.0)          # Penoplast hajmi (darhol yechiladi)
     planned_loy_kg = Column(Float, default=0.0)      # Reja qilingan loy
     actual_loy_kg = Column(Float, nullable=True)     # Haqiqiy sarflangan loy ("Tayyor" bosilganda)
     gips_kg_used = Column(Float, nullable=True)       # GIPS mahsulotlar uchun — sarflangan Gips (kg)
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Qaysi Gips ishlatilgani
+    gips_inventory = relationship("Inventory", foreign_keys=[gips_inventory_id])
     # 1 BIRLIKKA (metr/dona) qancha Penoplast (m³) va loy (kg) ketishi —
     # ishlab chiqarilganda BIR MARTA hisoblab qo'yiladi va keyin
     # O'ZGARMAYDI. Qoldiq keyinchalik sotilib kamaysa (hatto 0 bo'lsa)
