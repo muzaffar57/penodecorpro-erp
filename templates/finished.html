@@ -1005,6 +1005,10 @@ async function submitSell() {
     if (res.ok) {
       closeSellModal();
       showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)`, 'success');
+      // G'ishtdan tashqari barcha mahsulot uchun — Yuk xati avtomatik ochiladi
+      if (r.product_name !== "G'isht" && r.sale_id) {
+        window.open(`/api/finished/sales/${r.sale_id}/pdf`, '_blank');
+      }
       setTimeout(() => location.reload(), 1500);
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
