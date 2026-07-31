@@ -420,6 +420,11 @@ class FinishedProductSaleCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class GipsProduceAdditive(BaseModel):
+    inventory_id: int
+    quantity: float = Field(..., gt=0)
+
+
 class GipsProduceCreate(BaseModel):
     """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqarish."""
     name: str = Field(..., min_length=2, max_length=150)
@@ -428,6 +433,7 @@ class GipsProduceCreate(BaseModel):
     unit_price: float = Field(default=0, ge=0, description="Sotuv narxi (1 birlik uchun)")
     gips_inventory_id: Optional[int] = None
     gips_kg_used: Optional[float] = Field(default=None, ge=0, description="Sarflangan Gips (kg) — tan narx uchun")
+    additives: List[GipsProduceAdditive] = Field(default_factory=list)
     notes: Optional[str] = None
 
 
