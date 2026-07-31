@@ -3409,6 +3409,15 @@ async function editSelected() {
             const peEl = row.querySelector('.i-peno');
             if (peEl) peEl.value = item.penoplast_id;
           }
+        } else if (cat === 'gips') {
+          row.querySelector('.i-q').value = item.quantity || 0;
+          const gu = row.querySelector('.i-gips-unit');
+          if (gu) { gu.value = item.gips_unit || 'metr'; onGipsUnitChange(row); }
+          const upEl = row.querySelector('.i-unitprice');
+          if (upEl) {
+            upEl.value = formatNum(parseFloat(item.unit_price || 0));
+            row.dataset.unitprice = parseFloat(item.unit_price || 0);
+          }
         } else {
           row.querySelector('.i-h').value = item.width || 0;
           row.querySelector('.i-w').value = item.thickness || 0;
