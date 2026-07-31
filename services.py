@@ -2065,10 +2065,16 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     ehson_xarajat = ehson_result["ehson_amount"]
 
     # ── 4c. MOSLASHUVCHAN HODIMLAR ─────────────────────────────
-    # Foyda (hodim xarajatigacha) — sotuvdan% / foydadan% hisoblash uchun
-    sof_foyda_before_emp = sof_daromad - jami_xarajat_eski - usta_kpi_xarajat - ehson_xarajat
+    # Foyda (hodim xarajatigacha) — sotuvdan% / foydadan% hisoblash uchun.
+    # MUHIM: Tayyor mahsulot to'g'ridan-to'g'ri sotuvi (G'isht va h.k.) —
+    # bu ham korxona sotuvi/foydasi, shuning uchun "sotuvdan %"/"foydadan %"
+    # asosida to'lanadigan hodimlar uchun HAM hisobga olinadi (Ehson bilan
+    # bir xil mantiq). Lekin ISHLAB CHIQARISH MIQDORIGA (metr/dona/qop)
+    # bog'liq to'lov turlariga — ta'sir qilmaydi (chunki sotish — yangi
+    # jismoniy ishlab chiqarish emas, faqat ombordagi tayyor narsani sotish).
+    sof_foyda_before_emp = sof_daromad - jami_xarajat_eski - usta_kpi_xarajat - ehson_xarajat + fp_sales_foyda
     emp_result = calculate_monthly_employee_pay(
-        db, year, month, daromad, sof_foyda_before_emp,
+        db, year, month, daromad + fp_sales_daromad, sof_foyda_before_emp,
         jami_metr + jami_panel_metr, jami_dona, jami_blok,
         jami_qoplama_birlik=jami_metr + jami_panel_metr + jami_dona,
         jami_gips_metr=jami_gips_metr, jami_gips_gul=jami_gips_gul,
@@ -3709,6 +3715,15 @@ def calculate_monthly_ehson(db: Session, year: int, month: int) -> dict:
                 _crud.log_error(db, str(e), endpoint=f"calculate_monthly_ehson:calculate_order_profit order#{o.id}")
             except Exception:
                 pass
+
+    # Tayyor mahsulot to'g'ridan-to'g'ri sotuvi (masalan G'isht) ham —
+    # bu ham korxonaning haqiqiy foydasi, Ehson shu foydadan hisoblanadi
+    from models import FinishedProductSale as _FPS
+    fp_sales = db.query(_FPS).filter(
+        extract('year', _FPS.sold_at) == year,
+        extract('month', _FPS.sold_at) == month
+    ).all()
+    monthly_profit += sum(float(s.total_amount or 0) - float(s.cost_amount or 0) for s in fp_sales)
 
     if monthly_profit <= 0:
         return {"percent": percent, "monthly_profit": round(monthly_profit), "ehson_amount": 0}
