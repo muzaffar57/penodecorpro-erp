@@ -1833,12 +1833,12 @@ async function quickFullDelivery() {
     <div>
       <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">💰 Mijoz shu yuk uchun to'lov qildimi?</label>
       ${debtHtml}
-      <input type="number" id="fd-payment" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      <input type="text" id="fd-payment" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
     </div>
     <div>
       <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">🚚 Yetkazib berish (transport) xarajati bormi?</label>
       <div style="font-size:12px;color:#94A3B8;margin-bottom:6px">Bo'lmasa bo'sh qoldiring</div>
-      <input type="number" id="fd-transport" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      <input type="text" id="fd-transport" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
     </div>
   `;
   document.getElementById('fullDlvModalOverlay').style.display = 'flex';
@@ -1852,8 +1852,8 @@ async function submitFullDlvModal() {
   const pending = _fullDlvPending;
   if (!pending) return;
 
-  const paymentAmount = parseFloat(document.getElementById('fd-payment')?.value) || null;
-  const transportCost = parseFloat(document.getElementById('fd-transport')?.value) || 0;
+  const paymentAmount = parseNum(document.getElementById('fd-payment')?.value) || null;
+  const transportCost = parseNum(document.getElementById('fd-transport')?.value) || 0;
 
   closeFullDlvModal();
 
