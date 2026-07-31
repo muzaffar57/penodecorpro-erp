@@ -261,6 +261,12 @@ def _migrate_payment_columns():
         if 'production_type' not in te_cols:
             migrations.append("ALTER TABLE transport_expenses ADD COLUMN production_type VARCHAR(20)")
 
+        fp_cols = [c['name'] for c in inspector.get_columns('finished_products')]
+        if 'gips_kg_used' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN gips_kg_used FLOAT")
+        if 'gips_inventory_id' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN gips_inventory_id INTEGER")
+
         ir_cols = [c['name'] for c in inspector.get_columns('inventory_receipts')]
         if 'production_type' not in ir_cols:
             migrations.append("ALTER TABLE inventory_receipts ADD COLUMN production_type VARCHAR(20)")
@@ -2844,6 +2850,8 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "actual_loy_kg": float(fp.actual_loy_kg) if fp.actual_loy_kg is not None else None,
         "unit_volume_m3": float(fp.unit_volume_m3) if fp.unit_volume_m3 is not None else None,
         "unit_loy_kg": float(fp.unit_loy_kg) if fp.unit_loy_kg is not None else None,
+        "gips_kg_used": float(fp.gips_kg_used) if fp.gips_kg_used is not None else None,
+        "gips_inventory_id": fp.gips_inventory_id,
         "production_status": fp.production_status.value if fp.production_status else None,
         "recipe_id": fp.recipe_id,
         "created_at": fp.created_at.isoformat() if fp.created_at else None,
