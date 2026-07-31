@@ -3771,23 +3771,32 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
 
         # QO'LDA KAMAYTIRISH — masalan kelmagan kunlar uchun (admin real
         # vaziyatni bilgan holda kiritadi, avtomatik formula EMAS).
+        # QO'LDA BONUS — masalan yaxshi ishlagani uchun qo'shimcha rag'bat.
         # MUHIM: bu — Moliya, Hisobotlar bilan BIR XIL manbadan (shu
         # funksiyadan) o'qiladi, shuning uchun barcha joyda avtomatik sinxron.
         adjustment = 0.0
         adjustment_reason = None
-        if amount > 0:
-            from models import EmployeeMonthlyAdjustment
-            adj = db.query(EmployeeMonthlyAdjustment).filter(
-                EmployeeMonthlyAdjustment.employee_id == e.id,
-                EmployeeMonthlyAdjustment.year == year,
-                EmployeeMonthlyAdjustment.month == month
-            ).first()
-            if adj and float(adj.reduction_amount or 0) > 0:
+        bonus = 0.0
+        bonus_reason_val = None
+        from models import EmployeeMonthlyAdjustment
+        adj = db.query(EmployeeMonthlyAdjustment).filter(
+            EmployeeMonthlyAdjustment.employee_id == e.id,
+            EmployeeMonthlyAdjustment.year == year,
+            EmployeeMonthlyAdjustment.month == month
+        ).first()
+        if adj:
+            if float(adj.reduction_amount or 0) > 0:
                 adjustment = float(adj.reduction_amount)
                 adjustment_reason = adj.reason
                 amount = max(0, amount - adjustment)
                 adj_txt = f"− {fmt_num(adjustment)} (kamaytirish{': ' + adjustment_reason if adjustment_reason else ''})"
                 detail = f"{detail} {adj_txt}" if detail else adj_txt
+            if float(adj.bonus_amount or 0) > 0:
+                bonus = float(adj.bonus_amount)
+                bonus_reason_val = adj.bonus_reason
+                amount = amount + bonus
+                bonus_txt = f"+ {fmt_num(bonus)} (bonus{': ' + bonus_reason_val if bonus_reason_val else ''})"
+                detail = f"{detail} {bonus_txt}" if detail else bonus_txt
 
         if amount > 0:
             total += amount
@@ -3802,7 +3811,9 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                 "avans": round(avans),
                 "qolgan": round(amount - avans),
                 "adjustment": round(adjustment) if adjustment else 0,
-                "adjustment_reason": adjustment_reason
+                "adjustment_reason": adjustment_reason,
+                "bonus": round(bonus) if bonus else 0,
+                "bonus_reason": bonus_reason_val
             })
 
     return {"total": round(total), "breakdown": breakdown}
