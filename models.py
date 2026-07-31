@@ -970,6 +970,35 @@ class FinishedProduct(Base):
         return f"<FinishedProduct {self.name} {self.quantity}{self.unit}>"
 
 
+class FinishedProductSale(Base):
+    """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz).
+    Masalan G'isht — tan narxi 0 bo'lgani uchun, sotilgan summaning
+    HAMMASI sof foyda hisoblanadi. Bu — Moliyaga alohida qator sifatida
+    qo'shiladi, umumiy daromad/foydaga ta'sir qiladi."""
+    __tablename__ = "finished_product_sales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=False, index=True)
+    product_name = Column(String(150), nullable=False)  # Nusxa — mahsulot keyin o'chsa ham tarix qolsin
+
+    quantity = Column(Float, nullable=False)
+    unit = Column(String(20), default="dona")
+    unit_price = Column(Numeric(12, 2), nullable=False)
+    total_amount = Column(Numeric(12, 2), nullable=False)
+    cost_amount = Column(Numeric(12, 2), default=0)  # Sotilgan qismning tan narxi (odatda 0)
+
+    sold_at = Column(DateTime, default=datetime.utcnow)
+    buyer_name = Column(String(150), nullable=True)
+    payment_method = Column(String(20), default="naqd")
+    notes = Column(Text, nullable=True)
+    created_by = Column(String(100), nullable=True)
+
+    finished_product = relationship("FinishedProduct")
+
+    def __repr__(self):
+        return f"<FinishedProductSale {self.product_name} x{self.quantity} = {self.total_amount}>"
+
+
 # ============================================================
 # 11. DELIVERY — Yetkazishlar (bosqichma-bosqich topshirish)
 # ============================================================
