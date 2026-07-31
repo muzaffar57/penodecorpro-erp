@@ -2697,7 +2697,8 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
 
         # Serpiyanka — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik
         # uchun) nomi bo'yicha avtomatik qidiramiz. Miqdori — TANLANGAN
-        # BAZALTNING o'zida saqlangan nisbat bo'yicha (standart: 2×)
+        # BAZALTNING o'zida saqlangan nisbat bo'yicha (standart: 2×, METR
+        # hisobida — Omborxonada "1 rulon necha metr" deb saqlanadi)
         serp_m2 = m2 * serp_ratio
         serp_id = getattr(item_data, 'serpiyanka_item_id', None)
         s = db.query(Inventory).filter(Inventory.id == serp_id).with_for_update().first() if serp_id else None
@@ -3768,6 +3769,26 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
             extra_txt = f"qo'shimcha oylik {fmt_num(e.extra_monthly)}"
             detail = f"{detail} + {extra_txt}" if detail else extra_txt
 
+        # QO'LDA KAMAYTIRISH — masalan kelmagan kunlar uchun (admin real
+        # vaziyatni bilgan holda kiritadi, avtomatik formula EMAS).
+        # MUHIM: bu — Moliya, Hisobotlar bilan BIR XIL manbadan (shu
+        # funksiyadan) o'qiladi, shuning uchun barcha joyda avtomatik sinxron.
+        adjustment = 0.0
+        adjustment_reason = None
+        if amount > 0:
+            from models import EmployeeMonthlyAdjustment
+            adj = db.query(EmployeeMonthlyAdjustment).filter(
+                EmployeeMonthlyAdjustment.employee_id == e.id,
+                EmployeeMonthlyAdjustment.year == year,
+                EmployeeMonthlyAdjustment.month == month
+            ).first()
+            if adj and float(adj.reduction_amount or 0) > 0:
+                adjustment = float(adj.reduction_amount)
+                adjustment_reason = adj.reason
+                amount = max(0, amount - adjustment)
+                adj_txt = f"− {fmt_num(adjustment)} (kamaytirish{': ' + adjustment_reason if adjustment_reason else ''})"
+                detail = f"{detail} {adj_txt}" if detail else adj_txt
+
         if amount > 0:
             total += amount
             avans = get_employee_advances_total(db, e.id, year, month)
@@ -3779,7 +3800,9 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                 "detail": detail,
                 "amount": round(amount),
                 "avans": round(avans),
-                "qolgan": round(amount - avans)
+                "qolgan": round(amount - avans),
+                "adjustment": round(adjustment) if adjustment else 0,
+                "adjustment_reason": adjustment_reason
             })
 
     return {"total": round(total), "breakdown": breakdown}
