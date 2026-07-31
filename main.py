@@ -2904,6 +2904,37 @@ def api_search_finished(q: str = "", db: Session = Depends(get_db), current_user
     return {"items": crud.search_finished_products(db, q)}
 
 
+@app.post("/api/finished/sell")
+def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Session = Depends(get_db),
+                                current_user=Depends(auth.admin_or_warehouse)):
+    """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
+    who = current_user.full_name or current_user.username
+    result = crud.sell_finished_product(db, data, created_by=who)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
+@app.get("/api/finished/sales")
+def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = None,
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """Tayyor mahsulot savdolari tarixi (ixtiyoriy oy/yil filtri bilan)."""
+    from models import FinishedProductSale
+    from sqlalchemy import extract
+    q = db.query(FinishedProductSale).order_by(FinishedProductSale.sold_at.desc())
+    if year:
+        q = q.filter(extract('year', FinishedProductSale.sold_at) == year)
+    if month:
+        q = q.filter(extract('month', FinishedProductSale.sold_at) == month)
+    sales = q.limit(200).all()
+    return [{
+        "id": s.id, "product_name": s.product_name, "quantity": float(s.quantity),
+        "unit": s.unit, "unit_price": float(s.unit_price), "total_amount": float(s.total_amount),
+        "cost_amount": float(s.cost_amount or 0), "sold_at": s.sold_at.isoformat() if s.sold_at else None,
+        "buyer_name": s.buyer_name, "payment_method": s.payment_method, "notes": s.notes
+    } for s in sales]
+
+
 @app.post("/api/finished/produce")
 def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulot ishlab chiqarish."""
