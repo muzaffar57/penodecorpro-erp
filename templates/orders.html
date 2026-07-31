@@ -1930,15 +1930,51 @@ function addGipsAdditive(prefillId, prefillQty) {
   const opts = sorted.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'gips-add-row';
-  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
+  row.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-bottom:8px';
   row.innerHTML = `
-    <select class="gips-add-inv" style="flex:2;padding:9px 10px;font-size:14px"><option value="">— Material tanlang —</option>${opts}</select>
-    <input type="number" class="gips-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;padding:9px 10px;font-size:14px">
-    <button type="button" onclick="this.closest('.gips-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select class="gips-add-inv" onchange="onGipsAdditiveSelect(this)" style="flex:2;padding:9px 10px;font-size:14px"><option value="">— Material tanlang —</option>${opts}</select>
+      <input type="number" class="gips-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;padding:9px 10px;font-size:14px">
+      <button type="button" onclick="this.closest('.gips-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
+    </div>
+    <div class="gips-add-hint" style="font-size:12px;color:#9CA3AF;padding-left:2px"></div>
   `;
   list.appendChild(row);
-  if (prefillId) row.querySelector('.gips-add-inv').value = prefillId;
-  if (prefillQty) row.querySelector('.gips-add-qty').value = prefillQty;
+  if (prefillId) {
+    const sel = row.querySelector('.gips-add-inv');
+    sel.value = prefillId;
+    onGipsAdditiveSelect(sel);
+  }
+  if (prefillQty) {
+    const ratio = parseFloat(row.dataset.ratio);
+    // prefillQty — serverdan KONTEYNER (rulon/qop) birligida keladi;
+    // agar tabiiy birlik (metr/kg) ko'rsatilayotgan bo'lsa — orqaga aylantiramiz
+    row.querySelector('.gips-add-qty').value = ratio > 0 ? (prefillQty * ratio) : prefillQty;
+  }
+}
+
+function onGipsAdditiveSelect(selectEl) {
+  const row = selectEl.closest('.gips-add-row');
+  const qtyInput = row.querySelector('.gips-add-qty');
+  const hint = row.querySelector('.gips-add-hint');
+  const invId = parseInt(selectEl.value);
+  const item = (gipsInvCache || []).find(i => i.id === invId);
+  const unit = (item?.unit || '').toLowerCase();
+  const ratio = item ? parseFloat(item.volume_per_unit) : 0;
+  // "Konteyner" birligida saqlanadigan materiallar (rulon/qop) uchun —
+  // tabiiy birlikda (metr/kg) so'raymiz, avtomatik aylantiramiz.
+  if (item && ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop')) {
+    const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
+    qtyInput.placeholder = `Necha ${naturalUnit} kerak?`;
+    row.dataset.ratio = ratio;
+    row.dataset.naturalUnit = naturalUnit;
+    if (hint) hint.textContent = `📐 1 ${unit} = ${ratio} ${naturalUnit} — siz ${naturalUnit}da yozasiz, tizim o'zi ${unit}ga aylantiradi`;
+  } else {
+    qtyInput.placeholder = item ? `Miqdor (${item.unit})` : 'Miqdor';
+    delete row.dataset.ratio;
+    delete row.dataset.naturalUnit;
+    if (hint) hint.textContent = '';
+  }
 }
 
 function collectGipsAdditives() {
@@ -1946,7 +1982,10 @@ function collectGipsAdditives() {
   const result = [];
   rows.forEach(row => {
     const invId = parseInt(row.querySelector('.gips-add-inv')?.value) || null;
-    const qty = parseFloat(row.querySelector('.gips-add-qty')?.value) || 0;
+    let qty = parseFloat(row.querySelector('.gips-add-qty')?.value) || 0;
+    const ratio = parseFloat(row.dataset.ratio);
+    // Tabiiy birlikdan (metr/kg) konteyner birligiga (rulon/qop) aylantiramiz
+    if (ratio > 0) qty = qty / ratio;
     if (invId && qty > 0) result.push({ inventory_id: invId, planned_qty: qty });
   });
   return result;
@@ -3736,11 +3775,23 @@ async function markReadySelected() {
         if (gishtVal !== null && gishtVal !== '' && parseFloat(gishtVal) > 0) gishtDona = parseFloat(gishtVal);
       }
       if (orderData.gips_additives && orderData.gips_additives.length) {
+        if (!gipsInvCache) {
+          try { gipsInvCache = await fetch('/api/inventory').then(r => r.json()); } catch(e) { gipsInvCache = []; }
+        }
         for (const add of orderData.gips_additives) {
-          const invName = (gipsInvCache || []).find(i => i.id === add.inventory_id)?.item_name || `Material #${add.inventory_id}`;
-          const aVal = prompt(`"${invName}" — haqiqatda necha ${''} ishlatildi?\n\nRejada: ${add.planned_qty}`, String(add.planned_qty));
+          const item = (gipsInvCache || []).find(i => i.id === add.inventory_id);
+          const invName = item?.item_name || `Material #${add.inventory_id}`;
+          const unit = (item?.unit || '').toLowerCase();
+          const ratio = item ? parseFloat(item.volume_per_unit) : 0;
+          const isContainer = ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop');
+          const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
+          const displayUnit = isContainer ? naturalUnit : (item?.unit || '');
+          const plannedDisplay = isContainer ? (add.planned_qty * ratio) : add.planned_qty;
+          const aVal = prompt(`"${invName}" — haqiqatda necha ${displayUnit} ishlatildi?\n\nRejada: ${plannedDisplay.toFixed ? plannedDisplay.toFixed(2) : plannedDisplay} ${displayUnit}`, String(plannedDisplay));
           if (aVal !== null && aVal !== '') {
-            gipsAdditivesActual.push({ inventory_id: add.inventory_id, actual_qty: parseFloat(aVal) });
+            const enteredVal = parseFloat(aVal) || 0;
+            const actualQty = isContainer ? (enteredVal / ratio) : enteredVal;
+            gipsAdditivesActual.push({ inventory_id: add.inventory_id, actual_qty: actualQty });
           }
         }
       }
