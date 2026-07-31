@@ -944,6 +944,7 @@ async function loadEmpMonthlyReport() {
               <th style="padding:8px 6px">Hodim</th>
               <th style="padding:8px 6px">Tafsilot</th>
               <th style="padding:8px 6px;text-align:right">Hisoblangan</th>
+              <th style="padding:8px 6px;text-align:right">Kamaytirish</th>
               <th style="padding:8px 6px;text-align:right">Avans olingan</th>
               <th style="padding:8px 6px;text-align:right">Qolgan to'lov</th>
             </tr>
@@ -954,17 +955,23 @@ async function loadEmpMonthlyReport() {
                   ${e.avans > 0 ? `onclick="toggleEmpAdvanceDetail(${e.employee_id}, ${i}, ${year}, ${month})"` : ''}>
                 <td style="padding:8px 6px;font-weight:600">${e.name}</td>
                 <td style="padding:8px 6px;color:#888;font-size:12px">${e.detail}</td>
-                <td style="padding:8px 6px;text-align:right">${fmt(e.amount)} so'm</td>
+                <td style="padding:8px 6px;text-align:right">${fmt(e.amount + (e.adjustment||0))} so'm</td>
+                <td style="padding:8px 6px;text-align:right">
+                  <span onclick="event.stopPropagation();editEmpAdjustment(${e.employee_id}, '${e.name.replace(/'/g,"&apos;")}', ${year}, ${month}, ${e.adjustment||0}, '${(e.adjustment_reason||'').replace(/'/g,"&apos;")}')"
+                        style="cursor:pointer;color:${e.adjustment ? '#DC2626' : '#93C5FD'};text-decoration:underline dotted">
+                    ${e.adjustment ? '-'+fmt(e.adjustment)+" so'm" : '— belgilash'}
+                  </span>
+                </td>
                 <td style="padding:8px 6px;text-align:right;color:#D97706">${e.avans > 0 ? '-'+fmt(e.avans)+" so'm " + `<span id="emp-adv-arrow-${i}" style="font-size:10px">▼</span>` : '—'}</td>
                 <td style="padding:8px 6px;text-align:right;font-weight:700;color:${e.qolgan >= 0 ? '#22C55E' : '#DC2626'}">${fmt(e.qolgan)} so'm</td>
               </tr>
-              ${e.avans > 0 ? `<tr id="emp-adv-row-${i}" style="display:none;border-bottom:1px solid #f5f5f5"><td colspan="5" style="padding:0"><div id="emp-adv-detail-${i}" style="background:#FFFBEB;padding:8px 16px"></div></td></tr>` : ''}
+              ${e.avans > 0 ? `<tr id="emp-adv-row-${i}" style="display:none;border-bottom:1px solid #f5f5f5"><td colspan="6" style="padding:0"><div id="emp-adv-detail-${i}" style="background:#FFFBEB;padding:8px 16px"></div></td></tr>` : ''}
             `).join('')}
           </tbody>
           <tfoot>
             <tr style="border-top:2px solid #eee;font-weight:700">
-              <td colspan="2" style="padding:12px 6px">Jami:</td>
-              <td style="padding:12px 6px;text-align:right">${fmt(list.reduce((s,e)=>s+e.amount,0))} so'm</td>
+              <td colspan="3" style="padding:12px 6px">Jami:</td>
+              <td style="padding:12px 6px;text-align:right;color:#DC2626">-${fmt(list.reduce((s,e)=>s+(e.adjustment||0),0))} so'm</td>
               <td style="padding:12px 6px;text-align:right;color:#D97706">${fmt(list.reduce((s,e)=>s+e.avans,0))} so'm</td>
               <td style="padding:12px 6px;text-align:right;color:#8E44AD;font-size:15px">${fmt(list.reduce((s,e)=>s+e.qolgan,0))} so'm</td>
             </tr>
@@ -973,6 +980,24 @@ async function loadEmpMonthlyReport() {
       </div>`;
   } catch(e) {
     box.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Xato yuz berdi</div>';
+  }
+}
+
+async function editEmpAdjustment(empId, empName, year, month, currentAmount, currentReason) {
+  const amtStr = prompt(`"${empName}" uchun QANCHA kamaytiramiz (so'm)?\n\nMasalan — kelmagan kunlar uchun, agar o'sha kunlar seh ish davom etgan bo'lsa.\nBo'sh/0 qoldirsangiz — kamaytirish o'chadi.`, currentAmount || '');
+  if (amtStr === null) return;
+  const amount = parseFloat(amtStr) || 0;
+  let reason = currentReason || '';
+  if (amount > 0) {
+    reason = prompt(`Sabab (izoh) — ixtiyoriy:`, currentReason || '') || '';
+  }
+  const res = await fetch(`/api/employees/${empId}/monthly-adjustment?year=${year}&month=${month}&reduction_amount=${amount}&reason=${encodeURIComponent(reason)}`, {
+    method: 'POST'
+  });
+  if (res.ok) {
+    loadEmpMonthlyReport();
+  } else {
+    alert('Xato yuz berdi');
   }
 }
 
