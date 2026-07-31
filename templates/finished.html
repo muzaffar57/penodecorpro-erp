@@ -6,6 +6,7 @@
 {% block topbar_actions %}
 <button class="btn btn-dark" onclick="openProduceModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Ishlab chiqarish</button>
 <button class="btn btn-outline" style="border-color:#8B5E3C;color:#8B5E3C" onclick="openTermoModal()"><i class="ti ti-square" style="vertical-align:-2px"></i> Termopanel (Bazalt)</button>
+<button class="btn btn-outline" style="border-color:#9D174D;color:#9D174D" onclick="openGipsProduceModal()"><i class="ti ti-cube" style="vertical-align:-2px"></i> 🧱 Gips ishlab chiqarish</button>
 {% endblock %}
 
 {% block head %}
@@ -81,6 +82,7 @@
       <option value="panel">Panel</option>
       <option value="dona">Donali</option>
       <option value="blok">Blok</option>
+      <option value="gips">🧱 Gips</option>
     </select>
     <select id="fpSort" onchange="renderFp()">
       <option value="default">Standart tartib</option>
@@ -102,6 +104,53 @@
 <!-- ══ RASM KATTALASHTIRISH (LIGHTBOX) ══ -->
 <div id="lightbox" onclick="closeLightbox()">
   <img id="lightbox-img" src="" alt="">
+</div>
+
+<!-- ══ GIPS ISHLAB CHIQARISH MODALI ══ -->
+<div id="gipsProduceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1a1a1a">🧱 Gips ishlab chiqarish</div>
+        <div style="font-size:13px;color:#aaa;margin-top:2px">Buyurtmasiz, to'g'ridan-to'g'ri zaxira uchun</div>
+      </div>
+      <button onclick="closeGipsProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
+      <div>
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Mahsulot nomi</label>
+        <input type="text" id="gp-name" placeholder="Masalan: Karniz 15 sm" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Birligi</label>
+          <select id="gp-unit" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+            <option value="metr">Metr</option>
+            <option value="dona">Dona</option>
+            <option value="m2">M²</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Miqdor</label>
+          <input type="number" id="gp-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Sotuv narxi (1 birlik uchun, so'm)</label>
+        <input type="text" id="gp-price" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      </div>
+      <div style="background:#FCE7F3;border-radius:10px;padding:14px">
+        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Qaysi Gips xomashyosi ishlatildi? <span style="font-weight:400;font-size:11.5px">— ixtiyoriy, tan narx uchun</span></label>
+        <select id="gp-gips-inv" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box;margin-bottom:10px"><option value="">— Tanlanmadi —</option></select>
+        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Sarflangan Gips (kg)</label>
+        <input type="number" id="gp-gips-kg" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
+      <button onclick="closeGipsProduceModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+      <button onclick="submitGipsProduce()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#9D174D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">🧱 Ishlab chiqarish</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══ SOTISH MODALI ══ -->
@@ -847,6 +896,63 @@ async function reduceProduction(id, qty, item) {
       showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
     }
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+}
+
+let _gipsInvCacheFp = null;
+
+async function openGipsProduceModal() {
+  document.getElementById('gp-name').value = '';
+  document.getElementById('gp-unit').value = 'metr';
+  document.getElementById('gp-qty').value = '';
+  document.getElementById('gp-price').value = '';
+  document.getElementById('gp-gips-kg').value = '';
+
+  const sel = document.getElementById('gp-gips-inv');
+  if (!_gipsInvCacheFp) {
+    try {
+      const all = await fetch('/api/inventory').then(r => r.json());
+      _gipsInvCacheFp = all.filter(i => (i.category || '') === 'Gips');
+    } catch(e) { _gipsInvCacheFp = []; }
+  }
+  sel.innerHTML = '<option value="">— Tanlanmadi —</option>' +
+    _gipsInvCacheFp.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
+
+  document.getElementById('gipsProduceModal').style.display = 'flex';
+}
+
+function closeGipsProduceModal() {
+  document.getElementById('gipsProduceModal').style.display = 'none';
+}
+
+async function submitGipsProduce() {
+  const name = document.getElementById('gp-name').value.trim();
+  const unit = document.getElementById('gp-unit').value;
+  const qty = parseFloat(document.getElementById('gp-qty').value) || 0;
+  const price = parseNum(document.getElementById('gp-price').value) || 0;
+  const gipsInvId = parseInt(document.getElementById('gp-gips-inv').value) || null;
+  const gipsKg = parseFloat(document.getElementById('gp-gips-kg').value) || null;
+
+  if (!name) { showMsg('Mahsulot nomini kiriting', 'error'); return; }
+  if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
+
+  try {
+    const res = await fetch('/api/finished/produce-gips', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        name, unit, quantity: qty, unit_price: price,
+        gips_inventory_id: gipsInvId, gips_kg_used: gipsKg
+      })
+    });
+    const r = await res.json();
+    if (res.ok) {
+      closeGipsProduceModal();
+      showMsg('✓ Gips mahsulot ishlab chiqarildi!', 'success');
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
+    }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
 }
 
 let _sellData = null;
