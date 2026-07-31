@@ -3360,6 +3360,22 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
             reason=f"Gips mahsulot ishlab chiqarish: {data.name}"
         )
 
+    # Qo'shimchalar (Serpiyanka, Po'lat sim va h.k.) — har biri ombordan
+    # ayiriladi va tan narxga qo'shiladi
+    for add in (data.additives or []):
+        add_item = db.query(Inventory).filter(Inventory.id == add.inventory_id).with_for_update().first()
+        if not add_item:
+            return {"success": False, "message": f"Qo'shimcha material (ID {add.inventory_id}) topilmadi"}
+        if float(add_item.stock_quantity or 0) < add.quantity:
+            return {"success": False, "message": f"Omborda faqat {float(add_item.stock_quantity):.1f} {add_item.unit} {add_item.item_name} bor"}
+        add_item.stock_quantity = float(add_item.stock_quantity) - add.quantity
+        cost_price += add.quantity * float(add_item.price_per_unit or 0)
+        log_movement(
+            db, add_item.id, add_item.item_name, movement_type="out",
+            quantity=add.quantity, unit=add_item.unit,
+            reason=f"Gips mahsulot ishlab chiqarish (qo'shimcha): {data.name}"
+        )
+
     fp = FinishedProduct(
         name=data.name,
         category="gips",
