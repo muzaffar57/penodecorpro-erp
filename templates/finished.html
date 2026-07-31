@@ -1049,7 +1049,9 @@ async function delFp(id, source) {
   if (!item) return;
 
   let back = false;
-  if (source === 'produced' && item.volume_m3 > 0) {
+  const hasReturnableMaterial = (source === 'produced' && item.volume_m3 > 0) ||
+                                 (item.category === 'gips' && item.gips_kg_used > 0);
+  if (hasReturnableMaterial) {
     back = confirm(`${item.name} o'chirilsinmi?\n\nOK — xomashyo omborga QAYTARILADI\nBekor — quyidagi savolga o'ting`);
     if (!back && !confirm(`${item.name} xomashyo qaytarilmasdan o'chirilsinmi?`)) return;
   } else {
@@ -1595,6 +1597,39 @@ async function openProfitModal(id) {
   const profit = revenue - totalCost;
   const margin = revenue > 0 ? (profit / revenue * 100) : 0;
 
+  const row = (label, val, color, bold) => `
+    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px${bold?';font-weight:700':''}">
+      <span style="color:${bold?'#1a1a1a':'#777'}">${label}</span>
+      <span style="color:${color||'#1a1a1a'};font-weight:${bold?'700':'600'}">${val}</span>
+    </div>`;
+
+  // GIPS mahsulotlar — alohida, aniq ko'rinish
+  if (i.category === 'gips') {
+    const gipsKg = i.gips_kg_used || 0;
+    const gipsPerKg = gipsKg > 0 ? (totalCost / gipsKg) : 0;
+    document.getElementById('pm-body').innerHTML = `
+      <div style="background:#FCE7F3;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#9D174D;line-height:1.8">
+        🧱 ${gipsKg > 0 ? `Sarflangan Gips: <b>${gipsKg} kg</b>` : 'Gips miqdori kiritilmagan'}
+        ${i.created_by ? `<br>👤 ${i.created_by}` : ''}
+      </div>
+
+      <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
+      ${gipsKg > 0 ? row(`🧱 Gips (${gipsKg} kg × ${fmt(gipsPerKg)})`, fmt(totalCost) + " so'm") : row('🧱 Gips xarajati', fmt(totalCost) + " so'm")}
+      <div style="border-top:1px solid #eee;margin:4px 0"></div>
+      ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}
+
+      <div style="font-size:12px;font-weight:600;color:#777;margin:14px 0 4px">SOTUV</div>
+      ${row('Sotuv narxi (1 birlik)', fmt(i.unit_price) + " so'm")}
+      ${row('Miqdor', `${i.quantity} ${i.unit}`)}
+      ${row('Jami daromad', fmt(revenue) + " so'm", '#16A34A', true)}
+
+      <div style="border-top:2px solid #eee;margin:10px 0"></div>
+      ${row('SOF FOYDA', fmt(profit) + " so'm", profit >= 0 ? '#16A34A' : '#DC2626', true)}
+      ${row('Marja', margin.toFixed(1) + '%', profit >= 0 ? '#16A34A' : '#DC2626')}
+    `;
+    return;
+  }
+
   // Loy narxini olamiz
   let loyCost = 0, loyPerKg = 0, recipeName = '';
   if (i.actual_loy_kg > 0) {
@@ -1611,12 +1646,6 @@ async function openProfitModal(id) {
   const w2 = fpWidth2(i);
   const dims = (i.width && i.thickness)
     ? (w2 ? `${i.width}×${w2}×${i.thickness} sm` : `${i.width}×${i.thickness} sm`) : '—';
-
-  const row = (label, val, color, bold) => `
-    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px${bold?';font-weight:700':''}">
-      <span style="color:${bold?'#1a1a1a':'#777'}">${label}</span>
-      <span style="color:${color||'#1a1a1a'};font-weight:${bold?'700':'600'}">${val}</span>
-    </div>`;
 
   document.getElementById('pm-body').innerHTML = `
     <div style="background:#FAFAF8;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#666;line-height:1.8">
