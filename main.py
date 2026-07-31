@@ -265,6 +265,13 @@ def _migrate_payment_columns():
         if 'production_type' not in ir_cols:
             migrations.append("ALTER TABLE inventory_receipts ADD COLUMN production_type VARCHAR(20)")
 
+        if 'employee_monthly_adjustments' in inspector.get_table_names():
+            ema_cols = [c['name'] for c in inspector.get_columns('employee_monthly_adjustments')]
+            if 'bonus_amount' not in ema_cols:
+                migrations.append("ALTER TABLE employee_monthly_adjustments ADD COLUMN bonus_amount NUMERIC(12,2) DEFAULT 0")
+            if 'bonus_reason' not in ema_cols:
+                migrations.append("ALTER TABLE employee_monthly_adjustments ADD COLUMN bonus_reason TEXT")
+
         if migrations:
             with engine.connect() as conn:
                 for sql in migrations:
@@ -1171,20 +1178,25 @@ def api_get_employee_advances(employee_id: int, year: int, month: int,
 @app.get("/api/employees/{employee_id}/monthly-adjustment")
 def api_get_employee_adjustment(employee_id: int, year: int, month: int,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Hodim uchun, shu oy uchun saqlangan qo'lda kamaytirishni qaytaradi."""
+    """Hodim uchun, shu oy uchun saqlangan qo'lda kamaytirish/bonusni qaytaradi."""
     adj = crud.get_employee_monthly_adjustment(db, employee_id, year, month)
     if not adj:
-        return {"reduction_amount": 0, "reason": None}
-    return {"reduction_amount": float(adj.reduction_amount or 0), "reason": adj.reason}
+        return {"reduction_amount": 0, "reason": None, "bonus_amount": 0, "bonus_reason": None}
+    return {
+        "reduction_amount": float(adj.reduction_amount or 0), "reason": adj.reason,
+        "bonus_amount": float(adj.bonus_amount or 0), "bonus_reason": adj.bonus_reason
+    }
 
 
 @app.post("/api/employees/{employee_id}/monthly-adjustment")
 def api_set_employee_adjustment(employee_id: int, year: int, month: int,
-                                  reduction_amount: float = 0, reason: Optional[str] = None,
+                                  reduction_amount: Optional[float] = None, reason: Optional[str] = None,
+                                  bonus_amount: Optional[float] = None, bonus_reason: Optional[str] = None,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Hodim uchun, shu oy uchun qo'lda kamaytirishni yozadi/yangilaydi/o'chiradi (0 bo'lsa)."""
+    """Hodim uchun, shu oy uchun qo'lda kamaytirish va/yoki bonusni yozadi/yangilaydi/o'chiradi."""
     who = current_user.full_name or current_user.username
-    crud.set_employee_monthly_adjustment(db, employee_id, year, month, reduction_amount, reason, created_by=who)
+    crud.set_employee_monthly_adjustment(db, employee_id, year, month, reduction_amount, reason,
+                                          bonus_amount, bonus_reason, created_by=who)
     return {"status": "ok"}
 
 
