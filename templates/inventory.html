@@ -150,7 +150,7 @@
             {% endif %}
           {% endif %}
         </div>
-        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% elif 'bazalt' in item.item_name|lower %} · {{ item.volume_per_unit or 0.72 }} m²/dona{% elif 'serpiyank' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} m²/rulon{% elif 'gips' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} kg/qop{% endif %}</div>
+        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% elif 'bazalt' in item.item_name|lower %} · {{ item.volume_per_unit or 0.72 }} m²/dona{% elif 'serpiyank' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} metr/rulon{% elif 'gips' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} kg/qop{% endif %}</div>
         <span class="cat-badge {{ cat_css }}" onclick="editCategory(this)" data-id="{{ item.id }}" data-category="{{ item.category or '' }}" style="cursor:pointer" title="O'zgartirish">{{ cat_label }}</span>
         </div>
       </div>
@@ -168,7 +168,7 @@
         <button class="btn btn-outline btn-xs" onclick="editBazaltRatios({{ item.id }}, {{ item.serp_ratio_per_m2 or 2.0 }}, {{ item.kley_ratio_per_m2 or 0.8 }})" title="Serpiyanka/Kley nisbatini tuzatish" style="margin-left:4px;border-color:#C4B5FD;color:#6D28D9">🧱</button>
         <button class="btn btn-outline btn-xs" onclick="editBazaltVolume({{ item.id }}, {{ item.volume_per_unit or 0.72 }})" title="1 dona necha m² ekanini tuzatish" style="margin-left:4px;border-color:#93C5FD;color:#1D4ED8">📐</button>
         {% elif 'serpiyank' in item.item_name|lower %}
-        <button class="btn btn-outline btn-xs" onclick="editSerpiyankaVolume({{ item.id }}, {{ item.volume_per_unit or 50.0 }})" title="1 rulon necha m² ekanini tuzatish" style="margin-left:4px;border-color:#93C5FD;color:#1D4ED8">📐</button>
+        <button class="btn btn-outline btn-xs" onclick="editSerpiyankaVolume({{ item.id }}, {{ item.volume_per_unit or 50.0 }})" title="1 rulon necha metr ekanini tuzatish" style="margin-left:4px;border-color:#93C5FD;color:#1D4ED8">📐</button>
         {% elif 'gips' in item.item_name|lower %}
         <button class="btn btn-outline btn-xs" onclick="editGipsSackWeight({{ item.id }}, {{ item.volume_per_unit or 50.0 }})" title="1 qop necha kg ekanini tuzatish" style="margin-left:4px;border-color:#93C5FD;color:#1D4ED8">📐</button>
         {% endif %}
@@ -327,7 +327,7 @@ async function sendLowStockAlert() {
 }
 
 async function editBazaltRatios(id, currentSerp, currentKley) {
-  const newSerp = prompt(`1 m² BAZALTGA necha m² SERPIYANKA ketadi?\nHozirgi: ${currentSerp}`, currentSerp);
+  const newSerp = prompt(`1 m² BAZALTGA necha METR SERPIYANKA ketadi?\nHozirgi: ${currentSerp}`, currentSerp);
   if (newSerp === null || isNaN(parseFloat(newSerp))) return;
   const newKley = prompt(`1 m² BAZALTGA necha kg KLEY ketadi?\nHozirgi: ${currentKley}`, currentKley);
   if (newKley === null || isNaN(parseFloat(newKley))) return;
@@ -381,7 +381,7 @@ async function editGipsSackWeight(id, currentVolume) {
 }
 
 async function editSerpiyankaVolume(id, currentVolume) {
-  const newVolume = prompt(`1 RULON serpiyanka necha m²?\nHozirgi: ${currentVolume}`, currentVolume);
+  const newVolume = prompt(`1 RULON serpiyanka necha metr?\nHozirgi: ${currentVolume}`, currentVolume);
   if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
 
   const res = await fetch(`/api/inventory/${id}`, {
