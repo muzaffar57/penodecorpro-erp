@@ -3995,6 +3995,45 @@ def get_employees(db: Session, only_active: bool = True) -> List[Employee]:
     return q.order_by(Employee.name).all()
 
 
+def get_employee_monthly_adjustment(db: Session, employee_id: int, year: int, month: int):
+    """Hodim uchun, shu oy uchun saqlangan qo'lda kamaytirishni qaytaradi (yo'q bo'lsa None)."""
+    from models import EmployeeMonthlyAdjustment
+    return db.query(EmployeeMonthlyAdjustment).filter(
+        EmployeeMonthlyAdjustment.employee_id == employee_id,
+        EmployeeMonthlyAdjustment.year == year,
+        EmployeeMonthlyAdjustment.month == month
+    ).first()
+
+
+def set_employee_monthly_adjustment(db: Session, employee_id: int, year: int, month: int,
+                                      reduction_amount: float, reason: str = None,
+                                      created_by: str = None):
+    """Hodim uchun, shu oy uchun qo'lda kamaytirishni yozadi/yangilaydi.
+    reduction_amount=0 bo'lsa — mavjud yozuv o'chiriladi (endi kerak emas)."""
+    from models import EmployeeMonthlyAdjustment
+
+    existing = get_employee_monthly_adjustment(db, employee_id, year, month)
+    if reduction_amount <= 0:
+        if existing:
+            db.delete(existing)
+            db.commit()
+        return None
+
+    if existing:
+        existing.reduction_amount = reduction_amount
+        existing.reason = reason
+        existing.created_by = created_by
+    else:
+        existing = EmployeeMonthlyAdjustment(
+            employee_id=employee_id, year=year, month=month,
+            reduction_amount=reduction_amount, reason=reason, created_by=created_by
+        )
+        db.add(existing)
+    db.commit()
+    db.refresh(existing)
+    return existing
+
+
 def create_employee_advance(db: Session, employee_id: int, amount: float, notes: str = None,
                               given_by: str = None, adv_date=None):
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
