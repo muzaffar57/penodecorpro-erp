@@ -1001,6 +1001,31 @@ class FinishedProductSale(Base):
         return f"<FinishedProductSale {self.product_name} x{self.quantity} = {self.total_amount}>"
 
 
+class FinishedProductLoss(Base):
+    """Tayyor mahsulotdan brak/yo'qotish sababli KAMAYTIRISH (butunlay
+    o'chirish EMAS — masalan 200 metrdan 50 metri sinib, endi kerak emas).
+    Bu — Moliyada, xuddi xomashyo brak'i kabi, 'Brak' xarajatiga qo'shiladi."""
+    __tablename__ = "finished_product_losses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=False, index=True)
+    product_name = Column(String(150), nullable=False)
+    category = Column(String(30), nullable=True)
+
+    quantity = Column(Float, nullable=False)
+    unit = Column(String(20), default="dona")
+    cost_amount = Column(Numeric(12, 2), default=0)  # Shu miqdorning tan narxi
+
+    reason = Column(Text, nullable=True)
+    lost_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+
+    finished_product = relationship("FinishedProduct")
+
+    def __repr__(self):
+        return f"<FinishedProductLoss {self.product_name} -{self.quantity}>"
+
+
 # ============================================================
 # 11. DELIVERY — Yetkazishlar (bosqichma-bosqich topshirish)
 # ============================================================
