@@ -2935,6 +2935,17 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
     } for s in sales]
 
 
+@app.post("/api/finished/produce-gips")
+def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_db),
+                      current_user=Depends(auth.admin_or_warehouse)):
+    """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqarish."""
+    who = current_user.full_name or current_user.username
+    result = crud.produce_gips_finished_product(db, data, created_by=who)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
 @app.post("/api/finished/produce")
 def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulot ishlab chiqarish."""
