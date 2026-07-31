@@ -565,6 +565,7 @@ class EmployeeCreate(BaseModel):
     per_unit_type: str = Field(default="blok", description="blok/metr/dona/gips_metr/gips_qop/gips_kg")
     gul_rate: Optional[float] = Field(default=None, description="Qoliplik gul (dona) uchun — qo'shimcha narx")
     extra_monthly: Optional[float] = Field(default=None, description="Ixtiyoriy qo'shimcha doimiy oylik")
+    production_type: Optional[str] = Field(default=None, description="penoplast / gips / umumiy")
     notes: Optional[str] = None
 
 
@@ -578,6 +579,7 @@ class EmployeeUpdate(BaseModel):
     per_unit_type: Optional[str] = None
     gul_rate: Optional[float] = None
     extra_monthly: Optional[float] = None
+    production_type: Optional[str] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
 
@@ -593,6 +595,7 @@ class EmployeeRead(BaseModel):
     per_unit_type: str
     gul_rate: Optional[float] = None
     extra_monthly: Optional[float] = None
+    production_type: Optional[str] = None
     is_active: bool
     notes: Optional[str] = None
     phone: Optional[str] = None
