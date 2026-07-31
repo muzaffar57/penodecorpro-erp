@@ -3944,18 +3944,21 @@ async function markReadySelected() {
     try { gipsInvCache = await fetch('/api/inventory').then(r => r.json()); } catch(e) { gipsInvCache = []; }
   }
 
-  _readyModalData = { planned, hasGips, orderData, gipsAdditives };
+  const hasCoatable = (planned > 0) || (orderData && orderData.items && orderData.items.some(it => it.is_coated));
+  _readyModalData = { planned, hasGips, hasCoatable, orderData, gipsAdditives };
 
   // Kartochka ichini quramiz
   const body = document.getElementById('readyModalBody');
   let html = '';
 
-  // LOY
-  html += `<div>
-    <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">🪣 Haqiqatda necha kg loy ishlatildi?</label>
-    ${planned > 0 ? `<div style="font-size:12px;color:#94A3B8;margin-bottom:6px">📋 Rejada: ${planned} kg (xomashyo allaqachon ayirilgan)</div>` : `<div style="font-size:12px;color:#94A3B8;margin-bottom:6px">Bo'sh qoldirsangiz faqat kesish hisoblanadi</div>`}
-    <input type="number" id="rm-loy" value="${planned > 0 ? planned : ''}" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-  </div>`;
+  // LOY — faqat qoplamali (Penoplast/Bazalt) detal bo'lsa ko'rinadi
+  if (hasCoatable) {
+    html += `<div>
+      <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">🪣 Haqiqatda necha kg loy ishlatildi?</label>
+      ${planned > 0 ? `<div style="font-size:12px;color:#94A3B8;margin-bottom:6px">📋 Rejada: ${planned} kg (xomashyo allaqachon ayirilgan)</div>` : `<div style="font-size:12px;color:#94A3B8;margin-bottom:6px">Bo'sh qoldirsangiz faqat kesish hisoblanadi</div>`}
+      <input type="number" id="rm-loy" value="${planned > 0 ? planned : ''}" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+    </div>`;
+  }
 
   // GIPS
   if (hasGips) {
