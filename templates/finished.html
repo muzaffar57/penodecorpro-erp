@@ -140,10 +140,20 @@
         <input type="text" id="gp-price" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
       <div style="background:#FCE7F3;border-radius:10px;padding:14px">
-        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Qaysi Gips xomashyosi ishlatildi? <span style="font-weight:400;font-size:11.5px">— ixtiyoriy, tan narx uchun</span></label>
+        <div style="font-size:12px;color:#9D174D;font-weight:700;margin-bottom:10px">🧱 ASOSIY GIPS XOMASHYOSI — shu mahsulotni tayyorlash uchun ishlatilgan Gipsning o'zi (Serpiyanka/Po'lat sim kabi qo'shimcha EMAS)</div>
+        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Qaysi Gips (ombordagi) ishlatildi?</label>
         <select id="gp-gips-inv" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box;margin-bottom:10px"><option value="">— Tanlanmadi —</option></select>
-        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Sarflangan Gips (kg)</label>
+        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Sarflangan Gips miqdori (kg)</label>
         <input type="number" id="gp-gips-kg" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <div style="font-size:11.5px;color:#BE185D;margin-top:8px">⚠️ Ikkalasini ham to'ldiring — aks holda tan narxi 0 chiqadi</div>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-size:13px;font-weight:600;color:#334155;margin:0">Qo'shimchalar (Serpiyanka, Po'lat sim va h.k.) <span style="font-weight:400;color:#94A3B8;font-size:11.5px">— ixtiyoriy</span></label>
+          <button type="button" onclick="addGpAdditive()" style="border:1px solid #E2E8F0;background:#fff;color:#475569;font-size:12.5px;padding:6px 12px;border-radius:8px;cursor:pointer">+ Qo'shimcha qo'shish</button>
+        </div>
+        <div id="gp-additives-list"></div>
       </div>
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
@@ -943,12 +953,39 @@ async function reduceProduction(id, qty, item) {
 
 let _gipsInvCacheFp = null;
 
+function addGpAdditive() {
+  const list = document.getElementById('gp-additives-list');
+  if (!list) return;
+  const opts = (_gipsInvCacheFp || []).map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'gp-add-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
+  row.innerHTML = `
+    <select class="gp-add-inv" style="flex:2;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px"><option value="">— Material tanlang —</option>${opts}</select>
+    <input type="number" class="gp-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px">
+    <button type="button" onclick="this.closest('.gp-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+function collectGpAdditives() {
+  const rows = document.querySelectorAll('.gp-add-row');
+  const result = [];
+  rows.forEach(row => {
+    const invId = parseInt(row.querySelector('.gp-add-inv')?.value) || null;
+    const qty = parseFloat(row.querySelector('.gp-add-qty')?.value) || 0;
+    if (invId && qty > 0) result.push({ inventory_id: invId, quantity: qty });
+  });
+  return result;
+}
+
 async function openGipsProduceModal() {
   document.getElementById('gp-name').value = '';
   document.getElementById('gp-unit').value = 'metr';
   document.getElementById('gp-qty').value = '';
   document.getElementById('gp-price').value = '';
   document.getElementById('gp-gips-kg').value = '';
+  document.getElementById('gp-additives-list').innerHTML = '';
 
   const sel = document.getElementById('gp-gips-inv');
   if (!_gipsInvCacheFp) {
@@ -974,6 +1011,7 @@ async function submitGipsProduce() {
   const price = parseNum(document.getElementById('gp-price').value) || 0;
   const gipsInvId = parseInt(document.getElementById('gp-gips-inv').value) || null;
   const gipsKg = parseFloat(document.getElementById('gp-gips-kg').value) || null;
+  const additives = collectGpAdditives();
 
   if (!name) { showMsg('Mahsulot nomini kiriting', 'error'); return; }
   if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
@@ -984,7 +1022,8 @@ async function submitGipsProduce() {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         name, unit, quantity: qty, unit_price: price,
-        gips_inventory_id: gipsInvId, gips_kg_used: gipsKg
+        gips_inventory_id: gipsInvId, gips_kg_used: gipsKg,
+        additives
       })
     });
     const r = await res.json();
