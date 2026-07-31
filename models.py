@@ -637,6 +637,7 @@ class Employee(Base):
     # GIPS uchun qo'shimcha to'lov turlari:
     gul_rate = Column(Numeric(12, 2), nullable=True)        # Qoliplik gul (dona) uchun — alohida, qo'shimcha narx
     extra_monthly = Column(Numeric(12, 2), nullable=True)   # Istalgan to'lov turiga qo'shiladigan, ixtiyoriy doimiy oylik
+    production_type = Column(String(20), nullable=True)     # penoplast / gips / umumiy — Gips/Penoplast mustaqil hisobot uchun
 
     is_active = Column(Boolean, default=True)
     hire_date = Column(DateTime, default=datetime.utcnow)
