@@ -97,6 +97,42 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
     is_peno = getattr(item_data, 'is_penoplast', False)
     is_default = getattr(item_data, 'is_default_penoplast', False)
 
+    # MUHIM: agar shu nomdagi xomashyo avval o'chirilgan bo'lsa (lekin xarid
+    # tarixi bo'lgani uchun butunlay o'chmasdan, "yashirin" — is_deleted=True
+    # holda qolgan bo'lsa) — YANGI qator yaratmaymiz (bu — nom takrorlanishi
+    # xatosini keltirib chiqarardi), aksincha O'SHA eskisini "tiriltiramiz"
+    # (is_deleted=False) va yangi ma'lumotlar bilan yangilaymiz.
+    existing_deleted = db.query(Inventory).filter(
+        Inventory.item_name == item_data.item_name,
+        Inventory.is_deleted.is_(True)
+    ).first()
+    if existing_deleted:
+        existing_deleted.is_deleted = False
+        existing_deleted.stock_quantity = item_data.stock_quantity
+        existing_deleted.unit = item_data.unit
+        existing_deleted.min_stock = item_data.min_stock
+        if item_data.price_per_unit is not None:
+            existing_deleted.price_per_unit = item_data.price_per_unit
+        if item_data.volume_per_unit is not None:
+            existing_deleted.volume_per_unit = item_data.volume_per_unit
+        existing_deleted.is_penoplast = is_peno
+        existing_deleted.is_default_penoplast = (is_default and is_peno)
+        if getattr(item_data, 'category', None):
+            existing_deleted.category = item_data.category
+        existing_deleted.notes = item_data.notes
+        if getattr(item_data, 'serp_ratio_per_m2', None) is not None:
+            existing_deleted.serp_ratio_per_m2 = item_data.serp_ratio_per_m2
+        if getattr(item_data, 'kley_ratio_per_m2', None) is not None:
+            existing_deleted.kley_ratio_per_m2 = item_data.kley_ratio_per_m2
+        if is_peno and is_default:
+            db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
+                {"is_default_penoplast": False}
+            )
+            existing_deleted.is_default_penoplast = True
+        db.commit()
+        db.refresh(existing_deleted)
+        return existing_deleted
+
     # Agar asosiy deb belgilangan bo'lsa — eskisini bekor qilamiz
     if is_peno and is_default:
         db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
