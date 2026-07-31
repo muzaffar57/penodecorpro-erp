@@ -3325,6 +3325,8 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
         unit=data.unit,
         unit_price=data.unit_price,
         cost_price=cost_price,
+        gips_kg_used=data.gips_kg_used,
+        gips_inventory_id=data.gips_inventory_id,
         source=StockSource.PRODUCED,
         production_status=ProductionStatus.READY,
         finished_production_at=datetime.utcnow(),
@@ -3598,6 +3600,16 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
                     self.id = None
                     self.order_number = "ISHLAB CHIQARISH"
             services.return_loy_ingredients(db, _FakeOrder(fp.recipe_id), float(fp.actual_loy_kg))
+        # GIPS qaytadi
+        if fp.gips_kg_used and fp.gips_kg_used > 0 and fp.gips_inventory_id:
+            gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).with_for_update().first()
+            if gips_item:
+                gips_item.stock_quantity = float(gips_item.stock_quantity or 0) + float(fp.gips_kg_used)
+                log_movement(
+                    db, gips_item.id, gips_item.item_name, movement_type="in",
+                    quantity=float(fp.gips_kg_used), unit=gips_item.unit,
+                    reason=f"Gips mahsulot o'chirildi: {fp.name}"
+                )
 
     db.delete(fp)
     db.commit()
@@ -3877,6 +3889,39 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
     unit_price = float(fp.unit_price or 0)
     revenue = qty * unit_price
     total_cost = float(fp.cost_price or 0)
+
+    # GIPS mahsulotlar uchun — alohida, aniq tafsilot
+    if (fp.category or '').lower() == 'gips':
+        gips_kg = float(fp.gips_kg_used or 0)
+        gips_cost_per_kg = 0.0
+        gips_item_name = None
+        if fp.gips_inventory_id:
+            gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).first()
+            if gips_item:
+                gips_cost_per_kg = float(gips_item.price_per_unit or 0)
+                gips_item_name = gips_item.item_name
+        profit = revenue - total_cost
+        margin = (profit / revenue * 100) if revenue > 0 else 0
+        return {
+            "success": True,
+            "id": fp.id,
+            "name": fp.name,
+            "category": "gips",
+            "quantity": qty,
+            "unit": fp.unit,
+            "unit_price": unit_price,
+            "revenue": round(revenue),
+            "gips_kg_used": gips_kg,
+            "gips_item_name": gips_item_name,
+            "gips_cost_per_kg": round(gips_cost_per_kg),
+            "total_cost": round(total_cost),
+            "profit": round(profit),
+            "margin": round(margin, 1),
+            "cost_per_unit": round(total_cost / qty) if qty > 0 else 0,
+            "profit_per_unit": round(profit / qty) if qty > 0 else 0,
+            "source": fp.source.value,
+            "production_status": fp.production_status.value if fp.production_status else None,
+        }
 
     # Loy narxi
     loy_cost = 0.0
