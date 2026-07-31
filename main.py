@@ -1168,6 +1168,26 @@ def api_get_employee_advances(employee_id: int, year: int, month: int,
     }
 
 
+@app.get("/api/employees/{employee_id}/monthly-adjustment")
+def api_get_employee_adjustment(employee_id: int, year: int, month: int,
+                                  db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Hodim uchun, shu oy uchun saqlangan qo'lda kamaytirishni qaytaradi."""
+    adj = crud.get_employee_monthly_adjustment(db, employee_id, year, month)
+    if not adj:
+        return {"reduction_amount": 0, "reason": None}
+    return {"reduction_amount": float(adj.reduction_amount or 0), "reason": adj.reason}
+
+
+@app.post("/api/employees/{employee_id}/monthly-adjustment")
+def api_set_employee_adjustment(employee_id: int, year: int, month: int,
+                                  reduction_amount: float = 0, reason: Optional[str] = None,
+                                  db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Hodim uchun, shu oy uchun qo'lda kamaytirishni yozadi/yangilaydi/o'chiradi (0 bo'lsa)."""
+    who = current_user.full_name or current_user.username
+    crud.set_employee_monthly_adjustment(db, employee_id, year, month, reduction_amount, reason, created_by=who)
+    return {"status": "ok"}
+
+
 @app.delete("/api/employees/advance/{advance_id}")
 def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     if not crud.delete_employee_advance(db, advance_id):
