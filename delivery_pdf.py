@@ -305,9 +305,11 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         line_sum = unit_p * qty
         delivery_total += line_sum
 
+        item_label = f"🧱 {oi.name} (GIPS)" if (oi.category or '').lower() == 'gips' else (oi.name or "—")
+
         data.append([
             str(i),
-            oi.name or "—",
+            item_label,
             f"{_num(qty)} {di.unit}",
             _fmt(unit_p),
             _fmt(line_sum),
