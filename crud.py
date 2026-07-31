@@ -2091,11 +2091,13 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
 
     # Xomashyo yetarliligini tekshiramiz
     check = services.check_inventory_for_order(db, order)
-    if not check["enough"]:
+    gcheck = services.check_gips_for_order(db, order)
+    all_shortages = list(check.get("shortages", [])) + list(gcheck.get("shortages", []))
+    if all_shortages:
         return {
             "success": False,
             "message": "Xomashyo yetishmayapti!",
-            "shortages": check["shortages"]
+            "shortages": all_shortages
         }
 
     # Ombordan penoplast yechamiz
@@ -2109,6 +2111,19 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
 
     # Tayyor mahsulotlarni yechamiz
     log.extend(_take_finished_for_order(db, order))
+
+    # GIPS — asosiy xomashyo va qo'shimchalari (Loy kabi, "faollashtirish"
+    # bosqichida, rejalashtirilgan miqdorda ayiriladi)
+    planned_gips = float(order.planned_gips_kg or 0)
+    if planned_gips > 0 and order.gips_inventory_id:
+        r = services.deduct_gips_main(db, order.gips_inventory_id, planned_gips, order,
+                                       reason=f"Buyurtma jarayonga olindi ({order.order_number})")
+        if r:
+            log.append(r)
+    gips_adds = [{"inventory_id": a.inventory_id, "qty": float(a.planned_qty or 0)} for a in order.gips_additives]
+    if gips_adds:
+        log.extend(services.deduct_gips_additives(db, gips_adds, order,
+                                                    reason=f"Buyurtma jarayonga olindi ({order.order_number})"))
 
     order.status = OrderStatus.IN_PROGRESS
     db.commit()
