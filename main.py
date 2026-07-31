@@ -2042,6 +2042,12 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
         or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
     )
 
+    # MUHIM: yuqorida yaratilgan yangi "ombor harakati" yozuvlari (masalan
+    # Gips qaytarilgani) hali bazaga yozilmagan (faqat xotirada) bo'lishi
+    # mumkin. Ularni ENDI, delete_order ichidagi "bog'lanishni uzish"
+    # so'rovidan OLDIN, bazaga yozib qo'yamiz — aks holda FK xatosi chiqadi.
+    db.flush()
+
     if not crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
