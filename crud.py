@@ -3201,6 +3201,48 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     }
 
 
+def record_finished_product_loss(db: Session, data, created_by: str = None) -> dict:
+    """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni KAMAYTIRADI
+    (butunlay o'chirmaydi). Tan narx — o'sha mahsulotning 1 birlik tan
+    narxiga proporsional hisoblanadi, va Moliyada Brak xarajatiga qo'shiladi."""
+    from models import FinishedProduct, FinishedProductLoss
+
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == data.finished_product_id).with_for_update().first()
+    if not fp:
+        return {"success": False, "message": "Mahsulot topilmadi"}
+
+    available = float(fp.quantity or 0)
+    if data.quantity > available + 0.001:
+        return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} kamaytira olmaysiz"}
+
+    unit_cost = (float(fp.cost_price or 0) / available) if available > 0 else 0
+    cost_amount = unit_cost * data.quantity
+
+    fp.quantity = available - data.quantity
+    if fp.cost_price:
+        fp.cost_price = max(0, float(fp.cost_price) - cost_amount)
+
+    loss = FinishedProductLoss(
+        finished_product_id=fp.id,
+        product_name=fp.name,
+        category=fp.category,
+        quantity=data.quantity,
+        unit=fp.unit,
+        cost_amount=cost_amount,
+        reason=data.reason,
+        created_by=created_by
+    )
+    db.add(loss)
+    db.commit()
+    db.refresh(loss)
+    return {
+        "success": True,
+        "loss_id": loss.id,
+        "cost_amount": float(cost_amount),
+        "remaining_stock": float(fp.quantity)
+    }
+
+
 def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotadi (buyurtma/Yuk xatisiz).
     Qoldiqdan ayiradi, savdo yozuvini yaratadi. cost_amount — mahsulotning
