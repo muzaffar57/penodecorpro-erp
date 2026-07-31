@@ -1822,6 +1822,20 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     daromad = sum(float(o.agreed_amount or o.total_amount or 0) for o in ready_orders)
     buyurtmalar_soni = len(ready_orders)
 
+    # ── TAYYOR MAHSULOT TO'G'RIDAN-TO'G'RI SOTUVI (masalan G'isht) ──
+    # Bu — buyurtmasiz sotuv, alohida daromad manbai. MUHIM: bu summa
+    # Usta KPI, Ehson, hodim foiz-asosidagi to'lovlariga TA'SIR QILMAYDI
+    # (ular faqat haqiqiy ISHLAB CHIQARISH buyurtmalariga tegishli) —
+    # faqat umumiy "Jami daromad" va "Sof foyda"ga qo'shiladi.
+    from models import FinishedProductSale as _FPS
+    fp_sales = db.query(_FPS).filter(
+        extract('year', _FPS.sold_at) == year,
+        extract('month', _FPS.sold_at) == month
+    ).all()
+    fp_sales_daromad = sum(float(s.total_amount or 0) for s in fp_sales)
+    fp_sales_tannarx = sum(float(s.cost_amount or 0) for s in fp_sales)
+    fp_sales_foyda = fp_sales_daromad - fp_sales_tannarx
+
     # Har buyurtma uchun foyda hisoblaymiz
     ishlab_chiqarish_xarajat = 0.0
     for order in ready_orders:
@@ -2063,8 +2077,8 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     hodimlar_moslashuvchan_xarajat = emp_result["total"]
     jami_xarajat = jami_xarajat_eski + usta_kpi_xarajat + ehson_xarajat + hodimlar_moslashuvchan_xarajat
 
-    sof_foyda = sof_daromad - jami_xarajat
-    foyda_foiz = (sof_foyda / daromad * 100) if daromad > 0 else 0
+    sof_foyda = sof_daromad - jami_xarajat + fp_sales_foyda
+    foyda_foiz = (sof_foyda / (daromad + fp_sales_daromad) * 100) if (daromad + fp_sales_daromad) > 0 else 0
 
     # ── 5. NAQD XARAJATLAR (xomashyo xaridi + transport) ─────
     # Diqqat: bu "ishlab_chiqarish_xarajat" dan FARQ QILADI —
@@ -2126,7 +2140,11 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
             "", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
             "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"
         ][month],
-        "daromad": daromad,
+        "daromad": round(daromad + fp_sales_daromad),
+        "daromad_buyurtmalardan": round(daromad),
+        "fp_sales_daromad": round(fp_sales_daromad),
+        "fp_sales_foyda": round(fp_sales_foyda),
+        "fp_sales_soni": len(fp_sales),
         "ishlab_chiqarish_xarajat": ishlab_chiqarish_xarajat,
         "sof_daromad": sof_daromad,
         "buyurtmalar_soni": buyurtmalar_soni,
