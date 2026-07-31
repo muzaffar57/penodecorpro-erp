@@ -87,7 +87,8 @@ def generate_split_profit_pdf(split: dict, year: int, month: int) -> bytes:
             ["Daromad", f"{_fmt(data['daromad'])} so'm"],
             ["Xomashyo tan narxi", f"-{_fmt(data['xomashyo_xarajati'])} so'm"],
             ["Hodim to'lovi", f"-{_fmt(data['hodim_xarajati'])} so'm"],
-            ["Umumiy xarajat ulushi (arenda/svet/soliq/Ehson/brak)", f"-{_fmt(data['umumiy_xarajat_ulushi'])} so'm"],
+            ["Brak/yo'qotish (aniq)", f"-{_fmt(data['brak_xarajati'])} so'm"],
+            ["Umumiy xarajat ulushi (arenda/svet/soliq/Ehson) — taxminiy", f"-{_fmt(data['umumiy_xarajat_ulushi'])} so'm"],
             ["Jami xarajat", f"-{_fmt(data['jami_xarajat'])} so'm"],
         ]
         tbl_data = [[Paragraph(r[0], ParagraphStyle('c1', fontName='Helvetica', fontSize=9.5, textColor=DARK)),
@@ -126,8 +127,9 @@ def generate_split_profit_pdf(split: dict, year: int, month: int) -> bytes:
 
     el.append(Spacer(1, 6))
     el.append(Paragraph(
-        "⚠️ Eslatma: Yo'nalishi aniq belgilanmagan hodimlar va umumiy xarajatlar (arenda, svet, soliq, Ehson, brak) — "
-        "ikkala yo'nalish ham bitta joyda faoliyat yuritgani uchun, daromad nisbatiga qarab taxminiy taqsimlangan.",
+        "⚠️ Eslatma: Yo'nalishi aniq belgilanmagan hodimlar va umumiy xarajatlar (arenda, svet, soliq, Ehson) — "
+        "ikkala yo'nalish ham bitta joyda faoliyat yuritgani uchun, daromad nisbatiga qarab taxminiy taqsimlangan. "
+        "Xomashyo va Brak/yo'qotish — aniq, materialning o'z turi bo'yicha hisoblangan.",
         ParagraphStyle('note', fontName='Helvetica-Oblique', fontSize=8, textColor=GRAY, leading=11)
     ))
 
