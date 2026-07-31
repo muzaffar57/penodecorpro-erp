@@ -296,7 +296,7 @@
                      oninput="checkLoyStock();updateLiveStats()" style="border-color:var(--gold)">
             </div>
 
-            <div id="gips-section-wrap" style="display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border2)">
+            <div id="gips-section-wrap" style="display:none;margin-top:14px;padding:14px;border-radius:10px;background:#FCE7F3;border:1px solid #F9A8D4">
               <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">🧱 Gips xomashyosi</div>
               <div class="form-group" style="margin-bottom:10px">
                 <label>Qaysi Gips xomashyosi ishlatiladi</label>
@@ -1892,9 +1892,24 @@ let gipsInvCache = null;
 function checkGipsSectionVisibility() {
   const wrap = document.getElementById('gips-section-wrap');
   if (!wrap) return;
-  const anyGips = Array.from(document.querySelectorAll('.i-type')).some(el => el.value === 'gips');
+  const rows = Array.from(document.querySelectorAll('.detal'));
+  const namedRows = rows.filter(r => r.querySelector('.i-name')?.value?.trim());
+  const anyGips = namedRows.some(r => r.querySelector('.i-type')?.value === 'gips');
   wrap.style.display = anyGips ? '' : 'none';
   if (anyGips && !gipsInvCache) loadGipsInventoryOptions();
+
+  // Faqat Gips (Penoplast/Bazalt aralashmagan) buyurtmalarda — Retsept,
+  // Loy miqdori va "1 m³ asosiy narxi" maydonlari BLOKLANADI (ular Gipsga
+  // umuman aloqasi yo'q). Aralash bo'lsa — ochiq qoladi.
+  const onlyGips = namedRows.length > 0 && namedRows.every(r => r.querySelector('.i-type')?.value === 'gips');
+  ['recipe_id', 'loy_kg', 'base_price'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = onlyGips;
+    el.style.opacity = onlyGips ? '0.45' : '';
+    el.style.cursor = onlyGips ? 'not-allowed' : '';
+    el.style.background = onlyGips ? 'var(--border2)' : '';
+  });
 }
 
 async function loadGipsInventoryOptions() {
