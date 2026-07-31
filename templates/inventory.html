@@ -39,6 +39,7 @@
 .cat-Qattiq{background:#FEF3C7;color:#854F0B}
 .cat-Boshqa{background:var(--border2);color:var(--text2)}
 .cat-Tayyor{background:#DCFCE7;color:#166534}
+.cat-Gips{background:#FCE7F3;color:#9D174D}
 .mat-qty-val{font-size:17px;font-weight:700}
 .stat-badge{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;padding:5px 13px;border-radius:20px}
 .stat-badge.ok{background:#DCFCE7;color:#166534}
@@ -84,6 +85,7 @@
       <option value="Penoplast">Penoplast</option>
       <option value="Kimyoviy qo'shimchalar">Kimyoviy qo'shimchalar</option>
       <option value="Qattiq qotishmalar">Minerallar</option>
+      <option value="Gips">🧱 Gips</option>
       <option value="Boshqa">Boshqa</option>
     </select>
     <select id="statusFilter" onchange="filterMaterials()">
@@ -125,8 +127,8 @@
     {% set is_loy = 'Tayyor loy' in item.item_name %}
     {% set is_peno = item.is_penoplast or 'penoplast' in item.item_name|lower %}
     {% set cat_label = 'Tayyor loy' if is_loy else (item.category or 'Boshqa') %}
-    {% set cat_class = 'Tayyor' if is_loy else ('Penoplast' if is_peno else (item.category if item.category in ['Kimyoviy qo\'shimchalar','Qattiq qotishmalar'] else 'Boshqa')) %}
-    {% set cat_css = 'cat-Kimyoviy' if cat_class == "Kimyoviy qo'shimchalar" else ('cat-Qattiq' if cat_class == 'Qattiq qotishmalar' else 'cat-' + cat_class) %}
+    {% set cat_class = 'Tayyor' if is_loy else ('Penoplast' if is_peno else (item.category if item.category in ['Kimyoviy qo\'shimchalar','Qattiq qotishmalar','Gips'] else 'Boshqa')) %}
+    {% set cat_css = 'cat-Kimyoviy' if cat_class == "Kimyoviy qo'shimchalar" else ('cat-Qattiq' if cat_class == 'Qattiq qotishmalar' else ('cat-Gips' if cat_class == 'Gips' else 'cat-' + cat_class)) %}
     {% if qty <= minq %}{% set st = 'danger' %}{% set st_label = 'Tugagan' if qty <= 0 else 'Kam!' %}
     {% elif qty <= minq * 1.5 %}{% set st = 'warn' %}{% set st_label = 'Oz' %}
     {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% endif %}
@@ -413,7 +415,7 @@ async function editCategory(el) {
   const id = el.dataset.id;
   const current = el.dataset.category || 'Boshqa';
   const val = prompt(
-    "Kategoriya (masalan: Penoplast, Kimyoviy qo'shimchalar, Qattiq qotishmalar, Boshqa):",
+    "Kategoriya (masalan: Penoplast, Kimyoviy qo'shimchalar, Qattiq qotishmalar, Gips, Boshqa):",
     current
   );
   if (val === null || !val.trim()) return;
