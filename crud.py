@@ -4202,6 +4202,7 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
         per_unit_type=data.per_unit_type,
         gul_rate=getattr(data, 'gul_rate', None),
         extra_monthly=getattr(data, 'extra_monthly', None),
+        production_type=getattr(data, 'production_type', None),
         notes=data.notes
     )
     db.add(emp)
