@@ -3295,6 +3295,47 @@ def create_gisht_from_order(db: Session, order, quantity: float, created_by: str
     return {"success": True, "finished_product_id": fp.id, "quantity": quantity}
 
 
+def produce_gips_finished_product(db: Session, data, created_by: str = None) -> dict:
+    """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqaradi.
+    Agar Gips xomashyosi va sarflangan kg ko'rsatilgan bo'lsa — ombordan
+    haqiqatan ayiradi va tan narxni shunga qarab hisoblaydi. Ko'rsatilmasa
+    — tan narxi 0 bo'ladi (masalan mavjud zaxiradan qayta ishlangan bo'lsa)."""
+    from models import FinishedProduct, Inventory, StockSource, ProductionStatus
+
+    cost_price = 0.0
+    if data.gips_inventory_id and data.gips_kg_used and data.gips_kg_used > 0:
+        gips_item = db.query(Inventory).filter(Inventory.id == data.gips_inventory_id).with_for_update().first()
+        if not gips_item:
+            return {"success": False, "message": "Tanlangan Gips xomashyosi topilmadi"}
+        if float(gips_item.stock_quantity or 0) < data.gips_kg_used:
+            return {"success": False, "message": f"Omborda faqat {float(gips_item.stock_quantity):.1f} kg {gips_item.item_name} bor"}
+        gips_item.stock_quantity = float(gips_item.stock_quantity) - data.gips_kg_used
+        cost_price = data.gips_kg_used * float(gips_item.price_per_unit or 0)
+        log_movement(
+            db, gips_item.id, gips_item.item_name, movement_type="out",
+            quantity=data.gips_kg_used, unit=gips_item.unit,
+            reason=f"Gips mahsulot ishlab chiqarish: {data.name}"
+        )
+
+    fp = FinishedProduct(
+        name=data.name,
+        category="gips",
+        quantity=data.quantity,
+        unit=data.unit,
+        unit_price=data.unit_price,
+        cost_price=cost_price,
+        source=StockSource.PRODUCED,
+        production_status=ProductionStatus.READY,
+        finished_production_at=datetime.utcnow(),
+        created_by=created_by,
+        notes=data.notes
+    )
+    db.add(fp)
+    db.commit()
+    db.refresh(fp)
+    return {"success": True, "finished_product_id": fp.id}
+
+
 def produce_finished_product(db: Session, data: ProduceCreate, created_by: str = None) -> dict:
     """Ishlab chiqarish boshlanadi:
     - Penoplast DARHOL ombordan yechiladi (kesish boshlanadi)
