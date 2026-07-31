@@ -176,6 +176,15 @@
     <div class="card-body"><div class="chart-wrap"><canvas id="monthChart"></canvas></div></div>
   </div>
 
+  <!-- Penoplast vs Gips -->
+  <div class="card mb-16">
+    <div class="card-head">
+      <h3>🏭 Penoplast va 🧱 Gips — oylik taqqoslash</h3>
+      <div style="display:flex;gap:16px;font-size:13px" id="pg-today-split"></div>
+    </div>
+    <div class="card-body"><div class="chart-wrap"><canvas id="prodTypeChart"></canvas></div></div>
+  </div>
+
   <!-- XOMASHYO XARIDLARI -->
   <div class="card mb-16" style="border-left:3px solid #1E40AF;border-radius:0 12px 12px 0">
     <div class="card-head">
@@ -434,7 +443,15 @@ async function loadAll(){
 
   buildStageList(c.statuses);
   buildWarnList(s.low_stock_items);
-  buildMonthChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
+  buildMonthChart(c.months);buildProdTypeChart(c.months);buildStatusChart(c.statuses);buildMasterList(c.master_kpi);
+
+  const pgSplit = document.getElementById('pg-today-split');
+  if (pgSplit) {
+    pgSplit.innerHTML = `
+      <span style="color:#1E40AF;font-weight:600">🏭 ${fmt(t.today_penoplast_revenue||0)} so'm</span>
+      <span style="color:#9D174D;font-weight:600">🧱 ${fmt(t.today_gips_revenue||0)} so'm</span>
+    `;
+  }
   loadDebts();
   loadDeliveryStats();
   loadPurchaseStats();
@@ -744,6 +761,17 @@ function buildMonthChart(months){
       {type:'line',label:'Daromad',data:months.map(m=>m.revenue),borderColor:COLORS.green,backgroundColor:'rgba(39,174,96,0.08)',borderWidth:2,pointBackgroundColor:COLORS.green,pointRadius:4,tension:.4,fill:true,yAxisID:'y2'}
     ]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{y1:{position:'left',beginAtZero:true,ticks:{stepSize:1}},y2:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{callback:v=>fmt(v)}}}}
+  });
+}
+function buildProdTypeChart(months){
+  if(window._ptC)window._ptC.destroy();
+  window._ptC=new Chart(document.getElementById('prodTypeChart').getContext('2d'),{
+    type:'bar',
+    data:{labels:months.map(m=>m.label),datasets:[
+      {label:'🏭 Penoplast va boshqa',data:months.map(m=>m.penoplast_revenue||0),backgroundColor:'rgba(30,64,175,0.75)',borderRadius:5},
+      {label:'🧱 Gips',data:months.map(m=>m.gips_revenue||0),backgroundColor:'rgba(157,23,77,0.75)',borderRadius:5}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{x:{stacked:false},y:{beginAtZero:true,ticks:{callback:v=>fmt(v)}}}}
   });
 }
 function buildStatusChart(statuses){
