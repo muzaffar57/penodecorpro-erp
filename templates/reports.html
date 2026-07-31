@@ -196,6 +196,16 @@
     </div>
   </div>
 
+  <!-- Penoplast vs Gips -->
+  <div class="bi-section">
+    <div class="bi-card bi-fade">
+      <div class="bi-card-body">
+        <div class="bi-section-title" style="margin-bottom:12px"><i class="ti ti-scale"></i> 🏭 Penoplast va 🧱 Gips — daromad dinamikasi</div>
+        <div class="bi-chart-tall"><canvas id="prodTypeTrendChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Pul oqimi (5-qator davomi) -->
   <div class="bi-section">
     <div class="bi-card bi-fade">
@@ -385,6 +395,33 @@ async function loadCharts(){
         { label:'Daromad', data:hist.map(h=>h.daromad), borderColor:'#2563EB', backgroundColor:'rgba(37,99,235,.07)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
         { label:'Xarajat', data:hist.map(h=>h.jami_xarajat), borderColor:'#EF4444', backgroundColor:'rgba(239,68,68,.05)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2 },
         { label:'Sof foyda', data:hist.map(h=>h.sof_foyda), borderColor:'#22C55E', backgroundColor:'rgba(34,197,94,.05)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{duration:800,easing:'easeOutQuart'},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'top',align:'end',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12},color:'#4B5563'}},
+        tooltip:{backgroundColor:'#111827',padding:11,cornerRadius:8,titleFont:{size:12},bodyFont:{size:12.5},
+          callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmt(ctx.parsed.y)} so'm`}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11},color:'#9CA3AF'}},
+        y:{grid:{color:'#F0F1F3'},border:{display:false},ticks:{font:{size:10.5},color:'#9CA3AF',callback:v=>fmtShort(v)}}
+      }
+    }
+  });
+
+  // Penoplast vs Gips — daromad dinamikasi (get_monthly_report'dagi
+  // turlar_boyicha maydonidan, qo'shimcha so'rov shart emas)
+  if (window._ptTrendC) window._ptTrendC.destroy();
+  window._ptTrendC = new Chart(document.getElementById('prodTypeTrendChart'), {
+    type: 'bar',
+    data: {
+      labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
+      datasets: [
+        { label:'🏭 Penoplast va boshqa', data:hist.map(h=>h.turlar_boyicha?.penoplast?.daromad||0), backgroundColor:'rgba(30,64,175,.75)', borderRadius:5 },
+        { label:'🧱 Gips', data:hist.map(h=>h.turlar_boyicha?.gips?.daromad||0), backgroundColor:'rgba(157,23,77,.75)', borderRadius:5 }
       ]
     },
     options: {
