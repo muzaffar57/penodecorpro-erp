@@ -39,6 +39,102 @@ def _fmt(n):
         return "0"
 
 
+def generate_split_profit_pdf(split: dict, year: int, month: int) -> bytes:
+    """Gips va Penoplast uchun MUSTAQIL sof foyda hisoboti — PDF.
+    split — services.calculate_split_profit_report() natijasi."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=1.3*cm, rightMargin=1.3*cm,
+        topMargin=1*cm, bottomMargin=1*cm,
+        title=f"Gips-Penoplast hisobot {MONTH_NAMES[month]} {year}"
+    )
+    W = A4[0] - 2.6*cm
+
+    st_title = ParagraphStyle('t', fontName='Helvetica-Bold', fontSize=16,
+                              textColor=colors.white, alignment=TA_CENTER, leading=20)
+    st_sub = ParagraphStyle('s', fontName='Helvetica', fontSize=9,
+                            textColor=GOLD, alignment=TA_CENTER, leading=12)
+    st_sec = ParagraphStyle('sec', fontName='Helvetica-Bold', fontSize=13,
+                            textColor=colors.white, alignment=TA_CENTER, leading=16)
+    st_small = ParagraphStyle('sm', fontName='Helvetica', fontSize=9,
+                              textColor=GRAY, alignment=TA_CENTER)
+
+    el = []
+
+    header = Table([[Paragraph("PENODECORPRO", st_title)],
+                     [Paragraph("Gips va Penoplast — mustaqil sof foyda hisoboti", st_sub)]], colWidths=[W])
+    header.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), DARK),
+        ('TOPPADDING', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
+    ]))
+    el.append(header)
+    el.append(Spacer(1, 4))
+    el.append(Paragraph(f"<b>{MONTH_NAMES[month]} {year}</b>", ParagraphStyle('m', fontName='Helvetica-Bold', fontSize=12, alignment=TA_CENTER, textColor=DARK)))
+    el.append(Spacer(1, 10))
+
+    du = split.get("daromad_ulushi", {})
+    el.append(Paragraph(
+        f"Daromad ulushi: 🏭 Penoplast {du.get('penoplast_foiz',0)}% · 🧱 Gips {du.get('gips_foiz',0)}%"
+        f" &nbsp;&nbsp;|&nbsp;&nbsp; Umumiy xarajatlar (arenda/svet/soliq/Ehson/brak) shu nisbatda taqsimlangan",
+        st_small
+    ))
+    el.append(Spacer(1, 14))
+
+    def section(title, bg, data):
+        rows = [
+            ["Daromad", f"{_fmt(data['daromad'])} so'm"],
+            ["Xomashyo tan narxi", f"-{_fmt(data['xomashyo_xarajati'])} so'm"],
+            ["Hodim to'lovi", f"-{_fmt(data['hodim_xarajati'])} so'm"],
+            ["Umumiy xarajat ulushi (arenda/svet/soliq/Ehson/brak)", f"-{_fmt(data['umumiy_xarajat_ulushi'])} so'm"],
+            ["Jami xarajat", f"-{_fmt(data['jami_xarajat'])} so'm"],
+        ]
+        tbl_data = [[Paragraph(r[0], ParagraphStyle('c1', fontName='Helvetica', fontSize=9.5, textColor=DARK)),
+                     Paragraph(r[1], ParagraphStyle('c2', fontName='Helvetica', fontSize=9.5, textColor=DARK, alignment=TA_RIGHT))]
+                    for r in rows]
+        foyda_color = GREEN if data['sof_foyda'] >= 0 else RED
+        tbl_data.append([
+            Paragraph("SOF FOYDA", ParagraphStyle('f1', fontName='Helvetica-Bold', fontSize=11, textColor=DARK)),
+            Paragraph(f"{_fmt(data['sof_foyda'])} so'm", ParagraphStyle('f2', fontName='Helvetica-Bold', fontSize=11, textColor=foyda_color, alignment=TA_RIGHT))
+        ])
+        tbl_data.append([
+            Paragraph("Rentabellik", ParagraphStyle('r1', fontName='Helvetica', fontSize=9, textColor=GRAY)),
+            Paragraph(f"{data['foyda_foiz']}%", ParagraphStyle('r2', fontName='Helvetica', fontSize=9, textColor=foyda_color, alignment=TA_RIGHT))
+        ])
+
+        tbl = Table(tbl_data, colWidths=[W*0.62, W*0.38])
+        tbl.setStyle(TableStyle([
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LINEBELOW', (0, 0), (-1, -3), 0.4, colors.HexColor("#E5E1D8")),
+            ('LINEABOVE', (0, -2), (-1, -2), 1.2, DARK),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ]))
+
+        head = Table([[Paragraph(title, st_sec)]], colWidths=[W])
+        head.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), bg),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        return KeepTogether([head, tbl, Spacer(1, 16)])
+
+    el.append(section("🏭 PENOPLAST VA BOSHQA", colors.HexColor("#1E40AF"), split["penoplast"]))
+    el.append(section("🧱 GIPS", colors.HexColor("#9D174D"), split["gips"]))
+
+    el.append(Spacer(1, 6))
+    el.append(Paragraph(
+        "⚠️ Eslatma: Yo'nalishi aniq belgilanmagan hodimlar va umumiy xarajatlar (arenda, svet, soliq, Ehson, brak) — "
+        "ikkala yo'nalish ham bitta joyda faoliyat yuritgani uchun, daromad nisbatiga qarab taxminiy taqsimlangan.",
+        ParagraphStyle('note', fontName='Helvetica-Oblique', fontSize=8, textColor=GRAY, leading=11)
+    ))
+
+    doc.build(el)
+    return buf.getvalue()
+
+
 def generate_finance_report_pdf(report: dict, expense_transactions: list,
                                  brak_by_material: list, year: int, month: int) -> bytes:
     """Bir oylik to'liq moliyaviy hisobot — PDF.
