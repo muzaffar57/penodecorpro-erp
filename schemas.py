@@ -403,6 +403,16 @@ class OrderAttachmentRead(BaseModel):
 # FINISHED PRODUCT (Tayyor mahsulotlar)
 # ============================================================
 
+class FinishedProductSaleCreate(BaseModel):
+    """Tayyor mahsulotni to'g'ridan-to'g'ri sotish."""
+    finished_product_id: int
+    quantity: float = Field(..., gt=0)
+    unit_price: float = Field(..., ge=0)
+    buyer_name: Optional[str] = None
+    payment_method: str = Field(default="naqd")
+    notes: Optional[str] = None
+
+
 class ProduceCreate(BaseModel):
     """Tayyor mahsulot ishlab chiqarish."""
     name: str = Field(..., min_length=2, max_length=150)
