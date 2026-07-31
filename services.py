@@ -1239,7 +1239,7 @@ def get_inventory_kpi(db: Session) -> Dict:
     from sqlalchemy import func
     from datetime import datetime, timedelta
 
-    items = db.query(Inventory).all()
+    items = db.query(Inventory).filter(Inventory.is_deleted.isnot(True)).all()
     total_items = len(items)
     low_count = sum(1 for i in items if float(i.stock_quantity or 0) <= float(i.min_stock or 0))
     total_value = sum(float(i.stock_quantity or 0) * float(i.price_per_unit or 0) for i in items)
