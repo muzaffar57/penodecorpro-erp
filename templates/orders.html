@@ -1901,20 +1901,24 @@ async function loadGipsInventoryOptions() {
   try {
     gipsInvCache = await fetch('/api/inventory').then(r => r.json());
   } catch(e) { gipsInvCache = []; }
-  const sorted = [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
+  // MUHIM: faqat kategoriyasi "Gips" deb belgilangan materiallar ko'rinadi
+  // (butun ombor emas) — shunda ro'yxat qisqa, aniq va tegishli bo'ladi.
+  const gipsOnly = gipsInvCache.filter(i => (i.category || '') === 'Gips');
+  const sorted = [...gipsOnly].sort((a,b) => a.item_name.localeCompare(b.item_name));
   const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
+  const emptyMsg = sorted.length ? '' : '<option value="" disabled>Omborxonada "Gips" kategoriyali material yo\'q</option>';
 
   const mainSel = document.getElementById('gips_inventory_id');
   if (mainSel) {
     const cur = mainSel.value;
-    mainSel.innerHTML = '<option value="">— Tanlang —</option>' + sorted.map(opts).join('');
-    const guess = gipsInvCache.find(i => i.item_name.toLowerCase().includes('gips'));
+    mainSel.innerHTML = '<option value="">— Tanlang —</option>' + sorted.map(opts).join('') + emptyMsg;
+    const guess = sorted.find(i => i.item_name.toLowerCase().includes('gips'));
     if (cur) mainSel.value = cur; else if (guess) mainSel.value = guess.id;
   }
   // Mavjud qo'shimcha qatorlaridagi dropdownlarni ham yangilaymiz
   document.querySelectorAll('.gips-add-inv').forEach(sel => {
     const cur = sel.value;
-    sel.innerHTML = '<option value="">— Material tanlang —</option>' + sorted.map(opts).join('');
+    sel.innerHTML = '<option value="">— Material tanlang —</option>' + sorted.map(opts).join('') + emptyMsg;
     if (cur) sel.value = cur;
   });
 }
@@ -1922,7 +1926,7 @@ async function loadGipsInventoryOptions() {
 function addGipsAdditive(prefillId, prefillQty) {
   const list = document.getElementById('gips-additives-list');
   if (!list) return;
-  const sorted = gipsInvCache ? [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name)) : [];
+  const sorted = gipsInvCache ? [...gipsInvCache].filter(i => (i.category || '') === 'Gips').sort((a,b) => a.item_name.localeCompare(b.item_name)) : [];
   const opts = sorted.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'gips-add-row';
