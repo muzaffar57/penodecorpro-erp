@@ -267,6 +267,10 @@ def _migrate_payment_columns():
         if 'gips_inventory_id' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN gips_inventory_id INTEGER")
 
+        emp_cols2 = [c['name'] for c in inspector.get_columns('employees')]
+        if 'production_type' not in emp_cols2:
+            migrations.append("ALTER TABLE employees ADD COLUMN production_type VARCHAR(20)")
+
         ir_cols = [c['name'] for c in inspector.get_columns('inventory_receipts')]
         if 'production_type' not in ir_cols:
             migrations.append("ALTER TABLE inventory_receipts ADD COLUMN production_type VARCHAR(20)")
@@ -2348,6 +2352,19 @@ async def finance_page(request: Request, db: Session = Depends(get_db), current_
 @app.get("/api/finance/report")
 def api_finance_report(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_monthly_report(db, year, month)
+
+
+@app.get("/api/finance/split-profit-pdf")
+def api_split_profit_pdf(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """Gips va Penoplast uchun mustaqil sof foyda hisoboti — PDF."""
+    from fastapi.responses import Response
+    import finance_pdf
+
+    split = services.calculate_split_profit_report(db, year, month)
+    pdf_bytes = finance_pdf.generate_split_profit_pdf(split, year, month)
+    filename = f"gips_penoplast_hisobot_{year}_{month:02d}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
 @app.get("/api/finance/report-pdf")
