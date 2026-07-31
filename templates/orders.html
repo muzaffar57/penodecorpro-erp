@@ -1386,13 +1386,18 @@ function selectOrder(id, el) {
   }).catch(()=>{});
 }
 
-const ITEM_TYPE_ICON = {profil: 'ti-ruler-2', panel: 'ti-square', dona: 'ti-box', blok: 'ti-cube'};
+const ITEM_TYPE_ICON = {profil: 'ti-ruler-2', panel: 'ti-square', dona: 'ti-box', blok: 'ti-cube', gips: 'ti-brick'};
 
 function itemParamsText(item) {
   const cat = (item.category || '').toLowerCase();
   if (cat === 'profil') return `${item.width || 0}×${item.thickness || 0} sm · ${item.length || 0} m`;
   if (cat === 'panel') return `${item.width || 0}×${item.thickness || 0} sm`;
   if (cat === 'blok') return `${item.quantity || 0} m kerak`;
+  if (cat === 'gips') {
+    const gu = (item.gips_unit || 'metr');
+    const unitText = gu === 'm2' ? 'm²' : (gu === 'dona' ? 'dona' : 'metr');
+    return `${item.quantity || 0} ${unitText}`;
+  }
   return `${item.quantity || 0} dona`;
 }
 
@@ -1420,7 +1425,7 @@ async function loadOrderItems(id) {
           <input type="file" accept="image/*" onchange="uploadItemImage(${item.id}, this)">
         </div>
         <div class="prod-info">
-          <div class="prod-name">${item.name}</div>
+          <div class="prod-name">${item.name}${(item.category || '').toLowerCase() === 'gips' ? ' <span style="background:#FCE7F3;color:#9D174D;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle">🧱 GIPS</span>' : ''}</div>
           <div class="prod-meta">${itemParamsText(item)}${item.is_coated ? ' · Qoplama bor' : ''}</div>
         </div>
         <div class="prod-total">${formatNum(item.total_price)} so'm</div>
