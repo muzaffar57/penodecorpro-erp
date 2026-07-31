@@ -925,6 +925,8 @@ def get_today_stats(db: Session) -> Dict:
         Order.status == OrderStatus.READY
     ).all()
     today_profit = 0.0
+    today_gips_revenue = 0.0
+    today_penoplast_revenue = 0.0
     for o in completed_today:
         try:
             p = calculate_order_profit(db, o.id)
@@ -932,6 +934,15 @@ def get_today_stats(db: Session) -> Dict:
                 today_profit += p.get("foyda", 0)
         except Exception:
             db.rollback()
+        o_total = float(o.total_amount or 0)
+        o_agreed = float(o.agreed_amount or o_total or 0)
+        if o_total > 0:
+            for it in o.items:
+                share = (float(it.total_price or 0) / o_total) * o_agreed
+                if (it.category or '').lower() == 'gips':
+                    today_gips_revenue += share
+                else:
+                    today_penoplast_revenue += share
 
     return {
         "today_revenue": float(today_revenue),
@@ -940,6 +951,8 @@ def get_today_stats(db: Session) -> Dict:
         "due_today": due_today,
         "active_masters": active_masters,
         "today_profit": today_profit,
+        "today_gips_revenue": round(today_gips_revenue),
+        "today_penoplast_revenue": round(today_penoplast_revenue),
     }
 
 
@@ -1308,8 +1321,32 @@ def get_chart_data(db: Session) -> Dict:
             Order.status == OrderStatus.READY
         ).scalar() or 0
 
+        # Gips va Penoplast (va boshqa) — detal darajasida, ulush bo'yicha
+        # ajratilgan holda (har bir detalning umumiy summadagi ulushi ×
+        # kelishilgan summa — chegirma/qo'shimchani ham to'g'ri hisobga oladi)
+        month_orders = db.query(Order).filter(
+            Order.created_at >= month_start,
+            Order.created_at < month_end,
+            Order.status == OrderStatus.READY
+        ).all()
+        gips_rev = 0.0
+        peno_rev = 0.0
+        for o in month_orders:
+            o_total = float(o.total_amount or 0)
+            o_agreed = float(o.agreed_amount or o_total or 0)
+            if o_total <= 0:
+                continue
+            for it in o.items:
+                share = (float(it.total_price or 0) / o_total) * o_agreed
+                if (it.category or '').lower() == 'gips':
+                    gips_rev += share
+                else:
+                    peno_rev += share
+
         months_data.append({
             "label": month_start.strftime("%b %Y"),
+            "gips_revenue": round(gips_rev),
+            "penoplast_revenue": round(peno_rev),
             "orders": count,
             "revenue": float(revenue)
         })
