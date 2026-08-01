@@ -823,6 +823,7 @@ def get_projects_dashboard_stats(db: Session) -> dict:
                 try:
                     total_profit += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
                 except Exception as e:
+                    db.rollback()
                     try:
                         log_error(db, str(e), endpoint=f"get_projects_dashboard_stats:calculate_order_profit order#{o.id}")
                     except Exception:
@@ -4555,6 +4556,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
             profit_data = services.calculate_order_profit(db, o.id)
             profit = float(profit_data.get("foyda", 0))
         except Exception:
+            db.rollback()
             profit = 0.0
         result.append({
             "order_id": o.id,
@@ -4607,6 +4609,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
                 profit_data = services.calculate_order_profit(db, o.id)
                 yearly_profit += float(profit_data.get("foyda", 0))
             except Exception as e:
+                db.rollback()
                 try:
                     log_error(db, str(e), endpoint=f"get_masters_kpi_report:calculate_order_profit order#{o.id}")
                 except Exception:
