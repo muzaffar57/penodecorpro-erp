@@ -3489,6 +3489,14 @@ async function editSelected() {
           // noto'g'ri (standart) qiymat yuborilib, ombor xato tuzatilar edi.
           row.querySelector('.i-q').value = item.quantity || 0;
 
+          // MUHIM: "1 birlik narxi" (sotuv narxi) ham tiklanishi SHART —
+          // bo'lmasa, har safar tahrirlashda 0 bo'lib saqlanib qolar edi
+          const tUpEl = row.querySelector('.i-unitprice');
+          if (tUpEl) {
+            tUpEl.value = formatNum(parseFloat(item.unit_price || 0));
+            row.dataset.unitprice = parseFloat(item.unit_price || 0);
+          }
+
           const bm = (item.notes || '').match(/bazalt_id=(\d+)/);
           const originalBazaltId = bm ? bm[1] : null;
           const sm = (item.notes || '').match(/serp_id=(\d+)/);
