@@ -329,6 +329,7 @@ class OrderCreate(BaseModel):
     gips_inventory_id: Optional[int] = None
     planned_gips_kg: Optional[float] = None
     gips_additives: List[GipsAdditiveInput] = []
+    base_price: Optional[float] = None
 
 
 class OrderItemRead(BaseModel):
