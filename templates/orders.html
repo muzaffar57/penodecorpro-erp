@@ -3543,6 +3543,16 @@ async function editSelected() {
             upEl.value = formatNum(parseFloat(item.unit_price || 0));
             row.dataset.unitprice = parseFloat(item.unit_price || 0);
           }
+        } else if (cat === 'loy_sotish') {
+          row.querySelector('.i-q').value = item.quantity || 0;
+          const lsEl = row.querySelector('.i-loysale-recipe');
+          if (lsEl && item.recipe_id) lsEl.value = item.recipe_id;
+          row.dataset.loysaleRecipeId = lsEl ? lsEl.value : '';
+          const upEl2 = row.querySelector('.i-unitprice');
+          if (upEl2) {
+            upEl2.value = formatNum(parseFloat(item.unit_price || 0));
+            row.dataset.unitprice = parseFloat(item.unit_price || 0);
+          }
         } else {
           row.querySelector('.i-h').value = item.width || 0;
           row.querySelector('.i-w').value = item.thickness || 0;
