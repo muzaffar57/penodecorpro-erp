@@ -3493,8 +3493,14 @@ async function editSelected() {
           row.querySelector('.i-q').value = item.quantity || 1;
           const upEl = row.querySelector('.i-unitprice');
           if (upEl) {
-            upEl.value = formatNum(parseFloat(item.unit_price || 0));
-            row.dataset.unitprice = parseFloat(item.unit_price || 0);
+            // MUHIM: backendda saqlangan unit_price — agar qoplama bo'lsa,
+            // ALLAQACHON ×2 qilingan holda saqlanadi (Jami hisob-kitob
+            // izchilligi uchun). Shuning uchun bu yerda, ekranga
+            // chiqarishda, ORIGINAL (xodim kiritgan) qiymatni ko'rsatish
+            // uchun ×2 bo'lganini YARMIGA qaytaramiz.
+            const rawPrice = item.is_coated ? (parseFloat(item.unit_price || 0) / 2) : parseFloat(item.unit_price || 0);
+            upEl.value = formatNum(rawPrice);
+            row.dataset.unitprice = rawPrice;
           }
         } else if (cat === 'panel') {
           row.querySelector('.i-h').value = item.width || 0;
