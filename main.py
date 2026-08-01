@@ -1763,6 +1763,8 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
             "notes": i.notes,
             "gips_unit": getattr(i, 'gips_unit', None),
+            "recipe_id": i.recipe_id,
+            "finished_product_id": i.finished_product_id,
             "order_qty_normalized": i.order_qty_normalized,
             "delivery_unit": i.delivery_unit,
             "price_per_unit_final": round(float(i.total_price or 0) / i.order_qty_normalized) if i.order_qty_normalized else 0,
