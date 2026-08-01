@@ -3319,6 +3319,7 @@ def create_gisht_from_order(db: Session, order, quantity: float, created_by: str
 
     if existing:
         existing.quantity = float(existing.quantity or 0) + quantity
+        existing.is_coated = False
         existing.notes = f"Oxirgi qo'shilgan: {order.order_number} orqali (+{quantity:g} dona)"
         db.commit()
         db.refresh(existing)
@@ -3331,6 +3332,7 @@ def create_gisht_from_order(db: Session, order, quantity: float, created_by: str
         unit="dona",
         unit_price=0,
         cost_price=0,
+        is_coated=False,
         source=StockSource.PRODUCED,
         from_order_id=order.id,
         production_status=ProductionStatus.READY,
@@ -3389,6 +3391,7 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
         unit=data.unit,
         unit_price=data.unit_price,
         cost_price=cost_price,
+        is_coated=False,
         gips_kg_used=data.gips_kg_used,
         gips_inventory_id=data.gips_inventory_id,
         source=StockSource.PRODUCED,
