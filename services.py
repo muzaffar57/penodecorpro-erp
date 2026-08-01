@@ -1975,10 +1975,12 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
                 continue
             if item.finished_product_id:
                 continue  # Tayyor mahsulotdan tanlangan — ikki marta hisoblanmasin
-            unit = (item.unit if hasattr(item, 'unit') else None) or ''
+            gu = (item.gips_unit or 'metr').lower()
             qty = float(item.quantity or 0)
-            if unit.lower() in ('dona',):
+            if gu == 'dona':
                 jami_gips_gul += qty
+            elif gu == 'm2':
+                pass  # m² uchun hozircha alohida to'lov turi yo'q — hisoblanmaydi
             else:
                 jami_gips_metr += qty
 
