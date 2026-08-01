@@ -2102,7 +2102,7 @@ def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(aut
 
 
 @app.get("/api/warnings/low-stock")
-def api_low_stock(db: Session = Depends(get_db)):
+def api_low_stock(db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
     return {"warnings": services.get_low_stock_warnings(db)}
 
 
