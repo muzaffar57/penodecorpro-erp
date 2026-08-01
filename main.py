@@ -240,6 +240,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE orders ADD COLUMN planned_gips_kg FLOAT")
         if 'actual_gips_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN actual_gips_kg FLOAT")
+        if 'actual_loy_kg' not in ord_cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN actual_loy_kg FLOAT")
         if 'gips_inventory_id' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN gips_inventory_id INTEGER")
 
