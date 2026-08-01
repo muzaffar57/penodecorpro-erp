@@ -1098,6 +1098,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None,
             import re as _re_loy
             base_notes = _re_loy.sub(r',?\s*loy_kg=[\d.]+', '', order.notes or '').strip().strip(',').strip()
             order.notes = (base_notes + f", loy_kg={actual_loy:.4f}").strip(', ')
+            order.actual_loy_kg = actual_loy
             db.commit()
     elif planned_loy > 0:
         # Haqiqiy miqdor kiritilmadi — reja bo'yicha deb hisoblaymiz
@@ -1240,6 +1241,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None,
         existing_notes = order.notes or ''
         base_notes = _re_loykg_w.sub(r',?\s*loy_kg=[\d.]+', '', existing_notes).strip().strip(',').strip()
         order.notes = (base_notes + f", loy_kg={loy_kg}").strip(', ')
+        order.actual_loy_kg = float(loy_kg)
     db.commit()
     db.refresh(order)
 
@@ -1618,8 +1620,11 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
     # ishlatiladi (order.notes'dagi loy_kg= belgisi, complete_order
     # tomonidan yoziladi). Agar buyurtma hali yakunlanmagan bo'lsa —
     # bu xarajat hali "0" ko'rinadi, bu — to'g'ri (hali ishlatilmagan).
-    loy_kg = 0.0
-    if order.notes:
+    # MUHIM: loy_kg — endi ALOHIDA, ISHONCHLI ustundan (order.actual_loy_kg)
+    # o'qiladi — matn ichidan qidirish (notes) endi FAQAT eski, shu tuzatishdan
+    # OLDIN yakunlangan buyurtmalar uchun zaxira (fallback) sifatida qoladi.
+    loy_kg = float(order.actual_loy_kg) if order.actual_loy_kg is not None else 0.0
+    if loy_kg <= 0 and order.notes:
         try:
             import re as _re_loykg
             m = _re_loykg.search(r'loy_kg=([\d.]+)', order.notes)
