@@ -3389,8 +3389,8 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
                 log.append(f"{p.item_name}: -{blocks:.3f} blok (brak uchun)")
 
     if coating_applied and order_item.is_coated and order:
-        loy_kg = 0.0
-        if order.notes:
+        loy_kg = float(order.actual_loy_kg) if order.actual_loy_kg is not None else 0.0
+        if loy_kg <= 0 and order.notes:
             import re as _re_loykg2
             m = _re_loykg2.search(r'loy_kg=([\d.]+)', str(order.notes))
             if m:
@@ -4210,8 +4210,8 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
 
     loy_cost_per_unit = 0.0
     if include_coating and item.is_coated and order:
-        loy_kg = 0.0
-        if order.notes:
+        loy_kg = float(order.actual_loy_kg) if order.actual_loy_kg is not None else 0.0
+        if loy_kg <= 0 and order.notes:
             import re as _re_loykg3
             m = _re_loykg3.search(r'loy_kg=([\d.]+)', str(order.notes))
             if m:
