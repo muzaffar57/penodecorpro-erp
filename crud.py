@@ -951,6 +951,7 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
     db_order.total_amount = total_amount
     # Kelishilgan summa — boshida jami summaga teng (chegirmasiz)
     db_order.agreed_amount = getattr(order_data, 'agreed_amount', None) or total_amount
+    db_order.base_price = getattr(order_data, 'base_price', None)
     if total_amount > 0 and float(db_order.agreed_amount) < total_amount:
         db_order.discount_percent = round((total_amount - float(db_order.agreed_amount)) / total_amount * 100, 2)
 
@@ -2683,6 +2684,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     old_total = float(order.total_amount or 0)
     old_discount_pct = float(order.discount_percent or 0)
     order.total_amount = total_amount
+    order.base_price = getattr(order_data, 'base_price', None)
 
     agreed = getattr(order_data, 'agreed_amount', None)
 
