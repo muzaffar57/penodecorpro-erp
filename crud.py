@@ -924,7 +924,14 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
     total_amount = 0
     for item_data in order_data.items:
         # unit_price allaqachon frontend tomonida hisoblangan (qoplamali bo'lsa x2)
-        item_total = item_data.unit_price * item_data.quantity
+        # MUHIM: "dona" turida, frontend "1 dona narxi"ni HAR DOIM
+        # qoplamasiz (xom) holda yuboradi (qoplama ×2 shu yerda qo'shiladi) —
+        # boshqa turlar (profil/panel) buni frontendning o'zida ×2 qilib
+        # yuboradi. Bu — ikkalasi orasidagi izchillikni saqlash uchun
+        # (unit_price × quantity HAR DOIM total_price'ga teng bo'lishi kerak).
+        _coat_mult = 2 if (item_data.category == 'dona' and item_data.is_coated) else 1
+        _stored_unit_price = item_data.unit_price * _coat_mult
+        item_total = _stored_unit_price * item_data.quantity
         total_amount += item_total
 
         db_item = OrderItem(
@@ -940,7 +947,7 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
             penoplast_id=getattr(item_data, 'penoplast_id', None),
             price_per_m3=getattr(item_data, 'price_per_m3', None),
             finished_product_id=getattr(item_data, 'finished_product_id', None),
-            unit_price=item_data.unit_price,
+            unit_price=_stored_unit_price,
             unit_price_for_volume=getattr(item_data, 'unit_price_for_volume', None),
             gips_unit=getattr(item_data, 'gips_unit', None),
             total_price=item_total,
@@ -2641,7 +2648,9 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
             db.delete(oi)
             continue
 
-        item_total = float(nd.unit_price or 0) * float(nd.quantity or 1)
+        _coat_mult1 = 2 if (nd.category == 'dona' and nd.is_coated) else 1
+        _stored_up1 = float(nd.unit_price or 0) * _coat_mult1
+        item_total = _stored_up1 * float(nd.quantity or 1)
         total_amount += item_total
 
         oi.width = nd.width
@@ -2653,7 +2662,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         oi.penoplast_id = getattr(nd, 'penoplast_id', None)
         oi.price_per_m3 = getattr(nd, 'price_per_m3', None)
         oi.finished_product_id = getattr(nd, 'finished_product_id', None)
-        oi.unit_price = nd.unit_price
+        oi.unit_price = _stored_up1
         oi.unit_price_for_volume = getattr(nd, 'unit_price_for_volume', None)
         oi.gips_unit = getattr(nd, 'gips_unit', None)
         oi.total_price = item_total
@@ -2664,7 +2673,9 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     for idx, nd in enumerate(order_data.items):
         if idx in used_new:
             continue
-        item_total = float(nd.unit_price or 0) * float(nd.quantity or 1)
+        _coat_mult2 = 2 if (nd.category == 'dona' and nd.is_coated) else 1
+        _stored_up2 = float(nd.unit_price or 0) * _coat_mult2
+        item_total = _stored_up2 * float(nd.quantity or 1)
         total_amount += item_total
         db.add(OrderItem(
             order_id=order.id,
@@ -2679,7 +2690,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
             penoplast_id=getattr(nd, 'penoplast_id', None),
             price_per_m3=getattr(nd, 'price_per_m3', None),
             finished_product_id=getattr(nd, 'finished_product_id', None),
-            unit_price=nd.unit_price,
+            unit_price=_stored_up2,
             unit_price_for_volume=getattr(nd, 'unit_price_for_volume', None),
             gips_unit=getattr(nd, 'gips_unit', None),
             total_price=item_total,
