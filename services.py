@@ -1930,9 +1930,14 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
                 # item.quantity'dan olinadi, item.length'dan EMAS.
                 jami_panel_metr += float(item.quantity or 0)
 
-            else:
-                # Donali
+            elif category == "dona":
                 jami_dona += float(item.quantity or 1)
+
+            # MUHIM: "termopanel" (Bazalt), "blok", "loy_sotish", "gips" —
+            # bu yerga UMUMAN qo'shilmaydi. Termopanel/Blok — o'zining
+            # boshqa (m²/blok-son) hisob-kitobi bor, bu yerga to'g'ridan-
+            # to'g'ri qo'shish noto'g'ri bo'lardi. Gips — butunlay alohida,
+            # pastdagi bo'limda hisoblanadi.
 
     # GIPS — metr/m² va dona (qoliplik gul) hodim to'lovi uchun.
     jami_gips_metr = 0.0
