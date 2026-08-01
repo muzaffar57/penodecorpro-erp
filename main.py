@@ -242,6 +242,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE orders ADD COLUMN actual_gips_kg FLOAT")
         if 'actual_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN actual_loy_kg FLOAT")
+        if 'base_price' not in ord_cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN base_price NUMERIC(12,2)")
         if 'gips_inventory_id' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN gips_inventory_id INTEGER")
 
@@ -1745,6 +1747,7 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "project_name": order.project.project_name if order.project else None,
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "deadline": order.deadline.isoformat() if order.deadline else None,
+        "base_price": float(order.base_price) if order.base_price is not None else None,
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
         "notes": order.notes,
         "items": [{
