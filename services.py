@@ -1922,6 +1922,12 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
                 uzunlik_m = float(item.length or 0)
                 jami_metr += uzunlik_m * float(item.quantity or 1)
 
+            elif category == "blok":
+                # Blok — "necha metr kerak" item.quantity'da saqlanadi
+                # (Profilga o'xshab, lekin uzunlik emas, to'g'ridan-to'g'ri
+                # miqdor maydonida)
+                jami_metr += float(item.quantity or 0)
+
             elif category == "panel":
                 # MUHIM: Panelda "Miqdor" maydonining o'zi — METR ma'nosini
                 # bildiradi (masalan "100 metr panel"), "Uzunlik" maydoni esa
@@ -1933,11 +1939,13 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
             elif category == "dona":
                 jami_dona += float(item.quantity or 1)
 
-            # MUHIM: "termopanel" (Bazalt), "blok", "loy_sotish", "gips" —
-            # bu yerga UMUMAN qo'shilmaydi. Termopanel/Blok — o'zining
-            # boshqa (m²/blok-son) hisob-kitobi bor, bu yerga to'g'ridan-
-            # to'g'ri qo'shish noto'g'ri bo'lardi. Gips — butunlay alohida,
-            # pastdagi bo'limda hisoblanadi.
+            elif category == "termopanel":
+                # Termopanel (Bazalt) — har doim qoplamali, qoplamachi
+                # shu ish uchun ham mehnat qilgani uchun hisoblanadi
+                jami_dona += float(item.quantity or 0)
+
+            # MUHIM: "loy_sotish", "gips" — bu yerga UMUMAN qo'shilmaydi.
+            # Gips — butunlay alohida, pastdagi bo'limda hisoblanadi.
 
     # GIPS — metr/m² va dona (qoliplik gul) hodim to'lovi uchun.
     jami_gips_metr = 0.0
