@@ -948,6 +948,38 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
         )
         db.add(db_item)
 
+        # MUHIM: Termopanel uchun — bazalt/serpiyanka/kley tanlovini
+        # DARHOL, yaratilgan zahoti notes'ga yozib qo'yamiz (avval bu —
+        # faqat TAHRIRLASHDA yozilardi, shuning uchun qoralama holatida
+        # "jarayonga olish"da bu ma'lumot yo'qolib qolar edi).
+        if (item_data.category or '').lower() == 'termopanel':
+            from models import Inventory as _Inv_termo
+            bazalt_id = getattr(item_data, 'bazalt_item_id', None)
+            serp_id = getattr(item_data, 'serpiyanka_item_id', None)
+            kley_id = getattr(item_data, 'kley_item_id', None)
+            loy_kg_t = float(getattr(item_data, 'termo_loy_kg', None) or 0)
+            parts = []
+            b = None
+            if bazalt_id:
+                b = db.query(_Inv_termo).filter(_Inv_termo.id == bazalt_id).first()
+                area = float(b.volume_per_unit or 0.72) if b else 0.72
+                sheets = float(item_data.quantity or 0) / area if area else 0
+                parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
+            if serp_id:
+                s = db.query(_Inv_termo).filter(_Inv_termo.id == serp_id).first()
+                area = float(s.volume_per_unit or 50.0) if s else 50.0
+                serp_ratio = float(b.serp_ratio_per_m2) if (b and b.serp_ratio_per_m2) else 2.0
+                rulon = (float(item_data.quantity or 0) * serp_ratio) / area if area else 0
+                parts.append(f"serp_id={serp_id},serp_qty={rulon:.4f}")
+            if kley_id:
+                kley_ratio = float(b.kley_ratio_per_m2) if (b and b.kley_ratio_per_m2) else 0.8
+                kley_kg = float(item_data.quantity or 0) * kley_ratio
+                parts.append(f"kley_id={kley_id},kley_qty={kley_kg:.4f}")
+            if loy_kg_t > 0:
+                parts.append(f"loy_kg={loy_kg_t:.4f}")
+            if parts:
+                db_item.notes = ((db_item.notes or '') + " [TERMO:" + ",".join(parts) + "]").strip()
+
     db_order.total_amount = total_amount
     # Kelishilgan summa — boshida jami summaga teng (chegirmasiz)
     db_order.agreed_amount = getattr(order_data, 'agreed_amount', None) or total_amount
@@ -2111,6 +2143,33 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
 
     # Ombordan penoplast yechamiz
     log = services.deduct_inventory_for_order(db, order)
+
+    # TERMOPANEL (Bazalt/Serpiyanka/Kley) — [TERMO:] belgisidan (endi
+    # create_order() da HAR DOIM yoziladi, qoralama bo'lsa ham) o'qib,
+    # ombordan yechamiz. Avval bu — BUTUNLAY YO'Q edi.
+    from models import Inventory as _Inv_act
+    for oi in order.items:
+        if (oi.category or '').lower() != 'termopanel' or not oi.notes:
+            continue
+        bazalt_id = _parse_termo_note(oi.notes, 'bazalt_id')
+        bazalt_qty = _parse_termo_note(oi.notes, 'bazalt_qty', is_float=True)
+        serp_id = _parse_termo_note(oi.notes, 'serp_id')
+        serp_qty = _parse_termo_note(oi.notes, 'serp_qty', is_float=True)
+        kley_id = _parse_termo_note(oi.notes, 'kley_id')
+        kley_qty = _parse_termo_note(oi.notes, 'kley_qty', is_float=True)
+        for inv_id, qty in [(bazalt_id, bazalt_qty), (serp_id, serp_qty), (kley_id, kley_qty)]:
+            if inv_id and qty:
+                inv = db.query(_Inv_act).filter(_Inv_act.id == int(inv_id)).with_for_update().first()
+                if inv:
+                    inv.stock_quantity = float(inv.stock_quantity or 0) - float(qty)
+                    log_movement(db, inv.id, inv.item_name, movement_type="out", quantity=float(qty),
+                                  unit=inv.unit, order_id=order.id,
+                                  reason=f"Buyurtma jarayonga olindi — Termopanel ({order.order_number})")
+
+    # "Loy sotish" detallari — har biri o'z retseptiga ko'ra
+    for oi in order.items:
+        if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id and oi.quantity:
+            log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id))
 
     # Rejalashtirilgan loy bo'lsa — uni ham yechamiz
     planned_loy = services._get_planned_loy(order)
