@@ -978,6 +978,13 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
         if gips_adds:
             _services.deduct_gips_additives(db, gips_adds, db_order)
 
+        # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, alohida
+        # ombordan yechiladi (buyurtma to'g'ridan-to'g'ri, qoralamasiz
+        # yaratilganda ham ishlashi kerak — avval bu yerda YO'Q edi)
+        for item in db_order.items:
+            if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
+                _services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
+
     db.commit()
     db.refresh(db_order)
     return db_order
@@ -2466,6 +2473,13 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         "termo_loy_kg": _parse_termo_note(i.notes, 'loy_kg', is_float=True),
     } for i in order.items]
 
+    # "Loy sotish" — eski holatni recipe_id bo'yicha jamlab olamiz (keyinroq
+    # farq hisoblanadi, chunki old_snapshot'da recipe_id saqlanmaydi)
+    old_loysale_by_recipe = {}
+    for i in order.items:
+        if (i.category or '').lower() == 'loy_sotish' and i.recipe_id:
+            old_loysale_by_recipe[i.recipe_id] = old_loysale_by_recipe.get(i.recipe_id, 0) + float(i.quantity or 0)
+
     new_snapshot = [{
         "category": it.category,
         "width": it.width,
@@ -2696,6 +2710,22 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
         inventory_log.extend(services.adjust_termopanel_diff(db, old_snapshot, new_snapshot, recipe_id=order_data.recipe_id))
         # Tayyor mahsulot farqi
         inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot))
+
+        # "Loy sotish" — farq bo'yicha to'g'irlaymiz (recipe_id bo'yicha
+        # jamlab, eski va yangi holatni solishtiramiz). Bu — avval BUTUNLAY
+        # yo'q edi, tahrirlashda hech narsa to'g'irlanmasdi.
+        new_loysale_by_recipe = {}
+        for oi in order.items:
+            if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id:
+                new_loysale_by_recipe[oi.recipe_id] = new_loysale_by_recipe.get(oi.recipe_id, 0) + float(oi.quantity or 0)
+        all_recipe_ids = set(old_loysale_by_recipe.keys()) | set(new_loysale_by_recipe.keys())
+        for rid in all_recipe_ids:
+            diff = new_loysale_by_recipe.get(rid, 0) - old_loysale_by_recipe.get(rid, 0)
+            if abs(diff) > 0.001:
+                if diff > 0:
+                    inventory_log.extend(services.deduct_loy_ingredients(db, order, diff, recipe_id=rid))
+                else:
+                    inventory_log.extend(services.return_loy_ingredients(db, order, abs(diff), recipe_id=rid))
 
         # TERMO belgisini yangi qiymatlar bilan qayta yozamiz — aks holda
         # notes yangilanganda eski belgi o'chib, keyingi tahrirlash/o'chirish
