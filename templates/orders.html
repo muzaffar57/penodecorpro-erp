@@ -3458,6 +3458,18 @@ async function editSelected() {
     const deadlineInp = document.getElementById('deadline_input');
     if (deadlineInp) deadlineInp.value = order.deadline ? order.deadline.slice(0, 10) : '';
 
+    // "RETSEPT" (umumiy qoplama retsepti) — bu, Order darajasida saqlanmaydi
+    // (faqat har bir detalga meros bo'lib o'tadi), shuning uchun tahrirlashda
+    // detallarning o'zidan (asosiy, qoplamali turlardan) tiklab olamiz —
+    // aks holda bo'sh ko'rinib, chalkashtirar edi.
+    const recipeSel = document.getElementById('recipe_id');
+    if (recipeSel && order.items && order.items.length) {
+      const mainItem = order.items.find(it =>
+        it.recipe_id && !['gips', 'loy_sotish', 'termopanel'].includes((it.category || '').toLowerCase())
+      );
+      if (mainItem) recipeSel.value = mainItem.recipe_id;
+    }
+
     // Har bir detalga forma qo'shamiz
     if (order.items && order.items.length > 0) {
       order.items.forEach(item => {
