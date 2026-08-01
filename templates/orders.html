@@ -1307,6 +1307,14 @@ function openProject(pid) {
 }
 
 function selectOrder(id, el) {
+  // MUHIM: tahrirlash oynasidagi "Statistika" paneli (#liveStats) — agar
+  // oldin tahrirlashda bo'lgan bo'lsangiz, ESKI (yangilanmagan) qiymatlar
+  // bilan qolib ketishi mumkin edi. Ko'rish rejimiga o'tganda, buni
+  // tozalab/yashirib qo'yamiz — aks holda eski, chalkashtiruvchi son
+  // ko'rinib turaverar edi.
+  const liveStatsPanel = document.getElementById('liveStats');
+  if (liveStatsPanel) liveStatsPanel.style.display = 'none';
+
   document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
   try { localStorage.setItem('last_order', id); } catch(e) {}
