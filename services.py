@@ -1906,6 +1906,11 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
 
     for order in orders_this_month:
         for item in order.items:
+            if (item.category or "").lower() == "gips":
+                # MUHIM: Gips — bu yerga MUTLAQO kira olmaydi (is_coated
+                # holatidan qat'iy nazar). Gips o'z, alohida bo'limida
+                # (pastda) hisoblanadi.
+                continue
             if not item.is_coated:
                 continue
             if item.finished_product_id:
@@ -2024,6 +2029,8 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     finished_coated_this_month = db.query(_FP_bonus).filter(
         _FP_bonus.source == _SS_bonus.PRODUCED,
         _FP_bonus.is_coated == True,
+        _FP_bonus.category != "gips",
+        _FP_bonus.name != "G'isht",
         _FP_bonus.created_at >= _bonus_start,
         _FP_bonus.created_at < _bonus_end
     ).all()
