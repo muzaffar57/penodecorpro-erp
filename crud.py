@@ -2279,7 +2279,8 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
         SupplierPayment, FinishedProduct, TransportExpense,
         ExpenseTransaction, MonthlyExpense, EmployeeSession, EmployeeAdvance,
         AdvanceRequest, Employee, RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
-        CashTransaction, ActivityLog, ErrorLog, LoginHistory, UserSession, User
+        CashTransaction, ActivityLog, ErrorLog, LoginHistory, UserSession, User,
+        OrderGipsAdditive, FinishedProductSale, FinishedProductLoss, EmployeeMonthlyAdjustment
     )
 
     # Tartib MUHIM va TO'LIQ tekshirilgan (har bir ForeignKey hisobga olingan):
@@ -2289,7 +2290,10 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     # 4) ReturnItem — orders ga bog'langan
     # 5) InventoryMovement — inventory, orders, suppliers ga bog'langan
     # 6) Delivery — orders ga bog'langan (DeliveryItem, Payment dan keyin xavfsiz)
+    # 6b) OrderGipsAdditive — orders, inventory ga bog'langan, Order'dan OLDIN tozalanishi SHART
     # 7) OrderItem — orders, recipes, inventory, finished_products ga bog'langan
+    # 7b) FinishedProductSale, FinishedProductLoss — finished_products ga bog'langan,
+    #     FinishedProduct'dan OLDIN tozalanishi SHART
     # 8) FinishedProduct — orders, inventory, recipes ga bog'langan (OrderItem dan keyin)
     # 9) Order — endi barcha "bolalari" tozalangan, xavfsiz
     # 10) InventoryPurchase — inventory, suppliers, inventory_receipts ga bog'langan
@@ -2299,6 +2303,7 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     # 13-16) Mustaqil jadvallar
     # 17-19) EmployeeSession/EmployeeAdvance/AdvanceRequest — employees ga bog'langan,
     #        Employee'dan OLDIN tozalanishi SHART (bulk delete cascade ishlatmaydi)
+    # 19b) EmployeeMonthlyAdjustment — employees ga bog'langan, Employee'dan OLDIN
     # 20) Employee — endi xavfsiz
     # 21) RecipeIngredient — recipes VA inventory ga bog'langan, Recipe/Inventory'dan OLDIN tozalanishi SHART
     # 22) Recipe — endi xavfsiz (OrderItem, FinishedProduct, RecipeIngredient tozalangan)
@@ -2308,10 +2313,11 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     # 27) CashTransaction, 28) ActivityLog — mustaqil, sinov izlarini tozalash uchun
     tables_in_order = [
         DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
-        Delivery, OrderItem, FinishedProduct, Order,
+        Delivery, OrderGipsAdditive, OrderItem,
+        FinishedProductSale, FinishedProductLoss, FinishedProduct, Order,
         InventoryPurchase, InventoryReceipt, SupplierPayment,
         TransportExpense, ExpenseTransaction, MonthlyExpense,
-        EmployeeSession, EmployeeAdvance, AdvanceRequest, Employee,
+        EmployeeSession, EmployeeAdvance, AdvanceRequest, EmployeeMonthlyAdjustment, Employee,
         RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory,
     ]
