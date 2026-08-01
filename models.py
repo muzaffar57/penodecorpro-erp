@@ -302,6 +302,7 @@ class Order(Base):
     # [WRITEOFF:...]) bilan to'qnashib, o'qishda xato bermaydi.
     planned_gips_kg = Column(Float, nullable=True)
     actual_gips_kg = Column(Float, nullable=True)
+    actual_loy_kg = Column(Float, nullable=True)  # Haqiqiy Loy (qoplama) miqdori — "Tayyor" bosilganda kiritiladi
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Aniq qaysi Gips xomashyosi ishlatilgani
 
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
