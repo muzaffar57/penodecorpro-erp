@@ -333,7 +333,7 @@
             <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">Narx va ishlab chiqarish</div>
             <div class="form-group" style="margin-bottom:12px">
               <label>1 m³ asosiy narxi (so'm)</label>
-              <input type="text" id="base_price" value="1 200 000" oninput="formatPriceInput(this);recalcAll()">
+              <input type="text" id="base_price" placeholder="Masalan: 1 200 000" oninput="formatPriceInput(this);recalcAll()">
             </div>
             <div class="form-group" style="margin:0">
               <label style="display:flex;align-items:center;gap:6px">Loy miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— barcha detallar uchun</span></label>
@@ -3351,7 +3351,8 @@ async function saveOrder(isDraft = false) {
     items,
     gips_inventory_id: parseInt(document.getElementById('gips_inventory_id')?.value) || null,
     planned_gips_kg: parseFloat(document.getElementById('gips_kg')?.value) || null,
-    gips_additives: collectGipsAdditives()
+    gips_additives: collectGipsAdditives(),
+    base_price: parseNum(document.getElementById('base_price')?.value || '0') || null
   };
 
   await submitOrderRequest(data, isDraft, zaklat, zaklatMethod, false);
@@ -3469,6 +3470,10 @@ async function editSelected() {
       );
       if (mainItem) recipeSel.value = mainItem.recipe_id;
     }
+
+    // "1 m³ asosiy narxi" — endi saqlanadi, tahrirlashda tiklaymiz
+    const basePriceEl = document.getElementById('base_price');
+    if (basePriceEl && order.base_price) basePriceEl.value = formatNum(order.base_price);
 
     // Har bir detalga forma qo'shamiz
     if (order.items && order.items.length > 0) {
@@ -3851,7 +3856,8 @@ async function updateOrder(orderId) {
     items,
     gips_inventory_id: parseInt(document.getElementById('gips_inventory_id')?.value) || null,
     planned_gips_kg: parseFloat(document.getElementById('gips_kg')?.value) || null,
-    gips_additives: collectGipsAdditives()
+    gips_additives: collectGipsAdditives(),
+    base_price: parseNum(document.getElementById('base_price')?.value || '0') || null
   };
 
   const url = `/api/orders/${orderId}?loy_kg=${loyKg}`;
