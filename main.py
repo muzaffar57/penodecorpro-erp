@@ -1150,6 +1150,9 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
         "percent_value": float(e.percent_value or 0),
         "per_unit_rate": float(e.per_unit_rate or 0),
         "per_unit_type": e.per_unit_type,
+        "gul_rate": float(e.gul_rate) if e.gul_rate is not None else None,
+        "extra_monthly": float(e.extra_monthly) if e.extra_monthly is not None else None,
+        "production_type": e.production_type,
         "is_active": e.is_active,
         "notes": e.notes
     } for e in items]
