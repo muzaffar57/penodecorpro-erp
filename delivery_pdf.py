@@ -221,6 +221,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     el.append(Spacer(1, 6))
 
     # ---- Hujjat nomi ----
+    is_full_order = order and order.is_fully_delivered if order else False
     title2 = Table([[
         Paragraph(
             f"<font size=13><b>YUK XATI (NAKLADNOY)</b></font>  "
@@ -236,6 +237,29 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         ('LINEBELOW', (0, 0), (-1, -1), 2, GOLD),
     ]))
     el.append(title2)
+    el.append(Spacer(1, 4))
+
+    # MUHIM: bu hujjat — buyurtmaning FAQAT shu yetkazish qismini
+    # ko'rsatadi. Chalkashmaslik uchun, agar buyurtma hali TO'LIQ
+    # topshirilmagan bo'lsa — buni ANIQ, ko'rinarli qilib yozamiz.
+    if order and not is_full_order:
+        pct = order.delivery_percent
+        notice = Table([[
+            Paragraph(
+                f"⚠️ QISMAN YETKAZISH — bu hujjat buyurtmaning FAQAT shu qismini ko'rsatadi "
+                f"(umumiy bajarilish: {pct}%). Buyurtmaning JAMI summasi — {float(order.agreed_amount or order.total_amount or 0):,.0f} so'm.",
+                ParagraphStyle('warn', fontName='Helvetica-Bold', fontSize=8.5,
+                               textColor=colors.HexColor("#92400E"), alignment=TA_CENTER, leading=12)
+            )
+        ]], colWidths=[18*cm])
+        notice.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#FEF3C7")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#FBBF24")),
+        ]))
+        el.append(notice)
+
     el.append(Spacer(1, 8))
 
     # ---- Ma'lumotlar ----
