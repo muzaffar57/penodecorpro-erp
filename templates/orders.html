@@ -2783,8 +2783,15 @@ async function loadTermoInventoryFor(row) {
   const allSorted = [...termoInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
   const fillSel = (sel, matchWord, emptyMsg) => {
     if (!sel) return;
+    const prevValue = sel.value;  // MUHIM: qayta to'ldirishdan oldin, joriy tanlovni eslab qolamiz
     if (!allSorted.length) { sel.innerHTML = `<option value="">${emptyMsg}</option>`; return; }
     sel.innerHTML = '<option value="">— Tanlang —</option>' + allSorted.map(opts).join('');
+    if (prevValue && allSorted.some(i => String(i.id) === prevValue)) {
+      // Joriy (allaqachon tanlangan yoki tiklangan) qiymat hali mavjud —
+      // uni SAQLAB QOLAMIZ, "taxminiy" tanlov bilan ustidan bosib yubormaymiz
+      sel.value = prevValue;
+      return;
+    }
     const guess = termoInvCache.find(i => i.item_name.toLowerCase().includes(matchWord));
     if (guess) sel.value = guess.id;
   };
