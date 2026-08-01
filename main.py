@@ -1873,14 +1873,10 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
             )
             _send_telegram(msg)
 
-    # "Loy sotish" turidagi detallar — har biri o'z retseptiga ko'ra,
-    # alohida, mavjud (sinalgan) mexanizm orqali ombordan yechiladi.
-    # Qoralama bo'lsa — hech narsa yechilmaydi (boshqa detallar kabi).
-    if order.status != OrderStatus.DRAFT:
-        for item in order.items:
-            if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
-                sale_log = services.deduct_loy_ingredients(db, order, float(item.quantity), recipe_id=item.recipe_id)
-                inventory_log.extend(sale_log)
+    # "Loy sotish" turidagi detallar — MUHIM: bu yerda ENDI ayirilmaydi!
+    # Sababi: create_order() (buyurtma yaratilganda) — bu ishni ALLAQACHON
+    # qiladi. Agar bu yerda YANA qilsak — xomashyo IKKI-UCH MARTA ortiqcha
+    # ayirilib ketadi (aynan shu xato topilgan va tuzatilgan edi).
 
     return {"status": "ok", "inventory_log": inventory_log}
 
