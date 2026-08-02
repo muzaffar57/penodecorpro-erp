@@ -1026,6 +1026,14 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
             if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
                 _services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
 
+        # UMUMIY QOPLAMA uchun Rejalashtirilgan Loy (yuqoridagi "Loy miqdori"
+        # maydoni) — MUHIM: bu ham avval BUTUNLAY YO'Q edi (faqat qoralama
+        # faollashtirish va tiklashda bor edi). To'g'ridan-to'g'ri yaratilgan
+        # buyurtmada, umumiy qoplama uchun xomashyo HECH QACHON ayirilmasdi.
+        _planned_loy_general = _services._get_planned_loy(db_order) + get_termopanel_planned_loy(db_order)
+        if _planned_loy_general > 0:
+            _services.deduct_loy_ingredients(db, db_order, _planned_loy_general)
+
     db.commit()
     db.refresh(db_order)
     return db_order
