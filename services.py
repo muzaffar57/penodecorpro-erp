@@ -2029,6 +2029,24 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
             if sack_kg > 0:
                 jami_gips_qop += actual / sack_kg
 
+    # "Gips ishlab chiqarish" tugmasi orqali, buyurtmasiz, to'g'ridan-to'g'ri
+    # ishlab chiqarilgan Gips mahsulotlar — MUHIM: bu yerda ishlatilgan
+    # XOMASHYO (gips_kg_used) — Kg va Qop hodimlariga ham hisoblanishi kerak
+    # (Metr/Gul hodimidan MUSTAQIL — chunki bu, xomashyoni tayyorlagan
+    # hodimning o'z ishi, mahsulotni shakllantirgan hodimning ishidan farqli).
+    for fp in direct_produced:
+        if (fp.category or "").lower() != "gips":
+            continue
+        gkg = float(fp.gips_kg_used or 0)
+        if gkg <= 0:
+            continue
+        jami_gips_kg += gkg
+        if fp.gips_inventory_id:
+            gips_item2 = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).first()
+            sack_kg2 = float(gips_item2.volume_per_unit or 0) if gips_item2 else 0
+            if sack_kg2 > 0:
+                jami_gips_qop += gkg / sack_kg2
+
     # MUHIM: Tayyor mahsulotlar bo'limida ("Ishlab chiqarish" tugmasi
     # orqali, mijoz buyurtmasiga bog'lanmasdan) tayyorlangan qoplamali
     # mahsulotlar — YUQORIDA, "direct_produced" tsiklida ALLAQACHON
