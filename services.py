@@ -1977,15 +1977,21 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     for fp in direct_produced:
         cat = (fp.category or "").lower()
         qty = float(fp.quantity or 0)
-        if cat in ["profil", "karniz"]:
-            jami_metr += qty
-        elif cat == "panel":
-            jami_panel_metr += qty
-        elif cat == "gips":
+        if cat == "gips":
             if (fp.unit or "").lower() == "dona":
                 jami_gips_gul += qty
             else:
                 jami_gips_metr += qty
+            continue
+        # MUHIM: Gipsdan boshqa barchasi uchun — faqat HAQIQATAN qoplamali
+        # (is_coated=True) bo'lsa, Qoplamachi bonusiga qo'shiladi. Qoplamasiz
+        # ishlab chiqarilgan mahsulot — bu bonusga aloqasi yo'q.
+        if not fp.is_coated:
+            continue
+        if cat in ["profil", "karniz"]:
+            jami_metr += qty
+        elif cat == "panel":
+            jami_panel_metr += qty
         else:
             jami_dona += qty
 
@@ -2025,26 +2031,11 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
 
     # MUHIM: Tayyor mahsulotlar bo'limida ("Ishlab chiqarish" tugmasi
     # orqali, mijoz buyurtmasiga bog'lanmasdan) tayyorlangan qoplamali
-    # mahsulotlar ham — xuddi Buyurtmadagi kabi — qoplamachi bonusiga
-    # qo'shilishi kerak (avval bu butunlay hisobga olinmas edi).
-    from models import FinishedProduct as _FP_bonus, StockSource as _SS_bonus
-    from datetime import datetime as _dt_bonus
-    _bonus_start = _dt_bonus(year, month, 1)
-    _bonus_end = _dt_bonus(year + 1, 1, 1) if month == 12 else _dt_bonus(year, month + 1, 1)
-    finished_coated_this_month = db.query(_FP_bonus).filter(
-        _FP_bonus.source == _SS_bonus.PRODUCED,
-        _FP_bonus.is_coated == True,
-        _FP_bonus.category != "gips",
-        _FP_bonus.name != "G'isht",
-        _FP_bonus.created_at >= _bonus_start,
-        _FP_bonus.created_at < _bonus_end
-    ).all()
-    for fp in finished_coated_this_month:
-        unit = (fp.unit or '').lower()
-        if unit == 'metr':
-            jami_panel_metr += float(fp.quantity or 0)
-        else:
-            jami_dona += float(fp.quantity or 0)
+    # mahsulotlar — YUQORIDA, "direct_produced" tsiklida ALLAQACHON
+    # hisoblangan (is_coated tekshiruvi bilan birga). Bu yerda AVVAL
+    # yana bir marta hisoblovchi, DUBLIKAT tsikl bor edi — u xuddi shu
+    # mahsulotlarni IKKI MARTA qo'shib yuborardi (masalan 200 dona o'rniga
+    # 400 dona bo'lib chiqishi kabi). Endi bu yerda hech narsa qilinmaydi.
 
     qoplamachi_bonus_avtomatik = (jami_metr + jami_panel_metr + jami_dona) * 1000
     jami_m2 = jami_metr + jami_panel_metr
