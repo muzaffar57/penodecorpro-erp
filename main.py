@@ -278,6 +278,15 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_products ADD COLUMN gips_inventory_id INTEGER")
         if 'produced_quantity' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN produced_quantity FLOAT")
+        # MUHIM: bu backfill — ustun YANGI yaratilganidan qat'iy nazar, HAR
+        # DOIM tekshiriladi (chunki ustun avvalroq qo'shilgan, lekin
+        # to'ldirilmagan bo'lishi mumkin). Eski, "Sotuvga tayyor" yozuvlar
+        # uchun, hozirgi qoldiqni "asl ishlab chiqarilgan" deb belgilaymiz —
+        # bu nuqtadan boshlab, hodim haqi endi yana kamayib ketmaydi.
+        migrations.append(
+            "UPDATE finished_products SET produced_quantity = quantity "
+            "WHERE produced_quantity IS NULL AND production_status = 'ready'"
+        )
 
         emp_cols2 = [c['name'] for c in inspector.get_columns('employees')]
         if 'production_type' not in emp_cols2:
