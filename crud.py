@@ -3458,6 +3458,7 @@ def create_gisht_from_order(db: Session, order, quantity: float, created_by: str
         name="G'isht",
         category="dona",
         quantity=quantity,
+        produced_quantity=quantity,
         unit="dona",
         unit_price=0,
         cost_price=0,
@@ -3518,6 +3519,7 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
         category="gips",
         quantity=data.quantity,
         unit=data.unit,
+        produced_quantity=data.quantity,
         unit_price=data.unit_price,
         cost_price=cost_price,
         is_coated=False,
@@ -3690,6 +3692,11 @@ def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0) -> di
 
     fp.production_status = ProductionStatus.READY
     fp.finished_production_at = datetime.utcnow()
+    # MUHIM: hodim oyligi hisoblanadigan ASL miqdorni shu yerda "muzlatib"
+    # qo'yamiz — keyinroq "Sotish" yoki "Kamaytirish (brak)" orqali
+    # `quantity` kamaysa ham, hodimning haqi O'ZGARMASLIGI kerak (chunki u
+    # ishni ALLAQACHON bajargan).
+    fp.produced_quantity = fp.quantity
 
     db.commit()
     db.refresh(fp)
