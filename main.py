@@ -246,6 +246,10 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE orders ADD COLUMN base_price NUMERIC(12,2)")
         if 'planned_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN planned_loy_kg FLOAT")
+
+        fps_cols = [c['name'] for c in inspector.get_columns('finished_product_sales')]
+        if 'sale_group_id' not in fps_cols:
+            migrations.append("ALTER TABLE finished_product_sales ADD COLUMN sale_group_id VARCHAR(40)")
         if 'gips_inventory_id' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN gips_inventory_id INTEGER")
 
@@ -2950,6 +2954,17 @@ def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Sessio
     return result
 
 
+@app.post("/api/finished/sell-batch")
+def api_sell_finished_products_batch(data: schemas.FinishedProductSaleBatchCreate, db: Session = Depends(get_db),
+                                       current_user=Depends(auth.admin_or_warehouse)):
+    """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
+    who = current_user.full_name or current_user.username
+    result = crud.sell_finished_products_batch(db, data, created_by=who)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
 @app.post("/api/finished/sell")
 def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Session = Depends(get_db),
                                 current_user=Depends(auth.admin_or_warehouse)):
@@ -3154,6 +3169,28 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
         _send_telegram(msg)
 
     return result
+
+
+@app.get("/api/finished/sales/batch/{group_id}/pdf")
+def api_finished_sale_batch_pdf(group_id: str, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Bir nechta mahsulot — bitta Yuk xati (guruh bo'yicha)."""
+    from fastapi.responses import Response
+    import delivery_pdf
+    import traceback
+    from models import FinishedProductSale
+
+    sales = db.query(FinishedProductSale).filter(FinishedProductSale.sale_group_id == group_id).order_by(FinishedProductSale.id).all()
+    if not sales:
+        raise HTTPException(status_code=404, detail="Sotuv guruhi topilmadi")
+    try:
+        pdf_bytes = delivery_pdf.generate_finished_sale_batch_pdf(sales, group_id, db)
+    except Exception as e:
+        print("Sotuv guruhi PDF XATO:\n", traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
+
+    filename = f"yuk_xati_sotuv_{group_id}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
 @app.get("/api/finished/sales/{sale_id}/pdf")
