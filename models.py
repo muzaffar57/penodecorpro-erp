@@ -1002,6 +1002,7 @@ class FinishedProductSale(Base):
     payment_method = Column(String(20), default="naqd")
     notes = Column(Text, nullable=True)
     created_by = Column(String(100), nullable=True)
+    sale_group_id = Column(String(40), nullable=True, index=True)  # Bir nechta mahsulot BITTA Yuk xati bilan sotilganda, ularni birlashtiradi
 
     finished_product = relationship("FinishedProduct")
 
