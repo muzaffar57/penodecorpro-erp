@@ -272,6 +272,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_products ADD COLUMN gips_kg_used FLOAT")
         if 'gips_inventory_id' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN gips_inventory_id INTEGER")
+        if 'produced_quantity' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN produced_quantity FLOAT")
 
         emp_cols2 = [c['name'] for c in inspector.get_columns('employees')]
         if 'production_type' not in emp_cols2:
