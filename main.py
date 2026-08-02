@@ -244,6 +244,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE orders ADD COLUMN actual_loy_kg FLOAT")
         if 'base_price' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN base_price NUMERIC(12,2)")
+        if 'planned_loy_kg' not in ord_cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN planned_loy_kg FLOAT")
         if 'gips_inventory_id' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN gips_inventory_id INTEGER")
 
