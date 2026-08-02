@@ -45,6 +45,144 @@ def _num(n, digits=2):
         return "0"
 
 
+def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> bytes:
+    """Bir nechta turli tayyor mahsulot — BITTA xaridorga, BITTA Yuk xati
+    sifatida. `sales` — FinishedProductSale obyektlari ro'yxati (bitta
+    sale_group_id ga tegishli)."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=1.2*cm, rightMargin=1.2*cm,
+        topMargin=1*cm, bottomMargin=1*cm,
+        title=f"Yuk xati — sotuv guruhi {group_id}"
+    )
+
+    st_title = ParagraphStyle('t', fontName='Helvetica-Bold', fontSize=16,
+                              textColor=colors.white, alignment=TA_CENTER, leading=20)
+    st_sub = ParagraphStyle('s', fontName='Helvetica', fontSize=9,
+                            textColor=GOLD, alignment=TA_CENTER, leading=12)
+    st_norm = ParagraphStyle('n', fontName='Helvetica', fontSize=9,
+                             textColor=DARK, leading=13)
+
+    el = []
+
+    header = Table([[
+        Paragraph("PENODECORPRO", st_title),
+    ], [
+        Paragraph("Fasad bezaklari  ·  Andijon  ·  +998 97 999 57 57", st_sub),
+    ]], colWidths=[18*cm])
+    header.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), DARK),
+        ('TOPPADDING', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
+    ]))
+    el.append(header)
+    el.append(Spacer(1, 6))
+
+    title2 = Table([[
+        Paragraph(
+            f"<font size=13><b>YUK XATI (NAKLADNOY)</b></font>  "
+            f"<font size=11 color='#8E8E93'>№ S-{group_id}</font>",
+            ParagraphStyle('x', fontName='Helvetica', fontSize=12,
+                           textColor=DARK, alignment=TA_CENTER)
+        )
+    ]], colWidths=[18*cm])
+    title2.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), LIGHT),
+        ('TOPPADDING', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+        ('LINEBELOW', (0, 0), (-1, -1), 2, GOLD),
+    ]))
+    el.append(title2)
+    el.append(Spacer(1, 8))
+
+    first = sales[0]
+    dt = first.sold_at or datetime.now(UZB_TZ)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(UZB_TZ)
+    date_str = dt.strftime("%d.%m.%Y  %H:%M")
+
+    pay_labels = {"naqd": "Naqd", "karta": "Karta", "bank": "Bank o'tkazmasi"}
+    info_rows = [
+        ["Sana:", date_str, "To'lov usuli:", pay_labels.get(first.payment_method, first.payment_method or "—")],
+        ["Xaridor:", first.buyer_name or "—", "Sotuvchi:", first.created_by or "—"],
+    ]
+    info = Table(info_rows, colWidths=[2.3*cm, 6.7*cm, 2.9*cm, 6.1*cm])
+    info.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+        ('FONTNAME', (2, 0), (2, -1), 'Helvetica'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (3, 0), (3, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, -1), GRAY),
+        ('TEXTCOLOR', (2, 0), (2, -1), GRAY),
+        ('TEXTCOLOR', (1, 0), (1, -1), DARK),
+        ('TEXTCOLOR', (3, 0), (3, -1), DARK),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    el.append(info)
+    el.append(Spacer(1, 9))
+
+    el.append(Paragraph("<b>Sotilgan mahsulotlar</b>", st_norm))
+    el.append(Spacer(1, 5))
+
+    data = [["№", "Mahsulot nomi", "Miqdor", "Birlik narxi", "Summa"]]
+    grand_total = 0.0
+    for i, s in enumerate(sales, 1):
+        data.append([
+            str(i), s.product_name or "—",
+            f"{_num(s.quantity)} {s.unit}",
+            _fmt(s.unit_price),
+            _fmt(s.total_amount),
+        ])
+        grand_total += float(s.total_amount or 0)
+    data.append(["", "", "", "JAMI:", _fmt(grand_total)])
+
+    tbl = Table(data, colWidths=[0.9*cm, 7.5*cm, 3.2*cm, 3*cm, 3*cm], repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), DARK),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8.5),
+        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -2), 9),
+        ('TEXTCOLOR', (0, 1), (-1, -2), DARK),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (3, 1), (4, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -2), 0.4, colors.HexColor("#E5E1D8")),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#F0EBE0")),
+        ('FONTNAME', (3, -1), (4, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (3, -1), (4, -1), 10),
+        ('TEXTCOLOR', (4, -1), (4, -1), GOLD),
+        ('LINEABOVE', (0, -1), (-1, -1), 1.2, DARK),
+        ('SPAN', (0, -1), (2, -1)),
+    ]))
+    el.append(tbl)
+    el.append(Spacer(1, 14))
+
+    if first.notes:
+        el.append(Paragraph(f"<b>Izoh:</b> {first.notes}", st_norm))
+        el.append(Spacer(1, 10))
+
+    el.append(Spacer(1, 20))
+    sign = Table([["Topshirdi: _______________", "Qabul qildi: _______________"]], colWidths=[9*cm, 9*cm])
+    sign.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (-1, -1), DARK),
+    ]))
+    el.append(sign)
+
+    doc.build(el)
+    return buf.getvalue()
+
+
 def generate_finished_sale_pdf(sale, db=None) -> bytes:
     """Tayyor mahsulot to'g'ridan-to'g'ri sotuvi uchun sodda Yuk xati.
     Buyurtma/loyihaga bog'liq emas — faqat shu bitta sotuv haqida."""
