@@ -303,6 +303,7 @@ class Order(Base):
     planned_gips_kg = Column(Float, nullable=True)
     actual_gips_kg = Column(Float, nullable=True)
     actual_loy_kg = Column(Float, nullable=True)  # Haqiqiy Loy (qoplama) miqdori — "Tayyor" bosilganda kiritiladi
+    planned_loy_kg = Column(Float, nullable=True)  # Rejalashtirilgan Loy (qoplama) — buyurtma yaratilganda/tahrirlashda
     base_price = Column(Numeric(12, 2), nullable=True)  # "1 m³ asosiy narxi" — hodim kiritgan, tahrirlashda tiklanishi uchun
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Aniq qaysi Gips xomashyosi ishlatilgani
 
