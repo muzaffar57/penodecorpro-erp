@@ -3339,6 +3339,25 @@ async function saveOrder(isDraft = false) {
     });
   }
 
+  // MUHIM: "Loy sotish" qatorida retsept tanlanmagan bo'lsa — xomashyo
+  // ombordan HECH QACHON ayirilmaydi (buni ilgari aniq bir holatda topgan
+  // edik). Bu — jiddiy xato, shuning uchun saqlashni TO'LIQ TO'XTATAMIZ.
+  const rowsMissingRecipe = [];
+  document.querySelectorAll('.detal').forEach((row, idx) => {
+    const rowType = row.querySelector('.i-type')?.value;
+    if (rowType !== 'loy_sotish') return;
+    const recipeEl = row.querySelector('.i-loysale-recipe');
+    if (recipeEl && !parseInt(recipeEl.value)) {
+      rowsMissingRecipe.push({ idx, rowId: row.id });
+    }
+  });
+  if (rowsMissingRecipe.length) {
+    issues.push({
+      text: `⚠️ ${rowsMissingRecipe.length}-detal(lar)da (№${rowsMissingRecipe.map(r=>r.idx+1).join(', ')}) "Loy sotish" uchun RETSEPT TANLANMAGAN — xomashyo ombordan ayirilmaydi!`,
+      targetId: rowsMissingRecipe[0].rowId
+    });
+  }
+
   if (issues.length) {
     showValidationModal(issues);
     return;
