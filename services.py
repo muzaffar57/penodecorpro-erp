@@ -1976,7 +1976,14 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     ).all()
     for fp in direct_produced:
         cat = (fp.category or "").lower()
-        qty = float(fp.quantity or 0)
+        # MUHIM: `quantity` — SOTISH/BRAK orqali KAMAYADI (joriy qoldiq).
+        # Hodim oyligi esa — mahsulot ASLIDA qancha ishlab chiqarilgani
+        # bo'yicha hisoblanishi kerak, keyinchalik sotilgan-sotilmaganidan
+        # QAT'IY NAZAR. Shuning uchun `produced_quantity` (muzlatilgan,
+        # "Sotuvga tayyor" bo'lgan paytdagi son) ishlatiladi. Eski
+        # yozuvlarda bu maydon bo'sh bo'lishi mumkin — fallback sifatida
+        # joriy `quantity` ishlatiladi.
+        qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
         if cat == "gips":
             if (fp.unit or "").lower() == "dona":
                 jami_gips_gul += qty
