@@ -3378,6 +3378,76 @@ def record_finished_product_loss(db: Session, data, created_by: str = None) -> d
     }
 
 
+def sell_finished_products_batch(db: Session, data, created_by: str = None) -> dict:
+    """Bir nechta turli tayyor mahsulotni, BITTA xaridorga, BITTA Yuk xati
+    bilan sotadi ("savatcha"). Barchasi BITTA tranzaksiyada — birortasi
+    xato bersa, HECH BIRI saqlanmaydi (rollback)."""
+    import uuid
+    from models import FinishedProduct, FinishedProductSale
+
+    if not data.items:
+        return {"success": False, "message": "Hech qanday mahsulot tanlanmagan"}
+
+    group_id = uuid.uuid4().hex[:16]
+    sales = []
+    total_all = 0.0
+    profit_all = 0.0
+
+    try:
+        for item in data.items:
+            fp = db.query(FinishedProduct).filter(FinishedProduct.id == item.finished_product_id).with_for_update().first()
+            if not fp:
+                db.rollback()
+                return {"success": False, "message": f"Mahsulot (ID {item.finished_product_id}) topilmadi"}
+
+            available = float(fp.quantity or 0)
+            if item.quantity > available + 0.001:
+                db.rollback()
+                return {"success": False, "message": f"{fp.name}: omborda faqat {available:g} {fp.unit} bor, {item.quantity:g} sota olmaysiz"}
+
+            total_amount = item.quantity * item.unit_price
+            unit_cost = (float(fp.cost_price or 0) / available) if available > 0 else 0
+            cost_amount = unit_cost * item.quantity
+
+            fp.quantity = available - item.quantity
+            if fp.cost_price:
+                fp.cost_price = float(fp.cost_price) - cost_amount
+
+            sale = FinishedProductSale(
+                finished_product_id=fp.id,
+                product_name=fp.name,
+                quantity=item.quantity,
+                unit=fp.unit,
+                unit_price=item.unit_price,
+                total_amount=total_amount,
+                cost_amount=cost_amount,
+                buyer_name=data.buyer_name,
+                payment_method=data.payment_method,
+                notes=data.notes,
+                created_by=created_by,
+                sale_group_id=group_id
+            )
+            db.add(sale)
+            sales.append(sale)
+            total_all += total_amount
+            profit_all += (total_amount - cost_amount)
+
+        db.commit()
+        for s in sales:
+            db.refresh(s)
+
+        return {
+            "success": True,
+            "sale_group_id": group_id,
+            "sale_count": len(sales),
+            "total_amount": round(total_all),
+            "profit": round(profit_all)
+        }
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "message": f"Xato yuz berdi: {str(e)}"}
+
+
 def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotadi (buyurtma/Yuk xatisiz).
     Qoldiqdan ayiradi, savdo yozuvini yaratadi. cost_amount — mahsulotning
