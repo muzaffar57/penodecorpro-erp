@@ -926,7 +926,10 @@ class FinishedProduct(Base):
     thickness = Column(Float, nullable=True)
     is_coated = Column(Boolean, default=True)
 
-    quantity = Column(Float, default=0.0)            # Qoldiq (metr yoki dona)
+    quantity = Column(Float, default=0.0)            # Qoldiq (metr yoki dona) — SOTILGANDA/BRAKDA KAMAYADI
+    produced_quantity = Column(Float, nullable=True)  # ASL ishlab chiqarilgan miqdor — HECH QACHON o'zgarmaydi
+    # (hodim oyligini hisoblash uchun — "Sotish" qoldiqni kamaytiradi, lekin
+    # hodim ALLAQACHON shu ishni bajargan, shuning uchun uning haqi o'zgarmasligi kerak)
     unit = Column(String(20), default="metr")
 
     unit_price = Column(Numeric(12, 2), default=0)   # Sotuv narxi (1 metr / 1 dona)
