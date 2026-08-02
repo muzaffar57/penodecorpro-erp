@@ -3243,7 +3243,12 @@ def return_inventory_for_order(db: Session, order, sign: float = 1.0) -> list:
 # ============================================================
 
 def _get_planned_loy(order) -> float:
-    """Buyurtma yaratilganda rejalashtirilgan loy miqdorini notes dan oladi."""
+    """Buyurtma yaratilganda rejalashtirilgan loy miqdorini oladi.
+    MUHIM: endi ALOHIDA, ishonchli ustundan (order.planned_loy_kg) o'qiladi —
+    matn ichidan (notes) qidirish faqat shu tuzatishdan OLDIN yaratilgan
+    ESKI buyurtmalar uchun zaxira (fallback) sifatida qoladi."""
+    if getattr(order, 'planned_loy_kg', None) is not None:
+        return float(order.planned_loy_kg)
     notes = order.notes or ''
     for part in notes.split(','):
         part = part.strip()
@@ -3256,7 +3261,11 @@ def _get_planned_loy(order) -> float:
 
 
 def _set_planned_loy(order, kg: float) -> None:
-    """Rejalashtirilgan loyni notes ga yozadi."""
+    """Rejalashtirilgan loyni saqlaydi — endi to'g'ridan-to'g'ri, ishonchli
+    ustunga (order.planned_loy_kg). Eski notes-belgisi ham, orqaga moslik
+    uchun, parallel yozilib turadi (hozircha, keyinchalik olib tashlanishi
+    mumkin)."""
+    order.planned_loy_kg = kg
     notes = order.notes or ''
     parts = [p.strip() for p in notes.split(',') if p.strip() and not p.strip().startswith('planned_loy=')]
     parts.append(f'planned_loy={kg}')
