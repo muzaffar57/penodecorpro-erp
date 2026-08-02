@@ -1023,8 +1023,20 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
         # ombordan yechiladi (buyurtma to'g'ridan-to'g'ri, qoralamasiz
         # yaratilganda ham ishlashi kerak — avval bu yerda YO'Q edi)
         for item in db_order.items:
-            if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
-                _services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
+            if (item.category or '').lower() == 'loy_sotish':
+                if item.recipe_id and item.quantity:
+                    _services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
+                elif item.quantity:
+                    # MUHIM: retsept tanlanmagan "Loy sotish" detali —
+                    # xomashyo AYIRILMAYDI. Frontend endi buni oldindan
+                    # tekshiradi, lekin API to'g'ridan-to'g'ri chaqirilsa ham
+                    # (masalan SaaS mijozi tomonidan) — bu holat KUZATILISHI
+                    # kerak, shuning uchun xato jurnaliga yozamiz.
+                    try:
+                        log_error(db, f"Loy sotish detali (#{item.id}, {item.name}) — retsept tanlanmagan, xomashyo ayirilmadi!",
+                                  endpoint="create_order:loy_sotish_missing_recipe")
+                    except Exception:
+                        pass
 
         # UMUMIY QOPLAMA uchun Rejalashtirilgan Loy (yuqoridagi "Loy miqdori"
         # maydoni) — MUHIM: bu ham avval BUTUNLAY YO'Q edi (faqat qoralama
