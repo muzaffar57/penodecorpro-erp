@@ -3379,7 +3379,8 @@ async function saveOrder(isDraft = false) {
     gips_inventory_id: parseInt(document.getElementById('gips_inventory_id')?.value) || null,
     planned_gips_kg: parseFloat(document.getElementById('gips_kg')?.value) || null,
     gips_additives: collectGipsAdditives(),
-    base_price: parseNum(document.getElementById('base_price')?.value || '0') || null
+    base_price: parseNum(document.getElementById('base_price')?.value || '0') || null,
+    loy_kg: parseFloat(document.getElementById('loy_kg')?.value || '0') || null
   };
 
   await submitOrderRequest(data, isDraft, zaklat, zaklatMethod, false);
@@ -3890,7 +3891,8 @@ async function updateOrder(orderId) {
     gips_inventory_id: parseInt(document.getElementById('gips_inventory_id')?.value) || null,
     planned_gips_kg: parseFloat(document.getElementById('gips_kg')?.value) || null,
     gips_additives: collectGipsAdditives(),
-    base_price: parseNum(document.getElementById('base_price')?.value || '0') || null
+    base_price: parseNum(document.getElementById('base_price')?.value || '0') || null,
+    loy_kg: parseFloat(document.getElementById('loy_kg')?.value || '0') || null
   };
 
   const url = `/api/orders/${orderId}?loy_kg=${loyKg}`;
