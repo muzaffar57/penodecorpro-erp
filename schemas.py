@@ -422,6 +422,21 @@ class FinishedProductSaleCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class FinishedProductSaleBatchItem(BaseModel):
+    finished_product_id: int
+    quantity: float = Field(..., gt=0)
+    unit_price: float = Field(..., ge=0)
+
+
+class FinishedProductSaleBatchCreate(BaseModel):
+    """Bir nechta turli tayyor mahsulotni, BITTA xaridorga, BITTA Yuk xati
+    bilan sotish ("savatcha")."""
+    items: List[FinishedProductSaleBatchItem] = Field(..., min_length=1)
+    buyer_name: Optional[str] = None
+    payment_method: str = Field(default="naqd")
+    notes: Optional[str] = None
+
+
 class GipsProduceAdditive(BaseModel):
     inventory_id: int
     quantity: float = Field(..., gt=0)
