@@ -194,6 +194,46 @@
   </div>
 </div>
 
+<!-- ══ TANLANGANLARNI SOTISH — suzuvchi panel ══ -->
+<div id="batchSellBar" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:900;background:#0F172A;color:#fff;border-radius:14px;padding:14px 20px;box-shadow:0 12px 32px rgba(0,0,0,.25);align-items:center;gap:16px">
+  <span id="batchSellCount" style="font-weight:600;font-size:14px">0 ta tanlandi</span>
+  <button onclick="openBatchSellModal()" style="background:#16A34A;color:#fff;border:none;padding:9px 18px;border-radius:9px;font-weight:600;font-size:13.5px;cursor:pointer">💰 Sotish</button>
+  <button onclick="clearBatchSelection()" style="background:transparent;color:#94A3B8;border:1px solid #334155;padding:9px 14px;border-radius:9px;font-size:13.5px;cursor:pointer">Bekor qilish</button>
+</div>
+
+<!-- ══ SAVATCHA — bir nechta mahsulotni sotish oynasi ══ -->
+<div id="batchSellModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1a1a1a">💰 Bir nechta mahsulotni sotish</div>
+        <div style="font-size:13px;color:#aaa;margin-top:2px" id="batch-modal-sub">—</div>
+      </div>
+      <button onclick="closeBatchSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:18px 22px;overflow-y:auto;flex:1">
+      <div id="batch-items-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
+      <div style="background:#F0FDF4;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:#166534;text-align:center;margin-bottom:16px" id="batch-total-box">Jami: 0 so'm</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
+        <input type="text" id="batch-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">To'lov usuli</label>
+        <select id="batch-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+          <option value="naqd">💵 Naqd</option>
+          <option value="karta">💳 Karta</option>
+          <option value="bank">🏦 Bank o'tkazmasi</option>
+        </select>
+      </div>
+    </div>
+    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
+      <button onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+      <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Hammasini sotish</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ SOTISH MODALI ══ -->
 <div id="sellModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
@@ -773,6 +813,7 @@ function rowHtml(i) {
 
   return `
   <div class="fp-row ${isRet ? 'returned' : ''} ${inProgress ? 'progress' : ''}" data-name="${i.name.toLowerCase()}">
+    ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${i.name.replace(/'/g,"&apos;")}" data-qty="${i.quantity}" data-unit="${i.unit}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:18px;height:18px;margin-right:10px;cursor:pointer;flex-shrink:0" onclick="event.stopPropagation()">` : `<div style="width:18px;margin-right:10px;flex-shrink:0"></div>`}
     <label class="fp-thumb" onclick="event.stopPropagation()">
       ${i.image_url
         ? `<img src="${i.image_url}" alt="" onclick="openLightbox('${i.image_url}')">`
@@ -1098,6 +1139,120 @@ async function submitLoss() {
     if (res.ok) {
       closeLossModal();
       showMsg(`✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada Brak xarajatiga qo'shildi`, 'success');
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
+    }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
+}
+
+let _batchItems = {};  // id -> {name, qty, unit, price, maxQty}
+
+function onBatchCheckChange() {
+  const checks = document.querySelectorAll('.fp-batch-check');
+  _batchItems = {};
+  let count = 0;
+  checks.forEach(c => {
+    if (c.checked) {
+      const id = c.dataset.id;
+      _batchItems[id] = {
+        name: c.dataset.name,
+        maxQty: parseFloat(c.dataset.qty) || 0,
+        unit: c.dataset.unit,
+        price: parseFloat(c.dataset.price) || 0
+      };
+      count++;
+    }
+  });
+  const bar = document.getElementById('batchSellBar');
+  if (count > 0) {
+    bar.style.display = 'flex';
+    document.getElementById('batchSellCount').textContent = `${count} ta tanlandi`;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function clearBatchSelection() {
+  document.querySelectorAll('.fp-batch-check').forEach(c => c.checked = false);
+  _batchItems = {};
+  document.getElementById('batchSellBar').style.display = 'none';
+}
+
+function openBatchSellModal() {
+  const ids = Object.keys(_batchItems);
+  if (!ids.length) return;
+  document.getElementById('batch-modal-sub').textContent = `${ids.length} ta mahsulot`;
+  document.getElementById('batch-buyer').value = '';
+  document.getElementById('batch-paymethod').value = 'naqd';
+
+  const list = document.getElementById('batch-items-list');
+  list.innerHTML = ids.map(id => {
+    const it = _batchItems[id];
+    return `
+      <div class="batch-item-row" data-id="${id}" style="border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px">
+        <div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:8px">${it.name}</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="flex:1">
+            <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">Miqdor (bor: ${it.maxQty} ${it.unit})</div>
+            <input type="number" class="batch-qty" value="${it.maxQty}" max="${it.maxQty}" min="0" step="0.1"
+                   oninput="updateBatchTotal()" style="width:100%;padding:8px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:14px;box-sizing:border-box">
+          </div>
+          <div style="flex:1">
+            <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">1 birlik narxi</div>
+            <input type="text" class="batch-price" value="${fmt(it.price)}" oninput="formatPriceInput(this);updateBatchTotal()"
+                   style="width:100%;padding:8px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:14px;box-sizing:border-box">
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  updateBatchTotal();
+  document.getElementById('batchSellModal').style.display = 'flex';
+}
+
+function closeBatchSellModal() {
+  document.getElementById('batchSellModal').style.display = 'none';
+}
+
+function updateBatchTotal() {
+  let total = 0;
+  document.querySelectorAll('.batch-item-row').forEach(row => {
+    const qty = parseFloat(row.querySelector('.batch-qty')?.value) || 0;
+    const price = parseNum(row.querySelector('.batch-price')?.value) || 0;
+    total += qty * price;
+  });
+  document.getElementById('batch-total-box').textContent = `Jami: ${fmt(total)} so'm`;
+}
+
+async function submitBatchSell() {
+  const items = [];
+  let hasError = false;
+  document.querySelectorAll('.batch-item-row').forEach(row => {
+    const id = parseInt(row.dataset.id);
+    const qty = parseFloat(row.querySelector('.batch-qty')?.value) || 0;
+    const price = parseNum(row.querySelector('.batch-price')?.value) || 0;
+    if (qty <= 0 || price <= 0) { hasError = true; return; }
+    items.push({ finished_product_id: id, quantity: qty, unit_price: price });
+  });
+  if (hasError || !items.length) { showMsg('Barcha mahsulotlar uchun miqdor va narxni to\'g\'ri kiriting', 'error'); return; }
+
+  try {
+    const res = await fetch('/api/finished/sell-batch', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        items,
+        buyer_name: document.getElementById('batch-buyer').value.trim() || null,
+        payment_method: document.getElementById('batch-paymethod').value
+      })
+    });
+    const r = await res.json();
+    if (res.ok) {
+      closeBatchSellModal();
+      clearBatchSelection();
+      showMsg(`✓ ${r.sale_count} ta mahsulot sotildi! Jami: ${fmt(r.total_amount)} so'm`, 'success');
+      window.open(`/api/finished/sales/batch/${r.sale_group_id}/pdf`, '_blank');
       setTimeout(() => location.reload(), 1500);
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
