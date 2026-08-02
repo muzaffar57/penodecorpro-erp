@@ -961,11 +961,34 @@ function addGpAdditive() {
   row.className = 'gp-add-row';
   row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
   row.innerHTML = `
-    <select class="gp-add-inv" style="flex:2;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px"><option value="">— Material tanlang —</option>${opts}</select>
+    <select class="gp-add-inv" onchange="onGpAdditiveChange(this)" style="flex:2;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px"><option value="">— Material tanlang —</option>${opts}</select>
     <input type="number" class="gp-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px">
     <button type="button" onclick="this.closest('.gp-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
   `;
   list.appendChild(row);
+}
+
+function onGpAdditiveChange(sel) {
+  // MUHIM: Serpiyanka/Qop kabi "idishda" saqlanadigan materiallar uchun —
+  // foydalanuvchi TABIIY birlikda (masalan "necha metr") kiritishi kerak,
+  // tizim buni o'zi rulonga aylantiradi. Aks holda "20" deb yozilgan metr,
+  // xato bilan "20 rulon" deb o'qilib qolar edi.
+  const row = sel.closest('.gp-add-row');
+  const qtyEl = row.querySelector('.gp-add-qty');
+  const item = (_gipsInvCacheFp || []).find(i => String(i.id) === sel.value);
+  if (!item) { qtyEl.placeholder = 'Miqdor'; row.dataset.ratio = ''; return; }
+  const unit = (item.unit || '').toLowerCase();
+  const ratio = parseFloat(item.volume_per_unit) || 0;
+  const isContainer = ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop');
+  if (isContainer) {
+    const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
+    qtyEl.placeholder = `Necha ${naturalUnit}?`;
+    row.dataset.ratio = ratio;
+    row.dataset.naturalUnit = naturalUnit;
+  } else {
+    qtyEl.placeholder = `Miqdor (${item.unit})`;
+    row.dataset.ratio = '';
+  }
 }
 
 function collectGpAdditives() {
@@ -973,7 +996,9 @@ function collectGpAdditives() {
   const result = [];
   rows.forEach(row => {
     const invId = parseInt(row.querySelector('.gp-add-inv')?.value) || null;
-    const qty = parseFloat(row.querySelector('.gp-add-qty')?.value) || 0;
+    let qty = parseFloat(row.querySelector('.gp-add-qty')?.value) || 0;
+    const ratio = parseFloat(row.dataset.ratio) || 0;
+    if (ratio > 0) qty = qty / ratio;  // tabiiy birlikdan (metr/kg) — idish birligiga (rulon/qop)
     if (invId && qty > 0) result.push({ inventory_id: invId, quantity: qty });
   });
   return result;
