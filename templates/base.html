@@ -279,5 +279,47 @@
 </div>
 
 {% block scripts %}{% endblock %}
+
+<script>
+// ══ UMUMIY: matn maydonlarining birinchi harfini avtomatik katta qilish ══
+// Butun tizimda, HAR BIR sahifada ishlaydi (bitta joyda yozilgan).
+// Faqat foydalanuvchi maydondan CHIQQANDA (blur) ishlaydi — yozayotganda
+// emas, aks holda kursor pozitsiyasi buzilib, yozishga xalaqit berardi.
+(function() {
+  function shouldSkip(el) {
+    if (!el || el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return true;
+    if (el.tagName === 'INPUT' && el.type !== 'text') return true;  // faqat oddiy matn maydonlari
+    if (el.dataset.noCapitalize !== undefined) return true;         // qo'lda o'chirish imkoni
+    if (el.type === 'search') return true;
+    const id = (el.id || '').toLowerCase();
+    const cls = (el.className || '').toLowerCase();
+    // Qidiruv/filtr va narx/son maydonlarini o'tkazib yuboramiz
+    if (id.includes('search') || id.includes('qidir') || cls.includes('search')) return true;
+    if (id.includes('price') || id.includes('narx') || cls.includes('price')) return true;
+    return false;
+  }
+
+  function capitalizeFirst(val) {
+    if (!val) return val;
+    // Faqat BIRINCHI harfni katta qilamiz, qolganiga tegmaymiz —
+    // aks holda qisqartmalar (masalan "sm", "kg") buzilib qolardi.
+    return val.charAt(0).toUpperCase() + val.slice(1);
+  }
+
+  document.addEventListener('blur', function(e) {
+    const el = e.target;
+    if (shouldSkip(el)) return;
+    const newVal = capitalizeFirst(el.value);
+    if (newVal !== el.value) {
+      el.value = newVal;
+      // React/Vue kabi frameworklar uchun emas, oddiy JS uchun — o'zgarish
+      // event'ini qo'lda chaqiramiz, aks holda ba'zi "oninput" handlerlar
+      // yangi qiymatni sezmasligi mumkin edi.
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }, true);  // "capture" rejimida — barcha maydonlarni ushlab qolish uchun
+})();
+</script>
+
 </body>
 </html>
