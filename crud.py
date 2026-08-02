@@ -1008,10 +1008,15 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
 
     db.flush()
 
+    # "Loy miqdori" (Reja) — HAR DOIM saqlanadi (qoralama bo'lsa ham),
+    # chunki keyinroq "Jarayonga olish" bosilganda shu qiymat kerak bo'ladi.
+    import services as _services
+    _planned_loy_direct = float(getattr(order_data, 'loy_kg', None) or 0)
+    _services._set_planned_loy(db_order, _planned_loy_direct)
+
     # Tayyor mahsulotlardan yechamiz (qoralama bo'lmasa)
     if not is_draft:
         _take_finished_for_order(db, db_order)
-        import services as _services
         planned_gips = float(db_order.planned_gips_kg or 0)
         if planned_gips > 0 and db_order.gips_inventory_id:
             _services.deduct_gips_main(db, db_order.gips_inventory_id, planned_gips, db_order)
@@ -1038,11 +1043,11 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
                     except Exception:
                         pass
 
-        # UMUMIY QOPLAMA uchun Rejalashtirilgan Loy (yuqoridagi "Loy miqdori"
-        # maydoni) — MUHIM: bu ham avval BUTUNLAY YO'Q edi (faqat qoralama
-        # faollashtirish va tiklashda bor edi). To'g'ridan-to'g'ri yaratilgan
-        # buyurtmada, umumiy qoplama uchun xomashyo HECH QACHON ayirilmasdi.
-        _planned_loy_general = _services._get_planned_loy(db_order) + get_termopanel_planned_loy(db_order)
+        # UMUMIY QOPLAMA uchun Rejalashtirilgan Loy — MUHIM: bu ham avval
+        # BUTUNLAY YO'Q edi (faqat qoralama faollashtirish va tiklashda bor
+        # edi). To'g'ridan-to'g'ri yaratilgan buyurtmada, umumiy qoplama
+        # uchun xomashyo HECH QACHON ayirilmasdi.
+        _planned_loy_general = _planned_loy_direct + get_termopanel_planned_loy(db_order)
         if _planned_loy_general > 0:
             _services.deduct_loy_ingredients(db, db_order, _planned_loy_general)
 
@@ -2198,8 +2203,9 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
         if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id and oi.quantity:
             log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id))
 
-    # Rejalashtirilgan loy bo'lsa — uni ham yechamiz
-    planned_loy = services._get_planned_loy(order)
+    # Rejalashtirilgan loy bo'lsa — uni ham yechamiz (umumiy qoplama +
+    # Termopanel qoplamasi — ikkalasi ham, create_order bilan izchil)
+    planned_loy = services._get_planned_loy(order) + get_termopanel_planned_loy(order)
     if planned_loy > 0:
         loy_log = services.deduct_loy_ingredients(db, order, planned_loy)
         log.extend(loy_log)
