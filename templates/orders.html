@@ -1187,6 +1187,7 @@ function pickFinished(el, fpId) {
   row.dataset.fpId = fp.id;
   row.dataset.fpMax = fp.quantity;
   row.dataset.fpUnit = fp.unit;
+  row.dataset.fpPrice = fp.unit_price;
 
   // Maydonlarni to'ldiramiz
   row.querySelector('.i-name').value = fp.name;
@@ -1214,8 +1215,13 @@ function pickFinished(el, fpId) {
   if (coatEl) coatEl.value = fp.is_coated ? 'true' : 'false';
   syncCoatingUI(row, !!fp.is_coated);
 
-  // Miqdorni tozalaymiz — xodim kiritadi
-  if (fp.unit === 'metr') {
+  // Miqdorni tozalaymiz — xodim kiritadi.
+  // MUHIM: "necha metr" qaysi maydonda saqlanishi TURGA qarab FARQ qiladi —
+  // Profilda ".i-l" (Uzunlik), Panelda esa ".i-q" (u yerda "Uzunlik (m)"
+  // deb nomlanadi). Buni chalkashtirmaslik uchun aniq ajratamiz.
+  if (fp.unit === 'metr' && effectiveType === 'panel') {
+    row.querySelector('.i-q').value = '';
+  } else if (fp.unit === 'metr') {
     row.querySelector('.i-l').value = '';
   } else {
     row.querySelector('.i-q').value = '';
@@ -1257,6 +1263,14 @@ function pickFinished(el, fpId) {
       x.title = 'Tayyor mahsulotdan olinmoqda — o\'zgartirib bo\'lmaydi';
     }
   });
+  // MUHIM: agar tayyor mahsulot "metr" birligida bo'lsa, tegishli
+  // "NECHA METR OLASIZ" (miqdor) maydoni — bu holda O'LCHAM emas!
+  // Shuning uchun buni QAYTA OCHAMIZ (turga qarab, to'g'ri maydon).
+  if (fp.unit === 'metr') {
+    const qtyFieldSel = (effectiveType === 'panel') ? '.i-q' : '.i-l';
+    const qEl = row.querySelector(qtyFieldSel);
+    if (qEl) { qEl.disabled = false; qEl.style.opacity = ''; qEl.title = ''; }
+  }
   // Qoplama tugmalari (Ha/Yo'q ko'rinishidagi tugmalar) ham bloklanadi
   row.querySelectorAll('.coat-opt').forEach(b => {
     b.style.pointerEvents = 'none';
@@ -2910,6 +2924,17 @@ function calculateItem(row) {
     }
     row.dataset.unitprice = unitPrice;
   } else if (type === 'profil') {
+    if (row.dataset.fpId && row.dataset.fpPrice) {
+      // MUHIM: "Tayyor mahsulotdan" tanlangan bo'lsa — narx, o'lcham/zichlik
+      // formulasi orqali EMAS, balki mahsulotning O'Z, tayyor narxidan
+      // to'g'ridan-to'g'ri olinadi (chunki bu — allaqachon tayyor,
+      // narxi belgilangan buyum, qayta hisoblash noto'g'ri bo'lardi).
+      const fpPrice = parseFloat(row.dataset.fpPrice) || 0;
+      price = fpPrice * l;
+      perMeterPrice = fpPrice;
+      volume_total = 0;
+      row.querySelector('.i-vol').value = '0 (tayyor mahsulotdan)';
+    } else {
     const eni_m  = h / 100;
     const keng_m = w / 100;
     const perMeter_base = (eni_m * keng_m * basePrice) / 2;  // 2 ga bo'linadi
@@ -2922,7 +2947,17 @@ function calculateItem(row) {
     }
     volume_total = (eni_m * keng_m * l) / 2;   // profil — yarim kesim
     row.querySelector('.i-vol').value = volume_total.toFixed(4);
+    }
   } else if (type === 'panel') {
+    if (row.dataset.fpId && row.dataset.fpPrice) {
+      // MUHIM: "Tayyor mahsulotdan" — narx to'g'ridan-to'g'ri, tayyor
+      // mahsulotning o'zidan olinadi (formula orqali qayta hisoblanmaydi).
+      const fpPrice2 = parseFloat(row.dataset.fpPrice) || 0;
+      price = fpPrice2 * qty;
+      perMeterPrice = fpPrice2;
+      volume_total = 0;
+      row.querySelector('.i-vol').value = '0 (tayyor mahsulotdan)';
+    } else {
     // 1 metr narxi = Eni(m) × Qalinlik(m) × Narx — qoplamasiz
     const eni_m   = h / 100;
     const qalin_m = t / 100;
@@ -2936,6 +2971,7 @@ function calculateItem(row) {
     }
     volume_total = eni_m * qalin_m * qty;
     row.querySelector('.i-vol').value = volume_total.toFixed(4);
+    }
   } else if (type === 'blok') {
     // l = "1 blokdan chiqadigan metr" (taxminan), qty = "necha metr kerak".
     // Tizim o'zi: kerak bo'lgan blok sonini (yuqoriga yaxlitlab) va 1 metr narxini hisoblaydi.
