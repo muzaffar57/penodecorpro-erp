@@ -929,7 +929,7 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
         # boshqa turlar (profil/panel) buni frontendning o'zida ×2 qilib
         # yuboradi. Bu — ikkalasi orasidagi izchillikni saqlash uchun
         # (unit_price × quantity HAR DOIM total_price'ga teng bo'lishi kerak).
-        _coat_mult = 2 if (item_data.category == 'dona' and item_data.is_coated) else 1
+        _coat_mult = 2 if (item_data.category == 'dona' and item_data.is_coated and not getattr(item_data, 'finished_product_id', None)) else 1
         _stored_unit_price = item_data.unit_price * _coat_mult
         item_total = _stored_unit_price * item_data.quantity
         total_amount += item_total
@@ -2674,7 +2674,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
             db.delete(oi)
             continue
 
-        _coat_mult1 = 2 if (nd.category == 'dona' and nd.is_coated) else 1
+        _coat_mult1 = 2 if (nd.category == 'dona' and nd.is_coated and not getattr(nd, 'finished_product_id', None)) else 1
         _stored_up1 = float(nd.unit_price or 0) * _coat_mult1
         item_total = _stored_up1 * float(nd.quantity or 1)
         total_amount += item_total
@@ -2699,7 +2699,7 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     for idx, nd in enumerate(order_data.items):
         if idx in used_new:
             continue
-        _coat_mult2 = 2 if (nd.category == 'dona' and nd.is_coated) else 1
+        _coat_mult2 = 2 if (nd.category == 'dona' and nd.is_coated and not getattr(nd, 'finished_product_id', None)) else 1
         _stored_up2 = float(nd.unit_price or 0) * _coat_mult2
         item_total = _stored_up2 * float(nd.quantity or 1)
         total_amount += item_total
