@@ -1133,7 +1133,19 @@ function searchFinished(input) {
 
   fpSearchTimer = setTimeout(async () => {
     try {
-      const res = await fetch(`/api/finished/search?q=${encodeURIComponent(q)}`);
+      // MUHIM: qatorning joriy turiga qarab, faqat SHU turdagi tayyor
+      // mahsulotlarni ko'rsatamiz (masalan Gips qatorida faqat Gips,
+      // Penoplast qatorida Gips ko'rinmasin — ikkala yo'nalishda ham).
+      const rowType = row.querySelector('.i-type')?.value || '';
+      const categoryMap = { gips: 'gips', termopanel: 'termopanel' };
+      const cat = categoryMap[rowType] || '';
+      let url = `/api/finished/search?q=${encodeURIComponent(q)}`;
+      if (cat) {
+        url += `&category=${cat}`;
+      } else if (['profil', 'panel', 'dona', 'blok'].includes(rowType)) {
+        url += `&exclude_category=gips`;
+      }
+      const res = await fetch(url);
       if (!res.ok) return;
       const d = await res.json();
       const items = d.items || [];
@@ -1235,6 +1247,25 @@ function pickFinished(el, fpId) {
     }
   });
 
+  // MUHIM: Nom, o'lcham (eni/kengligi/qalinligi/uzunligi) va Qoplama
+  // (Ha/Yo'q) — bular, TAYYOR MAHSULOTNING O'ZIGA XOS xususiyatlari.
+  // Mahsulot ALLAQACHON shu ko'rinishda ishlab chiqarilgan — buyurtma
+  // ichida ularni o'zgartirish MANTIQSIZ (chunki bu — omborda haqiqatan
+  // mavjud bo'lgan buyum, uni "qayta belgilab" bo'lmaydi).
+  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c'].forEach(sel => {
+    const x = row.querySelector(sel);
+    if (x) {
+      x.disabled = true;
+      x.style.opacity = '.6';
+      x.title = 'Tayyor mahsulotdan olinmoqda — o\'zgartirib bo\'lmaydi';
+    }
+  });
+  // Qoplama tugmalari (Ha/Yo'q ko'rinishidagi tugmalar) ham bloklanadi
+  row.querySelectorAll('.coat-opt').forEach(b => {
+    b.style.pointerEvents = 'none';
+    b.style.opacity = '.6';
+  });
+
   const box = row.querySelector('.fp-suggest');
   if (box) box.style.display = 'none';
 
@@ -1260,6 +1291,16 @@ function clearFinished(rowId) {
   const m3 = row.querySelector('.i-m3price');
   [peno, m3].forEach(x => {
     if (x) { x.disabled = false; x.style.opacity = ''; }
+  });
+
+  // Nom/o'lcham/Qoplama maydonlarini ham qaytadan yoqamiz
+  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c'].forEach(sel => {
+    const x = row.querySelector(sel);
+    if (x) { x.disabled = false; x.style.opacity = ''; x.title = ''; }
+  });
+  row.querySelectorAll('.coat-opt').forEach(b => {
+    b.style.pointerEvents = '';
+    b.style.opacity = '';
   });
 
   calculateItem(row);
