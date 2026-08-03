@@ -1531,6 +1531,35 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
         penoplast_xarajat += summa
     tan_narxi_jami += penoplast_xarajat
 
+    # ── 1A. TAYYOR MAHSULOTDAN OLINGAN DETALLAR TAN NARXI ────
+    # MUHIM: bu detallar uchun XOMASHYO (yuqoridagi Penoplast/Loy) ALOHIDA
+    # HISOBLANMAYDI (chunki u — mahsulot birinchi marta ishlab
+    # chiqarilganda, allaqachon ayirilgan). Lekin bu mahsulotning O'ZI —
+    # BEPUL emas, uni ishlab chiqarish uchun xarajat ketgan. Shu xarajatni
+    # shu yerda, alohida qatorda hisobga olamiz — aks holda "Sof foyda"
+    # sun'iy oshirib ko'rsatilgan bo'lardi.
+    from models import FinishedProduct as _FP_cost
+    tayyor_mahsulot_xarajat = 0.0
+    for item in order.items:
+        fpid = getattr(item, 'finished_product_id', None)
+        if not fpid:
+            continue
+        fp_c = db.query(_FP_cost).filter(_FP_cost.id == fpid).first()
+        if not fp_c:
+            continue
+        base_qty = float(fp_c.produced_quantity if fp_c.produced_quantity is not None else (fp_c.quantity or 0))
+        if base_qty <= 0 or not fp_c.cost_price:
+            continue
+        unit_cost = float(fp_c.cost_price) / base_qty
+        used_qty = float(item.length if (item.category or '').lower() == 'profil' else item.quantity or 0)
+        tayyor_mahsulot_xarajat += unit_cost * used_qty
+    if tayyor_mahsulot_xarajat > 0:
+        breakdown.append({
+            "nomi": f"Tayyor mahsulotdan olingan detallar (tan narxi)",
+            "summa": tayyor_mahsulot_xarajat
+        })
+        tan_narxi_jami += tayyor_mahsulot_xarajat
+
     # ── 1B. TERMOPANEL (BAZALT+SERPIYANKA+KLEY) XARAJATI ────
     # Har bir termopanel detali uchun ombordan yechishda saqlangan
     # [TERMO:...] belgisidan (notes) aynan o'sha detalga qancha bazalt/
@@ -4242,7 +4271,19 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
     from models import Inventory
 
     if getattr(item, 'finished_product_id', None):
-        return 0.0  # Tayyor mahsulotdan olingan — o'z tan narxi bor
+        # MUHIM: avval bu yerda shunchaki 0.0 qaytarilardi ("o'z tan narxi
+        # bor" deb yozilgan bo'lsa-da, hech qachon hisoblanmagan edi!).
+        # Endi — mahsulotning ASL (ishlab chiqarilgandagi) tan narxidan,
+        # ishonchli "produced_quantity" asosida hisoblanadi (joriy qoldiq
+        # emas — chunki u, sotilgan/buyurtmaga olingan sari kamayib,
+        # noto'g'ri natija berardi).
+        from models import FinishedProduct
+        fp = db.query(FinishedProduct).filter(FinishedProduct.id == item.finished_product_id).first()
+        if fp:
+            base_qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
+            if base_qty > 0 and fp.cost_price:
+                return float(fp.cost_price) / base_qty
+        return 0.0
 
     default_p = get_default_penoplast(db)
     volume = _item_volume_m3(db, item, default_p)
