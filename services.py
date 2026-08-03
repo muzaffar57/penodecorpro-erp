@@ -1461,6 +1461,12 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
     penoplast_xarajat = 0.0
     penoplast_breakdown_by_item = {}  # penoplast_id -> {"vol": ..., "narx_per_m3": ...}
     for item in order.items:
+        # MUHIM: "Tayyor mahsulotdan" tanlangan detallar — xomashyosi
+        # ALLAQACHON, mahsulot birinchi marta ishlab chiqarilganda
+        # ayirilgan. Bu hisobotda ularni QAYTA qo'shib hisoblasak — real
+        # ombordan ayirilgandan KO'PROQ ko'rsatib yuboramiz.
+        if getattr(item, 'finished_product_id', None):
+            continue
         cat = (item.category or '').lower()
         qty = float(item.quantity or 1)
         vol = 0.0
