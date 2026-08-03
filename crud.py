@@ -2381,7 +2381,8 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
         ExpenseTransaction, MonthlyExpense, EmployeeSession, EmployeeAdvance,
         AdvanceRequest, Employee, RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory, UserSession, User,
-        OrderGipsAdditive, FinishedProductSale, FinishedProductLoss, EmployeeMonthlyAdjustment
+        OrderGipsAdditive, FinishedProductSale, FinishedProductLoss, EmployeeMonthlyAdjustment,
+        CompanySetting, RecurringObligation
     )
 
     # Tartib MUHIM va TO'LIQ tekshirilgan (har bir ForeignKey hisobga olingan):
@@ -2421,6 +2422,7 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
         EmployeeSession, EmployeeAdvance, AdvanceRequest, EmployeeMonthlyAdjustment, Employee,
         RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory,
+        CompanySetting, RecurringObligation,
     ]
 
 
