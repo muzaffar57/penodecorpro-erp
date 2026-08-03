@@ -1478,13 +1478,20 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
             if item.width and item.thickness:
                 vol = (item.width/100) * (item.thickness/100) * qty
         elif cat == 'dona':
-            if item.unit_price and float(item.unit_price) > 0:
+            # MUHIM: haqiqiy ombordan ayirish funksiyasi bilan BIR XIL
+            # mantiq — "qulflangan" (unit_price_for_volume, qoplamasiz,
+            # xom) narxdan foydalanamiz, item.unit_price (Qoplama bo'lsa
+            # ×2 qilib saqlangan, yakuniy) narxdan EMAS. Aks holda,
+            # qoplamali Donalik detallar uchun hajm 2 baravar ko'p
+            # ko'rsatilib qolar edi.
+            unit_price_for_vol = float(getattr(item, 'unit_price_for_volume', None) or item.unit_price or 0)
+            if unit_price_for_vol > 0:
                 pid_for_dona = item.penoplast_id or (default_penoplast.id if default_penoplast else None)
                 p_dona = db.query(Inventory).filter(Inventory.id == pid_for_dona).first() if pid_for_dona else None
                 if p_dona and p_dona.price_per_unit and p_dona.volume_per_unit:
                     narx_per_m3_dona = float(p_dona.price_per_unit) / float(p_dona.volume_per_unit)
                     if narx_per_m3_dona > 0:
-                        vol = float(item.unit_price) / narx_per_m3_dona * qty
+                        vol = unit_price_for_vol / narx_per_m3_dona * qty
 
         elif cat == 'blok':
             # Blokdan chiqadigan mahsulot uchun — "length" maydonida
