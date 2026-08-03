@@ -2947,9 +2947,10 @@ def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.
 
 
 @app.get("/api/finished/search")
-def api_search_finished(q: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    """Nom bo'yicha qidirish — buyurtmada taklif uchun."""
-    return {"items": crud.search_finished_products(db, q)}
+def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """Nom bo'yicha qidirish — buyurtmada taklif uchun. category — masalan
+    'gips', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
+    return {"items": crud.search_finished_products(db, q, category=category, exclude_category=exclude_category)}
 
 
 @app.post("/api/finished/loss")
