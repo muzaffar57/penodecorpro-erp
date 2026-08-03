@@ -1226,7 +1226,7 @@ function pickFinished(el, fpId) {
   } else {
     row.querySelector('.i-q').value = '';
     const up = row.querySelector('.i-unitprice');
-    if (up) up.value = Math.round(fp.unit_price / (fp.is_coated ? 2 : 1));
+    if (up) up.value = Math.round(fp.unit_price);
   }
 
   // Belgi qo'yamiz
@@ -2898,9 +2898,18 @@ function calculateItem(row) {
   if (type === 'dona') {
     const upEl = row.querySelector('.i-unitprice');
     const unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
-    perMeterPrice = unitPrice;              // 1 dona narxi (qoplamasiz)
-    price = unitPrice * qty;
-    if (isCoated) { price *= 2; perMeterPrice *= 2; }
+    if (row.dataset.fpId) {
+      // MUHIM: "Tayyor mahsulotdan" — bu narx ALLAQACHON YAKUNIY (Qoplama
+      // hisobga olingan holda). Qayta ×2 qilinsa — narx noto'g'ri, ikki
+      // baravar bo'lib ketardi. Shuning uchun bu yerda TO'G'RIDAN-TO'G'RI,
+      // hech qanday ko'paytirishsiz ishlatiladi.
+      perMeterPrice = unitPrice;
+      price = unitPrice * qty;
+    } else {
+      perMeterPrice = unitPrice;              // 1 dona narxi (qoplamasiz)
+      price = unitPrice * qty;
+      if (isCoated) { price *= 2; perMeterPrice *= 2; }
+    }
 
     // Hajm — standart holatda JONLI hisoblanadi (narxni o'zgartirsangiz,
     // hajm ham darhol yangilanadi — mijoz bilan gaplashib, narxni bir necha
