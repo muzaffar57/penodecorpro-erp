@@ -1195,9 +1195,15 @@ function pickFinished(el, fpId) {
   // Forma faqat profil/panel/dona/blok turlarini biladi — boshqa (masalan
   // "termopanel" kabi kvadrat metr bo'yicha o'lchanadigan) kategoriyalar
   // xavfsiz tarzda "dona" rejimida ko'rsatiladi (miqdor + narx maydoni bilan).
-  const knownTypes = ['profil', 'panel', 'dona', 'blok'];
+  const knownTypes = ['profil', 'panel', 'dona', 'blok', 'gips'];
   const effectiveType = knownTypes.includes(fp.category) ? fp.category : 'dona';
   if (typeEl) { typeEl.value = effectiveType; toggleFields(row); }
+  // Gips uchun — o'ziga xos "birlik" (metr/dona/m²) selektorini ham
+  // tayyor mahsulotning o'z birligiga moslab qo'yamiz.
+  if (effectiveType === 'gips') {
+    const guEl = row.querySelector('.i-gips-unit');
+    if (guEl && fp.unit) { guEl.value = fp.unit; onGipsUnitChange(row); }
+  }
   if (fp.width) row.querySelector('.i-h').value = fp.width;
   if (fp.thickness) {
     const t = (fp.category === 'panel') ? row.querySelector('.i-t') : row.querySelector('.i-w');
@@ -1221,9 +1227,13 @@ function pickFinished(el, fpId) {
   // deb nomlanadi). Buni chalkashtirmaslik uchun aniq ajratamiz.
   if (fp.unit === 'metr' && (effectiveType === 'panel' || effectiveType === 'blok')) {
     row.querySelector('.i-q').value = '';
-  } else if (fp.unit === 'metr') {
+  } else if (fp.unit === 'metr' && effectiveType !== 'gips') {
     row.querySelector('.i-l').value = '';
   } else {
+    // Donalik, Gips (istalgan birligida — metr/dona/m²), Panel/Blok (dona
+    // asosida) — barchasi ".i-q" dan foydalanadi, va narx avtomatik
+    // to'ldiriladi (Gipsda ×2 qoplama tushunchasi yo'q, shuning uchun
+    // to'g'ridan-to'g'ri, o'zgarishsiz).
     row.querySelector('.i-q').value = '';
     const up = row.querySelector('.i-unitprice');
     if (up) up.value = Math.round(fp.unit_price);
@@ -1255,7 +1265,7 @@ function pickFinished(el, fpId) {
   // Mahsulot ALLAQACHON shu ko'rinishda ishlab chiqarilgan — buyurtma
   // ichida ularni o'zgartirish MANTIQSIZ (chunki bu — omborda haqiqatan
   // mavjud bo'lgan buyum, uni "qayta belgilab" bo'lmaydi).
-  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c'].forEach(sel => {
+  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c', '.i-gips-unit'].forEach(sel => {
     const x = row.querySelector(sel);
     if (x) {
       x.disabled = true;
@@ -1311,7 +1321,7 @@ function clearFinished(rowId) {
   });
 
   // Nom/o'lcham/Qoplama maydonlarini ham qaytadan yoqamiz
-  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c'].forEach(sel => {
+  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c', '.i-gips-unit'].forEach(sel => {
     const x = row.querySelector(sel);
     if (x) { x.disabled = false; x.style.opacity = ''; x.title = ''; }
   });
@@ -3951,7 +3961,7 @@ function collectItems() {
       const gipsUnit = row.querySelector('.i-gips-unit')?.value || 'metr';
       items.push({ name, category: 'gips', width: null, thickness: null, length: null,
                    quantity: qty, unit_price: unitP, is_coated: false,
-                   penoplast_id: null, price_per_m3: null, finished_product_id: null,
+                   penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
                    gips_unit: gipsUnit });
     } else {
       items.push({ name, category: type, width: h, thickness: w, length: l,
