@@ -1133,18 +1133,12 @@ function searchFinished(input) {
 
   fpSearchTimer = setTimeout(async () => {
     try {
-      // MUHIM: qatorning joriy turiga qarab, faqat SHU turdagi tayyor
-      // mahsulotlarni ko'rsatamiz (masalan Gips qatorida faqat Gips,
-      // Penoplast qatorida Gips ko'rinmasin — ikkala yo'nalishda ham).
+      // MUHIM: Gips qatorida — faqat Gips tayyor mahsulotlari ko'rsatiladi.
+      // Boshqa turlarda (Profil/Panel/Donalik/Blok) — avvalgidek, HAMMASI
+      // ko'rsatiladi (cheklovsiz, eski, ishlab turgan xatti-harakat).
       const rowType = row.querySelector('.i-type')?.value || '';
-      const categoryMap = { gips: 'gips', termopanel: 'termopanel' };
-      const cat = categoryMap[rowType] || '';
-      let url = `/api/finished/search?q=${encodeURIComponent(q)}`;
-      if (cat) {
-        url += `&category=${cat}`;
-      } else if (['profil', 'panel', 'dona', 'blok'].includes(rowType)) {
-        url += `&exclude_category=gips`;
-      }
+      const cat = (rowType === 'gips') ? 'gips' : '';
+      const url = `/api/finished/search?q=${encodeURIComponent(q)}` + (cat ? `&category=${cat}` : '');
       const res = await fetch(url);
       if (!res.ok) return;
       const d = await res.json();
