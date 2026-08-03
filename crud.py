@@ -3939,31 +3939,56 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     return fp
 
 
-def search_finished_products(db: Session, query: str) -> List[dict]:
-    """Nom bo'yicha tayyor mahsulot qidirish — buyurtmada taklif uchun."""
+def search_finished_products(db: Session, query: str, category: str = None, exclude_category: str = None) -> List[dict]:
+    """Nom bo'yicha tayyor mahsulot qidirish — buyurtmada taklif uchun.
+    category — agar berilsa (masalan 'gips'), FAQAT shu turdagi mahsulotlar
+    qaytariladi. exclude_category — aksincha, shu turdagi mahsulotlar
+    RO'YXATDAN CHIQARIB TASHLANADI (masalan Penoplast qatorida — Gips
+    aralashib qolmasin uchun)."""
     q = (query or '').strip()
     if len(q) < 2:
         return []
 
-    items = db.query(FinishedProduct).filter(
+    filters = [
         FinishedProduct.quantity > 0,
         FinishedProduct.name.ilike(f"%{q}%")
-    ).order_by(FinishedProduct.name).limit(10).all()
+    ]
+    if category:
+        filters.append(FinishedProduct.category == category)
+    elif exclude_category:
+        filters.append(FinishedProduct.category != exclude_category)
 
-    return [{
-        "id": fp.id,
-        "name": fp.name,
-        "category": fp.category,
-        "width": fp.width,
-        "thickness": fp.thickness,
-        "is_coated": fp.is_coated,
-        "quantity": float(fp.quantity),
-        "unit": fp.unit,
-        "unit_price": float(fp.unit_price or 0),
-        "source": fp.source.value,
-        "source_label": "♻️ Qaytgan" if fp.source == StockSource.RETURNED else "🏭 Tayyor",
-        "notes": fp.notes,
-    } for fp in items]
+    items = db.query(FinishedProduct).filter(*filters).order_by(FinishedProduct.name).limit(10).all()
+
+    result = []
+    for fp in items:
+        try:
+            src = fp.source.value if fp.source else "produced"
+            result.append({
+                "id": fp.id,
+                "name": fp.name,
+                "category": fp.category,
+                "width": fp.width,
+                "thickness": fp.thickness,
+                "is_coated": fp.is_coated,
+                "quantity": float(fp.quantity or 0),
+                "unit": fp.unit,
+                "unit_price": float(fp.unit_price or 0),
+                "source": src,
+                "source_label": "♻️ Qaytgan" if src == "returned" else "🏭 Tayyor",
+                "notes": fp.notes,
+            })
+        except Exception as e:
+            # Bitta yozuvda muammo bo'lsa ham — QIDIRUVNING BARCHASI 500
+            # xato bilan yiqilib ketmasin, shu yozuvni o'tkazib yuboramiz.
+            try:
+                log_error(db, f"search_finished_products: FP#{fp.id} o'tkazib yuborildi — {e}",
+                          endpoint="search_finished_products")
+            except Exception:
+                pass
+            continue
+
+    return result
 
 
 
