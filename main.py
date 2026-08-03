@@ -2950,7 +2950,12 @@ def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.
 def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Nom bo'yicha qidirish — buyurtmada taklif uchun. category — masalan
     'gips', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
-    return {"items": crud.search_finished_products(db, q, category=category, exclude_category=exclude_category)}
+    try:
+        return {"items": crud.search_finished_products(db, q, category=category, exclude_category=exclude_category)}
+    except Exception as e:
+        import traceback
+        print("Tayyor mahsulot qidiruvida XATO:\n", traceback.format_exc())
+        return {"items": [], "error": str(e)}
 
 
 @app.post("/api/finished/loss")
