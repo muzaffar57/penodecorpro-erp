@@ -303,6 +303,11 @@ def _migrate_payment_columns():
             if 'bonus_reason' not in ema_cols:
                 migrations.append("ALTER TABLE employee_monthly_adjustments ADD COLUMN bonus_reason TEXT")
 
+        # Bir martalik: "Boshqa" kategoriyasidagi mavjud materiallarni
+        # "Bazalt"ga o'tkazamiz (chunki bu bo'lim aslida faqat Bazalt bilan
+        # bog'liq materiallar uchun ishlatilgan edi — aniqroq nom).
+        migrations.append("UPDATE inventory SET category = 'Bazalt' WHERE category = 'Boshqa'")
+
         if migrations:
             with engine.connect() as conn:
                 for sql in migrations:
