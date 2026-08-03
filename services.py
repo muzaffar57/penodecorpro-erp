@@ -2888,6 +2888,7 @@ def deduct_inventory_for_order(db: Session, order) -> list:
     Har detal o'z plotnostidan ayiriladi.
     """
     from models import Inventory
+    import crud as _crud_lm
 
     log = []
     volumes = _group_volumes_by_penoplast(db, order.items)
@@ -2903,6 +2904,17 @@ def deduct_inventory_for_order(db: Session, order) -> list:
         # tanqislik miqdorini yashirmaslik uchun — bu ataylab qilingan).
         p.stock_quantity = float(p.stock_quantity) - blocks_needed
         log.append(f"{p.item_name}: -{blocks_needed:.2f} blok")
+        # MUHIM: avval bu yerda "Ombor harakatlari" jurnaliga UMUMAN
+        # yozilmasdi — faqat vaqtinchalik xabar uchun ishlatilardi. Endi
+        # boshqa materiallar (Gips, Bazalt va h.k.) bilan bir xilda, haqiqiy
+        # jurnalga ham yoziladi.
+        try:
+            _crud_lm.log_movement(db, p.id, p.item_name, movement_type="out",
+                                   quantity=blocks_needed, unit="blok",
+                                   order_id=getattr(order, 'id', None),
+                                   reason=f"Buyurtma {getattr(order, 'order_number', '')} — Penoplast")
+        except Exception:
+            pass
 
     if volumes:
         db.commit()
