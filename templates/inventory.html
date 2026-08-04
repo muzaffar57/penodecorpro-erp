@@ -499,12 +499,39 @@ async function openPurchaseHistory() {
             ${p.notes ? ' · '+p.notes : ''}
           </div>
         </div>
-        <div style="font-size:13px;font-weight:700;color:#22C55E;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:13px;font-weight:700;color:#22C55E;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+          <button onclick="deletePurchase(${p.id}, '${(p.item_name||'').replace(/'/g,"\\'")}', ${p.quantity})"
+                  title="Bu xaridni bekor qilish (ombordan ham, puldan ham)"
+                  style="width:30px;height:30px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:7px;cursor:pointer;flex-shrink:0">
+            <i class="ti ti-trash"></i>
+          </button>
+        </div>
       </div>`;
     }).join('');
   } catch(e) {
     document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
   }
+}
+
+async function deletePurchase(id, name, qty) {
+  const ok = confirm(
+    `"${name}" xaridini (${qty} birlik) bekor qilasizmi?\n\n` +
+    `Bu — ham OMBORDAN ushbu miqdorni ayiradi, ham MOLIYADAN (pul oqimidan) ` +
+    `bu xarid summasini olib tashlaydi.`
+  );
+  if (!ok) return;
+  try {
+    const res = await fetch(`/api/inventory/purchases/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      alert('✓ Xarid bekor qilindi — ombor va pul oqimi tuzatildi.');
+      openPurchaseHistory();        // ro'yxatni yangilaymiz
+      setTimeout(() => location.reload(), 600);  // ombor qoldig'i ham yangilanishi uchun
+    } else {
+      const d = await res.json().catch(() => ({}));
+      alert(d.detail || 'Xato yuz berdi');
+    }
+  } catch(e) { alert('Server xatosi'); }
 }
 function closePurchaseHistory() { document.getElementById('historyModal').style.display = 'none'; }
 
