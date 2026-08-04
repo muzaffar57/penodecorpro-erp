@@ -3784,9 +3784,14 @@ async function editSelected() {
             if (fp) {
               const used = (item.category === 'profil') ? (item.length||0) : (item.quantity||0);
               row.dataset.fpMax = fp.quantity + used;
+              // MUHIM: fpPrice'ni ham tiklaymiz — aks holda tahrirlashda,
+              // narx buyurtmaning 1m³ narxidan QAYTA hisoblanib, tayyor
+              // mahsulotning O'Z narxi (masalan 18 000) buzilib ketardi.
+              row.dataset.fpPrice = fp.unit_price;
               const tg = document.getElementById('fptag-' + row.id);
               if (tg) tg.firstChild.textContent = `🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor `;
-              // fpMax endi to'g'ri o'rnatildi — tekshiruvni qayta ishga tushiramiz
+              // fpMax va fpPrice o'rnatildi — narx/tekshiruvni qayta hisoblaymiz
+              calculateItem(row);
               checkFpLimit(row);
             }
           }).catch(()=>{});
