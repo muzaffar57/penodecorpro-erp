@@ -1817,6 +1817,21 @@ async function saveProduce() {
     data.quantity = 1;
   }
 
+  // MUHIM: agar RETSEPT tanlangan bo'lsa-yu, LOY MIQDORI 0 (yoki bo'sh)
+  // bo'lsa — bu, deyarli har doim XATO (foydalanuvchi loy yozishni
+  // unutgan yoki maydon tozalanib qolgan). Bunday holatda, xomashyo
+  // ayirilmasdan mahsulot yaratilib, ombor hisobini buzardi. Endi
+  // oldindan ogohlantiramiz.
+  if (data.recipe_id && (!data.loy_kg || data.loy_kg <= 0)) {
+    const ok = confirm(
+      "⚠ Diqqat: Retsept tanlangan, lekin LOY MIQDORI kiritilmagan (0).\n\n" +
+      "Bu holatda qoplama uchun xomashyo (Akril va h.k.) OMBORDAN AYIRILMAYDI.\n\n" +
+      "Agar bu ataylab bo'lsa (masalan faqat Penoplast, qoplamasiz) — davom eting.\n" +
+      "Aks holda — Bekor qiling va loy miqdorini kiriting."
+    );
+    if (!ok) return;
+  }
+
   try {
     const res = await fetch('/api/finished/produce', {
       method: 'POST',
