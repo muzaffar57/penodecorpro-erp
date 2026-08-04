@@ -946,6 +946,7 @@ class FinishedProduct(Base):
     penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)
     penoplast = relationship("Inventory", foreign_keys=[penoplast_id])
     volume_m3 = Column(Float, default=0.0)          # Penoplast hajmi (darhol yechiladi)
+    price_per_m3 = Column(Float, nullable=True)      # Foydalanuvchi kiritgan "1 m³ narxi" — Donalik hajmini qayta hisoblash uchun SAQLANADI (aks holda yo'qolib, penoplast tan narxiga qaytib, hajm buzilardi)
     planned_loy_kg = Column(Float, default=0.0)      # Reja qilingan loy
     actual_loy_kg = Column(Float, nullable=True)     # Haqiqiy sarflangan loy ("Tayyor" bosilganda)
     gips_kg_used = Column(Float, nullable=True)       # GIPS mahsulotlar uchun — sarflangan Gips (kg)
