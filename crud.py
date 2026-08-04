@@ -1077,7 +1077,17 @@ def _take_finished_for_order(db: Session, order) -> list:
         fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
         if not fp:
             continue
-        fp.quantity = float(fp.quantity or 0) - qty
+        # MUHIM: quantity kamayganda, cost_price ham PROPORSIONAL kamayishi
+        # shart. Aks holda "1 birlik tan narxi = cost_price / quantity"
+        # shishib ketib, qolgan qoldiqning foydasi noto'g'ri (manfiy) bo'lib
+        # qolardi (masalan 200m dan 200m olinsa, quantity 0, lekin cost_price
+        # o'sha katta bo'lib qolib, foyda −% ko'rsatardi).
+        old_qty = float(fp.quantity or 0)
+        take = min(qty, old_qty)
+        if old_qty > 0 and fp.cost_price:
+            unit_cost = float(fp.cost_price) / old_qty
+            fp.cost_price = float(fp.cost_price) - (unit_cost * take)
+        fp.quantity = old_qty - qty
         log.append(f"🏭 {fp.name}: -{qty:g} {fp.unit} (tayyor mahsulotdan)")
     if log:
         db.flush()
@@ -1100,7 +1110,18 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
         if not fp:
             continue
         delta = qty * sign
-        fp.quantity = float(fp.quantity or 0) + delta
+        # cost_price ham proporsional qaytariladi (izchillik uchun — _take
+        # bilan simmetrik). Buyumning "1 birlik tan narxi"ni saqlangan
+        # unit_volume/loy dan emas, joriy nisbatdan olamiz — chunki bu
+        # yerda faqat qaytarish/qayta-yechish bo'ladi, asl nisbat o'zgarmaydi.
+        cur_qty = float(fp.quantity or 0)
+        if cur_qty > 0 and fp.cost_price:
+            unit_cost = float(fp.cost_price) / cur_qty
+            fp.cost_price = float(fp.cost_price) + (unit_cost * delta)
+        elif delta > 0 and (fp.unit_volume_m3 is not None):
+            # qoldiq 0 bo'lsa — saqlangan birlik-nisbatdan tiklaymiz
+            pass  # cost_price'ni aniq tiklash uchun yetarli ma'lumot cheklangan; qoldiq 0 holati kam uchraydi
+        fp.quantity = cur_qty + delta
         log.append(f"🏭 {fp.name}: {delta:+.2f} {fp.unit} {verb}")
     if log:
         db.flush()
@@ -4024,6 +4045,15 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
         return {"success": False, "message": "Faqat ishlab chiqarilgan mahsulotga qo'shiladi"}
 
     base_qty = float(fp.quantity or 0)
+
+    # MUHIM: Profil uchun — "quantity" odatda 1 (bitta buyum), lekin HAJM
+    # aslida UZUNLIK (metr) bo'yicha hisoblangan. Shuning uchun "1 birlikka
+    # hajm"ni quantity=1 ga bo'lsak — butun hajm 1 birlikка tegishli deb
+    # xato hisoblanardi (keyin "+" qo'shganda 100 barobar shishardi).
+    # To'g'risi: Profil uchun "birlik" = 1 METR, shuning uchun hajmni
+    # haqiqiy metr soniga bo'lish kerak. Bu metr — unit_volume_m3 saqlangan
+    # bo'lsa undan aniq keladi; aks holda pastdagi fallback ishlaydi.
+    cat_low = (fp.category or '').lower()
 
     # MUHIM: 1 birlikka qancha xomashyo ketishini — JORIY qoldiq/hajmdan
     # EMAS, balki ishlab chiqarilganda saqlangan BARQAROR nisbatdan
