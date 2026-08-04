@@ -3850,54 +3850,25 @@ def update_finished_product(db: Session, fp_id: int, data: dict) -> Optional[Fin
 
 def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = False) -> bool:
     """Tayyor mahsulotni o'chirish.
-    return_to_stock=True bo'lsa — xomashyo omborga qaytariladi."""
-    import services
-    from models import ProductionStatus
 
+    MUHIM (real hayot mantig'i): tayyor mahsulot — ALLAQACHON ishlab
+    chiqarilgan, xomashyosi HAQIQATAN sarflangan. Shuning uchun:
+      • Agar qoldiq > 0 bo'lsa — O'CHIRIB BO'LMAYDI (bu, omborda turgan,
+        sotilmagan haqiqiy mahsulot; uni yo'qotish kerak bo'lsa "brak/
+        kamaytirish" ishlatiladi, o'chirish EMAS).
+      • Faqat qoldiq = 0 (to'liq sotilgan/brak qilingan) bo'lsa — yozuvni
+        o'chirish mumkin (faqat ro'yxatni tozalash uchun).
+      • Xomashyo HECH QACHON omborga qaytarilmaydi (u allaqachon mahsulotga
+        aylangan — real hayotda sindirilsa ham qaytmaydi).
+    `return_to_stock` parametri endi ISHLATILMAYDI (eski chaqiruvlar
+    buzilmasligi uchun qoldirilgan)."""
     fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
     if not fp:
         return False
 
-    if return_to_stock and fp.source == StockSource.PRODUCED:
-        # MUHIM: xomashyo faqat SOTILMAY QOLGAN (hozirgi qoldiq) qism uchun
-        # qaytarilishi kerak. Agar mahsulotning bir qismi (yoki hammasi)
-        # ALLAQACHON SOTILGAN bo'lsa — o'sha qism uchun xomashyo HAQIQATAN
-        # sarflangan, uni omborga qaytarish MUTLAQO NOTO'G'RI bo'lardi
-        # (ombor sun'iy ravishda ko'payib ketardi).
-        # Nisbat: hozirgi_qoldiq / asl_ishlab_chiqarilgan
-        produced = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-        remaining = float(fp.quantity or 0)
-        ratio = (remaining / produced) if produced > 0 else 0.0
-        # ratio=1 → hech narsa sotilmagan (hammasi qaytadi)
-        # ratio=0 → hammasi sotilgan (hech narsa qaytmaydi)
-
-        # Penoplast qaytadi (faqat sotilmagan qism uchun)
-        if fp.penoplast_id and fp.volume_m3 and ratio > 0:
-            p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
-            if p:
-                vol_per_unit = float(p.volume_per_unit or 1.0)
-                p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) * ratio / vol_per_unit)
-        # Loy qaytadi (faqat sotilmagan qism uchun)
-        if fp.actual_loy_kg and fp.actual_loy_kg > 0 and ratio > 0:
-            class _FakeOrder:
-                def __init__(self, rid):
-                    class _It:
-                        recipe_id = rid
-                    self.items = [_It()]
-                    self.id = None
-                    self.order_number = "ISHLAB CHIQARISH"
-            services.return_loy_ingredients(db, _FakeOrder(fp.recipe_id), float(fp.actual_loy_kg) * ratio)
-        # GIPS qaytadi (faqat sotilmagan qism uchun)
-        if fp.gips_kg_used and fp.gips_kg_used > 0 and fp.gips_inventory_id and ratio > 0:
-            gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).with_for_update().first()
-            if gips_item:
-                qaytadi = float(fp.gips_kg_used) * ratio
-                gips_item.stock_quantity = float(gips_item.stock_quantity or 0) + qaytadi
-                log_movement(
-                    db, gips_item.id, gips_item.item_name, movement_type="in",
-                    quantity=qaytadi, unit=gips_item.unit,
-                    reason=f"Gips mahsulot o'chirildi (sotilmagan qism): {fp.name}"
-                )
+    # Qoldiq bor bo'lsa — o'chirishga ruxsat bermaymiz
+    if float(fp.quantity or 0) > 0.001:
+        return False  # chaqiruvchi (API) buni foydalanuvchiga tushuntiradi
 
     db.delete(fp)
     db.commit()
