@@ -3772,6 +3772,12 @@ async function editSelected() {
           const pe = row.querySelector('.i-peno');
           const me = row.querySelector('.i-m3price');
           [pe, me].forEach(x => { if (x) { x.disabled = true; x.style.opacity = '.4'; } });
+          // MUHIM: fetch tugaguncha fpMax'ni VAQTINCHA katta qilib qo'yamiz —
+          // aks holda, buyurtma yuklangan zahoti (fetch hali tugamagan) ishga
+          // tushadigan calculateItem→checkFpLimit, fpMax=0 deb, "yetarli emas"
+          // xatosini NOTO'G'RI bergan bo'lardi. Aniq qiymat fetch tugagach
+          // o'rnatiladi, va yakuniy, ishonchli tekshiruvni SERVER qiladi.
+          row.dataset.fpMax = 1e9;
           // Qoldiqni olamiz
           fetch(`/api/finished`).then(r=>r.json()).then(list => {
             const fp = list.find(f => f.id === item.finished_product_id);
@@ -3780,6 +3786,8 @@ async function editSelected() {
               row.dataset.fpMax = fp.quantity + used;
               const tg = document.getElementById('fptag-' + row.id);
               if (tg) tg.firstChild.textContent = `🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor `;
+              // fpMax endi to'g'ri o'rnatildi — tekshiruvni qayta ishga tushiramiz
+              checkFpLimit(row);
             }
           }).catch(()=>{});
         }
