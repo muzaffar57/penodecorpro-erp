@@ -2009,12 +2009,14 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     # (ortiqcha loydan, alohida mehnat sarflanmagan), shuning uchun
     # BU YERGA QO'SHILMAYDI.
     from models import FinishedProduct, StockSource, ProductionStatus
+    from datetime import datetime as _dt2
+    _dp_start = _dt2(year, month, 1)
+    _dp_end = _dt2(year + 1, 1, 1) if month == 12 else _dt2(year, month + 1, 1)
     direct_produced = db.query(FinishedProduct).filter(
         FinishedProduct.source == StockSource.PRODUCED,
-        FinishedProduct.production_status == ProductionStatus.READY,
         FinishedProduct.name != "G'isht",
-        extract('year', FinishedProduct.finished_production_at) == year,
-        extract('month', FinishedProduct.finished_production_at) == month
+        FinishedProduct.created_at >= _dp_start,
+        FinishedProduct.created_at < _dp_end
     ).all()
     for fp in direct_produced:
         cat = (fp.category or "").lower()
