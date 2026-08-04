@@ -3904,7 +3904,7 @@ function collectItems() {
     if (type === 'panel') {
       items.push({ name, category: type, width: h, thickness: t, length: l,
                    notes: `width2=${w}`, quantity: qty, unit_price: unitPrice, is_coated: isCoated,
-                   penoplast_id: penoId, price_per_m3: m3price, finished_product_id: fpId });
+                   penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId });
     } else if (type === 'dona') {
       // Dona uchun 1 m³ narxi majburiy — hajm shundan hisoblanadi
       const effM3 = m3price || parseNum(document.getElementById('base_price')?.value || '0') || null;
@@ -3919,7 +3919,7 @@ function collectItems() {
       items.push({ name, category: 'dona', width: null, thickness: null, length: null,
                    quantity: qty, unit_price: parseFloat(row.dataset.unitprice || 0),
                    unit_price_for_volume: unitPriceForVolume, is_coated: isCoated,
-                   penoplast_id: penoId, price_per_m3: effM3, finished_product_id: fpId });
+                   penoplast_id: penoId, price_per_m3: (fpId ? null : effM3), finished_product_id: fpId });
     } else if (type === 'blok') {
       let perMetr, blokKerak, blokPrice, chiqadiPerBlok, kerakMetr;
       if (row.dataset.fpId && row.dataset.fpPrice) {
@@ -3966,7 +3966,7 @@ function collectItems() {
     } else {
       items.push({ name, category: type, width: h, thickness: w, length: l,
                    quantity: qty, unit_price: unitPrice, is_coated: isCoated,
-                   penoplast_id: penoId, price_per_m3: m3price, finished_product_id: fpId });
+                   penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId });
     }
   });
   return items;
