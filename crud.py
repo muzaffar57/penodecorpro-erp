@@ -3859,14 +3859,26 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
         return False
 
     if return_to_stock and fp.source == StockSource.PRODUCED:
-        # Penoplast qaytadi
-        if fp.penoplast_id and fp.volume_m3:
+        # MUHIM: xomashyo faqat SOTILMAY QOLGAN (hozirgi qoldiq) qism uchun
+        # qaytarilishi kerak. Agar mahsulotning bir qismi (yoki hammasi)
+        # ALLAQACHON SOTILGAN bo'lsa — o'sha qism uchun xomashyo HAQIQATAN
+        # sarflangan, uni omborga qaytarish MUTLAQO NOTO'G'RI bo'lardi
+        # (ombor sun'iy ravishda ko'payib ketardi).
+        # Nisbat: hozirgi_qoldiq / asl_ishlab_chiqarilgan
+        produced = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
+        remaining = float(fp.quantity or 0)
+        ratio = (remaining / produced) if produced > 0 else 0.0
+        # ratio=1 → hech narsa sotilmagan (hammasi qaytadi)
+        # ratio=0 → hammasi sotilgan (hech narsa qaytmaydi)
+
+        # Penoplast qaytadi (faqat sotilmagan qism uchun)
+        if fp.penoplast_id and fp.volume_m3 and ratio > 0:
             p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
             if p:
                 vol_per_unit = float(p.volume_per_unit or 1.0)
-                p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) / vol_per_unit)
-        # Loy qaytadi (ishlab chiqarishda darhol yechilgan)
-        if fp.actual_loy_kg and fp.actual_loy_kg > 0:
+                p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) * ratio / vol_per_unit)
+        # Loy qaytadi (faqat sotilmagan qism uchun)
+        if fp.actual_loy_kg and fp.actual_loy_kg > 0 and ratio > 0:
             class _FakeOrder:
                 def __init__(self, rid):
                     class _It:
@@ -3874,16 +3886,17 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
                     self.items = [_It()]
                     self.id = None
                     self.order_number = "ISHLAB CHIQARISH"
-            services.return_loy_ingredients(db, _FakeOrder(fp.recipe_id), float(fp.actual_loy_kg))
-        # GIPS qaytadi
-        if fp.gips_kg_used and fp.gips_kg_used > 0 and fp.gips_inventory_id:
+            services.return_loy_ingredients(db, _FakeOrder(fp.recipe_id), float(fp.actual_loy_kg) * ratio)
+        # GIPS qaytadi (faqat sotilmagan qism uchun)
+        if fp.gips_kg_used and fp.gips_kg_used > 0 and fp.gips_inventory_id and ratio > 0:
             gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).with_for_update().first()
             if gips_item:
-                gips_item.stock_quantity = float(gips_item.stock_quantity or 0) + float(fp.gips_kg_used)
+                qaytadi = float(fp.gips_kg_used) * ratio
+                gips_item.stock_quantity = float(gips_item.stock_quantity or 0) + qaytadi
                 log_movement(
                     db, gips_item.id, gips_item.item_name, movement_type="in",
-                    quantity=float(fp.gips_kg_used), unit=gips_item.unit,
-                    reason=f"Gips mahsulot o'chirildi: {fp.name}"
+                    quantity=qaytadi, unit=gips_item.unit,
+                    reason=f"Gips mahsulot o'chirildi (sotilmagan qism): {fp.name}"
                 )
 
     db.delete(fp)
