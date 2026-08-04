@@ -1508,7 +1508,7 @@ def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Sess
 
 @app.delete("/api/inventory/purchases/{purchase_id}")
 def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    """Xarid yozuvini o'chirish — ombordagi joriy miqdor/narxga ta'sir qilmaydi."""
+    """Xarid yozuvini o'chirish — ham OMBORdan miqdorni qaytaradi, ham pul oqimidan olib tashlaydi (to'liq bekor qilish)."""
     if not crud.delete_purchase(db, purchase_id):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
