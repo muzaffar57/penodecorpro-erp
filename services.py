@@ -2545,10 +2545,16 @@ def get_cash_balance(db: Session) -> dict:
        (bular — FAQAT admin aniq belgilaganda hisoblanadi, oy oxirida
        o'zi avtomatik chiqib ketmaydi)."""
     from models import (Payment, InventoryPurchase, SupplierPayment, MonthlyExpense,
-                         ExpenseTransaction, TransportExpense, EmployeeAdvance, CashTransaction)
+                         ExpenseTransaction, TransportExpense, EmployeeAdvance, CashTransaction,
+                         FinishedProductSale)
     from sqlalchemy import func
 
     kirim_tolov = float(db.query(func.sum(Payment.amount)).scalar() or 0)
+
+    # MUHIM: Tayyor mahsulotni to'g'ridan-to'g'ri (buyurtmasiz) sotishdan
+    # kelgan pul ham kassa KIRIMI — avval bu umuman hisobga olinmasdi,
+    # shuning uchun sotuvdan tushgan pul Moliyada ko'rinmasdi.
+    kirim_tayyor_sotuv = float(db.query(func.sum(FinishedProductSale.total_amount)).scalar() or 0)
 
     chiqim_xomashyo_naqd = float(db.query(func.sum(InventoryPurchase.total_amount)).filter(
         InventoryPurchase.is_credit == False,
@@ -2567,7 +2573,7 @@ def get_cash_balance(db: Session) -> dict:
 
     qolda_jami = float(db.query(func.sum(CashTransaction.amount)).scalar() or 0)
 
-    jami_kirim = kirim_tolov
+    jami_kirim = kirim_tolov + kirim_tayyor_sotuv
     jami_chiqim = (chiqim_xomashyo_naqd + chiqim_yetkazib_beruvchi + chiqim_oylik +
                    chiqim_qoshimcha + chiqim_transport + chiqim_avans)
 
@@ -2576,6 +2582,7 @@ def get_cash_balance(db: Session) -> dict:
     return {
         "balance": round(balance),
         "kirim_tolov": round(kirim_tolov),
+        "kirim_tayyor_sotuv": round(kirim_tayyor_sotuv),
         "chiqim_xomashyo_naqd": round(chiqim_xomashyo_naqd),
         "chiqim_yetkazib_beruvchi": round(chiqim_yetkazib_beruvchi),
         "chiqim_oylik": round(chiqim_oylik),
