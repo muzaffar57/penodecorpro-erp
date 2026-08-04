@@ -3711,6 +3711,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
         source=StockSource.PRODUCED,
         penoplast_id=pid,
         volume_m3=volume,
+        price_per_m3=data.price_per_m3,
         planned_loy_kg=loy_kg,
         actual_loy_kg=loy_kg,          # Darhol yechilgani uchun aniq
         unit_volume_m3=(volume / qty) if qty > 0 else 0,
