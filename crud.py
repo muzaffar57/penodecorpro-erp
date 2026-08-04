@@ -5029,12 +5029,27 @@ def update_purchase(db: Session, purchase_id: int, data: dict) -> Optional[Inven
     return p
 
 
-def delete_purchase(db: Session, purchase_id: int) -> bool:
+def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True) -> bool:
     """Xarid yozuvini o'chiradi.
-    DIQQAT: ombordagi joriy miqdor/o'rtacha narxni orqaga qaytarib hisoblamaydi."""
+    reverse_stock=True (standart) bo'lsa — bu xaridda qo'shilgan miqdorni
+    ombordan ham QAYTARIB oladi (ya'ni to'liq bekor qiladi — ham pul oqimi,
+    ham ombor). Bu, ayniqsa "boshlang'ich ombor"ni xato kirim qilib, keyin
+    tuzatmoqchi bo'lganda kerak."""
     p = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id).first()
     if not p:
         return False
+
+    if reverse_stock and p.inventory_id and p.quantity:
+        inv = db.query(Inventory).filter(Inventory.id == p.inventory_id).with_for_update().first()
+        if inv:
+            inv.stock_quantity = float(inv.stock_quantity or 0) - float(p.quantity)
+            try:
+                log_movement(db, inv.id, inv.item_name, movement_type="out",
+                             quantity=float(p.quantity), unit=inv.unit,
+                             reason=f"Xarid o'chirildi (bekor qilindi) — #{purchase_id}")
+            except Exception:
+                pass
+
     db.delete(p)
     db.commit()
     return True
