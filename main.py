@@ -3142,9 +3142,20 @@ def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
 @app.delete("/api/finished/{fp_id}")
 def api_delete_finished(fp_id: int, return_to_stock: bool = False,
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    """Tayyor mahsulotni o'chirish."""
-    if not crud.delete_finished_product(db, fp_id, return_to_stock=return_to_stock):
+    """Tayyor mahsulotni o'chirish — faqat qoldiq 0 bo'lsa (to'liq sotilgan)."""
+    from models import FinishedProduct as _FP
+    fp = db.query(_FP).filter(_FP.id == fp_id).first()
+    if not fp:
         raise HTTPException(status_code=404, detail="Topilmadi")
+    if float(fp.quantity or 0) > 0.001:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bu mahsulotda hali {float(fp.quantity):g} {fp.unit} qoldiq bor — "
+                   f"o'chirib bo'lmaydi. Avval to'liq soting yoki \"Kamaytirish (brak)\" "
+                   f"orqali nolga tushiring, keyin o'chiring."
+        )
+    if not crud.delete_finished_product(db, fp_id):
+        raise HTTPException(status_code=400, detail="O'chirib bo'lmadi")
     return {"status": "ok"}
 
 
