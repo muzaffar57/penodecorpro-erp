@@ -3563,6 +3563,11 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
         return []
 
     log = []
+    # VAQTINCHALIK DEBUG — muammo topilgach olib tashlanadi
+    import traceback as _tb
+    _stk = _tb.extract_stack()
+    _caller = _stk[-2] if len(_stk) >= 2 else None
+    print(f"🔍 DEBUG deduct_loy: loy_kg={loy_kg}, recipe_id={recipe_id}, use_stock={use_stock}, chaqiruvchi={_caller.name if _caller else '?'}:{_caller.lineno if _caller else '?'}")
 
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first() if recipe_id else _get_order_recipe(db, order)
 
