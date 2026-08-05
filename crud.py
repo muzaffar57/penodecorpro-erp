@@ -1064,6 +1064,45 @@ def _fp_item_qty(item) -> float:
     return float(item.quantity or 0)
 
 
+def _fp_stable_unit_cost(db, fp) -> float:
+    """Tayyor mahsulotning BARQAROR "1 birlik tan narxi"ni qaytaradi.
+    unit_volume_m3 (penoplast) va unit_loy_kg (loy) — bular ishlab
+    chiqarilganda saqlanadi va HECH QACHON o'zgarmaydi. Shuning uchun
+    bulardan hisoblangan tan narx — sotish/qaytarishdan qat'i nazar
+    barqaror qoladi (take va return simmetrik bo'ladi)."""
+    import services as _svc
+    from models import Inventory
+    unit_vol = float(getattr(fp, 'unit_volume_m3', None) or 0)
+    unit_loy = float(getattr(fp, 'unit_loy_kg', None) or 0)
+    cost = 0.0
+    # Penoplast qismi
+    if unit_vol > 0 and fp.penoplast_id:
+        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        if p and p.price_per_unit and p.volume_per_unit:
+            narx_per_m3 = float(p.price_per_unit) / float(p.volume_per_unit)
+            cost += unit_vol * narx_per_m3
+    # Loy qismi
+    if unit_loy > 0:
+        loy_info = _svc.get_loy_cost_per_kg(db, fp.recipe_id)
+        cost += unit_loy * float(loy_info.get("cost_per_kg", 0) or 0)
+    # GIPS qismi — Gips mahsulotlar penoplast/loy emas, gips_kg_used saqlaydi.
+    # 1 birlikka gips: gips_kg_used / produced_quantity.
+    gips_kg = float(getattr(fp, 'gips_kg_used', None) or 0)
+    if gips_kg > 0 and getattr(fp, 'gips_inventory_id', None):
+        produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
+        if produced_q > 0:
+            gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).first()
+            if gips_item and gips_item.price_per_unit:
+                unit_gips_kg = gips_kg / produced_q
+                cost += unit_gips_kg * float(gips_item.price_per_unit)
+    # ESLATMA: Termopanel (Bazalt) mahsulotlar — hozircha bu funksiyaga
+    # kirmaydi, chunki ular _take/_return orqali cost tuzatishga muhtoj
+    # bo'lgan tarzda buyurtmaga qo'shilmaydi (ularning xomashyosi boshqa
+    # yo'l bilan boshqariladi). Kelajakda Bazalt ham shu tarzda ishlatilsa,
+    # bu yerga bazalt/serpiyanka/kley qo'shiladi.
+    return cost
+
+
 def _take_finished_for_order(db: Session, order) -> list:
     """Buyurtmadagi tayyor mahsulot detallarini ombordan yechadi."""
     log = []
@@ -1077,16 +1116,18 @@ def _take_finished_for_order(db: Session, order) -> list:
         fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
         if not fp:
             continue
-        # MUHIM: quantity kamayganda, cost_price ham PROPORSIONAL kamayishi
-        # shart. Aks holda "1 birlik tan narxi = cost_price / quantity"
-        # shishib ketib, qolgan qoldiqning foydasi noto'g'ri (manfiy) bo'lib
-        # qolardi (masalan 200m dan 200m olinsa, quantity 0, lekin cost_price
-        # o'sha katta bo'lib qolib, foyda −% ko'rsatardi).
+        # MUHIM: quantity kamayganda, cost_price ham kamayishi shart. Buni
+        # BARQAROR "1 birlik tan narxi"dan hisoblaymiz (unit_volume/unit_loy
+        # asosida — bular o'zgarmaydi), shunda take va return simmetrik bo'ladi
+        # va qolgan qoldiqning foydasi to'g'ri qoladi.
         old_qty = float(fp.quantity or 0)
         take = min(qty, old_qty)
-        if old_qty > 0 and fp.cost_price:
-            unit_cost = float(fp.cost_price) / old_qty
-            fp.cost_price = float(fp.cost_price) - (unit_cost * take)
+        unit_cost = _fp_stable_unit_cost(db, fp)
+        if unit_cost > 0:
+            fp.cost_price = max(0, float(fp.cost_price or 0) - (unit_cost * take))
+        elif old_qty > 0 and fp.cost_price:
+            # orqaga moslik (unit ma'lumot yo'q bo'lsa)
+            fp.cost_price = float(fp.cost_price) - (float(fp.cost_price) / old_qty * take)
         fp.quantity = old_qty - qty
         log.append(f"🏭 {fp.name}: -{qty:g} {fp.unit} (tayyor mahsulotdan)")
     if log:
@@ -1110,17 +1151,16 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
         if not fp:
             continue
         delta = qty * sign
-        # cost_price ham proporsional qaytariladi (izchillik uchun — _take
-        # bilan simmetrik). Buyumning "1 birlik tan narxi"ni saqlangan
-        # unit_volume/loy dan emas, joriy nisbatdan olamiz — chunki bu
-        # yerda faqat qaytarish/qayta-yechish bo'ladi, asl nisbat o'zgarmaydi.
+        # cost_price BARQAROR birlik tan narxidan to'g'rilanadi — _take bilan
+        # AYNAN SIMMETRIK (unit_volume/unit_loy asosida, o'zgarmas). Shuning
+        # uchun olish→qaytarish siklida cost_price aniq asl holiga qaytadi va
+        # foyda sun'iy ko'tarilib/tushib ketmaydi.
         cur_qty = float(fp.quantity or 0)
-        if cur_qty > 0 and fp.cost_price:
-            unit_cost = float(fp.cost_price) / cur_qty
-            fp.cost_price = float(fp.cost_price) + (unit_cost * delta)
-        elif delta > 0 and (fp.unit_volume_m3 is not None):
-            # qoldiq 0 bo'lsa — saqlangan birlik-nisbatdan tiklaymiz
-            pass  # cost_price'ni aniq tiklash uchun yetarli ma'lumot cheklangan; qoldiq 0 holati kam uchraydi
+        unit_cost = _fp_stable_unit_cost(db, fp)
+        if unit_cost > 0:
+            fp.cost_price = max(0, float(fp.cost_price or 0) + (unit_cost * delta))
+        elif cur_qty > 0 and fp.cost_price:
+            fp.cost_price = float(fp.cost_price) + (float(fp.cost_price) / cur_qty * delta)
         fp.quantity = cur_qty + delta
         log.append(f"🏭 {fp.name}: {delta:+.2f} {fp.unit} {verb}")
     if log:
