@@ -1889,10 +1889,13 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
         db.commit()
         db.refresh(order)
 
-        # Qoralama bo'lmasa — xomashyoni darhol ayiramiz
+        # MUHIM: loy xomashyosi bu yerda ENDI AYIRILMAYDI! Avval bu funksiya
+        # loyni ayirardi, lekin keyinchalik `create_order` ham (umumiy qoplama
+        # loyi uchun) ayiradigan bo'ldi — natijada loy IKKI MARTA ayirilardi
+        # (Railway log bilan aniqlangan: create_order:1052 + coating_notify:1894).
+        # Endi bu yerda faqat Telegram xabari yuboriladi, xomashyo esa faqat
+        # `create_order`/`update_order` da bir marta ayiriladi.
         if order.status != OrderStatus.DRAFT:
-            inventory_log = services.deduct_loy_ingredients(db, order, loy_kg)
-
             msg = (
                 f"🏗 *PenoDecorPro — Yangi buyurtma*\n\n"
                 f"📋 Buyurtma: *{order.order_number}*\n"
