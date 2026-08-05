@@ -3943,6 +3943,59 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     if not fp:
         return False
 
+    # ── "JARAYONDA" (IN_PROGRESS, hali "Sotuvga tayyor" bosilmagan) ──
+    # Bu — deyarli har doim XATO tuzatish (noto'g'ri nom/miqdor yozib
+    # yuborilgan). Shuning uchun bunda: o'chirishga RUXSAT beramiz VA
+    # ishlab chiqarishda ketgan xomashyoni (Penoplast, Loy, Gips, Bazalt)
+    # OMBORGA QAYTARAMIZ. (READY — "Sotuvga tayyor" bosilgan — mahsulot
+    # esa pastdagi qat'iy qoidaga bo'ysunadi: qoldiq 0 bo'lishi kerak,
+    # xomashyo qaytmaydi.)
+    from models import ProductionStatus as _PS
+    if fp.production_status == _PS.IN_PROGRESS:
+        import services as _svc
+        from models import Inventory as _Inv
+        # Penoplast qaytadi
+        if fp.penoplast_id and fp.volume_m3:
+            p = db.query(_Inv).filter(_Inv.id == fp.penoplast_id).with_for_update().first()
+            if p:
+                vpu = float(p.volume_per_unit or 1.0)
+                p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) / vpu)
+        # Loy qaytadi
+        if fp.actual_loy_kg and fp.actual_loy_kg > 0:
+            _svc.return_loy_ingredients(db, _TermoFakeOrder(fp.recipe_id), float(fp.actual_loy_kg))
+        # Gips qaytadi
+        if getattr(fp, 'gips_kg_used', None) and fp.gips_kg_used > 0 and getattr(fp, 'gips_inventory_id', None):
+            g = db.query(_Inv).filter(_Inv.id == fp.gips_inventory_id).with_for_update().first()
+            if g:
+                g.stock_quantity = float(g.stock_quantity or 0) + float(fp.gips_kg_used)
+        # Bazalt (termopanel) qaytadi — bazalt/serpiyanka/kley
+        if (fp.category or '').lower() == 'termopanel' and getattr(fp, 'bazalt_item_id', None):
+            b = db.query(_Inv).filter(_Inv.id == fp.bazalt_item_id).with_for_update().first()
+            if b:
+                m2 = float(fp.quantity or 0)
+                area = float(b.volume_per_unit or 0.72)
+                sheets = m2 / area if area > 0 else 0
+                b.stock_quantity = float(b.stock_quantity) + sheets
+                serp_ratio = float(b.serp_ratio_per_m2) if b.serp_ratio_per_m2 else 2.0
+                kley_ratio = float(b.kley_ratio_per_m2) if b.kley_ratio_per_m2 else 0.8
+                serp = db.query(_Inv).filter(_Inv.item_name.ilike('%serpiyanka%')).first()
+                if serp:
+                    serp_area = float(serp.volume_per_unit or 50.0)
+                    serp.stock_quantity = float(serp.stock_quantity) + ((m2 * serp_ratio) / serp_area if serp_area > 0 else 0)
+                kley = db.query(_Inv).filter(_Inv.item_name.ilike('%kley%')).first()
+                if kley:
+                    kley.stock_quantity = float(kley.stock_quantity) + (m2 * kley_ratio)
+
+        # Bog'liq yozuvlarni uzamiz (IN_PROGRESS'da sotuv bo'lmaydi, lekin
+        # xavfsizlik uchun)
+        from models import FinishedProductSale as _FPS, FinishedProductLoss as _FPL, OrderItem as _OI2
+        db.query(_FPS).filter(_FPS.finished_product_id == fp_id).update({"finished_product_id": None})
+        db.query(_FPL).filter(_FPL.finished_product_id == fp_id).update({"finished_product_id": None})
+        db.query(_OI2).filter(_OI2.finished_product_id == fp_id).update({"finished_product_id": None})
+        db.delete(fp)
+        db.commit()
+        return True
+
     # Qoldiq bor bo'lsa — o'chirishga ruxsat bermaymiz
     if float(fp.quantity or 0) > 0.001:
         return False  # chaqiruvchi (API) buni foydalanuvchiga tushuntiradi
