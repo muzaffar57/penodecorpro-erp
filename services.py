@@ -3064,8 +3064,27 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
 
     log = []
     db_items = sorted(order.items, key=lambda x: x.id)
-    for db_item, item_data in zip(db_items, order_data.items):
+    order_data_items = list(order_data.items)
+    for _idx, db_item in enumerate(db_items):
         if (db_item.category or '').lower() != 'termopanel':
+            continue
+        # MUHIM: "Tayyor mahsulotdan" olingan Bazalt panel — xomashyosi
+        # allaqachon ishlab chiqarishda ayirilgan, QAYTA AYIRMAYMIZ.
+        # Bu tekshiruv db_item'ning O'ZIGA tayanadi (zip tartibiga bog'liq
+        # emas) — shuning uchun ishonchli.
+        if getattr(db_item, 'finished_product_id', None):
+            continue
+        # Mos order_data (bazalt_item_id, serp/kley_id shu yerda). Index
+        # bo'yicha olamiz, lekin agar u tayyor mahsulot bo'lsa — mos emas,
+        # shuning uchun faqat termopanel VA fpid yo'q bo'lganini qidiramiz.
+        item_data = order_data_items[_idx] if _idx < len(order_data_items) else None
+        if item_data is None or getattr(item_data, 'finished_product_id', None):
+            # index mos kelmasa — nomga qarab, fpid'siz termopanelni topamiz
+            item_data = next((d for d in order_data_items
+                              if (getattr(d, 'category', '') or '').lower() == 'termopanel'
+                              and not getattr(d, 'finished_product_id', None)
+                              and getattr(d, 'name', None) == db_item.name), item_data)
+        if item_data is None:
             continue
         m2 = float(db_item.quantity or 0)
         if m2 <= 0:
@@ -3775,6 +3794,14 @@ def _group_termo_materials(db: Session, items) -> dict:
     for it in items:
         cat = (it.get('category') if isinstance(it, dict) else getattr(it, 'category', None)) or ''
         if cat.lower() != 'termopanel':
+            continue
+        # MUHIM: "Tayyor mahsulotdan" olingan Bazalt panel — uning xomashyosi
+        # (bazalt, serpiyanka, kley, loy) ALLAQACHON ishlab chiqarishda
+        # ayirilgan. Buyurtmaga qo'shilganda yoki tahrirlanganda, uni QAYTA
+        # hisoblamaslik kerak — aks holda "Kley yetishmayapti" degan noto'g'ri
+        # ogohlantirish chiqib, xomashyo 2x hisoblanardi.
+        _fpid = (it.get('finished_product_id') if isinstance(it, dict) else getattr(it, 'finished_product_id', None))
+        if _fpid:
             continue
         get = (lambda k: it.get(k)) if isinstance(it, dict) else (lambda k: getattr(it, k, None))
         m2 = float(get('quantity') or 0)
