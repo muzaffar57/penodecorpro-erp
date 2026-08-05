@@ -1735,10 +1735,6 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     is_draft = getattr(order, 'is_draft', False)
     if not is_draft:
         services.deduct_inventory_for_order(db, new_order)
-        # VAQTINCHALIK DEBUG — termopanel istisno nega ishlamayotganini aniqlash
-        for _it in new_order.items:
-            if (_it.category or '').lower() == 'termopanel':
-                print(f"🔍 CREATE termo item: name={_it.name}, fpid={_it.finished_product_id}, qty={_it.quantity}")
         services.deduct_termopanel_for_order(db, new_order, order)
     low_items = crud.get_low_stock_items(db) if not is_draft else []
     if low_items:
