@@ -1822,10 +1822,16 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
 
 @app.put("/api/orders/{order_id}")
 def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional[float] = None,
+                     confirm_shortage: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani tahrirlash — ombor faqat FARQ bo'yicha to'g'rilanadi."""
-    result = crud.update_order_full(db, order_id, order)
+    result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage)
     if not result["success"]:
+        # Xomashyo yetishmovchiligi — 409 (create bilan bir xil), frontend
+        # "davom etasizmi?" oynasini ko'rsatib, confirm_shortage=true bilan
+        # qayta yuborishi mumkin.
+        if result.get("type") == "stock_shortage_warning":
+            raise HTTPException(status_code=409, detail=result)
         raise HTTPException(status_code=400, detail=result)
 
     # Loy rejasi o'zgargan bo'lsa
