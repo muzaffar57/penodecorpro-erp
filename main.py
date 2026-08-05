@@ -290,6 +290,7 @@ def _migrate_payment_columns():
         # finished_product_sales.finished_product_id — NULL bo'la olishi kerak
         # (mahsulot o'chirilganda sotuv yozuvi uziladi, tarix saqlanadi).
         migrations.append("ALTER TABLE finished_product_sales ALTER COLUMN finished_product_id DROP NOT NULL")
+        migrations.append("ALTER TABLE finished_product_losses ALTER COLUMN finished_product_id DROP NOT NULL")
         # MUHIM: bu backfill — ustun YANGI yaratilganidan qat'iy nazar, HAR
         # DOIM tekshiriladi (chunki ustun avvalroq qo'shilgan, lekin
         # to'ldirilmagan bo'lishi mumkin). Eski, "Sotuvga tayyor" yozuvlar
