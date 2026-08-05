@@ -3164,12 +3164,14 @@ def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
 @app.delete("/api/finished/{fp_id}")
 def api_delete_finished(fp_id: int, return_to_stock: bool = False,
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    """Tayyor mahsulotni o'chirish — faqat qoldiq 0 bo'lsa (to'liq sotilgan)."""
-    from models import FinishedProduct as _FP
+    """Tayyor mahsulotni o'chirish.
+    - IN_PROGRESS: xato tuzatish deb hisoblanadi — o'chadi, xomashyo qaytadi.
+    - READY: faqat qoldiq 0 bo'lsa o'chadi, xomashyo qaytmaydi."""
+    from models import FinishedProduct as _FP, ProductionStatus as _PS
     fp = db.query(_FP).filter(_FP.id == fp_id).first()
     if not fp:
         raise HTTPException(status_code=404, detail="Topilmadi")
-    if float(fp.quantity or 0) > 0.001:
+    if fp.production_status != _PS.IN_PROGRESS and float(fp.quantity or 0) > 0.001:
         raise HTTPException(
             status_code=400,
             detail=f"Bu mahsulotda hali {float(fp.quantity):g} {fp.unit} qoldiq bor — "
