@@ -1019,7 +1019,7 @@ class FinishedProductLoss(Base):
     __tablename__ = "finished_product_losses"
 
     id = Column(Integer, primary_key=True, index=True)
-    finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=False, index=True)
+    finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
     product_name = Column(String(150), nullable=False)
     category = Column(String(30), nullable=True)
 
