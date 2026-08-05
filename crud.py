@@ -3942,10 +3942,19 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     # yo'qoladi. Shuning uchun bog'lanishni uzamiz (finished_product_id=NULL),
     # sotuv summasi/tarixи esa Moliyada saqlanib qoladi. Aks holda foreign
     # key cheklovi o'chirishни bloklaydi.
-    from models import FinishedProductSale
+    from models import FinishedProductSale, FinishedProductLoss
     db.query(FinishedProductSale).filter(
         FinishedProductSale.finished_product_id == fp_id
     ).update({"finished_product_id": None})
+    # Brak (kamaytirish) yozuvlari ham — bog'lanishni uzamiz, tarix
+    # (product_name, summa) saqlanadi.
+    db.query(FinishedProductLoss).filter(
+        FinishedProductLoss.finished_product_id == fp_id
+    ).update({"finished_product_id": None})
+    # Buyurtma detallari — bog'lanishni uzamiz (detal o'z ma'lumotini
+    # saqlaydi, faqat o'chirilgan mahsulotga havolasini yo'qotadi).
+    from models import OrderItem as _OI
+    db.query(_OI).filter(_OI.finished_product_id == fp_id).update({"finished_product_id": None})
 
     db.delete(fp)
     db.commit()
