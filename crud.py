@@ -2597,7 +2597,7 @@ def complete_termopanel_loy(db: Session, order_id: int, actual_loy_kg: float) ->
     }
 
 
-def update_order_full(db: Session, order_id: int, order_data) -> dict:
+def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: bool = False) -> dict:
     """Buyurtmani to'liq yangilaydi:
     - Detallarni almashtiradi
     - Omborni faqat FARQ miqdorida to'g'rilaydi
@@ -2659,18 +2659,21 @@ def update_order_full(db: Session, order_id: int, order_data) -> dict:
     # 2) Qoralama bo'lmasa — xomashyo yetishini tekshiramiz
     if not is_draft:
         check = services.check_inventory_diff(db, old_snapshot, new_snapshot)
-        if not check["enough"]:
-            return {
-                "success": False,
-                "message": "Xomashyo yetishmayapti!",
-                "shortages": check["shortages"]
-            }
         tcheck = services.check_termopanel_diff(db, old_snapshot, new_snapshot)
+        _all_short = []
+        if not check["enough"]:
+            _all_short += list(check["shortages"])
         if not tcheck["enough"]:
+            _all_short += list(tcheck["shortages"])
+        # Yetishmovchilik bor-u, lekin foydalanuvchi hali tasdiqlamagan bo'lsa —
+        # "davom etasizmi?" ogohlantirishini qaytaramiz (create bilan bir xil).
+        # confirm_shortage=True bo'lsa — o'tkazib yuboramiz (ombor manfiy bo'ladi).
+        if _all_short and not confirm_shortage:
             return {
                 "success": False,
-                "message": "Bazalt xomashyosi yetishmayapti!",
-                "shortages": tcheck["shortages"]
+                "type": "stock_shortage_warning",
+                "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
+                "shortages": _all_short
             }
 
     # 3) TOPSHIRISH TEKSHIRUVI — topshirilgandan kam qilib bo'lmaydi
