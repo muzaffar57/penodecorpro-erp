@@ -961,6 +961,7 @@ class FinishedProduct(Base):
     # vaqt o'tishi bilan noto'g'ri bo'lib qolar edi).
     unit_volume_m3 = Column(Float, nullable=True)
     unit_loy_kg = Column(Float, nullable=True)
+    bazalt_item_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Termopanel "+" qo'shish uchun: qaysi bazaltdan ishlab chiqarilgan
     recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True, index=True)
     recipe = relationship("Recipe")
 
