@@ -280,6 +280,12 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_products ADD COLUMN produced_quantity FLOAT")
         if 'price_per_m3' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN price_per_m3 FLOAT")
+        if 'bazalt_item_id' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN bazalt_item_id INTEGER")
+        if 'unit_loy_kg' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN unit_loy_kg FLOAT")
+        if 'unit_volume_m3' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN unit_volume_m3 FLOAT")
         # MUHIM: bu backfill — ustun YANGI yaratilganidan qat'iy nazar, HAR
         # DOIM tekshiriladi (chunki ustun avvalroq qo'shilgan, lekin
         # to'ldirilmagan bo'lishi mumkin). Eski, "Sotuvga tayyor" yozuvlar
