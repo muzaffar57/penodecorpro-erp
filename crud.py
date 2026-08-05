@@ -97,6 +97,16 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
     is_peno = getattr(item_data, 'is_penoplast', False)
     is_default = getattr(item_data, 'is_default_penoplast', False)
 
+    # MUHIM: Bazalt plita uchun — "1 dona necha m²" (volume_per_unit) bo'sh
+    # yoki 1 bo'lsa, avtomatik 0.72 qo'yamiz. Aks holda tizim "1 dona = 1 m²"
+    # deb hisoblab, kerakli bazalt sonini KAM ayirardi (139 o'rniga 100).
+    _nm = (getattr(item_data, 'item_name', '') or '').lower()
+    _is_bazalt = ('bazalt' in _nm) and ('kley' not in _nm) and ('serpiyank' not in _nm)
+    if _is_bazalt:
+        _vpu = getattr(item_data, 'volume_per_unit', None)
+        if _vpu is None or float(_vpu or 0) <= 0 or abs(float(_vpu) - 1.0) < 0.0001:
+            item_data.volume_per_unit = 0.72
+
     # MUHIM: agar shu nomdagi xomashyo avval o'chirilgan bo'lsa (lekin xarid
     # tarixi bo'lgani uchun butunlay o'chmasdan, "yashirin" — is_deleted=True
     # holda qolgan bo'lsa) — YANGI qator yaratmaymiz (bu — nom takrorlanishi
