@@ -4074,6 +4074,29 @@ async function updateOrder(orderId) {
       } catch (e) { console.error('Rasmlarni yuklashda xato:', e); }
       showMsg('✓ Saqlandi!', 'success');
       setTimeout(()=>location.reload(), 3000);
+    } else if (res.status === 409 && result.detail && result.detail.type === 'stock_shortage_warning') {
+      // Xomashyo yetishmayapti — "davom etasizmi?" so'raymiz (create bilan bir xil)
+      const shortList = (result.detail.shortages || []).map(x => `• ${x}`).join('\n');
+      const ok = confirm(
+        "⚠ Omborda yetishmayotgan xomashyo bor:\n\n" + shortList +
+        "\n\nShunday ham davom etasizmi? (ombor manfiy bo'lib qoladi)"
+      );
+      if (ok) {
+        // confirm_shortage=true bilan qayta yuboramiz
+        const url2 = `/api/orders/${orderId}?loy_kg=${loyKg}&confirm_shortage=true`;
+        const res2 = await fetch(url2, {
+          method: 'PUT',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(data)
+        });
+        if (res2.ok) {
+          showMsg('✓ Saqlandi (ombor manfiy bo\'ldi)!', 'success');
+          setTimeout(()=>location.reload(), 1500);
+        } else {
+          const e2 = await res2.json().catch(()=>({}));
+          showMsg('❌ ' + ((e2.detail && e2.detail.message) || 'Xato'), 'error');
+        }
+      }
     } else {
       const det = result.detail || {};
       let html = '<b>❌ ' + (det.message || 'Xato') + '</b>';
