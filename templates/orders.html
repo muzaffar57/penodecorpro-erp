@@ -1195,7 +1195,7 @@ function pickFinished(el, fpId) {
   // Forma faqat profil/panel/dona/blok turlarini biladi — boshqa (masalan
   // "termopanel" kabi kvadrat metr bo'yicha o'lchanadigan) kategoriyalar
   // xavfsiz tarzda "dona" rejimida ko'rsatiladi (miqdor + narx maydoni bilan).
-  const knownTypes = ['profil', 'panel', 'dona', 'blok', 'gips'];
+  const knownTypes = ['profil', 'panel', 'dona', 'blok', 'gips', 'termopanel'];
   const effectiveType = knownTypes.includes(fp.category) ? fp.category : 'dona';
   if (typeEl) { typeEl.value = effectiveType; toggleFields(row); }
   // Gips uchun — o'ziga xos "birlik" (metr/dona/m²) selektorini ham
