@@ -286,6 +286,10 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_products ADD COLUMN unit_loy_kg FLOAT")
         if 'unit_volume_m3' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN unit_volume_m3 FLOAT")
+
+        # finished_product_sales.finished_product_id — NULL bo'la olishi kerak
+        # (mahsulot o'chirilganda sotuv yozuvi uziladi, tarix saqlanadi).
+        migrations.append("ALTER TABLE finished_product_sales ALTER COLUMN finished_product_id DROP NOT NULL")
         # MUHIM: bu backfill — ustun YANGI yaratilganidan qat'iy nazar, HAR
         # DOIM tekshiriladi (chunki ustun avvalroq qo'shilgan, lekin
         # to'ldirilmagan bo'lishi mumkin). Eski, "Sotuvga tayyor" yozuvlar
