@@ -3937,6 +3937,16 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     if float(fp.quantity or 0) > 0.001:
         return False  # chaqiruvchi (API) buni foydalanuvchiga tushuntiradi
 
+    # MUHIM: bu mahsulotga bog'liq SOTUV yozuvlari (finished_product_sales)
+    # bo'lishi mumkin. Ularni to'g'ridan-to'g'ri o'chirsak — moliyaviy tarix
+    # yo'qoladi. Shuning uchun bog'lanishni uzamiz (finished_product_id=NULL),
+    # sotuv summasi/tarixи esa Moliyada saqlanib qoladi. Aks holda foreign
+    # key cheklovi o'chirishни bloklaydi.
+    from models import FinishedProductSale
+    db.query(FinishedProductSale).filter(
+        FinishedProductSale.finished_product_id == fp_id
+    ).update({"finished_product_id": None})
+
     db.delete(fp)
     db.commit()
     return True
