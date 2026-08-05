@@ -3365,6 +3365,8 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
         source=StockSource.PRODUCED,
         penoplast_id=None,   # Bazalt/serpiyanka/kley — alohida xomashyo, penoplast emas
         volume_m3=0,
+        bazalt_item_id=data.bazalt_item_id,
+        unit_loy_kg=(loy_kg / required_m2) if required_m2 > 0 else 0,
         planned_loy_kg=loy_kg,
         actual_loy_kg=loy_kg,
         recipe_id=data.recipe_id,
@@ -4067,6 +4069,20 @@ def get_finished_stats(db: Session) -> dict:
     }
 
 
+class _TermoFakeOrder:
+    """Termopanel '+' qo'shishda loy ayirish uchun soxta buyurtma obyekti."""
+    def __init__(self, recipe_id):
+        class _It:
+            pass
+        _it = _It()
+        _it.recipe_id = recipe_id
+        self.items = [_it]
+        self.id = None
+        self.order_number = "TERMOPANEL +"
+        self.deliveries = []
+        self.is_fully_delivered = False
+
+
 def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
     """Mavjud tayyor mahsulotga miqdor qo'shadi.
     Penoplast va loy proporsional hisoblanib ombordan yechiladi.
@@ -4097,6 +4113,75 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
     # haqiqiy metr soniga bo'lish kerak. Bu metr — unit_volume_m3 saqlangan
     # bo'lsa undan aniq keladi; aks holda pastdagi fallback ishlaydi.
     cat_low = (fp.category or '').lower()
+
+    # ── TERMOPANEL (BAZALT) uchun maxsus "+" ────────────────────────
+    # Termopanel penoplast/volume ishlatmaydi — bazalt/serpiyanka/kley/loy
+    # ishlatadi. Bularni, saqlangan bazalt_item_id va unit_loy_kg asosida,
+    # 1 m² ga proporsional ayiramiz (aynan foydalanuvchi tushuntirgandek:
+    # boshida qancha ketgan bo'lsa, o'sha nisbatда davom etadi).
+    if cat_low == 'termopanel':
+        from models import Inventory
+        bazalt_id = getattr(fp, 'bazalt_item_id', None)
+        if not bazalt_id:
+            return {"success": False,
+                    "message": "Bu eski termopanel yozuvi — bazalt turi saqlanmagan. Yangi ishlab chiqarish yarating."}
+        bazalt = db.query(Inventory).filter(Inventory.id == bazalt_id).with_for_update().first()
+        if not bazalt:
+            return {"success": False, "message": "Bazalt xomashyosi topilmadi."}
+        add_m2 = float(add_qty)
+        # Bazalt plita (dona)
+        area_per_sheet = float(bazalt.volume_per_unit or 0.72)
+        sheets = add_m2 / area_per_sheet if area_per_sheet > 0 else 0
+        serp_ratio = float(bazalt.serp_ratio_per_m2) if bazalt.serp_ratio_per_m2 else 2.0
+        kley_ratio = float(bazalt.kley_ratio_per_m2) if bazalt.kley_ratio_per_m2 else 0.8
+        unit_loy = float(fp.unit_loy_kg or 0)
+        add_loy = unit_loy * add_m2
+
+        cost_add = 0.0
+        log2 = []
+        # Bazalt
+        bazalt.stock_quantity = float(bazalt.stock_quantity) - sheets
+        cost_add += sheets * float(bazalt.price_per_unit or 0)
+        log2.append(f"{bazalt.item_name}: -{sheets:.2f} dona")
+        # Serpiyanka
+        from models import Inventory as _Inv
+        serp = db.query(_Inv).filter(_Inv.item_name.ilike('%serpiyanka%')).first()
+        if serp:
+            serp_rulon_area = float(serp.volume_per_unit or 50.0)
+            rulon = (add_m2 * serp_ratio) / serp_rulon_area if serp_rulon_area > 0 else 0
+            serp.stock_quantity = float(serp.stock_quantity) - rulon
+            cost_add += rulon * float(serp.price_per_unit or 0)
+            log2.append(f"{serp.item_name}: -{rulon:.2f} rulon")
+        # Kley
+        kley = db.query(_Inv).filter(_Inv.item_name.ilike('%kley%bazalt%')).first() or db.query(_Inv).filter(_Inv.item_name.ilike('%kley%')).first()
+        if kley:
+            kley_kg = add_m2 * kley_ratio
+            kley.stock_quantity = float(kley.stock_quantity) - kley_kg
+            cost_add += kley_kg * float(kley.price_per_unit or 0)
+            log2.append(f"{kley.item_name}: -{kley_kg:.2f} kg")
+        # Loy
+        if add_loy > 0:
+            loy_log = services.deduct_loy_ingredients(db, _TermoFakeOrder(fp.recipe_id), add_loy)
+            log2.extend(loy_log)
+            loy_info = services.get_loy_cost_per_kg(db, fp.recipe_id)
+            cost_add += add_loy * float(loy_info.get("cost_per_kg", 0) or 0)
+
+        fp.quantity = base_qty + add_m2
+        fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
+        fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
+        fp.cost_price = float(fp.cost_price or 0) + cost_add
+        db.commit()
+        db.refresh(fp)
+        return {
+            "success": True,
+            "message": f"+{add_m2:g} m² qo'shildi",
+            "product_id": fp.id,
+            "name": fp.name,
+            "added_qty": add_m2,
+            "new_qty": float(fp.quantity),
+            "unit": fp.unit,
+            "inventory_log": log2
+        }
 
     # MUHIM: 1 birlikka qancha xomashyo ketishini — JORIY qoldiq/hajmdan
     # EMAS, balki ishlab chiqarilganda saqlangan BARQAROR nisbatdan
