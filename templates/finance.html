@@ -160,6 +160,34 @@
 .fin-profit-block{ margin-top:16px; padding:20px; background:var(--f-bg); border-radius:12px; border:1px solid var(--f-border); text-align:center; }
 .fin-profit-big{ font-size:32px; font-weight:800; }
 
+/* ── Xarajat guruh kartochkalari ── */
+.fin-exp-group{ border:1px solid var(--f-border); border-radius:12px; overflow:hidden; margin-bottom:12px; }
+.fin-exp-group-head{
+  display:flex; align-items:center; gap:10px; padding:12px 14px;
+  background:var(--f-primary-tint);
+}
+.fin-exp-group-icon{
+  width:32px; height:32px; border-radius:9px; background:#fff; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:15px;
+}
+.fin-exp-group-title{
+  font-size:12px; font-weight:700; color:var(--f-primary); text-transform:uppercase; letter-spacing:.04em; flex:1;
+}
+.fin-exp-group-total{ font-size:14.5px; font-weight:700; color:var(--f-primary); white-space:nowrap; }
+.fin-exp-group-count{
+  font-size:11px; font-weight:600; color:var(--f-primary); background:#fff;
+  padding:2px 9px; border-radius:20px; margin-left:8px; white-space:nowrap;
+}
+.fin-exp-group-body{ padding:2px 14px; background:var(--f-card); }
+.fin-exp-group-row{
+  display:flex; align-items:center; gap:10px; padding:9px 0; font-size:13px;
+  border-bottom:1px solid var(--f-border);
+}
+.fin-exp-group-row:last-child{ border-bottom:none; }
+.fin-exp-group-dot{ width:5px; height:5px; border-radius:50%; background:var(--f-text3); flex-shrink:0; }
+.fin-exp-group-row-name{ color:var(--f-text2); flex:1; }
+.fin-exp-group-row-val{ font-weight:700; color:var(--f-danger); white-space:nowrap; }
+
 /* ── Jadval (premium) ── */
 .fin-table-wrap{ overflow-x:auto; border-radius:var(--f-radius); }
 .fin-table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:720px; }
@@ -715,64 +743,97 @@ function buildExpDetail(d){
     document.getElementById('profitBlock').style.display='none';
     return;
   }
-  let extraHtml = '';
 
-  if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
-    extraHtml += `<div style="font-size:12px;color:var(--f-warning);font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:10px 0 4px">🏆 Usta yillik KPI</div>`;
-    extraHtml += d.usta_kpi_breakdown.map(b =>
-      `<div class="fin-exp-row"><span class="fin-exp-name">${b.master_name} (${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)})</span><span class="fin-exp-val">${fmtFull(b.kpi_amount)} so'm</span></div>`
+  // Har guruhni bitta funksiya orqali bir xil (bronza) uslubda quramiz
+  function expGroup(icon, title, rowsHtml, total){
+    return `<div class="fin-exp-group">
+      <div class="fin-exp-group-head">
+        <div class="fin-exp-group-icon">${icon}</div>
+        <div class="fin-exp-group-title">${title}</div>
+        <div class="fin-exp-group-total">${fmtFull(total)} so'm</div>
+      </div>
+      <div class="fin-exp-group-body">${rowsHtml}</div>
+    </div>`;
+  }
+
+  let groupsHtml = '';
+
+  // ── Doimiy va qo'shimcha xarajatlar ──
+  if (rows.length) {
+    const rowsHtml = rows.map(r =>
+      `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name">${r.n}</span><span class="fin-exp-group-row-val">${fmtFull(r.v)} so'm</span></div>`
     ).join('');
+    const total = rows.reduce((s,r)=>s+r.v, 0);
+    groupsHtml += expGroup('🏠', 'Doimiy va qo\'shimcha xarajatlar', rowsHtml, total);
   }
 
+  // ── Usta yillik KPI ──
+  if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
+    const rowsHtml = d.usta_kpi_breakdown.map(b =>
+      `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name">${b.master_name} (${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)})</span><span class="fin-exp-group-row-val">${fmtFull(b.kpi_amount)} so'm</span></div>`
+    ).join('');
+    const total = d.usta_kpi_breakdown.reduce((s,b)=>s+b.kpi_amount, 0);
+    groupsHtml += expGroup('🏆', 'Usta yillik KPI', rowsHtml, total);
+  }
+
+  // ── Hodimlar (moslashuvchan) ──
   if (d.hodimlar_moslashuvchan_breakdown && d.hodimlar_moslashuvchan_breakdown.length) {
-    extraHtml += `<div style="font-size:12px;color:var(--f-warning);font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:10px 0 4px">👷 Hodimlar (moslashuvchan)</div>`;
-    extraHtml += d.hodimlar_moslashuvchan_breakdown.map(b => {
+    const rowsHtml = d.hodimlar_moslashuvchan_breakdown.map(b => {
       const isPaid = (b.qolgan !== undefined) && b.qolgan <= 0.5;
-      const color = isPaid ? '#22C55E' : '';
       const mark = isPaid ? ' ✅' : '';
-      return `<div class="fin-exp-row"><span class="fin-exp-name"${color?` style="color:${color}"`:''}>${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}${mark}</span><span class="fin-exp-val"${color?` style="color:${color}"`:''}>${fmtFull(b.amount)} so'm</span></div>`;
+      return `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name">${b.name}${b.position?' ('+b.position+')':''} — ${b.detail}${mark}</span><span class="fin-exp-group-row-val">${fmtFull(b.amount)} so'm</span></div>`;
     }).join('');
+    const total = d.hodimlar_moslashuvchan_breakdown.reduce((s,b)=>s+b.amount, 0);
+    groupsHtml += expGroup('👷', 'Hodimlar (moslashuvchan)', rowsHtml, total);
   }
 
+  // ── Turlar bo'yicha daromad taqsimoti ──
   if (d.turlar_boyicha && (d.turlar_boyicha.gips.daromad > 0 || d.turlar_boyicha.penoplast.daromad > 0)) {
     const tb = d.turlar_boyicha;
-    extraHtml += `<div style="font-size:12px;color:#7C3AED;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:14px 0 6px">📊 Turlar bo'yicha daromad taqsimoti</div>`;
-    extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name">🏭 Penoplast (va boshqa)</span><span class="fin-exp-val" style="color:#B9783F">${fmtFull(tb.penoplast.daromad)} so'm</span></div>`;
-    extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name">🧱 Gips</span><span class="fin-exp-val" style="color:#D97706">${fmtFull(tb.gips.daromad)} so'm</span></div>`;
+    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name">🏭 Penoplast (va boshqa)</span><span class="fin-exp-group-row-val">${fmtFull(tb.penoplast.daromad)} so'm</span></div>`;
+    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name">🧱 Gips</span><span class="fin-exp-group-row-val">${fmtFull(tb.gips.daromad)} so'm</span></div>`;
     if (tb.gips.qoshimcha_xarajat > 0) {
-      extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name" style="padding-left:14px;color:var(--f-text3)">↳ Gips uchun belgilangan qo'shimcha xarajat</span><span class="fin-exp-val" style="color:var(--f-danger)">-${fmtFull(tb.gips.qoshimcha_xarajat)} so'm</span></div>`;
+      rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Gips uchun qo'shimcha xarajat</span><span class="fin-exp-group-row-val">-${fmtFull(tb.gips.qoshimcha_xarajat)} so'm</span></div>`;
     }
     if (tb.penoplast.qoshimcha_xarajat > 0) {
-      extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name" style="padding-left:14px;color:var(--f-text3)">↳ Penoplast uchun belgilangan qo'shimcha xarajat</span><span class="fin-exp-val" style="color:var(--f-danger)">-${fmtFull(tb.penoplast.qoshimcha_xarajat)} so'm</span></div>`;
+      rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Penoplast uchun qo'shimcha xarajat</span><span class="fin-exp-group-row-val">-${fmtFull(tb.penoplast.qoshimcha_xarajat)} so'm</span></div>`;
     }
+    const total = tb.penoplast.daromad + tb.gips.daromad;
+    groupsHtml += expGroup('📊', "Turlar bo'yicha daromad taqsimoti", rowsHtml, total);
   }
 
+  // ── Tayyor mahsulot to'g'ridan-to'g'ri sotuvi ──
   if (d.fp_sales_daromad > 0) {
-    extraHtml += `<div style="font-size:12px;color:#16A34A;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:14px 0 6px">💰 Tayyor mahsulot to'g'ridan-to'g'ri sotuvi</div>`;
-    extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name">Sotildi (${d.fp_sales_soni} marta) — masalan G'isht</span><span class="fin-exp-val" style="color:#16A34A">${fmtFull(d.fp_sales_daromad)} so'm</span></div>`;
-    extraHtml += `<div class="fin-exp-row"><span class="fin-exp-name" style="padding-left:14px;color:var(--f-text3)">↳ Sof foyda (tan narxsiz)</span><span class="fin-exp-val" style="color:#16A34A">${fmtFull(d.fp_sales_foyda)} so'm</span></div>`;
+    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name">Sotildi (${d.fp_sales_soni} marta)</span><span class="fin-exp-group-row-val">${fmtFull(d.fp_sales_daromad)} so'm</span></div>`;
+    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Sof foyda (tan narxsiz)</span><span class="fin-exp-group-row-val">${fmtFull(d.fp_sales_foyda)} so'm</span></div>`;
+    groupsHtml += expGroup('💰', "Tayyor mahsulot to'g'ridan-to'g'ri sotuvi", rowsHtml, d.fp_sales_daromad);
   }
 
-  el.innerHTML=rows.map(r=>`<div class="fin-exp-row"><span class="fin-exp-name">${r.n}</span><span class="fin-exp-val">${fmtFull(r.v)} so'm</span></div>`).join('')
-    + extraHtml
-    +`<div class="fin-exp-row" style="border-top:1px dashed var(--f-border);margin-top:8px;padding-top:8px">
-        <span class="fin-exp-name" style="color:#B9783F">🏭 Ishlab chiqarish xarajati</span>
-        <span class="fin-exp-val" style="color:#B9783F">${fmtFull(d.ishlab_chiqarish_xarajat||0)} so'm</span>
-      </div>`
-    + ((d.ehson_xarajat||0) > 0 ? `<div class="fin-exp-row">
+  // ── Ishlab chiqarish xarajati (yakka qator, guruhsiz — avvalgidek) ──
+  let tailHtml = `<div class="fin-exp-row" style="border-top:1px dashed var(--f-border);margin-top:4px;padding-top:10px">
+      <span class="fin-exp-name" style="color:var(--f-primary)">🏭 Ishlab chiqarish xarajati</span>
+      <span class="fin-exp-val" style="color:var(--f-primary)">${fmtFull(d.ishlab_chiqarish_xarajat||0)} so'm</span>
+    </div>`;
+  if ((d.ehson_xarajat||0) > 0) {
+    tailHtml += `<div class="fin-exp-row">
         <span class="fin-exp-name" style="color:#22C55E">🤲 Ehson (xayriya)</span>
         <span class="fin-exp-val" style="color:#22C55E">${fmtFull(d.ehson_xarajat||0)} so'm</span>
-      </div>` : '')
-    + ((d.brak_xarajat||0) > 0 ? `<div class="fin-exp-row">
+      </div>`;
+  }
+  if ((d.brak_xarajat||0) > 0) {
+    tailHtml += `<div class="fin-exp-row">
         <span class="fin-exp-name" style="color:#EF4444">🗑️ Brak (yaroqsiz xomashyo)</span>
         <span class="fin-exp-val" style="color:#EF4444">${fmtFull(d.brak_xarajat||0)} so'm</span>
-      </div>` : '')
-    +`<div class="fin-total-row"><span>Jami xarajat:</span><span style="color:var(--f-danger)">${fmtFull(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0))} so'm</span></div>
-      <div class="fin-total-row" style="margin-top:6px;border-top:none;padding-top:0"><span>Jami daromad:</span><span style="color:var(--f-success)">${fmtFull(d.daromad)} so'm</span></div>`;
+      </div>`;
+  }
+  tailHtml += `<div class="fin-total-row"><span>Jami xarajat:</span><span style="color:var(--f-danger)">${fmtFull(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0))} so'm</span></div>
+    <div class="fin-total-row" style="margin-top:6px;border-top:none;padding-top:0"><span>Jami daromad:</span><span style="color:var(--f-success)">${fmtFull(d.daromad)} so'm</span></div>`;
+
+  el.innerHTML = groupsHtml + tailHtml;
   const pb=document.getElementById('profitBlock');
   pb.style.display='block';
   document.getElementById('profitBig').textContent=fmtFull(d.sof_foyda)+" so'm";
-  document.getElementById('profitBig').style.color=d.sof_foyda>=0?'#8E44AD':'#EF4444';
+  document.getElementById('profitBig').style.color=d.sof_foyda>=0?'var(--f-primary)':'#EF4444';
   document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
 }
 
