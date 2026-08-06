@@ -1,13 +1,24 @@
-{% extends "base.html" %}
-{% block title %}Foydalanuvchilar — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Foydalanuvchilar{% endblock %}
-{% block page_sub %}Tizim foydalanuvchilari va ruxsatlar{% endblock %}
-
-{% block topbar_actions %}
-<button class="btn btn-dark" onclick="showAddModal()">+ Yangi foydalanuvchi</button>
-{% endblock %}
-
-{% block head %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<script>
+(function(){
+  try {
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch(e) {}
+})();
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foydalanuvchilar — PenoDecorPro ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/css/tabler-icons.min.css">
+  <link rel="stylesheet" href="static/style.css">
+  
 <style>
 @media (max-width:768px){
   .users-grid{ grid-template-columns:1fr !important; }
@@ -15,52 +26,368 @@
   .users-table-wrap table{ min-width:640px; }
 }
 </style>
-{% endblock %}
 
-{% block content %}
+</head>
+<body>
+<div class="erp-layout">
+
+  
+  <aside class="sidebar">
+    <div class="s-logo">
+      <div style="display:flex;align-items:center;gap:10px">
+        <img src="static/logo_round.jpg" alt="PenoDecorPro"
+             style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
+        <div>
+          <div class="logo-name">Penodecor<span>Pro</span></div>
+          <div class="logo-ver">ERP · Andijon</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="s-user">
+      <div class="u-avatar">M</div>
+      <div>
+        <div class="u-name">Muzaffarbek</div>
+        <div class="u-role">Admin</div>
+      </div>
+    </div>
+
+    <nav class="s-nav">
+      
+
+      <div class="nav-label">Asosiy</div>
+
+      
+      <a href="/" class="nav-item ">
+        <i class="ti ti-home n-ico"></i>
+        <span class="n-txt">Bosh sahifa</span>
+      </a>
+      
+
+      
+      <a href="/dashboard" class="nav-item ">
+        <i class="ti ti-chart-bar n-ico"></i>
+        <span class="n-txt">Dashboard</span>
+      </a>
+      
+
+      
+      <a href="/projects" class="nav-item ">
+        <i class="ti ti-clipboard-list n-ico"></i>
+        <span class="n-txt">Loyihalar</span>
+      </a>
+      
+
+      
+      <a href="/orders" class="nav-item ">
+        <i class="ti ti-receipt n-ico"></i>
+        <span class="n-txt">Buyurtmalar</span>
+      </a>
+      
+
+      
+      <div class="nav-label">Ishlab chiqarish</div>
+      
+
+      
+      <a href="/inventory" class="nav-item ">
+        <i class="ti ti-package n-ico"></i>
+        <span class="n-txt">Omborxona</span>
+      </a>
+      
+
+      
+      <a href="/suppliers/receive" class="nav-item ">
+        <i class="ti ti-truck n-ico"></i>
+        <span class="n-txt">Xomashyo ta'minoti</span>
+      </a>
+
+      <a href="/recipes" class="nav-item ">
+        <i class="ti ti-flask n-ico"></i>
+        <span class="n-txt">Retseptlar</span>
+      </a>
+
+      <a href="/finished" class="nav-item ">
+        <i class="ti ti-building-factory-2 n-ico"></i>
+        <span class="n-txt">Tayyor mahsulotlar</span>
+      </a>
+      
+
+      
+      <div class="nav-label">Hisobot</div>
+      
+
+      
+      <a href="/returns" class="nav-item ">
+        <i class="ti ti-arrow-back-up n-ico"></i>
+        <span class="n-txt">Qaytarishlar</span>
+      </a>
+      
+
+      
+      <a href="/debts" class="nav-item ">
+        <i class="ti ti-credit-card n-ico"></i>
+        <span class="n-txt">Qarzdorlar</span>
+      </a>
+
+      <a href="/finance" class="nav-item ">
+        <i class="ti ti-trending-up n-ico"></i>
+        <span class="n-txt">Moliya</span>
+      </a>
+
+      <a href="/kpi" class="nav-item ">
+        <i class="ti ti-trophy n-ico"></i>
+        <span class="n-txt">Ustalar KPI / Hodimlar</span>
+      </a>
+
+      <a href="/reports" class="nav-item ">
+        <i class="ti ti-report n-ico"></i>
+        <span class="n-txt">Hisobotlar</span>
+      </a>
+      
+
+      
+      <div class="nav-label">Boshqaruv</div>
+
+      <a href="/users" class="nav-item ">
+        <i class="ti ti-users n-ico"></i>
+        <span class="n-txt">Foydalanuvchilar</span>
+      </a>
+      <a href="/trash" class="nav-item ">
+        <i class="ti ti-trash n-ico"></i>
+        <span class="n-txt">O'chirilganlar</span>
+      </a>
+      <a href="/logs" class="nav-item ">
+        <i class="ti ti-file-text n-ico"></i>
+        <span class="n-txt">Tizim jurnallari</span>
+      </a>
+      
+    </nav>
+
+    <div class="s-bottom">
+      <a href="/logout" class="s-logout">
+        <i class="ti ti-logout"></i>
+        <span>Chiqish</span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <script>
+    window.toggleSidebar = function() {
+      document.querySelector('.sidebar').classList.toggle('sidebar-open');
+      document.getElementById('sidebarOverlay').classList.toggle('active');
+    };
+    window.closeSidebar = function() {
+      document.querySelector('.sidebar').classList.remove('sidebar-open');
+      document.getElementById('sidebarOverlay').classList.remove('active');
+    };
+    // Menyudagi havolalardan birini bossa — mobil menyu avtomatik yopilsin
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.sidebar .nav-item').forEach(function(el) {
+        el.addEventListener('click', closeSidebar);
+      });
+    });
+  </script>
+
+  
+  <div class="erp-main">
+    
+    <header class="erp-topbar">
+      <div class="tb-left">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menyu">
+          <i class="ti ti-menu-2" style="font-size:18px"></i>
+        </button>
+        <div class="page-title">Foydalanuvchilar</div>
+        <div class="page-sub">Tizim foydalanuvchilari va ruxsatlar</div>
+      </div>
+      <div class="tb-right">
+        <button id="themeToggle" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
+          <i class="ti ti-moon" id="themeIcon" style="font-size:16px"></i>
+        </button>
+        <div id="notifWrap" style="position:relative;margin-right:10px">
+          <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
+            <i class="ti ti-bell" style="font-size:17px"></i>
+            <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
+          </button>
+          <div id="notifPanel" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);max-height:420px;overflow-y:auto;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);z-index:1000">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text)">Bildirishnomalar</div>
+            <div id="notifList" style="padding:6px 0">
+              <div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklanmoqda...</div>
+            </div>
+          </div>
+        </div>
+        
+<button class="btn btn-dark" onclick="showAddModal()">+ Yangi foydalanuvchi</button>
+
+      </div>
+    </header>
+
+    <script>
+    (function() {
+      const NOTIF_BG = { red: '#FEE2E2', orange: '#FEF3C7', green: '#DCFCE7' };
+
+      function applyThemeIcon() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const icon = document.getElementById('themeIcon');
+        if (icon) icon.className = isDark ? 'ti ti-sun' : 'ti ti-moon';
+      }
+      window.toggleTheme = function() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+          document.documentElement.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          localStorage.setItem('theme', 'dark');
+        }
+        applyThemeIcon();
+      };
+      applyThemeIcon();
+
+      function toggleNotifPanel() {
+        const p = document.getElementById('notifPanel');
+        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+      }
+      window.toggleNotifPanel = toggleNotifPanel;
+
+      document.addEventListener('click', function(e) {
+        const wrap = document.getElementById('notifWrap');
+        if (wrap && !wrap.contains(e.target)) document.getElementById('notifPanel').style.display = 'none';
+      });
+
+      fetch('/api/notifications').then(r => r.ok ? r.json() : []).then(items => {
+        const badge = document.getElementById('notifBadge');
+        const list = document.getElementById('notifList');
+        if (!items.length) {
+          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Bildirishnoma yo\'q</div>';
+          return;
+        }
+        const urgent = items.filter(i => i.level !== 'green').length;
+        if (urgent > 0) {
+          badge.style.display = 'flex';
+          badge.textContent = urgent;
+        }
+        list.innerHTML = items.map(n => `
+          <div style="display:flex;gap:10px;padding:9px 16px;align-items:flex-start">
+            <span style="font-size:14px">${n.icon}</span>
+            <span style="font-size:12.5px;color:var(--text);line-height:1.4">${n.text}</span>
+          </div>`).join('');
+      }).catch(() => {
+        document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklab bo\'lmadi</div>';
+      });
+    })();
+    </script>
+    
+    
 <div class="erp-content">
   <div class="users-grid" style="display:grid;grid-template-columns:1fr 360px;gap:14px">
 
     <!-- Jadval -->
     <div class="card">
-      <div class="card-head"><h3>Foydalanuvchilar ({{ users|length }} ta)</h3></div>
+      <div class="card-head"><h3>Foydalanuvchilar (4 ta)</h3></div>
       <div class="users-table-wrap">
       <table class="erp-table">
         <thead>
           <tr><th>#</th><th>Login</th><th>Ismi</th><th>Rol</th><th>Holat</th><th>Yaratilgan</th><th></th></tr>
         </thead>
         <tbody>
-          {% for u in users %}
-          <tr id="urow-{{ u.id }}">
-            <td style="color:#aaa">{{ loop.index }}</td>
-            <td><span style="font-weight:500;color:#111">{{ u.username }}</span></td>
-            <td>{{ u.full_name or '—' }}</td>
+          
+          <tr id="urow-1">
+            <td style="color:var(--text3)">1</td>
+            <td><span style="font-weight:500;color:var(--text)">admin</span></td>
+            <td>Muzaffarbek</td>
             <td>
-              {% if u.role.value == 'admin' %}<span class="badge" style="background:#111;color:#2563EB">Admin</span>
-              {% elif u.role.value == 'manager' %}<span class="badge badge-info">Hodim</span>
-              {% elif u.role.value == 'accountant' %}<span class="badge badge-ready">Moliyachi</span>
-              {% elif u.role.value == 'warehouse' %}<span class="badge" style="background:#F3E8FF;color:#8E44AD">Omborchi</span>
-              {% else %}<span class="badge badge-warning">Usta</span>{% endif %}
+              <span class="badge" style="background:var(--dark);color:var(--gold)">Admin</span>
+              
             </td>
             <td>
-              {% if u.is_active %}<span class="badge badge-ready">Faol</span>
-              {% else %}<span class="badge badge-cancelled">O'chirilgan</span>{% endif %}
+              <span class="badge badge-ready">Faol</span>
+              
             </td>
-            <td style="color:#aaa;font-size:12px">{{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}</td>
+            <td style="color:var(--text3);font-size:12px">01.06.2026</td>
             <td>
-              {% if u.username != current_user.username %}
-              <div style="display:flex;gap:4px">
-                <button class="btn btn-outline btn-xs" onclick="toggleUser({{ u.id }}, {{ 'true' if u.is_active else 'false' }})">
-                  {{ 'O\'chir' if u.is_active else 'Faollashtir' }}
-                </button>
-                <button class="btn btn-outline btn-xs" onclick="changePass({{ u.id }}, '{{ u.username }}')">Parol</button>
-              </div>
-              {% else %}
-              <span style="font-size:11px;color:#aaa">Joriy</span>
-              {% endif %}
+              
+              <span style="font-size:11px;color:var(--text3)">Joriy</span>
+              
             </td>
           </tr>
-          {% endfor %}
+          
+          <tr id="urow-2">
+            <td style="color:var(--text3)">2</td>
+            <td><span style="font-weight:500;color:var(--text)">menejer1</span></td>
+            <td>Sardor A.</td>
+            <td>
+              <span class="badge badge-info">Hodim</span>
+              
+            </td>
+            <td>
+              <span class="badge badge-ready">Faol</span>
+              
+            </td>
+            <td style="color:var(--text3);font-size:12px">15.06.2026</td>
+            <td>
+              
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-outline btn-xs" onclick="toggleUser(2, true)">
+                  O&#39;chir
+                </button>
+                <button class="btn btn-outline btn-xs" onclick="changePass(2, 'menejer1')">Parol</button>
+              </div>
+              
+            </td>
+          </tr>
+          
+          <tr id="urow-3">
+            <td style="color:var(--text3)">3</td>
+            <td><span style="font-weight:500;color:var(--text)">moliya1</span></td>
+            <td>Nodira K.</td>
+            <td>
+              <span class="badge badge-ready">Moliyachi</span>
+              
+            </td>
+            <td>
+              <span class="badge badge-ready">Faol</span>
+              
+            </td>
+            <td style="color:var(--text3);font-size:12px">01.07.2026</td>
+            <td>
+              
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-outline btn-xs" onclick="toggleUser(3, true)">
+                  O&#39;chir
+                </button>
+                <button class="btn btn-outline btn-xs" onclick="changePass(3, 'moliya1')">Parol</button>
+              </div>
+              
+            </td>
+          </tr>
+          
+          <tr id="urow-4">
+            <td style="color:var(--text3)">4</td>
+            <td><span style="font-weight:500;color:var(--text)">ombor1</span></td>
+            <td>Jasur T.</td>
+            <td>
+              <span class="badge" style="background:#F3E8FF;color:#8E44AD">Omborchi</span>
+              
+            </td>
+            <td>
+              <span class="badge badge-cancelled">O'chirilgan</span>
+            </td>
+            <td style="color:var(--text3);font-size:12px">10.07.2026</td>
+            <td>
+              
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-outline btn-xs" onclick="toggleUser(4, false)">
+                  Faollashtir
+                </button>
+                <button class="btn btn-outline btn-xs" onclick="changePass(4, 'ombor1')">Parol</button>
+              </div>
+              
+            </td>
+          </tr>
+          
         </tbody>
       </table>
       </div>
@@ -71,28 +398,50 @@
       <div class="card">
         <div class="card-head"><h3>Rollar va huquqlar</h3></div>
         <div class="card-body">
-          {% for role, label, color, perms in [
-            ('admin', 'Admin', '#111', 'Hamma narsa - moliya, ombor, foydalanuvchilar, sozlamalar'),
-            ('manager', 'Hodim', '#1a6fa8', "Loyiha va buyurtma yaratish, ombor (ko'rish). Moliya, foyda, Ustalar KPI ko'RINMAYDI"),
-            ('accountant', 'Moliyachi', '#1e7e34', 'Moliya, Hisobotlar, Qarzdorlik, Ustalar KPI, xodim avansini tasdiqlash'),
-            ('warehouse', 'Omborchi', '#8E44AD', "Omborxona, Xomashyo ta'minoti, Tayyor mahsulot, Retseptlar"),
-            ('master', 'Usta', '#b7770d', 'Faqat buyurtmalar')
-          ] %}
-          <div style="padding:12px 0;border-bottom:1px solid #f5f5f5">
+          
+          <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span class="badge" style="background:{% if role == 'admin' %}#111{% elif role == 'manager' %}#EFF6FF{% elif role == 'accountant' %}#DCFCE7{% elif role == 'warehouse' %}#F3E8FF{% else %}#FEF3C7{% endif %};color:{{ color }}">{{ label }}</span>
+              <span class="badge" style="background:var(--dark);color:var(--gold)">Admin</span>
             </div>
-            <div style="font-size:12px;color:#aaa">{{ perms }}</div>
+            <div style="font-size:12px;color:var(--text3)">Hamma narsa - moliya, ombor, foydalanuvchilar, sozlamalar</div>
           </div>
-          {% endfor %}
+          
+          <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span class="badge" style="background:#EFF6FF;color:#1a6fa8">Hodim</span>
+            </div>
+            <div style="font-size:12px;color:var(--text3)">Loyiha va buyurtma yaratish, ombor (ko&#39;rish). Moliya, foyda, Ustalar KPI ko&#39;RINMAYDI</div>
+          </div>
+          
+          <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span class="badge" style="background:#DCFCE7;color:#1e7e34">Moliyachi</span>
+            </div>
+            <div style="font-size:12px;color:var(--text3)">Moliya, Hisobotlar, Qarzdorlik, Ustalar KPI, xodim avansini tasdiqlash</div>
+          </div>
+          
+          <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span class="badge" style="background:#F3E8FF;color:#8E44AD">Omborchi</span>
+            </div>
+            <div style="font-size:12px;color:var(--text3)">Omborxona, Xomashyo ta&#39;minoti, Tayyor mahsulot, Retseptlar</div>
+          </div>
+          
+          <div style="padding:12px 0;border-bottom:1px solid var(--border2)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span class="badge" style="background:#FEF3C7;color:#b7770d">Usta</span>
+            </div>
+            <div style="font-size:12px;color:var(--text3)">Faqat buyurtmalar</div>
+          </div>
+          
         </div>
       </div>
 
-      <div class="card" style="border-left:3px solid #2563EB;border-radius:0 12px 12px 0">
+      <div class="card" style="border-left:3px solid var(--gold);border-radius:0 12px 12px 0">
         <div class="card-body">
-          <div style="font-size:13px;font-weight:500;color:#111;margin-bottom:6px">👤 Joriy siz</div>
-          <div style="font-size:13px;color:#555">{{ current_user.full_name or current_user.username }}</div>
-          <div style="font-size:11px;color:#aaa;margin-top:4px">{{ now }}</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">👤 Joriy siz</div>
+          <div style="font-size:13px;color:var(--text2)">Muzaffarbek</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">06.08.2026 15:30</div>
         </div>
       </div>
     </div>
@@ -190,9 +539,12 @@
   </div>
 </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
+  </div>
+
+</div>
+
+
 <script>
 // SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
 // turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
@@ -319,4 +671,48 @@ async function saveUser(){
   if(res.ok){alert('✓ Qo\'shildi!');location.reload();}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
 }
 </script>
-{% endblock %}
+
+
+<script>
+// ══ UMUMIY: matn maydonlarining birinchi harfini avtomatik katta qilish ══
+// Butun tizimda, HAR BIR sahifada ishlaydi (bitta joyda yozilgan).
+// Faqat foydalanuvchi maydondan CHIQQANDA (blur) ishlaydi — yozayotganda
+// emas, aks holda kursor pozitsiyasi buzilib, yozishga xalaqit berardi.
+(function() {
+  function shouldSkip(el) {
+    if (!el || el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return true;
+    if (el.tagName === 'INPUT' && el.type !== 'text') return true;  // faqat oddiy matn maydonlari
+    if (el.dataset.noCapitalize !== undefined) return true;         // qo'lda o'chirish imkoni
+    if (el.type === 'search') return true;
+    const id = (el.id || '').toLowerCase();
+    const cls = (el.className || '').toLowerCase();
+    // Qidiruv/filtr va narx/son maydonlarini o'tkazib yuboramiz
+    if (id.includes('search') || id.includes('qidir') || cls.includes('search')) return true;
+    if (id.includes('price') || id.includes('narx') || cls.includes('price')) return true;
+    return false;
+  }
+
+  function capitalizeFirst(val) {
+    if (!val) return val;
+    // Faqat BIRINCHI harfni katta qilamiz, qolganiga tegmaymiz —
+    // aks holda qisqartmalar (masalan "sm", "kg") buzilib qolardi.
+    return val.charAt(0).toUpperCase() + val.slice(1);
+  }
+
+  document.addEventListener('blur', function(e) {
+    const el = e.target;
+    if (shouldSkip(el)) return;
+    const newVal = capitalizeFirst(el.value);
+    if (newVal !== el.value) {
+      el.value = newVal;
+      // React/Vue kabi frameworklar uchun emas, oddiy JS uchun — o'zgarish
+      // event'ini qo'lda chaqiramiz, aks holda ba'zi "oninput" handlerlar
+      // yangi qiymatni sezmasligi mumkin edi.
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }, true);  // "capture" rejimida — barcha maydonlarni ushlab qolish uchun
+})();
+</script>
+
+</body>
+</html>
