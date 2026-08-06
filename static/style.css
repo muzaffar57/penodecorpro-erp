@@ -135,18 +135,18 @@ body {
   font-size: 14px; font-weight: 600; color: var(--dark);
   flex-shrink: 0;
 }
-.s-user .u-name { font-size: 13px; font-weight: 500; color: var(--white); }
-.s-user .u-role { font-size: 10px; color: #555; margin-top: 2px; }
+.s-user .u-name { font-size: 13px; font-weight: 700; color: var(--white); }
+.s-user .u-role { font-size: 10px; color: #9198A3; margin-top: 2px; font-weight: 600; }
 
 .s-nav { padding: 12px 0; flex: 1; }
 
 .nav-label {
-  font-size: 9px;
-  color: #444;
+  font-size: 10px;
+  color: #8A8D96;
   text-transform: uppercase;
   letter-spacing: .7px;
   padding: 10px 20px 4px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .nav-item {
@@ -166,9 +166,10 @@ body {
   background: rgba(185,120,63,0.16);
   border-color: rgba(185,120,63,0.30);
 }
-.nav-item .n-ico { font-size: 15px; width: 20px; text-align: center; }
-.nav-item .n-txt { font-size: 12px; color: #888; flex: 1; }
-.nav-item.active .n-txt { color: var(--gold); font-weight: 500; }
+.nav-item .n-ico { font-size: 15px; width: 20px; text-align: center; color: #9198A3; }
+.nav-item .n-txt { font-size: 12.5px; color: #E5E5E0; flex: 1; font-weight: 800; letter-spacing: .1px; }
+.nav-item.active .n-txt { color: var(--gold); font-weight: 800; }
+.nav-item.active .n-ico { color: var(--gold); }
 .nav-item .n-badge {
   font-size: 9px;
   background: var(--gold);
@@ -188,7 +189,8 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #555;
+  font-weight: 600;
+  color: #9198A3;
   cursor: pointer;
   padding: 8px 10px;
   border-radius: 8px;
