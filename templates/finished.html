@@ -23,6 +23,15 @@
 .fp-filters input:focus,.fp-filters select:focus{border-color:var(--gold)}
 .fp-chip{height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--white);font-size:12px;cursor:pointer;color:var(--text2)}
 .fp-chip.on{background:var(--gold);color:#fff;border-color:var(--gold)}
+/* Kategoriya filtri — tugma-chip guruhi (dropdown o'rniga) */
+.fp-cat-toggle{display:flex;flex-wrap:wrap;gap:6px}
+.fp-cat-opt{
+  height:34px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;
+  font-size:12px;font-weight:600;color:var(--text2);background:var(--white);
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;white-space:nowrap;
+}
+.fp-cat-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
+.fp-cat-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
 .fp-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:fpIn .3s ease forwards}
 @keyframes fpIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .fp-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
@@ -74,14 +83,23 @@
 
   <div class="fp-filters">
     <input type="text" id="fpSearch" placeholder="Mahsulot nomi bo'yicha qidirish..." style="flex:1;min-width:200px" oninput="renderFp()">
-    <select id="fpCategory" onchange="renderFp()">
+    <div class="fp-cat-toggle" id="fpCategoryToggle">
+      <div class="fp-cat-opt active" data-value="" onclick="selectFpCategory(this,'')">Barcha kategoriya</div>
+      <div class="fp-cat-opt" data-value="profil" onclick="selectFpCategory(this,'profil')">Profil</div>
+      <div class="fp-cat-opt" data-value="panel" onclick="selectFpCategory(this,'panel')">Panel</div>
+      <div class="fp-cat-opt" data-value="dona" onclick="selectFpCategory(this,'dona')">Donali</div>
+      <div class="fp-cat-opt" data-value="blok" onclick="selectFpCategory(this,'blok')">Blok</div>
+      <div class="fp-cat-opt" data-value="termopanel" onclick="selectFpCategory(this,'termopanel')">Bazalt (Termopanel)</div>
+      <div class="fp-cat-opt" data-value="gips" onclick="selectFpCategory(this,'gips')">Gips</div>
+    </div>
+    <select id="fpCategory" style="display:none" onchange="renderFp()">
       <option value="">Barcha kategoriya</option>
       <option value="profil">Profil</option>
       <option value="panel">Panel</option>
       <option value="dona">Donali</option>
       <option value="blok">Blok</option>
-      <option value="termopanel">🧱 Bazalt (Termopanel)</option>
-      <option value="gips">🧱 Gips</option>
+      <option value="termopanel">Bazalt (Termopanel)</option>
+      <option value="gips">Gips</option>
     </select>
     <select id="fpSort" onchange="renderFp()">
       <option value="default">Standart tartib</option>
@@ -668,6 +686,16 @@ function toggleChip(name) {
   renderFp();
 }
 
+// Kategoriya — tugma-chip tanlash (dropdown o'rniga). Yashirin <select>ga
+// qiymatni yozib, xuddi shu eski renderFp() funksiyasini chaqiradi —
+// filtrlash mantig'i O'ZGARMAYDI, faqat kirish usuli.
+function selectFpCategory(btn, value) {
+  document.querySelectorAll('#fpCategoryToggle .fp-cat-opt').forEach(o => o.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('fpCategory').value = value;
+  renderFp();
+}
+
 function renderFp() {
   const q = (document.getElementById('fpSearch')?.value || '').trim().toLowerCase();
   const category = document.getElementById('fpCategory')?.value || '';
@@ -822,7 +850,15 @@ function rowHtml(i) {
     <label class="fp-thumb" onclick="event.stopPropagation()">
       ${i.image_url
         ? `<img src="${i.image_url}" alt="" onclick="openLightbox('${i.image_url}')">`
-        : `<i class="ti ${i.category==='profil'?'ti-ruler-2':i.category==='panel'?'ti-square':i.category==='termopanel'?'ti-square-rounded':'ti-box'}" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
+        : `<i class="ti ${
+            i.category==='profil' ? 'ti-ruler-2' :
+            i.category==='panel' ? 'ti-square' :
+            i.category==='dona' ? 'ti-circle' :
+            i.category==='blok' ? 'ti-cube' :
+            i.category==='termopanel' ? 'ti-square-rounded' :
+            i.category==='gips' ? 'ti-wall' :
+            'ti-box'
+          }" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
       <div class="cam-overlay" onclick="document.getElementById('fpimg-${i.id}').click()"><i class="ti ti-camera-plus"></i></div>
       <input type="file" id="fpimg-${i.id}" accept="image/*" onchange="uploadFpImage(${i.id}, this)">
     </label>
