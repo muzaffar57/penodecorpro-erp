@@ -3467,11 +3467,13 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
         return {"success": False, "message": "Hech qanday mahsulot tanlanmagan"}
 
     group_id = uuid.uuid4().hex[:16]
-    sales = []
-    total_all = 0.0
-    profit_all = 0.0
 
     try:
+        # ── 1-BOSQICH: har detalning ASL summasini hisoblab, tekshiramiz ──
+        # (hali DB'ga yozmaymiz — avval umumiy asl jamini bilishimiz kerak,
+        #  chegirma koeffitsientini shundan hisoblaymiz.)
+        prepared = []   # {fp, quantity, unit_price, original_total, cost_amount}
+        original_grand_total = 0.0
         for item in data.items:
             fp = db.query(FinishedProduct).filter(FinishedProduct.id == item.finished_product_id).with_for_update().first()
             if not fp:
@@ -3483,22 +3485,65 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
                 db.rollback()
                 return {"success": False, "message": f"{fp.name}: omborda faqat {available:g} {fp.unit} bor, {item.quantity:g} sota olmaysiz"}
 
-            total_amount = item.quantity * item.unit_price
+            orig_total = item.quantity * item.unit_price
             unit_cost = (float(fp.cost_price or 0) / available) if available > 0 else 0
             cost_amount = unit_cost * item.quantity
 
-            fp.quantity = available - item.quantity
+            prepared.append({
+                "fp": fp,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "original_total": orig_total,
+                "cost_amount": cost_amount,
+            })
+            original_grand_total += orig_total
+
+        # ── "Kelishilgan summa" (butun savatchaga BITTA) ─────────────────
+        # agreed berilmasa yoki asl jamiga teng/katta bo'lsa — chegirma yo'q.
+        agreed = getattr(data, "agreed_amount", None)
+        if agreed is None or original_grand_total <= 0 or agreed >= original_grand_total - 0.5:
+            agreed_grand_total = original_grand_total
+            discount_percent = 0.0
+        else:
+            agreed_grand_total = float(agreed)
+            discount_percent = round((1 - agreed_grand_total / original_grand_total) * 100, 2)
+
+        # ── 2-BOSQICH: yozib chiqamiz. Chegirma har qatorga PROPORSIONAL ──
+        # total_amount (moliya uchun) = asl summaning kelishilgan ulushi.
+        # unit_price/original_total — asl (PDF asl narxni shundan tiklaydi).
+        # MUHIM: yaxlitlash qoldig'i yo'qolib/qo'shilib ketmasligi uchun —
+        # oxirgi qatorga (agreed − oldingilar yig'indisi) beriladi, shunda
+        # qatorlar yig'indisi ANIQ kelishilgan summaga teng bo'ladi.
+        sales = []
+        total_all = 0.0
+        profit_all = 0.0
+        n = len(prepared)
+        allocated = 0.0
+        for idx, p in enumerate(prepared):
+            fp = p["fp"]
+            if agreed_grand_total == original_grand_total:
+                line_total = p["original_total"]
+            elif idx < n - 1:
+                line_total = round(p["original_total"] * agreed_grand_total / original_grand_total, 2)
+                allocated += line_total
+            else:
+                # oxirgi qator — qoldiqni to'liq oladi (yaxlitlash farqini yutadi)
+                line_total = round(agreed_grand_total - allocated, 2)
+
+            fp.quantity = float(fp.quantity or 0) - p["quantity"]
             if fp.cost_price:
-                fp.cost_price = float(fp.cost_price) - cost_amount
+                fp.cost_price = float(fp.cost_price) - p["cost_amount"]
 
             sale = FinishedProductSale(
                 finished_product_id=fp.id,
                 product_name=fp.name,
-                quantity=item.quantity,
+                quantity=p["quantity"],
                 unit=fp.unit,
-                unit_price=item.unit_price,
-                total_amount=total_amount,
-                cost_amount=cost_amount,
+                unit_price=p["unit_price"],
+                total_amount=line_total,
+                cost_amount=p["cost_amount"],
+                original_total=p["original_total"],
+                group_discount_percent=discount_percent,
                 buyer_name=data.buyer_name,
                 payment_method=data.payment_method,
                 notes=data.notes,
@@ -3507,8 +3552,8 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
             )
             db.add(sale)
             sales.append(sale)
-            total_all += total_amount
-            profit_all += (total_amount - cost_amount)
+            total_all += line_total
+            profit_all += (line_total - p["cost_amount"])
 
         db.commit()
         for s in sales:
@@ -3518,7 +3563,9 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
             "success": True,
             "sale_group_id": group_id,
             "sale_count": len(sales),
-            "total_amount": round(total_all),
+            "original_total": round(original_grand_total),
+            "discount_percent": discount_percent,
+            "total_amount": round(total_all),   # kelishilgan (chegirilgan) summa
             "profit": round(profit_all)
         }
     except Exception as e:
