@@ -435,6 +435,10 @@ class FinishedProductSaleBatchCreate(BaseModel):
     buyer_name: Optional[str] = None
     payment_method: str = Field(default="naqd")
     notes: Optional[str] = None
+    # "Kelishilgan summa" — BUTUN savatchaga BITTA umumiy summa (ixtiyoriy).
+    # Berilmasa yoki jamiga teng bo'lsa — chegirma yo'q. Jamidan kichik bo'lsa —
+    # ayirma proporsional chegirma sifatida har qatorga taqsimlanadi.
+    agreed_amount: Optional[float] = Field(default=None, ge=0)
 
 
 class GipsProduceAdditive(BaseModel):
