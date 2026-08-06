@@ -3955,12 +3955,17 @@ function collectItems() {
                    notes: `blok_narxi=${blokPrice},blok_yield=${chiqadiPerBlok}` });
     } else if (type === 'termopanel') {
       const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
+      // MUHIM: tayyor mahsulotdan olingan bo'lsa (fpId bor) — bazalt/serpiyanka/
+      // kley id'larini YUBORMAYMIZ (null). Aks holda backend ularni xomashyo
+      // deb ayirib, [TERMO:...] belgisi qo'shardi — keyin o'chirishda noto'g'ri
+      // qaytarardi. Tayyor mahsulotning xomashyosi allaqachon ishlab
+      // chiqarishda ayirilgan.
       items.push({ name, category: 'termopanel', width: null, thickness: null, length: null,
                    quantity: qty, unit_price: unitP, is_coated: true,
                    penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
-                   bazalt_item_id: parseInt(row.dataset.termoBazaltId) || null,
-                   serpiyanka_item_id: parseInt(row.dataset.termoSerpId) || null,
-                   kley_item_id: parseInt(row.dataset.termoKleyId) || null,
+                   bazalt_item_id: fpId ? null : (parseInt(row.dataset.termoBazaltId) || null),
+                   serpiyanka_item_id: fpId ? null : (parseInt(row.dataset.termoSerpId) || null),
+                   kley_item_id: fpId ? null : (parseInt(row.dataset.termoKleyId) || null),
                    termo_loy_kg: parseFloat(row.dataset.termoLoy) || 0 });
     } else if (type === 'loy_sotish') {
       const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
