@@ -5,7 +5,7 @@
 
 {% block head %}
 <style>
-.dbt-wrap{--d-bg:#F5F7FA;--d-card:#FFFFFF;--d-border:#E5E7EB;--d-danger:#EF4444;--d-warning:#F59E0B;--d-success:#22C55E;--d-primary:#2563EB;--d-text:#111827;--d-text2:#4B5563;--d-text3:#9CA3AF;background:var(--d-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto}
+.dbt-wrap{--d-bg:#F8F8F6;--d-card:#FFFFFF;--d-border:#E8E3DD;--d-danger:#EF4444;--d-warning:#F59E0B;--d-success:#22C55E;--d-primary:#B9783F;--d-primary-dark:#A86B36;--d-primary-tint:#F8F2EB;--d-text:#222222;--d-text2:#6B7280;--d-text3:#9CA3AF;background:var(--d-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto}
 .dbt-wrap *{box-sizing:border-box}
 .dbt-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
 @media(max-width:800px){.dbt-summary-grid{grid-template-columns:1fr}}
@@ -20,12 +20,14 @@
 @media(max-width:950px){.dbt-grid{grid-template-columns:1fr}}
 .dbt-card{background:#fff;border:1px solid var(--d-border);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);overflow:hidden}
 .dbt-list{max-height:calc(100vh - 320px);overflow-y:auto}
-.dbt-item{padding:14px 18px;border-bottom:1px solid #F3F4F6;cursor:pointer;transition:background .12s}
+.dbt-item{padding:14px 18px;border-bottom:1px solid #F3F4F6;cursor:pointer;transition:background .12s;display:flex;gap:12px}
 .dbt-item:hover{background:var(--d-bg)}
 .dbt-item.active{background:#FEF2F2;border-left:3px solid var(--d-danger)}
-.dbt-item-name{font-size:13.5px;font-weight:600;color:var(--d-text)}
+.dbt-avatar{width:36px;height:36px;border-radius:50%;background:var(--d-primary-tint);color:var(--d-primary-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.dbt-item-body{flex:1;min-width:0}
+.dbt-item-name{font-size:13.5px;font-weight:700;color:var(--d-text)}
 .dbt-item-sub{font-size:11.5px;color:var(--d-text3);margin-top:2px}
-.dbt-item-amount{font-size:16px;font-weight:800;color:var(--d-danger)}
+.dbt-item-amount{font-size:15.5px;font-weight:800;color:var(--d-danger);white-space:nowrap}
 .dbt-progress-track{height:5px;background:#F3F4F6;border-radius:3px;margin-top:8px}
 .dbt-progress-fill{height:100%;background:var(--d-success);border-radius:3px}
 .dbt-sum-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #F3F4F6;font-size:13px}
@@ -62,9 +64,9 @@
   </div>
 
   <div class="dbt-tabs">
-    <button class="dbt-tab active" data-t="customers" onclick="switchTab('customers')">👤 Bizga qarzdorlar ({{ order_debts|length }})</button>
-    <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')">🚚 Hamkorlarga qarzimiz ({{ supplier_debts|length }})</button>
-    <button class="dbt-tab" data-t="company" onclick="switchTab('company')">🏢 Boshqa majburiyatlarimiz ({{ (company_obligations.employees|length) + (company_obligations.recurring|length) }})</button>
+    <button class="dbt-tab active" data-t="customers" onclick="switchTab('customers')"><i class="ti ti-user" style="vertical-align:-2px"></i> Bizga qarzdorlar ({{ order_debts|length }})</button>
+    <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')"><i class="ti ti-truck" style="vertical-align:-2px"></i> Hamkorlarga qarzimiz ({{ supplier_debts|length }})</button>
+    <button class="dbt-tab" data-t="company" onclick="switchTab('company')"><i class="ti ti-building" style="vertical-align:-2px"></i> Boshqa majburiyatlarimiz ({{ (company_obligations.employees|length) + (company_obligations.recurring|length) }})</button>
   </div>
 
   <!-- MIJOZ QARZLARI -->
@@ -85,14 +87,17 @@
                  data-paid="{{ o.paid_amount }}"
                  data-debt="{{ o.debt_amount }}"
                  data-deadline="{{ o.deadline.strftime('%d.%m.%Y') if o.deadline else '—' }}">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                <div>
-                  <div class="dbt-item-name">{{ o.project.client_name }}</div>
-                  <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name }}</div>
+              <div class="dbt-avatar">{{ (o.project.client_name or '?')[0]|upper }}</div>
+              <div class="dbt-item-body">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                  <div>
+                    <div class="dbt-item-name">{{ o.project.client_name }}</div>
+                    <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name }}</div>
+                  </div>
+                  <div class="dbt-item-amount">{{ "{:,.0f}".format(o.debt_amount).replace(",", " ") }} so'm</div>
                 </div>
-                <div class="dbt-item-amount">{{ "{:,.0f}".format(o.debt_amount).replace(",", " ") }} so'm</div>
+                <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ paid_pct|round }}%"></div></div>
               </div>
-              <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ paid_pct|round }}%"></div></div>
             </div>
             {% endfor %}
           {% else %}
@@ -103,7 +108,10 @@
 
       <div style="display:flex;flex-direction:column;gap:14px">
         <div class="dbt-card" id="custDetailCard">
-          <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px" id="cd-name">Mijoz tanlang</div>
+          <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px">
+            <div class="dbt-avatar" id="cd-avatar" style="width:30px;height:30px;font-size:12px">?</div>
+            <span id="cd-name">Mijoz tanlang</span>
+          </div>
           <div style="padding:16px 18px" id="cd-body">
             <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Chapdan mijozni tanlang</div>
           </div>
@@ -138,14 +146,17 @@
                  data-id="{{ s.id }}" data-name="{{ s.name }}" data-phone="{{ s.phone or '—' }}"
                  data-credit="{{ s.total_credit }}" data-paid="{{ s.total_paid }}" data-debt="{{ s.debt }}"
                  data-count="{{ s.purchase_count }}">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                <div>
-                  <div class="dbt-item-name">{{ s.name }}</div>
-                  <div class="dbt-item-sub">{{ s.phone or '—' }} · {{ s.purchase_count }} ta xarid</div>
+              <div class="dbt-avatar" style="background:#FFFBEB;color:#B45309">{{ (s.name or '?')[0]|upper }}</div>
+              <div class="dbt-item-body">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                  <div>
+                    <div class="dbt-item-name">{{ s.name }}</div>
+                    <div class="dbt-item-sub">{{ s.phone or '—' }} · {{ s.purchase_count }} ta xarid</div>
+                  </div>
+                  <div class="dbt-item-amount" style="color:#F59E0B">{{ "{:,.0f}".format(s.debt).replace(",", " ") }} so'm</div>
                 </div>
-                <div class="dbt-item-amount" style="color:#F59E0B">{{ "{:,.0f}".format(s.debt).replace(",", " ") }} so'm</div>
+                <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ spaid_pct|round }}%;background:#F59E0B"></div></div>
               </div>
-              <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ spaid_pct|round }}%;background:#F59E0B"></div></div>
             </div>
             {% endfor %}
           {% else %}
@@ -155,7 +166,10 @@
       </div>
 
       <div class="dbt-card">
-        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px" id="sd-name">Yetkazib beruvchi tanlang</div>
+        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px">
+          <div class="dbt-avatar" id="sd-avatar" style="width:30px;height:30px;font-size:12px;background:#FFFBEB;color:#B45309">?</div>
+          <span id="sd-name">Yetkazib beruvchi tanlang</span>
+        </div>
         <div style="padding:16px 18px" id="sd-body">
           <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Chapdan tanlang</div>
         </div>
@@ -173,18 +187,18 @@
         <div style="padding:8px 18px 18px">
           {% if company_obligations.employees %}
             {% for e in company_obligations.employees %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name|replace('"', '&quot;') }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName)">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                <div>
-                  <div style="display:flex;align-items:center;gap:6px">
-                    <span class="oblig-status-dot" style="background:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }}"></span>
-                    <span style="font-weight:600;font-size:13.5px">{{ e.name }}</span>
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer;display:flex;gap:12px" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name|replace('"', '&quot;') }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName)">
+              <div class="dbt-avatar" style="background:{{ '#FEF2F2' if e.status=='overdue' else '#FFFBEB' }};color:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }};width:34px;height:34px;font-size:13px">{{ (e.name or '?')[0]|upper }}</div>
+              <div style="flex:1">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                  <div>
+                    <span style="font-weight:700;font-size:13.5px">{{ e.name }}</span>
+                    <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
                   </div>
-                  <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
+                  <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
                 </div>
-                <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
+                <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan))">✓ To'liq to'landi deb belgilash</button>
               </div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan))">✓ To'liq to'landi deb belgilash</button>
             </div>
             {% endfor %}
           {% else %}
@@ -415,6 +429,7 @@ function selectOrderDebt(el){
   const pct = agreed > 0 ? Math.min(100, (paid/agreed*100)).toFixed(0) : 0;
 
   document.getElementById('cd-name').textContent = d.client;
+  document.getElementById('cd-avatar').textContent = (d.client || '?')[0].toUpperCase();
   document.getElementById('cd-body').innerHTML = `
     <div class="dbt-sum-row"><span style="color:#9CA3AF">Buyurtma</span><span style="font-weight:600">${d.orderNumber}</span></div>
     <div class="dbt-sum-row"><span style="color:#9CA3AF">Loyiha</span><span>${d.project}</span></div>
@@ -427,7 +442,7 @@ function selectOrderDebt(el){
     </div>
     <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%"></div></div>
       <div style="font-size:11px;color:#9CA3AF;margin-top:4px;text-align:right">${pct}% to'langan</div></div>
-    <a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#2563EB;text-decoration:none">Buyurtmalar sahifasida ochish →</a>`;
+    <a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">Buyurtmalar sahifasida ochish →</a>`;
 
   document.getElementById('payCard').style.display = 'block';
   document.getElementById('pay-amount').value = fmt(debt);
@@ -468,6 +483,7 @@ function selectSupplierDebt(el){
   const pct = credit > 0 ? Math.min(100, (paid/credit*100)).toFixed(0) : 0;
 
   document.getElementById('sd-name').textContent = d.name;
+  document.getElementById('sd-avatar').textContent = (d.name || '?')[0].toUpperCase();
   document.getElementById('sd-body').innerHTML = `
     <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${d.phone}</span></div>
     <div class="dbt-sum-row"><span style="color:#9CA3AF">Nasiya xaridlar</span><span>${d.count} ta</span></div>
@@ -477,7 +493,7 @@ function selectSupplierDebt(el){
       <span style="font-weight:700">QARZ:</span><span style="font-weight:800;font-size:17px;color:#F59E0B">${fmt(debt)} so'm</span>
     </div>
     <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%;background:#F59E0B"></div></div></div>
-    <a href="/suppliers/receive?supplier_id=${d.id}" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#2563EB;text-decoration:none">To'lov qilish →</a>`;
+    <a href="/suppliers/receive?supplier_id=${d.id}" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">To'lov qilish →</a>`;
 }
 
 window.addEventListener('load', () => {
