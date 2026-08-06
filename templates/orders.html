@@ -77,9 +77,19 @@
 .right-panel::-webkit-scrollbar-thumb{background:#d4d4d4;border-radius:6px}
 .right-panel::-webkit-scrollbar-thumb:hover{background:#b8b8b8}
 .detal{background:#fff;border-radius:14px;padding:22px;border:1px solid var(--border2);box-shadow:0 1px 2px rgba(16,24,40,.04),0 2px 8px rgba(16,24,40,.05);margin-bottom:14px}
-.detal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border2)}
-.detal-badge{font-size:13px;font-weight:700;color:#B9783F;background:#F8F2EB;padding:6px 14px;border-radius:8px;border:1px solid #DBEAFE}
-.detal-rm{background:none;border:none;color:#ddd;cursor:pointer;font-size:22px;line-height:1;transition:color .15s}
+.detal.collapsed{padding:14px 22px}
+.detal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border2);cursor:pointer}
+.detal.collapsed .detal-top{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.detal-body{overflow:hidden}
+.detal.collapsed .detal-body{display:none}
+.detal-chevron{font-size:14px;color:var(--text3);transition:transform .2s;flex-shrink:0;margin-right:2px}
+.detal.collapsed .detal-chevron{transform:rotate(-90deg)}
+.detal-summary{display:none;align-items:center;gap:8px;font-size:13px;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detal.collapsed .detal-summary{display:flex}
+.detal-summary b{color:var(--text);font-weight:600}
+.detal-summary .val{color:#22C55E;font-weight:700;white-space:nowrap}
+.detal-badge{font-size:13px;font-weight:700;color:#B9783F;background:#F8F2EB;padding:6px 14px;border-radius:8px;border:1px solid #DBEAFE;flex-shrink:0}
+.detal-rm{background:none;border:none;color:#ddd;cursor:pointer;font-size:22px;line-height:1;transition:color .15s;flex-shrink:0}
 .detal-rm:hover{color:#EF4444}
 .detal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 @media (max-width:900px){.detal-grid{grid-template-columns:1fr 1fr}}
@@ -969,6 +979,14 @@ function restoreDraftLS(draft) {
     });
     syncCoatingUI(row, row.querySelector('.i-c')?.value === 'true');
     calculateItem(row);
+  });
+
+  // Barcha detallar tiklangach — birinchisidan (eng tepadagi) tashqari
+  // hammasini yig'ib qo'yamiz.
+  const allDraftRows = document.querySelectorAll('#items .detal');
+  allDraftRows.forEach((r, idx) => {
+    updateDetalSummary(r);
+    if (idx > 0) r.classList.add('collapsed');
   });
 
   updateTotal();
@@ -2561,21 +2579,24 @@ function addItem() {
   div.className = 'detal';
   div.id = 'item_' + itemCount;
   div.innerHTML = `
-    <div class="detal-top">
-      <div style="display:flex;align-items:center;gap:8px">
-        <label class="prod-thumb" style="width:28px;height:28px;border-radius:6px" title="Rasm tanlash">
+    <div class="detal-top" onclick="toggleDetalCollapse(event, this.closest('.detal'))">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+        <i class="ti ti-chevron-down detal-chevron" aria-hidden="true"></i>
+        <label class="prod-thumb" style="width:28px;height:28px;border-radius:6px;flex-shrink:0" title="Rasm tanlash" onclick="event.stopPropagation()">
           <i class="ti ti-camera-plus" style="font-size:14px" aria-hidden="true"></i>
           <input type="file" accept="image/*" class="i-pending-image" onchange="previewPendingImage(this)">
         </label>
         <span class="detal-badge">Detal #${itemCount}</span>
+        <span class="detal-summary"></span>
       </div>
-      <button class="detal-rm" onclick="this.closest('.detal').remove();updateTotal();checkGipsSectionVisibility()">✕</button>
+      <button class="detal-rm" onclick="event.stopPropagation();this.closest('.detal').remove();updateTotal();checkGipsSectionVisibility()">✕</button>
     </div>
+    <div class="detal-body">
     <div class="detal-grid">
       <div class="dif" style="grid-column:1/-1;position:relative">
         <label>Nomi</label>
         <input placeholder="Karniz M-06" class="i-name" autocomplete="off"
-               oninput="searchFinished(this);updateTotal();updateLiveStats()" onblur="hideFpSuggest(this)">
+               oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'))" onblur="hideFpSuggest(this)">
         <div class="fp-suggest" style="display:none"></div>
       </div>
       <div class="dif" style="grid-column:1/-1">
@@ -2658,6 +2679,7 @@ function addItem() {
       <span>1m narxi: <input type="text" class="i-perm" readonly style="background:transparent;border:none;width:105px;padding:0;font-size:14.5px;color:#B9783F;font-weight:600"></span>
       <span class="val">Jami: <input type="text" class="i-price" readonly style="background:transparent;border:none;width:125px;padding:0;font-size:19px;color:#22C55E;font-weight:800"></span>
       <span class="i-peno-warn" style="display:none;font-size:14.5px;color:#F59E0B;font-weight:600"></span>
+    </div>
     </div>`;
   const container = document.getElementById('items');
   container.prepend(div);
@@ -2673,6 +2695,16 @@ function addItem() {
     const typeSel = div.querySelector('.i-type');
     if (typeSel) typeSel.value = lastType;
     div.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === lastType));
+  }
+
+  // Oldingi detal (agar nomi to'ldirilgan bo'lsa) avtomatik yig'iladi —
+  // operator har safar faqat joriy ishlayotgan detalni ko'radi.
+  if (prevRow) {
+    const prevName = prevRow.querySelector('.i-name')?.value?.trim();
+    if (prevName) {
+      updateDetalSummary(prevRow);
+      prevRow.classList.add('collapsed');
+    }
   }
 
   toggleFields(div);
@@ -2732,6 +2764,48 @@ function selectTypeOpt(btn, value) {
   sel.value = value;
   toggleFields(row);
   calculateItem(row);
+}
+
+// Detal kartochkasini yig'ish/yoyish (collapse/expand) — faqat ko'rinish,
+// hech qanday hisob-kitobga aloqasi yo'q. Rasm/o'chirish tugmalari
+// event.stopPropagation() bilan bosh sahifaga chiqmaydi.
+function toggleDetalCollapse(evt, row) {
+  if (evt.target.closest('.prod-thumb') || evt.target.closest('.detal-rm')) return;
+  row.classList.toggle('collapsed');
+}
+
+// Yig'ilgan kartochka sarlavhasida ko'rsatiladigan qisqa xulosa —
+// nomi, asosiy o'lcham (uzunlik/miqdor) va jami narx. Faqat DOM'dan
+// (calculateItem allaqachon yozib qo'ygan qiymatlardan) o'qiydi,
+// hech qanday yangi hisoblash qilmaydi.
+function updateDetalSummary(row) {
+  const summaryEl = row.querySelector('.detal-summary');
+  if (!summaryEl) return;
+  const name = row.querySelector('.i-name')?.value?.trim() || '';
+  const type = row.querySelector('.i-type')?.value || '';
+  const priceEl = row.querySelector('.i-price');
+  const price = priceEl ? priceEl.value : '';
+
+  let dim = '';
+  if (type === 'dona' || type === 'blok' || type === 'gips') {
+    const q = row.querySelector('.i-q')?.value;
+    const gUnit = row.querySelector('.i-gips-unit');
+    const unitLbl = (type === 'gips' && gUnit) ? (gUnit.options[gUnit.selectedIndex]?.text || '') : 'dona';
+    if (q) dim = `${q} ${unitLbl}`;
+  } else if (type === 'loy_sotish') {
+    const q = row.querySelector('.i-q')?.value;
+    if (q) dim = `${q} kg`;
+  } else {
+    const l = row.querySelector('.i-l')?.value;
+    if (l && parseFloat(l) > 0) dim = `${l} m`;
+  }
+
+  const parts = [];
+  if (name) parts.push(`<b>${name}</b>`); else parts.push('<span style="color:var(--text3)">(nomsiz)</span>');
+  if (dim) parts.push(dim);
+  if (price && parseFloat(price.replace(/\s/g,'')) > 0) parts.push(`<span class="val">${price} so'm</span>`);
+
+  summaryEl.innerHTML = parts.join(' <span style="color:var(--border)">·</span> ');
 }
 
 function onCoatToggle(row) {
@@ -3120,6 +3194,7 @@ function calculateItem(row) {
   row.dataset.price  = price;
   updateTotal();
   updateLiveStats();
+  updateDetalSummary(row);
 }
 
 // Statistika paneli — mavjud, allaqachon hisoblangan qiymatlarni (dataset.volume,
@@ -3848,6 +3923,14 @@ async function editSelected() {
         if (m3El && item.price_per_m3) m3El.value = formatNum(item.price_per_m3);
 
         calculateItem(row);
+      });
+
+      // Barcha detallar yuklangach — birinchisidan (eng tepadagi) tashqari
+      // hammasini yig'ib qo'yamiz, operator ro'yxatni tez ko'rib chiqishi uchun.
+      const allRows = document.querySelectorAll('#items .detal');
+      allRows.forEach((r, idx) => {
+        updateDetalSummary(r);
+        if (idx > 0) r.classList.add('collapsed');
       });
     }
 
