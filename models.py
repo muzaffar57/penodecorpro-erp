@@ -996,8 +996,15 @@ class FinishedProductSale(Base):
     quantity = Column(Float, nullable=False)
     unit = Column(String(20), default="dona")
     unit_price = Column(Numeric(12, 2), nullable=False)
-    total_amount = Column(Numeric(12, 2), nullable=False)
+    total_amount = Column(Numeric(12, 2), nullable=False)   # MOLIYA uchun — kelishilgan (chegirilgan) summaning shu qatorga to'g'ri keladigan qismi
     cost_amount = Column(Numeric(12, 2), default=0)  # Sotilgan qismning tan narxi (odatda 0)
+
+    # ── "Kelishilgan summa" (jamlab sotishda) ──────────────────
+    # Yuk xati (PDF)'da har detal O'Z ASL narxida ko'rinishi kerak ("Yo'l B").
+    # Shuning uchun asl summani ALOHIDA saqlaymiz. Chegirma esa total_amount'ga
+    # proporsional singdiriladi — moliya (daromad/foyda) avtomatik to'g'ri chiqadi.
+    original_total = Column(Numeric(12, 2), nullable=True)   # unit_price × quantity (chegirmasiz, PDF uchun)
+    group_discount_percent = Column(Float, nullable=True)    # Butun guruhga umumiy chegirma foizi (ko'rsatish uchun)
 
     sold_at = Column(DateTime, default=datetime.utcnow)
     buyer_name = Column(String(150), nullable=True)
