@@ -1,21 +1,32 @@
-{% extends "base.html" %}
-{% block title %}Ustalar KPI va Hodimlar — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Ustalar KPI va Hodimlar{% endblock %}
-{% block page_sub %}Yillik KPI sovg'asi va moslashuvchan hodim to'lovi{% endblock %}
-
-{% block topbar_actions %}
-<button class="btn btn-dark" onclick="openEmpModal()">+ Hodim qo'shish</button>
-{% endblock %}
-
-{% block head %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<script>
+(function(){
+  try {
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch(e) {}
+})();
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ustalar KPI va Hodimlar — PenoDecorPro ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/css/tabler-icons.min.css">
+  <link rel="stylesheet" href="static/style.css">
+  
 <style>
 .kpi-two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .mk-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f5f5f5}
 .mk-row:last-child{border-bottom:none}
-.mk-name{font-size:13px;font-weight:600;color:#1a1a1a}
+.mk-name{font-size:13px;font-weight:600;color:var(--text)}
 .mk-meta{font-size:13px;color:#aaa;margin-top:2px}
 .mk-inp{width:64px;height:30px;text-align:center;border:1.5px solid #e5e5e5;border-radius:6px;font-size:12px;font-weight:600;outline:none}
-.mk-inp:focus{border-color:#2563EB}
+.mk-inp:focus{border-color:#B9783F}
 @media (max-width: 640px) {
   .kpi-two{grid-template-columns:1fr}
   .emp-fin-grid{grid-template-columns:repeat(2,1fr)}
@@ -27,7 +38,7 @@
 .mk-rank{position:absolute;top:-7px;left:38px;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;background:var(--gold);color:#fff;box-shadow:0 2px 4px rgba(0,0,0,.15)}
 .emp-row{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--white);box-shadow:0 1px 2px rgba(16,24,40,.04);transition:box-shadow .15s}
 .emp-row:hover{box-shadow:0 4px 12px rgba(16,24,40,.08)}
-.emp-avatar{width:44px;height:44px;border-radius:50%;background:#E0F2FE;color:#0369A1;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.emp-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
 .status-badge{display:inline-block;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:20px;white-space:nowrap}
 .status-paid{background:#DCFCE7;color:#16A34A}
 .status-partial{background:#FEF3C7;color:#D97706}
@@ -41,16 +52,268 @@
 .mk-filters input,.mk-filters select{height:30px;padding:0 8px;border:1px solid var(--border);border-radius:6px;font-size:13.5px;outline:none;flex:1}
 .emp-tag{font-size:11.5px;padding:2px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
 .mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:13px;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.mini-btn:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
+.mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 </style>
-{% endblock %}
 
-{% block content %}
+</head>
+<body>
+<div class="erp-layout">
+
+  
+  <aside class="sidebar">
+    <div class="s-logo">
+      <div style="display:flex;align-items:center;gap:10px">
+        <img src="static/logo_round.jpg" alt="PenoDecorPro"
+             style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
+        <div>
+          <div class="logo-name">Penodecor<span>Pro</span></div>
+          <div class="logo-ver">ERP · Andijon</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="s-user">
+      <div class="u-avatar">M</div>
+      <div>
+        <div class="u-name">Muzaffarbek</div>
+        <div class="u-role">Admin</div>
+      </div>
+    </div>
+
+    <nav class="s-nav">
+      
+
+      <div class="nav-label">Asosiy</div>
+
+      
+      <a href="/" class="nav-item ">
+        <i class="ti ti-home n-ico"></i>
+        <span class="n-txt">Bosh sahifa</span>
+      </a>
+      
+
+      
+      <a href="/dashboard" class="nav-item ">
+        <i class="ti ti-chart-bar n-ico"></i>
+        <span class="n-txt">Dashboard</span>
+      </a>
+      
+
+      
+      <a href="/projects" class="nav-item ">
+        <i class="ti ti-clipboard-list n-ico"></i>
+        <span class="n-txt">Loyihalar</span>
+      </a>
+      
+
+      
+      <a href="/orders" class="nav-item ">
+        <i class="ti ti-receipt n-ico"></i>
+        <span class="n-txt">Buyurtmalar</span>
+      </a>
+      
+
+      
+      <div class="nav-label">Ishlab chiqarish</div>
+      
+
+      
+      <a href="/inventory" class="nav-item ">
+        <i class="ti ti-package n-ico"></i>
+        <span class="n-txt">Omborxona</span>
+      </a>
+      
+
+      
+      <a href="/suppliers/receive" class="nav-item ">
+        <i class="ti ti-truck n-ico"></i>
+        <span class="n-txt">Xomashyo ta'minoti</span>
+      </a>
+
+      <a href="/recipes" class="nav-item ">
+        <i class="ti ti-flask n-ico"></i>
+        <span class="n-txt">Retseptlar</span>
+      </a>
+
+      <a href="/finished" class="nav-item ">
+        <i class="ti ti-building-factory-2 n-ico"></i>
+        <span class="n-txt">Tayyor mahsulotlar</span>
+      </a>
+      
+
+      
+      <div class="nav-label">Hisobot</div>
+      
+
+      
+      <a href="/returns" class="nav-item ">
+        <i class="ti ti-arrow-back-up n-ico"></i>
+        <span class="n-txt">Qaytarishlar</span>
+      </a>
+      
+
+      
+      <a href="/debts" class="nav-item ">
+        <i class="ti ti-credit-card n-ico"></i>
+        <span class="n-txt">Qarzdorlar</span>
+      </a>
+
+      <a href="/finance" class="nav-item ">
+        <i class="ti ti-trending-up n-ico"></i>
+        <span class="n-txt">Moliya</span>
+      </a>
+
+      <a href="/kpi" class="nav-item ">
+        <i class="ti ti-trophy n-ico"></i>
+        <span class="n-txt">Ustalar KPI / Hodimlar</span>
+      </a>
+
+      <a href="/reports" class="nav-item ">
+        <i class="ti ti-report n-ico"></i>
+        <span class="n-txt">Hisobotlar</span>
+      </a>
+      
+
+      
+      <div class="nav-label">Boshqaruv</div>
+
+      <a href="/users" class="nav-item ">
+        <i class="ti ti-users n-ico"></i>
+        <span class="n-txt">Foydalanuvchilar</span>
+      </a>
+      <a href="/trash" class="nav-item ">
+        <i class="ti ti-trash n-ico"></i>
+        <span class="n-txt">O'chirilganlar</span>
+      </a>
+      <a href="/logs" class="nav-item ">
+        <i class="ti ti-file-text n-ico"></i>
+        <span class="n-txt">Tizim jurnallari</span>
+      </a>
+      
+    </nav>
+
+    <div class="s-bottom">
+      <a href="/logout" class="s-logout">
+        <i class="ti ti-logout"></i>
+        <span>Chiqish</span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <script>
+    window.toggleSidebar = function() {
+      document.querySelector('.sidebar').classList.toggle('sidebar-open');
+      document.getElementById('sidebarOverlay').classList.toggle('active');
+    };
+    window.closeSidebar = function() {
+      document.querySelector('.sidebar').classList.remove('sidebar-open');
+      document.getElementById('sidebarOverlay').classList.remove('active');
+    };
+    // Menyudagi havolalardan birini bossa — mobil menyu avtomatik yopilsin
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.sidebar .nav-item').forEach(function(el) {
+        el.addEventListener('click', closeSidebar);
+      });
+    });
+  </script>
+
+  
+  <div class="erp-main">
+    
+    <header class="erp-topbar">
+      <div class="tb-left">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menyu">
+          <i class="ti ti-menu-2" style="font-size:18px"></i>
+        </button>
+        <div class="page-title">Ustalar KPI va Hodimlar</div>
+        <div class="page-sub">Yillik KPI sovg'asi va moslashuvchan hodim to'lovi</div>
+      </div>
+      <div class="tb-right">
+        <button id="themeToggle" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
+          <i class="ti ti-moon" id="themeIcon" style="font-size:16px"></i>
+        </button>
+        <div id="notifWrap" style="position:relative;margin-right:10px">
+          <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
+            <i class="ti ti-bell" style="font-size:17px"></i>
+            <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
+          </button>
+          <div id="notifPanel" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);max-height:420px;overflow-y:auto;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);z-index:1000">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text)">Bildirishnomalar</div>
+            <div id="notifList" style="padding:6px 0">
+              <div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklanmoqda...</div>
+            </div>
+          </div>
+        </div>
+        
+<button class="btn btn-dark" onclick="openEmpModal()">+ Hodim qo'shish</button>
+
+      </div>
+    </header>
+
+    <script>
+    (function() {
+      const NOTIF_BG = { red: '#FEE2E2', orange: '#FEF3C7', green: '#DCFCE7' };
+
+      function applyThemeIcon() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const icon = document.getElementById('themeIcon');
+        if (icon) icon.className = isDark ? 'ti ti-sun' : 'ti ti-moon';
+      }
+      window.toggleTheme = function() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+          document.documentElement.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          localStorage.setItem('theme', 'dark');
+        }
+        applyThemeIcon();
+      };
+      applyThemeIcon();
+
+      function toggleNotifPanel() {
+        const p = document.getElementById('notifPanel');
+        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+      }
+      window.toggleNotifPanel = toggleNotifPanel;
+
+      document.addEventListener('click', function(e) {
+        const wrap = document.getElementById('notifWrap');
+        if (wrap && !wrap.contains(e.target)) document.getElementById('notifPanel').style.display = 'none';
+      });
+
+      fetch('/api/notifications').then(r => r.ok ? r.json() : []).then(items => {
+        const badge = document.getElementById('notifBadge');
+        const list = document.getElementById('notifList');
+        if (!items.length) {
+          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Bildirishnoma yo\'q</div>';
+          return;
+        }
+        const urgent = items.filter(i => i.level !== 'green').length;
+        if (urgent > 0) {
+          badge.style.display = 'flex';
+          badge.textContent = urgent;
+        }
+        list.innerHTML = items.map(n => `
+          <div style="display:flex;gap:10px;padding:9px 16px;align-items:flex-start">
+            <span style="font-size:14px">${n.icon}</span>
+            <span style="font-size:12.5px;color:var(--text);line-height:1.4">${n.text}</span>
+          </div>`).join('');
+      }).catch(() => {
+        document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklab bo\'lmadi</div>';
+      });
+    })();
+    </script>
+    
+    
 <div class="erp-content">
 
   <div class="kpi-grid mb-16" style="grid-template-columns:repeat(5,1fr)">
     <div class="kpi-card" style="display:flex;align-items:center;gap:14px;text-align:left">
-      <div style="width:46px;height:46px;border-radius:12px;background:#EFF6FF;color:#2563EB;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-users"></i></div>
+      <div style="width:46px;height:46px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"><i class="ti ti-users"></i></div>
       <div>
         <div class="kpi-val" id="k-master-count">—</div>
         <div class="kpi-label">Faol ustalar</div>
@@ -103,7 +366,7 @@
         </div>
       </div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:#1E40AF;line-height:1.6">
+        <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:#A86B36;line-height:1.6">
           💡 KPI% × yillik <b>sof foyda</b> = yil oxiri sovg'a (sotuv summasidan emas). Har oy tegishli ulushi avtomatik xarajat sifatida yoziladi.
         </div>
         <div class="mk-filters">
@@ -131,7 +394,7 @@
     <div class="card">
       <div class="card-head"><h3>👷 Hodimlar (moslashuvchan to'lov)</h3></div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:#EFF6FF;border:1px solid #AED6F1;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:#1a6fa8;line-height:1.6">
+        <div style="background:#FDF8F0;border:1px solid #F0E6D2;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-size:13px;color:#A86B36;line-height:1.6">
           💡 Har hodimga alohida to'lov turi belgilanadi. Oylik hisob-kitobda avtomatik hisoblanib, Moliya bo'limidagi xarajatga qo'shiladi.
         </div>
         <div id="empList">
@@ -140,7 +403,7 @@
       </div>
     </div>
 
-    {% if current_user.role.value == 'admin' %}
+    
     <!-- EHSON SOZLAMASI -->
     <div class="card" style="grid-column:1/-1">
       <div class="card-head">
@@ -158,7 +421,7 @@
         </div>
       </div>
     </div>
-    {% endif %}
+    
 
 
     <div class="card" style="grid-column:1/-1">
@@ -342,7 +605,7 @@
 <!-- ══ PANEL KIRISHI (TELEFON+PIN) MODALI ══ -->
 <div id="panelAccessModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;padding:24px;width:400px;max-width:100%">
-    <div style="font-size:16px;font-weight:600;margin-bottom:4px">🔑 Panel kirishi — <span id="pa-emp-name" style="color:#2563EB"></span></div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px">🔑 Panel kirishi — <span id="pa-emp-name" style="color:#B9783F"></span></div>
     <div style="font-size:12.5px;color:#888;margin-bottom:16px">Xodim shu telefon+PIN bilan <b>/hodim</b> sahifasiga kirib, o'zi avans yozib qo'ya oladi</div>
 
     <div class="form-group"><label>Telefon raqami</label><input type="tel" id="pa-phone" placeholder="+998901234567"></div>
@@ -356,9 +619,12 @@
     </div>
   </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
+  </div>
+
+</div>
+
+
 <script>
 // SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
 // turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
@@ -396,7 +662,7 @@ const PAY_LABELS = {
 };
 const PAY_COLORS = {
   fixed: '#0EA5E9', percent_sales: '#22C55E', percent_profit: '#8E44AD', per_unit: '#F59E0B',
-  fixed_plus_coating: '#2563EB'
+  fixed_plus_coating: '#B9783F'
 };
 
 // ── USTA YILLIK KPI ────────────────────────────────────────
@@ -693,7 +959,7 @@ async function loadEmployees() {
         <div class="emp-avatar">${initials(e.name)}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:14.5px;font-weight:700;color:#1a1a1a">${e.name}</span>
+            <span style="font-size:14.5px;font-weight:700;color:var(--text)">${e.name}</span>
             ${e.position ? `<span style="font-size:12.5px;color:#aaa">${e.position}</span>` : ''}
           </div>
           <div style="margin-top:4px">
@@ -706,7 +972,7 @@ async function loadEmployees() {
         <div id="emp-status-${e.id}" style="flex-shrink:0"></div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button class="mini-btn" style="color:#D97706;border-color:#FDE68A" data-id="${e.id}" data-name="${(e.name||'').replace(/"/g,'&quot;')}" onclick="openAdvanceModal(this.dataset.id, this.dataset.name)" title="Avans berish">💰</button>
-          <button class="mini-btn" style="width:auto;padding:0 8px;gap:4px;color:#2563EB;border-color:#2563EB;background:#EFF6FF;font-weight:600;font-size:12px" data-id="${e.id}" data-name="${(e.name||'').replace(/"/g,'&quot;')}" data-phone="${(e.phone||'').replace(/"/g,'&quot;')}" onclick="openPanelAccessModal(this.dataset.id, this.dataset.name, this.dataset.phone)" title="Xodim o'z telefonidan kirishi uchun">🔑 Kirish</button>
+          <button class="mini-btn" style="width:auto;padding:0 8px;gap:4px;color:#B9783F;border-color:#B9783F;background:#F8F2EB;font-weight:600;font-size:12px" data-id="${e.id}" data-name="${(e.name||'').replace(/"/g,'&quot;')}" data-phone="${(e.phone||'').replace(/"/g,'&quot;')}" onclick="openPanelAccessModal(this.dataset.id, this.dataset.name, this.dataset.phone)" title="Xodim o'z telefonidan kirishi uchun">🔑 Kirish</button>
           <button class="mini-btn" onclick="editEmployee(${e.id})">✏️</button>
           <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deleteEmployee(${e.id})">✕</button>
         </div>
@@ -971,13 +1237,13 @@ async function loadEmpMonthlyReport() {
                 <td style="padding:8px 6px;text-align:right">${fmt(e.amount + (e.adjustment||0) - (e.bonus||0))} so'm</td>
                 <td style="padding:8px 6px;text-align:right">
                   <span onclick="event.stopPropagation();editEmpBonus(${e.employee_id}, '${e.name.replace(/'/g,"&apos;")}', ${year}, ${month}, ${e.bonus||0}, '${(e.bonus_reason||'').replace(/'/g,"&apos;")}')"
-                        style="cursor:pointer;color:${e.bonus ? '#16A34A' : '#93C5FD'};text-decoration:underline dotted">
+                        style="cursor:pointer;color:${e.bonus ? '#16A34A' : '#C9A876'};text-decoration:underline dotted">
                     ${e.bonus ? '+'+fmt(e.bonus)+" so'm" : '— belgilash'}
                   </span>
                 </td>
                 <td style="padding:8px 6px;text-align:right">
                   <span onclick="event.stopPropagation();editEmpAdjustment(${e.employee_id}, '${e.name.replace(/'/g,"&apos;")}', ${year}, ${month}, ${e.adjustment||0}, '${(e.adjustment_reason||'').replace(/'/g,"&apos;")}')"
-                        style="cursor:pointer;color:${e.adjustment ? '#DC2626' : '#93C5FD'};text-decoration:underline dotted">
+                        style="cursor:pointer;color:${e.adjustment ? '#DC2626' : '#C9A876'};text-decoration:underline dotted">
                     ${e.adjustment ? '-'+fmt(e.adjustment)+" so'm" : '— belgilash'}
                   </span>
                 </td>
@@ -1153,4 +1419,48 @@ async function loadCurrentMonthEmpStatus() {
   } catch(e) { console.error(e); }
 }
 </script>
-{% endblock %}
+
+
+<script>
+// ══ UMUMIY: matn maydonlarining birinchi harfini avtomatik katta qilish ══
+// Butun tizimda, HAR BIR sahifada ishlaydi (bitta joyda yozilgan).
+// Faqat foydalanuvchi maydondan CHIQQANDA (blur) ishlaydi — yozayotganda
+// emas, aks holda kursor pozitsiyasi buzilib, yozishga xalaqit berardi.
+(function() {
+  function shouldSkip(el) {
+    if (!el || el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return true;
+    if (el.tagName === 'INPUT' && el.type !== 'text') return true;  // faqat oddiy matn maydonlari
+    if (el.dataset.noCapitalize !== undefined) return true;         // qo'lda o'chirish imkoni
+    if (el.type === 'search') return true;
+    const id = (el.id || '').toLowerCase();
+    const cls = (el.className || '').toLowerCase();
+    // Qidiruv/filtr va narx/son maydonlarini o'tkazib yuboramiz
+    if (id.includes('search') || id.includes('qidir') || cls.includes('search')) return true;
+    if (id.includes('price') || id.includes('narx') || cls.includes('price')) return true;
+    return false;
+  }
+
+  function capitalizeFirst(val) {
+    if (!val) return val;
+    // Faqat BIRINCHI harfni katta qilamiz, qolganiga tegmaymiz —
+    // aks holda qisqartmalar (masalan "sm", "kg") buzilib qolardi.
+    return val.charAt(0).toUpperCase() + val.slice(1);
+  }
+
+  document.addEventListener('blur', function(e) {
+    const el = e.target;
+    if (shouldSkip(el)) return;
+    const newVal = capitalizeFirst(el.value);
+    if (newVal !== el.value) {
+      el.value = newVal;
+      // React/Vue kabi frameworklar uchun emas, oddiy JS uchun — o'zgarish
+      // event'ini qo'lda chaqiramiz, aks holda ba'zi "oninput" handlerlar
+      // yangi qiymatni sezmasligi mumkin edi.
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }, true);  // "capture" rejimida — barcha maydonlarni ushlab qolish uchun
+})();
+</script>
+
+</body>
+</html>
