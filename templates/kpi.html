@@ -162,12 +162,15 @@
 
 
     <div class="card" style="grid-column:1/-1">
-      <div class="card-head">
-        <h3>💵 Oylik hisob-kitob — kim qancha oladi</h3>
+      <div class="card-head" style="align-items:flex-start">
+        <div>
+          <h3>💵 Oylik hisob-kitob — kim qancha oladi</h3>
+          <div style="font-size:12px;color:var(--text3);margin-top:3px">Ushbu oyda har bir hodim uchun hisoblangan summa va qolgan to'lovlar.</div>
+        </div>
         <div style="display:flex;gap:6px;align-items:center">
-          <select id="emp-report-month" style="padding:6px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px"></select>
-          <select id="emp-report-year" style="padding:6px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px"></select>
-          <button class="btn btn-dark btn-sm" onclick="loadEmpMonthlyReport()">Ko'rish</button>
+          <select id="emp-report-month" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px"></select>
+          <select id="emp-report-year" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px"></select>
+          <button class="btn btn-dark btn-sm" onclick="loadEmpMonthlyReport()"><i class="ti ti-chart-bar" style="vertical-align:-2px"></i> Ko'rish</button>
         </div>
       </div>
       <div class="card-body" style="padding-top:0">
@@ -952,51 +955,66 @@ async function loadEmpMonthlyReport() {
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
-            <tr style="border-bottom:2px solid #eee;text-align:left;color:#888">
-              <th style="padding:8px 6px">Hodim</th>
-              <th style="padding:8px 6px">Tafsilot</th>
-              <th style="padding:8px 6px;text-align:right">Hisoblangan</th>
-              <th style="padding:8px 6px;text-align:right">Bonus</th>
-              <th style="padding:8px 6px;text-align:right">Kamaytirish</th>
-              <th style="padding:8px 6px;text-align:right">Avans olingan</th>
-              <th style="padding:8px 6px;text-align:right">Qolgan to'lov</th>
+            <tr style="border-bottom:2px solid var(--border2);text-align:left;color:var(--text3)">
+              <th style="padding:10px 6px"><i class="ti ti-user" style="vertical-align:-2px;margin-right:4px"></i>Hodim</th>
+              <th style="padding:10px 6px"><i class="ti ti-file-text" style="vertical-align:-2px;margin-right:4px"></i>Tafsilot</th>
+              <th style="padding:10px 6px;text-align:right"><i class="ti ti-calculator" style="vertical-align:-2px;margin-right:4px"></i>Hisoblangan</th>
+              <th style="padding:10px 6px;text-align:center"><i class="ti ti-circle-plus" style="vertical-align:-2px;margin-right:4px"></i>Bonus</th>
+              <th style="padding:10px 6px;text-align:center"><i class="ti ti-circle-minus" style="vertical-align:-2px;margin-right:4px"></i>Kamaytirish</th>
+              <th style="padding:10px 6px;text-align:right"><i class="ti ti-wallet" style="vertical-align:-2px;margin-right:4px"></i>Avans olingan</th>
+              <th style="padding:10px 6px;text-align:right"><i class="ti ti-cash" style="vertical-align:-2px;margin-right:4px"></i>Qolgan to'lov</th>
             </tr>
           </thead>
           <tbody>
             ${list.map((e,i) => `
-              <tr style="border-bottom:${e.avans > 0 ? 'none' : '1px solid #f5f5f5'};cursor:${e.avans > 0 ? 'pointer' : 'default'}"
+              <tr style="border-bottom:${e.avans > 0 ? 'none' : '1px solid var(--border2)'};cursor:${e.avans > 0 ? 'pointer' : 'default'};background:${i % 2 === 0 ? 'var(--white)' : 'var(--bg)'}"
                   ${e.avans > 0 ? `onclick="toggleEmpAdvanceDetail(${e.employee_id}, ${i}, ${year}, ${month})"` : ''}>
-                <td style="padding:8px 6px;font-weight:600">${e.name}</td>
-                <td style="padding:8px 6px;color:#888;font-size:12px">${e.detail}</td>
-                <td style="padding:8px 6px;text-align:right">${fmt(e.amount + (e.adjustment||0) - (e.bonus||0))} so'm</td>
-                <td style="padding:8px 6px;text-align:right">
-                  <span onclick="event.stopPropagation();editEmpBonus(${e.employee_id}, '${e.name.replace(/'/g,"&apos;")}', ${year}, ${month}, ${e.bonus||0}, '${(e.bonus_reason||'').replace(/'/g,"&apos;")}')"
-                        style="cursor:pointer;color:${e.bonus ? '#16A34A' : '#C9A876'};text-decoration:underline dotted">
-                    ${e.bonus ? '+'+fmt(e.bonus)+" so'm" : '— belgilash'}
-                  </span>
+                <td style="padding:12px 6px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <div style="width:30px;height:30px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex-shrink:0">${(e.name||'?')[0].toUpperCase()}</div>
+                    <span style="font-weight:700;color:var(--text)">${e.name}</span>
+                  </div>
                 </td>
-                <td style="padding:8px 6px;text-align:right">
-                  <span onclick="event.stopPropagation();editEmpAdjustment(${e.employee_id}, '${e.name.replace(/'/g,"&apos;")}', ${year}, ${month}, ${e.adjustment||0}, '${(e.adjustment_reason||'').replace(/'/g,"&apos;")}')"
-                        style="cursor:pointer;color:${e.adjustment ? '#DC2626' : '#C9A876'};text-decoration:underline dotted">
-                    ${e.adjustment ? '-'+fmt(e.adjustment)+" so'm" : '— belgilash'}
-                  </span>
+                <td style="padding:12px 6px;color:var(--text3);font-size:12px">${e.detail}</td>
+                <td style="padding:12px 6px;text-align:right;font-weight:600;color:var(--gold-dark)">${fmt(e.amount + (e.adjustment||0) - (e.bonus||0))} so'm</td>
+                <td style="padding:12px 6px;text-align:center">
+                  <button type="button" onclick="event.stopPropagation();editEmpBonus(${e.employee_id}, '${e.name.replace(/'/g,"&apos;")}', ${year}, ${month}, ${e.bonus||0}, '${(e.bonus_reason||'').replace(/'/g,"&apos;")}')"
+                        style="cursor:pointer;padding:6px 12px;border-radius:8px;border:1.5px solid ${e.bonus ? '#DCFCE7' : 'var(--border)'};background:${e.bonus ? '#F0FDF4' : 'var(--white)'};color:${e.bonus ? '#16A34A' : 'var(--text2)'};font-size:12px;font-weight:600;white-space:nowrap">
+                    ${e.bonus ? '+'+fmt(e.bonus)+" so'm" : '+ Bonus'}
+                  </button>
                 </td>
-                <td style="padding:8px 6px;text-align:right;color:#D97706">${e.avans > 0 ? '-'+fmt(e.avans)+" so'm " + `<span id="emp-adv-arrow-${i}" style="font-size:10px">▼</span>` : '—'}</td>
-                <td style="padding:8px 6px;text-align:right;font-weight:700;color:${e.qolgan >= 0 ? '#22C55E' : '#DC2626'}">${fmt(e.qolgan)} so'm</td>
+                <td style="padding:12px 6px;text-align:center">
+                  <button type="button" onclick="event.stopPropagation();editEmpAdjustment(${e.employee_id}, '${e.name.replace(/'/g,"&apos;")}', ${year}, ${month}, ${e.adjustment||0}, '${(e.adjustment_reason||'').replace(/'/g,"&apos;")}')"
+                        style="cursor:pointer;padding:6px 12px;border-radius:8px;border:1.5px solid ${e.adjustment ? '#FEE2E2' : 'var(--border)'};background:${e.adjustment ? '#FEF2F2' : 'var(--white)'};color:${e.adjustment ? '#DC2626' : 'var(--text2)'};font-size:12px;font-weight:600;white-space:nowrap">
+                    ${e.adjustment ? '-'+fmt(e.adjustment)+" so'm" : '− Kamaytirish'}
+                  </button>
+                </td>
+                <td style="padding:12px 6px;text-align:right;color:#D97706">${e.avans > 0 ? '-'+fmt(e.avans)+" so'm " + `<span id="emp-adv-arrow-${i}" style="font-size:10px">▼</span>` : '—'}</td>
+                <td style="padding:12px 6px;text-align:right;font-weight:700;color:${e.qolgan >= 0 ? '#22C55E' : '#DC2626'}">${fmt(e.qolgan)} so'm</td>
               </tr>
-              ${e.avans > 0 ? `<tr id="emp-adv-row-${i}" style="display:none;border-bottom:1px solid #f5f5f5"><td colspan="7" style="padding:0"><div id="emp-adv-detail-${i}" style="background:#FFFBEB;padding:8px 16px"></div></td></tr>` : ''}
+              ${e.avans > 0 ? `<tr id="emp-adv-row-${i}" style="display:none;border-bottom:1px solid var(--border2);background:${i % 2 === 0 ? 'var(--white)' : 'var(--bg)'}"><td colspan="7" style="padding:0"><div id="emp-adv-detail-${i}" style="background:#FFFBEB;padding:8px 16px"></div></td></tr>` : ''}
             `).join('')}
           </tbody>
-          <tfoot>
-            <tr style="border-top:2px solid #eee;font-weight:700">
-              <td colspan="3" style="padding:12px 6px">Jami:</td>
-              <td style="padding:12px 6px;text-align:right;color:#16A34A">+${fmt(list.reduce((s,e)=>s+(e.bonus||0),0))} so'm</td>
-              <td style="padding:12px 6px;text-align:right;color:#DC2626">-${fmt(list.reduce((s,e)=>s+(e.adjustment||0),0))} so'm</td>
-              <td style="padding:12px 6px;text-align:right;color:#D97706">${fmt(list.reduce((s,e)=>s+e.avans,0))} so'm</td>
-              <td style="padding:12px 6px;text-align:right;color:#8E44AD;font-size:15px">${fmt(list.reduce((s,e)=>s+e.qolgan,0))} so'm</td>
-            </tr>
-          </tfoot>
         </table>
+      </div>
+      <div style="margin-top:16px;padding:16px 18px;background:var(--bg);border-radius:12px;border:1px solid var(--border2);display:grid;grid-template-columns:auto 1fr 1fr 1fr auto;gap:18px;align-items:center">
+        <div style="font-weight:700;color:var(--text);font-size:14px">Jami:</div>
+        <div style="text-align:center">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Bonus jami</div>
+          <div style="font-weight:700;color:#16A34A">+${fmt(list.reduce((s,e)=>s+(e.bonus||0),0))} so'm</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Kamaytirish jami</div>
+          <div style="font-weight:700;color:#DC2626">-${fmt(list.reduce((s,e)=>s+(e.adjustment||0),0))} so'm</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Avans jami</div>
+          <div style="font-weight:700;color:#D97706">${fmt(list.reduce((s,e)=>s+e.avans,0))} so'm</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Qolgan jami</div>
+          <div style="font-weight:800;color:var(--gold-dark);font-size:19px">${fmt(list.reduce((s,e)=>s+e.qolgan,0))} so'm</div>
+        </div>
       </div>`;
   } catch(e) {
     box.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Xato yuz berdi</div>';
