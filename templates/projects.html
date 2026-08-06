@@ -1,24 +1,13 @@
-<!DOCTYPE html>
-<html lang="uz">
-<head>
-<script>
-(function(){
-  try {
-    if (localStorage.getItem('theme') === 'dark') {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
-  } catch(e) {}
-})();
-</script>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Loyihalar — PenoDecorPro ERP</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="static/css/tabler-icons.min.css">
-  <link rel="stylesheet" href="static/style.css">
-  
+{% extends "base.html" %}
+{% block title %}Loyihalar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Loyihalar{% endblock %}
+{% block page_sub %}Korxonaning barcha buyurtmalarini boshqaruvchi markaziy modul{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi loyiha</button>
+{% endblock %}
+
+{% block head %}
 <style>
 .proj-page{padding:14px}
 @media (max-width:1000px){
@@ -85,272 +74,20 @@
 .timeline-dot{width:11px;height:11px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:3px}
 .skeleton-row{height:70px;border-radius:12px;margin-bottom:8px}
 </style>
+{% endblock %}
 
-</head>
-<body>
-<div class="erp-layout">
-
-  
-  <aside class="sidebar">
-    <div class="s-logo">
-      <div style="display:flex;align-items:center;gap:10px">
-        <img src="static/logo_round.jpg" alt="PenoDecorPro"
-             style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
-        <div>
-          <div class="logo-name">Penodecor<span>Pro</span></div>
-          <div class="logo-ver">ERP · Andijon</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="s-user">
-      <div class="u-avatar">M</div>
-      <div>
-        <div class="u-name">Muzaffarbek</div>
-        <div class="u-role">Admin</div>
-      </div>
-    </div>
-
-    <nav class="s-nav">
-      
-
-      <div class="nav-label">Asosiy</div>
-
-      
-      <a href="/" class="nav-item ">
-        <i class="ti ti-home n-ico"></i>
-        <span class="n-txt">Bosh sahifa</span>
-      </a>
-      
-
-      
-      <a href="/dashboard" class="nav-item ">
-        <i class="ti ti-chart-bar n-ico"></i>
-        <span class="n-txt">Dashboard</span>
-      </a>
-      
-
-      
-      <a href="/projects" class="nav-item ">
-        <i class="ti ti-clipboard-list n-ico"></i>
-        <span class="n-txt">Loyihalar</span>
-      </a>
-      
-
-      
-      <a href="/orders" class="nav-item ">
-        <i class="ti ti-receipt n-ico"></i>
-        <span class="n-txt">Buyurtmalar</span>
-      </a>
-      
-
-      
-      <div class="nav-label">Ishlab chiqarish</div>
-      
-
-      
-      <a href="/inventory" class="nav-item ">
-        <i class="ti ti-package n-ico"></i>
-        <span class="n-txt">Omborxona</span>
-      </a>
-      
-
-      
-      <a href="/suppliers/receive" class="nav-item ">
-        <i class="ti ti-truck n-ico"></i>
-        <span class="n-txt">Xomashyo ta'minoti</span>
-      </a>
-
-      <a href="/recipes" class="nav-item ">
-        <i class="ti ti-flask n-ico"></i>
-        <span class="n-txt">Retseptlar</span>
-      </a>
-
-      <a href="/finished" class="nav-item ">
-        <i class="ti ti-building-factory-2 n-ico"></i>
-        <span class="n-txt">Tayyor mahsulotlar</span>
-      </a>
-      
-
-      
-      <div class="nav-label">Hisobot</div>
-      
-
-      
-      <a href="/returns" class="nav-item ">
-        <i class="ti ti-arrow-back-up n-ico"></i>
-        <span class="n-txt">Qaytarishlar</span>
-      </a>
-      
-
-      
-      <a href="/debts" class="nav-item ">
-        <i class="ti ti-credit-card n-ico"></i>
-        <span class="n-txt">Qarzdorlar</span>
-      </a>
-
-      <a href="/finance" class="nav-item ">
-        <i class="ti ti-trending-up n-ico"></i>
-        <span class="n-txt">Moliya</span>
-      </a>
-
-      <a href="/kpi" class="nav-item ">
-        <i class="ti ti-trophy n-ico"></i>
-        <span class="n-txt">Ustalar KPI / Hodimlar</span>
-      </a>
-
-      <a href="/reports" class="nav-item ">
-        <i class="ti ti-report n-ico"></i>
-        <span class="n-txt">Hisobotlar</span>
-      </a>
-      
-
-      
-      <div class="nav-label">Boshqaruv</div>
-
-      <a href="/users" class="nav-item ">
-        <i class="ti ti-users n-ico"></i>
-        <span class="n-txt">Foydalanuvchilar</span>
-      </a>
-      <a href="/trash" class="nav-item ">
-        <i class="ti ti-trash n-ico"></i>
-        <span class="n-txt">O'chirilganlar</span>
-      </a>
-      <a href="/logs" class="nav-item ">
-        <i class="ti ti-file-text n-ico"></i>
-        <span class="n-txt">Tizim jurnallari</span>
-      </a>
-      
-    </nav>
-
-    <div class="s-bottom">
-      <a href="/logout" class="s-logout">
-        <i class="ti ti-logout"></i>
-        <span>Chiqish</span>
-      </a>
-    </div>
-  </aside>
-
-  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
-
-  <script>
-    window.toggleSidebar = function() {
-      document.querySelector('.sidebar').classList.toggle('sidebar-open');
-      document.getElementById('sidebarOverlay').classList.toggle('active');
-    };
-    window.closeSidebar = function() {
-      document.querySelector('.sidebar').classList.remove('sidebar-open');
-      document.getElementById('sidebarOverlay').classList.remove('active');
-    };
-    // Menyudagi havolalardan birini bossa — mobil menyu avtomatik yopilsin
-    document.addEventListener('DOMContentLoaded', function() {
-      document.querySelectorAll('.sidebar .nav-item').forEach(function(el) {
-        el.addEventListener('click', closeSidebar);
-      });
-    });
-  </script>
-
-  
-  <div class="erp-main">
-    
-    <header class="erp-topbar">
-      <div class="tb-left">
-        <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menyu">
-          <i class="ti ti-menu-2" style="font-size:18px"></i>
-        </button>
-        <div class="page-title">Loyihalar</div>
-        <div class="page-sub">Korxonaning barcha buyurtmalarini boshqaruvchi markaziy modul</div>
-      </div>
-      <div class="tb-right">
-        <button id="themeToggle" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
-          <i class="ti ti-moon" id="themeIcon" style="font-size:16px"></i>
-        </button>
-        <div id="notifWrap" style="position:relative;margin-right:10px">
-          <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
-            <i class="ti ti-bell" style="font-size:17px"></i>
-            <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
-          </button>
-          <div id="notifPanel" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);max-height:420px;overflow-y:auto;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);z-index:1000">
-            <div style="padding:12px 16px;border-bottom:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text)">Bildirishnomalar</div>
-            <div id="notifList" style="padding:6px 0">
-              <div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklanmoqda...</div>
-            </div>
-          </div>
-        </div>
-        
-<button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi loyiha</button>
-
-      </div>
-    </header>
-
-    <script>
-    (function() {
-      const NOTIF_BG = { red: '#FEE2E2', orange: '#FEF3C7', green: '#DCFCE7' };
-
-      function applyThemeIcon() {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const icon = document.getElementById('themeIcon');
-        if (icon) icon.className = isDark ? 'ti ti-sun' : 'ti ti-moon';
-      }
-      window.toggleTheme = function() {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        if (isDark) {
-          document.documentElement.removeAttribute('data-theme');
-          localStorage.setItem('theme', 'light');
-        } else {
-          document.documentElement.setAttribute('data-theme', 'dark');
-          localStorage.setItem('theme', 'dark');
-        }
-        applyThemeIcon();
-      };
-      applyThemeIcon();
-
-      function toggleNotifPanel() {
-        const p = document.getElementById('notifPanel');
-        p.style.display = p.style.display === 'none' ? 'block' : 'none';
-      }
-      window.toggleNotifPanel = toggleNotifPanel;
-
-      document.addEventListener('click', function(e) {
-        const wrap = document.getElementById('notifWrap');
-        if (wrap && !wrap.contains(e.target)) document.getElementById('notifPanel').style.display = 'none';
-      });
-
-      fetch('/api/notifications').then(r => r.ok ? r.json() : []).then(items => {
-        const badge = document.getElementById('notifBadge');
-        const list = document.getElementById('notifList');
-        if (!items.length) {
-          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Bildirishnoma yo\'q</div>';
-          return;
-        }
-        const urgent = items.filter(i => i.level !== 'green').length;
-        if (urgent > 0) {
-          badge.style.display = 'flex';
-          badge.textContent = urgent;
-        }
-        list.innerHTML = items.map(n => `
-          <div style="display:flex;gap:10px;padding:9px 16px;align-items:flex-start">
-            <span style="font-size:14px">${n.icon}</span>
-            <span style="font-size:12.5px;color:var(--text);line-height:1.4">${n.text}</span>
-          </div>`).join('');
-      }).catch(() => {
-        document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklab bo\'lmadi</div>';
-      });
-    })();
-    </script>
-    
-    
+{% block content %}
 <div class="proj-page">
 
   <div class="stat-grid mb-16" id="kpiRow">
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-briefcase"></i></div><div class="stat-label">Faol loyihalar</div><div class="stat-val">8 ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-circle-check"></i></div><div class="stat-label">Yakunlangan</div><div class="stat-val">15 ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEF3C7;color:#92400E"><i class="ti ti-hourglass"></i></div><div class="stat-label">Kutayotgan</div><div class="stat-val">2 ta</div></div>
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-calendar-plus"></i></div><div class="stat-label">Shu oy boshlangan</div><div class="stat-val">3 ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-calendar-check"></i></div><div class="stat-label">Shu oy yakunlangan</div><div class="stat-val">4 ta</div></div>
-    
-    <div class="stat-card"><div class="stat-icon" style="background:var(--gold);color:#fff"><i class="ti ti-report-money"></i></div><div class="stat-label">Umumiy sof foyda</div><div class="stat-val">85.0 mln</div></div>
-    
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-briefcase"></i></div><div class="stat-label">Faol loyihalar</div><div class="stat-val">{{ kpi.active }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-circle-check"></i></div><div class="stat-label">Yakunlangan</div><div class="stat-val">{{ kpi.completed }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#FEF3C7;color:#92400E"><i class="ti ti-hourglass"></i></div><div class="stat-label">Kutayotgan</div><div class="stat-val">{{ kpi.on_hold }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-calendar-plus"></i></div><div class="stat-label">Shu oy boshlangan</div><div class="stat-val">{{ kpi.started_this_month }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-calendar-check"></i></div><div class="stat-label">Shu oy yakunlangan</div><div class="stat-val">{{ kpi.completed_this_month }} ta</div></div>
+    {% if current_user.role.value != 'manager' %}
+    <div class="stat-card"><div class="stat-icon" style="background:var(--gold);color:#fff"><i class="ti ti-report-money"></i></div><div class="stat-label">Umumiy sof foyda</div><div class="stat-val">{{ "%.1f"|format(kpi.total_profit/1000000) }} mln</div></div>
+    {% endif %}
   </div>
 
   <div class="proj-filters">
@@ -369,97 +106,57 @@
 
   <div class="proj-layout">
     <div class="proj-list" id="projList">
-      
-      
-      
-      <div class="proj-card active" style="animation-delay:0.0s" onclick="selectProj(this)"
-           data-id="1"
-           data-num="PRJ-001"
-           data-name="Hovli fasadi"
-           data-client="Aziz Karimov"
-           data-phone="+998901234567"
-           data-address="Andijon"
-           data-status="active"
-           data-budget="25000000"
-           data-paid="15000000"
-           data-start="01.06.2026"
-           data-start-raw="2026-06-01"
-           data-deadline="15.08.2026"
-           data-deadline-raw="2026-08-15"
-           data-orders="3"
-           data-notes=""
-           data-image="">
+      {% if projects %}
+      {% for p in projects %}
+      {% set paid_pct = [(p.total_paid / p.total_budget * 100)|round if p.total_budget > 0 else 0, 100]|min %}
+      <div class="proj-card {% if loop.first %}active{% endif %}" style="animation-delay:{{ (loop.index0 % 20)*0.02 }}s" onclick="selectProj(this)"
+           data-id="{{ p.id }}"
+           data-num="{{ p.project_number }}"
+           data-name="{{ p.project_name }}"
+           data-client="{{ p.client_name }}"
+           data-phone="{{ p.client_phone or '—' }}"
+           data-address="{{ p.client_address or '—' }}"
+           data-status="{{ p.status.value }}"
+           data-budget="{{ p.total_budget }}"
+           data-paid="{{ p.total_paid }}"
+           data-start="{{ p.start_date.strftime('%d.%m.%Y') if p.start_date else '—' }}"
+           data-start-raw="{{ p.start_date.strftime('%Y-%m-%d') if p.start_date else '' }}"
+           data-deadline="{{ p.deadline.strftime('%d.%m.%Y') if p.deadline else '—' }}"
+           data-deadline-raw="{{ p.deadline.isoformat() if p.deadline else '' }}"
+           data-orders="{{ p.orders_count }}"
+           data-notes="{{ p.notes or '' }}"
+           data-image="{{ p.image_url or '' }}">
         <label class="proj-thumb" onclick="event.stopPropagation()">
-          
-          <i class="ti ti-building-skyscraper" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-1').click()"></i>
-          
-          <div class="proj-thumb-cam" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-1').click()"><i class="ti ti-camera"></i></div>
-          <input type="file" id="pimg-1" accept="image/*" onchange="uploadProjImage(1, this)">
+          {% if p.image_url %}
+          <img src="{{ p.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openProjLightbox('{{ p.image_url }}')">
+          {% else %}
+          <i class="ti ti-building-skyscraper" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-{{ p.id }}').click()"></i>
+          {% endif %}
+          <div class="proj-thumb-cam" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-{{ p.id }}').click()"><i class="ti ti-camera"></i></div>
+          <input type="file" id="pimg-{{ p.id }}" accept="image/*" onchange="uploadProjImage({{ p.id }}, this)">
         </label>
         <div class="proj-card-body">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
-            <div class="proj-num">PRJ-001</div>
-            <div class="proj-name">Hovli fasadi</div>
-            <div class="proj-client"><i class="ti ti-user" style="font-size:13px"></i> Aziz Karimov · +998901234567</div>
+            <div class="proj-num">{{ p.project_number }}</div>
+            <div class="proj-name">{{ p.project_name }}</div>
+            <div class="proj-client"><i class="ti ti-user" style="font-size:13px"></i> {{ p.client_name }} · {{ p.client_phone or '' }}</div>
           </div>
-          <span class="status-badge st-active">
-            Faol
+          <span class="status-badge st-{{ p.status.value }}">
+            {% if p.status.value == 'active' %}Faol{% elif p.status.value == 'draft' %}Yangi{% elif p.status.value == 'completed' %}Yakunlangan{% elif p.status.value == 'on_hold' %}Kutmoqda{% else %}Bekor{% endif %}
           </span>
         </div>
         <div class="proj-footer">
-          <span style="font-size:13px;color:var(--text3)"><i class="ti ti-clipboard-list" style="font-size:13px"></i> 3 ta buyurtma</span>
-          <span style="font-size:13px;color:var(--text3)">60.0% to'langan</span>
+          <span style="font-size:13px;color:var(--text3)"><i class="ti ti-clipboard-list" style="font-size:13px"></i> {{ p.orders_count }} ta buyurtma</span>
+          <span style="font-size:13px;color:var(--text3)">{{ paid_pct }}% to'langan</span>
         </div>
-        <div class="progress-bar" id="progress-1"><div class="progress-fill" style="width:0%"></div></div>
-        </div>
-      </div>
-      
-      
-      <div class="proj-card " style="animation-delay:0.02s" onclick="selectProj(this)"
-           data-id="2"
-           data-num="PRJ-002"
-           data-name="Ofis binosi"
-           data-client="Farrux T."
-           data-phone="+998907654321"
-           data-address="Namangan"
-           data-status="completed"
-           data-budget="45000000"
-           data-paid="45000000"
-           data-start="01.05.2026"
-           data-start-raw="2026-05-01"
-           data-deadline="01.07.2026"
-           data-deadline-raw="2026-07-01"
-           data-orders="5"
-           data-notes=""
-           data-image="">
-        <label class="proj-thumb" onclick="event.stopPropagation()">
-          
-          <i class="ti ti-building-skyscraper" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-2').click()"></i>
-          
-          <div class="proj-thumb-cam" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-2').click()"><i class="ti ti-camera"></i></div>
-          <input type="file" id="pimg-2" accept="image/*" onchange="uploadProjImage(2, this)">
-        </label>
-        <div class="proj-card-body">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>
-            <div class="proj-num">PRJ-002</div>
-            <div class="proj-name">Ofis binosi</div>
-            <div class="proj-client"><i class="ti ti-user" style="font-size:13px"></i> Farrux T. · +998907654321</div>
-          </div>
-          <span class="status-badge st-completed">
-            Yakunlangan
-          </span>
-        </div>
-        <div class="proj-footer">
-          <span style="font-size:13px;color:var(--text3)"><i class="ti ti-clipboard-list" style="font-size:13px"></i> 5 ta buyurtma</span>
-          <span style="font-size:13px;color:var(--text3)">100.0% to'langan</span>
-        </div>
-        <div class="progress-bar" id="progress-2"><div class="progress-fill" style="width:0%"></div></div>
+        <div class="progress-bar" id="progress-{{ p.id }}"><div class="progress-fill" style="width:0%"></div></div>
         </div>
       </div>
-      
-      
+      {% endfor %}
+      {% else %}
+      <div style="text-align:center;padding:40px;color:var(--text3)">Loyiha yo'q</div>
+      {% endif %}
     </div>
 
     <!-- O'ng: detal -->
@@ -476,9 +173,9 @@
         <div class="tab-bar" id="tabBar">
           <button class="tab-btn active" data-tab="asosiy" onclick="switchTab('asosiy')">Asosiy</button>
           <button class="tab-btn" data-tab="orders" onclick="switchTab('orders')">Buyurtmalar</button>
-          
+          {% if current_user.role.value != 'manager' %}
           <button class="tab-btn" data-tab="finance" onclick="switchTab('finance')">Moliya</button>
-          
+          {% endif %}
           <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">To'lovlar</button>
           <button class="tab-btn" data-tab="products" onclick="switchTab('products')">Mahsulotlar</button>
           <button class="tab-btn" data-tab="materials" onclick="switchTab('materials')">Xomashyo</button>
@@ -567,12 +264,9 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
-  </div>
-
-</div>
-
-
+{% block scripts %}
 <script>
 // SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
 // turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
@@ -958,48 +652,4 @@ window.addEventListener('load',()=>{
   if(first)first.click();
 });
 </script>
-
-
-<script>
-// ══ UMUMIY: matn maydonlarining birinchi harfini avtomatik katta qilish ══
-// Butun tizimda, HAR BIR sahifada ishlaydi (bitta joyda yozilgan).
-// Faqat foydalanuvchi maydondan CHIQQANDA (blur) ishlaydi — yozayotganda
-// emas, aks holda kursor pozitsiyasi buzilib, yozishga xalaqit berardi.
-(function() {
-  function shouldSkip(el) {
-    if (!el || el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return true;
-    if (el.tagName === 'INPUT' && el.type !== 'text') return true;  // faqat oddiy matn maydonlari
-    if (el.dataset.noCapitalize !== undefined) return true;         // qo'lda o'chirish imkoni
-    if (el.type === 'search') return true;
-    const id = (el.id || '').toLowerCase();
-    const cls = (el.className || '').toLowerCase();
-    // Qidiruv/filtr va narx/son maydonlarini o'tkazib yuboramiz
-    if (id.includes('search') || id.includes('qidir') || cls.includes('search')) return true;
-    if (id.includes('price') || id.includes('narx') || cls.includes('price')) return true;
-    return false;
-  }
-
-  function capitalizeFirst(val) {
-    if (!val) return val;
-    // Faqat BIRINCHI harfni katta qilamiz, qolganiga tegmaymiz —
-    // aks holda qisqartmalar (masalan "sm", "kg") buzilib qolardi.
-    return val.charAt(0).toUpperCase() + val.slice(1);
-  }
-
-  document.addEventListener('blur', function(e) {
-    const el = e.target;
-    if (shouldSkip(el)) return;
-    const newVal = capitalizeFirst(el.value);
-    if (newVal !== el.value) {
-      el.value = newVal;
-      // React/Vue kabi frameworklar uchun emas, oddiy JS uchun — o'zgarish
-      // event'ini qo'lda chaqiramiz, aks holda ba'zi "oninput" handlerlar
-      // yangi qiymatni sezmasligi mumkin edi.
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  }, true);  // "capture" rejimida — barcha maydonlarni ushlab qolish uchun
-})();
-</script>
-
-</body>
-</html>
+{% endblock %}
