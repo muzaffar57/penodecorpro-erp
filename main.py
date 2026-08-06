@@ -250,6 +250,10 @@ def _migrate_payment_columns():
         fps_cols = [c['name'] for c in inspector.get_columns('finished_product_sales')]
         if 'sale_group_id' not in fps_cols:
             migrations.append("ALTER TABLE finished_product_sales ADD COLUMN sale_group_id VARCHAR(40)")
+        if 'original_total' not in fps_cols:
+            migrations.append("ALTER TABLE finished_product_sales ADD COLUMN original_total NUMERIC(12,2)")
+        if 'group_discount_percent' not in fps_cols:
+            migrations.append("ALTER TABLE finished_product_sales ADD COLUMN group_discount_percent FLOAT")
         if 'gips_inventory_id' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN gips_inventory_id INTEGER")
 
