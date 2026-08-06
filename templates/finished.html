@@ -212,7 +212,13 @@
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1">
       <div id="batch-items-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
-      <div style="background:#F0FDF4;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:#166534;text-align:center;margin-bottom:16px" id="batch-total-box">Jami: 0 so'm</div>
+      <div style="background:#F0FDF4;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:#166534;text-align:center;margin-bottom:12px" id="batch-total-box">Jami: 0 so'm</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kelishilgan summa (ixtiyoriy)</label>
+        <input type="text" id="batch-agreed" placeholder="Masalan: 1 980 000" oninput="formatPriceInput(this);updateBatchDiscount()"
+               style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <div id="batch-discount-info" style="display:none;margin-top:8px;background:#FEF3C7;border-radius:8px;padding:9px 12px;font-size:13.5px;color:#92400E;text-align:center"></div>
+      </div>
       <div style="margin-bottom:12px">
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
         <input type="text" id="batch-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
@@ -1184,6 +1190,8 @@ function openBatchSellModal() {
   document.getElementById('batch-modal-sub').textContent = `${ids.length} ta mahsulot`;
   document.getElementById('batch-buyer').value = '';
   document.getElementById('batch-paymethod').value = 'naqd';
+  document.getElementById('batch-agreed').value = '';
+  document.getElementById('batch-discount-info').style.display = 'none';
 
   const list = document.getElementById('batch-items-list');
   list.innerHTML = ids.map(id => {
@@ -1214,14 +1222,42 @@ function closeBatchSellModal() {
   document.getElementById('batchSellModal').style.display = 'none';
 }
 
-function updateBatchTotal() {
+function batchOriginalTotal() {
   let total = 0;
   document.querySelectorAll('.batch-item-row').forEach(row => {
     const qty = parseFloat(row.querySelector('.batch-qty')?.value) || 0;
     const price = parseNum(row.querySelector('.batch-price')?.value) || 0;
     total += qty * price;
   });
+  return total;
+}
+
+function updateBatchTotal() {
+  const total = batchOriginalTotal();
   document.getElementById('batch-total-box').textContent = `Jami: ${fmt(total)} so'm`;
+  updateBatchDiscount();  // asl jami o'zgarsa, chegirma foizi ham qayta hisoblanadi
+}
+
+function updateBatchDiscount() {
+  const original = batchOriginalTotal();
+  const agreed = parseNum(document.getElementById('batch-agreed')?.value) || 0;
+  const box = document.getElementById('batch-discount-info');
+  if (agreed > 0 && original > 0 && agreed < original) {
+    const disc = original - agreed;
+    const pct = (disc / original * 100);
+    box.style.display = 'block';
+    box.textContent = `Chegirma: ${fmt(disc)} so'm (${pct.toFixed(1).replace('.0','')}%)`;
+  } else if (agreed > original && original > 0) {
+    box.style.display = 'block';
+    box.style.background = '#FEE2E2';
+    box.style.color = '#991B1B';
+    box.textContent = `⚠ Kelishilgan summa jamidan katta bo'lishi mumkin emas`;
+    return;
+  } else {
+    box.style.display = 'none';
+  }
+  box.style.background = '#FEF3C7';
+  box.style.color = '#92400E';
 }
 
 async function submitBatchSell() {
@@ -1236,6 +1272,18 @@ async function submitBatchSell() {
   });
   if (hasError || !items.length) { showMsg('Barcha mahsulotlar uchun miqdor va narxni to\'g\'ri kiriting', 'error'); return; }
 
+  // "Kelishilgan summa" — ixtiyoriy. Berilsa, asl jamidan katta bo'lmasligi kerak.
+  const originalTotal = batchOriginalTotal();
+  const agreedRaw = parseNum(document.getElementById('batch-agreed').value) || 0;
+  let agreedAmount = null;
+  if (agreedRaw > 0) {
+    if (agreedRaw > originalTotal + 0.5) {
+      showMsg('Kelishilgan summa jami summadan katta bo\'lishi mumkin emas', 'error');
+      return;
+    }
+    agreedAmount = agreedRaw;
+  }
+
   try {
     const res = await fetch('/api/finished/sell-batch', {
       method: 'POST',
@@ -1243,14 +1291,16 @@ async function submitBatchSell() {
       body: JSON.stringify({
         items,
         buyer_name: document.getElementById('batch-buyer').value.trim() || null,
-        payment_method: document.getElementById('batch-paymethod').value
+        payment_method: document.getElementById('batch-paymethod').value,
+        agreed_amount: agreedAmount
       })
     });
     const r = await res.json();
     if (res.ok) {
       closeBatchSellModal();
       clearBatchSelection();
-      showMsg(`✓ ${r.sale_count} ta mahsulot sotildi! Jami: ${fmt(r.total_amount)} so'm`, 'success');
+      const discMsg = (r.discount_percent && r.discount_percent > 0) ? ` (${r.discount_percent}% chegirma bilan)` : '';
+      showMsg(`✓ ${r.sale_count} ta mahsulot sotildi! Kelishilgan: ${fmt(r.total_amount)} so'm${discMsg}`, 'success');
       window.open(`/api/finished/sales/batch/${r.sale_group_id}/pdf`, '_blank');
       setTimeout(() => location.reload(), 1500);
     } else {
