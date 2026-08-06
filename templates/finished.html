@@ -39,13 +39,13 @@
 .fp-sku{font-size:10px;color:var(--text3);font-family:monospace}
 .fp-meta{font-size:11px;color:var(--text3);margin-top:2px}
 .fp-qty{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap}
-.fp-price{font-size:11px;color:#1E40AF;font-weight:600;margin-top:1px;white-space:nowrap}
+.fp-price{font-size:11px;color:#A86B36;font-weight:600;margin-top:1px;white-space:nowrap}
 .fp-empty{text-align:center;padding:30px;color:var(--text3);font-size:13px}
 .fp-badge{font-size:9px;padding:2px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
 .mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:16px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
-.mini-btn:hover{background:#1A1A1E;color:#fff;border-color:#1A1A1E}
+.mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .fp-inp{width:64px;height:28px;text-align:center;border:1.5px solid #e5e5e5;border-radius:6px;font-size:12px;font-weight:600;outline:none}
-.fp-inp:focus{border-color:#2563EB}
+.fp-inp:focus{border-color:#B9783F}
 .fp-mini-bar{width:70px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-top:4px}
 .fp-mini-fill{height:100%;border-radius:3px}
 .fp-stock-col{min-width:110px}
@@ -110,7 +110,7 @@
   <div style="background:#fff;border-radius:14px;width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:#1a1a1a">🧱 Gips ishlab chiqarish</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">🧱 Gips ishlab chiqarish</div>
         <div style="font-size:13px;color:#aaa;margin-top:2px">Buyurtmasiz, to'g'ridan-to'g'ri zaxira uchun</div>
       </div>
       <button onclick="closeGipsProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
@@ -167,7 +167,7 @@
   <div style="background:#fff;border-radius:14px;width:400px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:#1a1a1a">⚠️ Kamaytirish (brak/yo'qotish)</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">⚠️ Kamaytirish (brak/yo'qotish)</div>
         <div style="font-size:13px;color:#aaa;margin-top:2px" id="loss-modal-sub">—</div>
       </div>
       <button onclick="closeLossModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
@@ -205,7 +205,7 @@
   <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:#1a1a1a">💰 Bir nechta mahsulotni sotish</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Bir nechta mahsulotni sotish</div>
         <div style="font-size:13px;color:#aaa;margin-top:2px" id="batch-modal-sub">—</div>
       </div>
       <button onclick="closeBatchSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
@@ -244,7 +244,7 @@
   <div style="background:#fff;border-radius:14px;width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:#1a1a1a">💰 Sotish</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Sotish</div>
         <div style="font-size:13px;color:#aaa;margin-top:2px" id="sell-modal-sub">—</div>
       </div>
       <button onclick="closeSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
@@ -284,7 +284,7 @@
 <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:480px;max-width:100%;max-height:80vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:16px;font-weight:600;color:#1a1a1a" id="hist-title">Tarix</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text)" id="hist-title">Tarix</div>
       <button onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1" id="hist-body"></div>
@@ -296,7 +296,7 @@
   <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:#1a1a1a">🧱 Termopanel ishlab chiqarish</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">🧱 Termopanel ishlab chiqarish</div>
         <div style="font-size:12px;color:#aaa;margin-top:2px">Bazalt + Serpiyanka + Kley + Qoplama</div>
       </div>
       <button onclick="closeTermoModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
@@ -373,7 +373,7 @@
   <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:#1a1a1a">🏭 Tayyor mahsulot ishlab chiqarish</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">🏭 Tayyor mahsulot ishlab chiqarish</div>
         <div style="font-size:12px;color:#aaa;margin-top:2px">Ombordan xomashyo yechiladi</div>
       </div>
       <button onclick="closeProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
@@ -460,7 +460,7 @@
         <div class="form-group" style="margin:0">
           <label>1 m³ narxi</label>
           <input type="text" id="p-m3" value="1 200 000" oninput="formatPriceInput(this);pCalc()"
-                 style="border-color:#2563EB">
+                 style="border-color:#B9783F">
         </div>
       </div>
 
@@ -485,7 +485,7 @@
       <div class="form-group">
         <label>Sotuv narxi (1 <span id="p-unit-label">metr</span> uchun)</label>
         <input type="text" id="p-price" placeholder="0" oninput="formatPriceInput(this);pCalc()"
-               style="border-color:#2563EB;font-weight:600">
+               style="border-color:#B9783F;font-weight:600">
         <div style="font-size:11px;color:#aaa;margin-top:4px">Bo'sh qolsa — hisoblangan narx olinadi</div>
       </div>
 
@@ -510,7 +510,7 @@
   <div style="background:#fff;border-radius:14px;width:520px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:#1a1a1a">💰 Foyda hisobi</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Foyda hisobi</div>
         <div style="font-size:12px;color:#aaa;margin-top:2px" id="pm-sub">—</div>
       </div>
       <button onclick="closeProfitModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
@@ -629,8 +629,8 @@ function updateFpRangeBanner() {
     el.style.background = '#FFFBEB'; el.style.color = '#92400E';
     el.innerHTML = `<span>⚠️ Barcha yozuvlar ko'rsatilmoqda</span><span style="color:#D97706;font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">← Qisqartirish</span>`;
   } else {
-    el.style.background = '#EFF6FF'; el.style.color = '#1a6fa8';
-    el.innerHTML = `<span>📅 So'nggi 90 kunlik (+ ombordagi va jarayondagilar)</span><span style="color:#2563EB;font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">Barchasini ko'rish →</span>`;
+    el.style.background = '#F8F2EB'; el.style.color = '#A86B36';
+    el.innerHTML = `<span>📅 So'nggi 90 kunlik (+ ombordagi va jarayondagilar)</span><span style="color:#B9783F;font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">Barchasini ko'rish →</span>`;
   }
 }
 
@@ -703,7 +703,7 @@ function renderFp() {
 
   if (producedOther.length) {
     html += `<div class="fp-sec">
-      <span class="fp-sec-label" style="color:#1E40AF">🏭 PENOPLAST VA BOSHQA</span>
+      <span class="fp-sec-label" style="color:#A86B36">🏭 PENOPLAST VA BOSHQA</span>
       <div class="fp-sec-line" style="background:linear-gradient(90deg,#E5DFD3,transparent)"></div>
     </div>` + producedOther.map(rowHtml).join('');
   }
@@ -810,7 +810,7 @@ function rowHtml(i) {
     <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
     {% if current_user.role.value == 'admin' %}
     <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
-            style="color:#1E40AF;border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
+            style="color:#A86B36;border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
     {% endif %}
     <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
             onclick="delFp(${i.id}, '${i.source}')" title="O'chirish"><i class="ti ti-trash"></i></button>
@@ -1198,7 +1198,7 @@ function openBatchSellModal() {
     const it = _batchItems[id];
     return `
       <div class="batch-item-row" data-id="${id}" style="border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px">
-        <div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:8px">${it.name}</div>
+        <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:8px">${it.name}</div>
         <div style="display:flex;gap:8px;align-items:center">
           <div style="flex:1">
             <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">Miqdor (bor: ${it.maxQty} ${it.unit})</div>
@@ -1776,13 +1776,13 @@ function pCalc() {
   const costPerUnit = count > 0 ? cost / count : 0;
   const volLockLine = (type === 'dona' && volume_total > 0)
     ? (window._pDonaVolLocked
-        ? ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#0EA5E9" title="Qulfdan chiqarish (hajm qayta jonli hisoblanadi)">🔒 qulflangan</button>`
-        : ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#0EA5E9" title="Hajmni qulflash (keyin narx o'zgarsa ham hajm o'zgarmaydi)">🔓 qulflash</button>`)
+        ? ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#B9783F" title="Qulfdan chiqarish (hajm qayta jonli hisoblanadi)">🔒 qulflangan</button>`
+        : ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#B9783F" title="Hajmni qulflash (keyin narx o'zgarsa ham hajm o'zgarmaydi)">🔓 qulflash</button>`)
     : '';
 
   box.innerHTML = `
     📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b> = ${fmt(penoCost)} so'm` : ''}${volLockLine}${loyLine}<br>
-    💵 1 ${unit} narxi: <b style="color:#0EA5E9">${fmt(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:#aaa">(kiritilgan: ${fmt(inputPrice)})</span>` : ''}<br>
+    💵 1 ${unit} narxi: <b style="color:#B9783F">${fmt(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:#aaa">(kiritilgan: ${fmt(inputPrice)})</span>` : ''}<br>
     <div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">
       💰 Tan narxi: <b style="color:#DC2626">${fmt(cost)} so'm</b>
       <span style="color:#aaa">(1 ${unit} = ${fmt(costPerUnit)})</span><br>
@@ -1790,7 +1790,7 @@ function pCalc() {
       📈 Foyda: <b style="color:${profit>0?'#22C55E':'#DC2626'};font-size:13px">${fmt(profit)} so'm</b>
       <span style="color:#aaa">(${margin.toFixed(1)}%)</span>
     </div>
-    🏭 Natija: <b style="color:#2563EB">${count} ${unit}</b>`;
+    🏭 Natija: <b style="color:#B9783F">${count} ${unit}</b>`;
 }
 
 async function saveProduce() {
@@ -1957,8 +1957,8 @@ async function openProfitModal(id) {
 
   const row = (label, val, color, bold) => `
     <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px${bold?';font-weight:700':''}">
-      <span style="color:${bold?'#1a1a1a':'#777'}">${label}</span>
-      <span style="color:${color||'#1a1a1a'};font-weight:${bold?'700':'600'}">${val}</span>
+      <span style="color:${bold?'var(--text)':'#777'}">${label}</span>
+      <span style="color:${color||'var(--text)'};font-weight:${bold?'700':'600'}">${val}</span>
     </div>`;
 
   // GIPS mahsulotlar — alohida, aniq ko'rinish
@@ -2023,7 +2023,7 @@ async function openProfitModal(id) {
     ${row(`1 ${i.unit} narxi`, fmt(i.unit_price) + " so'm")}
     ${row(`${i.quantity} ${i.unit} × ${fmt(i.unit_price)}`, fmt(revenue) + " so'm", '#22C55E', true)}
 
-    <div style="border-top:2px solid #1a1a1a;margin:12px 0 6px"></div>
+    <div style="border-top:2px solid var(--text);margin:12px 0 6px"></div>
     ${row('📈 FOYDA', `${fmt(profit)} so'm`, profit > 0 ? '#22C55E' : '#DC2626', true)}
     <div style="text-align:right;font-size:12px;color:#aaa;margin-top:-2px">
       Rentabellik: <b style="color:${margin>0?'#22C55E':'#DC2626'}">${margin.toFixed(1)}%</b>
@@ -2056,14 +2056,14 @@ async function showProfit(id) {
     const rows = (d.breakdown || []).map(b => `
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:12.5px">
         <span style="color:#666;flex:1;min-width:0;padding-right:10px">${b.name}</span>
-        <span style="font-weight:600;color:#1a1a1a;white-space:nowrap">${fmt(b.cost)} so'm</span>
+        <span style="font-weight:600;color:var(--text);white-space:nowrap">${fmt(b.cost)} so'm</span>
       </div>`).join('');
 
     document.getElementById('pm-body').innerHTML = `
       <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:8px">Xarajat tarkibi</div>
       ${rows || '<div style="color:#bbb;font-size:12px;padding:8px 0">Xarajat ma\'lumoti yo\'q</div>'}
 
-      <div style="display:flex;justify-content:space-between;padding:10px 0 8px;border-top:2px solid #1a1a1a;margin-top:6px">
+      <div style="display:flex;justify-content:space-between;padding:10px 0 8px;border-top:2px solid var(--text);margin-top:6px">
         <span style="font-size:13px;font-weight:700">Jami tan narxi</span>
         <span style="font-size:14px;font-weight:700;color:#DC2626">${fmt(d.total_cost)} so'm</span>
       </div>
