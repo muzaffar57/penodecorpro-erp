@@ -8,6 +8,9 @@
 * {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
 /* Barcha ikonkalar uchun standart o'lcham — Bosh sahifadagi bilan bir xil.
    Kerak bo'lgan joyda (masalan kichik tugmalar, sidebar) alohida
    belgilangan o'lcham bundan ustun turadi. */
@@ -18,25 +21,25 @@
 :root {
   --sidebar-w: 240px;
   --topbar-h: 58px;
-  --gold: #2563EB;
-  --gold-dark: #1D4ED8;
-  --gold-tint: #EFF6FF;
-  --dark: #111827;
-  --dark2: #1E293B;
-  --dark3: #2A3749;
-  --bg: #F8FAFC;
+  --gold: #B9783F;
+  --gold-dark: #A86B36;
+  --gold-tint: #F8F2EB;
+  --dark: #181B22;
+  --dark2: #23262E;
+  --dark3: #2D3038;
+  --bg: #F8F8F6;
   --white: #ffffff;
-  --border: #E2E8F0;
-  --border2: #EDF2F7;
-  --text: #0F172A;
-  --text2: #475569;
-  --text3: #94A3B8;
+  --border: #E8E3DD;
+  --border2: #F0ECE6;
+  --text: #222222;
+  --text2: #6B7280;
+  --text3: #9A9DA6;
   --green: #22C55E;
   --red: #EF4444;
-  --blue: #2563EB;
+  --blue: #3B82F6;
   --orange: #F59E0B;
-  --radius-card: 16px;
-  --shadow-card: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+  --radius-card: 13px;
+  --shadow-card: 0 1px 2px rgba(24,27,34,.05), 0 1px 3px rgba(24,27,34,.04);
 }
 
 /* ============================================================
@@ -45,14 +48,14 @@
    o'zgarmaydi, shuning uchun BARCHA sahifalarga avtomatik ta'sir qiladi.
    ============================================================ */
 html[data-theme="dark"] {
-  --gold-tint: #1E2A47;
-  --bg: #0F1420;
-  --white: #171D2C;
-  --border: #2A3345;
-  --border2: #232B3B;
-  --text: #E7EAF0;
-  --text2: #9AA5B8;
-  --text3: #6B7688;
+  --gold-tint: #2E2418;
+  --bg: #16181F;
+  --white: #1E212A;
+  --border: #34384A;
+  --border2: #282C38;
+  --text: #ECEAE6;
+  --text2: #A3A6B0;
+  --text3: #6E7280;
   --shadow-card: 0 1px 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
 }
 html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
@@ -160,8 +163,8 @@ body {
 }
 .nav-item:hover { background: var(--dark2); }
 .nav-item.active {
-  background: #1f1a10;
-  border-color: #2a2010;
+  background: rgba(185,120,63,0.16);
+  border-color: rgba(185,120,63,0.30);
 }
 .nav-item .n-ico { font-size: 15px; width: 20px; text-align: center; }
 .nav-item .n-txt { font-size: 12px; color: #888; flex: 1; }
@@ -485,7 +488,7 @@ body {
 }
 .stat-card.emph .stat-label { color: #999; }
 .stat-card.emph .stat-val { color: var(--white); }
-.stat-card.emph .stat-icon { background: rgba(201,165,90,.15); color: var(--gold); }
+.stat-card.emph .stat-icon { background: rgba(185,120,63,.18); color: var(--gold); }
 
 /* ============================================================
    GAUGE (ishlab chiqarish holati)
