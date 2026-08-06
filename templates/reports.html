@@ -6,14 +6,14 @@
 {% block head %}
 <style>
 .bi-wrap{
-  --b-bg:#F5F7FA; --b-card:#FFFFFF; --b-border:#E5E7EB;
-  --b-primary:#2563EB; --b-primary-tint:#EFF6FF;
+  --b-bg:#F8F8F6; --b-card:#FFFFFF; --b-border:#E8E3DD;
+  --b-primary:#B9783F; --b-primary-tint:#F8F2EB;
   --b-success:#22C55E; --b-success-tint:#F0FDF4;
   --b-warning:#F59E0B; --b-warning-tint:#FFFBEB;
   --b-danger:#EF4444; --b-danger-tint:#FEF2F2;
-  --b-text:#111827; --b-text2:#4B5563; --b-text3:#9CA3AF;
-  --b-radius:16px; --b-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);
-  --b-shadow-hover:0 4px 8px rgba(16,24,40,.06),0 12px 28px rgba(16,24,40,.10);
+  --b-text:#222222; --b-text2:#6B7280; --b-text3:#9CA3AF;
+  --b-radius:14px; --b-shadow:0 1px 2px rgba(24,27,34,.04),0 4px 16px rgba(24,27,34,.06);
+  --b-shadow-hover:0 4px 8px rgba(24,27,34,.06),0 12px 28px rgba(24,27,34,.10);
   background:var(--b-bg); padding:16px; height:calc(100vh - 58px); overflow-y:auto; font-variant-numeric:tabular-nums;
 }
 .bi-wrap *{box-sizing:border-box}
@@ -25,9 +25,9 @@
 .bi-fade{opacity:0;animation:biFade .45s ease forwards}
 
 /* ── AI Summary ── */
-.bi-summary{background:linear-gradient(135deg,#EFF6FF,#F5F3FF);border:1px solid #DBEAFE;border-radius:var(--b-radius);padding:18px 22px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
+.bi-summary{background:linear-gradient(135deg,#F8F2EB,#FBF7F2);border:1px solid #E8D5C0;border-radius:var(--b-radius);padding:18px 22px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
 .bi-summary-icon{width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:var(--b-shadow)}
-.bi-summary-title{font-size:13px;font-weight:700;color:#1E40AF;margin-bottom:6px}
+.bi-summary-title{font-size:13px;font-weight:700;color:#A86B36;margin-bottom:6px}
 .bi-summary-list{font-size:13px;color:#374151;line-height:1.9}
 
 /* ── Business Health (1-qator) ── */
@@ -57,7 +57,7 @@
 .bi-filterbar select:focus,.bi-filterbar input:focus{border-color:var(--b-primary)}
 .bi-btn{height:36px;padding:0 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:.12s}
 .bi-btn-primary{background:var(--b-primary);color:#fff}
-.bi-btn-primary:hover{background:#1D4ED8;box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.bi-btn-primary:hover{background:#A86B36;box-shadow:0 4px 12px rgba(185,120,63,.3)}
 .bi-btn-ghost{background:#fff;color:var(--b-text2);border:1px solid var(--b-border)}
 .bi-btn-ghost:hover{background:var(--b-bg)}
 .bi-btn-ghost.active{background:var(--b-primary);color:#fff;border-color:var(--b-primary)}
@@ -161,7 +161,7 @@
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-primary-tint);color:var(--b-primary)"><i class="ti ti-report-money"></i></div><div class="bi-kpi-label">Sof foyda</div><div class="bi-kpi-value" id="kpi-foyda">—</div><div class="bi-kpi-change" id="kpi-foyda-ch"></div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:var(--b-warning-tint);color:var(--b-warning)"><i class="ti ti-arrows-exchange"></i></div><div class="bi-kpi-label">Pul oqimi</div><div class="bi-kpi-value" id="kpi-oqim">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">Kirim − Chiqim</div></div>
       <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F3E8FF;color:#8E44AD"><i class="ti ti-clipboard-list"></i></div><div class="bi-kpi-label">Buyurtmalar</div><div class="bi-kpi-value" id="kpi-buyurtma">—</div><div class="bi-kpi-change" style="color:var(--b-text3)">shu davrda</div></div>
-      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#E0F2FE;color:#0EA5E9"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
+      <div class="bi-kpi-card bi-fade"><div class="bi-kpi-icon" style="background:#F8F2EB;color:#B9783F"><i class="ti ti-percentage"></i></div><div class="bi-kpi-label">Rentabellik</div><div class="bi-kpi-value" id="kpi-foiz">—</div><div class="bi-kpi-change" id="kpi-foiz-ch"></div></div>
     </div>
   </div>
 
@@ -392,7 +392,7 @@ async function loadCharts(){
     data: {
       labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
       datasets: [
-        { label:'Daromad', data:hist.map(h=>h.daromad), borderColor:'#2563EB', backgroundColor:'rgba(37,99,235,.07)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
+        { label:'Daromad', data:hist.map(h=>h.daromad), borderColor:'#B9783F', backgroundColor:'rgba(185,120,63,.07)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
         { label:'Xarajat', data:hist.map(h=>h.jami_xarajat), borderColor:'#EF4444', backgroundColor:'rgba(239,68,68,.05)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2 },
         { label:'Sof foyda', data:hist.map(h=>h.sof_foyda), borderColor:'#22C55E', backgroundColor:'rgba(34,197,94,.05)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
       ]
@@ -420,7 +420,7 @@ async function loadCharts(){
     data: {
       labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
       datasets: [
-        { label:'🏭 Penoplast va boshqa', data:hist.map(h=>h.turlar_boyicha?.penoplast?.daromad||0), backgroundColor:'rgba(30,64,175,.75)', borderRadius:5 },
+        { label:'🏭 Penoplast va boshqa', data:hist.map(h=>h.turlar_boyicha?.penoplast?.daromad||0), backgroundColor:'rgba(185,120,63,.75)', borderRadius:5 },
         { label:'🧱 Gips', data:hist.map(h=>h.turlar_boyicha?.gips?.daromad||0), backgroundColor:'rgba(157,23,77,.75)', borderRadius:5 }
       ]
     },
@@ -449,7 +449,7 @@ async function loadCharts(){
     const doimiy = (x.arenda||0) + (x.elektr||0) + (x.tushlik||0) + (x.soliqlar||0);
     const qoshimcha = Object.values(cur.qoshimcha_xarajatlar || {}).reduce((a,b)=>a+b, 0);
     const entries = [
-      ['Doimiy xarajatlar', doimiy, '#2563EB'],
+      ['Doimiy xarajatlar', doimiy, '#B9783F'],
       ["Usta bonusi", cur.usta_kpi_xarajat || 0, '#F59E0B'],
       ['Ehson', cur.ehson_xarajat || 0, '#16A34A'],
       ['Hodimlar oyligi', cur.hodimlar_moslashuvchan_xarajat || 0, '#22C55E'],
@@ -476,7 +476,7 @@ async function loadCharts(){
     document.getElementById('cashFlowBars').innerHTML = `
       <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Kirim</span><span style="font-weight:700;color:var(--b-success)">${fmt(kirim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-kirim" style="background:var(--b-success)"></div></div></div>
       <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--b-text2);font-weight:600">Chiqim</span><span style="font-weight:700;color:var(--b-danger)">${fmt(chiqim)} so'm</span></div><div class="bi-flow-track"><div class="bi-flow-fill" id="fb-chiqim" style="background:var(--b-danger)"></div></div></div>
-      <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'#1D4ED8':'#92400E'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'#1D4ED8':'#92400E'}">${fmt(balans)} so'm</span></div>`;
+      <div style="text-align:center;padding:12px;border-radius:10px;background:${balans>=0?'var(--b-primary-tint)':'var(--b-warning-tint)'}"><span style="font-size:13px;font-weight:600;color:${balans>=0?'#A86B36':'#92400E'}">Balans: </span><span style="font-size:16px;font-weight:800;color:${balans>=0?'#A86B36':'#92400E'}">${fmt(balans)} so'm</span></div>`;
     requestAnimationFrame(()=>setTimeout(()=>{
       document.getElementById('fb-kirim').style.width=(kirim/maxV*100)+'%';
       document.getElementById('fb-chiqim').style.width=(chiqim/maxV*100)+'%';
@@ -546,7 +546,7 @@ async function loadForecast(){
         <div class="bi-forecast-item">
           <div style="font-size:12px;color:var(--b-text3);font-weight:600;text-transform:uppercase">Hozirgacha</div>
           <div style="font-size:22px;font-weight:800;color:var(--b-text);margin-top:6px">${fmt(fc.current_daromad)} so'm</div>
-          <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#0EA5E9"></div></div>
+          <div class="bi-forecast-bar-track"><div class="bi-forecast-bar-fill" style="width:${pct}%;background:#B9783F"></div></div>
         </div>
       </div>`;
   } catch(e) { console.error(e); }
