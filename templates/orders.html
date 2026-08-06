@@ -123,6 +123,15 @@
 .coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:600;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
 .coat-opt.coat-no.active{background:#FEE2E2;color:#DC2626}
 .coat-opt.coat-yes.active{background:#DCFCE7;color:#16A34A}
+/* Tur — tugma-chip guruhi (dropdown o'rniga, hammasi ochiq ko'rinadi) */
+.type-toggle{display:flex;flex-wrap:wrap;gap:6px}
+.type-opt{
+  padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;
+  font-size:12.5px;font-weight:600;color:var(--text2);background:var(--white);
+  cursor:pointer;transition:all .15s;text-align:center;white-space:nowrap;
+}
+.type-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
+.type-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
 </style>
 {% endblock %}
 
@@ -947,7 +956,11 @@ function restoreDraftLS(draft) {
     if (!row) return;
     // AVVAL turini o'rnatamiz (shu orqali kerakli maydonlar ko'rinadi)
     const typeEl = row.querySelector('.i-type');
-    if (typeEl && rowData['i-type']) { typeEl.value = rowData['i-type']; toggleFields(row); }
+    if (typeEl && rowData['i-type']) {
+      typeEl.value = rowData['i-type'];
+      row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === rowData['i-type']));
+      toggleFields(row);
+    }
     // Keyin qolgan barcha maydonlarni to'ldiramiz
     Object.keys(rowData).forEach(cls => {
       if (cls === 'i-type') return;
@@ -1197,7 +1210,11 @@ function pickFinished(el, fpId) {
   // xavfsiz tarzda "dona" rejimida ko'rsatiladi (miqdor + narx maydoni bilan).
   const knownTypes = ['profil', 'panel', 'dona', 'blok', 'gips', 'termopanel'];
   const effectiveType = knownTypes.includes(fp.category) ? fp.category : 'dona';
-  if (typeEl) { typeEl.value = effectiveType; toggleFields(row); }
+  if (typeEl) {
+    typeEl.value = effectiveType;
+    row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === effectiveType));
+    toggleFields(row);
+  }
   // Gips uchun — o'ziga xos "birlik" (metr/dona/m²) selektorini ham
   // tayyor mahsulotning o'z birligiga moslab qo'yamiz.
   if (effectiveType === 'gips') {
@@ -2561,8 +2578,18 @@ function addItem() {
                oninput="searchFinished(this);updateTotal();updateLiveStats()" onblur="hideFpSuggest(this)">
         <div class="fp-suggest" style="display:none"></div>
       </div>
-      <div class="dif"><label>Tur</label>
-        <select class="i-type" onchange="toggleFields(this.closest('.detal'));calculateItem(this.closest('.detal'))">
+      <div class="dif" style="grid-column:1/-1">
+        <label>Tur</label>
+        <div class="type-toggle" data-for="i-type">
+          <div class="type-opt active" data-value="profil" onclick="selectTypeOpt(this,'profil')">Profil</div>
+          <div class="type-opt" data-value="panel" onclick="selectTypeOpt(this,'panel')">Panel</div>
+          <div class="type-opt" data-value="dona" onclick="selectTypeOpt(this,'dona')">Donali</div>
+          <div class="type-opt" data-value="blok" onclick="selectTypeOpt(this,'blok')">Blok (butun narxda)</div>
+          <div class="type-opt" data-value="termopanel" onclick="selectTypeOpt(this,'termopanel')">Termopanel (Bazalt)</div>
+          <div class="type-opt" data-value="loy_sotish" onclick="selectTypeOpt(this,'loy_sotish')">🪣 Loy sotish (tayyor holda)</div>
+          <div class="type-opt" data-value="gips" onclick="selectTypeOpt(this,'gips')">🧱 Gips</div>
+        </div>
+        <select class="i-type" style="display:none" onchange="toggleFields(this.closest('.detal'));calculateItem(this.closest('.detal'))">
           <option value="profil">Profil</option>
           <option value="panel">Panel</option>
           <option value="dona">Donali</option>
@@ -2645,6 +2672,7 @@ function addItem() {
   if (lastType) {
     const typeSel = div.querySelector('.i-type');
     if (typeSel) typeSel.value = lastType;
+    div.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === lastType));
   }
 
   toggleFields(div);
@@ -2691,6 +2719,19 @@ function setCoating(el, isCoated) {
   row.querySelectorAll('.coat-opt').forEach(o => o.classList.remove('active'));
   el.classList.add('active');
   onCoatToggle(row);
+}
+
+// Tur — tugma-chip tanlash (dropdown o'rniga). Yashirin <select>ga
+// qiymatni yozib, xuddi shu eski toggleFields/calculateItem funksiyalarini
+// chaqiradi — hisob-kitob mantig'i O'ZGARMAYDI, faqat kirish usuli.
+function selectTypeOpt(btn, value) {
+  const row = btn.closest('.detal');
+  row.querySelectorAll('.type-opt').forEach(o => o.classList.remove('active'));
+  btn.classList.add('active');
+  const sel = row.querySelector('.i-type');
+  sel.value = value;
+  toggleFields(row);
+  calculateItem(row);
 }
 
 function onCoatToggle(row) {
@@ -3625,6 +3666,7 @@ async function editSelected() {
         const typeEl = row.querySelector('.i-type');
         const cat = item.category || 'profil';
         typeEl.value = cat;
+        row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === cat));
         toggleFields(row);
 
         if (cat === 'dona') {
