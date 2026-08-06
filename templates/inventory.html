@@ -1,15 +1,24 @@
-{% extends "base.html" %}
-{% block title %}Omborxona — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Omborxona{% endblock %}
-{% block page_sub %}Xomashyo va materiallar qoldig'i{% endblock %}
-
-{% block topbar_actions %}
-<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#0EA5E9;color:#0EA5E9"><i class="ti ti-clipboard-list" style="vertical-align:-2px"></i> Ombor hisoboti SMS</button>
-<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444"><i class="ti ti-bell" style="vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
-
-{% endblock %}
-
-{% block head %}
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<script>
+(function(){
+  try {
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  } catch(e) {}
+})();
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Omborxona — PenoDecorPro ERP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/css/tabler-icons.min.css">
+  <link rel="stylesheet" href="static/style.css">
+  
 <style>
 .inv-kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px}
 @media (max-width:1200px){.inv-kpi-grid{grid-template-columns:repeat(3,1fr)}}
@@ -63,19 +72,273 @@
 .mv-badge.in{background:#DCFCE7;color:#166534}
 .mv-badge.out{background:#FEE2E2;color:#991B1B}
 </style>
-{% endblock %}
 
-{% block content %}
+</head>
+<body>
+<div class="erp-layout">
+
+  
+  <aside class="sidebar">
+    <div class="s-logo">
+      <div style="display:flex;align-items:center;gap:10px">
+        <img src="static/logo_round.jpg" alt="PenoDecorPro"
+             style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
+        <div>
+          <div class="logo-name">Penodecor<span>Pro</span></div>
+          <div class="logo-ver">ERP · Andijon</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="s-user">
+      <div class="u-avatar">M</div>
+      <div>
+        <div class="u-name">Muzaffarbek</div>
+        <div class="u-role">Admin</div>
+      </div>
+    </div>
+
+    <nav class="s-nav">
+      
+
+      <div class="nav-label">Asosiy</div>
+
+      
+      <a href="/" class="nav-item ">
+        <i class="ti ti-home n-ico"></i>
+        <span class="n-txt">Bosh sahifa</span>
+      </a>
+      
+
+      
+      <a href="/dashboard" class="nav-item ">
+        <i class="ti ti-chart-bar n-ico"></i>
+        <span class="n-txt">Dashboard</span>
+      </a>
+      
+
+      
+      <a href="/projects" class="nav-item ">
+        <i class="ti ti-clipboard-list n-ico"></i>
+        <span class="n-txt">Loyihalar</span>
+      </a>
+      
+
+      
+      <a href="/orders" class="nav-item ">
+        <i class="ti ti-receipt n-ico"></i>
+        <span class="n-txt">Buyurtmalar</span>
+      </a>
+      
+
+      
+      <div class="nav-label">Ishlab chiqarish</div>
+      
+
+      
+      <a href="/inventory" class="nav-item ">
+        <i class="ti ti-package n-ico"></i>
+        <span class="n-txt">Omborxona</span>
+      </a>
+      
+
+      
+      <a href="/suppliers/receive" class="nav-item ">
+        <i class="ti ti-truck n-ico"></i>
+        <span class="n-txt">Xomashyo ta'minoti</span>
+      </a>
+
+      <a href="/recipes" class="nav-item ">
+        <i class="ti ti-flask n-ico"></i>
+        <span class="n-txt">Retseptlar</span>
+      </a>
+
+      <a href="/finished" class="nav-item ">
+        <i class="ti ti-building-factory-2 n-ico"></i>
+        <span class="n-txt">Tayyor mahsulotlar</span>
+      </a>
+      
+
+      
+      <div class="nav-label">Hisobot</div>
+      
+
+      
+      <a href="/returns" class="nav-item ">
+        <i class="ti ti-arrow-back-up n-ico"></i>
+        <span class="n-txt">Qaytarishlar</span>
+      </a>
+      
+
+      
+      <a href="/debts" class="nav-item ">
+        <i class="ti ti-credit-card n-ico"></i>
+        <span class="n-txt">Qarzdorlar</span>
+      </a>
+
+      <a href="/finance" class="nav-item ">
+        <i class="ti ti-trending-up n-ico"></i>
+        <span class="n-txt">Moliya</span>
+      </a>
+
+      <a href="/kpi" class="nav-item ">
+        <i class="ti ti-trophy n-ico"></i>
+        <span class="n-txt">Ustalar KPI / Hodimlar</span>
+      </a>
+
+      <a href="/reports" class="nav-item ">
+        <i class="ti ti-report n-ico"></i>
+        <span class="n-txt">Hisobotlar</span>
+      </a>
+      
+
+      
+      <div class="nav-label">Boshqaruv</div>
+
+      <a href="/users" class="nav-item ">
+        <i class="ti ti-users n-ico"></i>
+        <span class="n-txt">Foydalanuvchilar</span>
+      </a>
+      <a href="/trash" class="nav-item ">
+        <i class="ti ti-trash n-ico"></i>
+        <span class="n-txt">O'chirilganlar</span>
+      </a>
+      <a href="/logs" class="nav-item ">
+        <i class="ti ti-file-text n-ico"></i>
+        <span class="n-txt">Tizim jurnallari</span>
+      </a>
+      
+    </nav>
+
+    <div class="s-bottom">
+      <a href="/logout" class="s-logout">
+        <i class="ti ti-logout"></i>
+        <span>Chiqish</span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <script>
+    window.toggleSidebar = function() {
+      document.querySelector('.sidebar').classList.toggle('sidebar-open');
+      document.getElementById('sidebarOverlay').classList.toggle('active');
+    };
+    window.closeSidebar = function() {
+      document.querySelector('.sidebar').classList.remove('sidebar-open');
+      document.getElementById('sidebarOverlay').classList.remove('active');
+    };
+    // Menyudagi havolalardan birini bossa — mobil menyu avtomatik yopilsin
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.sidebar .nav-item').forEach(function(el) {
+        el.addEventListener('click', closeSidebar);
+      });
+    });
+  </script>
+
+  
+  <div class="erp-main">
+    
+    <header class="erp-topbar">
+      <div class="tb-left">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menyu">
+          <i class="ti ti-menu-2" style="font-size:18px"></i>
+        </button>
+        <div class="page-title">Omborxona</div>
+        <div class="page-sub">Xomashyo va materiallar qoldig'i</div>
+      </div>
+      <div class="tb-right">
+        <button id="themeToggle" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
+          <i class="ti ti-moon" id="themeIcon" style="font-size:16px"></i>
+        </button>
+        <div id="notifWrap" style="position:relative;margin-right:10px">
+          <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
+            <i class="ti ti-bell" style="font-size:17px"></i>
+            <span id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#EF4444;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px">0</span>
+          </button>
+          <div id="notifPanel" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);max-height:420px;overflow-y:auto;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);z-index:1000">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border2);font-size:13px;font-weight:600;color:var(--text)">Bildirishnomalar</div>
+            <div id="notifList" style="padding:6px 0">
+              <div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklanmoqda...</div>
+            </div>
+          </div>
+        </div>
+        
+<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#B9783F;color:#B9783F"><i class="ti ti-clipboard-list" style="vertical-align:-2px"></i> Ombor hisoboti SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444"><i class="ti ti-bell" style="vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
+
+
+      </div>
+    </header>
+
+    <script>
+    (function() {
+      const NOTIF_BG = { red: '#FEE2E2', orange: '#FEF3C7', green: '#DCFCE7' };
+
+      function applyThemeIcon() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const icon = document.getElementById('themeIcon');
+        if (icon) icon.className = isDark ? 'ti ti-sun' : 'ti ti-moon';
+      }
+      window.toggleTheme = function() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+          document.documentElement.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          localStorage.setItem('theme', 'dark');
+        }
+        applyThemeIcon();
+      };
+      applyThemeIcon();
+
+      function toggleNotifPanel() {
+        const p = document.getElementById('notifPanel');
+        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+      }
+      window.toggleNotifPanel = toggleNotifPanel;
+
+      document.addEventListener('click', function(e) {
+        const wrap = document.getElementById('notifWrap');
+        if (wrap && !wrap.contains(e.target)) document.getElementById('notifPanel').style.display = 'none';
+      });
+
+      fetch('/api/notifications').then(r => r.ok ? r.json() : []).then(items => {
+        const badge = document.getElementById('notifBadge');
+        const list = document.getElementById('notifList');
+        if (!items.length) {
+          list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Bildirishnoma yo\'q</div>';
+          return;
+        }
+        const urgent = items.filter(i => i.level !== 'green').length;
+        if (urgent > 0) {
+          badge.style.display = 'flex';
+          badge.textContent = urgent;
+        }
+        list.innerHTML = items.map(n => `
+          <div style="display:flex;gap:10px;padding:9px 16px;align-items:flex-start">
+            <span style="font-size:14px">${n.icon}</span>
+            <span style="font-size:12.5px;color:var(--text);line-height:1.4">${n.text}</span>
+          </div>`).join('');
+      }).catch(() => {
+        document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklab bo\'lmadi</div>';
+      });
+    })();
+    </script>
+    
+    
 <div style="padding:14px;height:calc(100vh - 58px);overflow-y:auto">
 
   <div class="inv-kpi-grid">
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-boxes"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">{{ kpi.total_items }} tur</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
-    {% if current_user.role.value != 'manager' %}
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ "%.1f"|format(kpi.total_value/1000000) }} mln</div></div>
-    {% endif %}
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-boxes"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">25 tur</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">3 ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">2 marta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">1 marta</div></div>
+    
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">125.0 mln</div></div>
+    
   </div>
 
   <div class="inv-filters">
@@ -99,91 +362,176 @@
       <option value="qty_asc">Qoldiq (kamdan-ko'pga)</option>
       <option value="qty_desc">Qoldiq (ko'pdan-kamga)</option>
     </select>
-    {% if current_user.role.value != 'manager' %}
+    
     <button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()"><i class="ti ti-receipt" style="vertical-align:-2px"></i> Xaridlar tarixi</button>
-    {% endif %}
+    
     <button class="btn btn-outline btn-sm" onclick="openMovements()"><i class="ti ti-history" style="vertical-align:-2px"></i> Ombor harakatlari</button>
   </div>
 
   <span id="low-count" style="display:none"></span>
   <div id="matList">
-    {% set peno_items = [] %}
-    {% set normal_items = [] %}
-    {% set loy_items = [] %}
-    {% for it in items %}
-      {% if 'Tayyor loy' in it.item_name %}
-        {% set _ = loy_items.append(it) %}
-      {% elif it.is_penoplast or 'penoplast' in it.item_name|lower %}
-        {% set _ = peno_items.append(it) %}
-      {% else %}
-        {% set _ = normal_items.append(it) %}
-      {% endif %}
-    {% endfor %}
+    
+    
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
 
-    {% for item in peno_items + normal_items + loy_items %}
-    {% set qty = item.stock_quantity|float %}
-    {% set minq = item.min_stock|float %}
-    {% set pct = [[((qty / minq * 100)|round if minq > 0 else 100), 0]|max, 100]|min %}
-    {% set is_loy = 'Tayyor loy' in item.item_name %}
-    {% set is_peno = item.is_penoplast or 'penoplast' in item.item_name|lower %}
-    {% set cat_label = 'Tayyor loy' if is_loy else (item.category or 'Boshqa') %}
-    {% set cat_class = 'Tayyor' if is_loy else ('Penoplast' if is_peno else (item.category if item.category in ['Kimyoviy qo\'shimchalar','Qattiq qotishmalar','Gips'] else 'Boshqa')) %}
-    {% set cat_css = 'cat-Kimyoviy' if cat_class == "Kimyoviy qo'shimchalar" else ('cat-Qattiq' if cat_class == 'Qattiq qotishmalar' else ('cat-Gips' if cat_class == 'Gips' else 'cat-' + cat_class)) %}
-    {% if qty <= minq %}{% set st = 'danger' %}{% set st_label = 'Tugagan' if qty <= 0 else 'Kam!' %}
-    {% elif qty <= minq * 1.5 %}{% set st = 'warn' %}{% set st_label = 'Oz' %}
-    {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% endif %}
-    <div class="mat-row" style="animation-delay:{{ (loop.index0 % 20) * 0.02 }}s"
-         data-name="{{ item.item_name|lower }}" data-category="{{ item.category or '' }}" data-status="{{ st }}" data-qty="{{ qty }}">
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    <div class="mat-row" style="animation-delay:0.0s"
+         data-name="penoplast 25kg/m3" data-category="Penoplast" data-status="danger" data-qty="12.0">
       <div style="display:flex;gap:10px;align-items:stretch">
         <label class="mat-thumb" title="Rasm yuklash">
-          {% if item.image_url %}<img src="{{ item.image_url }}" alt="">{% else %}<i class="ti ti-flask-2"></i>{% endif %}
-          <input type="file" accept="image/*" onchange="uploadInventoryImage({{ item.id }}, this)">
+          <i class="ti ti-flask-2"></i>
+          <input type="file" accept="image/*" onchange="uploadInventoryImage(2, this)">
         </label>
         <div>
         <div class="mat-name">
-          {{ item.item_name }}
-          {% if item.is_penoplast %}
-            {% if item.is_default_penoplast %}
+          Penoplast 25kg/m3
+          
+            
             <span style="font-size:9px;background:var(--gold);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;margin-left:4px">★ Asosiy</span>
-            {% else %}
-            <button onclick="setDefaultPenoplast({{ item.id }})" style="font-size:9px;background:var(--border2);color:var(--text3);padding:2px 7px;border-radius:10px;border:none;cursor:pointer;margin-left:4px" title="Asosiy qilish">☆ Asosiy qilish</button>
-            {% endif %}
-          {% endif %}
+            
+          
         </div>
-        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% elif 'bazalt' in item.item_name|lower and 'kley' not in item.item_name|lower and 'serpiyank' not in item.item_name|lower %} · {{ item.volume_per_unit or 0.72 }} m²/dona{% elif 'serpiyank' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} metr/rulon{% elif 'gips' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} kg/qop{% endif %}</div>
-        <span class="cat-badge {{ cat_css }}" onclick="editCategory(this)" data-id="{{ item.id }}" data-category="{{ item.category or '' }}" style="cursor:pointer" title="O'zgartirish">{{ cat_label }}</span>
+        <div class="mat-sub">blok · 1.2 m³/blok</div>
+        <span class="cat-badge cat-Penoplast" onclick="editCategory(this)" data-id="2" data-category="Penoplast" style="cursor:pointer" title="O'zgartirish">Penoplast</span>
         </div>
       </div>
       <div>
-        <div class="mat-qty-val" style="color:{% if st=='danger' %}#DC2626{% elif st=='warn' %}#B45309{% else %}var(--text){% endif %}">{{ "%.1f"|format(qty) }} {{ item.unit }}</div>
-        <div class="stock-bar" style="margin-top:6px"><div class="stock-fill {{ st if st != 'ok' else '' }}" style="width:{{ pct }}%"></div></div>
+        <div class="mat-qty-val" style="color:#DC2626">12.0 blok</div>
+        <div class="stock-bar" style="margin-top:6px"><div class="stock-fill danger" style="width:60.0%"></div></div>
       </div>
-      <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">{{ item.min_stock }} {{ item.unit }}</div>
-      <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
+      <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">20 blok</div>
+      <div><span class="stat-badge danger">Kam!</span></div>
       <div class="mat-col-updated" style="font-size:13.5px;color:var(--text3)">
-        {% if current_user.role.value != 'manager' %}
-        <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(",", " ") if item.price_per_unit else "—" }} so'm</span>
-        <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
-        {% if 'bazalt' in item.item_name|lower and 'kley' not in item.item_name|lower and 'serpiyank' not in item.item_name|lower %}
-        <button class="btn btn-outline btn-xs" onclick="editBazaltRatios({{ item.id }}, {{ item.serp_ratio_per_m2 or 2.0 }}, {{ item.kley_ratio_per_m2 or 0.8 }})" title="Serpiyanka/Kley nisbatini tuzatish" style="margin-left:4px;border-color:#C4B5FD;color:#6D28D9">🧱</button>
-        <button class="btn btn-outline btn-xs" onclick="editBazaltVolume({{ item.id }}, {{ item.volume_per_unit or 0.72 }})" title="1 dona necha m² ekanini tuzatish" style="margin-left:4px;border-color:#93C5FD;color:#1D4ED8">📐</button>
-        {% elif 'serpiyank' in item.item_name|lower %}
-        <button class="btn btn-outline btn-xs" onclick="editSerpiyankaVolume({{ item.id }}, {{ item.volume_per_unit or 50.0 }})" title="1 rulon necha metr ekanini tuzatish" style="margin-left:4px;border-color:#93C5FD;color:#1D4ED8">📐</button>
-        {% elif 'gips' in item.item_name|lower %}
-        <button class="btn btn-outline btn-xs" onclick="editGipsSackWeight({{ item.id }}, {{ item.volume_per_unit or 50.0 }})" title="1 qop necha kg ekanini tuzatish" style="margin-left:4px;border-color:#93C5FD;color:#1D4ED8">📐</button>
-        {% endif %}
-        {% else %}
-        <span style="color:var(--text3)">—</span>
-        {% endif %}
+        
+        <span id="price-2">45 000 so'm</span>
+        <button class="btn btn-outline btn-xs" onclick="editPrice(2, 45000)" title="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
+        
+        
       </div>
       <div class="mat-actions">
-        {% if current_user.role.value == 'admin' %}
-        <button class="act-btn out" onclick="openChiqimModal({{ item.id }}, '{{ item.item_name|replace("'", "\\'") }}', '{{ item.unit }}', {{ qty }})" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
-        <button class="act-btn danger" onclick="deleteItem({{ item.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
-        {% endif %}
+        
+        <button class="act-btn out" onclick="openChiqimModal(2, 'Penoplast 25kg/m3', 'blok', 12.0)" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
+        <button class="act-btn danger" onclick="deleteItem(2)" title="O'chirish"><i class="ti ti-trash"></i></button>
+        
       </div>
     </div>
-    {% endfor %}
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    <div class="mat-row" style="animation-delay:0.02s"
+         data-name="kvarts qum" data-category="Penoplast" data-status="ok" data-qty="450.0">
+      <div style="display:flex;gap:10px;align-items:stretch">
+        <label class="mat-thumb" title="Rasm yuklash">
+          <i class="ti ti-flask-2"></i>
+          <input type="file" accept="image/*" onchange="uploadInventoryImage(1, this)">
+        </label>
+        <div>
+        <div class="mat-name">
+          Kvarts qum
+          
+        </div>
+        <div class="mat-sub">kg</div>
+        <span class="cat-badge cat-Boshqa" onclick="editCategory(this)" data-id="1" data-category="Penoplast" style="cursor:pointer" title="O'zgartirish">Penoplast</span>
+        </div>
+      </div>
+      <div>
+        <div class="mat-qty-val" style="color:var(--text)">450.0 kg</div>
+        <div class="stock-bar" style="margin-top:6px"><div class="stock-fill " style="width:100%"></div></div>
+      </div>
+      <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">100 kg</div>
+      <div><span class="stat-badge ok">Yetarli</span></div>
+      <div class="mat-col-updated" style="font-size:13.5px;color:var(--text3)">
+        
+        <span id="price-1">3 500 so'm</span>
+        <button class="btn btn-outline btn-xs" onclick="editPrice(1, 3500)" title="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
+        
+        
+      </div>
+      <div class="mat-actions">
+        
+        <button class="act-btn out" onclick="openChiqimModal(1, 'Kvarts qum', 'kg', 450.0)" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
+        <button class="act-btn danger" onclick="deleteItem(1)" title="O'chirish"><i class="ti ti-trash"></i></button>
+        
+      </div>
+    </div>
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    <div class="mat-row" style="animation-delay:0.04s"
+         data-name="pva" data-category="Kimyoviy qo&#39;shimchalar" data-status="danger" data-qty="8.0">
+      <div style="display:flex;gap:10px;align-items:stretch">
+        <label class="mat-thumb" title="Rasm yuklash">
+          <i class="ti ti-flask-2"></i>
+          <input type="file" accept="image/*" onchange="uploadInventoryImage(3, this)">
+        </label>
+        <div>
+        <div class="mat-name">
+          PVA
+          
+        </div>
+        <div class="mat-sub">kg</div>
+        <span class="cat-badge cat-Kimyoviy" onclick="editCategory(this)" data-id="3" data-category="Kimyoviy qo&#39;shimchalar" style="cursor:pointer" title="O'zgartirish">Kimyoviy qo&#39;shimchalar</span>
+        </div>
+      </div>
+      <div>
+        <div class="mat-qty-val" style="color:#DC2626">8.0 kg</div>
+        <div class="stock-bar" style="margin-top:6px"><div class="stock-fill danger" style="width:53.0%"></div></div>
+      </div>
+      <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">15 kg</div>
+      <div><span class="stat-badge danger">Kam!</span></div>
+      <div class="mat-col-updated" style="font-size:13.5px;color:var(--text3)">
+        
+        <span id="price-3">12 000 so'm</span>
+        <button class="btn btn-outline btn-xs" onclick="editPrice(3, 12000)" title="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
+        
+        
+      </div>
+      <div class="mat-actions">
+        
+        <button class="act-btn out" onclick="openChiqimModal(3, 'PVA', 'kg', 8.0)" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
+        <button class="act-btn danger" onclick="deleteItem(3)" title="O'chirish"><i class="ti ti-trash"></i></button>
+        
+      </div>
+    </div>
+    
   </div>
   <div id="emptyFilter" style="display:none;text-align:center;padding:40px;color:var(--text3)">Hech narsa topilmadi</div>
 </div>
@@ -239,9 +587,12 @@
     </div>
   </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
+  </div>
+
+</div>
+
+
 <script>
 // SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
 // turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
@@ -622,4 +973,48 @@ function filterMaterials() {
 const low = document.querySelectorAll('.stat-badge.danger').length;
 if(low>0) document.getElementById('low-count').textContent = low+' ta kam!';
 </script>
-{% endblock %}
+
+
+<script>
+// ══ UMUMIY: matn maydonlarining birinchi harfini avtomatik katta qilish ══
+// Butun tizimda, HAR BIR sahifada ishlaydi (bitta joyda yozilgan).
+// Faqat foydalanuvchi maydondan CHIQQANDA (blur) ishlaydi — yozayotganda
+// emas, aks holda kursor pozitsiyasi buzilib, yozishga xalaqit berardi.
+(function() {
+  function shouldSkip(el) {
+    if (!el || el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return true;
+    if (el.tagName === 'INPUT' && el.type !== 'text') return true;  // faqat oddiy matn maydonlari
+    if (el.dataset.noCapitalize !== undefined) return true;         // qo'lda o'chirish imkoni
+    if (el.type === 'search') return true;
+    const id = (el.id || '').toLowerCase();
+    const cls = (el.className || '').toLowerCase();
+    // Qidiruv/filtr va narx/son maydonlarini o'tkazib yuboramiz
+    if (id.includes('search') || id.includes('qidir') || cls.includes('search')) return true;
+    if (id.includes('price') || id.includes('narx') || cls.includes('price')) return true;
+    return false;
+  }
+
+  function capitalizeFirst(val) {
+    if (!val) return val;
+    // Faqat BIRINCHI harfni katta qilamiz, qolganiga tegmaymiz —
+    // aks holda qisqartmalar (masalan "sm", "kg") buzilib qolardi.
+    return val.charAt(0).toUpperCase() + val.slice(1);
+  }
+
+  document.addEventListener('blur', function(e) {
+    const el = e.target;
+    if (shouldSkip(el)) return;
+    const newVal = capitalizeFirst(el.value);
+    if (newVal !== el.value) {
+      el.value = newVal;
+      // React/Vue kabi frameworklar uchun emas, oddiy JS uchun — o'zgarish
+      // event'ini qo'lda chaqiramiz, aks holda ba'zi "oninput" handlerlar
+      // yangi qiymatni sezmasligi mumkin edi.
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }, true);  // "capture" rejimida — barcha maydonlarni ushlab qolish uchun
+})();
+</script>
+
+</body>
+</html>
