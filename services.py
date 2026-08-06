@@ -3165,6 +3165,12 @@ def return_termopanel_for_item(db: Session, item, sign: float = 1.0) -> list:
     log = []
     if (item.category or '').lower() != 'termopanel' or not item.notes:
         return log
+    # VAQTINCHALIK DEBUG — o'chirishda xomashyo nega qaytayotganini aniqlash
+    _has_marker = '[TERMO:' in (item.notes or '')
+    print(f"🔍 RETURN_TERMO: name={getattr(item,'name','?')}, fpid={getattr(item,'finished_product_id',None)}, has_TERMO_marker={_has_marker}, notes={(item.notes or '')[:80]}")
+    if getattr(item, 'finished_product_id', None):
+        print(f"   → SKIP (tayyor mahsulot)")
+        return log
     m = _re.search(r'\[TERMO:([^\]]+)\]', item.notes)
     if not m:
         return log
