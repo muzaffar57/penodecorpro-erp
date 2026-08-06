@@ -128,41 +128,79 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
     el.append(Paragraph("<b>Sotilgan mahsulotlar</b>", st_norm))
     el.append(Spacer(1, 5))
 
+    # ── "Yo'l B": har detal O'Z ASL narxida ko'rinadi (chegirmasiz). ──
+    # DB'da total_amount chegirilgan (moliya uchun), asl summa esa
+    # original_total'da. Eski (chegirmasiz) yozuvlarda original_total bo'sh —
+    # o'shanda total_amount'ning o'zini ishlatamiz.
     data = [["№", "Mahsulot nomi", "Miqdor", "Birlik narxi", "Summa"]]
-    grand_total = 0.0
+    orig_grand_total = 0.0
+    agreed_grand_total = 0.0
     for i, s in enumerate(sales, 1):
+        row_orig = float(s.original_total if s.original_total is not None else (s.total_amount or 0))
         data.append([
             str(i), s.product_name or "—",
             f"{_num(s.quantity)} {s.unit}",
             _fmt(s.unit_price),
-            _fmt(s.total_amount),
+            _fmt(row_orig),
         ])
-        grand_total += float(s.total_amount or 0)
-    data.append(["", "", "", "JAMI:", _fmt(grand_total)])
+        orig_grand_total += row_orig
+        agreed_grand_total += float(s.total_amount or 0)
 
-    tbl = Table(data, colWidths=[0.9*cm, 7.5*cm, 3.2*cm, 3*cm, 3*cm], repeatRows=1)
-    tbl.setStyle(TableStyle([
+    # Chegirma bormi? (kelishilgan < asl jami)
+    disc_pct = getattr(sales[0], "group_discount_percent", None) or 0
+    has_discount = (disc_pct and disc_pct > 0) and (orig_grand_total - agreed_grand_total > 0.5)
+    discount_amount = orig_grand_total - agreed_grand_total
+
+    # Jami qatori (asl jami — barcha holatda ko'rinadi)
+    data.append(["", "", "", "Jami:", _fmt(orig_grand_total)])
+    summary_start = len(data) - 1  # birinchi summary qator indeksi
+    if has_discount:
+        data.append(["", "", "", f"Chegirma ({_num(disc_pct)}%):", "− " + _fmt(discount_amount)])
+        data.append(["", "", "", "Kelishilgan summa:", _fmt(agreed_grand_total)])
+
+    tbl = Table(data, colWidths=[0.9*cm, 7.5*cm, 3.2*cm, 3.5*cm, 2.5*cm], repeatRows=1)
+    n_rows = len(data)
+    last = n_rows - 1
+    style = [
         ('BACKGROUND', (0, 0), (-1, 0), DARK),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 8.5),
-        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -2), 9),
-        ('TEXTCOLOR', (0, 1), (-1, -2), DARK),
+        ('FONTNAME', (0, 1), (-1, summary_start - 1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, summary_start - 1), 9),
+        ('TEXTCOLOR', (0, 1), (-1, summary_start - 1), DARK),
         ('ALIGN', (0, 0), (0, -1), 'CENTER'),
         ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
         ('ALIGN', (3, 1), (4, -1), 'RIGHT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('GRID', (0, 0), (-1, -2), 0.4, colors.HexColor("#E5E1D8")),
+        ('GRID', (0, 0), (-1, summary_start - 1), 0.4, colors.HexColor("#E5E1D8")),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#F0EBE0")),
-        ('FONTNAME', (3, -1), (4, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (3, -1), (4, -1), 10),
-        ('TEXTCOLOR', (4, -1), (4, -1), GOLD),
-        ('LINEABOVE', (0, -1), (-1, -1), 1.2, DARK),
-        ('SPAN', (0, -1), (2, -1)),
-    ]))
+        # Summary qatorlari uchun umumiy fon va chap ustunlarni birlashtirish
+        ('BACKGROUND', (0, summary_start), (-1, -1), colors.HexColor("#F0EBE0")),
+        ('SPAN', (0, summary_start), (2, summary_start)),
+        ('FONTNAME', (3, summary_start), (4, summary_start), 'Helvetica-Bold'),
+        ('FONTSIZE', (3, summary_start), (4, summary_start), 10),
+        ('LINEABOVE', (0, summary_start), (-1, summary_start), 1.2, DARK),
+    ]
+    if has_discount:
+        # Chegirma qatori (summary_start+1) va Kelishilgan (summary_start+2 = last)
+        style += [
+            ('SPAN', (0, summary_start + 1), (2, summary_start + 1)),
+            ('SPAN', (0, last), (2, last)),
+            ('FONTNAME', (3, summary_start + 1), (4, summary_start + 1), 'Helvetica'),
+            ('FONTSIZE', (3, summary_start + 1), (4, summary_start + 1), 9.5),
+            ('TEXTCOLOR', (3, summary_start + 1), (4, summary_start + 1), colors.HexColor("#B91C1C")),
+            ('FONTNAME', (3, last), (4, last), 'Helvetica-Bold'),
+            ('FONTSIZE', (3, last), (4, last), 11),
+            ('TEXTCOLOR', (4, last), (4, last), GOLD),
+            ('LINEABOVE', (3, last), (4, last), 0.8, DARK),
+        ]
+    else:
+        # Chegirma yo'q — Jami qatori yakuniy summa (GOLD)
+        style += [('TEXTCOLOR', (4, summary_start), (4, summary_start), GOLD)]
+
+    tbl.setStyle(TableStyle(style))
     el.append(tbl)
     el.append(Spacer(1, 14))
 
