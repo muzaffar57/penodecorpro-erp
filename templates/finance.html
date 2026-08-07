@@ -805,8 +805,8 @@ function buildExpDetail(d){
   // ── Turlar bo'yicha daromad taqsimoti ──
   if (d.turlar_boyicha && (d.turlar_boyicha.gips.daromad > 0 || d.turlar_boyicha.penoplast.daromad > 0)) {
     const tb = d.turlar_boyicha;
-    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">🏭 Penoplast (va boshqa)</span><span class="fin-exp-group-row-val">${fmtFull(tb.penoplast.daromad)} so'm</span></div>`;
-    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">🧱 Gips</span><span class="fin-exp-group-row-val">${fmtFull(tb.gips.daromad)} so'm</span></div>`;
+    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">🏭 Penoplast (va boshqa)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(tb.penoplast.daromad)} so'm</span></div>`;
+    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">🧱 Gips</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(tb.gips.daromad)} so'm</span></div>`;
     if (tb.gips.qoshimcha_xarajat > 0) {
       rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Gips uchun qo'shimcha xarajat</span><span class="fin-exp-group-row-val">-${fmtFull(tb.gips.qoshimcha_xarajat)} so'm</span></div>`;
     }
@@ -819,8 +819,8 @@ function buildExpDetail(d){
 
   // ── Tayyor mahsulot to'g'ridan-to'g'ri sotuvi ──
   if (d.fp_sales_daromad > 0) {
-    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">Sotildi (${d.fp_sales_soni} marta)</span><span class="fin-exp-group-row-val">${fmtFull(d.fp_sales_daromad)} so'm</span></div>`;
-    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Sof foyda (tan narxsiz)</span><span class="fin-exp-group-row-val">${fmtFull(d.fp_sales_foyda)} so'm</span></div>`;
+    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">Sotildi (${d.fp_sales_soni} marta)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(d.fp_sales_daromad)} so'm</span></div>`;
+    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Sof foyda (tan narxsiz)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(d.fp_sales_foyda)} so'm</span></div>`;
     groupsHtml += expGroup('💰', "Tayyor mahsulot to'g'ridan-to'g'ri sotuvi", rowsHtml, d.fp_sales_daromad);
   }
 
