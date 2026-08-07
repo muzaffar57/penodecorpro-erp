@@ -63,9 +63,9 @@
 .fp-sec-line{flex:1;height:1px}
 /* Qoplama — Yo'q/Bor tugmasi */
 .coat-toggle{display:flex;border:1px solid var(--border2);border-radius:9px;overflow:hidden;height:38px}
-.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:600;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
-.coat-opt.coat-no.active{background:#FEE2E2;color:#DC2626}
-.coat-opt.coat-yes.active{background:#DCFCE7;color:#16A34A}
+.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
+.coat-opt.coat-no.active{background:#FCA5A5;color:#7F1D1D}
+.coat-opt.coat-yes.active{background:#86EFAC;color:#14532D}
 /* Tur — tugma-chip guruhi (dropdown o'rniga) */
 .type-toggle{display:flex;flex-wrap:wrap;gap:6px}
 .type-opt{
@@ -395,6 +395,36 @@
   </div>
 </div>
 
+<!-- Universal chiroyli "confirm" modali — native confirm() o'rniga -->
+<div id="ccModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div id="cc-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:10px">—</div>
+    <div id="cc-message" style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:18px"></div>
+    <div style="display:flex;gap:8px">
+      <button id="cc-cancel" class="btn btn-outline" style="flex:1" onclick="_ccResolveWith(false)">Bekor</button>
+      <button id="cc-ok" class="btn btn-dark" style="flex:1;background:var(--gold);border-color:var(--gold)" onclick="_ccResolveWith(true)">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mahsulotni o'chirish — 3 variantli maxsus modal (native ikki bosqichli confirm o'rniga) -->
+<div id="delFpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div id="delfp-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:6px">—</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:18px">Xomashyo bilan bog'liq bu amalni tanlang:</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-outline" style="width:100%;text-align:left;padding:12px 14px" onclick="_delFpResolveWith('return')">
+        <div style="font-weight:600;color:var(--text)">↩️ O'chirish va xomashyoni omborga qaytarish</div>
+        <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Ishlatilgan Penoplast/loy ombor hisobiga qaytariladi</div>
+      </button>
+      <button class="btn btn-outline" style="width:100%;text-align:left;padding:12px 14px" onclick="_delFpResolveWith('no-return')">
+        <div style="font-weight:600;color:#DC2626">🗑️ O'chirish, xomashyo qaytarilmasin</div>
+        <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Masalan brak/singan bo'lsa</div>
+      </button>
+      <button class="btn btn-outline" style="width:100%;margin-top:4px" onclick="_delFpResolveWith(null)">Bekor qilish</button>
+    </div>
+  </div>
+</div>
 <!-- ══ ISHLAB CHIQARISH MODALI ══ -->
 <div id="prodModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
@@ -619,6 +649,44 @@ function fmt(n) {
 }
 function parseNum(s) {
   return parseFloat(String(s || '').replace(/\s/g, '')) || 0;
+}
+
+// Universal chiroyli "confirm" — native confirm() o'rniga. Promise qaytaradi:
+// OK bossa — true, Bekor/Esc bossa — false.
+// Ishlatilishi: if (!(await customConfirm('Sarlavha', 'Xabar matni'))) return;
+let _ccResolve = null;
+function customConfirm(title, message, opts) {
+  opts = opts || {};
+  return new Promise(resolve => {
+    _ccResolve = resolve;
+    document.getElementById('cc-title').textContent = title;
+    document.getElementById('cc-message').innerHTML = String(message).replace(/\n/g, '<br>');
+    const okBtn = document.getElementById('cc-ok');
+    okBtn.textContent = opts.okText || 'OK';
+    okBtn.style.background = opts.danger ? '#EF4444' : 'var(--gold)';
+    okBtn.style.borderColor = opts.danger ? '#EF4444' : 'var(--gold)';
+    document.getElementById('cc-cancel').textContent = opts.cancelText || 'Bekor';
+    document.getElementById('ccModal').style.display = 'flex';
+  });
+}
+function _ccResolveWith(val) {
+  document.getElementById('ccModal').style.display = 'none';
+  if (_ccResolve) { _ccResolve(val); _ccResolve = null; }
+}
+
+// Mahsulot o'chirish — 3 variantli tanlash. Promise qaytaradi:
+// 'return' (qaytarilsin), 'no-return' (qaytarilmasin), yoki null (bekor).
+let _delFpResolve = null;
+function confirmDeleteFp(itemName) {
+  return new Promise(resolve => {
+    _delFpResolve = resolve;
+    document.getElementById('delfp-title').textContent = `${itemName} — o'chirilsinmi?`;
+    document.getElementById('delFpModal').style.display = 'flex';
+  });
+}
+function _delFpResolveWith(val) {
+  document.getElementById('delFpModal').style.display = 'none';
+  if (_delFpResolve) { _delFpResolve(val); _delFpResolve = null; }
 }
 function formatPriceInput(el) {
   const v = el.value.replace(/\s/g, '');
@@ -998,7 +1066,7 @@ async function addProduction(id, qty, item) {
     (addLoy > 0 ? `🧱 Loy: ${addLoy.toFixed(1)} kg\n` : '') +
     `\n✅ Natija: ${(item.quantity + qty)} ${item.unit}`;
 
-  if (!confirm(txt)) return;
+  if (!(await customConfirm(`${item.name} — qo'shish`, txt))) return;
 
   try {
     const res = await fetch(`/api/finished/${id}/add`, {
@@ -1029,7 +1097,7 @@ async function reduceProduction(id, qty, item) {
     `• Yo'qotilgan qiymat: ${fmt(lost)} so'm\n\n` +
     `📊 Qoladi: ${(item.quantity - qty).toFixed(1)} ${item.unit}`;
 
-  if (!confirm(txt)) return;
+  if (!(await customConfirm(`${item.name} — brak/kamaytirish`, txt, {danger: true, okText: 'Ha, brak'}))) return;
 
   const reason = prompt('Sabab (ixtiyoriy):\n\nMasalan: singan, brak, yo\'qolgan', '');
   if (reason === null) return;
@@ -1449,10 +1517,11 @@ async function delFp(id, source) {
   const hasReturnableMaterial = (source === 'produced' && item.volume_m3 > 0) ||
                                  (item.category === 'gips' && item.gips_kg_used > 0);
   if (hasReturnableMaterial) {
-    back = confirm(`${item.name} o'chirilsinmi?\n\nOK — xomashyo omborga QAYTARILADI\nBekor — quyidagi savolga o'ting`);
-    if (!back && !confirm(`${item.name} xomashyo qaytarilmasdan o'chirilsinmi?`)) return;
+    const choice = await confirmDeleteFp(item.name);
+    if (choice === null) return;
+    back = (choice === 'return');
   } else {
-    if (!confirm(`${item.name} o'chirilsinmi?`)) return;
+    if (!(await customConfirm(`${item.name} — o'chirish`, `${item.name} o'chirilsinmi?`, {danger: true, okText: "Ha, o'chirish"}))) return;
   }
 
   try {
@@ -1939,11 +2008,13 @@ async function saveProduce() {
   // ayirilmasdan mahsulot yaratilib, ombor hisobini buzardi. Endi
   // oldindan ogohlantiramiz.
   if (data.recipe_id && (!data.loy_kg || data.loy_kg <= 0)) {
-    const ok = confirm(
-      "⚠ Diqqat: Retsept tanlangan, lekin LOY MIQDORI kiritilmagan (0).\n\n" +
+    const ok = await customConfirm(
+      "Diqqat — Loy miqdori kiritilmagan",
+      "Retsept tanlangan, lekin LOY MIQDORI kiritilmagan (0).\n\n" +
       "Bu holatda qoplama uchun xomashyo (Akril va h.k.) OMBORDAN AYIRILMAYDI.\n\n" +
       "Agar bu ataylab bo'lsa (masalan faqat Penoplast, qoplamasiz) — davom eting.\n" +
-      "Aks holda — Bekor qiling va loy miqdorini kiriting."
+      "Aks holda — Bekor qiling va loy miqdorini kiriting.",
+      {danger: true, okText: 'Davom etish'}
     );
     if (!ok) return;
   }
@@ -1982,11 +2053,10 @@ async function markReady(id) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
 
-  const txt = `${item.name} sotuvga tayyor deb belgilansinmi?\n\n` +
-    `📦 ${item.quantity} ${item.unit}\n\n` +
+  const txt = `📦 ${item.quantity} ${item.unit}\n\n` +
     `Xomashyo allaqachon yechilgan — bu faqat holat o'zgarishi.`;
 
-  if (!confirm(txt)) return;
+  if (!(await customConfirm(`${item.name} — sotuvga tayyor`, txt))) return;
 
   try {
     const res = await fetch(`/api/finished/${id}/complete`, { method: 'POST' });
