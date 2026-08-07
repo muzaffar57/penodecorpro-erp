@@ -1129,8 +1129,8 @@ function addGpAdditive() {
   row.className = 'gp-add-row';
   row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
   row.innerHTML = `
-    <select class="gp-add-inv" onchange="onGpAdditiveChange(this)" style="flex:2;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px"><option value="">— Material tanlang —</option>${opts}</select>
-    <input type="number" class="gp-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px">
+    <select class="gp-add-inv" onchange="onGpAdditiveChange(this)" style="flex:2;min-width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px;text-overflow:ellipsis"><option value="">— Material tanlang —</option>${opts}</select>
+    <input type="number" class="gp-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;min-width:0;width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px">
     <button type="button" onclick="this.closest('.gp-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
   `;
   list.appendChild(row);
