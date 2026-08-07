@@ -2865,7 +2865,7 @@ function toggleFields(row) {
   } else if (type === 'blok') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none';
-    lW.style.display = 'block';   // 1 blokdan chiqadigan metr (taxminan)
+    lW.style.display = 'block';   // 1 blokdan chiqadigan metr
     qW.style.display = 'block';   // Necha metr kerak
     if (upW) upW.style.display = 'none';
     if (bpW) bpW.style.display = 'block';
@@ -2936,7 +2936,7 @@ function toggleFields(row) {
   }
   const lLabel = row.querySelector('.i-l-label');
   if (lLabel) {
-    lLabel.textContent = (type === 'blok') ? "1 blokdan chiqadigan metr (taxminan)" : 'Uzunlik (m)';
+    lLabel.textContent = (type === 'blok') ? "1 blokdan chiqadigan metr" : 'Uzunlik (m)';
   }
   const upLabel = row.querySelector('.i-unitprice-label');
   if (upLabel) {
