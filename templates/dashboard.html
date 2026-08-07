@@ -784,14 +784,10 @@ function buildOrdersCountChart(months){
 
 function buildRevenueOnlyChart(months){
   if(window._rvC) window._rvC.destroy();
-  const ctx = document.getElementById('revenueOnlyChart').getContext('2d');
-  const grad = ctx.createLinearGradient(0,0,0,180);
-  grad.addColorStop(0, 'rgba(185,120,63,.3)');
-  grad.addColorStop(1, 'rgba(185,120,63,0)');
-  window._rvC = new Chart(ctx, {
-    type:'line',
+  window._rvC = new Chart(document.getElementById('revenueOnlyChart').getContext('2d'), {
     data:{labels:months.map(m=>m.label), datasets:[
-      {data:months.map(m=>m.revenue), borderColor:COLORS.gold, backgroundColor:grad, fill:true, tension:.4, borderWidth:2.5, pointRadius:3, pointBackgroundColor:COLORS.gold}
+      {type:'bar', label:'Daromad', data:months.map(m=>m.revenue), backgroundColor:'#F8F2EB', borderRadius:6, maxBarThickness:28},
+      {type:'line', label:'Daromad', data:months.map(m=>m.revenue), borderColor:COLORS.gold, backgroundColor:COLORS.gold, fill:false, tension:.4, borderWidth:2.5, pointRadius:3, pointBackgroundColor:COLORS.gold}
     ]},
     options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
       scales:{y:{beginAtZero:true, grid:{color:'#F0ECE6'}, ticks:{callback:v=>fmt(v)}}, x:{grid:{display:false}}}}
