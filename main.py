@@ -3640,6 +3640,8 @@ except Exception as e:
     print(f"⚠ Backup rejalashtiruvchisini ishga tushirib bo'lmadi: {e}")
 
 
+# Deploy-trigger: kesh/eskirgan holatni tozalash uchun yangi build (2026-08-07)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
