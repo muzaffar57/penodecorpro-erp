@@ -1759,11 +1759,11 @@ function pToggle() {
   } else if (type === 'blok') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none';
-    lW.style.display = 'block';   // 1 blokdan chiqadigan metr (taxminan)
+    lW.style.display = 'block';   // 1 blokdan chiqadigan metr
     qW.style.display = 'block';   // Necha metr kerak
     upW.style.display = 'none';
     m3Wrap.style.display = 'none';  // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
-    document.getElementById('p-l-label').textContent = "1 blokdan chiqadigan metr (taxminan)";
+    document.getElementById('p-l-label').textContent = "1 blokdan chiqadigan metr";
     document.getElementById('p-q-label').textContent = "Necha metr kerak";
     const tEl = document.getElementById('p-t'); if(tEl) tEl.value = '';
     window._blokBase = '';
