@@ -885,7 +885,7 @@ def get_today_stats(db: Session) -> Dict:
     - Ishlayotgan ustalar: hozir faol buyurtmasi bor noyob ustalar soni
     - Sof foyda (bugun): bugun yakunlangan (completed_at) buyurtmalar bo'yicha calculate_order_profit yig'indisi
     """
-    from models import Order, OrderStatus, Master, Payment
+    from models import Order, OrderStatus, Master, Payment, FinishedProductSale, FinishedProduct
     from sqlalchemy import func
     from datetime import datetime, timedelta
 
@@ -943,6 +943,25 @@ def get_today_stats(db: Session) -> Dict:
                     today_gips_revenue += share
                 else:
                     today_penoplast_revenue += share
+
+    # ── Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
+    # sotilganlar — avval bu "Bugungi" statistikada hisobga olinmasdi. ──
+    fp_sales_today = db.query(FinishedProductSale).outerjoin(
+        FinishedProduct, FinishedProductSale.finished_product_id == FinishedProduct.id
+    ).filter(
+        FinishedProductSale.sold_at >= today_start,
+        FinishedProductSale.sold_at < today_end
+    ).all()
+    for s in fp_sales_today:
+        s_total = float(s.total_amount or 0)
+        s_cost = float(s.cost_amount or 0)
+        today_revenue += s_total
+        today_profit += (s_total - s_cost)
+        cat = (s.finished_product.category if s.finished_product else '') or ''
+        if cat.lower() == 'gips':
+            today_gips_revenue += s_total
+        else:
+            today_penoplast_revenue += s_total
 
     return {
         "today_revenue": float(today_revenue),
