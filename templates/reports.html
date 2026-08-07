@@ -190,7 +190,13 @@
       <div class="bi-card bi-fade">
         <div class="bi-card-body">
           <div class="bi-section-title" style="margin-bottom:12px">Xarajat tarkibi</div>
-          <div class="bi-chart-sm"><canvas id="expenseDonut"></canvas></div>
+          <div class="bi-chart-sm" style="position:relative">
+            <canvas id="expenseDonut"></canvas>
+            <div id="donutCenterLabel" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;display:none">
+              <div style="font-size:10px;color:var(--b-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">Jami</div>
+              <div id="donutCenterValue" style="font-size:16px;font-weight:800;color:var(--b-text)">—</div>
+            </div>
+          </div>
           <div id="donutLegend" style="margin-top:10px"></div>
         </div>
       </div>
@@ -390,13 +396,12 @@ async function loadCharts(){
 
   if (mainChartInst) mainChartInst.destroy();
   mainChartInst = new Chart(document.getElementById('mainTrendChart'), {
-    type: 'line',
     data: {
       labels: hist.map(h => MONTH_NAMES[h.month]+" '"+String(h.year).slice(2)),
       datasets: [
-        { label:'Daromad', data:hist.map(h=>h.daromad), borderColor:'#B9783F', backgroundColor:'rgba(185,120,63,.07)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
-        { label:'Xarajat', data:hist.map(h=>h.jami_xarajat), borderColor:'#EF4444', backgroundColor:'rgba(239,68,68,.05)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2 },
-        { label:'Sof foyda', data:hist.map(h=>h.sof_foyda), borderColor:'#22C55E', backgroundColor:'rgba(34,197,94,.05)', fill:true, tension:.35, pointRadius:0, pointHoverRadius:5, borderWidth:2.5 },
+        { type:'bar', label:'Daromad', data:hist.map(h=>h.daromad), backgroundColor:'#B9783F', borderRadius:5, maxBarThickness:26 },
+        { type:'bar', label:'Xarajat', data:hist.map(h=>h.jami_xarajat), backgroundColor:'#FCA5A5', borderRadius:5, maxBarThickness:26 },
+        { type:'line', label:'Sof foyda', data:hist.map(h=>h.sof_foyda), borderColor:'#16A34A', backgroundColor:'#16A34A', tension:.3, borderWidth:3, pointRadius:4, pointHoverRadius:6, pointBackgroundColor:'#fff', pointBorderColor:'#16A34A', pointBorderWidth:2.5, fill:false },
       ]
     },
     options: {
@@ -445,6 +450,8 @@ async function loadCharts(){
   // get_monthly_report() dan kelgan aniq kategoriyalar)
   const cur = hist.length ? hist[hist.length-1] : null;
   const donutEl = document.getElementById('donutLegend');
+  const centerLabelEl = document.getElementById('donutCenterLabel');
+  const centerValueEl = document.getElementById('donutCenterValue');
   if (donutChartInst) donutChartInst.destroy();
   if (cur) {
     const x = cur.xarajatlar || {};
@@ -459,6 +466,7 @@ async function loadCharts(){
     ].filter(e => e[1] > 0);
     if (!entries.length) {
       donutEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--b-text3);font-size:12.5px">Bu oyda xarajat qayd etilmagan</div>';
+      centerLabelEl.style.display = 'none';
       return;
     }
     donutChartInst = new Chart(document.getElementById('expenseDonut'), {
@@ -470,6 +478,8 @@ async function loadCharts(){
     });
     const total = entries.reduce((s,e)=>s+e[1],0)||1;
     donutEl.innerHTML = entries.map(([n,v,c])=>`<div class="bi-legend-row"><span class="bi-legend-dot" style="background:${c}"></span><span class="bi-legend-name">${n}</span><span class="bi-legend-pct">${(v/total*100).toFixed(0)}%</span></div>`).join('');
+    centerLabelEl.style.display = 'block';
+    centerValueEl.textContent = fmtShort(total);
   }
 
   // Pul oqimi bar
