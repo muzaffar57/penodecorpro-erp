@@ -2336,6 +2336,17 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
             else:
                 penoplast_daromad += share
 
+    # Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
+    # sotilganlar — shu yuqoridagi fp_sales ro'yxatidan, kategoriyasi
+    # bo'yicha taqsimlanadi (avval bu grafikda hisobga olinmasdi).
+    for s in fp_sales:
+        s_total = float(s.total_amount or 0)
+        cat = (s.finished_product.category if s.finished_product else '') or ''
+        if cat.lower() == 'gips':
+            gips_daromad += s_total
+        else:
+            penoplast_daromad += s_total
+
     # Xarajat — "Xarajat qo'shish"da yo'nalish belgilangan tranzaksiyalar
     # (Umumiy/Penoplast/Gips), shu oy uchun.
     from models import ExpenseTransaction as _ET, TransportExpense as _TE
