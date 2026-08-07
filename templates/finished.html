@@ -66,6 +66,15 @@
 .coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:600;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
 .coat-opt.coat-no.active{background:#FEE2E2;color:#DC2626}
 .coat-opt.coat-yes.active{background:#DCFCE7;color:#16A34A}
+/* Tur — tugma-chip guruhi (dropdown o'rniga) */
+.type-toggle{display:flex;flex-wrap:wrap;gap:6px}
+.type-opt{
+  padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;
+  font-size:12.5px;font-weight:600;color:var(--text2);background:var(--white);
+  cursor:pointer;transition:all .15s;text-align:center;white-space:nowrap;
+}
+.type-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
+.type-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
 </style>
 {% endblock %}
 
@@ -404,15 +413,24 @@
       </div>
 
       <div class="form-row">
-        <div class="form-group" style="margin:0">
+        <div class="form-group" style="margin:0;grid-column:1/-1">
           <label>Tur</label>
-          <select id="p-type" onchange="pToggle();pCalc()">
+          <div class="type-toggle" id="p-type-toggle">
+            <div class="type-opt active" data-value="profil" onclick="selectPType(this,'profil')">Profil</div>
+            <div class="type-opt" data-value="panel" onclick="selectPType(this,'panel')">Panel</div>
+            <div class="type-opt" data-value="dona" onclick="selectPType(this,'dona')">Donali</div>
+            <div class="type-opt" data-value="blok" onclick="selectPType(this,'blok')">Blok (butun narxda)</div>
+          </div>
+          <select id="p-type" style="display:none" onchange="pToggle();pCalc()">
             <option value="profil">Profil</option>
             <option value="panel">Panel</option>
             <option value="dona">Donali</option>
             <option value="blok">Blok (butun narxda)</option>
           </select>
         </div>
+      </div>
+
+      <div class="form-row">
         <div class="form-group" style="margin:0" id="p-h-wrap">
           <label>Eni (sm)</label>
           <input type="number" id="p-h" step="0.1" oninput="pCalc()">
@@ -517,7 +535,7 @@
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
+      <button class="btn btn-dark" style="flex:2;background:var(--gold);border-color:var(--gold)" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
     </div>
   </div>
 
@@ -1616,6 +1634,7 @@ function openProduceModal() {
   document.getElementById('p-l').value = '0';
   document.getElementById('p-q').value = '1';
   document.getElementById('p-type').value = 'profil';
+  document.querySelectorAll('#p-type-toggle .type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === 'profil'));
   document.getElementById('p-coated').value = 'true';
   syncPCoatingUI(true);
   document.getElementById('p-error').style.display = 'none';
@@ -1631,6 +1650,17 @@ function closeProduceModal() {
 }
 
 // Buyurtmadagi toggleFields bilan bir xil
+// Tur — tugma-chip tanlash (dropdown o'rniga). Yashirin <select>ga
+// qiymatni yozib, xuddi shu eski pToggle()/pCalc() funksiyalarini
+// chaqiradi — hisob-kitob mantig'i O'ZGARMAYDI, faqat kirish usuli.
+function selectPType(btn, value) {
+  document.querySelectorAll('#p-type-toggle .type-opt').forEach(o => o.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('p-type').value = value;
+  pToggle();
+  pCalc();
+}
+
 function pToggle() {
   const type = document.getElementById('p-type').value;
   const hW = document.getElementById('p-h-wrap');
