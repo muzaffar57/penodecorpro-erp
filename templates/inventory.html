@@ -202,6 +202,19 @@
   </div>
 </div>
 
+<!-- Universal chiroyli "prompt" modali — native prompt() o'rniga -->
+<div id="cpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:380px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div id="cp-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:6px">—</div>
+    <div id="cp-hint" style="font-size:12.5px;color:var(--text3);margin-bottom:14px"></div>
+    <input type="text" id="cp-input" class="i-m3price" style="width:100%;font-size:15px;font-weight:600;text-align:center" inputmode="decimal">
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-outline w-full" onclick="_cpCancel()">Bekor</button>
+      <button class="btn btn-dark w-full" style="background:var(--gold);border-color:var(--gold)" onclick="_cpConfirm()">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- Xaridlar tarixi modali -->
 <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
@@ -326,10 +339,40 @@ async function sendLowStockAlert() {
   }
 }
 
+// Universal chiroyli "prompt" — native prompt() o'rniga. Promise qaytaradi:
+// foydalanuvchi OK bossa — kiritilgan matn, Bekor/Esc bossa — null.
+// Ishlatilishi: const val = await customPrompt('Sarlavha', 'Hozirgi: 5', '5');
+let _cpResolve = null;
+function customPrompt(title, hint, currentValue) {
+  return new Promise(resolve => {
+    _cpResolve = resolve;
+    document.getElementById('cp-title').textContent = title;
+    document.getElementById('cp-hint').textContent = hint || '';
+    document.getElementById('cp-hint').style.display = hint ? 'block' : 'none';
+    const input = document.getElementById('cp-input');
+    input.value = currentValue != null ? currentValue : '';
+    document.getElementById('cpModal').style.display = 'flex';
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+  });
+}
+function _cpConfirm() {
+  const val = document.getElementById('cp-input').value;
+  document.getElementById('cpModal').style.display = 'none';
+  if (_cpResolve) { _cpResolve(val); _cpResolve = null; }
+}
+function _cpCancel() {
+  document.getElementById('cpModal').style.display = 'none';
+  if (_cpResolve) { _cpResolve(null); _cpResolve = null; }
+}
+document.getElementById('cp-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') _cpConfirm();
+  if (e.key === 'Escape') _cpCancel();
+});
+
 async function editBazaltRatios(id, currentSerp, currentKley) {
-  const newSerp = prompt(`1 m² BAZALTGA necha METR SERPIYANKA ketadi?\nHozirgi: ${currentSerp}`, currentSerp);
+  const newSerp = await customPrompt('1 m² BAZALTGA necha METR SERPIYANKA ketadi?', `Hozirgi: ${currentSerp}`, currentSerp);
   if (newSerp === null || isNaN(parseFloat(newSerp))) return;
-  const newKley = prompt(`1 m² BAZALTGA necha kg KLEY ketadi?\nHozirgi: ${currentKley}`, currentKley);
+  const newKley = await customPrompt('1 m² BAZALTGA necha kg KLEY ketadi?', `Hozirgi: ${currentKley}`, currentKley);
   if (newKley === null || isNaN(parseFloat(newKley))) return;
 
   const res = await fetch(`/api/inventory/${id}`, {
@@ -347,7 +390,7 @@ async function editBazaltRatios(id, currentSerp, currentKley) {
 }
 
 async function editBazaltVolume(id, currentVolume) {
-  const newVolume = prompt(`1 DONA bazalt necha m²? (masalan: 1.2m × 0.6m = 0.72 m²)\nHozirgi: ${currentVolume}`, currentVolume);
+  const newVolume = await customPrompt('1 DONA bazalt necha m²?', `masalan: 1.2m × 0.6m = 0.72 m² · Hozirgi: ${currentVolume}`, currentVolume);
   if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
 
   const res = await fetch(`/api/inventory/${id}`, {
@@ -364,7 +407,7 @@ async function editBazaltVolume(id, currentVolume) {
 }
 
 async function editGipsSackWeight(id, currentVolume) {
-  const newVolume = prompt(`1 QOP Gips necha kg?\nHozirgi: ${currentVolume}`, currentVolume);
+  const newVolume = await customPrompt('1 QOP Gips necha kg?', `Hozirgi: ${currentVolume}`, currentVolume);
   if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
 
   const res = await fetch(`/api/inventory/${id}`, {
@@ -381,7 +424,7 @@ async function editGipsSackWeight(id, currentVolume) {
 }
 
 async function editSerpiyankaVolume(id, currentVolume) {
-  const newVolume = prompt(`1 RULON serpiyanka necha metr?\nHozirgi: ${currentVolume}`, currentVolume);
+  const newVolume = await customPrompt('1 RULON serpiyanka necha metr?', `Hozirgi: ${currentVolume}`, currentVolume);
   if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
 
   const res = await fetch(`/api/inventory/${id}`, {
@@ -398,7 +441,7 @@ async function editSerpiyankaVolume(id, currentVolume) {
 }
 
 async function editPrice(id, currentPrice) {
-  const newPrice = prompt(`Yangi narxni kiriting (so'm):\nHozirgi narx: ${Number(currentPrice).toLocaleString('ru-RU')} so'm`);
+  const newPrice = await customPrompt('Yangi narxni kiriting (so\'m)', `Hozirgi narx: ${Number(currentPrice).toLocaleString('ru-RU')} so'm`, currentPrice);
   if (!newPrice || isNaN(parseFloat(newPrice))) return;
   const res = await fetch(`/api/inventory/${id}/price`, {
     method: 'POST',
@@ -414,8 +457,9 @@ async function editPrice(id, currentPrice) {
 async function editCategory(el) {
   const id = el.dataset.id;
   const current = el.dataset.category || 'Boshqa';
-  const val = prompt(
-    "Kategoriya (masalan: Penoplast, Kimyoviy qo'shimchalar, Qattiq qotishmalar, Gips, Boshqa):",
+  const val = await customPrompt(
+    "Kategoriya",
+    "masalan: Penoplast, Kimyoviy qo'shimchalar, Qattiq qotishmalar, Gips, Boshqa",
     current
   );
   if (val === null || !val.trim()) return;
