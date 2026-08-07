@@ -818,20 +818,23 @@ async function loadObligationsWidget(){
     const dueBySupplier = {};
     (dueDates || []).forEach(d => { dueBySupplier[d.supplier_id] = d; });
 
+    // Har bir element endi "group" bilan belgilanadi — guruh sarlavhasi
+    // va avatar/ikonka shu asosda tanlanadi. Miqdor/status hisoblash —
+    // O'ZGARMAGAN, faqat qo'shimcha "group" maydoni qo'shildi.
     const items = [];
     (status.recurring || []).forEach(r => {
       const dayInfo = r.status === 'overdue' ? `${r.due_day}-kunidan kechikdi!` : `har oy ${r.due_day}-kunigacha`;
-      items.push({icon: r.icon, label: `${r.label} (${dayInfo})`, amount: r.debt, status: r.status});
+      items.push({group: 'recurring', icon: r.icon, label: `${r.label} (${dayInfo})`, amount: r.debt, status: r.status});
     });
-    (status.employees || []).forEach(e => items.push({icon: '👷', label: e.name + ' ish haqi', amount: e.qolgan, status: e.status}));
+    (status.employees || []).forEach(e => items.push({group: 'employee', name: e.name, label: e.name + ' ish haqi', amount: e.qolgan, status: e.status}));
     (suppliers || []).filter(s => s.debt > 0).forEach(s => {
       const due = dueBySupplier[s.id];
       if (due) {
         const dateStr = new Date(due.due_date).toLocaleDateString('uz');
         const dayInfo = due.days_left < 0 ? `${Math.abs(due.days_left)} kun kechikdi!` : (due.days_left === 0 ? 'bugun muddati!' : `${due.days_left} kun qoldi`);
-        items.push({icon: '🚚', label: `${s.name} — ${dateStr} gacha (${dayInfo})`, amount: s.debt, status: due.status === 'overdue' ? 'overdue' : (due.status === 'due_soon' ? 'due_soon' : 'partial')});
+        items.push({group: 'supplier', icon: '🚚', label: `${s.name} — ${dateStr} gacha (${dayInfo})`, amount: s.debt, status: due.status === 'overdue' ? 'overdue' : (due.status === 'due_soon' ? 'due_soon' : 'partial')});
       } else {
-        items.push({icon: '🚚', label: s.name, amount: s.debt, status: 'partial'});
+        items.push({group: 'supplier', icon: '🚚', label: s.name, amount: s.debt, status: 'partial'});
       }
     });
 
@@ -839,16 +842,44 @@ async function loadObligationsWidget(){
     widget.style.display = 'block';
 
     const STATUS_COLOR = {overdue:'#EF4444', due_soon:'#F59E0B', partial:'#F59E0B', full:'#22C55E'};
+    const STATUS_LABEL = {overdue:'Kechikkan', due_soon:'Yaqinlashmoqda', partial:'Qisman', full:"To'langan"};
+    const STATUS_BG = {overdue:'#FEF2F2', due_soon:'#FFFBEB', partial:'#FFFBEB', full:'#F0FDF4'};
+    const GROUP_LABELS = {recurring: '🏛️ Doimiy majburiyatlar', employee: '👷 Hodimlar', supplier: '🚚 Yetkazib beruvchilar'};
     const fmtN = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
+    const avatarColor = ['#F8F2EB', '#FFFBEB', '#F0FDF4', '#EFF6FF', '#FDF2F8'];
+    const avatarText = ['#A86B36', '#B45309', '#16A34A', '#1D4ED8', '#DB2777'];
 
-    let html = items.map(it => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
-        <span style="font-size:13.5px">${it.icon} ${it.label}</span>
-        <span style="font-weight:700;color:${STATUS_COLOR[it.status]||'#EF4444'}">${fmtN(it.amount)} so'm</span>
-      </div>`).join('');
+    let html = '';
+    let rowIdx = 0;
+    ['recurring', 'employee', 'supplier'].forEach(groupKey => {
+      const groupItems = items.filter(it => it.group === groupKey);
+      if (!groupItems.length) return;
+      html += `<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.03em;padding:${rowIdx===0?'0':'14px'} 0 6px">${GROUP_LABELS[groupKey]}</div>`;
+      groupItems.forEach(it => {
+        const zebra = rowIdx % 2 === 0 ? 'transparent' : 'var(--bg)';
+        const badgeColor = STATUS_COLOR[it.status] || '#EF4444';
+        const badgeLabel = STATUS_LABEL[it.status] || '';
+        const badgeBg = STATUS_BG[it.status] || '#FEF2F2';
+        const avatarHtml = it.group === 'employee'
+          ? `<div style="width:26px;height:26px;border-radius:50%;background:${avatarColor[it.name.length % 5]};color:${avatarText[it.name.length % 5]};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0">${(it.name||'?')[0].toUpperCase()}</div>`
+          : `<div style="width:26px;height:26px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${it.icon}</div>`;
+        html += `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 8px;margin:0 -8px;background:${zebra};border-radius:6px">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0">
+              ${avatarHtml}
+              <span style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.label}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+              ${badgeLabel ? `<span style="font-size:10px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:2px 8px;border-radius:20px;white-space:nowrap">${badgeLabel}</span>` : ''}
+              <span style="font-weight:700;color:${badgeColor};white-space:nowrap">${fmtN(it.amount)} so'm</span>
+            </div>
+          </div>`;
+        rowIdx++;
+      });
+    });
 
     const total = items.reduce((s,it)=>s+it.amount, 0);
-    html += `<div style="display:flex;justify-content:space-between;padding:12px 0 0;margin-top:4px;border-top:2px solid var(--border);font-weight:700">
+    html += `<div style="display:flex;justify-content:space-between;padding:12px 0 0;margin-top:8px;border-top:2px solid var(--border);font-weight:700">
       <span>Jami majburiyat</span><span style="color:#EF4444">${fmtN(total)} so'm</span></div>`;
 
     document.getElementById('obligList').innerHTML = html;
