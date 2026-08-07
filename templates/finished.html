@@ -1321,11 +1321,15 @@ function openBatchSellModal() {
     return `
       <div class="batch-item-row" data-id="${id}" style="border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px">
         <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:8px">${it.name}</div>
-        <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1">
-            <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">Miqdor (bor: ${it.maxQty} ${it.unit})</div>
-            <input type="number" class="batch-qty" value="${it.maxQty}" max="${it.maxQty}" min="0" step="0.1"
-                   oninput="updateBatchTotal()" style="width:100%;padding:8px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:14px;box-sizing:border-box">
+            <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">Kerakli miqdor</div>
+            <input type="number" class="batch-qty" value="${it.maxQty}" max="${it.maxQty}" min="0" step="0.1" data-max="${it.maxQty}" data-unit="${it.unit}"
+                   oninput="updateBatchTotal();updateBatchRemain(this)" style="width:100%;padding:8px 10px;border:1.5px solid var(--gold);border-radius:8px;font-size:14px;font-weight:600;box-sizing:border-box">
+          </div>
+          <div style="flex:1">
+            <div style="font-size:11px;color:#16A34A;margin-bottom:3px;font-weight:600">Mavjud miqdor</div>
+            <div class="batch-remain" style="width:100%;padding:8px 10px;border:1.5px solid #BBF7D0;border-radius:8px;font-size:14px;font-weight:700;color:#15803D;background:#F0FDF4;box-sizing:border-box;text-align:center">${it.maxQty} ${it.unit}</div>
           </div>
           <div style="flex:1">
             <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">1 birlik narxi</div>
@@ -1352,6 +1356,21 @@ function batchOriginalTotal() {
     total += qty * price;
   });
   return total;
+}
+
+// "Qoladi" kartochkasini jonli yangilaydi — faqat KO'RSATISH uchun,
+// hech qanday hisob-kitobga (Jami summa, serverga yuboriladigan miqdor)
+// ta'sir qilmaydi. Faqat ko'rsatiladigan matnni hisoblab yozadi.
+function updateBatchRemain(input) {
+  const max = parseFloat(input.dataset.max) || 0;
+  const unit = input.dataset.unit || '';
+  const entered = parseFloat(input.value) || 0;
+  const remain = Math.max(0, max - entered);
+  const remainEl = input.closest('.batch-item-row')?.querySelector('.batch-remain');
+  if (remainEl) {
+    remainEl.textContent = `${remain.toFixed(remain % 1 === 0 ? 0 : 1)} ${unit}`;
+    remainEl.style.color = entered > max ? '#DC2626' : '#15803D';
+  }
 }
 
 function updateBatchTotal() {
