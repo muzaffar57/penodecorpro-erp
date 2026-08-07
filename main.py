@@ -1680,33 +1680,6 @@ def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_use
     return {"status": "ok"}
 
 
-@app.get("/api/debug/recipes-raw")
-def api_debug_recipes_raw(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """VAQTINCHALIK TEKSHIRUV endpoint — muammoni topish uchun.
-    Xavfsiz: faqat admin ko'ra oladi, hech narsani o'zgartirmaydi."""
-    from models import Recipe
-    import database as _database_module
-    from sqlalchemy import text
-
-    raw_rows = db.execute(text("SELECT id, name FROM recipes")).fetchall()
-    orm_rows = db.query(Recipe).all()
-
-    # Ulanish manzilini (parolsiz) ko'rsatamiz — qaysi bazaga ulanganini bilish uchun
-    url_str = str(_database_module.engine.url)
-    if "@" in url_str:
-        safe_url = url_str.split("@")[1]  # faqat host/db qismi, parolsiz
-    else:
-        safe_url = url_str
-
-    return {
-        "engine_url_host_db": safe_url,
-        "raw_sql_count": len(raw_rows),
-        "raw_sql_rows": [{"id": r[0], "name": r[1]} for r in raw_rows],
-        "orm_query_count": len(orm_rows),
-        "orm_query_rows": [{"id": r.id, "name": r.name} for r in orm_rows],
-    }
-
-
 @app.get("/api/recipes", response_model=List[schemas.RecipeRead])
 def api_get_recipes(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     return crud.get_recipes(db)
@@ -3666,8 +3639,6 @@ try:
 except Exception as e:
     print(f"⚠ Backup rejalashtiruvchisini ishga tushirib bo'lmadi: {e}")
 
-
-# Deploy-trigger: kesh/eskirgan holatni tozalash uchun yangi build (2026-08-07)
 
 if __name__ == "__main__":
     import uvicorn
