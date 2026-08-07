@@ -1742,7 +1742,7 @@ def get_daily_finance_summary(db: Session, target_date) -> Dict:
     - Savdo (shu kun 'Tayyor' bo'lgan buyurtmalar): sotuv, tan narx, foyda
     - Xarajat: xomashyo xaridi (nimaga qancha) + boshqa xarajatlar (nimaga qancha)
     """
-    from models import InventoryPurchase, ExpenseTransaction
+    from models import InventoryPurchase, ExpenseTransaction, FinishedProductSale
     from datetime import datetime as dt, timedelta
 
     start = dt.combine(target_date, dt.min.time())
@@ -1764,6 +1764,18 @@ def get_daily_finance_summary(db: Session, target_date) -> Dict:
         if p.get("success"):
             total_sales += p["sotuv_narxi"]
             total_cost += p["tan_narxi"]
+
+    # ── 1b) SAVDO — shu kun to'g'ridan-to'g'ri sotilgan tayyor mahsulotlar ──
+    # (Tayyor mahsulotlar bo'limidan, buyurtmasiz sotilganlar — avval bu
+    # "Bugungi holat"da hisobga olinmasdi, garchi oylik hisobotda bor edi.)
+    fp_sales_today = db.query(FinishedProductSale).filter(
+        FinishedProductSale.sold_at >= start,
+        FinishedProductSale.sold_at < end
+    ).all()
+    for s in fp_sales_today:
+        total_sales += float(s.total_amount or 0)
+        total_cost += float(s.cost_amount or 0)
+
     total_profit = total_sales - total_cost
 
     # ── 2) XARAJAT — xomashyo xaridi (nimaga qancha) ──
