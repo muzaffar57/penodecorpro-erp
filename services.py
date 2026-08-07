@@ -1310,7 +1310,7 @@ def get_low_stock_warnings(db: Session) -> List[Dict]:
 
 def get_chart_data(db: Session) -> Dict:
     """Dashboard grafiklari uchun ma'lumotlar."""
-    from models import Project, Master, Order, OrderItem, OrderStatus
+    from models import Project, Master, Order, OrderItem, OrderStatus, FinishedProductSale, FinishedProduct
     from sqlalchemy import func
     from datetime import datetime, timedelta
 
@@ -1363,6 +1363,23 @@ def get_chart_data(db: Session) -> Dict:
                     gips_rev += share
                 else:
                     peno_rev += share
+
+        # Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
+        # sotilganlar — avval bu grafikda hisobga olinmasdi.
+        month_fp_sales = db.query(FinishedProductSale).outerjoin(
+            FinishedProduct, FinishedProductSale.finished_product_id == FinishedProduct.id
+        ).filter(
+            FinishedProductSale.sold_at >= month_start,
+            FinishedProductSale.sold_at < month_end
+        ).all()
+        for s in month_fp_sales:
+            s_total = float(s.total_amount or 0)
+            revenue += s_total
+            cat = (s.finished_product.category if s.finished_product else '') or ''
+            if cat.lower() == 'gips':
+                gips_rev += s_total
+            else:
+                peno_rev += s_total
 
         months_data.append({
             "label": month_start.strftime("%b %Y"),
