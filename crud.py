@@ -1531,6 +1531,66 @@ def get_error_logs(db: Session, limit: int = 100) -> List:
     return db.query(ErrorLog).order_by(ErrorLog.created_at.desc()).limit(limit).all()
 
 
+def check_system_health(db: Session) -> dict:
+    """Tizimdagi barcha ENUM ustunlarini tekshiradi — bazada noto'g'ri
+    (masalan kichik/katta harf mos kelmaydigan) qiymat bor-yo'qligini
+    aniqlaydi. MUHIM: bu tekshiruv XOM SQL orqali ishlaydi (ORM emas) —
+    aks holda, agar chindan ham noto'g'ri qiymat bo'lsa, ORM so'rovining
+    o'zi xato berib, tekshiruvni to'xtatib qo'yardi (aynan shu narsani
+    aniqlashga harakat qilayotgan bo'lsak ham)."""
+    from sqlalchemy import text
+    from datetime import datetime as _dt
+    from models import (UserRole, ProjectStatus, OrderType, OrderStatus, PaymentStatus,
+                         ReturnReason, PayType, AdvanceRequestStatus, StockSource,
+                         ProductionStatus, PaymentType, PaymentMethod)
+
+    # (jadval, ustun, tekshiriladigan Enum sinfi, o'qiladigan "nom" ustuni — id yoki boshqa identifikator)
+    checks = [
+        ("users", "role", UserRole, "username"),
+        ("projects", "status", ProjectStatus, "project_name"),
+        ("orders", "order_type", OrderType, "order_number"),
+        ("orders", "status", OrderStatus, "order_number"),
+        ("orders", "payment_status", PaymentStatus, "order_number"),
+        ("return_items", "reason", ReturnReason, "item_name"),
+        ("employees", "pay_type", PayType, "name"),
+        ("advance_requests", "status", AdvanceRequestStatus, "id"),
+        ("finished_products", "source", StockSource, "name"),
+        ("finished_products", "production_status", ProductionStatus, "name"),
+        ("payments", "payment_type", PaymentType, "id"),
+        ("payments", "payment_method", PaymentMethod, "id"),
+    ]
+
+    issues = []
+    check_errors = []
+    for table, column, enum_cls, label_col in checks:
+        valid_names = [m.name for m in enum_cls]
+        placeholders = ", ".join(f"'{n}'" for n in valid_names)
+        try:
+            rows = db.execute(text(
+                f"SELECT id, {label_col}, {column} FROM {table} "
+                f"WHERE {column} IS NOT NULL AND {column} NOT IN ({placeholders})"
+            )).fetchall()
+            for r in rows:
+                issues.append({
+                    "table": table, "column": column, "id": r[0],
+                    "label": str(r[1]), "bad_value": str(r[2]),
+                    "valid_names": valid_names,
+                })
+        except Exception as e:
+            # Jadval/ustun hali mavjud bo'lmasligi mumkin (eski deploy) —
+            # tekshiruvni to'xtatmasdan davom etamiz.
+            db.rollback()
+            check_errors.append({"table": table, "column": column, "error": str(e)})
+
+    return {
+        "checked_at": _dt.utcnow().isoformat(),
+        "total_checks": len(checks),
+        "issues_found": len(issues),
+        "issues": issues,
+        "check_errors": check_errors,
+    }
+
+
 def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None) -> bool:
     """Buyurtmani o'chirish.
     soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.
