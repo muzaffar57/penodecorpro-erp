@@ -1709,6 +1709,21 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
     else:
         update_data = {k: v for k, v in project_data.items() if v is not None}
 
+    # HIMOYA: "status" satr (string) sifatida kelsa — katta/kichik harfdan
+    # qat'i nazar, to'g'ri ProjectStatus a'zosiga moslashtiramiz. Bu, manba
+    # (frontend yoki boshqa chaqiruvchi) noto'g'ri formatda yuborsa ham,
+    # bazaga noto'g'ri qiymat yozilib qolishining oldini oladi (masalan
+    # "active" o'rniga "ACTIVE" — enum NOMI kutiladi, QIYMATI emas).
+    if 'status' in update_data and isinstance(update_data['status'], str):
+        raw = update_data['status'].strip()
+        matched = None
+        for member in ProjectStatus:
+            if raw.upper() == member.name or raw.lower() == member.value:
+                matched = member
+                break
+        if matched:
+            update_data['status'] = matched
+
     for field, value in update_data.items():
         if hasattr(db_project, field) and value is not None:
             setattr(db_project, field, value)
