@@ -6,10 +6,11 @@
 {% block content %}
 <div style="padding:14px">
 
-  <div class="tab-bar" style="display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;max-width:520px">
+  <div class="tab-bar" style="display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;max-width:660px">
     <button class="log-tab active" data-tab="login" onclick="switchLogTab('login')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:var(--white);box-shadow:0 1px 3px rgba(16,24,40,.1)">🔑 Kirish tarixi</button>
     <button class="log-tab" data-tab="errors" onclick="switchLogTab('errors')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚠️ Xatoliklar</button>
     <button class="log-tab" data-tab="activity" onclick="switchLogTab('activity')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🕓 Audit jurnali</button>
+    <button class="log-tab" data-tab="health" onclick="switchLogTab('health')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🩺 Salomatlik</button>
   </div>
 
   <!-- KIRISH TARIXI -->
@@ -72,6 +73,21 @@
     </div>
   </div>
 
+  <!-- TIZIM SALOMATLIGI -->
+  <div id="tab-health" class="card" style="display:none">
+    <div class="card-head">
+      <h3>🩺 Tizim salomatligi</h3>
+      <button class="btn btn-dark btn-sm" id="health-check-btn" onclick="runHealthCheck()" style="background:var(--gold);border-color:var(--gold)">Tekshirish</button>
+    </div>
+    <div style="padding:16px 18px;font-size:12.5px;color:var(--text3);border-bottom:1px solid var(--border2)">
+      Bu — barcha muhim ma'lumot turlarini (masalan loyiha holati, buyurtma holati, hodim turi) tekshirib,
+      noto'g'ri yozilgan qiymatlarni oldindan topadi. Faqat o'qiydi — hech narsani o'zgartirmaydi.
+    </div>
+    <div id="health-results" style="padding:20px">
+      <div style="text-align:center;color:var(--text3);font-size:13px">"Tekshirish" tugmasini bosing</div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -85,9 +101,57 @@ function switchLogTab(tab) {
     b.style.color = active ? 'var(--text)' : 'var(--text3)';
     b.classList.toggle('active', active);
   });
-  ['login','errors','activity'].forEach(t => {
+  ['login','errors','activity','health'].forEach(t => {
     document.getElementById('tab-' + t).style.display = (t === tab) ? 'block' : 'none';
   });
+}
+
+async function runHealthCheck() {
+  const btn = document.getElementById('health-check-btn');
+  const resultsEl = document.getElementById('health-results');
+  btn.disabled = true;
+  btn.textContent = 'Tekshirilmoqda...';
+  resultsEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px">⏳ Tekshirilmoqda...</div>';
+
+  try {
+    const res = await fetch('/api/system/health-check');
+    const d = await res.json();
+    btn.disabled = false;
+    btn.textContent = 'Tekshirish';
+
+    let html = `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${new Date(d.checked_at).toLocaleString('uz')} · ${d.total_checks} ta joy tekshirildi</div>`;
+
+    if (d.issues_found === 0) {
+      html += `<div style="text-align:center;padding:30px;background:#F0FDF4;border-radius:12px">
+        <div style="font-size:32px;margin-bottom:8px">✅</div>
+        <div style="font-weight:700;color:#16A34A;font-size:15px">Hammasi joyida!</div>
+        <div style="font-size:12.5px;color:var(--text3);margin-top:4px">Hech qanday noto'g'ri qiymat topilmadi.</div>
+      </div>`;
+    } else {
+      html += `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:#DC2626">
+        ⚠️ ${d.issues_found} ta muammo topildi:
+      </div>`;
+      d.issues.forEach(issue => {
+        html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${issue.label || ('#' + issue.id)} <span style="color:var(--text3);font-weight:400">(${issue.table}.${issue.column})</span></div>
+          <div style="font-size:12.5px;color:#DC2626;margin-top:4px">Noto'g'ri qiymat: <code style="background:#FEF2F2;padding:2px 6px;border-radius:4px">${issue.bad_value}</code></div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:4px">To'g'ri qiymatlar: ${issue.valid_names.join(', ')}</div>
+        </div>`;
+      });
+    }
+
+    if (d.check_errors && d.check_errors.length) {
+      html += `<div style="margin-top:14px;font-size:11.5px;color:var(--text3)">
+        ⚠️ ${d.check_errors.length} ta jadval tekshirilmadi (eski deploy versiyasi bo'lishi mumkin).
+      </div>`;
+    }
+
+    resultsEl.innerHTML = html;
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Tekshirish';
+    resultsEl.innerHTML = '<div style="text-align:center;color:#DC2626;padding:20px">Xato yuz berdi, qaytadan urinib ko\'ring.</div>';
+  }
 }
 </script>
 {% endblock %}
