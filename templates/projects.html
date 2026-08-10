@@ -94,11 +94,11 @@
     <input type="text" id="search" placeholder="Loyiha, mijoz, telefon yoki manzil bo'yicha qidirish..." style="flex:1;min-width:220px" oninput="searchProj()">
     <select id="filterStatus" onchange="searchProj()">
       <option value="">Barchasi</option>
-      <option value="active">Faol</option>
-      <option value="draft">Yangi</option>
-      <option value="on_hold">Kutmoqda</option>
-      <option value="completed">Yakunlangan</option>
-      <option value="cancelled">Bekor qilingan</option>
+      <option value="ACTIVE">Faol</option>
+      <option value="DRAFT">Yangi</option>
+      <option value="ON_HOLD">Kutmoqda</option>
+      <option value="COMPLETED">Yakunlangan</option>
+      <option value="CANCELLED">Bekor qilingan</option>
     </select>
     <input type="date" id="filterDateFrom" title="Boshlangan sanadan" onchange="searchProj()">
     <input type="date" id="filterDateTo" title="Boshlangan sanagacha" onchange="searchProj()">
@@ -116,7 +116,7 @@
            data-client="{{ p.client_name }}"
            data-phone="{{ p.client_phone or '—' }}"
            data-address="{{ p.client_address or '—' }}"
-           data-status="{{ p.status.value }}"
+           data-status="{{ p.status.name }}"
            data-budget="{{ p.total_budget }}"
            data-paid="{{ p.total_paid }}"
            data-start="{{ p.start_date.strftime('%d.%m.%Y') if p.start_date else '—' }}"
@@ -232,11 +232,11 @@
       <div class="form-group" style="margin:0">
         <label>Holati</label>
         <select id="e-status">
-          <option value="draft">Yangi</option>
-          <option value="active">Faol</option>
-          <option value="on_hold">Kutmoqda</option>
-          <option value="completed">Yakunlangan</option>
-          <option value="cancelled">Bekor qilingan</option>
+          <option value="DRAFT">Yangi</option>
+          <option value="ACTIVE">Faol</option>
+          <option value="ON_HOLD">Kutmoqda</option>
+          <option value="COMPLETED">Yakunlangan</option>
+          <option value="CANCELLED">Bekor qilingan</option>
         </select>
       </div>
     </div>
@@ -298,11 +298,11 @@ let progressMap = {};
 let currentTab = 'asosiy';
 
 const STATUS_MAP = {
-  'active':'<span class="status-badge st-active">Faol</span>',
-  'draft':'<span class="status-badge st-draft">Yangi</span>',
-  'completed':'<span class="status-badge st-completed">Yakunlangan</span>',
-  'on_hold':'<span class="status-badge st-on_hold">Kutmoqda</span>',
-  'cancelled':'<span class="status-badge st-cancelled">Bekor</span>'
+  'ACTIVE':'<span class="status-badge st-active">Faol</span>',
+  'DRAFT':'<span class="status-badge st-draft">Yangi</span>',
+  'COMPLETED':'<span class="status-badge st-completed">Yakunlangan</span>',
+  'ON_HOLD':'<span class="status-badge st-on_hold">Kutmoqda</span>',
+  'CANCELLED':'<span class="status-badge st-cancelled">Bekor</span>'
 };
 
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
@@ -384,7 +384,7 @@ async function loadStatusPanel(d){
     <div class="status-panel-item" style="border-color:#B9783F"><div class="status-panel-val">${paidPct}%</div><div class="status-panel-lbl">💰 To'langan</div></div>
     <div class="status-panel-item" style="border-color:#8E44AD"><div class="status-panel-val">${d.orders} ta</div><div class="status-panel-lbl">📦 Buyurtmalar</div></div>
     <div class="status-panel-item" style="border-color:#22C55E"><div class="status-panel-val">${progress}%</div><div class="status-panel-lbl">🏭 Bajarilgan</div></div>
-    <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val">${d.status === 'completed' ? 'Yetkazildi' : 'Kutilmoqda'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
+    <div class="status-panel-item" style="border-color:#F59E0B"><div class="status-panel-val">${d.status === 'COMPLETED' ? 'Yetkazildi' : 'Kutilmoqda'}</div><div class="status-panel-lbl">🚚 Yetkazish</div></div>
     <div class="status-panel-item" style="border-color:${deadlineColor==='var(--text)'?'#94A3B8':deadlineColor}"><div class="status-panel-val" style="color:${deadlineColor}">${deadlineTxt}</div><div class="status-panel-lbl">📅 Muddat</div></div>`;
 }
 
@@ -587,7 +587,7 @@ async function saveEditProject() {
 
 async function markProjectComplete() {
   if (!confirm("Loyihani 'Yakunlangan' deb belgilaysizmi?")) return;
-  const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: 'completed'})});
+  const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: 'COMPLETED'})});
   if (res.ok) location.reload();
   else alert('Xato');
 }
