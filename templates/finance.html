@@ -424,8 +424,8 @@
               <div style="position:relative;width:120px;height:120px;flex-shrink:0">
                 <canvas id="revDonutChart"></canvas>
                 <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
-                  <div style="font-size:9.5px;color:var(--f-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">Jami</div>
-                  <div id="revDonutTotal" style="font-size:14px;font-weight:800;color:var(--f-text)">—</div>
+                  <div style="font-size:10px;color:var(--f-text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Jami</div>
+                  <div id="revDonutTotal" style="font-size:18px;font-weight:800;color:var(--f-text);letter-spacing:-.02em;margin-top:2px">—</div>
                 </div>
               </div>
               <div id="revDonutLegend" style="flex:1;font-size:12.5px"></div>
@@ -915,11 +915,11 @@ function buildRevDonut(d){
 
   document.getElementById('revDonutTotal').textContent = fmtShortM(total);
   document.getElementById('revDonutLegend').innerHTML = entries.map(([name, val, color]) => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 0">
+    <div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--f-border)">
       <span style="width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0"></span>
-      <span style="flex:1;color:var(--f-text2)">${name}</span>
-      <span style="font-weight:700;color:var(--f-text);white-space:nowrap">${fmtFull(val)} so'm</span>
-      <span style="color:var(--f-text3);font-size:11px;width:36px;text-align:right">${(val/total*100).toFixed(1)}%</span>
+      <span style="flex:1;color:var(--f-text);font-weight:600;font-size:13px">${name}</span>
+      <span style="font-weight:800;color:var(--f-text);font-size:13.5px;white-space:nowrap;letter-spacing:-.01em">${fmtFull(val)} so'm</span>
+      <span style="background:${color}1A;color:${color};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">${(val/total*100).toFixed(1)}%</span>
     </div>`).join('');
 }
 
