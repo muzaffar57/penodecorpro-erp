@@ -892,9 +892,9 @@ def get_today_stats(db: Session) -> Dict:
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
 
-    today_revenue = db.query(func.sum(Payment.amount)).filter(
+    today_revenue = float(db.query(func.sum(Payment.amount)).filter(
         Payment.paid_at >= today_start, Payment.paid_at < today_end
-    ).scalar() or 0
+    ).scalar() or 0)
 
     active_orders = db.query(Order).filter(
         Order.status.notin_([OrderStatus.READY, OrderStatus.DELIVERED, OrderStatus.CANCELLED]),
@@ -1336,11 +1336,11 @@ def get_chart_data(db: Session) -> Dict:
         # MUHIM: daromad (revenue) — moliyaviy tarix, o'chirilgan
         # buyurtmalar ham hisobga olinishi kerak (faqat "count" — necha ta
         # buyurtma yaratilgani — o'zgarishsiz qoladi, chunki bu shunchaki son).
-        revenue = db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
+        revenue = float(db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
             Order.created_at >= month_start,
             Order.created_at < month_end,
             Order.status == OrderStatus.READY
-        ).scalar() or 0
+        ).scalar() or 0)
 
         # Gips va Penoplast (va boshqa) — detal darajasida, ulush bo'yicha
         # ajratilgan holda (har bir detalning umumiy summadagi ulushi ×
