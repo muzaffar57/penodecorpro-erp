@@ -404,7 +404,7 @@
         </div>
 
         <!-- Xarajat tafsiloti + Sof foyda -->
-        <div class="fin-card">
+        <div class="fin-card" style="grid-row:span 2">
           <div class="fin-card-body">
             <div class="fin-section-title" style="margin-bottom:12px"><i class="ti ti-list-details"></i> Xarajatlar tafsiloti</div>
             <div id="expDetail"><div class="fin-empty" style="padding:24px"><span style="font-size:13px">Ma'lumot yo'q</span></div></div>
@@ -413,6 +413,25 @@
               <div class="fin-profit-big" id="profitBig">—</div>
               <div style="font-size:13px;color:var(--f-text3);margin-top:4px" id="profitPct">—</div>
             </div>
+          </div>
+        </div>
+
+        <!-- Daromad taqsimoti (Penoplast vs Gips) -->
+        <div class="fin-card">
+          <div class="fin-card-body">
+            <div class="fin-section-title" style="margin-bottom:14px"><i class="ti ti-chart-donut"></i> Daromad taqsimoti</div>
+            <div id="revDonutWrap" style="display:flex;align-items:center;gap:18px">
+              <div style="position:relative;width:120px;height:120px;flex-shrink:0">
+                <canvas id="revDonutChart"></canvas>
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
+                  <div style="font-size:9.5px;color:var(--f-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em">Jami</div>
+                  <div id="revDonutTotal" style="font-size:14px;font-weight:800;color:var(--f-text)">—</div>
+                </div>
+              </div>
+              <div id="revDonutLegend" style="flex:1;font-size:12.5px"></div>
+            </div>
+            <div id="revDonutEmpty" style="display:none;text-align:center;padding:24px;color:var(--f-text3);font-size:13px">Ma'lumot yo'q</div>
+            <div style="font-size:11px;color:var(--f-text3);margin-top:12px">Daromadlar hisobi umumiy tushumga nisbatan ko'rsatilgan.</div>
           </div>
         </div>
 
@@ -506,6 +525,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 // SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
 // turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
@@ -850,6 +870,61 @@ function buildExpDetail(d){
   document.getElementById('profitBig').textContent=fmtFull(d.sof_foyda)+" so'm";
   document.getElementById('profitBig').style.color=d.sof_foyda>=0?'var(--f-primary)':'#EF4444';
   document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
+
+  buildRevDonut(d);
+}
+
+// ── DAROMAD TAQSIMOTI (Penoplast vs Gips) — donut, markazida jami summa ──
+let revDonutInst = null;
+function buildRevDonut(d){
+  const wrap = document.getElementById('revDonutWrap');
+  const emptyEl = document.getElementById('revDonutEmpty');
+  const tb = d.turlar_boyicha;
+  const peno = tb ? (tb.penoplast.daromad || 0) : 0;
+  const gips = tb ? (tb.gips.daromad || 0) : 0;
+  const total = peno + gips;
+
+  if (revDonutInst) { revDonutInst.destroy(); revDonutInst = null; }
+
+  if (total <= 0) {
+    wrap.style.display = 'none';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  wrap.style.display = 'flex';
+  emptyEl.style.display = 'none';
+
+  const entries = [
+    ['Penoplast va boshqa', peno, '#B9783F'],
+    ['Gips', gips, '#9D174D'],
+  ].filter(e => e[1] > 0);
+
+  revDonutInst = new Chart(document.getElementById('revDonutChart'), {
+    type: 'doughnut',
+    data: { labels: entries.map(e=>e[0]), datasets: [{ data: entries.map(e=>e[1]), backgroundColor: entries.map(e=>e[2]), borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '68%',
+      animation: { animateRotate: true, duration: 700 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#111827', padding: 10, cornerRadius: 8,
+          callbacks: { label: ctx => `${ctx.label}: ${fmtFull(ctx.parsed)} so'm` } }
+      }
+    }
+  });
+
+  document.getElementById('revDonutTotal').textContent = fmtShortM(total);
+  document.getElementById('revDonutLegend').innerHTML = entries.map(([name, val, color]) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0">
+      <span style="width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0"></span>
+      <span style="flex:1;color:var(--f-text2)">${name}</span>
+      <span style="font-weight:700;color:var(--f-text);white-space:nowrap">${fmtFull(val)} so'm</span>
+      <span style="color:var(--f-text3);font-size:11px;width:36px;text-align:right">${(val/total*100).toFixed(1)}%</span>
+    </div>`).join('');
+}
+
+function fmtShortM(n){
+  return (n/1000000).toFixed(1) + ' mln';
 }
 
 // ── BUGUNGI XARAJAT BATAFSIL (Xarajat kartasidan ochiladi) ──
