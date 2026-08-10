@@ -702,6 +702,14 @@ async def logs_page(request: Request, db: Session = Depends(get_db), current_use
     })
 
 
+@app.get("/api/system/health-check")
+def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Tizimdagi barcha ENUM ustunlarini tekshiradi (faqat o'qish, hech
+    narsani o'zgartirmaydi) — noto'g'ri (masalan katta/kichik harf mos
+    kelmaydigan) qiymatlarni oldindan aniqlash uchun."""
+    return crud.check_system_health(db)
+
+
 @app.post("/api/orders/{order_id}/restore")
 def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     who = current_user.full_name or current_user.username
