@@ -663,7 +663,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
         })
 
     user = db.query(User).filter(User.username == username, User.is_active == True).first()
-    if not user or not auth.verify_password(password, user.password_hash):
+    if not user or not auth.verify_and_upgrade_password(db, user, password):
         crud.log_login_attempt(db, username, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "login.html", {"error": "Login yoki parol noto'g'ri!", "username": username})
 
