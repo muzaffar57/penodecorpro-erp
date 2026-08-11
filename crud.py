@@ -2799,6 +2799,12 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "length": i.length,
         "quantity": float(i.quantity or 1),
         "unit_price": float(i.unit_price or 0),
+        # MUHIM: "Donalik" hajmi shu (qulflangan) narxdan hisoblanadi
+        # (_item_volume_m3 ga qarang). Bu yerda BO'LMASA, hajm noto'g'ri
+        # (joriy — o'zgargan bo'lishi mumkin bo'lgan — unit_price'dan)
+        # qayta hisoblanib, HAR BIR tahrirlashda xomashyo sabab-siz
+        # "qaytib"/"ayirilib" ketardi (garchi hech narsa o'zgarmagan bo'lsa ham).
+        "unit_price_for_volume": float(i.unit_price_for_volume) if i.unit_price_for_volume is not None else None,
         "penoplast_id": i.penoplast_id,
         "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
         "finished_product_id": i.finished_product_id,
@@ -2822,6 +2828,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "length": it.length,
         "quantity": float(it.quantity or 1),
         "unit_price": float(it.unit_price or 0),
+        "unit_price_for_volume": getattr(it, 'unit_price_for_volume', None),
         "penoplast_id": getattr(it, 'penoplast_id', None),
         "price_per_m3": getattr(it, 'price_per_m3', None),
         "finished_product_id": getattr(it, 'finished_product_id', None),
@@ -2831,6 +2838,35 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "kley_kg": getattr(it, 'kley_kg', None) or 0,
         "termo_loy_kg": getattr(it, 'termo_loy_kg', None) or 0,
     } for it in order_data.items]
+
+    # ═══ VAQTINCHALIK DIAGNOSTIKA — hech narsani o'zgartirmaydi, faqat
+    # kuzatadi. Xato sababi topilgach, bu blok OLIB TASHLANADI. ═══
+    try:
+        import json as _json
+        _old_vol_diag = services._group_volumes_by_penoplast(db, [services._FakeItem(x) for x in old_snapshot])
+        _new_vol_diag = services._group_volumes_by_penoplast(db, [services._FakeItem(x) for x in new_snapshot])
+        _diff_diag = {pid: round(_new_vol_diag.get(pid, 0) - _old_vol_diag.get(pid, 0), 4)
+                      for pid in set(_old_vol_diag) | set(_new_vol_diag)}
+        # Eng muhim qism (hajm farqi) BIRINCHI — 8000 belgi chegarasida
+        # kesilib qolsa ham, shu qism saqlanib qolishi uchun.
+        log_error(
+            db,
+            error_message=f"[DIAGNOSTIKA] Buyurtma #{order_id} tahrirlash — hajm taqqoslash",
+            stack_trace=(
+                f"FARQ (penoplast_id -> m3, musbat=qo'shildi/manfiy=qaytdi): {_diff_diag}\n"
+                f"OLD_VOL: {_old_vol_diag}\n"
+                f"NEW_VOL: {_new_vol_diag}\n\n"
+                f"--- OLD_SNAPSHOT ({len(old_snapshot)} ta) ---\n{_json.dumps(old_snapshot, default=str)}\n\n"
+                f"--- NEW_SNAPSHOT ({len(new_snapshot)} ta) ---\n{_json.dumps(new_snapshot, default=str)}\n"
+            ),
+            endpoint=f"/api/orders/{order_id}", method="PUT"
+        )
+    except Exception as _diag_e:
+        try:
+            log_error(db, error_message=f"[DIAGNOSTIKA XATOSI] {_diag_e}", endpoint=f"/api/orders/{order_id}")
+        except Exception:
+            pass
+    # ═══ DIAGNOSTIKA TUGADI ═══
 
     is_draft = order.status == OrderStatus.DRAFT
 
