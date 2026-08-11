@@ -5189,8 +5189,14 @@ def authenticate_employee(db: Session, phone: str, pin: str):
     ).first()
     if not emp or not emp.pin_hash:
         return None
-    if auth.hash_pin(pin.strip()) != emp.pin_hash:
+    if not auth.verify_pin(pin.strip(), emp.pin_hash):
         return None
+    # MUHIM: agar PIN hali eski (SHA-256) formatda bo'lsa — muvaffaqiyatli
+    # kirishning o'zida, sezilmas tarzda bcrypt'ga yangilaymiz (parol bilan
+    # bir xil mantiq — auth.verify_and_upgrade_password'ga qarang).
+    if not auth._is_bcrypt_hash(emp.pin_hash):
+        emp.pin_hash = auth.hash_pin(pin.strip())
+        db.commit()
     return emp
 
 
