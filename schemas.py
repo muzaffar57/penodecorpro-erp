@@ -412,6 +412,14 @@ class FinishedProductLossCreate(BaseModel):
     reason: Optional[str] = None
 
 
+class FinishedProductProductionBrakCreate(BaseModel):
+    """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
+    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi."""
+    finished_product_id: int
+    brak_qty: float = Field(..., gt=0)
+    notes: Optional[str] = None
+
+
 class FinishedProductSaleCreate(BaseModel):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish."""
     finished_product_id: int
@@ -729,9 +737,18 @@ class ReturnItemCreate(BaseModel):
     coating_applied: bool = Field(default=False, description="Brak bo'lganda loy allaqachon tortilgan bo'lsa True")
     gips_kg_used: Optional[float] = Field(default=None, description="GIPS brak uchun — taxminan qancha gips ketgani")
 
+
+class FinishedProductBrakCreate(BaseModel):
+    """Tayyor mahsulot ISHLAB CHIQARISH jarayonidagi brak — buyurtmasiz,
+    to'g'ridan-to'g'ri ishlab chiqarilgan mahsulot uchun."""
+    finished_product_id: int
+    quantity: float
+    notes: Optional[str] = None
+
 class ReturnItemRead(BaseModel):
     id: int
-    order_id: int
+    order_id: Optional[int] = None
+    finished_product_id: Optional[int] = None
     item_name: str
     quantity: float
     unit: str
