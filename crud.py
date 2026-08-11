@@ -1507,6 +1507,35 @@ def log_login_attempt(db: Session, username: str, success: bool, ip_address: str
     db.commit()
 
 
+def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
+                            max_attempts: int = 5, window_minutes: int = 15) -> dict:
+    """Rate limit — oxirgi `window_minutes` daqiqada, shu username YOKI shu
+    IP manzildan `max_attempts` martadan ko'p MUVAFFAQIYATSIZ urinish
+    bo'lgan bo'lsa, kirishni bloklaydi. Mavjud LoginHistory jadvalidan
+    foydalanadi — yangi jadval kerak emas.
+
+    Qaytaradi: {"blocked": bool, "retry_after_minutes": int}"""
+    from models import LoginHistory
+    from datetime import timedelta
+
+    cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
+
+    q = db.query(LoginHistory).filter(
+        LoginHistory.success == False,
+        LoginHistory.created_at >= cutoff
+    )
+    # Username BO'YICHA yoki IP BO'YICHA — ikkalasidan qay biri ko'proq
+    # xavfli bo'lsa (masalan bitta IP'dan ko'p turli hisobga urinish, yoki
+    # bitta hisobga turli joydan urinish) — shuni hisobga olamiz.
+    by_username = q.filter(LoginHistory.username == username).count()
+    by_ip = q.filter(LoginHistory.ip_address == ip_address).count() if ip_address else 0
+
+    attempts = max(by_username, by_ip)
+    if attempts >= max_attempts:
+        return {"blocked": True, "retry_after_minutes": window_minutes}
+    return {"blocked": False, "retry_after_minutes": 0}
+
+
 def get_login_history(db: Session, limit: int = 100) -> List:
     """So'nggi kirish urinishlari."""
     from models import LoginHistory
