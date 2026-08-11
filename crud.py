@@ -1936,6 +1936,70 @@ def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
     return item
 
 
+def create_finished_product_brak(db: Session, finished_product_id: int, quantity: float,
+                                  notes: str = None, performed_by: str = None) -> dict:
+    """Tayyor mahsulot ISHLAB CHIQARISH jarayonidagi brak — buyurtmaga
+    bog'liq EMAS, to'g'ridan-to'g'ri ishlab chiqarilgan (Ishlab chiqarish
+    tugmasi orqali yaratilgan) mahsulot uchun.
+
+    MUHIM: fp.quantity (SOTILADIGAN qoldiq)ga UMUMAN TEGMAYDI — yakuniy
+    yetkaziladigan/omborga tushadigan miqdor o'zgarmaydi (usta brak
+    bo'lgan qismni qayta ishlab chiqargan deb hisoblanadi), faqat shu
+    QO'SHIMCHA sarflangan xomashyo ombordan ayiriladi va moliyaviy
+    xarajat sifatida (InventoryMovement orqali, Moliyadagi 'Brak
+    xarajati' ga avtomatik qo'shiladi — get_brak_material_summary()
+    "Brak%" prefiksli barcha harakatlarni o'zi yig'ib oladi) qayd etiladi.
+
+    HOZIRCHA faqat Profil/Panel/Donali/Blok turkumlari uchun ishlaydi
+    (Termopanel va Gips — kelgusida alohida qo'shiladi)."""
+    import services
+    from models import FinishedProduct
+
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == finished_product_id).first()
+    if not fp:
+        return {"success": False, "message": "Tayyor mahsulot topilmadi"}
+
+    if quantity <= 0:
+        return {"success": False, "message": "Miqdor noto'g'ri kiritilgan"}
+
+    category = (fp.category or '').lower()
+    if category not in ('profil', 'panel', 'dona', 'blok'):
+        return {"success": False, "message": f"Bu turkum ('{fp.category or '—'}') uchun hozircha qo'llab-quvvatlanmaydi"}
+
+    # 1 birlikning tan narxi — ASL (ishlab chiqarilgandagi) tan narx,
+    # produced_quantity asosida (get_order_item_unit_cost bilan bir xil
+    # mantiq — sotilgan/kamaygan joriy qoldiqqa emas, o'zgarmas asl
+    # miqdorga nisbatan, aks holda vaqt o'tishi bilan noto'g'ri bo'lib qolardi).
+    base_qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
+    unit_cost = (float(fp.cost_price or 0) / base_qty) if base_qty > 0 else 0
+    refund_amount = round(unit_cost * quantity)
+
+    item = ReturnItem(
+        finished_product_id=fp.id,
+        item_name=fp.name,
+        quantity=quantity,
+        unit=fp.unit,
+        reason=ReturnReason.DEFECT,
+        refund_amount=refund_amount,
+        is_refunded=False,
+        notes=notes,
+        coating_applied=fp.is_coated,
+    )
+    db.add(item)
+    db.flush()
+
+    brak_log = services.deduct_raw_material_for_finished_product_brak(db, fp, quantity)
+    if brak_log:
+        print(f"✓ Ishlab chiqarish brak uchun xomashyo yechildi: {brak_log}")
+
+    db.commit()
+    db.refresh(item)
+    log_activity(db, "created", "finished_product_brak", item.id,
+                 f"{fp.name} — {quantity:g} {fp.unit} (ishlab chiqarish brak)", performed_by)
+
+    return {"success": True, "return_item_id": item.id, "refund_amount": refund_amount, "log": brak_log}
+
+
 def get_return_items(db: Session, order_id: Optional[int] = None) -> List:
     """Barcha qaytarishlar yoki bitta buyurtma bo'yicha."""
     query = db.query(ReturnItem)
@@ -3531,6 +3595,112 @@ def record_finished_product_loss(db: Session, data, created_by: str = None) -> d
     }
 
 
+def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float,
+                                              notes: str = None, created_by: str = None) -> dict:
+    """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak (masalan
+    kesish yoki qoplama tortish paytida sinib ketishi) — bu, mahsulotdan
+    KEYINCHALIK (allaqachon tayyor turgan holda) yo'qotilishidan FARQ
+    QILADI: bu yerda YAKUNIY yetkaziladigan/omborga kiritiladigan miqdor
+    O'ZGARMAYDI (ustadan qayta ishlab chiqarilib, o'rni to'ldiriladi),
+    faqat O'SHA qayta ishlab chiqarish uchun QO'SHIMCHA xomashyo (Penoplast,
+    loy) ombordan ayiriladi. Shuning uchun, mavjud "Kamaytirish" funksiyasidan
+    farqli o'laroq — fp.quantity (ombordagi mahsulot soni) ga UMUMAN TEGILMAYDI.
+
+    Hozircha faqat Profil/Panel/Donali/Blok kategoriyalari uchun ishlaydi —
+    bular uchun ishlab chiqarishda saqlab qo'yilgan "1 birlikka qancha
+    xomashyo ketishi" (unit_volume_m3, unit_loy_kg) mavjud. Termopanel va
+    Gips — boshqa, alohida funksiya orqali (bu yerga kiritilmagan)."""
+    from models import FinishedProduct, FinishedProductLoss, Inventory
+    import services
+
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == finished_product_id).with_for_update().first()
+    if not fp:
+        return {"success": False, "message": "Mahsulot topilmadi"}
+
+    cat = (fp.category or '').lower()
+    if cat in ('termopanel', 'gips'):
+        return {"success": False, "message": "Bu kategoriya (Termopanel/Gips) uchun boshqa usul kerak — hozircha qo'llab-quvvatlanmaydi"}
+
+    if brak_qty is None or brak_qty <= 0:
+        return {"success": False, "message": "Brak miqdori noto'g'ri"}
+
+    unit_vol = float(fp.unit_volume_m3 or 0)
+    unit_loy = float(fp.unit_loy_kg or 0)
+    penoplast_vol_needed = brak_qty * unit_vol
+    loy_kg_needed = (brak_qty * unit_loy) if fp.is_coated else 0.0
+
+    if penoplast_vol_needed <= 0 and loy_kg_needed <= 0:
+        return {"success": False, "message": "Bu mahsulot uchun xomashyo nisbati topilmadi (eski yozuv bo'lishi mumkin) — qo'lda hisoblash kerak"}
+
+    log = []
+    peno_cost = 0.0
+    loy_cost = 0.0
+
+    # 1) Penoplast — QO'SHIMCHA ayiriladi
+    if penoplast_vol_needed > 0:
+        if not fp.penoplast_id:
+            return {"success": False, "message": "Bu mahsulotning Penoplast turi noma'lum — qo'lda hisoblash kerak"}
+        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
+        if not p:
+            return {"success": False, "message": "Penoplast ombordan topilmadi"}
+        vol_per_unit = float(p.volume_per_unit or 1.0)
+        blocks = penoplast_vol_needed / vol_per_unit
+        if float(p.stock_quantity) < blocks:
+            return {"success": False, "message": f"Penoplast yetishmayapti! Kerak: {blocks:.2f} blok, omborda: {float(p.stock_quantity):.2f} blok"}
+        p.stock_quantity = float(p.stock_quantity) - blocks
+        peno_cost = blocks * float(p.price_per_unit or 0)
+        log.append(f"{p.item_name}: -{blocks:.2f} blok")
+
+    # 2) Loy — QO'SHIMCHA ayiriladi (agar qoplama bo'lsa), xuddi shu
+    # retseptdan (fp.recipe_id), ishlab chiqarishdagi kabi
+    if loy_kg_needed > 0:
+        from models import Recipe
+        recipe = db.query(Recipe).filter(Recipe.id == fp.recipe_id).first() if fp.recipe_id else None
+        if not recipe:
+            recipe = db.query(Recipe).first()
+        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
+        loy_cost = loy_kg_needed * float(loy_info.get("cost_per_kg", 0))
+
+        class _FakeOrder:
+            def __init__(self, rid):
+                self.id = None
+                self.order_number = "TAYYOR MAHSULOT — ISHLAB CHIQARISH BRAKI"
+        fake = _FakeOrder(recipe.id if recipe else None)
+        log.extend(services.deduct_loy_ingredients(
+            db, fake, loy_kg_needed, use_stock=False,
+            recipe_id=(recipe.id if recipe else None),
+            reason_override=f"Tayyor mahsulot ishlab chiqarish braki: {fp.name}"
+        ))
+
+    total_cost = peno_cost + loy_cost
+
+    # MUHIM: fp.quantity GA TEGILMAYDI — yakuniy mahsulot miqdori
+    # o'zgarmagani uchun. Faqat Moliyada xarajat sifatida qayd etiladi.
+    loss = FinishedProductLoss(
+        finished_product_id=fp.id,
+        product_name=fp.name,
+        category=fp.category,
+        quantity=brak_qty,
+        unit=fp.unit,
+        cost_amount=total_cost,
+        reason=f"Ishlab chiqarish jarayonida brak — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
+               + (f". Izoh: {notes}" if notes else ""),
+        created_by=created_by
+    )
+    db.add(loss)
+    db.commit()
+    db.refresh(loss)
+
+    return {
+        "success": True,
+        "loss_id": loss.id,
+        "cost_amount": float(total_cost),
+        "penoplast_cost": float(peno_cost),
+        "loy_cost": float(loy_cost),
+        "log": log,
+    }
+
+
 def sell_finished_products_batch(db: Session, data, created_by: str = None) -> dict:
     """Bir nechta turli tayyor mahsulotni, BITTA xaridorga, BITTA Yuk xati
     bilan sotadi ("savatcha"). Barchasi BITTA tranzaksiyada — birortasi
@@ -4149,7 +4319,13 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
 def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
                           order_id: int = None, notes: str = None) -> Optional[FinishedProduct]:
     """Buyurtmadan qaytgan detalni tayyor mahsulotlar omboriga qo'shadi.
-    Narx — buyurtmadagi narx."""
+    Sotuv narxi (unit_price) — buyurtmadagi narx (o'zgarmaydi).
+    Tan narxi (cost_price) — asl xomashyo qiymatidan hisoblanadi (avval
+    bu doim "0" deb yozilardi, shuning uchun bu mahsulot keyinroq YANGI
+    buyurtmada ishlatilsa, o'sha buyurtmaning foydasi — demak usta KPI'si
+    ham — sun'iy oshirilgan bo'lib chiqardi)."""
+    import services as _svc
+
     if quantity <= 0 or not order_item:
         return None
 
@@ -4157,6 +4333,9 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     total_price = float(order_item.total_price or 0)
     unit_p = (total_price / ordered) if ordered > 0 else 0.0
     unit = order_item.delivery_unit
+
+    unit_cost = _svc.get_order_item_unit_cost(db, order_item.order, order_item)
+    new_cost_price = round(unit_cost * quantity, 2)
 
     # Bir xili bo'lsa birlashtiramiz
     existing = db.query(FinishedProduct).filter(
@@ -4170,6 +4349,8 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
 
     if existing:
         existing.quantity = float(existing.quantity or 0) + quantity
+        existing.produced_quantity = float(existing.produced_quantity or 0) + quantity
+        existing.cost_price = float(existing.cost_price or 0) + new_cost_price
         db.commit()
         db.refresh(existing)
         return existing
@@ -4181,9 +4362,10 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         thickness=order_item.thickness,
         is_coated=order_item.is_coated,
         quantity=quantity,
+        produced_quantity=quantity,
         unit=unit,
         unit_price=unit_p,
-        cost_price=0,
+        cost_price=new_cost_price,
         source=StockSource.RETURNED,
         from_order_id=order_id or order_item.order_id,
         return_reason=reason,
