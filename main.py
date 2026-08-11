@@ -325,6 +325,14 @@ def _migrate_payment_columns():
         # bog'liq materiallar uchun ishlatilgan edi — aniqroq nom).
         migrations.append("UPDATE inventory SET category = 'Bazalt' WHERE category = 'Boshqa'")
 
+        # return_items — endi ikkita manbadan brak yozish mumkin: buyurtmadan
+        # (order_id) YOKI tayyor mahsulot ishlab chiqarishdan (finished_product_id).
+        # Shuning uchun order_id endi MAJBURIY emas, va yangi ustun qo'shiladi.
+        ri_cols = [c['name'] for c in inspector.get_columns('return_items')]
+        if 'finished_product_id' not in ri_cols:
+            migrations.append("ALTER TABLE return_items ADD COLUMN finished_product_id INTEGER")
+        migrations.append("ALTER TABLE return_items ALTER COLUMN order_id DROP NOT NULL")
+
         if migrations:
             with engine.connect() as conn:
                 for sql in migrations:
@@ -646,6 +654,13 @@ async def login_submit(request: Request, username: str = Form(...), password: st
     from models import User
     ip = request.client.host if request.client else None
     ua = request.headers.get("user-agent", "")[:250]
+
+    rl = crud.check_login_rate_limit(db, username, ip)
+    if rl["blocked"]:
+        return templates.TemplateResponse(request, "login.html", {
+            "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining.",
+            "username": username
+        })
 
     user = db.query(User).filter(User.username == username, User.is_active == True).first()
     if not user or not auth.verify_password(password, user.password_hash):
@@ -1333,9 +1348,21 @@ async def hodim_login_page(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/hodim/login")
 async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str = Form(...), db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent", "")[:250]
+
+    rl = crud.check_login_rate_limit(db, phone, ip)
+    if rl["blocked"]:
+        return templates.TemplateResponse(request, "hodim_login.html", {
+            "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining."
+        })
+
     emp = crud.authenticate_employee(db, phone, pin)
     if not emp:
+        crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "hodim_login.html", {"error": "Telefon yoki PIN noto'g'ri!"})
+
+    crud.log_login_attempt(db, phone, success=True, ip_address=ip, user_agent=ua)
     token = auth.create_employee_session(db, emp.id)
     response = RedirectResponse("/hodim", status_code=302)
     response.set_cookie(key="emp_session_token", value=token, httponly=True,
@@ -2570,6 +2597,20 @@ def api_create_return(data: schemas.ReturnItemCreate, db: Session = Depends(get_
     return crud.create_return_item(db, data)
 
 
+@app.post("/api/returns/finished-product-brak")
+def api_create_finished_product_brak(data: schemas.FinishedProductBrakCreate, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+    """Tayyor mahsulot ISHLAB CHIQARISH jarayonidagi brak — buyurtmasiz.
+    Faqat qo'shimcha sarflangan xomashyoni ayiradi, tayyor mahsulot
+    SONIGA (sotiladigan qoldiqqa) tegmaydi."""
+    who = current_user.full_name or current_user.username
+    result = crud.create_finished_product_brak(
+        db, data.finished_product_id, data.quantity, notes=data.notes, performed_by=who
+    )
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+
 @app.get("/api/returns")
 def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
     return crud.get_return_items(db, order_id=order_id)
@@ -3003,6 +3044,21 @@ def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Sessio
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_loss(db, data, created_by=who)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
+@app.post("/api/finished/production-brak")
+def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
+                                   current_user=Depends(auth.admin_or_warehouse)):
+    """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
+    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi (hozircha
+    faqat Profil/Panel/Donali/Blok kategoriyalari uchun)."""
+    who = current_user.full_name or current_user.username
+    result = crud.record_finished_product_production_brak(
+        db, data.finished_product_id, data.brak_qty, data.notes, created_by=who
+    )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
