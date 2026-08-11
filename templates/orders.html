@@ -1284,16 +1284,27 @@ function pickFinished(el, fpId) {
       </span>`);
   }
 
-  // Plotnost va m³ narxini bloklaymiz — kerak emas
+  // Plotnost — kerak emas, bloklaymiz (xomashyo hisoblanmaydi)
   const peno = row.querySelector('.i-peno');
+  if (peno) {
+    peno.disabled = true;
+    peno.style.opacity = '.4';
+    peno.closest('.dif').title = 'Tayyor mahsulotdan olinmoqda — xomashyo hisoblanmaydi';
+  }
+
+  // "1 m³ narxi" — ENDI BLOKLANMAYDI. Sotuv narxini joriy buyurtma
+  // narxiga moslashtirish uchun ochiq qoldiramiz (tan narxi/xomashyo
+  // hisobiga bu SIRA TA'SIR QILMAYDI — faqat mijozga ko'rinadigan narx).
   const m3 = row.querySelector('.i-m3price');
-  [peno, m3].forEach(x => {
-    if (x) {
-      x.disabled = true;
-      x.style.opacity = '.4';
-      x.closest('.dif').title = 'Tayyor mahsulotdan olinmoqda — xomashyo hisoblanmaydi';
-    }
-  });
+  if (m3 && (effectiveType === 'profil' || effectiveType === 'panel')) {
+    const orderBasePrice = parseNum(document.getElementById('base_price')?.value || '0');
+    if (orderBasePrice > 0) m3.value = orderBasePrice.toLocaleString('ru-RU').replace(/,/g, ' ');
+    recomputeFpPriceFromM3(row);
+  } else if (m3) {
+    m3.disabled = true;
+    m3.style.opacity = '.4';
+    m3.closest('.dif').title = 'Tayyor mahsulotdan olinmoqda — xomashyo hisoblanmaydi';
+  }
 
   // MUHIM: Nom, o'lcham (eni/kengligi/qalinligi/uzunligi) va Qoplama
   // (Ha/Yo'q) — bular, TAYYOR MAHSULOTNING O'ZIGA XOS xususiyatlari.
@@ -1366,6 +1377,40 @@ function clearFinished(rowId) {
   });
 
   calculateItem(row);
+}
+
+// "1 m³ narxi" o'zgarganda, "Tayyor mahsulotdan" tanlangan qatorning
+// SOTUV narxini (fpPrice) shu yangi narxga moslab qayta hisoblaydi.
+// MUHIM: bu — FAQAT ko'rsatish/sotuv narxi uchun. Xomashyo hisobi
+// (finished_product_id bog'lanishi orqali) va tan narxi (get_order_item_
+// unit_cost — fp.cost_price'dan) BUTUNLAY MUSTAQIL, bu yerga sira
+// tegilmaydi — formula xavfsiz.
+function recomputeFpPriceFromM3(row) {
+  if (!row || !row.dataset.fpId) return;
+  const type = row.querySelector('.i-type')?.value;
+  if (type !== 'profil' && type !== 'panel') return;  // hozircha faqat shu ikkisi
+
+  const m3El = row.querySelector('.i-m3price');
+  const basePrice = m3El ? parseNum(m3El.value) : 0;
+  if (basePrice <= 0) return;
+
+  const h = parseFloat(row.querySelector('.i-h')?.value) || 0;
+  const w = parseFloat(row.querySelector('.i-w')?.value) || 0;
+  const t = parseFloat(row.querySelector('.i-t')?.value) || 0;
+  const isCoated = row.querySelector('.i-c')?.value === 'true';
+
+  let perUnitFinal = 0;
+  if (type === 'profil') {
+    // Xuddi oddiy Profil formulasi bilan bir xil — faqat "asosiy narx"
+    // o'rniga, shu yerda kiritilgan m³ narxi ishlatiladi.
+    const perMeter_base = (h/100) * (w/100) * basePrice / 2;
+    perUnitFinal = isCoated ? perMeter_base * 2 : perMeter_base;
+  } else if (type === 'panel') {
+    const perDona_base = (h/100) * (t/100) * basePrice;
+    perUnitFinal = isCoated ? perDona_base * 2 : perDona_base;
+  }
+
+  row.dataset.fpPrice = perUnitFinal.toString();
 }
 
 function checkFpLimit(row) {
@@ -2670,7 +2715,7 @@ function addItem() {
       </div>
       <div class="dif"><label>1 m³ narxi</label>
         <input type="text" class="i-m3price" placeholder="asosiy"
-               oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"
+               oninput="formatPriceInput(this);recomputeFpPriceFromM3(this.closest('.detal'));calculateItem(this.closest('.detal'))"
                style="border-color:#B9783F">
       </div>
     </div>
@@ -3887,8 +3932,11 @@ async function editSelected() {
                 <button onclick="clearFinished('${row.id}')" title="Bekor qilish">✕</button></span>`);
           }
           const pe = row.querySelector('.i-peno');
+          if (pe) { pe.disabled = true; pe.style.opacity = '.4'; }
           const me = row.querySelector('.i-m3price');
-          [pe, me].forEach(x => { if (x) { x.disabled = true; x.style.opacity = '.4'; } });
+          if (me && (item.category !== 'profil' && item.category !== 'panel')) {
+            me.disabled = true; me.style.opacity = '.4';
+          }
           // MUHIM: fetch tugaguncha fpMax'ni VAQTINCHA katta qilib qo'yamiz —
           // aks holda, buyurtma yuklangan zahoti (fetch hali tugamagan) ishga
           // tushadigan calculateItem→checkFpLimit, fpMax=0 deb, "yetarli emas"
