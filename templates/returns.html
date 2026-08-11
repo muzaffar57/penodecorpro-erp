@@ -5,6 +5,7 @@
 
 {% block topbar_actions %}
 <button class="btn btn-outline" style="border-color:#DC2626;color:#DC2626" onclick="showBrakModal()"><i class="ti ti-alert-triangle" style="vertical-align:-2px"></i> Loyihadan brak yozish</button>
+<button class="btn btn-outline" style="border-color:#B9783F;color:#B9783F" onclick="showFpBrakModal()"><i class="ti ti-building-factory-2" style="vertical-align:-2px"></i> Ishlab chiqarishdan brak</button>
 <button class="btn btn-dark" onclick="showAddModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi qaytarish</button>
 {% endblock %}
 
@@ -287,35 +288,67 @@
     </div>
 
     <div style="padding:14px 22px;overflow-y:auto;flex:1">
+
       <div class="form-group">
-        <label>Loyiha</label>
-        <select id="brak-project" onchange="onBrakProjectChange()">
-          <option value="">— Loyiha tanlang —</option>
-          {% for p in projects %}<option value="{{ p.id }}">{{ p.project_name }} — {{ p.client_name }}</option>{% endfor %}
-        </select>
+        <label>Manba</label>
+        <div style="display:flex;gap:6px">
+          <div id="brak-src-project" class="btn btn-outline" style="flex:1;text-align:center;cursor:pointer;border-color:#DC2626;color:#DC2626;background:#FEF2F2" onclick="selectBrakSource('project')">🏗️ Loyihadan</div>
+          <div id="brak-src-fp" class="btn btn-outline" style="flex:1;text-align:center;cursor:pointer" onclick="selectBrakSource('fp')">🏭 Ishlab chiqarishdan</div>
+        </div>
       </div>
 
-      <div id="brakList" style="margin-top:10px">
-        <div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Avval loyiha tanlang</div>
+      <!-- ═══ MANBA: LOYIHA (mavjud) ═══ -->
+      <div id="brak-panel-project">
+        <div class="form-group">
+          <label>Loyiha</label>
+          <select id="brak-project" onchange="onBrakProjectChange()">
+            <option value="">— Loyiha tanlang —</option>
+            {% for p in projects %}<option value="{{ p.id }}">{{ p.project_name }} — {{ p.client_name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div id="brakList" style="margin-top:10px">
+          <div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Avval loyiha tanlang</div>
+        </div>
+
+        <div class="form-group">
+          <label>Bu ro'yxatdagi (qoplamali) detallar loy tortilgandan keyin brak bo'lganmi?</label>
+          <div style="display:flex;gap:8px">
+            <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
+              <input type="radio" name="brak-coating-applied" value="no" checked style="width:16px;height:16px">
+              <span style="font-size:13px">✂️ Yo'q — loygacha</span>
+            </label>
+            <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
+              <input type="radio" name="brak-coating-applied" value="yes" style="width:16px;height:16px">
+              <span style="font-size:13px">🎨 Ha — loydan keyin</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MANBA: TAYYOR MAHSULOT ISHLAB CHIQARISH (yangi) ═══ -->
+      <div id="brak-panel-fp" style="display:none">
+        <div style="padding:10px 12px;background:#F8F2EB;border:1px solid #E5D5C0;border-radius:8px;font-size:12px;color:#A86B36;margin-bottom:12px">
+          ℹ️ Bu — buyurtmasiz, "Tayyor mahsulotlar" bo'limidan to'g'ridan-to'g'ri ishlab chiqarilgan mahsulot uchun.
+          Tayyor mahsulot SONI o'zgarmaydi (usta brak bo'lgan qismni qayta ishlab chiqargan deb hisoblanadi) —
+          faqat qo'shimcha sarflangan xomashyo ombordan ayiriladi. Hozircha faqat <b>Profil/Panel/Donali/Blok</b> uchun ishlaydi.
+        </div>
+        <div class="form-group">
+          <label>Tayyor mahsulot</label>
+          <select id="brak-fp-select">
+            <option value="">— Mahsulot tanlang —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Necha birlik brak bo'ldi?</label>
+          <input type="number" id="brak-fp-qty" placeholder="0" min="0" step="0.1">
+        </div>
+        <div id="brak-fp-error" style="display:none;margin-top:6px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
       </div>
 
       <div class="form-group" style="margin-top:12px">
-        <label>Sabab / izoh (barcha yozuvlarga)</label>
+        <label>Sabab / izoh</label>
         <input type="text" id="brak-notes" placeholder="Masalan: kesish jarayonida sinib ketdi">
-      </div>
-
-      <div class="form-group">
-        <label>Bu ro'yxatdagi (qoplamali) detallar loy tortilgandan keyin brak bo'lganmi?</label>
-        <div style="display:flex;gap:8px">
-          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
-            <input type="radio" name="brak-coating-applied" value="no" checked style="width:16px;height:16px">
-            <span style="font-size:13px">✂️ Yo'q — loygacha</span>
-          </label>
-          <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer">
-            <input type="radio" name="brak-coating-applied" value="yes" style="width:16px;height:16px">
-            <span style="font-size:13px">🎨 Ha — loydan keyin</span>
-          </label>
-        </div>
       </div>
 
       <div id="brak-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
@@ -323,7 +356,7 @@
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeBrakModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2;background:#DC2626" onclick="saveBrakBatch()">🔴 Brak sifatida saqlash</button>
+      <button class="btn btn-dark" id="brak-save-btn" style="flex:2;background:#DC2626" onclick="saveBrakBatch()">🔴 Brak sifatida saqlash</button>
     </div>
   </div>
 </div>
@@ -669,6 +702,8 @@ async function saveReturn(){
 
 // ── LOYIHADAN BRAK YOZISH ──────────────────────────────────
 let brakItems = [];
+let brakSource = 'project';
+let brakFpCache = null;
 
 function showBrakModal(){
   document.getElementById('brakModal').style.display='flex';
@@ -677,8 +712,70 @@ function showBrakModal(){
   document.getElementById('brak-error').style.display = 'none';
   document.getElementById('brakList').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Avval loyiha tanlang</div>';
   brakItems = [];
+  selectBrakSource('project');
 }
 function closeBrakModal(){ document.getElementById('brakModal').style.display='none'; }
+
+function selectBrakSource(src){
+  brakSource = src;
+  const isProject = src === 'project';
+  document.getElementById('brak-panel-project').style.display = isProject ? 'block' : 'none';
+  document.getElementById('brak-panel-fp').style.display = isProject ? 'none' : 'block';
+
+  const btnP = document.getElementById('brak-src-project');
+  const btnF = document.getElementById('brak-src-fp');
+  btnP.style.borderColor = isProject ? '#DC2626' : '#ddd';
+  btnP.style.color = isProject ? '#DC2626' : '#666';
+  btnP.style.background = isProject ? '#FEF2F2' : '#fff';
+  btnF.style.borderColor = isProject ? '#ddd' : '#DC2626';
+  btnF.style.color = isProject ? '#666' : '#DC2626';
+  btnF.style.background = isProject ? '#fff' : '#FEF2F2';
+
+  document.getElementById('brak-save-btn').onclick = isProject ? saveBrakBatch : saveFinishedProductBrak;
+
+  if (!isProject && !brakFpCache) loadBrakFpOptions();
+}
+
+async function loadBrakFpOptions(){
+  const sel = document.getElementById('brak-fp-select');
+  sel.innerHTML = '<option value="">Yuklanmoqda...</option>';
+  try {
+    const items = await fetch('/api/finished').then(r => r.json());
+    brakFpCache = items;
+    const CAT_LABEL = {profil:'Profil', panel:'Panel', dona:'Donali', blok:'Blok', termopanel:'Termopanel', gips:'Gips'};
+    sel.innerHTML = '<option value="">— Mahsulot tanlang —</option>' + items.map(i => {
+      const cat = (i.category || '').toLowerCase();
+      const label = CAT_LABEL[cat] || i.category || '—';
+      const supported = ['profil','panel','dona','blok'].includes(cat);
+      return `<option value="${i.id}" ${supported ? '' : 'disabled'}>${i.name} — ${label}${supported ? '' : ' (hozircha qo\'llab-quvvatlanmaydi)'} (bor: ${i.quantity} ${i.unit})</option>`;
+    }).join('');
+  } catch(e) {
+    sel.innerHTML = '<option value="">Xato — qayta urinib ko\'ring</option>';
+  }
+}
+
+async function saveFinishedProductBrak(){
+  const err = document.getElementById('brak-fp-error');
+  err.style.display = 'none';
+  const fpId = document.getElementById('brak-fp-select').value;
+  const qty = parseFloat(document.getElementById('brak-fp-qty').value);
+  const notes = document.getElementById('brak-notes').value.trim() || null;
+
+  if (!fpId) { err.textContent = 'Mahsulot tanlanmagan'; err.style.display = 'block'; return; }
+  if (!qty || qty <= 0) { err.textContent = 'Miqdor to\'g\'ri kiritilmagan'; err.style.display = 'block'; return; }
+
+  const res = await fetch('/api/returns/finished-product-brak', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({finished_product_id: parseInt(fpId), quantity: qty, notes})
+  });
+  if (res.ok) {
+    location.reload();
+  } else {
+    const e = await res.json();
+    err.textContent = '❌ ' + (e.detail?.message || e.detail || 'Xato');
+    err.style.display = 'block';
+  }
+}
 
 async function onBrakProjectChange(){
   const projectId = document.getElementById('brak-project').value;
