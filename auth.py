@@ -12,6 +12,7 @@ Rollar:
 
 import hashlib
 import secrets
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -27,14 +28,41 @@ from models import User, UserRole
 # ============================================================
 
 def hash_password(password: str) -> str:
-    """Parolni SHA-256 bilan shifrlaydi.
-    Keyinchalik bcrypt ga o'tish uchun faqat shu funksiyani o'zgartirish kifoya."""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Parolni bcrypt bilan shifrlaydi — har bir parol uchun boshqa
+    "tuz" (salt) ishlatiladi, hatto ikki kishi bir xil parol qo'ysa ham,
+    natija boshqa-boshqa bo'ladi (lug'at/rainbow-table hujumlariga
+    ancha chidamli, eski SHA-256 dan farqli)."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def _is_bcrypt_hash(hashed: str) -> bool:
+    return hashed.startswith(("$2b$", "$2a$", "$2y$"))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Kiritilgan parolni bazadagi hash bilan solishtiradi."""
-    return hash_password(plain_password) == hashed_password
+    """Kiritilgan parolni bazadagi hash bilan solishtiradi. ESKI (SHA-256)
+    va YANGI (bcrypt) — ikkala formatni ham qo'llab-quvvatlaydi, shunda
+    hali eski formatda saqlangan foydalanuvchilar ham to'siqsiz kira oladi."""
+    if _is_bcrypt_hash(hashed_password):
+        try:
+            return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+        except ValueError:
+            return False
+    # Eski format (SHA-256) — orqaga moslik uchun
+    return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
+
+
+def verify_and_upgrade_password(db: Session, user, plain_password: str) -> bool:
+    """verify_password bilan bir xil natija qaytaradi, lekin QO'SHIMCHA:
+    agar parol TO'G'RI bo'lsa-yu, hali ESKI (SHA-256) formatda saqlangan
+    bo'lsa — muvaffaqiyatli kirishning O'ZIDA, foydalanuvchiga sezdirmasdan,
+    bcrypt formatiga yangilaydi. Shunday qilib, har bir foydalanuvchi vaqt
+    o'tishi bilan (parolni majburan tiklashsiz) xavfsizroq formatga o'tadi."""
+    ok = verify_password(plain_password, user.password_hash)
+    if ok and not _is_bcrypt_hash(user.password_hash):
+        user.password_hash = hash_password(plain_password)
+        db.commit()
+    return ok
 
 
 # ============================================================
@@ -294,6 +322,14 @@ EMPLOYEE_SESSION_HOURS = 24 * 14  # 14 kun — xodim tez-tez qayta kirmasin
 def hash_pin(pin: str) -> str:
     """PIN kodni shifrlaydi (parol bilan bir xil usulda)."""
     return hash_password(pin)
+
+
+def verify_pin(plain_pin: str, hashed_pin: str) -> bool:
+    """PIN kodni tekshiradi. MUHIM: bcrypt — tasodifiy "tuz" ishlatgani
+    uchun, ikkita hash'ni to'g'ridan-to'g'ri solishtirib bo'lmaydi (bir xil
+    PIN har safar BOSHQA hash beradi) — shuning uchun har doim shu funksiya
+    orqali (verify_password kabi, checkpw bilan) tekshiriladi."""
+    return verify_password(plain_pin, hashed_pin)
 
 
 def create_employee_session(db: Session, employee_id: int) -> str:
