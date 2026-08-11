@@ -580,6 +580,21 @@ finally:
 app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False)
 
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Har bir javobga asosiy xavfsizlik sarlavhalarini qo'shadi.
+    MUHIM: Content-Security-Policy ATAYLAB qo'shilmagan — ilova
+    sahifalarida ko'p "inline" (to'g'ridan-to'g'ri HTML ichidagi)
+    JavaScript va CSS ishlatiladi, qat'iy CSP bularni bloklab, butun
+    interfeysni ishlamay qo'yishi mumkin edi. Bu 3 tasi esa — xavfsiz,
+    mavjud funksionallikka ta'sir qilmaydi."""
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
 @app.exception_handler(Exception)
 async def global_error_logger(request: Request, exc: Exception):
     """Kutilmagan (unhandled) xatolarni avtomatik yozib boradi va foydalanuvchiga
@@ -670,7 +685,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
     crud.log_login_attempt(db, username, success=True, ip_address=ip, user_agent=ua)
     token = auth.create_session(db, user.id)
     response = RedirectResponse("/", status_code=302)
-    response.set_cookie(key="session_token", value=token, httponly=True, max_age=3600 * 8, samesite="lax")
+    response.set_cookie(key="session_token", value=token, httponly=True, max_age=3600 * 8, samesite="lax", secure=True)
     return response
 
 
@@ -1366,7 +1381,7 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
     token = auth.create_employee_session(db, emp.id)
     response = RedirectResponse("/hodim", status_code=302)
     response.set_cookie(key="emp_session_token", value=token, httponly=True,
-                         max_age=3600 * auth.EMPLOYEE_SESSION_HOURS, samesite="lax")
+                         max_age=3600 * auth.EMPLOYEE_SESSION_HOURS, samesite="lax", secure=True)
     return response
 
 
