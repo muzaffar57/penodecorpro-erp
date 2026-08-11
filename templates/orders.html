@@ -1327,11 +1327,12 @@ function pickFinished(el, fpId) {
     const qEl = row.querySelector(qtyFieldSel);
     if (qEl) { qEl.disabled = false; qEl.style.opacity = ''; qEl.title = ''; }
   }
-  // Blokning o'z narx maydonini ("1 blok narxi") bloklaymiz — kerak emas,
-  // narx tayyor mahsulotning o'zidan olinadi.
+  // Blokning o'z narx maydonini ("1 blok narxi") — ENDI BLOKLANMAYDI.
+  // Sotuv narxini joriy buyurtma narxiga moslashtirish uchun ochiq
+  // qoldiramiz (tan narxi/xomashyo hisobiga bu SIRA TA'SIR QILMAYDI).
   if (effectiveType === 'blok') {
     const bpEl = row.querySelector('.i-blokprice');
-    if (bpEl) { bpEl.disabled = true; bpEl.style.opacity = '.4'; bpEl.title = 'Tayyor mahsulotdan olinmoqda'; }
+    if (bpEl) { bpEl.disabled = false; bpEl.style.opacity = ''; bpEl.title = ''; }
   }
   // Qoplama tugmalari (Ha/Yo'q ko'rinishidagi tugmalar) ham bloklanadi
   row.querySelectorAll('.coat-opt').forEach(b => {
@@ -3159,10 +3160,21 @@ function calculateItem(row) {
     }
   } else if (type === 'blok') {
     if (row.dataset.fpId && row.dataset.fpPrice) {
-      // MUHIM: "Tayyor mahsulotdan" — Blokning "chiqadigan metr / narx"
-      // formulasi ISHLATILMAYDI. Mahsulotning o'z, tayyor "1 metr narxi"
-      // to'g'ridan-to'g'ri ishlatiladi.
-      const fpPrice3 = parseFloat(row.dataset.fpPrice) || 0;
+      // MUHIM: agar "1 blok narxi" maydoni blokdan chiqarilgan bo'lsa
+      // (joriy buyurtma narxiga moslashtirish uchun) — narx SHU YERDA,
+      // jonli, xuddi oddiy Blok formulasi bilan qayta hisoblanadi.
+      // Aks holda (hali blokланган holatda) — mahsulotning o'z, tayyor
+      // narxi to'g'ridan-to'g'ri ishlatiladi (eski xatti-harakat).
+      const bpElFp = row.querySelector('.i-blokprice');
+      let fpPrice3 = parseFloat(row.dataset.fpPrice) || 0;
+      if (bpElFp && !bpElFp.disabled) {
+        const blokPriceFp = parseNum(bpElFp.value) || 0;
+        const chiqadiFp = l;
+        if (chiqadiFp > 0 && blokPriceFp > 0) {
+          fpPrice3 = blokPriceFp / chiqadiFp;
+          row.dataset.fpPrice = fpPrice3.toString();
+        }
+      }
       perMeterPrice = fpPrice3;
       price = fpPrice3 * qty;   // qty — "Necha metr kerak" (.i-q dan)
       volume_total = 0;
