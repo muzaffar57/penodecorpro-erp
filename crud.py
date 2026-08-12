@@ -761,16 +761,6 @@ def get_recipe(db: Session, recipe_id: int) -> Optional[Recipe]:
     return db.query(Recipe).filter(Recipe.id == recipe_id).first()
 
 
-def delete_recipe(db: Session, recipe_id: int) -> bool:
-    """Retseptni o'chiradi."""
-    db_recipe = get_recipe(db, recipe_id)
-    if not db_recipe:
-        return False
-    db.delete(db_recipe)
-    db.commit()
-    return True
-
-
 # ============================================================
 # PROJECT CRUD
 # ============================================================
@@ -877,10 +867,6 @@ def add_payment(db: Session, project_id: int, amount: float) -> Optional[Project
     db.commit()
     db.refresh(db_project)
     return db_project
-
-
-def get_project(db: Session, project_id: int) -> Optional[Project]:
-    return db.query(Project).filter(Project.id == project_id).first()
 
 
 # ============================================================
@@ -3004,26 +2990,6 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     new_additives_list = getattr(order_data, 'gips_additives', None) or []
     new_additives = {a.inventory_id: float(a.planned_qty or 0) for a in new_additives_list}
 
-    # ═══ VAQTINCHALIK DIAGNOSTIKA — Gips "yo'qolib qolish" muammosi ═══
-    try:
-        log_error(
-            db,
-            error_message=f"[DIAGNOSTIKA4] Buyurtma #{order_id} — Gips holati",
-            stack_trace=(
-                f"OLD: planned_gips_kg={old_planned_gips}, gips_inventory_id={old_gips_inv_id}\n"
-                f"NEW: planned_gips_kg={new_planned_gips}, gips_inventory_id={new_gips_inv_id}\n"
-                f"order_data.planned_gips_kg (xom): {getattr(order_data, 'planned_gips_kg', 'YO`Q ATTR')}\n"
-                f"order_data.gips_inventory_id (xom): {getattr(order_data, 'gips_inventory_id', 'YO`Q ATTR')}\n"
-            ),
-            endpoint=f"/api/orders/{order_id}", method="PUT"
-        )
-    except Exception as _diag4_e:
-        try:
-            log_error(db, error_message=f"[DIAGNOSTIKA4 XATOSI] {_diag4_e}", endpoint=f"/api/orders/{order_id}")
-        except Exception:
-            pass
-    # ═══ DIAGNOSTIKA TUGADI ═══
-
     if not is_draft:
         import services as _services
         # Asosiy Gips — agar bir xil xomashyo bo'lsa, faqat farqni; turi
@@ -4265,10 +4231,6 @@ def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: b
         (FinishedProduct.quantity > 0) |
         (FinishedProduct.production_status == ProductionStatus.IN_PROGRESS)
     ).order_by(FinishedProduct.source, FinishedProduct.name).all()
-
-
-def get_finished_product(db: Session, fp_id: int) -> Optional[FinishedProduct]:
-    return db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
 
 
 def update_finished_product(db: Session, fp_id: int, data: dict) -> Optional[FinishedProduct]:
