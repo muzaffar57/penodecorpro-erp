@@ -285,10 +285,6 @@ function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' 
 function parseNum(v) {
   return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
 }
-function formatPriceInput(input) {
-  const val = parseNum(input.value);
-  if (val > 0) input.value = fmt(val);
-}
 
 async function uploadInventoryImage(id, input) {
   const file = input.files[0];
