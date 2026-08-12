@@ -2935,7 +2935,17 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         oi.length = nd.length
         oi.quantity = nd.quantity
         oi.is_coated = nd.is_coated
-        oi.recipe_id = order_data.recipe_id
+        # MUHIM TUZATISH: avval BARCHA detallarning recipe_id'si, ularning
+        # O'Z tanlovidan qat'i nazar, buyurtma darajasidagi (order_data.
+        # recipe_id) BITTA umumiy qiymat bilan ALMASHTIRILAR edi. Bu, "loy
+        # sotish" detallari (masalan "Qoplama kvars") o'zining to'g'ri
+        # retseptini yuborgan bo'lsa ham, uni buyurtmaning umumiy (masalan
+        # qoplama uchun tanlangan) retsepti bilan bosib qo'yardi — natijada
+        # noto'g'ri xomashyo hisoblanardi. Endi — har bir detal, AGAR O'Z
+        # retseptini yuborgan bo'lsa, O'SHANI saqlaydi; faqat yubormagan
+        # (masalan qoplamali profil/panel) detallar uchun buyurtmaning
+        # umumiy retseptiga tushadi.
+        oi.recipe_id = getattr(nd, 'recipe_id', None) or order_data.recipe_id
         oi.penoplast_id = getattr(nd, 'penoplast_id', None)
         oi.price_per_m3 = getattr(nd, 'price_per_m3', None)
         oi.finished_product_id = getattr(nd, 'finished_product_id', None)
@@ -3068,36 +3078,6 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         for oi in order.items:
             if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id:
                 new_loysale_by_recipe[oi.recipe_id] = new_loysale_by_recipe.get(oi.recipe_id, 0) + float(oi.quantity or 0)
-
-        # ═══ VAQTINCHALIK DIAGNOSTIKA — "loy sotish" recipe_id muammosi ═══
-        try:
-            _submitted_loysotish = [
-                {"name": getattr(x, 'name', None), "category": getattr(x, 'category', None),
-                 "quantity": getattr(x, 'quantity', None), "recipe_id": getattr(x, 'recipe_id', None)}
-                for x in order_data.items if (getattr(x, 'category', None) or '').lower() == 'loy_sotish'
-            ]
-            _current_loysotish_db = [
-                {"id": oi.id, "name": oi.name, "quantity": float(oi.quantity or 0), "recipe_id": oi.recipe_id}
-                for oi in order.items if (oi.category or '').lower() == 'loy_sotish'
-            ]
-            log_error(
-                db,
-                error_message=f"[DIAGNOSTIKA3] Buyurtma #{order_id} — loy sotish recipe_id",
-                stack_trace=(
-                    f"OLD_LOYSALE_BY_RECIPE: {old_loysale_by_recipe}\n"
-                    f"NEW_LOYSALE_BY_RECIPE: {new_loysale_by_recipe}\n\n"
-                    f"FRONTEND YUBORGAN (order_data.items, loy_sotish): {_submitted_loysotish}\n\n"
-                    f"HOZIRGI DB (order.items, loy_sotish, item yangilangandan keyin): {_current_loysotish_db}\n"
-                ),
-                endpoint=f"/api/orders/{order_id}", method="PUT"
-            )
-        except Exception as _diag3_e:
-            try:
-                log_error(db, error_message=f"[DIAGNOSTIKA3 XATOSI] {_diag3_e}", endpoint=f"/api/orders/{order_id}")
-            except Exception:
-                pass
-        # ═══ DIAGNOSTIKA TUGADI ═══
-
         all_recipe_ids = set(old_loysale_by_recipe.keys()) | set(new_loysale_by_recipe.keys())
         for rid in all_recipe_ids:
             diff = new_loysale_by_recipe.get(rid, 0) - old_loysale_by_recipe.get(rid, 0)
