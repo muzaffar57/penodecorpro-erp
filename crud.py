@@ -2839,47 +2839,6 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "termo_loy_kg": getattr(it, 'termo_loy_kg', None) or 0,
     } for it in order_data.items]
 
-    # ═══ VAQTINCHALIK DIAGNOSTIKA — hech narsani o'zgartirmaydi, faqat
-    # kuzatadi. Xato sababi topilgach, bu blok OLIB TASHLANADI. ═══
-    try:
-        import json as _json
-        _old_items_diag = [services._FakeItem(x) for x in old_snapshot]
-        _new_items_diag = [services._FakeItem(x) for x in new_snapshot]
-
-        def _per_item_diag(items_list):
-            out = []
-            for it in items_list:
-                v = services._item_volume_m3(db, it, None)
-                out.append(f"{it.category}(pid={it.penoplast_id}, qty={it.quantity}, upfv={it.unit_price_for_volume}, pm3={it.price_per_m3}, w={it.width}, t={it.thickness}, l={it.length}) -> vol={v}")
-            return out
-
-        _old_per_item = _per_item_diag(_old_items_diag)
-        _new_per_item = _per_item_diag(_new_items_diag)
-
-        _old_vol_diag = services._group_volumes_by_penoplast(db, _old_items_diag)
-        _new_vol_diag = services._group_volumes_by_penoplast(db, _new_items_diag)
-        _diff_diag = {pid: round(_new_vol_diag.get(pid, 0) - _old_vol_diag.get(pid, 0), 4)
-                      for pid in set(_old_vol_diag) | set(_new_vol_diag)}
-
-        log_error(
-            db,
-            error_message=f"[DIAGNOSTIKA2] Buyurtma #{order_id} — har bir detal hajmi",
-            stack_trace=(
-                f"FARQ: {_diff_diag}\nOLD_VOL: {_old_vol_diag}\nNEW_VOL: {_new_vol_diag}\n\n"
-                f"--- OLD — har bir detal ---\n" + "\n".join(_old_per_item) + "\n\n"
-                f"--- NEW — har bir detal ---\n" + "\n".join(_new_per_item)
-            ),
-            endpoint=f"/api/orders/{order_id}", method="PUT"
-        )
-    except Exception as _diag_e:
-        try:
-            import traceback as _tb
-            log_error(db, error_message=f"[DIAGNOSTIKA2 XATOSI] {_diag_e}",
-                      stack_trace=_tb.format_exc(), endpoint=f"/api/orders/{order_id}")
-        except Exception:
-            pass
-    # ═══ DIAGNOSTIKA TUGADI ═══
-
     is_draft = order.status == OrderStatus.DRAFT
 
     # 2) Qoralama bo'lmasa — xomashyo yetishini tekshiramiz
