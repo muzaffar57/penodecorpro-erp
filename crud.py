@@ -3004,6 +3004,26 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     new_additives_list = getattr(order_data, 'gips_additives', None) or []
     new_additives = {a.inventory_id: float(a.planned_qty or 0) for a in new_additives_list}
 
+    # ═══ VAQTINCHALIK DIAGNOSTIKA — Gips "yo'qolib qolish" muammosi ═══
+    try:
+        log_error(
+            db,
+            error_message=f"[DIAGNOSTIKA4] Buyurtma #{order_id} — Gips holati",
+            stack_trace=(
+                f"OLD: planned_gips_kg={old_planned_gips}, gips_inventory_id={old_gips_inv_id}\n"
+                f"NEW: planned_gips_kg={new_planned_gips}, gips_inventory_id={new_gips_inv_id}\n"
+                f"order_data.planned_gips_kg (xom): {getattr(order_data, 'planned_gips_kg', 'YO`Q ATTR')}\n"
+                f"order_data.gips_inventory_id (xom): {getattr(order_data, 'gips_inventory_id', 'YO`Q ATTR')}\n"
+            ),
+            endpoint=f"/api/orders/{order_id}", method="PUT"
+        )
+    except Exception as _diag4_e:
+        try:
+            log_error(db, error_message=f"[DIAGNOSTIKA4 XATOSI] {_diag4_e}", endpoint=f"/api/orders/{order_id}")
+        except Exception:
+            pass
+    # ═══ DIAGNOSTIKA TUGADI ═══
+
     if not is_draft:
         import services as _services
         # Asosiy Gips — agar bir xil xomashyo bo'lsa, faqat farqni; turi
