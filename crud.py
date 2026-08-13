@@ -4534,7 +4534,6 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
     # 1 m² ga proporsional ayiramiz (aynan foydalanuvchi tushuntirgandek:
     # boshida qancha ketgan bo'lsa, o'sha nisbatда davom etadi).
     if cat_low == 'termopanel':
-        from models import Inventory
         bazalt_id = getattr(fp, 'bazalt_item_id', None)
         if not bazalt_id:
             return {"success": False,
