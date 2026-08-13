@@ -4791,7 +4791,19 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
         loy_cost = loy_kg * loy_per_kg
         recipe_name = info.get("recipe")
 
-    peno_cost = max(total_cost - loy_cost, 0)
+    # Penoplast narxi — TO'G'RIDAN-TO'G'RI, saqlangan haqiqiy hajm
+    # (fp.volume_m3) va joriy Penoplast narxidan hisoblanadi. AVVAL bu
+    # "umumiy tan narxidan Loy narxini ayirib" (max(total_cost-loy_cost,0))
+    # hisoblanardi — bu, agar Loy narxi (joriy narxlarda) mahsulot birinchi
+    # marta tayyorlangandagi umumiy tan narxidan OSHIB ketsa (masalan
+    # xomashyo narxlari vaqt o'tishi bilan ko'tarilgan bo'lsa), manfiy
+    # chiqib, "Penoplast: 0 so'm" deb noto'g'ri ko'rsatilardi.
+    peno_cost = 0.0
+    if fp.penoplast_id and float(fp.volume_m3 or 0) > 0:
+        peno_inv = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        if peno_inv and peno_inv.volume_per_unit and peno_inv.price_per_unit:
+            price_per_m3 = float(peno_inv.price_per_unit) / float(peno_inv.volume_per_unit)
+            peno_cost = float(fp.volume_m3) * price_per_m3
     profit = revenue - total_cost
     margin = (profit / revenue * 100) if revenue > 0 else 0
 
