@@ -4816,6 +4816,7 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
         "unit_price": unit_price,
         "revenue": round(revenue),
         "penoplast_cost": round(peno_cost),
+        "TEST_BELGISI_V2": "YANGI_KOD_ISHLAYAPTI",
         "loy_kg": loy_kg,
         "loy_cost_per_kg": round(loy_per_kg),
         "loy_cost": round(loy_cost),
