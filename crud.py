@@ -4597,6 +4597,49 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
             "inventory_log": log2
         }
 
+    # ── GIPS uchun maxsus "+" ────────────────────────────────────────
+    # Gips mahsulotlar Penoplast/Loy emas, gips_kg_used (sarflangan Gips
+    # kukuni, kg) saqlaydi. AVVAL bu holat umuman ko'zda tutilmagan edi —
+    # "+" bosilganda faqat mahsulot miqdori oshib, Gips xomashyosi
+    # ombordan HECH QACHON ayirilmasdi. Endi, 1 birlikka qancha Gips
+    # ketishini — BARQAROR nisbatdan (gips_kg_used ÷ produced_quantity,
+    # xuddi Loy/Penoplast'dagi kabi) hisoblab, proporsional ayiramiz.
+    if cat_low == 'gips':
+        from models import Inventory as _Inv_gips
+        gips_inv_id = getattr(fp, 'gips_inventory_id', None)
+        gips_kg_used = float(getattr(fp, 'gips_kg_used', None) or 0)
+        produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else base_qty)
+        if not gips_inv_id or gips_kg_used <= 0 or produced_q <= 0:
+            return {"success": False,
+                    "message": "Bu eski Gips yozuvi — 1 birlikka qancha Gips ketishi noma'lum. Yangi ishlab chiqarish yarating."}
+        gips_item = db.query(_Inv_gips).filter(_Inv_gips.id == gips_inv_id).with_for_update().first()
+        if not gips_item:
+            return {"success": False, "message": "Gips xomashyosi topilmadi."}
+        unit_gips_kg = gips_kg_used / produced_q
+        add_gips_kg = unit_gips_kg * add_qty
+        if float(gips_item.stock_quantity) < add_gips_kg:
+            return {"success": False, "message": "Xomashyo yetishmayapti!",
+                    "shortages": [f"{gips_item.item_name}: kerak {add_gips_kg:.2f} kg, qoldi {float(gips_item.stock_quantity):.2f} kg"]}
+
+        gips_item.stock_quantity = float(gips_item.stock_quantity) - add_gips_kg
+        cost_add = add_gips_kg * float(gips_item.price_per_unit or 0)
+
+        fp.quantity = base_qty + add_qty
+        fp.gips_kg_used = gips_kg_used + add_gips_kg
+        fp.cost_price = float(fp.cost_price or 0) + cost_add
+        db.commit()
+        db.refresh(fp)
+        return {
+            "success": True,
+            "message": f"+{add_qty:g} {fp.unit} qo'shildi",
+            "product_id": fp.id,
+            "name": fp.name,
+            "added_qty": add_qty,
+            "new_qty": float(fp.quantity),
+            "unit": fp.unit,
+            "inventory_log": [f"{gips_item.item_name}: -{add_gips_kg:.2f} kg"]
+        }
+
     # MUHIM: 1 birlikka qancha xomashyo ketishini — JORIY qoldiq/hajmdan
     # EMAS, balki ishlab chiqarilganda saqlangan BARQAROR nisbatdan
     # olamiz. Sababi: mahsulot sotilganda faqat "quantity" kamayadi,
