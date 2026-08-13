@@ -2197,7 +2197,7 @@ async function openProfitModal(id) {
   // (allaqachon to'g'ri tuzatilgan) to'g'ridan-to'g'ri olamiz. Bu — ikkita
   // alohida (va bir-biridan farqli chiqishi mumkin bo'lgan) hisoblash
   // o'rniga, BITTA, ishonchli manbadan foydalanishni ta'minlaydi.
-  let loyCost = 0, loyPerKg = 0, recipeName = '', penoCost = 0, bazaltCost = 0;
+  let loyCost = 0, loyPerKg = 0, recipeName = '', penoCost = 0, bazaltCost = 0, bazaltPanels = 0;
   try {
     const d = await fetch(`/api/finished/${id}/profit`).then(r => r.json());
     if (d.success) {
@@ -2206,6 +2206,7 @@ async function openProfitModal(id) {
       recipeName = d.recipe || '';
       penoCost = d.penoplast_cost || 0;
       bazaltCost = d.bazalt_cost || 0;
+      bazaltPanels = d.bazalt_panels_used || 0;
     }
   } catch(e) {}
 
@@ -2216,8 +2217,8 @@ async function openProfitModal(id) {
   document.getElementById('pm-body').innerHTML = `
     <div style="background:#FAFAF8;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#666;line-height:1.8">
       📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}<br>
-      ${i.category !== 'termopanel' ? `📦 Hajm: <b>${(i.volume_m3 || 0).toFixed(4)} m³</b>` : ''}
-      ${i.actual_loy_kg > 0 ? `${i.category !== 'termopanel' ? '· ' : ''}🧱 Loy: <b>${i.actual_loy_kg} kg</b>${recipeName ? ` (${recipeName})` : ''}` : ''}
+      ${i.category !== 'termopanel' ? `📦 Hajm: <b>${(i.volume_m3 || 0).toFixed(4)} m³</b>` : `🧱 Bazalt: <b>${bazaltPanels.toFixed(2)} dona</b>`}
+      ${i.actual_loy_kg > 0 ? `· 🧱 Loy: <b>${i.actual_loy_kg} kg</b>${recipeName ? ` (${recipeName})` : ''}` : ''}
       ${i.created_by ? `<br>👤 ${i.created_by}` : ''}
     </div>
 
