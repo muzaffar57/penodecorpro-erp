@@ -2990,6 +2990,23 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     new_additives_list = getattr(order_data, 'gips_additives', None) or []
     new_additives = {a.inventory_id: float(a.planned_qty or 0) for a in new_additives_list}
 
+    # XAVFSIZLIK TEKSHIRUVI: agar buyurtmada HALI HAM Gips turidagi
+    # detallar bo'lsa-yu, lekin frontend "planned_gips_kg=0" deb yuborgan
+    # bo'lsa — bu, deyarli har doim FRONTEND XATOSI (masalan, maydon
+    # sezilmasdan bo'shab qolgani), haqiqiy "Gips kerak emas" degani EMAS.
+    # Bunday holatda ESKI qiymatni SAQLAB QOLAMIZ — aks holda, keyinchalik
+    # buyurtma yakunlanganda, "reja" noto'g'ri (0/bo'sh) bo'lib qolib,
+    # "farq" butun haqiqiy miqdorni (masalan 1200 kg) qayta ayirib
+    # yuborishi mumkin edi (aynan shunday holat bir marta yuz bergan edi).
+    order_has_gips_item = any(
+        (getattr(it, 'category', None) or '').lower() == 'gips'
+        for it in getattr(order_data, 'items', [])
+    )
+    if new_planned_gips <= 0 and old_planned_gips > 0 and order_has_gips_item:
+        new_planned_gips = old_planned_gips
+        if not new_gips_inv_id:
+            new_gips_inv_id = old_gips_inv_id
+
     if not is_draft:
         import services as _services
         # Asosiy Gips — agar bir xil xomashyo bo'lsa, faqat farqni; turi
