@@ -4580,6 +4580,7 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
             cost_add += add_loy * float(loy_info.get("cost_per_kg", 0) or 0)
 
         fp.quantity = base_qty + add_m2
+        fp.produced_quantity = float(fp.produced_quantity if fp.produced_quantity is not None else base_qty) + add_m2
         fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
         fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
         fp.cost_price = float(fp.cost_price or 0) + cost_add
@@ -4624,6 +4625,7 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
         cost_add = add_gips_kg * float(gips_item.price_per_unit or 0)
 
         fp.quantity = base_qty + add_qty
+        fp.produced_quantity = produced_q + add_qty
         fp.gips_kg_used = gips_kg_used + add_gips_kg
         fp.cost_price = float(fp.cost_price or 0) + cost_add
         db.commit()
@@ -4711,6 +4713,14 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
 
     # 3) Mahsulotni yangilaymiz
     fp.quantity = base_qty + add_qty
+    # MUHIM: hodim oyligi (Qoplamachi bonusi va h.k.) — "quantity"dan EMAS,
+    # "produced_quantity"dan hisoblanadi (chunki quantity sotuv/brak bilan
+    # kamayadi, produced_quantity esa "hodim haqiqatan qancha ishlab
+    # chiqargani"ni ko'rsatishi kerak). AVVAL bu yerda produced_quantity'ga
+    # tegilmasdi — shuning uchun "+" orqali qo'shilgan miqdor hodim
+    # oyligiga HECH QACHON qo'shilmasdi.
+    base_produced = float(fp.produced_quantity if fp.produced_quantity is not None else base_qty)
+    fp.produced_quantity = base_produced + add_qty
     fp.volume_m3 = float(fp.volume_m3 or 0) + add_volume
     fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
     fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
