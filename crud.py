@@ -4810,12 +4810,13 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
     # (mahsulot miqdori ÷ 1 bazaltning maydoni) × joriy bazalt narxidan
     # hisoblanadi — "umumiy tan narxidan ayirish" orqali EMAS.
     bazalt_cost = 0.0
+    bazalt_panels_used = 0.0
     base_qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
     if fp.bazalt_item_id and base_qty > 0:
         bazalt_inv = db.query(Inventory).filter(Inventory.id == fp.bazalt_item_id).first()
         if bazalt_inv and bazalt_inv.volume_per_unit and bazalt_inv.price_per_unit:
-            panels_used = base_qty / float(bazalt_inv.volume_per_unit)
-            bazalt_cost = panels_used * float(bazalt_inv.price_per_unit)
+            bazalt_panels_used = base_qty / float(bazalt_inv.volume_per_unit)
+            bazalt_cost = bazalt_panels_used * float(bazalt_inv.price_per_unit)
 
     profit = revenue - total_cost
     margin = (profit / revenue * 100) if revenue > 0 else 0
@@ -4830,6 +4831,7 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
         "revenue": round(revenue),
         "penoplast_cost": round(peno_cost),
         "bazalt_cost": round(bazalt_cost),
+        "bazalt_panels_used": round(bazalt_panels_used, 2),
         "loy_kg": loy_kg,
         "loy_cost_per_kg": round(loy_per_kg),
         "loy_cost": round(loy_cost),
