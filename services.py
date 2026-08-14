@@ -4448,6 +4448,26 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
     qty_units = item.order_qty_normalized
     peno_cost_per_unit = (peno_cost_total / qty_units) if qty_units > 0 else 0.0
 
+    # GIPS uchun — Penoplast/Loy tushunchasi yo'q, shuning uchun yuqoridagi
+    # hisob har doim "0" chiqarardi. Buning o'rniga, buyurtmada HAQIQATDA
+    # sarflangan Gips (order.actual_gips_kg) qiymatini, o'sha buyurtmadagi
+    # BARCHA Gips detallari miqdoriga MUTANOSIB taqsimlaymiz — shu detal
+    # taxminan qancha Gips "iste'mol qilgani"ni ko'rsatadi.
+    if (item.category or '').lower() == 'gips' and order:
+        gips_kg = float(order.actual_gips_kg or 0)
+        gips_inv_id = getattr(order, 'gips_inventory_id', None)
+        if gips_kg > 0 and gips_inv_id:
+            gips_inv = db.query(Inventory).filter(Inventory.id == gips_inv_id).first()
+            gips_price_per_kg = float(gips_inv.price_per_unit or 0) if gips_inv else 0.0
+            total_gips_cost = gips_kg * gips_price_per_kg
+            total_gips_qty = sum(
+                float(oi.quantity or 0) for oi in (order.items or [])
+                if (oi.category or '').lower() == 'gips'
+            )
+            if total_gips_qty > 0:
+                return total_gips_cost / total_gips_qty
+        return 0.0
+
     loy_cost_per_unit = 0.0
     if include_coating and item.is_coated and order:
         loy_kg = float(order.actual_loy_kg) if order.actual_loy_kg is not None else 0.0
