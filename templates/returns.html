@@ -16,6 +16,18 @@
 .ret-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s;opacity:0;animation:rIn .3s ease forwards}
 @keyframes rIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .ret-row:hover{box-shadow:var(--shadow-card)}
+.ret-group-header{
+  display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px;
+  background:var(--bg);border:1px solid var(--border);border-radius:12px;
+  cursor:pointer;user-select:none;transition:background .12s;
+}
+.ret-group-header:hover{background:var(--border2)}
+.ret-group-header .chev{font-size:13px;color:var(--text3);transition:transform .2s ease;flex-shrink:0}
+.ret-group-header.open .chev{transform:rotate(90deg)}
+.ret-group-header .g-title{font-weight:600;font-size:14px;color:var(--text)}
+.ret-group-header .g-count{font-size:12px;color:var(--text3);background:var(--white);padding:2px 9px;border-radius:20px;border:1px solid var(--border)}
+.ret-group-body{display:none;padding-left:6px;border-left:2px solid var(--border2);margin-left:8px;margin-bottom:10px}
+.ret-group-body.open{display:block}
 .ret-icon{width:70px;align-self:stretch;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
 .ret-icon img{width:100%;height:100%;object-fit:cover}
 .ret-icon input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
@@ -137,6 +149,7 @@
     {% for r in returns %}
     {% set is_defect = r.reason.value == 'Brak' %}
     <div class="ret-row" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}"
+         data-order="{{ r.order.order_number if r.order else '' }}"
          data-search="{{ (r.order.order_number if r.order else '') ~ ' ' ~ (r.order.project.client_name if r.order and r.order.project else '') ~ ' ' ~ r.item_name }}"
          style="animation-delay:{{ (loop.index0 % 20)*0.02 }}s">
       <label class="ret-icon {{ 'defect' if is_defect else 'whole' }}" style="background:{{ '#FEE2E2' if is_defect else '#DCFCE7' }};color:{{ '#991B1B' if is_defect else '#166534' }}">
@@ -562,7 +575,55 @@ function filterTable(){
     if (show) visible++;
   });
   document.getElementById('retEmpty').style.display = visible === 0 ? 'block' : 'none';
+  // Har bir guruhda kamida bitta ko'rinadigan qator bormi — bo'lmasa,
+  // guruh sarlavhasining o'zini ham yashiramiz (filtrlash to'liq ishlashi uchun).
+  document.querySelectorAll('.ret-group-header').forEach(h=>{
+    const body = document.getElementById(h.dataset.target);
+    const anyVisible = body && Array.from(body.querySelectorAll('.ret-row')).some(r=>r.style.display!=='none');
+    h.style.display = anyVisible ? '' : 'none';
+  });
 }
+
+// Buyurtma raqami bo'yicha guruhlash — ma'lumot to'planib ketganda,
+// ro'yxat cho'zilib ketmasligi uchun. Mavjud qatorlarni O'ZGARTIRMASDAN,
+// ularni faqat "buklama" ichiga joylashtiradi — qidiruv/filtr ishlashda
+// davom etaveradi (chunki .ret-row elementlarining o'zi o'zgarmaydi).
+function groupReturnsByOrder(){
+  const list = document.getElementById('retList');
+  const rows = Array.from(list.querySelectorAll(':scope > .ret-row'));
+  if (rows.length < 2) return; // 0-1 qator uchun guruhlashga hojat yo'q
+
+  const groups = new Map(); // order raqami -> [qatorlar]
+  rows.forEach(row=>{
+    const key = row.dataset.order || '— Ishlab chiqarishdan';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+
+  let gi = 0;
+  groups.forEach((groupRows, orderKey)=>{
+    gi++;
+    const bodyId = `retgroup-body-${gi}`;
+    const header = document.createElement('div');
+    header.className = 'ret-group-header';
+    header.dataset.target = bodyId;
+    header.innerHTML = `<i class="ti ti-chevron-right chev"></i><span class="g-title">${orderKey}</span><span class="g-count">${groupRows.length} ta</span>`;
+    header.onclick = () => {
+      header.classList.toggle('open');
+      document.getElementById(bodyId).classList.toggle('open');
+    };
+
+    const body = document.createElement('div');
+    body.className = 'ret-group-body';
+    body.id = bodyId;
+
+    const firstRow = groupRows[0];
+    list.insertBefore(header, firstRow);
+    groupRows.forEach(row => body.appendChild(row));
+    list.insertBefore(body, header.nextSibling);
+  });
+}
+groupReturnsByOrder();
 
 async function onOrderChange(){
   const orderId = document.getElementById('f-order').value;
