@@ -237,10 +237,17 @@
       <div style="font-size:16px;font-weight:600"><i class="ti ti-history"></i> Ombor harakatlari</div>
       <button onclick="closeMovements()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
-    <div style="padding:12px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px">
+    <div style="padding:12px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-outline btn-sm" onclick="loadMovements('')">Barchasi</button>
       <button class="btn btn-outline btn-sm" style="border-color:#BBF7D0;color:#166534" onclick="loadMovements('in')">Faqat kirim</button>
       <button class="btn btn-outline btn-sm" style="border-color:#FECACA;color:#991B1B" onclick="loadMovements('out')">Faqat chiqim</button>
+    </div>
+    <div style="padding:10px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:var(--text3)">Sana oralig'i:</span>
+      <input type="date" id="mv-date-from" style="height:32px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px" onchange="loadMovements(mvCurType)">
+      <span style="color:var(--text3)">—</span>
+      <input type="date" id="mv-date-to" style="height:32px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px" onchange="loadMovements(mvCurType)">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('mv-date-from').value='';document.getElementById('mv-date-to').value='';loadMovements(mvCurType)">Tozalash</button>
     </div>
     <div style="padding:8px 22px;overflow-y:auto;flex:1" id="mv-list">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
@@ -577,18 +584,45 @@ function openMovements() {
 }
 function closeMovements() { document.getElementById('movementsModal').style.display = 'none'; }
 
+let mvCurType = '';
 async function loadMovements(type) {
+  mvCurType = type;
   const list = document.getElementById('mv-list');
   list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
   try {
-    const url = '/api/inventory/movements' + (type ? `?movement_type=${type}` : '');
+    const params = new URLSearchParams();
+    if (type) params.set('movement_type', type);
+    const df = document.getElementById('mv-date-from')?.value;
+    const dt_ = document.getElementById('mv-date-to')?.value;
+    if (df) params.set('date_from', df);
+    if (dt_) params.set('date_to', dt_);
+    if (df || dt_) params.set('limit', '500');
+    const url = '/api/inventory/movements' + (params.toString() ? `?${params.toString()}` : '');
     const res = await fetch(url);
     const rows = await res.json();
     if (!rows.length) {
       list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Harakatlar yo\'q</div>';
       return;
     }
-    list.innerHTML = rows.map(m => {
+
+    // Har bir modda bo'yicha jami (chiqim/kirim) — tez ko'rish uchun
+    const totals = {};
+    rows.forEach(m => {
+      const key = m.item_name + '|' + (m.unit || '');
+      if (!totals[key]) totals[key] = {name: m.item_name, unit: m.unit || '', in: 0, out: 0};
+      totals[key][m.movement_type] += parseFloat(m.quantity) || 0;
+    });
+    const summaryHtml = Object.values(totals).map(t => `
+      <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px">
+        <span style="color:var(--text2)">${t.name}</span>
+        <span>${t.out > 0 ? `<span style="color:#991B1B">−${t.out.toFixed(2)}</span>` : ''}${t.out > 0 && t.in > 0 ? ' · ' : ''}${t.in > 0 ? `<span style="color:#166534">+${t.in.toFixed(2)}</span>` : ''} ${t.unit}</span>
+      </div>`).join('');
+    const summaryBlock = (document.getElementById('mv-date-from').value || document.getElementById('mv-date-to').value)
+      ? `<div style="background:var(--bg);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+           <div style="font-size:11.5px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tanlangan davr — jami</div>
+           ${summaryHtml}
+         </div>` : '';
+    list.innerHTML = summaryBlock + rows.map(m => {
       const dt = new Date(m.created_at);
       const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
       return `
