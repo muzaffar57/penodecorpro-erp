@@ -3850,13 +3850,14 @@ class _FakeItem:
         self.finished_product_id = d.get('finished_product_id')
 
 
-def adjust_inventory_diff(db: Session, old_items, new_items) -> list:
+def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = None) -> list:
     """Eski va yangi detallarni solishtirib, ombordagi penoplastni
     faqat farq miqdorida to'g'rilaydi.
 
     old_items / new_items — OrderItem obyektlari yoki dict lar ro'yxati.
     """
     from models import Inventory
+    import crud as _crud
 
     def _norm(items):
         out = []
@@ -3888,9 +3889,16 @@ def adjust_inventory_diff(db: Session, old_items, new_items) -> list:
         if blocks > 0:
             p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
             log.append(f"{p.item_name}: -{blocks:.2f} blok (qo'shildi)")
+            # MUHIM: bu harakat AVVAL "Ombor harakatlari" jurnaliga yozilmasdi
+            # — shuning uchun buyurtma tahrirlanganda Penoplast o'zgarishi
+            # "yashirin" qolib, faqat oxirgi raqamda ko'rinib turardi.
+            _crud.log_movement(db, pid, p.item_name, "out", blocks, unit="blok",
+                                reason="Buyurtma tahrirlandi — qo'shimcha detal", order_id=order_id)
         else:
             p.stock_quantity = float(p.stock_quantity) + abs(blocks)
             log.append(f"{p.item_name}: +{abs(blocks):.2f} blok (qaytdi)")
+            _crud.log_movement(db, pid, p.item_name, "in", abs(blocks), unit="blok",
+                                reason="Buyurtma tahrirlandi — detal kamaytirildi/o'chirildi", order_id=order_id)
 
     if log:
         db.commit()
