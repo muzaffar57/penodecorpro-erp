@@ -353,6 +353,26 @@
     </div>
   </div>
 </div>
+
+<!-- ══ KAMAYTIRISH / BONUS — yagona, moslashuvchan oyna (native prompt() o'rniga) ══ -->
+<div id="arModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:400px;max-width:100%;padding:22px">
+    <div id="arModal-icon" style="width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:10px">💰</div>
+    <div id="arModal-title" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:2px"></div>
+    <div id="arModal-help" style="font-size:12.5px;color:var(--text3);line-height:1.5;margin-bottom:16px"></div>
+
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Summa (so'm)</label>
+    <input type="number" id="arModal-amount" placeholder="0" style="width:100%;height:42px;padding:0 12px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;margin:6px 0 14px">
+
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Sabab (ixtiyoriy)</label>
+    <input type="text" id="arModal-reason" placeholder="Masalan: 3 kun kelmadi" style="width:100%;height:42px;padding:0 12px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;margin:6px 0 18px">
+
+    <div style="display:flex;gap:8px">
+      <button id="arModal-ok" class="btn w-full" style="background:#111;color:#fff">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="_arResolve(null)">Bekor</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -1015,15 +1035,40 @@ async function loadEmpMonthlyReport() {
   }
 }
 
+let _arResolveFn = null;
+function _arResolve(val) {
+  document.getElementById('arModal').style.display = 'none';
+  if (_arResolveFn) { _arResolveFn(val); _arResolveFn = null; }
+}
+function promptAmountReason(opts) {
+  return new Promise(resolve => {
+    document.getElementById('arModal-icon').style.background = opts.danger ? '#FEE2E2' : '#F0FDF4';
+    document.getElementById('arModal-icon').style.color = opts.danger ? '#DC2626' : '#16A34A';
+    document.getElementById('arModal-icon').textContent = opts.danger ? '➖' : '➕';
+    document.getElementById('arModal-title').textContent = opts.title;
+    document.getElementById('arModal-help').textContent = opts.help;
+    document.getElementById('arModal-amount').value = opts.currentAmount || '';
+    document.getElementById('arModal-reason').value = opts.currentReason || '';
+    document.getElementById('arModal-ok').style.background = opts.danger ? '#DC2626' : '#16A34A';
+    document.getElementById('arModal-ok').onclick = () => {
+      const amount = parseFloat(document.getElementById('arModal-amount').value) || 0;
+      const reason = document.getElementById('arModal-reason').value || '';
+      _arResolve({amount, reason});
+    };
+    _arResolveFn = resolve;
+    document.getElementById('arModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('arModal-amount').focus(), 50);
+  });
+}
+
 async function editEmpAdjustment(empId, empName, year, month, currentAmount, currentReason) {
-  const amtStr = prompt(`"${empName}" uchun QANCHA kamaytiramiz (so'm)?\n\nMasalan — kelmagan kunlar uchun, agar o'sha kunlar seh ish davom etgan bo'lsa.\nBo'sh/0 qoldirsangiz — kamaytirish o'chadi.`, currentAmount || '');
-  if (amtStr === null) return;
-  const amount = parseFloat(amtStr) || 0;
-  let reason = currentReason || '';
-  if (amount > 0) {
-    reason = prompt(`Sabab (izoh) — ixtiyoriy:`, currentReason || '') || '';
-  }
-  const res = await fetch(`/api/employees/${empId}/monthly-adjustment?year=${year}&month=${month}&reduction_amount=${amount}&reason=${encodeURIComponent(reason)}`, {
+  const result = await promptAmountReason({
+    title: `"${empName}" — kamaytirish`,
+    help: "Masalan — kelmagan kunlar uchun, agar o'sha kunlar seh ish davom etgan bo'lsa. Bo'sh/0 qoldirsangiz — kamaytirish o'chadi.",
+    currentAmount, currentReason, danger: true
+  });
+  if (result === null) return;
+  const res = await fetch(`/api/employees/${empId}/monthly-adjustment?year=${year}&month=${month}&reduction_amount=${result.amount}&reason=${encodeURIComponent(result.reason)}`, {
     method: 'POST'
   });
   if (res.ok) {
@@ -1034,14 +1079,13 @@ async function editEmpAdjustment(empId, empName, year, month, currentAmount, cur
 }
 
 async function editEmpBonus(empId, empName, year, month, currentAmount, currentReason) {
-  const amtStr = prompt(`"${empName}" uchun QANCHA bonus qo'shamiz (so'm)?\n\nMasalan — yaxshi ishlagani, sifat uchun qo'shimcha rag'bat.\nBo'sh/0 qoldirsangiz — bonus o'chadi.`, currentAmount || '');
-  if (amtStr === null) return;
-  const amount = parseFloat(amtStr) || 0;
-  let reason = currentReason || '';
-  if (amount > 0) {
-    reason = prompt(`Sabab (izoh) — ixtiyoriy:`, currentReason || '') || '';
-  }
-  const res = await fetch(`/api/employees/${empId}/monthly-adjustment?year=${year}&month=${month}&bonus_amount=${amount}&bonus_reason=${encodeURIComponent(reason)}`, {
+  const result = await promptAmountReason({
+    title: `"${empName}" — bonus qo'shish`,
+    help: "Masalan — yaxshi ishlagani, sifat uchun qo'shimcha rag'bat. Bo'sh/0 qoldirsangiz — bonus o'chadi.",
+    currentAmount, currentReason, danger: false
+  });
+  if (result === null) return;
+  const res = await fetch(`/api/employees/${empId}/monthly-adjustment?year=${year}&month=${month}&bonus_amount=${result.amount}&bonus_reason=${encodeURIComponent(result.reason)}`, {
     method: 'POST'
   });
   if (res.ok) {
