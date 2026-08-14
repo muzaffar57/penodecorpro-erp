@@ -2226,10 +2226,15 @@ def api_production_periods(db: Session = Depends(get_db), current_user=Depends(a
 
 @app.get("/api/inventory/movements")
 def api_inventory_movements(item_id: Optional[int] = None, movement_type: Optional[str] = None,
-                             order_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db),
+                             order_id: Optional[int] = None, date_from: Optional[str] = None,
+                             date_to: Optional[str] = None, limit: int = 100, db: Session = Depends(get_db),
                              current_user=Depends(auth.inventory_view)):
-    """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish)."""
+    """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish).
+    date_from/date_to — 'YYYY-MM-DD' ko'rinishida, ma'lum kunlar oralig'ini
+    ko'rish uchun (masalan, hodim ishga kelmagan kunlarda qancha xomashyo
+    ishlatilganini tekshirish uchun)."""
     from models import InventoryMovement
+    from datetime import datetime, timedelta
     q = db.query(InventoryMovement)
     if item_id:
         q = q.filter(InventoryMovement.inventory_id == item_id)
@@ -2237,6 +2242,17 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
         q = q.filter(InventoryMovement.movement_type == movement_type)
     if order_id:
         q = q.filter(InventoryMovement.order_id == order_id)
+    if date_from:
+        try:
+            q = q.filter(InventoryMovement.created_at >= datetime.strptime(date_from, "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            q = q.filter(InventoryMovement.created_at < dt)
+        except ValueError:
+            pass
     rows = q.order_by(InventoryMovement.created_at.desc()).limit(limit).all()
     return [schemas.InventoryMovementRead.model_validate(r) for r in rows]
 
