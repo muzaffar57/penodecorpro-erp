@@ -1417,7 +1417,7 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
 
     # Omborni farq bo'yicha to'g'rilaymiz
     if not is_draft:
-        services.adjust_inventory_diff(db, old_snap, new_snap)
+        services.adjust_inventory_diff(db, old_snap, new_snap, order_id=db_item.order_id)
 
     # Order summasi
     if order:
@@ -1755,7 +1755,7 @@ def delete_order_item(db: Session, item_id: int) -> bool:
             "unit_price": float(db_item.unit_price or 0),
             "penoplast_id": db_item.penoplast_id
         }]
-        services.adjust_inventory_diff(db, old_snap, [])
+        services.adjust_inventory_diff(db, old_snap, [], order_id=db_item.order_id)
         # Termopanel (bazalt/serpiyanka/kley) — detal butunlay o'chirilganda
         # ilgari yechilgan xomashyo omborga qaytishi kerak (Penoplast bilan bir xil mantiq)
         services.return_termopanel_for_item(db, db_item)
@@ -3069,7 +3069,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # 6) Omborni farq bo'yicha to'g'rilaymiz (qoralama emas bo'lsa)
     inventory_log = []
     if not is_draft:
-        inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot)
+        inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot, order_id=order_id)
         inventory_log.extend(services.adjust_termopanel_diff(db, old_snapshot, new_snapshot, recipe_id=order_data.recipe_id))
         # Tayyor mahsulot farqi
         inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot))
