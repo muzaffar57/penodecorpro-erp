@@ -322,7 +322,7 @@
     <div class="form-group"><label>Sana</label><input type="date" id="adv-date"></div>
     <div class="form-group"><label>Summa (so'm)</label><input type="text" id="adv-amount" placeholder="0"></div>
     <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="adv-notes" placeholder="Masalan: bayram sovg'asi uchun"></div>
-    <button class="btn btn-dark w-full" onclick="saveAdvance()">+ Avans qo'shish</button>
+    <button class="btn btn-dark w-full" id="adv-save-btn" onclick="saveAdvance()">+ Avans qo'shish</button>
 
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid #eee">
       <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:8px">
@@ -814,15 +814,25 @@ async function loadAdvanceHistory(empId) {
 async function saveAdvance() {
   const amount = parseNum(document.getElementById('adv-amount').value);
   if (!amount || amount <= 0) { alert("Summani kiriting!"); return; }
-  const notes = document.getElementById('adv-notes').value.trim();
-  const dateVal = document.getElementById('adv-date').value;
-  const res = await fetch(`/api/employees/${advanceEmpId}/advance?amount=${amount}&notes=${encodeURIComponent(notes)}&adv_date=${dateVal}`, {method:'POST'});
-  if (res.ok) {
-    document.getElementById('adv-amount').value = '';
-    document.getElementById('adv-notes').value = '';
-    loadAdvanceHistory(advanceEmpId);
-    loadEmployees();
-  } else alert('Xato yuz berdi');
+  const btn = document.getElementById('adv-save-btn');
+  if (btn.disabled) return; // ikki marta bosilib ketishning oldini olish
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Saqlanmoqda...';
+  try {
+    const notes = document.getElementById('adv-notes').value.trim();
+    const dateVal = document.getElementById('adv-date').value;
+    const res = await fetch(`/api/employees/${advanceEmpId}/advance?amount=${amount}&notes=${encodeURIComponent(notes)}&adv_date=${dateVal}`, {method:'POST'});
+    if (res.ok) {
+      document.getElementById('adv-amount').value = '';
+      document.getElementById('adv-notes').value = '';
+      loadAdvanceHistory(advanceEmpId);
+      loadEmployees();
+    } else alert('Xato yuz berdi');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
 }
 
 async function deleteAdvance(id) {
