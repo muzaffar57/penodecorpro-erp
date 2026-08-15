@@ -462,7 +462,7 @@
   <div style="background:#fff;border-radius:14px;padding:24px;width:400px;max-width:100%">
     <div id="cashTxTitle" style="font-size:16px;font-weight:700;margin-bottom:4px">—</div>
     <div id="cashTxHint" style="font-size:12.5px;color:#888;margin-bottom:16px"></div>
-    <div class="form-group"><label>Summasi (so'm)</label><input type="number" id="cashtx-amount" min="0" placeholder="0"></div>
+    <div class="form-group"><label>Summasi (so'm)</label><input type="text" inputmode="numeric" id="cashtx-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="cashtx-notes" placeholder="masalan: Jo'rabekka 500,000 berildi"></div>
     <div id="cashtx-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     <div style="display:flex;gap:8px">
@@ -569,7 +569,7 @@ function openCashTxModal(category){
 }
 
 async function saveCashTx(){
-  const raw = parseFloat(document.getElementById('cashtx-amount').value) || 0;
+  const raw = parseNum(document.getElementById('cashtx-amount').value) || 0;
   const err = document.getElementById('cashtx-error');
   if (raw <= 0) { err.textContent = "Summani to'g'ri kiriting"; err.style.display = 'block'; return; }
 
