@@ -505,7 +505,12 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         line_sum = unit_p * qty
         delivery_total += line_sum
 
-        item_label = f"🧱 {oi.name} (GIPS)" if (oi.category or '').lower() == 'gips' else (oi.name or "—")
+        if (oi.category or '').lower() == 'gips':
+            item_label = f"🧱 {oi.name} (GIPS)"
+        elif oi.is_coated:
+            item_label = f"{oi.name or '—'} (qoplamali)"
+        else:
+            item_label = oi.name or "—"
 
         data.append([
             str(i),
@@ -656,8 +661,9 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
                 unit_label = unit_labels.get(it.delivery_unit, "ta")
                 it_ordered = it.order_qty_normalized
                 it_unit_p = (float(it.total_price or 0) / it_ordered) if it_ordered > 0 else float(it.unit_price or 0)
+                it_label = f"{it.name or '—'} (qoplamali)" if it.is_coated else (it.name or "—")
                 pend_data.append([
-                    it.name or "—",
+                    it_label,
                     f"{_num(it.remaining_qty)} {unit_label}",
                     f"{_fmt(it_unit_p)} so'm",
                 ])
