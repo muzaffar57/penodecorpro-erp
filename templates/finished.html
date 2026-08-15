@@ -942,9 +942,9 @@ function rowHtml(i) {
   return `
   <div class="fp-row ${isRet ? 'returned' : ''} ${inProgress ? 'progress' : ''}" data-name="${i.name.toLowerCase()}">
     ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${i.name.replace(/'/g,"&apos;")}" data-qty="${i.quantity}" data-unit="${i.unit}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
-    <label class="fp-thumb" onclick="event.stopPropagation()">
+    <div class="fp-thumb" onclick="event.stopPropagation()">
       ${i.image_url
-        ? `<img src="${i.image_url}" alt="" onclick="openLightbox('${i.image_url}')">`
+        ? `<img src="${i.image_url}" alt="" onclick="event.preventDefault();event.stopPropagation();openLightbox('${i.image_url}')">`
         : `<i class="ti ${
             i.category==='profil' ? 'ti-ruler-2' :
             i.category==='panel' ? 'ti-square' :
@@ -956,7 +956,7 @@ function rowHtml(i) {
           }" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
       <div class="cam-overlay" onclick="document.getElementById('fpimg-${i.id}').click()"><i class="ti ti-camera-plus"></i></div>
       <input type="file" id="fpimg-${i.id}" accept="image/*" onchange="uploadFpImage(${i.id}, this)">
-    </label>
+    </div>
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
         <span class="fp-name">${i.name}</span>
