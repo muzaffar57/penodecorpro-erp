@@ -48,7 +48,7 @@
       <div id="h-msg" class="h-msg"></div>
       <form id="req-form">
         <label class="field-label">Summasi (so'm)</label>
-        <input class="field-input" type="number" id="f-amount" placeholder="500000" min="1" required>
+        <input class="field-input" type="text" inputmode="numeric" id="f-amount" placeholder="500 000" oninput="formatPriceInput(this)">
 
         <label class="field-label">Qachon oldingiz?</label>
         <input class="field-input" type="date" id="f-date" required>
@@ -70,19 +70,28 @@
   </div>
 
 <script>
+function parseNum(v) {
+  return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
+}
+function formatPriceInput(input) {
+  const val = parseNum(input.value);
+  input.value = val > 0 ? val.toLocaleString('ru-RU').replace(/,/g, ' ') : '';
+}
+
 document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
 
 document.getElementById('req-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('submit-btn');
   const msg = document.getElementById('h-msg');
-  const amount = document.getElementById('f-amount').value;
+  const amount = parseNum(document.getElementById('f-amount').value);
   const date = document.getElementById('f-date').value;
   const notes = document.getElementById('f-notes').value;
 
   if (!amount || amount <= 0) {
     msg.className = 'h-msg err'; msg.textContent = "Summani to'g'ri kiriting"; return;
   }
+  if (btn.disabled) return; // ikki marta bosilib ketishning oldini olish
 
   btn.disabled = true; btn.textContent = 'Yuborilmoqda...';
   try {
