@@ -14,8 +14,9 @@
 .rec-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);overflow:hidden}
 .rec-head{display:flex;align-items:center;gap:12px;padding:16px;border-bottom:1px solid var(--border2)}
 .rec-thumb{width:48px;height:48px;border-radius:10px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:20px;position:relative;cursor:pointer}
-.rec-thumb img{width:100%;height:100%;object-fit:cover}
-.rec-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.rec-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+.rec-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.rec-thumb-cam{position:absolute;right:1px;bottom:1px;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;cursor:pointer;z-index:2}
 .rec-meta{font-size:13px;color:var(--text3);margin-top:2px}
 .ing-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2)}
 .ing-row:last-child{border-bottom:none}
@@ -41,8 +42,11 @@
   {% set ins = insights.get(recipe.id, {'cost_per_kg': 0, 'used_in': []}) %}
   <div class="rec-card">
     <div class="rec-head">
-      <label class="rec-thumb" title="Rasm yuklash">
-        {% if recipe.image_url %}<img src="{{ recipe.image_url }}" alt="">{% else %}<i class="ti ti-flask"></i>{% endif %}
+      <label class="rec-thumb" title="{{ '' if recipe.image_url else 'Rasm yuklash' }}">
+        {% if recipe.image_url %}
+        <img src="{{ recipe.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openRecLightbox('{{ recipe.image_url }}')">
+        <div class="rec-thumb-cam" onclick="event.preventDefault();event.stopPropagation();this.closest('.rec-thumb').querySelector('input[type=file]').click()"><i class="ti ti-camera"></i></div>
+        {% else %}<i class="ti ti-flask"></i>{% endif %}
         <input type="file" accept="image/*" onchange="uploadRecipeImage({{ recipe.id }}, this)">
       </label>
       <div style="flex:1">
@@ -94,10 +98,21 @@
 
 </div>
 </div>
+
+<!-- ══ RETSEPT RASMINI KATTA KO'RISH (lightbox) ══ -->
+<div id="recLightbox" onclick="closeRecLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="recLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+
+function openRecLightbox(url) {
+  document.getElementById('recLightboxImg').src = url;
+  document.getElementById('recLightbox').style.display = 'flex';
+}
+function closeRecLightbox() { document.getElementById('recLightbox').style.display = 'none'; }
 
 async function uploadRecipeImage(id, input) {
   if (!input.files.length) return;
