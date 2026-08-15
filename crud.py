@@ -4382,6 +4382,16 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     unit_cost = _svc.get_order_item_unit_cost(db, order_item.order, order_item)
     new_cost_price = round(unit_cost * quantity, 2)
 
+    # MUHIM: "Xarajatlar" (Foyda hisobi oynasi) — volume_m3'ga tayanib,
+    # Penoplast narxini ko'rsatadi. AVVAL bu yerda volume_m3 umuman
+    # yozilmasdi — shuning uchun "Tan narxi" to'g'ri ko'rinsa ham,
+    # "Xarajatlar → Penoplast" qatori noto'g'ri "0" ko'rsatardi.
+    per_unit_volume = 0.0
+    if ordered > 0:
+        full_volume = _svc._item_volume_m3(db, order_item, None)
+        per_unit_volume = full_volume / ordered
+    new_volume = round(per_unit_volume * quantity, 6)
+
     # Bir xili bo'lsa birlashtiramiz
     existing = db.query(FinishedProduct).filter(
         FinishedProduct.name == order_item.name,
@@ -4396,6 +4406,7 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         existing.quantity = float(existing.quantity or 0) + quantity
         existing.produced_quantity = float(existing.produced_quantity or 0) + quantity
         existing.cost_price = float(existing.cost_price or 0) + new_cost_price
+        existing.volume_m3 = float(existing.volume_m3 or 0) + new_volume
         db.commit()
         db.refresh(existing)
         return existing
@@ -4411,6 +4422,7 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         unit=unit,
         unit_price=unit_p,
         cost_price=new_cost_price,
+        volume_m3=new_volume,
         source=StockSource.RETURNED,
         from_order_id=order_id or order_item.order_id,
         return_reason=reason,
