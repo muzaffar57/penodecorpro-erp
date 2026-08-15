@@ -26,8 +26,9 @@
 @media (max-width:640px){.mat-row{grid-template-columns:1fr}}
 .mat-name{font-size:16px;font-weight:600;color:var(--text)}
 .mat-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:26px;position:relative;cursor:pointer}
-.mat-thumb img{width:100%;height:100%;object-fit:cover}
-.mat-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.mat-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+.mat-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.mat-thumb-cam{position:absolute;right:3px;bottom:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;cursor:pointer;z-index:2}
 .stock-bar{height:6px;background:#F0F0F0;border-radius:6px;overflow:hidden;width:160px;max-width:100%}
 .stock-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#22C55E,#16A34A);transition:width .4s ease}
 .stock-fill.warn{background:linear-gradient(90deg,#F59E0B,#D97706)}
@@ -130,8 +131,11 @@
     <div class="mat-row" style="animation-delay:{{ (loop.index0 % 20) * 0.02 }}s"
          data-name="{{ item.item_name|lower }}" data-category="{{ item.category or '' }}" data-status="{{ st }}" data-qty="{{ qty }}">
       <div style="display:flex;gap:10px;align-items:stretch">
-        <label class="mat-thumb" title="Rasm yuklash">
-          {% if item.image_url %}<img src="{{ item.image_url }}" alt="">{% else %}<i class="ti ti-flask-2"></i>{% endif %}
+        <label class="mat-thumb" title="{{ '' if item.image_url else 'Rasm yuklash' }}">
+          {% if item.image_url %}
+          <img src="{{ item.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openInvLightbox('{{ item.image_url }}')">
+          <div class="mat-thumb-cam" onclick="event.preventDefault();event.stopPropagation();this.closest('.mat-thumb').querySelector('input[type=file]').click()"><i class="ti ti-camera"></i></div>
+          {% else %}<i class="ti ti-flask-2"></i>{% endif %}
           <input type="file" accept="image/*" onchange="uploadInventoryImage({{ item.id }}, this)">
         </label>
         <div>
@@ -254,6 +258,11 @@
     </div>
   </div>
 </div>
+
+<!-- ══ XOMASHYO RASMINI KATTA KO'RISH (lightbox) ══ -->
+<div id="invLightbox" onclick="closeInvLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="invLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -287,6 +296,12 @@ function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' 
 function parseNum(v) {
   return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
 }
+
+function openInvLightbox(url) {
+  document.getElementById('invLightboxImg').src = url;
+  document.getElementById('invLightbox').style.display = 'flex';
+}
+function closeInvLightbox() { document.getElementById('invLightbox').style.display = 'none'; }
 
 async function uploadInventoryImage(id, input) {
   const file = input.files[0];
