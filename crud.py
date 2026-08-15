@@ -4407,6 +4407,9 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         existing.produced_quantity = float(existing.produced_quantity or 0) + quantity
         existing.cost_price = float(existing.cost_price or 0) + new_cost_price
         existing.volume_m3 = float(existing.volume_m3 or 0) + new_volume
+        # Agar mavjud yozuvda hali rasm bo'lmasa — asl detal rasmini olamiz
+        if not existing.image_url and order_item.image_url:
+            existing.image_url = order_item.image_url
         db.commit()
         db.refresh(existing)
         return existing
@@ -4427,6 +4430,7 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         from_order_id=order_id or order_item.order_id,
         return_reason=reason,
         penoplast_id=order_item.penoplast_id,
+        image_url=order_item.image_url,
         notes=notes
     )
     db.add(fp)
