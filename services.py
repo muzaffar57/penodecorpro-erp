@@ -4360,7 +4360,15 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                 bonus_txt = f"+ {fmt_num(bonus)} (bonus{': ' + bonus_reason_val if bonus_reason_val else ''})"
                 detail = f"{detail} {bonus_txt}" if detail else bonus_txt
 
-        if amount > 0:
+        # MUHIM: avval faqat "amount > 0" bo'lsa ro'yxatga qo'shilardi —
+        # bu, agar "kamaytirish" hodimning butun oyligini "0"gacha
+        # tushirib yuborsa (masalan butun oy kelmagan bo'lsa), hodimni
+        # RO'YXATDAN BUTUNLAY YO'QOTIB YUBORARDI, va "Bonus/Kamaytirish"
+        # tugmalari qayta bosib bo'lmaydigan holga kelardi (chunki
+        # hodimning o'zi ko'rinmay qolardi). Endi — agar adjustment yoki
+        # bonus qo'llanilgan bo'lsa, "amount=0" bo'lsa ham hodim ro'yxatda
+        # qoladi (shunda uni yana ko'rish/tuzatish mumkin bo'ladi).
+        if amount > 0 or adjustment > 0 or bonus > 0:
             total += amount
             avans = get_employee_advances_total(db, e.id, year, month)
             breakdown.append({
