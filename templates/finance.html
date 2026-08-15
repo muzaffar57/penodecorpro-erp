@@ -551,9 +551,9 @@ async function loadCashTxHistory(){
 }
 
 const CASH_TX_LABELS = {
-  boshlangich: { title: "+ Boshlang'ich balans kiritish", hint: "Tizimni ishlata boshlaganingizda, hozir kassada/qo'lda qancha pul borligini bir marta kiriting.", sign: 1 },
-  usta_kpi: { title: "− Usta KPI to'landi", hint: "Ustaga yillik KPI sovg'asini QO'LDA to'lab bo'lgach, shu yerga summani kiriting — kassadan ayiriladi.", sign: -1 },
-  ehson: { title: "− Ehson to'landi", hint: "Ehson summasini haqiqatda berib bo'lgach, shu yerga kiriting — kassadan ayiriladi.", sign: -1 },
+  boshlangich: { title: "+ Boshlang'ich balans kiritish", hint: "Tizimni ishlata boshlaganingizda, hozir kassada/qo'lda qancha pul borligini bir marta kiriting.", sign: 1, notesPh: "masalan: Kassadagi naqd pul" },
+  usta_kpi: { title: "− Usta KPI to'landi", hint: "Ustaga yillik KPI sovg'asini QO'LDA to'lab bo'lgach, shu yerga summani kiriting — kassadan ayiriladi.", sign: -1, notesPh: "masalan: Jo'rabekka yillik KPI sovg'asi" },
+  ehson: { title: "− Ehson to'landi", hint: "Ehson summasini haqiqatda berib bo'lgach, shu yerga kiriting — kassadan ayiriladi.", sign: -1, notesPh: "masalan: Mahalla masjidiga ehson" },
 };
 let currentCashTxCategory = null;
 
@@ -564,6 +564,7 @@ function openCashTxModal(category){
   document.getElementById('cashTxHint').textContent = cfg.hint;
   document.getElementById('cashtx-amount').value = '';
   document.getElementById('cashtx-notes').value = '';
+  document.getElementById('cashtx-notes').placeholder = cfg.notesPh || '';
   document.getElementById('cashtx-error').style.display = 'none';
   document.getElementById('cashTxModal').style.display = 'flex';
 }
