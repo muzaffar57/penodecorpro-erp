@@ -22,8 +22,9 @@
 }
 .prod-row{display:flex;align-items:center;gap:12px;padding:11px 13px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:10px}
 .prod-thumb{width:40px;height:40px;border-radius:8px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:16px;position:relative;cursor:pointer}
-.prod-thumb img{width:100%;height:100%;object-fit:cover}
+.prod-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
 .prod-thumb input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.prod-thumb-cam{position:absolute;right:0;bottom:0;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;cursor:pointer;z-index:2}
 .prod-info{flex:1;min-width:0}
 .prod-name{font-size:14.5px;font-weight:600;color:var(--text)}
 .prod-meta{font-size:12.5px;color:var(--text3);margin-top:2px}
@@ -855,10 +856,21 @@
     </div>
   </div>
 </div>
+
+<!-- ══ DETAL RASMINI KATTA KO'RISH (lightbox) ══ -->
+<div id="itemImgLightbox" onclick="closeItemImgLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="itemImgLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+function openItemImgLightbox(url) {
+  document.getElementById('itemImgLightboxImg').src = url;
+  document.getElementById('itemImgLightbox').style.display = 'flex';
+}
+function closeItemImgLightbox() { document.getElementById('itemImgLightbox').style.display = 'none'; }
+
 // SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
 // turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
 // chiqarmasligi uchun (statik VA keyinroq qo'shiladigan maydonlar uchun ham).
@@ -1566,13 +1578,14 @@ async function loadOrderItems(id) {
     container.innerHTML = items.map(item => {
       const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
       const thumb = item.image_url
-        ? `<img src="${item.image_url}" alt="">`
+        ? `<img src="${item.image_url}" alt="" onclick="event.stopPropagation();openItemImgLightbox('${item.image_url}')">
+           <div class="prod-thumb-cam" onclick="event.stopPropagation();document.getElementById('itemimg-${item.id}').click()"><i class="ti ti-camera"></i></div>`
         : `<i class="ti ${icon}" aria-hidden="true"></i>`;
       return `
       <div class="prod-row" style="grid-column:1/-1" data-item-id="${item.id}">
-        <div class="prod-thumb" title="Rasm yuklash">
+        <div class="prod-thumb" title="${item.image_url ? '' : 'Rasm yuklash'}">
           ${thumb}
-          <input type="file" accept="image/*" onchange="uploadItemImage(${item.id}, this)">
+          <input type="file" id="itemimg-${item.id}" accept="image/*" onchange="uploadItemImage(${item.id}, this)" style="${item.image_url ? 'display:none' : ''}">
         </div>
         <div class="prod-info">
           <div class="prod-name">${item.name}${(item.category || '').toLowerCase() === 'gips' ? ' <span style="background:#FCE7F3;color:#9D174D;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle">🧱 GIPS</span>' : ''}</div>
