@@ -2889,9 +2889,10 @@ function toggleFields(row) {
   const tLoyW = row.querySelector('.i-termo-loy-wrap');
   const lsRecipeW = row.querySelector('.i-loysale-recipe-wrap');
   const gipsUnitW = row.querySelector('.i-gips-unit-wrap');
+  const donaYieldW = row.querySelector('.i-donayield-wrap');
 
   // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
-  [tBazaltW, tSerpW, tKleyW, tLoyW, lsRecipeW, gipsUnitW].forEach(el => { if (el) el.style.display = 'none'; });
+  [tBazaltW, tSerpW, tKleyW, tLoyW, lsRecipeW, gipsUnitW, donaYieldW].forEach(el => { if (el) el.style.display = 'none'; });
   if (penoField) penoField.style.display = '';
 
   if (type === 'dona') {
@@ -2903,8 +2904,7 @@ function toggleFields(row) {
     if (bmW) bmW.style.display = 'none';
     if (m3Field) m3Field.style.display = 'none';
     if (coatField) coatField.style.display = '';
-    const dyW = row.querySelector('.i-donayield-wrap');
-    if (dyW) dyW.style.display = 'block';
+    if (donaYieldW) donaYieldW.style.display = 'block';
     if (row.dataset.lastType !== 'dona') {
       delete row.dataset.donaVolLocked; delete row.dataset.donaVolPerUnit;
       ['i-w','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
