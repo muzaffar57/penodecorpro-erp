@@ -2871,6 +2871,15 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
         if item.width and item.thickness:
             return (item.width/100) * (item.thickness/100) * qty
     elif cat == 'dona':
+        # YANGI (2026-08): agar Kenglik+Qalinlik+"metr ekvivalenti"
+        # (length maydonida, "Blok" turkumidagi kabi) saqlangan bo'lsa —
+        # PROFIL formulasidan foydalanamiz (aniq, "1 metrdan necha dona
+        # chiqadi" asosida hisoblangan). Bu — eskidan MUSTAQIL, YANGI yo'l.
+        if item.width and item.thickness and item.length:
+            return (item.width/100) * (item.thickness/100) / 2 * float(item.length)
+
+        # ESKI (orqaga moslik): narx-nisbat usuli — yangi maydonlar
+        # bo'lmagan, eski yozuvlar uchun, o'zgarishsiz qoladi.
         # MUHIM: agar "qulflangan" (unit_price_for_volume) qiymat saqlangan
         # bo'lsa — o'shani ishlatamiz (sotuv narxi keyinroq o'zgargan bo'lsa
         # ham, haqiqiy hajm o'zgarmasligi uchun). Eski yozuvlarda bu maydon
