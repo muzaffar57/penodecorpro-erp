@@ -3132,7 +3132,7 @@ function calculateItem(row) {
       volume_total = perUnitVol * qty;
       row.dataset.donaVolPerUnit = perUnitVol.toString();
       unitPrice = perUnitVol * donaBasePrice;
-      if (upEl) upEl.value = fmtFull(unitPrice);
+      if (upEl) upEl.value = formatNum(unitPrice);
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
       if (isCoated) { price *= 2; perMeterPrice *= 2; }
