@@ -100,7 +100,17 @@
 .unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 12px;background:var(--gold-tint);color:var(--gold-dark);font-size:12.5px;font-weight:700;white-space:nowrap;flex-shrink:0}
 .dif input:focus,.dif select:focus{border-color:#B9783F}
 .dif input[readonly]{background:#F9FAFB;color:#aaa;cursor:not-allowed}
-.detal-result{margin-top:16px;padding:14px 16px;background:#F9FAFB;border-radius:11px;border:1px solid var(--border2);display:flex;gap:22px;font-size:14px;color:#888;flex-wrap:wrap;align-items:center}
+.detal-result{margin-top:16px;display:flex;gap:22px;font-size:14px;color:#888;flex-wrap:wrap;align-items:center}
+.result-cards{display:flex;gap:14px;flex-wrap:wrap;width:100%}
+.result-card{background:#F9FAFB;border-radius:11px;border:1px solid var(--border2);padding:12px 14px;flex:1;min-width:150px}
+.result-card label{font-size:12px;font-weight:700;color:var(--gold-dark);display:flex;align-items:center;gap:4px;margin-bottom:8px}
+.dval-box{display:flex;align-items:stretch;border:1px solid #E5E1D8;border-radius:8px;overflow:hidden;background:#fff}
+.dval-box input{border:none;outline:none;padding:9px 12px;font-size:15px;color:#222;width:100%;background:transparent;font-weight:600}
+.dval-box .unit-suffix{display:flex;align-items:center;padding:0 12px;background:var(--gold-tint);color:var(--gold-dark);font-size:12px;font-weight:700;white-space:nowrap}
+.result-card.main label{color:#166534}
+.dval-box.main input{color:#16A34A;font-size:17px;font-weight:800}
+.dval-box.main .unit-suffix{background:#DCFCE7;color:#166534}
+.vol-relock{background:none;border:none;cursor:pointer;color:#B9783F;font-size:14px;padding:0}
 .detal-result .val{color:#22C55E;font-weight:800;font-size:16px}
 .total-box{background:#f8f8f6;border-radius:14px;padding:18px;border:1px solid #ebebeb}
 .trow{display:flex;justify-content:space-between;font-size:14.5px;padding:5px 0;color:#555}
@@ -2751,9 +2761,20 @@ function addItem() {
       </div>
     </div>
     <div class="detal-result">
-      <span>Hajm: <input type="text" class="i-vol" readonly style="background:transparent;border:none;width:75px;padding:0;font-size:14.5px;color:#999;font-weight:600"><button type="button" class="i-vol-relock" title="Hajmni qulflash/qulfdan chiqarish" onclick="toggleDonaVolLock(this.closest('.detal'))" style="display:none;background:none;border:none;cursor:pointer;color:#B9783F;font-size:13px;padding:0 0 0 4px;vertical-align:middle">🔓</button></span>
-      <span>1m narxi: <input type="text" class="i-perm" readonly style="background:transparent;border:none;width:105px;padding:0;font-size:14.5px;color:#B9783F;font-weight:600"></span>
-      <span class="val">Jami: <input type="text" class="i-price" readonly style="background:transparent;border:none;width:125px;padding:0;font-size:19px;color:#22C55E;font-weight:800"></span>
+      <div class="result-cards">
+        <div class="result-card">
+          <label>Hajm <button type="button" class="i-vol-relock vol-relock" title="Hajmni qulflash/qulfdan chiqarish" onclick="toggleDonaVolLock(this.closest('.detal'))" style="display:none">🔓</button></label>
+          <div class="dval-box"><input type="text" class="i-vol" readonly><span class="unit-suffix">m³</span></div>
+        </div>
+        <div class="result-card">
+          <label>1 metr narxi</label>
+          <div class="dval-box"><input type="text" class="i-perm" readonly><span class="unit-suffix">so'm</span></div>
+        </div>
+        <div class="result-card main">
+          <label>Jami</label>
+          <div class="dval-box main"><input type="text" class="i-price" readonly><span class="unit-suffix">so'm</span></div>
+        </div>
+      </div>
       <span class="i-peno-warn" style="display:none;font-size:14.5px;color:#F59E0B;font-weight:600"></span>
     </div>
     </div>`;
