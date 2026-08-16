@@ -128,6 +128,7 @@
 .ico-badge.purple{background:#F3EEFF;color:#7C3AED}
 /* Qoplama — Yo'q/Bor tugmasi (rasmdagi uslub) */
 .coat-toggle{display:flex;border:1px solid #E5E1D8;border-radius:9px;overflow:hidden;height:42px}
+.i-peno-display{margin-top:6px;font-size:12.5px;font-weight:600;color:#9CA3AF;background:#F3F4F6;display:inline-block;padding:3px 10px;border-radius:6px;min-height:12px}
 .coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
 .coat-opt.coat-no.active{background:#FCA5A5;color:#7F1D1D}
 .coat-opt.coat-yes.active{background:#86EFAC;color:#14532D}
@@ -1050,8 +1051,21 @@ if (!PENOPLASTS.length) {
   console.warn('Omborda penoplast topilmadi. Omborxona → xomashyo qo\'shishda "Bu penoplast turi" ni belgilang.');
 }
 
+function shortPenoName(fullName) {
+  if (!fullName) return '';
+  // "Penoplast 14P" -> "14P" (oxirgi so'zni olamiz, qisqa, sodda ko'rinish uchun)
+  const parts = fullName.trim().split(/\s+/);
+  return parts[parts.length - 1];
+}
+
 function onPenoChange(row) {
   updatePenoWarn(row);
+  const sel = row.querySelector('.i-peno');
+  const disp = row.querySelector('.i-peno-display');
+  if (sel && disp) {
+    const p = PENOPLASTS.find(x => x.id === parseInt(sel.value));
+    disp.textContent = p ? shortPenoName(p.name) : '';
+  }
   calculateItem(row);
 }
 
@@ -2724,6 +2738,7 @@ function addItem() {
         <select class="i-peno" onchange="onPenoChange(this.closest('.detal'))">
           ${PENO_OPTIONS}
         </select>
+        <div class="i-peno-display"></div>
       </div>
       <div class="dif"><label>1 m³ narxi</label>
         <div class="unit-input-wrap" style="border-color:#B9783F">
@@ -2767,6 +2782,7 @@ function addItem() {
   }
 
   toggleFields(div);
+  onPenoChange(div);
   calculateItem(div);
 }
 
@@ -4050,6 +4066,11 @@ async function editSelected() {
         // Plotnost
         const penoEl = row.querySelector('.i-peno');
         if (penoEl && item.penoplast_id) penoEl.value = item.penoplast_id;
+        const penoDisp = row.querySelector('.i-peno-display');
+        if (penoDisp && penoEl) {
+          const pRestored = PENOPLASTS.find(x => x.id === parseInt(penoEl.value));
+          penoDisp.textContent = pRestored ? shortPenoName(pRestored.name) : '';
+        }
 
         // 1 m³ narxi
         const m3El = row.querySelector('.i-m3price');
