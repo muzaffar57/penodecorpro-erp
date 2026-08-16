@@ -371,6 +371,19 @@ body {
 }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fafafa;transition:border .15s,background .15s}
+.unit-input-wrap:focus-within{border-color:var(--gold);background:var(--white)}
+.unit-input-wrap input,.unit-input-wrap select{border:none!important;outline:none;padding:12px 14px;font-size:15px;color:var(--text);width:100%;background:transparent!important}
+.unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 13px;background:var(--gold-tint);color:var(--gold-dark);font-size:12.5px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.result-cards{display:flex;gap:14px;flex-wrap:wrap;width:100%}
+.result-card{background:#F9FAFB;border-radius:11px;border:1px solid var(--border);padding:12px 14px;flex:1;min-width:150px}
+.result-card label{font-size:12px;font-weight:700;color:var(--gold-dark);display:flex;align-items:center;gap:4px;margin-bottom:8px;text-transform:none}
+.dval-box{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff}
+.dval-box input{border:none;outline:none;padding:9px 12px;font-size:15px;color:#222;width:100%;background:transparent;font-weight:600}
+.dval-box .unit-suffix{display:flex;align-items:center;padding:0 12px;background:var(--gold-tint);color:var(--gold-dark);font-size:12px;font-weight:700;white-space:nowrap}
+.result-card.main label{color:#166534}
+.dval-box.main input{color:#16A34A;font-size:17px;font-weight:800}
+.dval-box.main .unit-suffix{background:#DCFCE7;color:#166534}
 
 /* ============================================================
    CONTENT WRAPPER
