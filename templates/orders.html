@@ -93,6 +93,10 @@
 @media (max-width:900px){.detal-grid{grid-template-columns:1fr 1fr}}
 .dif label{font-size:11.5px;color:#6B7280;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
 .dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid #e5e5e5;border-radius:9px;font-size:14.5px;color:#111;background:#fff;outline:none;transition:border .15s}
+.unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid #e5e5e5;border-radius:9px;overflow:hidden;transition:border .15s;background:#fff}
+.unit-input-wrap:focus-within{border-color:#B9783F}
+.unit-input-wrap input{border:none!important;outline:none;padding:11px 13px;font-size:14.5px;color:#111;width:100%;background:transparent!important}
+.unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 12px;background:#F3F4F6;color:#9CA3AF;font-size:12.5px;font-weight:600;white-space:nowrap;flex-shrink:0}
 .dif input:focus,.dif select:focus{border-color:#B9783F}
 .dif input[readonly]{background:#F9FAFB;color:#aaa;cursor:not-allowed}
 .detal-result{margin-top:16px;padding:14px 16px;background:#F9FAFB;border-radius:11px;border:1px solid var(--border2);display:flex;gap:22px;font-size:14px;color:#888;flex-wrap:wrap;align-items:center}
@@ -2672,11 +2676,11 @@ function addItem() {
           <option value="gips">🧱 Gips</option>
         </select>
       </div>
-      <div class="dif i-h-wrap"><label>Eni (sm)</label><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-w-wrap"><label>Kengligi (sm)</label><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-t-wrap" style="display:none"><label>Qalinlik (sm)</label><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-h-wrap"><label>Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+      <div class="dif i-w-wrap"><label>Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+      <div class="dif i-t-wrap" style="display:none"><label>Qalinlik</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
       <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta dona chiqadi</label><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik (m)</label><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
       <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi (so'm)</label><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"></div>
       <div class="dif i-gips-unit-wrap" style="display:none">
@@ -2993,7 +2997,7 @@ function toggleFields(row) {
   }
   const lLabel = row.querySelector('.i-l-label');
   if (lLabel) {
-    lLabel.textContent = (type === 'blok') ? "1 blokdan chiqadigan metr" : 'Uzunlik (m)';
+    lLabel.textContent = (type === 'blok') ? "1 blokdan chiqadigan metr" : 'Uzunlik';
   }
   const upLabel = row.querySelector('.i-unitprice-label');
   if (upLabel) {
