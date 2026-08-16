@@ -96,6 +96,7 @@
 .unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid #e5e5e5;border-radius:9px;overflow:hidden;transition:border .15s;background:#fff}
 .unit-input-wrap:focus-within{border-color:#B9783F}
 .unit-input-wrap input{border:none!important;outline:none;padding:11px 13px;font-size:14.5px;color:#111;width:100%;background:transparent!important}
+.unit-input-wrap select{border:none!important;outline:none;padding:11px 13px;font-size:14.5px;color:#111;width:100%;background:transparent!important}
 .unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 12px;background:#F3F4F6;color:#9CA3AF;font-size:12.5px;font-weight:600;white-space:nowrap;flex-shrink:0}
 .dif input:focus,.dif select:focus{border-color:#B9783F}
 .dif input[readonly]{background:#F9FAFB;color:#aaa;cursor:not-allowed}
@@ -128,7 +129,6 @@
 .ico-badge.purple{background:#F3EEFF;color:#7C3AED}
 /* Qoplama — Yo'q/Bor tugmasi (rasmdagi uslub) */
 .coat-toggle{display:flex;border:1px solid #E5E1D8;border-radius:9px;overflow:hidden;height:42px}
-.i-peno-display{margin-top:6px;font-size:12.5px;font-weight:600;color:#9CA3AF;background:#F3F4F6;display:inline-block;padding:3px 10px;border-radius:6px;min-height:12px}
 .coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
 .coat-opt.coat-no.active{background:#FCA5A5;color:#7F1D1D}
 .coat-opt.coat-yes.active{background:#86EFAC;color:#14532D}
@@ -2735,10 +2735,12 @@ function addItem() {
         </select>
       </div>
       <div class="dif"><label>Plotnost</label>
-        <select class="i-peno" onchange="onPenoChange(this.closest('.detal'))">
-          ${PENO_OPTIONS}
-        </select>
-        <div class="i-peno-display"></div>
+        <div class="unit-input-wrap">
+          <select class="i-peno" onchange="onPenoChange(this.closest('.detal'))">
+            ${PENO_OPTIONS}
+          </select>
+          <span class="unit-suffix i-peno-display"></span>
+        </div>
       </div>
       <div class="dif"><label>1 m³ narxi</label>
         <div class="unit-input-wrap" style="border-color:#B9783F">
