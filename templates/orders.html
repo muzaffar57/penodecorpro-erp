@@ -2679,10 +2679,10 @@ function addItem() {
       <div class="dif i-h-wrap"><label>Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
       <div class="dif i-w-wrap"><label>Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
       <div class="dif i-t-wrap" style="display:none"><label>Qalinlik</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
-      <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta dona chiqadi</label><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta dona chiqadi</label><div class="unit-input-wrap"><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
       <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
-      <div class="dif i-q-wrap"><label class="i-q-label">Miqdor (dona)</label><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"></div>
-      <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi (so'm)</label><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"></div>
+      <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
+      <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
       <div class="dif i-gips-unit-wrap" style="display:none">
         <label>Birligi</label>
         <select class="i-gips-unit" onchange="onGipsUnitChange(this.closest('.detal'))">
@@ -2691,7 +2691,7 @@ function addItem() {
           <option value="m2">M²</option>
         </select>
       </div>
-      <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"></div>
+      <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (tayyor)</label><div class="unit-input-wrap"><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
       <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti</label><input type="number" value="2" placeholder="masalan 2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div>
       <div class="dif i-termo-bazalt-wrap" style="display:none">
         <label>Plotnost (Bazalt turi)</label>
@@ -2726,9 +2726,11 @@ function addItem() {
         </select>
       </div>
       <div class="dif"><label>1 m³ narxi</label>
-        <input type="text" class="i-m3price" placeholder="asosiy"
-               oninput="formatPriceInput(this);recomputeFpPriceFromM3(this.closest('.detal'));calculateItem(this.closest('.detal'))"
-               style="border-color:#B9783F">
+        <div class="unit-input-wrap" style="border-color:#B9783F">
+          <input type="text" class="i-m3price" placeholder="asosiy"
+                 oninput="formatPriceInput(this);recomputeFpPriceFromM3(this.closest('.detal'));calculateItem(this.closest('.detal'))">
+          <span class="unit-suffix">so'm</span>
+        </div>
       </div>
     </div>
     <div class="detal-result">
@@ -2990,10 +2992,14 @@ function toggleFields(row) {
     const qEl = row.querySelector('.i-q'); if(qEl) qEl.value = '1';
   }
 
-  // Miqdor maydonining nomi: panel — metr, blok — kerakli metr, dona — dona
+  // Miqdor maydonining nomi va birligi: panel — metr, blok — kerakli metr, dona — dona
   const qLabel = row.querySelector('.i-q-label');
+  const qSuffix = row.querySelector('.i-q-suffix');
   if (qLabel) {
-    qLabel.textContent = (type === 'panel') ? 'Uzunlik (m)' : (type === 'blok') ? "Necha metr kerak" : (type === 'termopanel') ? "Necha kvadrat metr (m²)" : (type === 'loy_sotish') ? "Necha kg" : 'Miqdor (dona)';
+    qLabel.textContent = (type === 'panel') ? 'Uzunlik' : (type === 'blok') ? "Necha metr kerak" : (type === 'termopanel') ? "Necha kvadrat metr" : (type === 'loy_sotish') ? "Necha kg" : 'Miqdor';
+  }
+  if (qSuffix) {
+    qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : (type === 'termopanel') ? 'm²' : (type === 'loy_sotish') ? 'kg' : 'dona';
   }
   const lLabel = row.querySelector('.i-l-label');
   if (lLabel) {
@@ -3001,7 +3007,7 @@ function toggleFields(row) {
   }
   const upLabel = row.querySelector('.i-unitprice-label');
   if (upLabel) {
-    upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi (so'm)" : (type === 'loy_sotish') ? "1 kg narxi (so'm)" : "1 dona narxi (so'm)";
+    upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi" : (type === 'loy_sotish') ? "1 kg narxi" : "1 dona narxi";
   }
   row.dataset.lastType = type;
   checkGipsSectionVisibility();
@@ -3010,10 +3016,12 @@ function toggleFields(row) {
 function onGipsUnitChange(row) {
   const unit = row.querySelector('.i-gips-unit')?.value || 'metr';
   const qLabel = row.querySelector('.i-q-label');
+  const qSuffix = row.querySelector('.i-q-suffix');
   const upLabel = row.querySelector('.i-unitprice-label');
   const unitText = unit === 'metr' ? 'metr' : unit === 'm2' ? 'm²' : 'dona';
-  if (qLabel) qLabel.textContent = `Miqdor (${unitText})`;
-  if (upLabel) upLabel.textContent = `1 ${unitText} narxi (so'm)`;
+  if (qLabel) qLabel.textContent = 'Miqdor';
+  if (qSuffix) qSuffix.textContent = unitText;
+  if (upLabel) upLabel.textContent = `1 ${unitText} narxi`;
   calculateItem(row);
 }
 
@@ -3117,7 +3125,7 @@ function calculateItem(row) {
       // uchun) — bu, ombordan yechiladigan HAQIQIY hajmga TEGMAYDI.
       const perUnitVol = parseFloat(row.dataset.donaVolPerUnit) || 0;
       volume_total = perUnitVol * qty;
-      row.querySelector('.i-vol').value = volume_total.toFixed(4) + ' 🔒';
+      row.querySelector('.i-vol').value = volume_total.toFixed(4);
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
       if (isCoated) { price *= 2; perMeterPrice *= 2; }
