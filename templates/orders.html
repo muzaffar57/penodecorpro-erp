@@ -3835,6 +3835,16 @@ async function editSelected() {
 
         if (cat === 'dona') {
           row.querySelector('.i-q').value = item.quantity || 1;
+
+          // YANGI USUL uchun: Eni/Qalinlik/"1 metrdan nechta" tiklanadi
+          // (agar saqlangan bo'lsa). Bo'lmasa (eski, narx-asosidagi
+          // yozuvlar) — bo'sh qoladi, eski xatti-harakat davom etadi.
+          if (item.width) row.querySelector('.i-h').value = item.width;
+          if (item.thickness) row.querySelector('.i-t').value = item.thickness;
+          const dym = (item.notes || '').match(/dona_yield=([\d.]+)/);
+          const donaYieldEl = row.querySelector('.i-donayield');
+          if (dym && donaYieldEl) donaYieldEl.value = dym[1];
+
           const upEl = row.querySelector('.i-unitprice');
           if (upEl) {
             // MUHIM: backendda saqlangan unit_price — agar qoplama bo'lsa,
@@ -3845,6 +3855,14 @@ async function editSelected() {
             const rawPrice = item.is_coated ? (parseFloat(item.unit_price || 0) / 2) : parseFloat(item.unit_price || 0);
             upEl.value = formatNum(rawPrice);
             row.dataset.unitprice = rawPrice;
+          }
+          // Yangi usul bilan tiklangan bo'lsa — hajmni "qulflangan" holatda
+          // ko'rsatamiz (chunki bu — allaqachon saqlangan, real buyurtma;
+          // hajm o'zgarib qolmasligi kerak, xuddi yangi qulflashdagidek).
+          if (item.width && item.thickness && item.length) {
+            const totalVol = (item.width/100) * (item.thickness/100) / 2 * item.length;
+            row.dataset.donaVolPerUnit = (totalVol / (item.quantity || 1)).toString();
+            row.dataset.donaVolLocked = 'true';
           }
         } else if (cat === 'panel') {
           row.querySelector('.i-h').value = item.width || 0;
