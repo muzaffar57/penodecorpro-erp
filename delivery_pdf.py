@@ -366,11 +366,27 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     bo'lsa bosqichma-bosqich siqiladi.
     """
     n_items = len(delivery.items or [])
+
+    # MUHIM: qisman yetkazishda, "keyingi safar kutilayotgan mahsulotlar"
+    # degan QO'SHIMCHA jadval ham chiqadi (pastda) — bu ham joy egallaydi.
+    # Buni HISOBGA OLMASAK, kichik yuk + katta "kutilayotgan" ro'yxati
+    # bo'lgan holatlarda ham hujjat 2 sahifaga chiqib ketishi mumkin edi.
+    _order_for_calc = delivery.order
+    _pending_count = 0
+    if _order_for_calc and not _order_for_calc.is_fully_delivered:
+        _pending_count = sum(1 for it in (_order_for_calc.items or []) if it.remaining_qty > 0.001)
+
+    # "Kutilayotgan" jadval — sinovlar shuni ko'rsatdiki, taxmin
+    # qilingandan REAL jойroq (matn ko'proq qator egallaydi) — shuning
+    # uchun vazn 0.6 emas, 1.3 (deyarli asosiy jadval bilan teng darajada
+    # og'ir). "+1.5" — kichik xavfsizlik zahirasi (chekka holatlar uchun).
+    effective_n = n_items + (_pending_count * 1.3 + 1.5 if _pending_count > 0 else 0)
+
     # Silliq (uzluksiz) siqilish darajasi — "zinama-zina" o'rniga, chunki
     # zinama-zina tizimda chegara oldida g'alati holat yuzaga kelishi
     # mumkin edi (kamroq detal ko'proq sahifa egallardi).
     # 0.0 = siqilmagan, 1.0 = eng siqilgan.
-    cx = max(0.0, min(1.0, (n_items - 8) / 45.0))
+    cx = max(0.0, min(1.0, (effective_n - 8) / 45.0))
 
     def lerp(a, b):
         return a + (b - a) * cx
@@ -700,13 +716,13 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
                 ('TEXTCOLOR', (0, 0), (-1, 0), GOLD),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+                ('FONTSIZE', (0, 0), (-1, -1), lerp(8.5, 6.0)),
                 ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor("#DC2626")),
                 ('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'),
                 ('ALIGN', (1, 0), (2, -1), 'RIGHT'),
                 ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor("#E5E1D8")),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), lerp(4, 1)),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), lerp(4, 1)),
             ]))
             el.append(pend_tbl)
 
