@@ -3094,15 +3094,9 @@ function calculateItem(row) {
     const donaYield = dyEl ? parseNum(dyEl.value) || 0 : 0;
     const volBtn = row.querySelector('.i-vol-relock');
 
-    // MUHIM: "Plotnost"da TANLANGAN Penoplastning O'Z narxidan foydalanamiz
-    // (order darajasidagi umumiy "asosiy narx"ga EMAS, chunki u bo'sh
-    // qolishi mumkin va bu, tanlangan Penoplastga umuman bog'liq emas edi).
-    const selectedPenoId = parseInt(row.querySelector('.i-peno')?.value) || null;
-    const selectedPeno = PENOPLASTS.find(p => p.id === selectedPenoId);
-    const donaBasePrice = selectedPeno && selectedPeno.volPerUnit > 0
-      ? selectedPeno.pricePerUnit / selectedPeno.volPerUnit
-      : basePrice;
-
+    // MUHIM: Profil bilan BIR XIL qoida — "Plotnost" faqat qaysi
+    // ombordan ayirilishini belgilaydi, narxga ALOQASI YO'Q. Narx —
+    // faqat "Asosiy narx" (yoki qatorning o'z "1 m³ narxi")dan keladi.
     if (row.dataset.fpId) {
       // MUHIM: "Tayyor mahsulotdan" — bu narx ALLAQACHON YAKUNIY (Qoplama
       // hisobga olingan holda). Qayta ×2 qilinsa — narx noto'g'ri, ikki
@@ -3124,14 +3118,14 @@ function calculateItem(row) {
       price = unitPrice * qty;
       if (isCoated) { price *= 2; perMeterPrice *= 2; }
       if (volBtn) { volBtn.style.display = 'inline'; volBtn.textContent = '🔒'; volBtn.title = "Qulfdan chiqarish (hajm qayta jonli hisoblanadi)"; }
-    } else if (h_val > 0 && t_val > 0 && donaYield > 0 && donaBasePrice > 0) {
+    } else if (h_val > 0 && t_val > 0 && donaYield > 0 && basePrice > 0) {
       // YANGI USUL: Eni x Qalinlik x (1 metrdan necha dona chiqishi) dan —
       // hajm TO'G'RIDAN-TO'G'RI, aniq hisoblanadi (Profil formulasi bilan
       // bir xil), va narx SHUNDAN avtomatik to'ldiriladi (aksincha emas).
       const perUnitVol = (h_val/100) * (t_val/100) / 2 / donaYield;
       volume_total = perUnitVol * qty;
       row.dataset.donaVolPerUnit = perUnitVol.toString();
-      unitPrice = perUnitVol * donaBasePrice;
+      unitPrice = perUnitVol * basePrice;
       if (upEl) upEl.value = formatNum(unitPrice);
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
@@ -4157,11 +4151,13 @@ function collectItems() {
         sendLength = qty / donaYield;
       }
 
-      // MUHIM: tanlangan Penoplastning O'Z narxidan olamiz (order darajasidagi
-      // umumiy "asosiy narx"ga EMAS) — jonli hisoblash bilan bir xil manba.
-      const selPeno = PENOPLASTS.find(p => p.id === penoId);
-      const donaOwnPrice = selPeno && selPeno.volPerUnit > 0 ? selPeno.pricePerUnit / selPeno.volPerUnit : 0;
-      const effM3 = m3price || donaOwnPrice || parseNum(document.getElementById('base_price')?.value || '0') || null;
+      // MUHIM: Profil/Panel bilan BIR XIL qoida — avval "Asosiy narx"
+      // (order darajasida, qo'lda kiritilgan), faqat bo'sh bo'lsa —
+      // tanlangan Penoplastning o'z narxiga o'tamiz (jonli hisoblash
+      // bilan bir xil manba/tartib).
+      // MUHIM: Profil bilan BIR XIL qoida — "Plotnost" faqat qaysi
+      // ombordan ayirilishini belgilaydi, narxga aloqasi yo'q.
+      const effM3 = m3price || parseNum(document.getElementById('base_price')?.value || '0') || null;
       const unitPriceForVolume = (lockedPerUnit > 0 && effM3)
         ? lockedPerUnit * effM3
         : parseFloat(row.dataset.unitprice || 0);
