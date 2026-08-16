@@ -483,6 +483,10 @@
           <label>Qalinlik (sm)</label>
           <input type="number" id="p-t" step="0.1" oninput="pCalc()">
         </div>
+        <div class="form-group" style="margin:0;display:none" id="p-donayield-wrap">
+          <label>1 metrdan nechta dona chiqadi</label>
+          <input type="number" id="p-donayield" placeholder="masalan 5" step="0.1" min="0.01" oninput="pCalc()">
+        </div>
         <div class="form-group" style="margin:0" id="p-l-wrap">
           <label id="p-l-label">Uzunlik (m)</label>
           <input type="number" id="p-l" step="0.1" value="0" oninput="pCalc()">
@@ -1800,14 +1804,18 @@ function pToggle() {
   const m3Wrap = document.getElementById('p-m3').closest('.form-group');
 
   blokRow.style.display = (type === 'blok') ? 'flex' : 'none';
+  const donaYieldW0 = document.getElementById('p-donayield-wrap');
+  if (donaYieldW0) donaYieldW0.style.display = 'none';
   if (type !== 'dona') { window._pDonaVolLocked = false; window._pDonaVolPerUnit = 0; }
 
   if (type === 'dona') {
-    hW.style.display = 'none'; wW.style.display = 'none';
-    tW.style.display = 'none'; lW.style.display = 'none';
+    hW.style.display = 'block'; wW.style.display = 'none';
+    tW.style.display = 'block'; lW.style.display = 'none';
     qW.style.display = 'block'; upW.style.display = 'block';
     m3Wrap.style.display = '';
-    ['p-h','p-w','p-t','p-l'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+    const dyW = document.getElementById('p-donayield-wrap');
+    if (dyW) dyW.style.display = 'block';
+    ['p-w','p-l'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
   } else if (type === 'panel') {
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'block'; lW.style.display = 'none';
@@ -1880,10 +1888,10 @@ function pCalc() {
   let volume_total = 0, price = 0, perUnitPrice = 0, count = 0, unit = 'metr';
 
   if (type === 'dona') {
-    const unitPrice = parseFloat(document.getElementById('p-up').value) || 0;
-    perUnitPrice = unitPrice;
-    price = unitPrice * qty;
-    if (isCoated) { price *= 2; perUnitPrice *= 2; }
+    const upEl = document.getElementById('p-up');
+    let unitPrice = upEl ? parseFloat(upEl.value) || 0 : 0;
+    const donaYieldEl = document.getElementById('p-donayield');
+    const donaYield = donaYieldEl ? parseNum(donaYieldEl.value) || 0 : 0;
 
     // Hajm — standart holatda JONLI hisoblanadi (Buyurtmalar bo'limidagi
     // bilan bir xil, yangilangan mantiq). Faqat 🔒 tugmasi bosilgandagina
@@ -1891,9 +1899,25 @@ function pCalc() {
     // qimmatroq sotish uchun) ombordan yechiladigan HAJM o'zgarmaydi.
     if (window._pDonaVolLocked) {
       volume_total = window._pDonaVolPerUnit * qty;
-    } else if (basePrice > 0 && unitPrice > 0) {
-      volume_total = (unitPrice / basePrice) * qty;
-      window._pDonaVolPerUnit = unitPrice / basePrice;
+      perUnitPrice = unitPrice;
+      price = unitPrice * qty;
+      if (isCoated) { price *= 2; perUnitPrice *= 2; }
+    } else if (h > 0 && t > 0 && donaYield > 0 && basePrice > 0) {
+      // YANGI USUL: Eni x Qalinlik x (1 metrdan necha dona chiqishi) dan —
+      // hajm TO'G'RIDAN-TO'G'RI, aniq hisoblanadi (Profil formulasi bilan
+      // bir xil), va narx SHUNDAN avtomatik to'ldiriladi.
+      const perUnitVol = (h/100) * (t/100) / 2 / donaYield;
+      volume_total = perUnitVol * qty;
+      window._pDonaVolPerUnit = perUnitVol;
+      unitPrice = perUnitVol * basePrice;
+      if (upEl) upEl.value = Math.round(unitPrice);
+      perUnitPrice = unitPrice;
+      price = unitPrice * qty;
+      if (isCoated) { price *= 2; perUnitPrice *= 2; }
+    } else {
+      perUnitPrice = unitPrice;
+      price = unitPrice * qty;
+      if (isCoated) { price *= 2; perUnitPrice *= 2; }
     }
     count = qty; unit = 'dona';
   } else if (type === 'profil') {
@@ -2033,9 +2057,22 @@ async function saveProduce() {
     data.quantity = qty;
     if (w) data.notes = (data.notes ? data.notes + ' · ' : '') + `width2=${w}`;
   } else if (type === 'dona') {
-    data.width = null;
-    data.thickness = null;
-    data.length = null;
+    const donaYieldEl = document.getElementById('p-donayield');
+    const donaYield = donaYieldEl ? parseNum(donaYieldEl.value) || 0 : 0;
+
+    // YANGI USUL: Eni+Qalinlik+"1 metrdan nechta" to'liq kiritilgan bo'lsa —
+    // width/thickness/length yuboramiz (backend PROFIL formulasi bilan
+    // hisoblaydi — aniq, real o'lchamga asoslangan).
+    if (h > 0 && t > 0 && donaYield > 0) {
+      data.width = h;
+      data.thickness = t;
+      data.length = qty / donaYield;
+      data.notes = (data.notes ? data.notes + ' · ' : '') + `dona_yield=${donaYield}`;
+    } else {
+      data.width = null;
+      data.thickness = null;
+      data.length = null;
+    }
     data.quantity = qty;
     // MUHIM: hajm hisobi uchun QULFLANGAN (birinchi kiritilgan) narxni
     // yuboramiz — hozirgi "1 dona narxi" maydonida boshqa (masalan
