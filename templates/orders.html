@@ -123,7 +123,7 @@
 .ico-badge.green{background:#DCFCE7;color:#16A34A}
 .ico-badge.purple{background:#F3EEFF;color:#7C3AED}
 /* Qoplama — Yo'q/Bor tugmasi (rasmdagi uslub) */
-.coat-toggle{display:flex;border:1px solid #E5E1D8;border-radius:9px;overflow:hidden;height:36px}
+.coat-toggle{display:flex;border:1px solid #E5E1D8;border-radius:9px;overflow:hidden;height:42px}
 .coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
 .coat-opt.coat-no.active{background:#FCA5A5;color:#7F1D1D}
 .coat-opt.coat-yes.active{background:#86EFAC;color:#14532D}
@@ -2688,7 +2688,7 @@ function addItem() {
         </select>
       </div>
       <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (so'm, tayyor)</label><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"></div>
-      <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti (masalan 2)</label><input type="number" value="2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div>
+      <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti</label><input type="number" value="2" placeholder="masalan 2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div>
       <div class="dif i-termo-bazalt-wrap" style="display:none">
         <label>Plotnost (Bazalt turi)</label>
         <select class="i-termo-bazalt" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
@@ -3863,6 +3863,17 @@ async function editSelected() {
             const totalVol = (item.width/100) * (item.thickness/100) / 2 * item.length;
             row.dataset.donaVolPerUnit = (totalVol / (item.quantity || 1)).toString();
             row.dataset.donaVolLocked = 'true';
+          } else {
+            // ESKI USUL (o'lchamsiz, faqat narxga asoslangan yozuvlar) —
+            // xuddi shu tarzda "qulflangan" holatni tiklaymiz, aks holda
+            // bu eski yozuvni tahrirlab saqlasangiz, hajm noto'g'ri
+            // (yo'qolgan yoki qayta hisoblangan) holda saqlanib qolardi.
+            const oldUnitPriceForVol = parseFloat(item.unit_price_for_volume || item.unit_price || 0);
+            const oldPriceM3 = parseFloat(item.price_per_m3 || 0);
+            if (oldUnitPriceForVol > 0 && oldPriceM3 > 0) {
+              row.dataset.donaVolPerUnit = (oldUnitPriceForVol / oldPriceM3).toString();
+              row.dataset.donaVolLocked = 'true';
+            }
           }
         } else if (cat === 'panel') {
           row.querySelector('.i-h').value = item.width || 0;
