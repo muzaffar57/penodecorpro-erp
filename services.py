@@ -3164,6 +3164,7 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
         used_parts = []
         serp_ratio = 2.0
         kley_ratio = 0.8
+        import crud as _crud_termo
 
         if bazalt_id:
             b = db.query(Inventory).filter(Inventory.id == bazalt_id).with_for_update().first()
@@ -3173,6 +3174,9 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
                 b.stock_quantity = float(b.stock_quantity) - sheets
                 log.append(f"{b.item_name}: -{sheets:.2f} dona")
                 used_parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
+                _crud_termo.log_movement(db, b.id, b.item_name, movement_type="out", quantity=sheets,
+                                          unit=b.unit, order_id=order.id,
+                                          reason=f"Buyurtma {order.order_number} — Termopanel (Bazalt)")
                 if b.serp_ratio_per_m2:
                     serp_ratio = float(b.serp_ratio_per_m2)
                 if b.kley_ratio_per_m2:
@@ -3193,6 +3197,9 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
             s.stock_quantity = float(s.stock_quantity) - rulon
             log.append(f"{s.item_name}: -{rulon:.2f} rulon")
             used_parts.append(f"serp_id={s.id},serp_qty={rulon:.4f}")
+            _crud_termo.log_movement(db, s.id, s.item_name, movement_type="out", quantity=rulon,
+                                      unit=s.unit, order_id=order.id,
+                                      reason=f"Buyurtma {order.order_number} — Termopanel (Serpiyanka)")
 
         # Kley — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik uchun)
         # nomi bo'yicha avtomatik qidiramiz. Miqdori — TANLANGAN BAZALTNING
@@ -3206,6 +3213,9 @@ def deduct_termopanel_for_order(db: Session, order, order_data) -> list:
             k.stock_quantity = float(k.stock_quantity) - kley_kg
             log.append(f"{k.item_name}: -{kley_kg:.2f} kg")
             used_parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
+            _crud_termo.log_movement(db, k.id, k.item_name, movement_type="out", quantity=kley_kg,
+                                      unit=k.unit, order_id=order.id,
+                                      reason=f"Buyurtma {order.order_number} — Termopanel (Kley)")
 
         if loy_kg > 0:
             log.extend(deduct_loy_ingredients(db, order, loy_kg, use_stock=False))
@@ -3229,6 +3239,7 @@ def return_termopanel_for_item(db: Session, item, sign: float = 1.0) -> list:
     TIKLANGANDA xuddi shu miqdorni qayta ombordan yechish uchun."""
     from models import Inventory
     import re as _re
+    import crud as _crud_treturn
 
     log = []
     if (item.category or '').lower() != 'termopanel' or not item.notes:
@@ -3243,6 +3254,7 @@ def return_termopanel_for_item(db: Session, item, sign: float = 1.0) -> list:
         return log
     parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
     verb = "qaytarildi" if sign > 0 else "qayta yechildi"
+    mv_type = "in" if sign > 0 else "out"
 
     if 'bazalt_id' in parts and 'bazalt_qty' in parts:
         b = db.query(Inventory).filter(Inventory.id == int(parts['bazalt_id'])).with_for_update().first()
@@ -3250,6 +3262,9 @@ def return_termopanel_for_item(db: Session, item, sign: float = 1.0) -> list:
             delta = float(parts['bazalt_qty']) * sign
             b.stock_quantity = float(b.stock_quantity) + delta
             log.append(f"{b.item_name}: {delta:+.2f} dona {verb}")
+            _crud_treturn.log_movement(db, b.id, b.item_name, movement_type=mv_type, quantity=abs(delta),
+                                        unit=b.unit, order_id=item.order_id,
+                                        reason=f"Termopanel (Bazalt) {verb}")
 
     if 'serp_id' in parts and 'serp_qty' in parts:
         s = db.query(Inventory).filter(Inventory.id == int(parts['serp_id'])).with_for_update().first()
@@ -3257,6 +3272,9 @@ def return_termopanel_for_item(db: Session, item, sign: float = 1.0) -> list:
             delta = float(parts['serp_qty']) * sign
             s.stock_quantity = float(s.stock_quantity) + delta
             log.append(f"{s.item_name}: {delta:+.2f} rulon {verb}")
+            _crud_treturn.log_movement(db, s.id, s.item_name, movement_type=mv_type, quantity=abs(delta),
+                                        unit=s.unit, order_id=item.order_id,
+                                        reason=f"Termopanel (Serpiyanka) {verb}")
 
     if 'kley_id' in parts and 'kley_qty' in parts:
         k = db.query(Inventory).filter(Inventory.id == int(parts['kley_id'])).with_for_update().first()
@@ -3264,6 +3282,9 @@ def return_termopanel_for_item(db: Session, item, sign: float = 1.0) -> list:
             delta = float(parts['kley_qty']) * sign
             k.stock_quantity = float(k.stock_quantity) + delta
             log.append(f"{k.item_name}: {delta:+.2f} kg {verb}")
+            _crud_treturn.log_movement(db, k.id, k.item_name, movement_type=mv_type, quantity=abs(delta),
+                                        unit=k.unit, order_id=item.order_id,
+                                        reason=f"Termopanel (Kley) {verb}")
 
     return log
 
