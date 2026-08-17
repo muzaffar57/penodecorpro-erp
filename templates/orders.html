@@ -2769,7 +2769,7 @@ function addItem() {
           <div class="dval-box"><input type="text" class="i-vol" readonly><span class="unit-suffix">m³</span></div>
         </div>
         <div class="result-card">
-          <label>1 metr narxi</label>
+          <label class="i-perm-label">1 metr narxi</label>
           <div class="dval-box"><input type="text" class="i-perm" readonly><span class="unit-suffix">so'm</span></div>
         </div>
         <div class="result-card main">
@@ -3057,6 +3057,10 @@ function toggleFields(row) {
   const upLabel = row.querySelector('.i-unitprice-label');
   if (upLabel) {
     upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi" : (type === 'loy_sotish') ? "1 kg narxi" : "1 dona narxi";
+  }
+  const permLabel = row.querySelector('.i-perm-label');
+  if (permLabel) {
+    permLabel.textContent = (type === 'termopanel') ? "1 m² narxi" : (type === 'loy_sotish') ? "1 kg narxi" : "1 metr narxi";
   }
   row.dataset.lastType = type;
   checkGipsSectionVisibility();
