@@ -1686,6 +1686,36 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
     return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida SMS yuborildi!"}
 
 
+# ═══════════════════════════════════════════════════════════════
+# AVTOMATIK, KUNLIK "kam qolganlar" ogohlantirishi — bu, LOGIN
+# TALAB QILMAYDI (tashqi, bepul "vaqt bo'yicha chaqiruvchi" xizmat,
+# masalan cron-job.org, buni har kuni bir marta chaqiradi). Xavfsizlik
+# uchun, maxfiy kalit (CRON_SECRET env var) talab qilinadi — shu kalitni
+# bilmagan hech kim, bu manzilni chaqira olmaydi.
+# ═══════════════════════════════════════════════════════════════
+CRON_SECRET = os.environ.get("CRON_SECRET", "")
+
+@app.get("/api/cron/low-stock-check")
+def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
+    if not CRON_SECRET:
+        raise HTTPException(status_code=503, detail="CRON_SECRET Railway'da o'rnatilmagan")
+    if secret != CRON_SECRET:
+        raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
+    low_items = crud.get_low_stock_items(db)
+    if not low_items:
+        return {"sent": False, "message": "Barcha xomashyolar yetarli"}
+    lines = []
+    for item in low_items:
+        qty = float(item.stock_quantity)
+        min_q = float(item.min_stock)
+        deficit = min_q - qty
+        emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+        lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
+    msg = f"⚠️ *Kunlik ombor ogohlantirishi!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
+    _send_telegram(msg)
+    return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida xabar yuborildi"}
+
+
 @app.delete("/api/inventory/{item_id}")
 def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     result = crud.delete_item(db, item_id)
