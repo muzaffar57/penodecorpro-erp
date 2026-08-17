@@ -4260,7 +4260,7 @@ function collectItems() {
       items.push({ name, category: 'dona', width: sendWidth, thickness: sendThickness, length: sendLength,
                    quantity: qty, unit_price: parseFloat(row.dataset.unitprice || 0),
                    unit_price_for_volume: unitPriceForVolume, is_coated: isCoated,
-                   penoplast_id: penoId, price_per_m3: (fpId ? null : effM3), finished_product_id: fpId,
+                   penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId,
                    notes: donaYield > 0 ? `dona_yield=${donaYield}` : null });
     } else if (type === 'blok') {
       let perMetr, blokKerak, blokPrice, chiqadiPerBlok, kerakMetr;
