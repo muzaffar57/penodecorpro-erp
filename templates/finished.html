@@ -11,6 +11,11 @@
 
 {% block head %}
 <style>
+/* MUHIM: bu qoida FAQAT #prodModal ichidagi maydonlarga tegishli —
+   umumiy .form-group'ga tegilmadi, chunki u boshqa 11 sahifada ham
+   ishlatiladi va u yerlarga bu ta'sir qilishi kerak emas. */
+#prodModal .form-group{background:#F3F4F6;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+#prodModal .form-group input,#prodModal .form-group select,#prodModal .form-group textarea{background:#fff}
 .fp-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .fp-page{
   flex:1;
