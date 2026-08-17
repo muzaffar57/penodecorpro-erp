@@ -3191,10 +3191,10 @@ function calculateItem(row) {
       volume_total = perUnitVol * qty;
       row.dataset.donaVolPerUnit = perUnitVol.toString();
       unitPrice = perUnitVol * basePrice;
+      if (isCoated) unitPrice *= 2;
       if (upEl) upEl.value = formatNum(unitPrice);
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
-      if (isCoated) { price *= 2; perMeterPrice *= 2; }
       row.querySelector('.i-vol').value = volume_total.toFixed(4);
       if (volBtn) { volBtn.style.display = 'inline'; volBtn.textContent = '🔓'; volBtn.title = "Hajmni qulflash (keyin narx o'zgarsa ham hajm o'zgarmaydi)"; }
     } else {

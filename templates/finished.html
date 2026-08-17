@@ -1937,10 +1937,10 @@ function pCalc() {
       volume_total = perUnitVol * qty;
       window._pDonaVolPerUnit = perUnitVol;
       unitPrice = perUnitVol * basePrice;
+      if (isCoated) unitPrice *= 2;
       if (upEl) upEl.value = Math.round(unitPrice);
       perUnitPrice = unitPrice;
       price = unitPrice * qty;
-      if (isCoated) { price *= 2; perUnitPrice *= 2; }
     } else {
       perUnitPrice = unitPrice;
       price = unitPrice * qty;
