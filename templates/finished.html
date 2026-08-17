@@ -1925,10 +1925,14 @@ function pCalc() {
     // hajm "muzlaydi" — shundan keyin narxni o'zgartirsangiz ham (masalan
     // qimmatroq sotish uchun) ombordan yechiladigan HAJM o'zgarmaydi.
     if (window._pDonaVolLocked) {
+      // MUHIM: bu yerdagi narx (upEl.value) — allaqachon QOPLAMALI (agar
+      // Qoplama "Bor" bo'lsa) holatda saqlangan (pastdagi yangi usul,
+      // qulflanmagan holatda, buni ALLAQACHON 2ga ko'paytirib yozgan edi).
+      // Shuning uchun bu yerda YANA 2ga ko'paytirsak — noto'g'ri, ikki
+      // baravar oshib ketardi (12 000 → 24 000 kabi xato).
       volume_total = window._pDonaVolPerUnit * qty;
       perUnitPrice = unitPrice;
       price = unitPrice * qty;
-      if (isCoated) { price *= 2; perUnitPrice *= 2; }
     } else if (h > 0 && t > 0 && donaYield > 0 && basePrice > 0) {
       // YANGI USUL: Eni x Qalinlik x (1 metrdan necha dona chiqishi) dan —
       // hajm TO'G'RIDAN-TO'G'RI, aniq hisoblanadi (Profil formulasi bilan

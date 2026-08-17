@@ -3176,12 +3176,15 @@ function calculateItem(row) {
       // QULFLANGAN: hajm o'zgarmaydi (birinchi hisoblangan holicha qoladi).
       // Narxni endi ERKIN oshirish mumkin (masalan yopishtirish mehnati
       // uchun) — bu, ombordan yechiladigan HAQIQIY hajmga TEGMAYDI.
+      // MUHIM: unitPrice (i-unitprice maydonidan) — allaqachon QOPLAMALI
+      // holatda saqlangan (yangi usul, qulflanmagan holatda buni ALLAQACHON
+      // 2ga ko'paytirib yozadi) — shuning uchun bu yerda YANA 2ga
+      // ko'paytirmaymiz (aks holda ikki baravar oshib ketardi).
       const perUnitVol = parseFloat(row.dataset.donaVolPerUnit) || 0;
       volume_total = perUnitVol * qty;
       row.querySelector('.i-vol').value = volume_total.toFixed(4);
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
-      if (isCoated) { price *= 2; perMeterPrice *= 2; }
       if (volBtn) { volBtn.style.display = 'inline'; volBtn.textContent = '🔒'; volBtn.title = "Qulfdan chiqarish (hajm qayta jonli hisoblanadi)"; }
     } else if (h_val > 0 && t_val > 0 && donaYield > 0 && basePrice > 0) {
       // YANGI USUL: Eni x Qalinlik x (1 metrdan necha dona chiqishi) dan —
