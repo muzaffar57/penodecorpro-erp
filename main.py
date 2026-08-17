@@ -44,14 +44,24 @@ def _send_telegram(text: str):
     if not token:
         print("⚠ TELEGRAM_BOT_TOKEN yo'q")
         return
-    try:
-        url  = f"https://api.telegram.org/bot{token}/sendMessage"
-        data = _json.dumps({"chat_id": TELEGRAM_COATING_ID, "text": text, "parse_mode": "Markdown"}).encode("utf-8")
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=5)
-        print(f"✓ Telegram xabar yuborildi")
-    except Exception as e:
-        print(f"⚠ Telegram xabar yuborilmadi: {e}")
+    # MUHIM (2026-08-18): avval, bu funksiya, ESKIRGAN/NOTO'G'RI bo'lib
+    # qolgan, qattiq yozilgan TELEGRAM_COATING_ID'ga yuborardi (Telegram
+    # "403 Forbidden" xatosi bilan qaytarardi — bot bloklangan yoki chat
+    # o'chirilgan edi). Endi, zaxira nusxa uchun ALLAQACHON TO'G'RI
+    # sozlangan, ishlab turgan BACKUP_TELEGRAM_CHAT_ID'dan foydalanamiz —
+    # shu bilan, shu funksiyaga bog'liq BARCHA (12 xil) bildirishnoma turi
+    # birdaniga tuzatiladi.
+    chat_ids_raw = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "").strip()
+    chat_ids = [c.strip() for c in chat_ids_raw.split(",") if c.strip()] or [TELEGRAM_COATING_ID]
+    for chat_id in chat_ids:
+        try:
+            url  = f"https://api.telegram.org/bot{token}/sendMessage"
+            data = _json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}).encode("utf-8")
+            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=5)
+            print(f"✓ Telegram xabar yuborildi ({chat_id})")
+        except Exception as e:
+            print(f"⚠ Telegram xabar yuborilmadi ({chat_id}): {e}")
 
 
 def _send_telegram_to(chat_id: str, text: str):
@@ -1714,6 +1724,45 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
     msg = f"⚠️ *Kunlik ombor ogohlantirishi!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
     _send_telegram(msg)
     return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida xabar yuborildi"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# VAQTINCHALIK YORDAMCHI: to'g'ri Telegram Chat ID'ni topish uchun.
+# Foydalanish: 1) Telegram'da botga (masalan @penodecorprobot) istalgan
+# xabar yozing (masalan "salom"). 2) Shu manzilni oching:
+# /api/cron/find-chat-id?secret=SIZNING_KALITINGIZ — u yerda, so'nggi
+# yozgan odamning ismi va Chat ID'si ko'rinadi. Chat ID'ni topgach, buni
+# TELEGRAM_COATING_ID o'rniga ishlatish uchun Claude'ga ayting.
+# ═══════════════════════════════════════════════════════════════
+@app.get("/api/cron/find-chat-id")
+def api_find_chat_id(secret: str = ""):
+    if not CRON_SECRET or secret != CRON_SECRET:
+        raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        return {"error": "TELEGRAM_BOT_TOKEN Railway'da o'rnatilmagan"}
+    try:
+        url = f"https://api.telegram.org/bot{token}/getUpdates"
+        with urllib.request.urlopen(url, timeout=8) as resp:
+            data = _json.loads(resp.read().decode("utf-8"))
+        results = []
+        for u in data.get("result", []):
+            msg = u.get("message") or u.get("channel_post")
+            if not msg:
+                continue
+            chat = msg.get("chat", {})
+            results.append({
+                "chat_id": chat.get("id"),
+                "chat_type": chat.get("type"),
+                "name": chat.get("title") or f"{chat.get('first_name','')} {chat.get('last_name','')}".strip(),
+                "username": chat.get("username"),
+                "text": msg.get("text")
+            })
+        if not results:
+            return {"message": "Hech qanday xabar topilmadi. Avval botga Telegram'da biror xabar yozing, keyin bu sahifani qayta oching."}
+        return {"found": results[-10:]}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.delete("/api/inventory/{item_id}")
