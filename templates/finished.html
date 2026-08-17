@@ -1,614 +1,305 @@
 {% extends "base.html" %}
-{% block title %}Tayyor mahsulotlar — PenoDecorPro ERP{% endblock %}
-{% block page_title %}Tayyor mahsulotlar{% endblock %}
-{% block page_sub %}Sotuvga tayyor va qaytgan mahsulotlar{% endblock %}
+{% block title %}Omborxona — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Omborxona{% endblock %}
+{% block page_sub %}Xomashyo va materiallar qoldig'i{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-dark" onclick="openProduceModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Ishlab chiqarish</button>
-<button class="btn btn-outline" style="border-color:#8B5E3C;color:#8B5E3C" onclick="openTermoModal()"><i class="ti ti-square" style="vertical-align:-2px"></i> Termopanel (Bazalt)</button>
-<button class="btn btn-outline" style="border-color:#9D174D;color:#9D174D" onclick="openGipsProduceModal()"><i class="ti ti-cube" style="vertical-align:-2px"></i> 🧱 Gips ishlab chiqarish</button>
+<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#B9783F;color:#B9783F"><i class="ti ti-clipboard-list" style="vertical-align:-2px"></i> Ombor hisoboti SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444"><i class="ti ti-bell" style="vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
+
 {% endblock %}
 
 {% block head %}
 <style>
-/* MUHIM: bu qoida FAQAT #prodModal ichidagi maydonlarga tegishli —
-   umumiy .form-group'ga tegilmadi, chunki u boshqa 11 sahifada ham
-   ishlatiladi va u yerlarga bu ta'sir qilishi kerak emas. */
-#prodModal .form-group{background:#F3F4F6;border-radius:12px;padding:12px 14px;margin-bottom:14px!important}
-#prodModal .form-group input,#prodModal .form-group select,#prodModal .form-group textarea{background:#fff}
-.fp-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.fp-page{
-  flex:1;
-  min-height:0;
-  overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
-  padding-bottom:90px;
-}
-.fp-filters input,.fp-filters select{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;outline:none}
-.fp-filters input:focus,.fp-filters select:focus{border-color:var(--gold)}
-.fp-chip{height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--white);font-size:12px;cursor:pointer;color:var(--text2)}
-.fp-chip.on{background:var(--gold);color:#fff;border-color:var(--gold)}
-/* Kategoriya filtri — tugma-chip guruhi (dropdown o'rniga) */
-.fp-cat-toggle{display:flex;flex-wrap:wrap;gap:6px}
-.fp-cat-opt{
-  height:34px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;
-  font-size:12px;font-weight:600;color:var(--text2);background:var(--white);
-  cursor:pointer;transition:all .15s;display:flex;align-items:center;white-space:nowrap;
-}
-.fp-cat-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
-.fp-cat-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
-.fp-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--white);margin-bottom:8px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:fpIn .3s ease forwards}
-@keyframes fpIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-.fp-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
-.fp-row.returned{background:#FAFDFB}
-.fp-row.progress{background:#FFFBF0}
-.fp-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;position:relative;overflow:hidden;cursor:pointer}
-.fp-thumb img{width:100%;height:100%;object-fit:cover}
-.fp-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.fp-thumb .cam-overlay{position:absolute;right:2px;bottom:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;color:#fff;font-size:11px;cursor:pointer;z-index:2}
-.fp-thumb:hover .cam-overlay{opacity:1}
-#lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out}
-#lightbox img{max-width:88vw;max-height:88vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
-.fp-name{font-size:13px;font-weight:600;color:var(--text)}
-.fp-sku{font-size:10px;color:var(--text3);font-family:monospace}
-.fp-meta{font-size:11px;color:var(--text3);margin-top:2px}
-.fp-qty{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap}
-.fp-price{font-size:11px;color:#A86B36;font-weight:600;margin-top:1px;white-space:nowrap}
-.fp-empty{text-align:center;padding:30px;color:var(--text3);font-size:13px}
-.fp-badge{font-size:9px;padding:2px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
-.mini-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid #e5e5e5;background:#fff;font-size:18px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
-.mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
-.fp-inp{width:76px;height:36px;text-align:center;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px;font-weight:600;outline:none}
-.fp-inp:focus{border-color:#B9783F}
-.fp-mini-bar{width:70px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-top:4px}
-.fp-mini-fill{height:100%;border-radius:3px}
-.fp-stock-col{min-width:110px}
-.fp-sec{display:flex;align-items:center;gap:10px;padding:14px 0 8px}
-.fp-sec-label{font-size:11px;font-weight:600;letter-spacing:.5px;white-space:nowrap}
-.fp-sec-line{flex:1;height:1px}
-/* Qoplama — Yo'q/Bor tugmasi */
-.coat-toggle{display:flex;border:1px solid var(--border2);border-radius:9px;overflow:hidden;height:44px}
-.coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
-.coat-opt.coat-no.active{background:#FCA5A5;color:#7F1D1D}
-.coat-opt.coat-yes.active{background:#86EFAC;color:#14532D}
-/* Tur — tugma-chip guruhi (dropdown o'rniga) */
-.type-toggle{display:flex;flex-wrap:wrap;gap:6px}
-.type-opt{
-  padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;
-  font-size:12.5px;font-weight:600;color:var(--text2);background:var(--white);
-  cursor:pointer;transition:all .15s;text-align:center;white-space:nowrap;
-}
-.type-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
-.type-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
+.inv-kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px}
+@media (max-width:1200px){.inv-kpi-grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:700px){.inv-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.inv-filters{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.inv-filters input,.inv-filters select{height:44px;padding:0 15px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;background:var(--white)}
+.inv-filters input:focus,.inv-filters select:focus{border-color:var(--gold)}
+.inv-search{flex:1;min-width:180px}
+.mat-row{display:grid;grid-template-columns:2.2fr 1.3fr 1fr .9fr 1fr 1.1fr;gap:16px;align-items:center;padding:18px 20px;border:1px solid var(--border);border-radius:14px;background:var(--white);margin-bottom:12px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:matFadeIn .3s ease forwards}
+@keyframes matFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.mat-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
+@media (max-width:1100px){.mat-row{grid-template-columns:1.8fr 1fr .8fr;row-gap:10px}
+  .mat-col-min,.mat-col-updated{display:none}}
+@media (max-width:640px){.mat-row{grid-template-columns:1fr}}
+.mat-name{font-size:16px;font-weight:600;color:var(--text)}
+.mat-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:26px;position:relative;cursor:pointer}
+.mat-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+.mat-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.mat-thumb-cam{position:absolute;right:3px;bottom:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;cursor:pointer;z-index:2}
+.stock-bar{height:6px;background:#F0F0F0;border-radius:6px;overflow:hidden;width:160px;max-width:100%}
+.stock-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#22C55E,#16A34A);transition:width .4s ease}
+.stock-fill.warn{background:linear-gradient(90deg,#F59E0B,#D97706)}
+.stock-fill.danger{background:linear-gradient(90deg,#EF4444,#DC2626)}
+.mat-sub{font-size:13px;color:var(--text3);margin-top:3px}
+.cat-badge{display:inline-block;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;margin-top:6px}
+.cat-Penoplast{background:#E6F1FB;color:#0C447C}
+.cat-Kimyoviy{background:#F3E8FF;color:#6B21A8}
+.cat-Qattiq{background:#FEF3C7;color:#854F0B}
+.cat-Boshqa{background:var(--border2);color:var(--text2)}
+.cat-Tayyor{background:#DCFCE7;color:#166534}
+.cat-Gips{background:#FCE7F3;color:#9D174D}
+.mat-qty-val{font-size:17px;font-weight:700}
+.stat-badge{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;padding:5px 13px;border-radius:20px}
+.stat-badge.ok{background:#DCFCE7;color:#166534}
+.stat-badge.warn{background:#FEF3C7;color:#92400E}
+.stat-badge.danger{background:#FEE2E2;color:#991B1B}
+.mat-actions{display:flex;gap:8px;justify-content:flex-end}
+.act-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,border-color .15s;color:var(--text2);font-size:17px}
+.act-btn:hover{background:var(--bg)}
+.act-btn.out{color:#991B1B;border-color:#FECACA}
+.act-btn.out:hover{background:#FEF2F2}
+.act-btn.danger{color:#DC2626}
+.act-btn.danger:hover{background:#FEF2F2}
+.mv-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border2);font-size:14.5px}
+.mv-row:last-child{border-bottom:none}
+.mv-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:8px}
+.mv-badge.in{background:#DCFCE7;color:#166534}
+.mv-badge.out{background:#FEE2E2;color:#991B1B}
+.mv-order-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border:1px solid var(--border2);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:background .15s;background:var(--white)}
+.mv-order-row:hover{background:var(--gold-tint)}
+.mv-order-num{font-weight:700;color:var(--gold-dark);font-size:14.5px}
+.mv-order-meta{font-size:12.5px;color:var(--text3);margin-top:3px}
+.mv-order-count{font-size:12.5px;background:var(--bg);padding:4px 10px;border-radius:20px;color:var(--text2);font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:10px}
+.mv-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end;z-index:2100}
+.mv-drawer{background:#fff;width:440px;max-width:92vw;height:100%;box-shadow:-4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;animation:mvSlideIn .22s ease}
+@keyframes mvSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.mv-drawer-head{padding:18px 20px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.mv-drawer-body{padding:6px 20px 20px;overflow-y:auto;flex:1}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="fp-page" style="padding:14px">
+<div style="padding:14px;height:calc(100vh - 58px);overflow-y:auto">
 
-  <div class="stat-grid mb-16">
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-category"></i></div><div class="stat-label">Mahsulot turlari</div><div class="stat-val" id="k-types">—</div></div>
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-stack-2"></i></div><div class="stat-label">Jami miqdor</div><div class="stat-val" id="k-total-qty">—</div></div>
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val" id="v-total">—</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val" id="k-low">—</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-building-factory-2"></i></div><div class="stat-label">Bugun ishlab chiqarilgan</div><div class="stat-val" id="k-today-produced">—</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEF3C7;color:#92400E"><i class="ti ti-hourglass"></i></div><div class="stat-label">Ishlab chiqarilmoqda</div><div class="stat-val" id="k-progress">—</div></div>
+  <div class="inv-kpi-grid">
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-boxes"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">{{ kpi.total_items }} tur</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
+    {% if current_user.role.value != 'manager' %}
+    <div class="stat-card"><div class="stat-icon"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ "%.1f"|format(kpi.total_value/1000000) }} mln</div></div>
+    {% endif %}
   </div>
 
-  <div class="fp-filters">
-    <input type="text" id="fpSearch" placeholder="Mahsulot nomi bo'yicha qidirish..." style="flex:1;min-width:200px" oninput="renderFp()">
-    <div class="fp-cat-toggle" id="fpCategoryToggle">
-      <div class="fp-cat-opt active" data-value="" onclick="selectFpCategory(this,'')">Barcha kategoriya</div>
-      <div class="fp-cat-opt" data-value="profil" onclick="selectFpCategory(this,'profil')">Profil</div>
-      <div class="fp-cat-opt" data-value="panel" onclick="selectFpCategory(this,'panel')">Panel</div>
-      <div class="fp-cat-opt" data-value="dona" onclick="selectFpCategory(this,'dona')">Donali</div>
-      <div class="fp-cat-opt" data-value="blok" onclick="selectFpCategory(this,'blok')">Blok</div>
-      <div class="fp-cat-opt" data-value="termopanel" onclick="selectFpCategory(this,'termopanel')">Bazalt (Termopanel)</div>
-      <div class="fp-cat-opt" data-value="gips" onclick="selectFpCategory(this,'gips')">Gips</div>
-    </div>
-    <select id="fpCategory" style="display:none" onchange="renderFp()">
+  <div class="inv-filters">
+    <input type="text" id="matSearch" class="inv-search" placeholder="Material qidirish..." oninput="filterMaterials()">
+    <select id="catFilter" onchange="filterMaterials()">
       <option value="">Barcha kategoriya</option>
-      <option value="profil">Profil</option>
-      <option value="panel">Panel</option>
-      <option value="dona">Donali</option>
-      <option value="blok">Blok</option>
-      <option value="termopanel">Bazalt (Termopanel)</option>
-      <option value="gips">Gips</option>
+      <option value="Penoplast">Penoplast</option>
+      <option value="Kimyoviy qo'shimchalar">Kimyoviy qo'shimchalar</option>
+      <option value="Qattiq qotishmalar">Minerallar</option>
+      <option value="Gips">🧱 Gips</option>
+      <option value="Bazalt">Bazalt</option>
     </select>
-    <select id="fpSort" onchange="renderFp()">
-      <option value="default">Standart tartib</option>
-      <option value="value_desc">Qiymat (ko'pdan-kamga)</option>
+    <select id="statusFilter" onchange="filterMaterials()">
+      <option value="">Barcha holat</option>
+      <option value="ok">Yetarli</option>
+      <option value="warn">Kam</option>
+      <option value="danger">Tugagan</option>
+    </select>
+    <select id="sortFilter" onchange="filterMaterials()">
+      <option value="name">Nomi bo'yicha</option>
+      <option value="qty_asc">Qoldiq (kamdan-ko'pga)</option>
       <option value="qty_desc">Qoldiq (ko'pdan-kamga)</option>
-      <option value="recent">Oxirgi ishlab chiqarilgan</option>
     </select>
-    <button class="fp-chip" id="chipLow" onclick="toggleChip('low')">🟡 Kam qolganlar</button>
-    <button class="fp-chip" id="chipOut" onclick="toggleChip('out')">🔴 Tugagan</button>
+    {% if current_user.role.value != 'manager' %}
+    <button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()"><i class="ti ti-receipt" style="vertical-align:-2px"></i> Xaridlar tarixi</button>
+    {% endif %}
+    <button class="btn btn-outline btn-sm" onclick="openMovements()"><i class="ti ti-history" style="vertical-align:-2px"></i> Ombor harakatlari</button>
   </div>
 
-  <div id="fp-range-banner" style="padding:8px 14px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;border-radius:8px;margin-bottom:12px"></div>
+  <span id="low-count" style="display:none"></span>
+  <div id="matList">
+    {% set peno_items = [] %}
+    {% set normal_items = [] %}
+    {% set loy_items = [] %}
+    {% for it in items %}
+      {% if 'Tayyor loy' in it.item_name %}
+        {% set _ = loy_items.append(it) %}
+      {% elif it.is_penoplast or 'penoplast' in it.item_name|lower %}
+        {% set _ = peno_items.append(it) %}
+      {% else %}
+        {% set _ = normal_items.append(it) %}
+      {% endif %}
+    {% endfor %}
 
-  <div id="fpList">
-    <div class="fp-empty">Yuklanmoqda...</div>
-  </div>
-</div>
-
-<!-- ══ RASM KATTALASHTIRISH (LIGHTBOX) ══ -->
-<div id="lightbox" onclick="closeLightbox()">
-  <img id="lightbox-img" src="" alt="">
-</div>
-
-<!-- ══ GIPS ISHLAB CHIQARISH MODALI ══ -->
-<div id="gipsProduceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">🧱 Gips ishlab chiqarish</div>
-        <div style="font-size:13px;color:#aaa;margin-top:2px">Buyurtmasiz, to'g'ridan-to'g'ri zaxira uchun</div>
-      </div>
-      <button onclick="closeGipsProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
-    </div>
-    <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Mahsulot nomi</label>
-        <input type="text" id="gp-name" placeholder="Masalan: Karniz 15 sm" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <div style="display:flex;gap:10px">
-        <div style="flex:1">
-          <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Birligi</label>
-          <select id="gp-unit" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-            <option value="metr">Metr</option>
-            <option value="dona">Dona</option>
-            <option value="m2">M²</option>
-          </select>
+    {% for item in peno_items + normal_items + loy_items %}
+    {% set qty = item.stock_quantity|float %}
+    {% set minq = item.min_stock|float %}
+    {% set pct = [[((qty / minq * 100)|round if minq > 0 else 100), 0]|max, 100]|min %}
+    {% set is_loy = 'Tayyor loy' in item.item_name %}
+    {% set is_peno = item.is_penoplast or 'penoplast' in item.item_name|lower %}
+    {% set cat_label = 'Tayyor loy' if is_loy else (item.category or 'Boshqa') %}
+    {% set cat_class = 'Tayyor' if is_loy else ('Penoplast' if is_peno else (item.category if item.category in ['Kimyoviy qo\'shimchalar','Qattiq qotishmalar','Gips'] else 'Boshqa')) %}
+    {% set cat_css = 'cat-Kimyoviy' if cat_class == "Kimyoviy qo'shimchalar" else ('cat-Qattiq' if cat_class == 'Qattiq qotishmalar' else ('cat-Gips' if cat_class == 'Gips' else 'cat-' + cat_class)) %}
+    {% if qty <= minq %}{% set st = 'danger' %}{% set st_label = 'Tugagan' if qty <= 0 else 'Kam!' %}
+    {% elif qty <= minq * 1.5 %}{% set st = 'warn' %}{% set st_label = 'Oz' %}
+    {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% endif %}
+    <div class="mat-row" style="animation-delay:{{ (loop.index0 % 20) * 0.02 }}s"
+         data-name="{{ item.item_name|lower }}" data-category="{{ item.category or '' }}" data-status="{{ st }}" data-qty="{{ qty }}">
+      <div style="display:flex;gap:10px;align-items:stretch">
+        <label class="mat-thumb" title="{{ '' if item.image_url else 'Rasm yuklash' }}">
+          {% if item.image_url %}
+          <img src="{{ item.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openInvLightbox('{{ item.image_url }}')">
+          <div class="mat-thumb-cam" onclick="event.preventDefault();event.stopPropagation();this.closest('.mat-thumb').querySelector('input[type=file]').click()"><i class="ti ti-camera"></i></div>
+          {% else %}<i class="ti ti-flask-2"></i>{% endif %}
+          <input type="file" accept="image/*" onchange="uploadInventoryImage({{ item.id }}, this)">
+        </label>
+        <div>
+        <div class="mat-name">
+          {{ item.item_name }}
+          {% if item.is_penoplast %}
+            {% if item.is_default_penoplast %}
+            <span style="font-size:9px;background:var(--gold);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;margin-left:4px">★ Asosiy</span>
+            {% else %}
+            <button onclick="setDefaultPenoplast({{ item.id }})" style="font-size:9px;background:var(--border2);color:var(--text3);padding:2px 7px;border-radius:10px;border:none;cursor:pointer;margin-left:4px" title="Asosiy qilish">☆ Asosiy qilish</button>
+            {% endif %}
+          {% endif %}
         </div>
-        <div style="flex:1">
-          <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Miqdor</label>
-          <input type="number" id="gp-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% elif 'bazalt' in item.item_name|lower and 'kley' not in item.item_name|lower and 'serpiyank' not in item.item_name|lower %} · {{ item.volume_per_unit or 0.72 }} m²/dona{% elif 'serpiyank' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} metr/rulon{% elif 'gips' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} kg/qop{% endif %}</div>
+        <span class="cat-badge {{ cat_css }}" onclick="editCategory(this)" data-id="{{ item.id }}" data-category="{{ item.category or '' }}" style="cursor:pointer" title="O'zgartirish">{{ cat_label }}</span>
         </div>
       </div>
       <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Sotuv narxi (1 birlik uchun, so'm)</label>
-        <input type="text" id="gp-price" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <div class="mat-qty-val" style="color:{% if st=='danger' %}#DC2626{% elif st=='warn' %}#B45309{% else %}var(--text){% endif %}">{{ "%.1f"|format(qty) }} {{ item.unit }}</div>
+        <div class="stock-bar" style="margin-top:6px"><div class="stock-fill {{ st if st != 'ok' else '' }}" style="width:{{ pct }}%"></div></div>
       </div>
-      <div style="background:#FCE7F3;border-radius:10px;padding:14px">
-        <div style="font-size:12px;color:#9D174D;font-weight:700;margin-bottom:10px">🧱 ASOSIY GIPS XOMASHYOSI — shu mahsulotni tayyorlash uchun ishlatilgan Gipsning o'zi (Serpiyanka/Po'lat sim kabi qo'shimcha EMAS)</div>
-        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Qaysi Gips (ombordagi) ishlatildi?</label>
-        <select id="gp-gips-inv" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box;margin-bottom:10px"><option value="">— Tanlanmadi —</option></select>
-        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Sarflangan Gips miqdori (kg)</label>
-        <input type="number" id="gp-gips-kg" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
-        <div style="font-size:11.5px;color:#BE185D;margin-top:8px">⚠️ Ikkalasini ham to'ldiring — aks holda tan narxi 0 chiqadi</div>
+      <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">{{ item.min_stock }} {{ item.unit }}</div>
+      <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
+      <div class="mat-col-updated" style="font-size:13.5px;color:var(--text3)">
+        {% if current_user.role.value != 'manager' %}
+        <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(",", " ") if item.price_per_unit else "—" }} so'm</span>
+        <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
+        {% if 'bazalt' in item.item_name|lower and 'kley' not in item.item_name|lower and 'serpiyank' not in item.item_name|lower %}
+        <button class="btn btn-outline btn-xs" onclick="editBazaltRatios({{ item.id }}, {{ item.serp_ratio_per_m2 or 2.0 }}, {{ item.kley_ratio_per_m2 or 0.8 }})" title="Serpiyanka/Kley nisbatini tuzatish" style="margin-left:4px;border-color:#C4B5FD;color:#6D28D9">🧱</button>
+        <button class="btn btn-outline btn-xs" onclick="editBazaltVolume({{ item.id }}, {{ item.volume_per_unit or 0.72 }})" title="1 dona necha m² ekanini tuzatish" style="margin-left:4px;border-color:#E8D5C0;color:#A86B36">📐</button>
+        {% elif 'serpiyank' in item.item_name|lower %}
+        <button class="btn btn-outline btn-xs" onclick="editSerpiyankaVolume({{ item.id }}, {{ item.volume_per_unit or 50.0 }})" title="1 rulon necha metr ekanini tuzatish" style="margin-left:4px;border-color:#E8D5C0;color:#A86B36">📐</button>
+        {% elif 'gips' in item.item_name|lower %}
+        <button class="btn btn-outline btn-xs" onclick="editGipsSackWeight({{ item.id }}, {{ item.volume_per_unit or 50.0 }})" title="1 qop necha kg ekanini tuzatish" style="margin-left:4px;border-color:#E8D5C0;color:#A86B36">📐</button>
+        {% endif %}
+        {% else %}
+        <span style="color:var(--text3)">—</span>
+        {% endif %}
       </div>
-
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <label style="font-size:13px;font-weight:600;color:#334155;margin:0">Qo'shimchalar (Serpiyanka, Po'lat sim va h.k.) <span style="font-weight:400;color:#94A3B8;font-size:11.5px">— ixtiyoriy</span></label>
-          <button type="button" onclick="addGpAdditive()" style="border:1px solid #E2E8F0;background:#fff;color:#475569;font-size:12.5px;padding:6px 12px;border-radius:8px;cursor:pointer">+ Qo'shimcha qo'shish</button>
-        </div>
-        <div id="gp-additives-list"></div>
+      <div class="mat-actions">
+        {% if current_user.role.value == 'admin' %}
+        <button class="act-btn out" onclick="openChiqimModal({{ item.id }}, '{{ item.item_name|replace("'", "\\'") }}', '{{ item.unit }}', {{ qty }})" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
+        <button class="act-btn danger" onclick="deleteItem({{ item.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
+        {% endif %}
       </div>
     </div>
-    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button onclick="closeGipsProduceModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitGipsProduce()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#9D174D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">🧱 Ishlab chiqarish</button>
+    {% endfor %}
+  </div>
+  <div id="emptyFilter" style="display:none;text-align:center;padding:40px;color:var(--text3)">Hech narsa topilmadi</div>
+</div>
+
+<!-- Chiqim modali -->
+<div id="chiqimModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:400px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px"><i class="ti ti-arrow-up-right" style="color:#991B1B"></i> Chiqim — <span id="chiqim-name"></span></div>
+    <div style="font-size:14px;color:var(--text3);margin-bottom:16px">Narxsiz tuzatish (masalan inventarizatsiya, kamomad). Hozirgi qoldiq: <b id="chiqim-current"></b></div>
+    <div class="form-group"><label>Miqdor</label><input type="number" id="chiqim-qty" placeholder="0" min="0" step="0.1"></div>
+    <div class="form-group"><label>Sabab / izoh</label><input type="text" id="chiqim-notes" placeholder="Masalan: inventarizatsiyada aniqlandi"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" style="background:#DC2626" onclick="saveChiqim()">Chiqim qilish</button>
+      <button class="btn btn-outline w-full" onclick="closeChiqimModal()">Bekor</button>
     </div>
   </div>
 </div>
 
-<!-- ══ KAMAYTIRISH (BRAK) MODALI ══ -->
-<div id="lossModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:400px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">⚠️ Kamaytirish (brak/yo'qotish)</div>
-        <div style="font-size:13px;color:#aaa;margin-top:2px" id="loss-modal-sub">—</div>
-      </div>
-      <button onclick="closeLossModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
-    </div>
-    <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
-      <div id="loss-mode-toggle" style="display:none;gap:6px">
-        <div id="loss-mode-stock" class="type-opt active" style="flex:1;text-align:center" onclick="setLossMode('stock')">📦 Tayyor turgan, keyin yo'qoldi</div>
-        <div id="loss-mode-prod" class="type-opt" style="flex:1;text-align:center" onclick="setLossMode('production')">🏭 Ishlab chiqarishda chiqdi</div>
-      </div>
-      <div id="loss-info-stock" style="background:#FEF3C7;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#92400E;line-height:1.6">
-        Bu — mahsulotni <b>o'chirmaydi</b>, faqat miqdorini kamaytiradi (masalan sinib/buzilib, endi sotib bo'lmaydigan qismi uchun). Tan narxi avtomatik <b>Moliyada Brak xarajatiga</b> qo'shiladi.
-      </div>
-      <div id="loss-info-production" style="display:none;background:#F8F2EB;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#A86B36;line-height:1.6">
-        Bu — kesish/qoplama jarayonida chiqqan brak uchun. <b>Mahsulot soni o'zgarmaydi</b> (siz baribir to'liq miqdorni topshirasiz) — faqat qayta ishlab chiqarish uchun sarflangan <b>qo'shimcha xomashyo</b> ombordan ayiriladi va Moliyada xarajat sifatida qayd etiladi.
-      </div>
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px" id="loss-qty-label">Necha birlik brak bo'ldi?</label>
-        <div style="font-size:12px;color:#94A3B8;margin-bottom:6px" id="loss-stock-info"></div>
-        <input type="number" id="loss-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Sabab (ixtiyoriy)</label>
-        <input type="text" id="loss-reason" placeholder="Masalan: tashishda sindi" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-    </div>
-    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button onclick="closeLossModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitLoss()" id="loss-submit-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#D97706;color:#fff;font-weight:600;font-size:14px;cursor:pointer">⚠️ Kamaytirish</button>
+<!-- Universal chiroyli "prompt" modali — native prompt() o'rniga -->
+<div id="cpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:380px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div id="cp-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:6px">—</div>
+    <div id="cp-hint" style="font-size:12.5px;color:var(--text3);margin-bottom:14px"></div>
+    <input type="text" id="cp-input" class="i-m3price" style="width:100%;font-size:15px;font-weight:600;text-align:center" inputmode="decimal">
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-outline w-full" onclick="_cpCancel()">Bekor</button>
+      <button class="btn btn-dark w-full" style="background:var(--gold);border-color:var(--gold)" onclick="_cpConfirm()">OK</button>
     </div>
   </div>
 </div>
 
-<!-- ══ TANLANGANLARNI SOTISH — suzuvchi panel ══ -->
-<div id="batchSellBar" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:900;background:#0F172A;color:#fff;border-radius:14px;padding:14px 20px;box-shadow:0 12px 32px rgba(0,0,0,.25);align-items:center;gap:16px">
-  <span id="batchSellCount" style="font-weight:600;font-size:14px">0 ta tanlandi</span>
-  <button onclick="openBatchSellModal()" style="background:#16A34A;color:#fff;border:none;padding:9px 18px;border-radius:9px;font-weight:600;font-size:13.5px;cursor:pointer">💰 Sotish</button>
-  <button onclick="clearBatchSelection()" style="background:transparent;color:#94A3B8;border:1px solid #334155;padding:9px 14px;border-radius:9px;font-size:13.5px;cursor:pointer">Bekor qilish</button>
-</div>
-
-<!-- ══ SAVATCHA — bir nechta mahsulotni sotish oynasi ══ -->
-<div id="batchSellModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Bir nechta mahsulotni sotish</div>
-        <div style="font-size:13px;color:#aaa;margin-top:2px" id="batch-modal-sub">—</div>
-      </div>
-      <button onclick="closeBatchSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
-    </div>
-    <div style="padding:18px 22px;overflow-y:auto;flex:1">
-      <div id="batch-items-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
-      <div style="background:#F0FDF4;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:#166534;text-align:center;margin-bottom:12px" id="batch-total-box">Jami: 0 so'm</div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kelishilgan summa (ixtiyoriy)</label>
-        <input type="text" id="batch-agreed" placeholder="Masalan: 1 980 000" oninput="formatPriceInput(this);updateBatchDiscount()"
-               style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-        <div id="batch-discount-info" style="display:none;margin-top:8px;background:#FEF3C7;border-radius:8px;padding:9px 12px;font-size:13.5px;color:#92400E;text-align:center"></div>
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
-        <input type="text" id="batch-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">To'lov usuli</label>
-        <select id="batch-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-          <option value="naqd">💵 Naqd</option>
-          <option value="karta">💳 Karta</option>
-          <option value="bank">🏦 Bank o'tkazmasi</option>
-        </select>
-      </div>
-    </div>
-    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Hammasini sotish</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ SOTISH MODALI ══ -->
-<div id="sellModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Sotish</div>
-        <div style="font-size:13px;color:#aaa;margin-top:2px" id="sell-modal-sub">—</div>
-      </div>
-      <button onclick="closeSellModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
-    </div>
-    <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Miqdor</label>
-        <div style="font-size:12px;color:#94A3B8;margin-bottom:6px" id="sell-stock-info"></div>
-        <input type="number" id="sell-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">1 birlik narxi (so'm)</label>
-        <input type="text" id="sell-price" placeholder="0" oninput="formatPriceInput(this);updateSellTotal()" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <div id="sell-total-box" style="background:#F0FDF4;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:700;color:#166534;text-align:center">Jami: 0 so'm</div>
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
-        <input type="text" id="sell-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">To'lov usuli</label>
-        <select id="sell-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-          <option value="naqd">💵 Naqd</option>
-          <option value="karta">💳 Karta</option>
-          <option value="bank">🏦 Bank o'tkazmasi</option>
-        </select>
-      </div>
-    </div>
-    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button onclick="closeSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ TARIX MODALI ══ -->
+<!-- Xaridlar tarixi modali -->
 <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:480px;max-width:100%;max-height:80vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:16px;font-weight:600;color:var(--text)" id="hist-title">Tarix</div>
-      <button onclick="closeHistoryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600"><i class="ti ti-receipt"></i> Xaridlar tarixi</div>
+      <button onclick="closePurchaseHistory()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
-    <div style="padding:18px 22px;overflow-y:auto;flex:1" id="hist-body"></div>
+    <div style="padding:14px 22px;border-bottom:1px solid var(--border2);background:var(--bg)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:var(--text2)">Bu oy jami xarid</span>
+        <span id="hist-total" style="font-weight:700;color:var(--gold-dark)">—</span>
+      </div>
+      <div id="hist-by-material" style="margin-top:8px;font-size:13.5px;color:var(--text2);line-height:1.9"></div>
+    </div>
+    <div style="padding:0 22px;overflow-y:auto;flex:1" id="hist-list">
+      <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
+    </div>
   </div>
 </div>
 
-<!-- ══ TERMOPANEL (BAZALT) ISHLAB CHIQARISH MODALI ══ -->
-<div id="termoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+<!-- Bitta "Kirim" hujjati ichidagi materiallar — "shtorka" -->
+<div id="phDrawerOverlay" style="display:none" class="mv-drawer-overlay" onclick="if(event.target===this)closePhDrawer()">
+  <div class="mv-drawer">
+    <div class="mv-drawer-head">
       <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">🧱 Termopanel ishlab chiqarish</div>
-        <div style="font-size:12px;color:#aaa;margin-top:2px">Bazalt + Serpiyanka + Kley + Qoplama</div>
+        <div id="phDrawerTitle" style="font-weight:700;font-size:15px">—</div>
+        <div id="phDrawerSub" style="font-size:12.5px;color:var(--text3);margin-top:2px">—</div>
       </div>
-      <button onclick="closeTermoModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button onclick="closePhDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
+    <div class="mv-drawer-body" id="phDrawerBody"></div>
+  </div>
+</div>
 
-    <div style="padding:16px 22px;overflow-y:auto;flex:1">
-      <div class="form-group">
-        <label>Mahsulot nomi</label>
-        <input type="text" id="t-name" placeholder="Masalan: Termopanel bazalt 5sm">
-      </div>
-
-      <div class="form-group">
-        <label>Kerakli kvadrat metr (m²)</label>
-        <input type="number" id="t-m2" step="0.1" min="0" placeholder="0" oninput="tCalc()">
-      </div>
-
-      <div class="form-group">
-        <label>Plotnost (Bazalt turi)</label>
-        <select id="t-bazalt" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0">
-          <label>Serpiyanka (tur)</label>
-          <select id="t-serp" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Kley (tur)</label>
-          <select id="t-kley" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0">
-          <label>Retsept (qoplama uchun)</label>
-          <select id="t-recipe" onchange="loadLoyCost(this.value)">
-            <option value="">— Yo'q —</option>
-            {% for r in recipes %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Loy miqdori (kg)</label>
-          <input type="number" id="t-loy" step="0.5" min="0" placeholder="0" oninput="tCalc()">
-        </div>
-      </div>
-
-      <div style="background:#F8F5EF;border-radius:9px;padding:11px 14px;margin:6px 0 12px;font-size:12px;line-height:1.8" id="t-calc">
-        Ma'lumotlarni kiriting
-      </div>
-
-      <div class="form-group">
-        <label>Sotuv narxi (1 m² uchun)</label>
-        <input type="text" id="t-price" placeholder="0" oninput="formatPriceInput(this);tCalc()"
-               style="border-color:#8B5E3C;font-weight:600">
-      </div>
-
-      <div class="form-group" style="margin-bottom:0">
-        <label>Izoh</label>
-        <input type="text" id="t-notes" placeholder="Ixtiyoriy">
-      </div>
-
-      <div id="t-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
+<!-- Ombor harakatlari (Timeline) modali -->
+<div id="movementsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600"><i class="ti ti-history"></i> Ombor harakatlari</div>
+      <button onclick="closeMovements()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
-
-    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeTermoModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2;background:#8B5E3C" onclick="saveTermopanel()">🧱 Ishlab chiqarish</button>
+    <div style="padding:12px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-outline btn-sm" onclick="loadMovements('')">Barchasi</button>
+      <button class="btn btn-outline btn-sm" style="border-color:#BBF7D0;color:#166534" onclick="loadMovements('in')">Faqat kirim</button>
+      <button class="btn btn-outline btn-sm" style="border-color:#FECACA;color:#991B1B" onclick="loadMovements('out')">Faqat chiqim</button>
+    </div>
+    <div style="padding:10px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:var(--text3)">Sana oralig'i:</span>
+      <input type="date" id="mv-date-from" style="height:32px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px" onchange="loadMovements(mvCurType)">
+      <span style="color:var(--text3)">—</span>
+      <input type="date" id="mv-date-to" style="height:32px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px" onchange="loadMovements(mvCurType)">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('mv-date-from').value='';document.getElementById('mv-date-to').value='';loadMovements(mvCurType)">Tozalash</button>
+    </div>
+    <div style="padding:8px 22px;overflow-y:auto;flex:1" id="mv-list">
+      <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
     </div>
   </div>
 </div>
 
-<!-- Universal chiroyli "confirm" modali — native confirm() o'rniga -->
-<div id="ccModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
-    <div id="cc-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:10px">—</div>
-    <div id="cc-message" style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:18px"></div>
-    <div style="display:flex;gap:8px">
-      <button id="cc-cancel" class="btn btn-outline" style="flex:1" onclick="_ccResolveWith(false)">Bekor</button>
-      <button id="cc-ok" class="btn btn-dark" style="flex:1;background:var(--gold);border-color:var(--gold)" onclick="_ccResolveWith(true)">OK</button>
-    </div>
-  </div>
-</div>
-
-<!-- Mahsulotni o'chirish — 3 variantli maxsus modal (native ikki bosqichli confirm o'rniga) -->
-<div id="delFpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
-    <div id="delfp-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:6px">—</div>
-    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:18px">Xomashyo bilan bog'liq bu amalni tanlang:</div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-outline" style="width:100%;text-align:left;padding:12px 14px" onclick="_delFpResolveWith('return')">
-        <div style="font-weight:600;color:var(--text)">↩️ O'chirish va xomashyoni omborga qaytarish</div>
-        <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Ishlatilgan Penoplast/loy ombor hisobiga qaytariladi</div>
-      </button>
-      <button class="btn btn-outline" style="width:100%;text-align:left;padding:12px 14px" onclick="_delFpResolveWith('no-return')">
-        <div style="font-weight:600;color:#DC2626">🗑️ O'chirish, xomashyo qaytarilmasin</div>
-        <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Masalan brak/singan bo'lsa</div>
-      </button>
-      <button class="btn btn-outline" style="width:100%;margin-top:4px" onclick="_delFpResolveWith(null)">Bekor qilish</button>
-    </div>
-  </div>
-</div>
-<!-- ══ ISHLAB CHIQARISH MODALI ══ -->
-<div id="prodModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+<!-- Buyurtma bo'yicha batafsil harakatlar — "shtorka" (yon panel) -->
+<div id="mvDrawerOverlay" style="display:none" class="mv-drawer-overlay" onclick="if(event.target===this)closeMvDrawer()">
+  <div class="mv-drawer">
+    <div class="mv-drawer-head">
       <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">🏭 Tayyor mahsulot ishlab chiqarish</div>
-        <div style="font-size:12px;color:#aaa;margin-top:2px">Ombordan xomashyo yechiladi</div>
+        <div id="mvDrawerTitle" style="font-weight:700;font-size:15px">—</div>
+        <div id="mvDrawerSub" style="font-size:12.5px;color:var(--text3);margin-top:2px">—</div>
       </div>
-      <button onclick="closeProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+      <button onclick="closeMvDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
-
-    <div style="padding:16px 22px;overflow-y:auto;flex:1">
-      <div class="form-group">
-        <label>Mahsulot nomi</label>
-        <input type="text" id="p-name" placeholder="Masalan: Karniz 20 sm M-06">
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0;grid-column:1/-1">
-          <label>Tur</label>
-          <div class="type-toggle" id="p-type-toggle">
-            <div class="type-opt active" data-value="profil" onclick="selectPType(this,'profil')">📏 Profil</div>
-            <div class="type-opt" data-value="panel" onclick="selectPType(this,'panel')">🔲 Panel</div>
-            <div class="type-opt" data-value="dona" onclick="selectPType(this,'dona')">⭐ Donali</div>
-            <div class="type-opt" data-value="blok" onclick="selectPType(this,'blok')">🧊 Blok (butun narxda)</div>
-          </div>
-          <select id="p-type" style="display:none" onchange="pToggle();pCalc()">
-            <option value="profil">Profil</option>
-            <option value="panel">Panel</option>
-            <option value="dona">Donali</option>
-            <option value="blok">Blok (butun narxda)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0" id="p-h-wrap">
-          <label>Eni</label>
-          <div class="unit-input-wrap"><input type="number" id="p-h" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
-        </div>
-        <div class="form-group" style="margin:0" id="p-w-wrap">
-          <label>Kengligi</label>
-          <div class="unit-input-wrap"><input type="number" id="p-w" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0;display:none" id="p-t-wrap">
-          <label>Qalinlik</label>
-          <div class="unit-input-wrap"><input type="number" id="p-t" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
-        </div>
-        <div class="form-group" style="margin:0;display:none" id="p-donayield-wrap">
-          <label>1 metrdan nechta dona chiqadi</label>
-          <div class="unit-input-wrap"><input type="number" id="p-donayield" placeholder="masalan 5" step="0.1" min="0.01" oninput="pCalc()"><span class="unit-suffix">dona</span></div>
-        </div>
-        <div class="form-group" style="margin:0" id="p-l-wrap">
-          <label id="p-l-label">Uzunlik</label>
-          <div class="unit-input-wrap"><input type="number" id="p-l" step="0.1" value="0" oninput="pCalc()"><span class="unit-suffix">m</span></div>
-        </div>
-        <div class="form-group" style="margin:0;display:none" id="p-q-wrap">
-          <label id="p-q-label">Miqdor</label>
-          <div class="unit-input-wrap"><input type="number" id="p-q" step="0.5" min="0" value="1" oninput="pCalc()"><span class="unit-suffix" id="p-q-suffix">dona</span></div>
-        </div>
-        <div class="form-group" style="margin:0;display:none" id="p-up-wrap">
-          <label>1 dona narxi</label>
-          <div class="unit-input-wrap"><input type="number" id="p-up" step="100" oninput="pCalc()"><span class="unit-suffix">so'm</span></div>
-        </div>
-      </div>
-
-      <div class="form-row" id="p-blok-row" style="display:none">
-        <div class="form-group" style="margin:0" id="p-blokprice-wrap">
-          <label>1 blok narxi (tayyor)</label>
-          <div class="unit-input-wrap"><input type="text" id="p-blokprice" placeholder="1 500 000" oninput="formatPriceInput(this);onBlokPriceInput()"><span class="unit-suffix">so'm</span></div>
-        </div>
-        <div class="form-group" style="margin:0" id="p-blokmult-wrap">
-          <label>Qoplama koeffitsienti</label>
-          <input type="number" id="p-blokmult" value="2" step="0.1" min="1" oninput="recalcBlokPrice()">
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0">
-          <label>Qoplama</label>
-          <div class="coat-toggle" id="p-coat-toggle">
-            <div class="coat-opt coat-no" onclick="setPCoating(this, false)">Yo'q</div>
-            <div class="coat-opt coat-yes active" onclick="setPCoating(this, true)">Bor (×2)</div>
-          </div>
-          <select id="p-coated" style="display:none">
-            <option value="true">Ha (×2)</option>
-            <option value="false">Yo'q</option>
-          </select>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Plotnost</label>
-          <div class="unit-input-wrap">
-            <select id="p-peno" onchange="pCalc();onPPenoChange()">
-              {% for p in penoplasts %}
-              <option value="{{ p.id }}" {% if p.id == default_penoplast_id %}selected{% endif %}>
-                {{ p.item_name }}{% if p.is_default_penoplast %} ⭐{% endif %} ({{ "%.0f"|format(p.stock_quantity) }})
-              </option>
-              {% endfor %}
-            </select>
-            <span class="unit-suffix" id="p-peno-display"></span>
-          </div>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>1 m³ narxi</label>
-          <div class="unit-input-wrap" style="border-color:#B9783F">
-            <input type="text" id="p-m3" value="1 200 000" oninput="formatPriceInput(this);pCalc()">
-            <span class="unit-suffix">so'm</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0">
-          <label>Retsept (loy uchun)</label>
-          <select id="p-recipe" onchange="loadLoyCost(this.value)">
-            <option value="">— Yo'q —</option>
-            {% for r in recipes %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Loy miqdori (kg)</label>
-          <input type="number" id="p-loy" step="0.5" min="0" placeholder="0" oninput="pCalc()">
-        </div>
-      </div>
-
-      <div style="background:#F8F5EF;border-radius:9px;padding:11px 14px;margin:6px 0 12px;font-size:12px;line-height:1.8" id="p-calc">
-        O'lchamlarni kiriting
-      </div>
-
-      <div class="form-group">
-        <label>Sotuv narxi (1 <span id="p-unit-label">metr</span> uchun)</label>
-        <input type="text" id="p-price" placeholder="0" oninput="formatPriceInput(this);pCalc()"
-               style="border-color:#B9783F;font-weight:600">
-        <div style="font-size:11px;color:#aaa;margin-top:4px">Bo'sh qolsa — hisoblangan narx olinadi</div>
-      </div>
-
-      <div class="form-group" style="margin-bottom:0">
-        <label>Izoh</label>
-        <input type="text" id="p-notes" placeholder="Ixtiyoriy">
-      </div>
-
-      <div id="p-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
-    </div>
-
-    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2;background:var(--gold);border-color:var(--gold)" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
-    </div>
+    <div class="mv-drawer-body" id="mvDrawerBody"></div>
   </div>
-
 </div>
 
-<!-- ══ FOYDA MODALI ══ -->
-<div id="profitModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:520px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">💰 Foyda hisobi</div>
-        <div style="font-size:12px;color:#aaa;margin-top:2px" id="pm-sub">—</div>
-      </div>
-      <button onclick="closeProfitModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
-    </div>
-    <div style="padding:18px 22px;overflow-y:auto;flex:1" id="pm-body">
-      <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
-    </div>
-    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0">
-      <button class="btn btn-dark w-full" onclick="closeProfitModal()">Yopish</button>
-    </div>
-  </div>
+<!-- ══ XOMASHYO RASMINI KATTA KO'RISH (lightbox) ══ -->
+<div id="invLightbox" onclick="closeInvLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="invLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
 </div>
 {% endblock %}
 
@@ -639,1742 +330,579 @@
 </script>
 
 <script>
-const PENOS = [
-  {% for p in penoplasts %}
-  {id: {{ p.id }}, name: {{ p.item_name|tojson }}, vol: {{ p.volume_per_unit|float }}, price: {{ (p.price_per_unit or 0)|float }}},
-  {% endfor %}
-];
-
-function shortPenoName(fullName) {
-  if (!fullName) return '';
-  const parts = fullName.trim().split(/\s+/);
-  return parts[parts.length - 1];
-}
-function onPPenoChange() {
-  const sel = document.getElementById('p-peno');
-  const disp = document.getElementById('p-peno-display');
-  if (sel && disp) {
-    const p = PENOS.find(x => x.id === parseInt(sel.value));
-    disp.textContent = p ? shortPenoName(p.name) : '';
-  }
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+function parseNum(v) {
+  return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
 }
 
-let fpItems = [];
-let loyCostPerKg = 0;
-let loyRecipeName = '';
-let activeChips = new Set();
-let fpReturnedOpen = false;
-function toggleReturnedSection() {
-  fpReturnedOpen = !fpReturnedOpen;
-  renderFp();
+function openInvLightbox(url) {
+  document.getElementById('invLightboxImg').src = url;
+  document.getElementById('invLightbox').style.display = 'flex';
 }
+function closeInvLightbox() { document.getElementById('invLightbox').style.display = 'none'; }
 
-async function loadLoyCost(recipeId) {
-  try {
-    const url = recipeId ? `/api/loy-cost?recipe_id=${recipeId}` : '/api/loy-cost';
-    const d = await fetch(url).then(r => r.json());
-    loyCostPerKg = d.cost_per_kg || 0;
-    loyRecipeName = d.recipe || '';
-    pCalc();
-  } catch(e) { loyCostPerKg = 0; }
-}
-
-function fmt(n) {
-  return Math.round(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
-}
-function parseNum(s) {
-  return parseFloat(String(s || '').replace(/\s/g, '')) || 0;
-}
-
-// Universal chiroyli "confirm" — native confirm() o'rniga. Promise qaytaradi:
-// OK bossa — true, Bekor/Esc bossa — false.
-// Ishlatilishi: if (!(await customConfirm('Sarlavha', 'Xabar matni'))) return;
-let _ccResolve = null;
-function customConfirm(title, message, opts) {
-  opts = opts || {};
-  return new Promise(resolve => {
-    _ccResolve = resolve;
-    document.getElementById('cc-title').textContent = title;
-    document.getElementById('cc-message').innerHTML = String(message).replace(/\n/g, '<br>');
-    const okBtn = document.getElementById('cc-ok');
-    okBtn.textContent = opts.okText || 'OK';
-    okBtn.style.background = opts.danger ? '#EF4444' : 'var(--gold)';
-    okBtn.style.borderColor = opts.danger ? '#EF4444' : 'var(--gold)';
-    document.getElementById('cc-cancel').textContent = opts.cancelText || 'Bekor';
-    document.getElementById('ccModal').style.display = 'flex';
-  });
-}
-function _ccResolveWith(val) {
-  document.getElementById('ccModal').style.display = 'none';
-  if (_ccResolve) { _ccResolve(val); _ccResolve = null; }
-}
-
-// Mahsulot o'chirish — 3 variantli tanlash. Promise qaytaradi:
-// 'return' (qaytarilsin), 'no-return' (qaytarilmasin), yoki null (bekor).
-let _delFpResolve = null;
-function confirmDeleteFp(itemName) {
-  return new Promise(resolve => {
-    _delFpResolve = resolve;
-    document.getElementById('delfp-title').textContent = `${itemName} — o'chirilsinmi?`;
-    document.getElementById('delFpModal').style.display = 'flex';
-  });
-}
-function _delFpResolveWith(val) {
-  document.getElementById('delFpModal').style.display = 'none';
-  if (_delFpResolve) { _delFpResolve(val); _delFpResolve = null; }
-}
-function formatPriceInput(el) {
-  const v = el.value.replace(/\s/g, '');
-  if (!v || isNaN(v)) return;
-  const pos = el.selectionStart;
-  const old = el.value.length;
-  el.value = Number(v).toLocaleString('ru-RU').replace(/,/g, ' ');
-  const diff = el.value.length - old;
-  el.setSelectionRange(pos + diff, pos + diff);
-}
-function showMsg(t, type) {
-  const box = document.createElement('div');
-  box.style.cssText = `position:fixed;bottom:22px;right:22px;z-index:2000;padding:12px 18px;border-radius:10px;
-    font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.18);white-space:pre-line;max-width:380px;
-    background:${type==='error'?'#FEE2E2':'#DCFCE7'};color:${type==='error'?'#DC2626':'#1e7e34'}`;
-  box.textContent = t;
-  document.body.appendChild(box);
-  setTimeout(() => box.remove(), 4000);
-}
-
-// ── Ro'yxat ──────────────────────────────────────────────
-let showAllFp = false;
-async function loadFp() {
-  try {
-    const res = await fetch('/api/finished' + (showAllFp ? '?show_all=true' : ''));
-    fpItems = await res.json();
-    renderFp();
-    loadStats();
-    updateFpRangeBanner();
-  } catch(e) {
-    document.getElementById('fpList').innerHTML = '<div class="fp-empty">Yuklashda xato</div>';
-  }
-}
-
-function toggleFpShowAll() {
-  showAllFp = !showAllFp;
-  loadFp();
-}
-
-function updateFpRangeBanner() {
-  const el = document.getElementById('fp-range-banner');
-  if (!el) return;
-  if (showAllFp) {
-    el.style.background = '#FFFBEB'; el.style.color = '#92400E';
-    el.innerHTML = `<span>⚠️ Barcha yozuvlar ko'rsatilmoqda</span><span style="color:#D97706;font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">← Qisqartirish</span>`;
-  } else {
-    el.style.background = '#F8F2EB'; el.style.color = '#A86B36';
-    el.innerHTML = `<span>📅 So'nggi 90 kunlik (+ ombordagi va jarayondagilar)</span><span style="color:#B9783F;font-weight:600;cursor:pointer" onclick="toggleFpShowAll()">Barchasini ko'rish →</span>`;
-  }
-}
-
-async function loadStats() {
-  try {
-    const s = await fetch('/api/finished/stats').then(r => r.json());
-    document.getElementById('k-progress').textContent = s.in_progress_count + ' tur';
-    document.getElementById('v-total').textContent = fmt(s.total_value) + " so'm";
-  } catch(e) {}
-
-  // Qo'shimcha KPI'lar — mavjud fpItems asosida, mijoz tomonida hisoblanadi
-  const types = fpItems.length;
-  const totalQty = fpItems.reduce((s,i)=>s+i.quantity, 0);
-  const lowCount = fpItems.filter(i => suggestedReserve(i) > 0 && i.quantity > 0 && i.quantity < suggestedReserve(i)).length;
-  const today = new Date().toDateString();
-  const todayProduced = fpItems.filter(i => i.source === 'produced' && i.created_at && new Date(i.created_at).toDateString() === today).length;
-
-  document.getElementById('k-types').textContent = types + ' tur';
-  document.getElementById('k-total-qty').textContent = fmt(totalQty) + ' birlik';
-  document.getElementById('k-low').textContent = lowCount + ' tur';
-  document.getElementById('k-today-produced').textContent = todayProduced + ' tur';
-}
-
-// Bazada "min_stock" tayyor mahsulot uchun saqlanmaydi — shuning uchun taxminiy
-// tavsiya etilgan zaxira hisoblanadi (joriy qoldiqning ~40%i, minimal 5 birlik).
-// Bu FAQAT ko'rsatish uchun — hech qanday saqlashga yozilmaydi.
-function suggestedReserve(i) {
-  if (i.source !== 'produced') return 0;
-  return Math.max(5, Math.round(i.quantity * 0.4));
-}
-
-function toggleChip(name) {
-  if (activeChips.has(name)) activeChips.delete(name); else activeChips.add(name);
-  document.getElementById(name === 'low' ? 'chipLow' : 'chipOut').classList.toggle('on');
-  renderFp();
-}
-
-// Kategoriya — tugma-chip tanlash (dropdown o'rniga). Yashirin <select>ga
-// qiymatni yozib, xuddi shu eski renderFp() funksiyasini chaqiradi —
-// filtrlash mantig'i O'ZGARMAYDI, faqat kirish usuli.
-function selectFpCategory(btn, value) {
-  document.querySelectorAll('#fpCategoryToggle .fp-cat-opt').forEach(o => o.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('fpCategory').value = value;
-  renderFp();
-}
-
-function renderFp() {
-  const q = (document.getElementById('fpSearch')?.value || '').trim().toLowerCase();
-  const category = document.getElementById('fpCategory')?.value || '';
-  const sort = document.getElementById('fpSort')?.value || 'default';
-  const list = document.getElementById('fpList');
-
-  const match = i => {
-    if (q && !i.name.toLowerCase().includes(q)) return false;
-    if (category && i.category !== category) return false;
-    if (activeChips.has('low')) {
-      const res = suggestedReserve(i);
-      if (!(res > 0 && i.quantity > 0 && i.quantity < res)) return false;
-    }
-    if (activeChips.has('out') && i.quantity > 0) return false;
-    return true;
-  };
-
-  let produced = fpItems.filter(i => i.source === 'produced' && match(i));
-  let returned = fpItems.filter(i => i.source === 'returned' && match(i));
-
-  // G'isht — Gips guruhida ko'rsatiladi (chunki u ham gips jarayonidan)
-  let producedGips = produced.filter(i => i.category === 'gips' || i.name === "G'isht");
-  let producedOther = produced.filter(i => i.category !== 'gips' && i.name !== "G'isht");
-
-  const sortFn = {
-    value_desc: (a,b) => b.total_value - a.total_value,
-    qty_desc: (a,b) => b.quantity - a.quantity,
-    recent: (a,b) => new Date(b.created_at||0) - new Date(a.created_at||0),
-  }[sort];
-  if (sortFn) { producedOther.sort(sortFn); producedGips.sort(sortFn); returned.sort(sortFn); }
-
-  let html = '';
-
-  if (producedOther.length) {
-    html += `<div class="fp-sec">
-      <span class="fp-sec-label" style="color:#A86B36">🏭 PENOPLAST VA BOSHQA</span>
-      <div class="fp-sec-line" style="background:linear-gradient(90deg,#E5DFD3,transparent)"></div>
-    </div>` + producedOther.map(rowHtml).join('');
-  }
-
-  if (producedGips.length) {
-    html += `<div class="fp-sec">
-      <span class="fp-sec-label" style="color:#9D174D">🧱 GIPS</span>
-      <div class="fp-sec-line" style="background:linear-gradient(90deg,#F9D3E5,transparent)"></div>
-    </div>` + producedGips.map(rowHtml).join('');
-  }
-
-  if (returned.length) {
-    const isOpen = fpReturnedOpen;
-    html += `<div class="fp-sec" style="cursor:pointer;user-select:none" onclick="toggleReturnedSection()">
-      <span class="fp-sec-label" style="color:#1e7e34">♻️ QAYTGAN MAHSULOTLAR (${returned.length})</span>
-      <div class="fp-sec-line" style="background:linear-gradient(90deg,#D5EDDD,transparent)"></div>
-      <i class="ti ti-chevron-down" style="font-size:15px;color:#1e7e34;transition:transform .2s;transform:rotate(${isOpen?180:0}deg)"></i>
-    </div>
-    <div id="fpReturnedBody" style="display:${isOpen?'block':'none'}">` + returned.map(rowHtml).join('') + `</div>`;
-  }
-
-  if (!html) {
-    html = `<div class="fp-empty">
-      ${q || category || activeChips.size ? 'Topilmadi' : 'Ombor bo\'sh<br><br><span style="font-size:12px">Yuqoridagi <b>+ Ishlab chiqarish</b> tugmasini bosing</span>'}
-    </div>`;
-  }
-
-  list.innerHTML = html;
-}
-
-function fpWidth2(i) {
-  const m = (i.notes || '').match(/width2=([\d.]+)/);
-  return m ? parseFloat(m[1]) : null;
-}
-
-function fpSku(i) { return 'FP-' + String(i.id).padStart(4, '0'); }
-function unitLabel(u) { return u === 'metr' ? 'm' : (u === 'kvadrat' ? 'm²' : 'ta'); }
-
-async function uploadFpImage(id, input) {
+async function uploadInventoryImage(id, input) {
   const file = input.files[0];
   if (!file) return;
   const fd = new FormData();
   fd.append('file', file);
   try {
-    const res = await fetch(`/api/finished/${id}/image`, { method: 'POST', body: fd });
-    if (res.ok) { loadFp(); }
-    else showMsg('Rasm yuklanmadi', 'error');
-  } catch(e) { showMsg('Server xatosi', 'error'); }
-}
-
-function openLightbox(url) {
-  document.getElementById('lightbox-img').src = url;
-  document.getElementById('lightbox').style.display = 'flex';
-}
-function closeLightbox() { document.getElementById('lightbox').style.display = 'none'; }
-
-function rowHtml(i) {
-  const isRet = i.source === 'returned';
-  const inProgress = i.source === 'produced' && i.production_status === 'in_progress';
-  const w2 = fpWidth2(i);
-  const dims = (i.width && i.thickness)
-    ? (w2 ? `${i.width}×${w2}×${i.thickness} sm` : `${i.width}×${i.thickness} sm`)
-    : '';
-  const meta = [];
-  if (dims) meta.push(dims);
-  meta.push(i.is_coated ? 'qoplamali' : 'qoplamasiz');
-  if (isRet && i.from_order_number) meta.push(`${i.from_order_number} dan`);
-  if (isRet && i.return_reason) meta.push(i.return_reason);
-  if (i.source === 'produced' && i.actual_loy_kg > 0) {
-    const perUnit = i.quantity > 0 ? (i.actual_loy_kg / i.quantity) : 0;
-    meta.push(`${i.actual_loy_kg} kg loy${perUnit > 0 ? ` (${perUnit.toFixed(2)} kg/${unitLabel(i.unit)})` : ''}`);
+    const res = await fetch(`/api/inventory/${id}/image`, { method: 'POST', body: fd });
+    if (res.ok) {
+      location.reload();
+    } else {
+      const err = await res.json().catch(()=>({}));
+      alert('❌ Rasm yuklanmadi.\n\nSabab: ' + (err.detail || `Server xatosi (${res.status})`));
+    }
+  } catch(e) {
+    alert('❌ Server bilan bog\'lanib bo\'lmadi: ' + e.message);
   }
-  const cleanNote = (i.notes || '').replace(/·?\s*width2=[\d.]+/g, '').trim().replace(/^·\s*/, '');
-  if (cleanNote) meta.push(cleanNote);
+}
 
-  const low = i.quantity <= 0;
-  const reserve = suggestedReserve(i);
-  const isKam = reserve > 0 && i.quantity > 0 && i.quantity < reserve;
-  const pct = reserve > 0 ? Math.min(100, Math.round((i.quantity / reserve) * 100)) : 100;
-  const stColor = low ? '#DC2626' : (isKam ? '#F59E0B' : '#22C55E');
-  const stLabel = low ? 'Tugagan' : (isKam ? 'Kam' : 'Yetarli');
+async function setDefaultPenoplast(id){
+  if(!confirm('Bu plotnostni asosiy qilib belgilaysizmi?\n\nBuyurtma oynasida standart shu tanlanadi.')) return;
+  const res = await fetch(`/api/inventory/${id}/set-default-penoplast`, {method:'POST'});
+  if(res.ok){
+    const d = await res.json();
+    alert('✓ ' + d.name + ' asosiy plotnost qilib belgilandi!');
+    location.reload();
+  } else {
+    const e = await res.json();
+    alert('❌ ' + (e.detail || 'Xato'));
+  }
+}
 
-  const cpu = i.source === 'produced' && i.quantity > 0 ? (i.cost_price / i.quantity) : 0;
-  const profitPct = (i.source === 'produced' && i.unit_price > 0)
-    ? Math.round(((i.unit_price - cpu) / i.unit_price) * 100) : null;
+async function sendFullStockReport() {
+  const res = await fetch('/api/inventory/full-stock-report', {method:'POST'});
+  const d = await res.json();
+  if (res.ok) alert('✅ ' + d.message);
+  else alert('❌ Xato yuz berdi');
+}
 
-  const actionBtns = inProgress ? `
-    <button class="btn btn-dark btn-sm" style="padding:5px 12px;font-size:11px;white-space:nowrap"
-            onclick="markReady(${i.id})">✓ Sotuvga tayyor</button>
-    <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
-    <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
-            onclick="delFp(${i.id}, '${i.source}')" title="Bekor qilish">✕</button>
-  ` : `
-    ${i.source === 'produced' ? `
-    <button class="mini-btn" onclick="stepFp(${i.id},-1)"
-            title="Brak/singan — xomashyo qaytmaydi"
-            style="color:#DC2626">−</button>
-    <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1" placeholder="0">
-    <button class="mini-btn" onclick="stepFp(${i.id},1)"
-            title="Qo'shish — xomashyo proporsional yechiladi"
-            style="color:#22C55E">+</button>
-    ` : ''}
-    <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
-    <button class="mini-btn" onclick="openSellModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', ${i.unit_price || 0})" title="Sotish" style="color:#16A34A;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>
-    <button class="mini-btn" onclick="openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>
-    <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
-    {% if current_user.role.value == 'admin' %}
-    <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
-            style="color:#A86B36;border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
-    {% endif %}
-    <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
-            onclick="delFp(${i.id}, '${i.source}')" title="O'chirish"><i class="ti ti-trash"></i></button>
-  `;
+async function sendLowStockAlert() {
+  const res = await fetch('/api/inventory/low-stock-alert', {method:'POST'});
+  const d = await res.json();
+  if (res.ok) {
+    if (d.sent) alert('✅ SMS yuborildi!\n\n' + d.message);
+    else alert('ℹ️ ' + d.message);
+  } else {
+    alert('❌ Xato yuz berdi');
+  }
+}
 
-  return `
-  <div class="fp-row ${isRet ? 'returned' : ''} ${inProgress ? 'progress' : ''}" data-name="${i.name.toLowerCase()}">
-    ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${i.name.replace(/'/g,"&apos;")}" data-qty="${i.quantity}" data-unit="${i.unit}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
-    <div class="fp-thumb" onclick="event.stopPropagation()">
-      ${i.image_url
-        ? `<img src="${i.image_url}" alt="" onclick="event.preventDefault();event.stopPropagation();openLightbox('${i.image_url}')">`
-        : `<i class="ti ${
-            i.category==='profil' ? 'ti-ruler-2' :
-            i.category==='panel' ? 'ti-square' :
-            i.category==='dona' ? 'ti-circle' :
-            i.category==='blok' ? 'ti-cube' :
-            i.category==='termopanel' ? 'ti-square-rounded' :
-            i.category==='gips' ? 'ti-wall' :
-            'ti-box'
-          }" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
-      <div class="cam-overlay" onclick="document.getElementById('fpimg-${i.id}').click()"><i class="ti ti-camera-plus"></i></div>
-      <input type="file" id="fpimg-${i.id}" accept="image/*" onchange="uploadFpImage(${i.id}, this)">
-    </div>
-    <div style="flex:1;min-width:0">
-      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-        <span class="fp-name">${i.name}</span>
-        <span class="fp-sku">${fpSku(i)}</span>
-        ${inProgress ? '<span class="fp-badge" style="background:#FEF3C7;color:#b7770d">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
-        ${isRet ? '<span class="fp-badge" style="background:#DCFCE7;color:#1e7e34">♻️ QAYTGAN</span>' : ''}
+// Universal chiroyli "prompt" — native prompt() o'rniga. Promise qaytaradi:
+// foydalanuvchi OK bossa — kiritilgan matn, Bekor/Esc bossa — null.
+// Ishlatilishi: const val = await customPrompt('Sarlavha', 'Hozirgi: 5', '5');
+let _cpResolve = null;
+function customPrompt(title, hint, currentValue) {
+  return new Promise(resolve => {
+    _cpResolve = resolve;
+    document.getElementById('cp-title').textContent = title;
+    document.getElementById('cp-hint').textContent = hint || '';
+    document.getElementById('cp-hint').style.display = hint ? 'block' : 'none';
+    const input = document.getElementById('cp-input');
+    input.value = currentValue != null ? currentValue : '';
+    document.getElementById('cpModal').style.display = 'flex';
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+  });
+}
+function _cpConfirm() {
+  const val = document.getElementById('cp-input').value;
+  document.getElementById('cpModal').style.display = 'none';
+  if (_cpResolve) { _cpResolve(val); _cpResolve = null; }
+}
+function _cpCancel() {
+  document.getElementById('cpModal').style.display = 'none';
+  if (_cpResolve) { _cpResolve(null); _cpResolve = null; }
+}
+document.getElementById('cp-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') _cpConfirm();
+  if (e.key === 'Escape') _cpCancel();
+});
+
+async function editBazaltRatios(id, currentSerp, currentKley) {
+  const newSerp = await customPrompt('1 m² BAZALTGA necha METR SERPIYANKA ketadi?', `Hozirgi: ${currentSerp}`, currentSerp);
+  if (newSerp === null || isNaN(parseFloat(newSerp))) return;
+  const newKley = await customPrompt('1 m² BAZALTGA necha kg KLEY ketadi?', `Hozirgi: ${currentKley}`, currentKley);
+  if (newKley === null || isNaN(parseFloat(newKley))) return;
+
+  const res = await fetch(`/api/inventory/${id}`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      serp_ratio_per_m2: parseFloat(newSerp),
+      kley_ratio_per_m2: parseFloat(newKley)
+    })
+  });
+  if (res.ok) {
+    alert('✓ Nisbatlar yangilandi! Keyingi barcha hisob-kitoblar shu yangi qiymatdan foydalanadi.');
+    location.reload();
+  } else alert('Xato yuz berdi');
+}
+
+async function editBazaltVolume(id, currentVolume) {
+  const newVolume = await customPrompt('1 DONA bazalt necha m²?', `masalan: 1.2m × 0.6m = 0.72 m² · Hozirgi: ${currentVolume}`, currentVolume);
+  if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
+
+  const res = await fetch(`/api/inventory/${id}`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      volume_per_unit: parseFloat(newVolume)
+    })
+  });
+  if (res.ok) {
+    alert('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
+    location.reload();
+  } else alert('Xato yuz berdi');
+}
+
+async function editGipsSackWeight(id, currentVolume) {
+  const newVolume = await customPrompt('1 QOP Gips necha kg?', `Hozirgi: ${currentVolume}`, currentVolume);
+  if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
+
+  const res = await fetch(`/api/inventory/${id}`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      volume_per_unit: parseFloat(newVolume)
+    })
+  });
+  if (res.ok) {
+    alert('✓ Yangilandi! "Qop" asosida to\'lanadigan hodimlar uchun shu qiymat ishlatiladi.');
+    location.reload();
+  } else alert('Xato yuz berdi');
+}
+
+async function editSerpiyankaVolume(id, currentVolume) {
+  const newVolume = await customPrompt('1 RULON serpiyanka necha metr?', `Hozirgi: ${currentVolume}`, currentVolume);
+  if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
+
+  const res = await fetch(`/api/inventory/${id}`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      volume_per_unit: parseFloat(newVolume)
+    })
+  });
+  if (res.ok) {
+    alert('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
+    location.reload();
+  } else alert('Xato yuz berdi');
+}
+
+async function editPrice(id, currentPrice) {
+  const newPrice = await customPrompt('Yangi narxni kiriting (so\'m)', `Hozirgi narx: ${Number(currentPrice).toLocaleString('ru-RU')} so'm`, currentPrice);
+  if (!newPrice || isNaN(parseFloat(newPrice))) return;
+  const res = await fetch(`/api/inventory/${id}/price`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({price_per_unit: parseFloat(newPrice)})
+  });
+  if (res.ok) {
+    document.getElementById('price-'+id).textContent = Number(parseFloat(newPrice)).toLocaleString('ru-RU') + ' so\'m';
+    alert('✓ Narx yangilandi!');
+  } else alert('Xato yuz berdi');
+}
+
+async function editCategory(el) {
+  const id = el.dataset.id;
+  const current = el.dataset.category || 'Boshqa';
+  const val = await customPrompt(
+    "Kategoriya",
+    "masalan: Penoplast, Kimyoviy qo'shimchalar, Qattiq qotishmalar, Gips, Boshqa",
+    current
+  );
+  if (val === null || !val.trim()) return;
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({category: val.trim()})
+    });
+    if (res.ok) location.reload();
+    else alert('Xato yuz berdi');
+  } catch(e) { alert('Server xatosi'); }
+}
+
+// ── KIRIM MODALI ──────────────────────────────────────────
+// ── CHIQIM MODALI ─────────────────────────────────────────
+let chiqimItemId = null;
+function openChiqimModal(id, name, unit, currentQty) {
+  chiqimItemId = id;
+  document.getElementById('chiqim-name').textContent = name;
+  document.getElementById('chiqim-current').textContent = currentQty + ' ' + unit;
+  document.getElementById('chiqim-qty').value = '';
+  document.getElementById('chiqim-notes').value = '';
+  document.getElementById('chiqimModal').style.display = 'flex';
+}
+function closeChiqimModal(){ document.getElementById('chiqimModal').style.display = 'none'; }
+
+async function saveChiqim() {
+  const qty = parseFloat(document.getElementById('chiqim-qty').value);
+  if (!qty || qty <= 0) { alert('Miqdorni to\'g\'ri kiriting'); return; }
+  try {
+    const res = await fetch(`/api/inventory/${chiqimItemId}/stock`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({quantity_change: -qty, reason: document.getElementById('chiqim-notes').value || null})
+    });
+    if(res.ok) location.reload();
+    else alert('Xato yuz berdi');
+  } catch(e) { alert('Server xatosi'); }
+}
+
+// ── XARIDLAR TARIXI ────────────────────────────────────────
+async function openPurchaseHistory() {
+  document.getElementById('historyModal').style.display = 'flex';
+  document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+
+  try {
+    const [stats, purchases] = await Promise.all([
+      fetch('/api/inventory/purchase-stats').then(r => r.json()),
+      fetch('/api/inventory/purchases?limit=60').then(r => r.json())
+    ]);
+
+    document.getElementById('hist-total').textContent = fmt(stats.total_amount) + " so'm";
+
+    const byMat = document.getElementById('hist-by-material');
+    if (stats.by_material.length) {
+      byMat.innerHTML = stats.by_material.map(m =>
+        `<div style="display:flex;justify-content:space-between">
+          <span>${m.name} (${m.quantity}${m.unit ? ' '+m.unit : ''})</span>
+          <span style="font-weight:600">${fmt(m.total)} so'm</span>
+        </div>`).join('');
+    } else {
+      byMat.innerHTML = '<div style="color:var(--text3)">Bu oy kirim bo\'lmagan</div>';
+    }
+
+    const list = document.getElementById('hist-list');
+    if (!purchases.length) {
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Xaridlar tarixi bo\'sh</div>';
+      return;
+    }
+
+    phAllPurchases = purchases;
+
+    // "receipt_id" bo'yicha guruhlaymiz — bitta "Kirim" jarayonida birga
+    // kiritilgan materiallar, bitta guruh sifatida ko'rinadi. receipt_id
+    // yo'q (eski, bitta-bitta kiritilgan) yozuvlar — alohida qatorda qoladi.
+    const groups = {};
+    const singles = [];
+    purchases.forEach(p => {
+      if (p.receipt_id) {
+        if (!groups[p.receipt_id]) groups[p.receipt_id] = [];
+        groups[p.receipt_id].push(p);
+      } else {
+        singles.push(p);
+      }
+    });
+
+    // Guruh va yakka yozuvlarni, ENG SO'NGGI sanasi bo'yicha, birga tartiblaymiz
+    const entries = [
+      ...Object.keys(groups).map(rid => ({ type: 'group', receiptId: rid, items: groups[rid],
+        latest: groups[rid].reduce((mx, p) => p.purchased_at > mx ? p.purchased_at : mx, groups[rid][0].purchased_at) })),
+      ...singles.map(p => ({ type: 'single', item: p, latest: p.purchased_at }))
+    ].sort((a, b) => b.latest.localeCompare(a.latest));
+
+    list.innerHTML = entries.map(e => {
+      if (e.type === 'single') {
+        const p = e.item;
+        const dt = new Date(p.purchased_at);
+        const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${p.item_name}</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">
+              ${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}
+              ${p.purchased_by ? ' · '+p.purchased_by : ''}
+              ${p.notes ? ' · '+p.notes : ''}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:13px;font-weight:700;color:#22C55E;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+            <button onclick="deletePurchase(${p.id}, '${(p.item_name||'').replace(/'/g,"\\'")}', ${p.quantity})"
+                    title="Bu xaridni bekor qilish (ombordan ham, puldan ham)"
+                    style="width:30px;height:30px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:7px;cursor:pointer;flex-shrink:0">
+              <i class="ti ti-trash"></i>
+            </button>
+          </div>
+        </div>`;
+      }
+      // Guruh — bosiladigan, qisqartirilgan qator
+      const dt = new Date(e.latest);
+      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+      const total = e.items.reduce((s, p) => s + p.total_amount, 0);
+      const namesPreview = e.items.slice(0, 3).map(p => p.item_name).join(', ') + (e.items.length > 3 ? '…' : '');
+      return `
+      <div class="mv-order-row" onclick="openPhDrawer('${e.receiptId}')" style="margin:8px 0">
+        <div style="min-width:0">
+          <div class="mv-order-num">📦 Kirim #${e.receiptId} <span style="font-weight:400;color:var(--text3);font-size:12.5px">· ${namesPreview}</span></div>
+          <div class="mv-order-meta">${ds}${e.items[0].purchased_by ? ' · '+e.items[0].purchased_by : ''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:10px">
+          <div class="mv-order-count">${e.items.length} ta material →</div>
+          <div style="font-size:12.5px;font-weight:700;color:#22C55E;margin-top:4px">${fmt(total)} so'm</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
+  }
+}
+
+let phAllPurchases = [];
+
+function openPhDrawer(receiptId) {
+  const rows = phAllPurchases.filter(p => String(p.receipt_id) === String(receiptId));
+  const total = rows.reduce((s, p) => s + p.total_amount, 0);
+  document.getElementById('phDrawerTitle').textContent = `📦 Kirim #${receiptId}`;
+  document.getElementById('phDrawerSub').textContent = `${rows.length} ta material · ${fmt(total)} so'm`;
+  document.getElementById('phDrawerBody').innerHTML = rows.map(p => {
+    const dt = new Date(p.purchased_at);
+    const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+    return `
+    <div class="mv-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;color:var(--text)">${p.item_name}</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:2px">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}${p.purchased_by ? ' · '+p.purchased_by : ''}</div>
       </div>
-      <div class="fp-meta">${meta.join(' · ')}${profitPct !== null ? ` · Foyda: <b style="color:${profitPct>=0?'#22C55E':'#DC2626'}">${profitPct}%</b>` : ''}</div>
-    </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:10px">
+        <div style="font-weight:700;color:#22C55E">${fmt(p.total_amount)} so'm</div>
+        <button onclick="deletePurchase(${p.id}, '${(p.item_name||'').replace(/'/g,"\\'")}', ${p.quantity})"
+                title="Bu xaridni bekor qilish" style="margin-top:4px;width:26px;height:26px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:6px;cursor:pointer">
+          <i class="ti ti-trash" style="font-size:12px"></i>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('phDrawerOverlay').style.display = 'flex';
+}
 
-    <div class="fp-stock-col">
-      <div class="fp-qty" style="color:${stColor}">${i.quantity} ${unitLabel(i.unit)}</div>
-      ${!inProgress ? `<div class="fp-mini-bar"><div class="fp-mini-fill" style="width:${pct}%;background:${stColor}"></div></div>
-      <span class="fp-badge" style="background:${stColor}22;color:${stColor};margin-top:3px;display:inline-block">${stLabel}</span>` : ''}
-    </div>
+function closePhDrawer() {
+  document.getElementById('phDrawerOverlay').style.display = 'none';
+}
 
-    <div style="text-align:right;flex-shrink:0;min-width:82px">
-      <div class="fp-price">${fmt(i.unit_price)}/${unitLabel(i.unit)}</div>
-      ${i.source === 'produced' ? `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>` : ''}
-    </div>
+async function deletePurchase(id, name, qty) {
+  const ok = confirm(
+    `"${name}" xaridini (${qty} birlik) bekor qilasizmi?\n\n` +
+    `Bu — ham OMBORDAN ushbu miqdorni ayiradi, ham MOLIYADAN (pul oqimidan) ` +
+    `bu xarid summasini olib tashlaydi.`
+  );
+  if (!ok) return;
+  try {
+    const res = await fetch(`/api/inventory/purchases/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      alert('✓ Xarid bekor qilindi — ombor va pul oqimi tuzatildi.');
+      openPurchaseHistory();        // ro'yxatni yangilaymiz
+      setTimeout(() => location.reload(), 600);  // ombor qoldig'i ham yangilanishi uchun
+    } else {
+      const d = await res.json().catch(() => ({}));
+      alert(d.detail || 'Xato yuz berdi');
+    }
+  } catch(e) { alert('Server xatosi'); }
+}
+function closePurchaseHistory() { document.getElementById('historyModal').style.display = 'none'; }
 
-    <div style="text-align:right;flex-shrink:0;min-width:92px">
-      <div style="font-size:13px;font-weight:700;color:#22C55E">${fmt(i.total_value)}</div>
-      <div style="font-size:10px;color:#bbb">jami</div>
-    </div>
+// ── OMBOR HARAKATLARI (TIMELINE) ───────────────────────────
+function openMovements() {
+  document.getElementById('movementsModal').style.display = 'flex';
+  loadMovements('');
+}
+function closeMovements() { document.getElementById('movementsModal').style.display = 'none'; }
 
-    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-      ${actionBtns}
+let mvCurType = '';
+let mvAllRows = [];  // "shtorka" ochilganda qayta so'rov yubormasligimiz uchun, hammasini shu yerda saqlaymiz
+
+function mvFmtQty(q) {
+  const n = parseFloat(q) || 0;
+  // 2 xonagacha yaxlitlab, ortiqcha nollarni olib tashlaymiz (masalan
+  // "0.80" emas "0.8", "5.00" emas "5")
+  return n.toFixed(2).replace(/\.?0+$/, '');
+}
+
+async function loadMovements(type) {
+  mvCurType = type;
+  const list = document.getElementById('mv-list');
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+  try {
+    const params = new URLSearchParams();
+    if (type) params.set('movement_type', type);
+    const df = document.getElementById('mv-date-from')?.value;
+    const dt_ = document.getElementById('mv-date-to')?.value;
+    if (df) params.set('date_from', df);
+    if (dt_) params.set('date_to', dt_);
+    if (df || dt_) params.set('limit', '500');
+    const url = '/api/inventory/movements' + (params.toString() ? `?${params.toString()}` : '');
+    const res = await fetch(url);
+    const rows = await res.json();
+    mvAllRows = rows;
+    if (!rows.length) {
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Harakatlar yo\'q</div>';
+      return;
+    }
+
+    // Har bir modda bo'yicha jami (chiqim/kirim) — tez ko'rish uchun
+    const totals = {};
+    rows.forEach(m => {
+      const key = m.item_name + '|' + (m.unit || '');
+      if (!totals[key]) totals[key] = {name: m.item_name, unit: m.unit || '', in: 0, out: 0};
+      totals[key][m.movement_type] += parseFloat(m.quantity) || 0;
+    });
+    const summaryHtml = Object.values(totals).map(t => `
+      <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px">
+        <span style="color:var(--text2)">${t.name}</span>
+        <span>${t.out > 0 ? `<span style="color:#991B1B">−${t.out.toFixed(2)}</span>` : ''}${t.out > 0 && t.in > 0 ? ' · ' : ''}${t.in > 0 ? `<span style="color:#166534">+${t.in.toFixed(2)}</span>` : ''} ${t.unit}</span>
+      </div>`).join('');
+    const summaryBlock = (document.getElementById('mv-date-from').value || document.getElementById('mv-date-to').value)
+      ? `<div style="background:var(--bg);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+           <div style="font-size:11.5px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tanlangan davr — jami</div>
+           ${summaryHtml}
+         </div>` : '';
+
+    // Buyurtma bo'yicha guruhlaymiz — order_id borlar bitta guruh bo'ladi,
+    // order_id yo'qlar (yetkazuvchidan kirim va h.k.) "Boshqa" ostida.
+    const groups = {};   // order_id -> {rows, latestDate, orderNum}
+    const otherRows = [];
+    rows.forEach(m => {
+      if (m.order_id) {
+        if (!groups[m.order_id]) groups[m.order_id] = { rows: [], orderNum: null, latestDate: m.created_at };
+        groups[m.order_id].rows.push(m);
+        if (m.created_at > groups[m.order_id].latestDate) groups[m.order_id].latestDate = m.created_at;
+        // "reason" ichidan buyurtma raqamini (ORD-XXX-Y) ajratib olamiz
+        if (!groups[m.order_id].orderNum && m.reason) {
+          const om = m.reason.match(/ORD-\d+-\d+/);
+          if (om) groups[m.order_id].orderNum = om[0];
+        }
+      } else {
+        otherRows.push(m);
+      }
+    });
+
+    // Guruhlarni, eng so'nggi harakati bo'yicha (yangidan eskiga) tartiblaymiz
+    const groupIds = Object.keys(groups).sort((a, b) =>
+      new Date(groups[b].latestDate) - new Date(groups[a].latestDate));
+
+    let groupsHtml = groupIds.map(oid => {
+      const g = groups[oid];
+      const dt = new Date(g.latestDate);
+      const ds = dt.toLocaleDateString('uz');
+      const label = g.orderNum || `Buyurtma #${oid}`;
+      return `
+      <div class="mv-order-row" onclick="openMvDrawer('${oid}')">
+        <div style="min-width:0">
+          <div class="mv-order-num">📋 ${label}</div>
+          <div class="mv-order-meta">${ds}</div>
+        </div>
+        <div class="mv-order-count">${g.rows.length} ta harakat →</div>
+      </div>`;
+    }).join('');
+
+    if (otherRows.length) {
+      groupsHtml += `
+      <div class="mv-order-row" onclick="openMvDrawer('other')">
+        <div style="min-width:0">
+          <div class="mv-order-num" style="color:var(--text2)">📦 Boshqa (yetkazuvchidan kirim va h.k.)</div>
+          <div class="mv-order-meta">Turli sanalar</div>
+        </div>
+        <div class="mv-order-count">${otherRows.length} ta harakat →</div>
+      </div>`;
+    }
+
+    list.innerHTML = summaryBlock + groupsHtml;
+  } catch(e) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
+  }
+}
+
+function mvRowHtml(m) {
+  const dt = new Date(m.created_at);
+  const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+  return `
+  <div class="mv-row">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:500;color:var(--text)">${m.item_name}</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:2px">${ds}${m.reason ? ' · '+m.reason : ''}${m.performed_by ? ' · '+m.performed_by : ''}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0;margin-left:10px">
+      <span class="mv-badge ${m.movement_type}">${m.movement_type === 'in' ? 'Kirim' : 'Chiqim'}</span>
+      <div style="font-weight:600;margin-top:3px">${m.movement_type === 'in' ? '+' : '−'}${mvFmtQty(m.quantity)} ${m.unit||''}</div>
     </div>
   </div>`;
 }
 
-// ── Tarix modali (mavjud ma'lumotlar asosida) ──────────────
-function openHistoryModal(id) {
-  const item = fpItems.find(i => i.id === id);
-  if (!item) return;
-  document.getElementById('hist-title').textContent = item.name + ' — tarix';
-  const dt = item.created_at ? new Date(item.created_at).toLocaleString('uz') : '—';
-  const rows = [];
-  rows.push(['Yaratilgan sana', dt]);
-  rows.push(['Manba', item.source === 'produced' ? 'Ishlab chiqarilgan' : 'Buyurtmadan qaytgan']);
-  if (item.source === 'returned') {
-    rows.push(['Qaysi buyurtmadan', item.from_order_number || '—']);
-    rows.push(['Sababi', item.return_reason || '—']);
-  }
-  if (item.source === 'produced') {
-    rows.push(['Sarflangan penoplast', item.volume_m3 ? item.volume_m3.toFixed(4) + ' m³' : '—']);
-    if (item.actual_loy_kg) rows.push(['Sarflangan loy', item.actual_loy_kg + ' kg']);
-    rows.push(['Tan narxi (jami)', fmt(item.cost_price) + " so'm"]);
-  }
-  rows.push(['Hozirgi qoldiq', item.quantity + ' ' + item.unit]);
-  rows.push(['Joriy qiymati', fmt(item.total_value) + " so'm"]);
-  rows.push(['Kim yaratgan', item.created_by || '—']);
-
-  document.getElementById('hist-body').innerHTML = `
-    <div style="background:var(--bg);border-radius:8px;padding:6px 12px;margin-bottom:10px;font-size:11px;color:var(--text3);line-height:1.6">
-      Har bir kirim/chiqim harakati alohida jurnal sifatida hozircha saqlanmaydi — quyida shu mahsulot haqida mavjud ma'lumotlar ko'rsatilgan.
-    </div>
-    ${rows.map(r => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);font-size:12.5px">
-      <span style="color:var(--text3)">${r[0]}</span><span style="font-weight:500;color:var(--text)">${r[1]}</span>
-    </div>`).join('')}`;
-  document.getElementById('historyModal').style.display = 'flex';
-}
-function closeHistoryModal(){ document.getElementById('historyModal').style.display = 'none'; }
-
-// ── Ro'yxat harakatlari (mavjud, o'zgarishsiz) ─────────────
-async function stepFp(id, dir) {
-  const el = document.getElementById('fq-' + id);
-  const qty = parseFloat(el?.value) || 0;
-  const item = fpItems.find(i => i.id === id);
-  if (!item || qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
-
-  if (dir > 0) {
-    await addProduction(id, qty, item);
+function openMvDrawer(orderId) {
+  let rows, title, sub;
+  if (orderId === 'other') {
+    rows = mvAllRows.filter(m => !m.order_id);
+    title = '📦 Boshqa harakatlar';
+    sub = `${rows.length} ta harakat`;
   } else {
-    await reduceProduction(id, qty, item);
+    rows = mvAllRows.filter(m => String(m.order_id) === String(orderId));
+    const om = rows.find(m => m.reason && m.reason.match(/ORD-\d+-\d+/));
+    const label = om ? om.reason.match(/ORD-\d+-\d+/)[0] : `Buyurtma #${orderId}`;
+    title = `📋 ${label}`;
+    sub = `${rows.length} ta harakat`;
   }
+  // Eng yangidan eskiga tartiblab ko'rsatamiz
+  rows = [...rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  document.getElementById('mvDrawerTitle').textContent = title;
+  document.getElementById('mvDrawerSub').textContent = sub;
+  document.getElementById('mvDrawerBody').innerHTML = rows.map(mvRowHtml).join('');
+  document.getElementById('mvDrawerOverlay').style.display = 'flex';
 }
 
-async function addProduction(id, qty, item) {
-  // MUHIM: joriy qoldiqdan hisoblangan nisbat emas — ishlab chiqarilganda
-  // saqlangan BARQAROR "1 birlikka qancha" nisbatidan foydalanamiz
-  // (backend bilan bir xil mantiq — qoldiq 0 bo'lganda ham to'g'ri ishlaydi).
-  let unitVol, unitLoy;
-  if (item.unit_volume_m3 !== null && item.unit_volume_m3 !== undefined) {
-    unitVol = item.unit_volume_m3;
-    unitLoy = item.unit_loy_kg || 0;
-  } else if (item.quantity > 0) {
-    unitVol = (item.volume_m3 || 0) / item.quantity;
-    unitLoy = (item.actual_loy_kg || 0) / item.quantity;
-  } else {
-    unitVol = 0; unitLoy = 0;
-  }
-  const addVol = unitVol * qty;
-  const addLoy = unitLoy * qty;
+function closeMvDrawer() {
+  document.getElementById('mvDrawerOverlay').style.display = 'none';
+}
 
-  const txt = `${item.name} — yana ${qty} ${item.unit} qo'shilsinmi?\n\n` +
-    `📊 Hozirgi: ${item.quantity} ${item.unit}` +
-    (item.actual_loy_kg > 0 ? ` · ${item.actual_loy_kg} kg loy` : '') + `\n` +
-    `➕ Qo'shiladi: ${qty} ${item.unit}\n\n` +
-    `Ombordan yechiladi:\n` +
-    `📦 Penoplast: ${addVol.toFixed(4)} m³\n` +
-    (addLoy > 0 ? `🧱 Loy: ${addLoy.toFixed(1)} kg\n` : '') +
-    `\n✅ Natija: ${(item.quantity + qty)} ${item.unit}`;
-
-  if (!(await customConfirm(`${item.name} — qo'shish`, txt))) return;
-
-  try {
-    const res = await fetch(`/api/finished/${id}/add`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({quantity: qty})
-    });
+async function deleteItem(id) {
+  if(!confirm('Bu xomashyoni o\'chirasizmi?')) return;
+  const res = await fetch(`/api/inventory/${id}`, {method:'DELETE'});
+  if(res.ok) {
     const r = await res.json();
-
-    if (res.ok) {
-      loadFp();
-      let msg = `✓ +${r.added_qty} ${r.unit} qo'shildi (jami ${r.new_qty} ${r.unit})`;
-      if (r.inventory_log?.length) msg += '\n\n📦 ' + r.inventory_log.join('\n');
-      showMsg(msg, 'success');
-    } else {
-      const d = r.detail || {};
-      showMsg('❌ ' + (d.message || 'Xato') +
-        (d.shortages?.length ? '\n' + d.shortages.join('\n') : ''), 'error');
+    if (r.soft) {
+      alert('ℹ️ ' + r.message);
     }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
-}
-
-async function reduceProduction(id, qty, item) {
-  const lost = qty * (item.unit_price || 0);
-  const txt = `${item.name} — ${qty} ${item.unit} chiqarilsinmi?\n\n` +
-    `⚠️ Bu BRAK/SINGAN deb hisoblanadi:\n` +
-    `• Xomashyo omborga QAYTARILMAYDI\n` +
-    `• Yo'qotilgan qiymat: ${fmt(lost)} so'm\n\n` +
-    `📊 Qoladi: ${(item.quantity - qty).toFixed(1)} ${item.unit}`;
-
-  if (!(await customConfirm(`${item.name} — brak/kamaytirish`, txt, {danger: true, okText: 'Ha, brak'}))) return;
-
-  const reason = prompt('Sabab (ixtiyoriy):\n\nMasalan: singan, brak, yo\'qolgan', '');
-  if (reason === null) return;
-
-  try {
-    const res = await fetch(`/api/finished/${id}/reduce`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({quantity: qty, reason: reason.trim() || null})
-    });
-    const r = await res.json();
-
-    if (res.ok) {
-      loadFp();
-      showMsg(`✓ -${qty} ${r.unit} chiqarildi (brak)\n💸 Yo'qotish: ${fmt(r.lost_value)} so'm`, 'success');
-    } else {
-      showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
-    }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
-}
-
-let _gipsInvCacheFp = null;
-
-function addGpAdditive() {
-  const list = document.getElementById('gp-additives-list');
-  if (!list) return;
-  const opts = (_gipsInvCacheFp || []).map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
-  const row = document.createElement('div');
-  row.className = 'gp-add-row';
-  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
-  row.innerHTML = `
-    <select class="gp-add-inv" onchange="onGpAdditiveChange(this)" style="flex:2;min-width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px;text-overflow:ellipsis"><option value="">— Material tanlang —</option>${opts}</select>
-    <input type="number" class="gp-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;min-width:0;width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px">
-    <button type="button" onclick="this.closest('.gp-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
-  `;
-  list.appendChild(row);
-}
-
-function onGpAdditiveChange(sel) {
-  // MUHIM: Serpiyanka/Qop kabi "idishda" saqlanadigan materiallar uchun —
-  // foydalanuvchi TABIIY birlikda (masalan "necha metr") kiritishi kerak,
-  // tizim buni o'zi rulonga aylantiradi. Aks holda "20" deb yozilgan metr,
-  // xato bilan "20 rulon" deb o'qilib qolar edi.
-  const row = sel.closest('.gp-add-row');
-  const qtyEl = row.querySelector('.gp-add-qty');
-  const item = (_gipsInvCacheFp || []).find(i => String(i.id) === sel.value);
-  if (!item) { qtyEl.placeholder = 'Miqdor'; row.dataset.ratio = ''; return; }
-  const unit = (item.unit || '').toLowerCase();
-  const ratio = parseFloat(item.volume_per_unit) || 0;
-  const isContainer = ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop');
-  if (isContainer) {
-    const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
-    qtyEl.placeholder = `Necha ${naturalUnit}?`;
-    row.dataset.ratio = ratio;
-    row.dataset.naturalUnit = naturalUnit;
+    location.reload();
   } else {
-    qtyEl.placeholder = `Miqdor (${item.unit})`;
-    row.dataset.ratio = '';
+    const err = await res.json().catch(()=>({}));
+    alert('❌ Xato: ' + (err.detail || 'Noma\'lum xato'));
   }
 }
 
-function collectGpAdditives() {
-  const rows = document.querySelectorAll('.gp-add-row');
-  const result = [];
+// ── FILTRLASH / SARALASH ───────────────────────────────────
+function filterMaterials() {
+  const q = document.getElementById('matSearch').value.trim().toLowerCase();
+  const cat = document.getElementById('catFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  const sort = document.getElementById('sortFilter').value;
+  const list = document.getElementById('matList');
+  const rows = Array.from(list.querySelectorAll('.mat-row'));
+  let visibleCount = 0;
+
   rows.forEach(row => {
-    const invId = parseInt(row.querySelector('.gp-add-inv')?.value) || null;
-    let qty = parseFloat(row.querySelector('.gp-add-qty')?.value) || 0;
-    const ratio = parseFloat(row.dataset.ratio) || 0;
-    if (ratio > 0) qty = qty / ratio;  // tabiiy birlikdan (metr/kg) — idish birligiga (rulon/qop)
-    if (invId && qty > 0) result.push({ inventory_id: invId, quantity: qty });
+    const matchQ = !q || row.dataset.name.includes(q);
+    const matchCat = !cat || row.dataset.category === cat;
+    const matchStatus = !status || row.dataset.status === status;
+    const show = matchQ && matchCat && matchStatus;
+    row.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
   });
-  return result;
-}
 
-async function openGipsProduceModal() {
-  document.getElementById('gp-name').value = '';
-  document.getElementById('gp-unit').value = 'metr';
-  document.getElementById('gp-qty').value = '';
-  document.getElementById('gp-price').value = '';
-  document.getElementById('gp-gips-kg').value = '';
-  document.getElementById('gp-additives-list').innerHTML = '';
-
-  const sel = document.getElementById('gp-gips-inv');
-  if (!_gipsInvCacheFp) {
-    try {
-      const all = await fetch('/api/inventory').then(r => r.json());
-      _gipsInvCacheFp = all.filter(i => (i.category || '') === 'Gips');
-    } catch(e) { _gipsInvCacheFp = []; }
-  }
-  sel.innerHTML = '<option value="">— Tanlanmadi —</option>' +
-    _gipsInvCacheFp.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
-
-  document.getElementById('gipsProduceModal').style.display = 'flex';
-}
-
-function closeGipsProduceModal() {
-  document.getElementById('gipsProduceModal').style.display = 'none';
-}
-
-async function submitGipsProduce() {
-  const name = document.getElementById('gp-name').value.trim();
-  const unit = document.getElementById('gp-unit').value;
-  const qty = parseFloat(document.getElementById('gp-qty').value) || 0;
-  const price = parseNum(document.getElementById('gp-price').value) || 0;
-  const gipsInvId = parseInt(document.getElementById('gp-gips-inv').value) || null;
-  const gipsKg = parseFloat(document.getElementById('gp-gips-kg').value) || null;
-  const additives = collectGpAdditives();
-
-  if (!name) { showMsg('Mahsulot nomini kiriting', 'error'); return; }
-  if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
-
-  try {
-    const res = await fetch('/api/finished/produce-gips', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        name, unit, quantity: qty, unit_price: price,
-        gips_inventory_id: gipsInvId, gips_kg_used: gipsKg,
-        additives
-      })
-    });
-    const r = await res.json();
-    if (res.ok) {
-      closeGipsProduceModal();
-      showMsg('✓ Gips mahsulot ishlab chiqarildi!', 'success');
-      setTimeout(() => location.reload(), 1200);
-    } else {
-      showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
-    }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
-}
-
-let _lossData = null;
-
-const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok'];
-let _lossMode = 'stock';
-
-function openLossModal(id, name, quantity, unit, category) {
-  _lossData = { id, name, quantity, unit, category: (category || '').toLowerCase() };
-  document.getElementById('loss-modal-sub').textContent = name;
-  document.getElementById('loss-stock-info').textContent = `Omborda: ${quantity} ${unit}`;
-  document.getElementById('loss-qty').value = '';
-  document.getElementById('loss-qty').max = quantity;
-  document.getElementById('loss-reason').value = '';
-
-  const canProdBrak = PROD_BRAK_CATEGORIES.includes(_lossData.category);
-  document.getElementById('loss-mode-toggle').style.display = canProdBrak ? 'flex' : 'none';
-  setLossMode('stock');
-  document.getElementById('lossModal').style.display = 'flex';
-}
-
-function setLossMode(mode) {
-  _lossMode = mode;
-  document.getElementById('loss-mode-stock').classList.toggle('active', mode === 'stock');
-  document.getElementById('loss-mode-prod').classList.toggle('active', mode === 'production');
-  document.getElementById('loss-info-stock').style.display = mode === 'stock' ? 'block' : 'none';
-  document.getElementById('loss-info-production').style.display = mode === 'production' ? 'block' : 'none';
-  document.getElementById('loss-stock-info').style.display = mode === 'stock' ? 'block' : 'none';
-  document.getElementById('loss-qty-label').textContent = mode === 'stock' ? 'Necha birlik brak bo\'ldi?' : 'Ishlab chiqarishda necha birlik brak bo\'ldi?';
-  document.getElementById('loss-qty').max = mode === 'stock' ? _lossData.quantity : '';
-  const btn = document.getElementById('loss-submit-btn');
-  btn.style.background = mode === 'stock' ? '#D97706' : '#B9783F';
-  btn.textContent = mode === 'stock' ? "⚠️ Kamaytirish" : "🏭 Xomashyoni ayirish";
-}
-
-function closeLossModal() {
-  document.getElementById('lossModal').style.display = 'none';
-}
-
-async function submitLoss() {
-  if (!_lossData) return;
-  const qty = parseFloat(document.getElementById('loss-qty').value) || 0;
-  if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
-
-  if (_lossMode === 'stock') {
-    if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); return; }
-    try {
-      const res = await fetch('/api/finished/loss', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          finished_product_id: _lossData.id,
-          quantity: qty,
-          reason: document.getElementById('loss-reason').value.trim() || null
-        })
-      });
-      const r = await res.json();
-      if (res.ok) {
-        closeLossModal();
-        showMsg(`✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada Brak xarajatiga qo'shildi`, 'success');
-        setTimeout(() => location.reload(), 1500);
-      } else {
-        showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
-      }
-    } catch(e) { showMsg('Server xatosi', 'error'); }
-  } else {
-    try {
-      const res = await fetch('/api/finished/production-brak', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          finished_product_id: _lossData.id,
-          brak_qty: qty,
-          notes: document.getElementById('loss-reason').value.trim() || null
-        })
-      });
-      const r = await res.json();
-      if (res.ok) {
-        closeLossModal();
-        showMsg(`✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
-        setTimeout(() => location.reload(), 1500);
-      } else {
-        showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
-      }
-    } catch(e) { showMsg('Server xatosi', 'error'); }
-  }
-}
-
-let _batchItems = {};  // id -> {name, qty, unit, price, maxQty}
-
-function onBatchCheckChange() {
-  const checks = document.querySelectorAll('.fp-batch-check');
-  _batchItems = {};
-  let count = 0;
-  checks.forEach(c => {
-    if (c.checked) {
-      const id = c.dataset.id;
-      _batchItems[id] = {
-        name: c.dataset.name,
-        maxQty: parseFloat(c.dataset.qty) || 0,
-        unit: c.dataset.unit,
-        price: parseFloat(c.dataset.price) || 0
-      };
-      count++;
-    }
-  });
-  const bar = document.getElementById('batchSellBar');
-  if (count > 0) {
-    bar.style.display = 'flex';
-    document.getElementById('batchSellCount').textContent = `${count} ta tanlandi`;
-  } else {
-    bar.style.display = 'none';
-  }
-}
-
-function clearBatchSelection() {
-  document.querySelectorAll('.fp-batch-check').forEach(c => c.checked = false);
-  _batchItems = {};
-  document.getElementById('batchSellBar').style.display = 'none';
-}
-
-function openBatchSellModal() {
-  const ids = Object.keys(_batchItems);
-  if (!ids.length) return;
-  document.getElementById('batch-modal-sub').textContent = `${ids.length} ta mahsulot`;
-  document.getElementById('batch-buyer').value = '';
-  document.getElementById('batch-paymethod').value = 'naqd';
-  document.getElementById('batch-agreed').value = '';
-  document.getElementById('batch-discount-info').style.display = 'none';
-
-  const list = document.getElementById('batch-items-list');
-  list.innerHTML = ids.map(id => {
-    const it = _batchItems[id];
-    return `
-      <div class="batch-item-row" data-id="${id}" style="border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px">
-        <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:8px">${it.name}</div>
-        <div style="display:flex;gap:8px;align-items:flex-end">
-          <div style="flex:1">
-            <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">Kerakli miqdor</div>
-            <input type="number" class="batch-qty" value="${it.maxQty}" max="${it.maxQty}" min="0" step="0.1" data-max="${it.maxQty}" data-unit="${it.unit}"
-                   oninput="updateBatchTotal();updateBatchRemain(this)" style="width:100%;padding:8px 10px;border:1.5px solid var(--gold);border-radius:8px;font-size:14px;font-weight:600;box-sizing:border-box">
-          </div>
-          <div style="flex:1">
-            <div style="font-size:11px;color:#16A34A;margin-bottom:3px;font-weight:600">Mavjud miqdor</div>
-            <div class="batch-remain" style="width:100%;padding:8px 10px;border:1.5px solid #BBF7D0;border-radius:8px;font-size:14px;font-weight:700;color:#15803D;background:#F0FDF4;box-sizing:border-box;text-align:center">${it.maxQty} ${it.unit}</div>
-          </div>
-          <div style="flex:1">
-            <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">1 birlik narxi</div>
-            <input type="text" class="batch-price" value="${fmt(it.price)}" oninput="formatPriceInput(this);updateBatchTotal()"
-                   style="width:100%;padding:8px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:14px;box-sizing:border-box">
-          </div>
-        </div>
-      </div>`;
-  }).join('');
-
-  updateBatchTotal();
-  document.getElementById('batchSellModal').style.display = 'flex';
-}
-
-function closeBatchSellModal() {
-  document.getElementById('batchSellModal').style.display = 'none';
-}
-
-function batchOriginalTotal() {
-  let total = 0;
-  document.querySelectorAll('.batch-item-row').forEach(row => {
-    const qty = parseFloat(row.querySelector('.batch-qty')?.value) || 0;
-    const price = parseNum(row.querySelector('.batch-price')?.value) || 0;
-    total += qty * price;
-  });
-  return total;
-}
-
-// "Qoladi" kartochkasini jonli yangilaydi — faqat KO'RSATISH uchun,
-// hech qanday hisob-kitobga (Jami summa, serverga yuboriladigan miqdor)
-// ta'sir qilmaydi. Faqat ko'rsatiladigan matnni hisoblab yozadi.
-function updateBatchRemain(input) {
-  const max = parseFloat(input.dataset.max) || 0;
-  const unit = input.dataset.unit || '';
-  const entered = parseFloat(input.value) || 0;
-  const remain = Math.max(0, max - entered);
-  const remainEl = input.closest('.batch-item-row')?.querySelector('.batch-remain');
-  if (remainEl) {
-    remainEl.textContent = `${remain.toFixed(remain % 1 === 0 ? 0 : 1)} ${unit}`;
-    remainEl.style.color = entered > max ? '#DC2626' : '#15803D';
-  }
-}
-
-function updateBatchTotal() {
-  const total = batchOriginalTotal();
-  document.getElementById('batch-total-box').textContent = `Jami: ${fmt(total)} so'm`;
-  updateBatchDiscount();  // asl jami o'zgarsa, chegirma foizi ham qayta hisoblanadi
-}
-
-function updateBatchDiscount() {
-  const original = batchOriginalTotal();
-  const agreed = parseNum(document.getElementById('batch-agreed')?.value) || 0;
-  const box = document.getElementById('batch-discount-info');
-  if (agreed > 0 && original > 0 && agreed < original) {
-    const disc = original - agreed;
-    const pct = (disc / original * 100);
-    box.style.display = 'block';
-    box.textContent = `Chegirma: ${fmt(disc)} so'm (${pct.toFixed(1).replace('.0','')}%)`;
-  } else if (agreed > original && original > 0) {
-    box.style.display = 'block';
-    box.style.background = '#FEE2E2';
-    box.style.color = '#991B1B';
-    box.textContent = `⚠ Kelishilgan summa jamidan katta bo'lishi mumkin emas`;
-    return;
-  } else {
-    box.style.display = 'none';
-  }
-  box.style.background = '#FEF3C7';
-  box.style.color = '#92400E';
-}
-
-async function submitBatchSell() {
-  const items = [];
-  let hasError = false;
-  document.querySelectorAll('.batch-item-row').forEach(row => {
-    const id = parseInt(row.dataset.id);
-    const qty = parseFloat(row.querySelector('.batch-qty')?.value) || 0;
-    const price = parseNum(row.querySelector('.batch-price')?.value) || 0;
-    if (qty <= 0 || price <= 0) { hasError = true; return; }
-    items.push({ finished_product_id: id, quantity: qty, unit_price: price });
-  });
-  if (hasError || !items.length) { showMsg('Barcha mahsulotlar uchun miqdor va narxni to\'g\'ri kiriting', 'error'); return; }
-
-  // "Kelishilgan summa" — ixtiyoriy. Berilsa, asl jamidan katta bo'lmasligi kerak.
-  const originalTotal = batchOriginalTotal();
-  const agreedRaw = parseNum(document.getElementById('batch-agreed').value) || 0;
-  let agreedAmount = null;
-  if (agreedRaw > 0) {
-    if (agreedRaw > originalTotal + 0.5) {
-      showMsg('Kelishilgan summa jami summadan katta bo\'lishi mumkin emas', 'error');
-      return;
-    }
-    agreedAmount = agreedRaw;
+  if (sort === 'qty_asc' || sort === 'qty_desc') {
+    const visible = rows.filter(r => r.style.display !== 'none');
+    visible.sort((a, b) => sort === 'qty_asc'
+      ? parseFloat(a.dataset.qty) - parseFloat(b.dataset.qty)
+      : parseFloat(b.dataset.qty) - parseFloat(a.dataset.qty));
+    visible.forEach(r => list.appendChild(r));
   }
 
-  try {
-    const res = await fetch('/api/finished/sell-batch', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        items,
-        buyer_name: document.getElementById('batch-buyer').value.trim() || null,
-        payment_method: document.getElementById('batch-paymethod').value,
-        agreed_amount: agreedAmount
-      })
-    });
-    const r = await res.json();
-    if (res.ok) {
-      closeBatchSellModal();
-      clearBatchSelection();
-      const discMsg = (r.discount_percent && r.discount_percent > 0) ? ` (${r.discount_percent}% chegirma bilan)` : '';
-      showMsg(`✓ ${r.sale_count} ta mahsulot sotildi! Kelishilgan: ${fmt(r.total_amount)} so'm${discMsg}`, 'success');
-      window.open(`/api/finished/sales/batch/${r.sale_group_id}/pdf`, '_blank');
-      setTimeout(() => location.reload(), 1500);
-    } else {
-      showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
-    }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  document.getElementById('emptyFilter').style.display = visibleCount === 0 ? 'block' : 'none';
 }
 
-let _sellData = null;
-
-function openSellModal(id, name, quantity, unit, currentPrice) {
-  _sellData = { id, name, quantity, unit };
-  document.getElementById('sell-modal-sub').textContent = name;
-  document.getElementById('sell-stock-info').textContent = `Omborda: ${quantity} ${unit}`;
-  document.getElementById('sell-qty').value = '';
-  document.getElementById('sell-qty').max = quantity;
-  document.getElementById('sell-price').value = currentPrice ? fmt(currentPrice) : '';
-  document.getElementById('sell-buyer').value = '';
-  document.getElementById('sell-paymethod').value = 'naqd';
-  updateSellTotal();
-  document.getElementById('sellModal').style.display = 'flex';
-}
-
-function closeSellModal() {
-  document.getElementById('sellModal').style.display = 'none';
-}
-
-function updateSellTotal() {
-  const qty = parseFloat(document.getElementById('sell-qty')?.value) || 0;
-  const price = parseNum(document.getElementById('sell-price')?.value) || 0;
-  document.getElementById('sell-total-box').textContent = `Jami: ${fmt(qty * price)} so'm`;
-}
-document.addEventListener('input', (e) => { if (e.target.id === 'sell-qty') updateSellTotal(); });
-
-async function submitSell() {
-  if (!_sellData) return;
-  const qty = parseFloat(document.getElementById('sell-qty').value) || 0;
-  const price = parseNum(document.getElementById('sell-price').value) || 0;
-  if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
-  if (qty > _sellData.quantity + 0.001) { showMsg(`Omborda faqat ${_sellData.quantity} ${_sellData.unit} bor`, 'error'); return; }
-  if (price <= 0) { showMsg('Narxni kiriting', 'error'); return; }
-
-  try {
-    const res = await fetch('/api/finished/sell', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        finished_product_id: _sellData.id,
-        quantity: qty,
-        unit_price: price,
-        buyer_name: document.getElementById('sell-buyer').value.trim() || null,
-        payment_method: document.getElementById('sell-paymethod').value
-      })
-    });
-    const r = await res.json();
-    if (res.ok) {
-      closeSellModal();
-      showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)`, 'success');
-      // G'ishtdan tashqari barcha mahsulot uchun — Yuk xati avtomatik ochiladi
-      if (r.product_name !== "G'isht" && r.sale_id) {
-        window.open(`/api/finished/sales/${r.sale_id}/pdf`, '_blank');
-      }
-      setTimeout(() => location.reload(), 1500);
-    } else {
-      showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
-    }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
-}
-
-async function editPrice(id) {
-  const item = fpItems.find(i => i.id === id);
-  if (!item) return;
-  const v = prompt(`${item.name}\n\nSotuv narxi (1 ${item.unit} uchun):`, String(Math.round(item.unit_price)));
-  if (v === null) return;
-  const val = parseNum(v);
-  if (!val || val <= 0) return;
-  try {
-    const res = await fetch(`/api/finished/${id}`, {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({unit_price: val})
-    });
-    if (res.ok) { loadFp(); showMsg('✓ Narx yangilandi', 'success'); }
-  } catch(e) { showMsg('Xato', 'error'); }
-}
-
-async function delFp(id, source) {
-  const item = fpItems.find(i => i.id === id);
-  if (!item) return;
-
-  let back = false;
-  const hasReturnableMaterial = (source === 'produced' && item.volume_m3 > 0) ||
-                                 (item.category === 'gips' && item.gips_kg_used > 0);
-  if (hasReturnableMaterial) {
-    const choice = await confirmDeleteFp(item.name);
-    if (choice === null) return;
-    back = (choice === 'return');
-  } else {
-    if (!(await customConfirm(`${item.name} — o'chirish`, `${item.name} o'chirilsinmi?`, {danger: true, okText: "Ha, o'chirish"}))) return;
-  }
-
-  try {
-    const res = await fetch(`/api/finished/${id}?return_to_stock=${back}`, {method:'DELETE'});
-    if (res.ok) { loadFp(); showMsg('✓ O\'chirildi', 'success'); }
-  } catch(e) { showMsg('Xato', 'error'); }
-}
-
-// ── Ishlab chiqarish (buyurtma oynasidagi kabi) ───────────
-// ── Termopanel (Bazalt) ────────────────────────────────────
-let termoInventory = [];
-
-async function openTermoModal() {
-  document.getElementById('termoModal').style.display = 'flex';
-  ['t-name','t-m2','t-loy','t-price','t-notes'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('t-recipe').value = '';
-  document.getElementById('t-error').style.display = 'none';
-  document.getElementById('t-calc').innerHTML = "Ma'lumotlarni kiriting";
-
-  try {
-    termoInventory = await fetch('/api/inventory').then(r => r.json());
-    const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
-
-    // MUHIM: ro'yxat endi NOMIGA qarab cheklanmaydi — istalgan nomdagi
-    // xomashyoni tanlash mumkin (masalan boshqa til/brend nomi bilan
-    // kiritilgan bo'lsa ham). Qulaylik uchun, agar nomida mos so'z
-    // topilsa, o'sha avtomatik oldindan tanlab qo'yiladi — lekin bu
-    // shart emas, xohlagan boshqasini ham tanlash mumkin.
-    const allSorted = [...termoInventory].sort((a,b) => a.item_name.localeCompare(b.item_name));
-    const fillSelect = (selectId, matchWord, emptyMsg) => {
-      const el = document.getElementById(selectId);
-      if (!allSorted.length) { el.innerHTML = `<option value="">${emptyMsg}</option>`; return; }
-      el.innerHTML = '<option value="">— Tanlang —</option>' + allSorted.map(opts).join('');
-      const guess = termoInventory.find(i => i.item_name.toLowerCase().includes(matchWord));
-      if (guess) el.value = guess.id;
-    };
-    fillSelect('t-bazalt', 'bazalt', 'Omborda xomashyo yo\'q — avval kirim qiling');
-    fillSelect('t-serp', 'serpiyank', 'Omborda xomashyo yo\'q — avval kirim qiling');
-    fillSelect('t-kley', 'kley', 'Omborda xomashyo yo\'q — avval kirim qiling');
-  } catch(e) {
-    document.getElementById('t-bazalt').innerHTML = '<option value="">Xato — qayta urinib ko\'ring</option>';
-  }
-}
-
-function closeTermoModal() {
-  document.getElementById('termoModal').style.display = 'none';
-}
-
-function tCalc() {
-  const m2 = parseFloat(document.getElementById('t-m2').value) || 0;
-  const bazaltId = parseInt(document.getElementById('t-bazalt').value);
-  const loyKg = parseFloat(document.getElementById('t-loy').value) || 0;
-  const price = parseNum(document.getElementById('t-price').value);
-  const box = document.getElementById('t-calc');
-
-  if (!m2) { box.innerHTML = '<span style="color:#aaa">Kvadrat metrni kiriting</span>'; return; }
-
-  const bazalt = termoInventory.find(i => i.id === bazaltId);
-  const serpId = parseInt(document.getElementById('t-serp').value);
-  const kleyId = parseInt(document.getElementById('t-kley').value);
-  const serp = termoInventory.find(i => i.id === serpId);
-
-  let html = `📐 Kerak: <b>${m2} m²</b><br>`;
-  if (bazalt) {
-    const areaPerSheet = parseFloat(bazalt.volume_per_unit) || 0.72;
-    const sheets = m2 / areaPerSheet;
-    const cost = sheets * (bazalt.price_per_unit || 0);
-    html += `🧱 Bazalt: <b>${sheets.toFixed(2)} dona</b> (${fmt(cost)} so'm)<br>`;
-  } else {
-    html += `<span style="color:#F59E0B">🧱 Bazaltni tanlang</span><br>`;
-  }
-  if (serp) {
-    const areaPerRulon = parseFloat(serp.volume_per_unit) || 50;
-    const serpRatio = (bazalt && bazalt.serp_ratio_per_m2) ? parseFloat(bazalt.serp_ratio_per_m2) : 2.0;
-    const rulon = (m2 * serpRatio) / areaPerRulon;
-    const cost = rulon * (serp.price_per_unit || 0);
-    html += `🕸️ Serpiyanka (avtomatik, ${serpRatio}× maydon): <b>${rulon.toFixed(2)} rulon</b> (${fmt(cost)} so'm)<br>`;
-  } else {
-    html += `<span style="color:#F59E0B">🕸️ Serpiyankani tanlang</span><br>`;
-  }
-  const kley = termoInventory.find(i => i.id === kleyId);
-  if (kley) {
-    const kleyRatio = (bazalt && bazalt.kley_ratio_per_m2) ? parseFloat(bazalt.kley_ratio_per_m2) : 0.8;
-    const kleyKg = m2 * kleyRatio;
-    const kleyCost = kleyKg * (kley.price_per_unit || 0);
-    html += `🧴 Kley (avtomatik, ${kleyRatio} kg/m²): <b>${kleyKg.toFixed(2)} kg</b> (${fmt(kleyCost)} so'm)<br>`;
-  } else {
-    html += `<span style="color:#F59E0B">🧴 Kleyni tanlang</span><br>`;
-  }
-  if (loyKg > 0) {
-    const loyCost = loyKg * loyCostPerKg;
-    html += `🪣 Loy: <b>${loyKg} kg</b>${loyCostPerKg > 0 ? ` × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm` : ''}<br>`;
-  }
-  if (price > 0) {
-    const revenue = price * m2;
-    html += `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #ddd">💵 Sotuv: <b style="color:#22C55E">${fmt(revenue)} so'm</b> (${fmt(price)}/m²)</div>`;
-  }
-  box.innerHTML = html;
-}
-
-async function saveTermopanel() {
-  const err = document.getElementById('t-error');
-  const name = document.getElementById('t-name').value.trim();
-  const m2 = parseFloat(document.getElementById('t-m2').value) || 0;
-  const bazaltId = parseInt(document.getElementById('t-bazalt').value);
-  const serpId = parseInt(document.getElementById('t-serp').value);
-  const kleyId = parseInt(document.getElementById('t-kley').value);
-  const price = parseNum(document.getElementById('t-price').value);
-
-  if (!name) { err.style.display='block'; err.textContent='❌ Mahsulot nomini kiriting'; return; }
-  if (!m2) { err.style.display='block'; err.textContent='❌ Kvadrat metrni kiriting'; return; }
-  if (!bazaltId) { err.style.display='block'; err.textContent='❌ Plotnost (bazalt turi)ni tanlang'; return; }
-  if (!serpId) { err.style.display='block'; err.textContent='❌ Serpiyanka turini tanlang'; return; }
-  if (!kleyId) { err.style.display='block'; err.textContent='❌ Kley turini tanlang'; return; }
-  if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
-  err.style.display = 'none';
-
-  const data = {
-    name,
-    required_m2: m2,
-    bazalt_item_id: bazaltId,
-    serpiyanka_item_id: serpId,
-    kley_item_id: kleyId,
-    recipe_id: parseInt(document.getElementById('t-recipe').value) || null,
-    loy_kg: parseFloat(document.getElementById('t-loy').value) || 0,
-    unit_price: price,
-    notes: document.getElementById('t-notes').value.trim() || null
-  };
-
-  try {
-    const res = await fetch('/api/finished/produce-termopanel', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
-    const r = await res.json();
-
-    if (res.ok) {
-      closeTermoModal();
-      loadFp();
-      let msg = `⏳ ${r.name}: ${r.quantity} m² — ishlab chiqarish boshlandi\n\n`;
-      msg += `🧱 Bazalt: ${r.bazalt_sheets} dona\n🕸️ Serpiyanka: ${r.serpiyanka_rulon} rulon\n`;
-      if (r.kley_kg > 0) msg += `🧴 Kley: ${r.kley_kg} kg\n`;
-      msg += `\n💰 Tan narxi: ${fmt(r.total_cost)} so'm\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
-      msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
-      showMsg(msg, 'success');
-    } else {
-      const d = r.detail || {};
-      err.style.display = 'block';
-      err.innerHTML = '❌ ' + (d.message || 'Xato') +
-        (d.shortages?.length ? '<br>' + d.shortages.join('<br>') : '');
-    }
-  } catch(e) {
-    err.style.display = 'block';
-    err.textContent = '❌ Server xatosi';
-  }
-}
-
-function syncPCoatingUI(isCoated) {
-  const toggle = document.getElementById('p-coat-toggle');
-  if (!toggle) return;
-  toggle.querySelectorAll('.coat-opt').forEach(o => o.classList.remove('active'));
-  const target = toggle.querySelector(isCoated ? '.coat-yes' : '.coat-no');
-  if (target) target.classList.add('active');
-}
-
-function setPCoating(el, isCoated) {
-  document.getElementById('p-coated').value = isCoated ? 'true' : 'false';
-  syncPCoatingUI(isCoated);
-  pCalc();
-}
-
-function openProduceModal() {
-  document.getElementById('prodModal').style.display = 'flex';
-  ['p-name','p-h','p-w','p-t','p-up','p-loy','p-price','p-notes'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  document.getElementById('p-l').value = '0';
-  document.getElementById('p-q').value = '1';
-  document.getElementById('p-type').value = 'profil';
-  document.querySelectorAll('#p-type-toggle .type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === 'profil'));
-  document.getElementById('p-coated').value = 'true';
-  syncPCoatingUI(true);
-  document.getElementById('p-error').style.display = 'none';
-  window._pDonaVolLocked = false;
-  window._pDonaVolPerUnit = 0;
-  pToggle();
-  onPPenoChange();
-  pCalc();
-  document.getElementById('p-name').focus();
-}
-
-function closeProduceModal() {
-  document.getElementById('prodModal').style.display = 'none';
-}
-
-// Buyurtmadagi toggleFields bilan bir xil
-// Tur — tugma-chip tanlash (dropdown o'rniga). Yashirin <select>ga
-// qiymatni yozib, xuddi shu eski pToggle()/pCalc() funksiyalarini
-// chaqiradi — hisob-kitob mantig'i O'ZGARMAYDI, faqat kirish usuli.
-function selectPType(btn, value) {
-  document.querySelectorAll('#p-type-toggle .type-opt').forEach(o => o.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('p-type').value = value;
-  pToggle();
-  pCalc();
-}
-
-function pToggle() {
-  const type = document.getElementById('p-type').value;
-  const hW = document.getElementById('p-h-wrap');
-  const wW = document.getElementById('p-w-wrap');
-  const tW = document.getElementById('p-t-wrap');
-  const lW = document.getElementById('p-l-wrap');
-  const qW = document.getElementById('p-q-wrap');
-  const upW = document.getElementById('p-up-wrap');
-  const blokRow = document.getElementById('p-blok-row');
-  const m3Wrap = document.getElementById('p-m3').closest('.form-group');
-
-  blokRow.style.display = (type === 'blok') ? 'flex' : 'none';
-  const donaYieldW0 = document.getElementById('p-donayield-wrap');
-  if (donaYieldW0) donaYieldW0.style.display = 'none';
-  if (type !== 'dona') { window._pDonaVolLocked = false; window._pDonaVolPerUnit = 0; }
-
-  if (type === 'dona') {
-    hW.style.display = 'block'; wW.style.display = 'none';
-    tW.style.display = 'block'; lW.style.display = 'none';
-    qW.style.display = 'block'; upW.style.display = 'block';
-    m3Wrap.style.display = '';
-    const dyW = document.getElementById('p-donayield-wrap');
-    if (dyW) dyW.style.display = 'block';
-    ['p-w','p-l'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
-  } else if (type === 'panel') {
-    hW.style.display = 'block'; wW.style.display = 'block';
-    tW.style.display = 'block'; lW.style.display = 'none';
-    qW.style.display = 'block'; upW.style.display = 'none';
-    m3Wrap.style.display = '';
-    document.getElementById('p-l').value = '0';
-  } else if (type === 'blok') {
-    hW.style.display = 'none'; wW.style.display = 'none';
-    tW.style.display = 'none';
-    lW.style.display = 'block';   // 1 blokdan chiqadigan metr
-    qW.style.display = 'block';   // Necha metr kerak
-    upW.style.display = 'none';
-    m3Wrap.style.display = 'none';  // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
-    document.getElementById('p-l-label').textContent = "1 blokdan chiqadigan metr";
-    document.getElementById('p-q-label').textContent = "Necha metr kerak";
-    const tEl = document.getElementById('p-t'); if(tEl) tEl.value = '';
-    window._blokBase = '';
-  } else {
-    hW.style.display = 'block'; wW.style.display = 'block';
-    tW.style.display = 'none';  lW.style.display = 'block';
-    qW.style.display = 'none';  upW.style.display = 'none';
-    m3Wrap.style.display = '';
-    document.getElementById('p-l-label').textContent = 'Uzunlik';
-    const tEl = document.getElementById('p-t'); if(tEl) tEl.value = '';
-    document.getElementById('p-q').value = '1';
-  }
-  if (type !== 'blok') document.getElementById('p-l-label').textContent = 'Uzunlik';
-  // Yozuvlar: profil/panel/blok — metr, dona — dona
-  const isMetr = (type === 'profil' || type === 'panel' || type === 'blok');
-  document.getElementById('p-unit-label').textContent = isMetr ? 'metr' : 'dona';
-  const qLbl = document.getElementById('p-q-label');
-  const qSuffix = document.getElementById('p-q-suffix');
-  if (qLbl && type !== 'blok') qLbl.textContent = (type === 'panel') ? 'Uzunlik' : 'Miqdor';
-  if (qSuffix) qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : 'dona';
-}
-
-function recalcBlokPrice() {
-  const bpEl = document.getElementById('p-blokprice');
-  const isCoated = document.getElementById('p-coated').value === 'true';
-  const mult = parseFloat(document.getElementById('p-blokmult').value) || 2;
-  const base = parseFloat(window._blokBase) || 0;
-  if (base > 0) bpEl.value = fmt(Math.round(isCoated ? base * mult : base));
-  pCalc();
-}
-
-function onBlokPriceInput() {
-  const bpEl = document.getElementById('p-blokprice');
-  const isCoated = document.getElementById('p-coated').value === 'true';
-  const mult = parseFloat(document.getElementById('p-blokmult').value) || 2;
-  const typed = parseNum(bpEl.value) || 0;
-  window._blokBase = isCoated ? (typed / mult) : typed;
-  pCalc();
-}
-
-// Buyurtmadagi toggleDonaVolLock bilan bir xil mantiq
-function pToggleVolLock() {
-  window._pDonaVolLocked = !window._pDonaVolLocked;
-  pCalc();
-}
-
-function pCalc() {
-  const type = document.getElementById('p-type').value;
-  const h = parseFloat(document.getElementById('p-h').value) || 0;
-  const w = parseFloat(document.getElementById('p-w').value) || 0;
-  const t = parseFloat(document.getElementById('p-t').value) || 0;
-  const l = parseFloat(document.getElementById('p-l').value) || 0;
-  const qty = parseFloat(document.getElementById('p-q').value) || 1;
-  const isCoated = document.getElementById('p-coated').value === 'true';
-  const basePrice = parseNum(document.getElementById('p-m3').value);
-  const box = document.getElementById('p-calc');
-
-  let volume_total = 0, price = 0, perUnitPrice = 0, count = 0, unit = 'metr';
-
-  if (type === 'dona') {
-    const upEl = document.getElementById('p-up');
-    let unitPrice = upEl ? parseFloat(upEl.value) || 0 : 0;
-    const donaYieldEl = document.getElementById('p-donayield');
-    const donaYield = donaYieldEl ? parseNum(donaYieldEl.value) || 0 : 0;
-
-    // Hajm — standart holatda JONLI hisoblanadi (Buyurtmalar bo'limidagi
-    // bilan bir xil, yangilangan mantiq). Faqat 🔒 tugmasi bosilgandagina
-    // hajm "muzlaydi" — shundan keyin narxni o'zgartirsangiz ham (masalan
-    // qimmatroq sotish uchun) ombordan yechiladigan HAJM o'zgarmaydi.
-    if (window._pDonaVolLocked) {
-      // MUHIM: bu yerdagi narx (upEl.value) — allaqachon QOPLAMALI (agar
-      // Qoplama "Bor" bo'lsa) holatda saqlangan (pastdagi yangi usul,
-      // qulflanmagan holatda, buni ALLAQACHON 2ga ko'paytirib yozgan edi).
-      // Shuning uchun bu yerda YANA 2ga ko'paytirsak — noto'g'ri, ikki
-      // baravar oshib ketardi (12 000 → 24 000 kabi xato).
-      volume_total = window._pDonaVolPerUnit * qty;
-      perUnitPrice = unitPrice;
-      price = unitPrice * qty;
-    } else if (h > 0 && t > 0 && donaYield > 0 && basePrice > 0) {
-      // YANGI USUL: Eni x Qalinlik x (1 metrdan necha dona chiqishi) dan —
-      // hajm TO'G'RIDAN-TO'G'RI, aniq hisoblanadi (Profil formulasi bilan
-      // bir xil), va narx SHUNDAN avtomatik to'ldiriladi.
-      const perUnitVol = (h/100) * (t/100) / 2 / donaYield;
-      volume_total = perUnitVol * qty;
-      window._pDonaVolPerUnit = perUnitVol;
-      unitPrice = perUnitVol * basePrice;
-      if (isCoated) unitPrice *= 2;
-      if (upEl) upEl.value = Math.round(unitPrice);
-      perUnitPrice = unitPrice;
-      price = unitPrice * qty;
-    } else {
-      // MUHIM: bu yerdagi unitPrice (upEl.value'dan) — agar oldin to'liq
-      // o'lcham kiritilgan bo'lsa-yu, keyin birortasi tozalangan bo'lsa —
-      // ALLAQACHON qoplamali holatda saqlangan bo'lishi mumkin. Shuning
-      // uchun bu yerda ham QAYTA ko'paytirmaymiz (yuqoridagi bilan bir xil
-      // xavfsizlik qoidasi).
-      perUnitPrice = unitPrice;
-      price = unitPrice * qty;
-    }
-    count = qty; unit = 'dona';
-  } else if (type === 'profil') {
-    const eni_m  = h / 100;
-    const keng_m = w / 100;
-    const perMeter_base = (eni_m * keng_m * basePrice) / 2;
-    price = perMeter_base * l;
-    if (isCoated) { price *= 2; perUnitPrice = perMeter_base * 2; }
-    else { perUnitPrice = perMeter_base; }
-    volume_total = (eni_m * keng_m * l) / 2;
-    count = l; unit = 'metr';
-  } else if (type === 'panel') {
-    const eni_m   = h / 100;
-    const qalin_m = t / 100;
-    const perDona_base = eni_m * qalin_m * basePrice;
-    price = perDona_base * qty;
-    if (isCoated) { price *= 2; perUnitPrice = perDona_base * 2; }
-    else { perUnitPrice = perDona_base; }
-    volume_total = eni_m * qalin_m * qty;
-    count = qty; unit = 'metr';
-  } else if (type === 'blok') {
-    // l = "1 blokdan chiqadigan metr" (taxminan), qty = "Necha metr kerak"
-    const blokPrice = parseNum(document.getElementById('p-blokprice').value) || 0;
-    const chiqadiPerBlok = l;
-    const kerakMetr = qty;
-
-    perUnitPrice = chiqadiPerBlok > 0 ? (blokPrice / chiqadiPerBlok) : 0;
-    price = perUnitPrice * kerakMetr;
-
-    const blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;
-    window._blokKerak = blokKerak;
-
-    const pid = parseInt(document.getElementById('p-peno').value);
-    const p = PENOS.find(x => x.id === pid);
-    volume_total = p ? (p.vol * blokKerak) : 0;
-    count = kerakMetr; unit = 'metr';
-  }
-
-  window._pCalc = { volume: volume_total, price, perUnitPrice, count, unit };
-
-  if (!volume_total || !count) {
-    box.innerHTML = '<span style="color:#aaa">O\'lchamlarni kiriting</span>';
-    return;
-  }
-
-  // ── TAN NARXI ──
-  const pid = parseInt(document.getElementById('p-peno').value);
-  const p = PENOS.find(x => x.id === pid);
-  let penoCost = 0, blocks = 0;
-  if (p && p.vol > 0) {
-    blocks = volume_total / p.vol;
-    penoCost = blocks * p.price;
-  }
-
-  // Loy xarajati
-  const loyKg = parseFloat(document.getElementById('p-loy').value) || 0;
-  const loyCost = loyKg * loyCostPerKg;
-  const cost = penoCost + loyCost;
-
-  // Sotuv narxi — kiritilmagan bo'lsa hisoblangani
-  const inputPrice = parseNum(document.getElementById('p-price').value);
-  const effPrice = inputPrice || perUnitPrice;
-  const revenue = effPrice * count;
-  const profit = revenue - cost;
-  const margin = revenue > 0 ? (profit / revenue * 100) : 0;
-
-  const loyLine = loyKg > 0
-    ? (loyCostPerKg > 0
-        ? `<br>🧱 Loy: <b>${loyKg} kg × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm</b>${loyRecipeName ? ` <span style="color:#aaa">(${loyRecipeName})</span>` : ''}`
-        : `<br>🧱 Loy: <b>${loyKg} kg</b> <span style="color:#F59E0B">— retsept tanlanmagan</span>`)
-    : '';
-
-  const costPerUnit = count > 0 ? cost / count : 0;
-  const volLockLine = (type === 'dona' && volume_total > 0)
-    ? (window._pDonaVolLocked
-        ? ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#B9783F" title="Qulfdan chiqarish (hajm qayta jonli hisoblanadi)">🔒 qulflangan</button>`
-        : ` <button type="button" onclick="pToggleVolLock()" style="border:none;background:none;cursor:pointer;font-size:12px;color:#B9783F" title="Hajmni qulflash (keyin narx o'zgarsa ham hajm o'zgarmaydi)">🔓 qulflash</button>`)
-    : '';
-
-  box.innerHTML = `
-    📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b> = ${fmt(penoCost)} so'm` : ''}${volLockLine}${loyLine}<br>
-    💵 1 ${unit} narxi: <b style="color:#B9783F">${fmt(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:#aaa">(kiritilgan: ${fmt(inputPrice)})</span>` : ''}<br>
-    <div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">
-      💰 Tan narxi: <b style="color:#DC2626">${fmt(cost)} so'm</b>
-      <span style="color:#aaa">(1 ${unit} = ${fmt(costPerUnit)})</span><br>
-      💵 Sotuv: <b style="color:#22C55E">${fmt(revenue)} so'm</b><br>
-      📈 Foyda: <b style="color:${profit>0?'#22C55E':'#DC2626'};font-size:13px">${fmt(profit)} so'm</b>
-      <span style="color:#aaa">(${margin.toFixed(1)}%)</span>
-    </div>
-    🏭 Natija: <b style="color:#B9783F">${count} ${unit}</b>`;
-}
-
-async function saveProduce() {
-  const err = document.getElementById('p-error');
-  const name = document.getElementById('p-name').value.trim();
-  if (!name) { err.style.display='block'; err.textContent='❌ Mahsulot nomini kiriting'; return; }
-
-  const type = document.getElementById('p-type').value;
-  const c = window._pCalc || {};
-  if (!c.count || c.count <= 0) {
-    err.style.display='block';
-    err.textContent = (type === 'profil' || type === 'panel') ? '❌ Uzunlikni kiriting' : '❌ Miqdorni kiriting';
-    return;
-  }
-
-  const h = parseFloat(document.getElementById('p-h').value) || null;
-  const w = parseFloat(document.getElementById('p-w').value) || null;
-  const t = parseFloat(document.getElementById('p-t').value) || null;
-  const l = parseFloat(document.getElementById('p-l').value) || null;
-  const qty = parseFloat(document.getElementById('p-q').value) || 1;
-  const up = parseFloat(document.getElementById('p-up').value) || null;
-
-  // Sotuv narxi — kiritilmagan bo'lsa hisoblangani
-  const price = parseNum(document.getElementById('p-price').value) || Math.round(c.perUnitPrice || 0);
-  if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
-
-  err.style.display = 'none';
-
-  // Buyurtmadagi kabi maydonlarni joylashtiramiz
-  const data = {
-    name,
-    category: type,
-    is_coated: document.getElementById('p-coated').value === 'true',
-    penoplast_id: parseInt(document.getElementById('p-peno').value) || null,
-    price_per_m3: parseNum(document.getElementById('p-m3').value) || null,
-    unit_price: price,
-    loy_kg: parseFloat(document.getElementById('p-loy').value) || 0,
-    recipe_id: parseInt(document.getElementById('p-recipe').value) || null,
-    notes: document.getElementById('p-notes').value.trim() || null
-  };
-
-  if (type === 'panel') {
-    // Buyurtmadagi kabi: width=eni, thickness=qalinlik, kenglik notes ga
-    data.width = h;
-    data.thickness = t;
-    data.length = null;
-    data.quantity = qty;
-    if (w) data.notes = (data.notes ? data.notes + ' · ' : '') + `width2=${w}`;
-  } else if (type === 'dona') {
-    const donaYieldEl = document.getElementById('p-donayield');
-    const donaYield = donaYieldEl ? parseNum(donaYieldEl.value) || 0 : 0;
-
-    // YANGI USUL: Eni+Qalinlik+"1 metrdan nechta" to'liq kiritilgan bo'lsa —
-    // width/thickness/length yuboramiz (backend PROFIL formulasi bilan
-    // hisoblaydi — aniq, real o'lchamga asoslangan).
-    if (h > 0 && t > 0 && donaYield > 0) {
-      data.width = h;
-      data.thickness = t;
-      data.length = qty / donaYield;
-      data.notes = (data.notes ? data.notes + ' · ' : '') + `dona_yield=${donaYield}`;
-    } else {
-      data.width = null;
-      data.thickness = null;
-      data.length = null;
-    }
-    data.quantity = qty;
-    // MUHIM: hajm hisobi uchun QULFLANGAN (birinchi kiritilgan) narxni
-    // yuboramiz — hozirgi "1 dona narxi" maydonida boshqa (masalan
-    // qimmatroq sotish uchun o'zgartirilgan) son turgan bo'lsa ham,
-    // ombordan yechiladigan HAQIQIY hajm o'zgarib qolmasligi uchun.
-    const basePriceNow = parseNum(document.getElementById('p-m3').value) || 0;
-    data.unit_price_for_volume = window._pDonaVolLocked
-      ? (window._pDonaVolPerUnit * basePriceNow)
-      : up;
-  } else if (type === 'blok') {
-    // length = ishlatilgan blok soni (ombordan shuncha yechiladi)
-    // quantity = blokdan chiqqan metr (mijozga ko'rsatiladigan/tayyor mahsulot miqdori)
-    data.width = null;
-    data.thickness = null;
-    data.length = window._blokKerak || 0;
-    data.quantity = qty;
-  } else {
-    // profil: width=eni, thickness=kenglik, length=uzunlik
-    data.width = h;
-    data.thickness = w;
-    data.length = l;
-    data.quantity = 1;
-  }
-
-  // MUHIM: agar RETSEPT tanlangan bo'lsa-yu, LOY MIQDORI 0 (yoki bo'sh)
-  // bo'lsa — bu, deyarli har doim XATO (foydalanuvchi loy yozishni
-  // unutgan yoki maydon tozalanib qolgan). Bunday holatda, xomashyo
-  // ayirilmasdan mahsulot yaratilib, ombor hisobini buzardi. Endi
-  // oldindan ogohlantiramiz.
-  if (data.recipe_id && (!data.loy_kg || data.loy_kg <= 0)) {
-    const ok = await customConfirm(
-      "Diqqat — Loy miqdori kiritilmagan",
-      "Retsept tanlangan, lekin LOY MIQDORI kiritilmagan (0).\n\n" +
-      "Bu holatda qoplama uchun xomashyo (Akril va h.k.) OMBORDAN AYIRILMAYDI.\n\n" +
-      "Agar bu ataylab bo'lsa (masalan faqat Penoplast, qoplamasiz) — davom eting.\n" +
-      "Aks holda — Bekor qiling va loy miqdorini kiriting.",
-      {danger: true, okText: 'Davom etish'}
-    );
-    if (!ok) return;
-  }
-
-  try {
-    const res = await fetch('/api/finished/produce', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
-    const r = await res.json();
-
-    if (res.ok) {
-      closeProduceModal();
-      loadFp();
-      let msg = `⏳ ${r.name}: ${r.quantity} ${r.unit} — ishlab chiqarish boshlandi`;
-      if (r.inventory_log?.length) msg += '\n\n📦 Ombordan:\n' + r.inventory_log.join('\n');
-      msg += `\n\n💰 Tan narxi: ${fmt(r.total_cost)} so'm`;
-      msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
-      msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
-      showMsg(msg, 'success');
-    } else {
-      const d = r.detail || {};
-      err.style.display = 'block';
-      err.innerHTML = '❌ ' + (d.message || 'Xato') +
-        (d.shortages?.length ? '<br>' + d.shortages.join('<br>') : '');
-    }
-  } catch(e) {
-    err.style.display = 'block';
-    err.textContent = '❌ Server xatosi';
-  }
-}
-
-// ── TAYYOR (sotuvga tayyor) ───────────────────────────────
-async function markReady(id) {
-  const item = fpItems.find(i => i.id === id);
-  if (!item) return;
-
-  const txt = `📦 ${item.quantity} ${item.unit}\n\n` +
-    `Xomashyo allaqachon yechilgan — bu faqat holat o'zgarishi.`;
-
-  if (!(await customConfirm(`${item.name} — sotuvga tayyor`, txt))) return;
-
-  try {
-    const res = await fetch(`/api/finished/${id}/complete`, { method: 'POST' });
-    const r = await res.json();
-
-    if (res.ok) {
-      loadFp();
-      showMsg(`✅ ${r.name} — SOTUVGA TAYYOR! (${r.quantity} ${r.unit})`, 'success');
-    } else {
-      showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
-    }
-  } catch(e) {
-    showMsg('❌ Server xatosi', 'error');
-  }
-}
-
-// ── FOYDA ─────────────────────────────────────────────────
-function closeProfitModal() {
-  document.getElementById('profitModal').style.display = 'none';
-}
-
-async function openProfitModal(id) {
-  const i = fpItems.find(x => x.id === id);
-  if (!i) return;
-
-  document.getElementById('pm-sub').textContent = `${i.name} · ${i.quantity} ${i.unit}`;
-  document.getElementById('profitModal').style.display = 'flex';
-  document.getElementById('pm-body').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>';
-
-  const revenue = i.unit_price * i.quantity;
-  const totalCost = i.cost_price || 0;
-  const profit = revenue - totalCost;
-  const margin = revenue > 0 ? (profit / revenue * 100) : 0;
-
-  const row = (label, val, color, bold) => `
-    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px${bold?';font-weight:700':''}">
-      <span style="color:${bold?'var(--text)':'#777'}">${label}</span>
-      <span style="color:${color||'var(--text)'};font-weight:${bold?'700':'600'}">${val}</span>
-    </div>`;
-
-  // GIPS mahsulotlar — alohida, aniq ko'rinish
-  if (i.category === 'gips') {
-    const gipsKg = i.gips_kg_used || 0;
-    const gipsPerKg = gipsKg > 0 ? (totalCost / gipsKg) : 0;
-    document.getElementById('pm-body').innerHTML = `
-      <div style="background:#FCE7F3;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#9D174D;line-height:1.8">
-        🧱 ${gipsKg > 0 ? `Sarflangan Gips: <b>${gipsKg} kg</b>` : 'Gips miqdori kiritilmagan'}
-        ${i.created_by ? `<br>👤 ${i.created_by}` : ''}
-      </div>
-
-      <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
-      ${gipsKg > 0 ? row(`🧱 Gips (${gipsKg} kg × ${fmt(gipsPerKg)})`, fmt(totalCost) + " so'm") : row('🧱 Gips xarajati', fmt(totalCost) + " so'm")}
-      <div style="border-top:1px solid #eee;margin:4px 0"></div>
-      ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}
-
-      <div style="font-size:12px;font-weight:600;color:#777;margin:14px 0 4px">SOTUV</div>
-      ${row('Sotuv narxi (1 birlik)', fmt(i.unit_price) + " so'm")}
-      ${row('Miqdor', `${i.quantity} ${i.unit}`)}
-      ${row('Jami daromad', fmt(revenue) + " so'm", '#16A34A', true)}
-
-      <div style="border-top:2px solid #eee;margin:10px 0"></div>
-      ${row('SOF FOYDA', fmt(profit) + " so'm", profit >= 0 ? '#16A34A' : '#DC2626', true)}
-      ${row('Marja', margin.toFixed(1) + '%', profit >= 0 ? '#16A34A' : '#DC2626')}
-    `;
-    return;
-  }
-
-  // Loy va Penoplast narxini — ALOHIDA hisoblamasdan, backend'dan
-  // (allaqachon to'g'ri tuzatilgan) to'g'ridan-to'g'ri olamiz. Bu — ikkita
-  // alohida (va bir-biridan farqli chiqishi mumkin bo'lgan) hisoblash
-  // o'rniga, BITTA, ishonchli manbadan foydalanishni ta'minlaydi.
-  let loyCost = 0, loyPerKg = 0, recipeName = '', penoCost = 0, bazaltCost = 0, bazaltPanels = 0;
-  try {
-    const d = await fetch(`/api/finished/${id}/profit`).then(r => r.json());
-    if (d.success) {
-      loyCost = d.loy_cost || 0;
-      loyPerKg = d.loy_cost_per_kg || 0;
-      recipeName = d.recipe || '';
-      penoCost = d.penoplast_cost || 0;
-      bazaltCost = d.bazalt_cost || 0;
-      bazaltPanels = d.bazalt_panels_used || 0;
-    }
-  } catch(e) {}
-
-  const w2 = fpWidth2(i);
-  const dims = (i.width && i.thickness)
-    ? (w2 ? `${i.width}×${w2}×${i.thickness} sm` : `${i.width}×${i.thickness} sm`) : '—';
-
-  document.getElementById('pm-body').innerHTML = `
-    <div style="background:#FAFAF8;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#666;line-height:1.8">
-      📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}<br>
-      ${i.category !== 'termopanel' ? `📦 Hajm: <b>${(i.volume_m3 || 0).toFixed(4)} m³</b>` : `🧱 Bazalt: <b>${bazaltPanels.toFixed(2)} dona</b>`}
-      ${i.actual_loy_kg > 0 ? `· 🧱 Loy: <b>${i.actual_loy_kg} kg</b>${recipeName ? ` (${recipeName})` : ''}` : ''}
-      ${i.created_by ? `<br>👤 ${i.created_by}` : ''}
-    </div>
-
-    <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
-    ${i.category === 'termopanel' ? row('🧱 Bazalt', fmt(bazaltCost) + " so'm") : row('📦 Penoplast', fmt(penoCost) + " so'm")}
-    ${loyCost > 0 ? row(`🧱 Loy (${i.actual_loy_kg} kg × ${fmt(loyPerKg)})`, fmt(loyCost) + " so'm") : ''}
-    <div style="border-top:1px solid #eee;margin:4px 0"></div>
-    ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}
-
-    <div style="font-size:12px;font-weight:600;color:#777;margin:14px 0 4px">SOTUV</div>
-    ${row(`1 ${i.unit} narxi`, fmt(i.unit_price) + " so'm")}
-    ${row(`${i.quantity} ${i.unit} × ${fmt(i.unit_price)}`, fmt(revenue) + " so'm", '#22C55E', true)}
-
-    <div style="border-top:2px solid var(--text);margin:12px 0 6px"></div>
-    ${row('📈 FOYDA', `${fmt(profit)} so'm`, profit > 0 ? '#22C55E' : '#DC2626', true)}
-    <div style="text-align:right;font-size:12px;color:#aaa;margin-top:-2px">
-      Rentabellik: <b style="color:${margin>0?'#22C55E':'#DC2626'}">${margin.toFixed(1)}%</b>
-    </div>
-
-    ${i.quantity > 0 ? `
-    <div style="margin-top:14px;padding:10px 12px;background:#F8F5EF;border-radius:8px;font-size:12px;color:#666">
-      💡 1 ${i.unit} tan narxi: <b>${fmt(totalCost / i.quantity)} so'm</b> ·
-      Foyda: <b style="color:#22C55E">${fmt(profit / i.quantity)} so'm</b>
-    </div>` : ''}`;
-}
-
-async function showProfit(id) {
-  const item = fpItems.find(i => i.id === id);
-  if (!item) return;
-
-  document.getElementById('pm-sub').textContent = `${item.name} · ${item.quantity} ${item.unit}`;
-  document.getElementById('pm-body').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>';
-  document.getElementById('profitModal').style.display = 'flex';
-
-  try {
-    const res = await fetch(`/api/finished/${id}/profit`);
-    if (!res.ok) {
-      document.getElementById('pm-body').innerHTML =
-        '<div style="text-align:center;padding:20px;color:#DC2626">Ruxsat yo\'q yoki xato</div>';
-      return;
-    }
-    const d = await res.json();
-
-    const rows = (d.breakdown || []).map(b => `
-      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:12.5px">
-        <span style="color:#666;flex:1;min-width:0;padding-right:10px">${b.name}</span>
-        <span style="font-weight:600;color:var(--text);white-space:nowrap">${fmt(b.cost)} so'm</span>
-      </div>`).join('');
-
-    document.getElementById('pm-body').innerHTML = `
-      <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:8px">Xarajat tarkibi</div>
-      ${rows || '<div style="color:#bbb;font-size:12px;padding:8px 0">Xarajat ma\'lumoti yo\'q</div>'}
-
-      <div style="display:flex;justify-content:space-between;padding:10px 0 8px;border-top:2px solid var(--text);margin-top:6px">
-        <span style="font-size:13px;font-weight:700">Jami tan narxi</span>
-        <span style="font-size:14px;font-weight:700;color:#DC2626">${fmt(d.total_cost)} so'm</span>
-      </div>
-
-      <div style="background:#FAFAF8;border-radius:9px;padding:12px 14px;margin-top:10px">
-        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px">
-          <span style="color:#777">Sotuv narxi (1 ${d.unit})</span>
-          <span style="font-weight:600">${fmt(d.unit_price)} so'm</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px">
-          <span style="color:#777">Tan narxi (1 ${d.unit})</span>
-          <span style="font-weight:600;color:#DC2626">${fmt(d.cost_per_unit)} so'm</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0 4px;font-size:12.5px;border-top:1px solid #eee;margin-top:3px">
-          <span style="color:#555;font-weight:600">Foyda (1 ${d.unit})</span>
-          <span style="font-weight:700;color:${d.profit_per_unit>0?'#22C55E':'#DC2626'}">${fmt(d.profit_per_unit)} so'm</span>
-        </div>
-      </div>
-
-      <div style="display:flex;justify-content:space-between;padding:12px 0 4px;margin-top:10px;border-top:1px dashed #ddd">
-        <span style="font-size:13px;color:#777">Jami sotuv (${d.quantity} ${d.unit})</span>
-        <span style="font-size:14px;font-weight:700;color:#22C55E">${fmt(d.revenue)} so'm</span>
-      </div>
-
-      <div style="background:${d.profit>0?'#DCFCE7':'#FEE2E2'};border-radius:10px;padding:14px;margin-top:10px;text-align:center">
-        <div style="font-size:12px;color:#777;margin-bottom:3px">📈 UMUMIY FOYDA</div>
-        <div style="font-size:22px;font-weight:800;color:${d.profit>0?'#1e7e34':'#DC2626'}">
-          ${fmt(d.profit)} so'm
-        </div>
-        <div style="font-size:12px;color:#888;margin-top:2px">Rentabellik: ${d.margin}%</div>
-      </div>
-
-      <div style="font-size:10.5px;color:#bbb;margin-top:10px;text-align:center">
-        Hajm: ${d.volume_m3.toFixed(4)} m³${d.loy_kg > 0 ? ` · Loy: ${d.loy_kg} kg` : ''}
-      </div>`;
-  } catch(e) {
-    document.getElementById('pm-body').innerHTML =
-      '<div style="text-align:center;padding:20px;color:#DC2626">Server xatosi</div>';
-  }
-}
-
-loadFp();
+// Kam qolganlar sonini topbar ga
+const low = document.querySelectorAll('.stat-badge.danger').length;
+if(low>0) document.getElementById('low-count').textContent = low+' ta kam!';
 </script>
 {% endblock %}
