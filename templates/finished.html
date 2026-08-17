@@ -1946,9 +1946,13 @@ function pCalc() {
       perUnitPrice = unitPrice;
       price = unitPrice * qty;
     } else {
+      // MUHIM: bu yerdagi unitPrice (upEl.value'dan) — agar oldin to'liq
+      // o'lcham kiritilgan bo'lsa-yu, keyin birortasi tozalangan bo'lsa —
+      // ALLAQACHON qoplamali holatda saqlangan bo'lishi mumkin. Shuning
+      // uchun bu yerda ham QAYTA ko'paytirmaymiz (yuqoridagi bilan bir xil
+      // xavfsizlik qoidasi).
       perUnitPrice = unitPrice;
       price = unitPrice * qty;
-      if (isCoated) { price *= 2; perUnitPrice *= 2; }
     }
     count = qty; unit = 'dona';
   } else if (type === 'profil') {

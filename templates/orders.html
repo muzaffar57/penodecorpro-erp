@@ -3201,10 +3201,13 @@ function calculateItem(row) {
       row.querySelector('.i-vol').value = volume_total.toFixed(4);
       if (volBtn) { volBtn.style.display = 'inline'; volBtn.textContent = '🔓'; volBtn.title = "Hajmni qulflash (keyin narx o'zgarsa ham hajm o'zgarmaydi)"; }
     } else {
-      // Hali Eni/Qalinlik/"1 metrdan nechta" to'liq kiritilmagan
+      // Hali Eni/Qalinlik/"1 metrdan nechta" to'liq kiritilmagan.
+      // MUHIM: unitPrice (i-unitprice'dan) — agar oldin to'liq o'lcham
+      // kiritilgan bo'lsa-yu, keyin birortasi tozalangan bo'lsa —
+      // ALLAQACHON qoplamali holatda saqlangan bo'lishi mumkin, shuning
+      // uchun bu yerda QAYTA ko'paytirmaymiz.
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
-      if (isCoated) { price *= 2; perMeterPrice *= 2; }
       row.querySelector('.i-vol').value = '—';
       if (volBtn) volBtn.style.display = 'none';
     }
