@@ -1171,7 +1171,8 @@ def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
         "total_amount": float(p.total_amount),
         "purchased_at": p.purchased_at.isoformat() if p.purchased_at else None,
         "purchased_by": p.purchased_by,
-        "notes": p.notes
+        "notes": p.notes,
+        "receipt_id": p.receipt_id
     } for p in items]
 
 
