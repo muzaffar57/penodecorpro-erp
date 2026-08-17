@@ -58,6 +58,16 @@
 .mv-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:8px}
 .mv-badge.in{background:#DCFCE7;color:#166534}
 .mv-badge.out{background:#FEE2E2;color:#991B1B}
+.mv-order-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border:1px solid var(--border2);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:background .15s;background:var(--white)}
+.mv-order-row:hover{background:var(--gold-tint)}
+.mv-order-num{font-weight:700;color:var(--gold-dark);font-size:14.5px}
+.mv-order-meta{font-size:12.5px;color:var(--text3);margin-top:3px}
+.mv-order-count{font-size:12.5px;background:var(--bg);padding:4px 10px;border-radius:20px;color:var(--text2);font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:10px}
+.mv-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end;z-index:2100}
+.mv-drawer{background:#fff;width:440px;max-width:92vw;height:100%;box-shadow:-4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;animation:mvSlideIn .22s ease}
+@keyframes mvSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.mv-drawer-head{padding:18px 20px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.mv-drawer-body{padding:6px 20px 20px;overflow-y:auto;flex:1}
 </style>
 {% endblock %}
 
@@ -256,6 +266,20 @@
     <div style="padding:8px 22px;overflow-y:auto;flex:1" id="mv-list">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
     </div>
+  </div>
+</div>
+
+<!-- Buyurtma bo'yicha batafsil harakatlar — "shtorka" (yon panel) -->
+<div id="mvDrawerOverlay" style="display:none" class="mv-drawer-overlay" onclick="if(event.target===this)closeMvDrawer()">
+  <div class="mv-drawer">
+    <div class="mv-drawer-head">
+      <div>
+        <div id="mvDrawerTitle" style="font-weight:700;font-size:15px">—</div>
+        <div id="mvDrawerSub" style="font-size:12.5px;color:var(--text3);margin-top:2px">—</div>
+      </div>
+      <button onclick="closeMvDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>
+    <div class="mv-drawer-body" id="mvDrawerBody"></div>
   </div>
 </div>
 
@@ -600,6 +624,15 @@ function openMovements() {
 function closeMovements() { document.getElementById('movementsModal').style.display = 'none'; }
 
 let mvCurType = '';
+let mvAllRows = [];  // "shtorka" ochilganda qayta so'rov yubormasligimiz uchun, hammasini shu yerda saqlaymiz
+
+function mvFmtQty(q) {
+  const n = parseFloat(q) || 0;
+  // 2 xonagacha yaxlitlab, ortiqcha nollarni olib tashlaymiz (masalan
+  // "0.80" emas "0.8", "5.00" emas "5")
+  return n.toFixed(2).replace(/\.?0+$/, '');
+}
+
 async function loadMovements(type) {
   mvCurType = type;
   const list = document.getElementById('mv-list');
@@ -615,6 +648,7 @@ async function loadMovements(type) {
     const url = '/api/inventory/movements' + (params.toString() ? `?${params.toString()}` : '');
     const res = await fetch(url);
     const rows = await res.json();
+    mvAllRows = rows;
     if (!rows.length) {
       list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Harakatlar yo\'q</div>';
       return;
@@ -637,24 +671,101 @@ async function loadMovements(type) {
            <div style="font-size:11.5px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tanlangan davr — jami</div>
            ${summaryHtml}
          </div>` : '';
-    list.innerHTML = summaryBlock + rows.map(m => {
-      const dt = new Date(m.created_at);
-      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+
+    // Buyurtma bo'yicha guruhlaymiz — order_id borlar bitta guruh bo'ladi,
+    // order_id yo'qlar (yetkazuvchidan kirim va h.k.) "Boshqa" ostida.
+    const groups = {};   // order_id -> {rows, latestDate, orderNum}
+    const otherRows = [];
+    rows.forEach(m => {
+      if (m.order_id) {
+        if (!groups[m.order_id]) groups[m.order_id] = { rows: [], orderNum: null, latestDate: m.created_at };
+        groups[m.order_id].rows.push(m);
+        if (m.created_at > groups[m.order_id].latestDate) groups[m.order_id].latestDate = m.created_at;
+        // "reason" ichidan buyurtma raqamini (ORD-XXX-Y) ajratib olamiz
+        if (!groups[m.order_id].orderNum && m.reason) {
+          const om = m.reason.match(/ORD-\d+-\d+/);
+          if (om) groups[m.order_id].orderNum = om[0];
+        }
+      } else {
+        otherRows.push(m);
+      }
+    });
+
+    // Guruhlarni, eng so'nggi harakati bo'yicha (yangidan eskiga) tartiblaymiz
+    const groupIds = Object.keys(groups).sort((a, b) =>
+      new Date(groups[b].latestDate) - new Date(groups[a].latestDate));
+
+    let groupsHtml = groupIds.map(oid => {
+      const g = groups[oid];
+      const dt = new Date(g.latestDate);
+      const ds = dt.toLocaleDateString('uz');
+      const label = g.orderNum || `Buyurtma #${oid}`;
       return `
-      <div class="mv-row">
-        <div style="flex:1">
-          <div style="font-weight:500;color:var(--text)">${m.item_name}</div>
-          <div style="font-size:13px;color:var(--text3);margin-top:2px">${ds}${m.reason ? ' · '+m.reason : ''}${m.performed_by ? ' · '+m.performed_by : ''}</div>
+      <div class="mv-order-row" onclick="openMvDrawer('${oid}')">
+        <div style="min-width:0">
+          <div class="mv-order-num">📋 ${label}</div>
+          <div class="mv-order-meta">${ds}</div>
         </div>
-        <div style="text-align:right">
-          <span class="mv-badge ${m.movement_type}">${m.movement_type === 'in' ? 'Kirim' : 'Chiqim'}</span>
-          <div style="font-weight:600;margin-top:3px">${m.movement_type === 'in' ? '+' : '−'}${m.quantity} ${m.unit||''}</div>
-        </div>
+        <div class="mv-order-count">${g.rows.length} ta harakat →</div>
       </div>`;
     }).join('');
+
+    if (otherRows.length) {
+      groupsHtml += `
+      <div class="mv-order-row" onclick="openMvDrawer('other')">
+        <div style="min-width:0">
+          <div class="mv-order-num" style="color:var(--text2)">📦 Boshqa (yetkazuvchidan kirim va h.k.)</div>
+          <div class="mv-order-meta">Turli sanalar</div>
+        </div>
+        <div class="mv-order-count">${otherRows.length} ta harakat →</div>
+      </div>`;
+    }
+
+    list.innerHTML = summaryBlock + groupsHtml;
   } catch(e) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
   }
+}
+
+function mvRowHtml(m) {
+  const dt = new Date(m.created_at);
+  const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+  return `
+  <div class="mv-row">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:500;color:var(--text)">${m.item_name}</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:2px">${ds}${m.reason ? ' · '+m.reason : ''}${m.performed_by ? ' · '+m.performed_by : ''}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0;margin-left:10px">
+      <span class="mv-badge ${m.movement_type}">${m.movement_type === 'in' ? 'Kirim' : 'Chiqim'}</span>
+      <div style="font-weight:600;margin-top:3px">${m.movement_type === 'in' ? '+' : '−'}${mvFmtQty(m.quantity)} ${m.unit||''}</div>
+    </div>
+  </div>`;
+}
+
+function openMvDrawer(orderId) {
+  let rows, title, sub;
+  if (orderId === 'other') {
+    rows = mvAllRows.filter(m => !m.order_id);
+    title = '📦 Boshqa harakatlar';
+    sub = `${rows.length} ta harakat`;
+  } else {
+    rows = mvAllRows.filter(m => String(m.order_id) === String(orderId));
+    const om = rows.find(m => m.reason && m.reason.match(/ORD-\d+-\d+/));
+    const label = om ? om.reason.match(/ORD-\d+-\d+/)[0] : `Buyurtma #${orderId}`;
+    title = `📋 ${label}`;
+    sub = `${rows.length} ta harakat`;
+  }
+  // Eng yangidan eskiga tartiblab ko'rsatamiz
+  rows = [...rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  document.getElementById('mvDrawerTitle').textContent = title;
+  document.getElementById('mvDrawerSub').textContent = sub;
+  document.getElementById('mvDrawerBody').innerHTML = rows.map(mvRowHtml).join('');
+  document.getElementById('mvDrawerOverlay').style.display = 'flex';
+}
+
+function closeMvDrawer() {
+  document.getElementById('mvDrawerOverlay').style.display = 'none';
 }
 
 async function deleteItem(id) {
