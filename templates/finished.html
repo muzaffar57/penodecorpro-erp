@@ -14,7 +14,7 @@
 /* MUHIM: bu qoida FAQAT #prodModal ichidagi maydonlarga tegishli —
    umumiy .form-group'ga tegilmadi, chunki u boshqa 11 sahifada ham
    ishlatiladi va u yerlarga bu ta'sir qilishi kerak emas. */
-#prodModal .form-group{background:#F3F4F6;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+#prodModal .form-group{background:#F3F4F6;border-radius:12px;padding:12px 14px;margin-bottom:14px!important}
 #prodModal .form-group input,#prodModal .form-group select,#prodModal .form-group textarea{background:#fff}
 .fp-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .fp-page{
@@ -458,10 +458,10 @@
         <div class="form-group" style="margin:0;grid-column:1/-1">
           <label>Tur</label>
           <div class="type-toggle" id="p-type-toggle">
-            <div class="type-opt active" data-value="profil" onclick="selectPType(this,'profil')">Profil</div>
-            <div class="type-opt" data-value="panel" onclick="selectPType(this,'panel')">Panel</div>
-            <div class="type-opt" data-value="dona" onclick="selectPType(this,'dona')">Donali</div>
-            <div class="type-opt" data-value="blok" onclick="selectPType(this,'blok')">Blok (butun narxda)</div>
+            <div class="type-opt active" data-value="profil" onclick="selectPType(this,'profil')">📏 Profil</div>
+            <div class="type-opt" data-value="panel" onclick="selectPType(this,'panel')">🔲 Panel</div>
+            <div class="type-opt" data-value="dona" onclick="selectPType(this,'dona')">⭐ Donali</div>
+            <div class="type-opt" data-value="blok" onclick="selectPType(this,'blok')">🧊 Blok (butun narxda)</div>
           </div>
           <select id="p-type" style="display:none" onchange="pToggle();pCalc()">
             <option value="profil">Profil</option>
