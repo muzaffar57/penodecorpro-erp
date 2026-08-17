@@ -371,7 +371,7 @@ body {
 }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-.unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fafafa;transition:border .15s,background .15s}
+.unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;transition:border .15s,background .15s}
 .unit-input-wrap:focus-within{border-color:var(--gold);background:var(--white)}
 .unit-input-wrap input,.unit-input-wrap select{border:none!important;outline:none;padding:12px 14px;font-size:15px;color:var(--text);width:100%;background:transparent!important}
 .unit-input-wrap .unit-suffix{display:flex;align-items:center;padding:0 13px;background:var(--gold-tint);color:var(--gold-dark);font-size:12.5px;font-weight:700;white-space:nowrap;flex-shrink:0}
