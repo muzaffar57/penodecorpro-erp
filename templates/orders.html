@@ -2764,7 +2764,7 @@ function addItem() {
     </div>
     <div class="detal-result">
       <div class="result-cards">
-        <div class="result-card">
+        <div class="result-card i-vol-card">
           <label>Hajm <button type="button" class="i-vol-relock vol-relock" title="Hajmni qulflash/qulfdan chiqarish" onclick="toggleDonaVolLock(this.closest('.detal'))" style="display:none">🔓</button></label>
           <div class="dval-box"><input type="text" class="i-vol" readonly><span class="unit-suffix">m³</span></div>
         </div>
@@ -3031,6 +3031,14 @@ function toggleFields(row) {
     if (coatField) coatField.style.display = '';
     const tEl = row.querySelector('.i-t'); if(tEl) tEl.value = '';
     const qEl = row.querySelector('.i-q'); if(qEl) qEl.value = '1';
+  }
+
+  // "Hajm" kartochkasi — Termopanel/Gips/Loy sotishda ma'nosiz (bu
+  // turlarda xomashyo Penoplast m³ orqali EMAS, alohida yo'l bilan
+  // hisoblanadi) — shuning uchun bu 3 turda butunlay yashiramiz.
+  const volCard = row.querySelector('.i-vol-card');
+  if (volCard) {
+    volCard.style.display = (type === 'termopanel' || type === 'gips' || type === 'loy_sotish') ? 'none' : '';
   }
 
   // Miqdor maydonining nomi va birligi: panel — metr, blok — kerakli metr, dona — dona
