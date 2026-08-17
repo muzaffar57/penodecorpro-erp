@@ -442,7 +442,8 @@ class OrderItem(Base):
     @property
     def delivery_unit(self):
         """O'lchov birligi — profil, panel va blok metrda (mijozga metr bo'yicha yetkaziladi),
-        termopanel kvadrat metrda, GIPS — o'zi tanlangan birlik (metr/dona/m²), qolgani donada."""
+        termopanel kvadrat metrda, GIPS — o'zi tanlangan birlik (metr/dona/m²),
+        loy sotish — kg, qolgani donada."""
         cat = (self.category or '').lower()
         if cat in ('profil', 'panel', 'blok'):
             return 'metr'
@@ -451,6 +452,8 @@ class OrderItem(Base):
         if cat == 'gips':
             unit = (self.gips_unit or 'metr').lower()
             return 'm²' if unit == 'm2' else unit
+        if cat == 'loy_sotish':
+            return 'kg'
         return 'dona'
 
     @property
@@ -472,11 +475,16 @@ class OrderItem(Base):
 # ============================================================
 
 class ReturnItem(Base):
-    """Buyurtmadan qaytarilgan mahsulotlar (brak yoki ortiqcha)."""
+    """Buyurtmadan qaytarilgan mahsulotlar (brak yoki ortiqcha) —
+    YOKI tayyor mahsulot ishlab chiqarish jarayonidagi brak (buyurtmasiz,
+    to'g'ridan-to'g'ri ishlab chiqarilgan mahsulotlar uchun)."""
     __tablename__ = "return_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
+    # Tayyor mahsulot ishlab chiqarish jarayonidagi brak uchun — order_id
+    # o'rniga shu ishlatiladi (ikkalasidan FAQAT BITTASI to'ldiriladi).
+    finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
 
     item_name = Column(String(150), nullable=False)
     quantity = Column(Float, nullable=False)
