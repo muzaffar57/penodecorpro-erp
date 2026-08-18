@@ -661,8 +661,20 @@ def delete_item(db: Session, item_id: int) -> dict:
 
 
 def get_low_stock_items(db: Session) -> List[Inventory]:
-    """Qoldiq min_stock dan kam bo'lgan xomashyolar (ogohlantirish)."""
-    return db.query(Inventory).filter(Inventory.stock_quantity <= Inventory.min_stock).all()
+    """Qoldiq min_stock dan kam bo'lgan xomashyolar (ogohlantirish).
+
+    MUHIM: "Tayyor loy (...)" yozuvlari — bu, sotib olinadigan xomashyo
+    EMAS, balki buyurtmalardan ORTGAN, avtomatik yaratiladigan zaxira
+    (get_or_create_loy_stock orqali). U, tabiiy ravishda, to'liq
+    ishlatilib, aniq "0"ga tushishi — kutilgan, normal holat (xarid
+    qilish kerak degani EMAS). Shuning uchun, bu turkum, "kam qoldi"
+    ogohlantirishidan chiqarib tashlanadi — ombordagi haqiqiy miqdorning
+    o'ziga (va keyingi buyurtmalar uchun ishlatilishiga) bu SIRA tegmaydi.
+    """
+    return db.query(Inventory).filter(
+        Inventory.stock_quantity <= Inventory.min_stock,
+        ~Inventory.item_name.like('Tayyor loy (%')
+    ).all()
 
 
 # ============================================================
@@ -981,7 +993,14 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
             if loy_kg_t > 0:
                 parts.append(f"loy_kg={loy_kg_t:.4f}")
             if parts:
-                db_item.notes = ((db_item.notes or '') + " [TERMO:" + ",".join(parts) + "]").strip()
+                import re as _re_termo
+                # MUHIM: avval, mumkin bo'lgan ESKI "[TERMO:...]" belgisini
+                # tozalaymiz (agar biror sabab bilan notes'da allaqachon
+                # bo'lsa) — aks holda, takrorlanib, ikki marta yozilib
+                # qolishi mumkin edi (2026-08-17 zaxira nusxasida, ORD-026-2
+                # buyurtmasida aynan shu holat aniqlandi).
+                base_notes = _re_termo.sub(r'\s*\[TERMO:[^\]]+\]', '', db_item.notes or '').strip()
+                db_item.notes = (base_notes + " [TERMO:" + ",".join(parts) + "]").strip()
 
     db_order.total_amount = total_amount
     # Kelishilgan summa — boshida jami summaga teng (chegirmasiz)
