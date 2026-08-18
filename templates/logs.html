@@ -156,6 +156,37 @@ async function runHealthCheck() {
       </div>`;
     }
 
+    // Moliyaviy izchillik tekshiruvi — alohida, o'z bo'limida
+    const fin = d.financial;
+    if (fin) {
+      html += `<div style="margin-top:24px;padding-top:18px;border-top:2px dashed var(--border2)">
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">💰 Moliyaviy izchillik</div>`;
+      if (fin.issues_found === 0) {
+        html += `<div style="text-align:center;padding:24px;background:#F0FDF4;border-radius:12px">
+          <div style="font-size:28px;margin-bottom:6px">✅</div>
+          <div style="font-weight:700;color:#16A34A;font-size:14px">Hisob-kitoblar to'g'ri!</div>
+        </div>`;
+      } else {
+        const TYPE_LABEL = {
+          order_total_mismatch: "Buyurtma summasi mos emas",
+          debt_mismatch: "Qarz hisobi mos emas",
+          negative_stock: "Manfiy ombor qoldig'i",
+          purchase_total_mismatch: "Xarid summasi mos emas",
+          duplicate_note_marker: "Takroriy texnik belgi"
+        };
+        html += `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-weight:700;color:#DC2626">
+          ⚠️ ${fin.issues_found} ta moliyaviy nomuvofiqlik topildi:
+        </div>`;
+        fin.issues.forEach(iss => {
+          html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${iss.label} <span style="color:var(--text3);font-weight:400">(${TYPE_LABEL[iss.type] || iss.type})</span></div>
+            <div style="font-size:12.5px;color:#DC2626;margin-top:4px">${iss.detail}</div>
+          </div>`;
+        });
+      }
+      html += `</div>`;
+    }
+
     resultsEl.innerHTML = html;
   } catch (e) {
     btn.disabled = false;
