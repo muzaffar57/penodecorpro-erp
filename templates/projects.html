@@ -211,7 +211,7 @@
     </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-dark w-full" onclick="saveProject()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="proj-new-save-btn" onclick="saveProject()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
     </div>
   </div>
@@ -242,7 +242,7 @@
     </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-dark w-full" onclick="saveEditProject()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="proj-edit-save-btn" onclick="saveEditProject()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="document.getElementById('editModal').style.display='none'">Bekor</button>
     </div>
   </div>
@@ -313,16 +313,21 @@ function openProjLightbox(url) {
 }
 function closeProjLightbox() { document.getElementById('projLightbox').style.display = 'none'; }
 
+const inFlightProjImgUpload = new Set();
 async function uploadProjImage(id, input) {
   const file = input.files[0];
   if (!file) return;
+  if (inFlightProjImgUpload.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightProjImgUpload.add(id);
   const fd = new FormData();
   fd.append('file', file);
   try {
     const res = await fetch(`/api/projects/${id}/image`, { method: 'POST', body: fd });
     if (res.ok) location.reload();
     else alert('Rasm yuklanmadi');
-  } catch(e) { alert('Server xatosi'); }
+  } catch(e) { alert('Server xatosi'); } finally {
+    inFlightProjImgUpload.delete(id);
+  }
 }
 
 async function loadProgressMap(){
@@ -424,7 +429,7 @@ function renderAsosiy(d) {
       <button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right" style="font-size:12px"></i> Buyurtmaga o'tish</button>
       <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash" style="font-size:12px"></i> To'lovlarni ko'rish</button>
       <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-file-text" style="font-size:12px"></i> Hujjatlarni ko'rish</button>
-      <button class="btn btn-green btn-sm" onclick="markProjectComplete()"><i class="ti ti-check" style="font-size:12px"></i> Yakunlash</button>
+      <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check" style="font-size:12px"></i> Yakunlash</button>
       <button class="btn btn-gold btn-sm" ${_debtLeft <= 0.5 ? 'disabled title="Qarzdorlik yo\'q — buyurtma to\'liq to\'langan" style="opacity:.45;cursor:not-allowed"' : ''} onclick="showPayModal()">💰 To'lov qo'shish</button>
       <button class="btn btn-outline btn-sm" style="color:#EF4444;border-color:#EF4444" onclick="deleteProj()">O'chirish</button>
     </div>`;
@@ -570,7 +575,12 @@ function openEditModal() {
   document.getElementById('editModal').style.display = 'flex';
 }
 
+let isSavingEditProject = false;
 async function saveEditProject() {
+  if (isSavingEditProject) return; // Ikki marta bosishdan himoya
+  isSavingEditProject = true;
+  const btn = document.getElementById('proj-edit-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   const payload = {
     client_name: document.getElementById('e-client').value.trim(),
     client_phone: document.getElementById('e-phone').value.trim() || null,
@@ -580,16 +590,31 @@ async function saveEditProject() {
     status: document.getElementById('e-status').value,
     notes: document.getElementById('e-notes').value.trim() || null
   };
-  const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-  if (res.ok) location.reload();
-  else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  try {
+    const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    if (res.ok) { location.reload(); return; }
+    else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  } finally {
+    isSavingEditProject = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 
+let isMarkingProjComplete = false;
 async function markProjectComplete() {
   if (!confirm("Loyihani 'Yakunlangan' deb belgilaysizmi?")) return;
-  const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: 'COMPLETED'})});
-  if (res.ok) location.reload();
-  else alert('Xato');
+  if (isMarkingProjComplete) return; // Ikki marta bosishdan himoya
+  isMarkingProjComplete = true;
+  const btn = document.getElementById('proj-complete-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+  try {
+    const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: 'COMPLETED'})});
+    if (res.ok) { location.reload(); return; }
+    else alert('Xato');
+  } finally {
+    isMarkingProjComplete = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
 }
 
 function showPayModal(){document.getElementById('payModal').style.display='flex';}
@@ -639,21 +664,31 @@ function searchProj(){
   });
 }
 
+let isSavingNewProject = false;
 async function saveProject(){
   const client=document.getElementById('f-client').value.trim();
   const pname=document.getElementById('f-pname').value.trim();
   if(!client||!pname){alert('Mijoz va loyiha nomi shart!');return;}
-  const res=await fetch('/api/projects',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      client_name:client,client_phone:document.getElementById('f-phone').value||null,
-      client_address:document.getElementById('f-address').value||null,
-      notes: document.getElementById('f-tg-id').value ? `tg_id=${document.getElementById('f-tg-id').value.trim()}` : (document.getElementById('f-notes').value||null),
-      project_name:pname,
-      total_budget:parseFloat(document.getElementById('f-budget').value)||0,
-      deadline:document.getElementById('f-deadline').value||null,
-      notes:document.getElementById('f-notes').value||null
-    })});
-  if(res.ok){alert('✓ Loyiha yaratildi!');location.reload();}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+  if (isSavingNewProject) return; // Ikki marta bosishdan himoya
+  isSavingNewProject = true;
+  const btn = document.getElementById('proj-new-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+  try {
+    const res=await fetch('/api/projects',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        client_name:client,client_phone:document.getElementById('f-phone').value||null,
+        client_address:document.getElementById('f-address').value||null,
+        notes: document.getElementById('f-tg-id').value ? `tg_id=${document.getElementById('f-tg-id').value.trim()}` : (document.getElementById('f-notes').value||null),
+        project_name:pname,
+        total_budget:parseFloat(document.getElementById('f-budget').value)||0,
+        deadline:document.getElementById('f-deadline').value||null,
+        notes:document.getElementById('f-notes').value||null
+      })});
+    if(res.ok){alert('✓ Loyiha yaratildi!');location.reload();return;}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+  } finally {
+    isSavingNewProject = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 
 loadProgressMap();

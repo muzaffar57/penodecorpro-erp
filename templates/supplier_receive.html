@@ -342,7 +342,7 @@
     <div class="rcv-field" style="margin-bottom:12px"><label>Nomi</label><input type="text" id="ns-name" placeholder="Masalan: Akmal aka kimyo"></div>
     <div class="rcv-field" style="margin-bottom:16px"><label>Telefon</label><input type="text" id="ns-phone" placeholder="+998..."></div>
     <div style="display:flex;gap:8px">
-      <button style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="saveNewSupplier()">Saqlash</button>
+      <button id="new-supplier-save-btn" style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="saveNewSupplier()">Saqlash</button>
       <button style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="document.getElementById('newSupplierModal').style.display='none'">Bekor</button>
     </div>
   </div>
@@ -545,24 +545,34 @@ async function quickPaySupplier(confirmOverpay = false){
 }
 
 function openNewSupplier(){ document.getElementById('newSupplierModal').style.display = 'flex'; }
+let isSavingNewSupplier = false;
 async function saveNewSupplier(){
   const name = document.getElementById('ns-name').value.trim();
   if (!name) { showMsg('Nomni kiriting'); return; }
+  if (isSavingNewSupplier) return; // Ikki marta bosishdan himoya
+  isSavingNewSupplier = true;
+  const btn = document.getElementById('new-supplier-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   const phone = document.getElementById('ns-phone').value.trim();
-  const res = await fetch('/api/suppliers', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ name, phone: phone || null })
-  });
-  if (res.ok) {
-    const d = await res.json();
-    const sel = document.getElementById('r-supplier');
-    const opt = document.createElement('option');
-    opt.value = d.id; opt.textContent = name;
-    sel.appendChild(opt);
-    sel.value = d.id;
-    document.getElementById('newSupplierModal').style.display = 'none';
-    onSupplierChange();
-  } else showMsg('Xato yuz berdi', 'error');
+  try {
+    const res = await fetch('/api/suppliers', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, phone: phone || null })
+    });
+    if (res.ok) {
+      const d = await res.json();
+      const sel = document.getElementById('r-supplier');
+      const opt = document.createElement('option');
+      opt.value = d.id; opt.textContent = name;
+      sel.appendChild(opt);
+      sel.value = d.id;
+      document.getElementById('newSupplierModal').style.display = 'none';
+      onSupplierChange();
+    } else showMsg('Xato yuz berdi', 'error');
+  } finally {
+    isSavingNewSupplier = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 
 // ── MATERIAL TANLASH (mavjud, sinalgan mantiq) ──

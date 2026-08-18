@@ -5,7 +5,7 @@
 
 {% block topbar_actions %}
 {% if current_user.role.value == 'admin' %}
-<button class="btn btn-outline btn-sm" onclick="markAllReady()">✓✓ Hammasini tayyor</button>
+<button class="btn btn-outline btn-sm" id="mark-all-ready-btn" onclick="markAllReady()">✓✓ Hammasini tayyor</button>
 {% endif %}
 {% endblock %}
 
@@ -441,8 +441,8 @@
         </div>
 
         <div style="padding:0 12px 16px;display:flex;gap:10px">
-          <button class="btn btn-outline" style="flex:1;height:48px;font-size:14px;border-color:#8E8E93;color:#666;border-radius:10px" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
-          <button class="btn btn-dark" style="flex:2;height:48px;font-size:14.5px;font-weight:700;border-radius:10px" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
+          <button class="btn btn-outline" id="order-draft-btn" style="flex:1;height:48px;font-size:14px;border-color:#8E8E93;color:#666;border-radius:10px" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
+          <button class="btn btn-dark" id="order-save-btn" style="flex:2;height:48px;font-size:14.5px;font-weight:700;border-radius:10px" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
         </div>
       </div>
     </div>
@@ -483,7 +483,7 @@
             <div style="font-size:14px;font-weight:600;color:#b7770d">📝 Bu buyurtma qoralama holatida</div>
             <div style="font-size:14px;color:#997;margin-top:3px">Ombordan xomashyo hali yechilmagan. Mijoz tasdiqlaganda "Jarayonga olish" tugmasini bosing.</div>
           </div>
-          <button class="btn btn-dark btn-sm" style="flex-shrink:0" onclick="activateDraft()">▶️ Jarayonga olish</button>
+          <button class="btn btn-dark btn-sm" id="activate-draft-btn" style="flex-shrink:0" onclick="activateDraft()">▶️ Jarayonga olish</button>
         </div>
       </div>
 
@@ -578,7 +578,7 @@
               <span style="font-size:12.5px;color:#92400E;line-height:1.4">Agar to'lovdan keyin ozgina qarz qolsa (masalan mijoz "qolganini kechiring" desa) — <b>qolgan summa chegirma sifatida yozilsin</b> (foyda hisobotidan ham to'g'ri ayiriladi)</span>
             </label>
             <div style="display:flex;gap:6px">
-              <button class="btn btn-green btn-sm" style="flex:1" onclick="savePayment()">💾 Saqlash</button>
+              <button class="btn btn-green btn-sm" id="order-payment-save-btn" style="flex:1" onclick="savePayment()">💾 Saqlash</button>
               <button class="btn btn-outline btn-sm" onclick="closePaymentForm()">Bekor</button>
             </div>
           </div>
@@ -868,7 +868,7 @@
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeDeliveryModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2" onclick="saveDelivery()">💾 Saqlash va nakladnoy olish</button>
+      <button class="btn btn-dark" id="delivery-save-btn" style="flex:2" onclick="saveDelivery()">💾 Saqlash va nakladnoy olish</button>
 
     </div>
   </div>
@@ -916,6 +916,42 @@ function closeItemImgLightbox() { document.getElementById('itemImgLightbox').sty
 let selectedOrderId = null;
 let itemCount = 0;
 let editMode = false;          // tahrirlash rejimidamizmi
+let isSubmittingOrderForm = false;   // ikki marta bosishdan himoya — buyurtma yaratish/yangilash
+let isSubmittingDelivery = false;    // ikki marta bosishdan himoya — topshirish (nakladnoy)
+let isSubmittingOrderPayment = false; // ikki marta bosishdan himoya — buyurtma to'lovi
+let isActivatingDraft = false;       // ikki marta bosishdan himoya — qoralamani jarayonga olish
+let isSubmittingReadyModal = false;  // ikki marta bosishdan himoya — "tayyor" belgilash
+let isMarkingAllReady = false;       // ikki marta bosishdan himoya — hammasini tayyor belgilash
+
+function setBtnSaving(id, saving) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.disabled = saving;
+  btn.style.opacity = saving ? '0.6' : '';
+  btn.style.cursor = saving ? 'not-allowed' : '';
+  if (saving) {
+    btn.dataset.origText = btn.textContent;
+    btn.textContent = 'Saqlanmoqda...';
+  } else if (btn.dataset.origText) {
+    btn.textContent = btn.dataset.origText;
+  }
+}
+
+function setOrderFormButtonsDisabled(disabled) {
+  ['order-draft-btn', 'order-save-btn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = disabled;
+    btn.style.opacity = disabled ? '0.6' : '';
+    btn.style.cursor = disabled ? 'not-allowed' : '';
+    if (disabled) {
+      btn.dataset.origText = btn.textContent;
+      btn.textContent = 'Saqlanmoqda...';
+    } else if (btn.dataset.origText) {
+      btn.textContent = btn.dataset.origText;
+    }
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════
 // QORALAMANI AVTOMATIK SAQLASH (agar sahifadan tasodifan chiqib
@@ -1630,9 +1666,12 @@ async function loadOrderItems(id) {
   }
 }
 
+const inFlightItemImgUpload = new Set();
 async function uploadItemImage(itemId, input) {
   const file = input.files[0];
   if (!file) return;
+  if (inFlightItemImgUpload.has(itemId)) return; // Ikki marta bosishdan himoya
+  inFlightItemImgUpload.add(itemId);
   const fd = new FormData();
   fd.append('file', file);
   try {
@@ -1641,6 +1680,8 @@ async function uploadItemImage(itemId, input) {
     if (selectedOrderId) loadOrderItems(selectedOrderId);
   } catch (e) {
     showMsg('Server xatosi', 'error');
+  } finally {
+    inFlightItemImgUpload.delete(itemId);
   }
 }
 
@@ -1661,9 +1702,12 @@ async function loadOrderAttachments(orderId) {
   } catch (e) { console.error('Fayllarni yuklashda xato:', e); }
 }
 
+let isUploadingOrderAttachment = false;
 async function uploadOrderAttachment(input) {
   const file = input.files[0];
   if (!file || !selectedOrderId) return;
+  if (isUploadingOrderAttachment) return; // Ikki marta bosishdan himoya
+  isUploadingOrderAttachment = true;
   const fd = new FormData();
   fd.append('file', file);
   try {
@@ -1672,8 +1716,10 @@ async function uploadOrderAttachment(input) {
     loadOrderAttachments(selectedOrderId);
   } catch (e) {
     showMsg('Server xatosi', 'error');
+  } finally {
+    isUploadingOrderAttachment = false;
+    input.value = '';
   }
-  input.value = '';
 }
 
 async function deleteOrderAttachment(attId, orderId) {
@@ -2095,6 +2141,9 @@ async function submitFullDlvModal() {
 
 async function saveDelivery() {
   if (!selectedOrderId) return;
+  if (isSubmittingDelivery) return; // Ikki marta bosishdan himoya
+  isSubmittingDelivery = true;
+  setBtnSaving('delivery-save-btn', true);
 
   const items = [];
   let hasOver = false;
@@ -2110,11 +2159,15 @@ async function saveDelivery() {
   if (hasOver) {
     err.style.display = 'block';
     err.textContent = '❌ Qoldiqdan ko\'p miqdor kiritilgan!';
+    isSubmittingDelivery = false;
+    setBtnSaving('delivery-save-btn', false);
     return;
   }
   if (!items.length) {
     err.style.display = 'block';
     err.textContent = '❌ Kamida bitta mahsulot miqdorini kiriting';
+    isSubmittingDelivery = false;
+    setBtnSaving('delivery-save-btn', false);
     return;
   }
   err.style.display = 'none';
@@ -2164,6 +2217,9 @@ async function saveDelivery() {
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
+  } finally {
+    isSubmittingDelivery = false;
+    setBtnSaving('delivery-save-btn', false);
   }
 }
 
@@ -2334,6 +2390,9 @@ async function checkLoyStock() {
 async function activateDraft() {
   if (!selectedOrderId) return;
   if (!await showConfirmModal('Buyurtmani jarayonga olasizmi?\n\nOmbordan xomashyo yechiladi.', {icon:'🚀', okText:'Jarayonga olish'})) return;
+  if (isActivatingDraft) return; // Ikki marta bosishdan himoya
+  isActivatingDraft = true;
+  setBtnSaving('activate-draft-btn', true);
 
   try {
     const res = await fetch(`/api/orders/${selectedOrderId}/activate`, { method: 'POST' });
@@ -2357,6 +2416,9 @@ async function activateDraft() {
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
+  } finally {
+    isActivatingDraft = false;
+    setBtnSaving('activate-draft-btn', false);
   }
 }
 
@@ -2461,8 +2523,10 @@ async function loadPayments(orderId) {
   }
 }
 
+let isSavingAgreedAmount = false;
 async function editAgreedAmount() {
   if (!selectedOrderId) return;
+  if (isSavingAgreedAmount) return; // Ikki marta bosishdan himoya
   try {
     const r = await fetch(`/api/orders/${selectedOrderId}`);
     if (!r.ok) return;
@@ -2482,6 +2546,9 @@ async function editAgreedAmount() {
     const val = parseNum(v);
     if (!val || val <= 0) { showMsg('Noto\'g\'ri summa', 'error'); return; }
 
+    if (isSavingAgreedAmount) return;
+    isSavingAgreedAmount = true;
+
     const res = await fetch(`/api/orders/${selectedOrderId}/agreed-amount`, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
@@ -2494,7 +2561,9 @@ async function editAgreedAmount() {
     } else {
       showMsg('❌ Xato', 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
+    isSavingAgreedAmount = false;
+  }
 }
 
 function openPaymentForm() {
@@ -2539,6 +2608,10 @@ async function savePayment() {
     }
   }
 
+  if (isSubmittingOrderPayment) return; // Ikki marta bosishdan himoya
+  isSubmittingOrderPayment = true;
+  setBtnSaving('order-payment-save-btn', true);
+
   const data = {
     order_id: selectedOrderId,
     amount: amount,
@@ -2573,6 +2646,9 @@ async function savePayment() {
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
+  } finally {
+    isSubmittingOrderPayment = false;
+    setBtnSaving('order-payment-save-btn', false);
   }
 }
 
@@ -3653,6 +3729,11 @@ async function saveOrder(isDraft = false) {
     return updateOrder(currentEditOrderId);
   }
 
+  if (isSubmittingOrderForm) return; // Ikki marta bosishdan himoya — buyurtma ikki marta yaratilib qolmasin
+  isSubmittingOrderForm = true;
+  setOrderFormButtonsDisabled(true);
+  try {
+
   const projId = parseInt(document.getElementById('project_id').value);
   if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
@@ -3770,6 +3851,10 @@ async function saveOrder(isDraft = false) {
   };
 
   await submitOrderRequest(data, isDraft, zaklat, zaklatMethod, false);
+  } finally {
+    isSubmittingOrderForm = false;
+    setOrderFormButtonsDisabled(false);
+  }
 }
 
 async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmShortage) {
@@ -4330,14 +4415,23 @@ function collectItems() {
 }
 
 async function updateOrder(orderId) {
+  if (isSubmittingOrderForm) return; // Ikki marta bosishdan himoya
+  isSubmittingOrderForm = true;
+  setOrderFormButtonsDisabled(true);
+
   const projId = parseInt(document.getElementById('project_id').value);
-  if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
+  if (!projId) {
+    showMsg('Loyiha tanlang!', 'error');
+    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
+    return;
+  }
 
   // Topshirish cheklovini tekshiramiz
   const errRows = document.querySelectorAll('.detal[data-dlv-error="1"]');
   if (errRows.length) {
     showMsg('❌ Topshirilgan miqdordan kam qilib bo\'lmaydi — qizil maydonlarni to\'g\'rilang', 'error');
     errRows[0].scrollIntoView({behavior:'smooth', block:'center'});
+    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
     return;
   }
 
@@ -4345,13 +4439,21 @@ async function updateOrder(orderId) {
   if (fpErr2.length) {
     showMsg('❌ Tayyor mahsulot omborda yetarli emas', 'error');
     fpErr2[0].scrollIntoView({behavior:'smooth', block:'center'});
+    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
     return;
   }
 
   const items = collectItems();
-  if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
+  if (!items.length) {
+    showMsg('Kamida 1 ta detal qo\'shing!', 'error');
+    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
+    return;
+  }
 
-  if (!await showConfirmModal("O'zgarishlar saqlansinmi?\n\nOmbor faqat farq miqdorida to'g'rilanadi:\n• Ko'paysa — xomashyo qo'shimcha ayiriladi\n• Kamaysa — omborga qaytariladi", {icon:'💾', okText:'Saqlash'})) return;
+  if (!await showConfirmModal("O'zgarishlar saqlansinmi?\n\nOmbor faqat farq miqdorida to'g'rilanadi:\n• Ko'paysa — xomashyo qo'shimcha ayiriladi\n• Kamaysa — omborga qaytariladi", {icon:'💾', okText:'Saqlash'})) {
+    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
+    return;
+  }
 
   const finalPrice = parseNum(document.getElementById('final_price')?.value || '0');
   const loyKg = parseFloat(document.getElementById('loy_kg')?.value || 0);
@@ -4450,6 +4552,9 @@ async function updateOrder(orderId) {
     }
   } catch(e) {
     showMsg('Server xatosi: ' + e.message, 'error');
+  } finally {
+    isSubmittingOrderForm = false;
+    setOrderFormButtonsDisabled(false);
   }
 }
 function showPromptModal(message, defaultValue = '', options = {}) {
@@ -4583,6 +4688,9 @@ function closeReadyModal() {
 }
 
 async function submitReadyModal() {
+  if (isSubmittingReadyModal) return; // Ikki marta bosishdan himoya
+  isSubmittingReadyModal = true;
+
   const loyKg = document.getElementById('rm-loy')?.value || '';
   let gipsKg = null, gishtDona = null;
   const gipsAdditivesActual = [];
@@ -4659,7 +4767,9 @@ async function submitReadyModal() {
       else html += result.detail?.message || JSON.stringify(result.detail);
       box.innerHTML = html; box.className = 'result-box error';
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
+    isSubmittingReadyModal = false;
+  }
 }
 
 // ── Foyda hisoblash ───────────────────────────────────────
@@ -4847,14 +4957,24 @@ async function markAllReady() {
   const loyKg = await showPromptModal("Barcha buyurtmalar uchun necha kg loy? (bo'sh = faqat kesish)", '', {icon:'🪣', title:'Loy miqdori', type:'number'});
   if (loyKg === null) return;
   if (!await showConfirmModal('Barcha faol buyurtmalarni TAYYOR qilamizmi?', {icon:'✅', okText:'Ha, hammasini'})) return;
-  const url = loyKg ? `/api/orders/mark-all-ready?loy_kg=${parseFloat(loyKg)}` : '/api/orders/mark-all-ready';
-  const res = await fetch(url, { method:'POST' });
-  const result = await res.json();
-  const box = document.getElementById('resultBox');
-  box.innerHTML = `<b>✓ ${result.processed} ta tayyor qilindi!</b>` +
-    (result.failed?.length ? `<br>❌ ${result.failed.length} ta xato` : '');
-  box.className = 'result-box success';
-  setTimeout(()=>location.reload(), 4000);
+  if (isMarkingAllReady) return; // Ikki marta bosishdan himoya
+  isMarkingAllReady = true;
+  setBtnSaving('mark-all-ready-btn', true);
+  try {
+    const url = loyKg ? `/api/orders/mark-all-ready?loy_kg=${parseFloat(loyKg)}` : '/api/orders/mark-all-ready';
+    const res = await fetch(url, { method:'POST' });
+    const result = await res.json();
+    const box = document.getElementById('resultBox');
+    box.innerHTML = `<b>✓ ${result.processed} ta tayyor qilindi!</b>` +
+      (result.failed?.length ? `<br>❌ ${result.failed.length} ta xato` : '');
+    box.className = 'result-box success';
+    setTimeout(()=>location.reload(), 4000);
+  } catch(e) {
+    showMsg('❌ Server xatosi', 'error');
+  } finally {
+    isMarkingAllReady = false;
+    setBtnSaving('mark-all-ready-btn', false);
+  }
 }
 
 // ── Qidiruv ───────────────────────────────────────────────

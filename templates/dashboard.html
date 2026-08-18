@@ -918,7 +918,7 @@ async function checkPendingAdvanceRequests(){
           <div style="font-weight:800;font-size:16px;color:#D97706">${fmt(r.amount)} so'm</div>
         </div>
         ${r.notes ? `<div style="font-size:12.5px;color:#999;margin-bottom:10px">💬 ${r.notes}</div>` : ''}
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px" id="adv-btns-${r.id}">
           <button class="btn btn-dark" style="flex:1;height:38px;font-size:13px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
           <button class="btn btn-outline" style="flex:1;height:38px;font-size:13px;color:#DC2626;border-color:#FADBD8" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>
         </div>
@@ -927,24 +927,40 @@ async function checkPendingAdvanceRequests(){
   } catch(e) { console.error(e); }
 }
 
+const inFlightAdvReq = new Set(); // Ikki marta bosishdan himoya — shu ID uchun so'rov hali ketmoqda
+
 async function confirmAdvReq(id){
+  if (inFlightAdvReq.has(id)) return;
+  inFlightAdvReq.add(id);
+  const box = document.getElementById(`adv-btns-${id}`);
+  if (box) box.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.6'; });
   try {
     const res = await fetch(`/api/admin/advance-requests/${id}/confirm`, { method: 'POST' });
-    if (res.ok) removeAdvRow(id);
+    if (res.ok) { removeAdvRow(id); return; }
     else alert("❌ Tasdiqlashda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
   } catch(e) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  } finally {
+    inFlightAdvReq.delete(id);
+    if (box) box.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
   }
 }
 
 async function rejectAdvReq(id){
   if (!confirm("Bu so'rovni rad etasizmi? Hech qanday moliyaviy yozuv yaratilmaydi.")) return;
+  if (inFlightAdvReq.has(id)) return;
+  inFlightAdvReq.add(id);
+  const box = document.getElementById(`adv-btns-${id}`);
+  if (box) box.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.6'; });
   try {
     const res = await fetch(`/api/admin/advance-requests/${id}/reject`, { method: 'POST' });
-    if (res.ok) removeAdvRow(id);
+    if (res.ok) { removeAdvRow(id); return; }
     else alert("❌ Rad etishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
   } catch(e) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  } finally {
+    inFlightAdvReq.delete(id);
+    if (box) box.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
   }
 }
 

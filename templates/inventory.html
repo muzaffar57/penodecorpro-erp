@@ -344,9 +344,14 @@ function openInvLightbox(url) {
 }
 function closeInvLightbox() { document.getElementById('invLightbox').style.display = 'none'; }
 
+const inFlightInvActions = new Set(); // Ikki marta bosishdan himoya — ombor tahrirlash amallari
+
 async function uploadInventoryImage(id, input) {
   const file = input.files[0];
   if (!file) return;
+  const key = 'img-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
   const fd = new FormData();
   fd.append('file', file);
   try {
@@ -359,37 +364,60 @@ async function uploadInventoryImage(id, input) {
     }
   } catch(e) {
     alert('❌ Server bilan bog\'lanib bo\'lmadi: ' + e.message);
+  } finally {
+    inFlightInvActions.delete(key);
   }
 }
 
 async function setDefaultPenoplast(id){
   if(!confirm('Bu plotnostni asosiy qilib belgilaysizmi?\n\nBuyurtma oynasida standart shu tanlanadi.')) return;
-  const res = await fetch(`/api/inventory/${id}/set-default-penoplast`, {method:'POST'});
-  if(res.ok){
-    const d = await res.json();
-    alert('✓ ' + d.name + ' asosiy plotnost qilib belgilandi!');
-    location.reload();
-  } else {
-    const e = await res.json();
-    alert('❌ ' + (e.detail || 'Xato'));
+  const key = 'defpeno-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}/set-default-penoplast`, {method:'POST'});
+    if(res.ok){
+      const d = await res.json();
+      alert('✓ ' + d.name + ' asosiy plotnost qilib belgilandi!');
+      location.reload();
+    } else {
+      const e = await res.json();
+      alert('❌ ' + (e.detail || 'Xato'));
+    }
+  } finally {
+    inFlightInvActions.delete(key);
   }
 }
 
+let isSendingStockReport = false;
 async function sendFullStockReport() {
-  const res = await fetch('/api/inventory/full-stock-report', {method:'POST'});
-  const d = await res.json();
-  if (res.ok) alert('✅ ' + d.message);
-  else alert('❌ Xato yuz berdi');
+  if (isSendingStockReport) return; // Ikki marta bosishdan himoya — ikki marta SMS/xabar ketmasin
+  isSendingStockReport = true;
+  try {
+    const res = await fetch('/api/inventory/full-stock-report', {method:'POST'});
+    const d = await res.json();
+    if (res.ok) alert('✅ ' + d.message);
+    else alert('❌ Xato yuz berdi');
+  } finally {
+    isSendingStockReport = false;
+  }
 }
 
+let isSendingLowStockAlert = false;
 async function sendLowStockAlert() {
-  const res = await fetch('/api/inventory/low-stock-alert', {method:'POST'});
-  const d = await res.json();
-  if (res.ok) {
-    if (d.sent) alert('✅ SMS yuborildi!\n\n' + d.message);
-    else alert('ℹ️ ' + d.message);
-  } else {
-    alert('❌ Xato yuz berdi');
+  if (isSendingLowStockAlert) return; // Ikki marta bosishdan himoya — ikki marta SMS ketmasin
+  isSendingLowStockAlert = true;
+  try {
+    const res = await fetch('/api/inventory/low-stock-alert', {method:'POST'});
+    const d = await res.json();
+    if (res.ok) {
+      if (d.sent) alert('✅ SMS yuborildi!\n\n' + d.message);
+      else alert('ℹ️ ' + d.message);
+    } else {
+      alert('❌ Xato yuz berdi');
+    }
+  } finally {
+    isSendingLowStockAlert = false;
   }
 }
 
@@ -429,98 +457,140 @@ async function editBazaltRatios(id, currentSerp, currentKley) {
   const newKley = await customPrompt('1 m² BAZALTGA necha kg KLEY ketadi?', `Hozirgi: ${currentKley}`, currentKley);
   if (newKley === null || isNaN(parseFloat(newKley))) return;
 
-  const res = await fetch(`/api/inventory/${id}`, {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      serp_ratio_per_m2: parseFloat(newSerp),
-      kley_ratio_per_m2: parseFloat(newKley)
-    })
-  });
-  if (res.ok) {
-    alert('✓ Nisbatlar yangilandi! Keyingi barcha hisob-kitoblar shu yangi qiymatdan foydalanadi.');
-    location.reload();
-  } else alert('Xato yuz berdi');
+  const key = 'bazaltratio-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        serp_ratio_per_m2: parseFloat(newSerp),
+        kley_ratio_per_m2: parseFloat(newKley)
+      })
+    });
+    if (res.ok) {
+      alert('✓ Nisbatlar yangilandi! Keyingi barcha hisob-kitoblar shu yangi qiymatdan foydalanadi.');
+      location.reload();
+    } else alert('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
 }
 
 async function editBazaltVolume(id, currentVolume) {
   const newVolume = await customPrompt('1 DONA bazalt necha m²?', `masalan: 1.2m × 0.6m = 0.72 m² · Hozirgi: ${currentVolume}`, currentVolume);
   if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
 
-  const res = await fetch(`/api/inventory/${id}`, {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      volume_per_unit: parseFloat(newVolume)
-    })
-  });
-  if (res.ok) {
-    alert('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
-    location.reload();
-  } else alert('Xato yuz berdi');
+  const key = 'bazaltvol-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        volume_per_unit: parseFloat(newVolume)
+      })
+    });
+    if (res.ok) {
+      alert('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
+      location.reload();
+    } else alert('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
 }
 
 async function editGipsSackWeight(id, currentVolume) {
   const newVolume = await customPrompt('1 QOP Gips necha kg?', `Hozirgi: ${currentVolume}`, currentVolume);
   if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
 
-  const res = await fetch(`/api/inventory/${id}`, {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      volume_per_unit: parseFloat(newVolume)
-    })
-  });
-  if (res.ok) {
-    alert('✓ Yangilandi! "Qop" asosida to\'lanadigan hodimlar uchun shu qiymat ishlatiladi.');
-    location.reload();
-  } else alert('Xato yuz berdi');
+  const key = 'gipssack-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        volume_per_unit: parseFloat(newVolume)
+      })
+    });
+    if (res.ok) {
+      alert('✓ Yangilandi! "Qop" asosida to\'lanadigan hodimlar uchun shu qiymat ishlatiladi.');
+      location.reload();
+    } else alert('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
 }
 
 async function editSerpiyankaVolume(id, currentVolume) {
   const newVolume = await customPrompt('1 RULON serpiyanka necha metr?', `Hozirgi: ${currentVolume}`, currentVolume);
   if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
 
-  const res = await fetch(`/api/inventory/${id}`, {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      volume_per_unit: parseFloat(newVolume)
-    })
-  });
-  if (res.ok) {
-    alert('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
-    location.reload();
-  } else alert('Xato yuz berdi');
+  const key = 'serpvol-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        volume_per_unit: parseFloat(newVolume)
+      })
+    });
+    if (res.ok) {
+      alert('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
+      location.reload();
+    } else alert('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
 }
 
 async function editPrice(id, currentPrice) {
   const newPrice = await customPrompt('Yangi narxni kiriting (so\'m)', `Hozirgi narx: ${Number(currentPrice).toLocaleString('ru-RU')} so'm`, currentPrice);
   if (!newPrice || isNaN(parseFloat(newPrice))) return;
-  const res = await fetch(`/api/inventory/${id}/price`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({price_per_unit: parseFloat(newPrice)})
-  });
-  if (res.ok) {
-    document.getElementById('price-'+id).textContent = Number(parseFloat(newPrice)).toLocaleString('ru-RU') + ' so\'m';
-    alert('✓ Narx yangilandi!');
-  } else alert('Xato yuz berdi');
+  const key = 'price-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}/price`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({price_per_unit: parseFloat(newPrice)})
+    });
+    if (res.ok) {
+      document.getElementById('price-'+id).textContent = Number(parseFloat(newPrice)).toLocaleString('ru-RU') + ' so\'m';
+      alert('✓ Narx yangilandi!');
+    } else alert('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
 }
 
 async function editMinStock(id, currentMin, unit) {
   const newMin = await customPrompt('Minimal chegarani kiriting',
     `Qoldiq shu miqdordan kam bo'lsa, "kam qoldi" deb ogohlantiriladi (hozirgi: ${currentMin} ${unit})`, currentMin);
   if (newMin === null || newMin === '' || isNaN(parseFloat(newMin))) return;
-  const res = await fetch(`/api/inventory/${id}/min-stock`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({min_stock: parseFloat(newMin)})
-  });
-  if (res.ok) {
-    document.getElementById('minstock-'+id).textContent = parseFloat(newMin) + ' ' + unit;
-    alert('✓ Chegara yangilandi!');
-  } else alert('Xato yuz berdi');
+  const key = 'minstock-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}/min-stock`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({min_stock: parseFloat(newMin)})
+    });
+    if (res.ok) {
+      document.getElementById('minstock-'+id).textContent = parseFloat(newMin) + ' ' + unit;
+      alert('✓ Chegara yangilandi!');
+    } else alert('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
 }
 
 async function editCategory(el) {
@@ -532,6 +602,9 @@ async function editCategory(el) {
     current
   );
   if (val === null || !val.trim()) return;
+  const key = 'category-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
   try {
     const res = await fetch(`/api/inventory/${id}`, {
       method: 'PUT',
@@ -540,7 +613,9 @@ async function editCategory(el) {
     });
     if (res.ok) location.reload();
     else alert('Xato yuz berdi');
-  } catch(e) { alert('Server xatosi'); }
+  } catch(e) { alert('Server xatosi'); } finally {
+    inFlightInvActions.delete(key);
+  }
 }
 
 // ── KIRIM MODALI ──────────────────────────────────────────

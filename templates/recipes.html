@@ -114,13 +114,20 @@ function openRecLightbox(url) {
 }
 function closeRecLightbox() { document.getElementById('recLightbox').style.display = 'none'; }
 
+const inFlightRecipeImgUpload = new Set();
 async function uploadRecipeImage(id, input) {
   if (!input.files.length) return;
+  if (inFlightRecipeImgUpload.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightRecipeImgUpload.add(id);
   const fd = new FormData();
   fd.append('file', input.files[0]);
-  const res = await fetch(`/api/recipes/${id}/image`, {method:'POST', body: fd});
-  if (res.ok) location.reload();
-  else alert('Rasm yuklashda xato');
+  try {
+    const res = await fetch(`/api/recipes/${id}/image`, {method:'POST', body: fd});
+    if (res.ok) location.reload();
+    else alert('Rasm yuklashda xato');
+  } finally {
+    inFlightRecipeImgUpload.delete(id);
+  }
 }
 
 async function deleteRecipe(id) {
@@ -182,23 +189,33 @@ async function openAddModal() {
 }
 function closeAddModal() { document.getElementById('addModal').style.display = 'none'; }
 
+let isSavingRecipe = false;
 async function saveRecipe() {
   const name = document.getElementById('f-name').value.trim();
   if (!name) { alert('Nom shart!'); return; }
   const ingredients = collectIngredients('f');
   if (!ingredients.length) { alert('Kamida bitta tarkibiy qism kiriting!'); return; }
+  if (isSavingRecipe) return; // Ikki marta bosishdan himoya
+  isSavingRecipe = true;
+  const btn = document.getElementById('recipe-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   const data = {
     name,
     batch_size_kg: parseFloat(document.getElementById('f-batch').value) || 100,
     notes: document.getElementById('f-notes').value || null,
     ingredients
   };
-  const res = await fetch('/api/recipes', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(data)
-  });
-  if (res.ok) { alert("✓ Retsept qo'shildi!"); location.reload(); }
-  else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  try {
+    const res = await fetch('/api/recipes', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    if (res.ok) { alert("✓ Retsept qo'shildi!"); location.reload(); return; }
+    else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  } finally {
+    isSavingRecipe = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 
 // ── TAHRIRLASH MODALI ──
@@ -217,23 +234,33 @@ async function openEditModal(id, name, batch, notes, invIds, qtys, names, units)
 }
 function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
 
+let isSavingEditRecipe = false;
 async function saveEditRecipe() {
   const id = document.getElementById('edit-id').value;
   const name = document.getElementById('edit-name').value.trim();
   const ingredients = collectIngredients('edit');
   if (!ingredients.length) { alert('Kamida bitta tarkibiy qism kiriting!'); return; }
+  if (isSavingEditRecipe) return; // Ikki marta bosishdan himoya
+  isSavingEditRecipe = true;
+  const btn = document.getElementById('recipe-edit-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   const data = {
     name,
     batch_size_kg: parseFloat(document.getElementById('edit-batch').value) || 100,
     notes: document.getElementById('edit-notes').value || null,
     ingredients
   };
-  const res = await fetch(`/api/recipes/${id}`, {
-    method: 'PUT', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(data)
-  });
-  if (res.ok) { alert('✓ Retsept yangilandi!'); location.reload(); }
-  else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  try {
+    const res = await fetch(`/api/recipes/${id}`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    if (res.ok) { alert('✓ Retsept yangilandi!'); location.reload(); return; }
+    else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  } finally {
+    isSavingEditRecipe = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 </script>
 
@@ -261,7 +288,7 @@ async function saveEditRecipe() {
     </div>
 
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-dark w-full" onclick="saveRecipe()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="recipe-save-btn" onclick="saveRecipe()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeAddModal()">Bekor</button>
     </div>
   </div>
@@ -285,7 +312,7 @@ async function saveEditRecipe() {
     </div>
 
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-dark w-full" onclick="saveEditRecipe()">💾 Saqlash</button>
+      <button class="btn btn-dark w-full" id="recipe-edit-save-btn" onclick="saveEditRecipe()">💾 Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeEditModal()">Bekor</button>
     </div>
   </div>

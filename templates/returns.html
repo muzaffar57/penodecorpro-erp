@@ -531,16 +531,21 @@ function openReturnLightbox(url) {
 }
 function closeReturnLightbox() { document.getElementById('retLightbox').style.display = 'none'; }
 
+const inFlightReturnImgUpload = new Set();
 async function uploadReturnImage(id, input) {
   const file = input.files[0];
   if (!file) return;
+  if (inFlightReturnImgUpload.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightReturnImgUpload.add(id);
   const fd = new FormData();
   fd.append('file', file);
   try {
     const res = await fetch(`/api/returns/${id}/image`, { method: 'POST', body: fd });
     if (res.ok) location.reload();
     else alert('Rasm yuklanmadi');
-  } catch(e) { alert('Server xatosi'); }
+  } catch(e) { alert('Server xatosi'); } finally {
+    inFlightReturnImgUpload.delete(id);
+  }
 }
 
 let currentOrderItems = [];
@@ -747,12 +752,19 @@ async function deleteReturn(id){
   if(res.ok)document.getElementById('row-'+id)?.remove();else alert('Xato');
 }
 
+const inFlightRefundToggle = new Set();
 async function toggleRefund(id, current){
   if (current) return; // Faqat "kutilmoqda" -> "qaytdi" tomon, orqaga qaytarilmaydi
   if (!(await customConfirm("Pul mijozga qaytarildi deb belgilaysizmi?"))) return;
-  const res = await fetch(`/api/returns/${id}/refund`, {method:'POST'});
-  if (res.ok) location.reload();
-  else alert('Xato');
+  if (inFlightRefundToggle.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightRefundToggle.add(id);
+  try {
+    const res = await fetch(`/api/returns/${id}/refund`, {method:'POST'});
+    if (res.ok) location.reload();
+    else alert('Xato');
+  } finally {
+    inFlightRefundToggle.delete(id);
+  }
 }
 
 let isSavingReturn = false;

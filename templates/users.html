@@ -50,10 +50,10 @@
             <td>
               {% if u.username != current_user.username %}
               <div style="display:flex;gap:4px">
-                <button class="btn btn-outline btn-xs" onclick="toggleUser({{ u.id }}, {{ 'true' if u.is_active else 'false' }})">
+                <button class="btn btn-outline btn-xs" onclick="toggleUser({{ u.id }}, {{ 'true' if u.is_active else 'false' }}, this)">
                   {{ 'O\'chir' if u.is_active else 'Faollashtir' }}
                 </button>
-                <button class="btn btn-outline btn-xs" onclick="changePass({{ u.id }}, '{{ u.username }}')">Parol</button>
+                <button class="btn btn-outline btn-xs" onclick="changePass({{ u.id }}, '{{ u.username }}', this)">Parol</button>
               </div>
               {% else %}
               <span style="font-size:11px;color:var(--text3)">Joriy</span>
@@ -119,7 +119,7 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-dark w-full" onclick="saveUser()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="user-save-btn" onclick="saveUser()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
     </div>
   </div>
@@ -221,17 +221,27 @@
 <script>
 function showAddModal(){document.getElementById('addModal').style.display='flex'}
 function closeModal(){document.getElementById('addModal').style.display='none'}
-async function toggleUser(id, isActive){
+async function toggleUser(id, isActive, btn){
   if(!confirm(isActive?'O\'chirilsinmi?':'Faollashtirilsinmi?'))return;
-  const res=await fetch(`/api/users/${id}/toggle`,{method:'POST'});
-  if(res.ok)location.reload();else alert('Xato');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; }
+  try {
+    const res=await fetch(`/api/users/${id}/toggle`,{method:'POST'});
+    if(res.ok) { location.reload(); return; } else alert('Xato');
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
 }
-async function changePass(id, username){
+async function changePass(id, username, btn){
   const p=prompt(`"${username}" uchun yangi parol:`);
   if(!p)return;
   if(p.length<6){alert('Kamida 6 belgi!');return;}
-  const res=await fetch(`/api/users/${id}/password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:p})});
-  if(res.ok)alert('✓ Parol o\'zgartirildi!');else alert('Xato');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; }
+  try {
+    const res=await fetch(`/api/users/${id}/password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:p})});
+    if(res.ok)alert('✓ Parol o\'zgartirildi!');else alert('Xato');
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
 }
 function showHodimQR(){
   const url = window.location.origin + '/hodim';
@@ -270,7 +280,10 @@ async function setupTelegramSecurity(){
   btn.disabled = false; btn.textContent = '🔐 Telegram xavfsizligini yoqish';
 }
 
+let isRunningFactoryReset = false;
 async function startFactoryReset(){
+  if (isRunningFactoryReset) return; // Ikki marta bosishdan himoya — bu QAYTARIB BO'LMAYDIGAN amal
+
   const keepOnlySelf = document.getElementById('fr-keep-only-self')?.checked || false;
   const extraWarning = keepOnlySelf
     ? "\n\n⚠️ QO'SHIMCHA: boshqa BARCHA foydalanuvchi (login) hisoblari HAM o'chiriladi — faqat siz qolasiz!"
@@ -293,6 +306,9 @@ async function startFactoryReset(){
     return;
   }
 
+  if (isRunningFactoryReset) return;
+  isRunningFactoryReset = true;
+
   try {
     const url = `/api/system/factory-reset?confirm=${encodeURIComponent(phrase)}&keep_only_self=${keepOnlySelf}`;
     const res = await fetch(url, { method: 'POST' });
@@ -306,17 +322,29 @@ async function startFactoryReset(){
     }
   } catch(e) {
     alert("❌ Server bilan bog'lanib bo'lmadi: " + e.message);
+  } finally {
+    isRunningFactoryReset = false;
   }
 }
 
+let isSavingUser = false;
 async function saveUser(){
   const username=document.getElementById('f-username').value.trim();
   const password=document.getElementById('f-password').value;
   if(!username||!password){alert('Login va parol shart!');return;}
   if(password.length<6){alert('Parol kamida 6 belgi!');return;}
-  const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({username,password,role:document.getElementById('f-role').value,full_name:document.getElementById('f-fullname').value})});
-  if(res.ok){alert('✓ Qo\'shildi!');location.reload();}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+  if (isSavingUser) return; // Ikki marta bosishdan himoya
+  isSavingUser = true;
+  const btn = document.getElementById('user-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+  try {
+    const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username,password,role:document.getElementById('f-role').value,full_name:document.getElementById('f-fullname').value})});
+    if(res.ok){alert('✓ Qo\'shildi!');location.reload();return;}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+  } finally {
+    isSavingUser = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 </script>
 {% endblock %}

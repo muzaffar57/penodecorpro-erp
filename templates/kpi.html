@@ -216,7 +216,7 @@
     <div id="master-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-dark w-full" onclick="saveMaster()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="master-save-btn" onclick="saveMaster()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeMasterModal()">Bekor</button>
     </div>
   </div>
@@ -356,7 +356,7 @@
     <div id="pa-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
 
     <div style="display:flex;gap:8px">
-      <button class="btn btn-dark w-full" onclick="savePanelAccess()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="panel-access-save-btn" onclick="savePanelAccess()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="document.getElementById('panelAccessModal').style.display='none'">Bekor</button>
     </div>
   </div>
@@ -538,7 +538,7 @@ function renderInactiveMasters() {
         <div class="mk-name">${m.name}</div>
         <div class="mk-meta">${m.phone || '—'}</div>
       </div>
-      <button class="btn btn-outline btn-sm" onclick="reactivateMaster(${m.id})">✓ Faollashtirish</button>
+      <button class="btn btn-outline btn-sm" onclick="reactivateMaster(${m.id}, this)">✓ Faollashtirish</button>
     </div>`).join('');
 }
 
@@ -576,7 +576,10 @@ async function openMasterDetail(id, name) {
 }
 function closeMasterDetail(){ document.getElementById('masterDetailModal').style.display = 'none'; }
 
+const inFlightMasterKpi = new Set();
 async function saveMasterKpi(id) {
+  if (inFlightMasterKpi.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightMasterKpi.add(id);
   const val = parseFloat(document.getElementById('mk-' + id).value) || 0;
   try {
     const res = await fetch(`/api/masters/${id}/kpi`, {
@@ -588,6 +591,8 @@ async function saveMasterKpi(id) {
     else alert("❌ KPI foizini saqlashda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
   } catch(e) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  } finally {
+    inFlightMasterKpi.delete(id);
   }
 }
 
@@ -621,6 +626,7 @@ function editMaster(id) {
   document.getElementById('masterModal').style.display = 'flex';
 }
 
+let isSavingMaster = false;
 async function saveMaster() {
   const name = document.getElementById('m-name').value.trim();
   const phone = document.getElementById('m-phone').value.trim();
@@ -629,6 +635,11 @@ async function saveMaster() {
   if (!name) { err.style.display='block'; err.textContent='❌ Ismni kiriting'; return; }
   if (!editingMasterId && !phone) { err.style.display='block'; err.textContent='❌ Telefon raqamini kiriting'; return; }
   err.style.display = 'none';
+
+  if (isSavingMaster) return; // Ikki marta bosishdan himoya
+  isSavingMaster = true;
+  const btn = document.getElementById('master-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
 
   const data = {
     name,
@@ -657,6 +668,9 @@ async function saveMaster() {
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
+  } finally {
+    isSavingMaster = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 
@@ -671,17 +685,20 @@ async function deactivateMaster(id, name) {
   }
 }
 
-async function reactivateMaster(id) {
+async function reactivateMaster(id, btn) {
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; }
   try {
     const res = await fetch(`/api/masters/${id}`, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({is_active: true})
     });
-    if (res.ok) { loadMasterKpi(); loadAllMastersFull(); renderInactiveMasters(); }
+    if (res.ok) { loadMasterKpi(); loadAllMastersFull(); renderInactiveMasters(); return; }
     else alert("❌ Faollashtirishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
   } catch(e) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   }
 }
 
@@ -777,6 +794,7 @@ function openPanelAccessModal(empId, empName, currentPhone) {
   document.getElementById('panelAccessModal').style.display = 'flex';
 }
 
+let isSavingPanelAccess = false;
 async function savePanelAccess() {
   const phone = document.getElementById('pa-phone').value.trim();
   const pin = document.getElementById('pa-pin').value.trim();
@@ -784,18 +802,28 @@ async function savePanelAccess() {
   if (!phone) { err.textContent = 'Telefon raqamini kiriting'; err.style.display = 'block'; return; }
   if (!/^\d{4}$/.test(pin)) { err.textContent = "PIN kod aynan 4 xonali raqam bo'lishi kerak"; err.style.display = 'block'; return; }
 
+  if (isSavingPanelAccess) return; // Ikki marta bosishdan himoya
+  isSavingPanelAccess = true;
+  const btn = document.getElementById('panel-access-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+
   const fd = new FormData();
   fd.append('phone', phone);
   fd.append('pin', pin);
-  const res = await fetch(`/api/employees/${panelAccessEmpId}/set-login`, { method: 'POST', body: fd });
-  if (res.ok) {
-    document.getElementById('panelAccessModal').style.display = 'none';
-    alert('✅ Panel kirishi saqlandi');
-    loadEmployees();
-  } else {
-    const e = await res.json();
-    err.textContent = '❌ ' + (e.detail || 'Xato');
-    err.style.display = 'block';
+  try {
+    const res = await fetch(`/api/employees/${panelAccessEmpId}/set-login`, { method: 'POST', body: fd });
+    if (res.ok) {
+      document.getElementById('panelAccessModal').style.display = 'none';
+      alert('✅ Panel kirishi saqlandi');
+      loadEmployees();
+    } else {
+      const e = await res.json();
+      err.textContent = '❌ ' + (e.detail || 'Xato');
+      err.style.display = 'block';
+    }
+  } finally {
+    isSavingPanelAccess = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 
@@ -1114,6 +1142,7 @@ function promptAmountReason(opts) {
   });
 }
 
+const inFlightEmpAdjustment = new Set();
 async function editEmpAdjustment(empId, empName, year, month, currentAmount, currentReason) {
   const result = await promptAmountReason({
     title: `"${empName}" — kamaytirish`,
@@ -1121,13 +1150,20 @@ async function editEmpAdjustment(empId, empName, year, month, currentAmount, cur
     currentAmount, currentReason, danger: true
   });
   if (result === null) return;
-  const res = await fetch(`/api/employees/${empId}/monthly-adjustment?year=${year}&month=${month}&reduction_amount=${result.amount}&reason=${encodeURIComponent(result.reason)}`, {
-    method: 'POST'
-  });
-  if (res.ok) {
-    loadEmpMonthlyReport();
-  } else {
-    alert('Xato yuz berdi');
+  const key = `${empId}-${year}-${month}-reduction`;
+  if (inFlightEmpAdjustment.has(key)) return; // Ikki marta bosishdan himoya
+  inFlightEmpAdjustment.add(key);
+  try {
+    const res = await fetch(`/api/employees/${empId}/monthly-adjustment?year=${year}&month=${month}&reduction_amount=${result.amount}&reason=${encodeURIComponent(result.reason)}`, {
+      method: 'POST'
+    });
+    if (res.ok) {
+      loadEmpMonthlyReport();
+    } else {
+      alert('Xato yuz berdi');
+    }
+  } finally {
+    inFlightEmpAdjustment.delete(key);
   }
 }
 
@@ -1138,13 +1174,20 @@ async function editEmpBonus(empId, empName, year, month, currentAmount, currentR
     currentAmount, currentReason, danger: false
   });
   if (result === null) return;
-  const res = await fetch(`/api/employees/${empId}/monthly-adjustment?year=${year}&month=${month}&bonus_amount=${result.amount}&bonus_reason=${encodeURIComponent(result.reason)}`, {
-    method: 'POST'
-  });
-  if (res.ok) {
-    loadEmpMonthlyReport();
-  } else {
-    alert('Xato yuz berdi');
+  const key = `${empId}-${year}-${month}-bonus`;
+  if (inFlightEmpAdjustment.has(key)) return; // Ikki marta bosishdan himoya
+  inFlightEmpAdjustment.add(key);
+  try {
+    const res = await fetch(`/api/employees/${empId}/monthly-adjustment?year=${year}&month=${month}&bonus_amount=${result.amount}&bonus_reason=${encodeURIComponent(result.reason)}`, {
+      method: 'POST'
+    });
+    if (res.ok) {
+      loadEmpMonthlyReport();
+    } else {
+      alert('Xato yuz berdi');
+    }
+  } finally {
+    inFlightEmpAdjustment.delete(key);
   }
 }
 
@@ -1196,7 +1239,10 @@ async function loadEhsonPercent() {
   } catch(e) {}
 }
 
+let isSavingEhsonPercent = false;
 async function saveEhsonPercent() {
+  if (isSavingEhsonPercent) return; // Ikki marta bosishdan himoya
+  isSavingEhsonPercent = true;
   const val = parseFloat(document.getElementById('ehson-percent-input').value) || 0;
   const fd = new FormData();
   fd.append('percent', val);
@@ -1210,7 +1256,9 @@ async function saveEhsonPercent() {
       const e = await res.json();
       alert('❌ ' + (e.detail || 'Xato'));
     }
-  } catch(e) { alert("❌ Server bilan aloqa yo'q"); }
+  } catch(e) { alert("❌ Server bilan aloqa yo'q"); } finally {
+    isSavingEhsonPercent = false;
+  }
 }
 
 document.getElementById('kpi-year').value = new Date().getFullYear();

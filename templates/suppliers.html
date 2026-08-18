@@ -787,6 +787,7 @@ function clearHistoryFilter() {
   if (currentSupplierId) openHistory(currentSupplierId, true);
 }
 
+const inFlightPurchaseEdit = new Set();
 async function editPurchase(id, qty, price, isCredit) {
   const newQtyStr = prompt("Miqdor:", qty);
   if (newQtyStr === null) return;
@@ -804,6 +805,8 @@ async function editPurchase(id, qty, price, isCredit) {
     "(agar kerak bo'lsa Omborxonada qo'lda tuzating).\\n\\nDavom etilsinmi?"
   )) return;
 
+  if (inFlightPurchaseEdit.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightPurchaseEdit.add(id);
   try {
     const res = await fetch(`/api/inventory/purchases/${id}`, {
       method: 'PUT',
@@ -815,7 +818,9 @@ async function editPurchase(id, qty, price, isCredit) {
       openHistory(currentSupplierId, true);
       loadSuppliers();
     } else showMsg('❌ Xato', 'error');
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); } finally {
+    inFlightPurchaseEdit.delete(id);
+  }
 }
 
 async function deletePurchase(id) {

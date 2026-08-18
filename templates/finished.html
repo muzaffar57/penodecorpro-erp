@@ -915,16 +915,21 @@ function fpWidth2(i) {
 function fpSku(i) { return 'FP-' + String(i.id).padStart(4, '0'); }
 function unitLabel(u) { return u === 'metr' ? 'm' : (u === 'kvadrat' ? 'm²' : 'ta'); }
 
+const inFlightFpUpload = new Set();
 async function uploadFpImage(id, input) {
   const file = input.files[0];
   if (!file) return;
+  if (inFlightFpUpload.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightFpUpload.add(id);
   const fd = new FormData();
   fd.append('file', file);
   try {
     const res = await fetch(`/api/finished/${id}/image`, { method: 'POST', body: fd });
     if (res.ok) { loadFp(); }
     else showMsg('Rasm yuklanmadi', 'error');
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
+    inFlightFpUpload.delete(id);
+  }
 }
 
 function openLightbox(url) {
@@ -1641,6 +1646,7 @@ async function submitSell() {
   }
 }
 
+const inFlightFpPrice = new Set();
 async function editPrice(id) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
@@ -1648,6 +1654,8 @@ async function editPrice(id) {
   if (v === null) return;
   const val = parseNum(v);
   if (!val || val <= 0) return;
+  if (inFlightFpPrice.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightFpPrice.add(id);
   try {
     const res = await fetch(`/api/finished/${id}`, {
       method: 'PUT',
@@ -1655,7 +1663,9 @@ async function editPrice(id) {
       body: JSON.stringify({unit_price: val})
     });
     if (res.ok) { loadFp(); showMsg('✓ Narx yangilandi', 'success'); }
-  } catch(e) { showMsg('Xato', 'error'); }
+  } catch(e) { showMsg('Xato', 'error'); } finally {
+    inFlightFpPrice.delete(id);
+  }
 }
 
 async function delFp(id, source) {

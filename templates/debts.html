@@ -268,7 +268,7 @@
     <div class="form-group"><label>Har oy to'lanishi kerak (so'm)</label><input type="text" id="cat-target" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Har oy nechinchi sanagacha</label><input type="number" id="cat-dueday" value="5" min="1" max="28"></div>
     <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="btn btn-dark w-full" onclick="saveNewCategory()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="new-cat-save-btn" onclick="saveNewCategory()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeAddCategoryModal()">Bekor</button>
     </div>
   </div>
@@ -332,19 +332,27 @@ function openAddCategoryModal(){
 }
 function closeAddCategoryModal(){ document.getElementById('addCategoryModal').style.display = 'none'; }
 
+let isSavingNewCategory = false;
 async function saveNewCategory(){
   const label = document.getElementById('cat-label').value.trim();
   const target = parseNum(document.getElementById('cat-target').value);
   const dueDay = parseInt(document.getElementById('cat-dueday').value) || 5;
   const icon = document.getElementById('cat-icon').value.trim() || '📦';
   if (!label || !target) { alert("Nom va summani to'ldiring"); return; }
+  if (isSavingNewCategory) return; // Ikki marta bosishdan himoya
+  isSavingNewCategory = true;
+  const btn = document.getElementById('new-cat-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   // Kategoriya kodini nomdan avtomatik yasaymiz (lotin harflarga, bo'shliqsiz)
   const category = label.toLowerCase().replace(/[^a-z0-9а-яёʻʼ]+/gi, '_').replace(/^_+|_+$/g, '') + '_' + Date.now().toString().slice(-4);
   try {
     const res = await fetch(`/api/obligations/recurring?category=${encodeURIComponent(category)}&label=${encodeURIComponent(label)}&monthly_target=${target}&icon=${encodeURIComponent(icon)}&due_day=${dueDay}`, {method:'POST'});
-    if (res.ok) location.reload();
+    if (res.ok) { location.reload(); return; }
     else alert('Xato yuz berdi');
-  } catch(e) { alert('Server xatosi'); }
+  } catch(e) { alert('Server xatosi'); } finally {
+    isSavingNewCategory = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 
 async function deleteCategory(id, label){
