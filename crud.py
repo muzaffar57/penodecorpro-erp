@@ -1703,6 +1703,72 @@ def check_financial_consistency(db: Session) -> dict:
                     "diff": notes.count(marker),
                 })
 
+    # 6) Yetkazib berilgan miqdor, buyurtma qilingandan ko'pmi? (turkumga
+    # qarab TO'G'RI maydonni solishtiramiz — "profil" uchun "length",
+    # qolganlari uchun "quantity")
+    from models import DeliveryItem
+    for it in db.query(OrderItem).all():
+        cat = (it.category or '').lower()
+        ordered = float(it.length or 0) if cat == 'profil' else float(it.quantity or 0)
+        delivered = sum(float(di.quantity or 0) for di in
+                         db.query(DeliveryItem).filter(DeliveryItem.order_item_id == it.id).all())
+        if delivered > ordered + 0.01:
+            issues.append({
+                "type": "over_delivery",
+                "label": f"{it.name} (buyurtma #{it.order_id})",
+                "detail": f"Buyurtma qilingan: {ordered:.2f}, lekin topshirilgan: {delivered:.2f}",
+                "diff": round(delivered - ordered, 2),
+            })
+
+    # 7) Termopanel detali, lekin Bazalt tayinlanmaganmi? (bu, xomashyo
+    # ayirilmasdan qolib ketganini bildiradi — tayyor mahsulotdan
+    # olinganlar bundan mustasno, ular allaqachon ishlab chiqarishda
+    # ayirilgan)
+    for it in db.query(OrderItem).filter(OrderItem.category == 'termopanel').all():
+        if it.finished_product_id:
+            continue
+        if '[TERMO:' not in (it.notes or '') or 'bazalt_id=' not in (it.notes or ''):
+            issues.append({
+                "type": "termopanel_missing_bazalt",
+                "label": f"{it.name} (buyurtma #{it.order_id})",
+                "detail": "Bazalt turi tayinlanmagan — xomashyo to'g'ri ayirilmagan bo'lishi mumkin",
+                "diff": 0,
+            })
+
+    # 8) Qoralama bo'lmagan buyurtmada, narxi "0" bo'lgan detal bormi?
+    # (bu, narx kiritishni unutib qo'yganini bildirishi mumkin)
+    for o in db.query(Order).filter(Order.is_deleted.is_(False), Order.status != 'draft').all():
+        for it in db.query(OrderItem).filter(OrderItem.order_id == o.id).all():
+            if float(it.unit_price or 0) <= 0:
+                issues.append({
+                    "type": "zero_price_item",
+                    "label": f"{it.name} (buyurtma {o.order_number})",
+                    "detail": "Bu detalning narxi \"0\" — unutilib qolgan bo'lishi mumkin",
+                    "diff": 0,
+                })
+
+    # 9) Egasiz to'lovlar (mavjud bo'lmagan buyurtmaga bog'langan)
+    order_ids_set = {o.id for o in db.query(Order.id).all()}
+    for p in db.query(Payment).all():
+        if p.order_id and p.order_id not in order_ids_set:
+            issues.append({
+                "type": "orphaned_payment",
+                "label": f"To'lov #{p.id}",
+                "detail": f"Mavjud bo'lmagan buyurtma (#{p.order_id})ga bog'langan — {float(p.amount or 0):,.0f} so'm",
+                "diff": float(p.amount or 0),
+            })
+
+    # 10) Egasiz yetkazishlar (mavjud bo'lmagan buyurtmaga bog'langan)
+    from models import Delivery
+    for d in db.query(Delivery).all():
+        if d.order_id and d.order_id not in order_ids_set:
+            issues.append({
+                "type": "orphaned_delivery",
+                "label": f"Yetkazish #{d.id}",
+                "detail": f"Mavjud bo'lmagan buyurtma (#{d.order_id})ga bog'langan",
+                "diff": 0,
+            })
+
     return {
         "checked_at": _dt2.utcnow().isoformat(),
         "issues_found": len(issues),
