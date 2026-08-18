@@ -272,13 +272,33 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
         _add_row("🗑️ Brak (yaroqsiz xomashyo)", report.get("brak_xarajat", 0))
 
     # 6) Kunlik xarajat tranzaksiyalari — nomma-nom (Arenda, Soliq va h.k.)
-    tx_by_cat = {}
+    # MUHIM (2026-08-18): "Boshqa" va "Kutilmagan xarajat" — bular UMUMIY
+    # turkumlar, shuning uchun ular ICHIDA, alohida IZOH (masalan "Texnik
+    # ko'rik" yoki "Tozalik xizmati") bo'yicha, YANA batafsil ajratiladi —
+    # aks holda, turli xil xarajatlar bitta "Boshqa: 110 000" qatorida
+    # yashirinib, pul qayerga ketayotgani noaniq bo'lib qolardi. Aniq
+    # turkumlar (Arenda, Elektr va h.k.) esa, avvalgidek, oddiy jamlanadi.
+    CAT_LABELS = {"arenda": "Arenda", "elektr": "Elektr", "tushlik": "Tushlik",
+                  "soliqlar": "Soliqlar", "reklama": "Reklama",
+                  "kutilmagan": "Kutilmagan xarajat", "boshqa": "Boshqa"}
+    GENERIC_CATS = {"boshqa", "kutilmagan"}
+
+    tx_by_cat = {}       # aniq turkumlar uchun — {cat: jami_summa}
+    tx_by_detail = {}    # umumiy turkumlar uchun — {(cat, izoh): jami_summa}
     for tx in (expense_transactions or []):
-        cat = getattr(tx, 'category', None) or getattr(tx, 'label', None) or 'Boshqa'
+        cat = getattr(tx, 'category', None) or 'boshqa'
         amt = float(getattr(tx, 'amount', 0) or 0)
-        tx_by_cat[cat] = tx_by_cat.get(cat, 0) + amt
+        if cat in GENERIC_CATS:
+            note = (getattr(tx, 'notes', None) or 'Izohsiz').strip() or 'Izohsiz'
+            key = (cat, note)
+            tx_by_detail[key] = tx_by_detail.get(key, 0) + amt
+        else:
+            tx_by_cat[cat] = tx_by_cat.get(cat, 0) + amt
+
     for cat, amt in sorted(tx_by_cat.items(), key=lambda x: -x[1]):
-        _add_row(f"📋 {cat}", amt)
+        _add_row(f"📋 {CAT_LABELS.get(cat, cat)}", amt)
+    for (cat, note), amt in sorted(tx_by_detail.items(), key=lambda x: -x[1]):
+        _add_row(f"📋 {CAT_LABELS.get(cat, cat)} — {note}", amt)
 
     # Jami xarajat qatori
     rows.append([Paragraph("<b>JAMI XARAJAT</b>", ParagraphStyle('tf', fontName='Helvetica-Bold', fontSize=9.5, textColor=DARK)),
