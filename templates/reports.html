@@ -319,6 +319,7 @@
 let currentReport = 'inventory';
 let currentRows = [];
 let currentHeaders = [];
+let currentHeadersFull = [];
 let currentDays = 90;
 let mainChartInst = null, donutChartInst = null;
 
@@ -633,15 +634,67 @@ function headerIcon(label) {
   return cls ? `<i class="ti ${cls}" style="vertical-align:-2px;margin-right:5px;opacity:.7"></i>` : '';
 }
 
-function setTable(headers, rows) {
-  currentHeaders = headers.map(h => h[0]);
-  currentRows = rows;
-  document.getElementById('repThead').innerHTML = '<tr>' + headers.map(h => `<th>${headerIcon(h[0])}${h[0]}</th>`).join('') + '</tr>';
-  if (!rows.length) {
-    document.getElementById('repBody').innerHTML = `<tr><td colspan="${headers.length}" class="bi-empty">Ma'lumot yo'q</td></tr>`;
+let currentSortCol = -1;
+let currentSortAsc = true;
+
+function extractSortValue(html) {
+  // HTML teglarini olib tashlab, sof matnni olamiz (masalan "<span>630.52
+  // kg</span>" dan "630.52 kg")
+  const text = String(html).replace(/<[^>]*>/g, '').trim();
+  // Boshida son bo'lsa (formatlangan, bo'shliqli sonlar ham — "630 000"),
+  // SON sifatida solishtiramiz — aks holda, matn sifatida.
+  const numMatch = text.replace(/\s/g, '').match(/^-?[\d.,]+/);
+  if (numMatch) {
+    const n = parseFloat(numMatch[0].replace(',', '.'));
+    if (!isNaN(n)) return { isNum: true, val: n };
+  }
+  return { isNum: false, val: text.toLowerCase() };
+}
+
+function sortTableBy(colIdx) {
+  if (currentSortCol === colIdx) {
+    currentSortAsc = !currentSortAsc;
+  } else {
+    currentSortCol = colIdx;
+    currentSortAsc = true;
+  }
+  const accessor = currentHeadersFull[colIdx][1];
+  const dir = currentSortAsc ? 1 : -1;
+  currentRows = [...currentRows].sort((a, b) => {
+    const va = extractSortValue(accessor(a));
+    const vb = extractSortValue(accessor(b));
+    if (va.isNum && vb.isNum) return (va.val - vb.val) * dir;
+    return String(va.val).localeCompare(String(vb.val), 'uz') * dir;
+  });
+  renderTableRows();
+  renderTableHead();
+}
+
+function renderTableHead() {
+  document.getElementById('repThead').innerHTML = '<tr>' + currentHeadersFull.map((h, i) => {
+    const arrow = currentSortCol === i ? (currentSortAsc ? ' ▲' : ' ▼') : '';
+    return `<th onclick="sortTableBy(${i})" style="cursor:pointer;user-select:none" title="Tartiblash uchun bosing">${headerIcon(h[0])}${h[0]}${arrow}</th>`;
+  }).join('') + '</tr>';
+}
+
+function renderTableRows() {
+  if (!currentRows.length) {
+    document.getElementById('repBody').innerHTML = `<tr><td colspan="${currentHeadersFull.length}" class="bi-empty">Ma'lumot yo'q</td></tr>`;
     return;
   }
-  document.getElementById('repBody').innerHTML = rows.map(row => '<tr>' + headers.map(h => `<td>${h[1](row)}</td>`).join('') + '</tr>').join('');
+  document.getElementById('repBody').innerHTML = currentRows.map(row =>
+    '<tr>' + currentHeadersFull.map(h => `<td>${h[1](row)}</td>`).join('') + '</tr>'
+  ).join('');
+}
+
+function setTable(headers, rows) {
+  currentHeaders = headers.map(h => h[0]);
+  currentHeadersFull = headers;
+  currentRows = rows;
+  currentSortCol = -1;
+  currentSortAsc = true;
+  renderTableHead();
+  renderTableRows();
 }
 
 function filterTable(){
