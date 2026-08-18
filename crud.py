@@ -1625,6 +1625,91 @@ def check_system_health(db: Session) -> dict:
     }
 
 
+def check_financial_consistency(db: Session) -> dict:
+    """Moliyaviy izchillik tekshiruvi — bazadagi hisob-kitoblar o'zaro
+    to'g'ri qo'shilganmi, tekshiradi (masalan buyurtma summasi = detallar
+    yig'indisimi, qarz = kelishilgan − to'langan). Bu, "Salomatlik"dagi
+    ENUM tekshiruvidan FARQLI — bu yerda HISOB-KITOB (formula) natijalari
+    solishtiriladi, ruxsat etilgan qiymatlar ro'yxati emas."""
+    from datetime import datetime as _dt2
+    from models import Order, OrderItem, Payment, Inventory, InventoryPurchase
+
+    issues = []
+
+    # 1) Buyurtma summasi = detallar (unit_price × quantity) yig'indisimi?
+    orders = db.query(Order).filter(Order.is_deleted.is_(False)).all()
+    for o in orders:
+        items = db.query(OrderItem).filter(OrderItem.order_id == o.id).all()
+        items_sum = sum(float(it.unit_price or 0) * float(it.quantity or 1) for it in items)
+        total = float(o.total_amount or 0)
+        diff = abs(items_sum - total)
+        if diff > 1:
+            issues.append({
+                "type": "order_total_mismatch",
+                "label": f"Buyurtma {o.order_number}",
+                "detail": f"Jami summa: {total:,.0f} so'm, lekin detallar yig'indisi: {items_sum:,.0f} so'm",
+                "diff": round(diff, 2),
+            })
+
+    # 2) Qarz = kelishilgan − to'langan?
+    for o in orders:
+        pays = db.query(Payment).filter(Payment.order_id == o.id).all()
+        paid = sum(float(p.amount or 0) for p in pays)
+        agreed = float(o.agreed_amount or o.total_amount or 0)
+        debt = float(o.debt_amount or 0)
+        expected_debt = agreed - paid
+        diff = abs(debt - expected_debt)
+        if diff > 1:
+            issues.append({
+                "type": "debt_mismatch",
+                "label": f"Buyurtma {o.order_number}",
+                "detail": f"Yozilgan qarz: {debt:,.0f} so'm, lekin kutilgan (kelishilgan−to'langan): {expected_debt:,.0f} so'm",
+                "diff": round(diff, 2),
+            })
+
+    # 3) Manfiy ombor qoldig'i bormi?
+    for inv in db.query(Inventory).filter(Inventory.stock_quantity < 0).all():
+        issues.append({
+            "type": "negative_stock",
+            "label": inv.item_name,
+            "detail": f"Ombor qoldig'i manfiy: {float(inv.stock_quantity):,.2f} {inv.unit}",
+            "diff": abs(float(inv.stock_quantity)),
+        })
+
+    # 4) Xarid: miqdor × narx = jami summami?
+    for p in db.query(InventoryPurchase).all():
+        expected = float(p.quantity or 0) * float(p.price_per_unit or 0)
+        actual = float(p.total_amount or 0)
+        diff = abs(expected - actual)
+        if diff > 1:
+            issues.append({
+                "type": "purchase_total_mismatch",
+                "label": p.item_name,
+                "detail": f"Yozilgan summa: {actual:,.0f} so'm, lekin miqdor×narx: {expected:,.0f} so'm",
+                "diff": round(diff, 2),
+            })
+
+    # 5) order_items notes'ida takroriy texnik belgi bormi? (masalan
+    # 2026-08-17'da ORD-026-2'da topilgan [TERMO:...] ikki marta yozilish
+    # holati kabi)
+    for it in db.query(OrderItem).all():
+        notes = it.notes or ""
+        for marker in ["[TERMO:", "[GISHT:"]:
+            if notes.count(marker) > 1:
+                issues.append({
+                    "type": "duplicate_note_marker",
+                    "label": f"{it.name} (buyurtma #{it.order_id})",
+                    "detail": f"'{marker}' belgisi {notes.count(marker)} marta takrorlangan",
+                    "diff": notes.count(marker),
+                })
+
+    return {
+        "checked_at": _dt2.utcnow().isoformat(),
+        "issues_found": len(issues),
+        "issues": issues,
+    }
+
+
 def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None) -> bool:
     """Buyurtmani o'chirish.
     soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.

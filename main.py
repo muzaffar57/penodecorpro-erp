@@ -747,7 +747,9 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
     """Tizimdagi barcha ENUM ustunlarini tekshiradi (faqat o'qish, hech
     narsani o'zgartirmaydi) — noto'g'ri (masalan katta/kichik harf mos
     kelmaydigan) qiymatlarni oldindan aniqlash uchun."""
-    return crud.check_system_health(db)
+    result = crud.check_system_health(db)
+    result["financial"] = crud.check_financial_consistency(db)
+    return result
 
 
 @app.post("/api/orders/{order_id}/restore")
