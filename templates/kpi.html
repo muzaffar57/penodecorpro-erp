@@ -315,7 +315,7 @@
     <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-dark w-full" onclick="saveEmployee()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="emp-save-btn" onclick="saveEmployee()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeEmpModal()">Bekor</button>
     </div>
   </div>
@@ -915,7 +915,11 @@ function editEmployee(id) {
   document.getElementById('empModal').style.display = 'flex';
 }
 
+let isSavingEmployee = false;
+
 async function saveEmployee() {
+  if (isSavingEmployee) return; // Ikki marta bosishdan himoya — so'rov hali ketayotgan bo'lsa, qayta yubormaydi
+
   const name = document.getElementById('e-name').value.trim();
   const err = document.getElementById('emp-error');
   if (!name) { err.style.display='block'; err.textContent='❌ Ismni kiriting'; return; }
@@ -948,6 +952,14 @@ async function saveEmployee() {
     notes: document.getElementById('e-notes').value.trim() || null
   };
 
+  const saveBtn = document.getElementById('emp-save-btn');
+  isSavingEmployee = true;
+  saveBtn.disabled = true;
+  saveBtn.style.opacity = '0.6';
+  saveBtn.style.cursor = 'not-allowed';
+  const originalText = saveBtn.textContent;
+  saveBtn.textContent = 'Saqlanmoqda...';
+
   try {
     const url = editingEmpId ? `/api/employees/${editingEmpId}` : '/api/employees';
     const method = editingEmpId ? 'PUT' : 'POST';
@@ -964,6 +976,12 @@ async function saveEmployee() {
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
+  } finally {
+    isSavingEmployee = false;
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '';
+    saveBtn.style.cursor = '';
+    saveBtn.textContent = originalText;
   }
 }
 
