@@ -83,8 +83,14 @@ SESSION_HOURS = 8
 
 
 def create_session(db: Session, user_id: int) -> str:
-    """Yangi sessiya token yaratadi va BAZAGA saqlaydi."""
+    """Yangi sessiya token yaratadi va BAZAGA saqlaydi.
+    Yo'l-yo'lakay — muddati o'tgan eski sessiyalarni ham tozalaydi (har safar
+    tashqi cron kutmasdan, tabiiy ravishda bazani toza saqlash uchun)."""
     from models import UserSession
+    try:
+        cleanup_expired_sessions(db)
+    except Exception:
+        pass  # tozalash muvaffaqiyatsiz bo'lsa ham, login davom etishi kerak
     token = secrets.token_urlsafe(32)
     entry = UserSession(
         token=token, user_id=user_id,
@@ -115,11 +121,15 @@ def delete_session(db: Session, token: str):
     db.commit()
 
 
-def cleanup_expired_sessions(db: Session):
-    """Muddati o'tgan barcha sessiyalarni bazadan tozalaydi."""
-    from models import UserSession
-    db.query(UserSession).filter(UserSession.expires_at < datetime.utcnow()).delete()
+def cleanup_expired_sessions(db: Session) -> dict:
+    """Muddati o'tgan BARCHA sessiyalarni (admin/menejer VA hodim) bazadan
+    tozalaydi. Necha tasi o'chirilganini qaytaradi."""
+    from models import UserSession, EmployeeSession
+    now = datetime.utcnow()
+    user_count = db.query(UserSession).filter(UserSession.expires_at < now).delete()
+    emp_count = db.query(EmployeeSession).filter(EmployeeSession.expires_at < now).delete()
     db.commit()
+    return {"user_sessions": user_count, "employee_sessions": emp_count}
 
 
 # ============================================================
@@ -333,7 +343,13 @@ def verify_pin(plain_pin: str, hashed_pin: str) -> bool:
 
 
 def create_employee_session(db: Session, employee_id: int) -> str:
+    """Yo'l-yo'lakay — muddati o'tgan eski sessiyalarni ham tozalaydi
+    (hodimlar ko'p va tez-tez kirib-chiqishadi, shuning uchun bu yerda ham)."""
     from models import EmployeeSession
+    try:
+        cleanup_expired_sessions(db)
+    except Exception:
+        pass  # tozalash muvaffaqiyatsiz bo'lsa ham, login davom etishi kerak
     token = secrets.token_urlsafe(32)
     entry = EmployeeSession(
         token=token, employee_id=employee_id,
