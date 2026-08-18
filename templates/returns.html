@@ -290,7 +290,7 @@
     <div id="add-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-dark w-full" onclick="saveReturn()">Saqlash</button>
+      <button class="btn btn-dark w-full" id="return-save-btn" onclick="saveReturn()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
     </div>
   </div>
@@ -755,6 +755,7 @@ async function toggleRefund(id, current){
   else alert('Xato');
 }
 
+let isSavingReturn = false;
 async function saveReturn(){
   const err = document.getElementById('add-error');
   const orderId = document.getElementById('f-order').value;
@@ -773,29 +774,43 @@ async function saveReturn(){
   }
   err.style.display = 'none';
 
-  const res = await fetch('/api/returns', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      order_id: parseInt(orderId),
-      order_item_id: itemId,
-      item_name: item.name,
-      quantity,
-      unit: item.delivery_unit,
-      reason,
-      refund_amount: parseFloat(document.getElementById('f-value').value) || 0,
-      to_stock: true,
-      notes: document.getElementById('f-notes').value || null,
-      coating_applied: document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes',
-      gips_kg_used: parseFloat(document.getElementById('f-gips-kg-used')?.value) || null
-    })
-  });
+  if (isSavingReturn) return; // Ikki marta bosishdan himoya
+  isSavingReturn = true;
+  const btn = document.getElementById('return-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
 
-  if (res.ok) {
-    location.reload();
-  } else {
-    const e = await res.json();
-    err.style.display='block';
-    err.textContent = '❌ ' + (e.detail?.message || e.detail || 'Xato');
+  try {
+    const res = await fetch('/api/returns', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        order_id: parseInt(orderId),
+        order_item_id: itemId,
+        item_name: item.name,
+        quantity,
+        unit: item.delivery_unit,
+        reason,
+        refund_amount: parseFloat(document.getElementById('f-value').value) || 0,
+        to_stock: true,
+        notes: document.getElementById('f-notes').value || null,
+        coating_applied: document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes',
+        gips_kg_used: parseFloat(document.getElementById('f-gips-kg-used')?.value) || null
+      })
+    });
+
+    if (res.ok) {
+      location.reload();
+      return;
+    } else {
+      const e = await res.json();
+      err.style.display='block';
+      err.textContent = '❌ ' + (e.detail?.message || e.detail || 'Xato');
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server xatosi';
+  } finally {
+    isSavingReturn = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 
@@ -853,6 +868,7 @@ async function loadBrakFpOptions(){
   }
 }
 
+let isSavingBrak = false;
 async function saveFinishedProductBrak(){
   const err = document.getElementById('brak-fp-error');
   err.style.display = 'none';
@@ -863,16 +879,27 @@ async function saveFinishedProductBrak(){
   if (!fpId) { err.textContent = 'Mahsulot tanlanmagan'; err.style.display = 'block'; return; }
   if (!qty || qty <= 0) { err.textContent = 'Miqdor to\'g\'ri kiritilmagan'; err.style.display = 'block'; return; }
 
-  const res = await fetch('/api/returns/finished-product-brak', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({finished_product_id: parseInt(fpId), quantity: qty, notes})
-  });
-  if (res.ok) {
-    location.reload();
-  } else {
-    const e = await res.json();
-    err.textContent = '❌ ' + (e.detail?.message || e.detail || 'Xato');
-    err.style.display = 'block';
+  if (isSavingBrak) return; // Ikki marta bosishdan himoya
+  isSavingBrak = true;
+  const btn = document.getElementById('brak-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+
+  try {
+    const res = await fetch('/api/returns/finished-product-brak', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({finished_product_id: parseInt(fpId), quantity: qty, notes})
+    });
+    if (res.ok) {
+      location.reload();
+      return;
+    } else {
+      const e = await res.json();
+      err.textContent = '❌ ' + (e.detail?.message || e.detail || 'Xato');
+      err.style.display = 'block';
+    }
+  } finally {
+    isSavingBrak = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 
@@ -938,6 +965,11 @@ async function saveBrakBatch(){
   if (!toSave.length) { err.style.display='block'; err.textContent='❌ Kamida bitta detal uchun miqdor kiriting'; return; }
   err.style.display = 'none';
 
+  if (isSavingBrak) return; // Ikki marta bosishdan himoya
+  isSavingBrak = true;
+  const btn = document.getElementById('brak-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+
   try {
     let okCount = 0;
     for (const { item, qty } of toSave) {
@@ -960,9 +992,13 @@ async function saveBrakBatch(){
     }
     closeBrakModal();
     location.reload();
+    return;
   } catch(e) {
     err.style.display='block';
     err.textContent='❌ Server xatosi';
+  } finally {
+    isSavingBrak = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 

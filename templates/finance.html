@@ -451,7 +451,7 @@
     </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="fin-btn fin-btn-primary w-full" onclick="saveTx()" style="flex:1">Saqlash</button>
+      <button class="fin-btn fin-btn-primary w-full" id="tx-save-btn" onclick="saveTx()" style="flex:1">Saqlash</button>
       <button class="fin-btn fin-btn-ghost w-full" onclick="closeTxModal()" style="flex:1">Bekor</button>
     </div>
   </div>
@@ -471,7 +471,7 @@
     <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="cashtx-notes" placeholder="masalan: Jo'rabekka 500,000 berildi"></div>
     <div id="cashtx-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     <div style="display:flex;gap:8px">
-      <button onclick="saveCashTx()" style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Saqlash</button>
+      <button onclick="saveCashTx()" id="cashtx-save-btn" style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Saqlash</button>
       <button onclick="document.getElementById('cashTxModal').style.display='none'" style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Bekor</button>
     </div>
   </div>
@@ -599,6 +599,7 @@ async function fillEhsonAmount(){
   }
 }
 
+let isSavingCashTx = false;
 async function saveCashTx(){
   const raw = parseNum(document.getElementById('cashtx-amount').value) || 0;
   const err = document.getElementById('cashtx-error');
@@ -612,6 +613,11 @@ async function saveCashTx(){
   fd.append('category', currentCashTxCategory);
   fd.append('amount', amount);
   if (notes) fd.append('notes', notes);
+
+  if (isSavingCashTx) return; // Ikki marta bosishdan himoya
+  isSavingCashTx = true;
+  const btn = document.getElementById('cashtx-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
 
   try {
     const res = await fetch('/api/finance/cash-transaction', { method: 'POST', body: fd });
@@ -629,6 +635,9 @@ async function saveCashTx(){
   } catch(e) {
     err.textContent = "❌ Server bilan aloqa yo'q";
     err.style.display = 'block';
+  } finally {
+    isSavingCashTx = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 
@@ -975,11 +984,18 @@ function openTxModal(){
 }
 function closeTxModal(){ document.getElementById('txModal').style.display = 'none'; }
 
+let isSavingTx = false;
 async function saveTx(){
   const date = document.getElementById('tx-f-date').value;
   const category = document.getElementById('tx-f-category').value;
   const amount = parseNum(document.getElementById('tx-f-amount').value);
   if (!date || !amount || amount <= 0) { alert('Sana va summani to\'g\'ri kiriting'); return; }
+
+  if (isSavingTx) return; // Ikki marta bosishdan himoya
+  isSavingTx = true;
+  const btn = document.getElementById('tx-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+
   try {
     const res = await fetch('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
@@ -989,7 +1005,10 @@ async function saveTx(){
       closeTxModal();
       loadDailyTransactions();
     } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
-  } catch(e) { alert('Server xatosi'); }
+  } catch(e) { alert('Server xatosi'); } finally {
+    isSavingTx = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 
 async function deleteTx(id){

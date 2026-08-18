@@ -131,7 +131,7 @@
               <label style="font-size:11px;color:var(--r-text3);font-weight:600;text-transform:uppercase">Qarzni to'lash</label>
               <div style="display:flex;gap:6px">
                 <input type="text" id="sup-quickpay-amount" placeholder="0" oninput="formatPriceInput(this)" style="flex:1">
-                <button onclick="quickPaySupplier()">💰 To'lov</button>
+                <button id="sup-quickpay-btn" onclick="quickPaySupplier()">💰 To'lov</button>
               </div>
             </div>
           </div>
@@ -329,7 +329,7 @@
         </div>
       </div>
 
-      <button class="rcv-btn rcv-btn-dark" style="width:100%;height:48px;font-size:14px" onclick="submitReceive()">✓ Kirimni tasdiqlash</button>
+      <button class="rcv-btn rcv-btn-dark" id="receive-submit-btn" style="width:100%;height:48px;font-size:14px" onclick="submitReceive()">✓ Kirimni tasdiqlash</button>
     </div>
 
   </div>
@@ -509,24 +509,39 @@ async function loadHistoryForSupplier(page){
   }
 }
 
+let isSavingSupplierQuickPay = false;
 async function quickPaySupplier(confirmOverpay = false){
   if (!currentSupplierId) { showMsg('Avval yetkazib beruvchini tanlang'); return; }
   const amount = parseNum(document.getElementById('sup-quickpay-amount').value);
   if (!amount || amount <= 0) { showMsg('Summani kiriting'); return; }
-  const res = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay })
-  });
-  if (res.ok) {
-    showMsg("✓ To'lov qabul qilindi", 'success');
-    document.getElementById('sup-quickpay-amount').value = '';
-    loadHistoryForSupplier();
-  } else if (res.status === 409) {
-    const e = await res.json();
-    if (e.detail?.type === 'overpayment_warning' && confirm('⚠️ ' + e.detail.message)) {
-      quickPaySupplier(true);
-    }
-  } else showMsg('Xato yuz berdi', 'error');
+
+  const btn = document.getElementById('sup-quickpay-btn');
+  if (!confirmOverpay) {
+    if (isSavingSupplierQuickPay) return; // Ikki marta bosishdan himoya
+    isSavingSupplierQuickPay = true;
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
+  }
+
+  try {
+    const res = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ supplier_id: currentSupplierId, amount, confirm_overpay: confirmOverpay })
+    });
+    if (res.ok) {
+      showMsg("✓ To'lov qabul qilindi", 'success');
+      document.getElementById('sup-quickpay-amount').value = '';
+      loadHistoryForSupplier();
+    } else if (res.status === 409) {
+      const e = await res.json();
+      if (e.detail?.type === 'overpayment_warning' && confirm('⚠️ ' + e.detail.message)) {
+        await quickPaySupplier(true);
+        return;
+      }
+    } else showMsg('Xato yuz berdi', 'error');
+  } finally {
+    isSavingSupplierQuickPay = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 
 function openNewSupplier(){ document.getElementById('newSupplierModal').style.display = 'flex'; }
@@ -798,8 +813,10 @@ document.getElementById('ap-notes')?.addEventListener('input', saveDraft);
 document.getElementById('ap-opening-stock')?.addEventListener('change', saveDraft);
 
 // ── YAKUNIY SAQLASH ──
+let isSubmittingReceive = false;
 async function submitReceive(){
   if (!currentSupplierId) { showMsg('❌ Yetkazib beruvchini tanlang', 'error'); return; }
+  if (isSubmittingReceive) return; // Ikki marta bosishdan himoya
 
   const wasCreatingNew = apCreatingNewItem;
   const pendingId = await (async () => {
@@ -826,6 +843,11 @@ async function submitReceive(){
     const proceed = confirm("⚠️ Yo'nalish tanlanmadi (\"Umumiy\" holatida qoldi).\n\nAgar bu xarid aslida Penoplast yoki Gips uchun bo'lsa, Moliya hisobotida noto'g'ri taqsimlanishi mumkin.\n\nShunday davom etilsinmi?");
     if (!proceed) return;
   }
+
+  if (isSubmittingReceive) return; // Ikki marta bosishdan himoya (yuqoridagi await/confirm paytida ham bosilgan bo'lishi mumkin)
+  isSubmittingReceive = true;
+  const submitBtn = document.getElementById('receive-submit-btn');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.6'; submitBtn.dataset.origText = submitBtn.textContent; submitBtn.textContent = 'Saqlanmoqda...'; }
 
   const paidNowTotal = parseNum(document.getElementById('ap-paid-now').value)||0;
   const ec = apGetExtraCosts();
@@ -868,6 +890,9 @@ async function submitReceive(){
   } catch(e) {
     showMsg('❌ Server bilan aloqa yo\'q', 'error');
     return;
+  } finally {
+    isSubmittingReceive = false;
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; if (submitBtn.dataset.origText) submitBtn.textContent = submitBtn.dataset.origText; }
   }
 
   const grandTotal = apBasket.reduce((s,l)=>s+l.total,0) + ec.transport + ec.tushirish + ec.yuklash + ec.boshqa;

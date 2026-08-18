@@ -189,7 +189,7 @@
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
       <button onclick="closeGipsProduceModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitGipsProduce()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#9D174D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">🧱 Ishlab chiqarish</button>
+      <button onclick="submitGipsProduce()" id="gips-produce-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#9D174D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">🧱 Ishlab chiqarish</button>
     </div>
   </div>
 </div>
@@ -273,7 +273,7 @@
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
       <button onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Hammasini sotish</button>
+      <button onclick="submitBatchSell()" id="batch-sell-submit-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Hammasini sotish</button>
     </div>
   </div>
 </div>
@@ -314,7 +314,7 @@
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
       <button onclick="closeSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
+      <button onclick="submitSell()" id="sell-submit-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
     </div>
   </div>
 </div>
@@ -402,7 +402,7 @@
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeTermoModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2;background:#8B5E3C" onclick="saveTermopanel()">🧱 Ishlab chiqarish</button>
+      <button class="btn btn-dark" id="termopanel-save-btn" style="flex:2;background:#8B5E3C" onclick="saveTermopanel()">🧱 Ishlab chiqarish</button>
     </div>
   </div>
 </div>
@@ -586,7 +586,7 @@
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2;background:var(--gold);border-color:var(--gold)" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
+      <button class="btn btn-dark" id="produce-save-btn" style="flex:2;background:var(--gold);border-color:var(--gold)" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
     </div>
   </div>
 
@@ -644,6 +644,30 @@ const PENOS = [
   {id: {{ p.id }}, name: {{ p.item_name|tojson }}, vol: {{ p.volume_per_unit|float }}, price: {{ (p.price_per_unit or 0)|float }}},
   {% endfor %}
 ];
+
+// Ikki marta bosishdan himoya — bir xil buyum/amal uchun so'rov tugamaguncha qayta yubormaydi
+const inFlightFpActions = new Set();
+let isSavingGipsProduce = false;
+let isSavingLoss = false;
+let isSavingBatchSell = false;
+let isSavingSell = false;
+let isSavingTermopanel = false;
+let isSavingFpProduce = false;
+const inFlightMarkReady = new Set();
+
+function setBtnSavingFp(id, saving) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.disabled = saving;
+  btn.style.opacity = saving ? '0.6' : '';
+  btn.style.cursor = saving ? 'not-allowed' : '';
+  if (saving) {
+    btn.dataset.origText = btn.textContent;
+    btn.textContent = 'Saqlanmoqda...';
+  } else if (btn.dataset.origText) {
+    btn.textContent = btn.dataset.origText;
+  }
+}
 
 function shortPenoName(fullName) {
   if (!fullName) return '';
@@ -941,7 +965,7 @@ function rowHtml(i) {
 
   const actionBtns = inProgress ? `
     <button class="btn btn-dark btn-sm" style="padding:5px 12px;font-size:11px;white-space:nowrap"
-            onclick="markReady(${i.id})">✓ Sotuvga tayyor</button>
+            onclick="markReady(${i.id}, event)">✓ Sotuvga tayyor</button>
     <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
     <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
             onclick="delFp(${i.id}, '${i.source}')" title="Bekor qilish">✕</button>
@@ -1092,6 +1116,10 @@ async function addProduction(id, qty, item) {
 
   if (!(await customConfirm(`${item.name} — qo'shish`, txt))) return;
 
+  const lockKey = `add-${id}`;
+  if (inFlightFpActions.has(lockKey)) return; // Ikki marta bosishdan himoya
+  inFlightFpActions.add(lockKey);
+
   try {
     const res = await fetch(`/api/finished/${id}/add`, {
       method: 'POST',
@@ -1110,7 +1138,9 @@ async function addProduction(id, qty, item) {
       showMsg('❌ ' + (d.message || 'Xato') +
         (d.shortages?.length ? '\n' + d.shortages.join('\n') : ''), 'error');
     }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); } finally {
+    inFlightFpActions.delete(lockKey);
+  }
 }
 
 async function reduceProduction(id, qty, item) {
@@ -1126,6 +1156,10 @@ async function reduceProduction(id, qty, item) {
   const reason = prompt('Sabab (ixtiyoriy):\n\nMasalan: singan, brak, yo\'qolgan', '');
   if (reason === null) return;
 
+  const lockKey = `reduce-${id}`;
+  if (inFlightFpActions.has(lockKey)) return; // Ikki marta bosishdan himoya
+  inFlightFpActions.add(lockKey);
+
   try {
     const res = await fetch(`/api/finished/${id}/reduce`, {
       method: 'POST',
@@ -1140,7 +1174,9 @@ async function reduceProduction(id, qty, item) {
     } else {
       showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
     }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); } finally {
+    inFlightFpActions.delete(lockKey);
+  }
 }
 
 let _gipsInvCacheFp = null;
@@ -1233,6 +1269,10 @@ async function submitGipsProduce() {
   if (!name) { showMsg('Mahsulot nomini kiriting', 'error'); return; }
   if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
 
+  if (isSavingGipsProduce) return; // Ikki marta bosishdan himoya
+  isSavingGipsProduce = true;
+  setBtnSavingFp('gips-produce-btn', true);
+
   try {
     const res = await fetch('/api/finished/produce-gips', {
       method: 'POST',
@@ -1251,7 +1291,10 @@ async function submitGipsProduce() {
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
+    isSavingGipsProduce = false;
+    setBtnSavingFp('gips-produce-btn', false);
+  }
 }
 
 let _lossData = null;
@@ -1296,8 +1339,12 @@ async function submitLoss() {
   const qty = parseFloat(document.getElementById('loss-qty').value) || 0;
   if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
 
+  if (isSavingLoss) return; // Ikki marta bosishdan himoya
+  isSavingLoss = true;
+  setBtnSavingFp('loss-submit-btn', true);
+
   if (_lossMode === 'stock') {
-    if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); return; }
+    if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); isSavingLoss = false; setBtnSavingFp('loss-submit-btn', false); return; }
     try {
       const res = await fetch('/api/finished/loss', {
         method: 'POST',
@@ -1316,7 +1363,9 @@ async function submitLoss() {
       } else {
         showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
       }
-    } catch(e) { showMsg('Server xatosi', 'error'); }
+    } catch(e) { showMsg('Server xatosi', 'error'); } finally {
+      isSavingLoss = false; setBtnSavingFp('loss-submit-btn', false);
+    }
   } else {
     try {
       const res = await fetch('/api/finished/production-brak', {
@@ -1336,7 +1385,9 @@ async function submitLoss() {
       } else {
         showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
       }
-    } catch(e) { showMsg('Server xatosi', 'error'); }
+    } catch(e) { showMsg('Server xatosi', 'error'); } finally {
+      isSavingLoss = false; setBtnSavingFp('loss-submit-btn', false);
+    }
   }
 }
 
@@ -1492,6 +1543,10 @@ async function submitBatchSell() {
     agreedAmount = agreedRaw;
   }
 
+  if (isSavingBatchSell) return; // Ikki marta bosishdan himoya
+  isSavingBatchSell = true;
+  setBtnSavingFp('batch-sell-submit-btn', true);
+
   try {
     const res = await fetch('/api/finished/sell-batch', {
       method: 'POST',
@@ -1514,7 +1569,9 @@ async function submitBatchSell() {
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
+    isSavingBatchSell = false; setBtnSavingFp('batch-sell-submit-btn', false);
+  }
 }
 
 let _sellData = null;
@@ -1551,6 +1608,10 @@ async function submitSell() {
   if (qty > _sellData.quantity + 0.001) { showMsg(`Omborda faqat ${_sellData.quantity} ${_sellData.unit} bor`, 'error'); return; }
   if (price <= 0) { showMsg('Narxni kiriting', 'error'); return; }
 
+  if (isSavingSell) return; // Ikki marta bosishdan himoya
+  isSavingSell = true;
+  setBtnSavingFp('sell-submit-btn', true);
+
   try {
     const res = await fetch('/api/finished/sell', {
       method: 'POST',
@@ -1575,7 +1636,9 @@ async function submitSell() {
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
+    isSavingSell = false; setBtnSavingFp('sell-submit-btn', false);
+  }
 }
 
 async function editPrice(id) {
@@ -1725,6 +1788,10 @@ async function saveTermopanel() {
   if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
   err.style.display = 'none';
 
+  if (isSavingTermopanel) return; // Ikki marta bosishdan himoya
+  isSavingTermopanel = true;
+  setBtnSavingFp('termopanel-save-btn', true);
+
   const data = {
     name,
     required_m2: m2,
@@ -1763,6 +1830,8 @@ async function saveTermopanel() {
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
+  } finally {
+    isSavingTermopanel = false; setBtnSavingFp('termopanel-save-btn', false);
   }
 }
 
@@ -2149,6 +2218,10 @@ async function saveProduce() {
     if (!ok) return;
   }
 
+  if (isSavingFpProduce) return; // Ikki marta bosishdan himoya
+  isSavingFpProduce = true;
+  setBtnSavingFp('produce-save-btn', true);
+
   try {
     const res = await fetch('/api/finished/produce', {
       method: 'POST',
@@ -2175,18 +2248,27 @@ async function saveProduce() {
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
+  } finally {
+    isSavingFpProduce = false; setBtnSavingFp('produce-save-btn', false);
   }
 }
 
 // ── TAYYOR (sotuvga tayyor) ───────────────────────────────
-async function markReady(id) {
+async function markReady(id, evt) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
+
+  if (inFlightMarkReady.has(id)) return; // Ikki marta bosishdan himoya — shu mahsulot uchun so'rov hali ketmoqda
 
   const txt = `📦 ${item.quantity} ${item.unit}\n\n` +
     `Xomashyo allaqachon yechilgan — bu faqat holat o'zgarishi.`;
 
   if (!(await customConfirm(`${item.name} — sotuvga tayyor`, txt))) return;
+
+  if (inFlightMarkReady.has(id)) return;
+  inFlightMarkReady.add(id);
+  const btn = evt?.target;
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
 
   try {
     const res = await fetch(`/api/finished/${id}/complete`, { method: 'POST' });
@@ -2200,6 +2282,9 @@ async function markReady(id) {
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
+  } finally {
+    inFlightMarkReady.delete(id);
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 

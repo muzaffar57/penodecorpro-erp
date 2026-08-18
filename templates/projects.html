@@ -259,7 +259,7 @@
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">💰 To'lov qo'shish</div>
     <div class="form-group"><label>Summa (so'm)</label><input type="number" id="pay-amount" placeholder="0" min="0"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-gold w-full" onclick="savePayment()">Qo'shish</button>
+      <button class="btn btn-gold w-full" id="proj-pay-save-btn" onclick="savePayment()">Qo'shish</button>
       <button class="btn btn-outline w-full" onclick="document.getElementById('payModal').style.display='none'">Bekor</button>
     </div>
   </div>
@@ -599,11 +599,21 @@ function closeModal(){
   document.getElementById('payModal').style.display='none';
 }
 
+let isSavingProjPayment = false;
 async function savePayment(){
   const amount=parseFloat(document.getElementById('pay-amount').value);
   if(!amount||amount<=0){alert('Summa kiriting!');return;}
-  const res=await fetch(`/api/projects/${selectedProjId}/payment?amount=${amount}`,{method:'POST'});
-  if(res.ok){alert('✓ To\'lov qo\'shildi!');location.reload();}else alert('Xato');
+  if (isSavingProjPayment) return; // Ikki marta bosishdan himoya
+  isSavingProjPayment = true;
+  const btn = document.getElementById('proj-pay-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+  try {
+    const res=await fetch(`/api/projects/${selectedProjId}/payment?amount=${amount}`,{method:'POST'});
+    if(res.ok){alert('✓ To\'lov qo\'shildi!');location.reload();return;}else alert('Xato');
+  } finally {
+    isSavingProjPayment = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
 }
 
 async function deleteProj(){

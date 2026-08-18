@@ -88,7 +88,7 @@
 
     <div style="padding:12px 22px;border-bottom:1px solid #f0f0f0;display:flex;gap:8px">
       <input type="text" id="pay-amount" placeholder="To'lov summasi" oninput="formatPriceInput(this)" style="flex:1;height:38px;padding:0 12px;border:1.5px solid #ddd;border-radius:7px;font-size:13px;outline:none">
-      <button class="btn btn-dark" onclick="savePayment()">💰 To'lov qilish</button>
+      <button class="btn btn-dark" id="supplier-pay-save-btn" onclick="savePayment()">💰 To'lov qilish</button>
     </div>
 
     <div style="padding:12px 22px;border-bottom:1px solid #f0f0f0">
@@ -835,9 +835,26 @@ async function deletePurchase(id) {
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
+let isSavingSupplierPayment = false;
+function setSupplierPayBtnSaving(saving) {
+  const btn = document.getElementById('supplier-pay-save-btn');
+  if (!btn) return;
+  btn.disabled = saving;
+  btn.style.opacity = saving ? '0.6' : '';
+  btn.style.cursor = saving ? 'not-allowed' : '';
+  if (saving) { btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+  else if (btn.dataset.origText) btn.textContent = btn.dataset.origText;
+}
+
 async function savePayment(confirmOverpay = false){
   const amount = parseNum(document.getElementById('pay-amount').value) || 0;
   if (!amount || amount <= 0){ showMsg('❌ Summani kiriting', 'error'); return; }
+
+  if (!confirmOverpay) {
+    if (isSavingSupplierPayment) return; // Ikki marta bosishdan himoya
+    isSavingSupplierPayment = true;
+    setSupplierPayBtnSaving(true);
+  }
 
   try{
     const res = await fetch(`/api/suppliers/${currentSupplierId}/payment`, {
@@ -851,10 +868,13 @@ async function savePayment(confirmOverpay = false){
     } else if (res.status === 409) {
       const e = await res.json();
       if (e.detail?.type === 'overpayment_warning' && confirm('⚠️ ' + e.detail.message)) {
-        savePayment(true);
+        await savePayment(true);
+        return;
       }
     } else showMsg('❌ Xato', 'error');
-  }catch(e){ showMsg('❌ Server xatosi', 'error'); }
+  }catch(e){ showMsg('❌ Server xatosi', 'error'); } finally {
+    isSavingSupplierPayment = false; setSupplierPayBtnSaving(false);
+  }
 }
 
 async function deletePayment(id){

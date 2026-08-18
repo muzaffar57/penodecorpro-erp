@@ -126,7 +126,7 @@
               <input type="checkbox" id="pay-writeoff" style="width:15px;height:15px">
               Qolgan qarzni chegirma qilib yopish
             </label>
-            <button class="btn btn-dark w-full" onclick="savePayment()">✓ To'lovni qabul qilish</button>
+            <button class="btn btn-dark w-full" id="debt-pay-save-btn" onclick="savePayment()">✓ To'lovni qabul qilish</button>
             <div id="pay-msg" style="display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px"></div>
           </div>
         </div>
@@ -197,7 +197,7 @@
                   </div>
                   <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
                 </div>
-                <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan))">✓ To'liq to'landi deb belgilash</button>
+                <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan), this)">✓ To'liq to'landi deb belgilash</button>
               </div>
             </div>
             {% endfor %}
@@ -233,7 +233,7 @@
                 </div>
               </div>
               <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:{{ status_color[r.status] }}"></div></div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();quickPayObligation(this.closest('.oblig-item').dataset.category, this.closest('.oblig-item').dataset.label, parseFloat(this.dataset.debt))">💰 To'lov qo'shish</button>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();quickPayObligation(this.closest('.oblig-item').dataset.category, this.closest('.oblig-item').dataset.label, parseFloat(this.dataset.debt), this)">💰 To'lov qo'shish</button>
             </div>
             {% endfor %}
           {% else %}
@@ -356,19 +356,21 @@ async function deleteCategory(id, label){
   } catch(e) { alert('Server xatosi'); }
 }
 
-async function quickPayObligation(category, label, debt){
+async function quickPayObligation(category, label, debt, btn){
   const amountStr = prompt(`${label} uchun bugun qancha to'landi?`, String(Math.round(debt)));
   if (!amountStr) return;
   const amount = parseNum(amountStr);
   if (!amount || amount <= 0) return;
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
   try {
     const res = await fetch('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ date: new Date().toISOString().slice(0,10)+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)" })
     });
-    if (res.ok) location.reload();
+    if (res.ok) { location.reload(); return; }
     else alert('Xato yuz berdi');
   } catch(e) { alert('Server xatosi'); }
+  if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
 }
 
 async function openObligTimeline(category, label){
@@ -408,14 +410,16 @@ function renderTimeline(rows){
 }
 function closeTimelineModal(){ document.getElementById('timelineModal').style.display = 'none'; }
 
-async function closeEmployeeDebt(empId, name, amount){
+async function closeEmployeeDebt(empId, name, amount, btn){
   if (!confirm(`${name} ga ${fmt(amount)} so'm to'liq to'landi deb belgilaysizmi?`)) return;
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
   const now = new Date();
   try {
     const res = await fetch(`/api/obligations/employee/${empId}/close?year=${now.getFullYear()}&month=${now.getMonth()+1}&amount=${amount}`, {method:'POST'});
-    if (res.ok) location.reload();
+    if (res.ok) { location.reload(); return; }
     else alert('Xato yuz berdi');
   } catch(e) { alert('Server xatosi'); }
+  if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
 }
 
 let selectedOrderId = null;
@@ -451,6 +455,7 @@ function selectOrderDebt(el){
   document.getElementById('pay-msg').style.display = 'none';
 }
 
+let isSavingDebtPayment = false;
 async function savePayment(){
   if (!selectedOrderId) return;
   const amount = parseNum(document.getElementById('pay-amount').value);
@@ -458,20 +463,30 @@ async function savePayment(){
   const writeOff = document.getElementById('pay-writeoff').checked;
   const notes = document.getElementById('pay-note').value;
 
-  const res = await fetch(`/api/payments?write_off_remainder=${writeOff}`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ order_id: parseInt(selectedOrderId), amount, notes: notes || null })
-  });
+  if (isSavingDebtPayment) return; // Ikki marta bosishdan himoya
+  isSavingDebtPayment = true;
+  const btn = document.getElementById('debt-pay-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
 
-  const msg = document.getElementById('pay-msg');
-  msg.style.display = 'block';
-  if (res.ok) {
-    msg.style.background = '#DCFCE7'; msg.style.color = '#166534';
-    msg.textContent = `✓ ${fmt(amount)} so'm qabul qilindi!`;
-    setTimeout(() => location.reload(), 1300);
-  } else {
-    msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
-    msg.textContent = 'Xato yuz berdi';
+  try {
+    const res = await fetch(`/api/payments?write_off_remainder=${writeOff}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ order_id: parseInt(selectedOrderId), amount, notes: notes || null })
+    });
+
+    const msg = document.getElementById('pay-msg');
+    msg.style.display = 'block';
+    if (res.ok) {
+      msg.style.background = '#DCFCE7'; msg.style.color = '#166534';
+      msg.textContent = `✓ ${fmt(amount)} so'm qabul qilindi!`;
+      setTimeout(() => location.reload(), 1300);
+    } else {
+      msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
+      msg.textContent = 'Xato yuz berdi';
+    }
+  } finally {
+    isSavingDebtPayment = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 
