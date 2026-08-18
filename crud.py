@@ -401,9 +401,19 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
     effective_price_for_avg = price_per_unit + (extra_cost_per_unit or 0.0)
 
     total_qty = old_qty + quantity
-    if total_qty > 0:
+    if old_qty > 0 and total_qty > 0:
+        # Oddiy holat — eski qoldiq HAM ijobiy, shuning uchun to'g'ri,
+        # haqiqiy o'rtacha vaznli narxni hisoblaymiz.
         weighted_price = (old_qty * old_price + quantity * effective_price_for_avg) / total_qty
     else:
+        # MUHIM (2026-08-18): eski qoldiq MANFIY yoki "0" bo'lsa — eski
+        # narxni O'RTACHAGA UMUMAN QO'SHMAYMIZ. Sabab: manfiy miqdorning
+        # haqiqiy tannarx asosi yo'q (u — hali kelmagan, "qarzga" ishlatilgan
+        # xomashyo). Agar shunday holatda ham eski narxni qo'shsak, natija
+        # HAR IKKALA (eski va yangi) narxdan ham chetga chiqib ketardi —
+        # masalan -5 dona (785 000 so'm) + 20 dona (900 000 so'm) qo'shilsa,
+        # to'g'ri formula 938 333 so'm (ikkalasidan ham QIMMAT!) berardi.
+        # Shuning uchun, bunday holatda, faqat YANGI xarid narxi ishlatiladi.
         weighted_price = effective_price_for_avg
 
     db_item.stock_quantity = total_qty
@@ -1737,7 +1747,8 @@ def check_financial_consistency(db: Session) -> dict:
 
     # 8) Qoralama bo'lmagan buyurtmada, narxi "0" bo'lgan detal bormi?
     # (bu, narx kiritishni unutib qo'yganini bildirishi mumkin)
-    for o in db.query(Order).filter(Order.is_deleted.is_(False), Order.status != 'draft').all():
+    from models import OrderStatus
+    for o in db.query(Order).filter(Order.is_deleted.is_(False), Order.status != OrderStatus.DRAFT).all():
         for it in db.query(OrderItem).filter(OrderItem.order_id == o.id).all():
             if float(it.unit_price or 0) <= 0:
                 issues.append({
