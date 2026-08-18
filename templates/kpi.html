@@ -45,13 +45,13 @@
 .dir-opt.active.dir-gips{background:#FDE68A;color:#92400E}
 .dir-toggle.dir-error{border-color:var(--red)}
 
-/* Hodim qo'shish/tahrirlash kartochkasi — bo'limlarga ajratish uchun */
-.emp-section-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin:20px 0 9px}
-.emp-section-label:first-of-type{margin-top:0}
-.emp-section-label .emp-hint{font-weight:400;text-transform:none;letter-spacing:0;color:#bbb;font-size:11.5px}
-.emp-field-box{background:#FAFAF8;border:1px solid var(--border2);border-radius:12px;padding:14px}
-.emp-field-box .form-group:last-child{margin-bottom:0}
-.emp-field-box .form-row:last-child{margin-bottom:0}
+/* Kartochka bo'limlariga ajratish uchun umumiy uslub (Hodim, Usta va h.k. modallarida) */
+.modal-section-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin:20px 0 9px}
+.modal-section-label:first-of-type{margin-top:0}
+.modal-section-label .modal-hint{font-weight:400;text-transform:none;letter-spacing:0;color:#bbb;font-size:11.5px}
+.modal-field-box{background:#FAFAF8;border:1px solid var(--border2);border-radius:12px;padding:14px}
+.modal-field-box .form-group:last-child{margin-bottom:0}
+.modal-field-box .form-row:last-child{margin-bottom:0}
 </style>
 {% endblock %}
 
@@ -198,6 +198,7 @@
   <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="master-modal-title">+ Yangi usta</div>
 
+    <div class="modal-section-label">Asosiy ma'lumot</div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="m-name" placeholder="Usta ismi"></div>
       <div class="form-group" style="margin:0"><label>Telefon</label><input type="text" id="m-phone" placeholder="+998901234567"></div>
@@ -218,7 +219,8 @@
       </div>
     </div>
 
-    <div class="form-group"><label>Telegram ID (ixtiyoriy)</label><input type="text" id="m-telegram" placeholder="123456789"></div>
+    <div class="modal-section-label">Qo'shimcha <span class="modal-hint">— ixtiyoriy</span></div>
+    <div class="form-group"><label>Telegram ID</label><input type="text" id="m-telegram" placeholder="123456789"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="m-notes" placeholder="..."></div>
 
     <div id="master-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
@@ -248,21 +250,21 @@
   <div style="background:#fff;border-radius:14px;padding:24px;width:460px;max-width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="emp-modal-title">+ Yangi hodim</div>
 
-    <div class="emp-section-label">Asosiy ma'lumot</div>
+    <div class="modal-section-label">Asosiy ma'lumot</div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="e-name" placeholder="Hodim ismi"></div>
       <div class="form-group" style="margin:0"><label>Lavozimi</label><input type="text" id="e-position" placeholder="Kesuvchi"></div>
     </div>
 
-    <div class="emp-section-label">Yo'nalish <span class="emp-hint">— Gips/Penoplast mustaqil hisobot uchun, majburiy</span></div>
+    <div class="modal-section-label">Yo'nalish <span class="modal-hint">— Gips/Penoplast mustaqil hisobot uchun, majburiy</span></div>
     <div class="dir-toggle" id="e-prodtype-toggle">
       <div class="dir-opt dir-penoplast" data-val="penoplast" onclick="setProdType('penoplast')">🏭 Penoplast</div>
       <div class="dir-opt dir-gips" data-val="gips" onclick="setProdType('gips')">🧱 Gips</div>
     </div>
     <input type="hidden" id="e-prodtype" value="">
 
-    <div class="emp-section-label">To'lov</div>
-    <div class="emp-field-box">
+    <div class="modal-section-label">To'lov</div>
+    <div class="modal-field-box">
       <div class="form-group">
         <label>To'lov turi</label>
         <select id="e-paytype" onchange="empToggle()">
@@ -309,7 +311,7 @@
       </div>
     </div>
 
-    <div class="emp-section-label">Qo'shimcha <span class="emp-hint">— ixtiyoriy</span></div>
+    <div class="modal-section-label">Qo'shimcha <span class="modal-hint">— ixtiyoriy</span></div>
     <div class="form-row">
       <div class="form-group" style="margin:0">
         <label>🧱 Qoliplik gul (so'm/dona)</label>
