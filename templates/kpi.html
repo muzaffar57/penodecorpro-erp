@@ -44,6 +44,14 @@
 .dir-opt.active.dir-penoplast{background:#DBEAFE;color:#1E40AF}
 .dir-opt.active.dir-gips{background:#FDE68A;color:#92400E}
 .dir-toggle.dir-error{border-color:var(--red)}
+
+/* Hodim qo'shish/tahrirlash kartochkasi — bo'limlarga ajratish uchun */
+.emp-section-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin:20px 0 9px}
+.emp-section-label:first-of-type{margin-top:0}
+.emp-section-label .emp-hint{font-weight:400;text-transform:none;letter-spacing:0;color:#bbb;font-size:11.5px}
+.emp-field-box{background:#FAFAF8;border:1px solid var(--border2);border-radius:12px;padding:14px}
+.emp-field-box .form-group:last-child{margin-bottom:0}
+.emp-field-box .form-row:last-child{margin-bottom:0}
 </style>
 {% endblock %}
 
@@ -237,79 +245,81 @@
 
 <!-- ══ HODIM QO'SHISH/TAHRIRLASH MODALI ══ -->
 <div id="empModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:440px;max-width:100%">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:460px;max-width:100%;max-height:90vh;overflow-y:auto">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="emp-modal-title">+ Yangi hodim</div>
 
+    <div class="emp-section-label">Asosiy ma'lumot</div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="e-name" placeholder="Hodim ismi"></div>
       <div class="form-group" style="margin:0"><label>Lavozimi</label><input type="text" id="e-position" placeholder="Kesuvchi"></div>
     </div>
 
-    <div class="form-group">
-      <label>To'lov turi</label>
-      <select id="e-paytype" onchange="empToggle()">
-        <option value="fixed">Doimiy oylik</option>
-        <option value="percent_sales">Sotuvdan foiz</option>
-        <option value="percent_profit">Foydadan foiz</option>
-        <option value="per_unit">Har birlik uchun (blok/metr/dona)</option>
-        <option value="fixed_plus_coating">Doimiy oylik + qoplama qo'shimchasi</option>
-      </select>
+    <div class="emp-section-label">Yo'nalish <span class="emp-hint">— Gips/Penoplast mustaqil hisobot uchun, majburiy</span></div>
+    <div class="dir-toggle" id="e-prodtype-toggle">
+      <div class="dir-opt dir-penoplast" data-val="penoplast" onclick="setProdType('penoplast')">🏭 Penoplast</div>
+      <div class="dir-opt dir-gips" data-val="gips" onclick="setProdType('gips')">🧱 Gips</div>
     </div>
+    <input type="hidden" id="e-prodtype" value="">
 
-    <div class="form-group" id="e-fixed-wrap">
-      <label>Oylik summasi (so'm)</label>
-      <input type="text" id="e-fixed" placeholder="0" oninput="formatPriceInput(this)">
-    </div>
-
-    <div class="form-group" id="e-percent-wrap" style="display:none">
-      <label>Foiz (%)</label>
-      <input type="number" id="e-percent" placeholder="0" min="0" max="100" step="0.5">
-    </div>
-
-    <div class="form-row" id="e-unit-wrap" style="display:none">
-      <div class="form-group" style="margin:0">
-        <label>Birlik turi</label>
-        <select id="e-unittype">
-          <option value="blok">Blok (penoplast)</option>
-          <option value="metr">Metr</option>
-          <option value="dona">Dona</option>
-          <option value="gips_metr">🧱 Gips — metr</option>
-          <option value="gips_qop">🧱 Gips — qop</option>
-          <option value="gips_kg">🧱 Gips — kg</option>
+    <div class="emp-section-label">To'lov</div>
+    <div class="emp-field-box">
+      <div class="form-group">
+        <label>To'lov turi</label>
+        <select id="e-paytype" onchange="empToggle()">
+          <option value="fixed">Doimiy oylik</option>
+          <option value="percent_sales">Sotuvdan foiz</option>
+          <option value="percent_profit">Foydadan foiz</option>
+          <option value="per_unit">Har birlik uchun (blok/metr/dona)</option>
+          <option value="fixed_plus_coating">Doimiy oylik + qoplama qo'shimchasi</option>
         </select>
       </div>
-      <div class="form-group" style="margin:0">
-        <label>1 birlik narxi (so'm)</label>
-        <input type="text" id="e-unitrate" placeholder="0" oninput="formatPriceInput(this)">
+
+      <div class="form-group" id="e-fixed-wrap" style="margin-bottom:0">
+        <label>Oylik summasi (so'm)</label>
+        <input type="text" id="e-fixed" placeholder="0" oninput="formatPriceInput(this)">
+      </div>
+
+      <div class="form-group" id="e-percent-wrap" style="display:none;margin-bottom:0">
+        <label>Foiz (%)</label>
+        <input type="number" id="e-percent" placeholder="0" min="0" max="100" step="0.5">
+      </div>
+
+      <div class="form-row" id="e-unit-wrap" style="display:none;margin-bottom:0">
+        <div class="form-group" style="margin:0">
+          <label>Birlik turi</label>
+          <select id="e-unittype">
+            <option value="blok">Blok (penoplast)</option>
+            <option value="metr">Metr</option>
+            <option value="dona">Dona</option>
+            <option value="gips_metr">🧱 Gips — metr</option>
+            <option value="gips_qop">🧱 Gips — qop</option>
+            <option value="gips_kg">🧱 Gips — kg</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>1 birlik narxi (so'm)</label>
+          <input type="text" id="e-unitrate" placeholder="0" oninput="formatPriceInput(this)">
+        </div>
+      </div>
+
+      <div class="form-group" id="e-coating-wrap" style="display:none;margin-top:14px;margin-bottom:0">
+        <label>1 metr/dona uchun qo'shimcha (qoplangan detallardan)</label>
+        <input type="number" id="e-coatingrate" placeholder="1000" min="0" value="1000">
+        <div style="font-size:12px;color:#aaa;margin-top:5px;line-height:1.4">Qoplamali profil/panel metri va donali detallar soni avtomatik hisoblanib, shu narxga ko'paytiriladi.</div>
       </div>
     </div>
 
-    <div class="form-group" id="e-coating-wrap" style="display:none">
-      <label>1 metr/dona uchun qo'shimcha (qoplangan detallardan)</label>
-      <input type="number" id="e-coatingrate" placeholder="1000" min="0" value="1000">
-      <div style="font-size:13px;color:#aaa;margin-top:4px">Tizim buyurtmalardagi qoplamali profil/panel metrini va donali detallar sonini avtomatik hisoblab, shu narxga ko'paytiradi.</div>
-    </div>
-
+    <div class="emp-section-label">Qo'shimcha <span class="emp-hint">— ixtiyoriy</span></div>
     <div class="form-row">
       <div class="form-group" style="margin:0">
-        <label>🧱 Qoliplik gul uchun (so'm/dona) <span style="font-weight:400;color:#aaa;font-size:11.5px">— ixtiyoriy</span></label>
+        <label>🧱 Qoliplik gul (so'm/dona)</label>
         <input type="text" id="e-gulrate" placeholder="0" oninput="formatPriceInput(this)">
       </div>
       <div class="form-group" style="margin:0">
-        <label>Qo'shimcha doimiy oylik <span style="font-weight:400;color:#aaa;font-size:11.5px">— ixtiyoriy</span></label>
+        <label>Qo'shimcha doimiy oylik</label>
         <input type="text" id="e-extramonthly" placeholder="0" oninput="formatPriceInput(this)">
       </div>
     </div>
-
-    <div class="form-group">
-      <label>Yo'nalish <span style="font-weight:400;color:#aaa;font-size:11.5px">— Gips/Penoplast mustaqil hisobot uchun (majburiy)</span></label>
-      <div class="dir-toggle" id="e-prodtype-toggle">
-        <div class="dir-opt dir-penoplast" data-val="penoplast" onclick="setProdType('penoplast')">🏭 Penoplast</div>
-        <div class="dir-opt dir-gips" data-val="gips" onclick="setProdType('gips')">🧱 Gips</div>
-      </div>
-      <input type="hidden" id="e-prodtype" value="">
-    </div>
-
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes" placeholder="..."></div>
 
     <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
