@@ -1655,6 +1655,21 @@ def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), cu
     return {"status": "ok", "price_per_unit": item.price_per_unit}
 
 
+@app.post("/api/inventory/{item_id}/min-stock")
+def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """Xomashyoning 'kam qoldi' ogohlantirishi ishga tushadigan chegarasini
+    (min_stock) o'zgartiradi — admin/ombor xodimi o'zi belgilaydi."""
+    item = db.query(crud.Inventory).filter(crud.Inventory.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    min_stock = data.get("min_stock")
+    if min_stock is None or float(min_stock) < 0:
+        raise HTTPException(status_code=400, detail="Noto'g'ri qiymat")
+    item.min_stock = float(min_stock)
+    db.commit()
+    return {"status": "ok", "min_stock": item.min_stock}
+
+
 @app.post("/api/inventory/full-stock-report")
 def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     from models import Inventory as Inv
