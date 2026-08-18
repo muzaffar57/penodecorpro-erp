@@ -167,7 +167,10 @@
         <div class="mat-qty-val" style="color:{% if st=='danger' %}#DC2626{% elif st=='warn' %}#B45309{% else %}var(--text){% endif %}">{{ "%.1f"|format(qty) }} {{ item.unit }}</div>
         <div class="stock-bar" style="margin-top:6px"><div class="stock-fill {{ st if st != 'ok' else '' }}" style="width:{{ pct }}%"></div></div>
       </div>
-      <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">{{ item.min_stock }} {{ item.unit }}</div>
+      <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">
+        <span id="minstock-{{ item.id }}">{{ item.min_stock }} {{ item.unit }}</span>
+        <button class="btn btn-outline btn-xs" onclick="editMinStock({{ item.id }}, {{ item.min_stock or 0 }}, '{{ item.unit }}')" title="Chegarani tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
+      </div>
       <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
       <div class="mat-col-updated" style="font-size:13.5px;color:var(--text3)">
         {% if current_user.role.value != 'manager' %}
@@ -241,6 +244,20 @@
     <div style="padding:0 22px;overflow-y:auto;flex:1" id="hist-list">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
     </div>
+  </div>
+</div>
+
+<!-- Bitta "Kirim" hujjati ichidagi materiallar — "shtorka" -->
+<div id="phDrawerOverlay" style="display:none" class="mv-drawer-overlay" onclick="if(event.target===this)closePhDrawer()">
+  <div class="mv-drawer">
+    <div class="mv-drawer-head">
+      <div>
+        <div id="phDrawerTitle" style="font-weight:700;font-size:15px">—</div>
+        <div id="phDrawerSub" style="font-size:12.5px;color:var(--text3);margin-top:2px">—</div>
+      </div>
+      <button onclick="closePhDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>
+    <div class="mv-drawer-body" id="phDrawerBody"></div>
   </div>
 </div>
 
@@ -491,6 +508,21 @@ async function editPrice(id, currentPrice) {
   } else alert('Xato yuz berdi');
 }
 
+async function editMinStock(id, currentMin, unit) {
+  const newMin = await customPrompt('Minimal chegarani kiriting',
+    `Qoldiq shu miqdordan kam bo'lsa, "kam qoldi" deb ogohlantiriladi (hozirgi: ${currentMin} ${unit})`, currentMin);
+  if (newMin === null || newMin === '' || isNaN(parseFloat(newMin))) return;
+  const res = await fetch(`/api/inventory/${id}/min-stock`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({min_stock: parseFloat(newMin)})
+  });
+  if (res.ok) {
+    document.getElementById('minstock-'+id).textContent = parseFloat(newMin) + ' ' + unit;
+    alert('✓ Chegara yangilandi!');
+  } else alert('Xato yuz berdi');
+}
+
 async function editCategory(el) {
   const id = el.dataset.id;
   const current = el.dataset.category || 'Boshqa';
@@ -567,32 +599,106 @@ async function openPurchaseHistory() {
       return;
     }
 
-    list.innerHTML = purchases.map(p => {
-      const dt = new Date(p.purchased_at);
-      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
-      return `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${p.item_name}</div>
-          <div style="font-size:13px;color:var(--text3);margin-top:2px">
-            ${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}
-            ${p.purchased_by ? ' · '+p.purchased_by : ''}
-            ${p.notes ? ' · '+p.notes : ''}
+    phAllPurchases = purchases;
+
+    // "receipt_id" bo'yicha guruhlaymiz — bitta "Kirim" jarayonida birga
+    // kiritilgan materiallar, bitta guruh sifatida ko'rinadi. receipt_id
+    // yo'q (eski, bitta-bitta kiritilgan) yozuvlar — alohida qatorda qoladi.
+    const groups = {};
+    const singles = [];
+    purchases.forEach(p => {
+      if (p.receipt_id) {
+        if (!groups[p.receipt_id]) groups[p.receipt_id] = [];
+        groups[p.receipt_id].push(p);
+      } else {
+        singles.push(p);
+      }
+    });
+
+    // Guruh va yakka yozuvlarni, ENG SO'NGGI sanasi bo'yicha, birga tartiblaymiz
+    const entries = [
+      ...Object.keys(groups).map(rid => ({ type: 'group', receiptId: rid, items: groups[rid],
+        latest: groups[rid].reduce((mx, p) => p.purchased_at > mx ? p.purchased_at : mx, groups[rid][0].purchased_at) })),
+      ...singles.map(p => ({ type: 'single', item: p, latest: p.purchased_at }))
+    ].sort((a, b) => b.latest.localeCompare(a.latest));
+
+    list.innerHTML = entries.map(e => {
+      if (e.type === 'single') {
+        const p = e.item;
+        const dt = new Date(p.purchased_at);
+        const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${p.item_name}</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">
+              ${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}
+              ${p.purchased_by ? ' · '+p.purchased_by : ''}
+              ${p.notes ? ' · '+p.notes : ''}
+            </div>
           </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:13px;font-weight:700;color:#22C55E;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+            <button onclick="deletePurchase(${p.id}, '${(p.item_name||'').replace(/'/g,"\\'")}', ${p.quantity})"
+                    title="Bu xaridni bekor qilish (ombordan ham, puldan ham)"
+                    style="width:30px;height:30px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:7px;cursor:pointer;flex-shrink:0">
+              <i class="ti ti-trash"></i>
+            </button>
+          </div>
+        </div>`;
+      }
+      // Guruh — bosiladigan, qisqartirilgan qator
+      const dt = new Date(e.latest);
+      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+      const total = e.items.reduce((s, p) => s + p.total_amount, 0);
+      const namesPreview = e.items.slice(0, 3).map(p => p.item_name).join(', ') + (e.items.length > 3 ? '…' : '');
+      return `
+      <div class="mv-order-row" onclick="openPhDrawer('${e.receiptId}')" style="margin:8px 0">
+        <div style="min-width:0">
+          <div class="mv-order-num">📦 Kirim #${e.receiptId} <span style="font-weight:400;color:var(--text3);font-size:12.5px">· ${namesPreview}</span></div>
+          <div class="mv-order-meta">${ds}${e.items[0].purchased_by ? ' · '+e.items[0].purchased_by : ''}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div style="font-size:13px;font-weight:700;color:#22C55E;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
-          <button onclick="deletePurchase(${p.id}, '${(p.item_name||'').replace(/'/g,"\\'")}', ${p.quantity})"
-                  title="Bu xaridni bekor qilish (ombordan ham, puldan ham)"
-                  style="width:30px;height:30px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:7px;cursor:pointer;flex-shrink:0">
-            <i class="ti ti-trash"></i>
-          </button>
+        <div style="text-align:right;flex-shrink:0;margin-left:10px">
+          <div class="mv-order-count">${e.items.length} ta material →</div>
+          <div style="font-size:12.5px;font-weight:700;color:#22C55E;margin-top:4px">${fmt(total)} so'm</div>
         </div>
       </div>`;
     }).join('');
   } catch(e) {
     document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
   }
+}
+
+let phAllPurchases = [];
+
+function openPhDrawer(receiptId) {
+  const rows = phAllPurchases.filter(p => String(p.receipt_id) === String(receiptId));
+  const total = rows.reduce((s, p) => s + p.total_amount, 0);
+  document.getElementById('phDrawerTitle').textContent = `📦 Kirim #${receiptId}`;
+  document.getElementById('phDrawerSub').textContent = `${rows.length} ta material · ${fmt(total)} so'm`;
+  document.getElementById('phDrawerBody').innerHTML = rows.map(p => {
+    const dt = new Date(p.purchased_at);
+    const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+    return `
+    <div class="mv-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;color:var(--text)">${p.item_name}</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:2px">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}${p.purchased_by ? ' · '+p.purchased_by : ''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:10px">
+        <div style="font-weight:700;color:#22C55E">${fmt(p.total_amount)} so'm</div>
+        <button onclick="deletePurchase(${p.id}, '${(p.item_name||'').replace(/'/g,"\\'")}', ${p.quantity})"
+                title="Bu xaridni bekor qilish" style="margin-top:4px;width:26px;height:26px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:6px;cursor:pointer">
+          <i class="ti ti-trash" style="font-size:12px"></i>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('phDrawerOverlay').style.display = 'flex';
+}
+
+function closePhDrawer() {
+  document.getElementById('phDrawerOverlay').style.display = 'none';
 }
 
 async function deletePurchase(id, name, qty) {
