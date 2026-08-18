@@ -36,6 +36,14 @@
 .emp-tag{font-size:11.5px;padding:2px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
 .mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:13px;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
+/* Yo'nalish — Penoplast/Gips tugma tanlovi (dropdown o'rniga, majburiy) */
+.dir-toggle{display:flex;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;height:42px}
+.dir-opt{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;color:var(--text3);background:#FAFAF8;transition:all .15s}
+.dir-opt:not(:last-child){border-right:1px solid var(--border)}
+.dir-opt:hover{color:var(--text2)}
+.dir-opt.active.dir-penoplast{background:#DBEAFE;color:#1E40AF}
+.dir-opt.active.dir-gips{background:#FDE68A;color:#92400E}
+.dir-toggle.dir-error{border-color:var(--red)}
 </style>
 {% endblock %}
 
@@ -294,12 +302,12 @@
     </div>
 
     <div class="form-group">
-      <label>Yo'nalish <span style="font-weight:400;color:#aaa;font-size:11.5px">— Gips/Penoplast mustaqil hisobot uchun</span></label>
-      <select id="e-prodtype">
-        <option value="">— Belgilanmagan (Umumiy) —</option>
-        <option value="penoplast">🏭 Penoplast</option>
-        <option value="gips">🧱 Gips</option>
-      </select>
+      <label>Yo'nalish <span style="font-weight:400;color:#aaa;font-size:11.5px">— Gips/Penoplast mustaqil hisobot uchun (majburiy)</span></label>
+      <div class="dir-toggle" id="e-prodtype-toggle">
+        <div class="dir-opt dir-penoplast" data-val="penoplast" onclick="setProdType('penoplast')">🏭 Penoplast</div>
+        <div class="dir-opt dir-gips" data-val="gips" onclick="setProdType('gips')">🧱 Gips</div>
+      </div>
+      <input type="hidden" id="e-prodtype" value="">
     </div>
 
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes" placeholder="..."></div>
@@ -849,11 +857,20 @@ function formatPriceInput(input) {
   if (val > 0) input.value = fmt(val);
 }
 
+function setProdType(val) {
+  document.getElementById('e-prodtype').value = val;
+  document.querySelectorAll('#e-prodtype-toggle .dir-opt').forEach(el => {
+    el.classList.toggle('active', el.dataset.val === val);
+  });
+  document.getElementById('e-prodtype-toggle').classList.remove('dir-error');
+  document.getElementById('emp-error').style.display = 'none';
+}
+
 function openEmpModal() {
   editingEmpId = null;
   document.getElementById('emp-modal-title').textContent = "+ Yangi hodim";
   ['e-name','e-position','e-fixed','e-percent','e-unitrate','e-notes','e-gulrate','e-extramonthly'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('e-prodtype').value = '';
+  setProdType('');
   document.getElementById('e-paytype').value = 'fixed';
   document.getElementById('e-unittype').value = 'blok';
   document.getElementById('emp-error').style.display = 'none';
@@ -892,7 +909,7 @@ function editEmployee(id) {
   document.getElementById('e-notes').value = e.notes || '';
   document.getElementById('e-gulrate').value = e.gul_rate ? fmt(e.gul_rate) : '';
   document.getElementById('e-extramonthly').value = e.extra_monthly ? fmt(e.extra_monthly) : '';
-  document.getElementById('e-prodtype').value = e.production_type || '';
+  setProdType(e.production_type || '');
   document.getElementById('emp-error').style.display = 'none';
   empToggle();
   document.getElementById('empModal').style.display = 'flex';
@@ -902,6 +919,14 @@ async function saveEmployee() {
   const name = document.getElementById('e-name').value.trim();
   const err = document.getElementById('emp-error');
   if (!name) { err.style.display='block'; err.textContent='❌ Ismni kiriting'; return; }
+
+  const prodType = document.getElementById('e-prodtype').value;
+  if (!prodType) {
+    err.style.display = 'block';
+    err.textContent = "❌ Yo'nalishni tanlang: Penoplast yoki Gips";
+    document.getElementById('e-prodtype-toggle').classList.add('dir-error');
+    return;
+  }
   err.style.display = 'none';
 
   const payType = document.getElementById('e-paytype').value;
