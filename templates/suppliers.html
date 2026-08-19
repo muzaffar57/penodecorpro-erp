@@ -708,7 +708,7 @@ async function openHistory(id, keepFilter, page){
       });
 
       const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Boshqa'];
-      const catIcons = { 'Penoplast':'🧱', "Kimyoviy qo'shimchalar":'🧪', 'Qattiq qotishmalar':'⛱️', 'Boshqa':'📦' };
+      const catIcons = { 'Penoplast':'🧊', "Kimyoviy qo'shimchalar":'🧪', 'Qattiq qotishmalar':'⛱️', 'Boshqa':'📦' };
       const sortedCats = Object.keys(groups).sort((a,b) => catOrder.indexOf(a) - catOrder.indexOf(b));
 
       pu.innerHTML = sortedCats.map(cat => {
