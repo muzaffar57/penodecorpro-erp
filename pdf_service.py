@@ -200,6 +200,7 @@ def generate_nakladnoy(order, db=None) -> bytes:
         elif cat == 'blok': return 'M'
         elif cat == 'termopanel': return 'M²'
         elif cat == 'dona': return 'TA'
+        elif cat == 'loy_sotish': return 'KG'
         elif cat == 'gips':
             gu = (getattr(item, 'gips_unit', None) or 'metr').lower()
             return 'M²' if gu == 'm2' else ('M' if gu == 'metr' else 'TA')
@@ -351,10 +352,12 @@ def generate_nakladnoy(order, db=None) -> bytes:
 
     # ── IZOH ──────────────────────────────────────────────────
     if order.notes:
-        # loy_kg ni izohdan chiqarib tashlaymiz
+        # loy_kg va planned_loy kabi ICHKI (tizim uchun) belgilarni
+        # izohdan chiqarib tashlaymiz — mijozga ko'rinadigan hujjatda
+        # bunday texnik yozuvlar bo'lishi kerak emas.
         notes_clean = ', '.join([
             p for p in (order.notes or '').split(',')
-            if 'loy_kg=' not in p
+            if 'loy_kg=' not in p and 'planned_loy=' not in p
         ]).strip(', ')
         if notes_clean:
             story.append(HRFlowable(width="100%", thickness=0.5, color=LGRAY, spaceAfter=6))
