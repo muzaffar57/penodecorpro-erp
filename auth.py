@@ -246,6 +246,14 @@ def admin_or_warehouse(request: Request, db: Session = Depends(get_db)) -> User:
     return require_role([UserRole.ADMIN, UserRole.WAREHOUSE])(request, db)
 
 
+def admin_warehouse_or_manager(request: Request, db: Session = Depends(get_db)) -> User:
+    """Tayyor mahsulot sahifasi — Admin, Omborchi VA Menejer. MUHIM: Menejer
+    bu sahifaga kirsa ham, tan narx/foyda ma'lumoti unga qaytarilmaydi —
+    buni har bir /api/finished endpoint alohida (_strip_profit_for_manager
+    yordamida) ta'minlaydi."""
+    return require_role([UserRole.ADMIN, UserRole.WAREHOUSE, UserRole.MANAGER])(request, db)
+
+
 def inventory_view(request: Request, db: Session = Depends(get_db)) -> User:
     """Omborni FAQAT KO'RISH (miqdor) — Hodim buyurtma yaratayotganda xomashyo
     yetarli-yetarli emasligini bilishi uchun, lekin boshqarish huquqisiz."""

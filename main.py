@@ -318,6 +318,8 @@ def _migrate_payment_columns():
         emp_cols2 = [c['name'] for c in inspector.get_columns('employees')]
         if 'production_type' not in emp_cols2:
             migrations.append("ALTER TABLE employees ADD COLUMN production_type VARCHAR(20)")
+        if 'panel_modules' not in emp_cols2:
+            migrations.append("ALTER TABLE employees ADD COLUMN panel_modules VARCHAR(255)")
 
         ir_cols = [c['name'] for c in inspector.get_columns('inventory_receipts')]
         if 'production_type' not in ir_cols:
@@ -1247,6 +1249,7 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
         "gul_rate": float(e.gul_rate) if e.gul_rate is not None else None,
         "extra_monthly": float(e.extra_monthly) if e.extra_monthly is not None else None,
         "production_type": e.production_type,
+        "panel_modules": e.panel_modules,
         "is_active": e.is_active,
         "notes": e.notes
     } for e in items]
@@ -1413,7 +1416,8 @@ async def hodim_panel(request: Request, db: Session = Depends(get_db)):
     emp = auth.get_current_employee(request, db)
     if not emp:
         return RedirectResponse("/hodim/login", status_code=302)
-    return templates.TemplateResponse(request, "hodim_panel.html", {"employee": emp})
+    panel_modules = [m.strip() for m in (emp.panel_modules or "").split(",") if m.strip()]
+    return templates.TemplateResponse(request, "hodim_panel.html", {"employee": emp, "panel_modules": panel_modules})
 
 
 @app.get("/api/hodim/my-requests")
@@ -1433,6 +1437,32 @@ def api_hodim_advance_request(amount: float = Form(...), requested_date: str = F
         raise HTTPException(status_code=400, detail="Sana noto'g'ri")
     req = crud.create_advance_request(db, emp.id, amount, rdate, notes)
     return {"status": "ok", "id": req.id}
+
+
+@app.get("/api/hodim/finished-products")
+def api_hodim_finished_products(db: Session = Depends(get_db), emp=Depends(auth.require_employee_login)):
+    """Hodim panelidagi 'Tayyor mahsulot' bo'limi — FAQAT admin shu hodimga
+    ruxsat bergan bo'lsa ko'rinadi (Employee.panel_modules). MUHIM: tan
+    narx (cost_price) va foyda bilan bog'liq HECH QANDAY maydon
+    qaytarilmaydi — faqat nom, miqdor, holat kabi neytral ma'lumot."""
+    allowed = [m.strip() for m in (emp.panel_modules or "").split(",") if m.strip()]
+    if "finished_products" not in allowed:
+        raise HTTPException(status_code=403, detail="Bu bo'limga ruxsatingiz yo'q")
+    items = crud.get_finished_products_for_main_page(db, days=90, show_all=False)
+    return [{
+        "id": fp.id,
+        "name": fp.name,
+        "category": fp.category,
+        "width": fp.width,
+        "thickness": fp.thickness,
+        "is_coated": fp.is_coated,
+        "quantity": float(fp.quantity or 0),
+        "unit": fp.unit,
+        "production_status": fp.production_status.value if fp.production_status else None,
+        "image_url": fp.image_url,
+        "notes": fp.notes,
+        "created_at": fp.created_at.isoformat() if fp.created_at else None,
+    } for fp in items]
 
 
 # ============================================================
@@ -2935,19 +2965,39 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
 # FINISHED PRODUCTS — Tayyor mahsulotlar ombori
 # ============================================================
 
+_PROFIT_FIELDS = {
+    "profit", "margin", "cost_amount", "total_cost", "penoplast_cost",
+    "bazalt_cost", "serpiyanka_cost", "kley_cost", "loy_cost", "cost_price",
+    "cost_per_unit"
+}
+
+def _strip_profit_for_manager(result: dict, current_user) -> dict:
+    """Menejer roli uchun — natija ichidan tan narx/foyda bilan bog'liq
+    maydonlarni olib tashlaydi. Menejerga Tayyor mahsulot bo'limi ochiq,
+    lekin SOF FOYDA hech qayerda (ro'yxatda ham, amal natijalarida ham)
+    ko'rsatilmasligi kerak — shuning uchun bu maydonlar backend darajasida
+    (frontend'ga hech yetib bormasdan) olib tashlanadi."""
+    if isinstance(result, dict) and getattr(current_user, "role", None) is not None \
+            and current_user.role.value == "manager":
+        return {k: v for k, v in result.items() if k not in _PROFIT_FIELDS}
+    return result
+
+
 @app.get("/finished", response_class=HTMLResponse)
-async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotlar sahifasi."""
     items = crud.get_finished_products(db)
     penoplasts = services.get_penoplast_list(db)
     default_p = services.get_default_penoplast(db)
     recipes = crud.get_recipes(db)
     stats = crud.get_finished_stats(db)
+    is_manager = current_user.role.value == "manager"
     return templates.TemplateResponse(request, "finished.html", {
         "items": items, "penoplasts": penoplasts,
         "default_penoplast_id": default_p.id if default_p else None,
         "recipes": recipes, "stats": stats,
-        "current_user": current_user, "active_page": "finished"
+        "current_user": current_user, "active_page": "finished",
+        "is_manager": is_manager
     })
 
 
@@ -3094,13 +3144,13 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
 
 @app.get("/api/finished")
 def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
-                     db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                     db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotlar ro'yxati."""
     if source or only_available:
         items = crud.get_finished_products(db, source=source, only_available=only_available)
     else:
         items = crud.get_finished_products_for_main_page(db, days=90, show_all=show_all)
-    return [{
+    return [_strip_profit_for_manager({
         "id": fp.id,
         "name": fp.name,
         "category": fp.category,
@@ -3129,12 +3179,12 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "notes": fp.notes,
         "image_url": fp.image_url,
         "total_value": round(float(fp.quantity or 0) * float(fp.unit_price or 0))
-    } for fp in items]
+    }, current_user) for fp in items]
 
 
 @app.post("/api/finished/{fp_id}/image")
 def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                               current_user=Depends(auth.admin_or_warehouse)):
+                               current_user=Depends(auth.admin_warehouse_or_manager)):
     from models import FinishedProduct
     fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
     if not fp:
@@ -3172,12 +3222,12 @@ def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Se
 
 
 @app.get("/api/finished/stats")
-def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     return crud.get_finished_stats(db)
 
 
 @app.get("/api/finished/search")
-def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Nom bo'yicha qidirish — buyurtmada taklif uchun. category — masalan
     'gips', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
     try:
@@ -3190,18 +3240,18 @@ def api_search_finished(q: str = "", category: Optional[str] = None, exclude_cat
 
 @app.post("/api/finished/loss")
 def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Session = Depends(get_db),
-                               current_user=Depends(auth.admin_or_warehouse)):
+                               current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_loss(db, data, created_by=who)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return result
+    return _strip_profit_for_manager(result, current_user)
 
 
 @app.post("/api/finished/production-brak")
 def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
-                                   current_user=Depends(auth.admin_or_warehouse)):
+                                   current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
     soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi (hozircha
     faqat Profil/Panel/Donali/Blok kategoriyalari uchun)."""
@@ -3211,34 +3261,34 @@ def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCrea
     )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return result
+    return _strip_profit_for_manager(result, current_user)
 
 
 @app.post("/api/finished/sell-batch")
 def api_sell_finished_products_batch(data: schemas.FinishedProductSaleBatchCreate, db: Session = Depends(get_db),
-                                       current_user=Depends(auth.admin_or_warehouse)):
+                                       current_user=Depends(auth.admin_warehouse_or_manager)):
     """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_products_batch(db, data, created_by=who)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return result
+    return _strip_profit_for_manager(result, current_user)
 
 
 @app.post("/api/finished/sell")
 def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Session = Depends(get_db),
-                                current_user=Depends(auth.admin_or_warehouse)):
+                                current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_product(db, data, created_by=who)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return result
+    return _strip_profit_for_manager(result, current_user)
 
 
 @app.get("/api/finished/sales")
 def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = None,
-                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot savdolari tarixi (ixtiyoriy oy/yil filtri bilan)."""
     from models import FinishedProductSale
     from sqlalchemy import extract
@@ -3248,17 +3298,17 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
     if month:
         q = q.filter(extract('month', FinishedProductSale.sold_at) == month)
     sales = q.limit(200).all()
-    return [{
+    return [_strip_profit_for_manager({
         "id": s.id, "product_name": s.product_name, "quantity": float(s.quantity),
         "unit": s.unit, "unit_price": float(s.unit_price), "total_amount": float(s.total_amount),
         "cost_amount": float(s.cost_amount or 0), "sold_at": s.sold_at.isoformat() if s.sold_at else None,
         "buyer_name": s.buyer_name, "payment_method": s.payment_method, "notes": s.notes
-    } for s in sales]
+    }, current_user) for s in sales]
 
 
 @app.post("/api/finished/produce-gips")
 def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_db),
-                      current_user=Depends(auth.admin_or_warehouse)):
+                      current_user=Depends(auth.admin_warehouse_or_manager)):
     """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqarish."""
     who = current_user.full_name or current_user.username
     result = crud.produce_gips_finished_product(db, data, created_by=who)
@@ -3268,7 +3318,7 @@ def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_
 
 
 @app.post("/api/finished/produce")
-def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ishlab chiqarish."""
     who = current_user.full_name or current_user.username
     result = crud.produce_finished_product(db, data, created_by=who)
@@ -3289,11 +3339,11 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
                + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
         _send_telegram(msg)
 
-    return result
+    return _strip_profit_for_manager(result, current_user)
 
 
 @app.post("/api/finished/produce-termopanel")
-def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
     who = current_user.full_name or current_user.username
     result = crud.produce_termopanel(db, data, created_by=who)
@@ -3313,21 +3363,22 @@ def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = 
                + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
         _send_telegram(msg)
 
-    return result
+    return _strip_profit_for_manager(result, current_user)
 
 
 @app.post("/api/finished/{fp_id}/complete")
-def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
     result = crud.complete_production(db, fp_id)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return result
+    return _strip_profit_for_manager(result, current_user)
 
 
 @app.get("/api/finished/{fp_id}/profit")
 def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    """Tayyor mahsulot foydasi (faqat admin)."""
+    """Tayyor mahsulot foydasi (faqat admin/moliyachi — Menejerga QASDDAN
+    ochilmagan, chunki bu — sof foydaning batafsil hisob-kitobi)."""
     result = crud.get_finished_profit(db, fp_id)
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
@@ -3336,7 +3387,7 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 
 @app.post("/api/finished/{fp_id}/add")
 def api_add_production(fp_id: int, data: schemas.StockAdjust,
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
     result = crud.add_to_production(db, fp_id, data.quantity)
     if not result["success"]:
@@ -3361,7 +3412,7 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
 
 @app.post("/api/finished/{fp_id}/reduce")
 def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
-                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                          db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
     result = crud.reduce_production(db, fp_id, data.quantity, data.reason)
     if not result["success"]:
@@ -3371,7 +3422,7 @@ def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
 
 @app.put("/api/finished/{fp_id}")
 def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni tahrirlash."""
     fp = crud.update_finished_product(db, fp_id, data.model_dump(exclude_unset=True))
     if not fp:
@@ -3381,7 +3432,7 @@ def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
 
 @app.delete("/api/finished/{fp_id}")
 def api_delete_finished(fp_id: int, return_to_stock: bool = False,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni o'chirish.
     - IN_PROGRESS: xato tuzatish deb hisoblanadi — o'chadi, xomashyo qaytadi.
     - READY: faqat qoldiq 0 bo'lsa o'chadi, xomashyo qaytmaydi."""
