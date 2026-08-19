@@ -31,6 +31,57 @@
 .ing-form-row select{flex:2;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px}
 .ing-form-row input{flex:1;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px}
 .ing-form-row button{flex-shrink:0;width:32px;height:32px;border:none;background:none;color:#DC2626;cursor:pointer;font-size:16px}
+
+/* ── Retsept yozish/tahrirlash oynasi — qayta dizayn ── */
+.recp-modal{background:#fff;border-radius:16px;padding:26px;width:560px;max-width:100%;max-height:90vh;overflow-y:auto}
+.recp-modal-head{display:flex;align-items:center;gap:13px;margin-bottom:22px}
+.recp-modal-icon{width:44px;height:44px;border-radius:12px;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.recp-modal-title{font-size:17px;font-weight:700;color:var(--text);flex:1}
+.recp-modal-close{width:30px;height:30px;border-radius:8px;border:none;background:none;color:var(--text3);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.recp-modal-close:hover{background:var(--bg);color:var(--text)}
+.recp-field label{display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px}
+.recp-field-input{position:relative}
+.recp-field-input i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gold-dark);font-size:15px;pointer-events:none}
+.recp-field-input input,.recp-field-input textarea{width:100%;height:44px;padding:0 14px 0 40px;border:1.5px solid var(--border2);border-radius:10px;font-size:13.5px;color:var(--text);outline:none;transition:border-color .15s;box-sizing:border-box}
+.recp-field-input textarea{height:auto;min-height:76px;padding:12px 14px 12px 40px;resize:vertical;font-family:inherit}
+.recp-field-input textarea+i{top:19px;transform:none}
+.recp-field-input input:focus,.recp-field-input textarea:focus{border-color:var(--gold)}
+.recp-charcount{text-align:right;font-size:11px;color:var(--text3);margin-top:4px}
+.recp-section{margin-top:22px}
+.recp-section-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+.recp-section-title{font-size:12px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px}
+.recp-section-sub{font-size:12px;color:var(--text3);margin-bottom:12px}
+.recp-add-btn{display:flex;align-items:center;gap:5px;background:none;border:1.5px solid var(--gold);color:var(--gold-dark);font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:9px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.recp-add-btn:hover{background:var(--gold-tint)}
+.recp-ing-table{border:1px solid var(--border2);border-radius:12px;overflow:hidden}
+.recp-ing-table-head{display:flex;background:var(--bg);padding:10px 14px;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+.recp-ing-table-head span:first-child{flex:1}
+.recp-ing-table-head span:last-child{width:110px;text-align:left}
+.recp-ing-empty{padding:22px;text-align:center;color:var(--text3);font-size:12.5px}
+.recp-ing-row{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid var(--border2)}
+.recp-ing-drag{color:var(--border);cursor:grab;font-size:13px;letter-spacing:-2px;flex-shrink:0;user-select:none}
+.recp-ing-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.recp-ing-info{flex:1;min-width:0}
+.recp-ing-name{font-size:13.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recp-cat-pill{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:3px}
+.recp-ing-qty{display:flex;align-items:center;width:92px;height:36px;border:1.5px solid var(--border2);border-radius:8px;overflow:hidden;flex-shrink:0}
+.recp-ing-qty input{width:100%;height:100%;border:none;outline:none;padding:0 0 0 10px;font-size:13px;color:var(--text)}
+.recp-ing-qty span{padding:0 9px;color:var(--text3);font-size:11.5px;background:var(--bg);height:100%;display:flex;align-items:center}
+.recp-ing-del{width:30px;height:30px;border:none;background:none;color:#DC2626;cursor:pointer;font-size:15px;flex-shrink:0;border-radius:7px;display:flex;align-items:center;justify-content:center}
+.recp-ing-del:hover{background:#FEE2E2}
+.recp-add-dashed{width:100%;margin-top:10px;padding:13px;border:1.5px dashed var(--border);border-radius:10px;background:none;color:var(--gold-dark);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.recp-add-dashed:hover{background:var(--gold-tint);border-color:var(--gold)}
+.recp-picker{position:relative}
+.recp-picker-panel{position:absolute;top:0;left:0;right:0;background:#fff;border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;max-height:340px;display:flex;flex-direction:column}
+.recp-picker-search{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--border2);flex-shrink:0}
+.recp-picker-search i{color:var(--text3);font-size:15px}
+.recp-picker-search input{flex:1;border:none;outline:none;font-size:13px;color:var(--text)}
+.recp-picker-list{overflow-y:auto;padding:8px}
+.recp-picker-cat{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:9px 8px 5px}
+.recp-picker-item{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--text)}
+.recp-picker-item:hover{background:var(--bg)}
+.recp-picker-item-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.recp-picker-empty{padding:20px;text-align:center;color:var(--text3);font-size:12.5px}
 </style>
 {% endblock %}
 
@@ -146,31 +197,69 @@ async function loadInvItemsForRecipe() {
   return invItemsCache;
 }
 
-function ingredientRowHtml(prefix, idx, items, selectedId, qty) {
-  const opts = items.map(i => `<option value="${i.id}" ${i.id===selectedId?'selected':''}>${i.item_name} (${i.unit})</option>`).join('');
+// Kategoriya → rang/belgi (faqat ko'rinish uchun, hisob-kitobga aloqasi yo'q)
+const RECP_CAT_STYLE = {
+  "Kimyoviy qo'shimchalar": { icon: 'ti-flask', bg: '#EDE9FE', fg: '#7C3AED', label: "Kimyoviy qo'shimcha" },
+  "Qattiq qotishmalar":     { icon: 'ti-triangle', bg: '#DCFCE7', fg: '#16A34A', label: 'Mineral material' },
+  "Gips":                   { icon: 'ti-diamond', bg: '#FEF3C7', fg: '#D97706', label: 'Gips' },
+  "Penoplast":              { icon: 'ti-square', bg: '#DBEAFE', fg: '#2563EB', label: 'Penoplast' },
+  "Bazalt":                 { icon: 'ti-mountain', bg: '#F3E8D8', fg: '#A86B36', label: 'Bazalt' },
+  "default":                { icon: 'ti-hexagon', bg: '#DBEAFE', fg: '#2563EB', label: 'Boshqa material' }
+};
+function recpCatStyle(cat) { return RECP_CAT_STYLE[cat] || RECP_CAT_STYLE.default; }
+
+function ingredientRowHtml(prefix, idx, item, qty) {
+  const st = recpCatStyle(item ? item.category : null);
+  const name = item ? item.item_name : '?';
   return `
-    <div class="ing-form-row" id="${prefix}-ing-${idx}">
-      <select id="${prefix}-ing-sel-${idx}"><option value="">— tanlang —</option>${opts}</select>
-      <input type="number" id="${prefix}-ing-qty-${idx}" placeholder="kg" min="0" step="0.01" value="${qty||''}">
-      <button type="button" onclick="document.getElementById('${prefix}-ing-${idx}').remove()">✕</button>
+    <div class="recp-ing-row" id="${prefix}-ing-${idx}" data-inventory-id="${item ? item.id : ''}">
+      <div class="recp-ing-drag" title="Surish">⋮⋮</div>
+      <div class="recp-ing-icon" style="background:${st.bg};color:${st.fg}"><i class="ti ${st.icon}"></i></div>
+      <div class="recp-ing-info">
+        <div class="recp-ing-name">${name}</div>
+        <span class="recp-cat-pill" style="background:${st.bg};color:${st.fg}">${st.label}</span>
+      </div>
+      <div class="recp-ing-qty">
+        <input type="number" id="${prefix}-ing-qty-${idx}" min="0" step="0.01" value="${qty||''}" placeholder="0">
+        <span>kg</span>
+      </div>
+      <button type="button" class="recp-ing-del" onclick="document.getElementById('${prefix}-ing-${idx}').remove()"><i class="ti ti-trash"></i></button>
     </div>`;
 }
 
-async function addIngredientRow(prefix, selectedId, qty) {
-  const items = await loadInvItemsForRecipe();
+function recpRenumberEmptyState(prefix) {
   const wrap = document.getElementById(prefix + '-ingredients');
-  const idx = wrap.children.length;
-  wrap.insertAdjacentHTML('beforeend', ingredientRowHtml(prefix, idx, items, selectedId, qty));
+  if (!wrap) return;
+  const empty = wrap.querySelector('.recp-ing-empty');
+  if (!wrap.children.length || (wrap.children.length === 1 && empty)) {
+    wrap.innerHTML = '<div class="recp-ing-empty">Hali material qo\'shilmagan</div>';
+  } else if (empty && wrap.children.length > 1) {
+    empty.remove();
+  }
+}
+
+async function addIngredientRow(prefix, selectedId, qty) {
+  const wrap = document.getElementById(prefix + '-ingredients');
+  const emptyMsg = wrap.querySelector('.recp-ing-empty');
+  if (emptyMsg) emptyMsg.remove();
+  if (!selectedId) {
+    // Tugma orqali chaqirilsa (material tanlanmagan holda) — endi qidiruv panelini ochamiz
+    openIngredientPicker(prefix);
+    return;
+  }
+  const items = await loadInvItemsForRecipe();
+  const item = items.find(i => i.id === selectedId);
+  const idx = Date.now() + Math.floor(Math.random()*1000);
+  wrap.insertAdjacentHTML('beforeend', ingredientRowHtml(prefix, idx, item, qty));
 }
 
 function collectIngredients(prefix) {
   const wrap = document.getElementById(prefix + '-ingredients');
   const ingredients = [];
   Array.from(wrap.children).forEach(row => {
-    const sel = row.querySelector('select');
-    const qtyEl = row.querySelector('input');
-    const invId = parseInt(sel.value);
-    const qty = parseFloat(qtyEl.value);
+    const invId = parseInt(row.dataset?.inventoryId);
+    const qtyEl = row.querySelector('input[type="number"]');
+    const qty = parseFloat(qtyEl?.value);
     if (invId && qty > 0) {
       ingredients.push({ inventory_id: invId, quantity_kg: qty });
     }
@@ -178,16 +267,83 @@ function collectIngredients(prefix) {
   return ingredients;
 }
 
+// ── MATERIAL TANLASH PANELI (qidiruv + kategoriya bo'yicha guruhlangan) ──
+function closeIngredientPicker(prefix) {
+  const anchor = document.getElementById(prefix + '-picker-anchor');
+  if (anchor) anchor.innerHTML = '';
+}
+
+async function openIngredientPicker(prefix) {
+  // Boshqa ochiq panel bo'lsa — yopamiz
+  ['f','edit'].forEach(p => { if (p !== prefix) closeIngredientPicker(p); });
+  const anchor = document.getElementById(prefix + '-picker-anchor');
+  if (!anchor) return;
+  if (anchor.innerHTML.trim()) { closeIngredientPicker(prefix); return; } // qayta bossa — yopadi
+
+  anchor.innerHTML = `
+    <div class="recp-picker-panel">
+      <div class="recp-picker-search">
+        <i class="ti ti-search"></i>
+        <input type="text" id="${prefix}-picker-search" placeholder="Qidirish..." oninput="renderIngredientPickerList('${prefix}')">
+        <button type="button" class="recp-modal-close" onclick="closeIngredientPicker('${prefix}')" style="width:24px;height:24px"><i class="ti ti-x" style="font-size:14px"></i></button>
+      </div>
+      <div class="recp-picker-list" id="${prefix}-picker-list"></div>
+    </div>`;
+  renderIngredientPickerList(prefix);
+  setTimeout(() => document.getElementById(prefix + '-picker-search')?.focus(), 30);
+}
+
+async function renderIngredientPickerList(prefix) {
+  const items = await loadInvItemsForRecipe();
+  const listEl = document.getElementById(prefix + '-picker-list');
+  if (!listEl) return;
+  const q = (document.getElementById(prefix + '-picker-search')?.value || '').trim().toLowerCase();
+
+  // Allaqachon qo'shilgan materiallarni chiqarib tashlaymiz (qayta-qayta qo'shilmasin)
+  const wrap = document.getElementById(prefix + '-ingredients');
+  const usedIds = new Set(Array.from(wrap.children).map(r => parseInt(r.dataset?.inventoryId)).filter(Boolean));
+
+  const filtered = items.filter(i => !usedIds.has(i.id) && (!q || i.item_name.toLowerCase().includes(q)));
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="recp-picker-empty">Material topilmadi</div>';
+    return;
+  }
+
+  const groups = {};
+  filtered.forEach(i => {
+    const cat = i.category || 'default';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(i);
+  });
+
+  listEl.innerHTML = Object.keys(groups).map(cat => {
+    const st = recpCatStyle(cat === 'default' ? null : cat);
+    const rows = groups[cat].map(i => `
+      <div class="recp-picker-item" onclick="selectIngredientFromPicker('${prefix}', ${i.id})">
+        <div class="recp-picker-item-icon" style="background:${st.bg};color:${st.fg}"><i class="ti ${st.icon}"></i></div>
+        ${i.item_name}
+      </div>`).join('');
+    return `<div class="recp-picker-cat" style="color:${st.fg}">${st.label.toUpperCase()}LAR</div>${rows}`;
+  }).join('');
+}
+
+async function selectIngredientFromPicker(prefix, itemId) {
+  await addIngredientRow(prefix, itemId, null);
+  closeIngredientPicker(prefix);
+}
+
 // ── QO'SHISH MODALI ──
 async function openAddModal() {
   document.getElementById('f-name').value = '';
   document.getElementById('f-batch').value = 100;
   document.getElementById('f-notes').value = '';
+  document.getElementById('f-notes-count').textContent = '0';
   document.getElementById('f-ingredients').innerHTML = '';
-  await addIngredientRow('f');
+  closeIngredientPicker('f');
+  recpRenumberEmptyState('f');
   document.getElementById('addModal').style.display = 'flex';
 }
-function closeAddModal() { document.getElementById('addModal').style.display = 'none'; }
+function closeAddModal() { document.getElementById('addModal').style.display = 'none'; closeIngredientPicker('f'); }
 
 let isSavingRecipe = false;
 async function saveRecipe() {
@@ -224,15 +380,17 @@ async function openEditModal(id, name, batch, notes, invIds, qtys, names, units)
   document.getElementById('edit-name').value = name;
   document.getElementById('edit-batch').value = batch;
   document.getElementById('edit-notes').value = notes || '';
+  document.getElementById('edit-notes-count').textContent = (notes || '').length;
   document.getElementById('edit-ingredients').innerHTML = '';
-  const items = await loadInvItemsForRecipe();
+  closeIngredientPicker('edit');
+  await loadInvItemsForRecipe();
   for (let i = 0; i < invIds.length; i++) {
     await addIngredientRow('edit', invIds[i], qtys[i]);
   }
-  if (!invIds.length) await addIngredientRow('edit');
+  recpRenumberEmptyState('edit');
   document.getElementById('editModal').style.display = 'flex';
 }
-function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
+function closeEditModal() { document.getElementById('editModal').style.display = 'none'; closeIngredientPicker('edit'); }
 
 let isSavingEditRecipe = false;
 async function saveEditRecipe() {
@@ -265,53 +423,121 @@ async function saveEditRecipe() {
 </script>
 
 <!-- Qo'shish modali -->
-<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
-    <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi retsept</div>
-    <div class="form-group">
-      <label>Retsept nomi</label>
-      <input type="text" id="f-name" list="recipe-name-suggest" placeholder="Masalan: Kvars, Oq marmar, Bej...">
-      <datalist id="recipe-name-suggest">
-        <option value="Kvars"><option value="Oq marmar"><option value="Kulrang marmar"><option value="Sariq marmar">
-      </datalist>
-    </div>
-    <div class="form-group"><label>Batch hajmi (kg)</label><input type="number" id="f-batch" value="100" min="1"></div>
-    <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="f-notes" placeholder="..."></div>
-
-    <div class="form-group">
-      <label style="display:flex;justify-content:space-between;align-items:center">
-        <span>Tarkibi (Omborxonadagi materiallardan)</span>
-        <button type="button" class="btn btn-outline btn-xs" onclick="addIngredientRow('f')">+ Qo'shish</button>
-      </label>
-      <div style="font-size:11.5px;color:var(--text3);margin-bottom:8px">Har biridan — yuqoridagi Batch hajmi (kg) uchun kerak miqdor (kg)</div>
-      <div id="f-ingredients"></div>
+<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div class="recp-modal">
+    <div class="recp-modal-head">
+      <div class="recp-modal-icon"><i class="ti ti-flask"></i></div>
+      <div class="recp-modal-title">+ Yangi retsept</div>
+      <button type="button" class="recp-modal-close" onclick="closeAddModal()"><i class="ti ti-x"></i></button>
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-dark w-full" id="recipe-save-btn" onclick="saveRecipe()">Saqlash</button>
-      <button class="btn btn-outline w-full" onclick="closeAddModal()">Bekor</button>
+    <div class="form-row">
+      <div class="recp-field">
+        <label>Retsept nomi</label>
+        <div class="recp-field-input">
+          <i class="ti ti-file-text"></i>
+          <input type="text" id="f-name" list="recipe-name-suggest" placeholder="Masalan: Kvars, Oq marmar, Bej...">
+          <datalist id="recipe-name-suggest">
+            <option value="Kvars"><option value="Oq marmar"><option value="Kulrang marmar"><option value="Sariq marmar">
+          </datalist>
+        </div>
+      </div>
+      <div class="recp-field">
+        <label>Batch hajmi (kg)</label>
+        <div class="recp-field-input">
+          <i class="ti ti-scale"></i>
+          <input type="number" id="f-batch" value="100" min="1">
+        </div>
+      </div>
+    </div>
+
+    <div class="recp-field" style="margin-top:14px">
+      <label>Izoh <span style="font-weight:400;text-transform:none;color:#bbb">(ixtiyoriy)</span></label>
+      <div class="recp-field-input">
+        <i class="ti ti-message-circle"></i>
+        <textarea id="f-notes" placeholder="..." maxlength="200" oninput="document.getElementById('f-notes-count').textContent = this.value.length"></textarea>
+      </div>
+      <div class="recp-charcount"><span id="f-notes-count">0</span>/200</div>
+    </div>
+
+    <div class="recp-section">
+      <div class="recp-section-head">
+        <div>
+          <div class="recp-section-title">Tarkibi (Omborxonadagi materiallardan)</div>
+        </div>
+        <button type="button" class="recp-add-btn" onclick="openIngredientPicker('f')"><i class="ti ti-plus"></i> Material qo'shish</button>
+      </div>
+      <div class="recp-section-sub">Har biridan — yuqoridagi Batch hajmi (kg) uchun kerak miqdor (kg)</div>
+
+      <div class="recp-picker" id="f-picker-anchor"></div>
+
+      <div class="recp-ing-table">
+        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor (kg)</span></div>
+        <div id="f-ingredients"></div>
+      </div>
+      <button type="button" class="recp-add-dashed" onclick="openIngredientPicker('f')"><i class="ti ti-plus"></i> Material qo'shish</button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button class="btn btn-dark w-full" id="recipe-save-btn" onclick="saveRecipe()"><i class="ti ti-device-floppy" style="vertical-align:-2px"></i> Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeAddModal()"><i class="ti ti-x" style="vertical-align:-2px"></i> Bekor</button>
     </div>
   </div>
 </div>
 
 <!-- Tahrirlash modali -->
-<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto">
-    <div style="font-size:16px;font-weight:600;margin-bottom:18px">✏️ Retseptni tahrirlash</div>
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div class="recp-modal">
+    <div class="recp-modal-head">
+      <div class="recp-modal-icon"><i class="ti ti-edit"></i></div>
+      <div class="recp-modal-title">Retseptni tahrirlash</div>
+      <button type="button" class="recp-modal-close" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
+    </div>
     <input type="hidden" id="edit-id">
-    <div class="form-group"><label>Retsept nomi</label><input type="text" id="edit-name"></div>
-    <div class="form-group"><label>Batch hajmi (kg)</label><input type="number" id="edit-batch" min="1"></div>
-    <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="edit-notes" placeholder="..."></div>
 
-    <div class="form-group">
-      <label style="display:flex;justify-content:space-between;align-items:center">
-        <span>Tarkibi</span>
-        <button type="button" class="btn btn-outline btn-xs" onclick="addIngredientRow('edit')">+ Qo'shish</button>
-      </label>
-      <div id="edit-ingredients"></div>
+    <div class="form-row">
+      <div class="recp-field">
+        <label>Retsept nomi</label>
+        <div class="recp-field-input">
+          <i class="ti ti-file-text"></i>
+          <input type="text" id="edit-name">
+        </div>
+      </div>
+      <div class="recp-field">
+        <label>Batch hajmi (kg)</label>
+        <div class="recp-field-input">
+          <i class="ti ti-scale"></i>
+          <input type="number" id="edit-batch" min="1">
+        </div>
+      </div>
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:12px">
+    <div class="recp-field" style="margin-top:14px">
+      <label>Izoh <span style="font-weight:400;text-transform:none;color:#bbb">(ixtiyoriy)</span></label>
+      <div class="recp-field-input">
+        <i class="ti ti-message-circle"></i>
+        <textarea id="edit-notes" placeholder="..." maxlength="200" oninput="document.getElementById('edit-notes-count').textContent = this.value.length"></textarea>
+      </div>
+      <div class="recp-charcount"><span id="edit-notes-count">0</span>/200</div>
+    </div>
+
+    <div class="recp-section">
+      <div class="recp-section-head">
+        <div class="recp-section-title">Tarkibi</div>
+        <button type="button" class="recp-add-btn" onclick="openIngredientPicker('edit')"><i class="ti ti-plus"></i> Material qo'shish</button>
+      </div>
+      <div class="recp-section-sub">&nbsp;</div>
+
+      <div class="recp-picker" id="edit-picker-anchor"></div>
+
+      <div class="recp-ing-table">
+        <div class="recp-ing-table-head"><span>Material</span><span>Miqdor (kg)</span></div>
+        <div id="edit-ingredients"></div>
+      </div>
+      <button type="button" class="recp-add-dashed" onclick="openIngredientPicker('edit')"><i class="ti ti-plus"></i> Material qo'shish</button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:20px">
       <button class="btn btn-dark w-full" id="recipe-edit-save-btn" onclick="saveEditRecipe()">💾 Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeEditModal()">Bekor</button>
     </div>
