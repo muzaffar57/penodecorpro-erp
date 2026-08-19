@@ -116,32 +116,59 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
         Inventory.item_name == item_data.item_name,
         Inventory.is_deleted.is_(True)
     ).first()
-    if existing_deleted:
-        existing_deleted.is_deleted = False
-        existing_deleted.stock_quantity = item_data.stock_quantity
-        existing_deleted.unit = item_data.unit
-        existing_deleted.min_stock = item_data.min_stock
+
+    # MUHIM (2): agar shu nomda ALLAQACHON, "yashirin" emas, ODDIY faol
+    # (is_deleted=False) qator bo'lsa-yu, u HALI HECH QACHON ISHLATILMAGAN
+    # bo'lsa (qoldiq=0 VA birorta xarid tarixi yo'q) — bu, katta ehtimol
+    # bilan, "Kirim" sahifasida bekor qilingan/tugallanmagan urinishdan
+    # qolgan "bo'sh" yozuv (masalan: material qo'shib, keyin ro'yxatdan
+    # olib tashlangan, lekin haqiqiy kirim hech qachon tasdiqlanmagan).
+    # Bunday holatda ham YANGI qator yaratib, nom takrorlanishi xatosini
+    # chiqarish o'rniga — O'SHA bo'sh yozuvni qayta ishlatamiz (xuddi
+    # yuqoridagi holat kabi). Bu, "materialni o'chirib-qayta yozsam xato
+    # beryapti" muammosini butunlay oldini oladi.
+    existing_unused = None
+    if not existing_deleted:
+        existing_unused = db.query(Inventory).filter(
+            Inventory.item_name == item_data.item_name,
+            Inventory.is_deleted.is_(False),
+            Inventory.stock_quantity == 0
+        ).first()
+        if existing_unused:
+            from models import InventoryPurchase
+            has_purchase = db.query(InventoryPurchase).filter(
+                InventoryPurchase.inventory_id == existing_unused.id
+            ).first()
+            if has_purchase:
+                existing_unused = None  # haqiqiy, ishlatilgan material ekan — tegmaymiz
+
+    existing_to_reuse = existing_deleted or existing_unused
+    if existing_to_reuse:
+        existing_to_reuse.is_deleted = False
+        existing_to_reuse.stock_quantity = item_data.stock_quantity
+        existing_to_reuse.unit = item_data.unit
+        existing_to_reuse.min_stock = item_data.min_stock
         if item_data.price_per_unit is not None:
-            existing_deleted.price_per_unit = item_data.price_per_unit
+            existing_to_reuse.price_per_unit = item_data.price_per_unit
         if item_data.volume_per_unit is not None:
-            existing_deleted.volume_per_unit = item_data.volume_per_unit
-        existing_deleted.is_penoplast = is_peno
-        existing_deleted.is_default_penoplast = (is_default and is_peno)
+            existing_to_reuse.volume_per_unit = item_data.volume_per_unit
+        existing_to_reuse.is_penoplast = is_peno
+        existing_to_reuse.is_default_penoplast = (is_default and is_peno)
         if getattr(item_data, 'category', None):
-            existing_deleted.category = item_data.category
-        existing_deleted.notes = item_data.notes
+            existing_to_reuse.category = item_data.category
+        existing_to_reuse.notes = item_data.notes
         if getattr(item_data, 'serp_ratio_per_m2', None) is not None:
-            existing_deleted.serp_ratio_per_m2 = item_data.serp_ratio_per_m2
+            existing_to_reuse.serp_ratio_per_m2 = item_data.serp_ratio_per_m2
         if getattr(item_data, 'kley_ratio_per_m2', None) is not None:
-            existing_deleted.kley_ratio_per_m2 = item_data.kley_ratio_per_m2
+            existing_to_reuse.kley_ratio_per_m2 = item_data.kley_ratio_per_m2
         if is_peno and is_default:
             db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
                 {"is_default_penoplast": False}
             )
-            existing_deleted.is_default_penoplast = True
+            existing_to_reuse.is_default_penoplast = True
         db.commit()
-        db.refresh(existing_deleted)
-        return existing_deleted
+        db.refresh(existing_to_reuse)
+        return existing_to_reuse
 
     # Agar asosiy deb belgilangan bo'lsa — eskisini bekor qilamiz
     if is_peno and is_default:
