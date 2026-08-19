@@ -3957,17 +3957,27 @@ def _group_termo_materials(db: Session, items) -> dict:
         if m2 <= 0:
             continue
         bazalt_id = get('bazalt_item_id')
-        serp_ratio, kley_ratio = 2.0, 0.8
+        # MUHIM TUZATISH: avval, bazalt_id yo'q bo'lsa ham (masalan eski/
+        # noto'liq yozuvlarda), Serpiyanka/Kley "standart" nisbat (2.0/0.8)
+        # bilan HAR DOIM hisoblanardi. Bu — ESKI va YANGI holatni solishtirib
+        # farqni topadigan (tahrirlashda) funksiyalarda XATOGA olib kelardi:
+        # agar tanlangan Bazaltning HAQIQIY nisbati id ATAYLAB standartga
+        # (2.0 yoki 0.8) teng bo'lib chiqsa — "farq yo'q" deb noto'g'ri
+        # xulosaga kelinardi, va Serpiyanka/Kley ombordan UMUMAN
+        # yechilmasdi (garchi Bazaltning o'zi to'g'ri yechilsa ham).
+        # Endi — bazalt_id bo'lmasa, Serpiyanka/Kley HAM hisobga
+        # qo'shilmaydi (0 deb qoladi), aynan Bazalt kabi.
         if bazalt_id:
             result['bazalt'][bazalt_id] = result['bazalt'].get(bazalt_id, 0.0) + m2  # m² — keyin bo'linadi
+            serp_ratio, kley_ratio = 2.0, 0.8
             b = db.query(Inventory).filter(Inventory.id == bazalt_id).first()
             if b:
                 if b.serp_ratio_per_m2:
                     serp_ratio = float(b.serp_ratio_per_m2)
                 if b.kley_ratio_per_m2:
                     kley_ratio = float(b.kley_ratio_per_m2)
-        result['serp_m2'] += m2 * serp_ratio
-        result['kley_kg'] += m2 * kley_ratio
+            result['serp_m2'] += m2 * serp_ratio
+            result['kley_kg'] += m2 * kley_ratio
         result['loy_kg'] += float(get('termo_loy_kg') or 0)
     return result
 
