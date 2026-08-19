@@ -72,6 +72,7 @@
 }
 .rcv-cat-opt:hover{border-color:var(--r-primary);color:var(--r-primary)}
 .rcv-cat-opt.active{background:var(--r-primary-tint);border-color:var(--r-primary);color:#A86B36}
+.rcv-cat-toggle.rcv-cat-error .rcv-cat-opt{border-color:#DC2626}
 </style>
 {% endblock %}
 
@@ -109,12 +110,13 @@
           </div>
 
           <div class="rcv-field" style="margin-bottom:16px">
-            <label>Yo'nalish <span style="font-weight:400;color:var(--r-text3);font-size:11.5px">— Moliya hisobotida to'g'ri taqsimlanishi uchun MUHIM</span></label>
+            <label>Yo'nalish <span style="font-weight:400;color:var(--r-text3);font-size:11.5px">— Moliya hisobotida to'g'ri taqsimlanishi uchun MUHIM, majburiy</span></label>
             <div class="rcv-cat-toggle" id="ap-prod-type-toggle">
-              <div class="rcv-cat-opt active" data-value="" onclick="selectProdType(this,'')">Umumiy</div>
+              <div class="rcv-cat-opt" data-value="" onclick="selectProdType(this,'')">Umumiy</div>
               <div class="rcv-cat-opt" data-value="penoplast" onclick="selectProdType(this,'penoplast')">🏭 Penoplast</div>
               <div class="rcv-cat-opt" data-value="gips" onclick="selectProdType(this,'gips')">🧱 Gips</div>
             </div>
+            <div style="font-size:11px;color:var(--r-text3);margin-top:5px">"Umumiy" — faqat Penoplast yoki Gipsga aloqasi yo'q xarid uchun (masalan Bazalt, boshqa material)</div>
             <select id="ap-prod-type" style="display:none">
               <option value="">Umumiy</option>
               <option value="penoplast">🏭 Penoplast</option>
@@ -397,6 +399,7 @@ let currentSupplierId = null;
 let invItems = [];
 let apBasket = [];
 let apCreatingNewItem = false;
+let prodTypeChosen = false; // Yo'nalish (Umumiy/Penoplast/Gips) ONGLI ravishda tanlanganmi — "Umumiy"ning qiymati ("") bo'sh qiymat bilan bir xil bo'lgani uchun, buni alohida kuzatamiz
 
 // ── QORALAMA (localStorage) — sahifadan tasodifan chiqib qolsa,
 // kiritilgan mahsulotlar/qiymatlar yo'qolmasin, qayta kirganda tiklansin ──
@@ -678,6 +681,8 @@ function selectProdType(btn, value){
   document.querySelectorAll('#ap-prod-type-toggle .rcv-cat-opt').forEach(o => o.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('ap-prod-type').value = value;
+  prodTypeChosen = true;
+  document.getElementById('ap-prod-type-toggle').classList.remove('rcv-cat-error');
 }
 
 function onNewItemCategoryChange(){
@@ -844,14 +849,15 @@ async function submitReceive(){
 
   if (!apBasket.length) { showMsg('❌ Kamida bitta mahsulot qo\'shing', 'error'); return; }
 
-  // Yo'nalish tanlanmagan bo'lsa (hali "Umumiy") — eslatib qo'yamiz, chunki
-  // bu Moliya hisobotida Penoplast/Gips xarajatlari taqsimotiga ta'sir qiladi.
-  // Faqat ESLATMA — hisob-kitobga taalluqli emas, davom etish yoki bekor
-  // qilishni operatorning o'zi hal qiladi.
-  const prodTypeVal = document.getElementById('ap-prod-type')?.value || '';
-  if (!prodTypeVal) {
-    const proceed = confirm("⚠️ Yo'nalish tanlanmadi (\"Umumiy\" holatida qoldi).\n\nAgar bu xarid aslida Penoplast yoki Gips uchun bo'lsa, Moliya hisobotida noto'g'ri taqsimlanishi mumkin.\n\nShunday davom etilsinmi?");
-    if (!proceed) return;
+  // Yo'nalish (Umumiy/Penoplast/Gips) ONGLI ravishda tanlanmagan bo'lsa —
+  // endi bu MAJBURIY: davom etishga umuman ruxsat berilmaydi. ("Umumiy"ning
+  // o'zi ham to'liq huquqli tanlov — Bazalt va h.k. Penoplast/Gips'ga
+  // aloqasi yo'q xaridlar uchun. Faqat "hech narsa bosilmagan" holat bloklanadi.)
+  if (!prodTypeChosen) {
+    showMsg("❌ Yo'nalishni tanlang: Umumiy, Penoplast yoki Gips", 'error');
+    document.getElementById('ap-prod-type-toggle').classList.add('rcv-cat-error');
+    document.getElementById('ap-prod-type-toggle').scrollIntoView({behavior:'smooth', block:'center'});
+    return;
   }
 
   if (isSubmittingReceive) return; // Ikki marta bosishdan himoya (yuqoridagi await/confirm paytida ham bosilgan bo'lishi mumkin)
@@ -921,6 +927,12 @@ async function submitReceive(){
   document.getElementById('ap-add-to-cost').checked = false;
   document.getElementById('ap-due-date').value = '';
   document.getElementById('ap-notes').value = '';
+  // Yo'nalish tanlovini ham tozalaymiz — keyingi kirim uchun operator
+  // qayta, ONGLI ravishda tanlashi kerak (avvalgi tanlov "meros" bo'lib qolmasin)
+  prodTypeChosen = false;
+  document.getElementById('ap-prod-type').value = '';
+  document.querySelectorAll('#ap-prod-type-toggle .rcv-cat-opt').forEach(o => o.classList.remove('active'));
+  document.getElementById('ap-prod-type-toggle').classList.remove('rcv-cat-error');
   loadHistoryForSupplier();
 }
 
