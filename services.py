@@ -3453,15 +3453,13 @@ def _get_planned_loy(order) -> float:
 
 
 def _set_planned_loy(order, kg: float) -> None:
-    """Rejalashtirilgan loyni saqlaydi — endi to'g'ridan-to'g'ri, ishonchli
-    ustunga (order.planned_loy_kg). Eski notes-belgisi ham, orqaga moslik
-    uchun, parallel yozilib turadi (hozircha, keyinchalik olib tashlanishi
-    mumkin)."""
+    """Rejalashtirilgan loyni saqlaydi — to'g'ridan-to'g'ri, ishonchli
+    ustunga (order.planned_loy_kg). ESKATMA: ilgari bu qiymat order.notes
+    ichiga ham "planned_loy=..." deb yozilardi (orqaga moslik uchun) —
+    lekin bu, mijozga chiqadigan PDF hujjatlarda (Izoh qismida) ko'rinib
+    qolib, chalkashlik keltirib chiqargani uchun OLIB TASHLANDI. Endi
+    faqat ISHONCHLI ustunga yoziladi, notes matniga tegilmaydi."""
     order.planned_loy_kg = kg
-    notes = order.notes or ''
-    parts = [p.strip() for p in notes.split(',') if p.strip() and not p.strip().startswith('planned_loy=')]
-    parts.append(f'planned_loy={kg}')
-    order.notes = ','.join(parts)
 
 
 def _get_order_recipe(db: Session, order):
