@@ -101,7 +101,9 @@
         <i class="ti ti-flask n-ico"></i>
         <span class="n-txt">Retseptlar</span>
       </a>
+      {% endif %}
 
+      {% if role in ['admin', 'warehouse', 'manager'] %}
       <a href="/finished" class="nav-item {% if active_page == 'finished' %}active{% endif %}">
         <i class="ti ti-building-factory-2 n-ico"></i>
         <span class="n-txt">Tayyor mahsulotlar</span>

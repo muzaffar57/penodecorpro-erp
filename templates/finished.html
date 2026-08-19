@@ -639,6 +639,8 @@
 </script>
 
 <script>
+const IS_MANAGER = {{ 'true' if current_user.role.value == 'manager' else 'false' }}; // Menejerga sof foyda/tan narx ko'rsatilmaydi
+
 const PENOS = [
   {% for p in penoplasts %}
   {id: {{ p.id }}, name: {{ p.item_name|tojson }}, vol: {{ p.volume_per_unit|float }}, price: {{ (p.price_per_unit or 0)|float }}},
@@ -964,8 +966,8 @@ function rowHtml(i) {
   const stColor = low ? '#DC2626' : (isKam ? '#F59E0B' : '#22C55E');
   const stLabel = low ? 'Tugagan' : (isKam ? 'Kam' : 'Yetarli');
 
-  const cpu = i.source === 'produced' && i.quantity > 0 ? (i.cost_price / i.quantity) : 0;
-  const profitPct = (i.source === 'produced' && i.unit_price > 0)
+  const cpu = (i.source === 'produced' && i.quantity > 0 && i.cost_price != null) ? (i.cost_price / i.quantity) : null;
+  const profitPct = (i.source === 'produced' && i.unit_price > 0 && cpu !== null)
     ? Math.round(((i.unit_price - cpu) / i.unit_price) * 100) : null;
 
   const actionBtns = inProgress ? `
@@ -1032,7 +1034,7 @@ function rowHtml(i) {
 
     <div style="text-align:right;flex-shrink:0;min-width:82px">
       <div class="fp-price">${fmt(i.unit_price)}/${unitLabel(i.unit)}</div>
-      ${i.source === 'produced' ? `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>` : ''}
+      ${(i.source === 'produced' && cpu !== null) ? `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>` : ''}
     </div>
 
     <div style="text-align:right;flex-shrink:0;min-width:92px">
@@ -1062,7 +1064,7 @@ function openHistoryModal(id) {
   if (item.source === 'produced') {
     rows.push(['Sarflangan penoplast', item.volume_m3 ? item.volume_m3.toFixed(4) + ' m³' : '—']);
     if (item.actual_loy_kg) rows.push(['Sarflangan loy', item.actual_loy_kg + ' kg']);
-    rows.push(['Tan narxi (jami)', fmt(item.cost_price) + " so'm"]);
+    if (item.cost_price != null) rows.push(['Tan narxi (jami)', fmt(item.cost_price) + " so'm"]);
   }
   rows.push(['Hozirgi qoldiq', item.quantity + ' ' + item.unit]);
   rows.push(['Joriy qiymati', fmt(item.total_value) + " so'm"]);
@@ -1363,7 +1365,7 @@ async function submitLoss() {
       const r = await res.json();
       if (res.ok) {
         closeLossModal();
-        showMsg(`✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada Brak xarajatiga qo'shildi`, 'success');
+        showMsg(r.cost_amount != null ? `✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada Brak xarajatiga qo'shildi` : '✓ Kamaytirildi!', 'success');
         setTimeout(() => location.reload(), 1500);
       } else {
         showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
@@ -1385,7 +1387,7 @@ async function submitLoss() {
       const r = await res.json();
       if (res.ok) {
         closeLossModal();
-        showMsg(`✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
+        showMsg(r.cost_amount != null ? `✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)` : "✓ Xomashyo ayirildi! (mahsulot soni o'zgarmadi)", 'success');
         setTimeout(() => location.reload(), 1500);
       } else {
         showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
@@ -1632,7 +1634,7 @@ async function submitSell() {
     const r = await res.json();
     if (res.ok) {
       closeSellModal();
-      showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)`, 'success');
+      showMsg(r.profit != null ? `✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)` : `✓ Sotildi! ${fmt(r.total_amount)} so'm`, 'success');
       // G'ishtdan tashqari barcha mahsulot uchun — Yuk xati avtomatik ochiladi
       if (r.product_name !== "G'isht" && r.sale_id) {
         window.open(`/api/finished/sales/${r.sale_id}/pdf`, '_blank');
@@ -1828,7 +1830,7 @@ async function saveTermopanel() {
       let msg = `⏳ ${r.name}: ${r.quantity} m² — ishlab chiqarish boshlandi\n\n`;
       msg += `🧱 Bazalt: ${r.bazalt_sheets} dona\n🕸️ Serpiyanka: ${r.serpiyanka_rulon} rulon\n`;
       if (r.kley_kg > 0) msg += `🧴 Kley: ${r.kley_kg} kg\n`;
-      msg += `\n💰 Tan narxi: ${fmt(r.total_cost)} so'm\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
+      if (r.total_cost != null) msg += `\n💰 Tan narxi: ${fmt(r.total_cost)} so'm\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
       msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
       showMsg(msg, 'success');
     } else {
@@ -2114,13 +2116,14 @@ function pCalc() {
   box.innerHTML = `
     📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b> = ${fmt(penoCost)} so'm` : ''}${volLockLine}${loyLine}<br>
     💵 1 ${unit} narxi: <b style="color:#B9783F">${fmt(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:#aaa">(kiritilgan: ${fmt(inputPrice)})</span>` : ''}<br>
+    ${IS_MANAGER ? '' : `
     <div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">
       💰 Tan narxi: <b style="color:#DC2626">${fmt(cost)} so'm</b>
       <span style="color:#aaa">(1 ${unit} = ${fmt(costPerUnit)})</span><br>
       💵 Sotuv: <b style="color:#22C55E">${fmt(revenue)} so'm</b><br>
       📈 Foyda: <b style="color:${profit>0?'#22C55E':'#DC2626'};font-size:13px">${fmt(profit)} so'm</b>
       <span style="color:#aaa">(${margin.toFixed(1)}%)</span>
-    </div>
+    </div>`}
     🏭 Natija: <b style="color:#B9783F">${count} ${unit}</b>`;
 }
 
@@ -2245,8 +2248,10 @@ async function saveProduce() {
       loadFp();
       let msg = `⏳ ${r.name}: ${r.quantity} ${r.unit} — ishlab chiqarish boshlandi`;
       if (r.inventory_log?.length) msg += '\n\n📦 Ombordan:\n' + r.inventory_log.join('\n');
-      msg += `\n\n💰 Tan narxi: ${fmt(r.total_cost)} so'm`;
-      msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
+      if (r.total_cost != null) {
+        msg += `\n\n💰 Tan narxi: ${fmt(r.total_cost)} so'm`;
+        msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
+      }
       msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
       showMsg(msg, 'success');
     } else {
