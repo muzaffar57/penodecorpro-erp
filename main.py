@@ -318,8 +318,6 @@ def _migrate_payment_columns():
         emp_cols2 = [c['name'] for c in inspector.get_columns('employees')]
         if 'production_type' not in emp_cols2:
             migrations.append("ALTER TABLE employees ADD COLUMN production_type VARCHAR(20)")
-        if 'panel_modules' not in emp_cols2:
-            migrations.append("ALTER TABLE employees ADD COLUMN panel_modules VARCHAR(255)")
 
         ir_cols = [c['name'] for c in inspector.get_columns('inventory_receipts')]
         if 'production_type' not in ir_cols:
@@ -1253,7 +1251,6 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
         "gul_rate": float(e.gul_rate) if e.gul_rate is not None else None,
         "extra_monthly": float(e.extra_monthly) if e.extra_monthly is not None else None,
         "production_type": e.production_type,
-        "panel_modules": e.panel_modules,
         "is_active": e.is_active,
         "notes": e.notes
     } for e in items]
@@ -1420,8 +1417,7 @@ async def hodim_panel(request: Request, db: Session = Depends(get_db)):
     emp = auth.get_current_employee(request, db)
     if not emp:
         return RedirectResponse("/hodim/login", status_code=302)
-    panel_modules = [m.strip() for m in (emp.panel_modules or "").split(",") if m.strip()]
-    return templates.TemplateResponse(request, "hodim_panel.html", {"employee": emp, "panel_modules": panel_modules})
+    return templates.TemplateResponse(request, "hodim_panel.html", {"employee": emp})
 
 
 @app.get("/api/hodim/my-requests")
@@ -1441,32 +1437,6 @@ def api_hodim_advance_request(amount: float = Form(...), requested_date: str = F
         raise HTTPException(status_code=400, detail="Sana noto'g'ri")
     req = crud.create_advance_request(db, emp.id, amount, rdate, notes)
     return {"status": "ok", "id": req.id}
-
-
-@app.get("/api/hodim/finished-products")
-def api_hodim_finished_products(db: Session = Depends(get_db), emp=Depends(auth.require_employee_login)):
-    """Hodim panelidagi 'Tayyor mahsulot' bo'limi — FAQAT admin shu hodimga
-    ruxsat bergan bo'lsa ko'rinadi (Employee.panel_modules). MUHIM: tan
-    narx (cost_price) va foyda bilan bog'liq HECH QANDAY maydon
-    qaytarilmaydi — faqat nom, miqdor, holat kabi neytral ma'lumot."""
-    allowed = [m.strip() for m in (emp.panel_modules or "").split(",") if m.strip()]
-    if "finished_products" not in allowed:
-        raise HTTPException(status_code=403, detail="Bu bo'limga ruxsatingiz yo'q")
-    items = crud.get_finished_products_for_main_page(db, days=90, show_all=False)
-    return [{
-        "id": fp.id,
-        "name": fp.name,
-        "category": fp.category,
-        "width": fp.width,
-        "thickness": fp.thickness,
-        "is_coated": fp.is_coated,
-        "quantity": float(fp.quantity or 0),
-        "unit": fp.unit,
-        "production_status": fp.production_status.value if fp.production_status else None,
-        "image_url": fp.image_url,
-        "notes": fp.notes,
-        "created_at": fp.created_at.isoformat() if fp.created_at else None,
-    } for fp in items]
 
 
 # ============================================================
