@@ -853,7 +853,8 @@ async def inventory_page(request: Request, db: Session = Depends(get_db), curren
     items = crud.get_inventory(db)
     kpi = services.get_inventory_kpi(db)
     suppliers = crud.get_suppliers(db)
-    return templates.TemplateResponse(request, "inventory.html", {"items": items, "kpi": kpi, "suppliers": suppliers, "current_user": current_user, "active_page": "inventory"})
+    is_manager = current_user.role.value == "manager"
+    return templates.TemplateResponse(request, "inventory.html", {"items": items, "kpi": kpi, "suppliers": suppliers, "current_user": current_user, "active_page": "inventory", "is_manager": is_manager})
 
 
 @app.post("/api/inventory/{item_id}/image")
@@ -871,7 +872,10 @@ def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: S
 
 @app.get("/api/inventory/kpi")
 def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
-    return services.get_inventory_kpi(db)
+    kpi = services.get_inventory_kpi(db)
+    if current_user.role.value == "manager":
+        kpi = {k: v for k, v in kpi.items() if k != "total_value"}
+    return kpi
 
 
 @app.get("/recipes", response_class=HTMLResponse)
