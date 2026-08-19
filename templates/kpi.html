@@ -324,12 +324,6 @@
     </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes" placeholder="..."></div>
 
-    <div class="modal-section-label">Hodim panel ruxsatlari <span class="modal-hint">— /hodim sahifasida nima ko'rinsin</span></div>
-    <label style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1.5px solid var(--border2);border-radius:10px;cursor:pointer;font-size:13.5px;color:var(--text2);background:#FAFAF8">
-      <input type="checkbox" id="e-panel-finished" style="width:17px;height:17px;accent-color:var(--gold);flex-shrink:0">
-      📦 Tayyor mahsulot ro'yxati <span style="color:#bbb;font-size:12px">(narx/tan narxsiz, faqat nom va miqdor)</span>
-    </label>
-
     <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
@@ -916,7 +910,6 @@ function openEmpModal() {
   editingEmpId = null;
   document.getElementById('emp-modal-title').textContent = "+ Yangi hodim";
   ['e-name','e-position','e-fixed','e-percent','e-unitrate','e-notes','e-gulrate','e-extramonthly'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('e-panel-finished').checked = false;
   setProdType('');
   document.getElementById('e-paytype').value = 'fixed';
   document.getElementById('e-unittype').value = 'blok';
@@ -956,8 +949,6 @@ function editEmployee(id) {
   document.getElementById('e-notes').value = e.notes || '';
   document.getElementById('e-gulrate').value = e.gul_rate ? fmt(e.gul_rate) : '';
   document.getElementById('e-extramonthly').value = e.extra_monthly ? fmt(e.extra_monthly) : '';
-  const panelModules = (e.panel_modules || '').split(',').map(m => m.trim());
-  document.getElementById('e-panel-finished').checked = panelModules.includes('finished_products');
   setProdType(e.production_type || '');
   document.getElementById('emp-error').style.display = 'none';
   empToggle();
@@ -987,9 +978,6 @@ async function saveEmployee() {
     ? (parseFloat(document.getElementById('e-coatingrate').value) || 1000)
     : (parseNum(document.getElementById('e-unitrate').value) || 0);
 
-  const panelModulesList = [];
-  if (document.getElementById('e-panel-finished').checked) panelModulesList.push('finished_products');
-
   const data = {
     name,
     position: document.getElementById('e-position').value.trim() || null,
@@ -1001,7 +989,6 @@ async function saveEmployee() {
     gul_rate: parseNum(document.getElementById('e-gulrate').value) || null,
     extra_monthly: parseNum(document.getElementById('e-extramonthly').value) || null,
     production_type: document.getElementById('e-prodtype').value || null,
-    panel_modules: panelModulesList.join(',') || null,
     notes: document.getElementById('e-notes').value.trim() || null
   };
 
