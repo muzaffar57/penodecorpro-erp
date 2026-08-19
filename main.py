@@ -1809,7 +1809,7 @@ def api_find_chat_id(secret: str = ""):
 
 
 @app.delete("/api/inventory/{item_id}")
-def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     result = crud.delete_item(db, item_id)
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
