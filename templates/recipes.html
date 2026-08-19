@@ -80,6 +80,14 @@
 .recp-picker-item:hover{background:var(--bg)}
 .recp-picker-item-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
 .recp-picker-empty{padding:20px;text-align:center;color:var(--text3);font-size:12.5px}
+
+/* Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga */
+.recp-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
+.recp-toast{background:#fff;border-radius:16px;padding:30px 34px;max-width:340px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28)}
+.recp-toast-icon{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px}
+.recp-toast-icon.success{background:#DCFCE7;color:#16A34A}
+.recp-toast-icon.error{background:#FEE2E2;color:#DC2626}
+.recp-toast-text{font-size:14.5px;font-weight:600;color:var(--text);line-height:1.5}
 </style>
 {% endblock %}
 
@@ -163,6 +171,36 @@ function openRecLightbox(url) {
 }
 function closeRecLightbox() { document.getElementById('recLightbox').style.display = 'none'; }
 
+// Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga
+function recpToast(text, type) {
+  type = type || 'success';
+  let overlay = document.getElementById('recpToastOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'recpToastOverlay';
+    overlay.className = 'recp-toast-overlay';
+    overlay.innerHTML = `
+      <div class="recp-toast">
+        <div class="recp-toast-icon" id="recpToastIcon"></div>
+        <div class="recp-toast-text" id="recpToastText"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) recpToastHide(); });
+  }
+  const icon = document.getElementById('recpToastIcon');
+  const textEl = document.getElementById('recpToastText');
+  icon.className = 'recp-toast-icon ' + type;
+  icon.innerHTML = type === 'success' ? '<i class="ti ti-check"></i>' : '<i class="ti ti-x"></i>';
+  textEl.textContent = text;
+  overlay.style.display = 'flex';
+  clearTimeout(overlay._timer);
+  overlay._timer = setTimeout(recpToastHide, type === 'success' ? 1600 : 3200);
+}
+function recpToastHide() {
+  const overlay = document.getElementById('recpToastOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 const inFlightRecipeImgUpload = new Set();
 async function uploadRecipeImage(id, input) {
   if (!input.files.length) return;
@@ -173,7 +211,7 @@ async function uploadRecipeImage(id, input) {
   try {
     const res = await fetch(`/api/recipes/${id}/image`, {method:'POST', body: fd});
     if (res.ok) location.reload();
-    else alert('Rasm yuklashda xato');
+    else recpToast('Rasm yuklashda xato', 'error');
   } finally {
     inFlightRecipeImgUpload.delete(id);
   }
@@ -183,7 +221,7 @@ async function deleteRecipe(id) {
   if (!confirm('Retseptni o\'chirasizmi?')) return;
   const res = await fetch(`/api/recipes/${id}`, {method:'DELETE'});
   if (res.ok) location.reload();
-  else alert('Xato yuz berdi');
+  else recpToast('Xato yuz berdi', 'error');
 }
 
 // ── OMBORXONA MATERIALLARINI YUKLASH (ingredient tanlash uchun) ──
@@ -346,9 +384,9 @@ function closeAddModal() { document.getElementById('addModal').style.display = '
 let isSavingRecipe = false;
 async function saveRecipe() {
   const name = document.getElementById('f-name').value.trim();
-  if (!name) { alert('Nom shart!'); return; }
+  if (!name) { recpToast('Nom shart!', 'error'); return; }
   const ingredients = collectIngredients('f');
-  if (!ingredients.length) { alert('Kamida bitta tarkibiy qism kiriting!'); return; }
+  if (!ingredients.length) { recpToast('Kamida bitta tarkibiy qism kiriting!', 'error'); return; }
   if (isSavingRecipe) return; // Ikki marta bosishdan himoya
   isSavingRecipe = true;
   const btn = document.getElementById('recipe-save-btn');
@@ -364,8 +402,8 @@ async function saveRecipe() {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(data)
     });
-    if (res.ok) { alert("✓ Retsept qo'shildi!"); location.reload(); return; }
-    else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+    if (res.ok) { recpToast("✓ Retsept qo'shildi!", 'success'); setTimeout(() => location.reload(), 1200); return; }
+    else { const e = await res.json(); recpToast('Xato: ' + (e.detail || ''), 'error'); }
   } finally {
     isSavingRecipe = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
@@ -395,7 +433,7 @@ async function saveEditRecipe() {
   const id = document.getElementById('edit-id').value;
   const name = document.getElementById('edit-name').value.trim();
   const ingredients = collectIngredients('edit');
-  if (!ingredients.length) { alert('Kamida bitta tarkibiy qism kiriting!'); return; }
+  if (!ingredients.length) { recpToast('Kamida bitta tarkibiy qism kiriting!', 'error'); return; }
   if (isSavingEditRecipe) return; // Ikki marta bosishdan himoya
   isSavingEditRecipe = true;
   const btn = document.getElementById('recipe-edit-save-btn');
@@ -411,8 +449,8 @@ async function saveEditRecipe() {
       method: 'PUT', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(data)
     });
-    if (res.ok) { alert('✓ Retsept yangilandi!'); location.reload(); return; }
-    else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+    if (res.ok) { recpToast('✓ Retsept yangilandi!', 'success'); setTimeout(() => location.reload(), 1200); return; }
+    else { const e = await res.json(); recpToast('Xato: ' + (e.detail || ''), 'error'); }
   } finally {
     isSavingEditRecipe = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
