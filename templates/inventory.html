@@ -68,6 +68,10 @@
 @keyframes mvSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
 .mv-drawer-head{padding:18px 20px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 .mv-drawer-body{padding:6px 20px 20px;overflow-y:auto;flex:1}
+
+/* Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga */
+.inv-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
+.inv-toast{background:#fff;border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
 </style>
 {% endblock %}
 
@@ -308,6 +312,28 @@
 
 {% block scripts %}
 <script>
+// Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga
+function invToast(text) {
+  let overlay = document.getElementById('invToastOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'invToastOverlay';
+    overlay.className = 'inv-toast-overlay';
+    overlay.innerHTML = '<div class="inv-toast" id="invToastText"></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) invToastHide(); });
+  }
+  document.getElementById('invToastText').textContent = text;
+  overlay.style.display = 'flex';
+  clearTimeout(overlay._timer);
+  const dur = Math.min(6000, Math.max(1800, text.length * 45));
+  overlay._timer = setTimeout(invToastHide, dur);
+}
+function invToastHide() {
+  const overlay = document.getElementById('invToastOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 // SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
 // turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
 // chiqarmasligi uchun (statik VA keyinroq qo'shiladigan maydonlar uchun ham).
@@ -360,10 +386,10 @@ async function uploadInventoryImage(id, input) {
       location.reload();
     } else {
       const err = await res.json().catch(()=>({}));
-      alert('❌ Rasm yuklanmadi.\n\nSabab: ' + (err.detail || `Server xatosi (${res.status})`));
+      invToast('❌ Rasm yuklanmadi.\n\nSabab: ' + (err.detail || `Server xatosi (${res.status})`));
     }
   } catch(e) {
-    alert('❌ Server bilan bog\'lanib bo\'lmadi: ' + e.message);
+    invToast('❌ Server bilan bog\'lanib bo\'lmadi: ' + e.message);
   } finally {
     inFlightInvActions.delete(key);
   }
@@ -378,11 +404,11 @@ async function setDefaultPenoplast(id){
     const res = await fetch(`/api/inventory/${id}/set-default-penoplast`, {method:'POST'});
     if(res.ok){
       const d = await res.json();
-      alert('✓ ' + d.name + ' asosiy plotnost qilib belgilandi!');
+      invToast('✓ ' + d.name + ' asosiy plotnost qilib belgilandi!');
       location.reload();
     } else {
       const e = await res.json();
-      alert('❌ ' + (e.detail || 'Xato'));
+      invToast('❌ ' + (e.detail || 'Xato'));
     }
   } finally {
     inFlightInvActions.delete(key);
@@ -396,8 +422,8 @@ async function sendFullStockReport() {
   try {
     const res = await fetch('/api/inventory/full-stock-report', {method:'POST'});
     const d = await res.json();
-    if (res.ok) alert('✅ ' + d.message);
-    else alert('❌ Xato yuz berdi');
+    if (res.ok) invToast('✅ ' + d.message);
+    else invToast('❌ Xato yuz berdi');
   } finally {
     isSendingStockReport = false;
   }
@@ -411,10 +437,10 @@ async function sendLowStockAlert() {
     const res = await fetch('/api/inventory/low-stock-alert', {method:'POST'});
     const d = await res.json();
     if (res.ok) {
-      if (d.sent) alert('✅ SMS yuborildi!\n\n' + d.message);
-      else alert('ℹ️ ' + d.message);
+      if (d.sent) invToast('✅ SMS yuborildi!\n\n' + d.message);
+      else invToast('ℹ️ ' + d.message);
     } else {
-      alert('❌ Xato yuz berdi');
+      invToast('❌ Xato yuz berdi');
     }
   } finally {
     isSendingLowStockAlert = false;
@@ -470,9 +496,9 @@ async function editBazaltRatios(id, currentSerp, currentKley) {
       })
     });
     if (res.ok) {
-      alert('✓ Nisbatlar yangilandi! Keyingi barcha hisob-kitoblar shu yangi qiymatdan foydalanadi.');
+      invToast('✓ Nisbatlar yangilandi! Keyingi barcha hisob-kitoblar shu yangi qiymatdan foydalanadi.');
       location.reload();
-    } else alert('Xato yuz berdi');
+    } else invToast('Xato yuz berdi');
   } finally {
     inFlightInvActions.delete(key);
   }
@@ -494,9 +520,9 @@ async function editBazaltVolume(id, currentVolume) {
       })
     });
     if (res.ok) {
-      alert('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
+      invToast('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
       location.reload();
-    } else alert('Xato yuz berdi');
+    } else invToast('Xato yuz berdi');
   } finally {
     inFlightInvActions.delete(key);
   }
@@ -518,9 +544,9 @@ async function editGipsSackWeight(id, currentVolume) {
       })
     });
     if (res.ok) {
-      alert('✓ Yangilandi! "Qop" asosida to\'lanadigan hodimlar uchun shu qiymat ishlatiladi.');
+      invToast('✓ Yangilandi! "Qop" asosida to\'lanadigan hodimlar uchun shu qiymat ishlatiladi.');
       location.reload();
-    } else alert('Xato yuz berdi');
+    } else invToast('Xato yuz berdi');
   } finally {
     inFlightInvActions.delete(key);
   }
@@ -542,9 +568,9 @@ async function editSerpiyankaVolume(id, currentVolume) {
       })
     });
     if (res.ok) {
-      alert('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
+      invToast('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
       location.reload();
-    } else alert('Xato yuz berdi');
+    } else invToast('Xato yuz berdi');
   } finally {
     inFlightInvActions.delete(key);
   }
@@ -564,8 +590,8 @@ async function editPrice(id, currentPrice) {
     });
     if (res.ok) {
       document.getElementById('price-'+id).textContent = Number(parseFloat(newPrice)).toLocaleString('ru-RU') + ' so\'m';
-      alert('✓ Narx yangilandi!');
-    } else alert('Xato yuz berdi');
+      invToast('✓ Narx yangilandi!');
+    } else invToast('Xato yuz berdi');
   } finally {
     inFlightInvActions.delete(key);
   }
@@ -586,8 +612,8 @@ async function editMinStock(id, currentMin, unit) {
     });
     if (res.ok) {
       document.getElementById('minstock-'+id).textContent = parseFloat(newMin) + ' ' + unit;
-      alert('✓ Chegara yangilandi!');
-    } else alert('Xato yuz berdi');
+      invToast('✓ Chegara yangilandi!');
+    } else invToast('Xato yuz berdi');
   } finally {
     inFlightInvActions.delete(key);
   }
@@ -612,8 +638,8 @@ async function editCategory(el) {
       body: JSON.stringify({category: val.trim()})
     });
     if (res.ok) location.reload();
-    else alert('Xato yuz berdi');
-  } catch(e) { alert('Server xatosi'); } finally {
+    else invToast('Xato yuz berdi');
+  } catch(e) { invToast('Server xatosi'); } finally {
     inFlightInvActions.delete(key);
   }
 }
@@ -634,7 +660,7 @@ function closeChiqimModal(){ document.getElementById('chiqimModal').style.displa
 let isSavingChiqim = false;
 async function saveChiqim() {
   const qty = parseFloat(document.getElementById('chiqim-qty').value);
-  if (!qty || qty <= 0) { alert('Miqdorni to\'g\'ri kiriting'); return; }
+  if (!qty || qty <= 0) { invToast('Miqdorni to\'g\'ri kiriting'); return; }
   if (isSavingChiqim) return; // Ikki marta bosishdan himoya
   isSavingChiqim = true;
   const btn = document.getElementById('chiqim-save-btn');
@@ -645,8 +671,8 @@ async function saveChiqim() {
       body: JSON.stringify({quantity_change: -qty, reason: document.getElementById('chiqim-notes').value || null})
     });
     if(res.ok) { location.reload(); return; }
-    else alert('Xato yuz berdi');
-  } catch(e) { alert('Server xatosi'); }
+    else invToast('Xato yuz berdi');
+  } catch(e) { invToast('Server xatosi'); }
   isSavingChiqim = false;
   if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.textContent = 'Chiqim qilish'; }
 }
@@ -793,14 +819,14 @@ async function deletePurchase(id, name, qty) {
   try {
     const res = await fetch(`/api/inventory/purchases/${id}`, { method: 'DELETE' });
     if (res.ok) {
-      alert('✓ Xarid bekor qilindi — ombor va pul oqimi tuzatildi.');
+      invToast('✓ Xarid bekor qilindi — ombor va pul oqimi tuzatildi.');
       openPurchaseHistory();        // ro'yxatni yangilaymiz
       setTimeout(() => location.reload(), 600);  // ombor qoldig'i ham yangilanishi uchun
     } else {
       const d = await res.json().catch(() => ({}));
-      alert(d.detail || 'Xato yuz berdi');
+      invToast(d.detail || 'Xato yuz berdi');
     }
-  } catch(e) { alert('Server xatosi'); }
+  } catch(e) { invToast('Server xatosi'); }
 }
 function closePurchaseHistory() { document.getElementById('historyModal').style.display = 'none'; }
 
@@ -962,12 +988,12 @@ async function deleteItem(id) {
   if(res.ok) {
     const r = await res.json();
     if (r.soft) {
-      alert('ℹ️ ' + r.message);
+      invToast('ℹ️ ' + r.message);
     }
     location.reload();
   } else {
     const err = await res.json().catch(()=>({}));
-    alert('❌ Xato: ' + (err.detail || 'Noma\'lum xato'));
+    invToast('❌ Xato: ' + (err.detail || 'Noma\'lum xato'));
   }
 }
 
