@@ -4213,6 +4213,20 @@ async function editSelected() {
         if (m3El && item.price_per_m3) m3El.value = formatNum(item.price_per_m3);
 
         calculateItem(row);
+
+        // MUHIM TUZATISH: "Dona" turidagi, Qoplama:Ha, o'lchov orqali
+        // (Donalik, qulflangan hajm) saqlangan detallar uchun — tahrirlash
+        // oynasida EKRANGA "1 dona narxi"ni ATAYLAB xom (yarmiga bo'lingan)
+        // holda ko'rsatamiz (yuqorida). Lekin calculateItem() shu xom
+        // narxni qator narxini ("Jami summa" statistikasiga qo'shiladigan
+        // qiymatni) hisoblashda ham ishlatib, uni HAQIQIYIDAN 2 barobar
+        // KAM ko'rsatib qo'yardi — garchi saqlaganda hammasi to'g'ri
+        // saqlanaversa ham (shuning uchun "saqlab chiqsam to'g'ri, qayta
+        // kirsam yana kam" degan holat kuzatilgan). Shu bitta qator uchun,
+        // server TASDIQLAGAN haqiqiy jami narxni statistikaga qaytaramiz.
+        if (cat === 'dona' && item.is_coated && row.dataset.donaVolLocked === 'true') {
+          row.dataset.price = parseFloat(item.total_price || 0).toString();
+        }
       });
 
       // Barcha detallar yuklangach — birinchisidan (eng tepadagi) tashqari
@@ -4222,6 +4236,12 @@ async function editSelected() {
         updateDetalSummary(r);
         if (idx > 0) r.classList.add('collapsed');
       });
+      // MUHIM: yuqoridagi tuzatish (row.dataset.price qayta o'rnatilishi)
+      // calculateItem()ning o'z ichidagi updateLiveStats() chaqiruvidan
+      // KEYIN sodir bo'ladi — shuning uchun "Jami summa" statistikasi
+      // eski, kam qiymat bilan qolib ketmasligi uchun, endi — barcha
+      // qatorlar to'g'irlangandan KEYIN — yakuniy marta yangilaymiz.
+      updateLiveStats();
     }
 
     // Tahrirlash rejimi + saqlangan chegirma foizi
