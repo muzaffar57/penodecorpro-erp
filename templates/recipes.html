@@ -69,8 +69,6 @@
 .recp-ing-qty span{padding:0 9px;color:var(--text3);font-size:11.5px;background:var(--bg);height:100%;display:flex;align-items:center}
 .recp-ing-del{width:30px;height:30px;border:none;background:none;color:#DC2626;cursor:pointer;font-size:15px;flex-shrink:0;border-radius:7px;display:flex;align-items:center;justify-content:center}
 .recp-ing-del:hover{background:#FEE2E2}
-.recp-add-dashed{width:100%;margin-top:10px;padding:13px;border:1.5px dashed var(--border);border-radius:10px;background:none;color:var(--gold-dark);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
-.recp-add-dashed:hover{background:var(--gold-tint);border-color:var(--gold)}
 .recp-picker{position:relative}
 .recp-picker-panel{position:absolute;top:0;left:0;right:0;background:#fff;border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;max-height:340px;display:flex;flex-direction:column}
 .recp-picker-search{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--border2);flex-shrink:0}
@@ -199,12 +197,12 @@ async function loadInvItemsForRecipe() {
 
 // Kategoriya → rang/belgi (faqat ko'rinish uchun, hisob-kitobga aloqasi yo'q)
 const RECP_CAT_STYLE = {
-  "Kimyoviy qo'shimchalar": { icon: 'ti-flask', bg: '#EDE9FE', fg: '#7C3AED', label: "Kimyoviy qo'shimcha" },
-  "Qattiq qotishmalar":     { icon: 'ti-triangle', bg: '#DCFCE7', fg: '#16A34A', label: 'Mineral material' },
-  "Gips":                   { icon: 'ti-diamond', bg: '#FEF3C7', fg: '#D97706', label: 'Gips' },
-  "Penoplast":              { icon: 'ti-square', bg: '#DBEAFE', fg: '#2563EB', label: 'Penoplast' },
-  "Bazalt":                 { icon: 'ti-mountain', bg: '#F3E8D8', fg: '#A86B36', label: 'Bazalt' },
-  "default":                { icon: 'ti-hexagon', bg: '#DBEAFE', fg: '#2563EB', label: 'Boshqa material' }
+  "Kimyoviy qo'shimchalar": { icon: 'ti-flask', bg: '#EDE9FE', fg: '#7C3AED', label: "Kimyoviy qo'shimcha", groupLabel: "KIMYOVIY QO'SHIMCHALAR" },
+  "Qattiq qotishmalar":     { icon: 'ti-triangle', bg: '#DCFCE7', fg: '#16A34A', label: "Mineral qo'shimcha", groupLabel: "MINERAL QO'SHIMCHALAR" },
+  "Gips":                   { icon: 'ti-diamond', bg: '#FEF3C7', fg: '#D97706', label: 'Gips', groupLabel: 'GIPS' },
+  "Penoplast":              { icon: 'ti-square', bg: '#DBEAFE', fg: '#2563EB', label: 'Penoplast', groupLabel: 'PENOPLAST' },
+  "Bazalt":                 { icon: 'ti-mountain', bg: '#F3E8D8', fg: '#A86B36', label: 'Bazalt', groupLabel: 'BAZALT' },
+  "default":                { icon: 'ti-hexagon', bg: '#DBEAFE', fg: '#2563EB', label: 'Boshqa material', groupLabel: 'BOSHQA MATERIALLAR' }
 };
 function recpCatStyle(cat) { return RECP_CAT_STYLE[cat] || RECP_CAT_STYLE.default; }
 
@@ -323,7 +321,7 @@ async function renderIngredientPickerList(prefix) {
         <div class="recp-picker-item-icon" style="background:${st.bg};color:${st.fg}"><i class="ti ${st.icon}"></i></div>
         ${i.item_name}
       </div>`).join('');
-    return `<div class="recp-picker-cat" style="color:${st.fg}">${st.label.toUpperCase()}LAR</div>${rows}`;
+    return `<div class="recp-picker-cat" style="color:${st.fg}">${st.groupLabel}</div>${rows}`;
   }).join('');
 }
 
@@ -475,7 +473,6 @@ async function saveEditRecipe() {
         <div class="recp-ing-table-head"><span>Material</span><span>Miqdor (kg)</span></div>
         <div id="f-ingredients"></div>
       </div>
-      <button type="button" class="recp-add-dashed" onclick="openIngredientPicker('f')"><i class="ti ti-plus"></i> Material qo'shish</button>
     </div>
 
     <div style="display:flex;gap:8px;margin-top:20px">
@@ -534,7 +531,6 @@ async function saveEditRecipe() {
         <div class="recp-ing-table-head"><span>Material</span><span>Miqdor (kg)</span></div>
         <div id="edit-ingredients"></div>
       </div>
-      <button type="button" class="recp-add-dashed" onclick="openIngredientPicker('edit')"><i class="ti ti-plus"></i> Material qo'shish</button>
     </div>
 
     <div style="display:flex;gap:8px;margin-top:20px">
