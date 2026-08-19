@@ -3269,8 +3269,16 @@ function calculateItem(row) {
       const perUnitVol = (h_val/100) * (t_val/100) / 2 / donaYield;
       volume_total = perUnitVol * qty;
       row.dataset.donaVolPerUnit = perUnitVol.toString();
-      unitPrice = perUnitVol * basePrice;
-      if (isCoated) unitPrice *= 2;
+      // MUHIM TUZATISH: backend "dona" turi uchun Qoplama:Ha bo'lsa,
+      // narxni HAR DOIM o'zi ×2 qiladi (backend frontend har doim XOM
+      // narx yuboradi deb hisoblaydi). Shuning uchun bu yerda EKRANGA
+      // (upEl, joriy summalar) qoplamali narxni ko'rsatamiz, lekin
+      // backendga ketadigan XOM narxni ALOHIDA saqlaymiz — aks holda
+      // backend yana ×2 qilib, natija 4 barobar (haqiqiysidan 2 barobar
+      // ortiq) bo'lib qolar edi.
+      const rawUnitPrice = perUnitVol * basePrice;
+      unitPrice = isCoated ? rawUnitPrice * 2 : rawUnitPrice;
+      row.dataset.rawUnitPriceDona = rawUnitPrice;
       if (upEl) upEl.value = formatNum(unitPrice);
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
@@ -4352,8 +4360,21 @@ function collectItems() {
         ? lockedPerUnit * effM3
         : parseFloat(row.dataset.unitprice || 0);
 
+      // MUHIM TUZATISH: agar shu qator ENDIGINA, "Yangi usul" (Eni×Qalinlik×
+      // "1 metrdan nechta") orqali hisoblangan bo'lsa — calculateItem()
+      // XOM (qoplamasiz) narxni row.dataset.rawUnitPriceDona'ga alohida
+      // yozib qo'ygan (chunki backend Qoplama:Ha bo'lsa buni o'zi ×2
+      // qiladi). O'sha holatda ANIQ SHUNI yuboramiz — aks holda (eski/
+      // qulflangan/qo'lda kiritilgan qatorlarda, bu maydon mavjud emas)
+      // avvalgidek row.dataset.unitprice yuboriladi — xatti-harakat
+      // o'zgarmaydi.
+      const rawDonaPrice = row.dataset.rawUnitPriceDona;
+      const sentDonaUnitPrice = (rawDonaPrice !== undefined)
+        ? parseFloat(rawDonaPrice)
+        : parseFloat(row.dataset.unitprice || 0);
+
       items.push({ name, category: 'dona', width: sendWidth, thickness: sendThickness, length: sendLength,
-                   quantity: qty, unit_price: parseFloat(row.dataset.unitprice || 0),
+                   quantity: qty, unit_price: sentDonaUnitPrice,
                    unit_price_for_volume: unitPriceForVolume, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId,
                    notes: donaYield > 0 ? `dona_yield=${donaYield}` : null });
