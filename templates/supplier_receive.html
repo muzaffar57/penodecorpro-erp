@@ -754,7 +754,7 @@ async function apAddToBasket(){
   // saqlaydi (pastda), shuning uchun bir nechta TURLI plotnostni bir vaqtda
   // qo'shish xavfsiz — har biri o'z narxi/hajmi bilan to'g'ri hisoblanadi.
 
-  apBasket.push({ itemId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:qty*price, isPenoplast: item?item.is_penoplast:false, volumePerUnit: parseFloat(document.getElementById('ap-volume').value)||null, wasNewlyCreated: wasCreatingNew });
+  apBasket.push({ itemId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:qty*price, isPenoplast: item?item.is_penoplast:false, volumePerUnit: parseFloat(document.getElementById('ap-volume').value)||null });
 
   document.getElementById('ap-item').value='';
   document.getElementById('ap-qty').value='';
@@ -764,29 +764,7 @@ async function apAddToBasket(){
   renderBasket();
 }
 
-async function apRemoveFromBasket(idx){
-  const removed = apBasket[idx];
-  apBasket.splice(idx,1);
-  renderBasket();
-
-  // MUHIM: agar bu material ENDIGINA, shu sessiyada yangi yaratilgan bo'lsa
-  // (hali hech qanday haqiqiy xaridga bog'lanmagan) — ro'yxatdan
-  // o'chirilganda, bazadagi "bo'sh" yozuvni ham avtomatik tozalaymiz.
-  // Aks holda u yerda osilib qolib, keyinroq "bu nom band" degan chalkash
-  // xatoga sabab bo'ladi. Agar boshqa qatorda ham shu material ishlatilayotgan
-  // bo'lsa (masalan foydalanuvchi uni ikki marta qo'shgan bo'lsa) — o'chirmaymiz.
-  if (removed?.wasNewlyCreated && removed.itemId) {
-    const stillUsed = apBasket.some(b => b.itemId === removed.itemId);
-    if (!stillUsed) {
-      try {
-        await fetch(`/api/inventory/${removed.itemId}`, { method: 'DELETE' });
-        invItems = invItems.filter(i => i.id !== removed.itemId);
-        const opt = document.querySelector(`#ap-item option[value="${removed.itemId}"]`);
-        if (opt) opt.remove();
-      } catch(e) { /* jim tozalash — muvaffaqiyatsiz bo'lsa ham, foydalanuvchi ishini davom ettiraveradi */ }
-    }
-  }
-}
+function apRemoveFromBasket(idx){ apBasket.splice(idx,1); renderBasket(); }
 
 function renderBasket(){
   const tbody = document.getElementById('rcv-basket-body');
