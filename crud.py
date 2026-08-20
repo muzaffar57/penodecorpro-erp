@@ -2612,20 +2612,9 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
     # TERMOPANEL (Bazalt/Serpiyanka/Kley) — [TERMO:] belgisidan (endi
     # create_order() da HAR DOIM yoziladi, qoralama bo'lsa ham) o'qib,
     # ombordan yechamiz. Avval bu — BUTUNLAY YO'Q edi.
-    #
-    # VAQTINCHALIK DIAGNOSTIKA: nima sodir bo'layotganini aniq ko'rish
-    # uchun, HAR BIR qadamda (hatto hech narsa yechilmasa ham) log'ga
-    # tushuntirish yozib boramiz — bu hech narsani o'zgartirmaydi, faqat
-    # "Jarayonga olindi" javobidagi ro'yxatda ko'rinadi.
     from models import Inventory as _Inv_act
     for oi in order.items:
-        if (oi.category or '').lower() != 'termopanel':
-            continue
-        if not oi.notes:
-            log.append(f"[DIAGNOSTIKA] «{oi.name}» — Termopanel, lekin Izoh (notes) BO'SH — [TERMO:] belgisi yo'q.")
-            continue
-        if '[TERMO:' not in oi.notes:
-            log.append(f"[DIAGNOSTIKA] «{oi.name}» — Izohda [TERMO:] belgisi topilmadi. Hozirgi Izoh: {oi.notes[:200]}")
+        if (oi.category or '').lower() != 'termopanel' or not oi.notes:
             continue
         bazalt_id = _parse_termo_note(oi.notes, 'bazalt_id')
         bazalt_qty = _parse_termo_note(oi.notes, 'bazalt_qty', is_float=True)
@@ -2633,26 +2622,14 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
         serp_qty = _parse_termo_note(oi.notes, 'serp_qty', is_float=True)
         kley_id = _parse_termo_note(oi.notes, 'kley_id')
         kley_qty = _parse_termo_note(oi.notes, 'kley_qty', is_float=True)
-        log.append(
-            f"[DIAGNOSTIKA] «{oi.name}» — [TERMO:] o'qildi: "
-            f"bazalt_id={bazalt_id}, bazalt_qty={bazalt_qty}, "
-            f"serp_id={serp_id}, serp_qty={serp_qty}, "
-            f"kley_id={kley_id}, kley_qty={kley_qty}"
-        )
-        for label, inv_id, qty in [("Bazalt", bazalt_id, bazalt_qty), ("Serpiyanka", serp_id, serp_qty), ("Kley", kley_id, kley_qty)]:
-            if not inv_id or not qty:
-                log.append(f"[DIAGNOSTIKA] {label}: inv_id yoki miqdor yo'q (inv_id={inv_id}, qty={qty}) — o'tkazib yuborildi.")
-                continue
-            inv = db.query(_Inv_act).filter(_Inv_act.id == int(inv_id)).with_for_update().first()
-            if not inv:
-                log.append(f"[DIAGNOSTIKA] {label}: id={inv_id} bo'yicha Omborxonada material TOPILMADI.")
-                continue
-            before = float(inv.stock_quantity or 0)
-            inv.stock_quantity = before - float(qty)
-            log_movement(db, inv.id, inv.item_name, movement_type="out", quantity=float(qty),
-                          unit=inv.unit, order_id=order.id,
-                          reason=f"Buyurtma jarayonga olindi — Termopanel ({order.order_number})")
-            log.append(f"✓ {label} «{inv.item_name}»: {before:.2f} → {float(inv.stock_quantity):.2f} {inv.unit} ({qty:.2f} {inv.unit} yechildi)")
+        for inv_id, qty in [(bazalt_id, bazalt_qty), (serp_id, serp_qty), (kley_id, kley_qty)]:
+            if inv_id and qty:
+                inv = db.query(_Inv_act).filter(_Inv_act.id == int(inv_id)).with_for_update().first()
+                if inv:
+                    inv.stock_quantity = float(inv.stock_quantity or 0) - float(qty)
+                    log_movement(db, inv.id, inv.item_name, movement_type="out", quantity=float(qty),
+                                  unit=inv.unit, order_id=order.id,
+                                  reason=f"Buyurtma jarayonga olindi — Termopanel ({order.order_number})")
 
     # "Loy sotish" detallari — har biri o'z retseptiga ko'ra
     for oi in order.items:
