@@ -3250,17 +3250,24 @@ function calculateItem(row) {
       if (volBtn) volBtn.style.display = 'none';
     } else if (row.dataset.donaVolLocked === 'true') {
       // QULFLANGAN: hajm o'zgarmaydi (birinchi hisoblangan holicha qoladi).
+      // MUHIM TUZATISH: bu yerdagi "1 dona narxi" maydoni — HAR DOIM XOM
+      // (qoplamasiz, asosiy) narx sifatida talqin qilinadi (buyurtmani
+      // tiklashda ham aynan shunday, yarmiga bo'lib, saqlab qo'yiladi).
       // Narxni endi ERKIN oshirish mumkin (masalan yopishtirish mehnati
       // uchun) — bu, ombordan yechiladigan HAQIQIY hajmga TEGMAYDI.
-      // MUHIM: unitPrice (i-unitprice maydonidan) — allaqachon QOPLAMALI
-      // holatda saqlangan (yangi usul, qulflanmagan holatda buni ALLAQACHON
-      // 2ga ko'paytirib yozadi) — shuning uchun bu yerda YANA 2ga
-      // ko'paytirmaymiz (aks holda ikki baravar oshib ketardi).
+      // Ekranga (1 metr narxi, Jami) — Qoplama HOZIRGI holatiga qarab,
+      // xom narxdan hisoblab ko'rsatamiz (avval bu yerda Qoplama HECH
+      // QACHON hisobga olinmas edi — "Bor (×2)" belgilangan bo'lsa ham,
+      // narx o'zgarmasdi). Maydonning o'ziga esa HECH QACHON qayta yozib
+      // qo'ymaymiz — aks holda keyingi safar uni yana xom deb o'qib,
+      // ikki baravar oshirib yuborardik.
       const perUnitVol = parseFloat(row.dataset.donaVolPerUnit) || 0;
       volume_total = perUnitVol * qty;
       row.querySelector('.i-vol').value = volume_total.toFixed(4);
-      perMeterPrice = unitPrice;
-      price = unitPrice * qty;
+      const displayUnitPrice = isCoated ? unitPrice * 2 : unitPrice;
+      perMeterPrice = displayUnitPrice;
+      price = displayUnitPrice * qty;
+      row.dataset.rawUnitPriceDona = unitPrice;
       if (volBtn) { volBtn.style.display = 'inline'; volBtn.textContent = '🔒'; volBtn.title = "Qulfdan chiqarish (hajm qayta jonli hisoblanadi)"; }
     } else if (h_val > 0 && t_val > 0 && donaYield > 0 && basePrice > 0) {
       // YANGI USUL: Eni x Qalinlik x (1 metrdan necha dona chiqishi) dan —
