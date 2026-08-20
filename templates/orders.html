@@ -2398,12 +2398,6 @@ async function activateDraft() {
     const res = await fetch(`/api/orders/${selectedOrderId}/activate`, { method: 'POST' });
     const d = await res.json();
     if (res.ok) {
-      // VAQTINCHA DIAGNOSTIKA: ombordan aniq nima yechilganini (yoki
-      // nega yechilmaganini) ko'rsatamiz — Termopanel muammosi
-      // aniqlangandan keyin bu qism olib tashlanadi.
-      if (d.inventory_log && d.inventory_log.length) {
-        alert("📋 Ombor harakati tafsiloti:\n\n" + d.inventory_log.join('\n'));
-      }
       showMsg('✓ Buyurtma jarayonga olindi!', 'success');
       setTimeout(()=>location.reload(), 1000);
     } else {
