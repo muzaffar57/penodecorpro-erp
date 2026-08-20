@@ -3195,20 +3195,12 @@ function toggleDonaVolLock(row) {
     // Qulfdan chiqarish — hajm yana narxga qarab jonli o'zgaradi
     delete row.dataset.donaVolLocked;
   } else {
-    // Qulflash — hozirgi hajm nisbatini "muzlatadi".
-    // MUHIM TUZATISH: qulflashdan OLDIN (qulflanmagan holatda), "1 dona
-    // narxi" maydonida EKRANGA ko'rsatish uchun QOPLAMALI (masalan ×2)
-    // qiymat turgan bo'lishi mumkin (row.dataset.rawUnitPriceDona'da esa
-    // xom qiymat saqlangan). Qulflangan holat esa bu maydonni HAR DOIM
-    // xom narx deb talqin qiladi — shuning uchun, qulflashning aynan shu
-    // lahzasida, maydonni xom qiymatga almashtirib qo'yamiz (aks holda
-    // keyingi hisoblashda qoplama YANA bir marta qo'shilib, narx ikki
-    // baravar ortiq bo'lib qolar edi).
-    const upEl = row.querySelector('.i-unitprice');
-    const rawPrice = row.dataset.rawUnitPriceDona;
-    if (upEl && rawPrice !== undefined) {
-      upEl.value = formatNum(parseFloat(rawPrice));
-    }
+    // Qulflash — hozirgi hajm nisbatini "muzlatadi". MUHIM: "1 dona
+    // narxi" maydoniga HECH QACHON tegilmaydi — u qulflashdan oldin ham,
+    // keyin ham AYNAN BIR XIL, ekranda ko'rinib turgan (Qoplama hisobga
+    // olingan) yakuniy narxni ko'rsatishda davom etadi. Xom narx (backend
+    // uchun) — ko'rinmas holda, row.dataset.rawUnitPriceDona'da alohida
+    // hisoblanadi (pastda, calculateItem() ichida).
     row.dataset.donaVolLocked = 'true';
   }
   calculateItem(row);
@@ -3263,24 +3255,22 @@ function calculateItem(row) {
       if (volBtn) volBtn.style.display = 'none';
     } else if (row.dataset.donaVolLocked === 'true') {
       // QULFLANGAN: hajm o'zgarmaydi (birinchi hisoblangan holicha qoladi).
-      // MUHIM TUZATISH: bu yerdagi "1 dona narxi" maydoni — HAR DOIM XOM
-      // (qoplamasiz, asosiy) narx sifatida talqin qilinadi (buyurtmani
-      // tiklashda ham aynan shunday, yarmiga bo'lib, saqlab qo'yiladi).
-      // Narxni endi ERKIN oshirish mumkin (masalan yopishtirish mehnati
-      // uchun) — bu, ombordan yechiladigan HAQIQIY hajmga TEGMAYDI.
-      // Ekranga (1 metr narxi, Jami) — Qoplama HOZIRGI holatiga qarab,
-      // xom narxdan hisoblab ko'rsatamiz (avval bu yerda Qoplama HECH
-      // QACHON hisobga olinmas edi — "Bor (×2)" belgilangan bo'lsa ham,
-      // narx o'zgarmasdi). Maydonning o'ziga esa HECH QACHON qayta yozib
-      // qo'ymaymiz — aks holda keyingi safar uni yana xom deb o'qib,
-      // ikki baravar oshirib yuborardik.
+      // MUHIM: bu yerdagi "1 dona narxi" maydoni — EKRANDA doim ko'rinib
+      // turgan, YAKUNIY (Qoplama hisobga olingan) narx sifatida talqin
+      // qilinadi — xuddi qulflanmagan holatdagi kabi. Shuning uchun bu
+      // yerda maydonni HECH QACHON o'zgartirmaymiz (na ko'paytiramiz, na
+      // yarmiga bo'lamiz) — Qulflash tugmasini bosish, yoki shunchaki
+      // qayta hisoblash, ekrandagi raqamni ASLO o'zgartirmasligi kerak.
+      // Narxni endi ERKIN oshirish ham mumkin (masalan yopishtirish
+      // mehnati uchun) — bu, ombordan yechiladigan HAQIQIY hajmga
+      // TEGMAYDI. Backendga ketadigan XOM narxni esa shu YAKUNIY
+      // narxdan (Qoplama holatiga qarab) ko'rinmas holda hisoblab olamiz.
       const perUnitVol = parseFloat(row.dataset.donaVolPerUnit) || 0;
       volume_total = perUnitVol * qty;
       row.querySelector('.i-vol').value = volume_total.toFixed(4);
-      const displayUnitPrice = isCoated ? unitPrice * 2 : unitPrice;
-      perMeterPrice = displayUnitPrice;
-      price = displayUnitPrice * qty;
-      row.dataset.rawUnitPriceDona = unitPrice;
+      perMeterPrice = unitPrice;
+      price = unitPrice * qty;
+      row.dataset.rawUnitPriceDona = isCoated ? (unitPrice / 2) : unitPrice;
       if (volBtn) { volBtn.style.display = 'inline'; volBtn.textContent = '🔒'; volBtn.title = "Qulfdan chiqarish (hajm qayta jonli hisoblanadi)"; }
     } else if (h_val > 0 && t_val > 0 && donaYield > 0 && basePrice > 0) {
       // YANGI USUL: Eni x Qalinlik x (1 metrdan necha dona chiqishi) dan —
@@ -4031,14 +4021,15 @@ async function editSelected() {
 
           const upEl = row.querySelector('.i-unitprice');
           if (upEl) {
-            // MUHIM: backendda saqlangan unit_price — agar qoplama bo'lsa,
-            // ALLAQACHON ×2 qilingan holda saqlanadi (Jami hisob-kitob
-            // izchilligi uchun). Shuning uchun bu yerda, ekranga
-            // chiqarishda, ORIGINAL (xodim kiritgan) qiymatni ko'rsatish
-            // uchun ×2 bo'lganini YARMIGA qaytaramiz.
-            const rawPrice = item.is_coated ? (parseFloat(item.unit_price || 0) / 2) : parseFloat(item.unit_price || 0);
-            upEl.value = formatNum(rawPrice);
-            row.dataset.unitprice = rawPrice;
+            // MUHIM: ekranga — backendda saqlangan YAKUNIY (Qoplama hisobga
+            // olingan) narxni TO'G'RIDAN-TO'G'RI ko'rsatamiz (xuddi mijoz
+            // ko'radigan/to'laydigan narx). Backendga yuborish uchun kerak
+            // bo'ladigan XOM narxni esa alohida, ko'rinmas joyda saqlaymiz.
+            const finalPrice = parseFloat(item.unit_price || 0);
+            const rawPrice = item.is_coated ? finalPrice / 2 : finalPrice;
+            upEl.value = formatNum(finalPrice);
+            row.dataset.unitprice = finalPrice;
+            row.dataset.rawUnitPriceDona = rawPrice;
           }
           // Yangi usul bilan tiklangan bo'lsa — hajmni "qulflangan" holatda
           // ko'rsatamiz (chunki bu — allaqachon saqlangan, real buyurtma;
