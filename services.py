@@ -1715,6 +1715,17 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
             except Exception:
                 pass
 
+    # MUHIM TUZATISH: Termopanel detallarining O'Z loyi (masalan, Kvars
+    # qoplamasi) — order.actual_loy_kg'da SAQLANMAYDI (bu — faqat umumiy,
+    # Penoplast qoplamasi uchun). Termopanel loyi har bir detalning o'zining
+    # [TERMO:...] belgisida alohida saqlanadi (xuddi ombordan yechishda
+    # ishlatilgani kabi). Shuni qo'shib qo'ymasak, Termopanel
+    # buyurtmalarida Loy tan narxi umuman hisobga olinmay qolar edi —
+    # garchi ombordan to'g'ri yechilgan bo'lsa ham (shuning uchun "Foyda"
+    # sun'iy oshirib ko'rsatilardi).
+    import crud as _crud_termo_loy
+    loy_kg += _crud_termo_loy.get_termopanel_planned_loy(order)
+
     if loy_kg > 0:
 
         # Retsept bo'yicha 1 kg loy narxi
