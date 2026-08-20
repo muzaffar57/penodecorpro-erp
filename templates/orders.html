@@ -3195,7 +3195,20 @@ function toggleDonaVolLock(row) {
     // Qulfdan chiqarish — hajm yana narxga qarab jonli o'zgaradi
     delete row.dataset.donaVolLocked;
   } else {
-    // Qulflash — hozirgi hajm nisbatini "muzlatadi"
+    // Qulflash — hozirgi hajm nisbatini "muzlatadi".
+    // MUHIM TUZATISH: qulflashdan OLDIN (qulflanmagan holatda), "1 dona
+    // narxi" maydonida EKRANGA ko'rsatish uchun QOPLAMALI (masalan ×2)
+    // qiymat turgan bo'lishi mumkin (row.dataset.rawUnitPriceDona'da esa
+    // xom qiymat saqlangan). Qulflangan holat esa bu maydonni HAR DOIM
+    // xom narx deb talqin qiladi — shuning uchun, qulflashning aynan shu
+    // lahzasida, maydonni xom qiymatga almashtirib qo'yamiz (aks holda
+    // keyingi hisoblashda qoplama YANA bir marta qo'shilib, narx ikki
+    // baravar ortiq bo'lib qolar edi).
+    const upEl = row.querySelector('.i-unitprice');
+    const rawPrice = row.dataset.rawUnitPriceDona;
+    if (upEl && rawPrice !== undefined) {
+      upEl.value = formatNum(parseFloat(rawPrice));
+    }
     row.dataset.donaVolLocked = 'true';
   }
   calculateItem(row);
