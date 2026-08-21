@@ -614,6 +614,8 @@ async def global_error_logger(request: Request, exc: Exception):
     try:
         log_db = SessionLocal()
         try:
+            # (Maxfiy SQL parametrlarini yashirish endi crud.log_error()
+            # ichida, markaziy tarzda amalga oshiriladi.)
             crud.log_error(
                 log_db, error_message=str(exc), stack_trace=traceback.format_exc(),
                 endpoint=str(request.url.path), method=request.method
