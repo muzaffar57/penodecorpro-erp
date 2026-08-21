@@ -3365,7 +3365,7 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 def api_add_production(fp_id: int, data: schemas.StockAdjust,
                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
-    result = crud.add_to_production(db, fp_id, data.quantity)
+    result = crud.add_to_production(db, fp_id, data.quantity, performed_by=(current_user.full_name or current_user.username))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
