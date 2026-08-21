@@ -584,19 +584,40 @@ async function renderProducts(d) {
 async function renderMaterials(d) {
   try {
     const orders = await fetch(`/api/orders?project_id=${selectedProjId}`).then(r=>r.json());
-    const allMoves = (await Promise.all(orders.map(o => fetch(`/api/inventory/movements?order_id=${o.id}&movement_type=out`).then(r=>r.json())))).flat();
-    if (!allMoves.length) {
+    // Har bir buyurtma uchun ALOHIDA so'raymiz — shuning uchun guruhlash
+    // uchun qo'shimcha ishlov kerak emas, javoblarning o'zi allaqachon
+    // buyurtma bo'yicha ajratilgan.
+    const perOrder = await Promise.all(orders.map(async o => {
+      const moves = await fetch(`/api/inventory/movements?order_id=${o.id}&movement_type=out`).then(r=>r.json());
+      return { order_number: o.order_number, created_at: o.created_at, items: moves };
+    }));
+    const groups = perOrder.filter(g => g.items.length > 0)
+                            .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+    if (!groups.length) {
       document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Bu loyiha uchun sarflangan xomashyo jurnali topilmadi (faqat buyurtma yakunlanganidan keyingi harakatlar qayd etiladi)</div>';
       return;
     }
-    document.getElementById('tabContent').innerHTML = `<div class="zebra-list">${allMoves.map(m => `
-      <div class="zebra-row">
-        <div class="zebra-icon zi-out"><i class="ti ti-package-export"></i></div>
-        <div style="flex:1;min-width:0">
-          <div class="zebra-title">${m.item_name}</div>
-          <div class="zebra-sub">${new Date(m.created_at).toLocaleDateString('uz')} · ${m.reason||''}</div>
+    document.getElementById('tabContent').innerHTML = `<div class="prod-accordion">${groups.map((g, gi) => `
+      <div class="prod-acc-item">
+        <div class="prod-acc-head${gi===0?' expanded':''}" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('open')">
+          <div class="prod-acc-head-left">
+            <i class="ti ti-chevron-right prod-acc-chevron"></i>
+            <span style="font-weight:700;font-size:13.5px">${g.order_number}</span>
+          </div>
+          <span style="font-size:12px;color:var(--text3)">${g.items.length} ta xomashyo</span>
         </div>
-        <span class="zebra-val" style="color:#DC2626">−${m.quantity} ${m.unit||''}</span>
+        <div class="prod-acc-body${gi===0?' open':''}">
+          <div class="zebra-list zebra-list-flat">${g.items.map(m => `
+            <div class="zebra-row">
+              <div class="zebra-icon zi-out"><i class="ti ti-package-export"></i></div>
+              <div style="flex:1;min-width:0">
+                <div class="zebra-title">${m.item_name}</div>
+                <div class="zebra-sub">${new Date(m.created_at).toLocaleDateString('uz')} · ${m.reason||''}</div>
+              </div>
+              <span class="zebra-val" style="color:#DC2626">−${m.quantity} ${m.unit||''}</span>
+            </div>`).join('')}</div>
+        </div>
       </div>`).join('')}</div>`;
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
