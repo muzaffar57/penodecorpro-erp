@@ -3526,6 +3526,17 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
                 received_by=data.received_by,
                 notes=f"{delivery_number} yuki uchun to'lov"
             ))
+            # MUHIM TUZATISH: avval bu yerda to'lov yozilgandan keyin
+            # buyurtmaning "To'lov holati" (payment_status) UMUMAN qayta
+            # hisoblanmasdi — chunki bu yerga to'g'ridan-to'g'ri Payment
+            # yozilardi, standart create_payment() (u har doim shu
+            # yangilashni chaqiradi) chetlab o'tilardi. Natijada, "Yuk
+            # xati" orqali to'liq to'lov qilingan buyurtmalar ham hamon
+            # "To'lanmagan" bo'lib ko'rinib qolardi (2026-08-21 zaxira
+            # tekshiruvida ORD-027-2/ORD-027-3'da aynan shu holat topildi).
+            db.flush()
+            db.refresh(order)
+            _update_order_payment_status(db, order)
         except Exception as e:
             # Yetkazish saqlanishida davom etadi (ma'lumot yo'qolmasligi uchun),
             # lekin xato albatta logga yoziladi va foydalanuvchiga aniq ogohlantirish qaytariladi —
