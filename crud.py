@@ -3878,6 +3878,12 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     profit = revenue - total_cost
     margin = (profit / revenue * 100) if revenue > 0 else 0
 
+    try:
+        log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
+                      new_value=f"{float(fp.quantity):g} {fp.unit} (Termopanel), tan narxi: {round(total_cost):,} so'm".replace(',', ' '))
+    except Exception:
+        pass
+
     return {
         "success": True,
         "message": "Termopanel ishlab chiqarish boshlandi!",
@@ -4321,6 +4327,11 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
     db.add(fp)
     db.commit()
     db.refresh(fp)
+    try:
+        log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
+                      new_value=f"{float(fp.quantity):g} {fp.unit} (Gips), tan narxi: {round(cost_price):,} so'm".replace(',', ' '))
+    except Exception:
+        pass
     return {"success": True, "finished_product_id": fp.id}
 
 
@@ -4443,6 +4454,13 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     revenue = float(data.unit_price or 0) * qty
     profit = revenue - total_cost
     margin = (profit / revenue * 100) if revenue > 0 else 0
+
+    # AUDIT: ishlab chiqarish qayd etiladi
+    try:
+        log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
+                      new_value=f"{float(fp.quantity):g} {fp.unit}, tan narxi: {round(total_cost):,} so'm".replace(',', ' '))
+    except Exception:
+        pass
 
     return {
         "success": True,
@@ -4828,7 +4846,7 @@ class _TermoFakeOrder:
         self.is_fully_delivered = False
 
 
-def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
+def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str = None) -> dict:
     """Mavjud tayyor mahsulotga miqdor qo'shadi.
     Penoplast va loy proporsional hisoblanib ombordan yechiladi.
 
@@ -4917,6 +4935,11 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
         fp.cost_price = float(fp.cost_price or 0) + cost_add
         db.commit()
         db.refresh(fp)
+        try:
+            log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
+                          new_value=f"+{add_m2:g} m² qo'shildi (Termopanel), jami: {float(fp.quantity):g} {fp.unit}")
+        except Exception:
+            pass
         return {
             "success": True,
             "message": f"+{add_m2:g} m² qo'shildi",
@@ -4961,6 +4984,11 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
         fp.cost_price = float(fp.cost_price or 0) + cost_add
         db.commit()
         db.refresh(fp)
+        try:
+            log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
+                          new_value=f"+{add_qty:g} {fp.unit} qo'shildi (Gips), jami: {float(fp.quantity):g} {fp.unit}")
+        except Exception:
+            pass
         return {
             "success": True,
             "message": f"+{add_qty:g} {fp.unit} qo'shildi",
@@ -5059,6 +5087,12 @@ def add_to_production(db: Session, fp_id: int, add_qty: float) -> dict:
 
     db.commit()
     db.refresh(fp)
+
+    try:
+        log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
+                      new_value=f"+{add_qty:g} {fp.unit} qo'shildi, jami: {float(fp.quantity):g} {fp.unit}")
+    except Exception:
+        pass
 
     return {
         "success": True,
