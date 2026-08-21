@@ -922,7 +922,7 @@ def add_payment(db: Session, project_id: int, amount: float) -> Optional[Project
 # ORDER CRUD
 # ============================================================
 
-def create_order(db: Session, order_data: OrderCreate) -> Order:
+def create_order(db: Session, order_data: OrderCreate, performed_by: str = None) -> Order:
     """Yangi buyurtma + detallar qo'shadi.
 
     Mantiq:
@@ -1073,6 +1073,18 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
 
     db.commit()
     db.refresh(db_order)
+
+    # AUDIT: buyurtma yaratilgani qayd etiladi — kim, qachon, qancha
+    # summaga, nechta detal bilan. Kelajakda "bu buyurtmada nima
+    # o'zgargan edi" degan savolga tezda javob topish uchun.
+    try:
+        log_activity(
+            db, "created", "order", db_order.id, db_order.order_number, performed_by,
+            new_value=f"Jami: {float(db_order.total_amount or 0):,.0f} so'm, {len(db_order.items)} ta detal".replace(',', ' ')
+        )
+    except Exception:
+        pass
+
     return db_order
 
 
@@ -1492,12 +1504,17 @@ def set_setting(db: Session, key: str, value: str):
 
 
 def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
-                  entity_label: str = None, performed_by: str = None):
-    """O'chirish/tiklash kabi muhim amallarni audit uchun yozib boradi."""
+                  entity_label: str = None, performed_by: str = None,
+                  old_value: str = None, new_value: str = None):
+    """Muhim amallarni audit uchun yozib boradi (o'chirish/tiklash/yaratish/
+    tahrirlash). old_value/new_value — ixtiyoriy, qisqa tavsif (masalan
+    "Jami: 850 000 so'm, 3 ta detal") — har bir maydonni emas, faqat
+    tezda "nima o'zgargani"ni ko'rsatish uchun."""
     from models import ActivityLog
     entry = ActivityLog(
         action=action, entity_type=entity_type, entity_id=entity_id,
-        entity_label=entity_label, performed_by=performed_by
+        entity_label=entity_label, performed_by=performed_by,
+        old_value=old_value, new_value=new_value
     )
     db.add(entry)
     db.commit()
@@ -2563,7 +2580,7 @@ def get_debt_stats(db: Session) -> dict:
 # DRAFT — Qoralama buyurtmalar
 # ============================================================
 
-def activate_draft_order(db: Session, order_id: int) -> dict:
+def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -> dict:
     """Qoralama buyurtmani jarayonga oladi — ombordan xomashyo yechiladi."""
     import services
 
@@ -2641,6 +2658,13 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
     order.status = OrderStatus.IN_PROGRESS
     db.commit()
     db.refresh(order)
+
+    # AUDIT: ombordan xomashyo yechiladigan lahza — eng muhim voqealardan
+    # biri, shuning uchun kim va qachon bosgani alohida qayd etiladi.
+    try:
+        log_activity(db, "activated", "order", order.id, order.order_number, performed_by)
+    except Exception:
+        pass
 
     return {
         "success": True,
@@ -2993,7 +3017,7 @@ def complete_termopanel_loy(db: Session, order_id: int, actual_loy_kg: float) ->
     }
 
 
-def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: bool = False) -> dict:
+def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: bool = False, performed_by: str = None) -> dict:
     """Buyurtmani to'liq yangilaydi:
     - Detallarni almashtiradi
     - Omborni faqat FARQ miqdorida to'g'rilaydi
@@ -3008,6 +3032,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
 
     if order.status == OrderStatus.READY:
         return {"success": False, "message": "Tayyor buyurtmani tahrirlab bo'lmaydi"}
+
+    # AUDIT uchun — tahrirlashdan OLDINGI qisqa holatni saqlab qo'yamiz
+    _audit_before = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
 
     # 1) Eski detallarni snapshot qilamiz (ombor hisobi uchun)
     old_snapshot = [{
@@ -3392,6 +3419,17 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
 
     db.commit()
     db.refresh(order)
+
+    # AUDIT: tahrirlashdan OLDINGI va KEYINGI qisqa holatni solishtirib
+    # yozamiz — bugun aynan shunday tafsilot yo'qligi sabab, muammoni
+    # topish uchun butun zaxira faylini qo'lda tahlil qilishga to'g'ri
+    # kelgan edi (Termopanel belgisi yo'qolishi, va h.k.).
+    try:
+        _audit_after = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
+        log_activity(db, "updated", "order", order.id, order.order_number, performed_by,
+                      old_value=_audit_before, new_value=_audit_after)
+    except Exception:
+        pass
 
     return {
         "success": True,
