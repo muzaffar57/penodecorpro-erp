@@ -1554,10 +1554,21 @@ def get_login_history(db: Session, limit: int = 100) -> List:
 
 def log_error(db: Session, error_message: str, stack_trace: str = None,
               endpoint: str = None, method: str = None, performed_by: str = None):
-    """Backend xatoligini yozib boradi."""
+    """Backend xatoligini yozib boradi.
+
+    XAVFSIZLIK: bazaga ulanish/so'rov xatoliklarida, SQLAlchemy xato
+    matniga (va odatda stack trace ichiga ham) SO'ROVNING BARCHA
+    QIYMATLARINI (masalan session token, kelajakda boshqa maxfiy narsa)
+    avtomatik qo'shib yuboradi — masalan "[parameters: ('...token...', 1)]".
+    Shuning uchun bu funksiya HAR DOIM, qayerdan chaqirilishidan qat'iy
+    nazar, bunday qiymatlarni yozishdan oldin yashiradi."""
     from models import ErrorLog
+    import re
+    _param_re = re.compile(r'\[parameters:.*?\]', re.DOTALL)
+    safe_message = _param_re.sub('[parameters: YASHIRINGAN]', str(error_message))
+    safe_trace = _param_re.sub('[parameters: YASHIRINGAN]', stack_trace or "")
     entry = ErrorLog(
-        error_message=str(error_message)[:5000], stack_trace=(stack_trace or "")[:8000],
+        error_message=safe_message[:5000], stack_trace=safe_trace[:8000],
         endpoint=endpoint, method=method, performed_by=performed_by
     )
     db.add(entry)
