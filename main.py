@@ -1910,7 +1910,7 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
             "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
             "shortages": all_shortages
         })
-    new_order = crud.create_order(db, order)
+    new_order = crud.create_order(db, order, performed_by=(current_user.full_name or current_user.username))
     is_draft = getattr(order, 'is_draft', False)
     if not is_draft:
         services.deduct_inventory_for_order(db, new_order)
@@ -2015,7 +2015,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
                      confirm_shortage: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani tahrirlash — ombor faqat FARQ bo'yicha to'g'rilanadi."""
-    result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage)
+    result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage, performed_by=(current_user.full_name or current_user.username))
     if not result["success"]:
         # Xomashyo yetishmovchiligi — 409 (create bilan bir xil), frontend
         # "davom etasizmi?" oynasini ko'rsatib, confirm_shortage=true bilan
@@ -2931,7 +2931,7 @@ def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), curre
 @app.post("/api/orders/{order_id}/activate")
 def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Qoralamani jarayonga olish — ombordan xomashyo yechiladi."""
-    result = crud.activate_draft_order(db, order_id)
+    result = crud.activate_draft_order(db, order_id, performed_by=(current_user.full_name or current_user.username))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
