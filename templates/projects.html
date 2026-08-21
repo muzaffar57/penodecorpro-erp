@@ -70,9 +70,37 @@
 .info-row:last-child{border-bottom:none}
 .qa-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
 .timeline-item{display:flex;gap:12px;padding-bottom:16px;position:relative}
-.timeline-item:not(:last-child)::before{content:'';position:absolute;left:5px;top:16px;bottom:-4px;width:1px;background:var(--border)}
-.timeline-dot{width:11px;height:11px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:3px}
+.timeline-item:not(:last-child)::before{content:'';position:absolute;left:13px;top:28px;bottom:-4px;width:1px;background:var(--border)}
 .skeleton-row{height:70px;border-radius:12px;margin-bottom:8px}
+
+/* ── Moliya/To'lovlar/Mahsulotlar/Xomashyo/Timeline — yangi dizayn ── */
+.fin-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
+.fin-stat{border-radius:12px;padding:14px}
+.fin-stat-head{display:flex;align-items:center;gap:7px;margin-bottom:6px;font-size:12px;font-weight:600}
+.fin-stat-val{font-size:19px;font-weight:800}
+.fin-budget{background:var(--bg)}
+.fin-budget .fin-stat-head{color:var(--text3)}
+.fin-budget .fin-stat-val{color:var(--text)}
+.fin-paid{background:#EAF7EE}
+.fin-paid .fin-stat-head,.fin-paid .fin-stat-val{color:#1D7A3C}
+.fin-debt{background:#FDECEC}
+.fin-debt .fin-stat-head,.fin-debt .fin-stat-val{color:#C0392B}
+.fin-profit{background:#F2ECFB}
+.fin-profit .fin-stat-head,.fin-profit .fin-stat-val{color:#6B3FA0}
+
+.zebra-list{border-radius:12px;overflow:hidden;border:1px solid var(--border2)}
+.zebra-row{display:flex;align-items:center;gap:12px;padding:10px 12px}
+.zebra-row:nth-child(even){background:var(--bg)}
+.zebra-row:not(:last-child){border-bottom:1px solid var(--border2)}
+.zebra-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px}
+.zebra-icon.zi-in{background:#DCFCE7;color:#16A34A}
+.zebra-icon.zi-out{background:#FEE2E2;color:#DC2626}
+.zebra-icon.zi-neutral{background:var(--gold-tint);color:var(--gold-dark)}
+.zebra-title{font-size:13.5px;font-weight:600;color:var(--text)}
+.zebra-sub{font-size:12px;color:var(--text3);margin-top:2px}
+.zebra-val{font-size:13px;font-weight:700;white-space:nowrap}
+
+.tl-dot-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;z-index:1;position:relative}
 </style>
 {% endblock %}
 
@@ -459,11 +487,25 @@ async function renderFinance(d) {
     const stats = await fetch(`/api/projects/${selectedProjId}/detail-stats`).then(r=>r.json());
     const budget = parseFloat(d.budget)||0, paid = parseFloat(d.paid)||0, debt = Math.max(0, budget-paid);
     document.getElementById('tabContent').innerHTML = `
-      <div class="info-row"><span style="color:var(--text3)">Byudjet</span><span style="font-weight:600">${fmt(budget)} so'm</span></div>
-      <div class="info-row"><span style="color:var(--text3)">To'langan</span><span style="font-weight:600;color:#22C55E">${fmt(paid)} so'm</span></div>
-      <div class="info-row"><span style="color:var(--text3)">Qarz</span><span style="font-weight:600;color:#EF4444">${fmt(debt)} so'm</span></div>
-      <div class="info-row"><span style="color:var(--text3)">Sof foyda (tayyor buyurtmalar)</span><span style="font-weight:700;color:#8E44AD">${fmt(stats.total_profit)} so'm</span></div>
-      <div class="progress-bar mt-8"><div class="progress-fill" style="width:${budget>0?Math.min(100,Math.round(paid/budget*100)):0}%"></div></div>`;
+      <div class="fin-grid">
+        <div class="fin-stat fin-budget">
+          <div class="fin-stat-head"><i class="ti ti-wallet" style="font-size:15px"></i> Byudjet</div>
+          <div class="fin-stat-val">${fmt(budget)} so'm</div>
+        </div>
+        <div class="fin-stat fin-paid">
+          <div class="fin-stat-head"><i class="ti ti-circle-check" style="font-size:15px"></i> To'langan</div>
+          <div class="fin-stat-val">${fmt(paid)} so'm</div>
+        </div>
+        <div class="fin-stat fin-debt">
+          <div class="fin-stat-head"><i class="ti ti-clock-exclamation" style="font-size:15px"></i> Qarz</div>
+          <div class="fin-stat-val">${fmt(debt)} so'm</div>
+        </div>
+        <div class="fin-stat fin-profit">
+          <div class="fin-stat-head"><i class="ti ti-chart-line" style="font-size:15px"></i> Sof foyda</div>
+          <div class="fin-stat-val">${fmt(stats.total_profit)} so'm</div>
+        </div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${budget>0?Math.min(100,Math.round(paid/budget*100)):0}%"></div></div>`;
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
@@ -473,13 +515,14 @@ async function renderPayments(d) {
     const allPayments = (await Promise.all(orders.map(o => fetch(`/api/payments?order_id=${o.id}`).then(r=>r.json())))).flat();
     allPayments.sort((a,b) => new Date(b.paid_at) - new Date(a.paid_at));
     if (!allPayments.length) { document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">To\'lov yo\'q</div>'; return; }
-    document.getElementById('tabContent').innerHTML = allPayments.map(p => `
-      <div class="info-row">
-        <div>
-          <div style="font-weight:500;font-size:13px">${fmt(p.amount)} so'm</div>
-          <div style="font-size:13px;color:var(--text3)">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${p.payment_method || ''}${p.received_by ? ' · '+p.received_by : ''}</div>
+    document.getElementById('tabContent').innerHTML = `<div class="zebra-list">${allPayments.map(p => `
+      <div class="zebra-row">
+        <div class="zebra-icon zi-in"><i class="ti ti-cash"></i></div>
+        <div style="flex:1;min-width:0">
+          <div class="zebra-title">${fmt(p.amount)} so'm</div>
+          <div class="zebra-sub">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${p.payment_method || ''}${p.received_by ? ' · '+p.received_by : ''}</div>
         </div>
-      </div>`).join('');
+      </div>`).join('')}</div>`;
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
@@ -488,14 +531,16 @@ async function renderProducts(d) {
     const res = await fetch(`/api/projects/${selectedProjId}/items`).then(r=>r.json());
     const items = res.items || [];
     if (!items.length) { document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Mahsulot yo\'q</div>'; return; }
-    document.getElementById('tabContent').innerHTML = items.map(i => `
-      <div class="info-row">
-        <div>
-          <div style="font-weight:500;font-size:13px">${i.name}</div>
-          <div style="font-size:13px;color:var(--text3)">${i.order_number} · ${i.category||''}${i.is_coated?' · qoplamali':''}</div>
+    const CAT_ICON = {profil:'ti-ruler-2', panel:'ti-square', blok:'ti-cube', dona:'ti-hexagon', termopanel:'ti-building', gips:'ti-flask'};
+    document.getElementById('tabContent').innerHTML = `<div class="zebra-list">${items.map(i => `
+      <div class="zebra-row">
+        <div class="zebra-icon zi-neutral"><i class="ti ${CAT_ICON[(i.category||'').toLowerCase()] || 'ti-package'}"></i></div>
+        <div style="flex:1;min-width:0">
+          <div class="zebra-title">${i.name}</div>
+          <div class="zebra-sub">${i.order_number} · ${i.category||''}${i.is_coated?' · qoplamali':''}</div>
         </div>
-        <span style="font-size:12.5px;font-weight:600">${i.order_qty_normalized} ${i.delivery_unit||''}</span>
-      </div>`).join('');
+        <span class="zebra-val" style="color:var(--text2)">${i.order_qty_normalized} ${i.delivery_unit||''}</span>
+      </div>`).join('')}</div>`;
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
@@ -507,14 +552,15 @@ async function renderMaterials(d) {
       document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Bu loyiha uchun sarflangan xomashyo jurnali topilmadi (faqat buyurtma yakunlanganidan keyingi harakatlar qayd etiladi)</div>';
       return;
     }
-    document.getElementById('tabContent').innerHTML = allMoves.map(m => `
-      <div class="info-row">
-        <div>
-          <div style="font-weight:500;font-size:13px">${m.item_name}</div>
-          <div style="font-size:13px;color:var(--text3)">${new Date(m.created_at).toLocaleDateString('uz')} · ${m.reason||''}</div>
+    document.getElementById('tabContent').innerHTML = `<div class="zebra-list">${allMoves.map(m => `
+      <div class="zebra-row">
+        <div class="zebra-icon zi-out"><i class="ti ti-package-export"></i></div>
+        <div style="flex:1;min-width:0">
+          <div class="zebra-title">${m.item_name}</div>
+          <div class="zebra-sub">${new Date(m.created_at).toLocaleDateString('uz')} · ${m.reason||''}</div>
         </div>
-        <span style="font-size:12.5px;font-weight:600;color:#DC2626">−${m.quantity} ${m.unit||''}</span>
-      </div>`).join('');
+        <span class="zebra-val" style="color:#DC2626">−${m.quantity} ${m.unit||''}</span>
+      </div>`).join('')}</div>`;
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
 }
 
@@ -524,30 +570,30 @@ async function renderTimeline(d) {
     const payments = (await Promise.all(orders.map(o => fetch(`/api/payments?order_id=${o.id}`).then(r=>r.json())))).flat();
 
     let events = [];
-    events.push({ date: d.startRaw, icon: '🎯', text: `Loyiha yaratildi — ${d.name}` });
+    events.push({ date: d.startRaw, icon: 'ti-target', text: `Loyiha yaratildi — ${d.name}` });
     orders.forEach(o => {
-      events.push({ date: o.created_at, icon: '📦', text: `Buyurtma yaratildi — ${o.order_number}` });
+      events.push({ date: o.created_at, icon: 'ti-package', text: `Buyurtma yaratildi — ${o.order_number}` });
       if (o.status === 'ready' || o.status === 'delivered') {
-        events.push({ date: o.completed_at || o.created_at, icon: '✅', text: `${o.order_number} tayyor bo'ldi` });
+        events.push({ date: o.completed_at || o.created_at, icon: 'ti-circle-check', text: `${o.order_number} tayyor bo'ldi` });
       }
       if (o.status === 'delivered') {
-        events.push({ date: o.completed_at || o.created_at, icon: '🚚', text: `${o.order_number} yetkazildi` });
+        events.push({ date: o.completed_at || o.created_at, icon: 'ti-truck-delivery', text: `${o.order_number} yetkazildi` });
       }
     });
     payments.forEach(p => {
-      events.push({ date: p.paid_at, icon: '💰', text: `To'lov qabul qilindi — ${fmt(p.amount)} so'm` });
+      events.push({ date: p.paid_at, icon: 'ti-cash', text: `To'lov qabul qilindi — ${fmt(p.amount)} so'm` });
     });
 
     events = events.filter(e => e.date).sort((a,b) => new Date(b.date) - new Date(a.date));
 
     if (!events.length) { document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Voqealar yo\'q</div>'; return; }
 
-    const DOT_COLOR = {'🎯':'#8E44AD','📦':'#2563EB','✅':'#22C55E','🚚':'#F59E0B','💰':'#16A34A'};
+    const DOT_CLASS = {'ti-target':'zi-neutral','ti-package':'zi-neutral','ti-circle-check':'zi-in','ti-truck-delivery':'zi-in','ti-cash':'zi-in'};
     document.getElementById('tabContent').innerHTML = events.map(e => `
       <div class="timeline-item">
-        <div class="timeline-dot" style="background:${DOT_COLOR[e.icon]||'var(--gold)'}"></div>
+        <div class="tl-dot-icon zebra-icon ${DOT_CLASS[e.icon]||'zi-neutral'}"><i class="ti ${e.icon}" style="font-size:13px"></i></div>
         <div>
-          <div style="font-size:13px;font-weight:500">${e.icon} ${e.text}</div>
+          <div style="font-size:13px;font-weight:500">${e.text}</div>
           <div style="font-size:13px;color:var(--text3);margin-top:2px">${new Date(e.date).toLocaleString('uz')}</div>
         </div>
       </div>`).join('');
