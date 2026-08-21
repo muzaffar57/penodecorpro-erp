@@ -1005,39 +1005,7 @@ def create_order(db: Session, order_data: OrderCreate) -> Order:
         # faqat TAHRIRLASHDA yozilardi, shuning uchun qoralama holatida
         # "jarayonga olish"da bu ma'lumot yo'qolib qolar edi).
         if (item_data.category or '').lower() == 'termopanel':
-            from models import Inventory as _Inv_termo
-            bazalt_id = getattr(item_data, 'bazalt_item_id', None)
-            serp_id = getattr(item_data, 'serpiyanka_item_id', None)
-            kley_id = getattr(item_data, 'kley_item_id', None)
-            loy_kg_t = float(getattr(item_data, 'termo_loy_kg', None) or 0)
-            parts = []
-            b = None
-            if bazalt_id:
-                b = db.query(_Inv_termo).filter(_Inv_termo.id == bazalt_id).first()
-                area = float(b.volume_per_unit or 0.72) if b else 0.72
-                sheets = float(item_data.quantity or 0) / area if area else 0
-                parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
-            if serp_id:
-                s = db.query(_Inv_termo).filter(_Inv_termo.id == serp_id).first()
-                area = float(s.volume_per_unit or 50.0) if s else 50.0
-                serp_ratio = float(b.serp_ratio_per_m2) if (b and b.serp_ratio_per_m2) else 2.0
-                rulon = (float(item_data.quantity or 0) * serp_ratio) / area if area else 0
-                parts.append(f"serp_id={serp_id},serp_qty={rulon:.4f}")
-            if kley_id:
-                kley_ratio = float(b.kley_ratio_per_m2) if (b and b.kley_ratio_per_m2) else 0.8
-                kley_kg = float(item_data.quantity or 0) * kley_ratio
-                parts.append(f"kley_id={kley_id},kley_qty={kley_kg:.4f}")
-            if loy_kg_t > 0:
-                parts.append(f"loy_kg={loy_kg_t:.4f}")
-            if parts:
-                import re as _re_termo
-                # MUHIM: avval, mumkin bo'lgan ESKI "[TERMO:...]" belgisini
-                # tozalaymiz (agar biror sabab bilan notes'da allaqachon
-                # bo'lsa) — aks holda, takrorlanib, ikki marta yozilib
-                # qolishi mumkin edi (2026-08-17 zaxira nusxasida, ORD-026-2
-                # buyurtmasida aynan shu holat aniqlandi).
-                base_notes = _re_termo.sub(r'\s*\[TERMO:[^\]]+\]', '', db_item.notes or '').strip()
-                db_item.notes = (base_notes + " [TERMO:" + ",".join(parts) + "]").strip()
+            db_item.notes = _build_termo_notes(db, item_data, db_item.notes)
 
     db_order.total_amount = total_amount
     # Kelishilgan summa — boshida jami summaga teng (chegirmasiz)
@@ -2674,6 +2642,51 @@ def activate_draft_order(db: Session, order_id: int) -> dict:
 # BUYURTMANI TAHRIRLASH (ombor farq bo'yicha to'g'rilanadi)
 # ============================================================
 
+def _build_termo_notes(db: Session, item_data, existing_notes: str = None) -> str:
+    """Termopanel (Bazalt) detali uchun '[TERMO:...]' belgisini quradi —
+    bazalt_id/serp_id/kley_id/miqdorlarni item_data (frontend yuborgan
+    bazalt_item_id, serpiyanka_item_id, kley_item_id, quantity,
+    termo_loy_kg maydonlaridan) hisoblab, notes ichiga yozadi.
+
+    MUHIM: bu — YAGONA joy bo'lishi kerak, chunki frontend Termopanel
+    uchun '[TERMO:...]' belgisining o'zini HECH QACHON yubormaydi (faqat
+    xom bazalt_item_id/serpiyanka_item_id/kley_item_id/quantity yuboradi)
+    — belgini backend qurishi SHART. Buyurtma yaratishda ham,
+    tahrirlashda (qoralama bo'lsa ham) ham — aynan shu funksiya
+    ishlatilishi kerak, aks holda tahrirlashda '[TERMO:...]' yo'qolib,
+    "Jarayonga olish"da Bazalt/Serpiyanka/Kley ombordan umuman
+    yechilmay qolar edi (2026-08-21 sinovda aynan shu holat topilgan)."""
+    from models import Inventory as _Inv_termo
+    bazalt_id = getattr(item_data, 'bazalt_item_id', None)
+    serp_id = getattr(item_data, 'serpiyanka_item_id', None)
+    kley_id = getattr(item_data, 'kley_item_id', None)
+    loy_kg_t = float(getattr(item_data, 'termo_loy_kg', None) or 0)
+    parts = []
+    b = None
+    if bazalt_id:
+        b = db.query(_Inv_termo).filter(_Inv_termo.id == bazalt_id).first()
+        area = float(b.volume_per_unit or 0.72) if b else 0.72
+        sheets = float(item_data.quantity or 0) / area if area else 0
+        parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
+    if serp_id:
+        s = db.query(_Inv_termo).filter(_Inv_termo.id == serp_id).first()
+        area = float(s.volume_per_unit or 50.0) if s else 50.0
+        serp_ratio = float(b.serp_ratio_per_m2) if (b and b.serp_ratio_per_m2) else 2.0
+        rulon = (float(item_data.quantity or 0) * serp_ratio) / area if area else 0
+        parts.append(f"serp_id={serp_id},serp_qty={rulon:.4f}")
+    if kley_id:
+        kley_ratio = float(b.kley_ratio_per_m2) if (b and b.kley_ratio_per_m2) else 0.8
+        kley_kg = float(item_data.quantity or 0) * kley_ratio
+        parts.append(f"kley_id={kley_id},kley_qty={kley_kg:.4f}")
+    if loy_kg_t > 0:
+        parts.append(f"loy_kg={loy_kg_t:.4f}")
+    if not parts:
+        return existing_notes or ''
+    import re as _re_termo
+    base_notes = _re_termo.sub(r'\s*\[TERMO:[^\]]+\]', '', existing_notes or '').strip()
+    return (base_notes + " [TERMO:" + ",".join(parts) + "]").strip()
+
+
 def _parse_termo_note(notes, key, is_float=False):
     """Detal notes ichidagi '[TERMO:...]' belgisidan bitta qiymatni o'qiydi.
     Masalan: '[TERMO:bazalt_id=1,bazalt_qty=13.89,...]' dan 'bazalt_id'ni oladi."""
@@ -3147,7 +3160,20 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         oi.unit_price_for_volume = getattr(nd, 'unit_price_for_volume', None)
         oi.gips_unit = getattr(nd, 'gips_unit', None)
         oi.total_price = item_total
-        oi.notes = nd.notes
+        # MUHIM TUZATISH: "Termopanel" turi uchun frontend "[TERMO:...]"
+        # belgisini HECH QACHON yubormaydi (faqat xom bazalt/serpiyanka/
+        # kley ID va miqdorlarni yuboradi) — shuning uchun bu yerda
+        # to'g'ridan-to'g'ri "nd.notes" (deyarli har doim bo'sh/None)
+        # yozib qo'yilsa, belgi butunlay o'chib ketardi — buyurtma hali
+        # Qoralama bo'lsa, buni HECH KIM qayta tiklamasdi (pastdagi
+        # qayta hisoblash faqat Qoralama BO'LMAGAN holatda ishlaydi).
+        # Natijada "Jarayonga olish"da Bazalt/Serpiyanka/Kley ombordan
+        # UMUMAN yechilmay qolardi. Endi — Termopanel uchun, qoralama
+        # bo'lsa ham, belgi HAR DOIM to'g'ri qurib yoziladi.
+        if (nd.category or '').lower() == 'termopanel':
+            oi.notes = _build_termo_notes(db, nd, oi.notes)
+        else:
+            oi.notes = nd.notes
         keep_ids.add(oi.id)
 
     # Yangi qo'shilgan detallar
@@ -3158,6 +3184,10 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         _stored_up2 = float(nd.unit_price or 0) * _coat_mult2
         item_total = _stored_up2 * float(nd.quantity or 1)
         total_amount += item_total
+        # MUHIM: Termopanel uchun — xuddi yuqoridagi (mavjud detal)
+        # holatidagi kabi, "[TERMO:...]" belgisini shu yerda quramiz
+        # (frontend uni hech qachon yubormaydi).
+        _new_item_notes = _build_termo_notes(db, nd, nd.notes) if (nd.category or '').lower() == 'termopanel' else nd.notes
         db.add(OrderItem(
             order_id=order.id,
             name=nd.name,
@@ -3175,7 +3205,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             unit_price_for_volume=getattr(nd, 'unit_price_for_volume', None),
             gips_unit=getattr(nd, 'gips_unit', None),
             total_price=item_total,
-            notes=nd.notes
+            notes=_new_item_notes
         ))
 
     # 5) Buyurtma ma'lumotlarini yangilaymiz
