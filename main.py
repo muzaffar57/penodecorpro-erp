@@ -1911,6 +1911,15 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
             "shortages": all_shortages
         })
     new_order = crud.create_order(db, order, performed_by=(current_user.full_name or current_user.username))
+    # XAVFSIZLIK: agar bu — tasodifan ikki marta yuborilgan so'rov bo'lib,
+    # crud.create_order() YANGI yaratmasdan, MAVJUD buyurtmani qaytargan
+    # bo'lsa (chunki bir necha soniya oldin xuddi shunday tarkib bilan
+    # allaqachon yaratilgan) — ombordan QAYTA yechish YOKI ogohlantirish
+    # YUBORISHNING HOJATI YO'Q (birinchi, haqiqiy yaratilishda buning
+    # barchasi ALLAQACHON bajarilgan). Aks holda xomashyo ikki marta
+    # yechilib qolar edi.
+    if getattr(new_order, '_is_duplicate_submit', False):
+        return new_order
     is_draft = getattr(order, 'is_draft', False)
     if not is_draft:
         services.deduct_inventory_for_order(db, new_order)
