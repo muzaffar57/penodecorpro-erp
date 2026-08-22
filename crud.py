@@ -936,6 +936,28 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
     # tarzda avtomatik qayta urinib, o'zi tuzatib qo'yadi.
     from sqlalchemy.exc import IntegrityError
 
+    # QO'SHIMCHA XAVFSIZLIK QATLAMI (server tomonida): brauzerda tugmani
+    # ikki marta bosishdan himoya allaqachon bor, lekin bu — faqat
+    # ekranda, va sekin internet/tarmoq takrorlashi kabi holatlarda
+    # yetarli bo'lmasligi mumkin. Shuning uchun bu yerda ham tekshiramiz:
+    # agar shu loyihaga, so'nggi bir necha soniya ichida, XUDDI SHUNDAY
+    # tarkibli (bir xil nomdagi/turdagi/miqdordagi detallar) buyurtma
+    # ALLAQACHON yaratilgan bo'lsa — bu, deyarli aniq, tasodifan ikki
+    # marta yuborilgan SO'ROV. Yangisini yaratish o'rniga, mavjudining
+    # o'zini qaytaramiz.
+    from datetime import timedelta as _td_dup
+    _recent_cutoff = datetime.utcnow() - _td_dup(seconds=8)
+    _recent_order = db.query(Order).filter(
+        Order.project_id == order_data.project_id,
+        Order.created_at >= _recent_cutoff
+    ).order_by(Order.created_at.desc()).first()
+    if _recent_order:
+        _new_sig = sorted([(i.name, i.category, round(float(i.quantity or 0), 4)) for i in order_data.items])
+        _old_sig = sorted([(it.name, it.category, round(float(it.quantity or 0), 4)) for it in _recent_order.items])
+        if _new_sig and _new_sig == _old_sig:
+            _recent_order._is_duplicate_submit = True  # main.py shu belgini tekshirib, qayta ombor yechishning oldini oladi
+            return _recent_order
+
     # OrderType ni aniqlash
     order_type = OrderType.PRODUCT if order_data.order_type == "product" else OrderType.SERVICE
 
