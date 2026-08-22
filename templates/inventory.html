@@ -838,7 +838,6 @@ function openMovements() {
 function closeMovements() { document.getElementById('movementsModal').style.display = 'none'; }
 
 let mvCurType = '';
-let mvAllRows = [];  // "shtorka" ochilganda qayta so'rov yubormasligimiz uchun, hammasini shu yerda saqlaymiz
 
 function mvFmtQty(q) {
   const n = parseFloat(q) || 0;
@@ -862,7 +861,6 @@ async function loadMovements(type) {
     const url = '/api/inventory/movements' + (params.toString() ? `?${params.toString()}` : '');
     const res = await fetch(url);
     const rows = await res.json();
-    mvAllRows = rows;
     if (!rows.length) {
       list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Harakatlar yo\'q</div>';
       return;
@@ -886,55 +884,68 @@ async function loadMovements(type) {
            ${summaryHtml}
          </div>` : '';
 
-    // Buyurtma bo'yicha guruhlaymiz — order_id borlar bitta guruh bo'ladi,
-    // order_id yo'qlar (yetkazuvchidan kirim va h.k.) "Boshqa" ostida.
-    const groups = {};   // order_id -> {rows, latestDate, orderNum}
-    const otherRows = [];
+    // Buyurtma bo'yicha guruhlaymiz — order_id borlar bitta guruh bo'ladi.
+    // order_id yo'qlar (Ishlab chiqarish, yetkazib beruvchidan kirim va h.k.)
+    // esa — sabab matni + vaqt (daqiqagacha) bo'yicha, HAR BIR ALOHIDA
+    // voqea o'z-o'zidan alohida "karta"ga aylanadi (aynan buyurtmalar
+    // kabi) — aks holda barcha turli ishlab chiqarishlar (Profil, Panel,
+    // Termopanel va h.k.) bitta katta, aralash "Boshqa" uyumida
+    // adashtirib yuborar edi.
+    const groupsArr = [];
+    const groupMap = {};
     rows.forEach(m => {
+      let key, label, icon;
       if (m.order_id) {
-        if (!groups[m.order_id]) groups[m.order_id] = { rows: [], orderNum: null, latestDate: m.created_at };
-        groups[m.order_id].rows.push(m);
-        if (m.created_at > groups[m.order_id].latestDate) groups[m.order_id].latestDate = m.created_at;
-        // "reason" ichidan buyurtma raqamini (ORD-XXX-Y) ajratib olamiz
-        if (!groups[m.order_id].orderNum && m.reason) {
-          const om = m.reason.match(/ORD-\d+-\d+/);
-          if (om) groups[m.order_id].orderNum = om[0];
-        }
+        key = 'order-' + m.order_id;
+        icon = '📋';
+        label = null;
       } else {
-        otherRows.push(m);
+        const minuteKey = (m.created_at || '').slice(0, 16);
+        const prodMatch = m.reason && m.reason.match(/^Ishlab chiqarish: (.+)$/);
+        if (prodMatch) {
+          key = 'prod-' + prodMatch[1] + '-' + minuteKey;
+          icon = '🏭';
+          label = prodMatch[1];
+        } else {
+          key = 'other-' + minuteKey + '-' + (m.reason || '');
+          icon = '📦';
+          label = m.reason || 'Boshqa';
+        }
+      }
+      if (!(key in groupMap)) {
+        groupMap[key] = groupsArr.length;
+        groupsArr.push({ rows: [], latestDate: m.created_at, label, icon, orderId: m.order_id || null });
+      }
+      const g = groupsArr[groupMap[key]];
+      g.rows.push(m);
+      if (m.created_at > g.latestDate) g.latestDate = m.created_at;
+      // "reason" ichidan buyurtma raqamini (ORD-XXX-Y) ajratib olamiz
+      if (m.order_id && m.reason) {
+        const om = m.reason.match(/ORD-\d+-\d+/);
+        if (om) g.label = om[0];
       }
     });
 
     // Guruhlarni, eng so'nggi harakati bo'yicha (yangidan eskiga) tartiblaymiz
-    const groupIds = Object.keys(groups).sort((a, b) =>
-      new Date(groups[b].latestDate) - new Date(groups[a].latestDate));
+    const order = groupsArr.map((g, i) => i).sort((a, b) =>
+      new Date(groupsArr[b].latestDate) - new Date(groupsArr[a].latestDate));
 
-    let groupsHtml = groupIds.map(oid => {
-      const g = groups[oid];
+    let groupsHtml = order.map(idx => {
+      const g = groupsArr[idx];
       const dt = new Date(g.latestDate);
-      const ds = dt.toLocaleDateString('uz');
-      const label = g.orderNum || `Buyurtma #${oid}`;
+      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+      const label = g.label || (g.orderId ? `Buyurtma #${g.orderId}` : 'Boshqa');
       return `
-      <div class="mv-order-row" onclick="openMvDrawer('${oid}')">
+      <div class="mv-order-row" onclick="openMvDrawer(${idx})">
         <div style="min-width:0">
-          <div class="mv-order-num">📋 ${label}</div>
+          <div class="mv-order-num">${g.icon} ${label}</div>
           <div class="mv-order-meta">${ds}</div>
         </div>
         <div class="mv-order-count">${g.rows.length} ta harakat →</div>
       </div>`;
     }).join('');
 
-    if (otherRows.length) {
-      groupsHtml += `
-      <div class="mv-order-row" onclick="openMvDrawer('other')">
-        <div style="min-width:0">
-          <div class="mv-order-num" style="color:var(--text2)">📦 Boshqa (Ishlab chiqarish, yetkazuvchidan kirim va h.k.)</div>
-          <div class="mv-order-meta">Buyurtmaga bog'liq bo'lmagan harakatlar — turli sanalar</div>
-        </div>
-        <div class="mv-order-count">${otherRows.length} ta harakat →</div>
-      </div>`;
-    }
-
+    window._mvGroups = groupsArr;
     list.innerHTML = summaryBlock + groupsHtml;
   } catch(e) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
@@ -957,23 +968,12 @@ function mvRowHtml(m) {
   </div>`;
 }
 
-function openMvDrawer(orderId) {
-  let rows, title, sub;
-  if (orderId === 'other') {
-    rows = mvAllRows.filter(m => !m.order_id);
-    title = '📦 Boshqa harakatlar';
-    sub = `${rows.length} ta harakat`;
-  } else {
-    rows = mvAllRows.filter(m => String(m.order_id) === String(orderId));
-    const om = rows.find(m => m.reason && m.reason.match(/ORD-\d+-\d+/));
-    const label = om ? om.reason.match(/ORD-\d+-\d+/)[0] : `Buyurtma #${orderId}`;
-    title = `📋 ${label}`;
-    sub = `${rows.length} ta harakat`;
-  }
-  // Eng yangidan eskiga tartiblab ko'rsatamiz
-  rows = [...rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  document.getElementById('mvDrawerTitle').textContent = title;
-  document.getElementById('mvDrawerSub').textContent = sub;
+function openMvDrawer(idx) {
+  const g = window._mvGroups[idx];
+  const rows = [...g.rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const label = g.label || (g.orderId ? `Buyurtma #${g.orderId}` : 'Boshqa');
+  document.getElementById('mvDrawerTitle').textContent = `${g.icon} ${label}`;
+  document.getElementById('mvDrawerSub').textContent = `${rows.length} ta harakat`;
   document.getElementById('mvDrawerBody').innerHTML = rows.map(mvRowHtml).join('');
   document.getElementById('mvDrawerOverlay').style.display = 'flex';
 }
