@@ -3866,7 +3866,10 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
                 self.id = None
                 self.order_number = "ISHLAB CHIQARISH"
         fake = _FakeOrder(recipe.id if recipe else None)
-        log.extend(services.deduct_loy_ingredients(db, fake, loy_kg, use_stock=False))
+        log.extend(services.deduct_loy_ingredients(
+            db, fake, loy_kg, use_stock=False,
+            reason_override=f"Ishlab chiqarish: {data.name.strip()} (loy)"
+        ))
 
     db.flush()
 
@@ -4416,6 +4419,14 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
             p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
             peno_cost = blocks * float(p.price_per_unit or 0)
             log.append(f"{p.item_name}: -{blocks:.2f} blok")
+            # MUHIM: avval bu yerda Ombor harakati (log_movement) UMUMAN
+            # yozilmasdi — Penoplast sarfi Omborxonaning "Harakatlar
+            # tarixi"da butunlay ko'rinmas edi. Endi, boshqa xomashyolar
+            # kabi, aniq mahsulot nomi bilan yoziladi.
+            log_movement(
+                db, p.id, p.item_name, movement_type="out", quantity=blocks,
+                unit=p.unit, reason=f"Ishlab chiqarish: {data.name.strip()}"
+            )
 
     # 2) Loyni ham DARHOL yechamiz (bir marta so'raladi)
     loy_kg = float(data.loy_kg or 0)
@@ -4438,7 +4449,10 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
                 self.id = None
                 self.order_number = "ISHLAB CHIQARISH"
         fake = _FakeOrder(recipe.id if recipe else None)
-        log.extend(services.deduct_loy_ingredients(db, fake, loy_kg, use_stock=False))
+        log.extend(services.deduct_loy_ingredients(
+            db, fake, loy_kg, use_stock=False,
+            reason_override=f"Ishlab chiqarish: {data.name.strip()} (loy)"
+        ))
 
     db.flush()
 
@@ -5090,7 +5104,10 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
                 self.id = None
                 self.order_number = "ISHLAB CHIQARISH"
         fake = _FakeOrder(recipe.id if recipe else None)
-        log.extend(services.deduct_loy_ingredients(db, fake, add_loy, use_stock=False))
+        log.extend(services.deduct_loy_ingredients(
+            db, fake, add_loy, use_stock=False,
+            reason_override=f"Ishlab chiqarish: {fp.name} (+{add_qty:g} {fp.unit}, loy)"
+        ))
 
     # 3) Mahsulotni yangilaymiz
     fp.quantity = base_qty + add_qty
