@@ -851,6 +851,15 @@ async def masters_page_redirect():
 @app.get("/inventory", response_class=HTMLResponse)
 async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     items = crud.get_inventory(db)
+    # "Tayyor loy (...)" — bu, xarid qilinadigan xomashyo EMAS, balki
+    # buyurtmadan ORTGAN, avtomatik yaratiladigan zaxira (get_or_create_
+    # loy_stock orqali). To'liq ishlatilib, aniq 0ga tushishi — kutilgan,
+    # normal holat (xarid qilish kerak degani emas). Shuning uchun, faqat
+    # ASOSIY ro'yxat ko'rinishida (bu sahifada) chalkashlik/ortiqcha
+    # "Tugagan" yozuvlar ko'rinmasligi uchun, nolga tushganlarini
+    # yashiramiz — bazadan O'CHIRILMAYDI (keyingi buyurtmalar uchun hali
+    # ham to'g'ri ishlatiladi, faqat ro'yxatda ko'rinmay turadi).
+    items = [i for i in items if not (i.item_name.startswith('Tayyor loy (') and float(i.stock_quantity or 0) <= 0)]
     kpi = services.get_inventory_kpi(db)
     suppliers = crud.get_suppliers(db)
     is_manager = current_user.role.value == "manager"
