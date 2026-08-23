@@ -4180,6 +4180,27 @@ async function editSelected() {
         if (item.finished_product_id) {
           row.dataset.fpId = item.finished_product_id;
           row.dataset.fpUnit = (item.category === 'profil') ? 'metr' : 'dona';
+          // MUHIM TUZATISH: pastdagi so'rov (fpMax/fpPrice'ni serverdan
+          // olib, yangilab qo'yadigan) — ASINXRON, javob kelguncha vaqt
+          // ketadi. Shu orada, DARHOL ishlaydigan calculateItem() hali
+          // to'g'ri narxni bilmasdan, formuladan (buyurtmaning "1 m³
+          // narxi"dan) noto'g'ri hisoblab qo'yishi mumkin edi — agar
+          // so'rov kechiksa yoki muvaffaqiyatsiz tugasa, bu HATTO
+          // DOIMIY xato bo'lib qolardi (2026-08-23 sinovda aynan shu
+          // holat: buyurtmani qayta ochganda narx "1 m³ narxi"dan
+          // qayta hisoblanib qolgan). Shuning uchun bu yerda, DARHOL,
+          // saqlangan buyurtmaning o'z narxidan (item.unit_price) to'g'ri
+          // "1 birlik" narxini oldindan tiklab qo'yamiz — pastdagi
+          // so'rov esa buni faqat ENG SO'NGGI, yangilangan narx bilan
+          // tasdiqlaydi/yangilaydi.
+          if (item.unit_price) {
+            if (item.category === 'profil') {
+              const l0 = item.length || 1;
+              row.dataset.fpPrice = (item.unit_price / l0).toString();
+            } else {
+              row.dataset.fpPrice = item.unit_price.toString();
+            }
+          }
           const badge2 = row.querySelector('.detal-badge');
           if (badge2) {
             badge2.insertAdjacentHTML('afterend',
