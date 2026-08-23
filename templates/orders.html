@@ -1363,14 +1363,21 @@ function pickFinished(el, fpId) {
     peno.closest('.dif').title = 'Tayyor mahsulotdan olinmoqda — xomashyo hisoblanmaydi';
   }
 
-  // "1 m³ narxi" — ENDI BLOKLANMAYDI. Sotuv narxini joriy buyurtma
-  // narxiga moslashtirish uchun ochiq qoldiramiz (tan narxi/xomashyo
-  // hisobiga bu SIRA TA'SIR QILMAYDI — faqat mijozga ko'rinadigan narx).
+  // "1 m³ narxi" — Tayyor mahsulotdan tanlanganda, narx (fpPrice)
+  // TANLASH ZAHOTIYOQ, mahsulotning O'Z, haqiqiy narxida QOTIB QOLADI —
+  // buyurtmaning umumiy "1 m³ narxi"ga qarab ENDI AVTOMATIK
+  // almashtirilmaydi. (Avval shu yerda, tanlash zahoti, narx
+  // sezilmasdan formuladan qayta hisoblanib, mahsulotning haqiqiy
+  // narxi ustidan yozilib qolar edi — 2026-08-23 sinovda aynan shu
+  // holat aniqlangan: 15 600 → 13 000 kabi kutilmagan o'zgarish.)
+  // Maydon baribir OCHIQ qoladi — agar xohlasa, operator buni ATAYLAB,
+  // qo'lda o'zgartirib, narxni yangilashi mumkin (bu holatda, .i-m3price
+  // maydonining o'z oninput handleri orqali, formulaning o'zi hali ham
+  // ishlaydi — faqat endi bu HAR DOIM ANIQ, operatorning o'z amali
+  // natijasida bo'ladi, hech qachon sezilmasdan/avtomatik emas).
   const m3 = row.querySelector('.i-m3price');
   if (m3 && (effectiveType === 'profil' || effectiveType === 'panel')) {
-    const orderBasePrice = parseNum(document.getElementById('base_price')?.value || '0');
-    if (orderBasePrice > 0) m3.value = orderBasePrice.toLocaleString('ru-RU').replace(/,/g, ' ');
-    recomputeFpPriceFromM3(row);
+    // ataylab bo'sh qoldirilgan — narx o'zgarishsiz qoladi
   } else if (m3) {
     m3.disabled = true;
     m3.style.opacity = '.4';
