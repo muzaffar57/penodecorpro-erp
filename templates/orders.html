@@ -978,6 +978,21 @@ function saveDraftLS() {
         const cls = Array.from(el.classList).find(c => c.startsWith('i-'));
         if (cls) data[cls] = el.value;
       });
+      // MUHIM: "Tayyor mahsulotdan" bog'lanishi (fpId/fpPrice/fpMax/
+      // fpUnit) — oddiy input/select MAYDONI EMAS, JS orqali qatorga
+      // ("dataset") yozib qo'yiladigan, KO'RINMAS texnik belgi.
+      // Yuqoridagi tsikl buni umuman qamrab olmaydi — shuning uchun
+      // bu yerda ALOHIDA saqlaymiz. Aks holda, sahifadan chiqib-
+      // kirganda, "tayyor mahsulotdan olingan" degan muhim ma'lumot
+      // butunlay yo'qolib, narx noto'g'ri (buyurtmaning umumiy "1 m³
+      // narxi" formulasi bo'yicha) qayta hisoblanib qolar edi
+      // (2026-08-23 sinovda aynan shu holat aniqlangan).
+      if (row.dataset.fpId) {
+        data._fpId = row.dataset.fpId;
+        data._fpPrice = row.dataset.fpPrice;
+        data._fpMax = row.dataset.fpMax;
+        data._fpUnit = row.dataset.fpUnit;
+      }
       return data;
     });
     // Hech narsa yozilmagan bo'lsa (bo'sh forma) — saqlashning hojati yo'q
@@ -1031,10 +1046,33 @@ function restoreDraftLS(draft) {
     }
     // Keyin qolgan barcha maydonlarni to'ldiramiz
     Object.keys(rowData).forEach(cls => {
-      if (cls === 'i-type') return;
+      if (cls === 'i-type' || cls.startsWith('_fp')) return;
       const el = row.querySelector('.' + cls);
       if (el) el.value = rowData[cls];
     });
+    // MUHIM: "Tayyor mahsulotdan" bog'lanishini ham (agar saqlangan
+    // bo'lsa) tiklaymiz — aks holda narx buyurtmaning umumiy "1 m³
+    // narxi" formulasidan noto'g'ri qayta hisoblanib qolar edi.
+    if (rowData._fpId) {
+      row.dataset.fpId = rowData._fpId;
+      if (rowData._fpPrice) row.dataset.fpPrice = rowData._fpPrice;
+      if (rowData._fpMax) row.dataset.fpMax = rowData._fpMax;
+      if (rowData._fpUnit) row.dataset.fpUnit = rowData._fpUnit;
+      const badge = row.querySelector('.detal-badge');
+      if (badge && !badge.querySelector('.fp-tag')) {
+        badge.insertAdjacentHTML('afterend', `
+          <span class="fp-tag" id="fptag-${row.id}">
+            🏭 Tayyor mahsulotdan
+            <button onclick="clearFinished('${row.id}')" title="Bekor qilish">✕</button>
+          </span>`);
+      }
+      const peno = row.querySelector('.i-peno');
+      if (peno) { peno.disabled = true; peno.style.opacity = '.4'; }
+      const m3d = row.querySelector('.i-m3price');
+      if (m3d && rowData['i-type'] !== 'profil' && rowData['i-type'] !== 'panel') {
+        m3d.disabled = true; m3d.style.opacity = '.4';
+      }
+    }
     syncCoatingUI(row, row.querySelector('.i-c')?.value === 'true');
     calculateItem(row);
   });
