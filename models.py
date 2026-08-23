@@ -960,6 +960,14 @@ class FinishedProduct(Base):
     gips_kg_used = Column(Float, nullable=True)       # GIPS mahsulotlar uchun — sarflangan Gips (kg)
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Qaysi Gips ishlatilgani
     gips_inventory = relationship("Inventory", foreign_keys=[gips_inventory_id])
+    # GIPS qo'shimchalari (Granula, Po'lat sim, Serpiyanka va h.k.) —
+    # ishlab chiqarishda tanlangan har bir qo'shimchani JSON ro'yxat
+    # sifatida saqlaydi: [{"inventory_id": 12, "quantity": 10.0}, ...].
+    # MUHIM: bu ustun bo'lmasa, "+" orqali miqdor qo'shilganda tizim
+    # qaysi qo'shimchalar ishlatilgani va qancha nisbatda ekanini
+    # BILOLMAYDI — shuning uchun avval faqat asosiy Gips yechilib,
+    # qo'shimchalar ombordan umuman ayirilmay qolgan edi.
+    gips_additives_json = Column(Text, nullable=True)
     # 1 BIRLIKKA (metr/dona) qancha Penoplast (m³) va loy (kg) ketishi —
     # ishlab chiqarilganda BIR MARTA hisoblab qo'yiladi va keyin
     # O'ZGARMAYDI. Qoldiq keyinchalik sotilib kamaysa (hatto 0 bo'lsa)
