@@ -4332,6 +4332,17 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
             reason=f"Gips mahsulot ishlab chiqarish (qo'shimcha): {data.name}"
         )
 
+    # MUHIM: qo'shimchalar ro'yxatini (qaysi material, qancha miqdorda)
+    # JSON sifatida saqlab qo'yamiz — aks holda "+" orqali keyinroq
+    # miqdor qo'shilganda, tizim qaysi qo'shimchalar ishlatilganini
+    # bilmay, faqat asosiy Gipsni yechib, qo'shimchalarni UMUMAN
+    # ayirmay qoldirar edi.
+    import json as _json_gips
+    gips_additives_json = _json_gips.dumps([
+        {"inventory_id": a.inventory_id, "quantity": float(a.quantity)}
+        for a in (data.additives or [])
+    ]) if data.additives else None
+
     fp = FinishedProduct(
         name=data.name,
         category="gips",
@@ -4343,6 +4354,7 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
         is_coated=False,
         gips_kg_used=data.gips_kg_used,
         gips_inventory_id=data.gips_inventory_id,
+        gips_additives_json=gips_additives_json,
         source=StockSource.PRODUCED,
         production_status=ProductionStatus.READY,
         finished_production_at=datetime.utcnow(),
@@ -4996,6 +5008,7 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     # xuddi Loy/Penoplast'dagi kabi) hisoblab, proporsional ayiramiz.
     if cat_low == 'gips':
         from models import Inventory as _Inv_gips
+        import json as _json_gips_add
         gips_inv_id = getattr(fp, 'gips_inventory_id', None)
         gips_kg_used = float(getattr(fp, 'gips_kg_used', None) or 0)
         produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else base_qty)
@@ -5011,13 +5024,58 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
             return {"success": False, "message": "Xomashyo yetishmayapti!",
                     "shortages": [f"{gips_item.item_name}: kerak {add_gips_kg:.2f} kg, qoldi {float(gips_item.stock_quantity):.2f} kg"]}
 
+        # MUHIM TUZATISH: avval bu yerda faqat asosiy Gips hisobga
+        # olinardi — ishlab chiqarishda qo'shilgan QO'SHIMCHA materiallar
+        # (Granula, Po'lat sim, Serpiyanka va h.k.) "+" bosilganda
+        # OMBORDAN UMUMAN AYIRILMASDI (chunki ular haqidagi ma'lumot hech
+        # qayerda saqlanmagan edi). Endi, saqlangan ro'yxatdan (BARQAROR
+        # nisbatda, xuddi Gipsning o'zi kabi) ularni ham to'g'ri, mos
+        # ravishda yechamiz.
+        saved_additives = []
+        if fp.gips_additives_json:
+            try:
+                saved_additives = _json_gips_add.loads(fp.gips_additives_json)
+            except Exception:
+                saved_additives = []
+
+        additive_items = []  # [(inv_item, add_amount)]
+        for a in saved_additives:
+            a_inv_id = a.get("inventory_id")
+            a_orig_qty = float(a.get("quantity") or 0)
+            if not a_inv_id or a_orig_qty <= 0:
+                continue
+            a_item = db.query(_Inv_gips).filter(_Inv_gips.id == a_inv_id).with_for_update().first()
+            if not a_item:
+                continue  # xomashyo o'chirilgan bo'lishi mumkin — o'tkazib yuboramiz
+            unit_a_qty = a_orig_qty / produced_q
+            add_a_qty = unit_a_qty * add_qty
+            if float(a_item.stock_quantity or 0) < add_a_qty:
+                return {"success": False, "message": "Xomashyo yetishmayapti!",
+                        "shortages": [f"{a_item.item_name}: kerak {add_a_qty:.2f} {a_item.unit}, qoldi {float(a_item.stock_quantity):.2f} {a_item.unit}"]}
+            additive_items.append((a_item, add_a_qty, a_orig_qty))
+
         gips_item.stock_quantity = float(gips_item.stock_quantity) - add_gips_kg
         cost_add = add_gips_kg * float(gips_item.price_per_unit or 0)
+
+        additive_log = []
+        new_additives_list = []
+        for a_item, add_a_qty, a_orig_qty in additive_items:
+            a_item.stock_quantity = float(a_item.stock_quantity or 0) - add_a_qty
+            cost_add += add_a_qty * float(a_item.price_per_unit or 0)
+            log_movement(
+                db, a_item.id, a_item.item_name, movement_type="out",
+                quantity=add_a_qty, unit=a_item.unit,
+                reason=f"Ishlab chiqarish: {fp.name} (+{add_qty:g} {fp.unit}, qo'shimcha)"
+            )
+            additive_log.append(f"{a_item.item_name}: -{add_a_qty:.2f} {a_item.unit}")
+            new_additives_list.append({"inventory_id": a_item.id, "quantity": a_orig_qty + add_a_qty})
 
         fp.quantity = base_qty + add_qty
         fp.produced_quantity = produced_q + add_qty
         fp.gips_kg_used = gips_kg_used + add_gips_kg
         fp.cost_price = float(fp.cost_price or 0) + cost_add
+        if new_additives_list:
+            fp.gips_additives_json = _json_gips_add.dumps(new_additives_list)
         db.commit()
         db.refresh(fp)
         try:
@@ -5033,7 +5091,7 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
             "added_qty": add_qty,
             "new_qty": float(fp.quantity),
             "unit": fp.unit,
-            "inventory_log": [f"{gips_item.item_name}: -{add_gips_kg:.2f} kg"]
+            "inventory_log": [f"{gips_item.item_name}: -{add_gips_kg:.2f} kg"] + additive_log
         }
 
     # MUHIM: 1 birlikka qancha xomashyo ketishini — JORIY qoldiq/hajmdan
