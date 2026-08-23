@@ -290,6 +290,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_products ADD COLUMN gips_kg_used FLOAT")
         if 'gips_inventory_id' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN gips_inventory_id INTEGER")
+        if 'gips_additives_json' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN gips_additives_json TEXT")
         if 'produced_quantity' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN produced_quantity FLOAT")
         if 'price_per_m3' not in fp_cols:
