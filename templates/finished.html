@@ -2336,7 +2336,12 @@ async function openProfitModal(id) {
   // GIPS mahsulotlar — alohida, aniq ko'rinish
   if (i.category === 'gips') {
     const gipsKg = i.gips_kg_used || 0;
-    const gipsPerKg = gipsKg > 0 ? (totalCost / gipsKg) : 0;
+    // MUHIM: "1 kg narxi"ni umumiy xarajatdan (Gips + unga qo'shilgan
+    // boshqa materiallar, masalan Serpiyanka) hisoblab bo'lmaydi — bu
+    // chalkash, oshirib ko'rsatilgan raqam berardi (masalan qo'shimcha
+    // material bo'lsa, "Gips narxi" sifatida noto'g'ri, oshiq son
+    // chiqardi). Shuning uchun bu yerda faqat aniq bo'lgan narsani —
+    // umumiy tan narxni — ko'rsatamiz, soxta "narx/kg" da'vo qilmaymiz.
     document.getElementById('pm-body').innerHTML = `
       <div style="background:#FCE7F3;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#9D174D;line-height:1.8">
         🧱 ${gipsKg > 0 ? `Sarflangan Gips: <b>${gipsKg} kg</b>` : 'Gips miqdori kiritilmagan'}
@@ -2344,7 +2349,7 @@ async function openProfitModal(id) {
       </div>
 
       <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
-      ${gipsKg > 0 ? row(`🧱 Gips (${gipsKg} kg × ${fmt(gipsPerKg)})`, fmt(totalCost) + " so'm") : row('🧱 Gips xarajati', fmt(totalCost) + " so'm")}
+      ${row('🧱 Gips va qo\'shimcha materiallar (jami)', fmt(totalCost) + " so'm")}
       <div style="border-top:1px solid #eee;margin:4px 0"></div>
       ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}
 
