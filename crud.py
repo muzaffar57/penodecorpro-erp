@@ -1149,11 +1149,30 @@ def _fp_stable_unit_cost(db, fp) -> float:
             if gips_item and gips_item.price_per_unit:
                 unit_gips_kg = gips_kg / produced_q
                 cost += unit_gips_kg * float(gips_item.price_per_unit)
-    # ESLATMA: Termopanel (Bazalt) mahsulotlar — hozircha bu funksiyaga
-    # kirmaydi, chunki ular _take/_return orqali cost tuzatishga muhtoj
-    # bo'lgan tarzda buyurtmaga qo'shilmaydi (ularning xomashyosi boshqa
-    # yo'l bilan boshqariladi). Kelajakda Bazalt ham shu tarzda ishlatilsa,
-    # bu yerga bazalt/serpiyanka/kley qo'shiladi.
+    # TERMOPANEL (Bazalt/Serpiyanka/Kley) qismi — bular JAMI (ishlab
+    # chiqarilgan/qo'shilgan barcha marta uchun) miqdorda saqlanadi, shuning
+    # uchun 1 birlikka: jami_miqdor / produced_quantity. MUHIM TUZATISH:
+    # avval bu qism BUTUNLAY YO'Q edi — "Tayyor mahsulotdan" buyurtmaga
+    # o'tkazilganda yoki sotilganda, faqat Loy qismi kamayardi, Bazalt/
+    # Serpiyanka/Kley esa hech qachon kamaymay, tan narx haqiqiysidan
+    # yuqori bo'lib qolaverardi (2026-08-23 zaxira tekshiruvida aniqlangan).
+    bazalt_qty = float(getattr(fp, 'termo_bazalt_qty', None) or 0)
+    if bazalt_qty > 0 and getattr(fp, 'bazalt_item_id', None):
+        produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
+        if produced_q > 0:
+            b_item = db.query(Inventory).filter(Inventory.id == fp.bazalt_item_id).first()
+            if b_item and b_item.price_per_unit:
+                cost += (bazalt_qty / produced_q) * float(b_item.price_per_unit)
+            serp_qty = float(getattr(fp, 'termo_serp_qty', None) or 0)
+            if serp_qty > 0 and getattr(fp, 'termo_serp_id', None):
+                s_item = db.query(Inventory).filter(Inventory.id == fp.termo_serp_id).first()
+                if s_item and s_item.price_per_unit:
+                    cost += (serp_qty / produced_q) * float(s_item.price_per_unit)
+            kley_qty = float(getattr(fp, 'termo_kley_qty', None) or 0)
+            if kley_qty > 0 and getattr(fp, 'termo_kley_id', None):
+                k_item = db.query(Inventory).filter(Inventory.id == fp.termo_kley_id).first()
+                if k_item and k_item.price_per_unit:
+                    cost += (kley_qty / produced_q) * float(k_item.price_per_unit)
     return cost
 
 
@@ -3887,6 +3906,16 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
         penoplast_id=None,   # Bazalt/serpiyanka/kley — alohida xomashyo, penoplast emas
         volume_m3=0,
         bazalt_item_id=data.bazalt_item_id,
+        # MUHIM: Serpiyanka/Kley miqdorini ham TUZILGAN (structured) holda
+        # saqlaymiz — aks holda "Tayyor mahsulotdan" buyurtmaga o'tkazilganda
+        # yoki sotilganda, tan narxdan bu ikkalasi hech qachon kamaymay
+        # qolar edi (faqat matn ichida, "[Bazalt:...]" shaklida saqlansa,
+        # dastur buni o'qib, qayta hisoblay olmaydi).
+        termo_bazalt_qty=sheets_needed,
+        termo_serp_id=serpiyanka.id,
+        termo_serp_qty=rulon_needed,
+        termo_kley_id=(kley.id if kley else None),
+        termo_kley_qty=(kley_kg if kley else 0),
         unit_loy_kg=(loy_kg / required_m2) if required_m2 > 0 else 0,
         planned_loy_kg=loy_kg,
         actual_loy_kg=loy_kg,
@@ -4953,17 +4982,29 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         bazalt.stock_quantity = float(bazalt.stock_quantity) - sheets
         cost_add += sheets * float(bazalt.price_per_unit or 0)
         log2.append(f"{bazalt.item_name}: -{sheets:.2f} dona")
-        # Serpiyanka
+        # Serpiyanka — avval saqlangan aniq turdan (termo_serp_id),
+        # bo'lmasa (eski yozuv) — nomi bo'yicha qidiramiz
         from models import Inventory as _Inv
-        serp = db.query(_Inv).filter(_Inv.item_name.ilike('%serpiyanka%')).first()
+        rulon = 0.0
+        serp = None
+        if getattr(fp, 'termo_serp_id', None):
+            serp = db.query(_Inv).filter(_Inv.id == fp.termo_serp_id).with_for_update().first()
+        if not serp:
+            serp = db.query(_Inv).filter(_Inv.item_name.ilike('%serpiyanka%')).first()
         if serp:
             serp_rulon_area = float(serp.volume_per_unit or 50.0)
             rulon = (add_m2 * serp_ratio) / serp_rulon_area if serp_rulon_area > 0 else 0
             serp.stock_quantity = float(serp.stock_quantity) - rulon
             cost_add += rulon * float(serp.price_per_unit or 0)
             log2.append(f"{serp.item_name}: -{rulon:.2f} rulon")
-        # Kley
-        kley = db.query(_Inv).filter(_Inv.item_name.ilike('%kley%bazalt%')).first() or db.query(_Inv).filter(_Inv.item_name.ilike('%kley%')).first()
+        # Kley — avval saqlangan aniq turdan (termo_kley_id), bo'lmasa
+        # (eski yozuv) — nomi bo'yicha qidiramiz
+        kley_kg = 0.0
+        kley = None
+        if getattr(fp, 'termo_kley_id', None):
+            kley = db.query(_Inv).filter(_Inv.id == fp.termo_kley_id).with_for_update().first()
+        if not kley:
+            kley = db.query(_Inv).filter(_Inv.item_name.ilike('%kley%bazalt%')).first() or db.query(_Inv).filter(_Inv.item_name.ilike('%kley%')).first()
         if kley:
             kley_kg = add_m2 * kley_ratio
             kley.stock_quantity = float(kley.stock_quantity) - kley_kg
@@ -4981,6 +5022,17 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
         fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
         fp.cost_price = float(fp.cost_price or 0) + cost_add
+        # MUHIM: yangi jami Bazalt/Serpiyanka/Kley miqdorini ham (TUZILGAN
+        # holda) yangilab qo'yamiz — aks holda "+" orqali qo'shilgan
+        # qism, "Tayyor mahsulotdan" buyurtmaga o'tkazilganda, tan
+        # narxdan hech qachon to'g'ri kamaymay qolar edi.
+        fp.termo_bazalt_qty = float(getattr(fp, 'termo_bazalt_qty', None) or 0) + sheets
+        if serp:
+            fp.termo_serp_id = serp.id
+            fp.termo_serp_qty = float(getattr(fp, 'termo_serp_qty', None) or 0) + rulon
+        if kley:
+            fp.termo_kley_id = kley.id
+            fp.termo_kley_qty = float(getattr(fp, 'termo_kley_qty', None) or 0) + kley_kg
         db.commit()
         db.refresh(fp)
         try:
