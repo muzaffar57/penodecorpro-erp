@@ -978,6 +978,17 @@ class FinishedProduct(Base):
     unit_volume_m3 = Column(Float, nullable=True)
     unit_loy_kg = Column(Float, nullable=True)
     bazalt_item_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Termopanel "+" qo'shish uchun: qaysi bazaltdan ishlab chiqarilgan
+    # Termopanel — Bazalt bilan BIRGA ishlatilgan Serpiyanka/Kley miqdori
+    # (JAMI, ishlab chiqarilgan/qo'shilgan barcha marta uchun). MUHIM: bular
+    # bo'lmasa, "Tayyor mahsulotdan" buyurtmaga o'tkazilganda (yoki sotilganda)
+    # tan narxdan faqat Loy qismi kamayadi — Bazalt/Serpiyanka/Kley qismi esa
+    # HECH QACHON kamaymay, tan narx haqiqiysidan yuqori bo'lib qolaveradi
+    # (2026-08-23 zaxira tekshiruvida aniqlangan: "Bazalt panel").
+    termo_bazalt_qty = Column(Float, nullable=True)
+    termo_serp_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)
+    termo_serp_qty = Column(Float, nullable=True)
+    termo_kley_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)
+    termo_kley_qty = Column(Float, nullable=True)
     recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True, index=True)
     recipe = relationship("Recipe")
 
