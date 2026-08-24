@@ -1575,6 +1575,7 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
     # shu yerda, alohida qatorda hisobga olamiz — aks holda "Sof foyda"
     # sun'iy oshirib ko'rsatilgan bo'lardi.
     from models import FinishedProduct as _FP_cost
+    import crud as _crud_fp_cost
     tayyor_mahsulot_xarajat = 0.0
     for item in order.items:
         fpid = getattr(item, 'finished_product_id', None)
@@ -1583,10 +1584,27 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
         fp_c = db.query(_FP_cost).filter(_FP_cost.id == fpid).first()
         if not fp_c:
             continue
-        base_qty = float(fp_c.produced_quantity if fp_c.produced_quantity is not None else (fp_c.quantity or 0))
-        if base_qty <= 0 or not fp_c.cost_price:
+        # MUHIM TUZATISH: avval bu yerda "joriy (allaqachon kamaygan) tan
+        # narx ÷ ASL jami ishlab chiqarilgan miqdor" formulasi ishlatilardi.
+        # Bu — noto'g'ri edi: agar SHU mahsulotdan avval BOSHQA buyurtma/
+        # sotuv ham olib ketgan bo'lsa (odatiy holat), numerator
+        # (cost_price) ALLAQACHON kamaygan bo'ladi, lekin denominator
+        # (produced_quantity) hamon ASL, TO'LIQ miqdorda qoladi — natijada
+        # "1 birlik narxi" sun'iy ravishda kam chiqib, "Tayyor mahsulotdan
+        # olingan detallar" xarajati haqiqiysidan ancha PASTROQ ko'rsatilib
+        # qolardi (2026-08-24 sinovda, Bazalt panel misolida aniqlangan).
+        # Endi — xuddi ombordan yechishda (_take_finished_for_order)
+        # ishlatilgan BIR XIL, BARQAROR formuladan foydalanamiz, shunda
+        # "ombordan qancha yechildi" va "Foyda hisobida qancha
+        # ko'rsatiladi" HAR DOIM mos keladi.
+        unit_cost = _crud_fp_cost._fp_stable_unit_cost(db, fp_c)
+        if unit_cost <= 0:
+            # Orqaga moslik — barqaror ma'lumoti yo'q, juda eski yozuvlar uchun
+            base_qty = float(fp_c.produced_quantity if fp_c.produced_quantity is not None else (fp_c.quantity or 0))
+            if base_qty > 0 and fp_c.cost_price:
+                unit_cost = float(fp_c.cost_price) / base_qty
+        if unit_cost <= 0:
             continue
-        unit_cost = float(fp_c.cost_price) / base_qty
         used_qty = float(item.length if (item.category or '').lower() == 'profil' else item.quantity or 0)
         tayyor_mahsulot_xarajat += unit_cost * used_qty
     if tayyor_mahsulot_xarajat > 0:
