@@ -298,6 +298,16 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_products ADD COLUMN price_per_m3 FLOAT")
         if 'bazalt_item_id' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN bazalt_item_id INTEGER")
+        if 'termo_bazalt_qty' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_bazalt_qty FLOAT")
+        if 'termo_serp_id' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_serp_id INTEGER")
+        if 'termo_serp_qty' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_serp_qty FLOAT")
+        if 'termo_kley_id' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_kley_id INTEGER")
+        if 'termo_kley_qty' not in fp_cols:
+            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_kley_qty FLOAT")
         if 'unit_loy_kg' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN unit_loy_kg FLOAT")
         if 'unit_volume_m3' not in fp_cols:
