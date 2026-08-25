@@ -65,6 +65,13 @@
 .fp-menu-item:hover{background:#f5f4f2}
 .fp-menu-item.danger{color:#DC2626}
 .fp-menu-item i{font-size:16px;width:16px;flex-shrink:0}
+/* MUHIM: .fp-row'da opacity animatsiyasi bor — bu HAR BIR qatorni
+   o'zining alohida "qatlamiga" (stacking context) aylantirib qo'yadi,
+   shuning uchun menyu ochilganda, u faqat O'Z qatori ichida yuqorida
+   turadi, KEYINGI qatorlar esa uni bosib qo'yaveradi. Shuning uchun,
+   menyu ochilgan paytda, o'sha qatorning O'ZINI vaqtincha eng tepaga
+   ko'taramiz. */
+.fp-row.menu-open{position:relative;z-index:100}
 .fp-inp{width:76px;height:36px;text-align:center;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px;font-weight:600;outline:none}
 .fp-inp:focus{border-color:#B9783F}
 .fp-mini-bar{width:70px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-top:4px}
@@ -1099,10 +1106,15 @@ function toggleFpMenu(ev, id) {
   const menu = document.getElementById('fpmenu-' + id);
   const wasOpen = menu.classList.contains('open');
   closeFpMenus();
-  if (!wasOpen) menu.classList.add('open');
+  if (!wasOpen) {
+    menu.classList.add('open');
+    const row = menu.closest('.fp-row');
+    if (row) row.classList.add('menu-open');
+  }
 }
 function closeFpMenus() {
   document.querySelectorAll('.fp-menu-dropdown.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.fp-row.menu-open').forEach(r => r.classList.remove('menu-open'));
 }
 document.addEventListener('click', closeFpMenus);
 
