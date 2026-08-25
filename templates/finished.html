@@ -58,6 +58,13 @@
 .fp-badge{font-size:9px;padding:2px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
 .mini-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid #e5e5e5;background:#fff;font-size:18px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
+.fp-menu-wrap{position:relative;flex-shrink:0}
+.fp-menu-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid #e5e5e5;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;z-index:50;padding:6px;overflow:hidden}
+.fp-menu-dropdown.open{display:block}
+.fp-menu-item{display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;border:none;background:none;font-size:13px;color:#333;cursor:pointer;border-radius:7px;text-align:left;white-space:nowrap}
+.fp-menu-item:hover{background:#f5f4f2}
+.fp-menu-item.danger{color:#DC2626}
+.fp-menu-item i{font-size:16px;width:16px;flex-shrink:0}
 .fp-inp{width:76px;height:36px;text-align:center;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px;font-weight:600;outline:none}
 .fp-inp:focus{border-color:#B9783F}
 .fp-mini-bar{width:70px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-top:4px}
@@ -987,15 +994,18 @@ function rowHtml(i) {
             style="color:#22C55E">+</button>
     ` : ''}
     <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
-    <button class="mini-btn" onclick="openSellModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', ${i.unit_price || 0})" title="Sotish" style="color:#16A34A;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>
-    <button class="mini-btn" onclick="openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>
-    <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
-    {% if current_user.role.value == 'admin' %}
-    <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
-            style="color:#A86B36;border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
-    {% endif %}
-    <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
-            onclick="delFp(${i.id}, '${i.source}')" title="O'chirish"><i class="ti ti-trash"></i></button>
+    <div class="fp-menu-wrap">
+      <button class="mini-btn" onclick="toggleFpMenu(event, ${i.id})" title="Boshqa amallar"><i class="ti ti-dots-vertical"></i></button>
+      <div class="fp-menu-dropdown" id="fpmenu-${i.id}">
+        <button class="fp-menu-item" onclick="closeFpMenus();openSellModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', ${i.unit_price || 0})"><i class="ti ti-cash"></i> Sotish</button>
+        <button class="fp-menu-item" onclick="closeFpMenus();openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')"><i class="ti ti-alert-triangle"></i> Kamaytirish (brak)</button>
+        <button class="fp-menu-item" onclick="closeFpMenus();openHistoryModal(${i.id})"><i class="ti ti-history"></i> Tarixni ko'rish</button>
+        {% if current_user.role.value == 'admin' %}
+        <button class="fp-menu-item" onclick="closeFpMenus();openProfitModal(${i.id})"><i class="ti ti-report-money"></i> Foyda hisobi</button>
+        {% endif %}
+        <button class="fp-menu-item danger" onclick="closeFpMenus();delFp(${i.id}, '${i.source}')"><i class="ti ti-trash"></i> O'chirish</button>
+      </div>
+    </div>
   `;
 
   return `
@@ -1080,6 +1090,21 @@ function openHistoryModal(id) {
   document.getElementById('historyModal').style.display = 'flex';
 }
 function closeHistoryModal(){ document.getElementById('historyModal').style.display = 'none'; }
+
+// ── "⋮" menyusi — bir vaqtda faqat bitta ochiq turadi, tashqariga
+// bosilsa yopiladi. Faqat ko'rinish uchun, hech qanday hisob-kitobga
+// tegishli emas.
+function toggleFpMenu(ev, id) {
+  ev.stopPropagation();
+  const menu = document.getElementById('fpmenu-' + id);
+  const wasOpen = menu.classList.contains('open');
+  closeFpMenus();
+  if (!wasOpen) menu.classList.add('open');
+}
+function closeFpMenus() {
+  document.querySelectorAll('.fp-menu-dropdown.open').forEach(m => m.classList.remove('open'));
+}
+document.addEventListener('click', closeFpMenus);
 
 // ── Ro'yxat harakatlari (mavjud, o'zgarishsiz) ─────────────
 async function stepFp(id, dir) {
