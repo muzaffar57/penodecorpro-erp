@@ -113,6 +113,8 @@
 .prod-acc-body.open{display:block}
 .zebra-list-flat .zebra-row:not(:last-child){border-bottom:1px solid var(--border2)}
 .zebra-list.zebra-list-flat{border:none;border-radius:0}
+.proj-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
+.proj-toast{background:#fff;border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
 </style>
 {% endblock %}
 
@@ -337,6 +339,31 @@ let selectedProjId = null;
 let progressMap = {};
 let currentTab = 'asosiy';
 
+// MUHIM: brauzerning standart alert()'i o'rniga — u sayt manzilini
+// ("...railway.app says:") xunuk qilib ko'rsatib qo'yardi. Endi
+// boshqa sahifalardagi kabi (masalan Omborxona), chiroyli, markazlashgan
+// xabar ko'rsatiladi.
+function projToast(text) {
+  let overlay = document.getElementById('projToastOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'projToastOverlay';
+    overlay.className = 'proj-toast-overlay';
+    overlay.innerHTML = '<div class="proj-toast" id="projToastText"></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) projToastHide(); });
+  }
+  document.getElementById('projToastText').textContent = text;
+  overlay.style.display = 'flex';
+  clearTimeout(overlay._timer);
+  const dur = Math.min(6000, Math.max(1800, text.length * 45));
+  overlay._timer = setTimeout(projToastHide, dur);
+}
+function projToastHide() {
+  const overlay = document.getElementById('projToastOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 const STATUS_MAP = {
   'ACTIVE':'<span class="status-badge st-active">Faol</span>',
   'DRAFT':'<span class="status-badge st-draft">Yangi</span>',
@@ -364,8 +391,8 @@ async function uploadProjImage(id, input) {
   try {
     const res = await fetch(`/api/projects/${id}/image`, { method: 'POST', body: fd });
     if (res.ok) location.reload();
-    else alert('Rasm yuklanmadi');
-  } catch(e) { alert('Server xatosi'); } finally {
+    else projToast('Rasm yuklanmadi');
+  } catch(e) { projToast('Server xatosi'); } finally {
     inFlightProjImgUpload.delete(id);
   }
 }
@@ -697,7 +724,7 @@ async function saveEditProject() {
   try {
     const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
     if (res.ok) { location.reload(); return; }
-    else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+    else { const e = await res.json(); projToast('Xato: ' + (e.detail || '')); }
   } finally {
     isSavingEditProject = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
@@ -714,7 +741,7 @@ async function markProjectComplete() {
   try {
     const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: 'COMPLETED'})});
     if (res.ok) { location.reload(); return; }
-    else alert('Xato');
+    else projToast('Xato');
   } finally {
     isMarkingProjComplete = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
@@ -731,14 +758,14 @@ function closeModal(){
 let isSavingProjPayment = false;
 async function savePayment(){
   const amount=parseFloat(document.getElementById('pay-amount').value);
-  if(!amount||amount<=0){alert('Summa kiriting!');return;}
+  if(!amount||amount<=0){projToast('Summa kiriting!');return;}
   if (isSavingProjPayment) return; // Ikki marta bosishdan himoya
   isSavingProjPayment = true;
   const btn = document.getElementById('proj-pay-save-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   try {
     const res=await fetch(`/api/projects/${selectedProjId}/payment?amount=${amount}`,{method:'POST'});
-    if(res.ok){alert('✓ To\'lov qo\'shildi!');location.reload();return;}else alert('Xato');
+    if(res.ok){projToast('✓ To\'lov qo\'shildi!');setTimeout(()=>location.reload(),1200);return;}else projToast('Xato');
   } finally {
     isSavingProjPayment = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
@@ -748,7 +775,7 @@ async function savePayment(){
 async function deleteProj(){
   if(!confirm('Loyihani o\'chirasizmi? Barcha buyurtmalar ham o\'chadi!'))return;
   const res=await fetch(`/api/projects/${selectedProjId}`,{method:'DELETE'});
-  if(res.ok)location.reload();else alert('Xato');
+  if(res.ok)location.reload();else projToast('Xato');
 }
 
 function searchProj(){
@@ -772,7 +799,7 @@ let isSavingNewProject = false;
 async function saveProject(){
   const client=document.getElementById('f-client').value.trim();
   const pname=document.getElementById('f-pname').value.trim();
-  if(!client||!pname){alert('Mijoz va loyiha nomi shart!');return;}
+  if(!client||!pname){projToast('Mijoz va loyiha nomi shart!');return;}
   if (isSavingNewProject) return; // Ikki marta bosishdan himoya
   isSavingNewProject = true;
   const btn = document.getElementById('proj-new-save-btn');
@@ -788,7 +815,7 @@ async function saveProject(){
         deadline:document.getElementById('f-deadline').value||null,
         notes:document.getElementById('f-notes').value||null
       })});
-    if(res.ok){alert('✓ Loyiha yaratildi!');location.reload();return;}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+    if(res.ok){projToast('✓ Loyiha yaratildi!');setTimeout(()=>location.reload(),1200);return;}else{const e=await res.json();projToast('Xato: '+(e.detail||''));}
   } finally {
     isSavingNewProject = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
