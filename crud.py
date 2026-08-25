@@ -1242,7 +1242,14 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
 
 
 def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
-    """Tayyor mahsulot farqini to'g'rilaydi."""
+    """Tayyor mahsulot farqini to'g'rilaydi (buyurtma TAHRIRLANGANDA).
+
+    MUHIM: avval bu yerda faqat `fp.quantity` to'g'rilanardi, `fp.cost_price`
+    esa HECH QACHON tegilmasdi — masalan 100m dan 70m ga tushirilsa, 30m
+    omborga qaytardi, lekin uning tan narxi hech qachon qaytmasdan, "yo'qolib"
+    qolardi (bu — buyurtma O'CHIRILGANDA ishlaydigan _return_finished_for_order
+    funksiyasida to'g'ri qilingan edi, lekin TAHRIRLASHDA unutilgan ekan).
+    Endi ikkalasi ham, bir xil BARQAROR formuladan foydalanadi."""
     def _group(items):
         out = {}
         for d in items:
@@ -1268,11 +1275,19 @@ def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
         fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
         if not fp:
             continue
+        # diff > 0: buyurtmaga YANA olindi (ombordan yechiladi, tan narx kamayadi)
+        # diff < 0: buyurtmadan qaytdi (omborga qaytadi, tan narx ham qaytadi)
+        cur_qty = float(fp.quantity or 0)
+        unit_cost = _fp_stable_unit_cost(db, fp)
+        cost_delta = -unit_cost * diff if unit_cost > 0 else (
+            -(float(fp.cost_price) / cur_qty * diff) if cur_qty > 0 and fp.cost_price else 0
+        )
+        fp.cost_price = max(0, float(fp.cost_price or 0) + cost_delta)
         if diff > 0:
-            fp.quantity = max(0, float(fp.quantity or 0) - diff)
+            fp.quantity = max(0, cur_qty - diff)
             log.append(f"🏭 {fp.name}: -{diff:g} {fp.unit}")
         else:
-            fp.quantity = float(fp.quantity or 0) + abs(diff)
+            fp.quantity = cur_qty + abs(diff)
             log.append(f"🏭 {fp.name}: +{abs(diff):g} {fp.unit} qaytdi")
 
     if log:
