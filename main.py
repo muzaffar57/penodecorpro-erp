@@ -2172,11 +2172,31 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
                     except Exception:
                         pass
             if tg_id and tg_id.lstrip('-').isdigit():
+                # MUHIM (2026-08-26, foydalanuvchi so'rovi): yakuniy xabarga
+                # endi to'liq moliyaviy hisob ham qo'shiladi — jami detal,
+                # summa, chegirma, to'lov — xuddi "Nakladnoy" PDF'dagi
+                # yakuniy qatorlar bilan bir xil ma'lumot.
+                def _fmt_tg(n):
+                    return f"{round(float(n or 0)):,}".replace(',', ' ')
+                _item_count = len(order.items)
+                _total = float(order.total_amount or 0)
+                _agreed = float(order.agreed_amount or _total)
+                _disc_pct = float(order.discount_percent or 0)
+                _paid = float(order.paid_amount or 0)
+                _debt = float(order.debt_amount or 0)
+                _fin_lines = [f"📦 Jami detal: *{_item_count} ta*", f"💰 Jami summa: {_fmt_tg(_total)} so'm"]
+                if _disc_pct > 0:
+                    _fin_lines.append(f"🏷 Chegirma ({_disc_pct:g}%): -{_fmt_tg(_total - _agreed)} so'm")
+                    _fin_lines.append(f"✅ Kelishilgan summa: *{_fmt_tg(_agreed)} so'm*")
+                _fin_lines.append(f"💵 To'langan: {_fmt_tg(_paid)} so'm")
+                if _debt > 0.5:
+                    _fin_lines.append(f"⚠️ Qolgan qarz: {_fmt_tg(_debt)} so'm")
                 client_msg = (
                     f"✅ *Buyurtmangiz tayyor!*\n\n"
                     f"📋 Buyurtma: *{order.order_number}*\n"
-                    f"👤 Mijoz: {order.project.client_name}\n"
-                    f"🏗 PenoDecorPro — Andijon\n\n"
+                    f"👤 Mijoz: {order.project.client_name}\n\n"
+                    + "\n".join(_fin_lines) +
+                    f"\n\n🏗 PenoDecorPro — Andijon\n\n"
                     f"Buyurtmangizni olishingiz mumkin!\n"
                     f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                 )
@@ -3479,7 +3499,7 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
-    # Telegram xabar
+    # Telegram xabar (ichki — kompaniya guruhiga)
     d = crud.get_delivery(db, result["delivery_id"])
     if d and d.order:
         lines = []
@@ -3497,6 +3517,30 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
             + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
         )
         _send_telegram(msg)
+
+        # MUHIM (2026-08-26, foydalanuvchi so'rovi): mijozning o'ziga ham,
+        # agar loyihada Telegram ID kiritilgan bo'lsa, HAR BIR Yuk xati
+        # uchun — kompaniya ko'radigan bilan BIR XIL — xabar boradi (avval
+        # faqat butun buyurtma "Tayyor" bo'lganda, bitta marta borardi).
+        if d.order.project and d.order.project.notes:
+            _notes = d.order.project.notes or ''
+            _tg_id = None
+            if 'tg_id=' in _notes:
+                try:
+                    _tg_id = _notes.split('tg_id=')[1].split(',')[0].strip()
+                except Exception:
+                    _tg_id = None
+            if _tg_id and _tg_id.lstrip('-').isdigit():
+                client_dlv_msg = (
+                    f"📦 *Mahsulot topshirildi*\n\n"
+                    f"📋 Buyurtma: *{d.order.order_number}*\n\n"
+                    + "\n".join(lines)
+                    + f"\n\n📊 Bajarilish: *{result['delivery_percent']}%*"
+                    + ("\n✅ *Buyurtma to'liq topshirildi!*" if result["is_fully_delivered"] else "")
+                    + f"\n\n🏗 PenoDecorPro — Andijon"
+                    + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                )
+                _send_telegram_to(_tg_id, client_dlv_msg)
 
     return result
 
