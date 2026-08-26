@@ -2224,6 +2224,24 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
                     f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                 )
                 _send_telegram_to(tg_id, client_msg)
+                # MUHIM (2026-08-26, foydalanuvchi so'rovi): matn xabar
+                # bilan birga, rasmiy Nakladnoy PDF ham fayl sifatida
+                # yuboriladi — mijoz uni saqlab/chop etib qo'yishi mumkin.
+                # Xato bo'lsa (masalan PDF yaratilmasa), asosiy oqim
+                # (buyurtma "Tayyor" bo'lishi) baribir davom etadi.
+                try:
+                    import pdf_service as _pdf_svc
+                    _pdf_bytes = _pdf_svc.generate_nakladnoy(order, db)
+                    _send_telegram_document(
+                        tg_id, _pdf_bytes,
+                        f"nakladnoy_{order.order_number}.pdf",
+                        caption="🧾 Buyurtmangiz hujjati"
+                    )
+                except Exception as _pdf_err:
+                    try:
+                        crud.log_error(db, f"Mijozga Nakladnoy PDF yuborilmadi: {_pdf_err}", endpoint="api_mark_order_ready:pdf")
+                    except Exception:
+                        pass
     return result
 
 
