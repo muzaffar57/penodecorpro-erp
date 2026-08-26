@@ -904,14 +904,25 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     el.append(Paragraph("<b>Berilgan mahsulotlar (yuk xatlari bo'yicha)</b>", st_norm))
     el.append(Spacer(1, 5))
 
-    data = [["№", "Sana", "Yuk xati", "Mahsulotlar", "Summa"]]
+    # MUHIM: avval bu yerda har bir Yuk xati BITTA qatorga, ichidagi barcha
+    # mahsulotlar esa bitta katakka matn qilib yozilardi (Miqdor/Birlik
+    # narxi ko'rsatilmasdan) — 20-25 tagacha Yuk xati bo'lgan yakuniy
+    # hisob-kitobda buni o'qish qiyin edi. Endi har bir Yuk xati — kichik
+    # sarlavha qatori, ostida esa har bir mahsulot o'z ALOHIDA qatorida,
+    # Miqdor va Birlik narxi bilan — xuddi oddiy Nakladnoydagi kabi.
+    data = [["Mahsulot", "Miqdor", "Birlik narxi", "Summa"]]
+    header_rows = [0]     # sarlavha (ustun nomlari) qatori
+    section_rows = []     # har bir Yuk xati uchun bo'lim-sarlavha qatorlari
 
     grand_total = 0.0
     for idx, d in enumerate(deliveries, 1):
         dt = d.delivered_at
         date_s = dt.strftime("%d.%m.%Y") if dt else "—"
+        yuk_no = (d.delivery_number or "").split('/')[-1]
 
-        lines = []
+        section_rows.append(len(data))
+        data.append([f"№{idx} · {date_s} · Yuk xati {yuk_no}", "", "", ""])
+
         dsum = 0.0
         for di in d.items:
             oi = di.order_item
@@ -920,50 +931,53 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
             ordered = oi.order_qty_normalized
             total_price = float(oi.total_price or 0)
             unit_p = (total_price / ordered) if ordered > 0 else 0.0
-            line_sum = unit_p * float(di.quantity or 0)
+            qty = float(di.quantity or 0)
+            line_sum = unit_p * qty
             dsum += line_sum
-            u = 'm' if di.unit == 'metr' else ' ta'
-            lines.append(f"{oi.name} — {_num(di.quantity)}{u}")
+            u = 'm' if di.unit == 'metr' else 'ta'
+            data.append([
+                Paragraph(oi.name, st_item),
+                f"{_num(qty)} {u}",
+                _fmt(unit_p) + " so'm",
+                _fmt(line_sum),
+            ])
 
         grand_total += dsum
-        data.append([
-            str(idx),
-            date_s,
-            (d.delivery_number or "").split('/')[-1],
-            Paragraph("<br/>".join(lines) if lines else "—", st_item),
-            _fmt(dsum),
-        ])
 
-    data.append(["", "", "", "JAMI BERILGAN MAHSULOT:", _fmt(grand_total)])
+    data.append(["JAMI BERILGAN MAHSULOT:", "", "", _fmt(grand_total)])
+    total_row = len(data) - 1
 
-    tbl = Table(data, colWidths=[0.9*cm, 2.2*cm, 1.8*cm, 10.3*cm, 3*cm], repeatRows=1)
-    tbl.setStyle(TableStyle([
+    tbl = Table(data, colWidths=[9*cm, 2.8*cm, 3*cm, 3.4*cm], repeatRows=1)
+    style = [
         ('BACKGROUND', (0, 0), (-1, 0), DARK),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 8),
         ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
         ('FONTSIZE', (0, 1), (-1, -2), 8),
-        ('FONTNAME', (2, 1), (2, -2), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (2, 1), (2, -2), GOLD),
-        ('FONTNAME', (4, 1), (4, -2), 'Helvetica-Bold'),
-        ('ALIGN', (0, 0), (2, -1), 'CENTER'),
-        ('ALIGN', (4, 0), (4, -1), 'RIGHT'),
+        ('ALIGN', (1, 1), (-1, -2), 'RIGHT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -2), 0.4, colors.HexColor("#E5E1D8")),
         ('TOPPADDING', (0, 0), (-1, -1), 5),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor("#FAFAF8")]),
         # Jami qatori
-        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#F0EBE0")),
-        ('SPAN', (0, -1), (3, -1)),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, -1), (-1, -1), 9.5),
-        ('ALIGN', (0, -1), (3, -1), 'RIGHT'),
-        ('TEXTCOLOR', (4, -1), (4, -1), GOLD),
-        ('LINEABOVE', (0, -1), (-1, -1), 1.2, DARK),
-        ('RIGHTPADDING', (3, -1), (3, -1), 10),
-    ]))
+        ('BACKGROUND', (0, total_row), (-1, total_row), colors.HexColor("#F0EBE0")),
+        ('SPAN', (0, total_row), (2, total_row)),
+        ('FONTNAME', (0, total_row), (-1, total_row), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, total_row), (-1, total_row), 9.5),
+        ('ALIGN', (0, total_row), (2, total_row), 'RIGHT'),
+        ('TEXTCOLOR', (3, total_row), (3, total_row), GOLD),
+        ('LINEABOVE', (0, total_row), (-1, total_row), 1.2, DARK),
+        ('RIGHTPADDING', (2, total_row), (2, total_row), 10),
+    ]
+    # Har bir Yuk xati bo'lim-sarlavhasi — to'liq kenglikka yoyiladi,
+    # och fonda, qalin harf bilan ajratiladi
+    for r in section_rows:
+        style.append(('SPAN', (0, r), (-1, r)))
+        style.append(('BACKGROUND', (0, r), (-1, r), colors.HexColor("#FAF7F0")))
+        style.append(('FONTNAME', (0, r), (-1, r), 'Helvetica-Bold'))
+        style.append(('TEXTCOLOR', (0, r), (-1, r), GOLD))
+    tbl.setStyle(TableStyle(style))
     el.append(tbl)
     el.append(Spacer(1, 12))
 
