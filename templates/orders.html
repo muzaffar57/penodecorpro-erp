@@ -456,28 +456,10 @@
             <span id="od-status"></span>
           </div>
         </div>
-        <div style="padding:12px">
-          <div id="od-items-container">
-            <!-- Detallar bu yerda -->
-          </div>
-        </div>
-      </div>
-
-      <!-- FAYLLAR VA RASMLAR -->
-      <div class="card" style="margin-top:12px">
-        <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3></div>
-        <div style="padding:12px">
-          <label class="dropzone">
-            <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
-            <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG yoki PDF, 8 MB gacha</div>
-            <input type="file" accept="image/*,.pdf" onchange="uploadOrderAttachment(this)">
-          </label>
-          <div class="attach-grid" id="attachGrid"></div>
-        </div>
       </div>
 
       <!-- DRAFT BANNER -->
-      <div id="draftBanner" style="display:none;background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:10px;padding:14px;margin-bottom:12px">
+      <div id="draftBanner" style="display:none;background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:10px;padding:14px;margin-top:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
           <div>
             <div style="font-size:14px;font-weight:600;color:#b7770d">📝 Bu buyurtma qoralama holatida</div>
@@ -488,6 +470,10 @@
       </div>
 
       <!-- YETKAZISH BO'LIMI -->
+      <!-- MUHIM: bu bo'lim endi ENG YUQORIDA (Detallardan oldin) — chunki
+           qisman topshirish yoki hisob-kitob uchun buyurtmaga kirilganda,
+           aynan shu bo'lim eng ko'p ishlatiladi (foydalanuvchi so'rovi
+           bo'yicha, 2026-08-26). -->
       <div class="card" style="margin-top:12px">
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('dlvBody', 'dlv-toggle-ic')">
           <h3><span class="ico-badge blue"><i class="ti ti-truck-delivery"></i></span> Yetkazish</h3>
@@ -499,11 +485,11 @@
                     style="display:none">✅ Bir yo'la to'liq topshirish</button>
             <button class="btn btn-dark btn-sm" id="btn-new-delivery" onclick="openDeliveryModal()">+ Mahsulot topshirish</button>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('dlvBody','dlv-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
+              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
             </button>
           </div>
         </div>
-        <div style="padding:12px" id="dlvBody">
+        <div style="padding:12px;display:none" id="dlvBody">
           <!-- Umumiy progress -->
           <div style="margin-bottom:12px">
             <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
@@ -527,6 +513,19 @@
         </div>
       </div>
 
+      <!-- Detallar -->
+      <div class="card" style="margin-top:12px">
+        <div class="card-head" style="cursor:pointer" onclick="toggleSection('od-items-container', 'od-toggle-ic')">
+          <h3><span class="ico-badge" style="background:#FEF3E2;color:#B9783F"><i class="ti ti-package"></i></span> Detallar</h3>
+          <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('od-items-container','od-toggle-ic');event.stopPropagation()" title="Yig'ish/yoyish">
+            <i class="ti ti-chevron-down" id="od-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+          </button>
+        </div>
+        <div style="padding:12px;display:none" id="od-items-container">
+          <!-- Detallar bu yerda -->
+        </div>
+      </div>
+
       <!-- TO'LOVLAR BO'LIMI -->
       <div class="card" style="margin-top:12px">
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('payBody', 'pay-toggle-ic')">
@@ -534,11 +533,11 @@
           <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
             <button class="btn btn-green btn-sm" id="btn-add-payment" onclick="openPaymentForm()">+ To'lov qo'shish</button>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('payBody','pay-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="pay-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
+              <i class="ti ti-chevron-down" id="pay-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
             </button>
           </div>
         </div>
-        <div style="padding:12px" id="payBody">
+        <div style="padding:12px;display:none" id="payBody">
           <!-- To'lov qo'shish formasi -->
           <div id="paymentForm" style="display:none;background:#F0F9F4;border:1.5px solid #22C55E;border-radius:8px;padding:12px;margin-bottom:12px">
             <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#1e7e34">Yangi to'lov</div>
@@ -586,6 +585,28 @@
           <!-- To'lovlar tarixi -->
           <div style="font-size:14px;font-weight:600;color:#777;margin-bottom:6px">Tarix</div>
           <div id="paymentList"></div>
+        </div>
+      </div>
+
+      <!-- FAYLLAR VA RASMLAR -->
+      <!-- MUHIM: bu bo'lim endi ENG OXIRIDA (foydalanuvchi so'rovi bo'yicha,
+           2026-08-26) — chunki kamdan-kam ishlatiladi, tez-tez kerak
+           bo'ladigan Yetkazish/Detallar/To'lovlardan keyin joylashgani
+           ma'qulroq. -->
+      <div class="card" style="margin-top:12px">
+        <div class="card-head" style="cursor:pointer" onclick="toggleSection('filesBody', 'files-toggle-ic')">
+          <h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3>
+          <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('filesBody','files-toggle-ic');event.stopPropagation()" title="Yig'ish/yoyish">
+            <i class="ti ti-chevron-down" id="files-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+          </button>
+        </div>
+        <div style="padding:12px;display:none" id="filesBody">
+          <label class="dropzone">
+            <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG yoki PDF, 8 MB gacha</div>
+            <input type="file" accept="image/*,.pdf" onchange="uploadOrderAttachment(this)">
+          </label>
+          <div class="attach-grid" id="attachGrid"></div>
         </div>
       </div>
     </div>
@@ -3834,8 +3855,17 @@ async function saveOrder(isDraft = false) {
     issues.push({ text: "Loy miqdori (kg) kiritilmagan", targetId: 'loy_kg' });
   }
 
-  // Gips miqdori -- faqat kamida bitta Gips turdagi detal bo'lsa so'raladi
-  const anyGips = Array.from(document.querySelectorAll('.i-type')).some(el => el.value === 'gips');
+  // Gips miqdori -- faqat kamida bitta, TAYYOR MAHSULOTDAN OLINMAGAN
+  // Gips turdagi detal bo'lsa so'raladi. MUHIM: "Tayyor mahsulotdan"
+  // olingan Gips detallari — allaqachon ishlab chiqarilgan (tayyor
+  // turgan), shu buyurtmada YANGI Gips sarflanmaydi — xuddi yuqoridagi
+  // Loy tekshiruvidagi bir xil sabab bilan (2026-08-23 sinovda
+  // aniqlangan: Gips tekshiruvi bu istisnoni unutib qo'ygan edi).
+  const anyGips = Array.from(document.querySelectorAll('.detal')).some(row => {
+    if (row.dataset.fpId) return false;
+    const tEl = row.querySelector('.i-type');
+    return tEl && tEl.value === 'gips';
+  });
   const gipsVal = parseFloat(document.getElementById('gips_kg')?.value) || 0;
   const gipsInvVal = document.getElementById('gips_inventory_id')?.value || '';
   if (anyGips && !gipsVal) {
