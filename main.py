@@ -76,7 +76,30 @@ def _send_telegram_to(chat_id: str, text: str):
         urllib.request.urlopen(req, timeout=5)
         print(f"✓ Telegram xabar yuborildi: {chat_id}")
     except Exception as e:
-        print(f"⚠ Mijozga Telegram xabar yuborilmadi: {e}")
+        # MUHIM (2026-08-26): avval bu yerda xato faqat server konsoliga
+        # (print) yozilardi — buni ko'rish uchun Railway'ning o'ziga kirish
+        # kerak edi. Endi, Telegram'ning ANIQ sabab (masalan "chat not
+        # found" — foydalanuvchi botga "Start" bosmagan, yoki noto'g'ri ID)
+        # qaytargan javobini o'qib, dasturning O'Z "Xato jurnali"ga ham
+        # yozamiz — shunda sabab darhol, ilovaning ichida ko'rinadi.
+        detail = str(e)
+        try:
+            if hasattr(e, 'read'):
+                detail = e.read().decode('utf-8', errors='ignore') or detail
+        except Exception:
+            pass
+        print(f"⚠ Mijozga Telegram xabar yuborilmadi: {detail}")
+        try:
+            _log_db = SessionLocal()
+            try:
+                crud.log_error(
+                    _log_db, f"Telegram (mijozga) xabar yuborilmadi: {detail}",
+                    endpoint="_send_telegram_to", method=f"chat_id={chat_id}"
+                )
+            finally:
+                _log_db.close()
+        except Exception:
+            pass
 
 def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, caption: str = ""):
     """Telegram orqali fayl (masalan zaxira nusxa) yuboradi."""
