@@ -380,17 +380,6 @@
 <script>
 document.getElementById('r-date').value = new Date().toISOString().slice(0,10);
 
-// URL orqali kelgan ?supplier_id=X bo'lsa — avtomatik tanlaymiz
-(function initFromUrl(){
-  const params = new URLSearchParams(window.location.search);
-  const sid = params.get('supplier_id');
-  if (sid) {
-    const sel = document.getElementById('r-supplier');
-    sel.value = sid;
-    if (sel.value === sid) onSupplierChange();
-  }
-})();
-
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
 function parseNum(v) { return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0; }
 function formatPriceInput(input) { const val = parseNum(input.value); if (val > 0) input.value = fmt(val); }
@@ -953,5 +942,23 @@ function showMsg(text, type){
 
 loadInvItemsForAp();
 restoreDraft();
+
+// URL orqali kelgan ?supplier_id=X bo'lsa — avtomatik tanlaymiz.
+// MUHIM: bu, avval skript BOSHIDA turardi — o'sha payt hali
+// `currentSupplierId` (let bilan e'lon qilingan) va `onSupplierChange`
+// to'liq tayyor bo'lmagan holatda chaqirilib, jim xatoga uchrab, tanlov
+// muvaffaqiyatsiz tugar edi ("kartochkalar 0" muammosi shundan edi — 
+// qo'lda ikkinchi marta tanlaganda esa hammasi tayyor bo'lgani uchun
+// to'g'ri ishlardi). Endi bu — skriptning ENG OXIRIDA, hammasi to'liq
+// tayyor bo'lgandan keyin ishga tushadi.
+(function initFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const sid = params.get('supplier_id');
+  if (sid) {
+    const sel = document.getElementById('r-supplier');
+    sel.value = sid;
+    if (sel.value === sid) onSupplierChange();
+  }
+})();
 </script>
 {% endblock %}
