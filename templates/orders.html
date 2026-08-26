@@ -342,7 +342,7 @@
               <label>Usta</label>
               <select id="master_id">
                 <option value="">— Yo'q —</option>
-                {% for m in masters %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}
+                {% for m in masters %}<option value="{{ m.id }}">{{ m.name }}{{ ' — ' + m.phone if m.phone else '' }}</option>{% endfor %}
               </select>
             </div>
             <div class="form-group" style="margin-bottom:12px">
