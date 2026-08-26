@@ -269,6 +269,10 @@
     </div>
     <div class="form-group"><label>Loyiha nomi</label><input type="text" id="e-pname"></div>
     <div class="form-group"><label>Manzil</label><input type="text" id="e-address"></div>
+    <div class="form-group">
+      <label>Mijoz Telegram ID <span style="color:var(--text3);font-weight:400">(buyurtma tayyor bo'lganda SMS uchun)</span></label>
+      <input type="text" id="e-tg-id" placeholder="Masalan: 123456789">
+    </div>
     <div class="form-row">
       <div class="form-group" style="margin:0"><label>Byudjet (so'm)</label><input type="number" id="e-budget" min="0"></div>
       <div class="form-group" style="margin:0">
@@ -702,7 +706,15 @@ function openEditModal() {
   document.getElementById('e-address').value = d.address === '—' ? '' : d.address;
   document.getElementById('e-budget').value = d.budget;
   document.getElementById('e-status').value = d.status;
-  document.getElementById('e-notes').value = d.notes;
+  // MUHIM (2026-08-26): avval "Mijoz Telegram ID" maydoni bu formada
+  // UMUMAN yo'q edi — shuning uchun eski (allaqachon yaratilgan)
+  // loyihalarga uni qo'shish yoki tekshirish IMKONSIZ edi. Endi, agar
+  // izohda "tg_id=..." belgisi bo'lsa, uni shu yerga ajratib chiqaramiz,
+  // qolgan (haqiqiy) izohni esa "Izoh" maydonining o'ziga qoldiramiz.
+  const notes = d.notes || '';
+  const tgMatch = notes.match(/tg_id=(-?\d+)/);
+  document.getElementById('e-tg-id').value = tgMatch ? tgMatch[1] : '';
+  document.getElementById('e-notes').value = tgMatch ? '' : (notes === 'Yo\'q' ? '' : notes);
   document.getElementById('editModal').style.display = 'flex';
 }
 
@@ -719,7 +731,9 @@ async function saveEditProject() {
     client_address: document.getElementById('e-address').value.trim() || null,
     total_budget: parseFloat(document.getElementById('e-budget').value) || 0,
     status: document.getElementById('e-status').value,
-    notes: document.getElementById('e-notes').value.trim() || null
+    // MUHIM: Yaratish formasidagi BIR XIL mantiq — agar Telegram ID
+    // kiritilgan bo'lsa, izoh o'rniga "tg_id=..." belgisi saqlanadi.
+    notes: document.getElementById('e-tg-id').value.trim() ? `tg_id=${document.getElementById('e-tg-id').value.trim()}` : (document.getElementById('e-notes').value.trim() || null)
   };
   try {
     const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
