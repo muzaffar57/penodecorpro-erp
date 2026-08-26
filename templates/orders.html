@@ -93,6 +93,11 @@
 @media (max-width:900px){.detal-grid{grid-template-columns:1fr 1fr}}
 .dif{background:#F3F4F6;border-radius:12px;padding:12px 14px}
 .dif-tur{background:#F5F3EF}
+/* "Nomi" maydonini ko'zga tashlanadigan qilish uchun (foydalanuvchi
+   so'rovi bo'yicha, 2026-08-26) — iliq fon + chap tomonda qalinroq
+   chiziq, boshqa maydonlarga tegmaydi. */
+.dif-nomi{background:#FBF0DE;border:1.5px solid #B9783F;border-left:4px solid #B9783F}
+.dif-nomi label{color:#8A5A28}
 .dif label{font-size:11.5px;color:#6B7280;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
 .dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid #e5e5e5;border-radius:9px;font-size:14.5px;color:#111;background:#fff;outline:none;transition:border .15s}
 .unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid #e5e5e5;border-radius:9px;overflow:hidden;transition:border .15s;background:#fff}
@@ -2817,7 +2822,7 @@ function addItem() {
     </div>
     <div class="detal-body">
     <div class="detal-grid">
-      <div class="dif" style="grid-column:1/-1;position:relative">
+      <div class="dif dif-nomi" style="grid-column:1/-1;position:relative">
         <label>Nomi</label>
         <input placeholder="Karniz M-06" class="i-name" autocomplete="off"
                oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'))" onblur="hideFpSuggest(this)">
