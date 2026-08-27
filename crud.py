@@ -6003,6 +6003,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             "region": m.region,
             "is_active": m.is_active,
             "kpi_percent": m.kpi_percent or 0,
+            "show_gifts": bool(m.show_gifts),
             "yearly_sales": round(yearly_sales),
             "yearly_profit": round(yearly_profit),
             "orders_count": len(orders),
@@ -6015,8 +6016,68 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
 
 
 # ============================================================
-# SUPPLIER — Yetkazib beruvchilar va nasiya qarzi
+# MASTER GIFTS — Ustalar uchun "Sovg'alar" bosqichlari (bot orqali)
 # ============================================================
+
+def get_master_yearly_kpi_total(db: Session, master_id: int, year: int = None) -> float:
+    """Ustaning shu yilgi JAMI yig'ilgan KPI (sovg'a ulushi) summasini
+    qaytaradi — get_master_kpi_detail() dagi barcha buyurtmalarning
+    kpi_amount'ini qo'shib."""
+    from datetime import datetime as _dt_kpi
+    year = year or _dt_kpi.utcnow().year
+    detail = get_master_kpi_detail(db, master_id, year)
+    return sum(float(d.get("kpi_amount") or 0) for d in detail)
+
+
+def get_master_gifts(db: Session) -> list:
+    """Barcha sovg'alarni, kerakli KPI miqdori bo'yicha (kamdan ko'pga) tartiblab qaytaradi."""
+    from models import MasterGift
+    return db.query(MasterGift).order_by(MasterGift.kpi_threshold.asc()).all()
+
+
+def create_master_gift(db: Session, name: str, kpi_threshold: float) -> "MasterGift":
+    from models import MasterGift
+    max_order = db.query(MasterGift).count()
+    g = MasterGift(name=name.strip(), kpi_threshold=float(kpi_threshold), sort_order=max_order)
+    db.add(g)
+    db.commit()
+    db.refresh(g)
+    return g
+
+
+def update_master_gift(db: Session, gift_id: int, name: str, kpi_threshold: float) -> Optional["MasterGift"]:
+    from models import MasterGift
+    g = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
+    if not g:
+        return None
+    g.name = name.strip()
+    g.kpi_threshold = float(kpi_threshold)
+    db.commit()
+    db.refresh(g)
+    return g
+
+
+def delete_master_gift(db: Session, gift_id: int) -> bool:
+    from models import MasterGift
+    g = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
+    if not g:
+        return False
+    db.delete(g)
+    db.commit()
+    return True
+
+
+def set_master_show_gifts(db: Session, master_id: int, show: bool) -> Optional[Master]:
+    m = db.query(Master).filter(Master.id == master_id).first()
+    if not m:
+        return None
+    m.show_gifts = show
+    db.commit()
+    db.refresh(m)
+    return m
+
+
+
 
 from models import Supplier, SupplierPayment, InventoryPurchase
 from schemas import SupplierCreate, SupplierUpdate, SupplierPaymentCreate
