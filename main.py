@@ -257,6 +257,20 @@ def _migrate_payment_columns():
                 )
             """)
 
+        # MasterGiftRedemption — ustaga berilgan sovg'alar tarixi (2026-08-28)
+        if 'master_gift_redemptions' not in inspector.get_table_names():
+            migrations.append("""
+                CREATE TABLE master_gift_redemptions (
+                    id SERIAL PRIMARY KEY,
+                    master_id INTEGER NOT NULL REFERENCES masters(id),
+                    gift_id INTEGER NOT NULL,
+                    gift_name VARCHAR(100) NOT NULL,
+                    kpi_value FLOAT NOT NULL,
+                    redeemed_at TIMESTAMP DEFAULT NOW(),
+                    redeemed_by VARCHAR(100)
+                )
+            """)
+
         # MonthlyExpense — soliqlar ustuni
         if 'monthly_expenses' in inspector.get_table_names():
             me_cols = [c['name'] for c in inspector.get_columns('monthly_expenses')]
@@ -3395,6 +3409,33 @@ def api_set_master_show_gifts(master_id: int, data: dict, db: Session = Depends(
     return {"success": True, "show_gifts": m.show_gifts}
 
 
+@app.get("/api/masters/{master_id}/gift-progress")
+def api_master_gift_progress(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """Ustaning "Sovg'alar uchun mavjud KPI"si + har bir sovg'a bo'yicha
+    holati (olingan/hozir yetadigan/hali yo'q) — admin panelida ko'rsatish
+    uchun."""
+    available = crud.get_master_gift_available_kpi(db, master_id)
+    redeemed_ids = crud.get_master_redeemed_gift_ids(db, master_id)
+    gifts = crud.get_master_gifts(db)
+    result = []
+    for g in gifts:
+        result.append({
+            "id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold),
+            "redeemed": g.id in redeemed_ids,
+            "eligible": (g.id not in redeemed_ids) and available >= float(g.kpi_threshold) - 0.01,
+        })
+    return {"available_kpi": available, "gifts": result, "history": crud.get_master_redemption_history(db, master_id)}
+
+
+@app.post("/api/masters/{master_id}/redeem-gift/{gift_id}")
+def api_redeem_master_gift(master_id: int, gift_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Sovg'ani ustaga QO'LGA BERILDI deb belgilaydi (faqat admin)."""
+    result = crud.redeem_master_gift(db, master_id, gift_id, performed_by=(current_user.full_name or current_user.username))
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+
 @app.get("/api/finished")
 def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
@@ -4157,28 +4198,38 @@ async def telegram_master_webhook(request: Request):
             if not master or not master.show_gifts:
                 reply = "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning."
             else:
-                kpi_total = crud.get_master_yearly_kpi_total(db, master.id)
-                gifts = crud.get_master_gifts(db)
-                if not gifts:
+                # MUHIM (2026-08-28, foydalanuvchi so'rovi): admin bir
+                # sovg'ani "qo'lga berildi" deb belgilasa, uning qiymati
+                # ustaning hisobidan AYIRILADI — shunda u keyingi sovg'aga
+                # qarab, YANGIDAN (0 dan) hisoblana boshlaydi. Shuning
+                # uchun bu yerda XOM (yalpi) yillik KPI emas, balki
+                # "sovg'alar uchun hali ishlatilmagan" KPI ishlatiladi.
+                available = crud.get_master_gift_available_kpi(db, master.id)
+                redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
+                all_gifts = crud.get_master_gifts(db)
+                if not all_gifts:
                     reply = "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.\n\nAdministrator tez orada qo'shadi!"
                 else:
-                    lines = []
+                    redeemed_lines = [f"🎉 {g.name} (olingan)" for g in all_gifts if g.id in redeemed_ids]
+                    remaining = [g for g in all_gifts if g.id not in redeemed_ids]
+
+                    lines = list(redeemed_lines)
                     next_gift = None
                     prev_threshold = 0.0
-                    for g in gifts:
-                        if kpi_total >= g.kpi_threshold:
+                    for g in remaining:
+                        if available >= g.kpi_threshold:
                             lines.append(f"✅ {g.name}")
                         elif next_gift is None:
                             next_gift = g
                             span = float(g.kpi_threshold) - prev_threshold
-                            progress = max(0.0, min(100.0, (kpi_total - prev_threshold) / span * 100)) if span > 0 else 0.0
+                            progress = max(0.0, min(100.0, (available - prev_threshold) / span * 100)) if span > 0 else 0.0
                             filled = int(round(progress / 10))
                             bar = "🟩" * filled + "⬜" * (10 - filled)
                             lines.append(f"🔄 {g.name}\n{bar} {progress:.0f}%")
                         else:
                             lines.append(f"⬜ {g.name}")
                         prev_threshold = float(g.kpi_threshold)
-                    if next_gift is None:
+                    if not remaining:
                         lines.append("\n🏆 Barcha sovg'alarga yetdingiz! Tabriklaymiz! 🎉")
                     reply = (
                         f"🎁 *Sovg'alar bosqichi*\n\n👤 {master.name}\n\n"
