@@ -141,11 +141,30 @@ class Master(Base):
     hire_date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
     region = Column(String(50), nullable=True)  # Faqat UI/tahlil uchun — hisob-kitobga ta'siri yo'q
+    # "🎁 Sovg'alar" bo'limi botda shu ustaga ko'rinsinmi (admin belgilaydi)
+    show_gifts = Column(Boolean, default=False)
 
     orders = relationship("Order", back_populates="master")
 
     def __repr__(self):
         return f"<Master {self.name} ({self.cashback_percent}%)>"
+
+
+class MasterGift(Base):
+    """Ustalar uchun "Sovg'alar" bosqichlari — botda, yillik yig'ilgan
+    KPI (foyda foizi) miqdoriga qarab, qaysi sovg'aga yetilgani va
+    keyingisiga necha % qolgani ko'rsatiladi. Aniq so'm miqdori ustaga
+    HECH QACHON ko'rsatilmaydi — faqat progress."""
+    __tablename__ = "master_gifts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    kpi_threshold = Column(Float, nullable=False)   # shu sovg'a uchun kerakli yillik KPI (so'm)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<MasterGift {self.name} ({self.kpi_threshold})>"
 
 
 # ============================================================
