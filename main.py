@@ -196,6 +196,20 @@ def _migrate_payment_columns():
             master_cols = [c['name'] for c in inspector.get_columns('masters')]
             if 'kpi_percent' not in master_cols:
                 migrations.append("ALTER TABLE masters ADD COLUMN kpi_percent FLOAT DEFAULT 0")
+            if 'show_gifts' not in master_cols:
+                migrations.append("ALTER TABLE masters ADD COLUMN show_gifts BOOLEAN DEFAULT FALSE")
+
+        # MasterGift — "Sovg'alar" bosqichlari (2026-08-26, foydalanuvchi so'rovi)
+        if 'master_gifts' not in inspector.get_table_names():
+            migrations.append("""
+                CREATE TABLE master_gifts (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL,
+                    kpi_threshold FLOAT NOT NULL,
+                    sort_order INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
 
         # MonthlyExpense — soliqlar ustuni
         if 'monthly_expenses' in inspector.get_table_names():
@@ -3209,6 +3223,50 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
     })
 
 
+# ── "🎁 Sovg'alar" (bot orqali Ustalarga ko'rsatiladi) ─────────────────
+@app.get("/api/master-gifts")
+def api_get_master_gifts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    gifts = crud.get_master_gifts(db)
+    return [{"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold)} for g in gifts]
+
+
+@app.post("/api/master-gifts")
+def api_create_master_gift(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    name = (data.get("name") or "").strip()
+    threshold = data.get("kpi_threshold")
+    if not name or threshold is None:
+        raise HTTPException(status_code=400, detail="Nomi va KPI miqdori shart")
+    g = crud.create_master_gift(db, name, threshold)
+    return {"success": True, "id": g.id}
+
+
+@app.put("/api/master-gifts/{gift_id}")
+def api_update_master_gift(gift_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    name = (data.get("name") or "").strip()
+    threshold = data.get("kpi_threshold")
+    if not name or threshold is None:
+        raise HTTPException(status_code=400, detail="Nomi va KPI miqdori shart")
+    g = crud.update_master_gift(db, gift_id, name, threshold)
+    if not g:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"success": True}
+
+
+@app.delete("/api/master-gifts/{gift_id}")
+def api_delete_master_gift(gift_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    if not crud.delete_master_gift(db, gift_id):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    return {"success": True}
+
+
+@app.post("/api/masters/{master_id}/show-gifts")
+def api_set_master_show_gifts(master_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    m = crud.set_master_show_gifts(db, master_id, bool(data.get("show")))
+    if not m:
+        raise HTTPException(status_code=404, detail="Usta topilmadi")
+    return {"success": True, "show_gifts": m.show_gifts}
+
+
 @app.get("/api/finished")
 def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
@@ -3873,6 +3931,26 @@ def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.admi
     return crud.get_debt_stats(db)
 
 
+def _build_master_keyboard(chat_id: str) -> dict:
+    """Ustaning bot klaviaturasini quradi — agar shu ustaga admin
+    "Sovg'alar" bo'limini yoqib qo'ygan bo'lsa (Master.show_gifts),
+    "🎁 Sovg'alar" tugmasi ham qo'shiladi, aks holda faqat odatiy
+    ikkita tugma ko'rsatiladi."""
+    buttons = [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]]
+    try:
+        db = SessionLocal()
+        try:
+            from models import Master
+            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            if master and master.show_gifts:
+                buttons.append([{"text": "🎁 Sovg'alar"}])
+        finally:
+            db.close()
+    except Exception:
+        pass
+    return {"keyboard": buttons, "resize_keyboard": True, "persistent": True}
+
+
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request):
     # Xavfsizlik: agar imzo o'rnatilgan bo'lsa (TELEGRAM_WEBHOOK_SECRET),
@@ -3896,7 +3974,7 @@ async def telegram_webhook(request: Request):
         return {"ok": True}
 
     if text == "/start":
-        keyboard = {"keyboard": [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]], "resize_keyboard": True, "persistent": True}
+        keyboard = _build_master_keyboard(chat_id)
         welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro* bot ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
         try:
             url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
@@ -3940,13 +4018,70 @@ async def telegram_webhook(request: Request):
         finally:
             db.close()
 
-        keyboard = {"keyboard": [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]], "resize_keyboard": True, "persistent": True}
+        keyboard = _build_master_keyboard(chat_id)
         try:
             url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
             send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
             req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=5)
         except Exception as e:
+            _send_telegram_to(chat_id, reply)
+
+    # "🎁 Sovg'alar" — faqat show_gifts=True bo'lgan Ustalarga (2026-08-26,
+    # foydalanuvchi so'rovi). Aniq so'm miqdori HECH QACHON ko'rsatilmaydi
+    # — faqat qaysi bosqichga yetilgani va keyingisigacha necha % qolgani.
+    if text in ["🎁 sovg'alar", "sovg'alar", "sovg'alarim"]:
+        db = SessionLocal()
+        try:
+            from models import Master, MasterGift
+            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            if not master or not master.show_gifts:
+                reply = "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning."
+            else:
+                kpi_total = crud.get_master_yearly_kpi_total(db, master.id)
+                gifts = crud.get_master_gifts(db)
+                if not gifts:
+                    reply = "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.\n\nAdministrator tez orada qo'shadi!"
+                else:
+                    lines = []
+                    next_gift = None
+                    prev_threshold = 0.0
+                    for g in gifts:
+                        if kpi_total >= g.kpi_threshold:
+                            lines.append(f"✅ {g.name}")
+                        elif next_gift is None:
+                            next_gift = g
+                            span = float(g.kpi_threshold) - prev_threshold
+                            progress = max(0.0, min(100.0, (kpi_total - prev_threshold) / span * 100)) if span > 0 else 0.0
+                            filled = int(round(progress / 10))
+                            bar = "🟩" * filled + "⬜" * (10 - filled)
+                            lines.append(f"🔄 {g.name}\n{bar} {progress:.0f}%")
+                        else:
+                            lines.append(f"⬜ {g.name}")
+                        prev_threshold = float(g.kpi_threshold)
+                    if next_gift is None:
+                        lines.append("\n🏆 Barcha sovg'alarga yetdingiz! Tabriklaymiz! 🎉")
+                    reply = (
+                        f"🎁 *Sovg'alar bosqichi*\n\n👤 {master.name}\n\n"
+                        + "\n\n".join(lines)
+                        + f"\n\n🏗 PenoDecorPro — Andijon"
+                    )
+        except Exception as e:
+            reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
+            try:
+                crud.log_error(db, str(e), endpoint="telegram_webhook:sovgalar")
+            except Exception:
+                pass
+        finally:
+            db.close()
+
+        keyboard = _build_master_keyboard(chat_id)
+        try:
+            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
+            send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
+            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=5)
+        except Exception:
             _send_telegram_to(chat_id, reply)
 
     return {"ok": True}
