@@ -3193,7 +3193,13 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     if not token:
         raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
 
-    webhook_url = str(request.base_url).rstrip("/") + "/telegram/webhook"
+    # MUHIM: Railway kabi xizmatlarda, so'rov serverga ICHKARIDA oddiy
+    # "http://" sifatida yetib kelishi mumkin — Telegram esa FAQAT https
+    # manzilni qabul qiladi. Shuning uchun sxemani "X-Forwarded-Proto"
+    # sarlavhasidan (haqiqiy, tashqi protokol) olamiz.
+    forwarded_proto = request.headers.get("x-forwarded-proto", "https")
+    host = request.base_url.hostname + (f":{request.base_url.port}" if request.base_url.port not in (None, 80, 443) else "")
+    webhook_url = f"{forwarded_proto}://{host}/telegram/webhook"
     new_secret = _secrets.token_urlsafe(32)
 
     try:
@@ -3239,7 +3245,17 @@ def api_telegram_setup_master_webhook(request: Request, current_user=Depends(aut
     if not token:
         raise HTTPException(status_code=400, detail="MASTER_BOT_TOKEN sozlanmagan — avval Railway'da shu muhit o'zgaruvchisini qo'shing")
 
-    webhook_url = str(request.base_url).rstrip("/") + "/telegram/master-webhook"
+    # MUHIM: Railway kabi xizmatlarda, so'rov serverga ICHKARIDA oddiy
+    # "http://" sifatida yetib keladi (tashqi HTTPS'ni Railway'ning o'zi
+    # "tarjima" qiladi) — shuning uchun request.base_url ba'zan noto'g'ri,
+    # "http://" deb ko'rsatib qo'yishi mumkin. Telegram esa FAQAT https
+    # manzilni qabul qiladi. Shuning uchun sxemani "X-Forwarded-Proto"
+    # sarlavhasidan (haqiqiy, tashqi protokol) olamiz, u bo'lmasa —
+    # xavfsiz tomondan, "https" deb hisoblaymiz (bu loyiha doim shunday
+    # joylashtiriladi).
+    forwarded_proto = request.headers.get("x-forwarded-proto", "https")
+    host = request.base_url.hostname + (f":{request.base_url.port}" if request.base_url.port not in (None, 80, 443) else "")
+    webhook_url = f"{forwarded_proto}://{host}/telegram/master-webhook"
     new_secret = _secrets.token_urlsafe(32)
 
     try:
