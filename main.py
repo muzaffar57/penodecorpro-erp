@@ -3249,7 +3249,22 @@ def api_telegram_setup_master_webhook(request: Request, current_user=Depends(aut
         with _ur.urlopen(req, timeout=10) as r:
             tg_response = _json_mod.loads(r.read())
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {e}")
+        # MUHIM: HTTPError'ning javob TANASINI (Telegram'ning ANIQ sabab
+        # yozgan JSON javobini) o'qiymiz — aks holda foydalanuvchiga faqat
+        # umumiy "HTTP Error 400: Bad Request" ko'rinardi, aniq sababi
+        # (masalan noto'g'ri token) ko'rinmasdi.
+        detail = str(e)
+        try:
+            if hasattr(e, 'read'):
+                body = e.read().decode('utf-8', errors='ignore')
+                try:
+                    body_json = _json_mod.loads(body)
+                    detail = body_json.get('description') or body
+                except Exception:
+                    detail = body or detail
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {detail}")
 
     if not tg_response.get("ok"):
         raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {tg_response.get('description')}")
