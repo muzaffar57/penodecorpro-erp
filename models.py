@@ -167,6 +167,25 @@ class MasterGift(Base):
         return f"<MasterGift {self.name} ({self.kpi_threshold})>"
 
 
+class MasterGiftRedemption(Base):
+    """Ustaga QO'LGA BERILGAN sovg'alar tarixi. Bitta sovg'a "berildi" deb
+    belgilanganda, uning qiymati ustaning yig'ilgan KPI hisobidan AYIRILADI
+    — shunda u keyingi sovg'aga qarab, YANGIDAN hisoblana boshlaydi
+    (2026-08-28, foydalanuvchi so'rovi bo'yicha)."""
+    __tablename__ = "master_gift_redemptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    master_id = Column(Integer, ForeignKey("masters.id"), nullable=False, index=True)
+    gift_id = Column(Integer, ForeignKey("master_gifts.id"), nullable=False)
+    gift_name = Column(String(100), nullable=False)   # nusxa — sovg'a keyin o'chirilsa ham tarix saqlansin
+    kpi_value = Column(Float, nullable=False)          # nusxa — sovg'a narxi keyin o'zgarsa ham tarix saqlansin
+    redeemed_at = Column(DateTime, default=datetime.utcnow)
+    redeemed_by = Column(String(100), nullable=True)   # qaysi admin belgilagani
+
+    def __repr__(self):
+        return f"<MasterGiftRedemption master={self.master_id} gift={self.gift_name}>"
+
+
 # ============================================================
 # 3. INVENTORY
 # ============================================================
