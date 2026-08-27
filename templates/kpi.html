@@ -172,6 +172,24 @@
 
 
     <div class="card" style="grid-column:1/-1">
+      <div class="card-head">
+        <h3>🎁 Sovg'alar bosqichlari</h3>
+      </div>
+      <div class="card-body" style="padding-top:0">
+        <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:9px 11px;margin-bottom:12px;font-size:13px;color:#92400E;line-height:1.6">
+          💡 Bu yerda belgilagan bosqichlar — botda, faqat 🎁 belgisi yoqilgan Ustalarga (yuqoridagi ro'yxatda) ko'rinadi. Usta aniq so'm miqdorini ko'rmaydi, faqat qaysi bosqichga yetganini va keyingisigacha necha % qolganini ko'radi.
+        </div>
+        <div id="giftsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="gift-name-input" placeholder="Sovg'a nomi (masalan: Termos)" style="flex:1;min-width:160px;padding:8px 10px;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px">
+          <input type="number" id="gift-kpi-input" placeholder="Kerakli KPI (so'm)" min="0" style="width:170px;padding:8px 10px;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px">
+          <button class="btn btn-dark btn-sm" onclick="addMasterGift()">+ Qo'shish</button>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="card" style="grid-column:1/-1">
       <div class="card-head" style="align-items:flex-start">
         <div>
           <h3>💵 Oylik hisob-kitob — kim qancha oladi</h3>
@@ -512,6 +530,9 @@ function renderMasterKpiList() {
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0" data-id="${m.id}" data-name="${(m.name||'').replace(/"/g,'&quot;')}">
         <button class="mini-btn" onclick="openMasterDetail(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Har buyurtma bo'yicha KPI"><i class="ti ti-list-details" style="font-size:13px"></i></button>
+        <button class="mini-btn" style="${m.show_gifts ? 'background:#FEF3C7;border-color:#FDE68A' : ''}"
+                onclick="toggleMasterGifts(${m.id}, ${!m.show_gifts})"
+                title="${m.show_gifts ? 'Sovgalar bolimi YOQILGAN — botda koradi' : 'Sovgalar bolimi OCHIQ — botda kormaydi'}">🎁</button>
         <button class="mini-btn" onclick="editMaster(${m.id})">✏️</button>
         <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deactivateMaster(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Nofaollashtirish">🚫</button>
       </div>
@@ -605,6 +626,26 @@ async function saveMasterKpi(id) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
   } finally {
     inFlightMasterKpi.delete(id);
+  }
+}
+
+// "🎁 Sovg'alar" bo'limini botda shu ustaga ko'rsatish/yashirish
+let inFlightMasterGiftsToggle = new Set();
+async function toggleMasterGifts(id, show) {
+  if (inFlightMasterGiftsToggle.has(id)) return;
+  inFlightMasterGiftsToggle.add(id);
+  try {
+    const res = await fetch(`/api/masters/${id}/show-gifts`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({show})
+    });
+    if (res.ok) loadMasterKpi();
+    else alert("❌ Saqlashda xato yuz berdi.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q.");
+  } finally {
+    inFlightMasterGiftsToggle.delete(id);
   }
 }
 
@@ -1251,6 +1292,72 @@ async function loadEhsonPercent() {
   } catch(e) {}
 }
 
+// ── "🎁 Sovg'alar" bosqichlari ──────────────────────────────
+let editingGiftId = null;
+async function loadMasterGifts() {
+  const box = document.getElementById('giftsList');
+  if (!box) return;
+  try {
+    const gifts = await fetch('/api/master-gifts').then(r => r.json());
+    if (!gifts.length) {
+      box.innerHTML = '<div style="font-size:13px;color:var(--text3);padding:6px 0">Hali sovg\'a qo\'shilmagan.</div>';
+      return;
+    }
+    box.innerHTML = gifts.map((g, i) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#FAFAF9;border-radius:8px">
+        <span style="font-size:12px;color:#aaa;width:16px">${i+1}</span>
+        <span style="flex:1;font-size:14px;font-weight:600">🎁 ${g.name}</span>
+        <span style="font-size:13px;color:#166534;font-weight:600">${fmt(g.kpi_threshold)} so'm</span>
+        <button class="mini-btn" style="width:28px;height:28px" onclick="editMasterGift(${g.id}, '${g.name.replace(/'/g,"&apos;")}', ${g.kpi_threshold})">✏️</button>
+        <button class="mini-btn" style="width:28px;height:28px;color:#DC2626;border-color:#FADBD8" onclick="deleteMasterGift(${g.id})">🗑️</button>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+function editMasterGift(id, name, threshold) {
+  editingGiftId = id;
+  document.getElementById('gift-name-input').value = name;
+  document.getElementById('gift-kpi-input').value = threshold;
+}
+
+let isSavingMasterGift = false;
+async function addMasterGift() {
+  if (isSavingMasterGift) return; // Ikki marta bosishdan himoya
+  const name = document.getElementById('gift-name-input').value.trim();
+  const threshold = parseFloat(document.getElementById('gift-kpi-input').value);
+  if (!name || !threshold || threshold <= 0) { alert("Nomi va musbat KPI miqdorini kiriting!"); return; }
+  isSavingMasterGift = true;
+  try {
+    const url = editingGiftId ? `/api/master-gifts/${editingGiftId}` : '/api/master-gifts';
+    const method = editingGiftId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method, headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, kpi_threshold: threshold})
+    });
+    if (res.ok) {
+      editingGiftId = null;
+      document.getElementById('gift-name-input').value = '';
+      document.getElementById('gift-kpi-input').value = '';
+      loadMasterGifts();
+    } else alert("❌ Saqlashda xato yuz berdi.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q.");
+  } finally {
+    isSavingMasterGift = false;
+  }
+}
+
+async function deleteMasterGift(id) {
+  if (!confirm("Bu sovg'ani o'chirasizmi?")) return;
+  try {
+    const res = await fetch(`/api/master-gifts/${id}`, {method: 'DELETE'});
+    if (res.ok) loadMasterGifts();
+    else alert("❌ O'chirishda xato yuz berdi.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q.");
+  }
+}
+
 let isSavingEhsonPercent = false;
 async function saveEhsonPercent() {
   if (isSavingEhsonPercent) return; // Ikki marta bosishdan himoya
@@ -1276,6 +1383,7 @@ async function saveEhsonPercent() {
 document.getElementById('kpi-year').value = new Date().getFullYear();
 loadEhsonPercent();
 loadMasterKpi();
+loadMasterGifts();
 loadAllMastersFull();
 loadEmployees().then(() => loadCurrentMonthEmpStatus());
 initEmpReportSelectors();
