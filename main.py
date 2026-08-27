@@ -31,6 +31,14 @@ TELEGRAM_COATING_ID = "8461987934"
 # (eski xatti-harakat saqlanadi — hech narsa buzilmaydi).
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 
+# MUHIM (2026-08-27): Ustalar uchun (KPI, Sovg'alar) — ALOHIDA, YANGI bot
+# tokeni. ESKI token (TELEGRAM_BOT_TOKEN) — faqat mijozlarga va ichki
+# kompaniya guruhiga xabar yuborish uchun, o'zgarishsiz qoladi (chunki u
+# — boshqa, alohida serverdagi katalog-botga ulangan webhook orqali
+# ishlaydi). Bu — sof YANGI, alohida bot, hech narsani buzmaydi.
+MASTER_BOT_TOKEN = os.environ.get("MASTER_BOT_TOKEN", "")
+MASTER_WEBHOOK_SECRET = os.environ.get("MASTER_WEBHOOK_SECRET", "")
+
 def fmt_money(n) -> str:
     """1234567.5 -> '1 234 568'"""
     try:
@@ -100,6 +108,44 @@ def _send_telegram_to(chat_id: str, text: str):
                 _log_db.close()
         except Exception:
             pass
+
+
+def _send_master_bot(chat_id: str, text: str, keyboard: dict = None):
+    """Ustalar botiga (MASTER_BOT_TOKEN — mijozlar/ichki guruh botidan
+    ALOHIDA, yangi token) xabar yuboradi. Klaviatura ham shu funksiya
+    orqali, bitta so'rovda birga jo'natiladi."""
+    if not MASTER_BOT_TOKEN:
+        print("⚠ MASTER_BOT_TOKEN yo'q")
+        return
+    try:
+        url = f"https://api.telegram.org/bot{MASTER_BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+        if keyboard:
+            payload["reply_markup"] = keyboard
+        data = _json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=5)
+        print(f"✓ Usta botiga xabar yuborildi: {chat_id}")
+    except Exception as e:
+        detail = str(e)
+        try:
+            if hasattr(e, 'read'):
+                detail = e.read().decode('utf-8', errors='ignore') or detail
+        except Exception:
+            pass
+        print(f"⚠ Usta botiga xabar yuborilmadi: {detail}")
+        try:
+            _log_db = SessionLocal()
+            try:
+                crud.log_error(
+                    _log_db, f"Usta botiga xabar yuborilmadi: {detail}",
+                    endpoint="_send_master_bot", method=f"chat_id={chat_id}"
+                )
+            finally:
+                _log_db.close()
+        except Exception:
+            pass
+
 
 def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, caption: str = ""):
     """Telegram orqali fayl (masalan zaxira nusxa) yuboradi."""
@@ -1053,7 +1099,12 @@ def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db
             f"🏗 *PenoDecorPro* — Zamonaviy fasad dekorlari\n"
             f"📍 Andijon, O'zbekiston"
         )
-        _send_telegram_to(str(tg_id).strip(), msg)
+        # MUHIM (2026-08-27): bu — Ustaga (mijozga emas) yuboriladigan xabar,
+        # shuning uchun ENDI yangi, Ustalar botining o'z tokeni orqali
+        # yuboriladi (avval eski, mijozlar/ichki guruh tokenidan borardi —
+        # bu esa, boshqa serverdagi botga ulangani uchun, hech qachon
+        # ko'rinmasdi).
+        _send_master_bot(str(tg_id).strip(), msg)
     return new_master
 
 
@@ -3169,6 +3220,52 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     }
 
 
+@app.post("/api/system/telegram-setup-master-webhook")
+def api_telegram_setup_master_webhook(request: Request, current_user=Depends(auth.admin_only)):
+    """BIR MARTALIK sozlash: USTALAR botining (MASTER_BOT_TOKEN — mijozlar/
+    ichki guruh botidan ALOHIDA) webhookini Telegram tomonida ro'yxatdan
+    o'tkazadi. Buni faqat BIR MARTA, MASTER_BOT_TOKEN Railway'da to'g'ri
+    sozlangandan keyin bosish kerak.
+
+    Yangi, tasodifiy imzo o'zi yaratiladi va qaytariladi — buni albatta
+    Railway'dagi MASTER_WEBHOOK_SECRET muhit o'zgaruvchisiga qo'shib,
+    saqlab qo'yish kerak (aks holda, server qayta ishga tushganda,
+    tizim eski imzoni "unutadi" va tekshiruv o'chib qoladi)."""
+    import urllib.request as _ur
+    import json as _json_mod
+    import secrets as _secrets
+
+    token = MASTER_BOT_TOKEN
+    if not token:
+        raise HTTPException(status_code=400, detail="MASTER_BOT_TOKEN sozlanmagan — avval Railway'da shu muhit o'zgaruvchisini qo'shing")
+
+    webhook_url = str(request.base_url).rstrip("/") + "/telegram/master-webhook"
+    new_secret = _secrets.token_urlsafe(32)
+
+    try:
+        set_url = f"https://api.telegram.org/bot{token}/setWebhook"
+        payload = _json_mod.dumps({"url": webhook_url, "secret_token": new_secret}).encode()
+        req = _ur.Request(set_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with _ur.urlopen(req, timeout=10) as r:
+            tg_response = _json_mod.loads(r.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {e}")
+
+    if not tg_response.get("ok"):
+        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {tg_response.get('description')}")
+
+    return {
+        "status": "ok",
+        "webhook_url": webhook_url,
+        "new_secret": new_secret,
+        "message": (
+            "✅ Ustalar boti webhooki ro'yxatdan o'tkazildi. "
+            "MUHIM: yuqoridagi 'new_secret' qiymatini nusxalab, Railway'dagi "
+            "MASTER_WEBHOOK_SECRET muhit o'zgaruvchisiga joylashtiring va saqlang."
+        )
+    }
+
+
 @app.post("/api/system/backup/send-now")
 def api_backup_send_now(current_user=Depends(auth.admin_only)):
     """Kunlik avtomatik backup vazifasini HOZIROQ, qo'lda ishga tushiradi
@@ -3949,6 +4046,126 @@ def _build_master_keyboard(chat_id: str) -> dict:
     except Exception:
         pass
     return {"keyboard": buttons, "resize_keyboard": True, "persistent": True}
+
+
+# ============================================================
+# USTALAR BOTI — ALOHIDA, YANGI TOKEN (2026-08-27)
+# ============================================================
+# MUHIM: bu — eski, mijozlarga/ichki guruhga xabar yuboradigan botdan
+# (pastdagi /telegram/webhook) BUTUNLAY MUSTAQIL. Sabab: o'sha eski
+# token, aslida, boshqa, alohida serverdagi (katalog/buyurtma) botga
+# ulangan webhook orqali ishlar ekan — shuning uchun bu yerga (asosiy
+# dasturga) kiruvchi xabarlar umuman yetib kelmasdi. Ustalar (KPI,
+# Sovg'alar) uchun endi BUTUNLAY BOSHQA, yangi bot tokeni ishlatiladi —
+# eski botga (mijozlar, kompaniya guruhi) hech qanday tegilmagan.
+@app.post("/telegram/master-webhook")
+async def telegram_master_webhook(request: Request):
+    if MASTER_WEBHOOK_SECRET:
+        incoming_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if incoming_secret != MASTER_WEBHOOK_SECRET:
+            raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
+
+    try:
+        data = await request.json()
+    except Exception:
+        return {"ok": True}
+    message = data.get("message", {})
+    if not message:
+        return {"ok": True}
+    chat_id = str(message.get("chat", {}).get("id", ""))
+    text = (message.get("text") or "").strip().lower()
+    if not chat_id:
+        return {"ok": True}
+
+    if text == "/start":
+        keyboard = _build_master_keyboard(chat_id)
+        welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro — Ustalar boti* ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
+        _send_master_bot(chat_id, welcome_msg, keyboard)
+        return {"ok": True}
+
+    if text in ["/id", "🪪 mening id raqamim", "mening id raqamim"]:
+        reply = f"🪪 *Sizning Telegram ID raqamingiz:*\n\n`{chat_id}`\n\nShu raqamni nusxalab administratorga yuboring — ustalar ro'yxatiga qo'shilasiz va bonuslaringizni kuzatib borishingiz mumkin bo'ladi! 👷"
+        _send_master_bot(chat_id, reply)
+        return {"ok": True}
+
+    if text in ["/bonus", "💰 bonuslarim", "bonuslarim", "/balans"]:
+        db = SessionLocal()
+        try:
+            from models import Master, Order, OrderStatus
+            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            if not master:
+                reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
+            else:
+                orders = db.query(Order).filter(Order.master_id == master.id, Order.status == OrderStatus.READY).order_by(Order.completed_at.desc()).all()
+                jami_bonus = 0.0
+                buyurtmalar_text = ""
+                for o in orders[:10]:
+                    sotuv = float(o.total_amount or 0)
+                    bonus = sotuv * float(master.cashback_percent) / 100
+                    jami_bonus += bonus
+                    buyurtmalar_text += f"• {o.order_number} — {int(sotuv):,} so'm → *{int(bonus):,} so'm* ✅\n"
+                faol = db.query(Order).filter(Order.master_id == master.id, Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
+                reply = f"📊 *Sizning bonuslaringiz*\n\n👤 {master.name}\n🎯 Bonus foizi: *{master.cashback_percent}%*\n\n━━━━━━━━━━━━━━━━━━━\n"
+                if buyurtmalar_text:
+                    reply += f"📋 *Oxirgi buyurtmalar:*\n{buyurtmalar_text}\n"
+                if faol > 0:
+                    reply += f"⏳ Jarayondagi buyurtmalar: *{faol} ta*\n\n"
+                reply += f"━━━━━━━━━━━━━━━━━━━\n💰 *Jami bonus: {int(jami_bonus):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
+        except Exception:
+            reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
+        finally:
+            db.close()
+        _send_master_bot(chat_id, reply, _build_master_keyboard(chat_id))
+        return {"ok": True}
+
+    if text in ["🎁 sovg'alar", "sovg'alar", "sovg'alarim"]:
+        db = SessionLocal()
+        try:
+            from models import Master, MasterGift
+            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            if not master or not master.show_gifts:
+                reply = "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning."
+            else:
+                kpi_total = crud.get_master_yearly_kpi_total(db, master.id)
+                gifts = crud.get_master_gifts(db)
+                if not gifts:
+                    reply = "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.\n\nAdministrator tez orada qo'shadi!"
+                else:
+                    lines = []
+                    next_gift = None
+                    prev_threshold = 0.0
+                    for g in gifts:
+                        if kpi_total >= g.kpi_threshold:
+                            lines.append(f"✅ {g.name}")
+                        elif next_gift is None:
+                            next_gift = g
+                            span = float(g.kpi_threshold) - prev_threshold
+                            progress = max(0.0, min(100.0, (kpi_total - prev_threshold) / span * 100)) if span > 0 else 0.0
+                            filled = int(round(progress / 10))
+                            bar = "🟩" * filled + "⬜" * (10 - filled)
+                            lines.append(f"🔄 {g.name}\n{bar} {progress:.0f}%")
+                        else:
+                            lines.append(f"⬜ {g.name}")
+                        prev_threshold = float(g.kpi_threshold)
+                    if next_gift is None:
+                        lines.append("\n🏆 Barcha sovg'alarga yetdingiz! Tabriklaymiz! 🎉")
+                    reply = (
+                        f"🎁 *Sovg'alar bosqichi*\n\n👤 {master.name}\n\n"
+                        + "\n\n".join(lines)
+                        + f"\n\n🏗 PenoDecorPro — Andijon"
+                    )
+        except Exception as e:
+            reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
+            try:
+                crud.log_error(db, str(e), endpoint="telegram_master_webhook:sovgalar")
+            except Exception:
+                pass
+        finally:
+            db.close()
+        _send_master_bot(chat_id, reply, _build_master_keyboard(chat_id))
+        return {"ok": True}
+
+    return {"ok": True}
 
 
 @app.post("/telegram/webhook")
