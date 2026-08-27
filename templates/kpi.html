@@ -260,6 +260,7 @@
     <div style="padding:0 22px;overflow-y:auto;flex:1" id="md-list">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
     </div>
+    <div style="padding:14px 22px 20px;border-top:1px solid var(--border2)" id="md-gifts-section"></div>
   </div>
 </div>
 
@@ -586,25 +587,76 @@ async function openMasterDetail(id, name) {
     const rows = await res.json();
     if (!rows.length) {
       list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Shu yil buyurtma yo\'q</div>';
-      return;
+    } else {
+      const totalKpi = rows.reduce((s,r)=>s+r.kpi_amount, 0);
+      list.innerHTML = rows.map(r => {
+        const dt = r.completed_at ? new Date(r.completed_at).toLocaleDateString('uz') : '—';
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${r.order_number || ('#'+r.order_id)}</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">${dt} · Savdo: ${fmt(r.total_amount)} · Foyda: ${fmt(r.profit)}</div>
+          </div>
+          <div style="font-size:14px;font-weight:700;color:#22C55E;white-space:nowrap">+${fmt(r.kpi_amount)}</div>
+        </div>`;
+      }).join('') + `
+        <div style="display:flex;justify-content:space-between;padding:12px 0;font-weight:700;font-size:14px">
+          <span>Jami:</span><span style="color:#22C55E">${fmt(totalKpi)} so'm</span>
+        </div>`;
     }
-    const totalKpi = rows.reduce((s,r)=>s+r.kpi_amount, 0);
-    list.innerHTML = rows.map(r => {
-      const dt = r.completed_at ? new Date(r.completed_at).toLocaleDateString('uz') : '—';
-      return `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${r.order_number || ('#'+r.order_id)}</div>
-          <div style="font-size:13px;color:var(--text3);margin-top:2px">${dt} · Savdo: ${fmt(r.total_amount)} · Foyda: ${fmt(r.profit)}</div>
-        </div>
-        <div style="font-size:14px;font-weight:700;color:#22C55E;white-space:nowrap">+${fmt(r.kpi_amount)}</div>
-      </div>`;
-    }).join('') + `
-      <div style="display:flex;justify-content:space-between;padding:12px 0;font-weight:700;font-size:14px">
-        <span>Jami:</span><span style="color:#22C55E">${fmt(totalKpi)} so'm</span>
-      </div>`;
   } catch(e) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
+  }
+  loadMasterGiftProgress(id);
+}
+
+async function loadMasterGiftProgress(id) {
+  const box = document.getElementById('md-gifts-section');
+  box.innerHTML = '<div style="text-align:center;padding:10px;color:var(--text3);font-size:12px">Sovg\'alar yuklanmoqda...</div>';
+  try {
+    const data = await fetch(`/api/masters/${id}/gift-progress`).then(r => r.json());
+    if (!data.gifts.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">🎁 Sovg'alar (sovg'alar uchun mavjud KPI: <span style="color:#166534">${fmt(data.available_kpi)} so'm</span>)</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${data.gifts.map(g => {
+          if (g.redeemed) {
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;background:#F0FDF4;border-radius:7px;font-size:12.5px">
+              <span>🎉 ${g.name} <span style="color:var(--text3)">(olingan)</span></span>
+              <span style="color:#166534;font-weight:600">${fmt(g.kpi_threshold)} so'm</span>
+            </div>`;
+          }
+          if (g.eligible) {
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;background:#FFFBEB;border-radius:7px;font-size:12.5px">
+              <span>✅ ${g.name} <span style="color:var(--text3)">(${fmt(g.kpi_threshold)} so'm)</span></span>
+              <button class="btn btn-dark btn-sm" style="padding:4px 10px;font-size:11.5px" onclick="redeemMasterGift(${id}, ${g.id}, '${g.name.replace(/'/g,"&apos;")}')">Berildi ✓</button>
+            </div>`;
+          }
+          return `<div style="padding:7px 9px;font-size:12.5px;color:var(--text3)">⬜ ${g.name} (${fmt(g.kpi_threshold)} so'm)</div>`;
+        }).join('')}
+      </div>`;
+  } catch(e) {
+    box.innerHTML = '';
+  }
+}
+
+let isRedeemingGift = false;
+async function redeemMasterGift(masterId, giftId, giftName) {
+  if (isRedeemingGift) return; // Ikki marta bosishdan himoya
+  if (!confirm(`"${giftName}" sovg'asini ustaga QO'LGA BERGANINGIZNI tasdiqlaysizmi?\n\nBu amaldan keyin, uning hisobi shu sovg'a qiymatiga kamayadi.`)) return;
+  isRedeemingGift = true;
+  try {
+    const res = await fetch(`/api/masters/${masterId}/redeem-gift/${giftId}`, { method: 'POST' });
+    if (res.ok) {
+      loadMasterGiftProgress(masterId);
+    } else {
+      const e = await res.json();
+      alert('❌ ' + (e.detail || 'Xato yuz berdi'));
+    }
+  } catch(e) {
+    alert('❌ Server bilan aloqa yo\'q');
+  } finally {
+    isRedeemingGift = false;
   }
 }
 function closeMasterDetail(){ document.getElementById('masterDetailModal').style.display = 'none'; }
