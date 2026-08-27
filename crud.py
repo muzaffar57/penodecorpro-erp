@@ -6004,6 +6004,11 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             "is_active": m.is_active,
             "kpi_percent": m.kpi_percent or 0,
             "show_gifts": bool(m.show_gifts),
+            # MUHIM (2026-08-27): avval bu yerda telegram_id umuman
+            # qaytarilmasdi — shuning uchun Usta tahrirlash oynasi buni
+            # HAR DOIM bo'sh ko'rsatardi (saqlagan bo'lsangiz ham), chunki
+            # tahrirlash oynasi aynan shu ro'yxatdan ma'lumot oladi.
+            "telegram_id": m.telegram_id or "",
             "yearly_sales": round(yearly_sales),
             "yearly_profit": round(yearly_profit),
             "orders_count": len(orders),
@@ -6075,6 +6080,64 @@ def set_master_show_gifts(db: Session, master_id: int, show: bool) -> Optional[M
     db.commit()
     db.refresh(m)
     return m
+
+
+def get_master_redeemed_gift_ids(db: Session, master_id: int) -> set:
+    """Ustaga QO'LGA ALLAQACHON berilgan sovg'alarning ID to'plamini qaytaradi."""
+    from models import MasterGiftRedemption
+    rows = db.query(MasterGiftRedemption.gift_id).filter(MasterGiftRedemption.master_id == master_id).all()
+    return {r[0] for r in rows}
+
+
+def get_master_gift_available_kpi(db: Session, master_id: int, year: int = None) -> float:
+    """Ustaning sovg'alar uchun HALI ISHLATILMAGAN KPI miqdorini qaytaradi —
+    yillik jami KPI'dan, allaqachon BERILGAN sovg'alarning qiymati AYIRIB
+    tashlanadi. MUHIM: bu — faqat "Sovg'alar" progressi uchun; yillik
+    haqiqiy KPI/foyda hisobotiga (Ustalar KPI sahifasi) HECH QANDAY
+    ta'sir qilmaydi — u yerda hamon to'liq, haqiqiy summa ko'rsatiladi."""
+    from models import MasterGiftRedemption
+    total = get_master_yearly_kpi_total(db, master_id, year)
+    redeemed_sum = db.query(MasterGiftRedemption).filter(
+        MasterGiftRedemption.master_id == master_id
+    ).with_entities(MasterGiftRedemption.kpi_value).all()
+    return max(0.0, total - sum(float(r[0]) for r in redeemed_sum))
+
+
+def redeem_master_gift(db: Session, master_id: int, gift_id: int, performed_by: str = None) -> dict:
+    """Sovg'ani ustaga "qo'lga berildi" deb belgilaydi — shu bilan, uning
+    qiymati ustaning "sovg'alar uchun mavjud KPI"sidan doimiy ayiriladi."""
+    from models import MasterGift, MasterGiftRedemption
+    master = db.query(Master).filter(Master.id == master_id).first()
+    if not master:
+        return {"success": False, "message": "Usta topilmadi"}
+    gift = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
+    if not gift:
+        return {"success": False, "message": "Sovg'a topilmadi"}
+
+    # Ehtiyot chorasi: usta hali shu sovg'aga YETMAGAN bo'lsa, berib
+    # qo'yilmasin (tasodifiy xato bosishdan himoya)
+    available = get_master_gift_available_kpi(db, master_id)
+    if available < float(gift.kpi_threshold) - 0.01:
+        return {"success": False, "message": f"Usta hali bu sovg'aga yetmagan (kerak: {gift.kpi_threshold:,.0f}, mavjud: {available:,.0f})"}
+
+    r = MasterGiftRedemption(
+        master_id=master_id, gift_id=gift_id, gift_name=gift.name,
+        kpi_value=float(gift.kpi_threshold), redeemed_by=performed_by
+    )
+    db.add(r)
+    db.commit()
+    return {"success": True}
+
+
+def get_master_redemption_history(db: Session, master_id: int) -> list:
+    """Ustaga berilgan barcha sovg'alar tarixini qaytaradi."""
+    from models import MasterGiftRedemption
+    rows = db.query(MasterGiftRedemption).filter(
+        MasterGiftRedemption.master_id == master_id
+    ).order_by(MasterGiftRedemption.redeemed_at.desc()).all()
+    return [{"id": r.id, "gift_name": r.gift_name, "kpi_value": float(r.kpi_value),
+              "redeemed_at": r.redeemed_at.isoformat() if r.redeemed_at else None,
+              "redeemed_by": r.redeemed_by} for r in rows]
 
 
 
