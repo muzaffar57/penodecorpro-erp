@@ -19,6 +19,7 @@ class MasterCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=100, description="Usta ismi")
     phone: str = Field(..., min_length=7, max_length=20, description="Telefon raqami")
     cashback_percent: float = Field(default=0.0, ge=0, le=100, description="KPI foizi (0-100)")
+    kpi_percent: Optional[float] = Field(default=0.0, ge=0, le=100, description="Yillik KPI foizi (yil oxiri sovg'a — sof foydadan)")
     telegram_id: Optional[str] = None
     region: Optional[str] = None
     notes: Optional[str] = None
