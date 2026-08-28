@@ -103,10 +103,13 @@ def generate_nakladnoy(order, db=None) -> bytes:
     import os
     from reportlab.platypus import Image as RLImage
 
-    logo_path = os.path.join(os.path.dirname(__file__), "static", "logo_wide.jpg")
+    logo_path = os.path.join(os.path.dirname(__file__), "static", "logo_transparent.png")
 
     if os.path.exists(logo_path):
-        logo_img = RLImage(logo_path, width=50*mm, height=18*mm)
+        # MUHIM (2026-08-29): endi haqiqiy shaffof fonli PNG ishlatiladi
+        # (nisbati 1.779) — shu nisbatga mos o'lcham berilmasa, logotip
+        # cho'zilib/torayib, buzilib ko'rinardi.
+        logo_img = RLImage(logo_path, width=32*mm, height=18*mm)
         logo_img.hAlign = 'LEFT'
         header_left = [
             logo_img,
@@ -352,11 +355,18 @@ def generate_nakladnoy(order, db=None) -> bytes:
 
     # ── IZOH ──────────────────────────────────────────────────
     if order.notes:
-        # loy_kg va planned_loy kabi ICHKI (tizim uchun) belgilarni
-        # izohdan chiqarib tashlaymiz — mijozga ko'rinadigan hujjatda
-        # bunday texnik yozuvlar bo'lishi kerak emas.
+        # loy_kg, planned_loy va [WRITEOFF:...] kabi ICHKI (tizim uchun)
+        # belgilarni izohdan chiqarib tashlaymiz — mijozga ko'rinadigan
+        # hujjatda bunday texnik yozuvlar bo'lishi kerak emas.
+        # MUHIM: "[WRITEOFF:...]" ni ALOHIDA, regex bilan tozalaymiz (faqat
+        # o'sha bitta belgini olib tashlaydi, atrofidagi haqiqiy mijoz
+        # matniga tegmaydi) — chunki u har doim ham "loy_kg=" bilan bitta
+        # vergul-segmentida bo'lavermaydi (masalan Loysiz buyurtmada
+        # yolg'iz o'zi qolishi mumkin edi).
+        import re as _re_pdf_notes
+        _notes_no_writeoff = _re_pdf_notes.sub(r'\s*\[WRITEOFF:[\d.]+\]', '', order.notes or '')
         notes_clean = ', '.join([
-            p for p in (order.notes or '').split(',')
+            p for p in _notes_no_writeoff.split(',')
             if 'loy_kg=' not in p and 'planned_loy=' not in p
         ]).strip(', ')
         if notes_clean:
