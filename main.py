@@ -4304,26 +4304,46 @@ async def telegram_master_webhook(request: Request):
                 prev_threshold = float(g.kpi_threshold)
 
             # ── Chiroyli, tartibli matn ──────────────────────────────
+            # MUHIM (2026-08-28, foydalanuvchi so'rovi): agar usta bir
+            # nechta sovg'aga BIRDANIGA "tayyor" bo'lib qolsa (masalan
+            # arzonlarini olmasdan, to'g'ridan-to'g'ri qimmatiga
+            # intilgan bo'lsa), ularning HAMMASINI bir xil "✅" bilan
+            # ko'rsatish USTANI chalg'itib, "hammasini olishim kerak
+            # ekan" degan noto'g'ri tushuncha berishi mumkin edi. Endi
+            # faqat ENG YUQORI (oxirgi) tayyor sovg'a aniq, alohida
+            # ajratiladi — pastdagilar esa "allaqachon ortda qoldi"
+            # deb, kamroq da'vogar tarzda ko'rsatiladi, va aniq eslatma
+            # qo'shiladi.
+            top_eligible = eligible[-1] if eligible else None
+            passed = eligible[:-1] if len(eligible) > 1 else []
+
             parts = [f"🎁 *SOVG'ALAR BOSQICHI*", f"👤 {master.name}", "━━━━━━━━━━━━━━━━━━━"]
             for g in redeemed:
                 parts.append(f"🎉 {g.name} — qo'lga kiritildi!")
-            for g in eligible:
-                parts.append(f"✅ *{g.name}* — sovg'ani kutmoqda!")
+            for g in passed:
+                parts.append(f"✓ {g.name} — allaqachon ortda qoldi")
+            if top_eligible:
+                parts.append(f"\n🏆 *SIZGA TEGISHLI: {top_eligible.name}*\nBu — hozircha eng yaxshi tanlovingiz!")
             if next_gift:
                 filled = int(round(progress / 10))
                 bar = "🟩" * filled + "⬜" * (10 - filled)
-                parts.append(f"\n🎯 *HOZIRGI MAQSAD: {next_gift.name}*\n{bar}  *{progress:.0f}%*\n📈 Yana {100-progress:.0f}% qoldi")
+                parts.append(f"\n🎯 *KEYINGI MAQSAD: {next_gift.name}*\n{bar}  *{progress:.0f}%*\n📈 Yana {100-progress:.0f}% qoldi")
             for g in locked:
                 parts.append(f"⬜ {g.name} — keyingi bosqich")
             if not remaining:
                 parts.append("\n🏆 *Barcha sovg'alarga yetdingiz! Tabriklaymiz!* 🎉")
+            if len(eligible) > 0 and (next_gift or locked):
+                parts.append("\n⚠️ _Eslatma: faqat BITTA sovg'ani tanlashingiz mumkin. Arzonrog'ini olsangiz, undan yuqorisiga yetish uchun hisobingiz shu sovg'a qiymatiga kamayadi va qaytadan yig'ishga to'g'ri keladi._")
             parts.append("━━━━━━━━━━━━━━━━━━━\n🏗 PenoDecorPro — Andijon")
             reply = "\n".join(parts)
 
             keyboard = _build_master_keyboard(chat_id)
             # Agar "hozirgi maqsad" sovg'aning surati bo'lsa — surat +
             # matn (caption) birga yuboriladi; bo'lmasa, oddiy matn.
-            photo_gift = next_gift or (eligible[0] if eligible else None)
+            # MUHIM: eligible bo'lsa, ENG YUQORI (top_eligible) surati
+            # ko'rsatiladi — bu, endi yuqoridagi matndagi "SIZGA
+            # TEGISHLI" bilan mos keladi.
+            photo_gift = next_gift or top_eligible
             if photo_gift and photo_gift.image_url:
                 base = str(request.base_url).rstrip("/")
                 proto = request.headers.get("x-forwarded-proto", "https")
