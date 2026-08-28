@@ -1358,12 +1358,40 @@ async function loadMasterGifts() {
     box.innerHTML = gifts.map((g, i) => `
       <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#FAFAF9;border-radius:8px">
         <span style="font-size:12px;color:#aaa;width:16px">${i+1}</span>
-        <span style="flex:1;font-size:14px;font-weight:600">🎁 ${g.name}</span>
+        ${g.image_url
+          ? `<img src="${g.image_url}" style="width:32px;height:32px;border-radius:7px;object-fit:cover;flex-shrink:0">`
+          : `<span style="width:32px;height:32px;border-radius:7px;background:#F0EBE0;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">🎁</span>`}
+        <span style="flex:1;font-size:14px;font-weight:600">${g.name}</span>
         <span style="font-size:13px;color:#166534;font-weight:600">${fmt(g.kpi_threshold)} so'm</span>
+        <label class="mini-btn" style="width:28px;height:28px;cursor:pointer" title="Surat yuklash">
+          📷<input type="file" accept="image/*" style="display:none" onchange="uploadMasterGiftImage(${g.id}, this)">
+        </label>
         <button class="mini-btn" style="width:28px;height:28px" onclick="editMasterGift(${g.id}, '${g.name.replace(/'/g,"&apos;")}', ${g.kpi_threshold})">✏️</button>
         <button class="mini-btn" style="width:28px;height:28px;color:#DC2626;border-color:#FADBD8" onclick="deleteMasterGift(${g.id})">🗑️</button>
       </div>`).join('');
   } catch(e) {}
+}
+
+let inFlightGiftImageUpload = new Set();
+async function uploadMasterGiftImage(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (inFlightGiftImageUpload.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightGiftImageUpload.add(id);
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`/api/master-gifts/${id}/image`, { method: 'POST', body: fd });
+    if (res.ok) loadMasterGifts();
+    else {
+      const err = await res.json().catch(()=>({}));
+      alert('❌ Rasm yuklanmadi: ' + (err.detail || 'Server xatosi'));
+    }
+  } catch(e) {
+    alert('❌ Server bilan aloqa yo\'q');
+  } finally {
+    inFlightGiftImageUpload.delete(id);
+  }
 }
 
 function editMasterGift(id, name, threshold) {
