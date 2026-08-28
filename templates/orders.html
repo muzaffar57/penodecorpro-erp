@@ -829,7 +829,8 @@
     <div style="padding:18px 22px">
       <div class="form-group" style="margin-bottom:12px"><label>Ismi *</label><input type="text" id="qam-name" placeholder="Usta ismi"></div>
       <div class="form-group" style="margin-bottom:12px"><label>Telefon *</label><input type="text" id="qam-phone" placeholder="+998901234567"></div>
-      <div class="form-group" style="margin-bottom:4px"><label>Hudud</label><input type="text" id="qam-region" placeholder="Andijon"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Hudud</label><input type="text" id="qam-region" placeholder="Andijon"></div>
+      <div class="form-group" style="margin-bottom:4px"><label>Telegram ID <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label><input type="text" id="qam-telegram" placeholder="123456789"></div>
       <div id="qam-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:13px;color:#DC2626"></div>
     </div>
     <div style="padding:14px 22px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
@@ -2060,6 +2061,7 @@ function openQuickAddMaster() {
   document.getElementById('qam-name').value = '';
   document.getElementById('qam-phone').value = '';
   document.getElementById('qam-region').value = '';
+  document.getElementById('qam-telegram').value = '';
   document.getElementById('qam-error').style.display = 'none';
   document.getElementById('quickAddMasterModal').style.display = 'flex';
 }
@@ -2073,6 +2075,7 @@ async function saveQuickAddMaster() {
   const name = document.getElementById('qam-name').value.trim();
   const phone = document.getElementById('qam-phone').value.trim();
   const region = document.getElementById('qam-region').value.trim();
+  const telegram_id = document.getElementById('qam-telegram').value.trim();
   const err = document.getElementById('qam-error');
 
   if (!name) { err.style.display = 'block'; err.textContent = '❌ Ismni kiriting'; return; }
@@ -2088,7 +2091,7 @@ async function saveQuickAddMaster() {
     const res = await fetch('/api/masters', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, phone, region: region || null})
+      body: JSON.stringify({name, phone, region: region || null, telegram_id: telegram_id || null})
     });
     if (res.ok) {
       const newMaster = await res.json();
