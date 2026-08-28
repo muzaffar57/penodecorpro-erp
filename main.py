@@ -4317,19 +4317,25 @@ async def telegram_master_webhook(request: Request):
             top_eligible = eligible[-1] if eligible else None
             passed = eligible[:-1] if len(eligible) > 1 else []
 
-            parts = [f"🎁 *SOVG'ALAR BOSQICHI*", f"👤 {master.name}", "━━━━━━━━━━━━━━━━━━━"]
+            # Har bir sovg'aning umumiy ketma-ketlikdagi (1, 2, 3...)
+            # o'rnini aniqlaymiz — shunda usta "men qaysi bosqichdaman,
+            # yana nechtasi qolgan" degan to'liq rasmni ko'radi.
+            gift_position = {g.id: i + 1 for i, g in enumerate(all_gifts)}
+            total_gifts = len(all_gifts)
+
+            parts = [f"🎁 *SOVG'ALAR BOSQICHI*", f"👤 {master.name}", f"📊 Jami {total_gifts} ta bosqich", "━━━━━━━━━━━━━━━━━━━"]
             for g in redeemed:
-                parts.append(f"🎉 {g.name} — qo'lga kiritildi!")
+                parts.append(f"🎉 {gift_position[g.id]}-bosqich: {g.name} — qo'lga kiritildi!")
             for g in passed:
-                parts.append(f"✓ {g.name} — allaqachon ortda qoldi")
+                parts.append(f"✓ {gift_position[g.id]}-bosqich: {g.name} — allaqachon ortda qoldi")
             if top_eligible:
-                parts.append(f"\n🏆 *SIZGA TEGISHLI: {top_eligible.name}*\nBu — hozircha eng yaxshi tanlovingiz!")
+                parts.append(f"\n🏆 *{gift_position[top_eligible.id]}-bosqich: {top_eligible.name}*\nSIZGA TEGISHLI — bu, hozircha eng yaxshi tanlovingiz!")
             if next_gift:
                 filled = int(round(progress / 10))
                 bar = "🟩" * filled + "⬜" * (10 - filled)
-                parts.append(f"\n🎯 *KEYINGI MAQSAD: {next_gift.name}*\n{bar}  *{progress:.0f}%*\n📈 Yana {100-progress:.0f}% qoldi")
+                parts.append(f"\n🎯 *{gift_position[next_gift.id]}-bosqich: {next_gift.name}*\n{bar}  *{progress:.0f}%*\n📈 Yana {100-progress:.0f}% qoldi")
             for g in locked:
-                parts.append(f"⬜ {g.name} — keyingi bosqich")
+                parts.append(f"⬜ {gift_position[g.id]}-bosqich: {g.name}")
             if not remaining:
                 parts.append("\n🏆 *Barcha sovg'alarga yetdingiz! Tabriklaymiz!* 🎉")
             if len(eligible) > 0 and (next_gift or locked):
