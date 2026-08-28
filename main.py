@@ -3274,6 +3274,39 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     }
 
 
+@app.post("/api/system/telegram-delete-webhook")
+def api_telegram_delete_webhook(current_user=Depends(auth.admin_only)):
+    """FAVQULODDA TUZATISH (2026-08-28): agar TELEGRAM_BOT_TOKEN, aslida,
+    "polling" (o'zi so'rab turadigan) rejimida ishlaydigan, BOSHQA, alohida
+    serverdagi botga tegishli bo'lsa — "webhook yoqish" tugmasi shu botni
+    NOTO'G'RI, "webhook" rejimiga majburlab qo'yishi mumkin (Telegram
+    qoidasi: bitta bot bir vaqtda FAQAT bittasini — webhook YOKI polling
+    — ishlata oladi). Bu funksiya webhookni BUTUNLAY o'chirib, botni
+    o'zining asl "polling" rejimiga qaytaradi."""
+    import urllib.request as _ur
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
+
+    try:
+        del_url = f"https://api.telegram.org/bot{token}/deleteWebhook?drop_pending_updates=false"
+        req = _ur.Request(del_url, method="POST")
+        with _ur.urlopen(req, timeout=10) as r:
+            import json as _json_mod
+            tg_response = _json_mod.loads(r.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {e}")
+
+    if not tg_response.get("ok"):
+        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {tg_response.get('description')}")
+
+    return {
+        "status": "ok",
+        "message": "✅ Webhook o'chirildi. Bot endi o'zining asl \"polling\" rejimiga qaytishi kerak (agar u shu rejimda ishlagan bo'lsa)."
+    }
+
+
 @app.post("/api/system/telegram-setup-master-webhook")
 def api_telegram_setup_master_webhook(request: Request, current_user=Depends(auth.admin_only)):
     """BIR MARTALIK sozlash: USTALAR botining (MASTER_BOT_TOKEN — mijozlar/
