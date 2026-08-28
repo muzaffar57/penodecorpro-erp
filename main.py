@@ -147,6 +147,35 @@ def _send_master_bot(chat_id: str, text: str, keyboard: dict = None):
             pass
 
 
+def _send_master_bot_photo(chat_id: str, photo_url: str, caption: str, keyboard: dict = None):
+    """Ustalar botiga SURAT bilan xabar yuboradi (masalan, sovg'a rasmi
+    + progress matni "caption" sifatida). Agar surat yuborishda xato
+    chiqsa (masalan, rasm hali yuklanmagan bo'lsa), oddiy matnli
+    xabarga qaytadi — foydalanuvchi HECH QACHON javobsiz qolmaydi."""
+    if not MASTER_BOT_TOKEN:
+        print("⚠ MASTER_BOT_TOKEN yo'q")
+        return
+    try:
+        url = f"https://api.telegram.org/bot{MASTER_BOT_TOKEN}/sendPhoto"
+        payload = {"chat_id": chat_id, "photo": photo_url, "caption": caption, "parse_mode": "Markdown"}
+        if keyboard:
+            payload["reply_markup"] = keyboard
+        data = _json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=8)
+        print(f"✓ Usta botiga surat yuborildi: {chat_id}")
+    except Exception as e:
+        detail = str(e)
+        try:
+            if hasattr(e, 'read'):
+                detail = e.read().decode('utf-8', errors='ignore') or detail
+        except Exception:
+            pass
+        print(f"⚠ Usta botiga surat yuborilmadi, matnga qaytildi: {detail}")
+        # Zaxira: surat yuborilmasa, hech bo'lmasa matnning o'zi boradi
+        _send_master_bot(chat_id, caption, keyboard)
+
+
 def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, caption: str = ""):
     """Telegram orqali fayl (masalan zaxira nusxa) yuboradi."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -253,9 +282,14 @@ def _migrate_payment_columns():
                     name VARCHAR(100) NOT NULL,
                     kpi_threshold FLOAT NOT NULL,
                     sort_order INTEGER DEFAULT 0,
+                    image_url VARCHAR(255),
                     created_at TIMESTAMP DEFAULT NOW()
                 )
             """)
+        else:
+            mg_cols = [c['name'] for c in inspector.get_columns('master_gifts')]
+            if 'image_url' not in mg_cols:
+                migrations.append("ALTER TABLE master_gifts ADD COLUMN image_url VARCHAR(255)")
 
         # MasterGiftRedemption — ustaga berilgan sovg'alar tarixi (2026-08-28)
         if 'master_gift_redemptions' not in inspector.get_table_names():
@@ -3369,7 +3403,7 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
 @app.get("/api/master-gifts")
 def api_get_master_gifts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     gifts = crud.get_master_gifts(db)
-    return [{"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold)} for g in gifts]
+    return [{"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold), "image_url": g.image_url} for g in gifts]
 
 
 @app.post("/api/master-gifts")
@@ -3380,6 +3414,21 @@ def api_create_master_gift(data: dict, db: Session = Depends(get_db), current_us
         raise HTTPException(status_code=400, detail="Nomi va KPI miqdori shart")
     g = crud.create_master_gift(db, name, threshold)
     return {"success": True, "id": g.id}
+
+
+@app.post("/api/master-gifts/{gift_id}/image")
+def api_upload_master_gift_image(gift_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                                  current_user=Depends(auth.admin_only)):
+    """Sovg'aning suratini yuklaydi — botda "🎁 Sovg'alar" xabarida shu
+    surat ko'rsatiladi (2026-08-28, foydalanuvchi so'rovi)."""
+    from models import MasterGift
+    gift = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
+    if not gift:
+        raise HTTPException(status_code=404, detail="Sovg'a topilmadi")
+    url = _save_upload(file, "master_gifts", ALLOWED_IMAGE_EXT)
+    gift.image_url = url
+    db.commit()
+    return {"image_url": url}
 
 
 @app.put("/api/master-gifts/{gift_id}")
@@ -3421,6 +3470,7 @@ def api_master_gift_progress(master_id: int, db: Session = Depends(get_db), curr
     for g in gifts:
         result.append({
             "id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold),
+            "image_url": g.image_url,
             "redeemed": g.id in redeemed_ids,
             "eligible": (g.id not in redeemed_ids) and available >= float(g.kpi_threshold) - 0.01,
         })
@@ -4216,45 +4266,73 @@ async def telegram_master_webhook(request: Request):
             master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
             if not master or not master.show_gifts:
                 reply = "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning."
-            else:
-                # MUHIM (2026-08-28, foydalanuvchi so'rovi): admin bir
-                # sovg'ani "qo'lga berildi" deb belgilasa, uning qiymati
-                # ustaning hisobidan AYIRILADI — shunda u keyingi sovg'aga
-                # qarab, YANGIDAN (0 dan) hisoblana boshlaydi. Shuning
-                # uchun bu yerda XOM (yalpi) yillik KPI emas, balki
-                # "sovg'alar uchun hali ishlatilmagan" KPI ishlatiladi.
-                available = crud.get_master_gift_available_kpi(db, master.id)
-                redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
-                all_gifts = crud.get_master_gifts(db)
-                if not all_gifts:
-                    reply = "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.\n\nAdministrator tez orada qo'shadi!"
-                else:
-                    redeemed_lines = [f"🎉 {g.name} (olingan)" for g in all_gifts if g.id in redeemed_ids]
-                    remaining = [g for g in all_gifts if g.id not in redeemed_ids]
+                _send_master_bot(chat_id, reply, _build_master_keyboard(chat_id))
+                return {"ok": True}
 
-                    lines = list(redeemed_lines)
-                    next_gift = None
-                    prev_threshold = 0.0
-                    for g in remaining:
-                        if available >= g.kpi_threshold:
-                            lines.append(f"✅ {g.name}")
-                        elif next_gift is None:
-                            next_gift = g
-                            span = float(g.kpi_threshold) - prev_threshold
-                            progress = max(0.0, min(100.0, (available - prev_threshold) / span * 100)) if span > 0 else 0.0
-                            filled = int(round(progress / 10))
-                            bar = "🟩" * filled + "⬜" * (10 - filled)
-                            lines.append(f"🔄 {g.name}\n{bar} {progress:.0f}%")
-                        else:
-                            lines.append(f"⬜ {g.name}")
-                        prev_threshold = float(g.kpi_threshold)
-                    if not remaining:
-                        lines.append("\n🏆 Barcha sovg'alarga yetdingiz! Tabriklaymiz! 🎉")
-                    reply = (
-                        f"🎁 *Sovg'alar bosqichi*\n\n👤 {master.name}\n\n"
-                        + "\n\n".join(lines)
-                        + f"\n\n🏗 PenoDecorPro — Andijon"
-                    )
+            # MUHIM (2026-08-28, foydalanuvchi so'rovi): admin bir
+            # sovg'ani "qo'lga berildi" deb belgilasa, uning qiymati
+            # ustaning hisobidan AYIRILADI — shunda u keyingi sovg'aga
+            # qarab, YANGIDAN (0 dan) hisoblana boshlaydi. Shuning
+            # uchun bu yerda XOM (yalpi) yillik KPI emas, balki
+            # "sovg'alar uchun hali ishlatilmagan" KPI ishlatiladi.
+            available = crud.get_master_gift_available_kpi(db, master.id)
+            redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
+            all_gifts = crud.get_master_gifts(db)
+            if not all_gifts:
+                reply = "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.\n\nAdministrator tez orada qo'shadi!"
+                _send_master_bot(chat_id, reply, _build_master_keyboard(chat_id))
+                return {"ok": True}
+
+            redeemed = [g for g in all_gifts if g.id in redeemed_ids]
+            remaining = [g for g in all_gifts if g.id not in redeemed_ids]
+
+            # "Hozirgi maqsad" (🔄) va undan keyingilarni (⬜) aniqlaymiz
+            next_gift = None
+            eligible = []
+            locked = []
+            prev_threshold = 0.0
+            progress = 0.0
+            for g in remaining:
+                if available >= g.kpi_threshold:
+                    eligible.append(g)
+                elif next_gift is None:
+                    next_gift = g
+                    span = float(g.kpi_threshold) - prev_threshold
+                    progress = max(0.0, min(100.0, (available - prev_threshold) / span * 100)) if span > 0 else 0.0
+                else:
+                    locked.append(g)
+                prev_threshold = float(g.kpi_threshold)
+
+            # ── Chiroyli, tartibli matn ──────────────────────────────
+            parts = [f"🎁 *SOVG'ALAR BOSQICHI*", f"👤 {master.name}", "━━━━━━━━━━━━━━━━━━━"]
+            for g in redeemed:
+                parts.append(f"🎉 {g.name} — qo'lga kiritildi!")
+            for g in eligible:
+                parts.append(f"✅ *{g.name}* — sovg'ani kutmoqda!")
+            if next_gift:
+                filled = int(round(progress / 10))
+                bar = "🟩" * filled + "⬜" * (10 - filled)
+                parts.append(f"\n🎯 *HOZIRGI MAQSAD: {next_gift.name}*\n{bar}  *{progress:.0f}%*\n📈 Yana {100-progress:.0f}% qoldi")
+            for g in locked:
+                parts.append(f"⬜ {g.name} — keyingi bosqich")
+            if not remaining:
+                parts.append("\n🏆 *Barcha sovg'alarga yetdingiz! Tabriklaymiz!* 🎉")
+            parts.append("━━━━━━━━━━━━━━━━━━━\n🏗 PenoDecorPro — Andijon")
+            reply = "\n".join(parts)
+
+            keyboard = _build_master_keyboard(chat_id)
+            # Agar "hozirgi maqsad" sovg'aning surati bo'lsa — surat +
+            # matn (caption) birga yuboriladi; bo'lmasa, oddiy matn.
+            photo_gift = next_gift or (eligible[0] if eligible else None)
+            if photo_gift and photo_gift.image_url:
+                base = str(request.base_url).rstrip("/")
+                proto = request.headers.get("x-forwarded-proto", "https")
+                host = request.base_url.hostname
+                full_photo_url = f"{proto}://{host}{photo_gift.image_url}"
+                _send_master_bot_photo(chat_id, full_photo_url, reply, keyboard)
+            else:
+                _send_master_bot(chat_id, reply, keyboard)
+            return {"ok": True}
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
             try:
