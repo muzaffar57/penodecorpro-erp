@@ -4172,9 +4172,12 @@ def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.admi
 def _build_master_keyboard(chat_id: str) -> dict:
     """Ustaning bot klaviaturasini quradi — agar shu ustaga admin
     "Sovg'alar" bo'limini yoqib qo'ygan bo'lsa (Master.show_gifts),
-    "🎁 Sovg'alar" tugmasi ham qo'shiladi, aks holda faqat odatiy
-    ikkita tugma ko'rsatiladi."""
-    buttons = [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]]
+    "🎁 Sovg'alar" tugmalari ham qo'shiladi.
+    MUHIM (2026-08-28, foydalanuvchi so'rovi): "💰 Bonuslarim" tugmasi
+    OLIB TASHLANDI — u har bir buyurtmaning TO'LIQ savdo summasini
+    ko'rsatib yuborar edi, bu esa "usta hech qachon aniq so'm
+    ko'rmaydi" tamoyiliga zid edi."""
+    buttons = [[{"text": "🪪 Mening ID raqamim"}]]
     try:
         db = SessionLocal()
         try:
@@ -4362,36 +4365,6 @@ async def telegram_master_webhook(request: Request):
     if text in ["/id", "🪪 mening id raqamim", "mening id raqamim"]:
         reply = f"🪪 *Sizning Telegram ID raqamingiz:*\n\n`{chat_id}`\n\nShu raqamni nusxalab administratorga yuboring — ustalar ro'yxatiga qo'shilasiz va bonuslaringizni kuzatib borishingiz mumkin bo'ladi! 👷"
         _send_master_bot(chat_id, reply)
-        return {"ok": True}
-
-    if text in ["/bonus", "💰 bonuslarim", "bonuslarim", "/balans"]:
-        db = SessionLocal()
-        try:
-            from models import Master, Order, OrderStatus
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
-            if not master:
-                reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
-            else:
-                orders = db.query(Order).filter(Order.master_id == master.id, Order.status == OrderStatus.READY).order_by(Order.completed_at.desc()).all()
-                jami_bonus = 0.0
-                buyurtmalar_text = ""
-                for o in orders[:10]:
-                    sotuv = float(o.total_amount or 0)
-                    bonus = sotuv * float(master.cashback_percent) / 100
-                    jami_bonus += bonus
-                    buyurtmalar_text += f"• {o.order_number} — {int(sotuv):,} so'm → *{int(bonus):,} so'm* ✅\n"
-                faol = db.query(Order).filter(Order.master_id == master.id, Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
-                reply = f"📊 *Sizning bonuslaringiz*\n\n👤 {master.name}\n🎯 Bonus foizi: *{master.cashback_percent}%*\n\n━━━━━━━━━━━━━━━━━━━\n"
-                if buyurtmalar_text:
-                    reply += f"📋 *Oxirgi buyurtmalar:*\n{buyurtmalar_text}\n"
-                if faol > 0:
-                    reply += f"⏳ Jarayondagi buyurtmalar: *{faol} ta*\n\n"
-                reply += f"━━━━━━━━━━━━━━━━━━━\n💰 *Jami bonus: {int(jami_bonus):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
-        except Exception:
-            reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
-        finally:
-            db.close()
-        _send_master_bot(chat_id, reply, _build_master_keyboard(chat_id))
         return {"ok": True}
 
     if text in ["🎁 sovg'alar", "sovg'alar", "sovg'alarim"]:
