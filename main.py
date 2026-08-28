@@ -3809,6 +3809,25 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
                     + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                 )
                 _send_telegram_to(_tg_id, client_dlv_msg)
+                # MUHIM (2026-08-28, foydalanuvchi so'rovi): avval bu
+                # yerda faqat MATN borardi — endi, "Buyurtma tayyor"
+                # xabarida bo'lgani kabi, shu Yuk xatining O'Z rasmiy PDF
+                # hujjati ham (Nakladnoy) alohida fayl sifatida biriktirib
+                # yuboriladi — har bir qisman topshirishda ham, mijozda
+                # rasmiy hujjat qolishi uchun.
+                try:
+                    import delivery_pdf as _dlv_pdf
+                    _dlv_pdf_bytes = _dlv_pdf.generate_delivery_pdf(d, db)
+                    _send_telegram_document(
+                        _tg_id, _dlv_pdf_bytes,
+                        f"nakladnoy_{d.delivery_number.replace('/', '-')}.pdf",
+                        caption=f"🧾 {d.delivery_number} — Yuk xati hujjati"
+                    )
+                except Exception as _dlv_pdf_err:
+                    try:
+                        crud.log_error(db, f"Mijozga Yuk xati PDF yuborilmadi: {_dlv_pdf_err}", endpoint="api_create_delivery:pdf")
+                    except Exception:
+                        pass
 
     return result
 
