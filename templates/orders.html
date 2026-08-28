@@ -345,10 +345,13 @@
             </div>
             <div class="form-group" style="margin-bottom:12px">
               <label>Usta</label>
-              <select id="master_id">
-                <option value="">— Yo'q —</option>
-                {% for m in masters %}<option value="{{ m.id }}">{{ m.name }}{{ ' — ' + m.phone if m.phone else '' }}</option>{% endfor %}
-              </select>
+              <div style="display:flex;gap:6px">
+                <select id="master_id" style="flex:1">
+                  <option value="">— Yo'q —</option>
+                  {% for m in masters %}<option value="{{ m.id }}">{{ m.name }}{{ ' — ' + m.phone if m.phone else '' }}</option>{% endfor %}
+                </select>
+                <button type="button" class="btn btn-outline" style="flex-shrink:0;padding:0 12px" onclick="openQuickAddMaster()" title="Yangi usta qo'shish">+ Yangi</button>
+              </div>
             </div>
             <div class="form-group" style="margin-bottom:12px">
               <label>Topshirish sanasi</label>
@@ -807,6 +810,31 @@
         <button class="btn btn-outline" style="flex:1" onclick="closeSummaryModal()">Bekor</button>
         <button class="btn btn-dark" style="flex:2" onclick="openSummaryPdf()">📄 Hisob-kitob PDF olish</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TEZKOR "YANGI USTA" MODALI (Manager uchun, 2026-08-28) ══
+     MUHIM: bu — Manager rollari uchun MO'LJALLANGAN, atayin SODDA
+     modal — faqat Ismi/Telefon/Hudud so'raydi. Boshqa ustalarning
+     foizi, savdosi, sovg'alari — bu yerda HECH QANDAY ko'rinmaydi,
+     chunki Manager to'liq "Ustalar KPI" sahifasiga (u yerda bularning
+     barchasi bor) kira olmaydi. -->
+<div id="quickAddMasterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:420px;max-width:100%">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600;color:var(--text)">+ Yangi usta</div>
+      <button onclick="closeQuickAddMaster()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:18px 22px">
+      <div class="form-group" style="margin-bottom:12px"><label>Ismi *</label><input type="text" id="qam-name" placeholder="Usta ismi"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>Telefon *</label><input type="text" id="qam-phone" placeholder="+998901234567"></div>
+      <div class="form-group" style="margin-bottom:4px"><label>Hudud</label><input type="text" id="qam-region" placeholder="Andijon"></div>
+      <div id="qam-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:13px;color:#DC2626"></div>
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeQuickAddMaster()">Bekor</button>
+      <button class="btn btn-dark" style="flex:1" id="qam-save-btn" onclick="saveQuickAddMaster()">Saqlash</button>
     </div>
   </div>
 </div>
@@ -2026,6 +2054,64 @@ function openSummaryPdf() {
   if (!ids.length) return;
   window.open(`/api/orders/${selectedOrderId}/summary-pdf?ids=${ids.join(',')}`, '_blank');
   closeSummaryModal();
+}
+
+function openQuickAddMaster() {
+  document.getElementById('qam-name').value = '';
+  document.getElementById('qam-phone').value = '';
+  document.getElementById('qam-region').value = '';
+  document.getElementById('qam-error').style.display = 'none';
+  document.getElementById('quickAddMasterModal').style.display = 'flex';
+}
+
+function closeQuickAddMaster() {
+  document.getElementById('quickAddMasterModal').style.display = 'none';
+}
+
+let isSavingQuickAddMaster = false;
+async function saveQuickAddMaster() {
+  const name = document.getElementById('qam-name').value.trim();
+  const phone = document.getElementById('qam-phone').value.trim();
+  const region = document.getElementById('qam-region').value.trim();
+  const err = document.getElementById('qam-error');
+
+  if (!name) { err.style.display = 'block'; err.textContent = '❌ Ismni kiriting'; return; }
+  if (!phone) { err.style.display = 'block'; err.textContent = '❌ Telefon raqamini kiriting'; return; }
+  err.style.display = 'none';
+
+  if (isSavingQuickAddMaster) return; // Ikki marta bosishdan himoya
+  isSavingQuickAddMaster = true;
+  const btn = document.getElementById('qam-save-btn');
+  btn.disabled = true; btn.textContent = 'Saqlanmoqda...';
+
+  try {
+    const res = await fetch('/api/masters', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, phone, region: region || null})
+    });
+    if (res.ok) {
+      const newMaster = await res.json();
+      // Yangi ustani ro'yxatga qo'shib, darhol tanlaymiz
+      const sel = document.getElementById('master_id');
+      const opt = document.createElement('option');
+      opt.value = newMaster.id;
+      opt.textContent = newMaster.name + (newMaster.phone ? ' — ' + newMaster.phone : '');
+      sel.appendChild(opt);
+      sel.value = newMaster.id;
+      closeQuickAddMaster();
+    } else {
+      const e = await res.json();
+      err.style.display = 'block';
+      err.textContent = '❌ ' + (e.detail || 'Xato yuz berdi');
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server bilan aloqa yo\'q';
+  } finally {
+    isSavingQuickAddMaster = false;
+    btn.disabled = false; btn.textContent = 'Saqlash';
+  }
 }
 
 function openDeliveryModal() {
