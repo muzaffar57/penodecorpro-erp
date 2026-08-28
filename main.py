@@ -4181,7 +4181,7 @@ def _build_master_keyboard(chat_id: str) -> dict:
             from models import Master
             master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
             if master and master.show_gifts:
-                buttons.append([{"text": "🎁 Sovg'alar"}])
+                buttons.append([{"text": "🎁 Sovg'alar"}, {"text": "📋 Barcha sovg'alar"}])
         finally:
             db.close()
     except Exception:
@@ -4199,6 +4199,135 @@ def _build_master_keyboard(chat_id: str) -> dict:
 # dasturga) kiruvchi xabarlar umuman yetib kelmasdi. Ustalar (KPI,
 # Sovg'alar) uchun endi BUTUNLAY BOSHQA, yangi bot tokeni ishlatiladi —
 # eski botga (mijozlar, kompaniya guruhi) hech qanday tegilmagan.
+def _send_gift_progress(chat_id: str, request: Request, silent_if_disabled: bool = False):
+    """Ustaning sovg'alar progressini hisoblab, botga yuboradi. Ham
+    "/start"da (agar show_gifts yoqilgan bo'lsa, avtomatik), ham "🎁
+    Sovg'alar" tugmasi bosilganda ishlatiladi (2026-08-28, foydalanuvchi
+    so'rovi — bot ochilishi bilan progress avtomatik ko'rinishi kerak).
+    silent_if_disabled=True bo'lsa, bo'lim yopiq holatda hech narsa
+    yubormaydi (masalan /start'da — hamma ustaga xato ko'rsatilmasin)."""
+    db = SessionLocal()
+    try:
+        from models import Master, MasterGift
+        master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+        if not master or not master.show_gifts:
+            if not silent_if_disabled:
+                _send_master_bot(chat_id, "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning.", _build_master_keyboard(chat_id))
+            return
+
+        available = crud.get_master_gift_available_kpi(db, master.id)
+        redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
+        all_gifts = crud.get_master_gifts(db)
+        if not all_gifts:
+            if not silent_if_disabled:
+                _send_master_bot(chat_id, "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.\n\nAdministrator tez orada qo'shadi!", _build_master_keyboard(chat_id))
+            return
+
+        redeemed = [g for g in all_gifts if g.id in redeemed_ids]
+        remaining = [g for g in all_gifts if g.id not in redeemed_ids]
+
+        next_gift = None
+        eligible = []
+        locked = []
+        prev_threshold = 0.0
+        progress = 0.0
+        for g in remaining:
+            if available >= g.kpi_threshold:
+                eligible.append(g)
+            elif next_gift is None:
+                next_gift = g
+                span = float(g.kpi_threshold) - prev_threshold
+                progress = max(0.0, min(100.0, (available - prev_threshold) / span * 100)) if span > 0 else 0.0
+            else:
+                locked.append(g)
+            prev_threshold = float(g.kpi_threshold)
+
+        top_eligible = eligible[-1] if eligible else None
+        passed = eligible[:-1] if len(eligible) > 1 else []
+        gift_position = {g.id: i + 1 for i, g in enumerate(all_gifts)}
+        total_gifts = len(all_gifts)
+
+        parts = [f"🎁 *SOVG'ALAR BOSQICHI*", f"👤 {master.name}", f"📊 Jami {total_gifts} ta bosqich", "━━━━━━━━━━━━━━━━━━━"]
+        for g in redeemed:
+            parts.append(f"🎉 {gift_position[g.id]}-bosqich: {g.name} — qo'lga kiritildi!")
+        for g in passed:
+            parts.append(f"✓ {gift_position[g.id]}-bosqich: {g.name} — allaqachon ortda qoldi")
+        if top_eligible:
+            parts.append(f"\n🏆 *{gift_position[top_eligible.id]}-bosqich: {top_eligible.name}*\nSIZGA TEGISHLI — bu, hozircha eng yaxshi tanlovingiz!")
+        if next_gift:
+            filled = int(round(progress / 10))
+            bar = "🟩" * filled + "⬜" * (10 - filled)
+            parts.append(f"\n🎯 *{gift_position[next_gift.id]}-bosqich: {next_gift.name}*\n{bar}  *{progress:.0f}%*\n📈 Yana {100-progress:.0f}% qoldi")
+        for g in locked:
+            parts.append(f"⬜ {gift_position[g.id]}-bosqich: {g.name}")
+        if not remaining:
+            parts.append("\n🏆 *Barcha sovg'alarga yetdingiz! Tabriklaymiz!* 🎉")
+        if len(eligible) > 0 and (next_gift or locked):
+            parts.append("\n⚠️ _Eslatma: faqat BITTA sovg'ani tanlashingiz mumkin. Arzonrog'ini olsangiz, undan yuqorisiga yetish uchun hisobingiz shu sovg'a qiymatiga kamayadi va qaytadan yig'ishga to'g'ri keladi._")
+        parts.append("━━━━━━━━━━━━━━━━━━━\n🏗 PenoDecorPro — Andijon")
+        reply = "\n".join(parts)
+
+        keyboard = _build_master_keyboard(chat_id)
+        photo_gift = next_gift or top_eligible
+        if photo_gift and photo_gift.image_url:
+            proto = request.headers.get("x-forwarded-proto", "https")
+            host = request.base_url.hostname
+            full_photo_url = f"{proto}://{host}{photo_gift.image_url}"
+            _send_master_bot_photo(chat_id, full_photo_url, reply, keyboard)
+        else:
+            _send_master_bot(chat_id, reply, keyboard)
+    except Exception as e:
+        try:
+            crud.log_error(db, str(e), endpoint="_send_gift_progress")
+        except Exception:
+            pass
+        if not silent_if_disabled:
+            _send_master_bot(chat_id, "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring.", _build_master_keyboard(chat_id))
+    finally:
+        db.close()
+
+
+def _send_gift_catalog(chat_id: str, request: Request):
+    """Barcha belgilangan sovg'alarni, HAR BIRIGA necha % yig'ilganini
+    ko'rsatib, to'liq ro'yxat qilib yuboradi (2026-08-28, foydalanuvchi
+    so'rovi — "barcha qo'yilgan sovg'alarni ko'rish imkoni")."""
+    db = SessionLocal()
+    try:
+        from models import Master
+        master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+        if not master or not master.show_gifts:
+            _send_master_bot(chat_id, "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning.", _build_master_keyboard(chat_id))
+            return
+
+        available = crud.get_master_gift_available_kpi(db, master.id)
+        redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
+        all_gifts = crud.get_master_gifts(db)
+        if not all_gifts:
+            _send_master_bot(chat_id, "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.", _build_master_keyboard(chat_id))
+            return
+
+        parts = [f"📋 *BARCHA SOVG'ALAR*", f"👤 {master.name}", "━━━━━━━━━━━━━━━━━━━"]
+        for i, g in enumerate(all_gifts, 1):
+            if g.id in redeemed_ids:
+                parts.append(f"{i}. 🎉 *{g.name}* — qo'lga kiritildi!")
+                continue
+            pct = max(0.0, min(100.0, available / float(g.kpi_threshold) * 100)) if g.kpi_threshold > 0 else 0.0
+            filled = int(round(pct / 10))
+            bar = "🟩" * filled + "⬜" * (10 - filled)
+            parts.append(f"{i}. {g.name}\n{bar}  {pct:.0f}%")
+        parts.append("\n⚠️ _Eslatma: yuqoridagi foizlar — HAR BIR sovg'aning o'ziga alohida hisoblangan. Lekin siz faqat BITTASINI tanlashingiz mumkin — qaysi birini olsangiz, hisobingiz shu sovg'a qiymatiga kamayadi._")
+        parts.append("━━━━━━━━━━━━━━━━━━━\n🏗 PenoDecorPro — Andijon")
+        _send_master_bot(chat_id, "\n".join(parts), _build_master_keyboard(chat_id))
+    except Exception as e:
+        try:
+            crud.log_error(db, str(e), endpoint="_send_gift_catalog")
+        except Exception:
+            pass
+        _send_master_bot(chat_id, "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring.", _build_master_keyboard(chat_id))
+    finally:
+        db.close()
+
+
 @app.post("/telegram/master-webhook")
 async def telegram_master_webhook(request: Request):
     if MASTER_WEBHOOK_SECRET:
@@ -4222,6 +4351,12 @@ async def telegram_master_webhook(request: Request):
         keyboard = _build_master_keyboard(chat_id)
         welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro — Ustalar boti* ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
         _send_master_bot(chat_id, welcome_msg, keyboard)
+        # MUHIM (2026-08-28, foydalanuvchi so'rovi): agar shu ustaga
+        # "Sovg'alar" bo'limi yoqilgan bo'lsa, progress darhol, bot
+        # ochilishi bilan avtomatik ko'rinadi — alohida tugma bosishning
+        # hojati yo'q. silent_if_disabled=True — bo'lim yopiq bo'lgan
+        # ustalarga hech narsa qo'shimcha yuborilmaydi.
+        _send_gift_progress(chat_id, request, silent_if_disabled=True)
         return {"ok": True}
 
     if text in ["/id", "🪪 mening id raqamim", "mening id raqamim"]:
@@ -4260,114 +4395,11 @@ async def telegram_master_webhook(request: Request):
         return {"ok": True}
 
     if text in ["🎁 sovg'alar", "sovg'alar", "sovg'alarim"]:
-        db = SessionLocal()
-        try:
-            from models import Master, MasterGift
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
-            if not master or not master.show_gifts:
-                reply = "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning."
-                _send_master_bot(chat_id, reply, _build_master_keyboard(chat_id))
-                return {"ok": True}
+        _send_gift_progress(chat_id, request, silent_if_disabled=False)
+        return {"ok": True}
 
-            # MUHIM (2026-08-28, foydalanuvchi so'rovi): admin bir
-            # sovg'ani "qo'lga berildi" deb belgilasa, uning qiymati
-            # ustaning hisobidan AYIRILADI — shunda u keyingi sovg'aga
-            # qarab, YANGIDAN (0 dan) hisoblana boshlaydi. Shuning
-            # uchun bu yerda XOM (yalpi) yillik KPI emas, balki
-            # "sovg'alar uchun hali ishlatilmagan" KPI ishlatiladi.
-            available = crud.get_master_gift_available_kpi(db, master.id)
-            redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
-            all_gifts = crud.get_master_gifts(db)
-            if not all_gifts:
-                reply = "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.\n\nAdministrator tez orada qo'shadi!"
-                _send_master_bot(chat_id, reply, _build_master_keyboard(chat_id))
-                return {"ok": True}
-
-            redeemed = [g for g in all_gifts if g.id in redeemed_ids]
-            remaining = [g for g in all_gifts if g.id not in redeemed_ids]
-
-            # "Hozirgi maqsad" (🔄) va undan keyingilarni (⬜) aniqlaymiz
-            next_gift = None
-            eligible = []
-            locked = []
-            prev_threshold = 0.0
-            progress = 0.0
-            for g in remaining:
-                if available >= g.kpi_threshold:
-                    eligible.append(g)
-                elif next_gift is None:
-                    next_gift = g
-                    span = float(g.kpi_threshold) - prev_threshold
-                    progress = max(0.0, min(100.0, (available - prev_threshold) / span * 100)) if span > 0 else 0.0
-                else:
-                    locked.append(g)
-                prev_threshold = float(g.kpi_threshold)
-
-            # ── Chiroyli, tartibli matn ──────────────────────────────
-            # MUHIM (2026-08-28, foydalanuvchi so'rovi): agar usta bir
-            # nechta sovg'aga BIRDANIGA "tayyor" bo'lib qolsa (masalan
-            # arzonlarini olmasdan, to'g'ridan-to'g'ri qimmatiga
-            # intilgan bo'lsa), ularning HAMMASINI bir xil "✅" bilan
-            # ko'rsatish USTANI chalg'itib, "hammasini olishim kerak
-            # ekan" degan noto'g'ri tushuncha berishi mumkin edi. Endi
-            # faqat ENG YUQORI (oxirgi) tayyor sovg'a aniq, alohida
-            # ajratiladi — pastdagilar esa "allaqachon ortda qoldi"
-            # deb, kamroq da'vogar tarzda ko'rsatiladi, va aniq eslatma
-            # qo'shiladi.
-            top_eligible = eligible[-1] if eligible else None
-            passed = eligible[:-1] if len(eligible) > 1 else []
-
-            # Har bir sovg'aning umumiy ketma-ketlikdagi (1, 2, 3...)
-            # o'rnini aniqlaymiz — shunda usta "men qaysi bosqichdaman,
-            # yana nechtasi qolgan" degan to'liq rasmni ko'radi.
-            gift_position = {g.id: i + 1 for i, g in enumerate(all_gifts)}
-            total_gifts = len(all_gifts)
-
-            parts = [f"🎁 *SOVG'ALAR BOSQICHI*", f"👤 {master.name}", f"📊 Jami {total_gifts} ta bosqich", "━━━━━━━━━━━━━━━━━━━"]
-            for g in redeemed:
-                parts.append(f"🎉 {gift_position[g.id]}-bosqich: {g.name} — qo'lga kiritildi!")
-            for g in passed:
-                parts.append(f"✓ {gift_position[g.id]}-bosqich: {g.name} — allaqachon ortda qoldi")
-            if top_eligible:
-                parts.append(f"\n🏆 *{gift_position[top_eligible.id]}-bosqich: {top_eligible.name}*\nSIZGA TEGISHLI — bu, hozircha eng yaxshi tanlovingiz!")
-            if next_gift:
-                filled = int(round(progress / 10))
-                bar = "🟩" * filled + "⬜" * (10 - filled)
-                parts.append(f"\n🎯 *{gift_position[next_gift.id]}-bosqich: {next_gift.name}*\n{bar}  *{progress:.0f}%*\n📈 Yana {100-progress:.0f}% qoldi")
-            for g in locked:
-                parts.append(f"⬜ {gift_position[g.id]}-bosqich: {g.name}")
-            if not remaining:
-                parts.append("\n🏆 *Barcha sovg'alarga yetdingiz! Tabriklaymiz!* 🎉")
-            if len(eligible) > 0 and (next_gift or locked):
-                parts.append("\n⚠️ _Eslatma: faqat BITTA sovg'ani tanlashingiz mumkin. Arzonrog'ini olsangiz, undan yuqorisiga yetish uchun hisobingiz shu sovg'a qiymatiga kamayadi va qaytadan yig'ishga to'g'ri keladi._")
-            parts.append("━━━━━━━━━━━━━━━━━━━\n🏗 PenoDecorPro — Andijon")
-            reply = "\n".join(parts)
-
-            keyboard = _build_master_keyboard(chat_id)
-            # Agar "hozirgi maqsad" sovg'aning surati bo'lsa — surat +
-            # matn (caption) birga yuboriladi; bo'lmasa, oddiy matn.
-            # MUHIM: eligible bo'lsa, ENG YUQORI (top_eligible) surati
-            # ko'rsatiladi — bu, endi yuqoridagi matndagi "SIZGA
-            # TEGISHLI" bilan mos keladi.
-            photo_gift = next_gift or top_eligible
-            if photo_gift and photo_gift.image_url:
-                base = str(request.base_url).rstrip("/")
-                proto = request.headers.get("x-forwarded-proto", "https")
-                host = request.base_url.hostname
-                full_photo_url = f"{proto}://{host}{photo_gift.image_url}"
-                _send_master_bot_photo(chat_id, full_photo_url, reply, keyboard)
-            else:
-                _send_master_bot(chat_id, reply, keyboard)
-            return {"ok": True}
-        except Exception as e:
-            reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
-            try:
-                crud.log_error(db, str(e), endpoint="telegram_master_webhook:sovgalar")
-            except Exception:
-                pass
-        finally:
-            db.close()
-        _send_master_bot(chat_id, reply, _build_master_keyboard(chat_id))
+    if text in ["📋 barcha sovg'alar", "barcha sovg'alar"]:
+        _send_gift_catalog(chat_id, request)
         return {"ok": True}
 
     return {"ok": True}
