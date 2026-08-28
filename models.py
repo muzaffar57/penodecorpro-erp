@@ -161,6 +161,7 @@ class MasterGift(Base):
     name = Column(String(100), nullable=False)
     kpi_threshold = Column(Float, nullable=False)   # shu sovg'a uchun kerakli yillik KPI (so'm)
     sort_order = Column(Integer, default=0)
+    image_url = Column(String(255), nullable=True)   # botda ko'rsatiladigan surat
     created_at = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
