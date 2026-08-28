@@ -153,6 +153,20 @@
       🔐 Telegram xavfsizligini yoqish
     </button>
     <div id="tg-security-result" style="display:none;margin-top:14px;padding:14px;background:var(--bg);border-radius:10px;font-size:13px;line-height:1.7"></div>
+
+    <!-- FAVQULODDA TUZATISH (2026-08-28): agar TELEGRAM_BOT_TOKEN, aslida,
+         "polling" rejimidagi, boshqa alohida serverga tegishli bo'lsa,
+         yuqoridagi tugma o'sha botni noto'g'ri "webhook" rejimiga
+         majburlab qo'yishi mumkin. Shu holatda, quyidagi tugma bilan
+         webhookni butunlay o'chirib, botni asl holatiga qaytarish
+         mumkin. -->
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #FADBD8">
+      <div style="font-size:12.5px;color:#DC2626;margin-bottom:8px">⚠️ Agar shu tugmani bosgandan keyin, botingiz (boshqa, alohida serverdagi) ishlamay qolgan bo'lsa — quyidagi tugma orqali qaytaring:</div>
+      <button class="btn btn-outline" style="border-color:#DC2626;color:#DC2626" onclick="deleteTelegramWebhook()" id="tg-delete-webhook-btn">
+        🔄 Webhookni o'chirib, botni asl holatiga qaytarish
+      </button>
+      <div id="tg-delete-webhook-result" style="display:none;margin-top:14px;padding:14px;background:var(--bg);border-radius:10px;font-size:13px;line-height:1.7"></div>
+    </div>
   </div>
 </div>
 
@@ -296,6 +310,31 @@ async function setupTelegramSecurity(){
     resultBox.textContent = '❌ Server bilan aloqa yo\'q';
   }
   btn.disabled = false; btn.textContent = '🔐 Telegram xavfsizligini yoqish';
+}
+
+async function deleteTelegramWebhook(){
+  if (!confirm("Webhookni o'chirib, botni asl (polling) holatiga qaytarasizmi?")) return;
+  const btn = document.getElementById('tg-delete-webhook-btn');
+  const resultBox = document.getElementById('tg-delete-webhook-result');
+  btn.disabled = true; btn.textContent = 'Bajarilmoqda...';
+  try {
+    const res = await fetch('/api/system/telegram-delete-webhook', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      resultBox.style.display = 'block';
+      resultBox.style.background = '#DCFCE7'; resultBox.style.color = '#166534';
+      resultBox.textContent = data.message;
+    } else {
+      resultBox.style.display = 'block';
+      resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+      resultBox.textContent = '❌ ' + (data.detail || 'Xato yuz berdi');
+    }
+  } catch(e) {
+    resultBox.style.display = 'block';
+    resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
+    resultBox.textContent = '❌ Server bilan aloqa yo\'q';
+  }
+  btn.disabled = false; btn.textContent = "🔄 Webhookni o'chirib, botni asl holatiga qaytarish";
 }
 
 async function setupMasterBotWebhook(){
