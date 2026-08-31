@@ -4796,12 +4796,26 @@ async function loadProfit() {
 
   let breakdownHTML = '';
   if (d.breakdown && d.breakdown.length) {
-    breakdownHTML = d.breakdown.map(b => {
+    breakdownHTML = d.breakdown.map((b, i) => {
       const ico = b.nomi.toLowerCase().includes('penoplast') ? '🪵' :
-                  b.nomi.toLowerCase().includes('usta') ? '👷' : '🎨';
-      return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px">
-        <span style="color:#555">${ico} ${b.nomi}</span>
-        <span style="font-weight:600;color:#EF4444">−${Number(b.summa).toLocaleString('ru-RU')} so'm</span>
+                  b.nomi.toLowerCase().includes('usta') ? '👷' :
+                  b.nomi.toLowerCase().includes('gips') ? '🧱' : '🎨';
+      const num = String(i + 1).padStart(2, '0');
+      // MUHIM: bu, faqat ko'RINISHNI ajratish — b.nomi'ning o'zi
+      // o'zgarmaydi, faqat "Nomi (12.3 kg × 4 500 so'm/kg)" ko'rinishidagi
+      // matnni, qavs ichidagi qismini alohida, kichikroq qatorga
+      // chiqarib ko'rsatamiz (ma'lumot BIR XIL, faqat joylashuvi boshqa).
+      const m = b.nomi.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      const mainName = m ? m[1] : b.nomi;
+      const subDetail = m ? m[2] : '';
+      return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #F3F3F1">
+        <div style="font-size:13px;color:#B8B2A5;font-weight:700;width:20px;flex-shrink:0;margin-top:1px">${num}</div>
+        <div style="font-size:17px;flex-shrink:0">${ico}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:600;color:#222">${mainName}</div>
+          ${subDetail ? `<div style="font-size:12px;color:#B0AAA0;margin-top:2px">${subDetail}</div>` : ''}
+        </div>
+        <div style="font-weight:700;color:#DC2626;white-space:nowrap;font-size:14.5px">−${Number(b.summa).toLocaleString('ru-RU')} so'm</div>
       </div>`;
     }).join('');
   } else {
@@ -4809,33 +4823,56 @@ async function loadProfit() {
   }
 
   modal.innerHTML = `
-    <div style="background:#fff;border-radius:14px;padding:24px;max-width:480px;width:100%;position:relative">
+    <div style="background:#fff;border-radius:16px;padding:26px;max-width:540px;width:100%;position:relative;max-height:90vh;overflow-y:auto">
       <button onclick="document.getElementById('profitModal').remove()"
-              style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:#aaa">✕</button>
-      <div style="font-size:16px;font-weight:600;margin-bottom:16px">💰 Foyda tahlili</div>
+              style="position:absolute;top:18px;right:20px;background:none;border:none;font-size:20px;cursor:pointer;color:#aaa">✕</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+        <div style="width:36px;height:36px;border-radius:10px;background:#F8F2EB;display:flex;align-items:center;justify-content:center;font-size:18px">💰</div>
+        <div style="font-size:18px;font-weight:700;color:#222">Foyda tahlili</div>
+      </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
-        <div style="background:#F8F2EB;border-radius:8px;padding:12px;text-align:center">
-          <div style="font-size:13px;color:#aaa;margin-bottom:4px">Sotuv narxi</div>
-          <div style="font-size:14px;font-weight:600;color:#B9783F">${Number(d.sotuv_narxi).toLocaleString('ru-RU')} so'm</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+        <div style="background:#F8F2EB;border-radius:12px;padding:14px 10px;text-align:center">
+          <div style="font-size:12px;color:#B9783F;margin-bottom:8px;font-weight:600">🏷️ Sotuv narxi</div>
+          <div style="font-size:15px;font-weight:800;color:#B9783F;line-height:1.3">${Number(d.sotuv_narxi).toLocaleString('ru-RU')}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
         </div>
-        <div style="background:#FEE2E2;border-radius:8px;padding:12px;text-align:center">
-          <div style="font-size:13px;color:#aaa;margin-bottom:4px">Tan narxi</div>
-          <div style="font-size:14px;font-weight:600;color:#EF4444">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</div>
+        <div style="background:#FEF2F2;border-radius:12px;padding:14px 10px;text-align:center">
+          <div style="font-size:12px;color:#DC2626;margin-bottom:8px;font-weight:600">⊖ Tan narxi</div>
+          <div style="font-size:15px;font-weight:800;color:#DC2626;line-height:1.3">${Number(d.tan_narxi).toLocaleString('ru-RU')}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
         </div>
-        <div style="background:${d.foyda>=0?'#DCFCE7':'#FEE2E2'};border-radius:8px;padding:12px;text-align:center;border:2px solid ${d.foyda>=0?'#22C55E':'#EF4444'}">
-          <div style="font-size:13px;color:#aaa;margin-bottom:4px">Foyda</div>
-          <div style="font-size:14px;font-weight:600;color:${d.foyda>=0?'#22C55E':'#EF4444'}">${Number(d.foyda).toLocaleString('ru-RU')} so'm</div>
-          <div style="font-size:12px;color:#aaa">${d.foyda_foiz}%</div>
+        <div style="background:${d.foyda>=0?'#F0FDF4':'#FEF2F2'};border-radius:12px;padding:14px 10px;text-align:center">
+          <div style="font-size:12px;color:${d.foyda>=0?'#16A34A':'#DC2626'};margin-bottom:8px;font-weight:600">📈 Foyda</div>
+          <div style="font-size:15px;font-weight:800;color:${d.foyda>=0?'#16A34A':'#DC2626'};line-height:1.3">${Number(d.foyda).toLocaleString('ru-RU')}<br><span style="font-size:12px;font-weight:600">so'm</span></div>
+          <div style="font-size:12px;color:${d.foyda>=0?'#16A34A':'#DC2626'};font-weight:700;margin-top:4px">${d.foyda_foiz}%</div>
         </div>
       </div>
 
-      <div style="background:#f8f8f6;border-radius:10px;padding:14px">
-        <div style="font-size:14px;font-weight:600;color:#111;margin-bottom:10px">📋 Xarajatlar tafsiloti</div>
+      <div style="background:#FAFAF8;border-radius:14px;padding:18px;border:1px solid #F0F0EC">
+        <div style="display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:700;color:#222;margin-bottom:12px">📋 Xarajatlar tafsiloti</div>
+        <div style="display:flex;gap:12px;padding:0 0 10px;border-bottom:2px solid #EDEDE8;font-size:11px;font-weight:700;color:#B8B2A5;text-transform:uppercase;letter-spacing:.3px">
+          <div style="width:20px;flex-shrink:0">#</div>
+          <div style="width:17px;flex-shrink:0"></div>
+          <div style="flex:1">Xarajat nomi</div>
+          <div>Summa</div>
+        </div>
         ${breakdownHTML}
-        <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-weight:700;border-top:2px solid #ddd;margin-top:6px">
-          <span>Jami tan narxi:</span>
-          <span style="color:#EF4444">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:14px;margin-top:2px;border-top:1.5px dashed #D8D2C5">
+          <span style="font-weight:700;color:#222;font-size:14.5px">Jami tan narxi:</span>
+          <span style="font-weight:800;color:#DC2626;font-size:16px">${Number(d.tan_narxi).toLocaleString('ru-RU')} so'm</span>
+        </div>
+      </div>
+
+      <div style="background:${d.foyda>=0?'#F0FDF4':'#FEF2F2'};border:1.5px solid ${d.foyda>=0?'#BBF7D0':'#FECACA'};border-radius:14px;padding:16px 18px;margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px;min-width:0">
+          <div style="width:38px;height:38px;border-radius:10px;background:${d.foyda>=0?'#DCFCE7':'#FEE2E2'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📈</div>
+          <div style="min-width:0">
+            <div style="font-size:11px;font-weight:700;color:${d.foyda>=0?'#16A34A':'#DC2626'};text-transform:uppercase;letter-spacing:.3px">Foyda (Sotuv − Tan narxi)</div>
+            <div style="font-size:19px;font-weight:800;color:${d.foyda>=0?'#16A34A':'#DC2626'}">${Number(d.foyda).toLocaleString('ru-RU')} so'm</div>
+          </div>
+        </div>
+        <div style="text-align:center;flex-shrink:0">
+          <div style="background:${d.foyda>=0?'#DCFCE7':'#FEE2E2'};color:${d.foyda>=0?'#16A34A':'#DC2626'};font-weight:800;font-size:14px;padding:6px 12px;border-radius:20px">${d.foyda_foiz}%</div>
+          <div style="font-size:10.5px;color:#999;margin-top:4px;white-space:nowrap">Sotuvdan ulushi</div>
         </div>
       </div>
     </div>`;
