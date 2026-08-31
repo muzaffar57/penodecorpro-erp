@@ -5,7 +5,6 @@
 
 {% block topbar_actions %}
 {% if current_user.role.value == 'admin' %}
-<button class="btn btn-outline btn-sm" onclick="markAllReady()">✓✓ Hammasini tayyor</button>
 {% endif %}
 {% endblock %}
 
@@ -4948,21 +4947,6 @@ async function deleteSelected() {
       showMsg('❌ Xato yuz berdi', 'error');
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
-}
-
-// ── Hammasini tayyor ─────────────────────────────────────
-async function markAllReady() {
-  const loyKg = await showPromptModal("Barcha buyurtmalar uchun necha kg loy? (bo'sh = faqat kesish)", '', {icon:'🪣', title:'Loy miqdori', type:'number'});
-  if (loyKg === null) return;
-  if (!await showConfirmModal('Barcha faol buyurtmalarni TAYYOR qilamizmi?', {icon:'✅', okText:'Ha, hammasini'})) return;
-  const url = loyKg ? `/api/orders/mark-all-ready?loy_kg=${parseFloat(loyKg)}` : '/api/orders/mark-all-ready';
-  const res = await fetch(url, { method:'POST' });
-  const result = await res.json();
-  const box = document.getElementById('resultBox');
-  box.innerHTML = `<b>✓ ${result.processed} ta tayyor qilindi!</b>` +
-    (result.failed?.length ? `<br>❌ ${result.failed.length} ta xato` : '');
-  box.className = 'result-box success';
-  setTimeout(()=>location.reload(), 4000);
 }
 
 // ── Qidiruv ───────────────────────────────────────────────
