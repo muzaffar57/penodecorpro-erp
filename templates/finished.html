@@ -58,20 +58,6 @@
 .fp-badge{font-size:9px;padding:2px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
 .mini-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid #e5e5e5;background:#fff;font-size:18px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
-.fp-menu-wrap{position:relative;flex-shrink:0}
-.fp-menu-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid #e5e5e5;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:180px;z-index:50;padding:6px;overflow:hidden}
-.fp-menu-dropdown.open{display:block}
-.fp-menu-item{display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;border:none;background:none;font-size:13px;color:#333;cursor:pointer;border-radius:7px;text-align:left;white-space:nowrap}
-.fp-menu-item:hover{background:#f5f4f2}
-.fp-menu-item.danger{color:#DC2626}
-.fp-menu-item i{font-size:16px;width:16px;flex-shrink:0}
-/* MUHIM: .fp-row'da opacity animatsiyasi bor — bu HAR BIR qatorni
-   o'zining alohida "qatlamiga" (stacking context) aylantirib qo'yadi,
-   shuning uchun menyu ochilganda, u faqat O'Z qatori ichida yuqorida
-   turadi, KEYINGI qatorlar esa uni bosib qo'yaveradi. Shuning uchun,
-   menyu ochilgan paytda, o'sha qatorning O'ZINI vaqtincha eng tepaga
-   ko'taramiz. */
-.fp-row.menu-open{position:relative;z-index:100}
 .fp-inp{width:76px;height:36px;text-align:center;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px;font-weight:600;outline:none}
 .fp-inp:focus{border-color:#B9783F}
 .fp-mini-bar{width:70px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-top:4px}
@@ -203,7 +189,7 @@
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
       <button onclick="closeGipsProduceModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitGipsProduce()" id="gips-produce-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#9D174D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">🧱 Ishlab chiqarish</button>
+      <button onclick="submitGipsProduce()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#9D174D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">🧱 Ishlab chiqarish</button>
     </div>
   </div>
 </div>
@@ -287,7 +273,7 @@
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
       <button onclick="closeBatchSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitBatchSell()" id="batch-sell-submit-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Hammasini sotish</button>
+      <button onclick="submitBatchSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Hammasini sotish</button>
     </div>
   </div>
 </div>
@@ -328,7 +314,7 @@
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
       <button onclick="closeSellModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitSell()" id="sell-submit-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
+      <button onclick="submitSell()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Sotish</button>
     </div>
   </div>
 </div>
@@ -416,7 +402,7 @@
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeTermoModal()">Bekor</button>
-      <button class="btn btn-dark" id="termopanel-save-btn" style="flex:2;background:#8B5E3C" onclick="saveTermopanel()">🧱 Ishlab chiqarish</button>
+      <button class="btn btn-dark" style="flex:2;background:#8B5E3C" onclick="saveTermopanel()">🧱 Ishlab chiqarish</button>
     </div>
   </div>
 </div>
@@ -488,11 +474,11 @@
 
       <div class="form-row">
         <div class="form-group" style="margin:0" id="p-h-wrap">
-          <label>Eni</label>
+          <label id="p-h-label">Eni</label>
           <div class="unit-input-wrap"><input type="number" id="p-h" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
         </div>
         <div class="form-group" style="margin:0" id="p-w-wrap">
-          <label>Kengligi</label>
+          <label id="p-w-label">Kengligi</label>
           <div class="unit-input-wrap"><input type="number" id="p-w" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
         </div>
       </div>
@@ -600,7 +586,7 @@
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeProduceModal()">Bekor</button>
-      <button class="btn btn-dark" id="produce-save-btn" style="flex:2;background:var(--gold);border-color:var(--gold)" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
+      <button class="btn btn-dark" style="flex:2;background:var(--gold);border-color:var(--gold)" onclick="saveProduce()">🏭 Ishlab chiqarish</button>
     </div>
   </div>
 
@@ -653,37 +639,11 @@
 </script>
 
 <script>
-const IS_MANAGER = {{ 'true' if current_user.role.value == 'manager' else 'false' }}; // Menejerga sof foyda/tan narx ko'rsatilmaydi
-
 const PENOS = [
   {% for p in penoplasts %}
   {id: {{ p.id }}, name: {{ p.item_name|tojson }}, vol: {{ p.volume_per_unit|float }}, price: {{ (p.price_per_unit or 0)|float }}},
   {% endfor %}
 ];
-
-// Ikki marta bosishdan himoya — bir xil buyum/amal uchun so'rov tugamaguncha qayta yubormaydi
-const inFlightFpActions = new Set();
-let isSavingGipsProduce = false;
-let isSavingLoss = false;
-let isSavingBatchSell = false;
-let isSavingSell = false;
-let isSavingTermopanel = false;
-let isSavingFpProduce = false;
-const inFlightMarkReady = new Set();
-
-function setBtnSavingFp(id, saving) {
-  const btn = document.getElementById(id);
-  if (!btn) return;
-  btn.disabled = saving;
-  btn.style.opacity = saving ? '0.6' : '';
-  btn.style.cursor = saving ? 'not-allowed' : '';
-  if (saving) {
-    btn.dataset.origText = btn.textContent;
-    btn.textContent = 'Saqlanmoqda...';
-  } else if (btn.dataset.origText) {
-    btn.textContent = btn.dataset.origText;
-  }
-}
 
 function shortPenoName(fullName) {
   if (!fullName) return '';
@@ -931,21 +891,16 @@ function fpWidth2(i) {
 function fpSku(i) { return 'FP-' + String(i.id).padStart(4, '0'); }
 function unitLabel(u) { return u === 'metr' ? 'm' : (u === 'kvadrat' ? 'm²' : 'ta'); }
 
-const inFlightFpUpload = new Set();
 async function uploadFpImage(id, input) {
   const file = input.files[0];
   if (!file) return;
-  if (inFlightFpUpload.has(id)) return; // Ikki marta bosishdan himoya
-  inFlightFpUpload.add(id);
   const fd = new FormData();
   fd.append('file', file);
   try {
     const res = await fetch(`/api/finished/${id}/image`, { method: 'POST', body: fd });
     if (res.ok) { loadFp(); }
     else showMsg('Rasm yuklanmadi', 'error');
-  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
-    inFlightFpUpload.delete(id);
-  }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
 }
 
 function openLightbox(url) {
@@ -980,13 +935,13 @@ function rowHtml(i) {
   const stColor = low ? '#DC2626' : (isKam ? '#F59E0B' : '#22C55E');
   const stLabel = low ? 'Tugagan' : (isKam ? 'Kam' : 'Yetarli');
 
-  const cpu = (i.source === 'produced' && i.quantity > 0 && i.cost_price != null) ? (i.cost_price / i.quantity) : null;
-  const profitPct = (i.source === 'produced' && i.unit_price > 0 && cpu !== null)
+  const cpu = i.source === 'produced' && i.quantity > 0 ? (i.cost_price / i.quantity) : 0;
+  const profitPct = (i.source === 'produced' && i.unit_price > 0)
     ? Math.round(((i.unit_price - cpu) / i.unit_price) * 100) : null;
 
   const actionBtns = inProgress ? `
     <button class="btn btn-dark btn-sm" style="padding:5px 12px;font-size:11px;white-space:nowrap"
-            onclick="markReady(${i.id}, event)">✓ Sotuvga tayyor</button>
+            onclick="markReady(${i.id})">✓ Sotuvga tayyor</button>
     <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
     <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
             onclick="delFp(${i.id}, '${i.source}')" title="Bekor qilish">✕</button>
@@ -1000,19 +955,16 @@ function rowHtml(i) {
             title="Qo'shish — xomashyo proporsional yechiladi"
             style="color:#22C55E">+</button>
     ` : ''}
+    <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
     <button class="mini-btn" onclick="openSellModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', ${i.unit_price || 0})" title="Sotish" style="color:#16A34A;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>
-    <div class="fp-menu-wrap">
-      <button class="mini-btn" onclick="toggleFpMenu(event, ${i.id})" title="Boshqa amallar"><i class="ti ti-dots-vertical"></i></button>
-      <div class="fp-menu-dropdown" id="fpmenu-${i.id}">
-        <button class="fp-menu-item" onclick="closeFpMenus();editPrice(${i.id})"><i class="ti ti-edit"></i> Narxni o'zgartirish</button>
-        <button class="fp-menu-item" onclick="closeFpMenus();openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')"><i class="ti ti-alert-triangle"></i> Kamaytirish (brak)</button>
-        <button class="fp-menu-item" onclick="closeFpMenus();openHistoryModal(${i.id})"><i class="ti ti-history"></i> Tarixni ko'rish</button>
-        {% if current_user.role.value == 'admin' %}
-        <button class="fp-menu-item" onclick="closeFpMenus();openProfitModal(${i.id})"><i class="ti ti-report-money"></i> Foyda hisobi</button>
-        {% endif %}
-        <button class="fp-menu-item danger" onclick="closeFpMenus();delFp(${i.id}, '${i.source}')"><i class="ti ti-trash"></i> O'chirish</button>
-      </div>
-    </div>
+    <button class="mini-btn" onclick="openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>
+    <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
+    {% if current_user.role.value == 'admin' %}
+    <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
+            style="color:#A86B36;border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
+    {% endif %}
+    <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
+            onclick="delFp(${i.id}, '${i.source}')" title="O'chirish"><i class="ti ti-trash"></i></button>
   `;
 
   return `
@@ -1051,7 +1003,7 @@ function rowHtml(i) {
 
     <div style="text-align:right;flex-shrink:0;min-width:82px">
       <div class="fp-price">${fmt(i.unit_price)}/${unitLabel(i.unit)}</div>
-      ${(i.source === 'produced' && cpu !== null) ? `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>` : ''}
+      ${i.source === 'produced' ? `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>` : ''}
     </div>
 
     <div style="text-align:right;flex-shrink:0;min-width:92px">
@@ -1081,7 +1033,7 @@ function openHistoryModal(id) {
   if (item.source === 'produced') {
     rows.push(['Sarflangan penoplast', item.volume_m3 ? item.volume_m3.toFixed(4) + ' m³' : '—']);
     if (item.actual_loy_kg) rows.push(['Sarflangan loy', item.actual_loy_kg + ' kg']);
-    if (item.cost_price != null) rows.push(['Tan narxi (jami)', fmt(item.cost_price) + " so'm"]);
+    rows.push(['Tan narxi (jami)', fmt(item.cost_price) + " so'm"]);
   }
   rows.push(['Hozirgi qoldiq', item.quantity + ' ' + item.unit]);
   rows.push(['Joriy qiymati', fmt(item.total_value) + " so'm"]);
@@ -1097,26 +1049,6 @@ function openHistoryModal(id) {
   document.getElementById('historyModal').style.display = 'flex';
 }
 function closeHistoryModal(){ document.getElementById('historyModal').style.display = 'none'; }
-
-// ── "⋮" menyusi — bir vaqtda faqat bitta ochiq turadi, tashqariga
-// bosilsa yopiladi. Faqat ko'rinish uchun, hech qanday hisob-kitobga
-// tegishli emas.
-function toggleFpMenu(ev, id) {
-  ev.stopPropagation();
-  const menu = document.getElementById('fpmenu-' + id);
-  const wasOpen = menu.classList.contains('open');
-  closeFpMenus();
-  if (!wasOpen) {
-    menu.classList.add('open');
-    const row = menu.closest('.fp-row');
-    if (row) row.classList.add('menu-open');
-  }
-}
-function closeFpMenus() {
-  document.querySelectorAll('.fp-menu-dropdown.open').forEach(m => m.classList.remove('open'));
-  document.querySelectorAll('.fp-row.menu-open').forEach(r => r.classList.remove('menu-open'));
-}
-document.addEventListener('click', closeFpMenus);
 
 // ── Ro'yxat harakatlari (mavjud, o'zgarishsiz) ─────────────
 async function stepFp(id, dir) {
@@ -1160,10 +1092,6 @@ async function addProduction(id, qty, item) {
 
   if (!(await customConfirm(`${item.name} — qo'shish`, txt))) return;
 
-  const lockKey = `add-${id}`;
-  if (inFlightFpActions.has(lockKey)) return; // Ikki marta bosishdan himoya
-  inFlightFpActions.add(lockKey);
-
   try {
     const res = await fetch(`/api/finished/${id}/add`, {
       method: 'POST',
@@ -1182,9 +1110,7 @@ async function addProduction(id, qty, item) {
       showMsg('❌ ' + (d.message || 'Xato') +
         (d.shortages?.length ? '\n' + d.shortages.join('\n') : ''), 'error');
     }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); } finally {
-    inFlightFpActions.delete(lockKey);
-  }
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
 async function reduceProduction(id, qty, item) {
@@ -1200,10 +1126,6 @@ async function reduceProduction(id, qty, item) {
   const reason = prompt('Sabab (ixtiyoriy):\n\nMasalan: singan, brak, yo\'qolgan', '');
   if (reason === null) return;
 
-  const lockKey = `reduce-${id}`;
-  if (inFlightFpActions.has(lockKey)) return; // Ikki marta bosishdan himoya
-  inFlightFpActions.add(lockKey);
-
   try {
     const res = await fetch(`/api/finished/${id}/reduce`, {
       method: 'POST',
@@ -1218,9 +1140,7 @@ async function reduceProduction(id, qty, item) {
     } else {
       showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
     }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); } finally {
-    inFlightFpActions.delete(lockKey);
-  }
+  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
 let _gipsInvCacheFp = null;
@@ -1313,10 +1233,6 @@ async function submitGipsProduce() {
   if (!name) { showMsg('Mahsulot nomini kiriting', 'error'); return; }
   if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
 
-  if (isSavingGipsProduce) return; // Ikki marta bosishdan himoya
-  isSavingGipsProduce = true;
-  setBtnSavingFp('gips-produce-btn', true);
-
   try {
     const res = await fetch('/api/finished/produce-gips', {
       method: 'POST',
@@ -1335,10 +1251,7 @@ async function submitGipsProduce() {
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
-    isSavingGipsProduce = false;
-    setBtnSavingFp('gips-produce-btn', false);
-  }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
 }
 
 let _lossData = null;
@@ -1383,12 +1296,8 @@ async function submitLoss() {
   const qty = parseFloat(document.getElementById('loss-qty').value) || 0;
   if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
 
-  if (isSavingLoss) return; // Ikki marta bosishdan himoya
-  isSavingLoss = true;
-  setBtnSavingFp('loss-submit-btn', true);
-
   if (_lossMode === 'stock') {
-    if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); isSavingLoss = false; setBtnSavingFp('loss-submit-btn', false); return; }
+    if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); return; }
     try {
       const res = await fetch('/api/finished/loss', {
         method: 'POST',
@@ -1402,14 +1311,12 @@ async function submitLoss() {
       const r = await res.json();
       if (res.ok) {
         closeLossModal();
-        showMsg(r.cost_amount != null ? `✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada Brak xarajatiga qo'shildi` : '✓ Kamaytirildi!', 'success');
+        showMsg(`✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada Brak xarajatiga qo'shildi`, 'success');
         setTimeout(() => location.reload(), 1500);
       } else {
         showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
       }
-    } catch(e) { showMsg('Server xatosi', 'error'); } finally {
-      isSavingLoss = false; setBtnSavingFp('loss-submit-btn', false);
-    }
+    } catch(e) { showMsg('Server xatosi', 'error'); }
   } else {
     try {
       const res = await fetch('/api/finished/production-brak', {
@@ -1424,14 +1331,12 @@ async function submitLoss() {
       const r = await res.json();
       if (res.ok) {
         closeLossModal();
-        showMsg(r.cost_amount != null ? `✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)` : "✓ Xomashyo ayirildi! (mahsulot soni o'zgarmadi)", 'success');
+        showMsg(`✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
         setTimeout(() => location.reload(), 1500);
       } else {
         showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
       }
-    } catch(e) { showMsg('Server xatosi', 'error'); } finally {
-      isSavingLoss = false; setBtnSavingFp('loss-submit-btn', false);
-    }
+    } catch(e) { showMsg('Server xatosi', 'error'); }
   }
 }
 
@@ -1587,10 +1492,6 @@ async function submitBatchSell() {
     agreedAmount = agreedRaw;
   }
 
-  if (isSavingBatchSell) return; // Ikki marta bosishdan himoya
-  isSavingBatchSell = true;
-  setBtnSavingFp('batch-sell-submit-btn', true);
-
   try {
     const res = await fetch('/api/finished/sell-batch', {
       method: 'POST',
@@ -1613,9 +1514,7 @@ async function submitBatchSell() {
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
-    isSavingBatchSell = false; setBtnSavingFp('batch-sell-submit-btn', false);
-  }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
 }
 
 let _sellData = null;
@@ -1652,10 +1551,6 @@ async function submitSell() {
   if (qty > _sellData.quantity + 0.001) { showMsg(`Omborda faqat ${_sellData.quantity} ${_sellData.unit} bor`, 'error'); return; }
   if (price <= 0) { showMsg('Narxni kiriting', 'error'); return; }
 
-  if (isSavingSell) return; // Ikki marta bosishdan himoya
-  isSavingSell = true;
-  setBtnSavingFp('sell-submit-btn', true);
-
   try {
     const res = await fetch('/api/finished/sell', {
       method: 'POST',
@@ -1671,7 +1566,7 @@ async function submitSell() {
     const r = await res.json();
     if (res.ok) {
       closeSellModal();
-      showMsg(r.profit != null ? `✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)` : `✓ Sotildi! ${fmt(r.total_amount)} so'm`, 'success');
+      showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)`, 'success');
       // G'ishtdan tashqari barcha mahsulot uchun — Yuk xati avtomatik ochiladi
       if (r.product_name !== "G'isht" && r.sale_id) {
         window.open(`/api/finished/sales/${r.sale_id}/pdf`, '_blank');
@@ -1680,12 +1575,9 @@ async function submitSell() {
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
-    isSavingSell = false; setBtnSavingFp('sell-submit-btn', false);
-  }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
 }
 
-const inFlightFpPrice = new Set();
 async function editPrice(id) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
@@ -1693,8 +1585,6 @@ async function editPrice(id) {
   if (v === null) return;
   const val = parseNum(v);
   if (!val || val <= 0) return;
-  if (inFlightFpPrice.has(id)) return; // Ikki marta bosishdan himoya
-  inFlightFpPrice.add(id);
   try {
     const res = await fetch(`/api/finished/${id}`, {
       method: 'PUT',
@@ -1702,9 +1592,7 @@ async function editPrice(id) {
       body: JSON.stringify({unit_price: val})
     });
     if (res.ok) { loadFp(); showMsg('✓ Narx yangilandi', 'success'); }
-  } catch(e) { showMsg('Xato', 'error'); } finally {
-    inFlightFpPrice.delete(id);
-  }
+  } catch(e) { showMsg('Xato', 'error'); }
 }
 
 async function delFp(id, source) {
@@ -1837,10 +1725,6 @@ async function saveTermopanel() {
   if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
   err.style.display = 'none';
 
-  if (isSavingTermopanel) return; // Ikki marta bosishdan himoya
-  isSavingTermopanel = true;
-  setBtnSavingFp('termopanel-save-btn', true);
-
   const data = {
     name,
     required_m2: m2,
@@ -1867,7 +1751,7 @@ async function saveTermopanel() {
       let msg = `⏳ ${r.name}: ${r.quantity} m² — ishlab chiqarish boshlandi\n\n`;
       msg += `🧱 Bazalt: ${r.bazalt_sheets} dona\n🕸️ Serpiyanka: ${r.serpiyanka_rulon} rulon\n`;
       if (r.kley_kg > 0) msg += `🧴 Kley: ${r.kley_kg} kg\n`;
-      if (r.total_cost != null) msg += `\n💰 Tan narxi: ${fmt(r.total_cost)} so'm\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
+      msg += `\n💰 Tan narxi: ${fmt(r.total_cost)} so'm\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
       msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
       showMsg(msg, 'success');
     } else {
@@ -1879,8 +1763,6 @@ async function saveTermopanel() {
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
-  } finally {
-    isSavingTermopanel = false; setBtnSavingFp('termopanel-save-btn', false);
   }
 }
 
@@ -1993,6 +1875,14 @@ function pToggle() {
   const qSuffix = document.getElementById('p-q-suffix');
   if (qLbl && type !== 'blok') qLbl.textContent = (type === 'panel') ? 'Uzunlik' : 'Miqdor';
   if (qSuffix) qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : 'dona';
+  // "Eni" -> "Bo'yi", "Kengligi" -> "Qalinligi" — FAQAT Profil va
+  // Donalikda (Panelda uchala o'lcham birga ko'rinadi, shuning uchun
+  // Panelga TEGILMAYDI — aks holda ikkita "Qalinlik" bo'lib qolardi).
+  const hLbl = document.getElementById('p-h-label');
+  const wLbl = document.getElementById('p-w-label');
+  const useAltNames = (type === 'profil' || type === 'dona');
+  if (hLbl) hLbl.textContent = useAltNames ? "Bo'yi" : "Eni";
+  if (wLbl) wLbl.textContent = useAltNames ? "Qalinligi" : "Kengligi";
 }
 
 function recalcBlokPrice() {
@@ -2015,9 +1905,6 @@ function onBlokPriceInput() {
 
 // Buyurtmadagi toggleDonaVolLock bilan bir xil mantiq
 function pToggleVolLock() {
-  // MUHIM: "1 dona narxi" maydoniga HECH QACHON tegilmaydi — qulflashdan
-  // oldin ham, keyin ham AYNAN BIR XIL, ekranda ko'rinib turgan (Qoplama
-  // hisobga olingan) yakuniy narxni ko'rsatishda davom etadi.
   window._pDonaVolLocked = !window._pDonaVolLocked;
   pCalc();
 }
@@ -2046,17 +1933,14 @@ function pCalc() {
     // hajm "muzlaydi" — shundan keyin narxni o'zgartirsangiz ham (masalan
     // qimmatroq sotish uchun) ombordan yechiladigan HAJM o'zgarmaydi.
     if (window._pDonaVolLocked) {
-      // MUHIM: bu yerdagi narx (upEl.value) — EKRANDA doim ko'rinib
-      // turgan, YAKUNIY (Qoplama hisobga olingan) narx sifatida talqin
-      // qilinadi. Shuning uchun bu yerda maydonni HECH QACHON
-      // o'zgartirmaymiz — Qulflash tugmasini bosish ekrandagi raqamni
-      // ASLO o'zgartirmasligi kerak. Backendga ketadigan XOM narxni esa
-      // shu yakuniy narxdan (Qoplama holatiga qarab) ko'rinmas holda
-      // hisoblab olamiz.
+      // MUHIM: bu yerdagi narx (upEl.value) — allaqachon QOPLAMALI (agar
+      // Qoplama "Bor" bo'lsa) holatda saqlangan (pastdagi yangi usul,
+      // qulflanmagan holatda, buni ALLAQACHON 2ga ko'paytirib yozgan edi).
+      // Shuning uchun bu yerda YANA 2ga ko'paytirsak — noto'g'ri, ikki
+      // baravar oshib ketardi (12 000 → 24 000 kabi xato).
       volume_total = window._pDonaVolPerUnit * qty;
       perUnitPrice = unitPrice;
       price = unitPrice * qty;
-      window._pRawUnitPriceDona = isCoated ? (unitPrice / 2) : unitPrice;
     } else if (h > 0 && t > 0 && donaYield > 0 && basePrice > 0) {
       // YANGI USUL: Eni x Qalinlik x (1 metrdan necha dona chiqishi) dan —
       // hajm TO'G'RIDAN-TO'G'RI, aniq hisoblanadi (Profil formulasi bilan
@@ -2159,14 +2043,13 @@ function pCalc() {
   box.innerHTML = `
     📦 Hajm: <b>${volume_total.toFixed(4)} m³</b>${p ? ` · ${p.name}: <b>${blocks.toFixed(2)} blok</b> = ${fmt(penoCost)} so'm` : ''}${volLockLine}${loyLine}<br>
     💵 1 ${unit} narxi: <b style="color:#B9783F">${fmt(perUnitPrice)} so'm</b>${inputPrice ? ` <span style="color:#aaa">(kiritilgan: ${fmt(inputPrice)})</span>` : ''}<br>
-    ${IS_MANAGER ? '' : `
     <div style="margin:6px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd">
       💰 Tan narxi: <b style="color:#DC2626">${fmt(cost)} so'm</b>
       <span style="color:#aaa">(1 ${unit} = ${fmt(costPerUnit)})</span><br>
       💵 Sotuv: <b style="color:#22C55E">${fmt(revenue)} so'm</b><br>
       📈 Foyda: <b style="color:${profit>0?'#22C55E':'#DC2626'};font-size:13px">${fmt(profit)} so'm</b>
       <span style="color:#aaa">(${margin.toFixed(1)}%)</span>
-    </div>`}
+    </div>
     🏭 Natija: <b style="color:#B9783F">${count} ${unit}</b>`;
 }
 
@@ -2274,10 +2157,6 @@ async function saveProduce() {
     if (!ok) return;
   }
 
-  if (isSavingFpProduce) return; // Ikki marta bosishdan himoya
-  isSavingFpProduce = true;
-  setBtnSavingFp('produce-save-btn', true);
-
   try {
     const res = await fetch('/api/finished/produce', {
       method: 'POST',
@@ -2291,10 +2170,8 @@ async function saveProduce() {
       loadFp();
       let msg = `⏳ ${r.name}: ${r.quantity} ${r.unit} — ishlab chiqarish boshlandi`;
       if (r.inventory_log?.length) msg += '\n\n📦 Ombordan:\n' + r.inventory_log.join('\n');
-      if (r.total_cost != null) {
-        msg += `\n\n💰 Tan narxi: ${fmt(r.total_cost)} so'm`;
-        msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
-      }
+      msg += `\n\n💰 Tan narxi: ${fmt(r.total_cost)} so'm`;
+      msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
       msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
       showMsg(msg, 'success');
     } else {
@@ -2306,27 +2183,18 @@ async function saveProduce() {
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
-  } finally {
-    isSavingFpProduce = false; setBtnSavingFp('produce-save-btn', false);
   }
 }
 
 // ── TAYYOR (sotuvga tayyor) ───────────────────────────────
-async function markReady(id, evt) {
+async function markReady(id) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
-
-  if (inFlightMarkReady.has(id)) return; // Ikki marta bosishdan himoya — shu mahsulot uchun so'rov hali ketmoqda
 
   const txt = `📦 ${item.quantity} ${item.unit}\n\n` +
     `Xomashyo allaqachon yechilgan — bu faqat holat o'zgarishi.`;
 
   if (!(await customConfirm(`${item.name} — sotuvga tayyor`, txt))) return;
-
-  if (inFlightMarkReady.has(id)) return;
-  inFlightMarkReady.add(id);
-  const btn = evt?.target;
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
 
   try {
     const res = await fetch(`/api/finished/${id}/complete`, { method: 'POST' });
@@ -2340,9 +2208,6 @@ async function markReady(id, evt) {
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
-  } finally {
-    inFlightMarkReady.delete(id);
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 
@@ -2373,12 +2238,7 @@ async function openProfitModal(id) {
   // GIPS mahsulotlar — alohida, aniq ko'rinish
   if (i.category === 'gips') {
     const gipsKg = i.gips_kg_used || 0;
-    // MUHIM: "1 kg narxi"ni umumiy xarajatdan (Gips + unga qo'shilgan
-    // boshqa materiallar, masalan Serpiyanka) hisoblab bo'lmaydi — bu
-    // chalkash, oshirib ko'rsatilgan raqam berardi (masalan qo'shimcha
-    // material bo'lsa, "Gips narxi" sifatida noto'g'ri, oshiq son
-    // chiqardi). Shuning uchun bu yerda faqat aniq bo'lgan narsani —
-    // umumiy tan narxni — ko'rsatamiz, soxta "narx/kg" da'vo qilmaymiz.
+    const gipsPerKg = gipsKg > 0 ? (totalCost / gipsKg) : 0;
     document.getElementById('pm-body').innerHTML = `
       <div style="background:#FCE7F3;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#9D174D;line-height:1.8">
         🧱 ${gipsKg > 0 ? `Sarflangan Gips: <b>${gipsKg} kg</b>` : 'Gips miqdori kiritilmagan'}
@@ -2386,7 +2246,7 @@ async function openProfitModal(id) {
       </div>
 
       <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
-      ${row('🧱 Gips va qo\'shimcha materiallar (jami)', fmt(totalCost) + " so'm")}
+      ${gipsKg > 0 ? row(`🧱 Gips (${gipsKg} kg × ${fmt(gipsPerKg)})`, fmt(totalCost) + " so'm") : row('🧱 Gips xarajati', fmt(totalCost) + " so'm")}
       <div style="border-top:1px solid #eee;margin:4px 0"></div>
       ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}
 
