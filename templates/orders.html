@@ -2718,30 +2718,35 @@ function addItem() {
           <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
           <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
           <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
+          <div class="dif i-gips-unit-wrap" style="display:none">
+            <label>Birligi</label>
+            <select class="i-gips-unit" onchange="onGipsUnitChange(this.closest('.detal'))">
+              <option value="metr">Metr</option>
+              <option value="dona">Dona</option>
+              <option value="m2">M²</option>
+            </select>
+          </div>
+          <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (tayyor)</label><div class="unit-input-wrap"><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
+          <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti</label><div class="unit-input-wrap"><input type="number" value="2" placeholder="masalan 2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div></div>
         </div>
         <div class="dgrp-chip i-dims-chip" style="display:none"></div>
       </div>
-      <div class="dif i-gips-unit-wrap" style="display:none">
-        <label>Birligi</label>
-        <select class="i-gips-unit" onchange="onGipsUnitChange(this.closest('.detal'))">
-          <option value="metr">Metr</option>
-          <option value="dona">Dona</option>
-          <option value="m2">M²</option>
-        </select>
-      </div>
-      <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (tayyor)</label><div class="unit-input-wrap"><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
-      <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti</label><input type="number" value="2" placeholder="masalan 2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div>
-      <div class="dif i-termo-bazalt-wrap" style="display:none">
-        <label>Plotnost (Bazalt turi)</label>
-        <select class="i-termo-bazalt" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
-      </div>
-      <div class="dif i-termo-serp-wrap" style="display:none">
-        <label>Serpiyanka (tur)</label>
-        <select class="i-termo-serp" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
-      </div>
-      <div class="dif i-termo-kley-wrap" style="display:none">
-        <label>Kley (tur)</label>
-        <select class="i-termo-kley" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
+      <div class="dgrp i-termo-xomashyo-grp" style="grid-column:1/-1;display:none">
+        <div class="dgrp-title">🪨 Xomashyo (Bazalt tizimi)</div>
+        <div class="dgrp-row" style="grid-template-columns:repeat(3,1fr)">
+          <div class="dif i-termo-bazalt-wrap">
+            <label>Bazalt turi</label>
+            <select class="i-termo-bazalt" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
+          </div>
+          <div class="dif i-termo-serp-wrap">
+            <label>Serpiyanka (tur)</label>
+            <select class="i-termo-serp" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
+          </div>
+          <div class="dif i-termo-kley-wrap">
+            <label>Kley (tur)</label>
+            <select class="i-termo-kley" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
+          </div>
+        </div>
       </div>
       <div class="dif i-termo-loy-wrap" style="display:none"></div>
       <div class="dif i-loysale-recipe-wrap" style="display:none">
@@ -2949,7 +2954,9 @@ function toggleFields(row) {
   const bmW = row.querySelector('.i-blokmult-wrap');
   const m3Field = row.querySelector('.i-m3price')?.closest('.dif');
   const coatField = row.querySelector('.i-c')?.closest('.dif');
+  const coatGrp = coatField?.closest('.dgrp');
   const penoField = row.querySelector('.i-peno')?.closest('.dif');
+  const penoGrp = penoField?.closest('.dgrp');
   const tBazaltW = row.querySelector('.i-termo-bazalt-wrap');
   const tSerpW = row.querySelector('.i-termo-serp-wrap');
   const tKleyW = row.querySelector('.i-termo-kley-wrap');
@@ -2957,9 +2964,11 @@ function toggleFields(row) {
   const lsRecipeW = row.querySelector('.i-loysale-recipe-wrap');
   const gipsUnitW = row.querySelector('.i-gips-unit-wrap');
   const donaYieldW = row.querySelector('.i-donayield-wrap');
+  const termoXomashyoGrp = row.querySelector('.i-termo-xomashyo-grp');
 
   // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
   [tBazaltW, tSerpW, tKleyW, tLoyW, lsRecipeW, gipsUnitW, donaYieldW].forEach(el => { if (el) el.style.display = 'none'; });
+  if (termoXomashyoGrp) termoXomashyoGrp.style.display = 'none';
   if (penoField) penoField.style.display = '';
 
   if (type === 'dona') {
@@ -3008,6 +3017,7 @@ function toggleFields(row) {
     if (coatField) coatField.style.display = 'none';  // Termopanel doim qoplamali — Loy maydoni orqali
     if (penoField) penoField.style.display = 'none';  // Penoplast ishlatilmaydi
     if (tBazaltW) tBazaltW.style.display = '';
+    if (termoXomashyoGrp) termoXomashyoGrp.style.display = '';
     if (tSerpW) tSerpW.style.display = '';
     if (tKleyW) tKleyW.style.display = '';
     if (tLoyW) tLoyW.style.display = '';
@@ -3051,6 +3061,17 @@ function toggleFields(row) {
     if (coatField) coatField.style.display = '';
     const tEl = row.querySelector('.i-t'); if(tEl) tEl.value = '';
     const qEl = row.querySelector('.i-q'); if(qEl) qEl.value = '1';
+  }
+
+  // MUHIM: "Qoplama" va "Plotnost va narx" — GURUH sarlavhasining o'zi,
+  // ichidagi yagona maydon(lar) yashiringan holatda ham, bo'sh quti
+  // bo'lib ko'rinib qolmasligi uchun, guruhning O'ZINI ham yashiramiz
+  // (individual maydon ko'rinishiga qo'shimcha, unga TA'SIR QILMAYDI).
+  if (coatGrp) coatGrp.style.display = (coatField && coatField.style.display === 'none') ? 'none' : '';
+  if (penoGrp) {
+    const penoHidden = penoField && penoField.style.display === 'none';
+    const m3Hidden = m3Field && m3Field.style.display === 'none';
+    penoGrp.style.display = (penoHidden && m3Hidden) ? 'none' : '';
   }
 
   // "Hajm" kartochkasi — Termopanel/Gips/Loy sotishda ma'nosiz (bu
