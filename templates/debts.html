@@ -126,7 +126,7 @@
               <input type="checkbox" id="pay-writeoff" style="width:15px;height:15px">
               Qolgan qarzni chegirma qilib yopish
             </label>
-            <button class="btn btn-dark w-full" id="debt-pay-save-btn" onclick="savePayment()">✓ To'lovni qabul qilish</button>
+            <button class="btn btn-dark w-full" onclick="savePayment()">✓ To'lovni qabul qilish</button>
             <div id="pay-msg" style="display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px"></div>
           </div>
         </div>
@@ -183,21 +183,22 @@
 
       <!-- Hodimlarga qarz -->
       <div class="dbt-card">
-        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px">👷 Hodimlarga qarzimiz — shu oy</div>
+        <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px">👷 Hodimlarga qarzimiz <span style="font-weight:500;color:var(--d-text3);font-size:12.5px">(oxirgi 3 oy)</span></div>
         <div style="padding:8px 18px 18px">
           {% if company_obligations.employees %}
             {% for e in company_obligations.employees %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer;display:flex;gap:12px" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name|replace('"', '&quot;') }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName)">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer;display:flex;gap:12px" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name|replace('"', '&quot;') }}" data-year="{{ e.year }}" data-month="{{ e.month }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName)">
               <div class="dbt-avatar" style="background:{{ '#FEF2F2' if e.status=='overdue' else '#FFFBEB' }};color:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }};width:34px;height:34px;font-size:13px">{{ (e.name or '?')[0]|upper }}</div>
               <div style="flex:1">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
                   <div>
                     <span style="font-weight:700;font-size:13.5px">{{ e.name }}</span>
+                    <span style="font-size:11px;font-weight:700;color:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }};background:{{ '#FEF2F2' if e.status=='overdue' else '#FFFBEB' }};padding:2px 8px;border-radius:6px;margin-left:6px">{{ e.month_label }}</span>
                     <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">{{ e.detail }} — jami {{ "{:,.0f}".format(e.amount).replace(",", " ") }}, avans {{ "{:,.0f}".format(e.avans).replace(",", " ") }}</div>
                   </div>
                   <div style="font-weight:800;color:#EF4444;font-size:15px">{{ "{:,.0f}".format(e.qolgan).replace(",", " ") }}</div>
                 </div>
-                <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan), this)">✓ To'liq to'landi deb belgilash</button>
+                <button class="btn btn-outline btn-xs" style="margin-top:8px" data-qolgan="{{ e.qolgan }}" onclick="event.stopPropagation();closeEmployeeDebt(this.closest('.oblig-item').dataset.empId, this.closest('.oblig-item').dataset.empName, parseFloat(this.dataset.qolgan), this.closest('.oblig-item').dataset.year, this.closest('.oblig-item').dataset.month)">✓ To'liq to'landi deb belgilash</button>
               </div>
             </div>
             {% endfor %}
@@ -233,7 +234,7 @@
                 </div>
               </div>
               <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:{{ status_color[r.status] }}"></div></div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();quickPayObligation(this.closest('.oblig-item').dataset.category, this.closest('.oblig-item').dataset.label, parseFloat(this.dataset.debt), this)">💰 To'lov qo'shish</button>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();quickPayObligation(this.closest('.oblig-item').dataset.category, this.closest('.oblig-item').dataset.label, parseFloat(this.dataset.debt))">💰 To'lov qo'shish</button>
             </div>
             {% endfor %}
           {% else %}
@@ -268,7 +269,7 @@
     <div class="form-group"><label>Har oy to'lanishi kerak (so'm)</label><input type="text" id="cat-target" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Har oy nechinchi sanagacha</label><input type="number" id="cat-dueday" value="5" min="1" max="28"></div>
     <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="btn btn-dark w-full" id="new-cat-save-btn" onclick="saveNewCategory()">Saqlash</button>
+      <button class="btn btn-dark w-full" onclick="saveNewCategory()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeAddCategoryModal()">Bekor</button>
     </div>
   </div>
@@ -332,27 +333,19 @@ function openAddCategoryModal(){
 }
 function closeAddCategoryModal(){ document.getElementById('addCategoryModal').style.display = 'none'; }
 
-let isSavingNewCategory = false;
 async function saveNewCategory(){
   const label = document.getElementById('cat-label').value.trim();
   const target = parseNum(document.getElementById('cat-target').value);
   const dueDay = parseInt(document.getElementById('cat-dueday').value) || 5;
   const icon = document.getElementById('cat-icon').value.trim() || '📦';
   if (!label || !target) { alert("Nom va summani to'ldiring"); return; }
-  if (isSavingNewCategory) return; // Ikki marta bosishdan himoya
-  isSavingNewCategory = true;
-  const btn = document.getElementById('new-cat-save-btn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
   // Kategoriya kodini nomdan avtomatik yasaymiz (lotin harflarga, bo'shliqsiz)
   const category = label.toLowerCase().replace(/[^a-z0-9а-яёʻʼ]+/gi, '_').replace(/^_+|_+$/g, '') + '_' + Date.now().toString().slice(-4);
   try {
     const res = await fetch(`/api/obligations/recurring?category=${encodeURIComponent(category)}&label=${encodeURIComponent(label)}&monthly_target=${target}&icon=${encodeURIComponent(icon)}&due_day=${dueDay}`, {method:'POST'});
-    if (res.ok) { location.reload(); return; }
+    if (res.ok) location.reload();
     else alert('Xato yuz berdi');
-  } catch(e) { alert('Server xatosi'); } finally {
-    isSavingNewCategory = false;
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
-  }
+  } catch(e) { alert('Server xatosi'); }
 }
 
 async function deleteCategory(id, label){
@@ -364,21 +357,19 @@ async function deleteCategory(id, label){
   } catch(e) { alert('Server xatosi'); }
 }
 
-async function quickPayObligation(category, label, debt, btn){
+async function quickPayObligation(category, label, debt){
   const amountStr = prompt(`${label} uchun bugun qancha to'landi?`, String(Math.round(debt)));
   if (!amountStr) return;
   const amount = parseNum(amountStr);
   if (!amount || amount <= 0) return;
-  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
   try {
     const res = await fetch('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ date: new Date().toISOString().slice(0,10)+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)" })
     });
-    if (res.ok) { location.reload(); return; }
+    if (res.ok) location.reload();
     else alert('Xato yuz berdi');
   } catch(e) { alert('Server xatosi'); }
-  if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
 }
 
 async function openObligTimeline(category, label){
@@ -418,16 +409,18 @@ function renderTimeline(rows){
 }
 function closeTimelineModal(){ document.getElementById('timelineModal').style.display = 'none'; }
 
-async function closeEmployeeDebt(empId, name, amount, btn){
+async function closeEmployeeDebt(empId, name, amount, year, month){
   if (!confirm(`${name} ga ${fmt(amount)} so'm to'liq to'landi deb belgilaysizmi?`)) return;
-  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = '...'; }
-  const now = new Date();
+  // MUHIM: "hozirgi sana" emas, balki bu qarz AYNAN qaysi oyga tegishli
+  // bo'lsa — o'sha yil/oyni yuboramiz (aks holda, kechikkan to'lov,
+  // noto'g'ri — hozirgi — oy hisobotiga yozilib qolardi).
+  const y = year || new Date().getFullYear();
+  const m = month || (new Date().getMonth() + 1);
   try {
-    const res = await fetch(`/api/obligations/employee/${empId}/close?year=${now.getFullYear()}&month=${now.getMonth()+1}&amount=${amount}`, {method:'POST'});
-    if (res.ok) { location.reload(); return; }
+    const res = await fetch(`/api/obligations/employee/${empId}/close?year=${y}&month=${m}&amount=${amount}`, {method:'POST'});
+    if (res.ok) location.reload();
     else alert('Xato yuz berdi');
   } catch(e) { alert('Server xatosi'); }
-  if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
 }
 
 let selectedOrderId = null;
@@ -463,7 +456,6 @@ function selectOrderDebt(el){
   document.getElementById('pay-msg').style.display = 'none';
 }
 
-let isSavingDebtPayment = false;
 async function savePayment(){
   if (!selectedOrderId) return;
   const amount = parseNum(document.getElementById('pay-amount').value);
@@ -471,30 +463,20 @@ async function savePayment(){
   const writeOff = document.getElementById('pay-writeoff').checked;
   const notes = document.getElementById('pay-note').value;
 
-  if (isSavingDebtPayment) return; // Ikki marta bosishdan himoya
-  isSavingDebtPayment = true;
-  const btn = document.getElementById('debt-pay-save-btn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+  const res = await fetch(`/api/payments?write_off_remainder=${writeOff}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ order_id: parseInt(selectedOrderId), amount, notes: notes || null })
+  });
 
-  try {
-    const res = await fetch(`/api/payments?write_off_remainder=${writeOff}`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ order_id: parseInt(selectedOrderId), amount, notes: notes || null })
-    });
-
-    const msg = document.getElementById('pay-msg');
-    msg.style.display = 'block';
-    if (res.ok) {
-      msg.style.background = '#DCFCE7'; msg.style.color = '#166534';
-      msg.textContent = `✓ ${fmt(amount)} so'm qabul qilindi!`;
-      setTimeout(() => location.reload(), 1300);
-    } else {
-      msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
-      msg.textContent = 'Xato yuz berdi';
-    }
-  } finally {
-    isSavingDebtPayment = false;
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  const msg = document.getElementById('pay-msg');
+  msg.style.display = 'block';
+  if (res.ok) {
+    msg.style.background = '#DCFCE7'; msg.style.color = '#166534';
+    msg.textContent = `✓ ${fmt(amount)} so'm qabul qilindi!`;
+    setTimeout(() => location.reload(), 1300);
+  } else {
+    msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
+    msg.textContent = 'Xato yuz berdi';
   }
 }
 
