@@ -93,6 +93,12 @@
 @media (max-width:900px){.detal-grid{grid-template-columns:1fr 1fr}}
 .dif{background:#F3F4F6;border-radius:12px;padding:12px 14px}
 .dif-tur{background:#F5F3EF}
+.dgrp{background:#F5F3EF;border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.dgrp-title{font-size:11.5px;font-weight:800;color:#A86B36;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.dgrp .dif{background:#fff}
+.dgrp-row{display:grid;gap:12px;align-items:end}
+.dgrp-xsign{text-align:center;font-size:19px;color:#B9783F;font-weight:700;padding-bottom:12px;user-select:none}
+.dgrp-chip{margin-top:10px;background:#fff;border-radius:8px;padding:8px 12px;font-size:12.5px;color:#666;display:flex;align-items:center;gap:8px}
 .dif label{font-size:11.5px;color:#6B7280;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
 .dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid #e5e5e5;border-radius:9px;font-size:14.5px;color:#111;background:#fff;outline:none;transition:border .15s}
 .unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid #e5e5e5;border-radius:9px;overflow:hidden;transition:border .15s;background:#fff}
@@ -2702,13 +2708,19 @@ function addItem() {
           <option value="gips">🧱 Gips</option>
         </select>
       </div>
-      <div class="dif i-h-wrap"><label class="i-h-label">Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
-      <div class="dif i-w-wrap"><label class="i-w-label">Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
-      <div class="dif i-t-wrap" style="display:none"><label>Qalinlik</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
-      <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta dona chiqadi</label><div class="unit-input-wrap"><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
-      <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
-      <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
-      <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
+      <div class="dgrp" style="grid-column:1/-1">
+        <div class="dgrp-title">📐 O'lchamlar va miqdor</div>
+        <div class="dgrp-row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="dif i-h-wrap"><label class="i-h-label">Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+          <div class="dif i-w-wrap"><label class="i-w-label">Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+          <div class="dif i-t-wrap" style="display:none"><label>Qalinlik</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+          <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta dona chiqadi</label><div class="unit-input-wrap"><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
+          <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
+          <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
+          <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
+        </div>
+        <div class="dgrp-chip i-dims-chip" style="display:none"></div>
+      </div>
       <div class="dif i-gips-unit-wrap" style="display:none">
         <label>Birligi</label>
         <select class="i-gips-unit" onchange="onGipsUnitChange(this.closest('.detal'))">
@@ -2736,29 +2748,37 @@ function addItem() {
         <label>Loy turi (retsept)</label>
         <select class="i-loysale-recipe" onchange="calculateItem(this.closest('.detal'))">${RECIPE_OPTIONS}</select>
       </div>
-      <div class="dif"><label>Qoplama</label>
-        <div class="coat-toggle">
-          <div class="coat-opt coat-no active" onclick="setCoating(this, false)">Yo'q</div>
-          <div class="coat-opt coat-yes" onclick="setCoating(this, true)">Bor (×2)</div>
-        </div>
-        <select class="i-c" style="display:none">
-          <option value="false" selected>Yo'q</option>
-          <option value="true">Ha</option>
-        </select>
-      </div>
-      <div class="dif"><label>Plotnost</label>
-        <div class="unit-input-wrap">
-          <select class="i-peno" onchange="onPenoChange(this.closest('.detal'))">
-            ${PENO_OPTIONS}
+      <div class="dgrp" style="grid-column:1/-1">
+        <div class="dgrp-title">🎨 Qoplama</div>
+        <div class="dif"><label>Qoplama</label>
+          <div class="coat-toggle">
+            <div class="coat-opt coat-no active" onclick="setCoating(this, false)">Yo'q</div>
+            <div class="coat-opt coat-yes" onclick="setCoating(this, true)">Bor (×2)</div>
+          </div>
+          <select class="i-c" style="display:none">
+            <option value="false" selected>Yo'q</option>
+            <option value="true">Ha</option>
           </select>
-          <span class="unit-suffix i-peno-display"></span>
         </div>
       </div>
-      <div class="dif"><label>1 m³ narxi</label>
-        <div class="unit-input-wrap" style="border-color:#B9783F">
-          <input type="text" class="i-m3price" placeholder="asosiy"
-                 oninput="formatPriceInput(this);recomputeFpPriceFromM3(this.closest('.detal'));calculateItem(this.closest('.detal'))">
-          <span class="unit-suffix">so'm</span>
+      <div class="dgrp" style="grid-column:1/-1">
+        <div class="dgrp-title">🧱 Plotnost va narx</div>
+        <div class="dgrp-row" style="grid-template-columns:2fr 1fr">
+          <div class="dif"><label>Plotnost</label>
+            <div class="unit-input-wrap">
+              <select class="i-peno" onchange="onPenoChange(this.closest('.detal'))">
+                ${PENO_OPTIONS}
+              </select>
+              <span class="unit-suffix i-peno-display"></span>
+            </div>
+          </div>
+          <div class="dif"><label>1 m³ narxi</label>
+            <div class="unit-input-wrap" style="border-color:#B9783F">
+              <input type="text" class="i-m3price" placeholder="asosiy"
+                     oninput="formatPriceInput(this);recomputeFpPriceFromM3(this.closest('.detal'));calculateItem(this.closest('.detal'))">
+              <span class="unit-suffix">so'm</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
