@@ -159,6 +159,12 @@
 }
 .type-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
 .type-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
+/* Raqam maydonlaridagi yuqori/pastga strelkalarni yashiramiz — sichqoncha
+   g'ildiragi orqali, tasodifan qiymat o'zgarib ketishining oldini olish
+   uchun (qo'shimcha, JS orqali g'ildirakni ham butunlay bloklaymiz). */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 </style>
 {% endblock %}
 
@@ -4964,5 +4970,16 @@ window.addEventListener('load', () => {
   // Sahifa ochilganda HECH QANDAY buyurtma avtomatik tanlanmaydi —
   // hodim o'zi ro'yxatdan bosib tanlaguncha, o'ng va o'rta panel toza turadi.
 });
+
+// MUHIM: raqam maydonida (masalan "Eni", "Miqdor") turib, sichqoncha
+// g'ildiragini aylantirib yuborsa — brauzer, buni "qiymatni oshirish/
+// kamaytirish" deb tushunib, TASODIFAN raqamni o'zgartirib qo'yardi.
+// Bu, xatoga olib kelishi mumkin bo'lgani uchun, butunlay bloklaymiz —
+// g'ildirak endi, faqat sahifani aylantiradi, qiymatga tegmaydi.
+document.addEventListener('wheel', function(e) {
+  if (document.activeElement && document.activeElement.type === 'number') {
+    document.activeElement.blur();
+  }
+}, { passive: true });
 </script>
 {% endblock %}
