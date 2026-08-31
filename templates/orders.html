@@ -2754,21 +2754,18 @@ function addItem() {
         <select class="i-loysale-recipe" onchange="calculateItem(this.closest('.detal'))">${RECIPE_OPTIONS}</select>
       </div>
       <div class="dgrp" style="grid-column:1/-1">
-        <div class="dgrp-title">🎨 Qoplama</div>
-        <div class="dif"><label>Qoplama</label>
-          <div class="coat-toggle">
-            <div class="coat-opt coat-no active" onclick="setCoating(this, false)">Yo'q</div>
-            <div class="coat-opt coat-yes" onclick="setCoating(this, true)">Bor (×2)</div>
+        <div class="dgrp-title">🎨 Qoplama, plotnost va narx</div>
+        <div class="dgrp-row" style="grid-template-columns:1fr 2fr 1fr">
+          <div class="dif"><label>Qoplama</label>
+            <div class="coat-toggle">
+              <div class="coat-opt coat-no active" onclick="setCoating(this, false)">Yo'q</div>
+              <div class="coat-opt coat-yes" onclick="setCoating(this, true)">Bor (×2)</div>
+            </div>
+            <select class="i-c" style="display:none">
+              <option value="false" selected>Yo'q</option>
+              <option value="true">Ha</option>
+            </select>
           </div>
-          <select class="i-c" style="display:none">
-            <option value="false" selected>Yo'q</option>
-            <option value="true">Ha</option>
-          </select>
-        </div>
-      </div>
-      <div class="dgrp" style="grid-column:1/-1">
-        <div class="dgrp-title">🧱 Plotnost va narx</div>
-        <div class="dgrp-row" style="grid-template-columns:2fr 1fr">
           <div class="dif"><label>Plotnost</label>
             <div class="unit-input-wrap">
               <select class="i-peno" onchange="onPenoChange(this.closest('.detal'))">
@@ -2954,9 +2951,12 @@ function toggleFields(row) {
   const bmW = row.querySelector('.i-blokmult-wrap');
   const m3Field = row.querySelector('.i-m3price')?.closest('.dif');
   const coatField = row.querySelector('.i-c')?.closest('.dif');
-  const coatGrp = coatField?.closest('.dgrp');
   const penoField = row.querySelector('.i-peno')?.closest('.dif');
-  const penoGrp = penoField?.closest('.dgrp');
+  // MUHIM: Qoplama+Plotnost+Narx endi BITTA umumiy guruh ichida (birlashtirilgan),
+  // shuning uchun guruhning o'zini FAQAT uchalasi ham (coating, plotnost, VA
+  // m3price) yashiringan holatdagina yashiramiz — aks holda hech qachon
+  // to'liq bo'sh bo'lib qolmaydi.
+  const coatPenoGrp = coatField?.closest('.dgrp');
   const tBazaltW = row.querySelector('.i-termo-bazalt-wrap');
   const tSerpW = row.querySelector('.i-termo-serp-wrap');
   const tKleyW = row.querySelector('.i-termo-kley-wrap');
@@ -3067,11 +3067,11 @@ function toggleFields(row) {
   // ichidagi yagona maydon(lar) yashiringan holatda ham, bo'sh quti
   // bo'lib ko'rinib qolmasligi uchun, guruhning O'ZINI ham yashiramiz
   // (individual maydon ko'rinishiga qo'shimcha, unga TA'SIR QILMAYDI).
-  if (coatGrp) coatGrp.style.display = (coatField && coatField.style.display === 'none') ? 'none' : '';
-  if (penoGrp) {
+  if (coatPenoGrp) {
+    const coatHidden = coatField && coatField.style.display === 'none';
     const penoHidden = penoField && penoField.style.display === 'none';
     const m3Hidden = m3Field && m3Field.style.display === 'none';
-    penoGrp.style.display = (penoHidden && m3Hidden) ? 'none' : '';
+    coatPenoGrp.style.display = (coatHidden && penoHidden && m3Hidden) ? 'none' : '';
   }
 
   // "Hajm" kartochkasi — Termopanel/Gips/Loy sotishda ma'nosiz (bu
