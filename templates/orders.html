@@ -2717,7 +2717,7 @@ function addItem() {
       <div class="dgrp-flex-row" style="display:flex;gap:12px;align-items:stretch;grid-column:1/-1">
         <div class="dgrp i-dims-box" style="flex:2;margin-bottom:0">
           <div class="dgrp-title">📐 O'lcham</div>
-          <div class="dgrp-row" style="grid-template-columns:repeat(2,1fr)">
+          <div class="dgrp-row" style="grid-template-columns:repeat(4,1fr)">
             <div class="dif i-h-wrap"><label class="i-h-label">Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
             <div class="dif i-w-wrap"><label class="i-w-label">Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
             <div class="dif i-t-wrap" style="display:none"><label>Qalinlik</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
@@ -2978,6 +2978,28 @@ function toggleFields(row) {
   const gipsUnitW = row.querySelector('.i-gips-unit-wrap');
   const donaYieldW = row.querySelector('.i-donayield-wrap');
   const termoXomashyoGrp = row.querySelector('.i-termo-xomashyo-grp');
+  const dimsRow = row.querySelector('.i-dims-box .dgrp-row');
+  const qtyRow = row.querySelector('.i-qty-box .dgrp-row');
+
+  // MUHIM: "l" (Uzunlik) va "q" (Miqdor) — turdan turga, MA'NOSI
+  // o'zgaradi. Profilda "l" — sof o'lcham (Uzunlik); Panelda "q" — sof
+  // o'lcham (Uzunlik); Donalikda "q" — HAQIQIY miqdor; Blokda "l" —
+  // ishlab chiqarish normasi (miqdor tushunchasiga yaqin). Shuning
+  // uchun, ularni DOIM bitta joyda ushlab turmasdan, joriy turga qarab,
+  // TO'G'RI qutiga (O'lcham yoki Miqdor va narx) ko'chirib qo'yamiz.
+  if (dimsRow && qtyRow && lW && qW) {
+    if (type === 'profil') {
+      dimsRow.appendChild(lW);   // Uzunlik — o'lcham bilan birga
+      qtyRow.appendChild(qW);
+    } else if (type === 'panel') {
+      dimsRow.appendChild(qW);   // Panelda "q" — Uzunlik, o'lcham bilan birga
+      qtyRow.appendChild(lW);
+    } else {
+      // Donalik, Blok va boshqa barcha turlar — asl (standart) joyiga
+      qtyRow.appendChild(lW);
+      qtyRow.appendChild(qW);
+    }
+  }
 
   // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
   [tBazaltW, tSerpW, tKleyW, tLoyW, lsRecipeW, gipsUnitW, donaYieldW].forEach(el => { if (el) el.style.display = 'none'; });
@@ -3096,6 +3118,18 @@ function toggleFields(row) {
     const wHidden = wW && wW.style.display === 'none';
     const tHidden = tW && tW.style.display === 'none';
     dimsBox.style.display = (hHidden && wHidden && tHidden) ? 'none' : '';
+  }
+
+  // "Miqdor va narx" qutisi ham, xuddi shunday — agar ICHIDAGI barcha
+  // maydonlar (Profilda bo'lgani kabi, hammasi "O'lcham"ga ko'chib
+  // ketgan bo'lsa) yashiringan bo'lsa, qutining o'zini yashiramiz.
+  // MUHIM: faqat HOZIR shu quti ICHIDA turgan maydonlarni tekshiramiz
+  // (ko'chirilgan, boshqa qutiga o'tib ketgan maydonlar hisobga olinmaydi).
+  const qtyBox = row.querySelector('.i-qty-box');
+  if (qtyBox && qtyRow) {
+    const childDifs = Array.from(qtyRow.querySelectorAll(':scope > .dif'));
+    const allHidden = childDifs.every(el => el.style.display === 'none');
+    qtyBox.style.display = allHidden ? 'none' : '';
   }
 
   // "Hajm" kartochkasi — Termopanel/Gips/Loy sotishda ma'nosiz (bu
