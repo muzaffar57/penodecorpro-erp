@@ -566,30 +566,57 @@ def get_company_obligations_status(db: Session, year: int, month: int) -> dict:
     """Kompaniyaning O'ZI kimlarga qarzdorligini — bitta joyda yig'ib beradi:
     1) Hodimlarga (oylik hisob-kitobdagi 'qolgan')
     2) Doimiy majburiyatlar (Arenda, Soliq, Transport va h.k.)
-    Ikkalasi ham — FAQAT o'qish, mavjud, sinalgan hisob-kitoblardan foydalanadi."""
+    Ikkalasi ham — FAQAT o'qish, mavjud, sinalgan hisob-kitoblardan foydalanadi.
+
+    MUHIM (2026-09): Hodimlar qarzi — FAQAT "hozirgi oy"ni emas, balki
+    OXIRGI 3 OYni (hozirgi + oldingi 2 ta) tekshiradi. Sabab: agar oylik,
+    masalan, 3-4 kun kechikib, yangi oyga o'tib to'lansa — eski (masalan
+    o'tgan oy) qarzi, avvalgi versiyada, "hozirgi oy" bo'lib qolgani uchun,
+    ko'rinishdan BUTUNLAY yo'qolib qolar edi (garchi hali to'lanmagan
+    bo'lsa ham). Endi, har bir yozuv, aynan QAYSI oyga tegishli ekanini
+    ("year"/"month" maydonlari orqali) aniq bildiradi — shu orqali,
+    "To'landi" tugmasi bosilganda, to'lov TO'G'RI oyga yozilishi ta'minlanadi."""
     from models import RecurringObligation, ExpenseTransaction
     from sqlalchemy import func
     from datetime import datetime
 
     today = datetime.utcnow()
+    OY_NOMLARI = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
+                  "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"]
 
-    # MUHIM: to'g'ridan-to'g'ri calculate_monthly_employee_pay(...,0,0,0,0,0)
-    # chaqirilsa — "necha metr/blok ishlatilgan" kabi HAQIQIY miqdorlar
-    # o'rniga "0" yuborilgan bo'lardi, va shu sabab "har birlik uchun"
-    # turidagi (Blok, Metr) xodimlar SUMMASI har doim "0" chiqib qolar edi.
-    # Shuning uchun, o'sha haqiqiy miqdorlarni ALLAQACHON to'g'ri hisoblab
-    # bergan get_monthly_report()dan foydalanamiz.
-    monthly = get_monthly_report(db, year, month)
-    emp_result = {"breakdown": monthly.get("hodimlar_moslashuvchan_breakdown", [])}
-    employees = [
-        {
-            "employee_id": e["employee_id"], "name": e["name"], "detail": e["detail"],
-            "amount": e["amount"], "avans": e["avans"], "qolgan": e["qolgan"],
-            "status": "overdue" if (e["qolgan"] > 0.5 and today.day > 5) else ("partial" if e["qolgan"] > 0.5 else "full")
-        }
-        for e in emp_result["breakdown"]
-    ]
-    employees_with_debt = [e for e in employees if e["qolgan"] > 0.5]
+    # Oxirgi 3 oyni (hozirgi + oldingi 2 ta) tekshiramiz
+    months_to_check = []
+    y, m = year, month
+    for _ in range(3):
+        months_to_check.append((y, m))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+
+    employees_with_debt = []
+    for (chk_year, chk_month) in months_to_check:
+        # MUHIM: to'g'ridan-to'g'ri calculate_monthly_employee_pay(...,0,0,0,0,0)
+        # chaqirilsa — "necha metr/blok ishlatilgan" kabi HAQIQIY miqdorlar
+        # o'rniga "0" yuborilgan bo'lardi, va shu sabab "har birlik uchun"
+        # turidagi (Blok, Metr) xodimlar SUMMASI har doim "0" chiqib qolar edi.
+        # Shuning uchun, o'sha haqiqiy miqdorlarni ALLAQACHON to'g'ri hisoblab
+        # bergan get_monthly_report()dan foydalanamiz.
+        monthly = get_monthly_report(db, chk_year, chk_month)
+        emp_result = {"breakdown": monthly.get("hodimlar_moslashuvchan_breakdown", [])}
+        is_current = (chk_year, chk_month) == (year, month)
+        for e in emp_result["breakdown"]:
+            if e["qolgan"] <= 0.5:
+                continue
+            employees_with_debt.append({
+                "employee_id": e["employee_id"], "name": e["name"], "detail": e["detail"],
+                "amount": e["amount"], "avans": e["avans"], "qolgan": e["qolgan"],
+                "year": chk_year, "month": chk_month,
+                "month_label": OY_NOMLARI[chk_month] if not is_current else f"{OY_NOMLARI[chk_month]} (joriy)",
+                "status": "overdue" if (not is_current or today.day > 5) else "partial",
+            })
+    # Eng eski oy, birinchi (eng "shoshilinch") bo'lib ko'rinsin
+    employees_with_debt.sort(key=lambda e: (e["year"], e["month"]))
     total_employee_debt = sum(e["qolgan"] for e in employees_with_debt)
 
     recurring = []
@@ -1575,7 +1602,6 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
     # shu yerda, alohida qatorda hisobga olamiz — aks holda "Sof foyda"
     # sun'iy oshirib ko'rsatilgan bo'lardi.
     from models import FinishedProduct as _FP_cost
-    import crud as _crud_fp_cost
     tayyor_mahsulot_xarajat = 0.0
     for item in order.items:
         fpid = getattr(item, 'finished_product_id', None)
@@ -1584,27 +1610,10 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
         fp_c = db.query(_FP_cost).filter(_FP_cost.id == fpid).first()
         if not fp_c:
             continue
-        # MUHIM TUZATISH: avval bu yerda "joriy (allaqachon kamaygan) tan
-        # narx ÷ ASL jami ishlab chiqarilgan miqdor" formulasi ishlatilardi.
-        # Bu — noto'g'ri edi: agar SHU mahsulotdan avval BOSHQA buyurtma/
-        # sotuv ham olib ketgan bo'lsa (odatiy holat), numerator
-        # (cost_price) ALLAQACHON kamaygan bo'ladi, lekin denominator
-        # (produced_quantity) hamon ASL, TO'LIQ miqdorda qoladi — natijada
-        # "1 birlik narxi" sun'iy ravishda kam chiqib, "Tayyor mahsulotdan
-        # olingan detallar" xarajati haqiqiysidan ancha PASTROQ ko'rsatilib
-        # qolardi (2026-08-24 sinovda, Bazalt panel misolida aniqlangan).
-        # Endi — xuddi ombordan yechishda (_take_finished_for_order)
-        # ishlatilgan BIR XIL, BARQAROR formuladan foydalanamiz, shunda
-        # "ombordan qancha yechildi" va "Foyda hisobida qancha
-        # ko'rsatiladi" HAR DOIM mos keladi.
-        unit_cost = _crud_fp_cost._fp_stable_unit_cost(db, fp_c)
-        if unit_cost <= 0:
-            # Orqaga moslik — barqaror ma'lumoti yo'q, juda eski yozuvlar uchun
-            base_qty = float(fp_c.produced_quantity if fp_c.produced_quantity is not None else (fp_c.quantity or 0))
-            if base_qty > 0 and fp_c.cost_price:
-                unit_cost = float(fp_c.cost_price) / base_qty
-        if unit_cost <= 0:
+        base_qty = float(fp_c.produced_quantity if fp_c.produced_quantity is not None else (fp_c.quantity or 0))
+        if base_qty <= 0 or not fp_c.cost_price:
             continue
+        unit_cost = float(fp_c.cost_price) / base_qty
         used_qty = float(item.length if (item.category or '').lower() == 'profil' else item.quantity or 0)
         tayyor_mahsulot_xarajat += unit_cost * used_qty
     if tayyor_mahsulot_xarajat > 0:
@@ -1732,17 +1741,6 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
                 _crud_log.log_error(db, str(e), endpoint="calculate_order_profit:loy_kg_parse")
             except Exception:
                 pass
-
-    # MUHIM TUZATISH: Termopanel detallarining O'Z loyi (masalan, Kvars
-    # qoplamasi) — order.actual_loy_kg'da SAQLANMAYDI (bu — faqat umumiy,
-    # Penoplast qoplamasi uchun). Termopanel loyi har bir detalning o'zining
-    # [TERMO:...] belgisida alohida saqlanadi (xuddi ombordan yechishda
-    # ishlatilgani kabi). Shuni qo'shib qo'ymasak, Termopanel
-    # buyurtmalarida Loy tan narxi umuman hisobga olinmay qolar edi —
-    # garchi ombordan to'g'ri yechilgan bo'lsa ham (shuning uchun "Foyda"
-    # sun'iy oshirib ko'rsatilardi).
-    import crud as _crud_termo_loy
-    loy_kg += _crud_termo_loy.get_termopanel_planned_loy(order)
 
     if loy_kg > 0:
 
@@ -3482,13 +3480,15 @@ def _get_planned_loy(order) -> float:
 
 
 def _set_planned_loy(order, kg: float) -> None:
-    """Rejalashtirilgan loyni saqlaydi — to'g'ridan-to'g'ri, ishonchli
-    ustunga (order.planned_loy_kg). ESKATMA: ilgari bu qiymat order.notes
-    ichiga ham "planned_loy=..." deb yozilardi (orqaga moslik uchun) —
-    lekin bu, mijozga chiqadigan PDF hujjatlarda (Izoh qismida) ko'rinib
-    qolib, chalkashlik keltirib chiqargani uchun OLIB TASHLANDI. Endi
-    faqat ISHONCHLI ustunga yoziladi, notes matniga tegilmaydi."""
+    """Rejalashtirilgan loyni saqlaydi — endi to'g'ridan-to'g'ri, ishonchli
+    ustunga (order.planned_loy_kg). Eski notes-belgisi ham, orqaga moslik
+    uchun, parallel yozilib turadi (hozircha, keyinchalik olib tashlanishi
+    mumkin)."""
     order.planned_loy_kg = kg
+    notes = order.notes or ''
+    parts = [p.strip() for p in notes.split(',') if p.strip() and not p.strip().startswith('planned_loy=')]
+    parts.append(f'planned_loy={kg}')
+    order.notes = ','.join(parts)
 
 
 def _get_order_recipe(db: Session, order):
@@ -3986,27 +3986,17 @@ def _group_termo_materials(db: Session, items) -> dict:
         if m2 <= 0:
             continue
         bazalt_id = get('bazalt_item_id')
-        # MUHIM TUZATISH: avval, bazalt_id yo'q bo'lsa ham (masalan eski/
-        # noto'liq yozuvlarda), Serpiyanka/Kley "standart" nisbat (2.0/0.8)
-        # bilan HAR DOIM hisoblanardi. Bu — ESKI va YANGI holatni solishtirib
-        # farqni topadigan (tahrirlashda) funksiyalarda XATOGA olib kelardi:
-        # agar tanlangan Bazaltning HAQIQIY nisbati id ATAYLAB standartga
-        # (2.0 yoki 0.8) teng bo'lib chiqsa — "farq yo'q" deb noto'g'ri
-        # xulosaga kelinardi, va Serpiyanka/Kley ombordan UMUMAN
-        # yechilmasdi (garchi Bazaltning o'zi to'g'ri yechilsa ham).
-        # Endi — bazalt_id bo'lmasa, Serpiyanka/Kley HAM hisobga
-        # qo'shilmaydi (0 deb qoladi), aynan Bazalt kabi.
+        serp_ratio, kley_ratio = 2.0, 0.8
         if bazalt_id:
             result['bazalt'][bazalt_id] = result['bazalt'].get(bazalt_id, 0.0) + m2  # m² — keyin bo'linadi
-            serp_ratio, kley_ratio = 2.0, 0.8
             b = db.query(Inventory).filter(Inventory.id == bazalt_id).first()
             if b:
                 if b.serp_ratio_per_m2:
                     serp_ratio = float(b.serp_ratio_per_m2)
                 if b.kley_ratio_per_m2:
                     kley_ratio = float(b.kley_ratio_per_m2)
-            result['serp_m2'] += m2 * serp_ratio
-            result['kley_kg'] += m2 * kley_ratio
+        result['serp_m2'] += m2 * serp_ratio
+        result['kley_kg'] += m2 * kley_ratio
         result['loy_kg'] += float(get('termo_loy_kg') or 0)
     return result
 
