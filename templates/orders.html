@@ -5,7 +5,7 @@
 
 {% block topbar_actions %}
 {% if current_user.role.value == 'admin' %}
-<button class="btn btn-outline btn-sm" id="mark-all-ready-btn" onclick="markAllReady()">✓✓ Hammasini tayyor</button>
+<button class="btn btn-outline btn-sm" onclick="markAllReady()">✓✓ Hammasini tayyor</button>
 {% endif %}
 {% endblock %}
 
@@ -93,11 +93,6 @@
 @media (max-width:900px){.detal-grid{grid-template-columns:1fr 1fr}}
 .dif{background:#F3F4F6;border-radius:12px;padding:12px 14px}
 .dif-tur{background:#F5F3EF}
-/* "Nomi" maydonini ko'zga tashlanadigan qilish uchun (foydalanuvchi
-   so'rovi bo'yicha, 2026-08-26) — iliq fon + chap tomonda qalinroq
-   chiziq, boshqa maydonlarga tegmaydi. */
-.dif-nomi{background:#FBF0DE;border:1.5px solid #B9783F;border-left:4px solid #B9783F}
-.dif-nomi label{color:#8A5A28}
 .dif label{font-size:11.5px;color:#6B7280;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px;font-weight:700}
 .dif input,.dif select{width:100%;padding:11px 13px;border:1.5px solid #e5e5e5;border-radius:9px;font-size:14.5px;color:#111;background:#fff;outline:none;transition:border .15s}
 .unit-input-wrap{display:flex;align-items:stretch;border:1.5px solid #e5e5e5;border-radius:9px;overflow:hidden;transition:border .15s;background:#fff}
@@ -345,13 +340,10 @@
             </div>
             <div class="form-group" style="margin-bottom:12px">
               <label>Usta</label>
-              <div style="display:flex;gap:6px">
-                <select id="master_id" style="flex:1">
-                  <option value="">— Yo'q —</option>
-                  {% for m in masters %}<option value="{{ m.id }}">{{ m.name }}{{ ' — ' + m.phone if m.phone else '' }}</option>{% endfor %}
-                </select>
-                <button type="button" class="btn btn-outline" style="flex-shrink:0;padding:0 12px" onclick="openQuickAddMaster()" title="Yangi usta qo'shish">+ Yangi</button>
-              </div>
+              <select id="master_id">
+                <option value="">— Yo'q —</option>
+                {% for m in masters %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}
+              </select>
             </div>
             <div class="form-group" style="margin-bottom:12px">
               <label>Topshirish sanasi</label>
@@ -449,8 +441,8 @@
         </div>
 
         <div style="padding:0 12px 16px;display:flex;gap:10px">
-          <button class="btn btn-outline" id="order-draft-btn" style="flex:1;height:48px;font-size:14px;border-color:#8E8E93;color:#666;border-radius:10px" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
-          <button class="btn btn-dark" id="order-save-btn" style="flex:2;height:48px;font-size:14.5px;font-weight:700;border-radius:10px" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
+          <button class="btn btn-outline" style="flex:1;height:48px;font-size:14px;border-color:#8E8E93;color:#666;border-radius:10px" onclick="saveOrder(true)" title="Ombordan xomashyo yechilmaydi">📝 Vaqtincha saqlash</button>
+          <button class="btn btn-dark" style="flex:2;height:48px;font-size:14.5px;font-weight:700;border-radius:10px" onclick="saveOrder(false)">💾 Buyurtmani saqlash</button>
         </div>
       </div>
     </div>
@@ -464,24 +456,38 @@
             <span id="od-status"></span>
           </div>
         </div>
+        <div style="padding:12px">
+          <div id="od-items-container">
+            <!-- Detallar bu yerda -->
+          </div>
+        </div>
+      </div>
+
+      <!-- FAYLLAR VA RASMLAR -->
+      <div class="card" style="margin-top:12px">
+        <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3></div>
+        <div style="padding:12px">
+          <label class="dropzone">
+            <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG yoki PDF, 8 MB gacha</div>
+            <input type="file" accept="image/*,.pdf" onchange="uploadOrderAttachment(this)">
+          </label>
+          <div class="attach-grid" id="attachGrid"></div>
+        </div>
       </div>
 
       <!-- DRAFT BANNER -->
-      <div id="draftBanner" style="display:none;background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:10px;padding:14px;margin-top:12px">
+      <div id="draftBanner" style="display:none;background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:10px;padding:14px;margin-bottom:12px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
           <div>
             <div style="font-size:14px;font-weight:600;color:#b7770d">📝 Bu buyurtma qoralama holatida</div>
             <div style="font-size:14px;color:#997;margin-top:3px">Ombordan xomashyo hali yechilmagan. Mijoz tasdiqlaganda "Jarayonga olish" tugmasini bosing.</div>
           </div>
-          <button class="btn btn-dark btn-sm" id="activate-draft-btn" style="flex-shrink:0" onclick="activateDraft()">▶️ Jarayonga olish</button>
+          <button class="btn btn-dark btn-sm" style="flex-shrink:0" onclick="activateDraft()">▶️ Jarayonga olish</button>
         </div>
       </div>
 
       <!-- YETKAZISH BO'LIMI -->
-      <!-- MUHIM: bu bo'lim endi ENG YUQORIDA (Detallardan oldin) — chunki
-           qisman topshirish yoki hisob-kitob uchun buyurtmaga kirilganda,
-           aynan shu bo'lim eng ko'p ishlatiladi (foydalanuvchi so'rovi
-           bo'yicha, 2026-08-26). -->
       <div class="card" style="margin-top:12px">
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('dlvBody', 'dlv-toggle-ic')">
           <h3><span class="ico-badge blue"><i class="ti ti-truck-delivery"></i></span> Yetkazish</h3>
@@ -493,11 +499,11 @@
                     style="display:none">✅ Bir yo'la to'liq topshirish</button>
             <button class="btn btn-dark btn-sm" id="btn-new-delivery" onclick="openDeliveryModal()">+ Mahsulot topshirish</button>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('dlvBody','dlv-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
             </button>
           </div>
         </div>
-        <div style="padding:12px;display:none" id="dlvBody">
+        <div style="padding:12px" id="dlvBody">
           <!-- Umumiy progress -->
           <div style="margin-bottom:12px">
             <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
@@ -521,19 +527,6 @@
         </div>
       </div>
 
-      <!-- Detallar -->
-      <div class="card" style="margin-top:12px">
-        <div class="card-head" style="cursor:pointer" onclick="toggleSection('od-items-container', 'od-toggle-ic')">
-          <h3><span class="ico-badge" style="background:#FEF3E2;color:#B9783F"><i class="ti ti-package"></i></span> Detallar</h3>
-          <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('od-items-container','od-toggle-ic');event.stopPropagation()" title="Yig'ish/yoyish">
-            <i class="ti ti-chevron-down" id="od-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
-          </button>
-        </div>
-        <div style="padding:12px;display:none" id="od-items-container">
-          <!-- Detallar bu yerda -->
-        </div>
-      </div>
-
       <!-- TO'LOVLAR BO'LIMI -->
       <div class="card" style="margin-top:12px">
         <div class="card-head" style="cursor:pointer" onclick="toggleSection('payBody', 'pay-toggle-ic')">
@@ -541,11 +534,11 @@
           <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
             <button class="btn btn-green btn-sm" id="btn-add-payment" onclick="openPaymentForm()">+ To'lov qo'shish</button>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('payBody','pay-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="pay-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+              <i class="ti ti-chevron-down" id="pay-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
             </button>
           </div>
         </div>
-        <div style="padding:12px;display:none" id="payBody">
+        <div style="padding:12px" id="payBody">
           <!-- To'lov qo'shish formasi -->
           <div id="paymentForm" style="display:none;background:#F0F9F4;border:1.5px solid #22C55E;border-radius:8px;padding:12px;margin-bottom:12px">
             <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#1e7e34">Yangi to'lov</div>
@@ -585,7 +578,7 @@
               <span style="font-size:12.5px;color:#92400E;line-height:1.4">Agar to'lovdan keyin ozgina qarz qolsa (masalan mijoz "qolganini kechiring" desa) — <b>qolgan summa chegirma sifatida yozilsin</b> (foyda hisobotidan ham to'g'ri ayiriladi)</span>
             </label>
             <div style="display:flex;gap:6px">
-              <button class="btn btn-green btn-sm" id="order-payment-save-btn" style="flex:1" onclick="savePayment()">💾 Saqlash</button>
+              <button class="btn btn-green btn-sm" style="flex:1" onclick="savePayment()">💾 Saqlash</button>
               <button class="btn btn-outline btn-sm" onclick="closePaymentForm()">Bekor</button>
             </div>
           </div>
@@ -593,28 +586,6 @@
           <!-- To'lovlar tarixi -->
           <div style="font-size:14px;font-weight:600;color:#777;margin-bottom:6px">Tarix</div>
           <div id="paymentList"></div>
-        </div>
-      </div>
-
-      <!-- FAYLLAR VA RASMLAR -->
-      <!-- MUHIM: bu bo'lim endi ENG OXIRIDA (foydalanuvchi so'rovi bo'yicha,
-           2026-08-26) — chunki kamdan-kam ishlatiladi, tez-tez kerak
-           bo'ladigan Yetkazish/Detallar/To'lovlardan keyin joylashgani
-           ma'qulroq. -->
-      <div class="card" style="margin-top:12px">
-        <div class="card-head" style="cursor:pointer" onclick="toggleSection('filesBody', 'files-toggle-ic')">
-          <h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3>
-          <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('filesBody','files-toggle-ic');event.stopPropagation()" title="Yig'ish/yoyish">
-            <i class="ti ti-chevron-down" id="files-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
-          </button>
-        </div>
-        <div style="padding:12px;display:none" id="filesBody">
-          <label class="dropzone">
-            <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
-            <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG yoki PDF, 8 MB gacha</div>
-            <input type="file" accept="image/*,.pdf" onchange="uploadOrderAttachment(this)">
-          </label>
-          <div class="attach-grid" id="attachGrid"></div>
         </div>
       </div>
     </div>
@@ -814,32 +785,6 @@
   </div>
 </div>
 
-<!-- ══ TEZKOR "YANGI USTA" MODALI (Manager uchun, 2026-08-28) ══
-     MUHIM: bu — Manager rollari uchun MO'LJALLANGAN, atayin SODDA
-     modal — faqat Ismi/Telefon/Hudud so'raydi. Boshqa ustalarning
-     foizi, savdosi, sovg'alari — bu yerda HECH QANDAY ko'rinmaydi,
-     chunki Manager to'liq "Ustalar KPI" sahifasiga (u yerda bularning
-     barchasi bor) kira olmaydi. -->
-<div id="quickAddMasterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:420px;max-width:100%">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:16px;font-weight:600;color:var(--text)">+ Yangi usta</div>
-      <button onclick="closeQuickAddMaster()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
-    </div>
-    <div style="padding:18px 22px">
-      <div class="form-group" style="margin-bottom:12px"><label>Ismi *</label><input type="text" id="qam-name" placeholder="Usta ismi"></div>
-      <div class="form-group" style="margin-bottom:12px"><label>Telefon *</label><input type="text" id="qam-phone" placeholder="+998901234567"></div>
-      <div class="form-group" style="margin-bottom:12px"><label>Hudud</label><input type="text" id="qam-region" placeholder="Andijon"></div>
-      <div class="form-group" style="margin-bottom:4px"><label>Telegram ID <span style="color:var(--text3);font-weight:400">(ixtiyoriy)</span></label><input type="text" id="qam-telegram" placeholder="123456789"></div>
-      <div id="qam-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:13px;color:#DC2626"></div>
-    </div>
-    <div style="padding:14px 22px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeQuickAddMaster()">Bekor</button>
-      <button class="btn btn-dark" style="flex:1" id="qam-save-btn" onclick="saveQuickAddMaster()">Saqlash</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ YETKAZISH MODALI ══ -->
 <div id="dlvModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
@@ -923,7 +868,7 @@
 
     <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeDeliveryModal()">Bekor</button>
-      <button class="btn btn-dark" id="delivery-save-btn" style="flex:2" onclick="saveDelivery()">💾 Saqlash va nakladnoy olish</button>
+      <button class="btn btn-dark" style="flex:2" onclick="saveDelivery()">💾 Saqlash va nakladnoy olish</button>
 
     </div>
   </div>
@@ -971,42 +916,6 @@ function closeItemImgLightbox() { document.getElementById('itemImgLightbox').sty
 let selectedOrderId = null;
 let itemCount = 0;
 let editMode = false;          // tahrirlash rejimidamizmi
-let isSubmittingOrderForm = false;   // ikki marta bosishdan himoya — buyurtma yaratish/yangilash
-let isSubmittingDelivery = false;    // ikki marta bosishdan himoya — topshirish (nakladnoy)
-let isSubmittingOrderPayment = false; // ikki marta bosishdan himoya — buyurtma to'lovi
-let isActivatingDraft = false;       // ikki marta bosishdan himoya — qoralamani jarayonga olish
-let isSubmittingReadyModal = false;  // ikki marta bosishdan himoya — "tayyor" belgilash
-let isMarkingAllReady = false;       // ikki marta bosishdan himoya — hammasini tayyor belgilash
-
-function setBtnSaving(id, saving) {
-  const btn = document.getElementById(id);
-  if (!btn) return;
-  btn.disabled = saving;
-  btn.style.opacity = saving ? '0.6' : '';
-  btn.style.cursor = saving ? 'not-allowed' : '';
-  if (saving) {
-    btn.dataset.origText = btn.textContent;
-    btn.textContent = 'Saqlanmoqda...';
-  } else if (btn.dataset.origText) {
-    btn.textContent = btn.dataset.origText;
-  }
-}
-
-function setOrderFormButtonsDisabled(disabled) {
-  ['order-draft-btn', 'order-save-btn'].forEach(id => {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    btn.disabled = disabled;
-    btn.style.opacity = disabled ? '0.6' : '';
-    btn.style.cursor = disabled ? 'not-allowed' : '';
-    if (disabled) {
-      btn.dataset.origText = btn.textContent;
-      btn.textContent = 'Saqlanmoqda...';
-    } else if (btn.dataset.origText) {
-      btn.textContent = btn.dataset.origText;
-    }
-  });
-}
 
 // ═══════════════════════════════════════════════════════════════
 // QORALAMANI AVTOMATIK SAQLASH (agar sahifadan tasodifan chiqib
@@ -1033,21 +942,6 @@ function saveDraftLS() {
         const cls = Array.from(el.classList).find(c => c.startsWith('i-'));
         if (cls) data[cls] = el.value;
       });
-      // MUHIM: "Tayyor mahsulotdan" bog'lanishi (fpId/fpPrice/fpMax/
-      // fpUnit) — oddiy input/select MAYDONI EMAS, JS orqali qatorga
-      // ("dataset") yozib qo'yiladigan, KO'RINMAS texnik belgi.
-      // Yuqoridagi tsikl buni umuman qamrab olmaydi — shuning uchun
-      // bu yerda ALOHIDA saqlaymiz. Aks holda, sahifadan chiqib-
-      // kirganda, "tayyor mahsulotdan olingan" degan muhim ma'lumot
-      // butunlay yo'qolib, narx noto'g'ri (buyurtmaning umumiy "1 m³
-      // narxi" formulasi bo'yicha) qayta hisoblanib qolar edi
-      // (2026-08-23 sinovda aynan shu holat aniqlangan).
-      if (row.dataset.fpId) {
-        data._fpId = row.dataset.fpId;
-        data._fpPrice = row.dataset.fpPrice;
-        data._fpMax = row.dataset.fpMax;
-        data._fpUnit = row.dataset.fpUnit;
-      }
       return data;
     });
     // Hech narsa yozilmagan bo'lsa (bo'sh forma) — saqlashning hojati yo'q
@@ -1101,33 +995,10 @@ function restoreDraftLS(draft) {
     }
     // Keyin qolgan barcha maydonlarni to'ldiramiz
     Object.keys(rowData).forEach(cls => {
-      if (cls === 'i-type' || cls.startsWith('_fp')) return;
+      if (cls === 'i-type') return;
       const el = row.querySelector('.' + cls);
       if (el) el.value = rowData[cls];
     });
-    // MUHIM: "Tayyor mahsulotdan" bog'lanishini ham (agar saqlangan
-    // bo'lsa) tiklaymiz — aks holda narx buyurtmaning umumiy "1 m³
-    // narxi" formulasidan noto'g'ri qayta hisoblanib qolar edi.
-    if (rowData._fpId) {
-      row.dataset.fpId = rowData._fpId;
-      if (rowData._fpPrice) row.dataset.fpPrice = rowData._fpPrice;
-      if (rowData._fpMax) row.dataset.fpMax = rowData._fpMax;
-      if (rowData._fpUnit) row.dataset.fpUnit = rowData._fpUnit;
-      const badge = row.querySelector('.detal-badge');
-      if (badge && !badge.querySelector('.fp-tag')) {
-        badge.insertAdjacentHTML('afterend', `
-          <span class="fp-tag" id="fptag-${row.id}">
-            🏭 Tayyor mahsulotdan
-            <button onclick="clearFinished('${row.id}')" title="Bekor qilish">✕</button>
-          </span>`);
-      }
-      const peno = row.querySelector('.i-peno');
-      if (peno) { peno.disabled = true; peno.style.opacity = '.4'; }
-      const m3d = row.querySelector('.i-m3price');
-      if (m3d && rowData['i-type'] !== 'profil' && rowData['i-type'] !== 'panel') {
-        m3d.disabled = true; m3d.style.opacity = '.4';
-      }
-    }
     syncCoatingUI(row, row.querySelector('.i-c')?.value === 'true');
     calculateItem(row);
   });
@@ -1456,21 +1327,14 @@ function pickFinished(el, fpId) {
     peno.closest('.dif').title = 'Tayyor mahsulotdan olinmoqda — xomashyo hisoblanmaydi';
   }
 
-  // "1 m³ narxi" — Tayyor mahsulotdan tanlanganda, narx (fpPrice)
-  // TANLASH ZAHOTIYOQ, mahsulotning O'Z, haqiqiy narxida QOTIB QOLADI —
-  // buyurtmaning umumiy "1 m³ narxi"ga qarab ENDI AVTOMATIK
-  // almashtirilmaydi. (Avval shu yerda, tanlash zahoti, narx
-  // sezilmasdan formuladan qayta hisoblanib, mahsulotning haqiqiy
-  // narxi ustidan yozilib qolar edi — 2026-08-23 sinovda aynan shu
-  // holat aniqlangan: 15 600 → 13 000 kabi kutilmagan o'zgarish.)
-  // Maydon baribir OCHIQ qoladi — agar xohlasa, operator buni ATAYLAB,
-  // qo'lda o'zgartirib, narxni yangilashi mumkin (bu holatda, .i-m3price
-  // maydonining o'z oninput handleri orqali, formulaning o'zi hali ham
-  // ishlaydi — faqat endi bu HAR DOIM ANIQ, operatorning o'z amali
-  // natijasida bo'ladi, hech qachon sezilmasdan/avtomatik emas).
+  // "1 m³ narxi" — ENDI BLOKLANMAYDI. Sotuv narxini joriy buyurtma
+  // narxiga moslashtirish uchun ochiq qoldiramiz (tan narxi/xomashyo
+  // hisobiga bu SIRA TA'SIR QILMAYDI — faqat mijozga ko'rinadigan narx).
   const m3 = row.querySelector('.i-m3price');
   if (m3 && (effectiveType === 'profil' || effectiveType === 'panel')) {
-    // ataylab bo'sh qoldirilgan — narx o'zgarishsiz qoladi
+    const orderBasePrice = parseNum(document.getElementById('base_price')?.value || '0');
+    if (orderBasePrice > 0) m3.value = orderBasePrice.toLocaleString('ru-RU').replace(/,/g, ' ');
+    recomputeFpPriceFromM3(row);
   } else if (m3) {
     m3.disabled = true;
     m3.style.opacity = '.4';
@@ -1766,12 +1630,9 @@ async function loadOrderItems(id) {
   }
 }
 
-const inFlightItemImgUpload = new Set();
 async function uploadItemImage(itemId, input) {
   const file = input.files[0];
   if (!file) return;
-  if (inFlightItemImgUpload.has(itemId)) return; // Ikki marta bosishdan himoya
-  inFlightItemImgUpload.add(itemId);
   const fd = new FormData();
   fd.append('file', file);
   try {
@@ -1780,8 +1641,6 @@ async function uploadItemImage(itemId, input) {
     if (selectedOrderId) loadOrderItems(selectedOrderId);
   } catch (e) {
     showMsg('Server xatosi', 'error');
-  } finally {
-    inFlightItemImgUpload.delete(itemId);
   }
 }
 
@@ -1802,12 +1661,9 @@ async function loadOrderAttachments(orderId) {
   } catch (e) { console.error('Fayllarni yuklashda xato:', e); }
 }
 
-let isUploadingOrderAttachment = false;
 async function uploadOrderAttachment(input) {
   const file = input.files[0];
   if (!file || !selectedOrderId) return;
-  if (isUploadingOrderAttachment) return; // Ikki marta bosishdan himoya
-  isUploadingOrderAttachment = true;
   const fd = new FormData();
   fd.append('file', file);
   try {
@@ -1816,10 +1672,8 @@ async function uploadOrderAttachment(input) {
     loadOrderAttachments(selectedOrderId);
   } catch (e) {
     showMsg('Server xatosi', 'error');
-  } finally {
-    isUploadingOrderAttachment = false;
-    input.value = '';
   }
+  input.value = '';
 }
 
 async function deleteOrderAttachment(attId, orderId) {
@@ -2057,66 +1911,6 @@ function openSummaryPdf() {
   closeSummaryModal();
 }
 
-function openQuickAddMaster() {
-  document.getElementById('qam-name').value = '';
-  document.getElementById('qam-phone').value = '';
-  document.getElementById('qam-region').value = '';
-  document.getElementById('qam-telegram').value = '';
-  document.getElementById('qam-error').style.display = 'none';
-  document.getElementById('quickAddMasterModal').style.display = 'flex';
-}
-
-function closeQuickAddMaster() {
-  document.getElementById('quickAddMasterModal').style.display = 'none';
-}
-
-let isSavingQuickAddMaster = false;
-async function saveQuickAddMaster() {
-  const name = document.getElementById('qam-name').value.trim();
-  const phone = document.getElementById('qam-phone').value.trim();
-  const region = document.getElementById('qam-region').value.trim();
-  const telegram_id = document.getElementById('qam-telegram').value.trim();
-  const err = document.getElementById('qam-error');
-
-  if (!name) { err.style.display = 'block'; err.textContent = '❌ Ismni kiriting'; return; }
-  if (!phone) { err.style.display = 'block'; err.textContent = '❌ Telefon raqamini kiriting'; return; }
-  err.style.display = 'none';
-
-  if (isSavingQuickAddMaster) return; // Ikki marta bosishdan himoya
-  isSavingQuickAddMaster = true;
-  const btn = document.getElementById('qam-save-btn');
-  btn.disabled = true; btn.textContent = 'Saqlanmoqda...';
-
-  try {
-    const res = await fetch('/api/masters', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, phone, region: region || null, telegram_id: telegram_id || null})
-    });
-    if (res.ok) {
-      const newMaster = await res.json();
-      // Yangi ustani ro'yxatga qo'shib, darhol tanlaymiz
-      const sel = document.getElementById('master_id');
-      const opt = document.createElement('option');
-      opt.value = newMaster.id;
-      opt.textContent = newMaster.name + (newMaster.phone ? ' — ' + newMaster.phone : '');
-      sel.appendChild(opt);
-      sel.value = newMaster.id;
-      closeQuickAddMaster();
-    } else {
-      const e = await res.json();
-      err.style.display = 'block';
-      err.textContent = '❌ ' + (e.detail || 'Xato yuz berdi');
-    }
-  } catch(e) {
-    err.style.display = 'block';
-    err.textContent = '❌ Server bilan aloqa yo\'q';
-  } finally {
-    isSavingQuickAddMaster = false;
-    btn.disabled = false; btn.textContent = 'Saqlash';
-  }
-}
-
 function openDeliveryModal() {
   if (!dlvData) return;
   const pending = dlvData.items.filter(i => !i.is_done);
@@ -2301,9 +2095,6 @@ async function submitFullDlvModal() {
 
 async function saveDelivery() {
   if (!selectedOrderId) return;
-  if (isSubmittingDelivery) return; // Ikki marta bosishdan himoya
-  isSubmittingDelivery = true;
-  setBtnSaving('delivery-save-btn', true);
 
   const items = [];
   let hasOver = false;
@@ -2319,15 +2110,11 @@ async function saveDelivery() {
   if (hasOver) {
     err.style.display = 'block';
     err.textContent = '❌ Qoldiqdan ko\'p miqdor kiritilgan!';
-    isSubmittingDelivery = false;
-    setBtnSaving('delivery-save-btn', false);
     return;
   }
   if (!items.length) {
     err.style.display = 'block';
     err.textContent = '❌ Kamida bitta mahsulot miqdorini kiriting';
-    isSubmittingDelivery = false;
-    setBtnSaving('delivery-save-btn', false);
     return;
   }
   err.style.display = 'none';
@@ -2377,9 +2164,6 @@ async function saveDelivery() {
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
-  } finally {
-    isSubmittingDelivery = false;
-    setBtnSaving('delivery-save-btn', false);
   }
 }
 
@@ -2550,9 +2334,6 @@ async function checkLoyStock() {
 async function activateDraft() {
   if (!selectedOrderId) return;
   if (!await showConfirmModal('Buyurtmani jarayonga olasizmi?\n\nOmbordan xomashyo yechiladi.', {icon:'🚀', okText:'Jarayonga olish'})) return;
-  if (isActivatingDraft) return; // Ikki marta bosishdan himoya
-  isActivatingDraft = true;
-  setBtnSaving('activate-draft-btn', true);
 
   try {
     const res = await fetch(`/api/orders/${selectedOrderId}/activate`, { method: 'POST' });
@@ -2576,9 +2357,6 @@ async function activateDraft() {
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
-  } finally {
-    isActivatingDraft = false;
-    setBtnSaving('activate-draft-btn', false);
   }
 }
 
@@ -2683,10 +2461,8 @@ async function loadPayments(orderId) {
   }
 }
 
-let isSavingAgreedAmount = false;
 async function editAgreedAmount() {
   if (!selectedOrderId) return;
-  if (isSavingAgreedAmount) return; // Ikki marta bosishdan himoya
   try {
     const r = await fetch(`/api/orders/${selectedOrderId}`);
     if (!r.ok) return;
@@ -2706,9 +2482,6 @@ async function editAgreedAmount() {
     const val = parseNum(v);
     if (!val || val <= 0) { showMsg('Noto\'g\'ri summa', 'error'); return; }
 
-    if (isSavingAgreedAmount) return;
-    isSavingAgreedAmount = true;
-
     const res = await fetch(`/api/orders/${selectedOrderId}/agreed-amount`, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
@@ -2721,9 +2494,7 @@ async function editAgreedAmount() {
     } else {
       showMsg('❌ Xato', 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
-    isSavingAgreedAmount = false;
-  }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
 }
 
 function openPaymentForm() {
@@ -2768,10 +2539,6 @@ async function savePayment() {
     }
   }
 
-  if (isSubmittingOrderPayment) return; // Ikki marta bosishdan himoya
-  isSubmittingOrderPayment = true;
-  setBtnSaving('order-payment-save-btn', true);
-
   const data = {
     order_id: selectedOrderId,
     amount: amount,
@@ -2806,9 +2573,6 @@ async function savePayment() {
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
-  } finally {
-    isSubmittingOrderPayment = false;
-    setBtnSaving('order-payment-save-btn', false);
   }
 }
 
@@ -2911,7 +2675,7 @@ function addItem() {
     </div>
     <div class="detal-body">
     <div class="detal-grid">
-      <div class="dif dif-nomi" style="grid-column:1/-1;position:relative">
+      <div class="dif" style="grid-column:1/-1;position:relative">
         <label>Nomi</label>
         <input placeholder="Karniz M-06" class="i-name" autocomplete="off"
                oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'))" onblur="hideFpSuggest(this)">
@@ -2938,8 +2702,8 @@ function addItem() {
           <option value="gips">🧱 Gips</option>
         </select>
       </div>
-      <div class="dif i-h-wrap"><label>Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
-      <div class="dif i-w-wrap"><label>Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+      <div class="dif i-h-wrap"><label class="i-h-label">Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+      <div class="dif i-w-wrap"><label class="i-w-label">Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
       <div class="dif i-t-wrap" style="display:none"><label>Qalinlik</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
       <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta dona chiqadi</label><div class="unit-input-wrap"><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
       <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
@@ -3298,6 +3062,15 @@ function toggleFields(row) {
   if (permLabel) {
     permLabel.textContent = (type === 'termopanel') ? "1 m² narxi" : (type === 'loy_sotish') ? "1 kg narxi" : "1 metr narxi";
   }
+  // "Eni" -> "Bo'yi", "Kengligi" -> "Qalinligi" — FAQAT Profil va Donalikda
+  // (Panelda uchala o'lcham — Eni/Kengligi/Qalinlik — birga ko'rinadi,
+  // shuning uchun Panelga TEGILMAYDI, aks holda ikkita "Qalinlik" nomli
+  // maydon bo'lib, chalkashtirib qo'yardi).
+  const hLabel = row.querySelector('.i-h-label');
+  const wLabel = row.querySelector('.i-w-label');
+  const useAltNames = (type === 'profil' || type === 'dona');
+  if (hLabel) hLabel.textContent = useAltNames ? "Bo'yi" : "Eni";
+  if (wLabel) wLabel.textContent = useAltNames ? "Qalinligi" : "Kengligi";
   row.dataset.lastType = type;
   checkGipsSectionVisibility();
 }
@@ -3355,12 +3128,7 @@ function toggleDonaVolLock(row) {
     // Qulfdan chiqarish — hajm yana narxga qarab jonli o'zgaradi
     delete row.dataset.donaVolLocked;
   } else {
-    // Qulflash — hozirgi hajm nisbatini "muzlatadi". MUHIM: "1 dona
-    // narxi" maydoniga HECH QACHON tegilmaydi — u qulflashdan oldin ham,
-    // keyin ham AYNAN BIR XIL, ekranda ko'rinib turgan (Qoplama hisobga
-    // olingan) yakuniy narxni ko'rsatishda davom etadi. Xom narx (backend
-    // uchun) — ko'rinmas holda, row.dataset.rawUnitPriceDona'da alohida
-    // hisoblanadi (pastda, calculateItem() ichida).
+    // Qulflash — hozirgi hajm nisbatini "muzlatadi"
     row.dataset.donaVolLocked = 'true';
   }
   calculateItem(row);
@@ -3415,22 +3183,17 @@ function calculateItem(row) {
       if (volBtn) volBtn.style.display = 'none';
     } else if (row.dataset.donaVolLocked === 'true') {
       // QULFLANGAN: hajm o'zgarmaydi (birinchi hisoblangan holicha qoladi).
-      // MUHIM: bu yerdagi "1 dona narxi" maydoni — EKRANDA doim ko'rinib
-      // turgan, YAKUNIY (Qoplama hisobga olingan) narx sifatida talqin
-      // qilinadi — xuddi qulflanmagan holatdagi kabi. Shuning uchun bu
-      // yerda maydonni HECH QACHON o'zgartirmaymiz (na ko'paytiramiz, na
-      // yarmiga bo'lamiz) — Qulflash tugmasini bosish, yoki shunchaki
-      // qayta hisoblash, ekrandagi raqamni ASLO o'zgartirmasligi kerak.
-      // Narxni endi ERKIN oshirish ham mumkin (masalan yopishtirish
-      // mehnati uchun) — bu, ombordan yechiladigan HAQIQIY hajmga
-      // TEGMAYDI. Backendga ketadigan XOM narxni esa shu YAKUNIY
-      // narxdan (Qoplama holatiga qarab) ko'rinmas holda hisoblab olamiz.
+      // Narxni endi ERKIN oshirish mumkin (masalan yopishtirish mehnati
+      // uchun) — bu, ombordan yechiladigan HAQIQIY hajmga TEGMAYDI.
+      // MUHIM: unitPrice (i-unitprice maydonidan) — allaqachon QOPLAMALI
+      // holatda saqlangan (yangi usul, qulflanmagan holatda buni ALLAQACHON
+      // 2ga ko'paytirib yozadi) — shuning uchun bu yerda YANA 2ga
+      // ko'paytirmaymiz (aks holda ikki baravar oshib ketardi).
       const perUnitVol = parseFloat(row.dataset.donaVolPerUnit) || 0;
       volume_total = perUnitVol * qty;
       row.querySelector('.i-vol').value = volume_total.toFixed(4);
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
-      row.dataset.rawUnitPriceDona = isCoated ? (unitPrice / 2) : unitPrice;
       if (volBtn) { volBtn.style.display = 'inline'; volBtn.textContent = '🔒'; volBtn.title = "Qulfdan chiqarish (hajm qayta jonli hisoblanadi)"; }
     } else if (h_val > 0 && t_val > 0 && donaYield > 0 && basePrice > 0) {
       // YANGI USUL: Eni x Qalinlik x (1 metrdan necha dona chiqishi) dan —
@@ -3439,16 +3202,8 @@ function calculateItem(row) {
       const perUnitVol = (h_val/100) * (t_val/100) / 2 / donaYield;
       volume_total = perUnitVol * qty;
       row.dataset.donaVolPerUnit = perUnitVol.toString();
-      // MUHIM TUZATISH: backend "dona" turi uchun Qoplama:Ha bo'lsa,
-      // narxni HAR DOIM o'zi ×2 qiladi (backend frontend har doim XOM
-      // narx yuboradi deb hisoblaydi). Shuning uchun bu yerda EKRANGA
-      // (upEl, joriy summalar) qoplamali narxni ko'rsatamiz, lekin
-      // backendga ketadigan XOM narxni ALOHIDA saqlaymiz — aks holda
-      // backend yana ×2 qilib, natija 4 barobar (haqiqiysidan 2 barobar
-      // ortiq) bo'lib qolar edi.
-      const rawUnitPrice = perUnitVol * basePrice;
-      unitPrice = isCoated ? rawUnitPrice * 2 : rawUnitPrice;
-      row.dataset.rawUnitPriceDona = rawUnitPrice;
+      unitPrice = perUnitVol * basePrice;
+      if (isCoated) unitPrice *= 2;
       if (upEl) upEl.value = formatNum(unitPrice);
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
@@ -3907,11 +3662,6 @@ async function saveOrder(isDraft = false) {
     return updateOrder(currentEditOrderId);
   }
 
-  if (isSubmittingOrderForm) return; // Ikki marta bosishdan himoya — buyurtma ikki marta yaratilib qolmasin
-  isSubmittingOrderForm = true;
-  setOrderFormButtonsDisabled(true);
-  try {
-
   const projId = parseInt(document.getElementById('project_id').value);
   if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
@@ -3949,17 +3699,8 @@ async function saveOrder(isDraft = false) {
     issues.push({ text: "Loy miqdori (kg) kiritilmagan", targetId: 'loy_kg' });
   }
 
-  // Gips miqdori -- faqat kamida bitta, TAYYOR MAHSULOTDAN OLINMAGAN
-  // Gips turdagi detal bo'lsa so'raladi. MUHIM: "Tayyor mahsulotdan"
-  // olingan Gips detallari — allaqachon ishlab chiqarilgan (tayyor
-  // turgan), shu buyurtmada YANGI Gips sarflanmaydi — xuddi yuqoridagi
-  // Loy tekshiruvidagi bir xil sabab bilan (2026-08-23 sinovda
-  // aniqlangan: Gips tekshiruvi bu istisnoni unutib qo'ygan edi).
-  const anyGips = Array.from(document.querySelectorAll('.detal')).some(row => {
-    if (row.dataset.fpId) return false;
-    const tEl = row.querySelector('.i-type');
-    return tEl && tEl.value === 'gips';
-  });
+  // Gips miqdori -- faqat kamida bitta Gips turdagi detal bo'lsa so'raladi
+  const anyGips = Array.from(document.querySelectorAll('.i-type')).some(el => el.value === 'gips');
   const gipsVal = parseFloat(document.getElementById('gips_kg')?.value) || 0;
   const gipsInvVal = document.getElementById('gips_inventory_id')?.value || '';
   if (anyGips && !gipsVal) {
@@ -4038,10 +3779,6 @@ async function saveOrder(isDraft = false) {
   };
 
   await submitOrderRequest(data, isDraft, zaklat, zaklatMethod, false);
-  } finally {
-    isSubmittingOrderForm = false;
-    setOrderFormButtonsDisabled(false);
-  }
 }
 
 async function submitOrderRequest(data, isDraft, zaklat, zaklatMethod, confirmShortage) {
@@ -4190,15 +3927,14 @@ async function editSelected() {
 
           const upEl = row.querySelector('.i-unitprice');
           if (upEl) {
-            // MUHIM: ekranga — backendda saqlangan YAKUNIY (Qoplama hisobga
-            // olingan) narxni TO'G'RIDAN-TO'G'RI ko'rsatamiz (xuddi mijoz
-            // ko'radigan/to'laydigan narx). Backendga yuborish uchun kerak
-            // bo'ladigan XOM narxni esa alohida, ko'rinmas joyda saqlaymiz.
-            const finalPrice = parseFloat(item.unit_price || 0);
-            const rawPrice = item.is_coated ? finalPrice / 2 : finalPrice;
-            upEl.value = formatNum(finalPrice);
-            row.dataset.unitprice = finalPrice;
-            row.dataset.rawUnitPriceDona = rawPrice;
+            // MUHIM: backendda saqlangan unit_price — agar qoplama bo'lsa,
+            // ALLAQACHON ×2 qilingan holda saqlanadi (Jami hisob-kitob
+            // izchilligi uchun). Shuning uchun bu yerda, ekranga
+            // chiqarishda, ORIGINAL (xodim kiritgan) qiymatni ko'rsatish
+            // uchun ×2 bo'lganini YARMIGA qaytaramiz.
+            const rawPrice = item.is_coated ? (parseFloat(item.unit_price || 0) / 2) : parseFloat(item.unit_price || 0);
+            upEl.value = formatNum(rawPrice);
+            row.dataset.unitprice = rawPrice;
           }
           // Yangi usul bilan tiklangan bo'lsa — hajmni "qulflangan" holatda
           // ko'rsatamiz (chunki bu — allaqachon saqlangan, real buyurtma;
@@ -4342,27 +4078,6 @@ async function editSelected() {
         if (item.finished_product_id) {
           row.dataset.fpId = item.finished_product_id;
           row.dataset.fpUnit = (item.category === 'profil') ? 'metr' : 'dona';
-          // MUHIM TUZATISH: pastdagi so'rov (fpMax/fpPrice'ni serverdan
-          // olib, yangilab qo'yadigan) — ASINXRON, javob kelguncha vaqt
-          // ketadi. Shu orada, DARHOL ishlaydigan calculateItem() hali
-          // to'g'ri narxni bilmasdan, formuladan (buyurtmaning "1 m³
-          // narxi"dan) noto'g'ri hisoblab qo'yishi mumkin edi — agar
-          // so'rov kechiksa yoki muvaffaqiyatsiz tugasa, bu HATTO
-          // DOIMIY xato bo'lib qolardi (2026-08-23 sinovda aynan shu
-          // holat: buyurtmani qayta ochganda narx "1 m³ narxi"dan
-          // qayta hisoblanib qolgan). Shuning uchun bu yerda, DARHOL,
-          // saqlangan buyurtmaning o'z narxidan (item.unit_price) to'g'ri
-          // "1 birlik" narxini oldindan tiklab qo'yamiz — pastdagi
-          // so'rov esa buni faqat ENG SO'NGGI, yangilangan narx bilan
-          // tasdiqlaydi/yangilaydi.
-          if (item.unit_price) {
-            if (item.category === 'profil') {
-              const l0 = item.length || 1;
-              row.dataset.fpPrice = (item.unit_price / l0).toString();
-            } else {
-              row.dataset.fpPrice = item.unit_price.toString();
-            }
-          }
           const badge2 = row.querySelector('.detal-badge');
           if (badge2) {
             badge2.insertAdjacentHTML('afterend',
@@ -4414,20 +4129,6 @@ async function editSelected() {
         if (m3El && item.price_per_m3) m3El.value = formatNum(item.price_per_m3);
 
         calculateItem(row);
-
-        // MUHIM TUZATISH: "Dona" turidagi, Qoplama:Ha, o'lchov orqali
-        // (Donalik, qulflangan hajm) saqlangan detallar uchun — tahrirlash
-        // oynasida EKRANGA "1 dona narxi"ni ATAYLAB xom (yarmiga bo'lingan)
-        // holda ko'rsatamiz (yuqorida). Lekin calculateItem() shu xom
-        // narxni qator narxini ("Jami summa" statistikasiga qo'shiladigan
-        // qiymatni) hisoblashda ham ishlatib, uni HAQIQIYIDAN 2 barobar
-        // KAM ko'rsatib qo'yardi — garchi saqlaganda hammasi to'g'ri
-        // saqlanaversa ham (shuning uchun "saqlab chiqsam to'g'ri, qayta
-        // kirsam yana kam" degan holat kuzatilgan). Shu bitta qator uchun,
-        // server TASDIQLAGAN haqiqiy jami narxni statistikaga qaytaramiz.
-        if (cat === 'dona' && item.is_coated && row.dataset.donaVolLocked === 'true') {
-          row.dataset.price = parseFloat(item.total_price || 0).toString();
-        }
       });
 
       // Barcha detallar yuklangach — birinchisidan (eng tepadagi) tashqari
@@ -4437,12 +4138,6 @@ async function editSelected() {
         updateDetalSummary(r);
         if (idx > 0) r.classList.add('collapsed');
       });
-      // MUHIM: yuqoridagi tuzatish (row.dataset.price qayta o'rnatilishi)
-      // calculateItem()ning o'z ichidagi updateLiveStats() chaqiruvidan
-      // KEYIN sodir bo'ladi — shuning uchun "Jami summa" statistikasi
-      // eski, kam qiymat bilan qolib ketmasligi uchun, endi — barcha
-      // qatorlar to'g'irlangandan KEYIN — yakuniy marta yangilaymiz.
-      updateLiveStats();
     }
 
     // Tahrirlash rejimi + saqlangan chegirma foizi
@@ -4581,21 +4276,8 @@ function collectItems() {
         ? lockedPerUnit * effM3
         : parseFloat(row.dataset.unitprice || 0);
 
-      // MUHIM TUZATISH: agar shu qator ENDIGINA, "Yangi usul" (Eni×Qalinlik×
-      // "1 metrdan nechta") orqali hisoblangan bo'lsa — calculateItem()
-      // XOM (qoplamasiz) narxni row.dataset.rawUnitPriceDona'ga alohida
-      // yozib qo'ygan (chunki backend Qoplama:Ha bo'lsa buni o'zi ×2
-      // qiladi). O'sha holatda ANIQ SHUNI yuboramiz — aks holda (eski/
-      // qulflangan/qo'lda kiritilgan qatorlarda, bu maydon mavjud emas)
-      // avvalgidek row.dataset.unitprice yuboriladi — xatti-harakat
-      // o'zgarmaydi.
-      const rawDonaPrice = row.dataset.rawUnitPriceDona;
-      const sentDonaUnitPrice = (rawDonaPrice !== undefined)
-        ? parseFloat(rawDonaPrice)
-        : parseFloat(row.dataset.unitprice || 0);
-
       items.push({ name, category: 'dona', width: sendWidth, thickness: sendThickness, length: sendLength,
-                   quantity: qty, unit_price: sentDonaUnitPrice,
+                   quantity: qty, unit_price: parseFloat(row.dataset.unitprice || 0),
                    unit_price_for_volume: unitPriceForVolume, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId,
                    notes: donaYield > 0 ? `dona_yield=${donaYield}` : null });
@@ -4657,23 +4339,14 @@ function collectItems() {
 }
 
 async function updateOrder(orderId) {
-  if (isSubmittingOrderForm) return; // Ikki marta bosishdan himoya
-  isSubmittingOrderForm = true;
-  setOrderFormButtonsDisabled(true);
-
   const projId = parseInt(document.getElementById('project_id').value);
-  if (!projId) {
-    showMsg('Loyiha tanlang!', 'error');
-    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
-    return;
-  }
+  if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
 
   // Topshirish cheklovini tekshiramiz
   const errRows = document.querySelectorAll('.detal[data-dlv-error="1"]');
   if (errRows.length) {
     showMsg('❌ Topshirilgan miqdordan kam qilib bo\'lmaydi — qizil maydonlarni to\'g\'rilang', 'error');
     errRows[0].scrollIntoView({behavior:'smooth', block:'center'});
-    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
     return;
   }
 
@@ -4681,21 +4354,13 @@ async function updateOrder(orderId) {
   if (fpErr2.length) {
     showMsg('❌ Tayyor mahsulot omborda yetarli emas', 'error');
     fpErr2[0].scrollIntoView({behavior:'smooth', block:'center'});
-    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
     return;
   }
 
   const items = collectItems();
-  if (!items.length) {
-    showMsg('Kamida 1 ta detal qo\'shing!', 'error');
-    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
-    return;
-  }
+  if (!items.length) { showMsg('Kamida 1 ta detal qo\'shing!', 'error'); return; }
 
-  if (!await showConfirmModal("O'zgarishlar saqlansinmi?\n\nOmbor faqat farq miqdorida to'g'rilanadi:\n• Ko'paysa — xomashyo qo'shimcha ayiriladi\n• Kamaysa — omborga qaytariladi", {icon:'💾', okText:'Saqlash'})) {
-    isSubmittingOrderForm = false; setOrderFormButtonsDisabled(false);
-    return;
-  }
+  if (!await showConfirmModal("O'zgarishlar saqlansinmi?\n\nOmbor faqat farq miqdorida to'g'rilanadi:\n• Ko'paysa — xomashyo qo'shimcha ayiriladi\n• Kamaysa — omborga qaytariladi", {icon:'💾', okText:'Saqlash'})) return;
 
   const finalPrice = parseNum(document.getElementById('final_price')?.value || '0');
   const loyKg = parseFloat(document.getElementById('loy_kg')?.value || 0);
@@ -4794,9 +4459,6 @@ async function updateOrder(orderId) {
     }
   } catch(e) {
     showMsg('Server xatosi: ' + e.message, 'error');
-  } finally {
-    isSubmittingOrderForm = false;
-    setOrderFormButtonsDisabled(false);
   }
 }
 function showPromptModal(message, defaultValue = '', options = {}) {
@@ -4930,9 +4592,6 @@ function closeReadyModal() {
 }
 
 async function submitReadyModal() {
-  if (isSubmittingReadyModal) return; // Ikki marta bosishdan himoya
-  isSubmittingReadyModal = true;
-
   const loyKg = document.getElementById('rm-loy')?.value || '';
   let gipsKg = null, gishtDona = null;
   const gipsAdditivesActual = [];
@@ -5009,9 +4668,7 @@ async function submitReadyModal() {
       else html += result.detail?.message || JSON.stringify(result.detail);
       box.innerHTML = html; box.className = 'result-box error';
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); } finally {
-    isSubmittingReadyModal = false;
-  }
+  } catch(e) { showMsg('Server xatosi', 'error'); }
 }
 
 // ── Foyda hisoblash ───────────────────────────────────────
@@ -5199,24 +4856,14 @@ async function markAllReady() {
   const loyKg = await showPromptModal("Barcha buyurtmalar uchun necha kg loy? (bo'sh = faqat kesish)", '', {icon:'🪣', title:'Loy miqdori', type:'number'});
   if (loyKg === null) return;
   if (!await showConfirmModal('Barcha faol buyurtmalarni TAYYOR qilamizmi?', {icon:'✅', okText:'Ha, hammasini'})) return;
-  if (isMarkingAllReady) return; // Ikki marta bosishdan himoya
-  isMarkingAllReady = true;
-  setBtnSaving('mark-all-ready-btn', true);
-  try {
-    const url = loyKg ? `/api/orders/mark-all-ready?loy_kg=${parseFloat(loyKg)}` : '/api/orders/mark-all-ready';
-    const res = await fetch(url, { method:'POST' });
-    const result = await res.json();
-    const box = document.getElementById('resultBox');
-    box.innerHTML = `<b>✓ ${result.processed} ta tayyor qilindi!</b>` +
-      (result.failed?.length ? `<br>❌ ${result.failed.length} ta xato` : '');
-    box.className = 'result-box success';
-    setTimeout(()=>location.reload(), 4000);
-  } catch(e) {
-    showMsg('❌ Server xatosi', 'error');
-  } finally {
-    isMarkingAllReady = false;
-    setBtnSaving('mark-all-ready-btn', false);
-  }
+  const url = loyKg ? `/api/orders/mark-all-ready?loy_kg=${parseFloat(loyKg)}` : '/api/orders/mark-all-ready';
+  const res = await fetch(url, { method:'POST' });
+  const result = await res.json();
+  const box = document.getElementById('resultBox');
+  box.innerHTML = `<b>✓ ${result.processed} ta tayyor qilindi!</b>` +
+    (result.failed?.length ? `<br>❌ ${result.failed.length} ta xato` : '');
+  box.className = 'result-box success';
+  setTimeout(()=>location.reload(), 4000);
 }
 
 // ── Qidiruv ───────────────────────────────────────────────
