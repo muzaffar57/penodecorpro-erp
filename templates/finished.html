@@ -84,6 +84,12 @@
 }
 .type-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
 .type-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
+/* Raqam maydonlaridagi yuqori/pastga strelkalarni yashiramiz — sichqoncha
+   g'ildiragi orqali, tasodifan qiymat o'zgarib ketishining oldini olish
+   uchun (qo'shimcha, JS orqali g'ildirakni ham butunlay bloklaymiz). */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 </style>
 {% endblock %}
 
@@ -492,7 +498,7 @@
             <div class="unit-input-wrap"><input type="number" id="p-t" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
           </div>
           <div class="form-group" style="margin:0;display:none" id="p-donayield-wrap">
-            <label>1 metrdan nechta dona chiqadi</label>
+            <label>1 metrdan nechta</label>
             <div class="unit-input-wrap"><input type="number" id="p-donayield" placeholder="masalan 5" step="0.1" min="0.01" oninput="pCalc()"><span class="unit-suffix">dona</span></div>
           </div>
           <div class="form-group" style="margin:0" id="p-l-wrap">
@@ -2394,5 +2400,16 @@ async function showProfit(id) {
 }
 
 loadFp();
+
+// MUHIM: raqam maydonida (masalan "Eni", "Miqdor") turib, sichqoncha
+// g'ildiragini aylantirib yuborsa — brauzer, buni "qiymatni oshirish/
+// kamaytirish" deb tushunib, TASODIFAN raqamni o'zgartirib qo'yardi.
+// Bu, xatoga olib kelishi mumkin bo'lgani uchun, butunlay bloklaymiz —
+// g'ildirak endi, faqat sahifani aylantiradi, qiymatga tegmaydi.
+document.addEventListener('wheel', function(e) {
+  if (document.activeElement && document.activeElement.type === 'number') {
+    document.activeElement.blur();
+  }
+}, { passive: true });
 </script>
 {% endblock %}
