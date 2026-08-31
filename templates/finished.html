@@ -16,6 +16,10 @@
    ishlatiladi va u yerlarga bu ta'sir qilishi kerak emas. */
 #prodModal .form-group{background:#F3F4F6;border-radius:12px;padding:12px 14px;margin-bottom:14px!important}
 #prodModal .form-group input,#prodModal .form-group select,#prodModal .form-group textarea{background:#fff}
+#prodModal .dgrp{background:#F5F3EF;border-radius:14px;padding:14px 16px;margin-bottom:14px}
+#prodModal .dgrp-title{font-size:11.5px;font-weight:800;color:#A86B36;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+#prodModal .dgrp .form-group{background:#fff;margin-bottom:0!important}
+#prodModal .dgrp-row{display:grid;gap:12px}
 .fp-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .fp-page{
   flex:1;
@@ -472,81 +476,81 @@
         </div>
       </div>
 
-      <div class="form-row">
-        <div class="form-group" style="margin:0" id="p-h-wrap">
-          <label id="p-h-label">Eni</label>
-          <div class="unit-input-wrap"><input type="number" id="p-h" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
-        </div>
-        <div class="form-group" style="margin:0" id="p-w-wrap">
-          <label id="p-w-label">Kengligi</label>
-          <div class="unit-input-wrap"><input type="number" id="p-w" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0;display:none" id="p-t-wrap">
-          <label>Qalinlik</label>
-          <div class="unit-input-wrap"><input type="number" id="p-t" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
-        </div>
-        <div class="form-group" style="margin:0;display:none" id="p-donayield-wrap">
-          <label>1 metrdan nechta dona chiqadi</label>
-          <div class="unit-input-wrap"><input type="number" id="p-donayield" placeholder="masalan 5" step="0.1" min="0.01" oninput="pCalc()"><span class="unit-suffix">dona</span></div>
-        </div>
-        <div class="form-group" style="margin:0" id="p-l-wrap">
-          <label id="p-l-label">Uzunlik</label>
-          <div class="unit-input-wrap"><input type="number" id="p-l" step="0.1" value="0" oninput="pCalc()"><span class="unit-suffix">m</span></div>
-        </div>
-        <div class="form-group" style="margin:0;display:none" id="p-q-wrap">
-          <label id="p-q-label">Miqdor</label>
-          <div class="unit-input-wrap"><input type="number" id="p-q" step="0.5" min="0" value="1" oninput="pCalc()"><span class="unit-suffix" id="p-q-suffix">dona</span></div>
-        </div>
-        <div class="form-group" style="margin:0;display:none" id="p-up-wrap">
-          <label>1 dona narxi</label>
-          <div class="unit-input-wrap"><input type="number" id="p-up" step="100" oninput="pCalc()"><span class="unit-suffix">so'm</span></div>
-        </div>
-      </div>
-
-      <div class="form-row" id="p-blok-row" style="display:none">
-        <div class="form-group" style="margin:0" id="p-blokprice-wrap">
-          <label>1 blok narxi (tayyor)</label>
-          <div class="unit-input-wrap"><input type="text" id="p-blokprice" placeholder="1 500 000" oninput="formatPriceInput(this);onBlokPriceInput()"><span class="unit-suffix">so'm</span></div>
-        </div>
-        <div class="form-group" style="margin:0" id="p-blokmult-wrap">
-          <label>Qoplama koeffitsienti</label>
-          <input type="number" id="p-blokmult" value="2" step="0.1" min="1" oninput="recalcBlokPrice()">
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0">
-          <label>Qoplama</label>
-          <div class="coat-toggle" id="p-coat-toggle">
-            <div class="coat-opt coat-no" onclick="setPCoating(this, false)">Yo'q</div>
-            <div class="coat-opt coat-yes active" onclick="setPCoating(this, true)">Bor (×2)</div>
+      <div class="dgrp">
+        <div class="dgrp-title">📐 O'lchamlar va miqdor</div>
+        <div class="dgrp-row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="form-group" style="margin:0" id="p-h-wrap">
+            <label id="p-h-label">Eni</label>
+            <div class="unit-input-wrap"><input type="number" id="p-h" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
           </div>
-          <select id="p-coated" style="display:none">
-            <option value="true">Ha (×2)</option>
-            <option value="false">Yo'q</option>
-          </select>
+          <div class="form-group" style="margin:0" id="p-w-wrap">
+            <label id="p-w-label">Kengligi</label>
+            <div class="unit-input-wrap"><input type="number" id="p-w" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
+          </div>
+          <div class="form-group" style="margin:0;display:none" id="p-t-wrap">
+            <label>Qalinlik</label>
+            <div class="unit-input-wrap"><input type="number" id="p-t" step="0.1" oninput="pCalc()"><span class="unit-suffix">sm</span></div>
+          </div>
+          <div class="form-group" style="margin:0;display:none" id="p-donayield-wrap">
+            <label>1 metrdan nechta dona chiqadi</label>
+            <div class="unit-input-wrap"><input type="number" id="p-donayield" placeholder="masalan 5" step="0.1" min="0.01" oninput="pCalc()"><span class="unit-suffix">dona</span></div>
+          </div>
+          <div class="form-group" style="margin:0" id="p-l-wrap">
+            <label id="p-l-label">Uzunlik</label>
+            <div class="unit-input-wrap"><input type="number" id="p-l" step="0.1" value="0" oninput="pCalc()"><span class="unit-suffix">m</span></div>
+          </div>
+          <div class="form-group" style="margin:0;display:none" id="p-q-wrap">
+            <label id="p-q-label">Miqdor</label>
+            <div class="unit-input-wrap"><input type="number" id="p-q" step="0.5" min="0" value="1" oninput="pCalc()"><span class="unit-suffix" id="p-q-suffix">dona</span></div>
+          </div>
+          <div class="form-group" style="margin:0;display:none" id="p-up-wrap">
+            <label>1 dona narxi</label>
+            <div class="unit-input-wrap"><input type="number" id="p-up" step="100" oninput="pCalc()"><span class="unit-suffix">so'm</span></div>
+          </div>
+          <div class="form-group" style="margin:0;display:none" id="p-blokprice-wrap">
+            <label>1 blok narxi (tayyor)</label>
+            <div class="unit-input-wrap"><input type="text" id="p-blokprice" placeholder="1 500 000" oninput="formatPriceInput(this);onBlokPriceInput()"><span class="unit-suffix">so'm</span></div>
+          </div>
+          <div class="form-group" style="margin:0;display:none" id="p-blokmult-wrap">
+            <label>Qoplama koeffitsienti</label>
+            <div class="unit-input-wrap"><input type="number" id="p-blokmult" value="2" step="0.1" min="1" oninput="recalcBlokPrice()"></div>
+          </div>
         </div>
-        <div class="form-group" style="margin:0">
-          <label>Plotnost</label>
-          <div class="unit-input-wrap">
-            <select id="p-peno" onchange="pCalc();onPPenoChange()">
-              {% for p in penoplasts %}
-              <option value="{{ p.id }}" {% if p.id == default_penoplast_id %}selected{% endif %}>
-                {{ p.item_name }}{% if p.is_default_penoplast %} ⭐{% endif %} ({{ "%.0f"|format(p.stock_quantity) }})
-              </option>
-              {% endfor %}
+      </div>
+
+      <div class="dgrp">
+        <div class="dgrp-title">🎨 Qoplama, plotnost va narx</div>
+        <div class="dgrp-row" style="grid-template-columns:1fr 2fr 1fr">
+          <div class="form-group" style="margin:0">
+            <label>Qoplama</label>
+            <div class="coat-toggle" id="p-coat-toggle">
+              <div class="coat-opt coat-no" onclick="setPCoating(this, false)">Yo'q</div>
+              <div class="coat-opt coat-yes active" onclick="setPCoating(this, true)">Bor (×2)</div>
+            </div>
+            <select id="p-coated" style="display:none">
+              <option value="true">Ha (×2)</option>
+              <option value="false">Yo'q</option>
             </select>
-            <span class="unit-suffix" id="p-peno-display"></span>
           </div>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>1 m³ narxi</label>
-          <div class="unit-input-wrap" style="border-color:#B9783F">
-            <input type="text" id="p-m3" value="1 200 000" oninput="formatPriceInput(this);pCalc()">
-            <span class="unit-suffix">so'm</span>
+          <div class="form-group" style="margin:0">
+            <label>Plotnost</label>
+            <div class="unit-input-wrap">
+              <select id="p-peno" onchange="pCalc();onPPenoChange()">
+                {% for p in penoplasts %}
+                <option value="{{ p.id }}" {% if p.id == default_penoplast_id %}selected{% endif %}>
+                  {{ p.item_name }}{% if p.is_default_penoplast %} ⭐{% endif %} ({{ "%.0f"|format(p.stock_quantity) }})
+                </option>
+                {% endfor %}
+              </select>
+              <span class="unit-suffix" id="p-peno-display"></span>
+            </div>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>1 m³ narxi</label>
+            <div class="unit-input-wrap" style="border-color:#B9783F">
+              <input type="text" id="p-m3" value="1 200 000" oninput="formatPriceInput(this);pCalc()">
+              <span class="unit-suffix">so'm</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1825,12 +1829,14 @@ function pToggle() {
   const lW = document.getElementById('p-l-wrap');
   const qW = document.getElementById('p-q-wrap');
   const upW = document.getElementById('p-up-wrap');
-  const blokRow = document.getElementById('p-blok-row');
+  const bpW = document.getElementById('p-blokprice-wrap');
+  const bmW = document.getElementById('p-blokmult-wrap');
   const m3Wrap = document.getElementById('p-m3').closest('.form-group');
-
-  blokRow.style.display = (type === 'blok') ? 'flex' : 'none';
   const donaYieldW0 = document.getElementById('p-donayield-wrap');
+
   if (donaYieldW0) donaYieldW0.style.display = 'none';
+  if (bpW) bpW.style.display = 'none';
+  if (bmW) bmW.style.display = 'none';
   if (type !== 'dona') { window._pDonaVolLocked = false; window._pDonaVolPerUnit = 0; }
 
   if (type === 'dona') {
@@ -1853,6 +1859,8 @@ function pToggle() {
     lW.style.display = 'block';   // 1 blokdan chiqadigan metr
     qW.style.display = 'block';   // Necha metr kerak
     upW.style.display = 'none';
+    if (bpW) bpW.style.display = 'block';
+    if (bmW) bmW.style.display = 'block';
     m3Wrap.style.display = 'none';  // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
     document.getElementById('p-l-label').textContent = "1 blokdan chiqadigan metr";
     document.getElementById('p-q-label').textContent = "Necha metr kerak";
