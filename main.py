@@ -3024,6 +3024,17 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
         req = _ur.Request(set_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
         with _ur.urlopen(req, timeout=10) as r:
             tg_response = _json_mod.loads(r.read())
+    except _ur.HTTPError as e:
+        # MUHIM: Telegram, xato bo'lganda ham, SABABINI JSON ichida
+        # qaytaradi — lekin urllib, buni oddiy "HTTP Error 400" qilib
+        # yashirib qo'yardi. Endi, javob tanasini o'qib, ANIQ sababni
+        # ko'rsatamiz (masalan "noto'g'ri token" yoki "noto'g'ri manzil").
+        try:
+            err_body = _json_mod.loads(e.read().decode())
+            err_detail = err_body.get("description", str(e))
+        except Exception:
+            err_detail = str(e)
+        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {err_detail}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {e}")
 
