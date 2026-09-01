@@ -219,12 +219,13 @@
             {% for r in company_obligations.recurring %}
             {% set status_color = {'overdue':'#EF4444','due_soon':'#F59E0B','partial':'#F59E0B','full':'#22C55E'} %}
             {% set status_label = {'overdue':'Muddati o\'tgan','due_soon':'Muddat yaqin','partial':'Qisman to\'langan','full':'To\'liq yopilgan'} %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" data-category="{{ r.category }}" data-label="{{ r.label|replace('"', '&quot;') }}" onclick="openObligTimeline(this.dataset.category, this.dataset.label)">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" data-category="{{ r.category }}" data-label="{{ r.label|replace('"', '&quot;') }}" data-year="{{ r.year }}" data-month="{{ r.month }}" onclick="openObligTimeline(this.dataset.category, this.dataset.label)">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
                   <div style="display:flex;align-items:center;gap:6px">
                     <span class="oblig-status-dot" style="background:{{ status_color[r.status] }}"></span>
                     <span style="font-weight:600;font-size:13.5px">{{ r.icon }} {{ r.label }}</span>
+                    <span style="font-size:11px;font-weight:700;color:{{ status_color[r.status] }};background:{{ status_color[r.status] }}1A;padding:2px 8px;border-radius:6px">{{ r.month_label }}</span>
                   </div>
                   <div style="font-size:11.5px;color:var(--d-text3);margin-top:2px">Maqsad: {{ "{:,.0f}".format(r.target).replace(",", " ") }} · To'langan: {{ "{:,.0f}".format(r.paid).replace(",", " ") }} · Har oy {{ r.due_day }}-sanagacha</div>
                 </div>
@@ -234,7 +235,7 @@
                 </div>
               </div>
               <div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:{{ (r.paid/r.target*100)|round if r.target>0 else 0 }}%;background:{{ status_color[r.status] }}"></div></div>
-              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();quickPayObligation(this.closest('.oblig-item').dataset.category, this.closest('.oblig-item').dataset.label, parseFloat(this.dataset.debt))">💰 To'lov qo'shish</button>
+              <button class="btn btn-outline btn-xs" style="margin-top:8px" data-debt="{{ r.debt }}" onclick="event.stopPropagation();const it=this.closest('.oblig-item');quickPayObligation(it.dataset.category, it.dataset.label, parseFloat(this.dataset.debt), it.dataset.year, it.dataset.month)">💰 To'lov qo'shish</button>
             </div>
             {% endfor %}
           {% else %}
@@ -357,15 +358,25 @@ async function deleteCategory(id, label){
   } catch(e) { alert('Server xatosi'); }
 }
 
-async function quickPayObligation(category, label, debt){
-  const amountStr = prompt(`${label} uchun bugun qancha to'landi?`, String(Math.round(debt)));
+async function quickPayObligation(category, label, debt, year, month){
+  const amountStr = prompt(`${label} uchun qancha to'landi?`, String(Math.round(debt)));
   if (!amountStr) return;
   const amount = parseNum(amountStr);
   if (!amount || amount <= 0) return;
+  // MUHIM: agar bu, o'tgan oydan qolgan qarz bo'lsa — to'lovni, "bugungi
+  // sana"ga emas, balki qarzning O'ZI tegishli bo'lgan oyga yozamiz
+  // (aks holda, kechikkan to'lov, boshqa oy hisobotini buzib qo'yardi).
+  const now = new Date();
+  const y = parseInt(year) || now.getFullYear();
+  const m = parseInt(month) || (now.getMonth() + 1);
+  const isCurrentMonth = (y === now.getFullYear() && m === (now.getMonth() + 1));
+  const payDate = isCurrentMonth
+    ? now.toISOString().slice(0, 10)
+    : `${y}-${String(m).padStart(2, '0')}-28`;
   try {
     const res = await fetch('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ date: new Date().toISOString().slice(0,10)+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)" })
+      body: JSON.stringify({ date: payDate+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)" })
     });
     if (res.ok) location.reload();
     else alert('Xato yuz berdi');
