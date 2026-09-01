@@ -1502,6 +1502,98 @@ def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
     return crud.get_master_kpi_detail(db, master_id, y)
 
 
+# ── "🎁 Sovg'alar" bosqichlari (Ustalar uchun) ──────────────
+@app.get("/api/master-gifts")
+def api_get_master_gifts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    gifts = crud.get_master_gifts(db)
+    return [{"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold),
+              "image_url": g.image_url} for g in gifts]
+
+
+@app.post("/api/master-gifts")
+def api_create_master_gift(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    name = (data.get("name") or "").strip()
+    kpi_threshold = float(data.get("kpi_threshold") or 0)
+    if not name or kpi_threshold <= 0:
+        raise HTTPException(status_code=400, detail="Sovg'a nomi va musbat KPI miqdori shart")
+    g = crud.create_master_gift(db, name, kpi_threshold)
+    return {"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold)}
+
+
+@app.put("/api/master-gifts/{gift_id}")
+def api_update_master_gift(gift_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    name = (data.get("name") or "").strip()
+    kpi_threshold = float(data.get("kpi_threshold") or 0)
+    if not name or kpi_threshold <= 0:
+        raise HTTPException(status_code=400, detail="Sovg'a nomi va musbat KPI miqdori shart")
+    g = crud.update_master_gift(db, gift_id, name, kpi_threshold)
+    if not g:
+        raise HTTPException(status_code=404, detail="Sovg'a topilmadi")
+    return {"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold)}
+
+
+@app.delete("/api/master-gifts/{gift_id}")
+def api_delete_master_gift(gift_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    if not crud.delete_master_gift(db, gift_id):
+        raise HTTPException(status_code=404, detail="Sovg'a topilmadi")
+    return {"success": True}
+
+
+@app.post("/api/master-gifts/{gift_id}/image")
+def api_upload_master_gift_image(gift_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+                                  current_user=Depends(auth.admin_or_financier)):
+    from models import MasterGift
+    g = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Sovg'a topilmadi")
+    url = _save_upload(file, "master_gifts", ALLOWED_IMAGE_EXT)
+    g.image_url = url
+    db.commit()
+    return {"image_url": url}
+
+
+@app.post("/api/masters/{master_id}/show-gifts")
+def api_toggle_master_show_gifts(master_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    show = bool(data.get("show"))
+    m = crud.set_master_show_gifts(db, master_id, show)
+    if not m:
+        raise HTTPException(status_code=404, detail="Usta topilmadi")
+    return {"id": m.id, "show_gifts": bool(m.show_gifts)}
+
+
+@app.get("/api/masters/{master_id}/gift-progress")
+def api_master_gift_progress(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """Ustaning sovg'alar progressi — har bir sovg'a uchun, "olingan",
+    "yetildi (olish mumkin)" yoki "hali yo'q" holatini qaytaradi."""
+    available = crud.get_master_gift_available_kpi(db, master_id)
+    redeemed_ids = crud.get_master_redeemed_gift_ids(db, master_id)
+    gifts = crud.get_master_gifts(db)
+    result = []
+    for g in gifts:
+        is_redeemed = g.id in redeemed_ids
+        result.append({
+            "id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold),
+            "image_url": g.image_url,
+            "redeemed": is_redeemed,
+            "eligible": (not is_redeemed) and available >= float(g.kpi_threshold) - 0.01,
+        })
+    return {"available_kpi": round(available), "gifts": result}
+
+
+@app.post("/api/masters/{master_id}/redeem-gift/{gift_id}")
+def api_redeem_master_gift(master_id: int, gift_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    who = current_user.full_name or current_user.username
+    result = crud.redeem_master_gift(db, master_id, gift_id, performed_by=who)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
+    return result
+
+
+@app.get("/api/masters/{master_id}/gift-redemptions")
+def api_master_gift_redemptions(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    return crud.get_master_redemption_history(db, master_id)
+
+
 @app.get("/api/transport-stats")
 def api_transport_stats(year: Optional[int] = None, month: Optional[int] = None,
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
@@ -3798,22 +3890,62 @@ async def telegram_webhook(request: Request):
             master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
             if not master:
                 reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
+            elif master.show_gifts:
+                # MUHIM (2026-09): "🎁 Sovg'alar bosqichlari" yoqilgan
+                # ustalar uchun — ANIQ SO'M MIQDORI KO'RSATILMAYDI, faqat
+                # qaysi bosqichga yetgani va keyingisigacha necha % qolgani
+                # (admin panelidagi "Sovg'a bosqichlari" tavsifiga mos).
+                available = crud.get_master_gift_available_kpi(db, master.id)
+                redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
+                gifts = crud.get_master_gifts(db)
+                reply = f"🎁 *Sizning sovg'alar holatingiz*\n\n👤 {master.name}\n━━━━━━━━━━━━━━━━━━━\n"
+                if not gifts:
+                    reply += "Hali sovg'alar belgilanmagan.\n"
+                else:
+                    prev_threshold = 0.0
+                    for g in gifts:
+                        threshold = float(g.kpi_threshold)
+                        if g.id in redeemed_ids:
+                            reply += f"🎉 {g.name} — *olingan*\n"
+                        elif available >= threshold - 0.01:
+                            reply += f"✅ {g.name} — *tayyor, olishga yetdingiz!*\n"
+                        else:
+                            span = threshold - prev_threshold
+                            progress = max(0.0, available - prev_threshold)
+                            pct = max(0, min(100, round((progress / span) * 100))) if span > 0 else 0
+                            reply += f"⬜ {g.name} — {pct}% (qolgan: {100-pct}%)\n"
+                        prev_threshold = threshold
+                reply += f"━━━━━━━━━━━━━━━━━━━\n\n🏗 PenoDecorPro — Andijon"
             else:
-                orders = db.query(Order).filter(Order.master_id == master.id, Order.status == OrderStatus.READY).order_by(Order.completed_at.desc()).all()
-                jami_bonus = 0.0
+                # Sovg'a bosqichlari yoqilmagan ustalar uchun — yillik,
+                # SOF FOYDADAN hisoblangan umumiy hisobot (admin
+                # panelidagi "Ustalar KPI" bilan bir xil formula).
+                from sqlalchemy import extract
+                import services as _services
+                current_year = datetime.now().year
+                orders = db.query(Order).filter(
+                    Order.master_id == master.id, Order.status == OrderStatus.READY,
+                    extract('year', Order.completed_at) == current_year
+                ).order_by(Order.completed_at.desc()).all()
+                yearly_profit = 0.0
                 buyurtmalar_text = ""
-                for i, o in enumerate(orders[:10]):
-                    sotuv = float(o.total_amount or 0)
-                    bonus = sotuv * float(master.cashback_percent) / 100
-                    jami_bonus += bonus
-                    buyurtmalar_text += f"• {o.order_number} — {int(sotuv):,} so'm → *{int(bonus):,} so'm* ✅\n"
+                for o in orders[:10]:
+                    try:
+                        profit_data = _services.calculate_order_profit(db, o.id)
+                        foyda = float(profit_data.get("foyda", 0))
+                    except Exception:
+                        db.rollback()
+                        foyda = 0.0
+                    yearly_profit += foyda
+                    buyurtmalar_text += f"• {o.order_number} — foyda: *{int(foyda):,} so'm*\n"
+                jami_bonus = yearly_profit * float(master.kpi_percent or 0) / 100
                 faol = db.query(Order).filter(Order.master_id == master.id, Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
-                reply = f"📊 *Sizning bonuslaringiz*\n\n👤 {master.name}\n🎯 Bonus foizi: *{master.cashback_percent}%*\n\n━━━━━━━━━━━━━━━━━━━\n"
+                reply = f"📊 *Sizning {current_year}-yil sovg'angiz*\n\n👤 {master.name}\n🎯 Sovg'a foizi (sof foydadan): *{master.kpi_percent}%*\n\n━━━━━━━━━━━━━━━━━━━\n"
                 if buyurtmalar_text:
-                    reply += f"📋 *Oxirgi buyurtmalar:*\n{buyurtmalar_text}\n"
+                    reply += f"📋 *Oxirgi buyurtmalar (foyda bo'yicha):*\n{buyurtmalar_text}\n"
                 if faol > 0:
                     reply += f"⏳ Jarayondagi buyurtmalar: *{faol} ta*\n\n"
-                reply += f"━━━━━━━━━━━━━━━━━━━\n💰 *Jami bonus: {int(jami_bonus):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
+                reply += f"━━━━━━━━━━━━━━━━━━━\n💰 *Yillik sof foyda: {int(yearly_profit):,} so'm*\n🎁 *Hisoblangan sovg'a: {int(jami_bonus):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
