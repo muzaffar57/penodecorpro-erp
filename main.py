@@ -31,14 +31,6 @@ TELEGRAM_COATING_ID = "8461987934"
 # (eski xatti-harakat saqlanadi — hech narsa buzilmaydi).
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 
-# MUHIM (2026-08-27): Ustalar uchun (KPI, Sovg'alar) — ALOHIDA, YANGI bot
-# tokeni. ESKI token (TELEGRAM_BOT_TOKEN) — faqat mijozlarga va ichki
-# kompaniya guruhiga xabar yuborish uchun, o'zgarishsiz qoladi (chunki u
-# — boshqa, alohida serverdagi katalog-botga ulangan webhook orqali
-# ishlaydi). Bu — sof YANGI, alohida bot, hech narsani buzmaydi.
-MASTER_BOT_TOKEN = os.environ.get("MASTER_BOT_TOKEN", "")
-MASTER_WEBHOOK_SECRET = os.environ.get("MASTER_WEBHOOK_SECRET", "")
-
 def fmt_money(n) -> str:
     """1234567.5 -> '1 234 568'"""
     try:
@@ -84,97 +76,7 @@ def _send_telegram_to(chat_id: str, text: str):
         urllib.request.urlopen(req, timeout=5)
         print(f"✓ Telegram xabar yuborildi: {chat_id}")
     except Exception as e:
-        # MUHIM (2026-08-26): avval bu yerda xato faqat server konsoliga
-        # (print) yozilardi — buni ko'rish uchun Railway'ning o'ziga kirish
-        # kerak edi. Endi, Telegram'ning ANIQ sabab (masalan "chat not
-        # found" — foydalanuvchi botga "Start" bosmagan, yoki noto'g'ri ID)
-        # qaytargan javobini o'qib, dasturning O'Z "Xato jurnali"ga ham
-        # yozamiz — shunda sabab darhol, ilovaning ichida ko'rinadi.
-        detail = str(e)
-        try:
-            if hasattr(e, 'read'):
-                detail = e.read().decode('utf-8', errors='ignore') or detail
-        except Exception:
-            pass
-        print(f"⚠ Mijozga Telegram xabar yuborilmadi: {detail}")
-        try:
-            _log_db = SessionLocal()
-            try:
-                crud.log_error(
-                    _log_db, f"Telegram (mijozga) xabar yuborilmadi: {detail}",
-                    endpoint="_send_telegram_to", method=f"chat_id={chat_id}"
-                )
-            finally:
-                _log_db.close()
-        except Exception:
-            pass
-
-
-def _send_master_bot(chat_id: str, text: str, keyboard: dict = None):
-    """Ustalar botiga (MASTER_BOT_TOKEN — mijozlar/ichki guruh botidan
-    ALOHIDA, yangi token) xabar yuboradi. Klaviatura ham shu funksiya
-    orqali, bitta so'rovda birga jo'natiladi."""
-    if not MASTER_BOT_TOKEN:
-        print("⚠ MASTER_BOT_TOKEN yo'q")
-        return
-    try:
-        url = f"https://api.telegram.org/bot{MASTER_BOT_TOKEN}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
-        if keyboard:
-            payload["reply_markup"] = keyboard
-        data = _json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=5)
-        print(f"✓ Usta botiga xabar yuborildi: {chat_id}")
-    except Exception as e:
-        detail = str(e)
-        try:
-            if hasattr(e, 'read'):
-                detail = e.read().decode('utf-8', errors='ignore') or detail
-        except Exception:
-            pass
-        print(f"⚠ Usta botiga xabar yuborilmadi: {detail}")
-        try:
-            _log_db = SessionLocal()
-            try:
-                crud.log_error(
-                    _log_db, f"Usta botiga xabar yuborilmadi: {detail}",
-                    endpoint="_send_master_bot", method=f"chat_id={chat_id}"
-                )
-            finally:
-                _log_db.close()
-        except Exception:
-            pass
-
-
-def _send_master_bot_photo(chat_id: str, photo_url: str, caption: str, keyboard: dict = None):
-    """Ustalar botiga SURAT bilan xabar yuboradi (masalan, sovg'a rasmi
-    + progress matni "caption" sifatida). Agar surat yuborishda xato
-    chiqsa (masalan, rasm hali yuklanmagan bo'lsa), oddiy matnli
-    xabarga qaytadi — foydalanuvchi HECH QACHON javobsiz qolmaydi."""
-    if not MASTER_BOT_TOKEN:
-        print("⚠ MASTER_BOT_TOKEN yo'q")
-        return
-    try:
-        url = f"https://api.telegram.org/bot{MASTER_BOT_TOKEN}/sendPhoto"
-        payload = {"chat_id": chat_id, "photo": photo_url, "caption": caption, "parse_mode": "Markdown"}
-        if keyboard:
-            payload["reply_markup"] = keyboard
-        data = _json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=8)
-        print(f"✓ Usta botiga surat yuborildi: {chat_id}")
-    except Exception as e:
-        detail = str(e)
-        try:
-            if hasattr(e, 'read'):
-                detail = e.read().decode('utf-8', errors='ignore') or detail
-        except Exception:
-            pass
-        print(f"⚠ Usta botiga surat yuborilmadi, matnga qaytildi: {detail}")
-        # Zaxira: surat yuborilmasa, hech bo'lmasa matnning o'zi boradi
-        _send_master_bot(chat_id, caption, keyboard)
-
+        print(f"⚠ Mijozga Telegram xabar yuborilmadi: {e}")
 
 def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, caption: str = ""):
     """Telegram orqali fayl (masalan zaxira nusxa) yuboradi."""
@@ -271,39 +173,6 @@ def _migrate_payment_columns():
             master_cols = [c['name'] for c in inspector.get_columns('masters')]
             if 'kpi_percent' not in master_cols:
                 migrations.append("ALTER TABLE masters ADD COLUMN kpi_percent FLOAT DEFAULT 0")
-            if 'show_gifts' not in master_cols:
-                migrations.append("ALTER TABLE masters ADD COLUMN show_gifts BOOLEAN DEFAULT FALSE")
-
-        # MasterGift — "Sovg'alar" bosqichlari (2026-08-26, foydalanuvchi so'rovi)
-        if 'master_gifts' not in inspector.get_table_names():
-            migrations.append("""
-                CREATE TABLE master_gifts (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL,
-                    kpi_threshold FLOAT NOT NULL,
-                    sort_order INTEGER DEFAULT 0,
-                    image_url VARCHAR(255),
-                    created_at TIMESTAMP DEFAULT NOW()
-                )
-            """)
-        else:
-            mg_cols = [c['name'] for c in inspector.get_columns('master_gifts')]
-            if 'image_url' not in mg_cols:
-                migrations.append("ALTER TABLE master_gifts ADD COLUMN image_url VARCHAR(255)")
-
-        # MasterGiftRedemption — ustaga berilgan sovg'alar tarixi (2026-08-28)
-        if 'master_gift_redemptions' not in inspector.get_table_names():
-            migrations.append("""
-                CREATE TABLE master_gift_redemptions (
-                    id SERIAL PRIMARY KEY,
-                    master_id INTEGER NOT NULL REFERENCES masters(id),
-                    gift_id INTEGER NOT NULL,
-                    gift_name VARCHAR(100) NOT NULL,
-                    kpi_value FLOAT NOT NULL,
-                    redeemed_at TIMESTAMP DEFAULT NOW(),
-                    redeemed_by VARCHAR(100)
-                )
-            """)
 
         # MonthlyExpense — soliqlar ustuni
         if 'monthly_expenses' in inspector.get_table_names():
@@ -421,24 +290,12 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_products ADD COLUMN gips_kg_used FLOAT")
         if 'gips_inventory_id' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN gips_inventory_id INTEGER")
-        if 'gips_additives_json' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN gips_additives_json TEXT")
         if 'produced_quantity' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN produced_quantity FLOAT")
         if 'price_per_m3' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN price_per_m3 FLOAT")
         if 'bazalt_item_id' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN bazalt_item_id INTEGER")
-        if 'termo_bazalt_qty' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_bazalt_qty FLOAT")
-        if 'termo_serp_id' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_serp_id INTEGER")
-        if 'termo_serp_qty' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_serp_qty FLOAT")
-        if 'termo_kley_id' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_kley_id INTEGER")
-        if 'termo_kley_qty' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN termo_kley_qty FLOAT")
         if 'unit_loy_kg' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN unit_loy_kg FLOAT")
         if 'unit_volume_m3' not in fp_cols:
@@ -757,8 +614,6 @@ async def global_error_logger(request: Request, exc: Exception):
     try:
         log_db = SessionLocal()
         try:
-            # (Maxfiy SQL parametrlarini yashirish endi crud.log_error()
-            # ichida, markaziy tarzda amalga oshiriladi.)
             crud.log_error(
                 log_db, error_message=str(exc), stack_trace=traceback.format_exc(),
                 endpoint=str(request.url.path), method=request.method
@@ -994,19 +849,9 @@ async def masters_page_redirect():
 @app.get("/inventory", response_class=HTMLResponse)
 async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     items = crud.get_inventory(db)
-    # "Tayyor loy (...)" — bu, xarid qilinadigan xomashyo EMAS, balki
-    # buyurtmadan ORTGAN, avtomatik yaratiladigan zaxira (get_or_create_
-    # loy_stock orqali). To'liq ishlatilib, aniq 0ga tushishi — kutilgan,
-    # normal holat (xarid qilish kerak degani emas). Shuning uchun, faqat
-    # ASOSIY ro'yxat ko'rinishida (bu sahifada) chalkashlik/ortiqcha
-    # "Tugagan" yozuvlar ko'rinmasligi uchun, nolga tushganlarini
-    # yashiramiz — bazadan O'CHIRILMAYDI (keyingi buyurtmalar uchun hali
-    # ham to'g'ri ishlatiladi, faqat ro'yxatda ko'rinmay turadi).
-    items = [i for i in items if not (i.item_name.startswith('Tayyor loy (') and float(i.stock_quantity or 0) <= 0)]
     kpi = services.get_inventory_kpi(db)
     suppliers = crud.get_suppliers(db)
-    is_manager = current_user.role.value == "manager"
-    return templates.TemplateResponse(request, "inventory.html", {"items": items, "kpi": kpi, "suppliers": suppliers, "current_user": current_user, "active_page": "inventory", "is_manager": is_manager})
+    return templates.TemplateResponse(request, "inventory.html", {"items": items, "kpi": kpi, "suppliers": suppliers, "current_user": current_user, "active_page": "inventory"})
 
 
 @app.post("/api/inventory/{item_id}/image")
@@ -1024,10 +869,7 @@ def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: S
 
 @app.get("/api/inventory/kpi")
 def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
-    kpi = services.get_inventory_kpi(db)
-    if current_user.role.value == "manager":
-        kpi = {k: v for k, v in kpi.items() if k != "total_value"}
-    return kpi
+    return services.get_inventory_kpi(db)
 
 
 @app.get("/recipes", response_class=HTMLResponse)
@@ -1147,12 +989,7 @@ def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db
             f"🏗 *PenoDecorPro* — Zamonaviy fasad dekorlari\n"
             f"📍 Andijon, O'zbekiston"
         )
-        # MUHIM (2026-08-27): bu — Ustaga (mijozga emas) yuboriladigan xabar,
-        # shuning uchun ENDI yangi, Ustalar botining o'z tokeni orqali
-        # yuboriladi (avval eski, mijozlar/ichki guruh tokenidan borardi —
-        # bu esa, boshqa serverdagi botga ulangani uchun, hech qachon
-        # ko'rinmasdi).
-        _send_master_bot(str(tg_id).strip(), msg)
+        _send_telegram_to(str(tg_id).strip(), msg)
     return new_master
 
 
@@ -1907,28 +1744,6 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
 
 
 # ═══════════════════════════════════════════════════════════════
-# MUDDATI O'TGAN LOGIN SESSIYALARINI (TOKENLARNI) TOZALASH — bu ham
-# login talab qilmaydi (tashqi cron chaqiradi, xuddi low-stock-check
-# kabi). Odatiy holatda tokenlar login paytida ham tozalanadi
-# (create_session/create_employee_session ichida), lekin bu — qo'shimcha
-# kafolat: agar biror sababdan uzoq vaqt hech kim login qilmasa ham,
-# baza kunlik ravishda toza turadi.
-# ═══════════════════════════════════════════════════════════════
-@app.get("/api/cron/cleanup-expired-sessions")
-def api_cron_cleanup_expired_sessions(secret: str = "", db: Session = Depends(get_db)):
-    if not CRON_SECRET:
-        raise HTTPException(status_code=503, detail="CRON_SECRET Railway'da o'rnatilmagan")
-    if secret != CRON_SECRET:
-        raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
-    result = auth.cleanup_expired_sessions(db)
-    total = result["user_sessions"] + result["employee_sessions"]
-    return {
-        "cleaned": total,
-        "message": f"{result['user_sessions']} ta admin/menejer va {result['employee_sessions']} ta hodim sessiyasi tozalandi"
-    }
-
-
-# ═══════════════════════════════════════════════════════════════
 # VAQTINCHALIK YORDAMCHI: to'g'ri Telegram Chat ID'ni topish uchun.
 # Foydalanish: 1) Telegram'da botga (masalan @penodecorprobot) istalgan
 # xabar yozing (masalan "salom"). 2) Shu manzilni oching:
@@ -2067,16 +1882,7 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
             "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
             "shortages": all_shortages
         })
-    new_order = crud.create_order(db, order, performed_by=(current_user.full_name or current_user.username))
-    # XAVFSIZLIK: agar bu — tasodifan ikki marta yuborilgan so'rov bo'lib,
-    # crud.create_order() YANGI yaratmasdan, MAVJUD buyurtmani qaytargan
-    # bo'lsa (chunki bir necha soniya oldin xuddi shunday tarkib bilan
-    # allaqachon yaratilgan) — ombordan QAYTA yechish YOKI ogohlantirish
-    # YUBORISHNING HOJATI YO'Q (birinchi, haqiqiy yaratilishda buning
-    # barchasi ALLAQACHON bajarilgan). Aks holda xomashyo ikki marta
-    # yechilib qolar edi.
-    if getattr(new_order, '_is_duplicate_submit', False):
-        return new_order
+    new_order = crud.create_order(db, order)
     is_draft = getattr(order, 'is_draft', False)
     if not is_draft:
         services.deduct_inventory_for_order(db, new_order)
@@ -2181,7 +1987,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
                      confirm_shortage: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani tahrirlash — ombor faqat FARQ bo'yicha to'g'rilanadi."""
-    result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage, performed_by=(current_user.full_name or current_user.username))
+    result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage)
     if not result["success"]:
         # Xomashyo yetishmovchiligi — 409 (create bilan bir xil), frontend
         # "davom etasizmi?" oynasini ko'rsatib, confirm_shortage=true bilan
@@ -2308,53 +2114,15 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
                     except Exception:
                         pass
             if tg_id and tg_id.lstrip('-').isdigit():
-                # MUHIM (2026-08-26, foydalanuvchi so'rovi): yakuniy xabarga
-                # endi to'liq moliyaviy hisob ham qo'shiladi — jami detal,
-                # summa, chegirma, to'lov — xuddi "Nakladnoy" PDF'dagi
-                # yakuniy qatorlar bilan bir xil ma'lumot.
-                def _fmt_tg(n):
-                    return f"{round(float(n or 0)):,}".replace(',', ' ')
-                _item_count = len(order.items)
-                _total = float(order.total_amount or 0)
-                _agreed = float(order.agreed_amount or _total)
-                _disc_pct = float(order.discount_percent or 0)
-                _paid = float(order.paid_amount or 0)
-                _debt = float(order.debt_amount or 0)
-                _fin_lines = [f"📦 Jami detal: *{_item_count} ta*", f"💰 Jami summa: {_fmt_tg(_total)} so'm"]
-                if _disc_pct > 0:
-                    _fin_lines.append(f"🏷 Chegirma ({_disc_pct:g}%): -{_fmt_tg(_total - _agreed)} so'm")
-                    _fin_lines.append(f"✅ Kelishilgan summa: *{_fmt_tg(_agreed)} so'm*")
-                _fin_lines.append(f"💵 To'langan: {_fmt_tg(_paid)} so'm")
-                if _debt > 0.5:
-                    _fin_lines.append(f"⚠️ Qolgan qarz: {_fmt_tg(_debt)} so'm")
                 client_msg = (
                     f"✅ *Buyurtmangiz tayyor!*\n\n"
                     f"📋 Buyurtma: *{order.order_number}*\n"
-                    f"👤 Mijoz: {order.project.client_name}\n\n"
-                    + "\n".join(_fin_lines) +
-                    f"\n\n🏗 PenoDecorPro — Andijon\n\n"
+                    f"👤 Mijoz: {order.project.client_name}\n"
+                    f"🏗 PenoDecorPro — Andijon\n\n"
                     f"Buyurtmangizni olishingiz mumkin!\n"
                     f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                 )
                 _send_telegram_to(tg_id, client_msg)
-                # MUHIM (2026-08-26, foydalanuvchi so'rovi): matn xabar
-                # bilan birga, rasmiy Nakladnoy PDF ham fayl sifatida
-                # yuboriladi — mijoz uni saqlab/chop etib qo'yishi mumkin.
-                # Xato bo'lsa (masalan PDF yaratilmasa), asosiy oqim
-                # (buyurtma "Tayyor" bo'lishi) baribir davom etadi.
-                try:
-                    import pdf_service as _pdf_svc
-                    _pdf_bytes = _pdf_svc.generate_nakladnoy(order, db)
-                    _send_telegram_document(
-                        tg_id, _pdf_bytes,
-                        f"nakladnoy_{order.order_number}.pdf",
-                        caption="🧾 Buyurtmangiz hujjati"
-                    )
-                except Exception as _pdf_err:
-                    try:
-                        crud.log_error(db, f"Mijozga Nakladnoy PDF yuborilmadi: {_pdf_err}", endpoint="api_mark_order_ready:pdf")
-                    except Exception:
-                        pass
     return result
 
 
@@ -2803,6 +2571,13 @@ def api_finance_report(year: int, month: int, db: Session = Depends(get_db), cur
     return services.get_monthly_report(db, year, month)
 
 
+@app.get("/api/finance/debt-summary")
+def api_finance_debt_summary(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """Mijoz, yetkazuvchi, hodim va doimiy majburiyatlar qarzini — bitta
+    joyga jamlab beradi ("Moliya" sahifasidagi yangi bo'lim uchun)."""
+    return services.get_full_debt_summary(db, year, month)
+
+
 @app.get("/api/finance/split-profit-pdf")
 def api_split_profit_pdf(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Gips va Penoplast uchun mustaqil sof foyda hisoboti — PDF."""
@@ -2831,9 +2606,10 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
 
     brak_summary = crud.get_brak_material_summary(db, start_date=_start, end_date=_end)
     brak_by_material = brak_summary.get("by_material", [])
+    debt_summary = services.get_full_debt_summary(db, year, month)
 
     pdf_bytes = finance_pdf.generate_finance_report_pdf(
-        report, expense_transactions, brak_by_material, year, month
+        report, expense_transactions, brak_by_material, year, month, debt_summary
     )
     filename = f"moliyaviy_hisobot_{year}_{month:02d}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
@@ -3135,7 +2911,7 @@ def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), curre
 @app.post("/api/orders/{order_id}/activate")
 def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Qoralamani jarayonga olish — ombordan xomashyo yechiladi."""
-    result = crud.activate_draft_order(db, order_id, performed_by=(current_user.full_name or current_user.username))
+    result = crud.activate_draft_order(db, order_id)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -3145,39 +2921,19 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
 # FINISHED PRODUCTS — Tayyor mahsulotlar ombori
 # ============================================================
 
-_PROFIT_FIELDS = {
-    "profit", "margin", "cost_amount", "total_cost", "penoplast_cost",
-    "bazalt_cost", "serpiyanka_cost", "kley_cost", "loy_cost", "cost_price",
-    "cost_per_unit"
-}
-
-def _strip_profit_for_manager(result: dict, current_user) -> dict:
-    """Menejer roli uchun — natija ichidan tan narx/foyda bilan bog'liq
-    maydonlarni olib tashlaydi. Menejerga Tayyor mahsulot bo'limi ochiq,
-    lekin SOF FOYDA hech qayerda (ro'yxatda ham, amal natijalarida ham)
-    ko'rsatilmasligi kerak — shuning uchun bu maydonlar backend darajasida
-    (frontend'ga hech yetib bormasdan) olib tashlanadi."""
-    if isinstance(result, dict) and getattr(current_user, "role", None) is not None \
-            and current_user.role.value == "manager":
-        return {k: v for k, v in result.items() if k not in _PROFIT_FIELDS}
-    return result
-
-
 @app.get("/finished", response_class=HTMLResponse)
-async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotlar sahifasi."""
     items = crud.get_finished_products(db)
     penoplasts = services.get_penoplast_list(db)
     default_p = services.get_default_penoplast(db)
     recipes = crud.get_recipes(db)
     stats = crud.get_finished_stats(db)
-    is_manager = current_user.role.value == "manager"
     return templates.TemplateResponse(request, "finished.html", {
         "items": items, "penoplasts": penoplasts,
         "default_penoplast_id": default_p.id if default_p else None,
         "recipes": recipes, "stats": stats,
-        "current_user": current_user, "active_page": "finished",
-        "is_manager": is_manager
+        "current_user": current_user, "active_page": "finished"
     })
 
 
@@ -3241,13 +2997,7 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     if not token:
         raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
 
-    # MUHIM: Railway kabi xizmatlarda, so'rov serverga ICHKARIDA oddiy
-    # "http://" sifatida yetib kelishi mumkin — Telegram esa FAQAT https
-    # manzilni qabul qiladi. Shuning uchun sxemani "X-Forwarded-Proto"
-    # sarlavhasidan (haqiqiy, tashqi protokol) olamiz.
-    forwarded_proto = request.headers.get("x-forwarded-proto", "https")
-    host = request.base_url.hostname + (f":{request.base_url.port}" if request.base_url.port not in (None, 80, 443) else "")
-    webhook_url = f"{forwarded_proto}://{host}/telegram/webhook"
+    webhook_url = str(request.base_url).rstrip("/") + "/telegram/webhook"
     new_secret = _secrets.token_urlsafe(32)
 
     try:
@@ -3270,110 +3020,6 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
             "✅ Webhook xavfsiz imzo bilan qayta ro'yxatdan o'tkazildi. "
             "MUHIM: yuqoridagi 'new_secret' qiymatini nusxalab, Railway'dagi "
             "TELEGRAM_WEBHOOK_SECRET muhit o'zgaruvchisiga joylashtiring va saqlang."
-        )
-    }
-
-
-@app.post("/api/system/telegram-delete-webhook")
-def api_telegram_delete_webhook(current_user=Depends(auth.admin_only)):
-    """FAVQULODDA TUZATISH (2026-08-28): agar TELEGRAM_BOT_TOKEN, aslida,
-    "polling" (o'zi so'rab turadigan) rejimida ishlaydigan, BOSHQA, alohida
-    serverdagi botga tegishli bo'lsa — "webhook yoqish" tugmasi shu botni
-    NOTO'G'RI, "webhook" rejimiga majburlab qo'yishi mumkin (Telegram
-    qoidasi: bitta bot bir vaqtda FAQAT bittasini — webhook YOKI polling
-    — ishlata oladi). Bu funksiya webhookni BUTUNLAY o'chirib, botni
-    o'zining asl "polling" rejimiga qaytaradi."""
-    import urllib.request as _ur
-
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    if not token:
-        raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
-
-    try:
-        del_url = f"https://api.telegram.org/bot{token}/deleteWebhook?drop_pending_updates=false"
-        req = _ur.Request(del_url, method="POST")
-        with _ur.urlopen(req, timeout=10) as r:
-            import json as _json_mod
-            tg_response = _json_mod.loads(r.read())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {e}")
-
-    if not tg_response.get("ok"):
-        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {tg_response.get('description')}")
-
-    return {
-        "status": "ok",
-        "message": "✅ Webhook o'chirildi. Bot endi o'zining asl \"polling\" rejimiga qaytishi kerak (agar u shu rejimda ishlagan bo'lsa)."
-    }
-
-
-@app.post("/api/system/telegram-setup-master-webhook")
-def api_telegram_setup_master_webhook(request: Request, current_user=Depends(auth.admin_only)):
-    """BIR MARTALIK sozlash: USTALAR botining (MASTER_BOT_TOKEN — mijozlar/
-    ichki guruh botidan ALOHIDA) webhookini Telegram tomonida ro'yxatdan
-    o'tkazadi. Buni faqat BIR MARTA, MASTER_BOT_TOKEN Railway'da to'g'ri
-    sozlangandan keyin bosish kerak.
-
-    Yangi, tasodifiy imzo o'zi yaratiladi va qaytariladi — buni albatta
-    Railway'dagi MASTER_WEBHOOK_SECRET muhit o'zgaruvchisiga qo'shib,
-    saqlab qo'yish kerak (aks holda, server qayta ishga tushganda,
-    tizim eski imzoni "unutadi" va tekshiruv o'chib qoladi)."""
-    import urllib.request as _ur
-    import json as _json_mod
-    import secrets as _secrets
-
-    token = MASTER_BOT_TOKEN
-    if not token:
-        raise HTTPException(status_code=400, detail="MASTER_BOT_TOKEN sozlanmagan — avval Railway'da shu muhit o'zgaruvchisini qo'shing")
-
-    # MUHIM: Railway kabi xizmatlarda, so'rov serverga ICHKARIDA oddiy
-    # "http://" sifatida yetib keladi (tashqi HTTPS'ni Railway'ning o'zi
-    # "tarjima" qiladi) — shuning uchun request.base_url ba'zan noto'g'ri,
-    # "http://" deb ko'rsatib qo'yishi mumkin. Telegram esa FAQAT https
-    # manzilni qabul qiladi. Shuning uchun sxemani "X-Forwarded-Proto"
-    # sarlavhasidan (haqiqiy, tashqi protokol) olamiz, u bo'lmasa —
-    # xavfsiz tomondan, "https" deb hisoblaymiz (bu loyiha doim shunday
-    # joylashtiriladi).
-    forwarded_proto = request.headers.get("x-forwarded-proto", "https")
-    host = request.base_url.hostname + (f":{request.base_url.port}" if request.base_url.port not in (None, 80, 443) else "")
-    webhook_url = f"{forwarded_proto}://{host}/telegram/master-webhook"
-    new_secret = _secrets.token_urlsafe(32)
-
-    try:
-        set_url = f"https://api.telegram.org/bot{token}/setWebhook"
-        payload = _json_mod.dumps({"url": webhook_url, "secret_token": new_secret}).encode()
-        req = _ur.Request(set_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
-        with _ur.urlopen(req, timeout=10) as r:
-            tg_response = _json_mod.loads(r.read())
-    except Exception as e:
-        # MUHIM: HTTPError'ning javob TANASINI (Telegram'ning ANIQ sabab
-        # yozgan JSON javobini) o'qiymiz — aks holda foydalanuvchiga faqat
-        # umumiy "HTTP Error 400: Bad Request" ko'rinardi, aniq sababi
-        # (masalan noto'g'ri token) ko'rinmasdi.
-        detail = str(e)
-        try:
-            if hasattr(e, 'read'):
-                body = e.read().decode('utf-8', errors='ignore')
-                try:
-                    body_json = _json_mod.loads(body)
-                    detail = body_json.get('description') or body
-                except Exception:
-                    detail = body or detail
-        except Exception:
-            pass
-        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {detail}")
-
-    if not tg_response.get("ok"):
-        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {tg_response.get('description')}")
-
-    return {
-        "status": "ok",
-        "webhook_url": webhook_url,
-        "new_secret": new_secret,
-        "message": (
-            "✅ Ustalar boti webhooki ro'yxatdan o'tkazildi. "
-            "MUHIM: yuqoridagi 'new_secret' qiymatini nusxalab, Railway'dagi "
-            "MASTER_WEBHOOK_SECRET muhit o'zgaruvchisiga joylashtiring va saqlang."
         )
     }
 
@@ -3432,102 +3078,15 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
     })
 
 
-# ── "🎁 Sovg'alar" (bot orqali Ustalarga ko'rsatiladi) ─────────────────
-@app.get("/api/master-gifts")
-def api_get_master_gifts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    gifts = crud.get_master_gifts(db)
-    return [{"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold), "image_url": g.image_url} for g in gifts]
-
-
-@app.post("/api/master-gifts")
-def api_create_master_gift(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    name = (data.get("name") or "").strip()
-    threshold = data.get("kpi_threshold")
-    if not name or threshold is None:
-        raise HTTPException(status_code=400, detail="Nomi va KPI miqdori shart")
-    g = crud.create_master_gift(db, name, threshold)
-    return {"success": True, "id": g.id}
-
-
-@app.post("/api/master-gifts/{gift_id}/image")
-def api_upload_master_gift_image(gift_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                  current_user=Depends(auth.admin_only)):
-    """Sovg'aning suratini yuklaydi — botda "🎁 Sovg'alar" xabarida shu
-    surat ko'rsatiladi (2026-08-28, foydalanuvchi so'rovi)."""
-    from models import MasterGift
-    gift = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
-    if not gift:
-        raise HTTPException(status_code=404, detail="Sovg'a topilmadi")
-    url = _save_upload(file, "master_gifts", ALLOWED_IMAGE_EXT)
-    gift.image_url = url
-    db.commit()
-    return {"image_url": url}
-
-
-@app.put("/api/master-gifts/{gift_id}")
-def api_update_master_gift(gift_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    name = (data.get("name") or "").strip()
-    threshold = data.get("kpi_threshold")
-    if not name or threshold is None:
-        raise HTTPException(status_code=400, detail="Nomi va KPI miqdori shart")
-    g = crud.update_master_gift(db, gift_id, name, threshold)
-    if not g:
-        raise HTTPException(status_code=404, detail="Topilmadi")
-    return {"success": True}
-
-
-@app.delete("/api/master-gifts/{gift_id}")
-def api_delete_master_gift(gift_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    if not crud.delete_master_gift(db, gift_id):
-        raise HTTPException(status_code=404, detail="Topilmadi")
-    return {"success": True}
-
-
-@app.post("/api/masters/{master_id}/show-gifts")
-def api_set_master_show_gifts(master_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    m = crud.set_master_show_gifts(db, master_id, bool(data.get("show")))
-    if not m:
-        raise HTTPException(status_code=404, detail="Usta topilmadi")
-    return {"success": True, "show_gifts": m.show_gifts}
-
-
-@app.get("/api/masters/{master_id}/gift-progress")
-def api_master_gift_progress(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    """Ustaning "Sovg'alar uchun mavjud KPI"si + har bir sovg'a bo'yicha
-    holati (olingan/hozir yetadigan/hali yo'q) — admin panelida ko'rsatish
-    uchun."""
-    available = crud.get_master_gift_available_kpi(db, master_id)
-    redeemed_ids = crud.get_master_redeemed_gift_ids(db, master_id)
-    gifts = crud.get_master_gifts(db)
-    result = []
-    for g in gifts:
-        result.append({
-            "id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold),
-            "image_url": g.image_url,
-            "redeemed": g.id in redeemed_ids,
-            "eligible": (g.id not in redeemed_ids) and available >= float(g.kpi_threshold) - 0.01,
-        })
-    return {"available_kpi": available, "gifts": result, "history": crud.get_master_redemption_history(db, master_id)}
-
-
-@app.post("/api/masters/{master_id}/redeem-gift/{gift_id}")
-def api_redeem_master_gift(master_id: int, gift_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Sovg'ani ustaga QO'LGA BERILDI deb belgilaydi (faqat admin)."""
-    result = crud.redeem_master_gift(db, master_id, gift_id, performed_by=(current_user.full_name or current_user.username))
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result["message"])
-    return result
-
-
 @app.get("/api/finished")
 def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
-                     db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                     db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotlar ro'yxati."""
     if source or only_available:
         items = crud.get_finished_products(db, source=source, only_available=only_available)
     else:
         items = crud.get_finished_products_for_main_page(db, days=90, show_all=show_all)
-    return [_strip_profit_for_manager({
+    return [{
         "id": fp.id,
         "name": fp.name,
         "category": fp.category,
@@ -3556,12 +3115,12 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "notes": fp.notes,
         "image_url": fp.image_url,
         "total_value": round(float(fp.quantity or 0) * float(fp.unit_price or 0))
-    }, current_user) for fp in items]
+    } for fp in items]
 
 
 @app.post("/api/finished/{fp_id}/image")
 def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                               current_user=Depends(auth.admin_warehouse_or_manager)):
+                               current_user=Depends(auth.admin_or_warehouse)):
     from models import FinishedProduct
     fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
     if not fp:
@@ -3599,12 +3158,12 @@ def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Se
 
 
 @app.get("/api/finished/stats")
-def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     return crud.get_finished_stats(db)
 
 
 @app.get("/api/finished/search")
-def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Nom bo'yicha qidirish — buyurtmada taklif uchun. category — masalan
     'gips', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
     try:
@@ -3617,18 +3176,18 @@ def api_search_finished(q: str = "", category: Optional[str] = None, exclude_cat
 
 @app.post("/api/finished/loss")
 def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Session = Depends(get_db),
-                               current_user=Depends(auth.admin_warehouse_or_manager)):
+                               current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_loss(db, data, created_by=who)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return _strip_profit_for_manager(result, current_user)
+    return result
 
 
 @app.post("/api/finished/production-brak")
 def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
-                                   current_user=Depends(auth.admin_warehouse_or_manager)):
+                                   current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
     soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi (hozircha
     faqat Profil/Panel/Donali/Blok kategoriyalari uchun)."""
@@ -3638,34 +3197,34 @@ def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCrea
     )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return _strip_profit_for_manager(result, current_user)
+    return result
 
 
 @app.post("/api/finished/sell-batch")
 def api_sell_finished_products_batch(data: schemas.FinishedProductSaleBatchCreate, db: Session = Depends(get_db),
-                                       current_user=Depends(auth.admin_warehouse_or_manager)):
+                                       current_user=Depends(auth.admin_or_warehouse)):
     """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_products_batch(db, data, created_by=who)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return _strip_profit_for_manager(result, current_user)
+    return result
 
 
 @app.post("/api/finished/sell")
 def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Session = Depends(get_db),
-                                current_user=Depends(auth.admin_warehouse_or_manager)):
+                                current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_product(db, data, created_by=who)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return _strip_profit_for_manager(result, current_user)
+    return result
 
 
 @app.get("/api/finished/sales")
 def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = None,
-                            db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulot savdolari tarixi (ixtiyoriy oy/yil filtri bilan)."""
     from models import FinishedProductSale
     from sqlalchemy import extract
@@ -3675,17 +3234,17 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
     if month:
         q = q.filter(extract('month', FinishedProductSale.sold_at) == month)
     sales = q.limit(200).all()
-    return [_strip_profit_for_manager({
+    return [{
         "id": s.id, "product_name": s.product_name, "quantity": float(s.quantity),
         "unit": s.unit, "unit_price": float(s.unit_price), "total_amount": float(s.total_amount),
         "cost_amount": float(s.cost_amount or 0), "sold_at": s.sold_at.isoformat() if s.sold_at else None,
         "buyer_name": s.buyer_name, "payment_method": s.payment_method, "notes": s.notes
-    }, current_user) for s in sales]
+    } for s in sales]
 
 
 @app.post("/api/finished/produce-gips")
 def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_db),
-                      current_user=Depends(auth.admin_warehouse_or_manager)):
+                      current_user=Depends(auth.admin_or_warehouse)):
     """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqarish."""
     who = current_user.full_name or current_user.username
     result = crud.produce_gips_finished_product(db, data, created_by=who)
@@ -3695,7 +3254,7 @@ def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_
 
 
 @app.post("/api/finished/produce")
-def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulot ishlab chiqarish."""
     who = current_user.full_name or current_user.username
     result = crud.produce_finished_product(db, data, created_by=who)
@@ -3716,11 +3275,11 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
                + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
         _send_telegram(msg)
 
-    return _strip_profit_for_manager(result, current_user)
+    return result
 
 
 @app.post("/api/finished/produce-termopanel")
-def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
     who = current_user.full_name or current_user.username
     result = crud.produce_termopanel(db, data, created_by=who)
@@ -3740,22 +3299,21 @@ def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = 
                + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
         _send_telegram(msg)
 
-    return _strip_profit_for_manager(result, current_user)
+    return result
 
 
 @app.post("/api/finished/{fp_id}/complete")
-def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
     result = crud.complete_production(db, fp_id)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    return _strip_profit_for_manager(result, current_user)
+    return result
 
 
 @app.get("/api/finished/{fp_id}/profit")
 def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    """Tayyor mahsulot foydasi (faqat admin/moliyachi — Menejerga QASDDAN
-    ochilmagan, chunki bu — sof foydaning batafsil hisob-kitobi)."""
+    """Tayyor mahsulot foydasi (faqat admin)."""
     result = crud.get_finished_profit(db, fp_id)
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
@@ -3764,9 +3322,9 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 
 @app.post("/api/finished/{fp_id}/add")
 def api_add_production(fp_id: int, data: schemas.StockAdjust,
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
-    result = crud.add_to_production(db, fp_id, data.quantity, performed_by=(current_user.full_name or current_user.username))
+    result = crud.add_to_production(db, fp_id, data.quantity)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
@@ -3789,7 +3347,7 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
 
 @app.post("/api/finished/{fp_id}/reduce")
 def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
-                          db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
     result = crud.reduce_production(db, fp_id, data.quantity, data.reason)
     if not result["success"]:
@@ -3799,7 +3357,7 @@ def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
 
 @app.put("/api/finished/{fp_id}")
 def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotni tahrirlash."""
     fp = crud.update_finished_product(db, fp_id, data.model_dump(exclude_unset=True))
     if not fp:
@@ -3809,7 +3367,7 @@ def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
 
 @app.delete("/api/finished/{fp_id}")
 def api_delete_finished(fp_id: int, return_to_stock: bool = False,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Tayyor mahsulotni o'chirish.
     - IN_PROGRESS: xato tuzatish deb hisoblanadi — o'chadi, xomashyo qaytadi.
     - READY: faqat qoldiq 0 bo'lsa o'chadi, xomashyo qaytmaydi."""
@@ -3850,7 +3408,7 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
-    # Telegram xabar (ichki — kompaniya guruhiga)
+    # Telegram xabar
     d = crud.get_delivery(db, result["delivery_id"])
     if d and d.order:
         lines = []
@@ -3868,49 +3426,6 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
             + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
         )
         _send_telegram(msg)
-
-        # MUHIM (2026-08-26, foydalanuvchi so'rovi): mijozning o'ziga ham,
-        # agar loyihada Telegram ID kiritilgan bo'lsa, HAR BIR Yuk xati
-        # uchun — kompaniya ko'radigan bilan BIR XIL — xabar boradi (avval
-        # faqat butun buyurtma "Tayyor" bo'lganda, bitta marta borardi).
-        if d.order.project and d.order.project.notes:
-            _notes = d.order.project.notes or ''
-            _tg_id = None
-            if 'tg_id=' in _notes:
-                try:
-                    _tg_id = _notes.split('tg_id=')[1].split(',')[0].strip()
-                except Exception:
-                    _tg_id = None
-            if _tg_id and _tg_id.lstrip('-').isdigit():
-                client_dlv_msg = (
-                    f"📦 *Mahsulot topshirildi*\n\n"
-                    f"📋 Buyurtma: *{d.order.order_number}*\n\n"
-                    + "\n".join(lines)
-                    + f"\n\n📊 Bajarilish: *{result['delivery_percent']}%*"
-                    + ("\n✅ *Buyurtma to'liq topshirildi!*" if result["is_fully_delivered"] else "")
-                    + f"\n\n🏗 PenoDecorPro — Andijon"
-                    + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-                )
-                _send_telegram_to(_tg_id, client_dlv_msg)
-                # MUHIM (2026-08-28, foydalanuvchi so'rovi): avval bu
-                # yerda faqat MATN borardi — endi, "Buyurtma tayyor"
-                # xabarida bo'lgani kabi, shu Yuk xatining O'Z rasmiy PDF
-                # hujjati ham (Nakladnoy) alohida fayl sifatida biriktirib
-                # yuboriladi — har bir qisman topshirishda ham, mijozda
-                # rasmiy hujjat qolishi uchun.
-                try:
-                    import delivery_pdf as _dlv_pdf
-                    _dlv_pdf_bytes = _dlv_pdf.generate_delivery_pdf(d, db)
-                    _send_telegram_document(
-                        _tg_id, _dlv_pdf_bytes,
-                        f"nakladnoy_{d.delivery_number.replace('/', '-')}.pdf",
-                        caption=f"🧾 {d.delivery_number} — Yuk xati hujjati"
-                    )
-                except Exception as _dlv_pdf_err:
-                    try:
-                        crud.log_error(db, f"Mijozga Yuk xati PDF yuborilmadi: {_dlv_pdf_err}", endpoint="api_create_delivery:pdf")
-                    except Exception:
-                        pass
 
     return result
 
@@ -4202,215 +3717,6 @@ def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.admi
     return crud.get_debt_stats(db)
 
 
-def _build_master_keyboard(chat_id: str) -> dict:
-    """Ustaning bot klaviaturasini quradi — agar shu ustaga admin
-    "Sovg'alar" bo'limini yoqib qo'ygan bo'lsa (Master.show_gifts),
-    "🎁 Sovg'alar" tugmalari ham qo'shiladi.
-    MUHIM (2026-08-28, foydalanuvchi so'rovi): "💰 Bonuslarim" tugmasi
-    OLIB TASHLANDI — u har bir buyurtmaning TO'LIQ savdo summasini
-    ko'rsatib yuborar edi, bu esa "usta hech qachon aniq so'm
-    ko'rmaydi" tamoyiliga zid edi."""
-    buttons = [[{"text": "🪪 Mening ID raqamim"}]]
-    try:
-        db = SessionLocal()
-        try:
-            from models import Master
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
-            if master and master.show_gifts:
-                buttons.append([{"text": "🎁 Sovg'alar"}, {"text": "📋 Barcha sovg'alar"}])
-        finally:
-            db.close()
-    except Exception:
-        pass
-    return {"keyboard": buttons, "resize_keyboard": True, "persistent": True}
-
-
-# ============================================================
-# USTALAR BOTI — ALOHIDA, YANGI TOKEN (2026-08-27)
-# ============================================================
-# MUHIM: bu — eski, mijozlarga/ichki guruhga xabar yuboradigan botdan
-# (pastdagi /telegram/webhook) BUTUNLAY MUSTAQIL. Sabab: o'sha eski
-# token, aslida, boshqa, alohida serverdagi (katalog/buyurtma) botga
-# ulangan webhook orqali ishlar ekan — shuning uchun bu yerga (asosiy
-# dasturga) kiruvchi xabarlar umuman yetib kelmasdi. Ustalar (KPI,
-# Sovg'alar) uchun endi BUTUNLAY BOSHQA, yangi bot tokeni ishlatiladi —
-# eski botga (mijozlar, kompaniya guruhi) hech qanday tegilmagan.
-def _send_gift_progress(chat_id: str, request: Request, silent_if_disabled: bool = False):
-    """Ustaning sovg'alar progressini hisoblab, botga yuboradi. Ham
-    "/start"da (agar show_gifts yoqilgan bo'lsa, avtomatik), ham "🎁
-    Sovg'alar" tugmasi bosilganda ishlatiladi (2026-08-28, foydalanuvchi
-    so'rovi — bot ochilishi bilan progress avtomatik ko'rinishi kerak).
-    silent_if_disabled=True bo'lsa, bo'lim yopiq holatda hech narsa
-    yubormaydi (masalan /start'da — hamma ustaga xato ko'rsatilmasin)."""
-    db = SessionLocal()
-    try:
-        from models import Master, MasterGift
-        master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
-        if not master or not master.show_gifts:
-            if not silent_if_disabled:
-                _send_master_bot(chat_id, "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning.", _build_master_keyboard(chat_id))
-            return
-
-        available = crud.get_master_gift_available_kpi(db, master.id)
-        redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
-        all_gifts = crud.get_master_gifts(db)
-        if not all_gifts:
-            if not silent_if_disabled:
-                _send_master_bot(chat_id, "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.\n\nAdministrator tez orada qo'shadi!", _build_master_keyboard(chat_id))
-            return
-
-        redeemed = [g for g in all_gifts if g.id in redeemed_ids]
-        remaining = [g for g in all_gifts if g.id not in redeemed_ids]
-
-        next_gift = None
-        eligible = []
-        locked = []
-        prev_threshold = 0.0
-        progress = 0.0
-        for g in remaining:
-            if available >= g.kpi_threshold:
-                eligible.append(g)
-            elif next_gift is None:
-                next_gift = g
-                span = float(g.kpi_threshold) - prev_threshold
-                progress = max(0.0, min(100.0, (available - prev_threshold) / span * 100)) if span > 0 else 0.0
-            else:
-                locked.append(g)
-            prev_threshold = float(g.kpi_threshold)
-
-        top_eligible = eligible[-1] if eligible else None
-        passed = eligible[:-1] if len(eligible) > 1 else []
-        gift_position = {g.id: i + 1 for i, g in enumerate(all_gifts)}
-        total_gifts = len(all_gifts)
-
-        parts = [f"🎁 *SOVG'ALAR BOSQICHI*", f"👤 {master.name}", f"📊 Jami {total_gifts} ta bosqich", "━━━━━━━━━━━━━━━━━━━"]
-        for g in redeemed:
-            parts.append(f"🎉 {gift_position[g.id]}-bosqich: {g.name} — qo'lga kiritildi!")
-        for g in passed:
-            parts.append(f"✓ {gift_position[g.id]}-bosqich: {g.name} — allaqachon ortda qoldi")
-        if top_eligible:
-            parts.append(f"\n🏆 *{gift_position[top_eligible.id]}-bosqich: {top_eligible.name}*\nSIZGA TEGISHLI — bu, hozircha eng yaxshi tanlovingiz!")
-        if next_gift:
-            filled = int(round(progress / 10))
-            bar = "🟩" * filled + "⬜" * (10 - filled)
-            parts.append(f"\n🎯 *{gift_position[next_gift.id]}-bosqich: {next_gift.name}*\n{bar}  *{progress:.0f}%*\n📈 Yana {100-progress:.0f}% qoldi")
-        for g in locked:
-            parts.append(f"⬜ {gift_position[g.id]}-bosqich: {g.name}")
-        if not remaining:
-            parts.append("\n🏆 *Barcha sovg'alarga yetdingiz! Tabriklaymiz!* 🎉")
-        if len(eligible) > 0 and (next_gift or locked):
-            parts.append("\n⚠️ _Eslatma: faqat BITTA sovg'ani tanlashingiz mumkin. Arzonrog'ini olsangiz, undan yuqorisiga yetish uchun hisobingiz shu sovg'a qiymatiga kamayadi va qaytadan yig'ishga to'g'ri keladi._")
-        parts.append("━━━━━━━━━━━━━━━━━━━\n🏗 PenoDecorPro — Andijon")
-        reply = "\n".join(parts)
-
-        keyboard = _build_master_keyboard(chat_id)
-        photo_gift = next_gift or top_eligible
-        if photo_gift and photo_gift.image_url:
-            proto = request.headers.get("x-forwarded-proto", "https")
-            host = request.base_url.hostname
-            full_photo_url = f"{proto}://{host}{photo_gift.image_url}"
-            _send_master_bot_photo(chat_id, full_photo_url, reply, keyboard)
-        else:
-            _send_master_bot(chat_id, reply, keyboard)
-    except Exception as e:
-        try:
-            crud.log_error(db, str(e), endpoint="_send_gift_progress")
-        except Exception:
-            pass
-        if not silent_if_disabled:
-            _send_master_bot(chat_id, "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring.", _build_master_keyboard(chat_id))
-    finally:
-        db.close()
-
-
-def _send_gift_catalog(chat_id: str, request: Request):
-    """Barcha belgilangan sovg'alarni, HAR BIRIGA necha % yig'ilganini
-    ko'rsatib, to'liq ro'yxat qilib yuboradi (2026-08-28, foydalanuvchi
-    so'rovi — "barcha qo'yilgan sovg'alarni ko'rish imkoni")."""
-    db = SessionLocal()
-    try:
-        from models import Master
-        master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
-        if not master or not master.show_gifts:
-            _send_master_bot(chat_id, "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning.", _build_master_keyboard(chat_id))
-            return
-
-        available = crud.get_master_gift_available_kpi(db, master.id)
-        redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
-        all_gifts = crud.get_master_gifts(db)
-        if not all_gifts:
-            _send_master_bot(chat_id, "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.", _build_master_keyboard(chat_id))
-            return
-
-        parts = [f"📋 *BARCHA SOVG'ALAR*", f"👤 {master.name}", "━━━━━━━━━━━━━━━━━━━"]
-        for i, g in enumerate(all_gifts, 1):
-            if g.id in redeemed_ids:
-                parts.append(f"{i}. 🎉 *{g.name}* — qo'lga kiritildi!")
-                continue
-            pct = max(0.0, min(100.0, available / float(g.kpi_threshold) * 100)) if g.kpi_threshold > 0 else 0.0
-            filled = int(round(pct / 10))
-            bar = "🟩" * filled + "⬜" * (10 - filled)
-            parts.append(f"{i}. {g.name}\n{bar}  {pct:.0f}%")
-        parts.append("\n⚠️ _Eslatma: yuqoridagi foizlar — HAR BIR sovg'aning o'ziga alohida hisoblangan. Lekin siz faqat BITTASINI tanlashingiz mumkin — qaysi birini olsangiz, hisobingiz shu sovg'a qiymatiga kamayadi._")
-        parts.append("━━━━━━━━━━━━━━━━━━━\n🏗 PenoDecorPro — Andijon")
-        _send_master_bot(chat_id, "\n".join(parts), _build_master_keyboard(chat_id))
-    except Exception as e:
-        try:
-            crud.log_error(db, str(e), endpoint="_send_gift_catalog")
-        except Exception:
-            pass
-        _send_master_bot(chat_id, "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring.", _build_master_keyboard(chat_id))
-    finally:
-        db.close()
-
-
-@app.post("/telegram/master-webhook")
-async def telegram_master_webhook(request: Request):
-    if MASTER_WEBHOOK_SECRET:
-        incoming_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-        if incoming_secret != MASTER_WEBHOOK_SECRET:
-            raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
-
-    try:
-        data = await request.json()
-    except Exception:
-        return {"ok": True}
-    message = data.get("message", {})
-    if not message:
-        return {"ok": True}
-    chat_id = str(message.get("chat", {}).get("id", ""))
-    text = (message.get("text") or "").strip().lower()
-    if not chat_id:
-        return {"ok": True}
-
-    if text == "/start":
-        keyboard = _build_master_keyboard(chat_id)
-        welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro — Ustalar boti* ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
-        _send_master_bot(chat_id, welcome_msg, keyboard)
-        # MUHIM (2026-08-28, foydalanuvchi so'rovi): agar shu ustaga
-        # "Sovg'alar" bo'limi yoqilgan bo'lsa, progress darhol, bot
-        # ochilishi bilan avtomatik ko'rinadi — alohida tugma bosishning
-        # hojati yo'q. silent_if_disabled=True — bo'lim yopiq bo'lgan
-        # ustalarga hech narsa qo'shimcha yuborilmaydi.
-        _send_gift_progress(chat_id, request, silent_if_disabled=True)
-        return {"ok": True}
-
-    if text in ["/id", "🪪 mening id raqamim", "mening id raqamim"]:
-        reply = f"🪪 *Sizning Telegram ID raqamingiz:*\n\n`{chat_id}`\n\nShu raqamni nusxalab administratorga yuboring — ustalar ro'yxatiga qo'shilasiz va bonuslaringizni kuzatib borishingiz mumkin bo'ladi! 👷"
-        _send_master_bot(chat_id, reply)
-        return {"ok": True}
-
-    if text in ["🎁 sovg'alar", "sovg'alar", "sovg'alarim"]:
-        _send_gift_progress(chat_id, request, silent_if_disabled=False)
-        return {"ok": True}
-
-    if text in ["📋 barcha sovg'alar", "barcha sovg'alar"]:
-        _send_gift_catalog(chat_id, request)
-        return {"ok": True}
-
-    return {"ok": True}
-
-
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request):
     # Xavfsizlik: agar imzo o'rnatilgan bo'lsa (TELEGRAM_WEBHOOK_SECRET),
@@ -4434,7 +3740,7 @@ async def telegram_webhook(request: Request):
         return {"ok": True}
 
     if text == "/start":
-        keyboard = _build_master_keyboard(chat_id)
+        keyboard = {"keyboard": [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]], "resize_keyboard": True, "persistent": True}
         welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro* bot ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
         try:
             url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
@@ -4478,70 +3784,13 @@ async def telegram_webhook(request: Request):
         finally:
             db.close()
 
-        keyboard = _build_master_keyboard(chat_id)
+        keyboard = {"keyboard": [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]], "resize_keyboard": True, "persistent": True}
         try:
             url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
             send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
             req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=5)
         except Exception as e:
-            _send_telegram_to(chat_id, reply)
-
-    # "🎁 Sovg'alar" — faqat show_gifts=True bo'lgan Ustalarga (2026-08-26,
-    # foydalanuvchi so'rovi). Aniq so'm miqdori HECH QACHON ko'rsatilmaydi
-    # — faqat qaysi bosqichga yetilgani va keyingisigacha necha % qolgani.
-    if text in ["🎁 sovg'alar", "sovg'alar", "sovg'alarim"]:
-        db = SessionLocal()
-        try:
-            from models import Master, MasterGift
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
-            if not master or not master.show_gifts:
-                reply = "❌ Bu bo'lim sizga hali ochilmagan.\n\nAdministrator bilan bog'laning."
-            else:
-                kpi_total = crud.get_master_yearly_kpi_total(db, master.id)
-                gifts = crud.get_master_gifts(db)
-                if not gifts:
-                    reply = "🎁 Hozircha sovg'alar ro'yxati belgilanmagan.\n\nAdministrator tez orada qo'shadi!"
-                else:
-                    lines = []
-                    next_gift = None
-                    prev_threshold = 0.0
-                    for g in gifts:
-                        if kpi_total >= g.kpi_threshold:
-                            lines.append(f"✅ {g.name}")
-                        elif next_gift is None:
-                            next_gift = g
-                            span = float(g.kpi_threshold) - prev_threshold
-                            progress = max(0.0, min(100.0, (kpi_total - prev_threshold) / span * 100)) if span > 0 else 0.0
-                            filled = int(round(progress / 10))
-                            bar = "🟩" * filled + "⬜" * (10 - filled)
-                            lines.append(f"🔄 {g.name}\n{bar} {progress:.0f}%")
-                        else:
-                            lines.append(f"⬜ {g.name}")
-                        prev_threshold = float(g.kpi_threshold)
-                    if next_gift is None:
-                        lines.append("\n🏆 Barcha sovg'alarga yetdingiz! Tabriklaymiz! 🎉")
-                    reply = (
-                        f"🎁 *Sovg'alar bosqichi*\n\n👤 {master.name}\n\n"
-                        + "\n\n".join(lines)
-                        + f"\n\n🏗 PenoDecorPro — Andijon"
-                    )
-        except Exception as e:
-            reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
-            try:
-                crud.log_error(db, str(e), endpoint="telegram_webhook:sovgalar")
-            except Exception:
-                pass
-        finally:
-            db.close()
-
-        keyboard = _build_master_keyboard(chat_id)
-        try:
-            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
-            send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
-            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=5)
-        except Exception:
             _send_telegram_to(chat_id, reply)
 
     return {"ok": True}
