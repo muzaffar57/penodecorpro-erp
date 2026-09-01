@@ -138,13 +138,16 @@ def generate_split_profit_pdf(split: dict, year: int, month: int) -> bytes:
 
 
 def generate_finance_report_pdf(report: dict, expense_transactions: list,
-                                 brak_by_material: list, year: int, month: int) -> bytes:
+                                 brak_by_material: list, year: int, month: int,
+                                 debt_summary: dict = None) -> bytes:
     """Bir oylik to'liq moliyaviy hisobot — PDF.
 
     report — services.get_monthly_report() natijasi.
     expense_transactions — shu oydagi barcha ExpenseTransaction yozuvlari
         (Arenda, Soliq, Tushlik, qo'shimcha xarajatlar — nomma-nom).
     brak_by_material — services (crud).get_brak_material_summary()["by_material"].
+    debt_summary — services.get_full_debt_summary() natijasi (ixtiyoriy —
+        berilmasa, "Qarzlar" bo'limi PDF'da chiqmaydi).
     """
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -229,6 +232,60 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     ]))
     el.append(cards)
     el.append(Spacer(1, 14))
+
+    # ── QARZLAR VA MAJBURIYATLAR ──
+    if debt_summary:
+        el.append(Paragraph("Qarzlar va majburiyatlar", st_section))
+        el.append(Spacer(1, 6))
+
+        def _debt_cell(label, value, count_label, color):
+            return [
+                Paragraph(label, ParagraphStyle('dl', fontName='Helvetica-Bold', fontSize=7.5, textColor=color, alignment=TA_CENTER)),
+                Paragraph(f"{_fmt(value)} so'm", ParagraphStyle('dv', fontName='Helvetica-Bold', fontSize=10.5, textColor=color, alignment=TA_CENTER)),
+                Paragraph(count_label, ParagraphStyle('dc', fontName='Helvetica', fontSize=7, textColor=GRAY, alignment=TA_CENTER)),
+            ]
+
+        RED_BG = colors.HexColor("#FDF2F2")
+        GREEN_BG = colors.HexColor("#F0FDF4")
+        AMBER = colors.HexColor("#D97706")
+        AMBER_BG = colors.HexColor("#FFFBEB")
+
+        debt_tbl = Table([[
+            _debt_cell("BIZGA QARZDORLAR", debt_summary["customer_debt"], f"{debt_summary['customer_debt_count']} ta loyiha", GREEN),
+            _debt_cell("YETKAZUVCHIGA QARZ", debt_summary["supplier_debt"], f"{debt_summary['supplier_debt_count']} ta yetkazuvchi", RED),
+            _debt_cell("HODIMLARGA QARZ", debt_summary["employee_debt"], "oxirgi 3 oy", AMBER),
+            _debt_cell("ARENDA/SOLIQ/KOMMUNAL", debt_summary["recurring_debt"], f"{debt_summary['recurring_debt_count']} ta muddati o'tgan", RED),
+        ]], colWidths=[W/4]*4)
+        debt_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), GREEN_BG),
+            ('BACKGROUND', (1, 0), (1, -1), RED_BG),
+            ('BACKGROUND', (2, 0), (2, -1), AMBER_BG),
+            ('BACKGROUND', (3, 0), (3, -1), RED_BG),
+            ('BOX', (0, 0), (0, -1), 0.5, colors.HexColor("#BBF7D0")),
+            ('BOX', (1, 0), (1, -1), 0.5, colors.HexColor("#FECACA")),
+            ('BOX', (2, 0), (2, -1), 0.5, colors.HexColor("#FDE68A")),
+            ('BOX', (3, 0), (3, -1), 0.5, colors.HexColor("#FECACA")),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        el.append(debt_tbl)
+        el.append(Spacer(1, 6))
+
+        net = debt_summary["net_position"]
+        net_color = GREEN if net >= 0 else RED
+        net_sign = "+" if net >= 0 else "−"
+        net_row = Table([[
+            Paragraph("Sof holat (bizga qarz − bizdan qarz)", ParagraphStyle('nl', fontName='Helvetica-Bold', fontSize=9, textColor=DARK)),
+            Paragraph(f"{net_sign} {_fmt(abs(net))} so'm", ParagraphStyle('nv', fontName='Helvetica-Bold', fontSize=11, textColor=net_color, alignment=TA_RIGHT)),
+        ]], colWidths=[W*0.6, W*0.4])
+        net_row.setStyle(TableStyle([
+            ('LINEABOVE', (0, 0), (-1, 0), 0.7, colors.HexColor("#E5E1D8")),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        el.append(net_row)
+        el.append(Spacer(1, 16))
 
     # ── XARAJATLAR — NOMMA-NOM ──
     el.append(Paragraph("Xarajatlar tafsiloti (nomma-nom)", st_section))
