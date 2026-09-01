@@ -1744,6 +1744,24 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
 
 
 # ═══════════════════════════════════════════════════════════════
+# AVTOMATIK, KUNLIK "eski sessiyalarni tozalash" — bu ham, "kam
+# qolganlar" tekshiruvi kabi, cron-job.org orqali, har kuni bir marta
+# chaqiriladi. XAVFSIZ: faqat, muddati ALLAQACHON o'tgan (endi
+# ishlatilmaydigan) tizimga kirish yozuvlarini o'chiradi — HOZIR
+# tizimda ishlab turgan hech kimning sessiyasiga tegilmaydi.
+# ═══════════════════════════════════════════════════════════════
+@app.get("/api/cron/cleanup-sessions")
+def api_cron_cleanup_sessions(secret: str = "", db: Session = Depends(get_db)):
+    if not CRON_SECRET:
+        raise HTTPException(status_code=503, detail="CRON_SECRET Railway'da o'rnatilmagan")
+    if secret != CRON_SECRET:
+        raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
+    result = auth.cleanup_expired_sessions(db)
+    total = result["user_sessions"] + result["employee_sessions"]
+    return {"cleaned": True, "message": f"{total} ta eski sessiya tozalandi", "detail": result}
+
+
+# ═══════════════════════════════════════════════════════════════
 # VAQTINCHALIK YORDAMCHI: to'g'ri Telegram Chat ID'ni topish uchun.
 # Foydalanish: 1) Telegram'da botga (masalan @penodecorprobot) istalgan
 # xabar yozing (masalan "salom"). 2) Shu manzilni oching:
