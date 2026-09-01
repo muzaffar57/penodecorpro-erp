@@ -653,6 +653,46 @@ def get_company_obligations_status(db: Session, year: int, month: int) -> dict:
     }
 
 
+def get_full_debt_summary(db: Session, year: int, month: int) -> dict:
+    """"Moliya" sahifasi (va uning PDF hisoboti) uchun — TO'RTALA qarz
+    yo'nalishini, BITTA joyga jamlab beradi:
+    1) Bizga qarzdorlar — mijozlar (loyihalar)
+    2) Yetkazib beruvchiga qarzimiz
+    3) Hodimlarga qarzimiz (oxirgi 3 oy)
+    4) Doimiy majburiyatlar (Arenda/Soliq/Kommunal)
+
+    MUHIM: bu funksiya, hech qanday YANGI hisoblash qilmaydi — faqat,
+    ALLAQACHON mavjud, boshqa joylarda (Qarzdorlar sahifasida) sinalgan
+    funksiyalarni chaqirib, natijalarini bitta joyga yig'ib beradi."""
+    from models import Order, OrderStatus
+
+    orders = db.query(Order).filter(
+        Order.is_deleted.isnot(True),
+        Order.status != OrderStatus.DRAFT
+    ).all()
+    order_debts = [o for o in orders if float(o.debt_amount or 0) > 0.5]
+    total_customer_debt = round(sum(float(o.debt_amount or 0) for o in order_debts))
+
+    import crud as _crud_debt
+    suppliers_all = _crud_debt.get_suppliers_with_debt(db)
+    supplier_debts = [s for s in suppliers_all if s['debt'] > 0]
+    total_supplier_debt = round(sum(s['debt'] for s in supplier_debts))
+
+    company = get_company_obligations_status(db, year, month)
+
+    return {
+        "customer_debt": total_customer_debt,
+        "customer_debt_count": len(order_debts),
+        "supplier_debt": total_supplier_debt,
+        "supplier_debt_count": len(supplier_debts),
+        "employee_debt": company["total_employee_debt"],
+        "employee_debt_count": len(company["employees"]),
+        "recurring_debt": company["total_recurring_debt"],
+        "recurring_debt_count": len(company["recurring"]),
+        "net_position": total_customer_debt - total_supplier_debt - company["total_employee_debt"] - company["total_recurring_debt"],
+    }
+
+
 def get_obligation_timeline(db: Session, category: str, year: int, month: int) -> list:
     """Bitta kategoriya uchun, shu oydagi barcha to'lovlar tarixi (timeline)."""
     from models import ExpenseTransaction
