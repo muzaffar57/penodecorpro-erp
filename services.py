@@ -625,22 +625,31 @@ def get_company_obligations_status(db: Session, year: int, month: int) -> dict:
         target = float(obl.monthly_target or 0)
         if target <= 0:
             continue
-        txs = db.query(ExpenseTransaction).filter(
-            ExpenseTransaction.category == obl.category,
-            func.extract('year', ExpenseTransaction.date) == year,
-            func.extract('month', ExpenseTransaction.date) == month
-        ).order_by(ExpenseTransaction.date.desc()).all()
-        paid = sum(float(t.amount or 0) for t in txs)
-        debt = max(0, target - paid)
-        last_payment = txs[0].date.isoformat() if txs else None
-
-        recurring.append({
-            "category": obl.category, "label": obl.label, "icon": obl.icon or "📦",
-            "target": round(target), "paid": round(paid), "debt": round(debt),
-            "due_day": obl.due_day or 5, "last_payment": last_payment,
-            "status": _obligation_status(debt, obl.due_day or 5, today)
-        })
-    recurring_with_debt = [r for r in recurring if r["debt"] > 0.5]
+        # MUHIM (2026-09): xuddi hodimlar kabi — faqat "hozirgi oy"ni emas,
+        # OXIRGI 3 OYni ham tekshiramiz. Aks holda, masalan Arenda,
+        # o'tgan oyda to'lanmay, yangi oyga o'tib ketsa — bu yerdan
+        # butunlay yo'qolib qolar edi (garchi hali to'lanmagan bo'lsa ham).
+        for (chk_year, chk_month) in months_to_check:
+            is_current = (chk_year, chk_month) == (year, month)
+            txs = db.query(ExpenseTransaction).filter(
+                ExpenseTransaction.category == obl.category,
+                func.extract('year', ExpenseTransaction.date) == chk_year,
+                func.extract('month', ExpenseTransaction.date) == chk_month
+            ).order_by(ExpenseTransaction.date.desc()).all()
+            paid = sum(float(t.amount or 0) for t in txs)
+            debt = max(0, target - paid)
+            if debt <= 0.5:
+                continue
+            last_payment = txs[0].date.isoformat() if txs else None
+            recurring.append({
+                "category": obl.category, "label": obl.label, "icon": obl.icon or "📦",
+                "target": round(target), "paid": round(paid), "debt": round(debt),
+                "due_day": obl.due_day or 5, "last_payment": last_payment,
+                "year": chk_year, "month": chk_month,
+                "month_label": OY_NOMLARI[chk_month] if not is_current else f"{OY_NOMLARI[chk_month]} (joriy)",
+                "status": "overdue" if (not is_current or _obligation_status(debt, obl.due_day or 5, today) == "overdue") else _obligation_status(debt, obl.due_day or 5, today)
+            })
+    recurring_with_debt = sorted(recurring, key=lambda r: (r["year"], r["month"]))
     total_recurring_debt = sum(r["debt"] for r in recurring_with_debt)
 
     return {
