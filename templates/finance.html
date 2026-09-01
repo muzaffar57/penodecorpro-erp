@@ -330,6 +330,39 @@
 
   <div id="monthlyReportWrap" style="display:none">
 
+    <!-- ═══ QARZLAR VA MAJBURIYATLAR — UMUMIY HOLAT ═══ -->
+    <div class="fin-section">
+      <div class="fin-section-title" style="margin-bottom:12px"><i class="ti ti-scale"></i> Qarzlar va majburiyatlar</div>
+      <div class="fin-card" style="padding:20px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" id="debt-summary-grid">
+          <div class="dg-box" style="background:#F0FDF4;border-radius:12px;padding:14px">
+            <div style="font-size:12px;font-weight:600;color:#16A34A;margin-bottom:6px">💚 Bizga qarzdorlar</div>
+            <div style="font-size:18px;font-weight:800;color:#16A34A" id="dg-customer">—</div>
+            <div style="font-size:11px;margin-top:4px;color:#16A34A;opacity:.8" id="dg-customer-n">—</div>
+          </div>
+          <div class="dg-box" style="background:#FEF2F2;border-radius:12px;padding:14px">
+            <div style="font-size:12px;font-weight:600;color:#DC2626;margin-bottom:6px">📦 Yetkazuvchiga qarzimiz</div>
+            <div style="font-size:18px;font-weight:800;color:#DC2626" id="dg-supplier">—</div>
+            <div style="font-size:11px;margin-top:4px;color:#DC2626;opacity:.8" id="dg-supplier-n">—</div>
+          </div>
+          <div class="dg-box" style="background:#FFFBEB;border-radius:12px;padding:14px">
+            <div style="font-size:12px;font-weight:600;color:#D97706;margin-bottom:6px">👷 Hodimlarga qarzimiz</div>
+            <div style="font-size:18px;font-weight:800;color:#D97706" id="dg-employee">—</div>
+            <div style="font-size:11px;margin-top:4px;color:#D97706;opacity:.8" id="dg-employee-n">oxirgi 3 oy</div>
+          </div>
+          <div class="dg-box" style="background:#FEF2F2;border-radius:12px;padding:14px">
+            <div style="font-size:12px;font-weight:600;color:#DC2626;margin-bottom:6px">🏛️ Arenda/Soliq/Kommunal</div>
+            <div style="font-size:18px;font-weight:800;color:#DC2626" id="dg-recurring">—</div>
+            <div style="font-size:11px;margin-top:4px;color:#DC2626;opacity:.8" id="dg-recurring-n">—</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px dashed #E5E1D8;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13.5px;font-weight:700;color:#333">Sof holat (bizga qarz − bizdan qarz)</span>
+          <span style="font-size:19px;font-weight:800" id="dg-net">—</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ 4-QATOR: MOLIYAVIY TAHLILLAR ═══ -->
     <div class="fin-section">
       <div class="fin-analytics-grid">
@@ -451,7 +484,7 @@
     </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>
     <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="fin-btn fin-btn-primary w-full" id="tx-save-btn" onclick="saveTx()" style="flex:1">Saqlash</button>
+      <button class="fin-btn fin-btn-primary w-full" onclick="saveTx()" style="flex:1">Saqlash</button>
       <button class="fin-btn fin-btn-ghost w-full" onclick="closeTxModal()" style="flex:1">Bekor</button>
     </div>
   </div>
@@ -471,7 +504,7 @@
     <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="cashtx-notes" placeholder="masalan: Jo'rabekka 500,000 berildi"></div>
     <div id="cashtx-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
     <div style="display:flex;gap:8px">
-      <button onclick="saveCashTx()" id="cashtx-save-btn" style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Saqlash</button>
+      <button onclick="saveCashTx()" style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Saqlash</button>
       <button onclick="document.getElementById('cashTxModal').style.display='none'" style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Bekor</button>
     </div>
   </div>
@@ -599,7 +632,6 @@ async function fillEhsonAmount(){
   }
 }
 
-let isSavingCashTx = false;
 async function saveCashTx(){
   const raw = parseNum(document.getElementById('cashtx-amount').value) || 0;
   const err = document.getElementById('cashtx-error');
@@ -613,11 +645,6 @@ async function saveCashTx(){
   fd.append('category', currentCashTxCategory);
   fd.append('amount', amount);
   if (notes) fd.append('notes', notes);
-
-  if (isSavingCashTx) return; // Ikki marta bosishdan himoya
-  isSavingCashTx = true;
-  const btn = document.getElementById('cashtx-save-btn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
 
   try {
     const res = await fetch('/api/finance/cash-transaction', { method: 'POST', body: fd });
@@ -635,9 +662,6 @@ async function saveCashTx(){
   } catch(e) {
     err.textContent = "❌ Server bilan aloqa yo'q";
     err.style.display = 'block';
-  } finally {
-    isSavingCashTx = false;
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
   }
 }
 
@@ -690,9 +714,10 @@ function downloadSplitProfitPdf(){
 async function loadReport(){
   const month=document.getElementById('sel-month').value;
   const year=document.getElementById('sel-year').value;
-  const [res, invRes] = await Promise.all([
+  const [res, invRes, debtRes] = await Promise.all([
     fetch(`/api/finance/report?year=${year}&month=${month}`),
-    fetch('/api/inventory/kpi').catch(()=>null)
+    fetch('/api/inventory/kpi').catch(()=>null),
+    fetch(`/api/finance/debt-summary?year=${year}&month=${month}`).catch(()=>null)
   ]);
   if(!res.ok){alert('Xato');return;}
   const d=await res.json();
@@ -711,6 +736,22 @@ async function loadReport(){
   if (invRes && invRes.ok) {
     const inv = await invRes.json();
     document.getElementById('r-ombor').textContent = fmt(inv.total_value)+" so'm";
+  }
+
+  if (debtRes && debtRes.ok) {
+    const dg = await debtRes.json();
+    document.getElementById('dg-customer').textContent = fmt(dg.customer_debt)+" so'm";
+    document.getElementById('dg-customer-n').textContent = dg.customer_debt_count+" ta loyiha";
+    document.getElementById('dg-supplier').textContent = fmt(dg.supplier_debt)+" so'm";
+    document.getElementById('dg-supplier-n').textContent = dg.supplier_debt_count+" ta yetkazuvchi";
+    document.getElementById('dg-employee').textContent = fmt(dg.employee_debt)+" so'm";
+    document.getElementById('dg-employee-n').textContent = dg.employee_debt_count+" ta hodim, oxirgi 3 oy";
+    document.getElementById('dg-recurring').textContent = fmt(dg.recurring_debt)+" so'm";
+    document.getElementById('dg-recurring-n').textContent = dg.recurring_debt_count+" ta muddati o'tgan";
+    const netEl = document.getElementById('dg-net');
+    const sign = dg.net_position >= 0 ? '+ ' : '− ';
+    netEl.textContent = sign + fmt(Math.abs(dg.net_position)) + " so'm";
+    netEl.style.color = dg.net_position >= 0 ? '#16A34A' : '#DC2626';
   }
 
   buildExpDetail(d);
@@ -984,18 +1025,11 @@ function openTxModal(){
 }
 function closeTxModal(){ document.getElementById('txModal').style.display = 'none'; }
 
-let isSavingTx = false;
 async function saveTx(){
   const date = document.getElementById('tx-f-date').value;
   const category = document.getElementById('tx-f-category').value;
   const amount = parseNum(document.getElementById('tx-f-amount').value);
   if (!date || !amount || amount <= 0) { alert('Sana va summani to\'g\'ri kiriting'); return; }
-
-  if (isSavingTx) return; // Ikki marta bosishdan himoya
-  isSavingTx = true;
-  const btn = document.getElementById('tx-save-btn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
-
   try {
     const res = await fetch('/api/finance/transactions', {
       method: 'POST', headers: {'Content-Type':'application/json'},
@@ -1005,10 +1039,7 @@ async function saveTx(){
       closeTxModal();
       loadDailyTransactions();
     } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
-  } catch(e) { alert('Server xatosi'); } finally {
-    isSavingTx = false;
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
-  }
+  } catch(e) { alert('Server xatosi'); }
 }
 
 async function deleteTx(id){
