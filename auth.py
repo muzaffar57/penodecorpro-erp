@@ -83,14 +83,8 @@ SESSION_HOURS = 8
 
 
 def create_session(db: Session, user_id: int) -> str:
-    """Yangi sessiya token yaratadi va BAZAGA saqlaydi.
-    Yo'l-yo'lakay — muddati o'tgan eski sessiyalarni ham tozalaydi (har safar
-    tashqi cron kutmasdan, tabiiy ravishda bazani toza saqlash uchun)."""
+    """Yangi sessiya token yaratadi va BAZAGA saqlaydi."""
     from models import UserSession
-    try:
-        cleanup_expired_sessions(db)
-    except Exception:
-        pass  # tozalash muvaffaqiyatsiz bo'lsa ham, login davom etishi kerak
     token = secrets.token_urlsafe(32)
     entry = UserSession(
         token=token, user_id=user_id,
@@ -122,14 +116,14 @@ def delete_session(db: Session, token: str):
 
 
 def cleanup_expired_sessions(db: Session) -> dict:
-    """Muddati o'tgan BARCHA sessiyalarni (admin/menejer VA hodim) bazadan
-    tozalaydi. Necha tasi o'chirilganini qaytaradi."""
+    """Muddati o'tgan barcha sessiyalarni (Admin panel VA Hodim panel)
+    bazadan tozalaydi."""
     from models import UserSession, EmployeeSession
     now = datetime.utcnow()
-    user_count = db.query(UserSession).filter(UserSession.expires_at < now).delete()
-    emp_count = db.query(EmployeeSession).filter(EmployeeSession.expires_at < now).delete()
+    n_user = db.query(UserSession).filter(UserSession.expires_at < now).delete()
+    n_emp = db.query(EmployeeSession).filter(EmployeeSession.expires_at < now).delete()
     db.commit()
-    return {"user_sessions": user_count, "employee_sessions": emp_count}
+    return {"user_sessions": n_user, "employee_sessions": n_emp}
 
 
 # ============================================================
@@ -246,14 +240,6 @@ def admin_or_warehouse(request: Request, db: Session = Depends(get_db)) -> User:
     return require_role([UserRole.ADMIN, UserRole.WAREHOUSE])(request, db)
 
 
-def admin_warehouse_or_manager(request: Request, db: Session = Depends(get_db)) -> User:
-    """Tayyor mahsulot sahifasi — Admin, Omborchi VA Menejer. MUHIM: Menejer
-    bu sahifaga kirsa ham, tan narx/foyda ma'lumoti unga qaytarilmaydi —
-    buni har bir /api/finished endpoint alohida (_strip_profit_for_manager
-    yordamida) ta'minlaydi."""
-    return require_role([UserRole.ADMIN, UserRole.WAREHOUSE, UserRole.MANAGER])(request, db)
-
-
 def inventory_view(request: Request, db: Session = Depends(get_db)) -> User:
     """Omborni FAQAT KO'RISH (miqdor) — Hodim buyurtma yaratayotganda xomashyo
     yetarli-yetarli emasligini bilishi uchun, lekin boshqarish huquqisiz."""
@@ -351,13 +337,7 @@ def verify_pin(plain_pin: str, hashed_pin: str) -> bool:
 
 
 def create_employee_session(db: Session, employee_id: int) -> str:
-    """Yo'l-yo'lakay — muddati o'tgan eski sessiyalarni ham tozalaydi
-    (hodimlar ko'p va tez-tez kirib-chiqishadi, shuning uchun bu yerda ham)."""
     from models import EmployeeSession
-    try:
-        cleanup_expired_sessions(db)
-    except Exception:
-        pass  # tozalash muvaffaqiyatsiz bo'lsa ham, login davom etishi kerak
     token = secrets.token_urlsafe(32)
     entry = EmployeeSession(
         token=token, employee_id=employee_id,
