@@ -2919,7 +2919,7 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
         AdvanceRequest, Employee, RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory, UserSession, User,
         OrderGipsAdditive, FinishedProductSale, FinishedProductLoss, EmployeeMonthlyAdjustment,
-        CompanySetting, RecurringObligation
+        CompanySetting, RecurringObligation, MasterGift, MasterGiftRedemption
     )
 
     # Tartib MUHIM va TO'LIQ tekshirilgan (har bir ForeignKey hisobga olingan):
@@ -2957,7 +2957,8 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
         InventoryPurchase, InventoryReceipt, SupplierPayment,
         TransportExpense, ExpenseTransaction, MonthlyExpense,
         EmployeeSession, EmployeeAdvance, AdvanceRequest, EmployeeMonthlyAdjustment, Employee,
-        RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
+        RecipeIngredient, Recipe, Inventory,
+        MasterGiftRedemption, MasterGift, Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory,
         CompanySetting, RecurringObligation,
     ]
