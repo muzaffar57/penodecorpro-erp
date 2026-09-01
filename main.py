@@ -3015,7 +3015,13 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     if not token:
         raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
 
+    # MUHIM: Railway, "proksi" orqali ishlaydi — shuning uchun, dastur
+    # ichidan qaralganda, so'rov manzili ba'zan "http://" (s"siz) bo'lib
+    # ko'rinishi mumkin, garchi tashqaridan HAMMA VAQT "https://" orqali
+    # kirilsa ham. Telegram esa, FAQAT https://ni qabul qiladi — shuning
+    # uchun, "http"ni, doim, majburiy ravishda "https"ga almashtiramiz.
     webhook_url = str(request.base_url).rstrip("/") + "/telegram/webhook"
+    webhook_url = webhook_url.replace("http://", "https://", 1)
     new_secret = _secrets.token_urlsafe(32)
 
     try:
