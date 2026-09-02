@@ -948,8 +948,12 @@ function rowHtml(i) {
   const stLabel = low ? 'Tugagan' : (isKam ? 'Kam' : 'Yetarli');
 
   const cpu = i.source === 'produced' && i.quantity > 0 ? (i.cost_price / i.quantity) : 0;
+  {% if current_user.role.value == 'admin' %}
   const profitPct = (i.source === 'produced' && i.unit_price > 0)
     ? Math.round(((i.unit_price - cpu) / i.unit_price) * 100) : null;
+  {% else %}
+  const profitPct = null;  // Faqat Admin — Hodim/Omborchi foydani ko'rmasligi kerak
+  {% endif %}
 
   const actionBtns = inProgress ? `
     <button class="btn btn-dark btn-sm" style="padding:5px 12px;font-size:11px;white-space:nowrap"
@@ -1045,7 +1049,9 @@ function openHistoryModal(id) {
   if (item.source === 'produced') {
     rows.push(['Sarflangan penoplast', item.volume_m3 ? item.volume_m3.toFixed(4) + ' m³' : '—']);
     if (item.actual_loy_kg) rows.push(['Sarflangan loy', item.actual_loy_kg + ' kg']);
+    {% if current_user.role.value == 'admin' %}
     rows.push(['Tan narxi (jami)', fmt(item.cost_price) + " so'm"]);
+    {% endif %}
   }
   rows.push(['Hozirgi qoldiq', item.quantity + ' ' + item.unit]);
   rows.push(['Joriy qiymati', fmt(item.total_value) + " so'm"]);
@@ -1323,7 +1329,11 @@ async function submitLoss() {
       const r = await res.json();
       if (res.ok) {
         closeLossModal();
+        {% if current_user.role.value == 'admin' %}
         showMsg(`✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada Brak xarajatiga qo'shildi`, 'success');
+        {% else %}
+        showMsg(`✓ Kamaytirildi!`, 'success');
+        {% endif %}
         setTimeout(() => location.reload(), 1500);
       } else {
         showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
@@ -1578,7 +1588,11 @@ async function submitSell() {
     const r = await res.json();
     if (res.ok) {
       closeSellModal();
+      {% if current_user.role.value == 'admin' %}
       showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm (foyda: ${fmt(r.profit)} so'm)`, 'success');
+      {% else %}
+      showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm`, 'success');
+      {% endif %}
       // G'ishtdan tashqari barcha mahsulot uchun — Yuk xati avtomatik ochiladi
       if (r.product_name !== "G'isht" && r.sale_id) {
         window.open(`/api/finished/sales/${r.sale_id}/pdf`, '_blank');
@@ -1763,7 +1777,9 @@ async function saveTermopanel() {
       let msg = `⏳ ${r.name}: ${r.quantity} m² — ishlab chiqarish boshlandi\n\n`;
       msg += `🧱 Bazalt: ${r.bazalt_sheets} dona\n🕸️ Serpiyanka: ${r.serpiyanka_rulon} rulon\n`;
       if (r.kley_kg > 0) msg += `🧴 Kley: ${r.kley_kg} kg\n`;
+      {% if current_user.role.value == 'admin' %}
       msg += `\n💰 Tan narxi: ${fmt(r.total_cost)} so'm\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
+      {% endif %}
       msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
       showMsg(msg, 'success');
     } else {
@@ -2186,8 +2202,10 @@ async function saveProduce() {
       loadFp();
       let msg = `⏳ ${r.name}: ${r.quantity} ${r.unit} — ishlab chiqarish boshlandi`;
       if (r.inventory_log?.length) msg += '\n\n📦 Ombordan:\n' + r.inventory_log.join('\n');
+      {% if current_user.role.value == 'admin' %}
       msg += `\n\n💰 Tan narxi: ${fmt(r.total_cost)} so'm`;
       msg += `\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
+      {% endif %}
       msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
       showMsg(msg, 'success');
     } else {
