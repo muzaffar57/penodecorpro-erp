@@ -2687,6 +2687,14 @@ async def finance_page(request: Request, db: Session = Depends(get_db), current_
     return templates.TemplateResponse(request, "finance.html", {"current_user": current_user, "active_page": "finance"})
 
 
+@app.get("/kunlik-xarajat", response_class=HTMLResponse)
+async def kunlik_xarajat_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+    """Manager (Hodim) uchun — daromad/foyda/qarzlarni KO'RSATMASDAN, faqat
+    kunlik xarajat (tushlik, kutilmagan va h.k.) qo'shish uchun, alohida,
+    kichik sahifa (2026-09)."""
+    return templates.TemplateResponse(request, "kunlik_xarajat.html", {"current_user": current_user, "active_page": "kunlik_xarajat"})
+
+
 @app.get("/api/finance/report")
 def api_finance_report(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return services.get_monthly_report(db, year, month)
@@ -2756,7 +2764,7 @@ def api_finance_history(months: int = 12, db: Session = Depends(get_db), current
 
 @app.post("/api/finance/transactions")
 def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: Session = Depends(get_db),
-                                    current_user=Depends(auth.admin_or_financier)):
+                                    current_user=Depends(auth.admin_manager_accountant)):
     tx = crud.create_expense_transaction(db, data.model_dump(), performed_by=current_user.full_name or current_user.username, source="manual")
     return schemas.ExpenseTransactionRead.model_validate(tx)
 
