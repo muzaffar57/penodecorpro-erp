@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Xarajat qo'shish — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Xarajat qo'shish{% endblock %}
+{% block page_sub %}Kunlik xarajatlarni (tushlik, kutilmagan va h.k.) qayd eting{% endblock %}
+
+{% block content %}
+<div style="max-width:480px;margin:0 auto;padding:20px 16px">
+  <div style="background:#fff;border-radius:16px;padding:26px;box-shadow:0 1px 2px rgba(24,27,34,.04),0 4px 16px rgba(24,27,34,.06);border:1px solid #E8E3DD">
+
+    <div class="form-group">
+      <label>Sana</label>
+      <input type="date" id="kx-date">
+    </div>
+
+    <div class="form-group">
+      <label>Kategoriya</label>
+      <select id="kx-category">
+        <option value="tushlik">Tushlik</option>
+        <option value="kutilmagan">Kutilmagan xarajat (ta'mirlash, zapchastka va h.k.)</option>
+        <option value="reklama">Reklama</option>
+        <option value="boshqa">Boshqa</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Summa (so'm)</label>
+      <input type="text" id="kx-amount" placeholder="0" inputmode="numeric">
+    </div>
+
+    <div class="form-group">
+      <label>Izoh <span style="font-weight:400;color:#9CA3AF;font-size:11.5px">— ixtiyoriy</span></label>
+      <input type="text" id="kx-notes" placeholder="masalan: 5 kishiga tushlik">
+    </div>
+
+    <div id="kx-error" style="display:none;margin-bottom:12px;padding:10px 12px;background:#FEE2E2;border-radius:8px;font-size:13px;color:#DC2626"></div>
+    <div id="kx-success" style="display:none;margin-bottom:12px;padding:10px 12px;background:#F0FDF4;border-radius:8px;font-size:13px;color:#166534"></div>
+
+    <button id="kx-save-btn" onclick="kxSave()" style="width:100%;background:#B9783F;color:#fff;border:none;border-radius:10px;padding:13px;font-size:14.5px;font-weight:600;cursor:pointer">
+      Saqlash
+    </button>
+  </div>
+</div>
+
+<script>
+document.getElementById('kx-date').value = new Date().toISOString().slice(0, 10);
+
+function kxFormatAmount(el) {
+  let v = el.value.replace(/\D/g, '');
+  el.value = v ? Number(v).toLocaleString('ru-RU').replace(/,/g, ' ') : '';
+}
+document.getElementById('kx-amount').addEventListener('input', function(){ kxFormatAmount(this); });
+
+let kxSaving = false;
+async function kxSave(){
+  if (kxSaving) return;
+  const date = document.getElementById('kx-date').value;
+  const category = document.getElementById('kx-category').value;
+  const amount = parseInt(document.getElementById('kx-amount').value.replace(/\s/g, '')) || 0;
+  const notes = document.getElementById('kx-notes').value.trim() || null;
+  const err = document.getElementById('kx-error');
+  const ok = document.getElementById('kx-success');
+  err.style.display = 'none';
+  ok.style.display = 'none';
+
+  if (!date || !amount || amount <= 0) {
+    err.style.display = 'block';
+    err.textContent = "❌ Sana va summani to'g'ri kiriting";
+    return;
+  }
+
+  kxSaving = true;
+  const btn = document.getElementById('kx-save-btn');
+  btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Saqlanmoqda...';
+
+  try {
+    const res = await fetch('/api/finance/transactions', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ date: date + 'T00:00:00', category, amount, notes })
+    });
+    if (res.ok) {
+      ok.style.display = 'block';
+      ok.textContent = '✓ Xarajat saqlandi!';
+      document.getElementById('kx-amount').value = '';
+      document.getElementById('kx-notes').value = '';
+    } else {
+      const e = await res.json();
+      err.style.display = 'block';
+      err.textContent = '❌ ' + (e.detail || 'Xato yuz berdi');
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = "❌ Server bilan aloqa yo'q";
+  } finally {
+    kxSaving = false;
+    btn.disabled = false; btn.style.opacity = ''; btn.textContent = 'Saqlash';
+  }
+}
+</script>
+{% endblock %}
