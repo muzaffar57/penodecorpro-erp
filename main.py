@@ -3043,7 +3043,7 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.get("/finished", response_class=HTMLResponse)
-async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotlar sahifasi."""
     items = crud.get_finished_products(db)
     penoplasts = services.get_penoplast_list(db)
@@ -3218,7 +3218,7 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
 
 @app.get("/api/finished")
 def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
-                     db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                     db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotlar ro'yxati."""
     if source or only_available:
         items = crud.get_finished_products(db, source=source, only_available=only_available)
@@ -3258,7 +3258,7 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
 
 @app.post("/api/finished/{fp_id}/image")
 def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                               current_user=Depends(auth.admin_or_warehouse)):
+                               current_user=Depends(auth.admin_warehouse_or_manager)):
     from models import FinishedProduct
     fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
     if not fp:
@@ -3296,12 +3296,12 @@ def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Se
 
 
 @app.get("/api/finished/stats")
-def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     return crud.get_finished_stats(db)
 
 
 @app.get("/api/finished/search")
-def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Nom bo'yicha qidirish — buyurtmada taklif uchun. category — masalan
     'gips', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
     try:
@@ -3314,7 +3314,7 @@ def api_search_finished(q: str = "", category: Optional[str] = None, exclude_cat
 
 @app.post("/api/finished/loss")
 def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Session = Depends(get_db),
-                               current_user=Depends(auth.admin_or_warehouse)):
+                               current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_loss(db, data, created_by=who)
@@ -3325,7 +3325,7 @@ def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Sessio
 
 @app.post("/api/finished/production-brak")
 def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
-                                   current_user=Depends(auth.admin_or_warehouse)):
+                                   current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
     soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi (hozircha
     faqat Profil/Panel/Donali/Blok kategoriyalari uchun)."""
@@ -3340,7 +3340,7 @@ def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCrea
 
 @app.post("/api/finished/sell-batch")
 def api_sell_finished_products_batch(data: schemas.FinishedProductSaleBatchCreate, db: Session = Depends(get_db),
-                                       current_user=Depends(auth.admin_or_warehouse)):
+                                       current_user=Depends(auth.admin_warehouse_or_manager)):
     """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_products_batch(db, data, created_by=who)
@@ -3351,7 +3351,7 @@ def api_sell_finished_products_batch(data: schemas.FinishedProductSaleBatchCreat
 
 @app.post("/api/finished/sell")
 def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Session = Depends(get_db),
-                                current_user=Depends(auth.admin_or_warehouse)):
+                                current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_product(db, data, created_by=who)
@@ -3362,7 +3362,7 @@ def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Sessi
 
 @app.get("/api/finished/sales")
 def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = None,
-                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot savdolari tarixi (ixtiyoriy oy/yil filtri bilan)."""
     from models import FinishedProductSale
     from sqlalchemy import extract
@@ -3382,7 +3382,7 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
 
 @app.post("/api/finished/produce-gips")
 def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_db),
-                      current_user=Depends(auth.admin_or_warehouse)):
+                      current_user=Depends(auth.admin_warehouse_or_manager)):
     """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqarish."""
     who = current_user.full_name or current_user.username
     result = crud.produce_gips_finished_product(db, data, created_by=who)
@@ -3392,7 +3392,7 @@ def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_
 
 
 @app.post("/api/finished/produce")
-def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ishlab chiqarish."""
     who = current_user.full_name or current_user.username
     result = crud.produce_finished_product(db, data, created_by=who)
@@ -3417,7 +3417,7 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
 
 
 @app.post("/api/finished/produce-termopanel")
-def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
     who = current_user.full_name or current_user.username
     result = crud.produce_termopanel(db, data, created_by=who)
@@ -3441,7 +3441,7 @@ def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = 
 
 
 @app.post("/api/finished/{fp_id}/complete")
-def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
     result = crud.complete_production(db, fp_id)
     if not result["success"]:
@@ -3460,7 +3460,7 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 
 @app.post("/api/finished/{fp_id}/add")
 def api_add_production(fp_id: int, data: schemas.StockAdjust,
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
     result = crud.add_to_production(db, fp_id, data.quantity)
     if not result["success"]:
@@ -3485,7 +3485,7 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
 
 @app.post("/api/finished/{fp_id}/reduce")
 def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
-                          db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                          db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
     result = crud.reduce_production(db, fp_id, data.quantity, data.reason)
     if not result["success"]:
@@ -3495,7 +3495,7 @@ def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
 
 @app.put("/api/finished/{fp_id}")
 def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni tahrirlash."""
     fp = crud.update_finished_product(db, fp_id, data.model_dump(exclude_unset=True))
     if not fp:
@@ -3505,7 +3505,7 @@ def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
 
 @app.delete("/api/finished/{fp_id}")
 def api_delete_finished(fp_id: int, return_to_stock: bool = False,
-                        db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni o'chirish.
     - IN_PROGRESS: xato tuzatish deb hisoblanadi — o'chadi, xomashyo qaytadi.
     - READY: faqat qoldiq 0 bo'lsa o'chadi, xomashyo qaytmaydi."""
