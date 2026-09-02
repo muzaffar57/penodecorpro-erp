@@ -630,6 +630,13 @@ def get_company_obligations_status(db: Session, year: int, month: int) -> dict:
         # o'tgan oyda to'lanmay, yangi oyga o'tib ketsa — bu yerdan
         # butunlay yo'qolib qolar edi (garchi hali to'lanmagan bo'lsa ham).
         for (chk_year, chk_month) in months_to_check:
+            # Bu majburiyat, hali YARATILMAGAN oy uchun — tekshirmaymiz
+            # (aynan hodim ishga kirish sanasi bilan bir xil mantiq).
+            if obl.created_at:
+                _last_day_chk = __import__('calendar').monthrange(chk_year, chk_month)[1]
+                _chk_month_end = datetime(chk_year, chk_month, _last_day_chk, 23, 59, 59)
+                if obl.created_at > _chk_month_end:
+                    continue
             is_current = (chk_year, chk_month) == (year, month)
             txs = db.query(ExpenseTransaction).filter(
                 ExpenseTransaction.category == obl.category,
