@@ -114,6 +114,13 @@
       <div class="nav-label">Hisobot</div>
       {% endif %}
 
+      {% if role == 'manager' %}
+      <a href="/kunlik-xarajat" class="nav-item {% if active_page == 'kunlik_xarajat' %}active{% endif %}">
+        <i class="ti ti-receipt-2 n-ico"></i>
+        <span class="n-txt">Xarajat qo'shish</span>
+      </a>
+      {% endif %}
+
       {% if role in ['admin', 'manager', 'warehouse'] %}
       <a href="/returns" class="nav-item {% if active_page == 'returns' %}active{% endif %}">
         <i class="ti ti-arrow-back-up n-ico"></i>
