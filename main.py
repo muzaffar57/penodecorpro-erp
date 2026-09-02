@@ -180,6 +180,17 @@ def _migrate_payment_columns():
             if 'soliqlar' not in me_cols:
                 migrations.append("ALTER TABLE monthly_expenses ADD COLUMN soliqlar NUMERIC(12,2) DEFAULT 0")
 
+        # RecurringObligation — created_at ustuni (2026-09: yangi qo'shilgan
+        # majburiyat, undan OLDINGI oylar uchun "qarz" bo'lib chiqmasligi
+        # uchun). Mavjud (eski) yozuvlarga, "hozirgi vaqt" emas, balki eng
+        # ESKI mumkin bo'lgan sana (2020-01-01) qo'yiladi — shunda, ALLAQACHON
+        # mavjud bo'lgan majburiyatlar, avvalgidek, barcha oylar uchun to'g'ri
+        # hisoblanaveradi (faqat, YANGI qo'shiladiganlar cheklanadi).
+        if 'recurring_obligations' in inspector.get_table_names():
+            ro_cols = [c['name'] for c in inspector.get_columns('recurring_obligations')]
+            if 'created_at' not in ro_cols:
+                migrations.append("ALTER TABLE recurring_obligations ADD COLUMN created_at TIMESTAMP DEFAULT '2020-01-01'")
+
         # Inventory — category ustuni + avtomatik taxmin
         inv_cols_pre = [c['name'] for c in inspector.get_columns('inventory')]
         if 'category' not in inv_cols_pre:
