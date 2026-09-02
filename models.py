@@ -892,6 +892,7 @@ class RecurringObligation(Base):
     monthly_target = Column(Numeric(12, 2), default=0)  # Har oy qancha to'lanishi kerak
     due_day = Column(Integer, default=5)  # Oyning nechinchi kunigacha to'lanishi kerak (masalan 5 — har oy 5-sanagacha)
     is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)  # Qo'shilgan sana — undan OLDINGI oylar uchun qarz hisoblanmasin
 
     def __repr__(self):
         return f"<RecurringObligation {self.label}: {self.monthly_target}/oy>"
