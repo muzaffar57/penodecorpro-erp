@@ -4383,8 +4383,20 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     Gips buyurtmalaridagi HAQIQIY gips miqdori (kg, va qop — har bir buyurtma
     o'z Gips xomashyosining qop og'irligiga bo'lingan holda)."""
     from models import Employee, PayType
+    from datetime import datetime as _dt_emp
+    from calendar import monthrange as _monthrange_emp
 
-    employees = db.query(Employee).filter(Employee.is_active == True).all()
+    # MUHIM (2026-09): hodim, FAQAT allaqachon ISHGA KIRGAN oylar uchun
+    # hisoblanishi kerak — aks holda, masalan Sentyabrda yangi qo'shilgan
+    # hodim, tizim tomonidan, "Iyul/Avgust uchun ham qarzdormiz" deb,
+    # NOTO'G'RI hisoblanib qolar edi (garchi u hali ishga kirmagan bo'lsa
+    # ham). Shu oyning OXIRGI kunigacha ishga kirgan hodimlarni olamiz.
+    _last_day = _monthrange_emp(year, month)[1]
+    _month_end = _dt_emp(year, month, _last_day, 23, 59, 59)
+    employees = db.query(Employee).filter(
+        Employee.is_active == True,
+        Employee.hire_date <= _month_end
+    ).all()
     breakdown = []
     total = 0.0
 
