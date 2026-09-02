@@ -235,9 +235,15 @@ def admin_or_financier(request: Request, db: Session = Depends(get_db)) -> User:
 
 
 def admin_or_warehouse(request: Request, db: Session = Depends(get_db)) -> User:
-    """Omborxona (to'liq boshqarish), Xomashyo ta'minoti, Tayyor mahsulot,
+    """Omborxona (to'liq boshqarish), Xomashyo ta'minoti,
     Retseptlar — faqat Admin va Omborchi."""
     return require_role([UserRole.ADMIN, UserRole.WAREHOUSE])(request, db)
+
+
+def admin_warehouse_or_manager(request: Request, db: Session = Depends(get_db)) -> User:
+    """Tayyor mahsulot — Admin, Omborchi VA Hodim (Manager) — 2026-09'da,
+    Hodimga ham shu bo'limni ochib berish so'ralgani uchun qo'shildi."""
+    return require_role([UserRole.ADMIN, UserRole.WAREHOUSE, UserRole.MANAGER])(request, db)
 
 
 def inventory_view(request: Request, db: Session = Depends(get_db)) -> User:
