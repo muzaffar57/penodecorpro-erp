@@ -374,6 +374,22 @@ async function startFactoryReset(){
   }
 }
 
+function showAddedToast(){
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s ease';
+  box.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.2);animation:popIn .2s ease">
+      <div style="width:56px;height:56px;border-radius:50%;background:#DCFCE7;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px">✓</div>
+      <div style="font-size:16px;font-weight:700;color:#222">Qo'shildi!</div>
+    </div>
+    <style>
+      @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+      @keyframes popIn{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+    </style>`;
+  document.body.appendChild(box);
+  setTimeout(() => { location.reload(); }, 900);
+}
+
 let isSavingUser = false;
 async function saveUser(){
   const username=document.getElementById('f-username').value.trim();
@@ -387,7 +403,7 @@ async function saveUser(){
   try {
     const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({username,password,role:document.getElementById('f-role').value,full_name:document.getElementById('f-fullname').value})});
-    if(res.ok){alert('✓ Qo\'shildi!');location.reload();return;}else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+    if(res.ok){ showAddedToast(); return; }else{const e=await res.json();alert('Xato: '+(e.detail||''));}
   } finally {
     isSavingUser = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
