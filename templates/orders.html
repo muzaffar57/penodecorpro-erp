@@ -3171,6 +3171,19 @@ function toggleFields(row) {
   if (wLabel) wLabel.textContent = useAltNames ? "Qalinligi" : "Kengligi";
   row.dataset.lastType = type;
   checkGipsSectionVisibility();
+
+  // MUHIM: "O'lcham" qutisidagi ustunlar soni, DOIM "4" bo'lib qolsa —
+  // Donalik kabi, atigi 2 ta maydoni bor turlarda, ular tor bo'lib,
+  // yon tomonda bo'sh joy qolib ketardi. Shuning uchun, funksiya
+  // TUGASHIDAN OLDIN (barcha ko'chirish/yashirish qarorlari tugagach),
+  // aynan HOZIR ko'rinib turgan maydonlar sonini sanab, ustun sonini
+  // shunga aniq moslashtiramiz (kam maydon — kengroq bo'ladi).
+  if (dimsRow) {
+    const visibleCount = Array.from(dimsRow.children).filter(
+      el => el.style.display !== 'none'
+    ).length;
+    dimsRow.style.gridTemplateColumns = `repeat(${Math.max(1, visibleCount)},1fr)`;
+  }
 }
 
 function onGipsUnitChange(row) {
