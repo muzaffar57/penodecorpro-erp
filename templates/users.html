@@ -178,24 +178,6 @@
   </div>
 </div>
 
-<!-- ══ USTALAR BOTI — webhookni ro'yxatdan o'tkazish (2026-08-28) ══ -->
-<div class="card" style="margin-top:20px">
-  <div class="card-head">
-    <h3>👷 Ustalar boti</h3>
-  </div>
-  <div style="padding:16px">
-    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">
-      Ustalar uchun alohida bot (KPI, Bonuslar, Sovg'alar). <b>Avval</b> Railway'da
-      <code style="background:var(--bg);padding:2px 6px;border-radius:4px">MASTER_BOT_TOKEN</code>
-      ni to'g'ri sozlab, saqlab qo'ying — shundan keyingina shu tugmani bosing (bu — <b>bir martalik</b> sozlash).
-    </div>
-    <button class="btn btn-dark" onclick="setupMasterBotWebhook()" id="master-bot-btn">
-      👷 Ustalar botini ro'yxatdan o'tkazish
-    </button>
-    <div id="master-bot-result" style="display:none;margin-top:14px;padding:14px;background:var(--bg);border-radius:10px;font-size:13px;line-height:1.7"></div>
-  </div>
-</div>
-
 <!-- ══ XODIM QR KOD MODALI ══ -->
 <div id="hodimQrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:16px;padding:28px;width:360px;max-width:100%;text-align:center">
@@ -343,35 +325,6 @@ async function deleteTelegramWebhook(){
     resultBox.textContent = '❌ Server bilan aloqa yo\'q';
   }
   btn.disabled = false; btn.textContent = "🔄 Webhookni o'chirib, botni asl holatiga qaytarish";
-}
-
-async function setupMasterBotWebhook(){
-  const btn = document.getElementById('master-bot-btn');
-  const resultBox = document.getElementById('master-bot-result');
-  btn.disabled = true; btn.textContent = 'Sozlanmoqda...';
-  try {
-    const res = await fetch('/api/system/telegram-setup-master-webhook', { method: 'POST' });
-    const data = await res.json();
-    if (res.ok) {
-      resultBox.style.display = 'block';
-      resultBox.style.background = '#DCFCE7'; resultBox.style.color = '#166534';
-      resultBox.innerHTML = `
-        <div style="font-weight:700;margin-bottom:8px">✅ Ustalar boti ro'yxatdan o'tkazildi!</div>
-        <div style="margin-bottom:10px">Endi quyidagi qiymatni nusxalab, <b>Railway → Variables</b> bo'limiga
-        <code style="background:#fff;padding:2px 6px;border-radius:4px">MASTER_WEBHOOK_SECRET</code> nomi bilan qo'shing:</div>
-        <div style="background:#fff;padding:10px 12px;border-radius:8px;font-family:monospace;word-break:break-all;user-select:all;border:1px solid #86EFAC">${data.new_secret}</div>
-        <div style="margin-top:10px;color:#166534">Saqlagach, Railway serverni avtomatik qayta ishga tushiradi — shundan keyin bot to'liq ishga tushadi.</div>`;
-    } else {
-      resultBox.style.display = 'block';
-      resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
-      resultBox.textContent = '❌ ' + (data.detail || 'Xato yuz berdi');
-    }
-  } catch(e) {
-    resultBox.style.display = 'block';
-    resultBox.style.background = '#FEE2E2'; resultBox.style.color = '#DC2626';
-    resultBox.textContent = '❌ Server bilan aloqa yo\'q';
-  }
-  btn.disabled = false; btn.textContent = '👷 Ustalar botini ro\'yxatdan o\'tkazish';
 }
 
 let isRunningFactoryReset = false;
