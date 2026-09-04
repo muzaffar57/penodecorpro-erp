@@ -539,7 +539,7 @@ async function quickPaySupplier(confirmOverpay = false){
 function openNewSupplier(){ document.getElementById('newSupplierModal').style.display = 'flex'; }
 let isSavingNewSupplier = false;
 async function saveNewSupplier(){
-  const name = document.getElementById('ns-name').value.trim();
+  const name = sanitizeToLatin(document.getElementById('ns-name').value.trim());
   if (!name) { showMsg('Nomni kiriting'); return; }
   if (isSavingNewSupplier) return; // Ikki marta bosishdan himoya
   isSavingNewSupplier = true;
@@ -690,7 +690,7 @@ function updateBazaltWrapVisibility(){
 
 async function apResolveItemId(){
   if (!apCreatingNewItem) return parseInt(document.getElementById('ap-item').value) || null;
-  const name = document.getElementById('ap-newitem-name').value.trim();
+  const name = sanitizeToLatin(document.getElementById('ap-newitem-name').value.trim());
   if (!name) { showMsg('❌ Yangi material nomini kiriting', 'error'); return null; }
   const category = document.getElementById('ap-newitem-category').value;
   const unit = document.getElementById('ap-newitem-unit').value;
