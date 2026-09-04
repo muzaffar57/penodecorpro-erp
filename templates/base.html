@@ -4,7 +4,6 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
-<script src="/static/translit.js"></script>
 <script>
 (function(){
   try {
@@ -223,7 +222,6 @@
             </div>
           </div>
         </div>
-        <button class="btn btn-outline btn-sm" id="script-toggle-btn" onclick="toggleScript()" title="Kirill/Lotin" style="margin-right:8px">🔤 Кирилл</button>
         {% block topbar_actions %}{% endblock %}
       </div>
     </header>
@@ -332,139 +330,5 @@
 })();
 </script>
 
-<script>
-// ════════════════════════════════════════════════════════════
-// KIRILL / LOTIN — ko'rinishni almashtirish. UNIVERSAL — barcha
-// sahifalarda ishlaydi (2026-09, avval "Buyurtmalar"da sinalgan,
-// endi, umumiy qolipga ko'chirildi). Bazaga YOZILADIGAN ma'lumot —
-// DOIM LOTIN bo'lib qoladi; har bir sahifaning o'z "saqlash"
-// funksiyasi, o'zi yozadigan matn maydonlarini, sanitizeToLatin()
-// orqali, saqlashdan OLDIN, tozalashi kerak.
-// ════════════════════════════════════════════════════════════
-let currentScript = localStorage.getItem('erp_script') || 'lotin';
-const _origTextMap = new WeakMap();
-const _origPlaceholderMap = new WeakMap();
-
-function _shouldSkipI18n(node) {
-  let el = node.nodeType === 3 ? node.parentElement : node;
-  while (el) {
-    if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return true;
-    if (el.hasAttribute && el.hasAttribute('data-no-i18n')) return true;
-    el = el.parentElement;
-  }
-  return false;
-}
-
-function _applyScriptToNode(root) {
-  if (!root || typeof latinToCyrillic !== 'function') return;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: function(node) {
-      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-      if (_shouldSkipI18n(node)) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    }
-  });
-  const textNodes = [];
-  let n;
-  while ((n = walker.nextNode())) textNodes.push(n);
-  textNodes.forEach(node => {
-    if (!_origTextMap.has(node)) _origTextMap.set(node, node.nodeValue);
-    const orig = _origTextMap.get(node);
-    node.nodeValue = (currentScript === 'kirill') ? latinToCyrillic(orig) : orig;
-  });
-
-  const fields = (root.nodeType === 1 && root.matches && root.matches('input,textarea'))
-    ? [root]
-    : (root.querySelectorAll ? Array.from(root.querySelectorAll('input[type=text],input:not([type]),textarea')) : []);
-  fields.forEach(el => {
-    if (_shouldSkipI18n(el)) return;
-    if (el.placeholder) {
-      if (!_origPlaceholderMap.has(el)) _origPlaceholderMap.set(el, el.placeholder);
-      const origPh = _origPlaceholderMap.get(el);
-      el.placeholder = (currentScript === 'kirill') ? latinToCyrillic(origPh) : origPh;
-    }
-  });
-}
-
-function toggleScript() {
-  currentScript = (currentScript === 'lotin') ? 'kirill' : 'lotin';
-  localStorage.setItem('erp_script', currentScript);
-  const btn = document.getElementById('script-toggle-btn');
-  if (btn) btn.textContent = (currentScript === 'kirill') ? '🔤 Lotin' : '🔤 Кирилл';
-  _applyScriptToNode(document.body);
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  const btn = document.getElementById('script-toggle-btn');
-  if (btn) btn.textContent = (currentScript === 'kirill') ? '🔤 Lotin' : '🔤 Кирилл';
-  if (currentScript === 'kirill') _applyScriptToNode(document.body);
-});
-
-new MutationObserver(function(muts) {
-  if (currentScript !== 'kirill') return;
-  muts.forEach(function(m) {
-    m.addedNodes.forEach(function(node) {
-      if (node.nodeType === 1) _applyScriptToNode(node);
-    });
-  });
-}).observe(document.body, {childList: true, subtree: true});
-
-// Saqlashdan OLDIN — matnni, kirillcha bo'lsa ham, DOIM lotinga
-// o'giradi (agar allaqachon lotin bo'lsa — hech narsa o'zgarmaydi).
-function sanitizeToLatin(text) {
-  return (typeof text === 'string' && typeof cyrillicToLatin === 'function') ? cyrillicToLatin(text) : text;
-}
-
-// ════════════════════════════════════════════════════════════
-// MARKAZIY, AVTOMATIK "TOZALOVCHI" — BUTUN TIZIM uchun (2026-09).
-// Sahifalarda, har bir matn maydonini, qo'lda, alohida-alohida
-// "sanitizeToLatin()" bilan o'rab chiqish o'rniga — bu yerda,
-// serverga YUBORILADIGAN har qanday (JSON) ma'lumotni, AVTOMATIK
-// ravishda, "chuqur" (ichma-ich obyektlargacha) tekshirib, kirillcha
-// matnlarni, lotinga o'giradi. Shu orqali, tizimning QAYSI joyida
-// yangi forma qo'shilmasin — u, AVTOMATIK ravishda himoyalangan bo'ladi.
-//
-// XAVFSIZLIK: Login/parol so'rovlariga — ATAYLAB tegilmaydi (aks
-// holda, parolning o'zi, tasodifan o'zgarib, kirish imkonsiz bo'lib
-// qolishi mumkin edi).
-(function() {
-  const _originalFetch = window.fetch;
-  const EXCLUDED_URL_PATTERNS = ['/login'];
-
-  function deepSanitize(value) {
-    if (typeof value === 'string') return sanitizeToLatin(value);
-    if (Array.isArray(value)) return value.map(deepSanitize);
-    if (value !== null && typeof value === 'object') {
-      const result = {};
-      for (const key in value) {
-        if (Object.prototype.hasOwnProperty.call(value, key)) {
-          result[key] = deepSanitize(value[key]);
-        }
-      }
-      return result;
-    }
-    return value; // raqam, boolean, null va h.k. — o'zgarishsiz
-  }
-
-  window.fetch = function(input, init) {
-    try {
-      const urlStr = (typeof input === 'string') ? input : (input && input.url) || '';
-      const isExcluded = EXCLUDED_URL_PATTERNS.some(p => urlStr.includes(p));
-      if (!isExcluded && init && typeof init.body === 'string') {
-        const headers = init.headers || {};
-        const contentType = headers['Content-Type'] || headers['content-type'] || '';
-        if (contentType.includes('application/json') || (!contentType && init.body.trim().startsWith('{'))) {
-          const parsed = JSON.parse(init.body);
-          const sanitized = deepSanitize(parsed);
-          init = Object.assign({}, init, { body: JSON.stringify(sanitized) });
-        }
-      }
-    } catch (e) {
-      // JSON emas edi (masalan, FormData) — o'zgartirmasdan, o'zi ketaveradi
-    }
-    return _originalFetch.call(this, input, init);
-  };
-})();
-</script>
 </body>
 </html>
