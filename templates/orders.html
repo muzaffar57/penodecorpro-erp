@@ -4,13 +4,11 @@
 {% block page_sub %}Jami {{ orders|length }} ta · {{ orders|selectattr('status.value', 'ne', 'ready')|list|length }} faol{% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline btn-sm" id="script-toggle-btn" onclick="toggleScript()" title="Kirill/Lotin">🔤 Кирилл</button>
 {% if current_user.role.value == 'admin' %}
 {% endif %}
 {% endblock %}
 
 {% block head %}
-<script src="/static/translit.js"></script>
 <style>
 .ord-layout{display:grid;grid-template-columns:300px 1fr 280px;gap:12px;align-items:start}
 @media (max-width:1150px){
@@ -923,96 +921,6 @@ function closeItemImgLightbox() { document.getElementById('itemImgLightbox').sty
     });
   }).observe(document.documentElement, {childList:true, subtree:true});
 })();
-</script>
-
-<script>
-// ════════════════════════════════════════════════════════════
-// KIRILL / LOTIN — ko'rinishni almashtirish (2026-09, birinchi
-// sinov sahifasi: Buyurtmalar). Bazaga YOZILADIGAN ma'lumot — DOIM
-// LOTIN bo'lib qoladi (bu yerda faqat KO'RINISH o'zgaradi); agar
-// hodim, "Kirill" holatida turib, kirillcha yozsa — saqlashda,
-// avtomatik ravishda, lotinga o'giriladi (pastdagi sanitizeToLatin()).
-// ════════════════════════════════════════════════════════════
-let currentScript = localStorage.getItem('erp_script') || 'lotin';
-const _origTextMap = new WeakMap();
-const _origPlaceholderMap = new WeakMap();
-
-function _shouldSkipI18n(node) {
-  // <script>, <style> ichidagi matnlarga, va, "data-no-i18n" bilan
-  // ATAYLAB belgilangan joylarga — TEGMAYMIZ.
-  let el = node.nodeType === 3 ? node.parentElement : node;
-  while (el) {
-    if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return true;
-    if (el.hasAttribute && el.hasAttribute('data-no-i18n')) return true;
-    el = el.parentElement;
-  }
-  return false;
-}
-
-function _applyScriptToNode(root) {
-  if (!root) return;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode: function(node) {
-      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-      if (_shouldSkipI18n(node)) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    }
-  });
-  const textNodes = [];
-  let n;
-  while ((n = walker.nextNode())) textNodes.push(n);
-  textNodes.forEach(node => {
-    if (!_origTextMap.has(node)) _origTextMap.set(node, node.nodeValue);
-    const orig = _origTextMap.get(node);
-    node.nodeValue = (currentScript === 'kirill') ? latinToCyrillic(orig) : orig;
-  });
-
-  const fields = (root.nodeType === 1 && root.matches && root.matches('input,textarea'))
-    ? [root]
-    : (root.querySelectorAll ? Array.from(root.querySelectorAll('input[type=text],input:not([type]),textarea')) : []);
-  fields.forEach(el => {
-    if (_shouldSkipI18n(el)) return;
-    if (el.placeholder) {
-      if (!_origPlaceholderMap.has(el)) _origPlaceholderMap.set(el, el.placeholder);
-      const origPh = _origPlaceholderMap.get(el);
-      el.placeholder = (currentScript === 'kirill') ? latinToCyrillic(origPh) : origPh;
-    }
-  });
-}
-
-function toggleScript() {
-  currentScript = (currentScript === 'lotin') ? 'kirill' : 'lotin';
-  localStorage.setItem('erp_script', currentScript);
-  const btn = document.getElementById('script-toggle-btn');
-  if (btn) btn.textContent = (currentScript === 'kirill') ? '🔤 Lotin' : '🔤 Кирилл';
-  _applyScriptToNode(document.body);
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  const btn = document.getElementById('script-toggle-btn');
-  if (btn) btn.textContent = (currentScript === 'kirill') ? '🔤 Lotin' : '🔤 Кирилл';
-  if (currentScript === 'kirill') _applyScriptToNode(document.body);
-});
-
-// MUHIM: sahifada, YANGI qism qo'shilganda (masalan, "+ Detal
-// qo'shish" bosilganda) — o'sha YANGI qismga ham, joriy skript
-// (agar Kirill bo'lsa) AVTOMATIK qo'llanadi — hech joy "unutilib"
-// qolmaydi.
-new MutationObserver(function(muts) {
-  if (currentScript !== 'kirill') return;
-  muts.forEach(function(m) {
-    m.addedNodes.forEach(function(node) {
-      if (node.nodeType === 1) _applyScriptToNode(node);
-    });
-  });
-}).observe(document.body, {childList: true, subtree: true});
-
-// Saqlashdan OLDIN — matnni, kirillcha bo'lsa ham, DOIM lotinga
-// o'giradi (agar allaqachon lotin bo'lsa — hech narsa o'zgarmaydi,
-// xavfsiz).
-function sanitizeToLatin(text) {
-  return (typeof text === 'string') ? cyrillicToLatin(text) : text;
-}
 </script>
 
 <script>
