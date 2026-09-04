@@ -414,6 +414,75 @@ new MutationObserver(function(muts) {
 function sanitizeToLatin(text) {
   return (typeof text === 'string' && typeof cyrillicToLatin === 'function') ? cyrillicToLatin(text) : text;
 }
+
+// ════════════════════════════════════════════════════════════
+// MARKAZIY, AVTOMATIK "TOZALOVCHI" — BUTUN TIZIM uchun (2026-09).
+// Sahifalarda, har bir matn maydonini, qo'lda, alohida-alohida
+// "sanitizeToLatin()" bilan o'rab chiqish o'rniga — bu yerda,
+// serverga YUBORILADIGAN har qanday (JSON) ma'lumotni, AVTOMATIK
+// ravishda, "chuqur" (ichma-ich obyektlargacha) tekshirib, kirillcha
+// matnlarni, lotinga o'giradi. Shu orqali, tizimning QAYSI joyida
+// yangi forma qo'shilmasin — u, AVTOMATIK ravishda himoyalangan bo'ladi.
+//
+// XAVFSIZLIK: Login/parol so'rovlariga — ATAYLAB tegilmaydi (aks
+// holda, parolning o'zi, tasodifan o'zgarib, kirish imkonsiz bo'lib
+// qolishi mumkin edi).
+(function() {
+  const _originalFetch = window.fetch;
+  const EXCLUDED_URL_PATTERNS = ['/login'];
+
+  function deepSanitize(value) {
+    if (typeof value === 'string') return sanitizeToLatin(value);
+    if (Array.isArray(value)) return value.map(deepSanitize);
+    if (value !== null && typeof value === 'object') {
+      const result = {};
+      for (const key in value) {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          result[key] = deepSanitize(value[key]);
+        }
+      }
+      return result;
+    }
+    return value; // raqam, boolean, null va h.k. — o'zgarishsiz
+  }
+
+  window.fetch = function(input, init) {
+    try {
+      const urlStr = (typeof input === 'string') ? input : (input && input.url) || '';
+      const isExcluded = EXCLUDED_URL_PATTERNS.some(p => urlStr.includes(p));
+
+      if (!isExcluded) {
+        // 1) JSON "body" (POST/PUT so'rovlar uchun) — chuqur tozalash
+        if (init && typeof init.body === 'string') {
+          const headers = init.headers || {};
+          const contentType = headers['Content-Type'] || headers['content-type'] || '';
+          if (contentType.includes('application/json') || (!contentType && init.body.trim().startsWith('{'))) {
+            const parsed = JSON.parse(init.body);
+            const sanitized = deepSanitize(parsed);
+            init = Object.assign({}, init, { body: JSON.stringify(sanitized) });
+          }
+        }
+        // 2) URL ICHIDAGI SO'ROV PARAMETRLARI (masalan, qidiruv:
+        //    "?q=Карниз") — BU YERDA HAM tozalanadi. Aks holda, kirill
+        //    rejimida qidirilgan so'z, bazadagi (lotincha) nom bilan
+        //    mos kelmay, "hech narsa topilmadi" bo'lib qolar edi.
+        if (typeof input === 'string' && input.includes('?')) {
+          const [path, queryStr] = input.split('?');
+          const params = new URLSearchParams(queryStr);
+          let changed = false;
+          for (const [key, value] of params.entries()) {
+            const clean = sanitizeToLatin(value);
+            if (clean !== value) { params.set(key, clean); changed = true; }
+          }
+          if (changed) input = path + '?' + params.toString();
+        }
+      }
+    } catch (e) {
+      // JSON emas edi (masalan, FormData) — o'zgartirmasdan, o'zi ketaveradi
+    }
+    return _originalFetch.call(this, input, init);
+  };
+})();
 </script>
 </body>
 </html>
