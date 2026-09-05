@@ -1048,6 +1048,10 @@ document.addEventListener('DOMContentLoaded', checkForDraftOnLoad);
 let currentEditOrderId = null; // xavfsizlik uchun — tahrirlanayotgan buyurtma ID'si
 let editDiscountPct = 0;       // tahrirlashdagi saqlangan chegirma foizi
 let editUserTouched = false;   // xodim kelishilgan summani qo'lda o'zgartirdimi
+let editInitialLoadDone = false; // MUHIM (2026-09): tahrirlash, hali TO'LIQ
+  // yuklanmagan bo'lsa — "chegirmani qayta hisoblash"ni ISHGA TUSHIRMAYMIZ
+  // (aks holda, saqlangan "Kelishilgan summa", dumaloqlashtirish tufayli,
+  // kichik, keraksiz farq bilan, o'zgarib qolar edi).
 
 // ── PLOTNOST ──────────────────────────────────────────────
 const PENOPLASTS = [
@@ -1338,15 +1342,13 @@ function pickFinished(el, fpId) {
     peno.closest('.dif').title = 'Tayyor mahsulotdan olinmoqda — xomashyo hisoblanmaydi';
   }
 
-  // "1 m³ narxi" — ENDI BLOKLANMAYDI. Sotuv narxini joriy buyurtma
-  // narxiga moslashtirish uchun ochiq qoldiramiz (tan narxi/xomashyo
-  // hisobiga bu SIRA TA'SIR QILMAYDI — faqat mijozga ko'rinadigan narx).
+  // MUHIM (2026-09): "1 m³ narxi" orqali, tayyor mahsulot narxini,
+  // joriy buyurtmaga moslab, AVTOMATIK o'zgartirish — endi olib
+  // tashlandi (foydalanuvchi so'rovi bo'yicha). Endi, Profil/Panel —
+  // boshqa turlar (Donalik va h.k.) kabi, HAR DOIM, ishlab
+  // chiqarilgandagi, O'ZGARMAS narxda qoladi.
   const m3 = row.querySelector('.i-m3price');
-  if (m3 && (effectiveType === 'profil' || effectiveType === 'panel')) {
-    const orderBasePrice = parseNum(document.getElementById('base_price')?.value || '0');
-    if (orderBasePrice > 0) m3.value = orderBasePrice.toLocaleString('ru-RU').replace(/,/g, ' ');
-    recomputeFpPriceFromM3(row);
-  } else if (m3) {
+  if (m3) {
     m3.disabled = true;
     m3.style.opacity = '.4';
     m3.closest('.dif').title = 'Tayyor mahsulotdan olinmoqda — xomashyo hisoblanmaydi';
@@ -2133,11 +2135,11 @@ async function saveDelivery() {
   const data = {
     order_id: selectedOrderId,
     items,
-    received_by: document.getElementById('dlv-received-by').value.trim() || null,
-    notes: document.getElementById('dlv-notes').value.trim() || null,
+    received_by: sanitizeToLatin(document.getElementById('dlv-received-by').value.trim()) || null,
+    notes: sanitizeToLatin(document.getElementById('dlv-notes').value.trim()) || null,
     payment_amount: parseNum(document.getElementById('dlv-payment-amount').value) || null,
     payment_method: document.getElementById('dlv-payment-method').value || 'naqd',
-    transport_carrier: document.getElementById('dlv-transport-carrier').value.trim() || null,
+    transport_carrier: sanitizeToLatin(document.getElementById('dlv-transport-carrier').value.trim()) || null,
     transport_cost: parseFloat(document.getElementById('dlv-transport-cost').value) || 0,
     transport_payer: document.getElementById('dlv-transport-payer').value || 'none'
   };
@@ -2610,6 +2612,7 @@ function showNewForm() {
   currentEditOrderId = null;
   editDiscountPct = 0;
   editUserTouched = false;
+  editInitialLoadDone = false;
   const hint = document.getElementById('discount-auto-hint');
   if (hint) hint.style.display = 'none';
   const eb = document.getElementById('editBanner');
@@ -2789,7 +2792,7 @@ function addItem() {
           <div class="dif"><label>1 m³ narxi</label>
             <div class="unit-input-wrap" style="border-color:#B9783F">
               <input type="text" class="i-m3price" placeholder="asosiy"
-                     oninput="formatPriceInput(this);recomputeFpPriceFromM3(this.closest('.detal'));calculateItem(this.closest('.detal'))">
+                     oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))">
               <span class="unit-suffix">so'm</span>
             </div>
           </div>
@@ -3715,7 +3718,7 @@ function recalcAll() {
 
 // Tahrirlashda jami o'zgarsa — kelishilgan summani foiz bo'yicha qayta hisoblaymiz
 function reapplyDiscount() {
-  if (!editMode || editDiscountPct <= 0) return;
+  if (!editMode || editDiscountPct <= 0 || !editInitialLoadDone) return;
   const fp = document.getElementById('final_price');
   if (!fp || document.activeElement === fp) return;   // xodim yozayotgan bo'lsa tegmaymiz
 
@@ -4255,6 +4258,7 @@ async function editSelected() {
     editMode = true;
     currentEditOrderId = editId;
     editUserTouched = false;
+    editInitialLoadDone = false;
     editDiscountPct = parseFloat(order.discount_percent || 0);
 
     // Topshirish holati — tahrirlashda cheklov uchun
@@ -4317,6 +4321,7 @@ async function editSelected() {
     if (zWrap) zWrap.style.display = 'none';
 
     calcDiscount();
+    editInitialLoadDone = true;
 
     document.getElementById('editBanner').style.display = 'block';
     document.getElementById('editOrderNum').textContent = order.order_number;
@@ -4342,7 +4347,7 @@ async function editSelected() {
 function collectItems() {
   const items = [];
   document.querySelectorAll('.detal').forEach(row => {
-    const name = row.querySelector('.i-name').value.trim();
+    const name = sanitizeToLatin(row.querySelector('.i-name').value.trim());
     if (!name) return;
     const type = row.querySelector('.i-type').value;
     const h = parseFloat(row.querySelector('.i-h').value) || 0;
