@@ -418,6 +418,30 @@
 let currentScript = localStorage.getItem('erp_script') || 'lotin';
 const _origTextMap = new WeakMap();
 const _origPlaceholderMap = new WeakMap();
+const _origValueMap = new WeakMap();
+
+// MUHIM: "element.value = ..." (masalan, buyurtmani TAHRIRLASHDA,
+// mavjud ma'lumotni maydonlarga joylashda) — bu, oddiy DOM
+// o'zgarishi (MutationObserver) orqali SEZILMAYDI (chunki, bu,
+// "atribut" emas, balki, ichki xususiyat). Shuning uchun, Kirill
+// holatida, HAR 400ms da, barcha matn maydonlarini, engil tekshirib,
+// agar YANGI (hali ko'rilmagan) qiymat topilsa — uni ham, to'g'ri
+// ko'rinishga o'giramiz.
+setInterval(function() {
+  if (currentScript !== 'kirill') return;
+  document.querySelectorAll('input[type=text],input:not([type]),textarea').forEach(el => {
+    if (_shouldSkipI18n(el) || document.activeElement === el || !el.value) return;
+    const knownOrig = _origValueMap.get(el);
+    const knownConverted = knownOrig ? latinToCyrillic(knownOrig) : null;
+    if (el.value !== knownConverted) {
+      // Qiymat, bizga "notanish" — demak, YANGI, kirim qilingan
+      // (masalan, tahrirlash orqali yuklangan) qiymat.
+      _origValueMap.set(el, el.value);
+      el.value = latinToCyrillic(el.value);
+    }
+  });
+}, 400);
+
 
 function _shouldSkipI18n(node) {
   let el = node.nodeType === 3 ? node.parentElement : node;
@@ -456,6 +480,15 @@ function _applyScriptToNode(root) {
       if (!_origPlaceholderMap.has(el)) _origPlaceholderMap.set(el, el.placeholder);
       const origPh = _origPlaceholderMap.get(el);
       el.placeholder = (currentScript === 'kirill') ? latinToCyrillic(origPh) : origPh;
+    }
+    // MUHIM: mavjud (server/bazadan kelgan) qiymat ham — tahrirlash
+    // oynasi ochilganda, joriy skriptga mos ko'rsatilishi kerak.
+    // Faqat, foydalanuvchi HOZIR yozayotgan (fokusda turgan) maydonga
+    // tegmaymiz — aks holda, yozish jarayonini buzib qo'yishi mumkin.
+    if (document.activeElement !== el && el.value) {
+      if (!_origValueMap.has(el)) _origValueMap.set(el, el.value);
+      const origVal = _origValueMap.get(el);
+      el.value = (currentScript === 'kirill') ? latinToCyrillic(origVal) : origVal;
     }
   });
 }
