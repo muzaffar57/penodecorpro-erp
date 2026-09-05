@@ -400,14 +400,47 @@ document.addEventListener('DOMContentLoaded', function() {
   if (currentScript === 'kirill') _applyScriptToNode(document.body);
 });
 
+let _mutatingSelf = false;  // o'z-o'zimizni kuzatib, cheksiz aylanishning oldini olamiz
+
 new MutationObserver(function(muts) {
-  if (currentScript !== 'kirill') return;
+  if (currentScript !== 'kirill' || _mutatingSelf) return;
+  _mutatingSelf = true;
   muts.forEach(function(m) {
-    m.addedNodes.forEach(function(node) {
-      if (node.nodeType === 1) _applyScriptToNode(node);
-    });
+    if (m.type === 'childList') {
+      m.addedNodes.forEach(function(node) {
+        if (node.nodeType === 1) {
+          _applyScriptToNode(node);
+        } else if (node.nodeType === 3 && node.nodeValue && node.nodeValue.trim()) {
+          // MUHIM: "element.textContent = '0 so\'m'" kabi, TO'G'RIDAN-
+          // TO'G'RI matn kiritishlar (masalan, Moliya kartochkalaridagi,
+          // server javobidan keyin, dinamik yoziladigan raqamlar) — bular,
+          // YANGI ELEMENT emas, balki, TO'G'RIDAN-TO'G'RI matn tuguni
+          // sifatida qo'shiladi. Shuning uchun, buni ham, alohida
+          // ushlaymiz (aks holda, faqat "boshlang'ich" matnlar o'girilib,
+          // keyinroq, so'rovdan kelgan raqamlar, o'girilmasdan qolar edi).
+          if (!_shouldSkipI18n(node)) {
+            if (!_origTextMap.has(node)) _origTextMap.set(node, node.nodeValue);
+            const orig = _origTextMap.get(node);
+            node.nodeValue = latinToCyrillic(orig);
+          }
+        }
+      });
+    } else if (m.type === 'characterData') {
+      // MUHIM: ba'zi brauzerlar, "textContent = ..." qilinganda, YANGI
+      // tugun QO'SHMASDAN, MAVJUD tugunning qiymatini, to'g'ridan-to'g'ri
+      // yangilaydi — bu, yuqoridagi "childList" orqali UMUMAN
+      // sezilmaydi. Shuning uchun, buni ham, alohida kuzatamiz.
+      const node = m.target;
+      if (node.nodeValue && node.nodeValue.trim() && !_shouldSkipI18n(node)) {
+        if (!_origTextMap.has(node)) _origTextMap.set(node, m.oldValue || node.nodeValue);
+        const orig = _origTextMap.get(node);
+        const converted = latinToCyrillic(orig);
+        if (node.nodeValue !== converted) node.nodeValue = converted;
+      }
+    }
   });
-}).observe(document.body, {childList: true, subtree: true});
+  _mutatingSelf = false;
+}).observe(document.body, {childList: true, subtree: true, characterData: true, characterDataOldValue: true});
 
 // Saqlashdan OLDIN — matnni, kirillcha bo'lsa ham, DOIM lotinga
 // o'giradi (agar allaqachon lotin bo'lsa — hech narsa o'zgarmaydi).
