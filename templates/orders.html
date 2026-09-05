@@ -1338,15 +1338,13 @@ function pickFinished(el, fpId) {
     peno.closest('.dif').title = 'Tayyor mahsulotdan olinmoqda — xomashyo hisoblanmaydi';
   }
 
-  // "1 m³ narxi" — ENDI BLOKLANMAYDI. Sotuv narxini joriy buyurtma
-  // narxiga moslashtirish uchun ochiq qoldiramiz (tan narxi/xomashyo
-  // hisobiga bu SIRA TA'SIR QILMAYDI — faqat mijozga ko'rinadigan narx).
+  // MUHIM (2026-09): "1 m³ narxi" orqali, tayyor mahsulot narxini,
+  // joriy buyurtmaga moslab, AVTOMATIK o'zgartirish — endi olib
+  // tashlandi (foydalanuvchi so'rovi bo'yicha). Endi, Profil/Panel —
+  // boshqa turlar (Donalik va h.k.) kabi, HAR DOIM, ishlab
+  // chiqarilgandagi, O'ZGARMAS narxda qoladi.
   const m3 = row.querySelector('.i-m3price');
-  if (m3 && (effectiveType === 'profil' || effectiveType === 'panel')) {
-    const orderBasePrice = parseNum(document.getElementById('base_price')?.value || '0');
-    if (orderBasePrice > 0) m3.value = orderBasePrice.toLocaleString('ru-RU').replace(/,/g, ' ');
-    recomputeFpPriceFromM3(row);
-  } else if (m3) {
+  if (m3) {
     m3.disabled = true;
     m3.style.opacity = '.4';
     m3.closest('.dif').title = 'Tayyor mahsulotdan olinmoqda — xomashyo hisoblanmaydi';
@@ -2789,7 +2787,7 @@ function addItem() {
           <div class="dif"><label>1 m³ narxi</label>
             <div class="unit-input-wrap" style="border-color:#B9783F">
               <input type="text" class="i-m3price" placeholder="asosiy"
-                     oninput="formatPriceInput(this);recomputeFpPriceFromM3(this.closest('.detal'));calculateItem(this.closest('.detal'))">
+                     oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))">
               <span class="unit-suffix">so'm</span>
             </div>
           </div>
