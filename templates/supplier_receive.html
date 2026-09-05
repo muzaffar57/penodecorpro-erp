@@ -77,9 +77,6 @@
 {% endblock %}
 
 {% block topbar_actions %}
-<button class="btn btn-outline btn-sm" onclick="openBulkImportModal()">
-  <i class="ti ti-file-spreadsheet" style="vertical-align:-2px"></i> Excel orqali, ko'p material qo'shish
-</button>
 <a href="/suppliers" class="btn btn-outline btn-sm" style="text-decoration:none">
   <i class="ti ti-list" style="vertical-align:-2px"></i> Barcha yetkazib beruvchilar va qarzlar
 </a>
@@ -353,35 +350,6 @@
   </div>
 </div>
 
-<!-- ══ EXCEL ORQALI, KO'P MATERIAL QO'SHISH (2026-09) ══ -->
-<div id="bulkImportModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;padding:24px;width:480px;max-width:100%;max-height:85vh;overflow-y:auto">
-    <div style="font-size:16px;font-weight:700;margin-bottom:6px">📊 Excel orqali, ko'p material qo'shish</div>
-    <div style="font-size:13px;color:#6B7280;margin-bottom:16px;line-height:1.6">
-      Bir vaqtda, o'nlab materialni, qo'lda birma-bir kiritish o'rniga, Excel fayl orqali, tezda qo'shing.
-    </div>
-
-    <div style="background:#F8F2EB;border-radius:10px;padding:14px;margin-bottom:16px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">1-qadam: Namunani yuklab oling</div>
-      <a href="/api/inventory/bulk-import-template" style="display:inline-block;background:#fff;border:1.5px solid #B9783F;color:#B9783F;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;text-decoration:none">
-        ⬇️ Namuna faylni yuklab olish
-      </a>
-    </div>
-
-    <div style="margin-bottom:16px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">2-qadam: To'ldirilgan faylni tanlang</div>
-      <input type="file" id="bulk-import-file" accept=".xlsx,.xlsm"
-             style="width:100%;padding:10px;border:1.5px dashed #D1D5DB;border-radius:8px;font-size:13px">
-    </div>
-
-    <div id="bulk-import-result" style="display:none;margin-bottom:16px;padding:12px;border-radius:8px;font-size:13px;line-height:1.7"></div>
-
-    <div style="display:flex;gap:8px">
-      <button id="bulk-import-save-btn" style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="submitBulkImport()">Yuklash</button>
-      <button style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer" onclick="closeBulkImportModal()">Yopish</button>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -570,65 +538,6 @@ async function quickPaySupplier(confirmOverpay = false){
 }
 
 function openNewSupplier(){ document.getElementById('newSupplierModal').style.display = 'flex'; }
-function openBulkImportModal() {
-  document.getElementById('bulkImportModal').style.display = 'flex';
-  document.getElementById('bulk-import-file').value = '';
-  document.getElementById('bulk-import-result').style.display = 'none';
-}
-function closeBulkImportModal() {
-  document.getElementById('bulkImportModal').style.display = 'none';
-}
-
-let isSubmittingBulkImport = false;
-async function submitBulkImport() {
-  const fileInput = document.getElementById('bulk-import-file');
-  const resultBox = document.getElementById('bulk-import-result');
-  if (!fileInput.files.length) {
-    showMsg('Iltimos, avval, faylni tanlang', 'error');
-    return;
-  }
-  if (isSubmittingBulkImport) return;
-  isSubmittingBulkImport = true;
-  const btn = document.getElementById('bulk-import-save-btn');
-  btn.disabled = true; btn.textContent = 'Yuklanmoqda...';
-
-  try {
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-    const res = await fetch('/api/inventory/bulk-import', { method: 'POST', body: formData });
-    const r = await res.json();
-
-    resultBox.style.display = 'block';
-    if (res.ok) {
-      resultBox.style.background = '#F0FDF4';
-      resultBox.style.color = '#166534';
-      let html = `✅ <b>${r.qoshildi_soni}</b> ta material, muvaffaqiyatli qo'shildi.`;
-      if (r.otkazib_yuborilgan_soni > 0) {
-        html += `<br><br>⏭️ <b>${r.otkazib_yuborilgan_soni}</b> ta, o'tkazib yuborildi (allaqachon mavjud):<br>`;
-        html += r.otkazib_yuborilganlar.map(x => `&nbsp;&nbsp;• ${x.nomi} (${x.qator}-qator)`).join('<br>');
-      }
-      if (r.xato_soni > 0) {
-        html += `<br><br>❌ <b>${r.xato_soni}</b> ta, xato tufayli qo'shilmadi:<br>`;
-        html += r.xatolar.map(x => `&nbsp;&nbsp;• ${x.nomi} (${x.qator}-qator): ${x.sabab}`).join('<br>');
-      }
-      resultBox.innerHTML = html;
-      setTimeout(() => location.reload(), 2500);
-    } else {
-      resultBox.style.background = '#FEE2E2';
-      resultBox.style.color = '#DC2626';
-      resultBox.textContent = '❌ ' + (r.detail || 'Xato yuz berdi');
-    }
-  } catch (e) {
-    resultBox.style.display = 'block';
-    resultBox.style.background = '#FEE2E2';
-    resultBox.style.color = '#DC2626';
-    resultBox.textContent = "❌ Server bilan bog'lanib bo'lmadi";
-  } finally {
-    isSubmittingBulkImport = false;
-    btn.disabled = false; btn.textContent = 'Yuklash';
-  }
-}
-
 let isSavingNewSupplier = false;
 async function saveNewSupplier(){
   const name = sanitizeToLatin(document.getElementById('ns-name').value.trim());
