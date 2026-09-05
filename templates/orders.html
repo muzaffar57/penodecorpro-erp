@@ -1048,6 +1048,10 @@ document.addEventListener('DOMContentLoaded', checkForDraftOnLoad);
 let currentEditOrderId = null; // xavfsizlik uchun — tahrirlanayotgan buyurtma ID'si
 let editDiscountPct = 0;       // tahrirlashdagi saqlangan chegirma foizi
 let editUserTouched = false;   // xodim kelishilgan summani qo'lda o'zgartirdimi
+let editInitialLoadDone = false; // MUHIM (2026-09): tahrirlash, hali TO'LIQ
+  // yuklanmagan bo'lsa — "chegirmani qayta hisoblash"ni ISHGA TUSHIRMAYMIZ
+  // (aks holda, saqlangan "Kelishilgan summa", dumaloqlashtirish tufayli,
+  // kichik, keraksiz farq bilan, o'zgarib qolar edi).
 
 // ── PLOTNOST ──────────────────────────────────────────────
 const PENOPLASTS = [
@@ -2608,6 +2612,7 @@ function showNewForm() {
   currentEditOrderId = null;
   editDiscountPct = 0;
   editUserTouched = false;
+  editInitialLoadDone = false;
   const hint = document.getElementById('discount-auto-hint');
   if (hint) hint.style.display = 'none';
   const eb = document.getElementById('editBanner');
@@ -3713,7 +3718,7 @@ function recalcAll() {
 
 // Tahrirlashda jami o'zgarsa — kelishilgan summani foiz bo'yicha qayta hisoblaymiz
 function reapplyDiscount() {
-  if (!editMode || editDiscountPct <= 0) return;
+  if (!editMode || editDiscountPct <= 0 || !editInitialLoadDone) return;
   const fp = document.getElementById('final_price');
   if (!fp || document.activeElement === fp) return;   // xodim yozayotgan bo'lsa tegmaymiz
 
@@ -4253,6 +4258,7 @@ async function editSelected() {
     editMode = true;
     currentEditOrderId = editId;
     editUserTouched = false;
+    editInitialLoadDone = false;
     editDiscountPct = parseFloat(order.discount_percent || 0);
 
     // Topshirish holati — tahrirlashda cheklov uchun
@@ -4315,6 +4321,7 @@ async function editSelected() {
     if (zWrap) zWrap.style.display = 'none';
 
     calcDiscount();
+    editInitialLoadDone = true;
 
     document.getElementById('editBanner').style.display = 'block';
     document.getElementById('editOrderNum').textContent = order.order_number;
