@@ -6,6 +6,80 @@
 <head>
 <script src="/static/translit.js"></script>
 <script>
+// ════════════════════════════════════════════════════════════
+// GRAFIKLAR (Chart.js) — Kirill/Lotin qo'llab-quvvatlash (2026-09).
+// MUHIM: Chart.js kutubxonasi, HAR BIR sahifaning O'ZIDA, alohida
+// yuklanadi (turli vaqtda) — shuning uchun, oddiy "window.Chart"ni
+// darhol o'rab bo'lmaydi. Buning o'rniga, "getter/setter" orqali,
+// Chart.js, QACHON YUKLANSA HAM, uni AVTOMATIK "ushlab olib",
+// o'raymiz — bu, joylashuv/vaqtdan qat'i nazar, ishlaydi.
+(function() {
+  let _realChart;
+  function wrapChartConstructor(_Original) {
+    const _instances = [];
+    function _translit(v) {
+      if (typeof v !== 'string') return v;
+      return (typeof currentScript !== 'undefined' && currentScript === 'kirill' && typeof latinToCyrillic === 'function')
+        ? latinToCyrillic(v) : v;
+    }
+    function _wrapCallback(fn) {
+      if (typeof fn !== 'function' || fn.__i18nWrapped) return fn;
+      const wrapped = function(...args) {
+        const r = fn.apply(this, args);
+        return _translit(r);
+      };
+      wrapped.__i18nWrapped = true;
+      return wrapped;
+    }
+    function _wrapTicksCallbacks(scales) {
+      if (!scales) return;
+      Object.values(scales).forEach(scale => {
+        if (scale && scale.ticks && scale.ticks.callback) {
+          scale.ticks.callback = _wrapCallback(scale.ticks.callback);
+        }
+      });
+    }
+    function _applyLabels(config, origRef) {
+      if (config.data) {
+        if (Array.isArray(config.data.labels)) {
+          if (!origRef.labels) origRef.labels = [...config.data.labels];
+          config.data.labels = origRef.labels.map(_translit);
+        }
+        if (Array.isArray(config.data.datasets)) {
+          if (!origRef.datasetLabels) origRef.datasetLabels = config.data.datasets.map(d => d.label);
+          config.data.datasets.forEach((d, i) => {
+            if (typeof origRef.datasetLabels[i] === 'string') d.label = _translit(origRef.datasetLabels[i]);
+          });
+        }
+      }
+      if (config.options && config.options.scales) _wrapTicksCallbacks(config.options.scales);
+    }
+
+    function WrappedChart(ctx, config) {
+      const origRef = {};
+      _applyLabels(config, origRef);
+      const instance = new _Original(ctx, config);
+      instance._i18nRefresh = function() {
+        _applyLabels(this.config, origRef);
+        this.update();
+      };
+      _instances.push(instance);
+      return instance;
+    }
+    WrappedChart.prototype = _Original.prototype;
+    Object.setPrototypeOf(WrappedChart, _Original);
+    window._chartInstances = _instances;
+    return WrappedChart;
+  }
+
+  Object.defineProperty(window, 'Chart', {
+    configurable: true,
+    get() { return _realChart; },
+    set(NewChart) { _realChart = wrapChartConstructor(NewChart); }
+  });
+})();
+</script>
+<script>
 (function(){
   try {
     if (localStorage.getItem('theme') === 'dark') {
@@ -392,6 +466,10 @@ function toggleScript() {
   const btn = document.getElementById('script-toggle-btn');
   if (btn) btn.textContent = (currentScript === 'kirill') ? '🔤 Lotin' : '🔤 Кирилл';
   _applyScriptToNode(document.body);
+  // Grafiklar (Chart.js) — alohida, o'zining mexanizmi orqali yangilanadi
+  if (window._chartInstances) {
+    window._chartInstances.forEach(c => { if (c._i18nRefresh) c._i18nRefresh(); });
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
