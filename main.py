@@ -2175,6 +2175,18 @@ def api_update_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), 
     return result
 
 
+def _send_telegram_to_qoplamachi(text: str):
+    """Qoplamachining o'z shaxsiy chatiga xabar yuboradi — QOPLAMACHI_TELEGRAM_CHAT_ID
+    Railway env varida sozlanadi (bir nechta bo'lsa, vergul bilan ajratiladi).
+    Eski, buzilgan TELEGRAM_COATING_ID'dan farqli — bu yangi, ishlaydigan sozlama
+    (2026-09-06, faqat 'necha kg loy tayyorlash kerak' xabari uchun qo'shildi)."""
+    raw = os.environ.get("QOPLAMACHI_TELEGRAM_CHAT_ID", "").strip()
+    if not raw:
+        return
+    for chat_id in [c.strip() for c in raw.split(",") if c.strip()]:
+        _send_telegram_to(chat_id, text)
+
+
 @app.post("/api/orders/{order_id}/coating-notify")
 def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Rejalashtirilgan loy: xomashyoni ayiradi + qoplamachiga xabar."""
@@ -2205,6 +2217,7 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
                 f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
             _send_telegram(msg)
+            _send_telegram_to_qoplamachi(msg)
 
     # "Loy sotish" turidagi detallar — MUHIM: bu yerda ENDI ayirilmaydi!
     # Sababi: create_order() (buyurtma yaratilganda) — bu ishni ALLAQACHON
