@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Ustalar — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Ustalar{% endblock %}
+{% block page_sub %}Hamkor ustalarni qo'shish va tahrirlash{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-dark" onclick="openMasterModal()">+ Yangi usta</button>
+{% endblock %}
+
+{% block head %}
+<style>
+.mk-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #f5f5f5}
+.mk-row:last-child{border-bottom:none}
+.mk-name{font-size:13px;font-weight:600;color:var(--text)}
+.mk-meta{font-size:13px;color:#aaa;margin-top:2px}
+.mk-card{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--white);position:relative;transition:box-shadow .15s;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.mk-card:hover{box-shadow:0 4px 12px rgba(16,24,40,.08)}
+.mk-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.mk-region{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--text3)}
+.mk-filters{display:flex;gap:6px;margin-bottom:10px}
+.mk-filters input{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:6px;font-size:13.5px;outline:none;flex:1}
+.mini-btn{width:26px;height:26px;border-radius:6px;border:1.5px solid #e5e5e5;background:#fff;font-size:13px;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
+.modal-section-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin:20px 0 9px}
+.modal-section-label:first-of-type{margin-top:0}
+.modal-section-label .modal-hint{font-weight:400;text-transform:none;letter-spacing:0;color:#bbb;font-size:11.5px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content">
+
+  <div class="card">
+    <div class="card-head">
+      <h3>👷‍♂️ Hamkor ustalar <span style="font-weight:400;color:var(--text3);font-size:12.5px" id="mCount"></span></h3>
+    </div>
+    <div class="card-body" style="padding-top:0">
+      <div class="mk-filters">
+        <input type="text" id="mkSearch" placeholder="Ism yoki hudud qidirish..." oninput="renderMasterList()">
+      </div>
+      <div id="mkList">
+        <div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>
+      </div>
+      <div id="mkInactiveWrap" style="display:none;margin-top:6px">
+        <button onclick="toggleInactiveMasters()" id="mkInactiveBtn"
+                style="background:none;border:none;color:#999;font-size:13.5px;cursor:pointer;padding:6px 0">
+          ▼ Nofaol ustalarni ko'rsatish
+        </button>
+        <div id="mkInactiveList" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ USTA QO'SHISH/TAHRIRLASH MODALI ══ -->
+<div id="masterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:18px" id="master-modal-title">+ Yangi usta</div>
+
+    <div class="modal-section-label">Asosiy ma'lumot</div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0"><label>Ismi</label><input type="text" id="m-name" placeholder="Usta ismi"></div>
+      <div class="form-group" style="margin:0"><label>Telefon</label><input type="text" id="m-phone" placeholder="+998901234567"></div>
+    </div>
+
+    <div class="form-group">
+      <label>Hudud</label>
+      <input type="text" id="m-region" list="region-suggest" placeholder="Andijon">
+      <datalist id="region-suggest">
+        <option value="Andijon"><option value="Namangan"><option value="Farg'ona"><option value="Toshkent">
+        <option value="Samarqand"><option value="Buxoro"><option value="Qo'qon">
+      </datalist>
+    </div>
+
+    <div class="modal-section-label">Qo'shimcha <span class="modal-hint">— ixtiyoriy</span></div>
+    <div class="form-group"><label>Telegram ID</label><input type="text" id="m-telegram" placeholder="123456789"></div>
+    <div class="form-group"><label>Izoh</label><input type="text" id="m-notes" placeholder="..."></div>
+
+    <div id="master-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
+
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" id="master-save-btn" onclick="saveMaster()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeMasterModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function initials(name){ return (name||'').trim().split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase(); }
+
+let allMasters = [];
+
+async function loadMasters() {
+  try {
+    allMasters = await fetch('/api/masters?only_active=false').then(r => r.json());
+    const activeCount = allMasters.filter(m => m.is_active).length;
+    document.getElementById('mCount').textContent = '— ' + activeCount + ' ta faol';
+    document.getElementById('mkInactiveWrap').style.display = 'block';
+    renderMasterList();
+  } catch(e) { console.error(e); }
+}
+
+function renderMasterList() {
+  const list = document.getElementById('mkList');
+  const active = allMasters.filter(m => m.is_active);
+  if (!active.length) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Usta yo\'q</div>';
+    return;
+  }
+  const q = (document.getElementById('mkSearch')?.value || '').trim().toLowerCase();
+  let rows = active.filter(m =>
+    !q || m.name.toLowerCase().includes(q) || (m.region||'').toLowerCase().includes(q));
+
+  if (!rows.length) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Topilmadi</div>';
+    return;
+  }
+
+  list.innerHTML = rows.map(m => `
+    <div class="mk-card">
+      <div class="mk-avatar">${initials(m.name)}</div>
+      <div style="flex:1;min-width:0">
+        <div class="mk-name">${m.name}</div>
+        <div class="mk-meta">
+          ${m.phone || '—'}
+          ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${m.region}</span>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="mini-btn" onclick="editMaster(${m.id})">✏️</button>
+        <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deactivateMaster(${m.id}, '${(m.name||'').replace(/'/g,"\\'")}')" title="Nofaollashtirish">🚫</button>
+      </div>
+    </div>`).join('');
+}
+
+function toggleInactiveMasters() {
+  const list = document.getElementById('mkInactiveList');
+  const btn = document.getElementById('mkInactiveBtn');
+  const show = list.style.display === 'none';
+  list.style.display = show ? 'block' : 'none';
+  btn.textContent = show ? '▲ Nofaol ustalarni yashirish' : '▼ Nofaol ustalarni ko\'rsatish';
+  if (show) renderInactiveMasters();
+}
+
+function renderInactiveMasters() {
+  const inactive = allMasters.filter(m => !m.is_active);
+  const list = document.getElementById('mkInactiveList');
+  if (!inactive.length) {
+    list.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">Nofaol usta yo\'q</div>';
+    return;
+  }
+  list.innerHTML = inactive.map(m => `
+    <div class="mk-row" style="opacity:.6">
+      <div style="flex:1;min-width:0">
+        <div class="mk-name">${m.name}</div>
+        <div class="mk-meta">${m.phone || '—'}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="reactivateMaster(${m.id}, this)">✓ Faollashtirish</button>
+    </div>`).join('');
+}
+
+let editingMasterId = null;
+
+function openMasterModal() {
+  editingMasterId = null;
+  document.getElementById('master-modal-title').textContent = "+ Yangi usta";
+  ['m-name','m-phone','m-region','m-telegram','m-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('master-error').style.display = 'none';
+  document.getElementById('masterModal').style.display = 'flex';
+}
+
+function closeMasterModal() {
+  document.getElementById('masterModal').style.display = 'none';
+}
+
+function editMaster(id) {
+  const m = allMasters.find(x => x.id === id);
+  if (!m) return;
+  editingMasterId = id;
+  document.getElementById('master-modal-title').textContent = "✏️ " + m.name;
+  document.getElementById('m-name').value = m.name || '';
+  document.getElementById('m-phone').value = m.phone || '';
+  document.getElementById('m-region').value = m.region || '';
+  document.getElementById('m-telegram').value = m.telegram_id || '';
+  document.getElementById('m-notes').value = m.notes || '';
+  document.getElementById('master-error').style.display = 'none';
+  document.getElementById('masterModal').style.display = 'flex';
+}
+
+let isSavingMaster = false;
+async function saveMaster() {
+  const name = document.getElementById('m-name').value.trim();
+  const phone = document.getElementById('m-phone').value.trim();
+  const err = document.getElementById('master-error');
+
+  if (!name) { err.style.display='block'; err.textContent='❌ Ismni kiriting'; return; }
+  if (!editingMasterId && !phone) { err.style.display='block'; err.textContent='❌ Telefon raqamini kiriting'; return; }
+  err.style.display = 'none';
+
+  if (isSavingMaster) return;
+  isSavingMaster = true;
+  const btn = document.getElementById('master-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
+
+  const data = {
+    name,
+    region: document.getElementById('m-region').value.trim() || null,
+    telegram_id: document.getElementById('m-telegram').value.trim() || null,
+    notes: document.getElementById('m-notes').value.trim() || null
+  };
+  if (phone) data.phone = phone;
+
+  try {
+    const url = editingMasterId ? `/api/masters/${editingMasterId}` : '/api/masters';
+    const method = editingMasterId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if (res.ok) {
+      closeMasterModal();
+      loadMasters();
+    } else {
+      const e = await res.json();
+      err.style.display = 'block';
+      err.textContent = '❌ ' + (e.detail || 'Xato yuz berdi');
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = '❌ Server xatosi';
+  } finally {
+    isSavingMaster = false;
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
+  }
+}
+
+async function deactivateMaster(id, name) {
+  if (!confirm(`${name} nofaol qilinsinmi?\n\nBuyurtma tarixi saqlanadi, faqat yangi buyurtmalarda tanlab bo'lmaydi.`)) return;
+  try {
+    const res = await fetch(`/api/masters/${id}`, { method: 'DELETE' });
+    if (res.ok) { loadMasters(); }
+    else alert("❌ Nofaol qilishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  }
+}
+
+async function reactivateMaster(id, btn) {
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; }
+  try {
+    const res = await fetch(`/api/masters/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({is_active: true})
+    });
+    if (res.ok) { loadMasters(); renderInactiveMasters(); return; }
+    else alert("❌ Faollashtirishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+  } catch(e) {
+    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
+}
+
+loadMasters();
+</script>
+{% endblock %}
