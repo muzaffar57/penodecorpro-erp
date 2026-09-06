@@ -460,32 +460,6 @@ input[type=number]{-moz-appearance:textfield}
 
     <!-- TANLANGAN BUYURTMA DETALLARI -->
     <div id="orderDetail" style="display:none">
-      <div class="card">
-        <div class="card-head">
-          <h3 id="od-num">—</h3>
-          <div style="display:flex;gap:6px">
-            <span id="od-status"></span>
-          </div>
-        </div>
-        <div style="padding:12px">
-          <div id="od-items-container">
-            <!-- Detallar bu yerda -->
-          </div>
-        </div>
-      </div>
-
-      <!-- FAYLLAR VA RASMLAR -->
-      <div class="card" style="margin-top:12px">
-        <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3></div>
-        <div style="padding:12px">
-          <label class="dropzone">
-            <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
-            <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG yoki PDF, 8 MB gacha</div>
-            <input type="file" accept="image/*,.pdf" onchange="uploadOrderAttachment(this)">
-          </label>
-          <div class="attach-grid" id="attachGrid"></div>
-        </div>
-      </div>
 
       <!-- DRAFT BANNER -->
       <div id="draftBanner" style="display:none;background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:10px;padding:14px;margin-bottom:12px">
@@ -506,15 +480,15 @@ input[type=number]{-moz-appearance:textfield}
             <span id="dlv-pct-badge" style="font-size:13px;font-weight:600"></span>
             <button class="btn btn-outline btn-sm" id="btn-summary" onclick="openSummaryModal()"
                     style="display:none;border-color:#B9783F;color:#B9783F">🧾 Hisob-kitob</button>
-            <button class="btn btn-green btn-sm" id="btn-quick-deliver" onclick="quickFullDelivery()"
-                    style="display:none">✅ Bir yo'la to'liq topshirish</button>
-            <button class="btn btn-dark btn-sm" id="btn-new-delivery" onclick="openDeliveryModal()">+ Mahsulot topshirish</button>
+            <button class="btn btn-green" id="btn-quick-deliver" onclick="quickFullDelivery()"
+                    style="display:none;padding:10px 18px;font-size:13.5px;font-weight:600;border-radius:9px">✅ Bir yo'la to'liq topshirish</button>
+            <button class="btn btn-dark" id="btn-new-delivery" onclick="openDeliveryModal()" style="padding:10px 18px;font-size:13.5px;font-weight:600;border-radius:9px">+ Qisman topshirish</button>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('dlvBody','dlv-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
+              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
             </button>
           </div>
         </div>
-        <div style="padding:12px" id="dlvBody">
+        <div style="padding:12px;display:none" id="dlvBody">
           <!-- Umumiy progress -->
           <div style="margin-bottom:12px">
             <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
@@ -535,6 +509,36 @@ input[type=number]{-moz-appearance:textfield}
             <span id="dlv-hist-count" style="font-size:13px;color:#aaa"></span>
           </div>
           <div id="dlvHistory"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head" style="cursor:pointer" onclick="toggleSection('odBody', 'od-toggle-ic')">
+          <h3 id="od-num">—</h3>
+          <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+            <span id="od-status"></span>
+            <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('odBody','od-toggle-ic')" title="Yig'ish/yoyish">
+              <i class="ti ti-chevron-down" id="od-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+            </button>
+          </div>
+        </div>
+        <div style="padding:12px;display:none" id="odBody">
+          <div id="od-items-container">
+            <!-- Detallar bu yerda -->
+          </div>
+        </div>
+      </div>
+
+      <!-- FAYLLAR VA RASMLAR -->
+      <div class="card" style="margin-top:12px">
+        <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3></div>
+        <div style="padding:12px">
+          <label class="dropzone">
+            <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG yoki PDF, 8 MB gacha</div>
+            <input type="file" accept="image/*,.pdf" onchange="uploadOrderAttachment(this)">
+          </label>
+          <div class="attach-grid" id="attachGrid"></div>
         </div>
       </div>
 
@@ -600,8 +604,6 @@ input[type=number]{-moz-appearance:textfield}
         </div>
       </div>
     </div>
-
-    <!-- Bo'sh holat -->
     <div id="emptyMid" class="card" style="display:flex;align-items:center;justify-content:center;flex:1;min-height:200px">
       <div style="text-align:center;color:#bbb">
         <div style="font-size:32px;margin-bottom:8px">🧾</div>
@@ -801,7 +803,7 @@ input[type=number]{-moz-appearance:textfield}
   <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">📦 Mahsulot topshirish</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">📦 Qisman topshirish</div>
         <div style="font-size:14px;color:#aaa;margin-top:2px" id="dlv-modal-sub">—</div>
       </div>
       <button onclick="closeDeliveryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
