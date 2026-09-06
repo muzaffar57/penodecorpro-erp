@@ -858,6 +858,17 @@ async def masters_page_redirect():
     return RedirectResponse(url="/kpi", status_code=307)
 
 
+@app.get("/ustalar", response_class=HTMLResponse)
+async def masters_manage_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Usta qo'shish/tahrirlash — Manager uchun, Moliya/KPI ma'lumotisiz.
+    /kpi sahifasi faqat admin_or_financier ga ochiq bo'lgani uchun, Manager
+    'Yangi usta' tugmasiga hech qachon yeta olmasdi — bu sahifa o'sha
+    kamchilikni to'g'irlaydi (2026-09-06)."""
+    return templates.TemplateResponse(request, "masters_manage.html", {
+        "current_user": current_user, "active_page": "ustalar"
+    })
+
+
 @app.get("/inventory", response_class=HTMLResponse)
 async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     items = crud.get_inventory(db)
