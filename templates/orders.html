@@ -62,7 +62,7 @@
 .step-btn2{width:36px;height:36px;border-radius:10px;border:1.5px solid #e5e5e5;background:#fff;font-size:18px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
 .step-btn2:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .dlv-inp:focus{border-color:#B9783F !important}
-.ord-item{padding:15px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
+.ord-item{padding:15px 16px;border-bottom:1.5px solid #E8E3DD;cursor:pointer;transition:background .15s}
 .ord-item:hover{background:#fafaf8}
 .ord-item.active{background:#fdf8f0;border-left:3px solid #B9783F}
 .ord-num{font-size:13px;font-weight:700;color:#B9783F}
@@ -206,10 +206,12 @@ input[type=number]{-moz-appearance:textfield}
               <div class="proj-count">
                 {{ g.orders|length }} ta{% if g.active %} · <span style="color:#F59E0B">{{ g.active }} faol</span>{% endif %}
               </div>
-              {% if g.debt > 0 %}
-              <div class="proj-debt">🔴 {{ "{:,.0f}".format(g.debt/1000000).replace(",", " ") }} mln</div>
-              {% elif g.total > 0 %}
-              <div class="proj-paid">✅ To'langan</div>
+              {% if g.orders|length > 1 %}
+                {% if g.debt > 0 %}
+                <div class="proj-debt">🔴 {{ "{:,.0f}".format(g.debt/1000000).replace(",", " ") }} mln</div>
+                {% elif g.total > 0 %}
+                <div class="proj-paid">✅ To'langan</div>
+                {% endif %}
               {% endif %}
             </div>
           </div>
@@ -243,12 +245,12 @@ input[type=number]{-moz-appearance:textfield}
               {% if dpct > 0 and dpct < 100 %}
               <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
                 <div style="flex:1;height:3px;background:#f0f0f0;border-radius:2px;overflow:hidden">
-                  <div style="height:100%;width:{{ dpct }}%;background:#F59E0B;border-radius:2px"></div>
+                  <div style="height:100%;width:{{ dpct }}%;background:#1D4ED8;border-radius:2px"></div>
                 </div>
-                <span style="font-size:9px;color:#F59E0B;font-weight:600">📦 {{ dpct }}%</span>
+                <span style="font-size:9px;color:#1D4ED8;font-weight:600">📦 {{ dpct }}%</span>
               </div>
               {% elif dpct >= 100 %}
-              <div style="margin-top:5px;font-size:12px;color:#22C55E;font-weight:600">📦 To'liq topshirildi</div>
+              <div style="margin-top:5px;font-size:12px;color:#1D4ED8;font-weight:600">📦 To'liq topshirildi</div>
               {% endif %}
               {% if debt > 0 %}
               <div style="margin-top:3px;font-size:12px;color:#DC2626;font-weight:600">
