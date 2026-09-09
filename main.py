@@ -598,6 +598,18 @@ try:
 finally:
     _db.close()
 
+# Bir martalik (lekin xavfsiz — qayta-qayta chaqirilsa ham hech narsa
+# buzmaydigan) migratsiya: to'lov tarixi yozuvi hali yo'q hodimlarga
+# boshlang'ich tarix yaratadi (2026-09-06, oylik versiyalash tizimi).
+try:
+    _db2 = SessionLocal()
+    try:
+        crud.backfill_employee_compensation_history(_db2)
+    finally:
+        _db2.close()
+except Exception as e:
+    print(f"⚠ Hodim to'lov tarixi backfill xatosi: {e}")
+
 app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False)
 
 
@@ -688,6 +700,7 @@ async def login_page(request: Request, db: Session = Depends(get_db)):
 @app.post("/login")
 async def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     from models import User
+    username = username.strip()
     ip = request.client.host if request.client else None
     ua = request.headers.get("user-agent", "")[:250]
 
@@ -855,6 +868,17 @@ async def masters_page_redirect():
     """Eski Ustalar sahifasi endi Ustalar KPI / Hodimlar bo'limiga ko'chdi."""
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/kpi", status_code=307)
+
+
+@app.get("/ustalar", response_class=HTMLResponse)
+async def masters_manage_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Usta qo'shish/tahrirlash — Manager uchun, Moliya/KPI ma'lumotisiz.
+    /kpi sahifasi faqat admin_or_financier ga ochiq bo'lgani uchun, Manager
+    'Yangi usta' tugmasiga hech qachon yeta olmasdi — bu sahifa o'sha
+    kamchilikni to'g'irlaydi (2026-09-06)."""
+    return templates.TemplateResponse(request, "masters_manage.html", {
+        "current_user": current_user, "active_page": "ustalar"
+    })
 
 
 @app.get("/inventory", response_class=HTMLResponse)
@@ -1327,10 +1351,45 @@ def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), 
 
 @app.put("/api/employees/{emp_id}")
 def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    emp = crud.update_employee(db, emp_id, data)
+    who = current_user.full_name or current_user.username
+    emp = crud.update_employee(db, emp_id, data, updated_by=who)
     if not emp:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
+
+
+@app.get("/api/employees/{emp_id}/compensation-history")
+def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Hodimning to'lov (oylik/foiz/birlik narxi) o'zgarishlar tarixi —
+    eng yangisi birinchi bo'lib qaytadi."""
+    from models import EmployeeCompensationHistory
+    rows = db.query(EmployeeCompensationHistory).filter(
+        EmployeeCompensationHistory.employee_id == emp_id
+    ).order_by(EmployeeCompensationHistory.effective_year.desc(),
+               EmployeeCompensationHistory.effective_month.desc(),
+               EmployeeCompensationHistory.id.desc()).all()
+    return [{
+        "id": r.id,
+        "effective_year": r.effective_year, "effective_month": r.effective_month,
+        "pay_type": r.pay_type.value,
+        "fixed_amount": float(r.fixed_amount or 0),
+        "percent_value": r.percent_value,
+        "per_unit_rate": float(r.per_unit_rate or 0),
+        "per_unit_type": r.per_unit_type,
+        "gul_rate": float(r.gul_rate) if r.gul_rate else None,
+        "extra_monthly": float(r.extra_monthly) if r.extra_monthly else None,
+        "reason": r.reason,
+        "created_by": r.created_by,
+        "created_at": r.created_at.strftime("%d.%m.%Y %H:%M") if r.created_at else None,
+    } for r in rows]
+
+
+@app.post("/api/employees/backfill-compensation-history")
+def api_backfill_compensation_history(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Bir martalik migratsiya — tarix yozuvi hali yo'q eski hodimlar
+    uchun boshlang'ich to'lov tarixini yaratadi. Xavfsiz — bir necha marta
+    bossa ham, allaqachon tarixi bor hodimlarga qayta tegilmaydi."""
+    return crud.backfill_employee_compensation_history(db)
 
 
 @app.delete("/api/employees/{emp_id}")
@@ -2163,6 +2222,18 @@ def api_update_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), 
     return result
 
 
+def _send_telegram_to_qoplamachi(text: str):
+    """Qoplamachining o'z shaxsiy chatiga xabar yuboradi — QOPLAMACHI_TELEGRAM_CHAT_ID
+    Railway env varida sozlanadi (bir nechta bo'lsa, vergul bilan ajratiladi).
+    Eski, buzilgan TELEGRAM_COATING_ID'dan farqli — bu yangi, ishlaydigan sozlama
+    (2026-09-06, faqat 'necha kg loy tayyorlash kerak' xabari uchun qo'shildi)."""
+    raw = os.environ.get("QOPLAMACHI_TELEGRAM_CHAT_ID", "").strip()
+    if not raw:
+        return
+    for chat_id in [c.strip() for c in raw.split(",") if c.strip()]:
+        _send_telegram_to(chat_id, text)
+
+
 @app.post("/api/orders/{order_id}/coating-notify")
 def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Rejalashtirilgan loy: xomashyoni ayiradi + qoplamachiga xabar."""
@@ -2193,6 +2264,7 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
                 f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
             _send_telegram(msg)
+            _send_telegram_to_qoplamachi(msg)
 
     # "Loy sotish" turidagi detallar — MUHIM: bu yerda ENDI ayirilmaydi!
     # Sababi: create_order() (buyurtma yaratilganda) — bu ishni ALLAQACHON

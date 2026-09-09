@@ -5596,6 +5596,7 @@ from schemas import EmployeeCreate, EmployeeUpdate
 
 
 def create_employee(db: Session, data: EmployeeCreate) -> Employee:
+    from models import EmployeeCompensationHistory
     try:
         pt = PayType(data.pay_type)
     except ValueError:
@@ -5617,6 +5618,18 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
     db.add(emp)
     db.commit()
     db.refresh(emp)
+
+    # Boshlang'ich to'lov tarixi yozuvi — ishga kirgan oyidan boshlab
+    hire = emp.hire_date or datetime.utcnow()
+    db.add(EmployeeCompensationHistory(
+        employee_id=emp.id,
+        effective_year=hire.year, effective_month=hire.month,
+        pay_type=emp.pay_type, fixed_amount=emp.fixed_amount,
+        percent_value=emp.percent_value, per_unit_rate=emp.per_unit_rate,
+        per_unit_type=emp.per_unit_type, gul_rate=emp.gul_rate,
+        extra_monthly=emp.extra_monthly, reason="Ishga kirgan — boshlang'ich"
+    ))
+    db.commit()
     return emp
 
 
@@ -5707,22 +5720,137 @@ def delete_employee_advance(db: Session, advance_id: int) -> bool:
     return True
 
 
+def get_employee_compensation_for_month(db: Session, employee_id: int, year: int, month: int):
+    """Berilgan (year, month) uchun hodimning O'SHA PAYTDA amal qilgan
+    to'lov parametrlarini qaytaradi (joriy/hozirgi qiymat emas!).
+
+    Qidiruv: (effective_year, effective_month) <= (year, month) bo'lgan
+    ENG SO'NGGI (eng yaqin o'tmishdagi) yozuv olinadi. Agar hech qanday
+    tarix yozuvi topilmasa (masalan, migratsiyadan oldin backfill
+    qilinmagan eski ma'lumot) — xavfsiz variant sifatida hodimning
+    joriy (Employee jadvalidagi) qiymatlariga qaytiladi."""
+    from models import EmployeeCompensationHistory
+
+    rows = db.query(EmployeeCompensationHistory).filter(
+        EmployeeCompensationHistory.employee_id == employee_id
+    ).all()
+
+    candidates = [r for r in rows if (r.effective_year, r.effective_month) <= (year, month)]
+    if candidates:
+        best = max(candidates, key=lambda r: (r.effective_year, r.effective_month, r.id))
+        return {
+            "pay_type": best.pay_type, "fixed_amount": best.fixed_amount,
+            "percent_value": best.percent_value, "per_unit_rate": best.per_unit_rate,
+            "per_unit_type": best.per_unit_type, "gul_rate": best.gul_rate,
+            "extra_monthly": best.extra_monthly,
+        }
+
+    # Zaxira variant — tarix yo'q bo'lsa, joriy qiymatdan foydalanish
+    emp = get_employee(db, employee_id)
+    if not emp:
+        return None
+    return {
+        "pay_type": emp.pay_type, "fixed_amount": emp.fixed_amount,
+        "percent_value": emp.percent_value, "per_unit_rate": emp.per_unit_rate,
+        "per_unit_type": emp.per_unit_type, "gul_rate": emp.gul_rate,
+        "extra_monthly": emp.extra_monthly,
+    }
+
+
+def backfill_employee_compensation_history(db: Session) -> dict:
+    """Bir martalik migratsiya: to'lov tarixi yozuvi HALI YO'Q bo'lgan
+    hodimlar uchun, joriy qiymatlarini ishga kirgan oyidan boshlab amal
+    qiladigan qilib belgilaydi. Bir necha marta xavfsiz chaqirsa bo'ladi —
+    allaqachon tarixi bor hodimlarga tegilmaydi (2026-09-06)."""
+    from models import EmployeeCompensationHistory
+
+    created = 0
+    employees = db.query(Employee).filter(Employee.is_deleted.isnot(True)).all()
+    for emp in employees:
+        has_history = db.query(EmployeeCompensationHistory).filter(
+            EmployeeCompensationHistory.employee_id == emp.id
+        ).first()
+        if has_history:
+            continue
+        hire = emp.hire_date or datetime.utcnow()
+        db.add(EmployeeCompensationHistory(
+            employee_id=emp.id,
+            effective_year=hire.year, effective_month=hire.month,
+            pay_type=emp.pay_type, fixed_amount=emp.fixed_amount,
+            percent_value=emp.percent_value, per_unit_rate=emp.per_unit_rate,
+            per_unit_type=emp.per_unit_type, gul_rate=emp.gul_rate,
+            extra_monthly=emp.extra_monthly,
+            reason="Avtomatik backfill — tizimga qo'shilgandan beri shunday deb belgilandi"
+        ))
+        created += 1
+    db.commit()
+    return {"created": created, "total_employees": len(employees)}
+
+
 def get_employee(db: Session, emp_id: int) -> Optional[Employee]:
     return db.query(Employee).filter(Employee.id == emp_id).first()
 
 
-def update_employee(db: Session, emp_id: int, data: EmployeeUpdate) -> Optional[Employee]:
+def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: str = None) -> Optional[Employee]:
+    from models import EmployeeCompensationHistory
+
     emp = get_employee(db, emp_id)
     if not emp:
         return None
+
     update_data = data.model_dump(exclude_unset=True)
+    effective_year = update_data.pop("effective_year", None)
+    effective_month = update_data.pop("effective_month", None)
+    reason = update_data.pop("reason", None)
+
     if "pay_type" in update_data:
         try:
             update_data["pay_type"] = PayType(update_data["pay_type"])
         except ValueError:
             del update_data["pay_type"]
+
+    # To'lovga tegishli maydonlardan BIRORTASI o'zgartirilayotgan bo'lsa —
+    # eski qiymatni "ustidan yozib" yubormasdan, YANGI tarix yozuvi ochamiz.
+    # Shunda o'tgan oylarning hisob-kitobi hech qachon o'zgarib qolmaydi
+    # (calculate_monthly_employee_pay shu tarixdan o'qiydi, joriy
+    # Employee maydonidan emas — quyidagi services.py o'zgarishiga qarang).
+    comp_fields = {"pay_type", "fixed_amount", "percent_value", "per_unit_rate",
+                   "per_unit_type", "gul_rate", "extra_monthly"}
+    comp_changed = comp_fields.intersection(update_data.keys())
+
     for k, v in update_data.items():
         setattr(emp, k, v)
+
+    if comp_changed:
+        now = datetime.utcnow()
+        eff_year = effective_year or now.year
+        eff_month = effective_month or now.month
+
+        # Shu (hodim, oy, yil) uchun tarix yozuvi ALLAQACHON bo'lsa (masalan,
+        # shu oy ichida ikkinchi marta tuzatilyapti) — yangisini qo'shmasdan,
+        # o'shani yangilaymiz (bitta oy uchun bitta haqiqiy qiymat bo'lsin).
+        existing = db.query(EmployeeCompensationHistory).filter(
+            EmployeeCompensationHistory.employee_id == emp_id,
+            EmployeeCompensationHistory.effective_year == eff_year,
+            EmployeeCompensationHistory.effective_month == eff_month
+        ).first()
+
+        hist = existing or EmployeeCompensationHistory(
+            employee_id=emp_id, effective_year=eff_year, effective_month=eff_month
+        )
+        hist.pay_type = emp.pay_type
+        hist.fixed_amount = emp.fixed_amount
+        hist.percent_value = emp.percent_value
+        hist.per_unit_rate = emp.per_unit_rate
+        hist.per_unit_type = emp.per_unit_type
+        hist.gul_rate = emp.gul_rate
+        hist.extra_monthly = emp.extra_monthly
+        if reason:
+            hist.reason = reason
+        hist.created_by = updated_by
+        if not existing:
+            db.add(hist)
+
     db.commit()
     db.refresh(emp)
     return emp

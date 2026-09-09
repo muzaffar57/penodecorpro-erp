@@ -699,9 +699,54 @@ class Employee(Base):
     pin_hash = Column(String(64), nullable=True)
 
     advance_requests = relationship("AdvanceRequest", back_populates="employee", cascade="all, delete-orphan")
+    compensation_history = relationship("EmployeeCompensationHistory", back_populates="employee",
+                                         cascade="all, delete-orphan", order_by="desc(EmployeeCompensationHistory.effective_year), desc(EmployeeCompensationHistory.effective_month)")
 
     def __repr__(self):
         return f"<Employee {self.name} ({self.pay_type.value})>"
+
+
+class EmployeeCompensationHistory(Base):
+    """Hodimning to'lov parametrlari (oylik, foiz, birlik narxi va h.k.) —
+    QAYSI OYDAN BOSHLAB kuchga kirganini saqlaydi (2026-09-06).
+
+    MUHIM: Employee jadvalidagi fixed_amount/percent_value/... maydonlari —
+    faqat 'HOZIRGI' qiymatni tez ko'rsatish uchun (ro'yxat, profil sahifasi).
+    Oylik hisob-kitob (calculate_monthly_employee_pay) esa HECH QACHON
+    to'g'ridan-to'g'ri Employee.fixed_amount'dan o'qimaydi — u har doim,
+    hisoblanayotgan (year, month) uchun, shu jadvaldan MOS keladigan
+    (effective_year, effective_month) <= (year, month) bo'lgan ENG SO'NGGI
+    yozuvni topib, o'shandan foydalanadi. Shu sababli, oylik oshirilganda,
+    O'TGAN OYLARNING hisobotlari HECH QACHON o'zgarib qolmaydi — ular doim
+    o'sha paytda haqiqatda amal qilgan summa bilan hisoblanadi.
+
+    Har bir hodim yaratilganda (yoki eski hodimlar uchun bir martalik
+    backfill orqali) — kamida bitta, ishga kirgan oyidan boshlanadigan
+    yozuv avtomatik yaratiladi."""
+    __tablename__ = "employee_compensation_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+
+    effective_year = Column(Integer, nullable=False)
+    effective_month = Column(Integer, nullable=False)   # 1-12 — shu oydan boshlab amal qiladi
+
+    pay_type = Column(Enum(PayType), nullable=False)
+    fixed_amount = Column(Numeric(12, 2), default=0)
+    percent_value = Column(Float, default=0.0)
+    per_unit_rate = Column(Numeric(12, 2), default=0)
+    per_unit_type = Column(String(20), default="blok")
+    gul_rate = Column(Numeric(12, 2), nullable=True)
+    extra_monthly = Column(Numeric(12, 2), nullable=True)
+
+    reason = Column(Text, nullable=True)          # Ixtiyoriy: "1 yillik ishlagani uchun oshirildi"
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+
+    employee = relationship("Employee", back_populates="compensation_history")
+
+    def __repr__(self):
+        return f"<CompHistory emp={self.employee_id} {self.effective_year}-{self.effective_month:02d}>"
 
 
 class EmployeeMonthlyAdjustment(Base):

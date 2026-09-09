@@ -4392,6 +4392,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     from models import Employee, PayType
     from datetime import datetime as _dt_emp
     from calendar import monthrange as _monthrange_emp
+    import crud as _crud
 
     # MUHIM (2026-09): hodim, FAQAT allaqachon ISHGA KIRGAN oylar uchun
     # hisoblanishi kerak — aks holda, masalan Sentyabrda yangi qo'shilgan
@@ -4417,43 +4418,56 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         amount = 0.0
         detail = ""
 
-        if e.pay_type == PayType.FIXED:
-            amount = float(e.fixed_amount or 0)
+        # MUHIM: e.fixed_amount/e.pay_type kabi JORIY qiymatlar EMAS —
+        # aynan shu (year, month) uchun O'SHA PAYTDA amal qilgan to'lov
+        # parametrlari olinadi. Shu sababli, oylik keyinchalik oshirilsa
+        # ham, o'tgan oylarning hisob-kitobi o'zgarib qolmaydi.
+        comp = _crud.get_employee_compensation_for_month(db, e.id, year, month)
+        c_pay_type = comp["pay_type"]
+        c_fixed = comp["fixed_amount"]
+        c_percent = comp["percent_value"]
+        c_unit_rate = comp["per_unit_rate"]
+        c_unit_type = comp["per_unit_type"]
+        c_gul_rate = comp["gul_rate"]
+        c_extra_monthly = comp["extra_monthly"]
+
+        if c_pay_type == PayType.FIXED:
+            amount = float(c_fixed or 0)
             detail = f"Doimiy oylik"
 
-        elif e.pay_type == PayType.PERCENT_SALES:
-            amount = daromad * float(e.percent_value or 0) / 100
-            detail = f"Sotuv {fmt_num(daromad)} × {e.percent_value}%"
+        elif c_pay_type == PayType.PERCENT_SALES:
+            amount = daromad * float(c_percent or 0) / 100
+            detail = f"Sotuv {fmt_num(daromad)} × {c_percent}%"
 
-        elif e.pay_type == PayType.PERCENT_PROFIT:
-            amount = max(0, sof_foyda_before) * float(e.percent_value or 0) / 100
-            detail = f"Foyda {fmt_num(sof_foyda_before)} × {e.percent_value}%"
+        elif c_pay_type == PayType.PERCENT_PROFIT:
+            amount = max(0, sof_foyda_before) * float(c_percent or 0) / 100
+            detail = f"Foyda {fmt_num(sof_foyda_before)} × {c_percent}%"
 
-        elif e.pay_type == PayType.PER_UNIT:
-            qty = unit_map.get(e.per_unit_type, 0)
-            amount = qty * float(e.per_unit_rate or 0)
-            unit_label = unit_labels.get(e.per_unit_type, e.per_unit_type)
-            detail = f"{qty:g} {unit_label} × {fmt_num(e.per_unit_rate)}"
+        elif c_pay_type == PayType.PER_UNIT:
+            qty = unit_map.get(c_unit_type, 0)
+            amount = qty * float(c_unit_rate or 0)
+            unit_label = unit_labels.get(c_unit_type, c_unit_type)
+            detail = f"{qty:g} {unit_label} × {fmt_num(c_unit_rate)}"
 
-        elif e.pay_type == PayType.FIXED_PLUS_COATING:
-            base = float(e.fixed_amount or 0)
-            rate = float(e.per_unit_rate or 1000)
+        elif c_pay_type == PayType.FIXED_PLUS_COATING:
+            base = float(c_fixed or 0)
+            rate = float(c_unit_rate or 1000)
             bonus = jami_qoplama_birlik * rate
             amount = base + bonus
             detail = f"Oylik {fmt_num(base)} + {jami_qoplama_birlik:g} metr/dona × {fmt_num(rate)} = {fmt_num(bonus)}"
 
         # GIPS — qoliplik gul bonusi: istalgan to'lov turiga QO'SHILADI
         # (faqat shu hodimga gul_rate belgilangan bo'lsa)
-        if e.gul_rate and jami_gips_gul > 0:
-            gul_bonus = jami_gips_gul * float(e.gul_rate)
+        if c_gul_rate and jami_gips_gul > 0:
+            gul_bonus = jami_gips_gul * float(c_gul_rate)
             amount += gul_bonus
-            gul_txt = f"{jami_gips_gul:g} gul × {fmt_num(e.gul_rate)} = {fmt_num(gul_bonus)}"
+            gul_txt = f"{jami_gips_gul:g} gul × {fmt_num(c_gul_rate)} = {fmt_num(gul_bonus)}"
             detail = f"{detail} + {gul_txt}" if detail else gul_txt
 
         # Ixtiyoriy qo'shimcha doimiy oylik — istalgan to'lov turiga qo'shiladi
-        if e.extra_monthly:
-            amount += float(e.extra_monthly)
-            extra_txt = f"qo'shimcha oylik {fmt_num(e.extra_monthly)}"
+        if c_extra_monthly:
+            amount += float(c_extra_monthly)
+            extra_txt = f"qo'shimcha oylik {fmt_num(c_extra_monthly)}"
             detail = f"{detail} + {extra_txt}" if detail else extra_txt
 
         # QO'LDA KAMAYTIRISH — masalan kelmagan kunlar uchun (admin real
@@ -4500,7 +4514,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                 "employee_id": e.id,
                 "name": e.name,
                 "position": e.position,
-                "pay_type": e.pay_type.value,
+                "pay_type": c_pay_type.value,
                 "detail": detail,
                 "amount": round(amount),
                 "avans": round(avans),
