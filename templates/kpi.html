@@ -330,13 +330,13 @@
       </div>
     </div>
 
-    <div class="modal-section-label">Qo'shimcha <span class="modal-hint">— ixtiyoriy</span></div>
-    <div class="form-row">
-      <div class="form-group" style="margin:0">
+    <div class="modal-section-label" id="e-extra-label" style="display:none">Qo'shimcha <span class="modal-hint">— ixtiyoriy</span></div>
+    <div class="form-row" id="e-extra-row">
+      <div class="form-group" id="e-gulrate-wrap" style="margin:0;display:none">
         <label>🧱 Qoliplik gul (so'm/dona)</label>
         <input type="text" id="e-gulrate" placeholder="0" oninput="formatPriceInput(this)">
       </div>
-      <div class="form-group" style="margin:0">
+      <div class="form-group" id="e-extramonthly-wrap" style="margin:0;display:none">
         <label>Qo'shimcha doimiy oylik</label>
         <input type="text" id="e-extramonthly" placeholder="0" oninput="formatPriceInput(this)">
       </div>
@@ -1022,6 +1022,7 @@ function setProdType(val) {
   });
   document.getElementById('e-prodtype-toggle').classList.remove('dir-error');
   document.getElementById('emp-error').style.display = 'none';
+  empToggle();
 }
 
 function openEmpModal() {
@@ -1098,6 +1099,18 @@ function empToggle() {
 
   const fixedLabel = document.querySelector('#e-fixed-wrap label');
   if (fixedLabel) fixedLabel.textContent = (t === 'fixed_plus_coating') ? "Doimiy oylik (baza)" : "Oylik summasi (so'm)";
+
+  // "Qoliplik gul" — faqat Gips yo'nalishiga tegishli.
+  // "Qo'shimcha doimiy oylik" — faqat to'lov turi allaqachon o'zida doimiy
+  // oylik komponenti bo'lmagan hollarda ma'noli (aks holda baza summasini
+  // oshirsa bo'ladi, alohida maydon ortiqcha va chalkashtiruvchi).
+  const prodType = document.getElementById('e-prodtype').value;
+  const showGul = prodType === 'gips';
+  const showExtra = (t !== 'fixed' && t !== 'fixed_plus_coating');
+  document.getElementById('e-gulrate-wrap').style.display = showGul ? 'block' : 'none';
+  document.getElementById('e-extramonthly-wrap').style.display = showExtra ? 'block' : 'none';
+  document.getElementById('e-extra-row').style.display = (showGul || showExtra) ? 'flex' : 'none';
+  document.getElementById('e-extra-label').style.display = (showGul || showExtra) ? 'block' : 'none';
 }
 
 function editEmployee(id) {
@@ -1125,6 +1138,16 @@ function editEmployee(id) {
   document.getElementById('emp-effective-section').style.display = 'block';
 
   empToggle();
+  if (e.gul_rate) {
+    document.getElementById('e-gulrate-wrap').style.display = 'block';
+    document.getElementById('e-extra-row').style.display = 'flex';
+    document.getElementById('e-extra-label').style.display = 'block';
+  }
+  if (e.extra_monthly) {
+    document.getElementById('e-extramonthly-wrap').style.display = 'block';
+    document.getElementById('e-extra-row').style.display = 'flex';
+    document.getElementById('e-extra-label').style.display = 'block';
+  }
   document.getElementById('empModal').style.display = 'flex';
 }
 
