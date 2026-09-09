@@ -343,12 +343,39 @@
     </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes" placeholder="..."></div>
 
+    <div id="emp-effective-section" style="display:none">
+      <div class="modal-section-label">To'lov o'zgarishi <span class="modal-hint">— qaysi oydan kuchga kirsin</span></div>
+      <div class="form-row">
+        <div class="form-group" style="margin:0">
+          <label>Amal qilish oyi</label>
+          <input type="month" id="e-effective-month">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Sababi <span class="modal-hint">— ixtiyoriy</span></label>
+          <input type="text" id="e-reason" placeholder="Masalan: yillik oshirish">
+        </div>
+      </div>
+      <div style="font-size:11.5px;color:#aaa;margin-top:6px;line-height:1.4">
+        Agar to'lov summasini/turini o'zgartirsangiz — shu oydan boshlab kuchga kiradi. O'tgan oylarning hisobotlari o'zgarmaydi.
+      </div>
+      <button type="button" style="background:none;border:none;color:#B9783F;font-size:12.5px;cursor:pointer;padding:8px 0 0" onclick="openCompHistoryModal()">📜 To'lov tarixini ko'rish</button>
+    </div>
+
     <div id="emp-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="emp-save-btn" onclick="saveEmployee()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeEmpModal()">Bekor</button>
     </div>
+  </div>
+</div>
+
+<!-- ══ TO'LOV TARIXI MODALI ══ -->
+<div id="compHistoryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:22px;width:420px;max-width:100%;max-height:80vh;overflow-y:auto">
+    <div style="font-size:15px;font-weight:600;margin-bottom:14px">📜 To'lov tarixi — <span id="ch-emp-name" style="color:#B9783F"></span></div>
+    <div id="ch-list"><div style="text-align:center;padding:16px;color:#bbb;font-size:13px">Yuklanmoqda...</div></div>
+    <button class="btn btn-outline w-full" style="margin-top:14px" onclick="closeCompHistoryModal()">Yopish</button>
   </div>
 </div>
 
@@ -1005,12 +1032,61 @@ function openEmpModal() {
   document.getElementById('e-paytype').value = 'fixed';
   document.getElementById('e-unittype').value = 'blok';
   document.getElementById('emp-error').style.display = 'none';
+  document.getElementById('emp-effective-section').style.display = 'none';
   empToggle();
   document.getElementById('empModal').style.display = 'flex';
 }
 
 function closeEmpModal() {
   document.getElementById('empModal').style.display = 'none';
+}
+
+const PAY_TYPE_LABELS = {
+  fixed: "Doimiy oylik", percent_sales: "Sotuvdan foiz", percent_profit: "Foydadan foiz",
+  per_unit: "Har birlik uchun", fixed_plus_coating: "Doimiy oylik + qoplama"
+};
+// MONTH_NAMES_UZ — bu faylda boshqa joyda (pastroqda) allaqachon e'lon qilingan, shu bor narsadan foydalanamiz
+
+function openCompHistoryModal() {
+  if (!editingEmpId) return;
+  const e = empItems.find(x => x.id === editingEmpId);
+  document.getElementById('ch-emp-name').textContent = e ? e.name : '';
+  document.getElementById('ch-list').innerHTML = '<div style="text-align:center;padding:16px;color:#bbb;font-size:13px">Yuklanmoqda...</div>';
+  document.getElementById('compHistoryModal').style.display = 'flex';
+  loadCompHistory(editingEmpId);
+}
+
+function closeCompHistoryModal() {
+  document.getElementById('compHistoryModal').style.display = 'none';
+}
+
+async function loadCompHistory(empId) {
+  const list = document.getElementById('ch-list');
+  try {
+    const rows = await fetch(`/api/employees/${empId}/compensation-history`).then(r => r.json());
+    if (!rows.length) {
+      list.innerHTML = '<div style="text-align:center;padding:16px;color:#bbb;font-size:13px">Tarix topilmadi</div>';
+      return;
+    }
+    list.innerHTML = rows.map((r, i) => {
+      let amountTxt = '';
+      if (r.pay_type === 'fixed' || r.pay_type === 'fixed_plus_coating') amountTxt = `${fmt(r.fixed_amount)} so'm/oy`;
+      else if (r.pay_type === 'percent_sales' || r.pay_type === 'percent_profit') amountTxt = `${r.percent_value}%`;
+      else if (r.pay_type === 'per_unit') amountTxt = `${fmt(r.per_unit_rate)} so'm/${r.per_unit_type}`;
+      const isCurrent = i === 0;
+      return `
+        <div style="padding:10px 0;border-bottom:1px solid #f5f5f5">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;font-weight:600;color:#222">${MONTH_NAMES_UZ[r.effective_month]} ${r.effective_year}${isCurrent ? ' <span style=\"font-size:10.5px;font-weight:600;color:#22C55E;background:#DCFCE7;padding:2px 7px;border-radius:8px;margin-left:4px\">joriy</span>' : ''}</span>
+            <span style="font-size:13px;font-weight:700;color:#B9783F">${amountTxt}</span>
+          </div>
+          <div style="font-size:11.5px;color:#aaa;margin-top:3px">${PAY_TYPE_LABELS[r.pay_type] || r.pay_type}${r.reason ? ' · ' + r.reason : ''}</div>
+          ${r.created_by ? `<div style="font-size:10.5px;color:#ccc;margin-top:2px">${r.created_by}${r.created_at ? ' · ' + r.created_at : ''}</div>` : ''}
+        </div>`;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div style="text-align:center;padding:16px;color:#DC2626;font-size:13px">Yuklashda xato yuz berdi</div>';
+  }
 }
 
 function empToggle() {
@@ -1042,6 +1118,12 @@ function editEmployee(id) {
   document.getElementById('e-extramonthly').value = e.extra_monthly ? fmt(e.extra_monthly) : '';
   setProdType(e.production_type || '');
   document.getElementById('emp-error').style.display = 'none';
+
+  const now = new Date();
+  document.getElementById('e-effective-month').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  document.getElementById('e-reason').value = '';
+  document.getElementById('emp-effective-section').style.display = 'block';
+
   empToggle();
   document.getElementById('empModal').style.display = 'flex';
 }
@@ -1082,6 +1164,17 @@ async function saveEmployee() {
     production_type: document.getElementById('e-prodtype').value || null,
     notes: document.getElementById('e-notes').value.trim() || null
   };
+
+  if (editingEmpId) {
+    const effVal = document.getElementById('e-effective-month').value;
+    if (effVal) {
+      const [ey, em] = effVal.split('-').map(Number);
+      data.effective_year = ey;
+      data.effective_month = em;
+    }
+    const reasonVal = document.getElementById('e-reason').value.trim();
+    if (reasonVal) data.reason = reasonVal;
+  }
 
   const saveBtn = document.getElementById('emp-save-btn');
   isSavingEmployee = true;
