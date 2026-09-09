@@ -598,6 +598,18 @@ try:
 finally:
     _db.close()
 
+# Bir martalik (lekin xavfsiz — qayta-qayta chaqirilsa ham hech narsa
+# buzmaydigan) migratsiya: to'lov tarixi yozuvi hali yo'q hodimlarga
+# boshlang'ich tarix yaratadi (2026-09-06, oylik versiyalash tizimi).
+try:
+    _db2 = SessionLocal()
+    try:
+        crud.backfill_employee_compensation_history(_db2)
+    finally:
+        _db2.close()
+except Exception as e:
+    print(f"⚠ Hodim to'lov tarixi backfill xatosi: {e}")
+
 app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False)
 
 
@@ -1339,10 +1351,45 @@ def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), 
 
 @app.put("/api/employees/{emp_id}")
 def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    emp = crud.update_employee(db, emp_id, data)
+    who = current_user.full_name or current_user.username
+    emp = crud.update_employee(db, emp_id, data, updated_by=who)
     if not emp:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
+
+
+@app.get("/api/employees/{emp_id}/compensation-history")
+def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Hodimning to'lov (oylik/foiz/birlik narxi) o'zgarishlar tarixi —
+    eng yangisi birinchi bo'lib qaytadi."""
+    from models import EmployeeCompensationHistory
+    rows = db.query(EmployeeCompensationHistory).filter(
+        EmployeeCompensationHistory.employee_id == emp_id
+    ).order_by(EmployeeCompensationHistory.effective_year.desc(),
+               EmployeeCompensationHistory.effective_month.desc(),
+               EmployeeCompensationHistory.id.desc()).all()
+    return [{
+        "id": r.id,
+        "effective_year": r.effective_year, "effective_month": r.effective_month,
+        "pay_type": r.pay_type.value,
+        "fixed_amount": float(r.fixed_amount or 0),
+        "percent_value": r.percent_value,
+        "per_unit_rate": float(r.per_unit_rate or 0),
+        "per_unit_type": r.per_unit_type,
+        "gul_rate": float(r.gul_rate) if r.gul_rate else None,
+        "extra_monthly": float(r.extra_monthly) if r.extra_monthly else None,
+        "reason": r.reason,
+        "created_by": r.created_by,
+        "created_at": r.created_at.strftime("%d.%m.%Y %H:%M") if r.created_at else None,
+    } for r in rows]
+
+
+@app.post("/api/employees/backfill-compensation-history")
+def api_backfill_compensation_history(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Bir martalik migratsiya — tarix yozuvi hali yo'q eski hodimlar
+    uchun boshlang'ich to'lov tarixini yaratadi. Xavfsiz — bir necha marta
+    bossa ham, allaqachon tarixi bor hodimlarga qayta tegilmaydi."""
+    return crud.backfill_employee_compensation_history(db)
 
 
 @app.delete("/api/employees/{emp_id}")

@@ -612,6 +612,11 @@ class EmployeeUpdate(BaseModel):
     production_type: Optional[str] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
+    # To'lov o'zgarishi qaysi oydan kuchga kirishi kerak (masalan, oylik
+    # oshirilganda). Berilmasa — joriy oy-yil olinadi (darhol kuchga kiradi).
+    effective_year: Optional[int] = None
+    effective_month: Optional[int] = Field(default=None, ge=1, le=12)
+    reason: Optional[str] = None
 
 
 class EmployeeRead(BaseModel):
