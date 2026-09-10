@@ -1237,14 +1237,22 @@ def _take_finished_for_order(db: Session, order) -> list:
 
 def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
     """Buyurtma o'chirilganda tayyor mahsulotlarni qaytaradi.
-    sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun."""
+    sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun.
+
+    MUHIM: hech narsa topshirilmagan bo'lsa — detalning TO'LIQ miqdori
+    qaytadi/qayta yechiladi (item.remaining_qty = order_qty_normalized,
+    chunki delivered_qty=0). QISMAN topshirilgan bo'lsa — faqat QOLGAN
+    (hali mijozga topshirilmagan) qismi qaytadi/qayta yechiladi, chunki
+    topshirilgan qismi allaqachon mijozda va ombor hisobiga tegishli emas.
+    To'liq YETKAZILGAN buyurtmalar uchun bu funksiya chaqiruvchi tomonidan
+    umuman chaqirilmaydi (remaining_qty=0 bo'lardi, farqi yo'q)."""
     log = []
     verb = "qaytarildi" if sign > 0 else "qayta yechildi"
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
             continue
-        qty = _fp_item_qty(it)
+        qty = it.remaining_qty
         if qty <= 0:
             continue
         fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
@@ -1388,147 +1396,18 @@ def get_order(db: Session, order_id: int) -> Optional[Order]:
     return db.query(Order).filter(Order.id == order_id).first()
 
 
-def mark_order_ready(db: Session, order_id: int) -> dict:
-    """⚠️ ISHLATILMAYDI (DEAD CODE) — 2026-09 audit paytida aniqlandi.
-
-    Buyurtmani "Tayyor" qiladigan HAQIQIY, jonli endpoint
-    (main.py: api_mark_order_ready) bu funksiyani EMAS,
-    services.complete_order() ni chaqiradi. Shuning uchun bu yerdagi
-    kod HECH QACHON ishga tushmaydi — butun kodbazada boshqa hech qayerdan
-    chaqirilmaydi (faqat shu izoh ichida tilga olinadi).
-
-    XAVFLI: bu funksiya qoplama xomashyosini services.complete_order() dan
-    BUTUNLAY BOSHQACHA, o'zining qattiq kodlangan (kg_per_meter=0.5)
-    formulasi bilan hisoblaydi va ayiradi. Agar kimdir kelajakda buni
-    (masalan nusxa ko'chirib yoki chaqirib) qayta ishga tushirsa — xuddi
-    o'sha buyurtma uchun xomashyo IKKI MARTA (bir marta shu yerda, yana bir
-    marta services.complete_order orqali) ayirilib qolishi mumkin.
-
-    Bu yerdagi ichki qo'shimcha detal (sub_details) tuzatishlari — 2026-09
-    sessiyasida shu funksiyaga qo'shilgan, lekin HAQIQIY tuzatish
-    services.complete_order() ga (jonli kodga) alohida qo'shildi. Bu
-    funksiya faqat tarixiy/qidiruv maqsadida saqlanmoqda — o'chirish yoki
-    qayta ishga tushirish tavsiya etilmaydi.
-
-    Buyurtmani "Tayyor" qilib belgilash + avtomatik mantiq (ESKI, ISHLATILMAYDI).
-
-    MUHIM AVTOMATIKA:
-    1. Status -> READY
-    2. Recipe bo'yicha Inventory dan xomashyo ayrish
-    3. Usta KPI hisoblash (3% cashback + 1000 so'm/metr)
-    """
-    db_order = get_order(db, order_id)
-    if not db_order:
-        return {"success": False, "message": "Buyurtma topilmadi"}
-
-    if db_order.status == OrderStatus.READY:
-        return {"success": False, "message": "Bu buyurtma allaqachon tayyor"}
-
-    # 1. Status yangilash
-    db_order.status = OrderStatus.READY
-    db_order.completed_at = datetime.utcnow()
-
-    # 2. Recipe asosida Inventory kamaytirish
-    inventory_log = []
-    if db_order.items and db_order.items[0].recipe_id:
-        recipe = db.query(Recipe).filter(Recipe.id == db_order.items[0].recipe_id).first()
-        if recipe:
-            # Qancha qoplama qilinishi kerak (qoplamali itemlar yig'indisi).
-            # MUHIM: Termopanel (bazalt) detallari BU YERGA KIRMAYDI — ularning
-            # loyi alohida, aniqroq tizim orqali (complete_termopanel_loy) hisoblanadi.
-            # Aks holda ikki marta xomashyo yechilib qolar edi.
-            total_coated_qty = sum(
-                (item.length or 0) * item.quantity if item.length else item.quantity
-                for item in db_order.items
-                if item.is_coated and (item.category or '').lower() != 'termopanel'
-            )
-            # MUHIM: Ichki qo'shimcha detallar (sub_details) — bularning
-            # qoplama holati ASOSIY detalning is_coated'idan MUSTAQIL.
-            # Shuning uchun bu yerda ALOHIDA, o'z is_coated bayrog'i
-            # tekshirilib qo'shiladi — aks holda ichki detal qoplamali
-            # bo'lsa-yu, asosiy detal qoplamasiz bo'lsa (yoki aksincha),
-            # uning qoplama xomashyosi ombordan yechilmay qolar edi.
-            for _item in db_order.items:
-                if (_item.category or '').lower() == 'termopanel':
-                    continue
-                for _sub in (_item.sub_details or []):
-                    if not getattr(_sub, 'is_coated', False):
-                        continue
-                    _sub_cat = (getattr(_sub, 'category', None) or '').lower()
-                    if _sub_cat == 'panel':
-                        total_coated_qty += float(getattr(_sub, 'quantity', 0) or 0)
-                    else:  # 'profil' (standart)
-                        total_coated_qty += float(getattr(_sub, 'length', 0) or 0) * float(getattr(_sub, 'quantity', 1) or 1)
-
-            # Retsept asosida har bir komponentni hisoblaymiz
-            # batch_size_kg uchun retsept bor, total_coated_qty metr uchun
-            # Taxminiy: 1 metr karniz ~0.5 kg qoplama ishlatadi
-            kg_per_meter = 0.5
-            total_kg_needed = total_coated_qty * kg_per_meter
-
-            # Necha partiya kerak
-            batches = total_kg_needed / recipe.batch_size_kg if recipe.batch_size_kg else 0
-
-            # Har bir tarkibiy qismni (Omborxonadagi ISTALGAN material) kamaytiramiz
-            for ing in recipe.ingredients:
-                qty = float(ing.quantity_kg or 0) * batches
-                if qty > 0 and ing.inventory:
-                    # QULFLAB olamiz, shunda boshqa foydalanuvchi shu vaqtda
-                    # aynan shu xomashyoni o'zgartira olmaydi
-                    inv_item = db.query(Inventory).filter(
-                        Inventory.id == ing.inventory_id
-                    ).with_for_update().first()
-                    if inv_item:
-                        inv_item.stock_quantity = max(0, inv_item.stock_quantity - qty)
-                        inventory_log.append(f"{inv_item.item_name}: -{qty:.2f} {inv_item.unit}")
-                        log_movement(
-                            db, inv_item.id, inv_item.item_name, movement_type="out",
-                            quantity=qty, unit=inv_item.unit,
-                            reason=f"Buyurtma {db_order.order_number}", order_id=db_order.id
-                        )
-
-    # 3. Usta KPI hisoblash
-    kpi_info = None
-    if db_order.master_id:
-        master = db.query(Master).filter(Master.id == db_order.master_id).first()
-        if master:
-            # 3% cashback
-            cashback = float(db_order.total_amount) * 0.03
-            # 1000 so'm har metr uchun
-            total_meters = sum(
-                (item.length or 0) * item.quantity for item in db_order.items if item.is_coated
-            )
-            # MUHIM: Ichki qo'shimcha detallar — o'z is_coated bayrog'i
-            # asosiy detaldan MUSTAQIL, shuning uchun ALOHIDA hisoblanadi
-            # (yuqoridagi Qoplamachi bonusi bilan bir xil mantiq).
-            for _item in db_order.items:
-                for _sub in (_item.sub_details or []):
-                    if not getattr(_sub, 'is_coated', False):
-                        continue
-                    _sub_cat = (getattr(_sub, 'category', None) or '').lower()
-                    if _sub_cat == 'panel':
-                        total_meters += float(getattr(_sub, 'quantity', 0) or 0)
-                    else:  # 'profil' (standart)
-                        total_meters += float(getattr(_sub, 'length', 0) or 0) * float(getattr(_sub, 'quantity', 1) or 1)
-            meter_bonus = total_meters * 1000
-            total_kpi = cashback + meter_bonus
-            kpi_info = {
-                "master": master.name,
-                "cashback_3%": round(cashback),
-                "meter_bonus": round(meter_bonus),
-                "total_kpi": round(total_kpi),
-                "total_meters": total_meters
-            }
-
-    db.commit()
-    db.refresh(db_order)
-
-    return {
-        "success": True,
-        "message": "Buyurtma tayyor!",
-        "inventory_changes": inventory_log,
-        "master_kpi": kpi_info
-    }
+# MUHIM (2026-09 — Fasa 4, tozalash): bu yerda avval mark_order_ready()
+# funksiyasi bo'lgan — ESKI, buyurtmani "Tayyor" qiladigan mexanizm.
+# 2026-09 chuqur auditda aniqlandiki, bu funksiya allaqachon DEAD CODE
+# edi: buyurtmani "Tayyor" qiladigan HAQIQIY, jonli endpoint (main.py:
+# api_mark_order_ready) buni EMAS, services.complete_order() ni
+# chaqiradi — shuning uchun bu kod HECH QACHON ishga tushmasdi. Ustiga
+# ustak, u qoplama xomashyosini services.complete_order() dan BUTUNLAY
+# BOSHQACHA, qattiq kodlangan (kg_per_meter=0.5) formula bilan hisoblardi
+# — agar kimdir kelajakda uni qayta chaqirsa, xomashyo IKKI MARTA
+# ayirilib qolishi mumkin edi ("loaded trap"). Shu xavf tufayli,
+# foydalanuvchi tasdig'i bilan, funksiya BUTUNLAY OLIB TASHLANDI.
+# Buyurtmani tayyorlashning HAQIQIY, yagona yo'li — services.complete_order().
 
 
 # ============================================================
@@ -2043,30 +1922,46 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
                 services.return_inventory_for_order(db, db_order, sign=-1.0)
                 services.return_termopanel_for_order(db, db_order, sign=-1.0)
 
+            # Tayyor mahsulotlar qayta yechiladi — hech narsa topshirilmagan
+            # bo'lsa TO'LIQ, QISMAN topshirilgan bo'lsa faqat QOLGAN qismi
+            # (_return_finished_for_order item.remaining_qty orqali o'zi farqni
+            # to'g'ri hisoblaydi — bu o'chirishdagi qaytarishning aynan aksi).
+            _return_finished_for_order(db, db_order, sign=-1.0)
+
+            # Loy/Gips uchun QOLGAN (topshirilmagan) qism ulushi — o'chirishda
+            # QANCHA qaytarilgan bo'lsa, tiklashda AYNAN O'SHA qism qayta
+            # yechiladi (delivery_percent o'zgarmagan, chunki buyurtma
+            # o'chirilgan holatda yetkazishlar qo'shilmaydi).
+            remaining_fraction = max(0.0, 1 - (db_order.delivery_percent or 0) / 100) if has_delivery else 1.0
+
+            # Loy (qoplama) — rejalashtirilgan miqdor (yoki QOLGAN ulushi) qayta yechiladi.
+            # Eslatma: agar o'chirishda "haqiqatda qancha ishlatilgan edi"
+            # deb alohida qiymat kiritilgan bo'lsa, o'sha aniq qiymat
+            # saqlanmaganligi sabab, bu yerda REJADAGI (standart) miqdor
+            # asos qilib olinadi — aksariyat holatlarda bu aynan to'g'ri keladi.
+            planned_loy = services._get_planned_loy(db_order) + get_termopanel_planned_loy(db_order)
+            redo_loy = planned_loy * remaining_fraction
+            if redo_loy > 0.01:
+                services.deduct_loy_ingredients(db, db_order, redo_loy)
+
+            # "Loy sotish" detallari — har biri o'z retseptiga ko'ra qayta yechiladi
+            # (faqat hech narsa topshirilmagan bo'lsa — o'chirishdagi bilan bir xil)
             if not has_delivery:
-                _return_finished_for_order(db, db_order, sign=-1.0)
-
-                # Loy (qoplama) — rejalashtirilgan miqdor qayta yechiladi.
-                # Eslatma: agar o'chirishda "haqiqatda qancha ishlatilgan edi"
-                # deb alohida qiymat kiritilgan bo'lsa, o'sha aniq qiymat
-                # saqlanmaganligi sabab, bu yerda REJADAGI (standart) miqdor
-                # asos qilib olinadi — aksariyat holatlarda bu aynan to'g'ri keladi.
-                planned_loy = services._get_planned_loy(db_order) + get_termopanel_planned_loy(db_order)
-                if planned_loy > 0:
-                    services.deduct_loy_ingredients(db, db_order, planned_loy)
-
-                # "Loy sotish" detallari — har biri o'z retseptiga ko'ra qayta yechiladi
                 for item in db_order.items:
                     if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
                         services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
 
-                # GIPS — rejalashtirilgan miqdor (asosiy va qo'shimchalar) qayta yechiladi
-                planned_gips = float(db_order.planned_gips_kg or 0)
-                if planned_gips > 0 and db_order.gips_inventory_id:
-                    services.deduct_gips_main(db, db_order.gips_inventory_id, planned_gips, db_order, reason=f"Buyurtma tiklandi ({db_order.order_number})")
-                gips_adds = db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == db_order.id).all()
-                if gips_adds:
-                    redo_list = [{"inventory_id": a.inventory_id, "qty": float(a.planned_qty or 0)} for a in gips_adds]
+            # GIPS — rejalashtirilgan miqdor (yoki QOLGAN ulushi, asosiy va
+            # qo'shimchalar) qayta yechiladi
+            planned_gips = float(db_order.planned_gips_kg or 0)
+            redo_gips = planned_gips * remaining_fraction
+            if redo_gips > 0.01 and db_order.gips_inventory_id:
+                services.deduct_gips_main(db, db_order.gips_inventory_id, redo_gips, db_order, reason=f"Buyurtma tiklandi ({db_order.order_number})")
+            gips_adds = db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == db_order.id).all()
+            if gips_adds and remaining_fraction > 0:
+                redo_list = [{"inventory_id": a.inventory_id, "qty": float(a.planned_qty or 0) * remaining_fraction} for a in gips_adds]
+                redo_list = [r for r in redo_list if abs(r["qty"]) > 0.001]
+                if redo_list:
                     services.deduct_gips_additives(db, redo_list, db_order, reason=f"Buyurtma tiklandi ({db_order.order_number})")
 
         db_order.stock_returned = False
@@ -2324,68 +2219,18 @@ def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
     return item
 
 
-def create_finished_product_brak(db: Session, finished_product_id: int, quantity: float,
-                                  notes: str = None, performed_by: str = None) -> dict:
-    """Tayyor mahsulot ISHLAB CHIQARISH jarayonidagi brak — buyurtmaga
-    bog'liq EMAS, to'g'ridan-to'g'ri ishlab chiqarilgan (Ishlab chiqarish
-    tugmasi orqali yaratilgan) mahsulot uchun.
-
-    MUHIM: fp.quantity (SOTILADIGAN qoldiq)ga UMUMAN TEGMAYDI — yakuniy
-    yetkaziladigan/omborga tushadigan miqdor o'zgarmaydi (usta brak
-    bo'lgan qismni qayta ishlab chiqargan deb hisoblanadi), faqat shu
-    QO'SHIMCHA sarflangan xomashyo ombordan ayiriladi va moliyaviy
-    xarajat sifatida (InventoryMovement orqali, Moliyadagi 'Brak
-    xarajati' ga avtomatik qo'shiladi — get_brak_material_summary()
-    "Brak%" prefiksli barcha harakatlarni o'zi yig'ib oladi) qayd etiladi.
-
-    HOZIRCHA faqat Profil/Panel/Donali/Blok turkumlari uchun ishlaydi
-    (Termopanel va Gips — kelgusida alohida qo'shiladi)."""
-    import services
-    from models import FinishedProduct
-
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == finished_product_id).first()
-    if not fp:
-        return {"success": False, "message": "Tayyor mahsulot topilmadi"}
-
-    if quantity <= 0:
-        return {"success": False, "message": "Miqdor noto'g'ri kiritilgan"}
-
-    category = (fp.category or '').lower()
-    if category not in ('profil', 'panel', 'dona', 'blok'):
-        return {"success": False, "message": f"Bu turkum ('{fp.category or '—'}') uchun hozircha qo'llab-quvvatlanmaydi"}
-
-    # 1 birlikning tan narxi — ASL (ishlab chiqarilgandagi) tan narx,
-    # produced_quantity asosida (get_order_item_unit_cost bilan bir xil
-    # mantiq — sotilgan/kamaygan joriy qoldiqqa emas, o'zgarmas asl
-    # miqdorga nisbatan, aks holda vaqt o'tishi bilan noto'g'ri bo'lib qolardi).
-    base_qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-    unit_cost = (float(fp.cost_price or 0) / base_qty) if base_qty > 0 else 0
-    refund_amount = round(unit_cost * quantity)
-
-    item = ReturnItem(
-        finished_product_id=fp.id,
-        item_name=fp.name,
-        quantity=quantity,
-        unit=fp.unit,
-        reason=ReturnReason.DEFECT,
-        refund_amount=refund_amount,
-        is_refunded=False,
-        notes=notes,
-        coating_applied=fp.is_coated,
-    )
-    db.add(item)
-    db.flush()
-
-    brak_log = services.deduct_raw_material_for_finished_product_brak(db, fp, quantity)
-    if brak_log:
-        print(f"✓ Ishlab chiqarish brak uchun xomashyo yechildi: {brak_log}")
-
-    db.commit()
-    db.refresh(item)
-    log_activity(db, "created", "finished_product_brak", item.id,
-                 f"{fp.name} — {quantity:g} {fp.unit} (ishlab chiqarish brak)", performed_by)
-
-    return {"success": True, "return_item_id": item.id, "refund_amount": refund_amount, "log": brak_log}
+# MUHIM (2026-09 — Fasa 3, brak-yozish konsolidatsiyasi): bu yerda avval
+# create_finished_product_brak() funksiyasi bo'lgan — Qaytarishlar sahifasi
+# ("Ishlab chiqarishdan brak") uchun. U record_finished_product_production_brak()
+# (Tayyor mahsulotlar sahifasi) bilan AYNAN bir xil ishni — mahsulot soniga
+# tegmasdan, faqat qo'shimcha sarflangan xomashyoni ombordan ayirishni —
+# qilardi (ikkalasi ham bir xil "unit_volume_m3/unit_loy_kg" nisbatidan
+# foydalanardi). Ikki parallel yo'l chalkashlik va ombor hisobida
+# nomuvofiqlik xavfini tug'dirgani uchun, foydalanuvchi tasdig'i bilan,
+# BU funksiya OLIB TASHLANDI va endi faqat Tayyor mahsulotlar sahifasidagi
+# yagona yo'l (record_finished_product_production_brak, "/api/finished/
+# production-brak") ishlatiladi. Eski ReturnItem yozuvlari (bu funksiya
+# orqali avval yaratilgan) tarixiy ma'lumot sifatida bazada saqlanib qoladi.
 
 
 def get_return_items(db: Session, order_id: Optional[int] = None) -> List:
@@ -3138,7 +2983,8 @@ def settle_termopanel_loy_share(order, total_planned: float, total_actual: float
 def complete_termopanel_loy(db: Session, order_id: int, actual_loy_kg: float) -> dict:
     """Termopanel buyurtmasi 'Tayyor' bo'lganda — rejalashtirilgan va haqiqiy
     loy miqdorini solishtiradi, farqni ombordan ayiradi yoki qaytaradi.
-    Aynan penoplastdagi (mark_order_ready) mexanizmi bilan bir xil mantiq."""
+    Aynan asosiy (profil/panel) buyurtmalar uchun services.complete_order()
+    ishlatadigan reja/haqiqiy solishtirish mexanizmi bilan bir xil mantiq."""
     import services
     import re
 

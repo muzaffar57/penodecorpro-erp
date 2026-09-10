@@ -2391,14 +2391,19 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
             log.extend(services.return_inventory_for_order(db, order))
             log.extend(services.return_termopanel_for_order(db, order))
 
-        # Tayyor mahsulotlar qaytadi (faqat hech narsa topshirilmagan bo'lsa)
-        if not has_delivery:
-            log.extend(crud._return_finished_for_order(db, order))
+        # Tayyor mahsulotlar qaytadi — hech narsa topshirilmagan bo'lsa TO'LIQ,
+        # QISMAN topshirilgan bo'lsa faqat QOLGAN (topshirilmagan) qismi
+        # (_return_finished_for_order o'zi item.remaining_qty orqali farqni
+        # to'g'ri hisoblaydi — topshirilgan qism mijozda qoladi).
+        log.extend(crud._return_finished_for_order(db, order))
 
         # Loy ingredientlari — reja/haqiqiy solishtirib qaytariladi.
         # actual_loy_kg berilgan bo'lsa (hodim "qancha ishlatildi" deb yozgan) —
-        # ortgan qismi aniq qaytadi. Berilmagan va hech narsa topshirilmagan
-        # bo'lsa — eski xulq: to'liq rejalashtirilgan miqdor qaytadi.
+        # ortgan qismi aniq qaytadi. Berilmagan bo'lsa:
+        #   - hech narsa topshirilmagan bo'lsa — to'liq rejalashtirilgan miqdor qaytadi;
+        #   - QISMAN topshirilgan bo'lsa — buyurtmaning yetkazilgan foiziga qarab,
+        #     QOLGAN (topshirilmagan) qism uchun mo'ljallangan loy proporsional qaytadi
+        #     (aniq "qancha ishlatilgani" ma'lum bo'lmagani uchun taxminiy hisob).
         planned_loy = services._get_planned_loy(order) + crud.get_termopanel_planned_loy(order)
 
         if actual_loy_kg is not None:
@@ -2407,8 +2412,14 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
                 log.extend(services.return_loy_ingredients(db, order, diff))
             elif diff < -0.01:
                 log.extend(services.deduct_loy_ingredients(db, order, abs(diff)))
-        elif not has_delivery and planned_loy > 0:
-            log.extend(services.return_loy_ingredients(db, order, planned_loy))
+        elif planned_loy > 0:
+            if not has_delivery:
+                log.extend(services.return_loy_ingredients(db, order, planned_loy))
+            else:
+                remaining_fraction = max(0.0, 1 - (order.delivery_percent or 0) / 100)
+                proportional_loy = planned_loy * remaining_fraction
+                if proportional_loy > 0.01:
+                    log.extend(services.return_loy_ingredients(db, order, proportional_loy))
 
         # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, alohida qaytariladi
         if not has_delivery:
@@ -2417,9 +2428,12 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
                     log.extend(services.return_loy_ingredients(db, order, float(item.quantity), recipe_id=item.recipe_id))
 
         # GIPS — xuddi Loy kabi: reja/haqiqiy solishtirib qaytariladi.
-        # actual_gips_kg berilgan bo'lsa — ortgan qismi aniq qaytadi.
-        # Berilmagan va hech narsa topshirilmagan bo'lsa — to'liq reja qaytadi.
+        # actual_gips_kg berilgan bo'lsa — ortgan qismi aniq qaytadi. Berilmagan bo'lsa:
+        #   - hech narsa topshirilmagan bo'lsa — to'liq reja qaytadi;
+        #   - QISMAN topshirilgan bo'lsa — yetkazilgan foizga qarab, QOLGAN qism
+        #     uchun mo'ljallangan gips proporsional qaytadi.
         planned_gips = float(order.planned_gips_kg or 0)
+        gips_remaining_fraction = max(0.0, 1 - (order.delivery_percent or 0) / 100) if has_delivery else 1.0
         if planned_gips > 0 and order.gips_inventory_id:
             if actual_gips_kg is not None:
                 diff = planned_gips - float(actual_gips_kg)
@@ -2427,17 +2441,22 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
                     r = services.deduct_gips_main(db, order.gips_inventory_id, -diff, order, reason=f"Buyurtma o'chirildi ({order_num})")
                     if r:
                         log.append(r)
-            elif not has_delivery:
-                r = services.deduct_gips_main(db, order.gips_inventory_id, -planned_gips, order, reason=f"Buyurtma o'chirildi ({order_num})")
-                if r:
-                    log.append(r)
+            else:
+                proportional_gips = planned_gips * gips_remaining_fraction
+                if proportional_gips > 0.01:
+                    r = services.deduct_gips_main(db, order.gips_inventory_id, -proportional_gips, order, reason=f"Buyurtma o'chirildi ({order_num})")
+                    if r:
+                        log.append(r)
 
-        # Gips qo'shimchalari — hech narsa topshirilmagan bo'lsa, to'liq reja qaytadi
-        if not has_delivery:
+        # Gips qo'shimchalari — xuddi asosiy gips kabi: hech narsa topshirilmagan
+        # bo'lsa to'liq reja, QISMAN topshirilgan bo'lsa QOLGAN qism proporsional qaytadi.
+        if actual_gips_kg is None:
             gips_adds = db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == order.id).all()
-            if gips_adds:
-                return_list = [{"inventory_id": a.inventory_id, "qty": -float(a.planned_qty or 0)} for a in gips_adds]
-                log.extend(services.deduct_gips_additives(db, return_list, order, reason=f"Buyurtma o'chirildi ({order_num})"))
+            if gips_adds and gips_remaining_fraction > 0:
+                return_list = [{"inventory_id": a.inventory_id, "qty": -float(a.planned_qty or 0) * gips_remaining_fraction} for a in gips_adds]
+                return_list = [r for r in return_list if abs(r["qty"]) > 0.001]
+                if return_list:
+                    log.extend(services.deduct_gips_additives(db, return_list, order, reason=f"Buyurtma o'chirildi ({order_num})"))
 
         # MUHIM: "qaytarildi" deb BELGILAYMIZ — shu buyurtma keyinchalik
         # tiklanib, YANA o'chirilsa ham, ombor IKKINCHI MARTA qaytarilmasin.
@@ -2952,20 +2971,6 @@ def api_get_project_items(project_id: int, db: Session = Depends(get_db), curren
 @app.post("/api/returns")
 def api_create_return(data: schemas.ReturnItemCreate, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
     return crud.create_return_item(db, data)
-
-
-@app.post("/api/returns/finished-product-brak")
-def api_create_finished_product_brak(data: schemas.FinishedProductBrakCreate, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    """Tayyor mahsulot ISHLAB CHIQARISH jarayonidagi brak — buyurtmasiz.
-    Faqat qo'shimcha sarflangan xomashyoni ayiradi, tayyor mahsulot
-    SONIGA (sotiladigan qoldiqqa) tegmaydi."""
-    who = current_user.full_name or current_user.username
-    result = crud.create_finished_product_brak(
-        db, data.finished_product_id, data.quantity, notes=data.notes, performed_by=who
-    )
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result["message"])
-    return result
 
 
 @app.get("/api/returns")
