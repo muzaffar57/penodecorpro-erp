@@ -1320,10 +1320,31 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None,
     if order.master_id:
         master = db.query(Master).filter(Master.id == order.master_id).first()
         if master:
-            cashback = float(order.total_amount) * 0.03
+            # MUHIM: kelishilgan summa (agreed_amount) bo'lsa — shundan 3%
+            # olinadi, aks holda umumiy summadan. Bu — daromad/foyda hisobi
+            # bilan (masalan yuqoridagi "daromad" yig'indisida) BIR XIL
+            # qoidaga mos: chegirma qilingan buyurtmada usta cashbacki ham
+            # chegirmadan OLDINGI (shishirilgan) summadan emas, HAQIQIY
+            # kelishilgan summadan hisoblanishi kerak.
+            cashback = float(order.agreed_amount or order.total_amount or 0) * 0.03
             total_meters = sum(
                 (item.length or 0) * item.quantity for item in order.items if item.is_coated
             )
+            # MUHIM: Ichki qo'shimcha detallar (sub_details) — bularning
+            # qoplama holati ASOSIY detalning is_coated'idan MUSTAQIL,
+            # xuddi qoplamachi bonusi hisoblanadigan get_monthly_report()
+            # dagi kabi (o'sha yerda ham xuddi shu sabab bilan alohida
+            # tekshiriladi). Bu yerda ham xuddi shunday — asosiy qoplamasiz
+            # bo'lsa ham ichki qoplamali bo'lishi, yoki aksincha, mumkin.
+            for item in order.items:
+                for sub in (item.sub_details or []):
+                    if not getattr(sub, 'is_coated', False):
+                        continue
+                    sub_cat = (getattr(sub, 'category', None) or '').lower()
+                    if sub_cat == 'panel':
+                        total_meters += float(getattr(sub, 'quantity', 0) or 0)
+                    else:  # 'profil' (standart)
+                        total_meters += float(getattr(sub, 'length', 0) or 0) * float(getattr(sub, 'quantity', 1) or 1)
             meter_bonus = total_meters * 1000
             total_kpi = cashback + meter_bonus
             result["master_kpi"] = {
@@ -1593,6 +1614,14 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
         if cat == 'profil':
             if item.width and item.thickness and item.length:
                 vol = (item.width/100) * (item.thickness/100) / 2 * float(item.length)
+            # MUHIM (2026-09 audit): ichki qo'shimcha detallar (sub_details)
+            # — asosiy detal bilan BIR XIL xomashyodan hisoblanadi, shuning
+            # uchun ombordan chiqim/hajm hisobida (_item_volume_m3) ham
+            # qo'shiladi. Bu yerda (foyda/tan narxi hisobi) shu vaqtgacha
+            # QO'SHILMAGAN edi — natijada ichki detalli buyurtmalarning
+            # tan narxi kamroq, foydasi esa haqiqatdan ko'proq ko'rsatilib
+            # kelingan. Endi xuddi shu formula bilan qo'shiladi.
+            vol += _sub_details_volume_m3(item)
         elif cat == 'panel':
             if item.width and item.thickness:
                 vol = (item.width/100) * (item.thickness/100) * qty
@@ -3938,8 +3967,27 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
             Inventory.id == ing.inventory_id
         ).with_for_update().first()
         if inv_item:
-            inv_item.stock_quantity = float(inv_item.stock_quantity) - needed_kg
+            # MUHIM (2026-09 audit): oldin bu yerda hech qanday tekshiruv
+            # yo'q edi — zaxiradan ko'p kerak bo'lsa, stock_quantity to'g'ridan
+            # -to'g'ri MANFIYGA tushib qolar edi (boshqa joylarda, masalan
+            # update_stock()da, "manfiy bo'lmasin" qoidasi bor, shu yerda esa
+            # yo'q edi). Endi xuddi shunday — 0 dan pastga tushirilmaydi,
+            # lekin YETISHMOVCHILIK borligi jurnalga ANIQ yozib qo'yiladi
+            # (buyurtmani "Tayyor" qilishni to'xtatib qo'ymaslik uchun —
+            # ish allaqachon bajarilgan, xomashyo haqiqatda ishlatilgan;
+            # faqat KITOB yuritish shu yerda to'g'irlanadi, keyinroq
+            # xomashyo ta'minoti orqali qayta to'ldirilishi kerak).
+            current = float(inv_item.stock_quantity or 0)
+            new_qty = current - needed_kg
+            shortage = 0.0
+            if new_qty < 0:
+                shortage = -new_qty
+                new_qty = 0.0
+            inv_item.stock_quantity = new_qty
             log.append(f"{inv_item.item_name}: -{needed_kg:.2f} {inv_item.unit}")
+            if shortage > 0.001:
+                log.append(f"⚠️ {inv_item.item_name}: omborda YETARLI EMAS EDI — {shortage:.2f} {inv_item.unit} yetishmovchilik (zaxira 0 ga tushirildi, manfiyga o'tkazilmadi)")
+                print(f"⚠ {inv_item.item_name}: YETISHMOVCHILIK {shortage:.2f} {inv_item.unit}")
             print(f"✓ {inv_item.item_name}: -{needed_kg:.2f} ayirildi")
             import crud as _crud
             _crud.log_movement(
@@ -4511,6 +4559,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     _month_end = _dt_emp(year, month, _last_day, 23, 59, 59)
     employees = db.query(Employee).filter(
         Employee.is_active == True,
+        Employee.is_deleted.isnot(True),
         Employee.hire_date <= _month_end
     ).all()
     breakdown = []
