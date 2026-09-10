@@ -2752,7 +2752,7 @@ function addItem() {
       </div>
       <div class="dgrp i-subdetails-wrap" style="grid-column:1/-1;display:none;background:#FBF7F0;border:1px dashed #B9783F">
         <div class="dgrp-title">➕ Ichki qo'shimcha detal (masalan karniz ichidagi rebristo qism)</div>
-        <div style="font-size:12.5px;color:#8a6a45;margin:-4px 0 8px">Xuddi shu xomashyodan hisoblanadi — Yuk xatida ALOHIDA qator sifatida chiqmaydi, hajmi va narxi asosiy detalga qo'shiladi.</div>
+        <div style="font-size:12.5px;color:#8a6a45;margin:-4px 0 8px">Xuddi shu xomashyodan hisoblanadi — Yuk xatida ALOHIDA qator sifatida chiqmaydi, hajmi va narxi asosiy detalga qo'shiladi. Qoplama — asosiy detal bilan bir xil (asosiy qoplangan bo'lsa, bu ham ×2 hisoblanadi).</div>
         <div class="subdetail-list"></div>
         <button type="button" onclick="addSubDetailRow(this.closest('.detal'))" style="margin-top:4px;padding:7px 12px;font-size:13px;border:1px solid #B9783F;background:#fff;color:#A86B36;border-radius:8px;cursor:pointer">+ Ichki qo'shimcha detal qo'shish</button>
       </div>
@@ -3301,12 +3301,6 @@ function addSubDetailRow(detalRow, prefill) {
     <div class="sd-q-wrap" style="flex:1;min-width:70px;display:none"><label style="font-size:11px;color:#8a6a45">Miqdor</label>
       <input type="number" class="sd-q" step="0.5" value="1" min="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div style="flex:1;min-width:80px"><label style="font-size:11px;color:#8a6a45">Qoplama</label>
-      <select class="sd-c" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" onchange="calculateItem(this.closest('.detal'))">
-        <option value="false">Yo'q</option>
-        <option value="true">Bor (×2)</option>
-      </select>
-    </div>
     <div style="flex:2;min-width:120px;font-size:12px;color:#666" class="sd-info">≈ 0 so'm, 0 m³</div>
     <button type="button" onclick="this.closest('.subdetail-row').remove();calculateItem(this.closest('.detal'))" style="border:none;background:#FEF2F2;color:#DC2626;width:26px;height:26px;border-radius:6px;cursor:pointer;flex-shrink:0">✕</button>
   `;
@@ -3319,7 +3313,6 @@ function addSubDetailRow(detalRow, prefill) {
     sub.querySelector('.sd-t').value = prefill.thickness || '';
     sub.querySelector('.sd-l').value = prefill.length || '';
     sub.querySelector('.sd-q').value = prefill.quantity || 1;
-    sub.querySelector('.sd-c').value = prefill.is_coated ? 'true' : 'false';
     onSubDetailTypeChange(sub.querySelector('.sd-type'));
   }
   calculateItem(detalRow);
@@ -3333,13 +3326,16 @@ function onSubDetailTypeChange(sel) {
   calculateItem(sub.closest('.detal'));
 }
 
-function calcSubDetailRow(subRow, basePrice) {
+function calcSubDetailRow(subRow, basePrice, parentCoated) {
+  // MUHIM: Qoplama (coating) — ichki qo'shimcha detal ALOHIDA tanlamaydi,
+  // HAR DOIM asosiy detalning qoplama holatidan MEROS oladi (agar asosiy
+  // qoplangan bo'lsa, ichki detal narxi ham xuddi shunday ×2 hisoblanadi).
   const cat = subRow.querySelector('.sd-type').value;
   const w = parseNum(subRow.querySelector('.sd-w').value) || 0;
   const t = parseNum(subRow.querySelector('.sd-t').value) || 0;
   const l = parseNum(subRow.querySelector('.sd-l').value) || 0;
   const q = parseNum(subRow.querySelector('.sd-q').value) || 1;
-  const coated = subRow.querySelector('.sd-c').value === 'true';
+  const coated = !!parentCoated;
 
   let volume = 0, price = 0;
   if (cat === 'panel') {
@@ -3478,7 +3474,7 @@ function calculateItem(row) {
     // narxi ASOSIY detalga QO'SHILADI (Yuk xatida alohida chiqmasin uchun)
     let subTotalPrice = 0, subTotalVolume = 0;
     row.querySelectorAll('.i-subdetails-wrap .subdetail-row').forEach(sub => {
-      const r = calcSubDetailRow(sub, basePrice);
+      const r = calcSubDetailRow(sub, basePrice, isCoated);
       subTotalPrice += r.price;
       subTotalVolume += r.volume;
     });
@@ -4585,7 +4581,7 @@ function collectItems() {
       const effBasePrice = m3price || parseNum(document.getElementById('base_price')?.value || '0') || 0;
       const subDetails = [];
       row.querySelectorAll('.i-subdetails-wrap .subdetail-row').forEach(sub => {
-        const r = calcSubDetailRow(sub, effBasePrice);
+        const r = calcSubDetailRow(sub, effBasePrice, isCoated);
         subDetails.push({ name: r.name, category: r.category, width: r.width,
                            thickness: r.thickness, length: r.length,
                            quantity: r.quantity, is_coated: r.is_coated });
