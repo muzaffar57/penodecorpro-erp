@@ -273,6 +273,20 @@ class ProjectRead(BaseModel):
 # ORDER (Buyurtmalar)
 # ============================================================
 
+class OrderItemSubDetailCreate(BaseModel):
+    """Asosiy detal ICHIDAGI qo'shimcha bo'lak (masalan karniz ichidagi
+    rebristo qism) — alohida ombor zaxirasi yo'q, parentning O'ZI bilan
+    bir xil xomashyodan hisoblanadi. Yuk xatida alohida qator sifatida
+    chiqmaydi — hajmi/narxi parentga qo'shib hisoblanadi."""
+    name: Optional[str] = None
+    category: str = Field(..., description="profil yoki panel")
+    width: Optional[float] = None
+    thickness: Optional[float] = None
+    length: Optional[float] = None
+    quantity: Optional[float] = Field(default=1.0)
+    is_coated: bool = False
+
+
 class OrderItemCreate(BaseModel):
     name: str = Field(..., min_length=2)
     category: Optional[str] = None
@@ -301,6 +315,9 @@ class OrderItemCreate(BaseModel):
     recipe_id: Optional[int] = None
     # GIPS uchun — tanlangan birlik (metr/dona/m2)
     gips_unit: Optional[str] = None
+    # Profil (karniz) turidagi detal ICHIDAGI qo'shimcha bo'laklar
+    # (masalan rebristo detal) — bir nechtagacha bo'lishi mumkin
+    sub_details: List[OrderItemSubDetailCreate] = Field(default_factory=list)
 
 
 class GipsAdditiveInput(BaseModel):
@@ -334,6 +351,20 @@ class OrderCreate(BaseModel):
     loy_kg: Optional[float] = None
 
 
+class OrderItemSubDetailRead(BaseModel):
+    id: int
+    name: Optional[str] = None
+    category: str
+    width: Optional[float] = None
+    thickness: Optional[float] = None
+    length: Optional[float] = None
+    quantity: Optional[float] = None
+    is_coated: bool = False
+    volume_m3: float = 0
+    total_price: float = 0
+    model_config = {"from_attributes": True}
+
+
 class OrderItemRead(BaseModel):
     id: int
     name: str
@@ -352,6 +383,7 @@ class OrderItemRead(BaseModel):
     image_url: Optional[str] = None
     notes: Optional[str] = None
     gips_unit: Optional[str] = None
+    sub_details: List[OrderItemSubDetailRead] = Field(default_factory=list)
     model_config = {"from_attributes": True}
 
 

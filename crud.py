@@ -814,7 +814,7 @@ def get_recipe(db: Session, recipe_id: int) -> Optional[Recipe]:
 # PROJECT CRUD
 # ============================================================
 
-from models import Project, Order, OrderItem, ProjectStatus, OrderStatus, OrderType, FinishedProduct, StockSource, OrderGipsAdditive
+from models import Project, Order, OrderItem, OrderItemSubDetail, ProjectStatus, OrderStatus, OrderType, FinishedProduct, StockSource, OrderGipsAdditive
 from schemas import ProjectCreate, OrderCreate
 
 
@@ -1021,6 +1021,33 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
             notes=item_data.notes
         )
         db.add(db_item)
+
+        # Ichki qo'shimcha detallar (masalan karniz ichidagi rebristo
+        # qism) — faqat Profil turidagi detallarda bo'ladi. Alohida
+        # ombor zaxirasi yo'q: hajmi shu OrderItem'ning o'z hajmiga
+        # _item_volume_m3() ichida avtomatik qo'shiladi (parent bilan
+        # bir xil penoplast_id/price_per_m3 orqali). Narxi — frontend
+        # tomonidan ALLAQACHON parent unit_price'ga qo'shib yuborilgan
+        # (Yuk xatida alohida qator chiqmasin uchun); bu yerda faqat
+        # audit/qayta-tahrirlash uchun saqlanadi.
+        import services as _svc_create
+        _sub_base_price = float(getattr(item_data, 'price_per_m3', None) or order_data.base_price or 0)
+        for sub_data in (getattr(item_data, 'sub_details', None) or []):
+            sub_vol, sub_price = _svc_create._calc_dim_volume_price(
+                sub_data.category, sub_data.width, sub_data.thickness,
+                sub_data.length, sub_data.quantity, _sub_base_price, sub_data.is_coated
+            )
+            db_item.sub_details.append(OrderItemSubDetail(
+                name=sub_data.name,
+                category=sub_data.category,
+                width=sub_data.width,
+                thickness=sub_data.thickness,
+                length=sub_data.length,
+                quantity=sub_data.quantity,
+                is_coated=sub_data.is_coated,
+                volume_m3=sub_vol,
+                total_price=sub_price
+            ))
 
         # MUHIM: Termopanel uchun — bazalt/serpiyanka/kley tanlovini
         # DARHOL, yaratilgan zahoti notes'ga yozib qo'yamiz (avval bu —
@@ -2013,7 +2040,17 @@ def delete_order_item(db: Session, item_id: int) -> bool:
             "length": db_item.length,
             "quantity": float(db_item.quantity or 1),
             "unit_price": float(db_item.unit_price or 0),
-            "penoplast_id": db_item.penoplast_id
+            "penoplast_id": db_item.penoplast_id,
+            # MUHIM: ichki qo'shimcha detallar ham shu detal bilan BIRGA
+            # o'chadi — ularning hajmi ham omborga qaytishi kerak, aks
+            # holda shu qismi "yo'qolib" qolardi (buyurtma butunlay
+            # o'chirilganda bunday muammo yo'q, chunki o'sha yo'l
+            # order.items to'liq ro'yxatini o'qiydi — bu yerda esa FAQAT
+            # shu bitta detal, shuning uchun aniq shu yerda qo'shishimiz kerak).
+            "sub_details": [{
+                "category": s.category, "width": s.width, "thickness": s.thickness,
+                "length": s.length, "quantity": s.quantity,
+            } for s in (db_item.sub_details or [])],
         }]
         services.adjust_inventory_diff(db, old_snap, [], order_id=db_item.order_id)
         # Termopanel (bazalt/serpiyanka/kley) — detal butunlay o'chirilganda
@@ -3114,6 +3151,13 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "serpiyanka_item_id": _parse_termo_note(i.notes, 'serp_id'),
         "kley_kg": _parse_termo_note(i.notes, 'kley_qty', is_float=True),
         "termo_loy_kg": _parse_termo_note(i.notes, 'loy_kg', is_float=True),
+        # Ichki qo'shimcha detallar — omborni FARQ bo'yicha to'g'ri
+        # hisoblash uchun (bo'lmasa, tahrirlashda ularning hajmi "yo'q
+        # bo'lib qolgandek" hisoblanib, xomashyo noto'g'ri qaytarilardi).
+        "sub_details": [{
+            "category": s.category, "width": s.width, "thickness": s.thickness,
+            "length": s.length, "quantity": s.quantity,
+        } for s in (i.sub_details or [])],
     } for i in order.items]
 
     # "Loy sotish" — eski holatni recipe_id bo'yicha jamlab olamiz (keyinroq
@@ -3139,6 +3183,10 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "kley_item_id": getattr(it, 'kley_item_id', None),
         "kley_kg": getattr(it, 'kley_kg', None) or 0,
         "termo_loy_kg": getattr(it, 'termo_loy_kg', None) or 0,
+        "sub_details": [{
+            "category": sd.category, "width": sd.width, "thickness": sd.thickness,
+            "length": sd.length, "quantity": sd.quantity,
+        } for sd in (getattr(it, 'sub_details', None) or [])],
     } for it in order_data.items]
 
     is_draft = order.status == OrderStatus.DRAFT
@@ -3269,6 +3317,24 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             oi.notes = _build_termo_notes(db, nd, oi.notes)
         else:
             oi.notes = nd.notes
+
+        # Ichki qo'shimcha detallarni ALMASHTIRAMIZ — eskisini o'chirib
+        # (cascade="all, delete-orphan"), yangisini yozamiz. Ombordagi
+        # FARQ — old_snapshot/new_snapshot orqali, pastda, o'zi to'g'ri
+        # hisoblanadi (sub_details ham shu snapshotlarga kiritilgan).
+        import services as _svc_sub
+        oi.sub_details.clear()
+        _sub_bp = float(getattr(nd, 'price_per_m3', None) or getattr(order_data, 'base_price', None) or 0)
+        for sd in (getattr(nd, 'sub_details', None) or []):
+            sub_vol, sub_price = _svc_sub._calc_dim_volume_price(
+                sd.category, sd.width, sd.thickness, sd.length, sd.quantity, _sub_bp, sd.is_coated
+            )
+            oi.sub_details.append(OrderItemSubDetail(
+                name=sd.name, category=sd.category, width=sd.width, thickness=sd.thickness,
+                length=sd.length, quantity=sd.quantity, is_coated=sd.is_coated,
+                volume_m3=sub_vol, total_price=sub_price
+            ))
+
         keep_ids.add(oi.id)
 
     # Yangi qo'shilgan detallar
@@ -3283,7 +3349,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         # holatidagi kabi, "[TERMO:...]" belgisini shu yerda quramiz
         # (frontend uni hech qachon yubormaydi).
         _new_item_notes = _build_termo_notes(db, nd, nd.notes) if (nd.category or '').lower() == 'termopanel' else nd.notes
-        db.add(OrderItem(
+        _new_oi = OrderItem(
             order_id=order.id,
             name=nd.name,
             category=nd.category,
@@ -3301,7 +3367,19 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             gips_unit=getattr(nd, 'gips_unit', None),
             total_price=item_total,
             notes=_new_item_notes
-        ))
+        )
+        import services as _svc_sub2
+        _sub_bp2 = float(getattr(nd, 'price_per_m3', None) or getattr(order_data, 'base_price', None) or 0)
+        for sd in (getattr(nd, 'sub_details', None) or []):
+            sub_vol, sub_price = _svc_sub2._calc_dim_volume_price(
+                sd.category, sd.width, sd.thickness, sd.length, sd.quantity, _sub_bp2, sd.is_coated
+            )
+            _new_oi.sub_details.append(OrderItemSubDetail(
+                name=sd.name, category=sd.category, width=sd.width, thickness=sd.thickness,
+                length=sd.length, quantity=sd.quantity, is_coated=sd.is_coated,
+                volume_m3=sub_vol, total_price=sub_price
+            ))
+        db.add(_new_oi)
 
     # 5) Buyurtma ma'lumotlarini yangilaymiz
     order.master_id = order_data.master_id

@@ -2931,6 +2931,64 @@ def get_default_penoplast(db: Session):
     ).first()
 
 
+def _sub_detail_field(sub, name, default=None):
+    """OrderItemSubDetail ORM obyekti yoki dict — ikkalasidan ham bir xil
+    tarzda maydon o'qish uchun kichik yordamchi."""
+    if isinstance(sub, dict):
+        return sub.get(name, default)
+    return getattr(sub, name, default)
+
+
+def _calc_dim_volume_price(category, width, thickness, length, quantity, base_price, is_coated=False):
+    """Profil/Panel formulasi bilan hajm (m³) va narxni hisoblaydi.
+    Frontend (orders.html calculateItem()) dagi FORMULA BILAN AYNAN BIR
+    XIL bo'lishi SHART — aks holda hajm/narx serverda boshqacha chiqadi.
+    Asosiy detal ham, ICHKI QO'SHIMCHA detal ham shu bitta formuladan
+    foydalanadi (ikkalasi ham bir xil xomashyodan)."""
+    cat = (category or '').lower()
+    w = float(width or 0)
+    t = float(thickness or 0)
+    l = float(length or 0)
+    q = float(quantity or 1)
+    bp = float(base_price or 0)
+
+    if cat == 'profil':
+        eni_m, keng_m = w / 100, t / 100
+        volume = (eni_m * keng_m * l) / 2
+        per_meter = (eni_m * keng_m * bp) / 2
+        price = per_meter * l
+    elif cat == 'panel':
+        eni_m, qalin_m = w / 100, t / 100
+        volume = eni_m * qalin_m * q
+        per_dona = eni_m * qalin_m * bp
+        price = per_dona * q
+    else:
+        return 0.0, 0.0
+
+    if is_coated:
+        price *= 2
+
+    return volume, price
+
+
+def _sub_details_volume_m3(item) -> float:
+    """Bitta OrderItemning ICHKI QO'SHIMCHA detallari (bor bo'lsa) —
+    jami hajmini (m³) qaytaradi. Har biri O'Z turi (profil/panel)
+    formulasi bilan, lekin PARENT bilan bir xil xomashyo hisobiga."""
+    total = 0.0
+    for sub in (getattr(item, 'sub_details', None) or []):
+        vol, _ = _calc_dim_volume_price(
+            _sub_detail_field(sub, 'category', 'profil'),
+            _sub_detail_field(sub, 'width'),
+            _sub_detail_field(sub, 'thickness'),
+            _sub_detail_field(sub, 'length'),
+            _sub_detail_field(sub, 'quantity'),
+            base_price=0,  # bu yerda faqat HAJM kerak, narx emas
+        )
+        total += vol
+    return total
+
+
 def _item_volume_m3(db, item, default_penoplast=None) -> float:
     """Bitta detalning hajmini (m³) hisoblaydi.
 
@@ -2948,8 +3006,14 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
     qty = float(item.quantity or 1)
 
     if cat == 'profil':
+        vol = 0.0
         if item.width and item.thickness and item.length:
-            return (item.width/100) * (item.thickness/100) / 2 * float(item.length)
+            vol = (item.width/100) * (item.thickness/100) / 2 * float(item.length)
+        # Ichki qo'shimcha detallar (masalan karniz ichidagi rebristo
+        # qism) — bor bo'lsa, hajmiga QO'SHILADI (bir xil xomashyodan,
+        # shuning uchun ombordan yechishda ALOHIDA hisoblanmaydi).
+        vol += _sub_details_volume_m3(item)
+        return vol
     elif cat == 'panel':
         if item.width and item.thickness:
             return (item.width/100) * (item.thickness/100) * qty
@@ -3405,6 +3469,22 @@ class _ProratedItem:
         else:
             self.length = real_item.length
             self.quantity = float(real_item.quantity or 0) * fraction
+
+        # Ichki qo'shimcha detallar — ular ham xuddi shu "qolgan qism"
+        # ulushida (fraction) qaytishi/qayta yechilishi kerak (parent
+        # bilan bir xil xomashyodan bo'lgani uchun, alohida topshirish
+        # ulushi kuzatilmaydi — parentnikiga qarab proratsiya qilinadi).
+        self.sub_details = []
+        for sub in (getattr(real_item, 'sub_details', None) or []):
+            scat = (sub.category or 'profil').lower()
+            sd = {"category": sub.category, "width": sub.width, "thickness": sub.thickness}
+            if scat == 'profil':
+                sd["length"] = float(sub.length or 0) * fraction
+                sd["quantity"] = float(sub.quantity or 1)
+            else:
+                sd["length"] = sub.length
+                sd["quantity"] = float(sub.quantity or 0) * fraction
+            self.sub_details.append(sd)
 
 
 def get_undelivered_items(order):
@@ -3961,6 +4041,9 @@ class _FakeItem:
         self.penoplast_id = d.get('penoplast_id')
         self.price_per_m3 = d.get('price_per_m3')
         self.finished_product_id = d.get('finished_product_id')
+        # Ichki qo'shimcha detallar — dict shaklida keladi (bevosita
+        # _item_volume_m3/_sub_details_volume_m3 buni o'qiy oladi)
+        self.sub_details = d.get('sub_details') or []
 
 
 def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = None) -> list:
