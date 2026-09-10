@@ -3037,7 +3037,13 @@ function toggleFields(row) {
       ['i-w','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
     }
   } else if (type === 'panel') {
-    hW.style.display = 'block'; wW.style.display = 'block';
+    // MUHIM (2026-09): "Kengligi" (i-w) — Panelda hech qachon hajm/narx
+    // formulasida ishlatilmagan (faqat Eni×Qalinlik×Uzunlik hisoblanadi,
+    // pastaroqdagi calculateItem() ga qarang) va tahrirlashda ham
+    // tiklanmagan edi — shuning uchun endi butunlay yashiramiz (ichki
+    // qo'shimcha detal — sub-detail — qatori ham doim shu ikkita
+    // o'lchamni: Eni va Qalinligini so'raydi).
+    hW.style.display = 'block'; wW.style.display = 'none';
     tW.style.display = 'block'; lW.style.display = 'none';
     qW.style.display = 'block';
     if (upW) upW.style.display = 'none';
@@ -3046,6 +3052,7 @@ function toggleFields(row) {
     if (m3Field) m3Field.style.display = '';
     if (coatField) coatField.style.display = '';
     const lEl = row.querySelector('.i-l'); if(lEl) lEl.value = '0';
+    const wEl0 = row.querySelector('.i-w'); if (wEl0 && row.dataset.lastType !== 'panel') wEl0.value = '';
   } else if (type === 'blok') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none';
@@ -3178,9 +3185,8 @@ function toggleFields(row) {
     permLabel.textContent = (type === 'termopanel') ? "1 m² narxi" : (type === 'loy_sotish') ? "1 kg narxi" : "1 metr narxi";
   }
   // "Eni" -> "Bo'yi", "Kengligi" -> "Qalinligi" — FAQAT Profil va Donalikda
-  // (Panelda uchala o'lcham — Eni/Kengligi/Qalinlik — birga ko'rinadi,
-  // shuning uchun Panelga TEGILMAYDI, aks holda ikkita "Qalinlik" nomli
-  // maydon bo'lib, chalkashtirib qo'yardi).
+  // (Panelda "Kengligi" maydoni endi butunlay yashirilgan — yuqoridagi
+  // toggleFields() ga qarang — shuning uchun Panelga TEGILMAYDI).
   const hLabel = row.querySelector('.i-h-label');
   const wLabel = row.querySelector('.i-w-label');
   const useAltNames = (type === 'profil' || type === 'dona');
@@ -4496,8 +4502,12 @@ function collectItems() {
     const fpId = parseInt(row.dataset.fpId) || null;
 
     if (type === 'panel') {
+      // MUHIM (2026-09): "Kengligi" (w) maydoni Panelda hisob-kitobda
+      // ishlatilmagani uchun (faqat Eni×Qalinlik×Uzunlik) endi umuman
+      // yuborilmaydi — oldin bo'sh "width2=..." belgisi notes'ga
+      // yozilardi, uni ham hech kim o'qimasdi.
       items.push({ name, category: type, width: h, thickness: t, length: l,
-                   notes: `width2=${w}`, quantity: qty, unit_price: unitPrice, is_coated: isCoated,
+                   quantity: qty, unit_price: unitPrice, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId });
     } else if (type === 'dona') {
       const donaYieldEl = row.querySelector('.i-donayield');
