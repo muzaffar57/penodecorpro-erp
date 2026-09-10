@@ -4778,15 +4778,20 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
     from models import Inventory
 
     if getattr(item, 'finished_product_id', None):
-        # MUHIM: avval bu yerda shunchaki 0.0 qaytarilardi ("o'z tan narxi
-        # bor" deb yozilgan bo'lsa-da, hech qachon hisoblanmagan edi!).
-        # Endi — mahsulotning ASL (ishlab chiqarilgandagi) tan narxidan,
-        # ishonchli "produced_quantity" asosida hisoblanadi (joriy qoldiq
-        # emas — chunki u, sotilgan/buyurtmaga olingan sari kamayib,
-        # noto'g'ri natija berardi).
+        # FASA 4B: avval bu yerda `cost_price / produced_quantity` ishlatilardi
+        # — bu sotish (`cost_price / joriy_qoldiq`) va buyurtmaga olish/qaytarish
+        # (xomashyoning JONLI narxidan hisoblangan `_fp_stable_unit_cost`)dagi
+        # formuladan farq qilardi, ya'ni bitta mahsulotning "1 birlik tan narxi"
+        # UCH XIL joyda UCH XIL son bo'lardi. Endi hammasi BITTA manbadan —
+        # xomashyoning joriy narxidan hisoblanadigan _fp_stable_unit_cost'dan.
         from models import FinishedProduct
         fp = db.query(FinishedProduct).filter(FinishedProduct.id == item.finished_product_id).first()
         if fp:
+            import crud as _crud_unitcost
+            unit_cost = _crud_unitcost._fp_stable_unit_cost(db, fp)
+            if unit_cost > 0:
+                return unit_cost
+            # Orqaga moslik: xomashyo ma'lumoti yo'q (eski/oddiy) yozuvlar uchun
             base_qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
             if base_qty > 0 and fp.cost_price:
                 return float(fp.cost_price) / base_qty
