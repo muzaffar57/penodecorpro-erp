@@ -274,6 +274,7 @@ def all_staff(request: Request, db: Session = Depends(get_db)) -> User:
 def create_user(db: Session, username: str, password: str,
                 role: UserRole, full_name: str = "") -> User:
     """Yangi foydalanuvchi yaratadi."""
+    username = username.strip()
     # Username band emasligini tekshiramiz
     existing = db.query(User).filter(User.username == username).first()
     if existing:
