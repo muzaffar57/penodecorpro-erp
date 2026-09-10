@@ -149,6 +149,13 @@
 .coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
 .coat-opt.coat-no.active{background:#FCA5A5;color:#7F1D1D}
 .coat-opt.coat-yes.active{background:#86EFAC;color:#14532D}
+/* Ichki qo'shimcha detal qatoridagi Qoplama — asosiy detalning
+   coat-toggle/coat-opt bilan bir xil rang mantig'i, faqat qator ichiga
+   sig'adigan kichikroq o'lchamda (ko'rinish, formulaga tegilmagan). */
+.sd-coat-toggle{display:flex;border:1px solid #ddd;border-radius:6px;overflow:hidden;height:30px}
+.sd-coat-opt{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:pointer;color:#B8B2A5;background:#FAFAF8;transition:all .15s}
+.sd-coat-opt.sd-coat-no.active{background:#FCA5A5;color:#7F1D1D}
+.sd-coat-opt.sd-coat-yes.active{background:#86EFAC;color:#14532D}
 /* Tur — tugma-chip guruhi (dropdown o'rniga, hammasi ochiq ko'rinadi) */
 .type-toggle{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .type-opt{
@@ -2911,6 +2918,20 @@ function setCoating(el, isCoated) {
   onCoatToggle(row);
 }
 
+// Ichki qo'shimcha detal qatoridagi Qoplama — asosiy detalnikidan ALOHIDA
+// (har bir sub-detail qatori o'zining Yo'q/Bor holatini saqlaydi), shuning
+// uchun setCoating()dan farqli — faqat SHU qatorning ichida qidiradi.
+// Ko'rinish (qizil/yashil) o'zgardi, xolos — hisob-kitob (calcSubDetailRow)
+// hamon xuddi shu yashirin <select class="sd-c"> qiymatini o'qiydi.
+function setSubDetailCoating(el, isCoated) {
+  const subRow = el.closest('.subdetail-row');
+  const select = subRow.querySelector('.sd-c');
+  select.value = isCoated ? 'true' : 'false';
+  subRow.querySelectorAll('.sd-coat-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  calculateItem(subRow.closest('.detal'));
+}
+
 // Tur — tugma-chip tanlash (dropdown o'rniga). Yashirin <select>ga
 // qiymatni yozib, xuddi shu eski toggleFields/calculateItem funksiyalarini
 // chaqiradi — hisob-kitob mantig'i O'ZGARMAYDI, faqat kirish usuli.
@@ -3318,9 +3339,13 @@ function addSubDetailRow(detalRow, prefill) {
     <div class="sd-q-wrap" style="flex:1;min-width:70px;display:none"><label style="font-size:11px;color:#8a6a45">Miqdor</label>
       <input type="number" class="sd-q" step="0.5" value="1" min="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
     </div>
-    <div style="flex:1;min-width:80px"><label style="font-size:11px;color:#8a6a45">Qoplama</label>
-      <select class="sd-c" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" onchange="calculateItem(this.closest('.detal'))">
-        <option value="false">Yo'q</option>
+    <div style="flex:1;min-width:100px"><label style="font-size:11px;color:#8a6a45">Qoplama</label>
+      <div class="sd-coat-toggle">
+        <div class="sd-coat-opt sd-coat-no active" onclick="setSubDetailCoating(this, false)">Yo'q</div>
+        <div class="sd-coat-opt sd-coat-yes" onclick="setSubDetailCoating(this, true)">Bor (×2)</div>
+      </div>
+      <select class="sd-c" style="display:none">
+        <option value="false" selected>Yo'q</option>
         <option value="true">Bor (×2)</option>
       </select>
     </div>
@@ -3337,6 +3362,8 @@ function addSubDetailRow(detalRow, prefill) {
     sub.querySelector('.sd-l').value = prefill.length || '';
     sub.querySelector('.sd-q').value = prefill.quantity || 1;
     sub.querySelector('.sd-c').value = prefill.is_coated ? 'true' : 'false';
+    sub.querySelectorAll('.sd-coat-opt').forEach(o => o.classList.toggle('active',
+      o.classList.contains(prefill.is_coated ? 'sd-coat-yes' : 'sd-coat-no')));
     onSubDetailTypeChange(sub.querySelector('.sd-type'));
   }
   calculateItem(detalRow);
