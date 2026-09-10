@@ -2289,12 +2289,14 @@ async function loadGipsInventoryOptions() {
   try {
     gipsInvCache = await fetch('/api/inventory').then(r => r.json());
   } catch(e) { gipsInvCache = []; }
-  // MUHIM: faqat kategoriyasi "Gips" deb belgilangan materiallar ko'rinadi
-  // (butun ombor emas) — shunda ro'yxat qisqa, aniq va tegishli bo'ladi.
-  const gipsOnly = gipsInvCache.filter(i => (i.category || '') === 'Gips');
-  const sorted = [...gipsOnly].sort((a,b) => a.item_name.localeCompare(b.item_name));
+  // MUHIM (2026-09): ro'yxat endi kategoriyaga qarab CHEKLANMAYDI — Termopanel
+  // (Bazalt) tanlovidagi kabi, butun ombordan istalgan nomdagi materialni
+  // tanlash mumkin. Sababi: kategoriyani "Gips" deb aniq belgilash — mijozga
+  // bog'liq inson omili; agar u boshqacha nomlansa/kategoriyalansa, ro'yxat
+  // butunlay bo'sh chiqib, Gips buyurtmasini yaratib bo'lmay qolar edi.
+  const sorted = [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
   const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
-  const emptyMsg = sorted.length ? '' : '<option value="" disabled>Omborxonada "Gips" kategoriyali material yo\'q</option>';
+  const emptyMsg = sorted.length ? '' : '<option value="" disabled>Omborda xomashyo yo\'q — avval kirim qiling</option>';
 
   const mainSel = document.getElementById('gips_inventory_id');
   if (mainSel) {
@@ -2314,7 +2316,8 @@ async function loadGipsInventoryOptions() {
 function addGipsAdditive(prefillId, prefillQty) {
   const list = document.getElementById('gips-additives-list');
   if (!list) return;
-  const sorted = gipsInvCache ? [...gipsInvCache].filter(i => (i.category || '') === 'Gips').sort((a,b) => a.item_name.localeCompare(b.item_name)) : [];
+  // Bosh Gips tanlovi bilan bir xil — endi kategoriyaga qarab CHEKLANMAYDI.
+  const sorted = gipsInvCache ? [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name)) : [];
   const opts = sorted.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'gips-add-row';
