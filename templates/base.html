@@ -203,6 +203,13 @@
       </a>
       {% endif %}
 
+      {% if role == 'manager' %}
+      <a href="/ustalar" class="nav-item {% if active_page == 'ustalar' %}active{% endif %}">
+        <i class="ti ti-users n-ico"></i>
+        <span class="n-txt">Ustalar</span>
+      </a>
+      {% endif %}
+
       {% if role in ['admin', 'accountant'] %}
       <a href="/debts" class="nav-item {% if active_page == 'debts' %}active{% endif %}">
         <i class="ti ti-credit-card n-ico"></i>
