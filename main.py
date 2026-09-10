@@ -2138,7 +2138,27 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "delivery_unit": i.delivery_unit,
             "price_per_unit_final": round(float(i.total_price or 0) / i.order_qty_normalized) if i.order_qty_normalized else 0,
             "cost_price_per_unit": services.get_order_item_unit_cost(db, order, i),
-            "cost_price_per_unit_no_coating": services.get_order_item_unit_cost(db, order, i, include_coating=False)
+            "cost_price_per_unit_no_coating": services.get_order_item_unit_cost(db, order, i, include_coating=False),
+            # MUHIM: Ichki qo'shimcha detallar — bu yerga QO'SHILMASA, bu
+            # endpoint (buyurtmani TAHRIRLASH uchun ochilganda ishlatiladi)
+            # ularni frontendga umuman yubormaydi. Natijada: tahrirlash
+            # formasi ochilganda ichki detal ko'rinmay qoladi VA agar shu
+            # holatda saqlansa — mavjud ichki detal (narxi bilan birga)
+            # BUTUNLAY YO'QOLIB QOLARDI (update_order_full() bo'sh ro'yxat
+            # bilan eskisini almashtiradi). Shuning uchun bu yerda ham,
+            # OrderItemRead (schemas.py) bilan bir xil shaklda, qaytariladi.
+            "sub_details": [{
+                "id": sd.id,
+                "name": sd.name,
+                "category": sd.category,
+                "width": sd.width,
+                "thickness": sd.thickness,
+                "length": sd.length,
+                "quantity": sd.quantity,
+                "is_coated": sd.is_coated,
+                "volume_m3": float(sd.volume_m3 or 0),
+                "total_price": float(sd.total_price or 0),
+            } for sd in (i.sub_details or [])]
         } for i in order.items],
         "payments": [{
             "id": p.id,
