@@ -2089,8 +2089,6 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
                 # holatidan qat'iy nazar). Gips o'z, alohida bo'limida
                 # (pastda) hisoblanadi.
                 continue
-            if not item.is_coated:
-                continue
             if item.finished_product_id:
                 # MUHIM: bu detal "Tayyor mahsulotdan" tanlangan (ombordagi
                 # mavjud zaxiradan olingan) — uning ishlab chiqarilishi
@@ -2099,6 +2097,33 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
                 # Shu buyurtmada YANA hisoblasak — IKKI MARTA to'lagan
                 # bo'lardik, shuning uchun BU YERDA o'tkazib yuboriladi.
                 continue
+
+            # MUHIM: Ichki qo'shimcha detallar (sub_details) — bularning
+            # qoplama holati ASOSIY detalning is_coated'idan TO'LIQ
+            # MUSTAQIL (xodim har bir ichki detalni alohida belgilaydi).
+            # Shuning uchun bu tekshiruv "if not item.is_coated: continue"
+            # dan OLDIN, alohida turadi — aks holda: (a) asosiy qoplamasiz
+            # bo'lgan holatda uning qoplamali ichki detali umuman
+            # hisoblanmay qolardi, (b) asosiy qoplamali bo'lgan holatda esa
+            # ichki detal HAM qoplamali bo'lsa, o'sha ichki ishning o'zi
+            # hech qachon qo'shilmas edi (qoplamachi kam to'lov olardi).
+            # Aksincha — ichki detal qoplamasiz bo'lsa, asosiy qoplamali
+            # bo'lishidan qat'iy nazar, HECH QACHON qo'shilmaydi (mijozdan
+            # olinmagan pul uchun xodimga ortiqcha to'lanmasligi kerak).
+            for sub in (item.sub_details or []):
+                if not getattr(sub, 'is_coated', False):
+                    continue
+                sub_cat = (getattr(sub, 'category', None) or '').lower()
+                if sub_cat == 'panel':
+                    jami_panel_metr += float(getattr(sub, 'quantity', 0) or 0)
+                else:  # 'profil' (standart)
+                    _sub_len = float(getattr(sub, 'length', 0) or 0)
+                    _sub_qty = float(getattr(sub, 'quantity', 1) or 1)
+                    jami_metr += _sub_len * _sub_qty
+
+            if not item.is_coated:
+                continue
+
             category = (item.category or "").lower()
             if category in ["profil", "karniz"]:
                 # Profil: uzunlik (m) × miqdor
