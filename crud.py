@@ -1032,10 +1032,15 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
         # audit/qayta-tahrirlash uchun saqlanadi.
         import services as _svc_create
         _sub_base_price = float(getattr(item_data, 'price_per_m3', None) or order_data.base_price or 0)
+        # MUHIM: Qoplama — ichki detal ALOHIDA tanlamaydi, HAR DOIM
+        # asosiy detalning (item_data.is_coated) qoplama holatidan MEROS
+        # oladi (frontend ham shunday yuboradi, lekin bu yerda — server
+        # tomonida — QAYTA, ishonchli tarzda majburlanadi).
+        _sub_coated = bool(item_data.is_coated)
         for sub_data in (getattr(item_data, 'sub_details', None) or []):
             sub_vol, sub_price = _svc_create._calc_dim_volume_price(
                 sub_data.category, sub_data.width, sub_data.thickness,
-                sub_data.length, sub_data.quantity, _sub_base_price, sub_data.is_coated
+                sub_data.length, sub_data.quantity, _sub_base_price, _sub_coated
             )
             db_item.sub_details.append(OrderItemSubDetail(
                 name=sub_data.name,
@@ -1044,7 +1049,7 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
                 thickness=sub_data.thickness,
                 length=sub_data.length,
                 quantity=sub_data.quantity,
-                is_coated=sub_data.is_coated,
+                is_coated=_sub_coated,
                 volume_m3=sub_vol,
                 total_price=sub_price
             ))
@@ -3325,13 +3330,16 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         import services as _svc_sub
         oi.sub_details.clear()
         _sub_bp = float(getattr(nd, 'price_per_m3', None) or getattr(order_data, 'base_price', None) or 0)
+        # Qoplama — ichki detal HAR DOIM asosiy detalning (nd.is_coated)
+        # qoplama holatidan meros oladi (server tomonida majburlanadi)
+        _sub_coated = bool(nd.is_coated)
         for sd in (getattr(nd, 'sub_details', None) or []):
             sub_vol, sub_price = _svc_sub._calc_dim_volume_price(
-                sd.category, sd.width, sd.thickness, sd.length, sd.quantity, _sub_bp, sd.is_coated
+                sd.category, sd.width, sd.thickness, sd.length, sd.quantity, _sub_bp, _sub_coated
             )
             oi.sub_details.append(OrderItemSubDetail(
                 name=sd.name, category=sd.category, width=sd.width, thickness=sd.thickness,
-                length=sd.length, quantity=sd.quantity, is_coated=sd.is_coated,
+                length=sd.length, quantity=sd.quantity, is_coated=_sub_coated,
                 volume_m3=sub_vol, total_price=sub_price
             ))
 
@@ -3370,13 +3378,14 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         )
         import services as _svc_sub2
         _sub_bp2 = float(getattr(nd, 'price_per_m3', None) or getattr(order_data, 'base_price', None) or 0)
+        _sub_coated2 = bool(nd.is_coated)
         for sd in (getattr(nd, 'sub_details', None) or []):
             sub_vol, sub_price = _svc_sub2._calc_dim_volume_price(
-                sd.category, sd.width, sd.thickness, sd.length, sd.quantity, _sub_bp2, sd.is_coated
+                sd.category, sd.width, sd.thickness, sd.length, sd.quantity, _sub_bp2, _sub_coated2
             )
             _new_oi.sub_details.append(OrderItemSubDetail(
                 name=sd.name, category=sd.category, width=sd.width, thickness=sd.thickness,
-                length=sd.length, quantity=sd.quantity, is_coated=sd.is_coated,
+                length=sd.length, quantity=sd.quantity, is_coated=_sub_coated2,
                 volume_m3=sub_vol, total_price=sub_price
             ))
         db.add(_new_oi)
