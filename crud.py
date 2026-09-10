@@ -1421,6 +1421,23 @@ def mark_order_ready(db: Session, order_id: int) -> dict:
                 for item in db_order.items
                 if item.is_coated and (item.category or '').lower() != 'termopanel'
             )
+            # MUHIM: Ichki qo'shimcha detallar (sub_details) — bularning
+            # qoplama holati ASOSIY detalning is_coated'idan MUSTAQIL.
+            # Shuning uchun bu yerda ALOHIDA, o'z is_coated bayrog'i
+            # tekshirilib qo'shiladi — aks holda ichki detal qoplamali
+            # bo'lsa-yu, asosiy detal qoplamasiz bo'lsa (yoki aksincha),
+            # uning qoplama xomashyosi ombordan yechilmay qolar edi.
+            for _item in db_order.items:
+                if (_item.category or '').lower() == 'termopanel':
+                    continue
+                for _sub in (_item.sub_details or []):
+                    if not getattr(_sub, 'is_coated', False):
+                        continue
+                    _sub_cat = (getattr(_sub, 'category', None) or '').lower()
+                    if _sub_cat == 'panel':
+                        total_coated_qty += float(getattr(_sub, 'quantity', 0) or 0)
+                    else:  # 'profil' (standart)
+                        total_coated_qty += float(getattr(_sub, 'length', 0) or 0) * float(getattr(_sub, 'quantity', 1) or 1)
 
             # Retsept asosida har bir komponentni hisoblaymiz
             # batch_size_kg uchun retsept bor, total_coated_qty metr uchun
@@ -1460,6 +1477,18 @@ def mark_order_ready(db: Session, order_id: int) -> dict:
             total_meters = sum(
                 (item.length or 0) * item.quantity for item in db_order.items if item.is_coated
             )
+            # MUHIM: Ichki qo'shimcha detallar — o'z is_coated bayrog'i
+            # asosiy detaldan MUSTAQIL, shuning uchun ALOHIDA hisoblanadi
+            # (yuqoridagi Qoplamachi bonusi bilan bir xil mantiq).
+            for _item in db_order.items:
+                for _sub in (_item.sub_details or []):
+                    if not getattr(_sub, 'is_coated', False):
+                        continue
+                    _sub_cat = (getattr(_sub, 'category', None) or '').lower()
+                    if _sub_cat == 'panel':
+                        total_meters += float(getattr(_sub, 'quantity', 0) or 0)
+                    else:  # 'profil' (standart)
+                        total_meters += float(getattr(_sub, 'length', 0) or 0) * float(getattr(_sub, 'quantity', 1) or 1)
             meter_bonus = total_meters * 1000
             total_kpi = cashback + meter_bonus
             kpi_info = {
