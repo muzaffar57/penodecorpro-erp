@@ -3767,52 +3767,15 @@ def take_loy_from_stock(db: Session, recipe, kg_needed: float, order=None, reaso
     return taken, kg_needed - taken, msg
 
 
-def deduct_raw_material_for_finished_product_brak(db: Session, fp, brak_qty: float) -> list:
-    """Tayyor mahsulot ISHLAB CHIQARISH jarayonidagi brak uchun xomashyoni
-    ombordan yechadi. FAQAT Profil/Panel/Donali/Blok turkumlari uchun
-    (Termopanel va Gips — alohida funksiyalar bilan ishlanadi).
-
-    MUHIM: bu fp.quantity (SOTILADIGAN qoldiq)ga UMUMAN TEGMAYDI —
-    chunki yakuniy yetkaziladigan/omborga tushadigan miqdor o'zgarmaydi
-    (usta brak bo'lgan qismni qayta ishlab chiqargan) — faqat shu
-    QO'SHIMCHA sarflangan xomashyoni hisobga oladi.
-
-    fp.unit_volume_m3 va fp.unit_loy_kg — ishlab chiqarilganda BIR MARTA
-    hisoblab saqlab qo'yilgan, o'zgarmas "1 birlikka qancha xomashyo"
-    nisbatlari (modeldagi izohga qarang)."""
-    from models import Inventory, InventoryMovement
-
-    log = []
-    if brak_qty <= 0 or not fp:
-        return log
-
-    # 1) Penoplast — agar shu mahsulot uchun hajm/manba saqlangan bo'lsa
-    if fp.unit_volume_m3 and fp.unit_volume_m3 > 0 and fp.penoplast_id:
-        brak_volume = fp.unit_volume_m3 * brak_qty
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
-        if p and p.volume_per_unit and p.volume_per_unit > 0:
-            blocks = brak_volume / float(p.volume_per_unit)
-            old_qty = float(p.stock_quantity or 0)
-            p.stock_quantity = max(0, old_qty - blocks)
-            db.add(InventoryMovement(
-                inventory_id=p.id, item_name=p.item_name, movement_type="out",
-                quantity=blocks, unit=p.unit,
-                reason=f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)",
-            ))
-            log.append(f"{p.item_name}: -{blocks:.3f} blok (ishlab chiqarish brak uchun)")
-
-    # 2) Loy (qoplama) — faqat qoplamali mahsulot bo'lsa va nisbat saqlangan bo'lsa
-    if fp.is_coated and fp.unit_loy_kg and fp.unit_loy_kg > 0:
-        brak_loy_kg = fp.unit_loy_kg * brak_qty
-        if brak_loy_kg > 0:
-            loy_log = deduct_loy_ingredients(
-                db, None, brak_loy_kg, recipe_id=fp.recipe_id,
-                reason_override=f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {brak_qty:g} birlik)"
-            )
-            log.extend([f"{l} (ishlab chiqarish brak — qoplama)" for l in loy_log])
-
-    db.commit()
-    return log
+# MUHIM (2026-09 — Fasa 3, brak-yozish konsolidatsiyasi): deduct_raw_material_
+# for_finished_product_brak() shu yerda bo'lgan — yagona chaqiruvchisi
+# crud.create_finished_product_brak() (Qaytarishlar sahifasi, "Ishlab
+# chiqarishdan brak") olib tashlangani sabab, bu funksiya ham endi
+# ishlatilmaydi va olib tashlandi. O'rniga: record_finished_product_
+# production_brak() (crud.py) — Tayyor mahsulotlar sahifasi — ishlatiladi,
+# u xuddi shu ishni (qo'shimcha xomashyoni ombordan ayirish, mahsulot
+# soniga tegmasdan) qiladi, ammo ombor yetarliligini oldindan tekshiradi
+# va InventoryMovement'ni izchil qayd etadi.
 
 
 def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float, coating_applied: bool) -> list:

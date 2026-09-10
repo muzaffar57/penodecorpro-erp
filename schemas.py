@@ -776,13 +776,6 @@ class ReturnItemCreate(BaseModel):
     gips_kg_used: Optional[float] = Field(default=None, description="GIPS brak uchun — taxminan qancha gips ketgani")
 
 
-class FinishedProductBrakCreate(BaseModel):
-    """Tayyor mahsulot ISHLAB CHIQARISH jarayonidagi brak — buyurtmasiz,
-    to'g'ridan-to'g'ri ishlab chiqarilgan mahsulot uchun."""
-    finished_product_id: int
-    quantity: float
-    notes: Optional[str] = None
-
 class ReturnItemRead(BaseModel):
     id: int
     order_id: Optional[int] = None
