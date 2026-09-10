@@ -62,7 +62,7 @@
 .step-btn2{width:36px;height:36px;border-radius:10px;border:1.5px solid #e5e5e5;background:#fff;font-size:18px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;transition:all .15s}
 .step-btn2:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .dlv-inp:focus{border-color:#B9783F !important}
-.ord-item{padding:15px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .15s}
+.ord-item{padding:15px 16px;border-bottom:1.5px solid #E8E3DD;cursor:pointer;transition:background .15s}
 .ord-item:hover{background:#fafaf8}
 .ord-item.active{background:#fdf8f0;border-left:3px solid #B9783F}
 .ord-num{font-size:13px;font-weight:700;color:#B9783F}
@@ -206,10 +206,12 @@ input[type=number]{-moz-appearance:textfield}
               <div class="proj-count">
                 {{ g.orders|length }} ta{% if g.active %} · <span style="color:#F59E0B">{{ g.active }} faol</span>{% endif %}
               </div>
-              {% if g.debt > 0 %}
-              <div class="proj-debt">🔴 {{ "{:,.0f}".format(g.debt/1000000).replace(",", " ") }} mln</div>
-              {% elif g.total > 0 %}
-              <div class="proj-paid">✅ To'langan</div>
+              {% if g.orders|length > 1 %}
+                {% if g.debt > 0 %}
+                <div class="proj-debt">🔴 {{ "{:,.0f}".format(g.debt/1000000).replace(",", " ") }} mln</div>
+                {% elif g.total > 0 %}
+                <div class="proj-paid">✅ To'langan</div>
+                {% endif %}
               {% endif %}
             </div>
           </div>
@@ -243,12 +245,12 @@ input[type=number]{-moz-appearance:textfield}
               {% if dpct > 0 and dpct < 100 %}
               <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
                 <div style="flex:1;height:3px;background:#f0f0f0;border-radius:2px;overflow:hidden">
-                  <div style="height:100%;width:{{ dpct }}%;background:#F59E0B;border-radius:2px"></div>
+                  <div style="height:100%;width:{{ dpct }}%;background:#1D4ED8;border-radius:2px"></div>
                 </div>
-                <span style="font-size:9px;color:#F59E0B;font-weight:600">📦 {{ dpct }}%</span>
+                <span style="font-size:9px;color:#1D4ED8;font-weight:600">📦 {{ dpct }}%</span>
               </div>
               {% elif dpct >= 100 %}
-              <div style="margin-top:5px;font-size:12px;color:#22C55E;font-weight:600">📦 To'liq topshirildi</div>
+              <div style="margin-top:5px;font-size:12px;color:#1D4ED8;font-weight:600">📦 To'liq topshirildi</div>
               {% endif %}
               {% if debt > 0 %}
               <div style="margin-top:3px;font-size:12px;color:#DC2626;font-weight:600">
@@ -460,32 +462,6 @@ input[type=number]{-moz-appearance:textfield}
 
     <!-- TANLANGAN BUYURTMA DETALLARI -->
     <div id="orderDetail" style="display:none">
-      <div class="card">
-        <div class="card-head">
-          <h3 id="od-num">—</h3>
-          <div style="display:flex;gap:6px">
-            <span id="od-status"></span>
-          </div>
-        </div>
-        <div style="padding:12px">
-          <div id="od-items-container">
-            <!-- Detallar bu yerda -->
-          </div>
-        </div>
-      </div>
-
-      <!-- FAYLLAR VA RASMLAR -->
-      <div class="card" style="margin-top:12px">
-        <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3></div>
-        <div style="padding:12px">
-          <label class="dropzone">
-            <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
-            <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG yoki PDF, 8 MB gacha</div>
-            <input type="file" accept="image/*,.pdf" onchange="uploadOrderAttachment(this)">
-          </label>
-          <div class="attach-grid" id="attachGrid"></div>
-        </div>
-      </div>
 
       <!-- DRAFT BANNER -->
       <div id="draftBanner" style="display:none;background:#FEF3C7;border:1.5px solid #FDE68A;border-radius:10px;padding:14px;margin-bottom:12px">
@@ -506,15 +482,15 @@ input[type=number]{-moz-appearance:textfield}
             <span id="dlv-pct-badge" style="font-size:13px;font-weight:600"></span>
             <button class="btn btn-outline btn-sm" id="btn-summary" onclick="openSummaryModal()"
                     style="display:none;border-color:#B9783F;color:#B9783F">🧾 Hisob-kitob</button>
-            <button class="btn btn-green btn-sm" id="btn-quick-deliver" onclick="quickFullDelivery()"
-                    style="display:none">✅ Bir yo'la to'liq topshirish</button>
-            <button class="btn btn-dark btn-sm" id="btn-new-delivery" onclick="openDeliveryModal()">+ Mahsulot topshirish</button>
+            <button class="btn btn-green" id="btn-quick-deliver" onclick="quickFullDelivery()"
+                    style="display:none;padding:10px 18px;font-size:13.5px;font-weight:600;border-radius:9px">✅ Bir yo'la to'liq topshirish</button>
+            <button class="btn btn-dark" id="btn-new-delivery" onclick="openDeliveryModal()" style="padding:10px 18px;font-size:13.5px;font-weight:600;border-radius:9px">+ Qisman topshirish</button>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('dlvBody','dlv-toggle-ic')" title="Yig'ish/yoyish">
-              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="font-size:14px;transition:transform .2s"></i>
+              <i class="ti ti-chevron-down" id="dlv-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
             </button>
           </div>
         </div>
-        <div style="padding:12px" id="dlvBody">
+        <div style="padding:12px;display:none" id="dlvBody">
           <!-- Umumiy progress -->
           <div style="margin-bottom:12px">
             <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
@@ -535,6 +511,36 @@ input[type=number]{-moz-appearance:textfield}
             <span id="dlv-hist-count" style="font-size:13px;color:#aaa"></span>
           </div>
           <div id="dlvHistory"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head" style="cursor:pointer" onclick="toggleSection('odBody', 'od-toggle-ic')">
+          <h3 id="od-num">—</h3>
+          <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+            <span id="od-status"></span>
+            <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('odBody','od-toggle-ic')" title="Yig'ish/yoyish">
+              <i class="ti ti-chevron-down" id="od-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
+            </button>
+          </div>
+        </div>
+        <div style="padding:12px;display:none" id="odBody">
+          <div id="od-items-container">
+            <!-- Detallar bu yerda -->
+          </div>
+        </div>
+      </div>
+
+      <!-- FAYLLAR VA RASMLAR -->
+      <div class="card" style="margin-top:12px">
+        <div class="card-head"><h3><span class="ico-badge purple"><i class="ti ti-photo"></i></span> Fayllar va rasmlar</h3></div>
+        <div style="padding:12px">
+          <label class="dropzone">
+            <div style="font-size:14.5px;color:var(--gold-dark);font-weight:500;margin-top:6px">Fayl yoki rasm yuklang</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">JPG, PNG yoki PDF, 8 MB gacha</div>
+            <input type="file" accept="image/*,.pdf" onchange="uploadOrderAttachment(this)">
+          </label>
+          <div class="attach-grid" id="attachGrid"></div>
         </div>
       </div>
 
@@ -600,8 +606,6 @@ input[type=number]{-moz-appearance:textfield}
         </div>
       </div>
     </div>
-
-    <!-- Bo'sh holat -->
     <div id="emptyMid" class="card" style="display:flex;align-items:center;justify-content:center;flex:1;min-height:200px">
       <div style="text-align:center;color:#bbb">
         <div style="font-size:32px;margin-bottom:8px">🧾</div>
@@ -801,7 +805,7 @@ input[type=number]{-moz-appearance:textfield}
   <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
     <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">📦 Mahsulot topshirish</div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">📦 Qisman topshirish</div>
         <div style="font-size:14px;color:#aaa;margin-top:2px" id="dlv-modal-sub">—</div>
       </div>
       <button onclick="closeDeliveryModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
@@ -2746,6 +2750,12 @@ function addItem() {
           </div>
         </div>
       </div>
+      <div class="dgrp i-subdetails-wrap" style="grid-column:1/-1;display:none;background:#FBF7F0;border:1px dashed #B9783F">
+        <div class="dgrp-title">➕ Ichki qo'shimcha detal (masalan karniz ichidagi rebristo qism)</div>
+        <div style="font-size:12.5px;color:#8a6a45;margin:-4px 0 8px">Xuddi shu xomashyodan hisoblanadi — Yuk xatida ALOHIDA qator sifatida chiqmaydi, hajmi va narxi asosiy detalga qo'shiladi.</div>
+        <div class="subdetail-list"></div>
+        <button type="button" onclick="addSubDetailRow(this.closest('.detal'))" style="margin-top:4px;padding:7px 12px;font-size:13px;border:1px solid #B9783F;background:#fff;color:#A86B36;border-radius:8px;cursor:pointer">+ Ichki qo'shimcha detal qo'shish</button>
+      </div>
       <div class="dgrp i-termo-xomashyo-grp" style="grid-column:1/-1;display:none">
         <div class="dgrp-title">🪨 Xomashyo (Bazalt tizimi)</div>
         <div class="dgrp-row" style="grid-template-columns:repeat(3,1fr)">
@@ -3008,6 +3018,10 @@ function toggleFields(row) {
   if (termoXomashyoGrp) termoXomashyoGrp.style.display = 'none';
   if (penoField) penoField.style.display = '';
 
+  // "Ichki qo'shimcha detal" — faqat Profil (karniz) turida ko'rinadi
+  const subDetailsWrap = row.querySelector('.i-subdetails-wrap');
+  if (subDetailsWrap) subDetailsWrap.style.display = (type === 'profil') ? '' : 'none';
+
   if (type === 'dona') {
     hW.style.display = 'block'; wW.style.display = 'none';
     tW.style.display = 'block'; lW.style.display = 'none';
@@ -3248,6 +3262,107 @@ function toggleDonaVolLock(row) {
   calculateItem(row);
 }
 
+// ── ICHKI QO'SHIMCHA DETALLAR (masalan karniz ichidagi rebristo qism) ──
+// Faqat Profil turidagi asosiy detallarda ko'rinadi. Har biri o'z turi
+// (profil yoki panel) formulasi bilan hisoblanadi, lekin XUDDI SHU
+// xomashyodan (asosiy detal bilan bir xil plotnost/1m³ narxi) — shuning
+// uchun alohida ombor tanlovi yo'q. Hajmi va narxi — parent detalning
+// umumiy hajmi/narxiga QO'SHIB ko'rsatiladi (calculateItem() ichida),
+// Yuk xatida ALOHIDA qator sifatida hech qachon chiqmaydi.
+let subDetailSeq = 0;
+
+function addSubDetailRow(detalRow, prefill) {
+  const list = detalRow.querySelector('.subdetail-list');
+  if (!list) return;
+  subDetailSeq++;
+  const sub = document.createElement('div');
+  sub.className = 'subdetail-row';
+  sub.dataset.subId = subDetailSeq;
+  sub.style.cssText = 'display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;padding:8px 0;border-top:1px solid #EADFC9';
+  sub.innerHTML = `
+    <div style="flex:2;min-width:110px"><label style="font-size:11px;color:#8a6a45">Nomi (ixtiyoriy)</label>
+      <input type="text" class="sd-name" placeholder="Rebristo detal" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px">
+    </div>
+    <div style="flex:1;min-width:90px"><label style="font-size:11px;color:#8a6a45">Turi</label>
+      <select class="sd-type" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" onchange="onSubDetailTypeChange(this)">
+        <option value="profil">📏 Profil</option>
+        <option value="panel">🔲 Panel</option>
+      </select>
+    </div>
+    <div style="flex:1;min-width:70px"><label style="font-size:11px;color:#8a6a45">Eni (sm)</label>
+      <input type="number" class="sd-w" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+    </div>
+    <div style="flex:1;min-width:70px"><label style="font-size:11px;color:#8a6a45">Qalinligi (sm)</label>
+      <input type="number" class="sd-t" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+    </div>
+    <div class="sd-l-wrap" style="flex:1;min-width:70px"><label style="font-size:11px;color:#8a6a45">Uzunlik (m)</label>
+      <input type="number" class="sd-l" step="0.1" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+    </div>
+    <div class="sd-q-wrap" style="flex:1;min-width:70px;display:none"><label style="font-size:11px;color:#8a6a45">Miqdor</label>
+      <input type="number" class="sd-q" step="0.5" value="1" min="0" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" oninput="calculateItem(this.closest('.detal'))">
+    </div>
+    <div style="flex:1;min-width:80px"><label style="font-size:11px;color:#8a6a45">Qoplama</label>
+      <select class="sd-c" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:6px" onchange="calculateItem(this.closest('.detal'))">
+        <option value="false">Yo'q</option>
+        <option value="true">Bor (×2)</option>
+      </select>
+    </div>
+    <div style="flex:2;min-width:120px;font-size:12px;color:#666" class="sd-info">≈ 0 so'm, 0 m³</div>
+    <button type="button" onclick="this.closest('.subdetail-row').remove();calculateItem(this.closest('.detal'))" style="border:none;background:#FEF2F2;color:#DC2626;width:26px;height:26px;border-radius:6px;cursor:pointer;flex-shrink:0">✕</button>
+  `;
+  list.appendChild(sub);
+
+  if (prefill) {
+    sub.querySelector('.sd-name').value = prefill.name || '';
+    sub.querySelector('.sd-type').value = (prefill.category === 'panel') ? 'panel' : 'profil';
+    sub.querySelector('.sd-w').value = prefill.width || '';
+    sub.querySelector('.sd-t').value = prefill.thickness || '';
+    sub.querySelector('.sd-l').value = prefill.length || '';
+    sub.querySelector('.sd-q').value = prefill.quantity || 1;
+    sub.querySelector('.sd-c').value = prefill.is_coated ? 'true' : 'false';
+    onSubDetailTypeChange(sub.querySelector('.sd-type'));
+  }
+  calculateItem(detalRow);
+}
+
+function onSubDetailTypeChange(sel) {
+  const sub = sel.closest('.subdetail-row');
+  const isPanel = sel.value === 'panel';
+  sub.querySelector('.sd-l-wrap').style.display = isPanel ? 'none' : '';
+  sub.querySelector('.sd-q-wrap').style.display = isPanel ? '' : 'none';
+  calculateItem(sub.closest('.detal'));
+}
+
+function calcSubDetailRow(subRow, basePrice) {
+  const cat = subRow.querySelector('.sd-type').value;
+  const w = parseNum(subRow.querySelector('.sd-w').value) || 0;
+  const t = parseNum(subRow.querySelector('.sd-t').value) || 0;
+  const l = parseNum(subRow.querySelector('.sd-l').value) || 0;
+  const q = parseNum(subRow.querySelector('.sd-q').value) || 1;
+  const coated = subRow.querySelector('.sd-c').value === 'true';
+
+  let volume = 0, price = 0;
+  if (cat === 'panel') {
+    const eni_m = w / 100, qalin_m = t / 100;
+    volume = eni_m * qalin_m * q;
+    price = eni_m * qalin_m * (basePrice || 0) * q;
+  } else {
+    const eni_m = w / 100, keng_m = t / 100;
+    volume = (eni_m * keng_m * l) / 2;
+    price = (eni_m * keng_m * (basePrice || 0) * l) / 2;
+  }
+  if (coated) price *= 2;
+
+  const infoEl = subRow.querySelector('.sd-info');
+  if (infoEl) infoEl.textContent = `≈ ${formatNum(price)} so'm, ${volume.toFixed(4)} m³`;
+
+  return {
+    volume, price, category: cat, width: w, thickness: t,
+    length: l, quantity: q, is_coated: coated,
+    name: subRow.querySelector('.sd-name').value.trim() || null
+  };
+}
+
 function calculateItem(row) {
   const type = row.querySelector('.i-type').value;
   const h = parseFloat(row.querySelector('.i-h').value) || 0;
@@ -3358,7 +3473,21 @@ function calculateItem(row) {
       perMeterPrice = perMeter_base;
     }
     volume_total = (eni_m * keng_m * l) / 2;   // profil — yarim kesim
-    row.querySelector('.i-vol').value = volume_total.toFixed(4);
+
+    // Ichki qo'shimcha detallar (masalan rebristo qism) — hajmi va
+    // narxi ASOSIY detalga QO'SHILADI (Yuk xatida alohida chiqmasin uchun)
+    let subTotalPrice = 0, subTotalVolume = 0;
+    row.querySelectorAll('.i-subdetails-wrap .subdetail-row').forEach(sub => {
+      const r = calcSubDetailRow(sub, basePrice);
+      subTotalPrice += r.price;
+      subTotalVolume += r.volume;
+    });
+    price += subTotalPrice;
+    volume_total += subTotalVolume;
+
+    row.querySelector('.i-vol').value = subTotalVolume > 0
+      ? `${volume_total.toFixed(4)} (asosiy + ${subTotalVolume.toFixed(4)} ichki)`
+      : volume_total.toFixed(4);
     }
   } else if (type === 'panel') {
     if (row.dataset.fpId && row.dataset.fpPrice) {
@@ -4162,6 +4291,11 @@ async function editSelected() {
           row.querySelector('.i-h').value = item.width || 0;
           row.querySelector('.i-w').value = item.thickness || 0;
           row.querySelector('.i-l').value = item.length || 0;
+
+          // Ichki qo'shimcha detallarni tiklaymiz (bor bo'lsa)
+          if (item.sub_details && item.sub_details.length) {
+            item.sub_details.forEach(sd => addSubDetailRow(row, sd));
+          }
         }
 
         const coatEl = row.querySelector('.i-c');
@@ -4446,9 +4580,20 @@ function collectItems() {
                    penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
                    gips_unit: gipsUnit });
     } else {
+      // Profil (karniz) — ichki qo'shimcha detallarni ham yig'ib yuboramiz
+      // (ular Yuk xatida alohida chiqmaydi, ombor hisobi uchun kerak)
+      const effBasePrice = m3price || parseNum(document.getElementById('base_price')?.value || '0') || 0;
+      const subDetails = [];
+      row.querySelectorAll('.i-subdetails-wrap .subdetail-row').forEach(sub => {
+        const r = calcSubDetailRow(sub, effBasePrice);
+        subDetails.push({ name: r.name, category: r.category, width: r.width,
+                           thickness: r.thickness, length: r.length,
+                           quantity: r.quantity, is_coated: r.is_coated });
+      });
       items.push({ name, category: type, width: h, thickness: w, length: l,
                    quantity: qty, unit_price: unitPrice, is_coated: isCoated,
-                   penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId });
+                   penoplast_id: penoId, price_per_m3: (fpId ? null : m3price), finished_product_id: fpId,
+                   sub_details: subDetails });
     }
   });
   return items;
