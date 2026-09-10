@@ -4231,7 +4231,10 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
                 return {"success": False, "message": f"{fp.name}: omborda faqat {available:g} {fp.unit} bor, {item.quantity:g} sota olmaysiz"}
 
             orig_total = item.quantity * item.unit_price
-            unit_cost = (float(fp.cost_price or 0) / available) if available > 0 else 0
+            # FASA 4B: yagona manba — pastdagi izohga qarang (sell_finished_product)
+            unit_cost = _fp_stable_unit_cost(db, fp)
+            if unit_cost <= 0 and available > 0:
+                unit_cost = float(fp.cost_price or 0) / available
             cost_amount = unit_cost * item.quantity
 
             prepared.append({
@@ -4333,8 +4336,15 @@ def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
         return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} sota olmaysiz"}
 
     total_amount = data.quantity * data.unit_price
-    # Sotilgan qismning tan narxi — mahsulotning umumiy tan narxidan proporsional
-    unit_cost = (float(fp.cost_price or 0) / available) if available > 0 else 0
+    # FASA 4B: "1 birlik tan narxi" endi BARCHA joyda (sotish, buyurtmaga
+    # olish/qaytarish, hisobot) BITTA manbadan — _fp_stable_unit_cost'dan
+    # olinadi (xomashyoning joriy narxidan hisoblanadi). Avval bu yerda
+    # `cost_price / available` ishlatilardi — bu boshqa ikkita joydagi
+    # formuladan farq qilib, uchtasi turlicha natija berardi.
+    unit_cost = _fp_stable_unit_cost(db, fp)
+    if unit_cost <= 0 and available > 0:
+        # Orqaga moslik: xomashyo ma'lumoti yo'q (eski/oddiy) yozuvlar uchun
+        unit_cost = float(fp.cost_price or 0) / available
     cost_amount = unit_cost * data.quantity
 
     fp.quantity = available - data.quantity
