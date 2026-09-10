@@ -150,7 +150,7 @@
 .coat-opt.coat-no.active{background:#FCA5A5;color:#7F1D1D}
 .coat-opt.coat-yes.active{background:#86EFAC;color:#14532D}
 /* Tur — tugma-chip guruhi (dropdown o'rniga, hammasi ochiq ko'rinadi) */
-.type-toggle{display:flex;flex-wrap:wrap;gap:6px}
+.type-toggle{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .type-opt{
   padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;
   font-size:12.5px;font-weight:600;color:var(--text2);background:var(--white);
@@ -158,6 +158,12 @@
 }
 .type-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
 .type-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
+/* MUHIM (2026-09): Profil/Panel/Donali — hajm (m³) bo'yicha hisoblanadigan
+   turlar — bitta guruhda birga turadi; qolganlari (Blok, Termopanel,
+   Loy sotish, Gips) — har biri o'z mantig'i bilan alohida hisoblangani
+   uchun ingichka ajratuvchi chiziq bilan bir-biridan ajratilgan. */
+.tur-group{display:flex;flex-wrap:wrap;gap:6px}
+.tur-sep{width:1px;height:22px;background:var(--border);flex-shrink:0}
 /* Raqam maydonlaridagi yuqori/pastga strelkalarni yashiramiz — sichqoncha
    g'ildiragi orqali, tasodifan qiymat o'zgarib ketishining oldini olish
    uchun (qo'shimcha, JS orqali g'ildirakni ham butunlay bloklaymiz). */
@@ -2702,12 +2708,18 @@ function addItem() {
       <div class="dif dif-tur" style="grid-column:1/-1">
         <label>Tur</label>
         <div class="type-toggle" data-for="i-type">
-          <div class="type-opt active" data-value="profil" onclick="selectTypeOpt(this,'profil')">📏 Profil</div>
-          <div class="type-opt" data-value="panel" onclick="selectTypeOpt(this,'panel')">🔲 Panel</div>
-          <div class="type-opt" data-value="dona" onclick="selectTypeOpt(this,'dona')">⭐ Donali</div>
+          <div class="tur-group">
+            <div class="type-opt active" data-value="profil" onclick="selectTypeOpt(this,'profil')">📏 Profil</div>
+            <div class="type-opt" data-value="panel" onclick="selectTypeOpt(this,'panel')">🔲 Panel</div>
+            <div class="type-opt" data-value="dona" onclick="selectTypeOpt(this,'dona')">⭐ Donali</div>
+          </div>
+          <div class="tur-sep"></div>
           <div class="type-opt" data-value="blok" onclick="selectTypeOpt(this,'blok')">🧊 Blok (butun narxda)</div>
+          <div class="tur-sep"></div>
           <div class="type-opt" data-value="termopanel" onclick="selectTypeOpt(this,'termopanel')">🪨 Termopanel (Bazalt)</div>
+          <div class="tur-sep"></div>
           <div class="type-opt" data-value="loy_sotish" onclick="selectTypeOpt(this,'loy_sotish')">🪣 Loy sotish (tayyor holda)</div>
+          <div class="tur-sep"></div>
           <div class="type-opt" data-value="gips" onclick="selectTypeOpt(this,'gips')">🧱 Gips</div>
         </div>
         <select class="i-type" style="display:none" onchange="toggleFields(this.closest('.detal'));calculateItem(this.closest('.detal'))">
@@ -2752,7 +2764,6 @@ function addItem() {
       </div>
       <div class="dgrp i-subdetails-wrap" style="grid-column:1/-1;display:none;background:#FBF7F0;border:1px dashed #B9783F">
         <div class="dgrp-title">➕ Ichki qo'shimcha detal (masalan karniz ichidagi rebristo qism)</div>
-        <div style="font-size:12.5px;color:#8a6a45;margin:-4px 0 8px">Xuddi shu xomashyodan hisoblanadi — Yuk xatida ALOHIDA qator sifatida chiqmaydi, hajmi va narxi asosiy detalga qo'shiladi.</div>
         <div class="subdetail-list"></div>
         <button type="button" onclick="addSubDetailRow(this.closest('.detal'))" style="margin-top:4px;padding:7px 12px;font-size:13px;border:1px solid #B9783F;background:#fff;color:#A86B36;border-radius:8px;cursor:pointer">+ Ichki qo'shimcha detal qo'shish</button>
       </div>
