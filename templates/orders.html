@@ -970,6 +970,19 @@ function saveDraftLS() {
         const cls = Array.from(el.classList).find(c => c.startsWith('i-'));
         if (cls) data[cls] = el.value;
       });
+      // Ichki qo'shimcha detallarni (sub-detail, masalan karniz ichidagi
+      // rebristo qism) ham saqlaymiz — aks holda sahifa qayta yuklanganda
+      // ular yo'qolib qolardi (faqat "sd-" prefiksli klasslar bo'lgani
+      // uchun yuqoridagi "i-" filtridan tashqarida qolar edi).
+      data._subDetails = Array.from(row.querySelectorAll('.subdetail-row')).map(sub => ({
+        name: sub.querySelector('.sd-name')?.value || '',
+        category: sub.querySelector('.sd-type')?.value || 'profil',
+        width: sub.querySelector('.sd-w')?.value || '',
+        thickness: sub.querySelector('.sd-t')?.value || '',
+        length: sub.querySelector('.sd-l')?.value || '',
+        quantity: sub.querySelector('.sd-q')?.value || 1,
+        is_coated: sub.querySelector('.sd-c')?.value === 'true'
+      }));
       return data;
     });
     // Hech narsa yozilmagan bo'lsa (bo'sh forma) — saqlashning hojati yo'q
@@ -985,6 +998,13 @@ function saveDraftLS() {
       recipe_id: document.getElementById('recipe_id')?.value || '',
       base_price: document.getElementById('base_price')?.value || '',
       loy_kg: document.getElementById('loy_kg')?.value || '',
+      // Gips bo'limi maydonlari — ilgari umuman saqlanmagan edi.
+      gips_inventory_id: document.getElementById('gips_inventory_id')?.value || '',
+      gips_kg: document.getElementById('gips_kg')?.value || '',
+      gipsAdditives: Array.from(document.querySelectorAll('#gips-additives-list .gips-add-row')).map(r => ({
+        inv: r.querySelector('.gips-add-inv')?.value || '',
+        qty: r.querySelector('.gips-add-qty')?.value || ''
+      })).filter(a => a.inv),
       rows
     };
     localStorage.setItem(ORDER_DRAFT_LS_KEY, JSON.stringify(draft));
@@ -995,7 +1015,7 @@ function clearDraftLS() {
   try { localStorage.removeItem(ORDER_DRAFT_LS_KEY); } catch (e) {}
 }
 
-function restoreDraftLS(draft) {
+async function restoreDraftLS(draft) {
   showNewForm();
   // Yuqori maydonlarni tiklaymiz
   if (draft.project_id) { const el = document.getElementById('project_id'); if (el) el.value = draft.project_id; }
@@ -1023,10 +1043,17 @@ function restoreDraftLS(draft) {
     }
     // Keyin qolgan barcha maydonlarni to'ldiramiz
     Object.keys(rowData).forEach(cls => {
-      if (cls === 'i-type') return;
+      if (cls === 'i-type' || cls === '_subDetails') return;
       const el = row.querySelector('.' + cls);
       if (el) el.value = rowData[cls];
     });
+    // Ichki qo'shimcha detallarni (sub-detail) tiklaymiz — faqat Profil
+    // turida bo'ladi. addSubDetailRow() aynan shu shakldagi obyektni
+    // (name/category/width/thickness/length/quantity/is_coated) kutadi —
+    // bu buyurtmani tahrirlashda serverdan kelgan sub_details bilan bir xil.
+    if (rowData._subDetails && rowData._subDetails.length) {
+      rowData._subDetails.forEach(sd => addSubDetailRow(row, sd));
+    }
     syncCoatingUI(row, row.querySelector('.i-c')?.value === 'true');
     calculateItem(row);
   });
@@ -1038,6 +1065,27 @@ function restoreDraftLS(draft) {
     updateDetalSummary(r);
     if (idx > 0) r.classList.add('collapsed');
   });
+
+  // GIPS — bo'lim tepadagi qatorlar orasida Gips turi bo'lsa avtomatik
+  // ko'rinadi (checkGipsSectionVisibility() toggleFields() ichida chaqiriladi),
+  // lekin dropdown variantlari ASINXRON yuklanadi — shuning uchun qiymatlarni
+  // qo'yishdan oldin uni kutib turishimiz kerak (tahrirlashda ham xuddi shu
+  // yo'l tutilgan — pastdagi editOrder() ga qarang).
+  if (draft.gips_inventory_id || draft.gips_kg || (draft.gipsAdditives && draft.gipsAdditives.length)) {
+    checkGipsSectionVisibility();
+    await loadGipsInventoryOptions();
+    const gipsKgEl = document.getElementById('gips_kg');
+    if (gipsKgEl && draft.gips_kg) gipsKgEl.value = draft.gips_kg;
+    const gipsInvEl = document.getElementById('gips_inventory_id');
+    if (gipsInvEl && draft.gips_inventory_id) gipsInvEl.value = draft.gips_inventory_id;
+    (draft.gipsAdditives || []).forEach(a => {
+      addGipsAdditive(a.inv);
+      const addRows = document.querySelectorAll('#gips-additives-list .gips-add-row');
+      const lastRow = addRows[addRows.length - 1];
+      const qtyEl = lastRow?.querySelector('.gips-add-qty');
+      if (qtyEl && a.qty) qtyEl.value = a.qty;
+    });
+  }
 
   updateTotal();
   updateLiveStats();
@@ -3094,7 +3142,7 @@ function toggleFields(row) {
     if (bpW) bpW.style.display = 'block';
     if (bmW) bmW.style.display = 'block';
     if (m3Field) m3Field.style.display = 'none';   // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
-    if (coatField) coatField.style.display = '';   // qoplamali/qoplamasiz — faqat yozuv uchun, narxni ko'paytirmaydi
+    if (coatField) coatField.style.display = '';   // qoplamali/qoplamasiz — "Qoplama koeffitsienti" (i-blokmult) orqali narxni haqiqatan ham ko'paytiradi (recalcBlokPrice() ga qarang)
     ['i-h','i-w','i-t'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
   } else if (type === 'termopanel') {
     hW.style.display = 'none'; wW.style.display = 'none';
