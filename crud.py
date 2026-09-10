@@ -1423,6 +1423,12 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
         return None
 
     order = db_item.order
+    # MUHIM (2026-09 audit): o'chirilgan buyurtmaning detalini tahrirlab
+    # bo'lmaydi — aks holda order_qty_normalized/delivery_percent o'chirish
+    # va tiklash orasida o'zgarib, ombor hisobi (Gips/Loy/tayyor mahsulot
+    # qaytarish-qayta yechish simmetriyasi) buzilib qolishi mumkin.
+    if order and order.is_deleted:
+        return None
     is_draft = order.status == OrderStatus.DRAFT if order else False
 
     # Topshirilgandan kam qilib bo'lmaydi
@@ -1930,9 +1936,18 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
 
             # Loy/Gips uchun QOLGAN (topshirilmagan) qism ulushi — o'chirishda
             # QANCHA qaytarilgan bo'lsa, tiklashda AYNAN O'SHA qism qayta
-            # yechiladi (delivery_percent o'zgarmagan, chunki buyurtma
-            # o'chirilgan holatda yetkazishlar qo'shilmaydi).
-            remaining_fraction = max(0.0, 1 - (db_order.delivery_percent or 0) / 100) if has_delivery else 1.0
+            # yechiladi (bu ulush o'zgarmaydi, chunki buyurtma o'chirilgan
+            # holatda yetkazishlar qo'shilmaydi va detallar tahrirlanmaydi —
+            # create_delivery/update_order_item/delete_order_item endi
+            # is_deleted buyurtmalarni rad etadi).
+            # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
+            # delivery_percent EMAS — Loy va Gips uchun ALOHIDA, faqat shu
+            # xomashyoni haqiqatda sarflaydigan detallar bo'yicha hisoblangan
+            # ulush (qarang: main.py'dagi bir xil tuzatish va services.py
+            # dagi loy_relevant_remaining_fraction/gips_relevant_remaining_
+            # fraction izohlari).
+            loy_remaining_fraction = services.loy_relevant_remaining_fraction(db_order) if has_delivery else 1.0
+            gips_remaining_fraction = services.gips_relevant_remaining_fraction(db_order) if has_delivery else 1.0
 
             # Loy (qoplama) — rejalashtirilgan miqdor (yoki QOLGAN ulushi) qayta yechiladi.
             # Eslatma: agar o'chirishda "haqiqatda qancha ishlatilgan edi"
@@ -1940,26 +1955,29 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
             # saqlanmaganligi sabab, bu yerda REJADAGI (standart) miqdor
             # asos qilib olinadi — aksariyat holatlarda bu aynan to'g'ri keladi.
             planned_loy = services._get_planned_loy(db_order) + get_termopanel_planned_loy(db_order)
-            redo_loy = planned_loy * remaining_fraction
+            redo_loy = planned_loy * loy_remaining_fraction
             if redo_loy > 0.01:
                 services.deduct_loy_ingredients(db, db_order, redo_loy)
 
-            # "Loy sotish" detallari — har biri o'z retseptiga ko'ra qayta yechiladi
-            # (faqat hech narsa topshirilmagan bo'lsa — o'chirishdagi bilan bir xil)
-            if not has_delivery:
-                for item in db_order.items:
-                    if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
-                        services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
+            # "Loy sotish" detallari — har biri o'z remaining_qty'i bo'yicha
+            # ALOHIDA qayta yechiladi (o'chirishdagi bilan bir xil, item
+            # darajasida — order-wide has_delivery emas; qarang: yuqoridagi
+            # main.py'dagi bir xil tuzatish).
+            for item in db_order.items:
+                if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
+                    remaining = item.remaining_qty
+                    if remaining > 0.001:
+                        services.deduct_loy_ingredients(db, db_order, float(remaining), recipe_id=item.recipe_id)
 
             # GIPS — rejalashtirilgan miqdor (yoki QOLGAN ulushi, asosiy va
             # qo'shimchalar) qayta yechiladi
             planned_gips = float(db_order.planned_gips_kg or 0)
-            redo_gips = planned_gips * remaining_fraction
+            redo_gips = planned_gips * gips_remaining_fraction
             if redo_gips > 0.01 and db_order.gips_inventory_id:
                 services.deduct_gips_main(db, db_order.gips_inventory_id, redo_gips, db_order, reason=f"Buyurtma tiklandi ({db_order.order_number})")
             gips_adds = db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == db_order.id).all()
-            if gips_adds and remaining_fraction > 0:
-                redo_list = [{"inventory_id": a.inventory_id, "qty": float(a.planned_qty or 0) * remaining_fraction} for a in gips_adds]
+            if gips_adds and gips_remaining_fraction > 0:
+                redo_list = [{"inventory_id": a.inventory_id, "qty": float(a.planned_qty or 0) * gips_remaining_fraction} for a in gips_adds]
                 redo_list = [r for r in redo_list if abs(r["qty"]) > 0.001]
                 if redo_list:
                     services.deduct_gips_additives(db, redo_list, db_order, reason=f"Buyurtma tiklandi ({db_order.order_number})")
@@ -1991,6 +2009,11 @@ def delete_order_item(db: Session, item_id: int) -> bool:
         return False
 
     order = db_item.order
+    # MUHIM (2026-09 audit): o'chirilgan buyurtmaning detalini o'chirib
+    # bo'lmaydi — sabab update_order_item'dagi bilan bir xil (ombor
+    # hisobi simmetriyasini saqlash uchun).
+    if order and order.is_deleted:
+        return False
     is_draft = order.status == OrderStatus.DRAFT if order else False
 
     # O'chiriladigan detalning xomashyosini qaytaramiz
@@ -2307,7 +2330,7 @@ def delete_return_item(db: Session, return_id: int) -> bool:
 def get_return_stats(db: Session) -> dict:
     """Qaytarishlar statistikasi — jami va shu oy bo'yicha."""
     from datetime import datetime
-    from models import ReturnReason
+    from models import ReturnReason, FinishedProductLoss
 
     all_returns = db.query(ReturnItem).all()
     total_count = len(all_returns)
@@ -2321,11 +2344,30 @@ def get_return_stats(db: Session) -> dict:
     # Brak qiymati — jami va shu oy
     brak_items = [r for r in all_returns if r.reason == ReturnReason.DEFECT]
     brak_total_value = sum(float(r.refund_amount or 0) for r in brak_items)
+    brak_total_count = len(brak_items)
 
     now = datetime.utcnow()
     month_brak = [r for r in brak_items if r.returned_at and r.returned_at.year == now.year and r.returned_at.month == now.month]
     brak_month_value = sum(float(r.refund_amount or 0) for r in month_brak)
     brak_month_count = len(month_brak)
+
+    # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): "Ishlab chiqarish
+    # jarayonidagi brak" (Tayyor mahsulotlar sahifasi) endi ReturnItem EMAS,
+    # FinishedProductLoss yaratadi (Fasa 3 konsolidatsiyasidan keyin) —
+    # shuning uchun yuqoridagi hisobga UMUMAN kirmaydi va bu stat-kartalar
+    # brak faoliyatini kam ko'rsatib qo'yardi. Bu yerda ULARNI HAM qo'shib
+    # hisoblaymiz (faqat "ishlab chiqarish braki" belgisi bilan — oddiy
+    # "zaxiradan kamaytirish" bu yerga kirmaydi, u haqiqiy brak emas,
+    # balki alohida yo'qotish turi).
+    _PROD_BRAK_MARKER = "Ishlab chiqarish jarayonida brak"
+    prod_brak_losses = db.query(FinishedProductLoss).filter(
+        FinishedProductLoss.reason.like(f"{_PROD_BRAK_MARKER}%")
+    ).all()
+    brak_total_count += len(prod_brak_losses)
+    brak_total_value += sum(float(l.cost_amount or 0) for l in prod_brak_losses)
+    month_prod_brak = [l for l in prod_brak_losses if l.lost_at and l.lost_at.year == now.year and l.lost_at.month == now.month]
+    brak_month_count += len(month_prod_brak)
+    brak_month_value += sum(float(l.cost_amount or 0) for l in month_prod_brak)
 
     whole_items = [r for r in all_returns if r.reason != ReturnReason.DEFECT]
     month_whole = [r for r in whole_items if r.returned_at and r.returned_at.year == now.year and r.returned_at.month == now.month]
@@ -2336,7 +2378,7 @@ def get_return_stats(db: Session) -> dict:
         "pending_refund": pending_refund,
         "by_reason": by_reason,
         "brak_total_value": round(brak_total_value),
-        "brak_total_count": len(brak_items),
+        "brak_total_count": brak_total_count,
         "brak_month_value": round(brak_month_value),
         "brak_month_count": brak_month_count,
         "whole_month_count": len(month_whole),
@@ -3555,6 +3597,15 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
     order = db.query(Order).filter(Order.id == data.order_id).first()
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
+
+    # MUHIM (2026-09 audit): o'chirilgan (is_deleted) buyurtmaga yetkazish
+    # qo'shishga YO'L QO'YILMAYDI. Bunga yo'l qo'yilsa, buyurtma o'chirilgan
+    # paytda hisoblangan delivery_percent (Gips/Loy proporsional qaytarish
+    # va keyinchalik tiklashda qayta yechish shu foizga tayanadi) o'chirish
+    # va tiklash orasida o'zgarib qolib, ombor hisobini buzib qo'yishi mumkin
+    # edi (masalan eski ochiq varaq yoki to'g'ridan-to'g'ri API chaqiruvi orqali).
+    if order.is_deleted:
+        return {"success": False, "message": "Bu buyurtma o'chirilgan — avval uni tiklang"}
 
     if order.status == OrderStatus.DRAFT:
         return {"success": False, "message": "Qoralama buyurtmani yetkazib bo'lmaydi"}

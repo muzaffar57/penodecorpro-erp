@@ -2394,13 +2394,29 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
         brak_xarajat = 0.0
 
     # Tayyor mahsulot brak/yo'qotishi (masalan sinib qolgan Gips mahsulot) —
-    # bu ham Brak xarajatiga qo'shiladi, xuddi xomashyo brak'i kabi
+    # bu ham Brak xarajatiga qo'shiladi, xuddi xomashyo brak'i kabi.
+    # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): "Ishlab chiqarish
+    # jarayonidagi brak" (record_finished_product_production_brak, Tayyor
+    # mahsulotlar sahifasi) uchun QO'SHIMCHA sarflangan xomashyo (Penoplast/
+    # Loy) IKKI YO'LDA ham qayd etiladi — (1) shu FinishedProductLoss
+    # yozuvining cost_amount'ida VA (2) InventoryMovement'da ("Brak
+    # (ishlab chiqarish) — ..." sababi bilan, get_brak_material_summary()
+    # buni "Brak%" naqshi orqali yig'ib, yuqorida brak_xarajat'ga
+    # allaqachon qo'shib bo'lgan). Shuning uchun bu yerda FAQAT haqiqiy
+    # "zaxiradan kamaytirish" (record_finished_product_loss, xomashyoga
+    # umuman tegmaydi) yozuvlari hisoblanadi — "ishlab chiqarish braki"
+    # yozuvlari BU YERDA hisobga OLINMAYDI, aks holda IKKI MARTA
+    # ayirilib, "Sof foyda" haqiqatdan kamroq ko'rsatilardi.
     from models import FinishedProductLoss as _FPL
+    _PROD_BRAK_MARKER = "Ishlab chiqarish jarayonida brak"
     fp_losses = db.query(_FPL).filter(
         extract('year', _FPL.lost_at) == year,
         extract('month', _FPL.lost_at) == month
     ).all()
-    fp_loss_xarajat = sum(float(l.cost_amount or 0) for l in fp_losses)
+    fp_loss_xarajat = sum(
+        float(l.cost_amount or 0) for l in fp_losses
+        if not (l.reason or '').startswith(_PROD_BRAK_MARKER)
+    )
     brak_xarajat += fp_loss_xarajat
 
     # Jami xarajat (arenda/elektr/tushlik/soliq/reklama/kutilmagan va h.k. — hodim
@@ -2676,13 +2692,21 @@ def calculate_split_profit_report(db: Session, year: int, month: int) -> dict:
     peno_brak = float(_brak_mat.get("penoplast_brak_value", 0))
 
     # 2) Tayyor mahsulot braki (finished.html'dagi "Kamaytirish") — bu
-    #    jadvalning o'zida category maydoni bor, to'g'ridan-to'g'ri ajratamiz
+    #    jadvalning o'zida category maydoni bor, to'g'ridan-to'g'ri ajratamiz.
+    #    MUHIM: "ishlab chiqarish braki" yozuvlari bu yerga KIRMAYDI — ularning
+    #    xomashyo tan narxi yuqorida _brak_mat (get_brak_material_summary,
+    #    InventoryMovement asosida) orqali ALLAQACHON hisoblangan; bu yerda
+    #    ham qo'shilsa, IKKI MARTA hisoblangan bo'lardi (get_monthly_report
+    #    dagi bir xil tuzatishga qarang).
     from models import FinishedProductLoss as _FPL2
+    _PROD_BRAK_MARKER2 = "Ishlab chiqarish jarayonida brak"
     _fp_losses = db.query(_FPL2).filter(
         extract('year', _FPL2.lost_at) == year,
         extract('month', _FPL2.lost_at) == month
     ).all()
     for l in _fp_losses:
+        if (l.reason or '').startswith(_PROD_BRAK_MARKER2):
+            continue
         amt = float(l.cost_amount or 0)
         if (l.category or '').lower() == 'gips':
             gips_brak += amt
@@ -3667,6 +3691,65 @@ def _get_planned_loy(order) -> float:
             except (ValueError, IndexError):
                 pass
     return 0.0
+
+
+def _remaining_fraction_for_items(items) -> float:
+    """Berilgan detallar ro'yxati bo'yicha (ORDER-WIDE emas, faqat SHU
+    detallar bo'yicha) QOLGAN (topshirilmagan) ulushni hisoblaydi —
+    Order.delivery_percent bilan bir xil mantiq, lekin faqat kerakli
+    detal to'plamiga cheklangan holda."""
+    total_ordered = 0.0
+    total_delivered = 0.0
+    for it in items:
+        ordered = it.order_qty_normalized
+        if ordered <= 0:
+            continue
+        total_ordered += ordered
+        total_delivered += min(it.delivered_qty, ordered)
+    if total_ordered <= 0:
+        return 1.0
+    return max(0.0, 1 - total_delivered / total_ordered)
+
+
+def loy_relevant_remaining_fraction(order) -> float:
+    """Buyurtma o'chirilganda/tiklanganda LOY (qoplama) proporsional
+    qaytarish/qayta yechish uchun QOLGAN ulush.
+
+    MUHIM (2026-09 chuqur audit — ikkinchi bosqich): oldin bu yerda
+    butun buyurtmaning ORDER-WIDE Order.delivery_percent'i ishlatilardi —
+    lekin bu, buyurtmada LOY sarflamaydigan detallar (masalan "Tayyor
+    mahsulotdan" olingan yoki qoplamasiz detallar) ham bo'lsa, juda
+    noto'g'ri natija berishi mumkin edi. Masalan: 10 birlik qoplamali
+    profil (loy kerak, hali topshirilmagan) + 990 birlik tayyor
+    mahsulotdan detal (loy kerak emas, to'liq topshirilgan) — bunda
+    order-wide delivery_percent ~99% chiqadi-yu, "qolgan 1%" loy
+    qaytariladi, holbuki HAQIQATDA ~100% qaytishi kerak edi (chunki loy
+    talab qiladigan yagona detal umuman topshirilmagan).
+
+    Endi FAQAT haqiqatda LOY sarflaydigan detallar (qoplamali, termopanel
+    EMAS — uning loyi alohida tizim orqali hisoblanadi — va "Tayyor
+    mahsulotdan" EMAS — uning xomashyosi ishlab chiqarishda allaqachon
+    sarflangan) bo'yicha QOLGAN ulush hisoblanadi."""
+    items = [
+        it for it in (order.items or [])
+        if it.is_coated
+        and (it.category or '').lower() not in ('termopanel', 'loy_sotish', 'gips')
+        and not getattr(it, 'finished_product_id', None)
+    ]
+    if not items:
+        return 1.0
+    return _remaining_fraction_for_items(items)
+
+
+def gips_relevant_remaining_fraction(order) -> float:
+    """Buyurtma o'chirilganda/tiklanganda GIPS proporsional qaytarish/qayta
+    yechish uchun QOLGAN ulush — xuddi loy_relevant_remaining_fraction
+    kabi, lekin FAQAT 'gips' kategoriyali detallar bo'yicha (order-wide
+    emas), xuddi shu sababga ko'ra."""
+    items = [it for it in (order.items or []) if (it.category or '').lower() == 'gips']
+    if not items:
+        return 1.0
+    return _remaining_fraction_for_items(items)
 
 
 def _set_planned_loy(order, kg: float) -> None:

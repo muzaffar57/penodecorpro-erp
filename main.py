@@ -2416,16 +2416,31 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
             if not has_delivery:
                 log.extend(services.return_loy_ingredients(db, order, planned_loy))
             else:
-                remaining_fraction = max(0.0, 1 - (order.delivery_percent or 0) / 100)
+                # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
+                # delivery_percent EMAS — faqat haqiqatda loy sarflaydigan
+                # detallar bo'yicha hisoblangan ulush ishlatiladi (qarang:
+                # services.loy_relevant_remaining_fraction izohi).
+                remaining_fraction = services.loy_relevant_remaining_fraction(order)
                 proportional_loy = planned_loy * remaining_fraction
                 if proportional_loy > 0.01:
                     log.extend(services.return_loy_ingredients(db, order, proportional_loy))
 
-        # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, alohida qaytariladi
-        if not has_delivery:
-            for item in order.items:
-                if (item.category or '').lower() == 'loy_sotish' and item.recipe_id and item.quantity:
-                    log.extend(services.return_loy_ingredients(db, order, float(item.quantity), recipe_id=item.recipe_id))
+        # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, ALOHIDA
+        # (item.remaining_qty asosida) qaytariladi.
+        # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): avval bu butun
+        # buyurtmaning order-wide has_delivery'iga qarab HAMMASI YOKI HECH
+        # NARSA tarzida ishlardi — agar buyurtmadagi BOSHQA bir detal
+        # (masalan profil) qisman topshirilgan bo'lsa, shu "loy sotish"
+        # detali o'zi UMUMAN topshirilmagan bo'lsa ham, uning loyi
+        # UMUMAN qaytmas edi. Endi har bir "loy sotish" detali o'zining
+        # remaining_qty'i (topshirilmagan qismi) bo'yicha, mustaqil
+        # qaytariladi — boshqa detallarning yetkazilish holatidan qat'i
+        # nazar.
+        for item in order.items:
+            if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
+                remaining = item.remaining_qty
+                if remaining > 0.001:
+                    log.extend(services.return_loy_ingredients(db, order, float(remaining), recipe_id=item.recipe_id))
 
         # GIPS — xuddi Loy kabi: reja/haqiqiy solishtirib qaytariladi.
         # actual_gips_kg berilgan bo'lsa — ortgan qismi aniq qaytadi. Berilmagan bo'lsa:
@@ -2433,7 +2448,11 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
         #   - QISMAN topshirilgan bo'lsa — yetkazilgan foizga qarab, QOLGAN qism
         #     uchun mo'ljallangan gips proporsional qaytadi.
         planned_gips = float(order.planned_gips_kg or 0)
-        gips_remaining_fraction = max(0.0, 1 - (order.delivery_percent or 0) / 100) if has_delivery else 1.0
+        # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
+        # delivery_percent EMAS — faqat 'gips' kategoriyali detallar
+        # bo'yicha hisoblangan ulush (qarang: services.gips_relevant_
+        # remaining_fraction izohi — aynan Loy'dagi bilan bir xil sabab).
+        gips_remaining_fraction = services.gips_relevant_remaining_fraction(order) if has_delivery else 1.0
         if planned_gips > 0 and order.gips_inventory_id:
             if actual_gips_kg is not None:
                 diff = planned_gips - float(actual_gips_kg)
