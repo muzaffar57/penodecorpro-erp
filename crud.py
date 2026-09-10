@@ -1389,7 +1389,28 @@ def get_order(db: Session, order_id: int) -> Optional[Order]:
 
 
 def mark_order_ready(db: Session, order_id: int) -> dict:
-    """Buyurtmani 'Tayyor' qilib belgilash + avtomatik mantiq.
+    """⚠️ ISHLATILMAYDI (DEAD CODE) — 2026-09 audit paytida aniqlandi.
+
+    Buyurtmani "Tayyor" qiladigan HAQIQIY, jonli endpoint
+    (main.py: api_mark_order_ready) bu funksiyani EMAS,
+    services.complete_order() ni chaqiradi. Shuning uchun bu yerdagi
+    kod HECH QACHON ishga tushmaydi — butun kodbazada boshqa hech qayerdan
+    chaqirilmaydi (faqat shu izoh ichida tilga olinadi).
+
+    XAVFLI: bu funksiya qoplama xomashyosini services.complete_order() dan
+    BUTUNLAY BOSHQACHA, o'zining qattiq kodlangan (kg_per_meter=0.5)
+    formulasi bilan hisoblaydi va ayiradi. Agar kimdir kelajakda buni
+    (masalan nusxa ko'chirib yoki chaqirib) qayta ishga tushirsa — xuddi
+    o'sha buyurtma uchun xomashyo IKKI MARTA (bir marta shu yerda, yana bir
+    marta services.complete_order orqali) ayirilib qolishi mumkin.
+
+    Bu yerdagi ichki qo'shimcha detal (sub_details) tuzatishlari — 2026-09
+    sessiyasida shu funksiyaga qo'shilgan, lekin HAQIQIY tuzatish
+    services.complete_order() ga (jonli kodga) alohida qo'shildi. Bu
+    funksiya faqat tarixiy/qidiruv maqsadida saqlanmoqda — o'chirish yoki
+    qayta ishga tushirish tavsiya etilmaydi.
+
+    Buyurtmani "Tayyor" qilib belgilash + avtomatik mantiq (ESKI, ISHLATILMAYDI).
 
     MUHIM AVTOMATIKA:
     1. Status -> READY
@@ -1535,6 +1556,16 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
             return None
 
     # Eski holat snapshot
+    # MUHIM (2026-09 audit): "finished_product_id" va "sub_details" ham
+    # SHART qo'shilishi kerak — bo'lmasa, _FakeItem/_item_volume_m3 buni
+    # oddiy xomashyo detali deb hisoblab, (a) "Tayyor mahsulotdan"
+    # tanlangan detal uchun HECH QACHON ombordan chiqmagan hajmni omborga
+    # xato qo'shib yuboradi, (b) ichki qo'shimcha detal borligini
+    # butunlay unutib, uning hajmini diffdan tashlab ketadi.
+    old_sub_details = [{
+        "category": s.category, "width": s.width, "thickness": s.thickness,
+        "length": s.length, "quantity": s.quantity,
+    } for s in (db_item.sub_details or [])]
     old_snap = [{
         "category": db_item.category,
         "width": db_item.width,
@@ -1542,7 +1573,9 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
         "length": db_item.length,
         "quantity": float(db_item.quantity or 1),
         "unit_price": float(db_item.unit_price or 0),
-        "penoplast_id": db_item.penoplast_id
+        "penoplast_id": db_item.penoplast_id,
+        "finished_product_id": db_item.finished_product_id,
+        "sub_details": old_sub_details,
     }]
 
     for field, value in item_data.items():
@@ -1552,7 +1585,10 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
     db_item.total_price = float(db_item.unit_price or 0) * float(db_item.quantity or 1)
     db.flush()
 
-    # Yangi holat snapshot
+    # Yangi holat snapshot — "sub_details" bu funksiya orqali o'zgartirilmaydi
+    # (item_data bunday maydonni yubormaydi), shuning uchun ESKISI bilan BIR
+    # XIL qoladi (aks holda diff ularni "yo'qolgan" deb hisoblab, hajmini
+    # noto'g'ri omborga qaytarib yuborardi).
     new_snap = [{
         "category": db_item.category,
         "width": db_item.width,
@@ -1560,7 +1596,9 @@ def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[Or
         "length": db_item.length,
         "quantity": float(db_item.quantity or 1),
         "unit_price": float(db_item.unit_price or 0),
-        "penoplast_id": db_item.penoplast_id
+        "penoplast_id": db_item.penoplast_id,
+        "finished_product_id": db_item.finished_product_id,
+        "sub_details": old_sub_details,
     }]
 
     # Omborni farq bo'yicha to'g'rilaymiz
@@ -2070,6 +2108,15 @@ def delete_order_item(db: Session, item_id: int) -> bool:
             "quantity": float(db_item.quantity or 1),
             "unit_price": float(db_item.unit_price or 0),
             "penoplast_id": db_item.penoplast_id,
+            # MUHIM (2026-09 audit): "Tayyor mahsulotdan" tanlangan detal
+            # bo'lsa — bu maydon bo'lmasa, _item_volume_m3() buni oddiy
+            # xomashyo detali deb hisoblab, HECH QACHON ombordan chiqmagan
+            # hajmni omborga "qaytarib" (aslida — YARATIB) qo'yar edi.
+            # Butun buyurtma o'chirilganda bu xato yo'q (chunki o'sha yo'l
+            # to'g'ridan-to'g'ri OrderItem obyektidan o'qiydi), lekin bu
+            # yerda FAQAT bitta detal, dict shaklida uzatiladi — shuning
+            # uchun bu maydonni ANIQ shu yerda qo'shish shart.
+            "finished_product_id": db_item.finished_product_id,
             # MUHIM: ichki qo'shimcha detallar ham shu detal bilan BIRGA
             # o'chadi — ularning hajmi ham omborga qaytishi kerak, aks
             # holda shu qismi "yo'qolib" qolardi (buyurtma butunlay
@@ -2905,6 +2952,14 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
         overpaid = round(paid - new_agreed, 2)
         base_notes = _re.sub(r'\s*\[OVERPAID:[\d.]+\]', '', order.notes or '').strip()
         order.notes = (base_notes + f" [OVERPAID:{overpaid}]").strip()
+
+    # MUHIM (2026-09 audit): summa (agreed_amount) shu yerda kamaytirildi —
+    # bu, avvalgi to'lovlarni ENDI "to'liq to'langan"ga aylantirishi mumkin
+    # (masalan mijoz 4.5 mln to'lagan, buyurtma 10 mlndan 4.5 mlnga
+    # tushirilgan). Bu chaqiruv bo'lmasa, buyurtma "Qisman to'langan" deb
+    # ABADIY qolib ketardi va hech qachon avtomatik arxivlanmasdi — garchi
+    # qarzi aslida 0 bo'lsa ham.
+    _update_order_payment_status(db, order)
 
     db.commit()
     db.refresh(order)
@@ -4180,6 +4235,17 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         p.stock_quantity = float(p.stock_quantity) - blocks
         peno_cost = blocks * float(p.price_per_unit or 0)
         log.append(f"{p.item_name}: -{blocks:.2f} blok")
+        # MUHIM (2026-09 audit): oldin bu yerda log_movement() chaqirilmagan
+        # edi — Penoplast kamayishi ombor tarixida (InventoryMovement)
+        # umuman ko'rinmas edi, va "Brak xarajati" hisobotiga (Returns
+        # sahifasidagi get_brak_material_summary, "Brak%" bo'yicha qidiradi)
+        # bu miqdor UMUMAN kirmasdi — brak orqali sarflangan xomashyo
+        # hisobotdan butunlay yashiringan bo'lardi.
+        log_movement(
+            db, p.id, p.item_name, movement_type="out",
+            quantity=blocks, unit=p.unit,
+            reason=f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)"
+        )
 
     # 2) Loy — QO'SHIMCHA ayiriladi (agar qoplama bo'lsa), xuddi shu
     # retseptdan (fp.recipe_id), ishlab chiqarishdagi kabi
@@ -4199,7 +4265,14 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         log.extend(services.deduct_loy_ingredients(
             db, fake, loy_kg_needed, use_stock=False,
             recipe_id=(recipe.id if recipe else None),
-            reason_override=f"Tayyor mahsulot ishlab chiqarish braki: {fp.name}"
+            # MUHIM (2026-09 audit): reason "Brak" bilan boshlanishi SHART —
+            # get_brak_material_summary() aynan "Brak%" naqshi bo'yicha
+            # qidiradi (boshqa "Brak (ishlab chiqarish) — ..." yozuvlari
+            # bilan bir xil uslubda). Avvalgi matn ("Tayyor mahsulot ishlab
+            # chiqarish braki: ...") bu naqshga to'g'ri kelmagani uchun,
+            # shu yo'l orqali yozilgan loy sarfi "Brak xarajati" hisobotidan
+            # butunlay tashqarida qolar edi.
+            reason_override=f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {brak_qty:g} birlik)"
         ))
 
     total_cost = peno_cost + loy_cost
@@ -6574,11 +6647,22 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True) -
     if reverse_stock and p.inventory_id and p.quantity:
         inv = db.query(Inventory).filter(Inventory.id == p.inventory_id).with_for_update().first()
         if inv:
-            inv.stock_quantity = float(inv.stock_quantity or 0) - float(p.quantity)
+            # MUHIM (2026-09 audit): agar shu xariddan kelgan xomashyoning
+            # bir qismi ALLAQACHON ishlab chiqarishda ishlatilgan bo'lsa
+            # (masalan xato kiritilgan yozuvni darrov emas, biroz vaqtdan
+            # keyin o'chirishsa) — bu yerda tekshiruv yo'q edi, zaxira
+            # manfiyga tushib qolar edi. Boshqa joylardagi (masalan
+            # update_stock()) "manfiy bo'lmasin" qoidasiga moslashtirildi.
+            current = float(inv.stock_quantity or 0)
+            new_qty = current - float(p.quantity)
+            if new_qty < 0:
+                new_qty = 0.0
+            inv.stock_quantity = new_qty
             try:
                 log_movement(db, inv.id, inv.item_name, movement_type="out",
                              quantity=float(p.quantity), unit=inv.unit,
-                             reason=f"Xarid o'chirildi (bekor qilindi) — #{purchase_id}")
+                             reason=f"Xarid o'chirildi (bekor qilindi) — #{purchase_id}" +
+                                    (" ⚠️ OGOHLANTIRISH: bu miqdorning bir qismi allaqachon ishlatilgan bo'lishi mumkin — zaxira 0 dan pastga tushirilmadi" if current < float(p.quantity) else ""))
             except Exception:
                 pass
 
