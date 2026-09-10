@@ -1872,11 +1872,16 @@ function pToggle() {
     if (dyW) dyW.style.display = 'block';
     ['p-w','p-l'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
   } else if (type === 'panel') {
-    hW.style.display = 'block'; wW.style.display = 'block';
+    // MUHIM (2026-09): "Kengligi" (p-w) — Panelda hech qachon hajm/narx
+    // formulasida ishlatilmagan (pCalc() dagi 'panel' shoxobchasiga
+    // qarang — faqat Eni×Qalinlik×Uzunlik hisoblanadi), shuning uchun
+    // Buyurtmalar bo'limidagi kabi bu yerda ham butunlay yashiramiz.
+    hW.style.display = 'block'; wW.style.display = 'none';
     tW.style.display = 'block'; lW.style.display = 'none';
     qW.style.display = 'block'; upW.style.display = 'none';
     m3Wrap.style.display = '';
     document.getElementById('p-l').value = '0';
+    const wEl0 = document.getElementById('p-w'); if (wEl0) wEl0.value = '';
   } else if (type === 'blok') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none';
@@ -1908,8 +1913,8 @@ function pToggle() {
   if (qLbl && type !== 'blok') qLbl.textContent = (type === 'panel') ? 'Uzunlik' : 'Miqdor';
   if (qSuffix) qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : 'dona';
   // "Eni" -> "Bo'yi", "Kengligi" -> "Qalinligi" — FAQAT Profil va
-  // Donalikda (Panelda uchala o'lcham birga ko'rinadi, shuning uchun
-  // Panelga TEGILMAYDI — aks holda ikkita "Qalinlik" bo'lib qolardi).
+  // Donalikda (Panelda "Kengligi" maydoni endi butunlay yashirilgan —
+  // yuqoridagi pToggle() ga qarang — shuning uchun Panelga TEGILMAYDI).
   const hLbl = document.getElementById('p-h-label');
   const wLbl = document.getElementById('p-w-label');
   const useAltNames = (type === 'profil' || type === 'dona');
@@ -2125,12 +2130,13 @@ async function saveProduce() {
   };
 
   if (type === 'panel') {
-    // Buyurtmadagi kabi: width=eni, thickness=qalinlik, kenglik notes ga
+    // MUHIM (2026-09): "Kengligi" (w) hisob-kitobda ishlatilmagani uchun
+    // (faqat Eni×Qalinlik×Uzunlik) endi "width2=..." notesga yozilmaydi —
+    // Buyurtmalar bo'limidagi bilan bir xil qoida.
     data.width = h;
     data.thickness = t;
     data.length = null;
     data.quantity = qty;
-    if (w) data.notes = (data.notes ? data.notes + ' · ' : '') + `width2=${w}`;
   } else if (type === 'dona') {
     const donaYieldEl = document.getElementById('p-donayield');
     const donaYield = donaYieldEl ? parseNum(donaYieldEl.value) || 0 : 0;
