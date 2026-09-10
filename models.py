@@ -465,6 +465,7 @@ class OrderItem(Base):
     notes = Column(Text, nullable=True)
 
     order = relationship("Order", back_populates="items")
+    deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan")
 
     # Ichki qo'shimcha detallar (masalan karniz ichidagi rebristo/qo'shimcha
     # profil) — xuddi shu xomashyodan (parent bilan bir xil penoplast_id),
@@ -477,41 +478,6 @@ class OrderItem(Base):
         cascade="all, delete-orphan",
         order_by="OrderItemSubDetail.id"
     )
-
-
-class OrderItemSubDetail(Base):
-    """Asosiy detal (OrderItem) ICHIDAGI qo'shimcha bo'lak — masalan karniz
-    ichidagi rebristo/dekorativ chiziq. Bir nechta bo'lishi mumkin.
-
-    MUHIM: alohida ombor zaxirasi YO'Q — xomashyosi HAR DOIM parent
-    OrderItem bilan BIR XIL (parent.penoplast_id/price_per_m3 orqali
-    hisoblanadi). Faqat hajm (inventarizatsiya uchun) va narx (audit
-    uchun) shu yerda saqlanadi; mijozga ko'rinadigan Yuk xatida bu
-    bo'lak ALOHIDA qator sifatida chiqmaydi — parentga qo'shib ko'rsatiladi."""
-    __tablename__ = "order_item_sub_details"
-
-    id = Column(Integer, primary_key=True, index=True)
-    order_item_id = Column(Integer, ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False, index=True)
-
-    name = Column(String(150), nullable=True)          # masalan "Ichki rebristo detal"
-    category = Column(String(20), nullable=False, default="profil")  # 'profil' yoki 'panel'
-
-    width = Column(Float, nullable=True)
-    thickness = Column(Float, nullable=True)
-    length = Column(Float, nullable=True)
-    quantity = Column(Float, nullable=True, default=1.0)
-    is_coated = Column(Boolean, default=False)
-
-    # Audit uchun — server tomonida hisoblanib saqlanadi (pul hisobiga
-    # to'g'ridan-to'g'ri ta'sir qilmaydi, faqat qayta ko'rish/tahrirlash
-    # uchun ko'rsatiladi)
-    volume_m3 = Column(Float, default=0)
-    total_price = Column(Numeric(12, 2), default=0)
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    order_item = relationship("OrderItem", back_populates="sub_details")
-    deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan")
 
     @property
     def order_qty_normalized(self):
@@ -553,6 +519,43 @@ class OrderItemSubDetail(Base):
 
     def __repr__(self):
         return f"<OrderItem {self.name} x{self.quantity}>"
+
+
+class OrderItemSubDetail(Base):
+    """Asosiy detal (OrderItem) ICHIDAGI qo'shimcha bo'lak — masalan karniz
+    ichidagi rebristo/dekorativ chiziq. Bir nechta bo'lishi mumkin.
+
+    MUHIM: alohida ombor zaxirasi YO'Q — xomashyosi HAR DOIM parent
+    OrderItem bilan BIR XIL (parent.penoplast_id/price_per_m3 orqali
+    hisoblanadi). Faqat hajm (inventarizatsiya uchun) va narx (audit
+    uchun) shu yerda saqlanadi; mijozga ko'rinadigan Yuk xatida bu
+    bo'lak ALOHIDA qator sifatida chiqmaydi — parentga qo'shib ko'rsatiladi."""
+    __tablename__ = "order_item_sub_details"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_item_id = Column(Integer, ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    name = Column(String(150), nullable=True)          # masalan "Ichki rebristo detal"
+    category = Column(String(20), nullable=False, default="profil")  # 'profil' yoki 'panel'
+
+    width = Column(Float, nullable=True)
+    thickness = Column(Float, nullable=True)
+    length = Column(Float, nullable=True)
+    quantity = Column(Float, nullable=True, default=1.0)
+    is_coated = Column(Boolean, default=False)
+
+    # Audit uchun — server tomonida hisoblanib saqlanadi (pul hisobiga
+    # to'g'ridan-to'g'ri ta'sir qilmaydi, faqat qayta ko'rish/tahrirlash
+    # uchun ko'rsatiladi)
+    volume_m3 = Column(Float, default=0)
+    total_price = Column(Numeric(12, 2), default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    order_item = relationship("OrderItem", back_populates="sub_details")
+
+    def __repr__(self):
+        return f"<OrderItemSubDetail {self.name} ({self.category})>"
 
 
 # ============================================================
