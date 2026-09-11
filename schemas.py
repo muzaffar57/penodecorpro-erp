@@ -480,6 +480,10 @@ class FinishedProductSaleCreate(BaseModel):
     buyer_name: Optional[str] = None
     payment_method: str = Field(default="naqd")
     notes: Optional[str] = None
+    # Agar shu sotuv biror ustaga (masalan o'zi kelib xarid qilgan usta)
+    # tegishli bo'lsa — shu usta ID'si, oylik KPI hisobiga qo'shiladi.
+    # Berilmasa (None) — oddiy sotuv, hech kimga KPI yozilmaydi.
+    master_id: Optional[int] = None
 
 
 class FinishedProductSaleBatchItem(BaseModel):
@@ -499,6 +503,9 @@ class FinishedProductSaleBatchCreate(BaseModel):
     # Berilmasa yoki jamiga teng bo'lsa — chegirma yo'q. Jamidan kichik bo'lsa —
     # ayirma proporsional chegirma sifatida har qatorga taqsimlanadi.
     agreed_amount: Optional[float] = Field(default=None, ge=0)
+    # Butun savatcha (bitta Yuk xati) BITTA ustaga tegishli bo'lishi mumkin —
+    # buyer_name kabi, butun tranzaksiyaga umumiy. Oylik KPI hisobiga qo'shiladi.
+    master_id: Optional[int] = None
 
 
 class GipsProduceCreate(BaseModel):
