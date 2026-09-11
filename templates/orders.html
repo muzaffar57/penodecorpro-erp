@@ -4579,8 +4579,17 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           fetch(`/api/finished`).then(r=>r.json()).then(list => {
             const fp = list.find(f => f.id === item.finished_product_id);
             if (fp) {
+              // MUHIM: 'edit' rejimida bu ITEM ombordan ALLAQACHON "used"
+              // miqdorni yechib qo'ygan — shuning uchun haqiqiy limit
+              // fp.quantity + used (o'zining eski ulushini qaytarib olishi
+              // mumkin). LEKIN 'duplicate' rejimida bu — YANGI, alohida
+              // buyurtma: hali hech narsa ombordan yechilmagan, shuning
+              // uchun limit shunchaki joriy qoldiq (fp.quantity) bo'lishi
+              // kerak — aks holda eski buyurtma allaqachon ishlatgan
+              // miqdor QAYTA hisobga olinib, ombor "minus"ga tushib qolishi
+              // mumkin edi.
               const used = (item.category === 'profil') ? (item.length||0) : (item.quantity||0);
-              row.dataset.fpMax = fp.quantity + used;
+              row.dataset.fpMax = isDup ? fp.quantity : (fp.quantity + used);
               // MUHIM: fpPrice'ni ham tiklaymiz — aks holda tahrirlashda,
               // narx buyurtmaning 1m³ narxidan QAYTA hisoblanib, tayyor
               // mahsulotning O'Z narxi (masalan 18 000) buzilib ketardi.
