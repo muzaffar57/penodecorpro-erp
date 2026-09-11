@@ -128,9 +128,14 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
     tugmasi bergan PDF bilan bir xil).
 
     MUHIM: tg_id ko'rsatilmagan bo'lsa — jimgina hech narsa qilmaydi
-    (bu — ixtiyoriy, mijoz uchun qulaylik, majburiy emas). Xato bo'lsa
-    ham — yetkazishning o'zi (ombor/buyurtma holati) HECH QACHON
-    buzilmaydi, faqat log qilinadi (boshqa Telegram yuborishlar kabi)."""
+    (bu — ixtiyoriy, mijoz uchun qulaylik, majburiy emas).
+
+    ZAXIRA YO'L (2026-09): agar PDF generatsiya qilishda yoki Telegram'ga
+    FAYL sifatida yuborishda biror texnik sabab bilan xato chiqsa (masalan
+    PDF kutubxonasi xato bersa, fayl juda katta bo'lsa va h.k.) — mijoz
+    BUTUNLAY xabarsiz qolmasin uchun, o'rniga xuddi shu ma'lumot bilan
+    ODDIY MATN xabar yuboriladi. Ya'ni: avval PDF fayl sifatida urinadi,
+    muvaffaqiyatsiz bo'lsa — matn holida qayta uradi."""
     try:
         d = crud.get_delivery(db, delivery_id)
         if not d or not d.order or not d.order.project:
@@ -142,20 +147,44 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
         if not (tg_id and tg_id.lstrip('-').isdigit()):
             return
 
-        import delivery_pdf
-        pdf_bytes = delivery_pdf.generate_delivery_pdf(d, db)
-
         client = d.order.project.client_name if d.order.project else "—"
-        caption = (
-            f"📄 Yuk xati — {d.delivery_number}\n"
-            f"👤 Mijoz: {client}\n"
-            f"📋 Buyurtma: {d.order.order_number}\n"
-            f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-        )
-        filename = f"nakladnoy_{d.delivery_number.replace('/', '_')}.pdf"
-        _send_telegram_document(tg_id, pdf_bytes, filename, caption, content_type="application/pdf")
+        lines = []
+        for di in d.items:
+            nm = di.order_item.name if di.order_item else "—"
+            lines.append(f"• {nm}: {di.quantity:g} {di.unit}")
+
+        pdf_sent = False
+        try:
+            import delivery_pdf
+            pdf_bytes = delivery_pdf.generate_delivery_pdf(d, db)
+            caption = (
+                f"📄 Yuk xati — {d.delivery_number}\n"
+                f"👤 Mijoz: {client}\n"
+                f"📋 Buyurtma: {d.order.order_number}\n"
+                f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            )
+            filename = f"nakladnoy_{d.delivery_number.replace('/', '_')}.pdf"
+            pdf_sent = _send_telegram_document(tg_id, pdf_bytes, filename, caption, content_type="application/pdf")
+        except Exception as e:
+            print(f"⚠ Yuk xati PDF generatsiya/yuborishda xato — matn bilan almashtiramiz: {e}")
+            try:
+                crud.log_error(db, str(e), endpoint="_send_delivery_pdf_to_customer:pdf")
+            except Exception:
+                pass
+
+        if not pdf_sent:
+            text_msg = (
+                f"📦 *Yuk xati* — {d.delivery_number}\n\n"
+                f"👤 Mijoz: {client}\n"
+                f"📋 Buyurtma: {d.order.order_number}\n\n"
+                + "\n".join(lines)
+                + f"\n\n⚠️ Texnik sabab bilan PDF fayl yuborib bo'lmadi — shuning "
+                  f"uchun ma'lumot matn ko'rinishida yuborildi.\n"
+                f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            )
+            _send_telegram_to(tg_id, text_msg)
     except Exception as e:
-        print(f"⚠ Mijozga Yuk xati PDF yuborilmadi: {e}")
+        print(f"⚠ Mijozga Yuk xati (PDF ham, matn ham) yuborilmadi: {e}")
         try:
             crud.log_error(db, str(e), endpoint="_send_delivery_pdf_to_customer")
         except Exception:
