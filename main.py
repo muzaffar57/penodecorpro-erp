@@ -78,8 +78,12 @@ def _send_telegram_to(chat_id: str, text: str):
     except Exception as e:
         print(f"⚠ Mijozga Telegram xabar yuborilmadi: {e}")
 
-def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, caption: str = ""):
-    """Telegram orqali fayl (masalan zaxira nusxa) yuboradi."""
+def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, caption: str = "",
+                             content_type: str = "application/json"):
+    """Telegram orqali fayl (masalan zaxira nusxa yoki Yuk xati PDF) yuboradi.
+    content_type — fayl turiga mos qiymat berilishi kerak (masalan PDF uchun
+    "application/pdf"); standart qiymat (application/json) — eski, zaxira
+    nusxa funksiyasi bilan mos bo'lishi uchun saqlangan."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token or not chat_id:
         print("⚠ TELEGRAM_BOT_TOKEN yoki chat_id yo'q — fayl yuborilmadi")
@@ -97,7 +101,7 @@ def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, capt
         if caption:
             add_field("caption", caption)
 
-        body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="document"; filename="{filename}"\r\nContent-Type: application/json\r\n\r\n'.encode())
+        body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="document"; filename="{filename}"\r\nContent-Type: {content_type}\r\n\r\n'.encode())
         body.extend(file_bytes)
         body.extend(f'\r\n--{boundary}--\r\n'.encode())
 
@@ -114,6 +118,48 @@ def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, capt
     except Exception as e:
         print(f"⚠ Telegram fayl yuborilmadi: {e}")
         return False
+
+
+def _send_delivery_pdf_to_customer(db, delivery_id: int):
+    """Yetkazish (delivery) uchun Yuk xati (nakladnoy) PDF faylini, agar
+    loyihada mijozning Telegram ID'si ko'rsatilgan bo'lsa ("tg_id=..."
+    — Loyihalar sahifasida kiritiladi), mijozning shaxsiy Telegram
+    chatiga FAYL sifatida yuboradi (xuddi /api/deliveries/{id}/pdf
+    tugmasi bergan PDF bilan bir xil).
+
+    MUHIM: tg_id ko'rsatilmagan bo'lsa — jimgina hech narsa qilmaydi
+    (bu — ixtiyoriy, mijoz uchun qulaylik, majburiy emas). Xato bo'lsa
+    ham — yetkazishning o'zi (ombor/buyurtma holati) HECH QACHON
+    buzilmaydi, faqat log qilinadi (boshqa Telegram yuborishlar kabi)."""
+    try:
+        d = crud.get_delivery(db, delivery_id)
+        if not d or not d.order or not d.order.project:
+            return
+        notes = d.order.project.notes or ''
+        if 'tg_id=' not in notes:
+            return
+        tg_id = notes.split('tg_id=')[1].split(',')[0].strip()
+        if not (tg_id and tg_id.lstrip('-').isdigit()):
+            return
+
+        import delivery_pdf
+        pdf_bytes = delivery_pdf.generate_delivery_pdf(d, db)
+
+        client = d.order.project.client_name if d.order.project else "—"
+        caption = (
+            f"📄 Yuk xati — {d.delivery_number}\n"
+            f"👤 Mijoz: {client}\n"
+            f"📋 Buyurtma: {d.order.order_number}\n"
+            f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+        )
+        filename = f"nakladnoy_{d.delivery_number.replace('/', '_')}.pdf"
+        _send_telegram_document(tg_id, pdf_bytes, filename, caption, content_type="application/pdf")
+    except Exception as e:
+        print(f"⚠ Mijozga Yuk xati PDF yuborilmadi: {e}")
+        try:
+            crud.log_error(db, str(e), endpoint="_send_delivery_pdf_to_customer")
+        except Exception:
+            pass
 
 
 init_database()
@@ -2336,6 +2382,14 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
                     f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                 )
                 _send_telegram_to(tg_id, client_msg)
+
+    # Agar "Tayyor" belgilashda BUTUN mahsulot avtomatik bir yo'la
+    # topshirilgan (yetkazilgan) deb belgilangan bo'lsa — o'sha yetkazish
+    # uchun ham, xuddi qo'lda "Saqlash va nakladnoy olish" bosilgandagidek,
+    # Yuk xati PDF'ini mijozga (agar tg_id bo'lsa) yuboramiz.
+    auto_delivery = result.get("auto_delivery")
+    if isinstance(auto_delivery, dict) and auto_delivery.get("delivery_id"):
+        _send_delivery_pdf_to_customer(db, auto_delivery["delivery_id"])
     return result
 
 
@@ -3451,8 +3505,9 @@ def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Sessio
 def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
                                    current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
-    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi (hozircha
-    faqat Profil/Panel/Donali/Blok kategoriyalari uchun)."""
+    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi (Profil/
+    Panel/Donali/Blok va Termopanel/Bazalt kategoriyalari uchun; Gips —
+    hozircha qo'llab-quvvatlanmaydi)."""
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_production_brak(
         db, data.finished_product_id, data.brak_qty, data.notes, created_by=who
@@ -3688,6 +3743,7 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
             + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
         )
         _send_telegram(msg)
+        _send_delivery_pdf_to_customer(db, result["delivery_id"])
 
     return result
 
