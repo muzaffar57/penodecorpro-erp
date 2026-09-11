@@ -1182,6 +1182,33 @@ def _fp_stable_unit_cost(db, fp) -> float:
             if gips_item and gips_item.price_per_unit:
                 unit_gips_kg = gips_kg / produced_q
                 cost += unit_gips_kg * float(gips_item.price_per_unit)
+    # GIPS QO'SHIMCHALARI (Po'lat sim, Granula va h.k.) — bular
+    # gips_additives_json'da JAMI (produced_quantity uchun) miqdorda
+    # saqlanadi, xuddi pastdagi Bazalt/Serpiyanka/Kley kabi. MUHIM TUZATISH
+    # (2026-09, Gips brak funksiyasi tekshiruvida aniqlangan): avval bu
+    # qism BUTUNLAY YO'Q edi — qo'shimchali Gips mahsulot buyurtmaga
+    # o'tkazilganda yoki sotilganda faqat ASOSIY gips hisobga olinardi,
+    # qo'shimcha narxi esa hech qachon "ko'chib" o'tmasdi — natijada qolgan
+    # zaxiraning tan narxi haqiqiysidan QIMMAT, sotilgan/o'tkazilgan qism
+    # esa ARZON ko'rsatilardi (faqat to'liq qaytarilganda — masalan
+    # buyurtma o'chirilganda — bu farq o'z-o'zidan yo'qolib ketardi).
+    if getattr(fp, 'gips_additives_json', None):
+        try:
+            import json as _json_stable_cost
+            saved_additives = _json_stable_cost.loads(fp.gips_additives_json)
+        except Exception:
+            saved_additives = []
+        produced_q_add = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
+        if produced_q_add > 0:
+            for a in (saved_additives or []):
+                a_inv_id = a.get("inventory_id") if isinstance(a, dict) else None
+                a_total_qty = float((a.get("quantity") if isinstance(a, dict) else 0) or 0)
+                if not a_inv_id or a_total_qty <= 0:
+                    continue
+                a_item = db.query(Inventory).filter(Inventory.id == a_inv_id).first()
+                if a_item and a_item.price_per_unit:
+                    unit_a_qty = a_total_qty / produced_q_add
+                    cost += unit_a_qty * float(a_item.price_per_unit)
     # TERMOPANEL (Bazalt/Serpiyanka/Kley) qismi — bular JAMI (ishlab
     # chiqarilgan/qo'shilgan barcha marta uchun) miqdorda saqlanadi, shuning
     # uchun 1 birlikka: jami_miqdor / produced_quantity. MUHIM TUZATISH:
