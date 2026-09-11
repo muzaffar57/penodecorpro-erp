@@ -4086,23 +4086,33 @@ def record_finished_product_loss(db: Session, data, created_by: str = None) -> d
     }
 
 
-def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float,
-                                              notes: str = None, created_by: str = None) -> dict:
+def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
+                                              notes: str = None, created_by: str = None,
+                                              gips_kg_brak: float = None, additives_brak: list = None) -> dict:
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak (masalan
     kesish yoki qoplama tortish paytida sinib ketishi) — bu, mahsulotdan
     KEYINCHALIK (allaqachon tayyor turgan holda) yo'qotilishidan FARQ
     QILADI: bu yerda YAKUNIY yetkaziladigan/omborga kiritiladigan miqdor
     O'ZGARMAYDI (ustadan qayta ishlab chiqarilib, o'rni to'ldiriladi),
     faqat O'SHA qayta ishlab chiqarish uchun QO'SHIMCHA xomashyo (Penoplast/
-    Bazalt+Serpiyanka+Kley, loy) ombordan ayiriladi. Shuning uchun, mavjud
-    "Kamaytirish" funksiyasidan farqli o'laroq — fp.quantity (ombordagi
-    mahsulot soni) ga UMUMAN TEGILMAYDI.
+    Bazalt+Serpiyanka+Kley, loy, Gips) ombordan ayiriladi. Shuning uchun,
+    mavjud "Kamaytirish" funksiyasidan farqli o'laroq — fp.quantity
+    (ombordagi mahsulot soni) ga UMUMAN TEGILMAYDI.
 
     Ishlaydi: Profil/Panel/Donali/Blok (Penoplast+loy asosida, unit_volume_m3
     orqali) va Termopanel/Bazalt (Bazalt+Serpiyanka+Kley+loy asosida, aynan
-    ishlab chiqarishda ishlatilgan xomashyo/nisbat bo'yicha — 2026-09 audit
-    natijasida qo'shildi). Gips — boshqa, alohida funksiya orqali (bu yerga
-    kiritilmagan)."""
+    ishlab chiqarishda ishlatilgan xomashyo/nisbat bo'yicha) — bularda
+    `brak_qty` (mahsulot birligida) berilib, xomashyo BARQAROR nisbatdan
+    hisoblanadi.
+
+    Gips uchun (2026-09 qo'shildi) — MANTIQ BOSHQACHA: gips sarfi metrga
+    (yoki dona/m²ga) barqaror proporsional emas — devor holati, usta ishiga
+    qarab farq qiladi. Shuning uchun bu yerda `brak_qty` EMAS, `gips_kg_brak`
+    ishlatiladi — xodim TO'G'RIDAN-TO'G'RI, aniq necha kg gips isrof
+    bo'lganini kiritadi (hisoblanmaydi). Qo'shimcha materiallar (Po'lat
+    sim, Granula va h.k.) esa har doim ham gips miqdoriga proporsional
+    ishlatilmagani uchun avtomatik hisoblanmaydi — faqat xodim ixtiyoriy
+    `additives_brak` orqali ko'rsatgan aniq miqdorlar ayiriladi."""
     from models import FinishedProduct, FinishedProductLoss, Inventory
     import services
 
@@ -4111,8 +4121,78 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         return {"success": False, "message": "Mahsulot topilmadi"}
 
     cat = (fp.category or '').lower()
+
+    # ── GIPS — alohida yo'l: xodim TO'G'RIDAN-TO'G'RI kg kiritadi ─────────
     if cat == 'gips':
-        return {"success": False, "message": "Bu kategoriya (Gips) uchun boshqa usul kerak — hozircha qo'llab-quvvatlanmaydi"}
+        if gips_kg_brak is None or gips_kg_brak <= 0:
+            return {"success": False, "message": "Gips uchun isrof bo'lgan kg miqdorini kiriting"}
+        if not fp.gips_inventory_id:
+            return {"success": False, "message": "Bu mahsulotning Gips xomashyosi noma'lum (eski yozuv bo'lishi mumkin) — qo'lda hisoblash kerak"}
+        gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).with_for_update().first()
+        if not gips_item:
+            return {"success": False, "message": "Gips xomashyosi ombordan topilmadi"}
+        if float(gips_item.stock_quantity or 0) < gips_kg_brak:
+            return {"success": False, "message": f"Gips yetishmayapti! Kerak: {gips_kg_brak:.2f} kg, omborda: {float(gips_item.stock_quantity):.2f} kg"}
+
+        log = []
+        gips_item.stock_quantity = float(gips_item.stock_quantity) - gips_kg_brak
+        gips_cost = gips_kg_brak * float(gips_item.price_per_unit or 0)
+        log.append(f"{gips_item.item_name}: -{gips_kg_brak:.2f} kg")
+        log_movement(
+            db, gips_item.id, gips_item.item_name, movement_type="out",
+            quantity=gips_kg_brak, unit=gips_item.unit,
+            reason=f"Brak (ishlab chiqarish) — {fp.name} ({gips_kg_brak:g} kg)"
+        )
+
+        additive_cost = 0.0
+        for a in (additives_brak or []):
+            a_inv_id = a.get("inventory_id") if isinstance(a, dict) else None
+            a_qty = float((a.get("quantity") if isinstance(a, dict) else 0) or 0)
+            if not a_inv_id or a_qty <= 0:
+                continue
+            a_item = db.query(Inventory).filter(Inventory.id == a_inv_id).with_for_update().first()
+            if not a_item:
+                return {"success": False, "message": f"Qo'shimcha material (ID {a_inv_id}) topilmadi"}
+            if float(a_item.stock_quantity or 0) < a_qty:
+                return {"success": False, "message": f"{a_item.item_name} yetishmayapti! Kerak: {a_qty:.2f} {a_item.unit}, omborda: {float(a_item.stock_quantity):.2f} {a_item.unit}"}
+            a_item.stock_quantity = float(a_item.stock_quantity) - a_qty
+            additive_cost += a_qty * float(a_item.price_per_unit or 0)
+            log.append(f"{a_item.item_name}: -{a_qty:.2f} {a_item.unit}")
+            log_movement(
+                db, a_item.id, a_item.item_name, movement_type="out",
+                quantity=a_qty, unit=a_item.unit,
+                reason=f"Brak (ishlab chiqarish) — {fp.name} (qo'shimcha)"
+            )
+
+        total_cost_gips = gips_cost + additive_cost
+
+        # MUHIM: fp.quantity, fp.gips_kg_used, fp.cost_price, fp.gips_additives_json
+        # GA TEGILMAYDI — boshqa turlar bilan bir xil qoida: brak — alohida,
+        # bir martalik xarajat, mahsulotning o'z tan narxiga qo'shilmaydi
+        # (aks holda xarajat ikki marta hisoblangan bo'lardi).
+        loss = FinishedProductLoss(
+            finished_product_id=fp.id,
+            product_name=fp.name,
+            category=fp.category,
+            quantity=gips_kg_brak,
+            unit="kg",
+            cost_amount=total_cost_gips,
+            reason="Ishlab chiqarish jarayonida brak — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
+                   + (f". Izoh: {notes}" if notes else ""),
+            created_by=created_by
+        )
+        db.add(loss)
+        db.commit()
+        db.refresh(loss)
+
+        return {
+            "success": True,
+            "loss_id": loss.id,
+            "cost_amount": float(total_cost_gips),
+            "gips_cost": float(gips_cost),
+            "additive_cost": float(additive_cost),
+            "log": log,
+        }
 
     if brak_qty is None or brak_qty <= 0:
         return {"success": False, "message": "Brak miqdori noto'g'ri"}

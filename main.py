@@ -3576,12 +3576,17 @@ def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Sessio
 def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
                                    current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
-    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi (Profil/
-    Panel/Donali/Blok va Termopanel/Bazalt kategoriyalari uchun; Gips —
-    hozircha qo'llab-quvvatlanmaydi)."""
+    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi. Profil/
+    Panel/Donali/Blok/Termopanel — `brak_qty` (mahsulot birligida) orqali,
+    BARQAROR nisbatdan hisoblab. Gips — `gips_kg_brak` orqali, xodim
+    to'g'ridan-to'g'ri kiritgan ANIQ kg (hisoblanmaydi, chunki gips
+    sarfi metrga proporsional emas), qo'shimcha materiallar esa faqat
+    `additives_brak` ko'rsatilgan bo'lsagina (ixtiyoriy) ayiriladi."""
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_production_brak(
-        db, data.finished_product_id, data.brak_qty, data.notes, created_by=who
+        db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
+        gips_kg_brak=data.gips_kg_brak,
+        additives_brak=[a.dict() for a in data.additives_brak] if data.additives_brak else None,
     )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
