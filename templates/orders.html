@@ -692,6 +692,7 @@ input[type=number]{-moz-appearance:textfield}
         <div style="display:flex;flex-direction:column;gap:7px">
           <button class="btn btn-green w-full btn-sm" id="btn-ready" onclick="markReadySelected()" style="display:none">✓ Tayyor deb belgilash</button>
           <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#B9783F;color:#B9783F">✏️ Tahrirlash</button>
+          <button class="btn btn-outline w-full btn-sm" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:#6366F1">📋 Nusxa olish (yangi buyurtma)</button>
           <a id="btn-pdf" href="#" target="_blank" class="btn btn-outline w-full btn-sm" style="text-align:center;display:none">📄 PDF chiqarish</a>
           {% if current_user.role.value == 'admin' %}
           <button class="btn btn-outline w-full btn-sm" id="btn-profit" onclick="loadProfit()" style="display:none;border-color:#B9783F;color:#B9783F">💰 Foyda hisoblash</button>
@@ -808,6 +809,38 @@ input[type=number]{-moz-appearance:textfield}
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" style="flex:1" onclick="closeSummaryModal()">Bekor</button>
         <button class="btn btn-dark" style="flex:2" onclick="openSummaryPdf()">📄 Hisob-kitob PDF olish</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NUSXA OLISH — DETALLARNI TANLASH MODALI ══ -->
+<div id="dupPickModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:var(--text)">📋 Nusxa olish — detallarni tanlang</div>
+        <div style="font-size:14px;color:#aaa;margin-top:2px" id="dup-modal-sub">—</div>
+      </div>
+      <button onclick="closeDuplicatePickModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+
+    <div style="padding:12px 22px;overflow-y:auto;flex:1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:14px;color:#777">Yangi buyurtmaga qaysi detallar qo'shilsin?</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm" onclick="dupCheckAll(true)">Hammasi</button>
+          <button class="btn btn-outline btn-sm" onclick="dupCheckAll(false)">Hech biri</button>
+        </div>
+      </div>
+
+      <div id="dupPickList"></div>
+    </div>
+
+    <div style="padding:12px 22px 18px;border-top:1px solid #f0f0f0">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" style="flex:1" onclick="closeDuplicatePickModal()">Bekor qilish</button>
+        <button class="btn btn-dark" style="flex:2" onclick="confirmDuplicatePick()">Davom etish</button>
       </div>
     </div>
   </div>
@@ -1615,6 +1648,11 @@ function selectOrder(id, el) {
   // Amallar tugmalari
   document.getElementById('btn-ready').style.display  = (isReady || isDraft) ? 'none' : 'block';
   document.getElementById('btn-edit').style.display   = isReady ? 'none' : 'block';
+  // "Nusxa olish" — TAYYOR buyurtmalar uchun ham ko'rinadi (aslida shu holat
+  // uchun mo'ljallangan: mijoz keyinroq qo'shimcha metr so'rasa, tahrirlab
+  // bo'lmaydigan tayyor buyurtma o'rniga, shundan NUSXA olib yangi buyurtma
+  // ochish mumkin — eskisiga tegmaydi).
+  document.getElementById('btn-duplicate').style.display = 'block';
   document.getElementById('btn-pdf').style.display    = 'block';
   document.getElementById('btn-pdf').href = `/api/orders/${id}/pdf`;
   document.getElementById('btn-delete').style.display = 'block';
@@ -4191,26 +4229,123 @@ function showStockShortageModal(shortages, data, isDraft, zaklat, zaklatMethod) 
 }
 
 // ── Tahrirlash ────────────────────────────────────────────
-async function editSelected() {
+async function duplicateSelected() {
+  if (!selectedOrderId) return;
+  try {
+    const res = await fetch(`/api/orders/${selectedOrderId}`);
+    if (!res.ok) {
+      const err = await res.json();
+      showMsg('Xato: ' + (err.detail || 'Server xatosi'), 'error');
+      return;
+    }
+    const order = await res.json();
+    if (!order || !order.items || !order.items.length) {
+      showMsg('Bu buyurtmada detal topilmadi', 'error');
+      return;
+    }
+    openDuplicatePickModal(order);
+  } catch (e) {
+    showMsg('Server xatosi: ' + e.message, 'error');
+  }
+}
+
+// ── NUSXA OLISH: qaysi detallar yangi buyurtmaga o'tishini tanlash ──
+function openDuplicatePickModal(order) {
+  window._dupOrder = order;
+  document.getElementById('dup-modal-sub').textContent =
+    `${order.order_number} · ${order.client_name || order.project_name || '—'} · ${order.items.length} ta detal`;
+
+  document.getElementById('dupPickList').innerHTML = order.items.map((item, idx) => {
+    const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
+    return `
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">
+      <input type="checkbox" class="dup-chk" value="${idx}" checked onchange="updateDupPickState()"
+             style="width:17px;height:17px;cursor:pointer;margin-top:2px;flex-shrink:0">
+      <i class="ti ${icon}" style="font-size:16px;color:#999;margin-top:2px;flex-shrink:0"></i>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:600;color:var(--text)">${item.name || '—'}</div>
+        <div style="font-size:12.5px;color:#888;margin-top:2px">${itemParamsText(item)}</div>
+      </div>
+    </label>`;
+  }).join('');
+
+  updateDupPickState();
+  document.getElementById('dupPickModal').style.display = 'flex';
+}
+
+function closeDuplicatePickModal() {
+  document.getElementById('dupPickModal').style.display = 'none';
+}
+
+function dupCheckAll(state) {
+  document.querySelectorAll('.dup-chk').forEach(c => c.checked = state);
+  updateDupPickState();
+}
+
+function updateDupPickState() {
+  const n = document.querySelectorAll('.dup-chk:checked').length;
+  const btn = document.querySelector('#dupPickModal .btn-dark');
+  if (btn) {
+    btn.disabled = n === 0;
+    btn.style.opacity = n === 0 ? '.4' : '1';
+    btn.textContent = n === 0 ? 'Kamida bitta detal tanlang' : `Davom etish (${n} ta detal)`;
+  }
+}
+
+async function confirmDuplicatePick() {
+  const order = window._dupOrder;
+  if (!order) return;
+  const checkedIdx = Array.from(document.querySelectorAll('.dup-chk:checked')).map(c => parseInt(c.value));
+  if (!checkedIdx.length) return;
+  closeDuplicatePickModal();
+  await editSelected('duplicate', order, checkedIdx);
+}
+
+// mode: 'edit' (standart, xuddi avvalgidek) yoki 'duplicate' — shu buyurtma
+// asosida, LEKIN alohida, YANGI buyurtma yaratish uchun forma to'ldiriladi
+// (masalan tayyor buyurtmaga mijoz keyinroq qo'shimcha metr so'rasa — eski
+// buyurtmani tahrirlash O'RNIGA, undan nusxa olib, tezda yangi, kichik
+// buyurtma yozish mumkin bo'lsin deb). 'duplicate' rejimida: eski buyurtmaga
+// HECH NARSA yozilmaydi (faqat GET so'rovlar), "topshirilgan" belgilari,
+// kelishilgan summa/chegirma va loy/gips REJA miqdorlari olib kelinmaydi —
+// bular yangi (odatda kichikroq) miqdor uchun boshqacha bo'ladi, xodim
+// ularni yangidan, to'g'ri kiritishi kerak.
+async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx = null) {
   if (!selectedOrderId) return;
   const editId = selectedOrderId; // showNewForm null qilishidan oldin saqlab qo'yamiz
+  const isDup = mode === 'duplicate';
 
   showNewForm();
   document.getElementById('items').innerHTML = '';
   itemCount = 0;
 
   try {
-    const ordRes = await fetch(`/api/orders/${editId}`);
-    if (!ordRes.ok) {
-      const err = await ordRes.json();
-      showMsg('Xato: ' + (err.detail || 'Server xatosi'), 'error');
-      return;
+    let order;
+    if (preloadedOrder) {
+      // "Nusxa olish" tanlov oynasidan allaqachon olib kelingan buyurtma —
+      // qayta so'rov yubormaymiz (foydalanuvchi shu paytgacha ko'rgan
+      // ma'lumot bilan davom etadi).
+      order = preloadedOrder;
+    } else {
+      const ordRes = await fetch(`/api/orders/${editId}`);
+      if (!ordRes.ok) {
+        const err = await ordRes.json();
+        showMsg('Xato: ' + (err.detail || 'Server xatosi'), 'error');
+        return;
+      }
+      order = await ordRes.json();
     }
-    const order = await ordRes.json();
     if (!order || !order.id) {
       showMsg('Buyurtma ma\'lumotlari topilmadi', 'error');
       return;
     }
+
+    // "Nusxa olish" tanlov oynasida belgilab qo'yilgan bo'lsa — faqat
+    // belgilangan (galochka qo'yilgan) detallarnigina forma to'ldirishda
+    // ishlatamiz; boshqa maydonlar (loyiha, usta va h.k.) o'zgarishsiz qoladi.
+    const itemsToUse = Array.isArray(itemFilterIdx)
+      ? (order.items || []).filter((_, idx) => itemFilterIdx.includes(idx))
+      : (order.items || []);
 
     // Loyiha va ustani o'rnatish
     const projSel = document.getElementById('project_id');
@@ -4225,8 +4360,8 @@ async function editSelected() {
     // detallarning o'zidan (asosiy, qoplamali turlardan) tiklab olamiz —
     // aks holda bo'sh ko'rinib, chalkashtirar edi.
     const recipeSel = document.getElementById('recipe_id');
-    if (recipeSel && order.items && order.items.length) {
-      const mainItem = order.items.find(it =>
+    if (recipeSel && itemsToUse.length) {
+      const mainItem = itemsToUse.find(it =>
         it.recipe_id && !['gips', 'loy_sotish', 'termopanel'].includes((it.category || '').toLowerCase())
       );
       if (mainItem) recipeSel.value = mainItem.recipe_id;
@@ -4237,8 +4372,8 @@ async function editSelected() {
     if (basePriceEl && order.base_price) basePriceEl.value = formatNum(order.base_price);
 
     // Har bir detalga forma qo'shamiz
-    if (order.items && order.items.length > 0) {
-      order.items.forEach(item => {
+    if (itemsToUse.length > 0) {
+      itemsToUse.forEach(item => {
         addItem();
         const row = document.getElementById('item_' + itemCount);
         if (!row) return;
@@ -4398,8 +4533,9 @@ async function editSelected() {
         syncCoatingUI(row, !!item.is_coated);
         row.dataset.wasCoated = item.is_coated ? 'true' : 'false';
 
-        // Topshirilgan bo'lsa — belgilaymiz
-        const dlvInfo = (window._dlvMap || {})[(item.name || '').trim().toLowerCase()];
+        // Topshirilgan bo'lsa — belgilaymiz (faqat 'edit' rejimida — nusxa
+        // olishda YANGI buyurtma hali hech narsa topshirmagan, toza boshlanadi)
+        const dlvInfo = isDup ? null : (window._dlvMap || {})[(item.name || '').trim().toLowerCase()];
         if (dlvInfo && dlvInfo.delivered > 0) {
           row.dataset.delivered = dlvInfo.delivered;
           row.dataset.dlvUnit = dlvInfo.unit;
@@ -4483,89 +4619,101 @@ async function editSelected() {
       });
     }
 
-    // Tahrirlash rejimi + saqlangan chegirma foizi
-    editMode = true;
-    currentEditOrderId = editId;
-    editUserTouched = false;
-    editInitialLoadDone = false;
-    editDiscountPct = parseFloat(order.discount_percent || 0);
+    if (isDup) {
+      // ── NUSXA OLISH rejimi: bu — ALOHIDA, YANGI buyurtma. Eski
+      // buyurtmaning topshirish holati, kelishilgan summa/chegirma va
+      // rejalashtirilgan loy/gips miqdorlari BU YERGA olib kelinmaydi —
+      // ular yangi (odatda boshqacha) miqdor uchun endi to'g'ri kelmaydi,
+      // xodim ularni (kerak bo'lsa) yangidan kiritadi. editMode/currentEditOrderId
+      // showNewForm() tomonidan allaqachon to'g'ri (false/null) qilib qo'yilgan.
+      window._dlvMap = {};
+      document.getElementById('formTitle').textContent = `Yangi buyurtma (nusxa: ${order.order_number})`;
+      showMsg(`📋 ${order.order_number} asosida nusxa olindi — miqdor/narxlarni tekshirib, saqlang`, 'success');
+    } else {
+      // Tahrirlash rejimi + saqlangan chegirma foizi
+      editMode = true;
+      currentEditOrderId = editId;
+      editUserTouched = false;
+      editInitialLoadDone = false;
+      editDiscountPct = parseFloat(order.discount_percent || 0);
 
-    // Topshirish holati — tahrirlashda cheklov uchun
-    let dlvMap = {};
-    try {
-      const dr = await fetch(`/api/orders/${editId}/delivery-status`);
-      if (dr.ok) {
-        const dd = await dr.json();
-        (dd.items || []).forEach(i => { if (i.delivered > 0) dlvMap[i.name.trim().toLowerCase()] = i; });
-        if (Object.keys(dlvMap).length) {
-          const eb2 = document.getElementById('editBanner');
-          if (eb2) {
-            eb2.style.background = '#FEF3C7';
-            eb2.style.borderColor = '#FDE68A';
-            eb2.innerHTML = `
-              <div style="font-size:13px;font-weight:600;color:#b7770d">📦 Bu buyurtmada mahsulot topshirila boshlagan (${dd.delivery_percent}%)</div>
-              <div style="font-size:13px;color:#997;margin-top:3px">Topshirilgan miqdordan kam qilib bo'lmaydi. Yangi detal qo'shish yoki miqdorni oshirish mumkin.</div>`;
+      // Topshirish holati — tahrirlashda cheklov uchun
+      let dlvMap = {};
+      try {
+        const dr = await fetch(`/api/orders/${editId}/delivery-status`);
+        if (dr.ok) {
+          const dd = await dr.json();
+          (dd.items || []).forEach(i => { if (i.delivered > 0) dlvMap[i.name.trim().toLowerCase()] = i; });
+          if (Object.keys(dlvMap).length) {
+            const eb2 = document.getElementById('editBanner');
+            if (eb2) {
+              eb2.style.background = '#FEF3C7';
+              eb2.style.borderColor = '#FDE68A';
+              eb2.innerHTML = `
+                <div style="font-size:13px;font-weight:600;color:#b7770d">📦 Bu buyurtmada mahsulot topshirila boshlagan (${dd.delivery_percent}%)</div>
+                <div style="font-size:13px;color:#997;margin-top:3px">Topshirilgan miqdordan kam qilib bo'lmaydi. Yangi detal qo'shish yoki miqdorni oshirish mumkin.</div>`;
+            }
           }
         }
-      }
-    } catch(e) {}
-    window._dlvMap = dlvMap;
+      } catch(e) {}
+      window._dlvMap = dlvMap;
 
-    // Kelishilgan summa
-    const fpEl = document.getElementById('final_price');
-    if (fpEl && order.agreed_amount) fpEl.value = formatNum(order.agreed_amount);
+      // Kelishilgan summa
+      const fpEl = document.getElementById('final_price');
+      if (fpEl && order.agreed_amount) fpEl.value = formatNum(order.agreed_amount);
 
-    // Chegirma haqida ma'lumot
-    if (editDiscountPct > 0) {
-      const hint = document.getElementById('discount-auto-hint');
-      if (hint) {
-        hint.style.display = 'block';
-        hint.innerHTML = `💡 Bu buyurtmada <b>${editDiscountPct.toFixed(2)}%</b> chegirma bor. Detallar o'zgarsa — kelishilgan summa shu foiz bo'yicha avtomatik qayta hisoblanadi.`;
+      // Chegirma haqida ma'lumot
+      if (editDiscountPct > 0) {
+        const hint = document.getElementById('discount-auto-hint');
+        if (hint) {
+          hint.style.display = 'block';
+          hint.innerHTML = `💡 Bu buyurtmada <b>${editDiscountPct.toFixed(2)}%</b> chegirma bor. Detallar o'zgarsa — kelishilgan summa shu foiz bo'yicha avtomatik qayta hisoblanadi.`;
+        }
       }
+
+      // Loy rejasi
+      try {
+        const lr = await fetch(`/api/orders/${editId}/planned-loy`);
+        if (lr.ok) {
+          const ld = await lr.json();
+          const loyEl = document.getElementById('loy_kg');
+          if (loyEl && ld.planned_loy) { loyEl.value = ld.planned_loy; checkLoyStock(); }
+        }
+      } catch(e) {}
+
+      // GIPS — mavjud buyurtmadagi Gips ma'lumotlarini tiklaymiz
+      if (order.planned_gips_kg || order.gips_inventory_id || (order.gips_additives && order.gips_additives.length)) {
+        checkGipsSectionVisibility();
+        await loadGipsInventoryOptions();
+        const gipsKgEl = document.getElementById('gips_kg');
+        if (gipsKgEl && order.planned_gips_kg) gipsKgEl.value = order.planned_gips_kg;
+        const gipsInvEl = document.getElementById('gips_inventory_id');
+        if (gipsInvEl && order.gips_inventory_id) gipsInvEl.value = order.gips_inventory_id;
+        (order.gips_additives || []).forEach(a => addGipsAdditive(a.inventory_id, a.planned_qty));
+      }
+
+      // Zaklat maydonini yashiramiz (tahrirlashda to'lov "To'lovlar" bo'limidan qo'shiladi)
+      const zWrap = document.getElementById('zaklat-field-wrap');
+      if (zWrap) zWrap.style.display = 'none';
+
+      document.getElementById('editBanner').style.display = 'block';
+      document.getElementById('editOrderNum').textContent = order.order_number;
+      document.getElementById('formTitle').textContent = 'Buyurtmani tahrirlash';
+
+      showMsg(`✏️ ${order.order_number} tahrirlash rejimida`, 'success');
+
+      const saveBtn = document.querySelector('#newOrderForm .btn-dark');
+      if (saveBtn) {
+        saveBtn.textContent = '💾 O\'zgarishlarni saqlash';
+        saveBtn.onclick = () => updateOrder(editId);
+      }
+      // Draft tugmasini yashiramiz
+      const draftBtn = document.querySelector('#newOrderForm .btn-outline');
+      if (draftBtn && draftBtn.textContent.includes('Vaqtincha')) draftBtn.style.display = 'none';
     }
-
-    // Loy rejasi
-    try {
-      const lr = await fetch(`/api/orders/${editId}/planned-loy`);
-      if (lr.ok) {
-        const ld = await lr.json();
-        const loyEl = document.getElementById('loy_kg');
-        if (loyEl && ld.planned_loy) { loyEl.value = ld.planned_loy; checkLoyStock(); }
-      }
-    } catch(e) {}
-
-    // GIPS — mavjud buyurtmadagi Gips ma'lumotlarini tiklaymiz
-    if (order.planned_gips_kg || order.gips_inventory_id || (order.gips_additives && order.gips_additives.length)) {
-      checkGipsSectionVisibility();
-      await loadGipsInventoryOptions();
-      const gipsKgEl = document.getElementById('gips_kg');
-      if (gipsKgEl && order.planned_gips_kg) gipsKgEl.value = order.planned_gips_kg;
-      const gipsInvEl = document.getElementById('gips_inventory_id');
-      if (gipsInvEl && order.gips_inventory_id) gipsInvEl.value = order.gips_inventory_id;
-      (order.gips_additives || []).forEach(a => addGipsAdditive(a.inventory_id, a.planned_qty));
-    }
-
-    // Zaklat maydonini yashiramiz (tahrirlashda to'lov "To'lovlar" bo'limidan qo'shiladi)
-    const zWrap = document.getElementById('zaklat-field-wrap');
-    if (zWrap) zWrap.style.display = 'none';
 
     calcDiscount();
     editInitialLoadDone = true;
-
-    document.getElementById('editBanner').style.display = 'block';
-    document.getElementById('editOrderNum').textContent = order.order_number;
-    document.getElementById('formTitle').textContent = 'Buyurtmani tahrirlash';
-
-    showMsg(`✏️ ${order.order_number} tahrirlash rejimida`, 'success');
-
-    const saveBtn = document.querySelector('#newOrderForm .btn-dark');
-    if (saveBtn) {
-      saveBtn.textContent = '💾 O\'zgarishlarni saqlash';
-      saveBtn.onclick = () => updateOrder(editId);
-    }
-    // Draft tugmasini yashiramiz
-    const draftBtn = document.querySelector('#newOrderForm .btn-outline');
-    if (draftBtn && draftBtn.textContent.includes('Vaqtincha')) draftBtn.style.display = 'none';
 
   } catch(e) {
     showMsg('Server xatosi: ' + e.message, 'error');
