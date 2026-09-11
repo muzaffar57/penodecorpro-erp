@@ -1182,6 +1182,33 @@ def _fp_stable_unit_cost(db, fp) -> float:
             if gips_item and gips_item.price_per_unit:
                 unit_gips_kg = gips_kg / produced_q
                 cost += unit_gips_kg * float(gips_item.price_per_unit)
+    # GIPS QO'SHIMCHALARI (Po'lat sim, Granula va h.k.) — bular
+    # gips_additives_json'da JAMI (produced_quantity uchun) miqdorda
+    # saqlanadi, xuddi pastdagi Bazalt/Serpiyanka/Kley kabi. MUHIM TUZATISH
+    # (2026-09, Gips brak funksiyasi tekshiruvida aniqlangan): avval bu
+    # qism BUTUNLAY YO'Q edi — qo'shimchali Gips mahsulot buyurtmaga
+    # o'tkazilganda yoki sotilganda faqat ASOSIY gips hisobga olinardi,
+    # qo'shimcha narxi esa hech qachon "ko'chib" o'tmasdi — natijada qolgan
+    # zaxiraning tan narxi haqiqiysidan QIMMAT, sotilgan/o'tkazilgan qism
+    # esa ARZON ko'rsatilardi (faqat to'liq qaytarilganda — masalan
+    # buyurtma o'chirilganda — bu farq o'z-o'zidan yo'qolib ketardi).
+    if getattr(fp, 'gips_additives_json', None):
+        try:
+            import json as _json_stable_cost
+            saved_additives = _json_stable_cost.loads(fp.gips_additives_json)
+        except Exception:
+            saved_additives = []
+        produced_q_add = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
+        if produced_q_add > 0:
+            for a in (saved_additives or []):
+                a_inv_id = a.get("inventory_id") if isinstance(a, dict) else None
+                a_total_qty = float((a.get("quantity") if isinstance(a, dict) else 0) or 0)
+                if not a_inv_id or a_total_qty <= 0:
+                    continue
+                a_item = db.query(Inventory).filter(Inventory.id == a_inv_id).first()
+                if a_item and a_item.price_per_unit:
+                    unit_a_qty = a_total_qty / produced_q_add
+                    cost += unit_a_qty * float(a_item.price_per_unit)
     # TERMOPANEL (Bazalt/Serpiyanka/Kley) qismi — bular JAMI (ishlab
     # chiqarilgan/qo'shilgan barcha marta uchun) miqdorda saqlanadi, shuning
     # uchun 1 birlikka: jami_miqdor / produced_quantity. MUHIM TUZATISH:
@@ -4449,7 +4476,8 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
                 payment_method=data.payment_method,
                 notes=data.notes,
                 created_by=created_by,
-                sale_group_id=group_id
+                sale_group_id=group_id,
+                master_id=getattr(data, 'master_id', None)
             )
             db.add(sale)
             sales.append(sale)
@@ -4515,7 +4543,8 @@ def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
         buyer_name=data.buyer_name,
         payment_method=data.payment_method,
         notes=data.notes,
-        created_by=created_by
+        created_by=created_by,
+        master_id=getattr(data, 'master_id', None)
     )
     db.add(sale)
     db.commit()
@@ -6309,6 +6338,28 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
             "profit": round(profit),
             "kpi_amount": round(profit * kpi_pct / 100),
         })
+
+    # MUHIM (2026-09): Tayyor mahsulot bo'limidan TO'G'RIDAN-TO'G'RI
+    # (buyurtmasiz) sotilgan, lekin sotuv paytida shu ustaga BIRIKTIRILGAN
+    # (master_id) sotuvlar — ular ham shu ro'yxatga, alohida qator sifatida
+    # qo'shiladi (buyurtma emasligi "order_id: null" orqali bilinadi).
+    from models import FinishedProductSale as _FPS_detail
+    fp_sales = db.query(_FPS_detail).filter(
+        _FPS_detail.master_id == master_id,
+        extract('year', _FPS_detail.sold_at) == year
+    ).all()
+    for s in fp_sales:
+        profit = float(s.total_amount or 0) - float(s.cost_amount or 0)
+        result.append({
+            "order_id": None,
+            "order_number": f"🏪 {s.product_name}",
+            "completed_at": s.sold_at.isoformat() if s.sold_at else None,
+            "total_amount": float(s.total_amount or 0),
+            "profit": round(profit),
+            "kpi_amount": round(profit * kpi_pct / 100),
+        })
+
+    result.sort(key=lambda x: x["completed_at"] or "", reverse=True)
     return result
 
 
@@ -6316,7 +6367,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     """Har usta uchun yillik SOF FOYDA, KPI% va hisoblangan sovg'a.
     include_inactive=False bo'lsa — avvalgidek faqat faol ustalar (eski xatti-harakat saqlanadi)."""
     import services
-    from models import Order, OrderStatus
+    from models import Order, OrderStatus, FinishedProductSale as _FPS_report
     from sqlalchemy import extract
 
     q = db.query(Master)
@@ -6341,6 +6392,17 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     for o in all_orders:
         orders_by_master.setdefault(o.master_id, []).append(o)
 
+    # MUHIM (2026-09): Tayyor mahsulot bo'limidan TO'G'RIDAN-TO'G'RI
+    # (buyurtmasiz) sotilgan, lekin shu ustaga BIRIKTIRILGAN sotuvlar —
+    # ular ham yillik sotuv/foyda/sovg'a hisobiga qo'shiladi.
+    all_fp_sales = db.query(_FPS_report).filter(
+        _FPS_report.master_id.in_(master_ids),
+        extract('year', _FPS_report.sold_at) == year
+    ).all() if master_ids else []
+    fp_sales_by_master = {}
+    for s in all_fp_sales:
+        fp_sales_by_master.setdefault(s.master_id, []).append(s)
+
     for m in masters:
         orders = orders_by_master.get(m.id, [])
 
@@ -6357,6 +6419,10 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
                     log_error(db, str(e), endpoint=f"get_masters_kpi_report:calculate_order_profit order#{o.id}")
                 except Exception:
                     pass
+
+        for s in fp_sales_by_master.get(m.id, []):
+            yearly_sales += float(s.total_amount or 0)
+            yearly_profit += float(s.total_amount or 0) - float(s.cost_amount or 0)
 
         gift = yearly_profit * (m.kpi_percent or 0) / 100
         total_gift += gift
