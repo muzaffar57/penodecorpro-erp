@@ -445,11 +445,30 @@ class FinishedProductLossCreate(BaseModel):
     reason: Optional[str] = None
 
 
+class GipsProduceAdditive(BaseModel):
+    inventory_id: int
+    quantity: float = Field(..., gt=0)
+
+
 class FinishedProductProductionBrakCreate(BaseModel):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
-    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi."""
+    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi.
+
+    Gips uchun MAXSUS: boshqa turlarda (Profil/Panel/Donali/Blok/Termopanel)
+    xomashyo BARQAROR nisbatdan (masalan unit_volume_m3 x brak_qty) hisoblab
+    topiladi. Gips uchun esa bu nisbat ishonchli emas (bir xil metrga har
+    doim bir xil miqdorda gips ketavermaydi — devor holati, usta ishiga
+    qarab farq qiladi). Shuning uchun Gips uchun `brak_qty` o'rniga
+    `gips_kg_brak` — xodim TO'G'RIDAN-TO'G'RI kiritgan, ANIQ kg miqdori
+    ishlatiladi (hisoblanmaydi). Qo'shimcha materiallar (Po'lat sim,
+    Granula va h.k.) esa har doim ham gips miqdoriga proporsional
+    ishlatilmagani uchun — ular avtomatik hisoblanmaydi, xodim xohlasa
+    (ixtiyoriy) `additives_brak` orqali aniq qancha isrof bo'lganini
+    o'zi ko'rsatadi."""
     finished_product_id: int
-    brak_qty: float = Field(..., gt=0)
+    brak_qty: Optional[float] = Field(default=None, gt=0, description="Profil/Panel/Donali/Blok/Termopanel uchun — mahsulot birligida (metr/dona/m2)")
+    gips_kg_brak: Optional[float] = Field(default=None, gt=0, description="Faqat Gips uchun — to'g'ridan-to'g'ri kiritilgan, isrof bo'lgan kg")
+    additives_brak: Optional[List[GipsProduceAdditive]] = Field(default=None, description="Faqat Gips uchun, ixtiyoriy — qo'shimcha materiallardan isrof bo'lgan bo'lsa")
     notes: Optional[str] = None
 
 
@@ -480,11 +499,6 @@ class FinishedProductSaleBatchCreate(BaseModel):
     # Berilmasa yoki jamiga teng bo'lsa — chegirma yo'q. Jamidan kichik bo'lsa —
     # ayirma proporsional chegirma sifatida har qatorga taqsimlanadi.
     agreed_amount: Optional[float] = Field(default=None, ge=0)
-
-
-class GipsProduceAdditive(BaseModel):
-    inventory_id: int
-    quantity: float = Field(..., gt=0)
 
 
 class GipsProduceCreate(BaseModel):

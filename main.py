@@ -2428,14 +2428,30 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
                     except Exception:
                         pass
             if tg_id and tg_id.lstrip('-').isdigit():
-                client_msg = (
-                    f"✅ *Buyurtmangiz tayyor!*\n\n"
-                    f"📋 Buyurtma: *{order.order_number}*\n"
-                    f"👤 Mijoz: {order.project.client_name}\n"
-                    f"🏗 PenoDecorPro — Andijon\n\n"
-                    f"Buyurtmangizni olishingiz mumkin!\n"
-                    f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-                )
+                # MUHIM (2026-09): agar mijoz mahsulotni QISMAN, bir necha
+                # marta (masalan 5 ta yukka bo'lib) ALLAQACHON olib bo'lgan
+                # bo'lsa — "Tayyor" bosilganda "kelib olishingiz mumkin!"
+                # degan xabar noto'g'ri chiqadi (chunki hech narsa qolmagan,
+                # olib bo'lingan). Shuning uchun xabar matni buyurtmaning
+                # HAQIQIY yetkazish holatiga qarab tanlanadi.
+                if order.is_fully_delivered:
+                    client_msg = (
+                        f"✅ *Buyurtmangiz to'liq yakunlandi!*\n\n"
+                        f"📋 Buyurtma: *{order.order_number}*\n"
+                        f"👤 Mijoz: {order.project.client_name}\n"
+                        f"🏗 PenoDecorPro — Andijon\n\n"
+                        f"Barcha mahsulot to'liq topshirildi. Xarid uchun rahmat!\n"
+                        f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                    )
+                else:
+                    client_msg = (
+                        f"✅ *Buyurtmangiz tayyor!*\n\n"
+                        f"📋 Buyurtma: *{order.order_number}*\n"
+                        f"👤 Mijoz: {order.project.client_name}\n"
+                        f"🏗 PenoDecorPro — Andijon\n\n"
+                        f"Buyurtmangizni olishingiz mumkin!\n"
+                        f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                    )
                 _send_telegram_to(tg_id, client_msg)
 
     # Agar "Tayyor" belgilashda BUTUN mahsulot avtomatik bir yo'la
@@ -3560,12 +3576,17 @@ def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Sessio
 def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
                                    current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
-    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi (Profil/
-    Panel/Donali/Blok va Termopanel/Bazalt kategoriyalari uchun; Gips —
-    hozircha qo'llab-quvvatlanmaydi)."""
+    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi. Profil/
+    Panel/Donali/Blok/Termopanel — `brak_qty` (mahsulot birligida) orqali,
+    BARQAROR nisbatdan hisoblab. Gips — `gips_kg_brak` orqali, xodim
+    to'g'ridan-to'g'ri kiritgan ANIQ kg (hisoblanmaydi, chunki gips
+    sarfi metrga proporsional emas), qo'shimcha materiallar esa faqat
+    `additives_brak` ko'rsatilgan bo'lsagina (ixtiyoriy) ayiriladi."""
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_production_brak(
-        db, data.finished_product_id, data.brak_qty, data.notes, created_by=who
+        db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
+        gips_kg_brak=data.gips_kg_brak,
+        additives_brak=[a.dict() for a in data.additives_brak] if data.additives_brak else None,
     )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
