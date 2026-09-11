@@ -4084,14 +4084,16 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     KEYINCHALIK (allaqachon tayyor turgan holda) yo'qotilishidan FARQ
     QILADI: bu yerda YAKUNIY yetkaziladigan/omborga kiritiladigan miqdor
     O'ZGARMAYDI (ustadan qayta ishlab chiqarilib, o'rni to'ldiriladi),
-    faqat O'SHA qayta ishlab chiqarish uchun QO'SHIMCHA xomashyo (Penoplast,
-    loy) ombordan ayiriladi. Shuning uchun, mavjud "Kamaytirish" funksiyasidan
-    farqli o'laroq — fp.quantity (ombordagi mahsulot soni) ga UMUMAN TEGILMAYDI.
+    faqat O'SHA qayta ishlab chiqarish uchun QO'SHIMCHA xomashyo (Penoplast/
+    Bazalt+Serpiyanka+Kley, loy) ombordan ayiriladi. Shuning uchun, mavjud
+    "Kamaytirish" funksiyasidan farqli o'laroq — fp.quantity (ombordagi
+    mahsulot soni) ga UMUMAN TEGILMAYDI.
 
-    Hozircha faqat Profil/Panel/Donali/Blok kategoriyalari uchun ishlaydi —
-    bular uchun ishlab chiqarishda saqlab qo'yilgan "1 birlikka qancha
-    xomashyo ketishi" (unit_volume_m3, unit_loy_kg) mavjud. Termopanel va
-    Gips — boshqa, alohida funksiya orqali (bu yerga kiritilmagan)."""
+    Ishlaydi: Profil/Panel/Donali/Blok (Penoplast+loy asosida, unit_volume_m3
+    orqali) va Termopanel/Bazalt (Bazalt+Serpiyanka+Kley+loy asosida, aynan
+    ishlab chiqarishda ishlatilgan xomashyo/nisbat bo'yicha — 2026-09 audit
+    natijasida qo'shildi). Gips — boshqa, alohida funksiya orqali (bu yerga
+    kiritilmagan)."""
     from models import FinishedProduct, FinishedProductLoss, Inventory
     import services
 
@@ -4100,23 +4102,28 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         return {"success": False, "message": "Mahsulot topilmadi"}
 
     cat = (fp.category or '').lower()
-    if cat in ('termopanel', 'gips'):
-        return {"success": False, "message": "Bu kategoriya (Termopanel/Gips) uchun boshqa usul kerak — hozircha qo'llab-quvvatlanmaydi"}
+    if cat == 'gips':
+        return {"success": False, "message": "Bu kategoriya (Gips) uchun boshqa usul kerak — hozircha qo'llab-quvvatlanmaydi"}
 
     if brak_qty is None or brak_qty <= 0:
         return {"success": False, "message": "Brak miqdori noto'g'ri"}
 
     unit_vol = float(fp.unit_volume_m3 or 0)
     unit_loy = float(fp.unit_loy_kg or 0)
-    penoplast_vol_needed = brak_qty * unit_vol
+    penoplast_vol_needed = (brak_qty * unit_vol) if cat != 'termopanel' else 0.0
     loy_kg_needed = (brak_qty * unit_loy) if fp.is_coated else 0.0
+    # Termopanel uchun — brak_qty AYNAN kv.metr birligida (fp.quantity bilan
+    # bir xil birlik), shuning uchun Bazalt/Serpiyanka/Kley nisbatlari ishlab
+    # chiqarishdagi kabi to'g'ridan-to'g'ri shu miqdorga qo'llanadi.
+    bazalt_m2_needed = brak_qty if cat == 'termopanel' else 0.0
 
-    if penoplast_vol_needed <= 0 and loy_kg_needed <= 0:
+    if penoplast_vol_needed <= 0 and loy_kg_needed <= 0 and bazalt_m2_needed <= 0:
         return {"success": False, "message": "Bu mahsulot uchun xomashyo nisbati topilmadi (eski yozuv bo'lishi mumkin) — qo'lda hisoblash kerak"}
 
     log = []
     peno_cost = 0.0
     loy_cost = 0.0
+    bazalt_cost = 0.0
 
     # 1) Penoplast — QO'SHIMCHA ayiriladi
     if penoplast_vol_needed > 0:
@@ -4143,6 +4150,62 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
             quantity=blocks, unit=p.unit,
             reason=f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)"
         )
+
+    # 1B) Bazalt + Serpiyanka + Kley — QO'SHIMCHA ayiriladi (Termopanel).
+    # Nisbatlar — aynan shu mahsulot ishlab chiqarilganda ishlatilgan Bazalt
+    # turining o'zida saqlangan serp_ratio_per_m2/kley_ratio_per_m2 (yoki
+    # standart 2.0/0.8) bo'yicha — produce_termopanel() bilan bir xil mantiq.
+    if bazalt_m2_needed > 0:
+        if not fp.bazalt_item_id:
+            return {"success": False, "message": "Bu mahsulotning Bazalt turi noma'lum — qo'lda hisoblash kerak"}
+        b = db.query(Inventory).filter(Inventory.id == fp.bazalt_item_id).with_for_update().first()
+        if not b:
+            return {"success": False, "message": "Bazalt ombordan topilmadi"}
+        area = float(b.volume_per_unit or 0.72)
+        sheets = bazalt_m2_needed / area
+        if float(b.stock_quantity) < sheets:
+            return {"success": False, "message": f"Bazalt yetishmayapti! Kerak: {sheets:.2f} dona, omborda: {float(b.stock_quantity):.2f} dona"}
+        b.stock_quantity = float(b.stock_quantity) - sheets
+        bazalt_cost += sheets * float(b.price_per_unit or 0)
+        log.append(f"{b.item_name}: -{sheets:.2f} dona")
+        log_movement(
+            db, b.id, b.item_name, movement_type="out",
+            quantity=sheets, unit=b.unit,
+            reason=f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)"
+        )
+
+        serp_ratio = float(b.serp_ratio_per_m2) if b.serp_ratio_per_m2 else 2.0
+        kley_ratio = float(b.kley_ratio_per_m2) if b.kley_ratio_per_m2 else 0.8
+
+        s = services.find_serpiyanka(db, lock=True)
+        if s:
+            serp_area_needed = bazalt_m2_needed * serp_ratio
+            serp_area_per_rulon = float(s.volume_per_unit or 50.0)
+            rulon = serp_area_needed / serp_area_per_rulon if serp_area_per_rulon > 0 else 0.0
+            if float(s.stock_quantity) < rulon:
+                return {"success": False, "message": f"Serpiyanka yetishmayapti! Kerak: {rulon:.2f} rulon, omborda: {float(s.stock_quantity):.2f} rulon"}
+            s.stock_quantity = float(s.stock_quantity) - rulon
+            bazalt_cost += rulon * float(s.price_per_unit or 0)
+            log.append(f"{s.item_name}: -{rulon:.2f} rulon")
+            log_movement(
+                db, s.id, s.item_name, movement_type="out",
+                quantity=rulon, unit=s.unit,
+                reason=f"Brak (ishlab chiqarish) — {fp.name} (Serpiyanka, {brak_qty:g} birlik)"
+            )
+
+        k = services.find_kley(db, lock=True)
+        if k:
+            kley_kg = bazalt_m2_needed * kley_ratio
+            if float(k.stock_quantity) < kley_kg:
+                return {"success": False, "message": f"Kley yetishmayapti! Kerak: {kley_kg:.2f} kg, omborda: {float(k.stock_quantity):.2f} kg"}
+            k.stock_quantity = float(k.stock_quantity) - kley_kg
+            bazalt_cost += kley_kg * float(k.price_per_unit or 0)
+            log.append(f"{k.item_name}: -{kley_kg:.2f} kg")
+            log_movement(
+                db, k.id, k.item_name, movement_type="out",
+                quantity=kley_kg, unit=k.unit,
+                reason=f"Brak (ishlab chiqarish) — {fp.name} (Kley, {brak_qty:g} birlik)"
+            )
 
     # 2) Loy — QO'SHIMCHA ayiriladi (agar qoplama bo'lsa), xuddi shu
     # retseptdan (fp.recipe_id), ishlab chiqarishdagi kabi
@@ -4172,7 +4235,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
             reason_override=f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {brak_qty:g} birlik)"
         ))
 
-    total_cost = peno_cost + loy_cost
+    total_cost = peno_cost + bazalt_cost + loy_cost
 
     # MUHIM: fp.quantity GA TEGILMAYDI — yakuniy mahsulot miqdori
     # o'zgarmagani uchun. Faqat Moliyada xarajat sifatida qayd etiladi.
@@ -4196,6 +4259,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         "loss_id": loss.id,
         "cost_amount": float(total_cost),
         "penoplast_cost": float(peno_cost),
+        "bazalt_cost": float(bazalt_cost),
         "loy_cost": float(loy_cost),
         "log": log,
     }
