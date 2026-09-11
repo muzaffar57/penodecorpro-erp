@@ -4480,7 +4480,7 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None) -> dict:
 def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
     """Shu oy SOF FOYDASIDAN usta KPI xarajatini hisoblaydi (yillik jamlanadi,
     lekin har oy tegishli ulushi xarajat sifatida yoziladi)."""
-    from models import Order, OrderStatus, Master
+    from models import Order, OrderStatus, Master, FinishedProductSale as _FPS_kpi
     from sqlalchemy import extract
 
     masters = db.query(Master).filter(Master.is_active == True, Master.kpi_percent > 0).all()
@@ -4496,8 +4496,6 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
             extract('year', Order.completed_at) == year,
             extract('month', Order.completed_at) == month
         ).all()
-        if not orders:
-            continue
 
         monthly_profit = 0.0
         for o in orders:
@@ -4510,6 +4508,19 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
                     _crud_log.log_error(db, str(e), endpoint=f"calculate_monthly_master_kpi:calculate_order_profit order#{o.id}")
                 except Exception:
                     pass
+
+        # MUHIM (2026-09): Tayyor mahsulot bo'limidan TO'G'RIDAN-TO'G'RI
+        # (buyurtmasiz) sotilgan, lekin sotuv paytida shu ustaga
+        # BIRIKTIRILGAN (master_id) sotuvlar — ular ham shu ustaning KPI
+        # hisobiga qo'shiladi. Aks holda usta "Tayyor mahsulot" bo'limidan
+        # to'g'ridan-to'g'ri xarid qilib sotsa, buyurtma ochilmagani uchun
+        # KPI umuman hisoblanmay qolar edi.
+        fp_sales = db.query(_FPS_kpi).filter(
+            _FPS_kpi.master_id == m.id,
+            extract('year', _FPS_kpi.sold_at) == year,
+            extract('month', _FPS_kpi.sold_at) == month
+        ).all()
+        monthly_profit += sum(float(s.total_amount or 0) - float(s.cost_amount or 0) for s in fp_sales)
 
         if monthly_profit <= 0:
             continue

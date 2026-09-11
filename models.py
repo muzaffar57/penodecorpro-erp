@@ -1173,6 +1173,11 @@ class FinishedProductSale(Base):
     notes = Column(Text, nullable=True)
     created_by = Column(String(100), nullable=True)
     sale_group_id = Column(String(40), nullable=True, index=True)  # Bir nechta mahsulot BITTA Yuk xati bilan sotilganda, ularni birlashtiradi
+    # MUHIM (2026-09): Tayyor mahsulot bo'limidan TO'G'RIDAN-TO'G'RI (buyurtmasiz)
+    # sotuv — agar ustaga (masalan o'zi kelib xarid qilgan usta) biriktirilsa,
+    # shu maydon orqali belgilanadi va oylik Usta KPI hisobiga qo'shiladi
+    # (aks holda faqat Buyurtma orqali sotilgandagina KPI hisoblanardi).
+    master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)
 
     finished_product = relationship("FinishedProduct")
 

@@ -3299,10 +3299,11 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
     default_p = services.get_default_penoplast(db)
     recipes = crud.get_recipes(db)
     stats = crud.get_finished_stats(db)
+    masters = crud.get_masters(db, only_active=True)
     return templates.TemplateResponse(request, "finished.html", {
         "items": items, "penoplasts": penoplasts,
         "default_penoplast_id": default_p.id if default_p else None,
-        "recipes": recipes, "stats": stats,
+        "recipes": recipes, "stats": stats, "masters": masters,
         "current_user": current_user, "active_page": "finished"
     })
 
