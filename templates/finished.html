@@ -225,10 +225,24 @@ input[type=number]{-moz-appearance:textfield}
       <div id="loss-info-production" style="display:none;background:#F8F2EB;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#A86B36;line-height:1.6">
         Bu — kesish/qoplama jarayonida chiqqan brak uchun. <b>Mahsulot soni o'zgarmaydi</b> (siz baribir to'liq miqdorni topshirasiz) — faqat qayta ishlab chiqarish uchun sarflangan <b>qo'shimcha xomashyo</b> ombordan ayiriladi va Moliyada xarajat sifatida qayd etiladi.
       </div>
-      <div>
+      <div id="loss-info-gips-production" style="display:none;background:#FCE7F3;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#9D174D;line-height:1.6">
+        Gips uchun: necha metrga qancha gips ketishi doim bir xil bo'lmagani uchun, isrof bo'lgan <b>Gips miqdorini kg da to'g'ridan-to'g'ri kiriting</b>. <b>Mahsulot soni o'zgarmaydi</b>. Qo'shimchalar (Po'lat sim, Granula va h.k.) faqat ular ham isrof bo'lgan bo'lsa, ixtiyoriy ravishda qo'shing.
+      </div>
+      <div id="loss-qty-wrap">
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px" id="loss-qty-label">Necha birlik brak bo'ldi?</label>
         <div style="font-size:12px;color:#94A3B8;margin-bottom:6px" id="loss-stock-info"></div>
         <input type="number" id="loss-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      </div>
+      <div id="loss-gips-wrap" style="display:none">
+        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Necha kg Gips brak bo'ldi?</label>
+        <input type="number" id="loss-gips-kg" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
+        <div style="margin-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <label style="font-size:13px;font-weight:600;color:#334155;margin:0">Qo'shimchalar (Po'lat sim, Granula va h.k.) <span style="font-weight:400;color:#94A3B8;font-size:11.5px">— ixtiyoriy</span></label>
+            <button type="button" onclick="addLossGpAdditive()" style="border:1px solid #E2E8F0;background:#fff;color:#475569;font-size:12.5px;padding:6px 12px;border-radius:8px;cursor:pointer">+ Qo'shimcha qo'shish</button>
+          </div>
+          <div id="loss-gp-additives-list"></div>
+        </div>
       </div>
       <div>
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Sabab (ixtiyoriy)</label>
@@ -1274,7 +1288,7 @@ async function submitGipsProduce() {
 
 let _lossData = null;
 
-const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok', 'termopanel'];
+const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok', 'termopanel', 'gips'];
 let _lossMode = 'stock';
 
 function openLossModal(id, name, quantity, unit, category) {
@@ -1283,6 +1297,8 @@ function openLossModal(id, name, quantity, unit, category) {
   document.getElementById('loss-stock-info').textContent = `Omborda: ${quantity} ${unit}`;
   document.getElementById('loss-qty').value = '';
   document.getElementById('loss-qty').max = quantity;
+  document.getElementById('loss-gips-kg').value = '';
+  document.getElementById('loss-gp-additives-list').innerHTML = '';
   document.getElementById('loss-reason').value = '';
 
   const canProdBrak = PROD_BRAK_CATEGORIES.includes(_lossData.category);
@@ -1293,16 +1309,73 @@ function openLossModal(id, name, quantity, unit, category) {
 
 function setLossMode(mode) {
   _lossMode = mode;
+  const isGips = _lossData && _lossData.category === 'gips';
   document.getElementById('loss-mode-stock').classList.toggle('active', mode === 'stock');
   document.getElementById('loss-mode-prod').classList.toggle('active', mode === 'production');
   document.getElementById('loss-info-stock').style.display = mode === 'stock' ? 'block' : 'none';
-  document.getElementById('loss-info-production').style.display = mode === 'production' ? 'block' : 'none';
+  document.getElementById('loss-info-production').style.display = (mode === 'production' && !isGips) ? 'block' : 'none';
+  document.getElementById('loss-info-gips-production').style.display = (mode === 'production' && isGips) ? 'block' : 'none';
   document.getElementById('loss-stock-info').style.display = mode === 'stock' ? 'block' : 'none';
+  document.getElementById('loss-qty-wrap').style.display = (mode === 'production' && isGips) ? 'none' : 'block';
+  document.getElementById('loss-gips-wrap').style.display = (mode === 'production' && isGips) ? 'block' : 'none';
   document.getElementById('loss-qty-label').textContent = mode === 'stock' ? 'Necha birlik brak bo\'ldi?' : 'Ishlab chiqarishda necha birlik brak bo\'ldi?';
   document.getElementById('loss-qty').max = mode === 'stock' ? _lossData.quantity : '';
   const btn = document.getElementById('loss-submit-btn');
   btn.style.background = mode === 'stock' ? '#D97706' : '#B9783F';
   btn.textContent = mode === 'stock' ? "⚠️ Kamaytirish" : "🏭 Xomashyoni ayirish";
+}
+
+async function addLossGpAdditive() {
+  if (!_gipsInvCacheFp) {
+    try {
+      const all = await fetch('/api/inventory').then(r => r.json());
+      _gipsInvCacheFp = all.filter(i => (i.category || '') === 'Gips');
+    } catch(e) { _gipsInvCacheFp = []; }
+  }
+  const list = document.getElementById('loss-gp-additives-list');
+  if (!list) return;
+  const opts = (_gipsInvCacheFp || []).map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'loss-gp-add-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
+  row.innerHTML = `
+    <select class="loss-gp-add-inv" onchange="onLossGpAdditiveChange(this)" style="flex:2;min-width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px;text-overflow:ellipsis"><option value="">— Material tanlang —</option>${opts}</select>
+    <input type="number" class="loss-gp-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;min-width:0;width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px">
+    <button type="button" onclick="this.closest('.loss-gp-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+function onLossGpAdditiveChange(sel) {
+  const row = sel.closest('.loss-gp-add-row');
+  const qtyEl = row.querySelector('.loss-gp-add-qty');
+  const item = (_gipsInvCacheFp || []).find(i => String(i.id) === sel.value);
+  if (!item) { qtyEl.placeholder = 'Miqdor'; row.dataset.ratio = ''; return; }
+  const unit = (item.unit || '').toLowerCase();
+  const ratio = parseFloat(item.volume_per_unit) || 0;
+  const isContainer = ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop');
+  if (isContainer) {
+    const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
+    qtyEl.placeholder = `Necha ${naturalUnit}?`;
+    row.dataset.ratio = ratio;
+    row.dataset.naturalUnit = naturalUnit;
+  } else {
+    qtyEl.placeholder = `Miqdor (${item.unit})`;
+    row.dataset.ratio = '';
+  }
+}
+
+function collectLossGpAdditives() {
+  const rows = document.querySelectorAll('.loss-gp-add-row');
+  const result = [];
+  rows.forEach(row => {
+    const invId = parseInt(row.querySelector('.loss-gp-add-inv')?.value) || null;
+    let qty = parseFloat(row.querySelector('.loss-gp-add-qty')?.value) || 0;
+    const ratio = parseFloat(row.dataset.ratio) || 0;
+    if (ratio > 0) qty = qty / ratio;
+    if (invId && qty > 0) result.push({ inventory_id: invId, quantity: qty });
+  });
+  return result;
 }
 
 function closeLossModal() {
@@ -1311,8 +1384,34 @@ function closeLossModal() {
 
 async function submitLoss() {
   if (!_lossData) return;
-  const qty = parseFloat(document.getElementById('loss-qty').value) || 0;
-  if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
+  const isGipsProd = _lossMode === 'production' && _lossData.category === 'gips';
+  const qty = isGipsProd ? (parseFloat(document.getElementById('loss-gips-kg').value) || 0)
+                         : (parseFloat(document.getElementById('loss-qty').value) || 0);
+  if (qty <= 0) { showMsg(isGipsProd ? 'Gips kg miqdorini kiriting' : 'Miqdorni kiriting', 'error'); return; }
+
+  if (isGipsProd) {
+    try {
+      const res = await fetch('/api/finished/production-brak', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          finished_product_id: _lossData.id,
+          gips_kg_brak: qty,
+          additives_brak: collectLossGpAdditives(),
+          notes: document.getElementById('loss-reason').value.trim() || null
+        })
+      });
+      const r = await res.json();
+      if (res.ok) {
+        closeLossModal();
+        showMsg(`✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
+      }
+    } catch(e) { showMsg('Server xatosi', 'error'); }
+    return;
+  }
 
   if (_lossMode === 'stock') {
     if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); return; }
