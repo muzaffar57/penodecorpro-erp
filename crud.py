@@ -990,14 +990,20 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
     # Detallarni qo'shamiz va umumiy summani hisoblaymiz
     total_amount = 0
     for item_data in order_data.items:
-        # unit_price allaqachon frontend tomonida hisoblangan (qoplamali bo'lsa x2)
-        # MUHIM: "dona" turida, frontend "1 dona narxi"ni HAR DOIM
-        # qoplamasiz (xom) holda yuboradi (qoplama ×2 shu yerda qo'shiladi) —
-        # boshqa turlar (profil/panel) buni frontendning o'zida ×2 qilib
-        # yuboradi. Bu — ikkalasi orasidagi izchillikni saqlash uchun
-        # (unit_price × quantity HAR DOIM total_price'ga teng bo'lishi kerak).
-        _coat_mult = 2 if (item_data.category == 'dona' and item_data.is_coated and not getattr(item_data, 'finished_product_id', None)) else 1
-        _stored_unit_price = item_data.unit_price * _coat_mult
+        # unit_price allaqachon frontend tomonida YAKUNIY (qoplamali bo'lsa
+        # allaqachon ×2 qilingan) holda yuboriladi — bu barcha turlar
+        # (profil/panel/dona/blok) uchun bir xil, izchil qoida.
+        # MUHIM TUZATISH (2026-09 audit): oldin bu yerda "dona" turi uchun
+        # yana QO'SHIMCHA ×2 qilinardi — chunki bu kod "dona"ning frontendi
+        # xom (qoplamasiz) narx yuboradi deb noto'g'ri faraz qilgan edi.
+        # Aslida frontend "dona" uchun ham (Blok/Profil kabi) ALLAQACHON
+        # yakuniy, qoplamali narxni yuboradi (shu jumladan "hajmni qulflab"
+        # rejimida ham) — natijada qoplamali Donali detallar narxi REAL
+        # buyurtmalarda 2 baravar ORTIQCHA yozilib kelgan (jonli test bilan
+        # tasdiqlangan: 1000 so'm/dona yuborilsa, 2000 so'm/dona saqlanardi).
+        # Endi — boshqa barcha turlar kabi, unit_price O'ZGARTIRILMASDAN
+        # ishlatiladi.
+        _stored_unit_price = item_data.unit_price
         item_total = _stored_unit_price * item_data.quantity
         total_amount += item_total
 
@@ -3247,8 +3253,10 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             db.delete(oi)
             continue
 
-        _coat_mult1 = 2 if (nd.category == 'dona' and nd.is_coated and not getattr(nd, 'finished_product_id', None)) else 1
-        _stored_up1 = float(nd.unit_price or 0) * _coat_mult1
+        # MUHIM TUZATISH (2026-09 audit): "dona" uchun qo'shimcha ×2
+        # qilinmaydi endi — sabab yuqoridagi create_order()dagi izohda
+        # (frontend allaqachon yakuniy, qoplamali narx yuboradi).
+        _stored_up1 = float(nd.unit_price or 0)
         item_total = _stored_up1 * float(nd.quantity or 1)
         total_amount += item_total
 
@@ -3313,8 +3321,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     for idx, nd in enumerate(order_data.items):
         if idx in used_new:
             continue
-        _coat_mult2 = 2 if (nd.category == 'dona' and nd.is_coated and not getattr(nd, 'finished_product_id', None)) else 1
-        _stored_up2 = float(nd.unit_price or 0) * _coat_mult2
+        # MUHIM TUZATISH (2026-09 audit): "dona" uchun qo'shimcha ×2
+        # qilinmaydi endi — sabab yuqoridagi create_order()dagi izohda.
+        _stored_up2 = float(nd.unit_price or 0)
         item_total = _stored_up2 * float(nd.quantity or 1)
         total_amount += item_total
         # MUHIM: Termopanel uchun — xuddi yuqoridagi (mavjud detal)
