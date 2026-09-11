@@ -286,6 +286,15 @@ input[type=number]{-moz-appearance:textfield}
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
         <input type="text" id="batch-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kim sotib olyapti? <span style="color:#DC2626">*</span></label>
+        <select id="batch-master" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+          <option value="" disabled selected>— Tanlang —</option>
+          <option value="none">🚫 Oddiy sotuv (usta emas)</option>
+          {% for m in masters %}<option value="{{ m.id }}">👷 {{ m.name }}</option>{% endfor %}
+        </select>
+        <div style="font-size:11px;color:#94A3B8;margin-top:6px">Agar usta o'zi kelib xarid qilsa — uni tanlang, shu oy KPIga qo'shiladi. Aks holda "Oddiy sotuv"ni tanlang.</div>
+      </div>
       <div>
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">To'lov usuli</label>
         <select id="batch-paymethod" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
@@ -326,6 +335,15 @@ input[type=number]{-moz-appearance:textfield}
       <div>
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Xaridor (ixtiyoriy)</label>
         <input type="text" id="sell-buyer" placeholder="Ism yoki kompaniya" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kim sotib olyapti? <span style="color:#DC2626">*</span></label>
+        <select id="sell-master" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
+          <option value="" disabled selected>— Tanlang —</option>
+          <option value="none">🚫 Oddiy sotuv (usta emas)</option>
+          {% for m in masters %}<option value="{{ m.id }}">👷 {{ m.name }}</option>{% endfor %}
+        </select>
+        <div style="font-size:11px;color:#94A3B8;margin-top:6px">Agar usta o'zi kelib xarid qilsa — uni tanlang, shu oy KPIga qo'shiladi. Aks holda "Oddiy sotuv"ni tanlang.</div>
       </div>
       <div>
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">To'lov usuli</label>
@@ -1499,6 +1517,7 @@ function openBatchSellModal() {
   if (!ids.length) return;
   document.getElementById('batch-modal-sub').textContent = `${ids.length} ta mahsulot`;
   document.getElementById('batch-buyer').value = '';
+  document.getElementById('batch-master').value = '';
   document.getElementById('batch-paymethod').value = 'naqd';
   document.getElementById('batch-agreed').value = '';
   document.getElementById('batch-discount-info').style.display = 'none';
@@ -1601,6 +1620,10 @@ async function submitBatchSell() {
   });
   if (hasError || !items.length) { showMsg('Barcha mahsulotlar uchun miqdor va narxni to\'g\'ri kiriting', 'error'); return; }
 
+  const batchMasterVal = document.getElementById('batch-master').value;
+  if (!batchMasterVal) { showMsg('Kim sotib olayotganini tanlang (usta yoki oddiy sotuv)', 'error'); return; }
+  const batchMasterId = batchMasterVal === 'none' ? null : parseInt(batchMasterVal);
+
   // "Kelishilgan summa" — ixtiyoriy. Berilsa, asl jamidan katta bo'lmasligi kerak.
   const originalTotal = batchOriginalTotal();
   const agreedRaw = parseNum(document.getElementById('batch-agreed').value) || 0;
@@ -1621,7 +1644,8 @@ async function submitBatchSell() {
         items,
         buyer_name: document.getElementById('batch-buyer').value.trim() || null,
         payment_method: document.getElementById('batch-paymethod').value,
-        agreed_amount: agreedAmount
+        agreed_amount: agreedAmount,
+        master_id: batchMasterId
       })
     });
     const r = await res.json();
@@ -1648,6 +1672,7 @@ function openSellModal(id, name, quantity, unit, currentPrice) {
   document.getElementById('sell-qty').max = quantity;
   document.getElementById('sell-price').value = currentPrice ? fmt(currentPrice) : '';
   document.getElementById('sell-buyer').value = '';
+  document.getElementById('sell-master').value = '';
   document.getElementById('sell-paymethod').value = 'naqd';
   updateSellTotal();
   document.getElementById('sellModal').style.display = 'flex';
@@ -1672,6 +1697,10 @@ async function submitSell() {
   if (qty > _sellData.quantity + 0.001) { showMsg(`Omborda faqat ${_sellData.quantity} ${_sellData.unit} bor`, 'error'); return; }
   if (price <= 0) { showMsg('Narxni kiriting', 'error'); return; }
 
+  const sellMasterVal = document.getElementById('sell-master').value;
+  if (!sellMasterVal) { showMsg('Kim sotib olayotganini tanlang (usta yoki oddiy sotuv)', 'error'); return; }
+  const sellMasterId = sellMasterVal === 'none' ? null : parseInt(sellMasterVal);
+
   try {
     const res = await fetch('/api/finished/sell', {
       method: 'POST',
@@ -1681,7 +1710,8 @@ async function submitSell() {
         quantity: qty,
         unit_price: price,
         buyer_name: document.getElementById('sell-buyer').value.trim() || null,
-        payment_method: document.getElementById('sell-paymethod').value
+        payment_method: document.getElementById('sell-paymethod').value,
+        master_id: sellMasterId
       })
     });
     const r = await res.json();
