@@ -1769,9 +1769,21 @@ async function loadOrderAttachments(orderId) {
     const atts = await res.json();
     grid.innerHTML = atts.map(a => {
       const isImg = /\.(jpg|jpeg|png|webp)$/i.test(a.file_url);
+      const isPdf = /\.pdf$/i.test(a.file_url);
+      // CDR/DWG/DXF kabi fayllarni brauzer ichida ko'rsata olmaydi — ular
+      // baribir yuklab olinadi, shuning uchun asl nomi bilan (tasodifiy
+      // fayl nomi bilan emas) yuklanishi uchun download="" beriladi, va
+      // ko'zga aniq ko'rinishi uchun "yuklab olish" belgisi qo'yiladi.
+      const needsDownload = !isImg && !isPdf;
+      const nameAttr = (needsDownload && a.file_name) ? ` download="${a.file_name.replace(/"/g, '&quot;')}"` : '';
+      const icon = needsDownload ? 'ti-download' : 'ti-file-text';
+      const hint = needsDownload ? `Yuklab olish: ${a.file_name || ''}` : (a.file_name || '');
       const inner = isImg
         ? `<img src="${a.file_url}" alt="">`
-        : `<a href="${a.file_url}" target="_blank" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3)"><i class="ti ti-file-text" style="font-size:20px" aria-hidden="true"></i></a>`;
+        : `<a href="${a.file_url}" target="_blank"${nameAttr} title="${hint}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:100%;width:100%;color:var(--text3);text-decoration:none;text-align:center;padding:2px;box-sizing:border-box">
+             <i class="ti ${icon}" style="font-size:18px" aria-hidden="true"></i>
+             ${needsDownload ? `<span style="font-size:8.5px;line-height:1.1;word-break:break-word">Yuklab olish</span>` : ''}
+           </a>`;
       return `<div class="attach-thumb">${inner}<button class="rm" onclick="deleteOrderAttachment(${a.id}, ${orderId})" aria-label="O'chirish">✕</button></div>`;
     }).join('');
   } catch (e) { console.error('Fayllarni yuklashda xato:', e); }
