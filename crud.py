@@ -2540,7 +2540,7 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None) -> bo
         f"{payment.amount:,.0f} so'm · {payment.payment_type.value if payment.payment_type else '-'} · "
         f"{payment.payment_method.value if payment.payment_method else '-'} · "
         f"qabul qilgan: {payment.received_by or '-'} · "
-        f"sana: {payment.created_at.strftime('%Y-%m-%d %H:%M') if payment.created_at else '-'}"
+        f"sana: {payment.paid_at.strftime('%Y-%m-%d %H:%M') if payment.paid_at else '-'}"
         + (f" · izoh: {payment.notes}" if payment.notes else "")
     )
     log_activity(
