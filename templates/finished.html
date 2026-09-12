@@ -1620,7 +1620,7 @@ function updateBatchDiscount() {
   box.style.color = '#92400E';
 }
 
-async function submitBatchSell() {
+async function submitBatchSell(confirmBelowCost) {
   const items = [];
   let hasError = false;
   document.querySelectorAll('.batch-item-row').forEach(row => {
@@ -1657,7 +1657,8 @@ async function submitBatchSell() {
         buyer_name: document.getElementById('batch-buyer').value.trim() || null,
         payment_method: document.getElementById('batch-paymethod').value,
         agreed_amount: agreedAmount,
-        master_id: batchMasterId
+        master_id: batchMasterId,
+        confirm_below_cost: !!confirmBelowCost
       })
     });
     const r = await res.json();
@@ -1668,6 +1669,9 @@ async function submitBatchSell() {
       showMsg(`✓ ${r.sale_count} ta mahsulot sotildi! Kelishilgan: ${fmt(r.total_amount)} so'm${discMsg}`, 'success');
       window.open(`/api/finished/sales/batch/${r.sale_group_id}/pdf`, '_blank');
       setTimeout(() => location.reload(), 1500);
+    } else if (r.detail?.type === 'below_cost_warning') {
+      const ok = await customConfirm('Diqqat — zarar bilan sotuv', r.detail.message, {okText: 'Ha, davom etish', danger: true});
+      if (ok) await submitBatchSell(true);
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
     }
@@ -1701,7 +1705,7 @@ function updateSellTotal() {
 }
 document.addEventListener('input', (e) => { if (e.target.id === 'sell-qty') updateSellTotal(); });
 
-async function submitSell() {
+async function submitSell(confirmBelowCost) {
   if (!_sellData) return;
   const qty = parseFloat(document.getElementById('sell-qty').value) || 0;
   const price = parseNum(document.getElementById('sell-price').value) || 0;
@@ -1723,7 +1727,8 @@ async function submitSell() {
         unit_price: price,
         buyer_name: document.getElementById('sell-buyer').value.trim() || null,
         payment_method: document.getElementById('sell-paymethod').value,
-        master_id: sellMasterId
+        master_id: sellMasterId,
+        confirm_below_cost: !!confirmBelowCost
       })
     });
     const r = await res.json();
@@ -1739,6 +1744,9 @@ async function submitSell() {
         window.open(`/api/finished/sales/${r.sale_id}/pdf`, '_blank');
       }
       setTimeout(() => location.reload(), 1500);
+    } else if (r.detail?.type === 'below_cost_warning') {
+      const ok = await customConfirm('Diqqat — zarar bilan sotuv', r.detail.message, {okText: 'Ha, davom etish', danger: true});
+      if (ok) await submitSell(true);
     } else {
       showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
     }
