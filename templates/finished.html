@@ -62,6 +62,9 @@
 .fp-badge{font-size:9px;padding:2px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
 .mini-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid #e5e5e5;background:#fff;font-size:18px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
+.fp-actions-wrap{position:relative}
+.fp-more{display:none;position:absolute;top:44px;right:0;background:#fff;border:1px solid #e5e5e5;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:8px;z-index:60;flex-wrap:wrap;align-items:center;gap:6px;width:max-content;max-width:260px}
+.fp-more.open{display:flex}
 .fp-inp{width:76px;height:36px;text-align:center;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px;font-weight:600;outline:none}
 .fp-inp:focus{border-color:#B9783F}
 .fp-mini-bar{width:70px;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;margin-top:4px}
@@ -216,8 +219,8 @@ input[type=number]{-moz-appearance:textfield}
     </div>
     <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
       <div id="loss-mode-toggle" style="display:none;gap:6px">
-        <div id="loss-mode-stock" class="type-opt active" style="flex:1;text-align:center" onclick="setLossMode('stock')">📦 Tayyor turgan, keyin yo'qoldi</div>
-        <div id="loss-mode-prod" class="type-opt" style="flex:1;text-align:center" onclick="setLossMode('production')">🏭 Ishlab chiqarishda chiqdi</div>
+        <div id="loss-mode-stock" class="type-opt active" style="flex:1;min-width:0;text-align:center;white-space:normal;line-height:1.35;padding:8px 6px" onclick="setLossMode('stock')">📦 Tayyor turgan, keyin yo'qoldi</div>
+        <div id="loss-mode-prod" class="type-opt" style="flex:1;min-width:0;text-align:center;white-space:normal;line-height:1.35;padding:8px 6px" onclick="setLossMode('production')">🏭 Ishlab chiqarishda chiqdi</div>
       </div>
       <div id="loss-info-stock" style="background:#FEF3C7;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#92400E;line-height:1.6">
         Bu — mahsulotni <b>o'chirmaydi</b>, faqat miqdorini kamaytiradi (masalan sinib/buzilib, endi sotib bo'lmaydigan qismi uchun). Tan narxi avtomatik <b>Moliyada Brak xarajatiga</b> qo'shiladi.
@@ -805,6 +808,23 @@ function toggleFpShowAll() {
   loadFp();
 }
 
+// ── Har bir detal qatoridagi "Yana" (⋯) tugmasi — Sotishdan
+// tashqari qolgan tugmalarni (+/−, narx, brak, tarix, foyda, o'chirish)
+// shtorka (dropdown) ichiga yashiradi, qator tor va toza ko'rinsin deb.
+// Bir vaqtda faqat BITTA shtorka ochiq turadi.
+function toggleFpMore(evt, id) {
+  evt.stopPropagation();
+  const panel = document.getElementById('fp-more-' + id);
+  if (!panel) return;
+  const willOpen = !panel.classList.contains('open');
+  document.querySelectorAll('.fp-more.open').forEach(p => p.classList.remove('open'));
+  if (willOpen) panel.classList.add('open');
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.fp-more')) return;
+  document.querySelectorAll('.fp-more.open').forEach(p => p.classList.remove('open'));
+});
+
 function updateFpRangeBanner() {
   const el = document.getElementById('fp-range-banner');
   if (!el) return;
@@ -925,6 +945,24 @@ function renderFp() {
   }
 
   list.innerHTML = html;
+
+  // .fp-row kirish animatsiyasi (opacity/transform) tugagandan keyin ham
+  // "forwards" tufayli qator o'zining alohida stacking context'ini saqlab
+  // qolaveradi — shu sababli .fp-more (⋯ shtorka, z-index:60) pastdagi
+  // qatordan CHIQOLMAY, ORQASIDA qolib ketardi. Animatsiya vaqti (.3s)
+  // o'tgach, oxirgi ko'rinishni (to'liq ko'rinadigan holat) qotirib
+  // qo'yib, keyin animatsiyani o'chiramiz — shtorka endi erkin chiqa oladi,
+  // ko'rinishga esa hech qanday ta'sir qilmaydi. animationend hodisasiga
+  // emas, setTimeout'ga tayanamiz, chunki animationend ayrim holatlarda
+  // (masalan, tab fon rejimida bo'lganda) kechikishi yoki umuman
+  // ishlamay qolishi mumkun.
+  setTimeout(() => {
+    list.querySelectorAll('.fp-row').forEach(r => {
+      r.style.opacity = '1';
+      r.style.transform = 'none';
+      r.style.animation = 'none';
+    });
+  }, 350);
 }
 
 function fpWidth2(i) {
@@ -994,25 +1032,28 @@ function rowHtml(i) {
     <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
             onclick="delFp(${i.id}, '${i.source}')" title="Bekor qilish">✕</button>
   ` : `
+    <button class="mini-btn" onclick="openSellModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', ${i.unit_price || 0})" title="Sotish" style="color:#16A34A;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>
     ${i.source === 'produced' ? `
-    <button class="mini-btn" onclick="stepFp(${i.id},-1)"
-            title="Brak/singan — xomashyo qaytmaydi"
+    <button class="mini-btn" onclick="openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')"
+            title="Kamaytirish (brak/yo'qotish)"
             style="color:#DC2626">−</button>
     <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1" placeholder="0">
-    <button class="mini-btn" onclick="stepFp(${i.id},1)"
+    <button class="mini-btn" onclick="stepFp(${i.id})"
             title="Qo'shish — xomashyo proporsional yechiladi"
             style="color:#22C55E">+</button>
     ` : ''}
-    <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
-    <button class="mini-btn" onclick="openSellModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', ${i.unit_price || 0})" title="Sotish" style="color:#16A34A;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>
-    <button class="mini-btn" onclick="openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>
-    <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
-    {% if current_user.role.value == 'admin' %}
-    <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
-            style="color:#A86B36;border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
-    {% endif %}
-    <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
-            onclick="delFp(${i.id}, '${i.source}')" title="O'chirish"><i class="ti ti-trash"></i></button>
+    <button class="mini-btn" onclick="toggleFpMore(event, ${i.id})" title="Yana"><i class="ti ti-dots"></i></button>
+    <div class="fp-more" id="fp-more-${i.id}">
+      <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
+      ${i.source !== 'produced' ? `<button class="mini-btn" onclick="openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>` : ''}
+      <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
+      {% if current_user.role.value == 'admin' %}
+      <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
+              style="color:#A86B36;border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
+      {% endif %}
+      <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
+              onclick="delFp(${i.id}, '${i.source}')" title="O'chirish"><i class="ti ti-trash"></i></button>
+    </div>
   `;
 
   return `
@@ -1059,7 +1100,7 @@ function rowHtml(i) {
       <div style="font-size:10px;color:#bbb">jami</div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+    <div class="fp-actions-wrap" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
       ${actionBtns}
     </div>
   </div>`;
@@ -1100,18 +1141,19 @@ function openHistoryModal(id) {
 }
 function closeHistoryModal(){ document.getElementById('historyModal').style.display = 'none'; }
 
-// ── Ro'yxat harakatlari (mavjud, o'zgarishsiz) ─────────────
-async function stepFp(id, dir) {
+// ── Ro'yxat harakatlari ─────────────
+// Eslatma: "−" (brak/kamaytirish) endi shu yerdan emas — to'g'ridan-to'g'ri
+// openLossModal() ni ochadi (avvalgi "Kamaytirish" shtorka tugmasi bilan
+// BIRLASHTIRILDI: ikkalasi bir xil ishni — brakni qayd etishni — qilardi,
+// lekin faqat "Kamaytirish" tan narxni ham to'g'rilab, Moliyada Brak
+// xarajatiga yozardi. Endi bitta tugma bor va u har doim TO'LIQ ishni
+// bajaradi: miqdor kamayadi, tan narx to'g'rilanadi, Moliyaga yoziladi).
+async function stepFp(id) {
   const el = document.getElementById('fq-' + id);
   const qty = parseFloat(el?.value) || 0;
   const item = fpItems.find(i => i.id === id);
   if (!item || qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
-
-  if (dir > 0) {
-    await addProduction(id, qty, item);
-  } else {
-    await reduceProduction(id, qty, item);
-  }
+  await addProduction(id, qty, item);
 }
 
 async function addProduction(id, qty, item) {
@@ -1159,36 +1201,6 @@ async function addProduction(id, qty, item) {
       const d = r.detail || {};
       showMsg('❌ ' + (d.message || 'Xato') +
         (d.shortages?.length ? '\n' + d.shortages.join('\n') : ''), 'error');
-    }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
-}
-
-async function reduceProduction(id, qty, item) {
-  const lost = qty * (item.unit_price || 0);
-  const txt = `${item.name} — ${qty} ${item.unit} chiqarilsinmi?\n\n` +
-    `⚠️ Bu BRAK/SINGAN deb hisoblanadi:\n` +
-    `• Xomashyo omborga QAYTARILMAYDI\n` +
-    `• Yo'qotilgan qiymat: ${fmt(lost)} so'm\n\n` +
-    `📊 Qoladi: ${(item.quantity - qty).toFixed(1)} ${item.unit}`;
-
-  if (!(await customConfirm(`${item.name} — brak/kamaytirish`, txt, {danger: true, okText: 'Ha, brak'}))) return;
-
-  const reason = prompt('Sabab (ixtiyoriy):\n\nMasalan: singan, brak, yo\'qolgan', '');
-  if (reason === null) return;
-
-  try {
-    const res = await fetch(`/api/finished/${id}/reduce`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({quantity: qty, reason: reason.trim() || null})
-    });
-    const r = await res.json();
-
-    if (res.ok) {
-      loadFp();
-      showMsg(`✓ -${qty} ${r.unit} chiqarildi (brak)\n💸 Yo'qotish: ${fmt(r.lost_value)} so'm`, 'success');
-    } else {
-      showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
     }
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
