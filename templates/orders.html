@@ -2570,7 +2570,7 @@ async function loadPayments(orderId) {
       // 2026-09-13: muddat yaqinlashsa/o'tsa — rangli (va eng shoshilinch
       // holatlarda pulslaydigan) ogohlantirish qo'shamiz
       let suffix = '', color = '', pulse = false;
-      if (order.deadline && !['delivered', 'cancelled'].includes(order.status)) {
+      if (order.deadline && !['delivered', 'cancelled'].includes(order.status) && order.delivery_percent < 100) {
         const todayD = new Date(); todayD.setHours(0,0,0,0);
         const dlD = new Date(order.deadline); dlD.setHours(0,0,0,0);
         const daysLeft = Math.round((dlD - todayD) / 86400000);
