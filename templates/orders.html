@@ -10,6 +10,8 @@
 
 {% block head %}
 <style>
+@keyframes deadlinePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.deadline-pulse { animation: deadlinePulse 1.6s ease-in-out infinite; }
 .ord-layout{display:grid;grid-template-columns:300px 1fr 280px;gap:12px;align-items:start}
 @media (max-width:1150px){
   .ord-layout{grid-template-columns:260px 1fr 260px}
@@ -271,9 +273,9 @@ input[type=number]{-moz-appearance:textfield}
               </div>
               <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.agreed_amount or o.total_amount or 0).replace(",", " ") }} so'm</div>
               {% if urgency == 'overdue' %}
-              <div style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o'tgan!</div>
+              <div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o'tgan!</div>
               {% elif urgency == 'today' %}
-              <div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Bugun muddati!</div>
+              <div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Bugun muddati!</div>
               {% elif urgency == 'tomorrow' %}
               <div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Ertaga muddati</div>
               {% endif %}
@@ -2547,20 +2549,20 @@ async function loadPayments(orderId) {
 
     const sDeadline = document.getElementById('s-deadline');
     if (sDeadline) {
-      sDeadline.textContent = order.deadline
-        ? new Date(order.deadline).toLocaleDateString('uz')
-        : '—';
-      // 2026-09-13: muddat yaqinlashsa/o'tsa — rangli ogohlantirish
-      sDeadline.style.color = '';
-      sDeadline.style.fontWeight = '';
+      const dateStr = order.deadline ? new Date(order.deadline).toLocaleDateString('uz') : '—';
+      // 2026-09-13: muddat yaqinlashsa/o'tsa — rangli (va eng shoshilinch
+      // holatlarda pulslaydigan) ogohlantirish qo'shamiz
+      let suffix = '', color = '', pulse = false;
       if (order.deadline && !['delivered', 'cancelled'].includes(order.status)) {
         const todayD = new Date(); todayD.setHours(0,0,0,0);
         const dlD = new Date(order.deadline); dlD.setHours(0,0,0,0);
         const daysLeft = Math.round((dlD - todayD) / 86400000);
-        if (daysLeft < 0) { sDeadline.style.color = '#DC2626'; sDeadline.style.fontWeight = '700'; sDeadline.textContent += ' · 🔴 o\'tgan!'; }
-        else if (daysLeft === 0) { sDeadline.style.color = '#D97706'; sDeadline.style.fontWeight = '700'; sDeadline.textContent += ' · ⏰ bugun!'; }
-        else if (daysLeft === 1) { sDeadline.style.color = '#D97706'; sDeadline.style.fontWeight = '700'; sDeadline.textContent += ' · ⏰ ertaga'; }
+        if (daysLeft < 0) { color = '#DC2626'; suffix = " · 🔴 o'tgan!"; pulse = true; }
+        else if (daysLeft === 0) { color = '#D97706'; suffix = ' · ⏰ bugun!'; pulse = true; }
+        else if (daysLeft === 1) { color = '#D97706'; suffix = ' · ⏰ ertaga'; }
       }
+      sDeadline.innerHTML = dateStr + (suffix
+        ? `<span class="${pulse ? 'deadline-pulse' : ''}" style="color:${color};font-weight:700">${suffix}</span>` : '');
     }
     const sStatus = document.getElementById('s-status');
     if (sStatus) {
@@ -5486,8 +5488,8 @@ function renderPinnedOrders(rows) {
     const amount = o.agreed_amount || o.total_amount || 0;
     const urgencyBorder = o.deadline_urgency === 'overdue' ? 'border-left:3px solid #DC2626'
       : (o.deadline_urgency === 'today' || o.deadline_urgency === 'tomorrow') ? 'border-left:3px solid #F59E0B' : '';
-    const urgencyText = o.deadline_urgency === 'overdue' ? '<div style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o\'tgan!</div>'
-      : o.deadline_urgency === 'today' ? '<div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Bugun muddati!</div>'
+    const urgencyText = o.deadline_urgency === 'overdue' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o\'tgan!</div>'
+      : o.deadline_urgency === 'today' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Bugun muddati!</div>'
       : o.deadline_urgency === 'tomorrow' ? '<div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Ertaga muddati</div>' : '';
     return `
       <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)" style="${urgencyBorder}"
