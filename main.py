@@ -4118,13 +4118,16 @@ def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.admi
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request):
-    # Xavfsizlik: agar imzo o'rnatilgan bo'lsa (TELEGRAM_WEBHOOK_SECRET),
-    # kelayotgan xabarning imzosi mos kelishini tekshiramiz. Agar mos
-    # kelmasa — bu, ehtimol, soxta (Telegram'dan emas) so'rov.
-    if TELEGRAM_WEBHOOK_SECRET:
-        incoming_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-        if incoming_secret != TELEGRAM_WEBHOOK_SECRET:
-            raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
+    # Xavfsizlik: "standart yopiq" (fail-closed) — agar TELEGRAM_WEBHOOK_SECRET
+    # muhit o'zgaruvchisi sozlanmagan bo'lsa, so'rovni RAD ETAMIZ (avval esa
+    # sozlanmagan bo'lsa hech qanday tekshiruvsiz qabul qilinar edi). Bu —
+    # kelajakda o'zgaruvchi tasodifan o'chib qolsa ham, endpoint himoyasiz
+    # qolmasligini kafolatlaydi.
+    if not TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=503, detail="Webhook sozlanmagan")
+    incoming_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if incoming_secret != TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
 
     try:
         data = await request.json()
