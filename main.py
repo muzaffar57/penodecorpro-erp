@@ -3760,6 +3760,19 @@ def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_us
     return result
 
 
+@app.post("/api/orders/{order_id}/pin")
+def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    result = crud.toggle_order_pin(db, order_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("message", "Topilmadi"))
+    return result
+
+
+@app.get("/api/orders/pinned")
+def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    return crud.get_pinned_orders(db)
+
+
 @app.post("/api/deliveries")
 def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yangi yetkazish."""

@@ -3730,6 +3730,10 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
         order.status = OrderStatus.DELIVERED
         if not order.completed_at:
             order.completed_at = datetime.utcnow()
+        # 2026-09-13: to'liq topshirilgan buyurtma "Pin qilingan" ro'yxatidan
+        # o'zi chiqib ketadi — yakunlangan ish uchun "muhim" belgisi kerak
+        # emas, ro'yxat vaqt o'tishi bilan eski ishlar bilan to'lib ketmasin.
+        order.is_pinned = False
 
     # Shu yukka bog'liq to'lov (ixtiyoriy) — mavjud to'lov tizimidan foydalanadi
     payment_amount = getattr(data, 'payment_amount', None)
@@ -3786,6 +3790,41 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
     }
     if payment_warning:
         result["payment_warning"] = payment_warning
+    return result
+
+
+def toggle_order_pin(db: Session, order_id: int) -> dict:
+    """Buyurtmani 'Pin qilingan' ro'yxatiga qo'shadi/olib tashlaydi
+    (2026-09-13, muhim buyurtmalarni tepada ko'rsatish uchun)."""
+    order = db.query(Order).filter(Order.id == order_id, Order.is_deleted.isnot(True)).first()
+    if not order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+    order.is_pinned = not bool(order.is_pinned)
+    db.commit()
+    return {"success": True, "is_pinned": order.is_pinned}
+
+
+def get_pinned_orders(db: Session) -> list:
+    """Pin qilingan buyurtmalarni, TOPSHIRISH MUDDATI eng yaqinidan
+    boshlab (muddat kiritilmaganlar oxirida) qaytaradi."""
+    rows = db.query(Order).filter(
+        Order.is_pinned == True, Order.is_deleted.isnot(True)
+    ).all()
+    rows.sort(key=lambda o: (o.deadline is None, o.deadline))
+    result = []
+    for o in rows:
+        result.append({
+            "id": o.id, "order_number": o.order_number,
+            "client_name": o.project.client_name if o.project else "—",
+            "project_name": o.project.project_name if o.project else "—",
+            "status": o.status.value,
+            "total_amount": float(o.total_amount or 0),
+            "agreed_amount": float(o.agreed_amount or 0) if o.agreed_amount else None,
+            "master_name": o.master.name if o.master else "—",
+            "created_at": o.created_at.strftime("%d.%m.%Y") if o.created_at else "—",
+            "deadline": o.deadline.strftime("%d.%m.%Y") if o.deadline else None,
+            "project_id": o.project_id,
+        })
     return result
 
 
