@@ -2547,7 +2547,7 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None) -> bo
         db, "deleted", "payment", payment.id,
         entity_label=f"Buyurtma {order_label}",
         performed_by=performed_by,
-        old_value=detail
+        new_value=detail
     )
 
     db.delete(payment)
