@@ -4444,12 +4444,9 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
                     "success": False,
                     "type": "below_cost_warning",
                     "message": (
-                        f"{fp.name}: sotuv narxi (1 {fp.unit} uchun {item.unit_price:,.0f} so'm) "
-                        f"tan narxidan (1 {fp.unit} uchun {unit_cost:,.0f} so'm) PAST — "
-                        f"zarar bilan sotilyapti. Shunday ham davom etasizmi?"
-                    ),
-                    "unit_price": float(item.unit_price),
-                    "unit_cost": round(unit_cost, 2)
+                        f"{fp.name}: kiritilgan narx (1 {fp.unit} uchun {item.unit_price:,.0f} so'm) juda past — "
+                        f"bu narxda sotib bo'lmaydi. Shunday ham davom etasizmi?"
+                    )
                 }
 
             cost_amount = unit_cost * item.quantity
@@ -4567,18 +4564,18 @@ def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
     # XAVFSIZLIK/NAZORAT: agar sotuv narxi tan narxidan PAST bo'lsa — bu
     # zarar bilan sotuv (yoki xodimning xatosi/suiiste'moli bo'lishi mumkin).
     # Butunlay TAQIQLAMAYMIZ (chunki chegirma/aksiya kabi qonuniy holatlar
-    # ham bo'lishi mumkin), lekin aniq tasdiqlash talab qilamiz.
+    # ham bo'lishi mumkin), lekin aniq tasdiqlash talab qilamiz. MUHIM: tan
+    # narxining o'zi (mahsulot tannarxi — ichki, nozik ma'lumot) xabarda
+    # KO'RSATILMAYDI — xodim uni bilmasligi kerak, faqat "bu narxda sotib
+    # bo'lmaydi" degan xabarni ko'radi.
     if unit_cost > 0 and float(data.unit_price) < unit_cost and not getattr(data, "confirm_below_cost", False):
         return {
             "success": False,
             "type": "below_cost_warning",
             "message": (
-                f"Sotuv narxi (1 {fp.unit} uchun {data.unit_price:,.0f} so'm) "
-                f"tan narxidan (1 {fp.unit} uchun {unit_cost:,.0f} so'm) PAST — "
-                f"zarar bilan sotilyapti. Shunday ham davom etasizmi?"
-            ),
-            "unit_price": float(data.unit_price),
-            "unit_cost": round(unit_cost, 2)
+                f"Kiritilgan narx (1 {fp.unit} uchun {data.unit_price:,.0f} so'm) juda past — "
+                f"bu narxda sotib bo'lmaydi. Shunday ham davom etasizmi?"
+            )
         }
 
     cost_amount = unit_cost * data.quantity
