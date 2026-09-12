@@ -1071,6 +1071,8 @@ def api_add_payment(project_id: int, amount: float, db: Session = Depends(get_db
 @app.get("/orders", response_class=HTMLResponse)
 async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.orders_page_access)):
     orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all)
+    for o in orders:
+        o.deadline_urgency = crud.get_deadline_urgency(o.deadline, o.status.value)
     projects = crud.get_projects(db)
     masters = crud.get_masters(db, only_active=True)
     recipes = crud.get_recipes(db)
@@ -2150,6 +2152,15 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
 @app.get("/api/orders", response_model=List[schemas.OrderRead])
 def api_get_orders(project_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     return crud.get_orders(db, project_id=project_id)
+
+
+@app.get("/api/orders/pinned")
+def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # MUHIM: bu — statik yo'l, shuning uchun quyidagi /api/orders/{order_id}
+    # (dinamik) marshrutdan OLDIN turishi SHART — aks holda FastAPI
+    # "pinned" so'zini order_id sifatida ushlab, xato qaytaradi (2026-09-13
+    # da aynan shu xato topilib, shu yerga ko'chirilgan edi).
+    return crud.get_pinned_orders(db)
 
 
 @app.get("/api/orders/{order_id}")
@@ -3757,6 +3768,14 @@ def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_us
     result = crud.get_delivery_status(db, order_id)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@app.post("/api/orders/{order_id}/pin")
+def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    result = crud.toggle_order_pin(db, order_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("message", "Topilmadi"))
     return result
 
 
