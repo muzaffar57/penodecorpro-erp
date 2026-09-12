@@ -3797,10 +3797,17 @@ def get_deadline_urgency(deadline, status_value: str) -> str:
     """Topshirish muddatiga qarab holatni qaytaradi: 'overdue' (muddat
     o'tgan), 'today' (bugun), 'tomorrow' (ertaga), yoki 'normal'.
     Allaqachon YETKAZILGAN/BEKOR QILINGAN buyurtmalar uchun muddat endi
-    ahamiyatsiz — doim 'normal' qaytariladi (2026-09-13)."""
+    ahamiyatsiz — doim 'normal' qaytariladi (2026-09-13).
+
+    MUHIM: server UTC bo'yicha ishlaydi, lekin "bugun" — Toshkent kuni
+    (UTC+5) bo'lishi kerak, aks holda ertalabki soat 00:00-04:59
+    Toshkent vaqtida (bu hali UTC bo'yicha KECHAGI kun) hisoblash bir
+    kunga siljib ketadi (2026-09-13'da aynan shu holat topilgan edi)."""
     if not deadline or status_value in ("delivered", "cancelled"):
         return "normal"
-    days_left = (deadline.date() - datetime.utcnow().date()).days
+    from datetime import timedelta
+    today_tashkent = (datetime.utcnow() + timedelta(hours=5)).date()
+    days_left = (deadline.date() - today_tashkent).days
     if days_left < 0:
         return "overdue"
     if days_left == 0:
