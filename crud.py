@@ -4435,6 +4435,23 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
             unit_cost = _fp_stable_unit_cost(db, fp)
             if unit_cost <= 0 and available > 0:
                 unit_cost = float(fp.cost_price or 0) / available
+
+            # XAVFSIZLIK/NAZORAT: sell_finished_product'dagi bilan bir xil —
+            # sotuv narxi tan narxidan past bo'lsa, aniq tasdiqlash so'raladi.
+            if unit_cost > 0 and float(item.unit_price) < unit_cost and not getattr(data, "confirm_below_cost", False):
+                db.rollback()
+                return {
+                    "success": False,
+                    "type": "below_cost_warning",
+                    "message": (
+                        f"{fp.name}: sotuv narxi (1 {fp.unit} uchun {item.unit_price:,.0f} so'm) "
+                        f"tan narxidan (1 {fp.unit} uchun {unit_cost:,.0f} so'm) PAST — "
+                        f"zarar bilan sotilyapti. Shunday ham davom etasizmi?"
+                    ),
+                    "unit_price": float(item.unit_price),
+                    "unit_cost": round(unit_cost, 2)
+                }
+
             cost_amount = unit_cost * item.quantity
 
             prepared.append({
@@ -4546,6 +4563,24 @@ def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
     if unit_cost <= 0 and available > 0:
         # Orqaga moslik: xomashyo ma'lumoti yo'q (eski/oddiy) yozuvlar uchun
         unit_cost = float(fp.cost_price or 0) / available
+
+    # XAVFSIZLIK/NAZORAT: agar sotuv narxi tan narxidan PAST bo'lsa — bu
+    # zarar bilan sotuv (yoki xodimning xatosi/suiiste'moli bo'lishi mumkin).
+    # Butunlay TAQIQLAMAYMIZ (chunki chegirma/aksiya kabi qonuniy holatlar
+    # ham bo'lishi mumkin), lekin aniq tasdiqlash talab qilamiz.
+    if unit_cost > 0 and float(data.unit_price) < unit_cost and not getattr(data, "confirm_below_cost", False):
+        return {
+            "success": False,
+            "type": "below_cost_warning",
+            "message": (
+                f"Sotuv narxi (1 {fp.unit} uchun {data.unit_price:,.0f} so'm) "
+                f"tan narxidan (1 {fp.unit} uchun {unit_cost:,.0f} so'm) PAST — "
+                f"zarar bilan sotilyapti. Shunday ham davom etasizmi?"
+            ),
+            "unit_price": float(data.unit_price),
+            "unit_cost": round(unit_cost, 2)
+        }
+
     cost_amount = unit_cost * data.quantity
 
     fp.quantity = available - data.quantity
@@ -6568,6 +6603,15 @@ def redeem_master_gift(db: Session, master_id: int, gift_id: int, performed_by: 
     gift = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
     if not gift:
         return {"success": False, "message": "Sovg'a topilmadi"}
+
+    # Ehtiyot chorasi: bitta sovg'a bir ustaga IKKI MARTA "berildi" deb
+    # belgilanib qolmasligi uchun — allaqachon berilgan bo'lsa, rad etamiz.
+    already = db.query(MasterGiftRedemption).filter(
+        MasterGiftRedemption.master_id == master_id,
+        MasterGiftRedemption.gift_id == gift_id
+    ).first()
+    if already:
+        return {"success": False, "message": f"Bu sovg'a ({gift.name}) ustaga allaqachon berilgan"}
 
     # Ehtiyot chorasi: usta hali shu sovg'aga YETMAGAN bo'lsa, berib
     # qo'yilmasin (tasodifiy xato bosishdan himoya)

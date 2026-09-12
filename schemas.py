@@ -484,6 +484,7 @@ class FinishedProductSaleCreate(BaseModel):
     # tegishli bo'lsa — shu usta ID'si, oylik KPI hisobiga qo'shiladi.
     # Berilmasa (None) — oddiy sotuv, hech kimga KPI yozilmaydi.
     master_id: Optional[int] = None
+    confirm_below_cost: bool = Field(default=False, description="Sotuv narxi tan narxidan past bo'lsa, aniq tasdiqlash uchun")
 
 
 class FinishedProductSaleBatchItem(BaseModel):
@@ -506,6 +507,7 @@ class FinishedProductSaleBatchCreate(BaseModel):
     # Butun savatcha (bitta Yuk xati) BITTA ustaga tegishli bo'lishi mumkin —
     # buyer_name kabi, butun tranzaksiyaga umumiy. Oylik KPI hisobiga qo'shiladi.
     master_id: Optional[int] = None
+    confirm_below_cost: bool = Field(default=False, description="Savatchadagi biror qator tan narxidan past bo'lsa, aniq tasdiqlash uchun")
 
 
 class GipsProduceCreate(BaseModel):
