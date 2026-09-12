@@ -1454,14 +1454,32 @@ function closeGiftPeriodModal() {
 
 function renderGiftPeriodClosed(box) {
   _newPeriodTiers = [{name:'', amount:''}];
+  const masterOptionsHtml = (allMasterKpiData || []).map(m => `
+    <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="gift-period-master-cb" value="${m.id}">
+      ${m.name}
+    </label>
+  `).join('') || '<div style="color:var(--text3);font-size:13px;padding:4px 0">Faol usta topilmadi</div>';
   box.innerHTML = `
     <div id="newPeriodTiersList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <button class="btn btn-outline btn-sm" onclick="addNewPeriodTierRow()">+ Bosqich qo'shish</button>
     </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" id="giftPeriodSelectMode" onchange="toggleGiftPeriodMasterPicker()">
+      Faqat tanlangan ustalar uchun (belgilanmasa — barchasi)
+    </label>
+    <div id="giftPeriodMasterPicker" style="display:none;background:var(--border2);border-radius:9px;padding:10px 12px;max-height:200px;overflow-y:auto;margin-bottom:16px">
+      ${masterOptionsHtml}
+    </div>
     <button class="btn btn-gold btn-sm" onclick="submitOpenGiftPeriod()">🎁 Davrni ochish</button>
   `;
   renderNewPeriodTiersList();
+}
+
+function toggleGiftPeriodMasterPicker() {
+  const checked = document.getElementById('giftPeriodSelectMode').checked;
+  document.getElementById('giftPeriodMasterPicker').style.display = checked ? 'block' : 'none';
 }
 
 function renderNewPeriodTiersList() {
@@ -1493,12 +1511,24 @@ async function submitOpenGiftPeriod() {
     .filter(t => (t.name||'').trim() && parseFloat(t.amount) > 0)
     .map(t => ({gift_name: t.name.trim(), threshold_amount: parseFloat(t.amount)}));
   if (!tiers.length) { alert("Kamida bitta to'liq bosqich kiriting"); return; }
-  if (!(await customConfirm(`Yangi sovg'a davrini ${tiers.length} ta bosqich bilan ochasizmi? Barcha faol ustalar avtomatik ishtirok etadi.`))) return;
+
+  const selectMode = document.getElementById('giftPeriodSelectMode')?.checked;
+  let masterIds = [];
+  if (selectMode) {
+    masterIds = Array.from(document.querySelectorAll('.gift-period-master-cb:checked')).map(cb => parseInt(cb.value));
+    if (!masterIds.length) { alert('Kamida bitta ustani tanlang, yoki "Faqat tanlangan ustalar" belgisini olib tashlang'); return; }
+  }
+
+  const confirmMsg = selectMode
+    ? `Yangi sovg'a davrini ${tiers.length} ta bosqich bilan, FAQAT ${masterIds.length} ta tanlangan usta uchun ochasizmi?`
+    : `Yangi sovg'a davrini ${tiers.length} ta bosqich bilan ochasizmi? Barcha faol ustalar avtomatik ishtirok etadi.`;
+  if (!(await customConfirm(confirmMsg))) return;
+
   isOpeningGiftPeriod = true;
   try {
     const res = await fetch('/api/gift-period/open', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({tiers})
+      body: JSON.stringify({tiers, master_ids: selectMode ? masterIds : []})
     });
     if (res.ok) { loadGiftPeriod(); } else {
       const e = await res.json(); alert('❌ ' + (e.detail || 'Xato'));
@@ -1574,6 +1604,7 @@ function renderGiftPeriodActive(box, data) {
       </tr>`;
   }).join('');
   box.innerHTML = `
+    <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">${data.all_masters ? 'Barcha faol ustalar ishtirok etadi' : `Faqat ${data.masters.length} ta tanlangan usta ishtirok etadi`}</div>
     <div id="tierChipsRow" style="margin-bottom:14px">${renderTierChipsHtml()}</div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
