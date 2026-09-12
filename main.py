@@ -120,6 +120,21 @@ def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, capt
         return False
 
 
+def _master_bot_keyboard(db, master=None) -> dict:
+    """Usta boti uchun klaviatura — '🎁 Sovg'alar' tugmasi FAQAT faol
+    sovg'a davri BOR va shu usta o'sha davrda ISHTIROK ETSA ko'rinadi
+    (2026-09-12; ustalar tanlab olinishi qo'shildi 2026-09-12 kech)."""
+    try:
+        show_gifts_btn = bool(master) and crud.master_in_active_gift_period(db, master.id)
+    except Exception:
+        show_gifts_btn = False
+    if show_gifts_btn:
+        rows = [[{"text": "💰 Bonuslarim"}, {"text": "🎁 Sovg'alar"}], [{"text": "🪪 Mening ID raqamim"}]]
+    else:
+        rows = [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]]
+    return {"keyboard": rows, "resize_keyboard": True, "persistent": True}
+
+
 def _send_delivery_pdf_to_customer(db, delivery_id: int):
     """Yetkazish (delivery) uchun Yuk xati (nakladnoy) PDF faylini
     MUNTAZAM (har bir yetkazishda, istisnosiz) IKKITA mumkin bo'lgan
@@ -1673,96 +1688,46 @@ def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
     return crud.get_master_kpi_detail(db, master_id, y)
 
 
-# ── "🎁 Sovg'alar" bosqichlari (Ustalar uchun) ──────────────
-@app.get("/api/master-gifts")
-def api_get_master_gifts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    gifts = crud.get_master_gifts(db)
-    return [{"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold),
-              "image_url": g.image_url} for g in gifts]
+# ── "Sovg'a davri" (2026-09-12, savdo-summasi asosidagi, davriy) ──────
+@app.get("/api/gift-period")
+def api_get_gift_period(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    return crud.get_gift_period_overview(db)
 
 
-@app.post("/api/master-gifts")
-def api_create_master_gift(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    name = (data.get("name") or "").strip()
-    kpi_threshold = float(data.get("kpi_threshold") or 0)
-    if not name or kpi_threshold <= 0:
-        raise HTTPException(status_code=400, detail="Sovg'a nomi va musbat KPI miqdori shart")
-    g = crud.create_master_gift(db, name, kpi_threshold)
-    return {"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold)}
-
-
-@app.put("/api/master-gifts/{gift_id}")
-def api_update_master_gift(gift_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    name = (data.get("name") or "").strip()
-    kpi_threshold = float(data.get("kpi_threshold") or 0)
-    if not name or kpi_threshold <= 0:
-        raise HTTPException(status_code=400, detail="Sovg'a nomi va musbat KPI miqdori shart")
-    g = crud.update_master_gift(db, gift_id, name, kpi_threshold)
-    if not g:
-        raise HTTPException(status_code=404, detail="Sovg'a topilmadi")
-    return {"id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold)}
-
-
-@app.delete("/api/master-gifts/{gift_id}")
-def api_delete_master_gift(gift_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    if not crud.delete_master_gift(db, gift_id):
-        raise HTTPException(status_code=404, detail="Sovg'a topilmadi")
-    return {"success": True}
-
-
-@app.post("/api/master-gifts/{gift_id}/image")
-def api_upload_master_gift_image(gift_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                  current_user=Depends(auth.admin_or_financier)):
-    from models import MasterGift
-    g = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
-    if not g:
-        raise HTTPException(status_code=404, detail="Sovg'a topilmadi")
-    url = _save_upload(file, "master_gifts", ALLOWED_IMAGE_EXT)
-    g.image_url = url
-    db.commit()
-    return {"image_url": url}
-
-
-@app.post("/api/masters/{master_id}/show-gifts")
-def api_toggle_master_show_gifts(master_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    show = bool(data.get("show"))
-    m = crud.set_master_show_gifts(db, master_id, show)
-    if not m:
-        raise HTTPException(status_code=404, detail="Usta topilmadi")
-    return {"id": m.id, "show_gifts": bool(m.show_gifts)}
-
-
-@app.get("/api/masters/{master_id}/gift-progress")
-def api_master_gift_progress(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    """Ustaning sovg'alar progressi — har bir sovg'a uchun, "olingan",
-    "yetildi (olish mumkin)" yoki "hali yo'q" holatini qaytaradi."""
-    available = crud.get_master_gift_available_kpi(db, master_id)
-    redeemed_ids = crud.get_master_redeemed_gift_ids(db, master_id)
-    gifts = crud.get_master_gifts(db)
-    result = []
-    for g in gifts:
-        is_redeemed = g.id in redeemed_ids
-        result.append({
-            "id": g.id, "name": g.name, "kpi_threshold": float(g.kpi_threshold),
-            "image_url": g.image_url,
-            "redeemed": is_redeemed,
-            "eligible": (not is_redeemed) and available >= float(g.kpi_threshold) - 0.01,
-        })
-    return {"available_kpi": round(available), "gifts": result}
-
-
-@app.post("/api/masters/{master_id}/redeem-gift/{gift_id}")
-def api_redeem_master_gift(master_id: int, gift_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+@app.post("/api/gift-period/open")
+def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
-    result = crud.redeem_master_gift(db, master_id, gift_id, performed_by=who)
+    result = crud.open_gift_period(db, data.get("tiers") or [], master_ids=data.get("master_ids"), performed_by=who)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
 
 
-@app.get("/api/masters/{master_id}/gift-redemptions")
-def api_master_gift_redemptions(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return crud.get_master_redemption_history(db, master_id)
+@app.put("/api/gift-period/tier/{tier_id}")
+def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    result = crud.update_gift_period_tier(db, tier_id, data.get("gift_name"), data.get("threshold_amount"))
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
+    return result
+
+
+@app.post("/api/gift-period/close")
+def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    who = current_user.full_name or current_user.username
+    force = bool((data or {}).get("force"))
+    result = crud.close_gift_period(db, performed_by=who, force=force)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
+@app.post("/api/gift-period/redeem/{master_id}/{tier_id}")
+def api_redeem_gift_period_tier(master_id: int, tier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    who = current_user.full_name or current_user.username
+    result = crud.redeem_gift_period_tier(db, master_id, tier_id, performed_by=who)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
+    return result
 
 
 @app.get("/api/transport-stats")
@@ -4142,7 +4107,13 @@ async def telegram_webhook(request: Request):
         return {"ok": True}
 
     if text == "/start":
-        keyboard = {"keyboard": [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]], "resize_keyboard": True, "persistent": True}
+        db = SessionLocal()
+        try:
+            from models import Master
+            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            keyboard = _master_bot_keyboard(db, master)
+        finally:
+            db.close()
         welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro* bot ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
         try:
             url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
@@ -4161,72 +4132,29 @@ async def telegram_webhook(request: Request):
     if text in ["/bonus", "💰 bonuslarim", "bonuslarim", "/balans"]:
         db = SessionLocal()
         try:
-            from models import Master, Order, OrderStatus
+            from models import Master
             master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
             if not master:
                 reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
-            elif master.show_gifts:
-                # MUHIM (2026-09): "🎁 Sovg'alar bosqichlari" yoqilgan
-                # ustalar uchun — ANIQ SO'M MIQDORI KO'RSATILMAYDI, faqat
-                # qaysi bosqichga yetgani va keyingisigacha necha % qolgani
-                # (admin panelidagi "Sovg'a bosqichlari" tavsifiga mos).
-                available = crud.get_master_gift_available_kpi(db, master.id)
-                redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
-                gifts = crud.get_master_gifts(db)
-                reply = f"🎁 *Sizning sovg'alar holatingiz*\n\n👤 {master.name}\n━━━━━━━━━━━━━━━━━━━\n"
-                if not gifts:
-                    reply += "Hali sovg'alar belgilanmagan.\n"
-                else:
-                    prev_threshold = 0.0
-                    for g in gifts:
-                        threshold = float(g.kpi_threshold)
-                        if g.id in redeemed_ids:
-                            reply += f"🎉 {g.name} — *olingan*\n"
-                        elif available >= threshold - 0.01:
-                            reply += f"✅ {g.name} — *tayyor, olishga yetdingiz!*\n"
-                        else:
-                            span = threshold - prev_threshold
-                            progress = max(0.0, available - prev_threshold)
-                            pct = max(0, min(100, round((progress / span) * 100))) if span > 0 else 0
-                            reply += f"⬜ {g.name} — {pct}% (qolgan: {100-pct}%)\n"
-                        prev_threshold = threshold
-                reply += f"━━━━━━━━━━━━━━━━━━━\n\n🏗 PenoDecorPro — Andijon"
             else:
-                # Sovg'a bosqichlari yoqilmagan ustalar uchun — yillik,
-                # SOF FOYDADAN hisoblangan umumiy hisobot (admin
-                # panelidagi "Ustalar KPI" bilan bir xil formula).
-                from sqlalchemy import extract
-                import services as _services
+                # 2026-09-12: har doim ishlaydigan, yillik SOF FOYDADAN
+                # hisoblangan keshbek hisoboti (admin panelidagi "Ustalar
+                # KPI" bilan bir xil formula). Faol/o'tgan sovg'a
+                # davrlaridagi buyurtmalar bu yerdan chiqarib tashlanadi —
+                # crud.get_master_yearly_cashback() ichida hisobga olinadi.
                 current_year = datetime.now().year
-                orders = db.query(Order).filter(
-                    Order.master_id == master.id, Order.status == OrderStatus.READY,
-                    extract('year', Order.completed_at) == current_year
-                ).order_by(Order.completed_at.desc()).all()
-                yearly_profit = 0.0
-                buyurtmalar_text = ""
-                for o in orders[:10]:
-                    try:
-                        profit_data = _services.calculate_order_profit(db, o.id)
-                        foyda = float(profit_data.get("foyda", 0))
-                    except Exception:
-                        db.rollback()
-                        foyda = 0.0
-                    yearly_profit += foyda
-                    buyurtmalar_text += f"• {o.order_number} — foyda: *{int(foyda):,} so'm*\n"
-                jami_bonus = yearly_profit * float(master.kpi_percent or 0) / 100
-                faol = db.query(Order).filter(Order.master_id == master.id, Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
-                reply = f"📊 *Sizning {current_year}-yil sovg'angiz*\n\n👤 {master.name}\n🎯 Sovg'a foizi (sof foydadan): *{master.kpi_percent}%*\n\n━━━━━━━━━━━━━━━━━━━\n"
-                if buyurtmalar_text:
-                    reply += f"📋 *Oxirgi buyurtmalar (foyda bo'yicha):*\n{buyurtmalar_text}\n"
-                if faol > 0:
-                    reply += f"⏳ Jarayondagi buyurtmalar: *{faol} ta*\n\n"
-                reply += f"━━━━━━━━━━━━━━━━━━━\n💰 *Yillik sof foyda: {int(yearly_profit):,} so'm*\n🎁 *Hisoblangan sovg'a: {int(jami_bonus):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
+                info = crud.get_master_yearly_cashback(db, master.id, current_year)
+                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
             db.close()
 
-        keyboard = {"keyboard": [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]], "resize_keyboard": True, "persistent": True}
+        db2 = SessionLocal()
+        try:
+            keyboard = _master_bot_keyboard(db2, master)
+        finally:
+            db2.close()
         try:
             url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
             send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
@@ -4234,6 +4162,55 @@ async def telegram_webhook(request: Request):
             urllib.request.urlopen(req, timeout=5)
         except Exception as e:
             _send_telegram_to(chat_id, reply)
+        return {"ok": True}
+
+    if text in ["/sovgalar", "🎁 sovg'alar", "sovg'alar", "sovgalar"]:
+        # 2026-09-12: YANGI, davriy (savdo-summasi asosidagi) sovg'a
+        # tizimi — faqat admin "davr" ochganda faol. Aniq so'm miqdori
+        # ko'rsatilmaydi, faqat qaysi bosqichga yetgani/necha % qolgani
+        # (eski show_gifts tizimi bilan bir xil falsafa).
+        db = SessionLocal()
+        try:
+            from models import Master
+            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            if not master:
+                reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
+            else:
+                prog = crud.get_master_gift_period_progress(db, master.id)
+                if not prog["active"]:
+                    reply = "🎁 Hozircha faol sovg'a davri yo'q.\n\n🏗 PenoDecorPro — Andijon"
+                else:
+                    sales = prog["current_sales"]
+                    reply = f"🎁 *Sovg'a davri — joriy holatingiz*\n\n👤 {master.name}\n━━━━━━━━━━━━━━━━━━━\n"
+                    prev_threshold = 0.0
+                    for t in prog["tiers"]:
+                        if t["ready"]:
+                            reply += f"✅ {t['gift_name']} — *tayyor, olishga yetdingiz!*\n"
+                        else:
+                            span = t["threshold_amount"] - prev_threshold
+                            progress = max(0.0, sales - prev_threshold)
+                            pct = max(0, min(100, round((progress / span) * 100))) if span > 0 else 0
+                            reply += f"⬜ {t['gift_name']} — {pct}% (qolgan: {100-pct}%)\n"
+                        prev_threshold = t["threshold_amount"]
+                    reply += f"━━━━━━━━━━━━━━━━━━━\n\n🏗 PenoDecorPro — Andijon"
+        except Exception as e:
+            reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
+        finally:
+            db.close()
+
+        db2 = SessionLocal()
+        try:
+            keyboard = _master_bot_keyboard(db2, master)
+        finally:
+            db2.close()
+        try:
+            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
+            send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
+            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=5)
+        except Exception as e:
+            _send_telegram_to(chat_id, reply)
+        return {"ok": True}
 
     return {"ok": True}
 

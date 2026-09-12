@@ -141,8 +141,6 @@ class Master(Base):
     hire_date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
     region = Column(String(50), nullable=True)  # Faqat UI/tahlil uchun — hisob-kitobga ta'siri yo'q
-    # "🎁 Sovg'alar" bo'limi botda shu ustaga ko'rinsinmi (admin belgilaydi)
-    show_gifts = Column(Boolean, default=False)
 
     orders = relationship("Order", back_populates="master")
 
@@ -172,7 +170,13 @@ class MasterGiftRedemption(Base):
     """Ustaga QO'LGA BERILGAN sovg'alar tarixi. Bitta sovg'a "berildi" deb
     belgilanganda, uning qiymati ustaning yig'ilgan KPI hisobidan AYIRILADI
     — shunda u keyingi sovg'aga qarab, YANGIDAN hisoblana boshlaydi
-    (2026-08-28, foydalanuvchi so'rovi bo'yicha)."""
+    (2026-08-28, foydalanuvchi so'rovi bo'yicha).
+
+    ESLATMA (2026-09-12): bu — ESKI, yillik/foyda-asosidagi sovg'a tizimi.
+    Yangi ishlar uchun pastdagi GiftPeriod / MasterGiftPeriodRedemption
+    (savdo-summasi asosidagi, davriy) tizimidan foydalaning. Eski tizim
+    hozircha o'chirilmagan (tarix saqlanishi uchun), lekin botda endi
+    ishlatilmaydi."""
     __tablename__ = "master_gift_redemptions"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -185,6 +189,86 @@ class MasterGiftRedemption(Base):
 
     def __repr__(self):
         return f"<MasterGiftRedemption master={self.master_id} gift={self.gift_name}>"
+
+
+class GiftPeriod(Base):
+    """Davriy sovg'a kampaniyasi (2026-09, foydalanuvchi so'rovi bo'yicha —
+    doimiy emas, yiliga taxminan 2 marta ochiladi/yopiladi). Faol bo'lganda,
+    BARCHA faol ustalarning SAVDO SUMMASI (foyda emas) alohida hisoblanadi
+    va bosqichlarga (GiftPeriodTier) solishtiriladi. Bir vaqtning o'zida
+    faqat bitta davr faol bo'lishi mumkin (crud.open_gift_period tekshiradi).
+    Davr davomidagi buyurtmalar/sotuvlar oddiy keshbek (Bonuslarim)
+    hisobidan chiqarib tashlanadi — ikki marta hisoblanmasligi uchun."""
+    __tablename__ = "gift_periods"
+
+    id = Column(Integer, primary_key=True, index=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    closed_at = Column(DateTime, nullable=True)
+    created_by = Column(String(100), nullable=True)
+
+    tiers = relationship("GiftPeriodTier", backref="period", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<GiftPeriod #{self.id} active={self.is_active}>"
+
+
+class GiftPeriodTier(Base):
+    """Bitta sovg'a davri ichidagi bosqich: 'X so'mlik savdoga — Y sovg'a'.
+    threshold_amount — RESET'dan keyingi (checkpoint'dan keyingi) yangi
+    savdo summasi, jami yig'indi emas."""
+    __tablename__ = "gift_period_tiers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    period_id = Column(Integer, ForeignKey("gift_periods.id"), nullable=False, index=True)
+    gift_name = Column(String(100), nullable=False)
+    threshold_amount = Column(Float, nullable=False)
+    sort_order = Column(Integer, default=0)
+
+    def __repr__(self):
+        return f"<GiftPeriodTier {self.gift_name} ({self.threshold_amount})>"
+
+
+class MasterGiftPeriodRedemption(Base):
+    """Davr ichida ustaga QO'LGA BERILGAN sovg'alar tarixi — bitta davrda
+    bir nechta marta bo'lishi mumkin (har safar berilganda, ustaning
+    hisoblagichi RESET bo'ladi, keyingi bosqich uchun yangidan boshlanadi).
+
+    kind='gift' — admin tomonidan qo'lda "Berildi" deb belgilangan yozuv.
+    kind='cashback_conversion' — davr YOPILGANDA, ustaning reset'dan keyingi
+    ULGURMAGAN (hech bir bosqichga yetmagan yoki yetib ulgurmagan) qoldiq
+    savdosi avtomatik keshbekka aylantirilgani haqidagi yozuv (tier_id=None,
+    profit_amount — keshbekka qo'shilgan aniq summa)."""
+    __tablename__ = "master_gift_period_redemptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    period_id = Column(Integer, ForeignKey("gift_periods.id"), nullable=False, index=True)
+    master_id = Column(Integer, ForeignKey("masters.id"), nullable=False, index=True)
+    tier_id = Column(Integer, ForeignKey("gift_period_tiers.id"), nullable=True)
+    gift_name = Column(String(100), nullable=False)
+    sales_amount = Column(Float, nullable=False)
+    profit_amount = Column(Float, nullable=True)
+    kind = Column(String(20), default="gift", nullable=False)
+    redeemed_at = Column(DateTime, default=datetime.utcnow)
+    redeemed_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<MasterGiftPeriodRedemption {self.gift_name} ({self.kind})>"
+
+
+class GiftPeriodParticipant(Base):
+    """Agar davr ochilganda ADMIN aniq ustalarni tanlagan bo'lsa (hammasi
+    emas), ular shu yerda saqlanadi. Bitta davr uchun bu yerda HECH QANDAY
+    yozuv bo'lmasa — demak o'sha davrda BARCHA faol ustalar ishtirok etadi
+    (standart holat, 2026-09-12gacha yagona xatti-harakat edi)."""
+    __tablename__ = "gift_period_participants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    period_id = Column(Integer, ForeignKey("gift_periods.id"), nullable=False, index=True)
+    master_id = Column(Integer, ForeignKey("masters.id"), nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<GiftPeriodParticipant period={self.period_id} master={self.master_id}>"
 
 
 # ============================================================

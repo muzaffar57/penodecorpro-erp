@@ -6490,7 +6490,6 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             "region": m.region,
             "is_active": m.is_active,
             "kpi_percent": m.kpi_percent or 0,
-            "show_gifts": bool(m.show_gifts),
             # MUHIM (2026-08-27): avval bu yerda telegram_id umuman
             # qaytarilmasdi — shuning uchun Usta tahrirlash oynasi buni
             # HAR DOIM bo'sh ko'rsatardi (saqlagan bo'lsangiz ham), chunki
@@ -6507,135 +6506,368 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     return {"year": year, "masters": rows, "total_gift": round(total_gift)}
 
 
-# ============================================================
-# MASTER GIFTS — Ustalar uchun "Sovg'alar" bosqichlari (bot orqali)
-# ============================================================
+# ══════════════════════════════════════════════════════════════════
+# "Sovg'a DAVRI" — 2026-09-12, savdo-summasi asosidagi, davriy tizim.
+# Eski (yillik/foyda-asosidagi, KPI% × sof foyda) MasterGift tizimidan
+# FARQLI: (1) doimiy emas — admin "davr" ochib-yopadi (yiliga ~2 marta);
+# (2) bosqichlar SAVDO SUMMASIGA (Order.total_amount + to'g'ridan-to'g'ri
+# tayyor mahsulot sotuvi) qarab, foydaga emas; (3) har "Berildi"dan keyin
+# hisoblagich RESET bo'ladi — chegaraga yetish o'zi hech narsani
+# avtomatik bermaydi, usta yuqoriroq bosqichgacha "kutishi" ham mumkin;
+# (4) davr davomidagi buyurtmalar oddiy keshbek (Bonuslarim) hisobidan
+# CHIQARIB TASHLANADI — ikki marta hisoblanmasligi uchun; davr yopilganda,
+# hech bir bosqichga yetmagan/ulgurmagan qoldiq FOYDASI orqali avtomatik
+# keshbekka qaytariladi.
+# ══════════════════════════════════════════════════════════════════
 
-def get_master_yearly_kpi_total(db: Session, master_id: int, year: int = None) -> float:
-    """Ustaning shu yilgi JAMI yig'ilgan KPI (sovg'a ulushi) summasini
-    qaytaradi — get_master_kpi_detail() dagi barcha buyurtmalarning
-    kpi_amount'ini qo'shib."""
-    from datetime import datetime as _dt_kpi
-    year = year or _dt_kpi.utcnow().year
-    detail = get_master_kpi_detail(db, master_id, year)
-    return sum(float(d.get("kpi_amount") or 0) for d in detail)
-
-
-def get_master_gifts(db: Session) -> list:
-    """Barcha sovg'alarni, kerakli KPI miqdori bo'yicha (kamdan ko'pga) tartiblab qaytaradi."""
-    from models import MasterGift
-    return db.query(MasterGift).order_by(MasterGift.kpi_threshold.asc()).all()
-
-
-def create_master_gift(db: Session, name: str, kpi_threshold: float) -> "MasterGift":
-    from models import MasterGift
-    max_order = db.query(MasterGift).count()
-    g = MasterGift(name=name.strip(), kpi_threshold=float(kpi_threshold), sort_order=max_order)
-    db.add(g)
-    db.commit()
-    db.refresh(g)
-    return g
+def get_active_gift_period(db: Session):
+    from models import GiftPeriod
+    return db.query(GiftPeriod).filter(GiftPeriod.is_active == True).first()
 
 
-def update_master_gift(db: Session, gift_id: int, name: str, kpi_threshold: float) -> Optional["MasterGift"]:
-    from models import MasterGift
-    g = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
-    if not g:
-        return None
-    g.name = name.strip()
-    g.kpi_threshold = float(kpi_threshold)
-    db.commit()
-    db.refresh(g)
-    return g
-
-
-def delete_master_gift(db: Session, gift_id: int) -> bool:
-    from models import MasterGift
-    g = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
-    if not g:
-        return False
-    db.delete(g)
-    db.commit()
-    return True
-
-
-def set_master_show_gifts(db: Session, master_id: int, show: bool) -> Optional[Master]:
-    m = db.query(Master).filter(Master.id == master_id).first()
-    if not m:
-        return None
-    m.show_gifts = show
-    db.commit()
-    db.refresh(m)
-    return m
-
-
-def get_master_redeemed_gift_ids(db: Session, master_id: int) -> set:
-    """Ustaga QO'LGA ALLAQACHON berilgan sovg'alarning ID to'plamini qaytaradi."""
-    from models import MasterGiftRedemption
-    rows = db.query(MasterGiftRedemption.gift_id).filter(MasterGiftRedemption.master_id == master_id).all()
+def get_gift_period_participant_ids(db: Session, period_id: int) -> set:
+    """Bo'sh to'plam qaytarsa — demak BARCHA faol ustalar ishtirok etadi
+    (standart holat, ustalar aniq tanlanmagan)."""
+    from models import GiftPeriodParticipant
+    rows = db.query(GiftPeriodParticipant.master_id).filter(
+        GiftPeriodParticipant.period_id == period_id
+    ).all()
     return {r[0] for r in rows}
 
 
-def get_master_gift_available_kpi(db: Session, master_id: int, year: int = None) -> float:
-    """Ustaning sovg'alar uchun HALI ISHLATILMAGAN KPI miqdorini qaytaradi —
-    yillik jami KPI'dan, allaqachon BERILGAN sovg'alarning qiymati AYIRIB
-    tashlanadi. MUHIM: bu — faqat "Sovg'alar" progressi uchun; yillik
-    haqiqiy KPI/foyda hisobotiga (Ustalar KPI sahifasi) HECH QANDAY
-    ta'sir qilmaydi — u yerda hamon to'liq, haqiqiy summa ko'rsatiladi."""
-    from models import MasterGiftRedemption
-    total = get_master_yearly_kpi_total(db, master_id, year)
-    redeemed_sum = db.query(MasterGiftRedemption).filter(
-        MasterGiftRedemption.master_id == master_id
-    ).with_entities(MasterGiftRedemption.kpi_value).all()
-    return max(0.0, total - sum(float(r[0]) for r in redeemed_sum))
+def _gift_period_eligible_masters(db: Session, period) -> list:
+    """Davrda ishtirok etadigan FAOL ustalar ro'yxatini (Master obyektlari) qaytaradi."""
+    participant_ids = get_gift_period_participant_ids(db, period.id)
+    q = db.query(Master).filter(Master.is_active == True)
+    if participant_ids:
+        q = q.filter(Master.id.in_(participant_ids))
+    return q.order_by(Master.name).all()
 
 
-def redeem_master_gift(db: Session, master_id: int, gift_id: int, performed_by: str = None) -> dict:
-    """Sovg'ani ustaga "qo'lga berildi" deb belgilaydi — shu bilan, uning
-    qiymati ustaning "sovg'alar uchun mavjud KPI"sidan doimiy ayiriladi."""
-    from models import MasterGift, MasterGiftRedemption
-    master = db.query(Master).filter(Master.id == master_id).first()
-    if not master:
-        return {"success": False, "message": "Usta topilmadi"}
-    gift = db.query(MasterGift).filter(MasterGift.id == gift_id).first()
-    if not gift:
-        return {"success": False, "message": "Sovg'a topilmadi"}
+def master_in_active_gift_period(db: Session, master_id: int) -> bool:
+    """Berilgan usta joriy faol davrda ishtirok etadimi (davr umuman
+    faol bo'lmasa ham, yoki ishtirokchi sifatida tanlanmagan bo'lsa ham
+    — False)."""
+    period = get_active_gift_period(db)
+    if not period:
+        return False
+    participant_ids = get_gift_period_participant_ids(db, period.id)
+    if not participant_ids:
+        return True
+    return master_id in participant_ids
 
-    # Ehtiyot chorasi: bitta sovg'a bir ustaga IKKI MARTA "berildi" deb
-    # belgilanib qolmasligi uchun — allaqachon berilgan bo'lsa, rad etamiz.
-    already = db.query(MasterGiftRedemption).filter(
-        MasterGiftRedemption.master_id == master_id,
-        MasterGiftRedemption.gift_id == gift_id
-    ).first()
-    if already:
-        return {"success": False, "message": f"Bu sovg'a ({gift.name}) ustaga allaqachon berilgan"}
 
-    # Ehtiyot chorasi: usta hali shu sovg'aga YETMAGAN bo'lsa, berib
-    # qo'yilmasin (tasodifiy xato bosishdan himoya)
-    available = get_master_gift_available_kpi(db, master_id)
-    if available < float(gift.kpi_threshold) - 0.01:
-        return {"success": False, "message": f"Usta hali bu sovg'aga yetmagan (kerak: {gift.kpi_threshold:,.0f}, mavjud: {available:,.0f})"}
+def open_gift_period(db: Session, tiers: list, master_ids: list = None, performed_by: str = None) -> dict:
+    """Yangi sovg'a davrini ochadi. `tiers` — [{"gift_name": str,
+    "threshold_amount": float}, ...], kamida bitta. Har bosqichning
+    threshold_amount'i — RESET'dan keyingi YANGI savdo summasi (jami emas).
+    `master_ids` — ixtiyoriy: bo'sh/berilmagan bo'lsa, BARCHA faol ustalar
+    ishtirok etadi (standart); ro'yxat berilsa, FAQAT o'sha ustalar."""
+    from models import GiftPeriod, GiftPeriodTier, GiftPeriodParticipant
+    if get_active_gift_period(db):
+        return {"success": False, "message": "Allaqachon faol sovg'a davri bor — avval uni yoping"}
+    clean_tiers = []
+    for t in (tiers or []):
+        name = (t.get("gift_name") or "").strip()
+        amt = float(t.get("threshold_amount") or 0)
+        if name and amt > 0:
+            clean_tiers.append((name, amt))
+    if not clean_tiers:
+        return {"success": False, "message": "Kamida bitta to'g'ri bosqich (nomi va musbat summasi bilan) kiriting"}
+    clean_tiers.sort(key=lambda x: x[1])
+    period = GiftPeriod(is_active=True, created_by=performed_by)
+    db.add(period)
+    db.flush()
+    for i, (name, amt) in enumerate(clean_tiers):
+        db.add(GiftPeriodTier(period_id=period.id, gift_name=name, threshold_amount=amt, sort_order=i))
+    for mid in (master_ids or []):
+        try:
+            db.add(GiftPeriodParticipant(period_id=period.id, master_id=int(mid)))
+        except (TypeError, ValueError):
+            continue
+    db.commit()
+    db.refresh(period)
+    return {"success": True, "period_id": period.id}
 
-    r = MasterGiftRedemption(
-        master_id=master_id, gift_id=gift_id, gift_name=gift.name,
-        kpi_value=float(gift.kpi_threshold), redeemed_by=performed_by
+
+def _gift_period_sales_since(db: Session, master_id: int, start_dt, end_dt) -> float:
+    """(start_dt < vaqt <= end_dt] oralig'idagi ustaning umumiy savdo
+    summasi — buyurtmalar (Order.total_amount) VA to'g'ridan-to'g'ri tayyor
+    mahsulot sotuvlari (FinishedProductSale.total_amount) qo'shilib."""
+    from models import Order, OrderStatus, FinishedProductSale
+    q1 = db.query(Order).filter(
+        Order.master_id == master_id, Order.status == OrderStatus.READY,
+        Order.completed_at > start_dt,
     )
-    db.add(r)
+    if end_dt:
+        q1 = q1.filter(Order.completed_at <= end_dt)
+    total = sum(float(o.total_amount or 0) for o in q1.all())
+
+    q2 = db.query(FinishedProductSale).filter(
+        FinishedProductSale.master_id == master_id,
+        FinishedProductSale.sold_at > start_dt,
+    )
+    if end_dt:
+        q2 = q2.filter(FinishedProductSale.sold_at <= end_dt)
+    total += sum(float(s.total_amount or 0) for s in q2.all())
+    return total
+
+
+def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt) -> float:
+    """Xuddi yuqoridagi kabi, lekin SAVDO emas, FOYDA — davr yopilganda
+    keshbekka aylantirish uchun ishlatiladi."""
+    import services
+    from models import Order, OrderStatus, FinishedProductSale
+    total = 0.0
+    q1 = db.query(Order).filter(
+        Order.master_id == master_id, Order.status == OrderStatus.READY,
+        Order.completed_at > start_dt, Order.completed_at <= end_dt,
+    )
+    for o in q1.all():
+        try:
+            total += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+        except Exception:
+            db.rollback()
+    q2 = db.query(FinishedProductSale).filter(
+        FinishedProductSale.master_id == master_id,
+        FinishedProductSale.sold_at > start_dt, FinishedProductSale.sold_at <= end_dt,
+    )
+    for s in q2.all():
+        total += float(s.total_amount or 0) - float(s.cost_amount or 0)
+    return total
+
+
+def _master_gift_period_checkpoint(db: Session, master_id: int, period) -> datetime:
+    """Ustaning shu davrdagi oxirgi 'reset' vaqti — oxirgi 'gift' turidagi
+    olingan sovg'asi vaqti, bo'lmasa davr boshlangan vaqt."""
+    from models import MasterGiftPeriodRedemption
+    last = db.query(MasterGiftPeriodRedemption).filter(
+        MasterGiftPeriodRedemption.period_id == period.id,
+        MasterGiftPeriodRedemption.master_id == master_id,
+        MasterGiftPeriodRedemption.kind == "gift",
+    ).order_by(MasterGiftPeriodRedemption.redeemed_at.desc()).first()
+    return last.redeemed_at if last else period.started_at
+
+
+def get_master_gift_period_progress(db: Session, master_id: int) -> dict:
+    """Faol davr bo'yicha — ustaning joriy (oxirgi reset'dan keyingi)
+    savdosi, barcha bosqichlar va ENG YUQORI qaysi biriga 'tayyor' ekani.
+    Agar davr faol bo'lsa-yu, bu usta unda ISHTIROK ETMASA — 'active: False'
+    qaytariladi (usta uchun davr umuman ko'rinmasligi kerak)."""
+    period = get_active_gift_period(db)
+    if not period or not master_in_active_gift_period(db, master_id):
+        return {"active": False}
+    checkpoint = _master_gift_period_checkpoint(db, master_id, period)
+    sales = _gift_period_sales_since(db, master_id, checkpoint, None)
+    tiers = sorted(period.tiers, key=lambda t: t.threshold_amount)
+    result_tiers = []
+    highest_ready = None
+    for t in tiers:
+        ready = sales >= float(t.threshold_amount) - 0.01
+        if ready:
+            highest_ready = t
+        result_tiers.append({
+            "id": t.id, "gift_name": t.gift_name,
+            "threshold_amount": float(t.threshold_amount), "ready": ready,
+        })
+    return {
+        "active": True, "period_id": period.id, "current_sales": sales,
+        "tiers": result_tiers,
+        "ready_tier_id": highest_ready.id if highest_ready else None,
+        "ready_tier_name": highest_ready.gift_name if highest_ready else None,
+    }
+
+
+def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold_amount: float) -> dict:
+    """Faol davrdagi bir bosqichning nomi/summasini o'zgartiradi. Bu —
+    ALLAQACHON berilgan sovg'alar tarixiga (MasterGiftPeriodRedemption)
+    ta'sir qilmaydi, chunki tarix o'z nusxasini (gift_name, sales_amount)
+    alohida saqlaydi."""
+    from models import GiftPeriodTier
+    period = get_active_gift_period(db)
+    if not period:
+        return {"success": False, "message": "Faol sovg'a davri yo'q"}
+    tier = db.query(GiftPeriodTier).filter(
+        GiftPeriodTier.id == tier_id, GiftPeriodTier.period_id == period.id
+    ).first()
+    if not tier:
+        return {"success": False, "message": "Bosqich topilmadi"}
+    name = (gift_name or "").strip()
+    amt = float(threshold_amount or 0)
+    if not name or amt <= 0:
+        return {"success": False, "message": "Sovg'a nomi va musbat summa shart"}
+    tier.gift_name = name
+    tier.threshold_amount = amt
     db.commit()
     return {"success": True}
 
 
-def get_master_redemption_history(db: Session, master_id: int) -> list:
-    """Ustaga berilgan barcha sovg'alar tarixini qaytaradi."""
-    from models import MasterGiftRedemption
-    rows = db.query(MasterGiftRedemption).filter(
-        MasterGiftRedemption.master_id == master_id
-    ).order_by(MasterGiftRedemption.redeemed_at.desc()).all()
-    return [{"id": r.id, "gift_name": r.gift_name, "kpi_value": float(r.kpi_value),
-              "redeemed_at": r.redeemed_at.isoformat() if r.redeemed_at else None,
-              "redeemed_by": r.redeemed_by} for r in rows]
+def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed_by: str = None) -> dict:
+    """Bir bosqichni ustaga 'berildi' deb belgilaydi. Muvaffaqiyatli
+    bo'lsa, ustaning hisoblagichi shu paytdan RESET bo'ladi (checkpoint
+    funksiyasi keyingi so'rovda avtomatik shu yozuvni topadi)."""
+    from models import GiftPeriodTier, Master, MasterGiftPeriodRedemption
+    period = get_active_gift_period(db)
+    if not period:
+        return {"success": False, "message": "Faol sovg'a davri yo'q"}
+    tier = db.query(GiftPeriodTier).filter(
+        GiftPeriodTier.id == tier_id, GiftPeriodTier.period_id == period.id
+    ).first()
+    if not tier:
+        return {"success": False, "message": "Bosqich topilmadi"}
+    master = db.query(Master).filter(Master.id == master_id).first()
+    if not master:
+        return {"success": False, "message": "Usta topilmadi"}
+    checkpoint = _master_gift_period_checkpoint(db, master_id, period)
+    sales = _gift_period_sales_since(db, master_id, checkpoint, None)
+    if sales < float(tier.threshold_amount) - 0.01:
+        return {"success": False,
+                "message": f"Usta hali bu bosqichga yetmagan (kerak: {tier.threshold_amount:,.0f}, mavjud: {sales:,.0f})"}
+    db.add(MasterGiftPeriodRedemption(
+        period_id=period.id, master_id=master_id, tier_id=tier.id,
+        gift_name=tier.gift_name, sales_amount=sales, kind="gift", redeemed_by=performed_by,
+    ))
+    db.commit()
+    return {"success": True}
 
 
+def get_gift_period_overview(db: Session) -> dict:
+    """Admin panel uchun — faol davr, uning bosqichlari, va har bir
+    ISHTIROKCHI ustaning joriy holati (savdosi, tayyor bo'lsa qaysi bosqichga)."""
+    period = get_active_gift_period(db)
+    if not period:
+        return {"active": False}
+    masters = _gift_period_eligible_masters(db, period)
+    participant_ids = get_gift_period_participant_ids(db, period.id)
+    rows = []
+    pending = []
+    for m in masters:
+        prog = get_master_gift_period_progress(db, m.id)
+        row = {
+            "master_id": m.id, "master_name": m.name,
+            "current_sales": prog["current_sales"], "tiers": prog["tiers"],
+            "ready_tier_id": prog["ready_tier_id"], "ready_tier_name": prog["ready_tier_name"],
+        }
+        if prog["ready_tier_id"]:
+            pending.append(m.name)
+        rows.append(row)
+    return {
+        "active": True, "period_id": period.id,
+        "started_at": period.started_at.isoformat() if period.started_at else None,
+        "tiers": [{"id": t.id, "gift_name": t.gift_name, "threshold_amount": float(t.threshold_amount)}
+                  for t in sorted(period.tiers, key=lambda t: t.threshold_amount)],
+        "masters": rows, "pending_master_names": pending,
+        "all_masters": not bool(participant_ids),
+        "participant_ids": sorted(participant_ids),
+    }
+
+
+def close_gift_period(db: Session, performed_by: str = None, force: bool = False) -> dict:
+    """Faol davrni yopadi. Agar biror usta biror bosqichga 'tayyor' bo'lib,
+    hali 'Berildi' deb belgilanmagan bo'lsa va force=False bo'lsa — YOPMAY,
+    ogohlantirish qaytaradi (aks holda uning haqli sovg'asi bekorga
+    keshbekka aylanib ketadi). force=True bo'lsa, har bir ISHTIROKCHI
+    ustaning checkpoint'dan keyingi qoldiq savdosi FOYDA orqali (KPI% ×)
+    avtomatik keshbek hisobiga o'tkaziladi."""
+    from models import MasterGiftPeriodRedemption
+    period = get_active_gift_period(db)
+    if not period:
+        return {"success": False, "message": "Faol sovg'a davri yo'q"}
+
+    overview = get_gift_period_overview(db)
+    if overview["pending_master_names"] and not force:
+        return {
+            "success": False,
+            "message": "Ba'zi ustalar sovg'aga yetgan, lekin hali \"Berildi\" deb belgilanmagan.",
+            "pending_master_names": overview["pending_master_names"],
+        }
+
+    now = datetime.utcnow()
+    masters = _gift_period_eligible_masters(db, period)
+    for m in masters:
+        checkpoint = _master_gift_period_checkpoint(db, m.id, period)
+        sales = _gift_period_sales_since(db, m.id, checkpoint, now)
+        if sales <= 0.01:
+            continue
+        profit = _gift_period_profit_since(db, m.id, checkpoint, now)
+        cashback_amount = profit * float(m.kpi_percent or 0) / 100
+        db.add(MasterGiftPeriodRedemption(
+            period_id=period.id, master_id=m.id, tier_id=None,
+            gift_name="(Keshbekka o'tkazildi)", sales_amount=sales,
+            profit_amount=cashback_amount, kind="cashback_conversion", redeemed_by=performed_by,
+        ))
+    period.is_active = False
+    period.closed_at = now
+    db.commit()
+    return {"success": True}
+
+
+def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
+    """'Bonuslarim' (bot) uchun — yillik keshbek hisoboti. Har qanday
+    sovg'a davri (o'tgan yoki joriy) davomida bo'lgan buyurtmalar/sotuvlar
+    bu yerdan CHIQARIB TASHLANADI (ular sovg'aga ketgan yoki hali
+    ketayapti); o'rniga, yopilgan davrlarning 'cashback_conversion'
+    yozuvlari (ushbu yilga tegishlilari) qo'shiladi."""
+    import services
+    from sqlalchemy import extract
+    from models import Order, OrderStatus, FinishedProductSale, GiftPeriod, MasterGiftPeriodRedemption, Master
+
+    master = db.query(Master).filter(Master.id == master_id).first()
+    kpi_pct = float(master.kpi_percent or 0) if master else 0.0
+
+    periods = db.query(GiftPeriod).all()
+
+    def _in_any_period(dt):
+        if not dt:
+            return False
+        for p in periods:
+            end = p.closed_at or datetime.utcnow()
+            if p.started_at < dt <= end:
+                return True
+        return False
+
+    orders = db.query(Order).filter(
+        Order.master_id == master_id, Order.status == OrderStatus.READY,
+        extract('year', Order.completed_at) == year,
+    ).order_by(Order.completed_at.desc()).all()
+
+    yearly_profit = 0.0
+    buyurtmalar = []
+    for o in orders:
+        if _in_any_period(o.completed_at):
+            continue
+        try:
+            foyda = float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+        except Exception:
+            db.rollback()
+            foyda = 0.0
+        yearly_profit += foyda
+        buyurtmalar.append((o.order_number, foyda))
+
+    fp_sales = db.query(FinishedProductSale).filter(
+        FinishedProductSale.master_id == master_id,
+        extract('year', FinishedProductSale.sold_at) == year,
+    ).all()
+    for s in fp_sales:
+        if _in_any_period(s.sold_at):
+            continue
+        yearly_profit += float(s.total_amount or 0) - float(s.cost_amount or 0)
+
+    jami_bonus = yearly_profit * kpi_pct / 100
+
+    conversions = db.query(MasterGiftPeriodRedemption).filter(
+        MasterGiftPeriodRedemption.master_id == master_id,
+        MasterGiftPeriodRedemption.kind == "cashback_conversion",
+        extract('year', MasterGiftPeriodRedemption.redeemed_at) == year,
+    ).all()
+    conversion_total = sum(float(c.profit_amount or 0) for c in conversions)
+    jami_bonus += conversion_total
+
+    return {
+        "yearly_profit": yearly_profit, "kpi_percent": kpi_pct,
+        "jami_bonus": jami_bonus, "orders": buyurtmalar,
+        "gift_period_conversion": conversion_total,
+    }
 
 
 from models import Supplier, SupplierPayment, InventoryPurchase
