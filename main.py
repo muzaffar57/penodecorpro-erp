@@ -2152,6 +2152,15 @@ def api_get_orders(project_id: Optional[int] = None, db: Session = Depends(get_d
     return crud.get_orders(db, project_id=project_id)
 
 
+@app.get("/api/orders/pinned")
+def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # MUHIM: bu — statik yo'l, shuning uchun quyidagi /api/orders/{order_id}
+    # (dinamik) marshrutdan OLDIN turishi SHART — aks holda FastAPI
+    # "pinned" so'zini order_id sifatida ushlab, xato qaytaradi (2026-09-13
+    # da aynan shu xato topilib, shu yerga ko'chirilgan edi).
+    return crud.get_pinned_orders(db)
+
+
 @app.get("/api/orders/{order_id}")
 def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     order = crud.get_order(db, order_id)
@@ -3766,11 +3775,6 @@ def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_u
     if not result.get("success"):
         raise HTTPException(status_code=404, detail=result.get("message", "Topilmadi"))
     return result
-
-
-@app.get("/api/orders/pinned")
-def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.get_pinned_orders(db)
 
 
 @app.post("/api/deliveries")
