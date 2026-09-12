@@ -120,6 +120,20 @@ def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, capt
         return False
 
 
+def _master_bot_keyboard(db) -> dict:
+    """Usta boti uchun klaviatura — '🎁 Sovg'alar' tugmasi FAQAT faol
+    sovg'a davri bo'lganda ko'rinadi (2026-09-12)."""
+    try:
+        has_active_period = crud.get_active_gift_period(db) is not None
+    except Exception:
+        has_active_period = False
+    if has_active_period:
+        rows = [[{"text": "💰 Bonuslarim"}, {"text": "🎁 Sovg'alar"}], [{"text": "🪪 Mening ID raqamim"}]]
+    else:
+        rows = [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]]
+    return {"keyboard": rows, "resize_keyboard": True, "persistent": True}
+
+
 def _send_delivery_pdf_to_customer(db, delivery_id: int):
     """Yetkazish (delivery) uchun Yuk xati (nakladnoy) PDF faylini
     MUNTAZAM (har bir yetkazishda, istisnosiz) IKKITA mumkin bo'lgan
@@ -1763,6 +1777,40 @@ def api_redeem_master_gift(master_id: int, gift_id: int, db: Session = Depends(g
 @app.get("/api/masters/{master_id}/gift-redemptions")
 def api_master_gift_redemptions(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     return crud.get_master_redemption_history(db, master_id)
+
+
+# ── "Sovg'a davri" (2026-09-12, savdo-summasi asosidagi, davriy) ──────
+@app.get("/api/gift-period")
+def api_get_gift_period(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    return crud.get_gift_period_overview(db)
+
+
+@app.post("/api/gift-period/open")
+def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    who = current_user.full_name or current_user.username
+    result = crud.open_gift_period(db, data.get("tiers") or [], performed_by=who)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
+    return result
+
+
+@app.post("/api/gift-period/close")
+def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    who = current_user.full_name or current_user.username
+    force = bool((data or {}).get("force"))
+    result = crud.close_gift_period(db, performed_by=who, force=force)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
+@app.post("/api/gift-period/redeem/{master_id}/{tier_id}")
+def api_redeem_gift_period_tier(master_id: int, tier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    who = current_user.full_name or current_user.username
+    result = crud.redeem_gift_period_tier(db, master_id, tier_id, performed_by=who)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
+    return result
 
 
 @app.get("/api/transport-stats")
@@ -4142,7 +4190,11 @@ async def telegram_webhook(request: Request):
         return {"ok": True}
 
     if text == "/start":
-        keyboard = {"keyboard": [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]], "resize_keyboard": True, "persistent": True}
+        db = SessionLocal()
+        try:
+            keyboard = _master_bot_keyboard(db)
+        finally:
+            db.close()
         welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro* bot ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
         try:
             url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
@@ -4161,72 +4213,38 @@ async def telegram_webhook(request: Request):
     if text in ["/bonus", "💰 bonuslarim", "bonuslarim", "/balans"]:
         db = SessionLocal()
         try:
-            from models import Master, Order, OrderStatus
+            from models import Master
             master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
             if not master:
                 reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
-            elif master.show_gifts:
-                # MUHIM (2026-09): "🎁 Sovg'alar bosqichlari" yoqilgan
-                # ustalar uchun — ANIQ SO'M MIQDORI KO'RSATILMAYDI, faqat
-                # qaysi bosqichga yetgani va keyingisigacha necha % qolgani
-                # (admin panelidagi "Sovg'a bosqichlari" tavsifiga mos).
-                available = crud.get_master_gift_available_kpi(db, master.id)
-                redeemed_ids = crud.get_master_redeemed_gift_ids(db, master.id)
-                gifts = crud.get_master_gifts(db)
-                reply = f"🎁 *Sizning sovg'alar holatingiz*\n\n👤 {master.name}\n━━━━━━━━━━━━━━━━━━━\n"
-                if not gifts:
-                    reply += "Hali sovg'alar belgilanmagan.\n"
-                else:
-                    prev_threshold = 0.0
-                    for g in gifts:
-                        threshold = float(g.kpi_threshold)
-                        if g.id in redeemed_ids:
-                            reply += f"🎉 {g.name} — *olingan*\n"
-                        elif available >= threshold - 0.01:
-                            reply += f"✅ {g.name} — *tayyor, olishga yetdingiz!*\n"
-                        else:
-                            span = threshold - prev_threshold
-                            progress = max(0.0, available - prev_threshold)
-                            pct = max(0, min(100, round((progress / span) * 100))) if span > 0 else 0
-                            reply += f"⬜ {g.name} — {pct}% (qolgan: {100-pct}%)\n"
-                        prev_threshold = threshold
-                reply += f"━━━━━━━━━━━━━━━━━━━\n\n🏗 PenoDecorPro — Andijon"
             else:
-                # Sovg'a bosqichlari yoqilmagan ustalar uchun — yillik,
-                # SOF FOYDADAN hisoblangan umumiy hisobot (admin
-                # panelidagi "Ustalar KPI" bilan bir xil formula).
-                from sqlalchemy import extract
-                import services as _services
+                # 2026-09-12: har doim ishlaydigan, yillik SOF FOYDADAN
+                # hisoblangan keshbek hisoboti (admin panelidagi "Ustalar
+                # KPI" bilan bir xil formula). Faol/o'tgan sovg'a
+                # davrlaridagi buyurtmalar bu yerdan chiqarib tashlanadi —
+                # crud.get_master_yearly_cashback() ichida hisobga olinadi.
                 current_year = datetime.now().year
-                orders = db.query(Order).filter(
-                    Order.master_id == master.id, Order.status == OrderStatus.READY,
-                    extract('year', Order.completed_at) == current_year
-                ).order_by(Order.completed_at.desc()).all()
-                yearly_profit = 0.0
-                buyurtmalar_text = ""
-                for o in orders[:10]:
-                    try:
-                        profit_data = _services.calculate_order_profit(db, o.id)
-                        foyda = float(profit_data.get("foyda", 0))
-                    except Exception:
-                        db.rollback()
-                        foyda = 0.0
-                    yearly_profit += foyda
-                    buyurtmalar_text += f"• {o.order_number} — foyda: *{int(foyda):,} so'm*\n"
-                jami_bonus = yearly_profit * float(master.kpi_percent or 0) / 100
-                faol = db.query(Order).filter(Order.master_id == master.id, Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
+                info = crud.get_master_yearly_cashback(db, master.id, current_year)
+                buyurtmalar_text = "".join(
+                    f"• {num} — foyda: *{int(foyda):,} so'm*\n" for num, foyda in info["orders"][:10]
+                )
                 reply = f"📊 *Sizning {current_year}-yil sovg'angiz*\n\n👤 {master.name}\n🎯 Sovg'a foizi (sof foydadan): *{master.kpi_percent}%*\n\n━━━━━━━━━━━━━━━━━━━\n"
                 if buyurtmalar_text:
                     reply += f"📋 *Oxirgi buyurtmalar (foyda bo'yicha):*\n{buyurtmalar_text}\n"
-                if faol > 0:
-                    reply += f"⏳ Jarayondagi buyurtmalar: *{faol} ta*\n\n"
-                reply += f"━━━━━━━━━━━━━━━━━━━\n💰 *Yillik sof foyda: {int(yearly_profit):,} so'm*\n🎁 *Hisoblangan sovg'a: {int(jami_bonus):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
+                reply += f"━━━━━━━━━━━━━━━━━━━\n💰 *Yillik sof foyda: {int(info['yearly_profit']):,} so'm*\n🎁 *Hisoblangan sovg'a: {int(info['jami_bonus']):,} so'm*"
+                if info["gift_period_conversion"] > 0.5:
+                    reply += f"\n   (shundan {int(info['gift_period_conversion']):,} so'm — sovg'a davridan o'tkazilgan)"
+                reply += "\n\n🏗 PenoDecorPro — Andijon"
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
             db.close()
 
-        keyboard = {"keyboard": [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]], "resize_keyboard": True, "persistent": True}
+        db2 = SessionLocal()
+        try:
+            keyboard = _master_bot_keyboard(db2)
+        finally:
+            db2.close()
         try:
             url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
             send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
@@ -4234,6 +4252,55 @@ async def telegram_webhook(request: Request):
             urllib.request.urlopen(req, timeout=5)
         except Exception as e:
             _send_telegram_to(chat_id, reply)
+        return {"ok": True}
+
+    if text in ["/sovgalar", "🎁 sovg'alar", "sovg'alar", "sovgalar"]:
+        # 2026-09-12: YANGI, davriy (savdo-summasi asosidagi) sovg'a
+        # tizimi — faqat admin "davr" ochganda faol. Aniq so'm miqdori
+        # ko'rsatilmaydi, faqat qaysi bosqichga yetgani/necha % qolgani
+        # (eski show_gifts tizimi bilan bir xil falsafa).
+        db = SessionLocal()
+        try:
+            from models import Master
+            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            if not master:
+                reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
+            else:
+                prog = crud.get_master_gift_period_progress(db, master.id)
+                if not prog["active"]:
+                    reply = "🎁 Hozircha faol sovg'a davri yo'q.\n\n🏗 PenoDecorPro — Andijon"
+                else:
+                    sales = prog["current_sales"]
+                    reply = f"🎁 *Sovg'a davri — joriy holatingiz*\n\n👤 {master.name}\n━━━━━━━━━━━━━━━━━━━\n"
+                    prev_threshold = 0.0
+                    for t in prog["tiers"]:
+                        if t["ready"]:
+                            reply += f"✅ {t['gift_name']} — *tayyor, olishga yetdingiz!*\n"
+                        else:
+                            span = t["threshold_amount"] - prev_threshold
+                            progress = max(0.0, sales - prev_threshold)
+                            pct = max(0, min(100, round((progress / span) * 100))) if span > 0 else 0
+                            reply += f"⬜ {t['gift_name']} — {pct}% (qolgan: {100-pct}%)\n"
+                        prev_threshold = t["threshold_amount"]
+                    reply += f"━━━━━━━━━━━━━━━━━━━\n\n🏗 PenoDecorPro — Andijon"
+        except Exception as e:
+            reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
+        finally:
+            db.close()
+
+        db2 = SessionLocal()
+        try:
+            keyboard = _master_bot_keyboard(db2)
+        finally:
+            db2.close()
+        try:
+            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
+            send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
+            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=5)
+        except Exception as e:
+            _send_telegram_to(chat_id, reply)
+        return {"ok": True}
 
     return {"ok": True}
 
