@@ -165,12 +165,27 @@
 /* Tur — tugma-chip guruhi (dropdown o'rniga, hammasi ochiq ko'rinadi) */
 .type-toggle{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .type-opt{
-  padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;
-  font-size:12.5px;font-weight:600;color:var(--text2);background:var(--white);
+  padding:8px 12px;border:1.5px solid #E5E7EB;border-radius:8px;
+  font-size:12.5px;font-weight:600;color:#9CA3AF;background:var(--white);
   cursor:pointer;transition:all .15s;text-align:center;white-space:nowrap;
 }
 .type-opt:hover{border-color:var(--gold);color:var(--gold-dark)}
-.type-opt.active{background:var(--gold-tint);border-color:var(--gold);color:var(--gold-dark)}
+/* 2026-09-13: avval barcha turlar tanlanganda BIR XIL (xira oltin) rangda
+   bo'lardi — bir buyurtmada 10+ detal bo'lganda, Profil/Panel kabi
+   o'xshash nomli turlarni bir-biridan tez ajratish qiyin edi (bitta
+   real holatda — Panel o'rniga adashib Profilga yozib qo'yilgan, narx
+   chiqqandagina bilingan). Endi har bir tur — TANLANGANDA — o'zining
+   aniq, to'liq bo'yalgan rangiga ega, tanlanmaganlar esa xiraroq —
+   ko'z bilan "qaysi birim yonib turibdi" darhol ko'rinadi. */
+.type-opt.active{color:#fff;border-color:transparent;font-weight:700}
+.type-opt.active[data-value="profil"]{background:#2563EB}
+.type-opt.active[data-value="panel"]{background:#7C3AED}
+.type-opt.active[data-value="dona"]{background:#DB2777}
+.type-opt.active[data-value="blok"]{background:#0D9488}
+.type-opt.active[data-value="termopanel"]{background:#EA580C}
+.type-opt.active[data-value="loy_sotish"]{background:#0891B2}
+.type-opt.active[data-value="gips"]{background:#4F46E5}
+.type-confirm-text{font-size:12px;color:var(--text2);margin-top:6px;font-weight:500}
 /* MUHIM (2026-09): Profil/Panel/Donali — hajm (m³) bo'yicha hisoblanadigan
    turlar — bitta guruhda birga turadi; qolganlari (Blok, Termopanel,
    Loy sotish, Gips) — har biri o'z mantig'i bilan alohida hisoblangani
@@ -1099,6 +1114,7 @@ async function restoreDraftLS(draft) {
       typeEl.value = rowData['i-type'];
       row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === rowData['i-type']));
       toggleFields(row);
+      updateTypeConfirmText(row, rowData['i-type']);
     }
     // Keyin qolgan barcha maydonlarni to'ldiramiz
     Object.keys(rowData).forEach(cls => {
@@ -1406,6 +1422,7 @@ function pickFinished(el, fpId) {
     typeEl.value = effectiveType;
     row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === effectiveType));
     toggleFields(row);
+    updateTypeConfirmText(row, effectiveType);
   }
   // Gips uchun — o'ziga xos "birlik" (metr/dona/m²) selektorini ham
   // tayyor mahsulotning o'z birligiga moslab qo'yamiz.
@@ -2876,6 +2893,7 @@ function addItem() {
           <div class="tur-sep"></div>
           <div class="type-opt" data-value="gips" onclick="selectTypeOpt(this,'gips')">🧱 Gips</div>
         </div>
+        <div class="type-confirm-text"></div>
         <select class="i-type" style="display:none" onchange="toggleFields(this.closest('.detal'));calculateItem(this.closest('.detal'))">
           <option value="profil">Profil</option>
           <option value="panel">Panel</option>
@@ -3006,6 +3024,8 @@ function addItem() {
     const typeSel = div.querySelector('.i-type');
     if (typeSel) typeSel.value = lastType;
     div.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === lastType));
+    toggleFields(div);
+    updateTypeConfirmText(div, lastType);
   }
 
   // Oldingi detal (agar nomi to'ldirilgan bo'lsa) avtomatik yig'iladi —
@@ -3019,6 +3039,7 @@ function addItem() {
   }
 
   toggleFields(div);
+  updateTypeConfirmText(div, div.querySelector('.i-type').value);
   onPenoChange(div);
   calculateItem(div);
 }
@@ -3082,6 +3103,20 @@ function setSubDetailCoating(el, isCoated) {
 // Tur — tugma-chip tanlash (dropdown o'rniga). Yashirin <select>ga
 // qiymatni yozib, xuddi shu eski toggleFields/calculateItem funksiyalarini
 // chaqiradi — hisob-kitob mantig'i O'ZGARMAYDI, faqat kirish usuli.
+const TYPE_DISPLAY_NAME = {
+  profil: '📏 Profil', panel: '🔲 Panel', dona: '⭐ Donali',
+  blok: '🧊 Blok', termopanel: '🪨 Termopanel (Bazalt)',
+  loy_sotish: '🪣 Loy sotish', gips: '🧱 Gips',
+};
+function updateTypeConfirmText(row, type) {
+  const el = row.querySelector('.type-confirm-text');
+  if (!el) return;
+  const qLabel = row.querySelector('.i-q-label')?.textContent || 'Miqdor';
+  const qSuffix = row.querySelector('.i-q-suffix')?.textContent || '';
+  const name = TYPE_DISPLAY_NAME[type] || type;
+  el.textContent = `✓ ${name} tanlandi — "${qLabel}" (${qSuffix}) bo'yicha hisoblanadi`;
+}
+
 function selectTypeOpt(btn, value) {
   const row = btn.closest('.detal');
   row.querySelectorAll('.type-opt').forEach(o => o.classList.remove('active'));
@@ -3089,6 +3124,7 @@ function selectTypeOpt(btn, value) {
   const sel = row.querySelector('.i-type');
   sel.value = value;
   toggleFields(row);
+  updateTypeConfirmText(row, value);
   calculateItem(row);
 }
 
@@ -4443,6 +4479,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         typeEl.value = cat;
         row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === cat));
         toggleFields(row);
+        updateTypeConfirmText(row, cat);
 
         if (cat === 'dona') {
           row.querySelector('.i-q').value = item.quantity || 1;
