@@ -1072,7 +1072,7 @@ def api_add_payment(project_id: int, amount: float, db: Session = Depends(get_db
 async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.orders_page_access)):
     orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all)
     for o in orders:
-        o.deadline_urgency = crud.get_deadline_urgency(o.deadline, o.status.value)
+        o.deadline_urgency = crud.get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered)
     projects = crud.get_projects(db)
     masters = crud.get_masters(db, only_active=True)
     recipes = crud.get_recipes(db)

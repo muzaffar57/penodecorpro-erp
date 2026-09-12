@@ -3793,17 +3793,22 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
     return result
 
 
-def get_deadline_urgency(deadline, status_value: str) -> str:
+def get_deadline_urgency(deadline, status_value: str, is_fully_delivered: bool = False) -> str:
     """Topshirish muddatiga qarab holatni qaytaradi: 'overdue' (muddat
     o'tgan), 'today' (bugun), 'tomorrow' (ertaga), yoki 'normal'.
-    Allaqachon YETKAZILGAN/BEKOR QILINGAN buyurtmalar uchun muddat endi
-    ahamiyatsiz — doim 'normal' qaytariladi (2026-09-13).
+    Allaqachon YETKAZILGAN/BEKOR QILINGAN (yoki TO'LIQ TOPSHIRILGAN —
+    holati hali 'ready'da qolgan bo'lsa ham) buyurtmalar uchun muddat
+    endi ahamiyatsiz — doim 'normal' qaytariladi (2026-09-13; dastlab
+    faqat status tekshirilgan edi, lekin to'liq topshirilgan-u holati
+    hamon 'ready' bo'lib qolgan buyurtmalarda ogohlantirish noto'g'ri
+    yonib qolayotgani aniqlandi — shuning uchun to'liq topshirilganlik
+    ham alohida tekshiriladi).
 
     MUHIM: server UTC bo'yicha ishlaydi, lekin "bugun" — Toshkent kuni
     (UTC+5) bo'lishi kerak, aks holda ertalabki soat 00:00-04:59
     Toshkent vaqtida (bu hali UTC bo'yicha KECHAGI kun) hisoblash bir
     kunga siljib ketadi (2026-09-13'da aynan shu holat topilgan edi)."""
-    if not deadline or status_value in ("delivered", "cancelled"):
+    if not deadline or status_value in ("delivered", "cancelled") or is_fully_delivered:
         return "normal"
     from datetime import timedelta
     today_tashkent = (datetime.utcnow() + timedelta(hours=5)).date()
@@ -3847,7 +3852,7 @@ def get_pinned_orders(db: Session) -> list:
             "master_name": o.master.name if o.master else "—",
             "created_at": o.created_at.strftime("%d.%m.%Y") if o.created_at else "—",
             "deadline": o.deadline.strftime("%d.%m.%Y") if o.deadline else None,
-            "deadline_urgency": get_deadline_urgency(o.deadline, o.status.value),
+            "deadline_urgency": get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered),
             "project_id": o.project_id,
         })
     return result
