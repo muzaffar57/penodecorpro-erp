@@ -3933,8 +3933,11 @@ def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db),
 # ============================================================
 
 ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-ALLOWED_FILE_EXT = ALLOWED_IMAGE_EXT | {".pdf"}
-MAX_UPLOAD_SIZE = 8 * 1024 * 1024  # 8 MB
+# CorelDRAW (.cdr) va AutoCAD (.dwg, .dxf) chizmalarini ham buyurtmaga
+# biriktirish mumkin bo'lishi uchun qo'shildi (2026-09).
+ALLOWED_DESIGN_EXT = {".cdr", ".dwg", ".dxf"}
+ALLOWED_FILE_EXT = ALLOWED_IMAGE_EXT | {".pdf"} | ALLOWED_DESIGN_EXT
+MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB (chizma fayllar rasm/PDF'dan ancha katta bo'lishi mumkin)
 
 
 def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
@@ -3944,7 +3947,7 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
         raise HTTPException(status_code=400, detail=f"Ruxsat etilmagan fayl turi: {ext}")
     contents = file.file.read()
     if len(contents) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="Fayl hajmi 8 MB dan katta bo'lmasin")
+        raise HTTPException(status_code=400, detail="Fayl hajmi 25 MB dan katta bo'lmasin")
     folder = os.path.join(static_dir, "uploads", subfolder)
     os.makedirs(folder, exist_ok=True)
     fname = f"{uuid.uuid4().hex}{ext}"
