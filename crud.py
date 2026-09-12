@@ -2523,13 +2523,33 @@ def get_payments(db: Session, order_id: Optional[int] = None) -> List[Payment]:
     return query.order_by(Payment.paid_at.desc()).all()
 
 
-def delete_payment(db: Session, payment_id: int) -> bool:
-    """To'lovni o'chirish."""
+def delete_payment(db: Session, payment_id: int, performed_by: str = None) -> bool:
+    """To'lovni o'chirish.
+    XAVFSIZLIK/AUDIT: o'chirishdan OLDIN to'lovning to'liq tafsiloti
+    (summa, usul, buyurtma, kim qabul qilgan, qachon) ActivityLog'ga
+    yozib qo'yiladi — shunda to'lov o'chirilgandan keyin ham, KIM,
+    QACHON va QANDAY to'lovni o'chirgani abadiy saqlanadi (kelishmovchilik
+    yoki xatolikni keyinchalik tekshirish uchun)."""
     payment = db.query(Payment).filter(Payment.id == payment_id).first()
     if not payment:
         return False
 
     order = payment.order
+    order_label = order.order_number if order else f"#{payment.order_id}"
+    detail = (
+        f"{payment.amount:,.0f} so'm · {payment.payment_type.value if payment.payment_type else '-'} · "
+        f"{payment.payment_method.value if payment.payment_method else '-'} · "
+        f"qabul qilgan: {payment.received_by or '-'} · "
+        f"sana: {payment.created_at.strftime('%Y-%m-%d %H:%M') if payment.created_at else '-'}"
+        + (f" · izoh: {payment.notes}" if payment.notes else "")
+    )
+    log_activity(
+        db, "deleted", "payment", payment.id,
+        entity_label=f"Buyurtma {order_label}",
+        performed_by=performed_by,
+        old_value=detail
+    )
+
     db.delete(payment)
     db.flush()
 

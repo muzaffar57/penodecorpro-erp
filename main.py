@@ -3220,7 +3220,8 @@ def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_d
 @app.delete("/api/payments/{payment_id}")
 def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """To'lovni o'chirish."""
-    if not crud.delete_payment(db, payment_id):
+    who = current_user.full_name or current_user.username
+    if not crud.delete_payment(db, payment_id, performed_by=who):
         raise HTTPException(status_code=404, detail="To'lov topilmadi")
     return {"status": "ok"}
 
