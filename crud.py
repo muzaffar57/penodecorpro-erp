@@ -6637,6 +6637,30 @@ def get_master_gift_period_progress(db: Session, master_id: int) -> dict:
     }
 
 
+def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold_amount: float) -> dict:
+    """Faol davrdagi bir bosqichning nomi/summasini o'zgartiradi. Bu —
+    ALLAQACHON berilgan sovg'alar tarixiga (MasterGiftPeriodRedemption)
+    ta'sir qilmaydi, chunki tarix o'z nusxasini (gift_name, sales_amount)
+    alohida saqlaydi."""
+    from models import GiftPeriodTier
+    period = get_active_gift_period(db)
+    if not period:
+        return {"success": False, "message": "Faol sovg'a davri yo'q"}
+    tier = db.query(GiftPeriodTier).filter(
+        GiftPeriodTier.id == tier_id, GiftPeriodTier.period_id == period.id
+    ).first()
+    if not tier:
+        return {"success": False, "message": "Bosqich topilmadi"}
+    name = (gift_name or "").strip()
+    amt = float(threshold_amount or 0)
+    if not name or amt <= 0:
+        return {"success": False, "message": "Sovg'a nomi va musbat summa shart"}
+    tier.gift_name = name
+    tier.threshold_amount = amt
+    db.commit()
+    return {"success": True}
+
+
 def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed_by: str = None) -> dict:
     """Bir bosqichni ustaga 'berildi' deb belgilaydi. Muvaffaqiyatli
     bo'lsa, ustaning hisoblagichi shu paytdan RESET bo'ladi (checkpoint

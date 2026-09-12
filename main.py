@@ -1702,6 +1702,14 @@ def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user
     return result
 
 
+@app.put("/api/gift-period/tier/{tier_id}")
+def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    result = crud.update_gift_period_tier(db, tier_id, data.get("gift_name"), data.get("threshold_amount"))
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
+    return result
+
+
 @app.post("/api/gift-period/close")
 def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
