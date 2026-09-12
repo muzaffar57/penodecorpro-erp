@@ -178,13 +178,13 @@
           <input type="file" id="pimg-{{ p.id }}" accept="image/*" onchange="uploadProjImage({{ p.id }}, this)">
         </label>
         <div class="proj-card-body">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="min-width:0;flex:1">
             <div class="proj-num">{{ p.project_number }}</div>
             <div class="proj-name">{{ p.project_name }}</div>
             <div class="proj-client"><i class="ti ti-user" style="font-size:13px"></i> {{ p.client_name }} · {{ p.client_phone or '' }}</div>
           </div>
-          <span class="status-badge st-{{ p.status.value }}">
+          <span class="status-badge st-{{ p.status.value }}" style="flex-shrink:0">
             {% if p.status.value == 'active' %}Faol{% elif p.status.value == 'draft' %}Yangi{% elif p.status.value == 'completed' %}Yakunlangan{% elif p.status.value == 'on_hold' %}Kutmoqda{% else %}Bekor{% endif %}
           </span>
         </div>

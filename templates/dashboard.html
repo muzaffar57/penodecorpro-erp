@@ -118,7 +118,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><h3>Ogohlantirishlar</h3></div>
+      <div class="card-head"><h3>🏗 Ombor ogohlantirishlari</h3></div>
       <div class="card-body" id="warnList" style="padding:8px 16px">
         <div style="text-align:center;padding:12px;color:#bbb;font-size:12px">Yuklanmoqda…</div>
       </div>
@@ -549,7 +549,7 @@ function buildWarnList(lowStockItems){
   const el=document.getElementById('warnList');
   const items=(lowStockItems||[]).slice(0,4);
   if(!items.length){
-    el.innerHTML='<div style="text-align:center;padding:12px;color:#22C55E;font-size:12px;font-weight:500">✓ Ogohlantirish yo\'q</div>';
+    el.innerHTML='<div style="text-align:center;padding:12px;color:#22C55E;font-size:12px;font-weight:500">✓ Ombor holati yaxshi</div>';
     return;
   }
   el.innerHTML=items.map(item=>`

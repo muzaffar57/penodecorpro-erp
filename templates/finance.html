@@ -546,8 +546,13 @@ async function loadCashBalance(){
     const d = await fetch('/api/finance/cash-balance').then(r=>r.json());
     const el = document.getElementById('cash-balance-val');
     if (el) {
-      el.textContent = fmtCash(d.balance) + " so'm";
-      el.style.color = d.balance >= 0 ? '#fff' : '#FCA5A5';
+      const isNegative = d.balance < 0;
+      // 2026-09-13: avval manfiy balans juda yumshoq (#FCA5A5) rangda edi —
+      // bu raqam butun ilovadagi eng jiddiy ko'rsatkichlardan biri bo'lgani
+      // uchun, endi ilovaning standart "xavfli" rangida (--red) va ⚠️
+      // belgisi bilan chiqadi.
+      el.textContent = (isNegative ? '⚠️ ' : '') + fmtCash(d.balance) + " so'm";
+      el.style.color = isNegative ? '#EF4444' : '#fff';
     }
   } catch(e) { console.error(e); }
 }

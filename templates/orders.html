@@ -4098,7 +4098,7 @@ function showValidationModal(issues) {
   const list = document.getElementById('validationList');
   list.innerHTML = issues.map(it => `
     <div class="val-item" onclick="scrollToValidationField('${it.targetId}')">
-      <i class="ti ti-point-filled"></i>
+      <i class="ti ti-point"></i>
       <span>${it.text}</span>
     </div>`).join('');
   document.getElementById('validationModal').style.display = 'flex';

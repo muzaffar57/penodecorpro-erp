@@ -1047,7 +1047,7 @@ function rowHtml(i) {
         ${inProgress ? '<span class="fp-badge" style="background:#FEF3C7;color:#b7770d">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
         ${isRet ? '<span class="fp-badge" style="background:#DCFCE7;color:#1e7e34">♻️ QAYTGAN</span>' : ''}
       </div>
-      <div class="fp-meta">${meta.join(' · ')}${profitPct !== null ? ` · Foyda: <b style="color:${profitPct>=0?'#22C55E':'#DC2626'}">${profitPct}%</b>` : ''}</div>
+      <div class="fp-meta">${meta.join(' · ')}${profitPct !== null ? (cpu < 0 ? ` · <b style="color:#DC2626">⚠️ tannarx xato</b>` : ` · Foyda: <b style="color:${profitPct>=0?'#22C55E':'#DC2626'}">${profitPct}%</b>`) : ''}</div>
     </div>
 
     <div class="fp-stock-col">
@@ -1058,7 +1058,9 @@ function rowHtml(i) {
 
     <div style="text-align:right;flex-shrink:0;min-width:82px">
       <div class="fp-price">${fmt(i.unit_price)}/${unitLabel(i.unit)}</div>
-      ${i.source === 'produced' ? `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>` : ''}
+      ${i.source === 'produced' ? (cpu < 0
+        ? `<div style="font-size:10px;color:#DC2626;font-weight:700" title="Tannarx hisobida xatolik bor — ombor harakatlarini tekshiring">⚠️ tan: ${fmt(cpu)}</div>`
+        : `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>`) : ''}
     </div>
 
     <div style="text-align:right;flex-shrink:0;min-width:92px">

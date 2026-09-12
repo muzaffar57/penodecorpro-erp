@@ -66,12 +66,14 @@
 /* Yo'nalish — tugma-chip guruhi (dropdown o'rniga) */
 .rcv-cat-toggle{display:flex;flex-wrap:wrap;gap:6px}
 .rcv-cat-opt{
-  padding:9px 13px;border:1.5px solid var(--r-border);border-radius:9px;
-  font-size:12.5px;font-weight:600;color:var(--r-text2);background:#fff;
+  padding:9px 13px;border:1.5px solid #E5E7EB;border-radius:9px;
+  font-size:12.5px;font-weight:600;color:#9CA3AF;background:#fff;
   cursor:pointer;transition:all .15s;white-space:nowrap;
 }
 .rcv-cat-opt:hover{border-color:var(--r-primary);color:var(--r-primary)}
-.rcv-cat-opt.active{background:var(--r-primary-tint);border-color:var(--r-primary);color:#A86B36}
+/* 2026-09-13: avval tanlangan/tanlanmagan farqi juda kuchsiz edi (faqat
+   och rang tint) — endi tanlangani to'liq bo'yalgan, aniq ko'rinadi. */
+.rcv-cat-opt.active{background:var(--r-primary);border-color:var(--r-primary);color:#fff;font-weight:700}
 .rcv-cat-toggle.rcv-cat-error .rcv-cat-opt{border-color:#DC2626}
 </style>
 {% endblock %}
