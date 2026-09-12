@@ -256,6 +256,21 @@ class MasterGiftPeriodRedemption(Base):
         return f"<MasterGiftPeriodRedemption {self.gift_name} ({self.kind})>"
 
 
+class GiftPeriodParticipant(Base):
+    """Agar davr ochilganda ADMIN aniq ustalarni tanlagan bo'lsa (hammasi
+    emas), ular shu yerda saqlanadi. Bitta davr uchun bu yerda HECH QANDAY
+    yozuv bo'lmasa — demak o'sha davrda BARCHA faol ustalar ishtirok etadi
+    (standart holat, 2026-09-12gacha yagona xatti-harakat edi)."""
+    __tablename__ = "gift_period_participants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    period_id = Column(Integer, ForeignKey("gift_periods.id"), nullable=False, index=True)
+    master_id = Column(Integer, ForeignKey("masters.id"), nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<GiftPeriodParticipant period={self.period_id} master={self.master_id}>"
+
+
 # ============================================================
 # 3. INVENTORY
 # ============================================================

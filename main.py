@@ -120,14 +120,15 @@ def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, capt
         return False
 
 
-def _master_bot_keyboard(db) -> dict:
+def _master_bot_keyboard(db, master=None) -> dict:
     """Usta boti uchun klaviatura — '🎁 Sovg'alar' tugmasi FAQAT faol
-    sovg'a davri bo'lganda ko'rinadi (2026-09-12)."""
+    sovg'a davri BOR va shu usta o'sha davrda ISHTIROK ETSA ko'rinadi
+    (2026-09-12; ustalar tanlab olinishi qo'shildi 2026-09-12 kech)."""
     try:
-        has_active_period = crud.get_active_gift_period(db) is not None
+        show_gifts_btn = bool(master) and crud.master_in_active_gift_period(db, master.id)
     except Exception:
-        has_active_period = False
-    if has_active_period:
+        show_gifts_btn = False
+    if show_gifts_btn:
         rows = [[{"text": "💰 Bonuslarim"}, {"text": "🎁 Sovg'alar"}], [{"text": "🪪 Mening ID raqamim"}]]
     else:
         rows = [[{"text": "💰 Bonuslarim"}, {"text": "🪪 Mening ID raqamim"}]]
@@ -1696,7 +1697,7 @@ def api_get_gift_period(db: Session = Depends(get_db), current_user=Depends(auth
 @app.post("/api/gift-period/open")
 def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
-    result = crud.open_gift_period(db, data.get("tiers") or [], performed_by=who)
+    result = crud.open_gift_period(db, data.get("tiers") or [], master_ids=data.get("master_ids"), performed_by=who)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
@@ -4108,7 +4109,9 @@ async def telegram_webhook(request: Request):
     if text == "/start":
         db = SessionLocal()
         try:
-            keyboard = _master_bot_keyboard(db)
+            from models import Master
+            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            keyboard = _master_bot_keyboard(db, master)
         finally:
             db.close()
         welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro* bot ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
@@ -4149,7 +4152,7 @@ async def telegram_webhook(request: Request):
 
         db2 = SessionLocal()
         try:
-            keyboard = _master_bot_keyboard(db2)
+            keyboard = _master_bot_keyboard(db2, master)
         finally:
             db2.close()
         try:
@@ -4197,7 +4200,7 @@ async def telegram_webhook(request: Request):
 
         db2 = SessionLocal()
         try:
-            keyboard = _master_bot_keyboard(db2)
+            keyboard = _master_bot_keyboard(db2, master)
         finally:
             db2.close()
         try:

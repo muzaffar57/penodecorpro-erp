@@ -6525,11 +6525,45 @@ def get_active_gift_period(db: Session):
     return db.query(GiftPeriod).filter(GiftPeriod.is_active == True).first()
 
 
-def open_gift_period(db: Session, tiers: list, performed_by: str = None) -> dict:
+def get_gift_period_participant_ids(db: Session, period_id: int) -> set:
+    """Bo'sh to'plam qaytarsa — demak BARCHA faol ustalar ishtirok etadi
+    (standart holat, ustalar aniq tanlanmagan)."""
+    from models import GiftPeriodParticipant
+    rows = db.query(GiftPeriodParticipant.master_id).filter(
+        GiftPeriodParticipant.period_id == period_id
+    ).all()
+    return {r[0] for r in rows}
+
+
+def _gift_period_eligible_masters(db: Session, period) -> list:
+    """Davrda ishtirok etadigan FAOL ustalar ro'yxatini (Master obyektlari) qaytaradi."""
+    participant_ids = get_gift_period_participant_ids(db, period.id)
+    q = db.query(Master).filter(Master.is_active == True)
+    if participant_ids:
+        q = q.filter(Master.id.in_(participant_ids))
+    return q.order_by(Master.name).all()
+
+
+def master_in_active_gift_period(db: Session, master_id: int) -> bool:
+    """Berilgan usta joriy faol davrda ishtirok etadimi (davr umuman
+    faol bo'lmasa ham, yoki ishtirokchi sifatida tanlanmagan bo'lsa ham
+    — False)."""
+    period = get_active_gift_period(db)
+    if not period:
+        return False
+    participant_ids = get_gift_period_participant_ids(db, period.id)
+    if not participant_ids:
+        return True
+    return master_id in participant_ids
+
+
+def open_gift_period(db: Session, tiers: list, master_ids: list = None, performed_by: str = None) -> dict:
     """Yangi sovg'a davrini ochadi. `tiers` — [{"gift_name": str,
     "threshold_amount": float}, ...], kamida bitta. Har bosqichning
-    threshold_amount'i — RESET'dan keyingi YANGI savdo summasi (jami emas)."""
-    from models import GiftPeriod, GiftPeriodTier
+    threshold_amount'i — RESET'dan keyingi YANGI savdo summasi (jami emas).
+    `master_ids` — ixtiyoriy: bo'sh/berilmagan bo'lsa, BARCHA faol ustalar
+    ishtirok etadi (standart); ro'yxat berilsa, FAQAT o'sha ustalar."""
+    from models import GiftPeriod, GiftPeriodTier, GiftPeriodParticipant
     if get_active_gift_period(db):
         return {"success": False, "message": "Allaqachon faol sovg'a davri bor — avval uni yoping"}
     clean_tiers = []
@@ -6546,6 +6580,11 @@ def open_gift_period(db: Session, tiers: list, performed_by: str = None) -> dict
     db.flush()
     for i, (name, amt) in enumerate(clean_tiers):
         db.add(GiftPeriodTier(period_id=period.id, gift_name=name, threshold_amount=amt, sort_order=i))
+    for mid in (master_ids or []):
+        try:
+            db.add(GiftPeriodParticipant(period_id=period.id, master_id=int(mid)))
+        except (TypeError, ValueError):
+            continue
     db.commit()
     db.refresh(period)
     return {"success": True, "period_id": period.id}
@@ -6612,9 +6651,11 @@ def _master_gift_period_checkpoint(db: Session, master_id: int, period) -> datet
 
 def get_master_gift_period_progress(db: Session, master_id: int) -> dict:
     """Faol davr bo'yicha — ustaning joriy (oxirgi reset'dan keyingi)
-    savdosi, barcha bosqichlar va ENG YUQORI qaysi biriga 'tayyor' ekani."""
+    savdosi, barcha bosqichlar va ENG YUQORI qaysi biriga 'tayyor' ekani.
+    Agar davr faol bo'lsa-yu, bu usta unda ISHTIROK ETMASA — 'active: False'
+    qaytariladi (usta uchun davr umuman ko'rinmasligi kerak)."""
     period = get_active_gift_period(db)
-    if not period:
+    if not period or not master_in_active_gift_period(db, master_id):
         return {"active": False}
     checkpoint = _master_gift_period_checkpoint(db, master_id, period)
     sales = _gift_period_sales_since(db, master_id, checkpoint, None)
@@ -6691,13 +6732,13 @@ def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed
 
 
 def get_gift_period_overview(db: Session) -> dict:
-    """Admin panel uchun — faol davr, uning bosqichlari, va har bir faol
-    ustaning joriy holati (savdosi, tayyor bo'lsa qaysi bosqichga)."""
-    from models import Master
+    """Admin panel uchun — faol davr, uning bosqichlari, va har bir
+    ISHTIROKCHI ustaning joriy holati (savdosi, tayyor bo'lsa qaysi bosqichga)."""
     period = get_active_gift_period(db)
     if not period:
         return {"active": False}
-    masters = db.query(Master).filter(Master.is_active == True).order_by(Master.name).all()
+    masters = _gift_period_eligible_masters(db, period)
+    participant_ids = get_gift_period_participant_ids(db, period.id)
     rows = []
     pending = []
     for m in masters:
@@ -6716,6 +6757,8 @@ def get_gift_period_overview(db: Session) -> dict:
         "tiers": [{"id": t.id, "gift_name": t.gift_name, "threshold_amount": float(t.threshold_amount)}
                   for t in sorted(period.tiers, key=lambda t: t.threshold_amount)],
         "masters": rows, "pending_master_names": pending,
+        "all_masters": not bool(participant_ids),
+        "participant_ids": sorted(participant_ids),
     }
 
 
@@ -6723,10 +6766,10 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
     """Faol davrni yopadi. Agar biror usta biror bosqichga 'tayyor' bo'lib,
     hali 'Berildi' deb belgilanmagan bo'lsa va force=False bo'lsa — YOPMAY,
     ogohlantirish qaytaradi (aks holda uning haqli sovg'asi bekorga
-    keshbekka aylanib ketadi). force=True bo'lsa, har bir ustaning
-    checkpoint'dan keyingi qoldiq savdosi FOYDA orqali (KPI% ×) avtomatik
-    keshbek hisobiga o'tkaziladi."""
-    from models import Master, MasterGiftPeriodRedemption
+    keshbekka aylanib ketadi). force=True bo'lsa, har bir ISHTIROKCHI
+    ustaning checkpoint'dan keyingi qoldiq savdosi FOYDA orqali (KPI% ×)
+    avtomatik keshbek hisobiga o'tkaziladi."""
+    from models import MasterGiftPeriodRedemption
     period = get_active_gift_period(db)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
@@ -6740,7 +6783,7 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
         }
 
     now = datetime.utcnow()
-    masters = db.query(Master).filter(Master.is_active == True).all()
+    masters = _gift_period_eligible_masters(db, period)
     for m in masters:
         checkpoint = _master_gift_period_checkpoint(db, m.id, period)
         sales = _gift_period_sales_since(db, m.id, checkpoint, now)
