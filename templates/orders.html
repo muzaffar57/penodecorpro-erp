@@ -243,7 +243,9 @@ input[type=number]{-moz-appearance:textfield}
             {% set debt = o.debt_amount %}
             {% set is_finished = o.status.value in ('ready', 'delivered') %}
             {% set row_bg = 'background:#F0FDF4' if (is_finished and debt <= 0) else ('background:#FEF2F2' if (is_finished and debt > 0) else '') %}
-            <div class="ord-item" style="{{ row_bg }}"
+            {% set urgency = o.deadline_urgency %}
+            {% set urgency_border = 'border-left:3px solid #DC2626' if urgency == 'overdue' else ('border-left:3px solid #F59E0B' if urgency in ('today', 'tomorrow') else '') %}
+            <div class="ord-item" style="{{ row_bg }};{{ urgency_border }}"
                  id="oi-{{ o.id }}" onclick="selectOrder({{ o.id }}, this)"
                  data-num="{{ o.order_number }}"
                  data-client="{{ o.project.client_name if o.project else '—' }}"
@@ -268,6 +270,13 @@ input[type=number]{-moz-appearance:textfield}
                 {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
               </div>
               <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.agreed_amount or o.total_amount or 0).replace(",", " ") }} so'm</div>
+              {% if urgency == 'overdue' %}
+              <div style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o'tgan!</div>
+              {% elif urgency == 'today' %}
+              <div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Bugun muddati!</div>
+              {% elif urgency == 'tomorrow' %}
+              <div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Ertaga muddati</div>
+              {% endif %}
               {% set dpct = o.delivery_percent %}
               {% if dpct > 0 and dpct < 100 %}
               <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
@@ -2541,6 +2550,17 @@ async function loadPayments(orderId) {
       sDeadline.textContent = order.deadline
         ? new Date(order.deadline).toLocaleDateString('uz')
         : '—';
+      // 2026-09-13: muddat yaqinlashsa/o'tsa — rangli ogohlantirish
+      sDeadline.style.color = '';
+      sDeadline.style.fontWeight = '';
+      if (order.deadline && !['delivered', 'cancelled'].includes(order.status)) {
+        const todayD = new Date(); todayD.setHours(0,0,0,0);
+        const dlD = new Date(order.deadline); dlD.setHours(0,0,0,0);
+        const daysLeft = Math.round((dlD - todayD) / 86400000);
+        if (daysLeft < 0) { sDeadline.style.color = '#DC2626'; sDeadline.style.fontWeight = '700'; sDeadline.textContent += ' · 🔴 o\'tgan!'; }
+        else if (daysLeft === 0) { sDeadline.style.color = '#D97706'; sDeadline.style.fontWeight = '700'; sDeadline.textContent += ' · ⏰ bugun!'; }
+        else if (daysLeft === 1) { sDeadline.style.color = '#D97706'; sDeadline.style.fontWeight = '700'; sDeadline.textContent += ' · ⏰ ertaga'; }
+      }
     }
     const sStatus = document.getElementById('s-status');
     if (sStatus) {
@@ -5464,8 +5484,13 @@ function renderPinnedOrders(rows) {
       : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>'
       : '<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>';
     const amount = o.agreed_amount || o.total_amount || 0;
+    const urgencyBorder = o.deadline_urgency === 'overdue' ? 'border-left:3px solid #DC2626'
+      : (o.deadline_urgency === 'today' || o.deadline_urgency === 'tomorrow') ? 'border-left:3px solid #F59E0B' : '';
+    const urgencyText = o.deadline_urgency === 'overdue' ? '<div style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o\'tgan!</div>'
+      : o.deadline_urgency === 'today' ? '<div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Bugun muddati!</div>'
+      : o.deadline_urgency === 'tomorrow' ? '<div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Ertaga muddati</div>' : '';
     return `
-      <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)"
+      <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)" style="${urgencyBorder}"
            data-num="${o.order_number}" data-client="${o.client_name}" data-project="${o.project_name}"
            data-status="${o.status}" data-total="${o.total_amount}" data-master="${o.master_name}"
            data-date="${o.created_at}" data-project-id="${o.project_id}" data-order-id="${o.id}" data-pinned="true">
@@ -5478,6 +5503,7 @@ function renderPinnedOrders(rows) {
           ${badge}
         </div>
         <div class="ord-date">${o.client_name} · ${formatNum(amount)} so'm${o.deadline ? ' · ⏰ ' + o.deadline : ''}</div>
+        ${urgencyText}
       </div>`;
   }).join('');
 }
