@@ -141,8 +141,6 @@ class Master(Base):
     hire_date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
     region = Column(String(50), nullable=True)  # Faqat UI/tahlil uchun — hisob-kitobga ta'siri yo'q
-    # "🎁 Sovg'alar" bo'limi botda shu ustaga ko'rinsinmi (admin belgilaydi)
-    show_gifts = Column(Boolean, default=False)
 
     orders = relationship("Order", back_populates="master")
 
