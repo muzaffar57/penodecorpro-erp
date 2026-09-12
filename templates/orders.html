@@ -28,11 +28,13 @@
 .prod-name{font-size:14.5px;font-weight:600;color:var(--text)}
 .prod-meta{font-size:12.5px;color:var(--text3);margin-top:2px}
 .prod-total{font-size:15px;font-weight:700;color:var(--gold-dark);white-space:nowrap}
-.attach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:10px}
-.attach-thumb{width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg);border:1px solid var(--border);position:relative}
-.attach-thumb img{width:100%;height:100%;object-fit:cover}
-.attach-thumb .rm{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1}
-.attach-thumb .dl{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.attach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;margin-top:10px}
+.attach-thumb{width:100%;border-radius:8px;overflow:hidden;background:var(--bg);border:1px solid var(--border);position:relative;display:flex;flex-direction:column}
+.attach-prev{width:100%;aspect-ratio:1;overflow:hidden;position:relative;background:var(--bg)}
+.attach-prev img{width:100%;height:100%;object-fit:cover}
+.attach-name{font-size:9px;line-height:1.3;padding:3px 5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid var(--border);background:var(--card,var(--bg))}
+.attach-thumb .rm{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1;z-index:2}
+.attach-thumb .dl{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;text-decoration:none;z-index:2}
 .attach-thumb .dl:hover{background:var(--gold-dark)}
 .dropzone{border:1.5px dashed var(--border-strong);border-radius:14px;padding:22px;text-align:center;cursor:pointer;transition:border-color .15s;background:var(--bg)}
 .dropzone:hover{border-color:var(--gold)}
@@ -1772,26 +1774,28 @@ async function loadOrderAttachments(orderId) {
     grid.innerHTML = atts.map(a => {
       const isImg = /\.(jpg|jpeg|png|webp)$/i.test(a.file_url);
       const isPdf = /\.pdf$/i.test(a.file_url);
-      // CDR/DWG/DXF kabi fayllarni brauzer ichida ko'rsata olmaydi — ular
-      // baribir yuklab olinadi, shuning uchun asl nomi bilan (tasodifiy
-      // fayl nomi bilan emas) yuklanishi uchun download="" beriladi, va
-      // ko'zga aniq ko'rinishi uchun "yuklab olish" belgisi qo'yiladi.
+      const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       const needsDownload = !isImg && !isPdf;
-      const safeName = a.file_name ? a.file_name.replace(/"/g, '&quot;') : '';
+      const safeName = esc(a.file_name || '');
       const nameAttr = safeName ? ` download="${safeName}"` : '';
       const icon = needsDownload ? 'ti-download' : 'ti-file-text';
-      const hint = needsDownload ? `Yuklab olish: ${a.file_name || ''}` : (a.file_name || '');
       const inner = isImg
         ? `<img src="${a.file_url}" alt="">`
-        : `<a href="${a.file_url}" target="_blank"${nameAttr} title="${hint}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:100%;width:100%;color:var(--text3);text-decoration:none;text-align:center;padding:2px;box-sizing:border-box">
-             <i class="ti ${icon}" style="font-size:18px" aria-hidden="true"></i>
-             ${needsDownload ? `<span style="font-size:8.5px;line-height:1.1;word-break:break-word">Yuklab olish</span>` : ''}
+        : `<a href="${a.file_url}" target="_blank"${nameAttr} style="display:flex;align-items:center;justify-content:center;height:100%;width:100%;color:var(--text3);text-decoration:none">
+             <i class="ti ${icon}" style="font-size:20px" aria-hidden="true"></i>
            </a>`;
+      // Fayl nomi va formati endi doim ko'rinib turadi (faqat sichqoncha
+      // ustiga borilganda emas) — foydalanuvchi qaysi fayl ekanligini
+      // hover qilmasdan ham bilishi uchun.
+      const displayName = esc(a.file_name || a.file_url.split('/').pop());
       // Rasm va PDF uchun ham alohida kichik "yuklab olish" tugmachasi —
       // asosiy maydon ko'rish (rasmni katta ko'rish/PDF'ni ochish) uchun,
       // bu kichik tugma esa har doim faylni saqlab olish uchun.
       const dlBtn = (isImg || isPdf) ? `<a class="dl" href="${a.file_url}"${nameAttr} title="Yuklab olish" aria-label="Yuklab olish" onclick="event.stopPropagation()"><i class="ti ti-download" aria-hidden="true"></i></a>` : '';
-      return `<div class="attach-thumb">${inner}${dlBtn}<button class="rm" onclick="deleteOrderAttachment(${a.id}, ${orderId})" aria-label="O'chirish">✕</button></div>`;
+      return `<div class="attach-thumb">
+        <div class="attach-prev">${inner}${dlBtn}<button class="rm" onclick="deleteOrderAttachment(${a.id}, ${orderId})" aria-label="O'chirish">✕</button></div>
+        <div class="attach-name" title="${safeName}">${displayName}</div>
+      </div>`;
     }).join('');
   } catch (e) { console.error('Fayllarni yuklashda xato:', e); }
 }
