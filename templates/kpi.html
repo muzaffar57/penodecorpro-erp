@@ -52,6 +52,22 @@
 .modal-field-box{background:#FAFAF8;border:1px solid var(--border2);border-radius:12px;padding:14px}
 .modal-field-box .form-group:last-child{margin-bottom:0}
 .modal-field-box .form-row:last-child{margin-bottom:0}
+
+/* "Sovg'a davri" bo'limi — 2026-09 dizayn tozalash */
+.hint-line{font-size:12.5px;color:var(--text2);line-height:1.6;padding-left:10px;border-left:2px solid var(--border);margin-bottom:14px}
+.input-field{padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:var(--white);color:var(--text)}
+.input-field:focus{outline:none;border-color:var(--gold)}
+.status-pill{font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;white-space:nowrap}
+.status-pill--off{background:var(--border2);color:var(--text3)}
+.status-pill--on{background:#DCFCE7;color:#16A34A}
+.gift-tier-chip{display:inline-block;background:var(--gold-tint);color:var(--gold-dark);border-radius:7px;padding:4px 11px;margin:2px 6px 2px 0;font-size:12.5px;font-weight:600}
+.archive-card{opacity:.8;transition:opacity .15s}
+.archive-card:hover,.archive-card[open]{opacity:1}
+.archive-card summary{list-style:none}
+.archive-card summary::-webkit-details-marker{display:none}
+.archive-card summary::marker{display:none;content:""}
+.archive-chevron{transition:transform .15s}
+.archive-card[open] .archive-chevron{transform:rotate(180deg)}
 </style>
 {% endblock %}
 
@@ -157,51 +173,49 @@
         <h3>🤲 Ehson (xayriya) foizi</h3>
       </div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:9px 11px;margin-bottom:12px;font-size:13px;color:#166534;line-height:1.6">
-          💡 Har oy yakunlangan buyurtmalarning <b>sof foydasidan</b>, shu foiz — Ehson sifatida ajratiladi va Moliyada xarajat qatorida ko'rsatiladi (usta KPI bilan bir xil mantiqda).
-        </div>
+        <div class="hint-line">Har oy yakunlangan buyurtmalarning sof foydasidan, shu foiz — Ehson sifatida ajratiladi va Moliyada xarajat qatorida ko'rsatiladi (usta KPI bilan bir xil mantiqda).</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <input type="number" id="ehson-percent-input" min="0" max="100" step="0.5" style="width:100px;padding:8px 10px;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px;font-weight:600" placeholder="0">
+          <input type="number" id="ehson-percent-input" min="0" max="100" step="0.5" class="input-field" style="width:100px;font-weight:600" placeholder="0">
           <span style="font-size:14px;color:var(--text3)">%</span>
           <button class="btn btn-dark btn-sm" onclick="saveEhsonPercent()">Saqlash</button>
-          <span id="ehson-save-msg" style="font-size:12.5px;color:#166534;display:none">✓ Saqlandi</span>
+          <span id="ehson-save-msg" style="font-size:12.5px;color:#16A34A;font-weight:600;display:none">✓ Saqlandi</span>
         </div>
       </div>
     </div>
     {% endif %}
 
 
-    <div class="card" style="grid-column:1/-1">
-      <div class="card-head">
-        <h3>🎁 Sovg'alar bosqichlari <span style="font-size:11px;font-weight:400;color:var(--text3)">(eski, botda endi ishlatilmaydi)</span></h3>
-      </div>
-      <div class="card-body" style="padding-top:0">
-        <div style="background:#F3F4F6;border:1px solid #E5E7EB;border-radius:8px;padding:9px 11px;margin-bottom:12px;font-size:13px;color:#4B5563;line-height:1.6">
-          ℹ️ Bu — eski, yillik/foyda-asosidagi sovg'a tizimi. Botdagi "🎁 Sovg'alar" tugmasi endi pastdagi yangi <b>"Sovg'a davri"</b> bo'limidan foydalanadi. Bu ro'yxat faqat eski tarix uchun saqlanmoqda.
-        </div>
-        <div id="giftsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="text" id="gift-name-input" placeholder="Sovg'a nomi (masalan: Termos)" style="flex:1;min-width:160px;padding:8px 10px;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px">
-          <input type="number" id="gift-kpi-input" placeholder="Kerakli KPI (so'm)" min="0" style="width:170px;padding:8px 10px;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px">
-          <button class="btn btn-dark btn-sm" onclick="addMasterGift()">+ Qo'shish</button>
-        </div>
-      </div>
-    </div>
-
-
-    <div class="card" style="grid-column:1/-1">
+    <!-- SOVG'A DAVRI — joriy, faol ishlatiladigan tizim -->
+    <div class="card" style="grid-column:1/-1;border-color:var(--gold)">
       <div class="card-head">
         <h3>🎁 Sovg'a davri</h3>
+        <span id="giftPeriodStatusPill" class="status-pill status-pill--off">Yopiq</span>
       </div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:9px 11px;margin-bottom:12px;font-size:13px;color:#92400E;line-height:1.6">
-          💡 Davr ochilganda, barcha faol ustalarning <b>savdo summasi</b> (foyda emas) alohida hisoblanadi va shu davr davomida <b>keshbek (Bonuslarim)</b> hisobidan chiqarib turiladi. Har "Berildi" dan keyin ustaning hisoblagichi 0'ga tushadi — keyingi bosqich uchun yangidan boshlanadi. Chegaraga yetish avtomatik olinishni bildirmaydi — usta xohlasa yuqoriroq bosqichgacha kutishi ham mumkin.
-        </div>
+        <div class="hint-line">Davr ochilganda, barcha faol ustalarning <b>savdo summasi</b> (foyda emas) alohida hisoblanadi va shu davr davomida <b>keshbek (Bonuslarim)</b> hisobidan chiqarib turiladi. Har "Berildi"dan keyin ustaning hisoblagichi 0'ga tushadi — keyingi bosqich uchun yangidan boshlanadi. Chegaraga yetish avtomatik olinishni bildirmaydi — usta xohlasa yuqoriroq bosqichgacha kutishi ham mumkin.</div>
         <div id="giftPeriodBox">
           <div style="text-align:center;padding:16px;color:var(--text3)">Yuklanmoqda...</div>
         </div>
       </div>
     </div>
+
+
+    <!-- ESKI SOVG'A TIZIMI — arxiv, yig'ilgan holda (kamdan-kam kerak bo'ladi) -->
+    <details class="card archive-card" style="grid-column:1/-1">
+      <summary class="card-head" style="cursor:pointer;list-style:none">
+        <h3 style="color:var(--text3);font-weight:500">🗄️ Eski sovg'a tizimi <span style="font-size:11px;font-weight:400">— arxiv, botda endi ishlatilmaydi</span></h3>
+        <i class="ti ti-chevron-down archive-chevron" style="font-size:16px;color:var(--text3)"></i>
+      </summary>
+      <div class="card-body" style="padding-top:0">
+        <div class="hint-line">Bu — eski, yillik/foyda-asosidagi sovg'a tizimi. Botdagi "🎁 Sovg'alar" tugmasi endi yuqoridagi <b>"Sovg'a davri"</b> bo'limidan foydalanadi. Bu ro'yxat faqat eski tarix uchun saqlanmoqda.</div>
+        <div id="giftsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="gift-name-input" placeholder="Sovg'a nomi (masalan: Termos)" class="input-field" style="flex:1;min-width:160px">
+          <input type="number" id="gift-kpi-input" placeholder="Kerakli KPI (so'm)" min="0" class="input-field" style="width:170px">
+          <button class="btn btn-outline btn-sm" onclick="addMasterGift()">+ Qo'shish</button>
+        </div>
+      </div>
+    </details>
 
 
     <div class="card" style="grid-column:1/-1">
@@ -1594,10 +1608,16 @@ let _newPeriodTiers = [{name:'', amount:''}];
 
 async function loadGiftPeriod() {
   const box = document.getElementById('giftPeriodBox');
+  const pill = document.getElementById('giftPeriodStatusPill');
   try {
     const data = await fetch('/api/gift-period').then(r => r.json());
-    if (!data.active) { renderGiftPeriodClosed(box); }
-    else { renderGiftPeriodActive(box, data); }
+    if (!data.active) {
+      renderGiftPeriodClosed(box);
+      if (pill) { pill.textContent = 'Yopiq'; pill.className = 'status-pill status-pill--off'; }
+    } else {
+      renderGiftPeriodActive(box, data);
+      if (pill) { pill.textContent = 'Faol'; pill.className = 'status-pill status-pill--on'; }
+    }
   } catch(e) {
     box.innerHTML = '<div style="text-align:center;padding:16px;color:#DC2626">Yuklashda xato</div>';
   }
@@ -1606,12 +1626,12 @@ async function loadGiftPeriod() {
 function renderGiftPeriodClosed(box) {
   _newPeriodTiers = [{name:'', amount:''}];
   box.innerHTML = `
-    <div style="font-size:13px;color:var(--text3);margin-bottom:10px">Hozircha faol sovg'a davri yo'q. Yangi davr ochish uchun bosqichlarni kiriting (masalan: 10 000 000 so'm → Termoz):</div>
-    <div id="newPeriodTiersList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
-    <div style="display:flex;gap:8px;margin-bottom:14px">
+    <div class="hint-line" style="margin-bottom:14px">Hozircha faol sovg'a davri yo'q. Yangi davr ochish uchun bosqichlarni kiriting (masalan: 10 000 000 so'm → Termoz):</div>
+    <div id="newPeriodTiersList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
       <button class="btn btn-outline btn-sm" onclick="addNewPeriodTierRow()">+ Bosqich qo'shish</button>
     </div>
-    <button class="btn btn-dark btn-sm" onclick="submitOpenGiftPeriod()">🎁 Davrni ochish</button>
+    <button class="btn btn-gold btn-sm" onclick="submitOpenGiftPeriod()">🎁 Davrni ochish</button>
   `;
   renderNewPeriodTiersList();
 }
@@ -1619,11 +1639,11 @@ function renderGiftPeriodClosed(box) {
 function renderNewPeriodTiersList() {
   const el = document.getElementById('newPeriodTiersList');
   el.innerHTML = _newPeriodTiers.map((t, i) => `
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center;background:var(--border2);border-radius:9px;padding:8px">
       <input type="text" placeholder="Sovg'a nomi" value="${(t.name||'').replace(/"/g,'&quot;')}"
-        oninput="_newPeriodTiers[${i}].name=this.value" style="flex:1;padding:7px 9px;border:1.5px solid #e5e5e5;border-radius:7px;font-size:13px">
+        oninput="_newPeriodTiers[${i}].name=this.value" class="input-field" style="flex:1;background:var(--white)">
       <input type="number" placeholder="Savdo summasi (so'm)" value="${t.amount||''}" min="0"
-        oninput="_newPeriodTiers[${i}].amount=this.value" style="width:180px;padding:7px 9px;border:1.5px solid #e5e5e5;border-radius:7px;font-size:13px">
+        oninput="_newPeriodTiers[${i}].amount=this.value" class="input-field" style="width:180px;background:var(--white)">
       ${_newPeriodTiers.length > 1 ? `<button class="btn btn-outline btn-sm" onclick="removeNewPeriodTierRow(${i})">✕</button>` : ''}
     </div>
   `).join('');
@@ -1660,36 +1680,36 @@ async function submitOpenGiftPeriod() {
 
 function renderGiftPeriodActive(box, data) {
   const tiersHtml = data.tiers.map(t =>
-    `<span style="display:inline-block;background:#FEF3C7;border-radius:6px;padding:3px 9px;margin:2px 4px 2px 0;font-size:12.5px;font-weight:600">${t.gift_name} — ${fmt(t.threshold_amount)} so'm</span>`
+    `<span class="gift-tier-chip">${t.gift_name} — ${fmt(t.threshold_amount)} so'm</span>`
   ).join('');
   const rowsHtml = data.masters.map(m => {
     const tiersProgress = m.tiers.map(t => t.ready
-      ? `<span style="color:#166534;font-weight:600">✅ ${t.gift_name}</span>`
+      ? `<span style="color:#16A34A;font-weight:600">✅ ${t.gift_name}</span>`
       : `<span style="color:var(--text3)">⬜ ${t.gift_name}</span>`
     ).join(' &nbsp; ');
     const redeemBtn = m.ready_tier_id
-      ? `<button class="btn btn-dark btn-sm" style="padding:4px 10px;font-size:11.5px" onclick="redeemGiftPeriodTier(${m.master_id}, ${m.ready_tier_id}, '${(m.ready_tier_name||'').replace(/'/g,"&apos;")}')">Berildi ✓</button>`
+      ? `<button class="btn btn-gold btn-sm" style="padding:4px 10px;font-size:11.5px" onclick="redeemGiftPeriodTier(${m.master_id}, ${m.ready_tier_id}, '${(m.ready_tier_name||'').replace(/'/g,"&apos;")}')">Berildi ✓</button>`
       : '';
     return `
       <tr style="border-top:1px solid var(--border2)">
-        <td style="padding:8px 6px;font-weight:600">${m.master_name}</td>
-        <td style="padding:8px 6px;color:#166534;font-weight:600;white-space:nowrap">${fmt(m.current_sales)} so'm</td>
-        <td style="padding:8px 6px;font-size:12px">${tiersProgress}</td>
-        <td style="padding:8px 6px;text-align:right">${redeemBtn}</td>
+        <td style="padding:9px 6px;font-weight:600">${m.master_name}</td>
+        <td style="padding:9px 6px;color:#16A34A;font-weight:600;white-space:nowrap">${fmt(m.current_sales)} so'm</td>
+        <td style="padding:9px 6px;font-size:12px">${tiersProgress}</td>
+        <td style="padding:9px 6px;text-align:right">${redeemBtn}</td>
       </tr>`;
   }).join('');
   box.innerHTML = `
-    <div style="margin-bottom:12px">${tiersHtml}</div>
+    <div style="margin-bottom:14px">${tiersHtml}</div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="text-align:left;color:var(--text3);font-size:11.5px;text-transform:uppercase">
+        <thead><tr style="text-align:left;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.3px">
           <th style="padding:6px">Usta</th><th style="padding:6px">Joriy savdo</th><th style="padding:6px">Bosqichlar</th><th></th>
         </tr></thead>
         <tbody>${rowsHtml || '<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--text3)">Faol usta yo\'q</td></tr>'}</tbody>
       </table>
     </div>
     <div style="margin-top:14px">
-      <button class="btn btn-outline btn-sm" style="border-color:#DC2626;color:#DC2626" onclick="submitCloseGiftPeriod(false)">🔒 Davrni yopish</button>
+      <button class="btn btn-outline btn-sm" onclick="submitCloseGiftPeriod(false)">🔒 Davrni yopish</button>
     </div>
   `;
 }
