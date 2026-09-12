@@ -824,6 +824,16 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('.fp-more')) return;
   document.querySelectorAll('.fp-more.open').forEach(p => p.classList.remove('open'));
 });
+// .fp-row kirish animatsiyasi (opacity/transform) tugagandan keyin ham
+// "forwards" tufayli doimiy stacking context yaratib turaveradi — shu
+// sababli .fp-more (z-index:60) pastdagi qatordan CHIQOLMAY qolardi.
+// Animatsiya tugashi bilan uni o'chiramiz, ko'rinishga hech qanday
+// ta'sir qilmaydi, faqat stacking context'ni tozalaydi.
+document.getElementById('fpList')?.addEventListener('animationend', (e) => {
+  if (e.target.classList && e.target.classList.contains('fp-row')) {
+    e.target.style.animation = 'none';
+  }
+});
 
 function updateFpRangeBanner() {
   const el = document.getElementById('fp-range-banner');
