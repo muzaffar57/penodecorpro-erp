@@ -3933,8 +3933,11 @@ def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db),
 # ============================================================
 
 ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-ALLOWED_FILE_EXT = ALLOWED_IMAGE_EXT | {".pdf"}
-MAX_UPLOAD_SIZE = 8 * 1024 * 1024  # 8 MB
+# CorelDRAW (.cdr) va AutoCAD (.dwg, .dxf) chizmalarini ham buyurtmaga
+# biriktirish mumkin bo'lishi uchun qo'shildi (2026-09).
+ALLOWED_DESIGN_EXT = {".cdr", ".dwg", ".dxf"}
+ALLOWED_FILE_EXT = ALLOWED_IMAGE_EXT | {".pdf"} | ALLOWED_DESIGN_EXT
+MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB (chizma fayllar rasm/PDF'dan ancha katta bo'lishi mumkin)
 
 
 def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
@@ -3944,7 +3947,7 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
         raise HTTPException(status_code=400, detail=f"Ruxsat etilmagan fayl turi: {ext}")
     contents = file.file.read()
     if len(contents) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="Fayl hajmi 8 MB dan katta bo'lmasin")
+        raise HTTPException(status_code=400, detail="Fayl hajmi 25 MB dan katta bo'lmasin")
     folder = os.path.join(static_dir, "uploads", subfolder)
     os.makedirs(folder, exist_ok=True)
     fname = f"{uuid.uuid4().hex}{ext}"
@@ -3955,7 +3958,7 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
 
 @app.post("/api/order-items/{item_id}/image")
 def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                 current_user=Depends(auth.require_login)):
+                                 current_user=Depends(auth.orders_page_access)):
     from models import OrderItem
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
@@ -3968,7 +3971,7 @@ def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: 
 
 @app.delete("/api/order-items/{item_id}/image")
 def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
-                                 current_user=Depends(auth.require_login)):
+                                 current_user=Depends(auth.orders_page_access)):
     from models import OrderItem
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
@@ -3980,7 +3983,7 @@ def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
 
 @app.post("/api/orders/{order_id}/attachments")
 def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                 current_user=Depends(auth.require_login)):
+                                 current_user=Depends(auth.orders_page_access)):
     from models import OrderAttachment, Order
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
@@ -4005,7 +4008,7 @@ def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), cur
 
 @app.delete("/api/orders/attachments/{attachment_id}")
 def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db),
-                                 current_user=Depends(auth.require_login)):
+                                 current_user=Depends(auth.orders_page_access)):
     from models import OrderAttachment
     att = db.query(OrderAttachment).filter(OrderAttachment.id == attachment_id).first()
     if not att:
