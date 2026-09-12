@@ -4970,9 +4970,10 @@ async function updateOrder(orderId) {
     } else if (res.status === 409 && result.detail && result.detail.type === 'stock_shortage_warning') {
       // Xomashyo yetishmayapti — "davom etasizmi?" so'raymiz (create bilan bir xil)
       const shortList = (result.detail.shortages || []).map(x => `• ${x}`).join('\n');
-      const ok = confirm(
-        "⚠ Omborda yetishmayotgan xomashyo bor:\n\n" + shortList +
-        "\n\nShunday ham davom etasizmi? (ombor manfiy bo'lib qoladi)"
+      const ok = await customConfirm(
+        "⚠ Omborda yetishmayotgan xomashyo bor",
+        shortList + "\n\nShunday ham davom etasizmi? (ombor manfiy bo'lib qoladi)",
+        {danger:true, okText:"Davom etish"}
       );
       if (ok) {
         // confirm_shortage=true bilan qayta yuboramiz

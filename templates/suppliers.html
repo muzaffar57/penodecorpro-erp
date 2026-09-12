@@ -340,10 +340,11 @@ async function deleteSupplier(id, debt){
   const name = s ? s.name : 'Bu yetkazib beruvchi';
 
   if (debt > 0) {
-    const ok = confirm(
+    const ok = await customConfirm(
       `${name} — ${fmt(debt)} so'm QARZ bor!\n\n` +
       `Baribir o'chirilsinmi? Qarz tarixi ham butunlay yo'qoladi, ` +
-      `bu amalni ORQAGA QAYTARIB BO'LMAYDI.`
+      `bu amalni ORQAGA QAYTARIB BO'LMAYDI.`,
+      {danger:true, okText:"Baribir o'chirish"}
     );
     if (!ok) return;
 
@@ -355,7 +356,7 @@ async function deleteSupplier(id, debt){
     return;
   }
 
-  if (!confirm(`${name} o'chirilsinmi?\n\nXaridlar tarixi Omborxonada saqlanib qoladi, faqat bu hamkorga bog'lanmaydi.`)) return;
+  if (!(await customConfirm(`${name} o'chirilsinmi?\n\nXaridlar tarixi Omborxonada saqlanib qoladi, faqat bu hamkorga bog'lanmaydi.`))) return;
 
   try {
     const res = await fetch(`/api/suppliers/${id}`, { method: 'DELETE' });
@@ -799,11 +800,11 @@ async function editPurchase(id, qty, price, isCredit) {
   const newPrice = parseFloat(newPriceStr);
   if (!newPrice || newPrice <= 0) { showMsg('❌ Noto\'g\'ri narx', 'error'); return; }
 
-  if (!confirm(
-    "Tarixiy yozuv yangilanadi va qarz hisobi qayta hisoblanadi.\\n\\n" +
+  if (!(await customConfirm(
+    "Tarixiy yozuv yangilanadi va qarz hisobi qayta hisoblanadi.\n\n" +
     "⚠️ DIQQAT: Ombordagi joriy miqdor va o'rtacha narxga TA'SIR QILMAYDI " +
-    "(agar kerak bo'lsa Omborxonada qo'lda tuzating).\\n\\nDavom etilsinmi?"
-  )) return;
+    "(agar kerak bo'lsa Omborxonada qo'lda tuzating).\n\nDavom etilsinmi?"
+  ))) return;
 
   if (inFlightPurchaseEdit.has(id)) return; // Ikki marta bosishdan himoya
   inFlightPurchaseEdit.add(id);
@@ -824,11 +825,12 @@ async function editPurchase(id, qty, price, isCredit) {
 }
 
 async function deletePurchase(id) {
-  if (!confirm(
-    "Bu xarid yozuvi o'chirilsinmi?\\n\\n" +
+  if (!(await customConfirm(
+    "Bu xarid yozuvi o'chirilsinmi?\n\n" +
     "⚠️ Qarz hisobi qayta hisoblanadi, lekin ombordagi joriy miqdor/narx " +
-    "AVTOMATIK o'zgarmaydi.\\n\\nDavom etilsinmi?"
-  )) return;
+    "AVTOMATIK o'zgarmaydi.\n\nDavom etilsinmi?",
+    {danger:true}
+  ))) return;
 
   try {
     const res = await fetch(`/api/inventory/purchases/${id}`, { method: 'DELETE' });
@@ -872,7 +874,7 @@ async function savePayment(confirmOverpay = false){
       loadSuppliers();
     } else if (res.status === 409) {
       const e = await res.json();
-      if (e.detail?.type === 'overpayment_warning' && confirm('⚠️ ' + e.detail.message)) {
+      if (e.detail?.type === 'overpayment_warning' && await customConfirm('⚠️ ' + e.detail.message)) {
         await savePayment(true);
         return;
       }
@@ -883,7 +885,7 @@ async function savePayment(confirmOverpay = false){
 }
 
 async function deletePayment(id){
-  if (!confirm("O'chirilsinmi? Qarz qayta oshadi.")) return;
+  if (!(await customConfirm("O'chirilsinmi? Qarz qayta oshadi."))) return;
   const res = await fetch(`/api/suppliers/payments/${id}`, {method:'DELETE'});
   if (res.ok){ openHistory(currentSupplierId); loadSuppliers(); }
 }

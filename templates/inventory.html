@@ -396,7 +396,7 @@ async function uploadInventoryImage(id, input) {
 }
 
 async function setDefaultPenoplast(id){
-  if(!confirm('Bu plotnostni asosiy qilib belgilaysizmi?\n\nBuyurtma oynasida standart shu tanlanadi.')) return;
+  if(!(await customConfirm('Bu plotnostni asosiy qilib belgilaysizmi?\n\nBuyurtma oynasida standart shu tanlanadi.'))) return;
   const key = 'defpeno-' + id;
   if (inFlightInvActions.has(key)) return;
   inFlightInvActions.add(key);
@@ -810,10 +810,11 @@ function closePhDrawer() {
 }
 
 async function deletePurchase(id, name, qty) {
-  const ok = confirm(
+  const ok = await customConfirm(
     `"${name}" xaridini (${qty} birlik) bekor qilasizmi?\n\n` +
     `Bu — ham OMBORDAN ushbu miqdorni ayiradi, ham MOLIYADAN (pul oqimidan) ` +
-    `bu xarid summasini olib tashlaydi.`
+    `bu xarid summasini olib tashlaydi.`,
+    {danger:true}
   );
   if (!ok) return;
   try {
@@ -983,7 +984,7 @@ function closeMvDrawer() {
 }
 
 async function deleteItem(id) {
-  if(!confirm('Bu xomashyoni o\'chirasizmi?')) return;
+  if(!(await customConfirm('Bu xomashyoni o\'chirasizmi?'))) return;
   const res = await fetch(`/api/inventory/${id}`, {method:'DELETE'});
   if(res.ok) {
     const r = await res.json();

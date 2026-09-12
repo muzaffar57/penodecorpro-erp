@@ -127,8 +127,8 @@ async function restoreItem(type, id, btn) {
 
 async function permanentDelete(type, id, label, btn) {
   const confirmText = type === 'project' ? "loyiha" : (type === 'employee' ? "hodim" : "buyurtma");
-  if (!confirm(`⚠️ DIQQAT — QAYTARIB BO'LMAYDI!\n\n"${label}" ${confirmText}sini bazadan BUTUNLAY o'chirmoqchimisiz?\n\nBu amalni ORQAGA QAYTARIB BO'LMAYDI.`)) return;
-  if (!confirm(`So'nggi tasdiq: rostdan ham butunlay o'chirilsinmi?`)) return;
+  if (!(await customConfirm("⚠️ Diqqat — qaytarib bo'lmaydi!", `"${label}" ${confirmText}sini bazadan BUTUNLAY o'chirmoqchimisiz?\n\nBu amalni ORQAGA QAYTARIB BO'LMAYDI.`, {danger:true, okText:"Davom etish"}))) return;
+  if (!(await customConfirm("So'nggi tasdiq: rostdan ham butunlay o'chirilsinmi?", {danger:true, okText:"Ha, butunlay o'chirish"}))) return;
 
   const endpoint = type === 'project' ? `/api/projects/${id}/permanent` : (type === 'employee' ? `/api/employees/${id}/permanent` : `/api/orders/${id}/permanent`);
   btn.disabled = true; btn.textContent = 'O\'chirilmoqda...';

@@ -237,7 +237,7 @@ async function saveMaster() {
 }
 
 async function deactivateMaster(id, name) {
-  if (!confirm(`${name} nofaol qilinsinmi?\n\nBuyurtma tarixi saqlanadi, faqat yangi buyurtmalarda tanlab bo'lmaydi.`)) return;
+  if (!(await customConfirm(`${name} nofaol qilinsinmi?\n\nBuyurtma tarixi saqlanadi, faqat yangi buyurtmalarda tanlab bo'lmaydi.`))) return;
   try {
     const res = await fetch(`/api/masters/${id}`, { method: 'DELETE' });
     if (res.ok) { loadMasters(); }

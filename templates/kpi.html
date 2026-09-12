@@ -743,7 +743,7 @@ async function saveMaster() {
 }
 
 async function deactivateMaster(id, name) {
-  if (!confirm(`${name} nofaol qilinsinmi?\n\nBuyurtma tarixi saqlanadi, faqat yangi buyurtmalarda tanlab bo'lmaydi.`)) return;
+  if (!(await customConfirm(`${name} nofaol qilinsinmi?\n\nBuyurtma tarixi saqlanadi, faqat yangi buyurtmalarda tanlab bo'lmaydi.`))) return;
   try {
     const res = await fetch(`/api/masters/${id}`, { method: 'DELETE' });
     if (res.ok) { loadMasterKpi(); loadAllMastersFull(); }
@@ -940,7 +940,7 @@ async function saveAdvance() {
 }
 
 async function deleteAdvance(id) {
-  if (!confirm("Bu avans yozuvini o'chirasizmi?")) return;
+  if (!(await customConfirm("Bu avans yozuvini o'chirasizmi?"))) return;
   const res = await fetch(`/api/employees/advance/${id}`, {method:'DELETE'});
   if (res.ok) { loadAdvanceHistory(advanceEmpId); loadEmployees(); }
 }
@@ -1171,7 +1171,7 @@ async function saveEmployee() {
 }
 
 async function deleteEmployee(id) {
-  if (!confirm("Hodim o'chirilsinmi?\n\n(Ma'lumot yo'qolmaydi — \"O'chirilganlar\" bo'limidan keyin tiklash mumkin)")) return;
+  if (!(await customConfirm("Hodim o'chirilsinmi?\n\n(Ma'lumot yo'qolmaydi — \"O'chirilganlar\" bo'limidan keyin tiklash mumkin)"))) return;
   const res = await fetch(`/api/employees/${id}`, {method:'DELETE'});
   if (res.ok) loadEmployees();
 }
@@ -1493,7 +1493,7 @@ async function submitOpenGiftPeriod() {
     .filter(t => (t.name||'').trim() && parseFloat(t.amount) > 0)
     .map(t => ({gift_name: t.name.trim(), threshold_amount: parseFloat(t.amount)}));
   if (!tiers.length) { alert("Kamida bitta to'liq bosqich kiriting"); return; }
-  if (!confirm(`Yangi sovg'a davrini ${tiers.length} ta bosqich bilan ochasizmi? Barcha faol ustalar avtomatik ishtirok etadi.`)) return;
+  if (!(await customConfirm(`Yangi sovg'a davrini ${tiers.length} ta bosqich bilan ochasizmi? Barcha faol ustalar avtomatik ishtirok etadi.`))) return;
   isOpeningGiftPeriod = true;
   try {
     const res = await fetch('/api/gift-period/open', {
@@ -1592,7 +1592,7 @@ function renderGiftPeriodActive(box, data) {
 let isRedeemingPeriodGift = false;
 async function redeemGiftPeriodTier(masterId, tierId, giftName) {
   if (isRedeemingPeriodGift) return;
-  if (!confirm(`"${giftName}" sovg'asini ustaga QO'LGA BERGANINGIZNI tasdiqlaysizmi?\n\nBu amaldan keyin, uning hisoblagichi 0'ga tushadi.`)) return;
+  if (!(await customConfirm(`"${giftName}" sovg'asini ustaga QO'LGA BERGANINGIZNI tasdiqlaysizmi?\n\nBu amaldan keyin, uning hisoblagichi 0'ga tushadi.`))) return;
   isRedeemingPeriodGift = true;
   try {
     const res = await fetch(`/api/gift-period/redeem/${masterId}/${tierId}`, {method:'POST'});
@@ -1605,7 +1605,7 @@ async function redeemGiftPeriodTier(masterId, tierId, giftName) {
 let isClosingGiftPeriod = false;
 async function submitCloseGiftPeriod(force) {
   if (isClosingGiftPeriod) return;
-  if (!force && !confirm("Sovg'a davrini yopmoqchimisiz? Bosqichga yetmagan ustalarning qoldiq savdosi avtomatik keshbekka o'tkaziladi.")) return;
+  if (!force && !(await customConfirm("Sovg'a davrini yopmoqchimisiz? Bosqichga yetmagan ustalarning qoldiq savdosi avtomatik keshbekka o'tkaziladi."))) return;
   isClosingGiftPeriod = true;
   try {
     let res = await fetch('/api/gift-period/close', {
@@ -1617,7 +1617,7 @@ async function submitCloseGiftPeriod(force) {
     let detail = e.detail;
     if (!force && detail && detail.pending_master_names && detail.pending_master_names.length) {
       const namesStr = detail.pending_master_names.join(', ');
-      if (confirm(`Quyidagi ustalar sovg'aga yetgan, lekin hali "Berildi" belgilanmagan:\n\n${namesStr}\n\nShunga qaramay yopib, ularning qoldig'ini ham keshbekka o'tkazishni istaysizmi? (Ular sovg'a olmay qoladi!)`)) {
+      if (await customConfirm(`Quyidagi ustalar sovg'aga yetgan, lekin hali "Berildi" belgilanmagan:\n\n${namesStr}\n\nShunga qaramay yopib, ularning qoldig'ini ham keshbekka o'tkazishni istaysizmi? (Ular sovg'a olmay qoladi!)`, {danger:true, okText:"Shunga qaramay yop"})) {
         res = await fetch('/api/gift-period/close', {
           method: 'POST', headers: {'Content-Type':'application/json'},
           body: JSON.stringify({force: true})

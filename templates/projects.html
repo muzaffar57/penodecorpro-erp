@@ -747,7 +747,7 @@ async function saveEditProject() {
 
 let isMarkingProjComplete = false;
 async function markProjectComplete() {
-  if (!confirm("Loyihani 'Yakunlangan' deb belgilaysizmi?")) return;
+  if (!(await customConfirm("Loyihani 'Yakunlangan' deb belgilaysizmi?"))) return;
   if (isMarkingProjComplete) return; // Ikki marta bosishdan himoya
   isMarkingProjComplete = true;
   const btn = document.getElementById('proj-complete-btn');
@@ -787,7 +787,7 @@ async function savePayment(){
 }
 
 async function deleteProj(){
-  if(!confirm('Loyihani o\'chirasizmi? Barcha buyurtmalar ham o\'chadi!'))return;
+  if(!(await customConfirm('Loyihani o\'chirasizmi? Barcha buyurtmalar ham o\'chadi!', {danger:true})))return;
   const res=await fetch(`/api/projects/${selectedProjId}`,{method:'DELETE'});
   if(res.ok)location.reload();else projToast('Xato');
 }

@@ -244,7 +244,7 @@
 function showAddModal(){document.getElementById('addModal').style.display='flex'}
 function closeModal(){document.getElementById('addModal').style.display='none'}
 async function toggleUser(id, isActive, btn){
-  if(!confirm(isActive?'O\'chirilsinmi?':'Faollashtirilsinmi?'))return;
+  if(!(await customConfirm(isActive?'O\'chirilsinmi?':'Faollashtirilsinmi?')))return;
   if (btn) { if (btn.disabled) return; btn.disabled = true; btn.style.opacity = '0.6'; }
   try {
     const res=await fetch(`/api/users/${id}/toggle`,{method:'POST'});
@@ -303,7 +303,7 @@ async function setupTelegramSecurity(){
 }
 
 async function deleteTelegramWebhook(){
-  if (!confirm("Webhookni o'chirib, botni asl (polling) holatiga qaytarasizmi?")) return;
+  if (!(await customConfirm("Webhookni o'chirib, botni asl (polling) holatiga qaytarasizmi?"))) return;
   const btn = document.getElementById('tg-delete-webhook-btn');
   const resultBox = document.getElementById('tg-delete-webhook-result');
   btn.disabled = true; btn.textContent = 'Bajarilmoqda...';
@@ -336,12 +336,14 @@ async function startFactoryReset(){
     ? "\n\n⚠️ QO'SHIMCHA: boshqa BARCHA foydalanuvchi (login) hisoblari HAM o'chiriladi — faqat siz qolasiz!"
     : "";
 
-  if (!confirm(
-    "⚠️ DIQQAT!\n\nBu amal FOYDALANUVCHILARDAN (login/parol) TASHQARI barcha ma'lumotni " +
+  if (!(await customConfirm(
+    "⚠️ Diqqat",
+    "Bu amal FOYDALANUVCHILARDAN (login/parol) TASHQARI barcha ma'lumotni " +
     "(buyurtma, ombor, retsept, loyiha, to'lov, usta, yetkazib beruvchi) BUTUNLAY o'chiradi." +
     extraWarning +
-    "\n\nBu QAYTARIB BO'LMAYDI.\n\nDavom etasizmi?"
-  )) return;
+    "\n\nBu QAYTARIB BO'LMAYDI.\n\nDavom etasizmi?",
+    {danger:true, okText:"Davom etish"}
+  ))) return;
 
   const phrase = prompt(
     "Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:\n\nHAMMASINI-OCHIR"

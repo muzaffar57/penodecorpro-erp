@@ -372,6 +372,56 @@
 
 {% block scripts %}{% endblock %}
 
+<!-- ══ UMUMIY: brauzerning o'z tasdiqlash oynasi (confirm()) o'rniga —
+     ilova dizayniga mos, chiroyli tasdiqlash oynasi. Butun tizimda
+     ishlatiladi: await customConfirm("savol matni") — true/false qaytaradi.
+     Ixtiyoriy 2-argument: {okText, cancelText, danger:true} (danger — qizil
+     tugma, o'chirish kabi qaytarib bo'lmaydigan amallar uchun). ══ -->
+<div id="ccModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:24px;box-shadow:var(--shadow-card)">
+    <div id="ccModalTitle" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px;display:none"></div>
+    <div id="ccModalMessage" style="font-size:14px;color:var(--text2);line-height:1.6;white-space:pre-wrap;margin-bottom:18px"></div>
+    <div style="display:flex;gap:8px">
+      <button id="ccModalCancel" class="btn btn-outline" style="flex:1">Bekor</button>
+      <button id="ccModalOk" class="btn btn-gold" style="flex:1">Tasdiqlash</button>
+    </div>
+  </div>
+</div>
+<script>
+function customConfirm(a, b, c) {
+  var title, message, opts;
+  if (typeof b === 'string') { title = a; message = b; opts = c || {}; }
+  else { title = null; message = a; opts = b || {}; }
+  return new Promise(function(resolve) {
+    var modal = document.getElementById('ccModal');
+    var titleEl = document.getElementById('ccModalTitle');
+    var msgEl = document.getElementById('ccModalMessage');
+    var okBtn = document.getElementById('ccModalOk');
+    var cancelBtn = document.getElementById('ccModalCancel');
+    if (title) { titleEl.textContent = title; titleEl.style.display = 'block'; }
+    else { titleEl.style.display = 'none'; }
+    msgEl.textContent = message;
+    okBtn.textContent = opts.okText || 'Tasdiqlash';
+    okBtn.className = 'btn ' + (opts.danger ? 'btn-red' : 'btn-gold');
+    okBtn.style.flex = '1';
+    cancelBtn.textContent = opts.cancelText || 'Bekor';
+    modal.style.display = 'flex';
+    function cleanup(result) {
+      modal.style.display = 'none';
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') cleanup(false);
+      if (e.key === 'Enter') cleanup(true);
+    }
+    okBtn.onclick = function() { cleanup(true); };
+    cancelBtn.onclick = function() { cleanup(false); };
+    document.addEventListener('keydown', onKey);
+  });
+}
+</script>
+
 <script>
 // ══ UMUMIY: matn maydonlarining birinchi harfini avtomatik katta qilish ══
 // Butun tizimda, HAR BIR sahifada ishlaydi (bitta joyda yozilgan).
