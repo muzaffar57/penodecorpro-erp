@@ -1454,12 +1454,6 @@ function closeGiftPeriodModal() {
 
 function renderGiftPeriodClosed(box) {
   _newPeriodTiers = [{name:'', amount:''}];
-  const masterOptionsHtml = (allMasterKpiData || []).map(m => `
-    <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;cursor:pointer">
-      <input type="checkbox" class="gift-period-master-cb" value="${m.id}">
-      ${m.name}
-    </label>
-  `).join('') || '<div style="color:var(--text3);font-size:13px;padding:4px 0">Faol usta topilmadi</div>';
   box.innerHTML = `
     <div id="newPeriodTiersList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
     <div style="display:flex;gap:8px;margin-bottom:16px">
@@ -1469,17 +1463,40 @@ function renderGiftPeriodClosed(box) {
       <input type="checkbox" id="giftPeriodSelectMode" onchange="toggleGiftPeriodMasterPicker()">
       Faqat tanlangan ustalar uchun (belgilanmasa — barchasi)
     </label>
-    <div id="giftPeriodMasterPicker" style="display:none;background:var(--border2);border-radius:9px;padding:10px 12px;max-height:200px;overflow-y:auto;margin-bottom:16px">
-      ${masterOptionsHtml}
-    </div>
+    <div id="giftPeriodMasterPicker" style="display:none;background:var(--border2);border-radius:9px;padding:10px 12px;max-height:200px;overflow-y:auto;margin-bottom:16px"></div>
     <button class="btn btn-gold btn-sm" onclick="submitOpenGiftPeriod()">🎁 Davrni ochish</button>
   `;
   renderNewPeriodTiersList();
 }
 
-function toggleGiftPeriodMasterPicker() {
+function renderGiftPeriodMasterOptions() {
+  const picker = document.getElementById('giftPeriodMasterPicker');
+  if (!picker) return;
+  picker.innerHTML = (allMasterKpiData || []).map(m => `
+    <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="gift-period-master-cb" value="${m.id}">
+      ${m.name}
+    </label>
+  `).join('') || '<div style="color:var(--text3);font-size:13px;padding:4px 0">Faol usta topilmadi</div>';
+}
+
+async function toggleGiftPeriodMasterPicker() {
   const checked = document.getElementById('giftPeriodSelectMode').checked;
-  document.getElementById('giftPeriodMasterPicker').style.display = checked ? 'block' : 'none';
+  const picker = document.getElementById('giftPeriodMasterPicker');
+  picker.style.display = checked ? 'block' : 'none';
+  if (!checked) return;
+  // Har safar ochilganda ustalar ro'yxatini YANGILAB olamiz — sahifa
+  // hali to'liq yuklanib ulgurmagan bo'lishi mumkinligidan himoya
+  // (2026-09-12: avval bo'sh ko'rinish bug'i bo'lgan).
+  if (!allMasterKpiData || !allMasterKpiData.length) {
+    picker.innerHTML = '<div style="color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
+    try {
+      const year = parseInt(document.getElementById('kpi-year').value) || new Date().getFullYear();
+      const d = await fetch(`/api/masters/kpi-report?year=${year}`).then(r => r.json());
+      allMasterKpiData = d.masters;
+    } catch(e) {}
+  }
+  renderGiftPeriodMasterOptions();
 }
 
 function renderNewPeriodTiersList() {
