@@ -452,17 +452,6 @@ input[type=number]{-moz-appearance:textfield}
   </div>
 </div>
 
-<!-- Universal chiroyli "confirm" modali — native confirm() o'rniga -->
-<div id="ccModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
-    <div id="cc-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:10px">—</div>
-    <div id="cc-message" style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:18px"></div>
-    <div style="display:flex;gap:8px">
-      <button id="cc-cancel" class="btn btn-outline" style="flex:1" onclick="_ccResolveWith(false)">Bekor</button>
-      <button id="cc-ok" class="btn btn-dark" style="flex:1;background:var(--gold);border-color:var(--gold)" onclick="_ccResolveWith(true)">OK</button>
-    </div>
-  </div>
-</div>
 
 <!-- Mahsulotni o'chirish — 3 variantli maxsus modal (native ikki bosqichli confirm o'rniga) -->
 <div id="delFpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
@@ -731,29 +720,6 @@ function fmt(n) {
 }
 function parseNum(s) {
   return parseFloat(String(s || '').replace(/\s/g, '')) || 0;
-}
-
-// Universal chiroyli "confirm" — native confirm() o'rniga. Promise qaytaradi:
-// OK bossa — true, Bekor/Esc bossa — false.
-// Ishlatilishi: if (!(await customConfirm('Sarlavha', 'Xabar matni'))) return;
-let _ccResolve = null;
-function customConfirm(title, message, opts) {
-  opts = opts || {};
-  return new Promise(resolve => {
-    _ccResolve = resolve;
-    document.getElementById('cc-title').textContent = title;
-    document.getElementById('cc-message').innerHTML = String(message).replace(/\n/g, '<br>');
-    const okBtn = document.getElementById('cc-ok');
-    okBtn.textContent = opts.okText || 'OK';
-    okBtn.style.background = opts.danger ? '#EF4444' : 'var(--gold)';
-    okBtn.style.borderColor = opts.danger ? '#EF4444' : 'var(--gold)';
-    document.getElementById('cc-cancel').textContent = opts.cancelText || 'Bekor';
-    document.getElementById('ccModal').style.display = 'flex';
-  });
-}
-function _ccResolveWith(val) {
-  document.getElementById('ccModal').style.display = 'none';
-  if (_ccResolve) { _ccResolve(val); _ccResolve = null; }
 }
 
 // Mahsulot o'chirish — 3 variantli tanlash. Promise qaytaradi:

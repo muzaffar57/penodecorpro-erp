@@ -218,7 +218,7 @@ async function uploadRecipeImage(id, input) {
 }
 
 async function deleteRecipe(id) {
-  if (!confirm('Retseptni o\'chirasizmi?')) return;
+  if (!(await customConfirm('Retseptni o\'chirasizmi?', {danger:true}))) return;
   const res = await fetch(`/api/recipes/${id}`, {method:'DELETE'});
   if (res.ok) location.reload();
   else recpToast('Xato yuz berdi', 'error');

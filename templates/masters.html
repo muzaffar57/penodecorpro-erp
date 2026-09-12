@@ -254,13 +254,13 @@ async function saveMaster() {
 }
 
 async function toggleMaster(id, isActive) {
-  if(!confirm(isActive ? "Ustani nofaol qilasizmi?" : "Ustani faollashtirasizmi?")) return;
+  if(!(await customConfirm(isActive ? "Ustani nofaol qilasizmi?" : "Ustani faollashtirasizmi?"))) return;
   await fetch(`/api/masters/${id}`, { method:'DELETE' });
   location.reload();
 }
 
 async function deleteMaster(id) {
-  if(!confirm("Ustani bazadan TO'LIQ o'chirasizmi?\nBu amalni ortga qaytarib bo'lmaydi!")) return;
+  if(!(await customConfirm("Ustani bazadan TO'LIQ o'chirasizmi?\nBu amalni ortga qaytarib bo'lmaydi!", {danger:true}))) return;
   const res = await fetch(`/api/masters/${id}/delete`, {method:'DELETE'});
   if(res.ok) location.reload();
   else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }

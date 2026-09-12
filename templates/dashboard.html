@@ -937,7 +937,7 @@ async function confirmAdvReq(id){
 }
 
 async function rejectAdvReq(id){
-  if (!confirm("Bu so'rovni rad etasizmi? Hech qanday moliyaviy yozuv yaratilmaydi.")) return;
+  if (!(await customConfirm("Bu so'rovni rad etasizmi? Hech qanday moliyaviy yozuv yaratilmaydi."))) return;
   try {
     const res = await fetch(`/api/admin/advance-requests/${id}/reject`, { method: 'POST' });
     if (res.ok) removeAdvRow(id);

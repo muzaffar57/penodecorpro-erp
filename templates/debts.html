@@ -350,7 +350,7 @@ async function saveNewCategory(){
 }
 
 async function deleteCategory(id, label){
-  if (!confirm(`"${label}" kategoriyasini o'chirasizmi? (Tarix saqlanadi, faqat maqsad o'chadi)`)) return;
+  if (!(await customConfirm(`"${label}" kategoriyasini o'chirasizmi? (Tarix saqlanadi, faqat maqsad o'chadi)`))) return;
   try {
     const res = await fetch(`/api/obligations/recurring/${id}`, {method:'DELETE'});
     if (res.ok) location.reload();
@@ -421,7 +421,7 @@ function renderTimeline(rows){
 function closeTimelineModal(){ document.getElementById('timelineModal').style.display = 'none'; }
 
 async function closeEmployeeDebt(empId, name, amount, year, month){
-  if (!confirm(`${name} ga ${fmt(amount)} so'm to'liq to'landi deb belgilaysizmi?`)) return;
+  if (!(await customConfirm(`${name} ga ${fmt(amount)} so'm to'liq to'landi deb belgilaysizmi?`))) return;
   // MUHIM: "hozirgi sana" emas, balki bu qarz AYNAN qaysi oyga tegishli
   // bo'lsa — o'sha yil/oyni yuboramiz (aks holda, kechikkan to'lov,
   // noto'g'ri — hozirgi — oy hisobotiga yozilib qolardi).

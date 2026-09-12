@@ -1043,7 +1043,7 @@ async function saveTx(){
 }
 
 async function deleteTx(id){
-  if (!confirm('Bu tranzaksiyani o\'chirasizmi?')) return;
+  if (!(await customConfirm('Bu tranzaksiyani o\'chirasizmi?', {danger:true}))) return;
   try {
     await fetch(`/api/finance/transactions/${id}`, {method:'DELETE'});
     loadDailyTransactions();

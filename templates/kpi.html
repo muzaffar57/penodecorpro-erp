@@ -52,6 +52,14 @@
 .modal-field-box{background:#FAFAF8;border:1px solid var(--border2);border-radius:12px;padding:14px}
 .modal-field-box .form-group:last-child{margin-bottom:0}
 .modal-field-box .form-row:last-child{margin-bottom:0}
+
+/* "Sovg'a davri" bo'limi — 2026-09 dizayn tozalash */
+.input-field{padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:var(--white);color:var(--text)}
+.input-field:focus{outline:none;border-color:var(--gold)}
+.status-pill{font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;white-space:nowrap}
+.status-pill--off{background:var(--border2);color:var(--text3)}
+.status-pill--on{background:#DCFCE7;color:#16A34A}
+.gift-tier-chip{display:inline-block;background:var(--gold-tint);color:var(--gold-dark);border-radius:7px;padding:4px 11px;margin:2px 6px 2px 0;font-size:12.5px;font-weight:600}
 </style>
 {% endblock %}
 
@@ -151,39 +159,43 @@
     </div>
 
     {% if current_user.role.value == 'admin' %}
-    <!-- EHSON SOZLAMASI -->
+    <!-- EHSON SOZLAMASI — ixcham, bitta qator -->
     <div class="card" style="grid-column:1/-1">
-      <div class="card-head">
-        <h3>🤲 Ehson (xayriya) foizi</h3>
-      </div>
-      <div class="card-body" style="padding-top:0">
-        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:9px 11px;margin-bottom:12px;font-size:13px;color:#166534;line-height:1.6">
-          💡 Har oy yakunlangan buyurtmalarning <b>sof foydasidan</b>, shu foiz — Ehson sifatida ajratiladi va Moliyada xarajat qatorida ko'rsatiladi (usta KPI bilan bir xil mantiqda).
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="number" id="ehson-percent-input" min="0" max="100" step="0.5" style="width:100px;padding:8px 10px;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px;font-weight:600" placeholder="0">
-          <span style="font-size:14px;color:var(--text3)">%</span>
-          <button class="btn btn-dark btn-sm" onclick="saveEhsonPercent()">Saqlash</button>
-          <span id="ehson-save-msg" style="font-size:12.5px;color:#166534;display:none">✓ Saqlandi</span>
-        </div>
+      <div class="card-body" style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:18px">🤲</span>
+        <h3 style="white-space:nowrap">Ehson foizi</h3>
+        <span style="flex:1"></span>
+        <input type="number" id="ehson-percent-input" min="0" max="100" step="0.5" class="input-field" style="width:80px;text-align:center;font-weight:600" placeholder="0">
+        <span style="font-size:14px;color:var(--text3)">%</span>
+        <button class="btn btn-dark btn-sm" onclick="saveEhsonPercent()">Saqlash</button>
+        <span id="ehson-save-msg" style="font-size:12.5px;color:#16A34A;font-weight:600;display:none">✓ Saqlandi</span>
       </div>
     </div>
     {% endif %}
 
 
-    <div class="card" style="grid-column:1/-1">
+    <!-- SOVG'A DAVRI — joriy, faol ishlatiladigan tizim -->
+    <div class="card" style="grid-column:1/-1;border-color:var(--gold)">
       <div class="card-head">
-        <h3>🎁 Sovg'alar bosqichlari</h3>
+        <div style="display:flex;align-items:center;gap:10px">
+          <h3>🎁 Sovg'a davri</h3>
+          <span id="giftPeriodStatusPill" class="status-pill status-pill--off">Yopiq</span>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openGiftPeriodModal()"><i class="ti ti-settings" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>Boshqarish</button>
       </div>
       <div class="card-body" style="padding-top:0">
-        <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:9px 11px;margin-bottom:12px;font-size:13px;color:#92400E;line-height:1.6">
-          💡 Bu yerda belgilagan bosqichlar — botda, faqat 🎁 belgisi yoqilgan Ustalarga (yuqoridagi ro'yxatda) ko'rinadi. Usta aniq so'm miqdorini ko'rmaydi, faqat qaysi bosqichga yetganini va keyingisigacha necha % qolganini ko'radi.
+        <div id="giftPeriodSummary"></div>
+      </div>
+    </div>
+
+    <div id="giftPeriodModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+      <div style="background:var(--white);border-radius:14px;width:640px;max-width:100%;max-height:86vh;overflow-y:auto">
+        <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:16px;font-weight:600">🎁 Sovg'a davrini boshqarish</div>
+          <button onclick="closeGiftPeriodModal()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
         </div>
-        <div id="giftsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="text" id="gift-name-input" placeholder="Sovg'a nomi (masalan: Termos)" style="flex:1;min-width:160px;padding:8px 10px;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px">
-          <input type="number" id="gift-kpi-input" placeholder="Kerakli KPI (so'm)" min="0" style="width:170px;padding:8px 10px;border:1.5px solid #e5e5e5;border-radius:8px;font-size:14px">
-          <button class="btn btn-dark btn-sm" onclick="addMasterGift()">+ Qo'shish</button>
+        <div style="padding:18px 22px" id="giftPeriodBox">
+          <div style="text-align:center;padding:16px;color:var(--text3)">Yuklanmoqda...</div>
         </div>
       </div>
     </div>
@@ -257,10 +269,9 @@
       <div style="font-size:16px;font-weight:600" id="md-title">Buyurtmalar bo'yicha KPI</div>
       <button onclick="closeMasterDetail()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
     </div>
-    <div style="padding:0 22px;overflow-y:auto;flex:1" id="md-list">
+    <div style="padding:0 22px 20px;overflow-y:auto;flex:1" id="md-list">
       <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
     </div>
-    <div style="padding:14px 22px 20px;border-top:1px solid var(--border2)" id="md-gifts-section"></div>
   </div>
 </div>
 
@@ -558,9 +569,6 @@ function renderMasterKpiList() {
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0" data-id="${m.id}" data-name="${(m.name||'').replace(/"/g,'&quot;')}">
         <button class="mini-btn" onclick="openMasterDetail(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Har buyurtma bo'yicha KPI"><i class="ti ti-list-details" style="font-size:13px"></i></button>
-        <button class="mini-btn" style="${m.show_gifts ? 'background:#FEF3C7;border-color:#FDE68A' : ''}"
-                onclick="toggleMasterGifts(${m.id}, ${!m.show_gifts})"
-                title="${m.show_gifts ? 'Sovgalar bolimi YOQILGAN — botda koradi' : 'Sovgalar bolimi OCHIQ — botda kormaydi'}">🎁</button>
         <button class="mini-btn" onclick="editMaster(${m.id})">✏️</button>
         <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deactivateMaster(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Nofaollashtirish">🚫</button>
       </div>
@@ -634,58 +642,8 @@ async function openMasterDetail(id, name) {
   } catch(e) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
   }
-  loadMasterGiftProgress(id);
 }
 
-async function loadMasterGiftProgress(id) {
-  const box = document.getElementById('md-gifts-section');
-  box.innerHTML = '<div style="text-align:center;padding:10px;color:var(--text3);font-size:12px">Sovg\'alar yuklanmoqda...</div>';
-  try {
-    const data = await fetch(`/api/masters/${id}/gift-progress`).then(r => r.json());
-    if (!data.gifts.length) { box.innerHTML = ''; return; }
-    box.innerHTML = `
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px">🎁 Sovg'alar (sovg'alar uchun mavjud KPI: <span style="color:#166534">${fmt(data.available_kpi)} so'm</span>)</div>
-      <div style="display:flex;flex-direction:column;gap:5px">
-        ${data.gifts.map(g => {
-          if (g.redeemed) {
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;background:#F0FDF4;border-radius:7px;font-size:12.5px">
-              <span>🎉 ${g.name} <span style="color:var(--text3)">(olingan)</span></span>
-              <span style="color:#166534;font-weight:600">${fmt(g.kpi_threshold)} so'm</span>
-            </div>`;
-          }
-          if (g.eligible) {
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 9px;background:#FFFBEB;border-radius:7px;font-size:12.5px">
-              <span>✅ ${g.name} <span style="color:var(--text3)">(${fmt(g.kpi_threshold)} so'm)</span></span>
-              <button class="btn btn-dark btn-sm" style="padding:4px 10px;font-size:11.5px" onclick="redeemMasterGift(${id}, ${g.id}, '${g.name.replace(/'/g,"&apos;")}')">Berildi ✓</button>
-            </div>`;
-          }
-          return `<div style="padding:7px 9px;font-size:12.5px;color:var(--text3)">⬜ ${g.name} (${fmt(g.kpi_threshold)} so'm)</div>`;
-        }).join('')}
-      </div>`;
-  } catch(e) {
-    box.innerHTML = '';
-  }
-}
-
-let isRedeemingGift = false;
-async function redeemMasterGift(masterId, giftId, giftName) {
-  if (isRedeemingGift) return; // Ikki marta bosishdan himoya
-  if (!confirm(`"${giftName}" sovg'asini ustaga QO'LGA BERGANINGIZNI tasdiqlaysizmi?\n\nBu amaldan keyin, uning hisobi shu sovg'a qiymatiga kamayadi.`)) return;
-  isRedeemingGift = true;
-  try {
-    const res = await fetch(`/api/masters/${masterId}/redeem-gift/${giftId}`, { method: 'POST' });
-    if (res.ok) {
-      loadMasterGiftProgress(masterId);
-    } else {
-      const e = await res.json();
-      alert('❌ ' + (e.detail || 'Xato yuz berdi'));
-    }
-  } catch(e) {
-    alert('❌ Server bilan aloqa yo\'q');
-  } finally {
-    isRedeemingGift = false;
-  }
-}
 function closeMasterDetail(){ document.getElementById('masterDetailModal').style.display = 'none'; }
 
 const inFlightMasterKpi = new Set();
@@ -705,26 +663,6 @@ async function saveMasterKpi(id) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
   } finally {
     inFlightMasterKpi.delete(id);
-  }
-}
-
-// "🎁 Sovg'alar" bo'limini botda shu ustaga ko'rsatish/yashirish
-let inFlightMasterGiftsToggle = new Set();
-async function toggleMasterGifts(id, show) {
-  if (inFlightMasterGiftsToggle.has(id)) return;
-  inFlightMasterGiftsToggle.add(id);
-  try {
-    const res = await fetch(`/api/masters/${id}/show-gifts`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({show})
-    });
-    if (res.ok) loadMasterKpi();
-    else alert("❌ Saqlashda xato yuz berdi.");
-  } catch(e) {
-    alert("❌ Server bilan aloqa yo'q.");
-  } finally {
-    inFlightMasterGiftsToggle.delete(id);
   }
 }
 
@@ -805,7 +743,7 @@ async function saveMaster() {
 }
 
 async function deactivateMaster(id, name) {
-  if (!confirm(`${name} nofaol qilinsinmi?\n\nBuyurtma tarixi saqlanadi, faqat yangi buyurtmalarda tanlab bo'lmaydi.`)) return;
+  if (!(await customConfirm(`${name} nofaol qilinsinmi?\n\nBuyurtma tarixi saqlanadi, faqat yangi buyurtmalarda tanlab bo'lmaydi.`))) return;
   try {
     const res = await fetch(`/api/masters/${id}`, { method: 'DELETE' });
     if (res.ok) { loadMasterKpi(); loadAllMastersFull(); }
@@ -1002,7 +940,7 @@ async function saveAdvance() {
 }
 
 async function deleteAdvance(id) {
-  if (!confirm("Bu avans yozuvini o'chirasizmi?")) return;
+  if (!(await customConfirm("Bu avans yozuvini o'chirasizmi?"))) return;
   const res = await fetch(`/api/employees/advance/${id}`, {method:'DELETE'});
   if (res.ok) { loadAdvanceHistory(advanceEmpId); loadEmployees(); }
 }
@@ -1233,7 +1171,7 @@ async function saveEmployee() {
 }
 
 async function deleteEmployee(id) {
-  if (!confirm("Hodim o'chirilsinmi?\n\n(Ma'lumot yo'qolmaydi — \"O'chirilganlar\" bo'limidan keyin tiklash mumkin)")) return;
+  if (!(await customConfirm("Hodim o'chirilsinmi?\n\n(Ma'lumot yo'qolmaydi — \"O'chirilganlar\" bo'limidan keyin tiklash mumkin)"))) return;
   const res = await fetch(`/api/employees/${id}`, {method:'DELETE'});
   if (res.ok) loadEmployees();
 }
@@ -1458,100 +1396,6 @@ async function loadEhsonPercent() {
   } catch(e) {}
 }
 
-// ── "🎁 Sovg'alar" bosqichlari ──────────────────────────────
-let editingGiftId = null;
-async function loadMasterGifts() {
-  const box = document.getElementById('giftsList');
-  if (!box) return;
-  try {
-    const gifts = await fetch('/api/master-gifts').then(r => r.json());
-    if (!gifts.length) {
-      box.innerHTML = '<div style="font-size:13px;color:var(--text3);padding:6px 0">Hali sovg\'a qo\'shilmagan.</div>';
-      return;
-    }
-    box.innerHTML = gifts.map((g, i) => `
-      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#FAFAF9;border-radius:8px">
-        <span style="font-size:12px;color:#aaa;width:16px">${i+1}</span>
-        ${g.image_url
-          ? `<img src="${g.image_url}" style="width:32px;height:32px;border-radius:7px;object-fit:cover;flex-shrink:0">`
-          : `<span style="width:32px;height:32px;border-radius:7px;background:#F0EBE0;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">🎁</span>`}
-        <span style="flex:1;font-size:14px;font-weight:600">${g.name}</span>
-        <span style="font-size:13px;color:#166534;font-weight:600">${fmt(g.kpi_threshold)} so'm</span>
-        <label class="mini-btn" style="width:28px;height:28px;cursor:pointer" title="Surat yuklash">
-          📷<input type="file" accept="image/*" style="display:none" onchange="uploadMasterGiftImage(${g.id}, this)">
-        </label>
-        <button class="mini-btn" style="width:28px;height:28px" onclick="editMasterGift(${g.id}, '${g.name.replace(/'/g,"&apos;")}', ${g.kpi_threshold})">✏️</button>
-        <button class="mini-btn" style="width:28px;height:28px;color:#DC2626;border-color:#FADBD8" onclick="deleteMasterGift(${g.id})">🗑️</button>
-      </div>`).join('');
-  } catch(e) {}
-}
-
-let inFlightGiftImageUpload = new Set();
-async function uploadMasterGiftImage(id, input) {
-  const file = input.files[0];
-  if (!file) return;
-  if (inFlightGiftImageUpload.has(id)) return; // Ikki marta bosishdan himoya
-  inFlightGiftImageUpload.add(id);
-  const fd = new FormData();
-  fd.append('file', file);
-  try {
-    const res = await fetch(`/api/master-gifts/${id}/image`, { method: 'POST', body: fd });
-    if (res.ok) loadMasterGifts();
-    else {
-      const err = await res.json().catch(()=>({}));
-      alert('❌ Rasm yuklanmadi: ' + (err.detail || 'Server xatosi'));
-    }
-  } catch(e) {
-    alert('❌ Server bilan aloqa yo\'q');
-  } finally {
-    inFlightGiftImageUpload.delete(id);
-  }
-}
-
-function editMasterGift(id, name, threshold) {
-  editingGiftId = id;
-  document.getElementById('gift-name-input').value = name;
-  document.getElementById('gift-kpi-input').value = threshold;
-}
-
-let isSavingMasterGift = false;
-async function addMasterGift() {
-  if (isSavingMasterGift) return; // Ikki marta bosishdan himoya
-  const name = document.getElementById('gift-name-input').value.trim();
-  const threshold = parseFloat(document.getElementById('gift-kpi-input').value);
-  if (!name || !threshold || threshold <= 0) { alert("Nomi va musbat KPI miqdorini kiriting!"); return; }
-  isSavingMasterGift = true;
-  try {
-    const url = editingGiftId ? `/api/master-gifts/${editingGiftId}` : '/api/master-gifts';
-    const method = editingGiftId ? 'PUT' : 'POST';
-    const res = await fetch(url, {
-      method, headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, kpi_threshold: threshold})
-    });
-    if (res.ok) {
-      editingGiftId = null;
-      document.getElementById('gift-name-input').value = '';
-      document.getElementById('gift-kpi-input').value = '';
-      loadMasterGifts();
-    } else alert("❌ Saqlashda xato yuz berdi.");
-  } catch(e) {
-    alert("❌ Server bilan aloqa yo'q.");
-  } finally {
-    isSavingMasterGift = false;
-  }
-}
-
-async function deleteMasterGift(id) {
-  if (!confirm("Bu sovg'ani o'chirasizmi?")) return;
-  try {
-    const res = await fetch(`/api/master-gifts/${id}`, {method: 'DELETE'});
-    if (res.ok) loadMasterGifts();
-    else alert("❌ O'chirishda xato yuz berdi.");
-  } catch(e) {
-    alert("❌ Server bilan aloqa yo'q.");
-  }
-}
-
 let isSavingEhsonPercent = false;
 async function saveEhsonPercent() {
   if (isSavingEhsonPercent) return; // Ikki marta bosishdan himoya
@@ -1574,10 +1418,255 @@ async function saveEhsonPercent() {
   }
 }
 
+// ══════════════════ "Sovg'a davri" (2026-09-12) ══════════════════
+let _newPeriodTiers = [{name:'', amount:''}];
+
+async function loadGiftPeriod() {
+  const pill = document.getElementById('giftPeriodStatusPill');
+  const summary = document.getElementById('giftPeriodSummary');
+  const box = document.getElementById('giftPeriodBox');
+  try {
+    const data = await fetch('/api/gift-period').then(r => r.json());
+    if (pill) {
+      if (data.active) { pill.textContent = 'Faol'; pill.className = 'status-pill status-pill--on'; }
+      else { pill.textContent = 'Yopiq'; pill.className = 'status-pill status-pill--off'; }
+    }
+    if (summary) {
+      summary.innerHTML = (data.active && data.tiers.length)
+        ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${data.tiers.map(t => `<span class="gift-tier-chip">🎁 ${t.gift_name}</span>`).join('')}</div>`
+        : '';
+    }
+    if (box) {
+      if (!data.active) renderGiftPeriodClosed(box);
+      else renderGiftPeriodActive(box, data);
+    }
+  } catch(e) {
+    if (box) box.innerHTML = '<div style="text-align:center;padding:16px;color:#DC2626">Yuklashda xato</div>';
+  }
+}
+
+function openGiftPeriodModal() {
+  document.getElementById('giftPeriodModal').style.display = 'flex';
+}
+function closeGiftPeriodModal() {
+  document.getElementById('giftPeriodModal').style.display = 'none';
+}
+
+function renderGiftPeriodClosed(box) {
+  _newPeriodTiers = [{name:'', amount:''}];
+  const masterOptionsHtml = (allMasterKpiData || []).map(m => `
+    <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="gift-period-master-cb" value="${m.id}">
+      ${m.name}
+    </label>
+  `).join('') || '<div style="color:var(--text3);font-size:13px;padding:4px 0">Faol usta topilmadi</div>';
+  box.innerHTML = `
+    <div id="newPeriodTiersList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-outline btn-sm" onclick="addNewPeriodTierRow()">+ Bosqich qo'shish</button>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" id="giftPeriodSelectMode" onchange="toggleGiftPeriodMasterPicker()">
+      Faqat tanlangan ustalar uchun (belgilanmasa — barchasi)
+    </label>
+    <div id="giftPeriodMasterPicker" style="display:none;background:var(--border2);border-radius:9px;padding:10px 12px;max-height:200px;overflow-y:auto;margin-bottom:16px">
+      ${masterOptionsHtml}
+    </div>
+    <button class="btn btn-gold btn-sm" onclick="submitOpenGiftPeriod()">🎁 Davrni ochish</button>
+  `;
+  renderNewPeriodTiersList();
+}
+
+function toggleGiftPeriodMasterPicker() {
+  const checked = document.getElementById('giftPeriodSelectMode').checked;
+  document.getElementById('giftPeriodMasterPicker').style.display = checked ? 'block' : 'none';
+}
+
+function renderNewPeriodTiersList() {
+  const el = document.getElementById('newPeriodTiersList');
+  el.innerHTML = _newPeriodTiers.map((t, i) => `
+    <div style="display:flex;gap:8px;align-items:center;background:var(--border2);border-radius:9px;padding:8px">
+      <input type="text" placeholder="Sovg'a nomi" value="${(t.name||'').replace(/"/g,'&quot;')}"
+        oninput="_newPeriodTiers[${i}].name=this.value" class="input-field" style="flex:1;background:var(--white)">
+      <input type="text" inputmode="numeric" placeholder="Savdo summasi (so'm)" value="${t.amount ? fmt(t.amount) : ''}"
+        oninput="_newPeriodTiers[${i}].amount=parseNum(this.value); formatPriceInput(this)" class="input-field" style="width:180px;background:var(--white)">
+      ${_newPeriodTiers.length > 1 ? `<button class="btn btn-outline btn-sm" onclick="removeNewPeriodTierRow(${i})">✕</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function addNewPeriodTierRow() {
+  _newPeriodTiers.push({name:'', amount:''});
+  renderNewPeriodTiersList();
+}
+function removeNewPeriodTierRow(i) {
+  _newPeriodTiers.splice(i, 1);
+  renderNewPeriodTiersList();
+}
+
+let isOpeningGiftPeriod = false;
+async function submitOpenGiftPeriod() {
+  if (isOpeningGiftPeriod) return;
+  const tiers = _newPeriodTiers
+    .filter(t => (t.name||'').trim() && parseFloat(t.amount) > 0)
+    .map(t => ({gift_name: t.name.trim(), threshold_amount: parseFloat(t.amount)}));
+  if (!tiers.length) { alert("Kamida bitta to'liq bosqich kiriting"); return; }
+
+  const selectMode = document.getElementById('giftPeriodSelectMode')?.checked;
+  let masterIds = [];
+  if (selectMode) {
+    masterIds = Array.from(document.querySelectorAll('.gift-period-master-cb:checked')).map(cb => parseInt(cb.value));
+    if (!masterIds.length) { alert('Kamida bitta ustani tanlang, yoki "Faqat tanlangan ustalar" belgisini olib tashlang'); return; }
+  }
+
+  const confirmMsg = selectMode
+    ? `Yangi sovg'a davrini ${tiers.length} ta bosqich bilan, FAQAT ${masterIds.length} ta tanlangan usta uchun ochasizmi?`
+    : `Yangi sovg'a davrini ${tiers.length} ta bosqich bilan ochasizmi? Barcha faol ustalar avtomatik ishtirok etadi.`;
+  if (!(await customConfirm(confirmMsg))) return;
+
+  isOpeningGiftPeriod = true;
+  try {
+    const res = await fetch('/api/gift-period/open', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({tiers, master_ids: selectMode ? masterIds : []})
+    });
+    if (res.ok) { loadGiftPeriod(); } else {
+      const e = await res.json(); alert('❌ ' + (e.detail || 'Xato'));
+    }
+  } catch(e) { alert("❌ Server bilan aloqa yo'q"); } finally { isOpeningGiftPeriod = false; }
+}
+
+let _currentPeriodTiers = [];
+let _editingTierId = null;
+
+function renderTierChipsHtml() {
+  return _currentPeriodTiers.map(t => {
+    if (t.id === _editingTierId) {
+      return `<span style="display:inline-flex;gap:6px;align-items:center;background:var(--border2);border-radius:8px;padding:4px 8px;margin:2px 6px 2px 0">
+        <input type="text" id="tierEditName" value="${t.gift_name.replace(/"/g,'&quot;')}" class="input-field" style="width:110px;padding:5px 8px;font-size:12.5px">
+        <input type="text" inputmode="numeric" id="tierEditAmount" value="${fmt(t.threshold_amount)}" class="input-field" style="width:120px;padding:5px 8px;font-size:12.5px" oninput="formatPriceInput(this)">
+        <button class="btn btn-gold btn-sm" style="padding:4px 9px;font-size:11.5px" onclick="saveTierEdit(${t.id})">✓</button>
+        <button class="btn btn-outline btn-sm" style="padding:4px 9px;font-size:11.5px" onclick="cancelEditTier()">✕</button>
+      </span>`;
+    }
+    return `<span class="gift-tier-chip">${t.gift_name} — ${fmt(t.threshold_amount)} so'm
+      <button onclick="startEditTier(${t.id})" style="border:none;background:transparent;cursor:pointer;color:var(--gold-dark);margin-left:2px;padding:0;vertical-align:-2px" title="Tahrirlash" aria-label="Tahrirlash"><i class="ti ti-pencil" style="font-size:13px"></i></button>
+    </span>`;
+  }).join('');
+}
+
+function startEditTier(id) {
+  _editingTierId = id;
+  document.getElementById('tierChipsRow').innerHTML = renderTierChipsHtml();
+}
+function cancelEditTier() {
+  _editingTierId = null;
+  document.getElementById('tierChipsRow').innerHTML = renderTierChipsHtml();
+}
+
+let isSavingTierEdit = false;
+async function saveTierEdit(id) {
+  if (isSavingTierEdit) return;
+  const name = document.getElementById('tierEditName').value.trim();
+  const amount = parseNum(document.getElementById('tierEditAmount').value);
+  if (!name || !amount || amount <= 0) { alert("Nomi va musbat summani kiriting"); return; }
+  isSavingTierEdit = true;
+  try {
+    const res = await fetch(`/api/gift-period/tier/${id}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({gift_name: name, threshold_amount: amount})
+    });
+    if (res.ok) {
+      _editingTierId = null;
+      loadGiftPeriod();
+    } else {
+      const e = await res.json(); alert('❌ ' + (e.detail || 'Xato'));
+    }
+  } catch(e) { alert("❌ Server bilan aloqa yo'q"); } finally { isSavingTierEdit = false; }
+}
+
+function renderGiftPeriodActive(box, data) {
+  _currentPeriodTiers = data.tiers;
+  const rowsHtml = data.masters.map(m => {
+    const tiersProgress = m.tiers.map(t => t.ready
+      ? `<span style="color:#16A34A;font-weight:600">✅ ${t.gift_name}</span>`
+      : `<span style="color:var(--text3)">⬜ ${t.gift_name}</span>`
+    ).join(' &nbsp; ');
+    const redeemBtn = m.ready_tier_id
+      ? `<button class="btn btn-gold btn-sm" style="padding:4px 10px;font-size:11.5px" onclick="redeemGiftPeriodTier(${m.master_id}, ${m.ready_tier_id}, '${(m.ready_tier_name||'').replace(/'/g,"&apos;")}')">Berildi ✓</button>`
+      : '';
+    return `
+      <tr style="border-top:1px solid var(--border2)">
+        <td style="padding:9px 6px;font-weight:600">${m.master_name}</td>
+        <td style="padding:9px 6px;color:#16A34A;font-weight:600;white-space:nowrap">${fmt(m.current_sales)} so'm</td>
+        <td style="padding:9px 6px;font-size:12px">${tiersProgress}</td>
+        <td style="padding:9px 6px;text-align:right">${redeemBtn}</td>
+      </tr>`;
+  }).join('');
+  box.innerHTML = `
+    <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">${data.all_masters ? 'Barcha faol ustalar ishtirok etadi' : `Faqat ${data.masters.length} ta tanlangan usta ishtirok etadi`}</div>
+    <div id="tierChipsRow" style="margin-bottom:14px">${renderTierChipsHtml()}</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="text-align:left;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.3px">
+          <th style="padding:6px">Usta</th><th style="padding:6px">Joriy savdo</th><th style="padding:6px">Bosqichlar</th><th></th>
+        </tr></thead>
+        <tbody>${rowsHtml || '<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--text3)">Faol usta yo\'q</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:14px">
+      <button class="btn btn-outline btn-sm" onclick="submitCloseGiftPeriod(false)">🔒 Davrni yopish</button>
+    </div>
+  `;
+}
+
+let isRedeemingPeriodGift = false;
+async function redeemGiftPeriodTier(masterId, tierId, giftName) {
+  if (isRedeemingPeriodGift) return;
+  if (!(await customConfirm(`"${giftName}" sovg'asini ustaga QO'LGA BERGANINGIZNI tasdiqlaysizmi?\n\nBu amaldan keyin, uning hisoblagichi 0'ga tushadi.`))) return;
+  isRedeemingPeriodGift = true;
+  try {
+    const res = await fetch(`/api/gift-period/redeem/${masterId}/${tierId}`, {method:'POST'});
+    if (res.ok) { loadGiftPeriod(); } else {
+      const e = await res.json(); alert('❌ ' + (e.detail || 'Xato'));
+    }
+  } catch(e) { alert("❌ Server bilan aloqa yo'q"); } finally { isRedeemingPeriodGift = false; }
+}
+
+let isClosingGiftPeriod = false;
+async function submitCloseGiftPeriod(force) {
+  if (isClosingGiftPeriod) return;
+  if (!force && !(await customConfirm("Sovg'a davrini yopmoqchimisiz? Bosqichga yetmagan ustalarning qoldiq savdosi avtomatik keshbekka o'tkaziladi."))) return;
+  isClosingGiftPeriod = true;
+  try {
+    let res = await fetch('/api/gift-period/close', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({force: !!force})
+    });
+    if (res.ok) { loadGiftPeriod(); return; }
+    let e = await res.json();
+    let detail = e.detail;
+    if (!force && detail && detail.pending_master_names && detail.pending_master_names.length) {
+      const namesStr = detail.pending_master_names.join(', ');
+      if (await customConfirm(`Quyidagi ustalar sovg'aga yetgan, lekin hali "Berildi" belgilanmagan:\n\n${namesStr}\n\nShunga qaramay yopib, ularning qoldig'ini ham keshbekka o'tkazishni istaysizmi? (Ular sovg'a olmay qoladi!)`, {danger:true, okText:"Shunga qaramay yop"})) {
+        res = await fetch('/api/gift-period/close', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({force: true})
+        });
+        if (res.ok) { loadGiftPeriod(); return; }
+        e = await res.json();
+        alert('❌ ' + (e.detail && e.detail.message ? e.detail.message : 'Xato'));
+      }
+    } else {
+      alert('❌ ' + (detail && detail.message ? detail.message : (typeof detail === 'string' ? detail : 'Xato')));
+    }
+  } catch(e) { alert("❌ Server bilan aloqa yo'q"); } finally { isClosingGiftPeriod = false; }
+}
+
 document.getElementById('kpi-year').value = new Date().getFullYear();
 loadEhsonPercent();
 loadMasterKpi();
-loadMasterGifts();
+loadGiftPeriod();
 loadAllMastersFull();
 loadEmployees().then(() => loadCurrentMonthEmpStatus());
 initEmpReportSelectors();

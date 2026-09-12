@@ -526,7 +526,7 @@ async function quickPaySupplier(confirmOverpay = false){
       loadHistoryForSupplier();
     } else if (res.status === 409) {
       const e = await res.json();
-      if (e.detail?.type === 'overpayment_warning' && confirm('⚠️ ' + e.detail.message)) {
+      if (e.detail?.type === 'overpayment_warning' && await customConfirm('⚠️ ' + e.detail.message)) {
         await quickPaySupplier(true);
         return;
       }

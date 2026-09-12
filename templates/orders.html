@@ -913,7 +913,7 @@ input[type=number]{-moz-appearance:textfield}
           </div>
           <div style="flex:1">
             <div style="font-size:13px;color:#777;margin-bottom:4px">Summasi</div>
-            <input type="number" id="dlv-transport-cost" placeholder="0" min="0" step="1000" oninput="dlvUpdatePayerHint()"
+            <input type="text" inputmode="numeric" id="dlv-transport-cost" placeholder="0" oninput="formatPriceInput(this); dlvUpdatePayerHint()"
                    style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:14.5px;outline:none">
           </div>
         </div>
@@ -2109,7 +2109,7 @@ function openDeliveryModal() {
 }
 
 function dlvUpdatePayerHint() {
-  const cost = parseFloat(document.getElementById('dlv-transport-cost').value) || 0;
+  const cost = parseNum(document.getElementById('dlv-transport-cost').value);
   const payer = document.getElementById('dlv-transport-payer').value;
   const hint = document.getElementById('dlv-payer-hint');
   if (!cost || payer === 'none') { hint.textContent = ''; return; }
@@ -2266,7 +2266,7 @@ async function saveDelivery() {
     payment_amount: parseNum(document.getElementById('dlv-payment-amount').value) || null,
     payment_method: document.getElementById('dlv-payment-method').value || 'naqd',
     transport_carrier: sanitizeToLatin(document.getElementById('dlv-transport-carrier').value.trim()) || null,
-    transport_cost: parseFloat(document.getElementById('dlv-transport-cost').value) || 0,
+    transport_cost: parseNum(document.getElementById('dlv-transport-cost').value),
     transport_payer: document.getElementById('dlv-transport-payer').value || 'none'
   };
 
@@ -4970,9 +4970,10 @@ async function updateOrder(orderId) {
     } else if (res.status === 409 && result.detail && result.detail.type === 'stock_shortage_warning') {
       // Xomashyo yetishmayapti — "davom etasizmi?" so'raymiz (create bilan bir xil)
       const shortList = (result.detail.shortages || []).map(x => `• ${x}`).join('\n');
-      const ok = confirm(
-        "⚠ Omborda yetishmayotgan xomashyo bor:\n\n" + shortList +
-        "\n\nShunday ham davom etasizmi? (ombor manfiy bo'lib qoladi)"
+      const ok = await customConfirm(
+        "⚠ Omborda yetishmayotgan xomashyo bor",
+        shortList + "\n\nShunday ham davom etasizmi? (ombor manfiy bo'lib qoladi)",
+        {danger:true, okText:"Davom etish"}
       );
       if (ok) {
         // confirm_shortage=true bilan qayta yuboramiz
