@@ -3955,7 +3955,7 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
 
 @app.post("/api/order-items/{item_id}/image")
 def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                 current_user=Depends(auth.require_login)):
+                                 current_user=Depends(auth.orders_page_access)):
     from models import OrderItem
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
@@ -3968,7 +3968,7 @@ def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: 
 
 @app.delete("/api/order-items/{item_id}/image")
 def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
-                                 current_user=Depends(auth.require_login)):
+                                 current_user=Depends(auth.orders_page_access)):
     from models import OrderItem
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
@@ -3980,7 +3980,7 @@ def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
 
 @app.post("/api/orders/{order_id}/attachments")
 def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
-                                 current_user=Depends(auth.require_login)):
+                                 current_user=Depends(auth.orders_page_access)):
     from models import OrderAttachment, Order
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
@@ -4005,7 +4005,7 @@ def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), cur
 
 @app.delete("/api/orders/attachments/{attachment_id}")
 def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db),
-                                 current_user=Depends(auth.require_login)):
+                                 current_user=Depends(auth.orders_page_access)):
     from models import OrderAttachment
     att = db.query(OrderAttachment).filter(OrderAttachment.id == attachment_id).first()
     if not att:
