@@ -1470,8 +1470,8 @@ function renderNewPeriodTiersList() {
     <div style="display:flex;gap:8px;align-items:center;background:var(--border2);border-radius:9px;padding:8px">
       <input type="text" placeholder="Sovg'a nomi" value="${(t.name||'').replace(/"/g,'&quot;')}"
         oninput="_newPeriodTiers[${i}].name=this.value" class="input-field" style="flex:1;background:var(--white)">
-      <input type="number" placeholder="Savdo summasi (so'm)" value="${t.amount||''}" min="0"
-        oninput="_newPeriodTiers[${i}].amount=this.value" class="input-field" style="width:180px;background:var(--white)">
+      <input type="text" inputmode="numeric" placeholder="Savdo summasi (so'm)" value="${t.amount ? fmt(t.amount) : ''}"
+        oninput="_newPeriodTiers[${i}].amount=parseNum(this.value); formatPriceInput(this)" class="input-field" style="width:180px;background:var(--white)">
       ${_newPeriodTiers.length > 1 ? `<button class="btn btn-outline btn-sm" onclick="removeNewPeriodTierRow(${i})">✕</button>` : ''}
     </div>
   `).join('');
@@ -1514,7 +1514,7 @@ function renderTierChipsHtml() {
     if (t.id === _editingTierId) {
       return `<span style="display:inline-flex;gap:6px;align-items:center;background:var(--border2);border-radius:8px;padding:4px 8px;margin:2px 6px 2px 0">
         <input type="text" id="tierEditName" value="${t.gift_name.replace(/"/g,'&quot;')}" class="input-field" style="width:110px;padding:5px 8px;font-size:12.5px">
-        <input type="number" id="tierEditAmount" value="${t.threshold_amount}" min="0" class="input-field" style="width:120px;padding:5px 8px;font-size:12.5px">
+        <input type="text" inputmode="numeric" id="tierEditAmount" value="${fmt(t.threshold_amount)}" class="input-field" style="width:120px;padding:5px 8px;font-size:12.5px" oninput="formatPriceInput(this)">
         <button class="btn btn-gold btn-sm" style="padding:4px 9px;font-size:11.5px" onclick="saveTierEdit(${t.id})">✓</button>
         <button class="btn btn-outline btn-sm" style="padding:4px 9px;font-size:11.5px" onclick="cancelEditTier()">✕</button>
       </span>`;
@@ -1538,7 +1538,7 @@ let isSavingTierEdit = false;
 async function saveTierEdit(id) {
   if (isSavingTierEdit) return;
   const name = document.getElementById('tierEditName').value.trim();
-  const amount = parseFloat(document.getElementById('tierEditAmount').value);
+  const amount = parseNum(document.getElementById('tierEditAmount').value);
   if (!name || !amount || amount <= 0) { alert("Nomi va musbat summani kiriting"); return; }
   isSavingTierEdit = true;
   try {
