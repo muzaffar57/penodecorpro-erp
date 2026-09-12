@@ -10,6 +10,8 @@
 
 {% block head %}
 <style>
+@keyframes deadlinePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.deadline-pulse { animation: deadlinePulse 1.6s ease-in-out infinite; }
 .ord-layout{display:grid;grid-template-columns:300px 1fr 280px;gap:12px;align-items:start}
 @media (max-width:1150px){
   .ord-layout{grid-template-columns:260px 1fr 260px}
@@ -195,6 +197,10 @@ input[type=number]{-moz-appearance:textfield}
       <input placeholder="Qidirish..." oninput="searchOrders(this.value)"
              style="padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;font-size:13px;width:100px;outline:none">
     </div>
+    <div id="pinnedOrdersSection" style="display:none;flex-shrink:0;border-bottom:1px solid var(--border2)">
+      <div style="padding:7px 14px;background:var(--gold-tint);font-size:12px;font-weight:700;color:var(--gold-dark)">📌 Pin qilingan (<span id="pinnedCount">0</span> ta)</div>
+      <div id="pinnedOrdersList"></div>
+    </div>
     {% if not show_all %}
     <div style="padding:7px 14px;background:#F8F2EB;font-size:12px;color:#A86B36;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
       <span>📅 So'nggi 90 kunlik (+ tugallanmaganlar)</span>
@@ -239,7 +245,9 @@ input[type=number]{-moz-appearance:textfield}
             {% set debt = o.debt_amount %}
             {% set is_finished = o.status.value in ('ready', 'delivered') %}
             {% set row_bg = 'background:#F0FDF4' if (is_finished and debt <= 0) else ('background:#FEF2F2' if (is_finished and debt > 0) else '') %}
-            <div class="ord-item" style="{{ row_bg }}"
+            {% set urgency = o.deadline_urgency %}
+            {% set urgency_border = 'border-left:3px solid #DC2626' if urgency == 'overdue' else ('border-left:3px solid #F59E0B' if urgency in ('today', 'tomorrow') else '') %}
+            <div class="ord-item" style="{{ row_bg }};{{ urgency_border }}"
                  id="oi-{{ o.id }}" onclick="selectOrder({{ o.id }}, this)"
                  data-num="{{ o.order_number }}"
                  data-client="{{ o.project.client_name if o.project else '—' }}"
@@ -249,15 +257,28 @@ input[type=number]{-moz-appearance:textfield}
                  data-master="{{ o.master.name if o.master else '—' }}"
                  data-date="{{ o.created_at.strftime('%d.%m.%Y') }}"
                  data-project-id="{{ g.project_id }}"
-                 data-order-id="{{ o.id }}">
+                 data-order-id="{{ o.id }}"
+                 data-pinned="{{ 'true' if o.is_pinned else 'false' }}">
               <div style="display:flex;justify-content:space-between;align-items:center">
-                <div class="ord-num">{{ o.order_number }}</div>
+                <div style="display:flex;align-items:center;gap:6px;min-width:0">
+                  <button class="pin-toggle-btn" onclick="event.stopPropagation(); toggleOrderPin({{ o.id }}, this)"
+                          title="{{ 'Pindan olish' if o.is_pinned else 'Pin qilish' }}"
+                          style="border:none;background:transparent;cursor:pointer;padding:2px;font-size:13px;opacity:{{ '1' if o.is_pinned else '0.28' }};flex-shrink:0">📌</button>
+                  <div class="ord-num">{{ o.order_number }}</div>
+                </div>
                 {% if o.status.value == 'draft' %}<span class="badge" style="font-size:9px;background:#F0F0F0;color:#666">📝 Qoralama</span>
                 {% elif o.status.value == 'ready' %}<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>
                 {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>
                 {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
               </div>
               <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.agreed_amount or o.total_amount or 0).replace(",", " ") }} so'm</div>
+              {% if urgency == 'overdue' %}
+              <div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o'tgan!</div>
+              {% elif urgency == 'today' %}
+              <div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Bugun muddati!</div>
+              {% elif urgency == 'tomorrow' %}
+              <div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Ertaga muddati</div>
+              {% endif %}
               {% set dpct = o.delivery_percent %}
               {% if dpct > 0 and dpct < 100 %}
               <div style="margin-top:5px;display:flex;align-items:center;gap:5px">
@@ -694,6 +715,7 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="sum-title">Amallar</div>
         <div style="display:flex;flex-direction:column;gap:7px">
+          <button class="btn btn-outline w-full btn-sm" id="btn-pin" onclick="toggleOrderPin(selectedOrderId)" style="display:none;border-color:var(--gold);color:var(--gold-dark)">📌 Pin qilish</button>
           <button class="btn btn-green w-full btn-sm" id="btn-ready" onclick="markReadySelected()" style="display:none">✓ Tayyor deb belgilash</button>
           <button class="btn btn-outline w-full btn-sm" id="btn-edit" onclick="editSelected()" style="display:none;border-color:#B9783F;color:#B9783F">✏️ Tahrirlash</button>
           <button class="btn btn-outline w-full btn-sm" id="btn-duplicate" onclick="duplicateSelected()" title="Shu buyurtma asosida, loyiha/usta/detallar oldindan to'ldirilgan YANGI buyurtma ochadi (eskisiga tegmaydi)" style="display:none;border-color:#6366F1;color:#6366F1">📋 Nusxa olish (yangi buyurtma)</button>
@@ -1662,6 +1684,8 @@ function selectOrder(id, el) {
   document.getElementById('btn-delete').style.display = 'block';
   const bProfit = document.getElementById('btn-profit');
   if (bProfit) bProfit.style.display = 'block';
+  const bPin = document.getElementById('btn-pin');
+  if (bPin) { bPin.style.display = 'block'; updatePinButtonUI(d.pinned === 'true'); }
 
   // Foyda reset
   const pR = document.getElementById('profitRow');
@@ -2525,9 +2549,20 @@ async function loadPayments(orderId) {
 
     const sDeadline = document.getElementById('s-deadline');
     if (sDeadline) {
-      sDeadline.textContent = order.deadline
-        ? new Date(order.deadline).toLocaleDateString('uz')
-        : '—';
+      const dateStr = order.deadline ? new Date(order.deadline).toLocaleDateString('uz') : '—';
+      // 2026-09-13: muddat yaqinlashsa/o'tsa — rangli (va eng shoshilinch
+      // holatlarda pulslaydigan) ogohlantirish qo'shamiz
+      let suffix = '', color = '', pulse = false;
+      if (order.deadline && !['delivered', 'cancelled'].includes(order.status)) {
+        const todayD = new Date(); todayD.setHours(0,0,0,0);
+        const dlD = new Date(order.deadline); dlD.setHours(0,0,0,0);
+        const daysLeft = Math.round((dlD - todayD) / 86400000);
+        if (daysLeft < 0) { color = '#DC2626'; suffix = " · 🔴 o'tgan!"; pulse = true; }
+        else if (daysLeft === 0) { color = '#D97706'; suffix = ' · ⏰ bugun!'; pulse = true; }
+        else if (daysLeft === 1) { color = '#D97706'; suffix = ' · ⏰ ertaga'; }
+      }
+      sDeadline.innerHTML = dateStr + (suffix
+        ? `<span class="${pulse ? 'deadline-pulse' : ''}" style="color:${color};font-weight:700">${suffix}</span>` : '');
     }
     const sStatus = document.getElementById('s-status');
     if (sStatus) {
@@ -5430,6 +5465,73 @@ async function deleteSelected() {
 }
 
 // ── Qidiruv ───────────────────────────────────────────────
+// ── "📌 Pin qilingan" (2026-09-13) ─────────────────────────
+async function loadPinnedOrders() {
+  try {
+    const rows = await fetch('/api/orders/pinned').then(r => r.json());
+    renderPinnedOrders(rows);
+  } catch(e) {}
+}
+
+function renderPinnedOrders(rows) {
+  const section = document.getElementById('pinnedOrdersSection');
+  const list = document.getElementById('pinnedOrdersList');
+  const countEl = document.getElementById('pinnedCount');
+  if (!rows || !rows.length) { section.style.display = 'none'; list.innerHTML = ''; return; }
+  section.style.display = 'block';
+  countEl.textContent = rows.length;
+  list.innerHTML = rows.map(o => {
+    const badge = o.status === 'draft' ? '<span class="badge" style="font-size:9px;background:#F0F0F0;color:#666">📝 Qoralama</span>'
+      : o.status === 'ready' ? '<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>'
+      : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>'
+      : '<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>';
+    const amount = o.agreed_amount || o.total_amount || 0;
+    const urgencyBorder = o.deadline_urgency === 'overdue' ? 'border-left:3px solid #DC2626'
+      : (o.deadline_urgency === 'today' || o.deadline_urgency === 'tomorrow') ? 'border-left:3px solid #F59E0B' : '';
+    const urgencyText = o.deadline_urgency === 'overdue' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o\'tgan!</div>'
+      : o.deadline_urgency === 'today' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Bugun muddati!</div>'
+      : o.deadline_urgency === 'tomorrow' ? '<div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Ertaga muddati</div>' : '';
+    return `
+      <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)" style="${urgencyBorder}"
+           data-num="${o.order_number}" data-client="${o.client_name}" data-project="${o.project_name}"
+           data-status="${o.status}" data-total="${o.total_amount}" data-master="${o.master_name}"
+           data-date="${o.created_at}" data-project-id="${o.project_id}" data-order-id="${o.id}" data-pinned="true">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;align-items:center;gap:6px;min-width:0">
+            <button class="pin-toggle-btn" onclick="event.stopPropagation(); toggleOrderPin(${o.id}, this)" title="Pindan olish"
+                    style="border:none;background:transparent;cursor:pointer;padding:2px;font-size:13px;opacity:1;flex-shrink:0">📌</button>
+            <div class="ord-num">${o.order_number}</div>
+          </div>
+          ${badge}
+        </div>
+        <div class="ord-date">${o.client_name} · ${formatNum(amount)} so'm${o.deadline ? ' · ⏰ ' + o.deadline : ''}</div>
+        ${urgencyText}
+      </div>`;
+  }).join('');
+}
+
+async function toggleOrderPin(id, btnEl) {
+  try {
+    const res = await fetch(`/api/orders/${id}/pin`, { method: 'POST' });
+    if (!res.ok) return;
+    const r = await res.json();
+    document.querySelectorAll(`.ord-item[data-order-id="${id}"] .pin-toggle-btn`).forEach(b => {
+      b.style.opacity = r.is_pinned ? '1' : '0.28';
+      b.title = r.is_pinned ? 'Pindan olish' : 'Pin qilish';
+    });
+    document.querySelectorAll(`.ord-item[data-order-id="${id}"]`).forEach(el => el.dataset.pinned = r.is_pinned ? 'true' : 'false');
+    if (String(selectedOrderId) === String(id)) updatePinButtonUI(r.is_pinned);
+    loadPinnedOrders();
+  } catch(e) {}
+}
+
+function updatePinButtonUI(isPinned) {
+  const btn = document.getElementById('btn-pin');
+  if (!btn) return;
+  btn.textContent = isPinned ? '📌 Pindan olish' : '📌 Pin qilish';
+  btn.dataset.pinned = isPinned ? 'true' : 'false';
+}
+
 function searchOrders(q) {
   const query = (q || '').trim().toLowerCase();
 
@@ -5467,6 +5569,7 @@ function searchOrders(q) {
 window.addEventListener('load', () => {
   // Sahifa ochilganda HECH QANDAY buyurtma avtomatik tanlanmaydi —
   // hodim o'zi ro'yxatdan bosib tanlaguncha, o'ng va o'rta panel toza turadi.
+  loadPinnedOrders();
 });
 
 // MUHIM: raqam maydonida (masalan "Eni", "Miqdor") turib, sichqoncha
