@@ -3793,6 +3793,23 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None)
     return result
 
 
+def get_deadline_urgency(deadline, status_value: str) -> str:
+    """Topshirish muddatiga qarab holatni qaytaradi: 'overdue' (muddat
+    o'tgan), 'today' (bugun), 'tomorrow' (ertaga), yoki 'normal'.
+    Allaqachon YETKAZILGAN/BEKOR QILINGAN buyurtmalar uchun muddat endi
+    ahamiyatsiz — doim 'normal' qaytariladi (2026-09-13)."""
+    if not deadline or status_value in ("delivered", "cancelled"):
+        return "normal"
+    days_left = (deadline.date() - datetime.utcnow().date()).days
+    if days_left < 0:
+        return "overdue"
+    if days_left == 0:
+        return "today"
+    if days_left == 1:
+        return "tomorrow"
+    return "normal"
+
+
 def toggle_order_pin(db: Session, order_id: int) -> dict:
     """Buyurtmani 'Pin qilingan' ro'yxatiga qo'shadi/olib tashlaydi
     (2026-09-13, muhim buyurtmalarni tepada ko'rsatish uchun)."""
@@ -3823,6 +3840,7 @@ def get_pinned_orders(db: Session) -> list:
             "master_name": o.master.name if o.master else "—",
             "created_at": o.created_at.strftime("%d.%m.%Y") if o.created_at else "—",
             "deadline": o.deadline.strftime("%d.%m.%Y") if o.deadline else None,
+            "deadline_urgency": get_deadline_urgency(o.deadline, o.status.value),
             "project_id": o.project_id,
         })
     return result
