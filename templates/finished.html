@@ -1034,18 +1034,18 @@ function rowHtml(i) {
   ` : `
     <button class="mini-btn" onclick="openSellModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', ${i.unit_price || 0})" title="Sotish" style="color:#16A34A;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>
     ${i.source === 'produced' ? `
-    <button class="mini-btn" onclick="stepFp(${i.id},-1)"
-            title="Brak/singan — xomashyo qaytmaydi"
+    <button class="mini-btn" onclick="openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')"
+            title="Kamaytirish (brak/yo'qotish)"
             style="color:#DC2626">−</button>
     <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1" placeholder="0">
-    <button class="mini-btn" onclick="stepFp(${i.id},1)"
+    <button class="mini-btn" onclick="stepFp(${i.id})"
             title="Qo'shish — xomashyo proporsional yechiladi"
             style="color:#22C55E">+</button>
     ` : ''}
     <button class="mini-btn" onclick="toggleFpMore(event, ${i.id})" title="Yana"><i class="ti ti-dots"></i></button>
     <div class="fp-more" id="fp-more-${i.id}">
       <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
-      <button class="mini-btn" onclick="openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>
+      ${i.source !== 'produced' ? `<button class="mini-btn" onclick="openLossModal(${i.id}, '${i.name.replace(/'/g,"&apos;")}', ${i.quantity}, '${i.unit}', '${i.category || ''}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>` : ''}
       <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
       {% if current_user.role.value == 'admin' %}
       <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
@@ -1141,18 +1141,19 @@ function openHistoryModal(id) {
 }
 function closeHistoryModal(){ document.getElementById('historyModal').style.display = 'none'; }
 
-// ── Ro'yxat harakatlari (mavjud, o'zgarishsiz) ─────────────
-async function stepFp(id, dir) {
+// ── Ro'yxat harakatlari ─────────────
+// Eslatma: "−" (brak/kamaytirish) endi shu yerdan emas — to'g'ridan-to'g'ri
+// openLossModal() ni ochadi (avvalgi "Kamaytirish" shtorka tugmasi bilan
+// BIRLASHTIRILDI: ikkalasi bir xil ishni — brakni qayd etishni — qilardi,
+// lekin faqat "Kamaytirish" tan narxni ham to'g'rilab, Moliyada Brak
+// xarajatiga yozardi. Endi bitta tugma bor va u har doim TO'LIQ ishni
+// bajaradi: miqdor kamayadi, tan narx to'g'rilanadi, Moliyaga yoziladi).
+async function stepFp(id) {
   const el = document.getElementById('fq-' + id);
   const qty = parseFloat(el?.value) || 0;
   const item = fpItems.find(i => i.id === id);
   if (!item || qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
-
-  if (dir > 0) {
-    await addProduction(id, qty, item);
-  } else {
-    await reduceProduction(id, qty, item);
-  }
+  await addProduction(id, qty, item);
 }
 
 async function addProduction(id, qty, item) {
@@ -1200,36 +1201,6 @@ async function addProduction(id, qty, item) {
       const d = r.detail || {};
       showMsg('❌ ' + (d.message || 'Xato') +
         (d.shortages?.length ? '\n' + d.shortages.join('\n') : ''), 'error');
-    }
-  } catch(e) { showMsg('❌ Server xatosi', 'error'); }
-}
-
-async function reduceProduction(id, qty, item) {
-  const lost = qty * (item.unit_price || 0);
-  const txt = `${item.name} — ${qty} ${item.unit} chiqarilsinmi?\n\n` +
-    `⚠️ Bu BRAK/SINGAN deb hisoblanadi:\n` +
-    `• Xomashyo omborga QAYTARILMAYDI\n` +
-    `• Yo'qotilgan qiymat: ${fmt(lost)} so'm\n\n` +
-    `📊 Qoladi: ${(item.quantity - qty).toFixed(1)} ${item.unit}`;
-
-  if (!(await customConfirm(`${item.name} — brak/kamaytirish`, txt, {danger: true, okText: 'Ha, brak'}))) return;
-
-  const reason = prompt('Sabab (ixtiyoriy):\n\nMasalan: singan, brak, yo\'qolgan', '');
-  if (reason === null) return;
-
-  try {
-    const res = await fetch(`/api/finished/${id}/reduce`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({quantity: qty, reason: reason.trim() || null})
-    });
-    const r = await res.json();
-
-    if (res.ok) {
-      loadFp();
-      showMsg(`✓ -${qty} ${r.unit} chiqarildi (brak)\n💸 Yo'qotish: ${fmt(r.lost_value)} so'm`, 'success');
-    } else {
-      showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
     }
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
