@@ -4225,16 +4225,7 @@ async def telegram_webhook(request: Request):
                 # crud.get_master_yearly_cashback() ichida hisobga olinadi.
                 current_year = datetime.now().year
                 info = crud.get_master_yearly_cashback(db, master.id, current_year)
-                buyurtmalar_text = "".join(
-                    f"• {num} — foyda: *{int(foyda):,} so'm*\n" for num, foyda in info["orders"][:10]
-                )
-                reply = f"📊 *Sizning {current_year}-yil sovg'angiz*\n\n👤 {master.name}\n🎯 Sovg'a foizi (sof foydadan): *{master.kpi_percent}%*\n\n━━━━━━━━━━━━━━━━━━━\n"
-                if buyurtmalar_text:
-                    reply += f"📋 *Oxirgi buyurtmalar (foyda bo'yicha):*\n{buyurtmalar_text}\n"
-                reply += f"━━━━━━━━━━━━━━━━━━━\n💰 *Yillik sof foyda: {int(info['yearly_profit']):,} so'm*\n🎁 *Hisoblangan sovg'a: {int(info['jami_bonus']):,} so'm*"
-                if info["gift_period_conversion"] > 0.5:
-                    reply += f"\n   (shundan {int(info['gift_period_conversion']):,} so'm — sovg'a davridan o'tkazilgan)"
-                reply += "\n\n🏗 PenoDecorPro — Andijon"
+                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
