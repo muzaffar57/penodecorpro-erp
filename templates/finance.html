@@ -829,7 +829,7 @@ function buildExpDetail(d){
     const rowsHtml = d.usta_kpi_breakdown.map(b =>
       `<div class="fin-exp-group-row" style="flex-direction:column;align-items:stretch;gap:3px">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${b.master_name}</span>
+          <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${escapeHtml(b.master_name)}</span>
           <span class="fin-exp-group-row-val">${fmtFull(b.kpi_amount)} so'm</span>
         </div>
         <div style="font-size:11.5px;color:var(--f-text3);padding-left:1px">${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)}</div>

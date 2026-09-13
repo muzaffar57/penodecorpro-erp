@@ -485,7 +485,7 @@ async function loadHistoryForSupplier(page){
       const zebraBg = idx % 2 === 0 ? 'transparent' : 'var(--r-bg)';
       return `<tr style="background:${zebraBg}">
         <td style="font-weight:600;color:var(--r-text)">${dt.toLocaleDateString('uz')}</td>
-        <td style="font-weight:600;color:var(--r-text)">${p.item_name}${p.is_credit?' <span style="color:#F59E0B;font-size:11px;font-weight:600">(nasiya)</span>':''}</td>
+        <td style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.is_credit?' <span style="color:#F59E0B;font-size:11px;font-weight:600">(nasiya)</span>':''}</td>
         <td style="font-weight:600">${p.quantity} ${p.unit}</td>
         <td style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>
         <td style="text-align:right;font-weight:800;color:var(--r-text)">${fmt(p.total_amount)} so'm</td>
@@ -601,7 +601,7 @@ function renderInvDropdown(){
     return (ia===-1?99:ia)-(ib===-1?99:ib);
   });
   sel.innerHTML = sortedCats.map(cat => {
-    const opts = groups[cat].map(i => `<option value="${i.id}" data-unit="${i.unit}">${i.item_name} (${i.unit})</option>`).join('');
+    const opts = groups[cat].map(i => `<option value="${i.id}" data-unit="${i.unit}">${escapeHtml(i.item_name)} (${i.unit})</option>`).join('');
     return `<optgroup label="${cat}">${opts}</optgroup>`;
   }).join('');
 

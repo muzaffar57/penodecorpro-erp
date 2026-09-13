@@ -399,7 +399,7 @@ async function loadInvItemsForAp() {
 
     sel.innerHTML = sortedCats.map(cat => {
       const opts = groups[cat].map(i =>
-        `<option value="${i.id}" data-unit="${i.unit}">${i.item_name} (${i.unit})</option>`
+        `<option value="${i.id}" data-unit="${i.unit}">${escapeHtml(i.item_name)} (${i.unit})</option>`
       ).join('');
       return `<optgroup label="${cat}">${opts}</optgroup>`;
     }).join('');
@@ -720,7 +720,7 @@ async function openHistory(id, keepFilter, page){
           return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5">
             <div>
-              <div style="font-size:12.5px;font-weight:600;color:var(--text)">${p.item_name} ${p.is_credit ? '<span style="color:#F59E0B;font-size:10px">(nasiya)</span>' : ''}</div>
+              <div style="font-size:12.5px;font-weight:600;color:var(--text)">${escapeHtml(p.item_name)} ${p.is_credit ? '<span style="color:#F59E0B;font-size:10px">(nasiya)</span>' : ''}</div>
               <div style="font-size:11px;color:#aaa">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}</div>
             </div>
             <div style="display:flex;align-items:center;gap:6px">

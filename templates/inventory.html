@@ -759,12 +759,12 @@ async function openPurchaseHistory() {
       const dt = new Date(e.latest);
       const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
       const total = e.items.reduce((s, p) => s + p.total_amount, 0);
-      const namesPreview = e.items.slice(0, 3).map(p => p.item_name).join(', ') + (e.items.length > 3 ? '…' : '');
+      const namesPreview = escapeHtml(e.items.slice(0, 3).map(p => p.item_name).join(', ') + (e.items.length > 3 ? '…' : ''));
       return `
       <div class="mv-order-row" onclick="openPhDrawer('${e.receiptId}')" style="margin:8px 0">
         <div style="min-width:0">
           <div class="mv-order-num">📦 Kirim #${e.receiptId} <span style="font-weight:400;color:var(--text3);font-size:12.5px">· ${namesPreview}</span></div>
-          <div class="mv-order-meta">${ds}${e.items[0].purchased_by ? ' · '+e.items[0].purchased_by : ''}</div>
+          <div class="mv-order-meta">${ds}${e.items[0].purchased_by ? ' · '+escapeHtml(e.items[0].purchased_by) : ''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:10px">
           <div class="mv-order-count">${e.items.length} ta material →</div>

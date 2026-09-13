@@ -150,8 +150,8 @@ async function runHealthCheck() {
       </div>`;
       d.issues.forEach(issue => {
         html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${issue.label || ('#' + issue.id)} <span style="color:var(--text3);font-weight:400">(${issue.table}.${issue.column})</span></div>
-          <div style="font-size:12.5px;color:#DC2626;margin-top:4px">Noto'g'ri qiymat: <code style="background:#FEF2F2;padding:2px 6px;border-radius:4px">${issue.bad_value}</code></div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${issue.label ? escapeHtml(issue.label) : ('#' + issue.id)} <span style="color:var(--text3);font-weight:400">(${issue.table}.${issue.column})</span></div>
+          <div style="font-size:12.5px;color:#DC2626;margin-top:4px">Noto'g'ri qiymat: <code style="background:#FEF2F2;padding:2px 6px;border-radius:4px">${escapeHtml(issue.bad_value)}</code></div>
           <div style="font-size:11.5px;color:var(--text3);margin-top:4px">To'g'ri qiymatlar: ${issue.valid_names.join(', ')}</div>
         </div>`;
       });
@@ -191,8 +191,8 @@ async function runHealthCheck() {
         </div>`;
         fin.issues.forEach(iss => {
           html += `<div style="border:1px solid var(--border2);border-radius:10px;padding:14px 16px;margin-bottom:10px">
-            <div style="font-size:13px;font-weight:600;color:var(--text)">${iss.label} <span style="color:var(--text3);font-weight:400">(${TYPE_LABEL[iss.type] || iss.type})</span></div>
-            <div style="font-size:12.5px;color:#DC2626;margin-top:4px">${iss.detail}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(iss.label)} <span style="color:var(--text3);font-weight:400">(${TYPE_LABEL[iss.type] || iss.type})</span></div>
+            <div style="font-size:12.5px;color:#DC2626;margin-top:4px">${escapeHtml(iss.detail)}</div>
           </div>`;
         });
       }

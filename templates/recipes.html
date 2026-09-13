@@ -357,7 +357,7 @@ async function renderIngredientPickerList(prefix) {
     const rows = groups[cat].map(i => `
       <div class="recp-picker-item" onclick="selectIngredientFromPicker('${prefix}', ${i.id})">
         <div class="recp-picker-item-icon" style="background:${st.bg};color:${st.fg}"><i class="ti ${st.icon}"></i></div>
-        ${i.item_name}
+        ${escapeHtml(i.item_name)}
       </div>`).join('');
     return `<div class="recp-picker-cat" style="color:${st.fg}">${st.groupLabel}</div>${rows}`;
   }).join('');

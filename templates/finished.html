@@ -1178,7 +1178,7 @@ let _gipsInvCacheFp = null;
 function addGpAdditive() {
   const list = document.getElementById('gp-additives-list');
   if (!list) return;
-  const opts = (_gipsInvCacheFp || []).map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
+  const opts = (_gipsInvCacheFp || []).map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'gp-add-row';
   row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
@@ -1242,7 +1242,7 @@ async function openGipsProduceModal() {
     } catch(e) { _gipsInvCacheFp = []; }
   }
   sel.innerHTML = '<option value="">— Tanlanmadi —</option>' +
-    _gipsInvCacheFp.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
+    _gipsInvCacheFp.map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`).join('');
 
   document.getElementById('gipsProduceModal').style.display = 'flex';
 }
@@ -1332,7 +1332,7 @@ async function addLossGpAdditive() {
   }
   const list = document.getElementById('loss-gp-additives-list');
   if (!list) return;
-  const opts = (_gipsInvCacheFp || []).map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
+  const opts = (_gipsInvCacheFp || []).map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'loss-gp-add-row';
   row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
@@ -1507,7 +1507,7 @@ function openBatchSellModal() {
     const it = _batchItems[id];
     return `
       <div class="batch-item-row" data-id="${id}" style="border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px">
-        <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:8px">${it.name}</div>
+        <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:8px">${escapeHtml(it.name)}</div>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1">
             <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">Kerakli miqdor</div>
@@ -1772,7 +1772,7 @@ async function openTermoModal() {
 
   try {
     termoInventory = await fetch('/api/inventory').then(r => r.json());
-    const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
+    const opts = i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`;
 
     // MUHIM: ro'yxat endi NOMIGA qarab cheklanmaydi — istalgan nomdagi
     // xomashyoni tanlash mumkin (masalan boshqa til/brend nomi bilan
@@ -2399,7 +2399,7 @@ async function openProfitModal(id) {
     document.getElementById('pm-body').innerHTML = `
       <div style="background:#FCE7F3;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#9D174D;line-height:1.8">
         🧱 ${gipsKg > 0 ? `Sarflangan Gips: <b>${gipsKg} kg</b>` : 'Gips miqdori kiritilmagan'}
-        ${i.created_by ? `<br>👤 ${i.created_by}` : ''}
+        ${i.created_by ? `<br>👤 ${escapeHtml(i.created_by)}` : ''}
       </div>
 
       <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
@@ -2445,7 +2445,7 @@ async function openProfitModal(id) {
       📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}<br>
       ${i.category !== 'termopanel' ? `📦 Hajm: <b>${(i.volume_m3 || 0).toFixed(4)} m³</b>` : `🧱 Bazalt: <b>${bazaltPanels.toFixed(2)} dona</b>`}
       ${i.actual_loy_kg > 0 ? `· 🧱 Loy: <b>${i.actual_loy_kg} kg</b>${recipeName ? ` (${recipeName})` : ''}` : ''}
-      ${i.created_by ? `<br>👤 ${i.created_by}` : ''}
+      ${i.created_by ? `<br>👤 ${escapeHtml(i.created_by)}` : ''}
     </div>
 
     <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>

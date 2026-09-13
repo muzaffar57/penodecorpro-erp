@@ -1730,7 +1730,7 @@ function selectOrder(id, el) {
       ac.style.display = 'block';
       ab.innerHTML = d.warnings.slice(0,3).map(w=>`
         <div style="display:flex;justify-content:space-between;font-size:14px;padding:5px 0;border-bottom:1px solid #f5f5f5">
-          <span style="color:#555">${w.item_name}</span>
+          <span style="color:#555">${escapeHtml(w.item_name)}</span>
           <span style="color:#EF4444;font-weight:500">${(parseFloat(w.stock_quantity)||0).toFixed(2).replace(/\.?0+$/,'')} ${w.unit}</span>
         </div>`).join('');
     } else {
@@ -1960,7 +1960,7 @@ function renderDeliveryHistory(showAll) {
       hist.innerHTML = shown.map(dl => {
         const dt = new Date(dl.delivered_at);
         const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
-        const items = dl.items.map(i => `${i.item_name}: <b>${i.quantity}${i.unit==='metr'?'m':' ta'}</b>`).join(' · ');
+        const items = dl.items.map(i => `${escapeHtml(i.item_name)}: <b>${i.quantity}${i.unit==='metr'?'m':' ta'}</b>`).join(' · ');
         return `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f0f0f0;gap:8px">
           <div style="flex:1;min-width:0">
@@ -2027,7 +2027,7 @@ function openSummaryModal() {
     const dt = new Date(d.delivered_at);
     const ds = dt.toLocaleDateString('uz');
     const items = d.items.map(i =>
-      `${i.item_name} — ${i.quantity}${i.unit==='metr'?'m':' ta'}`).join(' · ');
+      `${escapeHtml(i.item_name)} — ${i.quantity}${i.unit==='metr'?'m':' ta'}`).join(' · ');
     return `
     <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">
       <input type="checkbox" class="sum-chk" value="${d.id}" data-sum="${d.total_sum || 0}"
@@ -2037,7 +2037,7 @@ function openSummaryModal() {
         <div style="display:flex;align-items:center;gap:7px">
           <span style="font-size:13px;font-weight:700;color:#B9783F">${d.short_number}</span>
           <span style="font-size:13px;color:#888">${ds}</span>
-          ${d.received_by ? `<span style="font-size:12px;color:#aaa">· ${d.received_by}</span>` : ''}
+          ${d.received_by ? `<span style="font-size:12px;color:#aaa">· ${escapeHtml(d.received_by)}</span>` : ''}
         </div>
         <div style="font-size:13px;color:#666;margin-top:3px;line-height:1.5">${items}</div>
       </div>
@@ -2397,7 +2397,7 @@ async function loadGipsInventoryOptions() {
   // bog'liq inson omili; agar u boshqacha nomlansa/kategoriyalansa, ro'yxat
   // butunlay bo'sh chiqib, Gips buyurtmasini yaratib bo'lmay qolar edi.
   const sorted = [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
-  const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
+  const opts = i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`;
   const emptyMsg = sorted.length ? '' : '<option value="" disabled>Omborda xomashyo yo\'q — avval kirim qiling</option>';
 
   const mainSel = document.getElementById('gips_inventory_id');
@@ -2420,7 +2420,7 @@ function addGipsAdditive(prefillId, prefillQty) {
   if (!list) return;
   // Bosh Gips tanlovi bilan bir xil — endi kategoriyaga qarab CHEKLANMAYDI.
   const sorted = gipsInvCache ? [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name)) : [];
-  const opts = sorted.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
+  const opts = sorted.map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'gips-add-row';
   row.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-bottom:8px';
@@ -3446,7 +3446,7 @@ async function loadTermoInventoryFor(row) {
     try { termoInvCache = await fetch('/api/inventory').then(r => r.json()); }
     catch(e) { termoInvCache = []; }
   }
-  const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
+  const opts = i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`;
 
   // MUHIM: ro'yxatlar endi nomga qarab CHEKLANMAYDI — butun ombordan
   // istalgan nomdagi materialni tanlash mumkin. Qulaylik uchun, agar
