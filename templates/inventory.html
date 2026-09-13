@@ -79,12 +79,12 @@
 <div style="padding:14px;height:calc(100vh - 58px);overflow-y:auto">
 
   <div class="inv-kpi-grid">
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-boxes"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">{{ kpi.total_items }} tur</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#DBEAFE;color:#1D4ED8"><i class="ti ti-packages"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">{{ kpi.total_items }} tur</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
     {% if current_user.role.value != 'manager' %}
-    <div class="stat-card"><div class="stat-icon"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ "%.1f"|format(kpi.total_value/1000000) }} mln</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#EDE9FE;color:#6D28D9"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ "%.1f"|format(kpi.total_value/1000000) }} mln</div></div>
     {% endif %}
   </div>
 
@@ -694,7 +694,7 @@ async function openPurchaseHistory() {
     if (stats.by_material.length) {
       byMat.innerHTML = stats.by_material.map(m =>
         `<div style="display:flex;justify-content:space-between">
-          <span>${m.name} (${m.quantity}${m.unit ? ' '+m.unit : ''})</span>
+          <span>${escapeHtml(m.name)} (${m.quantity}${m.unit ? ' '+m.unit : ''})</span>
           <span style="font-weight:600">${fmt(m.total)} so'm</span>
         </div>`).join('');
     } else {
@@ -738,16 +738,16 @@ async function openPurchaseHistory() {
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
           <div>
-            <div style="font-size:13px;font-weight:600;color:var(--text)">${p.item_name}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.item_name)}</div>
             <div style="font-size:13px;color:var(--text3);margin-top:2px">
               ${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}
-              ${p.purchased_by ? ' · '+p.purchased_by : ''}
-              ${p.notes ? ' · '+p.notes : ''}
+              ${p.purchased_by ? ' · '+escapeHtml(p.purchased_by) : ''}
+              ${p.notes ? ' · '+escapeHtml(p.notes) : ''}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <div style="font-size:13px;font-weight:700;color:#22C55E;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
-            <button onclick="deletePurchase(${p.id}, '${(p.item_name||'').replace(/'/g,"\\'")}', ${p.quantity})"
+            <button onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
                     title="Bu xaridni bekor qilish (ombordan ham, puldan ham)"
                     style="width:30px;height:30px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:7px;cursor:pointer;flex-shrink:0">
               <i class="ti ti-trash"></i>
@@ -759,12 +759,12 @@ async function openPurchaseHistory() {
       const dt = new Date(e.latest);
       const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
       const total = e.items.reduce((s, p) => s + p.total_amount, 0);
-      const namesPreview = e.items.slice(0, 3).map(p => p.item_name).join(', ') + (e.items.length > 3 ? '…' : '');
+      const namesPreview = escapeHtml(e.items.slice(0, 3).map(p => p.item_name).join(', ') + (e.items.length > 3 ? '…' : ''));
       return `
       <div class="mv-order-row" onclick="openPhDrawer('${e.receiptId}')" style="margin:8px 0">
         <div style="min-width:0">
           <div class="mv-order-num">📦 Kirim #${e.receiptId} <span style="font-weight:400;color:var(--text3);font-size:12.5px">· ${namesPreview}</span></div>
-          <div class="mv-order-meta">${ds}${e.items[0].purchased_by ? ' · '+e.items[0].purchased_by : ''}</div>
+          <div class="mv-order-meta">${ds}${e.items[0].purchased_by ? ' · '+escapeHtml(e.items[0].purchased_by) : ''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:10px">
           <div class="mv-order-count">${e.items.length} ta material →</div>
@@ -790,12 +790,12 @@ function openPhDrawer(receiptId) {
     return `
     <div class="mv-row">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:500;color:var(--text)">${p.item_name}</div>
-        <div style="font-size:13px;color:var(--text3);margin-top:2px">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}${p.purchased_by ? ' · '+p.purchased_by : ''}</div>
+        <div style="font-weight:500;color:var(--text)">${escapeHtml(p.item_name)}</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:2px">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}${p.purchased_by ? ' · '+escapeHtml(p.purchased_by) : ''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:10px">
         <div style="font-weight:700;color:#22C55E">${fmt(p.total_amount)} so'm</div>
-        <button onclick="deletePurchase(${p.id}, '${(p.item_name||'').replace(/'/g,"\\'")}', ${p.quantity})"
+        <button onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
                 title="Bu xaridni bekor qilish" style="margin-top:4px;width:26px;height:26px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:6px;cursor:pointer">
           <i class="ti ti-trash" style="font-size:12px"></i>
         </button>
@@ -876,7 +876,7 @@ async function loadMovements(type) {
     });
     const summaryHtml = Object.values(totals).map(t => `
       <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px">
-        <span style="color:var(--text2)">${t.name}</span>
+        <span style="color:var(--text2)">${escapeHtml(t.name)}</span>
         <span>${t.out > 0 ? `<span style="color:#991B1B">−${t.out.toFixed(2)}</span>` : ''}${t.out > 0 && t.in > 0 ? ' · ' : ''}${t.in > 0 ? `<span style="color:#166534">+${t.in.toFixed(2)}</span>` : ''} ${t.unit}</span>
       </div>`).join('');
     const summaryBlock = (document.getElementById('mv-date-from').value || document.getElementById('mv-date-to').value)
@@ -959,8 +959,8 @@ function mvRowHtml(m) {
   return `
   <div class="mv-row">
     <div style="flex:1;min-width:0">
-      <div style="font-weight:500;color:var(--text)">${m.item_name}</div>
-      <div style="font-size:13px;color:var(--text3);margin-top:2px">${ds}${m.reason ? ' · '+m.reason : ''}${m.performed_by ? ' · '+m.performed_by : ''}</div>
+      <div style="font-weight:500;color:var(--text)">${escapeHtml(m.item_name)}</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:2px">${ds}${m.reason ? ' · '+escapeHtml(m.reason) : ''}${m.performed_by ? ' · '+escapeHtml(m.performed_by) : ''}</div>
     </div>
     <div style="text-align:right;flex-shrink:0;margin-left:10px">
       <span class="mv-badge ${m.movement_type}">${m.movement_type === 'in' ? 'Kirim' : 'Chiqim'}</span>

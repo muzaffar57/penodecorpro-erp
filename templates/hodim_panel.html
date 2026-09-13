@@ -70,6 +70,18 @@
   </div>
 
 <script>
+// Bu sahifa base.html'ga bog'lanmagan (alohida, mustaqil sahifa), shuning
+// uchun escapeHtml() shu yerda alohida e'lon qilinadi (2026-09-13,
+// xavfsizlik tekshiruvi — izoh maydoni himoyasi uchun).
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 function parseNum(v) {
   return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
 }
@@ -128,7 +140,7 @@ async function loadMyRequests(){
       <div class="req-row">
         <div>
           <div class="req-amount">${fmt(r.amount)} so'm</div>
-          <div class="req-date">${new Date(r.requested_date).toLocaleDateString('uz')}${r.notes ? ' · ' + r.notes : ''}</div>
+          <div class="req-date">${new Date(r.requested_date).toLocaleDateString('uz')}${r.notes ? ' · ' + escapeHtml(r.notes) : ''}</div>
         </div>
         <div class="req-status ${statusClass[r.status]}">${statusLabel[r.status]}</div>
       </div>`).join('');

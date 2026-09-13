@@ -546,8 +546,13 @@ async function loadCashBalance(){
     const d = await fetch('/api/finance/cash-balance').then(r=>r.json());
     const el = document.getElementById('cash-balance-val');
     if (el) {
-      el.textContent = fmtCash(d.balance) + " so'm";
-      el.style.color = d.balance >= 0 ? '#fff' : '#FCA5A5';
+      const isNegative = d.balance < 0;
+      // 2026-09-13: avval manfiy balans juda yumshoq (#FCA5A5) rangda edi —
+      // bu raqam butun ilovadagi eng jiddiy ko'rsatkichlardan biri bo'lgani
+      // uchun, endi ilovaning standart "xavfli" rangida (--red) va ⚠️
+      // belgisi bilan chiqadi.
+      el.textContent = (isNegative ? '⚠️ ' : '') + fmtCash(d.balance) + " so'm";
+      el.style.color = isNegative ? '#EF4444' : '#fff';
     }
   } catch(e) { console.error(e); }
 }
@@ -578,7 +583,7 @@ async function loadCashTxHistory(){
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--f-border);font-size:13px">
         <div>
           <div style="font-weight:600">${labels[r.category] || r.category}</div>
-          <div style="color:var(--f-text3);font-size:11.5px;margin-top:2px">${dt}${r.performed_by ? ' · ' + r.performed_by : ''}${r.notes ? ' · ' + r.notes : ''}</div>
+          <div style="color:var(--f-text3);font-size:11.5px;margin-top:2px">${dt}${r.performed_by ? ' · ' + escapeHtml(r.performed_by) : ''}${r.notes ? ' · ' + escapeHtml(r.notes) : ''}</div>
         </div>
         <div style="font-weight:700;color:${color};white-space:nowrap">${sign}${fmtFull(r.amount)} so'm</div>
       </div>`;
@@ -771,7 +776,7 @@ function buildCashSection(d){
     box.innerHTML = '<div style="font-weight:600;color:var(--f-text2);margin-bottom:4px">Material bo\'yicha:</div>' +
       d.xomashyo_by_material.map(m =>
         `<div style="display:flex;justify-content:space-between;padding:2px 0">
-          <span>${m.name} (${m.quantity}${m.unit?' '+m.unit:''})</span>
+          <span>${escapeHtml(m.name)} (${m.quantity}${m.unit?' '+m.unit:''})</span>
           <span style="font-weight:600">${fmtFull(m.total)} so'm</span>
         </div>`).join('');
   } else {
@@ -824,7 +829,7 @@ function buildExpDetail(d){
     const rowsHtml = d.usta_kpi_breakdown.map(b =>
       `<div class="fin-exp-group-row" style="flex-direction:column;align-items:stretch;gap:3px">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${b.master_name}</span>
+          <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${escapeHtml(b.master_name)}</span>
           <span class="fin-exp-group-row-val">${fmtFull(b.kpi_amount)} so'm</span>
         </div>
         <div style="font-size:11.5px;color:var(--f-text3);padding-left:1px">${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)}</div>
@@ -839,10 +844,10 @@ function buildExpDetail(d){
     const rowsHtml = d.hodimlar_moslashuvchan_breakdown.map(b => {
       const isPaid = (b.qolgan !== undefined) && b.qolgan <= 0.5;
       const paidBadge = isPaid ? '<span style="font-size:10px;font-weight:700;color:#22C55E;background:#F0FDF4;padding:1px 7px;border-radius:10px;margin-left:6px;white-space:nowrap">✓ To\'landi</span>' : '';
-      const posBadge = b.position ? `<span style="font-size:10.5px;font-weight:600;color:var(--f-text3);background:var(--f-bg);padding:1px 8px;border-radius:10px;margin-left:6px">${b.position}</span>` : '';
+      const posBadge = b.position ? `<span style="font-size:10.5px;font-weight:600;color:var(--f-text3);background:var(--f-bg);padding:1px 8px;border-radius:10px;margin-left:6px">${escapeHtml(b.position)}</span>` : '';
       return `<div class="fin-exp-group-row" style="flex-direction:column;align-items:stretch;gap:3px">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${b.name}${posBadge}${paidBadge}</span>
+          <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${escapeHtml(b.name)}${posBadge}${paidBadge}</span>
           <span class="fin-exp-group-row-val">${fmtFull(b.amount)} so'm</span>
         </div>
         <div style="font-size:11.5px;color:var(--f-text3);padding-left:1px">${b.detail}</div>
@@ -1004,8 +1009,8 @@ async function loadDailyTransactions(){
         <td>${dt.toLocaleDateString('uz')}</td>
         <td><span class="fin-cat-badge">${icon} ${CAT_LABELS[t.category] || t.category}</span></td>
         <td style="font-weight:700;color:var(--f-danger)">${fmtFull(t.amount)} so'm</td>
-        <td style="color:var(--f-text3)">${t.notes || '—'}</td>
-        <td style="color:var(--f-text3)">${t.created_by || '—'}</td>
+        <td style="color:var(--f-text3)">${t.notes ? escapeHtml(t.notes) : '—'}</td>
+        <td style="color:var(--f-text3)">${t.created_by ? escapeHtml(t.created_by) : '—'}</td>
         <td style="color:var(--f-text3);font-size:12.5px">${SOURCE_LABELS[t.source] || t.source}</td>
         <td class="no-print" style="text-align:right"><button class="fin-row-action" onclick="deleteTx(${t.id})" title="O'chirish"><i class="ti ti-trash" style="font-size:13px"></i></button></td>
       </tr>`;

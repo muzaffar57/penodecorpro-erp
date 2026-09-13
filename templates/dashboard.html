@@ -118,7 +118,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><h3>Ogohlantirishlar</h3></div>
+      <div class="card-head"><h3>🏗 Ombor ogohlantirishlari</h3></div>
       <div class="card-body" id="warnList" style="padding:8px 16px">
         <div style="text-align:center;padding:12px;color:#bbb;font-size:12px">Yuklanmoqda…</div>
       </div>
@@ -506,7 +506,7 @@ async function loadTopProducts(){
     if(!rows.length){document.getElementById('topProducts').innerHTML='<div style="text-align:center;padding:16px;color:#bbb;font-size:12px">Ma\'lumot yo\'q</div>';return;}
     document.getElementById('topProducts').innerHTML = rows.map(r=>`
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border2);font-size:12.5px">
-        <span style="color:var(--text)">${r.name}</span><span style="font-weight:600;color:var(--gold-dark)">${fmt(r.revenue)}</span>
+        <span style="color:var(--text)">${escapeHtml(r.name)}</span><span style="font-weight:600;color:var(--gold-dark)">${fmt(r.revenue)}</span>
       </div>`).join('');
   }catch(e){}
 }
@@ -539,7 +539,7 @@ function buildStageList(statuses){
     const count=statuses[st.key]||0;
     const pct=Math.round(count/total*100);
     return `<div class="stock-row">
-      <div class="stock-head"><span class="stock-name">${st.label}</span><span class="stock-qty" style="color:${st.color}">${count} ta</span></div>
+      <div class="stock-head"><span class="stock-name">${escapeHtml(st.label)}</span><span class="stock-qty" style="color:${st.color}">${count} ta</span></div>
       <div class="stock-bar"><div class="stock-bar-fill" style="width:${pct}%;background:${st.color}"></div></div>
     </div>`;
   }).join('');
@@ -549,13 +549,13 @@ function buildWarnList(lowStockItems){
   const el=document.getElementById('warnList');
   const items=(lowStockItems||[]).slice(0,4);
   if(!items.length){
-    el.innerHTML='<div style="text-align:center;padding:12px;color:#22C55E;font-size:12px;font-weight:500">✓ Ogohlantirish yo\'q</div>';
+    el.innerHTML='<div style="text-align:center;padding:12px;color:#22C55E;font-size:12px;font-weight:500">✓ Ombor holati yaxshi</div>';
     return;
   }
   el.innerHTML=items.map(item=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border2)">
       <div>
-        <div style="font-size:12.5px;font-weight:500;color:var(--text)">${item.item_name}</div>
+        <div style="font-size:12.5px;font-weight:500;color:var(--text)">${escapeHtml(item.item_name)}</div>
         <div style="font-size:12.5px;color:var(--text3)">Kam qoldi</div>
       </div>
       <span class="badge badge-danger">${item.stock_quantity} ${item.unit}</span>
@@ -667,7 +667,7 @@ async function loadPurchaseStats(){
         return `
         <div style="padding:8px 16px;border-bottom:1px solid #f5f5f5">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${m.name}</span>
+            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${escapeHtml(m.name)}</span>
             <span style="font-size:13px;font-weight:700;color:#A86B36">${fmt(m.total)} so'm</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
@@ -710,7 +710,7 @@ async function loadDeliveryStats(){
             <span style="font-size:13px;font-weight:600;color:#1a1a1a">${o.order_number}</span>
             <span style="font-size:12px;background:#FEF3C7;color:#b7770d;padding:2px 6px;border-radius:8px;font-weight:600">${o.items_pending} ta detal qoldi</span>
           </div>
-          <div style="font-size:13px;color:#888;margin-top:2px">${o.client_name}</div>
+          <div style="font-size:13px;color:#888;margin-top:2px">${escapeHtml(o.client_name)}</div>
           <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
             <div style="height:100%;width:${o.percent}%;background:#F59E0B;border-radius:2px"></div>
           </div>
@@ -753,7 +753,7 @@ function buildDebtList(debts){
           <span style="font-size:12px;color:${s[2]};font-weight:600">${s[0]} ${s[1]}</span>
           ${d.is_overdue?'<span style="font-size:11px;background:#FEE2E2;color:#DC2626;padding:2px 6px;border-radius:8px;font-weight:600">'+d.days_passed+' kun</span>':''}
         </div>
-        <div style="font-size:13px;color:#888;margin-top:2px">${d.client_name} · ${d.project_name}</div>
+        <div style="font-size:13px;color:#888;margin-top:2px">${escapeHtml(d.client_name)} · ${escapeHtml(d.project_name)}</div>
         <div style="margin-top:5px;height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
           <div style="height:100%;width:${pct}%;background:${s[2]};border-radius:2px"></div>
         </div>
@@ -816,7 +816,7 @@ function buildMasterList(masters){
   el.innerHTML=masters.map((m,i)=>`
     <div class="master-item">
       <div class="master-rank ${i===0?'top':''}">${i+1}</div>
-      <div style="flex:1"><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:13px;color:#aaa">${m.orders} ta buyurtma</div></div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:500">${escapeHtml(m.name)}</div><div style="font-size:13px;color:#aaa">${m.orders} ta buyurtma</div></div>
       <div style="font-size:13px;font-weight:600;color:#22C55E">${fmt(m.total)} so'm</div>
     </div>`).join('');
 }
@@ -839,17 +839,17 @@ async function loadObligationsWidget(){
     const items = [];
     (status.recurring || []).forEach(r => {
       const dayInfo = r.status === 'overdue' ? `${r.due_day}-kunidan kechikdi!` : `har oy ${r.due_day}-kunigacha`;
-      items.push({group: 'recurring', icon: r.icon, label: `${r.label} (${dayInfo})`, amount: r.debt, status: r.status});
+      items.push({group: 'recurring', icon: r.icon, label: `${escapeHtml(r.label)} (${dayInfo})`, amount: r.debt, status: r.status});
     });
-    (status.employees || []).forEach(e => items.push({group: 'employee', name: e.name, label: e.name + ' ish haqi', amount: e.qolgan, status: e.status}));
+    (status.employees || []).forEach(e => items.push({group: 'employee', name: e.name, label: escapeHtml(e.name) + ' ish haqi', amount: e.qolgan, status: e.status}));
     (suppliers || []).filter(s => s.debt > 0).forEach(s => {
       const due = dueBySupplier[s.id];
       if (due) {
         const dateStr = new Date(due.due_date).toLocaleDateString('uz');
         const dayInfo = due.days_left < 0 ? `${Math.abs(due.days_left)} kun kechikdi!` : (due.days_left === 0 ? 'bugun muddati!' : `${due.days_left} kun qoldi`);
-        items.push({group: 'supplier', icon: '🚚', label: `${s.name} — ${dateStr} gacha (${dayInfo})`, amount: s.debt, status: due.status === 'overdue' ? 'overdue' : (due.status === 'due_soon' ? 'due_soon' : 'partial')});
+        items.push({group: 'supplier', icon: '🚚', label: `${escapeHtml(s.name)} — ${dateStr} gacha (${dayInfo})`, amount: s.debt, status: due.status === 'overdue' ? 'overdue' : (due.status === 'due_soon' ? 'due_soon' : 'partial')});
       } else {
-        items.push({group: 'supplier', icon: '🚚', label: s.name, amount: s.debt, status: 'partial'});
+        items.push({group: 'supplier', icon: '🚚', label: escapeHtml(s.name), amount: s.debt, status: 'partial'});
       }
     });
 
@@ -916,7 +916,7 @@ async function checkPendingAdvanceRequests(){
           </div>
           <div style="font-weight:800;font-size:16px;color:#D97706">${fmt(r.amount)} so'm</div>
         </div>
-        ${r.notes ? `<div style="font-size:12.5px;color:#999;margin-bottom:10px">💬 ${r.notes}</div>` : ''}
+        ${r.notes ? `<div style="font-size:12.5px;color:#999;margin-bottom:10px">💬 ${escapeHtml(r.notes)}</div>` : ''}
         <div style="display:flex;gap:8px">
           <button class="btn btn-dark" style="flex:1;height:38px;font-size:13px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
           <button class="btn btn-outline" style="flex:1;height:38px;font-size:13px;color:#DC2626;border-color:#FADBD8" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>

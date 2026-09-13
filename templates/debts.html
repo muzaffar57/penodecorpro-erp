@@ -413,7 +413,7 @@ function renderTimeline(rows){
   el.innerHTML = rows.map(r => {
     const d = new Date(r.date);
     return `<div class="tl-row">
-      <div><div style="font-weight:500">${d.toLocaleDateString('uz')}</div><div style="font-size:11.5px;color:#9CA3AF">${r.notes||''} ${r.created_by?'· '+r.created_by:''}</div></div>
+      <div><div style="font-weight:500">${d.toLocaleDateString('uz')}</div><div style="font-size:11.5px;color:#9CA3AF">${escapeHtml(r.notes||'')} ${r.created_by?'· '+escapeHtml(r.created_by):''}</div></div>
       <div style="font-weight:700;color:#22C55E">${fmt(r.amount)} so'm</div>
     </div>`;
   }).join('');

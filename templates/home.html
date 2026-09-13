@@ -211,7 +211,7 @@ fetch('/api/dashboard/stats').then(r => r.json()).then(s => {
       const color = pct < 40 ? '#EF4444' : '#F59E0B';
       return `<div class="stock-row">
         <div class="stock-head">
-          <span class="stock-name">${item.item_name}</span>
+          <span class="stock-name">${escapeHtml(item.item_name)}</span>
           <span class="stock-qty" style="color:${color}">${item.stock_quantity} ${item.unit}</span>
         </div>
         <div class="stock-bar"><div class="stock-bar-fill" style="width:${pct}%;background:${color}"></div></div>
@@ -275,7 +275,7 @@ fetch('/api/dashboard/charts').then(r => r.json()).then(c => {
       const initials = m.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
       return `<div class="lb-item ${i === 0 ? 'rank1' : ''}">
         <div class="lb-avatar">${initials}</div>
-        <div class="lb-name">${m.name}</div>
+        <div class="lb-name">${escapeHtml(m.name)}</div>
         <div class="lb-meta">${m.orders} ta buyurtma</div>
       </div>`;
     }).join('');

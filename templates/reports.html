@@ -5,6 +5,7 @@
 
 {% block head %}
 <style>
+@keyframes bi-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .bi-wrap{
   --b-bg:#F8F8F6; --b-card:#FFFFFF; --b-border:#E8E3DD;
   --b-primary:#B9783F; --b-primary-tint:#F8F2EB;
@@ -140,6 +141,16 @@
 
 {% block content %}
 <div class="bi-wrap">
+
+  <!-- YUKLANISH INDIKATORI — 2026-09-13: sahifa 13+ so'rov yuborib, 2 ta
+       grafik chizadi, bu bir necha soniya vaqt oladi. Avval bu payt
+       sahifa shunchaki BO'SH ko'rinardi ("—" larni to'la turib) — bu
+       "buzilgandek" taassurot qoldirar edi. Endi shu oraliqda aniq
+       ko'rinadigan yuklanish belgisi chiqadi. -->
+  <div id="reportsLoadingBar" style="display:flex;align-items:center;gap:9px;padding:11px 16px;background:var(--b-primary-tint);border-radius:10px;margin-bottom:14px;font-size:13.5px;color:var(--b-primary);font-weight:600">
+    <i class="ti ti-loader-2" style="font-size:17px;animation:bi-spin 0.9s linear infinite"></i>
+    Ma'lumotlar yuklanmoqda...
+  </div>
 
   <!-- AI XULOSA -->
   <div class="bi-summary bi-fade" id="aiSummary" style="display:none">
@@ -619,8 +630,16 @@ async function buildAiSummary(alerts){
 }
 
 async function loadAll(){
-  loadHealth(); loadKpi(); loadCharts(); loadTopRankings(); loadComparison(); loadForecast(); loadAlerts();
-  loadReport();
+  const bar = document.getElementById('reportsLoadingBar');
+  if (bar) bar.style.display = 'flex';
+  try {
+    await Promise.all([
+      loadHealth(), loadKpi(), loadCharts(), loadTopRankings(),
+      loadComparison(), loadForecast(), loadAlerts(), loadReport()
+    ]);
+  } finally {
+    if (bar) bar.style.display = 'none';
+  }
 }
 
 // ═══ 11. MAVJUD 8 TA HISOBOT (funksionallik to'liq saqlangan) ═══

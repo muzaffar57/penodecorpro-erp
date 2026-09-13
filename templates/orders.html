@@ -1207,11 +1207,11 @@ const RECIPES_LIST = [
   {% endfor %}
 ];
 const RECIPE_OPTIONS = RECIPES_LIST.length
-  ? '<option value="">— Tanlang —</option>' + RECIPES_LIST.map(r => `<option value="${r.id}">${r.name}</option>`).join('')
+  ? '<option value="">— Tanlang —</option>' + RECIPES_LIST.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('')
   : '<option value="">— Retsept yo\'q —</option>';
 
 const PENO_OPTIONS = PENOPLASTS.length
-  ? PENOPLASTS.map(p => `<option value="${p.id}" ${p.id===DEFAULT_PENO_ID?'selected':''}>${p.name}${p.isDefault?' ⭐':''} (${p.stock.toFixed(0)})</option>`).join('')
+  ? PENOPLASTS.map(p => `<option value="${p.id}" ${p.id===DEFAULT_PENO_ID?'selected':''}>${escapeHtml(p.name)}${p.isDefault?' ⭐':''} (${p.stock.toFixed(0)})</option>`).join('')
   : '<option value="">— Omborda penoplast yo\'q —</option>';
 
 if (!PENOPLASTS.length) {
@@ -1376,7 +1376,7 @@ function searchFinished(input) {
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
             <div style="min-width:0">
               <div style="font-size:14.5px;font-weight:600;color:var(--text)">
-                ${i.source_label} ${i.name}
+                ${i.source_label} ${escapeHtml(i.name)}
               </div>
               <div style="font-size:12.5px;color:#aaa;margin-top:1px">
                 ${i.width && i.thickness ? i.width+'×'+i.thickness+' sm · ' : ''}${i.is_coated ? 'qoplamali' : 'qoplamasiz'}
@@ -1730,7 +1730,7 @@ function selectOrder(id, el) {
       ac.style.display = 'block';
       ab.innerHTML = d.warnings.slice(0,3).map(w=>`
         <div style="display:flex;justify-content:space-between;font-size:14px;padding:5px 0;border-bottom:1px solid #f5f5f5">
-          <span style="color:#555">${w.item_name}</span>
+          <span style="color:#555">${escapeHtml(w.item_name)}</span>
           <span style="color:#EF4444;font-weight:500">${(parseFloat(w.stock_quantity)||0).toFixed(2).replace(/\.?0+$/,'')} ${w.unit}</span>
         </div>`).join('');
     } else {
@@ -1779,7 +1779,7 @@ async function loadOrderItems(id) {
           <input type="file" id="itemimg-${item.id}" accept="image/*" onchange="uploadItemImage(${item.id}, this)" style="${item.image_url ? 'display:none' : ''}">
         </div>
         <div class="prod-info">
-          <div class="prod-name">${item.name}${(item.category || '').toLowerCase() === 'gips' ? ' <span style="background:#FCE7F3;color:#9D174D;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle">🧱 GIPS</span>' : ''}</div>
+          <div class="prod-name">${escapeHtml(item.name)}${(item.category || '').toLowerCase() === 'gips' ? ' <span style="background:#FCE7F3;color:#9D174D;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle">🧱 GIPS</span>' : ''}</div>
           <div class="prod-meta">${itemParamsText(item)}${item.is_coated ? ' · Qoplama bor' : ''}</div>
         </div>
         <div class="prod-total">${formatNum(item.total_price)} so'm</div>
@@ -1915,7 +1915,7 @@ async function loadDeliveries(orderId) {
         <div style="padding:9px 0;border-bottom:1px solid #f5f5f5">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
             <div style="font-size:13px;font-weight:500;color:var(--text)">
-              ${it.is_done ? '✅' : '📦'} ${it.name}
+              ${it.is_done ? '✅' : '📦'} ${escapeHtml(it.name)}
             </div>
             <div style="font-size:14px;font-weight:600;color:${it.is_done?'#22C55E':'#DC2626'}">
               ${it.is_done ? 'tugadi' : `qoldi ${it.remaining} ${it.unit}`}
@@ -1960,7 +1960,7 @@ function renderDeliveryHistory(showAll) {
       hist.innerHTML = shown.map(dl => {
         const dt = new Date(dl.delivered_at);
         const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
-        const items = dl.items.map(i => `${i.item_name}: <b>${i.quantity}${i.unit==='metr'?'m':' ta'}</b>`).join(' · ');
+        const items = dl.items.map(i => `${escapeHtml(i.item_name)}: <b>${i.quantity}${i.unit==='metr'?'m':' ta'}</b>`).join(' · ');
         return `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f0f0f0;gap:8px">
           <div style="flex:1;min-width:0">
@@ -1971,10 +1971,10 @@ function renderDeliveryHistory(showAll) {
             <div style="font-size:13px;color:#666;margin-top:3px;line-height:1.5">${items}</div>
             ${dl.transport_carrier || dl.transport_cost > 0 ? `
             <div style="font-size:12.5px;color:#B9783F;margin-top:3px">
-              🚚 ${dl.transport_carrier || ''}${dl.transport_cost > 0 ? ` · ${formatNum(dl.transport_cost)} so'm` : ''}${dl.transport_payer && dl.transport_payer !== 'none' ? ` (${dl.transport_payer==='client'?'mijoz':dl.transport_payer==='company'?'kompaniya':'50/50'})` : ''}
+              🚚 ${escapeHtml(dl.transport_carrier) || ''}${dl.transport_cost > 0 ? ` · ${formatNum(dl.transport_cost)} so'm` : ''}${dl.transport_payer && dl.transport_payer !== 'none' ? ` (${dl.transport_payer==='client'?'mijoz':dl.transport_payer==='company'?'kompaniya':'50/50'})` : ''}
             </div>` : ''}
             <div style="font-size:12px;color:#aaa;margin-top:2px">
-              ${ds}${dl.received_by ? ' · qabul: '+dl.received_by : ''}${dl.notes ? ' · '+dl.notes : ''}
+              ${ds}${dl.received_by ? ' · qabul: '+escapeHtml(dl.received_by) : ''}${dl.notes ? ' · '+escapeHtml(dl.notes) : ''}
             </div>
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0">
@@ -2027,7 +2027,7 @@ function openSummaryModal() {
     const dt = new Date(d.delivered_at);
     const ds = dt.toLocaleDateString('uz');
     const items = d.items.map(i =>
-      `${i.item_name} — ${i.quantity}${i.unit==='metr'?'m':' ta'}`).join(' · ');
+      `${escapeHtml(i.item_name)} — ${i.quantity}${i.unit==='metr'?'m':' ta'}`).join(' · ');
     return `
     <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">
       <input type="checkbox" class="sum-chk" value="${d.id}" data-sum="${d.total_sum || 0}"
@@ -2037,7 +2037,7 @@ function openSummaryModal() {
         <div style="display:flex;align-items:center;gap:7px">
           <span style="font-size:13px;font-weight:700;color:#B9783F">${d.short_number}</span>
           <span style="font-size:13px;color:#888">${ds}</span>
-          ${d.received_by ? `<span style="font-size:12px;color:#aaa">· ${d.received_by}</span>` : ''}
+          ${d.received_by ? `<span style="font-size:12px;color:#aaa">· ${escapeHtml(d.received_by)}</span>` : ''}
         </div>
         <div style="font-size:13px;color:#666;margin-top:3px;line-height:1.5">${items}</div>
       </div>
@@ -2121,7 +2121,7 @@ function openDeliveryModal() {
     return `
     <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f5f5f5;${dis}">
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:500;color:var(--text)">${it.name}</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text)">${escapeHtml(it.name)}</div>
         <div style="font-size:13px;color:#aaa;margin-top:1px">
           ${it.is_done ? '✅ To\'liq topshirilgan' : `Qoldi: <b style="color:#DC2626">${it.remaining} ${it.unit}</b> · Jami ${it.ordered} ${it.unit}`}
         </div>
@@ -2201,7 +2201,7 @@ async function quickFullDelivery() {
   } catch(e) {}
 
   _fullDlvPending = pending;
-  const summary = pending.map(i => `${i.name}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('<br>');
+  const summary = pending.map(i => `${escapeHtml(i.name)}: ${i.remaining} ${i.unit === 'metr' ? 'm' : 'ta'}`).join('<br>');
   const debtHtml = currentDebt > 0
     ? `<div style="font-size:12px;color:#DC2626;margin-bottom:6px;font-weight:600">⚠️ Mijozning joriy qarzi: ${formatNum(currentDebt)} so'm</div>`
     : `<div style="font-size:12px;color:#16A34A;margin-bottom:6px;font-weight:600">✓ Qarzi yo'q (to'liq to'langan)</div>`;
@@ -2397,7 +2397,7 @@ async function loadGipsInventoryOptions() {
   // bog'liq inson omili; agar u boshqacha nomlansa/kategoriyalansa, ro'yxat
   // butunlay bo'sh chiqib, Gips buyurtmasini yaratib bo'lmay qolar edi.
   const sorted = [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
-  const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
+  const opts = i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`;
   const emptyMsg = sorted.length ? '' : '<option value="" disabled>Omborda xomashyo yo\'q — avval kirim qiling</option>';
 
   const mainSel = document.getElementById('gips_inventory_id');
@@ -2420,7 +2420,7 @@ function addGipsAdditive(prefillId, prefillQty) {
   if (!list) return;
   // Bosh Gips tanlovi bilan bir xil — endi kategoriyaga qarab CHEKLANMAYDI.
   const sorted = gipsInvCache ? [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name)) : [];
-  const opts = sorted.map(i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`).join('');
+  const opts = sorted.map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'gips-add-row';
   row.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-bottom:8px';
@@ -2644,7 +2644,7 @@ async function loadPayments(orderId) {
               <span style="font-size:12px;background:#f0f0f0;color:#777;padding:2px 7px;border-radius:10px;margin-left:5px">${PAY_TYPE_LABEL[p.payment_type]||p.payment_type}</span>
             </div>
             <div style="font-size:13px;color:#aaa;margin-top:2px">
-              ${dStr}${p.received_by ? ' · ' + p.received_by : ''}${p.notes ? ' · ' + p.notes : ''}
+              ${dStr}${p.received_by ? ' · ' + escapeHtml(p.received_by) : ''}${p.notes ? ' · ' + escapeHtml(p.notes) : ''}
             </div>
           </div>
           <button onclick="deletePayment(${p.id})" style="width:24px;height:24px;border-radius:50%;background:#FEE;border:none;color:#DC2626;font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
@@ -3446,7 +3446,7 @@ async function loadTermoInventoryFor(row) {
     try { termoInvCache = await fetch('/api/inventory').then(r => r.json()); }
     catch(e) { termoInvCache = []; }
   }
-  const opts = i => `<option value="${i.id}">${i.item_name} (${i.stock_quantity} ${i.unit})</option>`;
+  const opts = i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`;
 
   // MUHIM: ro'yxatlar endi nomga qarab CHEKLANMAYDI — butun ombordan
   // istalgan nomdagi materialni tanlash mumkin. Qulaylik uchun, agar
@@ -4098,7 +4098,7 @@ function showValidationModal(issues) {
   const list = document.getElementById('validationList');
   list.innerHTML = issues.map(it => `
     <div class="val-item" onclick="scrollToValidationField('${it.targetId}')">
-      <i class="ti ti-point-filled"></i>
+      <i class="ti ti-point"></i>
       <span>${it.text}</span>
     </div>`).join('');
   document.getElementById('validationModal').style.display = 'flex';
@@ -4357,7 +4357,7 @@ function openDuplicatePickModal(order) {
              style="width:17px;height:17px;cursor:pointer;margin-top:2px;flex-shrink:0">
       <i class="ti ${icon}" style="font-size:16px;color:#999;margin-top:2px;flex-shrink:0"></i>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13.5px;font-weight:600;color:var(--text)">${item.name || '—'}</div>
+        <div style="font-size:13.5px;font-weight:600;color:var(--text)">${escapeHtml(item.name) || '—'}</div>
         <div style="font-size:12.5px;color:#888;margin-top:2px">${itemParamsText(item)}</div>
       </div>
     </label>`;
@@ -5530,8 +5530,8 @@ function renderPinnedOrders(rows) {
       : o.deadline_urgency === 'tomorrow' ? '<div style="margin-top:3px;font-size:11.5px;color:#D97706;font-weight:700">⏰ Ertaga muddati</div>' : '';
     return `
       <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)" style="${urgencyBorder}"
-           data-num="${o.order_number}" data-client="${o.client_name}" data-project="${o.project_name}"
-           data-status="${o.status}" data-total="${o.total_amount}" data-master="${o.master_name}"
+           data-num="${o.order_number}" data-client="${escapeHtml(o.client_name)}" data-project="${escapeHtml(o.project_name)}"
+           data-status="${o.status}" data-total="${o.total_amount}" data-master="${escapeHtml(o.master_name)}"
            data-date="${o.created_at}" data-project-id="${o.project_id}" data-order-id="${o.id}" data-pinned="true">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div style="display:flex;align-items:center;gap:6px;min-width:0">
@@ -5541,7 +5541,7 @@ function renderPinnedOrders(rows) {
           </div>
           ${badge}
         </div>
-        <div class="ord-date">${o.client_name} · ${formatNum(amount)} so'm${o.deadline ? ' · ⏰ ' + o.deadline : ''}</div>
+        <div class="ord-date">${escapeHtml(o.client_name)} · ${formatNum(amount)} so'm${o.deadline ? ' · ⏰ ' + o.deadline : ''}</div>
         ${urgencyText}
       </div>`;
   }).join('');

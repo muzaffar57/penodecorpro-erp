@@ -178,13 +178,13 @@
           <input type="file" id="pimg-{{ p.id }}" accept="image/*" onchange="uploadProjImage({{ p.id }}, this)">
         </label>
         <div class="proj-card-body">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="min-width:0;flex:1">
             <div class="proj-num">{{ p.project_number }}</div>
             <div class="proj-name">{{ p.project_name }}</div>
             <div class="proj-client"><i class="ti ti-user" style="font-size:13px"></i> {{ p.client_name }} · {{ p.client_phone or '' }}</div>
           </div>
-          <span class="status-badge st-{{ p.status.value }}">
+          <span class="status-badge st-{{ p.status.value }}" style="flex-shrink:0">
             {% if p.status.value == 'active' %}Faol{% elif p.status.value == 'draft' %}Yangi{% elif p.status.value == 'completed' %}Yakunlangan{% elif p.status.value == 'on_hold' %}Kutmoqda{% else %}Bekor{% endif %}
           </span>
         </div>
@@ -490,9 +490,9 @@ function renderAsosiy(d) {
   const _debtLeft = Math.max(0, _budget - _paid);
   document.getElementById('tabContent').innerHTML = `
     <div class="info-row"><span style="color:var(--text3)">Loyiha raqami</span><span style="font-weight:500">${d.num}</span></div>
-    <div class="info-row"><span style="color:var(--text3)">Mijoz</span><span style="font-weight:500">${d.client}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Mijoz</span><span style="font-weight:500">${escapeHtml(d.client)}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Telefon</span><span>${d.phone}</span></div>
-    <div class="info-row"><span style="color:var(--text3)">Manzil</span><span>${d.address}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Manzil</span><span>${escapeHtml(d.address)}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Boshlangan</span><span>${d.start}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Muddat</span><span>${d.deadline}</span></div>
     <div class="qa-row">
@@ -563,7 +563,7 @@ async function renderPayments(d) {
         <div class="zebra-icon zi-in"><i class="ti ti-cash"></i></div>
         <div style="flex:1;min-width:0">
           <div class="zebra-title">${fmt(p.amount)} so'm</div>
-          <div class="zebra-sub">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${p.payment_method || ''}${p.received_by ? ' · '+p.received_by : ''}</div>
+          <div class="zebra-sub">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${p.payment_method || ''}${p.received_by ? ' · '+escapeHtml(p.received_by) : ''}</div>
         </div>
       </div>`).join('')}</div>`;
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
@@ -602,7 +602,7 @@ async function renderProducts(d) {
             <div class="zebra-row">
               <div class="zebra-icon zi-neutral"><i class="ti ${CAT_ICON[(i.category||'').toLowerCase()] || 'ti-package'}"></i></div>
               <div style="flex:1;min-width:0">
-                <div class="zebra-title">${i.name}</div>
+                <div class="zebra-title">${escapeHtml(i.name)}</div>
                 <div class="zebra-sub">${i.category||''}${i.is_coated?' · qoplamali':''}</div>
               </div>
               <span class="zebra-val" style="color:var(--text2)">${i.order_qty_normalized} ${i.delivery_unit||''}</span>
@@ -643,8 +643,8 @@ async function renderMaterials(d) {
             <div class="zebra-row">
               <div class="zebra-icon zi-out"><i class="ti ti-package-export"></i></div>
               <div style="flex:1;min-width:0">
-                <div class="zebra-title">${m.item_name}</div>
-                <div class="zebra-sub">${new Date(m.created_at).toLocaleDateString('uz')} · ${m.reason||''}</div>
+                <div class="zebra-title">${escapeHtml(m.item_name)}</div>
+                <div class="zebra-sub">${new Date(m.created_at).toLocaleDateString('uz')} · ${escapeHtml(m.reason||'')}</div>
               </div>
               <span class="zebra-val" style="color:#DC2626">−${m.quantity} ${m.unit||''}</span>
             </div>`).join('')}</div>
@@ -659,7 +659,7 @@ async function renderTimeline(d) {
     const payments = (await Promise.all(orders.map(o => fetch(`/api/payments?order_id=${o.id}`).then(r=>r.json())))).flat();
 
     let events = [];
-    events.push({ date: d.startRaw, icon: 'ti-target', text: `Loyiha yaratildi — ${d.name}` });
+    events.push({ date: d.startRaw, icon: 'ti-target', text: `Loyiha yaratildi — ${escapeHtml(d.name)}` });
     orders.forEach(o => {
       events.push({ date: o.created_at, icon: 'ti-package', text: `Buyurtma yaratildi — ${o.order_number}` });
       if (o.status === 'ready' || o.status === 'delivered') {
@@ -694,7 +694,7 @@ function renderNotes(d) {
     <div style="background:var(--bg);border-radius:8px;padding:6px 12px;margin-bottom:12px;font-size:13px;color:var(--text3);line-height:1.6">
       Hozircha bitta umumiy izoh maydoni mavjud — ketma-ket sharhlar tarixi hali qo'llab-quvvatlanmaydi.
     </div>
-    <div style="font-size:13px;color:var(--text);white-space:pre-wrap">${d.notes || 'Izoh yo\'q'}</div>`;
+    <div style="font-size:13px;color:var(--text);white-space:pre-wrap">${d.notes ? escapeHtml(d.notes) : 'Izoh yo\'q'}</div>`;
 }
 
 function openEditModal() {
