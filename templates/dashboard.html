@@ -506,7 +506,7 @@ async function loadTopProducts(){
     if(!rows.length){document.getElementById('topProducts').innerHTML='<div style="text-align:center;padding:16px;color:#bbb;font-size:12px">Ma\'lumot yo\'q</div>';return;}
     document.getElementById('topProducts').innerHTML = rows.map(r=>`
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border2);font-size:12.5px">
-        <span style="color:var(--text)">${r.name}</span><span style="font-weight:600;color:var(--gold-dark)">${fmt(r.revenue)}</span>
+        <span style="color:var(--text)">${escapeHtml(r.name)}</span><span style="font-weight:600;color:var(--gold-dark)">${fmt(r.revenue)}</span>
       </div>`).join('');
   }catch(e){}
 }
@@ -667,7 +667,7 @@ async function loadPurchaseStats(){
         return `
         <div style="padding:8px 16px;border-bottom:1px solid #f5f5f5">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${m.name}</span>
+            <span style="font-size:13px;font-weight:600;color:#1a1a1a">${escapeHtml(m.name)}</span>
             <span style="font-size:13px;font-weight:700;color:#A86B36">${fmt(m.total)} so'm</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
@@ -816,7 +816,7 @@ function buildMasterList(masters){
   el.innerHTML=masters.map((m,i)=>`
     <div class="master-item">
       <div class="master-rank ${i===0?'top':''}">${i+1}</div>
-      <div style="flex:1"><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:13px;color:#aaa">${m.orders} ta buyurtma</div></div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:500">${escapeHtml(m.name)}</div><div style="font-size:13px;color:#aaa">${m.orders} ta buyurtma</div></div>
       <div style="font-size:13px;font-weight:600;color:#22C55E">${fmt(m.total)} so'm</div>
     </div>`).join('');
 }
@@ -839,7 +839,7 @@ async function loadObligationsWidget(){
     const items = [];
     (status.recurring || []).forEach(r => {
       const dayInfo = r.status === 'overdue' ? `${r.due_day}-kunidan kechikdi!` : `har oy ${r.due_day}-kunigacha`;
-      items.push({group: 'recurring', icon: r.icon, label: `${r.label} (${dayInfo})`, amount: r.debt, status: r.status});
+      items.push({group: 'recurring', icon: r.icon, label: `${escapeHtml(r.label)} (${dayInfo})`, amount: r.debt, status: r.status});
     });
     (status.employees || []).forEach(e => items.push({group: 'employee', name: e.name, label: e.name + ' ish haqi', amount: e.qolgan, status: e.status}));
     (suppliers || []).filter(s => s.debt > 0).forEach(s => {
@@ -847,9 +847,9 @@ async function loadObligationsWidget(){
       if (due) {
         const dateStr = new Date(due.due_date).toLocaleDateString('uz');
         const dayInfo = due.days_left < 0 ? `${Math.abs(due.days_left)} kun kechikdi!` : (due.days_left === 0 ? 'bugun muddati!' : `${due.days_left} kun qoldi`);
-        items.push({group: 'supplier', icon: '🚚', label: `${s.name} — ${dateStr} gacha (${dayInfo})`, amount: s.debt, status: due.status === 'overdue' ? 'overdue' : (due.status === 'due_soon' ? 'due_soon' : 'partial')});
+        items.push({group: 'supplier', icon: '🚚', label: `${escapeHtml(s.name)} — ${dateStr} gacha (${dayInfo})`, amount: s.debt, status: due.status === 'overdue' ? 'overdue' : (due.status === 'due_soon' ? 'due_soon' : 'partial')});
       } else {
-        items.push({group: 'supplier', icon: '🚚', label: s.name, amount: s.debt, status: 'partial'});
+        items.push({group: 'supplier', icon: '🚚', label: escapeHtml(s.name), amount: s.debt, status: 'partial'});
       }
     });
 
@@ -916,7 +916,7 @@ async function checkPendingAdvanceRequests(){
           </div>
           <div style="font-weight:800;font-size:16px;color:#D97706">${fmt(r.amount)} so'm</div>
         </div>
-        ${r.notes ? `<div style="font-size:12.5px;color:#999;margin-bottom:10px">💬 ${r.notes}</div>` : ''}
+        ${r.notes ? `<div style="font-size:12.5px;color:#999;margin-bottom:10px">💬 ${escapeHtml(r.notes)}</div>` : ''}
         <div style="display:flex;gap:8px">
           <button class="btn btn-dark" style="flex:1;height:38px;font-size:13px" onclick="confirmAdvReq(${r.id})">✅ Ha, berganman</button>
           <button class="btn btn-outline" style="flex:1;height:38px;font-size:13px;color:#DC2626;border-color:#FADBD8" onclick="rejectAdvReq(${r.id})">❌ Yo'q</button>

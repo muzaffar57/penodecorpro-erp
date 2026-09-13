@@ -551,10 +551,10 @@ function renderMasterKpiList() {
       ${rankCircle}
       <div class="mk-avatar">${initials(m.name)}</div>
       <div style="flex:1;min-width:0">
-        <div class="mk-name" style="display:flex;align-items:center;gap:7px">${m.name} ${topBadge}</div>
+        <div class="mk-name" style="display:flex;align-items:center;gap:7px">${escapeHtml(m.name)} ${topBadge}</div>
         <div class="mk-meta">
           Sotuv: ${fmt(m.yearly_sales)} · Foyda: <b style="color:#8E44AD">${fmt(m.yearly_profit)}</b> · ${m.orders_count} ta
-          ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${m.region}</span>` : ''}
+          ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${escapeHtml(m.region)}</span>` : ''}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:5px">
@@ -604,7 +604,7 @@ function renderInactiveMasters() {
   list.innerHTML = inactive.map(m => `
     <div class="mk-row" style="opacity:.6">
       <div style="flex:1;min-width:0">
-        <div class="mk-name">${m.name}</div>
+        <div class="mk-name">${escapeHtml(m.name)}</div>
         <div class="mk-meta">${m.phone || '—'}</div>
       </div>
       <button class="btn btn-outline btn-sm" onclick="reactivateMaster(${m.id}, this)">✓ Faollashtirish</button>
@@ -803,8 +803,8 @@ async function loadEmployees() {
         <div class="emp-avatar">${initials(e.name)}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:14.5px;font-weight:700;color:var(--text)">${e.name}</span>
-            ${e.position ? `<span style="font-size:12.5px;color:#aaa">${e.position}</span>` : ''}
+            <span style="font-size:14.5px;font-weight:700;color:var(--text)">${escapeHtml(e.name)}</span>
+            ${e.position ? `<span style="font-size:12.5px;color:#aaa">${escapeHtml(e.position)}</span>` : ''}
           </div>
           <div style="margin-top:4px">
             <span class="emp-tag" style="background:${PAY_COLORS[e.pay_type]}15;color:${PAY_COLORS[e.pay_type]}">${PAY_LABELS[e.pay_type]}</span>
@@ -907,7 +907,7 @@ async function loadAdvanceHistory(empId) {
   }
   list.innerHTML = d.advances.map(a => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:12.5px">
-      <span>${new Date(a.date).toLocaleDateString('uz')} ${a.notes ? '— '+a.notes : ''}</span>
+      <span>${new Date(a.date).toLocaleDateString('uz')} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
       <span style="display:flex;align-items:center;gap:6px">
         <b>${fmt(a.amount)} so'm</b>
         <button onclick="deleteAdvance(${a.id})" style="border:none;background:none;color:#DC2626;cursor:pointer;font-size:13px">✕</button>
@@ -1019,8 +1019,8 @@ async function loadCompHistory(empId) {
             <span style="font-size:13px;font-weight:600;color:#222">${MONTH_NAMES_UZ[r.effective_month]} ${r.effective_year}${isCurrent ? ' <span style=\"font-size:10.5px;font-weight:600;color:#22C55E;background:#DCFCE7;padding:2px 7px;border-radius:8px;margin-left:4px\">joriy</span>' : ''}</span>
             <span style="font-size:13px;font-weight:700;color:#B9783F">${amountTxt}</span>
           </div>
-          <div style="font-size:11.5px;color:#aaa;margin-top:3px">${PAY_TYPE_LABELS[r.pay_type] || r.pay_type}${r.reason ? ' · ' + r.reason : ''}</div>
-          ${r.created_by ? `<div style="font-size:10.5px;color:#ccc;margin-top:2px">${r.created_by}${r.created_at ? ' · ' + r.created_at : ''}</div>` : ''}
+          <div style="font-size:11.5px;color:#aaa;margin-top:3px">${PAY_TYPE_LABELS[r.pay_type] || r.pay_type}${r.reason ? ' · ' + escapeHtml(r.reason) : ''}</div>
+          ${r.created_by ? `<div style="font-size:10.5px;color:#ccc;margin-top:2px">${escapeHtml(r.created_by)}${r.created_at ? ' · ' + r.created_at : ''}</div>` : ''}
         </div>`;
     }).join('');
   } catch (e) {
@@ -1224,19 +1224,19 @@ async function loadEmpMonthlyReport() {
                 <td style="padding:12px 6px">
                   <div style="display:flex;align-items:center;gap:9px">
                     <div style="width:30px;height:30px;border-radius:50%;background:var(--gold-tint);color:var(--gold-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex-shrink:0">${(e.name||'?')[0].toUpperCase()}</div>
-                    <span style="font-weight:700;color:var(--text)">${e.name}</span>
+                    <span style="font-weight:700;color:var(--text)">${escapeHtml(e.name)}</span>
                   </div>
                 </td>
                 <td style="padding:12px 6px;color:var(--text3);font-size:12px">${e.detail}</td>
                 <td style="padding:12px 6px;text-align:right;font-weight:600;color:var(--gold-dark)">${fmt(e.amount + (e.adjustment||0) - (e.bonus||0))} so'm</td>
                 <td style="padding:12px 6px;text-align:center">
-                  <button type="button" onclick="event.stopPropagation();editEmpBonus(${e.employee_id}, '${e.name.replace(/'/g,"&apos;")}', ${year}, ${month}, ${e.bonus||0}, '${(e.bonus_reason||'').replace(/'/g,"&apos;")}')"
+                  <button type="button" onclick="event.stopPropagation();editEmpBonus(${e.employee_id}, '${jsAttrEscape(e.name)}', ${year}, ${month}, ${e.bonus||0}, '${jsAttrEscape(e.bonus_reason||'')}')"
                         style="cursor:pointer;padding:6px 12px;border-radius:8px;border:1.5px solid ${e.bonus ? '#DCFCE7' : 'var(--border)'};background:${e.bonus ? '#F0FDF4' : 'var(--white)'};color:${e.bonus ? '#16A34A' : 'var(--text2)'};font-size:12px;font-weight:600;white-space:nowrap">
                     ${e.bonus ? '+'+fmt(e.bonus)+" so'm" : '+ Bonus'}
                   </button>
                 </td>
                 <td style="padding:12px 6px;text-align:center">
-                  <button type="button" onclick="event.stopPropagation();editEmpAdjustment(${e.employee_id}, '${e.name.replace(/'/g,"&apos;")}', ${year}, ${month}, ${e.adjustment||0}, '${(e.adjustment_reason||'').replace(/'/g,"&apos;")}')"
+                  <button type="button" onclick="event.stopPropagation();editEmpAdjustment(${e.employee_id}, '${jsAttrEscape(e.name)}', ${year}, ${month}, ${e.adjustment||0}, '${jsAttrEscape(e.adjustment_reason||'')}')"
                         style="cursor:pointer;padding:6px 12px;border-radius:8px;border:1.5px solid ${e.adjustment ? '#FEE2E2' : 'var(--border)'};background:${e.adjustment ? '#FEF2F2' : 'var(--white)'};color:${e.adjustment ? '#DC2626' : 'var(--text2)'};font-size:12px;font-weight:600;white-space:nowrap">
                     ${e.adjustment ? '-'+fmt(e.adjustment)+" so'm" : '− Kamaytirish'}
                   </button>
@@ -1377,7 +1377,7 @@ async function toggleEmpAdvanceDetail(empId, idx, year, month) {
     const d = await res.json();
     const html = d.advances.map(a => `
       <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px;color:#92400E">
-        <span>${new Date(a.date).toLocaleDateString('uz')} ${a.notes ? '— '+a.notes : ''}</span>
+        <span>${new Date(a.date).toLocaleDateString('uz')} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
         <span style="font-weight:600">${fmt(a.amount)} so'm</span>
       </div>`).join('');
     detailBox.innerHTML = html;
@@ -1475,7 +1475,7 @@ function renderGiftPeriodMasterOptions() {
   picker.innerHTML = (allMasterKpiData || []).map(m => `
     <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:13px;cursor:pointer">
       <input type="checkbox" class="gift-period-master-cb" value="${m.id}">
-      ${m.name}
+      ${escapeHtml(m.name)}
     </label>
   `).join('') || '<div style="color:var(--text3);font-size:13px;padding:4px 0">Faol usta topilmadi</div>';
 }
@@ -1610,11 +1610,11 @@ function renderGiftPeriodActive(box, data) {
       : `<span style="color:var(--text3)">⬜ ${t.gift_name}</span>`
     ).join(' &nbsp; ');
     const redeemBtn = m.ready_tier_id
-      ? `<button class="btn btn-gold btn-sm" style="padding:4px 10px;font-size:11.5px" onclick="redeemGiftPeriodTier(${m.master_id}, ${m.ready_tier_id}, '${(m.ready_tier_name||'').replace(/'/g,"&apos;")}')">Berildi ✓</button>`
+      ? `<button class="btn btn-gold btn-sm" style="padding:4px 10px;font-size:11.5px" data-gift-name="${escapeHtml(m.ready_tier_name||'')}" onclick="redeemGiftPeriodTier(${m.master_id}, ${m.ready_tier_id}, this.dataset.giftName)">Berildi ✓</button>`
       : '';
     return `
       <tr style="border-top:1px solid var(--border2)">
-        <td style="padding:9px 6px;font-weight:600">${m.master_name}</td>
+        <td style="padding:9px 6px;font-weight:600">${escapeHtml(m.master_name)}</td>
         <td style="padding:9px 6px;color:#16A34A;font-weight:600;white-space:nowrap">${fmt(m.current_sales)} so'm</td>
         <td style="padding:9px 6px;font-size:12px">${tiersProgress}</td>
         <td style="padding:9px 6px;text-align:right">${redeemBtn}</td>

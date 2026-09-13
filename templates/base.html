@@ -420,6 +420,41 @@ function customConfirm(a, b, c) {
     document.addEventListener('keydown', onKey);
   });
 }
+
+// ══ UMUMIY: foydalanuvchi kiritgan matnni (mahsulot nomi, mijoz nomi,
+// izoh va h.k.) HTML ichiga xavfsiz qo'yish uchun — aks holda kimdir
+// nom o'rniga <script> kabi kod kiritsa, buni keyin ko'rgan boshqa
+// xodimning brauzerida ishga tushib ketishi mumkin edi (2026-09-13,
+// xavfsizlik tekshiruvi natijasida topilgan). Butun tizimda, foydalanuvchi
+// yozgan har qanday matnni innerHTML ichiga qo'yishdan oldin — albatta
+// shu funksiya orqali o'tkazing: `${escapeHtml(item.name)}`.
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ══ UMUMIY: onclick="funksiya('${nom}')" ko'rinishidagi joylar uchun.
+// MUHIM (2026-09-13, xavfsizlik tekshiruvi): oddiy escapeHtml() BU YERDA
+// YETARLI EMAS — brauzer avval HTML atributini o'qiydi (shu chog'da
+// &apos; kabi belgilarni ASL '  ga QAYTARADI), va FAQAT SHUNDAN KEYIN
+// natijani JavaScript sifatida bajaradi. Ya'ni oddiy HTML-escape qilingan
+// tirnoq JavaScript qatoridan "chiqib ketishning" oldini OLMAYDI. Bu
+// funksiya, tirnoqni avval JavaScript qatori ichida xavfsiz qiladi
+// (backslash bilan), keyin natijani HTML atributi uchun ham escape qiladi.
+function jsAttrEscape(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 </script>
 
 <script>

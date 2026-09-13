@@ -123,15 +123,15 @@ function renderMasterList() {
     <div class="mk-card">
       <div class="mk-avatar">${initials(m.name)}</div>
       <div style="flex:1;min-width:0">
-        <div class="mk-name">${m.name}</div>
+        <div class="mk-name">${escapeHtml(m.name)}</div>
         <div class="mk-meta">
           ${m.phone || '—'}
-          ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${m.region}</span>` : ''}
+          ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${escapeHtml(m.region)}</span>` : ''}
         </div>
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
         <button class="mini-btn" onclick="editMaster(${m.id})">✏️</button>
-        <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deactivateMaster(${m.id}, '${(m.name||'').replace(/'/g,"\\'")}')" title="Nofaollashtirish">🚫</button>
+        <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deactivateMaster(${m.id}, '${jsAttrEscape(m.name||'')}')" title="Nofaollashtirish">🚫</button>
       </div>
     </div>`).join('');
 }
@@ -155,7 +155,7 @@ function renderInactiveMasters() {
   list.innerHTML = inactive.map(m => `
     <div class="mk-row" style="opacity:.6">
       <div style="flex:1;min-width:0">
-        <div class="mk-name">${m.name}</div>
+        <div class="mk-name">${escapeHtml(m.name)}</div>
         <div class="mk-meta">${m.phone || '—'}</div>
       </div>
       <button class="btn btn-outline btn-sm" onclick="reactivateMaster(${m.id}, this)">✓ Faollashtirish</button>
