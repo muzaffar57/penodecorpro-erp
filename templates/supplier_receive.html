@@ -19,7 +19,11 @@
 .rcv-row{display:grid;gap:14px;margin-bottom:14px}
 .rcv-row-3{grid-template-columns:1fr 1fr 1fr}
 .rcv-row-2{grid-template-columns:1fr 1fr}
+.rcv-row-4{grid-template-columns:repeat(4,1fr)}
 @media(max-width:700px){.rcv-row-3,.rcv-row-2{grid-template-columns:1fr}}
+@media(max-width:600px){.rcv-row-4{grid-template-columns:1fr 1fr}}
+@media(max-width:420px){.rcv-row-4{grid-template-columns:1fr}}
+.rcv-table-wrap{overflow-x:auto}
 .rcv-supplier-row{display:flex;gap:10px;align-items:flex-end}
 .rcv-supplier-row .rcv-field{flex:1}
 .rcv-btn{height:42px;padding:0 18px;border-radius:9px;border:none;cursor:pointer;font-size:13.5px;font-weight:600;white-space:nowrap;transition:transform .1s,box-shadow .15s}
@@ -229,10 +233,12 @@
       <div class="rcv-card">
         <div class="rcv-card-body">
           <div class="rcv-card-title" style="margin-bottom:6px">Mahsulotlar ro'yxati</div>
+          <div class="rcv-table-wrap">
           <table class="rcv-table">
             <thead><tr><th>№</th><th>Mahsulot nomi</th><th>Miqdor</th><th>1 birlik narxi</th><th style="text-align:right">Summa</th><th></th></tr></thead>
             <tbody id="rcv-basket-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali mahsulot qo'shilmagan</td></tr></tbody>
           </table>
+          </div>
           <div class="rcv-totals-bar">
             <span>Jami pozitsiyalar: <b id="rcv-pos-count">0</b></span>
             <span>Jami summa: <b id="rcv-pos-total" style="color:var(--r-primary)">0 so'm</b></span>
@@ -259,7 +265,7 @@
           </div>
 
           <div class="rcv-card-title" style="margin-top:16px">Qo'shimcha xarajatlar <span style="font-weight:400;color:var(--r-text3)">(ixtiyoriy)</span></div>
-          <div class="rcv-row rcv-row-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+          <div class="rcv-row rcv-row-4">
             <div class="rcv-field"><label>🚚 Transport</label><input type="text" id="ap-cost-transport" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
             <div class="rcv-field"><label>📦 Tushirish (Grushchik)</label><input type="text" id="ap-cost-tushirish" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
             <div class="rcv-field"><label>⬆️ Yuklash</label><input type="text" id="ap-cost-yuklash" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
@@ -289,10 +295,12 @@
               <button class="rcv-icon-btn" style="color:var(--r-primary)" onclick="loadHistoryForSupplier()"><i class="ti ti-filter" style="font-size:14px"></i></button>
             </div>
           </div>
+          <div class="rcv-table-wrap">
           <table class="rcv-table">
             <thead><tr><th>Sana</th><th>Material</th><th>Miqdor</th><th style="text-align:right">1 birlik narxi</th><th style="text-align:right">Summa</th><th style="text-align:right">Holati</th></tr></thead>
             <tbody id="rcv-history-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Yetkazib beruvchi tanlang</td></tr></tbody>
           </table>
+          </div>
           <div id="rcv-history-pagination" style="display:flex;justify-content:center;gap:6px;margin-top:12px"></div>
         </div>
       </div>
