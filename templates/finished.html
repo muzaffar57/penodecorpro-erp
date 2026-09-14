@@ -60,6 +60,24 @@
 .fp-price{font-size:11px;color:#A86B36;font-weight:600;margin-top:1px;white-space:nowrap}
 .fp-empty{text-align:center;padding:30px;color:var(--text3);font-size:13px}
 .fp-badge{font-size:9px;padding:2px 7px;border-radius:9px;font-weight:600;white-space:nowrap}
+.fp-main{flex:1;min-width:0}
+.fp-price-col{text-align:right;flex-shrink:0;min-width:82px}
+.fp-total-col{text-align:right;flex-shrink:0;min-width:92px}
+
+/* 2026-09-14: mobil telefonda bu qator (rasm + nom + zaxira + narx + jami +
+   5 ta tugma) bitta qatorga sig'may, matnlar bir-birining ustiga chiqib
+   ketayotgani aniqlangan (foydalanuvchi skrinshot yuborgan). Bu — butun
+   faylda birinchi va yagona moslashuv qoidasi edi. Qator endi kerak bo'lsa
+   bir necha "satr"ga bo'linadi: 1-satr — rasm+nom, 2-satr — zaxira/narx/jami,
+   3-satr — tugmalar. Rasm ham endi matn balandligiga qarab cho'zilmaydi. */
+@media(max-width:640px){
+  .fp-row{flex-wrap:wrap;row-gap:10px}
+  .fp-thumb{width:48px;height:48px;align-self:flex-start;font-size:18px}
+  .fp-stock-col{flex-basis:100%;order:1;text-align:left;padding-left:58px}
+  .fp-price-col{order:2;text-align:left;min-width:0;flex:1}
+  .fp-total-col{order:3;text-align:left;min-width:0;flex:1}
+  .fp-actions-wrap{order:4;flex-basis:100%;flex-wrap:wrap;padding-left:58px}
+}
 .mini-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid #e5e5e5;background:#fff;font-size:18px;font-weight:700;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
 .mini-btn:hover{background:var(--dark);color:#fff;border-color:var(--dark)}
 .fp-actions-wrap{position:relative}
@@ -1040,7 +1058,7 @@ function rowHtml(i) {
       <div class="cam-overlay" onclick="document.getElementById('fpimg-${i.id}').click()"><i class="ti ti-camera-plus"></i></div>
       <input type="file" id="fpimg-${i.id}" accept="image/*" onchange="uploadFpImage(${i.id}, this)">
     </div>
-    <div style="flex:1;min-width:0">
+    <div class="fp-main">
       <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
         <span class="fp-name">${escapeHtml(i.name)}</span>
         <span class="fp-sku">${fpSku(i)}</span>
@@ -1056,14 +1074,14 @@ function rowHtml(i) {
       <span class="fp-badge" style="background:${stColor}22;color:${stColor};margin-top:3px;display:inline-block">${stLabel}</span>` : ''}
     </div>
 
-    <div style="text-align:right;flex-shrink:0;min-width:82px">
+    <div class="fp-price-col">
       <div class="fp-price">${fmt(i.unit_price)}/${unitLabel(i.unit)}</div>
       ${i.source === 'produced' ? (cpu < 0
         ? `<div style="font-size:10px;color:#DC2626;font-weight:700" title="Tannarx hisobida xatolik bor — ombor harakatlarini tekshiring">⚠️ tan: ${fmt(cpu)}</div>`
         : `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>`) : ''}
     </div>
 
-    <div style="text-align:right;flex-shrink:0;min-width:92px">
+    <div class="fp-total-col">
       <div style="font-size:13px;font-weight:700;color:#22C55E">${fmt(i.total_value)}</div>
       <div style="font-size:10px;color:#bbb">jami</div>
     </div>
