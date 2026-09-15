@@ -2934,14 +2934,25 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
 
 
 def export_full_backup(db: Session) -> dict:
-    """Butun bazaning TO'LIQ zaxira nusxasini (barcha 21 jadval) JSON
-    formatida qaytaradi. Muammo yuz berganda, shu faylni qayta yuklab
-    (import_full_backup orqali) ma'lumotni tiklash mumkin bo'ladi."""
+    """Butun bazaning TO'LIQ zaxira nusxasini (barcha jadvallar, sessiya
+    jadvallaridan tashqari) JSON formatida qaytaradi.
+
+    MUHIM (2026-09-15, xavfsizlik tekshiruvi): UserSession va
+    EmployeeSession jadvallari ATAYLAB chiqarib tashlangan — ular xom
+    sessiya TOKENlarini o'z ichiga oladi, va bu tokenlar hali muddati
+    tugamagan bo'lsa, ularni bilgan har qanday kishi parolsiz, o'sha
+    foydalanuvchi/xodim nomidan tizimga kira olardi. Zahira nusxa
+    ma'lumotni TIKLASH uchun kerak — tiklashdan keyin baribir hamma
+    qayta login qilishi kerak bo'ladi, shuning uchun bu ikki jadvalning
+    yo'qligi hech narsani buzmaydi, faqat xavfni yo'qotadi."""
     import decimal
     from datetime import datetime as _dt, date as _date
     from enum import Enum as _Enum
     from sqlalchemy import inspect as sa_inspect
     import models as _models
+
+    # Backupga umuman kiritilmaydigan jadvallar — sabab yuqorida yozilgan.
+    EXCLUDED_TABLES = {"user_sessions", "employee_sessions"}
 
     def serialize_value(v):
         if v is None:
@@ -2960,6 +2971,8 @@ def export_full_backup(db: Session) -> dict:
     for name in dir(_models):
         obj = getattr(_models, name)
         if isinstance(obj, type) and issubclass(obj, _models.Base) and obj is not _models.Base:
+            if obj.__tablename__ in EXCLUDED_TABLES:
+                continue
             all_models.append(obj)
 
     backup = {}
