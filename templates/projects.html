@@ -509,7 +509,16 @@ function renderAsosiy(d) {
 async function renderOrders(d) {
   try {
     const orders = await fetch(`/api/orders?project_id=${selectedProjId}`).then(r=>r.json());
-    if (!orders.length) { document.getElementById('tabContent').innerHTML = '<div class="fp-empty" style="text-align:center;padding:30px;color:var(--text3)">Buyurtma yo\'q</div>'; return; }
+    if (!orders.length) {
+      document.getElementById('tabContent').innerHTML =
+        '<div class="fp-empty" style="text-align:center;padding:30px;color:var(--text3)">' +
+          'Buyurtma yo\'q' +
+          '<div style="margin-top:14px">' +
+            `<button class="btn btn-dark btn-sm" onclick="window.location.href='/orders?new_for_project=${selectedProjId}'">+ Yangi buyurtma</button>` +
+          '</div>' +
+        '</div>';
+      return;
+    }
     const STATUS_LABELS = {draft:'Qoralama',new:'Yangi',in_progress:'Jarayonda',coating:'Qoplashda',ready:'Tayyor',delivered:'Yetkazilgan',cancelled:'Bekor'};
     document.getElementById('tabContent').innerHTML = orders.map(o => `
       <div class="info-row" style="cursor:pointer" onclick="window.location.href='/orders'">
@@ -814,6 +823,21 @@ async function saveProject(){
   const client=document.getElementById('f-client').value.trim();
   const pname=document.getElementById('f-pname').value.trim();
   if(!client||!pname){projToast('Mijoz va loyiha nomi shart!');return;}
+  // 2026-09-15: audit paytida topilgan xato — telefon maydoni formatini
+  // hech kim tekshirmasdi, "Abc123" kabi qiymat ham saqlanib qolar edi
+  // (bu SMS xabarnomasini "jim" ishlamay qo'yishi mumkin). Telefon shu
+  // yerda ixtiyoriy bo'lgani uchun, faqat TO'LDIRILGAN bo'lsa formatini
+  // tekshiramiz — kamida 7 ta raqam, va faqat raqam/+/bo'sh joy/tire
+  // belgilaridan iborat bo'lishi kerak.
+  const phoneVal = document.getElementById('f-phone').value.trim();
+  if (phoneVal) {
+    const digitsOnly = phoneVal.replace(/\D/g, '');
+    const onlyAllowedChars = /^[\d+\s\-()]+$/.test(phoneVal);
+    if (!onlyAllowedChars || digitsOnly.length < 7) {
+      projToast("Telefon raqami noto'g'ri — faqat raqamlar bo'lishi kerak (masalan +998901234567)");
+      return;
+    }
+  }
   if (isSavingNewProject) return; // Ikki marta bosishdan himoya
   isSavingNewProject = true;
   const btn = document.getElementById('proj-new-save-btn');

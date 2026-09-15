@@ -703,6 +703,19 @@ async function saveMaster() {
 
   if (!name) { err.style.display='block'; err.textContent='❌ Ismni kiriting'; return; }
   if (!editingMasterId && !phone) { err.style.display='block'; err.textContent='❌ Telefon raqamini kiriting'; return; }
+  // 2026-09-15: audit paytida topilgan xato — "xyz123" kabi haqiqiy
+  // bo'lmagan qiymat ham qabul qilinib, bazaga saqlanib qolgan edi.
+  // Endi, telefon kiritilgan bo'lsa (bo'sh bo'lmasa), formatini ham
+  // tekshiramiz — kamida 7 ta raqam, faqat ruxsat etilgan belgilardan.
+  if (phone) {
+    const digitsOnly = phone.replace(/\D/g, '');
+    const onlyAllowedChars = /^[\d+\s\-()]+$/.test(phone);
+    if (!onlyAllowedChars || digitsOnly.length < 7) {
+      err.style.display = 'block';
+      err.textContent = "❌ Telefon raqami noto'g'ri — faqat raqamlar bo'lishi kerak (masalan +998901234567)";
+      return;
+    }
+  }
   err.style.display = 'none';
 
   if (isSavingMaster) return; // Ikki marta bosishdan himoya
@@ -868,6 +881,15 @@ async function savePanelAccess() {
   const pin = document.getElementById('pa-pin').value.trim();
   const err = document.getElementById('pa-error');
   if (!phone) { err.textContent = 'Telefon raqamini kiriting'; err.style.display = 'block'; return; }
+  {
+    const digitsOnly = phone.replace(/\D/g, '');
+    const onlyAllowedChars = /^[\d+\s\-()]+$/.test(phone);
+    if (!onlyAllowedChars || digitsOnly.length < 7) {
+      err.textContent = "Telefon raqami noto'g'ri — faqat raqamlar bo'lishi kerak (masalan +998901234567)";
+      err.style.display = 'block';
+      return;
+    }
+  }
   if (!/^\d{4}$/.test(pin)) { err.textContent = "PIN kod aynan 4 xonali raqam bo'lishi kerak"; err.style.display = 'block'; return; }
 
   if (isSavingPanelAccess) return; // Ikki marta bosishdan himoya

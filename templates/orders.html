@@ -412,6 +412,9 @@ input[type=number]{-moz-appearance:textfield}
             <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">Buyurtma ma'lumotlari</div>
             <div class="form-group" style="margin-bottom:12px">
               <label>Loyiha</label>
+              <input type="text" id="project_id_search" placeholder="Loyiha yoki mijoz nomini qidirish..."
+                     autocomplete="off" style="margin-bottom:6px"
+                     oninput="filterProjectSelect(this.value)">
               <select id="project_id">
                 <option value="">— Tanlang —</option>
                 {% for p in projects %}<option value="{{ p.id }}">{{ p.project_number }} — {{ p.project_name }}</option>{% endfor %}
@@ -1181,6 +1184,24 @@ async function restoreDraftLS(draft) {
 }
 
 function checkForDraftOnLoad() {
+  // 2026-09-15: audit paytida topilgan kamchilik — loyiha ichida hali
+  // birorta ham buyurtma yo'q bo'lsa, o'sha yerda "+ Yangi buyurtma"
+  // tugmasi yo'q edi, foydalanuvchi bu sahifaga o'zi qaytib, loyihani
+  // qo'lda qidirib topishga majbur bo'lardi. Endi Loyihalar sahifasidagi
+  // tugma shu yerga "?new_for_project=ID" bilan yo'naltiradi — shuni
+  // ko'rsak, ESKI qoralamani tiklashdan oldin, TO'G'RIDAN-TO'G'RI yangi
+  // buyurtma formasini o'sha loyiha tanlangan holda ochamiz.
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const forProject = params.get('new_for_project');
+    if (forProject) {
+      showNewForm();
+      const projSel = document.getElementById('project_id');
+      if (projSel) projSel.value = forProject;
+      history.replaceState(null, '', window.location.pathname);
+      return;
+    }
+  } catch (e) { /* URL bilan ishlashda xato bo'lsa — odatdagidek davom etamiz */ }
   try {
     const raw = localStorage.getItem(ORDER_DRAFT_LS_KEY);
     if (!raw) return;
@@ -2377,6 +2398,15 @@ let loyStockCache = null;
 // ── GIPS BO'LIMI ─────────────────────────────────────────────
 let gipsInvCache = null;
 
+// 2026-09-15: audit paytida topilgan xato — bu funksiya avval FAQAT
+// TUR tugmasi bosilganda chaqirilar edi (toggleFields() ichida). Agar
+// foydalanuvchi avval TUR="Gips"ni tanlab, KEYIN detal NOMINI yozgan
+// bo'lsa (yoki aksincha, ammo NOM keyinroq to'ldirilgan bo'lsa) — bu
+// bo'lim yashiringan holicha qolib ketardi, va "Gips miqdori (kg)
+// kiritilmagan" xatosi chiqsa-da, foydalanuvchi o'sha maydonni
+// EKRANDA UMUMAN KO'RA OLMAS EDI — buyurtmani saqlab bo'lmas edi.
+// Endi bu funksiya NOM maydoni o'zgarganda ham qayta chaqiriladi
+// (yuqoridagi ".i-name" oninput'iga qarang).
 function checkGipsSectionVisibility() {
   const wrap = document.getElementById('gips-section-wrap');
   if (!wrap) return;
@@ -2797,7 +2827,27 @@ async function deletePayment(paymentId) {
 }
 
 // ── Yangi forma ───────────────────────────────────────────
+// 2026-09-15: audit paytida qo'shilgan — "Loyiha" ro'yxatini nomi yoki
+// mijoz nomi bo'yicha qidirish uchun. Ro'yxatning o'zi (uning value'lari,
+// onchange va h.k.) o'zgarmaydi — faqat mos kelmagan <option>lar
+// vaqtincha yashiriladi.
+function filterProjectSelect(query) {
+  const sel = document.getElementById('project_id');
+  if (!sel) return;
+  const q = (query || '').trim().toLowerCase();
+  Array.from(sel.options).forEach(opt => {
+    if (!opt.value) { opt.hidden = false; return; } // "— Tanlang —" har doim ko'rinadi
+    opt.hidden = q.length > 0 && !opt.textContent.toLowerCase().includes(q);
+  });
+}
+
 function showNewForm() {
+  // 2026-09-15: audit paytida topilgan kamchilik — loyihalar soni ko'payib
+  // ketsa (SaaS'da bir necha o'nlab/yuzlab bo'lishi mumkin), oddiy
+  // ochiladigan ro'yxatdan kerakli loyihani topish qiyinlashadi. Endi
+  // yangi buyurtma ochilganda, qidiruv maydoni ham tozalanadi.
+  const projSearch = document.getElementById('project_id_search');
+  if (projSearch) { projSearch.value = ''; filterProjectSelect(''); }
   document.getElementById('newOrderForm').style.display = 'block';
   const dlInp = document.getElementById('deadline_input');
   if (dlInp) dlInp.value = '';
@@ -2886,7 +2936,7 @@ function addItem() {
       <div class="dif" style="grid-column:1/-1;position:relative;background:#F3E4CC;border:2px solid #A86B36">
         <label style="color:#A86B36">Nomi</label>
         <input placeholder="Karniz M-06" class="i-name" autocomplete="off"
-               oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'))" onblur="hideFpSuggest(this)">
+               oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'));checkGipsSectionVisibility()" onblur="hideFpSuggest(this)">
         <div class="fp-suggest" style="display:none"></div>
       </div>
       <div class="dif dif-tur" style="grid-column:1/-1">
