@@ -268,6 +268,33 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
     return tx
 
 
+def update_expense_transaction(db: Session, tx_id: int, data) -> Optional["ExpenseTransaction"]:
+    """2026-09-16: foydalanuvchi so'rovi bo'yicha qo'shildi — xato kiritilgan
+    summani (masalan "125 000" o'rniga "125") o'chirib-qayta yozish o'rniga,
+    to'g'ridan-to'g'ri TAHRIRLASH imkonini beradi. create_expense_transaction
+    kabi — faqat shu BITTA ExpenseTransaction yozuvini yangilaydi, boshqa
+    hech qanday jadval yoki hisob-kitobga (Kassa balansi va h.k. — bular
+    har safar JORIY yozuvlar asosida qayta hisoblanadi) alohida ta'sir
+    qilmaydi."""
+    from models import ExpenseTransaction
+    tx = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id).first()
+    if not tx:
+        return None
+    if "date" in data and data["date"]:
+        tx.date = data["date"]
+    if "category" in data and data["category"]:
+        tx.category = data["category"]
+    if "amount" in data and data["amount"] is not None:
+        tx.amount = data["amount"]
+    if "notes" in data:
+        tx.notes = data["notes"]
+    if "production_type" in data:
+        tx.production_type = data["production_type"]
+    db.commit()
+    db.refresh(tx)
+    return tx
+
+
 def get_expense_transactions(db: Session, year: Optional[int] = None, month: Optional[int] = None,
                               day: Optional[int] = None, category: Optional[str] = None, limit: int = 200):
     """Xarajat tranzaksiyalari ro'yxati — faqat o'qish."""

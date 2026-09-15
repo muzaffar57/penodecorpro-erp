@@ -3027,6 +3027,19 @@ def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), cu
     return {"status": "ok"}
 
 
+@app.put("/api/finance/transactions/{tx_id}")
+def api_update_expense_transaction(tx_id: int, data: schemas.ExpenseTransactionCreate, db: Session = Depends(get_db),
+                                    current_user=Depends(auth.admin_manager_accountant)):
+    """2026-09-16: foydalanuvchi so'rovi bo'yicha qo'shildi — xato kiritilgan
+    xarajat summasini o'chirib-qayta yozish o'rniga, to'g'ridan-to'g'ri
+    tahrirlash imkonini beradi (masalan "125" o'rniga "125 000" bo'lishi
+    kerak bo'lgan holatlar uchun)."""
+    tx = crud.update_expense_transaction(db, tx_id, data.model_dump())
+    if not tx:
+        raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+    return schemas.ExpenseTransactionRead.model_validate(tx)
+
+
 @app.post("/api/finance/expense")
 def api_save_expense(year: int, month: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     services.save_monthly_expense(db, year, month, data, performed_by=current_user.full_name or current_user.username)
