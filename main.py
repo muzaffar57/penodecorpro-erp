@@ -1100,6 +1100,17 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
         if o.status.value not in ("ready", "delivered", "cancelled"):
             g["active"] += 1
 
+    # 2026-09-15: har bir loyiha ichida buyurtmalar endi shunchaki "qachon
+    # yaratilgan" tartibida emas — HALI TUGALLANMAGAN (jarayonda) buyurtmalar
+    # eng tepaga, ular orasida esa TOPSHIRISH MUDDATI eng yaqini birinchi
+    # bo'lib chiqadi (muddat yo'q bo'lsa — oxirida). Tugallangan buyurtmalar
+    # bundan keyin, o'zining avvalgi (yaratilgan sana) tartibida qoladi.
+    for g in groups.values():
+        active_orders = [o for o in g["orders"] if o.status.value not in ("ready", "delivered", "cancelled")]
+        finished_orders = [o for o in g["orders"] if o.status.value in ("ready", "delivered", "cancelled")]
+        active_orders.sort(key=lambda o: (o.deadline is None, o.deadline))
+        g["orders"] = active_orders + finished_orders
+
     # Eng yangi buyurtmasi bo'yicha tartiblaymiz
     grouped = sorted(
         groups.values(),
