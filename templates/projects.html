@@ -509,7 +509,16 @@ function renderAsosiy(d) {
 async function renderOrders(d) {
   try {
     const orders = await fetch(`/api/orders?project_id=${selectedProjId}`).then(r=>r.json());
-    if (!orders.length) { document.getElementById('tabContent').innerHTML = '<div class="fp-empty" style="text-align:center;padding:30px;color:var(--text3)">Buyurtma yo\'q</div>'; return; }
+    if (!orders.length) {
+      document.getElementById('tabContent').innerHTML =
+        '<div class="fp-empty" style="text-align:center;padding:30px;color:var(--text3)">' +
+          'Buyurtma yo\'q' +
+          '<div style="margin-top:14px">' +
+            `<button class="btn btn-dark btn-sm" onclick="window.location.href='/orders?new_for_project=${selectedProjId}'">+ Yangi buyurtma</button>` +
+          '</div>' +
+        '</div>';
+      return;
+    }
     const STATUS_LABELS = {draft:'Qoralama',new:'Yangi',in_progress:'Jarayonda',coating:'Qoplashda',ready:'Tayyor',delivered:'Yetkazilgan',cancelled:'Bekor'};
     document.getElementById('tabContent').innerHTML = orders.map(o => `
       <div class="info-row" style="cursor:pointer" onclick="window.location.href='/orders'">
