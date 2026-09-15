@@ -814,6 +814,21 @@ async function saveProject(){
   const client=document.getElementById('f-client').value.trim();
   const pname=document.getElementById('f-pname').value.trim();
   if(!client||!pname){projToast('Mijoz va loyiha nomi shart!');return;}
+  // 2026-09-15: audit paytida topilgan xato — telefon maydoni formatini
+  // hech kim tekshirmasdi, "Abc123" kabi qiymat ham saqlanib qolar edi
+  // (bu SMS xabarnomasini "jim" ishlamay qo'yishi mumkin). Telefon shu
+  // yerda ixtiyoriy bo'lgani uchun, faqat TO'LDIRILGAN bo'lsa formatini
+  // tekshiramiz — kamida 7 ta raqam, va faqat raqam/+/bo'sh joy/tire
+  // belgilaridan iborat bo'lishi kerak.
+  const phoneVal = document.getElementById('f-phone').value.trim();
+  if (phoneVal) {
+    const digitsOnly = phoneVal.replace(/\D/g, '');
+    const onlyAllowedChars = /^[\d+\s\-()]+$/.test(phoneVal);
+    if (!onlyAllowedChars || digitsOnly.length < 7) {
+      projToast("Telefon raqami noto'g'ri — faqat raqamlar bo'lishi kerak (masalan +998901234567)");
+      return;
+    }
+  }
   if (isSavingNewProject) return; // Ikki marta bosishdan himoya
   isSavingNewProject = true;
   const btn = document.getElementById('proj-new-save-btn');

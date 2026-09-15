@@ -2377,6 +2377,15 @@ let loyStockCache = null;
 // ── GIPS BO'LIMI ─────────────────────────────────────────────
 let gipsInvCache = null;
 
+// 2026-09-15: audit paytida topilgan xato — bu funksiya avval FAQAT
+// TUR tugmasi bosilganda chaqirilar edi (toggleFields() ichida). Agar
+// foydalanuvchi avval TUR="Gips"ni tanlab, KEYIN detal NOMINI yozgan
+// bo'lsa (yoki aksincha, ammo NOM keyinroq to'ldirilgan bo'lsa) — bu
+// bo'lim yashiringan holicha qolib ketardi, va "Gips miqdori (kg)
+// kiritilmagan" xatosi chiqsa-da, foydalanuvchi o'sha maydonni
+// EKRANDA UMUMAN KO'RA OLMAS EDI — buyurtmani saqlab bo'lmas edi.
+// Endi bu funksiya NOM maydoni o'zgarganda ham qayta chaqiriladi
+// (yuqoridagi ".i-name" oninput'iga qarang).
 function checkGipsSectionVisibility() {
   const wrap = document.getElementById('gips-section-wrap');
   if (!wrap) return;
@@ -2886,7 +2895,7 @@ function addItem() {
       <div class="dif" style="grid-column:1/-1;position:relative;background:#F3E4CC;border:2px solid #A86B36">
         <label style="color:#A86B36">Nomi</label>
         <input placeholder="Karniz M-06" class="i-name" autocomplete="off"
-               oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'))" onblur="hideFpSuggest(this)">
+               oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'));checkGipsSectionVisibility()" onblur="hideFpSuggest(this)">
         <div class="fp-suggest" style="display:none"></div>
       </div>
       <div class="dif dif-tur" style="grid-column:1/-1">
