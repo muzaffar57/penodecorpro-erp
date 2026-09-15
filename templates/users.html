@@ -103,7 +103,7 @@
   <div style="background:#fff;border-radius:14px;padding:24px;width:420px;max-width:100%">
     <div style="font-size:16px;font-weight:600;margin-bottom:18px">+ Yangi foydalanuvchi</div>
     <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Login</label><input type="text" id="f-username" placeholder="menejer1"></div>
+      <div class="form-group" style="margin:0"><label>Login</label><input type="text" id="f-username" placeholder="menejer1" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
       <div class="form-group" style="margin:0"><label>To'liq ismi</label><input type="text" id="f-fullname" placeholder="Sardor A."></div>
     </div>
     <div class="form-row">
@@ -118,6 +118,7 @@
         </select>
       </div>
     </div>
+    <div id="user-error" style="display:none;color:#DC2626;font-size:13px;font-weight:600;margin-top:2px;padding:8px 10px;background:#FEF2F2;border-radius:8px"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-dark w-full" id="user-save-btn" onclick="saveUser()">Saqlash</button>
       <button class="btn btn-outline w-full" onclick="closeModal()">Bekor</button>
@@ -396,8 +397,14 @@ let isSavingUser = false;
 async function saveUser(){
   const username=document.getElementById('f-username').value.trim();
   const password=document.getElementById('f-password').value;
-  if(!username||!password){alert('Login va parol shart!');return;}
-  if(password.length<6){alert('Parol kamida 6 belgi!');return;}
+  const err = document.getElementById('user-error');
+  // 2026-09-15: audit paytida topilgan xato — bu tekshiruvlar avval
+  // native brauzer alert() orqali ko'rsatilardi, bu ilovaning boshqa
+  // hamma joyidagi chiroyli, moslashtirilgan xabarlardan farq qilardi
+  // (va ayrim avtomatlashtirilgan vositalarni "muzlatib" qo'yardi).
+  if(!username||!password){ err.textContent='Login va parol shart!'; err.style.display='block'; return; }
+  if(password.length<6){ err.textContent='Parol kamida 6 belgi bo\'lishi kerak!'; err.style.display='block'; return; }
+  err.style.display='none';
   if (isSavingUser) return; // Ikki marta bosishdan himoya
   isSavingUser = true;
   const btn = document.getElementById('user-save-btn');
@@ -405,7 +412,7 @@ async function saveUser(){
   try {
     const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({username,password,role:document.getElementById('f-role').value,full_name:document.getElementById('f-fullname').value})});
-    if(res.ok){ showAddedToast(); return; }else{const e=await res.json();alert('Xato: '+(e.detail||''));}
+    if(res.ok){ showAddedToast(); return; }else{const e=await res.json(); err.textContent='Xato: '+(e.detail||''); err.style.display='block';}
   } finally {
     isSavingUser = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
