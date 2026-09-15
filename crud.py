@@ -2799,7 +2799,26 @@ def _build_termo_notes(db: Session, item_data, existing_notes: str = None) -> st
     tahrirlashda (qoralama bo'lsa ham) ham — aynan shu funksiya
     ishlatilishi kerak, aks holda tahrirlashda '[TERMO:...]' yo'qolib,
     "Jarayonga olish"da Bazalt/Serpiyanka/Kley ombordan umuman
-    yechilmay qolar edi (2026-08-21 sinovda aynan shu holat topilgan)."""
+    yechilmay qolar edi (2026-08-21 sinovda aynan shu holat topilgan).
+
+    2026-09-14 tekshiruvi: 4 ta buyurtmada (#19,#26,#33,#36) bu belgi
+    ikki marta, so'zma-so'z bir xil holda yozilgan holati topildi.
+    Quyidagi qatordagi re.sub() — standart holatda BARCHA (faqat
+    birinchi emas) '[TERMO:...]' nusxalarini olib tashlaydi, shuning
+    uchun bu funksiya har safar chaqirilganda AVTOMATIK o'zini
+    tuzatadi (bir nechta eski nusxa bo'lsa ham, natija — doim bitta
+    to'g'ri belgi). Demak muammo BU FUNKSIYA ICHIDA emas — audit
+    jurnalida bu buyurtmalar bir necha soniya ichida "yaratildi →
+    o'chirildi → qayta yaratildi" ketma-ketligida ekani topildi, ya'ni
+    ehtimol SINOV_AVTOMATIK_TEST skriptining o'zi (server sekin javob
+    berganda) so'rovni ikki marta yuborgan. Xavf darajasi: YO'Q — bu
+    yerda faqat matn (notes) ikkilanadi, ombordan HECH QACHON ikki
+    marta ayirilmaydi (chunki qiymat o'qish — birinchi mosini topgan
+    zahoti to'xtaydi, ikkinchi nusxa bir xil bo'lgani uchun natija
+    baribir to'g'ri chiqadi). Mavjud 4 ta buyurtmadagi ikkilanган
+    yozuvni tozalash uchun — shu buyurtmani ochib, Termopanel
+    detalini o'zgartirmasdan qayta saqlash kifoya (shu funksiya
+    o'zi tozalab qo'yadi)."""
     from models import Inventory as _Inv_termo
     bazalt_id = getattr(item_data, 'bazalt_item_id', None)
     serp_id = getattr(item_data, 'serpiyanka_item_id', None)
