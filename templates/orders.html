@@ -230,7 +230,13 @@ input[type=number]{-moz-appearance:textfield}
     <div class="ord-list">
       {% if grouped %}
         {% for g in grouped %}
-        <div class="proj-group" data-project-id="{{ g.project_id }}">
+        {% set overdue_n = g.orders|selectattr('deadline_urgency', 'equalto', 'overdue')|list|length %}
+        {% set today_n = g.orders|selectattr('deadline_urgency', 'equalto', 'today')|list|length %}
+        {% set tomorrow_n = g.orders|selectattr('deadline_urgency', 'equalto', 'tomorrow')|list|length %}
+        {% set g_urgency = 'overdue' if overdue_n > 0 else ('today' if today_n > 0 else ('tomorrow' if tomorrow_n > 0 else 'normal')) %}
+        {% set g_urgent_count = overdue_n if overdue_n > 0 else (today_n if today_n > 0 else tomorrow_n) %}
+        <div class="proj-group" data-project-id="{{ g.project_id }}"
+             style="{{ 'border-left:3px solid #DC2626' if g_urgency == 'overdue' else ('border-left:3px solid #F59E0B' if g_urgency in ('today', 'tomorrow') else '') }}">
           <!-- Loyiha sarlavhasi -->
           <div class="proj-head" onclick="toggleProject({{ g.project_id }})">
             <div style="display:flex;align-items:center;gap:7px;min-width:0">
@@ -238,6 +244,13 @@ input[type=number]{-moz-appearance:textfield}
               <div style="min-width:0;flex:1">
                 <div class="proj-name">{{ g.project_name }}</div>
                 <div class="proj-client">{{ g.client_name }}</div>
+                {% if g_urgency == 'overdue' %}
+                <div style="font-size:11px;color:#DC2626;font-weight:700;margin-top:2px">🔴 Muddati o'tgan!{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
+                {% elif g_urgency == 'today' %}
+                <div style="font-size:11px;color:#D97706;font-weight:700;margin-top:2px">⏰ Bugun muddati!{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
+                {% elif g_urgency == 'tomorrow' %}
+                <div style="font-size:11px;color:#D97706;font-weight:700;margin-top:2px">⏰ Ertaga muddati{% if g_urgent_count > 1 %} ({{ g_urgent_count }} ta buyurtma){% endif %}</div>
+                {% endif %}
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
