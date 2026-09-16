@@ -277,6 +277,7 @@ async function loadProductTypes(){
             <div class="bom-item-mini">${b.items.length} ta komponent</div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id}, ${b.id})">Tahrirlash</button>
+          <button class="btn btn-outline btn-sm" style="color:#DC2626;border-color:#FCA5A5;margin-left:6px" onclick="deactivateBom(${b.id})" title="Retseptni yashirish (eski buyurtmalarga ta'sir qilmaydi)"><i class="ti ti-trash"></i></button>
         </div>
       `).join('') || '<div class="bom-item-mini" style="margin-top:10px">Hali retsept yo\'q</div>'}
     `;
@@ -297,7 +298,7 @@ function addBomItemRow(existing){
   row.className = 'bomitem-row';
   row.id = rowId;
   row.innerHTML = `
-    <select class="bi-inventory"></select>
+    <select class="bi-inventory" onchange="updateBomItemUnitHint(this)"></select>
     <input class="bi-quantity" type="text" placeholder="Miqdor">
     <select class="bi-component-type">
       <option value="raw_material">Xomashyo</option>
@@ -315,9 +316,16 @@ function addBomItemRow(existing){
   document.getElementById('bom-items-wrap').appendChild(row);
   loadInvItems().then(items => {
     const sel = row.querySelector('.bi-inventory');
-    sel.innerHTML = items.map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${escapeHtml(i.unit)})</option>`).join('');
+    // 2026-09-16: material RETSEPT birligida (base_unit, masalan "g")
+    // ko'rsatiladi, ombor birligi (unit, masalan "qop") emas — aks holda
+    // xodim "500" deb yozganda qanday birlikda ekanini bilmay qoladi.
+    // Konversiya bo'lmasa (base_unit yo'q), ikkalasi bir xil bo'lgani
+    // uchun eski ko'rinish o'zgarmaydi.
+    sel.innerHTML = items.map(i => `<option value="${i.id}" data-unit="${escapeHtml(i.base_unit || i.unit)}" data-stock-unit="${escapeHtml(i.unit)}" data-has-conversion="${i.base_unit && i.base_unit !== i.unit ? '1' : ''}">${escapeHtml(i.item_name)} (${escapeHtml(i.base_unit || i.unit)})</option>`).join('');
+    updateBomItemUnitHint(sel);
     if (existing) {
       sel.value = existing.inventory_id;
+      updateBomItemUnitHint(sel);
       row.querySelector('.bi-quantity').value = existing.quantity;
       row.querySelector('.bi-component-type').value = existing.component_type;
       row.querySelector('.bi-scrap').value = existing.scrap_factor_percent;
@@ -326,6 +334,39 @@ function addBomItemRow(existing){
       row.querySelector('.bi-percentage-cost').value = existing.percentage_cost || '';
     }
   });
+}
+
+function updateBomItemUnitHint(selectEl){
+  // 2026-09-16: tanlangan material RETSEPT birligini "Miqdor" maydoni
+  // yoniga chiqaradi (masalan "Miqdor (g)"), konversiya bo'lsa ombor
+  // birligini ham eslatib qo'yadi (masalan "≈ omborda: qop") — xodim
+  // gramm o'rniga qop deb yozib qo'yishning oldini olish uchun.
+  const row = selectEl.closest('.bomitem-row');
+  if (!row) return;
+  const opt = selectEl.selectedOptions[0];
+  const qtyInput = row.querySelector('.bi-quantity');
+  if (!opt || !qtyInput) return;
+  const unit = opt.dataset.unit || '';
+  const hasConversion = opt.dataset.hasConversion === '1';
+  qtyInput.placeholder = unit ? `Miqdor (${unit})` : 'Miqdor';
+  let hint = row.querySelector('.bi-unit-hint');
+  if (hasConversion) {
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.className = 'bi-unit-hint';
+      hint.style.cssText = 'grid-column:1/-1;font-size:11px;color:var(--text3);margin-top:-4px';
+      row.insertBefore(hint, row.querySelector('label'));
+    }
+    hint.textContent = `ℹ️ Retsept: ${unit} bilan kiritiladi, ombordan avtomatik ${opt.dataset.stockUnit} birligiga o'girib ayiriladi`;
+  } else if (hint) {
+    hint.remove();
+  }
+}
+
+async function deactivateBom(bomId){
+  if (!(await customConfirm('Bu retseptni yashirasizmi? Eski buyurtmalarga ta\'sir qilmaydi, faqat yangi buyurtma yaratishda ko\'rinmay qoladi.'))) return;
+  const res = await fetch(`/api/production/boms/${bomId}`, {method:'DELETE'});
+  if (res.ok) loadProductTypes(); else alert('Xato yuz berdi');
 }
 
 async function openBomModal(productTypeId, bomId){
