@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+{% block title %}Ishlab chiqarish (Production) — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Ishlab chiqarish{% endblock %}
+{% block page_sub %}Dinamik mahsulot turlari, retsepturalar (BOM) va ishlab chiqarish buyurtmalari{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-outline" onclick="openProductTypeModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi mahsulot turi</button>
+<button class="btn btn-dark" onclick="openProductionOrderModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Yangi ishlab chiqarish</button>
+{% endblock %}
+
+{% block head %}
+<style>
+.prod-tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border2)}
+.prod-tab{padding:10px 16px;font-size:13px;font-weight:700;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent}
+.prod-tab.active{color:var(--gold-dark);border-bottom-color:var(--gold)}
+.prod-panel{display:none}
+.prod-panel.active{display:block}
+
+.pt-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.pt-grid{grid-template-columns:1fr}}
+.pt-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card);padding:16px}
+.pt-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.pt-name{font-size:15px;font-weight:700;color:var(--text)}
+.pt-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.pt-badge{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--bg);color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+.bom-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--border2);font-size:13px}
+.bom-row:first-of-type{border-top:none;margin-top:10px}
+.bom-item-mini{font-size:11.5px;color:var(--text3)}
+
+.po-table{width:100%;border-collapse:collapse}
+.po-table th{text-align:left;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--border2)}
+.po-table td{padding:10px;border-bottom:1px solid var(--border2);font-size:13px;vertical-align:middle}
+.po-status{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+.po-status-draft{background:#F3F4F6;color:#6B7280}
+.po-status-in_progress{background:#FEF3C7;color:#B45309}
+.po-status-completed{background:#DCFCE7;color:#15803D}
+.po-status-cancelled{background:#FEE2E2;color:#B91C1C}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal-box{background:#fff;border-radius:16px;padding:24px;width:520px;max-width:100%;max-height:90vh;overflow-y:auto}
+.modal-box.wide{width:680px}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:16px}
+.mf-group{margin-bottom:12px}
+.mf-group label{display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px}
+.mf-group input,.mf-group select,.mf-group textarea{width:100%;height:40px;padding:0 12px;border:1.5px solid var(--border2);border-radius:9px;font-size:13.5px;box-sizing:border-box}
+.mf-row{display:flex;gap:10px}
+.mf-row>.mf-group{flex:1}
+
+.bomitem-row{display:grid;grid-template-columns:1.6fr .8fr .9fr .7fr auto;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)}
+.bomitem-row input,.bomitem-row select{height:34px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12px}
+.bomitem-del{background:none;border:none;color:#DC2626;cursor:pointer;font-size:15px}
+.optional-chip{font-size:10px;background:#FEF3C7;color:#B45309;padding:2px 6px;border-radius:5px;margin-left:4px}
+
+.snapshot-list{max-height:260px;overflow-y:auto;border:1px solid var(--border2);border-radius:10px}
+.snapshot-row{display:flex;justify-content:space-between;padding:8px 12px;font-size:12.5px;border-bottom:1px solid var(--border2)}
+.snapshot-row:last-child{border-bottom:none}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="prod-tabs">
+  <div class="prod-tab active" data-tab="types" onclick="switchProdTab('types')">Mahsulot turlari</div>
+  <div class="prod-tab" data-tab="orders" onclick="switchProdTab('orders')">Ishlab chiqarish buyurtmalari</div>
+</div>
+
+<!-- ═══ MAHSULOT TURLARI ═══ -->
+<div class="prod-panel active" id="panel-types">
+  <div id="pt-list" class="pt-grid"><div style="padding:30px;text-align:center;color:var(--text3)">Yuklanmoqda...</div></div>
+</div>
+
+<!-- ═══ ISHLAB CHIQARISH BUYURTMALARI ═══ -->
+<div class="prod-panel" id="panel-orders">
+  <table class="po-table">
+    <thead><tr><th>#</th><th>Mahsulot</th><th>Miqdor</th><th>Manba</th><th>Holat</th><th>Tannarx</th><th style="text-align:right">Amallar</th></tr></thead>
+    <tbody id="po-list"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text3)">Yuklanmoqda...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- ═══ YANGI MAHSULOT TURI OYNASI ═══ -->
+<div class="modal-overlay" id="pt-modal">
+  <div class="modal-box">
+    <div class="modal-title">+ Yangi mahsulot turi</div>
+    <div class="mf-group"><label>Nomi</label><input type="text" id="pt-f-name" placeholder="Masalan: Travertin"></div>
+    <div class="mf-row">
+      <div class="mf-group"><label>O'lchov birligi</label><input type="text" id="pt-f-unit" placeholder="dona / m² / kg / litr"></div>
+      <div class="mf-group">
+        <label>Kiritish shakli</label>
+        <select id="pt-f-input-template">
+          <option value="quantity_only">Faqat miqdor (Donali, qop)</option>
+          <option value="dimensional_3d">O'lcham 3D (Bo'yi/Qalinlik/Uzunlik)</option>
+          <option value="area_2d">Maydon (Bo'yi x Eni, m²)</option>
+          <option value="weight_volume">Og'irlik/Hajm (kg, litr)</option>
+          <option value="flexible_unit">Moslashuvchan (birlikni o'zi tanlaydi)</option>
+        </select>
+      </div>
+    </div>
+    <div class="mf-row">
+      <div class="mf-group">
+        <label>Narx hisoblash usuli</label>
+        <select id="pt-f-pricing-formula" onchange="toggleFixedPriceField()">
+          <option value="unit_based">Birlik narxi (miqdor x narx)</option>
+          <option value="volume_based">Hajm asosida (m³ x narx)</option>
+          <option value="area_based">Maydon asosida (m² x narx)</option>
+          <option value="fixed_price">Qat'iy narx (o'lchamdan qat'i nazar)</option>
+        </select>
+      </div>
+      <div class="mf-group" id="pt-fixed-price-wrap" style="display:none">
+        <label>Qat'iy narx (1 birlik, so'm)</label>
+        <input type="text" id="pt-f-fixed-price" placeholder="0">
+      </div>
+    </div>
+    <div class="mf-group"><label>Izoh (ixtiyoriy)</label><textarea id="pt-f-notes" rows="2"></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-dark w-full" onclick="saveProductType()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeModal('pt-modal')">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ YANGI/TAHRIRLASH RETSEPT (BOM) OYNASI ═══ -->
+<div class="modal-overlay" id="bom-modal">
+  <div class="modal-box wide">
+    <div class="modal-title" id="bom-modal-title">+ Yangi retsept</div>
+    <input type="hidden" id="bom-f-product-type-id">
+    <input type="hidden" id="bom-f-editing-id">
+    <div class="mf-row">
+      <div class="mf-group"><label>Versiya nomi</label><input type="text" id="bom-f-variant" placeholder="Standart / Yozgi / Qishki"></div>
+      <div class="mf-group"><label id="bom-batch-label">Necha birlik uchun</label><input type="text" id="bom-f-batch" placeholder="1"></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px">
+      <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase">Tarkibi</div>
+      <button type="button" class="btn btn-outline btn-sm" onclick="addBomItemRow()">+ Komponent qo'shish</button>
+    </div>
+    <div id="bom-items-wrap"></div>
+
+    <div class="mf-group" style="margin-top:14px"><label>Izoh (ixtiyoriy)</label><textarea id="bom-f-notes" rows="2"></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-dark w-full" onclick="saveBom()">Saqlash</button>
+      <button class="btn btn-outline w-full" onclick="closeModal('bom-modal')">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ YANGI ISHLAB CHIQARISH BUYURTMASI OYNASI ═══ -->
+<div class="modal-overlay" id="po-modal">
+  <div class="modal-box">
+    <div class="modal-title">+ Yangi ishlab chiqarish buyurtmasi</div>
+    <div class="mf-group">
+      <label>Mahsulot turi</label>
+      <select id="po-f-product-type" onchange="onProductTypeChangeForPO()"><option value="">— Tanlang —</option></select>
+    </div>
+    <div class="mf-group">
+      <label>Retsept versiyasi</label>
+      <select id="po-f-bom"><option value="">— Avval mahsulot tanlang —</option></select>
+    </div>
+    <div class="mf-row">
+      <div class="mf-group"><label>Miqdor</label><input type="text" id="po-f-quantity" placeholder="0"></div>
+      <div class="mf-group">
+        <label>Manba</label>
+        <select id="po-f-source-type">
+          <option value="warehouse_stock">To'g'ridan-to'g'ri omborga</option>
+          <option value="customer_order">Mijoz buyurtmasi asosida</option>
+        </select>
+      </div>
+    </div>
+    <div class="mf-group" id="po-source-order-wrap" style="display:none">
+      <label>Buyurtma raqami (ID)</label>
+      <input type="text" id="po-f-source-order-id" placeholder="Masalan: 44">
+    </div>
+    <div class="mf-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="po-f-notes"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-dark w-full" onclick="saveProductionOrder()">Yaratish (qoralama)</button>
+      <button class="btn btn-outline w-full" onclick="closeModal('po-modal')">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ "BOSHLASH" NATIJASI / OGOHLANTIRISHLAR OYNASI ═══ -->
+<div class="modal-overlay" id="snapshot-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="snapshot-modal-title">Ishlab chiqarish boshlandi</div>
+    <div id="snapshot-warnings" style="margin-bottom:10px"></div>
+    <div class="snapshot-list" id="snapshot-list"></div>
+    <button class="btn btn-dark w-full" style="margin-top:16px" onclick="closeModal('snapshot-modal')">Tushunarli</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let invItemsCache = null;
+let productTypesCache = [];
+
+function switchProdTab(tab){
+  document.querySelectorAll('.prod-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.prod-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  if (tab === 'orders') loadProductionOrders();
+}
+
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function openModalEl(id){ document.getElementById(id).classList.add('open'); }
+
+async function loadInvItems(){
+  if (invItemsCache) return invItemsCache;
+  const res = await fetch('/api/inventory');
+  invItemsCache = res.ok ? await res.json() : [];
+  return invItemsCache;
+}
+
+// ============================================================
+// MAHSULOT TURLARI
+// ============================================================
+
+function openProductTypeModal(){
+  document.getElementById('pt-f-name').value = '';
+  document.getElementById('pt-f-unit').value = '';
+  document.getElementById('pt-f-input-template').value = 'quantity_only';
+  document.getElementById('pt-f-pricing-formula').value = 'unit_based';
+  document.getElementById('pt-f-fixed-price').value = '';
+  document.getElementById('pt-f-notes').value = '';
+  toggleFixedPriceField();
+  openModalEl('pt-modal');
+}
+
+function toggleFixedPriceField(){
+  const isFixed = document.getElementById('pt-f-pricing-formula').value === 'fixed_price';
+  document.getElementById('pt-fixed-price-wrap').style.display = isFixed ? 'block' : 'none';
+}
+
+async function saveProductType(){
+  const name = document.getElementById('pt-f-name').value.trim();
+  const unit = document.getElementById('pt-f-unit').value.trim();
+  if (!name || !unit) { alert("Nomi va o'lchov birligini kiriting"); return; }
+  const body = {
+    name, unit,
+    input_template: document.getElementById('pt-f-input-template').value,
+    pricing_formula: document.getElementById('pt-f-pricing-formula').value,
+    fixed_unit_price: document.getElementById('pt-f-fixed-price').value ? parseFloat(document.getElementById('pt-f-fixed-price').value) : null,
+    notes: document.getElementById('pt-f-notes').value || null,
+  };
+  const res = await fetch('/api/production/product-types', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if (res.ok) { closeModal('pt-modal'); loadProductTypes(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+}
+
+async function loadProductTypes(){
+  const res = await fetch('/api/production/product-types');
+  productTypesCache = res.ok ? await res.json() : [];
+  const wrap = document.getElementById('pt-list');
+  if (!productTypesCache.length) {
+    wrap.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3);grid-column:1/-1">Hali mahsulot turi qo\'shilmagan</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  for (const pt of productTypesCache) {
+    const boms = await fetch(`/api/production/product-types/${pt.id}/boms`).then(r => r.ok ? r.json() : []);
+    const card = document.createElement('div');
+    card.className = 'pt-card';
+    card.innerHTML = `
+      <div class="pt-head">
+        <div>
+          <div class="pt-name">${escapeHtml(pt.name)}</div>
+          <div class="pt-badges">
+            <span class="pt-badge">${escapeHtml(pt.unit)}</span>
+            <span class="pt-badge">${escapeHtml(pt.input_template)}</span>
+            <span class="pt-badge">${escapeHtml(pt.pricing_formula)}</span>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id})">+ Retsept</button>
+      </div>
+      ${boms.map(b => `
+        <div class="bom-row">
+          <div>
+            <div>${escapeHtml(b.variant_name)} <span class="bom-item-mini">(${b.batch_quantity} ${escapeHtml(pt.unit)} uchun)</span></div>
+            <div class="bom-item-mini">${b.items.length} ta komponent</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id}, ${b.id})">Tahrirlash</button>
+        </div>
+      `).join('') || '<div class="bom-item-mini" style="margin-top:10px">Hali retsept yo\'q</div>'}
+    `;
+    wrap.appendChild(card);
+  }
+}
+
+// ============================================================
+// BOM (RETSEPT) OYNASI
+// ============================================================
+
+let bomItemRowCounter = 0;
+
+function addBomItemRow(existing){
+  const rowId = 'bomrow-' + (bomItemRowCounter++);
+  const wrap = document.getElementById('bom-items-wrap');
+  const row = document.createElement('div');
+  row.className = 'bomitem-row';
+  row.id = rowId;
+  row.innerHTML = `
+    <select class="bi-inventory"></select>
+    <input class="bi-quantity" type="text" placeholder="Miqdor">
+    <select class="bi-component-type">
+      <option value="raw_material">Xomashyo</option>
+      <option value="packaging">Qadoqlash</option>
+    </select>
+    <input class="bi-scrap" type="text" placeholder="Isrof %">
+    <button type="button" class="bomitem-del" onclick="document.getElementById('${rowId}').remove()"><i class="ti ti-trash"></i></button>
+    <label style="grid-column:1/-1;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px;margin-top:4px">
+      <input type="checkbox" class="bi-optional" style="width:auto;height:auto"> Ixtiyoriy komponent (masalan Qoplama)
+      &nbsp;|&nbsp; Qo'shimcha xarajat:
+      <input class="bi-fixed-cost" type="text" placeholder="so'm/birlik" style="width:100px;height:26px">
+      <input class="bi-percentage-cost" type="text" placeholder="% xomashyodan" style="width:110px;height:26px">
+    </label>
+  `;
+  document.getElementById('bom-items-wrap').appendChild(row);
+  loadInvItems().then(items => {
+    const sel = row.querySelector('.bi-inventory');
+    sel.innerHTML = items.map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${escapeHtml(i.unit)})</option>`).join('');
+    if (existing) {
+      sel.value = existing.inventory_id;
+      row.querySelector('.bi-quantity').value = existing.quantity;
+      row.querySelector('.bi-component-type').value = existing.component_type;
+      row.querySelector('.bi-scrap').value = existing.scrap_factor_percent;
+      row.querySelector('.bi-optional').checked = existing.is_optional;
+      row.querySelector('.bi-fixed-cost').value = existing.fixed_cost_per_unit || '';
+      row.querySelector('.bi-percentage-cost').value = existing.percentage_cost || '';
+    }
+  });
+}
+
+async function openBomModal(productTypeId, bomId){
+  document.getElementById('bom-f-product-type-id').value = productTypeId;
+  document.getElementById('bom-f-editing-id').value = bomId || '';
+  document.getElementById('bom-items-wrap').innerHTML = '';
+  const pt = productTypesCache.find(p => p.id === productTypeId);
+  document.getElementById('bom-batch-label').textContent = `Necha ${pt ? pt.unit : 'birlik'} uchun`;
+
+  if (bomId) {
+    document.getElementById('bom-modal-title').textContent = '✏️ Retseptni tahrirlash';
+    const boms = await fetch(`/api/production/product-types/${productTypeId}/boms`).then(r => r.json());
+    const bom = boms.find(b => b.id === bomId);
+    document.getElementById('bom-f-variant').value = bom.variant_name;
+    document.getElementById('bom-f-batch').value = bom.batch_quantity;
+    document.getElementById('bom-f-notes').value = bom.notes || '';
+    bom.items.forEach(it => addBomItemRow(it));
+  } else {
+    document.getElementById('bom-modal-title').textContent = '+ Yangi retsept';
+    document.getElementById('bom-f-variant').value = 'Standart';
+    document.getElementById('bom-f-batch').value = '1';
+    document.getElementById('bom-f-notes').value = '';
+    addBomItemRow();
+  }
+  openModalEl('bom-modal');
+}
+
+async function saveBom(){
+  const productTypeId = parseInt(document.getElementById('bom-f-product-type-id').value);
+  const editingId = document.getElementById('bom-f-editing-id').value;
+  const rows = Array.from(document.getElementById('bom-items-wrap').children);
+  if (!rows.length) { alert('Kamida bitta komponent qo\'shing'); return; }
+
+  const items = rows.map(row => ({
+    inventory_id: parseInt(row.querySelector('.bi-inventory').value),
+    component_type: row.querySelector('.bi-component-type').value,
+    quantity: parseFloat(row.querySelector('.bi-quantity').value) || 0,
+    scrap_factor_percent: parseFloat(row.querySelector('.bi-scrap').value) || 0,
+    is_optional: row.querySelector('.bi-optional').checked,
+    fixed_cost_per_unit: row.querySelector('.bi-fixed-cost').value ? parseFloat(row.querySelector('.bi-fixed-cost').value) : null,
+    percentage_cost: row.querySelector('.bi-percentage-cost').value ? parseFloat(row.querySelector('.bi-percentage-cost').value) : null,
+  }));
+  if (items.some(i => !i.quantity || i.quantity <= 0)) { alert("Har bir komponent uchun miqdorni to'g'ri kiriting"); return; }
+
+  const body = {
+    product_type_id: productTypeId,
+    variant_name: document.getElementById('bom-f-variant').value.trim() || 'Standart',
+    batch_quantity: parseFloat(document.getElementById('bom-f-batch').value) || 1,
+    notes: document.getElementById('bom-f-notes').value || null,
+    items,
+  };
+  const url = editingId ? `/api/production/boms/${editingId}` : '/api/production/boms';
+  const method = editingId ? 'PUT' : 'POST';
+  const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if (res.ok) { closeModal('bom-modal'); loadProductTypes(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+}
+
+// ============================================================
+// ISHLAB CHIQARISH BUYURTMALARI
+// ============================================================
+
+function openProductionOrderModal(){
+  const sel = document.getElementById('po-f-product-type');
+  sel.innerHTML = '<option value="">— Tanlang —</option>' + productTypesCache.map(pt => `<option value="${pt.id}">${escapeHtml(pt.name)}</option>`).join('');
+  document.getElementById('po-f-bom').innerHTML = '<option value="">— Avval mahsulot tanlang —</option>';
+  document.getElementById('po-f-quantity').value = '';
+  document.getElementById('po-f-source-type').value = 'warehouse_stock';
+  document.getElementById('po-f-source-order-id').value = '';
+  document.getElementById('po-f-notes').value = '';
+  document.getElementById('po-source-order-wrap').style.display = 'none';
+  document.getElementById('po-f-source-type').onchange = function(){
+    document.getElementById('po-source-order-wrap').style.display = this.value === 'customer_order' ? 'block' : 'none';
+  };
+  openModalEl('po-modal');
+}
+
+async function onProductTypeChangeForPO(){
+  const ptId = document.getElementById('po-f-product-type').value;
+  const bomSel = document.getElementById('po-f-bom');
+  if (!ptId) { bomSel.innerHTML = '<option value="">— Avval mahsulot tanlang —</option>'; return; }
+  const boms = await fetch(`/api/production/product-types/${ptId}/boms`).then(r => r.ok ? r.json() : []);
+  bomSel.innerHTML = boms.map(b => `<option value="${b.id}">${escapeHtml(b.variant_name)}</option>`).join('') || '<option value="">Bu mahsulot uchun retsept yo\'q</option>';
+}
+
+async function saveProductionOrder(){
+  const productTypeId = parseInt(document.getElementById('po-f-product-type').value);
+  const bomId = parseInt(document.getElementById('po-f-bom').value);
+  const quantity = parseFloat(document.getElementById('po-f-quantity').value);
+  if (!productTypeId || !bomId || !quantity || quantity <= 0) { alert("Mahsulot, retsept va miqdorni to'g'ri kiriting"); return; }
+  const body = {
+    product_type_id: productTypeId,
+    bom_id: bomId,
+    quantity,
+    source_type: document.getElementById('po-f-source-type').value,
+    source_order_id: document.getElementById('po-f-source-order-id').value ? parseInt(document.getElementById('po-f-source-order-id').value) : null,
+    selected_optional_bom_item_ids: [],
+    notes: document.getElementById('po-f-notes').value || null,
+  };
+  const res = await fetch('/api/production/orders', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if (res.ok) { closeModal('po-modal'); switchProdTab('orders'); document.querySelector('.prod-tab[data-tab="orders"]').click(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+}
+
+async function loadProductionOrders(){
+  const res = await fetch('/api/production/orders');
+  const rows = res.ok ? await res.json() : [];
+  const tbody = document.getElementById('po-list');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text3)">Hali buyurtma yo\'q</td></tr>'; return; }
+  tbody.innerHTML = rows.map(po => {
+    const pt = productTypesCache.find(p => p.id === po.product_type_id);
+    let actions = '';
+    if (po.status === 'draft') actions = `<button class="btn btn-dark btn-sm" onclick="doStart(${po.id})">Boshlash</button> <button class="btn btn-outline btn-sm" onclick="doCancel(${po.id})">Bekor</button>`;
+    else if (po.status === 'in_progress') actions = `<button class="btn btn-dark btn-sm" onclick="doComplete(${po.id})">Yakunlash</button> <button class="btn btn-outline btn-sm" onclick="doCancel(${po.id})">Bekor</button>`;
+    else actions = `<button class="btn btn-outline btn-sm" onclick='showSnapshot(${JSON.stringify(po.recipe_snapshot)}, "${po.status}")'>Batafsil</button>`;
+    return `<tr>
+      <td>#${po.id}</td>
+      <td>${escapeHtml(pt ? pt.name : '—')}</td>
+      <td>${po.quantity}</td>
+      <td>${po.source_type === 'customer_order' ? 'Mijoz buyurtmasi' + (po.source_order_id ? ' #' + po.source_order_id : '') : 'Ombor uchun'}</td>
+      <td><span class="po-status po-status-${po.status}">${po.status}</span></td>
+      <td>${po.total_cost ? formatMoney(po.total_cost) + " so'm" : '—'}</td>
+      <td style="text-align:right;white-space:nowrap">${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+function formatMoney(n){ return Math.round(n || 0).toLocaleString('ru-RU'); }
+
+async function doStart(poId){
+  if (!(await customConfirm('Ishlab chiqarishni boshlaysizmi? Ombor tekshiriladi va retsept suratga olinadi.'))) return;
+  const res = await fetch(`/api/production/orders/${poId}/start`, {method:'POST'});
+  const data = await res.json();
+  if (res.ok) {
+    showSnapshot(data.production_order.recipe_snapshot, 'in_progress', data.stock_warnings);
+    loadProductionOrders();
+  } else {
+    const issues = data.detail?.stock_issues || [];
+    let msg = data.detail?.message || data.detail || 'Xato';
+    if (issues.length) msg += '\n\n' + issues.map(i => `${i.item_name}: kerak ${i.required_quantity.toFixed(2)} ${i.unit}, bor ${i.available_quantity.toFixed(2)} ${i.unit}`).join('\n');
+    alert(msg);
+  }
+}
+
+async function doComplete(poId){
+  if (!(await customConfirm('Ishlab chiqarishni yakunlaysizmi? Xomashyo ombordan ayiriladi, tayyor mahsulot qo\'shiladi.'))) return;
+  const res = await fetch(`/api/production/orders/${poId}/complete`, {method:'POST'});
+  if (res.ok) { loadProductionOrders(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+}
+
+async function doCancel(poId){
+  if (!(await customConfirm('Bu buyurtmani bekor qilasizmi?', {danger:true}))) return;
+  const res = await fetch(`/api/production/orders/${poId}/cancel`, {method:'POST'});
+  if (res.ok) { loadProductionOrders(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+}
+
+function showSnapshot(snapshot, status, warnings){
+  document.getElementById('snapshot-modal-title').textContent = status === 'in_progress' ? 'Ishlab chiqarish boshlandi — band qilingan xomashyo' : 'Retsept surati';
+  const warnEl = document.getElementById('snapshot-warnings');
+  warnEl.innerHTML = (warnings && warnings.length)
+    ? `<div style="background:#FEF3C7;color:#B45309;padding:10px;border-radius:8px;font-size:12.5px;margin-bottom:10px">⚠️ Ba'zi xomashyo yetarli emas edi, lekin sozlama bo'yicha davom etildi:<br>${warnings.map(w=>`${escapeHtml(w.item_name)}: yetishmayapti ${w.shortage.toFixed(2)} ${escapeHtml(w.unit)}`).join('<br>')}</div>`
+    : '';
+  document.getElementById('snapshot-list').innerHTML = (snapshot || []).map(line => `
+    <div class="snapshot-row">
+      <span>${escapeHtml(line.item_name)}${line.is_optional ? `<span class="optional-chip">${line.included ? "ixtiyoriy: qo'shildi" : 'ixtiyoriy: qo\'shilmadi'}</span>` : ''}</span>
+      <span>${line.included ? line.total_quantity_needed.toFixed(2) + ' ' + escapeHtml(line.unit) : '—'}</span>
+    </div>
+  `).join('') || '<div style="padding:16px;text-align:center;color:var(--text3)">Ma\'lumot yo\'q</div>';
+  openModalEl('snapshot-modal');
+}
+
+// ============================================================
+// BOSHLASH
+// ============================================================
+loadProductTypes();
+</script>
+{% endblock %}
