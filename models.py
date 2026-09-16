@@ -560,6 +560,12 @@ class OrderItem(Base):
 
     notes = Column(Text, nullable=True)
 
+    # 2026-09-16: Production/MRP orqali yaratilgan DINAMIK mahsulot turi
+    # tanlangan bo'lsa (category='mrp_product'), shu yerga bog'lanadi.
+    # Alohida jadval YO'Q — Production/MRP moduli natijasi ham xuddi shu
+    # Inventory/FinishedProduct omboriga tushadi (pastdagi izohga qarang).
+    product_type_id = Column(Integer, ForeignKey("product_types.id"), nullable=True, index=True)
+
     order = relationship("Order", back_populates="items")
     deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan")
 

@@ -1056,6 +1056,7 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
             unit_price=_stored_unit_price,
             unit_price_for_volume=getattr(item_data, 'unit_price_for_volume', None),
             gips_unit=getattr(item_data, 'gips_unit', None),
+            product_type_id=getattr(item_data, 'product_type_id', None),
             total_price=item_total,
             notes=item_data.notes
         )
@@ -3394,6 +3395,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         oi.unit_price = _stored_up1
         oi.unit_price_for_volume = getattr(nd, 'unit_price_for_volume', None)
         oi.gips_unit = getattr(nd, 'gips_unit', None)
+        oi.product_type_id = getattr(nd, 'product_type_id', None)
         oi.total_price = item_total
         # MUHIM TUZATISH: "Termopanel" turi uchun frontend "[TERMO:...]"
         # belgisini HECH QACHON yubormaydi (faqat xom bazalt/serpiyanka/
@@ -3458,6 +3460,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             unit_price=_stored_up2,
             unit_price_for_volume=getattr(nd, 'unit_price_for_volume', None),
             gips_unit=getattr(nd, 'gips_unit', None),
+            product_type_id=getattr(nd, 'product_type_id', None),
             total_price=item_total,
             notes=_new_item_notes
         )

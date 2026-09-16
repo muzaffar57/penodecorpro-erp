@@ -321,6 +321,9 @@ class OrderItemCreate(BaseModel):
     recipe_id: Optional[int] = None
     # GIPS uchun — tanlangan birlik (metr/dona/m2)
     gips_unit: Optional[str] = None
+    # 2026-09-16: Production/MRP'dagi dinamik mahsulot turi tanlangan
+    # bo'lsa (category='mrp_product')
+    product_type_id: Optional[int] = None
     # Profil (karniz) turidagi detal ICHIDAGI qo'shimcha bo'laklar
     # (masalan rebristo detal) — bir nechtagacha bo'lishi mumkin
     sub_details: List[OrderItemSubDetailCreate] = Field(default_factory=list)
@@ -389,6 +392,7 @@ class OrderItemRead(BaseModel):
     image_url: Optional[str] = None
     notes: Optional[str] = None
     gips_unit: Optional[str] = None
+    product_type_id: Optional[int] = None
     sub_details: List[OrderItemSubDetailRead] = Field(default_factory=list)
     model_config = {"from_attributes": True}
 
