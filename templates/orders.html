@@ -3679,6 +3679,21 @@ function calculateItem(row) {
   if (type === 'dona') {
     const upEl = row.querySelector('.i-unitprice');
     let unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
+    // 2026-09-16 (qo'shimcha tuzatish): "1 dona narxi" maydoni EKRANDA
+    // formatNum() orqali BUTUN songa yaxlitlab ko'rsatiladi (masalan
+    // 687.83 -> "688"), lekin haqiqiy (aniq, kasrli) qiymat
+    // row.dataset.unitprice'da saqlanadi. Agar xodim bu maydonni QO'LDA
+    // O'ZGARTIRMAGAN bo'lsa (ya'ni ekrandagi yaxlitlangan raqam hali ham
+    // saqlangan aniq qiymatning yaxlitlangan shakli bilan bir xil) —
+    // HISOB-KITOBDA aniq (kasrli) qiymat ishlatiladi, YAXLITLANGANI EMAS.
+    // Aks holda, ko'p detalli buyurtmalarda "Kelishilgan summa" har safar
+    // tahrirlashda bir necha yuz so'mlik arzimas "qoldiq" bilan qayta
+    // hisoblanib qolardi (chegirma foizi ANIQ summadan olingan, lekin
+    // qayta ochilganda YAXLITLANGAN summadan qayta hisoblanardi).
+    const preciseStored = parseFloat(row.dataset.unitprice);
+    if (preciseStored && Math.round(preciseStored) === Math.round(unitPrice)) {
+      unitPrice = preciseStored;
+    }
     const hEl = row.querySelector('.i-h');
     const tEl = row.querySelector('.i-t');
     const dyEl = row.querySelector('.i-donayield');
@@ -4558,12 +4573,17 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 
           const upEl = row.querySelector('.i-unitprice');
           if (upEl) {
-            // MUHIM: backendda saqlangan unit_price — agar qoplama bo'lsa,
-            // ALLAQACHON ×2 qilingan holda saqlanadi (Jami hisob-kitob
-            // izchilligi uchun). Shuning uchun bu yerda, ekranga
-            // chiqarishda, ORIGINAL (xodim kiritgan) qiymatni ko'rsatish
-            // uchun ×2 bo'lganini YARMIGA qaytaramiz.
-            const rawPrice = item.is_coated ? (parseFloat(item.unit_price || 0) / 2) : parseFloat(item.unit_price || 0);
+            // MUHIM (2026-09-16 tuzatildi): oldin bu yerda, agar qoplama
+            // bo'lsa, saqlangan narx YARMIGA bo'linardi ("original, xodim
+            // kiritgan qiymatni ko'rsatish" niyatida) — lekin bu, pastda
+            // darhol o'rnatiladigan "donaVolLocked" holati bilan TO'QNASHIB,
+            // narxni tasodifan YARMIGA tushirib qo'yardi: qulflangan holatda
+            // calcItemRow bu maydondagi qiymatni O'ZGARTIRMASDAN, TO'G'RIDAN
+            // TO'G'RI yakuniy narx sifatida ishlatadi (xuddi qo'lda narx
+            // kiritilgandek) — shuning uchun bu yerga saqlangan unit_price
+            // TO'LIQ, o'zgarishsiz qo'yiladi (Termopanel/Gips/Loy sotish
+            // bilan bir xil, oddiy qoida).
+            const rawPrice = parseFloat(item.unit_price || 0);
             upEl.value = formatNum(rawPrice);
             row.dataset.unitprice = rawPrice;
           }
