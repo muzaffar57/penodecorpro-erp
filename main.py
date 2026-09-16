@@ -1768,6 +1768,17 @@ def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(
     return result
 
 
+@app.post("/api/gift-period/add-master")
+def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """2026-09-16: davrni to'xtatmasdan, yangi/faollashtirilgan ustani
+    aniq-ishtirokchi ro'yxatiga qo'shish uchun."""
+    who = current_user.full_name or current_user.username
+    result = crud.add_master_to_active_gift_period(db, data.get("master_id"), performed_by=who)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
+    return result
+
+
 @app.post("/api/gift-period/close")
 def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username

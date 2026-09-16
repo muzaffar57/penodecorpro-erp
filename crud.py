@@ -6896,6 +6896,49 @@ def get_gift_period_overview(db: Session) -> dict:
     }
 
 
+def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: str = None) -> dict:
+    """2026-09-16 (foydalanuvchi so'rovi bo'yicha): davr ANIQ ustalar
+    ro'yxati bilan (hammasi emas) ochilgan bo'lsa, keyinroq ishga
+    qabul qilingan/faollashtirilgan yangi ustani davrni TO'XTATMASDAN
+    shu ro'yxatga qo'shish imkonini beradi.
+
+    MUHIM: agar davr "barcha faol ustalar" rejimida ochilgan bo'lsa
+    (hech qanday GiftPeriodParticipant yozuvi yo'q — get_gift_period_
+    participant_ids() bo'sh to'plam qaytaradi), unga BITTA aniq
+    ishtirokchi qo'shib bo'lmaydi — bu, aksincha, davrni "faqat shu
+    bitta usta" rejimiga aylantirib, boshqa BARCHA ustalarni davrdan
+    chiqarib tashlagan bo'lardi. Bunday holda hech narsa o'zgartirilmaydi
+    — yangi usta ALLAQACHON avtomatik ishtirok etadi (dinamik so'rov
+    orqali), shunchaki shu haqda xabar qaytariladi.
+    """
+    period = get_active_gift_period(db)
+    if not period:
+        return {"success": False, "message": "Faol sovg'a davri yo'q"}
+    master = db.query(Master).filter(Master.id == master_id).first()
+    if not master:
+        return {"success": False, "message": "Usta topilmadi"}
+    if not master.is_active:
+        return {"success": False, "message": f"{master.name} faol emas — avval uni faollashtiring"}
+
+    from models import GiftPeriodParticipant
+    participant_ids = get_gift_period_participant_ids(db, period.id)
+    if not participant_ids:
+        return {
+            "success": True, "already_included": True, "all_masters_mode": True,
+            "message": f"{master.name} qo'shish shart emas — bu davr \"barcha faol ustalar\" rejimida ochilgan, u allaqachon avtomatik ishtirok etadi.",
+        }
+    if master_id in participant_ids:
+        return {"success": True, "already_included": True, "all_masters_mode": False,
+                "message": f"{master.name} allaqachon shu davrda ishtirok etmoqda."}
+
+    db.add(GiftPeriodParticipant(period_id=period.id, master_id=master_id))
+    log_activity(db, "gift_period_add_master", "gift_period", period.id,
+                 entity_label=master.name, performed_by=performed_by)
+    db.commit()
+    return {"success": True, "already_included": False, "all_masters_mode": False,
+            "message": f"{master.name} davrga qo'shildi — bu daqiqadan boshlab uning savdosi hisoblana boshlaydi."}
+
+
 def close_gift_period(db: Session, performed_by: str = None, force: bool = False) -> dict:
     """Faol davrni yopadi. Agar biror usta biror bosqichga 'tayyor' bo'lib,
     hali 'Berildi' deb belgilanmagan bo'lsa va force=False bo'lsa — YOPMAY,
