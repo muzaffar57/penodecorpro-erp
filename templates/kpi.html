@@ -1460,7 +1460,7 @@ async function loadGiftPeriod() {
     }
     if (box) {
       if (!data.active) renderGiftPeriodClosed(box);
-      else renderGiftPeriodActive(box, data);
+      else await renderGiftPeriodActive(box, data);
     }
   } catch(e) {
     if (box) box.innerHTML = '<div style="text-align:center;padding:16px;color:#DC2626">Yuklashda xato</div>';
@@ -1624,8 +1624,18 @@ async function saveTierEdit(id) {
   } catch(e) { alert("❌ Server bilan aloqa yo'q"); } finally { isSavingTierEdit = false; }
 }
 
-function renderGiftPeriodActive(box, data) {
+async function renderGiftPeriodActive(box, data) {
   _currentPeriodTiers = data.tiers;
+  // 2026-09-16: "usta qo'shish" ro'yxati uchun allMasterKpiData kerak —
+  // agar sahifa hali to'liq yuklanib ulgurmagan bo'lsa (xuddi 2026-09-12
+  // dagi tanlov-piker bug'i kabi), shu yerda ham zaxira yuklab olamiz.
+  if (!allMasterKpiData || !allMasterKpiData.length) {
+    try {
+      const year = parseInt(document.getElementById('kpi-year')?.value) || new Date().getFullYear();
+      const d = await fetch(`/api/masters/kpi-report?year=${year}`).then(r => r.json());
+      allMasterKpiData = d.masters;
+    } catch(e) {}
+  }
   const rowsHtml = data.masters.map(m => {
     const tiersProgress = m.tiers.map(t => t.ready
       ? `<span style="color:#16A34A;font-weight:600">✅ ${t.gift_name}</span>`
@@ -1642,8 +1652,18 @@ function renderGiftPeriodActive(box, data) {
         <td style="padding:9px 6px;text-align:right">${redeemBtn}</td>
       </tr>`;
   }).join('');
+  const addMasterControl = data.all_masters ? '' : `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <select id="giftPeriodAddMasterSelect" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border2);font-size:13px">
+        <option value="">— Yangi usta qo'shish —</option>
+        ${(allMasterKpiData || []).filter(m => !data.masters.some(dm => dm.master_id === m.id)).map(m =>
+          `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}
+      </select>
+      <button class="btn btn-outline btn-sm" onclick="submitAddMasterToGiftPeriod()">+ Qo'shish</button>
+    </div>`;
   box.innerHTML = `
     <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">${data.all_masters ? 'Barcha faol ustalar ishtirok etadi' : `Faqat ${data.masters.length} ta tanlangan usta ishtirok etadi`}</div>
+    ${addMasterControl}
     <div id="tierChipsRow" style="margin-bottom:14px">${renderTierChipsHtml()}</div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -1660,6 +1680,25 @@ function renderGiftPeriodActive(box, data) {
 }
 
 let isRedeemingPeriodGift = false;
+async function submitAddMasterToGiftPeriod() {
+  const sel = document.getElementById('giftPeriodAddMasterSelect');
+  const masterId = parseInt(sel?.value);
+  if (!masterId) { alert('Avval ustani tanlang'); return; }
+  try {
+    const res = await fetch('/api/gift-period/add-master', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({master_id: masterId})
+    });
+    const result = await res.json();
+    if (res.ok) {
+      alert((result.message ? '✅ ' + result.message : '✅ Qo\'shildi'));
+      loadGiftPeriod();
+    } else {
+      alert('❌ ' + (result.detail || "Xato yuz berdi"));
+    }
+  } catch(e) { alert("❌ Server bilan aloqa yo'q"); }
+}
+
 async function redeemGiftPeriodTier(masterId, tierId, giftName) {
   if (isRedeemingPeriodGift) return;
   if (!(await customConfirm(`"${giftName}" sovg'asini ustaga QO'LGA BERGANINGIZNI tasdiqlaysizmi?\n\nBu amaldan keyin, uning hisoblagichi 0'ga tushadi.`))) return;
