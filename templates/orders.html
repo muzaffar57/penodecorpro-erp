@@ -4558,12 +4558,17 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 
           const upEl = row.querySelector('.i-unitprice');
           if (upEl) {
-            // MUHIM: backendda saqlangan unit_price — agar qoplama bo'lsa,
-            // ALLAQACHON ×2 qilingan holda saqlanadi (Jami hisob-kitob
-            // izchilligi uchun). Shuning uchun bu yerda, ekranga
-            // chiqarishda, ORIGINAL (xodim kiritgan) qiymatni ko'rsatish
-            // uchun ×2 bo'lganini YARMIGA qaytaramiz.
-            const rawPrice = item.is_coated ? (parseFloat(item.unit_price || 0) / 2) : parseFloat(item.unit_price || 0);
+            // MUHIM (2026-09-16 tuzatildi): oldin bu yerda, agar qoplama
+            // bo'lsa, saqlangan narx YARMIGA bo'linardi ("original, xodim
+            // kiritgan qiymatni ko'rsatish" niyatida) — lekin bu, pastda
+            // darhol o'rnatiladigan "donaVolLocked" holati bilan TO'QNASHIB,
+            // narxni tasodifan YARMIGA tushirib qo'yardi: qulflangan holatda
+            // calcItemRow bu maydondagi qiymatni O'ZGARTIRMASDAN, TO'G'RIDAN
+            // TO'G'RI yakuniy narx sifatida ishlatadi (xuddi qo'lda narx
+            // kiritilgandek) — shuning uchun bu yerga saqlangan unit_price
+            // TO'LIQ, o'zgarishsiz qo'yiladi (Termopanel/Gips/Loy sotish
+            // bilan bir xil, oddiy qoida).
+            const rawPrice = parseFloat(item.unit_price || 0);
             upEl.value = formatNum(rawPrice);
             row.dataset.unitprice = rawPrice;
           }
