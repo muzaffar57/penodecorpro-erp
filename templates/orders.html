@@ -3679,6 +3679,21 @@ function calculateItem(row) {
   if (type === 'dona') {
     const upEl = row.querySelector('.i-unitprice');
     let unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
+    // 2026-09-16 (qo'shimcha tuzatish): "1 dona narxi" maydoni EKRANDA
+    // formatNum() orqali BUTUN songa yaxlitlab ko'rsatiladi (masalan
+    // 687.83 -> "688"), lekin haqiqiy (aniq, kasrli) qiymat
+    // row.dataset.unitprice'da saqlanadi. Agar xodim bu maydonni QO'LDA
+    // O'ZGARTIRMAGAN bo'lsa (ya'ni ekrandagi yaxlitlangan raqam hali ham
+    // saqlangan aniq qiymatning yaxlitlangan shakli bilan bir xil) —
+    // HISOB-KITOBDA aniq (kasrli) qiymat ishlatiladi, YAXLITLANGANI EMAS.
+    // Aks holda, ko'p detalli buyurtmalarda "Kelishilgan summa" har safar
+    // tahrirlashda bir necha yuz so'mlik arzimas "qoldiq" bilan qayta
+    // hisoblanib qolardi (chegirma foizi ANIQ summadan olingan, lekin
+    // qayta ochilganda YAXLITLANGAN summadan qayta hisoblanardi).
+    const preciseStored = parseFloat(row.dataset.unitprice);
+    if (preciseStored && Math.round(preciseStored) === Math.round(unitPrice)) {
+      unitPrice = preciseStored;
+    }
     const hEl = row.querySelector('.i-h');
     const tEl = row.querySelector('.i-t');
     const dyEl = row.querySelector('.i-donayield');
