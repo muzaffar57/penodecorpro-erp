@@ -161,6 +161,10 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
             existing_to_reuse.serp_ratio_per_m2 = item_data.serp_ratio_per_m2
         if getattr(item_data, 'kley_ratio_per_m2', None) is not None:
             existing_to_reuse.kley_ratio_per_m2 = item_data.kley_ratio_per_m2
+        if getattr(item_data, 'base_unit', None) is not None:
+            existing_to_reuse.base_unit = item_data.base_unit
+        if getattr(item_data, 'conversion_factor', None) is not None:
+            existing_to_reuse.conversion_factor = item_data.conversion_factor
         if is_peno and is_default:
             db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
                 {"is_default_penoplast": False}
@@ -188,7 +192,9 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
         category=(item_data.category if getattr(item_data, 'category', None) else guess_category(item_data.item_name, is_peno)),
         notes=item_data.notes,
         serp_ratio_per_m2=getattr(item_data, 'serp_ratio_per_m2', None),
-        kley_ratio_per_m2=getattr(item_data, 'kley_ratio_per_m2', None)
+        kley_ratio_per_m2=getattr(item_data, 'kley_ratio_per_m2', None),
+        base_unit=getattr(item_data, 'base_unit', None),
+        conversion_factor=getattr(item_data, 'conversion_factor', None)
     )
     db.add(db_item)
     db.commit()
