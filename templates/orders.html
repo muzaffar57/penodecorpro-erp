@@ -2955,6 +2955,8 @@ function addItem() {
           <div class="type-opt" data-value="loy_sotish" onclick="selectTypeOpt(this,'loy_sotish')">🪣 Loy sotish (tayyor holda)</div>
           <div class="tur-sep"></div>
           <div class="type-opt" data-value="gips" onclick="selectTypeOpt(this,'gips')">🧱 Gips</div>
+          <div class="tur-sep"></div>
+          <div class="type-opt" data-value="mrp_product" onclick="openMrpProductPicker(this)">🏭 MRP Mahsuloti</div>
         </div>
         <div class="type-confirm-text"></div>
         <select class="i-type" style="display:none" onchange="toggleFields(this.closest('.detal'));calculateItem(this.closest('.detal'))">
@@ -2965,6 +2967,7 @@ function addItem() {
           <option value="termopanel">Termopanel (Bazalt)</option>
           <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>
           <option value="gips">🧱 Gips</option>
+          <option value="mrp_product">🏭 MRP Mahsuloti</option>
         </select>
       </div>
       <div class="dgrp-flex-row" style="display:flex;gap:12px;align-items:stretch;grid-column:1/-1">
@@ -3169,7 +3172,7 @@ function setSubDetailCoating(el, isCoated) {
 const TYPE_DISPLAY_NAME = {
   profil: '📏 Profil', panel: '🔲 Panel', dona: '⭐ Donali',
   blok: '🧊 Blok', termopanel: '🪨 Termopanel (Bazalt)',
-  loy_sotish: '🪣 Loy sotish', gips: '🧱 Gips',
+  loy_sotish: '🪣 Loy sotish', gips: '🧱 Gips', mrp_product: '🏭 MRP Mahsuloti',
 };
 function updateTypeConfirmText(row, type) {
   const el = row.querySelector('.type-confirm-text');
@@ -3189,6 +3192,74 @@ function selectTypeOpt(btn, value) {
   toggleFields(row);
   updateTypeConfirmText(row, value);
   calculateItem(row);
+}
+
+// 2026-09-16: "MRP Mahsuloti" — Production/MRP modulida yaratilgan
+// dinamik mahsulot turlaridan birini tanlash uchun qidiruvli oyna.
+// Ko'p mahsulot turi bo'lsa ham interfeys chalkashmasligi uchun,
+// bittalab tugma o'rniga BITTA tugma + qidiruv ishlatiladi.
+let _mrpProductTypesCache = null;
+async function openMrpProductPicker(btn) {
+  const row = btn.closest('.detal');
+  if (!_mrpProductTypesCache) {
+    try {
+      _mrpProductTypesCache = await fetch('/api/production/product-types').then(r => r.ok ? r.json() : []);
+    } catch(e) { _mrpProductTypesCache = []; }
+  }
+  if (!_mrpProductTypesCache.length) {
+    alert("Hali \"Ishlab chiqarish\" bo'limida faol mahsulot turi yaratilmagan. Avval o'sha yerda mahsulot turi yarating.");
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--card-bg,#fff);border-radius:14px;padding:20px;width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25)">
+      <div style="font-weight:600;margin-bottom:10px;font-size:14px">🏭 MRP mahsulotini tanlang</div>
+      <input id="mrpPickerSearch" type="text" placeholder="Qidirish..." autocomplete="off"
+             style="padding:8px 10px;border-radius:8px;border:1px solid var(--border2);margin-bottom:10px;font-size:13px;width:100%;box-sizing:border-box">
+      <div id="mrpPickerList" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:2px;min-height:60px"></div>
+      <button type="button" id="mrpPickerCancel" style="margin-top:12px;padding:8px;border-radius:8px;border:1px solid var(--border2);background:transparent;cursor:pointer;font-size:13px">Bekor</button>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const listEl = overlay.querySelector('#mrpPickerList');
+  const renderList = (filter) => {
+    const f = (filter || '').toLowerCase();
+    const matches = _mrpProductTypesCache.filter(pt => pt.name.toLowerCase().includes(f));
+    listEl.innerHTML = matches.map(pt =>
+      `<div class="mrp-pick-item" data-id="${pt.id}" style="padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between">
+        <span>${escapeHtml(pt.name)}</span><span style="color:var(--text3);font-size:11px">${escapeHtml(pt.unit)}</span>
+      </div>`
+    ).join('') || '<div style="padding:10px;color:var(--text3);font-size:13px">Topilmadi</div>';
+    listEl.querySelectorAll('.mrp-pick-item').forEach(it => {
+      it.onmouseenter = () => it.style.background = 'var(--hover-bg,#f0f0f0)';
+      it.onmouseleave = () => it.style.background = '';
+      it.onclick = () => {
+        const pt = _mrpProductTypesCache.find(p => p.id === parseInt(it.dataset.id));
+        selectMrpProduct(row, pt);
+        overlay.remove();
+      };
+    });
+  };
+  renderList('');
+  const searchEl = overlay.querySelector('#mrpPickerSearch');
+  searchEl.oninput = (e) => renderList(e.target.value);
+  overlay.querySelector('#mrpPickerCancel').onclick = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  searchEl.focus();
+}
+
+function selectMrpProduct(row, pt) {
+  row.dataset.mrpProductTypeId = pt.id;
+  row.dataset.mrpInputTemplate = pt.input_template;
+  row.dataset.mrpUnit = pt.unit;
+  const btn = row.querySelector('.type-opt[data-value="mrp_product"]');
+  if (btn) btn.textContent = '🏭 ' + pt.name;
+  const nameEl = row.querySelector('.i-name');
+  if (nameEl && !nameEl.value.trim()) nameEl.value = pt.name;
+  selectTypeOpt(btn, 'mrp_product');
+  const confirmEl = row.querySelector('.type-confirm-text');
+  if (confirmEl) confirmEl.textContent = `✓ "${pt.name}" tanlandi — ${pt.unit} bo'yicha, oddiy narx x miqdor bilan hisoblanadi`;
 }
 
 // Detal kartochkasini yig'ish/yoyish (collapse/expand) — faqat ko'rinish,
@@ -3386,6 +3457,28 @@ function toggleFields(row) {
     if (gipsUnitW) gipsUnitW.style.display = '';
     ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
     onGipsUnitChange(row);
+  } else if (type === 'mrp_product') {
+    // 2026-09-16: Production/MRP'da yaratilgan DINAMIK mahsulot turi.
+    // Narx har doim oddiy: Miqdor x Narx (murakkab formulasi
+    // Production/MRP modulining o'zida, BOM orqali hisoblanadi — bu
+    // yerda faqat SOTUV narxi kiritiladi). O'lcham maydonlari faqat
+    // TAVSIF uchun (agar tanlangan mahsulot 3D/2D shaklda bo'lsa),
+    // hisob-kitobga ta'sir qilmaydi.
+    const tmpl = row.dataset.mrpInputTemplate || 'quantity_only';
+    const showDims = (tmpl === 'dimensional_3d' || tmpl === 'area_2d');
+    hW.style.display = showDims ? 'block' : 'none';
+    wW.style.display = 'none';
+    tW.style.display = (tmpl === 'dimensional_3d') ? 'block' : 'none';
+    lW.style.display = showDims ? 'block' : 'none';
+    qW.style.display = 'block';
+    if (upW) upW.style.display = 'block';
+    if (bpW) bpW.style.display = 'none';
+    if (bmW) bmW.style.display = 'none';
+    if (m3Field) m3Field.style.display = 'none';
+    if (coatField) coatField.style.display = 'none';
+    if (penoField) penoField.style.display = 'none';
+    if (!showDims) { ['i-h','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; }); }
+    if (tmpl !== 'dimensional_3d') { const el = row.querySelector('.i-t'); if(el) el.value=''; }
   } else {
     hW.style.display = 'block'; wW.style.display = 'block';
     tW.style.display = 'none';  lW.style.display = 'block';
@@ -3444,11 +3537,12 @@ function toggleFields(row) {
   // Miqdor maydonining nomi va birligi: panel — metr, blok — kerakli metr, dona — dona
   const qLabel = row.querySelector('.i-q-label');
   const qSuffix = row.querySelector('.i-q-suffix');
+  const mrpUnit = row.dataset.mrpUnit || 'dona';
   if (qLabel) {
-    qLabel.textContent = (type === 'panel') ? 'Uzunlik' : (type === 'blok') ? "Necha metr kerak" : (type === 'termopanel') ? "Necha kvadrat metr" : (type === 'loy_sotish') ? "Necha kg" : 'Miqdor';
+    qLabel.textContent = (type === 'panel') ? 'Uzunlik' : (type === 'blok') ? "Necha metr kerak" : (type === 'termopanel') ? "Necha kvadrat metr" : (type === 'loy_sotish') ? "Necha kg" : (type === 'mrp_product') ? 'Miqdor' : 'Miqdor';
   }
   if (qSuffix) {
-    qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : (type === 'termopanel') ? 'm²' : (type === 'loy_sotish') ? 'kg' : 'dona';
+    qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : (type === 'termopanel') ? 'm²' : (type === 'loy_sotish') ? 'kg' : (type === 'mrp_product') ? mrpUnit : 'dona';
   }
   const lLabel = row.querySelector('.i-l-label');
   if (lLabel) {
@@ -3456,11 +3550,11 @@ function toggleFields(row) {
   }
   const upLabel = row.querySelector('.i-unitprice-label');
   if (upLabel) {
-    upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi" : (type === 'loy_sotish') ? "1 kg narxi" : "1 dona narxi";
+    upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi" : (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 dona narxi";
   }
   const permLabel = row.querySelector('.i-perm-label');
   if (permLabel) {
-    permLabel.textContent = (type === 'termopanel') ? "1 m² narxi" : (type === 'loy_sotish') ? "1 kg narxi" : "1 metr narxi";
+    permLabel.textContent = (type === 'termopanel') ? "1 m² narxi" : (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 metr narxi";
   }
   // "Eni" -> "Bo'yi", "Kengligi" -> "Qalinligi" — FAQAT Profil va Donalikda
   // (Panelda "Kengligi" maydoni endi butunlay yashirilgan — yuqoridagi
@@ -3901,6 +3995,17 @@ function calculateItem(row) {
     price = unitPrice * qty;
     volume_total = 0;
     row.querySelector('.i-vol').value = '— (Gips, alohida hisoblanadi)';
+  } else if (type === 'mrp_product') {
+    // 2026-09-16: narx har doim oddiy — miqdor x narx. Xomashyo sarfi
+    // BU YERDA HISOBLANMAYDI — u Production/MRP modulida, alohida
+    // Ishlab chiqarish buyurtmasi orqali (BOM asosida) hisoblanadi.
+    // O'lcham maydonlari (agar ko'rsatilgan bo'lsa) faqat tavsif uchun.
+    const upEl = row.querySelector('.i-unitprice');
+    const unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
+    perMeterPrice = unitPrice;
+    price = unitPrice * qty;
+    volume_total = 0;
+    row.querySelector('.i-vol').value = '— (Production/MRP orqali ishlab chiqariladi)';
   }
 
   const priceEl = row.querySelector('.i-price');
@@ -4545,6 +4650,16 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 
     // Har bir detalga forma qo'shamiz
     if (itemsToUse.length > 0) {
+      // Agar biror detal MRP mahsuloti bo'lsa — pastda uning input_template/
+      // unit/nomi kerak bo'ladi (toggleFields to'g'ri maydon ko'rsatishi
+      // uchun), shuning uchun ro'yxatni OLDINDAN, forEach boshlanishidan
+      // avval, bir marta yuklab olamiz (har bir item uchun alohida kutish —
+      // "await" — forEach ichida ishonchli ishlamaydi).
+      if (itemsToUse.some(it => (it.category || '') === 'mrp_product') && !_mrpProductTypesCache) {
+        try {
+          _mrpProductTypesCache = await fetch('/api/production/product-types').then(r => r.ok ? r.json() : []);
+        } catch(e) { _mrpProductTypesCache = []; }
+      }
       itemsToUse.forEach(item => {
         addItem();
         const row = document.getElementById('item_' + itemCount);
@@ -4554,6 +4669,17 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 
         const typeEl = row.querySelector('.i-type');
         const cat = item.category || 'profil';
+        // MRP mahsuloti bo'lsa — toggleFields to'g'ri ishlashi uchun,
+        // uning shakli (input_template)/birligi tugma bosilishidan OLDIN
+        // o'rnatiladi.
+        if (cat === 'mrp_product' && item.product_type_id) {
+          const pt = (_mrpProductTypesCache || []).find(p => p.id === item.product_type_id);
+          if (pt) {
+            row.dataset.mrpProductTypeId = pt.id;
+            row.dataset.mrpInputTemplate = pt.input_template;
+            row.dataset.mrpUnit = pt.unit;
+          }
+        }
         typeEl.value = cat;
         row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === cat));
         toggleFields(row);
@@ -4694,6 +4820,27 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           if (upEl2) {
             upEl2.value = formatNum(parseFloat(item.unit_price || 0));
             row.dataset.unitprice = parseFloat(item.unit_price || 0);
+          }
+        } else if (cat === 'mrp_product') {
+          row.querySelector('.i-q').value = item.quantity || 0;
+          if (row.dataset.mrpInputTemplate === 'dimensional_3d' || row.dataset.mrpInputTemplate === 'area_2d') {
+            row.querySelector('.i-h').value = item.width || '';
+            row.querySelector('.i-l').value = item.length || '';
+          }
+          if (row.dataset.mrpInputTemplate === 'dimensional_3d') {
+            row.querySelector('.i-t').value = item.thickness || '';
+          }
+          const upEl3 = row.querySelector('.i-unitprice');
+          if (upEl3) {
+            upEl3.value = formatNum(parseFloat(item.unit_price || 0));
+            row.dataset.unitprice = parseFloat(item.unit_price || 0);
+          }
+          const pt = (_mrpProductTypesCache || []).find(p => p.id === item.product_type_id);
+          const mrpBtn = row.querySelector('.type-opt[data-value="mrp_product"]');
+          if (pt && mrpBtn) {
+            mrpBtn.textContent = '🏭 ' + pt.name;
+            const confirmEl = row.querySelector('.type-confirm-text');
+            if (confirmEl) confirmEl.textContent = `✓ "${pt.name}" tanlandi — ${pt.unit} bo'yicha, oddiy narx x miqdor bilan hisoblanadi`;
           }
         } else {
           row.querySelector('.i-h').value = item.width || 0;
@@ -5013,6 +5160,16 @@ function collectItems() {
                    quantity: qty, unit_price: unitP, is_coated: false,
                    penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
                    gips_unit: gipsUnit });
+    } else if (type === 'mrp_product') {
+      const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
+      const productTypeId = parseInt(row.dataset.mrpProductTypeId) || null;
+      const showDims = ['dimensional_3d','area_2d'].includes(row.dataset.mrpInputTemplate);
+      items.push({ name, category: 'mrp_product', width: showDims ? h : null,
+                   thickness: (row.dataset.mrpInputTemplate === 'dimensional_3d') ? t : null,
+                   length: showDims ? l : null,
+                   quantity: qty, unit_price: unitP, is_coated: false,
+                   penoplast_id: null, price_per_m3: null, finished_product_id: null,
+                   product_type_id: productTypeId });
     } else {
       // Profil (karniz) — ichki qo'shimcha detallarni ham yig'ib yuboramiz
       // (ular Yuk xatida alohida chiqmaydi, ombor hisobi uchun kerak)
