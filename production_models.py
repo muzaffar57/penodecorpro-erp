@@ -22,6 +22,20 @@ ADR (Architecture Decision Record) — asosiy qarorlar:
      migratsiyasi boshlanganda, faqat shu YANGI modullarni emas, BUTUN
      tizimni qayta yozishni talab qilmasligi uchun ataylab shunday.
 
+2026-09-16 (davomi) — foydalanuvchi tomonidan berilgan "7 ta Guardrails"
+arxitektura talabiga qarshi tekshirilib, quyidagilar QO'SHILDI:
+  6. Birlik konversiyasi (Inventory.base_unit / conversion_factor) —
+     BOMItem.quantity endi materialning base_unit'i (masalan gramm)
+     bo'yicha kiritiladi, ombordan esa HAR DOIM Inventory.unit (masalan
+     qop) birligida ayiriladi — konversiya production_service.py'da.
+  7. BOMItem.company_id qo'shildi (ilgari faqat ota-BOM orqali bilvosita
+     tenant-scoped edi).
+Allaqachon MAVJUD bo'lgan (o'zgarishsiz qoldirilgan) talablar: snapshot
+immutability (bandi 3), input_template/pricing_formula ajratilgani
+(pastdagi enumlarga qarang), is_optional komponentlar, va soft/hard
+stock validatsiya (allow_negative_stock, Company klassiga qarang) —
+bularning barchasi ASL arxitekturada allaqachon to'g'ri edi.
+
 MUHIM, OCHIQ QOLGAN ARXITEKTURA NUQTASI (buni albatta o'qing):
   "IN_PROGRESS = RESERVED" degani — ombordagi xomashyo boshqa birov
   tomonidan "band qilingan" deb hisoblanishi kerak, degan ma'noni
@@ -212,6 +226,17 @@ class BOMItem(Base):
     bom_id = Column(Integer, ForeignKey("boms.id"), nullable=False, index=True)
     inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=False, index=True)
 
+    # 2026-09-16: SaaS-tayyorlik (qoida #6) — BOM/ProductionOrder singari
+    # bu yerga ham to'g'ridan-to'g'ri company_id qo'shildi (parent BOM
+    # orqali BILVOSITA emas), toki kelajakda BOMItem alohida so'ralganda
+    # ham tenant filtri to'g'ridan-to'g'ri qo'llanilsin.
+    # NULLABLE qilib qo'yilgan SABABI: bu jadval ALLAQACHON stagingda
+    # mavjud (bo'sh/test qatorlari bilan) — avtomatik ustun qo'shish
+    # (sync_missing_columns) faqat NULL bo'lishi mumkin bo'lgan ustunlarni
+    # xavfsiz qo'sha oladi. Ilova darajasida (routes.py) BU MAYDON
+    # HAR DOIM to'ldiriladi — amalda hech qachon NULL bo'lmaydi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
+
     component_type = Column(String(20), nullable=False, default=BOMComponentType.RAW_MATERIAL.value)
 
     # BOM.batch_quantity uchun kerakli miqdor (Inventory.unit birligida)
@@ -245,6 +270,20 @@ class BOMItem(Base):
 
     @property
     def unit(self):
+        """2026-09-16: qoida #1 (Unit Conversion). Agar material uchun
+        `base_unit` belgilangan bo'lsa (masalan "g"), retsept miqdori
+        (BOMItem.quantity) O'SHA mayda birlikda kiritilgan deb hisoblanadi
+        — shuning uchun ko'rsatish uchun ham o'sha birlik qaytariladi.
+        Aks holda (base_unit yo'q) — eski xatti-harakat: ombor birligi
+        (Inventory.unit)ning o'zi."""
+        if not self.inventory:
+            return "—"
+        return self.inventory.base_unit or self.inventory.unit
+
+    @property
+    def stock_unit(self):
+        """Har doim OMBOR birligi (Inventory.unit) — konversiyadan
+        qat'i nazar. Xomashyo shu birlikda ayiriladi/saqlanadi."""
         return self.inventory.unit if self.inventory else "—"
 
     def __repr__(self):

@@ -85,7 +85,9 @@ def create_bom(data: schemas.BOMCreate, db: Session = Depends(get_db), current_u
     db.add(bom)
     db.flush()
     for item_data in data.items:
-        db.add(BOMItem(bom_id=bom.id, **item_data.model_dump()))
+        # Qoida #6 (Multi-tenancy): BOMItem endi to'g'ridan-to'g'ri
+        # company_id'ga ega — ota-BOM orqali bilvosita emas.
+        db.add(BOMItem(bom_id=bom.id, company_id=DEFAULT_COMPANY_ID, **item_data.model_dump()))
     db.commit()
     db.refresh(bom)
     return bom
@@ -102,9 +104,9 @@ def update_bom(bom_id: int, data: schemas.BOMCreate, db: Session = Depends(get_d
     bom.variant_name = data.variant_name
     bom.batch_quantity = data.batch_quantity
     bom.notes = data.notes
-    db.query(BOMItem).filter(BOMItem.bom_id == bom.id).delete()
+    db.query(BOMItem).filter(BOMItem.bom_id == bom.id, BOMItem.company_id == DEFAULT_COMPANY_ID).delete()
     for item_data in data.items:
-        db.add(BOMItem(bom_id=bom.id, **item_data.model_dump()))
+        db.add(BOMItem(bom_id=bom.id, company_id=DEFAULT_COMPANY_ID, **item_data.model_dump()))
     db.commit()
     db.refresh(bom)
     return bom
@@ -133,9 +135,16 @@ def create_order(data: schemas.ProductionOrderCreate, db: Session = Depends(get_
 
 @router.post("/orders/{po_id}/start")
 def start_order(po_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+    # ESLATMA (qoida #4): "Guardrails" talabida qattiq bloklashda HTTP 400
+    # so'ralgan edi; bu yerda ATAYLAB 409 (Conflict) qoldirildi — chunki bu
+    # "so'rov noto'g'ri tuzilgan" (400 ning ma'nosi) emas, balki "so'rov
+    # to'g'ri, lekin joriy holat/ombor bilan ziddiyatda" degani (masalan
+    # noto'g'ri holatdagi buyurtmani boshlash — shu yerning o'zida ham 409
+    # qaytaradi). Ikkalasi BIR XIL endpoint ichida bo'lgani uchun, ikkitasi
+    # ham 409 bo'lishi frontend uchun izchil. Agar 400'ni qat'iy xohlasangiz
+    # — shu qatordagi status_code'ni almashtirish yetarli.
     result = service.start_production_order(db, po_id, DEFAULT_COMPANY_ID, performed_by=current_user.full_name or current_user.username)
     if not result["success"]:
-        # 400 emas 409 — "holat mos kelmadi/yetarli emas" ma'nosida
         raise HTTPException(status_code=409, detail={"message": result["message"], "stock_issues": result.get("stock_issues", [])})
     return {
         "success": True,

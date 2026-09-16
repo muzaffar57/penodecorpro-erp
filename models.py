@@ -295,6 +295,17 @@ class Inventory(Base):
     kley_ratio_per_m2 = Column(Float, nullable=True)  # Bazalt uchun: 1 m² bazaltga necha kg kley
     is_deleted = Column(Boolean, default=False)  # "O'chirilgan" — lekin eski buyurtma/harakat tarixi uchun saqlanadi
 
+    # 2026-09-16: Dinamik Production/MRP moduli uchun — BIRLIK KONVERSIYASI.
+    # Muammo: xomashyo RETSEPTDA mayda birlikda (masalan gramm, ml) yozilishi
+    # kerak bo'lishi mumkin, lekin OMBORDA yirik birlikda (tonna, qop-50kg,
+    # bochka-200L) saqlanadi. Ikkalasi ham NULL bo'lsa — eski (2026-09-16
+    # gacha bo'lgan) xatti-harakat: retsept ham ombor birligi (`unit`)da
+    # yoziladi, konversiya YO'Q. Faqat Production moduli o'qiydi — qolgan
+    # butun tizim (Order/Recipe/FinishedProduct) bu ikki ustunga umuman
+    # tegmaydi va ularsiz avvalgidek ishlashda davom etadi.
+    base_unit = Column(String(20), nullable=True)  # Retseptda ishlatiladigan MAYDA birlik — masalan "g", "ml". Bo'sh bo'lsa, retsept ham shu materialning `unit` birligida yoziladi.
+    conversion_factor = Column(Float, nullable=True)  # 1 dona `unit` (ombor birligi) necha dona `base_unit`ga teng. Masalan: unit="qop", base_unit="g", conversion_factor=50000 (1 qop = 50000 gramm). Faqat base_unit to'ldirilganda ishlatiladi.
+
     def __repr__(self):
         return f"<Inventory {self.item_name}: {self.stock_quantity} {self.unit}>"
 

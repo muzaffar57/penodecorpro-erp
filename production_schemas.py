@@ -116,10 +116,21 @@ class ProductionOrderCreate(BaseModel):
 class ProductionOrderSnapshotLine(BaseModel):
     """recipe_snapshot_json ichidagi bitta qatorning shakli — faqat
     JAVOB (response) uchun, saqlashda xuddi shu tuzilish JSON qilib
-    yoziladi."""
+    yoziladi.
+
+    2026-09-16: qoida #1 (Unit Conversion) uchun qo'shilgan maydonlar —
+    `unit`/`total_quantity_needed` RETSEPT birligida (masalan gramm),
+    `stock_unit`/`total_quantity_needed_stock_unit` OMBOR birligida
+    (masalan qop) — HAQIQIY ayirish/tannarx shu ikkinchisi bilan
+    hisoblanadi. `conversion_factor_at_time` — konversiya koeffitsienti
+    ham SHU PAYTDA suratga olinadi (immutability, qoida #2 bilan bir xil
+    printsip: material kartochkasi keyin o'zgarsa ham, bu buyurtma
+    o'zgarmaydi)."""
     inventory_id: int
     item_name: str
     unit: str
+    stock_unit: str
+    conversion_factor_at_time: Optional[float] = None
     component_type: str
     is_optional: bool
     included: bool
@@ -127,6 +138,7 @@ class ProductionOrderSnapshotLine(BaseModel):
     scrap_factor_percent: float
     effective_quantity_per_batch: float
     total_quantity_needed: float
+    total_quantity_needed_stock_unit: float
     unit_price_at_time: float
     line_cost: float
 

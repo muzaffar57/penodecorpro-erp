@@ -12,6 +12,31 @@ Mavjud crud.py uslubiga qat'iy mos yozilgan:
 Bu fayl — mustaqil modul (production_models.py'ga bog'liq), lekin
 qolgan qismi (log_movement, FinishedProduct va h.k.) uchun mavjud
 crud.py/models.py'ga murojaat qiladi.
+
+2026-09-16 (davomi) — "7 ta Guardrails" arxitektura talabi bo'yicha
+qo'shilgan/mustahkamlangan narsalar:
+
+  [Qoida #1 — Unit Conversion] _compute_bom_line() endi HAR BIR qatorda
+  IKKI XIL miqdorni hisoblaydi: total_quantity_needed (RETSEPT birligida,
+  masalan gramm — Inventory.base_unit) va total_quantity_needed_stock_unit
+  (OMBOR birligida, masalan qop — Inventory.unit). Ombordan HAQIQIY
+  ayirish/tekshirish HAR DOIM ikkinchisi bilan amalga oshiriladi.
+  Agar Inventory.base_unit bo'sh bo'lsa — ikkalasi TENG (eski, konversiyasiz
+  xatti-harakat, orqaga to'liq mos).
+
+  [Qoida #3 — ACID/Rollback] Loyihaning butun stack'i SINXRON SQLAlchemy
+  (`Session`, pg8000 drayveri, database.py'ga qarang) — asosiy main.py'ning
+  BARCHA boshqa funksiyalari ham shu tarzda yozilgan. Shuning uchun
+  "async with session.begin()" BU LOYIHAGA MOS EMAS (loyihada asyncio/
+  asyncpg umuman yo'q — buni joriy qilish butun main.py'ni qayta yozishni
+  talab qiladi, alohida, katta qaror bo'lardi). O'RNIGA, xuddi shu ATOMIKLIK
+  KAFOLATI mavjud sinxron Session bilan, EXPLICIT try/except/rollback
+  orqali ta'minlanadi: har bir ko'p qadamli funksiya (start/complete)
+  butunlay bitta try blokida, YAGONA db.commit() oxirida, va istisno
+  (Exception) yuz bersa — db.rollback() ANIQ chaqirilib, xato qayta
+  ko'tariladi (raise). (Bundan tashqari, database.py'dagi get_db() ham
+  so'rov darajasida xuddi shunday zaxira rollback qiladi — bu esa ikkinchi,
+  ICHKI xavfsizlik qatlami sifatida qo'shildi.)
 """
 
 import json
@@ -38,27 +63,52 @@ def _get_company(db: Session, company_id: int) -> Optional[Company]:
 def _compute_bom_line(bom_item: BOMItem, production_quantity: float, batch_quantity: float) -> dict:
     """Bitta BOMItem uchun, berilgan ishlab chiqarish miqdoriga mos
     ravishda, ISROF FOIZINI HISOBGA OLGAN HOLDA, kerakli xomashyo
-    miqdorini hisoblaydi.
+    miqdorini hisoblaydi — HAM retsept birligida, HAM ombor birligida
+    (qoida #1 — Unit Conversion).
 
-    Formula: 1 batch uchun quantity, isrof bilan (scrap_factor_percent),
-    keyin (production_quantity / batch_quantity) nisbatiga ko'paytiriladi.
+    Formula: 1 batch uchun quantity (retsept birligida, masalan gramm),
+    isrof bilan (scrap_factor_percent), keyin (production_quantity /
+    batch_quantity) nisbatiga ko'paytiriladi. Natija ombor birligiga
+    material.conversion_factor orqali o'giriladi (agar base_unit
+    belgilangan bo'lsa) — aks holda ikkalasi bir xil (konversiya yo'q).
     """
+    inv = bom_item.inventory
+
     effective_per_batch = bom_item.quantity * (1 + (bom_item.scrap_factor_percent or 0) / 100.0)
     ratio = production_quantity / batch_quantity if batch_quantity else 0
-    total_needed = effective_per_batch * ratio
-    unit_price = float(bom_item.inventory.price_per_unit or 0) if bom_item.inventory else 0.0
+    total_needed_recipe_unit = effective_per_batch * ratio
+
+    conversion_factor = float(inv.conversion_factor) if (inv and inv.conversion_factor) else None
+    has_conversion = bool(inv and inv.base_unit and conversion_factor)
+
+    if has_conversion:
+        # Masalan: retsept 500 g talab qiladi, 1 qop (ombor birligi) =
+        # 50000 g -> 500 / 50000 = 0.01 qop ombordan ayiriladi.
+        total_needed_stock_unit = total_needed_recipe_unit / conversion_factor
+    else:
+        total_needed_stock_unit = total_needed_recipe_unit  # Konversiya yo'q — eski xatti-harakat
+
+    # Narx HAR DOIM Inventory.price_per_unit — bu HAR DOIM ombor birligi
+    # (Inventory.unit) uchun narx, shuning uchun tannarx OMBOR birligidagi
+    # miqdorga ko'paytiriladi (retsept birligiga emas).
+    unit_price = float(inv.price_per_unit or 0) if inv else 0.0
+    line_cost = total_needed_stock_unit * unit_price
+
     return {
         "inventory_id": bom_item.inventory_id,
         "item_name": bom_item.item_name,
-        "unit": bom_item.unit,
+        "unit": bom_item.unit,                 # Retsept birligi (masalan "g") — ko'rsatish uchun
+        "stock_unit": bom_item.stock_unit,      # Ombor birligi (masalan "qop") — haqiqiy ayirish shu bilan
+        "conversion_factor_at_time": conversion_factor,  # Suratga olinadi — keyin material o'zgarsa ham bu buyurtmaga ta'sir qilmasin
         "component_type": bom_item.component_type,
         "is_optional": bool(bom_item.is_optional),
         "base_quantity": float(bom_item.quantity),
         "scrap_factor_percent": float(bom_item.scrap_factor_percent or 0),
         "effective_quantity_per_batch": effective_per_batch,
-        "total_quantity_needed": total_needed,
+        "total_quantity_needed": total_needed_recipe_unit,
+        "total_quantity_needed_stock_unit": total_needed_stock_unit,
         "unit_price_at_time": unit_price,
-        "line_cost": total_needed * unit_price,
+        "line_cost": line_cost,
     }
 
 
@@ -110,14 +160,23 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
 
 def start_production_order(db: Session, po_id: int, company_id: int, performed_by: str = None) -> dict:
     """DRAFT holatidagi buyurtmani IN_PROGRESS'ga o'tkazadi:
-      1. Ombordagi HAR BIR kerakli xomashyoni TEKSHIRADI (yetarlimi).
+      1. Ombordagi HAR BIR kerakli xomashyoni TEKSHIRADI (yetarlimi) —
+         konversiya (qoida #1) hisobga olingan holda, OMBOR birligida.
       2. Yetarli bo'lmasa — Company.allow_negative_stock ga qarab:
-         False bo'lsa -> BUTUNLAY TO'XTAYDI, hech narsa o'zgarmaydi;
-         True bo'lsa -> davom etadi, lekin ogohlantirish qaytaradi.
+         False bo'lsa -> BUTUNLAY TO'XTAYDI, hech narsa o'zgarmaydi
+         (qoida #4 — Hard Block);
+         True bo'lsa -> davom etadi, lekin ogohlantirish qaytaradi
+         (qoida #4 — Soft Warning).
       3. Retseptni "suratga oladi" (recipe_snapshot_json) — shu paytdagi
-         narx/miqdorlar shu yerda QOTIB QOLADI.
+         narx/miqdorlar/konversiya koeffitsienti shu yerda QOTIB QOLADI
+         (qoida #2 — Snapshot Immutability).
       4. Mavjud "Tayyor mahsulotlar" jadvaliga IN_PROGRESS holatda
          bitta yozuv qo'shadi (hozirgi UX bilan bir xil ko'rinish uchun).
+
+    Butun funksiya BITTA atomik amal sifatida ishlaydi (qoida #3): agar
+    QAYERDADIR kutilmagan xato yuz bersa, HAMMASI (shu jumladan yuqoridagi
+    Inventory qulflari) db.rollback() bilan bekor qilinadi va xato qayta
+    ko'tariladi — yarim bajarilgan holat HECH QACHON saqlanmaydi.
 
     MUHIM: bu bosqichda ombordan HALI HECH NARSA AYRILMAYDI — faqat
     tekshiriladi va "suratga olinadi". Haqiqiy ayirish faqat
@@ -129,85 +188,100 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
     """
     from models import Inventory  # Mavjud, asosiy Inventory jadvali
 
-    po = db.query(ProductionOrder).filter(
-        ProductionOrder.id == po_id, ProductionOrder.company_id == company_id
-    ).first()
-    if not po:
-        return {"success": False, "message": "Ishlab chiqarish buyurtmasi topilmadi"}
-    if po.status != ProductionOrderStatus.DRAFT.value:
-        return {"success": False, "message": f"Faqat 'draft' holatidagi buyurtma boshlanishi mumkin (hozirgi holat: {po.status})"}
+    try:
+        po = db.query(ProductionOrder).filter(
+            ProductionOrder.id == po_id, ProductionOrder.company_id == company_id
+        ).first()
+        if not po:
+            return {"success": False, "message": "Ishlab chiqarish buyurtmasi topilmadi"}
+        if po.status != ProductionOrderStatus.DRAFT.value:
+            return {"success": False, "message": f"Faqat 'draft' holatidagi buyurtma boshlanishi mumkin (hozirgi holat: {po.status})"}
 
-    bom = db.query(BOM).filter(BOM.id == po.bom_id).first()
-    if not bom:
-        return {"success": False, "message": "Retsept (BOM) topilmadi"}
+        bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
+        if not bom:
+            return {"success": False, "message": "Retsept (BOM) topilmadi"}
 
-    company = _get_company(db, company_id)
-    allow_negative = bool(company.allow_negative_stock) if company else False
+        company = _get_company(db, company_id)
+        allow_negative = bool(company.allow_negative_stock) if company else False
 
-    selected_optional_ids = set(json.loads(po.selected_optional_bom_item_ids_json or "[]"))
+        selected_optional_ids = set(json.loads(po.selected_optional_bom_item_ids_json or "[]"))
 
-    snapshot = []
-    stock_warnings = []
-    for item in bom.items:
-        included = (not item.is_optional) or (item.id in selected_optional_ids)
-        line = _compute_bom_line(item, po.quantity, bom.batch_quantity)
-        line["included"] = included
-        if not included:
-            # Tanlanmagan ixtiyoriy komponent — suratga kiradi (shaffoflik
-            # uchun, "bu safar ishlatilmagan" deb ko'rsatish mumkin bo'lsin),
-            # lekin ombor tekshiruviga ham, tannarxga ham ta'sir qilmaydi.
-            snapshot.append(line)
-            continue
+        snapshot = []
+        stock_warnings = []
+        for item in bom.items:
+            included = (not item.is_optional) or (item.id in selected_optional_ids)
+            line = _compute_bom_line(item, po.quantity, bom.batch_quantity)
+            line["included"] = included
+            if not included:
+                # Tanlanmagan ixtiyoriy komponent — suratga kiradi (shaffoflik
+                # uchun, "bu safar ishlatilmagan" deb ko'rsatish mumkin bo'lsin),
+                # lekin ombor tekshiruviga ham, tannarxga ham ta'sir qilmaydi.
+                snapshot.append(line)
+                continue
 
-        inv = db.query(Inventory).filter(Inventory.id == item.inventory_id).with_for_update().first()
-        if not inv:
-            return {"success": False, "message": f"Xomashyo topilmadi (ID {item.inventory_id})"}
-
-        available = float(inv.stock_quantity or 0)
-        needed = line["total_quantity_needed"]
-        if available < needed:
-            stock_warnings.append({
-                "inventory_id": inv.id, "item_name": inv.item_name, "unit": inv.unit,
-                "required_quantity": needed, "available_quantity": available,
-                "shortage": needed - available,
-            })
-            if not allow_negative:
-                # Qattiq rejim — BUTUN amal bekor qilinadi, hech narsa
-                # o'zgarmaydi (db.commit() chaqirilmagan).
+            inv = db.query(Inventory).filter(Inventory.id == item.inventory_id).with_for_update().first()
+            if not inv:
                 db.rollback()
-                return {
-                    "success": False,
-                    "message": f"Omborda yetarli '{inv.item_name}' yo'q (kerak: {needed:.2f} {inv.unit}, bor: {available:.2f} {inv.unit})",
-                    "stock_issues": stock_warnings,
-                }
-        snapshot.append(line)
+                return {"success": False, "message": f"Xomashyo topilmadi (ID {item.inventory_id})"}
 
-    # Mavjud "Tayyor mahsulotlar" jadvaliga "ishlab chiqarilmoqda" yozuvi
-    from models import FinishedProduct, StockSource, ProductionStatus as FPStatus
-    product_type = db.query(ProductType).filter(ProductType.id == po.product_type_id).first()
-    fp = FinishedProduct(
-        name=product_type.name if product_type else "Noma'lum mahsulot",
-        category="dynamic_bom",
-        quantity=po.quantity,
-        produced_quantity=po.quantity,
-        unit=product_type.unit if product_type else "dona",
-        unit_price=0,       # Sotuv narxi alohida (pricing_formula orqali) belgilanadi — bu yerga tegishli emas
-        cost_price=0,       # COMPLETED bosqichida to'ldiriladi
-        source=StockSource.PRODUCED,
-        production_status=FPStatus.IN_PROGRESS,
-        created_by=performed_by,
-    )
-    db.add(fp)
-    db.flush()  # fp.id kerak, hali commit qilmasdan
+            available = float(inv.stock_quantity or 0)
+            # Qoida #1: solishtirish HAR DOIM ombor birligida (stock_unit),
+            # retsept birligida (masalan gramm) EMAS.
+            needed = line["total_quantity_needed_stock_unit"]
+            if available < needed:
+                stock_warnings.append({
+                    "inventory_id": inv.id, "item_name": inv.item_name, "unit": inv.unit,
+                    "required_quantity": needed, "available_quantity": available,
+                    "shortage": needed - available,
+                })
+                if not allow_negative:
+                    # Qattiq rejim (qoida #4 — Hard Block): BUTUN amal
+                    # bekor qilinadi, hech narsa o'zgarmaydi.
+                    db.rollback()
+                    return {
+                        "success": False,
+                        "message": f"Omborda yetarli '{inv.item_name}' yo'q (kerak: {needed:.4f} {inv.unit}, bor: {available:.2f} {inv.unit})",
+                        "stock_issues": stock_warnings,
+                    }
+                # Yumshoq rejim (qoida #4 — Soft Warning): ogohlantirish
+                # bilan davom etiladi, amal to'xtatilmaydi.
+            snapshot.append(line)
 
-    po.finished_product_id = fp.id
-    po.recipe_snapshot_json = json.dumps(snapshot, ensure_ascii=False)
-    po.status = ProductionOrderStatus.IN_PROGRESS.value
-    po.started_at = datetime.utcnow()
-    db.commit()
-    db.refresh(po)
+        # Mavjud "Tayyor mahsulotlar" jadvaliga "ishlab chiqarilmoqda" yozuvi
+        from models import FinishedProduct, StockSource, ProductionStatus as FPStatus
+        product_type = db.query(ProductType).filter(
+            ProductType.id == po.product_type_id, ProductType.company_id == company_id
+        ).first()
+        fp = FinishedProduct(
+            name=product_type.name if product_type else "Noma'lum mahsulot",
+            category="dynamic_bom",
+            quantity=po.quantity,
+            produced_quantity=po.quantity,
+            unit=product_type.unit if product_type else "dona",
+            unit_price=0,       # Sotuv narxi alohida (pricing_formula orqali) belgilanadi — bu yerga tegishli emas
+            cost_price=0,       # COMPLETED bosqichida to'ldiriladi
+            source=StockSource.PRODUCED,
+            production_status=FPStatus.IN_PROGRESS,
+            created_by=performed_by,
+        )
+        db.add(fp)
+        db.flush()  # fp.id kerak, hali commit qilmasdan
 
-    return {"success": True, "production_order": po, "stock_warnings": stock_warnings}
+        po.finished_product_id = fp.id
+        po.recipe_snapshot_json = json.dumps(snapshot, ensure_ascii=False)
+        po.status = ProductionOrderStatus.IN_PROGRESS.value
+        po.started_at = datetime.utcnow()
+        db.commit()
+        db.refresh(po)
+
+        return {"success": True, "production_order": po, "stock_warnings": stock_warnings}
+
+    except Exception:
+        # Qoida #3 — ACID: kutilmagan har qanday xatoda, shu paytgacha
+        # ushbu funksiya ichida bajarilgan HAMMA narsa (Inventory qulflari,
+        # FinishedProduct qo'shilishi va h.k.) bekor qilinadi.
+        db.rollback()
+        raise
 
 
 # ============================================================
@@ -218,72 +292,92 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
     """IN_PROGRESS holatidagi buyurtmani yakunlaydi:
       1. recipe_snapshot_json'da QOTIRILGAN miqdorlarni o'qiydi (JORIY
          BOM'ni QAYTA o'qimaydi — chunki BOM shu orada o'zgargan bo'lishi
-         mumkin, lekin bu buyurtma ESKI shartlar bilan boshlangan edi).
-      2. Har bir xomashyoni omborda HAQIQATAN ayiradi, log_movement()
-         bilan jurnalga yozadi.
+         mumkin, lekin bu buyurtma ESKI shartlar bilan boshlangan edi;
+         qoida #2 — Snapshot Immutability).
+      2. Har bir xomashyoni omborda HAQIQATAN ayiradi — snapshot'dagi
+         OMBOR birligidagi miqdor bilan (qoida #1 — Unit Conversion,
+         konversiya allaqachon start()'da hisoblab qo'yilgan), va
+         log_movement() bilan jurnalga yozadi.
       3. Tayyor mahsulot yozuvini (FinishedProduct) 'ready' holatiga
          o'tkazadi, tannarxni (cost_price) hisoblab yozadi.
+
+    Butun funksiya BITTA atomik amal (qoida #3): xomashyo ayirish,
+    tannarx hisoblash, order statusini o'zgartirish va FinishedProduct'ni
+    yangilash — HAMMASI bitta db.commit() bilan yakunlanadi; QAYERDADIR
+    xato chiqsa, HAMMASI (ayirilgan xomashyolar ham) db.rollback() bilan
+    butunlay bekor qilinadi.
     """
     from models import Inventory, FinishedProduct, ProductionStatus as FPStatus
 
-    po = db.query(ProductionOrder).filter(
-        ProductionOrder.id == po_id, ProductionOrder.company_id == company_id
-    ).first()
-    if not po:
-        return {"success": False, "message": "Ishlab chiqarish buyurtmasi topilmadi"}
-    if po.status != ProductionOrderStatus.IN_PROGRESS.value:
-        return {"success": False, "message": f"Faqat 'in_progress' holatidagi buyurtma yakunlanishi mumkin (hozirgi holat: {po.status})"}
-    if not po.recipe_snapshot_json:
-        return {"success": False, "message": "Retsept surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
+    try:
+        po = db.query(ProductionOrder).filter(
+            ProductionOrder.id == po_id, ProductionOrder.company_id == company_id
+        ).first()
+        if not po:
+            return {"success": False, "message": "Ishlab chiqarish buyurtmasi topilmadi"}
+        if po.status != ProductionOrderStatus.IN_PROGRESS.value:
+            return {"success": False, "message": f"Faqat 'in_progress' holatidagi buyurtma yakunlanishi mumkin (hozirgi holat: {po.status})"}
+        if not po.recipe_snapshot_json:
+            return {"success": False, "message": "Retsept surati topilmadi — bu buyurtma to'g'ri boshlanmagan bo'lishi mumkin"}
 
-    snapshot = json.loads(po.recipe_snapshot_json)
+        snapshot = json.loads(po.recipe_snapshot_json)
 
-    total_material_cost = 0.0
-    for line in snapshot:
-        if not line.get("included"):
-            continue  # Tanlanmagan ixtiyoriy komponent — o'tkazib yuboriladi
-        inv = db.query(Inventory).filter(Inventory.id == line["inventory_id"]).with_for_update().first()
-        if not inv:
-            continue  # Xomashyo o'chirilgan bo'lsa ham, yakunlashni to'xtatmaymiz — snapshot narxi bilan hisoblashda davom etamiz
-        needed = line["total_quantity_needed"]
-        inv.stock_quantity = float(inv.stock_quantity or 0) - needed
-        crud.log_movement(
-            db, inv.id, inv.item_name, movement_type="out",
-            quantity=needed, unit=inv.unit,
-            reason=f"Ishlab chiqarish buyurtmasi #{po.id} yakunlandi",
-            performed_by=performed_by,
-        )
-        total_material_cost += line["line_cost"]
+        total_material_cost = 0.0
+        for line in snapshot:
+            if not line.get("included"):
+                continue  # Tanlanmagan ixtiyoriy komponent — o'tkazib yuboriladi
+            inv = db.query(Inventory).filter(Inventory.id == line["inventory_id"]).with_for_update().first()
+            if not inv:
+                continue  # Xomashyo o'chirilgan bo'lsa ham, yakunlashni to'xtatmaymiz — snapshot narxi bilan hisoblashda davom etamiz
+            # Qoida #1: OMBOR birligidagi miqdor bilan ayiriladi (agar
+            # eski, konversiyasiz snapshot bo'lsa — kalit yo'q, shuning
+            # uchun retsept-birlik qiymatiga qaytadi, orqaga mos).
+            needed = line.get("total_quantity_needed_stock_unit", line["total_quantity_needed"])
+            inv.stock_quantity = float(inv.stock_quantity or 0) - needed
+            crud.log_movement(
+                db, inv.id, inv.item_name, movement_type="out",
+                quantity=needed, unit=inv.unit,
+                reason=f"Ishlab chiqarish buyurtmasi #{po.id} yakunlandi",
+                performed_by=performed_by,
+            )
+            total_material_cost += line["line_cost"]
 
-    # Qo'shimcha xarajatlar (fixed_cost_per_unit, percentage_cost) —
-    # BOMItem'dan emas, snapshot momentidagi narxdan hisoblanadi
-    bom = db.query(BOM).filter(BOM.id == po.bom_id).first()
-    total_extra_cost = 0.0
-    if bom:
-        for item in bom.items:
-            if item.fixed_cost_per_unit:
-                total_extra_cost += float(item.fixed_cost_per_unit) * po.quantity
-            if item.percentage_cost:
-                total_extra_cost += total_material_cost * (float(item.percentage_cost) / 100.0)
+        # Qo'shimcha xarajatlar (fixed_cost_per_unit, percentage_cost) —
+        # BOMItem'dan emas, snapshot momentidagi narxdan hisoblanadi
+        bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
+        total_extra_cost = 0.0
+        if bom:
+            for item in bom.items:
+                if item.fixed_cost_per_unit:
+                    total_extra_cost += float(item.fixed_cost_per_unit) * po.quantity
+                if item.percentage_cost:
+                    total_extra_cost += total_material_cost * (float(item.percentage_cost) / 100.0)
 
-    total_cost = total_material_cost + total_extra_cost
+        total_cost = total_material_cost + total_extra_cost
 
-    po.total_material_cost = total_material_cost
-    po.total_extra_cost = total_extra_cost
-    po.total_cost = total_cost
-    po.status = ProductionOrderStatus.COMPLETED.value
-    po.completed_at = datetime.utcnow()
+        po.total_material_cost = total_material_cost
+        po.total_extra_cost = total_extra_cost
+        po.total_cost = total_cost
+        po.status = ProductionOrderStatus.COMPLETED.value
+        po.completed_at = datetime.utcnow()
 
-    if po.finished_product_id:
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == po.finished_product_id).first()
-        if fp:
-            fp.cost_price = total_cost
-            fp.production_status = FPStatus.READY
-            fp.finished_production_at = datetime.utcnow()
+        if po.finished_product_id:
+            fp = db.query(FinishedProduct).filter(FinishedProduct.id == po.finished_product_id).first()
+            if fp:
+                fp.cost_price = total_cost
+                fp.production_status = FPStatus.READY
+                fp.finished_production_at = datetime.utcnow()
 
-    db.commit()
-    db.refresh(po)
-    return {"success": True, "production_order": po}
+        db.commit()
+        db.refresh(po)
+        return {"success": True, "production_order": po}
+
+    except Exception:
+        # Qoida #3 — ACID: xomashyo ayirish yarim yo'lda to'xtagan bo'lsa
+        # ham, HAMMASI (shu jumladan yuqorida ayirilgan qatorlar) bekor
+        # qilinadi — omborda "yarim ayirilgan" holat qolmaydi.
+        db.rollback()
+        raise
 
 
 # ============================================================
@@ -306,13 +400,19 @@ def cancel_production_order(db: Session, po_id: int, company_id: int, performed_
     if po.status not in (ProductionOrderStatus.DRAFT.value, ProductionOrderStatus.IN_PROGRESS.value):
         return {"success": False, "message": f"'{po.status}' holatidagi buyurtmani bekor qilib bo'lmaydi"}
 
-    if po.finished_product_id:
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == po.finished_product_id).first()
-        if fp:
-            db.delete(fp)
+    try:
+        if po.finished_product_id:
+            fp = db.query(FinishedProduct).filter(FinishedProduct.id == po.finished_product_id).first()
+            if fp:
+                db.delete(fp)
 
-    po.status = ProductionOrderStatus.CANCELLED.value
-    po.cancelled_at = datetime.utcnow()
-    db.commit()
-    db.refresh(po)
-    return {"success": True, "production_order": po}
+        po.status = ProductionOrderStatus.CANCELLED.value
+        po.cancelled_at = datetime.utcnow()
+        db.commit()
+        db.refresh(po)
+        return {"success": True, "production_order": po}
+    except Exception:
+        # Qoida #3 — ACID: FinishedProduct o'chirilib, lekin status
+        # yangilanmay qolgan oraliq holat hech qachon saqlanmasin.
+        db.rollback()
+        raise
