@@ -112,6 +112,21 @@ def update_bom(bom_id: int, data: schemas.BOMCreate, db: Session = Depends(get_d
     return bom
 
 
+@router.delete("/boms/{bom_id}")
+def deactivate_bom(bom_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """2026-09-16: ProductType.is_active bilan bir xil naqsh — BOM
+    o'chirilmaydi (eski ProductionOrder'lar o'zining recipe_snapshot_json
+    surati bilan ishlaydi, JORIY BOM'ga bog'liq emas, shuning uchun
+    o'chirish ularga zarar keltirmaydi), faqat yangi buyurtmalar uchun
+    tanlov ro'yxatidan yashiriladi."""
+    bom = db.query(BOM).filter(BOM.id == bom_id, BOM.company_id == DEFAULT_COMPANY_ID).first()
+    if not bom:
+        raise HTTPException(status_code=404, detail="Retsept topilmadi")
+    bom.is_active = False
+    db.commit()
+    return {"status": "ok"}
+
+
 # ============================================================
 # ISHLAB CHIQARISH BUYURTMALARI (ProductionOrder)
 # ============================================================

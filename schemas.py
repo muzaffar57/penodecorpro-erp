@@ -75,6 +75,8 @@ class InventoryRead(BaseModel):
     image_url: Optional[str] = None
     serp_ratio_per_m2: Optional[float] = None
     kley_ratio_per_m2: Optional[float] = None
+    base_unit: Optional[str] = None
+    conversion_factor: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
