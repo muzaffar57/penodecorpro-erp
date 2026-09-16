@@ -93,6 +93,8 @@ class InventoryCreate(BaseModel):
     notes: Optional[str] = None
     serp_ratio_per_m2: Optional[float] = Field(default=None, description="Bazalt uchun: 1 m² bazaltga necha m² serpiyanka")
     kley_ratio_per_m2: Optional[float] = Field(default=None, description="Bazalt uchun: 1 m² bazaltga necha kg kley")
+    base_unit: Optional[str] = Field(default=None, description="Production/MRP retseptlari uchun mayda birlik, masalan 'g', 'ml'")
+    conversion_factor: Optional[float] = Field(default=None, gt=0, description="1 dona `unit` necha dona `base_unit`ga teng (masalan 1 qop=50000 g)")
 
 
 class InventoryUpdate(BaseModel):
@@ -109,6 +111,8 @@ class InventoryUpdate(BaseModel):
     notes: Optional[str] = None
     serp_ratio_per_m2: Optional[float] = None
     kley_ratio_per_m2: Optional[float] = None
+    base_unit: Optional[str] = None
+    conversion_factor: Optional[float] = Field(default=None, gt=0)
 
 
 class StockChange(BaseModel):
