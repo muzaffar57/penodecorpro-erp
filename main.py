@@ -20,6 +20,15 @@ import services
 import auth
 from models import UserRole, Inventory, OrderStatus, OrderGipsAdditive
 
+# 2026-09-16: Dinamik Ishlab chiqarish (Production/MRP) moduli — ATAYLAB
+# alohida fayllarda (production_models.py, production_routes.py va h.k.),
+# main.py'ni yanada kattalashtirmaslik uchun. Bu import — yangi jadvallar
+# (companies, product_types, boms, bom_items, production_orders) pastdagi
+# init_database() chaqirilganda AVTOMATIK yaratilishi uchun SHART
+# (Base.metadata barcha modellarni "ko'rishi" kerak).
+import production_models
+from production_routes import router as production_router
+
 import urllib.request
 import json as _json
 
@@ -233,6 +242,29 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
 
 
 init_database()
+
+
+def _seed_default_company():
+    """2026-09-16: yangi Production moduli uchun — SaaS'gacha ishlatiladigan
+    YAGONA korxona yozuvini (id=1) bir marta yaratib qo'yadi. Xatoni
+    boshqa init funksiyalari kabi yutib yuboradi — agar biror sabab bilan
+    ishlamasa, ilovaning QOLGAN qismi baribir ishlashda davom etishi kerak."""
+    try:
+        from database import SessionLocal as _SL
+        from production_models import Company as _Company
+        _db = _SL()
+        try:
+            if not _db.query(_Company).filter(_Company.id == 1).first():
+                _db.add(_Company(id=1, name="PenodecorPro", allow_negative_stock=False))
+                _db.commit()
+                print("✅ Production moduli uchun asosiy Company (id=1) yaratildi")
+        finally:
+            _db.close()
+    except Exception as e:
+        print(f"⚠️ Company (id=1) seed qilishda xato (o'tkazib yuborildi): {e}")
+
+
+_seed_default_company()
 
 
 def _migrate_recipe_name_column():
@@ -728,6 +760,9 @@ except Exception as e:
 
 app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False)
 
+# 2026-09-16: yangi, dinamik Production/MRP moduli — /api/production/... yo'llari
+app.include_router(production_router)
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -1028,6 +1063,15 @@ async def recipes_page(request: Request, db: Session = Depends(get_db), current_
     recipes = crud.get_recipes(db)
     insights = {r.id: crud.get_recipe_insights(db, r.id) for r in recipes}
     return templates.TemplateResponse(request, "recipes.html", {"recipes": recipes, "insights": insights, "current_user": current_user, "active_page": "recipes"})
+
+
+@app.get("/production", response_class=HTMLResponse)
+async def production_page(request: Request, current_user=Depends(auth.admin_or_warehouse)):
+    """2026-09-16: yangi Dinamik Ishlab chiqarish (Production/MRP) sahifasi.
+    Barcha ma'lumotlar (mahsulot turlari, retseptlar, buyurtmalar)
+    frontendda AJAX orqali /api/production/... dan yuklanadi — shuning
+    uchun bu yerga hech qanday kontekst uzatish shart emas."""
+    return templates.TemplateResponse(request, "production.html", {"current_user": current_user, "active_page": "production"})
 
 
 @app.get("/projects", response_class=HTMLResponse)
