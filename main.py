@@ -28,6 +28,7 @@ from models import UserRole, Inventory, OrderStatus, OrderGipsAdditive
 # (Base.metadata barcha modellarni "ko'rishi" kerak).
 import production_models
 from production_routes import router as production_router
+import production_service
 
 import urllib.request
 import json as _json
@@ -2258,6 +2259,9 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "deadline": order.deadline.isoformat() if order.deadline else None,
         "base_price": float(order.base_price) if order.base_price is not None else None,
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
+        # 2026-09-17: Milestone 4 — Production/MRP tayyorlik ko'rsatkichi
+        # (Order.status'ga umuman tegishli emas — faqat ko'rsatish uchun).
+        "mrp_readiness": production_service.get_order_mrp_readiness(db, order.id),
         "notes": order.notes,
         "items": [{
             "id": i.id,
