@@ -545,7 +545,11 @@ class OrderItem(Base):
 
     # Tayyor mahsulotdan olingan bo'lsa — xomashyo hisoblanmaydi
     finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
-    finished_product = relationship("FinishedProduct")
+    # 2026-09-17: foreign_keys ANIQ ko'rsatildi — chunki endi FinishedProduct
+    # tarafida ham OrderItem'ga qarab turuvchi YANGI FK bor
+    # (reserved_for_order_item_id, rezervatsiya uchun), shuning uchun
+    # SQLAlchemy ikkita jadval orasidagi FK yo'lini avtomatik aniqlay olmaydi.
+    finished_product = relationship("FinishedProduct", foreign_keys=[finished_product_id])
 
     unit_price = Column(Numeric(12, 2), default=0)
     total_price = Column(Numeric(12, 2), default=0)
