@@ -309,6 +309,12 @@ class ProductionOrder(Base):
 
     source_type = Column(String(20), nullable=False)
     source_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)  # Faqat CUSTOMER_ORDER bo'lsa
+    # 2026-09-17: aniq QAYSI buyurtma-detalini to'ldirish uchun ekanini
+    # bildiradi (source_order_id — faqat buyurtmaning O'ZI, bitta
+    # buyurtmada bir nechta MRP-detal bo'lishi mumkin). Rezervatsiya
+    # ANIQ shu maydon orqali ishlaydi — source_order_id faqat ko'rsatish/
+    # moslik uchun saqlanadi.
+    source_order_item_id = Column(Integer, ForeignKey("order_items.id"), nullable=True, index=True)
 
     quantity = Column(Float, nullable=False)  # ProductType.unit birligida — nechta ishlab chiqarilmoqda
 

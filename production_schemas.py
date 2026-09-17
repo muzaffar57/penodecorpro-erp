@@ -109,6 +109,7 @@ class ProductionOrderCreate(BaseModel):
     quantity: float = Field(..., gt=0)
     source_type: str = Field(..., description="customer_order / warehouse_stock")
     source_order_id: Optional[int] = Field(default=None, description="Faqat source_type=customer_order bo'lsa")
+    source_order_item_id: Optional[int] = Field(default=None, description="Aniq QAYSI buyurtma-detalini to'ldirish uchun — rezervatsiya shu orqali ishlaydi")
     selected_optional_bom_item_ids: List[int] = Field(default_factory=list, description="Tanlangan ixtiyoriy komponentlar (masalan Qoplama)")
     notes: Optional[str] = None
 
@@ -150,6 +151,7 @@ class ProductionOrderRead(BaseModel):
     bom_id: int
     source_type: str
     source_order_id: Optional[int] = None
+    source_order_item_id: Optional[int] = None
     quantity: float
     status: str
     total_material_cost: Optional[float] = None

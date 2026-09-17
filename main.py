@@ -3559,6 +3559,8 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "created_by": fp.created_by,
         "notes": fp.notes,
         "image_url": fp.image_url,
+        "reserved_quantity": float(fp.reserved_quantity or 0),
+        "reserved_for_order_item_id": fp.reserved_for_order_item_id,
         "total_value": round(float(fp.quantity or 0) * float(fp.unit_price or 0))
     } for fp in items]
 
@@ -3627,6 +3629,18 @@ def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Sessio
     result = crud.record_finished_product_loss(db, data, created_by=who)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
+    return result
+
+
+@app.post("/api/finished/{fp_id}/release-reservation")
+def api_release_finished_product_reservation(fp_id: int, db: Session = Depends(get_db),
+                                               current_user=Depends(auth.admin_warehouse_or_manager)):
+    """2026-09-17: Production/MRP orqali biror buyurtmaga band qilingan
+    tayyor mahsulotni ozod qilib, umumiy sotuvga qaytaradi."""
+    who = current_user.full_name or current_user.username
+    result = crud.release_finished_product_reservation(db, fp_id, performed_by=who)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
     return result
 
 

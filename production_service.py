@@ -44,6 +44,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 import crud  # log_movement uchun — mavjud, sinovdan o'tgan funksiya qayta ishlatiladi
 from production_models import (
@@ -116,6 +117,42 @@ def _compute_bom_line(bom_item: BOMItem, production_quantity: float, batch_quant
 # 1. PRODUCTION ORDER YARATISH (DRAFT)
 # ============================================================
 
+def get_mrp_order_items_status(db: Session, company_id: int, product_type_id: int = None) -> list:
+    """2026-09-17: "Mijoz buyurtmasi asosida" ishlab chiqarish uchun —
+    barcha 'mrp_product' turidagi buyurtma-detallarini, ularning qancha
+    qismi ALLAQACHON ishlab chiqarilib band qilinganini hisoblab,
+    ro'yxat qilib qaytaradi. Faqat hali TO'LIQ band qilinmaganlari
+    (remaining_quantity > 0) qaytariladi — allaqachon to'liq
+    ta'minlanganlar ro'yxatda ko'rinmaydi (ular allaqachon bajarilgan)."""
+    from models import OrderItem, Order, Project, FinishedProduct
+    q = db.query(OrderItem).filter(OrderItem.category == 'mrp_product')
+    if product_type_id:
+        q = q.filter(OrderItem.product_type_id == product_type_id)
+    items = q.all()
+    result = []
+    for item in items:
+        reserved = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
+            FinishedProduct.reserved_for_order_item_id == item.id
+        ).scalar() or 0.0
+        remaining = float(item.quantity or 0) - float(reserved)
+        if remaining <= 0.0001:
+            continue
+        order = db.query(Order).filter(Order.id == item.order_id).first()
+        project = db.query(Project).filter(Project.id == order.project_id).first() if order else None
+        result.append({
+            "order_item_id": item.id,
+            "order_id": item.order_id,
+            "order_number": order.order_number if order else None,
+            "client_name": project.client_name if project else None,
+            "item_name": item.name,
+            "product_type_id": item.product_type_id,
+            "needed_quantity": float(item.quantity or 0),
+            "already_reserved": float(reserved),
+            "remaining_quantity": remaining,
+        })
+    return result
+
+
 def create_production_order(db: Session, company_id: int, data, created_by: str = None) -> dict:
     """Yangi ishlab chiqarish buyurtmasini DRAFT holatida yaratadi.
     Bu bosqichda OMBORGA HECH QANDAY TA'SIR YO'Q — faqat "reja" yozib
@@ -133,15 +170,26 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
     if not bom:
         return {"success": False, "message": "Tanlangan retsept (BOM) topilmadi yoki faol emas"}
 
-    if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value and not data.source_order_id:
-        return {"success": False, "message": "Mijoz buyurtmasi asosida ishlab chiqarish uchun source_order_id shart"}
+    if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value and not data.source_order_item_id:
+        return {"success": False, "message": "Mijoz buyurtmasi asosida ishlab chiqarish uchun source_order_item_id shart"}
+
+    source_order_id = data.source_order_id
+    if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value:
+        from models import OrderItem
+        order_item = db.query(OrderItem).filter(OrderItem.id == data.source_order_item_id).first()
+        if not order_item:
+            return {"success": False, "message": "Tanlangan buyurtma-detali topilmadi"}
+        if order_item.product_type_id != product_type.id:
+            return {"success": False, "message": f"Bu detal '{product_type.name}' uchun emas — noto'g'ri detal tanlangan"}
+        source_order_id = order_item.order_id
 
     po = ProductionOrder(
         company_id=company_id,
         product_type_id=product_type.id,
         bom_id=bom.id,
         source_type=data.source_type,
-        source_order_id=data.source_order_id,
+        source_order_id=source_order_id,
+        source_order_item_id=getattr(data, 'source_order_item_id', None),
         quantity=data.quantity,
         selected_optional_bom_item_ids_json=json.dumps(data.selected_optional_bom_item_ids or []),
         status=ProductionOrderStatus.DRAFT.value,
@@ -263,6 +311,14 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
             source=StockSource.PRODUCED,
             production_status=FPStatus.IN_PROGRESS,
             created_by=performed_by,
+            # 2026-09-17: "Mijoz buyurtmasi asosida" bo'lsa — chiqadigan
+            # BUTUN partiya SHU DAQIQADAN BOSHLAB (hali IN_PROGRESS
+            # bo'lsa ham) aynan shu buyurtma-detaliga BAND qilinadi —
+            # boshqa hech kim (boshqa sotuv/buyurtma) buni ololmaydi.
+            # Umumiy ombor uchun (source_type=warehouse_stock) —
+            # reserved_quantity=0, ya'ni butunlay erkin.
+            reserved_quantity=(po.quantity if po.source_order_item_id else 0.0),
+            reserved_for_order_item_id=po.source_order_item_id,
         )
         db.add(fp)
         db.flush()  # fp.id kerak, hali commit qilmasdan

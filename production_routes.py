@@ -140,6 +140,15 @@ def list_production_orders(status: str = None, db: Session = Depends(get_db), cu
     return [_serialize_po(r) for r in rows]
 
 
+@router.get("/mrp-order-items")
+def list_mrp_order_items_pending(product_type_id: int = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+    """2026-09-17: "Mijoz buyurtmasi asosida" ishlab chiqarish uchun —
+    hali to'liq ta'minlanmagan (remaining_quantity > 0) buyurtma-
+    detallari ro'yxati, ixtiyoriy ravishda bitta mahsulot turi bo'yicha
+    filtrlangan."""
+    return service.get_mrp_order_items_status(db, DEFAULT_COMPANY_ID, product_type_id)
+
+
 @router.post("/orders")
 def create_order(data: schemas.ProductionOrderCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     result = service.create_production_order(db, DEFAULT_COMPANY_ID, data, created_by=current_user.full_name or current_user.username)

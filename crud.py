@@ -4228,6 +4228,30 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     }
 
 
+def release_finished_product_reservation(db: Session, fp_id: int, performed_by: str = None) -> dict:
+    """2026-09-17: Production/MRP orqali biror aniq buyurtma-detaliga
+    band qilingan tayyor mahsulotni ozod qiladi — mahsulotning o'zi
+    OMBORDA QOLADI, faqat endi UMUMIY SOTUVGA ochiladi (boshqa har
+    qanday mijozga sotilishi mumkin bo'ladi). Buyurtma bekor qilingan,
+    mijoz pulini to'lamagan yoki uzoq vaqt olib ketmagan holatlar
+    uchun — aks holda mahsulot abadiy "band" bo'lib qolib, sex uni
+    qayta ishlab chiqarishga majbur bo'lardi."""
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if not fp:
+        return {"success": False, "message": "Tayyor mahsulot topilmadi"}
+    if not fp.reserved_for_order_item_id and not fp.reserved_quantity:
+        return {"success": False, "message": "Bu mahsulot hech kimga band qilinmagan"}
+    old_reserved = fp.reserved_quantity
+    old_order_item_id = fp.reserved_for_order_item_id
+    fp.reserved_quantity = 0.0
+    fp.reserved_for_order_item_id = None
+    log_activity(db, "release_reservation", "finished_product", fp.id,
+                 entity_label=fp.name, performed_by=performed_by,
+                 old_value=f"band: {old_reserved} (detal #{old_order_item_id})", new_value="band emas — umumiy sotuvda")
+    db.commit()
+    return {"success": True, "message": f"{fp.name} endi umumiy sotuv uchun ochiq"}
+
+
 def record_finished_product_loss(db: Session, data, created_by: str = None) -> dict:
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni KAMAYTIRADI
     (butunlay o'chirmaydi). Tan narx — o'sha mahsulotning 1 birlik tan
@@ -4562,10 +4586,11 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
                 db.rollback()
                 return {"success": False, "message": f"Mahsulot (ID {item.finished_product_id}) topilmadi"}
 
-            available = float(fp.quantity or 0)
+            available = float(fp.quantity or 0) - float(fp.reserved_quantity or 0)
             if item.quantity > available + 0.001:
                 db.rollback()
-                return {"success": False, "message": f"{fp.name}: omborda faqat {available:g} {fp.unit} bor, {item.quantity:g} sota olmaysiz"}
+                extra = f" (shundan {fp.reserved_quantity:g} {fp.unit} boshqa buyurtmaga band qilingan)" if fp.reserved_quantity else ""
+                return {"success": False, "message": f"{fp.name}: sotish mumkin faqat {available:g} {fp.unit} bor{extra}, {item.quantity:g} sota olmaysiz"}
 
             orig_total = item.quantity * item.unit_price
             # FASA 4B: yagona manba — pastdagi izohga qarang (sell_finished_product)

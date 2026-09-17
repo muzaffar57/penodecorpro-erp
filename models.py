@@ -1231,6 +1231,16 @@ class FinishedProduct(Base):
     production_status = Column(Enum(ProductionStatus), default=ProductionStatus.IN_PROGRESS, nullable=False)
     finished_production_at = Column(DateTime, nullable=True)
 
+    # 2026-09-17: Production/MRP'dan "Mijoz buyurtmasi asosida" ishlab
+    # chiqarilgan partiya — aniq bitta buyurtma-detaliga BAND QILINADI
+    # (umumiy sotuvdan ajratiladi). reserved_quantity — shu qatordagi
+    # `quantity`dan qanchasi band (0 bo'lsa — butunlay erkin, umumiy
+    # sotuv uchun). "Sotish mumkin miqdor" = quantity - reserved_quantity.
+    # Bekor qilinsa (band ozod qilinsa), ikkalasi ham 0/NULL ga qaytariladi
+    # — mahsulotning o'zi YO'QOLMAYDI, faqat yana umumiy sotuvga qaytadi.
+    reserved_quantity = Column(Float, default=0.0)
+    reserved_for_order_item_id = Column(Integer, ForeignKey("order_items.id"), nullable=True, index=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
