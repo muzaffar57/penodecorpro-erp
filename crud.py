@@ -1912,6 +1912,35 @@ def check_financial_consistency(db: Session) -> dict:
     }
 
 
+def _auto_release_mrp_reservations(db: Session, order_item_ids, performed_by: str = None):
+    """2026-09-17: buyurtma yoki uning biror detali o'chirilganda/bekor
+    qilinganda ChaCHAQIRILADI — shu detal(lar)ga Production/MRP orqali
+    band qilingan tayyor mahsulot bo'lsa, AVTOMATIK ozod qiladi (mahsulot
+    o'zi YO'QOLMAYDI, faqat umumiy sotuvga qaytadi). Aks holda, band
+    qilingan mahsulot ENDI HECH QACHON ozod bo'lmasdan, abadiy "yo'q"
+    bo'lib qolar edi — chunki uni band qilgan buyurtma-detal endi
+    mavjud emas.
+
+    MUHIM: bu yerda commit QILINMAYDI — chaqiruvchi funksiya (delete_order/
+    delete_order_item) o'zining umumiy tranzaksiyasi ichida keyinroq
+    commit qiladi, shu bilan hammasi bitta atomik amal bo'lib qoladi.
+    """
+    from models import FinishedProduct
+    if not order_item_ids:
+        return
+    fps = db.query(FinishedProduct).filter(
+        FinishedProduct.reserved_for_order_item_id.in_(order_item_ids)
+    ).all()
+    for fp in fps:
+        if fp.reserved_quantity:
+            log_activity(db, "auto_release_reservation", "finished_product", fp.id,
+                         entity_label=fp.name, performed_by=performed_by,
+                         old_value=f"band: {fp.reserved_quantity}",
+                         new_value="band emas — bog'langan buyurtma/detal o'chirilgani uchun avtomatik ozod qilindi")
+        fp.reserved_quantity = 0.0
+        fp.reserved_for_order_item_id = None
+
+
 def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None) -> bool:
     """Buyurtmani o'chirish.
     soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.
@@ -1924,6 +1953,9 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         return False
     order_num = db_order.order_number
     if soft:
+        # 2026-09-17: MRP band qilingan detallar bo'lsa — avtomatik ozod
+        # qilamiz (bir xil tranzaksiya ichida, pastdagi commit bilan).
+        _auto_release_mrp_reservations(db, [i.id for i in db_order.items], performed_by)
         db_order.is_deleted = True
         db.commit()
         log_activity(db, "deleted", "order", order_id, order_num, performed_by)
@@ -1933,6 +1965,7 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         # o'chirilmasligi kerak — faqat buyurtmaga bog'lanishi uziladi (order_id=NULL),
         # aks holda ma'lumotlar bazasi FK cheklovi tufayli o'chirishga yo'l qo'ymaydi.
         from models import InventoryMovement, FinishedProduct, Payment
+        _auto_release_mrp_reservations(db, [i.id for i in db_order.items], performed_by)
         db.query(InventoryMovement).filter(InventoryMovement.order_id == order_id).update(
             {"order_id": None}
         )
@@ -2117,6 +2150,12 @@ def delete_order_item(db: Session, item_id: int) -> bool:
         # Termopanel (bazalt/serpiyanka/kley) — detal butunlay o'chirilganda
         # ilgari yechilgan xomashyo omborga qaytishi kerak (Penoplast bilan bir xil mantiq)
         services.return_termopanel_for_item(db, db_item)
+
+    # 2026-09-17: shu detalga Production/MRP orqali band qilingan tayyor
+    # mahsulot bo'lsa — avtomatik ozod qilamiz (aks holda, detal
+    # o'chirilgach, u band qilingancha, ABADIY qaytarib bo'lmaydigan
+    # holda qolib ketardi).
+    _auto_release_mrp_reservations(db, [db_item.id])
 
     db.delete(db_item)
     db.flush()
