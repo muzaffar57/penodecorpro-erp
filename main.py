@@ -801,6 +801,11 @@ async def global_error_logger(request: Request, exc: Exception):
 
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
+# 2026-09-17: statik fayllar (masalan translit.js) uchun cache-busting —
+# brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
+# Har deploy'da bu qiymat o'zgarishi kerak (masalan shu sana-vaqt) —
+# shunda "?v=..." o'zgarib, brauzer albatta YANGI faylni yuklaydi.
+templates.env.globals["static_version"] = "20260917-1"
 
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
