@@ -588,6 +588,7 @@ input[type=number]{-moz-appearance:textfield}
           <h3 id="od-num">—</h3>
           <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
             <span id="od-status"></span>
+            <span id="od-mrp-readiness"></span>
             <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('odBody','od-toggle-ic')" title="Yig'ish/yoyish">
               <i class="ti ti-chevron-down" id="od-toggle-ic" style="font-size:14px;transition:transform .2s;transform:rotate(-90deg)"></i>
             </button>
@@ -1796,6 +1797,26 @@ async function loadOrderItems(id) {
     if (!res.ok) throw new Error('so\'rov xato');
     const order = await res.json();
     const items = order.items || [];
+
+    // 2026-09-17: Milestone 4 — Production/MRP tayyorlik belgisi.
+    // MUHIM: bu Order.status'ga UMUMAN bog'liq emas (uni o'zgartirmaydi,
+    // o'qimaydi ham) — faqat "buyurtmadagi MRP mahsulotlari ombordan
+    // band qilinganmi" degan HISOBLANGAN, alohida ko'rsatkich. Har safar
+    // buyurtma ochilganda JORIY ma'lumotdan qayta hisoblanadi — shuning
+    // uchun rezervatsiya ozod qilinsa, keyingi ochilishda o'zi "hali
+    // emas"ga qaytadi, alohida "rollback" kodi kerak emas.
+    const mrpEl = document.getElementById('od-mrp-readiness');
+    if (mrpEl) {
+      const mr = order.mrp_readiness;
+      if (!mr || !mr.applicable) {
+        mrpEl.innerHTML = '';
+      } else if (mr.fully_ready) {
+        mrpEl.innerHTML = '<span class="badge" style="background:#DCFCE7;color:#15803D" title="Buyurtmadagi barcha MRP mahsulotlari ombordan band qilingan">✅ MRP: tayyor</span>';
+      } else {
+        const need = mr.items.filter(i => !i.is_ready).map(i => `${escapeHtml(i.item_name)}: yana ${i.remaining_quantity}`).join(', ');
+        mrpEl.innerHTML = `<span class="badge" style="background:#FEF3C7;color:#B45309" title="${escapeHtml(need)}">⏳ MRP: kutilmoqda</span>`;
+      }
+    }
     if (!items.length) {
       container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:14px">Detallar yo'q</div>`;
       return;
