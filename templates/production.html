@@ -166,8 +166,9 @@
       </div>
     </div>
     <div class="mf-group" id="po-source-order-wrap" style="display:none">
-      <label>Buyurtma raqami (ID)</label>
-      <input type="text" id="po-f-source-order-id" placeholder="Masalan: 44">
+      <label>Qaysi buyurtma-detali uchun</label>
+      <select id="po-f-source-order-item"><option value="">— Avval mahsulot turini tanlang —</option></select>
+      <div id="po-source-order-hint" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
     </div>
     <div class="mf-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="po-f-notes"></div>
     <div style="display:flex;gap:8px;margin-top:16px">
@@ -434,11 +435,13 @@ function openProductionOrderModal(){
   document.getElementById('po-f-bom').innerHTML = '<option value="">— Avval mahsulot tanlang —</option>';
   document.getElementById('po-f-quantity').value = '';
   document.getElementById('po-f-source-type').value = 'warehouse_stock';
-  document.getElementById('po-f-source-order-id').value = '';
+  document.getElementById('po-f-source-order-item').innerHTML = '<option value="">— Avval mahsulot turini tanlang —</option>';
+  document.getElementById('po-source-order-hint').textContent = '';
   document.getElementById('po-f-notes').value = '';
   document.getElementById('po-source-order-wrap').style.display = 'none';
   document.getElementById('po-f-source-type').onchange = function(){
     document.getElementById('po-source-order-wrap').style.display = this.value === 'customer_order' ? 'block' : 'none';
+    if (this.value === 'customer_order') loadEligibleOrderItemsForPO();
   };
   openModalEl('po-modal');
 }
@@ -449,6 +452,48 @@ async function onProductTypeChangeForPO(){
   if (!ptId) { bomSel.innerHTML = '<option value="">— Avval mahsulot tanlang —</option>'; return; }
   const boms = await fetch(`/api/production/product-types/${ptId}/boms`).then(r => r.ok ? r.json() : []);
   bomSel.innerHTML = boms.map(b => `<option value="${b.id}">${escapeHtml(b.variant_name)}</option>`).join('') || '<option value="">Bu mahsulot uchun retsept yo\'q</option>';
+  // Agar "Mijoz buyurtmasi asosida" tanlangan bo'lsa, mahsulot turi
+  // o'zgarganda ro'yxatni ham yangilaymiz (boshqa turga tegishli
+  // detallar ko'rsatilmasin).
+  if (document.getElementById('po-f-source-type').value === 'customer_order') {
+    loadEligibleOrderItemsForPO();
+  }
+}
+
+// 2026-09-17: "Mijoz buyurtmasi asosida" tanlanganda — hali TO'LIQ
+// ta'minlanmagan (remaining_quantity > 0), aynan SHU mahsulot turiga
+// tegishli buyurtma-detallarini ro'yxat qilib ko'rsatadi. Tanlangan
+// detal keyin rezervatsiyaning ANIQ manzili bo'ladi.
+async function loadEligibleOrderItemsForPO(){
+  const ptId = document.getElementById('po-f-product-type').value;
+  const sel = document.getElementById('po-f-source-order-item');
+  const hint = document.getElementById('po-source-order-hint');
+  if (!ptId) {
+    sel.innerHTML = '<option value="">— Avval mahsulot turini tanlang —</option>';
+    hint.textContent = '';
+    return;
+  }
+  sel.innerHTML = '<option value="">— Yuklanmoqda... —</option>';
+  const items = await fetch(`/api/production/mrp-order-items?product_type_id=${ptId}`).then(r => r.ok ? r.json() : []);
+  if (!items.length) {
+    sel.innerHTML = '<option value="">— Bu mahsulot uchun kutilayotgan buyurtma yo\'q —</option>';
+    hint.textContent = "Hech bir buyurtmada shu mahsulot turi hali to'liq ta'minlanmagan holda yo'q.";
+    return;
+  }
+  sel.innerHTML = '<option value="">— Tanlang —</option>' + items.map(it =>
+    `<option value="${it.order_item_id}" data-remaining="${it.remaining_quantity}">${escapeHtml(it.order_number || ('#' + it.order_id))} — ${escapeHtml(it.client_name || '')} (kerak: ${it.remaining_quantity})</option>`
+  ).join('');
+  sel.onchange = function(){
+    const opt = this.selectedOptions[0];
+    const remaining = opt ? parseFloat(opt.dataset.remaining) : null;
+    if (remaining) {
+      hint.textContent = `Yana ${remaining} kerak — miqdor maydoniga shuni yozishingiz mumkin.`;
+      const qEl = document.getElementById('po-f-quantity');
+      if (qEl && !qEl.value) qEl.value = remaining;
+    } else {
+      hint.textContent = '';
+    }
+  };
 }
 
 async function saveProductionOrder(){
@@ -456,12 +501,15 @@ async function saveProductionOrder(){
   const bomId = parseInt(document.getElementById('po-f-bom').value);
   const quantity = parseFloat(document.getElementById('po-f-quantity').value);
   if (!productTypeId || !bomId || !quantity || quantity <= 0) { alert("Mahsulot, retsept va miqdorni to'g'ri kiriting"); return; }
+  const sourceType = document.getElementById('po-f-source-type').value;
+  const sourceOrderItemId = document.getElementById('po-f-source-order-item').value ? parseInt(document.getElementById('po-f-source-order-item').value) : null;
+  if (sourceType === 'customer_order' && !sourceOrderItemId) { alert("Qaysi buyurtma-detali uchun ekanini tanlang"); return; }
   const body = {
     product_type_id: productTypeId,
     bom_id: bomId,
     quantity,
-    source_type: document.getElementById('po-f-source-type').value,
-    source_order_id: document.getElementById('po-f-source-order-id').value ? parseInt(document.getElementById('po-f-source-order-id').value) : null,
+    source_type: sourceType,
+    source_order_item_id: sourceOrderItemId,
     selected_optional_bom_item_ids: [],
     notes: document.getElementById('po-f-notes').value || null,
   };

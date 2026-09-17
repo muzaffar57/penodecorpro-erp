@@ -1031,6 +1031,7 @@ function rowHtml(i) {
       <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
       ${i.source !== 'produced' ? `<button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${i.unit}', '${i.category || ''}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>` : ''}
       <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
+      ${i.reserved_quantity > 0 ? `<button class="mini-btn" onclick="releaseFpReservation(${i.id}, '${jsAttrEscape(i.name)}')" title="Band qilishni bekor qilib, umumiy sotuvga qaytarish" style="color:#B91C1C;border-color:#FECACA"><i class="ti ti-lock-open"></i></button>` : ''}
       {% if current_user.role.value == 'admin' %}
       <button class="mini-btn" onclick="openProfitModal(${i.id})" title="Foyda hisobi"
               style="color:#A86B36;border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
@@ -1064,6 +1065,7 @@ function rowHtml(i) {
         <span class="fp-sku">${fpSku(i)}</span>
         ${inProgress ? '<span class="fp-badge" style="background:#FEF3C7;color:#b7770d">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
         ${isRet ? '<span class="fp-badge" style="background:#DCFCE7;color:#1e7e34">♻️ QAYTGAN</span>' : ''}
+        ${i.reserved_quantity > 0 ? `<span class="fp-badge" style="background:#FEE2E2;color:#B91C1C" title="Bu miqdor umumiy sotuvdan ajratilgan — faqat shu buyurtma uchun">🔒 Band: ${i.reserved_quantity} ${unitLabel(i.unit)}</span>` : ''}
       </div>
       <div class="fp-meta">${meta.join(' · ')}${profitPct !== null ? (cpu < 0 ? ` · <b style="color:#DC2626">⚠️ tannarx xato</b>` : ` · Foyda: <b style="color:${profitPct>=0?'#22C55E':'#DC2626'}">${profitPct}%</b>`) : ''}</div>
     </div>
@@ -2362,6 +2364,23 @@ async function saveProduce() {
 }
 
 // ── TAYYOR (sotuvga tayyor) ───────────────────────────────
+async function releaseFpReservation(id, name) {
+  if (!(await customConfirm(`${name} — band qilishni bekor qilish`,
+        `Bu mahsulot boshqa buyurtmaga band qilingan edi. Ozod qilinsa, endi UMUMIY sotuvga chiqadi va istalgan mijozga sotilishi mumkin bo'ladi. Davom etasizmi?`))) return;
+  try {
+    const res = await fetch(`/api/finished/${id}/release-reservation`, { method: 'POST' });
+    const r = await res.json();
+    if (res.ok) {
+      loadFp();
+      showMsg(`✅ ${r.message || 'Ozod qilindi'}`, 'success');
+    } else {
+      showMsg('❌ ' + (r.detail || 'Xato'), 'error');
+    }
+  } catch(e) {
+    showMsg('❌ Server bilan aloqa yo\'q', 'error');
+  }
+}
+
 async function markReady(id) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
