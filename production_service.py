@@ -227,12 +227,24 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
 
     source_order_id = data.source_order_id
     if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value:
-        from models import OrderItem
+        from models import OrderItem, FinishedProduct
         order_item = db.query(OrderItem).filter(OrderItem.id == data.source_order_item_id).first()
         if not order_item:
             return {"success": False, "message": "Tanlangan buyurtma-detali topilmadi"}
         if order_item.product_type_id != product_type.id:
             return {"success": False, "message": f"Bu detal '{product_type.name}' uchun emas — noto'g'ri detal tanlangan"}
+        # 2026-09-17: ORTIQCHA BAND QILISHNING oldini olish (haqiqiy xato,
+        # foydalanuvchi topdi). Bu yerdagi tekshiruv — DASTLABKI, tezkor
+        # signal uchun (hali qulflanmagan); HAQIQIY, poyga-xavfsiz
+        # tekshiruv start_production_order()da, qatorni qulflab
+        # (with_for_update) amalga oshiriladi — shu yerdagi tekshiruv
+        # buni ALMASHTIRMAYDI, faqat oldindan xabardor qiladi.
+        already_reserved = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
+            FinishedProduct.reserved_for_order_item_id == order_item.id
+        ).scalar() or 0.0
+        remaining = float(order_item.quantity or 0) - float(already_reserved)
+        if data.quantity > remaining + 0.0001:
+            return {"success": False, "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} {product_type.unit} kerak (allaqachon {already_reserved:g} band qilingan) — {data.quantity:g} ko'p"}
         source_order_id = order_item.order_id
 
     po = ProductionOrder(
@@ -346,6 +358,31 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
                 # Yumshoq rejim (qoida #4 — Soft Warning): ogohlantirish
                 # bilan davom etiladi, amal to'xtatilmaydi.
             snapshot.append(line)
+
+        # 2026-09-17: ORTIQCHA BAND QILISH — HAQIQIY, POYGA-XAVFSIZ
+        # (race-safe) tekshiruv. Buyurtma-detal qatorini QULFLAB
+        # (with_for_update) o'qiymiz — shu tufayli, agar IKKI ISHCHI
+        # (yoki ikkita so'rov) AYNI BIR PAYTDA shu detal uchun ishlab
+        # chiqarishni boshlasa, IKKINCHISI birinchisi tugagunicha
+        # kutadi, so'ng ALLAQACHON YANGILANGAN (band qilingan) miqdorni
+        # ko'rib, kerak bo'lsa to'g'ri rad etiladi — omborni "ortiqcha
+        # band qilib qo'yish" (over-reservation) imkonsiz bo'ladi.
+        if po.source_order_item_id:
+            from models import OrderItem, FinishedProduct
+            locked_item = db.query(OrderItem).filter(
+                OrderItem.id == po.source_order_item_id
+            ).with_for_update().first()
+            if locked_item:
+                already_reserved = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
+                    FinishedProduct.reserved_for_order_item_id == locked_item.id
+                ).scalar() or 0.0
+                remaining = float(locked_item.quantity or 0) - float(already_reserved)
+                if po.quantity > remaining + 0.0001:
+                    db.rollback()
+                    return {
+                        "success": False,
+                        "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} kerak — boshqa ishlab chiqarish buyurtmasi shu orada band qilib ulgurgan. {po.quantity:g} band qilib bo'lmaydi.",
+                    }
 
         # Mavjud "Tayyor mahsulotlar" jadvaliga "ishlab chiqarilmoqda" yozuvi
         from models import FinishedProduct, StockSource, ProductionStatus as FPStatus
