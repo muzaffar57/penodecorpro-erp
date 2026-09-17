@@ -1,7 +1,46 @@
 import os
+from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base
+
+# 2026-09-17 (audit topilmasi — jiddiy, keng tarqalgan xato tuzatildi):
+# Bazadagi BARCHA datetime'lar (created_at, paid_at, completed_at va h.k.)
+# doim datetime.utcnow() bilan, ya'ni UTC vaqtida saqlanadi — bu TO'G'RI va
+# o'zgarishsiz qoladi. Lekin ko'plab hisobot/dashboard funksiyalarida
+# "BUGUN"ning boshlanishini topish uchun to'g'ridan-to'g'ri
+# `datetime.utcnow().replace(hour=0,...)` ishlatilgan edi — bu esa
+# Toshkent (UTC+5) vaqti bilan ertalabki soat 00:00–04:59 oralig'idagi
+# har qanday voqeani (to'lov, buyurtma yakunlanishi va h.k.) NOTO'G'RI
+# ravishda "KECHAGI KUN"ga hisoblab qo'yardi — chunki o'sha payt UTC
+# bo'yicha hali KECHAGI SANA edi. Quyidagi ikkita yordamchi funksiya —
+# shu muammoning YAGONA, markazlashtirilgan yechimi: "bugun" TOSHKENT
+# vaqti bo'yicha aniqlanadi, natija esa baza bilan solishtirish uchun
+# UTC ko'rinishida qaytariladi.
+TASHKENT_OFFSET = timedelta(hours=5)
+
+
+def tashkent_today_start_utc() -> datetime:
+    """Toshkent vaqti bo'yicha BUGUNNING boshlanishi (00:00), lekin UTC
+    ko'rinishida qaytariladi — shuning uchun bazadagi datetime ustuni
+    bilan TO'G'RIDAN-TO'G'RI solishtirish mumkin:
+        Model.some_date >= tashkent_today_start_utc()
+    "Hafta"/"oy" boshlanishini topish uchun ham shu qiymatdan
+    boshlab hisoblash kerak (masalan `.replace(day=1)`), alohida
+    UTC-asosli hisoblash EMAS."""
+    tashkent_now = datetime.utcnow() + TASHKENT_OFFSET
+    tashkent_midnight = tashkent_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return tashkent_midnight - TASHKENT_OFFSET
+
+
+def tashkent_date(dt: datetime = None):
+    """Berilgan (UTC, naive) datetime'ning Toshkent vaqti bo'yicha
+    SANASINI (`date` obyekti) qaytaradi. `dt` berilmasa — hozirgi kun
+    (Toshkent bo'yicha) qaytariladi. `.date() == today` ko'rinishidagi
+    solishtirishlar uchun: `tashkent_date(p.paid_at) == tashkent_date()`."""
+    if dt is None:
+        dt = datetime.utcnow()
+    return (dt + TASHKENT_OFFSET).date()
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./penodecor_erp.db")
 

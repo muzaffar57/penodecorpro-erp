@@ -443,6 +443,7 @@ def get_business_alerts(db: Session) -> list:
     chegaralar asosida. Faqat o'qish, hech narsani o'zgartirmaydi."""
     from models import Inventory, Order, OrderStatus
     from datetime import datetime
+    from database import tashkent_date
 
     alerts = []
 
@@ -471,7 +472,7 @@ def get_business_alerts(db: Session) -> list:
         alerts.append({"level": "red", "text": f"{overdue_count} ta qarzdorning muddati 30 kundan oshgan"})
 
     # 3) Bugungi savdo rekord (oxirgi 30 kunning eng yuqorisi)
-    today_summary = get_daily_finance_summary(db, datetime.utcnow().date())
+    today_summary = get_daily_finance_summary(db, tashkent_date())
     if today_summary["sales"]["total"] > 0:
         alerts.append({"level": "green", "text": f"Bugun {today_summary['sales']['orders_count']} ta buyurtma yakunlandi"})
 
@@ -749,9 +750,10 @@ def close_employee_debt(db: Session, employee_id: int, year: int, month: int, am
     mavjud funksiyalardan (get_today_stats, low stock, loyihalar) foydalanadi."""
     from models import Order, OrderStatus, Project, ProjectStatus, Inventory
     from datetime import datetime, timedelta
+    from database import tashkent_today_start_utc
 
     now = datetime.utcnow()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = tashkent_today_start_utc()
     today_end = today_start + timedelta(days=1)
 
     tasks = []
@@ -789,9 +791,9 @@ def get_production_period_stats(db: Session) -> dict:
     Faqat o'qish, FinishedProduct.created_at (source=produced) asosida."""
     from models import FinishedProduct, StockSource
     from datetime import datetime, timedelta
+    from database import tashkent_today_start_utc
 
-    now = datetime.utcnow()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = tashkent_today_start_utc()
     week_start = today_start - timedelta(days=today_start.weekday())
     month_start = today_start.replace(day=1)
 
@@ -821,6 +823,7 @@ def get_notifications(db: Session) -> list:
     from models import Inventory, InventoryMovement, Order, OrderStatus
     from sqlalchemy import func
     from datetime import datetime, timedelta
+    from database import tashkent_today_start_utc
 
     notifications = []
     now = datetime.utcnow()
@@ -870,7 +873,7 @@ def get_notifications(db: Session) -> list:
             })
 
     # ── 🟢 Bugun yetkazilgan/tayyor buyurtmalar ──────────────
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = tashkent_today_start_utc()
     today_end = today_start + timedelta(days=1)
     today_count = db.query(Order).filter(
         Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
@@ -924,9 +927,10 @@ def get_today_tasks(db: Session) -> List[Dict]:
     Har biri {icon, text} shaklida qaytariladi."""
     from models import Order, OrderStatus
     from datetime import datetime, timedelta
+    from database import tashkent_today_start_utc
 
     tasks = []
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = tashkent_today_start_utc()
     today_end = today_start + timedelta(days=1)
 
     # 1) Bugun topshirilishi kerak bo'lgan buyurtmalar
@@ -971,8 +975,9 @@ def get_today_stats(db: Session) -> Dict:
     from models import Order, OrderStatus, Master, Payment, FinishedProductSale, FinishedProduct
     from sqlalchemy import func
     from datetime import datetime, timedelta
+    from database import tashkent_today_start_utc
 
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = tashkent_today_start_utc()
     today_end = today_start + timedelta(days=1)
 
     today_revenue = float(db.query(func.sum(Payment.amount)).filter(
@@ -1376,13 +1381,14 @@ def get_inventory_kpi(db: Session) -> Dict:
     from models import Inventory, InventoryMovement
     from sqlalchemy import func
     from datetime import datetime, timedelta
+    from database import tashkent_today_start_utc
 
     items = db.query(Inventory).filter(Inventory.is_deleted.isnot(True)).all()
     total_items = len(items)
     low_count = sum(1 for i in items if float(i.stock_quantity or 0) <= float(i.min_stock or 0))
     total_value = sum(float(i.stock_quantity or 0) * float(i.price_per_unit or 0) for i in items)
 
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = tashkent_today_start_utc()
     today_end = today_start + timedelta(days=1)
 
     today_in = db.query(func.count(InventoryMovement.id)).filter(

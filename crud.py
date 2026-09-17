@@ -969,6 +969,26 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
     # tarzda avtomatik qayta urinib, o'zi tuzatib qo'yadi.
     from sqlalchemy.exc import IntegrityError
 
+    # 2026-09-17 (audit topilmasi — haqiqiy, nozik xato): pastdagi
+    # "so'nggi soniyalarda bir xil buyurtma bormi" tekshiruvi o'zi
+    # ATOMIK EMAS edi — ikkita so'rov AYNAN BIR VAQTDA kelsa (masalan
+    # tarmoq ikki marta jo'natib yuborsa), ikkalasi ham "yo'q" javobini
+    # olib, ikkalasi ham YANGI, DUBLIKAT buyurtma yaratib qo'yishi
+    # mumkin edi (4 ta bir vaqtdagi so'rovdan 2 tasi shunday dublikat
+    # bo'lib qolgani sinovda aniq ko'rsatildi). Yechim: shu loyiha
+    # uchun bir vaqtning o'zida faqat BITTA buyurtma yaratish jarayoni
+    # davom etishini ta'minlaydigan, tranzaksiya davomida ushlab
+    # turiladigan qulf (faqat PostgreSQL'da; mahalliy sinov uchun
+    # ishlatiladigan SQLite'da bunday funksiya yo'q, shuning uchun
+    # xavfsiz tarzda o'tkazib yuboriladi — u yerda haqiqiy bir vaqtlilik
+    # muammosi ham yo'q).
+    try:
+        if db.bind.dialect.name == "postgresql":
+            from sqlalchemy import text
+            db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": order_data.project_id})
+    except Exception:
+        pass
+
     # QO'SHIMCHA XAVFSIZLIK QATLAMI (server tomonida): brauzerda tugmani
     # ikki marta bosishdan himoya allaqachon bor, lekin bu — faqat
     # ekranda, va sekin internet/tarmoq takrorlashi kabi holatlarda
@@ -2736,11 +2756,12 @@ def get_debt_stats(db: Session) -> dict:
     debt_orders.sort(key=lambda x: x["debt_amount"], reverse=True)
 
     # Bugungi to'lovlar
-    today = datetime.utcnow().date()
+    from database import tashkent_date
+    today = tashkent_date()
     today_payments = db.query(Payment).all()
     today_sum = sum(
         float(p.amount or 0) for p in today_payments
-        if p.paid_at and p.paid_at.date() == today
+        if p.paid_at and tashkent_date(p.paid_at) == today
     )
 
     return {

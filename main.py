@@ -799,6 +799,26 @@ async def global_error_logger(request: Request, exc: Exception):
         pass  # Log yozishning o'zi xato bersa — asosiy oqimni to'xtatmaymiz
     return JSONResponse(status_code=500, content={"detail": "Serverda kutilmagan xato yuz berdi"})
 
+
+# 2026-09-17 (audit topilmasi — haqiqiy xato): seans tugagan yoki umuman
+# kirilmagan holda HIMOYALANGAN SAHIFA (masalan /users, /dashboard) ochilsa,
+# FastAPI'ning standart xatti-harakati — xom JSON matn qaytarish edi
+# (`{"detail": "Iltimos, tizimga kiring"}`), foydalanuvchi esa "sayt
+# buzilibdimi?" deb chalkashib qolishi mumkin edi. Endi bunday holatda —
+# FAQAT sahifa (HTML) so'rovlari uchun — chiroyli /login sahifasiga
+# yo'naltiriladi. API so'rovlari (/api/...) uchun xatti-harakat
+# O'ZGARTIRILMAYDI — ular hamon aniq JSON xato qaytarib olishi kerak
+# (frontend shu javobni o'qib, o'ziga yarasha ko'rsatadi).
+from starlette.exceptions import HTTPException as _StarletteHTTPException
+
+
+@app.exception_handler(_StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: _StarletteHTTPException):
+    if exc.status_code == 401 and not request.url.path.startswith("/api/"):
+        return RedirectResponse(url="/login", status_code=302)
+    # Boshqa barcha holatlar uchun — FastAPI'ning standart javobi bilan bir xil
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
+
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
 # 2026-09-17: statik fayllar (masalan translit.js) uchun cache-busting —
@@ -1866,13 +1886,18 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
     """Yetkazib beruvchi tarixi. start_date/end_date — YYYY-MM-DD formatida (ixtiyoriy).
     page/page_size — xaridlar ro'yxati sahifalanadi (standart: 20 tadan)."""
     from datetime import datetime as dt
+    from database import TASHKENT_OFFSET
 
     s = crud.get_supplier(db, supplier_id)
     if not s:
         raise HTTPException(status_code=404, detail="Topilmadi")
 
-    sd = dt.strptime(start_date, "%Y-%m-%d") if start_date else None
-    ed = dt.strptime(end_date, "%Y-%m-%d") if end_date else None
+    # 2026-09-17 (audit topilmasi): foydalanuvchi kiritgan sana — Toshkent
+    # taqvimi bo'yicha ("bugun 2026-09-01" deganda, u albatta Toshkent
+    # kunini nazarda tutadi). Bazadagi vaqtlar esa UTC'da saqlanadi,
+    # shuning uchun solishtirishdan oldin -5 soat siljitiladi.
+    sd = (dt.strptime(start_date, "%Y-%m-%d") - TASHKENT_OFFSET) if start_date else None
+    ed = (dt.strptime(end_date, "%Y-%m-%d") - TASHKENT_OFFSET) if end_date else None
 
     history = crud.get_supplier_history(db, supplier_id, start_date=sd, end_date=ed,
                                          page=page, page_size=page_size)
@@ -2760,6 +2785,7 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
     ishlatilganini tekshirish uchun)."""
     from models import InventoryMovement
     from datetime import datetime, timedelta
+    from database import TASHKENT_OFFSET
     q = db.query(InventoryMovement)
     if item_id:
         q = q.filter(InventoryMovement.inventory_id == item_id)
@@ -2769,12 +2795,15 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
         q = q.filter(InventoryMovement.order_id == order_id)
     if date_from:
         try:
-            q = q.filter(InventoryMovement.created_at >= datetime.strptime(date_from, "%Y-%m-%d"))
+            # 2026-09-17 (audit topilmasi): foydalanuvchi tanlagan sana —
+            # Toshkent taqvimi bo'yicha, bazadagi vaqt esa UTC — shuning
+            # uchun solishtirishdan oldin -5 soat siljitiladi.
+            q = q.filter(InventoryMovement.created_at >= datetime.strptime(date_from, "%Y-%m-%d") - TASHKENT_OFFSET)
         except ValueError:
             pass
     if date_to:
         try:
-            dt = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            dt = datetime.strptime(date_to, "%Y-%m-%d") - TASHKENT_OFFSET + timedelta(days=1)
             q = q.filter(InventoryMovement.created_at < dt)
         except ValueError:
             pass
@@ -2907,8 +2936,9 @@ def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optio
                                  db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Brak sabab sarflangan xomashyo — nomi, miqdori, tan narxi bo'yicha qiymati."""
     from datetime import datetime as dt
-    sd = dt.strptime(start_date, "%Y-%m-%d") if start_date else None
-    ed = dt.strptime(end_date, "%Y-%m-%d") + timedelta(days=1) if end_date else None
+    from database import TASHKENT_OFFSET
+    sd = (dt.strptime(start_date, "%Y-%m-%d") - TASHKENT_OFFSET) if start_date else None
+    ed = (dt.strptime(end_date, "%Y-%m-%d") - TASHKENT_OFFSET + timedelta(days=1)) if end_date else None
     return crud.get_brak_material_summary(db, start_date=sd, end_date=ed)
 
 

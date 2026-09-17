@@ -301,13 +301,17 @@ class OrderItemCreate(BaseModel):
     length: Optional[float] = None
     quantity: float = Field(default=1.0, gt=0)
     is_coated: bool = True
-    unit_price: float = Field(default=0, ge=0)
+    # 2026-09-17 (audit topilmasi — haqiqiy xato): juda katta son (masalan
+    # 999999999999) bazadagi Numeric(12,2) ustunining sig'imidan oshib,
+    # tushunarsiz 500-xato berardi. Endi shu yerning o'zida, tushunarli
+    # xabar bilan rad etiladi — bazadagi haqiqiy chegara bilan bir xil.
+    unit_price: float = Field(default=0, ge=0, le=9_999_999_999.99)
     # "Donali" turi uchun — hajmni hisoblashda ISHLATILADIGAN (qulflangan)
     # narx, unit_price'dan farq qilishi mumkin (agar sotuv narxi keyinroq
     # o'zgartirilgan bo'lsa). Berilmasa — unit_price'ning o'zi ishlatiladi.
-    unit_price_for_volume: Optional[float] = None
+    unit_price_for_volume: Optional[float] = Field(default=None, le=9_999_999_999.99)
     penoplast_id: Optional[int] = None
-    price_per_m3: Optional[float] = None
+    price_per_m3: Optional[float] = Field(default=None, le=9_999_999_999.99)
     finished_product_id: Optional[int] = None
     image_url: Optional[str] = None
     notes: Optional[str] = None
@@ -348,7 +352,7 @@ class OrderCreate(BaseModel):
     master_id: Optional[int] = None
     recipe_id: Optional[int] = None
     items: List[OrderItemCreate] = []
-    agreed_amount: Optional[float] = None
+    agreed_amount: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99)
     is_draft: bool = False
     deadline: Optional[datetime] = None
     notes: Optional[str] = None
@@ -356,7 +360,7 @@ class OrderCreate(BaseModel):
     gips_inventory_id: Optional[int] = None
     planned_gips_kg: Optional[float] = None
     gips_additives: List[GipsAdditiveInput] = []
-    base_price: Optional[float] = None
+    base_price: Optional[float] = Field(default=None, le=9_999_999_999.99)
     loy_kg: Optional[float] = None
 
 
