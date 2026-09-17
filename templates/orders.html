@@ -1329,6 +1329,17 @@ function parseNum(str) {
 function formatPriceInput(input) {
   const val = parseNum(input.value);
   if (val > 0) input.value = formatNum(val);
+  else if (val < 0) input.value = '0';
+}
+// 2026-09-17 (UX audit topilmasi): raqamli maydonlarga (Bo'yi/Kengligi/
+// Qalinlik/Uzunlik/Miqdor) manfiy son yozilsa, oldingi kodda HECH QANDAY
+// ogohlantirishsiz, jim qabul qilinardi (min="0" atributining o'zi YETARLI
+// EMAS — bu ilova HTML formaning tabiiy tekshiruvidan emas, o'z JS orqali
+// saqlaydi, shuning uchun brauzerning o'zi buni tekshirmaydi). Endi har bir
+// kiritishda darhol 0 ga tuzatiladi — xodim xatoni SHU ZAHOTI ko'radi.
+function clampNonNegative(el) {
+  const v = parseFloat(el.value);
+  if (!isNaN(v) && v < 0) el.value = 0;
 }
 function toggleSection(bodyId, iconId) {
   const body = document.getElementById(bodyId);
@@ -2995,9 +3006,9 @@ function addItem() {
         <div class="dgrp i-dims-box" style="flex:2;margin-bottom:0">
           <div class="dgrp-title">📐 O'lcham</div>
           <div class="dgrp-row" style="grid-template-columns:repeat(4,1fr)">
-            <div class="dif i-h-wrap"><label class="i-h-label">Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
-            <div class="dif i-w-wrap"><label class="i-w-label">Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
-            <div class="dif i-t-wrap" style="display:none"><label>Qalinlik</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-t" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+            <div class="dif i-h-wrap"><label class="i-h-label">Eni</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-h" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+            <div class="dif i-w-wrap"><label class="i-w-label">Kengligi</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-w" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
+            <div class="dif i-t-wrap" style="display:none"><label>Qalinlik</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-t" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">sm</span></div></div>
           </div>
           <div class="dgrp-chip i-dims-chip" style="display:none"></div>
         </div>
@@ -3005,8 +3016,8 @@ function addItem() {
           <div class="dgrp-title">🧮 Miqdor va narx</div>
           <div class="dgrp-row" style="grid-template-columns:repeat(3,1fr)">
             <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta</label><div class="unit-input-wrap"><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
-            <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
-            <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
+            <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
+            <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
             <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
             <div class="dif i-gips-unit-wrap" style="display:none">
               <label>Birligi</label>
@@ -3228,13 +3239,13 @@ async function openMrpProductPicker(btn) {
     } catch(e) { _mrpProductTypesCache = []; }
   }
   if (!_mrpProductTypesCache.length) {
-    alert("Hali \"Ishlab chiqarish\" bo'limida faol mahsulot turi yaratilmagan. Avval o'sha yerda mahsulot turi yarating.");
+    showMsg("Hali \"Ishlab chiqarish\" bo'limida faol mahsulot turi yaratilmagan. Avval o'sha yerda mahsulot turi yarating.", 'error');
     return;
   }
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;display:flex;align-items:center;justify-content:center';
   overlay.innerHTML = `
-    <div style="background:var(--card-bg,#fff);border-radius:14px;padding:20px;width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25)">
+    <div style="background:var(--card-bg,#fff);border-radius:14px;padding:20px;width:90vw;max-width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25);box-sizing:border-box">
       <div style="font-weight:600;margin-bottom:10px;font-size:14px">🏭 MRP mahsulotini tanlang</div>
       <input id="mrpPickerSearch" type="text" placeholder="Qidirish..." autocomplete="off"
              style="padding:8px 10px;border-radius:8px;border:1px solid var(--border2);margin-bottom:10px;font-size:13px;width:100%;box-sizing:border-box">
@@ -3248,8 +3259,8 @@ async function openMrpProductPicker(btn) {
     const f = (filter || '').toLowerCase();
     const matches = _mrpProductTypesCache.filter(pt => pt.name.toLowerCase().includes(f));
     listEl.innerHTML = matches.map(pt =>
-      `<div class="mrp-pick-item" data-id="${pt.id}" style="padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between">
-        <span>${escapeHtml(pt.name)}</span><span style="color:var(--text3);font-size:11px">${escapeHtml(pt.unit)}</span>
+      `<div class="mrp-pick-item" data-id="${pt.id}" title="${escapeHtml(pt.name)}" style="padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:8px">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(pt.name)}</span><span style="color:var(--text3);font-size:11px;flex-shrink:0">${escapeHtml(pt.unit)}</span>
       </div>`
     ).join('') || '<div style="padding:10px;color:var(--text3);font-size:13px">Topilmadi</div>';
     listEl.querySelectorAll('.mrp-pick-item').forEach(it => {
@@ -3275,7 +3286,10 @@ function selectMrpProduct(row, pt) {
   row.dataset.mrpInputTemplate = pt.input_template;
   row.dataset.mrpUnit = pt.unit;
   const btn = row.querySelector('.type-opt[data-value="mrp_product"]');
-  if (btn) btn.textContent = '🏭 ' + pt.name;
+  if (btn) {
+    btn.textContent = '🏭 ' + (pt.name.length > 22 ? pt.name.slice(0, 22) + '…' : pt.name);
+    btn.title = pt.name;
+  }
   const nameEl = row.querySelector('.i-name');
   if (nameEl && !nameEl.value.trim()) nameEl.value = pt.name;
   selectTypeOpt(btn, 'mrp_product');
@@ -4859,7 +4873,8 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           const pt = (_mrpProductTypesCache || []).find(p => p.id === item.product_type_id);
           const mrpBtn = row.querySelector('.type-opt[data-value="mrp_product"]');
           if (pt && mrpBtn) {
-            mrpBtn.textContent = '🏭 ' + pt.name;
+            mrpBtn.textContent = '🏭 ' + (pt.name.length > 22 ? pt.name.slice(0, 22) + '…' : pt.name);
+            mrpBtn.title = pt.name;
             const confirmEl = row.querySelector('.type-confirm-text');
             if (confirmEl) confirmEl.textContent = `✓ "${pt.name}" tanlandi — ${pt.unit} bo'yicha, oddiy narx x miqdor bilan hisoblanadi`;
           }

@@ -243,7 +243,7 @@ async function saveProductType(){
     notes: document.getElementById('pt-f-notes').value || null,
   };
   const res = await fetch('/api/production/product-types', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  if (res.ok) { closeModal('pt-modal'); loadProductTypes(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  if (res.ok) { closeModal('pt-modal'); loadProductTypes(); } else { const e = await res.json(); showMsg('Xato: ' + (e.detail || ''), 'error'); }
 }
 
 async function loadProductTypes(){
@@ -367,7 +367,7 @@ function updateBomItemUnitHint(selectEl){
 async function deactivateBom(bomId){
   if (!(await customConfirm('Bu retseptni yashirasizmi? Eski buyurtmalarga ta\'sir qilmaydi, faqat yangi buyurtma yaratishda ko\'rinmay qoladi.'))) return;
   const res = await fetch(`/api/production/boms/${bomId}`, {method:'DELETE'});
-  if (res.ok) loadProductTypes(); else alert('Xato yuz berdi');
+  if (res.ok) loadProductTypes(); else showMsg('Xato yuz berdi', 'error');
 }
 
 async function openBomModal(productTypeId, bomId){
@@ -422,7 +422,7 @@ async function saveBom(){
   const url = editingId ? `/api/production/boms/${editingId}` : '/api/production/boms';
   const method = editingId ? 'PUT' : 'POST';
   const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  if (res.ok) { closeModal('bom-modal'); loadProductTypes(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  if (res.ok) { closeModal('bom-modal'); loadProductTypes(); } else { const e = await res.json(); showMsg('Xato: ' + (e.detail || ''), 'error'); }
 }
 
 // ============================================================
@@ -514,7 +514,7 @@ async function saveProductionOrder(){
     notes: document.getElementById('po-f-notes').value || null,
   };
   const res = await fetch('/api/production/orders', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  if (res.ok) { closeModal('po-modal'); switchProdTab('orders'); document.querySelector('.prod-tab[data-tab="orders"]').click(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  if (res.ok) { closeModal('po-modal'); switchProdTab('orders'); document.querySelector('.prod-tab[data-tab="orders"]').click(); } else { const e = await res.json(); showMsg('Xato: ' + (e.detail || ''), 'error'); }
 }
 
 async function loadProductionOrders(){
@@ -560,13 +560,13 @@ async function doStart(poId){
 async function doComplete(poId){
   if (!(await customConfirm('Ishlab chiqarishni yakunlaysizmi? Xomashyo ombordan ayiriladi, tayyor mahsulot qo\'shiladi.'))) return;
   const res = await fetch(`/api/production/orders/${poId}/complete`, {method:'POST'});
-  if (res.ok) { loadProductionOrders(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  if (res.ok) { loadProductionOrders(); } else { const e = await res.json(); showMsg('Xato: ' + (e.detail || ''), 'error'); }
 }
 
 async function doCancel(poId){
   if (!(await customConfirm('Bu buyurtmani bekor qilasizmi?', {danger:true}))) return;
   const res = await fetch(`/api/production/orders/${poId}/cancel`, {method:'POST'});
-  if (res.ok) { loadProductionOrders(); } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  if (res.ok) { loadProductionOrders(); } else { const e = await res.json(); showMsg('Xato: ' + (e.detail || ''), 'error'); }
 }
 
 function showSnapshot(snapshot, status, warnings){

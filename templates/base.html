@@ -113,6 +113,25 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// 2026-09-17 (UX audit topilmasi): ba'zi sahifalarda (masalan Ishlab
+// chiqarish) xato xabarlari hali ham brauzerning eski, sahifani
+// bloklaydigan alert() orqali chiqar edi — bu ilovaning boshqa
+// joylaridagi silliq bildirishnomalardan chiqib qolardi. Endi HAMMA
+// sahifa shu (Buyurtmalar sahifasidagi bilan bir xil ko'rinishdagi)
+// umumiy, bloklamaydigan bildirishnomadan foydalanishi mumkin — agar
+// sahifaning o'zida shu nomdagi funksiya bo'lsa, o'sha ustunlik qiladi.
+function showMsg(text, type) {
+  const box = document.createElement('div');
+  box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;
+    padding:13px 22px;border-radius:10px;font-size:14.5px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.18);
+    white-space:pre-line;max-width:520px;text-align:center;
+    background:${type==='error'?'#FEE2E2':'#DCFCE7'};color:${type==='error'?'#DC2626':'#1e7e34'};
+    border:1.5px solid ${type==='error'?'#F1948A':'#A9DFBF'}`;
+  box.textContent = text;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 4000);
+}
+
 // ══ UMUMIY: onclick="funksiya('${nom}')" ko'rinishidagi joylar uchun.
 // MUHIM (2026-09-13, xavfsizlik tekshiruvi): oddiy escapeHtml() BU YERDA
 // YETARLI EMAS — brauzer avval HTML atributini o'qiydi (shu chog'da
