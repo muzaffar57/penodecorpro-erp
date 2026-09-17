@@ -117,6 +117,58 @@ def _compute_bom_line(bom_item: BOMItem, production_quantity: float, batch_quant
 # 1. PRODUCTION ORDER YARATISH (DRAFT)
 # ============================================================
 
+def get_order_mrp_readiness(db: Session, order_id: int) -> dict:
+    """2026-09-17 (Milestone 4 — xavfsiz variant): buyurtmadagi barcha
+    'mrp_product' turidagi detallar TO'LIQ band qilinganmi (demak,
+    ishlab chiqarilib bo'lganmi), degan holatni HISOBLAB qaytaradi.
+
+    MUHIM: bu — mavjud Order.status (OrderStatus.READY va h.k.)ga
+    HECH QANDAY tegishli emas va uni O'ZGARTIRMAYDI. O'sha holat allaqachon
+    ustalar KPI/bonus hisobini va buyurtmani tahrirlashni bloklashni
+    ishga tushiradi (crud.py'da tekshirilgan) — MRP-tayyorlik bilan
+    aralashtirib bo'lmaydi. Bu funksiya FAQAT ko'rsatish (badge) uchun.
+
+    Har safar JORIY ma'lumotdan HISOBLANADI (saqlanadigan holat emas) —
+    shuning uchun rezervatsiya ozod qilinsa, keyingi chaqiriqning o'zi
+    avtomatik "hali tayyor emas"ga qaytadi — alohida "rollback" kodi
+    kerak emas.
+
+    Aralash buyurtmalar haqida: faqat 'mrp_product' turidagi detallar
+    tekshiriladi. Eski turlar (Profil/Panel/Donali va h.k.) uchun ombordan
+    oldindan band qilish tushunchasi umuman yo'q (ular buyurtma bilan
+    birga tayyorlanadi) — shuning uchun ular har doim "tayyor" deb
+    hisoblanadi, faqat MRP qismi haqiqiy to'siq bo'la oladi.
+    """
+    from models import OrderItem, FinishedProduct
+    mrp_items = db.query(OrderItem).filter(
+        OrderItem.order_id == order_id, OrderItem.category == 'mrp_product'
+    ).all()
+    if not mrp_items:
+        return {"applicable": False}
+
+    lines = []
+    for item in mrp_items:
+        reserved = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
+            FinishedProduct.reserved_for_order_item_id == item.id
+        ).scalar() or 0.0
+        needed = float(item.quantity or 0)
+        remaining = needed - float(reserved)
+        lines.append({
+            "order_item_id": item.id,
+            "item_name": item.name,
+            "needed_quantity": needed,
+            "reserved_quantity": float(reserved),
+            "remaining_quantity": max(0.0, remaining),
+            "is_ready": remaining <= 0.0001,
+        })
+
+    return {
+        "applicable": True,
+        "fully_ready": all(l["is_ready"] for l in lines),
+        "items": lines,
+    }
+
+
 def get_mrp_order_items_status(db: Session, company_id: int, product_type_id: int = None) -> list:
     """2026-09-17: "Mijoz buyurtmasi asosida" ishlab chiqarish uchun —
     barcha 'mrp_product' turidagi buyurtma-detallarini, ularning qancha
