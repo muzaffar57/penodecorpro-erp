@@ -91,6 +91,28 @@ STEPS = [
                       "activity_logs", "login_history"],
         "tasdiq": "PENODECORPRO-W2G4",
     },
+    {
+        "kalit": "W2B",
+        "tur": "unique",
+        "nomi": "2-to'lqin B — unique cheklovlarni korxonaga bog'lash",
+        "izoh": "Hozir usta telefoni, retsept nomi va h.k. BUTUN TIZIM bo'yicha "
+                "yagona. Ikkinchi korxona bir xil telefonli ustani qo'sha "
+                "olmaydi. Shu cheklovlar (company_id + ustun) juftligiga "
+                "o'tkaziladi. users.username, users.telegram_id va "
+                "masters.telegram_id ATAYLAB global qoladi — login va "
+                "Telegram bot ular bo'yicha odamni topadi.",
+        "maqsadlar": [
+            {"jadval": "inventory", "ustun": "item_name"},
+            {"jadval": "projects", "ustun": "project_number"},
+            {"jadval": "recipes", "ustun": "name"},
+            {"jadval": "masters", "ustun": "phone"},
+            {"jadval": "employees", "ustun": "phone"},
+            {"jadval": "recurring_obligations", "ustun": "category"},
+            # Bu BIRLAMCHI KALIT (unique emas) — shuning uchun alohida yo'l bilan
+            {"jadval": "company_settings", "ustun": "key", "pk": True},
+        ],
+        "tasdiq": "PENODECORPRO-W2B",
+    },
 ]
 
 
@@ -228,6 +250,93 @@ def _is_lock_error(e: Exception) -> bool:
             or "canceling statement due to lock" in m)
 
 
+
+# ============================================================
+# Unique / birlamchi kalit yordamchilari (W2B uchun)
+# ============================================================
+# MUHIM: cheklov nomlari QATTIQ YOZILMAYDI. Postgres ularni o'zi nomlaydi,
+# va baza qo'lda o'zgartirilgan bo'lsa nom boshqacha bo'lishi mumkin —
+# shuning uchun har safar bazadan topiladi.
+
+_YAGONA_SQL = """
+SELECT c.conname, CASE c.contype WHEN 'p' THEN 'PRIMARY KEY' ELSE 'CONSTRAINT' END
+FROM pg_constraint c
+JOIN pg_class t ON t.oid = c.conrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace AND n.nspname = current_schema()
+JOIN pg_attribute a ON a.attrelid = t.oid AND a.attname = :col
+WHERE t.relname = :tbl AND c.contype IN ('u','p')
+  AND c.conkey = ARRAY[a.attnum]::smallint[]
+UNION ALL
+SELECT i.relname, 'INDEX'
+FROM pg_index x
+JOIN pg_class t ON t.oid = x.indrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace AND n.nspname = current_schema()
+JOIN pg_class i ON i.oid = x.indexrelid
+JOIN pg_attribute a ON a.attrelid = t.oid AND a.attname = :col
+WHERE t.relname = :tbl AND x.indisunique AND x.indnatts = 1
+  AND x.indkey[0] = a.attnum
+  AND NOT EXISTS (SELECT 1 FROM pg_constraint c2 WHERE c2.conindid = x.indexrelid)
+"""
+
+
+def _single_col_uniques(conn, table: str, column: str) -> list:
+    """Shu USTUNNING O'ZIGA (bitta ustunga) qo'yilgan unique/PK obyektlar."""
+    return [{"nom": r[0], "tur": r[1]}
+            for r in conn.execute(text(_YAGONA_SQL), {"tbl": table, "col": column}).all()]
+
+
+def _pk_columns(conn, table: str) -> list:
+    return [r[0] for r in conn.execute(text("""
+        SELECT a.attname
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace AND n.nspname = current_schema()
+        JOIN unnest(c.conkey) WITH ORDINALITY k(attnum, ord) ON true
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+        WHERE t.relname = :t AND c.contype = 'p'
+        ORDER BY k.ord
+    """), {"t": table}).all()]
+
+
+def _uq_name(table: str, column: str) -> str:
+    return f"uq_{table}_company_{column}"
+
+
+def _duplicates(conn, table: str, column: str) -> int:
+    """(company_id, ustun) juftligi bo'yicha takrorlanish soni.
+    NULL qiymatlar hisobga olinmaydi — Postgres ularni bir-biriga teng
+    deb hisoblamaydi, shuning uchun ular to'qnashmaydi."""
+    return conn.execute(text(f"""
+        SELECT COUNT(*) FROM (
+            SELECT company_id, {column}
+            FROM {table}
+            WHERE {column} IS NOT NULL
+            GROUP BY company_id, {column}
+            HAVING COUNT(*) > 1
+        ) d
+    """)).scalar()
+
+
+def _unique_target_status(conn, maqsad: dict) -> dict:
+    t, col = maqsad["jadval"], maqsad["ustun"]
+    if not _table_exists(conn, t) or not _column_exists(conn, t, "company_id"):
+        return {"jadval": t, "ustun": col, "tayyor_emas": True, "tugallangan": False}
+    eski = _single_col_uniques(conn, t, col)
+    if maqsad.get("pk"):
+        pk = _pk_columns(conn, t)
+        yangi_bor = pk == ["company_id", col] or set(pk) == {"company_id", col}
+        yangi_nom = "PRIMARY KEY (company_id, %s)" % col
+    else:
+        yangi_bor = _index_exists(conn, _uq_name(t, col))
+        yangi_nom = _uq_name(t, col)
+    return {
+        "jadval": t, "ustun": col, "pk": bool(maqsad.get("pk")),
+        "yangi": yangi_nom, "yangi_bor": yangi_bor,
+        "eski_yagona": eski,
+        "dublikat": _duplicates(conn, t, col),
+        "tugallangan": bool(yangi_bor and not eski),
+    }
+
 # ============================================================
 # HOLAT — faqat o'qiydi
 # ============================================================
@@ -273,10 +382,18 @@ def status_report(engine) -> dict:
 
         qadamlar = []
         for s in STEPS:
+            if s.get("tur") == "unique":
+                maqsadlar = [_unique_target_status(conn, m) for m in s["maqsadlar"]]
+                qadamlar.append({
+                    "kalit": s["kalit"], "nomi": s["nomi"], "izoh": s["izoh"],
+                    "tasdiq": s["tasdiq"], "tur": "unique", "maqsadlar": maqsadlar,
+                    "tugallangan": all(m.get("tugallangan") for m in maqsadlar),
+                })
+                continue
             jadvallar = [_table_status(conn, t) for t in s["jadvallar"]]
             qadamlar.append({
                 "kalit": s["kalit"], "nomi": s["nomi"], "izoh": s["izoh"],
-                "tasdiq": s["tasdiq"], "jadvallar": jadvallar,
+                "tasdiq": s["tasdiq"], "tur": "column", "jadvallar": jadvallar,
                 "tugallangan": all(j.get("tugallangan") for j in jadvallar),
             })
         return {"muhit": environment_info(conn), "qadamlar": qadamlar}
@@ -299,6 +416,9 @@ def run_step(engine, kalit: str, dry_run: bool = True) -> dict:
     s = _step(kalit)
     if not s:
         return {"natija": f"❌ Noma'lum qadam: {kalit}", "xato": "kalit topilmadi"}
+
+    if s.get("tur") == "unique":
+        return _run_unique_step(engine, s, dry_run)
 
     hisobot = {
         "qadam": s["kalit"],
@@ -466,6 +586,150 @@ def run_step(engine, kalit: str, dry_run: bool = True) -> dict:
     return hisobot
 
 
+
+def _run_unique_step(engine, s: dict, dry_run: bool) -> dict:
+    """Unique / birlamchi kalit cheklovlarini (company_id + ustun) juftligiga
+    o'tkazadi.
+
+    Tartib — YANGISI AVVAL, ESKISI KEYIN: avval yangi kompozit cheklov
+    yaratiladi, tekshiriladi, keyingina eskisi olib tashlanadi. Shunda
+    oraliqda jadval bir lahza ham himoyasiz qolmaydi.
+
+    BIRLAMChI KALIT (company_settings) — istisno: bitta jadvalda ikkita
+    PRIMARY KEY bo'lolmaydi, shuning uchun u yerda eskisi avval olib
+    tashlanadi va darhol yangisi qo'yiladi. Ikkalasi ham BITTA
+    tranzaksiya ichida bo'lgani uchun, xato bo'lsa hammasi qaytariladi.
+    """
+    hisobot = {
+        "qadam": s["kalit"], "nomi": s["nomi"],
+        "rejim": "DRY-RUN (sinov, o'zgarish saqlanmaydi)" if dry_run else "HAQIQIY (COMMIT)",
+        "vaqt_utc": datetime.utcnow().isoformat(timespec="seconds"),
+        "muhit": {}, "tekshiruvlar": [], "amallar": [],
+        "oxirgi_holat": [], "natija": "", "xato": None,
+    }
+
+    def tekshir(kod, tavsif, ok, izoh=""):
+        hisobot["tekshiruvlar"].append({
+            "kod": kod, "tavsif": tavsif,
+            "holat": "OK" if ok else "TO'XTASH", "izoh": izoh})
+        if not ok:
+            raise _MigrationStop(f"{kod}: {tavsif} — {izoh}")
+
+    def amal(jadval, kod, tavsif, holat, izoh=""):
+        hisobot["amallar"].append({
+            "jadval": jadval, "kod": kod, "tavsif": tavsif,
+            "holat": holat, "izoh": izoh})
+
+    jadvallar = [m["jadval"] for m in s["maqsadlar"]]
+    conn = engine.connect()
+    trans = conn.begin()
+    try:
+        conn.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"))
+        conn.execute(text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'"))
+        hisobot["muhit"] = environment_info(conn)
+
+        tekshir("P1", "Baza PostgreSQL bo'lishi shart",
+                conn.dialect.name == "postgresql", f"topildi: {conn.dialect.name}")
+
+        # Oldindan: har bir jadvalda company_id bo'lishi SHART
+        for m in s["maqsadlar"]:
+            t = m["jadval"]
+            tekshir(f"P2:{t}", f"'{t}' jadvalida company_id bo'lishi shart",
+                    _table_exists(conn, t) and _column_exists(conn, t, "company_id"),
+                    "avval 2-to'lqin qadamlarini bajaring")
+
+        # Oldindan: TAKRORLANISH bo'lmasligi shart (eng muhim to'xtatuvchi)
+        for m in s["maqsadlar"]:
+            t, col = m["jadval"], m["ustun"]
+            d = _duplicates(conn, t, col)
+            tekshir(f"B1:{t}.{col}",
+                    f"'{t}.{col}': (company_id, {col}) juftligi takrorlanmasligi shart",
+                    d == 0, f"takrorlangan={d}")
+
+        # Har bir maqsad
+        for m in s["maqsadlar"]:
+            t, col = m["jadval"], m["ustun"]
+            eski = _single_col_uniques(conn, t, col)
+
+            if m.get("pk"):
+                pk = _pk_columns(conn, t)
+                if set(pk) == {"company_id", col}:
+                    amal(t, "B3", f"Birlamchi kalit (company_id, {col})", "ALLAQACHON BOR")
+                else:
+                    eski_pk = [e for e in eski if e["tur"] == "PRIMARY KEY"]
+                    for e in eski_pk:
+                        conn.execute(text(f'ALTER TABLE {t} DROP CONSTRAINT "{e["nom"]}"'))
+                        amal(t, "B4", f"Eski birlamchi kalitni olib tashlash", "BAJARILDI", e["nom"])
+                    conn.execute(text(
+                        f"ALTER TABLE {t} ADD PRIMARY KEY (company_id, {col})"))
+                    amal(t, "B3", f"Yangi birlamchi kalit (company_id, {col})", "BAJARILDI")
+                continue
+
+            # 1) YANGISI
+            uq = _uq_name(t, col)
+            if _index_exists(conn, uq):
+                amal(t, "B3", f"Kompozit unique {uq}", "ALLAQACHON BOR")
+            else:
+                conn.execute(text(
+                    f"CREATE UNIQUE INDEX {uq} ON {t} (company_id, {col})"))
+                amal(t, "B3", f"Kompozit unique {uq} yaratish", "BAJARILDI",
+                     f"(company_id, {col})")
+
+            # 2) tekshiruv — yangisi haqiqatan paydo bo'ldimi
+            tekshir(f"B4:{t}.{col}", f"'{uq}' yaratilgan bo'lishi shart",
+                    _index_exists(conn, uq))
+
+            # 3) ESKISI
+            if not eski:
+                amal(t, "B5", f"Eski yagona-ustun unique ({col})", "YO'Q EDI")
+            for e in eski:
+                if e["tur"] == "INDEX":
+                    conn.execute(text(f'DROP INDEX "{e["nom"]}"'))
+                else:
+                    conn.execute(text(f'ALTER TABLE {t} DROP CONSTRAINT "{e["nom"]}"'))
+                amal(t, "B5", f"Eski {e['tur']} ni olib tashlash", "BAJARILDI", e["nom"])
+
+        # Yakuniy tekshiruv
+        for m in s["maqsadlar"]:
+            st = _unique_target_status(conn, m)
+            tekshir(f"B6:{st['jadval']}.{st['ustun']}",
+                    f"'{st['jadval']}.{st['ustun']}': yangisi bor, eskisi yo'q",
+                    st["tugallangan"],
+                    f"yangi_bor={st['yangi_bor']}, eski={[e['nom'] for e in st['eski_yagona']]}")
+
+        hisobot["oxirgi_holat"] = [_unique_target_status(conn, m) for m in s["maqsadlar"]]
+
+        if dry_run:
+            trans.rollback()
+            hisobot["natija"] = (
+                "✅ SINOV MUVAFFAQIYATLI — barcha cheklovlar haqiqatdan "
+                "o'zgartirildi va keyin TO'LIQ QAYTARIB OLINDI (rollback). "
+                "Bazada hech qanday o'zgarish qolmadi.")
+        else:
+            trans.commit()
+            hisobot["natija"] = "✅ HAQIQIY MIGRATSIYA BAJARILDI VA SAQLANDI (commit)."
+
+    except _MigrationStop as e:
+        trans.rollback()
+        hisobot["natija"] = "⛔ TO'XTATILDI — hech narsa o'zgarmadi (rollback)."
+        hisobot["xato"] = str(e)
+    except Exception as e:
+        trans.rollback()
+        if _is_lock_error(e):
+            hisobot["natija"] = (
+                "⏳ QULF BAND — jadvalni boshqa ulanish ushlab turibdi. Bazada "
+                "hech narsa o'zgarmadi. Ortiqcha tablarni yoping va qaytadan "
+                "urinib ko'ring.")
+            hisobot["qulf_tutib_turganlar"] = _blocking_sessions(engine, jadvallar)
+        else:
+            hisobot["natija"] = "❌ XATO — hech narsa o'zgarmadi (rollback)."
+        hisobot["xato"] = f"{type(e).__name__}: {e}"
+    finally:
+        conn.close()
+
+    return hisobot
+
+
 def run_step1(engine, dry_run: bool = True) -> dict:
     """Orqaga moslik uchun (eski nom)."""
     return run_step(engine, "W1", dry_run=dry_run)
@@ -553,10 +817,30 @@ def _env_block(muhit: dict) -> str:
     return banner + f'<div class="card"><h2>MUHIT</h2><table>{rows}</table></div>'
 
 
+def _unique_rows(q: dict) -> str:
+    """W2B kartasining jadvali."""
+    bosh = ('<tr><th>jadval.ustun</th><th>yangi (kompozit)</th>'
+            '<th>eski (yagona ustun)</th><th>takror</th><th>tugallangan</th></tr>')
+    rows = ""
+    for m in q["maqsadlar"]:
+        if m.get("tayyor_emas"):
+            rows += (f'<tr><th>{_esc(m["jadval"])}.{_esc(m["ustun"])}</th>'
+                     f'<td colspan="4"><span class="pill p-no">company_id YO\'Q — '
+                     f'avval 2-to\'lqin</span></td></tr>')
+            continue
+        eski = ", ".join(f'{e["nom"]} ({e["tur"]})' for e in m["eski_yagona"]) or "—"
+        rows += (f'<tr><th>{_esc(m["jadval"])}.{_esc(m["ustun"])}</th>'
+                 f'<td>{_pill(m["yangi_bor"])} <code>{_esc(m["yangi"])}</code></td>'
+                 f'<td>{_esc(eski)}</td>'
+                 f'<td>{_esc(m["dublikat"])}</td>'
+                 f'<td>{_pill(m["tugallangan"], "HA", "YO\'Q")}</td></tr>')
+    return bosh + rows
+
+
 def _step_card(q: dict) -> str:
     """Bitta qadam: holat jadvali + tugmalar."""
     rows = ""
-    for j in q["jadvallar"]:
+    for j in q.get("jadvallar", []):
         if not j.get("mavjud"):
             rows += (f'<tr><th>{_esc(j["jadval"])}</th><td colspan="6">'
                      f'<span class="pill p-no">JADVAL YO\'Q</span></td></tr>')
@@ -571,6 +855,9 @@ def _step_card(q: dict) -> str:
 
     bosh = ('<tr><th>jadval</th><th>ustun</th><th>indeks</th><th>FK</th>'
             '<th>qatorlar</th><th>bo\'sh</th><th>tugallangan</th></tr>')
+
+    if q.get("tur") == "unique":
+        bosh, rows = _unique_rows(q), ""
 
     if q["tugallangan"]:
         tugma = ('<div class="row"><span class="pill p-ok">BU QADAM TUGALLANGAN</span>'
@@ -628,6 +915,18 @@ def _report_block(rep: dict) -> str:
             _esc(x.get("sorov") or x.get("xato"))) for x in blk)
         out.append('<div class="card"><h2>JADVALNI USHLAB TURGAN ULANISHLAR</h2>'
                    f'<table>{r}</table></div>')
+
+    oh = rep.get("oxirgi_holat")
+    if oh and isinstance(oh, list) and oh and "eski_yagona" in oh[0]:
+        r = "".join(
+            f'<tr><th>{_esc(x["jadval"])}.{_esc(x["ustun"])}</th>'
+            f'<td>{_esc(x["yangi"])}</td>'
+            f'<td>{_esc(", ".join(e["nom"] for e in x["eski_yagona"]) or "—")}</td>'
+            f'<td>{_esc(x["tugallangan"])}</td></tr>' for x in oh)
+        out.append('<div class="card"><h2>YAKUNIY HOLAT</h2><table>'
+                   '<tr><th>jadval.ustun</th><td><b>yangi</b></td>'
+                   f'<td><b>qolgan eski</b></td><td><b>tugallangan</b></td></tr>{r}'
+                   '</table></div>')
 
     xom = _json.dumps(rep, indent=2, ensure_ascii=False)
     out.append('<div class="card"><h2>TO\'LIQ HISOBOT (nusxalash uchun)</h2>'
