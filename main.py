@@ -1428,7 +1428,7 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
                 materials_note=item.item_name,
                 notes=f"{item.item_name} xaridi bilan birga"
             ),
-            created_by=who
+            created_by=who, company_id=auth.company_id_of(current_user)
         )
 
     # Hoziroq to'langan summa bo'lsa — darhol to'lov sifatida yoziladi (qarzdan ayiriladi)
@@ -1440,14 +1440,14 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
                 amount=paid_now,
                 notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan"
             ),
-            paid_by=who
+            paid_by=who, company_id=auth.company_id_of(current_user)
         )
 
     # Nasiya bo'lsa — kompaniya qarzi oshgani haqida ogohlantirish
     if is_credit and data.supplier_id:
         supplier = crud.get_supplier(db, data.supplier_id)
         if supplier:
-            debt_info = crud.get_supplier_debt(db, data.supplier_id)
+            debt_info = crud.get_supplier_debt(db, data.supplier_id, company_id=auth.company_id_of(current_user))
             all_debt = sum(s["debt"] for s in crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user)))
             paid_line = f"✅ Hoziroq to'landi: {fmt_money(paid_now)} so'm\\n" if paid_now > 0 else ""
             msg = (
@@ -1509,14 +1509,14 @@ def api_purchase_stats(year: Optional[int] = None, month: Optional[int] = None,
 def api_create_transport(data: schemas.TransportExpenseCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Kirish transporti xarajatini qo'shish."""
     who = current_user.full_name or current_user.username
-    exp = crud.create_transport_expense(db, data, created_by=who)
+    exp = crud.create_transport_expense(db, data, created_by=who, company_id=auth.company_id_of(current_user))
     return {"status": "ok", "id": exp.id, "amount": float(exp.amount)}
 
 
 @app.get("/api/transport-expenses")
 def api_get_transport(limit: int = 100, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Kirish transporti tarixi."""
-    items = crud.get_transport_expenses(db, limit=limit)
+    items = crud.get_transport_expenses(db, limit=limit, company_id=auth.company_id_of(current_user))
     return [{
         "id": e.id,
         "amount": float(e.amount),
@@ -1529,7 +1529,7 @@ def api_get_transport(limit: int = 100, db: Session = Depends(get_db), current_u
 
 @app.delete("/api/transport-expenses/{exp_id}")
 def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    if not crud.delete_transport_expense(db, exp_id):
+    if not crud.delete_transport_expense(db, exp_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
@@ -1969,7 +1969,7 @@ def api_redeem_gift_period_tier(master_id: int, tier_id: int, db: Session = Depe
 def api_transport_stats(year: Optional[int] = None, month: Optional[int] = None,
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Transport xarajatlari statistikasi (kirish + chiqish)."""
-    return crud.get_transport_stats(db, year=year, month=month)
+    return crud.get_transport_stats(db, year=year, month=month, company_id=auth.company_id_of(current_user))
 
 
 # ============================================================
@@ -2047,7 +2047,8 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
     ed = (dt.strptime(end_date, "%Y-%m-%d") - TASHKENT_OFFSET) if end_date else None
 
     history = crud.get_supplier_history(db, supplier_id, start_date=sd, end_date=ed,
-                                         page=page, page_size=page_size)
+                                         page=page, page_size=page_size,
+                                         company_id=auth.company_id_of(current_user))
     return {"name": s.name, "phone": s.phone, **history}
 
 
@@ -2057,7 +2058,7 @@ def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Sess
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xarid topilmadi")
-    updated = crud.update_purchase(db, purchase_id, data.model_dump(exclude_unset=True))
+    updated = crud.update_purchase(db, purchase_id, data.model_dump(exclude_unset=True), company_id=auth.company_id_of(current_user))
     if not updated:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "total_amount": float(updated.total_amount)}
@@ -2069,7 +2070,7 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xarid topilmadi")
-    if not crud.delete_purchase(db, purchase_id):
+    if not crud.delete_purchase(db, purchase_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
@@ -2082,20 +2083,20 @@ def api_supplier_payment(supplier_id: int, data: schemas.SupplierPaymentCreate, 
     who = current_user.full_name or current_user.username
     data.supplier_id = supplier_id
     try:
-        p = crud.create_supplier_payment(db, data, paid_by=who)
+        p = crud.create_supplier_payment(db, data, paid_by=who, company_id=auth.company_id_of(current_user))
     except crud.OverpaymentWarning as w:
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
             "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
             "amount": w.amount, "debt": w.debt, "excess": w.excess
         })
-    debt_info = crud.get_supplier_debt(db, supplier_id)
+    debt_info = crud.get_supplier_debt(db, supplier_id, company_id=auth.company_id_of(current_user))
     return {"status": "ok", "payment_id": p.id, **debt_info}
 
 
 @app.delete("/api/suppliers/payments/{payment_id}")
 def api_delete_supplier_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    if not crud.delete_supplier_payment(db, payment_id):
+    if not crud.delete_supplier_payment(db, payment_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
@@ -2111,7 +2112,7 @@ def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends
 @app.get("/api/suppliers/due-dates")
 def api_suppliers_due_dates(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Qarz to'lash muddatlari — Dashboard ogohlantirishi uchun."""
-    return crud.get_supplier_payment_due_dates(db)
+    return crud.get_supplier_payment_due_dates(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/suppliers/{supplier_id}/purchased-items")
@@ -2123,7 +2124,7 @@ def api_supplier_purchased_items(supplier_id: int, db: Session = Depends(get_db)
 @app.get("/api/inventory/purchase-trend")
 def api_purchase_trend(months: int = 6, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     """Oxirgi N oy xarid tendensiyasi."""
-    return crud.get_purchase_stats_range(db, months=months)
+    return crud.get_purchase_stats_range(db, months=months, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/inventory/{item_id}/price")
@@ -2947,7 +2948,7 @@ def api_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth
 
 @app.get("/api/dashboard/today")
 def api_dashboard_today(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_today_stats(db)
+    return services.get_today_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/charts")
@@ -2962,7 +2963,7 @@ def api_low_stock(db: Session = Depends(get_db), current_user=Depends(auth.requi
 
 @app.get("/api/notifications")
 def api_notifications(db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
-    return services.get_notifications(db)
+    return services.get_notifications(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/today-tasks")
@@ -3033,7 +3034,8 @@ def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), cur
         status_counts[st] = status_counts.get(st, 0) + 1
         if o.status == OrderStatus.READY:
             try:
-                total_profit += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+                total_profit += float(services.calculate_order_profit(
+                    db, o.id, company_id=auth.company_id_of(current_user)).get("foyda", 0))
             except Exception as e:
                 try:
                     crud.log_error(db, str(e), endpoint=f"project_detail:calculate_order_profit order#{o.id}")
@@ -3079,8 +3081,8 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
 
     from datetime import datetime as _dt
     now = _dt.utcnow()
-    company_obligations = services.get_company_obligations_status(db, now.year, now.month)
-    recurring_targets = services.get_recurring_obligations(db)
+    company_obligations = services.get_company_obligations_status(db, now.year, now.month, company_id=auth.company_id_of(current_user))
+    recurring_targets = services.get_recurring_obligations(db, company_id=auth.company_id_of(current_user))
 
     return templates.TemplateResponse(request, "debts.html", {
         "order_debts": order_debts,
@@ -3117,12 +3119,12 @@ def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), cur
 
 @app.get("/api/reports/top-customers")
 def api_reports_top_customers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_top_customers_report(db, days=days, limit=limit)
+    return services.get_top_customers_report(db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/top-suppliers")
 def api_reports_top_suppliers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_top_suppliers_report(db, days=days, limit=limit)
+    return services.get_top_suppliers_report(db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/comparison")
@@ -3137,7 +3139,7 @@ def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), c
 
 @app.get("/api/reports/alerts")
 def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_business_alerts(db)
+    return services.get_business_alerts(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/brak-materials")
@@ -3148,41 +3150,41 @@ def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optio
     from database import TASHKENT_OFFSET
     sd = (dt.strptime(start_date, "%Y-%m-%d") - TASHKENT_OFFSET) if start_date else None
     ed = (dt.strptime(end_date, "%Y-%m-%d") - TASHKENT_OFFSET + timedelta(days=1)) if end_date else None
-    return crud.get_brak_material_summary(db, start_date=sd, end_date=ed)
+    return crud.get_brak_material_summary(db, start_date=sd, end_date=ed, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/business-health")
 def api_reports_business_health(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_business_health(db)
+    return services.get_business_health(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/obligations/recurring")
 def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_recurring_obligations(db)
+    return services.get_recurring_obligations(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/obligations/recurring")
 def api_set_recurring_obligation(category: str, label: str, monthly_target: float,
                                    icon: str = "📦", due_day: int = 5,
                                    db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    return services.set_recurring_obligation(db, category, label, monthly_target, icon=icon, due_day=due_day)
+    return services.set_recurring_obligation(db, category, label, monthly_target, icon=icon, due_day=due_day, company_id=auth.company_id_of(current_user))
 
 
 @app.delete("/api/obligations/recurring/{obligation_id}")
 def api_delete_recurring_obligation(obligation_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    if not services.delete_recurring_obligation(db, obligation_id):
+    if not services.delete_recurring_obligation(db, obligation_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
 
 @app.get("/api/obligations/status")
 def api_obligations_status(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return services.get_company_obligations_status(db, year, month)
+    return services.get_company_obligations_status(db, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/obligations/timeline")
 def api_obligations_timeline(category: str, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return services.get_obligation_timeline(db, category, year, month)
+    return services.get_obligation_timeline(db, category, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/obligations/employee/{employee_id}/timeline")
@@ -3212,7 +3214,7 @@ def api_get_cash_balance(db: Session = Depends(get_db), current_user=Depends(aut
 @app.get("/api/finance/cash-transactions")
 def api_get_cash_transactions(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Kassaga qo'lda qilingan yozuvlar tarixi."""
-    rows = crud.get_cash_transactions(db)
+    rows = crud.get_cash_transactions(db, company_id=auth.company_id_of(current_user))
     return [{
         "id": r.id, "category": r.category, "amount": float(r.amount),
         "notes": r.notes, "performed_by": r.performed_by,
@@ -3229,7 +3231,7 @@ def api_record_cash_transaction(category: str = Form(...), amount: float = Form(
     if category not in ("boshlangich", "usta_kpi", "ehson"):
         raise HTTPException(status_code=400, detail="Noto'g'ri kategoriya")
     who = current_user.full_name or current_user.username
-    tx = crud.record_cash_transaction(db, category, amount, notes=notes, performed_by=who)
+    tx = crud.record_cash_transaction(db, category, amount, notes=notes, performed_by=who, company_id=auth.company_id_of(current_user))
     balance = services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
     return {"status": "ok", "transaction_id": tx.id, "new_balance": balance["balance"]}
 
@@ -3259,7 +3261,7 @@ def api_finance_report(year: int, month: int, db: Session = Depends(get_db), cur
 def api_finance_debt_summary(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Mijoz, yetkazuvchi, hodim va doimiy majburiyatlar qarzini — bitta
     joyga jamlab beradi ("Moliya" sahifasidagi yangi bo'lim uchun)."""
-    return services.get_full_debt_summary(db, year, month)
+    return services.get_full_debt_summary(db, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/split-profit-pdf")
@@ -3268,7 +3270,7 @@ def api_split_profit_pdf(year: int, month: int, db: Session = Depends(get_db), c
     from fastapi.responses import Response
     import finance_pdf
 
-    split = services.calculate_split_profit_report(db, year, month)
+    split = services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user))
     pdf_bytes = finance_pdf.generate_split_profit_pdf(split, year, month)
     filename = f"gips_penoplast_hisobot_{year}_{month:02d}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
@@ -3287,11 +3289,11 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
 
     _start = _dt(year, month, 1)
     _end = _dt(year + 1, 1, 1) if month == 12 else _dt(year, month + 1, 1)
-    expense_transactions = crud.get_expense_transactions(db, year=year, month=month)
+    expense_transactions = crud.get_expense_transactions(db, year=year, month=month, company_id=auth.company_id_of(current_user))
 
-    brak_summary = crud.get_brak_material_summary(db, start_date=_start, end_date=_end)
+    brak_summary = crud.get_brak_material_summary(db, start_date=_start, end_date=_end, company_id=auth.company_id_of(current_user))
     brak_by_material = brak_summary.get("by_material", [])
-    debt_summary = services.get_full_debt_summary(db, year, month)
+    debt_summary = services.get_full_debt_summary(db, year, month, company_id=auth.company_id_of(current_user))
 
     pdf_bytes = finance_pdf.generate_finance_report_pdf(
         report, expense_transactions, brak_by_material, year, month, debt_summary
@@ -3310,18 +3312,18 @@ def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(g
         d = date_cls.fromisoformat(target_date)
     else:
         d = date_cls.today()
-    return services.get_daily_finance_summary(db, d)
+    return services.get_daily_finance_summary(db, d, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/history")
 def api_finance_history(months: int = 12, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_finance_history(db, months)
+    return services.get_finance_history(db, months, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/finance/transactions")
 def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: Session = Depends(get_db),
                                     current_user=Depends(auth.admin_manager_accountant)):
-    tx = crud.create_expense_transaction(db, data.model_dump(), performed_by=current_user.full_name or current_user.username, source="manual")
+    tx = crud.create_expense_transaction(db, data.model_dump(), performed_by=current_user.full_name or current_user.username, source="manual", company_id=auth.company_id_of(current_user))
     return schemas.ExpenseTransactionRead.model_validate(tx)
 
 
@@ -3329,13 +3331,13 @@ def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: S
 def api_list_expense_transactions(year: Optional[int] = None, month: Optional[int] = None,
                                    day: Optional[int] = None, category: Optional[str] = None,
                                    db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    rows = crud.get_expense_transactions(db, year=year, month=month, day=day, category=category)
+    rows = crud.get_expense_transactions(db, year=year, month=month, day=day, category=category, company_id=auth.company_id_of(current_user))
     return [schemas.ExpenseTransactionRead.model_validate(r) for r in rows]
 
 
 @app.delete("/api/finance/transactions/{tx_id}")
 def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    ok = crud.delete_expense_transaction(db, tx_id)
+    ok = crud.delete_expense_transaction(db, tx_id, company_id=auth.company_id_of(current_user))
     if not ok:
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
     return {"status": "ok"}
@@ -3348,7 +3350,7 @@ def api_update_expense_transaction(tx_id: int, data: schemas.ExpenseTransactionC
     xarajat summasini o'chirib-qayta yozish o'rniga, to'g'ridan-to'g'ri
     tahrirlash imkonini beradi (masalan "125" o'rniga "125 000" bo'lishi
     kerak bo'lgan holatlar uchun)."""
-    tx = crud.update_expense_transaction(db, tx_id, data.model_dump())
+    tx = crud.update_expense_transaction(db, tx_id, data.model_dump(), company_id=auth.company_id_of(current_user))
     if not tx:
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
     return schemas.ExpenseTransactionRead.model_validate(tx)
@@ -3356,7 +3358,7 @@ def api_update_expense_transaction(tx_id: int, data: schemas.ExpenseTransactionC
 
 @app.post("/api/finance/expense")
 def api_save_expense(year: int, month: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    services.save_monthly_expense(db, year, month, data, performed_by=current_user.full_name or current_user.username)
+    services.save_monthly_expense(db, year, month, data, performed_by=current_user.full_name or current_user.username, company_id=auth.company_id_of(current_user))
     return {"status": "ok"}
 
 
@@ -3365,7 +3367,7 @@ def api_order_profit(order_id: int, db: Session = Depends(get_db), current_user=
     # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
     if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    return services.calculate_order_profit(db, order_id)
+    return services.calculate_order_profit(db, order_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/orders/{order_id}/pdf")

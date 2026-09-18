@@ -562,6 +562,48 @@ def finished_product_of_company(db: Session, fp_id: int, company_id: int):
         FinishedProduct.company_id == company_id).first()
 
 
+def cash_transaction_of_company(db: Session, tx_id: int, company_id: int):
+    """Kassa yozuvini FAQAT shu korxona ichidan topadi (M6)."""
+    from models import CashTransaction
+    return db.query(CashTransaction).filter(
+        CashTransaction.id == tx_id,
+        CashTransaction.company_id == company_id).first()
+
+
+def expense_of_company(db: Session, tx_id: int, company_id: int):
+    """Xarajat tranzaksiyasini FAQAT shu korxona ichidan topadi (M6)."""
+    from models import ExpenseTransaction
+    return db.query(ExpenseTransaction).filter(
+        ExpenseTransaction.id == tx_id,
+        ExpenseTransaction.company_id == company_id).first()
+
+
+def transport_expense_of_company(db: Session, exp_id: int, company_id: int):
+    """Transport xarajatini FAQAT shu korxona ichidan topadi (M6)."""
+    from models import TransportExpense
+    return db.query(TransportExpense).filter(
+        TransportExpense.id == exp_id,
+        TransportExpense.company_id == company_id).first()
+
+
+def obligation_of_company(db: Session, obligation_id: int, company_id: int):
+    """Doimiy majburiyatni FAQAT shu korxona ichidan topadi (M6)."""
+    from models import RecurringObligation
+    return db.query(RecurringObligation).filter(
+        RecurringObligation.id == obligation_id,
+        RecurringObligation.company_id == company_id).first()
+
+
+def supplier_payment_of_company(db: Session, payment_id: int, company_id: int):
+    """Ta'minotchiga to'lovni ota (Supplier) orqali tekshiradi —
+    SupplierPayment'da company_id ustuni yo'q (M6)."""
+    from models import SupplierPayment, Supplier
+    return (db.query(SupplierPayment)
+            .join(Supplier, Supplier.id == SupplierPayment.supplier_id)
+            .filter(SupplierPayment.id == payment_id,
+                    Supplier.company_id == company_id).first())
+
+
 def master_of_company(db: Session, master_id: int, company_id: int):
     """Ustani FAQAT shu korxona ichidan topadi (M5).
 

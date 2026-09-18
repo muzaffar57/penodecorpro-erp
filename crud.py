@@ -332,11 +332,14 @@ def get_item_locked(db: Session, item_id: int, company_id: int = None) -> Option
     return q.with_for_update().first()
 
 
-def create_expense_transaction(db: Session, data, performed_by: Optional[str] = None, source: str = "manual"):
+def create_expense_transaction(db: Session, data, performed_by: Optional[str] = None, source: str = "manual",
+                               company_id: int = None):
     """Yangi xarajat tranzaksiyasini yaratadi. Bu funksiya faqat YANGI ExpenseTransaction
     jadvaliga yozadi — mavjud MonthlyExpense yoki hisob-kitob logikasiga umuman tegmaydi."""
     from models import ExpenseTransaction
+    # M6 — TENANT: company_id ANIQ beriladi (ota-FK yo'q, DEFAULT 1 ga tushmasin).
     tx = ExpenseTransaction(
+        company_id=company_id,
         date=data.get("date") or datetime.utcnow(),
         category=data["category"],
         amount=data.get("amount", 0),
@@ -351,7 +354,8 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
     return tx
 
 
-def update_expense_transaction(db: Session, tx_id: int, data) -> Optional["ExpenseTransaction"]:
+def update_expense_transaction(db: Session, tx_id: int, data,
+                               company_id: int = None) -> Optional["ExpenseTransaction"]:
     """2026-09-16: foydalanuvchi so'rovi bo'yicha qo'shildi — xato kiritilgan
     summani (masalan "125 000" o'rniga "125") o'chirib-qayta yozish o'rniga,
     to'g'ridan-to'g'ri TAHRIRLASH imkonini beradi. create_expense_transaction
@@ -360,7 +364,10 @@ def update_expense_transaction(db: Session, tx_id: int, data) -> Optional["Expen
     har safar JORIY yozuvlar asosida qayta hisoblanadi) alohida ta'sir
     qilmaydi."""
     from models import ExpenseTransaction
-    tx = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id).first()
+    _q = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id)
+    if company_id is not None:      # M6: faqat shu korxonadan
+        _q = _q.filter(ExpenseTransaction.company_id == company_id)
+    tx = _q.first()
     if not tx:
         return None
     if "date" in data and data["date"]:
@@ -379,11 +386,14 @@ def update_expense_transaction(db: Session, tx_id: int, data) -> Optional["Expen
 
 
 def get_expense_transactions(db: Session, year: Optional[int] = None, month: Optional[int] = None,
-                              day: Optional[int] = None, category: Optional[str] = None, limit: int = 200):
-    """Xarajat tranzaksiyalari ro'yxati — faqat o'qish."""
+                              day: Optional[int] = None, category: Optional[str] = None, limit: int = 200,
+                              company_id: int = None):
+    """Xarajat tranzaksiyalari ro'yxati — faqat o'qish (M6 — tenant-safe)."""
     from models import ExpenseTransaction
     from sqlalchemy import extract
     q = db.query(ExpenseTransaction)
+    if company_id is not None:
+        q = q.filter(ExpenseTransaction.company_id == company_id)
     if year:
         q = q.filter(extract('year', ExpenseTransaction.date) == year)
     if month:
@@ -395,9 +405,12 @@ def get_expense_transactions(db: Session, year: Optional[int] = None, month: Opt
     return q.order_by(ExpenseTransaction.date.desc()).limit(limit).all()
 
 
-def delete_expense_transaction(db: Session, tx_id: int) -> bool:
+def delete_expense_transaction(db: Session, tx_id: int, company_id: int = None) -> bool:
     from models import ExpenseTransaction
-    tx = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id).first()
+    _q = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id)
+    if company_id is not None:      # M6: faqat shu korxonadan
+        _q = _q.filter(ExpenseTransaction.company_id == company_id)
+    tx = _q.first()
     if not tx:
         return False
     db.delete(tx)
@@ -1809,21 +1822,29 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
     return db_item
 
 
-def record_cash_transaction(db: Session, category: str, amount: float, notes: str = None, performed_by: str = None):
+def record_cash_transaction(db: Session, category: str, amount: float, notes: str = None,
+                           performed_by: str = None, company_id: int = None):
     """Kassaga qo'lda ta'sir qiladigan yozuv qo'shadi (boshlang'ich balans,
     Usta KPI to'landi, Ehson to'landi). amount — musbat (kirim) yoki
     manfiy (chiqim) bo'lishi mumkin."""
     from models import CashTransaction
-    tx = CashTransaction(category=category, amount=amount, notes=notes, performed_by=performed_by)
+    # M6 (2026-09-18) — TENANT: `CashTransaction`da ota-FK yo'q, shuning
+    # uchun `_tenant_guard` uni to'ldira olmaydi — company_id ANIQ
+    # berilmasa yozuv bazadagi vaqtinchalik DEFAULT 1 ga tushib qolardi.
+    tx = CashTransaction(company_id=company_id, category=category, amount=amount,
+                         notes=notes, performed_by=performed_by)
     db.add(tx)
     db.commit()
     return tx
 
 
-def get_cash_transactions(db: Session, limit: int = 100) -> List:
-    """Kassaga qo'lda qilingan yozuvlar tarixi."""
+def get_cash_transactions(db: Session, limit: int = 100, company_id: int = None) -> List:
+    """Kassaga qo'lda qilingan yozuvlar tarixi (M6 — tenant-safe)."""
     from models import CashTransaction
-    return db.query(CashTransaction).order_by(CashTransaction.created_at.desc()).limit(limit).all()
+    q = db.query(CashTransaction)
+    if company_id is not None:
+        q = q.filter(CashTransaction.company_id == company_id)
+    return q.order_by(CashTransaction.created_at.desc()).limit(limit).all()
 
 
 def get_setting(db: Session, key: str, default: str = None) -> str:
@@ -3063,7 +3084,12 @@ def get_debt_stats(db: Session, company_id: int = None) -> dict:
     # Bugungi to'lovlar
     from database import tashkent_date
     today = tashkent_date()
-    today_payments = db.query(Payment).all()
+    # M6 — TENANT: bugungi to'lovlar ham joriy korxona bo'yicha.
+    _tpq = db.query(Payment)
+    if company_id is not None:
+        _tpq = _tpq.join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == company_id)
+    today_payments = _tpq.all()
     today_sum = sum(
         float(p.amount or 0) for p in today_payments
         if p.paid_at and tashkent_date(p.paid_at) == today
@@ -6542,7 +6568,7 @@ def get_purchase_stats(db: Session, year: int = None, month: int = None,
     }
 
 
-def get_purchase_stats_range(db: Session, months: int = 6) -> dict:
+def get_purchase_stats_range(db: Session, months: int = 6, company_id: int = None) -> dict:
     """Oxirgi N oy bo'yicha xarid tendensiyasi (dashboard grafik uchun)."""
     from models import InventoryPurchase
     from datetime import datetime as dt
@@ -6553,11 +6579,15 @@ def get_purchase_stats_range(db: Session, months: int = 6) -> dict:
     for _ in range(months):
         start = dt(y, m, 1)
         end = dt(y + 1, 1, 1) if m == 12 else dt(y, m + 1, 1)
-        total = db.query(InventoryPurchase).filter(
+        _prq = db.query(InventoryPurchase).filter(
             InventoryPurchase.purchased_at >= start,
             InventoryPurchase.purchased_at < end,
             InventoryPurchase.is_opening_stock.isnot(True)
-        ).all()
+        )
+        if company_id is not None:      # M6: ota (material) orqali
+            _prq = _prq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+                Inventory.company_id == company_id)
+        total = _prq.all()
         s = sum(float(p.total_amount) for p in total)
         result.append({"year": y, "month": m, "total": round(s)})
         m -= 1
@@ -6575,9 +6605,12 @@ from models import TransportExpense
 from schemas import TransportExpenseCreate
 
 
-def create_transport_expense(db: Session, data: TransportExpenseCreate, created_by: str = None) -> TransportExpense:
+def create_transport_expense(db: Session, data: TransportExpenseCreate, created_by: str = None,
+                            company_id: int = None) -> TransportExpense:
     """Kirish transporti xarajatini yozadi."""
+    # M6 — TENANT: company_id ANIQ beriladi.
     exp = TransportExpense(
+        company_id=company_id,
         amount=data.amount,
         materials_note=data.materials_note,
         created_by=created_by,
@@ -6590,12 +6623,19 @@ def create_transport_expense(db: Session, data: TransportExpenseCreate, created_
     return exp
 
 
-def get_transport_expenses(db: Session, limit: int = 100) -> List[TransportExpense]:
-    return db.query(TransportExpense).order_by(TransportExpense.expense_date.desc()).limit(limit).all()
+def get_transport_expenses(db: Session, limit: int = 100,
+                          company_id: int = None) -> List[TransportExpense]:
+    q = db.query(TransportExpense)
+    if company_id is not None:      # M6
+        q = q.filter(TransportExpense.company_id == company_id)
+    return q.order_by(TransportExpense.expense_date.desc()).limit(limit).all()
 
 
-def delete_transport_expense(db: Session, exp_id: int) -> bool:
-    exp = db.query(TransportExpense).filter(TransportExpense.id == exp_id).first()
+def delete_transport_expense(db: Session, exp_id: int, company_id: int = None) -> bool:
+    _q = db.query(TransportExpense).filter(TransportExpense.id == exp_id)
+    if company_id is not None:      # M6: faqat shu korxonadan
+        _q = _q.filter(TransportExpense.company_id == company_id)
+    exp = _q.first()
     if not exp:
         return False
     db.delete(exp)
@@ -6603,9 +6643,13 @@ def delete_transport_expense(db: Session, exp_id: int) -> bool:
     return True
 
 
-def get_transport_stats(db: Session, year: int = None, month: int = None) -> dict:
-    """Transport xarajatlari statistikasi (kirish + chiqish) — joriy oy bo'yicha."""
-    from models import Delivery
+def get_transport_stats(db: Session, year: int = None, month: int = None,
+                       company_id: int = None) -> dict:
+    """Transport xarajatlari statistikasi (kirish + chiqish) — joriy oy bo'yicha.
+
+    M6 — TENANT: kirish transporti `TransportExpense.company_id` bo'yicha,
+    chiqish transporti esa ota (Delivery → Order) orqali cheklanadi."""
+    from models import Delivery, Order as _Ord_ts
     from datetime import datetime as dt
 
     now = dt.utcnow()
@@ -6615,18 +6659,25 @@ def get_transport_stats(db: Session, year: int = None, month: int = None) -> dic
     end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
 
     # Kirish transporti
-    inbound = db.query(TransportExpense).filter(
+    _iq = db.query(TransportExpense).filter(
         TransportExpense.expense_date >= start,
         TransportExpense.expense_date < end
-    ).all()
+    )
+    if company_id is not None:
+        _iq = _iq.filter(TransportExpense.company_id == company_id)
+    inbound = _iq.all()
     inbound_total = sum(float(e.amount) for e in inbound)
 
     # Chiqish transporti (kompaniya ulushi)
-    deliveries = db.query(Delivery).filter(
+    _dq = db.query(Delivery).filter(
         Delivery.delivered_at >= start,
         Delivery.delivered_at < end,
         Delivery.transport_cost > 0
-    ).all()
+    )
+    if company_id is not None:
+        _dq = _dq.join(_Ord_ts, _Ord_ts.id == Delivery.order_id).filter(
+            _Ord_ts.company_id == company_id)
+    deliveries = _dq.all()
     outbound_company = sum(d.company_transport_cost for d in deliveries)
     outbound_client = sum(d.client_transport_cost for d in deliveries)
     outbound_total = sum(float(d.transport_cost or 0) for d in deliveries)
@@ -7863,8 +7914,17 @@ def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
     return {"success": True}
 
 
-def get_supplier_debt(db: Session, supplier_id: int) -> dict:
-    """Yetkazib beruvchiga qancha qarzdorlik bor."""
+def get_supplier_debt(db: Session, supplier_id: int, company_id: int = None) -> dict:
+    """Yetkazib beruvchiga qancha qarzdorlik bor.
+
+    M6 — TENANT: ta'minotchi boshqa korxonaniki bo'lsa, bo'sh natija
+    qaytadi (xarid/to'lov summalari umuman o'qilmaydi)."""
+    if company_id is not None:
+        _sup = db.query(Supplier).filter(
+            Supplier.id == supplier_id, Supplier.company_id == company_id).first()
+        if not _sup:
+            return {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0}
+
     purchases = db.query(InventoryPurchase).filter(
         InventoryPurchase.supplier_id == supplier_id,
         InventoryPurchase.is_credit == True
@@ -7883,7 +7943,7 @@ def get_supplier_debt(db: Session, supplier_id: int) -> dict:
     }
 
 
-def get_supplier_payment_due_dates(db: Session) -> List[dict]:
+def get_supplier_payment_due_dates(db: Session, company_id: int = None) -> List[dict]:
     """Qarzdor yetkazib beruvchilar orasida, TO'LOV MUDDATI belgilangan
     xaridlarni topadi — har bir yetkazib beruvchi uchun ENG YAQIN
     (eng shoshilinch) muddatni qaytaradi. Dashboard ogohlantirishi uchun.
@@ -7891,11 +7951,15 @@ def get_supplier_payment_due_dates(db: Session) -> List[dict]:
     from datetime import datetime as dt
 
     now = dt.utcnow()
-    unpaid_with_due = db.query(InventoryPurchase).filter(
+    _uq = db.query(InventoryPurchase).filter(
         InventoryPurchase.is_credit == True,
         InventoryPurchase.payment_due_date.isnot(None),
         InventoryPurchase.supplier_id.isnot(None)
-    ).order_by(InventoryPurchase.payment_due_date.asc()).all()
+    )
+    if company_id is not None:      # M6: ota (ta'minotchi) orqali
+        _uq = _uq.join(Supplier, Supplier.id == InventoryPurchase.supplier_id).filter(
+            Supplier.company_id == company_id)
+    unpaid_with_due = _uq.order_by(InventoryPurchase.payment_due_date.asc()).all()
 
     # Har bir yetkazib beruvchi uchun eng yaqin muddatni saqlaymiz
     earliest_by_supplier = {}
@@ -7906,10 +7970,13 @@ def get_supplier_payment_due_dates(db: Session) -> List[dict]:
 
     result = []
     for sid, due_date in earliest_by_supplier.items():
-        debt_info = get_supplier_debt(db, sid)
+        debt_info = get_supplier_debt(db, sid, company_id=company_id)
         if debt_info["debt"] <= 0:
             continue  # To'lab bo'lingan — ogohlantirish kerak emas
-        supplier = db.query(Supplier).filter(Supplier.id == sid).first()
+        _sq = db.query(Supplier).filter(Supplier.id == sid)
+        if company_id is not None:
+            _sq = _sq.filter(Supplier.company_id == company_id)
+        supplier = _sq.first()
         if not supplier:
             continue
         days_left = (due_date.date() - now.date()).days
@@ -7959,11 +8026,22 @@ def get_suppliers_with_debt(db: Session, company_id: int = None) -> List[dict]:
     return result
 
 
-def update_purchase(db: Session, purchase_id: int, data: dict) -> Optional[InventoryPurchase]:
+def _purchase_of_company(db: Session, purchase_id: int, company_id: int = None):
+    """Xaridni ota (material) orqali tekshiradi — InventoryPurchase'da
+    company_id ustuni yo'q (M6, ikkilamchi himoya)."""
+    q = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id)
+    if company_id is not None:
+        q = q.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    return q.first()
+
+
+def update_purchase(db: Session, purchase_id: int, data: dict,
+                   company_id: int = None) -> Optional[InventoryPurchase]:
     """Xarid yozuvini tahrirlaydi.
     DIQQAT: ombordagi joriy miqdor/o'rtacha narxni orqaga qaytarib hisoblamaydi —
     faqat tarixiy yozuv va qarz hisobi (u har safar yangidan hisoblanadi) to'g'rilanadi."""
-    p = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id).first()
+    p = _purchase_of_company(db, purchase_id, company_id)    # M6
     if not p:
         return None
 
@@ -7983,13 +8061,14 @@ def update_purchase(db: Session, purchase_id: int, data: dict) -> Optional[Inven
     return p
 
 
-def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True) -> bool:
+def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
+                   company_id: int = None) -> bool:
     """Xarid yozuvini o'chiradi.
     reverse_stock=True (standart) bo'lsa — bu xaridda qo'shilgan miqdorni
     ombordan ham QAYTARIB oladi (ya'ni to'liq bekor qiladi — ham pul oqimi,
     ham ombor). Bu, ayniqsa "boshlang'ich ombor"ni xato kirim qilib, keyin
     tuzatmoqchi bo'lganda kerak."""
-    p = db.query(InventoryPurchase).filter(InventoryPurchase.id == purchase_id).first()
+    p = _purchase_of_company(db, purchase_id, company_id)    # M6
     if not p:
         return False
 
@@ -8020,9 +8099,16 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True) -
     return True
 
 
-def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None) -> SupplierPayment:
+def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None,
+                            company_id: int = None) -> SupplierPayment:
     """Yetkazib beruvchiga to'lov — bir nechta xaridni birdaniga yopishi mumkin."""
-    debt_info = get_supplier_debt(db, data.supplier_id)
+    # M6 — TENANT: to'lov faqat SHU korxona ta'minotchisiga yozilishi mumkin.
+    if company_id is not None:
+        if not db.query(Supplier).filter(
+                Supplier.id == data.supplier_id, Supplier.company_id == company_id).first():
+            from fastapi import HTTPException as _HE_sp
+            raise _HE_sp(status_code=404, detail="Yetkazib beruvchi topilmadi")
+    debt_info = get_supplier_debt(db, data.supplier_id, company_id=company_id)
     current_debt = debt_info["debt"]
     if float(data.amount) > current_debt and not data.confirm_overpay:
         raise OverpaymentWarning(
@@ -8042,7 +8128,8 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
     return p
 
 
-def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> dict:
+def get_brak_material_summary(db: Session, start_date=None, end_date=None,
+                             company_id: int = None) -> dict:
     """Brak (defekt) sabab ombordan yechilgan XOMASHYO bo'yicha xulosa.
 
     Qaytaradi:
@@ -8059,6 +8146,8 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> di
         InventoryMovement.movement_type == "out",
         InventoryMovement.reason.like("Brak%")
     )
+    if company_id is not None:      # M6
+        q = q.filter(InventoryMovement.company_id == company_id)
     if start_date:
         q = q.filter(InventoryMovement.created_at >= start_date)
     if end_date:
@@ -8170,12 +8259,21 @@ def get_supplier_purchased_items(db: Session, supplier_id: int,
 
 
 def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_date=None,
-                          page: int = 1, page_size: int = 20) -> dict:
+                          page: int = 1, page_size: int = 20, company_id: int = None) -> dict:
     """Yetkazib beruvchining xaridlar va to'lovlar tarixi.
     start_date/end_date berilsa — faqat shu oraliqdagi xaridlar qaytariladi
     (to'lovlar va umumiy qarz har doim to'liq hisoblanadi).
     page/page_size — XARIDLAR ro'yxati SAHIFALANGAN holda qaytariladi
     (tarix uzoq bo'lib ketsa ham, har doim tez yuklanishi uchun)."""
+    # M6 — TENANT: ta'minotchi boshqa korxonaniki bo'lsa — bo'sh tarix.
+    if company_id is not None:
+        if not db.query(Supplier).filter(
+                Supplier.id == supplier_id, Supplier.company_id == company_id).first():
+            return {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0,
+                    "purchases": [], "payments": [],
+                    "pagination": {"page": 1, "page_size": page_size,
+                                   "total_count": 0, "total_pages": 1}}
+
     q = db.query(InventoryPurchase).filter(InventoryPurchase.supplier_id == supplier_id)
     if start_date:
         q = q.filter(InventoryPurchase.purchased_at >= start_date)
@@ -8194,7 +8292,7 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
         SupplierPayment.supplier_id == supplier_id
     ).order_by(SupplierPayment.paid_at.desc()).all()
 
-    debt_info = get_supplier_debt(db, supplier_id)
+    debt_info = get_supplier_debt(db, supplier_id, company_id=company_id)
 
     return {
         **debt_info,
@@ -8227,8 +8325,12 @@ def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_dat
     }
 
 
-def delete_supplier_payment(db: Session, payment_id: int) -> bool:
-    p = db.query(SupplierPayment).filter(SupplierPayment.id == payment_id).first()
+def delete_supplier_payment(db: Session, payment_id: int, company_id: int = None) -> bool:
+    _q = db.query(SupplierPayment).filter(SupplierPayment.id == payment_id)
+    if company_id is not None:      # M6: ota (ta'minotchi) orqali
+        _q = _q.join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(
+            Supplier.company_id == company_id)
+    p = _q.first()
     if not p:
         return False
     db.delete(p)
