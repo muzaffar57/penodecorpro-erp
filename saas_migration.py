@@ -189,6 +189,17 @@ STEPS = [
         "tasdiq": "",
     },
     {
+        "kalit": "M1KOD",
+        "tur": "kod",
+        "nomi": "M1 — korxona kodi (companies.code)",
+        "izoh": "Xodim paneliga kirishda korxona kontekstini aniqlash uchun. "
+                "W2b dan keyin ikki korxonada bir xil telefonli xodim bo'lishi "
+                "mumkin, shuning uchun faqat telefon yetarli emas. Kod nomdan "
+                "avtomatik hosil qilinadi, mavjud ma'lumotga tegilmaydi.",
+        "maqsadlar": [],
+        "tasdiq": "PENODECORPRO-M1KOD",
+    },
+    {
         "kalit": "SINOV-TENANT",
         "tur": "tenant",
         "nomi": "Sinov tenanti — Korxona B (faqat staging uchun)",
@@ -790,6 +801,14 @@ def status_report(engine) -> dict:
 
         qadamlar = []
         for s in STEPS:
+            if s.get("tur") == "kod":
+                k = kod_status(engine)
+                qadamlar.append({
+                    "kalit": s["kalit"], "nomi": s["nomi"], "izoh": s["izoh"],
+                    "tasdiq": s["tasdiq"], "tur": "kod", "kod": k,
+                    "tugallangan": bool(k.get("tugallangan")),
+                })
+                continue
             if s.get("tur") == "tenant":
                 st = tenant_status(engine)
                 qadamlar.append({
@@ -1188,6 +1207,133 @@ def run_step1(engine, dry_run: bool = True) -> dict:
     return run_step(engine, "W1", dry_run=dry_run)
 
 
+
+# ============================================================
+# M1 — korxona kodi (companies.code)
+# ============================================================
+
+def _kod_yasa(nom: str) -> str:
+    """Korxona nomidan qisqa, terish oson kod hosil qiladi."""
+    import re as _re
+    almashuv = {"'": "", "'": "", "‘": "", "’": ""}
+    for a, b in almashuv.items():
+        nom = nom.replace(a, b)
+    kod = _re.sub(r"[^A-Za-z0-9]+", "-", nom).strip("-").upper()
+    return (kod or "KORXONA")[:30]
+
+
+def kod_status(engine) -> dict:
+    """companies.code holati. Faqat o'qiydi."""
+    with engine.connect() as conn:
+        if not _column_exists(conn, REF_TABLE, "code"):
+            jami = conn.execute(text(f"SELECT COUNT(*) FROM {REF_TABLE}")).scalar()
+            return {"ustun_bor": False, "korxonalar": jami, "tugallangan": False}
+        rows = conn.execute(text(
+            f"SELECT id, name, code FROM {REF_TABLE} ORDER BY id")).all()
+        bosh = sum(1 for r in rows if not r[2])
+        return {
+            "ustun_bor": True,
+            "indeks_bor": _index_exists(conn, "ix_companies_code"),
+            "korxonalar": [{"id": r[0], "name": r[1], "code": r[2]} for r in rows],
+            "kodsiz": bosh,
+            "tugallangan": bosh == 0 and _index_exists(conn, "ix_companies_code"),
+        }
+
+
+def run_kod_migration(engine, dry_run: bool = True) -> dict:
+    """companies.code ustunini qo'shadi va nomlardan kod hosil qiladi.
+
+    Xuddi boshqa qadamlar kabi: bitta tranzaksiya, dry-run rollback qiladi,
+    idempotent. MAVJUD MA'LUMOTGA TEGMAYDI — faqat yangi ustun to'ldiriladi.
+    """
+    hisobot = {"qadam": "M1KOD", "nomi": "Korxona kodi",
+               "rejim": "DRY-RUN (sinov, o'zgarish saqlanmaydi)" if dry_run else "HAQIQIY (COMMIT)",
+               "vaqt_utc": datetime.utcnow().isoformat(timespec="seconds"),
+               "muhit": {}, "amallar": [], "natija": "", "xato": None}
+
+    def amal(kod, tavsif, holat, izoh=""):
+        hisobot["amallar"].append({"kod": kod, "tavsif": tavsif,
+                                   "holat": holat, "izoh": izoh})
+
+    conn = engine.connect()
+    trans = conn.begin()
+    try:
+        conn.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"))
+        conn.execute(text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'"))
+        hisobot["muhit"] = environment_info(conn)
+
+        # K1 — ustun
+        if _column_exists(conn, REF_TABLE, "code"):
+            amal("K1", "companies.code ustuni", "ALLAQACHON BOR")
+        else:
+            conn.execute(text(f"ALTER TABLE {REF_TABLE} ADD COLUMN code VARCHAR(30)"))
+            amal("K1", "companies.code ustunini qo'shish", "BAJARILDI")
+
+        # K2 — kod hosil qilish (faqat bo'sh bo'lganlarga)
+        rows = conn.execute(text(
+            f"SELECT id, name, code FROM {REF_TABLE} ORDER BY id")).all()
+        band = {r[2] for r in rows if r[2]}
+        yangilandi = 0
+        for r in rows:
+            if r[2]:
+                continue
+            asos = _kod_yasa(r[1] or f"KORXONA-{r[0]}")
+            kod, n = asos, 1
+            while kod in band:
+                n += 1
+                kod = f"{asos[:26]}-{n}"
+            band.add(kod)
+            conn.execute(text(f"UPDATE {REF_TABLE} SET code = :k WHERE id = :i"),
+                         {"k": kod, "i": r[0]})
+            amal("K2", f"Korxona #{r[0]} ({r[1]})", "KOD BERILDI", kod)
+            yangilandi += 1
+        if not yangilandi:
+            amal("K2", "Kod hosil qilish", "KERAK EMAS", "hammasida kod bor")
+
+        # K3 — bo'sh qolmasligi (TO'XTATUVCHI)
+        bosh = conn.execute(text(
+            f"SELECT COUNT(*) FROM {REF_TABLE} WHERE code IS NULL OR code = ''")).scalar()
+        if bosh:
+            raise _MigrationStop(f"K3: {bosh} ta korxona kodsiz qoldi")
+        amal("K3", "Kodsiz korxona qolmasligi shart", "OK", "kodsiz=0")
+
+        # K4 — unique indeks
+        if _index_exists(conn, "ix_companies_code"):
+            amal("K4", "Indeks ix_companies_code", "ALLAQACHON BOR")
+        else:
+            conn.execute(text(
+                f"CREATE UNIQUE INDEX ix_companies_code ON {REF_TABLE} (code)"))
+            amal("K4", "Unique indeks ix_companies_code", "BAJARILDI")
+
+        hisobot["oxirgi_holat"] = [
+            {"id": r[0], "name": r[1], "code": r[2]}
+            for r in conn.execute(text(
+                f"SELECT id, name, code FROM {REF_TABLE} ORDER BY id")).all()]
+
+        if dry_run:
+            trans.rollback()
+            hisobot["natija"] = ("✅ SINOV MUVAFFAQIYATLI — hammasi bajarildi va "
+                                 "keyin qaytarib olindi (rollback).")
+        else:
+            trans.commit()
+            hisobot["natija"] = "✅ HAQIQIY MIGRATSIYA BAJARILDI VA SAQLANDI (commit)."
+    except _MigrationStop as e:
+        trans.rollback()
+        hisobot["natija"] = "⛔ TO'XTATILDI — hech narsa o'zgarmadi."
+        hisobot["xato"] = str(e)
+    except Exception as e:
+        trans.rollback()
+        if _is_lock_error(e):
+            hisobot["natija"] = "⏳ QULF BAND — hech narsa o'zgarmadi."
+            hisobot["qulf_tutib_turganlar"] = _blocking_sessions(engine, [REF_TABLE])
+        else:
+            hisobot["natija"] = "❌ XATO — hech narsa o'zgarmadi (rollback)."
+        hisobot["xato"] = f"{type(e).__name__}: {e}"
+    finally:
+        conn.close()
+    return hisobot
+
+
 # ============================================================
 # Boshqaruv sahifasi — JAVASCRIPTSIZ (oddiy HTML forma)
 # ============================================================
@@ -1317,6 +1463,18 @@ def _verify_rows(q: dict) -> str:
     return bosh + rows
 
 
+def _kod_rows(q: dict) -> str:
+    k = q["kod"]
+    if not k.get("ustun_bor"):
+        return ('<tr><th>Holat</th><td>`companies.code` ustuni hali yo\'q. '
+                f'Korxonalar soni: {_esc(k.get("korxonalar"))}</td></tr>')
+    rows = "".join(
+        f'<tr><th>#{_esc(c["id"])}</th><td>{_esc(c["name"])}</td>'
+        f'<td><b>{_esc(c["code"] or "—")}</b></td></tr>' for c in k["korxonalar"])
+    return ('<tr><th>id</th><td><b>nomi</b></td><td><b>kodi</b></td></tr>' + rows +
+            f'<tr><th>kodsiz</th><td colspan="2">{_esc(k.get("kodsiz"))}</td></tr>')
+
+
 def _tenant_rows(q: dict) -> str:
     st = q["tenant"]
     if not st.get("staging"):
@@ -1360,8 +1518,25 @@ def _step_card(q: dict) -> str:
         bosh, rows = _verify_rows(q), ""
     elif q.get("tur") == "tenant":
         bosh, rows = _tenant_rows(q), ""
+    elif q.get("tur") == "kod":
+        bosh, rows = _kod_rows(q), ""
 
-    if q.get("tur") == "tenant":
+    if q.get("tur") == "kod":
+        if q["tugallangan"]:
+            tugma = ('<div class="row"><span class="pill p-ok">BU QADAM TUGALLANGAN</span>'
+                     '<form method="post" action="/saas-migratsiya/kod/sinov">'
+                     '<button type="submit">Qayta tekshirish (sinov)</button></form></div>')
+        else:
+            tugma = (
+                '<div class="row">'
+                '<form method="post" action="/saas-migratsiya/kod/sinov">'
+                '<button type="submit" class="primary">SINOV (dry-run)</button></form></div>'
+                '<form method="post" action="/saas-migratsiya/kod/haqiqiy">'
+                '<div class="row"><input type="text" name="confirm" autocomplete="off" '
+                'placeholder="Tasdiq so\'zi"> '
+                '<button type="submit" class="danger">Haqiqiy migratsiya</button></div></form>'
+                f'<div class="hint">Tasdiq so\'zi: <b>{_esc(q["tasdiq"])}</b></div>')
+    elif q.get("tur") == "tenant":
         tugma = (
             f'<form method="post" action="/saas-migratsiya/sinov-tenant">'
             f'<div class="row">'
@@ -1550,6 +1725,25 @@ try:
             return HTMLResponse(_render_page(status_report(engine), None,
                                              f"Noma'lum qadam: {kalit}"))
         rep = run_step(engine, kalit, dry_run=True)
+        return HTMLResponse(_render_page(status_report(engine), rep))
+
+    @router.post("/saas-migratsiya/kod/sinov", response_class=HTMLResponse)
+    def panel_kod_sinov(db: Session = Depends(get_db),
+                        current_user=Depends(auth.admin_only)):
+        engine = _release(db)
+        rep = run_kod_migration(engine, dry_run=True)
+        return HTMLResponse(_render_page(status_report(engine), rep))
+
+    @router.post("/saas-migratsiya/kod/haqiqiy", response_class=HTMLResponse)
+    def panel_kod_haqiqiy(confirm: str = Form(""), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+        engine = _release(db)
+        s = _step("M1KOD")
+        if confirm.strip() != s["tasdiq"]:
+            return HTMLResponse(_render_page(
+                status_report(engine), None,
+                "Tasdiq so'zi noto'g'ri — hech narsa bajarilmadi."))
+        rep = run_kod_migration(engine, dry_run=False)
         return HTMLResponse(_render_page(status_report(engine), rep))
 
     @router.post("/saas-migratsiya/sinov-tenant", response_class=HTMLResponse)

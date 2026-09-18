@@ -922,7 +922,7 @@ async def logout(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    users = auth.get_all_users(db)
+    users = auth.get_all_users(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "users.html", {"users": users, "current_user": current_user, "now": datetime.now().strftime("%d.%m.%Y %H:%M"), "active_page": "users"})
 
 
@@ -1004,13 +1004,17 @@ def api_create_user(data: dict, db: Session = Depends(get_db), current_user=Depe
         role = UserRole(data.get("role", "manager"))
     except ValueError:
         raise HTTPException(status_code=400, detail="Noto'g'ri rol")
-    user = auth.create_user(db, data["username"], data["password"], role, data.get("full_name", ""))
+    # M1: yangi foydalanuvchi ALBATTA joriy adminning korxonasiga tegishli.
+    user = auth.create_user(db, data["username"], data["password"], role,
+                            data.get("full_name", ""),
+                            company_id=auth.company_id_of(current_user))
     return {"id": user.id, "username": user.username, "role": user.role.value}
 
 
 @app.post("/api/users/{user_id}/toggle")
 def api_toggle_user(user_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    user = auth.toggle_user_active(db, user_id)
+    user = auth.toggle_user_active(db, user_id,
+                                   company_id=auth.company_id_of(current_user))
     if not user:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"is_active": user.is_active}
@@ -1021,7 +1025,8 @@ def api_change_password(user_id: int, data: dict, db: Session = Depends(get_db),
     new_pass = data.get("new_password", "")
     if len(new_pass) < 6:
         raise HTTPException(status_code=400, detail="Parol kamida 6 belgi")
-    if not auth.change_password(db, user_id, new_pass):
+    if not auth.change_password(db, user_id, new_pass,
+                                company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
@@ -1475,12 +1480,18 @@ def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_use
 @app.post("/api/employees")
 def api_create_employee(data: schemas.EmployeeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     emp = crud.create_employee(db, data)
+    # M1: xodim joriy adminning korxonasiga biriktiriladi. models.py'dagi
+    # tenant himoyasi Employee uchun ota-zanjir bermaydi (xodimning otasi
+    # yo'q), shuning uchun bu yerda aniq qo'yiladi.
+    emp.company_id = auth.company_id_of(current_user)
+    db.commit()
     return {"status": "ok", "id": emp.id}
 
 
 @app.get("/api/employees")
 def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    items = crud.get_employees(db, only_active=only_active)
+    items = crud.get_employees(db, only_active=only_active,
+                               company_id=auth.company_id_of(current_user))
     return [{
         "id": e.id, "name": e.name, "position": e.position,
         "pay_type": e.pay_type.value,
@@ -1502,6 +1513,9 @@ def api_create_employee_advance(employee_id: int, amount: float, notes: Optional
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
     adv_date — YYYY-MM-DD formatida, ixtiyoriy (berilmasa — bugungi sana)."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     parsed_date = None
     if adv_date:
         try:
@@ -1520,6 +1534,9 @@ def api_create_employee_advance(employee_id: int, amount: float, notes: Optional
 def api_get_employee_advances(employee_id: int, year: int, month: int,
                                 db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Hodimga shu oyda berilgan barcha avanslar ro'yxati."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     return {
         "advances": services.get_employee_advances_list(db, employee_id, year, month),
         "total": services.get_employee_advances_total(db, employee_id, year, month)
@@ -1530,6 +1547,9 @@ def api_get_employee_advances(employee_id: int, year: int, month: int,
 def api_get_employee_adjustment(employee_id: int, year: int, month: int,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Hodim uchun, shu oy uchun saqlangan qo'lda kamaytirish/bonusni qaytaradi."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     adj = crud.get_employee_monthly_adjustment(db, employee_id, year, month)
     if not adj:
         return {"reduction_amount": 0, "reason": None, "bonus_amount": 0, "bonus_reason": None}
@@ -1544,6 +1564,9 @@ def api_set_employee_adjustment(employee_id: int, year: int, month: int,
                                   reduction_amount: Optional[float] = None, reason: Optional[str] = None,
                                   bonus_amount: Optional[float] = None, bonus_reason: Optional[str] = None,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     """Hodim uchun, shu oy uchun qo'lda kamaytirish va/yoki bonusni yozadi/yangilaydi/o'chiradi."""
     who = current_user.full_name or current_user.username
     crud.set_employee_monthly_adjustment(db, employee_id, year, month, reduction_amount, reason,
@@ -1553,6 +1576,13 @@ def api_set_employee_adjustment(employee_id: int, year: int, month: int,
 
 @app.delete("/api/employees/advance/{advance_id}")
 def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: avansning O'ZIDA company_id yo'q — u xodimga bog'langan.
+    # Shuning uchun ota (xodim) orqali tekshiramiz.
+    from models import EmployeeAdvance as _EA
+    _adv = db.query(_EA).filter(_EA.id == advance_id).first()
+    if not _adv or not auth.employee_of_company(
+            db, _adv.employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Topilmadi")
     if not crud.delete_employee_advance(db, advance_id):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
@@ -1560,6 +1590,9 @@ def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), 
 
 @app.put("/api/employees/{emp_id}")
 def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
     emp = crud.update_employee(db, emp_id, data, updated_by=who)
     if not emp:
@@ -1571,6 +1604,9 @@ def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session =
 def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Hodimning to'lov (oylik/foiz/birlik narxi) o'zgarishlar tarixi —
     eng yangisi birinchi bo'lib qaytadi."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     from models import EmployeeCompensationHistory
     rows = db.query(EmployeeCompensationHistory).filter(
         EmployeeCompensationHistory.employee_id == emp_id
@@ -1603,6 +1639,9 @@ def api_backfill_compensation_history(db: Session = Depends(get_db), current_use
 
 @app.delete("/api/employees/{emp_id}")
 def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.delete_employee(db, emp_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -1611,6 +1650,9 @@ def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user
 
 @app.post("/api/employees/{emp_id}/restore")
 def api_restore_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.restore_employee(db, emp_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
@@ -1619,6 +1661,9 @@ def api_restore_employee(emp_id: int, db: Session = Depends(get_db), current_use
 
 @app.delete("/api/employees/{emp_id}/permanent")
 def api_permanent_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.permanent_delete_employee(db, emp_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Xodim topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
@@ -1629,6 +1674,9 @@ def api_permanent_delete_employee(emp_id: int, db: Session = Depends(get_db), cu
 def api_set_employee_login(emp_id: int, phone: str = Form(...), pin: str = Form(...),
                             db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Admin — xodimga telefon+PIN belgilaydi, shu orqali u o'z paneliga kira oladi."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     if len(pin.strip()) != 4 or not pin.strip().isdigit():
         raise HTTPException(status_code=400, detail="PIN kod aynan 4 xonali raqam bo'lishi kerak")
     try:
@@ -1654,7 +1702,8 @@ async def hodim_login_page(request: Request, db: Session = Depends(get_db)):
 
 
 @app.post("/hodim/login")
-async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str = Form(...), db: Session = Depends(get_db)):
+async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str = Form(...),
+                              korxona: str = Form(""), db: Session = Depends(get_db)):
     ip = request.client.host if request.client else None
     ua = request.headers.get("user-agent", "")[:250]
 
@@ -1664,7 +1713,17 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
             "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining."
         })
 
-    emp = crud.authenticate_employee(db, phone, pin)
+    # M1 (CRITICAL): korxona kontekstisiz kirishga yo'l yo'q.
+    # Mijoz yuborgan kod QIDIRUV KALITI, unga ishonilmaydi — korxona
+    # bazadan topiladi. Bitta korxonali o'rnatmada kod bo'sh bo'lishi mumkin.
+    _korxona = crud.resolve_company_by_code(db, korxona)
+    if not _korxona:
+        crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
+        return templates.TemplateResponse(request, "hodim_login.html", {
+            "error": "Korxona kodi topilmadi. Kodni administratordan so'rang."
+        })
+
+    emp = crud.authenticate_employee(db, phone, pin, company_id=_korxona.id)
     if not emp:
         crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "hodim_login.html", {"error": "Telefon yoki PIN noto'g'ri!"})

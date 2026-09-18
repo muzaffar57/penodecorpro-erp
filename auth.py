@@ -327,6 +327,16 @@ def all_staff(request: Request, db: Session = Depends(get_db)) -> User:
 def create_user(db: Session, username: str, password: str,
                 role: UserRole, full_name: str = "",
                 company_id: int = None) -> User:
+    # 2026-09-18 — M1: company_id endi MAJBURIY.
+    # Ilgari berilmasa DEFAULT_COMPANY_ID (=1) qo'yilardi — ya'ni B korxona
+    # admini yangi foydalanuvchi yaratsa, u A korxonaga tushib qolardi.
+    # Endi chaqiruvchi uni joriy foydalanuvchining korxonasidan uzatadi.
+    # Yagona istisno — bo'sh bazadagi birinchi admin (create_default_admin),
+    # u ataylab DEFAULT_COMPANY_ID bilan chaqiriladi.
+    if not company_id:
+        raise HTTPException(
+            status_code=500,
+            detail="Ichki xato: foydalanuvchi yaratishda korxona aniqlanmadi.")
     """Yangi foydalanuvchi yaratadi.
 
     company_id — qaysi korxonaga tegishli ekani. Berilmasa, O'TISH DAVRI
@@ -344,7 +354,7 @@ def create_user(db: Session, username: str, password: str,
         raise HTTPException(status_code=400, detail="Bu username band")
 
     user = User(
-        company_id=company_id or DEFAULT_COMPANY_ID,
+        company_id=company_id,
         username=username,
         password_hash=hash_password(password),
         role=role,
@@ -358,21 +368,25 @@ def create_user(db: Session, username: str, password: str,
     return user
 
 
-def get_all_users(db: Session, company_id: int = None) -> list:
-    """Foydalanuvchilar ro'yxati.
+def get_all_users(db: Session, company_id: int) -> list:
+    """Faqat berilgan korxonaning foydalanuvchilari.
 
-    company_id berilsa — faqat o'sha korxonaniki. Berilmasa — barchasi
-    (hozirgi chaqiruvchilar buzilmasligi uchun). Endpointlarni shu
-    parametrga o'tkazish keyingi bosqichning vazifasi."""
-    q = db.query(User)
-    if company_id is not None:
-        q = q.filter(User.company_id == company_id)
-    return q.order_by(User.username).all()
+    2026-09-18 — M1: company_id endi MAJBURIY. Ilgari ixtiyoriy edi va
+    chaqiruvda berilmasdi — natijada admin BARCHA korxonalar ro'yxatini
+    ko'rardi (ularning id lari bilan birga, bu esa keyingi hujum uchun
+    kerak bo'lgan ma'lumot)."""
+    return (db.query(User)
+            .filter(User.company_id == company_id)
+            .order_by(User.username).all())
 
 
-def toggle_user_active(db: Session, user_id: int) -> Optional[User]:
-    """Foydalanuvchini faollashtiradi yoki o'chiradi."""
-    user = db.query(User).filter(User.id == user_id).first()
+def toggle_user_active(db: Session, user_id: int, company_id: int) -> Optional[User]:
+    """Foydalanuvchini faollashtiradi yoki o'chiradi.
+
+    2026-09-18 — M1: company_id shart. Ilgari faqat id bo'yicha qidirilardi,
+    ya'ni A korxona admini B korxona adminini o'chirib qo'yishi mumkin edi."""
+    user = db.query(User).filter(
+        User.id == user_id, User.company_id == company_id).first()
     if not user:
         return None
     user.is_active = not user.is_active
@@ -380,9 +394,19 @@ def toggle_user_active(db: Session, user_id: int) -> Optional[User]:
     return user
 
 
-def change_password(db: Session, user_id: int, new_password: str) -> bool:
-    """Parolni yangilaydi."""
-    user = db.query(User).filter(User.id == user_id).first()
+def change_password(db: Session, user_id: int, new_password: str,
+                    company_id: int = None) -> bool:
+    """Parolni yangilaydi.
+
+    2026-09-18 — M1: company_id shart (eng jiddiy topilma). Ilgari faqat id
+    bo'yicha qidirilardi — A korxona admini B korxona adminining parolini
+    almashtirib, o'sha korxonaga to'liq kirish huquqini olishi mumkin edi."""
+    if not company_id:
+        raise HTTPException(
+            status_code=500,
+            detail="Ichki xato: parol o'zgartirishda korxona aniqlanmadi.")
+    user = db.query(User).filter(
+        User.id == user_id, User.company_id == company_id).first()
     if not user:
         return False
     user.password_hash = hash_password(new_password)
@@ -457,6 +481,19 @@ def get_current_employee(request: Request, db: Session = Depends(get_db)) -> Opt
         Employee.is_active == True
     ).first()
     return employee
+
+
+def employee_of_company(db: Session, emp_id: int, company_id: int):
+    """Xodimni FAQAT shu korxona ichidan topadi.
+
+    2026-09-18 — M1. Xodim endpointlari faqat id bo'yicha ishlardi, ya'ni
+    A korxona admini B korxona xodimini tahrirlashi, o'chirishi, avans
+    yozishi yoki unga telefon+PIN belgilashi mumkin edi.
+
+    Topilmasa None qaytaradi — chaqiruvchi 404 beradi. Ataylab 404, 403
+    emas: boshqa korxonada bunday id borligini ham oshkor qilmaslik uchun."""
+    return db.query(Employee).filter(
+        Employee.id == emp_id, Employee.company_id == company_id).first()
 
 
 def require_employee_login(request: Request, db: Session = Depends(get_db)) -> Employee:

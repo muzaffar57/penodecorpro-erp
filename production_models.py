@@ -134,6 +134,16 @@ class Company(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
 
+    # 2026-09-18 — M1: KORXONA KODI.
+    # Xodim paneliga kirishda (telefon+PIN) korxona kontekstini aniqlash
+    # uchun kerak. W2b dan keyin `employees.phone` cheklovi (company_id, phone)
+    # ga o'tdi — ya'ni ikki korxonada bir xil telefon bo'lishi MUMKIN.
+    # Faqat telefon bo'yicha qidirish noto'g'ri korxonaning xodimini
+    # tanlab qo'yishi mumkin edi. Endi kod + telefon + PIN.
+    # Kod mijozdan keladi, LEKIN unga ishonilmaydi: server uni companies
+    # jadvalidan qidiradi, topilmasa kirishga yo'l qo'yilmaydi.
+    code = Column(String(30), unique=True, index=True, nullable=True)
+
     # ADR bandi 2: "Stock Validation — Company Level". False (qat'iy
     # taqiqlash) — xavfsizroq standart qiymat sifatida ataylab tanlandi;
     # korxona xohlasa, buni yumshoq ogohlantirishga o'zgartira oladi.

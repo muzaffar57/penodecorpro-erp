@@ -6251,8 +6251,12 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
     return emp
 
 
-def get_employees(db: Session, only_active: bool = True) -> List[Employee]:
+def get_employees(db: Session, only_active: bool = True,
+                  company_id: int = None) -> List[Employee]:
+    """2026-09-18 — M1: company_id berilsa, faqat o'sha korxona xodimlari."""
     q = db.query(Employee).filter(Employee.is_deleted.isnot(True))
+    if company_id is not None:
+        q = q.filter(Employee.company_id == company_id)
     if only_active:
         q = q.filter(Employee.is_active == True)
     return q.order_by(Employee.name).all()
@@ -6536,11 +6540,42 @@ def set_employee_login(db: Session, emp_id: int, phone: str, pin: str) -> Option
     return emp
 
 
-def authenticate_employee(db: Session, phone: str, pin: str):
-    """Telefon+PIN to'g'riligini tekshiradi."""
+def resolve_company_by_code(db: Session, code: str):
+    """Korxona KODI bo'yicha korxonani topadi. Mijoz yuborgan kodga
+    ISHONILMAYDI — u faqat qidiruv kaliti, natija bazadan olinadi.
+
+    2026-09-18 — M1. Agar tizimda BITTA korxona bo'lsa, kod shart emas:
+    server o'sha yagona korxonani oladi. Ikkinchi korxona paydo bo'lishi
+    bilan kod majburiy bo'ladi — bu mavjud (bir korxonali) o'rnatmalarni
+    buzmaslik uchun ataylab shunday."""
+    from production_models import Company
+    from sqlalchemy import func as _func
+    kod = (code or "").strip()
+    if kod:
+        return db.query(Company).filter(
+            _func.upper(Company.code) == kod.upper()).first()
+    korxonalar = db.query(Company).limit(2).all()
+    return korxonalar[0] if len(korxonalar) == 1 else None
+
+
+def authenticate_employee(db: Session, phone: str, pin: str, company_id: int = None):
+    """Telefon+PIN to'g'riligini tekshiradi — KORXONA ICHIDA.
+
+    2026-09-18 — M1 (CRITICAL). W2b da `employees.phone` cheklovi
+    (company_id, phone) juftligiga o'tkazildi, ya'ni IKKI KORXONADA bir xil
+    telefonli xodim bo'lishi mumkin. Bu funksiya esa faqat telefon bo'yicha
+    qidirib `.first()` olardi — qaysi qator kelishi tartibga bog'liq edi.
+    Natijada B korxona admini o'z xodimiga A korxona xodimining telefonini
+    berib, A ning xodim paneliga kirib qolishi mumkin edi.
+
+    Endi korxona majburiy: topish (company_id, phone) juftligi bo'yicha."""
     import auth
+    if not company_id:
+        return None
     emp = db.query(Employee).filter(
-        Employee.phone == phone.strip(), Employee.is_active == True
+        Employee.company_id == company_id,
+        Employee.phone == phone.strip(),
+        Employee.is_active == True
     ).first()
     if not emp or not emp.pin_hash:
         return None
