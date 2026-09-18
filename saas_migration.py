@@ -188,7 +188,197 @@ STEPS = [
         "maqsadlar": [],
         "tasdiq": "",
     },
+    {
+        "kalit": "SINOV-TENANT",
+        "tur": "tenant",
+        "nomi": "Sinov tenanti — Korxona B (faqat staging uchun)",
+        "izoh": "Cross-tenant sinovlar uchun ikkinchi korxona va unga tegishli "
+                "minimal ma'lumot to'plami yaratadi. Mavjud 1-korxona "
+                "ma'lumotlariga MUTLAQO TEGMAYDI. Faqat sinov muhitida "
+                "ishlaydi — production'da ishga tushmaydi.",
+        "maqsadlar": [],
+        "tasdiq": "PENODECORPRO-TENANT-B",
+    },
 ]
+
+# ============================================================
+# SINOV TENANTI (Korxona B) — faqat staging
+# ============================================================
+
+TEST_TENANT_NOM = "ZZZ_SINOV_KORXONA_B"
+TEST_PREFIX = "ZZZB_"
+
+
+def _is_staging(conn) -> bool:
+    m = environment_info(conn)
+    return "sinov" in str(m.get("railway_muhit", "")).lower() or \
+           "sinov" in str(m.get("domen", "")).lower()
+
+
+def tenant_status(engine) -> dict:
+    """Sinov tenanti bor-yo'qligi va uning ma'lumotlari. Faqat o'qiydi."""
+    with engine.connect() as conn:
+        staging = _is_staging(conn)
+        row = conn.execute(text(
+            f"SELECT id FROM {REF_TABLE} WHERE name = :n"), {"n": TEST_TENANT_NOM}).first()
+        if not row:
+            return {"staging": staging, "mavjud": False}
+        cid = row[0]
+        jadvallar = ["users", "projects", "orders", "order_items", "inventory",
+                     "recipes", "masters", "employees", "suppliers",
+                     "finished_products", "product_types", "boms", "production_orders"]
+        sanoq, idlar = {}, {}
+        for t in jadvallar:
+            try:
+                sanoq[t] = conn.execute(text(
+                    f"SELECT COUNT(*) FROM {t} WHERE company_id = :c"), {"c": cid}).scalar()
+                r = conn.execute(text(
+                    f"SELECT id FROM {t} WHERE company_id = :c ORDER BY id LIMIT 1"),
+                    {"c": cid}).first()
+                if r:
+                    idlar[t] = r[0]
+            except Exception:
+                sanoq[t] = None
+        return {"staging": staging, "mavjud": True, "company_id": cid,
+                "qatorlar": sanoq, "sinov_uchun_idlar": idlar}
+
+
+def create_test_tenant(engine, parol: str = "") -> dict:
+    """Korxona B va unga tegishli minimal ma'lumotni yaratadi.
+
+    XAVFSIZLIK:
+      * Faqat SINOV muhitida ishlaydi (production'da darhol to'xtaydi).
+      * Mavjud ma'lumotni O'ZGARTIRMAYDI va O'CHIRMAYDI — faqat yangi
+        qatorlar qo'shadi, hammasi ZZZB_ prefiksi bilan.
+      * Bitta tranzaksiya — yarim holatda qolmaydi.
+      * Idempotent: ikkinchi marta bosilsa, mavjudini qaytaradi.
+    """
+    hisobot = {"nomi": "Sinov tenanti (Korxona B)", "amallar": [],
+               "natija": "", "xato": None,
+               "vaqt_utc": datetime.utcnow().isoformat(timespec="seconds")}
+
+    def amal(nom, holat, izoh=""):
+        hisobot["amallar"].append({"kod": nom, "holat": holat, "izoh": izoh})
+
+    conn = engine.connect()
+    trans = conn.begin()
+    try:
+        conn.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"))
+        conn.execute(text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'"))
+        hisobot["muhit"] = environment_info(conn)
+
+        if not _is_staging(conn):
+            raise _MigrationStop(
+                "Bu vosita FAQAT sinov muhitida ishlaydi. Hozirgi muhit sinov emas.")
+
+        # 1) Korxona
+        row = conn.execute(text(f"SELECT id FROM {REF_TABLE} WHERE name = :n"),
+                           {"n": TEST_TENANT_NOM}).first()
+        if row:
+            cid = row[0]
+            amal("B1", "ALLAQACHON BOR", f"Korxona B id={cid}")
+        else:
+            cid = conn.execute(text(
+                f"INSERT INTO {REF_TABLE} (name, allow_negative_stock, created_at) "
+                f"VALUES (:n, false, now()) RETURNING id"), {"n": TEST_TENANT_NOM}).scalar()
+            amal("B1", "YARATILDI", f"Korxona B id={cid}")
+
+        def qosh(jadval, ustunlar: dict, topish_sharti: str, params: dict):
+            """Yo'q bo'lsa qo'shadi, bor bo'lsa mavjudini qaytaradi."""
+            r = conn.execute(text(f"SELECT id FROM {jadval} WHERE {topish_sharti}"),
+                             params).first()
+            if r:
+                amal(jadval, "ALLAQACHON BOR", f"id={r[0]}")
+                return r[0]
+            ustunlar = dict(ustunlar, company_id=cid)
+            cols = ", ".join(ustunlar)
+            vals = ", ".join(f":{k}" for k in ustunlar)
+            new_id = conn.execute(text(
+                f"INSERT INTO {jadval} ({cols}) VALUES ({vals}) RETURNING id"),
+                ustunlar).scalar()
+            amal(jadval, "YARATILDI", f"id={new_id}")
+            return new_id
+
+        P = TEST_PREFIX
+        sup_id = qosh("suppliers", {"name": P + "Taminotchi"},
+                      "company_id = :c AND name = :n", {"c": cid, "n": P + "Taminotchi"})
+        inv_id = qosh("inventory", {"item_name": P + "Material", "unit": "kg",
+                                    "stock_quantity": 100, "price_per_unit": 5000,
+                                    "category": "Boshqa"},
+                      "company_id = :c AND item_name = :n", {"c": cid, "n": P + "Material"})
+        rec_id = qosh("recipes", {"name": P + "Retsept"},
+                      "company_id = :c AND name = :n", {"c": cid, "n": P + "Retsept"})
+        mas_id = qosh("masters", {"name": P + "Usta", "phone": "+998900000901",
+                                  "is_active": True},
+                      "company_id = :c AND phone = :p", {"c": cid, "p": "+998900000901"})
+        emp_id = qosh("employees", {"name": P + "Hodim", "phone": "+998900000902",
+                                    "pay_type": "FIXED", "is_active": True},
+                      "company_id = :c AND phone = :p", {"c": cid, "p": "+998900000902"})
+        prj_id = qosh("projects", {"project_number": P + "PRJ-001",
+                                   "project_name": P + "Loyiha", "client_name": P + "Mijoz",
+                                   "status": "ACTIVE"},
+                      "company_id = :c AND project_number = :n",
+                      {"c": cid, "n": P + "PRJ-001"})
+        ord_id = qosh("orders", {"order_number": P + "ORD-001", "project_id": prj_id,
+                                 "order_type": "PRODUCT", "status": "IN_PROGRESS",
+                                 "payment_status": "UNPAID"},
+                      "company_id = :c AND order_number = :n",
+                      {"c": cid, "n": P + "ORD-001"})
+        oi_id = qosh("order_items", {"order_id": ord_id, "name": P + "Detal",
+                                     "category": "profil", "quantity": 1,
+                                     "unit_price": 1000, "total_price": 1000},
+                     "company_id = :c AND name = :n", {"c": cid, "n": P + "Detal"})
+        fp_id = qosh("finished_products", {"name": P + "Mahsulot", "quantity": 5,
+                                           "unit": "dona", "from_order_id": ord_id,
+                                           "source": "PRODUCED",
+                                           "production_status": "READY"},
+                     "company_id = :c AND name = :n", {"c": cid, "n": P + "Mahsulot"})
+        pt_id = qosh("product_types", {"name": P + "Mahsulot turi", "unit": "kg",
+                                       "input_template": "QUANTITY_ONLY",
+                                       "pricing_formula": "UNIT_BASED", "is_active": True},
+                     "company_id = :c AND name = :n", {"c": cid, "n": P + "Mahsulot turi"})
+
+        hisobot["sinov_idlari"] = {
+            "company_id": cid, "supplier": sup_id, "inventory": inv_id,
+            "recipe": rec_id, "master": mas_id, "employee": emp_id,
+            "project": prj_id, "order": ord_id, "order_item": oi_id,
+            "finished_product": fp_id, "product_type": pt_id,
+        }
+
+        # 2) Foydalanuvchi — parolni FOYDALANUVCHI kiritadi
+        uname = P.lower() + "admin"
+        r = conn.execute(text("SELECT id FROM users WHERE username = :u"),
+                         {"u": uname}).first()
+        if r:
+            amal("users", "ALLAQACHON BOR", f"{uname} (id={r[0]})")
+        elif parol:
+            import bcrypt as _bc
+            h = _bc.hashpw(parol.encode(), _bc.gensalt()).decode()
+            uid = conn.execute(text(
+                "INSERT INTO users (company_id, username, password_hash, role, "
+                "full_name, is_active, created_at) VALUES "
+                "(:c, :u, :h, 'ADMIN', :f, true, now()) RETURNING id"),
+                {"c": cid, "u": uname, "h": h, "f": "Korxona B admin"}).scalar()
+            amal("users", "YARATILDI", f"{uname} (id={uid})")
+        else:
+            amal("users", "O'TKAZIB YUBORILDI",
+                 "parol kiritilmagan — user yaratilmadi")
+
+        trans.commit()
+        hisobot["natija"] = (
+            f"✅ Sinov tenanti tayyor (company_id={cid}). Mavjud ma'lumotga "
+            f"tegilmadi — faqat yangi, {P} prefiksli qatorlar qo'shildi.")
+    except _MigrationStop as e:
+        trans.rollback()
+        hisobot["natija"] = "⛔ TO'XTATILDI — hech narsa yaratilmadi."
+        hisobot["xato"] = str(e)
+    except Exception as e:
+        trans.rollback()
+        hisobot["natija"] = "❌ XATO — hech narsa yaratilmadi (rollback)."
+        hisobot["xato"] = f"{type(e).__name__}: {e}"
+    finally:
+        conn.close()
+    return hisobot
 
 # Tekshiruv uchun ota zanjirlari — models.py'dagi _TENANT_RULES bilan
 # BIR XIL bo'lishi shart. Bu yerda SQL ko'rinishida yozilgan.
@@ -537,6 +727,14 @@ def status_report(engine) -> dict:
 
         qadamlar = []
         for s in STEPS:
+            if s.get("tur") == "tenant":
+                st = tenant_status(engine)
+                qadamlar.append({
+                    "kalit": s["kalit"], "nomi": s["nomi"], "izoh": s["izoh"],
+                    "tasdiq": s["tasdiq"], "tur": "tenant", "tenant": st,
+                    "tugallangan": bool(st.get("mavjud")),
+                })
+                continue
             if s.get("tur") == "verify":
                 j = verify_tables(engine)
                 qadamlar.append({
@@ -1056,6 +1254,24 @@ def _verify_rows(q: dict) -> str:
     return bosh + rows
 
 
+def _tenant_rows(q: dict) -> str:
+    st = q["tenant"]
+    if not st.get("staging"):
+        return ('<tr><th>Muhit</th><td><span class="pill p-no">SINOV EMAS</span> '
+                'Bu vosita faqat sinov muhitida ishlaydi.</td></tr>')
+    if not st.get("mavjud"):
+        return ('<tr><th>Holat</th><td>Sinov tenanti hali yaratilmagan. '
+                'Quyidagi tugma orqali yarating.</td></tr>')
+    q_rows = "".join(
+        f'<tr><th>{_esc(k)}</th><td>{_esc(v)}</td>'
+        f'<td>{_esc(st["sinov_uchun_idlar"].get(k, "—"))}</td></tr>'
+        for k, v in st["qatorlar"].items())
+    return ('<tr><th>Korxona B id</th><td colspan="2"><b>'
+            f'{_esc(st["company_id"])}</b></td></tr>'
+            '<tr><th>jadval</th><td><b>qatorlar</b></td>'
+            f'<td><b>sinov uchun id</b></td></tr>{q_rows}')
+
+
 def _step_card(q: dict) -> str:
     """Bitta qadam: holat jadvali + tugmalar."""
     rows = ""
@@ -1079,8 +1295,23 @@ def _step_card(q: dict) -> str:
         bosh, rows = _unique_rows(q), ""
     elif q.get("tur") == "verify":
         bosh, rows = _verify_rows(q), ""
+    elif q.get("tur") == "tenant":
+        bosh, rows = _tenant_rows(q), ""
 
-    if q.get("tur") == "verify":
+    if q.get("tur") == "tenant":
+        tugma = (
+            f'<form method="post" action="/saas-migratsiya/sinov-tenant">'
+            f'<div class="row">'
+            f'<input type="text" name="confirm" autocomplete="off" placeholder="Tasdiq so\'zi">'
+            f'<input type="password" name="parol" autocomplete="new-password" '
+            f'placeholder="B korxona admini uchun parol (ixtiyoriy)">'
+            f'<button type="submit" class="primary">Sinov tenantini yaratish</button>'
+            f'</div></form>'
+            f'<div class="hint">Tasdiq so\'zi: <b>{_esc(q["tasdiq"])}</b>. '
+            f'Parolni SIZ kiritasiz — u faqat shu so\'rovda ishlatiladi va '
+            f'hech qayerda saqlanmaydi. Parolsiz yuborsangiz, faqat ma\'lumot '
+            f'yaratiladi, foydalanuvchi yaratilmaydi.</div>')
+    elif q.get("tur") == "verify":
         holat = ("p-ok", "HAMMASI JOYIDA") if q["tugallangan"] else ("p-no", "E'TIBOR BERING")
         tugma = (f'<div class="row"><span class="pill {holat[0]}">{holat[1]}</span>'
                  '<form method="get" action="/saas-migratsiya">'
@@ -1256,6 +1487,19 @@ try:
             return HTMLResponse(_render_page(status_report(engine), None,
                                              f"Noma'lum qadam: {kalit}"))
         rep = run_step(engine, kalit, dry_run=True)
+        return HTMLResponse(_render_page(status_report(engine), rep))
+
+    @router.post("/saas-migratsiya/sinov-tenant", response_class=HTMLResponse)
+    def panel_test_tenant(confirm: str = Form(""), parol: str = Form(""),
+                          db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+        engine = _release(db)
+        s = _step("SINOV-TENANT")
+        if confirm.strip() != s["tasdiq"]:
+            return HTMLResponse(_render_page(
+                status_report(engine), None,
+                "Tasdiq so'zi noto'g'ri — hech narsa yaratilmadi."))
+        rep = create_test_tenant(engine, parol=parol)
         return HTMLResponse(_render_page(status_report(engine), rep))
 
     @router.post("/saas-migratsiya/haqiqiy/{kalit}", response_class=HTMLResponse)
