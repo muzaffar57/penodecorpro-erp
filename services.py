@@ -829,9 +829,21 @@ def close_employee_debt(db: Session, employee_id: int, year: int, month: int, am
     return tasks
 
 
-def get_production_period_stats(db: Session) -> dict:
+def get_production_period_stats(db: Session, company_id: int = None) -> dict:
     """Ishlab chiqarish — bugun/hafta/oy bo'yicha nechta mahsulot chiqqani.
-    Faqat o'qish, FinishedProduct.created_at (source=produced) asosida."""
+    Faqat o'qish, FinishedProduct.created_at (source=produced) asosida.
+
+    2026-09-18 — TENANT (M7 validatsiyasida topilgan TO'RTINCHI sizish):
+    funksiyada `company_id` parametri UMUMAN yo'q edi va `FinishedProduct`
+    butun tizim bo'yicha sanalardi — ya'ni har qanday korxonaning
+    boshqaruv paneli boshqa korxonalarning ishlab chiqarish miqdorini
+    ham ko'rsatardi.
+
+    `company_id` FAQAT autentifikatsiya kontekstidan keladi
+    (`main.py` → `auth.company_id_of(current_user)`); mijoz so'rovidan
+    olinmaydi va hech qanday standart 1-korxonaga tushmaydi.
+    Hisoblash formulasi (bugun/hafta/oy chegaralari, miqdorlar yig'indisi)
+    O'ZGARTIRILMADI."""
     from models import FinishedProduct, StockSource
     from datetime import datetime, timedelta
     from database import tashkent_today_start_utc
@@ -841,10 +853,13 @@ def get_production_period_stats(db: Session) -> dict:
     month_start = today_start.replace(day=1)
 
     def _count_since(since):
-        items = db.query(FinishedProduct).filter(
+        q = db.query(FinishedProduct).filter(
             FinishedProduct.source == StockSource.PRODUCED,
             FinishedProduct.created_at >= since
-        ).all()
+        )
+        if company_id is not None:
+            q = q.filter(FinishedProduct.company_id == company_id)
+        items = q.all()
         return round(sum(float(i.quantity or 0) for i in items))
 
     return {

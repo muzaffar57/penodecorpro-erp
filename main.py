@@ -2979,7 +2979,7 @@ def api_today_tasks(db: Session = Depends(get_db), current_user=Depends(auth.req
 
 @app.get("/api/dashboard/production-periods")
 def api_production_periods(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_production_period_stats(db)
+    return services.get_production_period_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/inventory/movements")
