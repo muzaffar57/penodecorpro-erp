@@ -298,7 +298,8 @@ def get_top_finished_products_sold(db: Session, days: int = 30, limit: int = 5) 
     return result
 
 
-def get_top_materials_report(db: Session, days: int = 90, limit: int = 15) -> list:
+def get_top_materials_report(db: Session, days: int = 90, limit: int = 15,
+                             company_id: int = None) -> list:
     """Eng ko'p ishlatilgan (chiqim bo'lgan) xomashyolar — InventoryMovement
     jurnalidan, nomi bo'yicha guruhlangan. Faqat o'qish."""
     from models import InventoryMovement
@@ -312,6 +313,7 @@ def get_top_materials_report(db: Session, days: int = 90, limit: int = 15) -> li
         func.sum(InventoryMovement.quantity).label("total_qty"),
         func.count(InventoryMovement.id).label("movement_count")
     ).filter(
+        *([InventoryMovement.company_id == company_id] if company_id is not None else []),
         InventoryMovement.movement_type == "out",
         InventoryMovement.created_at >= period_start
     ).group_by(InventoryMovement.item_name, InventoryMovement.unit).order_by(func.sum(InventoryMovement.quantity).desc()).limit(limit).all()
@@ -1376,14 +1378,17 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None,
     return result
 
 
-def get_inventory_kpi(db: Session) -> Dict:
+def get_inventory_kpi(db: Session, company_id: int = None) -> Dict:
     """Omborxona sahifasi uchun KPI ko'rsatkichlari — faqat o'qish, hech narsani o'zgartirmaydi."""
     from models import Inventory, InventoryMovement
     from sqlalchemy import func
     from datetime import datetime, timedelta
     from database import tashkent_today_start_utc
 
-    items = db.query(Inventory).filter(Inventory.is_deleted.isnot(True)).all()
+    _iq = db.query(Inventory).filter(Inventory.is_deleted.isnot(True))
+    if company_id is not None:
+        _iq = _iq.filter(Inventory.company_id == company_id)
+    items = _iq.all()
     total_items = len(items)
     low_count = sum(1 for i in items if float(i.stock_quantity or 0) <= float(i.min_stock or 0))
     total_value = sum(float(i.stock_quantity or 0) * float(i.price_per_unit or 0) for i in items)
@@ -1391,11 +1396,15 @@ def get_inventory_kpi(db: Session) -> Dict:
     today_start = tashkent_today_start_utc()
     today_end = today_start + timedelta(days=1)
 
+    _mv_cid = ([InventoryMovement.company_id == company_id]
+               if company_id is not None else [])
     today_in = db.query(func.count(InventoryMovement.id)).filter(
+        *_mv_cid,
         InventoryMovement.movement_type == "in",
         InventoryMovement.created_at >= today_start, InventoryMovement.created_at < today_end
     ).scalar() or 0
     today_out = db.query(func.count(InventoryMovement.id)).filter(
+        *_mv_cid,
         InventoryMovement.movement_type == "out",
         InventoryMovement.created_at >= today_start, InventoryMovement.created_at < today_end
     ).scalar() or 0

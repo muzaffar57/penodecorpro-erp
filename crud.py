@@ -265,17 +265,27 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
     return db_item
 
 
-def get_inventory(db: Session) -> List[Inventory]:
+def get_inventory(db: Session, company_id: int = None) -> List[Inventory]:
     """Barcha xomashyo ro'yxatini qaytaradi (o'chirilganlar bundan mustasno)."""
-    return db.query(Inventory).filter(Inventory.is_deleted.isnot(True)).order_by(Inventory.item_name).all()
+    q = db.query(Inventory).filter(Inventory.is_deleted.isnot(True))
+    if company_id is not None:
+        q = q.filter(Inventory.company_id == company_id)
+    return q.order_by(Inventory.item_name).all()
 
 
-def get_item(db: Session, item_id: int) -> Optional[Inventory]:
-    """ID bo'yicha bitta xomashyoni qaytaradi."""
-    return db.query(Inventory).filter(Inventory.id == item_id).first()
+def get_item(db: Session, item_id: int, company_id: int = None) -> Optional[Inventory]:
+    """ID bo'yicha bitta xomashyoni qaytaradi.
+
+    2026-09-18 — M3: company_id berilsa, material FAQAT shu korxonadan
+    qidiriladi. Berilmasa — eski xatti-harakat (ichki, allaqachon
+    tekshirilgan oqimlar uchun). Tashqi chaqiruvlar company_id uzatadi."""
+    q = db.query(Inventory).filter(Inventory.id == item_id)
+    if company_id is not None:
+        q = q.filter(Inventory.company_id == company_id)
+    return q.first()
 
 
-def get_item_locked(db: Session, item_id: int) -> Optional[Inventory]:
+def get_item_locked(db: Session, item_id: int, company_id: int = None) -> Optional[Inventory]:
     """ID bo'yicha xomashyoni QULFLAB qaytaradi (SELECT ... FOR UPDATE).
 
     Bir nechta foydalanuvchi AYNI shu xomashyoni bir vaqtda o'zgartirmoqchi
@@ -284,7 +294,10 @@ def get_item_locked(db: Session, item_id: int) -> Optional[Inventory]:
     Faqat MIQDORNI O'ZGARTIRISH kerak bo'lgan joylarda ishlatiladi —
     oddiy ko'rish/ro'yxat uchun emas (aks holda keraksiz sekinlik yaratadi).
     PostgreSQL'da haqiqiy qulflaydi; SQLite'da (test muhiti) e'tiborsiz qoldiriladi."""
-    return db.query(Inventory).filter(Inventory.id == item_id).with_for_update().first()
+    q = db.query(Inventory).filter(Inventory.id == item_id)
+    if company_id is not None:
+        q = q.filter(Inventory.company_id == company_id)
+    return q.with_for_update().first()
 
 
 def create_expense_transaction(db: Session, data, performed_by: Optional[str] = None, source: str = "manual"):
@@ -762,7 +775,7 @@ def delete_item(db: Session, item_id: int) -> dict:
         }
 
 
-def get_low_stock_items(db: Session) -> List[Inventory]:
+def get_low_stock_items(db: Session, company_id: int = None) -> List[Inventory]:
     """Qoldiq min_stock dan kam bo'lgan xomashyolar (ogohlantirish).
 
     MUHIM: "Tayyor loy (...)" yozuvlari — bu, sotib olinadigan xomashyo
@@ -773,10 +786,13 @@ def get_low_stock_items(db: Session) -> List[Inventory]:
     ogohlantirishidan chiqarib tashlanadi — ombordagi haqiqiy miqdorning
     o'ziga (va keyingi buyurtmalar uchun ishlatilishiga) bu SIRA tegmaydi.
     """
-    return db.query(Inventory).filter(
+    q = db.query(Inventory).filter(
         Inventory.stock_quantity <= Inventory.min_stock,
         ~Inventory.item_name.like('Tayyor loy (%')
-    ).all()
+    )
+    if company_id is not None:
+        q = q.filter(Inventory.company_id == company_id)
+    return q.all()
 
 
 # ============================================================
@@ -865,14 +881,20 @@ def update_recipe(db: Session, recipe_id: int, recipe_data: RecipeCreate) -> Opt
     return db_recipe
 
 
-def get_recipes(db: Session) -> List[Recipe]:
+def get_recipes(db: Session, company_id: int = None) -> List[Recipe]:
     """Barcha retseptlarni qaytaradi."""
-    return db.query(Recipe).all()
+    q = db.query(Recipe)
+    if company_id is not None:
+        q = q.filter(Recipe.company_id == company_id)
+    return q.all()
 
 
-def get_recipe(db: Session, recipe_id: int) -> Optional[Recipe]:
+def get_recipe(db: Session, recipe_id: int, company_id: int = None) -> Optional[Recipe]:
     """ID bo'yicha bitta retseptni qaytaradi."""
-    return db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    q = db.query(Recipe).filter(Recipe.id == recipe_id)
+    if company_id is not None:
+        q = q.filter(Recipe.company_id == company_id)
+    return q.first()
 
 
 # ============================================================
@@ -6140,16 +6162,24 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
 # INVENTORY PURCHASES — Xarid statistikasi
 # ============================================================
 
-def get_purchases(db: Session, limit: int = 100, item_id: int = None) -> List:
-    """Xaridlar tarixi."""
+def get_purchases(db: Session, limit: int = 100, item_id: int = None,
+                  company_id: int = None) -> List:
+    """Xaridlar tarixi.
+
+    M3: InventoryPurchase'da company_id ustuni YO'Q — filtrlash ota
+    (material) orqali, JOIN bilan."""
     from models import InventoryPurchase
     q = db.query(InventoryPurchase)
+    if company_id is not None:
+        q = q.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
     if item_id:
         q = q.filter(InventoryPurchase.inventory_id == item_id)
     return q.order_by(InventoryPurchase.purchased_at.desc()).limit(limit).all()
 
 
-def get_purchase_stats(db: Session, year: int = None, month: int = None) -> dict:
+def get_purchase_stats(db: Session, year: int = None, month: int = None,
+                       company_id: int = None) -> dict:
     """Material bo'yicha xarid statistikasi — Moliya/Dashboard uchun.
     year/month berilmasa — joriy oy."""
     from models import InventoryPurchase
@@ -6162,7 +6192,11 @@ def get_purchase_stats(db: Session, year: int = None, month: int = None) -> dict
     start = dt(year, month, 1)
     end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
 
-    purchases = db.query(InventoryPurchase).filter(
+    _pq = db.query(InventoryPurchase)
+    if company_id is not None:
+        _pq = _pq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    purchases = _pq.filter(
         InventoryPurchase.purchased_at >= start,
         InventoryPurchase.purchased_at < end,
         InventoryPurchase.is_opening_stock.isnot(True)
@@ -7346,15 +7380,21 @@ def create_supplier(db: Session, data: SupplierCreate) -> Supplier:
     return s
 
 
-def get_suppliers(db: Session, only_active: bool = True) -> List[Supplier]:
+def get_suppliers(db: Session, only_active: bool = True,
+                  company_id: int = None) -> List[Supplier]:
     q = db.query(Supplier)
+    if company_id is not None:
+        q = q.filter(Supplier.company_id == company_id)
     if only_active:
         q = q.filter(Supplier.is_active == True)
     return q.order_by(Supplier.name).all()
 
 
-def get_supplier(db: Session, supplier_id: int) -> Optional[Supplier]:
-    return db.query(Supplier).filter(Supplier.id == supplier_id).first()
+def get_supplier(db: Session, supplier_id: int, company_id: int = None) -> Optional[Supplier]:
+    q = db.query(Supplier).filter(Supplier.id == supplier_id)
+    if company_id is not None:
+        q = q.filter(Supplier.company_id == company_id)
+    return q.first()
 
 
 def update_supplier(db: Session, supplier_id: int, data: SupplierUpdate) -> Optional[Supplier]:
@@ -7458,12 +7498,12 @@ def get_supplier_payment_due_dates(db: Session) -> List[dict]:
     return result
 
 
-def get_suppliers_with_debt(db: Session) -> List[dict]:
+def get_suppliers_with_debt(db: Session, company_id: int = None) -> List[dict]:
     """Barcha yetkazib beruvchilar va ularning qarzdorligi + oxirgi xarid, oylik statistika."""
     from datetime import datetime as dt
 
     now = dt.utcnow()
-    suppliers = get_suppliers(db, only_active=True)
+    suppliers = get_suppliers(db, only_active=True, company_id=company_id)
     result = []
     for s in suppliers:
         debt_info = get_supplier_debt(db, s.id)
@@ -7687,7 +7727,8 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None) -> di
 
 
 
-def get_supplier_purchased_items(db: Session, supplier_id: int) -> List[dict]:
+def get_supplier_purchased_items(db: Session, supplier_id: int,
+                                 company_id: int = None) -> List[dict]:
     """Shu yetkazib beruvchidan ILGARI xarid qilingan materiallar ro'yxati
     (takrorlanmas) — Kirim sahifasida qulaylik uchun, tanlov ro'yxatini
     shu yetkazib beruvchiga xos materiallar bilan cheklash uchun."""

@@ -1868,6 +1868,15 @@ _TENANT_RULES = {
     "OrderAttachment":     [("order_id", "Order")],
     "OrderItemSubDetail":  [("order_item_id", "OrderItem")],
     "OrderGipsAdditive":   [("order_id", "Order")],
+
+    # --- M3 (2026-09-18) ---
+    # Bularda ham company_id ustuni yo'q — tenant otadan olinadi.
+    # InventoryPurchase uchun BIRINCHI ota (material) tenant'ni beradi,
+    # keyin _TENANT_REFS ta'minotchini ham SHU tenant'ga tekshiradi —
+    # ya'ni A materiali + B ta'minotchisi juftligi rad etiladi.
+    "InventoryPurchase":   [("inventory_id", "Inventory"),
+                            ("supplier_id", "Supplier")],
+    "SupplierPayment":     [("supplier_id", "Supplier")],
 }
 
 
@@ -1902,6 +1911,18 @@ _TENANT_REFS = {
     # Ombor harakati — qaysi material/buyurtma/ta'minotchiga
     "InventoryMovement": [("inventory_id", "Inventory"), ("order_id", "Order"),
                           ("supplier_id", "Supplier")],
+
+    # --- M3 (2026-09-18) ---
+    # Ishlab chiqarish retsepti (BOM) qatori qaysi materialga ishora qiladi.
+    # Bu M3 dagi eng muhim FK teshigi edi: A korxonaning BOM'i B korxonaning
+    # materialini ko'rsatib, ishlab chiqarishda O'SHA omborni kamaytirardi.
+    "BOMItem": [("inventory_id", "Inventory")],
+    # Xarid — qaysi material va qaysi ta'minotchidan
+    "InventoryPurchase": [("inventory_id", "Inventory"), ("supplier_id", "Supplier")],
+    # Ombor kirimi — qaysi ta'minotchidan
+    "InventoryReceipt": [("supplier_id", "Supplier")],
+    # Ta'minotchiga to'lov
+    "SupplierPayment": [("supplier_id", "Supplier")],
     # Tayyor mahsulot — qaysi buyurtma/retsept/materialga
     "FinishedProduct": [("from_order_id", "Order"), ("recipe_id", "Recipe"),
                         ("penoplast_id", "Inventory"),

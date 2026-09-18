@@ -1090,15 +1090,18 @@ async def masters_manage_page(request: Request, db: Session = Depends(get_db), c
 
 @app.get("/inventory", response_class=HTMLResponse)
 async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
-    items = crud.get_inventory(db)
-    kpi = services.get_inventory_kpi(db)
-    suppliers = crud.get_suppliers(db)
+    items = crud.get_inventory(db, company_id=auth.company_id_of(current_user))
+    kpi = services.get_inventory_kpi(db, company_id=auth.company_id_of(current_user))
+    suppliers = crud.get_suppliers(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "inventory.html", {"items": items, "kpi": kpi, "suppliers": suppliers, "current_user": current_user, "active_page": "inventory"})
 
 
 @app.post("/api/inventory/{item_id}/image")
 def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                                 current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     from models import Inventory
     item = db.query(Inventory).filter(Inventory.id == item_id).first()
     if not item:
@@ -1111,12 +1114,12 @@ def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: S
 
 @app.get("/api/inventory/kpi")
 def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
-    return services.get_inventory_kpi(db)
+    return services.get_inventory_kpi(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/recipes", response_class=HTMLResponse)
 async def recipes_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    recipes = crud.get_recipes(db)
+    recipes = crud.get_recipes(db, company_id=auth.company_id_of(current_user))
     insights = {r.id: crud.get_recipe_insights(db, r.id) for r in recipes}
     return templates.TemplateResponse(request, "recipes.html", {"recipes": recipes, "insights": insights, "current_user": current_user, "active_page": "recipes"})
 
@@ -1180,7 +1183,7 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
         o.deadline_urgency = crud.get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered)
     projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
     masters = crud.get_masters(db, only_active=True)
-    recipes = crud.get_recipes(db)
+    recipes = crud.get_recipes(db, company_id=auth.company_id_of(current_user))
     penoplasts = services.get_penoplast_list(db)
     default_p = services.get_default_penoplast(db)
 
@@ -1296,7 +1299,12 @@ def api_delete_master(master_id: int, db: Session = Depends(get_db), current_use
 @app.post("/api/inventory", response_model=schemas.InventoryRead)
 def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     try:
-        return crud.add_item(db, item)
+        # M3: yangi material ALBATTA joriy adminning korxonasiga tegishli.
+        _it = crud.add_item(db, item)
+        _it.company_id = auth.company_id_of(current_user)
+        db.commit()
+        db.refresh(_it)
+        return _it
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -1308,12 +1316,15 @@ def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db)
 
 @app.get("/api/inventory", response_model=List[schemas.InventoryRead])
 def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
-    return crud.get_inventory(db)
+    return crud.get_inventory(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/inventory/{item_id}/stock", response_model=schemas.InventoryRead)
 def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.)."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     updated = crud.update_stock(db, item_id, change.quantity_change,
                                  performed_by=current_user.full_name or current_user.username,
                                  notes=change.reason)
@@ -1325,6 +1336,9 @@ def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = De
 @app.put("/api/inventory/{item_id}")
 def api_update_inventory_item(item_id: int, data: schemas.InventoryUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xomashyo ma'lumotlarini yangilash (nomi, min qoldiq, kategoriya va h.k.)."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     updated = crud.update_item(db, item_id, data)
     if not updated:
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -1360,6 +1374,9 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi.
     paid_now > 0 bo'lsa — bir vaqtning o'zida xarid HAM yoziladi, HAM to'lov qilinadi,
     qolgan qismi avtomatik qarz sifatida qoladi."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     who = current_user.full_name or current_user.username
 
     total_amount = round(data.quantity * data.price_per_unit)
@@ -1407,7 +1424,7 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
         supplier = crud.get_supplier(db, data.supplier_id)
         if supplier:
             debt_info = crud.get_supplier_debt(db, data.supplier_id)
-            all_debt = sum(s["debt"] for s in crud.get_suppliers_with_debt(db))
+            all_debt = sum(s["debt"] for s in crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user)))
             paid_line = f"✅ Hoziroq to'landi: {fmt_money(paid_now)} so'm\\n" if paid_now > 0 else ""
             msg = (
                 f"🚚 *Nasiya xarid qilindi*\n\n"
@@ -1441,7 +1458,7 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
 def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
                       db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     """Xaridlar tarixi."""
-    items = crud.get_purchases(db, limit=limit, item_id=item_id)
+    items = crud.get_purchases(db, limit=limit, item_id=item_id, company_id=auth.company_id_of(current_user))
     return [{
         "id": p.id,
         "inventory_id": p.inventory_id,
@@ -1461,7 +1478,7 @@ def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
 def api_purchase_stats(year: Optional[int] = None, month: Optional[int] = None,
                        db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     """Material bo'yicha xarid statistikasi (oylik)."""
-    return crud.get_purchase_stats(db, year=year, month=month)
+    return crud.get_purchase_stats(db, year=year, month=month, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/transport-expenses")
@@ -1934,7 +1951,7 @@ async def supplier_receive_page(request: Request, db: Session = Depends(get_db),
     """Yetkazib beruvchidan mahsulot kirim qilish — to'liq sahifa ko'rinishi.
     Backend/API o'zgarmagan — xuddi suppliers.html'dagi (sinalgan) xarid
     mexanizmining o'zi, faqat kattaroq, tartibli sahifa dizaynida."""
-    suppliers = crud.get_suppliers(db)
+    suppliers = crud.get_suppliers(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "supplier_receive.html", {
         "current_user": current_user, "active_page": "supplier_receive", "suppliers": suppliers
     })
@@ -1948,11 +1965,14 @@ def api_create_supplier(data: schemas.SupplierCreate, db: Session = Depends(get_
 
 @app.get("/api/suppliers")
 def api_get_suppliers(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    return crud.get_suppliers_with_debt(db)
+    return crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/suppliers/{supplier_id}")
 def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     s = crud.update_supplier(db, supplier_id, data)
     if not s:
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -1962,6 +1982,9 @@ def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Sess
 @app.delete("/api/suppliers/{supplier_id}")
 def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Yetkazib beruvchini o'chirish. Qarzi bo'lsa force=true kerak."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     result = crud.delete_supplier(db, supplier_id, force=force)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -1977,7 +2000,7 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
     from datetime import datetime as dt
     from database import TASHKENT_OFFSET
 
-    s = crud.get_supplier(db, supplier_id)
+    s = crud.get_supplier(db, supplier_id, company_id=auth.company_id_of(current_user))
     if not s:
         raise HTTPException(status_code=404, detail="Topilmadi")
 
@@ -1996,6 +2019,9 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
 @app.put("/api/inventory/purchases/{purchase_id}")
 def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xarid yozuvini tahrirlash — ombordagi joriy miqdor/narxga ta'sir qilmaydi."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xarid topilmadi")
     updated = crud.update_purchase(db, purchase_id, data.model_dump(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -2005,6 +2031,9 @@ def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Sess
 @app.delete("/api/inventory/purchases/{purchase_id}")
 def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xarid yozuvini o'chirish — ham OMBORdan miqdorni qaytaradi, ham pul oqimidan olib tashlaydi (to'liq bekor qilish)."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xarid topilmadi")
     if not crud.delete_purchase(db, purchase_id):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
@@ -2012,6 +2041,9 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
 
 @app.post("/api/suppliers/{supplier_id}/payment")
 def api_supplier_payment(supplier_id: int, data: schemas.SupplierPaymentCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     who = current_user.full_name or current_user.username
     data.supplier_id = supplier_id
     try:
@@ -2036,7 +2068,7 @@ def api_delete_supplier_payment(payment_id: int, db: Session = Depends(get_db), 
 @app.get("/api/suppliers/debt-total")
 def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Barcha yetkazib beruvchilarga jami qarz — dashboard uchun."""
-    suppliers = crud.get_suppliers_with_debt(db)
+    suppliers = crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user))
     total = sum(s["debt"] for s in suppliers)
     return {"total_debt": total, "supplier_count": sum(1 for s in suppliers if s["debt"] > 0)}
 
@@ -2050,7 +2082,7 @@ def api_suppliers_due_dates(db: Session = Depends(get_db), current_user=Depends(
 @app.get("/api/suppliers/{supplier_id}/purchased-items")
 def api_supplier_purchased_items(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Shu yetkazib beruvchidan ilgari xarid qilingan materiallar — Kirim sahifasida qulaylik uchun."""
-    return crud.get_supplier_purchased_items(db, supplier_id)
+    return crud.get_supplier_purchased_items(db, supplier_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/inventory/purchase-trend")
@@ -2061,6 +2093,9 @@ def api_purchase_trend(months: int = 6, db: Session = Depends(get_db), current_u
 
 @app.post("/api/inventory/{item_id}/price")
 def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     item = db.query(crud.Inventory).filter(crud.Inventory.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -2075,6 +2110,9 @@ def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), cu
 def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xomashyoning 'kam qoldi' ogohlantirishi ishga tushadigan chegarasini
     (min_stock) o'zgartiradi — admin/ombor xodimi o'zi belgilaydi."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     item = db.query(crud.Inventory).filter(crud.Inventory.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -2089,7 +2127,10 @@ def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db)
 @app.post("/api/inventory/full-stock-report")
 def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     from models import Inventory as Inv
-    items = db.query(Inv).order_by(Inv.item_name).all()
+    # M3: SMS hisoboti FAQAT joriy korxonaning materiallari bo'yicha.
+    items = db.query(Inv).filter(
+        Inv.company_id == auth.company_id_of(current_user)
+    ).order_by(Inv.item_name).all()
     if not items:
         return {"message": "Omborxona bo'sh!"}
     yetarli = []
@@ -2114,7 +2155,7 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
 
 @app.post("/api/inventory/low-stock-alert")
 def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    low_items = crud.get_low_stock_items(db)
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if not low_items:
         return {"sent": False, "message": "Barcha xomashyolar yetarli — SMS yuborilmadi!"}
     lines = []
@@ -2218,6 +2259,9 @@ def api_find_chat_id(secret: str = ""):
 
 @app.delete("/api/inventory/{item_id}")
 def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     result = crud.delete_item(db, item_id)
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
@@ -2231,6 +2275,9 @@ def api_create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db
 
 @app.put("/api/recipes/{recipe_id}", response_model=schemas.RecipeRead)
 def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.recipe_of_company(db, recipe_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Retsept topilmadi")
     recipe = crud.update_recipe(db, recipe_id, data)
     if not recipe:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
@@ -2240,6 +2287,9 @@ def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = 
 @app.post("/api/recipes/{recipe_id}/image")
 def api_upload_recipe_image(recipe_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                              current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.recipe_of_company(db, recipe_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Retsept topilmadi")
     from models import Recipe
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
     if not recipe:
@@ -2253,7 +2303,10 @@ def api_upload_recipe_image(recipe_id: int, file: UploadFile = File(...), db: Se
 @app.delete("/api/recipes/{recipe_id}")
 def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     from models import Recipe
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    # M3: retsept FAQAT joriy korxonadan (aks holda 404).
+    recipe = db.query(Recipe).filter(
+        Recipe.id == recipe_id,
+        Recipe.company_id == auth.company_id_of(current_user)).first()
     if not recipe:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
     db.delete(recipe)
@@ -2263,7 +2316,7 @@ def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_use
 
 @app.get("/api/recipes", response_model=List[schemas.RecipeRead])
 def api_get_recipes(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    return crud.get_recipes(db)
+    return crud.get_recipes(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/projects", response_model=schemas.ProjectRead)
@@ -2891,13 +2944,16 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
                              date_to: Optional[str] = None, limit: int = 100, db: Session = Depends(get_db),
                              current_user=Depends(auth.inventory_view)):
     """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish).
+
+    M3: faqat joriy korxonaning harakatlari.
     date_from/date_to — 'YYYY-MM-DD' ko'rinishida, ma'lum kunlar oralig'ini
     ko'rish uchun (masalan, hodim ishga kelmagan kunlarda qancha xomashyo
     ishlatilganini tekshirish uchun)."""
     from models import InventoryMovement
     from datetime import datetime, timedelta
     from database import TASHKENT_OFFSET
-    q = db.query(InventoryMovement)
+    q = db.query(InventoryMovement).filter(
+        InventoryMovement.company_id == auth.company_id_of(current_user))
     if item_id:
         q = q.filter(InventoryMovement.inventory_id == item_id)
     if movement_type in ("in", "out"):
@@ -2979,7 +3035,7 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
     order_debts.sort(key=lambda o: float(o.debt_amount or 0), reverse=True)
     total_customer_debt = sum(float(o.debt_amount or 0) for o in order_debts)
 
-    suppliers_all = crud.get_suppliers_with_debt(db)
+    suppliers_all = crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user))
     supplier_debts = [s for s in suppliers_all if s['debt'] > 0]
     supplier_debts.sort(key=lambda s: s['debt'], reverse=True)
     total_supplier_debt = sum(s['debt'] for s in supplier_debts)
@@ -3019,7 +3075,7 @@ def api_dashboard_top_finished_products(days: int = 30, limit: int = 5, db: Sess
 
 @app.get("/api/reports/top-materials")
 def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_top_materials_report(db, days=days)
+    return services.get_top_materials_report(db, days=days, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/top-customers")
@@ -3492,6 +3548,9 @@ def api_get_penoplasts(db: Session = Depends(get_db), current_user=Depends(auth.
 @app.post("/api/inventory/{item_id}/set-default-penoplast")
 def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Asosiy plotnost qilib belgilash."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     item = db.query(Inventory).filter(Inventory.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
@@ -3528,7 +3587,7 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
     items = crud.get_finished_products(db)
     penoplasts = services.get_penoplast_list(db)
     default_p = services.get_default_penoplast(db)
-    recipes = crud.get_recipes(db)
+    recipes = crud.get_recipes(db, company_id=auth.company_id_of(current_user))
     stats = crud.get_finished_stats(db)
     masters = crud.get_masters(db, only_active=True)
     return templates.TemplateResponse(request, "finished.html", {

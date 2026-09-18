@@ -483,6 +483,37 @@ def get_current_employee(request: Request, db: Session = Depends(get_db)) -> Opt
     return employee
 
 
+def inventory_of_company(db: Session, item_id: int, company_id: int):
+    """Materialni FAQAT shu korxona ichidan topadi (M3)."""
+    from models import Inventory
+    return db.query(Inventory).filter(
+        Inventory.id == item_id, Inventory.company_id == company_id).first()
+
+
+def recipe_of_company(db: Session, recipe_id: int, company_id: int):
+    """Retseptni FAQAT shu korxona ichidan topadi (M3)."""
+    from models import Recipe
+    return db.query(Recipe).filter(
+        Recipe.id == recipe_id, Recipe.company_id == company_id).first()
+
+
+def supplier_of_company(db: Session, supplier_id: int, company_id: int):
+    """Ta'minotchini FAQAT shu korxona ichidan topadi (M3)."""
+    from models import Supplier
+    return db.query(Supplier).filter(
+        Supplier.id == supplier_id, Supplier.company_id == company_id).first()
+
+
+def purchase_of_company(db: Session, purchase_id: int, company_id: int):
+    """Xaridni ota (material) orqali tekshiradi — InventoryPurchase'da
+    company_id ustuni yo'q (M3)."""
+    from models import InventoryPurchase, Inventory
+    return (db.query(InventoryPurchase)
+            .join(Inventory, Inventory.id == InventoryPurchase.inventory_id)
+            .filter(InventoryPurchase.id == purchase_id,
+                    Inventory.company_id == company_id).first())
+
+
 def order_of_company(db: Session, order_id: int, company_id: int):
     """Buyurtmani FAQAT shu korxona ichidan topadi (M2)."""
     from models import Order
