@@ -168,6 +168,59 @@ def require_login(
 
 
 # ============================================================
+# Joriy KORXONA (tenant) — SaaS ko'p-tenantlilik poydevori
+# ============================================================
+# 2026-09-18, 1-QADAM. Bu yerdan boshlab, "bu so'rov qaysi korxonaniki?"
+# degan savolga javob beradigan YAGONA, markaziy manba mavjud.
+# Keyingi bosqichlarda har bir jadval va har bir so'rov shu qiymat
+# bo'yicha filtrlanadi.
+
+# O'TISH DAVRI uchun. Hozircha tizimda bitta korxona bor va bazadagi
+# users.company_id ustunida DEFAULT 1 turibdi. Ikkalasi ham, barcha
+# yozuv nuqtalari company_id ni ANIQ yuboradigan bo'lgandan keyin
+# olib tashlanadi.
+DEFAULT_COMPANY_ID = 1
+
+
+def company_id_of(user) -> int:
+    """Berilgan foydalanuvchining korxona (tenant) raqamini qaytaradi.
+
+    Kodning allaqachon `user` obyekti bor joylari uchun — qo'shimcha
+    baza so'rovisiz. Qiymat bo'lmasa, JIMGINA 1 ga tushib qolmaydi,
+    balki aniq xato beradi: ko'p-tenantli tizimda "qaysi korxona
+    ekani noma'lum" holatini taxmin bilan to'ldirish — bir korxonaning
+    ma'lumotini boshqasiga ko'rsatib qo'yishning eng qisqa yo'li."""
+    company_id = getattr(user, "company_id", None)
+    if not company_id:
+        raise HTTPException(
+            status_code=403,
+            detail=("Foydalanuvchi hech qaysi korxonaga biriktirilmagan. "
+                    "Administratorga murojaat qiling."),
+        )
+    return company_id
+
+
+def get_current_company_id(
+    request: Request,
+    db: Session = Depends(get_db)
+) -> int:
+    """FastAPI bog'liqligi (dependency) — joriy so'rovning korxona raqami.
+
+    Ishlatilishi (keyingi bosqichlarda, endpointlarda):
+        @app.get("/api/orders")
+        def list_orders(company_id: int = Depends(auth.get_current_company_id),
+                        db: Session = Depends(get_db)):
+            return db.query(Order).filter(Order.company_id == company_id).all()
+
+    ESLATMA: Hodim paneli (Employee) hali company_id ga ega emas —
+    unga mos funksiya `employees` jadvaliga ustun qo'shilgandan keyin
+    (keyingi to'lqinda) yoziladi. Telegram bot/webhook yo'llarida ham
+    foydalanuvchi sessiyasi yo'q, ular alohida ko'rib chiqiladi."""
+    user = require_login(request, db)
+    return company_id_of(user)
+
+
+# ============================================================
 # Rol bo'yicha ruxsatlar
 # ============================================================
 
@@ -272,8 +325,18 @@ def all_staff(request: Request, db: Session = Depends(get_db)) -> User:
 # ============================================================
 
 def create_user(db: Session, username: str, password: str,
-                role: UserRole, full_name: str = "") -> User:
-    """Yangi foydalanuvchi yaratadi."""
+                role: UserRole, full_name: str = "",
+                company_id: int = None) -> User:
+    """Yangi foydalanuvchi yaratadi.
+
+    company_id — qaysi korxonaga tegishli ekani. Berilmasa, O'TISH DAVRI
+    uchun DEFAULT_COMPANY_ID ishlatiladi. Buni ATAYLAB aniq yozib
+    qo'ydik (bazadagi DEFAULT ga tayanish o'rniga): yangi, bo'sh bazada
+    ustunda DEFAULT bo'lmaydi, va u holda foydalanuvchi yaratish NOT NULL
+    xatosi bilan yiqilardi.
+
+    Keyingi bosqichda bu parametr MAJBURIY bo'ladi va chaqiruvchi uni
+    get_current_company_id() dan oladi."""
     username = username.strip()
     # Username band emasligini tekshiramiz
     existing = db.query(User).filter(User.username == username).first()
@@ -281,6 +344,7 @@ def create_user(db: Session, username: str, password: str,
         raise HTTPException(status_code=400, detail="Bu username band")
 
     user = User(
+        company_id=company_id or DEFAULT_COMPANY_ID,
         username=username,
         password_hash=hash_password(password),
         role=role,
@@ -294,9 +358,16 @@ def create_user(db: Session, username: str, password: str,
     return user
 
 
-def get_all_users(db: Session) -> list:
-    """Barcha foydalanuvchilarni qaytaradi."""
-    return db.query(User).order_by(User.username).all()
+def get_all_users(db: Session, company_id: int = None) -> list:
+    """Foydalanuvchilar ro'yxati.
+
+    company_id berilsa — faqat o'sha korxonaniki. Berilmasa — barchasi
+    (hozirgi chaqiruvchilar buzilmasligi uchun). Endpointlarni shu
+    parametrga o'tkazish keyingi bosqichning vazifasi."""
+    q = db.query(User)
+    if company_id is not None:
+        q = q.filter(User.company_id == company_id)
+    return q.order_by(User.username).all()
 
 
 def toggle_user_active(db: Session, user_id: int) -> Optional[User]:
@@ -415,7 +486,8 @@ def create_default_admin(db: Session):
             username="admin",
             password=password,
             role=UserRole.ADMIN,
-            full_name="Bosh Administrator"
+            full_name="Bosh Administrator",
+            company_id=DEFAULT_COMPANY_ID
         )
         print("✓ Standart admin yaratildi!")
     else:

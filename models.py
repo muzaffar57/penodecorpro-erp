@@ -112,6 +112,26 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 1-QADAM (poydevor).
+    # Butun tizimda "bu so'rov qaysi korxonaniki?" degan savolga javob
+    # beradigan YAGONA manba shu ustun: foydalanuvchi login qiladi ->
+    # uning company_id si aniqlanadi -> qolgan hamma so'rov shu bo'yicha
+    # filtrlanadi (keyingi bosqichlarda, jadval-jadval qo'shiladi).
+    #
+    # MUHIM: bu ustunni bazaga saas_migration.py (1-qadam) qo'shadi —
+    # backfill, indeks, tashqi kalit va NOT NULL bilan birga. Kod ANA
+    # SHUNDAN KEYIN yangilanadi. Agar yangi muhitda (masalan `main`)
+    # migratsiya ishlatilmasdan shu kod joylashtirilsa, `users` jadvalida
+    # ustun bo'lmagani uchun login ishlamaydi — shuning uchun HAR BIR
+    # muhitda avval migratsiya, keyin kod.
+    #
+    # Bazada ustunda vaqtinchalik DEFAULT 1 bor (o'tish davri uchun).
+    # U keyingi bosqichda, barcha yozuv nuqtalari company_id ni aniq
+    # yuboradigan bo'lgandan keyin OLIB TASHLANADI — aks holda unutilgan
+    # company_id jimgina 1-korxonaga tushib qoladi (ma'lumot sizib chiqishi).
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.MANAGER)
