@@ -153,6 +153,16 @@ class Master(Base):
     __tablename__ = "masters"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
+    # Bazaga saas_migration.py (W2G2) qo'shadi. Kod ANA SHUNDAN KEYIN
+    # yangilanadi — har bir muhitda avval migratsiya, keyin kod.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
+    # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     name = Column(String(100), nullable=False)
     phone = Column(String(20), unique=True, nullable=False)
     telegram_id = Column(String(50), unique=True, nullable=True)
@@ -177,6 +187,16 @@ class MasterGift(Base):
     __tablename__ = "master_gifts"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
+    # Bazaga saas_migration.py (W2G2) qo'shadi. Kod ANA SHUNDAN KEYIN
+    # yangilanadi — har bir muhitda avval migratsiya, keyin kod.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
+    # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     name = Column(String(100), nullable=False)
     kpi_threshold = Column(Float, nullable=False)   # shu sovg'a uchun kerakli yillik KPI (so'm)
     sort_order = Column(Integer, default=0)
@@ -223,6 +243,16 @@ class GiftPeriod(Base):
     __tablename__ = "gift_periods"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
+    # Bazaga saas_migration.py (W2G2) qo'shadi. Kod ANA SHUNDAN KEYIN
+    # yangilanadi — har bir muhitda avval migratsiya, keyin kod.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
+    # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     is_active = Column(Boolean, default=True, nullable=False)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     closed_at = Column(DateTime, nullable=True)
@@ -904,6 +934,16 @@ class Employee(Base):
     __tablename__ = "employees"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
+    # Bazaga saas_migration.py (W2G2) qo'shadi. Kod ANA SHUNDAN KEYIN
+    # yangilanadi — har bir muhitda avval migratsiya, keyin kod.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
+    # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     name = Column(String(100), nullable=False)
     position = Column(String(100), nullable=True)   # Lavozimi: "Kesuvchi", "Qoplovchi" va h.k.
 
