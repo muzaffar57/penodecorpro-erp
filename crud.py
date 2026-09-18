@@ -1847,6 +1847,30 @@ def get_cash_transactions(db: Session, limit: int = 100, company_id: int = None)
     return q.order_by(CashTransaction.created_at.desc()).limit(limit).all()
 
 
+def delete_cash_transaction(db: Session, tx_id: int, company_id: int = None) -> bool:
+    """Kassaga qo'lda qo'shilgan yozuvni o'chiradi (faqat Admin).
+
+    2026-09-18 — bu funksiya M6 sinovidan qolgan yozuvlarni tozalash uchun
+    qo'shildi: ilgari `CashTransaction` uchun o'chirish yo'li UMUMAN yo'q
+    edi (faqat `factory_reset_all_data()` butun bazani tozalash orqali),
+    shuning uchun noto'g'ri kiritilgan kassa yozuvini tuzatib bo'lmasdi.
+
+    TENANT: yozuv FAQAT shu korxonadan topiladi (aks holda False → 404).
+    Kassa balansi alohida saqlanmaydi — u har safar joriy yozuvlardan
+    qayta hisoblanadi, shuning uchun bu yerda boshqa hech narsani
+    yangilash shart emas."""
+    from models import CashTransaction
+    q = db.query(CashTransaction).filter(CashTransaction.id == tx_id)
+    if company_id is not None:
+        q = q.filter(CashTransaction.company_id == company_id)
+    tx = q.first()
+    if not tx:
+        return False
+    db.delete(tx)
+    db.commit()
+    return True
+
+
 def get_setting(db: Session, key: str, default: str = None) -> str:
     """Korxona sozlamasini o'qiydi (masalan Ehson foizi)."""
     from models import CompanySetting

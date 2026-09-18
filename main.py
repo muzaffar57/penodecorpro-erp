@@ -3222,6 +3222,19 @@ def api_get_cash_transactions(db: Session = Depends(get_db), current_user=Depend
     } for r in rows]
 
 
+@app.delete("/api/finance/cash-transactions/{tx_id}")
+def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
+                                current_user=Depends(auth.admin_only)):
+    """Kassaga qo'lda qo'shilgan yozuvni o'chiradi — faqat Admin.
+    Yozuv FAQAT joriy korxonadan topiladi (aks holda 404)."""
+    _cid = auth.company_id_of(current_user)
+    if not auth.cash_transaction_of_company(db, tx_id, _cid):
+        raise HTTPException(status_code=404, detail="Kassa yozuvi topilmadi")
+    if not crud.delete_cash_transaction(db, tx_id, company_id=_cid):
+        raise HTTPException(status_code=404, detail="Kassa yozuvi topilmadi")
+    return {"status": "ok"}
+
+
 @app.post("/api/finance/cash-transaction")
 def api_record_cash_transaction(category: str = Form(...), amount: float = Form(...),
                                  notes: str = Form(None), db: Session = Depends(get_db),
