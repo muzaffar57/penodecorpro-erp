@@ -144,6 +144,48 @@ def environment_info(conn) -> dict:
     }
 
 
+
+# ============================================================
+# Qulf (lock) diagnostikasi
+# ============================================================
+
+LOCK_TIMEOUT = "4s"        # jadval qulfini shuncha kutamiz, keyin toza xato
+STATEMENT_TIMEOUT = "60s"  # bitta so'rov shundan uzoq cho'zilmasin
+
+
+def _blocking_sessions(engine) -> list:
+    """`users` jadvalini ushlab turgan boshqa ulanishlarni ko'rsatadi.
+
+    ALIHIDA ulanishda ishlaydi — asosiy tranzaksiya xato bo'lgandan keyin
+    ham ma'lumot olish uchun."""
+    try:
+        with engine.connect() as c:
+            c.execute(text("SET statement_timeout = '5s'"))
+            rows = c.execute(text("""
+                SELECT a.pid,
+                       a.state,
+                       coalesce(a.application_name, '') AS ilova,
+                       round(extract(epoch from (now() - a.state_change)))::int AS sekund,
+                       left(coalesce(a.query, ''), 100) AS sorov
+                FROM pg_locks l
+                JOIN pg_stat_activity a ON a.pid = l.pid
+                WHERE l.relation = 'users'::regclass
+                  AND a.pid <> pg_backend_pid()
+                ORDER BY sekund DESC NULLS LAST
+                LIMIT 10
+            """)).all()
+        return [{"pid": r[0], "holat": r[1], "ilova": r[2],
+                 "necha_sekund": r[3], "sorov": r[4]} for r in rows]
+    except Exception as e:
+        return [{"xato": f"aniqlab bo'lmadi: {e}"}]
+
+
+def _is_lock_error(e: Exception) -> bool:
+    m = str(e).lower()
+    return ("lock timeout" in m or "55p03" in m or "lock_not_available" in m
+            or "canceling statement due to lock" in m)
+
+
 # ============================================================
 # HOLAT — faqat o'qiydi, hech narsani o'zgartirmaydi
 # ============================================================
@@ -152,6 +194,10 @@ def status_report(engine) -> dict:
     """1-qadam hozir qaysi bosqichda ekanini ko'rsatadi. To'liq xavfsiz:
     bitta ham yozuv amali bajarilmaydi."""
     with engine.connect() as conn:
+        try:
+            conn.execute(text(f"SET statement_timeout = '{STATEMENT_TIMEOUT}'"))
+        except Exception:
+            pass
         if conn.dialect.name != "postgresql":
             return {
                 "qadam": 1,
@@ -237,6 +283,16 @@ def run_step1(engine, dry_run: bool = True) -> dict:
     conn = engine.connect()
     trans = conn.begin()
     try:
+        # MUHIM (2026-09-18, real hodisadan keyin qo'shildi): ALTER TABLE
+        # jadvalga TO'LIQ EKSKLYUZIV qulf so'raydi. Agar boshqa ulanish o'sha
+        # jadvalni ushlab tursa, bizning so'rovimiz navbatga turadi — va
+        # navbatdagi eksklyuziv so'rov UNDAN KEYINGI barcha oddiy so'rovlarni
+        # ham to'sib qo'yadi, natijada BUTUN SAYT javob bermay qoladi.
+        # lock_timeout shuni oldini oladi: 4 soniyada qulf bo'shamasa, toza
+        # xato bilan chiqamiz va hech kimni to'smaymiz.
+        conn.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"))
+        conn.execute(text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'"))
+
         # ---------- MUHIT ----------
         hisobot["muhit"] = environment_info(conn)
 
@@ -383,7 +439,16 @@ def run_step1(engine, dry_run: bool = True) -> dict:
         hisobot["xato"] = str(e)
     except Exception as e:
         trans.rollback()
-        hisobot["natija"] = "❌ XATO — hech narsa o'zgarmadi (rollback)."
+        if _is_lock_error(e):
+            hisobot["natija"] = (
+                "⏳ QULF BAND — 'users' jadvalini boshqa ulanish ushlab turibdi, "
+                "shuning uchun to'xtatildi. Bazada hech narsa o'zgarmadi. "
+                "ERP'ning ortiqcha tablarini yoping va qaytadan urinib ko'ring; "
+                "yordam bermasa Railway'da 'web' xizmatini Restart qiling."
+            )
+            hisobot["qulf_tutib_turganlar"] = _blocking_sessions(engine)
+        else:
+            hisobot["natija"] = "❌ XATO — hech narsa o'zgarmadi (rollback)."
         hisobot["xato"] = f"{type(e).__name__}: {e}"
     finally:
         conn.close()
@@ -518,6 +583,18 @@ def _report_block(rep: dict) -> str:
     if a:
         qismlar.append(f'<div class="card"><h2>AMALLAR ({_esc(rep.get("rejim"))})</h2>'
                        f'<table>{a}</table></div>')
+
+    blk = rep.get("qulf_tutib_turganlar")
+    if blk:
+        rows = "".join(
+            "<tr><th>{}</th><td>{}</td><td>{}</td><td>{}</td></tr>".format(
+                _esc(x.get("pid")), _esc(x.get("holat")),
+                _esc(str(x.get("necha_sekund")) + " sek" if x.get("necha_sekund") is not None else ""),
+                _esc(x.get("sorov") or x.get("xato")))
+            for x in blk)
+        qismlar.append('<div class="card"><h2>JADVALNI USHLAB TURGAN ULANISHLAR</h2>'
+                       '<table><tr><th>PID</th><td><b>holat</b></td><td><b>qancha vaqt</b></td>'
+                       f'<td><b>so\'rov</b></td></tr>{rows}</table></div>')
 
     xom = _json.dumps(rep, indent=2, ensure_ascii=False)
     qismlar.append('<div class="card"><h2>TO\'LIQ HISOBOT (nusxalash uchun)</h2>'
