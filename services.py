@@ -2212,10 +2212,17 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # (ular faqat haqiqiy ISHLAB CHIQARISH buyurtmalariga tegishli) —
     # faqat umumiy "Jami daromad" va "Sof foyda"ga qo'shiladi.
     from models import FinishedProductSale as _FPS
-    fp_sales = db.query(_FPS).filter(
+    # 2026-09-18 — TENANT (M7 validatsiyasida B sessiyasidan topilgan
+    # HAQIQIY sizish): bu so'rov korxona filtrisiz edi. B ning oylik
+    # hisobotida A ning tayyor mahsulot sotuvi (812 000 so'm) daromad
+    # sifatida ko'rinardi, holbuki B da birorta sotuv yo'q.
+    _fpsq = db.query(_FPS).filter(
         extract('year', _FPS.sold_at) == year,
         extract('month', _FPS.sold_at) == month
-    ).all()
+    )
+    if company_id is not None:
+        _fpsq = _fpsq.filter(_FPS.company_id == company_id)
+    fp_sales = _fpsq.all()
     fp_sales_daromad = sum(float(s.total_amount or 0) for s in fp_sales)
     fp_sales_tannarx = sum(float(s.cost_amount or 0) for s in fp_sales)
     fp_sales_foyda = fp_sales_daromad - fp_sales_tannarx
@@ -2340,12 +2347,17 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     from datetime import datetime as _dt2
     _dp_start = _dt2(year, month, 1)
     _dp_end = _dt2(year + 1, 1, 1) if month == 12 else _dt2(year, month + 1, 1)
-    direct_produced = db.query(FinishedProduct).filter(
+    # 2026-09-18 — TENANT (o'sha validatsiyada topilgan ikkinchi so'rov):
+    # ishlab chiqarilgan miqdorlar ham korxona filtrisiz o'qilardi.
+    _dpq = db.query(FinishedProduct).filter(
         FinishedProduct.source == StockSource.PRODUCED,
         FinishedProduct.name != "G'isht",
         FinishedProduct.created_at >= _dp_start,
         FinishedProduct.created_at < _dp_end
-    ).all()
+    )
+    if company_id is not None:
+        _dpq = _dpq.filter(FinishedProduct.company_id == company_id)
+    direct_produced = _dpq.all()
     for fp in direct_produced:
         cat = (fp.category or "").lower()
         # MUHIM: `quantity` — SOTISH/BRAK orqali KAMAYADI (joriy qoldiq).
@@ -4844,10 +4856,17 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
     # Tayyor mahsulot to'g'ridan-to'g'ri sotuvi (masalan G'isht) ham —
     # bu ham korxonaning haqiqiy foydasi, Ehson shu foydadan hisoblanadi
     from models import FinishedProductSale as _FPS
-    fp_sales = db.query(_FPS).filter(
+    # 2026-09-18 — TENANT: bu funksiya `get_monthly_report` ICHIDAN
+    # chaqiriladi (ehson xarajati), shuning uchun filtrsiz qolgan bu
+    # so'rov FAIL-2 ning bir qismi edi — A ning sotuv foydasi B ning
+    # ehson hisobiga qo'shilardi.
+    _fpsq2 = db.query(_FPS).filter(
         extract('year', _FPS.sold_at) == year,
         extract('month', _FPS.sold_at) == month
-    ).all()
+    )
+    if company_id is not None:
+        _fpsq2 = _fpsq2.filter(_FPS.company_id == company_id)
+    fp_sales = _fpsq2.all()
     monthly_profit += sum(float(s.total_amount or 0) - float(s.cost_amount or 0) for s in fp_sales)
 
     if monthly_profit <= 0:

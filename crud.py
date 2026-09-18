@@ -8516,13 +8516,34 @@ def get_supplier_purchased_items(db: Session, supplier_id: int,
     (takrorlanmas) — Kirim sahifasida qulaylik uchun, tanlov ro'yxatini
     shu yetkazib beruvchiga xos materiallar bilan cheklash uchun."""
     from models import Inventory
-    rows = db.query(InventoryPurchase.inventory_id).filter(
+    # 2026-09-18 — TENANT (M7 validatsiyasida B sessiyasidan topilgan
+    # HAQIQIY sizish): `company_id` parametri qabul qilinardi, lekin
+    # so'rovda UMUMAN ishlatilmasdi. Natijada B korxona admini A ning
+    # ta'minotchi ID sini yuborib, A ning material nomlarini o'qiy olardi
+    # (supplier 1 → 11 ta, supplier 2 → 3 ta material).
+    #
+    # Endi UCH qatlamda cheklanadi:
+    #   1) ta'minotchining o'zi shu korxonaniki bo'lishi shart,
+    #   2) xaridlar ham shu korxona materiallariga tegishli bo'lishi shart,
+    #   3) qaytariladigan materiallar ham shu korxonadan.
+    if company_id is not None:
+        if not db.query(Supplier).filter(
+                Supplier.id == supplier_id, Supplier.company_id == company_id).first():
+            return []
+
+    _pq = db.query(InventoryPurchase.inventory_id).filter(
         InventoryPurchase.supplier_id == supplier_id
-    ).distinct().all()
-    item_ids = [r[0] for r in rows]
+    )
+    if company_id is not None:
+        _pq = _pq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    item_ids = [r[0] for r in _pq.distinct().all()]
     if not item_ids:
         return []
-    items = db.query(Inventory).filter(Inventory.id.in_(item_ids)).all()
+    _iq = db.query(Inventory).filter(Inventory.id.in_(item_ids))
+    if company_id is not None:
+        _iq = _iq.filter(Inventory.company_id == company_id)
+    items = _iq.all()
     return [{"id": i.id, "item_name": i.item_name, "unit": i.unit, "category": i.category} for i in items]
 
 
