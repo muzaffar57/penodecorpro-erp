@@ -932,8 +932,8 @@ async def users_page(request: Request, db: Session = Depends(get_db), current_us
 @app.get("/trash", response_class=HTMLResponse)
 async def trash_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """O'chirilgan buyurtma, loyiha va xodimlar — inson xatosidan himoya uchun tiklash imkoni."""
-    deleted_orders = crud.get_deleted_orders(db)
-    deleted_projects = crud.get_deleted_projects(db)
+    deleted_orders = crud.get_deleted_orders(db, company_id=auth.company_id_of(current_user))
+    deleted_projects = crud.get_deleted_projects(db, company_id=auth.company_id_of(current_user))
     deleted_employees = crud.get_deleted_employees(db)
     activity_log = crud.get_activity_log(db, limit=50)
     return templates.TemplateResponse(request, "trash.html", {
@@ -1175,7 +1175,7 @@ def api_add_payment(project_id: int, amount: float, db: Session = Depends(get_db
 
 @app.get("/orders", response_class=HTMLResponse)
 async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.orders_page_access)):
-    orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all)
+    orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user))
     for o in orders:
         o.deadline_urgency = crud.get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered)
     projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
@@ -2353,7 +2353,7 @@ def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(au
     # (dinamik) marshrutdan OLDIN turishi SHART — aks holda FastAPI
     # "pinned" so'zini order_id sifatida ushlab, xato qaytaradi (2026-09-13
     # da aynan shu xato topilib, shu yerga ko'chirilgan edi).
-    return crud.get_pinned_orders(db)
+    return crud.get_pinned_orders(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/orders/{order_id}")
@@ -2649,7 +2649,13 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
 @app.post("/api/orders/mark-all-ready")
 def api_mark_all_ready(loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     from models import Order, OrderStatus
-    pending = db.query(Order).filter(Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).all()
+    # M2: OMMAVIY amal — FAQAT joriy korxonaning buyurtmalari.
+    # Filtrsiz bo'lsa, bitta tugma bosish BARCHA korxonalarning
+    # buyurtmalarini "tayyor" qilib, ularning omboriga yozardi.
+    pending = db.query(Order).filter(
+        Order.company_id == auth.company_id_of(current_user),
+        Order.status != OrderStatus.READY,
+        Order.is_deleted.isnot(True)).all()
     processed = 0
     failed = []
     total_inventory_changes = []
@@ -2963,7 +2969,9 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
        get_suppliers_with_debt() funksiyasidan)."""
     from models import Order, OrderStatus
 
+    # M2: qarzdorlar ro'yxati FAQAT joriy korxonaning buyurtmalaridan.
     orders = db.query(Order).filter(
+        Order.company_id == auth.company_id_of(current_user),
         Order.is_deleted.isnot(True),
         Order.status != OrderStatus.DRAFT
     ).all()
@@ -3282,8 +3290,9 @@ async def health():
 
 @app.get("/returns", response_class=HTMLResponse)
 async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all)
-    orders  = crud.get_orders_for_main_page(db, days=90, show_all=True)
+    returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user))
+    orders  = crud.get_orders_for_main_page(db, days=90, show_all=True,
+                                            company_id=auth.company_id_of(current_user))
     projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "returns.html", {
         "returns": returns, "orders": orders, "projects": projects,
@@ -3328,7 +3337,7 @@ def api_create_return(data: schemas.ReturnItemCreate, db: Session = Depends(get_
 
 @app.get("/api/returns")
 def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    return crud.get_return_items(db, order_id=order_id)
+    return crud.get_return_items(db, order_id=order_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/returns/stats")
@@ -4214,6 +4223,12 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
 @app.post("/api/order-items/{item_id}/image")
 def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                                  current_user=Depends(auth.orders_page_access)):
+    # M2: detal FAQAT joriy korxonadan (aks holda 404).
+    from models import OrderItem as _OI_g
+    if not db.query(_OI_g).filter(
+            _OI_g.id == item_id,
+            _OI_g.company_id == auth.company_id_of(current_user)).first():
+        raise HTTPException(status_code=404, detail="Detal topilmadi")
     from models import OrderItem
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
@@ -4227,6 +4242,12 @@ def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: 
 @app.delete("/api/order-items/{item_id}/image")
 def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
                                  current_user=Depends(auth.orders_page_access)):
+    # M2: detal FAQAT joriy korxonadan (aks holda 404).
+    from models import OrderItem as _OI_g
+    if not db.query(_OI_g).filter(
+            _OI_g.id == item_id,
+            _OI_g.company_id == auth.company_id_of(current_user)).first():
+        raise HTTPException(status_code=404, detail="Detal topilmadi")
     from models import OrderItem
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
@@ -4383,7 +4404,7 @@ def api_delivery_stats(db: Session = Depends(get_db), current_user=Depends(auth.
 @app.get("/api/dashboard/debts")
 def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Qarzdorlik statistikasi."""
-    return crud.get_debt_stats(db)
+    return crud.get_debt_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/telegram/webhook")

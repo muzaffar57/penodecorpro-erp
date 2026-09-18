@@ -1511,7 +1511,8 @@ def get_orders(db: Session, project_id: Optional[int] = None,
     return query.order_by(Order.created_at.desc()).all()
 
 
-def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False) -> List[Order]:
+def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False,
+                             company_id: int = None) -> List[Order]:
     """Buyurtmalar sahifasining ASOSIY ro'yxati uchun — tezlik uchun,
     faqat SO'NGGI `days` kunlik yakunlangan buyurtmalarni ko'rsatadi.
 
@@ -1524,7 +1525,10 @@ def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False
     from models import OrderStatus
     from datetime import timedelta
 
-    base = db.query(Order).filter(Order.is_deleted.isnot(True))
+    _mq = db.query(Order)
+    if company_id is not None:
+        _mq = _mq.filter(Order.company_id == company_id)
+    base = _mq.filter(Order.is_deleted.isnot(True))
 
     if show_all:
         return base.order_by(Order.created_at.desc()).all()
@@ -2196,9 +2200,12 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
     return True
 
 
-def get_deleted_orders(db: Session) -> List[Order]:
+def get_deleted_orders(db: Session, company_id: int = None) -> List[Order]:
     """O'chirilgan (lekin hali bazada saqlanayotgan) buyurtmalar."""
-    return db.query(Order).filter(Order.is_deleted.is_(True)).order_by(Order.created_at.desc()).all()
+    _q = db.query(Order).filter(Order.is_deleted.is_(True))
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    return _q.order_by(Order.created_at.desc()).all()
 
 
 def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool:
@@ -2369,9 +2376,12 @@ def restore_project(db: Session, project_id: int, performed_by: str = None) -> b
     return True
 
 
-def get_deleted_projects(db: Session) -> List[Project]:
+def get_deleted_projects(db: Session, company_id: int = None) -> List[Project]:
     """O'chirilgan (lekin hali bazada saqlanayotgan) loyihalar."""
-    return db.query(Project).filter(Project.is_deleted.is_(True)).order_by(Project.start_date.desc()).all()
+    _q = db.query(Project).filter(Project.is_deleted.is_(True))
+    if company_id is not None:
+        _q = _q.filter(Project.company_id == company_id)
+    return _q.order_by(Project.start_date.desc()).all()
 
 
 # ============================================================
@@ -2491,19 +2501,25 @@ def create_return_item(db: Session, data: ReturnItemCreate,
 # orqali avval yaratilgan) tarixiy ma'lumot sifatida bazada saqlanib qoladi.
 
 
-def get_return_items(db: Session, order_id: Optional[int] = None) -> List:
+def get_return_items(db: Session, order_id: Optional[int] = None,
+                     company_id: int = None) -> List:
     """Barcha qaytarishlar yoki bitta buyurtma bo'yicha."""
     query = db.query(ReturnItem)
+    if company_id is not None:
+        query = query.filter(ReturnItem.company_id == company_id)
     if order_id:
         query = query.filter(ReturnItem.order_id == order_id)
     return query.order_by(ReturnItem.returned_at.desc()).all()
 
 
-def get_return_items_for_main_page(db: Session, days: int = 90, show_all: bool = False) -> List:
+def get_return_items_for_main_page(db: Session, days: int = 90, show_all: bool = False,
+                                   company_id: int = None) -> List:
     """Qaytarishlar sahifasining ASOSIY ro'yxati uchun — tezlik uchun,
     faqat so'nggi `days` kunlikni ko'rsatadi (show_all=True — hammasi)."""
     from datetime import timedelta
     query = db.query(ReturnItem)
+    if company_id is not None:
+        query = query.filter(ReturnItem.company_id == company_id)
     if not show_all:
         cutoff = datetime.utcnow() - timedelta(days=days)
         query = query.filter(ReturnItem.returned_at >= cutoff)
@@ -2851,9 +2867,12 @@ def get_delivery_stats(db: Session, company_id: int = None) -> dict:
     }
 
 
-def get_debt_stats(db: Session) -> dict:
+def get_debt_stats(db: Session, company_id: int = None) -> dict:
     """Qarzdorlik statistikasi — dashboard uchun."""
-    orders = db.query(Order).filter(
+    _dq = db.query(Order)
+    if company_id is not None:
+        _dq = _dq.filter(Order.company_id == company_id)
+    orders = _dq.filter(
         Order.is_archived == False,
         Order.is_deleted.isnot(True)
     ).all()
@@ -4099,10 +4118,13 @@ def toggle_order_pin(db: Session, order_id: int) -> dict:
     return {"success": True, "is_pinned": order.is_pinned}
 
 
-def get_pinned_orders(db: Session) -> list:
+def get_pinned_orders(db: Session, company_id: int = None) -> list:
     """Pin qilingan buyurtmalarni, TOPSHIRISH MUDDATI eng yaqinidan
     boshlab (muddat kiritilmaganlar oxirida) qaytaradi."""
-    rows = db.query(Order).filter(
+    _pq = db.query(Order)
+    if company_id is not None:
+        _pq = _pq.filter(Order.company_id == company_id)
+    rows = _pq.filter(
         Order.is_pinned == True, Order.is_deleted.isnot(True)
     ).all()
     rows.sort(key=lambda o: (o.deadline is None, o.deadline))
