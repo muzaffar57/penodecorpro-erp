@@ -3660,8 +3660,20 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
         AdvanceRequest, Employee, RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory, UserSession, User,
         OrderGipsAdditive, FinishedProductSale, FinishedProductLoss, EmployeeMonthlyAdjustment,
-        CompanySetting, RecurringObligation, MasterGift, MasterGiftRedemption
+        CompanySetting, RecurringObligation, MasterGift, MasterGiftRedemption,
+        # 2026-09-18 — FK TARTIBI TUZATISHI: quyidagi "bola" jadvallar
+        # ro'yxatda YO'Q edi, shuning uchun ota yozuv o'chirilganda
+        # PostgreSQL chet el kaliti amalni to'xtatardi (staging'da
+        # `employee_compensation_history_employee_id_fkey` bilan 500 chiqdi).
+        # SQLite'da bu ko'rinmagan — u FK ni standart holatda tekshirmaydi.
+        OrderItemSubDetail, EmployeeCompensationHistory,
+        GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
+        MasterGiftPeriodRedemption
     )
+    # Ishlab chiqarish (MRP) jadvallari alohida modulda — ular ham
+    # `orders`, `order_items`, `finished_products`, `inventory` ga ishora
+    # qiladi, shuning uchun reset zanjiriga kiritilishi SHART.
+    from production_models import ProductionOrder, BOM, BOMItem, ProductType
 
     # Tartib MUHIM va TO'LIQ tekshirilgan (har bir ForeignKey hisobga olingan):
     # 1) DeliveryItem — deliveries, order_items ga bog'langan
@@ -3691,15 +3703,48 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
     # 24) Master, 25) Project — endi xavfsiz (Order tozalangan)
     # 26) Supplier — endi xavfsiz (InventoryReceipt, InventoryPurchase, SupplierPayment, InventoryMovement tozalangan)
     # 27) CashTransaction, 28) ActivityLog — mustaqil, sinov izlarini tozalash uchun
+    # ── AYLANMA BOG'LANISHNI UZISH ──────────────────────────────
+    # `order_items.finished_product_id` → finished_products VA
+    # `finished_products.reserved_for_order_item_id` → order_items —
+    # ikkisi BIR-BIRIGA ishora qiladi, shuning uchun qay biri birinchi
+    # o'chirilsa ham FK buziladi. Loyihada allaqachon ishlatiladigan
+    # naqsh (`delete_order`, `delete_finished_product`): AVVAL bog'lanishni
+    # uzish, KEYIN o'chirish. Faqat JORIY korxona qatorlari uziladi.
+    _unlink_oi = db.query(OrderItem)
+    _unlink_fp = db.query(FinishedProduct)
+    if company_id is not None:
+        _unlink_oi = _unlink_oi.filter(OrderItem.company_id == company_id)
+        _unlink_fp = _unlink_fp.filter(FinishedProduct.company_id == company_id)
+    _oi_ids = [r[0] for r in _unlink_oi.with_entities(OrderItem.id).all()]
+    _fp_ids = [r[0] for r in _unlink_fp.with_entities(FinishedProduct.id).all()]
+    if _oi_ids:
+        db.query(OrderItem).filter(OrderItem.id.in_(_oi_ids)).update(
+            {"finished_product_id": None}, synchronize_session=False)
+    if _fp_ids:
+        db.query(FinishedProduct).filter(FinishedProduct.id.in_(_fp_ids)).update(
+            {"reserved_for_order_item_id": None}, synchronize_session=False)
+    db.flush()
+
+    # Tartib MUHIM: har bir "bola" o'z "ota"sidan OLDIN turadi.
+    # Qo'shilganlar (2026-09-18): ProductionOrder, OrderItemSubDetail,
+    # MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier,
+    # GiftPeriod, EmployeeCompensationHistory, BOMItem, BOM, ProductType.
     tables_in_order = [
+        # MRP: orders / order_items / finished_products / boms ga ishora qiladi
+        ProductionOrder,
         DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
-        Delivery, OrderGipsAdditive, OrderItem,
+        Delivery, OrderGipsAdditive,
+        OrderItemSubDetail, OrderItem,
         FinishedProductSale, FinishedProductLoss, FinishedProduct, Order,
         InventoryPurchase, InventoryReceipt, SupplierPayment,
         TransportExpense, ExpenseTransaction, MonthlyExpense,
-        EmployeeSession, EmployeeAdvance, AdvanceRequest, EmployeeMonthlyAdjustment, Employee,
-        RecipeIngredient, Recipe, Inventory,
-        MasterGiftRedemption, MasterGift, Master, Project, Supplier,
+        EmployeeSession, EmployeeAdvance, AdvanceRequest,
+        EmployeeMonthlyAdjustment, EmployeeCompensationHistory, Employee,
+        RecipeIngredient, Recipe,
+        BOMItem, BOM, ProductType, Inventory,
+        MasterGiftRedemption, MasterGift,
+        MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
+        Master, Project, Supplier,
         CashTransaction, ActivityLog, ErrorLog, LoginHistory,
         CompanySetting, RecurringObligation,
     ]
