@@ -22,7 +22,7 @@ from enum import Enum as PyEnum
 
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, DateTime,
-    ForeignKey, Enum, Text, Numeric
+    ForeignKey, Enum, Text, Numeric, text as sa_text
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -130,7 +130,8 @@ class User(Base):
     # U keyingi bosqichda, barcha yozuv nuqtalari company_id ni aniq
     # yuboradigan bo'lgandan keyin OLIB TASHLANADI — aks holda unutilgan
     # company_id jimgina 1-korxonaga tushib qoladi (ma'lumot sizib chiqishi).
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
 
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
@@ -299,6 +300,15 @@ class Inventory(Base):
     __tablename__ = "inventory"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
+    # Bazaga saas_migration.py (W2G1) qo'shadi: backfill, indeks, tashqi
+    # kalit va NOT NULL bilan birga. Kod ANA SHUNDAN KEYIN yangilanadi —
+    # har bir muhitda avval migratsiya, keyin kod.
+    # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
+    # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     item_name = Column(String(100), nullable=False, unique=True, index=True)
     stock_quantity = Column(Float, default=0.0)
     unit = Column(String(20), nullable=False)
@@ -338,6 +348,15 @@ class Recipe(Base):
     __tablename__ = "recipes"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
+    # Bazaga saas_migration.py (W2G1) qo'shadi: backfill, indeks, tashqi
+    # kalit va NOT NULL bilan birga. Kod ANA SHUNDAN KEYIN yangilanadi —
+    # har bir muhitda avval migratsiya, keyin kod.
+    # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
+    # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     name = Column(String(100), nullable=False, unique=True)  # Endi ISTALGAN nom bo'lishi mumkin
 
     batch_size_kg = Column(Float, default=150.0)
@@ -388,6 +407,15 @@ class Project(Base):
     __tablename__ = "projects"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
+    # Bazaga saas_migration.py (W2G1) qo'shadi: backfill, indeks, tashqi
+    # kalit va NOT NULL bilan birga. Kod ANA SHUNDAN KEYIN yangilanadi —
+    # har bir muhitda avval migratsiya, keyin kod.
+    # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
+    # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     project_number = Column(String(20), unique=True, index=True)  # PRJ-001
     client_name = Column(String(100), nullable=False)
     client_phone = Column(String(20), nullable=True)
@@ -1153,6 +1181,15 @@ class Supplier(Base):
     __tablename__ = "suppliers"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
+    # Bazaga saas_migration.py (W2G1) qo'shadi: backfill, indeks, tashqi
+    # kalit va NOT NULL bilan birga. Kod ANA SHUNDAN KEYIN yangilanadi —
+    # har bir muhitda avval migratsiya, keyin kod.
+    # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
+    # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     name = Column(String(150), nullable=False)
     phone = Column(String(20), nullable=True)
     notes = Column(Text, nullable=True)
