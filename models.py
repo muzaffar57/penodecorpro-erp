@@ -1054,6 +1054,13 @@ class CashTransaction(Base):
     __tablename__ = "cash_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     category = Column(String(30), nullable=False)  # "boshlangich" / "usta_kpi" / "ehson"
     amount = Column(Numeric(12, 2), nullable=False)  # ijobiy=kirim, manfiy=chiqim
     notes = Column(Text, nullable=True)
@@ -1067,6 +1074,13 @@ class CompanySetting(Base):
     __tablename__ = "company_settings"
 
     key = Column(String(50), primary_key=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     value = Column(String(255), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1099,6 +1113,13 @@ class ActivityLog(Base):
     __tablename__ = "activity_logs"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     action = Column(String(30), nullable=False)          # "deleted" / "restored" / "created" / "updated" / va h.k.
     entity_type = Column(String(30), nullable=False)      # "order" / "project" / va h.k.
     entity_id = Column(Integer, nullable=False)
@@ -1117,6 +1138,13 @@ class LoginHistory(Base):
     __tablename__ = "login_history"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     username = Column(String(100), nullable=False)
     success = Column(Boolean, nullable=False)
     ip_address = Column(String(50), nullable=True)
@@ -1200,6 +1228,13 @@ class RecurringObligation(Base):
     __tablename__ = "recurring_obligations"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     category = Column(String(30), unique=True, nullable=False)  # ExpenseTransaction.category bilan bir xil bo'lishi kerak
     label = Column(String(60), nullable=False)  # "Arenda (arendator)", "Transport"
     icon = Column(String(10), default="📦")
@@ -1269,6 +1304,13 @@ class TransportExpense(Base):
     __tablename__ = "transport_expenses"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     amount = Column(Numeric(12, 2), nullable=False)
     materials_note = Column(String(255), nullable=True)   # "Akril, Kroshka, Mel uchun"
     expense_date = Column(DateTime, default=datetime.utcnow)
@@ -1578,6 +1620,13 @@ class ExpenseTransaction(Base):
     __tablename__ = "expense_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     date = Column(DateTime, nullable=False, default=datetime.utcnow)
     category = Column(String(30), nullable=False)  # arenda / elektr / tushlik / soliqlar / boshqa
     amount = Column(Numeric(12, 2), nullable=False, default=0)
@@ -1601,6 +1650,13 @@ class MonthlyExpense(Base):
     __tablename__ = "monthly_expenses"
 
     id         = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
+    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
+    # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
+    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     year       = Column(Integer, nullable=False)   # 2026
     month      = Column(Integer, nullable=False)   # 1-12
 
