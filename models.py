@@ -569,6 +569,13 @@ class OrderItem(Base):
     # Alohida jadval YO'Q — Production/MRP moduli natijasi ham xuddi shu
     # Inventory/FinishedProduct omboriga tushadi (pastdagi izohga qarang).
     product_type_id = Column(Integer, ForeignKey("product_types.id"), nullable=True, index=True)
+    # 2026-09-18: `delivery_unit` shu orqali mahsulot turining O'Z birligini
+    # (kg/litr/m²/qop...) oladi. Matn ko'rinishidagi nom ishlatilgan —
+    # ProductType `production_models.py`da, lekin SQLAlchemy uni kech
+    # (barcha modellar yuklangach) hal qiladi, shuning uchun bu yerda
+    # import qilish SHART EMAS (models.py↔production_models.py orasida
+    # aylanma import bo'lib qolmasligi uchun ataylab shunday).
+    product_type = relationship("ProductType", lazy="joined")
 
     order = relationship("Order", back_populates="items")
     deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan")
@@ -600,7 +607,8 @@ class OrderItem(Base):
     def delivery_unit(self):
         """O'lchov birligi — profil, panel va blok metrda (mijozga metr bo'yicha yetkaziladi),
         termopanel kvadrat metrda, GIPS — o'zi tanlangan birlik (metr/dona/m²),
-        loy sotish — kg, qolgani donada."""
+        loy sotish — kg, MRP mahsuloti — o'z mahsulot turining birligi,
+        qolgani donada."""
         cat = (self.category or '').lower()
         if cat in ('profil', 'panel', 'blok'):
             return 'metr'
@@ -611,6 +619,15 @@ class OrderItem(Base):
             return 'm²' if unit == 'm2' else unit
         if cat == 'loy_sotish':
             return 'kg'
+        # 2026-09-18 (birlik auditi topilmasi — HAQIQIY xato tuzatildi):
+        # Production/MRP mahsulotlari bu funksiyadan OLDIN mavjud emas edi,
+        # shuning uchun ular pastdagi "dona"ga tushib ketardi — masalan
+        # kg'da o'lchanadigan mahsulot ham "dona" deb ko'rsatilardi.
+        # Endi mahsulot turining O'Z birligi olinadi (ProductType.unit).
+        if cat == 'mrp_product' and self.product_type_id:
+            pt = getattr(self, 'product_type', None)
+            if pt and pt.unit:
+                return pt.unit
         return 'dona'
 
     @property
