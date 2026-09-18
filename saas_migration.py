@@ -113,6 +113,27 @@ STEPS = [
         ],
         "tasdiq": "PENODECORPRO-W2B",
     },
+    {
+        "kalit": "W3",
+        "nomi": "3-to'lqin — buyurtmalar (orders)",
+        "izoh": "company_id ODDIY 1 QILIB EMAS, har bir buyurtmaning O'Z "
+                "loyihasidan olinadi (orders.project_id -> projects.company_id). "
+                "Shunday qilib bog'liqlik boshidanoq to'g'ri quriladi.",
+        "jadvallar": ["orders"],
+        "ota": {"orders": {"jadval": "projects", "fk": "project_id"}},
+        "tasdiq": "PENODECORPRO-W3",
+    },
+    {
+        "kalit": "W3B",
+        "tur": "unique",
+        "nomi": "3-to'lqin B — buyurtma raqami cheklovi",
+        "izoh": "orders.order_number hozir butun tizim bo'yicha yagona. "
+                "(company_id, order_number) juftligiga o'tkaziladi.",
+        "maqsadlar": [
+            {"jadval": "orders", "ustun": "order_number"},
+        ],
+        "tasdiq": "PENODECORPRO-W3B",
+    },
 ]
 
 
@@ -485,15 +506,44 @@ def run_step(engine, kalit: str, dry_run: bool = True) -> dict:
                  f"jami={jami}, company_id bo'sh={bosh}")
 
             # A3 — backfill
-            if bosh:
+            # Ikki xil usul bor:
+            #  * ODDIY: company_id = 1 (mustaqil, ota-jadvali yo'q jadvallar)
+            #  * OTA-JADVALDAN: masalan orders.company_id ni o'z loyihasidan
+            #    olish. Bu to'g'riroq — ko'p korxonali holatda har bir qator
+            #    HAQIQIY egasini oladi, hammasi 1-korxonaga tushib qolmaydi.
+            ota = (s.get("ota") or {}).get(t)
+            if not bosh:
+                amal(t, "A3", "Bo'sh qatorlarni to'ldirish", "KERAK EMAS",
+                     "bo'sh qator yo'q")
+            elif ota:
+                r = conn.execute(text(f"""
+                    UPDATE {t} AS x
+                    SET company_id = p.company_id
+                    FROM {ota['jadval']} AS p
+                    WHERE p.id = x.{ota['fk']} AND x.company_id IS NULL
+                """))
+                amal(t, "A3", f"Ota-jadvaldan to'ldirish "
+                              f"({t}.{ota['fk']} -> {ota['jadval']}.company_id)",
+                     "BAJARILDI", f"{r.rowcount} qator yangilandi")
+                # Ota-jadvali topilmagan (yetim yoki bo'sh FK) qatorlar qolsa
+                qoldi = conn.execute(text(
+                    f"SELECT COUNT(*) FROM {t} WHERE company_id IS NULL")).scalar()
+                if qoldi and s.get("zaxira"):
+                    r2 = conn.execute(text(
+                        f"UPDATE {t} SET company_id = :cid WHERE company_id IS NULL"),
+                        {"cid": DEFAULT_COMPANY_ID})
+                    amal(t, "A3b", f"Otasi topilmaganlar uchun zaxira "
+                                   f"(company_id={DEFAULT_COMPANY_ID})",
+                         "BAJARILDI", f"{r2.rowcount} qator")
+                elif qoldi:
+                    amal(t, "A3b", "Otasi topilmagan qatorlar", "DIQQAT",
+                         f"{qoldi} qator — A4 buni to'xtatadi")
+            else:
                 r = conn.execute(text(
                     f"UPDATE {t} SET company_id = :cid WHERE company_id IS NULL"),
                     {"cid": DEFAULT_COMPANY_ID})
                 amal(t, "A3", f"Bo'sh qatorlarni to'ldirish (company_id={DEFAULT_COMPANY_ID})",
                      "BAJARILDI", f"{r.rowcount} qator yangilandi")
-            else:
-                amal(t, "A3", "Bo'sh qatorlarni to'ldirish", "KERAK EMAS",
-                     "bo'sh qator yo'q")
 
             # A4 — NULL = 0 (TO'XTATUVCHI)
             qolgan = conn.execute(
