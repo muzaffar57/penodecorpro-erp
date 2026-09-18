@@ -1877,6 +1877,21 @@ _TENANT_RULES = {
     "InventoryPurchase":   [("inventory_id", "Inventory"),
                             ("supplier_id", "Supplier")],
     "SupplierPayment":     [("supplier_id", "Supplier")],
+
+    # --- M5 (2026-09-18) — ustalar / hodimlar / sovg'a ---
+    # Bu modellarda ham company_id ustuni YO'Q; tenant otadan olinadi.
+    # Auditda aniqlangan holat: bu zanjirlarning HECH BIRI qoidalarda
+    # yo'q edi, ya'ni A korxonaning sovg'a davriga B korxonaning
+    # ustasini ishtirokchi qilib yozib qo'yish mumkin edi.
+    "GiftPeriodTier":              [("period_id", "GiftPeriod")],
+    "GiftPeriodParticipant":       [("period_id", "GiftPeriod")],
+    "MasterGiftPeriodRedemption":  [("period_id", "GiftPeriod")],
+    "MasterGiftRedemption":        [("master_id", "Master")],
+    "EmployeeAdvance":             [("employee_id", "Employee")],
+    "EmployeeCompensationHistory": [("employee_id", "Employee")],
+    "EmployeeMonthlyAdjustment":   [("employee_id", "Employee")],
+    "AdvanceRequest":              [("employee_id", "Employee")],
+    "EmployeeSession":             [("employee_id", "Employee")],
 }
 
 
@@ -1933,6 +1948,25 @@ _TENANT_REFS = {
     "FinishedProductLoss": [("finished_product_id", "FinishedProduct")],
     # Buyurtma — qaysi loyiha va ustaga
     "Order": [("project_id", "Project"), ("master_id", "Master")],
+
+    # --- M5 (2026-09-18) — ustalar / hodimlar / sovg'a ---
+    # Ota "bu yozuv kimniki" degan savolga javob beradi; bu yerdagi
+    # qoidalar esa "ko'rsatilayotgan boshqa yozuv ham shu korxonanikimi"
+    # degan savolga. Sovg'a davri ishtirokchisi va sovg'ani olish
+    # yozuvida AYNAN shu teshik bor edi: davr A niki, usta esa B niki.
+    "GiftPeriodTier":              [("period_id", "GiftPeriod")],
+    "GiftPeriodParticipant":       [("period_id", "GiftPeriod"),
+                                    ("master_id", "Master")],
+    "MasterGiftPeriodRedemption":  [("period_id", "GiftPeriod"),
+                                    ("master_id", "Master"),
+                                    ("tier_id", "GiftPeriodTier")],
+    "MasterGiftRedemption":        [("master_id", "Master"),
+                                    ("gift_id", "MasterGift")],
+    "EmployeeAdvance":             [("employee_id", "Employee")],
+    "EmployeeCompensationHistory": [("employee_id", "Employee")],
+    "EmployeeMonthlyAdjustment":   [("employee_id", "Employee")],
+    "AdvanceRequest":              [("employee_id", "Employee")],
+    "EmployeeSession":             [("employee_id", "Employee")],
 }
 
 

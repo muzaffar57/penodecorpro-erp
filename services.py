@@ -1065,15 +1065,21 @@ def get_today_stats(db: Session) -> Dict:
     }
 
 
-def get_dashboard_stats(db: Session) -> Dict:
-    """Admin dashboard uchun umumiy statistika."""
+def get_dashboard_stats(db: Session, company_id: int = None) -> Dict:
+    """Admin dashboard uchun umumiy statistika.
+
+    M5 — TENANT: ustalar sanog'i joriy korxona bo'yicha. (Qolgan
+    sanoqlar M2/M3/M6 doirasida alohida ko'riladi.)"""
     from models import Project, Master
 
     total_projects = db.query(Project).filter(Project.is_deleted.isnot(True)).count()
     total_orders = db.query(Order).filter(Order.is_deleted.isnot(True)).count()
     active_orders = db.query(Order).filter(Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
     ready_orders = db.query(Order).filter(Order.status == OrderStatus.READY, Order.is_deleted.isnot(True)).count()
-    total_masters = db.query(Master).filter(Master.is_active == True).count()
+    _tmq = db.query(Master).filter(Master.is_active == True)
+    if company_id is not None:      # M5
+        _tmq = _tmq.filter(Master.company_id == company_id)
+    total_masters = _tmq.count()
     total_inventory_items = db.query(Inventory).count()
     low_stock = check_low_stock(db)
 
@@ -1427,7 +1433,7 @@ def get_low_stock_warnings(db: Session) -> List[Dict]:
 # DASHBOARD UCHUN KENGAYTIRILGAN STATISTIKA
 # ============================================================
 
-def get_chart_data(db: Session) -> Dict:
+def get_chart_data(db: Session, company_id: int = None) -> Dict:
     """Dashboard grafiklari uchun ma'lumotlar."""
     from models import Project, Master, Order, OrderItem, OrderStatus, FinishedProductSale, FinishedProduct
     from sqlalchemy import func
@@ -1520,7 +1526,10 @@ def get_chart_data(db: Session) -> Dict:
             statuses[status.value] = 0
 
     # --- 3. Ustalar KPI (top 5) ---
-    masters = db.query(Master).filter(Master.is_active == True).all()
+    _cmq = db.query(Master).filter(Master.is_active == True)
+    if company_id is not None:      # M5
+        _cmq = _cmq.filter(Master.company_id == company_id)
+    masters = _cmq.all()
     master_kpi = []
     for m in masters:
         # MUHIM: bu ham daromad (moliyaviy) hisob-kitobi — o'chirilgan
@@ -2459,11 +2468,11 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     )
 
     # ── 4b. USTA YILLIK KPI (oylik ulush) ─────────────────────
-    kpi_result = calculate_monthly_master_kpi(db, year, month)
+    kpi_result = calculate_monthly_master_kpi(db, year, month, company_id=company_id)
     usta_kpi_xarajat = kpi_result["total"]
 
     # ── 4b2. EHSON (admin belgilagan foiz, sof foydadan) ──────
-    ehson_result = calculate_monthly_ehson(db, year, month)
+    ehson_result = calculate_monthly_ehson(db, year, month, company_id=company_id)
     ehson_xarajat = ehson_result["ehson_amount"]
 
     # ── 4c. MOSLASHUVCHAN HODIMLAR ─────────────────────────────
@@ -2480,7 +2489,8 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         jami_metr + jami_panel_metr, jami_dona, jami_blok,
         jami_qoplama_birlik=jami_metr + jami_panel_metr + jami_dona,
         jami_gips_metr=jami_gips_metr, jami_gips_gul=jami_gips_gul,
-        jami_gips_kg=jami_gips_kg, jami_gips_qop=jami_gips_qop
+        jami_gips_kg=jami_gips_kg, jami_gips_qop=jami_gips_qop,
+        company_id=company_id
     )
     hodimlar_moslashuvchan_xarajat = emp_result["total"]
     jami_xarajat = jami_xarajat_eski + usta_kpi_xarajat + ehson_xarajat + hodimlar_moslashuvchan_xarajat
@@ -2783,7 +2793,7 @@ def calculate_split_profit_report(db: Session, year: int, month: int) -> dict:
     }
 
 
-def get_cash_balance(db: Session) -> dict:
+def get_cash_balance(db: Session, company_id: int = None) -> dict:
     """Kassa balansi — kompaniyada HOZIR haqiqatda qancha naqd pul bor.
 
     ➕ Kirim: mijozlardan kelgan barcha to'lovlar
@@ -2817,7 +2827,16 @@ def get_cash_balance(db: Session) -> dict:
     )
     chiqim_qoshimcha = float(db.query(func.sum(ExpenseTransaction.amount)).scalar() or 0)
     chiqim_transport = float(db.query(func.sum(TransportExpense.amount)).scalar() or 0)
-    chiqim_avans = float(db.query(func.sum(EmployeeAdvance.amount)).scalar() or 0)
+    # M5 (2026-09-18) — TENANT: avans yig'indisi. `EmployeeAdvance`da
+    # company_id ustuni yo'q — tenant otasi (Employee) orqali cheklanadi.
+    # ESLATMA: bu funksiyaning QOLGAN yig'indilari hali tenant bilan
+    # cheklanmagan — ular M6 (moliya) bosqichida ko'riladi.
+    _avq = db.query(func.sum(EmployeeAdvance.amount))
+    if company_id is not None:
+        from models import Employee as _Emp_cash
+        _avq = _avq.join(_Emp_cash, _Emp_cash.id == EmployeeAdvance.employee_id
+                         ).filter(_Emp_cash.company_id == company_id)
+    chiqim_avans = float(_avq.scalar() or 0)
 
     qolda_jami = float(db.query(func.sum(CashTransaction.amount)).scalar() or 0)
 
@@ -4505,25 +4524,35 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None) -> dict:
 # USTA KPI VA HODIM TO'LOVI — Oylik hisobga qo'shish
 # ============================================================
 
-def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
+def calculate_monthly_master_kpi(db: Session, year: int, month: int,
+                                 company_id: int = None) -> dict:
     """Shu oy SOF FOYDASIDAN usta KPI xarajatini hisoblaydi (yillik jamlanadi,
     lekin har oy tegishli ulushi xarajat sifatida yoziladi)."""
     from models import Order, OrderStatus, Master, FinishedProductSale as _FPS_kpi
     from sqlalchemy import extract
 
-    masters = db.query(Master).filter(Master.is_active == True, Master.kpi_percent > 0).all()
+    # M5 (2026-09-18) — TENANT: ilgari barcha korxonalar ustalari
+    # olinardi, ya'ni B ustasining KPI xarajati A ning oylik hisobiga
+    # tushardi.
+    _mq = db.query(Master).filter(Master.is_active == True, Master.kpi_percent > 0)
+    if company_id is not None:
+        _mq = _mq.filter(Master.company_id == company_id)
+    masters = _mq.all()
     breakdown = []
     total = 0.0
 
     for m in masters:
         # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
         # tarix (shu jumladan Usta KPI hisobi) o'zgarmasligi kerak.
-        orders = db.query(Order).filter(
+        _oq = db.query(Order).filter(
             Order.master_id == m.id,
             Order.status == OrderStatus.READY,
             extract('year', Order.completed_at) == year,
             extract('month', Order.completed_at) == month
-        ).all()
+        )
+        if company_id is not None:      # M5
+            _oq = _oq.filter(Order.company_id == company_id)
+        orders = _oq.all()
 
         monthly_profit = 0.0
         for o in orders:
@@ -4565,7 +4594,8 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int) -> dict:
     return {"total": round(total), "breakdown": breakdown}
 
 
-def calculate_monthly_ehson(db: Session, year: int, month: int) -> dict:
+def calculate_monthly_ehson(db: Session, year: int, month: int,
+                            company_id: int = None) -> dict:
     """Shu oy SOF FOYDASIDAN — admin belgilagan foizga ko'ra — Ehson (xayriya)
     miqdorini hisoblaydi. Usta KPI bilan bir xil mantiqda, lekin bitta,
     umumiy (butun korxona) foiz asosida — har bir alohida usta emas.
@@ -4582,11 +4612,14 @@ def calculate_monthly_ehson(db: Session, year: int, month: int) -> dict:
 
     # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
     # tarix (shu jumladan Ehson hisobi) o'zgarmasligi kerak.
-    orders = db.query(Order).filter(
+    _oq = db.query(Order).filter(
         Order.status == OrderStatus.READY,
         extract('year', Order.completed_at) == year,
         extract('month', Order.completed_at) == month
-    ).all()
+    )
+    if company_id is not None:      # M5
+        _oq = _oq.filter(Order.company_id == company_id)
+    orders = _oq.all()
 
     monthly_profit = 0.0
     for o in orders:
@@ -4620,7 +4653,8 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                                    jami_metr: float, jami_dona: float,
                                    jami_blok: float, jami_qoplama_birlik: float = 0.0,
                                    jami_gips_metr: float = 0.0, jami_gips_gul: float = 0.0,
-                                   jami_gips_kg: float = 0.0, jami_gips_qop: float = 0.0) -> dict:
+                                   jami_gips_kg: float = 0.0, jami_gips_qop: float = 0.0,
+                                   company_id: int = None) -> dict:
     """Moslashuvchan hodimlar uchun oylik to'lovni hisoblaydi.
     daromad, sof_foyda_before — shu oy uchun (hodim xarajatlarigacha).
     jami_metr/dona/blok — shu oy ishlab chiqarilgan miqdorlar (hammasi).
@@ -4642,11 +4676,16 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     # ham). Shu oyning OXIRGI kunigacha ishga kirgan hodimlarni olamiz.
     _last_day = _monthrange_emp(year, month)[1]
     _month_end = _dt_emp(year, month, _last_day, 23, 59, 59)
-    employees = db.query(Employee).filter(
+    # M5 (2026-09-18) — TENANT: B korxonaning xodimi A ning oylik
+    # to'lov hisobiga tushmasligi uchun.
+    _eq = db.query(Employee).filter(
         Employee.is_active == True,
         Employee.is_deleted.isnot(True),
         Employee.hire_date <= _month_end
-    ).all()
+    )
+    if company_id is not None:
+        _eq = _eq.filter(Employee.company_id == company_id)
+    employees = _eq.all()
     breakdown = []
     total = 0.0
 

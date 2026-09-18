@@ -562,6 +562,23 @@ def finished_product_of_company(db: Session, fp_id: int, company_id: int):
         FinishedProduct.company_id == company_id).first()
 
 
+def master_of_company(db: Session, master_id: int, company_id: int):
+    """Ustani FAQAT shu korxona ichidan topadi (M5).
+
+    2026-09-18 — M5. Usta endpointlari faqat id bo'yicha ishlardi
+    (`/api/masters/{master_id}`, `.../kpi`, `.../kpi-detail`), ya'ni
+    A korxona admini B korxonaning ustasini o'qishi, tahrirlashi,
+    KPI foizini o'zgartirishi va o'chirishi mumkin edi — jonli
+    sinovda tasdiqlangan.
+
+    Topilmasa None qaytaradi — chaqiruvchi 404 beradi. Ataylab 404,
+    403 emas: boshqa korxonada bunday id borligini oshkor qilmaslik
+    uchun."""
+    from models import Master
+    return db.query(Master).filter(
+        Master.id == master_id, Master.company_id == company_id).first()
+
+
 def employee_of_company(db: Session, emp_id: int, company_id: int):
     """Xodimni FAQAT shu korxona ichidan topadi.
 

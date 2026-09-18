@@ -28,7 +28,8 @@ class OverpaymentWarning(Exception):
 # MASTER CRUD
 # ============================================================
 
-def create_master(db: Session, master_data: MasterCreate) -> Master:
+def create_master(db: Session, master_data: MasterCreate,
+                  company_id: int = None) -> Master:
     """Yangi ustani bazaga qo'shadi.
 
     2026-09-18 (jonli sinovda topildi): ilgari bu funksiyada takror
@@ -39,30 +40,44 @@ def create_master(db: Session, master_data: MasterCreate) -> Master:
     esa yo'q. Endi ikkalasi bir xil: aniq, tushunarli xabar."""
     from fastapi import HTTPException
 
+    # M5 (2026-09-18) — TENANT: takror tekshiruvi FAQAT shu korxona
+    # ichida bo'ladi. Ilgari u butun tizim bo'yicha edi va ikki xato
+    # berardi: (1) boshqa korxonadagi ustaning ISMI va HOLATI xabarda
+    # oshkor bo'lardi (jonli sinovda tasdiqlangan); (2) A korxona
+    # B allaqachon ishlatgan raqamni umuman qo'sha olmasdi, holbuki
+    # bazadagi cheklov `uq_masters_company_phone`, ya'ni korxona ichida.
+    def _scoped(q):
+        return q.filter(Master.company_id == company_id) if company_id is not None else q
+
     phone = (master_data.phone or "").strip()
     if phone:
-        mavjud = db.query(Master).filter(Master.phone == phone).first()
+        mavjud = _scoped(db.query(Master).filter(Master.phone == phone)).first()
         if mavjud:
-            holat = "faol" if mavjud.is_active else "nofaol"
+            # Xabar ATAYLAB umumiy — boshqa yozuvning nomi/holati berilmaydi.
             raise HTTPException(
                 status_code=400,
-                detail=(f'"{phone}" raqamli usta allaqachon mavjud: '
-                        f'{mavjud.name} ({holat}). Telefon raqami har bir '
-                        f'ustada boshqa-boshqa bo\'lishi kerak.'),
+                detail=(f'"{phone}" raqamli usta allaqachon mavjud. '
+                        f'Telefon raqami har bir ustada boshqa-boshqa '
+                        f'bo\'lishi kerak.'),
             )
 
     tg = (str(master_data.telegram_id).strip()
           if getattr(master_data, "telegram_id", None) else "")
     if tg:
+        # ESLATMA (M5 audit, F19): `Master.telegram_id` bazada HAMON
+        # global `unique` — buni o'zgartirish migratsiya talab qiladi va
+        # ataylab M5 dan keyinga qoldirildi. Shuning uchun bu yerdagi
+        # tekshiruv ham global qoladi (aks holda baza xatosi chiqardi),
+        # lekin xabar endi begona korxona ustasining nomini bermaydi.
         mavjud_tg = db.query(Master).filter(Master.telegram_id == tg).first()
         if mavjud_tg:
             raise HTTPException(
                 status_code=400,
-                detail=(f'Bu Telegram ID ({tg}) allaqachon "{mavjud_tg.name}" '
-                        f'ustaga biriktirilgan.'),
+                detail=f'Bu Telegram ID ({tg}) allaqachon band.',
             )
 
     db_master = Master(
+        company_id=company_id,      # M5: tenant ANIQ beriladi
         name=master_data.name,
         phone=master_data.phone,
         cashback_percent=master_data.cashback_percent,
@@ -77,27 +92,44 @@ def create_master(db: Session, master_data: MasterCreate) -> Master:
     return db_master
 
 
-def get_masters(db: Session, only_active: bool = False) -> List[Master]:
-    """Barcha ustalarni qaytaradi."""
+def get_masters(db: Session, only_active: bool = False,
+                company_id: int = None) -> List[Master]:
+    """Barcha ustalarni qaytaradi.
+
+    M5 (2026-09-18) — TENANT: company_id berilsa, FAQAT shu korxona
+    ustalari qaytariladi (ro'yxat, dropdown, hisobot — hammasi shundan
+    o'qiydi)."""
     query = db.query(Master)
+    if company_id is not None:
+        query = query.filter(Master.company_id == company_id)
     if only_active:
         query = query.filter(Master.is_active == True)
     return query.order_by(Master.name).all()
 
 
-def get_master(db: Session, master_id: int) -> Optional[Master]:
-    """ID bo'yicha bitta ustani qaytaradi."""
-    return db.query(Master).filter(Master.id == master_id).first()
+def get_master(db: Session, master_id: int, company_id: int = None) -> Optional[Master]:
+    """ID bo'yicha bitta ustani qaytaradi — M5 markaziy getter.
+
+    M5 (2026-09-18) — TENANT: company_id berilsa, usta FAQAT shu
+    korxona ichidan qidiriladi; topilmasa None (chaqiruvchi 404 beradi).
+    `company_id=None` — filtrsiz, orqaga moslik uchun."""
+    q = db.query(Master).filter(Master.id == master_id)
+    if company_id is not None:
+        q = q.filter(Master.company_id == company_id)
+    return q.first()
 
 
-def update_master(db: Session, master_id: int, master_data: MasterUpdate) -> Optional[Master]:
+def update_master(db: Session, master_id: int, master_data: MasterUpdate,
+                  company_id: int = None) -> Optional[Master]:
     """Mavjud ustani yangilaydi."""
-    db_master = get_master(db, master_id)
+    db_master = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not db_master:
         return None
 
     # Faqat berilgan maydonlarni yangilaymiz
     update_data = master_data.model_dump(exclude_unset=True)
+    # M5: company_id hech qachon mijoz so'rovidan qabul qilinmaydi.
+    update_data.pop("company_id", None)
     for field, value in update_data.items():
         setattr(db_master, field, value)
 
@@ -106,9 +138,9 @@ def update_master(db: Session, master_id: int, master_data: MasterUpdate) -> Opt
     return db_master
 
 
-def delete_master(db: Session, master_id: int) -> bool:
+def delete_master(db: Session, master_id: int, company_id: int = None) -> bool:
     """Ustani o'chiradi (haqiqatda is_active=False qilamiz, ma'lumot saqlanadi)."""
-    db_master = get_master(db, master_id)
+    db_master = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not db_master:
         return False
     db_master.is_active = False
@@ -6786,7 +6818,7 @@ def get_employee_compensation_for_month(db: Session, employee_id: int, year: int
     }
 
 
-def backfill_employee_compensation_history(db: Session) -> dict:
+def backfill_employee_compensation_history(db: Session, company_id: int = None) -> dict:
     """Bir martalik migratsiya: to'lov tarixi yozuvi HALI YO'Q bo'lgan
     hodimlar uchun, joriy qiymatlarini ishga kirgan oyidan boshlab amal
     qiladigan qilib belgilaydi. Bir necha marta xavfsiz chaqirsa bo'ladi —
@@ -6794,7 +6826,12 @@ def backfill_employee_compensation_history(db: Session) -> dict:
     from models import EmployeeCompensationHistory
 
     created = 0
-    employees = db.query(Employee).filter(Employee.is_deleted.isnot(True)).all()
+    # M5 (2026-09-18) — TENANT: ilgari bu funksiya BARCHA korxonalar
+    # xodimlarini aylanib chiqib, ularga tarix yozib qo'yardi.
+    _eq = db.query(Employee).filter(Employee.is_deleted.isnot(True))
+    if company_id is not None:
+        _eq = _eq.filter(Employee.company_id == company_id)
+    employees = _eq.all()
     for emp in employees:
         has_history = db.query(EmployeeCompensationHistory).filter(
             EmployeeCompensationHistory.employee_id == emp.id
@@ -6925,9 +6962,12 @@ def permanent_delete_employee(db: Session, emp_id: int, performed_by: str = None
     return True
 
 
-def get_deleted_employees(db: Session) -> List[Employee]:
+def get_deleted_employees(db: Session, company_id: int = None) -> List[Employee]:
     """O'chirilgan (lekin hali bazada saqlanayotgan) xodimlar."""
-    return db.query(Employee).filter(Employee.is_deleted.is_(True)).order_by(Employee.name).all()
+    _dq = db.query(Employee).filter(Employee.is_deleted.is_(True))
+    if company_id is not None:      # M5
+        _dq = _dq.filter(Employee.company_id == company_id)
+    return _dq.order_by(Employee.name).all()
 
 
 # ============================================================
@@ -7011,12 +7051,20 @@ def create_advance_request(db: Session, employee_id: int, amount: float, request
     return req
 
 
-def get_pending_advance_requests(db: Session) -> List[dict]:
-    """Admin tasdiqlashi kerak bo'lgan, hali ko'rib chiqilmagan so'rovlar."""
+def get_pending_advance_requests(db: Session, company_id: int = None) -> List[dict]:
+    """Admin tasdiqlashi kerak bo'lgan, hali ko'rib chiqilmagan so'rovlar.
+
+    M5 (2026-09-18) — TENANT: ilgari BARCHA korxonalarning so'rovlari
+    qaytarilardi. `AdvanceRequest`da company_id ustuni yo'q — tenant
+    otasi (Employee) orqali cheklanadi."""
     from models import AdvanceRequest, AdvanceRequestStatus
-    rows = db.query(AdvanceRequest).filter(
+    q = db.query(AdvanceRequest).filter(
         AdvanceRequest.status == AdvanceRequestStatus.PENDING
-    ).order_by(AdvanceRequest.requested_date.asc()).all()
+    )
+    if company_id is not None:
+        q = q.join(Employee, Employee.id == AdvanceRequest.employee_id
+                   ).filter(Employee.company_id == company_id)
+    rows = q.order_by(AdvanceRequest.requested_date.asc()).all()
     result = []
     for r in rows:
         result.append({
@@ -7028,11 +7076,22 @@ def get_pending_advance_requests(db: Session) -> List[dict]:
     return result
 
 
-def confirm_advance_request(db: Session, request_id: int, confirmed_by: str) -> Optional[dict]:
+def _advance_request_of_company(db: Session, request_id: int, company_id: int = None):
+    """So'rovni FAQAT shu korxona xodimining so'rovi sifatida topadi (M5)."""
+    from models import AdvanceRequest
+    q = db.query(AdvanceRequest).filter(AdvanceRequest.id == request_id)
+    if company_id is not None:
+        q = q.join(Employee, Employee.id == AdvanceRequest.employee_id
+                   ).filter(Employee.company_id == company_id)
+    return q.first()
+
+
+def confirm_advance_request(db: Session, request_id: int, confirmed_by: str,
+                            company_id: int = None) -> Optional[dict]:
     """Admin tasdiqlaydi — shu bilan HAQIQIY EmployeeAdvance yozuvi yaratiladi
     (Moliya/Hisobotga to'g'ridan-to'g'ri ta'sir qiladigan)."""
     from models import AdvanceRequest, AdvanceRequestStatus, EmployeeAdvance
-    req = db.query(AdvanceRequest).filter(AdvanceRequest.id == request_id).first()
+    req = _advance_request_of_company(db, request_id, company_id)   # M5
     if not req or req.status != AdvanceRequestStatus.PENDING:
         return None
 
@@ -7051,10 +7110,11 @@ def confirm_advance_request(db: Session, request_id: int, confirmed_by: str) -> 
     return {"success": True, "advance_id": advance.id}
 
 
-def reject_advance_request(db: Session, request_id: int, confirmed_by: str) -> bool:
+def reject_advance_request(db: Session, request_id: int, confirmed_by: str,
+                           company_id: int = None) -> bool:
     """Admin rad etadi — hech qanday moliyaviy yozuv yaratilmaydi."""
     from models import AdvanceRequest, AdvanceRequestStatus
-    req = db.query(AdvanceRequest).filter(AdvanceRequest.id == request_id).first()
+    req = _advance_request_of_company(db, request_id, company_id)   # M5
     if not req or req.status != AdvanceRequestStatus.PENDING:
         return False
     req.status = AdvanceRequestStatus.REJECTED
@@ -7082,8 +7142,9 @@ def get_employee_own_requests(db: Session, employee_id: int, limit: int = 20) ->
 # MASTER KPI — Yillik KPI (sotuvdan %, yil oxiri sovg'a)
 # ============================================================
 
-def update_master_kpi(db: Session, master_id: int, kpi_percent: float) -> Optional[Master]:
-    m = db.query(Master).filter(Master.id == master_id).first()
+def update_master_kpi(db: Session, master_id: int, kpi_percent: float,
+                      company_id: int = None) -> Optional[Master]:
+    m = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not m:
         return None
     m.kpi_percent = kpi_percent
@@ -7092,7 +7153,8 @@ def update_master_kpi(db: Session, master_id: int, kpi_percent: float) -> Option
     return m
 
 
-def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
+def get_master_kpi_detail(db: Session, master_id: int, year: int,
+                          company_id: int = None) -> list:
     """Bitta usta uchun — shu yilgi HAR BIR buyurtmadan qancha KPI (sovg'a ulushi)
     chiqqanini ko'rsatadi. Faqat o'qish — hech qanday hisob-kitobga ta'sir qilmaydi,
     calculate_order_profit() dan olingan tayyor foyda asosida hisoblanadi."""
@@ -7100,7 +7162,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
     from models import Order, OrderStatus, Master
     from sqlalchemy import extract
 
-    master = db.query(Master).filter(Master.id == master_id).first()
+    master = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not master:
         return []
 
@@ -7154,7 +7216,8 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int) -> list:
     return result
 
 
-def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = False) -> dict:
+def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = False,
+                          company_id: int = None) -> dict:
     """Har usta uchun yillik SOF FOYDA, KPI% va hisoblangan sovg'a.
     include_inactive=False bo'lsa — avvalgidek faqat faol ustalar (eski xatti-harakat saqlanadi)."""
     import services
@@ -7162,6 +7225,8 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     from sqlalchemy import extract
 
     q = db.query(Master)
+    if company_id is not None:       # M5: faqat shu korxona ustalari
+        q = q.filter(Master.company_id == company_id)
     if not include_inactive:
         q = q.filter(Master.is_active == True)
     masters = q.all()
@@ -7259,12 +7324,25 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
 # keshbekka qaytariladi.
 # ══════════════════════════════════════════════════════════════════
 
-def get_active_gift_period(db: Session):
+def get_active_gift_period(db: Session, company_id: int = None):
+    """Joriy FAOL sovg'a davri.
+
+    M5 (2026-09-18) — TENANT: ilgari bu so'rov korxona filtrisiz edi va
+    `.first()` butun tizimdagi BIRINCHI faol davrni qaytarardi. Natijada
+    (a) A korxona B ning davrini ko'rar/o'zgartira olardi, (b) B da faol
+    davr bo'lsa A umuman yangi davr ocha olmasdi. Endi har bir korxona
+    o'z davrida, mustaqil ishlaydi."""
     from models import GiftPeriod
-    return db.query(GiftPeriod).filter(GiftPeriod.is_active == True).first()
+    q = db.query(GiftPeriod).filter(GiftPeriod.is_active == True)
+    if company_id is not None:
+        q = q.filter(GiftPeriod.company_id == company_id)
+    return q.first()
 
 
 def get_gift_period_participant_ids(db: Session, period_id: int) -> set:
+    # ESLATMA: bu yerda alohida korxona filtri SHART EMAS — `period_id`
+    # allaqachon tenant-tekshirilgan davrdan keladi, ishtirokchilar esa
+    # o'sha davrga bog'langan.
     """Bo'sh to'plam qaytarsa — demak BARCHA faol ustalar ishtirok etadi
     (standart holat, ustalar aniq tanlanmagan)."""
     from models import GiftPeriodParticipant
@@ -7275,20 +7353,31 @@ def get_gift_period_participant_ids(db: Session, period_id: int) -> set:
 
 
 def _gift_period_eligible_masters(db: Session, period) -> list:
-    """Davrda ishtirok etadigan FAOL ustalar ro'yxatini (Master obyektlari) qaytaradi."""
+    """Davrda ishtirok etadigan FAOL ustalar ro'yxatini (Master obyektlari) qaytaradi.
+
+    M5 — TENANT: "barcha faol ustalar" rejimi endi FAQAT davrning O'Z
+    korxonasi ustalarini oladi. Ilgari B korxonaning ustasi A ning
+    davrida avtomatik ishtirok etardi (jonli sinovda tasdiqlangan)."""
     participant_ids = get_gift_period_participant_ids(db, period.id)
     q = db.query(Master).filter(Master.is_active == True)
+    _pcid = getattr(period, "company_id", None)
+    if _pcid is not None:
+        q = q.filter(Master.company_id == _pcid)
     if participant_ids:
         q = q.filter(Master.id.in_(participant_ids))
     return q.order_by(Master.name).all()
 
 
-def master_in_active_gift_period(db: Session, master_id: int) -> bool:
+def master_in_active_gift_period(db: Session, master_id: int,
+                                 company_id: int = None) -> bool:
     """Berilgan usta joriy faol davrda ishtirok etadimi (davr umuman
     faol bo'lmasa ham, yoki ishtirokchi sifatida tanlanmagan bo'lsa ham
     — False)."""
-    period = get_active_gift_period(db)
+    period = get_active_gift_period(db, company_id)
     if not period:
+        return False
+    # M5: usta davrning o'z korxonasidan bo'lishi shart.
+    if not get_master(db, master_id, getattr(period, "company_id", None)):
         return False
     participant_ids = get_gift_period_participant_ids(db, period.id)
     if not participant_ids:
@@ -7296,14 +7385,15 @@ def master_in_active_gift_period(db: Session, master_id: int) -> bool:
     return master_id in participant_ids
 
 
-def open_gift_period(db: Session, tiers: list, master_ids: list = None, performed_by: str = None) -> dict:
+def open_gift_period(db: Session, tiers: list, master_ids: list = None, performed_by: str = None,
+                    company_id: int = None) -> dict:
     """Yangi sovg'a davrini ochadi. `tiers` — [{"gift_name": str,
     "threshold_amount": float}, ...], kamida bitta. Har bosqichning
     threshold_amount'i — RESET'dan keyingi YANGI savdo summasi (jami emas).
     `master_ids` — ixtiyoriy: bo'sh/berilmagan bo'lsa, BARCHA faol ustalar
     ishtirok etadi (standart); ro'yxat berilsa, FAQAT o'sha ustalar."""
     from models import GiftPeriod, GiftPeriodTier, GiftPeriodParticipant
-    if get_active_gift_period(db):
+    if get_active_gift_period(db, company_id):
         return {"success": False, "message": "Allaqachon faol sovg'a davri bor — avval uni yoping"}
     clean_tiers = []
     for t in (tiers or []):
@@ -7314,30 +7404,41 @@ def open_gift_period(db: Session, tiers: list, master_ids: list = None, performe
     if not clean_tiers:
         return {"success": False, "message": "Kamida bitta to'g'ri bosqich (nomi va musbat summasi bilan) kiriting"}
     clean_tiers.sort(key=lambda x: x[1])
-    period = GiftPeriod(is_active=True, created_by=performed_by)
+    # M5: davr ANIQ joriy korxonaga tegishli bo'ladi (ilgari company_id
+    # berilmagani uchun yozuv bazadagi vaqtinchalik DEFAULT 1 ga tushardi).
+    period = GiftPeriod(company_id=company_id, is_active=True, created_by=performed_by)
     db.add(period)
     db.flush()
     for i, (name, amt) in enumerate(clean_tiers):
         db.add(GiftPeriodTier(period_id=period.id, gift_name=name, threshold_amount=amt, sort_order=i))
     for mid in (master_ids or []):
         try:
-            db.add(GiftPeriodParticipant(period_id=period.id, master_id=int(mid)))
+            mid = int(mid)
         except (TypeError, ValueError):
             continue
+        # M5: faqat SHU korxonaning ustasi ishtirokchi bo'la oladi.
+        if company_id is not None and not get_master(db, mid, company_id):
+            continue
+        db.add(GiftPeriodParticipant(period_id=period.id, master_id=mid))
     db.commit()
     db.refresh(period)
     return {"success": True, "period_id": period.id}
 
 
-def _gift_period_sales_since(db: Session, master_id: int, start_dt, end_dt) -> float:
+def _gift_period_sales_since(db: Session, master_id: int, start_dt, end_dt,
+                             company_id: int = None) -> float:
     """(start_dt < vaqt <= end_dt] oralig'idagi ustaning umumiy savdo
     summasi — buyurtmalar (Order.total_amount) VA to'g'ridan-to'g'ri tayyor
     mahsulot sotuvlari (FinishedProductSale.total_amount) qo'shilib."""
     from models import Order, OrderStatus, FinishedProductSale
+    # M5 — TENANT: savdo yig'indisiga faqat SHU korxonaning buyurtma va
+    # sotuvlari kiradi.
     q1 = db.query(Order).filter(
         Order.master_id == master_id, Order.status == OrderStatus.READY,
         Order.completed_at > start_dt,
     )
+    if company_id is not None:
+        q1 = q1.filter(Order.company_id == company_id)
     if end_dt:
         q1 = q1.filter(Order.completed_at <= end_dt)
     total = sum(float(o.total_amount or 0) for o in q1.all())
@@ -7346,13 +7447,16 @@ def _gift_period_sales_since(db: Session, master_id: int, start_dt, end_dt) -> f
         FinishedProductSale.master_id == master_id,
         FinishedProductSale.sold_at > start_dt,
     )
+    if company_id is not None:
+        q2 = q2.filter(FinishedProductSale.company_id == company_id)
     if end_dt:
         q2 = q2.filter(FinishedProductSale.sold_at <= end_dt)
     total += sum(float(s.total_amount or 0) for s in q2.all())
     return total
 
 
-def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt) -> float:
+def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt,
+                              company_id: int = None) -> float:
     """Xuddi yuqoridagi kabi, lekin SAVDO emas, FOYDA — davr yopilganda
     keshbekka aylantirish uchun ishlatiladi."""
     import services
@@ -7362,6 +7466,8 @@ def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt) -> 
         Order.master_id == master_id, Order.status == OrderStatus.READY,
         Order.completed_at > start_dt, Order.completed_at <= end_dt,
     )
+    if company_id is not None:      # M5
+        q1 = q1.filter(Order.company_id == company_id)
     for o in q1.all():
         try:
             total += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
@@ -7371,6 +7477,8 @@ def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt) -> 
         FinishedProductSale.master_id == master_id,
         FinishedProductSale.sold_at > start_dt, FinishedProductSale.sold_at <= end_dt,
     )
+    if company_id is not None:      # M5
+        q2 = q2.filter(FinishedProductSale.company_id == company_id)
     for s in q2.all():
         total += float(s.total_amount or 0) - float(s.cost_amount or 0)
     return total
@@ -7388,16 +7496,18 @@ def _master_gift_period_checkpoint(db: Session, master_id: int, period) -> datet
     return last.redeemed_at if last else period.started_at
 
 
-def get_master_gift_period_progress(db: Session, master_id: int) -> dict:
+def get_master_gift_period_progress(db: Session, master_id: int,
+                                   company_id: int = None) -> dict:
     """Faol davr bo'yicha — ustaning joriy (oxirgi reset'dan keyingi)
     savdosi, barcha bosqichlar va ENG YUQORI qaysi biriga 'tayyor' ekani.
     Agar davr faol bo'lsa-yu, bu usta unda ISHTIROK ETMASA — 'active: False'
     qaytariladi (usta uchun davr umuman ko'rinmasligi kerak)."""
-    period = get_active_gift_period(db)
-    if not period or not master_in_active_gift_period(db, master_id):
+    period = get_active_gift_period(db, company_id)
+    if not period or not master_in_active_gift_period(db, master_id, company_id):
         return {"active": False}
+    _cid = getattr(period, "company_id", None)
     checkpoint = _master_gift_period_checkpoint(db, master_id, period)
-    sales = _gift_period_sales_since(db, master_id, checkpoint, None)
+    sales = _gift_period_sales_since(db, master_id, checkpoint, None, company_id=_cid)
     tiers = sorted(period.tiers, key=lambda t: t.threshold_amount)
     result_tiers = []
     highest_ready = None
@@ -7417,13 +7527,16 @@ def get_master_gift_period_progress(db: Session, master_id: int) -> dict:
     }
 
 
-def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold_amount: float) -> dict:
+def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold_amount: float,
+                           company_id: int = None) -> dict:
     """Faol davrdagi bir bosqichning nomi/summasini o'zgartiradi. Bu —
     ALLAQACHON berilgan sovg'alar tarixiga (MasterGiftPeriodRedemption)
     ta'sir qilmaydi, chunki tarix o'z nusxasini (gift_name, sales_amount)
     alohida saqlaydi."""
     from models import GiftPeriodTier
-    period = get_active_gift_period(db)
+    # M5: davr joriy korxonanikidan olinadi — bosqich esa SHU davrga
+    # tegishli bo'lishi shart, ya'ni begona `tier_id` topilmaydi.
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
     tier = db.query(GiftPeriodTier).filter(
@@ -7441,24 +7554,26 @@ def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold
     return {"success": True}
 
 
-def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed_by: str = None) -> dict:
+def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed_by: str = None,
+                           company_id: int = None) -> dict:
     """Bir bosqichni ustaga 'berildi' deb belgilaydi. Muvaffaqiyatli
     bo'lsa, ustaning hisoblagichi shu paytdan RESET bo'ladi (checkpoint
     funksiyasi keyingi so'rovda avtomatik shu yozuvni topadi)."""
     from models import GiftPeriodTier, Master, MasterGiftPeriodRedemption
-    period = get_active_gift_period(db)
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
+    _cid = getattr(period, "company_id", None)
     tier = db.query(GiftPeriodTier).filter(
         GiftPeriodTier.id == tier_id, GiftPeriodTier.period_id == period.id
     ).first()
     if not tier:
         return {"success": False, "message": "Bosqich topilmadi"}
-    master = db.query(Master).filter(Master.id == master_id).first()
+    master = get_master(db, master_id, _cid)    # M5: faqat shu korxona ustasi
     if not master:
         return {"success": False, "message": "Usta topilmadi"}
     checkpoint = _master_gift_period_checkpoint(db, master_id, period)
-    sales = _gift_period_sales_since(db, master_id, checkpoint, None)
+    sales = _gift_period_sales_since(db, master_id, checkpoint, None, company_id=_cid)
     if sales < float(tier.threshold_amount) - 0.01:
         return {"success": False,
                 "message": f"Usta hali bu bosqichga yetmagan (kerak: {tier.threshold_amount:,.0f}, mavjud: {sales:,.0f})"}
@@ -7470,18 +7585,19 @@ def redeem_gift_period_tier(db: Session, master_id: int, tier_id: int, performed
     return {"success": True}
 
 
-def get_gift_period_overview(db: Session) -> dict:
+def get_gift_period_overview(db: Session, company_id: int = None) -> dict:
     """Admin panel uchun — faol davr, uning bosqichlari, va har bir
     ISHTIROKCHI ustaning joriy holati (savdosi, tayyor bo'lsa qaysi bosqichga)."""
-    period = get_active_gift_period(db)
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"active": False}
+    _cid = getattr(period, "company_id", None)
     masters = _gift_period_eligible_masters(db, period)
     participant_ids = get_gift_period_participant_ids(db, period.id)
     rows = []
     pending = []
     for m in masters:
-        prog = get_master_gift_period_progress(db, m.id)
+        prog = get_master_gift_period_progress(db, m.id, company_id=_cid)
         row = {
             "master_id": m.id, "master_name": m.name,
             "current_sales": prog["current_sales"], "tiers": prog["tiers"],
@@ -7501,7 +7617,8 @@ def get_gift_period_overview(db: Session) -> dict:
     }
 
 
-def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: str = None) -> dict:
+def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: str = None,
+                                    company_id: int = None) -> dict:
     """2026-09-16 (foydalanuvchi so'rovi bo'yicha): davr ANIQ ustalar
     ro'yxati bilan (hammasi emas) ochilgan bo'lsa, keyinroq ishga
     qabul qilingan/faollashtirilgan yangi ustani davrni TO'XTATMASDAN
@@ -7516,10 +7633,11 @@ def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: 
     — yangi usta ALLAQACHON avtomatik ishtirok etadi (dinamik so'rov
     orqali), shunchaki shu haqda xabar qaytariladi.
     """
-    period = get_active_gift_period(db)
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
-    master = db.query(Master).filter(Master.id == master_id).first()
+    # M5: faqat davrning O'Z korxonasidagi usta qo'shilishi mumkin.
+    master = get_master(db, master_id, getattr(period, "company_id", None))
     if not master:
         return {"success": False, "message": "Usta topilmadi"}
     if not master.is_active:
@@ -7544,7 +7662,8 @@ def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: 
             "message": f"{master.name} davrga qo'shildi — bu daqiqadan boshlab uning savdosi hisoblana boshlaydi."}
 
 
-def close_gift_period(db: Session, performed_by: str = None, force: bool = False) -> dict:
+def close_gift_period(db: Session, performed_by: str = None, force: bool = False,
+                     company_id: int = None) -> dict:
     """Faol davrni yopadi. Agar biror usta biror bosqichga 'tayyor' bo'lib,
     hali 'Berildi' deb belgilanmagan bo'lsa va force=False bo'lsa — YOPMAY,
     ogohlantirish qaytaradi (aks holda uning haqli sovg'asi bekorga
@@ -7552,11 +7671,12 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
     ustaning checkpoint'dan keyingi qoldiq savdosi FOYDA orqali (KPI% ×)
     avtomatik keshbek hisobiga o'tkaziladi."""
     from models import MasterGiftPeriodRedemption
-    period = get_active_gift_period(db)
+    period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
+    _cid = getattr(period, "company_id", None)
 
-    overview = get_gift_period_overview(db)
+    overview = get_gift_period_overview(db, company_id=_cid)
     if overview["pending_master_names"] and not force:
         return {
             "success": False,
@@ -7568,10 +7688,10 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
     masters = _gift_period_eligible_masters(db, period)
     for m in masters:
         checkpoint = _master_gift_period_checkpoint(db, m.id, period)
-        sales = _gift_period_sales_since(db, m.id, checkpoint, now)
+        sales = _gift_period_sales_since(db, m.id, checkpoint, now, company_id=_cid)
         if sales <= 0.01:
             continue
-        profit = _gift_period_profit_since(db, m.id, checkpoint, now)
+        profit = _gift_period_profit_since(db, m.id, checkpoint, now, company_id=_cid)
         cashback_amount = profit * float(m.kpi_percent or 0) / 100
         db.add(MasterGiftPeriodRedemption(
             period_id=period.id, master_id=m.id, tier_id=None,
@@ -7584,7 +7704,8 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
     return {"success": True}
 
 
-def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
+def get_master_yearly_cashback(db: Session, master_id: int, year: int,
+                              company_id: int = None) -> dict:
     """'Bonuslarim' (bot) uchun — yillik keshbek hisoboti. Har qanday
     sovg'a davri (o'tgan yoki joriy) davomida bo'lgan buyurtmalar/sotuvlar
     bu yerdan CHIQARIB TASHLANADI (ular sovg'aga ketgan yoki hali
@@ -7594,10 +7715,19 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
     from sqlalchemy import extract
     from models import Order, OrderStatus, FinishedProductSale, GiftPeriod, MasterGiftPeriodRedemption, Master
 
-    master = db.query(Master).filter(Master.id == master_id).first()
-    kpi_pct = float(master.kpi_percent or 0) if master else 0.0
+    # M5 (2026-09-18) — TENANT: usta, davrlar, buyurtmalar, sotuvlar va
+    # o'tkazmalar — hammasi SHU korxona ichidan.
+    master = get_master(db, master_id, company_id)
+    if not master:
+        return {"yearly_profit": 0.0, "kpi_percent": 0.0, "jami_bonus": 0.0,
+                "orders": [], "gift_period_conversion": 0.0}
+    kpi_pct = float(master.kpi_percent or 0)
+    cid = company_id if company_id is not None else getattr(master, "company_id", None)
 
-    periods = db.query(GiftPeriod).all()
+    _pq = db.query(GiftPeriod)
+    if cid is not None:
+        _pq = _pq.filter(GiftPeriod.company_id == cid)
+    periods = _pq.all()
 
     def _in_any_period(dt):
         if not dt:
@@ -7608,10 +7738,13 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
                 return True
         return False
 
-    orders = db.query(Order).filter(
+    _oq = db.query(Order).filter(
         Order.master_id == master_id, Order.status == OrderStatus.READY,
         extract('year', Order.completed_at) == year,
-    ).order_by(Order.completed_at.desc()).all()
+    )
+    if cid is not None:
+        _oq = _oq.filter(Order.company_id == cid)
+    orders = _oq.order_by(Order.completed_at.desc()).all()
 
     yearly_profit = 0.0
     buyurtmalar = []
@@ -7626,10 +7759,13 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
         yearly_profit += foyda
         buyurtmalar.append((o.order_number, foyda))
 
-    fp_sales = db.query(FinishedProductSale).filter(
+    _sq = db.query(FinishedProductSale).filter(
         FinishedProductSale.master_id == master_id,
         extract('year', FinishedProductSale.sold_at) == year,
-    ).all()
+    )
+    if cid is not None:
+        _sq = _sq.filter(FinishedProductSale.company_id == cid)
+    fp_sales = _sq.all()
     for s in fp_sales:
         if _in_any_period(s.sold_at):
             continue
@@ -7637,11 +7773,17 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int) -> dict:
 
     jami_bonus = yearly_profit * kpi_pct / 100
 
-    conversions = db.query(MasterGiftPeriodRedemption).filter(
+    _cq = db.query(MasterGiftPeriodRedemption).filter(
         MasterGiftPeriodRedemption.master_id == master_id,
         MasterGiftPeriodRedemption.kind == "cashback_conversion",
         extract('year', MasterGiftPeriodRedemption.redeemed_at) == year,
-    ).all()
+    )
+    if cid is not None:
+        # MasterGiftPeriodRedemption'da company_id ustuni yo'q — tenant
+        # otasi (GiftPeriod) orqali cheklanadi.
+        _cq = _cq.join(GiftPeriod, GiftPeriod.id == MasterGiftPeriodRedemption.period_id
+                       ).filter(GiftPeriod.company_id == cid)
+    conversions = _cq.all()
     conversion_total = sum(float(c.profit_amount or 0) for c in conversions)
     jami_bonus += conversion_total
 

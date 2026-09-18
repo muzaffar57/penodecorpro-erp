@@ -135,7 +135,10 @@ def _master_bot_keyboard(db, master=None) -> dict:
     sovg'a davri BOR va shu usta o'sha davrda ISHTIROK ETSA ko'rinadi
     (2026-09-12; ustalar tanlab olinishi qo'shildi 2026-09-12 kech)."""
     try:
-        show_gifts_btn = bool(master) and crud.master_in_active_gift_period(db, master.id)
+        # M5: davr/ishtirok ustaning O'Z korxonasi ichida tekshiriladi.
+        # (Telegram orqali topish usuli o'zgartirilmadi — F19.)
+        show_gifts_btn = bool(master) and crud.master_in_active_gift_period(
+            db, master.id, company_id=getattr(master, "company_id", None))
     except Exception:
         show_gifts_btn = False
     if show_gifts_btn:
@@ -953,7 +956,7 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
     """O'chirilgan buyurtma, loyiha va xodimlar — inson xatosidan himoya uchun tiklash imkoni."""
     deleted_orders = crud.get_deleted_orders(db, company_id=auth.company_id_of(current_user))
     deleted_projects = crud.get_deleted_projects(db, company_id=auth.company_id_of(current_user))
-    deleted_employees = crud.get_deleted_employees(db)
+    deleted_employees = crud.get_deleted_employees(db, company_id=auth.company_id_of(current_user))
     activity_log = crud.get_activity_log(db, limit=50)
     return templates.TemplateResponse(request, "trash.html", {
         "deleted_orders": deleted_orders, "deleted_projects": deleted_projects,
@@ -1085,7 +1088,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    stats = services.get_dashboard_stats(db)
+    stats = services.get_dashboard_stats(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "dashboard.html", {"stats": stats, "current_user": current_user, "active_page": "dashboard"})
 
 
@@ -1201,7 +1204,7 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
     for o in orders:
         o.deadline_urgency = crud.get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered)
     projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
-    masters = crud.get_masters(db, only_active=True)
+    masters = crud.get_masters(db, only_active=True, company_id=auth.company_id_of(current_user))
     recipes = crud.get_recipes(db, company_id=auth.company_id_of(current_user))
     penoplasts = services.get_penoplast_list(db)
     default_p = services.get_default_penoplast(db)
@@ -1257,7 +1260,7 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
 
 @app.post("/api/masters", response_model=schemas.MasterRead)
 def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    new_master = crud.create_master(db, master)
+    new_master = crud.create_master(db, master, company_id=auth.company_id_of(current_user))
     tg_id = getattr(master, 'telegram_id', None)
     if tg_id and str(tg_id).strip().lstrip('-').isdigit():
         msg = (
@@ -1286,8 +1289,8 @@ def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db
 
 @app.delete("/api/masters/{master_id}/delete")
 def api_delete_master_permanent(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    from models import Master
-    master = db.query(Master).filter(Master.id == master_id).first()
+    # M5: usta FAQAT joriy korxonadan (aks holda 404).
+    master = auth.master_of_company(db, master_id, auth.company_id_of(current_user))
     if not master:
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     db.delete(master)
@@ -1297,12 +1300,14 @@ def api_delete_master_permanent(master_id: int, db: Session = Depends(get_db), c
 
 @app.get("/api/masters", response_model=List[schemas.MasterRead])
 def api_get_masters(only_active: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.get_masters(db, only_active=only_active)
+    return crud.get_masters(db, only_active=only_active,
+                           company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/masters/{master_id}", response_model=schemas.MasterRead)
 def api_update_master(master_id: int, data: schemas.MasterUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    updated = crud.update_master(db, master_id, data)
+    updated = crud.update_master(db, master_id, data,
+                                company_id=auth.company_id_of(current_user))
     if not updated:
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     return updated
@@ -1310,7 +1315,7 @@ def api_update_master(master_id: int, data: schemas.MasterUpdate, db: Session = 
 
 @app.delete("/api/masters/{master_id}")
 def api_delete_master(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    if not crud.delete_master(db, master_id):
+    if not crud.delete_master(db, master_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     return {"status": "ok"}
 
@@ -1690,7 +1695,8 @@ def api_backfill_compensation_history(db: Session = Depends(get_db), current_use
     """Bir martalik migratsiya — tarix yozuvi hali yo'q eski hodimlar
     uchun boshlang'ich to'lov tarixini yaratadi. Xavfsiz — bir necha marta
     bossa ham, allaqachon tarixi bor hodimlarga qayta tegilmaydi."""
-    return crud.backfill_employee_compensation_history(db)
+    return crud.backfill_employee_compensation_history(
+        db, company_id=auth.company_id_of(current_user))
 
 
 @app.delete("/api/employees/{emp_id}")
@@ -1835,12 +1841,13 @@ def api_hodim_advance_request(amount: float = Form(...), requested_date: str = F
 
 @app.get("/api/admin/pending-advance-requests")
 def api_pending_advance_requests(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return crud.get_pending_advance_requests(db)
+    return crud.get_pending_advance_requests(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/admin/advance-requests/{request_id}/confirm")
 def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username)
+    result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username,
+                                         company_id=auth.company_id_of(current_user))
     if not result:
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
     return result
@@ -1848,7 +1855,8 @@ def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), 
 
 @app.post("/api/admin/advance-requests/{request_id}/reject")
 def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    if not crud.reject_advance_request(db, request_id, current_user.full_name or current_user.username):
+    if not crud.reject_advance_request(db, request_id, current_user.full_name or current_user.username,
+                                      company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
     return {"status": "ok"}
 
@@ -1859,7 +1867,8 @@ def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), c
 
 @app.put("/api/masters/{master_id}/kpi")
 def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    m = crud.update_master_kpi(db, master_id, data.kpi_percent)
+    m = crud.update_master_kpi(db, master_id, data.kpi_percent,
+                               company_id=auth.company_id_of(current_user))
     if not m:
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     return {"status": "ok", "kpi_percent": m.kpi_percent}
@@ -1885,7 +1894,8 @@ def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_
 def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
                             db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     y = year or datetime.now().year
-    return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive)
+    return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive,
+                                      company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/masters/{master_id}/kpi-detail")
@@ -1893,19 +1903,21 @@ def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     from datetime import datetime
     y = year or datetime.now().year
-    return crud.get_master_kpi_detail(db, master_id, y)
+    return crud.get_master_kpi_detail(db, master_id, y,
+                                     company_id=auth.company_id_of(current_user))
 
 
 # ── "Sovg'a davri" (2026-09-12, savdo-summasi asosidagi, davriy) ──────
 @app.get("/api/gift-period")
 def api_get_gift_period(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return crud.get_gift_period_overview(db)
+    return crud.get_gift_period_overview(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/gift-period/open")
 def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
-    result = crud.open_gift_period(db, data.get("tiers") or [], master_ids=data.get("master_ids"), performed_by=who)
+    result = crud.open_gift_period(db, data.get("tiers") or [], master_ids=data.get("master_ids"),
+                                  performed_by=who, company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
@@ -1913,7 +1925,8 @@ def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user
 
 @app.put("/api/gift-period/tier/{tier_id}")
 def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    result = crud.update_gift_period_tier(db, tier_id, data.get("gift_name"), data.get("threshold_amount"))
+    result = crud.update_gift_period_tier(db, tier_id, data.get("gift_name"), data.get("threshold_amount"),
+                                         company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
@@ -1924,7 +1937,8 @@ def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), cur
     """2026-09-16: davrni to'xtatmasdan, yangi/faollashtirilgan ustani
     aniq-ishtirokchi ro'yxatiga qo'shish uchun."""
     who = current_user.full_name or current_user.username
-    result = crud.add_master_to_active_gift_period(db, data.get("master_id"), performed_by=who)
+    result = crud.add_master_to_active_gift_period(db, data.get("master_id"), performed_by=who,
+                                                  company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
@@ -1934,7 +1948,8 @@ def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), cur
 def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
     force = bool((data or {}).get("force"))
-    result = crud.close_gift_period(db, performed_by=who, force=force)
+    result = crud.close_gift_period(db, performed_by=who, force=force,
+                                   company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -1943,7 +1958,8 @@ def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(g
 @app.post("/api/gift-period/redeem/{master_id}/{tier_id}")
 def api_redeem_gift_period_tier(master_id: int, tier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
-    result = crud.redeem_gift_period_tier(db, master_id, tier_id, performed_by=who)
+    result = crud.redeem_gift_period_tier(db, master_id, tier_id, performed_by=who,
+                                         company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
@@ -2926,7 +2942,7 @@ def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db
 
 @app.get("/api/dashboard/stats")
 def api_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_dashboard_stats(db)
+    return services.get_dashboard_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/today")
@@ -2936,7 +2952,7 @@ def api_dashboard_today(db: Session = Depends(get_db), current_user=Depends(auth
 
 @app.get("/api/dashboard/charts")
 def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_chart_data(db)
+    return services.get_chart_data(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/warnings/low-stock")
@@ -3171,12 +3187,18 @@ def api_obligations_timeline(category: str, year: int, month: int, db: Session =
 
 @app.get("/api/obligations/employee/{employee_id}/timeline")
 def api_employee_obligation_timeline(employee_id: int, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # M5: xodim FAQAT joriy korxonadan (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     return services.get_employee_payment_timeline(db, employee_id, year, month)
 
 
 @app.post("/api/obligations/employee/{employee_id}/close")
 def api_close_employee_debt(employee_id: int, year: int, month: int, amount: float,
                               db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M5: xodim FAQAT joriy korxonadan (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
     return services.close_employee_debt(db, employee_id, year, month, amount, paid_by=who)
 
@@ -3184,7 +3206,7 @@ def api_close_employee_debt(employee_id: int, year: int, month: int, amount: flo
 @app.get("/api/finance/cash-balance")
 def api_get_cash_balance(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Kassa balansi — kompaniyada hozir haqiqatda qancha naqd pul bor."""
-    return services.get_cash_balance(db)
+    return services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/cash-transactions")
@@ -3208,7 +3230,7 @@ def api_record_cash_transaction(category: str = Form(...), amount: float = Form(
         raise HTTPException(status_code=400, detail="Noto'g'ri kategoriya")
     who = current_user.full_name or current_user.username
     tx = crud.record_cash_transaction(db, category, amount, notes=notes, performed_by=who)
-    balance = services.get_cash_balance(db)
+    balance = services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
     return {"status": "ok", "transaction_id": tx.id, "new_balance": balance["balance"]}
 
 
@@ -3617,7 +3639,7 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
     default_p = services.get_default_penoplast(db)
     recipes = crud.get_recipes(db, company_id=_cid)
     stats = crud.get_finished_stats(db, company_id=_cid)
-    masters = crud.get_masters(db, only_active=True)
+    masters = crud.get_masters(db, only_active=True, company_id=_cid)
     return templates.TemplateResponse(request, "finished.html", {
         "items": items, "penoplasts": penoplasts,
         "default_penoplast_id": default_p.id if default_p else None,
@@ -4586,7 +4608,9 @@ async def telegram_webhook(request: Request):
                 # davrlaridagi buyurtmalar bu yerdan chiqarib tashlanadi —
                 # crud.get_master_yearly_cashback() ichida hisobga olinadi.
                 current_year = datetime.now().year
-                info = crud.get_master_yearly_cashback(db, master.id, current_year)
+                info = crud.get_master_yearly_cashback(
+                    db, master.id, current_year,
+                    company_id=getattr(master, "company_id", None))
                 reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
