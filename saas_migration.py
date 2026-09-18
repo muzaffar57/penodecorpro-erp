@@ -252,6 +252,14 @@ def create_test_tenant(engine, parol: str = "") -> dict:
         qatorlar qo'shadi, hammasi ZZZB_ prefiksi bilan.
       * Bitta tranzaksiya — yarim holatda qolmaydi.
       * Idempotent: ikkinchi marta bosilsa, mavjudini qaytaradi.
+
+    NIMA UCHUN ORM, XOM SQL EMAS (2026-09-18, jonli sinovda topilgan):
+      modellardagi ko'p ustunda standart qiymat FAQAT Python tomonida turadi
+      (masalan `cashback_percent = Column(Float, default=0.0)`). Xom SQL
+      INSERT ularni chetlab o'tadi, ustun NULL bo'lib qoladi va keyin API
+      javobida Pydantic "float kerak, None keldi" deb 500 qaytaradi —
+      `/api/masters` aynan shu sababdan yiqilgan edi. ORM bu standartlarni
+      o'zi qo'yadi, ustiga ustak models.py'dagi tenant himoyasi ham ishlaydi.
     """
     hisobot = {"nomi": "Sinov tenanti (Korxona B)", "amallar": [],
                "natija": "", "xato": None,
@@ -271,28 +279,25 @@ def create_test_tenant(engine, parol: str = "") -> dict:
             raise _MigrationStop(
                 "Bu vosita FAQAT sinov muhitida ishlaydi. Hozirgi muhit sinov emas.")
 
-        # 0) KETMA-KETLIKNI (sequence) TUZATISH — real xato, 2026-09-18
-        # `companies` dagi 1-korxona main.py'da ANIQ ID bilan
-        # (`Company(id=1, ...)`) yaratilgan. Postgres bunday holatda
-        # ketma-ketlikni oldinga surmaydi — u hamon 1 ni qaytaradi.
-        # Natijada HAR QANDAY yangi korxona qo'shish "duplicate key ...
-        # companies_pkey" xatosi bilan yiqiladi. Ya'ni bu faqat sinov
-        # vositasining emas, KELAJAKDAGI HAR BIR MIJOZNI qo'shishning
-        # to'sig'i. Quyidagi setval buni tuzatadi: ketma-ketlikni mavjud
-        # eng katta id ga surib qo'yadi. Ma'lumotga tegmaydi, idempotent.
+        # B0) KETMA-KETLIKNI (sequence) TUZATISH — real xato, 2026-09-18.
+        # `companies` dagi 1-korxona main.py'da ANIQ ID bilan yaratilgan;
+        # Postgres bunday holatda ketma-ketlikni surmaydi va u hamon 1 ni
+        # qaytaradi. Natijada HAR QANDAY yangi korxona qo'shish "duplicate
+        # key ... companies_pkey" bilan yiqiladi — ya'ni bu faqat sinov
+        # vositasining emas, kelajakdagi har bir mijozni qo'shishning to'sig'i.
         try:
             maxid = conn.execute(text(
                 f"SELECT COALESCE(MAX(id), 0) FROM {REF_TABLE}")).scalar()
-            yangi = conn.execute(text(
+            yangi_val = conn.execute(text(
                 f"SELECT setval(pg_get_serial_sequence('{REF_TABLE}','id'), "
                 f"GREATEST(:m, 1))"), {"m": maxid}).scalar()
             amal("B0", "TUZATILDI",
-                 f"companies ketma-ketligi {yangi} ga surildi "
+                 f"companies ketma-ketligi {yangi_val} ga surildi "
                  f"(eng katta mavjud id={maxid}). Ma'lumotga tegilmadi.")
         except Exception as e:
             amal("B0", "TEKSHIRIB BO'LMADI", str(e)[:120])
 
-        # 1) Korxona
+        # B1) Korxona
         row = conn.execute(text(f"SELECT id FROM {REF_TABLE} WHERE name = :n"),
                            {"n": TEST_TENANT_NOM}).first()
         if row:
@@ -301,63 +306,64 @@ def create_test_tenant(engine, parol: str = "") -> dict:
         else:
             cid = conn.execute(text(
                 f"INSERT INTO {REF_TABLE} (name, allow_negative_stock, created_at) "
-                f"VALUES (:n, false, now()) RETURNING id"), {"n": TEST_TENANT_NOM}).scalar()
+                f"VALUES (:n, false, now()) RETURNING id"),
+                {"n": TEST_TENANT_NOM}).scalar()
             amal("B1", "YARATILDI", f"Korxona B id={cid}")
 
-        def qosh(jadval, ustunlar: dict, topish_sharti: str, params: dict):
-            """Yo'q bo'lsa qo'shadi, bor bo'lsa mavjudini qaytaradi."""
-            r = conn.execute(text(f"SELECT id FROM {jadval} WHERE {topish_sharti}"),
-                             params).first()
-            if r:
-                amal(jadval, "ALLAQACHON BOR", f"id={r[0]}")
-                return r[0]
-            ustunlar = dict(ustunlar, company_id=cid)
-            cols = ", ".join(ustunlar)
-            vals = ", ".join(f":{k}" for k in ustunlar)
-            new_id = conn.execute(text(
-                f"INSERT INTO {jadval} ({cols}) VALUES ({vals}) RETURNING id"),
-                ustunlar).scalar()
-            amal(jadval, "YARATILDI", f"id={new_id}")
-            return new_id
-
+        # ORM sessiyasi — XUDDI SHU tranzaksiya ustida
+        from sqlalchemy.orm import Session as _S
+        import models as _m
+        import production_models as _pm
+        sess = _S(bind=conn)
         P = TEST_PREFIX
-        sup_id = qosh("suppliers", {"name": P + "Taminotchi"},
-                      "company_id = :c AND name = :n", {"c": cid, "n": P + "Taminotchi"})
-        inv_id = qosh("inventory", {"item_name": P + "Material", "unit": "kg",
-                                    "stock_quantity": 100, "price_per_unit": 5000,
-                                    "category": "Boshqa"},
-                      "company_id = :c AND item_name = :n", {"c": cid, "n": P + "Material"})
-        rec_id = qosh("recipes", {"name": P + "Retsept"},
-                      "company_id = :c AND name = :n", {"c": cid, "n": P + "Retsept"})
-        mas_id = qosh("masters", {"name": P + "Usta", "phone": "+998900000901",
-                                  "is_active": True},
-                      "company_id = :c AND phone = :p", {"c": cid, "p": "+998900000901"})
-        emp_id = qosh("employees", {"name": P + "Hodim", "phone": "+998900000902",
-                                    "pay_type": "FIXED", "is_active": True},
-                      "company_id = :c AND phone = :p", {"c": cid, "p": "+998900000902"})
-        prj_id = qosh("projects", {"project_number": P + "PRJ-001",
-                                   "project_name": P + "Loyiha", "client_name": P + "Mijoz",
-                                   "status": "ACTIVE"},
-                      "company_id = :c AND project_number = :n",
-                      {"c": cid, "n": P + "PRJ-001"})
-        ord_id = qosh("orders", {"order_number": P + "ORD-001", "project_id": prj_id,
-                                 "order_type": "PRODUCT", "status": "IN_PROGRESS",
-                                 "payment_status": "UNPAID"},
-                      "company_id = :c AND order_number = :n",
-                      {"c": cid, "n": P + "ORD-001"})
-        oi_id = qosh("order_items", {"order_id": ord_id, "name": P + "Detal",
-                                     "category": "profil", "quantity": 1,
-                                     "unit_price": 1000, "total_price": 1000},
-                     "company_id = :c AND name = :n", {"c": cid, "n": P + "Detal"})
-        fp_id = qosh("finished_products", {"name": P + "Mahsulot", "quantity": 5,
-                                           "unit": "dona", "from_order_id": ord_id,
-                                           "source": "PRODUCED",
-                                           "production_status": "READY"},
-                     "company_id = :c AND name = :n", {"c": cid, "n": P + "Mahsulot"})
-        pt_id = qosh("product_types", {"name": P + "Mahsulot turi", "unit": "kg",
-                                       "input_template": "QUANTITY_ONLY",
-                                       "pricing_formula": "UNIT_BASED", "is_active": True},
-                     "company_id = :c AND name = :n", {"c": cid, "n": P + "Mahsulot turi"})
+
+        def qosh(jadval, cls, maydonlar: dict, topish: dict):
+            mavjud = sess.query(cls).filter_by(company_id=cid, **topish).first()
+            if mavjud:
+                amal(jadval, "ALLAQACHON BOR", f"id={mavjud.id}")
+                return mavjud.id
+            obj = cls(company_id=cid, **maydonlar)
+            sess.add(obj)
+            sess.flush()
+            amal(jadval, "YARATILDI", f"id={obj.id}")
+            return obj.id
+
+        sup_id = qosh("suppliers", _m.Supplier, {"name": P + "Taminotchi"},
+                      {"name": P + "Taminotchi"})
+        inv_id = qosh("inventory", _m.Inventory,
+                      {"item_name": P + "Material", "unit": "kg",
+                       "stock_quantity": 100, "price_per_unit": 5000},
+                      {"item_name": P + "Material"})
+        rec_id = qosh("recipes", _m.Recipe, {"name": P + "Retsept"},
+                      {"name": P + "Retsept"})
+        mas_id = qosh("masters", _m.Master,
+                      {"name": P + "Usta", "phone": "+998900000901"},
+                      {"phone": "+998900000901"})
+        emp_id = qosh("employees", _m.Employee,
+                      {"name": P + "Hodim", "phone": "+998900000902",
+                       "pay_type": _m.PayType.FIXED},
+                      {"phone": "+998900000902"})
+        prj_id = qosh("projects", _m.Project,
+                      {"project_number": P + "PRJ-001", "project_name": P + "Loyiha",
+                       "client_name": P + "Mijoz"},
+                      {"project_number": P + "PRJ-001"})
+        ord_id = qosh("orders", _m.Order,
+                      {"order_number": P + "ORD-001", "project_id": prj_id,
+                       "order_type": _m.OrderType.PRODUCT},
+                      {"order_number": P + "ORD-001"})
+        oi_id = qosh("order_items", _m.OrderItem,
+                     {"order_id": ord_id, "name": P + "Detal", "category": "profil",
+                      "quantity": 1, "unit_price": 1000, "total_price": 1000},
+                     {"name": P + "Detal"})
+        fp_id = qosh("finished_products", _m.FinishedProduct,
+                     {"name": P + "Mahsulot", "quantity": 5, "unit": "dona",
+                      "from_order_id": ord_id},
+                     {"name": P + "Mahsulot"})
+        pt_id = qosh("product_types", _pm.ProductType,
+                     {"name": P + "Mahsulot turi", "unit": "kg",
+                      "input_template": _pm.InputTemplate.QUANTITY_ONLY.value,
+                      "pricing_formula": _pm.PricingFormula.UNIT_BASED.value},
+                     {"name": P + "Mahsulot turi"})
 
         hisobot["sinov_idlari"] = {
             "company_id": cid, "supplier": sup_id, "inventory": inv_id,
@@ -366,25 +372,61 @@ def create_test_tenant(engine, parol: str = "") -> dict:
             "finished_product": fp_id, "product_type": pt_id,
         }
 
-        # 2) Foydalanuvchi — parolni FOYDALANUVCHI kiritadi
+        # B8) Foydalanuvchi — parolni FOYDALANUVCHI kiritadi
         uname = P.lower() + "admin"
-        r = conn.execute(text("SELECT id FROM users WHERE username = :u"),
-                         {"u": uname}).first()
-        if r:
-            amal("users", "ALLAQACHON BOR", f"{uname} (id={r[0]})")
+        mavjud_u = sess.query(_m.User).filter_by(username=uname).first()
+        if mavjud_u:
+            amal("users", "ALLAQACHON BOR", f"{uname} (id={mavjud_u.id})")
         elif parol:
             import bcrypt as _bc
             h = _bc.hashpw(parol.encode(), _bc.gensalt()).decode()
-            uid = conn.execute(text(
-                "INSERT INTO users (company_id, username, password_hash, role, "
-                "full_name, is_active, created_at) VALUES "
-                "(:c, :u, :h, 'ADMIN', :f, true, now()) RETURNING id"),
-                {"c": cid, "u": uname, "h": h, "f": "Korxona B admin"}).scalar()
-            amal("users", "YARATILDI", f"{uname} (id={uid})")
+            u = _m.User(company_id=cid, username=uname, password_hash=h,
+                        role=_m.UserRole.ADMIN, full_name="Korxona B admin",
+                        is_active=True)
+            sess.add(u)
+            sess.flush()
+            amal("users", "YARATILDI", f"{uname} (id={u.id})")
         else:
             amal("users", "O'TKAZIB YUBORILDI",
-                 "parol kiritilmagan — user yaratilmadi")
+                 "parol kiritilmagan — foydalanuvchi yaratilmadi")
 
+        # B9) Eski (xom SQL bilan yaratilgan) qatorlardagi NULL larni model
+        # standartlari bilan to'ldiramiz. FAQAT shu sinov tenantiga tegadi.
+        def _standart(d):
+            """Ustunning Python-tomonidagi standart qiymatini hisoblaydi.
+            Ikki xil bo'ladi: oddiy qiymat (default=0.0) va FUNKSIYA
+            (default=datetime.utcnow) — ikkalasi ham qo'llab-quvvatlanadi."""
+            if d is None:
+                return None, False
+            if getattr(d, "is_scalar", False):
+                return d.arg, True
+            if getattr(d, "is_callable", False):
+                try:
+                    return d.arg(None), True
+                except Exception:
+                    return None, False
+            return None, False
+
+        tuzatildi = []
+        for cls in [_m.Supplier, _m.Inventory, _m.Recipe, _m.Master, _m.Employee,
+                    _m.Project, _m.Order, _m.OrderItem, _m.FinishedProduct, _m.User]:
+            for obj in sess.query(cls).filter_by(company_id=cid).all():
+                for col in cls.__table__.columns:
+                    if getattr(obj, col.name, None) is not None:
+                        continue
+                    qiymat, bor = _standart(col.default)
+                    if bor:
+                        setattr(obj, col.name, qiymat)
+                        tuzatildi.append(f"{cls.__tablename__}.{col.name}")
+        if tuzatildi:
+            sess.flush()
+            amal("B9", "TUZATILDI",
+                 f"{len(tuzatildi)} ta bo'sh ustun model standarti bilan "
+                 f"to'ldirildi: {', '.join(sorted(set(tuzatildi))[:8])}")
+        else:
+            amal("B9", "KERAK EMAS", "bo'sh ustun topilmadi")
+
+        sess.flush()
         trans.commit()
         hisobot["natija"] = (
             f"✅ Sinov tenanti tayyor (company_id={cid}). Mavjud ma'lumotga "
