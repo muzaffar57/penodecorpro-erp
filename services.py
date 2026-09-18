@@ -1491,10 +1491,25 @@ def get_low_stock_warnings(db: Session) -> List[Dict]:
 # ============================================================
 
 def get_chart_data(db: Session, company_id: int = None) -> Dict:
-    """Dashboard grafiklari uchun ma'lumotlar."""
+    """Dashboard grafiklari uchun ma'lumotlar.
+
+    2026-09-18 — TENANT (M7 validatsiyasida B sessiyasidan topilgan
+    UCHINCHI haqiqiy sizish): bu funksiyadagi 9 ta so'rov korxona
+    filtrisiz edi. Natijada B korxonaning boshqaruv panelida A ning
+    moliyaviy ko'rsatkichlari ko'rinardi — `total_revenue 53 757 000`,
+    `total_budget`/`total_debt 120 417 000`, oylik daromad 54 569 000 —
+    holbuki B da buyurtma summasi ham, sotuv ham 0 edi.
+
+    `company_id` FAQAT autentifikatsiya kontekstidan keladi
+    (`main.py` → `auth.company_id_of(current_user)`); mijoz so'rovidan
+    olinmaydi va hech qanday standart 1-korxonaga tushmaydi."""
     from models import Project, Master, Order, OrderItem, OrderStatus, FinishedProductSale, FinishedProduct
     from sqlalchemy import func
     from datetime import datetime, timedelta
+
+    def _oc(q):
+        """Order bo'yicha so'rovni joriy korxona bilan cheklaydi."""
+        return q.filter(Order.company_id == company_id) if company_id is not None else q
 
     # --- 1. Oxirgi 6 oylik buyurtmalar soni ---
     months_data = []
@@ -1509,29 +1524,29 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
             next_month = month_start.replace(day=28) + timedelta(days=4)
             month_end = next_month.replace(day=1)
 
-        count = db.query(Order).filter(
+        count = _oc(db.query(Order).filter(
             Order.created_at >= month_start,
             Order.created_at < month_end,
             Order.is_deleted.isnot(True)
-        ).count()
+        )).count()
 
         # MUHIM: daromad (revenue) — moliyaviy tarix, o'chirilgan
         # buyurtmalar ham hisobga olinishi kerak (faqat "count" — necha ta
         # buyurtma yaratilgani — o'zgarishsiz qoladi, chunki bu shunchaki son).
-        revenue = float(db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
+        revenue = float(_oc(db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
             Order.created_at >= month_start,
             Order.created_at < month_end,
             Order.status == OrderStatus.READY
-        ).scalar() or 0)
+        )).scalar() or 0)
 
         # Gips va Penoplast (va boshqa) — detal darajasida, ulush bo'yicha
         # ajratilgan holda (har bir detalning umumiy summadagi ulushi ×
         # kelishilgan summa — chegirma/qo'shimchani ham to'g'ri hisobga oladi)
-        month_orders = db.query(Order).filter(
+        month_orders = _oc(db.query(Order).filter(
             Order.created_at >= month_start,
             Order.created_at < month_end,
             Order.status == OrderStatus.READY
-        ).all()
+        )).all()
         gips_rev = 0.0
         peno_rev = 0.0
         for o in month_orders:
@@ -1548,12 +1563,18 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
 
         # Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
         # sotilganlar — avval bu grafikda hisobga olinmasdi.
-        month_fp_sales = db.query(FinishedProductSale).outerjoin(
+        _mfsq = db.query(FinishedProductSale).outerjoin(
             FinishedProduct, FinishedProductSale.finished_product_id == FinishedProduct.id
         ).filter(
             FinishedProductSale.sold_at >= month_start,
             FinishedProductSale.sold_at < month_end
-        ).all()
+        )
+        if company_id is not None:
+            # OUTER JOIN bo'lgani uchun cheklash SOTUVNING O'ZIDAGI
+            # company_id ustuni bo'yicha qo'yiladi — mahsuloti o'chirilgan
+            # (finished_product_id = NULL) sotuvlar ham to'g'ri qoladi.
+            _mfsq = _mfsq.filter(FinishedProductSale.company_id == company_id)
+        month_fp_sales = _mfsq.all()
         for s in month_fp_sales:
             s_total = float(s.total_amount or 0)
             revenue += s_total
@@ -1575,7 +1596,7 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
     statuses = {}
     for status in OrderStatus:
         try:
-            cnt = db.query(Order).filter(Order.status == status, Order.is_deleted.isnot(True)).count()
+            cnt = _oc(db.query(Order).filter(Order.status == status, Order.is_deleted.isnot(True))).count()
             statuses[status.value] = cnt
         except Exception:
             # Enum bazada hali yo'q bo'lsa
@@ -1591,14 +1612,14 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
     for m in masters:
         # MUHIM: bu ham daromad (moliyaviy) hisob-kitobi — o'chirilgan
         # buyurtmalar ham hisobga olinadi.
-        total = db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
+        total = _oc(db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
             Order.master_id == m.id,
             Order.status == OrderStatus.READY
-        ).scalar() or 0
-        order_count = db.query(Order).filter(
+        )).scalar() or 0
+        order_count = _oc(db.query(Order).filter(
             Order.master_id == m.id,
             Order.is_deleted.isnot(True)
-        ).count()
+        )).count()
         master_kpi.append({
             "name": m.name,
             "total": float(total),
@@ -1617,18 +1638,18 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
     # bo'lishi mumkin edi. Endi hammasi bir xil, izchil manbadan.
     from models import Payment
 
-    total_revenue = db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
+    total_revenue = _oc(db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
         Order.status == OrderStatus.READY
-    ).scalar() or 0
+    )).scalar() or 0
 
     from sqlalchemy import or_
-    total_budget = db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
+    total_budget = _oc(db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
         Order.status != OrderStatus.DRAFT,
         or_(
             Order.is_deleted.isnot(True),  # faol buyurtmalar — doim hisoblanadi
             Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED])  # o'chirilgan, lekin YAKUNLANGAN edi — moliyaviy tarix sifatida saqlanadi
         )
-    ).scalar() or 0
+    )).scalar() or 0
 
     # M6 — TENANT: to'lovlar ota (buyurtma) orqali cheklanadi.
     _tpq = db.query(func.sum(Payment.amount))
