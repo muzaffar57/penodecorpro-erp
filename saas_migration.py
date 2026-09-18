@@ -550,7 +550,7 @@ def _status_block(st: dict) -> str:
         ("Indeks", _pill(st.get("indeks_bor"))),
         ("Tashqi kalit (FK)", _pill(bool(st.get("tashqi_kalit")))),
         ("Jami foydalanuvchi", _esc(st.get("jami_foydalanuvchi"))),
-        ("company_id bo'sh (NULL)", _esc(st.get("company_id bosh (NULL)"))),
+        ("company_id bo'sh (NULL)", _esc(st.get("company_id_bosh (NULL)"))),
         ("Yetim company_id", _esc(st.get("yetim_company_id"))),
         ("1-QADAM TUGALLANGANMI",
          _pill(st.get("1_QADAM_TUGALLANGAN"), "HA", "HALI YO'Q")),
@@ -669,6 +669,33 @@ try:
     # JSON emas, login sahifasini ko'radi).
     router = APIRouter(tags=["saas-migration"])
 
+    # ---------- MUHIM: so'rovning O'Z tranzaksiyasini yopish ----------
+
+    def _release(db) -> object:
+        """Migratsiyadan OLDIN, shu so'rovning o'z sessiyasini yopadi.
+
+        2026-09-18, real hodisadan keyin qo'shildi. Muammo: FastAPI har bir
+        so'rovda `get_db` orqali sessiya ochadi, `auth.admin_only` esa shu
+        sessiya bilan `users` jadvalidan foydalanuvchini o'qiydi. SQLAlchemy
+        bu tranzaksiyani so'rov TUGAGUNCHA ochiq ushlab turadi ("idle in
+        transaction") — va u `users` ustida ACCESS SHARE qulfini tutadi.
+
+        `ALTER TABLE users` esa ACCESS EXCLUSIVE qulf so'raydi. Natijada
+        migratsiya O'ZINING so'rovi tufayli qulfni HECH QACHON ololmasdi —
+        o'z-o'zini bloklash. Undan ham yomoni: navbatda turgan eksklyuziv
+        so'rov undan keyingi barcha oddiy so'rovlarni ham to'sib qo'yardi,
+        ya'ni butun sayt javob bermay qolardi.
+
+        Yechim: auth tekshiruvi tugagach, tranzaksiyani darhol yopamiz.
+        Hech narsa yo'qolmaydi — u faqat O'QIGAN edi."""
+        engine = db.get_bind()
+        try:
+            db.rollback()   # ochiq tranzaksiyani yopadi -> qulf bo'shaydi
+            db.close()      # ulanishni hovuzga qaytaradi
+        except Exception:
+            pass
+        return engine
+
     # ---------- JSON API (dastur/skript uchun) ----------
 
     @router.get("/api/saas-migration/status")
@@ -689,19 +716,19 @@ try:
                 detail=(f"Haqiqiy migratsiya uchun confirm={CONFIRM_PHRASE} "
                         f"parametri shart. Hech narsa bajarilmadi."),
             )
-        return run_step1(db.get_bind(), dry_run=dry_run)
+        return run_step1(_release(db), dry_run=dry_run)
 
     # ---------- HTML sahifa (JavaScriptsiz) ----------
 
     @router.get("/saas-migratsiya", response_class=HTMLResponse)
     def panel_page(db: Session = Depends(get_db),
                    current_user=Depends(auth.admin_only)):
-        return HTMLResponse(_render_page(status_report(db.get_bind())))
+        return HTMLResponse(_render_page(status_report(_release(db))))
 
     @router.post("/saas-migratsiya/sinov", response_class=HTMLResponse)
     def panel_dry_run(db: Session = Depends(get_db),
                       current_user=Depends(auth.admin_only)):
-        engine = db.get_bind()
+        engine = _release(db)
         rep = run_step1(engine, dry_run=True)
         return HTMLResponse(_render_page(status_report(engine), rep))
 
@@ -709,7 +736,7 @@ try:
     def panel_apply(confirm: str = Form(""),
                     db: Session = Depends(get_db),
                     current_user=Depends(auth.admin_only)):
-        engine = db.get_bind()
+        engine = _release(db)
         if confirm.strip() != CONFIRM_PHRASE:
             return HTMLResponse(_render_page(
                 status_report(engine), None,
