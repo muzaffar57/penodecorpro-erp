@@ -969,9 +969,14 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Tizim jurnallari — kirish tarixi va backend xatoliklari (faqat admin)."""
-    login_history = crud.get_login_history(db, limit=100)
-    error_logs = crud.get_error_logs(db, limit=100)
-    activity_log = crud.get_activity_log(db, limit=100)
+    # M7: audit izi va kirish tarixi FAQAT joriy korxonaniki.
+    # ErrorLog'da `company_id` ustuni YO'Q — to'g'ri ajratish ALTER TABLE
+    # talab qiladi va M8 ga qoldirilgan; shu sababli u yerda foydalanuvchi
+    # nomi bo'yicha eng xavfsiz mavjud cheklash qo'llanadi.
+    _cid = auth.company_id_of(current_user)
+    login_history = crud.get_login_history(db, limit=100, company_id=_cid)
+    error_logs = crud.get_error_logs(db, limit=100, company_id=_cid)
+    activity_log = crud.get_activity_log(db, limit=100, company_id=_cid)
     return templates.TemplateResponse(request, "logs.html", {
         "login_history": login_history, "error_logs": error_logs, "activity_log": activity_log,
         "current_user": current_user, "active_page": "logs"
@@ -983,8 +988,9 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
     """Tizimdagi barcha ENUM ustunlarini tekshiradi (faqat o'qish, hech
     narsani o'zgartirmaydi) — noto'g'ri (masalan katta/kichik harf mos
     kelmaydigan) qiymatlarni oldindan aniqlash uchun."""
-    result = crud.check_system_health(db)
-    result["financial"] = crud.check_financial_consistency(db)
+    _cid = auth.company_id_of(current_user)
+    result = crud.check_system_health(db, company_id=_cid)
+    result["financial"] = crud.check_financial_consistency(db, company_id=_cid)
     return result
 
 
@@ -3781,7 +3787,8 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
     import json
     from fastapi.responses import Response
 
-    backup_data = crud.export_full_backup(db)
+    # M7: tenant admin FAQAT o'z korxonasining zahira nusxasini oladi.
+    backup_data = crud.export_full_backup(db, company_id=auth.company_id_of(current_user))
     filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d_%H-%M')}.json"
     content = json.dumps(backup_data, ensure_ascii=False, indent=2)
     return Response(
@@ -3808,8 +3815,13 @@ def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
                    "DIQQAT: bu amal QAYTARIB BO'LMAYDI!"
         )
     keep_id = current_user.id if keep_only_self else None
-    result = crud.factory_reset_all_data(db, keep_only_user_id=keep_id)
-    msg = "Barcha ma'lumot tozalandi (faqat siz qoldingiz)" if keep_only_self else "Barcha ma'lumot tozalandi (Foydalanuvchilardan tashqari)"
+    # M7: reset FAQAT joriy korxona doirasida — boshqa korxona ma'lumoti
+    # o'chmaydi.
+    result = crud.factory_reset_all_data(db, keep_only_user_id=keep_id,
+                                         company_id=auth.company_id_of(current_user))
+    msg = ("Korxonangizning barcha ma'lumoti tozalandi (faqat siz qoldingiz)"
+           if keep_only_self else
+           "Korxonangizning barcha ma'lumoti tozalandi (Foydalanuvchilardan tashqari)")
     return {"status": "ok", "message": msg, "deleted": result}
 
 
@@ -4715,6 +4727,12 @@ def run_daily_backup():
 
     db = SessionLocal()
     try:
+        # M7: kunlik zaxira — PLATFORMA darajasidagi tizim amali (hech qanday
+        # tenant so'rovi orqali emas, rejalashtiruvchi tomonidan ishga
+        # tushadi) va u platforma egasining o'z Telegram chatiga ketadi,
+        # shuning uchun ATAYLAB butun bazani qamraydi. Tenantga hech narsa
+        # oshkor qilinmaydi. Parol/PIN hashlari esa endi `export_full_backup`
+        # ning o'zida umuman chiqarilmaydi.
         backup_data = crud.export_full_backup(db)
         content = _json_mod.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
         filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d')}.json"

@@ -1312,7 +1312,8 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
     try:
         log_activity(
             db, "created", "order", db_order.id, db_order.order_number, performed_by,
-            new_value=f"Jami: {float(db_order.total_amount or 0):,.0f} so'm, {len(db_order.items)} ta detal".replace(',', ' ')
+            new_value=f"Jami: {float(db_order.total_amount or 0):,.0f} so'm, {len(db_order.items)} ta detal".replace(',', ' '),
+            company_id=getattr(db_order, 'company_id', None)
         )
     except Exception:
         pass
@@ -1892,13 +1893,20 @@ def set_setting(db: Session, key: str, value: str):
 
 def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
                   entity_label: str = None, performed_by: str = None,
-                  old_value: str = None, new_value: str = None):
+                  old_value: str = None, new_value: str = None,
+                  company_id: int = None):
     """Muhim amallarni audit uchun yozib boradi (o'chirish/tiklash/yaratish/
     tahrirlash). old_value/new_value — ixtiyoriy, qisqa tavsif (masalan
     "Jami: 850 000 so'm, 3 ta detal") — har bir maydonni emas, faqat
     tezda "nima o'zgargani"ni ko'rsatish uchun."""
     from models import ActivityLog
+    # M7 (2026-09-18) — TENANT: `ActivityLog`da company_id ustuni bor, lekin
+    # ota-FK yo'q va model `_TENANT_RULES` da emas — shuning uchun qiymat
+    # ANIQ berilmasa yozuv bazadagi vaqtinchalik DEFAULT 1 ga tushardi.
+    # Ya'ni B korxonaning audit izi A ning bazasiga yozilardi, B da esa
+    # audit izi umuman bo'lmasdi (lokal ikki korxonali sinovda tasdiqlangan).
     entry = ActivityLog(
+        company_id=company_id,
         action=action, entity_type=entity_type, entity_id=entity_id,
         entity_label=entity_label, performed_by=performed_by,
         old_value=old_value, new_value=new_value
@@ -1907,16 +1915,42 @@ def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
     db.commit()
 
 
-def get_activity_log(db: Session, limit: int = 100) -> List:
-    """So'nggi audit yozuvlari."""
+def get_activity_log(db: Session, limit: int = 100, company_id: int = None) -> List:
+    """So'nggi audit yozuvlari (M7 — tenant-safe)."""
     from models import ActivityLog
-    return db.query(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(limit).all()
+    q = db.query(ActivityLog)
+    if company_id is not None:
+        q = q.filter(ActivityLog.company_id == company_id)
+    return q.order_by(ActivityLog.created_at.desc()).limit(limit).all()
 
 
-def log_login_attempt(db: Session, username: str, success: bool, ip_address: str = None, user_agent: str = None):
-    """Tizimga kirish urinishini yozib boradi (muvaffaqiyatli yoki muvaffaqiyatsiz)."""
+def _company_of_username(db: Session, username: str):
+    """Login vaqtida korxonani SERVER tomonda aniqlaydi (M7).
+
+    `User.username` butun tizim bo'yicha YAGONA (`unique=True`), shuning
+    uchun foydalanuvchi nomidan korxona bir qiymatli aniqlanadi — mijoz
+    yuborgan hech qanday `company_id` ga ishonilmaydi. Nom topilmasa
+    (mavjud bo'lmagan hisobga urinish) None qaytadi."""
+    from models import User
+    if not username:
+        return None
+    u = db.query(User).filter(User.username == username).first()
+    return getattr(u, "company_id", None) if u else None
+
+
+def log_login_attempt(db: Session, username: str, success: bool, ip_address: str = None,
+                      user_agent: str = None, company_id: int = None):
+    """Tizimga kirish urinishini yozib boradi (muvaffaqiyatli yoki muvaffaqiyatsiz).
+
+    M7 — TENANT: korxona foydalanuvchi NOMIDAN aniqlanadi (yuqoridagi
+    `_company_of_username`). Nom noma'lum bo'lsa (mavjud bo'lmagan hisob)
+    yozuv korxonasiz qoladi — u hech bir tenantning ro'yxatida
+    ko'rinmaydi, faqat IP bo'yicha rate-limit uchun ishlatiladi."""
     from models import LoginHistory
-    entry = LoginHistory(username=username, success=success, ip_address=ip_address, user_agent=user_agent)
+    if company_id is None:
+        company_id = _company_of_username(db, username)
+    entry = LoginHistory(company_id=company_id, username=username, success=success,
+                         ip_address=ip_address, user_agent=user_agent)
     db.add(entry)
     db.commit()
 
@@ -1934,6 +1968,13 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
 
     cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
 
+    # M7 — TENANT: nom bo'yicha hisob (company_id, username) juftligi
+    # bo'yicha olinadi. Ilgari u global edi: bir korxonada `admin` nomiga
+    # 5 marta noto'g'ri urinilsa, BOSHQA korxonaning `admin`i ham bloklanardi
+    # (lokal sinovda tasdiqlangan — korxonalararo DoS).
+    # IP bo'yicha himoya ATAYLAB global qoladi: bitta IP dan turli
+    # korxonalarga urinish ham xuddi shunday hujum.
+    _uname_cid = _company_of_username(db, username)
     q = db.query(LoginHistory).filter(
         LoginHistory.success == False,
         LoginHistory.created_at >= cutoff
@@ -1941,7 +1982,10 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
     # Username BO'YICHA yoki IP BO'YICHA — ikkalasidan qay biri ko'proq
     # xavfli bo'lsa (masalan bitta IP'dan ko'p turli hisobga urinish, yoki
     # bitta hisobga turli joydan urinish) — shuni hisobga olamiz.
-    by_username = q.filter(LoginHistory.username == username).count()
+    _uq = q.filter(LoginHistory.username == username)
+    if _uname_cid is not None:
+        _uq = _uq.filter(LoginHistory.company_id == _uname_cid)
+    by_username = _uq.count()
     by_ip = q.filter(LoginHistory.ip_address == ip_address).count() if ip_address else 0
 
     attempts = max(by_username, by_ip)
@@ -1950,10 +1994,13 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
     return {"blocked": False, "retry_after_minutes": 0}
 
 
-def get_login_history(db: Session, limit: int = 100) -> List:
-    """So'nggi kirish urinishlari."""
+def get_login_history(db: Session, limit: int = 100, company_id: int = None) -> List:
+    """So'nggi kirish urinishlari (M7 — tenant-safe)."""
     from models import LoginHistory
-    return db.query(LoginHistory).order_by(LoginHistory.created_at.desc()).limit(limit).all()
+    q = db.query(LoginHistory)
+    if company_id is not None:
+        q = q.filter(LoginHistory.company_id == company_id)
+    return q.order_by(LoginHistory.created_at.desc()).limit(limit).all()
 
 
 def log_error(db: Session, error_message: str, stack_trace: str = None,
@@ -1979,13 +2026,35 @@ def log_error(db: Session, error_message: str, stack_trace: str = None,
     db.commit()
 
 
-def get_error_logs(db: Session, limit: int = 100) -> List:
-    """So'nggi backend xatoliklari."""
-    from models import ErrorLog
-    return db.query(ErrorLog).order_by(ErrorLog.created_at.desc()).limit(limit).all()
+def get_error_logs(db: Session, limit: int = 100, company_id: int = None) -> List:
+    """So'nggi backend xatoliklari.
+
+    M7 (2026-09-18) — TENANT, QISMAN YECHIM. `ErrorLog` jadvalida
+    `company_id` ustuni YO'Q, uni qo'shish esa ALTER TABLE (migratsiya)
+    talab qiladi — bu ataylab M8 ga qoldirilgan.
+
+    Migratsiyasiz mavjud yagona bog'lanish — `performed_by` (foydalanuvchi
+    nomi). `User.username` butun tizim bo'yicha yagona bo'lgani uchun
+    undan korxonani bir qiymatli aniqlash mumkin. Shuning uchun bu yerda
+    FAQAT shu korxona foydalanuvchilari nomidan yozilgan xatolar
+    qaytariladi.
+
+    CHEKLOV (ochiq aytilgan): `performed_by` bo'sh bo'lgan TIZIM xatolari
+    (fon vazifalari, autentifikatsiyadan oldingi xatolar) hech bir
+    korxonaga bog'lanmagani uchun bu ro'yxatga KIRMAYDI. To'liq yechim —
+    `error_logs.company_id` migratsiyasi, M8."""
+    from models import ErrorLog, User
+    q = db.query(ErrorLog)
+    if company_id is not None:
+        names = [u.username for u in
+                 db.query(User.username).filter(User.company_id == company_id).all()]
+        if not names:
+            return []
+        q = q.filter(ErrorLog.performed_by.in_(names))
+    return q.order_by(ErrorLog.created_at.desc()).limit(limit).all()
 
 
-def check_system_health(db: Session) -> dict:
+def check_system_health(db: Session, company_id: int = None) -> dict:
     """Tizimdagi barcha ENUM ustunlarini tekshiradi — bazada noto'g'ri
     (masalan kichik/katta harf mos kelmaydigan) qiymat bor-yo'qligini
     aniqlaydi. MUHIM: bu tekshiruv XOM SQL orqali ishlaydi (ORM emas) —
@@ -1998,32 +2067,50 @@ def check_system_health(db: Session) -> dict:
                          ReturnReason, PayType, AdvanceRequestStatus, StockSource,
                          ProductionStatus, PaymentType, PaymentMethod)
 
+    # M7 (2026-09-18) — TENANT: bu tekshiruv 12 ta jadvalni GLOBAL
+    # skanerlab, nomuvofiqlik topilsa boshqa korxonaning `id` va nomini
+    # (username, order_number, project_name, xodim/mahsulot nomi)
+    # qaytarardi. Ro'yxatdagi 4-element — shu jadvalda korxona ustuni
+    # bormi; hammasida `company_id` bor, shuning uchun so'rovga
+    # PARAMETRLANGAN `WHERE company_id = :cid` qo'shiladi (jadval va
+    # ustun nomlari — faqat quyidagi HARDCODED ro'yxatdan, foydalanuvchi
+    # kiritmasi SQLga umuman tushmaydi).
     # (jadval, ustun, tekshiriladigan Enum sinfi, o'qiladigan "nom" ustuni — id yoki boshqa identifikator)
+    # 5-element — korxona bo'yicha cheklash bo'lagi. Ustunning O'ZIDA
+    # `company_id` bo'lmagan ikki jadval (payments, advance_requests) ota
+    # jadval orqali cheklanadi. Barchasi HARDCODED; o'zgaruvchan yagona
+    # qiymat — parametrlangan `:cid`.
+    _DIRECT = " AND company_id = :cid"
+    _VIA_ORDER = " AND order_id IN (SELECT id FROM orders WHERE company_id = :cid)"
+    _VIA_EMP = " AND employee_id IN (SELECT id FROM employees WHERE company_id = :cid)"
     checks = [
-        ("users", "role", UserRole, "username"),
-        ("projects", "status", ProjectStatus, "project_name"),
-        ("orders", "order_type", OrderType, "order_number"),
-        ("orders", "status", OrderStatus, "order_number"),
-        ("orders", "payment_status", PaymentStatus, "order_number"),
-        ("return_items", "reason", ReturnReason, "item_name"),
-        ("employees", "pay_type", PayType, "name"),
-        ("advance_requests", "status", AdvanceRequestStatus, "id"),
-        ("finished_products", "source", StockSource, "name"),
-        ("finished_products", "production_status", ProductionStatus, "name"),
-        ("payments", "payment_type", PaymentType, "id"),
-        ("payments", "payment_method", PaymentMethod, "id"),
+        ("users", "role", UserRole, "username", _DIRECT),
+        ("projects", "status", ProjectStatus, "project_name", _DIRECT),
+        ("orders", "order_type", OrderType, "order_number", _DIRECT),
+        ("orders", "status", OrderStatus, "order_number", _DIRECT),
+        ("orders", "payment_status", PaymentStatus, "order_number", _DIRECT),
+        ("return_items", "reason", ReturnReason, "item_name", _DIRECT),
+        ("employees", "pay_type", PayType, "name", _DIRECT),
+        ("advance_requests", "status", AdvanceRequestStatus, "id", _VIA_EMP),
+        ("finished_products", "source", StockSource, "name", _DIRECT),
+        ("finished_products", "production_status", ProductionStatus, "name", _DIRECT),
+        ("payments", "payment_type", PaymentType, "id", _VIA_ORDER),
+        ("payments", "payment_method", PaymentMethod, "id", _VIA_ORDER),
     ]
 
     issues = []
     check_errors = []
-    for table, column, enum_cls, label_col in checks:
+    for table, column, enum_cls, label_col, tenant_clause in checks:
         valid_names = [m.name for m in enum_cls]
         placeholders = ", ".join(f"'{n}'" for n in valid_names)
         try:
+            _tenant_sql = tenant_clause if company_id is not None else ""
+            _params = {"cid": company_id} if company_id is not None else {}
             rows = db.execute(text(
                 f"SELECT id, {label_col}, {column} FROM {table} "
                 f"WHERE {column} IS NOT NULL AND {column} NOT IN ({placeholders})"
-            )).fetchall()
+                f"{_tenant_sql}"
+            ), _params).fetchall()
             for r in rows:
                 issues.append({
                     "table": table, "column": column, "id": r[0],
@@ -2045,7 +2132,7 @@ def check_system_health(db: Session) -> dict:
     }
 
 
-def check_financial_consistency(db: Session) -> dict:
+def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     """Moliyaviy izchillik tekshiruvi — bazadagi hisob-kitoblar o'zaro
     to'g'ri qo'shilganmi, tekshiradi (masalan buyurtma summasi = detallar
     yig'indisimi, qarz = kelishilgan − to'langan). Bu, "Salomatlik"dagi
@@ -2057,7 +2144,17 @@ def check_financial_consistency(db: Session) -> dict:
     issues = []
 
     # 1) Buyurtma summasi = detallar (unit_price × quantity) yig'indisimi?
-    orders = db.query(Order).filter(Order.is_deleted.is_(False)).all()
+    # M7 (2026-09-18) — TENANT: bu tekshiruv butun bazani skanerlab,
+    # boshqa korxonaning buyurtma raqami/detal nomi/summasini qaytarardi
+    # (jonli sinovda A ning javobida "ZZZB_ORD-001" chiqqan). Endi barcha
+    # so'rovlar joriy korxona bilan cheklanadi.
+    def _oc(q):    # Order bo'yicha
+        return q.filter(Order.company_id == company_id) if company_id is not None else q
+
+    def _oic(q):   # OrderItem bo'yicha
+        return q.filter(OrderItem.company_id == company_id) if company_id is not None else q
+
+    orders = _oc(db.query(Order).filter(Order.is_deleted.is_(False))).all()
     for o in orders:
         items = db.query(OrderItem).filter(OrderItem.order_id == o.id).all()
         items_sum = sum(float(it.unit_price or 0) * float(it.quantity or 1) for it in items)
@@ -2088,7 +2185,10 @@ def check_financial_consistency(db: Session) -> dict:
             })
 
     # 3) Manfiy ombor qoldig'i bormi?
-    for inv in db.query(Inventory).filter(Inventory.stock_quantity < 0).all():
+    _invq = db.query(Inventory).filter(Inventory.stock_quantity < 0)
+    if company_id is not None:
+        _invq = _invq.filter(Inventory.company_id == company_id)
+    for inv in _invq.all():
         issues.append({
             "type": "negative_stock",
             "label": inv.item_name,
@@ -2097,7 +2197,11 @@ def check_financial_consistency(db: Session) -> dict:
         })
 
     # 4) Xarid: miqdor × narx = jami summami?
-    for p in db.query(InventoryPurchase).all():
+    _ipq = db.query(InventoryPurchase)
+    if company_id is not None:      # ota (material) orqali
+        _ipq = _ipq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+            Inventory.company_id == company_id)
+    for p in _ipq.all():
         expected = float(p.quantity or 0) * float(p.price_per_unit or 0)
         actual = float(p.total_amount or 0)
         diff = abs(expected - actual)
@@ -2112,7 +2216,7 @@ def check_financial_consistency(db: Session) -> dict:
     # 5) order_items notes'ida takroriy texnik belgi bormi? (masalan
     # 2026-08-17'da ORD-026-2'da topilgan [TERMO:...] ikki marta yozilish
     # holati kabi)
-    for it in db.query(OrderItem).all():
+    for it in _oic(db.query(OrderItem)).all():
         notes = it.notes or ""
         for marker in ["[TERMO:", "[GISHT:"]:
             if notes.count(marker) > 1:
@@ -2127,7 +2231,7 @@ def check_financial_consistency(db: Session) -> dict:
     # qarab TO'G'RI maydonni solishtiramiz — "profil" uchun "length",
     # qolganlari uchun "quantity")
     from models import DeliveryItem
-    for it in db.query(OrderItem).all():
+    for it in _oic(db.query(OrderItem)).all():
         cat = (it.category or '').lower()
         ordered = float(it.length or 0) if cat == 'profil' else float(it.quantity or 0)
         delivered = sum(float(di.quantity or 0) for di in
@@ -2144,7 +2248,7 @@ def check_financial_consistency(db: Session) -> dict:
     # ayirilmasdan qolib ketganini bildiradi — tayyor mahsulotdan
     # olinganlar bundan mustasno, ular allaqachon ishlab chiqarishda
     # ayirilgan)
-    for it in db.query(OrderItem).filter(OrderItem.category == 'termopanel').all():
+    for it in _oic(db.query(OrderItem).filter(OrderItem.category == 'termopanel')).all():
         if it.finished_product_id:
             continue
         if '[TERMO:' not in (it.notes or '') or 'bazalt_id=' not in (it.notes or ''):
@@ -2158,7 +2262,7 @@ def check_financial_consistency(db: Session) -> dict:
     # 8) Qoralama bo'lmagan buyurtmada, narxi "0" bo'lgan detal bormi?
     # (bu, narx kiritishni unutib qo'yganini bildirishi mumkin)
     from models import OrderStatus
-    for o in db.query(Order).filter(Order.is_deleted.is_(False), Order.status != OrderStatus.DRAFT).all():
+    for o in _oc(db.query(Order).filter(Order.is_deleted.is_(False), Order.status != OrderStatus.DRAFT)).all():
         for it in db.query(OrderItem).filter(OrderItem.order_id == o.id).all():
             if float(it.unit_price or 0) <= 0:
                 issues.append({
@@ -2169,8 +2273,12 @@ def check_financial_consistency(db: Session) -> dict:
                 })
 
     # 9) Egasiz to'lovlar (mavjud bo'lmagan buyurtmaga bog'langan)
-    order_ids_set = {o.id for o in db.query(Order.id).all()}
-    for p in db.query(Payment).all():
+    order_ids_set = {o.id for o in _oc(db.query(Order.id)).all()}
+    _payq = db.query(Payment)
+    if company_id is not None:      # ota (buyurtma) orqali
+        _payq = _payq.join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == company_id)
+    for p in _payq.all():
         if p.order_id and p.order_id not in order_ids_set:
             issues.append({
                 "type": "orphaned_payment",
@@ -2181,7 +2289,11 @@ def check_financial_consistency(db: Session) -> dict:
 
     # 10) Egasiz yetkazishlar (mavjud bo'lmagan buyurtmaga bog'langan)
     from models import Delivery
-    for d in db.query(Delivery).all():
+    _delq = db.query(Delivery)
+    if company_id is not None:      # ota (buyurtma) orqali
+        _delq = _delq.join(Order, Order.id == Delivery.order_id).filter(
+            Order.company_id == company_id)
+    for d in _delq.all():
         if d.order_id and d.order_id not in order_ids_set:
             issues.append({
                 "type": "orphaned_delivery",
@@ -2220,6 +2332,7 @@ def _auto_release_mrp_reservations(db: Session, order_item_ids, performed_by: st
         if fp.reserved_quantity:
             log_activity(db, "auto_release_reservation", "finished_product", fp.id,
                          entity_label=fp.name, performed_by=performed_by,
+                         company_id=getattr(fp, 'company_id', None),
                          old_value=f"band: {fp.reserved_quantity}",
                          new_value="band emas — bog'langan buyurtma/detal o'chirilgani uchun avtomatik ozod qilindi")
         fp.reserved_quantity = 0.0
@@ -2243,7 +2356,8 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         _auto_release_mrp_reservations(db, [i.id for i in db_order.items], performed_by)
         db_order.is_deleted = True
         db.commit()
-        log_activity(db, "deleted", "order", order_id, order_num, performed_by)
+        log_activity(db, "deleted", "order", order_id, order_num, performed_by,
+                     company_id=getattr(db_order, 'company_id', None))
     else:
         # MUHIM: "Ombor harakatlari jurnali" (InventoryMovement) — bu buyurtmaga
         # FK orqali bog'langan, lekin bu yozuvlar TARIXIY LOG bo'lgani uchun
@@ -2276,7 +2390,8 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         db.query(Payment).filter(Payment.order_id == order_id).delete()
         db.delete(db_order)
         db.commit()
-        log_activity(db, "deleted", "order", order_id, order_num, performed_by)
+        log_activity(db, "deleted", "order", order_id, order_num, performed_by,
+                     company_id=getattr(db_order, 'company_id', None))
     return True
 
 
@@ -2297,7 +2412,8 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
     db.query(FinishedProduct).filter(FinishedProduct.from_order_id == order_id).update({"from_order_id": None})
     db.delete(db_order)
     db.commit()
-    log_activity(db, "permanently_deleted", "order", order_id, order_num, performed_by)
+    log_activity(db, "permanently_deleted", "order", order_id, order_num, performed_by,
+                 company_id=getattr(db_order, 'company_id', None))
     return True
 
 
@@ -2388,7 +2504,8 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
 
     db_order.is_deleted = False
     db.commit()
-    log_activity(db, "restored", "order", order_id, db_order.order_number, performed_by)
+    log_activity(db, "restored", "order", order_id, db_order.order_number, performed_by,
+                 company_id=getattr(db_order, 'company_id', None))
     return True
 
 
@@ -2534,7 +2651,8 @@ def delete_project(db: Session, project_id: int, performed_by: str = None) -> bo
     label = f"{db_project.project_number} — {db_project.project_name}"
     db_project.is_deleted = True
     db.commit()
-    log_activity(db, "deleted", "project", project_id, label, performed_by)
+    log_activity(db, "deleted", "project", project_id, label, performed_by,
+                 company_id=getattr(db_project, 'company_id', None))
     return True
 
 
@@ -2552,7 +2670,8 @@ def permanent_delete_project(db: Session, project_id: int, performed_by: str = N
     label = f"{db_project.project_number} — {db_project.project_name}"
     db.delete(db_project)
     db.commit()
-    log_activity(db, "permanently_deleted", "project", project_id, label, performed_by)
+    log_activity(db, "permanently_deleted", "project", project_id, label, performed_by,
+                 company_id=getattr(db_project, 'company_id', None))
     return True, "ok"
 
 
@@ -2564,7 +2683,8 @@ def restore_project(db: Session, project_id: int, performed_by: str = None) -> b
     db_project.is_deleted = False
     db.commit()
     label = f"{db_project.project_number} — {db_project.project_name}"
-    log_activity(db, "restored", "project", project_id, label, performed_by)
+    log_activity(db, "restored", "project", project_id, label, performed_by,
+                 company_id=getattr(db_project, 'company_id', None))
     return True
 
 
@@ -2982,6 +3102,7 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None,
     )
     log_activity(
         db, "deleted", "payment", payment.id,
+        company_id=getattr(order, 'company_id', None),   # M7
         entity_label=f"Buyurtma {order_label}",
         performed_by=performed_by,
         new_value=detail
@@ -3220,7 +3341,8 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
     # AUDIT: ombordan xomashyo yechiladigan lahza — eng muhim voqealardan
     # biri, shuning uchun kim va qachon bosgani alohida qayd etiladi.
     try:
-        log_activity(db, "activated", "order", order.id, order.order_number, performed_by)
+        log_activity(db, "activated", "order", order.id, order.order_number, performed_by,
+                     company_id=getattr(order, 'company_id', None))
     except Exception:
         pass
 
@@ -3382,7 +3504,72 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
     }
 
 
-def export_full_backup(db: Session) -> dict:
+# ============================================================
+# M7 (2026-09-18) — TENANT-SCOPED BACKUP / RESET uchun umumiy xarita
+# ============================================================
+# Qaysi jadval qanday cheklanadi:
+#   • modelda `company_id` ustuni bor       → to'g'ridan-to'g'ri filtr
+#   • yo'q                                   → ota-zanjir orqali (quyida)
+#   • ota ham yo'q (global/tizim jadvali)     → tenant amaliga KIRMAYDI
+# Faqat repozitoriyadagi HAQIQIY model/ustun nomlari ishlatiladi.
+_TENANT_PARENTS = {
+    # bola model nomi        : (FK ustuni, ota model nomi)
+    "Payment":               ("order_id", "Order"),
+    "Delivery":              ("order_id", "Order"),
+    "OrderAttachment":       ("order_id", "Order"),
+    "OrderGipsAdditive":     ("order_id", "Order"),
+    "OrderItemSubDetail":    ("order_item_id", "OrderItem"),
+    "DeliveryItem":          ("delivery_id", "Delivery"),
+    "InventoryPurchase":     ("inventory_id", "Inventory"),
+    "RecipeIngredient":      ("recipe_id", "Recipe"),
+    "SupplierPayment":       ("supplier_id", "Supplier"),
+    "EmployeeAdvance":       ("employee_id", "Employee"),
+    "AdvanceRequest":        ("employee_id", "Employee"),
+    "EmployeeCompensationHistory": ("employee_id", "Employee"),
+    "EmployeeMonthlyAdjustment":   ("employee_id", "Employee"),
+    "GiftPeriodTier":        ("period_id", "GiftPeriod"),
+    "GiftPeriodParticipant": ("period_id", "GiftPeriod"),
+    "MasterGiftPeriodRedemption": ("period_id", "GiftPeriod"),
+    "MasterGiftRedemption":  ("master_id", "Master"),
+}
+
+# Tenant amallariga UMUMAN kirmaydigan jadvallar.
+#   user_sessions / employee_sessions — xom sessiya TOKENlari (2026-09-15)
+#   error_logs                        — modelda `company_id` ustuni YO'Q;
+#       to'g'ri ajratish ALTER TABLE talab qiladi → M8 ga qoldirilgan.
+_NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs"}
+
+# Zahira nusxaga HECH QACHON kiritilmaydigan ustunlar.
+_SECRET_COLUMNS = {"password_hash", "pin_hash"}
+
+
+def _tenant_filter(db: Session, model, query, company_id: int):
+    """So'rovni berilgan korxona bilan cheklaydi.
+    Qaytaradi: (cheklangan_query, True) yoki (None, False) — agar model
+    tenantga umuman bog'lanmasa."""
+    import models as _m
+    if company_id is None:
+        return query, True
+    if hasattr(model, "company_id"):
+        return query.filter(model.company_id == company_id), True
+    rule = _TENANT_PARENTS.get(model.__name__)
+    if not rule:
+        return None, False
+    fk, parent_name = rule
+    parent = getattr(_m, parent_name, None)
+    if parent is None:
+        return None, False
+    q = query.join(parent, parent.id == getattr(model, fk))
+    if hasattr(parent, "company_id"):
+        return q.filter(parent.company_id == company_id), True
+    # ota ham bevosita tenantga ega emas (masalan DeliveryItem → Delivery)
+    sub, ok = _tenant_filter(db, parent, db.query(parent.id), company_id)
+    if not ok:
+        return None, False
+    return query.filter(getattr(model, fk).in_(sub)), True
+
+
+def export_full_backup(db: Session, company_id: int = None) -> dict:
     """Butun bazaning TO'LIQ zaxira nusxasini (barcha jadvallar, sessiya
     jadvallaridan tashqari) JSON formatida qaytaradi.
 
@@ -3401,7 +3588,7 @@ def export_full_backup(db: Session) -> dict:
     import models as _models
 
     # Backupga umuman kiritilmaydigan jadvallar — sabab yuqorida yozilgan.
-    EXCLUDED_TABLES = {"user_sessions", "employee_sessions"}
+    EXCLUDED_TABLES = set(_NON_TENANT_TABLES)
 
     def serialize_value(v):
         if v is None:
@@ -3425,11 +3612,20 @@ def export_full_backup(db: Session) -> dict:
             all_models.append(obj)
 
     backup = {}
+    skipped = []
     for model in all_models:
         table_name = model.__tablename__
         mapper = sa_inspect(model)
-        columns = [c.key for c in mapper.columns]
-        rows = db.query(model).all()
+        # M7 — XAVFSIZLIK: parol/PIN hashlari zahira nusxaga HECH QACHON
+        # kirmaydi (ular tiklash uchun kerak emas; tiklashdan keyin
+        # baribir parol qayta belgilanadi).
+        columns = [c.key for c in mapper.columns if c.key not in _SECRET_COLUMNS]
+        q, ok = _tenant_filter(db, model, db.query(model), company_id)
+        if not ok:
+            # Tenantga bog'lanmagan jadval — korxona zahirasiga kiritilmaydi.
+            skipped.append(table_name)
+            continue
+        rows = q.all()
         backup[table_name] = [
             {col: serialize_value(getattr(row, col)) for col in columns}
             for row in rows
@@ -3437,11 +3633,14 @@ def export_full_backup(db: Session) -> dict:
 
     return {
         "backup_created_at": datetime.utcnow().isoformat(),
+        "company_id": company_id,
+        "skipped_tables": skipped,
         "tables": backup
     }
 
 
-def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
+def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
+                          company_id: int = None) -> dict:
     """DIQQAT: BU QAYTARIB BO'LMAYDIGAN AMAL!
     Foydalanuvchilar (User) dan TASHQARI — barcha ma'lumotni butunlay o'chiradi:
     buyurtmalar, ombor, retseptlar, ustalar, yetkazib beruvchilar, loyihalar,
@@ -3506,17 +3705,49 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     ]
 
 
+    # M7 (2026-09-18) — TENANT: bu amal butun bazani (BARCHA korxonani)
+    # o'chirardi. Endi `company_id` berilsa FAQAT shu korxonaning
+    # ma'lumoti tozalanadi; boshqa korxonalarga umuman tegilmaydi.
+    # Cheklash `_tenant_filter()` orqali — backup bilan AYNAN bir xil
+    # xarita, shuning uchun "backupda bor, resetda yo'q" nomuvofiqligi
+    # bo'lishi mumkin emas.
     counts = {}
+    skipped = []
     for model in tables_in_order:
-        n = db.query(model).delete(synchronize_session=False)
+        q, ok = _tenant_filter(db, model, db.query(model), company_id)
+        if not ok:
+            # Tenantga bog'lanmagan jadval (masalan error_logs) — korxona
+            # reseti unga TEGMAYDI.
+            skipped.append(model.__tablename__)
+            continue
+        if company_id is None:
+            n = db.query(model).delete(synchronize_session=False)
+        elif hasattr(model, "company_id"):
+            # Ustunning O'ZIDA korxona bor — to'g'ridan-to'g'ri (bu yo'l
+            # `id` ustuni bo'lmagan jadvallarni ham qamraydi, masalan
+            # CompanySetting: uning kaliti (company_id, key)).
+            n = db.query(model).filter(model.company_id == company_id).delete(
+                synchronize_session=False)
+        else:
+            # Ota orqali: avval ID lar yig'iladi, keyin o'chiriladi.
+            ids = [r[0] for r in q.with_entities(model.id).all()]
+            n = db.query(model).filter(model.id.in_(ids)).delete(
+                synchronize_session=False) if ids else 0
         counts[model.__tablename__] = n
+    if skipped:
+        counts["_skipped_tables"] = skipped
 
     if keep_only_user_id is not None:
         # Boshqa foydalanuvchilarning sessiyalarini avval tozalaymiz (FK xatosi bo'lmasligi uchun)
-        other_user_ids = [u.id for u in db.query(User.id).filter(User.id != keep_only_user_id).all()]
+        _uq = db.query(User.id).filter(User.id != keep_only_user_id)
+        if company_id is not None:      # M7: faqat SHU korxona hisoblari
+            _uq = _uq.filter(User.company_id == company_id)
+        other_user_ids = [u.id for u in _uq.all()]
         if other_user_ids:
             db.query(UserSession).filter(UserSession.user_id.in_(other_user_ids)).delete(synchronize_session=False)
-        n_users = db.query(User).filter(User.id != keep_only_user_id).delete(synchronize_session=False)
+            n_users = db.query(User).filter(User.id.in_(other_user_ids)).delete(synchronize_session=False)
+        else:
+            n_users = 0
         counts["users"] = n_users
 
     db.commit()
@@ -4075,7 +4306,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     try:
         _audit_after = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
         log_activity(db, "updated", "order", order.id, order.order_number, performed_by,
-                      old_value=_audit_before, new_value=_audit_after)
+                      old_value=_audit_before, new_value=_audit_after,
+                      company_id=getattr(order, 'company_id', None))
     except Exception:
         pass
 
@@ -4653,7 +4885,8 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
 
     try:
         log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
-                      new_value=f"{float(fp.quantity):g} {fp.unit} (Termopanel), tan narxi: {round(total_cost):,} so'm".replace(',', ' '))
+                      new_value=f"{float(fp.quantity):g} {fp.unit} (Termopanel), tan narxi: {round(total_cost):,} so'm".replace(',', ' '),
+                      company_id=getattr(fp, 'company_id', None))
     except Exception:
         pass
 
@@ -4699,6 +4932,7 @@ def release_finished_product_reservation(db: Session, fp_id: int, performed_by: 
     fp.reserved_for_order_item_id = None
     log_activity(db, "release_reservation", "finished_product", fp.id,
                  entity_label=fp.name, performed_by=performed_by,
+                 company_id=getattr(fp, 'company_id', None),
                  old_value=f"band: {old_reserved} (detal #{old_order_item_id})", new_value="band emas — umumiy sotuvda")
     db.commit()
     return {"success": True, "message": f"{fp.name} endi umumiy sotuv uchun ochiq"}
@@ -5391,7 +5625,8 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None,
     db.refresh(fp)
     try:
         log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
-                      new_value=f"{float(fp.quantity):g} {fp.unit} (Gips), tan narxi: {round(cost_price):,} so'm".replace(',', ' '))
+                      new_value=f"{float(fp.quantity):g} {fp.unit} (Gips), tan narxi: {round(cost_price):,} so'm".replace(',', ' '),
+                      company_id=getattr(fp, 'company_id', None))
     except Exception:
         pass
     return {"success": True, "finished_product_id": fp.id}
@@ -5557,7 +5792,8 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     # AUDIT: ishlab chiqarish qayd etiladi
     try:
         log_activity(db, "produced", "finished_product", fp.id, fp.name, created_by,
-                      new_value=f"{float(fp.quantity):g} {fp.unit}, tan narxi: {round(total_cost):,} so'm".replace(',', ' '))
+                      new_value=f"{float(fp.quantity):g} {fp.unit}, tan narxi: {round(total_cost):,} so'm".replace(',', ' '),
+                      company_id=getattr(fp, 'company_id', None))
     except Exception:
         pass
 
@@ -6137,7 +6373,8 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         db.refresh(fp)
         try:
             log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
-                          new_value=f"+{add_m2:g} m² qo'shildi (Termopanel), jami: {float(fp.quantity):g} {fp.unit}")
+                          new_value=f"+{add_m2:g} m² qo'shildi (Termopanel), jami: {float(fp.quantity):g} {fp.unit}",
+                          company_id=getattr(fp, 'company_id', None))
         except Exception:
             pass
         return {
@@ -6232,7 +6469,8 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         db.refresh(fp)
         try:
             log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
-                          new_value=f"+{add_qty:g} {fp.unit} qo'shildi (Gips), jami: {float(fp.quantity):g} {fp.unit}")
+                          new_value=f"+{add_qty:g} {fp.unit} qo'shildi (Gips), jami: {float(fp.quantity):g} {fp.unit}",
+                          company_id=getattr(fp, 'company_id', None))
         except Exception:
             pass
         return {
@@ -6339,7 +6577,8 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
 
     try:
         log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
-                      new_value=f"+{add_qty:g} {fp.unit} qo'shildi, jami: {float(fp.quantity):g} {fp.unit}")
+                      new_value=f"+{add_qty:g} {fp.unit} qo'shildi, jami: {float(fp.quantity):g} {fp.unit}",
+                      company_id=getattr(fp, 'company_id', None))
     except Exception:
         pass
 
@@ -7005,7 +7244,8 @@ def delete_employee(db: Session, emp_id: int, performed_by: str = None) -> bool:
         return False
     emp.is_deleted = True
     db.commit()
-    log_activity(db, "deleted", "employee", emp_id, emp.name, performed_by)
+    log_activity(db, "deleted", "employee", emp_id, emp.name, performed_by,
+                 company_id=getattr(emp, 'company_id', None))
     return True
 
 
@@ -7016,7 +7256,8 @@ def restore_employee(db: Session, emp_id: int, performed_by: str = None) -> bool
         return False
     emp.is_deleted = False
     db.commit()
-    log_activity(db, "restored", "employee", emp_id, emp.name, performed_by)
+    log_activity(db, "restored", "employee", emp_id, emp.name, performed_by,
+                 company_id=getattr(emp, 'company_id', None))
     return True
 
 
@@ -7028,12 +7269,14 @@ def permanent_delete_employee(db: Session, emp_id: int, performed_by: str = None
     if not emp:
         return False
     name = emp.name
+    _emp_cid = getattr(emp, "company_id", None)   # M7: o'chirishdan OLDIN saqlanadi
     from models import EmployeeSession, EmployeeAdvance
     db.query(EmployeeSession).filter(EmployeeSession.employee_id == emp_id).delete()
     db.query(EmployeeAdvance).filter(EmployeeAdvance.employee_id == emp_id).delete()
     db.delete(emp)
     db.commit()
-    log_activity(db, "permanently_deleted", "employee", emp_id, name, performed_by)
+    log_activity(db, "permanently_deleted", "employee", emp_id, name, performed_by,
+                 company_id=_emp_cid)
     return True
 
 
@@ -7731,6 +7974,7 @@ def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: 
 
     db.add(GiftPeriodParticipant(period_id=period.id, master_id=master_id))
     log_activity(db, "gift_period_add_master", "gift_period", period.id,
+                 company_id=getattr(period, 'company_id', None),
                  entity_label=master.name, performed_by=performed_by)
     db.commit()
     return {"success": True, "already_included": False, "all_masters_mode": False,
