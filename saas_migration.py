@@ -271,6 +271,27 @@ def create_test_tenant(engine, parol: str = "") -> dict:
             raise _MigrationStop(
                 "Bu vosita FAQAT sinov muhitida ishlaydi. Hozirgi muhit sinov emas.")
 
+        # 0) KETMA-KETLIKNI (sequence) TUZATISH — real xato, 2026-09-18
+        # `companies` dagi 1-korxona main.py'da ANIQ ID bilan
+        # (`Company(id=1, ...)`) yaratilgan. Postgres bunday holatda
+        # ketma-ketlikni oldinga surmaydi — u hamon 1 ni qaytaradi.
+        # Natijada HAR QANDAY yangi korxona qo'shish "duplicate key ...
+        # companies_pkey" xatosi bilan yiqiladi. Ya'ni bu faqat sinov
+        # vositasining emas, KELAJAKDAGI HAR BIR MIJOZNI qo'shishning
+        # to'sig'i. Quyidagi setval buni tuzatadi: ketma-ketlikni mavjud
+        # eng katta id ga surib qo'yadi. Ma'lumotga tegmaydi, idempotent.
+        try:
+            maxid = conn.execute(text(
+                f"SELECT COALESCE(MAX(id), 0) FROM {REF_TABLE}")).scalar()
+            yangi = conn.execute(text(
+                f"SELECT setval(pg_get_serial_sequence('{REF_TABLE}','id'), "
+                f"GREATEST(:m, 1))"), {"m": maxid}).scalar()
+            amal("B0", "TUZATILDI",
+                 f"companies ketma-ketligi {yangi} ga surildi "
+                 f"(eng katta mavjud id={maxid}). Ma'lumotga tegilmadi.")
+        except Exception as e:
+            amal("B0", "TEKSHIRIB BO'LMADI", str(e)[:120])
+
         # 1) Korxona
         row = conn.execute(text(f"SELECT id FROM {REF_TABLE} WHERE name = :n"),
                            {"n": TEST_TENANT_NOM}).first()
