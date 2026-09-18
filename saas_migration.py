@@ -72,6 +72,25 @@ STEPS = [
         "jadvallar": ["masters", "master_gifts", "gift_periods", "employees"],
         "tasdiq": "PENODECORPRO-W2G2",
     },
+    {
+        "kalit": "W2G3",
+        "nomi": "2-to'lqin, G3 — moliya",
+        "izoh": "CashTransaction, RecurringObligation, TransportExpense, "
+                "ExpenseTransaction. recurring_obligations.category unique "
+                "cheklovi W2b da korxonaga bog'lanadi.",
+        "jadvallar": ["cash_transactions", "recurring_obligations",
+                      "transport_expenses", "expense_transactions"],
+        "tasdiq": "PENODECORPRO-W2G3",
+    },
+    {
+        "kalit": "W2G4",
+        "nomi": "2-to'lqin, G4 — qolgan jadvallar",
+        "izoh": "MonthlyExpense, CompanySetting, ActivityLog, LoginHistory. "
+                "Shu qadam bilan 2-to'lqinning 16 jadvali tugaydi.",
+        "jadvallar": ["monthly_expenses", "company_settings",
+                      "activity_logs", "login_history"],
+        "tasdiq": "PENODECORPRO-W2G4",
+    },
 ]
 
 
