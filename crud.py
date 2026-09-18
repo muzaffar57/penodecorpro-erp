@@ -1985,7 +1985,20 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         # o'chirilmasligi kerak — faqat buyurtmaga bog'lanishi uziladi (order_id=NULL),
         # aks holda ma'lumotlar bazasi FK cheklovi tufayli o'chirishga yo'l qo'ymaydi.
         from models import InventoryMovement, FinishedProduct, Payment
+        from production_models import ProductionOrder
         _auto_release_mrp_reservations(db, [i.id for i in db_order.items], performed_by)
+        # 2026-09-18 (chuqur audit topilmasi — HAQIQIY, jonli sinovda aniqlangan
+        # xato): Production/MRP orqali shu buyurtmaga bog'langan
+        # ProductionOrder yozuvlari (source_order_id/source_order_item_id)
+        # bo'lsa — ular ham, yuqoridagi InventoryMovement/FinishedProduct
+        # kabi, TARIXIY YOZUV sifatida saqlanib qoladi (o'chirilmaydi), faqat
+        # bog'lanishi uziladi. Bu qo'shilmagan bo'lsa, PostgreSQL FK cheklovi
+        # ("production_orders_source_order_id_fkey") ushbu buyurtmani
+        # o'chirishning O'ZINI ham butunlay bloklab, 500-xato berardi —
+        # bu real sinovda dalili bilan aniqlandi.
+        db.query(ProductionOrder).filter(ProductionOrder.source_order_id == order_id).update(
+            {"source_order_id": None, "source_order_item_id": None}
+        )
         db.query(InventoryMovement).filter(InventoryMovement.order_id == order_id).update(
             {"order_id": None}
         )
@@ -2011,6 +2024,10 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
         return False
     order_num = db_order.order_number
     from models import InventoryMovement, FinishedProduct
+    from production_models import ProductionOrder
+    db.query(ProductionOrder).filter(ProductionOrder.source_order_id == order_id).update(
+        {"source_order_id": None, "source_order_item_id": None}
+    )
     db.query(InventoryMovement).filter(InventoryMovement.order_id == order_id).update({"order_id": None})
     db.query(FinishedProduct).filter(FinishedProduct.from_order_id == order_id).update({"from_order_id": None})
     db.delete(db_order)
@@ -2176,6 +2193,17 @@ def delete_order_item(db: Session, item_id: int) -> bool:
     # o'chirilgach, u band qilingancha, ABADIY qaytarib bo'lmaydigan
     # holda qolib ketardi).
     _auto_release_mrp_reservations(db, [db_item.id])
+    # 2026-09-18 (chuqur audit topilmasi — HAQIQIY, jonli sinovda
+    # aniqlangan xato): agar shu detalga Production/MRP buyurtmasi
+    # (source_order_item_id orqali) bog'langan bo'lsa, pastdagi
+    # db.delete(db_item) PostgreSQL FK cheklovi tufayli 500-xato bilan
+    # butunlay bloklanardi (delete_order()dagi bilan bir xil sabab —
+    # o'sha yerda aynan shu xato jonli sinovda topildi). ProductionOrder
+    # o'zi — TARIXIY YOZUV, o'chirilmaydi, faqat bog'lanishi uziladi.
+    from production_models import ProductionOrder
+    db.query(ProductionOrder).filter(ProductionOrder.source_order_item_id == db_item.id).update(
+        {"source_order_item_id": None}
+    )
 
     db.delete(db_item)
     db.flush()

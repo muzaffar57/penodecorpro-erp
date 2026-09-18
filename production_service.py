@@ -467,6 +467,23 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
 
         snapshot = json.loads(po.recipe_snapshot_json)
 
+        # 2026-09-18 (chuqur audit — ENG MUHIM topilma, jonli sinovda
+        # dalili bilan aniqlandi): bu yergacha xomashyo HECH QANDAY
+        # tekshiruvsiz ayirilardi — agar boshqa bir ishlab chiqarish
+        # (yoki oddiy sotuv) shu orada xuddi shu xomashyoni band qilib
+        # ulgurgan bo'lsa (chunki IN_PROGRESS bosqichi ombordan hali
+        # HAQIQATAN ayirmaydi — fayl boshidagi arxitektura izohiga
+        # qarang), OMBOR MANFIY SONGA TUSHIB QOLARDI, hech qanday xato
+        # yoki ogohlantirishsiz. Jonli sinov: 40 kg ombor, ikkita 30 kg'lik
+        # ishlab chiqarish ikkalasi ham "Boshlash"dan o'tib, ikkalasini
+        # "Yakunlash" qilinganda ombor -20 kg ga tushib qoldi. Endi
+        # start_production_order() bilan BIR XIL qoidaga (company.allow_
+        # negative_stock) rioya qilinadi: standart holatda (False) qattiq
+        # to'xtatiladi, hozirgacha ayirilgan qatorlar (agar bo'lsa) BUTUN
+        # tranzaksiya bilan birga rollback qilinadi.
+        company = _get_company(db, company_id)
+        allow_negative = bool(company.allow_negative_stock) if company else False
+
         total_material_cost = 0.0
         for line in snapshot:
             if not line.get("included"):
@@ -478,7 +495,14 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
             # eski, konversiyasiz snapshot bo'lsa — kalit yo'q, shuning
             # uchun retsept-birlik qiymatiga qaytadi, orqaga mos).
             needed = line.get("total_quantity_needed_stock_unit", line["total_quantity_needed"])
-            inv.stock_quantity = float(inv.stock_quantity or 0) - needed
+            available = float(inv.stock_quantity or 0)
+            if available < needed and not allow_negative:
+                db.rollback()
+                return {
+                    "success": False,
+                    "message": f"Omborda yetarli '{inv.item_name}' yo'q (kerak: {needed:.4f} {inv.unit}, bor: {available:.2f} {inv.unit}) — boshqa ishlab chiqarish shu orada band qilib ulgurgan bo'lishi mumkin",
+                }
+            inv.stock_quantity = available - needed
             crud.log_movement(
                 db, inv.id, inv.item_name, movement_type="out",
                 quantity=needed, unit=inv.unit,
