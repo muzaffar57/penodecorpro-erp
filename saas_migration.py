@@ -392,199 +392,186 @@ def run_step1(engine, dry_run: bool = True) -> dict:
 
 
 # ============================================================
-# Boshqaruv sahifasi (HTML) — brauzer konsolisiz ishlatish uchun
+# Boshqaruv sahifasi — JAVASCRIPTSIZ (oddiy HTML forma)
 # ============================================================
+# Nima uchun JS yo'q: brauzerda (kengaytma yoki sayt sozlamasi tufayli)
+# JavaScript bloklanib qolishi mumkin — shunda tugmalar jim turadi va
+# sabab ko'rinmaydi. Oddiy forma esa har qanday brauzerda, hatto JS
+# butunlay o'chirilgan bo'lsa ham ishlaydi. Natijani ham SERVER tayyorlab
+# beradi.
 
-_PANEL_HTML = """<!DOCTYPE html>
-<html lang="uz">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SaaS migratsiya — 1-qadam</title>
-<style>
+_CSS = """
   :root { --bg:#f6f7f9; --card:#fff; --line:#e4e7ec; --text:#101828;
           --muted:#667085; --blue:#2563eb; --red:#b42318; --green:#027a48; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text);
          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
-  .wrap { max-width:940px; margin:0 auto; padding:28px 20px 60px; }
+  .wrap { max-width:960px; margin:0 auto; padding:28px 20px 60px; }
   h1 { font-size:20px; margin:0 0 4px; }
   .sub { color:var(--muted); font-size:13px; margin-bottom:22px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
           padding:18px 20px; margin-bottom:16px; }
-  .card h2 { font-size:14px; margin:0 0 10px; letter-spacing:.02em; }
-  .env { display:flex; flex-wrap:wrap; gap:10px 26px; font-size:13px; }
-  .env div span { color:var(--muted); }
-  .env b { font-weight:600; }
+  .card h2 { font-size:13px; margin:0 0 12px; letter-spacing:.04em; color:var(--muted); }
   .banner { border-radius:10px; padding:12px 14px; font-size:13px; margin-bottom:16px;
-            border:1px solid; line-height:1.5; }
+            border:1px solid; line-height:1.55; }
   .ok   { background:#ecfdf3; border-color:#abefc6; color:var(--green); }
   .warn { background:#fffaeb; border-color:#fedf89; color:#b54708; }
   .err  { background:#fef3f2; border-color:#fecdca; color:var(--red); }
-  button { font:inherit; border-radius:8px; padding:9px 16px; cursor:pointer;
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  td, th { padding:7px 10px; border-bottom:1px solid var(--line); text-align:left;
+           vertical-align:top; }
+  th { color:var(--muted); font-weight:500; width:210px; }
+  tr:last-child td, tr:last-child th { border-bottom:none; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:20px; font-size:12px; }
+  .p-ok { background:#ecfdf3; color:var(--green); }
+  .p-no { background:#f2f4f7; color:var(--muted); }
+  .p-er { background:#fef3f2; color:var(--red); }
+  button { font:inherit; border-radius:8px; padding:10px 18px; cursor:pointer;
            border:1px solid var(--line); background:#fff; color:var(--text); }
-  button:hover:not(:disabled) { background:#f9fafb; }
-  button:disabled { opacity:.45; cursor:not-allowed; }
+  button:hover { background:#f9fafb; }
   .primary { background:var(--blue); border-color:var(--blue); color:#fff; }
-  .primary:hover:not(:disabled) { background:#1d4ed8; }
+  .primary:hover { background:#1d4ed8; }
   .danger { background:var(--red); border-color:var(--red); color:#fff; }
-  .danger:hover:not(:disabled) { background:#912018; }
+  .danger:hover { background:#912018; }
+  form { display:inline; }
   .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  input[type=text] { font:inherit; padding:9px 12px; border:1px solid var(--line);
-                     border-radius:8px; min-width:290px; }
+  input[type=text] { font:inherit; padding:10px 12px; border:1px solid var(--line);
+                     border-radius:8px; min-width:300px; }
   pre { background:#0c111d; color:#d1d5db; padding:16px; border-radius:10px;
-        overflow:auto; max-height:520px; font-size:12px; line-height:1.55;
-        white-space:pre-wrap; word-break:break-word; margin:0; }
-  .hint { color:var(--muted); font-size:12px; margin-top:8px; line-height:1.55; }
-</style>
-</head>
-<body>
+        overflow:auto; max-height:540px; font-size:12px; line-height:1.55;
+        white-space:pre-wrap; word-break:break-word; margin:0; user-select:all; }
+  .hint { color:var(--muted); font-size:12px; margin-top:10px; line-height:1.55; }
+"""
+
+
+def _esc(v) -> str:
+    import html as _html
+    return _html.escape("" if v is None else str(v))
+
+
+def _env_block(muhit: dict) -> str:
+    """Muhit jadvali + yashil/qizil ogohlantirish chizig'i."""
+    if not muhit:
+        return '<div class="banner warn">Muhit aniqlanmadi.</div>'
+    env = str(muhit.get("railway_muhit", "")).lower()
+    dom = str(muhit.get("domen", "")).lower()
+    if "sinov" in env or "sinov" in dom:
+        banner = ('<div class="banner ok">SINOV (staging) muhiti — ishlash xavfsiz.</div>')
+    else:
+        banner = ('<div class="banner err">DIQQAT: bu SINOV muhiti EMAS. '
+                  'Haqiqiy migratsiyani bajarmang — avval qaysi muhitda '
+                  'ekaningizni tekshiring.</div>')
+    qatorlar = "".join(
+        f"<tr><th>{_esc(k)}</th><td><b>{_esc(v)}</b></td></tr>"
+        for k, v in [
+            ("Railway muhiti", muhit.get("railway_muhit")),
+            ("Xizmat", muhit.get("railway_xizmat")),
+            ("Domen", muhit.get("domen")),
+            ("Baza nomi", muhit.get("baza_nomi")),
+            ("PostgreSQL", muhit.get("postgres_versiya")),
+        ])
+    return banner + f'<div class="card"><h2>MUHIT</h2><table>{qatorlar}</table></div>'
+
+
+def _pill(val, ok_text="BOR", no_text="YO'Q") -> str:
+    if val:
+        return f'<span class="pill p-ok">{ok_text}</span>'
+    return f'<span class="pill p-no">{no_text}</span>'
+
+
+def _status_block(st: dict) -> str:
+    qatorlar = [
+        ("users.company_id ustuni", _pill(st.get("ustun_bor"))),
+        ("Indeks", _pill(st.get("indeks_bor"))),
+        ("Tashqi kalit (FK)", _pill(bool(st.get("tashqi_kalit")))),
+        ("Jami foydalanuvchi", _esc(st.get("jami_foydalanuvchi"))),
+        ("company_id bo'sh (NULL)", _esc(st.get("company_id bosh (NULL)"))),
+        ("Yetim company_id", _esc(st.get("yetim_company_id"))),
+        ("1-QADAM TUGALLANGANMI",
+         _pill(st.get("1_QADAM_TUGALLANGAN"), "HA", "HALI YO'Q")),
+    ]
+    body = "".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in qatorlar)
+    return f'<div class="card"><h2>HOZIRGI HOLAT</h2><table>{body}</table></div>'
+
+
+def _report_block(rep: dict) -> str:
+    """Migratsiya hisobotini o'qiladigan ko'rinishda chiqaradi."""
+    import json as _json
+    if not rep:
+        return ""
+    natija = rep.get("natija", "")
+    klass = "ok" if natija.startswith("✅") else ("err" if natija else "warn")
+    qismlar = [f'<div class="banner {klass}">{_esc(natija)}</div>']
+    if rep.get("xato"):
+        qismlar.append(f'<div class="banner err">Sabab: {_esc(rep["xato"])}</div>')
+
+    t = "".join(
+        f'<tr><th>{_esc(x.get("kod"))}</th><td>{_esc(x.get("tavsif"))}</td>'
+        f'<td><b>{_esc(x.get("holat"))}</b></td><td>{_esc(x.get("izoh"))}</td></tr>'
+        for x in rep.get("tekshiruvlar", []))
+    a = "".join(
+        f'<tr><th>{_esc(x.get("kod"))}</th><td>{_esc(x.get("tavsif"))}</td>'
+        f'<td><b>{_esc(x.get("holat"))}</b></td><td>{_esc(x.get("izoh"))}</td></tr>'
+        for x in rep.get("amallar", []))
+    if t:
+        qismlar.append(f'<div class="card"><h2>TEKSHIRUVLAR</h2><table>{t}</table></div>')
+    if a:
+        qismlar.append(f'<div class="card"><h2>AMALLAR ({_esc(rep.get("rejim"))})</h2>'
+                       f'<table>{a}</table></div>')
+
+    xom = _json.dumps(rep, indent=2, ensure_ascii=False)
+    qismlar.append('<div class="card"><h2>TO\'LIQ HISOBOT (nusxalash uchun)</h2>'
+                   f'<pre>{_esc(xom)}</pre>'
+                   '<div class="hint">Matn ustiga bosib, Ctrl+A / Ctrl+C bilan '
+                   'nusxalashingiz mumkin.</div></div>')
+    return "".join(qismlar)
+
+
+def _render_page(status: dict, report: dict = None, xabar: str = "") -> str:
+    muhit = (report or {}).get("muhit") or (status or {}).get("muhit")
+    ogoh = f'<div class="banner err">{_esc(xabar)}</div>' if xabar else ""
+    return f"""<!DOCTYPE html>
+<html lang="uz"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SaaS migratsiya — 1-qadam</title><style>{_CSS}</style></head><body>
 <div class="wrap">
   <h1>SaaS ko'p-tenantlilik migratsiyasi — 1-qadam</h1>
-  <div class="sub">users.company_id + poydevor &middot; vaqtinchalik sahifa, migratsiya tugagach olib tashlanadi</div>
-
-  <div id="envBanner" class="banner warn">Muhit aniqlanmoqda...</div>
-
-  <div class="card">
-    <h2>MUHIT</h2>
-    <div class="env" id="envBox"><div>Yuklanmoqda...</div></div>
-  </div>
+  <div class="sub">users.company_id + poydevor &middot; vaqtinchalik sahifa,
+    migratsiya tugagach olib tashlanadi</div>
+  {ogoh}
+  {_env_block(muhit)}
+  {_status_block(status or {})}
 
   <div class="card">
     <h2>AMALLAR</h2>
     <div class="row">
-      <button id="btnStatus">Holatni tekshirish</button>
-      <button id="btnDry" class="primary">SINOV (dry-run)</button>
+      <form method="get" action="/saas-migratsiya">
+        <button type="submit">Holatni yangilash</button>
+      </form>
+      <form method="post" action="/saas-migratsiya/sinov">
+        <button type="submit" class="primary">SINOV (dry-run)</button>
+      </form>
     </div>
-    <div class="hint">
-      SINOV barcha amallarni haqiqatdan bajaradi, so'ng to'liq qaytarib oladi (rollback).
-      Bazada hech qanday o'zgarish qolmaydi.
-    </div>
+    <div class="hint">SINOV barcha amallarni haqiqatdan bajaradi, so'ng to'liq
+      qaytarib oladi (rollback). Bazada hech qanday o'zgarish qolmaydi.</div>
   </div>
 
   <div class="card">
     <h2>HAQIQIY MIGRATSIYA</h2>
-    <div class="row">
-      <input type="text" id="confirmInput" placeholder="Tasdiq so'zini kiriting" autocomplete="off">
-      <button id="btnApply" class="danger" disabled>Haqiqiy migratsiyani bajarish</button>
-    </div>
-    <div class="hint">
-      Tugma faqat tasdiq so'zi to'g'ri kiritilganda ochiladi. Bu amal qaytarib bo'lmaydi —
-      orqaga qaytish faqat backupdan tiklash orqali.
-    </div>
+    <form method="post" action="/saas-migratsiya/haqiqiy">
+      <div class="row">
+        <input type="text" name="confirm" placeholder="Tasdiq so'zini kiriting"
+               autocomplete="off">
+        <button type="submit" class="danger">Haqiqiy migratsiyani bajarish</button>
+      </div>
+    </form>
+    <div class="hint">Tasdiq so'zi noto'g'ri bo'lsa, server hech narsa
+      bajarmaydi. Bu amal qaytarib bo'lmaydi — orqaga qaytish faqat
+      backupdan tiklash orqali.</div>
   </div>
 
-  <div class="card">
-    <h2>NATIJA</h2>
-    <div class="row" style="margin-bottom:10px">
-      <button id="btnCopy">Natijani nusxalash</button>
-      <span id="copyMsg" class="hint" style="margin:0"></span>
-    </div>
-    <pre id="out">Hali hech narsa ishga tushirilmadi.</pre>
-  </div>
-</div>
-
-<script>
-(function () {
-  var CONFIRM_PHRASE = "PENODECORPRO-STEP1";
-  var out = document.getElementById('out');
-  var envBox = document.getElementById('envBox');
-  var envBanner = document.getElementById('envBanner');
-  var confirmInput = document.getElementById('confirmInput');
-  var btnApply = document.getElementById('btnApply');
-  var buttons = ['btnStatus', 'btnDry', 'btnApply'];
-
-  function esc(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-  function lock(on) {
-    buttons.forEach(function (id) {
-      var b = document.getElementById(id);
-      if (id === 'btnApply') b.disabled = on || confirmInput.value.trim() !== CONFIRM_PHRASE;
-      else b.disabled = on;
-    });
-  }
-  function show(data) { out.textContent = JSON.stringify(data, null, 2); }
-
-  function paintEnv(m) {
-    if (!m) return;
-    envBox.innerHTML =
-      '<div><span>Muhit:</span> <b>' + esc(m.railway_muhit) + '</b></div>' +
-      '<div><span>Xizmat:</span> <b>' + esc(m.railway_xizmat) + '</b></div>' +
-      '<div><span>Domen:</span> <b>' + esc(m.domen) + '</b></div>' +
-      '<div><span>Baza:</span> <b>' + esc(m.baza_nomi) + '</b></div>' +
-      '<div><span>PostgreSQL:</span> <b>' + esc(m.postgres_versiya) + '</b></div>';
-    var env = String(m.railway_muhit || '').toLowerCase();
-    var dom = String(m.domen || '').toLowerCase();
-    if (env.indexOf('sinov') >= 0 || dom.indexOf('sinov') >= 0) {
-      envBanner.className = 'banner ok';
-      envBanner.textContent = 'SINOV (staging) muhiti — ishlash xavfsiz.';
-    } else {
-      envBanner.className = 'banner err';
-      envBanner.textContent = 'DIQQAT: bu SINOV muhiti EMAS. Haqiqiy migratsiyani ' +
-        'bajarishdan oldin qaysi muhitda ekaningizni albatta tekshiring.';
-    }
-  }
-
-  async function call(url, opts) {
-    lock(true);
-    out.textContent = 'Bajarilmoqda, kuting...';
-    try {
-      var r = await fetch(url, opts || {});
-      var txt = await r.text();
-      var data;
-      try { data = JSON.parse(txt); } catch (e) { data = { http_kod: r.status, javob: txt }; }
-      if (!r.ok) data = { http_kod: r.status, xato: data };
-      show(data);
-      paintEnv(data.muhit);
-      return data;
-    } catch (e) {
-      show({ xato: 'Tarmoq xatosi: ' + e.message });
-    } finally {
-      lock(false);
-    }
-  }
-
-  document.getElementById('btnStatus').addEventListener('click', function () {
-    call('/api/saas-migration/status');
-  });
-
-  document.getElementById('btnDry').addEventListener('click', function () {
-    call('/api/saas-migration/step1', { method: 'POST' });
-  });
-
-  confirmInput.addEventListener('input', function () {
-    btnApply.disabled = confirmInput.value.trim() !== CONFIRM_PHRASE;
-  });
-
-  btnApply.addEventListener('click', function () {
-    if (!confirm('HAQIQIY migratsiya bajariladi va SAQLANADI.\n\n' +
-                 'Orqaga qaytish faqat backupdan tiklash orqali mumkin.\n\n' +
-                 'Davom etamizmi?')) return;
-    call('/api/saas-migration/step1?dry_run=false&confirm=' +
-         encodeURIComponent(CONFIRM_PHRASE), { method: 'POST' });
-  });
-
-  document.getElementById('btnCopy').addEventListener('click', async function () {
-    var msg = document.getElementById('copyMsg');
-    try {
-      await navigator.clipboard.writeText(out.textContent);
-      msg.textContent = 'Nusxalandi.';
-    } catch (e) {
-      var r = document.createRange();
-      r.selectNodeContents(out);
-      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-      msg.textContent = 'Matn belgilandi — Ctrl+C bosing.';
-    }
-    setTimeout(function () { msg.textContent = ''; }, 3000);
-  });
-
-  call('/api/saas-migration/status');
-})();
-</script>
-</body>
-</html>
-"""
+  {_report_block(report)}
+</div></body></html>"""
 
 
 # ============================================================
@@ -592,18 +579,20 @@ _PANEL_HTML = """<!DOCTYPE html>
 # ============================================================
 
 try:
-    from fastapi import APIRouter, Depends, HTTPException, Query
+    from fastapi import APIRouter, Depends, HTTPException, Query, Form
     from fastapi.responses import HTMLResponse
     from sqlalchemy.orm import Session
 
     from database import get_db
     import auth
 
-    # DIQQAT: prefix ATAYLAB yo'q — chunki boshqaruv SAHIFASI /api/ dan
-    # tashqarida bo'lishi kerak (main.py'dagi 401 -> /login yo'naltirishi
-    # faqat /api/ BO'LMAGAN yo'llarda ishlaydi; shunda sessiya tugasa
-    # foydalanuvchi xom JSON emas, login sahifasini ko'radi).
+    # DIQQAT: prefix ATAYLAB yo'q — boshqaruv SAHIFASI /api/ dan tashqarida
+    # bo'lishi kerak (main.py'dagi 401 -> /login yo'naltirishi faqat /api/
+    # BO'LMAGAN yo'llarda ishlaydi; shunda sessiya tugasa foydalanuvchi xom
+    # JSON emas, login sahifasini ko'radi).
     router = APIRouter(tags=["saas-migration"])
+
+    # ---------- JSON API (dastur/skript uchun) ----------
 
     @router.get("/api/saas-migration/status")
     def api_status(db: Session = Depends(get_db),
@@ -616,11 +605,7 @@ try:
                   confirm: str = Query("", description=f"Haqiqiy rejim uchun: {CONFIRM_PHRASE}"),
                   db: Session = Depends(get_db),
                   current_user=Depends(auth.admin_only)):
-        """1-qadam. Standart holatda SINOV (dry-run) rejimida ishlaydi.
-
-        Haqiqiy migratsiya uchun IKKALASI ham kerak:
-            ?dry_run=false&confirm=PENODECORPRO-STEP1
-        """
+        """Haqiqiy migratsiya uchun: ?dry_run=false&confirm=<tasdiq so'zi>"""
         if not dry_run and confirm != CONFIRM_PHRASE:
             raise HTTPException(
                 status_code=400,
@@ -629,11 +614,31 @@ try:
             )
         return run_step1(db.get_bind(), dry_run=dry_run)
 
+    # ---------- HTML sahifa (JavaScriptsiz) ----------
+
     @router.get("/saas-migratsiya", response_class=HTMLResponse)
-    def saas_migration_panel(current_user=Depends(auth.admin_only)):
-        """Tugmali boshqaruv sahifasi — brauzer konsoliga ehtiyoj qolmasin
-        uchun. Faqat ADMIN kira oladi (yuqoridagi Depends)."""
-        return HTMLResponse(_PANEL_HTML)
+    def panel_page(db: Session = Depends(get_db),
+                   current_user=Depends(auth.admin_only)):
+        return HTMLResponse(_render_page(status_report(db.get_bind())))
+
+    @router.post("/saas-migratsiya/sinov", response_class=HTMLResponse)
+    def panel_dry_run(db: Session = Depends(get_db),
+                      current_user=Depends(auth.admin_only)):
+        engine = db.get_bind()
+        rep = run_step1(engine, dry_run=True)
+        return HTMLResponse(_render_page(status_report(engine), rep))
+
+    @router.post("/saas-migratsiya/haqiqiy", response_class=HTMLResponse)
+    def panel_apply(confirm: str = Form(""),
+                    db: Session = Depends(get_db),
+                    current_user=Depends(auth.admin_only)):
+        engine = db.get_bind()
+        if confirm.strip() != CONFIRM_PHRASE:
+            return HTMLResponse(_render_page(
+                status_report(engine), None,
+                "Tasdiq so'zi noto'g'ri — hech narsa bajarilmadi."))
+        rep = run_step1(engine, dry_run=False)
+        return HTMLResponse(_render_page(status_report(engine), rep))
 
 except ImportError:  # pragma: no cover
     # FastAPI yo'q (masalan, faylni to'g'ridan-to'g'ri terminalda ishlatish)
