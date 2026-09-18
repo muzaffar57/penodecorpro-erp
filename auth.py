@@ -483,6 +483,37 @@ def get_current_employee(request: Request, db: Session = Depends(get_db)) -> Opt
     return employee
 
 
+def order_of_company(db: Session, order_id: int, company_id: int):
+    """Buyurtmani FAQAT shu korxona ichidan topadi (M2)."""
+    from models import Order
+    return db.query(Order).filter(
+        Order.id == order_id, Order.company_id == company_id).first()
+
+
+def project_of_company(db: Session, project_id: int, company_id: int):
+    """Loyihani FAQAT shu korxona ichidan topadi (M2)."""
+    from models import Project
+    return db.query(Project).filter(
+        Project.id == project_id, Project.company_id == company_id).first()
+
+
+def return_of_company(db: Session, return_id: int, company_id: int):
+    """Qaytarishni FAQAT shu korxona ichidan topadi (M2)."""
+    from models import ReturnItem
+    return db.query(ReturnItem).filter(
+        ReturnItem.id == return_id, ReturnItem.company_id == company_id).first()
+
+
+def delivery_of_company(db: Session, delivery_id: int, company_id: int):
+    """Yetkazishni ota (buyurtma) orqali tekshiradi — Delivery'da
+    company_id ustuni yo'q (M2)."""
+    from models import Delivery, Order
+    return (db.query(Delivery)
+            .join(Order, Order.id == Delivery.order_id)
+            .filter(Delivery.id == delivery_id,
+                    Order.company_id == company_id).first())
+
+
 def employee_of_company(db: Session, emp_id: int, company_id: int):
     """Xodimni FAQAT shu korxona ichidan topadi.
 

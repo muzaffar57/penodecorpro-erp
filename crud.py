@@ -910,18 +910,24 @@ def create_project(db: Session, project_data: ProjectCreate) -> Project:
     return db_project
 
 
-def get_projects(db: Session) -> List[Project]:
-    return db.query(Project).filter(Project.is_deleted.isnot(True)).order_by(Project.start_date.desc()).all()
+def get_projects(db: Session, company_id: int = None) -> List[Project]:
+    q = db.query(Project).filter(Project.is_deleted.isnot(True))
+    if company_id is not None:
+        q = q.filter(Project.company_id == company_id)
+    return q.order_by(Project.start_date.desc()).all()
 
 
-def get_projects_dashboard_stats(db: Session) -> dict:
+def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
     """Loyihalar sahifasi uchun KPI ko'rsatkichlari — faqat o'qish, mavjud hisob-kitoblarga
     (get_projects_with_stats, calculate_order_profit) tegmaydi, faqat ulardan foydalanadi."""
     import services
     from models import Order, OrderStatus
     from datetime import datetime
 
-    projects = db.query(Project).filter(Project.is_deleted.isnot(True)).all()
+    _dq = db.query(Project).filter(Project.is_deleted.isnot(True))
+    if company_id is not None:
+        _dq = _dq.filter(Project.company_id == company_id)
+    projects = _dq.all()
     now = datetime.utcnow()
 
     active = sum(1 for p in projects if p.status == ProjectStatus.ACTIVE)
@@ -953,9 +959,12 @@ def get_projects_dashboard_stats(db: Session) -> dict:
     }
 
 
-def get_projects_with_stats(db: Session) -> List:
+def get_projects_with_stats(db: Session, company_id: int = None) -> List:
     """Loyihalar + buyurtmalar summasi + qarz hisobi (orders ham qo'shilgan)."""
-    projects = db.query(Project).filter(Project.is_deleted.isnot(True)).order_by(Project.start_date.desc()).all()
+    _pq = db.query(Project).filter(Project.is_deleted.isnot(True))
+    if company_id is not None:
+        _pq = _pq.filter(Project.company_id == company_id)
+    projects = _pq.order_by(Project.start_date.desc()).all()
     for p in projects:
         orders_count = len(p.orders) if p.orders else 0
         orders_sum = sum(float(o.total_amount or 0) for o in (p.orders or []))
@@ -1492,8 +1501,11 @@ def check_finished_for_order(db: Session, items) -> dict:
     return {"enough": len(shortages) == 0, "shortages": shortages}
 
 
-def get_orders(db: Session, project_id: Optional[int] = None) -> List[Order]:
+def get_orders(db: Session, project_id: Optional[int] = None,
+               company_id: int = None) -> List[Order]:
     query = db.query(Order).filter(Order.is_deleted.isnot(True))
+    if company_id is not None:
+        query = query.filter(Order.company_id == company_id)
     if project_id:
         query = query.filter(Order.project_id == project_id)
     return query.order_by(Order.created_at.desc()).all()
@@ -1526,8 +1538,14 @@ def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False
     return result
 
 
-def get_order(db: Session, order_id: int) -> Optional[Order]:
-    return db.query(Order).filter(Order.id == order_id).first()
+def get_order(db: Session, order_id: int, company_id: int = None) -> Optional[Order]:
+    """2026-09-18 — M2: company_id berilsa, buyurtma FAQAT o'sha korxonadan
+    qidiriladi. Berilmasa — eski xatti-harakat (ichki chaqiruvlar uchun).
+    Tashqi (API) chaqiruvlarning HAMMASI company_id uzatadi."""
+    q = db.query(Order).filter(Order.id == order_id)
+    if company_id is not None:
+        q = q.filter(Order.company_id == company_id)
+    return q.first()
 
 
 # MUHIM (2026-09 — Fasa 4, tozalash): bu yerda avval mark_order_ready()
@@ -1548,11 +1566,15 @@ def get_order(db: Session, order_id: int) -> Optional[Order]:
 # ORDER edit/delete
 # ============================================================
 
-def update_order_item(db: Session, item_id: int, item_data: dict) -> Optional[OrderItem]:
+def update_order_item(db: Session, item_id: int, item_data: dict,
+                      company_id: int = None) -> Optional[OrderItem]:
     """Buyurtma detalini yangilash — ombor farq bo'yicha to'g'rilanadi."""
     import services
 
-    db_item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    _q = db.query(OrderItem).filter(OrderItem.id == item_id)
+    if company_id is not None:
+        _q = _q.filter(OrderItem.company_id == company_id)
+    db_item = _q.first()
     if not db_item:
         return None
 
@@ -2179,12 +2201,16 @@ def get_deleted_orders(db: Session) -> List[Order]:
     return db.query(Order).filter(Order.is_deleted.is_(True)).order_by(Order.created_at.desc()).all()
 
 
-def delete_order_item(db: Session, item_id: int) -> bool:
+def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool:
     """Detal o'chirish — xomashyo omborga qaytariladi.
     Topshirilgan detalni o'chirib bo'lmaydi."""
     import services
 
-    db_item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    # M2: detal FAQAT o'z korxonasidan topiladi.
+    _iq = db.query(OrderItem).filter(OrderItem.id == item_id)
+    if company_id is not None:
+        _iq = _iq.filter(OrderItem.company_id == company_id)
+    db_item = _iq.first()
     if not db_item:
         return False
 
@@ -2356,12 +2382,20 @@ from models import ReturnItem, ReturnReason
 from schemas import ReturnItemCreate
 
 
-def create_return_item(db: Session, data: ReturnItemCreate) -> ReturnItem:
+def create_return_item(db: Session, data: ReturnItemCreate,
+                       company_id: int = None) -> ReturnItem:
     """Yangi qaytarishni bazaga qo'shadi.
     to_stock=True bo'lsa — tayyor mahsulotlar omboriga ham tushadi.
     refund_amount kelmasa (masalan hodim narx ko'rmasdan yozganda) —
     server o'zi tan narx/sotuv narxdan hisoblab qo'yadi."""
     import services
+
+    # M2: qaytarish FAQAT o'z korxonasining buyurtmasiga yozilishi mumkin.
+    if company_id is not None and getattr(data, 'order_id', None):
+        _o = db.query(Order).filter(Order.id == data.order_id,
+                                    Order.company_id == company_id).first()
+        if not _o:
+            raise ValueError("Buyurtma topilmadi")
 
     try:
         reason_enum = ReturnReason(data.reason)
@@ -2528,12 +2562,15 @@ def delete_return_item(db: Session, return_id: int) -> bool:
     return True
 
 
-def get_return_stats(db: Session) -> dict:
+def get_return_stats(db: Session, company_id: int = None) -> dict:
     """Qaytarishlar statistikasi — jami va shu oy bo'yicha."""
     from datetime import datetime
     from models import ReturnReason, FinishedProductLoss
 
-    all_returns = db.query(ReturnItem).all()
+    _rq = db.query(ReturnItem)
+    if company_id is not None:
+        _rq = _rq.filter(ReturnItem.company_id == company_id)
+    all_returns = _rq.all()
     total_count = len(all_returns)
     total_refund = sum(float(r.refund_amount) for r in all_returns)
     pending_refund = sum(float(r.refund_amount) for r in all_returns if not r.is_refunded)
@@ -2616,9 +2653,14 @@ def _update_order_payment_status(db: Session, order: Order) -> None:
             order.closed_at = datetime.utcnow()
 
 
-def create_payment(db: Session, payment_data: PaymentCreate) -> Payment:
+def create_payment(db: Session, payment_data: PaymentCreate,
+                   company_id: int = None) -> Payment:
     """Yangi to'lov qo'shish."""
-    order = db.query(Order).filter(Order.id == payment_data.order_id).first()
+    # M2: to'lov FAQAT o'z korxonasining buyurtmasiga yozilishi mumkin.
+    _oq = db.query(Order).filter(Order.id == payment_data.order_id)
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    order = _oq.first()
     if not order:
         raise ValueError("Buyurtma topilmadi")
 
@@ -2683,22 +2725,35 @@ def create_payment(db: Session, payment_data: PaymentCreate) -> Payment:
     return db_payment
 
 
-def get_payments(db: Session, order_id: Optional[int] = None) -> List[Payment]:
-    """To'lovlar ro'yxati."""
+def get_payments(db: Session, order_id: Optional[int] = None,
+                 company_id: int = None) -> List[Payment]:
+    """To'lovlar ro'yxati.
+
+    2026-09-18 — M2: Payment'da company_id ustuni YO'Q, shuning uchun
+    filtrlash OTA (buyurtma) orqali — JOIN bilan."""
     query = db.query(Payment)
+    if company_id is not None:
+        query = query.join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == company_id)
     if order_id:
         query = query.filter(Payment.order_id == order_id)
     return query.order_by(Payment.paid_at.desc()).all()
 
 
-def delete_payment(db: Session, payment_id: int, performed_by: str = None) -> bool:
+def delete_payment(db: Session, payment_id: int, performed_by: str = None,
+                   company_id: int = None) -> bool:
     """To'lovni o'chirish.
     XAVFSIZLIK/AUDIT: o'chirishdan OLDIN to'lovning to'liq tafsiloti
     (summa, usul, buyurtma, kim qabul qilgan, qachon) ActivityLog'ga
     yozib qo'yiladi — shunda to'lov o'chirilgandan keyin ham, KIM,
     QACHON va QANDAY to'lovni o'chirgani abadiy saqlanadi (kelishmovchilik
     yoki xatolikni keyinchalik tekshirish uchun)."""
-    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    # M2: to'lovda company_id yo'q — ota (buyurtma) orqali tekshiriladi.
+    _pq = db.query(Payment).filter(Payment.id == payment_id)
+    if company_id is not None:
+        _pq = _pq.join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == company_id)
+    payment = _pq.first()
     if not payment:
         return False
 
@@ -2756,12 +2811,15 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
     return order
 
 
-def get_delivery_stats(db: Session) -> dict:
+def get_delivery_stats(db: Session, company_id: int = None) -> dict:
     """Yetkazish statistikasi — dashboard uchun."""
-    orders = db.query(Order).filter(
+    _oq = db.query(Order).filter(
         Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]),
         Order.is_deleted.isnot(True)
-    ).all()
+    )
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    orders = _oq.all()
 
     partial = []
     not_started = 0
@@ -3850,10 +3908,15 @@ from models import Delivery, DeliveryItem
 from schemas import DeliveryCreate
 
 
-def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None) -> dict:
+def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
+                    company_id: int = None) -> dict:
     """Yangi yetkazish qo'shadi.
     Ombor tegilmaydi — bu faqat mijozga topshirish hisobi."""
-    order = db.query(Order).filter(Order.id == data.order_id).first()
+    # M2: yetkazish FAQAT o'z korxonasining buyurtmasiga.
+    _oq = db.query(Order).filter(Order.id == data.order_id)
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    order = _oq.first()
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
@@ -4061,8 +4124,12 @@ def get_pinned_orders(db: Session) -> list:
     return result
 
 
-def get_delivery(db: Session, delivery_id: int) -> Optional[Delivery]:
-    return db.query(Delivery).filter(Delivery.id == delivery_id).first()
+def get_delivery(db: Session, delivery_id: int, company_id: int = None) -> Optional[Delivery]:
+    _dq = db.query(Delivery).filter(Delivery.id == delivery_id)
+    if company_id is not None:
+        _dq = _dq.join(Order, Order.id == Delivery.order_id).filter(
+            Order.company_id == company_id)
+    return _dq.first()
 
 
 def delete_delivery(db: Session, delivery_id: int) -> bool:

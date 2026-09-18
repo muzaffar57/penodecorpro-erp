@@ -1857,6 +1857,61 @@ _TENANT_RULES = {
                             ("master_id", "Master")],
     # Yo'qotish/brak: tayyor mahsulotdan
     "FinishedProductLoss": [("finished_product_id", "FinishedProduct")],
+
+    # --- M2 (2026-09-18) ---
+    # Bu modellarda company_id ustuni YO'Q — ular ota orqali tenant oladi.
+    # Qoidalar shu yerda, chunki tenant mosligini tekshirish uchun otani
+    # bilish kifoya (company_id ustuni bo'lishi shart emas).
+    "Payment":             [("order_id", "Order")],
+    "Delivery":            [("order_id", "Order")],
+    "DeliveryItem":        [("delivery_id", "Delivery")],
+    "OrderAttachment":     [("order_id", "Order")],
+    "OrderItemSubDetail":  [("order_item_id", "OrderItem")],
+    "OrderGipsAdditive":   [("order_id", "Order")],
+}
+
+
+# ============================================================
+# HAVOLALAR (references) — ota emas, lekin BIR KORXONADA bo'lishi shart
+# ============================================================
+# 2026-09-18 — M2. Yuqoridagi _TENANT_RULES "bu yozuv qaysi korxonaniki?"
+# degan savolga javob beradi. Bu yerdagi qoidalar esa boshqa savolga:
+# "bu yozuv KO'RSATAYOTGAN boshqa yozuv ham SHU korxonanikimi?"
+#
+# Masalan buyurtma detali A korxonaniki, lekin uning `penoplast_id` si
+# B korxonaning materialiga ishora qilishi mumkin edi. Baza buni to'smaydi
+# (oddiy FK faqat "shunday id bormi" deb tekshiradi), tenant qoidasi ham
+# to'smasdi — chunki detalning o'z otasi (buyurtma) to'g'ri edi.
+#
+# Endi har bir havola tekshiriladi: ko'rsatilayotgan yozuvning company_id si
+# yozuvnikidan farq qilsa — RAD ETILADI.
+
+_TENANT_REFS = {
+    # Buyurtma detali qaysi material/retsept/tayyor mahsulotga ishora qiladi
+    "OrderItem": [
+        ("penoplast_id", "Inventory"),
+        ("recipe_id", "Recipe"),
+        ("finished_product_id", "FinishedProduct"),
+    ],
+    # Retsept tarkibidagi xomashyo
+    "RecipeIngredient": [("inventory_id", "Inventory")],
+    # Qaytarish — qaysi tayyor mahsulotga
+    "ReturnItem": [("finished_product_id", "FinishedProduct")],
+    # Yetkazish qatori — qaysi detalga
+    "DeliveryItem": [("order_item_id", "OrderItem")],
+    # Ombor harakati — qaysi material/buyurtma/ta'minotchiga
+    "InventoryMovement": [("inventory_id", "Inventory"), ("order_id", "Order"),
+                          ("supplier_id", "Supplier")],
+    # Tayyor mahsulot — qaysi buyurtma/retsept/materialga
+    "FinishedProduct": [("from_order_id", "Order"), ("recipe_id", "Recipe"),
+                        ("penoplast_id", "Inventory"),
+                        ("gips_inventory_id", "Inventory")],
+    # Sotuv/brak — qaysi mahsulot/ustaga
+    "FinishedProductSale": [("finished_product_id", "FinishedProduct"),
+                            ("master_id", "Master")],
+    "FinishedProductLoss": [("finished_product_id", "FinishedProduct")],
+    # Buyurtma — qaysi loyiha va ustaga
+    "Order": [("project_id", "Project"), ("master_id", "Master")],
 }
 
 
@@ -1866,7 +1921,10 @@ class TenantMismatchError(Exception):
 
 def _resolve_parent_company(session, obj, rules):
     """Ota zanjiri bo'yicha birinchi topilgan company_id ni qaytaradi."""
+    _mapped = {c.key for c in type(obj).__table__.columns}
     for fk_attr, parent_name in rules:
+        if fk_attr not in _mapped:
+            continue
         fk_value = getattr(obj, fk_attr, None)
         if not fk_value:
             continue
@@ -1880,6 +1938,36 @@ def _resolve_parent_company(session, obj, rules):
         if cid:
             return cid, f"{fk_attr} -> {parent_name}"
     return None, None
+
+
+def _check_refs(session, obj, own_cid):
+    """Yozuv KO'RSATAYOTGAN boshqa yozuvlar ham shu korxonanikimi.
+
+    2026-09-18 — M2. own_cid — yozuvning o'z korxonasi (ota orqali yoki
+    aniq berilgan). Havola boshqa korxonaga ishora qilsa, rad etiladi."""
+    refs = _TENANT_REFS.get(type(obj).__name__)
+    if not refs or not own_cid:
+        return
+    _mapped = {c.key for c in type(obj).__table__.columns}
+    for fk_attr, ref_name in refs:
+        if fk_attr not in _mapped:
+            continue
+        fk_value = getattr(obj, fk_attr, None)
+        if not fk_value:
+            continue
+        ref_cls = globals().get(ref_name)
+        if ref_cls is None:
+            continue
+        ref = session.get(ref_cls, fk_value)
+        if ref is None:
+            continue
+        ref_cid = getattr(ref, "company_id", None)
+        if ref_cid and ref_cid != own_cid:
+            raise TenantMismatchError(
+                f"{type(obj).__name__}.{fk_attr}={fk_value} boshqa korxonaga "
+                f"({ref_cid}) tegishli, yozuvning o'zi esa {own_cid} ga. "
+                f"Korxonalar orasida bog'lanish yaratib bo'lmaydi."
+            )
 
 
 @event.listens_for(SASession, "before_flush")
@@ -1910,43 +1998,53 @@ def _tenant_guard(session, flush_context, instances):
     with session.no_autoflush:
         # --- YANGI yozuvlar ---
         for obj in session.new:
-            rules = _TENANT_RULES.get(type(obj).__name__)
-            if not rules:
-                continue
-            parent_cid, manba = _resolve_parent_company(session, obj, rules)
-            if parent_cid is None:
-                # Ota topilmadi yoki uning company_id si bo'sh —
-                # HECH NARSA TAXMIN QILINMAYDI.
-                continue
+            nom = type(obj).__name__
+            rules = _TENANT_RULES.get(nom)
             own = getattr(obj, "company_id", None)
-            if own is None:
-                obj.company_id = parent_cid
-            elif own != parent_cid:
-                raise TenantMismatchError(
-                    f"{type(obj).__name__}: company_id={own} berilgan, lekin "
-                    f"ota-yozuv ({manba}) company_id={parent_cid} ga tegishli. "
-                    f"Bir korxonaning yozuvini boshqasiga bog'lab bo'lmaydi."
-                )
+            if rules:
+                parent_cid, manba = _resolve_parent_company(session, obj, rules)
+                if parent_cid is not None:
+                    if own is None:
+                        # Modelda company_id ustuni bo'lsa — to'ldiramiz.
+                        if hasattr(obj, "company_id"):
+                            obj.company_id = parent_cid
+                        own = parent_cid
+                    elif own != parent_cid:
+                        raise TenantMismatchError(
+                            f"{nom}: company_id={own} berilgan, lekin ota-yozuv "
+                            f"({manba}) company_id={parent_cid} ga tegishli. "
+                            f"Bir korxonaning yozuvini boshqasiga bog'lab bo'lmaydi."
+                        )
+            _check_refs(session, obj, own)
 
         # --- O'ZGARTIRILGAN yozuvlar ---
         # Mavjud yozuvning ota-FK'si yoki company_id si o'zgartirilsa,
         # ular baribir bir-biriga mos bo'lishi shart.
         for obj in session.dirty:
             rules = _TENANT_RULES.get(type(obj).__name__)
-            if not rules or not session.is_modified(obj, include_collections=False):
+            if (not rules and type(obj).__name__ not in _TENANT_REFS):
                 continue
-            ozgargan = {a for a in ([r[0] for r in rules] + ["company_id"])
-                        if get_history(obj, a).has_changes()}
+            if not session.is_modified(obj, include_collections=False):
+                continue
+            rules = rules or []
+            kuzatiladi = ([r[0] for r in rules] + ["company_id"] +
+                          [r[0] for r in _TENANT_REFS.get(type(obj).__name__, [])])
+            # Faqat HAQIQATDA mavjud (mapped) maydonlar — aks holda
+            # get_history KeyError beradi.
+            _mapped = {c.key for c in type(obj).__table__.columns}
+            ozgargan = {a for a in kuzatiladi
+                        if a in _mapped and get_history(obj, a).has_changes()}
             if not ozgargan:
                 continue
             parent_cid, manba = _resolve_parent_company(session, obj, rules)
-            if parent_cid is None:
-                continue
             own = getattr(obj, "company_id", None)
-            if own is not None and own != parent_cid:
-                raise TenantMismatchError(
-                    f"{type(obj).__name__} (id={getattr(obj, 'id', '?')}): "
-                    f"o'zgartirilgan yozuvning company_id={own}, lekin yangi "
-                    f"ota-yozuv ({manba}) company_id={parent_cid} ga tegishli. "
-                    f"O'zgarish rad etildi."
-                )
+            if parent_cid is not None:
+                if own is not None and own != parent_cid:
+                    raise TenantMismatchError(
+                        f"{type(obj).__name__} (id={getattr(obj, 'id', '?')}): "
+                        f"o'zgartirilgan yozuvning company_id={own}, lekin yangi "
+                        f"ota-yozuv ({manba}) company_id={parent_cid} ga tegishli. "
+                        f"O'zgarish rad etildi."
+                    )
+                own = own or parent_cid
+            _check_refs(session, obj, own)

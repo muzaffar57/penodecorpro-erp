@@ -170,6 +170,9 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
     o'rniga xuddi shu ma'lumot bilan ODDIY MATN xabar yuboriladi, shunda
     hech kim butunlay xabarsiz qolmaydi."""
     try:
+        # Ichki yordamchi: tenant tekshiruvi CHAQIRUVCHI endpointda
+        # allaqachon bajarilgan (u yerda get_delivery company_id bilan
+        # chaqiriladi). Bu yerda current_user yo'q.
         d = crud.get_delivery(db, delivery_id)
         if not d or not d.order:
             return
@@ -965,6 +968,9 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
 
 @app.post("/api/orders/{order_id}/restore")
 def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.restore_order(db, order_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
@@ -973,6 +979,9 @@ def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user
 
 @app.post("/api/projects/{project_id}/restore")
 def api_restore_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.restore_project(db, project_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -982,6 +991,9 @@ def api_restore_project(project_id: int, db: Session = Depends(get_db), current_
 @app.delete("/api/orders/{order_id}/permanent")
 def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Butunlay o'chirish — faqat 'chiqindi qutisi'dagi (avval yumshoq o'chirilgan) buyurtma uchun."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.permanent_delete_order(db, order_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
@@ -991,6 +1003,9 @@ def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), cur
 @app.delete("/api/projects/{project_id}/permanent")
 def api_permanent_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Butunlay o'chirish — faqat 'chiqindi qutisi'dagi (avval yumshoq o'chirilgan) loyiha uchun."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
     ok, msg = crud.permanent_delete_project(db, project_id, performed_by=who)
     if not ok:
@@ -1117,8 +1132,8 @@ async def production_page(request: Request, current_user=Depends(auth.admin_or_w
 
 @app.get("/projects", response_class=HTMLResponse)
 async def projects_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
-    projects = crud.get_projects_with_stats(db)
-    kpi = crud.get_projects_dashboard_stats(db)
+    projects = crud.get_projects_with_stats(db, company_id=auth.company_id_of(current_user))
+    kpi = crud.get_projects_dashboard_stats(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "projects.html", {"projects": projects, "kpi": kpi, "current_user": current_user, "active_page": "projects"})
 
 
@@ -1132,7 +1147,9 @@ def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depend
         Order.project_id,
         func.count(Order.id).label("total"),
         func.sum(case((Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]), 1), else_=0)).label("ready")
-    ).filter(Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED])).group_by(Order.project_id).all()
+    ).filter(Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]),
+             Order.company_id == auth.company_id_of(current_user)
+    ).group_by(Order.project_id).all()
 
     result = {}
     for project_id, total, ready in rows:
@@ -1142,11 +1159,14 @@ def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depend
 
 @app.get("/api/projects/dashboard-stats")
 def api_projects_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
-    return crud.get_projects_dashboard_stats(db)
+    return crud.get_projects_dashboard_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/projects/{project_id}/payment")
 def api_add_payment(project_id: int, amount: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     updated = crud.add_payment(db, project_id, amount)
     if not updated:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -1158,7 +1178,7 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
     orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all)
     for o in orders:
         o.deadline_urgency = crud.get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered)
-    projects = crud.get_projects(db)
+    projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
     masters = crud.get_masters(db, only_active=True)
     recipes = crud.get_recipes(db)
     penoplasts = services.get_penoplast_list(db)
@@ -2253,11 +2273,14 @@ def api_create_project(project: schemas.ProjectCreate, db: Session = Depends(get
 
 @app.get("/api/projects", response_model=List[schemas.ProjectRead])
 def api_get_projects(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.get_projects(db)
+    return crud.get_projects(db, company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/projects/{project_id}", response_model=schemas.ProjectRead)
 def api_update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     updated = crud.update_project(db, project_id, project)
     if not updated:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -2266,6 +2289,9 @@ def api_update_project(project_id: int, project: schemas.ProjectUpdate, db: Sess
 
 @app.delete("/api/projects/{project_id}")
 def api_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.delete_project(db, project_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -2317,7 +2343,8 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
 
 @app.get("/api/orders", response_model=List[schemas.OrderRead])
 def api_get_orders(project_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.get_orders(db, project_id=project_id)
+    return crud.get_orders(db, project_id=project_id,
+                           company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/orders/pinned")
@@ -2331,7 +2358,7 @@ def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(au
 
 @app.get("/api/orders/{order_id}")
 def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
@@ -2434,6 +2461,9 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
                      confirm_shortage: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani tahrirlash — ombor faqat FARQ bo'yicha to'g'rilanadi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage)
     if not result["success"]:
         # Xomashyo yetishmovchiligi — 409 (create bilan bir xil), frontend
@@ -2462,7 +2492,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
             min_q = float(item.min_stock)
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
-        ord_obj = crud.get_order(db, order_id)
+        ord_obj = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
         msg = (f"⚠️ *Ombor ogohlantirishlari!*\n\n*{ord_obj.order_number}* tahrirlangandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon")
@@ -2474,6 +2504,9 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
 @app.post("/api/orders/{order_id}/termopanel-loy")
 def api_complete_termopanel_loy(order_id: int, actual_loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Termopanel buyurtmasi yakunlanganda — reja/haqiqiy loy farqini to'g'irlaydi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = crud.complete_termopanel_loy(db, order_id, actual_loy_kg)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -2483,6 +2516,9 @@ def api_complete_termopanel_loy(order_id: int, actual_loy_kg: float, db: Session
 @app.put("/api/orders/{order_id}/loy")
 def api_update_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Loy rejasini o'zgartirish."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = crud.update_order_loy(db, order_id, loy_kg)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -2504,7 +2540,7 @@ def _send_telegram_to_qoplamachi(text: str):
 @app.post("/api/orders/{order_id}/coating-notify")
 def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Rejalashtirilgan loy: xomashyoni ayiradi + qoplamachiga xabar."""
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
@@ -2551,7 +2587,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
                                       gips_additives_actual=additives_list, gisht_dona=gisht_dona)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if order:
         if loy_kg and loy_kg > 0:
             msg = (
@@ -2637,7 +2673,7 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
     """Buyurtmani o'chirish — xomashyo omborga qaytariladi.
     actual_loy_kg — agar berilsa, rejalashtirilgan loy bilan solishtirilib,
     ortgan qismi omborga qaytariladi (xuddi buyurtma yakunlanganidagi kabi)."""
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
@@ -2795,14 +2831,14 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
 
 @app.delete("/api/order-items/{item_id}")
 def api_delete_order_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    if not crud.delete_order_item(db, item_id):
+    if not crud.delete_order_item(db, item_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Detal topilmadi")
     return {"status": "ok"}
 
 
 @app.put("/api/order-items/{item_id}")
 def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    updated = crud.update_order_item(db, item_id, data)
+    updated = crud.update_order_item(db, item_id, data, company_id=auth.company_id_of(current_user))
     if not updated:
         raise HTTPException(status_code=404, detail="Detal topilmadi")
     return {"status": "ok"}
@@ -2884,6 +2920,9 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
 def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
     """Loyiha detali uchun qo'shimcha ko'rsatkichlar — faqat o'qish, mavjud
     calculate_order_profit() dan foydalanadi, hech narsani o'zgartirmaydi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     import services
     from models import Order, OrderStatus
 
@@ -3212,6 +3251,9 @@ def api_save_expense(year: int, month: int, data: dict, db: Session = Depends(ge
 
 @app.get("/api/orders/{order_id}/profit")
 def api_order_profit(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
+    if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     return services.calculate_order_profit(db, order_id)
 
 
@@ -3220,7 +3262,7 @@ def api_order_pdf(order_id: int, db: Session = Depends(get_db), current_user=Dep
     from fastapi.responses import Response
     import pdf_service
     import traceback
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     try:
@@ -3242,7 +3284,7 @@ async def health():
 async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
     returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all)
     orders  = crud.get_orders_for_main_page(db, days=90, show_all=True)
-    projects = crud.get_projects(db)
+    projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "returns.html", {
         "returns": returns, "orders": orders, "projects": projects,
         "current_user": current_user, "show_all": show_all
@@ -3252,6 +3294,9 @@ async def returns_page(request: Request, show_all: bool = False, db: Session = D
 @app.get("/api/projects/{project_id}/items")
 def api_get_project_items(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Loyihadagi barcha buyurtmalar detallari — brak yozish uchun (narxsiz)."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     from models import Order, OrderStatus
 
     orders = db.query(Order).filter(
@@ -3278,7 +3323,7 @@ def api_get_project_items(project_id: int, db: Session = Depends(get_db), curren
 
 @app.post("/api/returns")
 def api_create_return(data: schemas.ReturnItemCreate, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    return crud.create_return_item(db, data)
+    return crud.create_return_item(db, data, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/returns")
@@ -3288,11 +3333,14 @@ def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db
 
 @app.get("/api/returns/stats")
 def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    return crud.get_return_stats(db)
+    return crud.get_return_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/returns/{return_id}/refund")
 def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     who = current_user.full_name or current_user.username
     item = crud.mark_refunded(db, return_id, refunded_by=who)
     if not item:
@@ -3302,6 +3350,9 @@ def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_use
 
 @app.delete("/api/returns/{return_id}")
 def api_delete_return(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     if not crud.delete_return_item(db, return_id):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     return {"status": "ok"}
@@ -3320,7 +3371,7 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
     if not data.received_by:
         data.received_by = current_user.full_name or current_user.username
     try:
-        payment = crud.create_payment(db, data)
+        payment = crud.create_payment(db, data, company_id=auth.company_id_of(current_user))
     except crud.OverpaymentWarning as w:
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
@@ -3331,7 +3382,7 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
         status = 404 if "topilmadi" in str(e) else 400
         raise HTTPException(status_code=status, detail=str(e))
 
-    order = crud.get_order(db, data.order_id)
+    order = crud.get_order(db, data.order_id, company_id=auth.company_id_of(current_user))
 
     write_off_info = None
     if write_off_remainder and order:
@@ -3368,7 +3419,7 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
 @app.get("/api/payments")
 def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """To'lovlar ro'yxati."""
-    payments = crud.get_payments(db, order_id=order_id)
+    payments = crud.get_payments(db, order_id=order_id, company_id=auth.company_id_of(current_user))
     return [{
         "id": p.id,
         "order_id": p.order_id,
@@ -3385,7 +3436,7 @@ def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_d
 def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """To'lovni o'chirish."""
     who = current_user.full_name or current_user.username
-    if not crud.delete_payment(db, payment_id, performed_by=who):
+    if not crud.delete_payment(db, payment_id, performed_by=who, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="To'lov topilmadi")
     return {"status": "ok"}
 
@@ -3393,6 +3444,9 @@ def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_u
 @app.put("/api/orders/{order_id}/agreed-amount")
 def api_update_agreed_amount(order_id: int, data: schemas.OrderAgreedUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Kelishilgan summani (chegirmadan keyingi narx) yangilash."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     order = crud.update_order_agreed_amount(db, order_id, data.agreed_amount)
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
@@ -3446,6 +3500,9 @@ def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), curre
 @app.post("/api/orders/{order_id}/activate")
 def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Qoralamani jarayonga olish — ombordan xomashyo yechiladi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = crud.activate_draft_order(db, order_id)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -3689,6 +3746,9 @@ def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Sess
 @app.post("/api/projects/{project_id}/image")
 def api_upload_project_image(project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                               current_user=Depends(auth.admin_manager_accountant)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     from models import Project
     proj = db.query(Project).filter(Project.id == project_id).first()
     if not proj:
@@ -3702,6 +3762,9 @@ def api_upload_project_image(project_id: int, file: UploadFile = File(...), db: 
 @app.post("/api/returns/{return_id}/image")
 def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                              current_user=Depends(auth.manager_or_warehouse)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     from models import ReturnItem
     ret = db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
     if not ret:
@@ -3967,6 +4030,9 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
 @app.get("/api/orders/{order_id}/delivery-status")
 def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmaning yetkazish holati."""
+    # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
+    if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = crud.get_delivery_status(db, order_id)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
@@ -3985,7 +4051,7 @@ def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_u
 def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yangi yetkazish."""
     who = current_user.full_name or current_user.username
-    result = crud.create_delivery(db, data, delivered_by=who)
+    result = crud.create_delivery(db, data, delivered_by=who, company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
@@ -4063,7 +4129,7 @@ def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_us
     import delivery_pdf
     import traceback
 
-    d = crud.get_delivery(db, delivery_id)
+    d = crud.get_delivery(db, delivery_id, company_id=auth.company_id_of(current_user))
     if not d:
         raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
     try:
@@ -4081,6 +4147,9 @@ def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_us
 def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Hisob-kitob varaqasi — tanlangan nakladnoylar bo'yicha.
     ids — vergul bilan ajratilgan delivery ID lar: '3,5,7'. Bo'sh bo'lsa — hammasi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     from fastapi.responses import Response
     import delivery_pdf as _delivery_pdf
     import traceback as _tb
@@ -4171,7 +4240,10 @@ def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
 def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                                  current_user=Depends(auth.orders_page_access)):
     from models import OrderAttachment, Order
-    order = db.query(Order).filter(Order.id == order_id).first()
+    # M2: fayl FAQAT o'z korxonasining buyurtmasiga biriktiriladi.
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.company_id == auth.company_id_of(current_user)).first()
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     url = _save_upload(file, "order_attachments", ALLOWED_FILE_EXT)
@@ -4188,6 +4260,9 @@ def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db:
 @app.get("/api/orders/{order_id}/attachments")
 def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     from models import OrderAttachment
+    # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
+    if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     atts = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).order_by(OrderAttachment.uploaded_at.desc()).all()
     return [schemas.OrderAttachmentRead.model_validate(a) for a in atts]
 
@@ -4196,7 +4271,13 @@ def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), cur
 def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db),
                                  current_user=Depends(auth.orders_page_access)):
     from models import OrderAttachment
-    att = db.query(OrderAttachment).filter(OrderAttachment.id == attachment_id).first()
+    # M2: biriktirmada company_id yo'q — ota (buyurtma) orqali tekshiriladi.
+    from models import Order as _Ord
+    att = (db.query(OrderAttachment)
+           .join(_Ord, _Ord.id == OrderAttachment.order_id)
+           .filter(OrderAttachment.id == attachment_id,
+                   _Ord.company_id == auth.company_id_of(current_user))
+           .first())
     if not att:
         raise HTTPException(status_code=404, detail="Fayl topilmadi")
     try:
@@ -4214,7 +4295,7 @@ def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db
     import delivery_pdf
     import traceback
 
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
@@ -4246,6 +4327,9 @@ def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db
 @app.delete("/api/deliveries/{delivery_id}")
 def api_delete_delivery(delivery_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yetkazishni o'chirish."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.delivery_of_company(db, delivery_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
     if not crud.delete_delivery(db, delivery_id):
         raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
     return {"status": "ok"}
@@ -4282,7 +4366,7 @@ def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db)
 @app.get("/api/orders/{order_id}/planned-loy")
 def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmada rejalashtirilgan loy miqdori — oddiy detallar + termopanel (bazalt) birga."""
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     order_planned = services._get_planned_loy(order)
@@ -4293,7 +4377,7 @@ def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=D
 @app.get("/api/dashboard/deliveries")
 def api_delivery_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yetkazish statistikasi."""
-    return crud.get_delivery_stats(db)
+    return crud.get_delivery_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/debts")

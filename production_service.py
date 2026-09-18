@@ -228,7 +228,13 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
     source_order_id = data.source_order_id
     if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value:
         from models import OrderItem, FinishedProduct
-        order_item = db.query(OrderItem).filter(OrderItem.id == data.source_order_item_id).first()
+        # M2 (2026-09-18): detal SHU korxonaniki bo'lishi shart. Ilgari faqat
+        # id bo'yicha olinardi — A korxonaning ishlab chiqarish buyurtmasi
+        # B korxonaning buyurtma-detaliga bog'lanib qolishi mumkin edi.
+        order_item = db.query(OrderItem).filter(
+            OrderItem.id == data.source_order_item_id,
+            OrderItem.company_id == company_id
+        ).first()
         if not order_item:
             return {"success": False, "message": "Tanlangan buyurtma-detali topilmadi"}
         if order_item.product_type_id != product_type.id:
