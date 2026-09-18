@@ -955,7 +955,20 @@ function fpWidth2(i) {
 }
 
 function fpSku(i) { return 'FP-' + String(i.id).padStart(4, '0'); }
-function unitLabel(u) { return u === 'metr' ? 'm' : (u === 'kvadrat' ? 'm²' : 'ta'); }
+// 2026-09-18 (birlik auditi topilmasi — HAQIQIY xato tuzatildi): bu
+// funksiya Production/MRP modulidan OLDIN yozilgan, o'shanda faqat 3 xil
+// birlik bor edi (metr/kvadrat/dona — crud.py'dagi _fp_unit() ga qarang).
+// Endi MRP mahsulot turlari ISTALGAN birlikda bo'lishi mumkin (kg, litr,
+// m², qop...), lekin eski kod ularning HAMMASINI "ta" deb ko'rsatardi —
+// masalan 50 kg mahsulot ekranda "50 ta" bo'lib chiqar edi (bazada esa
+// "kg" TO'G'RI saqlangan, ya'ni bu faqat KO'RSATISH xatosi bo'lgan).
+// Endi: eski 3 ta qiymat avvalgidek ko'rsatiladi (orqaga to'liq mos),
+// boshqa har qanday birlik esa O'Z NOMI bilan chiqadi.
+function unitLabel(u) {
+  if (!u) return 'ta';
+  const LEGACY = { metr: 'm', kvadrat: 'm²', dona: 'ta', m2: 'm²' };
+  return LEGACY[u] || u;
+}
 
 async function uploadFpImage(id, input) {
   const file = input.files[0];
