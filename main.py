@@ -1883,7 +1883,7 @@ def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Ses
 @app.get("/api/settings/ehson-percent")
 def api_get_ehson_percent(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Ehson (xayriya) foizini o'qiydi — admin belgilagan, sof foydadan ajratiladigan ulush."""
-    percent = crud.get_setting(db, "ehson_percent", "0")
+    percent = crud.get_setting(db, "ehson_percent", "0", company_id=auth.company_id_of(current_user))
     return {"ehson_percent": float(percent or 0)}
 
 
@@ -1892,7 +1892,7 @@ def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_
     """Ehson foizini belgilaydi — faqat Admin o'zgartira oladi."""
     if percent < 0 or percent > 100:
         raise HTTPException(status_code=400, detail="Foiz 0 dan 100 gacha bo'lishi kerak")
-    crud.set_setting(db, "ehson_percent", str(percent))
+    crud.set_setting(db, "ehson_percent", str(percent), company_id=auth.company_id_of(current_user))
     return {"status": "ok", "ehson_percent": percent}
 
 
@@ -2000,7 +2000,8 @@ async def supplier_receive_page(request: Request, db: Session = Depends(get_db),
 
 @app.post("/api/suppliers")
 def api_create_supplier(data: schemas.SupplierCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    s = crud.create_supplier(db, data)
+    # M8/F1a: ta'minotchi joriy adminning korxonasiga biriktiriladi.
+    s = crud.create_supplier(db, data, company_id=auth.company_id_of(current_user))
     return {"status": "ok", "id": s.id}
 
 
@@ -2312,7 +2313,8 @@ def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=De
 
 @app.post("/api/recipes", response_model=schemas.RecipeRead)
 def api_create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    return crud.create_recipe(db, recipe)
+    # M8/F1a: retsept joriy adminning korxonasiga biriktiriladi.
+    return crud.create_recipe(db, recipe, company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/recipes/{recipe_id}", response_model=schemas.RecipeRead)
@@ -2363,7 +2365,8 @@ def api_get_recipes(db: Session = Depends(get_db), current_user=Depends(auth.adm
 
 @app.post("/api/projects", response_model=schemas.ProjectRead)
 def api_create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.create_project(db, project)
+    # M8/F1a: loyiha joriy adminning korxonasiga biriktiriladi.
+    return crud.create_project(db, project, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/projects", response_model=List[schemas.ProjectRead])
@@ -4540,7 +4543,7 @@ def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db)
     if not recipe:
         return {"stock_kg": 0, "name": None}
 
-    stock = services.get_or_create_loy_stock(db, recipe)
+    stock = services.get_or_create_loy_stock(db, recipe, company_id=auth.company_id_of(current_user))
     if not stock:
         return {"stock_kg": 0, "name": None}
     return {

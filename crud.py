@@ -877,10 +877,15 @@ def get_recipe_insights(db: Session, recipe_id: int) -> Dict:
     return {"cost_per_kg": round(cost_per_kg, 2), "used_in": used_in}
 
 
-def create_recipe(db: Session, recipe_data: RecipeCreate) -> Recipe:
+def create_recipe(db: Session, recipe_data: RecipeCreate, company_id: int = None) -> Recipe:
     """Yangi retsept qo'shadi. Nomi ISTALGAN bo'lishi mumkin,
-    tarkibi Omborxonadagi istalgan materiallardan (ingredients ro'yxati) tuziladi."""
+    tarkibi Omborxonadagi istalgan materiallardan (ingredients ro'yxati) tuziladi.
+
+    2026-09-18 — M8/F1a: `company_id` berilmasdi (vaqtinchalik `DEFAULT 1`
+    ga tayanardi). Endi tenant ANIQ beriladi. Tarkib (`RecipeIngredient`)
+    esa avvalgidek retsept orqali `_TENANT_RULES` bilan to'ldiriladi."""
     db_recipe = Recipe(
+        company_id=company_id,
         name=recipe_data.name.strip(),
         batch_size_kg=recipe_data.batch_size_kg,
         notes=recipe_data.notes
@@ -950,8 +955,13 @@ from models import Project, Order, OrderItem, OrderItemSubDetail, ProjectStatus,
 from schemas import ProjectCreate, OrderCreate
 
 
-def create_project(db: Session, project_data: ProjectCreate) -> Project:
-    """Yangi loyiha qo'shadi."""
+def create_project(db: Session, project_data: ProjectCreate, company_id: int = None) -> Project:
+    """Yangi loyiha qo'shadi.
+
+    2026-09-18 — M8/F1a: `company_id` berilmasdi (vaqtinchalik `DEFAULT 1`
+    ga tayanardi) — B korxonaning loyihasi A ga yozilardi. Endi tenant
+    ANIQ beriladi. Loyiha raqami (`PRJ-NNN`) hisoblash mantig'i
+    O'ZGARTIRILMADI."""
     # Eng katta raqamni topib +1 qilamiz (count emas, chunki o'chirilgan bo'lishi mumkin)
     last = db.query(Project).order_by(Project.id.desc()).first()
     next_num = (last.id + 1) if last else 1
@@ -961,6 +971,7 @@ def create_project(db: Session, project_data: ProjectCreate) -> Project:
     project_number = f"PRJ-{next_num:03d}"
 
     db_project = Project(
+        company_id=company_id,
         project_number=project_number,
         project_name=project_data.project_name,
         client_name=project_data.client_name,
@@ -1872,21 +1883,37 @@ def delete_cash_transaction(db: Session, tx_id: int, company_id: int = None) -> 
     return True
 
 
-def get_setting(db: Session, key: str, default: str = None) -> str:
-    """Korxona sozlamasini o'qiydi (masalan Ehson foizi)."""
+def get_setting(db: Session, key: str, default: str = None,
+                company_id: int = None) -> str:
+    """Korxona sozlamasini o'qiydi (masalan Ehson foizi).
+
+    2026-09-18 — M8/F1a: qidiruv FAQAT `key` bo'yicha edi, ya'ni ikki
+    korxonali bazada bir korxona boshqasining sozlamasini o'qib olardi.
+    Endi `(company_id, key)` juftligi bo'yicha."""
     from models import CompanySetting
-    row = db.query(CompanySetting).filter(CompanySetting.key == key).first()
+    q = db.query(CompanySetting).filter(CompanySetting.key == key)
+    if company_id is not None:
+        q = q.filter(CompanySetting.company_id == company_id)
+    row = q.first()
     return row.value if row else default
 
 
-def set_setting(db: Session, key: str, value: str):
-    """Korxona sozlamasini saqlaydi/yangilaydi."""
+def set_setting(db: Session, key: str, value: str, company_id: int = None):
+    """Korxona sozlamasini saqlaydi/yangilaydi.
+
+    2026-09-18 — M8/F1a: qidiruv ham, yangi yozuv ham korxona bilan
+    bog'lanadi. Ilgari faqat `key` bo'yicha qidirilardi — bu o'qish
+    sizishi emas, MA'LUMOT BUZILISHI edi: B korxona Ehson foizini
+    o'zgartirsa, A korxonaning qatori qayta yozilardi."""
     from models import CompanySetting
-    row = db.query(CompanySetting).filter(CompanySetting.key == key).first()
+    q = db.query(CompanySetting).filter(CompanySetting.key == key)
+    if company_id is not None:
+        q = q.filter(CompanySetting.company_id == company_id)
+    row = q.first()
     if row:
         row.value = value
     else:
-        row = CompanySetting(key=key, value=value)
+        row = CompanySetting(company_id=company_id, key=key, value=value)
         db.add(row)
     db.commit()
 
@@ -8162,8 +8189,15 @@ from models import Supplier, SupplierPayment, InventoryPurchase
 from schemas import SupplierCreate, SupplierUpdate, SupplierPaymentCreate
 
 
-def create_supplier(db: Session, data: SupplierCreate) -> Supplier:
-    s = Supplier(name=data.name.strip(), phone=data.phone, notes=data.notes)
+def create_supplier(db: Session, data: SupplierCreate, company_id: int = None) -> Supplier:
+    """Yangi ta'minotchi qo'shadi.
+
+    2026-09-18 — M8/F1a: `company_id` UMUMAN berilmasdi va yozuv faqat
+    bazadagi vaqtinchalik `DEFAULT 1` tufayli saqlanardi — ya'ni B korxona
+    admini ta'minotchi yaratsa, u A korxonaga tushib qolardi. Endi tenant
+    ANIQ beriladi (mijoz so'rovidan emas, sessiyadan)."""
+    s = Supplier(company_id=company_id,
+                 name=data.name.strip(), phone=data.phone, notes=data.notes)
     db.add(s)
     db.commit()
     db.refresh(s)

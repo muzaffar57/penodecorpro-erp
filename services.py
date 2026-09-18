@@ -4079,21 +4079,38 @@ def _get_order_recipe(db: Session, order):
     return db.query(Recipe).first()
 
 
-def get_or_create_loy_stock(db: Session, recipe):
-    """Retsept uchun 'Tayyor loy' ombor pozitsiyasini topadi yoki yaratadi."""
+def get_or_create_loy_stock(db: Session, recipe, company_id: int = None):
+    """Retsept uchun 'Tayyor loy' ombor pozitsiyasini topadi yoki yaratadi.
+
+    2026-09-18 — M8/F1a: qidiruv FAQAT `item_name` bo'yicha global edi va
+    yangi pozitsiya `company_id` siz yaratilardi (vaqtinchalik `DEFAULT 1`
+    ga tayanardi). Ya'ni B korxonaning buyurtmasi A korxonaning "Tayyor
+    loy" zaxirasini topib, undan ayirib olishi mumkin edi.
+
+    Korxona retseptning O'ZIDAN olinadi (`recipe.company_id`) — retsept
+    esa chaqiruvchi tomonidan allaqachon tenant-tekshirilgan. Ataylab
+    shunday: bu funksiya buyurtma oqimining ichidan, turli joylardan
+    chaqiriladi va retsept har doim to'g'ri tenantni beradi.
+    Biznes mantig'i (nom shakli, birlik, boshlang'ich qoldiq) O'ZGARMADI."""
     from models import Inventory
 
     if not recipe:
         return None
 
+    cid = company_id if company_id is not None else getattr(recipe, "company_id", None)
+
     recipe_name = recipe.name.value if hasattr(recipe.name, 'value') else str(recipe.name)
     item_name = f"Tayyor loy ({recipe_name})"
 
-    stock = db.query(Inventory).filter(Inventory.item_name == item_name).with_for_update().first()
+    _q = db.query(Inventory).filter(Inventory.item_name == item_name)
+    if cid is not None:
+        _q = _q.filter(Inventory.company_id == cid)
+    stock = _q.with_for_update().first()
     if stock:
         return stock
 
     stock = Inventory(
+        company_id=cid,
         item_name=item_name,
         stock_quantity=0.0,
         unit="kg",
@@ -4865,7 +4882,8 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
     from sqlalchemy import extract
     import crud as _crud
 
-    percent = float(_crud.get_setting(db, "ehson_percent", "0") or 0)
+    percent = float(_crud.get_setting(db, "ehson_percent", "0",
+                                      company_id=company_id) or 0)
 
     # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
     # tarix (shu jumladan Ehson hisobi) o'zgarmasligi kerak.
