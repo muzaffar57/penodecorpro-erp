@@ -1275,6 +1275,61 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
     return db_order
 
 
+# ============================================================
+# M4 (2026-09-18) — TAYYOR MAHSULOT: TENANT-XAVFSIZ MARKAZIY QIDIRUV
+# ============================================================
+# Ilgari butun fayl bo'ylab `db.query(FinishedProduct).filter(
+# FinishedProduct.id == fp_id)` shaklidagi 17 ta joy bor edi — hammasi
+# korxona filtrisiz. Ya'ni A korxona xodimi B korxonaning mahsulot
+# ID sini yuborsa, uni ko'rardi, tahrirlardi, sotardi, o'chirardi.
+#
+# Endi ikkita markaziy funksiya bor:
+#   • get_finished_product()  — "topilmasa None" (endpointlar uchun → 404)
+#   • _fp_for_tenant()        — "boshqa korxonaniki bo'lsa RAD ET"
+#     (buyurtmaga biriktirish/allocation uchun — u yerda jimgina
+#      o'tkazib yuborish XAVFLI: miqdor yechilmay, buyurtma esa
+#      yaratilib ketardi).
+#
+# `company_id=None` — filtrsiz, ESKI xatti-harakat. Bu ataylab: ichki
+# chaqiruvchilar bosqichma-bosqich o'tkaziladi, hech narsa birdan
+# buzilmaydi. Barcha `/api/finished/*` endpointlari company_id ni
+# ANIQ uzatadi.
+
+def get_finished_product(db: Session, fp_id: int, company_id: int = None,
+                         lock: bool = False):
+    """Tayyor mahsulotni FAQAT shu korxona ichidan topadi (M4).
+
+    company_id berilmasa — filtrsiz (orqaga moslik uchun).
+    lock=True — `.with_for_update()` bilan qatorni qulflaydi (sotuv,
+    brak kabi miqdor o'zgartiradigan amallar uchun)."""
+    q = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id)
+    if company_id is not None:
+        q = q.filter(FinishedProduct.company_id == company_id)
+    if lock:
+        q = q.with_for_update()
+    return q.first()
+
+
+def _fp_for_tenant(db: Session, fp_id: int, company_id: int = None):
+    """Buyurtmaga biriktirish (allocation) uchun QAT'IY qidiruv.
+
+    • Mahsulot umuman yo'q (o'chirilgan) — None qaytaradi, chaqiruvchi
+      avvalgidek o'tkazib yuboradi (bu — eski, uzilgan havola).
+    • Mahsulot BOR, lekin BOSHQA korxonaniki — TenantMismatchError.
+      Bu yerda jimgina `continue` qilish mumkin emas edi: buyurtma
+      yaratilaverardi, B korxonaning qoldig'i esa o'qilardi/yechilardi."""
+    from models import TenantMismatchError
+    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    if fp is None:
+        return None
+    if company_id is not None and fp.company_id != company_id:
+        raise TenantMismatchError(
+            f"Tayyor mahsulot #{fp_id} boshqa korxonaga tegishli — "
+            f"buyurtmaga biriktirib bo'lmaydi."
+        )
+    return fp
+
+
 def _fp_item_qty(item) -> float:
     """Detalning tayyor mahsulotdan olinadigan miqdori."""
     cat = (item.category or '').lower()
@@ -1288,15 +1343,37 @@ def _fp_stable_unit_cost(db, fp) -> float:
     unit_volume_m3 (penoplast) va unit_loy_kg (loy) — bular ishlab
     chiqarilganda saqlanadi va HECH QACHON o'zgarmaydi. Shuning uchun
     bulardan hisoblangan tan narx — sotish/qaytarishdan qat'i nazar
-    barqaror qoladi (take va return simmetrik bo'ladi)."""
+    barqaror qoladi (take va return simmetrik bo'ladi).
+
+    M4 (2026-09-18) — TENANT: bu yerdagi BARCHA Inventory qidiruvlari
+    endi mahsulotning O'Z korxonasi (`fp.company_id`) bilan cheklangan.
+    Ilgari `penoplast_id`/`gips_inventory_id`/qo'shimchalar faqat id
+    bo'yicha olinardi — eski yoki buzilgan yozuvlarda A korxona
+    mahsulotining tannarxi B korxonaning material narxidan
+    hisoblanishi mumkin edi. Material boshqa korxonaniki bo'lsa, endi
+    u umuman topilmaydi va tannarxga QO'SHILMAYDI (noto'g'ri raqam
+    berishdan ko'ra, qo'shmaslik xavfsizroq)."""
     import services as _svc
     from models import Inventory
+    _fp_cid = getattr(fp, 'company_id', None)
+
+    def _inv(inv_id, lock=False):
+        """Materialni FAQAT shu mahsulotning korxonasidan oladi."""
+        if not inv_id:
+            return None
+        _q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if _fp_cid is not None:
+            _q = _q.filter(Inventory.company_id == _fp_cid)
+        if lock:
+            _q = _q.with_for_update()
+        return _q.first()
+
     unit_vol = float(getattr(fp, 'unit_volume_m3', None) or 0)
     unit_loy = float(getattr(fp, 'unit_loy_kg', None) or 0)
     cost = 0.0
     # Penoplast qismi
     if unit_vol > 0 and fp.penoplast_id:
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        p = _inv(fp.penoplast_id)
         if p and p.price_per_unit and p.volume_per_unit:
             narx_per_m3 = float(p.price_per_unit) / float(p.volume_per_unit)
             cost += unit_vol * narx_per_m3
@@ -1310,7 +1387,7 @@ def _fp_stable_unit_cost(db, fp) -> float:
     if gips_kg > 0 and getattr(fp, 'gips_inventory_id', None):
         produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
         if produced_q > 0:
-            gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).first()
+            gips_item = _inv(fp.gips_inventory_id)
             if gips_item and gips_item.price_per_unit:
                 unit_gips_kg = gips_kg / produced_q
                 cost += unit_gips_kg * float(gips_item.price_per_unit)
@@ -1337,7 +1414,7 @@ def _fp_stable_unit_cost(db, fp) -> float:
                 a_total_qty = float((a.get("quantity") if isinstance(a, dict) else 0) or 0)
                 if not a_inv_id or a_total_qty <= 0:
                     continue
-                a_item = db.query(Inventory).filter(Inventory.id == a_inv_id).first()
+                a_item = _inv(a_inv_id)
                 if a_item and a_item.price_per_unit:
                     unit_a_qty = a_total_qty / produced_q_add
                     cost += unit_a_qty * float(a_item.price_per_unit)
@@ -1352,25 +1429,32 @@ def _fp_stable_unit_cost(db, fp) -> float:
     if bazalt_qty > 0 and getattr(fp, 'bazalt_item_id', None):
         produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
         if produced_q > 0:
-            b_item = db.query(Inventory).filter(Inventory.id == fp.bazalt_item_id).first()
+            b_item = _inv(fp.bazalt_item_id)
             if b_item and b_item.price_per_unit:
                 cost += (bazalt_qty / produced_q) * float(b_item.price_per_unit)
             serp_qty = float(getattr(fp, 'termo_serp_qty', None) or 0)
             if serp_qty > 0 and getattr(fp, 'termo_serp_id', None):
-                s_item = db.query(Inventory).filter(Inventory.id == fp.termo_serp_id).first()
+                s_item = _inv(fp.termo_serp_id)
                 if s_item and s_item.price_per_unit:
                     cost += (serp_qty / produced_q) * float(s_item.price_per_unit)
             kley_qty = float(getattr(fp, 'termo_kley_qty', None) or 0)
             if kley_qty > 0 and getattr(fp, 'termo_kley_id', None):
-                k_item = db.query(Inventory).filter(Inventory.id == fp.termo_kley_id).first()
+                k_item = _inv(fp.termo_kley_id)
                 if k_item and k_item.price_per_unit:
                     cost += (kley_qty / produced_q) * float(k_item.price_per_unit)
     return cost
 
 
-def _take_finished_for_order(db: Session, order) -> list:
-    """Buyurtmadagi tayyor mahsulot detallarini ombordan yechadi."""
+def _take_finished_for_order(db: Session, order, company_id: int = None) -> list:
+    """Buyurtmadagi tayyor mahsulot detallarini ombordan yechadi.
+
+    M4 (2026-09-18) — TENANT: mahsulot buyurtmaning O'Z korxonasiga
+    tegishli bo'lishi SHART. Boshqa korxonaniki bo'lsa — butun amal
+    rad etiladi (TenantMismatchError), chunki bu yerda jimgina
+    o'tkazib yuborish A korxonaning buyurtmasi B korxonaning
+    qoldig'ini yechishiga olib kelardi."""
     log = []
+    cid = company_id if company_id is not None else getattr(order, 'company_id', None)
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -1378,7 +1462,7 @@ def _take_finished_for_order(db: Session, order) -> list:
         qty = _fp_item_qty(it)
         if qty <= 0:
             continue
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        fp = _fp_for_tenant(db, fpid, cid)
         if not fp:
             continue
         # MUHIM: quantity kamayganda, cost_price ham kamayishi shart. Buni
@@ -1400,7 +1484,8 @@ def _take_finished_for_order(db: Session, order) -> list:
     return log
 
 
-def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
+def _return_finished_for_order(db: Session, order, sign: float = 1.0,
+                               company_id: int = None) -> list:
     """Buyurtma o'chirilganda tayyor mahsulotlarni qaytaradi.
     sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun.
 
@@ -1413,6 +1498,8 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
     umuman chaqirilmaydi (remaining_qty=0 bo'lardi, farqi yo'q)."""
     log = []
     verb = "qaytarildi" if sign > 0 else "qayta yechildi"
+    # M4 (2026-09-18) — TENANT: _take bilan AYNAN bir xil qoida.
+    cid = company_id if company_id is not None else getattr(order, 'company_id', None)
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -1420,7 +1507,7 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
         qty = it.remaining_qty
         if qty <= 0:
             continue
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        fp = _fp_for_tenant(db, fpid, cid)
         if not fp:
             continue
         delta = qty * sign
@@ -1441,7 +1528,8 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0) -> list:
     return log
 
 
-def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
+def _adjust_finished_diff(db: Session, old_items, new_items,
+                          company_id: int = None) -> list:
     """Tayyor mahsulot farqini to'g'rilaydi (buyurtma TAHRIRLANGANDA).
 
     MUHIM: avval bu yerda faqat `fp.quantity` to'g'rilanardi, `fp.cost_price`
@@ -1472,7 +1560,8 @@ def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
         diff = new_g.get(fpid, 0.0) - old_g.get(fpid, 0.0)
         if abs(diff) < 0.001:
             continue
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        # M4 (2026-09-18) — TENANT: boshqa korxonaning mahsuloti bo'lsa rad etiladi.
+        fp = _fp_for_tenant(db, fpid, company_id)
         if not fp:
             continue
         # diff > 0: buyurtmaga YANA olindi (ombordan yechiladi, tan narx kamayadi)
@@ -1495,8 +1584,12 @@ def _adjust_finished_diff(db: Session, old_items, new_items) -> list:
     return log
 
 
-def check_finished_for_order(db: Session, items) -> dict:
-    """Tayyor mahsulot yetadimi — tekshiradi."""
+def check_finished_for_order(db: Session, items, company_id: int = None) -> dict:
+    """Tayyor mahsulot yetadimi — tekshiradi.
+
+    M4 (2026-09-18) — TENANT: company_id berilsa, mahsulot faqat SHU
+    korxonadan qidiriladi; boshqa korxonaniki bo'lsa "topilmadi" deb
+    hisoblanadi (uning qoldig'i O'QILMAYDI ham)."""
     shortages = []
     need = {}
 
@@ -1511,7 +1604,7 @@ def check_finished_for_order(db: Session, items) -> dict:
         need[fpid] = need.get(fpid, 0.0) + qty
 
     for fpid, qty in need.items():
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == fpid).first()
+        fp = get_finished_product(db, fpid, company_id)
         if not fp:
             shortages.append("Tayyor mahsulot topilmadi")
             continue
@@ -2636,9 +2729,15 @@ def get_return_stats(db: Session, company_id: int = None) -> dict:
     # "zaxiradan kamaytirish" bu yerga kirmaydi, u haqiqiy brak emas,
     # balki alohida yo'qotish turi).
     _PROD_BRAK_MARKER = "Ishlab chiqarish jarayonida brak"
-    prod_brak_losses = db.query(FinishedProductLoss).filter(
+    # M4 (2026-09-18) — TENANT: bu so'rov korxona filtrisiz edi — B
+    # korxonaning ishlab chiqarish braki A ning brak statistikasiga
+    # qo'shilib ketardi.
+    _pbq = db.query(FinishedProductLoss).filter(
         FinishedProductLoss.reason.like(f"{_PROD_BRAK_MARKER}%")
-    ).all()
+    )
+    if company_id is not None:
+        _pbq = _pbq.filter(FinishedProductLoss.company_id == company_id)
+    prod_brak_losses = _pbq.all()
     brak_total_count += len(prod_brak_losses)
     brak_total_value += sum(float(l.cost_amount or 0) for l in prod_brak_losses)
     month_prod_brak = [l for l in prod_brak_losses if l.lost_at and l.lost_at.year == now.year and l.lost_at.month == now.month]
@@ -3813,7 +3912,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot, order_id=order_id)
         inventory_log.extend(services.adjust_termopanel_diff(db, old_snapshot, new_snapshot, recipe_id=order_data.recipe_id))
         # Tayyor mahsulot farqi
-        inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot))
+        # M4: farq faqat SHU buyurtmaning korxonasidagi mahsulotlarga qo'llanadi.
+        inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot,
+                                                   company_id=getattr(order, 'company_id', None)))
 
         # "Loy sotish" — farq bo'yicha to'g'irlaymiz (recipe_id bo'yicha
         # jamlab, eski va yangi holatni solishtiramiz). Bu — avval BUTUNLAY
@@ -4295,7 +4396,8 @@ def _fp_qty(data) -> float:
     return float(data.quantity or 0)
 
 
-def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: str = None) -> dict:
+def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: str = None,
+                      company_id: int = None) -> dict:
     """Bazalt asosidagi termopanel ishlab chiqarish.
 
     3 xil xomashyo ishlatiladi:
@@ -4314,11 +4416,23 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     if required_m2 <= 0:
         return {"success": False, "message": "Kvadrat metr kiritilmagan"}
 
+    # M4 (2026-09-18) — TENANT: xomashyo va retsept FAQAT joriy korxonadan.
+    # Ilgari mijoz yuborgan `bazalt_item_id`/`serpiyanka_item_id`/
+    # `kley_item_id`/`recipe_id` faqat id bo'yicha olinardi — A korxona
+    # xodimi B korxonaning omborini kamaytirib yuborishi mumkin edi.
+    def _pt_inv(inv_id):
+        if not inv_id:
+            return None
+        _q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if company_id is not None:
+            _q = _q.filter(Inventory.company_id == company_id)
+        return _q.with_for_update().first()
+
     shortages = []
     log = []
 
     # 1) Bazalt plita — QULFLAB tekshiramiz
-    bazalt = db.query(Inventory).filter(Inventory.id == data.bazalt_item_id).with_for_update().first()
+    bazalt = _pt_inv(data.bazalt_item_id)
     if not bazalt:
         return {"success": False, "message": "Bazalt plita ombordan topilmadi"}
     bazalt_area_per_sheet = float(bazalt.volume_per_unit or 0.72)  # m² — 1 plitadan
@@ -4329,7 +4443,7 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     # 2) Serpiyanka — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik
     # uchun) nomi bo'yicha avtomatik qidiramiz
     if data.serpiyanka_item_id:
-        serpiyanka = db.query(Inventory).filter(Inventory.id == data.serpiyanka_item_id).with_for_update().first()
+        serpiyanka = _pt_inv(data.serpiyanka_item_id)
         if not serpiyanka:
             return {"success": False, "message": "Tanlangan serpiyanka ombordan topilmadi"}
     else:
@@ -4346,7 +4460,7 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     # 3) Kley — aniq tanlangan bo'lsa o'shani, bo'lmasa (eski moslik uchun)
     # nomi bo'yicha avtomatik qidiramiz
     if data.kley_item_id:
-        kley = db.query(Inventory).filter(Inventory.id == data.kley_item_id).with_for_update().first()
+        kley = _pt_inv(data.kley_item_id)
         if not kley:
             return {"success": False, "message": "Tanlangan kley ombordan topilmadi"}
     else:
@@ -4382,11 +4496,19 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     loy_kg = float(data.loy_kg or 0)
     loy_cost = 0.0
     if loy_kg > 0:
+        # M4 — TENANT: retsept ham faqat joriy korxonadan. "Birinchi
+        # topilgan retsept" (fallback) ham SHU korxona ichidan olinadi.
         recipe = None
+        _rq = db.query(Recipe)
+        if company_id is not None:
+            _rq = _rq.filter(Recipe.company_id == company_id)
         if data.recipe_id:
-            recipe = db.query(Recipe).filter(Recipe.id == data.recipe_id).first()
+            recipe = _rq.filter(Recipe.id == data.recipe_id).first()
         if not recipe:
-            recipe = db.query(Recipe).first()
+            _rq2 = db.query(Recipe)
+            if company_id is not None:
+                _rq2 = _rq2.filter(Recipe.company_id == company_id)
+            recipe = _rq2.first()
 
         loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
         loy_cost = loy_kg * float(loy_info.get("cost_per_kg", 0))
@@ -4409,6 +4531,7 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     total_cost = bazalt_cost + serp_cost + kley_cost + loy_cost
 
     fp = FinishedProduct(
+        company_id=company_id,          # M4: tenant ANIQ beriladi
         name=data.name.strip(),
         category="termopanel",
         is_coated=True,
@@ -4474,7 +4597,8 @@ def produce_termopanel(db: Session, data: TermopanelProduceCreate, created_by: s
     }
 
 
-def release_finished_product_reservation(db: Session, fp_id: int, performed_by: str = None) -> dict:
+def release_finished_product_reservation(db: Session, fp_id: int, performed_by: str = None,
+                                         company_id: int = None) -> dict:
     """2026-09-17: Production/MRP orqali biror aniq buyurtma-detaliga
     band qilingan tayyor mahsulotni ozod qiladi — mahsulotning o'zi
     OMBORDA QOLADI, faqat endi UMUMIY SOTUVGA ochiladi (boshqa har
@@ -4482,7 +4606,7 @@ def release_finished_product_reservation(db: Session, fp_id: int, performed_by: 
     mijoz pulini to'lamagan yoki uzoq vaqt olib ketmagan holatlar
     uchun — aks holda mahsulot abadiy "band" bo'lib qolib, sex uni
     qayta ishlab chiqarishga majbur bo'lardi."""
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Tayyor mahsulot topilmadi"}
     if not fp.reserved_for_order_item_id and not fp.reserved_quantity:
@@ -4498,13 +4622,15 @@ def release_finished_product_reservation(db: Session, fp_id: int, performed_by: 
     return {"success": True, "message": f"{fp.name} endi umumiy sotuv uchun ochiq"}
 
 
-def record_finished_product_loss(db: Session, data, created_by: str = None) -> dict:
+def record_finished_product_loss(db: Session, data, created_by: str = None,
+                                company_id: int = None) -> dict:
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni KAMAYTIRADI
     (butunlay o'chirmaydi). Tan narx — o'sha mahsulotning 1 birlik tan
     narxiga proporsional hisoblanadi, va Moliyada Brak xarajatiga qo'shiladi."""
     from models import FinishedProduct, FinishedProductLoss
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == data.finished_product_id).with_for_update().first()
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
+    fp = get_finished_product(db, data.finished_product_id, company_id, lock=True)
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
 
@@ -4542,7 +4668,8 @@ def record_finished_product_loss(db: Session, data, created_by: str = None) -> d
 
 def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
                                               notes: str = None, created_by: str = None,
-                                              gips_kg_brak: float = None, additives_brak: list = None) -> dict:
+                                              gips_kg_brak: float = None, additives_brak: list = None,
+                                              company_id: int = None) -> dict:
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak (masalan
     kesish yoki qoplama tortish paytida sinib ketishi) — bu, mahsulotdan
     KEYINCHALIK (allaqachon tayyor turgan holda) yo'qotilishidan FARQ
@@ -4570,9 +4697,23 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     from models import FinishedProduct, FinishedProductLoss, Inventory
     import services
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == finished_product_id).with_for_update().first()
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
+    fp = get_finished_product(db, finished_product_id, company_id, lock=True)
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
+
+    # M4: brak'da ayiriladigan XOMASHYO ham faqat shu korxonaniki bo'lishi
+    # shart — aks holda A korxonaning braki B korxonaning omborini
+    # kamaytirib qo'yardi.
+    _brak_cid = company_id if company_id is not None else getattr(fp, 'company_id', None)
+
+    def _brak_inv(inv_id):
+        if not inv_id:
+            return None
+        _q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if _brak_cid is not None:
+            _q = _q.filter(Inventory.company_id == _brak_cid)
+        return _q.with_for_update().first()
 
     cat = (fp.category or '').lower()
 
@@ -4582,7 +4723,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
             return {"success": False, "message": "Gips uchun isrof bo'lgan kg miqdorini kiriting"}
         if not fp.gips_inventory_id:
             return {"success": False, "message": "Bu mahsulotning Gips xomashyosi noma'lum (eski yozuv bo'lishi mumkin) — qo'lda hisoblash kerak"}
-        gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).with_for_update().first()
+        gips_item = _brak_inv(fp.gips_inventory_id)
         if not gips_item:
             return {"success": False, "message": "Gips xomashyosi ombordan topilmadi"}
         if float(gips_item.stock_quantity or 0) < gips_kg_brak:
@@ -4808,7 +4949,8 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     }
 
 
-def sell_finished_products_batch(db: Session, data, created_by: str = None) -> dict:
+def sell_finished_products_batch(db: Session, data, created_by: str = None,
+                                company_id: int = None) -> dict:
     """Bir nechta turli tayyor mahsulotni, BITTA xaridorga, BITTA Yuk xati
     bilan sotadi ("savatcha"). Barchasi BITTA tranzaksiyada — birortasi
     xato bersa, HECH BIRI saqlanmaydi (rollback)."""
@@ -4827,7 +4969,10 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
         prepared = []   # {fp, quantity, unit_price, original_total, cost_amount}
         original_grand_total = 0.0
         for item in data.items:
-            fp = db.query(FinishedProduct).filter(FinishedProduct.id == item.finished_product_id).with_for_update().first()
+            # M4: har bir mahsulot FAQAT joriy korxonadan. Boshqa
+            # korxonaniki bo'lsa — "topilmadi" va BUTUN savatcha rad
+            # etiladi (rollback), ya'ni B ning qoldig'iga tegilmaydi.
+            fp = get_finished_product(db, item.finished_product_id, company_id, lock=True)
             if not fp:
                 db.rollback()
                 return {"success": False, "message": f"Mahsulot (ID {item.finished_product_id}) topilmadi"}
@@ -4944,13 +5089,15 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None) -> d
         return {"success": False, "message": f"Xato yuz berdi: {str(e)}"}
 
 
-def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
+def sell_finished_product(db: Session, data, created_by: str = None,
+                         company_id: int = None) -> dict:
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotadi (buyurtma/Yuk xatisiz).
     Qoldiqdan ayiradi, savdo yozuvini yaratadi. cost_amount — mahsulotning
     o'z cost_price'iga proporsional (odatda G'isht kabi mahsulotlarda 0)."""
     from models import FinishedProduct, FinishedProductSale
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == data.finished_product_id).with_for_update().first()
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
+    fp = get_finished_product(db, data.finished_product_id, company_id, lock=True)
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
 
@@ -5019,7 +5166,8 @@ def sell_finished_product(db: Session, data, created_by: str = None) -> dict:
     }
 
 
-def create_gisht_from_order(db: Session, order, quantity: float, created_by: str = None) -> dict:
+def create_gisht_from_order(db: Session, order, quantity: float, created_by: str = None,
+                           company_id: int = None) -> dict:
     """G'isht — ortgan (loydan qolgan) qismidan quyilgan mahsulot.
     MUHIM: bu — yo'qotish EMAS (xomashyosi allaqachon shu buyurtmaning
     o'z Gips hisobida hisoblangan), shuning uchun BU YERDA ombordan
@@ -5032,11 +5180,18 @@ def create_gisht_from_order(db: Session, order, quantity: float, created_by: str
     if quantity <= 0:
         return {"success": False, "message": "Miqdor 0 dan katta bo'lishi kerak"}
 
-    existing = db.query(FinishedProduct).filter(
+    # M4 (2026-09-18) — TENANT: "G'isht" yozuvi korxona filtrisiz
+    # qidirilardi — A korxonaning buyurtmasidan chiqqan g'isht B
+    # korxonaning umumiy "G'isht" qoldig'iga qo'shilib ketishi mumkin edi.
+    _gisht_cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    _gq = db.query(FinishedProduct).filter(
         FinishedProduct.name == "G'isht",
         FinishedProduct.category == "dona",
         FinishedProduct.source == StockSource.PRODUCED
-    ).with_for_update().first()
+    )
+    if _gisht_cid is not None:
+        _gq = _gq.filter(FinishedProduct.company_id == _gisht_cid)
+    existing = _gq.with_for_update().first()
 
     if existing:
         existing.quantity = float(existing.quantity or 0) + quantity
@@ -5047,6 +5202,7 @@ def create_gisht_from_order(db: Session, order, quantity: float, created_by: str
         return {"success": True, "finished_product_id": existing.id, "quantity": quantity}
 
     fp = FinishedProduct(
+        company_id=_gisht_cid,          # M4: tenant ANIQ beriladi
         name="G'isht",
         category="dona",
         quantity=quantity,
@@ -5068,16 +5224,28 @@ def create_gisht_from_order(db: Session, order, quantity: float, created_by: str
     return {"success": True, "finished_product_id": fp.id, "quantity": quantity}
 
 
-def produce_gips_finished_product(db: Session, data, created_by: str = None) -> dict:
+def produce_gips_finished_product(db: Session, data, created_by: str = None,
+                                 company_id: int = None) -> dict:
     """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqaradi.
     Agar Gips xomashyosi va sarflangan kg ko'rsatilgan bo'lsa — ombordan
     haqiqatan ayiradi va tan narxni shunga qarab hisoblaydi. Ko'rsatilmasa
     — tan narxi 0 bo'ladi (masalan mavjud zaxiradan qayta ishlangan bo'lsa)."""
     from models import FinishedProduct, Inventory, StockSource, ProductionStatus
 
+    # M4 (2026-09-18) — TENANT: gips va qo'shimcha materiallar FAQAT
+    # joriy korxonadan olinadi (ilgari mijoz yuborgan id bo'yicha
+    # to'g'ridan-to'g'ri, ya'ni B korxonaning ombori kamayishi mumkin edi).
+    def _gp_inv(inv_id):
+        if not inv_id:
+            return None
+        _q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if company_id is not None:
+            _q = _q.filter(Inventory.company_id == company_id)
+        return _q.with_for_update().first()
+
     cost_price = 0.0
     if data.gips_inventory_id and data.gips_kg_used and data.gips_kg_used > 0:
-        gips_item = db.query(Inventory).filter(Inventory.id == data.gips_inventory_id).with_for_update().first()
+        gips_item = _gp_inv(data.gips_inventory_id)
         if not gips_item:
             return {"success": False, "message": "Tanlangan Gips xomashyosi topilmadi"}
         if float(gips_item.stock_quantity or 0) < data.gips_kg_used:
@@ -5093,7 +5261,7 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
     # Qo'shimchalar (Serpiyanka, Po'lat sim va h.k.) — har biri ombordan
     # ayiriladi va tan narxga qo'shiladi
     for add in (data.additives or []):
-        add_item = db.query(Inventory).filter(Inventory.id == add.inventory_id).with_for_update().first()
+        add_item = _gp_inv(add.inventory_id)
         if not add_item:
             return {"success": False, "message": f"Qo'shimcha material (ID {add.inventory_id}) topilmadi"}
         if float(add_item.stock_quantity or 0) < add.quantity:
@@ -5118,6 +5286,7 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
     ]) if data.additives else None
 
     fp = FinishedProduct(
+        company_id=company_id,          # M4: tenant ANIQ beriladi
         name=data.name,
         category="gips",
         quantity=data.quantity,
@@ -5146,7 +5315,8 @@ def produce_gips_finished_product(db: Session, data, created_by: str = None) -> 
     return {"success": True, "finished_product_id": fp.id}
 
 
-def produce_finished_product(db: Session, data: ProduceCreate, created_by: str = None) -> dict:
+def produce_finished_product(db: Session, data: ProduceCreate, created_by: str = None,
+                            company_id: int = None) -> dict:
     """Ishlab chiqarish boshlanadi:
     - Penoplast DARHOL ombordan yechiladi (kesish boshlanadi)
     - Loy REJA sifatida saqlanadi — "Tayyor" bosilganda aniq miqdor yechiladi
@@ -5178,10 +5348,26 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
 
     pid = data.penoplast_id or (default_p.id if default_p else None)
 
+    # M4 (2026-09-18) — TENANT: Penoplast FAQAT joriy korxonadan olinadi.
+    # Ilgari mijoz yuborgan `penoplast_id` faqat id bo'yicha o'qilardi —
+    # A korxona xodimi B korxonaning penoplast qoldig'ini kamaytirib
+    # yuborishi mumkin edi.
+    def _pf_inv(inv_id, lock=False):
+        if not inv_id:
+            return None
+        _q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if company_id is not None:
+            _q = _q.filter(Inventory.company_id == company_id)
+        if lock:
+            _q = _q.with_for_update()
+        return _q.first()
+
     # Penoplast yetadimi
     shortages = []
     if volume > 0 and pid:
-        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        p = _pf_inv(pid)
+        if company_id is not None and not p:
+            return {"success": False, "message": "Tanlangan Penoplast ombordan topilmadi"}
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = volume / vol_per_unit
@@ -5198,7 +5384,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
 
     # 1) Penoplastni DARHOL yechamiz
     if volume > 0 and pid:
-        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
+        p = _pf_inv(pid, lock=True)
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = volume / vol_per_unit
@@ -5218,11 +5404,19 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     loy_kg = float(data.loy_kg or 0)
     if loy_kg > 0:
         from models import Recipe
+        # M4 — TENANT: retsept ham faqat joriy korxonadan. "Birinchi
+        # topilgan retsept" (fallback) ham SHU korxona ichidan olinadi.
         recipe = None
+        _rq = db.query(Recipe)
+        if company_id is not None:
+            _rq = _rq.filter(Recipe.company_id == company_id)
         if data.recipe_id:
-            recipe = db.query(Recipe).filter(Recipe.id == data.recipe_id).first()
+            recipe = _rq.filter(Recipe.id == data.recipe_id).first()
         if not recipe:
-            recipe = db.query(Recipe).first()
+            _rq2 = db.query(Recipe)
+            if company_id is not None:
+                _rq2 = _rq2.filter(Recipe.company_id == company_id)
+            recipe = _rq2.first()
 
         loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
         loy_cost = loy_kg * float(loy_info.get("cost_per_kg", 0))
@@ -5247,6 +5441,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     # Har safar YANGI yozuv — birlashtirmaymiz (loy sarfi har birida boshqacha)
     unit = _fp_unit(data.category)
     fp = FinishedProduct(
+        company_id=company_id,          # M4: tenant ANIQ beriladi
         name=data.name.strip(),
         category=data.category,
         width=data.width,
@@ -5303,12 +5498,13 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     }
 
 
-def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0) -> dict:
+def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0,
+                       company_id: int = None) -> dict:
     """Ishlab chiqarishni yakunlaydi — mahsulot sotuvga tayyor.
     Xomashyo allaqachon yechilgan, bu faqat status o'zgartirish."""
     from models import ProductionStatus
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
 
@@ -5354,9 +5550,15 @@ def complete_production(db: Session, fp_id: int, actual_loy_kg: float = 0) -> di
     }
 
 
-def get_finished_products(db: Session, source: Optional[str] = None, only_available: bool = False) -> List[FinishedProduct]:
-    """Tayyor mahsulotlar ro'yxati."""
+def get_finished_products(db: Session, source: Optional[str] = None, only_available: bool = False,
+                         company_id: int = None) -> List[FinishedProduct]:
+    """Tayyor mahsulotlar ro'yxati.
+
+    M4 (2026-09-18) — TENANT: company_id berilsa, FAQAT shu korxona
+    mahsulotlari qaytariladi."""
     q = db.query(FinishedProduct)
+    if company_id is not None:
+        q = q.filter(FinishedProduct.company_id == company_id)
     if source:
         try:
             q = q.filter(FinishedProduct.source == StockSource(source))
@@ -5367,7 +5569,8 @@ def get_finished_products(db: Session, source: Optional[str] = None, only_availa
     return q.order_by(FinishedProduct.source, FinishedProduct.name).all()
 
 
-def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: bool = False) -> List[FinishedProduct]:
+def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: bool = False,
+                                       company_id: int = None) -> List[FinishedProduct]:
     """Tayyor mahsulotlar sahifasi uchun — tezlik uchun.
 
     MUHIM: ombordagi (quantity > 0) VA hali ishlab chiqarilayotgan
@@ -5377,21 +5580,32 @@ def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: b
     from models import ProductionStatus
     from datetime import timedelta
 
+    # M4 (2026-09-18) — TENANT: SAHIFA ro'yxati. Auditda aynan shu
+    # funksiya orqali B korxonaning mahsuloti A ning sahifasida
+    # ko'ringan edi (H-2).
+    base = db.query(FinishedProduct)
+    if company_id is not None:
+        base = base.filter(FinishedProduct.company_id == company_id)
+
     if show_all:
-        return db.query(FinishedProduct).order_by(FinishedProduct.source, FinishedProduct.name).all()
+        return base.order_by(FinishedProduct.source, FinishedProduct.name).all()
 
     cutoff = datetime.utcnow() - timedelta(days=days)
-    return db.query(FinishedProduct).filter(
+    return base.filter(
         (FinishedProduct.created_at >= cutoff) |
         (FinishedProduct.quantity > 0) |
         (FinishedProduct.production_status == ProductionStatus.IN_PROGRESS)
     ).order_by(FinishedProduct.source, FinishedProduct.name).all()
 
 
-def update_finished_product(db: Session, fp_id: int, data: dict) -> Optional[FinishedProduct]:
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+def update_finished_product(db: Session, fp_id: int, data: dict,
+                           company_id: int = None) -> Optional[FinishedProduct]:
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda None → 404).
+    fp = get_finished_product(db, fp_id, company_id)
     if not fp:
         return None
+    # M4: company_id hech qachon mijoz so'rovidan qabul qilinmaydi.
+    data = {k: v for k, v in (data or {}).items() if k != "company_id"}
     for k, v in data.items():
         if v is not None and hasattr(fp, k):
             setattr(fp, k, v)
@@ -5400,7 +5614,8 @@ def update_finished_product(db: Session, fp_id: int, data: dict) -> Optional[Fin
     return fp
 
 
-def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = False) -> bool:
+def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = False,
+                            company_id: int = None) -> bool:
     """Tayyor mahsulotni o'chirish.
 
     MUHIM (real hayot mantig'i): tayyor mahsulot — ALLAQACHON ishlab
@@ -5414,7 +5629,8 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
         aylangan — real hayotda sindirilsa ham qaytmaydi).
     `return_to_stock` parametri endi ISHLATILMAYDI (eski chaqiruvlar
     buzilmasligi uchun qoldirilgan)."""
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda False → 404/xato).
+    fp = get_finished_product(db, fp_id, company_id)
     if not fp:
         return False
 
@@ -5429,9 +5645,15 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     if fp.production_status == _PS.IN_PROGRESS:
         import services as _svc
         from models import Inventory as _Inv
+        # M4: qaytariladigan xomashyo ham faqat SHU mahsulotning korxonasidan.
+        _del_cid = getattr(fp, 'company_id', None)
+
+        def _del_inv(_q):
+            return _q.filter(_Inv.company_id == _del_cid) if _del_cid is not None else _q
+
         # Penoplast qaytadi
         if fp.penoplast_id and fp.volume_m3:
-            p = db.query(_Inv).filter(_Inv.id == fp.penoplast_id).with_for_update().first()
+            p = _del_inv(db.query(_Inv).filter(_Inv.id == fp.penoplast_id)).with_for_update().first()
             if p:
                 vpu = float(p.volume_per_unit or 1.0)
                 p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) / vpu)
@@ -5440,12 +5662,12 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
             _svc.return_loy_ingredients(db, _TermoFakeOrder(fp.recipe_id), float(fp.actual_loy_kg))
         # Gips qaytadi
         if getattr(fp, 'gips_kg_used', None) and fp.gips_kg_used > 0 and getattr(fp, 'gips_inventory_id', None):
-            g = db.query(_Inv).filter(_Inv.id == fp.gips_inventory_id).with_for_update().first()
+            g = _del_inv(db.query(_Inv).filter(_Inv.id == fp.gips_inventory_id)).with_for_update().first()
             if g:
                 g.stock_quantity = float(g.stock_quantity or 0) + float(fp.gips_kg_used)
         # Bazalt (termopanel) qaytadi — bazalt/serpiyanka/kley
         if (fp.category or '').lower() == 'termopanel' and getattr(fp, 'bazalt_item_id', None):
-            b = db.query(_Inv).filter(_Inv.id == fp.bazalt_item_id).with_for_update().first()
+            b = _del_inv(db.query(_Inv).filter(_Inv.id == fp.bazalt_item_id)).with_for_update().first()
             if b:
                 m2 = float(fp.quantity or 0)
                 area = float(b.volume_per_unit or 0.72)
@@ -5453,11 +5675,11 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
                 b.stock_quantity = float(b.stock_quantity) + sheets
                 serp_ratio = float(b.serp_ratio_per_m2) if b.serp_ratio_per_m2 else 2.0
                 kley_ratio = float(b.kley_ratio_per_m2) if b.kley_ratio_per_m2 else 0.8
-                serp = db.query(_Inv).filter(_Inv.item_name.ilike('%serpiyanka%')).first()
+                serp = _del_inv(db.query(_Inv).filter(_Inv.item_name.ilike('%serpiyanka%'))).first()
                 if serp:
                     serp_area = float(serp.volume_per_unit or 50.0)
                     serp.stock_quantity = float(serp.stock_quantity) + ((m2 * serp_ratio) / serp_area if serp_area > 0 else 0)
-                kley = db.query(_Inv).filter(_Inv.item_name.ilike('%kley%')).first()
+                kley = _del_inv(db.query(_Inv).filter(_Inv.item_name.ilike('%kley%'))).first()
                 if kley:
                     kley.stock_quantity = float(kley.stock_quantity) + (m2 * kley_ratio)
 
@@ -5530,15 +5752,23 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         per_unit_volume = full_volume / ordered
     new_volume = round(per_unit_volume * quantity, 6)
 
-    # Bir xili bo'lsa birlashtiramiz
-    existing = db.query(FinishedProduct).filter(
+    # Bir xili bo'lsa birlashtiramiz.
+    # M4 (2026-09-18) — TENANT: bu "birlashtirish" so'rovi korxona
+    # filtrisiz edi — A korxonadan qaytgan detal, nomi/o'lchami/narxi
+    # tasodifan bir xil kelsa, B korxonaning qaytgan mahsulotiga
+    # qo'shilib ketishi mumkin edi.
+    _ret_cid = getattr(getattr(order_item, 'order', None), 'company_id', None)
+    _rq = db.query(FinishedProduct).filter(
         FinishedProduct.name == order_item.name,
         FinishedProduct.source == StockSource.RETURNED,
         FinishedProduct.width == order_item.width,
         FinishedProduct.thickness == order_item.thickness,
         FinishedProduct.is_coated == order_item.is_coated,
         FinishedProduct.unit_price == unit_p,
-    ).first()
+    )
+    if _ret_cid is not None:
+        _rq = _rq.filter(FinishedProduct.company_id == _ret_cid)
+    existing = _rq.first()
 
     if existing:
         existing.quantity = float(existing.quantity or 0) + quantity
@@ -5553,6 +5783,7 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         return existing
 
     fp = FinishedProduct(
+        company_id=_ret_cid,            # M4: tenant ANIQ beriladi
         name=order_item.name,
         category=order_item.category,
         width=order_item.width,
@@ -5577,7 +5808,8 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     return fp
 
 
-def search_finished_products(db: Session, query: str, category: str = None, exclude_category: str = None) -> List[dict]:
+def search_finished_products(db: Session, query: str, category: str = None, exclude_category: str = None,
+                            company_id: int = None) -> List[dict]:
     """Nom bo'yicha tayyor mahsulot qidirish — buyurtmada taklif uchun.
     category — agar berilsa (masalan 'gips'), FAQAT shu turdagi mahsulotlar
     qaytariladi. exclude_category — aksincha, shu turdagi mahsulotlar
@@ -5591,6 +5823,10 @@ def search_finished_products(db: Session, query: str, category: str = None, excl
         FinishedProduct.quantity > 0,
         FinishedProduct.name.ilike(f"%{q}%")
     ]
+    # M4 (2026-09-18) — TENANT: auditda `?q=ZZZB` B korxonaning
+    # mahsulotini topib berardi (H-4).
+    if company_id is not None:
+        filters.append(FinishedProduct.company_id == company_id)
     if category:
         filters.append(FinishedProduct.category == category)
     elif exclude_category:
@@ -5631,11 +5867,17 @@ def search_finished_products(db: Session, query: str, category: str = None, excl
 
 
 
-def get_finished_stats(db: Session) -> dict:
-    """Tayyor mahsulotlar statistikasi."""
+def get_finished_stats(db: Session, company_id: int = None) -> dict:
+    """Tayyor mahsulotlar statistikasi.
+
+    M4 (2026-09-18) — TENANT: auditda `produced_count` ichiga B
+    korxonaning mahsuloti ham sanalardi (H-3)."""
     from models import ProductionStatus
 
-    items = db.query(FinishedProduct).filter(FinishedProduct.quantity > 0).all()
+    _sq = db.query(FinishedProduct).filter(FinishedProduct.quantity > 0)
+    if company_id is not None:
+        _sq = _sq.filter(FinishedProduct.company_id == company_id)
+    items = _sq.all()
 
     produced = [i for i in items if i.source == StockSource.PRODUCED]
     returned = [i for i in items if i.source == StockSource.RETURNED]
@@ -5668,7 +5910,8 @@ class _TermoFakeOrder:
         self.is_fully_delivered = False
 
 
-def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str = None) -> dict:
+def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str = None,
+                     company_id: int = None) -> dict:
     """Mavjud tayyor mahsulotga miqdor qo'shadi.
     Penoplast va loy proporsional hisoblanib ombordan yechiladi.
 
@@ -5678,9 +5921,15 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     import services
     from models import Recipe
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
+
+    # M4: "+" qo'shishda ayiriladigan xomashyo ham faqat SHU korxonadan.
+    _add_cid = company_id if company_id is not None else getattr(fp, 'company_id', None)
+
+    def _add_inv(_q):
+        return _q.filter(Inventory.company_id == _add_cid) if _add_cid is not None else _q
 
     if add_qty <= 0:
         return {"success": False, "message": "Miqdor musbat bo'lishi kerak"}
@@ -6003,10 +6252,11 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     }
 
 
-def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = None) -> dict:
+def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = None,
+                     company_id: int = None) -> dict:
     """Tayyor mahsulot miqdorini kamaytiradi (brak/singan).
     Xomashyo omborga QAYTARILMAYDI — tan narxi saqlanadi."""
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
 
@@ -6045,13 +6295,23 @@ def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = 
     }
 
 
-def get_finished_profit(db: Session, fp_id: int) -> dict:
-    """Tayyor mahsulot foydasi — to'liq tafsilot bilan."""
+def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict:
+    """Tayyor mahsulot foydasi — to'liq tafsilot bilan.
+
+    M4 (2026-09-18) — TENANT: auditda aynan shu funksiya orqali
+    (`GET /api/finished/41/profit`) B korxonaning to'liq tannarx va
+    foyda ma'lumoti chiqib ketgan edi (CR-1)."""
     import services
 
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    fp = get_finished_product(db, fp_id, company_id)
     if not fp:
         return {"success": False, "message": "Topilmadi"}
+
+    # M4: tannarx tafsilotidagi material qidiruvlari ham shu korxonadan.
+    _pf_cid = getattr(fp, 'company_id', None)
+
+    def _pf_inv(_q):
+        return _q.filter(Inventory.company_id == _pf_cid) if _pf_cid is not None else _q
 
     qty = float(fp.quantity or 0)
     unit_price = float(fp.unit_price or 0)
@@ -6064,7 +6324,7 @@ def get_finished_profit(db: Session, fp_id: int) -> dict:
         gips_cost_per_kg = 0.0
         gips_item_name = None
         if fp.gips_inventory_id:
-            gips_item = db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id).first()
+            gips_item = _pf_inv(db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id)).first()
             if gips_item:
                 gips_cost_per_kg = float(gips_item.price_per_unit or 0)
                 gips_item_name = gips_item.item_name

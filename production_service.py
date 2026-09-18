@@ -177,7 +177,13 @@ def get_mrp_order_items_status(db: Session, company_id: int, product_type_id: in
     (remaining_quantity > 0) qaytariladi — allaqachon to'liq
     ta'minlanganlar ro'yxatda ko'rinmaydi (ular allaqachon bajarilgan)."""
     from models import OrderItem, Order, Project, FinishedProduct
-    q = db.query(OrderItem).filter(OrderItem.category == 'mrp_product')
+    # M4 (2026-09-18) — TENANT: `company_id` parametri qabul qilinardi,
+    # lekin so'rovda UMUMAN ishlatilmasdi — B korxonaning buyurtma
+    # detallari A ning "ishlab chiqarish kerak" ro'yxatida chiqardi.
+    q = db.query(OrderItem).filter(
+        OrderItem.category == 'mrp_product',
+        OrderItem.company_id == company_id,
+    )
     if product_type_id:
         q = q.filter(OrderItem.product_type_id == product_type_id)
     items = q.all()
@@ -216,8 +222,12 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
     if not product_type:
         return {"success": False, "message": "Mahsulot turi topilmadi"}
 
+    # M4 (2026-09-18) — F6: BOM ham ANIQ joriy korxonadan olinadi.
+    # Ilgari faqat `product_type` orqali bilvosita cheklanardi — bu
+    # auditda `ProductionOrder → BOM` yo'nalishidagi yagona NEEDS_FIX edi.
     bom = db.query(BOM).filter(
-        BOM.id == data.bom_id, BOM.product_type_id == product_type.id, BOM.is_active == True
+        BOM.id == data.bom_id, BOM.product_type_id == product_type.id,
+        BOM.company_id == company_id, BOM.is_active == True
     ).first()
     if not bom:
         return {"success": False, "message": "Tanlangan retsept (BOM) topilmadi yoki faol emas"}
@@ -337,7 +347,12 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
                 snapshot.append(line)
                 continue
 
-            inv = db.query(Inventory).filter(Inventory.id == item.inventory_id).with_for_update().first()
+            # M4: xomashyo ham ANIQ joriy korxonadan (BOMItem→Inventory
+            # himoyasi faqat YOZISH paytida ishlaydi, o'qishda emas).
+            inv = db.query(Inventory).filter(
+                Inventory.id == item.inventory_id,
+                Inventory.company_id == company_id,
+            ).with_for_update().first()
             if not inv:
                 db.rollback()
                 return {"success": False, "message": f"Xomashyo topilmadi (ID {item.inventory_id})"}
@@ -376,7 +391,8 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
         if po.source_order_item_id:
             from models import OrderItem, FinishedProduct
             locked_item = db.query(OrderItem).filter(
-                OrderItem.id == po.source_order_item_id
+                OrderItem.id == po.source_order_item_id,
+                OrderItem.company_id == company_id,          # M4
             ).with_for_update().first()
             if locked_item:
                 already_reserved = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
@@ -396,6 +412,13 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
             ProductType.id == po.product_type_id, ProductType.company_id == company_id
         ).first()
         fp = FinishedProduct(
+            # M4 (2026-09-18) — MUHIM: bu yozuvda `from_order_id`,
+            # `recipe_id`, `penoplast_id` ning hech biri yo'q, shuning
+            # uchun models.py dagi `_TENANT_RULES` otani topa olmaydi va
+            # yozuv bazadagi vaqtinchalik `DEFAULT 1` ga tushib qolardi —
+            # ya'ni B korxonaning MRP ishlab chiqarishi 1-korxonaga
+            # tegishli tayyor mahsulot yaratardi. Endi ANIQ beriladi.
+            company_id=company_id,
             name=product_type.name if product_type else "Noma'lum mahsulot",
             category="dynamic_bom",
             quantity=po.quantity,
@@ -494,7 +517,10 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
         for line in snapshot:
             if not line.get("included"):
                 continue  # Tanlanmagan ixtiyoriy komponent — o'tkazib yuboriladi
-            inv = db.query(Inventory).filter(Inventory.id == line["inventory_id"]).with_for_update().first()
+            inv = db.query(Inventory).filter(
+                Inventory.id == line["inventory_id"],
+                Inventory.company_id == company_id,          # M4
+            ).with_for_update().first()
             if not inv:
                 continue  # Xomashyo o'chirilgan bo'lsa ham, yakunlashni to'xtatmaymiz — snapshot narxi bilan hisoblashda davom etamiz
             # Qoida #1: OMBOR birligidagi miqdor bilan ayiriladi (agar
@@ -537,7 +563,10 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
         po.completed_at = datetime.utcnow()
 
         if po.finished_product_id:
-            fp = db.query(FinishedProduct).filter(FinishedProduct.id == po.finished_product_id).first()
+            fp = db.query(FinishedProduct).filter(
+                FinishedProduct.id == po.finished_product_id,
+                FinishedProduct.company_id == company_id,    # M4
+            ).first()
             if fp:
                 fp.cost_price = total_cost
                 fp.production_status = FPStatus.READY
@@ -577,7 +606,10 @@ def cancel_production_order(db: Session, po_id: int, company_id: int, performed_
 
     try:
         if po.finished_product_id:
-            fp = db.query(FinishedProduct).filter(FinishedProduct.id == po.finished_product_id).first()
+            fp = db.query(FinishedProduct).filter(
+                FinishedProduct.id == po.finished_product_id,
+                FinishedProduct.company_id == company_id,    # M4
+            ).first()
             if fp:
                 db.delete(fp)
 

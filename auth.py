@@ -545,6 +545,23 @@ def delivery_of_company(db: Session, delivery_id: int, company_id: int):
                     Order.company_id == company_id).first())
 
 
+def finished_product_of_company(db: Session, fp_id: int, company_id: int):
+    """Tayyor mahsulotni FAQAT shu korxona ichidan topadi (M4).
+
+    2026-09-18 — M4. Tayyor mahsulot endpointlari faqat id bo'yicha
+    ishlardi (`/api/finished/{fp_id}/...`), ya'ni A korxona xodimi
+    B korxonaning mahsulotini ko'rishi, tahrirlashi, sotishi, brak
+    qilishi yoki o'chirishi mumkin edi.
+
+    Topilmasa None qaytaradi — chaqiruvchi 404 beradi. Ataylab 404,
+    403 emas: boshqa korxonada bunday id borligini oshkor qilmaslik
+    uchun."""
+    from models import FinishedProduct
+    return db.query(FinishedProduct).filter(
+        FinishedProduct.id == fp_id,
+        FinishedProduct.company_id == company_id).first()
+
+
 def employee_of_company(db: Session, emp_id: int, company_id: int):
     """Xodimni FAQAT shu korxona ichidan topadi.
 

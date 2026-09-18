@@ -2362,7 +2362,9 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     check = services.check_inventory_for_order(db, order)
     tcheck = services.check_termopanel_for_order(db, order)
-    fcheck = crud.check_finished_for_order(db, order.items)
+    # M4: tayyor mahsulot yetarliligi FAQAT joriy korxona ombori bo'yicha.
+    fcheck = crud.check_finished_for_order(db, order.items,
+                                           company_id=auth.company_id_of(current_user))
     lcheck = services.check_loy_ingredients_for_order(db, order.recipe_id, loy_kg or 0)
     gcheck = services.check_gips_for_order(db, order)
 
@@ -3206,7 +3208,10 @@ async def kunlik_xarajat_page(request: Request, db: Session = Depends(get_db), c
 
 @app.get("/api/finance/report")
 def api_finance_report(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_monthly_report(db, year, month)
+    # M4: hisobotning tayyor mahsulot qismi joriy korxona bilan cheklanadi
+    # (qolgan qismlari M6 da ko'riladi).
+    return services.get_monthly_report(db, year, month,
+                                       company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/debt-summary")
@@ -3236,7 +3241,8 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
     import finance_pdf
     from datetime import datetime as _dt
 
-    report = services.get_monthly_report(db, year, month)
+    report = services.get_monthly_report(db, year, month,
+                                        company_id=auth.company_id_of(current_user))
 
     _start = _dt(year, month, 1)
     _end = _dt(year + 1, 1, 1) if month == 12 else _dt(year, month + 1, 1)
@@ -3584,11 +3590,14 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
 @app.get("/finished", response_class=HTMLResponse)
 async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotlar sahifasi."""
-    items = crud.get_finished_products(db)
+    # M4 (2026-09-18): SAHIFA ham API kabi tenant bilan cheklanadi —
+    # M2 saboqi: server chizadigan sahifa boshqa funksiyalardan o'qiydi.
+    _cid = auth.company_id_of(current_user)
+    items = crud.get_finished_products(db, company_id=_cid)
     penoplasts = services.get_penoplast_list(db)
     default_p = services.get_default_penoplast(db)
-    recipes = crud.get_recipes(db, company_id=auth.company_id_of(current_user))
-    stats = crud.get_finished_stats(db)
+    recipes = crud.get_recipes(db, company_id=_cid)
+    stats = crud.get_finished_stats(db, company_id=_cid)
     masters = crud.get_masters(db, only_active=True)
     return templates.TemplateResponse(request, "finished.html", {
         "items": items, "penoplasts": penoplasts,
@@ -3760,10 +3769,13 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
 def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotlar ro'yxati."""
+    _cid = auth.company_id_of(current_user)   # M4
     if source or only_available:
-        items = crud.get_finished_products(db, source=source, only_available=only_available)
+        items = crud.get_finished_products(db, source=source, only_available=only_available,
+                                           company_id=_cid)
     else:
-        items = crud.get_finished_products_for_main_page(db, days=90, show_all=show_all)
+        items = crud.get_finished_products_for_main_page(db, days=90, show_all=show_all,
+                                                         company_id=_cid)
     return [{
         "id": fp.id,
         "name": fp.name,
@@ -3801,8 +3813,8 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
 @app.post("/api/finished/{fp_id}/image")
 def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                                current_user=Depends(auth.admin_warehouse_or_manager)):
-    from models import FinishedProduct
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda 404).
+    fp = auth.finished_product_of_company(db, fp_id, auth.company_id_of(current_user))
     if not fp:
         raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
     url = _save_upload(file, "finished", ALLOWED_IMAGE_EXT)
@@ -3845,7 +3857,7 @@ def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Se
 
 @app.get("/api/finished/stats")
 def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
-    return crud.get_finished_stats(db)
+    return crud.get_finished_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finished/search")
@@ -3853,7 +3865,9 @@ def api_search_finished(q: str = "", category: Optional[str] = None, exclude_cat
     """Nom bo'yicha qidirish — buyurtmada taklif uchun. category — masalan
     'gips', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
     try:
-        return {"items": crud.search_finished_products(db, q, category=category, exclude_category=exclude_category)}
+        return {"items": crud.search_finished_products(db, q, category=category,
+                                                      exclude_category=exclude_category,
+                                                      company_id=auth.company_id_of(current_user))}
     except Exception as e:
         import traceback
         print("Tayyor mahsulot qidiruvida XATO:\n", traceback.format_exc())
@@ -3865,7 +3879,8 @@ def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Sessio
                                current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
     who = current_user.full_name or current_user.username
-    result = crud.record_finished_product_loss(db, data, created_by=who)
+    result = crud.record_finished_product_loss(db, data, created_by=who,
+                                              company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -3877,7 +3892,8 @@ def api_release_finished_product_reservation(fp_id: int, db: Session = Depends(g
     """2026-09-17: Production/MRP orqali biror buyurtmaga band qilingan
     tayyor mahsulotni ozod qilib, umumiy sotuvga qaytaradi."""
     who = current_user.full_name or current_user.username
-    result = crud.release_finished_product_reservation(db, fp_id, performed_by=who)
+    result = crud.release_finished_product_reservation(
+        db, fp_id, performed_by=who, company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
     return result
@@ -3898,6 +3914,7 @@ def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCrea
         db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
         gips_kg_brak=data.gips_kg_brak,
         additives_brak=[a.dict() for a in data.additives_brak] if data.additives_brak else None,
+        company_id=auth.company_id_of(current_user),
     )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -3909,7 +3926,8 @@ def api_sell_finished_products_batch(data: schemas.FinishedProductSaleBatchCreat
                                        current_user=Depends(auth.admin_warehouse_or_manager)):
     """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
     who = current_user.full_name or current_user.username
-    result = crud.sell_finished_products_batch(db, data, created_by=who)
+    result = crud.sell_finished_products_batch(db, data, created_by=who,
+                                              company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -3920,7 +3938,8 @@ def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Sessi
                                 current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
     who = current_user.full_name or current_user.username
-    result = crud.sell_finished_product(db, data, created_by=who)
+    result = crud.sell_finished_product(db, data, created_by=who,
+                                       company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -3932,7 +3951,10 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
     """Tayyor mahsulot savdolari tarixi (ixtiyoriy oy/yil filtri bilan)."""
     from models import FinishedProductSale
     from sqlalchemy import extract
-    q = db.query(FinishedProductSale).order_by(FinishedProductSale.sold_at.desc())
+    # M4 (2026-09-18) — TENANT: sotuvlar ro'yxati korxona filtrisiz edi (H-5).
+    q = db.query(FinishedProductSale).filter(
+        FinishedProductSale.company_id == auth.company_id_of(current_user)
+    ).order_by(FinishedProductSale.sold_at.desc())
     if year:
         q = q.filter(extract('year', FinishedProductSale.sold_at) == year)
     if month:
@@ -3951,7 +3973,8 @@ def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_
                       current_user=Depends(auth.admin_warehouse_or_manager)):
     """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqarish."""
     who = current_user.full_name or current_user.username
-    result = crud.produce_gips_finished_product(db, data, created_by=who)
+    result = crud.produce_gips_finished_product(db, data, created_by=who,
+                                               company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -3961,7 +3984,8 @@ def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_
 def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ishlab chiqarish."""
     who = current_user.full_name or current_user.username
-    result = crud.produce_finished_product(db, data, created_by=who)
+    result = crud.produce_finished_product(db, data, created_by=who,
+                                          company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
@@ -3986,7 +4010,8 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
 def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
     who = current_user.full_name or current_user.username
-    result = crud.produce_termopanel(db, data, created_by=who)
+    result = crud.produce_termopanel(db, data, created_by=who,
+                                     company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
@@ -4009,7 +4034,7 @@ def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = 
 @app.post("/api/finished/{fp_id}/complete")
 def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
-    result = crud.complete_production(db, fp_id)
+    result = crud.complete_production(db, fp_id, company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -4018,7 +4043,7 @@ def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_u
 @app.get("/api/finished/{fp_id}/profit")
 def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Tayyor mahsulot foydasi (faqat admin)."""
-    result = crud.get_finished_profit(db, fp_id)
+    result = crud.get_finished_profit(db, fp_id, company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
     return result
@@ -4028,7 +4053,8 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 def api_add_production(fp_id: int, data: schemas.StockAdjust,
                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
-    result = crud.add_to_production(db, fp_id, data.quantity)
+    result = crud.add_to_production(db, fp_id, data.quantity,
+                                    company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
@@ -4053,7 +4079,8 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
 def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
                           db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
-    result = crud.reduce_production(db, fp_id, data.quantity, data.reason)
+    result = crud.reduce_production(db, fp_id, data.quantity, data.reason,
+                                    company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -4063,7 +4090,8 @@ def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
 def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni tahrirlash."""
-    fp = crud.update_finished_product(db, fp_id, data.model_dump(exclude_unset=True))
+    fp = crud.update_finished_product(db, fp_id, data.model_dump(exclude_unset=True),
+                                      company_id=auth.company_id_of(current_user))
     if not fp:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "quantity": float(fp.quantity), "unit_price": float(fp.unit_price or 0)}
@@ -4075,8 +4103,10 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
     """Tayyor mahsulotni o'chirish.
     - IN_PROGRESS: xato tuzatish deb hisoblanadi — o'chadi, xomashyo qaytadi.
     - READY: faqat qoldiq 0 bo'lsa o'chadi, xomashyo qaytmaydi."""
-    from models import FinishedProduct as _FP, ProductionStatus as _PS
-    fp = db.query(_FP).filter(_FP.id == fp_id).first()
+    from models import ProductionStatus as _PS
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda 404).
+    _cid = auth.company_id_of(current_user)
+    fp = auth.finished_product_of_company(db, fp_id, _cid)
     if not fp:
         raise HTTPException(status_code=404, detail="Topilmadi")
     if fp.production_status != _PS.IN_PROGRESS and float(fp.quantity or 0) > 0.001:
@@ -4086,7 +4116,7 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
                    f"o'chirib bo'lmaydi. Avval to'liq soting yoki \"Kamaytirish (brak)\" "
                    f"orqali nolga tushiring, keyin o'chiring."
         )
-    if not crud.delete_finished_product(db, fp_id):
+    if not crud.delete_finished_product(db, fp_id, company_id=_cid):
         raise HTTPException(status_code=400, detail="O'chirib bo'lmadi")
     return {"status": "ok"}
 
@@ -4154,7 +4184,12 @@ def api_finished_sale_batch_pdf(group_id: str, db: Session = Depends(get_db), cu
     import traceback
     from models import FinishedProductSale
 
-    sales = db.query(FinishedProductSale).filter(FinishedProductSale.sale_group_id == group_id).order_by(FinishedProductSale.id).all()
+    # M4 (2026-09-18) — TENANT: `group_id` ota tekshiruvisiz ishlatilardi —
+    # A korxona xodimi B ning yuk xatini ochishi mumkin edi (H-7).
+    sales = db.query(FinishedProductSale).filter(
+        FinishedProductSale.sale_group_id == group_id,
+        FinishedProductSale.company_id == auth.company_id_of(current_user)
+    ).order_by(FinishedProductSale.id).all()
     if not sales:
         raise HTTPException(status_code=404, detail="Sotuv guruhi topilmadi")
     try:
@@ -4176,7 +4211,11 @@ def api_finished_sale_pdf(sale_id: int, db: Session = Depends(get_db), current_u
     import traceback
     from models import FinishedProductSale
 
-    sale = db.query(FinishedProductSale).filter(FinishedProductSale.id == sale_id).first()
+    # M4 (2026-09-18) — TENANT: `sale_id` ota tekshiruvisiz ishlatilardi (H-7).
+    sale = db.query(FinishedProductSale).filter(
+        FinishedProductSale.id == sale_id,
+        FinishedProductSale.company_id == auth.company_id_of(current_user)
+    ).first()
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
     try:

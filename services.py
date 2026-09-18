@@ -1707,7 +1707,14 @@ def calculate_order_profit(db: Session, order_id: int) -> Dict:
         fpid = getattr(item, 'finished_product_id', None)
         if not fpid:
             continue
-        fp_c = db.query(_FP_cost).filter(_FP_cost.id == fpid).first()
+        # M4 (2026-09-18) — TENANT: mahsulot buyurtmaning O'Z korxonasidan
+        # bo'lishi shart. Chaqiruvchi allaqachon tenant-safe bo'lsa ham,
+        # funksiyaning o'zi endi mustaqil himoyalangan.
+        _fpq = db.query(_FP_cost).filter(_FP_cost.id == fpid)
+        _ord_cid = getattr(order, 'company_id', None)
+        if _ord_cid is not None:
+            _fpq = _fpq.filter(_FP_cost.company_id == _ord_cid)
+        fp_c = _fpq.first()
         if not fp_c:
             continue
         base_qty = float(fp_c.produced_quantity if fp_c.produced_quantity is not None else (fp_c.quantity or 0))
@@ -2053,7 +2060,7 @@ def _monthly_category_amount(db: Session, year: int, month: int, category: str, 
         return float(fallback or 0)
 
 
-def get_monthly_report(db: Session, year: int, month: int) -> Dict:
+def get_monthly_report(db: Session, year: int, month: int, company_id: int = None) -> Dict:
     """
     Berilgan oy uchun to'liq moliyaviy hisobot:
     Daromad - Xarajatlar = Sof foyda
@@ -2326,11 +2333,17 @@ def get_monthly_report(db: Session, year: int, month: int) -> Dict:
     from datetime import datetime as _dt
     fp_start = _dt(year, month, 1)
     fp_end = _dt(year + 1, 1, 1) if month == 12 else _dt(year, month + 1, 1)
-    finished_this_month = db.query(FinishedProduct).filter(
+    # M4 (2026-09-18) — TENANT: hisobotning TAYYOR MAHSULOT qismi.
+    # ESLATMA: bu funksiyaning qolgan so'rovlari hali tenant bilan
+    # cheklanmagan — ular M6 (moliya/hisobotlar) bosqichida ko'riladi.
+    _fpm = db.query(FinishedProduct).filter(
         FinishedProduct.source == StockSource.PRODUCED,
         FinishedProduct.created_at >= fp_start,
         FinishedProduct.created_at < fp_end
-    ).all()
+    )
+    if company_id is not None:
+        _fpm = _fpm.filter(FinishedProduct.company_id == company_id)
+    finished_this_month = _fpm.all()
     for fp in finished_this_month:
         if fp.penoplast_id and fp.volume_m3:
             p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
@@ -4811,7 +4824,13 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
         # UCH XIL joyda UCH XIL son bo'lardi. Endi hammasi BITTA manbadan —
         # xomashyoning joriy narxidan hisoblanadigan _fp_stable_unit_cost'dan.
         from models import FinishedProduct
-        fp = db.query(FinishedProduct).filter(FinishedProduct.id == item.finished_product_id).first()
+        # M4 (2026-09-18) — TENANT: tan narx manbasi buyurtmaning O'Z
+        # korxonasidagi mahsulot bo'lishi shart.
+        _ucq = db.query(FinishedProduct).filter(FinishedProduct.id == item.finished_product_id)
+        _uc_cid = getattr(order, 'company_id', None)
+        if _uc_cid is not None:
+            _ucq = _ucq.filter(FinishedProduct.company_id == _uc_cid)
+        fp = _ucq.first()
         if fp:
             import crud as _crud_unitcost
             unit_cost = _crud_unitcost._fp_stable_unit_cost(db, fp)
