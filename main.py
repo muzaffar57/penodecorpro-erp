@@ -764,6 +764,16 @@ app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv 
 # 2026-09-16: yangi, dinamik Production/MRP moduli — /api/production/... yo'llari
 app.include_router(production_router)
 
+# 2026-09-18: VAQTINCHALIK — SaaS ko'p-tenantlilik migratsiyasi (/api/saas-migration/...).
+# Faqat ADMIN kira oladi, standart holatda DRY-RUN (sinov) rejimida ishlaydi.
+# Migratsiya to'liq tugagach, bu 2 qator VA saas_migration.py fayli olib tashlanadi.
+try:
+    from saas_migration import router as saas_migration_router
+    if saas_migration_router is not None:
+        app.include_router(saas_migration_router)
+except Exception as _e:
+    print(f"⚠ SaaS migratsiya moduli yuklanmadi (o'tkazib yuborildi): {_e}")
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
