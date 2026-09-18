@@ -177,7 +177,98 @@ STEPS = [
         "zaxira": True,
         "tasdiq": "PENODECORPRO-W6",
     },
+    {
+        "kalit": "TEKSHIRUV",
+        "tur": "verify",
+        "nomi": "Yakuniy tekshiruv — 7 jadval (faqat o'qiydi)",
+        "izoh": "OrderItem, FinishedProduct, ReturnItem, InventoryMovement, "
+                "InventoryReceipt, FinishedProductSale, FinishedProductLoss. "
+                "Hech narsa o'zgartirmaydi: qatorlar, NULL, yetim, taqsimot, "
+                "FK/indeks/NOT NULL va ota bilan MOS KELMAGAN qatorlar.",
+        "maqsadlar": [],
+        "tasdiq": "",
+    },
 ]
+
+# Tekshiruv uchun ota zanjirlari — models.py'dagi _TENANT_RULES bilan
+# BIR XIL bo'lishi shart. Bu yerda SQL ko'rinishida yozilgan.
+VERIFY_TABLES = [
+    ("order_items", [("order_id", "orders")]),
+    ("finished_products", [("from_order_id", "orders"),
+                           ("recipe_id", "recipes"),
+                           ("penoplast_id", "inventory")]),
+    ("return_items", [("order_id", "orders"),
+                      ("finished_product_id", "finished_products")]),
+    ("inventory_movements", [("inventory_id", "inventory"),
+                             ("order_id", "orders"),
+                             ("supplier_id", "suppliers")]),
+    ("inventory_receipts", [("supplier_id", "suppliers")]),
+    ("finished_product_sales", [("finished_product_id", "finished_products"),
+                                ("master_id", "masters")]),
+    ("finished_product_losses", [("finished_product_id", "finished_products")]),
+]
+
+
+def verify_tables(engine) -> list:
+    """7 jadval uchun to'liq tekshiruv. FAQAT O'QIYDI."""
+    natija = []
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(f"SET statement_timeout = '{STATEMENT_TIMEOUT}'"))
+        except Exception:
+            pass
+        for t, otalar in VERIFY_TABLES:
+            if not _table_exists(conn, t):
+                natija.append({"jadval": t, "mavjud": False})
+                continue
+            meta = _column_meta(conn, t, "company_id")
+            fk = _fk_exists(conn, t, "company_id")
+            jami = conn.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar()
+            bosh = conn.execute(text(
+                f"SELECT COUNT(*) FROM {t} WHERE company_id IS NULL")).scalar() if meta else None
+            yetim = conn.execute(text(f"""
+                SELECT COUNT(*) FROM {t} x LEFT JOIN {REF_TABLE} c ON c.id = x.company_id
+                WHERE x.company_id IS NOT NULL AND c.id IS NULL""")).scalar() if meta else None
+            taqsimot = [{"company_id": r[0], "qatorlar": r[1]} for r in conn.execute(text(
+                f"SELECT company_id, COUNT(*) FROM {t} GROUP BY company_id "
+                f"ORDER BY company_id")).all()] if meta else []
+
+            # Ota bilan MOS KELMAGAN qatorlar + otasi umuman aniqlanmaganlar
+            nomuvofiq, otasiz = [], None
+            if meta and otalar:
+                shartlar = []
+                for fk_col, p_tbl in otalar:
+                    if not _column_exists(conn, t, fk_col):
+                        continue
+                    n = conn.execute(text(f"""
+                        SELECT COUNT(*) FROM {t} x
+                        JOIN {p_tbl} p ON p.id = x.{fk_col}
+                        WHERE x.company_id <> p.company_id""")).scalar()
+                    if n:
+                        nomuvofiq.append({"ota": f"{fk_col} -> {p_tbl}", "qatorlar": n})
+                    shartlar.append(f"x.{fk_col} IS NOT NULL")
+                if shartlar:
+                    otasiz = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {t} x WHERE NOT ({' OR '.join(shartlar)})"
+                    )).scalar()
+
+            natija.append({
+                "jadval": t, "mavjud": True,
+                "qatorlar": jami,
+                "company_id_bor": bool(meta),
+                "NULL_company_id": bosh,
+                "yetim_company_id": yetim,
+                "taqsimot": taqsimot,
+                "FK": fk.get("nom") if fk else None,
+                "indeks": _index_name(t) if _index_exists(conn, _index_name(t)) else None,
+                "NOT_NULL": (not meta.get("null_bolishi_mumkin")) if meta else None,
+                "ota_bilan_nomuvofiq": nomuvofiq,
+                "otasi_aniqlanmagan": otasiz,
+                "tugallangan": bool(meta and not meta.get("null_bolishi_mumkin") and fk
+                                    and _index_exists(conn, _index_name(t))
+                                    and bosh == 0 and yetim == 0 and not nomuvofiq),
+            })
+    return natija
 
 
 def _step(kalit: str):
@@ -446,6 +537,14 @@ def status_report(engine) -> dict:
 
         qadamlar = []
         for s in STEPS:
+            if s.get("tur") == "verify":
+                j = verify_tables(engine)
+                qadamlar.append({
+                    "kalit": s["kalit"], "nomi": s["nomi"], "izoh": s["izoh"],
+                    "tasdiq": s["tasdiq"], "tur": "verify", "tekshiruv": j,
+                    "tugallangan": all(x.get("tugallangan") for x in j),
+                })
+                continue
             if s.get("tur") == "unique":
                 maqsadlar = [_unique_target_status(conn, m) for m in s["maqsadlar"]]
                 qadamlar.append({
@@ -930,6 +1029,33 @@ def _unique_rows(q: dict) -> str:
     return bosh + rows
 
 
+def _verify_rows(q: dict) -> str:
+    """TEKSHIRUV kartasining jadvali."""
+    bosh = ('<tr><th>jadval</th><th>qatorlar</th><th>NULL</th><th>yetim</th>'
+            '<th>taqsimot</th><th>FK</th><th>indeks</th><th>NOT NULL</th>'
+            '<th>ota bilan nomuvofiq</th><th>otasi aniqlanmagan</th></tr>')
+    rows = ""
+    for x in q["tekshiruv"]:
+        if not x.get("mavjud"):
+            rows += (f'<tr><th>{_esc(x["jadval"])}</th><td colspan="9">'
+                     f'<span class="pill p-no">JADVAL YO\'Q</span></td></tr>')
+            continue
+        taq = ", ".join(f'{d["company_id"]}: {d["qatorlar"]}' for d in x["taqsimot"]) or "—"
+        nm = ("; ".join(f'{n["ota"]}: {n["qatorlar"]}' for n in x["ota_bilan_nomuvofiq"])
+              or "0")
+        rows += (f'<tr><th>{_esc(x["jadval"])}</th>'
+                 f'<td>{_esc(x["qatorlar"])}</td>'
+                 f'<td>{_esc(x["NULL_company_id"])}</td>'
+                 f'<td>{_esc(x["yetim_company_id"])}</td>'
+                 f'<td>{_esc(taq)}</td>'
+                 f'<td>{_pill(bool(x["FK"]))}</td>'
+                 f'<td>{_pill(bool(x["indeks"]))}</td>'
+                 f'<td>{_pill(x["NOT_NULL"])}</td>'
+                 f'<td>{_esc(nm)}</td>'
+                 f'<td>{_esc(x["otasi_aniqlanmagan"])}</td></tr>')
+    return bosh + rows
+
+
 def _step_card(q: dict) -> str:
     """Bitta qadam: holat jadvali + tugmalar."""
     rows = ""
@@ -951,8 +1077,17 @@ def _step_card(q: dict) -> str:
 
     if q.get("tur") == "unique":
         bosh, rows = _unique_rows(q), ""
+    elif q.get("tur") == "verify":
+        bosh, rows = _verify_rows(q), ""
 
-    if q["tugallangan"]:
+    if q.get("tur") == "verify":
+        holat = ("p-ok", "HAMMASI JOYIDA") if q["tugallangan"] else ("p-no", "E'TIBOR BERING")
+        tugma = (f'<div class="row"><span class="pill {holat[0]}">{holat[1]}</span>'
+                 '<form method="get" action="/saas-migratsiya">'
+                 '<button type="submit">Qayta o\'qish</button></form></div>'
+                 '<div class="hint">Bu bo\'lim hech narsa o\'zgartirmaydi — faqat o\'qiydi.'
+                 '</div>')
+    elif q["tugallangan"]:
         tugma = ('<div class="row"><span class="pill p-ok">BU QADAM TUGALLANGAN</span>'
                  f'<form method="post" action="/saas-migratsiya/sinov/{_esc(q["kalit"])}">'
                  '<button type="submit">Qayta tekshirish (sinov)</button></form></div>')

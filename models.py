@@ -24,7 +24,10 @@ from sqlalchemy import (
     Column, Integer, String, Float, Boolean, DateTime,
     ForeignKey, Enum, Text, Numeric, text as sa_text, UniqueConstraint
 )
+from sqlalchemy import event
 from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import Session as SASession
+from sqlalchemy.orm.attributes import get_history
 
 Base = declarative_base()
 
@@ -653,6 +656,12 @@ class OrderItem(Base):
     __tablename__ = "order_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 4-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
 
     name = Column(String(150), nullable=False)
@@ -830,6 +839,12 @@ class ReturnItem(Base):
     __tablename__ = "return_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
     # Tayyor mahsulot ishlab chiqarish jarayonidagi brak uchun — order_id
     # o'rniga shu ishlatiladi (ikkalasidan FAQAT BITTASI to'ldiriladi).
@@ -865,6 +880,12 @@ class InventoryMovement(Base):
     __tablename__ = "inventory_movements"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)
     item_name = Column(String(150), nullable=False)
 
@@ -935,6 +956,12 @@ class InventoryReceipt(Base):
     __tablename__ = "inventory_receipts"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
     supplier = relationship("Supplier")
     document_number = Column(String(50), nullable=True)
@@ -1400,6 +1427,12 @@ class FinishedProduct(Base):
     __tablename__ = "finished_products"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 5-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
 
     name = Column(String(150), nullable=False, index=True)
     category = Column(String(50), nullable=True)     # profil / panel / dona
@@ -1501,6 +1534,12 @@ class FinishedProductSale(Base):
     __tablename__ = "finished_product_sales"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
     product_name = Column(String(150), nullable=False)  # Nusxa — mahsulot keyin o'chsa ham tarix qolsin
 
@@ -1542,6 +1581,12 @@ class FinishedProductLoss(Base):
     __tablename__ = "finished_product_losses"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 6-to'lqin.
+    # Qiymat MIJOZDAN QABUL QILINMAYDI. U har doim ota-yozuvdan olinadi —
+    # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
+    # va ota bilan mos kelmasa yozuvni RAD ETADI.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
     finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
     product_name = Column(String(150), nullable=False)
     category = Column(String(30), nullable=True)
@@ -1767,3 +1812,141 @@ def create_all_tables(engine):
 
 def drop_all_tables(engine):
     Base.metadata.drop_all(bind=engine)
+
+
+# ============================================================
+# TENANT HIMOYASI — company_id ni ota-yozuvdan olish va tekshirish
+# ============================================================
+# 2026-09-18. Nima uchun markazlashtirilgan:
+#   Bu jadvallar kodning 16 xil joyida yaratiladi. Har bir joyga qo'lda
+#   `company_id=...` yozish — bittasi unutilishi bilan buziladigan yechim.
+#   Bu yerdagi hodisa esa HAR BIR yozuvda, qayerda yaratilganidan qat'i
+#   nazar ishlaydi.
+#
+# Uch qoida:
+#   1. company_id MIJOZDAN QABUL QILINMAYDI — u ota-yozuvdan olinadi.
+#   2. Agar yozuvda company_id allaqachon qo'yilgan bo'lsa-yu, otasiniki
+#      BOSHQA bo'lsa — yozuv RAD ETILADI (korxonalar aralashib ketmasin).
+#   3. Ota topilmasa — hech narsa taxmin qilinmaydi, qiymat o'zgarishsiz
+#      qoldiriladi. Bunday qatorlar migratsiya sahifasidagi TEKSHIRUV
+#      bo'limida "otasi aniqlanmagan" bo'lib alohida ko'rinadi.
+#
+# Har bir jadval uchun ota zanjiri (birinchi topilgani ishlatiladi):
+
+_TENANT_RULES = {
+    # Buyurtma o'z loyihasidan
+    "Order":               [("project_id", "Project")],
+    # Detal o'z buyurtmasidan (order_id NOT NULL — har doim topiladi)
+    "OrderItem":           [("order_id", "Order")],
+    # Tayyor mahsulot: buyurtmadan; bo'lmasa retseptdan; bo'lmasa penoplastdan.
+    # (MRP orqali omborga ishlab chiqarilganda buyurtma bo'lmaydi.)
+    "FinishedProduct":     [("from_order_id", "Order"),
+                            ("recipe_id", "Recipe"),
+                            ("penoplast_id", "Inventory")],
+    # Qaytarish: buyurtmadan; bo'lmasa qaytarilgan tayyor mahsulotdan
+    "ReturnItem":          [("order_id", "Order"),
+                            ("finished_product_id", "FinishedProduct")],
+    # Ombor harakati: materialdan; bo'lmasa buyurtmadan; bo'lmasa ta'minotchidan
+    "InventoryMovement":   [("inventory_id", "Inventory"),
+                            ("order_id", "Order"),
+                            ("supplier_id", "Supplier")],
+    # Ombor kirimi: ta'minotchidan
+    "InventoryReceipt":    [("supplier_id", "Supplier")],
+    # Sotuv: sotilgan tayyor mahsulotdan; bo'lmasa ustadan
+    "FinishedProductSale": [("finished_product_id", "FinishedProduct"),
+                            ("master_id", "Master")],
+    # Yo'qotish/brak: tayyor mahsulotdan
+    "FinishedProductLoss": [("finished_product_id", "FinishedProduct")],
+}
+
+
+class TenantMismatchError(Exception):
+    """Yozuvning company_id si ota-yozuvnikiga mos kelmadi."""
+
+
+def _resolve_parent_company(session, obj, rules):
+    """Ota zanjiri bo'yicha birinchi topilgan company_id ni qaytaradi."""
+    for fk_attr, parent_name in rules:
+        fk_value = getattr(obj, fk_attr, None)
+        if not fk_value:
+            continue
+        parent_cls = globals().get(parent_name)
+        if parent_cls is None:
+            continue
+        parent = session.get(parent_cls, fk_value)
+        if parent is None:
+            continue
+        cid = getattr(parent, "company_id", None)
+        if cid:
+            return cid, f"{fk_attr} -> {parent_name}"
+    return None, None
+
+
+@event.listens_for(SASession, "before_flush")
+def _tenant_guard(session, flush_context, instances):
+    """company_id ni ota-yozuvdan qo'yadi va mos kelishini tekshiradi.
+
+    NIMA UCHUN `before_flush`, `before_insert` EMAS:
+      `before_insert` mapper darajasidagi hodisa bo'lib, uning ichida
+      so'rov yuborish (ota-yozuvni qidirish) rasman qo'llab-quvvatlanmaydi
+      va flush holatini buzishi mumkin. `before_flush` esa aynan shu ish
+      uchun mo'ljallangan — sessiya hali barqaror holatda, so'rov yuborish
+      xavfsiz. `no_autoflush` esa qidiruvning yana flush chaqirib, cheksiz
+      aylanishga tushishini oldini oladi.
+
+    YANGI va O'ZGARTIRILGAN yozuvlarni ham tekshiradi: ota-FK keyinchalik
+    BOSHQA korxonaning yozuviga ko'chirilishi ham rad etiladi.
+
+    ⚠️ BU YAGONA HIMOYA EMAS. Quyidagilarni QAMRAB OLMAYDI:
+      * `query.update()` / `query.delete()` — ORM bularda hodisa chaqirmaydi
+      * `bulk_save_objects`, `bulk_insert_mappings`
+      * Core `insert()`/`update()` va xom SQL
+    Shuning uchun bazadagi tashqi kalitlar (FK) va xizmat qatlamidagi
+    tekshiruvlar SAQLANADI — bu hodisa ularning o'rnini bosmaydi, ustiga
+    qo'shimcha qatlam bo'lib turadi.
+    """
+    if not (session.new or session.dirty):
+        return
+    with session.no_autoflush:
+        # --- YANGI yozuvlar ---
+        for obj in session.new:
+            rules = _TENANT_RULES.get(type(obj).__name__)
+            if not rules:
+                continue
+            parent_cid, manba = _resolve_parent_company(session, obj, rules)
+            if parent_cid is None:
+                # Ota topilmadi yoki uning company_id si bo'sh —
+                # HECH NARSA TAXMIN QILINMAYDI.
+                continue
+            own = getattr(obj, "company_id", None)
+            if own is None:
+                obj.company_id = parent_cid
+            elif own != parent_cid:
+                raise TenantMismatchError(
+                    f"{type(obj).__name__}: company_id={own} berilgan, lekin "
+                    f"ota-yozuv ({manba}) company_id={parent_cid} ga tegishli. "
+                    f"Bir korxonaning yozuvini boshqasiga bog'lab bo'lmaydi."
+                )
+
+        # --- O'ZGARTIRILGAN yozuvlar ---
+        # Mavjud yozuvning ota-FK'si yoki company_id si o'zgartirilsa,
+        # ular baribir bir-biriga mos bo'lishi shart.
+        for obj in session.dirty:
+            rules = _TENANT_RULES.get(type(obj).__name__)
+            if not rules or not session.is_modified(obj, include_collections=False):
+                continue
+            ozgargan = {a for a in ([r[0] for r in rules] + ["company_id"])
+                        if get_history(obj, a).has_changes()}
+            if not ozgargan:
+                continue
+            parent_cid, manba = _resolve_parent_company(session, obj, rules)
+            if parent_cid is None:
+                continue
+            own = getattr(obj, "company_id", None)
+            if own is not None and own != parent_cid:
+                raise TenantMismatchError(
+                    f"{type(obj).__name__} (id={getattr(obj, 'id', '?')}): "
+                    f"o'zgartirilgan yozuvning company_id={own}, lekin yangi "
+                    f"ota-yozuv ({manba}) company_id={parent_cid} ga tegishli. "
+                    f"O'zgarish rad etildi."
+                )
