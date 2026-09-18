@@ -29,7 +29,39 @@ class OverpaymentWarning(Exception):
 # ============================================================
 
 def create_master(db: Session, master_data: MasterCreate) -> Master:
-    """Yangi ustani bazaga qo'shadi."""
+    """Yangi ustani bazaga qo'shadi.
+
+    2026-09-18 (jonli sinovda topildi): ilgari bu funksiyada takror
+    tekshiruvi UMUMAN yo'q edi — bir xil telefon (yoki telegram_id)
+    bilan usta qo'shilsa, baza cheklovi ishlab, foydalanuvchiga xom
+    "Serverda kutilmagan xato yuz berdi" qaytardi. Ombor uchun bunday
+    himoya allaqachon bor edi (main.py:/api/inventory), ustalar uchun
+    esa yo'q. Endi ikkalasi bir xil: aniq, tushunarli xabar."""
+    from fastapi import HTTPException
+
+    phone = (master_data.phone or "").strip()
+    if phone:
+        mavjud = db.query(Master).filter(Master.phone == phone).first()
+        if mavjud:
+            holat = "faol" if mavjud.is_active else "nofaol"
+            raise HTTPException(
+                status_code=400,
+                detail=(f'"{phone}" raqamli usta allaqachon mavjud: '
+                        f'{mavjud.name} ({holat}). Telefon raqami har bir '
+                        f'ustada boshqa-boshqa bo\'lishi kerak.'),
+            )
+
+    tg = (str(master_data.telegram_id).strip()
+          if getattr(master_data, "telegram_id", None) else "")
+    if tg:
+        mavjud_tg = db.query(Master).filter(Master.telegram_id == tg).first()
+        if mavjud_tg:
+            raise HTTPException(
+                status_code=400,
+                detail=(f'Bu Telegram ID ({tg}) allaqachon "{mavjud_tg.name}" '
+                        f'ustaga biriktirilgan.'),
+            )
+
     db_master = Master(
         name=master_data.name,
         phone=master_data.phone,

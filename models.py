@@ -22,7 +22,7 @@ from enum import Enum as PyEnum
 
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, DateTime,
-    ForeignKey, Enum, Text, Numeric, text as sa_text
+    ForeignKey, Enum, Text, Numeric, text as sa_text, UniqueConstraint
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -152,6 +152,15 @@ class User(Base):
 class Master(Base):
     __tablename__ = "masters"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "phone",
+                         name="uq_masters_company_phone"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
 
     # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
@@ -164,7 +173,7 @@ class Master(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
                         index=True, server_default=sa_text("1"))
     name = Column(String(100), nullable=False)
-    phone = Column(String(20), unique=True, nullable=False)
+    phone = Column(String(20), nullable=False)
     telegram_id = Column(String(50), unique=True, nullable=True)
     cashback_percent = Column(Float, default=0.0)
     kpi_percent = Column(Float, default=0.0)   # Yillik KPI % — yillik sotuvdan, yil oxiri sovg'a uchun
@@ -329,6 +338,15 @@ class GiftPeriodParticipant(Base):
 class Inventory(Base):
     __tablename__ = "inventory"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "item_name",
+                         name="uq_inventory_company_item_name"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
 
     # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
@@ -339,7 +357,7 @@ class Inventory(Base):
     # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
                         index=True, server_default=sa_text("1"))
-    item_name = Column(String(100), nullable=False, unique=True, index=True)
+    item_name = Column(String(100), nullable=False, index=True)
     stock_quantity = Column(Float, default=0.0)
     unit = Column(String(20), nullable=False)
     min_stock = Column(Float, default=0.0)
@@ -377,6 +395,15 @@ class Inventory(Base):
 class Recipe(Base):
     __tablename__ = "recipes"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "name",
+                         name="uq_recipes_company_name"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
 
     # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
@@ -387,7 +414,7 @@ class Recipe(Base):
     # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
                         index=True, server_default=sa_text("1"))
-    name = Column(String(100), nullable=False, unique=True)  # Endi ISTALGAN nom bo'lishi mumkin
+    name = Column(String(100), nullable=False)  # Endi ISTALGAN nom bo'lishi mumkin
 
     batch_size_kg = Column(Float, default=150.0)
     notes = Column(Text, nullable=True)
@@ -436,6 +463,15 @@ class Project(Base):
     Bir loyihada bir nechta order bo'lishi mumkin."""
     __tablename__ = "projects"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "project_number",
+                         name="uq_projects_company_project_number"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
 
     # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G1.
@@ -446,7 +482,7 @@ class Project(Base):
     # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
                         index=True, server_default=sa_text("1"))
-    project_number = Column(String(20), unique=True, index=True)  # PRJ-001
+    project_number = Column(String(20), index=True)  # PRJ-001
     client_name = Column(String(100), nullable=False)
     client_phone = Column(String(20), nullable=True)
     client_address = Column(Text, nullable=True)
@@ -933,6 +969,15 @@ class Employee(Base):
     Har korxona xodimga turlicha haq to'lashi mumkin (SaaS uchun)."""
     __tablename__ = "employees"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "phone",
+                         name="uq_employees_company_phone"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
 
     # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G2.
@@ -964,7 +1009,7 @@ class Employee(Base):
     is_deleted = Column(Boolean, default=False)  # "O'chirilgan" — lekin tiklash uchun saqlanadi
 
     # Hodimning o'z paneliga kirishi uchun (ixtiyoriy — admin belgilaydi)
-    phone = Column(String(20), nullable=True, unique=True)
+    phone = Column(String(20), nullable=True)
     pin_hash = Column(String(64), nullable=True)
 
     advance_requests = relationship("AdvanceRequest", back_populates="employee", cascade="all, delete-orphan")
@@ -1073,14 +1118,14 @@ class CompanySetting(Base):
     Kelajakda boshqa umumiy sozlamalar ham shu yerga qo'shilishi mumkin."""
     __tablename__ = "company_settings"
 
-    key = Column(String(50), primary_key=True)
-    # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
-    # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
+    # 2026-09-18 — W2b: BIRLAMCHI KALIT endi (company_id, key).
+    # Ilgari faqat `key` edi — ya'ni ikkita korxona bir xil nomli
+    # sozlamaga (masalan "Ehson foizi") ega bo'la olmasdi.
     # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
-    # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+    company_id = Column(Integer, ForeignKey("companies.id"), primary_key=True,
+                        nullable=False, server_default=sa_text("1"))
+    key = Column(String(50), primary_key=True)
     value = Column(String(255), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1227,6 +1272,15 @@ class RecurringObligation(Base):
     avtomatik qarz/ogohlantirish chiqaradi."""
     __tablename__ = "recurring_obligations"
 
+    # 2026-09-18 — W2b: bu cheklov endi KORXONA ICHIDA yagona.
+    # Ilgari butun tizim bo'yicha yagona edi, ya'ni ikkinchi korxona
+    # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
+    # nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "category",
+                         name="uq_recurring_obligations_company_category"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     # 2026-09-18 — SaaS ko'p-tenantlilik, 2-to'lqin G3/G4.
     # Bazaga saas_migration.py qo'shadi; kod ANA SHUNDAN KEYIN yangilanadi.
@@ -1235,7 +1289,7 @@ class RecurringObligation(Base):
     # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
                         index=True, server_default=sa_text("1"))
-    category = Column(String(30), unique=True, nullable=False)  # ExpenseTransaction.category bilan bir xil bo'lishi kerak
+    category = Column(String(30), nullable=False)  # ExpenseTransaction.category bilan bir xil bo'lishi kerak
     label = Column(String(60), nullable=False)  # "Arenda (arendator)", "Transport"
     icon = Column(String(10), default="📦")
     monthly_target = Column(Numeric(12, 2), default=0)  # Har oy qancha to'lanishi kerak
