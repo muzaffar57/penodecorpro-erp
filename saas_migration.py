@@ -134,6 +134,49 @@ STEPS = [
         ],
         "tasdiq": "PENODECORPRO-W3B",
     },
+    {
+        "kalit": "W4",
+        "nomi": "4-to'lqin — buyurtma detallari (order_items)",
+        "izoh": "company_id har bir detalning O'Z buyurtmasidan olinadi "
+                "(order_items.order_id -> orders.company_id). order_id NOT NULL, "
+                "shuning uchun zaxira qiymat kerak emas.",
+        "jadvallar": ["order_items"],
+        "ota": {"order_items": {"jadval": "orders", "fk": "order_id"}},
+        "tasdiq": "PENODECORPRO-W4",
+    },
+    {
+        "kalit": "W5",
+        "nomi": "5-to'lqin — tayyor mahsulotlar (finished_products)",
+        "izoh": "company_id buyurtmadan olinadi (from_order_id -> orders). "
+                "LEKIN from_order_id BO'SH bo'lishi mumkin — omborga to'g'ridan-"
+                "to'g'ri ishlab chiqarilgan mahsulotlarda buyurtma yo'q. "
+                "Shunday qatorlarga zaxira qiymat (company_id=1) qo'yiladi.",
+        "jadvallar": ["finished_products"],
+        "ota": {"finished_products": {"jadval": "orders", "fk": "from_order_id"}},
+        "zaxira": True,
+        "tasdiq": "PENODECORPRO-W5",
+    },
+    {
+        "kalit": "W6",
+        "nomi": "6-to'lqin — qolgan 5 jadval (yakuniy)",
+        "izoh": "ReturnItem, InventoryMovement, InventoryReceipt, "
+                "FinishedProductSale, FinishedProductLoss. Hammasining ota-FK'si "
+                "BO'SH bo'lishi mumkin, shuning uchun otasi topilmaganlarga "
+                "zaxira qiymat qo'yiladi. Shu qadam bilan migratsiya tugaydi.",
+        "jadvallar": ["return_items", "inventory_movements", "inventory_receipts",
+                      "finished_product_sales", "finished_product_losses"],
+        "ota": {
+            "return_items": {"jadval": "orders", "fk": "order_id"},
+            "inventory_movements": {"jadval": "inventory", "fk": "inventory_id"},
+            "inventory_receipts": {"jadval": "suppliers", "fk": "supplier_id"},
+            "finished_product_sales": {"jadval": "finished_products",
+                                       "fk": "finished_product_id"},
+            "finished_product_losses": {"jadval": "finished_products",
+                                        "fk": "finished_product_id"},
+        },
+        "zaxira": True,
+        "tasdiq": "PENODECORPRO-W6",
+    },
 ]
 
 
