@@ -575,7 +575,16 @@ class OrderItem(Base):
     # (barcha modellar yuklangach) hal qiladi, shuning uchun bu yerda
     # import qilish SHART EMAS (models.py↔production_models.py orasida
     # aylanma import bo'lib qolmasligi uchun ataylab shunday).
-    product_type = relationship("ProductType", lazy="joined")
+    #
+    # MUHIM — `lazy="joined"` ISHLATIB BO'LMAYDI (sinovda aniqlangan
+    # haqiqiy xato): u har bir OrderItem so'roviga LEFT OUTER JOIN
+    # qo'shadi, `production_service.start_production_order()` esa shu
+    # jadvalni `.with_for_update()` bilan QULFLAYDI — PostgreSQL bunga
+    # yo'l qo'ymaydi: "FOR UPDATE cannot be applied to the nullable side
+    # of an outer join". Shuning uchun standart (lazy="select") qoladi:
+    # ProductType faqat HAQIQATAN kerak bo'lganda (delivery_unit
+    # chaqirilganda) alohida so'rov bilan olinadi.
+    product_type = relationship("ProductType")
 
     order = relationship("Order", back_populates="items")
     deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan")
