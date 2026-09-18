@@ -517,8 +517,23 @@ class Order(Base):
     """Loyiha ichidagi alohida buyurtma."""
     __tablename__ = "orders"
 
+    # 2026-09-18 — W3b: buyurtma raqami endi KORXONA ICHIDA yagona.
+    # Nomi bazadagi indeks nomi bilan AYNAN bir xil bo'lishi shart.
+    __table_args__ = (
+        UniqueConstraint("company_id", "order_number",
+                         name="uq_orders_company_order_number"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    order_number = Column(String(20), unique=True, index=True)
+
+    # 2026-09-18 — SaaS ko'p-tenantlilik, 3-to'lqin.
+    # DIQQAT: bu ustunning qiymati 1 EMAS, buyurtmaning O'Z LOYIHASIDAN
+    # olinadi (crud.create_order). Bazadagi DEFAULT 1 faqat o'tish davri
+    # uchun zaxira — unga TAYANIB BO'LMAYDI: sinovda 2-korxona loyihasiga
+    # yaratilgan buyurtma DEFAULT tufayli 1-korxonaga tushib qolgan edi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
+                        index=True, server_default=sa_text("1"))
+    order_number = Column(String(20), index=True)
 
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     project = relationship("Project", back_populates="orders")

@@ -1048,12 +1048,27 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
 
     is_draft = getattr(order_data, 'is_draft', False)
 
+    # 2026-09-18 — SaaS ko'p-tenantlilik (3-to'lqin).
+    # Buyurtma QAYSI KORXONANIKI ekani o'z loyihasidan olinadi.
+    # NIMA UCHUN ANIQ YOZILADI: bazada company_id ustunida vaqtinchalik
+    # DEFAULT 1 turibdi. Agar bu yerda qiymat berilmasa, 2-korxonaning
+    # loyihasiga yaratilgan buyurtma ham JIMGINA 1-korxonaga tushib qoladi
+    # — jonli sinovda aynan shunday bo'ldi. Bitta korxona bo'lganda bu
+    # sezilmaydi, ikkinchi mijoz qo'shilganda esa boshqa korxonaning
+    # ma'lumoti aralashib ketadi.
+    _project = db.query(Project).filter(Project.id == order_data.project_id).first()
+    if not _project:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    _company_id = _project.company_id
+
     db_order = None
     max_attempts = 5
     for attempt in range(max_attempts):
         seq = db.query(Order).filter(Order.project_id == order_data.project_id).count() + 1 + attempt
         order_number = f"ORD-{order_data.project_id:03d}-{seq}"
         db_order = Order(
+            company_id=_company_id,
             order_number=order_number,
             project_id=order_data.project_id,
             order_type=order_type,
