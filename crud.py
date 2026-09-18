@@ -5713,6 +5713,19 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     # yo'qoladi. Shuning uchun bog'lanishni uzamiz (finished_product_id=NULL),
     # sotuv summasi/tarixи esa Moliyada saqlanib qoladi. Aks holda foreign
     # key cheklovi o'chirishни bloklaydi.
+    # 2026-09-18: Production/MRP orqali ishlab chiqarilib YAKUNLANGAN
+    # (READY) mahsulotda ham `production_orders.finished_product_id` unga
+    # ishora qilib turadi — yuqoridagi IN_PROGRESS tarmog'idagi bilan AYNI
+    # FK cheklovi (jonli sinovda tasdiqlangan: DELETE /api/finished/44 →
+    # "production_orders_finished_product_id_fkey"). Bog'lanish uziladi,
+    # ishlab chiqarish buyurtmasi TARIX sifatida saqlanib qoladi.
+    try:
+        from production_models import ProductionOrder as _PO_unlink2
+        db.query(_PO_unlink2).filter(
+            _PO_unlink2.finished_product_id == fp_id
+        ).update({"finished_product_id": None})
+    except Exception:
+        pass
     from models import FinishedProductSale, FinishedProductLoss
     db.query(FinishedProductSale).filter(
         FinishedProductSale.finished_product_id == fp_id
