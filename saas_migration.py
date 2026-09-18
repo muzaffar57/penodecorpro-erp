@@ -63,6 +63,15 @@ STEPS = [
         "jadvallar": ["inventory", "recipes", "suppliers", "projects"],
         "tasdiq": "PENODECORPRO-W2G1",
     },
+    {
+        "kalit": "W2G2",
+        "nomi": "2-to'lqin, G2 — ustalar va hodimlar",
+        "izoh": "Master, MasterGift, GiftPeriod, Employee. Telefon/telegram_id "
+                "unique cheklovlariga BU QADAMDA TEGILMAYDI — ular W2b da "
+                "korxonaga bog'lanadi.",
+        "jadvallar": ["masters", "master_gifts", "gift_periods", "employees"],
+        "tasdiq": "PENODECORPRO-W2G2",
+    },
 ]
 
 
