@@ -611,6 +611,21 @@ def cancel_production_order(db: Session, po_id: int, company_id: int, performed_
                 FinishedProduct.company_id == company_id,    # M4
             ).first()
             if fp:
+                # 2026-09-18 (jonli sinovda aniqlangan HAQIQIY xato):
+                # `production_orders.finished_product_id` hali shu yozuvga
+                # ishora qilib turgani uchun, uni to'g'ridan-to'g'ri
+                # o'chirish PostgreSQL FK cheklovini
+                # ("production_orders_finished_product_id_fkey") buzib,
+                # 500-xato berardi — IN_PROGRESS holatdagi ishlab
+                # chiqarish buyurtmasini bekor qilish umuman ishlamasdi.
+                # Yechim — `crud.delete_order` dagi mavjud, xavfsiz naqsh:
+                # AVVAL bog'lanish uziladi, KEYIN yozuv o'chiriladi.
+                fp_id_to_delete = fp.id
+                po.finished_product_id = None
+                db.query(ProductionOrder).filter(
+                    ProductionOrder.finished_product_id == fp_id_to_delete
+                ).update({"finished_product_id": None})
+                db.flush()
                 db.delete(fp)
 
         po.status = ProductionOrderStatus.CANCELLED.value

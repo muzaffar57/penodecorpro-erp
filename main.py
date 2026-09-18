@@ -822,6 +822,25 @@ async def global_error_logger(request: Request, exc: Exception):
 # yo'naltiriladi. API so'rovlari (/api/...) uchun xatti-harakat
 # O'ZGARTIRILMAYDI — ular hamon aniq JSON xato qaytarib olishi kerak
 # (frontend shu javobni o'qib, o'ziga yarasha ko'rsatadi).
+# 2026-09-18 — M4. Korxonalararo bog'lanish urinishi (`models._tenant_guard`)
+# `TenantMismatchError` beradi. Himoya O'ZGARMAYDI — tranzaksiya avvalgidek
+# to'liq bekor qilinadi (rollback) va bazaga hech narsa yozilmaydi. Faqat
+# foydalanuvchiga qaytariladigan javob to'g'rilanadi: ilgari bu xato
+# yuqoridagi umumiy `Exception` ishlovchisiga tushib, xom 500 "Serverda
+# kutilmagan xato yuz berdi" ko'rinardi. Endi — mavjud API konvensiyasiga
+# mos 409 va tushunarli xabar.
+from models import TenantMismatchError as _TenantMismatchError
+
+
+@app.exception_handler(_TenantMismatchError)
+async def tenant_mismatch_handler(request: Request, exc: _TenantMismatchError):
+    return JSONResponse(
+        status_code=409,
+        content={"detail": "Boshqa korxonaning ma'lumoti bilan bog'lab bo'lmaydi. "
+                           "Amal bekor qilindi."},
+    )
+
+
 from starlette.exceptions import HTTPException as _StarletteHTTPException
 
 
