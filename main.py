@@ -929,6 +929,41 @@ def _migrate_faza3_columns():
             # hech kim platforma admini bo'lmay qoldi va tizim egasining
             # o'zi ham platforma amallariga kira olmadi. Endi solishtirish
             # harf registriga bog'liq emas.
+            # --- Master.telegram_id: global unique -> (company_id, telegram_id) ---
+            # Ilgari bitta Telegram hisobi butun tizimda FAQAT BITTA usta
+            # bo'la olardi — SaaS uchun to'g'ri emas.
+            try:
+                eski = conn.execute(text(
+                    "SELECT conname FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname = 'masters' AND c.contype = 'u' "
+                    "  AND pg_get_constraintdef(c.oid) = 'UNIQUE (telegram_id)'"
+                )).fetchall()
+                for (cname,) in eski:
+                    conn.execute(text(f'ALTER TABLE masters DROP CONSTRAINT "{cname}"'))
+                    print(f"✓ masters: eski global cheklov olib tashlandi ({cname})")
+                yangi = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname='masters' AND c.conname='uq_master_company_telegram'"
+                )).first()
+                if not yangi:
+                    # Avval takrorlanish bor-yo'qligini tekshiramiz
+                    dub = conn.execute(text(
+                        "SELECT COUNT(*) FROM (SELECT company_id, telegram_id FROM masters "
+                        "WHERE telegram_id IS NOT NULL GROUP BY company_id, telegram_id "
+                        "HAVING COUNT(*) > 1) x")).scalar()
+                    if dub:
+                        print(f"⛔ masters: {dub} ta takrorlanuvchi (company_id, telegram_id) — "
+                              f"cheklov qo'shilmadi")
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE masters ADD CONSTRAINT uq_master_company_telegram "
+                            "UNIQUE (company_id, telegram_id)"))
+                        print("✓ masters: (company_id, telegram_id) cheklovi qo'shildi")
+                conn.commit()
+            except Exception as _e:
+                print(f"⚠ masters.telegram_id cheklovi o'zgartirilmadi: {_e}")
+
             if has_col("users", "is_platform_admin"):
                 bor = conn.execute(text(
                     "SELECT COUNT(*) FROM users WHERE is_platform_admin = true")).scalar()
@@ -4049,6 +4084,44 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
     )
 
 
+@app.get("/api/settings/telegram-bot")
+def api_get_telegram_bot(db: Session = Depends(get_db),
+                         current_user=Depends(auth.admin_only)):
+    """Korxonaning o'z Telegram boti sozlamasi (Faza 3).
+
+    Token QAYTARILMAYDI — faqat sozlangan yoki yo'qligi va oxirgi 4 belgisi.
+    Aks holda token brauzer tarixida va loglarda qolib ketardi."""
+    cid = auth.company_id_of(current_user)
+    tok = crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or ""
+    chat = crud.get_setting(db, "telegram_chat_id", "", company_id=cid) or ""
+    return {"configured": bool(tok),
+            "token_hint": (("…" + tok[-4:]) if len(tok) >= 4 else ""),
+            "chat_id": chat}
+
+
+@app.put("/api/settings/telegram-bot")
+def api_set_telegram_bot(token: str = Form(""), chat_id: str = Form(""),
+                         db: Session = Depends(get_db),
+                         current_user=Depends(auth.admin_only)):
+    """Korxonaning Telegram boti tokenini va xabar manzilini saqlaydi.
+
+    Har korxona O'Z botiga ega bo'ladi (@BotFather orqali yaratiladi).
+    Bo'sh token yuborilsa — eski qiymat saqlanib qoladi (tasodifan
+    o'chirib yubormaslik uchun); tozalash uchun "-" yuboriladi."""
+    cid = auth.company_id_of(current_user)
+    t = (token or "").strip()
+    if t == "-":
+        crud.set_setting(db, "telegram_bot_token", "", company_id=cid)
+    elif t:
+        crud.set_setting(db, "telegram_bot_token", t, company_id=cid)
+    c = (chat_id or "").strip()
+    if c == "-":
+        crud.set_setting(db, "telegram_chat_id", "", company_id=cid)
+    elif c:
+        crud.set_setting(db, "telegram_chat_id", c, company_id=cid)
+    return {"status": "ok"}
+
+
 @app.post("/api/system/restore")
 async def api_restore_backup(file: UploadFile = File(...),
                              replace: bool = False,
@@ -4638,6 +4711,32 @@ def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db),
 # MAHSULOT RASMI VA BUYURTMA FAYLLARI (faqat qo'shimcha — hisob-kitobga ta'sir qilmaydi)
 # ============================================================
 
+def _master_by_chat_id(db, chat_id):
+    """Telegram chat_id bo'yicha ustani topadi (ko'p-tenantga tayyor).
+
+    2026-09-19 — Faza 3 (Telegram): ilgari `Master.telegram_id` butun tizim
+    bo'yicha YAGONA edi, shuning uchun bitta usta faqat BITTA korxonada
+    ro'yxatdan o'ta olardi. SaaS uchun bu to'g'ri emas: bir usta ikki
+    korxonada ishlashi mumkin. Cheklov `(company_id, telegram_id)` ga
+    o'zgartirildi, ya'ni endi bir nechta moslik bo'lishi MUMKIN.
+
+    Qaytaradi: (master, xato_matni). Bir nechta moslik topilsa — usta
+    qaysi korxona nomidan yozayotgani NOMA'LUM, shuning uchun hech biri
+    tanlanmaydi va tushunarli xabar qaytariladi. (Har korxonaga alohida
+    bot ulanganda, korxona bot tokenidan aniqlanadi va bu holat
+    umuman tug'ilmaydi — bu keyingi qadam.)"""
+    from models import Master as _Mst
+    rows = db.query(_Mst).filter(_Mst.telegram_id == chat_id,
+                                 _Mst.is_active == True).all()
+    if not rows:
+        return None, None
+    if len(rows) == 1:
+        return rows[0], None
+    return None, ("Sizning Telegram hisobingiz bir nechta korxonada usta "
+                  "sifatida ro'yxatdan o'tgan. Iltimos, korxona "
+                  "administratoriga murojaat qiling.")
+
+
 ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 # CorelDRAW (.cdr) va AutoCAD (.dwg, .dxf) chizmalarini ham buyurtmaga
 # biriktirish mumkin bo'lishi uchun qo'shildi (2026-09).
@@ -4878,7 +4977,10 @@ async def telegram_webhook(request: Request):
         db = SessionLocal()
         try:
             from models import Master
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            master, _amb = _master_by_chat_id(db, chat_id)
+            if _amb:
+                _send_telegram_to(chat_id, _amb)
+                return {"ok": True}
             keyboard = _master_bot_keyboard(db, master)
         finally:
             db.close()
@@ -4901,7 +5003,10 @@ async def telegram_webhook(request: Request):
         db = SessionLocal()
         try:
             from models import Master
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            master, _amb = _master_by_chat_id(db, chat_id)
+            if _amb:
+                _send_telegram_to(chat_id, _amb)
+                return {"ok": True}
             if not master:
                 reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
             else:
@@ -4942,7 +5047,10 @@ async def telegram_webhook(request: Request):
         db = SessionLocal()
         try:
             from models import Master
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            master, _amb = _master_by_chat_id(db, chat_id)
+            if _amb:
+                _send_telegram_to(chat_id, _amb)
+                return {"ok": True}
             if not master:
                 reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
             else:

@@ -167,6 +167,8 @@ class Master(Base):
     # bir xil qiymatni umuman qo'sha olmasdi. Nomi bazadagi indeks
     # nomi bilan AYNAN bir xil bo'lishi shart.
     __table_args__ = (
+        UniqueConstraint("company_id", "telegram_id",
+                         name="uq_master_company_telegram"),
         UniqueConstraint("company_id", "phone",
                          name="uq_masters_company_phone"),
     )
@@ -184,7 +186,12 @@ class Master(Base):
                         index=True)
     name = Column(String(100), nullable=False)
     phone = Column(String(20), nullable=False)
-    telegram_id = Column(String(50), unique=True, nullable=True)
+    # 2026-09-19 — Faza 3 (Telegram): ilgari `unique=True` edi, ya'ni
+    # bitta Telegram hisobi butun tizimda FAQAT BITTA usta bo'la olardi.
+    # SaaS uchun bu noto'g'ri: bir usta ikki korxonada ishlashi mumkin.
+    # Endi cheklov `(company_id, telegram_id)` juftligi bo'yicha — pastdagi
+    # `__table_args__` da.
+    telegram_id = Column(String(50), nullable=True, index=True)
     cashback_percent = Column(Float, default=0.0)
     kpi_percent = Column(Float, default=0.0)   # Yillik KPI % — yillik sotuvdan, yil oxiri sovg'a uchun
     is_active = Column(Boolean, default=True)
