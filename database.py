@@ -57,6 +57,14 @@ else:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# 2026-09-19 — Faza 1: avtomatik tenant filtri (TENANT_FILTER=1 bo'lsa).
+# Modul o'zi standart holatda O'CHIQ — yoqilmaguncha hech narsa o'zgarmaydi.
+try:
+    import tenant_context as _tc
+    _tc.install(SessionLocal)
+except Exception as _e:   # modul yo'q bo'lsa ilova avvalgidek ishlayveradi
+    print(f"⚠ tenant_context o'rnatilmadi: {_e}")
+
 def get_db():
     db = SessionLocal()
     try:

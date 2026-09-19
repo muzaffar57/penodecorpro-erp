@@ -148,6 +148,18 @@ def get_current_user(
         User.id == session["user_id"],
         User.is_active == True
     ).first()
+
+    # 2026-09-19 — Faza 1: joriy so'rovning korxonasini kontekstga yozamiz.
+    # Shundan keyin `tenant_context` moduli HAR BIR ORM so'roviga avtomatik
+    # `company_id` shartini qo'shadi — funksiya filtrni unutsa ham ma'lumot
+    # sizib chiqmaydi. Kontekst bo'sh bo'lsa (login, cron, migratsiya)
+    # filtr qo'llanmaydi, ya'ni fon vazifalari avvalgidek ishlaydi.
+    if user is not None:
+        try:
+            from tenant_context import set_current_company
+            set_current_company(getattr(user, "company_id", None))
+        except Exception:
+            pass
     return user
 
 
