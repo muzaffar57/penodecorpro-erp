@@ -1267,6 +1267,49 @@ async def custom_http_exception_handler(request: Request, exc: _StarletteHTTPExc
 
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
+
+
+# ============================================================
+# Korxona nomi — interfeysda ko'rsatish uchun (Faza 5)
+# ============================================================
+# NEGA KERAK: sarlavhada "PenoDecorPro · Andijon" QATTIQ yozilgan edi.
+# SaaS da bu noto'g'ri — ikkinchi mijoz o'z ERP sida boshqa korxonaning
+# nomini ko'rib turardi. Endi nom bazadan olinadi.
+#
+# Har sahifada bazaga so'rov yubormaslik uchun kichik keshda saqlanadi;
+# nom o'zgartirilganda kesh tozalanadi.
+_company_name_cache = {}
+
+
+def company_name_of(company_id):
+    """Korxona nomini qaytaradi (keshdan yoki bazadan)."""
+    if company_id is None:
+        return None
+    if company_id in _company_name_cache:
+        return _company_name_cache[company_id]
+    try:
+        from database import SessionLocal as _SL
+        from production_models import Company as _Co
+        _d = _SL()
+        try:
+            row = _d.query(_Co).filter(_Co.id == company_id).first()
+            nom = row.name if row else None
+        finally:
+            _d.close()
+    except Exception:
+        nom = None
+    _company_name_cache[company_id] = nom
+    return nom
+
+
+def _clear_company_name_cache(company_id=None):
+    if company_id is None:
+        _company_name_cache.clear()
+    else:
+        _company_name_cache.pop(company_id, None)
+
+
+templates.env.globals["company_name_of"] = company_name_of
 # 2026-09-17: statik fayllar (masalan translit.js) uchun cache-busting —
 # brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
 # Har deploy'da bu qiymat o'zgarishi kerak (masalan shu sana-vaqt) —
@@ -4270,6 +4313,37 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+@app.get("/api/settings/company")
+def api_get_company(db: Session = Depends(get_db),
+                    current_user=Depends(auth.require_login)):
+    """Joriy korxona ma'lumoti (nomi interfeysda ko'rsatiladi)."""
+    from production_models import Company as _Co
+    cid = auth.company_id_of(current_user)
+    row = db.query(_Co).filter(_Co.id == cid).first()
+    return {"id": cid, "name": (row.name if row else None),
+            "code": (row.code if row else None)}
+
+
+@app.put("/api/settings/company")
+def api_set_company(name: str = Form(...), db: Session = Depends(get_db),
+                    current_user=Depends(auth.admin_only)):
+    """Korxona nomini o'zgartiradi (faqat o'z korxonasini)."""
+    from production_models import Company as _Co
+    nom = (name or "").strip()
+    if len(nom) < 2:
+        raise HTTPException(status_code=400, detail="Nom juda qisqa")
+    if len(nom) > 200:
+        raise HTTPException(status_code=400, detail="Nom juda uzun (200 belgidan ko'p)")
+    cid = auth.company_id_of(current_user)
+    row = db.query(_Co).filter(_Co.id == cid).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    row.name = nom
+    db.commit()
+    _clear_company_name_cache(cid)
+    return {"status": "ok", "name": nom}
 
 
 @app.get("/api/settings/telegram-bot")
