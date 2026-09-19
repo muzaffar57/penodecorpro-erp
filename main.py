@@ -4467,11 +4467,38 @@ def api_platform_reset_admin_password(company_id: int, username: str = Form(""),
         alifbo = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
         parol = "".join(secrets.choice(alifbo) for _ in range(12))
         u.password_hash = auth.hash_password(parol)
+
+        # ── HISOBDORLIK ────────────────────────────────────────────
+        # Platforma admini texnik jihatdan har doim kira oladi (bazaga
+        # to'g'ridan-to'g'ri kirish bor) — buni yashirishning ma'nosi yo'q.
+        # Ishonchni yaratadigan narsa — imkoniyatning yo'qligi emas, balki
+        # har bir bunday amalning KO'RINADIGAN bo'lishi. Shuning uchun:
+        #   1) yozuv MIJOZNING o'z audit jurnaliga tushadi;
+        #   2) mijozning Telegram botiga darhol xabar ketadi.
+        # Ya'ni siz parolni tiklay olasiz, lekin JIMGINA emas.
+        crud.log_activity(
+            db, "password_reset", "user", u.id, u.username,
+            performed_by=f"Platforma administratori ({current_user.username})",
+            new_value="Parol platforma administratori tomonidan tiklandi",
+            company_id=company_id)
         db.commit()
         login = u.username
 
+    # Xabarnoma tranzaksiyadan KEYIN — Telegram ishlamasa ham parol
+    # tiklangan bo'lib qoladi.
+    try:
+        _send_telegram(
+            f"🔑 *Diqqat: parol tiklandi*\n\n"
+            f"`{login}` hisobining paroli platforma administratori "
+            f"tomonidan yangilandi.\n\n"
+            f"Agar buni siz so'ramagan bo'lsangiz — darhol bog'laning.",
+            company_id=company_id)
+    except Exception:
+        pass
+
     return {"status": "ok", "username": login, "password": parol,
-            "eslatma": "Parol FAQAT SHU YERDA ko'rsatiladi."}
+            "eslatma": "Parol FAQAT SHU YERDA ko'rsatiladi. "
+                       "Mijozning audit jurnaliga yozuv tushdi va botiga xabar yuborildi."}
 
 
 @app.get("/api/settings/company")
