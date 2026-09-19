@@ -112,6 +112,19 @@ def install(Session):
     # Filtrlanadigan modellar: `company_id` ustuni BOR bo'lganlar.
     # Ota orqali aniqlanadiganlar (Payment, Delivery va h.k.) bu yerda
     # qamralmaydi — ular uchun mavjud qo'lda qo'yilgan filtrlar ishlaydi.
+    # Global filtrdan ATAYLAB chetlatilgan modellar.
+    #
+    # `ErrorLog` (2026-09-19, Faza 3 dan keyin jonli sinovda aniqlangan):
+    # unda `company_id` ustuni bor, lekin u NULL bo'lishi MUMKIN va NULL
+    # aynan "platforma xatosi" degani — fon vazifasi, ishga tushish yoki
+    # login oldidagi xato. Global filtr `company_id = N` shartini qo'shsa,
+    # NULL qatorlar kesilib ketadi va tizim egasi platforma xatolarini
+    # umuman ko'rmay qoladi (M7 dan keyingi holat qaytadi).
+    # Bu jadvalning kirish nazorati `crud.get_error_logs()` da ATAYLAB
+    # "o'z korxonasi YOKI NULL" tarzida yozilgan — shuning uchun bu yerda
+    # ikkinchi marta cheklash kerak emas va zararli.
+    EXCLUDED_FROM_FILTER = {"ErrorLog"}
+
     tenant_models = []
     seen = set()
     for mod_name in ("models", "production_models"):
@@ -124,7 +137,7 @@ def install(Session):
                 continue
             if not hasattr(obj, "__tablename__") or not hasattr(obj, "company_id"):
                 continue
-            if obj.__name__ in seen:
+            if obj.__name__ in seen or obj.__name__ in EXCLUDED_FROM_FILTER:
                 continue
             seen.add(obj.__name__)
             tenant_models.append(obj)
