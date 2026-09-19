@@ -1450,14 +1450,20 @@ async def logs_page(request: Request, db: Session = Depends(get_db), current_use
     # xatolari (NULL) hammaga.
     _cid = auth.company_id_of(current_user)
     login_history = crud.get_login_history(db, limit=100, company_id=_cid)
-    # Platforma admini tizim xatolarini ham ko'radi; oddiy korxona
-    # admini esa FAQAT o'z korxonasinikini.
+    # 2026-09-20 — Texnik xatolar (Python traceback) FAQAT platforma
+    # administratori uchun. Sabab: bunday xabar korxona egasiga hech narsa
+    # bermaydi, lekin ikki xil zarar keltiradi — (1) "dastur buzuqmi?"
+    # degan keraksiz xavotir, (2) fayl yo'llari, jadval nomlari va ba'zan
+    # qiymatlar oshkor bo'lishi. Xatoni topish va tuzatish — xizmat
+    # ko'rsatuvchining ishi. Ro'yxat umuman YUBORILMAYDI, ya'ni HTML
+    # ichida ham qolmaydi.
+    _platforma = bool(getattr(current_user, "is_platform_admin", False))
     error_logs = crud.get_error_logs(
-        db, limit=100, company_id=_cid,
-        include_platform=bool(getattr(current_user, "is_platform_admin", False)))
+        db, limit=100, company_id=_cid, include_platform=True) if _platforma else []
     activity_log = crud.get_activity_log(db, limit=100, company_id=_cid)
     return templates.TemplateResponse(request, "logs.html", {
-        "login_history": login_history, "error_logs": error_logs, "activity_log": activity_log,
+        "login_history": login_history, "error_logs": error_logs,
+         "is_platform_admin": _platforma, "activity_log": activity_log,
         "current_user": current_user, "active_page": "logs"
     })
 
