@@ -274,6 +274,23 @@ def require_role(allowed_roles: list):
 
 
 # Tayyor checker funksiyalar — main.py da ishlatiladi
+def platform_admin_only(request: Request, db: Session = Depends(get_db)) -> User:
+    """PLATFORMA admini — SaaS egasi (Faza 3).
+
+    Farqi: `admin_only` — bu KORXONA admini. Har bir mijozning admini
+    shu huquqqa ega, ya'ni u o'z korxonasini to'liq boshqaradi. Lekin
+    platforma darajasidagi amallar (Telegram bot tokeni sozlamasi,
+    butun bazani Telegram'ga yuborish) hech qanday tenant admini uchun
+    ochiq bo'lmasligi kerak — M8 auditida aynan shu aniqlangan edi.
+    """
+    user = require_login(request, db)
+    if not getattr(user, "is_platform_admin", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Bu amal faqat platforma administratori uchun")
+    return user
+
+
 def admin_only(request: Request, db: Session = Depends(get_db)) -> User:
     return require_role([UserRole.ADMIN])(request, db)
 

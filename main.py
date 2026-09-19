@@ -845,7 +845,74 @@ def _migrate_drop_company_id_defaults():
 
 _migrate_recipe_name_column()
 _migrate_payment_columns()
+def _migrate_faza3_columns():
+    """Faza 3 (2026-09-19) — uchta yangi ustun. Xavfsiz va idempotent.
+
+      1) `error_logs.company_id`  — xatolarni korxonaga bog'lash uchun.
+         NULL = platforma xatosi (fon vazifasi, login oldidagi xato).
+         Eski yozuvlar NULL bo'lib qoladi: ularni korxonalarga taqsimlab
+         bo'lmaydi (`performed_by` bo'sh edi), shuning uchun ular
+         platforma xatosi sifatida qoladi — bu ATAYLAB.
+      2) `gift_period_tiers.company_id` — model qo'riqchisi ota yozuvda
+         shu ustunni qidiradi; backfill `gift_periods` dan olinadi.
+      3) `users.is_platform_admin` — SaaS egasi bayrog'i. Backfill:
+         ENG ESKI admin (eng kichik id) platforma admini deb belgilanadi,
+         aks holda hech kim platforma amallarini bajara olmay qolardi.
+    """
+    try:
+        from database import engine
+        if engine.dialect.name != "postgresql":
+            return
+        with engine.connect() as conn:
+            def has_col(t, c):
+                return conn.execute(text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_schema='public' AND table_name=:t AND column_name=:c"
+                ), {"t": t, "c": c}).first() is not None
+
+            if not has_col("error_logs", "company_id"):
+                conn.execute(text(
+                    "ALTER TABLE error_logs ADD COLUMN company_id INTEGER "
+                    "REFERENCES companies(id)"))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_error_logs_company_id "
+                    "ON error_logs (company_id)"))
+                conn.commit()
+                print("✓ error_logs.company_id qo'shildi")
+
+            if not has_col("gift_period_tiers", "company_id"):
+                conn.execute(text(
+                    "ALTER TABLE gift_period_tiers ADD COLUMN company_id INTEGER "
+                    "REFERENCES companies(id)"))
+                conn.execute(text(
+                    "UPDATE gift_period_tiers t SET company_id = "
+                    "(SELECT p.company_id FROM gift_periods p WHERE p.id = t.period_id)"))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_gift_period_tiers_company_id "
+                    "ON gift_period_tiers (company_id)"))
+                conn.commit()
+                n_null = conn.execute(text(
+                    "SELECT COUNT(*) FROM gift_period_tiers WHERE company_id IS NULL")).scalar()
+                print(f"✓ gift_period_tiers.company_id qo'shildi (to'ldirilmagan: {n_null})")
+
+            if not has_col("users", "is_platform_admin"):
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN is_platform_admin BOOLEAN "
+                    "NOT NULL DEFAULT false"))
+                # Eng eski admin — platforma egasi
+                conn.execute(text(
+                    "UPDATE users SET is_platform_admin = true WHERE id = "
+                    "(SELECT id FROM users WHERE role = 'ADMIN' ORDER BY id LIMIT 1)"))
+                conn.commit()
+                who = conn.execute(text(
+                    "SELECT username FROM users WHERE is_platform_admin = true")).fetchall()
+                print(f"✓ users.is_platform_admin qo'shildi — platforma admini: {[w[0] for w in who]}")
+    except Exception as e:
+        print(f"⚠ Faza 3 migratsiyasi o'tkazib yuborildi: {e}")
+
+
 _migrate_drop_company_id_defaults()
+_migrate_faza3_columns()
 
 from database import SessionLocal
 _db = SessionLocal()
@@ -906,9 +973,28 @@ async def global_error_logger(request: Request, exc: Exception):
     try:
         log_db = SessionLocal()
         try:
+            # Faza 3: xatoni KORXONAGA bog'laymiz. Sessiya tokenidan
+            # foydalanuvchi aniqlansa — uning korxonasi; aniqlanmasa
+            # (fon vazifasi, login oldidagi xato) NULL qoladi va bu
+            # PLATFORMA xatosi hisoblanadi.
+            _cid, _who = None, None
+            try:
+                _tok = request.cookies.get("session_token")
+                if _tok:
+                    _sess = auth.get_session(log_db, _tok)
+                    if _sess:
+                        from models import User as _U_err
+                        _u = log_db.query(_U_err).filter(
+                            _U_err.id == _sess["user_id"]).first()
+                        if _u is not None:
+                            _cid = getattr(_u, "company_id", None)
+                            _who = getattr(_u, "full_name", None) or getattr(_u, "username", None)
+            except Exception:
+                _cid, _who = None, None
             crud.log_error(
                 log_db, error_message=str(exc), stack_trace=traceback.format_exc(),
-                endpoint=str(request.url.path), method=request.method
+                endpoint=str(request.url.path), method=request.method,
+                performed_by=_who, company_id=_cid
             )
         finally:
             log_db.close()
@@ -1071,9 +1157,9 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
 async def logs_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Tizim jurnallari — kirish tarixi va backend xatoliklari (faqat admin)."""
     # M7: audit izi va kirish tarixi FAQAT joriy korxonaniki.
-    # ErrorLog'da `company_id` ustuni YO'Q — to'g'ri ajratish ALTER TABLE
-    # talab qiladi va M8 ga qoldirilgan; shu sababli u yerda foydalanuvchi
-    # nomi bo'yicha eng xavfsiz mavjud cheklash qo'llanadi.
+    # Faza 3 (2026-09-19): `error_logs.company_id` ustuni qo'shildi —
+    # endi xatolar ham to'g'ri ajratiladi: korxonaniki o'ziga, platforma
+    # xatolari (NULL) hammaga.
     _cid = auth.company_id_of(current_user)
     login_history = crud.get_login_history(db, limit=100, company_id=_cid)
     error_logs = crud.get_error_logs(db, limit=100, company_id=_cid)
@@ -2328,10 +2414,38 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail="CRON_SECRET Railway'da o'rnatilmagan")
     if secret != CRON_SECRET:
         raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
-    low_items = crud.get_low_stock_items(db)
-    if not low_items:
+    # 2026-09-19 — Faza 3: ilgari bu so'rov KORXONA FILTRISIZ edi, ya'ni
+    # bitta ogohlantirish xabarida BARCHA korxonalarning materiallari
+    # aralashib ketardi. Endi har bir korxona alohida ko'rib chiqiladi.
+    # (Hozircha yagona Telegram manzili bor, shuning uchun xabarga korxona
+    # nomi qo'shiladi; har korxonaga alohida manzil — Telegram arxitekturasi
+    # qaroridan keyin.)
+    from production_models import Company as _Co
+    _companies = [c.id for c in db.query(_Co).all()] or [None]
+    _all_lines, _sent_any = [], False
+    for _cid in _companies:
+        low_items = crud.get_low_stock_items(db, company_id=_cid)
+        if not low_items:
+            continue
+        _sent_any = True
+        _cname = None
+        try:
+            _cname = db.query(_Co).filter(_Co.id == _cid).first().name
+        except Exception:
+            pass
+        if len(_companies) > 1 and _cname:
+            _all_lines.append(f"\n🏢 *{_cname}*")
+        for item in low_items:
+            qty = float(item.stock_quantity)
+            min_q = float(item.min_stock)
+            deficit = min_q - qty
+            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+            _all_lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi "
+                              f"(min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
+    if not _sent_any:
         return {"sent": False, "message": "Barcha xomashyolar yetarli"}
-    lines = []
+    low_items = []
+    lines = _all_lines
     for item in low_items:
         qty = float(item.stock_quantity)
         min_q = float(item.min_stock)
@@ -3773,7 +3887,7 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
 
 
 @app.get("/api/system/telegram-debug")
-def api_telegram_debug(current_user=Depends(auth.admin_only)):
+def api_telegram_debug(current_user=Depends(auth.platform_admin_only)):
     """Diagnostika: server qaysi botga ulanganini va oxirgi kimlar
     botga 'Start' bosganini (chat_id'lari bilan) ko'rsatadi."""
     import urllib.request as _ur
@@ -3815,7 +3929,7 @@ def api_telegram_debug(current_user=Depends(auth.admin_only)):
 
 
 @app.post("/api/system/telegram-setup-webhook-security")
-def api_telegram_setup_webhook_security(request: Request, current_user=Depends(auth.admin_only)):
+def api_telegram_setup_webhook_security(request: Request, current_user=Depends(auth.platform_admin_only)):
     """BIR MARTALIK sozlash: Telegram webhookni, XAVFSIZ IMZO bilan qayta
     ro'yxatdan o'tkazadi. Shundan keyin — soxta (Telegram'dan bo'lmagan)
     so'rovlar avtomatik rad etiladi.
@@ -3877,7 +3991,7 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
 
 
 @app.post("/api/system/backup/send-now")
-def api_backup_send_now(current_user=Depends(auth.admin_only)):
+def api_backup_send_now(current_user=Depends(auth.platform_admin_only)):
     """Kunlik avtomatik backup vazifasini HOZIROQ, qo'lda ishga tushiradi
     (23:30 ni kutmasdan, Telegram ulanishini sinab ko'rish uchun)."""
     run_daily_backup()

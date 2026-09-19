@@ -2060,7 +2060,8 @@ def get_login_history(db: Session, limit: int = 100, company_id: int = None) -> 
 
 
 def log_error(db: Session, error_message: str, stack_trace: str = None,
-              endpoint: str = None, method: str = None, performed_by: str = None):
+              endpoint: str = None, method: str = None, performed_by: str = None,
+              company_id: int = None):
     """Backend xatoligini yozib boradi.
 
     XAVFSIZLIK: bazaga ulanish/so'rov xatoliklarida, SQLAlchemy xato
@@ -2075,6 +2076,7 @@ def log_error(db: Session, error_message: str, stack_trace: str = None,
     safe_message = _param_re.sub('[parameters: YASHIRINGAN]', str(error_message))
     safe_trace = _param_re.sub('[parameters: YASHIRINGAN]', stack_trace or "")
     entry = ErrorLog(
+        company_id=company_id,
         error_message=safe_message[:5000], stack_trace=safe_trace[:8000],
         endpoint=endpoint, method=method, performed_by=performed_by
     )
@@ -2083,30 +2085,21 @@ def log_error(db: Session, error_message: str, stack_trace: str = None,
 
 
 def get_error_logs(db: Session, limit: int = 100, company_id: int = None) -> List:
-    """So'nggi backend xatoliklari.
+    """So'nggi backend xatoliklari (Faza 3 — tenant-safe).
 
-    M7 (2026-09-18) — TENANT, QISMAN YECHIM. `ErrorLog` jadvalida
-    `company_id` ustuni YO'Q, uni qo'shish esa ALTER TABLE (migratsiya)
-    talab qiladi — bu ataylab M8 ga qoldirilgan.
-
-    Migratsiyasiz mavjud yagona bog'lanish — `performed_by` (foydalanuvchi
-    nomi). `User.username` butun tizim bo'yicha yagona bo'lgani uchun
-    undan korxonani bir qiymatli aniqlash mumkin. Shuning uchun bu yerda
-    FAQAT shu korxona foydalanuvchilari nomidan yozilgan xatolar
-    qaytariladi.
-
-    CHEKLOV (ochiq aytilgan): `performed_by` bo'sh bo'lgan TIZIM xatolari
-    (fon vazifalari, autentifikatsiyadan oldingi xatolar) hech bir
-    korxonaga bog'lanmagani uchun bu ro'yxatga KIRMAYDI. To'liq yechim —
-    `error_logs.company_id` migratsiyasi, M8."""
-    from models import ErrorLog, User
+    `error_logs.company_id` ustuni qo'shilgach, filtr aniq bo'ldi:
+      • korxonaga bog'langan xatolar — faqat o'sha korxonaga;
+      • `company_id IS NULL` — PLATFORMA xatolari (fon vazifalari,
+        ishga tushish, autentifikatsiyadan oldingi xatolar). Ularda
+        tenant ma'lumoti yo'q, shuning uchun hammaga ko'rsatiladi —
+        aks holda tizim egasi hech qanday xatoni ko'rmay qolardi
+        (M7 dan keyin aynan shunday bo'lgan edi)."""
+    from models import ErrorLog
+    from sqlalchemy import or_ as _or
     q = db.query(ErrorLog)
     if company_id is not None:
-        names = [u.username for u in
-                 db.query(User.username).filter(User.company_id == company_id).all()]
-        if not names:
-            return []
-        q = q.filter(ErrorLog.performed_by.in_(names))
+        q = q.filter(_or(ErrorLog.company_id == company_id,
+                         ErrorLog.company_id.is_(None)))
     return q.order_by(ErrorLog.created_at.desc()).limit(limit).all()
 
 

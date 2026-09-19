@@ -141,6 +141,13 @@ class User(Base):
     role = Column(Enum(UserRole), nullable=False, default=UserRole.MANAGER)
     full_name = Column(String(100))
     telegram_id = Column(String(50), unique=True, nullable=True)
+    # 2026-09-19 — Faza 3: PLATFORMA admini (SaaS egasi).
+    # `admin_only` — bu KORXONA admini; har bir mijozning admini shu
+    # huquqqa ega. Platforma darajasidagi amallar (Telegram bot sozlamasi,
+    # global zaxira yuborish) esa faqat shu bayroqqa ega foydalanuvchiga
+    # ochiq bo'lishi kerak.
+    is_platform_admin = Column(Boolean, default=False, nullable=False,
+                               server_default=sa_text("false"))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -283,6 +290,10 @@ class GiftPeriodTier(Base):
     __tablename__ = "gift_period_tiers"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-19 — Faza 3: model qo'riqchisi (`_TENANT_RULES`) ota yozuvda
+    # `company_id` ustunini qidiradi; bu jadvalda u yo'q edi, shuning uchun
+    # `MasterGiftPeriodRedemption.tier_id` zanjiri tekshirilmay qolardi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     period_id = Column(Integer, ForeignKey("gift_periods.id"), nullable=False, index=True)
     gift_name = Column(String(100), nullable=False)
     threshold_amount = Column(Float, nullable=False)
@@ -1247,6 +1258,12 @@ class ErrorLog(Base):
     __tablename__ = "error_logs"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 2026-09-19 — Faza 3: xatolarni korxonaga bog'lash.
+    # ATAYLAB `nullable=True`: foydalanuvchi sessiyasisiz yuz bergan
+    # PLATFORMA xatolari (fon vazifalari, ishga tushish, autentifikatsiyadan
+    # oldingi xatolar) hech bir korxonaga tegishli emas — ular NULL bo'ladi
+    # va tenant adminlariga ham ko'rinadi (ularda tenant ma'lumoti yo'q).
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     error_message = Column(Text, nullable=False)
     stack_trace = Column(Text, nullable=True)
     endpoint = Column(String(255), nullable=True)
@@ -1884,6 +1901,7 @@ _TENANT_RULES = {
     # yo'q edi, ya'ni A korxonaning sovg'a davriga B korxonaning
     # ustasini ishtirokchi qilib yozib qo'yish mumkin edi.
     "GiftPeriodTier":              [("period_id", "GiftPeriod")],
+    "GiftPeriodTier": [("period_id", "GiftPeriod")],
     "GiftPeriodParticipant":       [("period_id", "GiftPeriod")],
     "MasterGiftPeriodRedemption":  [("period_id", "GiftPeriod")],
     "MasterGiftRedemption":        [("master_id", "Master")],
