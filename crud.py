@@ -156,8 +156,16 @@ from models import Inventory
 from schemas import InventoryCreate, InventoryUpdate
 
 
-def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
-    """Yangi xomashyo qo'shadi."""
+def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) -> Inventory:
+    """Yangi xomashyo qo'shadi.
+
+    2026-09-18 — M8/F1: `company_id` ANIQ beriladi. Ilgari endpoint uni
+    `add_item()` QAYTGANIDAN KEYIN qo'yardi, ya'ni funksiya ichidagi
+    `db.commit()` vaqtida ustun bo'sh bo'lar va faqat bazadagi vaqtinchalik
+    `DEFAULT 1` uni to'ldirardi. Default olib tashlangach bu yo'l
+    NOT NULL xatosi berardi — shuning uchun tenant endi boshidanoq
+    beriladi. "Tiriltirish" (o'chirilgan qatorni qayta ishlatish) mantig'i
+    ham SHU korxona ichida qidiradi."""
     is_peno = getattr(item_data, 'is_penoplast', False)
     is_default = getattr(item_data, 'is_default_penoplast', False)
 
@@ -176,10 +184,12 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
     # holda qolgan bo'lsa) — YANGI qator yaratmaymiz (bu — nom takrorlanishi
     # xatosini keltirib chiqarardi), aksincha O'SHA eskisini "tiriltiramiz"
     # (is_deleted=False) va yangi ma'lumotlar bilan yangilaymiz.
-    existing_deleted = db.query(Inventory).filter(
+    _scope = (lambda q: q.filter(Inventory.company_id == company_id)) if company_id is not None else (lambda q: q)
+
+    existing_deleted = _scope(db.query(Inventory).filter(
         Inventory.item_name == item_data.item_name,
         Inventory.is_deleted.is_(True)
-    ).first()
+    )).first()
 
     # MUHIM (2): agar shu nomda ALLAQACHON, "yashirin" emas, ODDIY faol
     # (is_deleted=False) qator bo'lsa-yu, u HALI HECH QACHON ISHLATILMAGAN
@@ -193,11 +203,11 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
     # beryapti" muammosini butunlay oldini oladi.
     existing_unused = None
     if not existing_deleted:
-        existing_unused = db.query(Inventory).filter(
+        existing_unused = _scope(db.query(Inventory).filter(
             Inventory.item_name == item_data.item_name,
             Inventory.is_deleted.is_(False),
             Inventory.stock_quantity == 0
-        ).first()
+        )).first()
         if existing_unused:
             from models import InventoryPurchase
             has_purchase = db.query(InventoryPurchase).filter(
@@ -230,8 +240,8 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
         if getattr(item_data, 'conversion_factor', None) is not None:
             existing_to_reuse.conversion_factor = item_data.conversion_factor
         if is_peno and is_default:
-            db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
-                {"is_default_penoplast": False}
+            _scope(db.query(Inventory).filter(Inventory.is_default_penoplast == True)).update(
+                {"is_default_penoplast": False}, synchronize_session=False
             )
             existing_to_reuse.is_default_penoplast = True
         db.commit()
@@ -240,11 +250,12 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
 
     # Agar asosiy deb belgilangan bo'lsa — eskisini bekor qilamiz
     if is_peno and is_default:
-        db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
-            {"is_default_penoplast": False}
+        _scope(db.query(Inventory).filter(Inventory.is_default_penoplast == True)).update(
+            {"is_default_penoplast": False}, synchronize_session=False
         )
 
     db_item = Inventory(
+        company_id=company_id,
         item_name=item_data.item_name,
         stock_quantity=item_data.stock_quantity,
         unit=item_data.unit,
@@ -286,9 +297,9 @@ def add_item(db: Session, item_data: InventoryCreate) -> Inventory:
 
     # Agar birinchi penoplast bo'lsa — avtomatik asosiy qilamiz
     if is_peno:
-        has_default = db.query(Inventory).filter(
+        has_default = _scope(db.query(Inventory).filter(
             Inventory.is_default_penoplast == True
-        ).first()
+        )).first()
         if not has_default:
             db_item.is_default_penoplast = True
             db.commit()
@@ -637,7 +648,7 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                               boshqa_cost: float = 0.0, add_to_cost: bool = False,
                               supplier_id: int = None, document_number: str = None,
                               paid_now: float = 0.0, notes: str = None, created_by: str = None,
-                              production_type: str = None) -> dict:
+                              production_type: str = None, company_id: int = None) -> dict:
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport, Tushirish/Grushchik, Yuklash, Boshqa) bilan birga, BITTA
     yagona tranzaksiya sifatida saqlaydi. Xato bo'lsa — HAMMASI (barcha
@@ -741,7 +752,11 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                 amount = float(amount or 0)
                 if amount <= 0:
                     continue
+                # M8/F1: `ExpenseTransaction` tenant ildiz modeli — ota-zanjiri
+                # yo'q, shuning uchun `company_id` ANIQ berilishi SHART
+                # (ilgari vaqtinchalik `DEFAULT 1` uni to'ldirardi).
                 tx = ExpenseTransaction(
+                    company_id=company_id,
                     date=receipt.receipt_date, category=cat, amount=amount,
                     notes=f"{label} — Kirim #{receipt.id}" + (f" ({document_number})" if document_number else ""),
                     created_by=created_by, source="inventory_receipt",
@@ -7038,7 +7053,11 @@ from models import Employee, PayType
 from schemas import EmployeeCreate, EmployeeUpdate
 
 
-def create_employee(db: Session, data: EmployeeCreate) -> Employee:
+def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -> Employee:
+    """Yangi xodim qo'shadi.
+
+    2026-09-18 — M8/F1: `company_id` ANIQ beriladi (ilgari endpoint uni
+    keyin qo'yardi, funksiya ichidagi commit esa `DEFAULT 1` ga tayanardi)."""
     from models import EmployeeCompensationHistory
     try:
         pt = PayType(data.pay_type)
@@ -7046,6 +7065,7 @@ def create_employee(db: Session, data: EmployeeCreate) -> Employee:
         pt = PayType.FIXED
 
     emp = Employee(
+        company_id=company_id,
         name=data.name.strip(),
         position=data.position,
         pay_type=pt,

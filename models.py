@@ -134,7 +134,7 @@ class User(Base):
     # yuboradigan bo'lgandan keyin OLIB TASHLANADI — aks holda unutilgan
     # company_id jimgina 1-korxonaga tushib qoladi (ma'lumot sizib chiqishi).
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
 
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
@@ -174,7 +174,7 @@ class Master(Base):
     # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
     # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     name = Column(String(100), nullable=False)
     phone = Column(String(20), nullable=False)
     telegram_id = Column(String(50), unique=True, nullable=True)
@@ -208,7 +208,7 @@ class MasterGift(Base):
     # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
     # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     name = Column(String(100), nullable=False)
     kpi_threshold = Column(Float, nullable=False)   # shu sovg'a uchun kerakli yillik KPI (so'm)
     sort_order = Column(Integer, default=0)
@@ -264,7 +264,7 @@ class GiftPeriod(Base):
     # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
     # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     is_active = Column(Boolean, default=True, nullable=False)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     closed_at = Column(DateTime, nullable=True)
@@ -359,7 +359,7 @@ class Inventory(Base):
     # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
     # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     item_name = Column(String(100), nullable=False, index=True)
     stock_quantity = Column(Float, default=0.0)
     unit = Column(String(20), nullable=False)
@@ -416,7 +416,7 @@ class Recipe(Base):
     # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
     # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     name = Column(String(100), nullable=False)  # Endi ISTALGAN nom bo'lishi mumkin
 
     batch_size_kg = Column(Float, default=150.0)
@@ -484,7 +484,7 @@ class Project(Base):
     # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
     # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     project_number = Column(String(20), index=True)  # PRJ-001
     client_name = Column(String(100), nullable=False)
     client_phone = Column(String(20), nullable=True)
@@ -535,7 +535,7 @@ class Order(Base):
     # uchun zaxira — unga TAYANIB BO'LMAYDI: sinovda 2-korxona loyihasiga
     # yaratilgan buyurtma DEFAULT tufayli 1-korxonaga tushib qolgan edi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     order_number = Column(String(20), index=True)
 
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
@@ -661,7 +661,7 @@ class OrderItem(Base):
     # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
     # va ota bilan mos kelmasa yozuvni RAD ETADI.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
 
     name = Column(String(150), nullable=False)
@@ -844,7 +844,7 @@ class ReturnItem(Base):
     # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
     # va ota bilan mos kelmasa yozuvni RAD ETADI.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
     # Tayyor mahsulot ishlab chiqarish jarayonidagi brak uchun — order_id
     # o'rniga shu ishlatiladi (ikkalasidan FAQAT BITTASI to'ldiriladi).
@@ -885,7 +885,7 @@ class InventoryMovement(Base):
     # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
     # va ota bilan mos kelmasa yozuvni RAD ETADI.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)
     item_name = Column(String(150), nullable=False)
 
@@ -961,7 +961,7 @@ class InventoryReceipt(Base):
     # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
     # va ota bilan mos kelmasa yozuvni RAD ETADI.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
     supplier = relationship("Supplier")
     document_number = Column(String(50), nullable=True)
@@ -1030,7 +1030,7 @@ class Employee(Base):
     # Vaqtinchalik; barcha yozuv nuqtalari company_id ni aniq yuboradigan
     # bo'lgach, baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     name = Column(String(100), nullable=False)
     position = Column(String(100), nullable=True)   # Lavozimi: "Kesuvchi", "Qoplovchi" va h.k.
 
@@ -1147,7 +1147,7 @@ class CashTransaction(Base):
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
     # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     category = Column(String(30), nullable=False)  # "boshlangich" / "usta_kpi" / "ehson"
     amount = Column(Numeric(12, 2), nullable=False)  # ijobiy=kirim, manfiy=chiqim
     notes = Column(Text, nullable=True)
@@ -1166,7 +1166,7 @@ class CompanySetting(Base):
     # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
     company_id = Column(Integer, ForeignKey("companies.id"), primary_key=True,
-                        nullable=False, server_default=sa_text("1"))
+                        nullable=False)
     key = Column(String(50), primary_key=True)
     value = Column(String(255), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -1206,7 +1206,7 @@ class ActivityLog(Base):
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
     # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     action = Column(String(30), nullable=False)          # "deleted" / "restored" / "created" / "updated" / va h.k.
     entity_type = Column(String(30), nullable=False)      # "order" / "project" / va h.k.
     entity_id = Column(Integer, nullable=False)
@@ -1231,7 +1231,7 @@ class LoginHistory(Base):
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
     # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     username = Column(String(100), nullable=False)
     success = Column(Boolean, nullable=False)
     ip_address = Column(String(50), nullable=True)
@@ -1330,7 +1330,7 @@ class RecurringObligation(Base):
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
     # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     category = Column(String(30), nullable=False)  # ExpenseTransaction.category bilan bir xil bo'lishi kerak
     label = Column(String(60), nullable=False)  # "Arenda (arendator)", "Transport"
     icon = Column(String(10), default="📦")
@@ -1360,7 +1360,7 @@ class Supplier(Base):
     # Ustunda hozircha vaqtinchalik DEFAULT 1 bor; u barcha yozuv
     # nuqtalari company_id ni aniq yuboradigan bo'lgach olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     name = Column(String(150), nullable=False)
     phone = Column(String(20), nullable=True)
     notes = Column(Text, nullable=True)
@@ -1406,7 +1406,7 @@ class TransportExpense(Base):
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
     # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     amount = Column(Numeric(12, 2), nullable=False)
     materials_note = Column(String(255), nullable=True)   # "Akril, Kroshka, Mel uchun"
     expense_date = Column(DateTime, default=datetime.utcnow)
@@ -1432,7 +1432,7 @@ class FinishedProduct(Base):
     # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
     # va ota bilan mos kelmasa yozuvni RAD ETADI.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
 
     name = Column(String(150), nullable=False, index=True)
     category = Column(String(50), nullable=True)     # profil / panel / dona
@@ -1539,7 +1539,7 @@ class FinishedProductSale(Base):
     # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
     # va ota bilan mos kelmasa yozuvni RAD ETADI.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
     product_name = Column(String(150), nullable=False)  # Nusxa — mahsulot keyin o'chsa ham tarix qolsin
 
@@ -1586,7 +1586,7 @@ class FinishedProductLoss(Base):
     # models.py oxiridagi `_tenant_guard` hodisasi buni avtomatik bajaradi
     # va ota bilan mos kelmasa yozuvni RAD ETADI.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     finished_product_id = Column(Integer, ForeignKey("finished_products.id"), nullable=True, index=True)
     product_name = Column(String(150), nullable=False)
     category = Column(String(30), nullable=True)
@@ -1740,7 +1740,7 @@ class ExpenseTransaction(Base):
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
     # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     date = Column(DateTime, nullable=False, default=datetime.utcnow)
     category = Column(String(30), nullable=False)  # arenda / elektr / tushlik / soliqlar / boshqa
     amount = Column(Numeric(12, 2), nullable=False, default=0)
@@ -1770,7 +1770,7 @@ class MonthlyExpense(Base):
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
     # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True, server_default=sa_text("1"))
+                        index=True)
     year       = Column(Integer, nullable=False)   # 2026
     month      = Column(Integer, nullable=False)   # 1-12
 

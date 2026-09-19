@@ -743,8 +743,109 @@ def _migrate_payment_columns():
         print(f"⚠ Migratsiya xatosi: {e}")
 
 
+def _migrate_drop_company_id_defaults():
+    """M8/F1 (2026-09-18) — VAQTINCHALIK `DEFAULT 1` ni olib tashlaydi.
+
+    SaaS migratsiyasi boshlanganda 25 ta jadvalning `company_id` ustuniga
+    vaqtinchalik `DEFAULT 1` qo'yilgan edi — shunda eski kod (hali
+    `company_id` uzatmaydigan) ishlashda davom etardi. Endi barcha yozish
+    yo'llari tenantni ANIQ beradi, shuning uchun bu default KERAK EMAS va
+    XAVFLI: u unutilgan `company_id` ni jimgina 1-korxonaga yozib qo'yadi,
+    ya'ni ma'lumot sizib chiqadi va hech qanday xato chiqmaydi. M4–M8
+    davomida aynan shu naqsh BESH marta takrorlandi.
+
+    Default olib tashlangach, unutilgan `company_id` darhol NOT NULL
+    xatosi beradi — jim sizish o'rniga baland, ko'rinadigan nosozlik.
+
+    XAVFSIZLIK QOIDALARI:
+      • Faqat PostgreSQL'da ishlaydi (SQLite ALTER COLUMN ni qo'llamaydi).
+      • AVVAL tekshiradi: birorta jadvalda `company_id IS NULL` bo'lsa yoki
+        `companies` da mavjud bo'lmagan korxonaga ishora qilsa — HECH NARSA
+        o'zgartirmaydi va sababini yozadi.
+      • DDL faqat DEFAULT ni olib tashlaydi: qatorlar, qiymatlar va
+        NOT NULL cheklovi TEGILMAYDI.
+      • Idempotent: qayta-qayta ishga tushsa ham zarar yo'q.
+    """
+    TABLES = [
+        "users", "masters", "master_gifts", "gift_periods", "inventory",
+        "recipes", "projects", "orders", "order_items", "return_items",
+        "inventory_movements", "inventory_receipts", "employees",
+        "cash_transactions", "company_settings", "activity_logs",
+        "login_history", "recurring_obligations", "suppliers",
+        "transport_expenses", "finished_products", "finished_product_sales",
+        "finished_product_losses", "expense_transactions", "monthly_expenses",
+    ]
+    try:
+        from database import engine
+        if engine.dialect.name != "postgresql":
+            return   # SQLite (lokal sinov) — o'tkazib yuboriladi
+
+        with engine.connect() as conn:
+            # --- 1) Hozirgi holat: qaysi jadvalda default bor ---
+            rows = conn.execute(text(
+                "SELECT table_name, column_default FROM information_schema.columns "
+                "WHERE table_schema='public' AND column_name='company_id' "
+                "AND column_default IS NOT NULL"
+            )).fetchall()
+            bor = {r[0] for r in rows}
+            if not bor:
+                return   # allaqachon tozalangan — jim chiqamiz
+
+            # --- 2) XAVFSIZLIK TEKSHIRUVI (DDL dan OLDIN) ---
+            muammo = []
+            for t in TABLES:
+                if t not in bor:
+                    continue
+                n_null = conn.execute(text(
+                    f"SELECT COUNT(*) FROM {t} WHERE company_id IS NULL")).scalar()
+                if n_null:
+                    muammo.append(f"{t}: {n_null} ta NULL company_id")
+                n_yetim = conn.execute(text(
+                    f"SELECT COUNT(*) FROM {t} c WHERE NOT EXISTS "
+                    f"(SELECT 1 FROM companies k WHERE k.id = c.company_id)")).scalar()
+                if n_yetim:
+                    muammo.append(f"{t}: {n_yetim} ta yetim company_id")
+            if muammo:
+                print("⛔ DEFAULT 1 olib tashlanmadi — avval quyidagilar tuzatilsin:")
+                for m in muammo:
+                    print(f"   • {m}")
+                return
+
+            # --- 3) Qator sonlarini yozib olamiz (DDL ularga tegmasligi shart) ---
+            oldin = {t: conn.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar()
+                     for t in TABLES if t in bor}
+
+            # --- 4) DDL: faqat DEFAULT olib tashlanadi ---
+            ozgardi = []
+            for t in sorted(bor):
+                if t not in TABLES:
+                    continue   # ro'yxatda yo'q jadvalga TEGMAYMIZ
+                conn.execute(text(f"ALTER TABLE {t} ALTER COLUMN company_id DROP DEFAULT"))
+                ozgardi.append(t)
+            conn.commit()
+
+            # --- 5) Tekshirish: default yo'q, qatorlar o'zgarmagan ---
+            qolgan = conn.execute(text(
+                "SELECT table_name FROM information_schema.columns "
+                "WHERE table_schema='public' AND column_name='company_id' "
+                "AND column_default IS NOT NULL"
+            )).fetchall()
+            keyin = {t: conn.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar()
+                     for t in oldin}
+            farq = {t: (oldin[t], keyin[t]) for t in oldin if oldin[t] != keyin[t]}
+
+            print(f"✓ company_id DEFAULT olib tashlandi: {len(ozgardi)} ta jadval")
+            if qolgan:
+                print(f"⚠ Hamon default bor: {[r[0] for r in qolgan]}")
+            if farq:
+                print(f"⛔ QATOR SONI O'ZGARDI (kutilmagan!): {farq}")
+    except Exception as e:
+        print(f"⚠ company_id DEFAULT migratsiyasi o'tkazib yuborildi: {e}")
+
+
 _migrate_recipe_name_column()
 _migrate_payment_columns()
+_migrate_drop_company_id_defaults()
 
 from database import SessionLocal
 _db = SessionLocal()
@@ -1329,11 +1430,11 @@ def api_delete_master(master_id: int, db: Session = Depends(get_db), current_use
 @app.post("/api/inventory", response_model=schemas.InventoryRead)
 def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     try:
-        # M3: yangi material ALBATTA joriy adminning korxonasiga tegishli.
-        _it = crud.add_item(db, item)
-        _it.company_id = auth.company_id_of(current_user)
-        db.commit()
-        db.refresh(_it)
+        # M3/M8-F1: yangi material ALBATTA joriy adminning korxonasiga
+        # tegishli — tenant endi `add_item()` ga BOSHIDAN uzatiladi
+        # (ilgari qaytgandan keyin qo'yilardi va ichki commit vaqtida
+        # ustun bo'sh qolardi).
+        _it = crud.add_item(db, item, company_id=auth.company_id_of(current_user))
         return _it
     except IntegrityError:
         db.rollback()
@@ -1390,7 +1491,8 @@ def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Sessi
             yuklash_cost=data.yuklash_cost, boshqa_cost=data.boshqa_cost,
             add_to_cost=data.add_to_cost, supplier_id=data.supplier_id,
             document_number=data.document_number, paid_now=data.paid_now,
-            notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None)
+            notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None),
+            company_id=auth.company_id_of(current_user)
         )
         return result
     except ValueError as e:
@@ -1546,12 +1648,10 @@ def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_use
 
 @app.post("/api/employees")
 def api_create_employee(data: schemas.EmployeeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    emp = crud.create_employee(db, data)
-    # M1: xodim joriy adminning korxonasiga biriktiriladi. models.py'dagi
-    # tenant himoyasi Employee uchun ota-zanjir bermaydi (xodimning otasi
-    # yo'q), shuning uchun bu yerda aniq qo'yiladi.
-    emp.company_id = auth.company_id_of(current_user)
-    db.commit()
+    # M1/M8-F1: xodim joriy adminning korxonasiga biriktiriladi — tenant
+    # endi `create_employee()` ga BOSHIDAN uzatiladi (ilgari qaytgandan
+    # keyin qo'yilardi va ichki commit vaqtida ustun bo'sh qolardi).
+    emp = crud.create_employee(db, data, company_id=auth.company_id_of(current_user))
     return {"status": "ok", "id": emp.id}
 
 
