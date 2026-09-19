@@ -140,7 +140,13 @@
   </div>
 </div>
 
-<!-- ══ XAVFLI HUDUD — bir martalik tizimni tozalash ══ -->
+{# 2026-09-20 — PLATFORMA amali. Telegram bot webhook'i va uning maxfiy
+   imzosi butun platformaga tegishli (bitta bot tokeni bilan ishlaydi).
+   Korxona admini bu tugmani bosishi mantiqsiz — endpoint uni 403 bilan
+   rad etadi, ya'ni faqat chalkashlik tug'diradi. Shuning uchun
+   ko'rsatilmaydi ham. #}
+{% if current_user.is_platform_admin %}
+<!-- ══ TELEGRAM XAVFSIZLIGI (faqat platforma admini) ══ -->
 <div class="card" style="margin-top:20px">
   <div class="card-head">
     <h3>🔒 Telegram xavfsizligi</h3>
@@ -178,6 +184,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- ══ XODIM QR KOD MODALI ══ -->
 <div id="hodimQrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
@@ -193,6 +200,12 @@
   </div>
 </div>
 
+{# 2026-09-20 — Bu tugma korxonaning BARCHA ma'lumotini qaytarib
+   bo'lmaydigan tarzda o'chiradi. Mijozning o'zida tiklash vositasi yo'q
+   (zaxiradan tiklash hozircha faqat API orqali), shuning uchun tasodifiy
+   bosish — biznes uchun falokat va ayb baribir xizmat ko'rsatuvchiga
+   tushadi. Mijozga kerak bo'lsa — u murojaat qiladi, siz bajarasiz. #}
+{% if current_user.is_platform_admin %}
 <div class="card" style="margin-top:20px;border:2px solid #FCA5A5">
   <div class="card-head" style="background:#FEF2F2">
     <h3 style="color:#DC2626">⚠️ Xavfli hudud</h3>
@@ -212,6 +225,7 @@
     </button>
   </div>
 </div>
+{% endif %}
 </div>
 {% endblock %}
 
