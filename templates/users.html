@@ -93,6 +93,12 @@
           <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">👤 Joriy siz</div>
           <div style="font-size:13px;color:var(--text2)">{{ current_user.full_name or current_user.username }}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:4px">{{ now }}</div>
+          {# 2026-09-20: admin O'Z parolini almashtira olishi SHART —
+             yangi korxonaga tizim tasodifiy parol beradi va egasi uni
+             birinchi kirishda o'zinikiga almashtirishi kerak. Ilgari
+             joriy foydalanuvchi qatorida tugma umuman yo'q edi. #}
+          <button class="btn btn-outline btn-xs" style="margin-top:10px"
+                  onclick="changeMyPassword()">🔑 Parolimni o'zgartirish</button>
         </div>
       </div>
     </div>
@@ -268,6 +274,26 @@ async function toggleUser(id, isActive, btn){
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   }
 }
+async function changeMyPassword() {
+  const eski = prompt("Joriy parolingizni kiriting:");
+  if (!eski) return;
+  const yangi = prompt("Yangi parol (kamida 6 belgi):");
+  if (!yangi) return;
+  if (yangi.length < 6) { alert("Parol kamida 6 belgi bo'lishi kerak!"); return; }
+  const takror = prompt("Yangi parolni takrorlang:");
+  if (yangi !== takror) { alert("Parollar mos kelmadi!"); return; }
+  const res = await fetch(`/api/users/{{ current_user.id }}/password`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_password: yangi, current_password: eski })
+  });
+  if (res.ok) {
+    alert("✓ Parolingiz o'zgartirildi. Keyingi safar yangi parol bilan kiring.");
+  } else {
+    const d = await res.json().catch(() => ({}));
+    alert("Xato: " + (d.detail || "parol o'zgartirilmadi"));
+  }
+}
+
 async function changePass(id, username, btn){
   const p=prompt(`"${username}" uchun yangi parol:`);
   if(!p)return;
