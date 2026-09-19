@@ -158,7 +158,10 @@ NEG = [("Master", lambda: Master(name="X", phone="+7")),
        ("TransportExpense", lambda: TransportExpense(amount=1, expense_date=NOW)),
        ("MonthlyExpense", lambda: MonthlyExpense(year=2026, month=9)),
        ("ActivityLog", lambda: ActivityLog(action="x", entity_type="y", entity_id=1)),
-       ("LoginHistory", lambda: LoginHistory(username="x", success=True)),
+       # LoginHistory ATAYLAB ro'yxatda YO'Q: 2026-09-20 dan boshlab uning
+       # `company_id` ustuni NULL qabul qiladi — noma'lum foydalanuvchi
+       # nomi bilan kirishga urinilganda korxonani aniqlab bo'lmaydi va
+       # ilgari bu `/login` ni 500 bilan yiqitardi.
        ("CompanySetting", lambda: CompanySetting(key="k2", value="v")),
        ("RecurringObligation", lambda: RecurringObligation(category="c", label="l",
                                                            monthly_target=1)),
