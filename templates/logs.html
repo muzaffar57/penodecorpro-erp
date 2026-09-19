@@ -15,7 +15,7 @@
     <button class="log-tab" data-tab="errors" onclick="switchLogTab('errors')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚠️ Xatoliklar</button>
     {% endif %}
     <button class="log-tab" data-tab="activity" onclick="switchLogTab('activity')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🕓 Audit jurnali</button>
-    <button class="log-tab" data-tab="health" onclick="switchLogTab('health')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🩺 Salomatlik</button>
+    <button class="log-tab" data-tab="health" onclick="switchLogTab('health')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">{% if current_user.is_platform_admin %}🩺 Salomatlik{% else %}💰 Tekshiruv{% endif %}</button>
     <button class="log-tab" data-tab="settings" onclick="switchLogTab('settings')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚙️ Sozlamalar</button>
     {% if current_user.is_platform_admin %}
     <button class="log-tab" data-tab="platform" onclick="switchLogTab('platform')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🏛 Korxonalar</button>
@@ -190,12 +190,17 @@
 
   <div id="tab-health" class="card" style="display:none">
     <div class="card-head">
-      <h3>🩺 Tizim salomatligi</h3>
+      <h3>{% if current_user.is_platform_admin %}🩺 Tizim salomatligi{% else %}💰 Moliyaviy tekshiruv{% endif %}</h3>
       <button class="btn btn-dark btn-sm" id="health-check-btn" onclick="runHealthCheck()" style="background:var(--gold);border-color:var(--gold)">Tekshirish</button>
     </div>
     <div style="padding:16px 18px;font-size:12.5px;color:var(--text3);border-bottom:1px solid var(--border2)">
+      {% if current_user.is_platform_admin %}
       Bu — barcha muhim ma'lumot turlarini (masalan loyiha holati, buyurtma holati, hodim turi) tekshirib,
       noto'g'ri yozilgan qiymatlarni oldindan topadi. Faqat o'qiydi — hech narsani o'zgartirmaydi.
+      {% else %}
+      Buyurtma summalari, ombor qoldiqlari va to'lovlar bir-biriga mos kelishini tekshiradi.
+      Faqat o'qiydi — hech narsani o'zgartirmaydi.
+      {% endif %}
     </div>
     <div id="health-results" style="padding:20px">
       <div style="text-align:center;color:var(--text3);font-size:13px">"Tekshirish" tugmasini bosing</div>
@@ -367,9 +372,20 @@ async function runHealthCheck() {
     btn.disabled = false;
     btn.textContent = 'Tekshirish';
 
-    let html = `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${new Date(d.checked_at).toLocaleString('uz')} · ${d.total_checks} ta joy tekshirildi</div>`;
+    // 2026-09-20: TEXNIK skan (enum ustunlari) faqat platforma
+    // administratori uchun — korxona egasiga u tushunarsiz va foydasiz.
+    // Mijozga faqat MOLIYAVIY izchillik ko'rsatiladi, chunki u aynan
+    // biznes muammosi va uni o'zi tuzata oladi.
+    let html = '';
+    if (d.technical_hidden) {
+      html += `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${new Date(d.checked_at).toLocaleString('uz')}</div>`;
+    } else {
+      html += `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${new Date(d.checked_at).toLocaleString('uz')} · ${d.total_checks} ta joy tekshirildi</div>`;
+    }
 
-    if (d.issues_found === 0) {
+    if (d.technical_hidden) {
+      // texnik qism o'tkazib yuboriladi
+    } else if (d.issues_found === 0) {
       html += `<div style="text-align:center;padding:30px;background:#F0FDF4;border-radius:12px">
         <div style="font-size:32px;margin-bottom:8px">✅</div>
         <div style="font-weight:700;color:#16A34A;font-size:15px">Hammasi joyida!</div>
@@ -388,7 +404,7 @@ async function runHealthCheck() {
       });
     }
 
-    if (d.check_errors && d.check_errors.length) {
+    if (!d.technical_hidden && d.check_errors && d.check_errors.length) {
       html += `<div style="margin-top:14px;font-size:11.5px;color:var(--text3)">
         ⚠️ ${d.check_errors.length} ta jadval tekshirilmadi (eski deploy versiyasi bo'lishi mumkin).
       </div>`;
@@ -397,7 +413,7 @@ async function runHealthCheck() {
     // Moliyaviy izchillik tekshiruvi — alohida, o'z bo'limida
     const fin = d.financial;
     if (fin) {
-      html += `<div style="margin-top:24px;padding-top:18px;border-top:2px dashed var(--border2)">
+      html += `<div style="${d.technical_hidden ? '' : 'margin-top:24px;padding-top:18px;border-top:2px dashed var(--border2)'}">
         <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">💰 Moliyaviy izchillik</div>`;
       if (fin.issues_found === 0) {
         html += `<div style="text-align:center;padding:24px;background:#F0FDF4;border-radius:12px">
