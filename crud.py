@@ -432,7 +432,8 @@ def delete_expense_transaction(db: Session, tx_id: int, company_id: int = None) 
 def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movement_type: str,
                   quantity: float, unit: Optional[str] = None, reason: Optional[str] = None,
                   order_id: Optional[int] = None, supplier_id: Optional[int] = None,
-                  performed_by: Optional[str] = None, notes: Optional[str] = None):
+                  performed_by: Optional[str] = None, notes: Optional[str] = None,
+                  company_id: Optional[int] = None):
     """Ombor harakati jurnaliga bitta yozuv qo'shadi.
 
     MUHIM: bu funksiya faqat LOG yozadi — hech qanday hisob-kitobga yoki
@@ -442,7 +443,15 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
     try:
         if quantity is None or quantity == 0:
             return
+        # M8/F1: uchala ota-FK (`inventory_id`, `order_id`, `supplier_id`)
+        # ham NULL bo'lishi mumkin (o'chirilgan material bo'yicha harakat) —
+        # bunday holatda qo'riqchi korxonani aniqlay olmaydi.
+        _cid = company_id
+        if _cid is None and inventory_id:
+            _inv_row = db.query(Inventory.company_id).filter(Inventory.id == inventory_id).first()
+            _cid = _inv_row[0] if _inv_row else None
         db.add(InventoryMovement(
+            company_id=_cid,
             inventory_id=inventory_id, item_name=item_name, movement_type=movement_type,
             quantity=abs(float(quantity)), unit=unit, reason=reason,
             order_id=order_id, supplier_id=supplier_id,
@@ -679,7 +688,12 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
         return {"success": False, "error": "Hech qanday mahsulot kiritilmagan"}
 
     try:
+        # M8/F1: `InventoryReceipt`ning yagona ota-FK si (`supplier_id`)
+        # NULL bo'lishi mumkin — ta'minotchisiz kirim. U holda model
+        # qo'riqchisi korxonani aniqlay olmaydi, shuning uchun tenant
+        # ANIQ beriladi. (Ilgari vaqtinchalik `DEFAULT 1` to'ldirardi.)
         receipt = InventoryReceipt(
+            company_id=company_id,
             supplier_id=supplier_id, document_number=document_number,
             transport_cost=transport_cost or 0, tushirish_cost=tushirish_cost or 0,
             yuklash_cost=yuklash_cost or 0, boshqa_cost=boshqa_cost or 0,
@@ -2787,7 +2801,10 @@ def create_return_item(db: Session, data: ReturnItemCreate,
             unit_price = (float(order_item.total_price or 0) / ordered) if ordered else 0
         refund_amount = round(unit_price * float(data.quantity or 0))
 
+    # M8/F1: `order_id` va `finished_product_id` ikkalasi ham NULL
+    # bo'lishi mumkin — korxonani buyurtmadan olamiz.
     item = ReturnItem(
+        company_id=company_id,
         order_id=data.order_id,
         item_name=data.item_name,
         quantity=data.quantity,
@@ -5049,6 +5066,7 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
         fp.cost_price = max(0, float(fp.cost_price) - cost_amount)
 
     loss = FinishedProductLoss(
+        company_id=getattr(fp, 'company_id', None),      # M8/F1
         finished_product_id=fp.id,
         product_name=fp.name,
         category=fp.category,
@@ -5169,6 +5187,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         # bir martalik xarajat, mahsulotning o'z tan narxiga qo'shilmaydi
         # (aks holda xarajat ikki marta hisoblangan bo'lardi).
         loss = FinishedProductLoss(
+            company_id=getattr(fp, 'company_id', None),  # M8/F1
             finished_product_id=fp.id,
             product_name=fp.name,
             category=fp.category,
@@ -5327,6 +5346,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     # MUHIM: fp.quantity GA TEGILMAYDI — yakuniy mahsulot miqdori
     # o'zgarmagani uchun. Faqat Moliyada xarajat sifatida qayd etiladi.
     loss = FinishedProductLoss(
+        company_id=getattr(fp, 'company_id', None),      # M8/F1
         finished_product_id=fp.id,
         product_name=fp.name,
         category=fp.category,
@@ -5453,6 +5473,7 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                 fp.cost_price = float(fp.cost_price) - p["cost_amount"]
 
             sale = FinishedProductSale(
+                company_id=getattr(fp, 'company_id', None),   # M8/F1
                 finished_product_id=fp.id,
                 product_name=fp.name,
                 quantity=p["quantity"],
@@ -5543,6 +5564,7 @@ def sell_finished_product(db: Session, data, created_by: str = None,
         fp.cost_price = float(fp.cost_price) - cost_amount
 
     sale = FinishedProductSale(
+        company_id=getattr(fp, 'company_id', None),      # M8/F1
         finished_product_id=fp.id,
         product_name=fp.name,
         quantity=data.quantity,
