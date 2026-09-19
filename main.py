@@ -4315,6 +4315,86 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
     )
 
 
+@app.get("/api/platform/companies")
+def api_platform_companies(db: Session = Depends(get_db),
+                           current_user=Depends(auth.platform_admin_only)):
+    """Platformadagi barcha korxonalar ro'yxati (faqat platforma admini)."""
+    from production_models import Company as _Co
+    from models import User as _U
+    rows = db.query(_Co).order_by(_Co.id).all()
+    out = []
+    for c in rows:
+        n_users = db.query(_U).filter(_U.company_id == c.id).count()
+        out.append({"id": c.id, "name": c.name, "code": c.code,
+                    "users": n_users,
+                    "created_at": c.created_at.isoformat() if c.created_at else None})
+    return out
+
+
+@app.post("/api/platform/companies")
+def api_platform_create_company(name: str = Form(...), admin_username: str = Form(...),
+                                admin_full_name: str = Form(""),
+                                db: Session = Depends(get_db),
+                                current_user=Depends(auth.platform_admin_only)):
+    """Yangi korxona va uning BIRINCHI admin hisobini yaratadi (Faza 5).
+
+    NEGA KERAK: shu paytgacha yangi korxona faqat baza orqali yaratilardi.
+    Mijoz qabul qilish takrorlanadigan ish — u interfeysda bo'lishi kerak.
+
+    PAROL: tizim o'zi TASODIFIY parol chiqaradi va uni javobda BIR MARTA
+    qaytaradi. Baza faqat hashini saqlaydi, ya'ni keyin uni hech kim
+    (siz ham) ko'ra olmaydi. Mijoz kirgach o'z parolini almashtiradi —
+    "Foydalanuvchilar" sahifasidan.
+
+    Hammasi bitta tranzaksiyada: hisob yaratilmasa, korxona ham
+    yaratilmaydi (yarim holat qolmaydi)."""
+    import secrets, string, re as _re_co
+    from production_models import Company as _Co
+    from models import User as _U, UserRole as _UR
+
+    nom = (name or "").strip()
+    login = (admin_username or "").strip()
+    if len(nom) < 2:
+        raise HTTPException(status_code=400, detail="Korxona nomi juda qisqa")
+    if not _re_co.fullmatch(r"[A-Za-z0-9_.-]{3,50}", login):
+        raise HTTPException(
+            status_code=400,
+            detail="Login 3-50 belgi: lotin harflari, raqam, _ . - belgilaridan iborat bo'lsin")
+    if db.query(_U).filter(_U.username == login).first():
+        raise HTTPException(status_code=400, detail="Bu login band")
+
+    # Korxona kodi — nomdan, band bo'lsa raqam qo'shiladi
+    asos = _re_co.sub(r"[^A-Z0-9]+", "-", nom.upper()).strip("-")[:24] or "KORXONA"
+    kod, i = asos, 1
+    while db.query(_Co).filter(_Co.code == kod).first():
+        i += 1
+        kod = f"{asos[:20]}-{i}"
+
+    # Tasodifiy parol — o'qish oson bo'lishi uchun chalkash belgilarsiz
+    alifbo = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+    parol = "".join(secrets.choice(alifbo) for _ in range(12))
+
+    try:
+        korxona = _Co(name=nom, code=kod)
+        db.add(korxona)
+        db.flush()                      # id kerak
+        auth.create_user(db, login, parol, _UR.ADMIN,
+                         (admin_full_name or nom).strip(),
+                         company_id=korxona.id)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Yaratib bo'lmadi: {e}")
+
+    _clear_company_name_cache()
+    return {"status": "ok", "company": {"id": korxona.id, "name": nom, "code": kod},
+            "admin": {"username": login, "password": parol},
+            "eslatma": "Parol FAQAT SHU YERDA ko'rsatiladi — keyin tiklab bo'lmaydi."}
+
+
 @app.get("/api/settings/company")
 def api_get_company(db: Session = Depends(get_db),
                     current_user=Depends(auth.require_login)):
