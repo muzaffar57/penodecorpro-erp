@@ -12,6 +12,9 @@
     <button class="log-tab" data-tab="activity" onclick="switchLogTab('activity')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🕓 Audit jurnali</button>
     <button class="log-tab" data-tab="health" onclick="switchLogTab('health')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🩺 Salomatlik</button>
     <button class="log-tab" data-tab="settings" onclick="switchLogTab('settings')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚙️ Sozlamalar</button>
+    {% if current_user.is_platform_admin %}
+    <button class="log-tab" data-tab="platform" onclick="switchLogTab('platform')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🏛 Korxonalar</button>
+    {% endif %}
   </div>
 
   <!-- KIRISH TARIXI -->
@@ -92,6 +95,42 @@
   </div>
 
   <!-- TIZIM SALOMATLIGI -->
+  {% if current_user.is_platform_admin %}
+  <!-- PLATFORMA: korxonalar (faqat platforma admini ko'radi) -->
+  <div id="tab-platform" class="card" style="display:none">
+    <div class="card-head"><h3>🏛 Platformadagi korxonalar</h3></div>
+
+    <div style="padding:18px;border-bottom:1px solid var(--border2)">
+      <div id="co-list" style="font-size:13px;color:var(--text3)">Yuklanmoqda…</div>
+    </div>
+
+    <div style="padding:18px">
+      <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">➕ Yangi korxona qo'shish</div>
+      <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:14px">
+        Korxona va uning birinchi admin hisobi yaratiladi. Parolni tizim o'zi chiqaradi va
+        <b>faqat bir marta</b> ko'rsatadi — uni mijozga yuboring. Mijoz kirgach o'z parolini
+        almashtira oladi.
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Korxona nomi</label>
+          <input type="text" id="nc-name" class="input-field" style="width:230px" placeholder="Masalan: Alfa Dekor">
+        </div>
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Admin login</label>
+          <input type="text" id="nc-login" class="input-field" style="width:180px" placeholder="alfa_admin">
+        </div>
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Admin ismi</label>
+          <input type="text" id="nc-fullname" class="input-field" style="width:180px" placeholder="ixtiyoriy">
+        </div>
+        <button class="btn btn-dark btn-sm" onclick="createCompany()">Yaratish</button>
+      </div>
+      <div id="nc-result" style="margin-top:14px"></div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- SOZLAMALAR: Telegram bot + zaxira -->
   <div id="tab-settings" class="card" style="display:none">
     <div class="card-head"><h3>⚙️ Korxona sozlamalari</h3></div>
@@ -168,9 +207,59 @@ function switchLogTab(tab) {
     b.style.color = active ? 'var(--text)' : 'var(--text3)';
     b.classList.toggle('active', active);
   });
-  ['login','errors','activity','health','settings'].forEach(t => {
-    document.getElementById('tab-' + t).style.display = (t === tab) ? 'block' : 'none';
+  ['login','errors','activity','health','settings','platform'].forEach(t => {
+    const _el = document.getElementById('tab-' + t);
+    if (_el) _el.style.display = (t === tab) ? 'block' : 'none';
   });
+}
+
+async function loadPlatformCompanies() {
+  const el = document.getElementById('co-list');
+  if (!el) return;
+  try {
+    const rows = await fetch('/api/platform/companies').then(r => r.json());
+    if (!Array.isArray(rows) || !rows.length) { el.textContent = 'Korxona yo\'q'; return; }
+    el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
+      '<tr style="text-align:left;color:var(--text3)"><th style="padding:6px 8px">#</th>' +
+      '<th style="padding:6px 8px">Nomi</th><th style="padding:6px 8px">Kodi</th>' +
+      '<th style="padding:6px 8px">Foydalanuvchilar</th></tr>' +
+      rows.map(c => '<tr style="border-top:1px solid var(--border2)">' +
+        '<td style="padding:6px 8px">' + c.id + '</td>' +
+        '<td style="padding:6px 8px;font-weight:600">' + (c.name || '') + '</td>' +
+        '<td style="padding:6px 8px;font-family:monospace;color:var(--text3)">' + (c.code || '') + '</td>' +
+        '<td style="padding:6px 8px">' + c.users + '</td></tr>').join('') + '</table>';
+  } catch (e) { el.textContent = 'Yuklab bo\'lmadi'; }
+}
+
+async function createCompany() {
+  const res = document.getElementById('nc-result');
+  const nom = document.getElementById('nc-name').value.trim();
+  const login = document.getElementById('nc-login').value.trim();
+  if (!nom || !login) { res.innerHTML = '<span style="color:#c00">Nom va login shart</span>'; return; }
+  const fd = new FormData();
+  fd.append('name', nom);
+  fd.append('admin_username', login);
+  fd.append('admin_full_name', document.getElementById('nc-fullname').value.trim());
+  const r = await fetch('/api/platform/companies', { method: 'POST', body: fd });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    res.innerHTML = '<span style="color:#c00">' + (d.detail || 'Xato') + '</span>';
+    return;
+  }
+  res.innerHTML =
+    '<div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px">' +
+    '<div style="font-weight:700;margin-bottom:8px">✓ Korxona yaratildi</div>' +
+    '<div style="font-size:12.5px;line-height:1.9">' +
+    'Korxona: <b>' + d.company.name + '</b> (kod ' + d.company.code + ')<br>' +
+    'Login: <b style="font-family:monospace">' + d.admin.username + '</b><br>' +
+    'Parol: <b style="font-family:monospace;font-size:14px">' + d.admin.password + '</b>' +
+    '</div>' +
+    '<div style="margin-top:10px;font-size:12px;color:#c0392b">⚠ Parol faqat shu yerda ko\'rsatiladi. ' +
+    'Nusxa oling va mijozga yuboring — keyin tiklab bo\'lmaydi.</div></div>';
+  document.getElementById('nc-name').value = '';
+  document.getElementById('nc-login').value = '';
+  document.getElementById('nc-fullname').value = '';
+  loadPlatformCompanies();
 }
 
 async function loadCompany() {
@@ -230,7 +319,7 @@ async function clearTgBot() {
   loadTgBot();
 }
 
-document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); });
+document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadPlatformCompanies(); });
 
 async function runHealthCheck() {
   const btn = document.getElementById('health-check-btn');
