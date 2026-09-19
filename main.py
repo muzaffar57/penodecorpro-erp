@@ -775,6 +775,11 @@ def _migrate_drop_company_id_defaults():
         "transport_expenses", "finished_products", "finished_product_sales",
         "finished_product_losses", "expense_transactions", "monthly_expenses",
     ]
+    # MUHIM (2026-09-19, Railway logidan aniqlangan): `text` bu faylning
+    # global nomlar fazosida YO'Q. U import qilinmagani uchun bu migratsiya
+    # har ishga tushishda jimgina "name 'text' is not defined" xatosi bilan
+    # o'tkazib yuborilgan — ya'ni HECH QACHON bajarilmagan.
+    from sqlalchemy import text
     try:
         from database import engine
         if engine.dialect.name != "postgresql":
@@ -859,6 +864,7 @@ def _migrate_faza3_columns():
          ENG ESKI admin (eng kichik id) platforma admini deb belgilanadi,
          aks holda hech kim platforma amallarini bajara olmay qolardi.
     """
+    from sqlalchemy import text   # yuqoridagi bilan bir xil sabab
     try:
         from database import engine
         if engine.dialect.name != "postgresql":
