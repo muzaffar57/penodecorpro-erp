@@ -49,10 +49,59 @@ def fmt_money(n) -> str:
         return "0"
 
 
-def _send_telegram(text: str):
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+def _tenant_telegram(company_id=None):
+    """Joriy korxonaning Telegram sozlamasini qaytaradi (Faza 3, 2-qadam).
+
+    Qaytaradi: (token, [chat_id, ...])
+
+    TARTIB:
+      1) `company_id` berilsa — o'sha korxonaning sozlamasi;
+      2) berilmasa — joriy so'rovning korxonasi (`tenant_context`);
+      3) korxonada token sozlanmagan bo'lsa — MUHIT O'ZGARUVCHILARI
+         (`TELEGRAM_BOT_TOKEN`, `BACKUP_TELEGRAM_CHAT_ID`).
+
+    3-band ATAYLAB: birinchi korxona (tizim egasi) hech narsa
+    sozlamasdan ham avvalgidek ishlashda davom etadi. Ikkinchi mijoz
+    esa @BotFather dan o'z botini olib, sozlamalarga qo'yadi va o'z
+    xabarlarini O'Z botidan oladi.
+    """
+    env_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    env_chats = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "").strip()
+
+    cid = company_id
+    _db = None
+    try:
+        from database import SessionLocal as _SL
+        _db = _SL()
+        if cid is None:
+            try:
+                import tenant_context as _tc
+                cid = _tc.get_current_company(_db)
+            except Exception:
+                cid = None
+        if cid is not None:
+            import crud as _c
+            t = (_c.get_setting(_db, "telegram_bot_token", "", company_id=cid) or "").strip()
+            c = (_c.get_setting(_db, "telegram_chat_id", "", company_id=cid) or "").strip()
+            if t:
+                chats = [x.strip() for x in c.split(",") if x.strip()]
+                return t, chats
+    except Exception as e:
+        print(f"⚠ Korxona Telegram sozlamasi o'qilmadi: {e}")
+    finally:
+        if _db is not None:
+            try:
+                _db.close()
+            except Exception:
+                pass
+
+    return env_token, [x.strip() for x in env_chats.split(",") if x.strip()]
+
+
+def _send_telegram(text: str, company_id=None):
+    token, _tenant_chats = _tenant_telegram(company_id)
     if not token:
-        print("⚠ TELEGRAM_BOT_TOKEN yo'q")
+        print("⚠ Telegram tokeni yo'q (korxona sozlamasi ham, muhit o'zgaruvchisi ham)")
         return
     # MUHIM (2026-08-18): avval, bu funksiya, ESKIRGAN/NOTO'G'RI bo'lib
     # qolgan, qattiq yozilgan TELEGRAM_COATING_ID'ga yuborardi (Telegram
@@ -61,8 +110,7 @@ def _send_telegram(text: str):
     # sozlangan, ishlab turgan BACKUP_TELEGRAM_CHAT_ID'dan foydalanamiz —
     # shu bilan, shu funksiyaga bog'liq BARCHA (12 xil) bildirishnoma turi
     # birdaniga tuzatiladi.
-    chat_ids_raw = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "").strip()
-    chat_ids = [c.strip() for c in chat_ids_raw.split(",") if c.strip()] or [TELEGRAM_COATING_ID]
+    chat_ids = _tenant_chats or [TELEGRAM_COATING_ID]
     for chat_id in chat_ids:
         try:
             url  = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -74,10 +122,12 @@ def _send_telegram(text: str):
             print(f"⚠ Telegram xabar yuborilmadi ({chat_id}): {e}")
 
 
-def _send_telegram_to(chat_id: str, text: str):
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+def _send_telegram_to(chat_id: str, text: str, company_id=None):
+    """Aniq bir chatga xabar (mijoz, usta, qoplamachi).
+    Bot tokeni — korxonanikidan, bo'lmasa muhit o'zgaruvchisidan."""
+    token, _ = _tenant_telegram(company_id)
     if not token:
-        print("⚠ TELEGRAM_BOT_TOKEN yo'q")
+        print("⚠ Telegram tokeni yo'q")
         return
     try:
         url  = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -89,14 +139,14 @@ def _send_telegram_to(chat_id: str, text: str):
         print(f"⚠ Mijozga Telegram xabar yuborilmadi: {e}")
 
 def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, caption: str = "",
-                             content_type: str = "application/json"):
+                             content_type: str = "application/json", company_id=None):
     """Telegram orqali fayl (masalan zaxira nusxa yoki Yuk xati PDF) yuboradi.
     content_type — fayl turiga mos qiymat berilishi kerak (masalan PDF uchun
     "application/pdf"); standart qiymat (application/json) — eski, zaxira
     nusxa funksiyasi bilan mos bo'lishi uchun saqlangan."""
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    token, _ = _tenant_telegram(company_id)
     if not token or not chat_id:
-        print("⚠ TELEGRAM_BOT_TOKEN yoki chat_id yo'q — fayl yuborilmadi")
+        print("⚠ Telegram tokeni yoki chat_id yo'q — fayl yuborilmadi")
         return False
     try:
         import urllib.request as _ur
@@ -2492,6 +2542,7 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
     from production_models import Company as _Co
     _companies = [c.id for c in db.query(_Co).all()] or [None]
     _all_lines, _sent_any = [], False
+    _per_company = {}
     for _cid in _companies:
         low_items = crud.get_low_stock_items(db, company_id=_cid)
         if not low_items:
@@ -2502,6 +2553,7 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
             _cname = db.query(_Co).filter(_Co.id == _cid).first().name
         except Exception:
             pass
+        _per_company.setdefault(_cid, [])
         if len(_companies) > 1 and _cname:
             _all_lines.append(f"\n🏢 *{_cname}*")
         for item in low_items:
@@ -2509,10 +2561,23 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
             min_q = float(item.min_stock)
             deficit = min_q - qty
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            _all_lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi "
-                              f"(min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
+            _satr = (f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi "
+                     f"(min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
+            _all_lines.append(_satr)
+            _per_company[_cid].append(_satr)
     if not _sent_any:
         return {"sent": False, "message": "Barcha xomashyolar yetarli"}
+    # Faza 3 (2-qadam): har korxonaga O'Z boti/chat manzili orqali alohida
+    # xabar yuboriladi — korxonalar bir-birining ombor holatini ko'rmaydi.
+    for _cid2, _lines2 in _per_company.items():
+        if not _lines2:
+            continue
+        _msg2 = ("⚠️ *Kunlik ombor ogohlantirishi!*\n\n━━━━━━━━━━━━━━━━━━━\n"
+                 + "\n".join(_lines2)
+                 + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨")
+        _send_telegram(_msg2, company_id=_cid2)
+    return {"sent": True, "companies": len(_per_company),
+            "items": sum(len(v) for v in _per_company.values())}
     low_items = []
     lines = _all_lines
     for item in low_items:
@@ -2913,7 +2978,25 @@ def _send_telegram_to_qoplamachi(text: str):
     Railway env varida sozlanadi (bir nechta bo'lsa, vergul bilan ajratiladi).
     Eski, buzilgan TELEGRAM_COATING_ID'dan farqli — bu yangi, ishlaydigan sozlama
     (2026-09-06, faqat 'necha kg loy tayyorlash kerak' xabari uchun qo'shildi)."""
-    raw = os.environ.get("QOPLAMACHI_TELEGRAM_CHAT_ID", "").strip()
+    # Faza 3 (2-qadam): avval korxonaning o'z sozlamasi, bo'lmasa muhit
+    # o'zgaruvchisi. Shu bilan har korxonaning qoplamachisi o'z xabarini
+    # o'z botidan oladi.
+    raw = ""
+    try:
+        from database import SessionLocal as _SL
+        import tenant_context as _tc
+        _d = _SL()
+        try:
+            _cid = _tc.get_current_company(_d)
+            if _cid is not None:
+                raw = (crud.get_setting(_d, "telegram_qoplamachi_chat_id", "",
+                                        company_id=_cid) or "").strip()
+        finally:
+            _d.close()
+    except Exception:
+        raw = ""
+    if not raw:
+        raw = os.environ.get("QOPLAMACHI_TELEGRAM_CHAT_ID", "").strip()
     if not raw:
         return
     for chat_id in [c.strip() for c in raw.split(",") if c.strip()]:
@@ -5117,6 +5200,10 @@ def run_daily_backup():
         # shuning uchun ATAYLAB butun bazani qamraydi. Tenantga hech narsa
         # oshkor qilinmaydi. Parol/PIN hashlari esa endi `export_full_backup`
         # ning o'zida umuman chiqarilmaydi.
+        # Faza 3 (2-qadam): kunlik zaxira ATAYLAB platforma darajasida
+        # qoladi — u rejalashtiruvchi tomonidan, hech qanday korxona
+        # so'rovisiz ishga tushadi va platforma egasining chatiga boradi.
+        # Shu sababli u muhit o'zgaruvchilaridagi token/chatni ishlatadi.
         backup_data = crud.export_full_backup(db)
         content = _json_mod.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
         filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d')}.json"
