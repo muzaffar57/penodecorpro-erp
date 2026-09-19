@@ -4321,13 +4321,21 @@ def api_platform_companies(db: Session = Depends(get_db),
     """Platformadagi barcha korxonalar ro'yxati (faqat platforma admini)."""
     from production_models import Company as _Co
     from models import User as _U
-    rows = db.query(_Co).order_by(_Co.id).all()
-    out = []
-    for c in rows:
-        n_users = db.query(_U).filter(_U.company_id == c.id).count()
-        out.append({"id": c.id, "name": c.name, "code": c.code,
-                    "users": n_users,
-                    "created_at": c.created_at.isoformat() if c.created_at else None})
+    import tenant_context as _tc
+    # MUHIM (2026-09-19, jonli sinovda aniqlangan): bu PLATFORMA amali —
+    # u ataylab BARCHA korxonalarni ko'rishi kerak. Global tenant filtri
+    # esa so'rovlarga joriy korxona shartini qo'shadi va boshqa
+    # korxonalarning yozuvlarini yashiradi (sinovda B korxona
+    # "0 foydalanuvchi" bo'lib ko'rindi). `system_context` shu filtrni
+    # SHU sessiyada vaqtincha o'chiradi.
+    with _tc.system_context(db):
+        rows = db.query(_Co).order_by(_Co.id).all()
+        out = []
+        for c in rows:
+            n_users = db.query(_U).filter(_U.company_id == c.id).count()
+            out.append({"id": c.id, "name": c.name, "code": c.code,
+                        "users": n_users,
+                        "created_at": c.created_at.isoformat() if c.created_at else None})
     return out
 
 
@@ -4360,15 +4368,22 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
         raise HTTPException(
             status_code=400,
             detail="Login 3-50 belgi: lotin harflari, raqam, _ . - belgilaridan iborat bo'lsin")
-    if db.query(_U).filter(_U.username == login).first():
+    import tenant_context as _tc
+    # Login butun tizim bo'yicha yagona — tekshiruv ham global bo'lishi
+    # SHART. Aks holda boshqa korxonada band login "bo'sh" ko'rinadi va
+    # yaratish bazada tushunarsiz xato bilan yiqiladi.
+    with _tc.system_context(db):
+        band = db.query(_U).filter(_U.username == login).first() is not None
+    if band:
         raise HTTPException(status_code=400, detail="Bu login band")
 
     # Korxona kodi — nomdan, band bo'lsa raqam qo'shiladi
     asos = _re_co.sub(r"[^A-Z0-9]+", "-", nom.upper()).strip("-")[:24] or "KORXONA"
     kod, i = asos, 1
-    while db.query(_Co).filter(_Co.code == kod).first():
-        i += 1
-        kod = f"{asos[:20]}-{i}"
+    with _tc.system_context(db):
+        while db.query(_Co).filter(_Co.code == kod).first():
+            i += 1
+            kod = f"{asos[:20]}-{i}"
 
     # Tasodifiy parol — o'qish oson bo'lishi uchun chalkash belgilarsiz
     alifbo = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
