@@ -1553,6 +1553,20 @@ def api_change_password(user_id: int, data: dict, db: Session = Depends(get_db),
     new_pass = data.get("new_password", "")
     if len(new_pass) < 6:
         raise HTTPException(status_code=400, detail="Parol kamida 6 belgi")
+
+    # 2026-09-20 — O'Z parolini almashtirishda ESKI parol so'raladi.
+    # Sabab: kimdir ochiq qolgan sessiyadan foydalanib parolni almashtirib,
+    # egasini o'z tizimidan qulflab qo'yishi mumkin. Boshqa foydalanuvchining
+    # parolini tiklashda esa eski parol so'ralmaydi — admin uni bilmaydi
+    # (aynan shuning uchun tiklayapti).
+    if user_id == current_user.id:
+        eski = data.get("current_password", "")
+        if not eski:
+            raise HTTPException(status_code=400,
+                                detail="Joriy parolni kiriting")
+        if not auth.authenticate_user(db, current_user.username, eski):
+            raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
+
     if not auth.change_password(db, user_id, new_pass,
                                 company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
