@@ -1564,7 +1564,9 @@ def api_change_password(user_id: int, data: dict, db: Session = Depends(get_db),
         if not eski:
             raise HTTPException(status_code=400,
                                 detail="Joriy parolni kiriting")
-        if not auth.authenticate_user(db, current_user.username, eski):
+        # `verify_and_upgrade_password` — login oqimida ishlatiladigan
+        # AYNI funksiya (eski SHA-256 hashni bcrypt ga ham ko'chiradi).
+        if not auth.verify_and_upgrade_password(db, current_user, eski):
             raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
 
     if not auth.change_password(db, user_id, new_pass,
