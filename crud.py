@@ -1987,11 +1987,18 @@ def _company_of_username(db: Session, username: str):
     uchun foydalanuvchi nomidan korxona bir qiymatli aniqlanadi — mijoz
     yuborgan hech qanday `company_id` ga ishonilmaydi. Nom topilmasa
     (mavjud bo'lmagan hisobga urinish) None qaytadi."""
-    from models import User
+    from models import User, Employee
     if not username:
         return None
     u = db.query(User).filter(User.username == username).first()
-    return getattr(u, "company_id", None) if u else None
+    if u is not None:
+        return getattr(u, "company_id", None)
+    # 2026-09-20: xodimlar telefon raqami bilan kiradi (`/hodim/login`),
+    # ya'ni bu yerga username emas, TELEFON keladi. Uni ham tekshiramiz —
+    # aks holda xodimning kirish tarixi hech bir korxonaga bog'lanmay
+    # qolardi. Telefon `(company_id, phone)` bo'yicha yagona.
+    e = db.query(Employee).filter(Employee.phone == username).first()
+    return getattr(e, "company_id", None) if e else None
 
 
 def log_login_attempt(db: Session, username: str, success: bool, ip_address: str = None,

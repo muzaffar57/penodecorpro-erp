@@ -1047,6 +1047,27 @@ def _migrate_faza3_columns():
             # hech kim platforma admini bo'lmay qoldi va tizim egasining
             # o'zi ham platforma amallariga kira olmadi. Endi solishtirish
             # harf registriga bog'liq emas.
+            # --- login_history.company_id: NOT NULL -> NULL ruxsat ---
+            # 2026-09-20: noma'lum foydalanuvchi nomi bilan kirishga
+            # urinilganda korxona aniqlanmaydi. `DEFAULT 1` olib
+            # tashlangach `/login` 500 qaytara boshlagan edi.
+            try:
+                nn = conn.execute(text(
+                    "SELECT is_nullable FROM information_schema.columns "
+                    "WHERE table_schema='public' AND table_name='login_history' "
+                    "  AND column_name='company_id'")).scalar()
+                if nn == "NO":
+                    conn.execute(text(
+                        "ALTER TABLE login_history ALTER COLUMN company_id DROP NOT NULL"))
+                    conn.commit()
+                    print("✓ login_history.company_id endi NULL qabul qiladi")
+            except Exception as _e:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ login_history.company_id o'zgartirilmadi: {_e}")
+
             # --- Master.telegram_id: global unique -> (company_id, telegram_id) ---
             # Ilgari bitta Telegram hisobi butun tizimda FAQAT BITTA usta
             # bo'la olardi — SaaS uchun to'g'ri emas.

@@ -1255,8 +1255,15 @@ class LoginHistory(Base):
     # server_default SHART: usiz SQLAlchemy ustunni INSERT'ga NULL qilib
     # qo'shib yuboradi va NOT NULL buziladi (G1 da shu xato chiqqan edi).
     # Vaqtinchalik; keyinroq baza DEFAULT'i bilan birga olib tashlanadi.
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False,
-                        index=True)
+    # 2026-09-20 — MUHIM: bu ustun ATAYLAB `nullable=True`.
+    # Mavjud BO'LMAGAN foydalanuvchi nomi bilan kirishga urinilganda
+    # korxonani aniqlab bo'lmaydi (nom hech kimga tegishli emas). Ilgari
+    # bazadagi vaqtinchalik `DEFAULT 1` uni to'ldirardi; u olib tashlangach
+    # `/login` NOT NULL xatosi bilan 500 qaytara boshladi — ya'ni loginni
+    # xato yozgan har bir odam server xatosini ko'rardi.
+    # Bunday yozuvlar hech bir korxonaning ro'yxatida ko'rinmaydi, lekin
+    # bazada saqlanadi va IP bo'yicha rate-limit ularni hisobga oladi.
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     username = Column(String(100), nullable=False)
     success = Column(Boolean, nullable=False)
     ip_address = Column(String(50), nullable=True)
