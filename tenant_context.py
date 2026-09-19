@@ -40,12 +40,22 @@ YOQISH
 Muhit o'zgaruvchisi: TENANT_FILTER=1  (standart holatda O'CHIQ).
 Ataylab o'chiq: avval staging'da tasdiqlanadi, keyin yoqiladi.
 """
-import contextvars
 import os
 from contextlib import contextmanager
 
-_current_company: contextvars.ContextVar = contextvars.ContextVar(
-    "current_company_id", default=None)
+# MUHIM QAROR (2026-09-19, jonli sinovdan keyin):
+# Dastlab `contextvars` ishlatilgan edi, lekin u ISHLAMADI — FastAPI
+# sinxron bog'liqliklarni alohida oqimda (threadpool) ishga tushiradi va
+# har biriga kontekstning NUSXASINI beradi; Starlette'ning
+# `BaseHTTPMiddleware` i ham qiymatni pastga o'tkazmaydi. Natijada filtr
+# yoqilgan bo'lsa ham hech qachon qo'llanmadi.
+#
+# Endi korxona SESSIYA OBYEKTINING O'ZIGA (`Session.info`) yoziladi.
+# FastAPI bitta so'rovda `get_db` ni bir marta chaqiradi, ya'ni butun
+# so'rov davomida AYNI sessiya ishlatiladi — va obyekt oqimlar orasida
+# bemalol o'tadi. Fon vazifalari o'z sessiyasini yaratadi, unda bu
+# qiymat bo'lmaydi — filtr qo'llanmaydi, eski xatti-harakat saqlanadi.
+_KEY = "tenant_company_id"
 
 # Filtr yoqilganmi
 ENABLED = os.getenv("TENANT_FILTER", "0") == "1"
@@ -54,30 +64,39 @@ ENABLED = os.getenv("TENANT_FILTER", "0") == "1"
 _stats = {"filtered": 0, "skipped_no_context": 0, "skipped_system": 0}
 
 
-def set_current_company(company_id):
-    """Joriy so'rovning korxonasini belgilaydi (autentifikatsiyadan keyin)."""
-    return _current_company.set(company_id)
+def set_current_company(db, company_id):
+    """So'rovning korxonasini SESSIYAGA bog'laydi (autentifikatsiyadan keyin)."""
+    try:
+        db.info[_KEY] = company_id
+    except Exception:
+        pass
 
 
-def get_current_company():
-    return _current_company.get()
+def get_current_company(db):
+    try:
+        return db.info.get(_KEY)
+    except Exception:
+        return None
 
 
-def reset_current_company(token=None):
-    if token is not None:
-        _current_company.reset(token)
-    else:
-        _current_company.set(None)
+def reset_current_company(db):
+    try:
+        db.info.pop(_KEY, None)
+    except Exception:
+        pass
 
 
 @contextmanager
-def system_context():
-    """Tizim amali — filtr vaqtincha o'chadi (backup, migratsiya, cron)."""
-    token = _current_company.set(None)
+def system_context(db):
+    """Tizim amali — filtr shu sessiyada vaqtincha o'chadi
+    (backup, migratsiya, cron, platforma diagnostikasi)."""
+    prev = get_current_company(db)
+    reset_current_company(db)
     try:
         yield
     finally:
-        _current_company.reset(token)
+        if prev is not None:
+            set_current_company(db, prev)
 
 
 def get_stats():
@@ -121,7 +140,8 @@ def install(Session):
         if orm_execute_state.execution_options.get("skip_tenant_filter"):
             _stats["skipped_system"] += 1
             return
-        cid = _current_company.get()
+        sess = orm_execute_state.session
+        cid = sess.info.get(_KEY) if sess is not None else None
         if cid is None:
             _stats["skipped_no_context"] += 1
             return

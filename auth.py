@@ -157,7 +157,7 @@ def get_current_user(
     if user is not None:
         try:
             from tenant_context import set_current_company
-            set_current_company(getattr(user, "company_id", None))
+            set_current_company(db, getattr(user, "company_id", None))
         except Exception:
             pass
     return user
