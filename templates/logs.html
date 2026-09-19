@@ -11,6 +11,7 @@
     <button class="log-tab" data-tab="errors" onclick="switchLogTab('errors')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚠️ Xatoliklar</button>
     <button class="log-tab" data-tab="activity" onclick="switchLogTab('activity')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🕓 Audit jurnali</button>
     <button class="log-tab" data-tab="health" onclick="switchLogTab('health')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🩺 Salomatlik</button>
+    <button class="log-tab" data-tab="settings" onclick="switchLogTab('settings')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚙️ Sozlamalar</button>
   </div>
 
   <!-- KIRISH TARIXI -->
@@ -91,6 +92,42 @@
   </div>
 
   <!-- TIZIM SALOMATLIGI -->
+  <!-- SOZLAMALAR: Telegram bot + zaxira -->
+  <div id="tab-settings" class="card" style="display:none">
+    <div class="card-head"><h3>⚙️ Korxona sozlamalari</h3></div>
+
+    <div style="padding:18px">
+      <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">📱 Telegram bot</div>
+      <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:14px">
+        Bildirishnomalar (yuk xati, buyurtma tayyor, ombor ogohlantirishi) shu bot orqali yuboriladi.
+        Bot <b>@BotFather</b> da yaratiladi. Bo'sh qoldirilsa — tizimning umumiy boti ishlatiladi.
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Bot tokeni</label>
+          <input type="text" id="tg-token" class="input-field" placeholder="o'zgartirmaslik uchun bo'sh qoldiring"
+                 style="width:280px;font-family:monospace;font-size:12px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Chat ID (vergul bilan)</label>
+          <input type="text" id="tg-chat" class="input-field" placeholder="123456789,987654321"
+                 style="width:220px;font-family:monospace;font-size:12px">
+        </div>
+        <button class="btn btn-dark btn-sm" onclick="saveTgBot()">Saqlash</button>
+        <button class="btn btn-sm" onclick="clearTgBot()" style="background:var(--bg);color:var(--text3)">Tozalash</button>
+      </div>
+      <div id="tg-status" style="margin-top:12px;font-size:12.5px"></div>
+    </div>
+
+    <div style="padding:18px;border-top:1px solid var(--border2)">
+      <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">💾 Zaxira nusxa</div>
+      <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+        Korxonangizning barcha ma'lumoti bitta faylga yuklanadi. Uni xavfsiz joyda saqlang.
+      </div>
+      <a class="btn btn-dark btn-sm" href="/api/system/backup" download>Zaxirani yuklab olish</a>
+    </div>
+  </div>
+
   <div id="tab-health" class="card" style="display:none">
     <div class="card-head">
       <h3>🩺 Tizim salomatligi</h3>
@@ -118,12 +155,49 @@ function switchLogTab(tab) {
     b.style.color = active ? 'var(--text)' : 'var(--text3)';
     b.classList.toggle('active', active);
   });
-  ['login','errors','activity','health'].forEach(t => {
+  ['login','errors','activity','health','settings'].forEach(t => {
     document.getElementById('tab-' + t).style.display = (t === tab) ? 'block' : 'none';
   });
 }
 
-async function runHealthCheck() {
+async async function loadTgBot() {
+  try {
+    const d = await fetch('/api/settings/telegram-bot').then(r => r.json());
+    const el = document.getElementById('tg-status');
+    if (d.configured) {
+      el.innerHTML = '<span style="color:var(--green,#0a0)">✓ O\'z boti sozlangan</span> ' +
+                     '<span style="color:var(--text3)">(token ' + (d.token_hint || '') + ')</span>';
+      document.getElementById('tg-chat').value = d.chat_id || '';
+    } else {
+      el.innerHTML = '<span style="color:var(--text3)">Sozlanmagan — tizimning umumiy boti ishlatiladi</span>';
+    }
+  } catch (e) { /* jim */ }
+}
+
+async function saveTgBot() {
+  const fd = new FormData();
+  fd.append('token', document.getElementById('tg-token').value.trim());
+  fd.append('chat_id', document.getElementById('tg-chat').value.trim());
+  const r = await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
+  document.getElementById('tg-token').value = '';
+  document.getElementById('tg-status').innerHTML = r.ok
+    ? '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>'
+    : '<span style="color:#c00">Saqlashda xato</span>';
+  if (r.ok) setTimeout(loadTgBot, 600);
+}
+
+async function clearTgBot() {
+  if (!confirm("Bot sozlamasi tozalansinmi? Bildirishnomalar tizimning umumiy botiga qaytadi.")) return;
+  const fd = new FormData();
+  fd.append('token', '-'); fd.append('chat_id', '-');
+  await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
+  document.getElementById('tg-chat').value = '';
+  loadTgBot();
+}
+
+document.addEventListener('DOMContentLoaded', loadTgBot);
+
+function runHealthCheck() {
   const btn = document.getElementById('health-check-btn');
   const resultsEl = document.getElementById('health-results');
   btn.disabled = true;
