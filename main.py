@@ -1474,8 +1474,26 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
     narsani o'zgartirmaydi) — noto'g'ri (masalan katta/kichik harf mos
     kelmaydigan) qiymatlarni oldindan aniqlash uchun."""
     _cid = auth.company_id_of(current_user)
-    result = crud.check_system_health(db, company_id=_cid)
-    result["financial"] = crud.check_financial_consistency(db, company_id=_cid)
+
+    # 2026-09-20 — Bu tekshiruv IKKI xil narsadan iborat:
+    #   • TEXNIK skan (enum ustunlari) — natijasi "productionstatus
+    #     ustunida noto'g'ri qiymat" kabi xabarlar. Korxona egasi buni
+    #     tushunmaydi va u bilan hech narsa qila olmaydi. Faqat platforma
+    #     administratori uchun.
+    #   • MOLIYAVIY izchillik — "buyurtma summasi detallar yig'indisiga
+    #     mos emas", "ombor qoldig'i manfiy" kabi. Bu AYNAN biznes
+    #     muammosi va mijoz uni o'zi tuzata oladi — shuning uchun
+    #     hammaga ko'rsatiladi.
+    _platforma = bool(getattr(current_user, "is_platform_admin", False))
+    moliyaviy = crud.check_financial_consistency(db, company_id=_cid)
+
+    if _platforma:
+        result = crud.check_system_health(db, company_id=_cid)
+    else:
+        result = {"total_checks": 0, "issues_found": 0, "issues": [],
+                  "check_errors": [], "technical_hidden": True}
+    result["financial"] = moliyaviy
+    result["is_platform_admin"] = _platforma
     return result
 
 
