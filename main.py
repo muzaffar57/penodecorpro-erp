@@ -526,9 +526,15 @@ def _migrate_payment_columns():
         # to'ldirilmagan bo'lishi mumkin). Eski, "Sotuvga tayyor" yozuvlar
         # uchun, hozirgi qoldiqni "asl ishlab chiqarilgan" deb belgilaymiz —
         # bu nuqtadan boshlab, hodim haqi endi yana kamayib ketmaydi.
+        # 2026-09-19 — TUZATISH: bu so'rov har ishga tushishda yiqilardi.
+        # `production_status` — PostgreSQL enum va unda qiymat KATTA harf
+        # bilan ('READY') saqlanadi; bu yerda 'ready' yozilgani uchun
+        # "invalid input value for enum productionstatus" xatosi chiqardi.
+        # Yiqilgan so'rov tranzaksiyani buzardi va KEYINGI IKKI migratsiya
+        # ham umuman bajarilmay qolardi (pastdagi rollback tuzatishiga qarang).
         migrations.append(
             "UPDATE finished_products SET produced_quantity = quantity "
-            "WHERE produced_quantity IS NULL AND production_status = 'ready'"
+            "WHERE produced_quantity IS NULL AND production_status = 'READY'"
         )
 
         emp_cols2 = [c['name'] for c in inspector.get_columns('employees')]
@@ -567,6 +573,19 @@ def _migrate_payment_columns():
                         conn.commit()
                         print(f"✓ Migratsiya: {sql[:60]}...")
                     except Exception as e:
+                        # 2026-09-19 — MUHIM TUZATISH: ilgari bu yerda
+                        # `rollback()` yo'q edi. PostgreSQL'da bitta so'rov
+                        # yiqilsa tranzaksiya "aborted" holatiga o'tadi va
+                        # SHU ULANISHDAGI keyingi BARCHA so'rovlar
+                        # "current transaction is aborted" bilan rad etiladi.
+                        # Ya'ni bitta xato butun ro'yxatning qolganini
+                        # o'ldirardi — jonli logda aynan shu ko'rindi:
+                        # `return_items.order_id DROP NOT NULL` hech qachon
+                        # bajarilmagan edi.
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
                         print(f"⚠ Migratsiya o'tkazib yuborildi: {e}")
 
         # PostgreSQL enum ga yangi qiymatlarni qo'shish
@@ -620,6 +639,13 @@ def _migrate_payment_columns():
                 ))
                 conn.commit()
             except Exception as e:
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -646,6 +672,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -713,6 +746,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -731,6 +771,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -746,6 +793,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -762,6 +816,13 @@ def _migrate_payment_columns():
                 ))
                 conn.commit()
             except Exception as e:
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -782,6 +843,13 @@ def _migrate_payment_columns():
                     ))
                     conn.commit()
             except Exception as e:
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -1013,6 +1081,43 @@ def _migrate_faza3_columns():
                 conn.commit()
             except Exception as _e:
                 print(f"⚠ masters.telegram_id cheklovi o'zgartirilmadi: {_e}")
+
+            # --- User.telegram_id: global unique -> (company_id, telegram_id) ---
+            # `Master` bilan bir xil sabab (Faza 5).
+            try:
+                eski_u = conn.execute(text(
+                    "SELECT conname FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname = 'users' AND c.contype = 'u' "
+                    "  AND pg_get_constraintdef(c.oid) = 'UNIQUE (telegram_id)'"
+                )).fetchall()
+                for (cname,) in eski_u:
+                    conn.execute(text(f'ALTER TABLE users DROP CONSTRAINT "{cname}"'))
+                    print(f"✓ users: eski global cheklov olib tashlandi ({cname})")
+                yangi_u = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname='users' AND c.conname='uq_user_company_telegram'"
+                )).first()
+                if not yangi_u:
+                    dub_u = conn.execute(text(
+                        "SELECT COUNT(*) FROM (SELECT company_id, telegram_id FROM users "
+                        "WHERE telegram_id IS NOT NULL GROUP BY company_id, telegram_id "
+                        "HAVING COUNT(*) > 1) x")).scalar()
+                    if dub_u:
+                        print(f"⛔ users: {dub_u} ta takrorlanuvchi (company_id, telegram_id) — "
+                              f"cheklov qo'shilmadi")
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE users ADD CONSTRAINT uq_user_company_telegram "
+                            "UNIQUE (company_id, telegram_id)"))
+                        print("✓ users: (company_id, telegram_id) cheklovi qo'shildi")
+                conn.commit()
+            except Exception as _e:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ users.telegram_id cheklovi o'zgartirilmadi: {_e}")
 
             if has_col("users", "is_platform_admin"):
                 bor = conn.execute(text(

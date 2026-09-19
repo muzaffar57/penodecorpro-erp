@@ -114,6 +114,11 @@ class PaymentStatus(PyEnum):
 class User(Base):
     __tablename__ = "users"
 
+    __table_args__ = (
+        UniqueConstraint("company_id", "telegram_id",
+                         name="uq_user_company_telegram"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
 
     # 2026-09-18 — SaaS ko'p-tenantlilik, 1-QADAM (poydevor).
@@ -140,7 +145,9 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.MANAGER)
     full_name = Column(String(100))
-    telegram_id = Column(String(50), unique=True, nullable=True)
+    # 2026-09-19 — Faza 5: `Master.telegram_id` bilan bir xil sabab —
+    # bir odam ikki korxonada foydalanuvchi bo'la olishi kerak.
+    telegram_id = Column(String(50), nullable=True, index=True)
     # 2026-09-19 — Faza 3: PLATFORMA admini (SaaS egasi).
     # `admin_only` — bu KORXONA admini; har bir mijozning admini shu
     # huquqqa ega. Platforma darajasidagi amallar (Telegram bot sozlamasi,
