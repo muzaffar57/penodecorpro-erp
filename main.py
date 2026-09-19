@@ -5206,6 +5206,26 @@ def run_daily_backup():
         # Shu sababli u muhit o'zgaruvchilaridagi token/chatni ishlatadi.
         backup_data = crud.export_full_backup(db)
         content = _json_mod.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
+
+        # Faza 4: Telegram bitta faylda 50 MB gacha ruxsat beradi. Mijozlar
+        # ko'paygan sari zaxira kattalashadi va chegaradan oshsa fayl
+        # JIMGINA yuborilmay qoladi — ya'ni kunlar davomida zaxirasiz
+        # qolish mumkin. Shuning uchun 40 MB dan oshganda ogohlantirish
+        # yuboriladi, 49 MB dan oshganda esa fayl o'rniga xabar ketadi.
+        _mb = len(content) / (1024 * 1024)
+        if _mb >= 49:
+            _send_telegram(
+                f"⛔ *Kunlik zaxira YUBORILMADI*\n\nFayl hajmi {_mb:.1f} MB — "
+                f"Telegram chegarasi (50 MB) dan oshdi.\n\n"
+                f"Zaxirani qo'lda yuklab oling: /api/system/backup\n"
+                f"Uzoq muddatli yechim kerak (masalan bulutli saqlash).")
+            print(f"⛔ Kunlik zaxira yuborilmadi — {_mb:.1f} MB")
+            return
+        if _mb >= 40:
+            _send_telegram(
+                f"⚠️ *Zaxira hajmi ogohlantirishi*\n\nBugungi zaxira {_mb:.1f} MB.\n"
+                f"Telegram chegarasi 50 MB. Yaqinlashyapti — boshqa saqlash "
+                f"usulini rejalashtirish vaqti keldi.")
         filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d')}.json"
 
         total_rows = sum(len(rows) for rows in backup_data["tables"].values())
