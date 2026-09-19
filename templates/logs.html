@@ -8,7 +8,12 @@
 
   <div class="tab-bar" style="display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin-bottom:16px;max-width:660px">
     <button class="log-tab active" data-tab="login" onclick="switchLogTab('login')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:var(--white);box-shadow:0 1px 3px rgba(16,24,40,.1)">🔑 Kirish tarixi</button>
+    {# Texnik xatolar FAQAT platforma administratori uchun — korxona
+       egasiga Python traceback hech narsa bermaydi, faqat keraksiz
+       xavotir tug'diradi va ichki tuzilishni oshkor qiladi. #}
+    {% if is_platform_admin %}
     <button class="log-tab" data-tab="errors" onclick="switchLogTab('errors')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚠️ Xatoliklar</button>
+    {% endif %}
     <button class="log-tab" data-tab="activity" onclick="switchLogTab('activity')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🕓 Audit jurnali</button>
     <button class="log-tab" data-tab="health" onclick="switchLogTab('health')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">🩺 Salomatlik</button>
     <button class="log-tab" data-tab="settings" onclick="switchLogTab('settings')" style="flex:1;padding:9px 14px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;background:none;color:var(--text3)">⚙️ Sozlamalar</button>
@@ -39,6 +44,7 @@
   </div>
 
   <!-- XATOLIKLAR -->
+  {% if is_platform_admin %}
   <div id="tab-errors" class="card" style="display:none">
     <div class="card-head"><h3>⚠️ Backend xatoliklari <span style="color:var(--text3);font-weight:400">(so'nggi {{ error_logs|length }})</span></h3></div>
     <div style="max-height:600px;overflow-y:auto">
@@ -68,6 +74,8 @@
   </script>
 
   <!-- AUDIT JURNALI -->
+  {% endif %}
+
   <div id="tab-activity" class="card" style="display:none">
     <div class="card-head"><h3>🕓 Audit jurnali <span style="color:var(--text3);font-weight:400">(so'nggi {{ activity_log|length }})</span></h3></div>
     <div style="max-height:600px;overflow-y:auto">
