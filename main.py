@@ -885,28 +885,56 @@ def _migrate_faza3_columns():
                     "ALTER TABLE gift_period_tiers ADD COLUMN company_id INTEGER "
                     "REFERENCES companies(id)"))
                 conn.execute(text(
-                    "UPDATE gift_period_tiers t SET company_id = "
-                    "(SELECT p.company_id FROM gift_periods p WHERE p.id = t.period_id)"))
-                conn.execute(text(
                     "CREATE INDEX IF NOT EXISTS ix_gift_period_tiers_company_id "
                     "ON gift_period_tiers (company_id)"))
                 conn.commit()
+                print("✓ gift_period_tiers.company_id qo'shildi")
+
+            # TO'LDIRISH — ustun qo'shish bilan BIR BLOKDA emas, ALOHIDA va
+            # IDEMPOTENT. Sabab (2026-09-19, jonli sinovda aniqlangan):
+            # ustun qo'shilgan, lekin to'ldirish ishlamay qolgan edi va
+            # qiymatlar NULL bo'lib qoldi. Global filtr esa NULL larni
+            # kesib tashlaydi — natijada A korxonaning 7 ta sovg'a darajasi
+            # interfeysdan butunlay yo'qoldi. Endi har ishga tushishda
+            # to'ldirilmaganlari qayta to'ldiriladi.
+            if has_col("gift_period_tiers", "company_id"):
                 n_null = conn.execute(text(
                     "SELECT COUNT(*) FROM gift_period_tiers WHERE company_id IS NULL")).scalar()
-                print(f"✓ gift_period_tiers.company_id qo'shildi (to'ldirilmagan: {n_null})")
+                if n_null:
+                    conn.execute(text(
+                        "UPDATE gift_period_tiers t SET company_id = "
+                        "(SELECT p.company_id FROM gift_periods p WHERE p.id = t.period_id) "
+                        "WHERE t.company_id IS NULL"))
+                    conn.commit()
+                    qoldi = conn.execute(text(
+                        "SELECT COUNT(*) FROM gift_period_tiers WHERE company_id IS NULL")).scalar()
+                    print(f"✓ gift_period_tiers to'ldirildi: {n_null} ta, qolgani: {qoldi}")
 
             if not has_col("users", "is_platform_admin"):
                 conn.execute(text(
                     "ALTER TABLE users ADD COLUMN is_platform_admin BOOLEAN "
                     "NOT NULL DEFAULT false"))
-                # Eng eski admin — platforma egasi
-                conn.execute(text(
-                    "UPDATE users SET is_platform_admin = true WHERE id = "
-                    "(SELECT id FROM users WHERE role = 'ADMIN' ORDER BY id LIMIT 1)"))
                 conn.commit()
-                who = conn.execute(text(
-                    "SELECT username FROM users WHERE is_platform_admin = true")).fetchall()
-                print(f"✓ users.is_platform_admin qo'shildi — platforma admini: {[w[0] for w in who]}")
+                print("✓ users.is_platform_admin qo'shildi")
+
+            # PLATFORMA ADMINI — ham ALOHIDA va IDEMPOTENT.
+            # Birinchi urinishda rol `'ADMIN'` deb qidirilgan edi, bazada
+            # esa u kichik harf bilan (`'admin'`) saqlanadi — shu sababli
+            # hech kim platforma admini bo'lmay qoldi va tizim egasining
+            # o'zi ham platforma amallariga kira olmadi. Endi solishtirish
+            # harf registriga bog'liq emas.
+            if has_col("users", "is_platform_admin"):
+                bor = conn.execute(text(
+                    "SELECT COUNT(*) FROM users WHERE is_platform_admin = true")).scalar()
+                if not bor:
+                    conn.execute(text(
+                        "UPDATE users SET is_platform_admin = true WHERE id = "
+                        "(SELECT id FROM users WHERE lower(role::text) = 'admin' "
+                        " ORDER BY id LIMIT 1)"))
+                    conn.commit()
+                    who = conn.execute(text(
+                        "SELECT username FROM users WHERE is_platform_admin = true")).fetchall()
+                    print(f"✓ Platforma admini belgilandi: {[w[0] for w in who]}")
     except Exception as e:
         print(f"⚠ Faza 3 migratsiyasi o'tkazib yuborildi: {e}")
 
