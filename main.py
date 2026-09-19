@@ -1450,7 +1450,11 @@ async def logs_page(request: Request, db: Session = Depends(get_db), current_use
     # xatolari (NULL) hammaga.
     _cid = auth.company_id_of(current_user)
     login_history = crud.get_login_history(db, limit=100, company_id=_cid)
-    error_logs = crud.get_error_logs(db, limit=100, company_id=_cid)
+    # Platforma admini tizim xatolarini ham ko'radi; oddiy korxona
+    # admini esa FAQAT o'z korxonasinikini.
+    error_logs = crud.get_error_logs(
+        db, limit=100, company_id=_cid,
+        include_platform=bool(getattr(current_user, "is_platform_admin", False)))
     activity_log = crud.get_activity_log(db, limit=100, company_id=_cid)
     return templates.TemplateResponse(request, "logs.html", {
         "login_history": login_history, "error_logs": error_logs, "activity_log": activity_log,

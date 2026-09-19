@@ -2091,7 +2091,8 @@ def log_error(db: Session, error_message: str, stack_trace: str = None,
     db.commit()
 
 
-def get_error_logs(db: Session, limit: int = 100, company_id: int = None) -> List:
+def get_error_logs(db: Session, limit: int = 100, company_id: int = None,
+                   include_platform: bool = False) -> List:
     """So'nggi backend xatoliklari (Faza 3 — tenant-safe).
 
     `error_logs.company_id` ustuni qo'shilgach, filtr aniq bo'ldi:
@@ -2105,8 +2106,19 @@ def get_error_logs(db: Session, limit: int = 100, company_id: int = None) -> Lis
     from sqlalchemy import or_ as _or
     q = db.query(ErrorLog)
     if company_id is not None:
-        q = q.filter(_or(ErrorLog.company_id == company_id,
-                         ErrorLog.company_id.is_(None)))
+        if include_platform:
+            # PLATFORMA admini — o'z korxonasi + korxonaga bog'lanmagan
+            # (tizim) xatolari. Faqat u tizimni tuzatadi.
+            q = q.filter(_or(ErrorLog.company_id == company_id,
+                             ErrorLog.company_id.is_(None)))
+        else:
+            # 2026-09-20 — TUZATISH: oddiy korxona admini FAQAT o'z
+            # xatolarini ko'radi. Ilgari `company_id IS NULL` yozuvlari
+            # ham ko'rsatilardi ("platforma xatosi" deb) — natijada yangi
+            # mijoz birinchi kuni ERP ga kirib, bo'sh tizimda o'nlab
+            # begona traceback ko'rdi. Traceback ichida boshqa
+            # korxonaning jadval nomlari va ID lari bo'lishi ham mumkin.
+            q = q.filter(ErrorLog.company_id == company_id)
     return q.order_by(ErrorLog.created_at.desc()).limit(limit).all()
 
 
