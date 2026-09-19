@@ -96,6 +96,19 @@
   <div id="tab-settings" class="card" style="display:none">
     <div class="card-head"><h3>⚙️ Korxona sozlamalari</h3></div>
 
+    <div style="padding:18px;border-bottom:1px solid var(--border2)">
+      <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">🏢 Korxona nomi</div>
+      <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+        Bu nom chap paneldа va hujjatlarda ko'rinadi.
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="co-name" class="input-field" maxlength="200"
+               style="width:300px" placeholder="Korxona nomi">
+        <button class="btn btn-dark btn-sm" onclick="saveCompany()">Saqlash</button>
+        <span id="co-status" style="font-size:12.5px"></span>
+      </div>
+    </div>
+
     <div style="padding:18px">
       <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">📱 Telegram bot</div>
       <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:14px">
@@ -160,6 +173,28 @@ function switchLogTab(tab) {
   });
 }
 
+async function loadCompany() {
+  try {
+    const d = await fetch('/api/settings/company').then(r => r.json());
+    document.getElementById('co-name').value = d.name || '';
+  } catch (e) { /* jim */ }
+}
+
+async function saveCompany() {
+  const nom = document.getElementById('co-name').value.trim();
+  const el = document.getElementById('co-status');
+  if (nom.length < 2) { el.innerHTML = '<span style="color:#c00">Nom juda qisqa</span>'; return; }
+  const fd = new FormData(); fd.append('name', nom);
+  const r = await fetch('/api/settings/company', { method: 'PUT', body: fd });
+  if (r.ok) {
+    el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
+    setTimeout(() => location.reload(), 900);
+  } else {
+    const d = await r.json().catch(() => ({}));
+    el.innerHTML = '<span style="color:#c00">' + (d.detail || 'Xato') + '</span>';
+  }
+}
+
 async function loadTgBot() {
   try {
     const d = await fetch('/api/settings/telegram-bot').then(r => r.json());
@@ -195,7 +230,7 @@ async function clearTgBot() {
   loadTgBot();
 }
 
-document.addEventListener('DOMContentLoaded', loadTgBot);
+document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); });
 
 async function runHealthCheck() {
   const btn = document.getElementById('health-check-btn');

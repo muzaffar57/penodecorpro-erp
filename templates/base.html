@@ -170,8 +170,12 @@ function jsAttrEscape(str) {
         <img src="/static/logo_round.jpg" alt="PenoDecorPro"
              style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
         <div>
-          <div class="logo-name">Penodecor<span>Pro</span></div>
-          <div class="logo-ver">ERP · Andijon</div>
+          {# Faza 5: korxona nomi bazadan olinadi. Ilgari "PenoDecorPro ·
+             Andijon" qattiq yozilgan edi — ikkinchi mijoz o'z ERP sida
+             boshqa korxonaning nomini ko'rib turardi. #}
+          {% set _kn = company_name_of(current_user.company_id) if current_user else None %}
+          <div class="logo-name">{{ _kn or 'PenodecorPro' }}</div>
+          <div class="logo-ver">ERP</div>
         </div>
       </div>
     </div>
