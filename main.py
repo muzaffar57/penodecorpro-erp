@@ -4431,6 +4431,49 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
             "eslatma": "Parol FAQAT SHU YERDA ko'rsatiladi — keyin tiklab bo'lmaydi."}
 
 
+@app.post("/api/platform/companies/{company_id}/reset-admin-password")
+def api_platform_reset_admin_password(company_id: int, username: str = Form(""),
+                                      db: Session = Depends(get_db),
+                                      current_user=Depends(auth.platform_admin_only)):
+    """Korxona adminining parolini qayta tiklaydi (Faza 5).
+
+    NEGA KERAK: parol yaratishda BIR MARTA ko'rsatiladi va bazada faqat
+    hashi saqlanadi — ya'ni uni hech kim (siz ham) qayta ko'ra olmaydi.
+    Mijoz parolni yo'qotsa, uni tiklashning yo'li bo'lishi SHART, aks holda
+    korxona butunlay qulflanib qoladi.
+
+    `username` berilmasa — o'sha korxonaning ENG ESKI admin hisobi olinadi.
+    Yangi parol javobda BIR MARTA qaytariladi.
+    """
+    import secrets
+    from models import User as _U, UserRole as _UR
+    import tenant_context as _tc
+
+    # Platforma amali — global filtr o'chiriladi, aks holda boshqa
+    # korxonaning hisobi "topilmadi" bo'lib ko'rinadi.
+    with _tc.system_context(db):
+        q = db.query(_U).filter(_U.company_id == company_id)
+        if (username or "").strip():
+            u = q.filter(_U.username == username.strip()).first()
+        else:
+            u = q.filter(_U.role == _UR.ADMIN).order_by(_U.id).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="Bu korxonada admin topilmadi")
+        if getattr(u, "is_platform_admin", False):
+            raise HTTPException(
+                status_code=400,
+                detail="Platforma adminining paroli bu yerdan tiklanmaydi")
+
+        alifbo = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+        parol = "".join(secrets.choice(alifbo) for _ in range(12))
+        u.password_hash = auth.hash_password(parol)
+        db.commit()
+        login = u.username
+
+    return {"status": "ok", "username": login, "password": parol,
+            "eslatma": "Parol FAQAT SHU YERDA ko'rsatiladi."}
+
+
 @app.get("/api/settings/company")
 def api_get_company(db: Session = Depends(get_db),
                     current_user=Depends(auth.require_login)):
