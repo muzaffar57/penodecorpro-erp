@@ -160,7 +160,7 @@ function switchLogTab(tab) {
   });
 }
 
-async async function loadTgBot() {
+async function loadTgBot() {
   try {
     const d = await fetch('/api/settings/telegram-bot').then(r => r.json());
     const el = document.getElementById('tg-status');
@@ -197,7 +197,7 @@ async function clearTgBot() {
 
 document.addEventListener('DOMContentLoaded', loadTgBot);
 
-function runHealthCheck() {
+async function runHealthCheck() {
   const btn = document.getElementById('health-check-btn');
   const resultsEl = document.getElementById('health-results');
   btn.disabled = true;
