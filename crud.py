@@ -3662,12 +3662,27 @@ def export_full_backup(db: Session, company_id: int = None) -> dict:
 
     # Barcha model klasslarini avtomatik topamiz (User dan tashqari — u ham
     # kiritiladi, chunki to'liq zaxira nusxa deganda HAMMASI saqlanishi kerak)
+    # 2026-09-19 — Faza 2: ishlab chiqarish (MRP) jadvallari ALOHIDA
+    # modulda e'lon qilingan va shu sababli zaxira nusxaga UMUMAN
+    # kirmasdi (`product_types`, `boms`, `bom_items`, `production_orders`).
+    # Ya'ni zahiradan tiklaganda butun MRP moduli yo'qolardi. Endi ikkala
+    # modul ham ko'rib chiqiladi.
+    import production_models as _pmodels
     all_models = []
-    for name in dir(_models):
-        obj = getattr(_models, name)
-        if isinstance(obj, type) and issubclass(obj, _models.Base) and obj is not _models.Base:
-            if obj.__tablename__ in EXCLUDED_TABLES:
+    _seen_tables = set()
+    for _mod in (_models, _pmodels):
+        for name in dir(_mod):
+            obj = getattr(_mod, name)
+            if not (isinstance(obj, type) and issubclass(obj, _models.Base)
+                    and obj is not _models.Base):
                 continue
+            tname = getattr(obj, "__tablename__", None)
+            if not tname or tname in EXCLUDED_TABLES or tname in _seen_tables:
+                continue
+            # `companies` — platforma jadvali, tenant zaxirasiga kirmaydi
+            if tname == "companies":
+                continue
+            _seen_tables.add(tname)
             all_models.append(obj)
 
     backup = {}
@@ -3696,6 +3711,209 @@ def export_full_backup(db: Session, company_id: int = None) -> dict:
         "skipped_tables": skipped,
         "tables": backup
     }
+
+
+def _reset_table_order():
+    """O'chirish tartibi: har bir "bola" o'z "ota"sidan OLDIN turadi.
+
+    2026-09-19 — Faza 2: bu ro'yxat endi IKKI joyda ishlatiladi —
+    `factory_reset_all_data()` (shu tartibda o'chiradi) va
+    `import_full_backup()` (TESKARI tartibda qo'shadi). Yagona manba
+    bo'lgani uchun ular hech qachon bir-biridan ajralib qolmaydi.
+    """
+    from production_models import ProductionOrder, BOM, BOMItem, ProductType
+    from models import (
+        DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
+        Delivery, OrderGipsAdditive, OrderItemSubDetail, OrderItem,
+        FinishedProductSale, FinishedProductLoss, FinishedProduct, Order,
+        InventoryPurchase, InventoryReceipt, SupplierPayment,
+        TransportExpense, ExpenseTransaction, MonthlyExpense,
+        EmployeeSession, EmployeeAdvance, AdvanceRequest,
+        EmployeeMonthlyAdjustment, EmployeeCompensationHistory, Employee,
+        RecipeIngredient, Recipe, MasterGiftRedemption, MasterGift,
+        MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier,
+        GiftPeriod, Master, Project, Supplier, CashTransaction, ActivityLog,
+        ErrorLog, LoginHistory, CompanySetting, RecurringObligation, Inventory,
+    )
+    return [
+        ProductionOrder,
+        DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
+        Delivery, OrderGipsAdditive,
+        OrderItemSubDetail, OrderItem,
+        FinishedProductSale, FinishedProductLoss, FinishedProduct, Order,
+        InventoryPurchase, InventoryReceipt, SupplierPayment,
+        TransportExpense, ExpenseTransaction, MonthlyExpense,
+        EmployeeSession, EmployeeAdvance, AdvanceRequest,
+        EmployeeMonthlyAdjustment, EmployeeCompensationHistory, Employee,
+        RecipeIngredient, Recipe,
+        BOMItem, BOM, ProductType, Inventory,
+        MasterGiftRedemption, MasterGift,
+        MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
+        Master, Project, Supplier,
+        CashTransaction, ActivityLog, ErrorLog, LoginHistory,
+        CompanySetting, RecurringObligation,
+    ]
+
+
+def import_full_backup(db: Session, data: dict, company_id: int,
+                       replace: bool = False) -> dict:
+    """Zaxira nusxadan korxona ma'lumotini TIKLAYDI (Faza 2).
+
+    NIMA UCHUN KERAK
+    ----------------
+    Shu paytgacha `export_full_backup()` bor edi, TIKLASH esa YO'Q edi.
+    Ya'ni zaxira nusxa olinardi, lekin undan qaytarib bo'lmasdi — baza
+    yo'qolsa biznes to'xtardi. Bu funksiya o'sha bo'shliqni yopadi.
+
+    XAVFSIZLIK QOIDALARI
+    --------------------
+      • Faqat JORIY korxonaga tiklanadi. Fayldagi `company_id` boshqa
+        korxonaniki bo'lsa — rad etiladi.
+      • Har bir qatorning `company_id` si majburan joriy korxonaga
+        o'rnatiladi (fayl ichidagi qiymatga ISHONILMAYDI).
+      • Korxona bo'sh bo'lmasa, `replace=True` berilmaguncha rad etiladi.
+        `replace=True` bo'lsa avval `factory_reset_all_data()` bilan
+        SHU korxona tozalanadi (boshqa korxonalarga tegilmaydi).
+      • Hammasi BITTA tranzaksiyada: xato bo'lsa to'liq qaytariladi.
+      • `id` qiymatlari SAQLANADI — aks holda jadvallararo bog'lanishlar
+        (FK) buziladi. Oxirida PostgreSQL ketma-ketliklari yangilanadi.
+      • Sessiya jadvallari va `error_logs` zaxirada yo'q — tiklanmaydi.
+      • FOYDALANUVCHI HISOBLARI (`users`) ATAYLAB tiklanmaydi: zaxirada
+        parol hashlari yo'q (xavfsizlik uchun chiqarilgan), shuning uchun
+        ularni tiklash hech kim kira olmaydigan hisoblar yaratardi.
+        Tiklashdan keyin hisoblar qo'lda qayta yaratiladi.
+    """
+    import decimal
+    from datetime import datetime as _dt, date as _date
+    from sqlalchemy import inspect as sa_inspect, text as _sa_text
+
+    tables = (data or {}).get("tables")
+    if not isinstance(tables, dict):
+        return {"success": False, "message": "Fayl formati noto'g'ri: 'tables' topilmadi"}
+
+    file_cid = (data or {}).get("company_id")
+    if file_cid is not None and company_id is not None and int(file_cid) != int(company_id):
+        return {"success": False,
+                "message": f"Bu zaxira boshqa korxonaniki (fayl: {file_cid}). "
+                           f"Tiklash rad etildi."}
+
+    # --- Model xaritasi (models + production_models) ---
+    import models as _models
+    import production_models as _pmodels
+    model_by_table = {}
+    for _mod in (_models, _pmodels):
+        for name in dir(_mod):
+            obj = getattr(_mod, name)
+            if (isinstance(obj, type) and issubclass(obj, _models.Base)
+                    and obj is not _models.Base and hasattr(obj, "__tablename__")):
+                model_by_table.setdefault(obj.__tablename__, obj)
+
+    # --- Korxona bo'shmi? ---
+    from models import Order as _O, Master as _M, Inventory as _I
+    mavjud = (db.query(_O).filter(_O.company_id == company_id).count()
+              + db.query(_M).filter(_M.company_id == company_id).count()
+              + db.query(_I).filter(_I.company_id == company_id).count())
+    if mavjud and not replace:
+        return {"success": False,
+                "message": f"Korxonada allaqachon ma'lumot bor ({mavjud} ta asosiy yozuv). "
+                           f"Ustiga yozish uchun replace=true bering."}
+
+    def coerce(col, v):
+        """Matn ko'rinishidagi qiymatni ustun turiga moslaydi.
+
+        MUHIM (jonli mashqda aniqlangan): zaxiraga Enum qiymati sifatida
+        `.value` yoziladi (masalan "product"), SQLAlchemy esa bazada
+        Enum NOMINI saqlaydi ("PRODUCT"). Shuning uchun tiklashda qiymat
+        qayta Enum a'zosiga aylantiriladi — aks holda buyurtma turi
+        o'qilmay, `LookupError` beradi."""
+        if v is None:
+            return None
+        # Enum ustuni — qiymatdan a'zoga qaytaramiz
+        enum_cls = getattr(col.type, "enum_class", None)
+        if enum_cls is not None and not isinstance(v, enum_cls):
+            try:
+                return enum_cls(v)              # qiymat bo'yicha ("product")
+            except (ValueError, KeyError):
+                try:
+                    return enum_cls[str(v)]     # nom bo'yicha ("PRODUCT")
+                except (ValueError, KeyError):
+                    return None
+        t = str(col.type).upper()
+        if isinstance(v, str) and ("DATETIME" in t or "TIMESTAMP" in t):
+            try:
+                return _dt.fromisoformat(v)
+            except ValueError:
+                return None
+        if isinstance(v, str) and t.startswith("DATE"):
+            try:
+                return _date.fromisoformat(v)
+            except ValueError:
+                return None
+        if isinstance(v, float) and "NUMERIC" in t:
+            return decimal.Decimal(str(v))
+        return v
+
+    try:
+        if replace and mavjud:
+            factory_reset_all_data(db, company_id=company_id)
+
+        # Tartib: o'chirish tartibining TESKARISI — ota avval, bola keyin.
+        order = list(reversed(_reset_table_order()))
+        inserted, skipped_tables = {}, []
+
+        for model in order:
+            tname = model.__tablename__
+            rows = tables.get(tname)
+            if not rows:
+                continue
+            mapper = sa_inspect(model)
+            cols = {c.key: c for c in mapper.columns}
+            payload = []
+            for r in rows:
+                rec = {}
+                for k, v in (r or {}).items():
+                    if k not in cols:
+                        continue          # sxema o'zgargan — noma'lum ustun tashlanadi
+                    rec[k] = coerce(cols[k], v)
+                if "company_id" in cols:
+                    rec["company_id"] = company_id   # faylga ISHONMAYMIZ
+                if rec:
+                    payload.append(rec)
+            if payload:
+                db.execute(model.__table__.insert(), payload)
+                inserted[tname] = len(payload)
+
+        for tname in tables:
+            if tname not in {m.__tablename__ for m in order}:
+                skipped_tables.append(tname)
+
+        # --- PostgreSQL ketma-ketliklarini yangilaymiz ---
+        # `id` lar aniq berilgani uchun avtomatik hisoblagich orqada qoladi;
+        # tuzatilmasa keyingi yangi yozuv "duplicate key" xatosi beradi.
+        seq_fixed = 0
+        if db.bind.dialect.name == "postgresql":
+            for model in order:
+                tname = model.__tablename__
+                if tname not in inserted or not hasattr(model, "id"):
+                    continue
+                try:
+                    db.execute(_sa_text(
+                        f"SELECT setval(pg_get_serial_sequence('{tname}', 'id'), "
+                        f"COALESCE((SELECT MAX(id) FROM {tname}), 1), true)"))
+                    seq_fixed += 1
+                except Exception:
+                    pass
+
+        db.commit()
+        return {"success": True, "company_id": company_id,
+                "restored_tables": len(inserted),
+                "restored_rows": sum(inserted.values()),
+                "per_table": inserted,
+                "skipped_tables": skipped_tables,
+                "sequences_fixed": seq_fixed}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "message": f"Tiklashda xato: {e}"}
 
 
 def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
@@ -3784,29 +4002,7 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
             {"reserved_for_order_item_id": None}, synchronize_session=False)
     db.flush()
 
-    # Tartib MUHIM: har bir "bola" o'z "ota"sidan OLDIN turadi.
-    # Qo'shilganlar (2026-09-18): ProductionOrder, OrderItemSubDetail,
-    # MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier,
-    # GiftPeriod, EmployeeCompensationHistory, BOMItem, BOM, ProductType.
-    tables_in_order = [
-        # MRP: orders / order_items / finished_products / boms ga ishora qiladi
-        ProductionOrder,
-        DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
-        Delivery, OrderGipsAdditive,
-        OrderItemSubDetail, OrderItem,
-        FinishedProductSale, FinishedProductLoss, FinishedProduct, Order,
-        InventoryPurchase, InventoryReceipt, SupplierPayment,
-        TransportExpense, ExpenseTransaction, MonthlyExpense,
-        EmployeeSession, EmployeeAdvance, AdvanceRequest,
-        EmployeeMonthlyAdjustment, EmployeeCompensationHistory, Employee,
-        RecipeIngredient, Recipe,
-        BOMItem, BOM, ProductType, Inventory,
-        MasterGiftRedemption, MasterGift,
-        MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
-        Master, Project, Supplier,
-        CashTransaction, ActivityLog, ErrorLog, LoginHistory,
-        CompanySetting, RecurringObligation,
-    ]
+    tables_in_order = _reset_table_order()
 
 
     # M7 (2026-09-18) — TENANT: bu amal butun bazani (BARCHA korxonani)

@@ -3901,6 +3901,31 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
     )
 
 
+@app.post("/api/system/restore")
+async def api_restore_backup(file: UploadFile = File(...),
+                             replace: bool = False,
+                             db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Zaxira nusxadan korxona ma'lumotini tiklaydi (Faza 2).
+
+    Faqat JORIY korxonaga tiklanadi. Korxonada ma'lumot bo'lsa,
+    `?replace=true` berilmaguncha rad etiladi; berilsa avval SHU korxona
+    tozalanadi (boshqa korxonalarga tegilmaydi). Hammasi bitta
+    tranzaksiyada — xato bo'lsa hech narsa o'zgarmaydi."""
+    import json as _json_r
+    try:
+        raw = await file.read()
+        data = _json_r.loads(raw.decode("utf-8"))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Faylni o'qib bo'lmadi: {e}")
+
+    result = crud.import_full_backup(
+        db, data, company_id=auth.company_id_of(current_user), replace=replace)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Tiklash amalga oshmadi"))
+    return result
+
+
 @app.post("/api/system/factory-reset")
 def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
                        db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
