@@ -1663,7 +1663,15 @@ def enabled_categories_of(company_id):
         natija = {k for k, _ in IXTIYORIY_KATEGORIYALAR
                   if k not in _ESKIRGAN_KATEGORIYALAR}
     else:
-        natija = {x.strip() for x in xom.split(",") if x.strip()}
+        # ⚠ 2026-09-21: sozlama satri — bu ESKI MATN, bazada yillab
+        # o'zgarmay yotishi mumkin. Undagi so'z hali MAVJUD turkummi,
+        # tekshirilishi SHART. Aks holda 11.2a/11.2b da butunlay olib
+        # tashlangan `termopanel` / `gips` eski satrdan qaytib kelardi,
+        # admin esa ularni sozlamalar sahifasida KO'RMASDI ham (ro'yxatda
+        # yo'q), ya'ni O'CHIRA OLMASDI. Endi noma'lum so'z jimgina
+        # e'tiborsiz qoldiriladi — sozlama o'zi-o'zidan tozalanadi.
+        _malum = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+        natija = {x.strip() for x in xom.split(",") if x.strip() in _malum}
     _kategoriya_cache[company_id] = natija
     return natija
 
