@@ -4364,8 +4364,18 @@ def api_backup_send_now(current_user=Depends(auth.platform_admin_only)):
 
 
 @app.get("/api/system/backup")
-def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Butun bazaning to'liq zaxira nusxasini JSON fayl sifatida yuklab beradi."""
+def api_system_backup(db: Session = Depends(get_db),
+                      current_user=Depends(auth.platform_admin_only)):
+    """Korxona ma'lumotining to'liq zaxira nusxasi (JSON).
+
+    2026-09-20 — endi FAQAT platforma administratori uchun. Ilgari har
+    qanday korxona admini (hisobchi ham admin roliga ega bo'lsa) bitta
+    so'rov bilan butun biznesni — mijozlar, narxlar, foyda, maoshlar —
+    yuklab olardi. Interfeysdan tugmani olib tashlash yetarli emas edi:
+    manzilni to'g'ridan-to'g'ri ochish ham mumkin.
+
+    Kunlik zaxira (barcha korxonalar) avvalgidek rejalashtiruvchi orqali
+    platforma egasiga boradi.""" 
     import json
     from fastapi.responses import Response
 
@@ -4618,7 +4628,7 @@ def api_set_telegram_bot(token: str = Form(""), chat_id: str = Form(""),
 async def api_restore_backup(file: UploadFile = File(...),
                              replace: bool = False,
                              db: Session = Depends(get_db),
-                             current_user=Depends(auth.admin_only)):
+                             current_user=Depends(auth.platform_admin_only)):
     """Zaxira nusxadan korxona ma'lumotini tiklaydi (Faza 2).
 
     Faqat JORIY korxonaga tiklanadi. Korxonada ma'lumot bo'lsa,
@@ -4641,7 +4651,7 @@ async def api_restore_backup(file: UploadFile = File(...),
 
 @app.post("/api/system/factory-reset")
 def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):
     """DIQQAT: QAYTARIB BO'LMAYDIGAN AMAL!
     Foydalanuvchilardan (login) TASHQARI — BARCHA ma'lumotni butunlay o'chiradi:
     buyurtmalar, ombor, retseptlar, ustalar, yetkazib beruvchilar, loyihalar va h.k.
