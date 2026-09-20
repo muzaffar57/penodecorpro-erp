@@ -4974,6 +4974,177 @@ async def api_restore_backup(file: UploadFile = File(...),
     return result
 
 
+# ============================================================
+# ZAXIRADAN TIKLASH — OPERATOR SAHIFASI  (2026-09-20)
+# ============================================================
+# Nega alohida sahifa: `POST /api/system/restore` faqat API orqali
+# chaqirilardi, ya'ni fayl yuklash uchun maxsus vosita kerak edi.
+# Bu sahifa o'sha bo'shliqni yopadi.
+#
+# Nega JavaScriptsiz: bu operator vositasi — eng kam harakatlanuvchi
+# qismdan iborat bo'lgani ma'qul. Oddiy HTML forma POST qiladi, natijani
+# server chizadi. Hech qanday fetch, hech qanday dinamik holat.
+#
+# Nega `/api/` dan TASHQARIDA: sessiya tugasa, 401 javobi `/login` ga
+# yo'naltirilsin (api yo'llari xom JSON qaytaradi).
+
+_TIKLASH_SOZ = "TIKLASHNI-TASDIQLAYMAN"
+
+
+def _tiklash_html(tana: str) -> str:
+    return f"""<!doctype html><html lang="uz"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zaxiradan tiklash</title><style>
+ body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+   background:#f6f7f9;color:#1a1d21;margin:0;padding:24px;line-height:1.55}}
+ .w{{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e3e6ea;
+   border-radius:12px;padding:28px}}
+ h1{{font-size:20px;margin:0 0 4px}} .sub{{color:#6b7280;font-size:13px;margin-bottom:22px}}
+ .ogoh{{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:14px;
+   font-size:13px;margin-bottom:20px}}
+ .xato{{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;margin-bottom:18px}}
+ .ok{{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:18px}}
+ label{{display:block;font-size:12px;font-weight:600;text-transform:uppercase;
+   letter-spacing:.03em;color:#6b7280;margin:16px 0 6px}}
+ input[type=text],input[type=file]{{width:100%;box-sizing:border-box;padding:10px 12px;
+   border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff}}
+ .qator{{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:14px}}
+ button{{margin-top:22px;width:100%;padding:12px;border:0;border-radius:8px;
+   background:#111827;color:#fff;font-size:15px;font-weight:600;cursor:pointer}}
+ table{{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}}
+ td{{padding:5px 0;border-bottom:1px solid #f1f2f4}}
+ td:last-child{{text-align:right;font-variant-numeric:tabular-nums}}
+ a{{color:#2563eb}} code{{background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12px}}
+</style></head><body><div class="w">{tana}</div></body></html>"""
+
+
+@app.get("/tiklash", response_class=HTMLResponse)
+def tiklash_sahifa(request: Request, db: Session = Depends(get_db),
+                   current_user=Depends(auth.platform_admin_only)):
+    """Zaxira faylini yuklash formasi."""
+    from models import Order as _O, Inventory as _I, Master as _M, Project as _P
+    cid = auth.company_id_of(current_user)
+    son = {
+        "Buyurtmalar": db.query(_O).filter(_O.company_id == cid).count(),
+        "Loyihalar": db.query(_P).filter(_P.company_id == cid).count(),
+        "Ombor": db.query(_I).filter(_I.company_id == cid).count(),
+        "Ustalar": db.query(_M).filter(_M.company_id == cid).count(),
+    }
+    jadval = "".join(f"<tr><td>{k}</td><td><b>{v}</b></td></tr>" for k, v in son.items())
+    bosh = sum(son.values()) == 0
+
+    tana = f"""
+    <h1>Zaxiradan tiklash</h1>
+    <div class="sub">Korxona <b>#{cid}</b> · foydalanuvchi <b>{current_user.username}</b></div>
+
+    <div class="ogoh">
+      <b>Hozirgi holat</b>
+      <table>{jadval}</table>
+      <div style="margin-top:10px">
+        { "Korxona bo'sh — ustiga yozish belgisi kerak emas."
+          if bosh else
+          "Korxonada ma'lumot bor. Tiklash uchun <b>ustiga yozish</b> belgilanishi "
+          "va tasdiqlash so'zi kiritilishi shart. Mavjud ma'lumot <b>o'chadi</b>." }
+      </div>
+    </div>
+
+    <form method="post" action="/tiklash" enctype="multipart/form-data">
+      <label>Zaxira fayli (.json)</label>
+      <input type="file" name="file" accept=".json,application/json" required>
+
+      <div class="qator">
+        <input type="checkbox" name="replace" value="true" id="r">
+        <label for="r" style="margin:0;text-transform:none;font-weight:500;color:#1a1d21">
+          Mavjud ma'lumot ustiga yozilsin (avval tozalanadi)
+        </label>
+      </div>
+
+      <label>Tasdiqlash so'zi</label>
+      <input type="text" name="confirm" placeholder="{_TIKLASH_SOZ}" autocomplete="off">
+      <div style="font-size:12px;color:#6b7280;margin-top:5px">
+        Faqat ustiga yozishda talab qilinadi. Aynan shunday yozing:
+        <code>{_TIKLASH_SOZ}</code>
+      </div>
+
+      <button type="submit">Tiklashni boshlash</button>
+    </form>
+
+    <div style="font-size:12px;color:#6b7280;margin-top:20px">
+      Login hisoblari (<code>users</code>) tiklanmaydi — hozirgi hisoblaringiz
+      saqlanib qoladi. Boshqa korxonalarga tegilmaydi. Hammasi bitta
+      tranzaksiyada: xato bo'lsa hech narsa o'zgarmaydi.
+    </div>
+    """
+    return HTMLResponse(_tiklash_html(tana))
+
+
+@app.post("/tiklash", response_class=HTMLResponse)
+async def tiklash_bajarish(file: UploadFile = File(...),
+                           replace: str = Form(default=""),
+                           confirm: str = Form(default=""),
+                           db: Session = Depends(get_db),
+                           current_user=Depends(auth.platform_admin_only)):
+    """Formadan kelgan faylni tiklaydi va natijani sahifada ko'rsatadi."""
+    import json as _js_t
+
+    def xato(matn):
+        return HTMLResponse(_tiklash_html(
+            f'<h1>Tiklash bajarilmadi</h1><div class="xato">{matn}</div>'
+            f'<a href="/tiklash">&larr; Qaytish</a>'), status_code=400)
+
+    ustiga = str(replace).lower() in ("true", "on", "1", "yes")
+    if ustiga and confirm.strip() != _TIKLASH_SOZ:
+        return xato(f"Ustiga yozish uchun tasdiqlash so'zi kerak: <code>{_TIKLASH_SOZ}</code>")
+
+    raw = await file.read()
+    if not raw:
+        return xato("Fayl bo'sh.")
+    if len(raw) > 200 * 1024 * 1024:
+        return xato("Fayl juda katta (200 MB dan oshdi).")
+    try:
+        data = _js_t.loads(raw.decode("utf-8"))
+    except Exception as e:
+        return xato(f"JSON o'qilmadi: {e}")
+
+    try:
+        natija = crud.import_full_backup(
+            db, data, company_id=auth.company_id_of(current_user), replace=ustiga)
+    except Exception as e:
+        return xato(f"Tiklashda xato: {e}")
+
+    if not natija.get("success"):
+        return xato(natija.get("message", "Tiklash amalga oshmadi"))
+
+    per = natija.get("per_table") or {}
+    jadval = "".join(f"<tr><td>{k}</td><td><b>{v}</b></td></tr>"
+                     for k, v in sorted(per.items()) if v)
+    tashlab = natija.get("skipped_tables") or []
+
+    try:
+        crud.log_activity(db, action="Zaxiradan tiklash", entity_type="system",
+                          entity_id=0, entity_label=file.filename,
+                          performed_by=getattr(current_user, "username", None),
+                          new_value=f"ustiga_yozish={ustiga}")
+    except Exception:
+        pass
+
+    tana = (f'<h1>Tiklash yakunlandi</h1>'
+            f'<div class="ok">'
+            f'<b>{natija.get("restored_rows", 0)}</b> ta yozuv, '
+            f'<b>{natija.get("restored_tables", 0)}</b> ta jadvalga tiklandi.<br>'
+            f'Ketma-ketliklar (sequence) to\'g\'rilandi: '
+            f'<b>{natija.get("sequences_fixed", 0)}</b>'
+            + (f'<br>Tashlab ketilgan jadvallar: <code>'
+               + ", ".join(map(str, tashlab)) + "</code>" if tashlab else "")
+            + f'</div>'
+            f'<table>{jadval}</table>'
+            f'<div style="font-size:12px;color:#6b7280;margin-top:16px">'
+            f'Login hisoblari tiklanmadi — hozirgi hisobingiz bilan davom eting.</div>'
+            f'<div style="margin-top:18px"><a href="/">Bosh sahifa</a> &nbsp;\u00b7&nbsp; '
+            f'<a href="/tiklash">Tiklash sahifasi</a></div>')
+    return HTMLResponse(_tiklash_html(tana))
+
+
 @app.post("/api/system/factory-reset")
 def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
                        db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):
