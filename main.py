@@ -1065,17 +1065,24 @@ def _migrate_faza3_columns():
                             pass
                         print(f"⚠ companies.{_ust} qo'shilmadi: {_e}")
 
-            # Eng eski korxona (platforma egasi) uchun mavjud logotipni
-            # biriktiramiz — aks holda uning hujjatlari logotipsiz qolardi.
+            # Eng eski korxona (platforma egasi) uchun HOZIRGI brendni
+            # biriktiramiz — logotip, shior, manzil, telefon. Aks holda
+            # uning hujjatlari bu maydonlarsiz qolardi, chunki endi
+            # zaxira qiymatlar faqat korxona noma'lum bo'lganda
+            # ishlatiladi.
             try:
                 bor = conn.execute(text(
                     "SELECT COUNT(*) FROM companies WHERE logo_path IS NOT NULL")).scalar()
                 if not bor:
                     conn.execute(text(
-                        "UPDATE companies SET logo_path = 'static/logo_transparent.png' "
+                        "UPDATE companies SET "
+                        "  logo_path = 'static/logo_transparent.png', "
+                        "  slogan = COALESCE(slogan, 'Fasad bezaklari'), "
+                        "  address = COALESCE(address, 'Andijon'), "
+                        "  phone = COALESCE(phone, '+998 97 999 57 57') "
                         "WHERE id = (SELECT id FROM companies ORDER BY id LIMIT 1)"))
                     conn.commit()
-                    print("✓ Eng eski korxonaga umumiy logotip biriktirildi")
+                    print("✓ Eng eski korxonaga brend biriktirildi (logotip, shior, manzil, telefon)")
             except Exception as _e:
                 try:
                     conn.rollback()

@@ -44,10 +44,19 @@ def get_brand(db, company_id=None) -> dict:
         except Exception:
             pass
 
-    nom = nom or DEFAULT_NAME
-    slogan = slogan or DEFAULT_SLOGAN
-    manzil = manzil or DEFAULT_ADDRESS
-    telefon = telefon or DEFAULT_PHONE
+    # 2026-09-20 — MUHIM: zaxira qiymatlar FAQAT korxona ma'lum
+    # bo'lmaganda ishlatiladi (tizim hujjatlari). Korxona ma'lum bo'lsa-yu
+    # maydoni bo'sh bo'lsa — u BO'SH qoladi.
+    # Sabab: aks holda telefonini kiritmagan mijozning yuk xatida
+    # PLATFORMA EGASINING raqami chiqardi va uning mijozi boshqa odamga
+    # qo'ng'iroq qilardi. Logotipdagi bilan bir xil xato sinfi.
+    if company_id is None:
+        nom = nom or DEFAULT_NAME
+        slogan = slogan or DEFAULT_SLOGAN
+        manzil = manzil or DEFAULT_ADDRESS
+        telefon = telefon or DEFAULT_PHONE
+    else:
+        nom = nom or DEFAULT_NAME   # nom har doim bor (companies.name majburiy)
 
     # LOGOTIP — 2026-09-20 dagi muhim tuzatish.
     # Ilgari korxonada logotip bo'lmasa UMUMIY logotipga (platforma

@@ -107,8 +107,13 @@ def generate_nakladnoy(order, db=None) -> bytes:
 
     # 2026-09-20: logotip va nomlar korxonanikidan olinadi (bo'lmasa — umumiy)
     _brand = get_brand(db, company_id_of(order, db))
-    logo_path = _brand["logo"] or os.path.join(
-        os.path.dirname(__file__), "static", "logo_transparent.png")
+    # 2026-09-20: zaxira yo'l ATAYLAB olib tashlandi. Ilgari bu yerda
+    # `or os.path.join(..., "logo_transparent.png")` bor edi — ya'ni
+    # korxonaning logotipi bo'lmasa, PLATFORMA EGASINING logotipi
+    # qo'yilardi va yangi mijozning nakladnoyida begona logotip chiqardi
+    # (jonli sinovda aniqlandi). Logotip bo'lmasa — pastdagi `else`
+    # tarmog'i korxona NOMINI yozadi.
+    logo_path = _brand["logo"]
 
     if logo_path and os.path.exists(logo_path):
         # MUHIM (2026-08-29): endi haqiqiy shaffof fonli PNG ishlatiladi
@@ -408,7 +413,7 @@ def generate_nakladnoy(order, db=None) -> bytes:
     story.append(Spacer(1, 16*(1-cx*0.7)))
     story.append(HRFlowable(width="100%", thickness=0.5, color=LGRAY, spaceAfter=6))
     story.append(Paragraph(
-        f"PenoDecorPro ERP · Chiqarilgan: {datetime.now().strftime('%d.%m.%Y %H:%M')} · "
+        f"{_brand['name']} · Chiqarilgan: {datetime.now().strftime('%d.%m.%Y %H:%M')} · "
         f"Buyurtma: {order.order_number}",
         st["footer"]
     ))
