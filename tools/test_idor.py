@@ -360,6 +360,30 @@ for url, label in NOID:
 
 
 # ══════════════════════════════════════════════════════════════
+section("5. OPERATSION O'QISH: filtr holati to'g'ri ko'rsatiladimi")
+# ══════════════════════════════════════════════════════════════
+# 2026-09-21: Railway sozlamalarida o'zgaruvchining BORLIGI uning
+# qiymati "1" ekanini isbotlamaydi — qiymat u yerda yashirin ko'rinadi.
+# Shuning uchun `/api/system/health-check` filtr holatini qaytaradi.
+# Bu qulf o'sha o'qish HAQIQATAN muhit o'zgaruvchisiga mos kelishini
+# tekshiradi — aks holda u yolg'on xotirjamlik beradi.
+_hc = client.get("/api/system/health-check")
+check(f"GET /api/system/health-check \u2192 {_hc.status_code}",
+      _hc.status_code == 200, "o'qish ishlamadi")
+if _hc.status_code == 200:
+    _tf = _hc.json().get("tenant_filter") or {}
+    check(f"tenant_filter.enabled == {_tc.ENABLED}",
+          _tf.get("enabled") is _tc.ENABLED,
+          f"ko'rsatilgan: {_tf.get('enabled')}, amalda: {_tc.ENABLED}")
+    check("tenant_filter.stats mavjud", isinstance(_tf.get("stats"), dict),
+          f"stats yo'q: {_tf}")
+    if _tc.ENABLED:
+        check("filtr AMALDA ishlagan (filtered > 0)",
+              (_tf.get("stats") or {}).get("filtered", 0) > 0,
+              "filtr yoqilgan, lekin birorta so'rovga qo'llanmagan")
+
+
+# ══════════════════════════════════════════════════════════════
 print("\n" + "=" * 66)
 print(f"NATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 print(f"tenant_context statistikasi: {_tc.get_stats()}")
