@@ -148,11 +148,42 @@
       <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:12px">
         Bu nom chap paneldа va hujjatlarda ko'rinadi.
       </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <input type="text" id="co-name" class="input-field" maxlength="200"
-               style="width:300px" placeholder="Korxona nomi">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Nomi</label>
+          <input type="text" id="co-name" class="input-field" maxlength="200"
+                 style="width:280px" placeholder="Korxona nomi">
+        </div>
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Shiori</label>
+          <input type="text" id="co-slogan" class="input-field" maxlength="150"
+                 style="width:220px" placeholder="Fasad bezaklari">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Telefon</label>
+          <input type="text" id="co-phone" class="input-field" maxlength="60"
+                 style="width:200px" placeholder="+998 90 123 45 67">
+        </div>
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Manzil</label>
+          <input type="text" id="co-address" class="input-field" maxlength="200"
+                 style="width:220px" placeholder="Andijon">
+        </div>
         <button class="btn btn-dark btn-sm" onclick="saveCompany()">Saqlash</button>
         <span id="co-status" style="font-size:12.5px"></span>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border2)">
+        <div style="font-size:12.5px;color:var(--text3);margin-bottom:8px">
+          Logotip — yuk xati va hisobotlarda chiqadi (PNG/JPG/WEBP, 2 MB gacha)
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <img id="co-logo-preview" src="" alt="" style="display:none;height:40px;border-radius:6px;border:1px solid var(--border2)">
+          <input type="file" id="co-logo-file" accept="image/png,image/jpeg,image/webp" style="font-size:12px">
+          <button class="btn btn-sm" style="background:var(--bg);color:var(--text3)" onclick="uploadLogo()">Logotipni yuklash</button>
+          <span id="co-logo-status" style="font-size:12.5px"></span>
+        </div>
       </div>
     </div>
 
@@ -318,14 +349,45 @@ async function loadCompany() {
   try {
     const d = await fetch('/api/settings/company').then(r => r.json());
     document.getElementById('co-name').value = d.name || '';
+    document.getElementById('co-slogan').value = d.slogan || '';
+    document.getElementById('co-phone').value = d.phone || '';
+    document.getElementById('co-address').value = d.address || '';
+    const img = document.getElementById('co-logo-preview');
+    if (d.logo_path) {
+      img.src = '/' + d.logo_path + '?v=' + Date.now();
+      img.style.display = 'inline-block';
+    } else {
+      img.style.display = 'none';
+    }
   } catch (e) { /* jim */ }
+}
+
+async function uploadLogo() {
+  const inp = document.getElementById('co-logo-file');
+  const el = document.getElementById('co-logo-status');
+  if (!inp.files || !inp.files[0]) { el.innerHTML = '<span style="color:#c00">Rasm tanlang</span>'; return; }
+  const fd = new FormData();
+  fd.append('file', inp.files[0]);
+  const r = await fetch('/api/settings/company/logo', { method: 'POST', body: fd });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) {
+    el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Yuklandi</span>';
+    inp.value = '';
+    loadCompany();
+  } else {
+    el.innerHTML = '<span style="color:#c00">' + (d.detail || 'Xato') + '</span>';
+  }
 }
 
 async function saveCompany() {
   const nom = document.getElementById('co-name').value.trim();
   const el = document.getElementById('co-status');
   if (nom.length < 2) { el.innerHTML = '<span style="color:#c00">Nom juda qisqa</span>'; return; }
-  const fd = new FormData(); fd.append('name', nom);
+  const fd = new FormData();
+  fd.append('name', nom);
+  fd.append('slogan', document.getElementById('co-slogan').value.trim());
+  fd.append('phone', document.getElementById('co-phone').value.trim());
+  fd.append('address', document.getElementById('co-address').value.trim());
   const r = await fetch('/api/settings/company', { method: 'PUT', body: fd });
   if (r.ok) {
     el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
