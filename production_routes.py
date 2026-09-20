@@ -12,6 +12,7 @@ korxonasi" degan haqiqiy mantiq keladi.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import auth
@@ -45,7 +46,27 @@ def list_product_types(db: Session = Depends(get_db), current_user=Depends(auth.
 
 @router.post("/product-types", response_model=schemas.ProductTypeRead)
 def create_product_type(data: schemas.ProductTypeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    pt = ProductType(company_id=auth.company_id_of(current_user), **data.model_dump())
+    _cid = auth.company_id_of(current_user)
+    # QO'SHILDI 2026-09-20 — nom TAKRORLANMASIN.
+    # Ilgari hech qanday shart yo'q edi: bitta korxona aynan bir xil
+    # nomli ikkita tur yaratishi mumkin edi va ishlab chiqarish
+    # oynasidagi ro'yxatda ular bir xil ko'rinardi — operator qaysi
+    # biri qaysiligini ajrata olmasdi.
+    # Faqat FAOL turlar tekshiriladi: nofaol qilingan (o'chirilgan)
+    # turning nomini qayta ishlatish mumkin bo'lib qolsin.
+    _nom = (data.name or "").strip()
+    _bor = db.query(ProductType).filter(
+        ProductType.company_id == _cid,
+        ProductType.is_active == True,
+        func.lower(func.trim(ProductType.name)) == _nom.lower(),
+    ).first()
+    if _bor:
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{_nom}' nomli mahsulot turi allaqachon bor. Boshqa nom tanlang.")
+    _payload = data.model_dump()
+    _payload["name"] = _nom
+    pt = ProductType(company_id=_cid, **_payload)
     db.add(pt)
     db.commit()
     db.refresh(pt)
@@ -81,10 +102,23 @@ def create_bom(data: schemas.BOMCreate, db: Session = Depends(get_db), current_u
     pt = db.query(ProductType).filter(ProductType.id == data.product_type_id, ProductType.company_id == auth.company_id_of(current_user)).first()
     if not pt:
         raise HTTPException(status_code=404, detail="Mahsulot turi topilmadi")
+    # QO'SHILDI 2026-09-20 — variant nomi ham TAKRORLANMASIN (yuqoridagi
+    # bilan bir xil sabab: ro'yxatda ikkita "Standart" ajralmaydi).
+    _vnom = (data.variant_name or "Standart").strip()
+    _bor = db.query(BOM).filter(
+        BOM.product_type_id == pt.id,
+        BOM.company_id == auth.company_id_of(current_user),
+        BOM.is_active == True,
+        func.lower(func.trim(BOM.variant_name)) == _vnom.lower(),
+    ).first()
+    if _bor:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bu mahsulotda '{_vnom}' nomli retsept allaqachon bor. Boshqa nom tanlang.")
     bom = BOM(
         company_id=auth.company_id_of(current_user),
         product_type_id=pt.id,
-        variant_name=data.variant_name,
+        variant_name=_vnom,
         batch_quantity=data.batch_quantity,
         notes=data.notes,
     )
@@ -107,7 +141,19 @@ def update_bom(bom_id: int, data: schemas.BOMCreate, db: Session = Depends(get_d
     bom = db.query(BOM).filter(BOM.id == bom_id, BOM.company_id == auth.company_id_of(current_user)).first()
     if not bom:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
-    bom.variant_name = data.variant_name
+    _vnom = (data.variant_name or "Standart").strip()
+    _bor = db.query(BOM).filter(
+        BOM.product_type_id == bom.product_type_id,
+        BOM.company_id == auth.company_id_of(current_user),
+        BOM.is_active == True,
+        BOM.id != bom.id,
+        func.lower(func.trim(BOM.variant_name)) == _vnom.lower(),
+    ).first()
+    if _bor:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bu mahsulotda '{_vnom}' nomli boshqa retsept bor. Boshqa nom tanlang.")
+    bom.variant_name = _vnom
     bom.batch_quantity = data.batch_quantity
     bom.notes = data.notes
     db.query(BOMItem).filter(BOMItem.bom_id == bom.id, BOMItem.company_id == auth.company_id_of(current_user)).delete()
