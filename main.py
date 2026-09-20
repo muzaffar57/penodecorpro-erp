@@ -3595,6 +3595,72 @@ def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
     return {"status": "ok", "message": msg, "deleted": result}
 
 
+@app.post("/api/system/restore")
+async def api_system_restore(
+    file: UploadFile = File(...),
+    replace: bool = False,
+    confirm: str = "",
+    db: Session = Depends(get_db),
+    current_user=Depends(auth.admin_only),
+):
+    """Zaxira nusxa (JSON) faylidan bazani tiklaydi.
+
+    - `replace=false` (sukut): baza bo'sh bo'lmasa RAD ETADI.
+    - `replace=true`: mavjud ma'lumot o'chirilib, ustiga yoziladi —
+      shu holatda `confirm=TIKLASHNI-TASDIQLAYMAN` ham talab qilinadi.
+    - Login hisoblari (`users`) TIKLANMAYDI — hozirgi hisoblar saqlanadi,
+      aks holda tiklashdan keyin tizimga kira olmay qolish xavfi bor.
+    - Hammasi bitta tranzaksiyada: xato chiqsa hech narsa o'zgarmaydi.
+    """
+    import json as _js
+
+    REQUIRED_PHRASE = "TIKLASHNI-TASDIQLAYMAN"
+    if replace and confirm != REQUIRED_PHRASE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ustiga yozish uchun ?replace=true&confirm={REQUIRED_PHRASE} "
+                   "qo'shing. DIQQAT: mavjud ma'lumot o'chiriladi!"
+        )
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Fayl bo'sh.")
+    if len(raw) > 200 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Fayl juda katta (200 MB dan oshdi).")
+
+    try:
+        data = _js.loads(raw.decode("utf-8"))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"JSON o'qilmadi: {e}")
+
+    try:
+        result = crud.import_full_backup(db, data, replace=replace)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tiklashda xato: {e}")
+
+    try:
+        crud.log_activity(
+            db,
+            action="Zaxiradan tiklash",
+            entity_type="system",
+            entity_id=0,
+            entity_label=file.filename,
+            performed_by=getattr(current_user, "username", None),
+            new_value=f"{result.get('jami_yozuv')} yozuv tiklandi, replace={replace}",
+        )
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "message": f"Tiklandi: {result.get('jami_yozuv')} ta yozuv. "
+                   "Login hisoblari o'zgarmadi.",
+        "natija": result,
+    }
+
+
 @app.get("/kpi", response_class=HTMLResponse)
 async def kpi_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Ustalar yillik KPI va moslashuvchan hodim to'lovi sahifasi."""

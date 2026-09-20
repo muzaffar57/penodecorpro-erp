@@ -2992,6 +2992,197 @@ def export_full_backup(db: Session) -> dict:
     }
 
 
+# ============================================================
+# ZAXIRADAN TIKLASH  (2026-09-20)
+# ============================================================
+
+def _backup_table_order():
+    """Jadvallarni TO'G'RI tartibda qaytaradi: avval "ota", keyin "bola".
+
+    Tartib QO'LDA yozilmaydi — SQLAlchemy'ning o'zi ForeignKey'lar asosida
+    hisoblab beradi (`metadata.sorted_tables`). Sabab: qo'lda yozilgan
+    ro'yxat vaqt o'tishi bilan eskiradi va yangi jadval unutilib qoladi.
+
+    Qaytaradi: [(jadval_nomi, Table obyekti), ...] — INSERT tartibida.
+    O'CHIRISH uchun shu ro'yxatni teskarisiga o'qish kerak.
+    """
+    import models as _models
+    return [(t.name, t) for t in _models.Base.metadata.sorted_tables]
+
+
+# Tiklashda UMUMAN tegilmaydigan jadvallar.
+#   users            — mavjud login hisoblari saqlanib qoladi, aks holda
+#                      tiklashdan keyin tizimga kira olmay qolish xavfi bor
+#   *_sessions       — zaxirada yo'q (xavfsizlik uchun ataylab chiqarilgan)
+RESTORE_SKIP_TABLES = {"users", "user_sessions", "employee_sessions"}
+
+
+def import_full_backup(db: Session, data: dict, replace: bool = False) -> dict:
+    """`export_full_backup()` chiqargan JSON dan bazani TIKLAYDI.
+
+    - Barcha ish BITTA tranzaksiyada: biror joyda xato chiqsa, HECH NARSA
+      o'zgarmaydi (to'liq rollback).
+    - `id` lar asl holida saqlanadi, keyin Postgres ketma-ketliklari
+      (sequence) to'g'rilanadi — aks holda keyingi yangi yozuv "duplicate
+      key" xatosini beradi.
+    - `replace=False` (sukut bo'yicha): baza bo'sh bo'lmasa, RAD ETADI.
+      Tasodifan ustiga yozib yuborishning oldini oladi.
+    - `replace=True`: avval mavjud yozuvlar o'chiriladi (teskari tartibda),
+      keyin zaxiradagilari yoziladi.
+    """
+    import decimal
+    from datetime import datetime as _dt
+    from enum import Enum as _PyEnum
+    import sqlalchemy as _sa
+
+    if not isinstance(data, dict) or "tables" not in data:
+        raise ValueError(
+            "Fayl formati noto'g'ri — bu PenoDecorPro zaxira nusxasi emas "
+            "('tables' bo'limi topilmadi)."
+        )
+
+    tables_data = data["tables"]
+    if not isinstance(tables_data, dict):
+        raise ValueError("Fayl formati noto'g'ri — 'tables' bo'limi obyekt emas.")
+
+    order = _backup_table_order()
+    known = {name for name, _ in order}
+
+    # ── Faylni oldindan tekshiramiz ────────────────────────────────────
+    notanish = sorted(set(tables_data.keys()) - known)
+    fayldagi_yozuv = sum(
+        len(v) for v in tables_data.values() if isinstance(v, list)
+    )
+    if fayldagi_yozuv == 0:
+        raise ValueError("Zaxira fayli bo'sh — tiklaydigan yozuv yo'q.")
+
+    # ── Baza bo'shmi? ──────────────────────────────────────────────────
+    mavjud = {}
+    for name, table in order:
+        if name in RESTORE_SKIP_TABLES:
+            continue
+        n = db.execute(_sa.select(_sa.func.count()).select_from(table)).scalar() or 0
+        if n:
+            mavjud[name] = n
+
+    if mavjud and not replace:
+        raise ValueError(
+            "Baza bo'sh emas — tiklash to'xtatildi. Mavjud ma'lumot: "
+            + ", ".join(f"{k}={v}" for k, v in sorted(mavjud.items()))
+            + ". Ustiga yozish uchun 'replace' belgisini yoqing."
+        )
+
+    # ── Qiymatlarni baza turlariga moslash ─────────────────────────────
+    def moslash(column, v):
+        if v is None:
+            return None
+        t = column.type
+
+        # Enum: zaxiraga .value yozilgan ("ready"), bazada esa NOM
+        # saqlanadi ("READY") — shuning uchun qiymatdan a'zoga qaytaramiz.
+        enum_class = getattr(t, "enum_class", None)
+        if enum_class is not None:
+            if isinstance(v, enum_class):
+                return v
+            for a in enum_class:
+                if a.value == v:
+                    return a
+            for a in enum_class:
+                if a.name == v:
+                    return a
+            raise ValueError(
+                f"{column.table.name}.{column.name}: '{v}' qiymati "
+                f"{enum_class.__name__} ro'yxatida yo'q."
+            )
+
+        if isinstance(t, _sa.DateTime) and isinstance(v, str):
+            return _dt.fromisoformat(v)
+        if isinstance(t, _sa.Date) and isinstance(v, str):
+            return _dt.fromisoformat(v).date()
+        if isinstance(t, _sa.Numeric) and not isinstance(t, _sa.Float) \
+                and isinstance(v, (int, float)):
+            return decimal.Decimal(str(v))
+        if isinstance(v, _PyEnum):
+            return v.value
+        return v
+
+    natija = {
+        "tiklangan_jadvallar": {},
+        "o_chirilgan_yozuvlar": 0,
+        "tashlab_ketilgan_jadvallar": sorted(RESTORE_SKIP_TABLES & known),
+        "faylda_bor_bazada_yo_q_jadvallar": notanish,
+        "tuzatilgan_sequence": 0,
+        "ogohlantirishlar": [],
+    }
+
+    try:
+        # ── 1. Eski ma'lumotni tozalash (teskari tartibda: bola avval) ──
+        if replace:
+            for name, table in reversed(order):
+                if name in RESTORE_SKIP_TABLES:
+                    continue
+                r = db.execute(table.delete())
+                natija["o_chirilgan_yozuvlar"] += r.rowcount or 0
+
+        # ── 2. Yozish (to'g'ri tartibda: ota avval) ─────────────────────
+        for name, table in order:
+            if name in RESTORE_SKIP_TABLES:
+                continue
+            rows = tables_data.get(name)
+            if not rows:
+                continue
+
+            cols = {c.name: c for c in table.columns}
+            tayyor = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                yangi = {}
+                for k, v in row.items():
+                    col = cols.get(k)
+                    if col is None:
+                        continue   # faylda bor, bazada yo'q ustun — tashlab ketamiz
+                    yangi[k] = moslash(col, v)
+                if yangi:
+                    tayyor.append(yangi)
+
+            if tayyor:
+                db.execute(table.insert(), tayyor)
+                natija["tiklangan_jadvallar"][name] = len(tayyor)
+
+            yetishmayotgan = set(rows[0].keys()) - set(cols) if rows and isinstance(rows[0], dict) else set()
+            if yetishmayotgan:
+                natija["ogohlantirishlar"].append(
+                    f"{name}: fayldagi {sorted(yetishmayotgan)} ustun(lar) bazada yo'q, tashlab ketildi"
+                )
+
+        # ── 3. Sequence'larni to'g'rilash (faqat PostgreSQL) ────────────
+        if db.bind.dialect.name == "postgresql":
+            for name, table in order:
+                if name in RESTORE_SKIP_TABLES:
+                    continue
+                pk = [c for c in table.primary_key.columns]
+                if len(pk) != 1 or not isinstance(pk[0].type, _sa.Integer):
+                    continue
+                col = pk[0].name
+                db.execute(_sa.text(f"""
+                    SELECT setval(
+                        pg_get_serial_sequence('{name}', '{col}'),
+                        COALESCE((SELECT MAX({col}) FROM {name}), 1),
+                        (SELECT MAX({col}) FROM {name}) IS NOT NULL
+                    ) WHERE pg_get_serial_sequence('{name}', '{col}') IS NOT NULL
+                """))
+                natija["tuzatilgan_sequence"] += 1
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    natija["jami_yozuv"] = sum(natija["tiklangan_jadvallar"].values())
+    return natija
+
+
 def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
     """DIQQAT: BU QAYTARIB BO'LMAYDIGAN AMAL!
     Foydalanuvchilar (User) dan TASHQARI — barcha ma'lumotni butunlay o'chiradi:
