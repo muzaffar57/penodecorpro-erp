@@ -13,7 +13,8 @@ Uchta daraja bor:
               bo'lmaydi. Bular ATAYLAB qattiq kodda qoladi.
   IXTIYORIY — termopanel / gips / loy_sotish. Sozlanmagan korxonada
               yoqiq (eski xatti-harakat buzilmasin).
-  ESKIRGAN  — blok. Faqat ATAYLAB yoqilganda ko'rinadi. O'rniga MRP.
+  ESKIRGAN  — blok / gips / termopanel. Faqat ATAYLAB yoqilganda
+              ko'rinadi. O'rniga MRP dan o'z turingizni yaratasiz.
 
 ISHLATISH
 ---------
@@ -72,7 +73,8 @@ eskirgan = set(main._ESKIRGAN_KATEGORIYALAR)
 check("asosiy = profil, panel, dona", asosiy == {"profil", "panel", "dona"})
 check("blok endi asosiy EMAS", "blok" not in asosiy)
 check("blok ixtiyoriylar ichida", "blok" in ixtiyoriy)
-check("blok eskirgan deb belgilangan", eskirgan == {"blok"})
+check("eskirganlar = blok, gips, termopanel",
+      eskirgan == {"blok", "gips", "termopanel"})
 check("eskirganlar ixtiyoriylarning ichida", eskirgan <= ixtiyoriy)
 check("asosiy va ixtiyoriy kesishmaydi", not (asosiy & ixtiyoriy))
 
@@ -82,10 +84,10 @@ bolim("B. Hech qachon sozlanmagan korxona")
 # ════════════════════════════════════════════════════════════════
 for k in ("profil", "panel", "dona"):
     check(f"{k} — ko'rinadi (asosiy)", main.cat_on(k, 1) is True)
-for k in ("termopanel", "gips", "loy_sotish"):
-    check(f"{k} — ko'rinadi (eski xatti-harakat saqlandi)",
-          main.cat_on(k, 1) is True)
-check("blok — KO'RINMAYDI (eskirgan)", main.cat_on("blok", 1) is False)
+check("loy_sotish — ko'rinadi (hali eskirmagan)",
+      main.cat_on("loy_sotish", 1) is True)
+for k in ("blok", "gips", "termopanel"):
+    check(f"{k} — KO'RINMAYDI (eskirgan)", main.cat_on(k, 1) is False)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -94,8 +96,8 @@ bolim("C. Korxona blokni ATAYLAB yoqsa")
 crud.set_setting(db, "enabled_categories", "blok,gips", company_id=1)
 main._clear_category_cache(1)
 check("blok — endi ko'rinadi", main.cat_on("blok", 1) is True)
-check("gips — ko'rinadi", main.cat_on("gips", 1) is True)
-check("termopanel — endi ko'rinmaydi (ro'yxatda yo'q)",
+check("gips — endi ko'rinadi", main.cat_on("gips", 1) is True)
+check("termopanel — ko'rinmaydi (ro'yxatda yo'q)",
       main.cat_on("termopanel", 1) is False)
 check("loy_sotish — ko'rinmaydi", main.cat_on("loy_sotish", 1) is False)
 check("profil — baribir ko'rinadi (asosiy, o'chirib bo'lmaydi)",
@@ -108,8 +110,9 @@ bolim("D. Sozlama korxonaga xos (tenant)")
 main._clear_category_cache(2)
 check("B korxonada blok — hamon ko'rinmaydi",
       main.cat_on("blok", 2) is False)
-check("B korxonada termopanel — ko'rinadi (u sozlamagan)",
-      main.cat_on("termopanel", 2) is True)
+check("B korxonada gips ham ko'rinmaydi", main.cat_on("gips", 2) is False)
+check("B korxonada loy_sotish — ko'rinadi (u sozlamagan)",
+      main.cat_on("loy_sotish", 2) is True)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -126,18 +129,35 @@ for k in ("profil", "panel", "dona"):
 # ════════════════════════════════════════════════════════════════
 bolim("F. Shablonlar shartni haqiqatan qo'llaydimi")
 # ════════════════════════════════════════════════════════════════
-for fayl, nechta in (("orders.html", 2), ("finished.html", 2)):
-    yol = os.path.join(ROOT, "templates", fayl)
-    matn = open(yol, encoding="utf-8").read()
-    shartli = matn.count("cat_on('blok'")
-    check(f"{fayl} — blok tanlovlari shartga o'ralgan ({shartli} ta)",
-          shartli >= nechta)
-    # Shartsiz qolgan blok tugmasi bo'lmasligi kerak
-    import re as _re
-    ochiq = [ln for ln in matn.splitlines()
-             if 'data-value="blok"' in ln and "cat_on('blok'" not in ln
-             and ".type-opt.active" not in ln and "fp-cat-opt" not in ln]
-    check(f"{fayl} — shartsiz blok tugmasi qolmadi", not ochiq)
+import glob as _glob
+for turkum in ("blok", "gips", "termopanel"):
+    ochiq_jami = []
+    for yol in _glob.glob(os.path.join(ROOT, "templates", "*.html")):
+        matn = open(yol, encoding="utf-8").read()
+        for ln in matn.splitlines():
+            if f'data-value="{turkum}"' not in ln and f'value="{turkum}"' not in ln:
+                continue
+            if f"cat_on('{turkum}'" in ln:
+                continue
+            if ".type-opt.active" in ln:
+                continue   # CSS qoidasi, tugma emas
+            if os.path.basename(yol) == "kpi.html":
+                # `kpi.html` dagi "blok" / "metr" / "dona" — HODIM TO'LOV
+                # BIRLIGI (`Employee.per_unit_type`), buyurtma turkumi EMAS.
+                # Usta blok kesgani uchun haq oladi — bu turkum yashirilishi
+                # bilan hech qanday aloqasi yo'q va tegilmasligi SHART.
+                continue
+            ochiq_jami.append(os.path.basename(yol) + ": " + ln.strip()[:70])
+    check(f"{turkum} — shartsiz qolgan UI joyi yo'q"
+          + (f" ({ochiq_jami[:1]})" if ochiq_jami else ""), not ochiq_jami)
+
+# Yuqoridagi istisno ATAYLAB: kpi.html dagi "blok" hodim to'lov birligi.
+# Agar u kelajakda turkum tanloviga aylanib qolsa — shu tekshiruv buni
+# ushlaydi (select nomi o'zgarsa yiqiladi).
+kpi = open(os.path.join(ROOT, "templates", "kpi.html"), encoding="utf-8").read()
+check("kpi.html dagi 'blok' — hodim to'lov birligi selectida",
+      'id="e-unittype"' in kpi
+      and kpi.index('id="e-unittype"') < kpi.index('<option value="blok">'))
 
 # Jinja shablonlari hamon o'qiladimi
 from jinja2 import Environment, FileSystemLoader  # noqa: E402
@@ -190,6 +210,28 @@ check("eski blok — birligi metr", it.delivery_unit == "metr")
 r = services.calculate_order_profit(db, o.id, company_id=1)
 check("eski blok — tan narxi hisoblanadi",
       abs(r["tan_narxi"] - 3.5 * (800000 / 1.4)) < 0.01)
+
+# Gips va termopanel yozuvlari ham buzilmasligi SHART
+o2 = Order(company_id=1, order_number="K-002", project_id=loyiha.id,
+           order_type=OrderType.PRODUCT, total_amount=0, agreed_amount=0)
+db.add(o2)
+db.flush()
+g_it = OrderItem(company_id=1, order_id=o2.id, name="Eski gips",
+                 category="gips", quantity=40, unit_price=15000,
+                 total_price=600000, is_coated=False, gips_unit="m2")
+t_it = OrderItem(company_id=1, order_id=o2.id, name="Eski termopanel",
+                 category="termopanel", quantity=25, unit_price=90000,
+                 total_price=2250000, is_coated=True)
+db.add_all([g_it, t_it])
+db.commit()
+check("eski gips — miqdor 40", g_it.order_qty_normalized == 40.0)
+check("eski gips — birligi m² (gips_unit dan)", g_it.delivery_unit == "m²")
+check("eski gips — penoplast hajmi 0",
+      services._item_volume_m3(db, g_it) == 0.0)
+check("eski termopanel — miqdor 25", t_it.order_qty_normalized == 25.0)
+check("eski termopanel — birligi m²", t_it.delivery_unit == "m²")
+check("eski termopanel — penoplast hajmi 0",
+      services._item_volume_m3(db, t_it) == 0.0)
 
 
 # ════════════════════════════════════════════════════════════════
