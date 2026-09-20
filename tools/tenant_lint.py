@@ -80,11 +80,33 @@ def _load_models():
 
 
 def _enclosing_function(tree_lines, lineno):
+    """Qatorni O'RAB turgan funksiya nomi.
+
+    ⚠ 2026-09-21: ilgari eng yaqin `def` olinardi, OTSTUP hisobga
+    olinmasdi. Natijada ichki (nested) yordamchi funksiyadan KEYINGI
+    kod o'sha ichki funksiyaga tegishli deb belgilanardi — masalan
+    `crud.py` dagi `_scoped(q)` dan keyingi hamma narsa.
+    """
+    qator = tree_lines[lineno - 1] if 0 < lineno <= len(tree_lines) else ""
+    otstup = len(qator) - len(qator.lstrip()) if qator.strip() else 10**6
     for i in range(lineno - 1, -1, -1):
         s = tree_lines[i]
-        m = re.match(r"\s*(?:async\s+)?def\s+(\w+)", s)
-        if m:
-            return m.group(1)
+        m = re.match(r"(\s*)(?:async\s+)?def\s+(\w+)", s)
+        if not m or len(m.group(1)) >= otstup:
+            continue
+        # Nomzod `def` HAQIQATAN o'rab turibdimi? Agar oralig'ida shu
+        # `def` dan chuqur bo'lmagan qator bo'lsa — u tanasi tugagan,
+        # demak bizning qator unga tegishli emas (ichki yordamchidan
+        # KEYINGI kod holati).
+        chek = len(m.group(1))
+        oraliq_uzildi = False
+        for j in range(i + 1, lineno - 1):
+            q = tree_lines[j]
+            if q.strip() and (len(q) - len(q.lstrip())) <= chek:
+                oraliq_uzildi = True
+                break
+        if not oraliq_uzildi:
+            return m.group(2)
     return "?"
 
 
@@ -114,6 +136,96 @@ def _kod_faqat(lines):
         else:
             natija.append(l.split("#")[0])
     return natija
+
+
+def _oramchilar(lines):
+    """Shu fayldagi "tenant o'ramchi" funksiyalari.
+
+    Loyihada keng tarqalgan naqsh: `def _oc(q): return q.filter(
+    Order.company_id == company_id) if company_id is not None else q`.
+    Bunday yordamchiga berilgan so'rov CHEKLANGAN hisoblanadi. Nomlar
+    qattiq kodga yozilmaydi — tanasida `company_id` bor va bitta
+    argument qabul qiladigan har qanday funksiya shunday deb tanaladi.
+    """
+    natija = set()
+    for i, l in enumerate(lines):
+        m = re.match(r"(\s*)def\s+(\w+)\(\s*\w+\s*\)\s*:", l)
+        if not m:
+            continue
+        chek = len(m.group(1))
+        tana = []
+        for j in range(i + 1, min(i + 8, len(lines))):
+            if lines[j].strip() and (len(lines[j]) - len(lines[j].lstrip())) <= chek:
+                break
+            tana.append(lines[j])
+        if "company_id" in "\n".join(tana):
+            natija.add(m.group(2))
+    return natija
+
+
+def _funksiya_tanasi(lines, i):
+    """`i` qatori tushgan funksiyaning (boshlanish, tugash) chegarasi."""
+    bosh = 0
+    chek = 0
+    for j in range(i, -1, -1):
+        m = re.match(r"(\s*)(?:async\s+)?def\s+\w+", lines[j])
+        if m:
+            bosh, chek = j, len(m.group(1))
+            break
+    oxir = len(lines)
+    for j in range(bosh + 1, len(lines)):
+        s = lines[j]
+        if not s.strip():
+            continue
+        otstup = len(s) - len(s.lstrip())
+        if otstup <= chek and re.match(r"\s*(?:async\s+)?def\s+\w+|\s*class\s+\w+", s):
+            oxir = j
+            break
+    return bosh, oxir
+
+
+def _filtrlanganmi(kod, i, zanjir, var, bosh, oxir, oramchilar=()):
+    """So'rov korxona bo'yicha cheklanganmi?
+
+    ⚠ 2026-09-21 — bu tekshiruv QAYTA YOZILDI. Eski versiya so'rov
+    atrofidagi 12 qatorda `company_id` so'zini qidirardi va u so'z QAYSI
+    so'rovga tegishli ekanini ajratmasdi. Mutatsiya bilan isbotlangan:
+    `calculate_order_profit` ichiga qo'yilgan haqiqiy filtrsiz
+    `db.query(Inventory)` darvozaga UMUMAN ko'rinmasdi, chunki yonida
+    BOSHQA so'rovning (`_oq`) qonuniy `company_id` filtri turardi.
+
+    Endi filtr SHU so'rovning o'z zanjirida yoki SHU o'zgaruvchiga
+    bog'langan keyingi amalda bo'lishi shart — buning evaziga qidiruv
+    oynasi 12 qatordan BUTUN FUNKSIYA TANASIGA kengaytirildi, shunda
+    qonuniy "ikki bosqichli" naqsh soxta ogohlantirish bermaydi.
+    """
+    # 1) so'rovning o'z zanjirida
+    if "company_id" in zanjir:
+        return True
+    # 2) loyihadagi tayyor tenant o'ramchilari
+    if re.search(r"_scope\(|_scoped\(|_tenant_filter\(", zanjir):
+        return True
+    for _o in oramchilar:
+        if re.search(rf"\b{re.escape(_o)}\(", zanjir):
+            return True
+    if not var:
+        return False
+    tana = "\n".join(kod[bosh:oxir])
+    # 3) shu o'zgaruvchiga bog'langan keyingi cheklov
+    for naqsh in (
+        rf"\b{re.escape(var)}\s*=\s*[^\n]*\b{re.escape(var)}\b[^\n]*company_id",
+        rf"\b{re.escape(var)}\s*=\s*(?:_scope|_scoped|_tenant_filter)\(\s*{re.escape(var)}\b",
+        rf"\b{re.escape(var)}\s*=\s*{re.escape(var)}\.join\([^\n]*\n?[^\n]*company_id",
+        rf"\b{re.escape(var)}\.filter\([^)]*company_id",
+    ):
+        if re.search(naqsh, tana):
+            return True
+    # 4) ko'p qatorli zanjir: `var = var.join(...)` dan keyingi qatorda filtr
+    for m in re.finditer(rf"\b{re.escape(var)}\s*=\s*{re.escape(var)}\b", tana):
+        parcha = tana[m.start():m.start() + 400]
+        if "company_id" in parcha.split("\n\n")[0]:
+            return True
+    return False
 
 
 def scan():
@@ -164,16 +276,32 @@ def scan():
                     write_issues.append(f"{fname}:{i+1} {model}() — company_id berilmagan (funksiya: {fn})")
 
         # --- 2) O'QISH: tenant modeli bo'yicha filtrsiz so'rov ---
-        for i, line in enumerate(lines):
+        # ⚠ kod_lines ustida yuriladi: docstringdagi MISOL kod
+        # (masalan `auth.py` dagi ishlatilish namunasi) so'rov emas.
+        oramchilar = _oramchilar(kod_lines)
+        for i, line in enumerate(kod_lines):
             for m in re.finditer(r"db\.query\(\s*([A-Za-z_]\w*)", line):
                 model = m.group(1)
                 if model not in tenant_any:
                     continue
-                stmt = "\n".join(kod_lines[max(0, i - 3):i + 9])
-                if "company_id" in stmt:
-                    continue
                 fn = _enclosing_function(lines, i + 1)
                 if fn in ALLOW_FUNCTIONS:
+                    continue
+                # so'rovning O'Z zanjiri (qavslar yopilib, nuqta davom etmaguncha)
+                zanjir, depth = "", 0
+                for j in range(i, min(i + 20, len(kod_lines))):
+                    zanjir += kod_lines[j] + "\n"
+                    depth += kod_lines[j].count("(") - kod_lines[j].count(")")
+                    keyingi = kod_lines[j + 1].strip() if j + 1 < len(kod_lines) else ""
+                    if depth <= 0 and not keyingi.startswith("."):
+                        break
+                # so'rov qaysi o'zgaruvchiga berilyapti
+                var = None
+                mv = re.match(r"\s*([A-Za-z_]\w*)\s*=\s*$", line[:m.start()])
+                if mv:
+                    var = mv.group(1)
+                bosh, oxir = _funksiya_tanasi(kod_lines, i)
+                if _filtrlanganmi(kod_lines, i, zanjir, var, bosh, oxir, oramchilar):
                     continue
                 # ⚠ 2026-09-21: xabarga SO'ROV MATNINING o'zi ham qo'shiladi.
                 # Ilgari kalit faqat (fayl, model, funksiya) edi va qator

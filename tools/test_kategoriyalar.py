@@ -115,26 +115,26 @@ crud.set_setting(db, "enabled_categories", "blok,gips", company_id=1)
 main._clear_category_cache(1)
 check("blok — endi ko'rinadi", main.cat_on("blok", 1) is True)
 
-# ⚠⚠ HOZIRGI HOLAT QULFI — bu ISTALGAN xatti-harakat EMAS, QAROR KUTILMOQDA
-# (2026-09-21 da o'lchangan). `cat_on` sozlama satridagi ISTALGAN so'zga
-# True qaytaradi — u so'z hali mavjud turkummi yoki yo'qmi, tekshirmaydi.
+# ⚠⚠ TUZATILDI (2026-09-21). Ilgari `cat_on` sozlama satridagi ISTALGAN
+# so'zga True qaytarardi — u so'z hali mavjud turkummi, tekshirmasdi.
 # Natijada 11.2b dan OLDIN yozilgan `enabled_categories` satrida "gips"
-# qolgan korxonada gips shoxlari QAYTIB KELADI, ammo admin uni sozlamalar
-# sahifasida KO'RMAYDI ham, O'CHIRA ham olmaydi — chunki u ro'yxatdan
-# chiqarilgan. Xuddi shu holat `termopanel` (11.2a) uchun ham amal qiladi.
-check("gips — eski sozlama satri uni QAYTARADI (kutilayotgan qaror)",
-      main.cat_on("gips", 1) is True)
+# qolgan korxonada gips shoxlari QAYTIB KELARDI, ammo admin uni sozlamalar
+# sahifasida ko'rmagani uchun O'CHIRA HAM OLMASDI. Endi noma'lum so'z
+# e'tiborsiz qoldiriladi va sozlama o'zi-o'zidan tozalanadi.
+check("gips — eski sozlama satri uni QAYTARMAYDI",
+      main.cat_on("gips", 1) is False)
+check("gips — yoqilganlar to'plamiga ham tushmaydi",
+      "gips" not in main.enabled_categories_of(1))
 
-# Xuddi shu tuzoq `termopanel` da ham borligini O'LCHAB ko'rsatamiz:
-# quyidagi ikki qator sozlamaga termopanelni ATAYLAB qo'yadi.
+# Xuddi shu himoya `termopanel` da ham ishlashini O'LCHAB ko'rsatamiz:
 crud.set_setting(db, "enabled_categories", "blok,gips,termopanel", company_id=1)
 main._clear_category_cache(1)
-check("termopanel — eski satrda bo'lsa U HAM qaytadi",
-      main.cat_on("termopanel", 1) is True)
+check("termopanel — eski satrda bo'lsa HAM qaytmaydi",
+      main.cat_on("termopanel", 1) is False)
+check("blok — o'sha satrdagi HAQIQIY turkum esa ishlaydi",
+      main.cat_on("blok", 1) is True)
 crud.set_setting(db, "enabled_categories", "blok,gips", company_id=1)
 main._clear_category_cache(1)
-check("termopanel — satrda bo'lmasa qaytmaydi",
-      main.cat_on("termopanel", 1) is False)
 
 _ruxsat = {k for k, _ in main.IXTIYORIY_KATEGORIYALAR}
 check("gips — admin sozlama ro'yxatida YO'Q (o'chira olmaydi)",
