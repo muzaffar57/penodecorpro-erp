@@ -3419,8 +3419,7 @@ function toggleFields(row) {
   }
 
   // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
-  [tBazaltW, tSerpW, tKleyW, tLoyW, lsRecipeW, gipsUnitW, donaYieldW].forEach(el => { if (el) el.style.display = 'none'; });
-  if (termoXomashyoGrp) termoXomashyoGrp.style.display = 'none';
+  [lsRecipeW, gipsUnitW, donaYieldW].forEach(el => { if (el) el.style.display = 'none'; });
   if (penoField) penoField.style.display = '';
 
   // "Ichki qo'shimcha detal" — faqat Profil (karniz) turida ko'rinadi
