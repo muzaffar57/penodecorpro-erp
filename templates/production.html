@@ -110,6 +110,24 @@
         <input type="text" id="pt-f-fixed-price" placeholder="0">
       </div>
     </div>
+    <div class="mf-group">
+      <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="pt-f-supports-coating" style="width:auto;height:auto"
+               onchange="toggleCoatingField()">
+        Qoplama bo'lishi mumkin
+      </label>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">
+        Yoqilsa, buyurtmada bu mahsulot uchun "Qoplama" tugmasi chiqadi.
+      </div>
+    </div>
+    <div class="mf-group" id="pt-coating-wrap" style="display:none">
+      <label>Qoplama narx koeffitsiyenti</label>
+      <input type="text" id="pt-f-coating-mult" placeholder="2 yoki 2.5">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">
+        Qoplamali detalning narxi shu songa ko'paytiriladi. Xomashyosi esa
+        retseptdagi "qoplama" qatoridan olinadi.
+      </div>
+    </div>
     <div class="mf-group"><label>Izoh (ixtiyoriy)</label><textarea id="pt-f-notes" rows="2"></textarea></div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn btn-dark w-full" onclick="saveProductType()">Saqlash</button>
@@ -170,6 +188,11 @@
       <select id="po-f-source-order-item"><option value="">— Avval mahsulot turini tanlang —</option></select>
       <div id="po-source-order-hint" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
     </div>
+    <div class="mf-group" id="po-optional-wrap" style="display:none">
+      <label>Ixtiyoriy tarkiblar</label>
+      <div id="po-optional-list"></div>
+      <div id="po-optional-hint" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+    </div>
     <div class="mf-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="po-f-notes"></div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn btn-dark w-full" onclick="saveProductionOrder()">Yaratish (qoralama)</button>
@@ -222,6 +245,9 @@ function openProductTypeModal(){
   document.getElementById('pt-f-pricing-formula').value = 'unit_based';
   document.getElementById('pt-f-fixed-price').value = '';
   document.getElementById('pt-f-notes').value = '';
+  document.getElementById('pt-f-supports-coating').checked = false;
+  document.getElementById('pt-f-coating-mult').value = '';
+  toggleCoatingField();
   toggleFixedPriceField();
   openModalEl('pt-modal');
 }
@@ -229,6 +255,13 @@ function openProductTypeModal(){
 function toggleFixedPriceField(){
   const isFixed = document.getElementById('pt-f-pricing-formula').value === 'fixed_price';
   document.getElementById('pt-fixed-price-wrap').style.display = isFixed ? 'block' : 'none';
+}
+
+function toggleCoatingField(){
+  const on = document.getElementById('pt-f-supports-coating').checked;
+  document.getElementById('pt-coating-wrap').style.display = on ? '' : 'none';
+  const el = document.getElementById('pt-f-coating-mult');
+  if (on && !el.value) el.value = '2';
 }
 
 async function saveProductType(){
@@ -240,6 +273,9 @@ async function saveProductType(){
     input_template: document.getElementById('pt-f-input-template').value,
     pricing_formula: document.getElementById('pt-f-pricing-formula').value,
     fixed_unit_price: document.getElementById('pt-f-fixed-price').value ? parseFloat(document.getElementById('pt-f-fixed-price').value) : null,
+    supports_coating: document.getElementById('pt-f-supports-coating').checked,
+    coating_price_multiplier: document.getElementById('pt-f-supports-coating').checked
+      ? (parseFloat(document.getElementById('pt-f-coating-mult').value) || null) : null,
     notes: document.getElementById('pt-f-notes').value || null,
   };
   const res = await fetch('/api/production/product-types', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
@@ -308,7 +344,8 @@ function addBomItemRow(existing){
     <input class="bi-scrap" type="text" placeholder="Isrof %">
     <button type="button" class="bomitem-del" onclick="document.getElementById('${rowId}').remove()"><i class="ti ti-trash"></i></button>
     <label style="grid-column:1/-1;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px;margin-top:4px">
-      <input type="checkbox" class="bi-optional" style="width:auto;height:auto"> Ixtiyoriy komponent (masalan Qoplama)
+      <input type="checkbox" class="bi-optional" style="width:auto;height:auto"> Ixtiyoriy komponent
+      &nbsp;<input type="checkbox" class="bi-coating" style="width:auto;height:auto"> bu — qoplama
       &nbsp;|&nbsp; Qo'shimcha xarajat:
       <input class="bi-fixed-cost" type="text" placeholder="so'm/birlik" style="width:100px;height:26px">
       <input class="bi-percentage-cost" type="text" placeholder="% xomashyodan" style="width:110px;height:26px">
@@ -331,6 +368,7 @@ function addBomItemRow(existing){
       row.querySelector('.bi-component-type').value = existing.component_type;
       row.querySelector('.bi-scrap').value = existing.scrap_factor_percent;
       row.querySelector('.bi-optional').checked = existing.is_optional;
+      row.querySelector('.bi-coating').checked = !!existing.is_coating;
       row.querySelector('.bi-fixed-cost').value = existing.fixed_cost_per_unit || '';
       row.querySelector('.bi-percentage-cost').value = existing.percentage_cost || '';
     }
@@ -407,6 +445,7 @@ async function saveBom(){
     quantity: parseFloat(row.querySelector('.bi-quantity').value) || 0,
     scrap_factor_percent: parseFloat(row.querySelector('.bi-scrap').value) || 0,
     is_optional: row.querySelector('.bi-optional').checked,
+    is_coating: row.querySelector('.bi-coating').checked,
     fixed_cost_per_unit: row.querySelector('.bi-fixed-cost').value ? parseFloat(row.querySelector('.bi-fixed-cost').value) : null,
     percentage_cost: row.querySelector('.bi-percentage-cost').value ? parseFloat(row.querySelector('.bi-percentage-cost').value) : null,
   }));
@@ -442,7 +481,13 @@ function openProductionOrderModal(){
   document.getElementById('po-f-source-type').onchange = function(){
     document.getElementById('po-source-order-wrap').style.display = this.value === 'customer_order' ? 'block' : 'none';
     if (this.value === 'customer_order') loadEligibleOrderItemsForPO();
+    else window.__poSourceItemCoated = false;
+    renderOptionalBomItems();   // 11.0-band
   };
+  window.__poSourceItemCoated = false;   // 11.0-band
+  window.__poBoms = [];
+  document.getElementById('po-optional-wrap').style.display = 'none';
+  document.getElementById('po-optional-list').innerHTML = '';
   openModalEl('po-modal');
 }
 
@@ -452,6 +497,12 @@ async function onProductTypeChangeForPO(){
   if (!ptId) { bomSel.innerHTML = '<option value="">— Avval mahsulot tanlang —</option>'; return; }
   const boms = await fetch(`/api/production/product-types/${ptId}/boms`).then(r => r.ok ? r.json() : []);
   bomSel.innerHTML = boms.map(b => `<option value="${b.id}">${escapeHtml(b.variant_name)}</option>`).join('') || '<option value="">Bu mahsulot uchun retsept yo\'q</option>';
+  // 11.0-band: retseptning ixtiyoriy qatorlarini eslab qolamiz va
+  // katakcha qilib ko'rsatamiz. Ilgari bu ro'yxat HAR DOIM bo'sh
+  // yuborilardi — ya'ni ixtiyoriy tarkibni umuman tanlab bo'lmasdi.
+  window.__poBoms = boms;
+  bomSel.onchange = renderOptionalBomItems;
+  renderOptionalBomItems();
   // Agar "Mijoz buyurtmasi asosida" tanlangan bo'lsa, mahsulot turi
   // o'zgarganda ro'yxatni ham yangilaymiz (boshqa turga tegishli
   // detallar ko'rsatilmasin).
@@ -481,10 +532,14 @@ async function loadEligibleOrderItemsForPO(){
     return;
   }
   sel.innerHTML = '<option value="">— Tanlang —</option>' + items.map(it =>
-    `<option value="${it.order_item_id}" data-remaining="${it.remaining_quantity}">${escapeHtml(it.order_number || ('#' + it.order_id))} — ${escapeHtml(it.client_name || '')} (kerak: ${it.remaining_quantity})</option>`
+    `<option value="${it.order_item_id}" data-remaining="${it.remaining_quantity}" data-coated="${it.is_coated ? '1' : '0'}">${escapeHtml(it.order_number || ('#' + it.order_id))} — ${escapeHtml(it.client_name || '')} (kerak: ${it.remaining_quantity})${it.is_coated ? ' · qoplamali' : ''}</option>`
   ).join('');
   sel.onchange = function(){
     const opt = this.selectedOptions[0];
+    // 11.0-band — tanlangan detal qoplamalimi; ixtiyoriy tarkiblar
+    // ro'yxati shunga qarab qayta chiziladi.
+    window.__poSourceItemCoated = opt ? opt.dataset.coated === '1' : false;
+    renderOptionalBomItems();
     const remaining = opt ? parseFloat(opt.dataset.remaining) : null;
     if (remaining) {
       hint.textContent = `Yana ${remaining} kerak — miqdor maydoniga shuni yozishingiz mumkin.`;
@@ -494,6 +549,40 @@ async function loadEligibleOrderItemsForPO(){
       hint.textContent = '';
     }
   };
+}
+
+// 11.0-band — retseptning ixtiyoriy qatorlari (masalan qoplama loyi).
+// Mijoz buyurtmasi asosida ishlanayotgan bo'lsa va detal qoplamali
+// bo'lsa — qoplama qatori avtomatik belgilanadi va QULFLANADI, chunki
+// haqiqiy qarorni server o'zi qayta qo'yadi (buyurtmadagi "Qoplama"
+// belgisidan). Ya'ni bu yerdagi katakcha — ko'rsatish uchun.
+function renderOptionalBomItems(){
+  const wrap = document.getElementById('po-optional-wrap');
+  const list = document.getElementById('po-optional-list');
+  const hint = document.getElementById('po-optional-hint');
+  const bomId = parseInt(document.getElementById('po-f-bom').value) || 0;
+  const bom = (window.__poBoms || []).find(b => b.id === bomId);
+  const items = ((bom && bom.items) || []).filter(i => i.is_optional);
+  if (!items.length) { wrap.style.display = 'none'; list.innerHTML = ''; hint.textContent = ''; return; }
+
+  const buyurtmadan = document.getElementById('po-f-source-type').value === 'customer_order';
+  const detalQoplamali = !!window.__poSourceItemCoated;
+
+  wrap.style.display = '';
+  list.innerHTML = items.map(i => {
+    const qoplama = !!i.is_coating;
+    const avto = buyurtmadan && qoplama;
+    const belgi = avto ? detalQoplamali : qoplama ? false : false;
+    return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:4px">
+      <input type="checkbox" class="po-opt" data-id="${i.id}" style="width:auto;height:auto"
+             ${belgi ? 'checked' : ''} ${avto ? 'disabled' : ''}>
+      ${escapeHtml(i.item_name)} — ${i.quantity} ${escapeHtml(i.unit || '')}
+      ${qoplama ? '<span style="color:var(--text3)">(qoplama)</span>' : ''}
+    </label>`;
+  }).join('');
+  hint.textContent = buyurtmadan
+    ? "Qoplama qatori buyurtmadagi \"Qoplama\" belgisiga qarab o'zi qo'yiladi."
+    : "Kerakli tarkiblarni belgilang.";
 }
 
 async function saveProductionOrder(){
@@ -510,7 +599,8 @@ async function saveProductionOrder(){
     quantity,
     source_type: sourceType,
     source_order_item_id: sourceOrderItemId,
-    selected_optional_bom_item_ids: [],
+    selected_optional_bom_item_ids: Array.from(document.querySelectorAll('#po-optional-list .po-opt'))
+      .filter(c => c.checked).map(c => parseInt(c.dataset.id)),
     notes: document.getElementById('po-f-notes').value || null,
   };
   const res = await fetch('/api/production/orders', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});

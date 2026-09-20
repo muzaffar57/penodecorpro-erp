@@ -3018,7 +3018,7 @@ function addItem() {
             <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta</label><div class="unit-input-wrap"><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
             <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
             <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
-            <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
+            <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);onUnitPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
             <div class="dif i-gips-unit-wrap" style="display:none">
               <label>Birligi</label>
               <select class="i-gips-unit" onchange="onGipsUnitChange(this.closest('.detal'))">
@@ -3285,6 +3285,10 @@ function selectMrpProduct(row, pt) {
   row.dataset.mrpProductTypeId = pt.id;
   row.dataset.mrpInputTemplate = pt.input_template;
   row.dataset.mrpUnit = pt.unit;
+  // 11.0-band — qoplama sozlamasi mahsulot TURIDAN keladi (korxona uni
+  // MRP da o'zi yozadi: 2, 2.5, ...). Bu yerda faqat o'qiladi.
+  row.dataset.mrpSupportsCoating = pt.supports_coating ? '1' : '0';
+  row.dataset.mrpCoatingMult = pt.coating_price_multiplier || '';
   const btn = row.querySelector('.type-opt[data-value="mrp_product"]');
   if (btn) {
     btn.textContent = '🏭 ' + (pt.name.length > 22 ? pt.name.slice(0, 22) + '…' : pt.name);
@@ -3339,12 +3343,56 @@ function updateDetalSummary(row) {
   summaryEl.innerHTML = parts.join(' <span style="color:var(--border)">·</span> ');
 }
 
+// 11.0-band — "1 birlik narxi" maydoniga yozilganda. MRP mahsuloti
+// qoplamani qo'llasa, qoplamasiz ASOS narxni alohida saqlab qo'yamiz;
+// qolgan hamma turkumlar uchun xatti-harakat AVVALGIDEK qoladi.
+function onUnitPriceInput(row) {
+  const type = row.querySelector('.i-type')?.value;
+  if (type === 'mrp_product' && row.dataset.mrpSupportsCoating === '1') {
+    onMrpPriceInput(row);
+    return;
+  }
+  calculateItem(row);
+}
+
 function onCoatToggle(row) {
   const type = row.querySelector('.i-type')?.value;
   if (type === 'blok') {
     recalcBlokPrice(row);
     return;
   }
+  if (type === 'mrp_product') {
+    recalcMrpPrice(row);
+    return;
+  }
+  calculateItem(row);
+}
+
+// 11.0-band — MRP mahsulotining qoplamali narxi.
+// `blok` dagi recalcBlokPrice() bilan AYNAN bir xil naqsh: `dataset` da
+// QOPLAMASIZ asos narx saqlanadi, maydonda esa YAKUNIY narx turadi.
+// Farqi bitta — koeffitsiyent qatorda emas, mahsulot TURIDA yozilgan.
+function recalcMrpPrice(row) {
+  const upEl = row.querySelector('.i-unitprice');
+  if (!upEl) return;
+  const isCoated = row.querySelector('.i-c')?.value === 'true';
+  const mult = parseFloat(row.dataset.mrpCoatingMult) || 1;
+  const base = parseFloat(row.dataset.mrpBase) || 0;
+  if (base > 0) {
+    upEl.value = formatNum(Math.round(isCoated ? base * mult : base));
+  }
+  calculateItem(row);
+}
+
+// Xodim narxni qo'lda yozganda — uni ASOS sifatida saqlaymiz, shunda
+// keyin Qoplama yoqilsa/o'chirilsa hisob izchil qoladi (blok bilan bir xil).
+function onMrpPriceInput(row) {
+  const upEl = row.querySelector('.i-unitprice');
+  if (!upEl) return;
+  const isCoated = row.querySelector('.i-c')?.value === 'true';
+  const mult = parseFloat(row.dataset.mrpCoatingMult) || 1;
+  const typed = parseNum(upEl.value) || 0;
+  row.dataset.mrpBase = (isCoated && mult > 0) ? (typed / mult) : typed;
   calculateItem(row);
 }
 
@@ -3510,7 +3558,11 @@ function toggleFields(row) {
     if (bpW) bpW.style.display = 'none';
     if (bmW) bmW.style.display = 'none';
     if (m3Field) m3Field.style.display = 'none';
-    if (coatField) coatField.style.display = 'none';
+    // 11.0-band — tur qoplamani qo'llasa, Qoplama tugmasi chiqadi.
+    // Koeffitsiyent turda yozilgan; bu yerda faqat qo'llaniladi.
+    const mrpCoat = row.dataset.mrpSupportsCoating === '1';
+    if (coatField) coatField.style.display = mrpCoat ? '' : 'none';
+    if (!mrpCoat) syncCoatingUI(row, false);
     if (penoField) penoField.style.display = 'none';
     if (!showDims) { ['i-h','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; }); }
     if (tmpl !== 'dimensional_3d') { const el = row.querySelector('.i-t'); if(el) el.value=''; }
@@ -4713,6 +4765,8 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
             row.dataset.mrpProductTypeId = pt.id;
             row.dataset.mrpInputTemplate = pt.input_template;
             row.dataset.mrpUnit = pt.unit;
+            row.dataset.mrpSupportsCoating = pt.supports_coating ? '1' : '0';
+            row.dataset.mrpCoatingMult = pt.coating_price_multiplier || '';
           }
         }
         typeEl.value = cat;
@@ -5200,10 +5254,15 @@ function collectItems() {
       const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
       const productTypeId = parseInt(row.dataset.mrpProductTypeId) || null;
       const showDims = ['dimensional_3d','area_2d'].includes(row.dataset.mrpInputTemplate);
+      // 11.0-band: qoplama endi HAQIQIY qiymat bilan saqlanadi — ilgari
+      // bu yerda doim `false` yozilardi va ishlab chiqarish qoplama
+      // xomashyosini hech qachon yecholmasdi.
+      const mrpCoated = row.dataset.mrpSupportsCoating === '1'
+        && row.querySelector('.i-c')?.value === 'true';
       items.push({ name, category: 'mrp_product', width: showDims ? h : null,
                    thickness: (row.dataset.mrpInputTemplate === 'dimensional_3d') ? t : null,
                    length: showDims ? l : null,
-                   quantity: qty, unit_price: unitP, is_coated: false,
+                   quantity: qty, unit_price: unitP, is_coated: mrpCoated,
                    penoplast_id: null, price_per_m3: null, finished_product_id: null,
                    product_type_id: productTypeId });
     } else {
