@@ -8,15 +8,16 @@ Bosqich 3, 11-band eski qattiq kodlangan turkumlarni bittalab MRP ga
 ko'chiradi. Ko'chirilgan turkum buyurtma oynasidan YO'QOLISHI, lekin
 kodi va eski yozuvlari BUZILMASLIGI kerak.
 
-Uchta daraja bor:
+To'rtta daraja bor (2026-09-21 da kodda O'LCHANGAN):
   ASOSIY    — profil / panel / dona. Har doim ko'rinadi, o'chirib
               bo'lmaydi. Bular ATAYLAB qattiq kodda qoladi.
-  IXTIYORIY — termopanel / gips / loy_sotish. Sozlanmagan korxonada
-              yoqiq (eski xatti-harakat buzilmasin).
-  ESKIRGAN  — blok / gips. Faqat ATAYLAB yoqilganda ko'rinadi.
+  IXTIYORIY — loy_sotish / blok. Sozlanmagan korxonada yoqiq
+              (eski xatti-harakat buzilmasin) — ESKIRGANlardan tashqari.
+  ESKIRGAN  — blok. Faqat ATAYLAB yoqilganda ko'rinadi.
               O'rniga MRP dan o'z turingizni yaratasiz.
-  OLIB TASHLANGAN — termopanel. 11.2a da kodi ham, interfeysi ham
-              butunlay o'chirildi, shuning uchun ro'yxatda YO'Q.
+  OLIB TASHLANGAN — termopanel (11.2a) va gips (11.2b). Kodi ham,
+              interfeysi ham butunlay o'chirildi, shuning uchun
+              UCHALA ro'yxatda ham YO'Q.
 
 ISHLATISH
 ---------
@@ -93,8 +94,18 @@ for k in ("profil", "panel", "dona"):
     check(f"{k} — ko'rinadi (asosiy)", main.cat_on(k, 1) is True)
 check("loy_sotish — ko'rinadi (hali eskirmagan)",
       main.cat_on("loy_sotish", 1) is True)
-for k in ("blok", "gips"):
-    check(f"{k} — KO'RINMAYDI (eskirgan)", main.cat_on(k, 1) is False)
+check("blok — KO'RINMAYDI (eskirgan)", main.cat_on("blok", 1) is False)
+# ⚠ gips ham False beradi, lekin SABABI BOSHQA: u `_ESKIRGAN_...` da emas,
+# balki UCHALA ro'yxatning hech birida yo'q (11.2b da butunlay olib
+# tashlangan). Ilgari ikkalasi bitta tsiklda "(eskirgan)" yorlig'i bilan
+# tekshirilardi — test o'tardi, lekin AYTGAN sababi noto'g'ri edi.
+# Shuning uchun har bir mexanizm alohida qulflanadi:
+check("blok — ESKIRGAN ro'yxatida (shuning uchun o'chiq)",
+      "blok" in main._ESKIRGAN_KATEGORIYALAR)
+check("gips — ESKIRGAN ro'yxatida EMAS (butunlay olib tashlangan)",
+      "gips" not in main._ESKIRGAN_KATEGORIYALAR)
+check("gips — KO'RINMAYDI (hech bir ro'yxatda yo'q)",
+      main.cat_on("gips", 1) is False)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -103,7 +114,32 @@ bolim("C. Korxona blokni ATAYLAB yoqsa")
 crud.set_setting(db, "enabled_categories", "blok,gips", company_id=1)
 main._clear_category_cache(1)
 check("blok — endi ko'rinadi", main.cat_on("blok", 1) is True)
-check("gips — endi ko'rinadi", main.cat_on("gips", 1) is True)
+
+# ⚠⚠ HOZIRGI HOLAT QULFI — bu ISTALGAN xatti-harakat EMAS, QAROR KUTILMOQDA
+# (2026-09-21 da o'lchangan). `cat_on` sozlama satridagi ISTALGAN so'zga
+# True qaytaradi — u so'z hali mavjud turkummi yoki yo'qmi, tekshirmaydi.
+# Natijada 11.2b dan OLDIN yozilgan `enabled_categories` satrida "gips"
+# qolgan korxonada gips shoxlari QAYTIB KELADI, ammo admin uni sozlamalar
+# sahifasida KO'RMAYDI ham, O'CHIRA ham olmaydi — chunki u ro'yxatdan
+# chiqarilgan. Xuddi shu holat `termopanel` (11.2a) uchun ham amal qiladi.
+check("gips — eski sozlama satri uni QAYTARADI (kutilayotgan qaror)",
+      main.cat_on("gips", 1) is True)
+
+# Xuddi shu tuzoq `termopanel` da ham borligini O'LCHAB ko'rsatamiz:
+# quyidagi ikki qator sozlamaga termopanelni ATAYLAB qo'yadi.
+crud.set_setting(db, "enabled_categories", "blok,gips,termopanel", company_id=1)
+main._clear_category_cache(1)
+check("termopanel — eski satrda bo'lsa U HAM qaytadi",
+      main.cat_on("termopanel", 1) is True)
+crud.set_setting(db, "enabled_categories", "blok,gips", company_id=1)
+main._clear_category_cache(1)
+check("termopanel — satrda bo'lmasa qaytmaydi",
+      main.cat_on("termopanel", 1) is False)
+
+_ruxsat = {k for k, _ in main.IXTIYORIY_KATEGORIYALAR}
+check("gips — admin sozlama ro'yxatida YO'Q (o'chira olmaydi)",
+      "gips" not in _ruxsat)
+check("termopanel — admin sozlama ro'yxatida YO'Q", "termopanel" not in _ruxsat)
 check("termopanel — ko'rinmaydi (umuman yo'q)",
       main.cat_on("termopanel", 1) is False)
 check("loy_sotish — ko'rinmaydi", main.cat_on("loy_sotish", 1) is False)
