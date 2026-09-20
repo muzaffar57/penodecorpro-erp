@@ -187,6 +187,20 @@
       </div>
     </div>
 
+    <div style="padding:18px;border-bottom:1px solid var(--border2)">
+      <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">📦 Mahsulot turlari</div>
+      <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+        Korxonangiz ishlab chiqarmaydigan turlarni o'chirib qo'ying — ular buyurtma va
+        ombor sahifalarida ko'rinmaydi. Asosiy turlar (Profil, Panel, Donali, Blok)
+        har doim yoqiq.
+      </div>
+      <div id="cat-list" style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;font-size:13px">
+        Yuklanmoqda…
+      </div>
+      <button class="btn btn-dark btn-sm" onclick="saveCategories()">Saqlash</button>
+      <span id="cat-status" style="font-size:12.5px;margin-left:8px"></span>
+    </div>
+
     <div style="padding:18px">
       <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">📱 Telegram bot</div>
       <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:14px">
@@ -398,6 +412,34 @@ async function saveCompany() {
   }
 }
 
+async function loadCategories() {
+  const el = document.getElementById('cat-list');
+  if (!el) return;
+  try {
+    const d = await fetch('/api/settings/categories').then(r => r.json());
+    el.innerHTML = d.categories.map(c =>
+      '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
+      '<input type="checkbox" class="cat-cb" value="' + c.code + '"' +
+      (c.enabled ? ' checked' : '') + ' style="width:16px;height:16px;cursor:pointer">' +
+      c.label + '</label>').join('');
+  } catch (e) { el.textContent = "Yuklab bo'lmadi"; }
+}
+
+async function saveCategories() {
+  const kodlar = [...document.querySelectorAll('.cat-cb')]
+    .filter(c => c.checked).map(c => c.value).join(',');
+  const fd = new FormData();
+  fd.append('codes', kodlar);
+  const r = await fetch('/api/settings/categories', { method: 'PUT', body: fd });
+  const el = document.getElementById('cat-status');
+  if (r.ok) {
+    el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
+    setTimeout(() => location.reload(), 900);
+  } else {
+    el.innerHTML = '<span style="color:#c00">Xato</span>';
+  }
+}
+
 async function loadTgBot() {
   try {
     const d = await fetch('/api/settings/telegram-bot').then(r => r.json());
@@ -433,7 +475,7 @@ async function clearTgBot() {
   loadTgBot();
 }
 
-document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadPlatformCompanies(); });
+document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadPlatformCompanies(); loadCategories(); });
 
 async function runHealthCheck() {
   const btn = document.getElementById('health-check-btn');

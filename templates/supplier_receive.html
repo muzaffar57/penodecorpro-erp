@@ -120,13 +120,13 @@
             <div class="rcv-cat-toggle" id="ap-prod-type-toggle">
               <div class="rcv-cat-opt" data-value="" onclick="selectProdType(this,'')">Umumiy</div>
               <div class="rcv-cat-opt" data-value="penoplast" onclick="selectProdType(this,'penoplast')">🏭 Penoplast</div>
-              <div class="rcv-cat-opt" data-value="gips" onclick="selectProdType(this,'gips')">🧱 Gips</div>
+{% if cat_on('gips') %}              <div class="rcv-cat-opt" data-value="gips" onclick="selectProdType(this,'gips')">🧱 Gips</div>{% endif %}
             </div>
             <div style="font-size:11px;color:var(--r-text3);margin-top:5px">"Umumiy" — faqat Penoplast yoki Gipsga aloqasi yo'q xarid uchun (masalan Bazalt, boshqa material)</div>
             <select id="ap-prod-type" style="display:none">
               <option value="">Umumiy</option>
               <option value="penoplast">🏭 Penoplast</option>
-              <option value="gips">🧱 Gips</option>
+{% if cat_on('gips') %}              <option value="gips">🧱 Gips</option>{% endif %}
             </select>
           </div>
 

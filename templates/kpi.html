@@ -289,7 +289,7 @@
     <div class="modal-section-label">Yo'nalish <span class="modal-hint">— Gips/Penoplast mustaqil hisobot uchun, majburiy</span></div>
     <div class="dir-toggle" id="e-prodtype-toggle">
       <div class="dir-opt dir-penoplast" data-val="penoplast" onclick="setProdType('penoplast')">🏭 Penoplast</div>
-      <div class="dir-opt dir-gips" data-val="gips" onclick="setProdType('gips')">🧱 Gips</div>
+{% if cat_on('gips') %}      <div class="dir-opt dir-gips" data-val="gips" onclick="setProdType('gips')">🧱 Gips</div>{% endif %}
     </div>
     <input type="hidden" id="e-prodtype" value="">
 
@@ -323,9 +323,9 @@
             <option value="blok">Blok (penoplast)</option>
             <option value="metr">Metr</option>
             <option value="dona">Dona</option>
-            <option value="gips_metr">🧱 Gips — metr</option>
-            <option value="gips_qop">🧱 Gips — qop</option>
-            <option value="gips_kg">🧱 Gips — kg</option>
+{% if cat_on('gips') %}            <option value="gips_metr">🧱 Gips — metr</option>{% endif %}
+{% if cat_on('gips') %}            <option value="gips_qop">🧱 Gips — qop</option>{% endif %}
+{% if cat_on('gips') %}            <option value="gips_kg">🧱 Gips — kg</option>{% endif %}
           </select>
         </div>
         <div class="form-group" style="margin:0">

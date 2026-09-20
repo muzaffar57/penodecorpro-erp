@@ -134,8 +134,8 @@ input[type=number]{-moz-appearance:textfield}
       <div class="fp-cat-opt" data-value="panel" onclick="selectFpCategory(this,'panel')">Panel</div>
       <div class="fp-cat-opt" data-value="dona" onclick="selectFpCategory(this,'dona')">Donali</div>
       <div class="fp-cat-opt" data-value="blok" onclick="selectFpCategory(this,'blok')">Blok</div>
-      <div class="fp-cat-opt" data-value="termopanel" onclick="selectFpCategory(this,'termopanel')">Bazalt (Termopanel)</div>
-      <div class="fp-cat-opt" data-value="gips" onclick="selectFpCategory(this,'gips')">Gips</div>
+{% if cat_on('termopanel') %}      <div class="fp-cat-opt" data-value="termopanel" onclick="selectFpCategory(this,'termopanel')">Bazalt (Termopanel)</div>{% endif %}
+{% if cat_on('gips') %}      <div class="fp-cat-opt" data-value="gips" onclick="selectFpCategory(this,'gips')">Gips</div>{% endif %}
     </div>
     <select id="fpCategory" style="display:none" onchange="renderFp()">
       <option value="">Barcha kategoriya</option>
@@ -143,8 +143,8 @@ input[type=number]{-moz-appearance:textfield}
       <option value="panel">Panel</option>
       <option value="dona">Donali</option>
       <option value="blok">Blok</option>
-      <option value="termopanel">Bazalt (Termopanel)</option>
-      <option value="gips">Gips</option>
+{% if cat_on('termopanel') %}      <option value="termopanel">Bazalt (Termopanel)</option>{% endif %}
+{% if cat_on('gips') %}      <option value="gips">Gips</option>{% endif %}
     </select>
     <select id="fpSort" onchange="renderFp()">
       <option value="default">Standart tartib</option>

@@ -2982,11 +2982,11 @@ function addItem() {
           <div class="tur-sep"></div>
           <div class="type-opt" data-value="blok" onclick="selectTypeOpt(this,'blok')">🧊 Blok (butun narxda)</div>
           <div class="tur-sep"></div>
-          <div class="type-opt" data-value="termopanel" onclick="selectTypeOpt(this,'termopanel')">🪨 Termopanel (Bazalt)</div>
+{% if cat_on('termopanel') %}          <div class="type-opt" data-value="termopanel" onclick="selectTypeOpt(this,'termopanel')">🪨 Termopanel (Bazalt)</div>{% endif %}
           <div class="tur-sep"></div>
-          <div class="type-opt" data-value="loy_sotish" onclick="selectTypeOpt(this,'loy_sotish')">🪣 Loy sotish (tayyor holda)</div>
+{% if cat_on('loy_sotish') %}          <div class="type-opt" data-value="loy_sotish" onclick="selectTypeOpt(this,'loy_sotish')">🪣 Loy sotish (tayyor holda)</div>{% endif %}
           <div class="tur-sep"></div>
-          <div class="type-opt" data-value="gips" onclick="selectTypeOpt(this,'gips')">🧱 Gips</div>
+{% if cat_on('gips') %}          <div class="type-opt" data-value="gips" onclick="selectTypeOpt(this,'gips')">🧱 Gips</div>{% endif %}
           <div class="tur-sep"></div>
           <div class="type-opt" data-value="mrp_product" onclick="openMrpProductPicker(this)">🏭 MRP Mahsuloti</div>
         </div>
@@ -2996,9 +2996,9 @@ function addItem() {
           <option value="panel">Panel</option>
           <option value="dona">Donali</option>
           <option value="blok">Blok (butun narxda)</option>
-          <option value="termopanel">Termopanel (Bazalt)</option>
-          <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>
-          <option value="gips">🧱 Gips</option>
+{% if cat_on('termopanel') %}          <option value="termopanel">Termopanel (Bazalt)</option>{% endif %}
+{% if cat_on('loy_sotish') %}          <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>{% endif %}
+{% if cat_on('gips') %}          <option value="gips">🧱 Gips</option>{% endif %}
           <option value="mrp_product">🏭 MRP Mahsuloti</option>
         </select>
       </div>
