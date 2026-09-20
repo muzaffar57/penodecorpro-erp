@@ -371,7 +371,14 @@ def main():
             print("   " + x)
         print("\n   Agar bular ataylab shunday bo'lsa: python tools/tenant_lint.py --update")
     else:
-        print(f"✓ O'QISH: yangi filtrsiz so'rov yo'q (ma'lum holatlar: {len(known)})")
+        # ⚠ 2026-09-21: ilgari bu yerda len(known) — ya'ni NOYOB kalitlar
+        # soni chiqarardi. Aynan bir xil so'rov bitta funksiyada 2 marta
+        # uchrasa, bitta kalitga tushadi va son kamayib ko'rinardi
+        # (baseline 156 yozuv → ekranda 153). Darvozaning o'zi to'g'ri
+        # ishlardi (Counter sonni ham tutadi), faqat hisobot yolg'on
+        # gapirardi. Endi YOZUVLAR soni chiqadi — baseline fayli bilan teng.
+        print(f"✓ O'QISH: yangi filtrsiz so'rov yo'q "
+              f"(ma'lum holatlar: {sum(known.values())})")
 
     print("\n" + ("✅ TOZA" if ok else "❌ MUAMMO TOPILDI"))
     return 0 if ok else 1
