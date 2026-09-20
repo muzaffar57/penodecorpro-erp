@@ -1835,34 +1835,6 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
             })
             tan_narxi_jami += loy_sotish_xarajat
 
-    # ── 1D. GIPS XARAJATI ─────────────────────────────────────
-    # Asosiy Gips — haqiqiy miqdor (agar "Tayyor" bosilib, kiritilgan
-    # bo'lsa) yoki taxminiy (hali yakunlanmagan bo'lsa) × Omborxonadagi
-    # joriy narx. Qo'shimchalar — har biri xuddi shunday, alohida.
-    gips_kg_for_cost = float(order.actual_gips_kg if order.actual_gips_kg is not None else (order.planned_gips_kg or 0))
-    if gips_kg_for_cost > 0 and order.gips_inventory_id:
-        gips_item = db.query(Inventory).filter(Inventory.id == order.gips_inventory_id).first()
-        if gips_item and gips_item.price_per_unit:
-            gips_xarajat = gips_kg_for_cost * float(gips_item.price_per_unit)
-            breakdown.append({
-                "nomi": f"🧱 Gips — {gips_item.item_name} ({gips_kg_for_cost:.1f} kg × {float(gips_item.price_per_unit):,.0f} so'm)",
-                "summa": gips_xarajat
-            })
-            tan_narxi_jami += gips_xarajat
-
-    for add in order.gips_additives:
-        qty_for_cost = float(add.actual_qty if add.actual_qty is not None else (add.planned_qty or 0))
-        if qty_for_cost <= 0 or not add.inventory:
-            continue
-        if not add.inventory.price_per_unit:
-            continue
-        add_xarajat = qty_for_cost * float(add.inventory.price_per_unit)
-        breakdown.append({
-            "nomi": f"🧱 Gips qo'shimchasi — {add.inventory.item_name} ({qty_for_cost:.1f} {add.inventory.unit} × {float(add.inventory.price_per_unit):,.0f} so'm)",
-            "summa": add_xarajat
-        })
-        tan_narxi_jami += add_xarajat
-
     # ── 2. QOPLAMA XOMASHYOSI XARAJATI ──────────────────────
     # MUHIM: loy_kg — hech qanday formula/taxmin bilan hisoblanmaydi,
     # faqat buyurtma "Tayyor" qilinganda hodim kiritgan HAQIQIY miqdor
@@ -2166,7 +2138,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     daromad = sum(float(o.agreed_amount or o.total_amount or 0) for o in ready_orders)
     buyurtmalar_soni = len(ready_orders)
 
-    # ── TAYYOR MAHSULOT TO'G'RIDAN-TO'G'RI SOTUVI (masalan G'isht) ──
+    # ── TAYYOR MAHSULOT TO'G'RIDAN-TO'G'RI SOTUVI ──
     # Bu — buyurtmasiz sotuv, alohida daromad manbai. MUHIM: bu summa
     # Usta KPI, Ehson, hodim foiz-asosidagi to'lovlariga TA'SIR QILMAYDI
     # (ular faqat haqiqiy ISHLAB CHIQARISH buyurtmalariga tegishli) —
@@ -2289,15 +2261,16 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
             # MUHIM: "loy_sotish", "gips" — bu yerga UMUMAN qo'shilmaydi.
             # Gips — butunlay alohida, pastdagi bo'limda hisoblanadi.
 
-    # GIPS — metr/m² va dona (qoliplik gul) hodim to'lovi uchun.
-    jami_gips_metr = 0.0
+    # GIPS — dona (qoliplik gul) hodim to'lovi uchun.
     jami_gips_gul = 0.0
 
     # TAYYOR MAHSULOTLAR sahifasidan ISHLAB CHIQARILIB, "SOTUVGA TAYYOR"
     # deb belgilangan mahsulotlar (buyurtmasiz) — hodim shu ishni ham
-    # qilgani uchun, bu ham hodim oyligiga qo'shiladi. G'isht — BYPRODUCT
-    # (ortiqcha loydan, alohida mehnat sarflanmagan), shuning uchun
-    # BU YERGA QO'SHILMAYDI.
+    # qilgani uchun, bu ham hodim oyligiga qo'shiladi.
+    # 11.2b (2026-09-20): avval bu yerda "G'isht" nomli mahsulot YAGONA
+    # istisno sifatida chiqarib tashlanardi (BYPRODUCT deb). G'isht
+    # butunlay olib tashlangani uchun istisno ham olib tashlandi — endi
+    # ishlab chiqarilgan BARCHA mahsulot hodim oyligiga kiradi.
     from models import FinishedProduct, StockSource, ProductionStatus
     from datetime import datetime as _dt2
     _dp_start = _dt2(year, month, 1)
@@ -2306,7 +2279,6 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # ishlab chiqarilgan miqdorlar ham korxona filtrisiz o'qilardi.
     _dpq = db.query(FinishedProduct).filter(
         FinishedProduct.source == StockSource.PRODUCED,
-        FinishedProduct.name != "G'isht",
         FinishedProduct.created_at >= _dp_start,
         FinishedProduct.created_at < _dp_end
     )
@@ -2324,10 +2296,10 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         # joriy `quantity` ishlatiladi.
         qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
         if cat == "gips":
+            # 11.2b: gips metr/kg/qop to'lov birliklari olib tashlandi —
+            # faqat "qoliplik gul" (dona) qoldi.
             if (fp.unit or "").lower() == "dona":
                 jami_gips_gul += qty
-            else:
-                jami_gips_metr += qty
             continue
         # MUHIM: Gipsdan boshqa barchasi uchun — faqat HAQIQATAN qoplamali
         # (is_coated=True) bo'lsa, Qoplamachi bonusiga qo'shiladi. Qoplamasiz
@@ -2354,44 +2326,6 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
             qty = float(item.quantity or 0)
             if gu == 'dona':
                 jami_gips_gul += qty
-            elif gu == 'm2':
-                pass  # m² uchun hozircha alohida to'lov turi yo'q — hisoblanmaydi
-            else:
-                jami_gips_metr += qty
-
-    # GIPS — haqiqiy ishlatilgan kg va qop (faqat yakunlangan, actual_gips_kg
-    # kiritilgan buyurtmalardan; qop soni — HAR BIR buyurtmaning o'z Gips
-    # xomashyosidagi qop og'irligiga (volume_per_unit) bo'lingan holda).
-    jami_gips_kg = 0.0
-    jami_gips_qop = 0.0
-    for order in orders_this_month:
-        actual = float(order.actual_gips_kg or 0)
-        if actual <= 0:
-            continue
-        jami_gips_kg += actual
-        if order.gips_inventory_id:
-            gips_item = _inv_rep(order.gips_inventory_id)
-            sack_kg = float(gips_item.volume_per_unit or 0) if gips_item else 0
-            if sack_kg > 0:
-                jami_gips_qop += actual / sack_kg
-
-    # "Gips ishlab chiqarish" tugmasi orqali, buyurtmasiz, to'g'ridan-to'g'ri
-    # ishlab chiqarilgan Gips mahsulotlar — MUHIM: bu yerda ishlatilgan
-    # XOMASHYO (gips_kg_used) — Kg va Qop hodimlariga ham hisoblanishi kerak
-    # (Metr/Gul hodimidan MUSTAQIL — chunki bu, xomashyoni tayyorlagan
-    # hodimning o'z ishi, mahsulotni shakllantirgan hodimning ishidan farqli).
-    for fp in direct_produced:
-        if (fp.category or "").lower() != "gips":
-            continue
-        gkg = float(fp.gips_kg_used or 0)
-        if gkg <= 0:
-            continue
-        jami_gips_kg += gkg
-        if fp.gips_inventory_id:
-            gips_item2 = _inv_rep(fp.gips_inventory_id)
-            sack_kg2 = float(gips_item2.volume_per_unit or 0) if gips_item2 else 0
-            if sack_kg2 > 0:
-                jami_gips_qop += gkg / sack_kg2
 
     # MUHIM: Tayyor mahsulotlar bo'limida ("Ishlab chiqarish" tugmasi
     # orqali, mijoz buyurtmasiga bog'lanmasdan) tayyorlangan qoplamali
@@ -2563,7 +2497,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
 
     # ── 4c. MOSLASHUVCHAN HODIMLAR ─────────────────────────────
     # Foyda (hodim xarajatigacha) — sotuvdan% / foydadan% hisoblash uchun.
-    # MUHIM: Tayyor mahsulot to'g'ridan-to'g'ri sotuvi (G'isht va h.k.) —
+    # MUHIM: Tayyor mahsulot to'g'ridan-to'g'ri sotuvi —
     # bu ham korxona sotuvi/foydasi, shuning uchun "sotuvdan %"/"foydadan %"
     # asosida to'lanadigan hodimlar uchun HAM hisobga olinadi (Ehson bilan
     # bir xil mantiq). Lekin ISHLAB CHIQARISH MIQDORIGA (metr/dona/qop)
@@ -2574,8 +2508,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         db, year, month, daromad + fp_sales_daromad, sof_foyda_before_emp,
         jami_metr + jami_panel_metr, jami_dona, jami_blok,
         jami_qoplama_birlik=jami_metr + jami_panel_metr + jami_dona,
-        jami_gips_metr=jami_gips_metr, jami_gips_gul=jami_gips_gul,
-        jami_gips_kg=jami_gips_kg, jami_gips_qop=jami_gips_qop,
+        jami_gips_gul=jami_gips_gul,
         company_id=company_id
     )
     hodimlar_moslashuvchan_xarajat = emp_result["total"]
@@ -4275,7 +4208,7 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
             except Exception:
                 pass
 
-    # Tayyor mahsulot to'g'ridan-to'g'ri sotuvi (masalan G'isht) ham —
+    # Tayyor mahsulot to'g'ridan-to'g'ri sotuvi ham —
     # bu ham korxonaning haqiqiy foydasi, Ehson shu foydadan hisoblanadi
     from models import FinishedProductSale as _FPS
     # 2026-09-18 — TENANT: bu funksiya `get_monthly_report` ICHIDAN
@@ -4302,18 +4235,15 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                                    daromad: float, sof_foyda_before: float,
                                    jami_metr: float, jami_dona: float,
                                    jami_blok: float, jami_qoplama_birlik: float = 0.0,
-                                   jami_gips_metr: float = 0.0, jami_gips_gul: float = 0.0,
-                                   jami_gips_kg: float = 0.0, jami_gips_qop: float = 0.0,
+                                   jami_gips_gul: float = 0.0,
                                    company_id: int = None) -> dict:
     """Moslashuvchan hodimlar uchun oylik to'lovni hisoblaydi.
     daromad, sof_foyda_before — shu oy uchun (hodim xarajatlarigacha).
     jami_metr/dona/blok — shu oy ishlab chiqarilgan miqdorlar (hammasi).
     jami_qoplama_birlik — shu oy QOPLANGAN detallar: metr + dona (profil/panel metrda,
     donali dona bilan, bittalashtirib qo'shilgan) — qoplamachi bonusi uchun.
-    jami_gips_metr/jami_gips_gul — shu oy Gips detallaridan metr/m² va dona
-    (qoliplik gul) yig'indisi. jami_gips_kg/jami_gips_qop — shu oy YAKUNLANGAN
-    Gips buyurtmalaridagi HAQIQIY gips miqdori (kg, va qop — har bir buyurtma
-    o'z Gips xomashyosining qop og'irligiga bo'lingan holda)."""
+    jami_gips_gul — shu oy Gips detallaridan dona (qoliplik gul)
+    yig'indisi."""
     from models import Employee, PayType
     from datetime import datetime as _dt_emp
     from calendar import monthrange as _monthrange_emp
@@ -4341,9 +4271,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
 
     unit_map = {
         "metr": jami_metr, "dona": jami_dona, "blok": jami_blok,
-        "gips_metr": jami_gips_metr, "gips_qop": jami_gips_qop, "gips_kg": jami_gips_kg,
     }
-    unit_labels = {"gips_metr": "metr (gips)", "gips_qop": "qop", "gips_kg": "kg (gips)"}
 
     for e in employees:
         amount = 0.0
@@ -4377,8 +4305,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         elif c_pay_type == PayType.PER_UNIT:
             qty = unit_map.get(c_unit_type, 0)
             amount = qty * float(c_unit_rate or 0)
-            unit_label = unit_labels.get(c_unit_type, c_unit_type)
-            detail = f"{qty:g} {unit_label} × {fmt_num(c_unit_rate)}"
+            detail = f"{qty:g} {c_unit_type} × {fmt_num(c_unit_rate)}"
 
         elif c_pay_type == PayType.FIXED_PLUS_COATING:
             base = float(c_fixed or 0)
@@ -4544,26 +4471,6 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
 
     qty_units = item.order_qty_normalized
     peno_cost_per_unit = (peno_cost_total / qty_units) if qty_units > 0 else 0.0
-
-    # GIPS uchun — Penoplast/Loy tushunchasi yo'q, shuning uchun yuqoridagi
-    # hisob har doim "0" chiqarardi. Buning o'rniga, buyurtmada HAQIQATDA
-    # sarflangan Gips (order.actual_gips_kg) qiymatini, o'sha buyurtmadagi
-    # BARCHA Gips detallari miqdoriga MUTANOSIB taqsimlaymiz — shu detal
-    # taxminan qancha Gips "iste'mol qilgani"ni ko'rsatadi.
-    if (item.category or '').lower() == 'gips' and order:
-        gips_kg = float(order.actual_gips_kg or 0)
-        gips_inv_id = getattr(order, 'gips_inventory_id', None)
-        if gips_kg > 0 and gips_inv_id:
-            gips_inv = db.query(Inventory).filter(Inventory.id == gips_inv_id).first()
-            gips_price_per_kg = float(gips_inv.price_per_unit or 0) if gips_inv else 0.0
-            total_gips_cost = gips_kg * gips_price_per_kg
-            total_gips_qty = sum(
-                float(oi.quantity or 0) for oi in (order.items or [])
-                if (oi.category or '').lower() == 'gips'
-            )
-            if total_gips_qty > 0:
-                return total_gips_cost / total_gips_qty
-        return 0.0
 
     loy_cost_per_unit = 0.0
     if include_coating and item.is_coated and order:

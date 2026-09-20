@@ -637,7 +637,7 @@ class EmployeeCreate(BaseModel):
     fixed_amount: float = Field(default=0, ge=0)
     percent_value: float = Field(default=0, ge=0, le=100)
     per_unit_rate: float = Field(default=0, ge=0)
-    per_unit_type: str = Field(default="blok", description="blok/metr/dona/gips_metr/gips_qop/gips_kg")
+    per_unit_type: str = Field(default="blok", description="blok/metr/dona")
     gul_rate: Optional[float] = Field(default=None, description="Qoliplik gul (dona) uchun — qo'shimcha narx")
     extra_monthly: Optional[float] = Field(default=None, description="Ixtiyoriy qo'shimcha doimiy oylik")
     production_type: Optional[str] = Field(default=None, description="penoplast / gips / umumiy")

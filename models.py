@@ -1064,7 +1064,7 @@ class Employee(Base):
     fixed_amount = Column(Numeric(12, 2), default=0)      # FIXED uchun
     percent_value = Column(Float, default=0.0)             # PERCENT_SALES / PERCENT_PROFIT uchun
     per_unit_rate = Column(Numeric(12, 2), default=0)      # PER_UNIT uchun — 1 birlik narxi
-    per_unit_type = Column(String(20), default="blok")     # blok / metr / dona / gips_metr / gips_qop / gips_kg
+    per_unit_type = Column(String(20), default="blok")     # blok / metr / dona
     # GIPS uchun qo'shimcha to'lov turlari:
     gul_rate = Column(Numeric(12, 2), nullable=True)        # Qoliplik gul (dona) uchun — alohida, qo'shimcha narx
     extra_monthly = Column(Numeric(12, 2), nullable=True)   # Istalgan to'lov turiga qo'shiladigan, ixtiyoriy doimiy oylik

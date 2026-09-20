@@ -1282,7 +1282,6 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
             finished_product_id=getattr(item_data, 'finished_product_id', None),
             unit_price=_stored_unit_price,
             unit_price_for_volume=getattr(item_data, 'unit_price_for_volume', None),
-            gips_unit=getattr(item_data, 'gips_unit', None),
             product_type_id=getattr(item_data, 'product_type_id', None),
             total_price=item_total,
             notes=item_data.notes
@@ -1453,7 +1452,7 @@ def _fp_stable_unit_cost(db, fp) -> float:
 
     M4 (2026-09-18) — TENANT: bu yerdagi BARCHA Inventory qidiruvlari
     endi mahsulotning O'Z korxonasi (`fp.company_id`) bilan cheklangan.
-    Ilgari `penoplast_id`/`gips_inventory_id`/qo'shimchalar faqat id
+    Ilgari `penoplast_id` faqat id
     bo'yicha olinardi — eski yoki buzilgan yozuvlarda A korxona
     mahsulotining tannarxi B korxonaning material narxidan
     hisoblanishi mumkin edi. Material boshqa korxonaniki bo'lsa, endi
@@ -1495,43 +1494,6 @@ def _fp_stable_unit_cost(db, fp) -> float:
     if unit_loy > 0:
         loy_info = _svc.get_loy_cost_per_kg(db, fp.recipe_id)
         cost += unit_loy * float(loy_info.get("cost_per_kg", 0) or 0)
-    # GIPS qismi — Gips mahsulotlar penoplast/loy emas, gips_kg_used saqlaydi.
-    # 1 birlikka gips: gips_kg_used / produced_quantity.
-    gips_kg = float(getattr(fp, 'gips_kg_used', None) or 0)
-    if gips_kg > 0 and getattr(fp, 'gips_inventory_id', None):
-        produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-        if produced_q > 0:
-            gips_item = _inv(fp.gips_inventory_id)
-            if gips_item and gips_item.price_per_unit:
-                unit_gips_kg = gips_kg / produced_q
-                cost += unit_gips_kg * float(gips_item.price_per_unit)
-    # GIPS QO'SHIMCHALARI (Po'lat sim, Granula va h.k.) — bular
-    # gips_additives_json'da JAMI (produced_quantity uchun) miqdorda
-    # saqlanadi, xuddi pastdagi Bazalt/Serpiyanka/Kley kabi. MUHIM TUZATISH
-    # (2026-09, Gips brak funksiyasi tekshiruvida aniqlangan): avval bu
-    # qism BUTUNLAY YO'Q edi — qo'shimchali Gips mahsulot buyurtmaga
-    # o'tkazilganda yoki sotilganda faqat ASOSIY gips hisobga olinardi,
-    # qo'shimcha narxi esa hech qachon "ko'chib" o'tmasdi — natijada qolgan
-    # zaxiraning tan narxi haqiqiysidan QIMMAT, sotilgan/o'tkazilgan qism
-    # esa ARZON ko'rsatilardi (faqat to'liq qaytarilganda — masalan
-    # buyurtma o'chirilganda — bu farq o'z-o'zidan yo'qolib ketardi).
-    if getattr(fp, 'gips_additives_json', None):
-        try:
-            import json as _json_stable_cost
-            saved_additives = _json_stable_cost.loads(fp.gips_additives_json)
-        except Exception:
-            saved_additives = []
-        produced_q_add = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-        if produced_q_add > 0:
-            for a in (saved_additives or []):
-                a_inv_id = a.get("inventory_id") if isinstance(a, dict) else None
-                a_total_qty = float((a.get("quantity") if isinstance(a, dict) else 0) or 0)
-                if not a_inv_id or a_total_qty <= 0:
-                    continue
-                a_item = _inv(a_inv_id)
-                if a_item and a_item.price_per_unit:
-                    unit_a_qty = a_total_qty / produced_q_add
-                    cost += unit_a_qty * float(a_item.price_per_unit)
     return cost
 
 
@@ -1790,7 +1752,7 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
     order = db_item.order
     # MUHIM (2026-09 audit): o'chirilgan buyurtmaning detalini tahrirlab
     # bo'lmaydi — aks holda order_qty_normalized/delivery_percent o'chirish
-    # va tiklash orasida o'zgarib, ombor hisobi (Gips/Loy/tayyor mahsulot
+    # va tiklash orasida o'zgarib, ombor hisobi (Loy/tayyor mahsulot
     # qaytarish-qayta yechish simmetriyasi) buzilib qolishi mumkin.
     if order and order.is_deleted:
         return None
@@ -2508,17 +2470,17 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
             # to'g'ri hisoblaydi — bu o'chirishdagi qaytarishning aynan aksi).
             _return_finished_for_order(db, db_order, sign=-1.0)
 
-            # Loy/Gips uchun QOLGAN (topshirilmagan) qism ulushi — o'chirishda
+            # Loy uchun QOLGAN (topshirilmagan) qism ulushi — o'chirishda
             # QANCHA qaytarilgan bo'lsa, tiklashda AYNAN O'SHA qism qayta
             # yechiladi (bu ulush o'zgarmaydi, chunki buyurtma o'chirilgan
             # holatda yetkazishlar qo'shilmaydi va detallar tahrirlanmaydi —
             # create_delivery/update_order_item/delete_order_item endi
             # is_deleted buyurtmalarni rad etadi).
             # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
-            # delivery_percent EMAS — Loy va Gips uchun ALOHIDA, faqat shu
+            # delivery_percent EMAS — Loy uchun ALOHIDA, faqat shu
             # xomashyoni haqiqatda sarflaydigan detallar bo'yicha hisoblangan
             # ulush (qarang: main.py'dagi bir xil tuzatish va services.py
-            # dagi loy_relevant_remaining_fraction/gips_relevant_remaining_
+            # dagi loy_relevant_remaining_fraction
             # fraction izohlari).
             loy_remaining_fraction = services.loy_relevant_remaining_fraction(db_order) if has_delivery else 1.0
 
@@ -4148,7 +4110,6 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         oi.finished_product_id = getattr(nd, 'finished_product_id', None)
         oi.unit_price = _stored_up1
         oi.unit_price_for_volume = getattr(nd, 'unit_price_for_volume', None)
-        oi.gips_unit = getattr(nd, 'gips_unit', None)
         oi.product_type_id = getattr(nd, 'product_type_id', None)
         oi.total_price = item_total
         oi.notes = nd.notes
@@ -4197,7 +4158,6 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             finished_product_id=getattr(nd, 'finished_product_id', None),
             unit_price=_stored_up2,
             unit_price_for_volume=getattr(nd, 'unit_price_for_volume', None),
-            gips_unit=getattr(nd, 'gips_unit', None),
             product_type_id=getattr(nd, 'product_type_id', None),
             total_price=item_total,
             notes=_new_item_notes
@@ -4427,7 +4387,7 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
 
     # MUHIM (2026-09 audit): o'chirilgan (is_deleted) buyurtmaga yetkazish
     # qo'shishga YO'L QO'YILMAYDI. Bunga yo'l qo'yilsa, buyurtma o'chirilgan
-    # paytda hisoblangan delivery_percent (Gips/Loy proporsional qaytarish
+    # paytda hisoblangan delivery_percent (Loy proporsional qaytarish
     # va keyinchalik tiklashda qayta yechish shu foizga tayanadi) o'chirish
     # va tiklash orasida o'zgarib qolib, ombor hisobini buzib qo'yishi mumkin
     # edi (masalan eski ochiq varaq yoki to'g'ridan-to'g'ri API chaqiruvi orqali).
@@ -4901,7 +4861,6 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
 
 def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
                                               notes: str = None, created_by: str = None,
-                                              gips_kg_brak: float = None, additives_brak: list = None,
                                               company_id: int = None) -> dict:
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak (masalan
     kesish yoki qoplama tortish paytida sinib ketishi) — bu, mahsulotdan
@@ -4909,7 +4868,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     QILADI: bu yerda YAKUNIY yetkaziladigan/omborga kiritiladigan miqdor
     O'ZGARMAYDI (ustadan qayta ishlab chiqarilib, o'rni to'ldiriladi),
     faqat O'SHA qayta ishlab chiqarish uchun QO'SHIMCHA xomashyo (Penoplast/
-    Bazalt+Serpiyanka+Kley, loy, Gips) ombordan ayiriladi. Shuning uchun,
+    Bazalt+Serpiyanka+Kley, loy) ombordan ayiriladi. Shuning uchun,
     mavjud "Kamaytirish" funksiyasidan farqli o'laroq — fp.quantity
     (ombordagi mahsulot soni) ga UMUMAN TEGILMAYDI.
 
@@ -4917,16 +4876,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     orqali) va Termopanel/Bazalt (Bazalt+Serpiyanka+Kley+loy asosida, aynan
     ishlab chiqarishda ishlatilgan xomashyo/nisbat bo'yicha) — bularda
     `brak_qty` (mahsulot birligida) berilib, xomashyo BARQAROR nisbatdan
-    hisoblanadi.
-
-    Gips uchun (2026-09 qo'shildi) — MANTIQ BOSHQACHA: gips sarfi metrga
-    (yoki dona/m²ga) barqaror proporsional emas — devor holati, usta ishiga
-    qarab farq qiladi. Shuning uchun bu yerda `brak_qty` EMAS, `gips_kg_brak`
-    ishlatiladi — xodim TO'G'RIDAN-TO'G'RI, aniq necha kg gips isrof
-    bo'lganini kiritadi (hisoblanmaydi). Qo'shimcha materiallar (Po'lat
-    sim, Granula va h.k.) esa har doim ham gips miqdoriga proporsional
-    ishlatilmagani uchun avtomatik hisoblanmaydi — faqat xodim ixtiyoriy
-    `additives_brak` orqali ko'rsatgan aniq miqdorlar ayiriladi."""
+    hisoblanadi."""
     from models import FinishedProduct, FinishedProductLoss, Inventory
     import services
 
@@ -4948,81 +4898,6 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
             _q = _q.filter(Inventory.company_id == _brak_cid)
         return _q.with_for_update().first()
 
-    cat = (fp.category or '').lower()
-
-    # ── GIPS — alohida yo'l: xodim TO'G'RIDAN-TO'G'RI kg kiritadi ─────────
-    if cat == 'gips':
-        if gips_kg_brak is None or gips_kg_brak <= 0:
-            return {"success": False, "message": "Gips uchun isrof bo'lgan kg miqdorini kiriting"}
-        if not fp.gips_inventory_id:
-            return {"success": False, "message": "Bu mahsulotning Gips xomashyosi noma'lum (eski yozuv bo'lishi mumkin) — qo'lda hisoblash kerak"}
-        gips_item = _brak_inv(fp.gips_inventory_id)
-        if not gips_item:
-            return {"success": False, "message": "Gips xomashyosi ombordan topilmadi"}
-        if float(gips_item.stock_quantity or 0) < gips_kg_brak:
-            return {"success": False, "message": f"Gips yetishmayapti! Kerak: {gips_kg_brak:.2f} kg, omborda: {float(gips_item.stock_quantity):.2f} kg"}
-
-        log = []
-        gips_item.stock_quantity = float(gips_item.stock_quantity) - gips_kg_brak
-        gips_cost = gips_kg_brak * float(gips_item.price_per_unit or 0)
-        log.append(f"{gips_item.item_name}: -{gips_kg_brak:.2f} kg")
-        log_movement(
-            db, gips_item.id, gips_item.item_name, movement_type="out",
-            quantity=gips_kg_brak, unit=gips_item.unit,
-            reason=f"Brak (ishlab chiqarish) — {fp.name} ({gips_kg_brak:g} kg)"
-        )
-
-        additive_cost = 0.0
-        for a in (additives_brak or []):
-            a_inv_id = a.get("inventory_id") if isinstance(a, dict) else None
-            a_qty = float((a.get("quantity") if isinstance(a, dict) else 0) or 0)
-            if not a_inv_id or a_qty <= 0:
-                continue
-            a_item = db.query(Inventory).filter(Inventory.id == a_inv_id).with_for_update().first()
-            if not a_item:
-                return {"success": False, "message": f"Qo'shimcha material (ID {a_inv_id}) topilmadi"}
-            if float(a_item.stock_quantity or 0) < a_qty:
-                return {"success": False, "message": f"{a_item.item_name} yetishmayapti! Kerak: {a_qty:.2f} {a_item.unit}, omborda: {float(a_item.stock_quantity):.2f} {a_item.unit}"}
-            a_item.stock_quantity = float(a_item.stock_quantity) - a_qty
-            additive_cost += a_qty * float(a_item.price_per_unit or 0)
-            log.append(f"{a_item.item_name}: -{a_qty:.2f} {a_item.unit}")
-            log_movement(
-                db, a_item.id, a_item.item_name, movement_type="out",
-                quantity=a_qty, unit=a_item.unit,
-                reason=f"Brak (ishlab chiqarish) — {fp.name} (qo'shimcha)"
-            )
-
-        total_cost_gips = gips_cost + additive_cost
-
-        # MUHIM: fp.quantity, fp.gips_kg_used, fp.cost_price, fp.gips_additives_json
-        # GA TEGILMAYDI — boshqa turlar bilan bir xil qoida: brak — alohida,
-        # bir martalik xarajat, mahsulotning o'z tan narxiga qo'shilmaydi
-        # (aks holda xarajat ikki marta hisoblangan bo'lardi).
-        loss = FinishedProductLoss(
-            company_id=getattr(fp, 'company_id', None),  # M8/F1
-            finished_product_id=fp.id,
-            product_name=fp.name,
-            category=fp.category,
-            quantity=gips_kg_brak,
-            unit="kg",
-            cost_amount=total_cost_gips,
-            reason="Ishlab chiqarish jarayonida brak — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
-                   + (f". Izoh: {notes}" if notes else ""),
-            created_by=created_by
-        )
-        db.add(loss)
-        db.commit()
-        db.refresh(loss)
-
-        return {
-            "success": True,
-            "loss_id": loss.id,
-            "cost_amount": float(total_cost_gips),
-            "gips_cost": float(gips_cost),
-            "additive_cost": float(additive_cost),
-            "log": log,
-        }
-
     if brak_qty is None or brak_qty <= 0:
         return {"success": False, "message": "Brak miqdori noto'g'ri"}
 
@@ -5042,7 +4917,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     if penoplast_vol_needed > 0:
         if not fp.penoplast_id:
             return {"success": False, "message": "Bu mahsulotning Penoplast turi noma'lum — qo'lda hisoblash kerak"}
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
+        p = _brak_inv(fp.penoplast_id)
         if not p:
             return {"success": False, "message": "Penoplast ombordan topilmadi"}
         vol_per_unit = float(p.volume_per_unit or 1.0)
@@ -5664,7 +5539,7 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     # ── "JARAYONDA" (IN_PROGRESS, hali "Sotuvga tayyor" bosilmagan) ──
     # Bu — deyarli har doim XATO tuzatish (noto'g'ri nom/miqdor yozib
     # yuborilgan). Shuning uchun bunda: o'chirishga RUXSAT beramiz VA
-    # ishlab chiqarishda ketgan xomashyoni (Penoplast, Loy, Gips, Bazalt)
+    # ishlab chiqarishda ketgan xomashyoni (Penoplast, Loy, Bazalt)
     # OMBORGA QAYTARAMIZ. (READY — "Sotuvga tayyor" bosilgan — mahsulot
     # esa pastdagi qat'iy qoidaga bo'ysunadi: qoldiq 0 bo'lishi kerak,
     # xomashyo qaytmaydi.)
@@ -5687,11 +5562,6 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
         # Loy qaytadi
         if fp.actual_loy_kg and fp.actual_loy_kg > 0:
             _svc.return_loy_ingredients(db, _TermoFakeOrder(fp.recipe_id), float(fp.actual_loy_kg))
-        # Gips qaytadi
-        if getattr(fp, 'gips_kg_used', None) and fp.gips_kg_used > 0 and getattr(fp, 'gips_inventory_id', None):
-            g = _del_inv(db.query(_Inv).filter(_Inv.id == fp.gips_inventory_id)).with_for_update().first()
-            if g:
-                g.stock_quantity = float(g.stock_quantity or 0) + float(fp.gips_kg_used)
         # Bog'liq yozuvlarni uzamiz (IN_PROGRESS'da sotuv bo'lmaydi, lekin
         # xavfsizlik uchun)
         from models import FinishedProductSale as _FPS, FinishedProductLoss as _FPL, OrderItem as _OI2
@@ -5859,10 +5729,9 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
 def search_finished_products(db: Session, query: str, category: str = None, exclude_category: str = None,
                             company_id: int = None) -> List[dict]:
     """Nom bo'yicha tayyor mahsulot qidirish — buyurtmada taklif uchun.
-    category — agar berilsa (masalan 'gips'), FAQAT shu turdagi mahsulotlar
-    qaytariladi. exclude_category — aksincha, shu turdagi mahsulotlar
-    RO'YXATDAN CHIQARIB TASHLANADI (masalan Penoplast qatorida — Gips
-    aralashib qolmasin uchun)."""
+    category — agar berilsa, FAQAT shu turdagi mahsulotlar qaytariladi.
+    exclude_category — aksincha, shu turdagi mahsulotlar RO'YXATDAN
+    CHIQARIB TASHLANADI."""
     q = (query or '').strip()
     if len(q) < 2:
         return []
@@ -5995,105 +5864,6 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     # To'g'risi: Profil uchun "birlik" = 1 METR, shuning uchun hajmni
     # haqiqiy metr soniga bo'lish kerak. Bu metr — unit_volume_m3 saqlangan
     # bo'lsa undan aniq keladi; aks holda pastdagi fallback ishlaydi.
-    cat_low = (fp.category or '').lower()
-
-
-    # ── GIPS uchun maxsus "+" ────────────────────────────────────────
-    # Gips mahsulotlar Penoplast/Loy emas, gips_kg_used (sarflangan Gips
-    # kukuni, kg) saqlaydi. AVVAL bu holat umuman ko'zda tutilmagan edi —
-    # "+" bosilganda faqat mahsulot miqdori oshib, Gips xomashyosi
-    # ombordan HECH QACHON ayirilmasdi. Endi, 1 birlikka qancha Gips
-    # ketishini — BARQAROR nisbatdan (gips_kg_used ÷ produced_quantity,
-    # xuddi Loy/Penoplast'dagi kabi) hisoblab, proporsional ayiramiz.
-    if cat_low == 'gips':
-        from models import Inventory as _Inv_gips
-        import json as _json_gips_add
-        gips_inv_id = getattr(fp, 'gips_inventory_id', None)
-        gips_kg_used = float(getattr(fp, 'gips_kg_used', None) or 0)
-        produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else base_qty)
-        if not gips_inv_id or gips_kg_used <= 0 or produced_q <= 0:
-            return {"success": False,
-                    "message": "Bu eski Gips yozuvi — 1 birlikka qancha Gips ketishi noma'lum. Yangi ishlab chiqarish yarating."}
-        gips_item = db.query(_Inv_gips).filter(_Inv_gips.id == gips_inv_id).with_for_update().first()
-        if not gips_item:
-            return {"success": False, "message": "Gips xomashyosi topilmadi."}
-        unit_gips_kg = gips_kg_used / produced_q
-        add_gips_kg = unit_gips_kg * add_qty
-        if float(gips_item.stock_quantity) < add_gips_kg:
-            return {"success": False, "message": "Xomashyo yetishmayapti!",
-                    "shortages": [f"{gips_item.item_name}: kerak {add_gips_kg:.2f} kg, qoldi {float(gips_item.stock_quantity):.2f} kg"]}
-
-        # MUHIM TUZATISH: avval bu yerda faqat asosiy Gips hisobga
-        # olinardi — ishlab chiqarishda qo'shilgan QO'SHIMCHA materiallar
-        # (Granula, Po'lat sim, Serpiyanka va h.k.) "+" bosilganda
-        # OMBORDAN UMUMAN AYIRILMASDI (chunki ular haqidagi ma'lumot hech
-        # qayerda saqlanmagan edi). Endi, saqlangan ro'yxatdan (BARQAROR
-        # nisbatda, xuddi Gipsning o'zi kabi) ularni ham to'g'ri, mos
-        # ravishda yechamiz.
-        saved_additives = []
-        if fp.gips_additives_json:
-            try:
-                saved_additives = _json_gips_add.loads(fp.gips_additives_json)
-            except Exception:
-                saved_additives = []
-
-        additive_items = []  # [(inv_item, add_amount)]
-        for a in saved_additives:
-            a_inv_id = a.get("inventory_id")
-            a_orig_qty = float(a.get("quantity") or 0)
-            if not a_inv_id or a_orig_qty <= 0:
-                continue
-            a_item = db.query(_Inv_gips).filter(_Inv_gips.id == a_inv_id).with_for_update().first()
-            if not a_item:
-                continue  # xomashyo o'chirilgan bo'lishi mumkin — o'tkazib yuboramiz
-            unit_a_qty = a_orig_qty / produced_q
-            add_a_qty = unit_a_qty * add_qty
-            if float(a_item.stock_quantity or 0) < add_a_qty:
-                return {"success": False, "message": "Xomashyo yetishmayapti!",
-                        "shortages": [f"{a_item.item_name}: kerak {add_a_qty:.2f} {a_item.unit}, qoldi {float(a_item.stock_quantity):.2f} {a_item.unit}"]}
-            additive_items.append((a_item, add_a_qty, a_orig_qty))
-
-        gips_item.stock_quantity = float(gips_item.stock_quantity) - add_gips_kg
-        cost_add = add_gips_kg * float(gips_item.price_per_unit or 0)
-
-        additive_log = []
-        new_additives_list = []
-        for a_item, add_a_qty, a_orig_qty in additive_items:
-            a_item.stock_quantity = float(a_item.stock_quantity or 0) - add_a_qty
-            cost_add += add_a_qty * float(a_item.price_per_unit or 0)
-            log_movement(
-                db, a_item.id, a_item.item_name, movement_type="out",
-                quantity=add_a_qty, unit=a_item.unit,
-                reason=f"Ishlab chiqarish: {fp.name} (+{add_qty:g} {fp.unit}, qo'shimcha)"
-            )
-            additive_log.append(f"{a_item.item_name}: -{add_a_qty:.2f} {a_item.unit}")
-            new_additives_list.append({"inventory_id": a_item.id, "quantity": a_orig_qty + add_a_qty})
-
-        fp.quantity = base_qty + add_qty
-        fp.produced_quantity = produced_q + add_qty
-        fp.gips_kg_used = gips_kg_used + add_gips_kg
-        fp.cost_price = float(fp.cost_price or 0) + cost_add
-        if new_additives_list:
-            fp.gips_additives_json = _json_gips_add.dumps(new_additives_list)
-        db.commit()
-        db.refresh(fp)
-        try:
-            log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
-                          new_value=f"+{add_qty:g} {fp.unit} qo'shildi (Gips), jami: {float(fp.quantity):g} {fp.unit}",
-                          company_id=getattr(fp, 'company_id', None))
-        except Exception:
-            pass
-        return {
-            "success": True,
-            "message": f"+{add_qty:g} {fp.unit} qo'shildi",
-            "product_id": fp.id,
-            "name": fp.name,
-            "added_qty": add_qty,
-            "new_qty": float(fp.quantity),
-            "unit": fp.unit,
-            "inventory_log": [f"{gips_item.item_name}: -{add_gips_kg:.2f} kg"] + additive_log
-        }
-
     # MUHIM: 1 birlikka qancha xomashyo ketishini — JORIY qoldiq/hajmdan
     # EMAS, balki ishlab chiqarilganda saqlangan BARQAROR nisbatdan
     # olamiz. Sababi: mahsulot sotilganda faqat "quantity" kamayadi,
@@ -6120,7 +5890,7 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     # Xomashyo yetadimi
     shortages = []
     if add_volume > 0 and fp.penoplast_id:
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        p = _add_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)).first()
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = add_volume / vol_per_unit
@@ -6137,7 +5907,7 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
 
     # 1) Penoplast
     if add_volume > 0 and fp.penoplast_id:
-        p = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).with_for_update().first()
+        p = _add_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)).with_for_update().first()
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = add_volume / vol_per_unit
@@ -6273,39 +6043,6 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
     revenue = qty * unit_price
     total_cost = float(fp.cost_price or 0)
 
-    # GIPS mahsulotlar uchun — alohida, aniq tafsilot
-    if (fp.category or '').lower() == 'gips':
-        gips_kg = float(fp.gips_kg_used or 0)
-        gips_cost_per_kg = 0.0
-        gips_item_name = None
-        if fp.gips_inventory_id:
-            gips_item = _pf_inv(db.query(Inventory).filter(Inventory.id == fp.gips_inventory_id)).first()
-            if gips_item:
-                gips_cost_per_kg = float(gips_item.price_per_unit or 0)
-                gips_item_name = gips_item.item_name
-        profit = revenue - total_cost
-        margin = (profit / revenue * 100) if revenue > 0 else 0
-        return {
-            "success": True,
-            "id": fp.id,
-            "name": fp.name,
-            "category": "gips",
-            "quantity": qty,
-            "unit": fp.unit,
-            "unit_price": unit_price,
-            "revenue": round(revenue),
-            "gips_kg_used": gips_kg,
-            "gips_item_name": gips_item_name,
-            "gips_cost_per_kg": round(gips_cost_per_kg),
-            "total_cost": round(total_cost),
-            "profit": round(profit),
-            "margin": round(margin, 1),
-            "cost_per_unit": round(total_cost / qty) if qty > 0 else 0,
-            "profit_per_unit": round(profit / qty) if qty > 0 else 0,
-            "source": fp.source.value,
-            "production_status": fp.production_status.value if fp.production_status else None,
-        }
-
     # Loy narxi
     loy_cost = 0.0
     loy_per_kg = 0.0
@@ -6326,7 +6063,7 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
     # chiqib, "Penoplast: 0 so'm" deb noto'g'ri ko'rsatilardi.
     peno_cost = 0.0
     if fp.penoplast_id and float(fp.volume_m3 or 0) > 0:
-        peno_inv = db.query(Inventory).filter(Inventory.id == fp.penoplast_id).first()
+        peno_inv = _pf_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)).first()
         if peno_inv and peno_inv.volume_per_unit and peno_inv.price_per_unit:
             price_per_m3 = float(peno_inv.price_per_unit) / float(peno_inv.volume_per_unit)
             peno_cost = float(fp.volume_m3) * price_per_m3
