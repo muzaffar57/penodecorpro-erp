@@ -3460,6 +3460,12 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
     # Ombordan penoplast yechamiz
     log = services.deduct_inventory_for_order(db, order)
 
+    # "Loy sotish" detallari — har biri o'z retseptiga ko'ra
+    for oi in order.items:
+        if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id and oi.quantity:
+            log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id))
+
+    # Rejalashtirilgan loy (qoplama) bo'lsa — uni ham yechamiz
     planned_loy = services._get_planned_loy(order)
     if planned_loy > 0:
         loy_log = services.deduct_loy_ingredients(db, order, planned_loy)
