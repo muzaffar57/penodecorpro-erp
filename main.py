@@ -1404,7 +1404,53 @@ def company_logo_of(company_id):
 
 
 templates.env.globals["company_name_of"] = company_name_of
+# ============================================================
+# Ixtiyoriy mahsulot kategoriyalari (Faza 5)
+# ============================================================
+# Dasturda "Termopanel (Bazalt)", "Gips" va "Loy sotish" —
+# PenoDecorPro ning o'ziga xos yo'nalishlari. Boshqa korxona ularni
+# ishlab chiqarmasligi mumkin, lekin interfeysda ular baribir
+# ko'rinardi va yangi mijozni chalkashtirardi.
+#
+# Endi har korxona o'ziga keraklisini tanlaydi. Sozlama bo'sh bo'lsa —
+# HAMMASI ko'rinadi, ya'ni mavjud korxonada hech narsa o'zgarmaydi.
+# Yangi korxona yaratilganda esa faqat asosiy turlar yoqiladi.
+IXTIYORIY_KATEGORIYALAR = [
+    ("termopanel", "🪨 Termopanel (Bazalt)"),
+    ("gips", "🧱 Gips"),
+    ("loy_sotish", "🪣 Loy sotish"),
+]
+_ASOSIY_KATEGORIYALAR = ["profil", "panel", "dona", "blok"]
+
+
+def enabled_categories_of(company_id):
+    """Korxonada yoqilgan ixtiyoriy kategoriyalar to'plami."""
+    if company_id is None:
+        return {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+    try:
+        from database import SessionLocal as _SL
+        _d = _SL()
+        try:
+            xom = crud.get_setting(_d, "enabled_categories", None, company_id=company_id)
+        finally:
+            _d.close()
+    except Exception:
+        xom = None
+    if xom is None:
+        # Hech qachon sozlanmagan — hammasi yoqiq (eski xatti-harakat)
+        return {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+    return {x.strip() for x in xom.split(",") if x.strip()}
+
+
+def cat_on(code, company_id=None):
+    """Shablonlar uchun: shu kategoriya ko'rsatilsinmi?"""
+    if code in _ASOSIY_KATEGORIYALAR:
+        return True
+    return code in enabled_categories_of(company_id)
+
+
 templates.env.globals["company_logo_of"] = company_logo_of
+templates.env.globals["cat_on"] = cat_on
 # 2026-09-17: statik fayllar (masalan translit.js) uchun cache-busting —
 # brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
 # Har deploy'da bu qiymat o'zgarishi kerak (masalan shu sana-vaqt) —
@@ -4555,6 +4601,14 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Yaratib bo'lmadi: {e}")
 
+    # Yangi korxonada ixtiyoriy turlar (termopanel, gips, loy) O'CHIQ —
+    # mijoz kerak bo'lsa sozlamalardan yoqadi. Aks holda u birinchi kuni
+    # o'zi ishlab chiqarmaydigan turlarni ko'rib chalkashardi.
+    try:
+        crud.set_setting(db, "enabled_categories", "", company_id=korxona.id)
+    except Exception:
+        pass
+
     _clear_company_name_cache()
     return {"status": "ok", "company": {"id": korxona.id, "name": nom, "code": kod},
             "admin": {"username": login, "password": parol},
@@ -4683,6 +4737,31 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
     db.commit()
     _clear_company_name_cache(cid)
     return {"status": "ok", "name": nom}
+
+
+@app.get("/api/settings/categories")
+def api_get_categories(db: Session = Depends(get_db),
+                       current_user=Depends(auth.admin_only)):
+    """Ixtiyoriy kategoriyalar va ularning holati."""
+    cid = auth.company_id_of(current_user)
+    yoqilgan = enabled_categories_of(cid)
+    return {"categories": [{"code": k, "label": v, "enabled": k in yoqilgan}
+                           for k, v in IXTIYORIY_KATEGORIYALAR]}
+
+
+@app.put("/api/settings/categories")
+def api_set_categories(codes: str = Form(""), db: Session = Depends(get_db),
+                       current_user=Depends(auth.admin_only)):
+    """Yoqilgan kategoriyalarni saqlaydi (vergul bilan ajratilgan).
+
+    Bo'sh yuborilsa — barcha ixtiyoriy turlar o'chadi (faqat asosiy
+    to'rttasi qoladi). Asosiy turlar (profil, panel, donali, blok)
+    har doim yoqiq va bu yerdan o'chirilmaydi."""
+    ruxsat = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+    tanlangan = [x.strip() for x in (codes or "").split(",") if x.strip() in ruxsat]
+    crud.set_setting(db, "enabled_categories", ",".join(tanlangan),
+                     company_id=auth.company_id_of(current_user))
+    return {"status": "ok", "enabled": tanlangan}
 
 
 @app.post("/api/settings/company/logo")
