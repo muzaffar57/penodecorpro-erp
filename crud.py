@@ -169,16 +169,6 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
     is_peno = getattr(item_data, 'is_penoplast', False)
     is_default = getattr(item_data, 'is_default_penoplast', False)
 
-    # MUHIM: Bazalt plita uchun — "1 dona necha m²" (volume_per_unit) bo'sh
-    # yoki 1 bo'lsa, avtomatik 0.72 qo'yamiz. Aks holda tizim "1 dona = 1 m²"
-    # deb hisoblab, kerakli bazalt sonini KAM ayirardi (139 o'rniga 100).
-    _nm = (getattr(item_data, 'item_name', '') or '').lower()
-    _is_bazalt = ('bazalt' in _nm) and ('kley' not in _nm) and ('serpiyank' not in _nm)
-    if _is_bazalt:
-        _vpu = getattr(item_data, 'volume_per_unit', None)
-        if _vpu is None or float(_vpu or 0) <= 0 or abs(float(_vpu) - 1.0) < 0.0001:
-            item_data.volume_per_unit = 0.72
-
     # MUHIM: agar shu nomdagi xomashyo avval o'chirilgan bo'lsa (lekin xarid
     # tarixi bo'lgani uchun butunlay o'chmasdan, "yashirin" — is_deleted=True
     # holda qolgan bo'lsa) — YANGI qator yaratmaymiz (bu — nom takrorlanishi
@@ -231,10 +221,6 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
         if getattr(item_data, 'category', None):
             existing_to_reuse.category = item_data.category
         existing_to_reuse.notes = item_data.notes
-        if getattr(item_data, 'serp_ratio_per_m2', None) is not None:
-            existing_to_reuse.serp_ratio_per_m2 = item_data.serp_ratio_per_m2
-        if getattr(item_data, 'kley_ratio_per_m2', None) is not None:
-            existing_to_reuse.kley_ratio_per_m2 = item_data.kley_ratio_per_m2
         if getattr(item_data, 'base_unit', None) is not None:
             existing_to_reuse.base_unit = item_data.base_unit
         if getattr(item_data, 'conversion_factor', None) is not None:
@@ -266,8 +252,6 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
         is_default_penoplast=(is_default and is_peno),
         category=(item_data.category if getattr(item_data, 'category', None) else guess_category(item_data.item_name, is_peno)),
         notes=item_data.notes,
-        serp_ratio_per_m2=getattr(item_data, 'serp_ratio_per_m2', None),
-        kley_ratio_per_m2=getattr(item_data, 'kley_ratio_per_m2', None),
         base_unit=getattr(item_data, 'base_unit', None),
         conversion_factor=getattr(item_data, 'conversion_factor', None)
     )
@@ -1332,10 +1316,6 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
                 total_price=sub_price
             ))
 
-        # MUHIM: Termopanel uchun — bazalt/serpiyanka/kley tanlovini
-        # DARHOL, yaratilgan zahoti notes'ga yozib qo'yamiz (avval bu —
-        # faqat TAHRIRLASHDA yozilardi, shuning uchun qoralama holatida
-        # "jarayonga olish"da bu ma'lumot yo'qolib qolar edi).
 
     db_order.total_amount = total_amount
     # Kelishilgan summa — boshida jami summaga teng (chegirmasiz)
@@ -1565,27 +1545,6 @@ def _fp_stable_unit_cost(db, fp) -> float:
     # TERMOPANEL (Bazalt/Serpiyanka/Kley) qismi — bular JAMI (ishlab
     # chiqarilgan/qo'shilgan barcha marta uchun) miqdorda saqlanadi, shuning
     # uchun 1 birlikka: jami_miqdor / produced_quantity. MUHIM TUZATISH:
-    # avval bu qism BUTUNLAY YO'Q edi — "Tayyor mahsulotdan" buyurtmaga
-    # o'tkazilganda yoki sotilganda, faqat Loy qismi kamayardi, Bazalt/
-    # Serpiyanka/Kley esa hech qachon kamaymay, tan narx haqiqiysidan
-    # yuqori bo'lib qolaverardi (2026-08-23 zaxira tekshiruvida aniqlangan).
-    bazalt_qty = float(getattr(fp, 'termo_bazalt_qty', None) or 0)
-    if bazalt_qty > 0 and getattr(fp, 'bazalt_item_id', None):
-        produced_q = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-        if produced_q > 0:
-            b_item = _inv(fp.bazalt_item_id)
-            if b_item and b_item.price_per_unit:
-                cost += (bazalt_qty / produced_q) * float(b_item.price_per_unit)
-            serp_qty = float(getattr(fp, 'termo_serp_qty', None) or 0)
-            if serp_qty > 0 and getattr(fp, 'termo_serp_id', None):
-                s_item = _inv(fp.termo_serp_id)
-                if s_item and s_item.price_per_unit:
-                    cost += (serp_qty / produced_q) * float(s_item.price_per_unit)
-            kley_qty = float(getattr(fp, 'termo_kley_qty', None) or 0)
-            if kley_qty > 0 and getattr(fp, 'termo_kley_id', None):
-                k_item = _inv(fp.termo_kley_id)
-                if k_item and k_item.price_per_unit:
-                    cost += (kley_qty / produced_q) * float(k_item.price_per_unit)
     return cost
 
 
@@ -4125,11 +4084,6 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "penoplast_id": getattr(it, 'penoplast_id', None),
         "price_per_m3": getattr(it, 'price_per_m3', None),
         "finished_product_id": getattr(it, 'finished_product_id', None),
-        "bazalt_item_id": getattr(it, 'bazalt_item_id', None),
-        "serpiyanka_item_id": getattr(it, 'serpiyanka_item_id', None),
-        "kley_item_id": getattr(it, 'kley_item_id', None),
-        "kley_kg": getattr(it, 'kley_kg', None) or 0,
-        "termo_loy_kg": getattr(it, 'termo_loy_kg', None) or 0,
         "sub_details": [{
             "category": sd.category, "width": sd.width, "thickness": sd.thickness,
             "length": sd.length, "quantity": sd.quantity,
@@ -5127,7 +5081,6 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     log = []
     peno_cost = 0.0
     loy_cost = 0.0
-    bazalt_cost = 0.0
 
     # 1) Penoplast — QO'SHIMCHA ayiriladi
     if penoplast_vol_needed > 0:
@@ -5183,7 +5136,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
             reason_override=f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {brak_qty:g} birlik)"
         ))
 
-    total_cost = peno_cost + bazalt_cost + loy_cost
+    total_cost = peno_cost + loy_cost
 
     # MUHIM: fp.quantity GA TEGILMAYDI — yakuniy mahsulot miqdori
     # o'zgarmagani uchun. Faqat Moliyada xarajat sifatida qayd etiladi.
@@ -5208,7 +5161,6 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         "loss_id": loss.id,
         "cost_amount": float(total_cost),
         "penoplast_cost": float(peno_cost),
-        "bazalt_cost": float(bazalt_cost),
         "loy_cost": float(loy_cost),
         "log": log,
     }
@@ -6239,103 +6191,6 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     # bo'lsa undan aniq keladi; aks holda pastdagi fallback ishlaydi.
     cat_low = (fp.category or '').lower()
 
-    # ── TERMOPANEL (BAZALT) uchun maxsus "+" ────────────────────────
-    # Termopanel penoplast/volume ishlatmaydi — bazalt/serpiyanka/kley/loy
-    # ishlatadi. Bularni, saqlangan bazalt_item_id va unit_loy_kg asosida,
-    # 1 m² ga proporsional ayiramiz (aynan foydalanuvchi tushuntirgandek:
-    # boshida qancha ketgan bo'lsa, o'sha nisbatда davom etadi).
-    if cat_low == 'termopanel':
-        bazalt_id = getattr(fp, 'bazalt_item_id', None)
-        if not bazalt_id:
-            return {"success": False,
-                    "message": "Bu eski termopanel yozuvi — bazalt turi saqlanmagan. Yangi ishlab chiqarish yarating."}
-        bazalt = db.query(Inventory).filter(Inventory.id == bazalt_id).with_for_update().first()
-        if not bazalt:
-            return {"success": False, "message": "Bazalt xomashyosi topilmadi."}
-        add_m2 = float(add_qty)
-        # Bazalt plita (dona)
-        area_per_sheet = float(bazalt.volume_per_unit or 0.72)
-        sheets = add_m2 / area_per_sheet if area_per_sheet > 0 else 0
-        serp_ratio = float(bazalt.serp_ratio_per_m2) if bazalt.serp_ratio_per_m2 else 2.0
-        kley_ratio = float(bazalt.kley_ratio_per_m2) if bazalt.kley_ratio_per_m2 else 0.8
-        unit_loy = float(fp.unit_loy_kg or 0)
-        add_loy = unit_loy * add_m2
-
-        cost_add = 0.0
-        log2 = []
-        # Bazalt
-        bazalt.stock_quantity = float(bazalt.stock_quantity) - sheets
-        cost_add += sheets * float(bazalt.price_per_unit or 0)
-        log2.append(f"{bazalt.item_name}: -{sheets:.2f} dona")
-        # Serpiyanka — avval saqlangan aniq turdan (termo_serp_id),
-        # bo'lmasa (eski yozuv) — nomi bo'yicha qidiramiz
-        from models import Inventory as _Inv
-        rulon = 0.0
-        serp = None
-        if getattr(fp, 'termo_serp_id', None):
-            serp = db.query(_Inv).filter(_Inv.id == fp.termo_serp_id).with_for_update().first()
-        if not serp:
-            serp = db.query(_Inv).filter(_Inv.item_name.ilike('%serpiyanka%')).first()
-        if serp:
-            serp_rulon_area = float(serp.volume_per_unit or 50.0)
-            rulon = (add_m2 * serp_ratio) / serp_rulon_area if serp_rulon_area > 0 else 0
-            serp.stock_quantity = float(serp.stock_quantity) - rulon
-            cost_add += rulon * float(serp.price_per_unit or 0)
-            log2.append(f"{serp.item_name}: -{rulon:.2f} rulon")
-        # Kley — avval saqlangan aniq turdan (termo_kley_id), bo'lmasa
-        # (eski yozuv) — nomi bo'yicha qidiramiz
-        kley_kg = 0.0
-        kley = None
-        if getattr(fp, 'termo_kley_id', None):
-            kley = db.query(_Inv).filter(_Inv.id == fp.termo_kley_id).with_for_update().first()
-        if not kley:
-            kley = db.query(_Inv).filter(_Inv.item_name.ilike('%kley%bazalt%')).first() or db.query(_Inv).filter(_Inv.item_name.ilike('%kley%')).first()
-        if kley:
-            kley_kg = add_m2 * kley_ratio
-            kley.stock_quantity = float(kley.stock_quantity) - kley_kg
-            cost_add += kley_kg * float(kley.price_per_unit or 0)
-            log2.append(f"{kley.item_name}: -{kley_kg:.2f} kg")
-        # Loy
-        if add_loy > 0:
-            loy_log = services.deduct_loy_ingredients(db, _TermoFakeOrder(fp.recipe_id), add_loy)
-            log2.extend(loy_log)
-            loy_info = services.get_loy_cost_per_kg(db, fp.recipe_id)
-            cost_add += add_loy * float(loy_info.get("cost_per_kg", 0) or 0)
-
-        fp.quantity = base_qty + add_m2
-        fp.produced_quantity = float(fp.produced_quantity if fp.produced_quantity is not None else base_qty) + add_m2
-        fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
-        fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
-        fp.cost_price = float(fp.cost_price or 0) + cost_add
-        # MUHIM: yangi jami Bazalt/Serpiyanka/Kley miqdorini ham (TUZILGAN
-        # holda) yangilab qo'yamiz — aks holda "+" orqali qo'shilgan
-        # qism, "Tayyor mahsulotdan" buyurtmaga o'tkazilganda, tan
-        # narxdan hech qachon to'g'ri kamaymay qolar edi.
-        fp.termo_bazalt_qty = float(getattr(fp, 'termo_bazalt_qty', None) or 0) + sheets
-        if serp:
-            fp.termo_serp_id = serp.id
-            fp.termo_serp_qty = float(getattr(fp, 'termo_serp_qty', None) or 0) + rulon
-        if kley:
-            fp.termo_kley_id = kley.id
-            fp.termo_kley_qty = float(getattr(fp, 'termo_kley_qty', None) or 0) + kley_kg
-        db.commit()
-        db.refresh(fp)
-        try:
-            log_activity(db, "produced", "finished_product", fp.id, fp.name, performed_by,
-                          new_value=f"+{add_m2:g} m² qo'shildi (Termopanel), jami: {float(fp.quantity):g} {fp.unit}",
-                          company_id=getattr(fp, 'company_id', None))
-        except Exception:
-            pass
-        return {
-            "success": True,
-            "message": f"+{add_m2:g} m² qo'shildi",
-            "product_id": fp.id,
-            "name": fp.name,
-            "added_qty": add_m2,
-            "new_qty": float(fp.quantity),
-            "unit": fp.unit,
-            "inventory_log": log2
-        }
 
     # ── GIPS uchun maxsus "+" ────────────────────────────────────────
     # Gips mahsulotlar Penoplast/Loy emas, gips_kg_used (sarflangan Gips
@@ -6670,19 +6525,6 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
             price_per_m3 = float(peno_inv.price_per_unit) / float(peno_inv.volume_per_unit)
             peno_cost = float(fp.volume_m3) * price_per_m3
 
-    # Bazalt narxi — Termopanel mahsulotlar Penoplastdan emas, Bazalt
-    # panellardan tayyorlanadi. Xuddi Penoplast kabi, TO'G'RIDAN-TO'G'RI
-    # (mahsulot miqdori ÷ 1 bazaltning maydoni) × joriy bazalt narxidan
-    # hisoblanadi — "umumiy tan narxidan ayirish" orqali EMAS.
-    bazalt_cost = 0.0
-    bazalt_panels_used = 0.0
-    base_qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
-    if fp.bazalt_item_id and base_qty > 0:
-        bazalt_inv = db.query(Inventory).filter(Inventory.id == fp.bazalt_item_id).first()
-        if bazalt_inv and bazalt_inv.volume_per_unit and bazalt_inv.price_per_unit:
-            bazalt_panels_used = base_qty / float(bazalt_inv.volume_per_unit)
-            bazalt_cost = bazalt_panels_used * float(bazalt_inv.price_per_unit)
-
     profit = revenue - total_cost
     margin = (profit / revenue * 100) if revenue > 0 else 0
 
@@ -6695,8 +6537,6 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
         "unit_price": unit_price,
         "revenue": round(revenue),
         "penoplast_cost": round(peno_cost),
-        "bazalt_cost": round(bazalt_cost),
-        "bazalt_panels_used": round(bazalt_panels_used, 2),
         "loy_kg": loy_kg,
         "loy_cost_per_kg": round(loy_per_kg),
         "loy_cost": round(loy_cost),
