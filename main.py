@@ -1047,6 +1047,24 @@ def _migrate_faza3_columns():
             # hech kim platforma admini bo'lmay qoldi va tizim egasining
             # o'zi ham platforma amallariga kira olmadi. Endi solishtirish
             # harf registriga bog'liq emas.
+            # --- Korxona brendi: slogan, phone, address, logo_path ---
+            for _ust, _tur in (("slogan", "VARCHAR(150)"),
+                               ("phone", "VARCHAR(60)"),
+                               ("address", "VARCHAR(200)"),
+                               ("logo_path", "VARCHAR(255)")):
+                if not has_col("companies", _ust):
+                    try:
+                        conn.execute(text(
+                            f"ALTER TABLE companies ADD COLUMN {_ust} {_tur}"))
+                        conn.commit()
+                        print(f"✓ companies.{_ust} qo'shildi")
+                    except Exception as _e:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        print(f"⚠ companies.{_ust} qo'shilmadi: {_e}")
+
             # --- login_history.company_id: NOT NULL -> NULL ruxsat ---
             # 2026-09-20: noma'lum foydalanuvchi nomi bilan kirishga
             # urinilganda korxona aniqlanmaydi. `DEFAULT 1` olib
@@ -3872,7 +3890,8 @@ def api_split_profit_pdf(year: int, month: int, db: Session = Depends(get_db), c
     import finance_pdf
 
     split = services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user))
-    pdf_bytes = finance_pdf.generate_split_profit_pdf(split, year, month)
+    pdf_bytes = finance_pdf.generate_split_profit_pdf(
+        split, year, month, db=db, company_id=auth.company_id_of(current_user))
     filename = f"gips_penoplast_hisobot_{year}_{month:02d}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
@@ -3897,7 +3916,8 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
     debt_summary = services.get_full_debt_summary(db, year, month, company_id=auth.company_id_of(current_user))
 
     pdf_bytes = finance_pdf.generate_finance_report_pdf(
-        report, expense_transactions, brak_by_material, year, month, debt_summary
+        report, expense_transactions, brak_by_material, year, month, debt_summary,
+        db=db, company_id=auth.company_id_of(current_user)
     )
     filename = f"moliyaviy_hisobot_{year}_{month:02d}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
@@ -4563,13 +4583,22 @@ def api_get_company(db: Session = Depends(get_db),
     cid = auth.company_id_of(current_user)
     row = db.query(_Co).filter(_Co.id == cid).first()
     return {"id": cid, "name": (row.name if row else None),
-            "code": (row.code if row else None)}
+            "code": (row.code if row else None),
+            "slogan": (getattr(row, "slogan", None) if row else None),
+            "phone": (getattr(row, "phone", None) if row else None),
+            "address": (getattr(row, "address", None) if row else None),
+            "logo_path": (getattr(row, "logo_path", None) if row else None)}
 
 
 @app.put("/api/settings/company")
-def api_set_company(name: str = Form(...), db: Session = Depends(get_db),
+def api_set_company(name: str = Form(...), slogan: str = Form(None),
+                    phone: str = Form(None), address: str = Form(None),
+                    db: Session = Depends(get_db),
                     current_user=Depends(auth.admin_only)):
-    """Korxona nomini o'zgartiradi (faqat o'z korxonasini)."""
+    """Korxona brendi: nomi, shiori, telefoni, manzili.
+
+    Bu ma'lumot yuk xati, nakladnoy va moliya hisobotlarida ishlatiladi.
+    Berilmagan (None) maydon o'zgarmaydi; bo'sh matn — tozalaydi."""
     from production_models import Company as _Co
     nom = (name or "").strip()
     if len(nom) < 2:
@@ -4581,9 +4610,65 @@ def api_set_company(name: str = Form(...), db: Session = Depends(get_db),
     if not row:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
     row.name = nom
+    for maydon, qiymat, chegara in (("slogan", slogan, 150),
+                                    ("phone", phone, 60),
+                                    ("address", address, 200)):
+        if qiymat is None:
+            continue
+        v = qiymat.strip()
+        if len(v) > chegara:
+            raise HTTPException(status_code=400,
+                                detail=f"'{maydon}' juda uzun ({chegara} belgidan ko'p)")
+        setattr(row, maydon, v or None)
     db.commit()
     _clear_company_name_cache(cid)
     return {"status": "ok", "name": nom}
+
+
+@app.post("/api/settings/company/logo")
+async def api_upload_company_logo(file: UploadFile = File(...),
+                                  db: Session = Depends(get_db),
+                                  current_user=Depends(auth.admin_only)):
+    """Korxona logotipini yuklaydi (hujjatlarda ishlatiladi).
+
+    Faqat rasm, 2 MB gacha. Fayl `static/logos/company_<id>.<kengaytma>`
+    nomi bilan saqlanadi — ya'ni har korxonaning o'z fayli bor va
+    bir-birining ustiga yozilmaydi."""
+    import os as _os
+    RUXSAT = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
+    if file.content_type not in RUXSAT:
+        raise HTTPException(status_code=400,
+                            detail="Faqat PNG, JPG yoki WEBP rasm yuklash mumkin")
+    data = await file.read()
+    if len(data) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Rasm 2 MB dan katta bo'lmasin")
+    if not data:
+        raise HTTPException(status_code=400, detail="Fayl bo'sh")
+
+    cid = auth.company_id_of(current_user)
+    papka = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static", "logos")
+    _os.makedirs(papka, exist_ok=True)
+    kengaytma = RUXSAT[file.content_type]
+    nom = f"company_{cid}{kengaytma}"
+    with open(_os.path.join(papka, nom), "wb") as f:
+        f.write(data)
+
+    from production_models import Company as _Co
+    row = db.query(_Co).filter(_Co.id == cid).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    # Eski boshqa kengaytmali fayllarni tozalaymiz
+    for k in (".png", ".jpg", ".webp"):
+        if k != kengaytma:
+            eski = _os.path.join(papka, f"company_{cid}{k}")
+            if _os.path.exists(eski):
+                try:
+                    _os.remove(eski)
+                except OSError:
+                    pass
+    row.logo_path = f"static/logos/{nom}"
+    db.commit()
+    return {"status": "ok", "logo_path": row.logo_path}
 
 
 @app.get("/api/settings/telegram-bot")

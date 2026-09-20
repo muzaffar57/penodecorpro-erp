@@ -149,6 +149,19 @@ class Company(Base):
     # korxona xohlasa, buni yumshoq ogohlantirishga o'zgartira oladi.
     allow_negative_stock = Column(Boolean, default=False, nullable=False)
 
+    # 2026-09-20 — KORXONA BRENDI (Faza 5).
+    # Ilgari yuk xati, nakladnoy va moliya hisobotlarida "PenoDecorPro ·
+    # Fasad bezaklari · Andijon · +998 97 999 57 57" QATTIQ yozilgan edi —
+    # ya'ni ikkinchi mijozning hujjatida boshqa korxonaning nomi va
+    # TELEFON RAQAMI chiqardi. Mijozi qo'ng'iroq qilsa, boshqa odamga
+    # tushardi. Endi bularning hammasi shu yerdan olinadi.
+    # Bo'sh qoldirilsa — eski qiymatlar ishlatiladi, ya'ni mavjud
+    # korxonada hech narsa o'zgarmaydi.
+    slogan = Column(String(150), nullable=True)      # "Fasad bezaklari"
+    phone = Column(String(60), nullable=True)        # "+998 97 999 57 57"
+    address = Column(String(200), nullable=True)     # "Andijon"
+    logo_path = Column(String(255), nullable=True)   # "static/logos/company_1.png"
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):

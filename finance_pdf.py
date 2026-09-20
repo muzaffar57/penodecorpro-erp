@@ -6,6 +6,8 @@ xarajat turi (nomma-nom), brak (yaroqsiz xomashyo), va yakuniy sof
 foydani — bitta, tartibli hujjatga birlashtiradi.
 """
 
+from company_brand import get_brand  # 2026-09-20: korxona brendi
+
 import io
 from datetime import datetime, timezone, timedelta
 
@@ -39,9 +41,11 @@ def _fmt(n):
         return "0"
 
 
-def generate_split_profit_pdf(split: dict, year: int, month: int) -> bytes:
+def generate_split_profit_pdf(split: dict, year: int, month: int,
+                              db=None, company_id=None) -> bytes:
     """Gips va Penoplast uchun MUSTAQIL sof foyda hisoboti — PDF.
     split — services.calculate_split_profit_report() natijasi."""
+    _brand = get_brand(db, company_id)
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -139,7 +143,8 @@ def generate_split_profit_pdf(split: dict, year: int, month: int) -> bytes:
 
 def generate_finance_report_pdf(report: dict, expense_transactions: list,
                                  brak_by_material: list, year: int, month: int,
-                                 debt_summary: dict = None) -> bytes:
+                                 debt_summary: dict = None,
+                                 db=None, company_id=None) -> bytes:
     """Bir oylik to'liq moliyaviy hisobot — PDF.
 
     report — services.get_monthly_report() natijasi.
@@ -149,6 +154,7 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     debt_summary — services.get_full_debt_summary() natijasi (ixtiyoriy —
         berilmasa, "Qarzlar" bo'limi PDF'da chiqmaydi).
     """
+    _brand = get_brand(db, company_id)
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -175,7 +181,7 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     header = Table([[
         Paragraph("PENODECORPRO", st_title),
     ], [
-        Paragraph("Fasad bezaklari  ·  Andijon  ·  +998 97 999 57 57", st_sub),
+        Paragraph(_brand["subtitle"], st_sub),
     ]], colWidths=[W])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -404,7 +410,7 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     # ── FOOTER ──
     el.append(Spacer(1, 12))
     footer = Table([[Paragraph(
-        f"PenoDecorPro ERP  ·  Yaratildi: {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
+        f"{_brand['name']}  ·  Yaratildi: {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
         f"Ushbu hisobot {MONTH_NAMES[month]} {year} oyi uchun avtomatik yaratildi",
         ParagraphStyle('f', fontName='Helvetica', fontSize=7, textColor=GRAY, alignment=TA_CENTER)
     )]], colWidths=[W])

@@ -4,6 +4,8 @@ PenoDecorPro ERP — Yetkazish nakladnoyi (PDF)
 Bosqichma-bosqich topshirish uchun isbot hujjati.
 """
 
+from company_brand import get_brand, company_id_of  # 2026-09-20: korxona brendi
+
 import io
 from datetime import datetime, timezone, timedelta
 
@@ -49,6 +51,7 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
     """Bir nechta turli tayyor mahsulot — BITTA xaridorga, BITTA Yuk xati
     sifatida. `sales` — FinishedProductSale obyektlari ro'yxati (bitta
     sale_group_id ga tegishli)."""
+    _brand = get_brand(db, company_id_of(sales[0] if sales else None, db))
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -69,7 +72,7 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
     header = Table([[
         Paragraph("PENODECORPRO", st_title),
     ], [
-        Paragraph("Fasad bezaklari  ·  Andijon  ·  +998 97 999 57 57", st_sub),
+        Paragraph(_brand["subtitle"], st_sub),
     ]], colWidths=[18*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -224,6 +227,7 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
 def generate_finished_sale_pdf(sale, db=None) -> bytes:
     """Tayyor mahsulot to'g'ridan-to'g'ri sotuvi uchun sodda Yuk xati.
     Buyurtma/loyihaga bog'liq emas — faqat shu bitta sotuv haqida."""
+    _brand = get_brand(db, company_id_of(sale, db))
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -246,7 +250,7 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
     header = Table([[
         Paragraph("PENODECORPRO", st_title),
     ], [
-        Paragraph("Fasad bezaklari  ·  Andijon  ·  +998 97 999 57 57", st_sub),
+        Paragraph(_brand["subtitle"], st_sub),
     ]], colWidths=[18*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -401,6 +405,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         """Kompakt rejimda kichraytirilgan Spacer balandligi."""
         return max(1, n * spacer_k)
 
+    _brand = get_brand(db, company_id_of(delivery, db))
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -429,7 +434,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     header = Table([[
         Paragraph("PENODECORPRO", st_title),
     ], [
-        Paragraph("Fasad bezaklari  ·  Andijon  ·  +998 97 999 57 57", st_sub),
+        Paragraph(_brand["subtitle"], st_sub),
     ]], colWidths=[18*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -791,7 +796,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     # ---- Footer ----
     el.append(Spacer(1, sp(10)))
     footer = Table([[Paragraph(
-        f"PenoDecorPro ERP  ·  {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
+        f"{_brand['name']}  ·  {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
         f"Ushbu hujjat mahsulot topshirilganini tasdiqlaydi",
         ParagraphStyle('f', fontName='Helvetica', fontSize=7,
                        textColor=GRAY, alignment=TA_CENTER)
@@ -814,6 +819,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
 def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     """Tanlangan nakladnoylar bo'yicha umumiy hisob-kitob varaqasi."""
+    _brand = get_brand(db, company_id_of(order, db))
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -840,7 +846,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     # ---- Sarlavha ----
     header = Table([
         [Paragraph("PENODECORPRO", st_title)],
-        [Paragraph("Fasad bezaklari  ·  Andijon  ·  +998 97 999 57 57", st_sub)],
+        [Paragraph(_brand["subtitle"], st_sub)],
     ], colWidths=[18.2*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -1039,7 +1045,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     # ---- Footer ----
     el.append(Spacer(1, 14))
     footer = Table([[Paragraph(
-        f"PenoDecorPro ERP  ·  {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
+        f"{_brand['name']}  ·  {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
         f"Ushbu hujjat {len(deliveries)} ta yuk xati bo'yicha hisob-kitobni tasdiqlaydi",
         ParagraphStyle('f', fontName='Helvetica', fontSize=7,
                        textColor=GRAY, alignment=TA_CENTER)

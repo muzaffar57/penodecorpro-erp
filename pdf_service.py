@@ -8,6 +8,8 @@ Ishlatilishi:
     # PDF ni brauzerga yuborish uchun FastAPI Response ishlatiladi
 """
 
+from company_brand import get_brand, company_id_of  # 2026-09-20: korxona brendi
+
 import io
 from datetime import datetime
 from typing import Optional
@@ -103,9 +105,12 @@ def generate_nakladnoy(order, db=None) -> bytes:
     import os
     from reportlab.platypus import Image as RLImage
 
-    logo_path = os.path.join(os.path.dirname(__file__), "static", "logo_transparent.png")
+    # 2026-09-20: logotip va nomlar korxonanikidan olinadi (bo'lmasa — umumiy)
+    _brand = get_brand(db, company_id_of(order, db))
+    logo_path = _brand["logo"] or os.path.join(
+        os.path.dirname(__file__), "static", "logo_transparent.png")
 
-    if os.path.exists(logo_path):
+    if logo_path and os.path.exists(logo_path):
         # MUHIM (2026-08-29): endi haqiqiy shaffof fonli PNG ishlatiladi
         # (nisbati 1.779) — shu nisbatga mos o'lcham berilmasa, logotip
         # cho'zilib/torayib, buzilib ko'rinardi.
@@ -113,14 +118,14 @@ def generate_nakladnoy(order, db=None) -> bytes:
         logo_img.hAlign = 'LEFT'
         header_left = [
             logo_img,
-            Paragraph("Dekorativ fasad materiallari ishlab chiqaruvchi", st["company_sub"]),
-            Paragraph("Andijon, O'zbekiston", st["company_sub"]),
+            Paragraph(_brand["slogan"], st["company_sub"]),
+            Paragraph(_brand["address"], st["company_sub"]),
         ]
     else:
         header_left = [
-            Paragraph("PenoDecorPro", st["company"]),
-            Paragraph("Dekorativ fasad materiallari ishlab chiqaruvchi", st["company_sub"]),
-            Paragraph("Andijon, O'zbekiston", st["company_sub"]),
+            Paragraph(_brand["name"], st["company"]),
+            Paragraph(_brand["slogan"], st["company_sub"]),
+            Paragraph(_brand["address"], st["company_sub"]),
         ]
 
     header_data = [[
