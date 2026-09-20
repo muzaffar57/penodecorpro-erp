@@ -3420,6 +3420,20 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
         # 1 m³ sotuv narxi — detalda saqlangan bo'lsa shuni olamiz
         price_m3 = float(getattr(item, 'price_per_m3', None) or 0)
 
+        # QO'SHILDI 2026-09-20. Detalda o'z "1 m³ narxi" maydoni bo'sh bo'lsa,
+        # brauzer hisoblashda buyurtmaning "Asosiy narx"idan foydalangan
+        # (orders.html: `effM3 = m3price || base_price`), lekin uni detalga
+        # SAQLAMAGAN. Shuning uchun bu yerda ham avval o'sha asosiy narxga
+        # murojaat qilamiz. Aks holda pastdagi TAN narxga tushib ketardik va
+        # hajm sotuv/tan nisbatiga shishib qolardi — bu "hajmni qulflab
+        # narxni oshirish" holatida o'lcham maydonlari tozalangan bo'lsa
+        # jonli o'lchovda 74.5% farq bergan edi.
+        if price_m3 <= 0:
+            _ord = getattr(item, 'order', None)
+            _bp = getattr(_ord, 'base_price', None) if _ord is not None else None
+            if _bp:
+                price_m3 = float(_bp)
+
         # Bo'lmasa — buyurtmadagi boshqa detallardan, oxirida penoplast tan narxidan
         if price_m3 <= 0:
             pid = getattr(item, 'penoplast_id', None)
