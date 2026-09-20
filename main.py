@@ -1853,6 +1853,23 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
                   "check_errors": [], "technical_hidden": True}
     result["financial"] = moliyaviy
     result["is_platform_admin"] = _platforma
+
+    # 2026-09-21: avtomatik tenant filtri HOZIR yoqilganmi — operatsion
+    # o'qish. Ilgari buni bilishning yagona yo'li Railway sozlamalariga
+    # kirish edi, u yerda esa qiymat yashirin ko'rinadi: "o'zgaruvchi bor"
+    # degani "qiymati 1" degani EMAS. Himoya to'ri jimgina o'chiq qolishi
+    # mumkin va buni hech kim sezmaydi.
+    # `stats` — ishga tushgandan beri: nechta ORM so'rovga filtr
+    # qo'llangan / kontekst bo'lmagani uchun o'tkazib yuborilgan.
+    # `filtered` 0 bo'lib turishi filtr AMALDA ishlamayotganini bildiradi.
+    try:
+        import tenant_context as _tc
+        result["tenant_filter"] = {
+            "enabled": bool(_tc.ENABLED),
+            "stats": _tc.get_stats(),
+        }
+    except Exception as _e:
+        result["tenant_filter"] = {"enabled": None, "error": str(_e)[:120]}
     return result
 
 
