@@ -1,0 +1,1147 @@
+{% extends "base.html" %}
+{% block title %}Moliyaviy boshqaruv — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Moliyaviy boshqaruv{% endblock %}
+{% block page_sub %}Daromad, xarajat, sof foyda va biznes tahlili{% endblock %}
+
+{% block head %}
+<style>
+/* ============================================================
+   MOLIYA — DIZAYN TOKENLARI
+   ============================================================ */
+:root{
+  --f-bg:#F8F8F6; --f-card:#FFFFFF; --f-border:#E8E3DD;
+  --f-primary:#B9783F; --f-primary-tint:#F8F2EB;
+  --f-success:#22C55E; --f-success-tint:#F0FDF4;
+  --f-warning:#F59E0B; --f-warning-tint:#FFFBEB;
+  --f-danger:#EF4444; --f-danger-tint:#FEF2F2;
+  --f-text:#222222; --f-text2:#6B7280; --f-text3:#9CA3AF;
+  --f-radius:14px; --f-radius-sm:10px;
+  --f-shadow:0 1px 2px rgba(24,27,34,.04), 0 4px 16px rgba(24,27,34,.06);
+  --f-shadow-hover:0 4px 8px rgba(24,27,34,.06), 0 12px 28px rgba(24,27,34,.10);
+}
+.fin-wrap{
+  background:var(--f-bg);
+  padding:16px;
+  height:calc(100vh - 58px);
+  overflow-y:auto;
+  font-variant-numeric:tabular-nums;
+}
+.fin-wrap * { box-sizing:border-box; }
+
+/* ── Bo'lim boshi ── */
+.fin-section{ margin-bottom:28px; }
+.fin-section-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.fin-section-title{ font-size:18px; font-weight:700; color:var(--f-text); letter-spacing:-.01em; display:flex; align-items:center; gap:8px; }
+.fin-section-title .ti{ color:var(--f-text3); font-size:18px; }
+
+/* ── Filtr paneli ── */
+.fin-filterbar{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:var(--f-card); border:1px solid var(--f-border); border-radius:12px;
+  padding:10px 14px; margin-bottom:24px; box-shadow:var(--f-shadow);
+}
+.fin-filterbar select, .fin-filterbar input[type=number]{
+  height:36px; padding:0 12px; border:1px solid var(--f-border); border-radius:8px;
+  font-size:13.5px; color:var(--f-text); outline:none; background:#fff; transition:border-color .15s;
+}
+.fin-filterbar select:focus, .fin-filterbar input:focus{ border-color:var(--f-primary); }
+.fin-btn{
+  height:36px; padding:0 18px; border-radius:8px; border:none; cursor:pointer;
+  font-size:13.5px; font-weight:600; transition:transform .12s, box-shadow .12s, background .15s;
+}
+.fin-btn-primary{ background:var(--f-primary); color:#fff; }
+.fin-btn-primary:hover{ background:#A86B36; box-shadow:0 4px 12px rgba(185,120,63,.3); }
+.fin-btn-primary:active{ transform:scale(.97); }
+.fin-btn-ghost{ background:#fff; color:var(--f-text2); border:1px solid var(--f-border); }
+.fin-btn-ghost:hover{ background:var(--f-bg); }
+
+/* ── HERO KPI kartalar (1-qator) ── */
+.fin-hero-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+.fin-hero-card{
+  background:var(--f-card); border:1px solid var(--f-border); border-radius:var(--f-radius);
+  padding:22px 22px; box-shadow:var(--f-shadow); position:relative; overflow:hidden;
+  transition:transform .18s ease, box-shadow .18s ease;
+  opacity:0; transform:translateY(10px); animation:finFadeIn .5s ease forwards;
+}
+.fin-hero-card:hover{ transform:translateY(-3px); box-shadow:var(--f-shadow-hover); }
+.fin-hero-icon{
+  width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+  font-size:19px; margin-bottom:14px;
+}
+.fin-hero-label{ font-size:12.5px; font-weight:600; color:var(--f-text3); text-transform:uppercase; letter-spacing:.04em; }
+.fin-hero-value{ font-size:30px; font-weight:800; color:var(--f-text); margin-top:6px; letter-spacing:-.02em; line-height:1.15; }
+.fin-hero-sub{ font-size:12.5px; color:var(--f-text3); margin-top:6px; display:flex; align-items:center; gap:5px; }
+
+@keyframes finFadeIn{ to{ opacity:1; transform:translateY(0); } }
+.fin-hero-card:nth-child(1){ animation-delay:.02s; }
+.fin-hero-card:nth-child(2){ animation-delay:.08s; }
+.fin-hero-card:nth-child(3){ animation-delay:.14s; }
+.fin-hero-card:nth-child(4){ animation-delay:.20s; }
+
+/* ── Ikkinchi darajali oylik KPI chizig'i ── */
+.fin-mini-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; }
+.fin-mini-card{
+  background:var(--f-card); border:1px solid var(--f-border); border-radius:12px;
+  padding:14px 16px; box-shadow:var(--f-shadow); transition:box-shadow .15s, transform .15s;
+}
+.fin-mini-card:hover{ box-shadow:var(--f-shadow-hover); transform:translateY(-2px); }
+.fin-mini-label{ font-size:11.5px; color:var(--f-text3); font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+.fin-mini-value{ font-size:19px; font-weight:700; color:var(--f-text); margin-top:5px; }
+
+/* ── Kartalar (umumiy) ── */
+.fin-card{
+  background:var(--f-card); border:1px solid var(--f-border); border-radius:var(--f-radius);
+  box-shadow:var(--f-shadow); overflow:hidden;
+}
+.fin-card-body{ padding:20px; }
+
+.fin-breakdown-title{ font-size:12px; font-weight:700; color:var(--f-text3); text-transform:uppercase; letter-spacing:.03em; margin-bottom:8px; }
+.fin-breakdown-row{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--f-border); font-size:13px; }
+.fin-breakdown-row:last-child{ border-bottom:none; }
+.fin-breakdown-empty{ color:var(--f-text3); font-size:12.5px; }
+
+/* ── Tahlillar (naqd xarajat + tafsilot) ── */
+.fin-analytics-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:900px){ .fin-analytics-grid{ grid-template-columns:1fr; } }
+.fin-info-note{
+  background:var(--f-primary-tint); border:1px solid #E8D5C0; border-radius:10px;
+  padding:11px 14px; font-size:12.5px; color:#A86B36; line-height:1.6; margin-bottom:14px;
+}
+.fin-exp-row{ display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--f-border); font-size:13.5px; }
+.fin-exp-row:last-child{ border-bottom:none; }
+.fin-exp-name{ color:var(--f-text2); display:flex; align-items:center; gap:7px; }
+.fin-exp-val{ font-weight:600; color:var(--f-danger); }
+.fin-total-row{ display:flex; justify-content:space-between; font-size:14.5px; font-weight:700; padding:12px 0 0; border-top:2px solid var(--f-border); margin-top:8px; }
+.fin-profit-block{ margin-top:16px; padding:20px; background:var(--f-bg); border-radius:12px; border:1px solid var(--f-border); text-align:center; }
+.fin-profit-big{ font-size:32px; font-weight:800; }
+
+/* ── Xarajat guruh kartochkalari ── */
+.fin-exp-group{ border:1px solid var(--f-border); border-radius:12px; overflow:hidden; margin-bottom:12px; }
+.fin-exp-group-head{
+  display:flex; align-items:center; gap:10px; padding:12px 14px;
+  background:var(--f-primary-tint);
+}
+.fin-exp-group-icon{
+  width:32px; height:32px; border-radius:9px; background:#fff; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:15px;
+}
+.fin-exp-group-title{
+  font-size:12px; font-weight:700; color:var(--f-primary); text-transform:uppercase; letter-spacing:.04em; flex:1;
+}
+.fin-exp-group-total{ font-size:14.5px; font-weight:700; color:var(--f-primary); white-space:nowrap; }
+.fin-exp-group-count{
+  font-size:11px; font-weight:600; color:var(--f-primary); background:#fff;
+  padding:2px 9px; border-radius:20px; margin-left:8px; white-space:nowrap;
+}
+.fin-exp-group-body{ padding:2px 14px; background:var(--f-card); }
+.fin-exp-group-row{
+  display:flex; align-items:center; gap:10px; padding:9px 0; font-size:13px;
+  border-bottom:1px solid var(--f-border);
+}
+.fin-exp-group-row:last-child{ border-bottom:none; }
+.fin-exp-group-dot{ width:5px; height:5px; border-radius:50%; background:var(--f-text3); flex-shrink:0; }
+.fin-exp-group-row-name{ color:var(--f-text2); flex:1; }
+.fin-exp-group-row-val{ font-weight:700; color:var(--f-danger); white-space:nowrap; }
+
+/* ── Jadval (premium) ── */
+.fin-table-wrap{ overflow-x:auto; border-radius:var(--f-radius); }
+.fin-table{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:720px; }
+.fin-table thead th{
+  position:sticky; top:0; z-index:2; background:var(--f-card);
+  text-align:left; padding:12px 16px; color:var(--f-text3); font-weight:600; font-size:11.5px;
+  text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--f-border);
+}
+.fin-table tbody td{ padding:13px 16px; border-bottom:1px solid var(--f-border); color:var(--f-text2); }
+.fin-table tbody tr{ transition:background .12s; }
+.fin-table tbody tr:hover{ background:var(--f-bg); }
+.fin-table tbody tr:last-child td{ border-bottom:none; }
+.fin-cat-badge{
+  display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+  padding:4px 10px; border-radius:20px; background:var(--f-bg); color:var(--f-text2);
+}
+.fin-row-action{
+  width:30px; height:30px; border-radius:8px; border:1px solid var(--f-border); background:#fff;
+  color:var(--f-text3); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+  transition:all .12s;
+}
+.fin-row-action:hover{ background:var(--f-danger-tint); border-color:var(--f-danger); color:var(--f-danger); }
+
+/* ── Bo'sh / yuklanish holatlari ── */
+.fin-empty{ text-align:center; padding:56px 24px; color:var(--f-text3); }
+.fin-empty .ti{ font-size:38px; margin-bottom:14px; display:block; color:#D1D5DB; }
+.fin-empty-title{ font-size:15px; font-weight:600; color:var(--f-text2); margin-bottom:5px; }
+.fin-skeleton{ background:linear-gradient(90deg,#F0F1F3 25%,#F7F8F9 37%,#F0F1F3 63%); background-size:400% 100%; animation:finSkeleton 1.4s ease infinite; border-radius:8px; }
+@keyframes finSkeleton{ 0%{background-position:100% 50%} 100%{background-position:0 50%} }
+
+@media print{
+  .sidebar,.erp-topbar,.fin-filterbar,.no-print{display:none !important}
+  body{background:#fff !important}
+  .fin-wrap{margin:0;padding:0}
+}
+
+/* ══════════════════════════════════════════════════════════
+   MOBIL LAYOUT (faqat <=640px, desktop o'zgarmaydi)
+   ══════════════════════════════════════════════════════════ */
+@media(max-width:640px){
+  .fin-wrap{ padding:12px; padding-bottom:90px; }
+
+  /* Bugungi holat — 4 karta -> 2x2 */
+  .fin-hero-grid{ grid-template-columns:1fr 1fr; gap:10px; }
+  .fin-hero-card{ padding:16px 14px; }
+  .fin-hero-value{ font-size:22px; }
+  .fin-hero-icon{ width:34px; height:34px; margin-bottom:10px; font-size:16px; }
+
+  /* Oylik hisobot mini-KPI — 6 karta -> 2 ustun */
+  .fin-mini-grid{ grid-template-columns:1fr 1fr; gap:8px; }
+  .fin-mini-value{ font-size:16px; }
+
+  /* Bugungi xarajat batafsil paneli — 3 ustun -> 1 ustun */
+  #todayDetailPanel > div{ grid-template-columns:1fr !important; gap:14px !important; }
+
+  /* Filtr paneli — vertikal joylashuv, to'liq kenglikdagi input/tugma */
+  .fin-filterbar{ flex-direction:column; align-items:stretch; }
+  .fin-filterbar > .ti{ display:none; }
+  .fin-filterbar select, .fin-filterbar input[type=number]{ width:100%; }
+  .fin-filterbar .fin-btn{ width:100%; }
+  .fin-filterbar > span{ margin-left:0 !important; text-align:center; }
+
+  /* Kassa balansi tugmalari — mobil uchun to'liq kenglikda, pastma-past */
+  .fin-section > div[style*="linear-gradient"] .btn{ width:100%; text-align:center; }
+}
+</style>
+{% endblock %}
+
+{% block topbar_actions %}{% endblock %}
+
+{% block content %}
+<div class="fin-wrap">
+
+  <!-- ═══ 0-QATOR: KASSA BALANSI (hozir qancha naqd pul bor) ═══ -->
+  <div class="fin-section">
+    <div style="background:linear-gradient(135deg,#111827,#1F2937);border-radius:16px;padding:22px 26px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+      <div>
+        <div style="font-size:12.5px;color:#9CA3AF;font-weight:600;text-transform:uppercase;letter-spacing:.04em">💰 Kassa balansi — hozir qancha naqd pul bor</div>
+        <div id="cash-balance-val" style="font-size:32px;font-weight:800;margin-top:6px">—</div>
+      </div>
+      {% if current_user.role.value == 'admin' %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" style="background:rgba(255,255,255,.08);border-color:#4B5563;color:#fff" onclick="openCashTxModal('boshlangich')">+ Boshlang'ich balans</button>
+        <button class="btn btn-outline" style="background:rgba(255,255,255,.08);border-color:#4B5563;color:#fff" onclick="openCashTxModal('usta_kpi')">− Usta KPI to'landi</button>
+        <button class="btn btn-outline" style="background:rgba(255,255,255,.08);border-color:#4B5563;color:#fff" onclick="openCashTxModal('ehson')">− Ehson to'landi</button>
+      </div>
+      {% endif %}
+    </div>
+    <div id="cashTxHistoryWrap" style="margin-top:6px">
+      <div style="cursor:pointer;font-size:12.5px;color:var(--f-text3);padding:6px 4px" onclick="toggleCashTxHistory()">
+        <span id="cashTxHistoryToggleIcon">▸</span> Kassa qo'lda kiritilgan tarix (Boshlang'ich, Usta KPI, Ehson)
+      </div>
+      <div id="cashTxHistoryList" style="display:none;background:var(--f-card);border:1px solid var(--f-border);border-radius:10px;padding:4px 14px"></div>
+    </div>
+  </div>
+
+  <!-- ═══ 1-QATOR: HERO KPI (Bugungi holat) ═══ -->
+  <div class="fin-section">
+    <div class="fin-section-head">
+      <div class="fin-section-title"><i class="ti ti-calendar-event"></i> Bugungi holat <span id="daily-date" style="font-weight:500;color:var(--f-text3);font-size:13px"></span></div>
+      <span id="daily-loading" style="font-size:12px;color:var(--f-text3)"></span>
+    </div>
+    <div class="fin-hero-grid" id="heroGrid">
+      <div class="fin-hero-card">
+        <div class="fin-hero-icon" style="background:var(--f-success-tint);color:var(--f-success)"><i class="ti ti-trending-up"></i></div>
+        <div class="fin-hero-label">Savdo</div>
+        <div class="fin-hero-value" id="hero-savdo">—</div>
+        <div class="fin-hero-sub" id="hero-savdo-sub">—</div>
+      </div>
+      <div class="fin-hero-card">
+        <div class="fin-hero-icon" style="background:var(--f-danger-tint);color:var(--f-danger)"><i class="ti ti-trending-down"></i></div>
+        <div class="fin-hero-label">Xarajat</div>
+        <div class="fin-hero-value" id="hero-xarajat">—</div>
+        <div class="fin-hero-sub" style="cursor:pointer;color:var(--f-primary);font-weight:600" onclick="toggleTodayDetail()">
+          Batafsil <i class="ti ti-chevron-down" id="todayDetailChevron" style="font-size:12px;vertical-align:-1px;transition:transform .2s"></i>
+        </div>
+      </div>
+      <div class="fin-hero-card">
+        <div class="fin-hero-icon" style="background:var(--f-primary-tint);color:var(--f-primary)"><i class="ti ti-chart-bar"></i></div>
+        <div class="fin-hero-label">Sof foyda</div>
+        <div class="fin-hero-value" id="hero-foyda">—</div>
+        <div class="fin-hero-sub" id="hero-tannarx-sub">—</div>
+      </div>
+      <div class="fin-hero-card">
+        <div class="fin-hero-icon" style="background:var(--f-warning-tint);color:var(--f-warning)"><i class="ti ti-arrows-exchange"></i></div>
+        <div class="fin-hero-label">Pul oqimi</div>
+        <div class="fin-hero-value" id="hero-oqim">—</div>
+        <div class="fin-hero-sub">Savdo − Xarajat (bugun)</div>
+      </div>
+    </div>
+
+    <!-- Bugungi xarajat — ixcham batafsil panel (Xarajat kartasidagi "Batafsil" bosilganda ochiladi) -->
+    <div id="todayDetailPanel" style="display:none;margin-top:14px;background:var(--f-card);border:1px solid var(--f-border);border-radius:12px;padding:18px 20px;box-shadow:var(--f-shadow)">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+        <div>
+          <div class="fin-breakdown-title"><i class="ti ti-box" style="vertical-align:-2px"></i> Xomashyo xaridi</div>
+          <div id="d-material-list"><div class="fin-breakdown-empty">Bugun xarid bo'lmagan</div></div>
+        </div>
+        <div>
+          <div class="fin-breakdown-title"><i class="ti ti-truck" style="vertical-align:-2px"></i> Transport (kompaniya ulushi)</div>
+          <div id="d-transport-total"><div class="fin-breakdown-empty">Bugun transport xarajati yo'q</div></div>
+        </div>
+        <div>
+          <div class="fin-breakdown-title"><i class="ti ti-file-invoice" style="vertical-align:-2px"></i> Boshqa xarajatlar</div>
+          <div id="d-other-list"><div class="fin-breakdown-empty">Bugun boshqa xarajat yo'q</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ FILTR + IKKINCHI DARAJALI OYLIK KPI ═══ -->
+  <div class="fin-section">
+    <div class="fin-filterbar">
+      <i class="ti ti-filter" style="color:var(--f-text3);font-size:16px;margin-right:2px"></i>
+      <select id="sel-month">
+        <option value="1">Yanvar</option><option value="2">Fevral</option><option value="3">Mart</option>
+        <option value="4">Aprel</option><option value="5">May</option><option value="6">Iyun</option>
+        <option value="7">Iyul</option><option value="8">Avgust</option><option value="9">Sentabr</option>
+        <option value="10">Oktabr</option><option value="11">Noyabr</option><option value="12">Dekabr</option>
+      </select>
+      <input type="number" id="sel-year" value="2026" min="2024" max="2030" style="width:84px">
+      <button class="fin-btn fin-btn-primary" onclick="loadReport()">Ko'rish</button>
+      <button class="fin-btn" onclick="downloadFinancePdf()" title="Shu oy uchun to'liq hisobotni PDF qilib yuklab olish"><i class="ti ti-file-type-pdf" style="vertical-align:-2px"></i> PDF yuklab olish</button>
+      <button class="fin-btn" onclick="downloadSplitProfitPdf()" title="Gips va Penoplast uchun mustaqil sof foyda hisoboti" style="border-color:#9D174D;color:#9D174D"><i class="ti ti-scale" style="vertical-align:-2px"></i> 🧱 Gips vs 🏭 Penoplast PDF</button>
+      <span style="font-size:12.5px;color:var(--f-text3);margin-left:auto">Tanlangan oy bo'yicha to'liq hisobot</span>
+    </div>
+
+    <div class="fin-mini-grid" id="finReport" style="display:none">
+      <div class="fin-mini-card"><div class="fin-mini-label">Daromad</div><div class="fin-mini-value" id="r-daromad" style="color:var(--f-success)">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Xarajat</div><div class="fin-mini-value" id="r-xarajat" style="color:var(--f-danger)">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Sof foyda</div><div class="fin-mini-value" id="r-foyda">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Ombor qiymati</div><div class="fin-mini-value" id="r-ombor">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Buyurtmalar</div><div class="fin-mini-value" id="r-buyurtma">—</div></div>
+      <div class="fin-mini-card"><div class="fin-mini-label">Rentabellik</div><div class="fin-mini-value" id="r-foiz" style="color:var(--f-success)">—</div></div>
+    </div>
+
+    <div id="emptyState" class="fin-card">
+      <div class="fin-empty">
+        <i class="ti ti-chart-infographic"></i>
+        <div class="fin-empty-title">Oy tanlang</div>
+        <div style="font-size:13px">Yuqoridagi filtrdan oy va yilni tanlab "Ko'rish" tugmasini bosing</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="monthlyReportWrap" style="display:none">
+
+    <!-- ═══ QARZLAR VA MAJBURIYATLAR — UMUMIY HOLAT ═══ -->
+    <div class="fin-section">
+      <div class="fin-section-title" style="margin-bottom:12px"><i class="ti ti-scale"></i> Qarzlar va majburiyatlar</div>
+      <div class="fin-card" style="padding:20px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" id="debt-summary-grid">
+          <div class="dg-box" style="background:#F0FDF4;border-radius:12px;padding:14px">
+            <div style="font-size:12px;font-weight:600;color:#16A34A;margin-bottom:6px">💚 Bizga qarzdorlar</div>
+            <div style="font-size:18px;font-weight:800;color:#16A34A" id="dg-customer">—</div>
+            <div style="font-size:11px;margin-top:4px;color:#16A34A;opacity:.8" id="dg-customer-n">—</div>
+          </div>
+          <div class="dg-box" style="background:#FEF2F2;border-radius:12px;padding:14px">
+            <div style="font-size:12px;font-weight:600;color:#DC2626;margin-bottom:6px">📦 Yetkazuvchiga qarzimiz</div>
+            <div style="font-size:18px;font-weight:800;color:#DC2626" id="dg-supplier">—</div>
+            <div style="font-size:11px;margin-top:4px;color:#DC2626;opacity:.8" id="dg-supplier-n">—</div>
+          </div>
+          <div class="dg-box" style="background:#FFFBEB;border-radius:12px;padding:14px">
+            <div style="font-size:12px;font-weight:600;color:#D97706;margin-bottom:6px">👷 Hodimlarga qarzimiz</div>
+            <div style="font-size:18px;font-weight:800;color:#D97706" id="dg-employee">—</div>
+            <div style="font-size:11px;margin-top:4px;color:#D97706;opacity:.8" id="dg-employee-n">oxirgi 3 oy</div>
+          </div>
+          <div class="dg-box" style="background:#FEF2F2;border-radius:12px;padding:14px">
+            <div style="font-size:12px;font-weight:600;color:#DC2626;margin-bottom:6px">🏛️ Arenda/Soliq/Kommunal</div>
+            <div style="font-size:18px;font-weight:800;color:#DC2626" id="dg-recurring">—</div>
+            <div style="font-size:11px;margin-top:4px;color:#DC2626;opacity:.8" id="dg-recurring-n">—</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px dashed #E5E1D8;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13.5px;font-weight:700;color:#333">Sof holat (bizga qarz − bizdan qarz)</span>
+          <span style="font-size:19px;font-weight:800" id="dg-net">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 4-QATOR: MOLIYAVIY TAHLILLAR ═══ -->
+    <div class="fin-section">
+      <div class="fin-analytics-grid">
+
+        <!-- Naqd xarajatlar -->
+        <div class="fin-card">
+          <div class="fin-card-body">
+            <div class="fin-section-title" style="margin-bottom:12px"><i class="ti ti-cash"></i> Naqd xarajatlar <span style="font-weight:400;color:var(--f-text3);font-size:13px">— bu oy</span></div>
+            <div class="fin-info-note">
+              Bu ko'rsatkich <b>Sof foyda</b>ga kirmaydi — chunki bu shu oy <b>sotib olingan</b> xomashyo puli,
+              "Ishlab chiqarish xarajati" esa shu oy <b>tugagan buyurtmalarga sarflangan</b> xomashyo tan narxi.
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+              <span id="cash-total" style="font-size:19px;font-weight:800;color:var(--f-warning)">—</span>
+            </div>
+            <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-shopping-cart" style="font-size:13px"></i> Xomashyo xaridi</span><span class="fin-exp-val" id="cash-purchase">—</span></div>
+            <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kirish)</span><span class="fin-exp-val" id="cash-tr-in">—</span></div>
+            <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kompaniya ulushi)</span><span class="fin-exp-val" id="cash-tr-out">—</span></div>
+            <div id="cash-by-material" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--f-border);font-size:13px;color:var(--f-text3);display:none"></div>
+          </div>
+        </div>
+
+        <!-- Xarajat tafsiloti + Sof foyda -->
+        <div class="fin-card" style="grid-row:span 2">
+          <div class="fin-card-body">
+            <div class="fin-section-title" style="margin-bottom:12px"><i class="ti ti-list-details"></i> Xarajatlar tafsiloti</div>
+            <div id="expDetail"><div class="fin-empty" style="padding:24px"><span style="font-size:13px">Ma'lumot yo'q</span></div></div>
+            <div class="fin-profit-block" id="profitBlock" style="display:none">
+              <div style="font-size:12.5px;color:var(--f-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">Sof foyda</div>
+              <div class="fin-profit-big" id="profitBig">—</div>
+              <div style="font-size:13px;color:var(--f-text3);margin-top:4px" id="profitPct">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Daromad taqsimoti (Penoplast vs Gips) -->
+        <div class="fin-card" style="align-self:start">
+          <div class="fin-card-body">
+            <div class="fin-section-title" style="margin-bottom:14px"><i class="ti ti-chart-donut"></i> Daromad taqsimoti</div>
+            <div id="revDonutWrap" style="display:flex;align-items:center;gap:18px">
+              <div style="position:relative;width:120px;height:120px;flex-shrink:0">
+                <canvas id="revDonutChart"></canvas>
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
+                  <div style="font-size:10px;color:var(--f-text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Jami</div>
+                  <div id="revDonutTotal" style="font-size:18px;font-weight:800;color:#16A34A;letter-spacing:-.02em;margin-top:2px">—</div>
+                </div>
+              </div>
+              <div id="revDonutLegend" style="flex:1;font-size:12.5px"></div>
+            </div>
+            <div id="revDonutEmpty" style="display:none;text-align:center;padding:24px;color:var(--f-text3);font-size:13px">Ma'lumot yo'q</div>
+            <div style="font-size:11px;color:var(--f-text3);margin-top:12px">Daromadlar hisobi umumiy tushumga nisbatan ko'rsatilgan.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══ 5-QATOR: TRANZAKSIYALAR JADVALI ═══ -->
+    <div class="fin-section">
+      <div class="fin-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--f-border);flex-wrap:wrap;gap:10px">
+          <div class="fin-section-title" style="margin:0"><i class="ti ti-list"></i> Kunlik xarajat tranzaksiyalari</div>
+          <button class="fin-btn fin-btn-primary" onclick="openTxModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Xarajat qo'shish</button>
+        </div>
+        <div style="padding:16px 20px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap" class="no-print">
+          <input type="date" id="tx-date" onchange="loadDailyTransactions()" style="height:36px;padding:0 10px;border:1px solid var(--f-border);border-radius:8px;font-size:13px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--f-text2);cursor:pointer">
+            <input type="checkbox" id="tx-whole-month" checked onchange="loadDailyTransactions()" style="width:15px;height:15px">
+            Butun oy
+          </label>
+          <select id="tx-category" onchange="loadDailyTransactions()" style="height:36px;padding:0 10px;border:1px solid var(--f-border);border-radius:8px;font-size:13px">
+            <option value="">Barcha kategoriya</option>
+            <option value="arenda">Arenda</option>
+            <option value="elektr">Elektr</option>
+            <option value="tushlik">Tushlik</option>
+            <option value="soliqlar">Soliqlar</option>
+            <option value="reklama">Reklama</option>
+            <option value="kutilmagan">Kutilmagan xarajat</option>
+            <option value="boshqa">Boshqa</option>
+          </select>
+        </div>
+        <div class="fin-table-wrap" style="padding:16px 20px 20px">
+          <table class="fin-table">
+            <thead><tr><th>Sana</th><th>Kategoriya</th><th>Summa</th><th>Izoh</th><th>Kim</th><th>Manba</th><th class="no-print"></th></tr></thead>
+            <tbody id="tx-body"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--f-text3)">Sana tanlang</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Xarajat qo'shish modali -->
+<div id="txModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:16px;padding:26px;width:400px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div id="tx-modal-title" style="font-size:17px;font-weight:700;margin-bottom:18px;color:var(--f-text,#111827)">+ Yangi xarajat tranzaksiyasi</div>
+    <input type="hidden" id="tx-f-editing-id" value="">
+    <div class="form-group"><label>Sana</label><input type="date" id="tx-f-date"></div>
+    <div class="form-group">
+      <label>Kategoriya</label>
+      <select id="tx-f-category">
+        <option value="arenda">Arenda</option>
+        <option value="elektr">Elektr</option>
+        <option value="tushlik">Tushlik</option>
+        <option value="soliqlar">Soliqlar</option>
+        <option value="reklama">Reklama</option>
+        <option value="kutilmagan">Kutilmagan xarajat (ta'mirlash, zapchastka va h.k.)</option>
+        <option value="boshqa">Boshqa</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Summa (so'm)</label><input type="text" id="tx-f-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
+    <div class="form-group">
+      <label>Yo'nalish <span style="font-weight:400;color:#9CA3AF;font-size:11.5px">— ixtiyoriy, hisobotda ajratib ko'rish uchun</span></label>
+      <select id="tx-f-prodtype">
+        <option value="">Umumiy</option>
+        <option value="penoplast">🏭 Penoplast</option>
+{% if cat_on('gips', current_user.company_id) %}        <option value="gips">🧱 Gips</option>{% endif %}
+      </select>
+    </div>
+    <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="fin-btn fin-btn-primary w-full" onclick="saveTx()" style="flex:1">Saqlash</button>
+      <button class="fin-btn fin-btn-ghost w-full" onclick="closeTxModal()" style="flex:1">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ KASSA TRANZAKSIYA MODALI ═══ -->
+<div id="cashTxModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:400px;max-width:100%">
+    <div id="cashTxTitle" style="font-size:16px;font-weight:700;margin-bottom:4px">—</div>
+    <div id="cashTxHint" style="font-size:12.5px;color:#888;margin-bottom:16px"></div>
+    <div id="ehsonFetchBtnWrap" style="display:none;margin-bottom:14px">
+      <button type="button" onclick="fillEhsonAmount()" style="width:100%;background:#F0FDF4;color:#166534;border:1.5px solid #BBF7D0;border-radius:9px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">
+        🤲 Jami hisoblangan Ehson summasini olish
+      </button>
+    </div>
+    <div class="form-group"><label>Summasi (so'm)</label><input type="text" inputmode="numeric" id="cashtx-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
+    <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="cashtx-notes" placeholder="masalan: Jo'rabekka 500,000 berildi"></div>
+    <div id="cashtx-error" style="display:none;margin-bottom:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="saveCashTx()" style="flex:1;background:#B9783F;color:#fff;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Saqlash</button>
+      <button onclick="document.getElementById('cashTxModal').style.display='none'" style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer">Bekor</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
+// turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
+// chiqarmasligi uchun (statik VA keyinroq qo'shiladigan maydonlar uchun ham).
+(function(){
+  function killAutofill(root){
+    var els = root.querySelectorAll ? root.querySelectorAll('input, textarea, select') : [];
+    for (var i=0; i<els.length; i++){
+      if (!els[i].hasAttribute('autocomplete')) els[i].setAttribute('autocomplete', 'off');
+    }
+  }
+  killAutofill(document);
+  new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if (n.nodeType === 1) {
+          if (n.matches && n.matches('input,textarea,select') && !n.hasAttribute('autocomplete')) n.setAttribute('autocomplete','off');
+          killAutofill(n);
+        }
+      });
+    });
+  }).observe(document.documentElement, {childList:true, subtree:true});
+})();
+</script>
+
+<script>
+const fmtCash = n => Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' ');
+
+async function loadCashBalance(){
+  try {
+    const d = await fetch('/api/finance/cash-balance').then(r=>r.json());
+    const el = document.getElementById('cash-balance-val');
+    if (el) {
+      const isNegative = d.balance < 0;
+      // 2026-09-13: avval manfiy balans juda yumshoq (#FCA5A5) rangda edi —
+      // bu raqam butun ilovadagi eng jiddiy ko'rsatkichlardan biri bo'lgani
+      // uchun, endi ilovaning standart "xavfli" rangida (--red) va ⚠️
+      // belgisi bilan chiqadi.
+      el.textContent = (isNegative ? '⚠️ ' : '') + fmtCash(d.balance) + " so'm";
+      el.style.color = isNegative ? '#EF4444' : '#fff';
+    }
+  } catch(e) { console.error(e); }
+}
+
+let cashTxHistoryLoaded = false;
+async function toggleCashTxHistory(){
+  const list = document.getElementById('cashTxHistoryList');
+  const icon = document.getElementById('cashTxHistoryToggleIcon');
+  const opening = list.style.display === 'none';
+  list.style.display = opening ? 'block' : 'none';
+  icon.textContent = opening ? '▾' : '▸';
+  if (opening) await loadCashTxHistory();
+}
+
+async function loadCashTxHistory(){
+  const list = document.getElementById('cashTxHistoryList');
+  try {
+    const rows = await fetch('/api/finance/cash-transactions').then(r=>r.json());
+    if (!rows.length) {
+      list.innerHTML = '<div style="padding:12px 0;color:var(--f-text3);font-size:12.5px">Hali qo\'lda kiritilgan yozuv yo\'q</div>';
+      return;
+    }
+    const labels = {boshlangich: "Boshlang'ich balans", usta_kpi: "Usta KPI to'landi", ehson: "Ehson to'landi"};
+    list.innerHTML = rows.map(r => {
+      const dt = r.created_at ? new Date(r.created_at).toLocaleDateString('ru-RU') : '—';
+      const sign = r.amount >= 0 ? '+' : '';
+      const color = r.amount >= 0 ? '#22C55E' : '#EF4444';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--f-border);font-size:13px">
+        <div>
+          <div style="font-weight:600">${labels[r.category] || r.category}</div>
+          <div style="color:var(--f-text3);font-size:11.5px;margin-top:2px">${dt}${r.performed_by ? ' · ' + escapeHtml(r.performed_by) : ''}${r.notes ? ' · ' + escapeHtml(r.notes) : ''}</div>
+        </div>
+        <div style="font-weight:700;color:${color};white-space:nowrap">${sign}${fmtFull(r.amount)} so'm</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="padding:12px 0;color:#EF4444;font-size:12.5px">Yuklashda xato</div>';
+  }
+}
+
+const CASH_TX_LABELS = {
+  boshlangich: { title: "+ Boshlang'ich balans kiritish", hint: "Tizimni ishlata boshlaganingizda, hozir kassada/qo'lda qancha pul borligini bir marta kiriting.", sign: 1, notesPh: "masalan: Kassadagi naqd pul" },
+  usta_kpi: { title: "− Usta KPI to'landi", hint: "Ustaga yillik KPI sovg'asini QO'LDA to'lab bo'lgach, shu yerga summani kiriting — kassadan ayiriladi.", sign: -1, notesPh: "masalan: Jo'rabekka yillik KPI sovg'asi" },
+  ehson: { title: "− Ehson to'landi", hint: "Ehson summasini haqiqatda berib bo'lgach, shu yerga kiriting — kassadan ayiriladi.", sign: -1, notesPh: "masalan: Mahalla masjidiga ehson" },
+};
+let currentCashTxCategory = null;
+
+function openCashTxModal(category){
+  currentCashTxCategory = category;
+  const cfg = CASH_TX_LABELS[category];
+  document.getElementById('cashTxTitle').textContent = cfg.title;
+  document.getElementById('cashTxHint').textContent = cfg.hint;
+  document.getElementById('cashtx-amount').value = '';
+  document.getElementById('cashtx-notes').value = '';
+  document.getElementById('cashtx-notes').placeholder = cfg.notesPh || '';
+  document.getElementById('cashtx-error').style.display = 'none';
+  document.getElementById('ehsonFetchBtnWrap').style.display = (category === 'ehson') ? 'block' : 'none';
+  document.getElementById('cashTxModal').style.display = 'flex';
+}
+
+async function fillEhsonAmount(){
+  const btn = event.target;
+  const origText = btn.textContent;
+  btn.textContent = 'Yuklanmoqda...';
+  btn.disabled = true;
+  try {
+    const now = new Date();
+    const res = await fetch(`/api/finance/report?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
+    const d = await res.json();
+    const amount = d.ehson_xarajat || 0;
+    document.getElementById('cashtx-amount').value = fmtFull(amount);
+    if (amount <= 0) {
+      btn.textContent = "Bu oy uchun hisoblangan Ehson yo'q";
+      setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
+    } else {
+      btn.textContent = origText;
+      btn.disabled = false;
+    }
+  } catch(e) {
+    btn.textContent = 'Xato — qayta urinib ko\'ring';
+    setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
+  }
+}
+
+async function saveCashTx(){
+  const raw = parseNum(document.getElementById('cashtx-amount').value) || 0;
+  const err = document.getElementById('cashtx-error');
+  if (raw <= 0) { err.textContent = "Summani to'g'ri kiriting"; err.style.display = 'block'; return; }
+
+  const cfg = CASH_TX_LABELS[currentCashTxCategory];
+  const amount = raw * cfg.sign;  // usta_kpi/ehson -> manfiy, boshlangich -> musbat
+  const notes = document.getElementById('cashtx-notes').value || null;
+
+  const fd = new FormData();
+  fd.append('category', currentCashTxCategory);
+  fd.append('amount', amount);
+  if (notes) fd.append('notes', notes);
+
+  try {
+    const res = await fetch('/api/finance/cash-transaction', { method: 'POST', body: fd });
+    if (res.ok) {
+      document.getElementById('cashTxModal').style.display = 'none';
+      loadCashBalance();
+      if (document.getElementById('cashTxHistoryList').style.display !== 'none') {
+        await loadCashTxHistory();
+      }
+    } else {
+      const e = await res.json();
+      err.textContent = '❌ ' + (e.detail || 'Xato');
+      err.style.display = 'block';
+    }
+  } catch(e) {
+    err.textContent = "❌ Server bilan aloqa yo'q";
+    err.style.display = 'block';
+  }
+}
+
+loadCashBalance();
+
+const now=new Date();
+document.getElementById('sel-month').value=now.getMonth()+1;
+document.getElementById('sel-year').value=now.getFullYear();
+
+const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+function fmt(n){if(n>=1e6)return(n/1e6).toFixed(1)+' mln';if(n>=1e3)return(n/1e3).toFixed(0)+' ming';return Math.round(n||0).toString();}
+function fmtFull(n){return Number(Math.round(n||0)).toLocaleString('ru-RU');}
+function parseNum(v) {
+  return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
+}
+function formatPriceInput(input) {
+  const val = parseNum(input.value);
+  if (val > 0) input.value = fmtFull(val);
+}
+
+// Raqamni animatsiya bilan hisoblab ko'rsatish (counter animation)
+function animateCounter(el, target, suffix, isNegativeOk) {
+  const start = 0;
+  const duration = 700;
+  const startTime = performance.now();
+  function step(t) {
+    const progress = Math.min((t - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const val = start + (target - start) * eased;
+    el.textContent = fmtFull(val) + (suffix || " so'm");
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+let currentData=null;
+
+function downloadFinancePdf(){
+  const month=document.getElementById('sel-month').value;
+  const year=document.getElementById('sel-year').value;
+  window.open(`/api/finance/report-pdf?year=${year}&month=${month}`, '_blank');
+}
+
+function downloadSplitProfitPdf(){
+  const month=document.getElementById('sel-month').value;
+  const year=document.getElementById('sel-year').value;
+  window.open(`/api/finance/split-profit-pdf?year=${year}&month=${month}`, '_blank');
+}
+
+async function loadReport(){
+  const month=document.getElementById('sel-month').value;
+  const year=document.getElementById('sel-year').value;
+  const [res, invRes, debtRes] = await Promise.all([
+    fetch(`/api/finance/report?year=${year}&month=${month}`),
+    fetch('/api/inventory/kpi').catch(()=>null),
+    fetch(`/api/finance/debt-summary?year=${year}&month=${month}`).catch(()=>null)
+  ]);
+  if(!res.ok){alert('Xato');return;}
+  const d=await res.json();
+  currentData=d;
+  document.getElementById('finReport').style.display='grid';
+  document.getElementById('monthlyReportWrap').style.display='block';
+  document.getElementById('emptyState').style.display='none';
+
+  document.getElementById('r-daromad').textContent=fmt(d.daromad)+" so'm";
+  document.getElementById('r-xarajat').textContent=fmt(d.jami_xarajat)+" so'm";
+  document.getElementById('r-foyda').textContent=fmt(d.sof_foyda)+" so'm";
+  document.getElementById('r-foyda').style.color=d.sof_foyda>=0?'#8E44AD':'#EF4444';
+  document.getElementById('r-foiz').textContent=d.foyda_foiz+'%';
+  document.getElementById('r-buyurtma').textContent=d.buyurtmalar_soni+' ta';
+
+  if (invRes && invRes.ok) {
+    const inv = await invRes.json();
+    document.getElementById('r-ombor').textContent = fmt(inv.total_value)+" so'm";
+  }
+
+  if (debtRes && debtRes.ok) {
+    const dg = await debtRes.json();
+    document.getElementById('dg-customer').textContent = fmt(dg.customer_debt)+" so'm";
+    document.getElementById('dg-customer-n').textContent = dg.customer_debt_count+" ta loyiha";
+    document.getElementById('dg-supplier').textContent = fmt(dg.supplier_debt)+" so'm";
+    document.getElementById('dg-supplier-n').textContent = dg.supplier_debt_count+" ta yetkazuvchi";
+    document.getElementById('dg-employee').textContent = fmt(dg.employee_debt)+" so'm";
+    document.getElementById('dg-employee-n').textContent = dg.employee_debt_count+" ta hodim, oxirgi 3 oy";
+    document.getElementById('dg-recurring').textContent = fmt(dg.recurring_debt)+" so'm";
+    document.getElementById('dg-recurring-n').textContent = dg.recurring_debt_count+" ta muddati o'tgan";
+    const netEl = document.getElementById('dg-net');
+    const sign = dg.net_position >= 0 ? '+ ' : '− ';
+    netEl.textContent = sign + fmt(Math.abs(dg.net_position)) + " so'm";
+    netEl.style.color = dg.net_position >= 0 ? '#16A34A' : '#DC2626';
+  }
+
+  buildExpDetail(d);
+  buildCashSection(d);
+  initDailyTx();
+}
+
+function buildCashSection(d){
+  document.getElementById('cash-total').textContent = fmt(d.naqd_xarajat_jami||0) + " so'm";
+  document.getElementById('cash-purchase').textContent = fmtFull(d.xomashyo_xaridi||0) + " so'm";
+  document.getElementById('cash-tr-in').textContent = fmtFull(d.transport_kirish||0) + " so'm";
+  document.getElementById('cash-tr-out').textContent = fmtFull(d.transport_chiqish_company||0) + " so'm";
+
+  const box = document.getElementById('cash-by-material');
+  if (d.xomashyo_by_material && d.xomashyo_by_material.length) {
+    box.style.display = 'block';
+    box.innerHTML = '<div style="font-weight:600;color:var(--f-text2);margin-bottom:4px">Material bo\'yicha:</div>' +
+      d.xomashyo_by_material.map(m =>
+        `<div style="display:flex;justify-content:space-between;padding:2px 0">
+          <span>${escapeHtml(m.name)} (${m.quantity}${m.unit?' '+m.unit:''})</span>
+          <span style="font-weight:600">${fmtFull(m.total)} so'm</span>
+        </div>`).join('');
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+function buildExpDetail(d){
+  const x=d.xarajatlar;
+  const qx = d.qoshimcha_xarajatlar || {};
+  const rows=[
+    {n:'Arenda',v:x.arenda},{n:'Elektr',v:x.elektr},{n:'Tushlik',v:x.tushlik},{n:'Soliqlar',v:x.soliqlar},
+    {n:'🚚 Transport (kirim)',v:qx.transport_kirim||0},
+    {n:'📦 Tushirish (Grushchik)',v:qx.tushirish_kirim||0},
+    {n:'⬆️ Yuklash',v:qx.yuklash_kirim||0},
+    {n:'➕ Boshqa xarajat (kirim)',v:qx.kirim_boshqa||0},
+  ].filter(r=>r.v>0);
+  const el=document.getElementById('expDetail');
+  if(!rows.length && !(d.usta_kpi_breakdown&&d.usta_kpi_breakdown.length) && !(d.hodimlar_moslashuvchan_breakdown&&d.hodimlar_moslashuvchan_breakdown.length)){
+    el.innerHTML='<div class="fin-empty" style="padding:24px"><span style="font-size:13px">Xarajat kiritilmagan</span></div>';
+    document.getElementById('profitBlock').style.display='none';
+    return;
+  }
+
+  // Har guruhni bitta funksiya orqali bir xil (bronza) uslubda quramiz
+  function expGroup(icon, title, rowsHtml, total){
+    return `<div class="fin-exp-group">
+      <div class="fin-exp-group-head">
+        <div class="fin-exp-group-icon">${icon}</div>
+        <div class="fin-exp-group-title">${title}</div>
+        <div class="fin-exp-group-total">${fmtFull(total)} so'm</div>
+      </div>
+      <div class="fin-exp-group-body">${rowsHtml}</div>
+    </div>`;
+  }
+
+  let groupsHtml = '';
+
+  // ── Doimiy va qo'shimcha xarajatlar ──
+  if (rows.length) {
+    const rowsHtml = rows.map(r =>
+      `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">${r.n}</span><span class="fin-exp-group-row-val">${fmtFull(r.v)} so'm</span></div>`
+    ).join('');
+    const total = rows.reduce((s,r)=>s+r.v, 0);
+    groupsHtml += expGroup('🏠', 'Doimiy va qo\'shimcha xarajatlar', rowsHtml, total);
+  }
+
+  // ── Usta yillik KPI ──
+  if (d.usta_kpi_breakdown && d.usta_kpi_breakdown.length) {
+    const rowsHtml = d.usta_kpi_breakdown.map(b =>
+      `<div class="fin-exp-group-row" style="flex-direction:column;align-items:stretch;gap:3px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${escapeHtml(b.master_name)}</span>
+          <span class="fin-exp-group-row-val">${fmtFull(b.kpi_amount)} so'm</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--f-text3);padding-left:1px">${b.kpi_percent}% × foyda ${fmt(b.monthly_profit)}</div>
+      </div>`
+    ).join('');
+    const total = d.usta_kpi_breakdown.reduce((s,b)=>s+b.kpi_amount, 0);
+    groupsHtml += expGroup('🏆', 'Usta yillik KPI', rowsHtml, total);
+  }
+
+  // ── Hodimlar (moslashuvchan) ──
+  if (d.hodimlar_moslashuvchan_breakdown && d.hodimlar_moslashuvchan_breakdown.length) {
+    const rowsHtml = d.hodimlar_moslashuvchan_breakdown.map(b => {
+      const isPaid = (b.qolgan !== undefined) && b.qolgan <= 0.5;
+      const paidBadge = isPaid ? '<span style="font-size:10px;font-weight:700;color:#22C55E;background:#F0FDF4;padding:1px 7px;border-radius:10px;margin-left:6px;white-space:nowrap">✓ To\'landi</span>' : '';
+      const posBadge = b.position ? `<span style="font-size:10.5px;font-weight:600;color:var(--f-text3);background:var(--f-bg);padding:1px 8px;border-radius:10px;margin-left:6px">${escapeHtml(b.position)}</span>` : '';
+      return `<div class="fin-exp-group-row" style="flex-direction:column;align-items:stretch;gap:3px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;color:var(--f-text);font-size:13.5px">${escapeHtml(b.name)}${posBadge}${paidBadge}</span>
+          <span class="fin-exp-group-row-val">${fmtFull(b.amount)} so'm</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--f-text3);padding-left:1px">${b.detail}</div>
+      </div>`;
+    }).join('');
+    const total = d.hodimlar_moslashuvchan_breakdown.reduce((s,b)=>s+b.amount, 0);
+    groupsHtml += expGroup('👷', 'Hodimlar (moslashuvchan)', rowsHtml, total);
+  }
+
+  // ── Turlar bo'yicha daromad taqsimoti ──
+  if (d.turlar_boyicha && (d.turlar_boyicha.gips.daromad > 0 || d.turlar_boyicha.penoplast.daromad > 0)) {
+    const tb = d.turlar_boyicha;
+    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">🏭 Penoplast (va boshqa)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(tb.penoplast.daromad)} so'm</span></div>`;
+    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">🧱 Gips</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(tb.gips.daromad)} so'm</span></div>`;
+    if (tb.gips.qoshimcha_xarajat > 0) {
+      rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Gips uchun qo'shimcha xarajat</span><span class="fin-exp-group-row-val">-${fmtFull(tb.gips.qoshimcha_xarajat)} so'm</span></div>`;
+    }
+    if (tb.penoplast.qoshimcha_xarajat > 0) {
+      rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Penoplast uchun qo'shimcha xarajat</span><span class="fin-exp-group-row-val">-${fmtFull(tb.penoplast.qoshimcha_xarajat)} so'm</span></div>`;
+    }
+    const total = tb.penoplast.daromad + tb.gips.daromad;
+    groupsHtml += expGroup('📊', "Turlar bo'yicha daromad taqsimoti", rowsHtml, total);
+  }
+
+  // ── Tayyor mahsulot to'g'ridan-to'g'ri sotuvi ──
+  if (d.fp_sales_daromad > 0) {
+    let rowsHtml = `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="font-weight:700;color:var(--f-text)">Sotildi (${d.fp_sales_soni} marta)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(d.fp_sales_daromad)} so'm</span></div>`;
+    rowsHtml += `<div class="fin-exp-group-row"><span class="fin-exp-group-dot"></span><span class="fin-exp-group-row-name" style="padding-left:10px">↳ Sof foyda (tan narxsiz)</span><span class="fin-exp-group-row-val" style="color:#16A34A">${fmtFull(d.fp_sales_foyda)} so'm</span></div>`;
+    groupsHtml += expGroup('💰', "Tayyor mahsulot to'g'ridan-to'g'ri sotuvi", rowsHtml, d.fp_sales_daromad);
+  }
+
+  // ── Ishlab chiqarish xarajati (yakka qator, guruhsiz — avvalgidek) ──
+  let tailHtml = `<div class="fin-exp-row" style="border-top:1px dashed var(--f-border);margin-top:4px;padding-top:10px">
+      <span class="fin-exp-name" style="color:var(--f-primary)">🏭 Ishlab chiqarish xarajati</span>
+      <span class="fin-exp-val" style="color:var(--f-primary)">${fmtFull(d.ishlab_chiqarish_xarajat||0)} so'm</span>
+    </div>`;
+  if ((d.ehson_xarajat||0) > 0) {
+    tailHtml += `<div class="fin-exp-row">
+        <span class="fin-exp-name" style="color:#22C55E">🤲 Ehson (xayriya)</span>
+        <span class="fin-exp-val" style="color:#22C55E">${fmtFull(d.ehson_xarajat||0)} so'm</span>
+      </div>`;
+  }
+  if ((d.brak_xarajat||0) > 0) {
+    tailHtml += `<div class="fin-exp-row">
+        <span class="fin-exp-name" style="color:#EF4444">🗑️ Brak (yaroqsiz xomashyo)</span>
+        <span class="fin-exp-val" style="color:#EF4444">${fmtFull(d.brak_xarajat||0)} so'm</span>
+      </div>`;
+  }
+  tailHtml += `<div class="fin-total-row"><span>Jami xarajat:</span><span style="color:var(--f-danger)">${fmtFull(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0))} so'm</span></div>
+    <div class="fin-total-row" style="margin-top:6px;border-top:none;padding-top:0"><span>Jami daromad:</span><span style="color:var(--f-success)">${fmtFull(d.daromad)} so'm</span></div>`;
+
+  el.innerHTML = groupsHtml + tailHtml;
+  const pb=document.getElementById('profitBlock');
+  pb.style.display='block';
+  document.getElementById('profitBig').textContent=fmtFull(d.sof_foyda)+" so'm";
+  document.getElementById('profitBig').style.color=d.sof_foyda>=0?'var(--f-primary)':'#EF4444';
+  document.getElementById('profitPct').textContent=d.foyda_foiz+'% foyda';
+
+  buildRevDonut(d);
+}
+
+// ── DAROMAD TAQSIMOTI (Penoplast vs Gips) — donut, markazida jami summa ──
+let revDonutInst = null;
+function buildRevDonut(d){
+  const wrap = document.getElementById('revDonutWrap');
+  const emptyEl = document.getElementById('revDonutEmpty');
+  const tb = d.turlar_boyicha;
+  const peno = tb ? (tb.penoplast.daromad || 0) : 0;
+  const gips = tb ? (tb.gips.daromad || 0) : 0;
+  const total = peno + gips;
+
+  if (revDonutInst) { revDonutInst.destroy(); revDonutInst = null; }
+
+  if (total <= 0) {
+    wrap.style.display = 'none';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  wrap.style.display = 'flex';
+  emptyEl.style.display = 'none';
+
+  const entries = [
+    ['Penoplast va boshqa', peno, '#B9783F'],
+    ['Gips', gips, '#9D174D'],
+  ].filter(e => e[1] > 0);
+
+  revDonutInst = new Chart(document.getElementById('revDonutChart'), {
+    type: 'doughnut',
+    data: { labels: entries.map(e=>e[0]), datasets: [{ data: entries.map(e=>e[1]), backgroundColor: entries.map(e=>e[2]), borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '68%',
+      animation: { animateRotate: true, duration: 700 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#111827', padding: 10, cornerRadius: 8,
+          callbacks: { label: ctx => `${ctx.label}: ${fmtFull(ctx.parsed)} so'm` } }
+      }
+    }
+  });
+
+  document.getElementById('revDonutTotal').textContent = fmtShortM(total);
+  document.getElementById('revDonutLegend').innerHTML = entries.map(([name, val, color]) => `
+    <div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--f-border)">
+      <span style="width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0"></span>
+      <span style="flex:1;color:var(--f-text);font-weight:600;font-size:13px">${name}</span>
+      <span style="font-weight:800;color:${color};font-size:13.5px;white-space:nowrap;letter-spacing:-.01em">${fmtFull(val)} so'm</span>
+      <span style="background:${color}1A;color:${color};font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">${(val/total*100).toFixed(1)}%</span>
+    </div>`).join('');
+}
+
+function fmtShortM(n){
+  return (n/1000000).toFixed(1) + ' mln';
+}
+
+// ── BUGUNGI XARAJAT BATAFSIL (Xarajat kartasidan ochiladi) ──
+function toggleTodayDetail(){
+  const panel = document.getElementById('todayDetailPanel');
+  const chevron = document.getElementById('todayDetailChevron');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+// ── KUNLIK TRANZAKSIYALARNI BOSHLASH ────────────────────────
+function initDailyTx(){
+  const y = document.getElementById('sel-year').value, m = document.getElementById('sel-month').value;
+  document.getElementById('tx-date').value = `${y}-${String(m).padStart(2,'0')}-01`;
+  loadDailyTransactions();
+}
+
+const CAT_LABELS = {arenda:'Arenda', elektr:'Elektr', tushlik:'Tushlik', soliqlar:'Soliqlar', reklama:'Reklama', kutilmagan:'Kutilmagan xarajat', boshqa:'Boshqa'};
+const SOURCE_LABELS = {monthly_form:'Oylik forma', manual:'Qo\'lda kiritilgan'};
+const CAT_ICONS = {arenda:'🏠', elektr:'⚡', tushlik:'🍽️', soliqlar:'📋', reklama:'📢', kutilmagan:'⚠️', boshqa:'📦'};
+
+async function loadDailyTransactions(){
+  const dateVal = document.getElementById('tx-date').value;
+  if (!dateVal) return;
+  const [y, m, d] = dateVal.split('-').map(Number);
+  const wholeMonth = document.getElementById('tx-whole-month').checked;
+  const category = document.getElementById('tx-category').value;
+
+  let url = `/api/finance/transactions?year=${y}&month=${m}`;
+  if (!wholeMonth) url += `&day=${d}`;
+  if (category) url += `&category=${category}`;
+
+  const tbody = document.getElementById('tx-body');
+  tbody.innerHTML = `<tr><td colspan="7" style="padding:20px"><div class="fin-skeleton" style="height:16px;width:100%"></div></td></tr>`.repeat(1);
+  try {
+    const res = await fetch(url);
+    const rows = await res.json();
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="fin-empty" style="padding:32px"><i class="ti ti-receipt-off"></i><div class="fin-empty-title">Tranzaksiya topilmadi</div><div style="font-size:12.5px">Tanlangan davrda hech qanday xarajat yozilmagan</div></div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(t => {
+      const dt = new Date(t.date);
+      const icon = CAT_ICONS[t.category] || '📄';
+      return `<tr>
+        <td>${dt.toLocaleDateString('uz')}</td>
+        <td><span class="fin-cat-badge">${icon} ${CAT_LABELS[t.category] || t.category}</span></td>
+        <td style="font-weight:700;color:var(--f-danger)">${fmtFull(t.amount)} so'm</td>
+        <td style="color:var(--f-text3)">${t.notes ? escapeHtml(t.notes) : '—'}</td>
+        <td style="color:var(--f-text3)">${t.created_by ? escapeHtml(t.created_by) : '—'}</td>
+        <td style="color:var(--f-text3);font-size:12.5px">${SOURCE_LABELS[t.source] || t.source}</td>
+        <td class="no-print" style="text-align:right;white-space:nowrap">
+          <button class="fin-row-action" title="Tahrirlash"
+                  data-tx-id="${t.id}" data-tx-date="${t.date}" data-tx-category="${t.category}"
+                  data-tx-amount="${t.amount}" data-tx-notes="${escapeHtml(t.notes||'')}" data-tx-prodtype="${t.production_type||''}"
+                  onclick="editTxFromRow(this)"><i class="ti ti-edit" style="font-size:13px"></i></button>
+          <button class="fin-row-action" onclick="deleteTx(${t.id})" title="O'chirish"><i class="ti ti-trash" style="font-size:13px"></i></button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--f-danger)">Yuklashda xato</td></tr>';
+  }
+}
+
+function openTxModal(){
+  const dateVal = document.getElementById('tx-date').value || new Date().toISOString().slice(0,10);
+  document.getElementById('tx-f-editing-id').value = '';
+  document.getElementById('tx-modal-title').textContent = "+ Yangi xarajat tranzaksiyasi";
+  document.getElementById('tx-f-date').value = dateVal;
+  document.getElementById('tx-f-category').value = 'boshqa';
+  document.getElementById('tx-f-amount').value = '';
+  document.getElementById('tx-f-notes').value = '';
+  document.getElementById('tx-f-prodtype').value = '';
+  document.getElementById('txModal').style.display = 'flex';
+}
+function closeTxModal(){ document.getElementById('txModal').style.display = 'none'; }
+
+// 2026-09-16: foydalanuvchi so'rovi bo'yicha qo'shildi — xato kiritilgan
+// summani (masalan "125" o'rniga "125 000" bo'lishi kerak edi) endi
+// o'chirib-qayta yozish shart emas, to'g'ridan-to'g'ri shu oyna orqali
+// TAHRIRLASH mumkin. Xuddi shu "+ Yangi xarajat" oynasining o'zi
+// qayta ishlatiladi — faqat mavjud qiymatlar bilan oldindan to'ldirilgan
+// holda, va saqlashda POST o'rniga PUT so'rovi yuboriladi.
+function editTxFromRow(btn){
+  const d = btn.dataset;
+  editTx(d.txId, d.txDate, d.txCategory, parseFloat(d.txAmount) || 0, d.txNotes, d.txProdtype);
+}
+
+function editTx(id, dateIso, category, amount, notes, prodType){
+  document.getElementById('tx-f-editing-id').value = id;
+  document.getElementById('tx-modal-title').textContent = "✏️ Xarajatni tahrirlash";
+  document.getElementById('tx-f-date').value = (dateIso || '').slice(0, 10);
+  document.getElementById('tx-f-category').value = category || 'boshqa';
+  document.getElementById('tx-f-amount').value = fmtFull(amount);
+  document.getElementById('tx-f-notes').value = notes || '';
+  document.getElementById('tx-f-prodtype').value = prodType || '';
+  document.getElementById('txModal').style.display = 'flex';
+}
+
+async function saveTx(){
+  const date = document.getElementById('tx-f-date').value;
+  const category = document.getElementById('tx-f-category').value;
+  const amount = parseNum(document.getElementById('tx-f-amount').value);
+  if (!date || !amount || amount <= 0) { alert('Sana va summani to\'g\'ri kiriting'); return; }
+  const editingId = document.getElementById('tx-f-editing-id').value;
+  const url = editingId ? `/api/finance/transactions/${editingId}` : '/api/finance/transactions';
+  const method = editingId ? 'PUT' : 'POST';
+  try {
+    const res = await fetch(url, {
+      method, headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ date: date+'T00:00:00', category, amount, notes: document.getElementById('tx-f-notes').value || null, production_type: document.getElementById('tx-f-prodtype').value || null })
+    });
+    if (res.ok) {
+      closeTxModal();
+      loadDailyTransactions();
+    } else { const e = await res.json(); alert('Xato: ' + (e.detail || '')); }
+  } catch(e) { alert('Server xatosi'); }
+}
+
+async function deleteTx(id){
+  if (!(await customConfirm('Bu tranzaksiyani o\'chirasizmi?', {danger:true}))) return;
+  try {
+    await fetch(`/api/finance/transactions/${id}`, {method:'DELETE'});
+    loadDailyTransactions();
+  } catch(e) { alert('Server xatosi'); }
+}
+
+async function loadDailyFinance() {
+  const loadingEl = document.getElementById('daily-loading');
+  loadingEl.textContent = 'Yuklanmoqda...';
+  try {
+    const res = await fetch('/api/finance/daily');
+    const d = await res.json();
+    loadingEl.textContent = '';
+
+    const dt = new Date(d.date);
+    document.getElementById('daily-date').textContent = dt.toLocaleDateString('uz', {day:'numeric', month:'long', year:'numeric'});
+
+    animateCounter(document.getElementById('hero-savdo'), d.sales.total);
+    document.getElementById('hero-savdo-sub').textContent = d.sales.orders_count + " ta buyurtma yakunlandi";
+    animateCounter(document.getElementById('hero-xarajat'), d.expenses.total);
+    animateCounter(document.getElementById('hero-foyda'), d.sales.profit);
+    document.getElementById('hero-tannarx-sub').textContent = "Tan narx: " + fmtFull(d.sales.cost) + " so'm";
+
+    const oqim = d.sales.total - d.expenses.total;
+    const oqimEl = document.getElementById('hero-oqim');
+    animateCounter(oqimEl, Math.abs(oqim), " so'm");
+    if (oqim < 0) oqimEl.style.color = 'var(--f-danger)';
+
+    // (Jami xarajat summasi allaqachon "hero-xarajat" kartasida ko'rsatilgan)
+
+    const matList = document.getElementById('d-material-list');
+    if (d.expenses.material.breakdown.length) {
+      matList.innerHTML = d.expenses.material.breakdown.map(m =>
+        `<div class="fin-breakdown-row"><span>${m.nomi}</span><span style="font-weight:600">${fmtFull(m.summa)} so'm</span></div>`).join('');
+    } else {
+      matList.innerHTML = '<div class="fin-breakdown-empty">Bugun xarid bo\'lmagan</div>';
+    }
+
+    const transEl = document.getElementById('d-transport-total');
+    if (d.expenses.transport && d.expenses.transport.total > 0) {
+      transEl.innerHTML = `<div class="fin-breakdown-row"><span>Jami</span><span style="font-weight:700">${fmtFull(d.expenses.transport.total)} so'm</span></div>`;
+    } else {
+      transEl.innerHTML = '<div class="fin-breakdown-empty">Bugun transport xarajati yo\'q</div>';
+    }
+
+    const othList = document.getElementById('d-other-list');
+    if (d.expenses.other.breakdown.length) {
+      othList.innerHTML = d.expenses.other.breakdown.map(m =>
+        `<div class="fin-breakdown-row"><span>${m.nomi}</span><span style="font-weight:600">${fmtFull(m.summa)} so'm</span></div>`).join('');
+    } else {
+      othList.innerHTML = '<div class="fin-breakdown-empty">Bugun boshqa xarajat yo\'q</div>';
+    }
+  } catch(e) {
+    loadingEl.textContent = 'Xato yuz berdi';
+  }
+}
+
+loadReport();
+loadDailyFinance();
+</script>
+{% endblock %}

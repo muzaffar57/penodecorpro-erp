@@ -1,0 +1,1035 @@
+{% extends "base.html" %}
+{% block title %}Omborxona — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Omborxona{% endblock %}
+{% block page_sub %}Xomashyo va materiallar qoldig'i{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-outline btn-sm" onclick="sendFullStockReport()" style="border-color:#B9783F;color:#B9783F"><i class="ti ti-clipboard-list" style="vertical-align:-2px"></i> Ombor hisoboti SMS</button>
+<button class="btn btn-outline btn-sm" onclick="sendLowStockAlert()" style="border-color:#EF4444;color:#EF4444"><i class="ti ti-bell" style="vertical-align:-2px"></i> Kam qoldiqlar SMS</button>
+
+{% endblock %}
+
+{% block head %}
+<style>
+.inv-kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px}
+@media (max-width:1200px){.inv-kpi-grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:700px){.inv-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.inv-filters{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.inv-filters input,.inv-filters select{height:44px;padding:0 15px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;outline:none;background:var(--white)}
+.inv-filters input:focus,.inv-filters select:focus{border-color:var(--gold)}
+.inv-search{flex:1;min-width:180px}
+.mat-row{display:grid;grid-template-columns:2.2fr 1.3fr 1fr .9fr 1fr 1.1fr;gap:16px;align-items:center;padding:18px 20px;border:1px solid var(--border);border-radius:14px;background:var(--white);margin-bottom:12px;transition:box-shadow .15s,border-color .15s;opacity:0;animation:matFadeIn .3s ease forwards}
+@keyframes matFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.mat-row:hover{box-shadow:var(--shadow-card);border-color:var(--border-strong)}
+@media (max-width:1100px){.mat-row{grid-template-columns:1.8fr 1fr .8fr;row-gap:10px}
+  .mat-col-min,.mat-col-updated{display:none}}
+@media (max-width:640px){.mat-row{grid-template-columns:1fr}}
+.mat-name{font-size:16px;font-weight:600;color:var(--text)}
+.mat-thumb{width:70px;align-self:stretch;border-radius:12px;background:var(--gold-tint);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;color:var(--gold-dark);font-size:26px;position:relative;cursor:pointer}
+.mat-thumb img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+.mat-thumb input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.mat-thumb-cam{position:absolute;right:3px;bottom:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;cursor:pointer;z-index:2}
+.stock-bar{height:6px;background:#F0F0F0;border-radius:6px;overflow:hidden;width:160px;max-width:100%}
+.stock-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#22C55E,#16A34A);transition:width .4s ease}
+.stock-fill.warn{background:linear-gradient(90deg,#F59E0B,#D97706)}
+.stock-fill.danger{background:linear-gradient(90deg,#EF4444,#DC2626)}
+.mat-sub{font-size:13px;color:var(--text3);margin-top:3px}
+.cat-badge{display:inline-block;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;margin-top:6px}
+.cat-Penoplast{background:#E6F1FB;color:#0C447C}
+.cat-Kimyoviy{background:#F3E8FF;color:#6B21A8}
+.cat-Qattiq{background:#FEF3C7;color:#854F0B}
+.cat-Boshqa{background:var(--border2);color:var(--text2)}
+.cat-Tayyor{background:#DCFCE7;color:#166534}
+.cat-Gips{background:#FCE7F3;color:#9D174D}
+.mat-qty-val{font-size:17px;font-weight:700}
+.stat-badge{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;padding:5px 13px;border-radius:20px}
+.stat-badge.ok{background:#DCFCE7;color:#166534}
+.stat-badge.warn{background:#FEF3C7;color:#92400E}
+.stat-badge.danger{background:#FEE2E2;color:#991B1B}
+.mat-actions{display:flex;gap:8px;justify-content:flex-end}
+.act-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,border-color .15s;color:var(--text2);font-size:17px}
+.act-btn:hover{background:var(--bg)}
+.act-btn.out{color:#991B1B;border-color:#FECACA}
+.act-btn.out:hover{background:#FEF2F2}
+.act-btn.danger{color:#DC2626}
+.act-btn.danger:hover{background:#FEF2F2}
+.mv-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border2);font-size:14.5px}
+.mv-row:last-child{border-bottom:none}
+.mv-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:8px}
+.mv-badge.in{background:#DCFCE7;color:#166534}
+.mv-badge.out{background:#FEE2E2;color:#991B1B}
+.mv-order-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border:1px solid var(--border2);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:background .15s;background:var(--white)}
+.mv-order-row:hover{background:var(--gold-tint)}
+.mv-order-num{font-weight:700;color:var(--gold-dark);font-size:14.5px}
+.mv-order-meta{font-size:12.5px;color:var(--text3);margin-top:3px}
+.mv-order-count{font-size:12.5px;background:var(--bg);padding:4px 10px;border-radius:20px;color:var(--text2);font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:10px}
+.mv-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;justify-content:flex-end;z-index:2100}
+.mv-drawer{background:#fff;width:440px;max-width:92vw;height:100%;box-shadow:-4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;animation:mvSlideIn .22s ease}
+@keyframes mvSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.mv-drawer-head{padding:18px 20px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.mv-drawer-body{padding:6px 20px 20px;overflow-y:auto;flex:1}
+
+/* Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga */
+.inv-toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
+.inv-toast{background:#fff;border-radius:16px;padding:26px 30px;max-width:420px;max-height:80vh;overflow-y:auto;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28);white-space:pre-line;font-size:14px;font-weight:600;color:var(--text);line-height:1.6}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="padding:14px;height:calc(100vh - 58px);overflow-y:auto">
+
+  <div class="inv-kpi-grid">
+    <div class="stat-card"><div class="stat-icon" style="background:#DBEAFE;color:#1D4ED8"><i class="ti ti-packages"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">{{ kpi.total_items }} tur</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
+    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
+    {% if current_user.role.value != 'manager' %}
+    <div class="stat-card"><div class="stat-icon" style="background:#EDE9FE;color:#6D28D9"><i class="ti ti-currency-dollar"></i></div><div class="stat-label">Ombor qiymati</div><div class="stat-val">{{ "%.1f"|format(kpi.total_value/1000000) }} mln</div></div>
+    {% endif %}
+  </div>
+
+  <div class="inv-filters">
+    <input type="text" id="matSearch" class="inv-search" placeholder="Material qidirish..." oninput="filterMaterials()">
+    <select id="catFilter" onchange="filterMaterials()">
+      <option value="">Barcha kategoriya</option>
+      <option value="Penoplast">🧊 Penoplast</option>
+      <option value="Kimyoviy qo'shimchalar">🧪 Kimyoviy qo'shimchalar</option>
+      <option value="Qattiq qotishmalar">⛱️ Minerallar</option>
+{% if cat_on('gips', current_user.company_id) %}      <option value="Gips">🪨 Gips</option>{% endif %}
+{% if cat_on('termopanel', current_user.company_id) %}      <option value="Bazalt">🗻 Bazalt</option>{% endif %}
+    </select>
+    <select id="statusFilter" onchange="filterMaterials()">
+      <option value="">Barcha holat</option>
+      <option value="ok">Yetarli</option>
+      <option value="warn">Kam</option>
+      <option value="danger">Tugagan</option>
+    </select>
+    <select id="sortFilter" onchange="filterMaterials()">
+      <option value="name">Nomi bo'yicha</option>
+      <option value="qty_asc">Qoldiq (kamdan-ko'pga)</option>
+      <option value="qty_desc">Qoldiq (ko'pdan-kamga)</option>
+    </select>
+    {% if current_user.role.value != 'manager' %}
+    <button class="btn btn-outline btn-sm" onclick="openPurchaseHistory()"><i class="ti ti-receipt" style="vertical-align:-2px"></i> Xaridlar tarixi</button>
+    {% endif %}
+    <button class="btn btn-outline btn-sm" onclick="openMovements()"><i class="ti ti-history" style="vertical-align:-2px"></i> Ombor harakatlari</button>
+  </div>
+
+  <span id="low-count" style="display:none"></span>
+  <div id="matList">
+    {% set peno_items = [] %}
+    {% set normal_items = [] %}
+    {% set loy_items = [] %}
+    {% for it in items %}
+      {% if 'Tayyor loy' in it.item_name %}
+        {% set _ = loy_items.append(it) %}
+      {% elif it.is_penoplast or 'penoplast' in it.item_name|lower %}
+        {% set _ = peno_items.append(it) %}
+      {% else %}
+        {% set _ = normal_items.append(it) %}
+      {% endif %}
+    {% endfor %}
+
+    {% for item in peno_items + normal_items + loy_items %}
+    {% set qty = item.stock_quantity|float %}
+    {% set minq = item.min_stock|float %}
+    {% set pct = [[((qty / minq * 100)|round if minq > 0 else 100), 0]|max, 100]|min %}
+    {% set is_loy = 'Tayyor loy' in item.item_name %}
+    {% set is_peno = item.is_penoplast or 'penoplast' in item.item_name|lower %}
+    {% set cat_label = 'Tayyor loy' if is_loy else (item.category or 'Boshqa') %}
+    {% set cat_class = 'Tayyor' if is_loy else ('Penoplast' if is_peno else (item.category if item.category in ['Kimyoviy qo\'shimchalar','Qattiq qotishmalar','Gips'] else 'Boshqa')) %}
+    {% set cat_css = 'cat-Kimyoviy' if cat_class == "Kimyoviy qo'shimchalar" else ('cat-Qattiq' if cat_class == 'Qattiq qotishmalar' else ('cat-Gips' if cat_class == 'Gips' else 'cat-' + cat_class)) %}
+    {% if qty <= minq %}{% set st = 'danger' %}{% set st_label = 'Tugagan' if qty <= 0 else 'Kam!' %}
+    {% elif qty <= minq * 1.5 %}{% set st = 'warn' %}{% set st_label = 'Oz' %}
+    {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% endif %}
+    <div class="mat-row" style="animation-delay:{{ (loop.index0 % 20) * 0.02 }}s"
+         data-name="{{ item.item_name|lower }}" data-category="{{ item.category or '' }}" data-status="{{ st }}" data-qty="{{ qty }}">
+      <div style="display:flex;gap:10px;align-items:stretch">
+        <label class="mat-thumb" title="{{ '' if item.image_url else 'Rasm yuklash' }}">
+          {% if item.image_url %}
+          <img src="{{ item.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openInvLightbox('{{ item.image_url }}')">
+          <div class="mat-thumb-cam" onclick="event.preventDefault();event.stopPropagation();this.closest('.mat-thumb').querySelector('input[type=file]').click()"><i class="ti ti-camera"></i></div>
+          {% else %}<i class="ti ti-flask-2"></i>{% endif %}
+          <input type="file" accept="image/*" onchange="uploadInventoryImage({{ item.id }}, this)">
+        </label>
+        <div>
+        <div class="mat-name">
+          {{ item.item_name }}
+          {% if item.is_penoplast %}
+            {% if item.is_default_penoplast %}
+            <span style="font-size:9px;background:var(--gold);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600;margin-left:4px">★ Asosiy</span>
+            {% else %}
+            <button onclick="setDefaultPenoplast({{ item.id }})" style="font-size:9px;background:var(--border2);color:var(--text3);padding:2px 7px;border-radius:10px;border:none;cursor:pointer;margin-left:4px" title="Asosiy qilish">☆ Asosiy qilish</button>
+            {% endif %}
+          {% endif %}
+        </div>
+        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% elif 'bazalt' in item.item_name|lower and 'kley' not in item.item_name|lower and 'serpiyank' not in item.item_name|lower %} · {{ item.volume_per_unit or 0.72 }} m²/dona{% elif 'serpiyank' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} metr/rulon{% elif 'gips' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} kg/qop{% endif %}</div>
+        <span class="cat-badge {{ cat_css }}" onclick="editCategory(this)" data-id="{{ item.id }}" data-category="{{ item.category or '' }}" style="cursor:pointer" title="O'zgartirish">{{ cat_label }}</span>
+        </div>
+      </div>
+      <div>
+        <div class="mat-qty-val" style="color:{% if st=='danger' %}#DC2626{% elif st=='warn' %}#B45309{% else %}var(--text){% endif %}">{{ "%.1f"|format(qty) }} {{ item.unit }}</div>
+        <div class="stock-bar" style="margin-top:6px"><div class="stock-fill {{ st if st != 'ok' else '' }}" style="width:{{ pct }}%"></div></div>
+      </div>
+      <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">
+        <span id="minstock-{{ item.id }}">{{ item.min_stock }} {{ item.unit }}</span>
+        <button class="btn btn-outline btn-xs" onclick="editMinStock({{ item.id }}, {{ item.min_stock or 0 }}, '{{ item.unit }}')" title="Chegarani tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
+      </div>
+      <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
+      <div class="mat-col-updated" style="font-size:13.5px;color:var(--text3)">
+        {% if current_user.role.value != 'manager' %}
+        <span id="price-{{ item.id }}">{{ "{:,.0f}".format(item.price_per_unit).replace(",", " ") if item.price_per_unit else "—" }} so'm</span>
+        <button class="btn btn-outline btn-xs" onclick="editPrice({{ item.id }}, {{ item.price_per_unit or 0 }})" title="Narxni tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
+        {% if 'bazalt' in item.item_name|lower and 'kley' not in item.item_name|lower and 'serpiyank' not in item.item_name|lower %}
+        <button class="btn btn-outline btn-xs" onclick="editBazaltRatios({{ item.id }}, {{ item.serp_ratio_per_m2 or 2.0 }}, {{ item.kley_ratio_per_m2 or 0.8 }})" title="Serpiyanka/Kley nisbatini tuzatish" style="margin-left:4px;border-color:#C4B5FD;color:#6D28D9">🧱</button>
+        <button class="btn btn-outline btn-xs" onclick="editBazaltVolume({{ item.id }}, {{ item.volume_per_unit or 0.72 }})" title="1 dona necha m² ekanini tuzatish" style="margin-left:4px;border-color:#E8D5C0;color:#A86B36">📐</button>
+        {% elif 'serpiyank' in item.item_name|lower %}
+        <button class="btn btn-outline btn-xs" onclick="editSerpiyankaVolume({{ item.id }}, {{ item.volume_per_unit or 50.0 }})" title="1 rulon necha metr ekanini tuzatish" style="margin-left:4px;border-color:#E8D5C0;color:#A86B36">📐</button>
+        {% elif 'gips' in item.item_name|lower %}
+        <button class="btn btn-outline btn-xs" onclick="editGipsSackWeight({{ item.id }}, {{ item.volume_per_unit or 50.0 }})" title="1 qop necha kg ekanini tuzatish" style="margin-left:4px;border-color:#E8D5C0;color:#A86B36">📐</button>
+        {% endif %}
+        {% else %}
+        <span style="color:var(--text3)">—</span>
+        {% endif %}
+      </div>
+      <div class="mat-actions">
+        {% if current_user.role.value == 'admin' %}
+        <button class="act-btn out" onclick="openChiqimModal({{ item.id }}, '{{ item.item_name|replace("'", "\\'") }}', '{{ item.unit }}', {{ qty }})" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
+        <button class="act-btn danger" onclick="deleteItem({{ item.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div id="emptyFilter" style="display:none;text-align:center;padding:40px;color:var(--text3)">Hech narsa topilmadi</div>
+</div>
+
+<!-- Chiqim modali -->
+<div id="chiqimModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:400px;max-width:100%">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px"><i class="ti ti-arrow-up-right" style="color:#991B1B"></i> Chiqim — <span id="chiqim-name"></span></div>
+    <div style="font-size:14px;color:var(--text3);margin-bottom:16px">Narxsiz tuzatish (masalan inventarizatsiya, kamomad). Hozirgi qoldiq: <b id="chiqim-current"></b></div>
+    <div class="form-group"><label>Miqdor</label><input type="number" id="chiqim-qty" placeholder="0" min="0" step="0.1"></div>
+    <div class="form-group"><label>Sabab / izoh</label><input type="text" id="chiqim-notes" placeholder="Masalan: inventarizatsiyada aniqlandi"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-dark w-full" id="chiqim-save-btn" style="background:#DC2626" onclick="saveChiqim()">Chiqim qilish</button>
+      <button class="btn btn-outline w-full" onclick="closeChiqimModal()">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Universal chiroyli "prompt" modali — native prompt() o'rniga -->
+<div id="cpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:14px;padding:24px;width:380px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div id="cp-title" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:6px">—</div>
+    <div id="cp-hint" style="font-size:12.5px;color:var(--text3);margin-bottom:14px"></div>
+    <input type="text" id="cp-input" class="i-m3price" style="width:100%;font-size:15px;font-weight:600;text-align:center" inputmode="decimal">
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-outline w-full" onclick="_cpCancel()">Bekor</button>
+      <button class="btn btn-dark w-full" style="background:var(--gold);border-color:var(--gold)" onclick="_cpConfirm()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Xaridlar tarixi modali -->
+<div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600"><i class="ti ti-receipt"></i> Xaridlar tarixi</div>
+      <button onclick="closePurchaseHistory()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:14px 22px;border-bottom:1px solid var(--border2);background:var(--bg)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:var(--text2)">Bu oy jami xarid</span>
+        <span id="hist-total" style="font-weight:700;color:var(--gold-dark)">—</span>
+      </div>
+      <div id="hist-by-material" style="margin-top:8px;font-size:13.5px;color:var(--text2);line-height:1.9"></div>
+    </div>
+    <div style="padding:0 22px;overflow-y:auto;flex:1" id="hist-list">
+      <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Bitta "Kirim" hujjati ichidagi materiallar — "shtorka" -->
+<div id="phDrawerOverlay" style="display:none" class="mv-drawer-overlay" onclick="if(event.target===this)closePhDrawer()">
+  <div class="mv-drawer">
+    <div class="mv-drawer-head">
+      <div>
+        <div id="phDrawerTitle" style="font-weight:700;font-size:15px">—</div>
+        <div id="phDrawerSub" style="font-size:12.5px;color:var(--text3);margin-top:2px">—</div>
+      </div>
+      <button onclick="closePhDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>
+    <div class="mv-drawer-body" id="phDrawerBody"></div>
+  </div>
+</div>
+
+<!-- Ombor harakatlari (Timeline) modali -->
+<div id="movementsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;width:640px;max-width:100%;max-height:86vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:600"><i class="ti ti-history"></i> Ombor harakatlari</div>
+      <button onclick="closeMovements()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:12px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-outline btn-sm" onclick="loadMovements('')">Barchasi</button>
+      <button class="btn btn-outline btn-sm" style="border-color:#BBF7D0;color:#166534" onclick="loadMovements('in')">Faqat kirim</button>
+      <button class="btn btn-outline btn-sm" style="border-color:#FECACA;color:#991B1B" onclick="loadMovements('out')">Faqat chiqim</button>
+    </div>
+    <div style="padding:10px 22px;border-bottom:1px solid var(--border2);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:var(--text3)">Sana oralig'i:</span>
+      <input type="date" id="mv-date-from" style="height:32px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px" onchange="loadMovements(mvCurType)">
+      <span style="color:var(--text3)">—</span>
+      <input type="date" id="mv-date-to" style="height:32px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12.5px" onchange="loadMovements(mvCurType)">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('mv-date-from').value='';document.getElementById('mv-date-to').value='';loadMovements(mvCurType)">Tozalash</button>
+    </div>
+    <div style="padding:8px 22px;overflow-y:auto;flex:1" id="mv-list">
+      <div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Buyurtma bo'yicha batafsil harakatlar — "shtorka" (yon panel) -->
+<div id="mvDrawerOverlay" style="display:none" class="mv-drawer-overlay" onclick="if(event.target===this)closeMvDrawer()">
+  <div class="mv-drawer">
+    <div class="mv-drawer-head">
+      <div>
+        <div id="mvDrawerTitle" style="font-weight:700;font-size:15px">—</div>
+        <div id="mvDrawerSub" style="font-size:12.5px;color:var(--text3);margin-top:2px">—</div>
+      </div>
+      <button onclick="closeMvDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>
+    <div class="mv-drawer-body" id="mvDrawerBody"></div>
+  </div>
+</div>
+
+<!-- ══ XOMASHYO RASMINI KATTA KO'RISH (lightbox) ══ -->
+<div id="invLightbox" onclick="closeInvLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="invLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Markazlashgan xabar oynasi — brauzerning standart alert() o'rniga
+function invToast(text) {
+  let overlay = document.getElementById('invToastOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'invToastOverlay';
+    overlay.className = 'inv-toast-overlay';
+    overlay.innerHTML = '<div class="inv-toast" id="invToastText"></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) invToastHide(); });
+  }
+  document.getElementById('invToastText').textContent = text;
+  overlay.style.display = 'flex';
+  clearTimeout(overlay._timer);
+  const dur = Math.min(6000, Math.max(1800, text.length * 45));
+  overlay._timer = setTimeout(invToastHide, dur);
+}
+function invToastHide() {
+  const overlay = document.getElementById('invToastOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// SaaS xavfsizligi: brauzer avtomatik to'ldirishini butunlay o'chiramiz —
+// turli kompaniyalarning eski ismlari/raqamlari/summalarini taklif qilib
+// chiqarmasligi uchun (statik VA keyinroq qo'shiladigan maydonlar uchun ham).
+(function(){
+  function killAutofill(root){
+    var els = root.querySelectorAll ? root.querySelectorAll('input, textarea, select') : [];
+    for (var i=0; i<els.length; i++){
+      if (!els[i].hasAttribute('autocomplete')) els[i].setAttribute('autocomplete', 'off');
+    }
+  }
+  killAutofill(document);
+  new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if (n.nodeType === 1) {
+          if (n.matches && n.matches('input,textarea,select') && !n.hasAttribute('autocomplete')) n.setAttribute('autocomplete','off');
+          killAutofill(n);
+        }
+      });
+    });
+  }).observe(document.documentElement, {childList:true, subtree:true});
+})();
+</script>
+
+<script>
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
+function parseNum(v) {
+  return parseFloat(String(v||'').replace(/[^\d.]/g, '')) || 0;
+}
+
+function openInvLightbox(url) {
+  document.getElementById('invLightboxImg').src = url;
+  document.getElementById('invLightbox').style.display = 'flex';
+}
+function closeInvLightbox() { document.getElementById('invLightbox').style.display = 'none'; }
+
+const inFlightInvActions = new Set(); // Ikki marta bosishdan himoya — ombor tahrirlash amallari
+
+async function uploadInventoryImage(id, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const key = 'img-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`/api/inventory/${id}/image`, { method: 'POST', body: fd });
+    if (res.ok) {
+      location.reload();
+    } else {
+      const err = await res.json().catch(()=>({}));
+      invToast('❌ Rasm yuklanmadi.\n\nSabab: ' + (err.detail || `Server xatosi (${res.status})`));
+    }
+  } catch(e) {
+    invToast('❌ Server bilan bog\'lanib bo\'lmadi: ' + e.message);
+  } finally {
+    inFlightInvActions.delete(key);
+  }
+}
+
+async function setDefaultPenoplast(id){
+  if(!(await customConfirm('Bu plotnostni asosiy qilib belgilaysizmi?\n\nBuyurtma oynasida standart shu tanlanadi.'))) return;
+  const key = 'defpeno-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}/set-default-penoplast`, {method:'POST'});
+    if(res.ok){
+      const d = await res.json();
+      invToast('✓ ' + d.name + ' asosiy plotnost qilib belgilandi!');
+      location.reload();
+    } else {
+      const e = await res.json();
+      invToast('❌ ' + (e.detail || 'Xato'));
+    }
+  } finally {
+    inFlightInvActions.delete(key);
+  }
+}
+
+let isSendingStockReport = false;
+async function sendFullStockReport() {
+  if (isSendingStockReport) return; // Ikki marta bosishdan himoya — ikki marta SMS/xabar ketmasin
+  isSendingStockReport = true;
+  try {
+    const res = await fetch('/api/inventory/full-stock-report', {method:'POST'});
+    const d = await res.json();
+    if (res.ok) invToast('✅ ' + d.message);
+    else invToast('❌ Xato yuz berdi');
+  } finally {
+    isSendingStockReport = false;
+  }
+}
+
+let isSendingLowStockAlert = false;
+async function sendLowStockAlert() {
+  if (isSendingLowStockAlert) return; // Ikki marta bosishdan himoya — ikki marta SMS ketmasin
+  isSendingLowStockAlert = true;
+  try {
+    const res = await fetch('/api/inventory/low-stock-alert', {method:'POST'});
+    const d = await res.json();
+    if (res.ok) {
+      if (d.sent) invToast('✅ SMS yuborildi!\n\n' + d.message);
+      else invToast('ℹ️ ' + d.message);
+    } else {
+      invToast('❌ Xato yuz berdi');
+    }
+  } finally {
+    isSendingLowStockAlert = false;
+  }
+}
+
+// Universal chiroyli "prompt" — native prompt() o'rniga. Promise qaytaradi:
+// foydalanuvchi OK bossa — kiritilgan matn, Bekor/Esc bossa — null.
+// Ishlatilishi: const val = await customPrompt('Sarlavha', 'Hozirgi: 5', '5');
+let _cpResolve = null;
+function customPrompt(title, hint, currentValue) {
+  return new Promise(resolve => {
+    _cpResolve = resolve;
+    document.getElementById('cp-title').textContent = title;
+    document.getElementById('cp-hint').textContent = hint || '';
+    document.getElementById('cp-hint').style.display = hint ? 'block' : 'none';
+    const input = document.getElementById('cp-input');
+    input.value = currentValue != null ? currentValue : '';
+    document.getElementById('cpModal').style.display = 'flex';
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+  });
+}
+function _cpConfirm() {
+  const val = document.getElementById('cp-input').value;
+  document.getElementById('cpModal').style.display = 'none';
+  if (_cpResolve) { _cpResolve(val); _cpResolve = null; }
+}
+function _cpCancel() {
+  document.getElementById('cpModal').style.display = 'none';
+  if (_cpResolve) { _cpResolve(null); _cpResolve = null; }
+}
+document.getElementById('cp-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') _cpConfirm();
+  if (e.key === 'Escape') _cpCancel();
+});
+
+async function editBazaltRatios(id, currentSerp, currentKley) {
+  const newSerp = await customPrompt('1 m² BAZALTGA necha METR SERPIYANKA ketadi?', `Hozirgi: ${currentSerp}`, currentSerp);
+  if (newSerp === null || isNaN(parseFloat(newSerp))) return;
+  const newKley = await customPrompt('1 m² BAZALTGA necha kg KLEY ketadi?', `Hozirgi: ${currentKley}`, currentKley);
+  if (newKley === null || isNaN(parseFloat(newKley))) return;
+
+  const key = 'bazaltratio-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        serp_ratio_per_m2: parseFloat(newSerp),
+        kley_ratio_per_m2: parseFloat(newKley)
+      })
+    });
+    if (res.ok) {
+      invToast('✓ Nisbatlar yangilandi! Keyingi barcha hisob-kitoblar shu yangi qiymatdan foydalanadi.');
+      location.reload();
+    } else invToast('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
+}
+
+async function editBazaltVolume(id, currentVolume) {
+  const newVolume = await customPrompt('1 DONA bazalt necha m²?', `masalan: 1.2m × 0.6m = 0.72 m² · Hozirgi: ${currentVolume}`, currentVolume);
+  if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
+
+  const key = 'bazaltvol-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        volume_per_unit: parseFloat(newVolume)
+      })
+    });
+    if (res.ok) {
+      invToast('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
+      location.reload();
+    } else invToast('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
+}
+
+async function editGipsSackWeight(id, currentVolume) {
+  const newVolume = await customPrompt('1 QOP Gips necha kg?', `Hozirgi: ${currentVolume}`, currentVolume);
+  if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
+
+  const key = 'gipssack-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        volume_per_unit: parseFloat(newVolume)
+      })
+    });
+    if (res.ok) {
+      invToast('✓ Yangilandi! "Qop" asosida to\'lanadigan hodimlar uchun shu qiymat ishlatiladi.');
+      location.reload();
+    } else invToast('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
+}
+
+async function editSerpiyankaVolume(id, currentVolume) {
+  const newVolume = await customPrompt('1 RULON serpiyanka necha metr?', `Hozirgi: ${currentVolume}`, currentVolume);
+  if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
+
+  const key = 'serpvol-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        volume_per_unit: parseFloat(newVolume)
+      })
+    });
+    if (res.ok) {
+      invToast('✓ Yangilandi! Keyingi barcha hisob-kitoblar (buyurtma, ombordan ayirish) shu yangi qiymatdan foydalanadi.');
+      location.reload();
+    } else invToast('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
+}
+
+async function editPrice(id, currentPrice) {
+  const newPrice = await customPrompt('Yangi narxni kiriting (so\'m)', `Hozirgi narx: ${Number(currentPrice).toLocaleString('ru-RU')} so'm`, currentPrice);
+  if (!newPrice || isNaN(parseFloat(newPrice))) return;
+  const key = 'price-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}/price`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({price_per_unit: parseFloat(newPrice)})
+    });
+    if (res.ok) {
+      document.getElementById('price-'+id).textContent = Number(parseFloat(newPrice)).toLocaleString('ru-RU') + ' so\'m';
+      invToast('✓ Narx yangilandi!');
+    } else invToast('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
+}
+
+async function editMinStock(id, currentMin, unit) {
+  const newMin = await customPrompt('Minimal chegarani kiriting',
+    `Qoldiq shu miqdordan kam bo'lsa, "kam qoldi" deb ogohlantiriladi (hozirgi: ${currentMin} ${unit})`, currentMin);
+  if (newMin === null || newMin === '' || isNaN(parseFloat(newMin))) return;
+  const key = 'minstock-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}/min-stock`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({min_stock: parseFloat(newMin)})
+    });
+    if (res.ok) {
+      document.getElementById('minstock-'+id).textContent = parseFloat(newMin) + ' ' + unit;
+      invToast('✓ Chegara yangilandi!');
+    } else invToast('Xato yuz berdi');
+  } finally {
+    inFlightInvActions.delete(key);
+  }
+}
+
+async function editCategory(el) {
+  const id = el.dataset.id;
+  const current = el.dataset.category || 'Boshqa';
+  const val = await customPrompt(
+    "Kategoriya",
+    "masalan: Penoplast, Kimyoviy qo'shimchalar, Qattiq qotishmalar, Gips, Boshqa",
+    current
+  );
+  if (val === null || !val.trim()) return;
+  const key = 'category-' + id;
+  if (inFlightInvActions.has(key)) return;
+  inFlightInvActions.add(key);
+  try {
+    const res = await fetch(`/api/inventory/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({category: val.trim()})
+    });
+    if (res.ok) location.reload();
+    else invToast('Xato yuz berdi');
+  } catch(e) { invToast('Server xatosi'); } finally {
+    inFlightInvActions.delete(key);
+  }
+}
+
+// ── KIRIM MODALI ──────────────────────────────────────────
+// ── CHIQIM MODALI ─────────────────────────────────────────
+let chiqimItemId = null;
+function openChiqimModal(id, name, unit, currentQty) {
+  chiqimItemId = id;
+  document.getElementById('chiqim-name').textContent = name;
+  document.getElementById('chiqim-current').textContent = currentQty + ' ' + unit;
+  document.getElementById('chiqim-qty').value = '';
+  document.getElementById('chiqim-notes').value = '';
+  document.getElementById('chiqimModal').style.display = 'flex';
+}
+function closeChiqimModal(){ document.getElementById('chiqimModal').style.display = 'none'; }
+
+let isSavingChiqim = false;
+async function saveChiqim() {
+  const qty = parseFloat(document.getElementById('chiqim-qty').value);
+  if (!qty || qty <= 0) { invToast('Miqdorni to\'g\'ri kiriting'); return; }
+  if (isSavingChiqim) return; // Ikki marta bosishdan himoya
+  isSavingChiqim = true;
+  const btn = document.getElementById('chiqim-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Saqlanmoqda...'; }
+  try {
+    const res = await fetch(`/api/inventory/${chiqimItemId}/stock`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({quantity_change: -qty, reason: document.getElementById('chiqim-notes').value || null})
+    });
+    if(res.ok) { location.reload(); return; }
+    else invToast('Xato yuz berdi');
+  } catch(e) { invToast('Server xatosi'); }
+  isSavingChiqim = false;
+  if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.textContent = 'Chiqim qilish'; }
+}
+
+// ── XARIDLAR TARIXI ────────────────────────────────────────
+async function openPurchaseHistory() {
+  document.getElementById('historyModal').style.display = 'flex';
+  document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+
+  try {
+    const [stats, purchases] = await Promise.all([
+      fetch('/api/inventory/purchase-stats').then(r => r.json()),
+      fetch('/api/inventory/purchases?limit=60').then(r => r.json())
+    ]);
+
+    document.getElementById('hist-total').textContent = fmt(stats.total_amount) + " so'm";
+
+    const byMat = document.getElementById('hist-by-material');
+    if (stats.by_material.length) {
+      byMat.innerHTML = stats.by_material.map(m =>
+        `<div style="display:flex;justify-content:space-between">
+          <span>${escapeHtml(m.name)} (${m.quantity}${m.unit ? ' '+m.unit : ''})</span>
+          <span style="font-weight:600">${fmt(m.total)} so'm</span>
+        </div>`).join('');
+    } else {
+      byMat.innerHTML = '<div style="color:var(--text3)">Bu oy kirim bo\'lmagan</div>';
+    }
+
+    const list = document.getElementById('hist-list');
+    if (!purchases.length) {
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Xaridlar tarixi bo\'sh</div>';
+      return;
+    }
+
+    phAllPurchases = purchases;
+
+    // "receipt_id" bo'yicha guruhlaymiz — bitta "Kirim" jarayonida birga
+    // kiritilgan materiallar, bitta guruh sifatida ko'rinadi. receipt_id
+    // yo'q (eski, bitta-bitta kiritilgan) yozuvlar — alohida qatorda qoladi.
+    const groups = {};
+    const singles = [];
+    purchases.forEach(p => {
+      if (p.receipt_id) {
+        if (!groups[p.receipt_id]) groups[p.receipt_id] = [];
+        groups[p.receipt_id].push(p);
+      } else {
+        singles.push(p);
+      }
+    });
+
+    // Guruh va yakka yozuvlarni, ENG SO'NGGI sanasi bo'yicha, birga tartiblaymiz
+    const entries = [
+      ...Object.keys(groups).map(rid => ({ type: 'group', receiptId: rid, items: groups[rid],
+        latest: groups[rid].reduce((mx, p) => p.purchased_at > mx ? p.purchased_at : mx, groups[rid][0].purchased_at) })),
+      ...singles.map(p => ({ type: 'single', item: p, latest: p.purchased_at }))
+    ].sort((a, b) => b.latest.localeCompare(a.latest));
+
+    list.innerHTML = entries.map(e => {
+      if (e.type === 'single') {
+        const p = e.item;
+        const dt = new Date(p.purchased_at);
+        const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(p.item_name)}</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px">
+              ${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}
+              ${p.purchased_by ? ' · '+escapeHtml(p.purchased_by) : ''}
+              ${p.notes ? ' · '+escapeHtml(p.notes) : ''}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:13px;font-weight:700;color:#22C55E;white-space:nowrap">${fmt(p.total_amount)} so'm</div>
+            <button onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
+                    title="Bu xaridni bekor qilish (ombordan ham, puldan ham)"
+                    style="width:30px;height:30px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:7px;cursor:pointer;flex-shrink:0">
+              <i class="ti ti-trash"></i>
+            </button>
+          </div>
+        </div>`;
+      }
+      // Guruh — bosiladigan, qisqartirilgan qator
+      const dt = new Date(e.latest);
+      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+      const total = e.items.reduce((s, p) => s + p.total_amount, 0);
+      const namesPreview = escapeHtml(e.items.slice(0, 3).map(p => p.item_name).join(', ') + (e.items.length > 3 ? '…' : ''));
+      return `
+      <div class="mv-order-row" onclick="openPhDrawer('${e.receiptId}')" style="margin:8px 0">
+        <div style="min-width:0">
+          <div class="mv-order-num">📦 Kirim #${e.receiptId} <span style="font-weight:400;color:var(--text3);font-size:12.5px">· ${namesPreview}</span></div>
+          <div class="mv-order-meta">${ds}${e.items[0].purchased_by ? ' · '+escapeHtml(e.items[0].purchased_by) : ''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:10px">
+          <div class="mv-order-count">${e.items.length} ta material →</div>
+          <div style="font-size:12.5px;font-weight:700;color:#22C55E;margin-top:4px">${fmt(total)} so'm</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('hist-list').innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
+  }
+}
+
+let phAllPurchases = [];
+
+function openPhDrawer(receiptId) {
+  const rows = phAllPurchases.filter(p => String(p.receipt_id) === String(receiptId));
+  const total = rows.reduce((s, p) => s + p.total_amount, 0);
+  document.getElementById('phDrawerTitle').textContent = `📦 Kirim #${receiptId}`;
+  document.getElementById('phDrawerSub').textContent = `${rows.length} ta material · ${fmt(total)} so'm`;
+  document.getElementById('phDrawerBody').innerHTML = rows.map(p => {
+    const dt = new Date(p.purchased_at);
+    const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+    return `
+    <div class="mv-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;color:var(--text)">${escapeHtml(p.item_name)}</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:2px">${p.quantity} ${p.unit||''} × ${fmt(p.price_per_unit)} · ${ds}${p.purchased_by ? ' · '+escapeHtml(p.purchased_by) : ''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:10px">
+        <div style="font-weight:700;color:#22C55E">${fmt(p.total_amount)} so'm</div>
+        <button onclick="deletePurchase(${p.id}, '${jsAttrEscape(p.item_name||'')}', ${p.quantity})"
+                title="Bu xaridni bekor qilish" style="margin-top:4px;width:26px;height:26px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:6px;cursor:pointer">
+          <i class="ti ti-trash" style="font-size:12px"></i>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('phDrawerOverlay').style.display = 'flex';
+}
+
+function closePhDrawer() {
+  document.getElementById('phDrawerOverlay').style.display = 'none';
+}
+
+async function deletePurchase(id, name, qty) {
+  const ok = await customConfirm(
+    `"${name}" xaridini (${qty} birlik) bekor qilasizmi?\n\n` +
+    `Bu — ham OMBORDAN ushbu miqdorni ayiradi, ham MOLIYADAN (pul oqimidan) ` +
+    `bu xarid summasini olib tashlaydi.`,
+    {danger:true}
+  );
+  if (!ok) return;
+  try {
+    const res = await fetch(`/api/inventory/purchases/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      invToast('✓ Xarid bekor qilindi — ombor va pul oqimi tuzatildi.');
+      openPurchaseHistory();        // ro'yxatni yangilaymiz
+      setTimeout(() => location.reload(), 600);  // ombor qoldig'i ham yangilanishi uchun
+    } else {
+      const d = await res.json().catch(() => ({}));
+      invToast(d.detail || 'Xato yuz berdi');
+    }
+  } catch(e) { invToast('Server xatosi'); }
+}
+function closePurchaseHistory() { document.getElementById('historyModal').style.display = 'none'; }
+
+// ── OMBOR HARAKATLARI (TIMELINE) ───────────────────────────
+function openMovements() {
+  document.getElementById('movementsModal').style.display = 'flex';
+  loadMovements('');
+}
+function closeMovements() { document.getElementById('movementsModal').style.display = 'none'; }
+
+let mvCurType = '';
+
+function mvFmtQty(q) {
+  const n = parseFloat(q) || 0;
+  // 2 xonagacha yaxlitlab, ortiqcha nollarni olib tashlaymiz (masalan
+  // "0.80" emas "0.8", "5.00" emas "5")
+  return n.toFixed(2).replace(/\.?0+$/, '');
+}
+
+async function loadMovements(type) {
+  mvCurType = type;
+  const list = document.getElementById('mv-list');
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Yuklanmoqda...</div>';
+  try {
+    const params = new URLSearchParams();
+    if (type) params.set('movement_type', type);
+    const df = document.getElementById('mv-date-from')?.value;
+    const dt_ = document.getElementById('mv-date-to')?.value;
+    if (df) params.set('date_from', df);
+    if (dt_) params.set('date_to', dt_);
+    if (df || dt_) params.set('limit', '500');
+    const url = '/api/inventory/movements' + (params.toString() ? `?${params.toString()}` : '');
+    const res = await fetch(url);
+    const rows = await res.json();
+    if (!rows.length) {
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Harakatlar yo\'q</div>';
+      return;
+    }
+
+    // Har bir modda bo'yicha jami (chiqim/kirim) — tez ko'rish uchun
+    const totals = {};
+    rows.forEach(m => {
+      const key = m.item_name + '|' + (m.unit || '');
+      if (!totals[key]) totals[key] = {name: m.item_name, unit: m.unit || '', in: 0, out: 0};
+      totals[key][m.movement_type] += parseFloat(m.quantity) || 0;
+    });
+    const summaryHtml = Object.values(totals).map(t => `
+      <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px">
+        <span style="color:var(--text2)">${escapeHtml(t.name)}</span>
+        <span>${t.out > 0 ? `<span style="color:#991B1B">−${t.out.toFixed(2)}</span>` : ''}${t.out > 0 && t.in > 0 ? ' · ' : ''}${t.in > 0 ? `<span style="color:#166534">+${t.in.toFixed(2)}</span>` : ''} ${t.unit}</span>
+      </div>`).join('');
+    const summaryBlock = (document.getElementById('mv-date-from').value || document.getElementById('mv-date-to').value)
+      ? `<div style="background:var(--bg);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+           <div style="font-size:11.5px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tanlangan davr — jami</div>
+           ${summaryHtml}
+         </div>` : '';
+
+    // Buyurtma bo'yicha guruhlaymiz — order_id borlar bitta guruh bo'ladi.
+    // order_id yo'qlar (Ishlab chiqarish, yetkazib beruvchidan kirim va h.k.)
+    // esa — sabab matni + vaqt (daqiqagacha) bo'yicha, HAR BIR ALOHIDA
+    // voqea o'z-o'zidan alohida "karta"ga aylanadi (aynan buyurtmalar
+    // kabi) — aks holda barcha turli ishlab chiqarishlar (Profil, Panel,
+    // Termopanel va h.k.) bitta katta, aralash "Boshqa" uyumida
+    // adashtirib yuborar edi.
+    const groupsArr = [];
+    const groupMap = {};
+    rows.forEach(m => {
+      let key, label, icon;
+      if (m.order_id) {
+        key = 'order-' + m.order_id;
+        icon = '📋';
+        label = null;
+      } else {
+        const minuteKey = (m.created_at || '').slice(0, 16);
+        const prodMatch = m.reason && m.reason.match(/^Ishlab chiqarish: (.+)$/);
+        if (prodMatch) {
+          key = 'prod-' + prodMatch[1] + '-' + minuteKey;
+          icon = '🏭';
+          label = prodMatch[1];
+        } else {
+          key = 'other-' + minuteKey + '-' + (m.reason || '');
+          icon = '📦';
+          label = m.reason || 'Boshqa';
+        }
+      }
+      if (!(key in groupMap)) {
+        groupMap[key] = groupsArr.length;
+        groupsArr.push({ rows: [], latestDate: m.created_at, label, icon, orderId: m.order_id || null });
+      }
+      const g = groupsArr[groupMap[key]];
+      g.rows.push(m);
+      if (m.created_at > g.latestDate) g.latestDate = m.created_at;
+      // "reason" ichidan buyurtma raqamini (ORD-XXX-Y) ajratib olamiz
+      if (m.order_id && m.reason) {
+        const om = m.reason.match(/ORD-\d+-\d+/);
+        if (om) g.label = om[0];
+      }
+    });
+
+    // Guruhlarni, eng so'nggi harakati bo'yicha (yangidan eskiga) tartiblaymiz
+    const order = groupsArr.map((g, i) => i).sort((a, b) =>
+      new Date(groupsArr[b].latestDate) - new Date(groupsArr[a].latestDate));
+
+    let groupsHtml = order.map(idx => {
+      const g = groupsArr[idx];
+      const dt = new Date(g.latestDate);
+      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+      const label = g.label || (g.orderId ? `Buyurtma #${g.orderId}` : 'Boshqa');
+      return `
+      <div class="mv-order-row" onclick="openMvDrawer(${idx})">
+        <div style="min-width:0">
+          <div class="mv-order-num">${g.icon} ${label}</div>
+          <div class="mv-order-meta">${ds}</div>
+        </div>
+        <div class="mv-order-count">${g.rows.length} ta harakat →</div>
+      </div>`;
+    }).join('');
+
+    window._mvGroups = groupsArr;
+    list.innerHTML = summaryBlock + groupsHtml;
+  } catch(e) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#DC2626">Yuklashda xato</div>';
+  }
+}
+
+function mvRowHtml(m) {
+  const dt = new Date(m.created_at);
+  const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+  return `
+  <div class="mv-row">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:500;color:var(--text)">${escapeHtml(m.item_name)}</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:2px">${ds}${m.reason ? ' · '+escapeHtml(m.reason) : ''}${m.performed_by ? ' · '+escapeHtml(m.performed_by) : ''}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0;margin-left:10px">
+      <span class="mv-badge ${m.movement_type}">${m.movement_type === 'in' ? 'Kirim' : 'Chiqim'}</span>
+      <div style="font-weight:600;margin-top:3px">${m.movement_type === 'in' ? '+' : '−'}${mvFmtQty(m.quantity)} ${m.unit||''}</div>
+    </div>
+  </div>`;
+}
+
+function openMvDrawer(idx) {
+  const g = window._mvGroups[idx];
+  const rows = [...g.rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const label = g.label || (g.orderId ? `Buyurtma #${g.orderId}` : 'Boshqa');
+  document.getElementById('mvDrawerTitle').textContent = `${g.icon} ${label}`;
+  document.getElementById('mvDrawerSub').textContent = `${rows.length} ta harakat`;
+  document.getElementById('mvDrawerBody').innerHTML = rows.map(mvRowHtml).join('');
+  document.getElementById('mvDrawerOverlay').style.display = 'flex';
+}
+
+function closeMvDrawer() {
+  document.getElementById('mvDrawerOverlay').style.display = 'none';
+}
+
+async function deleteItem(id) {
+  if(!(await customConfirm('Bu xomashyoni o\'chirasizmi?'))) return;
+  const res = await fetch(`/api/inventory/${id}`, {method:'DELETE'});
+  if(res.ok) {
+    const r = await res.json();
+    if (r.soft) {
+      invToast('ℹ️ ' + r.message);
+    }
+    location.reload();
+  } else {
+    const err = await res.json().catch(()=>({}));
+    invToast('❌ Xato: ' + (err.detail || 'Noma\'lum xato'));
+  }
+}
+
+// ── FILTRLASH / SARALASH ───────────────────────────────────
+function filterMaterials() {
+  const q = document.getElementById('matSearch').value.trim().toLowerCase();
+  const cat = document.getElementById('catFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  const sort = document.getElementById('sortFilter').value;
+  const list = document.getElementById('matList');
+  const rows = Array.from(list.querySelectorAll('.mat-row'));
+  let visibleCount = 0;
+
+  rows.forEach(row => {
+    const matchQ = !q || row.dataset.name.includes(q);
+    const matchCat = !cat || row.dataset.category === cat;
+    const matchStatus = !status || row.dataset.status === status;
+    const show = matchQ && matchCat && matchStatus;
+    row.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
+  });
+
+  if (sort === 'qty_asc' || sort === 'qty_desc') {
+    const visible = rows.filter(r => r.style.display !== 'none');
+    visible.sort((a, b) => sort === 'qty_asc'
+      ? parseFloat(a.dataset.qty) - parseFloat(b.dataset.qty)
+      : parseFloat(b.dataset.qty) - parseFloat(a.dataset.qty));
+    visible.forEach(r => list.appendChild(r));
+  }
+
+  document.getElementById('emptyFilter').style.display = visibleCount === 0 ? 'block' : 'none';
+}
+
+// Kam qolganlar sonini topbar ga
+const low = document.querySelectorAll('.stat-badge.danger').length;
+if(low>0) document.getElementById('low-count').textContent = low+' ta kam!';
+</script>
+{% endblock %}
