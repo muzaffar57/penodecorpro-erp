@@ -5,7 +5,6 @@
 
 {% block topbar_actions %}
 <button class="btn btn-dark" onclick="openProduceModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Ishlab chiqarish</button>
-<button class="btn btn-outline" style="border-color:#8B5E3C;color:#8B5E3C" onclick="openTermoModal()"><i class="ti ti-square" style="vertical-align:-2px"></i> Termopanel (Bazalt)</button>
 <button class="btn btn-outline" style="border-color:#9D174D;color:#9D174D" onclick="openGipsProduceModal()"><i class="ti ti-cube" style="vertical-align:-2px"></i> 🧱 Gips ishlab chiqarish</button>
 {% endblock %}
 
@@ -134,7 +133,6 @@ input[type=number]{-moz-appearance:textfield}
       <div class="fp-cat-opt" data-value="panel" onclick="selectFpCategory(this,'panel')">Panel</div>
       <div class="fp-cat-opt" data-value="dona" onclick="selectFpCategory(this,'dona')">Donali</div>
 {% if cat_on('blok', current_user.company_id) %}      <div class="fp-cat-opt" data-value="blok" onclick="selectFpCategory(this,'blok')">Blok</div>{% endif %}
-{% if cat_on('termopanel', current_user.company_id) %}      <div class="fp-cat-opt" data-value="termopanel" onclick="selectFpCategory(this,'termopanel')">Bazalt (Termopanel)</div>{% endif %}
 {% if cat_on('gips', current_user.company_id) %}      <div class="fp-cat-opt" data-value="gips" onclick="selectFpCategory(this,'gips')">Gips</div>{% endif %}
     </div>
     <select id="fpCategory" style="display:none" onchange="renderFp()">
@@ -143,7 +141,6 @@ input[type=number]{-moz-appearance:textfield}
       <option value="panel">Panel</option>
       <option value="dona">Donali</option>
 {% if cat_on('blok', current_user.company_id) %}      <option value="blok">Blok</option>{% endif %}
-{% if cat_on('termopanel', current_user.company_id) %}      <option value="termopanel">Bazalt (Termopanel)</option>{% endif %}
 {% if cat_on('gips', current_user.company_id) %}      <option value="gips">Gips</option>{% endif %}
     </select>
     <select id="fpSort" onchange="renderFp()">
@@ -392,84 +389,6 @@ input[type=number]{-moz-appearance:textfield}
     <div style="padding:18px 22px;overflow-y:auto;flex:1" id="hist-body"></div>
   </div>
 </div>
-
-<!-- ══ TERMOPANEL (BAZALT) ISHLAB CHIQARISH MODALI ══ -->
-<div id="termoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">🧱 Termopanel ishlab chiqarish</div>
-        <div style="font-size:12px;color:#aaa;margin-top:2px">Bazalt + Serpiyanka + Kley + Qoplama</div>
-      </div>
-      <button onclick="closeTermoModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
-    </div>
-
-    <div style="padding:16px 22px;overflow-y:auto;flex:1">
-      <div class="form-group">
-        <label>Mahsulot nomi</label>
-        <input type="text" id="t-name" placeholder="Masalan: Termopanel bazalt 5sm">
-      </div>
-
-      <div class="form-group">
-        <label>Kerakli kvadrat metr (m²)</label>
-        <input type="number" id="t-m2" step="0.1" min="0" placeholder="0" oninput="tCalc()">
-      </div>
-
-      <div class="form-group">
-        <label>Plotnost (Bazalt turi)</label>
-        <select id="t-bazalt" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0">
-          <label>Serpiyanka (tur)</label>
-          <select id="t-serp" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Kley (tur)</label>
-          <select id="t-kley" onchange="tCalc()"><option value="">Yuklanmoqda...</option></select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="margin:0">
-          <label>Retsept (qoplama uchun)</label>
-          <select id="t-recipe" onchange="loadLoyCost(this.value)">
-            <option value="">— Yo'q —</option>
-            {% for r in recipes %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Loy miqdori (kg)</label>
-          <input type="number" id="t-loy" step="0.5" min="0" placeholder="0" oninput="tCalc()">
-        </div>
-      </div>
-
-      <div style="background:#F8F5EF;border-radius:9px;padding:11px 14px;margin:6px 0 12px;font-size:12px;line-height:1.8" id="t-calc">
-        Ma'lumotlarni kiriting
-      </div>
-
-      <div class="form-group">
-        <label>Sotuv narxi (1 m² uchun)</label>
-        <input type="text" id="t-price" placeholder="0" oninput="formatPriceInput(this);tCalc()"
-               style="border-color:#8B5E3C;font-weight:600">
-      </div>
-
-      <div class="form-group" style="margin-bottom:0">
-        <label>Izoh</label>
-        <input type="text" id="t-notes" placeholder="Ixtiyoriy">
-      </div>
-
-      <div id="t-error" style="display:none;margin-top:10px;padding:9px 12px;background:#FEE2E2;border-radius:7px;font-size:12px;color:#DC2626"></div>
-    </div>
-
-    <div style="padding:14px 22px 18px;border-top:1px solid #f0f0f0;display:flex;gap:8px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeTermoModal()">Bekor</button>
-      <button class="btn btn-dark" style="flex:2;background:#8B5E3C" onclick="saveTermopanel()">🧱 Ishlab chiqarish</button>
-    </div>
-  </div>
-</div>
-
 
 <!-- Mahsulotni o'chirish — 3 variantli maxsus modal (native ikki bosqichli confirm o'rniga) -->
 <div id="delFpModal" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:2000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)">
@@ -1065,7 +984,6 @@ function rowHtml(i) {
             i.category==='panel' ? 'ti-square' :
             i.category==='dona' ? 'ti-circle' :
             i.category==='blok' ? 'ti-cube' :
-            i.category==='termopanel' ? 'ti-square-rounded' :
             i.category==='gips' ? 'ti-wall' :
             'ti-box'
           }" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
@@ -1319,7 +1237,7 @@ async function submitGipsProduce() {
 
 let _lossData = null;
 
-const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok', 'termopanel', 'gips'];
+const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok', 'gips'];
 let _lossMode = 'stock';
 
 function openLossModal(id, name, quantity, unit, category) {
@@ -1794,155 +1712,13 @@ async function delFp(id, source) {
 
 // ── Ishlab chiqarish (buyurtma oynasidagi kabi) ───────────
 // ── Termopanel (Bazalt) ────────────────────────────────────
-let termoInventory = [];
 
-async function openTermoModal() {
-  document.getElementById('termoModal').style.display = 'flex';
-  ['t-name','t-m2','t-loy','t-price','t-notes'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('t-recipe').value = '';
-  document.getElementById('t-error').style.display = 'none';
-  document.getElementById('t-calc').innerHTML = "Ma'lumotlarni kiriting";
-
-  try {
-    termoInventory = await fetch('/api/inventory').then(r => r.json());
-    const opts = i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`;
-
-    // MUHIM: ro'yxat endi NOMIGA qarab cheklanmaydi — istalgan nomdagi
-    // xomashyoni tanlash mumkin (masalan boshqa til/brend nomi bilan
-    // kiritilgan bo'lsa ham). Qulaylik uchun, agar nomida mos so'z
-    // topilsa, o'sha avtomatik oldindan tanlab qo'yiladi — lekin bu
-    // shart emas, xohlagan boshqasini ham tanlash mumkin.
-    const allSorted = [...termoInventory].sort((a,b) => a.item_name.localeCompare(b.item_name));
-    const fillSelect = (selectId, matchWord, emptyMsg) => {
-      const el = document.getElementById(selectId);
-      if (!allSorted.length) { el.innerHTML = `<option value="">${emptyMsg}</option>`; return; }
-      el.innerHTML = '<option value="">— Tanlang —</option>' + allSorted.map(opts).join('');
-      const guess = termoInventory.find(i => i.item_name.toLowerCase().includes(matchWord));
-      if (guess) el.value = guess.id;
-    };
-    fillSelect('t-bazalt', 'bazalt', 'Omborda xomashyo yo\'q — avval kirim qiling');
-    fillSelect('t-serp', 'serpiyank', 'Omborda xomashyo yo\'q — avval kirim qiling');
-    fillSelect('t-kley', 'kley', 'Omborda xomashyo yo\'q — avval kirim qiling');
-  } catch(e) {
-    document.getElementById('t-bazalt').innerHTML = '<option value="">Xato — qayta urinib ko\'ring</option>';
-  }
-}
 
 function closeTermoModal() {
   document.getElementById('termoModal').style.display = 'none';
 }
 
-function tCalc() {
-  const m2 = parseFloat(document.getElementById('t-m2').value) || 0;
-  const bazaltId = parseInt(document.getElementById('t-bazalt').value);
-  const loyKg = parseFloat(document.getElementById('t-loy').value) || 0;
-  const price = parseNum(document.getElementById('t-price').value);
-  const box = document.getElementById('t-calc');
 
-  if (!m2) { box.innerHTML = '<span style="color:#aaa">Kvadrat metrni kiriting</span>'; return; }
-
-  const bazalt = termoInventory.find(i => i.id === bazaltId);
-  const serpId = parseInt(document.getElementById('t-serp').value);
-  const kleyId = parseInt(document.getElementById('t-kley').value);
-  const serp = termoInventory.find(i => i.id === serpId);
-
-  let html = `📐 Kerak: <b>${m2} m²</b><br>`;
-  if (bazalt) {
-    const areaPerSheet = parseFloat(bazalt.volume_per_unit) || 0.72;
-    const sheets = m2 / areaPerSheet;
-    const cost = sheets * (bazalt.price_per_unit || 0);
-    html += `🧱 Bazalt: <b>${sheets.toFixed(2)} dona</b> (${fmt(cost)} so'm)<br>`;
-  } else {
-    html += `<span style="color:#F59E0B">🧱 Bazaltni tanlang</span><br>`;
-  }
-  if (serp) {
-    const areaPerRulon = parseFloat(serp.volume_per_unit) || 50;
-    const serpRatio = (bazalt && bazalt.serp_ratio_per_m2) ? parseFloat(bazalt.serp_ratio_per_m2) : 2.0;
-    const rulon = (m2 * serpRatio) / areaPerRulon;
-    const cost = rulon * (serp.price_per_unit || 0);
-    html += `🕸️ Serpiyanka (avtomatik, ${serpRatio}× maydon): <b>${rulon.toFixed(2)} rulon</b> (${fmt(cost)} so'm)<br>`;
-  } else {
-    html += `<span style="color:#F59E0B">🕸️ Serpiyankani tanlang</span><br>`;
-  }
-  const kley = termoInventory.find(i => i.id === kleyId);
-  if (kley) {
-    const kleyRatio = (bazalt && bazalt.kley_ratio_per_m2) ? parseFloat(bazalt.kley_ratio_per_m2) : 0.8;
-    const kleyKg = m2 * kleyRatio;
-    const kleyCost = kleyKg * (kley.price_per_unit || 0);
-    html += `🧴 Kley (avtomatik, ${kleyRatio} kg/m²): <b>${kleyKg.toFixed(2)} kg</b> (${fmt(kleyCost)} so'm)<br>`;
-  } else {
-    html += `<span style="color:#F59E0B">🧴 Kleyni tanlang</span><br>`;
-  }
-  if (loyKg > 0) {
-    const loyCost = loyKg * loyCostPerKg;
-    html += `🪣 Loy: <b>${loyKg} kg</b>${loyCostPerKg > 0 ? ` × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm` : ''}<br>`;
-  }
-  if (price > 0) {
-    const revenue = price * m2;
-    html += `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #ddd">💵 Sotuv: <b style="color:#22C55E">${fmt(revenue)} so'm</b> (${fmt(price)}/m²)</div>`;
-  }
-  box.innerHTML = html;
-}
-
-async function saveTermopanel() {
-  const err = document.getElementById('t-error');
-  const name = document.getElementById('t-name').value.trim();
-  const m2 = parseFloat(document.getElementById('t-m2').value) || 0;
-  const bazaltId = parseInt(document.getElementById('t-bazalt').value);
-  const serpId = parseInt(document.getElementById('t-serp').value);
-  const kleyId = parseInt(document.getElementById('t-kley').value);
-  const price = parseNum(document.getElementById('t-price').value);
-
-  if (!name) { err.style.display='block'; err.textContent='❌ Mahsulot nomini kiriting'; return; }
-  if (!m2) { err.style.display='block'; err.textContent='❌ Kvadrat metrni kiriting'; return; }
-  if (!bazaltId) { err.style.display='block'; err.textContent='❌ Plotnost (bazalt turi)ni tanlang'; return; }
-  if (!serpId) { err.style.display='block'; err.textContent='❌ Serpiyanka turini tanlang'; return; }
-  if (!kleyId) { err.style.display='block'; err.textContent='❌ Kley turini tanlang'; return; }
-  if (!price) { err.style.display='block'; err.textContent='❌ Sotuv narxini kiriting'; return; }
-  err.style.display = 'none';
-
-  const data = {
-    name,
-    required_m2: m2,
-    bazalt_item_id: bazaltId,
-    serpiyanka_item_id: serpId,
-    kley_item_id: kleyId,
-    recipe_id: parseInt(document.getElementById('t-recipe').value) || null,
-    loy_kg: parseFloat(document.getElementById('t-loy').value) || 0,
-    unit_price: price,
-    notes: document.getElementById('t-notes').value.trim() || null
-  };
-
-  try {
-    const res = await fetch('/api/finished/produce-termopanel', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
-    const r = await res.json();
-
-    if (res.ok) {
-      closeTermoModal();
-      loadFp();
-      let msg = `⏳ ${r.name}: ${r.quantity} m² — ishlab chiqarish boshlandi\n\n`;
-      msg += `🧱 Bazalt: ${r.bazalt_sheets} dona\n🕸️ Serpiyanka: ${r.serpiyanka_rulon} rulon\n`;
-      if (r.kley_kg > 0) msg += `🧴 Kley: ${r.kley_kg} kg\n`;
-      {% if current_user.role.value == 'admin' %}
-      msg += `\n💰 Tan narxi: ${fmt(r.total_cost)} so'm\n📈 Foyda: ${fmt(r.profit)} so'm (${r.margin}%)`;
-      {% endif %}
-      msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
-      showMsg(msg, 'success');
-    } else {
-      const d = r.detail || {};
-      err.style.display = 'block';
-      err.innerHTML = '❌ ' + (d.message || 'Xato') +
-        (d.shortages?.length ? '<br>' + d.shortages.join('<br>') : '');
-    }
-  } catch(e) {
-    err.style.display = 'block';
-    err.textContent = '❌ Server xatosi';
-  }
-}
 
 function syncPCoatingUI(isCoated) {
   const toggle = document.getElementById('p-coat-toggle');
@@ -2473,7 +2249,7 @@ async function openProfitModal(id) {
   // (allaqachon to'g'ri tuzatilgan) to'g'ridan-to'g'ri olamiz. Bu — ikkita
   // alohida (va bir-biridan farqli chiqishi mumkin bo'lgan) hisoblash
   // o'rniga, BITTA, ishonchli manbadan foydalanishni ta'minlaydi.
-  let loyCost = 0, loyPerKg = 0, recipeName = '', penoCost = 0, bazaltCost = 0, bazaltPanels = 0;
+  let loyCost = 0, loyPerKg = 0, recipeName = '', penoCost = 0;
   try {
     const d = await fetch(`/api/finished/${id}/profit`).then(r => r.json());
     if (d.success) {
@@ -2481,8 +2257,6 @@ async function openProfitModal(id) {
       loyPerKg = d.loy_cost_per_kg || 0;
       recipeName = d.recipe || '';
       penoCost = d.penoplast_cost || 0;
-      bazaltCost = d.bazalt_cost || 0;
-      bazaltPanels = d.bazalt_panels_used || 0;
     }
   } catch(e) {}
 
@@ -2493,13 +2267,13 @@ async function openProfitModal(id) {
   document.getElementById('pm-body').innerHTML = `
     <div style="background:#FAFAF8;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#666;line-height:1.8">
       📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}<br>
-      ${i.category !== 'termopanel' ? `📦 Hajm: <b>${(i.volume_m3 || 0).toFixed(4)} m³</b>` : `🧱 Bazalt: <b>${bazaltPanels.toFixed(2)} dona</b>`}
+      📦 Hajm: <b>${(i.volume_m3 || 0).toFixed(4)} m³</b>
       ${i.actual_loy_kg > 0 ? `· 🧱 Loy: <b>${i.actual_loy_kg} kg</b>${recipeName ? ` (${recipeName})` : ''}` : ''}
       ${i.created_by ? `<br>👤 ${escapeHtml(i.created_by)}` : ''}
     </div>
 
     <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
-    ${i.category === 'termopanel' ? row('🧱 Bazalt', fmt(bazaltCost) + " so'm") : row('📦 Penoplast', fmt(penoCost) + " so'm")}
+    ${row('📦 Penoplast', fmt(penoCost) + " so'm")}
     ${loyCost > 0 ? row(`🧱 Loy (${i.actual_loy_kg} kg × ${fmt(loyPerKg)})`, fmt(loyCost) + " so'm") : ''}
     <div style="border-top:1px solid #eee;margin:4px 0"></div>
     ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}

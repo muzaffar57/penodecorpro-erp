@@ -182,7 +182,6 @@
 .type-opt.active[data-value="panel"]{background:#7C3AED}
 .type-opt.active[data-value="dona"]{background:#DB2777}
 .type-opt.active[data-value="blok"]{background:#0D9488}
-.type-opt.active[data-value="termopanel"]{background:#EA580C}
 .type-opt.active[data-value="loy_sotish"]{background:#0891B2}
 .type-opt.active[data-value="gips"]{background:#4F46E5}
 .type-confirm-text{font-size:12px;color:var(--text2);margin-top:6px;font-weight:500}
@@ -1460,9 +1459,8 @@ function pickFinished(el, fpId) {
   row.querySelector('.i-name').value = fp.name;
   const typeEl = row.querySelector('.i-type');
   // Forma faqat profil/panel/dona/blok turlarini biladi — boshqa (masalan
-  // "termopanel" kabi kvadrat metr bo'yicha o'lchanadigan) kategoriyalar
   // xavfsiz tarzda "dona" rejimida ko'rsatiladi (miqdor + narx maydoni bilan).
-  const knownTypes = ['profil', 'panel', 'dona', 'blok', 'gips', 'termopanel'];
+  const knownTypes = ['profil', 'panel', 'dona', 'blok', 'gips'];
   const effectiveType = knownTypes.includes(fp.category) ? fp.category : 'dona';
   if (typeEl) {
     typeEl.value = effectiveType;
@@ -2982,7 +2980,6 @@ function addItem() {
           <div class="tur-sep"></div>
 {% if cat_on('blok', current_user.company_id) %}          <div class="type-opt" data-value="blok" onclick="selectTypeOpt(this,'blok')">🧊 Blok (butun narxda)</div>{% endif %}
           <div class="tur-sep"></div>
-{% if cat_on('termopanel', current_user.company_id) %}          <div class="type-opt" data-value="termopanel" onclick="selectTypeOpt(this,'termopanel')">🪨 Termopanel (Bazalt)</div>{% endif %}
           <div class="tur-sep"></div>
 {% if cat_on('loy_sotish', current_user.company_id) %}          <div class="type-opt" data-value="loy_sotish" onclick="selectTypeOpt(this,'loy_sotish')">🪣 Loy sotish (tayyor holda)</div>{% endif %}
           <div class="tur-sep"></div>
@@ -2996,7 +2993,6 @@ function addItem() {
           <option value="panel">Panel</option>
           <option value="dona">Donali</option>
 {% if cat_on('blok', current_user.company_id) %}          <option value="blok">Blok (butun narxda)</option>{% endif %}
-{% if cat_on('termopanel', current_user.company_id) %}          <option value="termopanel">Termopanel (Bazalt)</option>{% endif %}
 {% if cat_on('loy_sotish', current_user.company_id) %}          <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>{% endif %}
 {% if cat_on('gips', current_user.company_id) %}          <option value="gips">🧱 Gips</option>{% endif %}
           <option value="mrp_product">🏭 MRP Mahsuloti</option>
@@ -3037,24 +3033,6 @@ function addItem() {
         <div class="subdetail-list"></div>
         <button type="button" onclick="addSubDetailRow(this.closest('.detal'))" style="margin-top:4px;padding:7px 12px;font-size:13px;border:1px solid #B9783F;background:#fff;color:#A86B36;border-radius:8px;cursor:pointer">+ Ichki qo'shimcha detal qo'shish</button>
       </div>
-      <div class="dgrp i-termo-xomashyo-grp" style="grid-column:1/-1;display:none">
-        <div class="dgrp-title">🪨 Xomashyo (Bazalt tizimi)</div>
-        <div class="dgrp-row" style="grid-template-columns:repeat(3,1fr)">
-          <div class="dif i-termo-bazalt-wrap">
-            <label>Bazalt turi</label>
-            <select class="i-termo-bazalt" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
-          </div>
-          <div class="dif i-termo-serp-wrap">
-            <label>Serpiyanka (tur)</label>
-            <select class="i-termo-serp" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
-          </div>
-          <div class="dif i-termo-kley-wrap">
-            <label>Kley (tur)</label>
-            <select class="i-termo-kley" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
-          </div>
-        </div>
-      </div>
-      <div class="dif i-termo-loy-wrap" style="display:none"></div>
       <div class="dif i-loysale-recipe-wrap" style="display:none">
         <label>Loy turi (retsept)</label>
         <select class="i-loysale-recipe" onchange="calculateItem(this.closest('.detal'))">${RECIPE_OPTIONS}</select>
@@ -3203,7 +3181,7 @@ function setSubDetailCoating(el, isCoated) {
 // chaqiradi — hisob-kitob mantig'i O'ZGARMAYDI, faqat kirish usuli.
 const TYPE_DISPLAY_NAME = {
   profil: '📏 Profil', panel: '🔲 Panel', dona: '⭐ Donali',
-  blok: '🧊 Blok', termopanel: '🪨 Termopanel (Bazalt)',
+  blok: '🧊 Blok',
   loy_sotish: '🪣 Loy sotish', gips: '🧱 Gips', mrp_product: '🏭 MRP Mahsuloti',
 };
 function updateTypeConfirmText(row, type) {
@@ -3414,14 +3392,9 @@ function toggleFields(row) {
   // m3price) yashiringan holatdagina yashiramiz — aks holda hech qachon
   // to'liq bo'sh bo'lib qolmaydi.
   const coatPenoGrp = coatField?.closest('.dgrp');
-  const tBazaltW = row.querySelector('.i-termo-bazalt-wrap');
-  const tSerpW = row.querySelector('.i-termo-serp-wrap');
-  const tKleyW = row.querySelector('.i-termo-kley-wrap');
-  const tLoyW = row.querySelector('.i-termo-loy-wrap');
   const lsRecipeW = row.querySelector('.i-loysale-recipe-wrap');
   const gipsUnitW = row.querySelector('.i-gips-unit-wrap');
   const donaYieldW = row.querySelector('.i-donayield-wrap');
-  const termoXomashyoGrp = row.querySelector('.i-termo-xomashyo-grp');
   const dimsRow = row.querySelector('.i-dims-box .dgrp-row');
   const qtyRow = row.querySelector('.i-qty-box .dgrp-row');
 
@@ -3496,23 +3469,6 @@ function toggleFields(row) {
     if (m3Field) m3Field.style.display = 'none';   // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
     if (coatField) coatField.style.display = '';   // qoplamali/qoplamasiz — "Qoplama koeffitsienti" (i-blokmult) orqali narxni haqiqatan ham ko'paytiradi (recalcBlokPrice() ga qarang)
     ['i-h','i-w','i-t'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
-  } else if (type === 'termopanel') {
-    hW.style.display = 'none'; wW.style.display = 'none';
-    tW.style.display = 'none'; lW.style.display = 'none';
-    qW.style.display = 'block';   // Necha kvadrat metr
-    if (upW) upW.style.display = 'block';
-    if (bpW) bpW.style.display = 'none';
-    if (bmW) bmW.style.display = 'none';
-    if (m3Field) m3Field.style.display = 'none';
-    if (coatField) coatField.style.display = 'none';  // Termopanel doim qoplamali — Loy maydoni orqali
-    if (penoField) penoField.style.display = 'none';  // Penoplast ishlatilmaydi
-    if (tBazaltW) tBazaltW.style.display = '';
-    if (termoXomashyoGrp) termoXomashyoGrp.style.display = '';
-    if (tSerpW) tSerpW.style.display = '';
-    if (tKleyW) tKleyW.style.display = '';
-    if (tLoyW) tLoyW.style.display = '';
-    ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
-    loadTermoInventoryFor(row);
   } else if (type === 'loy_sotish') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none'; lW.style.display = 'none';
@@ -3618,7 +3574,7 @@ function toggleFields(row) {
   // hisoblanadi) — shuning uchun bu 3 turda butunlay yashiramiz.
   const volCard = row.querySelector('.i-vol-card');
   if (volCard) {
-    volCard.style.display = (type === 'termopanel' || type === 'gips' || type === 'loy_sotish') ? 'none' : '';
+    volCard.style.display = (type === 'gips' || type === 'loy_sotish') ? 'none' : '';
   }
 
   // Miqdor maydonining nomi va birligi: panel — metr, blok — kerakli metr, dona — dona
@@ -3626,10 +3582,10 @@ function toggleFields(row) {
   const qSuffix = row.querySelector('.i-q-suffix');
   const mrpUnit = row.dataset.mrpUnit || 'dona';
   if (qLabel) {
-    qLabel.textContent = (type === 'panel') ? 'Uzunlik' : (type === 'blok') ? "Necha metr kerak" : (type === 'termopanel') ? "Necha kvadrat metr" : (type === 'loy_sotish') ? "Necha kg" : (type === 'mrp_product') ? 'Miqdor' : 'Miqdor';
+    qLabel.textContent = (type === 'panel') ? 'Uzunlik' : (type === 'blok') ? "Necha metr kerak" : (type === 'loy_sotish') ? "Necha kg" : (type === 'mrp_product') ? 'Miqdor' : 'Miqdor';
   }
   if (qSuffix) {
-    qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : (type === 'termopanel') ? 'm²' : (type === 'loy_sotish') ? 'kg' : (type === 'mrp_product') ? mrpUnit : 'dona';
+    qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : (type === 'loy_sotish') ? 'kg' : (type === 'mrp_product') ? mrpUnit : 'dona';
   }
   const lLabel = row.querySelector('.i-l-label');
   if (lLabel) {
@@ -3637,11 +3593,11 @@ function toggleFields(row) {
   }
   const upLabel = row.querySelector('.i-unitprice-label');
   if (upLabel) {
-    upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi" : (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 dona narxi";
+    upLabel.textContent = (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 dona narxi";
   }
   const permLabel = row.querySelector('.i-perm-label');
   if (permLabel) {
-    permLabel.textContent = (type === 'termopanel') ? "1 m² narxi" : (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 metr narxi";
+    permLabel.textContent = (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 metr narxi";
   }
   // "Eni" -> "Bo'yi", "Kengligi" -> "Qalinligi" — FAQAT Profil va Donalikda
   // (Panelda "Kengligi" maydoni endi butunlay yashirilgan — yuqoridagi
@@ -3680,41 +3636,6 @@ function onGipsUnitChange(row) {
   calculateItem(row);
 }
 
-let termoInvCache = null;
-async function loadTermoInventoryFor(row) {
-  const bazaltSel = row.querySelector('.i-termo-bazalt');
-  const serpSel = row.querySelector('.i-termo-serp');
-  const kleySel = row.querySelector('.i-termo-kley');
-  if (!bazaltSel) return;
-  if (!termoInvCache) {
-    try { termoInvCache = await fetch('/api/inventory').then(r => r.json()); }
-    catch(e) { termoInvCache = []; }
-  }
-  const opts = i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`;
-
-  // MUHIM: ro'yxatlar endi nomga qarab CHEKLANMAYDI — butun ombordan
-  // istalgan nomdagi materialni tanlash mumkin. Qulaylik uchun, agar
-  // nomida mos so'z topilsa, avtomatik oldindan tanlab qo'yiladi.
-  const allSorted = [...termoInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
-  const fillSel = (sel, matchWord, emptyMsg) => {
-    if (!sel) return;
-    const prevValue = sel.value;  // MUHIM: qayta to'ldirishdan oldin, joriy tanlovni eslab qolamiz
-    if (!allSorted.length) { sel.innerHTML = `<option value="">${emptyMsg}</option>`; return; }
-    sel.innerHTML = '<option value="">— Tanlang —</option>' + allSorted.map(opts).join('');
-    if (prevValue && allSorted.some(i => String(i.id) === prevValue)) {
-      // Joriy (allaqachon tanlangan yoki tiklangan) qiymat hali mavjud —
-      // uni SAQLAB QOLAMIZ, "taxminiy" tanlov bilan ustidan bosib yubormaymiz
-      sel.value = prevValue;
-      return;
-    }
-    const guess = termoInvCache.find(i => i.item_name.toLowerCase().includes(matchWord));
-    if (guess) sel.value = guess.id;
-  };
-  fillSel(bazaltSel, 'bazalt', "Omborda xomashyo yo'q — avval kirim qiling");
-  fillSel(serpSel, 'serpiyank', "Omborda xomashyo yo'q — avval kirim qiling");
-  fillSel(kleySel, 'kley', "Omborda xomashyo yo'q — avval kirim qiling");
-  calculateItem(row);
-}
 
 function toggleDonaVolLock(row) {
   if (row.dataset.donaVolLocked === 'true') {
@@ -4042,24 +3963,6 @@ function calculateItem(row) {
       ? `${volume_total.toFixed(3)} m³ (${blokKerak.toFixed(2)} blok)`
       : '—';
     }
-  } else if (type === 'termopanel') {
-    // qty = kerakli kvadrat metr, i-unitprice = 1 m² narxi
-    const upEl = row.querySelector('.i-unitprice');
-    const unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
-    perMeterPrice = unitPrice;
-    price = unitPrice * qty;
-    // Penoplast/m³ hisobiga aloqasi yo'q — bazalt alohida ombordan yechiladi
-    volume_total = 0;
-    row.querySelector('.i-vol').value = '— (bazalt alohida hisoblanadi)';
-
-    const bazaltEl = row.querySelector('.i-termo-bazalt');
-    const serpEl = row.querySelector('.i-termo-serp');
-    const kleyEl = row.querySelector('.i-termo-kley');
-    const loyEl = row.querySelector('.i-termo-loy');
-    row.dataset.termoBazaltId = bazaltEl ? bazaltEl.value : '';
-    row.dataset.termoSerpId = serpEl ? serpEl.value : '';
-    row.dataset.termoKleyId = kleyEl ? kleyEl.value : '';
-    row.dataset.termoLoy = loyEl ? (parseFloat(loyEl.value) || 0) : 0;
   } else if (type === 'loy_sotish') {
     // qty = necha kg, i-unitprice = 1 kg narxi. Penoplast/m³ ishlatilmaydi —
     // loy alohida, tanlangan retsept bo'yicha ombordan yechiladi.
@@ -4726,7 +4629,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     const recipeSel = document.getElementById('recipe_id');
     if (recipeSel && itemsToUse.length) {
       const mainItem = itemsToUse.find(it =>
-        it.recipe_id && !['gips', 'loy_sotish', 'termopanel'].includes((it.category || '').toLowerCase())
+        it.recipe_id && !['gips', 'loy_sotish'].includes((it.category || '').toLowerCase())
       );
       if (mainItem) recipeSel.value = mainItem.recipe_id;
     }
@@ -4825,43 +4728,6 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           row.querySelector('.i-h').value = item.width || 0;
           row.querySelector('.i-t').value = item.thickness || 0;
           row.querySelector('.i-q').value = item.quantity || 1;
-        } else if (cat === 'termopanel') {
-          // MUHIM TUZATISH: avval bu tur uchun umuman tiklash yozilmagan edi —
-          // shuning uchun m² va tanlangan Bazalt "unutilib", saqlaganda
-          // noto'g'ri (standart) qiymat yuborilib, ombor xato tuzatilar edi.
-          row.querySelector('.i-q').value = item.quantity || 0;
-
-          // MUHIM: "1 birlik narxi" (sotuv narxi) ham tiklanishi SHART —
-          // bo'lmasa, har safar tahrirlashda 0 bo'lib saqlanib qolar edi
-          const tUpEl = row.querySelector('.i-unitprice');
-          if (tUpEl) {
-            tUpEl.value = formatNum(parseFloat(item.unit_price || 0));
-            row.dataset.unitprice = parseFloat(item.unit_price || 0);
-          }
-
-          const bm = (item.notes || '').match(/bazalt_id=(\d+)/);
-          const originalBazaltId = bm ? bm[1] : null;
-          const sm = (item.notes || '').match(/serp_id=(\d+)/);
-          const originalSerpId = sm ? sm[1] : null;
-          const km = (item.notes || '').match(/kley_id=(\d+)/);
-          const originalKleyId = km ? km[1] : null;
-
-          loadTermoInventoryFor(row).then(() => {
-            const bazaltSel = row.querySelector('.i-termo-bazalt');
-            const serpSel = row.querySelector('.i-termo-serp');
-            const kleySel = row.querySelector('.i-termo-kley');
-            const restoreIfExists = (sel, id) => {
-              if (!sel || !id) return;
-              // Agar shu material hali ro'yxatda bo'lmasa (masalan nomi
-              // o'zgargan) — mavjud tanlovni qoldiramiz, aks holda aslini tiklaymiz
-              const exists = Array.from(sel.options).some(o => o.value === id);
-              if (exists) sel.value = id;
-            };
-            restoreIfExists(bazaltSel, originalBazaltId);
-            restoreIfExists(serpSel, originalSerpId);
-            restoreIfExists(kleySel, originalKleyId);
-            calculateItem(row);
-          });
         } else if (cat === 'blok') {
           row.querySelector('.i-q').value = item.quantity || 0;   // Necha metr kerak
 
@@ -5222,20 +5088,6 @@ function collectItems() {
                    quantity: kerakMetr, unit_price: perMetr, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: null, finished_product_id: fpId,
                    notes: `blok_narxi=${blokPrice},blok_yield=${chiqadiPerBlok}` });
-    } else if (type === 'termopanel') {
-      const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
-      // MUHIM: tayyor mahsulotdan olingan bo'lsa (fpId bor) — bazalt/serpiyanka/
-      // kley id'larini YUBORMAYMIZ (null). Aks holda backend ularni xomashyo
-      // deb ayirib, [TERMO:...] belgisi qo'shardi — keyin o'chirishda noto'g'ri
-      // qaytarardi. Tayyor mahsulotning xomashyosi allaqachon ishlab
-      // chiqarishda ayirilgan.
-      items.push({ name, category: 'termopanel', width: null, thickness: null, length: null,
-                   quantity: qty, unit_price: unitP, is_coated: true,
-                   penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
-                   bazalt_item_id: fpId ? null : (parseInt(row.dataset.termoBazaltId) || null),
-                   serpiyanka_item_id: fpId ? null : (parseInt(row.dataset.termoSerpId) || null),
-                   kley_item_id: fpId ? null : (parseInt(row.dataset.termoKleyId) || null),
-                   termo_loy_kg: parseFloat(row.dataset.termoLoy) || 0 });
     } else if (type === 'loy_sotish') {
       const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
       const recipeId = parseInt(row.dataset.loysaleRecipeId) || null;

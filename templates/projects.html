@@ -583,7 +583,7 @@ async function renderProducts(d) {
     const res = await fetch(`/api/projects/${selectedProjId}/items`).then(r=>r.json());
     const items = res.items || [];
     if (!items.length) { document.getElementById('tabContent').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Mahsulot yo\'q</div>'; return; }
-    const CAT_ICON = {profil:'ti-ruler-2', panel:'ti-square', blok:'ti-cube', dona:'ti-hexagon', termopanel:'ti-building', gips:'ti-flask'};
+    const CAT_ICON = {profil:'ti-ruler-2', panel:'ti-square', blok:'ti-cube', dona:'ti-hexagon', gips:'ti-flask'};
 
     // Buyurtma bo'yicha guruhlaymiz (backend allaqachon buyurtma tartibida
     // qaytaradi — eng yangisidan boshlab), tartibni buzmasdan.
