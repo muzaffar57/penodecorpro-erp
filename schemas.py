@@ -73,8 +73,6 @@ class InventoryRead(BaseModel):
     last_updated: datetime
     notes: Optional[str] = None
     image_url: Optional[str] = None
-    serp_ratio_per_m2: Optional[float] = None
-    kley_ratio_per_m2: Optional[float] = None
     base_unit: Optional[str] = None
     conversion_factor: Optional[float] = None
 
@@ -93,8 +91,6 @@ class InventoryCreate(BaseModel):
     is_default_penoplast: bool = Field(default=False, description="Asosiy plotnost")
     category: Optional[str] = None
     notes: Optional[str] = None
-    serp_ratio_per_m2: Optional[float] = Field(default=None, description="Bazalt uchun: 1 m² bazaltga necha m² serpiyanka")
-    kley_ratio_per_m2: Optional[float] = Field(default=None, description="Bazalt uchun: 1 m² bazaltga necha kg kley")
     base_unit: Optional[str] = Field(default=None, description="Production/MRP retseptlari uchun mayda birlik, masalan 'g', 'ml'")
     conversion_factor: Optional[float] = Field(default=None, gt=0, description="1 dona `unit` necha dona `base_unit`ga teng (masalan 1 qop=50000 g)")
 
@@ -111,8 +107,6 @@ class InventoryUpdate(BaseModel):
     is_default_penoplast: Optional[bool] = None
     category: Optional[str] = None
     notes: Optional[str] = None
-    serp_ratio_per_m2: Optional[float] = None
-    kley_ratio_per_m2: Optional[float] = None
     base_unit: Optional[str] = None
     conversion_factor: Optional[float] = Field(default=None, gt=0)
 
@@ -315,11 +309,6 @@ class OrderItemCreate(BaseModel):
     finished_product_id: Optional[int] = None
     image_url: Optional[str] = None
     notes: Optional[str] = None
-    # Termopanel (Bazalt) uchun — category='termopanel' bo'lganda ishlatiladi
-    bazalt_item_id: Optional[int] = None
-    serpiyanka_item_id: Optional[int] = None
-    kley_item_id: Optional[int] = None
-    termo_loy_kg: Optional[float] = None
     # "Loy sotish" turi uchun — shu detalning O'ZIGA tegishli retsept
     # (buyurtmaning umumiy qoplama retseptidan farq qilishi mumkin)
     recipe_id: Optional[int] = None
@@ -551,19 +540,6 @@ class ProduceCreate(BaseModel):
     unit_price_for_volume: Optional[float] = Field(default=None, description="Dona uchun: 1 dona tan narxi (hajm hisobi)")
     loy_kg: float = Field(default=0, ge=0)
     recipe_id: Optional[int] = None
-    notes: Optional[str] = None
-
-
-class TermopanelProduceCreate(BaseModel):
-    """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
-    name: str = Field(..., min_length=2, max_length=150)
-    required_m2: float = Field(..., gt=0, description="Kerakli kvadrat metr")
-    bazalt_item_id: int
-    serpiyanka_item_id: Optional[int] = None  # Ombordagi qaysi serpiyanka turi ishlatilishi (aniq tanlanadi)
-    kley_item_id: Optional[int] = None  # Ombordagi qaysi kley turi ishlatilishi (aniq tanlanadi)
-    recipe_id: Optional[int] = None
-    loy_kg: float = Field(default=0, ge=0)
-    unit_price: float = Field(default=0, ge=0, description="Sotuv narxi (1 kvadrat metr uchun)")
     notes: Optional[str] = None
 
 

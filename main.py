@@ -1624,11 +1624,11 @@ templates.env.globals["company_name_of"] = company_name_of
 # HAMMASI ko'rinadi, ya'ni mavjud korxonada hech narsa o'zgarmaydi.
 # Yangi korxona yaratilganda esa faqat asosiy turlar yoqiladi.
 IXTIYORIY_KATEGORIYALAR = [
-    # 11.1-band (2026-09-20): `termopanel` va `gips` ham ESKIRGAN deb
-    # belgilandi — ular ham MRP dan (o'z retsepti bilan) yaratiladi.
-    # Gipsda: asosiy gips + qo'shimchalar = retsept qatorlari.
-    # Termopanelda: bazalt + serpiyanka + kley + loy = retsept qatorlari.
-    ("termopanel", "🪨 Termopanel (eskirgan — MRP dan foydalaning)"),
+    # 11.1-band (2026-09-20): `gips` ESKIRGAN deb belgilandi — u ham
+    # MRP dan (o'z retsepti bilan) yaratiladi: asosiy gips +
+    # qo'shimchalar = retsept qatorlari.
+    # 11.2a (2026-09-20): `termopanel` BUTUNLAY olib tashlandi — kodi
+    # ham, interfeysi ham qolmadi, shuning uchun ro'yxatda ham yo'q.
     ("gips", "🧱 Gips (eskirgan — MRP dan foydalaning)"),
     ("loy_sotish", "🪣 Loy sotish"),
     # Bosqich 3, 11.1-band (2026-09-20) — `blok` ESKIRGAN turkumga o'tdi.
@@ -1645,7 +1645,7 @@ _ASOSIY_KATEGORIYALAR = ["profil", "panel", "dona"]
 # MUSTASNO — ular faqat ATAYLAB yoqilganda ko'rinadi. Aks holda `blok`
 # ni ixtiyoriy qilishning ma'nosi qolmasdi: u baribir hammaga
 # ko'rinaverardi.
-_ESKIRGAN_KATEGORIYALAR = {"blok", "gips", "termopanel"}
+_ESKIRGAN_KATEGORIYALAR = {"blok", "gips"}
 
 
 _kategoriya_cache = {}
