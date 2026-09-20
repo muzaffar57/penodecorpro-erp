@@ -1786,7 +1786,12 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
     deleted_orders = crud.get_deleted_orders(db, company_id=auth.company_id_of(current_user))
     deleted_projects = crud.get_deleted_projects(db, company_id=auth.company_id_of(current_user))
     deleted_employees = crud.get_deleted_employees(db, company_id=auth.company_id_of(current_user))
-    activity_log = crud.get_activity_log(db, limit=50)
+    # ⚠ 2026-09-21: `company_id` uzatilmagan edi — B korxona admini A ning
+    # audit jurnalini (kim nimani o'chirgani, usta/hodim nomlari) ko'rardi.
+    # `crud.get_activity_log` da parametr ALLAQACHON bor edi, faqat shu
+    # chaqiruvda unutilgan; `/logs` sahifasida to'g'ri uzatilgan.
+    activity_log = crud.get_activity_log(db, limit=50,
+                                         company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "trash.html", {
         "deleted_orders": deleted_orders, "deleted_projects": deleted_projects,
         "deleted_employees": deleted_employees,
@@ -3984,7 +3989,8 @@ async def reports_page(request: Request, db: Session = Depends(get_db), current_
 
 @app.get("/api/reports/top-products")
 def api_reports_top_products(days: int = 90, limit: int = 15, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_top_products_report(db, days=days, limit=limit)
+    return services.get_top_products_report(
+        db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/top-finished-products")
@@ -5959,18 +5965,27 @@ def api_delete_delivery(delivery_id: int, db: Session = Depends(get_db), current
 @app.get("/api/loy-cost")
 def api_loy_cost(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """1 kg loyning tan narxi (retsept bo'yicha)."""
-    return services.get_loy_cost_per_kg(db, recipe_id)
+    return services.get_loy_cost_per_kg(
+        db, recipe_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/loy-stock")
 def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Tayyor loy zaxirasi."""
     from models import Recipe
+    # ⚠ 2026-09-21: ikkala so'rov ham korxona bo'yicha cheklanmagan edi.
+    # `db.query(Recipe).first()` BUTUN bazadagi birinchi retseptni olardi.
+    # O'lchangan: B korxona admini A ning retseptini (`AAA_Rec`) ko'rdi,
+    # ustiga `get_or_create_loy_stock` B korxonasida "Tayyor loy (AAA_Rec)"
+    # nomli ombor pozitsiyasini YARATIB ham qo'ydi — ya'ni bu faqat o'qish
+    # sizishi emas, korxonalararo YOZISH ham edi.
+    _cid = auth.company_id_of(current_user)
+    _rq = db.query(Recipe).filter(Recipe.company_id == _cid)
     recipe = None
     if recipe_id:
-        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+        recipe = _rq.filter(Recipe.id == recipe_id).first()
     if not recipe:
-        recipe = db.query(Recipe).first()
+        recipe = _rq.first()
     if not recipe:
         return {"stock_kg": 0, "name": None}
 

@@ -216,20 +216,29 @@ def process_coating(db: Session, order_id: int, coated_area_m2: float) -> Dict:
 # 4. MINIMAL QOLDIQ OGOHLANTIRISHI
 # ============================================================
 
-def get_top_products_report(db: Session, days: int = 90, limit: int = 15) -> list:
+def get_top_products_report(db: Session, days: int = 90, limit: int = 15,
+                            company_id: int = None) -> list:
     """Eng ko'p daromad keltirgan mahsulotlar — nomi bo'yicha guruhlangan,
-    tayyor (READY/DELIVERED) buyurtmalardagi OrderItem'lardan. Faqat o'qish."""
+    tayyor (READY/DELIVERED) buyurtmalardagi OrderItem'lardan. Faqat o'qish.
+
+    ⚠ 2026-09-21: `company_id` YO'Q edi — B korxona admini `/api/reports/
+    top-products` orqali A korxonaning mahsulot nomlari va daromadini
+    ko'rardi (HTTP da o'lchangan). Yonidagi `get_top_materials_report`
+    da filtr bor edi, bu yerda tushib qolgan."""
     from models import OrderItem, Order, OrderStatus
     from sqlalchemy import func
     from datetime import datetime, timedelta
 
     period_start = datetime.utcnow() - timedelta(days=days)
-    rows = db.query(
+    _q = db.query(
         OrderItem.name,
         func.sum(OrderItem.total_price).label("revenue"),
         func.sum(OrderItem.quantity).label("qty"),
         func.count(OrderItem.id).label("times_ordered")
-    ).join(Order, OrderItem.order_id == Order.id).filter(
+    ).join(Order, OrderItem.order_id == Order.id)
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    rows = _q.filter(
         Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
         Order.completed_at >= period_start
     ).group_by(OrderItem.name).order_by(func.sum(OrderItem.total_price).desc()).limit(limit).all()
@@ -4038,15 +4047,29 @@ def adjust_loy_diff(db: Session, order, old_loy: float, new_loy: float) -> list:
     return log
 
 
-def get_loy_cost_per_kg(db: Session, recipe_id: int = None) -> dict:
-    """Retsept bo'yicha 1 kg loyning tan narxi."""
+def get_loy_cost_per_kg(db: Session, recipe_id: int = None,
+                        company_id: int = None) -> dict:
+    """Retsept bo'yicha 1 kg loyning tan narxi.
+
+    ⚠ 2026-09-21: `company_id` YO'Q edi. Ikki xavf bor edi:
+      1) berilgan `recipe_id` korxona bo'yicha tekshirilmasdi;
+      2) retsept topilmasa `db.query(Recipe).first()` — BUTUN bazadagi
+         birinchi retseptni olardi, ya'ni boshqa korxonanikini.
+    O'lchangan: B korxona admini `/api/loy-cost` da A ning retsepti
+    (`AAA_Rec`) va uning tan narxini ko'rdi."""
     from models import Recipe, Inventory
+
+    def _rq():
+        q = db.query(Recipe)
+        if company_id is not None:
+            q = q.filter(Recipe.company_id == company_id)
+        return q
 
     recipe = None
     if recipe_id:
-        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+        recipe = _rq().filter(Recipe.id == recipe_id).first()
     if not recipe:
-        recipe = db.query(Recipe).first()
+        recipe = _rq().first()
 
     if not recipe:
         return {"cost_per_kg": 0, "recipe": None, "breakdown": []}
