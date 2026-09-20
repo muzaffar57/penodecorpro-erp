@@ -321,6 +321,45 @@ check(f"POST /api/users/A/password  \u2192 {r.status_code}", not took_over,
 
 
 # ══════════════════════════════════════════════════════════════
+section("4. ID-SIZ MARSHRUTLAR: javobda A ning belgisi chiqadimi")
+# ══════════════════════════════════════════════════════════════
+# 2026-09-21: bu yerda 4 ta sizish topildi (`/trash`, `top-products`,
+# `loy-cost`, `loy-stock`). Ular ID qabul qilmaydi, shuning uchun
+# yuqoridagi IDOR problari ularni UMUMAN ko'rmaydi — sizish javob
+# MATNIDA A ning nomlari paydo bo'lishi bilan bilinadi.
+#
+# Usul: A ning yozuvlari "AAA" bilan boshlanadi. B sifatida kirilgan
+# holda javobda "AAA" uchrasa — sizish.
+#
+# ⚠ SHABLONLARDA SOXTA MOSLIK BO'LISHI MUMKIN: `/orders` sahifasida
+# `#B0AAA0` CSS rangi bor va u "AAA" ni o'z ichiga oladi. Shuning uchun
+# bu yerda faqat JSON qaytaradigan marshrutlar va `/trash` sinaladi.
+import services as _services                              # noqa: E402
+
+with contextlib.redirect_stdout(_quiet):
+    # `top-products` faqat YAKUNLANGAN buyurtmalarni ko'rsatadi.
+    _services.complete_order(db, A["order"][N_SPARE - 1].id, None)
+
+NOID = [
+    ("/trash",                     "audit jurnali"),
+    ("/api/reports/top-products",  "eng ko'p sotilgan mahsulotlar"),
+    ("/api/loy-cost",              "loy tan narxi"),
+    ("/api/loy-stock",             "loy zaxirasi"),
+    ("/api/reports/top-materials", "eng ko'p ishlatilgan materiallar"),
+    ("/api/reports/top-customers", "eng yirik mijozlar"),
+    ("/api/reports/top-suppliers", "eng yirik ta'minotchilar"),
+]
+for url, label in NOID:
+    r = client.get(url, params={"year": 2026, "month": 9})
+    body = str(r.text)
+    if r.status_code == 404:
+        continue          # bunday marshrut yo'q
+    pos = body.find("AAA")
+    check(f"GET {url}  ({label})  \u2192 {r.status_code}", pos < 0,
+          "A NING MA'LUMOTI CHIQDI: ..." + body[max(0, pos - 50):pos + 50] + "...")
+
+
+# ══════════════════════════════════════════════════════════════
 print("\n" + "=" * 66)
 print(f"NATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 print(f"tenant_context statistikasi: {_tc.get_stats()}")
