@@ -1336,8 +1336,6 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
         # DARHOL, yaratilgan zahoti notes'ga yozib qo'yamiz (avval bu —
         # faqat TAHRIRLASHDA yozilardi, shuning uchun qoralama holatida
         # "jarayonga olish"da bu ma'lumot yo'qolib qolar edi).
-        if (item_data.category or '').lower() == 'termopanel':
-            db_item.notes = _build_termo_notes(db, item_data, db_item.notes)
 
     db_order.total_amount = total_amount
     # Kelishilgan summa — boshida jami summaga teng (chegirmasiz)
@@ -1399,7 +1397,7 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
         # BUTUNLAY YO'Q edi (faqat qoralama faollashtirish va tiklashda bor
         # edi). To'g'ridan-to'g'ri yaratilgan buyurtmada, umumiy qoplama
         # uchun xomashyo HECH QACHON ayirilmasdi.
-        _planned_loy_general = _planned_loy_direct + get_termopanel_planned_loy(db_order)
+        _planned_loy_general = _planned_loy_direct
         if _planned_loy_general > 0:
             _services.deduct_loy_ingredients(db, db_order, _planned_loy_general)
 
@@ -2346,7 +2344,7 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     # holati kabi)
     for it in _oic(db.query(OrderItem)).all():
         notes = it.notes or ""
-        for marker in ["[TERMO:", "[GISHT:"]:
+        for marker in ["[GISHT:"]:
             if notes.count(marker) > 1:
                 issues.append({
                     "type": "duplicate_note_marker",
@@ -2370,21 +2368,6 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
                 "label": f"{it.name} (buyurtma #{it.order_id})",
                 "detail": f"Buyurtma qilingan: {ordered:.2f}, lekin topshirilgan: {delivered:.2f}",
                 "diff": round(delivered - ordered, 2),
-            })
-
-    # 7) Termopanel detali, lekin Bazalt tayinlanmaganmi? (bu, xomashyo
-    # ayirilmasdan qolib ketganini bildiradi — tayyor mahsulotdan
-    # olinganlar bundan mustasno, ular allaqachon ishlab chiqarishda
-    # ayirilgan)
-    for it in _oic(db.query(OrderItem).filter(OrderItem.category == 'termopanel')).all():
-        if it.finished_product_id:
-            continue
-        if '[TERMO:' not in (it.notes or '') or 'bazalt_id=' not in (it.notes or ''):
-            issues.append({
-                "type": "termopanel_missing_bazalt",
-                "label": f"{it.name} (buyurtma #{it.order_id})",
-                "detail": "Bazalt turi tayinlanmagan — xomashyo to'g'ri ayirilmagan bo'lishi mumkin",
-                "diff": 0,
             })
 
     # 8) Qoralama bo'lmagan buyurtmada, narxi "0" bo'lgan detal bormi?
@@ -2572,7 +2555,6 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
             else:
                 # Hech narsa topshirilmagan edi — hammasi qayta yechiladi
                 services.return_inventory_for_order(db, db_order, sign=-1.0)
-                services.return_termopanel_for_order(db, db_order, sign=-1.0)
 
             # Tayyor mahsulotlar qayta yechiladi — hech narsa topshirilmagan
             # bo'lsa TO'LIQ, QISMAN topshirilgan bo'lsa faqat QOLGAN qismi
@@ -2600,7 +2582,7 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
             # deb alohida qiymat kiritilgan bo'lsa, o'sha aniq qiymat
             # saqlanmaganligi sabab, bu yerda REJADAGI (standart) miqdor
             # asos qilib olinadi — aksariyat holatlarda bu aynan to'g'ri keladi.
-            planned_loy = services._get_planned_loy(db_order) + get_termopanel_planned_loy(db_order)
+            planned_loy = services._get_planned_loy(db_order)
             redo_loy = planned_loy * loy_remaining_fraction
             if redo_loy > 0.01:
                 services.deduct_loy_ingredients(db, db_order, redo_loy)
@@ -2701,9 +2683,6 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
             } for s in (db_item.sub_details or [])],
         }]
         services.adjust_inventory_diff(db, old_snap, [], order_id=db_item.order_id)
-        # Termopanel (bazalt/serpiyanka/kley) — detal butunlay o'chirilganda
-        # ilgari yechilgan xomashyo omborga qaytishi kerak (Penoplast bilan bir xil mantiq)
-        services.return_termopanel_for_item(db, db_item)
 
     # 2026-09-17: shu detalga Production/MRP orqali band qilingan tayyor
     # mahsulot bo'lsa — avtomatik ozod qilamiz (aks holda, detal
@@ -3481,36 +3460,7 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
     # Ombordan penoplast yechamiz
     log = services.deduct_inventory_for_order(db, order)
 
-    # TERMOPANEL (Bazalt/Serpiyanka/Kley) — [TERMO:] belgisidan (endi
-    # create_order() da HAR DOIM yoziladi, qoralama bo'lsa ham) o'qib,
-    # ombordan yechamiz. Avval bu — BUTUNLAY YO'Q edi.
-    from models import Inventory as _Inv_act
-    for oi in order.items:
-        if (oi.category or '').lower() != 'termopanel' or not oi.notes:
-            continue
-        bazalt_id = _parse_termo_note(oi.notes, 'bazalt_id')
-        bazalt_qty = _parse_termo_note(oi.notes, 'bazalt_qty', is_float=True)
-        serp_id = _parse_termo_note(oi.notes, 'serp_id')
-        serp_qty = _parse_termo_note(oi.notes, 'serp_qty', is_float=True)
-        kley_id = _parse_termo_note(oi.notes, 'kley_id')
-        kley_qty = _parse_termo_note(oi.notes, 'kley_qty', is_float=True)
-        for inv_id, qty in [(bazalt_id, bazalt_qty), (serp_id, serp_qty), (kley_id, kley_qty)]:
-            if inv_id and qty:
-                inv = db.query(_Inv_act).filter(_Inv_act.id == int(inv_id)).with_for_update().first()
-                if inv:
-                    inv.stock_quantity = float(inv.stock_quantity or 0) - float(qty)
-                    log_movement(db, inv.id, inv.item_name, movement_type="out", quantity=float(qty),
-                                  unit=inv.unit, order_id=order.id,
-                                  reason=f"Buyurtma jarayonga olindi — Termopanel ({order.order_number})")
-
-    # "Loy sotish" detallari — har biri o'z retseptiga ko'ra
-    for oi in order.items:
-        if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id and oi.quantity:
-            log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id))
-
-    # Rejalashtirilgan loy bo'lsa — uni ham yechamiz (umumiy qoplama +
-    # Termopanel qoplamasi — ikkalasi ham, create_order bilan izchil)
-    planned_loy = services._get_planned_loy(order) + get_termopanel_planned_loy(order)
+    planned_loy = services._get_planned_loy(order)
     if planned_loy > 0:
         loy_log = services.deduct_loy_ingredients(db, order, planned_loy)
         log.extend(loy_log)
@@ -3553,90 +3503,6 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
 # ============================================================
 # BUYURTMANI TAHRIRLASH (ombor farq bo'yicha to'g'rilanadi)
 # ============================================================
-
-def _build_termo_notes(db: Session, item_data, existing_notes: str = None) -> str:
-    """Termopanel (Bazalt) detali uchun '[TERMO:...]' belgisini quradi —
-    bazalt_id/serp_id/kley_id/miqdorlarni item_data (frontend yuborgan
-    bazalt_item_id, serpiyanka_item_id, kley_item_id, quantity,
-    termo_loy_kg maydonlaridan) hisoblab, notes ichiga yozadi.
-
-    MUHIM: bu — YAGONA joy bo'lishi kerak, chunki frontend Termopanel
-    uchun '[TERMO:...]' belgisining o'zini HECH QACHON yubormaydi (faqat
-    xom bazalt_item_id/serpiyanka_item_id/kley_item_id/quantity yuboradi)
-    — belgini backend qurishi SHART. Buyurtma yaratishda ham,
-    tahrirlashda (qoralama bo'lsa ham) ham — aynan shu funksiya
-    ishlatilishi kerak, aks holda tahrirlashda '[TERMO:...]' yo'qolib,
-    "Jarayonga olish"da Bazalt/Serpiyanka/Kley ombordan umuman
-    yechilmay qolar edi (2026-08-21 sinovda aynan shu holat topilgan).
-
-    2026-09-14 tekshiruvi: 4 ta buyurtmada (#19,#26,#33,#36) bu belgi
-    ikki marta, so'zma-so'z bir xil holda yozilgan holati topildi.
-    Quyidagi qatordagi re.sub() — standart holatda BARCHA (faqat
-    birinchi emas) '[TERMO:...]' nusxalarini olib tashlaydi, shuning
-    uchun bu funksiya har safar chaqirilganda AVTOMATIK o'zini
-    tuzatadi (bir nechta eski nusxa bo'lsa ham, natija — doim bitta
-    to'g'ri belgi). Demak muammo BU FUNKSIYA ICHIDA emas — audit
-    jurnalida bu buyurtmalar bir necha soniya ichida "yaratildi →
-    o'chirildi → qayta yaratildi" ketma-ketligida ekani topildi, ya'ni
-    ehtimol SINOV_AVTOMATIK_TEST skriptining o'zi (server sekin javob
-    berganda) so'rovni ikki marta yuborgan. Xavf darajasi: YO'Q — bu
-    yerda faqat matn (notes) ikkilanadi, ombordan HECH QACHON ikki
-    marta ayirilmaydi (chunki qiymat o'qish — birinchi mosini topgan
-    zahoti to'xtaydi, ikkinchi nusxa bir xil bo'lgani uchun natija
-    baribir to'g'ri chiqadi). Mavjud 4 ta buyurtmadagi ikkilanган
-    yozuvni tozalash uchun — shu buyurtmani ochib, Termopanel
-    detalini o'zgartirmasdan qayta saqlash kifoya (shu funksiya
-    o'zi tozalab qo'yadi)."""
-    from models import Inventory as _Inv_termo
-    bazalt_id = getattr(item_data, 'bazalt_item_id', None)
-    serp_id = getattr(item_data, 'serpiyanka_item_id', None)
-    kley_id = getattr(item_data, 'kley_item_id', None)
-    loy_kg_t = float(getattr(item_data, 'termo_loy_kg', None) or 0)
-    parts = []
-    b = None
-    if bazalt_id:
-        b = db.query(_Inv_termo).filter(_Inv_termo.id == bazalt_id).first()
-        area = float(b.volume_per_unit or 0.72) if b else 0.72
-        sheets = float(item_data.quantity or 0) / area if area else 0
-        parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
-    if serp_id:
-        s = db.query(_Inv_termo).filter(_Inv_termo.id == serp_id).first()
-        area = float(s.volume_per_unit or 50.0) if s else 50.0
-        serp_ratio = float(b.serp_ratio_per_m2) if (b and b.serp_ratio_per_m2) else 2.0
-        rulon = (float(item_data.quantity or 0) * serp_ratio) / area if area else 0
-        parts.append(f"serp_id={serp_id},serp_qty={rulon:.4f}")
-    if kley_id:
-        kley_ratio = float(b.kley_ratio_per_m2) if (b and b.kley_ratio_per_m2) else 0.8
-        kley_kg = float(item_data.quantity or 0) * kley_ratio
-        parts.append(f"kley_id={kley_id},kley_qty={kley_kg:.4f}")
-    if loy_kg_t > 0:
-        parts.append(f"loy_kg={loy_kg_t:.4f}")
-    if not parts:
-        return existing_notes or ''
-    import re as _re_termo
-    base_notes = _re_termo.sub(r'\s*\[TERMO:[^\]]+\]', '', existing_notes or '').strip()
-    return (base_notes + " [TERMO:" + ",".join(parts) + "]").strip()
-
-
-def _parse_termo_note(notes, key, is_float=False):
-    """Detal notes ichidagi '[TERMO:...]' belgisidan bitta qiymatni o'qiydi.
-    Masalan: '[TERMO:bazalt_id=1,bazalt_qty=13.89,...]' dan 'bazalt_id'ni oladi."""
-    import re
-    if not notes:
-        return None
-    m = re.search(r'\[TERMO:([^\]]+)\]', notes)
-    if not m:
-        return None
-    parts = dict(p.split('=') for p in m.group(1).split(',') if '=' in p)
-    val = parts.get(key)
-    if val is None:
-        return None
-    try:
-        return float(val) if is_float else int(float(val))
-    except (ValueError, TypeError):
-        return None
-
-
 def finalize_partial_order_quantities(db: Session, order) -> dict:
     """Buyurtma QISMAN topshirilgan holatda yakunlanganda —
     har bir detalning miqdorini (va narxini) HAQIQATDA berilgan
@@ -4190,19 +4056,6 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
 
     db.commit()
     return counts
-
-
-def get_termopanel_planned_loy(order) -> float:
-    """Buyurtmadagi barcha termopanel detallarining rejalashtirilgan
-    (yaratishda kiritilgan) loy miqdorini yig'indisini qaytaradi."""
-    total = 0.0
-    for item in order.items:
-        if (item.category or '').lower() != 'termopanel':
-            continue
-        val = _parse_termo_note(item.notes, 'loy_kg', is_float=True)
-        if val:
-            total += val
-    return total
 def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: bool = False, performed_by: str = None) -> dict:
     """Buyurtmani to'liq yangilaydi:
     - Detallarni almashtiradi
@@ -4239,10 +4092,6 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "penoplast_id": i.penoplast_id,
         "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
         "finished_product_id": i.finished_product_id,
-        "bazalt_item_id": _parse_termo_note(i.notes, 'bazalt_id'),
-        "serpiyanka_item_id": _parse_termo_note(i.notes, 'serp_id'),
-        "kley_kg": _parse_termo_note(i.notes, 'kley_qty', is_float=True),
-        "termo_loy_kg": _parse_termo_note(i.notes, 'loy_kg', is_float=True),
         # Ichki qo'shimcha detallar — omborni FARQ bo'yicha to'g'ri
         # hisoblash uchun (bo'lmasa, tahrirlashda ularning hajmi "yo'q
         # bo'lib qolgandek" hisoblanib, xomashyo noto'g'ri qaytarilardi).
@@ -4286,12 +4135,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # 2) Qoralama bo'lmasa — xomashyo yetishini tekshiramiz
     if not is_draft:
         check = services.check_inventory_diff(db, old_snapshot, new_snapshot)
-        tcheck = services.check_termopanel_diff(db, old_snapshot, new_snapshot)
         _all_short = []
         if not check["enough"]:
             _all_short += list(check["shortages"])
-        if not tcheck["enough"]:
-            _all_short += list(tcheck["shortages"])
         # Yetishmovchilik bor-u, lekin foydalanuvchi hali tasdiqlamagan bo'lsa —
         # "davom etasizmi?" ogohlantirishini qaytaramiz (create bilan bir xil).
         # confirm_shortage=True bo'lsa — o'tkazib yuboramiz (ombor manfiy bo'ladi).
@@ -4398,20 +4244,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         oi.gips_unit = getattr(nd, 'gips_unit', None)
         oi.product_type_id = getattr(nd, 'product_type_id', None)
         oi.total_price = item_total
-        # MUHIM TUZATISH: "Termopanel" turi uchun frontend "[TERMO:...]"
-        # belgisini HECH QACHON yubormaydi (faqat xom bazalt/serpiyanka/
-        # kley ID va miqdorlarni yuboradi) — shuning uchun bu yerda
-        # to'g'ridan-to'g'ri "nd.notes" (deyarli har doim bo'sh/None)
-        # yozib qo'yilsa, belgi butunlay o'chib ketardi — buyurtma hali
-        # Qoralama bo'lsa, buni HECH KIM qayta tiklamasdi (pastdagi
-        # qayta hisoblash faqat Qoralama BO'LMAGAN holatda ishlaydi).
-        # Natijada "Jarayonga olish"da Bazalt/Serpiyanka/Kley ombordan
-        # UMUMAN yechilmay qolardi. Endi — Termopanel uchun, qoralama
-        # bo'lsa ham, belgi HAR DOIM to'g'ri qurib yoziladi.
-        if (nd.category or '').lower() == 'termopanel':
-            oi.notes = _build_termo_notes(db, nd, oi.notes)
-        else:
-            oi.notes = nd.notes
+        oi.notes = nd.notes
 
         # Ichki qo'shimcha detallarni ALMASHTIRAMIZ — eskisini o'chirib
         # (cascade="all, delete-orphan"), yangisini yozamiz. Ombordagi
@@ -4441,10 +4274,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         _stored_up2 = float(nd.unit_price or 0)
         item_total = _stored_up2 * float(nd.quantity or 1)
         total_amount += item_total
-        # MUHIM: Termopanel uchun — xuddi yuqoridagi (mavjud detal)
-        # holatidagi kabi, "[TERMO:...]" belgisini shu yerda quramiz
-        # (frontend uni hech qachon yubormaydi).
-        _new_item_notes = _build_termo_notes(db, nd, nd.notes) if (nd.category or '').lower() == 'termopanel' else nd.notes
+        _new_item_notes = nd.notes
         _new_oi = OrderItem(
             order_id=order.id,
             name=nd.name,
@@ -4578,7 +4408,6 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     inventory_log = []
     if not is_draft:
         inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot, order_id=order_id)
-        inventory_log.extend(services.adjust_termopanel_diff(db, old_snapshot, new_snapshot, recipe_id=order_data.recipe_id))
         # Tayyor mahsulot farqi
         # M4: farq faqat SHU buyurtmaning korxonasidagi mahsulotlarga qo'llanadi.
         inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot,
@@ -4600,42 +4429,6 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
                 else:
                     inventory_log.extend(services.return_loy_ingredients(db, order, abs(diff), recipe_id=rid))
 
-        # TERMO belgisini yangi qiymatlar bilan qayta yozamiz — aks holda
-        # notes yangilanganda eski belgi o'chib, keyingi tahrirlash/o'chirish
-        # xomashyoni to'g'ri hisoblay olmay qoladi.
-        for oi in order.items:
-            if (oi.category or '').lower() != 'termopanel':
-                continue
-            nd = matched.get(oi.id)
-            if nd is None:
-                continue
-            bazalt_id = getattr(nd, 'bazalt_item_id', None)
-            loy_kg = float(getattr(nd, 'termo_loy_kg', None) or 0)
-            base_notes = re.sub(r'\s*\[TERMO:[^\]]+\]', '', oi.notes or '').strip()
-            parts = []
-            serp_ratio, kley_ratio = 2.0, 0.8
-            if bazalt_id:
-                b = db.query(Inventory).filter(Inventory.id == bazalt_id).first()
-                area = float(b.volume_per_unit or 0.72) if b else 0.72
-                sheets = float(oi.quantity or 0) / area if area else 0
-                parts.append(f"bazalt_id={bazalt_id},bazalt_qty={sheets:.4f}")
-                if b and b.serp_ratio_per_m2:
-                    serp_ratio = float(b.serp_ratio_per_m2)
-                if b and b.kley_ratio_per_m2:
-                    kley_ratio = float(b.kley_ratio_per_m2)
-            serp_m2 = float(oi.quantity or 0) * serp_ratio
-            s = services.find_serpiyanka(db)
-            if s:
-                area = float(s.volume_per_unit or 50.0)
-                rulon = serp_m2 / area if area else 0
-                parts.append(f"serp_id={s.id},serp_qty={rulon:.4f}")
-            k = services.find_kley(db)
-            if k:
-                kley_kg = float(oi.quantity or 0) * kley_ratio
-                parts.append(f"kley_id={k.id},kley_qty={kley_kg:.4f}")
-            if loy_kg > 0:
-                parts.append(f"loy_kg={loy_kg:.4f}")
-            oi.notes = (base_notes + " [TERMO:" + ",".join(parts) + "]") if parts else base_notes
         db.commit()
 
     # 7) To'lov holatini qayta hisoblaymiz
