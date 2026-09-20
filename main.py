@@ -261,6 +261,19 @@ def _migrate_recipe_name_column():
             print(f"⚠ recipes.name migratsiyasi: {e}")
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# MA'LUMOT O'ZGARTIRUVCHI MIGRATSIYALAR REJIMI  (2026-09-20)
+#
+# Migratsiya zanjiri tuzatilgandan keyin, ilgari HECH QACHON ishlamagan
+# ikkita UPDATE real ma'lumotga birinchi marta tegadi. Shuning uchun:
+#
+#   True  = FAQAT SANAYDI. Hech narsa o'zgarmaydi, logda nechta qator
+#           tegishi ko'rsatiladi. ← birinchi deploy shunday
+#   False = HAQIQATAN BAJARADI.  ← logni ko'rib, zaxira olingandan keyin
+# ═══════════════════════════════════════════════════════════════════════
+MIGRATSIYA_FAQAT_SANASH = True
+
+
 def _migrate_payment_columns():
     """Mavjud bazaga to'lov ustunlarini qo'shadi (agar yo'q bo'lsa)."""
     from sqlalchemy import text, inspect
@@ -275,6 +288,7 @@ def _migrate_payment_columns():
         cols = [c['name'] for c in inspector.get_columns('orders')]
 
         migrations = []
+        _data_updates = []   # (nom, sanash SQL, bajarish SQL)
         if 'agreed_amount' not in cols:
             migrations.append("ALTER TABLE orders ADD COLUMN agreed_amount NUMERIC(12,2) DEFAULT 0")
         if 'payment_status' not in cols:
@@ -437,10 +451,13 @@ def _migrate_payment_columns():
         # to'ldirilmagan bo'lishi mumkin). Eski, "Sotuvga tayyor" yozuvlar
         # uchun, hozirgi qoldiqni "asl ishlab chiqarilgan" deb belgilaymiz —
         # bu nuqtadan boshlab, hodim haqi endi yana kamayib ketmaydi.
-        migrations.append(
+        _data_updates.append((
+            "finished_products.produced_quantity backfill (HODIM HAQIGA ta'sir qiladi)",
+            "SELECT count(*) FROM finished_products "
+            "WHERE produced_quantity IS NULL AND production_status = 'READY'",
             "UPDATE finished_products SET produced_quantity = quantity "
-            "WHERE produced_quantity IS NULL AND production_status = 'ready'"
-        )
+            "WHERE produced_quantity IS NULL AND production_status = 'READY'",
+        ))
 
         emp_cols2 = [c['name'] for c in inspector.get_columns('employees')]
         if 'production_type' not in emp_cols2:
@@ -460,7 +477,11 @@ def _migrate_payment_columns():
         # Bir martalik: "Boshqa" kategoriyasidagi mavjud materiallarni
         # "Bazalt"ga o'tkazamiz (chunki bu bo'lim aslida faqat Bazalt bilan
         # bog'liq materiallar uchun ishlatilgan edi — aniqroq nom).
-        migrations.append("UPDATE inventory SET category = 'Bazalt' WHERE category = 'Boshqa'")
+        _data_updates.append((
+            "inventory kategoriyasi: 'Boshqa' -> 'Bazalt'",
+            "SELECT count(*) FROM inventory WHERE category = 'Boshqa'",
+            "UPDATE inventory SET category = 'Bazalt' WHERE category = 'Boshqa'",
+        ))
 
         # return_items — endi ikkita manbadan brak yozish mumkin: buyurtmadan
         # (order_id) YOKI tayyor mahsulot ishlab chiqarishdan (finished_product_id).
@@ -478,7 +499,42 @@ def _migrate_payment_columns():
                         conn.commit()
                         print(f"✓ Migratsiya: {sql[:60]}...")
                     except Exception as e:
+                        # MUHIM: rollback bo'lmasa, Postgres'da tranzaksiya
+                        # "aborted" holatda qoladi va SHU ULANISHDAGI keyingi
+                        # HAMMA migratsiya jimgina yiqiladi.
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
                         print(f"⚠ Migratsiya o'tkazib yuborildi: {e}")
+
+        # ── MA'LUMOTNI O'ZGARTIRADIGAN MIGRATSIYALAR ────────────────────
+        # Bular ustun qo'shmaydi — REAL MA'LUMOTNI o'zgartiradi.
+        # MIGRATSIYA_FAQAT_SANASH kalitiga qarang (fayl boshida).
+        if _data_updates:
+            print("─" * 60)
+            rejim = "FAQAT SANASH (hech narsa o'zgarmaydi)" if MIGRATSIYA_FAQAT_SANASH else "BAJARISH"
+            print(f"MA'LUMOT MIGRATSIYALARI — rejim: {rejim}")
+            with engine.connect() as conn:
+                for nom, count_sql, update_sql in _data_updates:
+                    try:
+                        soni = conn.execute(text(count_sql)).scalar() or 0
+                        if MIGRATSIYA_FAQAT_SANASH:
+                            print(f"   🔢 {nom}")
+                            print(f"      → {soni} qatorga tegadi (HOZIR O'ZGARTIRILMADI)")
+                        elif soni:
+                            conn.execute(text(update_sql))
+                            conn.commit()
+                            print(f"   ✓ {nom}: {soni} qator o'zgartirildi")
+                        else:
+                            print(f"   • {nom}: o'zgartiriladigan qator yo'q")
+                    except Exception as e:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        print(f"   ⚠ {nom}: {e}")
+            print("─" * 60)
 
         # PostgreSQL enum ga yangi qiymatlarni qo'shish
         enum_additions = [
@@ -531,6 +587,13 @@ def _migrate_payment_columns():
                 ))
                 conn.commit()
             except Exception as e:
+                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
+                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -557,6 +620,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
+                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
+                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -624,6 +694,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
+                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
+                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -642,6 +719,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
+                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
+                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -657,6 +741,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
+                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
+                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -673,6 +764,13 @@ def _migrate_payment_columns():
                 ))
                 conn.commit()
             except Exception as e:
+                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
+                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -693,6 +791,13 @@ def _migrate_payment_columns():
                     ))
                     conn.commit()
             except Exception as e:
+                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
+                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -700,6 +805,39 @@ def _migrate_payment_columns():
                     _ldb.close()
                 except Exception:
                     pass
+        # ── MIGRATSIYA NATIJASINI LOGDA TASDIQLASH ──────────────────────
+        # Faqat o'qish (SELECT). Maqsad: deploy logida "bajarildi" degan
+        # so'zga emas, haqiqiy baza holatiga qarab xulosa qilish.
+        try:
+            with engine.connect() as _chk:
+                row = _chk.execute(text("""
+                    SELECT
+                      (SELECT is_nullable FROM information_schema.columns
+                         WHERE table_schema='public' AND table_name='return_items'
+                           AND column_name='order_id')                      AS ri_order_id_nullable,
+                      (SELECT count(*) FROM information_schema.columns
+                         WHERE table_schema='public' AND table_name='return_items'
+                           AND column_name='finished_product_id')           AS ri_finished_product_id,
+                      (SELECT count(*) FROM information_schema.columns
+                         WHERE table_schema='public' AND table_name='employees'
+                           AND column_name='production_type')               AS emp_production_type,
+                      (SELECT count(*) FROM information_schema.columns
+                         WHERE table_schema='public' AND table_name='inventory_receipts'
+                           AND column_name='production_type')               AS ir_production_type,
+                      (SELECT count(*) FROM information_schema.columns
+                         WHERE table_schema='public' AND table_name='employee_monthly_adjustments'
+                           AND column_name='bonus_amount')                  AS ema_bonus_amount,
+                      (SELECT count(*) FROM inventory
+                         WHERE category = 'Boshqa')                         AS inv_boshqa_qoldi,
+                      (SELECT count(*) FROM finished_products
+                         WHERE produced_quantity IS NULL
+                           AND production_status = 'READY')                 AS fp_backfill_qoldi
+                """)).mappings().first()
+            print("🔎 MIGRATSIYA HOLATI (1 = bor/bajarildi, 0 = yo'q):")
+            for k, v in dict(row).items():
+                print(f"   • {k} = {v}")
+        except Exception as e:
+            print(f"⚠ Migratsiya holatini tekshirib bo'lmadi: {e}")
     except Exception as e:
         print(f"⚠ Migratsiya xatosi: {e}")
 
