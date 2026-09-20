@@ -167,3 +167,77 @@ def tayyor_mahsulot(db, **kw):
     db.flush()
     db.commit()
     return fp
+
+
+JONLI_CID = 2   # jonli etalon ALOHIDA korxonada — sun'iy fikstura bilan
+                # xomashyo nomlari bir xil, bitta korxonada to'qnashardi
+
+
+def jonli_qur(yol=None):
+    """JONLI etalonni (staging'dagi `main` ma'lumoti) alohida bazaga tiklaydi.
+
+    `narx_etalon_jonli.json` — 2026-09-20 da staging API dan DASTUR ORQALI
+    o'lchangan haqiqiy 22 buyurtma, 75 detal, 9 xomashyo va "Oq marmar"
+    retsepti. Shu yerda ular ayni id'lari bilan qayta quriladi, shunda
+    `calculate_order_profit` o'sha kunги raqamni qaytarishi SHART.
+    """
+    import json
+    import os as _os
+    from models import Inventory as _I, Recipe as _R, RecipeIngredient as _RI
+
+    yol = yol or _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                               "narx_etalon_jonli.json")
+    with open(yol, encoding="utf-8") as fh:
+        d = json.load(fh)
+
+    db = SessionLocal()
+    if not db.query(Company).filter(Company.id == JONLI_CID).first():
+        db.add(Company(id=JONLI_CID, name="JONLI_ETALON"))
+        db.flush()
+
+    for _id, nom, narx, hajm, peno, asosiy, birlik in d["inventory"]:
+        if db.query(_I).filter(_I.id == _id).first():
+            continue
+        db.add(_I(id=_id, company_id=JONLI_CID, item_name=nom, unit=birlik,
+                  stock_quantity=1e6, price_per_unit=narx, volume_per_unit=hajm,
+                  is_penoplast=peno, is_default_penoplast=asosiy))
+    rid, rnom, rbatch = d["recipe"]
+    if not db.query(_R).filter(_R.id == rid).first():
+        db.add(_R(id=rid, company_id=JONLI_CID, name=rnom, batch_size_kg=rbatch))
+        db.flush()
+        for _r, _inv, kg in d["recipe_ingredients"]:
+            db.add(_RI(recipe_id=_r, inventory_id=_inv, quantity_kg=kg))
+    db.flush()
+
+    loyiha = Project(company_id=JONLI_CID, project_number="PRJ-JONLI",
+                     client_name="Jonli etalon", project_name="Jonli etalon",
+                     status=ProjectStatus.DRAFT)
+    db.add(loyiha)
+    db.flush()
+
+    detallar = {}
+    for it in d["order_items"]:
+        detallar.setdefault(it["order_number"], []).append(it)
+
+    buyurtmalar = {}
+    for o in d["orders"]:
+        row = Order(company_id=JONLI_CID, order_number=o["order_number"],
+                    project_id=loyiha.id, order_type=OrderType.PRODUCT,
+                    total_amount=o["total_amount"], agreed_amount=o["agreed_amount"],
+                    actual_loy_kg=o["actual_loy_kg"], planned_loy_kg=o["planned_loy_kg"])
+        db.add(row)
+        db.flush()
+        for it in detallar.get(o["order_number"], []):
+            db.add(OrderItem(
+                id=it["id"], company_id=JONLI_CID, order_id=row.id, name=f"detal {it['id']}",
+                category=it["category"], width=it["width"], thickness=it["thickness"],
+                length=it["length"], quantity=it["quantity"], is_coated=it["is_coated"],
+                unit_price=it["unit_price"], total_price=0,
+                unit_price_for_volume=it["unit_price_for_volume"],
+                price_per_m3=it["price_per_m3"], penoplast_id=it["penoplast_id"],
+                recipe_id=it["recipe_id"]))
+        db.flush()
+        buyurtmalar[o["order_number"]] = row
+    db.commit()
+    return {"db": db, "company_id": JONLI_CID, "buyurtmalar": buyurtmalar,
+            "etalon": d["etalon_foyda"], "malumot": d}

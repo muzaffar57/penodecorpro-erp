@@ -933,6 +933,60 @@ check("I16 gips kategoriyali tayyor mahsulot sotuvi — gipsga",
 check("I16 profil kategoriyali tayyor mahsulot sotuvi — penoplastga",
       keyin["penoplast"]["daromad"] - oldin["penoplast"]["daromad"], 600_000)
 
+# ════════════════════════════════════════════════════════════════
+bolim("J. JONLI ETALON — staging'dagi HAQIQIY 22 buyurtma")
+# ════════════════════════════════════════════════════════════════
+# Yuqoridagi bo'limlar O'YLAB TOPILGAN holatlar ustida ishlaydi.
+# Bu bo'lim esa `main` ning haqiqiy ma'lumoti ustida: 2026-09-20 da
+# staging API dan DASTUR ORQALI (ekran suratidan emas) o'lchangan
+# 22 buyurtma, 75 detal, 9 xomashyo, "Oq marmar" retsepti —
+# `tools/narx_etalon_jonli.json` da saqlangan va shu yerda lokal
+# bazaga qayta tiklanadi. Hisob o'sha kungi raqamni qaytarishi SHART.
+
+jonli = B.jonli_qur()
+jdb, jord, jet = jonli["db"], jonli["buyurtmalar"], jonli["etalon"]
+JCID = jonli["company_id"]
+
+check_eq("J0 jonli ma'lumot — buyurtmalar soni", len(jord), 22)
+check_eq("J0 jonli ma'lumot — detallar soni",
+         len(jonli["malumot"]["order_items"]), 75)
+
+jami_sotuv = jami_tan = 0.0
+for nom in sorted(jet):
+    sotuv, tan, foyda = jet[nom]
+    r = services.calculate_order_profit(jdb, jord[nom].id, company_id=JCID)
+    check(f"J {nom} — sotuv narxi", r["sotuv_narxi"], sotuv, atol=0.01)
+    check(f"J {nom} — tan narxi", r["tan_narxi"], tan, atol=0.01)
+    check(f"J {nom} — foyda", r["foyda"], foyda, atol=0.01)
+    jami_sotuv += r["sotuv_narxi"]
+    jami_tan += r["tan_narxi"]
+
+check("J jami sotuv narxi (22 buyurtma)", jami_sotuv,
+      sum(v[0] for v in jet.values()), atol=0.01)
+check("J jami tan narxi (22 buyurtma)", jami_tan,
+      sum(v[1] for v in jet.values()), atol=0.01)
+
+# "ready" buyurtmalar foydasi — sentabr moliya hisobotidagi
+# `buyurtmalar_foydasi` bilan AYNAN bir xil bo'lishi jonli tasdiqlangan.
+_ready = {o["order_number"] for o in jonli["malumot"]["orders"]
+          if o["status"] == "ready"}
+check_eq("J 'ready' buyurtmalar soni (hisobotdagi 16 ga mos)", len(_ready), 16)
+ready_foyda = sum(
+    services.calculate_order_profit(jdb, jord[n].id, company_id=JCID)["foyda"]
+    for n in sorted(_ready))
+check("J 'ready' foyda yig'indisi = hisobotdagi buyurtmalar_foydasi",
+      round(ready_foyda), 10_402_710, atol=1.5)
+
+# Xomashyo narxlari — etalon_raqamlar.md dagi qiymatlar
+from models import Inventory as _JInv  # noqa: E402
+for _id, nom, narx, hajm, *_ in jonli["malumot"]["inventory"]:
+    if narx is None:
+        continue
+    row = jdb.query(_JInv).filter(_JInv.id == _id).first()
+    check(f"J xomashyo {nom} — 1 birlik narxi", float(row.price_per_unit), narx)
+check("J Penoplast 14P — 1 m3 TAN narxi", 802126.32 / 1.4, 572947.3714285714)
+check("J Penoplast 10P — 1 m3 TAN narxi", 624000 / 1.4, 445714.2857142857)
+
 
 # ════════════════════════════════════════════════════════════════
 print(f"\n{'=' * 66}")
