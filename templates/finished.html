@@ -513,13 +513,13 @@ input[type=number]{-moz-appearance:textfield}
             <div class="type-opt active" data-value="profil" onclick="selectPType(this,'profil')">📏 Profil</div>
             <div class="type-opt" data-value="panel" onclick="selectPType(this,'panel')">🔲 Panel</div>
             <div class="type-opt" data-value="dona" onclick="selectPType(this,'dona')">⭐ Donali</div>
-            <div class="type-opt" data-value="blok" onclick="selectPType(this,'blok')">🧊 Blok (butun narxda)</div>
+{% if cat_on('blok', current_user.company_id) %}            <div class="type-opt" data-value="blok" onclick="selectPType(this,'blok')">🧊 Blok (butun narxda)</div>{% endif %}
           </div>
           <select id="p-type" style="display:none" onchange="pToggle();pCalc()">
             <option value="profil">Profil</option>
             <option value="panel">Panel</option>
             <option value="dona">Donali</option>
-            <option value="blok">Blok (butun narxda)</option>
+{% if cat_on('blok', current_user.company_id) %}            <option value="blok">Blok (butun narxda)</option>{% endif %}
           </select>
         </div>
       </div>

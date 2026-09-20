@@ -2980,7 +2980,7 @@ function addItem() {
             <div class="type-opt" data-value="dona" onclick="selectTypeOpt(this,'dona')">⭐ Donali</div>
           </div>
           <div class="tur-sep"></div>
-          <div class="type-opt" data-value="blok" onclick="selectTypeOpt(this,'blok')">🧊 Blok (butun narxda)</div>
+{% if cat_on('blok', current_user.company_id) %}          <div class="type-opt" data-value="blok" onclick="selectTypeOpt(this,'blok')">🧊 Blok (butun narxda)</div>{% endif %}
           <div class="tur-sep"></div>
 {% if cat_on('termopanel', current_user.company_id) %}          <div class="type-opt" data-value="termopanel" onclick="selectTypeOpt(this,'termopanel')">🪨 Termopanel (Bazalt)</div>{% endif %}
           <div class="tur-sep"></div>
@@ -2995,7 +2995,7 @@ function addItem() {
           <option value="profil">Profil</option>
           <option value="panel">Panel</option>
           <option value="dona">Donali</option>
-          <option value="blok">Blok (butun narxda)</option>
+{% if cat_on('blok', current_user.company_id) %}          <option value="blok">Blok (butun narxda)</option>{% endif %}
 {% if cat_on('termopanel', current_user.company_id) %}          <option value="termopanel">Termopanel (Bazalt)</option>{% endif %}
 {% if cat_on('loy_sotish', current_user.company_id) %}          <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>{% endif %}
 {% if cat_on('gips', current_user.company_id) %}          <option value="gips">🧱 Gips</option>{% endif %}
