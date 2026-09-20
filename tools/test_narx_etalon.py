@@ -341,6 +341,56 @@ check("C18 tayyor mahsulotdan — hajm 0 (xomashyo allaqachon yechilgan)",
       _item_volume_m3(db, o.items[0]), 0.0)
 
 
+# ── C19–C22. "HAJMNI QULFLAB NARXNI OSHIRISH" yo'li ──────────────
+# Brauzerda donali detalning hajmini qulflab, narxni erkin oshirish
+# mumkin (yopishtirish mehnati uchun). Ekranda hajm o'zgarmaydi —
+# BACKEND ham aynan shu hajmni ko'rishi SHART. Quyidagi to'rt holat
+# `templates/orders.html` dagi haqiqiy `calculateItem`/`collectItems`
+# ni ishga tushirib o'lchangan (2026-09-20).
+QULF_EKRAN = 0.03        # brauzer ko'rsatgan qulflangan hajm (12x8cm, 1m dan 4 ta, 25 dona)
+QULF_UPFV = 1200.0       # collectItems saqlaydigan unit_price_for_volume
+QULF_BAZA = 1_000_000.0  # buyurtmaning "Asosiy narx"i
+
+
+def _qulf_holat(nom, **d):
+    """Buyurtmaning "Asosiy narx"i to'ldirilgan holatda hajmni o'lchaydi."""
+    o = B.buyurtma_yasa(db, loyiha, [dict(
+        name=nom, category="dona", is_coated=False,
+        penoplast_id=inv["14P"].id, **d)])
+    o.base_price = QULF_BAZA
+    db.commit()
+    db.refresh(o)
+    return _item_volume_m3(db, o.items[0])
+
+
+check("C19 qulflanmagan (o'lcham bor) — backend ekran bilan mos",
+      _qulf_holat("C19", width=12, thickness=8, length=6.25, quantity=25,
+                  unit_price=1200, unit_price_for_volume=QULF_UPFV),
+      QULF_EKRAN)
+check("C20 QULFLANGAN + narx 1200->5000 — hajm O'ZGARMAYDI",
+      _qulf_holat("C20", width=12, thickness=8, length=6.25, quantity=25,
+                  unit_price=5000, unit_price_for_volume=QULF_UPFV),
+      QULF_EKRAN)
+check("C21 QULFLANGAN + o'lcham tozalangan — Asosiy narxdan tiklanadi",
+      _qulf_holat("C21", quantity=25, unit_price=5000,
+                  unit_price_for_volume=QULF_UPFV),
+      QULF_EKRAN)
+check("C22 detalning O'Z '1 m3 narxi' bor — u ustun turadi",
+      _qulf_holat("C22", quantity=25, unit_price=5000,
+                  unit_price_for_volume=QULF_UPFV, price_per_m3=QULF_BAZA),
+      QULF_EKRAN)
+# Chekka holat: na detalda, na buyurtmada sotuv narxi yo'q — oxirgi
+# chora sifatida TAN narxga tushadi. Bu holat uchun boshqa manba yo'q.
+_o_bpsiz = B.buyurtma_yasa(db, loyiha, [dict(
+    name="C23", category="dona", quantity=25, unit_price=5000,
+    unit_price_for_volume=QULF_UPFV, is_coated=False,
+    penoplast_id=inv["14P"].id)])
+check("C23 sotuv narxi umuman yo'q — oxirgi chora: tan narx",
+      _item_volume_m3(db, _o_bpsiz.items[0]),
+      QULF_UPFV / (float(inv["14P"].price_per_unit)
+                   / float(inv["14P"].volume_per_unit)) * 25)
+
+
 # ════════════════════════════════════════════════════════════════
 bolim("D. 1 BIRLIK TAN NARXI (get_order_item_unit_cost)")
 # ════════════════════════════════════════════════════════════════
