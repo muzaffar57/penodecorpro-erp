@@ -437,6 +437,11 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
             # reserved_quantity=0, ya'ni butunlay erkin.
             reserved_quantity=(po.quantity if po.source_order_item_id else 0.0),
             reserved_for_order_item_id=po.source_order_item_id,
+            # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). Bu ma'lumot shu
+            # yerda ALLAQACHON bor edi (`po.product_type_id`), lekin tayyor
+            # mahsulotga yozilmasdi — natijada liniya bo'yicha moliya
+            # mahsulotning qaysi turdan ekanini bilolmasdi.
+            product_type_id=po.product_type_id,
         )
         db.add(fp)
         db.flush()  # fp.id kerak, hali commit qilmasdan

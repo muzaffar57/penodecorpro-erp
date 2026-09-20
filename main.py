@@ -1283,9 +1283,140 @@ def _migrate_float_to_numeric():
         print(f"⚠ Float->Numeric migratsiyasi o'tkazib yuborildi: {e}")
 
 
+def _migrate_fp_product_type():
+    """Bosqich 3, 10-band (2026-09-20) — `finished_products.product_type_id`.
+
+    Nima uchun: tayyor mahsulot qaysi mahsulot TURIDAN ekani hech qayerda
+    saqlanmasdi. MRP ishlab chiqarish buyurtmasi buni BILARDI
+    (`production_orders.product_type_id`), lekin yaratgan tayyor mahsulotiga
+    yozmasdi. 12-band (liniya bo'yicha moliya) aynan shu ustunga tayanadi.
+
+    Uch qadam, har biri ALOHIDA va IDEMPOTENT:
+      A) ustun + indeks + chet el kaliti (yo'q bo'lsa);
+      B) SANAB CHIQADI — nechta yozuv to'ldiriladi, hech narsa o'zgartirmay;
+      C) TO'LDIRADI — faqat `production_orders` orqali, ya'ni ANIQ bog'lam
+         bo'yicha. Taxmin (nom bo'yicha moslashtirish va h.k.) QILINMAYDI.
+
+    Eski, qattiq kodlangan turkumlar (profil/panel/dona/blok/gips/
+    termopanel) uchun hali `ProductType` yozuvi yo'q — ular NULL bo'lib
+    qoladi. Bu ATAYLAB: ularni 11-band ko'chiradi.
+    """
+    from sqlalchemy import text   # main.py da modul darajasida import YO'Q
+    try:
+        from database import engine
+        if engine.dialect.name != "postgresql":
+            return
+        with engine.connect() as conn:
+            bor = conn.execute(text(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema='public' AND table_name='finished_products' "
+                "AND column_name='product_type_id'")).first() is not None
+
+            # ── A. Ustun ──────────────────────────────────────────
+            if not bor:
+                conn.execute(text(
+                    "ALTER TABLE finished_products ADD COLUMN product_type_id "
+                    "INTEGER REFERENCES product_types(id)"))
+                conn.commit()
+                print("✓ finished_products.product_type_id qo'shildi")
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_finished_products_product_type_id "
+                "ON finished_products (product_type_id)"))
+            conn.commit()
+
+            # ── A2. CHET EL KALITI — ALOHIDA, chunki ustunni ko'pincha
+            # `sync_missing_columns()` birinchi bo'lib qo'shadi va u
+            # faqat `ALTER TABLE ... ADD COLUMN <tur>` yozadi, REFERENCES
+            # QO'SHMAYDI. Natijada yuqoridagi shart o'tib ketadi va
+            # kalit umuman yaratilmay qolardi (haqiqiy PostgreSQL'da
+            # 2026-09-20 da shunday chiqdi). Shuning uchun kalit har
+            # doim alohida, o'z shartida tekshiriladi.
+            for jadval, ustun in (("finished_products", "product_type_id"),
+                                  ("order_items", "product_type_id")):
+                kalit = f"{jadval}_{ustun}_fkey"
+                bor_kalit = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname = :j AND c.contype = 'f' "
+                    "  AND c.conname = :k"), {"j": jadval, "k": kalit}).first()
+                if bor_kalit:
+                    continue
+                # Yetim qiymat bo'lsa kalit yaratilmaydi — avval SANAYMIZ
+                yetim = conn.execute(text(
+                    f"SELECT COUNT(*) FROM {jadval} x "
+                    f"LEFT JOIN product_types t ON t.id = x.{ustun} "
+                    f"WHERE x.{ustun} IS NOT NULL AND t.id IS NULL")).scalar() or 0
+                if yetim:
+                    print(f"⚠ {jadval}.{ustun}: {yetim} ta yetim qiymat — "
+                          f"chet el kaliti QO'YILMADI")
+                    continue
+                try:
+                    conn.execute(text(
+                        f"ALTER TABLE {jadval} ADD CONSTRAINT {kalit} "
+                        f"FOREIGN KEY ({ustun}) REFERENCES product_types(id)"))
+                    conn.commit()
+                    print(f"✓ {kalit} chet el kaliti qo'shildi")
+                except Exception as _fe:
+                    conn.rollback()
+                    print(f"⚠ {kalit} qo'shilmadi: {_fe}")
+                conn.execute(text(
+                    f"CREATE INDEX IF NOT EXISTS ix_{jadval}_{ustun} "
+                    f"ON {jadval} ({ustun})"))
+                conn.commit()
+
+            # ── B. AVVAL FAQAT SANAYDI ────────────────────────────
+            # Qoida (2026-09-20): ma'lumotni o'zgartiradigan migratsiya
+            # avval nechta yozuvga tegishini logda ko'rsatadi.
+            nomzod = conn.execute(text(
+                "SELECT COUNT(*) FROM finished_products f "
+                "JOIN production_orders p ON p.finished_product_id = f.id "
+                "WHERE f.product_type_id IS NULL "
+                "  AND p.product_type_id IS NOT NULL")).scalar() or 0
+            jami_null = conn.execute(text(
+                "SELECT COUNT(*) FROM finished_products "
+                "WHERE product_type_id IS NULL")).scalar() or 0
+            print(f"• FP turi: to'ldiriladi {nomzod} ta, "
+                  f"NULL qoladi {jami_null - nomzod} ta (eski turkumlar — ataylab)")
+
+            # ── C. TO'LDIRISH ─────────────────────────────────────
+            if nomzod:
+                conn.execute(text(
+                    "UPDATE finished_products f SET product_type_id = p.product_type_id "
+                    "FROM production_orders p "
+                    "WHERE p.finished_product_id = f.id "
+                    "  AND f.product_type_id IS NULL "
+                    "  AND p.product_type_id IS NOT NULL"))
+                conn.commit()
+                qoldi = conn.execute(text(
+                    "SELECT COUNT(*) FROM finished_products f "
+                    "JOIN production_orders p ON p.finished_product_id = f.id "
+                    "WHERE f.product_type_id IS NULL "
+                    "  AND p.product_type_id IS NOT NULL")).scalar() or 0
+                print(f"✓ FP turi to'ldirildi: {nomzod} ta, qolgani {qoldi} ta")
+
+            # ── D. Nazorat: boshqa korxonaning turiga ishora qilyaptimi? ──
+            # Tenant xavfsizligi — bog'lam noto'g'ri korxonaga ketmasligi
+            # kerak. Faqat XABAR beradi, hech narsa o'zgartirmaydi.
+            chalkash = conn.execute(text(
+                "SELECT COUNT(*) FROM finished_products f "
+                "JOIN product_types t ON t.id = f.product_type_id "
+                "WHERE f.company_id IS DISTINCT FROM t.company_id")).scalar() or 0
+            if chalkash:
+                print(f"⚠ FP turi: {chalkash} ta yozuv BOSHQA korxonaning turiga ishora qilyapti!")
+    except Exception as e:
+        try:
+            from database import engine as _e
+            with _e.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ FP product_type migratsiyasi o'tkazib yuborildi: {e}")
+
+
 _migrate_drop_company_id_defaults()
 _migrate_faza3_columns()
 _migrate_float_to_numeric()
+_migrate_fp_product_type()
 
 from database import SessionLocal
 _db = SessionLocal()
@@ -5195,6 +5326,9 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "id": fp.id,
         "name": fp.name,
         "category": fp.category,
+        # Bosqich 3, 10-band — tayyor mahsulotning mahsulot TURI.
+        # Eski turkumlarda NULL (hali `ProductType` yozuvi yo'q).
+        "product_type_id": fp.product_type_id,
         "width": fp.width,
         "thickness": fp.thickness,
         "is_coated": fp.is_coated,

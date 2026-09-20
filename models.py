@@ -1505,6 +1505,20 @@ class FinishedProduct(Base):
     gips_kg_used = Column(Float, nullable=True)       # GIPS mahsulotlar uchun — sarflangan Gips (kg)
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Qaysi Gips ishlatilgani
     gips_inventory = relationship("Inventory", foreign_keys=[gips_inventory_id])
+    # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). Tayyor mahsulot QAYSI
+    # mahsulot turidan ekanini ko'rsatadi — liniya bo'yicha moliya (12-band)
+    # shu ustunga tayanadi. Hozircha faqat MRP (Production moduli) orqali
+    # ishlab chiqarilganlar va buyurtma detalidan qaytganlar to'ldiriladi;
+    # eski, qattiq kodlangan turkumlar (profil/panel/dona/blok/gips/
+    # termopanel) uchun hali `ProductType` yozuvi YO'Q, shuning uchun ular
+    # ATAYLAB NULL bo'lib qoladi — 11-band ularni ko'chirganda to'ldiriladi.
+    # `OrderItem.product_type_id` bilan bir xil naqsh (models.py:734).
+    product_type_id = Column(Integer, ForeignKey("product_types.id"), nullable=True, index=True)
+    # MUHIM: `lazy="joined"` QO'YILMAYDI — `FinishedProduct` boshqa joyda
+    # `.with_for_update()` bilan qulflanadi va LEFT OUTER JOIN Postgres'da
+    # "FOR UPDATE cannot be applied to the nullable side of an outer join"
+    # xatosini beradi (2026-09-18 da OrderItem'da shunday yiqilgan edi).
+    product_type = relationship("ProductType")
     # GIPS qo'shimchalari (Granula, Po'lat sim, Serpiyanka va h.k.) —
     # ishlab chiqarishda tanlangan har bir qo'shimchani JSON ro'yxat
     # sifatida saqlaydi: [{"inventory_id": 12, "quantity": 10.0}, ...].
@@ -1955,6 +1969,9 @@ _TENANT_REFS = {
         ("penoplast_id", "Inventory"),
         ("recipe_id", "Recipe"),
         ("finished_product_id", "FinishedProduct"),
+        # 2026-09-20: bu bog'lam bor edi, lekin qo'riqchida yo'q edi —
+        # `ProductType` ni topib bo'lmagani uchun. Endi topiladi.
+        ("product_type_id", "ProductType"),
     ],
     # Retsept tarkibidagi xomashyo
     "RecipeIngredient": [("inventory_id", "Inventory")],
@@ -1980,7 +1997,11 @@ _TENANT_REFS = {
     # Tayyor mahsulot — qaysi buyurtma/retsept/materialga
     "FinishedProduct": [("from_order_id", "Order"), ("recipe_id", "Recipe"),
                         ("penoplast_id", "Inventory"),
-                        ("gips_inventory_id", "Inventory")],
+                        ("gips_inventory_id", "Inventory"),
+                        # Bosqich 3, 10-band (2026-09-20) — yangi bog'lam.
+                        # `ProductType` production_models.py da, qo'riqchi
+                        # uni kech import orqali topadi (_check_refs).
+                        ("product_type_id", "ProductType")],
     # Sotuv/brak — qaysi mahsulot/ustaga
     "FinishedProductSale": [("finished_product_id", "FinishedProduct"),
                             ("master_id", "Master")],
@@ -2050,6 +2071,16 @@ def _check_refs(session, obj, own_cid):
         if not fk_value:
             continue
         ref_cls = globals().get(ref_name)
+        if ref_cls is None:
+            # QO'SHILDI 2026-09-20. Ba'zi modellar `production_models.py` da
+            # yashaydi va models.py ularni ATAYLAB import qilmaydi (aylanma
+            # import). Ular uchun kech (lazy) import — faqat haqiqatan
+            # kerak bo'lganda, funksiya ichida.
+            try:
+                import production_models as _pm
+                ref_cls = getattr(_pm, ref_name, None)
+            except Exception:
+                ref_cls = None
         if ref_cls is None:
             continue
         ref = session.get(ref_cls, fk_value)

@@ -6553,6 +6553,17 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     )
     if _ret_cid is not None:
         _rq = _rq.filter(FinishedProduct.company_id == _ret_cid)
+    # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). Birlashtirish sharti
+    # turkumni ham, mahsulot TURINI ham tekshirmasdi — nomi, o'lchami va
+    # narxi tasodifan bir xil bo'lgan IKKI XIL TURDAGI mahsulot bitta
+    # yozuvga qo'shilib ketishi mumkin edi. Eski yozuvlarda bu ustun
+    # NULL, shuning uchun `IS NULL` sharti eski xatti-harakatni
+    # AYNAN saqlaydi (SQL da `= NULL` hech qachon mos kelmaydi).
+    _ret_pt = getattr(order_item, "product_type_id", None)
+    if _ret_pt is None:
+        _rq = _rq.filter(FinishedProduct.product_type_id.is_(None))
+    else:
+        _rq = _rq.filter(FinishedProduct.product_type_id == _ret_pt)
     existing = _rq.first()
 
     if existing:
@@ -6584,6 +6595,10 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         from_order_id=order_id or order_item.order_id,
         return_reason=reason,
         penoplast_id=order_item.penoplast_id,
+        # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). MRP mahsuloti
+        # (`category='mrp_product'`) buyurtmadan qaytarilganda, turi
+        # yo'qolmasin. Eski turkumlarda bu maydon NULL — bu ATAYLAB.
+        product_type_id=getattr(order_item, "product_type_id", None),
         image_url=order_item.image_url,
         notes=notes
     )
@@ -6627,6 +6642,7 @@ def search_finished_products(db: Session, query: str, category: str = None, excl
                 "id": fp.id,
                 "name": fp.name,
                 "category": fp.category,
+                "product_type_id": fp.product_type_id,   # Bosqich 3, 10-band
                 "width": fp.width,
                 "thickness": fp.thickness,
                 "is_coated": fp.is_coated,
