@@ -167,8 +167,19 @@ function jsAttrEscape(str) {
   <aside class="sidebar">
     <div class="s-logo">
       <div style="display:flex;align-items:center;gap:10px">
-        <img src="/static/logo_round.jpg" alt="PenoDecorPro"
+        {# 2026-09-20: chap paneldagi logotip ham korxonanikidan olinadi.
+           Korxona o'z logotipini yuklamagan bo'lsa — umumiy belgi. #}
+        {% set _logo = company_logo_of(current_user.company_id) if current_user else None %}
+        {% if _logo %}
+        <img src="/{{ _logo }}" alt=""
              style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0">
+        {% else %}
+        <div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;background:var(--bg);
+                    display:flex;align-items:center;justify-content:center;font-weight:700;
+                    color:var(--text3);font-size:17px">
+          {{ (company_name_of(current_user.company_id) or 'P')[0]|upper if current_user else 'P' }}
+        </div>
+        {% endif %}
         <div>
           {# Faza 5: korxona nomi bazadan olinadi. Ilgari "PenoDecorPro ·
              Andijon" qattiq yozilgan edi — ikkinchi mijoz o'z ERP sida
