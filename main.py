@@ -3583,6 +3583,15 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
 @app.post("/api/orders/{order_id}/ready")
 def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
                           db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # ⚠ 2026-09-21, IDOR testi bilan topildi (tools/test_idor.py):
+    # M2 qo'riqchisi TUSHIB QOLGAN edi. Pastdagi `crud.get_order(...)`
+    # korxona bo'yicha cheklangan, LEKIN u faqat Telegram xabari uchun —
+    # zarar undan OLDIN, `services.complete_order` da yetkaziladi.
+    # O'lchangan: B korxona admini A ning buyurtmasini `in_progress` dan
+    # `ready` ga o'tkazdi va A da avtomatik yetkazish yozuvi yaratildi
+    # (xomashyo hisobi va usta KPI si ham shu zanjirda).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = services.complete_order(db, order_id, loy_kg)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -5595,6 +5604,17 @@ def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_us
 
 @app.post("/api/orders/{order_id}/pin")
 def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # ⚠ 2026-09-21, IDOR testi bilan topildi (tools/test_idor.py):
+    # bu yerda M2 qo'riqchisi TUSHIB QOLGAN edi. `crud.toggle_order_pin`
+    # buyurtmani faqat ID bo'yicha topadi, korxonani tekshirmaydi —
+    # natijada B korxona admini A korxonaning buyurtmasini qadab/yechib
+    # qo'ya olardi (HTTP da o'lchangan: 200 qaytdi va `is_pinned`
+    # HAQIQATAN o'zgardi). Bundan tashqari 200/404 farqi "bu ID boshqa
+    # korxonada bormi" degan savolga javob berardi.
+    # `TENANT_FILTER=1` buni yopadi, lekin u standart holatda O'CHIQ va
+    # o'chirilishi mumkin — shuning uchun teshik ILDIZIDAN yopiladi.
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = crud.toggle_order_pin(db, order_id)
     if not result.get("success"):
         raise HTTPException(status_code=404, detail=result.get("message", "Topilmadi"))
