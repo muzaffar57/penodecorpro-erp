@@ -1811,32 +1811,36 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         if not fpid:
             # QO'SHILDI 2026-09-20 — MRP ORQALI ishlab chiqarilgan mahsulot.
             #
-            # Muammo: MRP (Ishlab chiqarish moduli) tayyor mahsulotni
-            # buyurtma detaliga `FinishedProduct.reserved_for_order_item_id`
-            # orqali bog'laydi, `order_item.finished_product_id` orqali EMAS
-            # (chunki mahsulot buyurtmadan KEYIN ishlab chiqariladi, o'sha
-            # paytda esa detal allaqachon saqlangan bo'ladi).
-            # Natijada bu tsikl uni ko'rmasdi va ishlab chiqarishga ketgan
-            # butun xarajat buyurtma foydasidan TUSHIB QOLARDI — jonli
-            # sinovda 100 m² travertin buyurtmasi 8 144 736.86 so'm
-            # xarajat bilan 0 tan narx va 100% marja ko'rsatdi.
+            # Muammo: MRP tayyor mahsulotni buyurtma detaliga
+            # `order_item.finished_product_id` orqali BOG'LAMAYDI (mahsulot
+            # buyurtmadan keyin ishlab chiqariladi), shuning uchun quyidagi
+            # tsikl uni ko'rmasdi va butun ishlab chiqarish xarajati
+            # buyurtma foydasidan tushib qolardi — jonli sinovda 100 m²
+            # travertin 8 144 736.86 so'm xarajat bilan 0 tan narx va
+            # 100% marja ko'rsatdi.
             #
-            # Endi, detalda to'g'ridan-to'g'ri bog'lam bo'lmasa, SHU DETALGA
-            # band qilingan mahsulot(lar) qidiriladi.
-            _mq = db.query(_FP_cost).filter(
-                _FP_cost.reserved_for_order_item_id == item.id)
-            _ord_cid0 = getattr(order, 'company_id', None)
-            if _ord_cid0 is not None:
-                _mq = _mq.filter(_FP_cost.company_id == _ord_cid0)
-            for _fp_m in _mq.all():
-                _b = float(_fp_m.produced_quantity
-                           if _fp_m.produced_quantity is not None
-                           else (_fp_m.quantity or 0))
-                if _b <= 0 or not _fp_m.cost_price:
-                    continue
-                # Band qilingan miqdor — aynan shu detalga tegishli qism
-                _band = float(_fp_m.reserved_quantity or 0) or _b
-                tayyor_mahsulot_xarajat += (float(_fp_m.cost_price) / _b) * _band
+            # Manba sifatida ISHLAB CHIQARISH BUYURTMASI olinadi
+            # (`production_orders.total_cost`), tayyor mahsulot emas.
+            # Sabab: tayyor mahsulotning `cost_price` va `reserved_quantity`
+            # qiymatlari mijozga topshirilgan sari KAMAYADI, ishlab
+            # chiqarishga ketgan xarajat esa O'ZGARMAYDI. Buyurtmaning tan
+            # narxi ham o'zgarmasligi kerak.
+            #
+            # Faqat YAKUNLANGAN ishlab chiqarish olinadi — bekor qilingani
+            # yoki hali tugallanmagani xarajat hisoblanmaydi.
+            try:
+                from production_models import ProductionOrder as _PO_cost
+                _pq = db.query(_PO_cost).filter(
+                    _PO_cost.source_order_item_id == item.id,
+                    _PO_cost.status == "completed",
+                )
+                _ord_cid0 = getattr(order, 'company_id', None)
+                if _ord_cid0 is not None:
+                    _pq = _pq.filter(_PO_cost.company_id == _ord_cid0)
+                for _po_c in _pq.all():
+                    tayyor_mahsulot_xarajat += float(_po_c.total_cost or 0)
+            except Exception:
+                pass
             continue
         # M4 (2026-09-18) — TENANT: mahsulot buyurtmaning O'Z korxonasidan
         # bo'lishi shart. Chaqiruvchi allaqachon tenant-safe bo'lsa ham,

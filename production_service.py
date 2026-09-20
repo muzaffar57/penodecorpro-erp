@@ -596,6 +596,16 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
             ).first()
             if fp:
                 fp.cost_price = total_cost
+                # QO'SHILDI 2026-09-20 — BARQAROR 1 birlik tan narxi.
+                # `cost_price` mijozga topshirilgan sari kamayadi,
+                # `produced_quantity` esa o'zgarmaydi — shuning uchun
+                # ikkalasining nisbati vaqt o'tishi bilan siljiydi.
+                # Bu yerda bir marta yozilgan qiymat esa o'zgarmaydi va
+                # ombordan olish/qaytarish simmetrik bo'lishini
+                # ta'minlaydi (`crud._fp_stable_unit_cost` shuni oladi).
+                _q_produced = float(po.quantity or 0)
+                if _q_produced > 0:
+                    fp.unit_cost_stable = float(total_cost) / _q_produced
                 fp.production_status = FPStatus.READY
                 fp.finished_production_at = datetime.utcnow()
 

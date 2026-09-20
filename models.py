@@ -1514,6 +1514,15 @@ class FinishedProduct(Base):
     # ATAYLAB NULL bo'lib qoladi — 11-band ularni ko'chirganda to'ldiriladi.
     # `OrderItem.product_type_id` bilan bir xil naqsh (models.py:734).
     product_type_id = Column(Integer, ForeignKey("product_types.id"), nullable=True, index=True)
+    # QO'SHILDI 2026-09-20 — BARQAROR "1 birlik tan narxi".
+    # `_fp_stable_unit_cost()` mavjud mahsulotlar uchun buni
+    # `unit_volume_m3`/`unit_loy_kg` dan hisoblaydi. MRP (Ishlab chiqarish
+    # moduli) esa u maydonlarni UMUMAN to'ldirmaydi — retsept ixtiyoriy
+    # materiallardan iborat bo'lishi mumkin. Shuning uchun MRP ishlab
+    # chiqarish yakunlanganda 1 birlik tan narxini SHU YERGA yozib qo'yadi.
+    # U keyin HECH QACHON o'zgarmaydi — shu tufayli ombordan olish va
+    # qaytarish simmetrik bo'ladi (qisman topshirishda ham).
+    unit_cost_stable = Column(Numeric(14, 4), nullable=True)
     # MUHIM: `lazy="joined"` QO'YILMAYDI — `FinishedProduct` boshqa joyda
     # `.with_for_update()` bilan qulflanadi va LEFT OUTER JOIN Postgres'da
     # "FOR UPDATE cannot be applied to the nullable side of an outer join"

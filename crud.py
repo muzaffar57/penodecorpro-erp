@@ -1477,6 +1477,14 @@ def _fp_stable_unit_cost(db, fp) -> float:
     hisoblanishi mumkin edi. Material boshqa korxonaniki bo'lsa, endi
     u umuman topilmaydi va tannarxga QO'SHILMAYDI (noto'g'ri raqam
     berishdan ko'ra, qo'shmaslik xavfsizroq)."""
+    # QO'SHILDI 2026-09-20 — MRP mahsuloti uchun barqaror narx ALOHIDA
+    # saqlanadi (`unit_cost_stable`), chunki MRP `unit_volume_m3` /
+    # `unit_loy_kg` maydonlarini to'ldirmaydi va pastdagi hisob u uchun
+    # 0 qaytarardi. Bo'lsa — ENG USTUN manba.
+    _ucs = getattr(fp, 'unit_cost_stable', None)
+    if _ucs:
+        return float(_ucs)
+
     import services as _svc
     from models import Inventory
     _fp_cid = getattr(fp, 'company_id', None)
@@ -4472,6 +4480,66 @@ from models import Delivery, DeliveryItem
 from schemas import DeliveryCreate
 
 
+def _mrp_deliver_stock(db: Session, order_item, qty: float,
+                       company_id: int = None, sign: float = 1.0) -> list:
+    """MRP orqali SHU DETALGA band qilingan tayyor mahsulotni yuk xati
+    bo'yicha ombordan chiqaradi (sign=1) yoki qaytaradi (sign=-1).
+
+    NIMA UCHUN KERAK (2026-09-20):
+    Oddiy "tayyor mahsulotdan" detallarda ombor buyurtma YARATILGANDA
+    olinadi (`_take_finished_for_order`). MRP esa mahsulotni buyurtmadan
+    KEYIN ishlab chiqaradi — o'sha payt allaqachon o'tib ketgan bo'ladi.
+    Natijada mahsulot mijozga ketgandan keyin ham omborda "band" holatda
+    abadiy turib qolardi.
+
+    Endi u YUK XATI yozilganda chiqadi — foydalanuvchi tanlagan tartib:
+    ishlab chiqarilgach omborda ko'rinib turadi, topshirilganda chiqadi.
+
+    Tan narx BARQAROR `unit_cost_stable` dan kamaytiriladi, shuning uchun
+    chiqarish va qaytarish aynan teng bo'ladi.
+    """
+    if not order_item or qty <= 0:
+        return []
+    cid = company_id if company_id is not None else getattr(order_item, 'company_id', None)
+    q = db.query(FinishedProduct).filter(
+        FinishedProduct.reserved_for_order_item_id == order_item.id)
+    if cid is not None:
+        q = q.filter(FinishedProduct.company_id == cid)
+    log = []
+    qoldi = float(qty)
+    for fp in q.with_for_update().all():
+        if qoldi <= 1e-9:
+            break
+        unit_cost = _fp_stable_unit_cost(db, fp)
+        if sign > 0:
+            olinadi = min(qoldi, float(fp.quantity or 0))
+            if olinadi <= 1e-9:
+                continue
+            fp.quantity = float(fp.quantity or 0) - olinadi
+            fp.reserved_quantity = max(0.0, float(fp.reserved_quantity or 0) - olinadi)
+            if unit_cost > 0:
+                fp.cost_price = max(0.0, float(fp.cost_price or 0) - unit_cost * olinadi)
+            log.append(f"🏭 {fp.name}: -{olinadi:g} {fp.unit} (yuk xati bo'yicha)")
+            qoldi -= olinadi
+            # MUHIM: `reserved_for_order_item_id` TOZALANMAYDI, garchi
+            # `reserved_quantity` 0 ga tushsa ham. Bu — mahsulot qaysi
+            # detal uchun qilinganini ko'rsatuvchi TARIXIY bog'lam.
+            # Tozalansa, yuk xati keyin o'chirilganda mahsulotni topib
+            # bo'lmay qolardi va qaytarish ishlamasdi (sinovda aynan
+            # shunday chiqdi). Bandlik miqdori 0 — bu yetarli belgi.
+        else:
+            fp.quantity = float(fp.quantity or 0) + qoldi
+            fp.reserved_quantity = float(fp.reserved_quantity or 0) + qoldi
+            if unit_cost > 0:
+                fp.cost_price = float(fp.cost_price or 0) + unit_cost * qoldi
+            log.append(f"🏭 {fp.name}: +{qoldi:g} {fp.unit} (yuk xati bekor qilindi)")
+            qoldi = 0.0
+            break
+    if log:
+        db.flush()
+    return log
+
+
 def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
                     company_id: int = None) -> dict:
     """Yangi yetkazish qo'shadi.
@@ -4543,6 +4611,7 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     db.add(db_delivery)
     db.flush()
 
+    mrp_log = []
     for oi, qty in valid_items:
         db.add(DeliveryItem(
             delivery_id=db_delivery.id,
@@ -4550,6 +4619,9 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
             quantity=qty,
             unit=oi.delivery_unit
         ))
+        # 2026-09-20: MRP orqali shu detalga band qilingan tayyor mahsulot
+        # aynan SHU YERDA ombordan chiqadi (yuqoridagi izohga qarang).
+        mrp_log.extend(_mrp_deliver_stock(db, oi, qty, company_id=company_id))
 
     db.flush()
     db.refresh(order)
@@ -4620,6 +4692,8 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     }
     if payment_warning:
         result["payment_warning"] = payment_warning
+    if mrp_log:
+        result["inventory_log"] = mrp_log   # 2026-09-20: MRP mahsuloti chiqdi
     return result
 
 
@@ -4705,6 +4779,15 @@ def delete_delivery(db: Session, delivery_id: int) -> bool:
     if not d:
         return False
     order = d.order
+    # 2026-09-20: yuk xati bo'yicha ombordan chiqqan MRP mahsuloti
+    # QAYTADI — chiqarish bilan AYNAN simmetrik (barqaror 1 birlik tan
+    # narxi ishlatilgani uchun summa ham aynan tiklanadi).
+    _cid = getattr(order, 'company_id', None) if order else None
+    for di in list(d.items or []):
+        _oi = db.query(OrderItem).filter(OrderItem.id == di.order_item_id).first()
+        if _oi:
+            _mrp_deliver_stock(db, _oi, float(di.quantity or 0),
+                               company_id=_cid, sign=-1.0)
     db.delete(d)
     db.flush()
 
