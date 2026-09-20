@@ -95,7 +95,6 @@
       <option value="Penoplast">🧊 Penoplast</option>
       <option value="Kimyoviy qo'shimchalar">🧪 Kimyoviy qo'shimchalar</option>
       <option value="Qattiq qotishmalar">⛱️ Minerallar</option>
-{% if cat_on('gips', current_user.company_id) %}      <option value="Gips">🪨 Gips</option>{% endif %}
     </select>
     <select id="statusFilter" onchange="filterMaterials()">
       <option value="">Barcha holat</option>
@@ -162,7 +161,7 @@
             {% endif %}
           {% endif %}
         </div>
-        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% elif 'gips' in item.item_name|lower %} · {{ item.volume_per_unit or 50.0 }} kg/qop{% endif %}</div>
+        <div class="mat-sub">{{ item.unit }}{% if item.is_penoplast %} · {{ item.volume_per_unit }} m³/blok{% endif %}</div>
         <span class="cat-badge {{ cat_css }}" onclick="editCategory(this)" data-id="{{ item.id }}" data-category="{{ item.category or '' }}" style="cursor:pointer" title="O'zgartirish">{{ cat_label }}</span>
         </div>
       </div>
@@ -470,29 +469,6 @@ document.getElementById('cp-input')?.addEventListener('keydown', e => {
 
 
 
-async function editGipsSackWeight(id, currentVolume) {
-  const newVolume = await customPrompt('1 QOP Gips necha kg?', `Hozirgi: ${currentVolume}`, currentVolume);
-  if (newVolume === null || isNaN(parseFloat(newVolume)) || parseFloat(newVolume) <= 0) return;
-
-  const key = 'gipssack-' + id;
-  if (inFlightInvActions.has(key)) return;
-  inFlightInvActions.add(key);
-  try {
-    const res = await fetch(`/api/inventory/${id}`, {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        volume_per_unit: parseFloat(newVolume)
-      })
-    });
-    if (res.ok) {
-      invToast('✓ Yangilandi! "Qop" asosida to\'lanadigan hodimlar uchun shu qiymat ishlatiladi.');
-      location.reload();
-    } else invToast('Xato yuz berdi');
-  } finally {
-    inFlightInvActions.delete(key);
-  }
-}
 
 
 async function editPrice(id, currentPrice) {
@@ -543,7 +519,7 @@ async function editCategory(el) {
   const current = el.dataset.category || 'Boshqa';
   const val = await customPrompt(
     "Kategoriya",
-    "masalan: Penoplast, Kimyoviy qo'shimchalar, Qattiq qotishmalar, Gips, Boshqa",
+    "masalan: Penoplast, Kimyoviy qo'shimchalar, Qattiq qotishmalar, Boshqa",
     current
   );
   if (val === null || !val.trim()) return;

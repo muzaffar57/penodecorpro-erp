@@ -273,12 +273,6 @@
       <div style="font-size:12px;color:#aaa;margin-top:6px">Bu — sarflangan xomashyoni to'g'ri hisoblash uchun kerak: agar loy tortilmasdan brak bo'lgan bo'lsa, faqat Penoplast hisobga olinadi.</div>
     </div>
 
-    <div class="form-group" id="gips-brak-wrap" style="display:none">
-      <label>Bu brak uchun taxminan qancha Gips ketgan edi? (kg)</label>
-      <input type="number" id="f-gips-kg-used" placeholder="0" min="0" step="0.1">
-      <div style="font-size:12px;color:#aaa;margin-top:6px">Aniq formula yo'q — o'zingiz taxminiy bilgan miqdorni kiriting. Bu — Moliyada "Brak — Gips" sifatida hisoblanadi.</div>
-    </div>
-
     {% if current_user.role.value == 'admin' %}
     <div class="form-group">
       <label>Qiymati (avtomatik, o'zgartirish mumkin)</label>
@@ -661,10 +655,6 @@ function updateReasonHint(){
   if (coatWrap) {
     coatWrap.style.display = (reason === 'Brak' && item && item.is_coated) ? 'block' : 'none';
   }
-  const gipsBrakWrap = document.getElementById('gips-brak-wrap');
-  if (gipsBrakWrap) {
-    gipsBrakWrap.style.display = (reason === 'Brak' && item && (item.category || '').toLowerCase() === 'gips') ? 'block' : 'none';
-  }
 }
 
 function calcValue(){
@@ -749,8 +739,7 @@ async function saveReturn(){
         refund_amount: parseFloat(document.getElementById('f-value').value) || 0,
         to_stock: true,
         notes: document.getElementById('f-notes').value || null,
-        coating_applied: document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes',
-        gips_kg_used: parseFloat(document.getElementById('f-gips-kg-used')?.value) || null
+        coating_applied: document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes'
       })
     });
 
