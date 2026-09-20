@@ -3334,14 +3334,13 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
                       confirm_shortage: bool = False,
                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     check = services.check_inventory_for_order(db, order)
-    tcheck = services.check_termopanel_for_order(db, order)
     # M4: tayyor mahsulot yetarliligi FAQAT joriy korxona ombori bo'yicha.
     fcheck = crud.check_finished_for_order(db, order.items,
                                            company_id=auth.company_id_of(current_user))
     lcheck = services.check_loy_ingredients_for_order(db, order.recipe_id, loy_kg or 0)
     gcheck = services.check_gips_for_order(db, order)
 
-    all_shortages = (list(check.get("shortages", [])) + list(tcheck.get("shortages", []))
+    all_shortages = (list(check.get("shortages", []))
                       + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", []))
                       + list(gcheck.get("shortages", [])))
     if all_shortages and not confirm_shortage:
@@ -3354,7 +3353,6 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     is_draft = getattr(order, 'is_draft', False)
     if not is_draft:
         services.deduct_inventory_for_order(db, new_order)
-        services.deduct_termopanel_for_order(db, new_order, order)
     low_items = crud.get_low_stock_items(db) if not is_draft else []
     if low_items:
         lines = []
@@ -3527,20 +3525,6 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
         _send_telegram(msg)
 
     return result
-
-
-@app.post("/api/orders/{order_id}/termopanel-loy")
-def api_complete_termopanel_loy(order_id: int, actual_loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Termopanel buyurtmasi yakunlanganda — reja/haqiqiy loy farqini to'g'irlaydi."""
-    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
-    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
-        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    result = crud.complete_termopanel_loy(db, order_id, actual_loy_kg)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
-    return result
-
-
 @app.put("/api/orders/{order_id}/loy")
 def api_update_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Loy rejasini o'zgartirish."""
@@ -3748,7 +3732,6 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
         else:
             # Hech narsa topshirilmagan — hammasi qaytadi
             log.extend(services.return_inventory_for_order(db, order))
-            log.extend(services.return_termopanel_for_order(db, order))
 
         # Tayyor mahsulotlar qaytadi — hech narsa topshirilmagan bo'lsa TO'LIQ,
         # QISMAN topshirilgan bo'lsa faqat QOLGAN (topshirilmagan) qismi
@@ -3763,7 +3746,7 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
         #   - QISMAN topshirilgan bo'lsa — buyurtmaning yetkazilgan foiziga qarab,
         #     QOLGAN (topshirilmagan) qism uchun mo'ljallangan loy proporsional qaytadi
         #     (aniq "qancha ishlatilgani" ma'lum bo'lmagani uchun taxminiy hisob).
-        planned_loy = services._get_planned_loy(order) + crud.get_termopanel_planned_loy(order)
+        planned_loy = services._get_planned_loy(order)
 
         if actual_loy_kg is not None:
             diff = planned_loy - float(actual_loy_kg)
@@ -5589,33 +5572,6 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
         _send_telegram(msg)
 
     return result
-
-
-@app.post("/api/finished/produce-termopanel")
-def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
-    """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
-    who = current_user.full_name or current_user.username
-    result = crud.produce_termopanel(db, data, created_by=who,
-                                     company_id=auth.company_id_of(current_user))
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
-
-    low_items = crud.get_low_stock_items(db)
-    if low_items:
-        lines = []
-        for item in low_items:
-            qty = float(item.stock_quantity)
-            min_q = float(item.min_stock)
-            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
-        msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTermopanel ishlab chiqarilgandan keyin:\n\n"
-               + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
-               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
-        _send_telegram(msg)
-
-    return result
-
-
 @app.post("/api/finished/{fp_id}/complete")
 def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
@@ -6095,13 +6051,11 @@ def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db)
 
 @app.get("/api/orders/{order_id}/planned-loy")
 def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Buyurtmada rejalashtirilgan loy miqdori — oddiy detallar + termopanel (bazalt) birga."""
+    """Buyurtmada rejalashtirilgan loy miqdori (qoplama uchun)."""
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    order_planned = services._get_planned_loy(order)
-    termo_planned = crud.get_termopanel_planned_loy(order)
-    return {"planned_loy": order_planned + termo_planned}
+    return {"planned_loy": services._get_planned_loy(order)}
 
 
 @app.get("/api/dashboard/deliveries")
