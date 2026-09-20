@@ -1423,10 +1423,26 @@ IXTIYORIY_KATEGORIYALAR = [
 _ASOSIY_KATEGORIYALAR = ["profil", "panel", "dona", "blok"]
 
 
+_kategoriya_cache = {}
+
+
+def _clear_category_cache(company_id=None):
+    if company_id is None:
+        _kategoriya_cache.clear()
+    else:
+        _kategoriya_cache.pop(company_id, None)
+
+
 def enabled_categories_of(company_id):
-    """Korxonada yoqilgan ixtiyoriy kategoriyalar to'plami."""
+    """Korxonada yoqilgan ixtiyoriy kategoriyalar to'plami.
+
+    Bitta sahifa renderida bu funksiya 10+ marta chaqiriladi, shuning
+    uchun natija keshda saqlanadi; sozlama o'zgarganda kesh tozalanadi.
+    """
     if company_id is None:
         return {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+    if company_id in _kategoriya_cache:
+        return _kategoriya_cache[company_id]
     try:
         from database import SessionLocal as _SL
         _d = _SL()
@@ -1438,8 +1454,11 @@ def enabled_categories_of(company_id):
         xom = None
     if xom is None:
         # Hech qachon sozlanmagan — hammasi yoqiq (eski xatti-harakat)
-        return {k for k, _ in IXTIYORIY_KATEGORIYALAR}
-    return {x.strip() for x in xom.split(",") if x.strip()}
+        natija = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+    else:
+        natija = {x.strip() for x in xom.split(",") if x.strip()}
+    _kategoriya_cache[company_id] = natija
+    return natija
 
 
 def cat_on(code, company_id=None):
@@ -4606,6 +4625,7 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
     # o'zi ishlab chiqarmaydigan turlarni ko'rib chalkashardi.
     try:
         crud.set_setting(db, "enabled_categories", "", company_id=korxona.id)
+        _clear_category_cache(korxona.id)
     except Exception:
         pass
 
@@ -4759,8 +4779,9 @@ def api_set_categories(codes: str = Form(""), db: Session = Depends(get_db),
     har doim yoqiq va bu yerdan o'chirilmaydi."""
     ruxsat = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
     tanlangan = [x.strip() for x in (codes or "").split(",") if x.strip() in ruxsat]
-    crud.set_setting(db, "enabled_categories", ",".join(tanlangan),
-                     company_id=auth.company_id_of(current_user))
+    _cid = auth.company_id_of(current_user)
+    crud.set_setting(db, "enabled_categories", ",".join(tanlangan), company_id=_cid)
+    _clear_category_cache(_cid)
     return {"status": "ok", "enabled": tanlangan}
 
 
