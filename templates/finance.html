@@ -480,7 +480,7 @@
       <select id="tx-f-prodtype">
         <option value="">Umumiy</option>
         <option value="penoplast">🏭 Penoplast</option>
-{% if cat_on('gips') %}        <option value="gips">🧱 Gips</option>{% endif %}
+{% if cat_on('gips', current_user.company_id) %}        <option value="gips">🧱 Gips</option>{% endif %}
       </select>
     </div>
     <div class="form-group"><label>Izoh</label><input type="text" id="tx-f-notes" placeholder="..."></div>

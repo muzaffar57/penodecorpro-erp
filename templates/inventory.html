@@ -95,8 +95,8 @@
       <option value="Penoplast">🧊 Penoplast</option>
       <option value="Kimyoviy qo'shimchalar">🧪 Kimyoviy qo'shimchalar</option>
       <option value="Qattiq qotishmalar">⛱️ Minerallar</option>
-{% if cat_on('gips') %}      <option value="Gips">🪨 Gips</option>{% endif %}
-{% if cat_on('termopanel') %}      <option value="Bazalt">🗻 Bazalt</option>{% endif %}
+{% if cat_on('gips', current_user.company_id) %}      <option value="Gips">🪨 Gips</option>{% endif %}
+{% if cat_on('termopanel', current_user.company_id) %}      <option value="Bazalt">🗻 Bazalt</option>{% endif %}
     </select>
     <select id="statusFilter" onchange="filterMaterials()">
       <option value="">Barcha holat</option>
