@@ -113,6 +113,11 @@ def generate_nakladnoy(order, db=None) -> bytes:
     # qo'yilardi va yangi mijozning nakladnoyida begona logotip chiqardi
     # (jonli sinovda aniqlandi). Logotip bo'lmasa — pastdagi `else`
     # tarmog'i korxona NOMINI yozadi.
+    # 2026-09-20: nakladnoyda TELEFON ham chiqadi — u mijozga
+    # beriladigan hujjat va savol chiqsa qaerga murojaat qilishni
+    # bilishi kerak. Manzil va telefon bitta qatorda, joy tejash uchun.
+    _kontakt = "  ·  ".join([x for x in (_brand["address"], _brand["phone"]) if x])
+
     logo_path = _brand["logo"]
 
     if logo_path and os.path.exists(logo_path):
@@ -124,14 +129,18 @@ def generate_nakladnoy(order, db=None) -> bytes:
         header_left = [
             logo_img,
             Paragraph(_brand["slogan"], st["company_sub"]),
-            Paragraph(_brand["address"], st["company_sub"]),
+            Paragraph(_kontakt, st["company_sub"]),
         ]
     else:
         header_left = [
             Paragraph(_brand["name"], st["company"]),
             Paragraph(_brand["slogan"], st["company_sub"]),
-            Paragraph(_brand["address"], st["company_sub"]),
+            Paragraph(_kontakt, st["company_sub"]),
         ]
+    # Bo'sh qatorlarni olib tashlaymiz (maydon to'ldirilmagan bo'lsa,
+    # hujjatda bo'sh joy qolib ketmasin).
+    header_left = [x for x in header_left
+                   if not (hasattr(x, "text") and not str(x.text).strip())]
 
     header_data = [[
         header_left,
