@@ -53,7 +53,29 @@ elif DATABASE_URL.startswith("postgresql://"):
 if "sqlite" in DATABASE_URL:
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    engine = create_engine(DATABASE_URL)
+    # 2026-09-20 — ULANISH HOVUZI SOZLAMASI (jonli xatolikdan keyin qo'shildi).
+    #
+    # MUAMMO: Railway'dagi PostgreSQL bir muddat ishlatilmagan ulanishlarni
+    # o'zi yopadi. SQLAlchemy esa ulanishlarni hovuzda saqlaydi va keyingi
+    # so'rovda ALLAQACHON O'LIK ulanishni uzatardi. Natijada so'rov
+    # "pg8000.exceptions.InterfaceError: network error" bilan yiqilardi —
+    # foydalanuvchi uchun bu tasodifiy 500 xatosi bo'lib ko'rinardi
+    # (ko'pincha uzoq tanaffusdan keyingi BIRINCHI so'rovda, masalan
+    # ertalabki loginda; sahifani yangilasa ishlab ketardi).
+    #
+    # YECHIM:
+    #   pool_pre_ping — har ulanishdan OLDIN "tirikmisan?" deb tekshiradi;
+    #                   o'lik bo'lsa jimgina yangisini oladi.
+    #   pool_recycle  — 280 soniyadan eski ulanish majburan yangilanadi
+    #                   (Railway va oldidagi proksilar odatda ~5 daqiqada uzadi).
+    #   pool_size / max_overflow — bir vaqtda ochiladigan ulanishlar chegarasi.
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=280,
+        pool_size=5,
+        max_overflow=10,
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
