@@ -18,7 +18,7 @@ import schemas
 import crud
 import services
 import auth
-from models import UserRole, Inventory, OrderStatus, OrderGipsAdditive
+from models import UserRole, Inventory, OrderStatus
 
 # 2026-09-16: Dinamik Ishlab chiqarish (Production/MRP) moduli — ATAYLAB
 # alohida fayllarda (production_models.py, production_routes.py va h.k.),
@@ -457,15 +457,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE order_items ADD COLUMN finished_product_id INTEGER")
         if 'unit_price_for_volume' not in oi_cols:
             migrations.append("ALTER TABLE order_items ADD COLUMN unit_price_for_volume NUMERIC(12,2)")
-        if 'gips_unit' not in oi_cols:
-            migrations.append("ALTER TABLE order_items ADD COLUMN gips_unit VARCHAR(10)")
 
-        # GIPS — Order, Employee, ReturnItem yangi ustunlari
         ord_cols = [c['name'] for c in inspector.get_columns('orders')]
-        if 'planned_gips_kg' not in ord_cols:
-            migrations.append("ALTER TABLE orders ADD COLUMN planned_gips_kg FLOAT")
-        if 'actual_gips_kg' not in ord_cols:
-            migrations.append("ALTER TABLE orders ADD COLUMN actual_gips_kg FLOAT")
         if 'actual_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN actual_loy_kg FLOAT")
         if 'base_price' not in ord_cols:
@@ -480,18 +473,12 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_product_sales ADD COLUMN original_total NUMERIC(12,2)")
         if 'group_discount_percent' not in fps_cols:
             migrations.append("ALTER TABLE finished_product_sales ADD COLUMN group_discount_percent FLOAT")
-        if 'gips_inventory_id' not in ord_cols:
-            migrations.append("ALTER TABLE orders ADD COLUMN gips_inventory_id INTEGER")
 
         emp_cols = [c['name'] for c in inspector.get_columns('employees')]
         if 'gul_rate' not in emp_cols:
             migrations.append("ALTER TABLE employees ADD COLUMN gul_rate NUMERIC(12,2)")
         if 'extra_monthly' not in emp_cols:
             migrations.append("ALTER TABLE employees ADD COLUMN extra_monthly NUMERIC(12,2)")
-
-        ret_cols = [c['name'] for c in inspector.get_columns('return_items')]
-        if 'gips_kg_used' not in ret_cols:
-            migrations.append("ALTER TABLE return_items ADD COLUMN gips_kg_used FLOAT")
 
         et_cols = [c['name'] for c in inspector.get_columns('expense_transactions')]
         if 'production_type' not in et_cols:
@@ -502,10 +489,6 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE transport_expenses ADD COLUMN production_type VARCHAR(20)")
 
         fp_cols = [c['name'] for c in inspector.get_columns('finished_products')]
-        if 'gips_kg_used' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN gips_kg_used FLOAT")
-        if 'gips_inventory_id' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN gips_inventory_id INTEGER")
         if 'produced_quantity' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN produced_quantity FLOAT")
         if 'price_per_m3' not in fp_cols:
@@ -1297,8 +1280,8 @@ def _migrate_fp_product_type():
       C) TO'LDIRADI — faqat `production_orders` orqali, ya'ni ANIQ bog'lam
          bo'yicha. Taxmin (nom bo'yicha moslashtirish va h.k.) QILINMAYDI.
 
-    Eski, qattiq kodlangan turkumlar (profil/panel/dona/blok/gips/
-    termopanel) uchun hali `ProductType` yozuvi yo'q — ular NULL bo'lib
+    Eski, qattiq kodlangan turkumlar (profil/panel/dona/blok) uchun
+    hali `ProductType` yozuvi yo'q — ular NULL bo'lib
     qoladi. Bu ATAYLAB: ularni 11-band ko'chiradi.
     """
     from sqlalchemy import text   # main.py da modul darajasida import YO'Q
@@ -1615,8 +1598,8 @@ templates.env.globals["company_name_of"] = company_name_of
 # ============================================================
 # Ixtiyoriy mahsulot kategoriyalari (Faza 5)
 # ============================================================
-# Dasturda "Termopanel (Bazalt)", "Gips" va "Loy sotish" —
-# PenoDecorPro ning o'ziga xos yo'nalishlari. Boshqa korxona ularni
+# Dasturda "Loy sotish" va "Blok" — PenoDecorPro ning o'ziga xos
+# yo'nalishlari. Boshqa korxona ularni
 # ishlab chiqarmasligi mumkin, lekin interfeysda ular baribir
 # ko'rinardi va yangi mijozni chalkashtirardi.
 #
@@ -1624,12 +1607,10 @@ templates.env.globals["company_name_of"] = company_name_of
 # HAMMASI ko'rinadi, ya'ni mavjud korxonada hech narsa o'zgarmaydi.
 # Yangi korxona yaratilganda esa faqat asosiy turlar yoqiladi.
 IXTIYORIY_KATEGORIYALAR = [
-    # 11.1-band (2026-09-20): `gips` ESKIRGAN deb belgilandi — u ham
-    # MRP dan (o'z retsepti bilan) yaratiladi: asosiy gips +
-    # qo'shimchalar = retsept qatorlari.
     # 11.2a (2026-09-20): `termopanel` BUTUNLAY olib tashlandi — kodi
     # ham, interfeysi ham qolmadi, shuning uchun ro'yxatda ham yo'q.
-    ("gips", "🧱 Gips (eskirgan — MRP dan foydalaning)"),
+    # 11.2b (2026-09-20): `gips` ham xuddi shunday BUTUNLAY olib
+    # tashlandi — kerak bo'lsa MRP dan o'z retsepti bilan yaratiladi.
     ("loy_sotish", "🪣 Loy sotish"),
     # Bosqich 3, 11.1-band (2026-09-20) — `blok` ESKIRGAN turkumga o'tdi.
     # Endi uning o'rniga MRP dan o'z mahsulot turingizni yaratasiz:
@@ -1645,7 +1626,7 @@ _ASOSIY_KATEGORIYALAR = ["profil", "panel", "dona"]
 # MUSTASNO — ular faqat ATAYLAB yoqilganda ko'rinadi. Aks holda `blok`
 # ni ixtiyoriy qilishning ma'nosi qolmasdi: u baribir hammaga
 # ko'rinaverardi.
-_ESKIRGAN_KATEGORIYALAR = {"blok", "gips"}
+_ESKIRGAN_KATEGORIYALAR = {"blok"}
 
 
 _kategoriya_cache = {}
@@ -3338,11 +3319,9 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     fcheck = crud.check_finished_for_order(db, order.items,
                                            company_id=auth.company_id_of(current_user))
     lcheck = services.check_loy_ingredients_for_order(db, order.recipe_id, loy_kg or 0)
-    gcheck = services.check_gips_for_order(db, order)
 
     all_shortages = (list(check.get("shortages", []))
-                      + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", []))
-                      + list(gcheck.get("shortages", [])))
+                      + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", [])))
     if all_shortages and not confirm_shortage:
         raise HTTPException(status_code=409, detail={
             "type": "stock_shortage_warning",
@@ -3430,7 +3409,6 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "penoplast_name": i.penoplast.item_name if i.penoplast else None,
             "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
             "notes": i.notes,
-            "gips_unit": getattr(i, 'gips_unit', None),
             "recipe_id": i.recipe_id,
             "finished_product_id": i.finished_product_id,
             "product_type_id": getattr(i, 'product_type_id', None),
@@ -3469,16 +3447,7 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "paid_at": p.paid_at.isoformat() if p.paid_at else None,
             "received_by": p.received_by,
             "notes": p.notes
-        } for p in order.payments],
-        "planned_gips_kg": order.planned_gips_kg,
-        "actual_gips_kg": order.actual_gips_kg,
-        "gips_inventory_id": order.gips_inventory_id,
-        "gips_additives": [{
-            "id": a.id,
-            "inventory_id": a.inventory_id,
-            "planned_qty": float(a.planned_qty or 0),
-            "actual_qty": float(a.actual_qty) if a.actual_qty is not None else None
-        } for a in order.gips_additives]
+        } for p in order.payments]
     }
 
 
@@ -3608,13 +3577,9 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
 
 
 @app.post("/api/orders/{order_id}/ready")
-def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg: Optional[float] = None,
-                          gisht_dona: Optional[float] = None,
-                          gips_additives_actual: Optional[List[schemas.GipsAdditiveActual]] = Body(default=None),
+def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
                           db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    additives_list = [a.dict() for a in gips_additives_actual] if gips_additives_actual else None
-    result = services.complete_order(db, order_id, loy_kg, gips_kg=gips_kg,
-                                      gips_additives_actual=additives_list, gisht_dona=gisht_dona)
+    result = services.complete_order(db, order_id, loy_kg)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
@@ -3705,7 +3670,7 @@ def api_mark_all_ready(loy_kg: Optional[float] = None, db: Session = Depends(get
 
 
 @app.delete("/api/orders/{order_id}")
-def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actual_gips_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani o'chirish — xomashyo omborga qaytariladi.
     actual_loy_kg — agar berilsa, rejalashtirilgan loy bilan solishtirilib,
     ortgan qismi omborga qaytariladi (xuddi buyurtma yakunlanganidagi kabi)."""
@@ -3784,41 +3749,6 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
                 if remaining > 0.001:
                     log.extend(services.return_loy_ingredients(db, order, float(remaining), recipe_id=item.recipe_id))
 
-        # GIPS — xuddi Loy kabi: reja/haqiqiy solishtirib qaytariladi.
-        # actual_gips_kg berilgan bo'lsa — ortgan qismi aniq qaytadi. Berilmagan bo'lsa:
-        #   - hech narsa topshirilmagan bo'lsa — to'liq reja qaytadi;
-        #   - QISMAN topshirilgan bo'lsa — yetkazilgan foizga qarab, QOLGAN qism
-        #     uchun mo'ljallangan gips proporsional qaytadi.
-        planned_gips = float(order.planned_gips_kg or 0)
-        # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
-        # delivery_percent EMAS — faqat 'gips' kategoriyali detallar
-        # bo'yicha hisoblangan ulush (qarang: services.gips_relevant_
-        # remaining_fraction izohi — aynan Loy'dagi bilan bir xil sabab).
-        gips_remaining_fraction = services.gips_relevant_remaining_fraction(order) if has_delivery else 1.0
-        if planned_gips > 0 and order.gips_inventory_id:
-            if actual_gips_kg is not None:
-                diff = planned_gips - float(actual_gips_kg)
-                if abs(diff) > 0.01:
-                    r = services.deduct_gips_main(db, order.gips_inventory_id, -diff, order, reason=f"Buyurtma o'chirildi ({order_num})")
-                    if r:
-                        log.append(r)
-            else:
-                proportional_gips = planned_gips * gips_remaining_fraction
-                if proportional_gips > 0.01:
-                    r = services.deduct_gips_main(db, order.gips_inventory_id, -proportional_gips, order, reason=f"Buyurtma o'chirildi ({order_num})")
-                    if r:
-                        log.append(r)
-
-        # Gips qo'shimchalari — xuddi asosiy gips kabi: hech narsa topshirilmagan
-        # bo'lsa to'liq reja, QISMAN topshirilgan bo'lsa QOLGAN qism proporsional qaytadi.
-        if actual_gips_kg is None:
-            gips_adds = db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == order.id).all()
-            if gips_adds and gips_remaining_fraction > 0:
-                return_list = [{"inventory_id": a.inventory_id, "qty": -float(a.planned_qty or 0) * gips_remaining_fraction} for a in gips_adds]
-                return_list = [r for r in return_list if abs(r["qty"]) > 0.001]
-                if return_list:
-                    log.extend(services.deduct_gips_additives(db, return_list, order, reason=f"Buyurtma o'chirildi ({order_num})"))
-
         # MUHIM: "qaytarildi" deb BELGILAYMIZ — shu buyurtma keyinchalik
         # tiklanib, YANA o'chirilsa ham, ombor IKKINCHI MARTA qaytarilmasin.
         order.stock_returned = True
@@ -3847,7 +3777,7 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
     )
 
     # MUHIM: yuqorida yaratilgan yangi "ombor harakati" yozuvlari (masalan
-    # Gips qaytarilgani) hali bazaga yozilmagan (faqat xotirada) bo'lishi
+    # Loy qaytarilgani) hali bazaga yozilmagan (faqat xotirada) bo'lishi
     # mumkin. Ularni ENDI, delete_order ichidagi "bog'lanishni uzish"
     # so'rovidan OLDIN, bazaga yozib qo'yamiz — aks holda FK xatosi chiqadi.
     db.flush()
@@ -4834,7 +4764,7 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Yaratib bo'lmadi: {e}")
 
-    # Yangi korxonada ixtiyoriy turlar (termopanel, gips, loy) O'CHIQ —
+    # Yangi korxonada ixtiyoriy turlar (blok, loy) O'CHIQ —
     # mijoz kerak bo'lsa sozlamalardan yoqadi. Aks holda u birinchi kuni
     # o'zi ishlab chiqarmaydigan turlarni ko'rib chalkashardi.
     try:
@@ -5348,8 +5278,6 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "actual_loy_kg": float(fp.actual_loy_kg) if fp.actual_loy_kg is not None else None,
         "unit_volume_m3": float(fp.unit_volume_m3) if fp.unit_volume_m3 is not None else None,
         "unit_loy_kg": float(fp.unit_loy_kg) if fp.unit_loy_kg is not None else None,
-        "gips_kg_used": float(fp.gips_kg_used) if fp.gips_kg_used is not None else None,
-        "gips_inventory_id": fp.gips_inventory_id,
         "production_status": fp.production_status.value if fp.production_status else None,
         "recipe_id": fp.recipe_id,
         "created_at": fp.created_at.isoformat() if fp.created_at else None,
@@ -5415,7 +5343,7 @@ def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.
 @app.get("/api/finished/search")
 def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Nom bo'yicha qidirish — buyurtmada taklif uchun. category — masalan
-    'gips', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
+    'profil', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
     try:
         return {"items": crud.search_finished_products(db, q, category=category,
                                                       exclude_category=exclude_category,
@@ -5471,17 +5399,12 @@ def api_release_finished_product_reservation(fp_id: int, db: Session = Depends(g
 def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
                                    current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
-    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi. Profil/
-    Panel/Donali/Blok/Termopanel — `brak_qty` (mahsulot birligida) orqali,
-    BARQAROR nisbatdan hisoblab. Gips — `gips_kg_brak` orqali, xodim
-    to'g'ridan-to'g'ri kiritgan ANIQ kg (hisoblanmaydi, chunki gips
-    sarfi metrga proporsional emas), qo'shimcha materiallar esa faqat
-    `additives_brak` ko'rsatilgan bo'lsagina (ixtiyoriy) ayiriladi."""
+    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi.
+    Profil/Panel/Donali/Blok — `brak_qty` (mahsulot birligida) orqali,
+    BARQAROR nisbatdan hisoblab."""
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_production_brak(
         db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
-        gips_kg_brak=data.gips_kg_brak,
-        additives_brak=[a.dict() for a in data.additives_brak] if data.additives_brak else None,
         company_id=auth.company_id_of(current_user),
     )
     if not result["success"]:
@@ -5534,18 +5457,6 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
         "cost_amount": float(s.cost_amount or 0), "sold_at": s.sold_at.isoformat() if s.sold_at else None,
         "buyer_name": s.buyer_name, "payment_method": s.payment_method, "notes": s.notes
     } for s in sales]
-
-
-@app.post("/api/finished/produce-gips")
-def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_db),
-                      current_user=Depends(auth.admin_warehouse_or_manager)):
-    """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqarish."""
-    who = current_user.full_name or current_user.username
-    result = crud.produce_gips_finished_product(db, data, created_by=who,
-                                               company_id=auth.company_id_of(current_user))
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
-    return result
 
 
 @app.post("/api/finished/produce")

@@ -1171,9 +1171,7 @@ def get_dashboard_stats(db: Session, company_id: int = None) -> Dict:
 # 5. TO'LIQ BUYURTMA YAKUNLASH (Cutting + Coating + KPI)
 # ============================================================
 
-def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None,
-                    gips_kg: Optional[float] = None, gips_additives_actual: Optional[list] = None,
-                    gisht_dona: Optional[float] = None) -> Dict:
+def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -> Dict:
     """Buyurtmani to'liq yakunlash — barcha avtomatika:
 
     1. AVVAL — xomashyo yetarliligini tekshirish
@@ -1287,63 +1285,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None,
             "message": "Reja bo'yicha hisoblandi"
         }
 
-    # === GIPS HISOB-KITOBI ===
-    # Buyurtma yaratilganda rejalashtirilgan Gips allaqachon ayirilgan
-    # (Loy kabi). Endi haqiqiy miqdor bilan solishtiramiz.
-    planned_gips = float(order.planned_gips_kg or 0)
-    actual_gips = float(gips_kg) if gips_kg is not None else None
-
-    if actual_gips is not None and actual_gips > 0:
-        diff = actual_gips - planned_gips
-        if abs(diff) > 0.01 and order.gips_inventory_id:
-            r = deduct_gips_main(db, order.gips_inventory_id, diff, order,
-                                  reason=f"Buyurtma yakunlandi — farq ({order.order_number})")
-            if r:
-                result["inventory_changes"].append(r)
-        result["gips_info"] = {
-            "planned": planned_gips,
-            "actual": actual_gips,
-            "diff": round(diff, 1),
-            "message": (f"Rejadan {diff:.1f} kg ko'p ketdi — ombordan ayirildi" if diff > 0.01
-                        else (f"Rejadan {abs(diff):.1f} kg kam ketdi — ombordan qaytdi" if diff < -0.01
-                              else "Reja bo'yicha ketdi"))
-        }
-        order.actual_gips_kg = actual_gips
-    elif planned_gips > 0:
-        result["gips_info"] = {"planned": planned_gips, "actual": planned_gips, "diff": 0, "message": "Reja bo'yicha hisoblandi"}
-
-    # Gips qo'shimchalari — har biri uchun haqiqiy miqdor (agar berilgan bo'lsa)
-    if gips_additives_actual:
-        additive_recs = {a.inventory_id: a for a in order.gips_additives}
-        diff_list = []
-        for entry in gips_additives_actual:
-            inv_id = entry.get("inventory_id")
-            actual_qty = float(entry.get("actual_qty") or 0)
-            rec = additive_recs.get(inv_id)
-            if not rec:
-                continue
-            planned_qty = float(rec.planned_qty or 0)
-            diff = actual_qty - planned_qty
-            if abs(diff) > 0.001:
-                diff_list.append({"inventory_id": inv_id, "qty": diff})
-            rec.actual_qty = actual_qty
-        if diff_list:
-            add_log = deduct_gips_additives(db, diff_list, order, reason=f"Buyurtma yakunlandi — farq ({order.order_number})")
-            result["inventory_changes"].extend(add_log)
-
     db.commit()
-
-    # G'ISHT — ortgan loydan quyilgan qo'shimcha mahsulot (ixtiyoriy).
-    # Xomashyo QAYTA ayirilmaydi — allaqachon shu buyurtmaning o'z Gips
-    # hisobida (yuqorida) hisoblangan.
-    if gisht_dona and float(gisht_dona) > 0:
-        import crud as _crud_gisht
-        gisht_result = _crud_gisht.create_gisht_from_order(db, order, float(gisht_dona))
-        if gisht_result.get("success"):
-            result["gisht_info"] = {
-                "quantity": float(gisht_dona),
-                "message": f"{gisht_dona:g} dona G'isht — Tayyor mahsulotlarga qo'shildi"
-            }
 
     # === QISMAN TOPSHIRILGAN HOLATDA YAKUNLASH ===
     # Agar buyurtma ALLAQACHON qisman topshirilgan bo'lsa-yu (masalan 64%),
@@ -3437,34 +3379,6 @@ def _group_volumes_by_penoplast(db, items) -> dict:
     return volumes
 
 
-def check_gips_for_order(db: Session, order_data) -> dict:
-    """Gips va uning qo'shimchalari uchun omborda yetarli miqdor
-    bor-yo'qligini tekshiradi (Penoplast/Bazalt bilan bir xil naqsh)."""
-    from models import Inventory
-    shortages = []
-
-    gips_kg = float(getattr(order_data, 'planned_gips_kg', None) or 0)
-    gips_inv_id = getattr(order_data, 'gips_inventory_id', None)
-    if gips_kg > 0:
-        if not gips_inv_id:
-            shortages.append("Gips miqdori kiritilgan, lekin qaysi xomashyo ekani tanlanmagan")
-        else:
-            item = db.query(Inventory).filter(Inventory.id == gips_inv_id).first()
-            if not item:
-                shortages.append("Tanlangan Gips xomashyosi ombordan topilmadi")
-            elif float(item.stock_quantity or 0) < gips_kg:
-                shortages.append(f"{item.item_name}: kerak {gips_kg:g} kg, qoldi {float(item.stock_quantity):.1f} kg")
-
-    for add in (getattr(order_data, 'gips_additives', None) or []):
-        item = db.query(Inventory).filter(Inventory.id == add.inventory_id).first()
-        if not item:
-            shortages.append(f"Gips qo'shimchasi (ID {add.inventory_id}) ombordan topilmadi")
-        elif float(item.stock_quantity or 0) < add.planned_qty:
-            shortages.append(f"{item.item_name}: kerak {add.planned_qty:g} {item.unit}, qoldi {float(item.stock_quantity):.1f} {item.unit}")
-
-    return {"enough": len(shortages) == 0, "shortages": shortages}
-
-
 def check_inventory_for_order(db: Session, order_data) -> dict:
     """
     Buyurtma uchun xomashyo yetishini tekshiradi.
@@ -3711,20 +3625,9 @@ def loy_relevant_remaining_fraction(order) -> float:
     items = [
         it for it in (order.items or [])
         if it.is_coated
-        and (it.category or '').lower() not in ('loy_sotish', 'gips')
+        and (it.category or '').lower() != 'loy_sotish'
         and not getattr(it, 'finished_product_id', None)
     ]
-    if not items:
-        return 1.0
-    return _remaining_fraction_for_items(items)
-
-
-def gips_relevant_remaining_fraction(order) -> float:
-    """Buyurtma o'chirilganda/tiklanganda GIPS proporsional qaytarish/qayta
-    yechish uchun QOLGAN ulush — xuddi loy_relevant_remaining_fraction
-    kabi, lekin FAQAT 'gips' kategoriyali detallar bo'yicha (order-wide
-    emas), xuddi shu sababga ko'ra."""
-    items = [it for it in (order.items or []) if (it.category or '').lower() == 'gips']
     if not items:
         return 1.0
     return _remaining_fraction_for_items(items)
@@ -4089,52 +3992,6 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
             )
 
     db.commit()
-    return log
-
-
-def deduct_gips_main(db: Session, gips_inventory_id: Optional[int], kg: float, order, reason: str = None) -> Optional[str]:
-    """Gipsning O'ZINI (asosiy xomashyo, retseptsiz — to'g'ridan-to'g'ri
-    Omborxonadan) ayiradi/qaytaradi. kg manfiy bo'lsa — qaytariladi."""
-    from models import Inventory
-    if not gips_inventory_id or abs(kg) < 0.001:
-        return None
-    item = db.query(Inventory).filter(Inventory.id == gips_inventory_id).with_for_update().first()
-    if not item:
-        return None
-    item.stock_quantity = float(item.stock_quantity or 0) - kg
-    import crud as _crud
-    _crud.log_movement(
-        db, item.id, item.item_name, movement_type=("out" if kg > 0 else "in"),
-        quantity=abs(kg), unit=item.unit,
-        reason=reason or f"Gips — buyurtma {getattr(order, 'order_number', order.id)}",
-        order_id=order.id if order else None
-    )
-    return f"{item.item_name}: {'-' if kg > 0 else '+'}{abs(kg):.1f} {item.unit}"
-
-
-def deduct_gips_additives(db: Session, additives: list, order, reason: str = None) -> list:
-    """Gips qo'shimchalarini (po'lat sim, fibra va h.k.) ombordan
-    ayiradi/qaytaradi. additives — [{"inventory_id": X, "qty": Y}, ...]
-    shaklida (Y manfiy bo'lsa — o'sha miqdor QAYTARILADI)."""
-    from models import Inventory
-    log = []
-    for a in additives:
-        inv_id = a.get("inventory_id")
-        qty = float(a.get("qty") or 0)
-        if not inv_id or abs(qty) < 0.001:
-            continue
-        item = db.query(Inventory).filter(Inventory.id == inv_id).with_for_update().first()
-        if not item:
-            continue
-        item.stock_quantity = float(item.stock_quantity or 0) - qty
-        import crud as _crud
-        _crud.log_movement(
-            db, item.id, item.item_name, movement_type=("out" if qty > 0 else "in"),
-            quantity=abs(qty), unit=item.unit,
-            reason=reason or f"Gips qo'shimchasi — buyurtma {getattr(order, 'order_number', order.id)}",
-            order_id=order.id if order else None
-        )
-        log.append(f"{item.item_name}: {'-' if qty > 0 else '+'}{abs(qty):.1f} {item.unit}")
     return log
 
 
