@@ -463,16 +463,18 @@ check("D6 actual_loy_kg yo'q — planned_loy_kg (12kg) ishlatiladi",
       services.get_order_item_unit_cost(db, o, o.items[0]),
       round(p1 + (12.0 / 4.0) * LOY_KG_NARX))
 
-# D7. GIPS — sarflangan gips detallar miqdoriga mutanosib
+# D7. QULF (11.2b) — 'gips' turkumida MAXSUS tan-narx shoxi endi YO'Q.
+# Buyurtmada actual_gips_kg va gips_inventory_id bo'lsa ham, detalning
+# 1 birlik tan narxi 0 bo'lishi SHART (penoplast/loy yo'q). Kimdir gips
+# shoxini qaytarib qo'ysa — shu test darhol yiqiladi.
 o = B.buyurtma_yasa(db, loyiha, [
     dict(name="D7a", category="gips", quantity=30, unit_price=20000,
          is_coated=False, gips_unit="metr"),
     dict(name="D7b", category="gips", quantity=20, unit_price=20000,
          is_coated=False, gips_unit="metr"),
 ], actual_gips_kg=100.0, gips_inventory_id=inv["gips"].id)
-check("D7 gips — 100kg x 3000 / (30+20) birlik",
-      services.get_order_item_unit_cost(db, o, o.items[0]),
-      100.0 * B.GIPS_NARX / 50.0)
+check("D7 QULF: gips — maxsus shox yo'q, tan narx 0",
+      services.get_order_item_unit_cost(db, o, o.items[0]), 0.0)
 
 # D8. GIPS — gips_inventory_id yo'q bo'lsa 0
 o = B.buyurtma_yasa(db, loyiha, [dict(
@@ -586,8 +588,8 @@ o = B.buyurtma_yasa(db, loyiha, [dict(
     total_amount=1_000_000, agreed_amount=1_000_000,
     actual_gips_kg=100.0, gips_inventory_id=inv["gips"].id)
 r = services.calculate_order_profit(db, o.id)
-check("E8 gips — tan narxi gips xomashyosidan",
-      r["tan_narxi"], 100.0 * B.GIPS_NARX)
+check("E8 QULF: gips buyurtmasi — tan narx 0 (gips xarajati yo'q)",
+      r["tan_narxi"], 0.0)
 
 # E9. Bo'sh buyurtma — tan narx 0, foyda = sotuv
 o = B.buyurtma_yasa(db, loyiha, [], total_amount=100_000, agreed_amount=100_000)
@@ -852,14 +854,13 @@ o3 = B.buyurtma_yasa(db, loyiha, [
 _tayyorla(o3, kun=17)
 pd = services.calculate_order_profit(db, o3.id, company_id=B.CID)
 gips_qatorlar = [x for x in pd["breakdown"] if str(x["nomi"]).startswith("🧱 Gips")]
-check_eq("I6 gips xomashyosi breakdown'da '🧱 Gips' bilan boshlanadi",
-         len(gips_qatorlar), 1)
-check("I6 gips xomashyo summasi = 100kg x 3000",
-      gips_qatorlar[0]["summa"], 100.0 * B.GIPS_NARX)
+check_eq("I6 QULF: breakdown'da '🧱 Gips' qatori endi UMUMAN yo'q",
+         len(gips_qatorlar), 0)
+check("I6 QULF: gips buyurtmasining tan narxi 0", pd["tan_narxi"], 0.0)
 
 sp = services.calculate_split_profit_report(db, YIL, OY, company_id=B.CID)
-check("I7 split — gips xomashyo xarajati", sp["gips"]["xomashyo_xarajati"],
-      round(100.0 * B.GIPS_NARX))
+check("I7 QULF: split — gips xomashyo xarajati 0 (manba yo'q)",
+      sp["gips"]["xomashyo_xarajati"], 0)
 # Penoplast hajmini MUSTAQIL yig'amiz: I1 profil + I3 dona/blok/panel
 # (termopanel, loy_sotish, mrp_product — penoplast ishlatmaydi)
 peno_hajm = (etalon_profil(20, 10, 4, 0)[0]          # I1 profil
