@@ -3,11 +3,11 @@ PenoDecorPro ERP — Production/MRP xizmat (service) qatlami
 =============================================================
 Mavjud crud.py uslubiga qat'iy mos yozilgan:
   - Xatolar Exception emas, {"success": False, "message": "..."} shaklida
-    qaytariladi (mavjud produce_gips_finished_product va h.k. bilan bir xil).
+    qaytariladi (crud.py dagi ishlab chiqarish funksiyalari bilan bir xil).
   - Ombordan yechishdan oldin .with_for_update() bilan qator qulflanadi.
   - Har bir ombor harakati log_movement() orqali jurnalga yoziladi.
   - JSON-shaklidagi "suratlar" (snapshot) Text ustunga json.dumps bilan
-    yoziladi — xuddi mavjud gips_additives_json kabi.
+    yoziladi — crud.py/models.py dagi mavjud JSON ustunlar kabi.
 
 Bu fayl — mustaqil modul (production_models.py'ga bog'liq), lekin
 qolgan qismi (log_movement, FinishedProduct va h.k.) uchun mavjud
