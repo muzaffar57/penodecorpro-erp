@@ -974,8 +974,12 @@ check_eq("J 'ready' buyurtmalar soni (hisobotdagi 16 ga mos)", len(_ready), 16)
 ready_foyda = sum(
     services.calculate_order_profit(jdb, jord[n].id, company_id=JCID)["foyda"]
     for n in sorted(_ready))
-check("J 'ready' foyda yig'indisi = hisobotdagi buyurtmalar_foydasi",
-      round(ready_foyda), 10_402_710, atol=1.5)
+# 2026-09-20 da jonli o'lchangan: hisobotdagi `buyurtmalar_foydasi`
+# `ready` buyurtmalar foydasining yig'indisiga AYNAN teng edi (10 402 710).
+# Donali detal tan narxi xatosi tuzatilgandan keyin bu 14 109 833 bo'ladi —
+# staging'da qayta o'lchanib tasdiqlangan qiymat.
+check("J 'ready' foyda yig'indisi (tuzatishdan keyin)",
+      round(ready_foyda), 14_109_833, atol=1.5)
 
 # Xomashyo narxlari — etalon_raqamlar.md dagi qiymatlar
 from models import Inventory as _JInv  # noqa: E402
