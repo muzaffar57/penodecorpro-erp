@@ -1070,19 +1070,27 @@ def _migrate_faza3_columns():
             # uning hujjatlari bu maydonlarsiz qolardi, chunki endi
             # zaxira qiymatlar faqat korxona noma'lum bo'lganda
             # ishlatiladi.
+            # 2026-09-20 — TUZATISH: ilgari shart `logo_path IS NOT NULL`
+            # edi. Oldingi deployda logotip allaqachon qo'yilgani uchun
+            # shior/manzil/telefon to'ldirilmay qolgan va yuk xati
+            # yiqilgan edi. Endi har bir maydon ALOHIDA to'ldiriladi
+            # (faqat bo'sh bo'lsa) — amal idempotent.
             try:
-                bor = conn.execute(text(
-                    "SELECT COUNT(*) FROM companies WHERE logo_path IS NOT NULL")).scalar()
-                if not bor:
-                    conn.execute(text(
+                eng_eski = conn.execute(text(
+                    "SELECT id FROM companies ORDER BY id LIMIT 1")).scalar()
+                if eng_eski:
+                    n_t = conn.execute(text(
                         "UPDATE companies SET "
-                        "  logo_path = 'static/logo_transparent.png', "
-                        "  slogan = COALESCE(slogan, 'Fasad bezaklari'), "
-                        "  address = COALESCE(address, 'Andijon'), "
-                        "  phone = COALESCE(phone, '+998 97 999 57 57') "
-                        "WHERE id = (SELECT id FROM companies ORDER BY id LIMIT 1)"))
+                        "  logo_path = COALESCE(logo_path, 'static/logo_transparent.png'), "
+                        "  slogan    = COALESCE(slogan, 'Fasad bezaklari'), "
+                        "  address   = COALESCE(address, 'Andijon'), "
+                        "  phone     = COALESCE(phone, '+998 97 999 57 57') "
+                        "WHERE id = :i AND (logo_path IS NULL OR slogan IS NULL "
+                        "                   OR address IS NULL OR phone IS NULL)"
+                    ), {"i": eng_eski}).rowcount
                     conn.commit()
-                    print("✓ Eng eski korxonaga brend biriktirildi (logotip, shior, manzil, telefon)")
+                    if n_t:
+                        print(f"✓ Eng eski korxona (#{eng_eski}) brendi to'ldirildi")
             except Exception as _e:
                 try:
                     conn.rollback()

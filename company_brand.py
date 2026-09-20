@@ -58,6 +58,16 @@ def get_brand(db, company_id=None) -> dict:
     else:
         nom = nom or DEFAULT_NAME   # nom har doim bor (companies.name majburiy)
 
+    # 2026-09-20 — MUHIM: bu funksiya HECH QACHON None qaytarmaydi.
+    # Sabab: PDF kutubxonasi `Paragraph(None)` ni qabul qilmaydi va
+    # "'NoneType' object has no attribute 'split'" xatosi bilan yiqiladi —
+    # jonli sinovda yuk xati aynan shu sababdan chiqmay qoldi.
+    # Bo'sh maydon endi bo'sh MATN bo'ladi, chaqiruvchi esa bo'sh
+    # qatorlarni o'zi tashlab ketadi.
+    slogan = slogan or ""
+    manzil = manzil or ""
+    telefon = telefon or ""
+
     # LOGOTIP — 2026-09-20 dagi muhim tuzatish.
     # Ilgari korxonada logotip bo'lmasa UMUMIY logotipga (platforma
     # egasining logotipi) qaytilardi. Natijada yangi mijozning yuk xatida
