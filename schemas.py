@@ -638,7 +638,6 @@ class EmployeeCreate(BaseModel):
     percent_value: float = Field(default=0, ge=0, le=100)
     per_unit_rate: float = Field(default=0, ge=0)
     per_unit_type: str = Field(default="blok", description="blok/metr/dona")
-    gul_rate: Optional[float] = Field(default=None, description="Qoliplik gul (dona) uchun — qo'shimcha narx")
     extra_monthly: Optional[float] = Field(default=None, description="Ixtiyoriy qo'shimcha doimiy oylik")
     production_type: Optional[str] = Field(default=None, description="penoplast / gips / umumiy")
     notes: Optional[str] = None
@@ -652,7 +651,6 @@ class EmployeeUpdate(BaseModel):
     percent_value: Optional[float] = None
     per_unit_rate: Optional[float] = None
     per_unit_type: Optional[str] = None
-    gul_rate: Optional[float] = None
     extra_monthly: Optional[float] = None
     production_type: Optional[str] = None
     is_active: Optional[bool] = None
@@ -673,7 +671,6 @@ class EmployeeRead(BaseModel):
     percent_value: float
     per_unit_rate: float
     per_unit_type: str
-    gul_rate: Optional[float] = None
     extra_monthly: Optional[float] = None
     production_type: Optional[str] = None
     is_active: bool

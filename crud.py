@@ -6318,7 +6318,6 @@ def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -
         percent_value=data.percent_value,
         per_unit_rate=data.per_unit_rate,
         per_unit_type=data.per_unit_type,
-        gul_rate=getattr(data, 'gul_rate', None),
         extra_monthly=getattr(data, 'extra_monthly', None),
         production_type=getattr(data, 'production_type', None),
         notes=data.notes
@@ -6334,7 +6333,7 @@ def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -
         effective_year=hire.year, effective_month=hire.month,
         pay_type=emp.pay_type, fixed_amount=emp.fixed_amount,
         percent_value=emp.percent_value, per_unit_rate=emp.per_unit_rate,
-        per_unit_type=emp.per_unit_type, gul_rate=emp.gul_rate,
+        per_unit_type=emp.per_unit_type,
         extra_monthly=emp.extra_monthly, reason="Ishga kirgan — boshlang'ich"
     ))
     db.commit()
@@ -6453,7 +6452,7 @@ def get_employee_compensation_for_month(db: Session, employee_id: int, year: int
         return {
             "pay_type": best.pay_type, "fixed_amount": best.fixed_amount,
             "percent_value": best.percent_value, "per_unit_rate": best.per_unit_rate,
-            "per_unit_type": best.per_unit_type, "gul_rate": best.gul_rate,
+            "per_unit_type": best.per_unit_type,
             "extra_monthly": best.extra_monthly,
         }
 
@@ -6464,7 +6463,7 @@ def get_employee_compensation_for_month(db: Session, employee_id: int, year: int
     return {
         "pay_type": emp.pay_type, "fixed_amount": emp.fixed_amount,
         "percent_value": emp.percent_value, "per_unit_rate": emp.per_unit_rate,
-        "per_unit_type": emp.per_unit_type, "gul_rate": emp.gul_rate,
+        "per_unit_type": emp.per_unit_type,
         "extra_monthly": emp.extra_monthly,
     }
 
@@ -6495,7 +6494,7 @@ def backfill_employee_compensation_history(db: Session, company_id: int = None) 
             effective_year=hire.year, effective_month=hire.month,
             pay_type=emp.pay_type, fixed_amount=emp.fixed_amount,
             percent_value=emp.percent_value, per_unit_rate=emp.per_unit_rate,
-            per_unit_type=emp.per_unit_type, gul_rate=emp.gul_rate,
+            per_unit_type=emp.per_unit_type,
             extra_monthly=emp.extra_monthly,
             reason="Avtomatik backfill — tizimga qo'shilgandan beri shunday deb belgilandi"
         ))
@@ -6532,7 +6531,7 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
     # (calculate_monthly_employee_pay shu tarixdan o'qiydi, joriy
     # Employee maydonidan emas — quyidagi services.py o'zgarishiga qarang).
     comp_fields = {"pay_type", "fixed_amount", "percent_value", "per_unit_rate",
-                   "per_unit_type", "gul_rate", "extra_monthly"}
+                   "per_unit_type", "extra_monthly"}
     comp_changed = comp_fields.intersection(update_data.keys())
 
     for k, v in update_data.items():
@@ -6560,7 +6559,6 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
         hist.percent_value = emp.percent_value
         hist.per_unit_rate = emp.per_unit_rate
         hist.per_unit_type = emp.per_unit_type
-        hist.gul_rate = emp.gul_rate
         hist.extra_monthly = emp.extra_monthly
         if reason:
             hist.reason = reason

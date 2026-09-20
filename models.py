@@ -1065,8 +1065,10 @@ class Employee(Base):
     percent_value = Column(Float, default=0.0)             # PERCENT_SALES / PERCENT_PROFIT uchun
     per_unit_rate = Column(Numeric(12, 2), default=0)      # PER_UNIT uchun — 1 birlik narxi
     per_unit_type = Column(String(20), default="blok")     # blok / metr / dona
-    # GIPS uchun qo'shimcha to'lov turlari:
-    gul_rate = Column(Numeric(12, 2), nullable=True)        # Qoliplik gul (dona) uchun — alohida, qo'shimcha narx
+    # 11.2b (2026-09-20): `gul_rate` modeldan olib tashlandi.
+    # DB ustuni `employees.gul_rate` ATAYLAB QOLDIRILDI (nullable) —
+    # eski yozuvlar buzilmasin uchun; ORM uni endi o'qimaydi ham,
+    # yozmaydi ham.
     extra_monthly = Column(Numeric(12, 2), nullable=True)   # Istalgan to'lov turiga qo'shiladigan, ixtiyoriy doimiy oylik
     production_type = Column(String(20), nullable=True)     # penoplast / gips / umumiy — Gips/Penoplast mustaqil hisobot uchun
 
@@ -1117,7 +1119,7 @@ class EmployeeCompensationHistory(Base):
     percent_value = Column(Float, default=0.0)
     per_unit_rate = Column(Numeric(12, 2), default=0)
     per_unit_type = Column(String(20), default="blok")
-    gul_rate = Column(Numeric(12, 2), nullable=True)
+    # 11.2b: `gul_rate` olib tashlandi, DB ustuni qoldirildi.
     extra_monthly = Column(Numeric(12, 2), nullable=True)
 
     reason = Column(Text, nullable=True)          # Ixtiyoriy: "1 yillik ishlagani uchun oshirildi"

@@ -475,8 +475,6 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_product_sales ADD COLUMN group_discount_percent FLOAT")
 
         emp_cols = [c['name'] for c in inspector.get_columns('employees')]
-        if 'gul_rate' not in emp_cols:
-            migrations.append("ALTER TABLE employees ADD COLUMN gul_rate NUMERIC(12,2)")
         if 'extra_monthly' not in emp_cols:
             migrations.append("ALTER TABLE employees ADD COLUMN extra_monthly NUMERIC(12,2)")
 
@@ -2432,7 +2430,6 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
         "percent_value": float(e.percent_value or 0),
         "per_unit_rate": float(e.per_unit_rate or 0),
         "per_unit_type": e.per_unit_type,
-        "gul_rate": float(e.gul_rate) if e.gul_rate is not None else None,
         "extra_monthly": float(e.extra_monthly) if e.extra_monthly is not None else None,
         "production_type": e.production_type,
         "is_active": e.is_active,
@@ -2554,7 +2551,6 @@ def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db)
         "percent_value": r.percent_value,
         "per_unit_rate": float(r.per_unit_rate or 0),
         "per_unit_type": r.per_unit_type,
-        "gul_rate": float(r.gul_rate) if r.gul_rate else None,
         "extra_monthly": float(r.extra_monthly) if r.extra_monthly else None,
         "reason": r.reason,
         "created_by": r.created_by,

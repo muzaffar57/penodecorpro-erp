@@ -2261,9 +2261,6 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
             # MUHIM: "loy_sotish", "gips" — bu yerga UMUMAN qo'shilmaydi.
             # Gips — butunlay alohida, pastdagi bo'limda hisoblanadi.
 
-    # GIPS — dona (qoliplik gul) hodim to'lovi uchun.
-    jami_gips_gul = 0.0
-
     # TAYYOR MAHSULOTLAR sahifasidan ISHLAB CHIQARILIB, "SOTUVGA TAYYOR"
     # deb belgilangan mahsulotlar (buyurtmasiz) — hodim shu ishni ham
     # qilgani uchun, bu ham hodim oyligiga qo'shiladi.
@@ -2296,10 +2293,13 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         # joriy `quantity` ishlatiladi.
         qty = float(fp.produced_quantity if fp.produced_quantity is not None else (fp.quantity or 0))
         if cat == "gips":
-            # 11.2b: gips metr/kg/qop to'lov birliklari olib tashlandi —
-            # faqat "qoliplik gul" (dona) qoldi.
-            if (fp.unit or "").lower() == "dona":
-                jami_gips_gul += qty
+            # 11.2b (5-qadam): gipsga bog'liq hodim to'lovining OXIRGISI
+            # (qoliplik gul / gul_rate) ham olib tashlandi. Eski
+            # ma'lumotda category='gips' mahsulot uchrashi mumkin —
+            # u hodim oyligiga HECH QANDAY yo'l bilan kirmasligi SHART,
+            # shuning uchun bu yerda ATAYLAB o'tkazib yuboriladi.
+            # (Pastdagi qoplamachi bonusiga ham tushmaydi — gipsda
+            # "qoplama" tushunchasi yo'q, u o'zi tayyor mahsulot.)
             continue
         # MUHIM: Gipsdan boshqa barchasi uchun — faqat HAQIQATAN qoplamali
         # (is_coated=True) bo'lsa, Qoplamachi bonusiga qo'shiladi. Qoplamasiz
@@ -2312,20 +2312,6 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
             jami_panel_metr += qty
         else:
             jami_dona += qty
-
-    # MUHIM: Gips uchun "Qoplama" tushunchasi yo'q (o'zi tayyor mahsulot),
-    # shuning uchun is_coated filtri qo'llanilmaydi — faqat category='gips'.
-    # Dona birligidagi HAR QANDAY gips detali — qoliplik gul hisoblanadi.
-    for order in orders_this_month:
-        for item in order.items:
-            if (item.category or '').lower() != 'gips':
-                continue
-            if item.finished_product_id:
-                continue  # Tayyor mahsulotdan tanlangan — ikki marta hisoblanmasin
-            gu = (item.gips_unit or 'metr').lower()
-            qty = float(item.quantity or 0)
-            if gu == 'dona':
-                jami_gips_gul += qty
 
     # MUHIM: Tayyor mahsulotlar bo'limida ("Ishlab chiqarish" tugmasi
     # orqali, mijoz buyurtmasiga bog'lanmasdan) tayyorlangan qoplamali
@@ -2508,7 +2494,6 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         db, year, month, daromad + fp_sales_daromad, sof_foyda_before_emp,
         jami_metr + jami_panel_metr, jami_dona, jami_blok,
         jami_qoplama_birlik=jami_metr + jami_panel_metr + jami_dona,
-        jami_gips_gul=jami_gips_gul,
         company_id=company_id
     )
     hodimlar_moslashuvchan_xarajat = emp_result["total"]
@@ -4235,15 +4220,12 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
                                    daromad: float, sof_foyda_before: float,
                                    jami_metr: float, jami_dona: float,
                                    jami_blok: float, jami_qoplama_birlik: float = 0.0,
-                                   jami_gips_gul: float = 0.0,
                                    company_id: int = None) -> dict:
     """Moslashuvchan hodimlar uchun oylik to'lovni hisoblaydi.
     daromad, sof_foyda_before — shu oy uchun (hodim xarajatlarigacha).
     jami_metr/dona/blok — shu oy ishlab chiqarilgan miqdorlar (hammasi).
     jami_qoplama_birlik — shu oy QOPLANGAN detallar: metr + dona (profil/panel metrda,
-    donali dona bilan, bittalashtirib qo'shilgan) — qoplamachi bonusi uchun.
-    jami_gips_gul — shu oy Gips detallaridan dona (qoliplik gul)
-    yig'indisi."""
+    donali dona bilan, bittalashtirib qo'shilgan) — qoplamachi bonusi uchun."""
     from models import Employee, PayType
     from datetime import datetime as _dt_emp
     from calendar import monthrange as _monthrange_emp
@@ -4287,7 +4269,6 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         c_percent = comp["percent_value"]
         c_unit_rate = comp["per_unit_rate"]
         c_unit_type = comp["per_unit_type"]
-        c_gul_rate = comp["gul_rate"]
         c_extra_monthly = comp["extra_monthly"]
 
         if c_pay_type == PayType.FIXED:
@@ -4313,14 +4294,6 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
             bonus = jami_qoplama_birlik * rate
             amount = base + bonus
             detail = f"Oylik {fmt_num(base)} + {jami_qoplama_birlik:g} metr/dona × {fmt_num(rate)} = {fmt_num(bonus)}"
-
-        # GIPS — qoliplik gul bonusi: istalgan to'lov turiga QO'SHILADI
-        # (faqat shu hodimga gul_rate belgilangan bo'lsa)
-        if c_gul_rate and jami_gips_gul > 0:
-            gul_bonus = jami_gips_gul * float(c_gul_rate)
-            amount += gul_bonus
-            gul_txt = f"{jami_gips_gul:g} gul × {fmt_num(c_gul_rate)} = {fmt_num(gul_bonus)}"
-            detail = f"{detail} + {gul_txt}" if detail else gul_txt
 
         # Ixtiyoriy qo'shimcha doimiy oylik — istalgan to'lov turiga qo'shiladi
         if c_extra_monthly:
