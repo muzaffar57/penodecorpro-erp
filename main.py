@@ -1207,8 +1207,85 @@ def _migrate_faza3_columns():
         print(f"⚠ Faza 3 migratsiyasi o'tkazib yuborildi: {e}")
 
 
+def _migrate_float_to_numeric():
+    """Bosqich 1 (2026-09-20) — to'rtta pul maydoni `Float` dan
+    `Numeric(12,2)` ga o'tkaziladi.
+
+    Nega: `Float` ikkilik kasr bo'lgani uchun pulda yaxlitlash xatosini
+    ASTA-SEKIN TO'PLAYDI (klassik 0.1 + 0.2 != 0.3). Loyihadagi boshqa
+    38 ta pul maydoni allaqachon `Numeric` — shu to'rttasi qolib ketgan.
+
+    Nega HOZIR: bu jadvallarda ma'lumot deyarli yo'q, ya'ni migratsiya
+    bir daqiqalik ish. Keyinroq tarixiy qiymatlarni qayta hisoblash
+    kerak bo'lardi.
+
+    Idempotent: ustun turi allaqachon `numeric` bo'lsa, tegilmaydi.
+    Xavfsiz: o'zgartirishdan OLDIN eng katta qiymat tekshiriladi —
+    Numeric(12,2) ga sig'masa, o'sha ustun O'TKAZIB YUBORILADI (xato
+    bilan yiqilmaydi) va logda aniq ogohlantirish chiqadi.
+    """
+    from sqlalchemy import text
+    MAYDONLAR = [
+        ("gift_period_tiers", "threshold_amount"),
+        ("master_gift_period_redemptions", "sales_amount"),
+        ("master_gift_period_redemptions", "profit_amount"),
+        ("finished_products", "price_per_m3"),
+    ]
+    CHEK = 10_000_000_000          # Numeric(12,2) chegarasi
+    try:
+        from database import engine
+        if engine.dialect.name != "postgresql":
+            return
+        with engine.connect() as conn:
+            for jadval, ustun in MAYDONLAR:
+                try:
+                    tur = conn.execute(text(
+                        "SELECT data_type FROM information_schema.columns "
+                        "WHERE table_schema='public' AND table_name=:t AND column_name=:c"
+                    ), {"t": jadval, "c": ustun}).scalar()
+
+                    if tur is None:
+                        print(f"• {jadval}.{ustun}: ustun yo'q, o'tkazildi")
+                        continue
+                    if tur == "numeric":
+                        continue          # allaqachon to'g'ri
+
+                    # Sig'masa — tegmaymiz
+                    katta = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {jadval} "
+                        f"WHERE {ustun} IS NOT NULL AND ABS({ustun}) >= {CHEK}"
+                    )).scalar() or 0
+                    if katta:
+                        print(f"⚠ {jadval}.{ustun}: {katta} ta qiymat Numeric(12,2) ga "
+                              f"sig'maydi — O'TKAZIB YUBORILDI, qo'lda ko'rish kerak")
+                        continue
+
+                    # Nechta qiymat yaxlitlanadi — logda ko'rinib tursin
+                    yax = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {jadval} WHERE {ustun} IS NOT NULL "
+                        f"AND ROUND({ustun}::numeric, 2) <> {ustun}::numeric"
+                    )).scalar() or 0
+
+                    conn.execute(text(
+                        f"ALTER TABLE {jadval} ALTER COLUMN {ustun} "
+                        f"TYPE NUMERIC(12,2) USING ROUND({ustun}::numeric, 2)"
+                    ))
+                    conn.commit()
+                    print(f"✓ {jadval}.{ustun}: {tur} -> numeric(12,2)"
+                          + (f" ({yax} ta qiymat tiyingacha yaxlitlandi)" if yax else ""))
+                except Exception as e:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    print(f"⚠ {jadval}.{ustun} o'tkazilmadi: {e}")
+    except Exception as e:
+        print(f"⚠ Float->Numeric migratsiyasi o'tkazib yuborildi: {e}")
+
+
 _migrate_drop_company_id_defaults()
 _migrate_faza3_columns()
+_migrate_float_to_numeric()
 
 from database import SessionLocal
 _db = SessionLocal()

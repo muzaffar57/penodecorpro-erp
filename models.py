@@ -310,7 +310,7 @@ class GiftPeriodTier(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     period_id = Column(Integer, ForeignKey("gift_periods.id"), nullable=False, index=True)
     gift_name = Column(String(100), nullable=False)
-    threshold_amount = Column(Float, nullable=False)
+    threshold_amount = Column(Numeric(12, 2), nullable=False)
     sort_order = Column(Integer, default=0)
 
     def __repr__(self):
@@ -334,8 +334,8 @@ class MasterGiftPeriodRedemption(Base):
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=False, index=True)
     tier_id = Column(Integer, ForeignKey("gift_period_tiers.id"), nullable=True)
     gift_name = Column(String(100), nullable=False)
-    sales_amount = Column(Float, nullable=False)
-    profit_amount = Column(Float, nullable=True)
+    sales_amount = Column(Numeric(12, 2), nullable=False)
+    profit_amount = Column(Numeric(12, 2), nullable=True)
     kind = Column(String(20), default="gift", nullable=False)
     redeemed_at = Column(DateTime, default=datetime.utcnow)
     redeemed_by = Column(String(100), nullable=True)
@@ -1499,7 +1499,7 @@ class FinishedProduct(Base):
     penoplast_id = Column(Integer, ForeignKey("inventory.id"), nullable=True, index=True)
     penoplast = relationship("Inventory", foreign_keys=[penoplast_id])
     volume_m3 = Column(Float, default=0.0)          # Penoplast hajmi (darhol yechiladi)
-    price_per_m3 = Column(Float, nullable=True)      # Foydalanuvchi kiritgan "1 m³ narxi" — Donalik hajmini qayta hisoblash uchun SAQLANADI (aks holda yo'qolib, penoplast tan narxiga qaytib, hajm buzilardi)
+    price_per_m3 = Column(Numeric(12, 2), nullable=True)      # Foydalanuvchi kiritgan "1 m³ narxi" — Donalik hajmini qayta hisoblash uchun SAQLANADI (aks holda yo'qolib, penoplast tan narxiga qaytib, hajm buzilardi)
     planned_loy_kg = Column(Float, default=0.0)      # Reja qilingan loy
     actual_loy_kg = Column(Float, nullable=True)     # Haqiqiy sarflangan loy ("Tayyor" bosilganda)
     gips_kg_used = Column(Float, nullable=True)       # GIPS mahsulotlar uchun — sarflangan Gips (kg)

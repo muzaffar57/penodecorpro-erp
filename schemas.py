@@ -546,7 +546,7 @@ class ProduceCreate(BaseModel):
     quantity: Optional[float] = None    # panel/dona uchun — necha dona
     is_coated: bool = True
     penoplast_id: Optional[int] = None
-    price_per_m3: Optional[float] = None
+    price_per_m3: Optional[float] = Field(default=None, le=9_999_999_999.99)
     unit_price: float = Field(default=0, ge=0, description="Sotuv narxi (1 metr / 1 dona)")
     unit_price_for_volume: Optional[float] = Field(default=None, description="Dona uchun: 1 dona tan narxi (hajm hisobi)")
     loy_kg: float = Field(default=0, ge=0)
