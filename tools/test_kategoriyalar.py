@@ -75,9 +75,13 @@ eskirgan = set(main._ESKIRGAN_KATEGORIYALAR)
 check("asosiy = profil, panel, dona", asosiy == {"profil", "panel", "dona"})
 check("blok endi asosiy EMAS", "blok" not in asosiy)
 check("blok ixtiyoriylar ichida", "blok" in ixtiyoriy)
-check("eskirganlar = blok, gips", eskirgan == {"blok", "gips"})
+check("eskirganlar = blok", eskirgan == {"blok"})
 check("termopanel ro'yxatda UMUMAN yo'q (butunlay olib tashlangan)",
       "termopanel" not in ixtiyoriy and "termopanel" not in asosiy)
+# 11.2b (2026-09-20): `gips` ham xuddi termopanel kabi BUTUNLAY olib
+# tashlandi — endi u ixtiyoriylar ham, eskirganlar ham ro'yxatida yo'q.
+check("gips ro'yxatda UMUMAN yo'q (butunlay olib tashlangan)",
+      "gips" not in ixtiyoriy and "gips" not in asosiy and "gips" not in eskirgan)
 check("eskirganlar ixtiyoriylarning ichida", eskirgan <= ixtiyoriy)
 check("asosiy va ixtiyoriy kesishmaydi", not (asosiy & ixtiyoriy))
 
