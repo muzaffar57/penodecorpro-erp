@@ -991,11 +991,38 @@ def create_project(db: Session, project_data: ProjectCreate, company_id: int = N
     ga tayanardi) — B korxonaning loyihasi A ga yozilardi. Endi tenant
     ANIQ beriladi. Loyiha raqami (`PRJ-NNN`) hisoblash mantig'i
     O'ZGARTIRILMADI."""
-    # Eng katta raqamni topib +1 qilamiz (count emas, chunki o'chirilgan bo'lishi mumkin)
-    last = db.query(Project).order_by(Project.id.desc()).first()
-    next_num = (last.id + 1) if last else 1
-    # Agar shu raqamli loyiha mavjud bo'lsa, keyingisini olamiz
-    while db.query(Project).filter(Project.project_number == f"PRJ-{next_num:03d}").first():
+    # 2026-09-20 — raqam endi KORXONA BO'YICHA ketma-ket.
+    #
+    # Ilgari: `last.id + 1`, ya'ni `projects` jadvalining GLOBAL id
+    # ketma-ketligi. Ikkinchi mijozning birinchi loyihasi `PRJ-023`
+    # bo'lib chiqardi — u sizda yana 22 ta boshqa loyiha borligini
+    # payqardi. Endi har bir korxona o'zining `PRJ-001` idan boshlaydi.
+    #
+    # Baza buni allaqachon qo'llab-quvvatlaydi: W2b da `project_number`
+    # global noyoblikdan `UNIQUE(company_id, project_number)` ga
+    # o'tkazilgan, ya'ni ikki korxonada bir xil raqam bemalol yashaydi.
+    #
+    # MAVJUD ma'lumotga ta'sir qilmaydi: 1-korxonada eng katta raqam
+    # nechada bo'lsa, keyingisi o'shandan davom etadi.
+    import re as _re_pn
+    _pq = db.query(Project.project_number)
+    if company_id is not None:
+        _pq = _pq.filter(Project.company_id == company_id)
+    _raqamlar = []
+    for (_pn,) in _pq.all():
+        _m = _re_pn.search(r"(\d+)", _pn or "")
+        if _m:
+            _raqamlar.append(int(_m.group(1)))
+    next_num = (max(_raqamlar) + 1) if _raqamlar else 1
+
+    # Agar shu raqam SHU KORXONADA band bo'lsa, keyingisini olamiz
+    def _band(n):
+        q = db.query(Project).filter(Project.project_number == f"PRJ-{n:03d}")
+        if company_id is not None:
+            q = q.filter(Project.company_id == company_id)
+        return q.first() is not None
+
+    while _band(next_num):
         next_num += 1
     project_number = f"PRJ-{next_num:03d}"
 
@@ -1178,11 +1205,44 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     _company_id = _project.company_id
 
+    # 2026-09-20 — buyurtma raqamidagi prefiks endi GLOBAL `project_id`
+    # emas.
+    #
+    # Ilgari: `ORD-{project_id:03d}-{seq}`. `project_id` butun platforma
+    # bo'yicha ketma-ket bo'lgani uchun, ikkinchi mijozning birinchi
+    # buyurtmasi `ORD-023-1` bo'lib chiqardi — loyiha raqamini korxona
+    # bo'yicha qilganimiz ham buni tuzatmasdi, chunki bu yerda loyihaning
+    # RAQAMI emas, ichki `id` si ishlatilardi.
+    #
+    # Yangi qoida, uch bosqichli (eski hujjatlarga TEGMASLIK uchun):
+    #   1) Loyihada allaqachon buyurtma bo'lsa — o'shalarning prefiksi
+    #      aynan davom ettiriladi. Ya'ni mavjud loyihalarning yangi
+    #      buyurtmalari ilgarigidek raqamlanadi, uzilish bo'lmaydi.
+    #   2) Buyurtma yo'q bo'lsa — loyihaning O'Z raqamidan olinadi
+    #      (`PRJ-007` -> `ORD-007-1`), bu hujjatda ko'rinadigan raqam.
+    #   3) Ikkalasi ham bo'lmasa — eski usul, `project_id`.
+    import re as _re_on
+    _mavjud = db.query(Order.order_number).filter(
+        Order.project_id == order_data.project_id
+    ).order_by(Order.id.asc()).first()
+
+    _prefiks = None
+    if _mavjud and _mavjud[0]:
+        _m = _re_on.match(r"ORD-(\d+)-", _mavjud[0])
+        if _m:
+            _prefiks = _m.group(1)
+    if _prefiks is None and getattr(_project, "project_number", None):
+        _m = _re_on.search(r"(\d+)", _project.project_number)
+        if _m:
+            _prefiks = f"{int(_m.group(1)):03d}"
+    if _prefiks is None:
+        _prefiks = f"{order_data.project_id:03d}"
+
     db_order = None
     max_attempts = 5
     for attempt in range(max_attempts):
         seq = db.query(Order).filter(Order.project_id == order_data.project_id).count() + 1 + attempt
-        order_number = f"ORD-{order_data.project_id:03d}-{seq}"
+        order_number = f"ORD-{_prefiks}-{seq}"
         db_order = Order(
             company_id=_company_id,
             order_number=order_number,
