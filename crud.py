@@ -2954,6 +2954,19 @@ def export_full_backup(db: Session) -> dict:
     # Backupga umuman kiritilmaydigan jadvallar — sabab yuqorida yozilgan.
     EXCLUDED_TABLES = {"user_sessions", "employee_sessions"}
 
+    # Backupga kiritilmaydigan USTUNLAR (2026-09-20).
+    # Zaxira fayli har kuni Telegram orqali yuboriladi va yuklab olinadi —
+    # ya'ni u ilovadan tashqarida yashaydi. Parol/PIN hashlari esa u yerda
+    # umuman kerak emas:
+    #   users.password_hash — tiklash `users` jadvaliga TEGMAYDI
+    #                         (import_full_backup dagi RESTORE_SKIP_TABLES)
+    #   employees.pin_hash  — 4 xonali PIN hashini tanlab olish oson;
+    #                         tiklashdan keyin xodimlarga yangi PIN beriladi
+    EXCLUDED_COLUMNS = {
+        "users": {"password_hash"},
+        "employees": {"pin_hash"},
+    }
+
     def serialize_value(v):
         if v is None:
             return None
@@ -2979,7 +2992,8 @@ def export_full_backup(db: Session) -> dict:
     for model in all_models:
         table_name = model.__tablename__
         mapper = sa_inspect(model)
-        columns = [c.key for c in mapper.columns]
+        maxfiy = EXCLUDED_COLUMNS.get(table_name, set())
+        columns = [c.key for c in mapper.columns if c.key not in maxfiy]
         rows = db.query(model).all()
         backup[table_name] = [
             {col: serialize_value(getattr(row, col)) for col in columns}
@@ -3195,63 +3209,30 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None) -> dict:
 
     Chet el kaliti (ForeignKey) xatosi bermasligi uchun, jadvallar to'g'ri
     (avval "bola", keyin "ota") tartibda tozalanadi."""
-    from models import (
-        DeliveryItem, Payment, OrderAttachment, ReturnItem, Delivery,
-        OrderItem, Order, InventoryMovement, InventoryPurchase, InventoryReceipt,
-        SupplierPayment, FinishedProduct, TransportExpense,
-        ExpenseTransaction, MonthlyExpense, EmployeeSession, EmployeeAdvance,
-        AdvanceRequest, Employee, RecipeIngredient, Recipe, Inventory, Master, Project, Supplier,
-        CashTransaction, ActivityLog, ErrorLog, LoginHistory, UserSession, User,
-        OrderGipsAdditive, FinishedProductSale, FinishedProductLoss, EmployeeMonthlyAdjustment,
-        CompanySetting, RecurringObligation, MasterGift, MasterGiftRedemption
-    )
+    from models import User, UserSession
 
-    # Tartib MUHIM va TO'LIQ tekshirilgan (har bir ForeignKey hisobga olingan):
-    # 1) DeliveryItem — deliveries, order_items ga bog'langan
-    # 2) Payment — orders, deliveries ga bog'langan
-    # 3) OrderAttachment — orders ga bog'langan
-    # 4) ReturnItem — orders ga bog'langan
-    # 5) InventoryMovement — inventory, orders, suppliers ga bog'langan
-    # 6) Delivery — orders ga bog'langan (DeliveryItem, Payment dan keyin xavfsiz)
-    # 6b) OrderGipsAdditive — orders, inventory ga bog'langan, Order'dan OLDIN tozalanishi SHART
-    # 7) OrderItem — orders, recipes, inventory, finished_products ga bog'langan
-    # 7b) FinishedProductSale, FinishedProductLoss — finished_products ga bog'langan,
-    #     FinishedProduct'dan OLDIN tozalanishi SHART
-    # 8) FinishedProduct — orders, inventory, recipes ga bog'langan (OrderItem dan keyin)
-    # 9) Order — endi barcha "bolalari" tozalangan, xavfsiz
-    # 10) InventoryPurchase — inventory, suppliers, inventory_receipts ga bog'langan
-    # 11) InventoryReceipt — suppliers ga bog'langan, InventoryPurchase'dan OLDIN emas, KEYIN tozalanadi
-    #     (chunki InventoryPurchase.receipt_id shu jadvalga ishora qiladi — bola avval, ota keyin)
-    # 12) SupplierPayment — suppliers ga bog'langan
-    # 13-16) Mustaqil jadvallar
-    # 17-19) EmployeeSession/EmployeeAdvance/AdvanceRequest — employees ga bog'langan,
-    #        Employee'dan OLDIN tozalanishi SHART (bulk delete cascade ishlatmaydi)
-    # 19b) EmployeeMonthlyAdjustment — employees ga bog'langan, Employee'dan OLDIN
-    # 20) Employee — endi xavfsiz
-    # 21) RecipeIngredient — recipes VA inventory ga bog'langan, Recipe/Inventory'dan OLDIN tozalanishi SHART
-    # 22) Recipe — endi xavfsiz (OrderItem, FinishedProduct, RecipeIngredient tozalangan)
-    # 23) Inventory — endi xavfsiz
-    # 24) Master, 25) Project — endi xavfsiz (Order tozalangan)
-    # 26) Supplier — endi xavfsiz (InventoryReceipt, InventoryPurchase, SupplierPayment, InventoryMovement tozalangan)
-    # 27) CashTransaction, 28) ActivityLog — mustaqil, sinov izlarini tozalash uchun
-    tables_in_order = [
-        DeliveryItem, Payment, OrderAttachment, ReturnItem, InventoryMovement,
-        Delivery, OrderGipsAdditive, OrderItem,
-        FinishedProductSale, FinishedProductLoss, FinishedProduct, Order,
-        InventoryPurchase, InventoryReceipt, SupplierPayment,
-        TransportExpense, ExpenseTransaction, MonthlyExpense,
-        EmployeeSession, EmployeeAdvance, AdvanceRequest, EmployeeMonthlyAdjustment, Employee,
-        RecipeIngredient, Recipe, Inventory,
-        MasterGiftRedemption, MasterGift, Master, Project, Supplier,
-        CashTransaction, ActivityLog, ErrorLog, LoginHistory,
-        CompanySetting, RecurringObligation,
-    ]
-
+    # Tartib QO'LDA yozilmaydi (2026-09-20). Ilgari shu yerda qo'lda
+    # tuzilgan ro'yxat bor edi va unda OLTITA jadval unutilgan edi
+    # (gift_periods, gift_period_tiers, gift_period_participants,
+    #  master_gift_period_redemptions, order_item_sub_details,
+    #  employee_compensation_history) — natijada reset ForeignKey xatosi
+    # bilan yiqilardi. Endi tartibni SQLAlchemy ForeignKey'lar asosida
+    # o'zi hisoblaydi, shuning uchun yangi jadval qo'shilganda ham
+    # ro'yxatni yangilash SHART EMAS.
+    #
+    # Tegilmaydigan ikkita jadval:
+    #   users         — pastda, keep_only_user_id mantig'i bilan alohida
+    #   user_sessions — o'chirilsa, amalni bajarayotgan adminning O'ZI
+    #                   shu zahoti tizimdan chiqib ketardi
+    SKIP = {"users", "user_sessions"}
 
     counts = {}
-    for model in tables_in_order:
-        n = db.query(model).delete(synchronize_session=False)
-        counts[model.__tablename__] = n
+    # Teskari tartibda: avval "bola", keyin "ota"
+    for _name, _table in reversed(_backup_table_order()):
+        if _name in SKIP:
+            continue
+        r = db.execute(_table.delete())
+        counts[_name] = r.rowcount or 0
 
     if keep_only_user_id is not None:
         # Boshqa foydalanuvchilarning sessiyalarini avval tozalaymiz (FK xatosi bo'lmasligi uchun)
