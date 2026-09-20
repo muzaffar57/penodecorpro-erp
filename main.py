@@ -1065,6 +1065,24 @@ def _migrate_faza3_columns():
                             pass
                         print(f"⚠ companies.{_ust} qo'shilmadi: {_e}")
 
+            # Eng eski korxona (platforma egasi) uchun mavjud logotipni
+            # biriktiramiz — aks holda uning hujjatlari logotipsiz qolardi.
+            try:
+                bor = conn.execute(text(
+                    "SELECT COUNT(*) FROM companies WHERE logo_path IS NOT NULL")).scalar()
+                if not bor:
+                    conn.execute(text(
+                        "UPDATE companies SET logo_path = 'static/logo_transparent.png' "
+                        "WHERE id = (SELECT id FROM companies ORDER BY id LIMIT 1)"))
+                    conn.commit()
+                    print("✓ Eng eski korxonaga umumiy logotip biriktirildi")
+            except Exception as _e:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ logo_path biriktirilmadi: {_e}")
+
             # --- login_history.company_id: NOT NULL -> NULL ruxsat ---
             # 2026-09-20: noma'lum foydalanuvchi nomi bilan kirishga
             # urinilganda korxona aniqlanmaydi. `DEFAULT 1` olib
@@ -1348,7 +1366,30 @@ def _clear_company_name_cache(company_id=None):
         _company_name_cache.pop(company_id, None)
 
 
+def company_logo_of(company_id):
+    """Korxona logotipining yo'li (interfeys uchun). Yo'q bo'lsa None."""
+    if company_id is None:
+        return None
+    try:
+        import os as _os
+        from database import SessionLocal as _SL
+        from production_models import Company as _Co
+        _d = _SL()
+        try:
+            row = _d.query(_Co).filter(_Co.id == company_id).first()
+            yol = (getattr(row, "logo_path", None) or "").strip() if row else ""
+        finally:
+            _d.close()
+        if not yol:
+            return None
+        tola = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), yol)
+        return yol if _os.path.exists(tola) else None
+    except Exception:
+        return None
+
+
 templates.env.globals["company_name_of"] = company_name_of
+templates.env.globals["company_logo_of"] = company_logo_of
 # 2026-09-17: statik fayllar (masalan translit.js) uchun cache-busting —
 # brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
 # Har deploy'da bu qiymat o'zgarishi kerak (masalan shu sana-vaqt) —

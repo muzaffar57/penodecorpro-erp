@@ -49,9 +49,17 @@ def get_brand(db, company_id=None) -> dict:
     manzil = manzil or DEFAULT_ADDRESS
     telefon = telefon or DEFAULT_PHONE
 
-    # Logotip: korxonaniki bo'lsa va fayl mavjud bo'lsa — o'sha, aks holda umumiy
+    # LOGOTIP — 2026-09-20 dagi muhim tuzatish.
+    # Ilgari korxonada logotip bo'lmasa UMUMIY logotipga (platforma
+    # egasining logotipi) qaytilardi. Natijada yangi mijozning yuk xatida
+    # BOSHQA korxonaning logotipi chiqardi — jonli sinovda aynan shu
+    # aniqlandi. Endi: korxonaning O'Z logotipi bo'lmasa — logotip
+    # UMUMAN ishlatilmaydi va hujjatda uning o'rniga korxona NOMI
+    # yoziladi. Umumiy logotip faqat korxona ma'lum bo'lmaganda
+    # (tizim hujjatlari) ishlatiladi.
     logo_abs = None
-    for kandidat in (logo, DEFAULT_LOGO):
+    kandidatlar = [logo] if company_id is not None else [DEFAULT_LOGO]
+    for kandidat in kandidatlar:
         if not kandidat:
             continue
         yol = kandidat if os.path.isabs(kandidat) else os.path.join(
