@@ -5,7 +5,6 @@
 
 {% block topbar_actions %}
 <button class="btn btn-dark" onclick="openProduceModal()"><i class="ti ti-plus" style="vertical-align:-2px"></i> Ishlab chiqarish</button>
-<button class="btn btn-outline" style="border-color:#9D174D;color:#9D174D" onclick="openGipsProduceModal()"><i class="ti ti-cube" style="vertical-align:-2px"></i> 🧱 Gips ishlab chiqarish</button>
 {% endblock %}
 
 {% block head %}
@@ -133,7 +132,6 @@ input[type=number]{-moz-appearance:textfield}
       <div class="fp-cat-opt" data-value="panel" onclick="selectFpCategory(this,'panel')">Panel</div>
       <div class="fp-cat-opt" data-value="dona" onclick="selectFpCategory(this,'dona')">Donali</div>
 {% if cat_on('blok', current_user.company_id) %}      <div class="fp-cat-opt" data-value="blok" onclick="selectFpCategory(this,'blok')">Blok</div>{% endif %}
-{% if cat_on('gips', current_user.company_id) %}      <div class="fp-cat-opt" data-value="gips" onclick="selectFpCategory(this,'gips')">Gips</div>{% endif %}
     </div>
     <select id="fpCategory" style="display:none" onchange="renderFp()">
       <option value="">Barcha kategoriya</option>
@@ -141,7 +139,6 @@ input[type=number]{-moz-appearance:textfield}
       <option value="panel">Panel</option>
       <option value="dona">Donali</option>
 {% if cat_on('blok', current_user.company_id) %}      <option value="blok">Blok</option>{% endif %}
-{% if cat_on('gips', current_user.company_id) %}      <option value="gips">Gips</option>{% endif %}
     </select>
     <select id="fpSort" onchange="renderFp()">
       <option value="default">Standart tartib</option>
@@ -165,63 +162,6 @@ input[type=number]{-moz-appearance:textfield}
   <img id="lightbox-img" src="" alt="">
 </div>
 
-<!-- ══ GIPS ISHLAB CHIQARISH MODALI ══ -->
-<div id="gipsProduceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:14px;width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
-    <div style="padding:18px 22px 14px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:16px;font-weight:600;color:var(--text)">🧱 Gips ishlab chiqarish</div>
-        <div style="font-size:13px;color:#aaa;margin-top:2px">Buyurtmasiz, to'g'ridan-to'g'ri zaxira uchun</div>
-      </div>
-      <button onclick="closeGipsProduceModal()" style="width:30px;height:30px;border-radius:50%;background:#f5f5f5;border:none;font-size:15px;cursor:pointer">✕</button>
-    </div>
-    <div style="padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Mahsulot nomi</label>
-        <input type="text" id="gp-name" placeholder="Masalan: Karniz 15 sm" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <div style="display:flex;gap:10px">
-        <div style="flex:1">
-          <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Birligi</label>
-          <select id="gp-unit" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-            <option value="metr">Metr</option>
-            <option value="dona">Dona</option>
-            <option value="m2">M²</option>
-          </select>
-        </div>
-        <div style="flex:1">
-          <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Miqdor</label>
-          <input type="number" id="gp-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-        </div>
-      </div>
-      <div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Sotuv narxi (1 birlik uchun, so'm)</label>
-        <input type="text" id="gp-price" placeholder="0" oninput="formatPriceInput(this)" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <div style="background:#FCE7F3;border-radius:10px;padding:14px">
-        <div style="font-size:12px;color:#9D174D;font-weight:700;margin-bottom:10px">🧱 ASOSIY GIPS XOMASHYOSI — shu mahsulotni tayyorlash uchun ishlatilgan Gipsning o'zi (Serpiyanka/Po'lat sim kabi qo'shimcha EMAS)</div>
-        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Qaysi Gips (ombordagi) ishlatildi?</label>
-        <select id="gp-gips-inv" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box;margin-bottom:10px"><option value="">— Tanlanmadi —</option></select>
-        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Sarflangan Gips miqdori (kg)</label>
-        <input type="number" id="gp-gips-kg" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
-        <div style="font-size:11.5px;color:#BE185D;margin-top:8px">⚠️ Ikkalasini ham to'ldiring — aks holda tan narxi 0 chiqadi</div>
-      </div>
-
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <label style="font-size:13px;font-weight:600;color:#334155;margin:0">Qo'shimchalar (Serpiyanka, Po'lat sim va h.k.) <span style="font-weight:400;color:#94A3B8;font-size:11.5px">— ixtiyoriy</span></label>
-          <button type="button" onclick="addGpAdditive()" style="border:1px solid #E2E8F0;background:#fff;color:#475569;font-size:12.5px;padding:6px 12px;border-radius:8px;cursor:pointer">+ Qo'shimcha qo'shish</button>
-        </div>
-        <div id="gp-additives-list"></div>
-      </div>
-    </div>
-    <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
-      <button onclick="closeGipsProduceModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-      <button onclick="submitGipsProduce()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#9D174D;color:#fff;font-weight:600;font-size:14px;cursor:pointer">🧱 Ishlab chiqarish</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ KAMAYTIRISH (BRAK) MODALI ══ -->
 <div id="lossModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:14px;width:400px;max-width:100%;max-height:88vh;display:flex;flex-direction:column">
@@ -243,24 +183,10 @@ input[type=number]{-moz-appearance:textfield}
       <div id="loss-info-production" style="display:none;background:#F8F2EB;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#A86B36;line-height:1.6">
         Bu — kesish/qoplama jarayonida chiqqan brak uchun. <b>Mahsulot soni o'zgarmaydi</b> (siz baribir to'liq miqdorni topshirasiz) — faqat qayta ishlab chiqarish uchun sarflangan <b>qo'shimcha xomashyo</b> ombordan ayiriladi va Moliyada xarajat sifatida qayd etiladi.
       </div>
-      <div id="loss-info-gips-production" style="display:none;background:#FCE7F3;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#9D174D;line-height:1.6">
-        Gips uchun: necha metrga qancha gips ketishi doim bir xil bo'lmagani uchun, isrof bo'lgan <b>Gips miqdorini kg da to'g'ridan-to'g'ri kiriting</b>. <b>Mahsulot soni o'zgarmaydi</b>. Qo'shimchalar (Po'lat sim, Granula va h.k.) faqat ular ham isrof bo'lgan bo'lsa, ixtiyoriy ravishda qo'shing.
-      </div>
       <div id="loss-qty-wrap">
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px" id="loss-qty-label">Necha birlik brak bo'ldi?</label>
         <div style="font-size:12px;color:#94A3B8;margin-bottom:6px" id="loss-stock-info"></div>
         <input type="number" id="loss-qty" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>
-      <div id="loss-gips-wrap" style="display:none">
-        <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">Necha kg Gips brak bo'ldi?</label>
-        <input type="number" id="loss-gips-kg" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
-        <div style="margin-top:14px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <label style="font-size:13px;font-weight:600;color:#334155;margin:0">Qo'shimchalar (Po'lat sim, Granula va h.k.) <span style="font-weight:400;color:#94A3B8;font-size:11.5px">— ixtiyoriy</span></label>
-            <button type="button" onclick="addLossGpAdditive()" style="border:1px solid #E2E8F0;background:#fff;color:#475569;font-size:12.5px;padding:6px 12px;border-radius:8px;cursor:pointer">+ Qo'shimcha qo'shish</button>
-          </div>
-          <div id="loss-gp-additives-list"></div>
-        </div>
       </div>
       <div>
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Sabab (ixtiyoriy)</label>
@@ -804,31 +730,20 @@ function renderFp() {
   let produced = fpItems.filter(i => i.source === 'produced' && match(i));
   let returned = fpItems.filter(i => i.source === 'returned' && match(i));
 
-  // G'isht — Gips guruhida ko'rsatiladi (chunki u ham gips jarayonidan)
-  let producedGips = produced.filter(i => i.category === 'gips' || i.name === "G'isht");
-  let producedOther = produced.filter(i => i.category !== 'gips' && i.name !== "G'isht");
-
   const sortFn = {
     value_desc: (a,b) => b.total_value - a.total_value,
     qty_desc: (a,b) => b.quantity - a.quantity,
     recent: (a,b) => new Date(b.created_at||0) - new Date(a.created_at||0),
   }[sort];
-  if (sortFn) { producedOther.sort(sortFn); producedGips.sort(sortFn); returned.sort(sortFn); }
+  if (sortFn) { produced.sort(sortFn); returned.sort(sortFn); }
 
   let html = '';
 
-  if (producedOther.length) {
+  if (produced.length) {
     html += `<div class="fp-sec">
       <span class="fp-sec-label" style="color:#A86B36">🏭 PENOPLAST VA BOSHQA</span>
       <div class="fp-sec-line" style="background:linear-gradient(90deg,#E5DFD3,transparent)"></div>
-    </div>` + producedOther.map(rowHtml).join('');
-  }
-
-  if (producedGips.length) {
-    html += `<div class="fp-sec">
-      <span class="fp-sec-label" style="color:#9D174D">🧱 GIPS</span>
-      <div class="fp-sec-line" style="background:linear-gradient(90deg,#F9D3E5,transparent)"></div>
-    </div>` + producedGips.map(rowHtml).join('');
+    </div>` + produced.map(rowHtml).join('');
   }
 
   if (returned.length) {
@@ -984,7 +899,6 @@ function rowHtml(i) {
             i.category==='panel' ? 'ti-square' :
             i.category==='dona' ? 'ti-circle' :
             i.category==='blok' ? 'ti-cube' :
-            i.category==='gips' ? 'ti-wall' :
             'ti-box'
           }" onclick="document.getElementById('fpimg-${i.id}').click()"></i>`}
       <div class="cam-overlay" onclick="document.getElementById('fpimg-${i.id}').click()"><i class="ti ti-camera-plus"></i></div>
@@ -1124,120 +1038,9 @@ async function addProduction(id, qty, item) {
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
-let _gipsInvCacheFp = null;
-
-function addGpAdditive() {
-  const list = document.getElementById('gp-additives-list');
-  if (!list) return;
-  const opts = (_gipsInvCacheFp || []).map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`).join('');
-  const row = document.createElement('div');
-  row.className = 'gp-add-row';
-  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
-  row.innerHTML = `
-    <select class="gp-add-inv" onchange="onGpAdditiveChange(this)" style="flex:2;min-width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px;text-overflow:ellipsis"><option value="">— Material tanlang —</option>${opts}</select>
-    <input type="number" class="gp-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;min-width:0;width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px">
-    <button type="button" onclick="this.closest('.gp-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
-  `;
-  list.appendChild(row);
-}
-
-function onGpAdditiveChange(sel) {
-  // MUHIM: Serpiyanka/Qop kabi "idishda" saqlanadigan materiallar uchun —
-  // foydalanuvchi TABIIY birlikda (masalan "necha metr") kiritishi kerak,
-  // tizim buni o'zi rulonga aylantiradi. Aks holda "20" deb yozilgan metr,
-  // xato bilan "20 rulon" deb o'qilib qolar edi.
-  const row = sel.closest('.gp-add-row');
-  const qtyEl = row.querySelector('.gp-add-qty');
-  const item = (_gipsInvCacheFp || []).find(i => String(i.id) === sel.value);
-  if (!item) { qtyEl.placeholder = 'Miqdor'; row.dataset.ratio = ''; return; }
-  const unit = (item.unit || '').toLowerCase();
-  const ratio = parseFloat(item.volume_per_unit) || 0;
-  const isContainer = ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop');
-  if (isContainer) {
-    const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
-    qtyEl.placeholder = `Necha ${naturalUnit}?`;
-    row.dataset.ratio = ratio;
-    row.dataset.naturalUnit = naturalUnit;
-  } else {
-    qtyEl.placeholder = `Miqdor (${item.unit})`;
-    row.dataset.ratio = '';
-  }
-}
-
-function collectGpAdditives() {
-  const rows = document.querySelectorAll('.gp-add-row');
-  const result = [];
-  rows.forEach(row => {
-    const invId = parseInt(row.querySelector('.gp-add-inv')?.value) || null;
-    let qty = parseFloat(row.querySelector('.gp-add-qty')?.value) || 0;
-    const ratio = parseFloat(row.dataset.ratio) || 0;
-    if (ratio > 0) qty = qty / ratio;  // tabiiy birlikdan (metr/kg) — idish birligiga (rulon/qop)
-    if (invId && qty > 0) result.push({ inventory_id: invId, quantity: qty });
-  });
-  return result;
-}
-
-async function openGipsProduceModal() {
-  document.getElementById('gp-name').value = '';
-  document.getElementById('gp-unit').value = 'metr';
-  document.getElementById('gp-qty').value = '';
-  document.getElementById('gp-price').value = '';
-  document.getElementById('gp-gips-kg').value = '';
-  document.getElementById('gp-additives-list').innerHTML = '';
-
-  const sel = document.getElementById('gp-gips-inv');
-  if (!_gipsInvCacheFp) {
-    try {
-      const all = await fetch('/api/inventory').then(r => r.json());
-      _gipsInvCacheFp = all.filter(i => (i.category || '') === 'Gips');
-    } catch(e) { _gipsInvCacheFp = []; }
-  }
-  sel.innerHTML = '<option value="">— Tanlanmadi —</option>' +
-    _gipsInvCacheFp.map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`).join('');
-
-  document.getElementById('gipsProduceModal').style.display = 'flex';
-}
-
-function closeGipsProduceModal() {
-  document.getElementById('gipsProduceModal').style.display = 'none';
-}
-
-async function submitGipsProduce() {
-  const name = document.getElementById('gp-name').value.trim();
-  const unit = document.getElementById('gp-unit').value;
-  const qty = parseFloat(document.getElementById('gp-qty').value) || 0;
-  const price = parseNum(document.getElementById('gp-price').value) || 0;
-  const gipsInvId = parseInt(document.getElementById('gp-gips-inv').value) || null;
-  const gipsKg = parseFloat(document.getElementById('gp-gips-kg').value) || null;
-  const additives = collectGpAdditives();
-
-  if (!name) { showMsg('Mahsulot nomini kiriting', 'error'); return; }
-  if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
-
-  try {
-    const res = await fetch('/api/finished/produce-gips', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        name, unit, quantity: qty, unit_price: price,
-        gips_inventory_id: gipsInvId, gips_kg_used: gipsKg,
-        additives
-      })
-    });
-    const r = await res.json();
-    if (res.ok) {
-      closeGipsProduceModal();
-      showMsg('✓ Gips mahsulot ishlab chiqarildi!', 'success');
-      setTimeout(() => location.reload(), 1200);
-    } else {
-      showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
-    }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
-}
-
 let _lossData = null;
 
-const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok', 'gips'];
+const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok'];
 let _lossMode = 'stock';
 
 function openLossModal(id, name, quantity, unit, category) {
@@ -1246,8 +1049,6 @@ function openLossModal(id, name, quantity, unit, category) {
   document.getElementById('loss-stock-info').textContent = `Omborda: ${quantity} ${unit}`;
   document.getElementById('loss-qty').value = '';
   document.getElementById('loss-qty').max = quantity;
-  document.getElementById('loss-gips-kg').value = '';
-  document.getElementById('loss-gp-additives-list').innerHTML = '';
   document.getElementById('loss-reason').value = '';
 
   const canProdBrak = PROD_BRAK_CATEGORIES.includes(_lossData.category);
@@ -1258,73 +1059,16 @@ function openLossModal(id, name, quantity, unit, category) {
 
 function setLossMode(mode) {
   _lossMode = mode;
-  const isGips = _lossData && _lossData.category === 'gips';
   document.getElementById('loss-mode-stock').classList.toggle('active', mode === 'stock');
   document.getElementById('loss-mode-prod').classList.toggle('active', mode === 'production');
   document.getElementById('loss-info-stock').style.display = mode === 'stock' ? 'block' : 'none';
-  document.getElementById('loss-info-production').style.display = (mode === 'production' && !isGips) ? 'block' : 'none';
-  document.getElementById('loss-info-gips-production').style.display = (mode === 'production' && isGips) ? 'block' : 'none';
+  document.getElementById('loss-info-production').style.display = mode === 'production' ? 'block' : 'none';
   document.getElementById('loss-stock-info').style.display = mode === 'stock' ? 'block' : 'none';
-  document.getElementById('loss-qty-wrap').style.display = (mode === 'production' && isGips) ? 'none' : 'block';
-  document.getElementById('loss-gips-wrap').style.display = (mode === 'production' && isGips) ? 'block' : 'none';
   document.getElementById('loss-qty-label').textContent = mode === 'stock' ? 'Necha birlik brak bo\'ldi?' : 'Ishlab chiqarishda necha birlik brak bo\'ldi?';
   document.getElementById('loss-qty').max = mode === 'stock' ? _lossData.quantity : '';
   const btn = document.getElementById('loss-submit-btn');
   btn.style.background = mode === 'stock' ? '#D97706' : '#B9783F';
   btn.textContent = mode === 'stock' ? "⚠️ Kamaytirish" : "🏭 Xomashyoni ayirish";
-}
-
-async function addLossGpAdditive() {
-  if (!_gipsInvCacheFp) {
-    try {
-      const all = await fetch('/api/inventory').then(r => r.json());
-      _gipsInvCacheFp = all.filter(i => (i.category || '') === 'Gips');
-    } catch(e) { _gipsInvCacheFp = []; }
-  }
-  const list = document.getElementById('loss-gp-additives-list');
-  if (!list) return;
-  const opts = (_gipsInvCacheFp || []).map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`).join('');
-  const row = document.createElement('div');
-  row.className = 'loss-gp-add-row';
-  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
-  row.innerHTML = `
-    <select class="loss-gp-add-inv" onchange="onLossGpAdditiveChange(this)" style="flex:2;min-width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px;text-overflow:ellipsis"><option value="">— Material tanlang —</option>${opts}</select>
-    <input type="number" class="loss-gp-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;min-width:0;width:0;padding:9px 10px;font-size:14px;border:1.5px solid #E2E8F0;border-radius:9px">
-    <button type="button" onclick="this.closest('.loss-gp-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
-  `;
-  list.appendChild(row);
-}
-
-function onLossGpAdditiveChange(sel) {
-  const row = sel.closest('.loss-gp-add-row');
-  const qtyEl = row.querySelector('.loss-gp-add-qty');
-  const item = (_gipsInvCacheFp || []).find(i => String(i.id) === sel.value);
-  if (!item) { qtyEl.placeholder = 'Miqdor'; row.dataset.ratio = ''; return; }
-  const unit = (item.unit || '').toLowerCase();
-  const ratio = parseFloat(item.volume_per_unit) || 0;
-  const isContainer = ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop');
-  if (isContainer) {
-    const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
-    qtyEl.placeholder = `Necha ${naturalUnit}?`;
-    row.dataset.ratio = ratio;
-    row.dataset.naturalUnit = naturalUnit;
-  } else {
-    qtyEl.placeholder = `Miqdor (${item.unit})`;
-    row.dataset.ratio = '';
-  }
-}
-
-function collectLossGpAdditives() {
-  const rows = document.querySelectorAll('.loss-gp-add-row');
-  const result = [];
-  rows.forEach(row => {
-    const invId = parseInt(row.querySelector('.loss-gp-add-inv')?.value) || null;
-    let qty = parseFloat(row.querySelector('.loss-gp-add-qty')?.value) || 0;
-    const ratio = parseFloat(row.dataset.ratio) || 0;
-    if (ratio > 0) qty = qty / ratio;
-    if (invId && qty > 0) result.push({ inventory_id: invId, quantity: qty });
-  });
-  return result;
 }
 
 function closeLossModal() {
@@ -1333,34 +1077,8 @@ function closeLossModal() {
 
 async function submitLoss() {
   if (!_lossData) return;
-  const isGipsProd = _lossMode === 'production' && _lossData.category === 'gips';
-  const qty = isGipsProd ? (parseFloat(document.getElementById('loss-gips-kg').value) || 0)
-                         : (parseFloat(document.getElementById('loss-qty').value) || 0);
-  if (qty <= 0) { showMsg(isGipsProd ? 'Gips kg miqdorini kiriting' : 'Miqdorni kiriting', 'error'); return; }
-
-  if (isGipsProd) {
-    try {
-      const res = await fetch('/api/finished/production-brak', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          finished_product_id: _lossData.id,
-          gips_kg_brak: qty,
-          additives_brak: collectLossGpAdditives(),
-          notes: document.getElementById('loss-reason').value.trim() || null
-        })
-      });
-      const r = await res.json();
-      if (res.ok) {
-        closeLossModal();
-        showMsg(`✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
-        setTimeout(() => location.reload(), 1500);
-      } else {
-        showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
-      }
-    } catch(e) { showMsg('Server xatosi', 'error'); }
-    return;
-  }
+  const qty = parseFloat(document.getElementById('loss-qty').value) || 0;
+  if (qty <= 0) { showMsg('Miqdorni kiriting', 'error'); return; }
 
   if (_lossMode === 'stock') {
     if (qty > _lossData.quantity + 0.001) { showMsg(`Omborda faqat ${_lossData.quantity} ${_lossData.unit} bor`, 'error'); return; }
@@ -1658,8 +1376,8 @@ async function submitSell(confirmBelowCost) {
       {% else %}
       showMsg(`✓ Sotildi! ${fmt(r.total_amount)} so'm`, 'success');
       {% endif %}
-      // G'ishtdan tashqari barcha mahsulot uchun — Yuk xati avtomatik ochiladi
-      if (r.product_name !== "G'isht" && r.sale_id) {
+      // Har qanday mahsulot uchun — Yuk xati avtomatik ochiladi
+      if (r.sale_id) {
         window.open(`/api/finished/sales/${r.sale_id}/pdf`, '_blank');
       }
       setTimeout(() => location.reload(), 1500);
@@ -1694,8 +1412,7 @@ async function delFp(id, source) {
   if (!item) return;
 
   let back = false;
-  const hasReturnableMaterial = (source === 'produced' && item.volume_m3 > 0) ||
-                                 (item.category === 'gips' && item.gips_kg_used > 0);
+  const hasReturnableMaterial = (source === 'produced' && item.volume_m3 > 0);
   if (hasReturnableMaterial) {
     const choice = await confirmDeleteFp(item.name);
     if (choice === null) return;
@@ -1711,14 +1428,6 @@ async function delFp(id, source) {
 }
 
 // ── Ishlab chiqarish (buyurtma oynasidagi kabi) ───────────
-// ── Termopanel (Bazalt) ────────────────────────────────────
-
-
-function closeTermoModal() {
-  document.getElementById('termoModal').style.display = 'none';
-}
-
-
 
 function syncPCoatingUI(isCoated) {
   const toggle = document.getElementById('p-coat-toggle');
@@ -2217,33 +1926,6 @@ async function openProfitModal(id) {
       <span style="color:${bold?'var(--text)':'#777'}">${label}</span>
       <span style="color:${color||'var(--text)'};font-weight:${bold?'700':'600'}">${val}</span>
     </div>`;
-
-  // GIPS mahsulotlar — alohida, aniq ko'rinish
-  if (i.category === 'gips') {
-    const gipsKg = i.gips_kg_used || 0;
-    const gipsPerKg = gipsKg > 0 ? (totalCost / gipsKg) : 0;
-    document.getElementById('pm-body').innerHTML = `
-      <div style="background:#FCE7F3;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#9D174D;line-height:1.8">
-        🧱 ${gipsKg > 0 ? `Sarflangan Gips: <b>${gipsKg} kg</b>` : 'Gips miqdori kiritilmagan'}
-        ${i.created_by ? `<br>👤 ${escapeHtml(i.created_by)}` : ''}
-      </div>
-
-      <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
-      ${gipsKg > 0 ? row(`🧱 Gips (${gipsKg} kg × ${fmt(gipsPerKg)})`, fmt(totalCost) + " so'm") : row('🧱 Gips xarajati', fmt(totalCost) + " so'm")}
-      <div style="border-top:1px solid #eee;margin:4px 0"></div>
-      ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}
-
-      <div style="font-size:12px;font-weight:600;color:#777;margin:14px 0 4px">SOTUV</div>
-      ${row('Sotuv narxi (1 birlik)', fmt(i.unit_price) + " so'm")}
-      ${row('Miqdor', `${i.quantity} ${i.unit}`)}
-      ${row('Jami daromad', fmt(revenue) + " so'm", '#16A34A', true)}
-
-      <div style="border-top:2px solid #eee;margin:10px 0"></div>
-      ${row('SOF FOYDA', fmt(profit) + " so'm", profit >= 0 ? '#16A34A' : '#DC2626', true)}
-      ${row('Marja', margin.toFixed(1) + '%', profit >= 0 ? '#16A34A' : '#DC2626')}
-    `;
-    return;
-  }
 
   // Loy va Penoplast narxini — ALOHIDA hisoblamasdan, backend'dan
   // (allaqachon to'g'ri tuzatilgan) to'g'ridan-to'g'ri olamiz. Bu — ikkita
