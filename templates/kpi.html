@@ -323,9 +323,6 @@
             <option value="blok">Blok (penoplast)</option>
             <option value="metr">Metr</option>
             <option value="dona">Dona</option>
-{% if cat_on('gips', current_user.company_id) %}            <option value="gips_metr">🧱 Gips — metr</option>{% endif %}
-{% if cat_on('gips', current_user.company_id) %}            <option value="gips_qop">🧱 Gips — qop</option>{% endif %}
-{% if cat_on('gips', current_user.company_id) %}            <option value="gips_kg">🧱 Gips — kg</option>{% endif %}
           </select>
         </div>
         <div class="form-group" style="margin:0">
@@ -804,8 +801,7 @@ async function loadEmployees() {
       else if (e.pay_type === 'percent_sales') detail = `Sotuvdan ${e.percent_value}%`;
       else if (e.pay_type === 'percent_profit') detail = `Foydadan ${e.percent_value}%`;
       else if (e.pay_type === 'per_unit') {
-        const unitLabels = {gips_metr: "gips metr", gips_qop: "gips qop", gips_kg: "gips kg"};
-        detail = `${fmt(e.per_unit_rate)} / ${unitLabels[e.per_unit_type] || e.per_unit_type}`;
+        detail = `${fmt(e.per_unit_rate)} / ${e.per_unit_type}`;
       }
       else if (e.pay_type === 'fixed_plus_coating') detail = `${fmt(e.fixed_amount)} + ${fmt(e.per_unit_rate)}/metr-dona`;
       if (e.gul_rate) detail += ` · 🧱 gul: ${fmt(e.gul_rate)}/dona`;
