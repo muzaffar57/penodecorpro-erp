@@ -187,12 +187,23 @@ for (const [blokNarx, chiqim, kerak] of [[800000, 2.5, 30], [600000, 3, 10],
 }
 
 // A7. Oddiy turkumlar — miqdor x birlik narxi, penoplast hajmi 0
-// `termopanel` 2026-09-20 (11.2a) da butunlay olib tashlandi — ro'yxatda yo'q
-for (const kat of ['loy_sotish', 'gips', 'mrp_product']) {
+// `termopanel` 2026-09-20 (11.2a) da, `gips` esa 11.2b da butunlay olib
+// tashlandi — ikkalasi ham ro'yxatda yo'q
+for (const kat of ['loy_sotish', 'mrp_product']) {
   const r = ishlat({ 'i-type': kat, 'i-h': 0, 'i-w': 0, 'i-t': 0, 'i-l': 0,
                      'i-q': 15, 'i-c': 'false', 'i-unitprice': '40000' });
   check(`A ${kat} — narx = 15 x 40 000`, r.narx, 600000);
   check(`A ${kat} — penoplast hajmi 0`, r.hajm, 0);
+}
+
+// A7b. REGRESSIYA QULFI — `gips` endi calculateItem() da maxsus shoxga
+// ega emas. Agar kimdir uni qaytarib qo'ysa (yoki o'chirish chala qolsa),
+// bu tekshiruv darhol yiqiladi. Kutilgani: noma'lum tur sifatida
+// ishlanadi, ya'ni birlik narxi ishlatilmaydi.
+{
+  const r = ishlat({ 'i-type': 'gips', 'i-h': 0, 'i-w': 0, 'i-t': 0, 'i-l': 0,
+                     'i-q': 15, 'i-c': 'false', 'i-unitprice': '40000' });
+  check('A gips OLIB TASHLANDI — maxsus narx shoxi yo\'q', r.narx, 0);
 }
 
 // ════════════════════════════════════════════════════════════════
