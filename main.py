@@ -4341,6 +4341,9 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
     return {
         "status": "ok",
         "payment_id": payment.id,
+        # Takror yuborilgan so'rov bo'lsa — yangi yozuv YARATILMAGAN,
+        # mavjudining o'zi qaytarilgan (crud.create_payment ga qarang)
+        "duplicate": bool(getattr(payment, "_is_duplicate_submit", False)),
         "paid_amount": order.paid_amount,
         "debt_amount": order.debt_amount,
         "payment_status": order.payment_status.value,

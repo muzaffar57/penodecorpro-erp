@@ -3058,6 +3058,51 @@ def _update_order_payment_status(db: Session, order: Order) -> None:
             order.closed_at = datetime.utcnow()
 
 
+# ============================================================
+# PUL AMALLARIDA TAKROR YUBORISH HIMOYASI  (2026-09-20)
+# ============================================================
+# Buyurtma yaratishda bu himoya allaqachon bor edi (pg_advisory_xact_lock
+# + "yaqinda bir xil tarkibli yozuv bormi" tekshiruvi). To'lovlarda esa
+# yo'q edi: tugmani ikki marta bosish yoki tarmoq so'rovni qayta yuborishi
+# IKKITA to'lov yozuvini yaratardi — ya'ni pul ikki marta hisoblanardi.
+#
+# Ikki qatlam:
+#   1) Qulf — bir vaqtning o'zida kelgan bir xil so'rovlarni NAVBATGA
+#      qo'yadi (aks holda ikkalasi ham "takror emas" deb o'tib ketardi)
+#   2) Imzo tekshiruvi — qulf ichida, yaqinda AYNAN shunday to'lov
+#      bormi deb qaraydi; bo'lsa, yangisini yaratmay, mavjudini qaytaradi
+
+PUL_TAKROR_SONIYA = 8      # buyurtma himoyasidagi oyna bilan bir xil
+
+
+def _pay_enum(enum_class, qiymat, sukut):
+    """Matnni enum ga aylantiradi; noto'g'ri bo'lsa sukutdagini qaytaradi.
+    Imzo tekshiruvi va yozish AYNAN bir xil qiymatni ishlatishi uchun
+    alohida funksiyaga chiqarilgan."""
+    try:
+        return enum_class(qiymat)
+    except ValueError:
+        return sukut
+
+
+def _pul_qulfi(db: Session, ns: int, kalit) -> None:
+    """Tranzaksiya davomida ushlanadigan qulf (faqat PostgreSQL).
+
+    Ikki argumentli shakl ishlatilgan — u `create_order` dagi bir
+    argumentli `pg_advisory_xact_lock(project_id)` bilan HECH QACHON
+    to'qnashmaydi, chunki Postgres ularni alohida fazoda saqlaydi.
+    SQLite'da bunday funksiya yo'q va u yerda bir vaqtlilik muammosi
+    ham yo'q — xavfsiz o'tkazib yuboriladi.
+    """
+    try:
+        if db.bind.dialect.name == "postgresql":
+            from sqlalchemy import text as _t
+            db.execute(_t("SELECT pg_advisory_xact_lock(:ns, :k)"),
+                       {"ns": ns, "k": int(kalit)})
+    except Exception:
+        pass
+
+
 def create_payment(db: Session, payment_data: PaymentCreate,
                    company_id: int = None) -> Payment:
     """Yangi to'lov qo'shish."""
@@ -3068,6 +3113,34 @@ def create_payment(db: Session, payment_data: PaymentCreate,
     order = _oq.first()
     if not order:
         raise ValueError("Buyurtma topilmadi")
+
+    # ── TAKROR YUBORISH HIMOYASI ───────────────────────────────────────
+    # Ortiqcha to'lov ogohlantirishidan OLDIN turishi SHART: birinchi
+    # so'rov o'tib bo'lgach qarz kamayadi, shuning uchun takroriy so'rov
+    # bu yerga yetib kelsa foydalanuvchiga "ortiqcha to'lov" degan
+    # chalg'ituvchi oyna chiqib qolardi.
+    _pul_qulfi(db, 101, payment_data.order_id)
+
+    # TENANT: bu so'rovda company_id filtri ATAYLAB yo'q. Payment'da
+    # bunday ustun umuman yo'q, filtrlash OTA orqali bo'ladi — va ota
+    # (buyurtma) YUQORIDA allaqachon tekshirilgan: boshqa korxonaniki
+    # bo'lsa, "Buyurtma topilmadi" xatosi bilan shu yergacha yetib
+    # kelinmaydi. Ya'ni bu order_id faqat shu korxonaniki bo'lishi mumkin.
+    from datetime import timedelta as _td_pay
+    _summa = round(float(payment_data.amount or 0), 2)
+    _oldingi = db.query(Payment).filter(
+        Payment.order_id == payment_data.order_id,
+        Payment.amount == _summa,
+        Payment.payment_type == _pay_enum(PaymentType, payment_data.payment_type,
+                                          PaymentType.PARTIAL),
+        Payment.payment_method == _pay_enum(PaymentMethod, payment_data.payment_method,
+                                            PaymentMethod.CASH),
+        Payment.paid_at >= datetime.utcnow() - _td_pay(seconds=PUL_TAKROR_SONIYA),
+    ).order_by(Payment.paid_at.desc()).first()
+    if _oldingi is not None:
+        # main.py shu belgini o'qib, javobda "takroriy" deb ko'rsatadi
+        _oldingi._is_duplicate_submit = True
+        return _oldingi
 
     # Xavfsizlik: agar kiritilgan summa buyurtmaning UMUMIY qiymatidan
     # 3 baravardan ko'proq bo'lsa — bu, deyarli aniq, tasodifiy xato
@@ -3091,16 +3164,9 @@ def create_payment(db: Session, payment_data: PaymentCreate,
             excess=float(payment_data.amount) - current_debt
         )
 
-    # Enum ga aylantirish
-    try:
-        p_type = PaymentType(payment_data.payment_type)
-    except ValueError:
-        p_type = PaymentType.PARTIAL
-
-    try:
-        p_method = PaymentMethod(payment_data.payment_method)
-    except ValueError:
-        p_method = PaymentMethod.CASH
+    # Enum ga aylantirish (yuqoridagi imzo tekshiruvi bilan bir xil mantiq)
+    p_type = _pay_enum(PaymentType, payment_data.payment_type, PaymentType.PARTIAL)
+    p_method = _pay_enum(PaymentMethod, payment_data.payment_method, PaymentMethod.CASH)
 
     db_payment = Payment(
         order_id=payment_data.order_id,
@@ -8705,6 +8771,23 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
                 Supplier.id == data.supplier_id, Supplier.company_id == company_id).first():
             from fastapi import HTTPException as _HE_sp
             raise _HE_sp(status_code=404, detail="Yetkazib beruvchi topilmadi")
+    # ── TAKROR YUBORISH HIMOYASI (buyurtma to'lovi bilan bir xil) ──────
+    _pul_qulfi(db, 102, data.supplier_id)
+
+    # TENANT: yuqoridagi bilan bir xil sabab — ta'minotchi korxonasi
+    # SHU FUNKSIYANING BOSHIDA tekshirilgan (mos kelmasa 404), shuning
+    # uchun bu supplier_id faqat shu korxonaniki bo'lishi mumkin.
+    from datetime import timedelta as _td_sp
+    _summa_sp = round(float(data.amount or 0), 2)
+    _oldingi_sp = db.query(SupplierPayment).filter(
+        SupplierPayment.supplier_id == data.supplier_id,
+        SupplierPayment.amount == _summa_sp,
+        SupplierPayment.paid_at >= datetime.utcnow() - _td_sp(seconds=PUL_TAKROR_SONIYA),
+    ).order_by(SupplierPayment.paid_at.desc()).first()
+    if _oldingi_sp is not None:
+        _oldingi_sp._is_duplicate_submit = True
+        return _oldingi_sp
+
     debt_info = get_supplier_debt(db, data.supplier_id, company_id=company_id)
     current_debt = debt_info["debt"]
     if float(data.amount) > current_debt and not data.confirm_overpay:
