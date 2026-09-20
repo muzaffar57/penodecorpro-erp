@@ -4610,12 +4610,16 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
     if not row:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
     row.name = nom
+    # 2026-09-20 — MUHIM: bo'sh maydon "tozalash" degani.
+    # Ilgari `if qiymat is None: continue` yozilgan edi, lekin FastAPI
+    # bo'sh form maydonini `None` deb uzatadi — natijada foydalanuvchi
+    # telefonni o'chirib saqlasa, eski qiymat joyida qolardi (jonli
+    # sinovda aniqlandi). Endi to'rttala maydon HAR DOIM so'rovdan
+    # o'rnatiladi: interfeys ularni doim birga yuboradi.
     for maydon, qiymat, chegara in (("slogan", slogan, 150),
                                     ("phone", phone, 60),
                                     ("address", address, 200)):
-        if qiymat is None:
-            continue
-        v = qiymat.strip()
+        v = (qiymat or "").strip()
         if len(v) > chegara:
             raise HTTPException(status_code=400,
                                 detail=f"'{maydon}' juda uzun ({chegara} belgidan ko'p)")
