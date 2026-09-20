@@ -1627,8 +1627,21 @@ IXTIYORIY_KATEGORIYALAR = [
     ("termopanel", "🪨 Termopanel (Bazalt)"),
     ("gips", "🧱 Gips"),
     ("loy_sotish", "🪣 Loy sotish"),
+    # Bosqich 3, 11.1-band (2026-09-20) — `blok` ESKIRGAN turkumga o'tdi.
+    # Endi uning o'rniga MRP dan o'z mahsulot turingizni yaratasiz:
+    # retseptda "1 metr uchun necha blok penoplast" deb yozasiz, qoplama
+    # koeffitsiyentini ham o'zingiz belgilaysiz. Eski `blok` kodi
+    # O'CHIRILMADI — mavjud yozuvlar avvalgidek ko'rinadi va hisoblanadi.
+    ("blok", "🧊 Blok (eskirgan — MRP dan foydalaning)"),
 ]
-_ASOSIY_KATEGORIYALAR = ["profil", "panel", "dona", "blok"]
+_ASOSIY_KATEGORIYALAR = ["profil", "panel", "dona"]
+
+# Hech qachon sozlanmagan korxonada ixtiyoriy turlarning HAMMASI yoqiq
+# bo'ladi (eski xatti-harakat saqlanadi). Lekin ESKIRGAN turlar bundan
+# MUSTASNO — ular faqat ATAYLAB yoqilganda ko'rinadi. Aks holda `blok`
+# ni ixtiyoriy qilishning ma'nosi qolmasdi: u baribir hammaga
+# ko'rinaverardi.
+_ESKIRGAN_KATEGORIYALAR = {"blok"}
 
 
 _kategoriya_cache = {}
@@ -1648,7 +1661,8 @@ def enabled_categories_of(company_id):
     uchun natija keshda saqlanadi; sozlama o'zgarganda kesh tozalanadi.
     """
     if company_id is None:
-        return {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+        return {k for k, _ in IXTIYORIY_KATEGORIYALAR
+                if k not in _ESKIRGAN_KATEGORIYALAR}
     if company_id in _kategoriya_cache:
         return _kategoriya_cache[company_id]
     try:
@@ -1661,8 +1675,10 @@ def enabled_categories_of(company_id):
     except Exception:
         xom = None
     if xom is None:
-        # Hech qachon sozlanmagan — hammasi yoqiq (eski xatti-harakat)
-        natija = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+        # Hech qachon sozlanmagan — hammasi yoqiq (eski xatti-harakat),
+        # ESKIRGANlardan tashqari (11.1-band).
+        natija = {k for k, _ in IXTIYORIY_KATEGORIYALAR
+                  if k not in _ESKIRGAN_KATEGORIYALAR}
     else:
         natija = {x.strip() for x in xom.split(",") if x.strip()}
     _kategoriya_cache[company_id] = natija
@@ -4986,7 +5002,7 @@ def api_set_categories(codes: str = Form(""), db: Session = Depends(get_db),
     """Yoqilgan kategoriyalarni saqlaydi (vergul bilan ajratilgan).
 
     Bo'sh yuborilsa — barcha ixtiyoriy turlar o'chadi (faqat asosiy
-    to'rttasi qoladi). Asosiy turlar (profil, panel, donali, blok)
+    uchtasi qoladi). Asosiy turlar (profil, panel, donali)
     har doim yoqiq va bu yerdan o'chirilmaydi."""
     ruxsat = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
     tanlangan = [x.strip() for x in (codes or "").split(",") if x.strip() in ruxsat]
