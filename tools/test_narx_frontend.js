@@ -187,7 +187,8 @@ for (const [blokNarx, chiqim, kerak] of [[800000, 2.5, 30], [600000, 3, 10],
 }
 
 // A7. Oddiy turkumlar — miqdor x birlik narxi, penoplast hajmi 0
-for (const kat of ['termopanel', 'loy_sotish', 'gips', 'mrp_product']) {
+// `termopanel` 2026-09-20 (11.2a) da butunlay olib tashlandi — ro'yxatda yo'q
+for (const kat of ['loy_sotish', 'gips', 'mrp_product']) {
   const r = ishlat({ 'i-type': kat, 'i-h': 0, 'i-w': 0, 'i-t': 0, 'i-l': 0,
                      'i-q': 15, 'i-c': 'false', 'i-unitprice': '40000' });
   check(`A ${kat} — narx = 15 x 40 000`, r.narx, 600000);

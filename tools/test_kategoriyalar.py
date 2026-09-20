@@ -13,8 +13,10 @@ Uchta daraja bor:
               bo'lmaydi. Bular ATAYLAB qattiq kodda qoladi.
   IXTIYORIY — termopanel / gips / loy_sotish. Sozlanmagan korxonada
               yoqiq (eski xatti-harakat buzilmasin).
-  ESKIRGAN  — blok / gips / termopanel. Faqat ATAYLAB yoqilganda
-              ko'rinadi. O'rniga MRP dan o'z turingizni yaratasiz.
+  ESKIRGAN  — blok / gips. Faqat ATAYLAB yoqilganda ko'rinadi.
+              O'rniga MRP dan o'z turingizni yaratasiz.
+  OLIB TASHLANGAN — termopanel. 11.2a da kodi ham, interfeysi ham
+              butunlay o'chirildi, shuning uchun ro'yxatda YO'Q.
 
 ISHLATISH
 ---------
@@ -73,8 +75,9 @@ eskirgan = set(main._ESKIRGAN_KATEGORIYALAR)
 check("asosiy = profil, panel, dona", asosiy == {"profil", "panel", "dona"})
 check("blok endi asosiy EMAS", "blok" not in asosiy)
 check("blok ixtiyoriylar ichida", "blok" in ixtiyoriy)
-check("eskirganlar = blok, gips, termopanel",
-      eskirgan == {"blok", "gips", "termopanel"})
+check("eskirganlar = blok, gips", eskirgan == {"blok", "gips"})
+check("termopanel ro'yxatda UMUMAN yo'q (butunlay olib tashlangan)",
+      "termopanel" not in ixtiyoriy and "termopanel" not in asosiy)
 check("eskirganlar ixtiyoriylarning ichida", eskirgan <= ixtiyoriy)
 check("asosiy va ixtiyoriy kesishmaydi", not (asosiy & ixtiyoriy))
 
@@ -86,7 +89,7 @@ for k in ("profil", "panel", "dona"):
     check(f"{k} — ko'rinadi (asosiy)", main.cat_on(k, 1) is True)
 check("loy_sotish — ko'rinadi (hali eskirmagan)",
       main.cat_on("loy_sotish", 1) is True)
-for k in ("blok", "gips", "termopanel"):
+for k in ("blok", "gips"):
     check(f"{k} — KO'RINMAYDI (eskirgan)", main.cat_on(k, 1) is False)
 
 
@@ -97,7 +100,7 @@ crud.set_setting(db, "enabled_categories", "blok,gips", company_id=1)
 main._clear_category_cache(1)
 check("blok — endi ko'rinadi", main.cat_on("blok", 1) is True)
 check("gips — endi ko'rinadi", main.cat_on("gips", 1) is True)
-check("termopanel — ko'rinmaydi (ro'yxatda yo'q)",
+check("termopanel — ko'rinmaydi (umuman yo'q)",
       main.cat_on("termopanel", 1) is False)
 check("loy_sotish — ko'rinmaydi", main.cat_on("loy_sotish", 1) is False)
 check("profil — baribir ko'rinadi (asosiy, o'chirib bo'lmaydi)",
@@ -111,6 +114,7 @@ main._clear_category_cache(2)
 check("B korxonada blok — hamon ko'rinmaydi",
       main.cat_on("blok", 2) is False)
 check("B korxonada gips ham ko'rinmaydi", main.cat_on("gips", 2) is False)
+check("B korxonada termopanel ham yo'q", main.cat_on("termopanel", 2) is False)
 check("B korxonada loy_sotish — ko'rinadi (u sozlamagan)",
       main.cat_on("loy_sotish", 2) is True)
 
@@ -120,7 +124,7 @@ bolim("E. Bo'sh ro'yxat — hamma ixtiyoriysi o'chadi")
 # ════════════════════════════════════════════════════════════════
 crud.set_setting(db, "enabled_categories", "", company_id=1)
 main._clear_category_cache(1)
-for k in ("blok", "gips", "termopanel", "loy_sotish"):
+for k in ("blok", "gips", "loy_sotish"):
     check(f"{k} — o'chdi", main.cat_on(k, 1) is False)
 for k in ("profil", "panel", "dona"):
     check(f"{k} — baribir yoqiq", main.cat_on(k, 1) is True)
@@ -130,7 +134,7 @@ for k in ("profil", "panel", "dona"):
 bolim("F. Shablonlar shartni haqiqatan qo'llaydimi")
 # ════════════════════════════════════════════════════════════════
 import glob as _glob
-for turkum in ("blok", "gips", "termopanel"):
+for turkum in ("blok", "gips"):
     ochiq_jami = []
     for yol in _glob.glob(os.path.join(ROOT, "templates", "*.html")):
         matn = open(yol, encoding="utf-8").read()
