@@ -5421,6 +5421,62 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
     }
 
 
+def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = None,
+                                 performed_by: str = None) -> dict:
+    """Brak (yo'qotish) yozuvini BEKOR QILADI.
+
+    NIMA UCHUN QO'SHILDI (2026-09-20): `record_finished_product_loss()`
+    bor edi, lekin uni orqaga qaytarish yo'li HECH QAYERDA yo'q edi —
+    xato yozilgan brak Moliya hisobotida abadiy qolib ketardi va
+    "Brak xarajati" ni jimgina shishirardi. Bu — haqiqiy bo'shliq:
+    aynan shu sabab sinov tozalashi paytida sentabr sof foydasi
+    6 573 773 so'mga siljib ketdi.
+
+    Xatti-harakat:
+      - Mahsulot hali mavjud bo'lsa — miqdor va tan narx QAYTARILADI
+        (haqiqiy "bekor qilish").
+      - Mahsulot o'chirilgan bo'lsa — faqat yozuv o'chiriladi.
+    Ikkala holatda ham yozuv Faoliyat jurnaliga tushadi.
+    """
+    from models import FinishedProduct, FinishedProductLoss
+
+    q = db.query(FinishedProductLoss).filter(FinishedProductLoss.id == loss_id)
+    if company_id is not None:
+        q = q.filter(FinishedProductLoss.company_id == company_id)
+    loss = q.first()
+    if not loss:
+        return {"success": False, "message": "Brak yozuvi topilmadi"}
+
+    qty = float(loss.quantity or 0)
+    cost = float(loss.cost_amount or 0)
+    nomi = loss.product_name
+    tiklandi = False
+
+    if loss.finished_product_id:
+        fpq = db.query(FinishedProduct).filter(
+            FinishedProduct.id == loss.finished_product_id)
+        if company_id is not None:
+            fpq = fpq.filter(FinishedProduct.company_id == company_id)
+        fp = fpq.with_for_update().first()
+        if fp:
+            fp.quantity = float(fp.quantity or 0) + qty
+            fp.cost_price = float(fp.cost_price or 0) + cost
+            tiklandi = True
+
+    db.delete(loss)
+    try:
+        log_activity(db, "delete", "finished_product_loss", loss_id,
+                     f"Brak bekor qilindi: {nomi} — {qty:g} {loss.unit or ''} "
+                     f"({cost:,.0f} so'm)"
+                     + (" · ombor tiklandi" if tiklandi else " · mahsulot o'chirilgan"),
+                     performed_by=performed_by, company_id=company_id)
+    except Exception:
+        pass
+    db.commit()
+    return {"success": True, "qaytarilgan_summa": cost,
+            "ombor_tiklandi": tiklandi, "mahsulot": nomi}
+
+
 def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
                                               notes: str = None, created_by: str = None,
                                               gips_kg_brak: float = None, additives_brak: list = None,

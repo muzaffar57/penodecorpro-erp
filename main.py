@@ -5435,6 +5435,22 @@ def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Sessio
     return result
 
 
+@app.delete("/api/finished/loss/{loss_id}")
+def api_delete_finished_loss(loss_id: int, db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Xato yozilgan brakni bekor qiladi (2026-09-20 da qo'shildi).
+
+    Ilgari brakni orqaga qaytarish yo'li UMUMAN yo'q edi — bir marta
+    yozilgan brak Moliyadagi "Brak xarajati" da abadiy qolib ketardi.
+    Faqat admin, faqat o'z korxonasi, Faoliyat jurnaliga yoziladi."""
+    who = current_user.full_name or current_user.username
+    natija = crud.delete_finished_product_loss(
+        db, loss_id, company_id=auth.company_id_of(current_user), performed_by=who)
+    if not natija["success"]:
+        raise HTTPException(status_code=404, detail=natija["message"])
+    return natija
+
+
 @app.post("/api/finished/{fp_id}/release-reservation")
 def api_release_finished_product_reservation(fp_id: int, db: Session = Depends(get_db),
                                                current_user=Depends(auth.admin_warehouse_or_manager)):
