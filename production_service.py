@@ -207,6 +207,9 @@ def get_mrp_order_items_status(db: Session, company_id: int, product_type_id: in
             "needed_quantity": float(item.quantity or 0),
             "already_reserved": float(reserved),
             "remaining_quantity": remaining,
+            # 11.0-band — detal qoplamalimi. Ishlab chiqarish oynasi shunga
+            # qarab qoplama tarkibini o'zi belgilaydi.
+            "is_coated": bool(item.is_coated),
         })
     return result
 
@@ -262,6 +265,25 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
         if data.quantity > remaining + 0.0001:
             return {"success": False, "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} {product_type.unit} kerak (allaqachon {already_reserved:g} band qilingan) — {data.quantity:g} ko'p"}
         source_order_id = order_item.order_id
+
+        # QO'SHILDI 2026-09-20 (11.0-band) — QOPLAMA AVTOMATIK BELGILANADI.
+        # Detal buyurtmada "Qoplama: ha" bilan yozilgan bo'lsa, retseptdagi
+        # qoplama qatori(lari) o'z-o'zidan qo'shiladi. Operator uni qo'lda
+        # belgilashi shart emas — unutilsa, mijoz qoplamali mahsulot
+        # buyurtma qilgan bo'lsa ham loy ombordan yechilmay qolardi.
+        # Aksincha ham to'g'ri: qoplamasiz detalda qoplama qatori
+        # zo'rlab OLIB TASHLANADI.
+        _tanlangan = set(data.selected_optional_bom_item_ids or [])
+        _qoplama_qatorlari = {
+            bi.id for bi in bom.items
+            if getattr(bi, "is_optional", False) and getattr(bi, "is_coating", False)
+        }
+        if _qoplama_qatorlari:
+            if bool(getattr(order_item, "is_coated", False)):
+                _tanlangan |= _qoplama_qatorlari
+            else:
+                _tanlangan -= _qoplama_qatorlari
+            data.selected_optional_bom_item_ids = sorted(_tanlangan)
 
     po = ProductionOrder(
         company_id=company_id,

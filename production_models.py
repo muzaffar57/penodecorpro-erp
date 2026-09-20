@@ -193,6 +193,18 @@ class ProductType(Base):
     # (masalan hozirgi "Blok" kabi — o'lchamdan qat'i nazar bitta narx)
     fixed_unit_price = Column(Numeric(12, 2), nullable=True)
 
+    # QO'SHILDI 2026-09-20 (Bosqich 3, 11.0-band) — QOPLAMA.
+    # Eski qattiq kodlangan turkumlarda (profil/panel) qoplama narxni
+    # HAR DOIM 2 baravar oshirardi. Korxonalarda esa bu koeffitsiyent
+    # har xil — kimdir 2, kimdir 2.5. Shuning uchun u endi mahsulot
+    # TURINING sozlamasi: korxona turni yaratayotganda o'zi yozadi.
+    #
+    # MUHIM: bu faqat SOTUV NARXIGA tegishli. Qoplamaning XOMASHYOSI
+    # (loy va h.k.) butunlay boshqa joyda — retseptning `is_optional`
+    # + `is_coating` belgili qatorida. Ikkalasi bir-biridan MUSTAQIL.
+    supports_coating = Column(Boolean, default=False, nullable=True)
+    coating_price_multiplier = Column(Numeric(5, 2), nullable=True)   # masalan 2.00 / 2.50
+
     is_active = Column(Boolean, default=True)  # "O'chirilgan" emas, balki "hozircha ishlatilmaydi"
     created_at = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
@@ -269,6 +281,13 @@ class BOMItem(Base):
     # Masalan scrap_factor_percent=5.0 bo'lsa, haqiqiy sarf
     # quantity * 1.05 bo'ladi.
     scrap_factor_percent = Column(Float, nullable=False, default=0.0)
+
+    # QO'SHILDI 2026-09-20 (11.0-band). Retseptda bittadan ortiq ixtiyoriy
+    # qator bo'lishi mumkin (masalan qadoqlash). "Qoplama yoqildi" degani
+    # HAMMA ixtiyoriy qator qo'shilsin degani EMAS — shuning uchun qaysi
+    # qator aynan qoplama ekani alohida belgilanadi. Faqat
+    # `is_optional=True` bo'lganda ma'noga ega.
+    is_coating = Column(Boolean, default=False, nullable=True)
 
     # Ixtiyoriy komponent (masalan Profil "Qoplama" — akril/loy).
     # UI'da bunday komponent(lar) bo'lsa, "Qoplama bor/yo'q" kabi

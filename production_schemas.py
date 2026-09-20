@@ -8,7 +8,7 @@ rejimi yoqilgan.
 
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ============================================================
@@ -21,7 +21,27 @@ class ProductTypeCreate(BaseModel):
     input_template: str = Field(..., description="quantity_only / dimensional_3d / area_2d / weight_volume / flexible_unit")
     pricing_formula: str = Field(..., description="volume_based / area_based / fixed_price / unit_based")
     fixed_unit_price: Optional[float] = Field(default=None, ge=0, description="Faqat pricing_formula=fixed_price bo'lsa")
+    # 11.0-band — qoplama. `supports_coating=True` bo'lsa, buyurtmada shu
+    # mahsulot uchun "Qoplama" tugmasi chiqadi va narx koeffitsiyentga
+    # ko'paytiriladi. Koeffitsiyent har korxonada har xil (2 / 2.5 / ...).
+    supports_coating: bool = False
+    coating_price_multiplier: Optional[float] = Field(
+        default=None, gt=0, le=100,
+        description="Qoplamali narx koeffitsiyenti, masalan 2 yoki 2.5")
     notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _qoplama_tekshir(self):
+        """Qoplama yoqilgan bo'lsa, koeffitsiyent SHART.
+
+        Jimgina 2.0 qo'yib qo'yish xavfli: 2.5 ishlatadigan korxona
+        buni sezmay qolishi va narx jimgina noto'g'ri chiqishi mumkin.
+        Shuning uchun aniq so'raladi."""
+        if self.supports_coating and self.coating_price_multiplier is None:
+            raise ValueError(
+                "Qoplama yoqilgan — qoplama narx koeffitsiyentini kiriting "
+                "(masalan 2 yoki 2.5)")
+        return self
 
 
 class ProductTypeRead(BaseModel):
@@ -32,6 +52,8 @@ class ProductTypeRead(BaseModel):
     input_template: str
     pricing_formula: str
     fixed_unit_price: Optional[float] = None
+    supports_coating: bool = False
+    coating_price_multiplier: Optional[float] = None
     is_active: bool
     created_at: datetime
     notes: Optional[str] = None
@@ -49,6 +71,9 @@ class BOMItemCreate(BaseModel):
     quantity: float = Field(..., gt=0, description="BOM.batch_quantity uchun kerak miqdor")
     scrap_factor_percent: float = Field(default=0.0, ge=0, le=100)
     is_optional: bool = False
+    # 11.0-band — shu ixtiyoriy qator aynan QOPLAMA uchunmi. Faqat
+    # `is_optional=True` bo'lganda ma'noga ega.
+    is_coating: bool = False
     fixed_cost_per_unit: Optional[float] = Field(default=None, ge=0)
     percentage_cost: Optional[float] = Field(default=None, ge=0, le=1000)
     notes: Optional[str] = None
@@ -63,6 +88,7 @@ class BOMItemRead(BaseModel):
     quantity: float
     scrap_factor_percent: float
     is_optional: bool
+    is_coating: bool = False
     fixed_cost_per_unit: Optional[float] = None
     percentage_cost: Optional[float] = None
     notes: Optional[str] = None
