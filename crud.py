@@ -1492,7 +1492,11 @@ def _fp_stable_unit_cost(db, fp) -> float:
             cost += unit_vol * narx_per_m3
     # Loy qismi
     if unit_loy > 0:
-        loy_info = _svc.get_loy_cost_per_kg(db, fp.recipe_id)
+        # 2026-09-21 — TENANT: korxona mahsulotning O'ZIDAN olinadi. Oldin
+        # berilmasdi: `fp.recipe_id` bo'sh bo'lsa BOSHQA korxonaning
+        # retsepti bo'yicha tan narx hisoblanardi (o'lchangan).
+        loy_info = _svc.get_loy_cost_per_kg(
+            db, fp.recipe_id, company_id=getattr(fp, 'company_id', None))
         cost += unit_loy * float(loy_info.get("cost_per_kg", 0) or 0)
     return cost
 
@@ -4942,21 +4946,29 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     # 2) Loy — QO'SHIMCHA ayiriladi (agar qoplama bo'lsa), xuddi shu
     # retseptdan (fp.recipe_id), ishlab chiqarishdagi kabi
     if loy_kg_needed > 0:
-        from models import Recipe
-        recipe = db.query(Recipe).filter(Recipe.id == fp.recipe_id).first() if fp.recipe_id else None
-        if not recipe:
-            recipe = db.query(Recipe).first()
-        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
+        # 2026-09-21 — TENANT. Oldin bu yerda `db.query(Recipe).first()`
+        # zaxira yo'li bor edi: retsepti YO'Q korxona brak yozsa, BOSHQA
+        # korxonaning retsepti olinar va uning ingredientlari o'sha
+        # korxonaning omboridan ayirilar edi (o'lchangan: 995 → 992.5 kg).
+        _brak_cid = company_id if company_id is not None else getattr(fp, 'company_id', None)
+        recipe = services.resolve_recipe(db, recipe_id=fp.recipe_id,
+                                         company_id=_brak_cid)
+        loy_info = services.get_loy_cost_per_kg(
+            db, recipe.id if recipe else None, company_id=_brak_cid)
         loy_cost = loy_kg_needed * float(loy_info.get("cost_per_kg", 0))
 
         class _FakeOrder:
-            def __init__(self, rid):
+            def __init__(self, rid, cid):
                 self.id = None
+                # `company_id` SHART: services.resolve_recipe korxonani
+                # buyurtma obyektidan ham oladi.
+                self.company_id = cid
                 self.order_number = "TAYYOR MAHSULOT — ISHLAB CHIQARISH BRAKI"
-        fake = _FakeOrder(recipe.id if recipe else None)
+        fake = _FakeOrder(recipe.id if recipe else None, _brak_cid)
         log.extend(services.deduct_loy_ingredients(
             db, fake, loy_kg_needed, use_stock=False,
             recipe_id=(recipe.id if recipe else None),
+            company_id=_brak_cid,
             # MUHIM (2026-09 audit): reason "Brak" bilan boshlanishi SHART —
             # get_brak_material_summary() aynan "Brak%" naqshi bo'yicha
             # qidiradi (boshqa "Brak (ishlab chiqarish) — ..." yozuvlari
@@ -5304,34 +5316,29 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     # 2) Loyni ham DARHOL yechamiz (bir marta so'raladi)
     loy_kg = float(data.loy_kg or 0)
     if loy_kg > 0:
-        from models import Recipe
         # M4 — TENANT: retsept ham faqat joriy korxonadan. "Birinchi
         # topilgan retsept" (fallback) ham SHU korxona ichidan olinadi.
-        recipe = None
-        _rq = db.query(Recipe)
-        if company_id is not None:
-            _rq = _rq.filter(Recipe.company_id == company_id)
-        if data.recipe_id:
-            recipe = _rq.filter(Recipe.id == data.recipe_id).first()
-        if not recipe:
-            _rq2 = db.query(Recipe)
-            if company_id is not None:
-                _rq2 = _rq2.filter(Recipe.company_id == company_id)
-            recipe = _rq2.first()
+        # 2026-09-21 — qidiruv `services.resolve_recipe` ga o'tkazildi
+        # (yagona manba). Mantiq O'ZGARMADI: avval `data.recipe_id`,
+        # topilmasa SHU korxonaning birinchi retsepti.
+        recipe = services.resolve_recipe(db, recipe_id=data.recipe_id,
+                                         company_id=company_id)
 
-        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
+        loy_info = services.get_loy_cost_per_kg(
+            db, recipe.id if recipe else None, company_id=company_id)
         loy_cost = loy_kg * float(loy_info.get("cost_per_kg", 0))
 
         class _FakeOrder:
-            def __init__(self, rid):
+            def __init__(self, rid, cid):
                 class _It:
                     recipe_id = rid
                 self.items = [_It()]
                 self.id = None
+                self.company_id = cid      # 2026-09-21 — TENANT
                 self.order_number = "ISHLAB CHIQARISH"
-        fake = _FakeOrder(recipe.id if recipe else None)
+        fake = _FakeOrder(recipe.id if recipe else None, company_id)
         log.extend(services.deduct_loy_ingredients(
-            db, fake, loy_kg, use_stock=False,
+            db, fake, loy_kg, use_stock=False, company_id=company_id,
             reason_override=f"Ishlab chiqarish: {data.name.strip()} (loy)"
         ))
 
@@ -5561,7 +5568,10 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
                 p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) / vpu)
         # Loy qaytadi
         if fp.actual_loy_kg and fp.actual_loy_kg > 0:
-            _svc.return_loy_ingredients(db, _TermoFakeOrder(fp.recipe_id), float(fp.actual_loy_kg))
+            _svc.return_loy_ingredients(
+                db, _TermoFakeOrder(fp.recipe_id, getattr(fp, 'company_id', None)),
+                float(fp.actual_loy_kg),
+                company_id=getattr(fp, 'company_id', None))
         # Bog'liq yozuvlarni uzamiz (IN_PROGRESS'da sotuv bo'lmaydi, lekin
         # xavfsizlik uchun)
         from models import FinishedProductSale as _FPS, FinishedProductLoss as _FPL, OrderItem as _OI2
@@ -5816,13 +5826,16 @@ def get_finished_stats(db: Session, company_id: int = None) -> dict:
 
 class _TermoFakeOrder:
     """Termopanel '+' qo'shishda loy ayirish uchun soxta buyurtma obyekti."""
-    def __init__(self, recipe_id):
+    def __init__(self, recipe_id, company_id=None):
         class _It:
             pass
         _it = _It()
         _it.recipe_id = recipe_id
         self.items = [_it]
         self.id = None
+        # 2026-09-21 — TENANT: `services.resolve_recipe` korxonani
+        # buyurtma obyektidan ham oladi, shuning uchun SHART.
+        self.company_id = company_id
         self.order_number = "TERMOPANEL +"
         self.deliveries = []
         self.is_fully_delivered = False
@@ -5837,7 +5850,6 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
              +50 m qo'shilsa → 0.6 m³ penoplast va 60 kg loy yechiladi.
     """
     import services
-    from models import Recipe
 
     fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
@@ -5917,23 +5929,31 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
 
     # 2) Loy
     if add_loy > 0:
-        recipe = db.query(Recipe).filter(Recipe.id == fp.recipe_id).first() if fp.recipe_id else None
-        if not recipe:
-            recipe = db.query(Recipe).first()
+        # 2026-09-21 — TENANT. Penoplast qismi yuqorida `_add_inv` bilan
+        # korxonaga bog'langan edi, LOY qismi esa bog'lanmagan: retsept
+        # global qidirilar, ingredientlar esa retseptning ichidan
+        # (`ing.inventory_id`) olinar — ya'ni `_add_inv` ni butunlay
+        # chetlab o'tib, BOSHQA korxonaning omboridan ayirilar edi.
+        # O'lchangan: B ning "+10 metr" amali A ning SEMENT qoldig'ini
+        # 1000 → 995 kg qildi.
+        recipe = services.resolve_recipe(db, recipe_id=fp.recipe_id,
+                                         company_id=_add_cid)
 
-        loy_info = services.get_loy_cost_per_kg(db, recipe.id if recipe else None)
+        loy_info = services.get_loy_cost_per_kg(
+            db, recipe.id if recipe else None, company_id=_add_cid)
         loy_cost = add_loy * float(loy_info.get("cost_per_kg", 0))
 
         class _FakeOrder:
-            def __init__(self, rid):
+            def __init__(self, rid, cid):
                 class _It:
                     recipe_id = rid
                 self.items = [_It()]
                 self.id = None
+                self.company_id = cid      # 2026-09-21 — TENANT
                 self.order_number = "ISHLAB CHIQARISH"
-        fake = _FakeOrder(recipe.id if recipe else None)
+        fake = _FakeOrder(recipe.id if recipe else None, _add_cid)
         log.extend(services.deduct_loy_ingredients(
-            db, fake, add_loy, use_stock=False,
+            db, fake, add_loy, use_stock=False, company_id=_add_cid,
             reason_override=f"Ishlab chiqarish: {fp.name} (+{add_qty:g} {fp.unit}, loy)"
         ))
 
@@ -6049,7 +6069,13 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
     recipe_name = None
     loy_kg = float(fp.actual_loy_kg or 0)
     if loy_kg > 0:
-        info = services.get_loy_cost_per_kg(db, fp.recipe_id)
+        # 2026-09-21 — TENANT: korxona aniq beriladi. Oldin berilmagani
+        # uchun, `fp.recipe_id` bo'sh mahsulotning foyda hisobotida
+        # BOSHQA korxonaning retsept NOMI va narxi chiqardi (o'lchangan).
+        info = services.get_loy_cost_per_kg(
+            db, fp.recipe_id,
+            company_id=company_id if company_id is not None
+            else getattr(fp, 'company_id', None))
         loy_per_kg = float(info.get("cost_per_kg", 0))
         loy_cost = loy_kg * loy_per_kg
         recipe_name = info.get("recipe")

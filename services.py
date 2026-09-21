@@ -3572,15 +3572,64 @@ def _set_planned_loy(order, kg: float) -> None:
     order.notes = ','.join(parts)
 
 
-def _get_order_recipe(db: Session, order):
-    """Buyurtmaning retseptini topadi."""
+def resolve_recipe(db: Session, recipe_id: int = None, order=None,
+                   company_id: int = None):
+    """Retseptni HAR DOIM bitta korxona doirasida topadi — YAGONA manba.
+
+    ⚠ 2026-09-21 — O'LCHANGAN SIZISH. Oldin retsept qidiruvi kamida
+    5 joyda takrorlanardi va har birining oxirida `db.query(Recipe).first()`
+    bor edi — BUTUN bazadagi birinchi retsept, ya'ni BOSHQA korxonaniki.
+
+    Bu faqat o'qish sizishi emas edi: ingredientlar retseptning ichidan
+    (`recipe.ingredients` → `ing.inventory_id`) olinadi, shuning uchun
+    noto'g'ri retsept = noto'g'ri OMBOR. O'lchandi: retsepti yo'q YANGI
+    korxona (B) loy ishlatganda A korxonaning omboridan xomashyo
+    ayirildi (1000 → 995 → 992.5 kg).
+
+    Shuning uchun ildiz shu yerda yopiladi: retsept to'g'ri korxonaniki
+    bo'lsa — ombor ham avtomatik to'g'ri bo'ladi.
+
+    Korxona qayerdan olinadi (tartib bilan):
+      1) aniq berilgan `company_id`
+      2) `order.company_id` (soxta buyurtma obyektlariga ham shu maydon
+         qo'yilgan — pastdagi `_FakeOrder` larga qarang)
+    Korxona ANIQLANMASA — "bazadagi birinchi retsept" zaxira yo'li
+    ATAYLAB ishlatilmaydi. Retseptsiz qolish (hech narsa ayirilmaydi,
+    jurnalga yoziladi) begona korxonaning retseptini jimgina
+    ishlatishdan ko'ra xavfsizroq.
+    """
     from models import Recipe
-    for item in order.items:
-        if getattr(item, 'recipe_id', None):
-            r = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
-            if r:
-                return r
-    return db.query(Recipe).first()
+
+    cid = company_id
+    if cid is None and order is not None:
+        cid = getattr(order, 'company_id', None)
+
+    q = db.query(Recipe)
+    if cid is not None:
+        q = q.filter(Recipe.company_id == cid)
+
+    if recipe_id:
+        r = q.filter(Recipe.id == recipe_id).first()
+        if r:
+            return r
+
+    if order is not None:
+        for item in (getattr(order, 'items', None) or []):
+            rid = getattr(item, 'recipe_id', None)
+            if rid:
+                r = q.filter(Recipe.id == rid).first()
+                if r:
+                    return r
+
+    # Zaxira yo'l — FAQAT korxona aniq bo'lganda
+    if cid is not None:
+        return q.first()
+    return None
+
+
+def _get_order_recipe(db: Session, order, company_id: int = None):
+    """Buyurtmaning retseptini topadi (korxona doirasida)."""
+    return resolve_recipe(db, order=order, company_id=company_id)
 
 
 def get_or_create_loy_stock(db: Session, recipe, company_id: int = None):
@@ -3757,17 +3806,19 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
     return log
 
 
-def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: float) -> dict:
+def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: float,
+                                    company_id: int = None) -> dict:
     """Qoplama (loy) uchun kerakli xomashyo yetarli-yetarli emasligini
     OLDINDAN tekshiradi (hali hech narsa ayirilmasdan). Avval "tayyor loy"
     zaxirasi hisobga olinadi, keyin qolgan qism uchun retsept xomashyosi
     tekshiriladi — deduct_loy_ingredients() bilan BIR XIL mantiq."""
-    from models import Recipe, Inventory
+    from models import Inventory
 
     if loy_kg <= 0:
         return {"enough": True, "shortages": []}
 
-    recipe = db.query(Recipe).filter(Recipe.id == order_recipe_id).first() if order_recipe_id else db.query(Recipe).first()
+    # 2026-09-21 — TENANT: retsept faqat o'z korxonasidan (resolve_recipe).
+    recipe = resolve_recipe(db, recipe_id=order_recipe_id, company_id=company_id)
     if not recipe:
         return {"enough": True, "shortages": []}
 
@@ -3796,7 +3847,7 @@ def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: f
     return {"enough": len(shortages) == 0, "shortages": shortages}
 
 
-def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True, recipe_id: int = None, reason_override: str = None) -> list:
+def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True, recipe_id: int = None, reason_override: str = None, company_id: int = None) -> list:
     """
     Loy (qoplama) uchun ingredientlarni ombordan ayiradi.
     use_stock=True bo'lsa — avval tayyor loy zaxirasidan oladi.
@@ -3806,14 +3857,19 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
     reason_override berilsa — jurnal yozuvida standart "Buyurtma X (loy)"
     o'rniga shu matn ishlatiladi (masalan brak hisoboti uchun "Brak — ...").
     """
-    from models import Inventory, Recipe
+    from models import Inventory
 
     if loy_kg <= 0:
         return []
 
     log = []
 
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first() if recipe_id else _get_order_recipe(db, order)
+    # 2026-09-21 — TENANT: berilgan recipe_id ham korxona bo'yicha
+    # tekshiriladi; zaxira yo'l ("bazadagi birinchi retsept") korxona
+    # noma'lum bo'lsa ISHLATILMAYDI. Sabab: ingredientlar retseptdan
+    # olinadi, ya'ni begona retsept = begona OMBORDAN ayirish.
+    recipe = resolve_recipe(db, recipe_id=recipe_id, order=order,
+                            company_id=company_id)
 
     if not recipe:
         print("⚠ Retsept topilmadi — loy ingredientlari ayirilmadi")
@@ -3872,27 +3928,25 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
     return log
 
 
-def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = None) -> list:
+def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = None,
+                           company_id: int = None) -> list:
     """
     Loy ingredientlarini omborga qaytaradi (buyurtma o'chirilganda).
     recipe_id berilsa — aynan O'SHA retsept ishlatiladi.
+
+    2026-09-21 — TENANT: retsept qidiruvi `resolve_recipe` ga o'tkazildi.
+    Qaytarish ham xuddi ayirish kabi xavfli edi — begona retsept bilan
+    BEGONA omborga xomashyo "qaytarilardi".
     """
-    from models import Inventory, Recipe
+    from models import Inventory
 
     if loy_kg <= 0:
         return []
 
     log = []
 
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first() if recipe_id else None
-    if not recipe:
-        for item in order.items:
-            if hasattr(item, 'recipe_id') and item.recipe_id:
-                recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
-            if recipe:
-                break
-    if not recipe:
-        recipe = db.query(Recipe).first()
+    recipe = resolve_recipe(db, recipe_id=recipe_id, order=order,
+                            company_id=company_id)
 
     if not recipe:
         return []
@@ -4057,19 +4111,14 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None,
          birinchi retseptni olardi, ya'ni boshqa korxonanikini.
     O'lchangan: B korxona admini `/api/loy-cost` da A ning retsepti
     (`AAA_Rec`) va uning tan narxini ko'rdi."""
-    from models import Recipe, Inventory
+    from models import Inventory
 
-    def _rq():
-        q = db.query(Recipe)
-        if company_id is not None:
-            q = q.filter(Recipe.company_id == company_id)
-        return q
-
-    recipe = None
-    if recipe_id:
-        recipe = _rq().filter(Recipe.id == recipe_id).first()
-    if not recipe:
-        recipe = _rq().first()
+    # 2026-09-21 (2-tuzatish): qidiruv `resolve_recipe` ga o'tkazildi.
+    # Sabab: bu yerdagi zaxira yo'l `company_id` BERILMAGANDA hamon
+    # butun bazadan birinchi retseptni olardi — ya'ni himoya
+    # chaqiruvchining esida saqlashiga bog'liq edi. Endi korxona
+    # noma'lum bo'lsa zaxira yo'l umuman ishlamaydi.
+    recipe = resolve_recipe(db, recipe_id=recipe_id, company_id=company_id)
 
     if not recipe:
         return {"cost_per_kg": 0, "recipe": None, "breakdown": []}
@@ -4493,7 +4542,9 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
 
         if loy_kg > 0 and total_coated_units > 0:
             loy_kg_per_unit = loy_kg / total_coated_units
-            loy_info = get_loy_cost_per_kg(db, recipe_id)
+            # 2026-09-21 — TENANT: korxona buyurtmaning O'ZIDAN olinadi.
+            loy_info = get_loy_cost_per_kg(
+                db, recipe_id, company_id=getattr(order, 'company_id', None))
             loy_cost_per_unit = loy_kg_per_unit * float(loy_info.get("cost_per_kg", 0))
 
     return round(peno_cost_per_unit + loy_cost_per_unit)

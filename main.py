@@ -3344,7 +3344,11 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     # M4: tayyor mahsulot yetarliligi FAQAT joriy korxona ombori bo'yicha.
     fcheck = crud.check_finished_for_order(db, order.items,
                                            company_id=auth.company_id_of(current_user))
-    lcheck = services.check_loy_ingredients_for_order(db, order.recipe_id, loy_kg or 0)
+    # 2026-09-21 — TENANT: loy yetishmovchiligi ham FAQAT joriy korxona
+    # retsepti/ombori bo'yicha tekshiriladi.
+    lcheck = services.check_loy_ingredients_for_order(
+        db, order.recipe_id, loy_kg or 0,
+        company_id=auth.company_id_of(current_user))
 
     all_shortages = (list(check.get("shortages", []))
                       + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", [])))
