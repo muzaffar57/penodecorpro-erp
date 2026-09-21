@@ -64,17 +64,7 @@ def create_master(db: Session, master_data: MasterCreate,
     tg = (str(master_data.telegram_id).strip()
           if getattr(master_data, "telegram_id", None) else "")
     if tg:
-        # ESLATMA (M5 audit, F19): `Master.telegram_id` bazada HAMON
-        # global `unique` — buni o'zgartirish migratsiya talab qiladi va
-        # ataylab M5 dan keyinga qoldirildi. Shuning uchun bu yerdagi
-        # tekshiruv ham global qoladi (aks holda baza xatosi chiqardi),
-        # lekin xabar endi begona korxona ustasining nomini bermaydi.
-        mavjud_tg = db.query(Master).filter(Master.telegram_id == tg).first()
-        if mavjud_tg:
-            raise HTTPException(
-                status_code=400,
-                detail=f'Bu Telegram ID ({tg}) allaqachon band.',
-            )
+        _telegram_id_bandmi(db, tg, company_id)
 
     db_master = Master(
         company_id=company_id,      # M5: tenant ANIQ beriladi
@@ -90,6 +80,29 @@ def create_master(db: Session, master_data: MasterCreate,
     db.commit()
     db.refresh(db_master)
     return db_master
+
+
+def _telegram_id_bandmi(db: Session, tg: str, company_id: int = None,
+                        exclude_id: int = None) -> None:
+    """Usta Telegram ID si SHU korxonada band bo'lsa — 400.
+
+    2026-09-21 (12-sizish) — O'LCHANGAN: bazadagi cheklov endi
+    `(company_id, telegram_id)` (Faza 3: bir usta ikki korxonada ishlashi
+    mumkin; webhook ko'p moslikni o'zi rad etadi). Eski tekshiruv esa
+    "global" yozilgan edi va natijasi FILTRGA bog'liq edi: filtr o'chiq —
+    boshqa korxonadagi ID ham rad etilardi (begona ID borligini oshkor
+    qiluvchi oracle), filtr yoniq — o'z korxonasidagi bilan solishtirardi.
+    PUT da esa umuman tekshiruv yo'q edi → dublikat = baza xatosi (500).
+    Endi POST va PUT bir xil, QAT'IY shu korxona bo'yicha."""
+    from fastapi import HTTPException
+    q = db.query(Master.id).filter(Master.telegram_id == tg)
+    if company_id is not None:
+        q = q.filter(Master.company_id == company_id)
+    if exclude_id is not None:
+        q = q.filter(Master.id != exclude_id)
+    if q.first():
+        raise HTTPException(status_code=400,
+                            detail=f'Bu Telegram ID ({tg}) allaqachon band.')
 
 
 def get_masters(db: Session, only_active: bool = False,
@@ -130,6 +143,11 @@ def update_master(db: Session, master_id: int, master_data: MasterUpdate,
     update_data = master_data.model_dump(exclude_unset=True)
     # M5: company_id hech qachon mijoz so'rovidan qabul qilinmaydi.
     update_data.pop("company_id", None)
+    # 12-sizish: Telegram ID — POST bilan bir xil qoida (500 o'rniga 400).
+    if update_data.get("telegram_id"):
+        update_data["telegram_id"] = str(update_data["telegram_id"]).strip()
+        _telegram_id_bandmi(db, update_data["telegram_id"], db_master.company_id,
+                            exclude_id=db_master.id)
     for field, value in update_data.items():
         setattr(db_master, field, value)
 
@@ -523,7 +541,8 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
                    purchased_by: str = None, notes: str = None,
                    supplier_id: int = None, is_credit: bool = False,
                    volume_per_unit: float = None, payment_due_date: str = None,
-                   is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0):
+                   is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0,
+                   company_id: int = None):
     """Ombor kirimi — xarid narxi bilan. COMMIT QILMAYDI (chaqiruvchi
     o'zi, barcha ishlar tugagach, bitta marta commit qilishi kerak).
     O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
@@ -549,7 +568,9 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
     """
     from models import InventoryPurchase
 
-    db_item = get_item_locked(db, item_id)
+    # 2026-09-21 (12-sizish): company_id berilsa material FAQAT shu
+    # korxonadan (aks holda None → chaqiruvchi "Material topilmadi").
+    db_item = get_item_locked(db, item_id, company_id)
     if not db_item:
         return None
 
@@ -722,7 +743,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                 volume_per_unit=it.get("volume_per_unit"),
                 payment_due_date=it.get("payment_due_date"),
                 is_opening_stock=is_opening,
-                extra_cost_per_unit=extra_per_unit
+                extra_cost_per_unit=extra_per_unit,
+                company_id=company_id,
             )
             if result is None:
                 raise ValueError(f"Material topilmadi (id={it['inventory_id']})")
@@ -900,6 +922,24 @@ def get_recipe_insights(db: Session, recipe_id: int) -> Dict:
     return {"cost_per_kg": round(cost_per_kg, 2), "used_in": used_in}
 
 
+def _require_inventory_of_company(db: Session, inventory_ids, company_id: int) -> None:
+    """2026-09-21 (12-sizish) — berilgan materiallarning HAMMASI shu
+    korxonaniki ekanini QAT'IY tekshiradi, aks holda 404.
+
+    Nima uchun 404 (409 emas): begona korxona materiali \"mavjud emas\" deb
+    ko'rinishi kerak — 409 uning borligini oshkor qilardi (oracle)."""
+    from fastapi import HTTPException
+    ids = {int(i) for i in inventory_ids if i}
+    if not ids:
+        return
+    topildi = {r[0] for r in db.query(Inventory.id).filter(
+        Inventory.id.in_(ids), Inventory.company_id == company_id).all()}
+    yoq = sorted(ids - topildi)
+    if yoq:
+        raise HTTPException(status_code=404,
+                            detail=f"Material topilmadi (ID {yoq[0]})")
+
+
 def create_recipe(db: Session, recipe_data: RecipeCreate, company_id: int = None) -> Recipe:
     """Yangi retsept qo'shadi. Nomi ISTALGAN bo'lishi mumkin,
     tarkibi Omborxonadagi istalgan materiallardan (ingredients ro'yxati) tuziladi.
@@ -907,6 +947,11 @@ def create_recipe(db: Session, recipe_data: RecipeCreate, company_id: int = None
     2026-09-18 — M8/F1a: `company_id` berilmasdi (vaqtinchalik `DEFAULT 1`
     ga tayanardi). Endi tenant ANIQ beriladi. Tarkib (`RecipeIngredient`)
     esa avvalgidek retsept orqali `_TENANT_RULES` bilan to'ldiriladi."""
+    # 2026-09-21 (12-sizish): tarkibdagi HAR bir material shu korxonaniki
+    # bo'lishi SHART — hech narsa yozilishidan OLDIN tekshiriladi.
+    if company_id is not None:
+        _require_inventory_of_company(
+            db, [ing.inventory_id for ing in recipe_data.ingredients], company_id)
     db_recipe = Recipe(
         company_id=company_id,
         name=recipe_data.name.strip(),
@@ -928,12 +973,22 @@ def create_recipe(db: Session, recipe_data: RecipeCreate, company_id: int = None
     return db_recipe
 
 
-def update_recipe(db: Session, recipe_id: int, recipe_data: RecipeCreate) -> Optional[Recipe]:
+def update_recipe(db: Session, recipe_id: int, recipe_data: RecipeCreate,
+                  company_id: int = None) -> Optional[Recipe]:
     """Mavjud retseptni tahrirlaydi — nomi, hajmi va BUTUN tarkibini
-    (eski ingredientlar o'chirilib, yangilari yoziladi) yangilaydi."""
-    db_recipe = get_recipe(db, recipe_id)
+    (eski ingredientlar o'chirilib, yangilari yoziladi) yangilaydi.
+
+    2026-09-21 (12-sizish): `company_id` berilsa retsept FAQAT shu
+    korxonadan. Tarkibdagi materiallar esa HAR DOIM retseptning O'Z
+    korxonasiga tekshiriladi (berilmasa ham) — eski tarkib o'chirilishidan
+    OLDIN, aks holda yarim-o'zgargan retsept qolardi."""
+    db_recipe = get_recipe(db, recipe_id, company_id)
     if not db_recipe:
         return None
+    if db_recipe.company_id is not None:
+        _require_inventory_of_company(
+            db, [ing.inventory_id for ing in recipe_data.ingredients],
+            db_recipe.company_id)
 
     db_recipe.name = recipe_data.name.strip()
     db_recipe.batch_size_kg = recipe_data.batch_size_kg
@@ -2761,7 +2816,17 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     order_item = None
     oi_id = getattr(data, 'order_item_id', None)
     if oi_id:
-        order_item = db.query(OrderItem).filter(OrderItem.id == oi_id).first()
+        # 2026-09-21 (12-sizish) — O'LCHANGAN: detal faqat ID bo'yicha
+        # olinardi, buyurtmaga tegishliligi tekshirilmasdi. B o'z buyurtmasi
+        # + A ning `order_item_id` sini bersa, brak A ning penoplastini
+        # yechardi va qaytarish summasi A tan narxidan hisoblanib B ga
+        # qaytardi. Endi detal FAQAT shu buyurtma ichidan; topilmasa —
+        # nom bo'yicha taxmin QILINMAYDI, rad etiladi.
+        order_item = db.query(OrderItem).filter(
+            OrderItem.id == oi_id,
+            OrderItem.order_id == data.order_id).first()
+        if not order_item:
+            raise ValueError("Buyurtma detali topilmadi")
     if not order_item:
         order_item = db.query(OrderItem).filter(
             OrderItem.order_id == data.order_id,

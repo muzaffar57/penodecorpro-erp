@@ -2436,6 +2436,13 @@ def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Sessi
     (Transport/Tushirish/Yuklash/Boshqa) bilan birga, BITTA yagona
     tranzaksiyada saqlaydi. Xato bo'lsa — hech narsa saqlanmaydi (rollback)."""
     who = current_user.full_name or current_user.username
+    # 2026-09-21 (12-sizish): kirimdagi HAR bir material va ta'minotchi
+    # FAQAT joriy korxonadan — HECH NARSA yozilishidan OLDIN. Ilgari B
+    # A ning inventory_id sini bersa, A OMBORI ko'payardi (o'lchangan).
+    _cid = auth.company_id_of(current_user)
+    crud._require_inventory_of_company(db, [it.inventory_id for it in data.items], _cid)
+    if data.supplier_id and not crud.get_supplier(db, data.supplier_id, company_id=_cid):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     try:
         result = crud.create_inventory_receipt(
             db,
@@ -2448,6 +2455,11 @@ def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Sessi
             company_id=auth.company_id_of(current_user)
         )
         return result
+    except (HTTPException, _TenantMismatchError):
+        # 12-sizish: bular o'z holati bilan chiqsin (404 / 409) — pastdagi
+        # umumiy `except` ularni 500 ga aylantirib, begona yozuv haqidagi
+        # ichki xato matnini ham foydalanuvchiga ko'rsatardi.
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -3405,7 +3417,8 @@ def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = 
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.recipe_of_company(db, recipe_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
-    recipe = crud.update_recipe(db, recipe_id, data)
+    recipe = crud.update_recipe(db, recipe_id, data,
+                                company_id=auth.company_id_of(current_user))
     if not recipe:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
     return recipe
@@ -4515,7 +4528,23 @@ def api_get_project_items(project_id: int, db: Session = Depends(get_db), curren
 
 @app.post("/api/returns")
 def api_create_return(data: schemas.ReturnItemCreate, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    return crud.create_return_item(db, data, company_id=auth.company_id_of(current_user))
+    # 2026-09-21 (12-sizish): buyurtma FAQAT joriy korxonadan, detal esa
+    # FAQAT shu buyurtmadan — hech narsa yozilishidan OLDIN. Ilgari begona
+    # yoki mavjud bo'lmagan buyurtma 500 berardi, begona detal esa A
+    # omborini kamaytirardi (o'lchangan).
+    _cid = auth.company_id_of(current_user)
+    if not auth.order_of_company(db, data.order_id, _cid):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    if data.order_item_id:
+        from models import OrderItem as _OI_r
+        if not db.query(_OI_r.id).filter(_OI_r.id == data.order_item_id,
+                                         _OI_r.order_id == data.order_id).first():
+            raise HTTPException(status_code=404, detail="Buyurtma detali topilmadi")
+    try:
+        return crud.create_return_item(db, data, company_id=_cid)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/returns")

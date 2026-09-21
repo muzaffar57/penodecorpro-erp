@@ -1940,6 +1940,13 @@ _TENANT_RULES = {
     "InventoryPurchase":   [("inventory_id", "Inventory"),
                             ("supplier_id", "Supplier")],
     "SupplierPayment":     [("supplier_id", "Supplier")],
+    # 2026-09-21 (12-sizish) — O'LCHANGAN: `_TENANT_REFS` da
+    # `RecipeIngredient.inventory_id` qoidasi BOR edi, lekin HECH QACHON
+    # ishlamasdi: bu jadvalda o'z `company_id` si yo'q, bu yerda ota ham
+    # yo'q edi → `_check_refs` ga own_cid=None borardi va u darhol
+    # qaytardi. Natija: B retsepti A materialiga bog'lanardi, B loy
+    # ishlab chiqarganda A ombori kamayardi. Endi korxona retseptdan olinadi.
+    "RecipeIngredient":    [("recipe_id", "Recipe")],
 
     # --- M5 (2026-09-18) — ustalar / hodimlar / sovg'a ---
     # Bu modellarda ham company_id ustuni YO'Q; tenant otadan olinadi.
