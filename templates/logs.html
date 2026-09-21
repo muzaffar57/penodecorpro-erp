@@ -159,6 +159,13 @@
           <input type="text" id="co-slogan" class="input-field" maxlength="150"
                  style="width:220px" placeholder="Fasad bezaklari">
         </div>
+        <div>
+          <label style="display:block;font-size:11.5px;color:var(--text3);margin-bottom:4px">Telegram: ustaga salom shiori</label>
+          <input type="text" id="co-tg-tagline" class="input-field" maxlength="150"
+                 style="width:280px" placeholder="bo'sh qoldirilsa — chiqmaydi">
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">
+            Yangi usta qo'shilganda botdagi salom xabari oxirida nom yonida chiqadi</div>
+        </div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <div>
@@ -366,6 +373,7 @@ async function loadCompany() {
     document.getElementById('co-slogan').value = d.slogan || '';
     document.getElementById('co-phone').value = d.phone || '';
     document.getElementById('co-address').value = d.address || '';
+    document.getElementById('co-tg-tagline').value = d.tg_tagline || '';
     const img = document.getElementById('co-logo-preview');
     if (d.logo_path) {
       img.src = '/' + d.logo_path + '?v=' + Date.now();
@@ -402,6 +410,7 @@ async function saveCompany() {
   fd.append('slogan', document.getElementById('co-slogan').value.trim());
   fd.append('phone', document.getElementById('co-phone').value.trim());
   fd.append('address', document.getElementById('co-address').value.trim());
+  fd.append('tg_tagline', document.getElementById('co-tg-tagline').value.trim());
   const r = await fetch('/api/settings/company', { method: 'PUT', body: fd });
   if (r.ok) {
     el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
@@ -449,7 +458,9 @@ async function loadTgBot() {
                      '<span style="color:var(--text3)">(token ' + (d.token_hint || '') + ')</span>';
       document.getElementById('tg-chat').value = d.chat_id || '';
     } else {
-      el.innerHTML = '<span style="color:var(--text3)">Sozlanmagan — tizimning umumiy boti ishlatiladi</span>';
+      el.innerHTML = d.uses_system_bot
+        ? '<span style="color:var(--text3)">Sozlanmagan — tizimning umumiy boti ishlatiladi</span>'
+        : '<span style="color:#c00">Sozlanmagan — Telegram xabarlari YUBORILMAYDI. Botni sozlang.</span>';
     }
   } catch (e) { /* jim */ }
 }
@@ -467,7 +478,7 @@ async function saveTgBot() {
 }
 
 async function clearTgBot() {
-  if (!confirm("Bot sozlamasi tozalansinmi? Bildirishnomalar tizimning umumiy botiga qaytadi.")) return;
+  if (!confirm("Bot sozlamasi tozalansinmi? Shundan keyin korxonangizga Telegram xabarlari kelmasligi mumkin.")) return;
   const fd = new FormData();
   fd.append('token', '-'); fd.append('chat_id', '-');
   await fetch('/api/settings/telegram-bot', { method: 'PUT', body: fd });
