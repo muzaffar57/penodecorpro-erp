@@ -5714,10 +5714,23 @@ def api_search_finished(q: str = "", category: Optional[str] = None, exclude_cat
         return {"items": [], "error": str(e)}
 
 
+def _fp_tana(model: str, data, sxema):
+    """17-band: tayyor mahsulot marshrutlari tanasi — xom JSON QAT'IY
+    tekshiriladi (`crud._clean_val`), keyin sxemaga o'giriladi. Qoida
+    buzilsa 400 — javob shakli crud javoblari bilan bir xil
+    (`{"success": false, "message": ...}`), UI `detail.message` ni o'qiydi."""
+    try:
+        toza = crud._clean_val(model, data)
+        return sxema(**toza)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
+
+
 @app.post("/api/finished/loss")
-def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Session = Depends(get_db),
+def api_record_finished_loss(data: dict = Body(...), db: Session = Depends(get_db),
                                current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
+    data = _fp_tana("Loss", data, schemas.FinishedProductLossCreate)
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_loss(db, data, created_by=who,
                                               company_id=auth.company_id_of(current_user))
@@ -5756,12 +5769,13 @@ def api_release_finished_product_reservation(fp_id: int, db: Session = Depends(g
 
 
 @app.post("/api/finished/production-brak")
-def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
+def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(get_db),
                                    current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
     soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi.
     Profil/Panel/Donali/Blok — `brak_qty` (mahsulot birligida) orqali,
     BARQAROR nisbatdan hisoblab."""
+    data = _fp_tana("ProductionBrak", data, schemas.FinishedProductProductionBrakCreate)
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_production_brak(
         db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
@@ -5773,9 +5787,10 @@ def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCrea
 
 
 @app.post("/api/finished/sell-batch")
-def api_sell_finished_products_batch(data: schemas.FinishedProductSaleBatchCreate, db: Session = Depends(get_db),
+def api_sell_finished_products_batch(data: dict = Body(...), db: Session = Depends(get_db),
                                        current_user=Depends(auth.admin_warehouse_or_manager)):
     """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
+    data = _fp_tana("SaleBatch", data, schemas.FinishedProductSaleBatchCreate)
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_products_batch(db, data, created_by=who,
                                               company_id=auth.company_id_of(current_user))
@@ -5785,9 +5800,10 @@ def api_sell_finished_products_batch(data: schemas.FinishedProductSaleBatchCreat
 
 
 @app.post("/api/finished/sell")
-def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Session = Depends(get_db),
+def api_sell_finished_product(data: dict = Body(...), db: Session = Depends(get_db),
                                 current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
+    data = _fp_tana("Sale", data, schemas.FinishedProductSaleCreate)
     who = current_user.full_name or current_user.username
     result = crud.sell_finished_product(db, data, created_by=who,
                                        company_id=auth.company_id_of(current_user))
@@ -5820,8 +5836,9 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
 
 
 @app.post("/api/finished/produce")
-def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_produce(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ishlab chiqarish."""
+    data = _fp_tana("Produce", data, schemas.ProduceCreate)
     who = current_user.full_name or current_user.username
     result = crud.produce_finished_product(db, data, created_by=who,
                                           company_id=auth.company_id_of(current_user))
@@ -5862,9 +5879,14 @@ def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=
 
 
 @app.post("/api/finished/{fp_id}/add")
-def api_add_production(fp_id: int, data: schemas.StockAdjust,
+def api_add_production(fp_id: int, data: dict = Body(...),
                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
+    # 17-band: begona / mavjud bo'lmagan ID — tana tekshiruvidan OLDIN 404
+    # (aks holda yomon tana 400 berib, ID borligini oshkor qilardi).
+    if not crud.get_finished_product(db, fp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    data = _fp_tana("StockAdjust", data, schemas.StockAdjust)
     result = crud.add_to_production(db, fp_id, data.quantity,
                                     company_id=auth.company_id_of(current_user))
     if not result["success"]:
@@ -5888,9 +5910,13 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
 
 
 @app.post("/api/finished/{fp_id}/reduce")
-def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
+def api_reduce_production(fp_id: int, data: dict = Body(...),
                           db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
+    # 17-band: begona ID — tana tekshiruvidan OLDIN 404 (oracle bo'lmasin).
+    if not crud.get_finished_product(db, fp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    data = _fp_tana("StockAdjust", data, schemas.StockAdjust)
     result = crud.reduce_production(db, fp_id, data.quantity, data.reason,
                                     company_id=auth.company_id_of(current_user))
     if not result["success"]:

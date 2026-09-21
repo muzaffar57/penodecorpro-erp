@@ -2151,6 +2151,35 @@ def _clean_by_rules(rules: dict, taqiq: dict, data, notogri_xabar: str) -> dict:
             if len(v) > 50:
                 raise ValueError(f"'{key}' juda uzun (50 belgidan ko'p)")
             toza[key] = v or None
+        elif tur == "id":
+            # 17-band: bog'lanish ID si — musbat butun son (bool emas).
+            if value is None:
+                if not qoida[1]:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"'{key}' butun son bo'lishi kerak")
+            if value < 1 or value > 2_147_483_647:
+                raise ValueError(f"'{key}' noto'g'ri qiymat")
+            toza[key] = value
+        elif tur == "royxat":
+            # 17-band: ichki qatorlar ro'yxati — har qator o'z qoidalari
+            # bilan (`_clean_val`) to'liq tekshiriladi.
+            ichki, eng_kam, eng_kop = qoida[1], qoida[2], qoida[3]
+            if not isinstance(value, list):
+                raise ValueError(f"'{key}' ro'yxat bo'lishi kerak")
+            if len(value) < eng_kam:
+                raise ValueError(f"'{key}' kamida {eng_kam} ta qatordan iborat bo'lishi kerak")
+            if len(value) > eng_kop:
+                raise ValueError(f"'{key}' juda ko'p qator ({eng_kop} tadan ko'p)")
+            qatorlar = []
+            for i, el in enumerate(value):
+                try:
+                    qatorlar.append(_clean_val(ichki, el))
+                except ValueError as e:
+                    raise ValueError(f"'{key}' {i + 1}-qator: {e}")
+            toza[key] = qatorlar
         elif tur == "sana":
             if value is None or (isinstance(value, str) and value.strip() == ""):
                 if not qoida[1]:
@@ -2258,6 +2287,173 @@ def _clean_create(model: str, data) -> dict:
         if miqdor > 0 and narx > 0 and round(miqdor * narx, 2) > _ORDER_ITEM_MAX_MONEY:
             raise ValueError("Boshlang'ich qoldiq summasi (miqdor × narx) juda katta")
     return toza
+
+
+# 2026-09-21 (17-band) — TAYYOR MAHSULOT qiymat yo'llari.
+# O'LCHANGAN (asl kod, lokal TestClient, har prob toza bazada):
+#   * `POST /api/finished/produce` — manfiy kenglik → hajm manfiy, penoplast
+#     YECHILMAYDI, mahsulot BEPUL paydo bo'ladi; noto'g'ri `category` →
+#     xomashyosiz "dona"; `unit_price` Infinity → 500, LEKIN yozuv qoladi va
+#     `/finished` + `/api/finished` BUTUNLAY 500; NaN uzunlik → 500 + yozuv;
+#     `loy_kg` Infinity → 500 + yozuv; 1e20 narx / miqdor; `true` → 1,
+#     `"5"` → 5 JIM o'giriladi; nom `"    "` → strip → BO'SH nom; manfiy
+#     `price_per_m3`; `penoplast_id` sifatida ODDIY material (penoplast
+#     emas) ombordan "blok" deb yechiladi;
+#   * `/{id}/add`, `/loss` — `true` → 1; JARAYONDAGI (in_progress)
+#     mahsulotga qo'shish / brak (UI buni faqat TAYYOR mahsulotga beradi);
+#   * `/sell` — narx 1e20 SAQLANDI (PostgreSQL Numeric(12,2) da 500),
+#     Infinity → 500 + yozuv + `/api/finished/sales` BUTUNLAY 500;
+#     noto'g'ri `payment_method` (ustun 20 belgi), 500 belgili xaridor
+#     (ustun 150), mavjud bo'lmagan `master_id` (FK) SAQLANDI; jarayondagi
+#     mahsulot SOTILDI;
+#   * `/sell-batch` — BIR mahsulot ikki qatorda (6 + 6, qoldiq 10) → har qator
+#     alohida tekshirilib, qoldiq -2 ga TUSHDI; Infinity narx → sotuv
+#     yozuvi qolib, `/api/finished/sales` 500;
+#   * `/production-brak` — `gips_*` maydonlari marshrutda e'tiborsiz edi.
+# Endi: ruxsat ro'yxati + qat'iy turlar (`_clean_val`) marshrutda HAM crud
+# ildizida HAM; hisob butunligi (savatcha yig'indisi, penoplast turi,
+# tayyor holat, usta korxonada, summa sig'imi) crud ildizida.
+_FP_KATEGORIYA = {"profil": "profil", "panel": "panel", "dona": "dona", "blok": "blok"}
+_TOLOV_USULI = {"naqd": "naqd", "karta": "karta", "bank": "bank"}
+
+
+def _val_rules():
+    """17-band qoidalari: model (tana turi) → {maydon: qoida}."""
+    money = _ORDER_ITEM_MAX_MONEY
+    son = _UPD_SON_CHEGARA
+    matn = _UPD_MATN_CHEGARA
+    sotuv = {
+        "finished_product_id": ("id", False),
+        "quantity": ("son", False, True, son),
+        "unit_price": ("son", False, False, money),
+    }
+    return {
+        "Produce": {
+            "name": ("matn", True, 150),
+            "category": ("tanlov", False, _FP_KATEGORIYA),
+            # O'lchamlar: manfiy EMAS (0 — "berilmagan": UI \"Blok\" turida
+            # `length: _blokKerak || 0` yuboradi; hajm hisobi 0 ni e'tiborsiz
+            # qoldiradi). Manfiy o'lcham → manfiy hajm → penoplast yechilmasdi.
+            "width": ("son", True, False, son),
+            "thickness": ("son", True, False, son),
+            "length": ("son", True, False, son),
+            "quantity": ("son", True, False, son),
+            "is_coated": ("bool", False),
+            "penoplast_id": ("id", True),
+            "price_per_m3": ("son", True, False, money),
+            "unit_price": ("son", False, False, money),
+            "unit_price_for_volume": ("son", True, False, money),
+            "loy_kg": ("son", False, False, son),
+            "recipe_id": ("id", True),
+            "notes": ("matn", False, matn),
+        },
+        "StockAdjust": {
+            "quantity": ("son", False, True, son),
+            "reason": ("matn", False, matn),
+        },
+        "Loss": {
+            "finished_product_id": ("id", False),
+            "quantity": ("son", False, True, son),
+            "reason": ("matn", False, matn),
+        },
+        "ProductionBrak": {
+            "finished_product_id": ("id", False),
+            "brak_qty": ("son", False, True, son),
+            "notes": ("matn", False, matn),
+        },
+        "Sale": dict(sotuv, **{
+            "buyer_name": ("matn", False, 150),
+            "payment_method": ("tanlov", False, _TOLOV_USULI),
+            "notes": ("matn", False, matn),
+            "master_id": ("id", True),
+            "confirm_below_cost": ("bool", False),
+        }),
+        "SaleBatchItem": dict(sotuv),
+        "SaleBatch": {
+            "items": ("royxat", "SaleBatchItem", 1, 200),
+            "buyer_name": ("matn", False, 150),
+            "payment_method": ("tanlov", False, _TOLOV_USULI),
+            "notes": ("matn", False, matn),
+            "agreed_amount": ("son", True, False, money),
+            "master_id": ("id", True),
+            "confirm_below_cost": ("bool", False),
+        },
+    }
+
+
+# model → {majburiy maydon: eng kam uzunlik (bo'shliqsiz, matn uchun) yoki None}
+_VAL_MAJBURIY = {
+    "Produce": {"name": 2},
+    "StockAdjust": {"quantity": None},
+    "Loss": {"finished_product_id": None, "quantity": None},
+    "ProductionBrak": {"finished_product_id": None, "brak_qty": None},
+    "Sale": {"finished_product_id": None, "quantity": None, "unit_price": None},
+    "SaleBatchItem": {"finished_product_id": None, "quantity": None, "unit_price": None},
+    "SaleBatch": {"items": None},
+}
+
+
+def _clean_val(model: str, data) -> dict:
+    """17-band tanasini QAT'IY tekshiradi va tozalangan nusxasini qaytaradi.
+    `data` — xom JSON (marshrut) yoki `model_dump(exclude_unset=True)`
+    (crud ildizi). Noma'lum kalit, noto'g'ri tur, NaN / cheksizlik, manfiy
+    yoki chegaradan katta son, ustun sig'imidan uzun matn, noto'g'ri tanlov —
+    `ValueError` (marshrut → 400), hech narsa yozilmaydi."""
+    toza = _clean_by_rules(_val_rules()[model], {}, data, "Noma'lum maydon: ")
+    for key, eng_kam in _VAL_MAJBURIY.get(model, {}).items():
+        if toza.get(key) is None:
+            raise ValueError(f"'{key}' kiritilishi shart")
+        if eng_kam and len(toza[key].strip()) < eng_kam:
+            raise ValueError(f"'{key}' kamida {eng_kam} belgidan iborat bo'lishi kerak")
+    return toza
+
+
+def _val_dump(data, model: str) -> dict:
+    """crud ildizi uchun: tana → faqat BERILGAN maydonlar lug'ati.
+    pydantic obyekt — `model_dump(exclude_unset=True)`; boshqa obyekt
+    (ichki chaqiruv / test) — `model` qoidalaridagi atributlari; ichki
+    ro'yxat qatorlari ham lug'atga aylantiriladi."""
+    if isinstance(data, dict):
+        return data
+    if hasattr(data, "model_dump"):
+        return data.model_dump(exclude_unset=True)
+    qoidalar = _val_rules()[model]
+    out = {}
+    for k, q in qoidalar.items():
+        if not hasattr(data, k):
+            continue
+        v = getattr(data, k)
+        if q[0] == "royxat" and isinstance(v, list):
+            v = [_val_dump(el, q[1]) for el in v]
+        out[k] = v
+    return out
+
+
+def _penoplastmi(item) -> bool:
+    """Material penoplastmi — `services.get_default_penoplast` bilan BIR XIL
+    ta'rif: `is_penoplast` belgisi YOKI nomida \"penoplast\" (belgisi
+    qo'yilmagan eski yozuvlar uchun tizimning o'zi shunday hisoblaydi)."""
+    if getattr(item, "is_penoplast", False):
+        return True
+    return "penoplast" in (getattr(item, "item_name", "") or "").lower()
+
+
+def _fp_tayyormi(fp) -> bool:
+    """Mahsulot OMBORDAN CHIQADIGAN amal (sotish, savatcha, zaxiradan
+    kamaytirish) uchun tayyormi. Jarayondagi (IN_PROGRESS) — yo'q: UI ham
+    bu tugmalarni faqat tayyoriga beradi (`finished.html` — jarayondagida
+    faqat \"✓ Sotuv\"). Ishlab chiqarish amallari (qo'shish, ishlab chiqarish
+    braki) jarayondagiga ham RUXSAT — ular ishlab chiqarishning o'zi."""
+    from models import ProductionStatus
+    # UI bilan AYNAN bir xil: `inProgress = source === 'produced' &&
+    # production_status === 'in_progress'`. Qaytarilgan (RETURNED) mahsulot
+    # holati belgilanmay yaratiladi (bazada standart IN_PROGRESS) — u doim
+    # sotiladi.
+    return not (fp.source == StockSource.PRODUCED
+                and fp.production_status == ProductionStatus.IN_PROGRESS)
+
+
+_FP_JARAYONDA_XABAR = "Mahsulot hali ishlab chiqarilmoqda — avval \"Tayyor\" deb belgilang"
 
 
 def _clean_order_item_update(item_data) -> dict:
@@ -5372,10 +5568,18 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
     narxiga proporsional hisoblanadi, va Moliyada Brak xarajatiga qo'shiladi."""
     from models import FinishedProduct, FinishedProductLoss
 
+    # 17-band: tana qiymatlari QAT'IY — hech narsa yozilmasdan OLDIN.
+    try:
+        _clean_val("Loss", _val_dump(data, "Loss"))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+
     # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
     fp = get_finished_product(db, data.finished_product_id, company_id, lock=True)
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
+    if not _fp_tayyormi(fp):
+        return {"success": False, "message": _FP_JARAYONDA_XABAR}
 
     available = float(fp.quantity or 0)
     if data.quantity > available + 0.001:
@@ -5488,6 +5692,12 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     import services
 
     # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
+    # 17-band: qiymatlar QAT'IY — hech narsa yozilmasdan OLDIN.
+    try:
+        _clean_val("ProductionBrak", {"finished_product_id": finished_product_id,
+                                      "brak_qty": brak_qty, "notes": notes})
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
     fp = get_finished_product(db, finished_product_id, company_id, lock=True)
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
@@ -5612,6 +5822,21 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     }
 
 
+def _sotuv_ustasi_xatosi(db: Session, master_id, company_id):
+    """17-band: sotuvga biriktirilgan usta SHU korxonadan bo'lishi shart.
+    Ilgari mavjud bo'lmagan `master_id` ham yozilardi (SQLite da jim;
+    PostgreSQL da FK → 500). Xato matni yoki None qaytaradi."""
+    if master_id is None:
+        return None
+    from models import Master
+    q = db.query(Master).filter(Master.id == master_id)
+    if company_id is not None:
+        q = q.filter(Master.company_id == company_id)
+    if not q.first():
+        return "Usta topilmadi"
+    return None
+
+
 def sell_finished_products_batch(db: Session, data, created_by: str = None,
                                 company_id: int = None) -> dict:
     """Bir nechta turli tayyor mahsulotni, BITTA xaridorga, BITTA Yuk xati
@@ -5622,8 +5847,20 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
 
     if not data.items:
         return {"success": False, "message": "Hech qanday mahsulot tanlanmagan"}
+    # 17-band: tana qiymatlari QAT'IY — hech narsa yozilmasdan OLDIN.
+    try:
+        _clean_val("SaleBatch", _val_dump(data, "SaleBatch"))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+    _usta_xato = _sotuv_ustasi_xatosi(db, getattr(data, "master_id", None), company_id)
+    if _usta_xato:
+        return {"success": False, "message": _usta_xato}
 
     group_id = uuid.uuid4().hex[:16]
+    # 17-band: BIR mahsulot savatchada bir necha qatorda bo'lsa — qoldiq
+    # YIG'INDIGA tekshiriladi (ilgari har qator alohida: 6 + 6, qoldiq 10 →
+    # qoldiq -2 ga tushardi, O'LCHANGAN).
+    _savatda = {}
 
     try:
         # ── 1-BOSQICH: har detalning ASL summasini hisoblab, tekshiramiz ──
@@ -5640,13 +5877,22 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                 db.rollback()
                 return {"success": False, "message": f"Mahsulot (ID {item.finished_product_id}) topilmadi"}
 
+            if not _fp_tayyormi(fp):
+                db.rollback()
+                return {"success": False, "message": f"{fp.name}: {_FP_JARAYONDA_XABAR}"}
+
             available = float(fp.quantity or 0) - float(fp.reserved_quantity or 0)
-            if item.quantity > available + 0.001:
+            _jami_qty = _savatda.get(fp.id, 0.0) + item.quantity
+            if _jami_qty > available + 0.001:
                 db.rollback()
                 extra = f" (shundan {fp.reserved_quantity:g} {fp.unit} boshqa buyurtmaga band qilingan)" if fp.reserved_quantity else ""
-                return {"success": False, "message": f"{fp.name}: sotish mumkin faqat {available:g} {fp.unit} bor{extra}, {item.quantity:g} sota olmaysiz"}
+                return {"success": False, "message": f"{fp.name}: sotish mumkin faqat {available:g} {fp.unit} bor{extra}, {_jami_qty:g} sota olmaysiz"}
+            _savatda[fp.id] = _jami_qty
 
             orig_total = item.quantity * item.unit_price
+            if round(orig_total, 2) > _ORDER_ITEM_MAX_MONEY:
+                db.rollback()
+                return {"success": False, "message": f"{fp.name}: sotuv summasi (miqdor × narx) juda katta"}
             # FASA 4B: yagona manba — pastdagi izohga qarang (sell_finished_product)
             unit_cost = _fp_stable_unit_cost(db, fp)
             if unit_cost <= 0 and available > 0:
@@ -5761,15 +6007,29 @@ def sell_finished_product(db: Session, data, created_by: str = None,
     from models import FinishedProduct, FinishedProductSale
 
     # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
+    # 17-band: tana qiymatlari QAT'IY — hech narsa yozilmasdan OLDIN.
+    try:
+        _clean_val("Sale", _val_dump(data, "Sale"))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
     fp = get_finished_product(db, data.finished_product_id, company_id, lock=True)
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
+    if not _fp_tayyormi(fp):
+        return {"success": False, "message": _FP_JARAYONDA_XABAR}
 
     available = float(fp.quantity or 0)
     if data.quantity > available + 0.001:
         return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} sota olmaysiz"}
 
+    _usta_xato = _sotuv_ustasi_xatosi(db, getattr(data, "master_id", None),
+                                      company_id if company_id is not None else fp.company_id)
+    if _usta_xato:
+        return {"success": False, "message": _usta_xato}
+
     total_amount = data.quantity * data.unit_price
+    if round(total_amount, 2) > _ORDER_ITEM_MAX_MONEY:
+        return {"success": False, "message": "Sotuv summasi (miqdor × narx) juda katta"}
     # FASA 4B: "1 birlik tan narxi" endi BARCHA joyda (sotish, buyurtmaga
     # olish/qaytarish, hisobot) BITTA manbadan — _fp_stable_unit_cost'dan
     # olinadi (xomashyoning joriy narxidan hisoblanadi). Avval bu yerda
@@ -5841,6 +6101,14 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     import services
     from models import ProductionStatus
 
+    # 17-band: tana qiymatlari QAT'IY — hech narsa yozilmasdan OLDIN
+    # (manfiy o'lcham → manfiy hajm → penoplast yechilmay mahsulot BEPUL
+    # paydo bo'lardi; NaN / cheksizlik → 500 + yarim yozuv — O'LCHANGAN).
+    try:
+        _clean_val("Produce", _val_dump(data, "Produce"))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
+
     qty = _fp_qty(data)
     if qty <= 0:
         return {"success": False, "message": "Miqdor kiritilmagan"}
@@ -5884,6 +6152,10 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
         p = _pf_inv(pid)
         if company_id is not None and not p:
             return {"success": False, "message": "Tanlangan Penoplast ombordan topilmadi"}
+        # 17-band: faqat PENOPLAST material "blok" sifatida yechiladi —
+        # ilgari oddiy material (masalan kg dagi kimyo) ham yechilardi.
+        if p and not _penoplastmi(p):
+            return {"success": False, "message": f"{p.item_name} — penoplast emas"}
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = volume / vol_per_unit
@@ -6456,6 +6728,11 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     """
     import services
 
+    # 17-band: miqdor QAT'IY (NaN / cheksizlik / manfiy / juda katta).
+    try:
+        _json_son("quantity", add_qty, bosh_mumkin=False, musbat=True, chegara=_UPD_SON_CHEGARA)
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
     fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
@@ -6606,9 +6883,16 @@ def reduce_production(db: Session, fp_id: int, reduce_qty: float, reason: str = 
                      company_id: int = None) -> dict:
     """Tayyor mahsulot miqdorini kamaytiradi (brak/singan).
     Xomashyo omborga QAYTARILMAYDI — tan narxi saqlanadi."""
+    # 17-band: qiymatlar QAT'IY (NaN / cheksizlik / manfiy / juda katta).
+    try:
+        _clean_val("StockAdjust", {"quantity": reduce_qty, "reason": reason})
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
     fp = get_finished_product(db, fp_id, company_id)   # M4: faqat shu korxonadan
     if not fp:
         return {"success": False, "message": "Topilmadi"}
+    if not _fp_tayyormi(fp):
+        return {"success": False, "message": _FP_JARAYONDA_XABAR}
 
     if reduce_qty <= 0:
         return {"success": False, "message": "Miqdor musbat bo'lishi kerak"}
