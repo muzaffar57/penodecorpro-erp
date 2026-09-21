@@ -2365,9 +2365,20 @@ def api_get_masters(only_active: bool = False, db: Session = Depends(get_db), cu
 
 
 @app.put("/api/masters/{master_id}", response_model=schemas.MasterRead)
-def api_update_master(master_id: int, data: schemas.MasterUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    updated = crud.update_master(db, master_id, data,
-                                company_id=auth.company_id_of(current_user))
+def api_update_master(master_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # 14-band: avval obyekt korxonadan (404) — tana tekshiruvi undan KEYIN,
+    # aks holda begona ID + noto'g'ri tana 400 berib, ID borligini oshkor qilardi.
+    cid = auth.company_id_of(current_user)
+    if not crud.get_master(db, master_id, cid):
+        raise HTTPException(status_code=404, detail="Usta topilmadi")
+    # Xom JSON qat'iy tekshiriladi (pydantic `true` → 1.0 kabi JIM o'girardi).
+    try:
+        toza = crud._clean_update("Master", data)
+        updated = crud.update_master(db, master_id, schemas.MasterUpdate(**toza),
+                                    company_id=cid)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     return updated
@@ -2418,12 +2429,19 @@ def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = De
 
 
 @app.put("/api/inventory/{item_id}")
-def api_update_inventory_item(item_id: int, data: schemas.InventoryUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_update_inventory_item(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xomashyo ma'lumotlarini yangilash (nomi, min qoldiq, kategoriya va h.k.)."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Material topilmadi")
-    updated = crud.update_item(db, item_id, data)
+    # 14-band: xom JSON qat'iy tekshiriladi; qoldiq / asosiy penoplast bu
+    # yo'ldan o'zgarmaydi (o'z yo'li bor). Qoida buzilsa 400, hech narsa yozilmaydi.
+    try:
+        toza = crud._clean_update("Inventory", data)
+        updated = crud.update_item(db, item_id, schemas.InventoryUpdate(**toza))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "category": updated.category}
@@ -2720,12 +2738,18 @@ def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), 
 
 
 @app.put("/api/employees/{emp_id}")
-def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_update_employee(emp_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
-    emp = crud.update_employee(db, emp_id, data, updated_by=who)
+    # 14-band: xom JSON qat'iy tekshiriladi (400, hech narsa yozilmaydi).
+    try:
+        toza = crud._clean_update("Employee", data)
+        emp = crud.update_employee(db, emp_id, schemas.EmployeeUpdate(**toza), updated_by=who)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not emp:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
@@ -3074,11 +3098,17 @@ def api_get_suppliers(db: Session = Depends(get_db), current_user=Depends(auth.a
 
 
 @app.put("/api/suppliers/{supplier_id}")
-def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_update_supplier(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
-    s = crud.update_supplier(db, supplier_id, data)
+    # 14-band: xom JSON qat'iy tekshiriladi (400, hech narsa yozilmaydi).
+    try:
+        toza = crud._clean_update("Supplier", data)
+        s = crud.update_supplier(db, supplier_id, schemas.SupplierUpdate(**toza))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not s:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
@@ -3493,11 +3523,18 @@ def api_get_projects(db: Session = Depends(get_db), current_user=Depends(auth.ad
 
 
 @app.put("/api/projects/{project_id}", response_model=schemas.ProjectRead)
-def api_update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_project(project_id: int, project: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-    updated = crud.update_project(db, project_id, project)
+    # 14-band: xom JSON qat'iy tekshiriladi; `total_paid` to'lovlardan
+    # hisoblanadi, noma'lum `status` rad etiladi (400, hech narsa yozilmaydi).
+    try:
+        toza = crud._clean_update("Project", project)
+        updated = crud.update_project(db, project_id, schemas.ProjectUpdate(**toza))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     return updated
@@ -5823,11 +5860,21 @@ def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
 
 
 @app.put("/api/finished/{fp_id}")
-def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
+def api_update_finished(fp_id: int, data: dict = Body(...),
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni tahrirlash."""
-    fp = crud.update_finished_product(db, fp_id, data.model_dump(exclude_unset=True),
-                                      company_id=auth.company_id_of(current_user))
+    cid = auth.company_id_of(current_user)
+    # 14-band: avval obyekt korxonadan (404) — tana tekshiruvi undan KEYIN
+    # (begona ID + noto'g'ri tana 400 berib ID borligini oshkor qilmasin).
+    if not crud.get_finished_product(db, fp_id, cid):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    # Xom JSON qat'iy tekshiriladi; miqdor bu yo'ldan o'zgarmaydi (400).
+    try:
+        toza = crud._clean_update("FinishedProduct", data)
+        fp = crud.update_finished_product(db, fp_id, toza, company_id=cid)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not fp:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "quantity": float(fp.quantity), "unit_price": float(fp.unit_price or 0)}

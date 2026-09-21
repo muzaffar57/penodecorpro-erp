@@ -143,6 +143,8 @@ def update_master(db: Session, master_id: int, master_data: MasterUpdate,
     update_data = master_data.model_dump(exclude_unset=True)
     # M5: company_id hech qachon mijoz so'rovidan qabul qilinmaydi.
     update_data.pop("company_id", None)
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    update_data = _clean_update("Master", update_data)
     # 12-sizish: Telegram ID — POST bilan bir xil qoida (500 o'rniga 400).
     if update_data.get("telegram_id"):
         update_data["telegram_id"] = str(update_data["telegram_id"]).strip()
@@ -827,6 +829,13 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
     if not db_item:
         return None
     update_data = item_data.model_dump(exclude_unset=True)
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    update_data = _clean_update("Inventory", update_data)
+    # Asosiy penoplast "penoplast emas" deb belgilansa, `default_id`
+    # penoplast bo'lmagan materialga ishora qilib qoladi.
+    if update_data.get("is_penoplast") is False and db_item.is_default_penoplast:
+        raise ValueError("Asosiy penoplastni oddiy materialga aylantirib bo'lmaydi — "
+                         "avval boshqa penoplastni asosiy qiling")
     for field, value in update_data.items():
         setattr(db_item, field, value)
     db.commit()
@@ -1872,6 +1881,221 @@ def _json_son(key, value, bosh_mumkin, musbat, chegara=None):
     return v
 
 
+# 2026-09-21 (14-band) — `setattr` sikllari: tahrir marshrutlari tanasi.
+# Material / tayyor mahsulot / usta / hodim / loyiha / ta'minotchi tahriri
+# tanadagi maydonni TEKSHIRUVSIZ yozardi (O'LCHANGAN, lokal va jonli):
+#   * `PUT /api/inventory/{id}` — manfiy narx (jonli: -5000 SAQLANDI; 13.3
+#     da `/price` yopilgan edi, lekin shu ikkinchi yo'l ochiq qolgan edi),
+#     hajm 0 / manfiy, manfiy min qoldiq, `stock_quantity` to'g'ridan
+#     (999 / -50, ombor HARAKATISIZ), `is_default_penoplast` ikkinchi
+#     materialga, bo'sh nom;
+#   * tayyor mahsulot — manfiy / 1e20 miqdor va narx, NaN → 500 (lekin
+#     qiymat baribir yozilgan);
+#   * usta — cashback -10 / 500 %, bo'sh ism; hodim — manfiy oylik, 500 %,
+#     noto'g'ri `pay_type` JIM e'tiborsiz qolardi (200);
+#   * loyiha — manfiy to'langan / byudjet, `total_paid` qo'lda (to'lovlardan
+#     hisoblanadigan qiymat buzilardi), noto'g'ri `status` → 500 (SQLite da
+#     qator yozilib, BUTUN loyihalar ro'yxati 500 berardi; PostgreSQL rad
+#     etadi); ta'minotchi — bo'sh nom, `null` nom → 500.
+# Kirish sxemasi (pydantic) bu qiymatlarning hech birini cheklamaydi va
+# `true` → 1.0 kabi JIM o'giradi. Endi: ruxsat ro'yxati + qat'iy turlar +
+# ustun sig'imi (PostgreSQL da uzun matn / katta son → 500) + ma'noli
+# chegara. Qoida buzilsa `ValueError` (marshrut → 400), hech narsa
+# yozilmaydi. Hisob yozuvi bilan o'zgarishi SHART bo'lgan maydonlar
+# (`stock_quantity`, tayyor mahsulot `quantity`, `total_paid`,
+# `is_default_penoplast`) bu yo'ldan umuman O'ZGARMAYDI — o'z yo'li bor.
+_UPD_MATN_CHEGARA = 10_000          # Text ustunlar uchun oqilona chegara
+_UPD_SON_CHEGARA = 1_000_000_000_000.0   # Float ustunlar (miqdor, hajm)
+
+# Qoida shakllari:
+#   ("matn", majburiy, uzunlik)        — majburiy: None/bo'sh rad
+#   ("son", bosh_mumkin, musbat, chegara)
+#   ("bool", bosh_mumkin)
+#   ("tanlov", bosh_mumkin, {qabul qilinadigan: kanonik})
+#   ("butun", bosh_mumkin, eng_kichik, eng_katta)
+#   ("tg",)                            — Telegram ID: matn yoki butun son
+
+
+def _upd_rules():
+    """Model nomi → {maydon: qoida}. Funksiya ichida — enum lar modul
+    oxirida import qilinadi, chaqiruv paytida esa hammasi tayyor."""
+    from models import PayType as _PT, ProjectStatus as _PS
+    pay = {}
+    for m in _PT:
+        pay[m.value] = m.value
+        pay[m.name] = m.value
+        pay[m.name.lower()] = m.value
+    st = {}
+    for m in _PS:
+        st[m.name] = m.name
+        st[m.value] = m.name
+        st[m.name.lower()] = m.name
+    money = _ORDER_ITEM_MAX_MONEY
+    return {
+        "Inventory": {
+            "item_name": ("matn", True, 100),
+            "unit": ("matn", True, 20),
+            "min_stock": ("son", True, False, _UPD_SON_CHEGARA),
+            "price_per_unit": ("son", True, False, money),
+            "volume_per_unit": ("son", True, True, _UPD_SON_CHEGARA),
+            "is_penoplast": ("bool", False),
+            "category": ("matn", False, 50),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+            "base_unit": ("matn", False, 20),
+            "conversion_factor": ("son", True, True, _UPD_SON_CHEGARA),
+        },
+        "FinishedProduct": {
+            "name": ("matn", True, 150),
+            "unit_price": ("son", True, False, money),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+        },
+        "Master": {
+            "name": ("matn", True, 100),
+            "phone": ("matn", True, 20),
+            "cashback_percent": ("son", True, False, 100.0),
+            "kpi_percent": ("son", True, False, 100.0),
+            "telegram_id": ("tg",),
+            "is_active": ("bool", False),
+            "region": ("matn", False, 50),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+        },
+        "Employee": {
+            "name": ("matn", True, 100),
+            "position": ("matn", False, 100),
+            "pay_type": ("tanlov", False, pay),
+            "fixed_amount": ("son", True, False, money),
+            "percent_value": ("son", True, False, 100.0),
+            "per_unit_rate": ("son", True, False, money),
+            "per_unit_type": ("tanlov", False, {"blok": "blok", "metr": "metr", "dona": "dona"}),
+            "extra_monthly": ("son", True, False, money),
+            "production_type": ("tanlov", True, {"penoplast": "penoplast", "gips": "gips",
+                                                 "umumiy": "umumiy"}),
+            "is_active": ("bool", False),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+            "effective_year": ("butun", True, 2000, 2100),
+            "effective_month": ("butun", True, 1, 12),
+            "reason": ("matn", False, _UPD_MATN_CHEGARA),
+        },
+        "Project": {
+            "project_name": ("matn", True, 200),
+            "client_name": ("matn", True, 100),
+            "client_phone": ("matn", False, 20),
+            "client_address": ("matn", False, _UPD_MATN_CHEGARA),
+            "description": ("matn", False, _UPD_MATN_CHEGARA),
+            "total_budget": ("son", True, False, money),
+            "status": ("tanlov", False, st),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+        },
+        "Supplier": {
+            "name": ("matn", True, 150),
+            "phone": ("matn", False, 20),
+            "notes": ("matn", False, _UPD_MATN_CHEGARA),
+            "is_active": ("bool", False),
+        },
+    }
+
+
+# Hisob yozuvi bilan o'zgarishi shart bo'lgan maydonlar — aniq sabab bilan.
+_UPD_TAQIQ = {
+    "Inventory": {
+        "stock_quantity": "Qoldiq faqat kirim / chiqim orqali o'zgaradi (ombor harakati yoziladi)",
+        "is_default_penoplast": "Asosiy penoplast alohida tugma orqali belgilanadi",
+    },
+    "FinishedProduct": {
+        "quantity": "Miqdor faqat qo'shish / kamaytirish / sotish orqali o'zgaradi",
+    },
+    "Project": {
+        "total_paid": "To'langan summa to'lovlardan hisoblanadi — qo'lda o'zgartirib bo'lmaydi",
+    },
+}
+
+
+def _clean_update(model: str, data) -> dict:
+    """Tahrir tanasini QAT'IY tekshiradi va tozalangan nusxasini qaytaradi.
+
+    `data` — xom JSON (marshrut) yoki `model_dump(exclude_unset=True)`
+    (crud ildizi). Noma'lum / taqiqlangan kalit, noto'g'ri tur, bo'sh
+    majburiy maydon, ustun sig'imidan uzun matn yoki chegaradan tashqari
+    son — `ValueError`. Matnlar O'ZGARTIRILMAYDI (faqat tekshiriladi);
+    tanlov maydonlari kanonik qiymatga keltiriladi (`status` → enum NOMI,
+    `pay_type` → enum QIYMATI) — pastdagi crud o'giruvchilari shuni kutadi."""
+    rules = _upd_rules()[model]
+    taqiq = _UPD_TAQIQ.get(model, {})
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    for key in data:
+        if key in taqiq:
+            raise ValueError(taqiq[key])
+    notogri = sorted(str(k)[:40] for k in data if k not in rules)
+    if notogri:
+        raise ValueError("Bu maydonni o'zgartirib bo'lmaydi: " + ", ".join(notogri[:10]))
+
+    toza = {}
+    for key, value in data.items():
+        qoida = rules[key]
+        tur = qoida[0]
+        if tur == "matn":
+            majburiy, uzunlik = qoida[1], qoida[2]
+            if value is None:
+                if majburiy:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if not isinstance(value, str):
+                raise ValueError(f"'{key}' matn bo'lishi kerak")
+            if majburiy and not value.strip():
+                raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+            if len(value) > uzunlik:
+                raise ValueError(f"'{key}' juda uzun ({uzunlik} belgidan ko'p)")
+            toza[key] = value
+        elif tur == "son":
+            toza[key] = _json_son(key, value, bosh_mumkin=qoida[1],
+                                  musbat=qoida[2], chegara=qoida[3])
+        elif tur == "bool":
+            if value is None and qoida[1]:
+                toza[key] = None
+                continue
+            if not isinstance(value, bool):
+                raise ValueError(f"'{key}' true yoki false bo'lishi kerak")
+            toza[key] = value
+        elif tur == "tanlov":
+            bosh_mumkin, qabul = qoida[1], qoida[2]
+            if value is None:
+                if not bosh_mumkin:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if isinstance(value, str) and value.strip() == "" and bosh_mumkin:
+                toza[key] = None
+                continue
+            if not isinstance(value, str) or value.strip() not in qabul:
+                raise ValueError(f"'{key}' noto'g'ri qiymat")
+            toza[key] = qabul[value.strip()]
+        elif tur == "butun":
+            bosh_mumkin, kichik, katta = qoida[1], qoida[2], qoida[3]
+            if value is None:
+                if not bosh_mumkin:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"'{key}' butun son bo'lishi kerak")
+            if value < kichik or value > katta:
+                raise ValueError(f"'{key}' {kichik}–{katta} oralig'ida bo'lishi kerak")
+            toza[key] = value
+        elif tur == "tg":
+            if value is None:
+                toza[key] = None
+                continue
+            if isinstance(value, bool) or not isinstance(value, (str, int)):
+                raise ValueError(f"'{key}' matn yoki son bo'lishi kerak")
+            v = str(value).strip()
+            if len(v) > 50:
+                raise ValueError(f"'{key}' juda uzun (50 belgidan ko'p)")
+            toza[key] = v or None
+    return toza
+
+
 def _clean_order_item_update(item_data) -> dict:
     """Detal tahriri tanasini tekshiradi va tozalangan nusxasini qaytaradi.
 
@@ -2821,6 +3045,10 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
         update_data = project_data.model_dump(exclude_unset=True)
     else:
         update_data = {k: v for k, v in project_data.items() if v is not None}
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    # `status` kanonik enum NOMIGA keltiriladi, noma'lum qiymat rad etiladi
+    # (ilgari noma'lum matn to'g'ridan yozilib 500 berardi).
+    update_data = _clean_update("Project", update_data)
 
     # HIMOYA: "status" satr (string) sifatida kelsa — katta/kichik harfdan
     # qat'i nazar, to'g'ri ProjectStatus a'zosiga moslashtiramiz. Bu, manba
@@ -5726,6 +5954,8 @@ def update_finished_product(db: Session, fp_id: int, data: dict,
         return None
     # M4: company_id hech qachon mijoz so'rovidan qabul qilinmaydi.
     data = {k: v for k, v in (data or {}).items() if k != "company_id"}
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    data = _clean_update("FinishedProduct", data)
     for k, v in data.items():
         if v is not None and hasattr(fp, k):
             setattr(fp, k, v)
@@ -6752,6 +6982,10 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
         return None
 
     update_data = data.model_dump(exclude_unset=True)
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    # `pay_type` kanonik qiymatga keltiriladi; noto'g'ri tur endi JIM
+    # e'tiborsiz qolmaydi (quyidagi `except ValueError` ga yetib kelmaydi).
+    update_data = _clean_update("Employee", update_data)
     effective_year = update_data.pop("effective_year", None)
     effective_month = update_data.pop("effective_month", None)
     reason = update_data.pop("reason", None)
@@ -7735,7 +7969,9 @@ def update_supplier(db: Session, supplier_id: int, data: SupplierUpdate) -> Opti
     s = get_supplier(db, supplier_id)
     if not s:
         return None
-    for k, v in data.model_dump(exclude_unset=True).items():
+    # 14-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    toza = _clean_update("Supplier", data.model_dump(exclude_unset=True))
+    for k, v in toza.items():
         setattr(s, k, v)
     db.commit()
     db.refresh(s)
