@@ -2432,14 +2432,25 @@ def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.i
 
 
 @app.post("/api/inventory/{item_id}/stock", response_model=schemas.InventoryRead)
-def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.)."""
+def api_update_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.).
+
+    19-band (2026-09-21): tana xom JSON — qat'iy tekshiriladi (NaN/cheksiz/
+    `true`/0/uzun izoh → 400); chiqim mavjud qoldiqdan ko'p bo'lsa 400 (ilgari
+    jimgina 0 ga qirqilardi). Material korxonaga tana tekshiruvidan OLDIN
+    (begona/yo'q id + yomon tana → 404, oracle yo'q)."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
-    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+    _cid = auth.company_id_of(current_user)
+    if not auth.inventory_of_company(db, item_id, _cid):
         raise HTTPException(status_code=404, detail="Material topilmadi")
-    updated = crud.update_stock(db, item_id, change.quantity_change,
-                                 performed_by=current_user.full_name or current_user.username,
-                                 notes=change.reason)
+    try:
+        toza = crud._clean_stock_change(data)
+        updated = crud.update_stock(db, item_id, toza["quantity_change"],
+                                     performed_by=current_user.full_name or current_user.username,
+                                     notes=toza["reason"], company_id=_cid)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
     return updated

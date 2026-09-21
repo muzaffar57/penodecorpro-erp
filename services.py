@@ -3950,27 +3950,29 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
             Inventory.id == ing.inventory_id
         ).with_for_update().first()
         if inv_item:
-            # MUHIM (2026-09 audit): oldin bu yerda hech qanday tekshiruv
-            # yo'q edi — zaxiradan ko'p kerak bo'lsa, stock_quantity to'g'ridan
-            # -to'g'ri MANFIYGA tushib qolar edi (boshqa joylarda, masalan
-            # update_stock()da, "manfiy bo'lmasin" qoidasi bor, shu yerda esa
-            # yo'q edi). Endi xuddi shunday — 0 dan pastga tushirilmaydi,
-            # lekin YETISHMOVCHILIK borligi jurnalga ANIQ yozib qo'yiladi
-            # (buyurtmani "Tayyor" qilishni to'xtatib qo'ymaslik uchun —
-            # ish allaqachon bajarilgan, xomashyo haqiqatda ishlatilgan;
-            # faqat KITOB yuritish shu yerda to'g'irlanadi, keyinroq
-            # xomashyo ta'minoti orqali qayta to'ldirilishi kerak).
+            # 2026-09-21 — FOYDALANUVCHI QARORI (19-band): loy xomashyosi
+            # yetishmasa ishlab chiqarish TO'XTAMAYDI, qoldiq MANFIYGA
+            # tushadi va keyingi kirimda qoplanadi (so'zma-so'z: "ishlab
+            # chiqarish to'xtamaydi, manfiyga tushib qoladi, omborga kirim
+            # qilinganda ayirilib tashlanadi, shunday ishlasin").
+            # Ilgari (2026-09 audit) bu yerda qoldiq 0 da to'xtatilardi —
+            # yetishmagan miqdor HECH QAYERDA qolmasdi: keyingi kirim uni
+            # qoplamas, ombor haqiqatdagidan KO'P ko'rinardi. Kirim
+            # (`crud._purchase_stock_no_commit`) manfiy qoldiqni arifmetik
+            # qoplaydi va narxni faqat yangi xariddan oladi. Qo'lda chiqim
+            # (`crud.update_stock`) manfiy qoldiqdan chiqim qilishni RAD
+            # etadi (qarz jimgina o'chmasin). Faqat LOY ingredientlari —
+            # penoplast yetishmasa avvalgidek to'xtaydi.
             current = float(inv_item.stock_quantity or 0)
             new_qty = current - needed_kg
-            shortage = 0.0
-            if new_qty < 0:
-                shortage = -new_qty
-                new_qty = 0.0
             inv_item.stock_quantity = new_qty
             log.append(f"{inv_item.item_name}: -{needed_kg:.2f} {inv_item.unit}")
-            if shortage > 0.001:
-                log.append(f"⚠️ {inv_item.item_name}: omborda YETARLI EMAS EDI — {shortage:.2f} {inv_item.unit} yetishmovchilik (zaxira 0 ga tushirildi, manfiyga o'tkazilmadi)")
-                print(f"⚠ {inv_item.item_name}: YETISHMOVCHILIK {shortage:.2f} {inv_item.unit}")
+            if new_qty < -0.001:
+                # Shu ayirishning omborda YO'Q qismi (qoldiq oldindan
+                # manfiy bo'lsa — butun ayirish).
+                shortage = min(needed_kg, -new_qty)
+                log.append(f"⚠️ {inv_item.item_name}: omborda YETARLI EMAS EDI — {shortage:.2f} {inv_item.unit} yetishmovchilik; qoldiq manfiy: {new_qty:.2f} {inv_item.unit}, keyingi kirimda qoplanadi")
+                print(f"⚠ {inv_item.item_name}: YETISHMOVCHILIK {shortage:.2f} {inv_item.unit}, qoldiq {new_qty:.2f}")
             print(f"✓ {inv_item.item_name}: -{needed_kg:.2f} ayirildi")
             import crud as _crud
             _crud.log_movement(

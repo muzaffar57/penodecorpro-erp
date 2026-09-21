@@ -521,21 +521,88 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
             pass
 
 
-def update_stock(db: Session, item_id: int, quantity_change: float, performed_by: Optional[str] = None, notes: Optional[str] = None) -> Optional[Inventory]:
+# Qo'lda qoldiq tuzatish (`POST /api/inventory/{id}/stock`) tanasi —
+# 19-band (2026-09-21). Harakat jurnali `reason` ustuni String(200):
+# uzunroq izoh PostgreSQL da commit paytida 500 berardi.
+_STOCK_REASON_MAX = 200
+
+
+def _stock_son(value):
+    """`quantity_change` — ishorali (musbat = kirim, manfiy = chiqim), chekli,
+    0 emas, `true/false` emas, sig'imdan katta emas. Aks holda ValueError."""
+    import math
+    if value is None:
+        raise ValueError("'quantity_change' bo'sh bo'lishi mumkin emas")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("'quantity_change' son bo'lishi kerak")
+    v = float(value)
+    if math.isnan(v) or math.isinf(v):
+        raise ValueError("'quantity_change' son bo'lishi kerak")
+    if v == 0:
+        raise ValueError("'quantity_change' 0 bo'lishi mumkin emas")
+    if abs(v) > _UPD_SON_CHEGARA:
+        raise ValueError("'quantity_change' juda katta")
+    return v
+
+
+def _clean_stock_change(data) -> dict:
+    """Marshrut tanasi (xom JSON) → {"quantity_change", "reason"}.
+    Ruxsat ro'yxati + qat'iy turlar; buzilsa ValueError (→ 400)."""
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    notogri = sorted(str(k)[:40] for k in data if k not in ("quantity_change", "reason"))
+    if notogri:
+        raise ValueError("Noma'lum maydon: " + ", ".join(notogri[:10]))
+    qc = _stock_son(data.get("quantity_change"))
+    reason = data.get("reason")
+    if reason is not None:
+        if not isinstance(reason, str):
+            raise ValueError("'reason' matn bo'lishi kerak")
+        if len(reason) > _STOCK_REASON_MAX:
+            raise ValueError(f"'reason' juda uzun ({_STOCK_REASON_MAX} belgidan ko'p)")
+    return {"quantity_change": qc, "reason": reason}
+
+
+def update_stock(db: Session, item_id: int, quantity_change: float, performed_by: Optional[str] = None,
+                 notes: Optional[str] = None, company_id: int = None) -> Optional[Inventory]:
     """Mahsulot qoldig'ini yangilaydi (musbat = qo'shish, manfiy = ayirish).
     Narxsiz oddiy tuzatish uchun (masalan inventarizatsiya). Xarid uchun
-    purchase_stock() dan foydalaning — u narxni ham hisobga oladi."""
-    db_item = get_item_locked(db, item_id)
+    purchase_stock() dan foydalaning — u narxni ham hisobga oladi.
+
+    19-band (2026-09-21, O'LCHANGAN): ilgari chiqim qoldiqdan ko'p bo'lsa
+    qoldiq JIMGINA 0 ga qirqilardi, jurnalga esa so'ralgan to'liq miqdor
+    yozilardi (qoldiq 100, chiqim 1000 → 0, harakat "out 1000"). Loy
+    qoldig'i endi manfiy bo'lishi mumkin (foydalanuvchi qarori) — bu
+    qirqish MANFIY qoldiqdagi qarzni o'chirib yuborardi (-30 da 5 chiqim →
+    0, ya'ni +30). Endi: chiqim mavjud qoldiqdan (manfiy bo'lsa — 0 dan)
+    ko'p bo'lsa ValueError (→ 400), hech narsa yozilmaydi; kirim (musbat)
+    arifmetik — manfiy qoldiqni qoplaydi. Qiymat HECH NARSA yozilmasdan
+    OLDIN qat'iy tekshiriladi (NaN/cheksiz/bool/0 — ValueError)."""
+    qc = _stock_son(quantity_change)
+    if notes is not None and len(str(notes)) > _STOCK_REASON_MAX:
+        raise ValueError(f"'reason' juda uzun ({_STOCK_REASON_MAX} belgidan ko'p)")
+    db_item = get_item_locked(db, item_id, company_id)
     if not db_item:
         return None
-    new_qty = db_item.stock_quantity + quantity_change
-    if new_qty < 0:
-        new_qty = 0  # Manfiy bo'lmasin
+    current = float(db_item.stock_quantity or 0)
+    if qc < 0:
+        mavjud = max(current, 0.0)
+        if -qc > mavjud + 1e-9:
+            if current < 0:
+                raise ValueError(
+                    f"{db_item.item_name}: qoldiq manfiy ({current:g} {db_item.unit}) — "
+                    f"chiqim qilib bo'lmaydi, avval kirim qiling")
+            raise ValueError(
+                f"{db_item.item_name}: omborda {current:g} {db_item.unit} bor — "
+                f"{-qc:g} {db_item.unit} chiqim qilib bo'lmaydi")
+    new_qty = current + qc
+    if -1e-9 < new_qty < 0:
+        new_qty = 0.0
     db_item.stock_quantity = new_qty
     log_movement(
         db, db_item.id, db_item.item_name,
-        movement_type="in" if quantity_change > 0 else "out",
-        quantity=quantity_change, unit=db_item.unit,
+        movement_type="in" if qc > 0 else "out",
+        quantity=qc, unit=db_item.unit,
         reason=notes or "Qo'lda tuzatish (inventarizatsiya)", performed_by=performed_by
     )
     db.commit()
