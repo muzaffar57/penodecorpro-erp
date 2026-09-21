@@ -535,6 +535,273 @@ check(f"POST /api/orders (B O'Z loyihasi) \u2192 {r.status_code} (200 shart)",
 
 
 # ══════════════════════════════════════════════════════════════
+section("7. BODY ICHIDAGI ID (12-sizish): retsept / kirim / qaytarish / usta TG")
+# ══════════════════════════════════════════════════════════════
+# 2026-09-21 — O'LCHANGAN (body ID supurishi, 58 prob, DB-diff bilan):
+#  S1 POST/PUT /api/recipes + A ning inventory_id → B retsepti A
+#     materialiga bog'lanardi; B loy ishlab chiqarganda A ombori 100→98.
+#     ILDIZ: qo'riqchida `RecipeIngredient` qoidasi O'LIK edi (company_id
+#     ustuni yo'q + _TENANT_RULES da ota yo'q → _check_refs chiqib ketardi).
+#     Filtr YONIQ bo'lsa ham ochiq edi.
+#  S2 POST /api/inventory/receipt + A ning inventory_id → A ombori 100→101.
+#  S3 POST /api/returns (B buyurtmasi + A ning order_item_id) → brak A
+#     penoplastini yechardi, qaytarish summasi A tan narxidan B ga qaytardi.
+#  + begona/mavjud bo'lmagan order_id → 500; begona supplier_id → 500;
+#    usta PUT dublikat telegram_id → 500 (POST esa filtrga bog'liq edi).
+from models import (RecipeIngredient as _RI7, InventoryPurchase as _IP7,   # noqa: E402
+                    InventoryMovement as _IM7, ReturnItem as _RT7,
+                    Master as _M7, OrderItem as _OI7)
+import models as _models7                           # noqa: E402
+import production_models as _pm7                    # noqa: E402
+
+A_INV7 = Inventory(company_id=1, item_name="AAA_INV7", unit="kg",
+                   stock_quantity=100.0, price_per_unit=1000)
+A_INV7b = Inventory(company_id=1, item_name="AAA_INV7B", unit="kg",
+                    stock_quantity=100.0, price_per_unit=1000)
+A_PEN7 = Inventory(company_id=1, item_name="AAA_PENO7", unit="blok",
+                   stock_quantity=100.0, price_per_unit=777777,
+                   volume_per_unit=1.0)
+B_INV7 = Inventory(company_id=2, item_name="BBB_INV7", unit="kg",
+                   stock_quantity=100.0, price_per_unit=1000)
+db.add_all([A_INV7, A_INV7b, A_PEN7, B_INV7])
+db.commit()
+with contextlib.redirect_stdout(_quiet):
+    _ao7 = crud.create_order(db, schemas.OrderCreate(
+        project_id=a_id("project"), order_type="product",
+        items=[schemas.OrderItemCreate(name="AAA_KARNIZ7", category="profil",
+                                       width=10, thickness=10, length=100,
+                                       quantity=5, unit_price=100000,
+                                       is_coated=False,
+                                       penoplast_id=A_PEN7.id)]),
+        performed_by="AAA")
+A_OI7 = db.query(_OI7).filter(_OI7.order_id == _ao7.id).first().id
+B_ORD7 = B["order"][-1].id
+B_OI7 = db.query(_OI7).filter(_OI7.order_id == B_ORD7).first().id
+B_REC7 = B["recipe"][-1].id
+_A_INV_IDS7 = (A_INV7.id, A_INV7b.id, A_PEN7.id)
+
+
+def _a7():
+    """A holati + B da begona havola/yarim yozuv borligi."""
+    db.expire_all()
+    return (
+        tuple(round(float(db.get(Inventory, i).stock_quantity), 6) for i in _A_INV_IDS7),
+        db.query(_RI7).filter(_RI7.inventory_id.in_(_A_INV_IDS7)).count(),
+        db.query(_IP7).filter(_IP7.inventory_id.in_(_A_INV_IDS7)).count(),
+        db.query(_IM7).filter(_IM7.inventory_id.in_(_A_INV_IDS7)).count(),
+        db.query(_RT7).count(),
+        round(float(db.get(Inventory, B_INV7.id).stock_quantity), 6),
+    )
+
+
+def _b_rec_ings7():
+    db.expire_all()
+    return sorted((r.inventory_id, float(r.quantity_kg)) for r in
+                  db.query(_RI7).filter(_RI7.recipe_id == B_REC7).all())
+
+
+def _root7(fn):
+    """Ildiz chaqiruvi: natija matni. TypeError (eski imzo) ham "himoya
+    yo'q" hisoblanadi — skript QULAMAYDI."""
+    try:
+        with contextlib.redirect_stdout(_quiet):
+            fn()
+        out = "O'TDI"
+    except TypeError as e:
+        out = f"imzo: {e}"
+    except Exception as e:                           # noqa: BLE001
+        out = f"{type(e).__name__}:{getattr(e, 'status_code', '')}"
+    db.rollback()
+    return out
+
+
+_n7 = [0]
+
+
+def _nm7(p):
+    _n7[0] += 1
+    return f"BBB_{p}7_{_n7[0]}"
+
+
+class _Resp7:
+    """Server istisnosi → 500 (asl kodda istisno TestClient dan chiqib
+    skriptni QULATARDI — darvoza yiqilishi kerak, qulashi emas)."""
+    def __init__(self, e):
+        self.status_code = 500
+        self.text = f"ISTISNO: {type(e).__name__}: {e}"
+
+    def json(self):
+        return {}
+
+
+def _req7(method, url, **kw):
+    try:
+        return getattr(client, method)(url, **kw)
+    except Exception as e:                           # noqa: BLE001
+        db.rollback()
+        return _Resp7(e)
+
+
+# --- 7a. Retsept (S1) ---
+c0 = _a7()
+r = _req7("post", "/api/recipes", json={"name": _nm7("R"), "batch_size_kg": 10,
+                "ingredients": [{"inventory_id": A_INV7.id, "quantity_kg": 1}]})
+check(f"POST /api/recipes (tarkibda A materiali) \u2192 {r.status_code} (404 shart)",
+      r.status_code == 404, r.text[:140])
+check("  \u21b3 A materialiga havola YO'Q, hech narsa o'zgarmadi", c0 == _a7(), f"{c0} -> {_a7()}")
+
+r = _req7("post", "/api/recipes", json={"name": _nm7("R"), "batch_size_kg": 10,
+                "ingredients": [{"inventory_id": B_INV7.id, "quantity_kg": 1},
+                                {"inventory_id": A_INV7b.id, "quantity_kg": 1}]})
+check(f"POST /api/recipes (B + A materiali aralash) \u2192 {r.status_code} (404 shart)",
+      r.status_code == 404, r.text[:140])
+check("  \u21b3 aralash: A ga havola YO'Q", c0 == _a7(), f"{c0} -> {_a7()}")
+
+ing0 = _b_rec_ings7()
+r = _req7("put", f"/api/recipes/{B_REC7}", json={"name": _nm7("RP"), "batch_size_kg": 10,
+               "ingredients": [{"inventory_id": A_INV7.id, "quantity_kg": 1}]})
+check(f"PUT /api/recipes/B (tarkibda A materiali) \u2192 {r.status_code} (404 shart)",
+      r.status_code == 404, r.text[:140])
+check("  \u21b3 B retseptining ESKI tarkibi saqlandi (o'chirishdan OLDIN rad etildi)",
+      ing0 == _b_rec_ings7() and c0 == _a7(), f"{ing0} -> {_b_rec_ings7()}")
+
+# 7a-ildiz: crud (korxona berilsa — retsept; berilmasa ham — retsept o'z korxonasi)
+_o = _root7(lambda: crud.create_recipe(db, schemas.RecipeCreate(
+    name=_nm7("RR"), batch_size_kg=10, ingredients=[schemas.RecipeIngredientCreate(
+        inventory_id=A_INV7.id, quantity_kg=1)]), company_id=2))
+check("crud.create_recipe(company_id=2, A materiali) \u2192 HTTPException 404",
+      _o == "HTTPException:404", _o)
+_o = _root7(lambda: crud.update_recipe(db, B_REC7, schemas.RecipeCreate(
+    name=_nm7("RU"), batch_size_kg=10, ingredients=[schemas.RecipeIngredientCreate(
+        inventory_id=A_INV7.id, quantity_kg=1)])))
+check("crud.update_recipe(B retsepti, A materiali, company_id BERILMAGAN) \u2192 404",
+      _o == "HTTPException:404", _o)
+check("  \u21b3 ildiz rad etishlari hech narsa yozmadi",
+      ing0 == _b_rec_ings7() and c0 == _a7(), f"{c0} -> {_a7()}")
+
+# 7a-qo'riqchi: marshrut va crud chetlab o'tilsa ham (ORM to'g'ridan-to'g'ri)
+_g = "yo'q"
+try:
+    db.add(_RI7(recipe_id=B_REC7, inventory_id=A_INV7.id, quantity_kg=1))
+    db.commit()
+    _g = "YOZILDI"
+except _models7.TenantMismatchError:
+    _g = "TenantMismatchError"
+except Exception as e:                               # noqa: BLE001
+    _g = type(e).__name__
+db.rollback()
+check("Qo'riqchi: RecipeIngredient(B retsepti \u2192 A materiali) \u2192 TenantMismatchError",
+      _g == "TenantMismatchError", _g)
+
+# 7a-statik: _TENANT_REFS dagi HAR qoida TIRIK bo'lsin — modelda company_id
+# bo'lsin yoki _TENANT_RULES da ota bo'lsin. Aks holda _check_refs own_cid=None
+# bilan chiqib ketadi (S1 aynan shunday edi).
+_olik = []
+for _nom in _models7._TENANT_REFS:
+    _cls = getattr(_models7, _nom, None) or getattr(_pm7, _nom, None)
+    _has = _cls is not None and "company_id" in {c.key for c in _cls.__table__.columns}
+    if not (_has or _nom in _models7._TENANT_RULES):
+        _olik.append(_nom)
+check(f"_TENANT_REFS: o'lik qoida yo'q ({len(_models7._TENANT_REFS)} ta model)",
+      not _olik, f"O'LIK: {_olik}")
+
+# --- 7b. Ombor kirimi (S2) ---
+c0 = _a7()
+r = _req7("post", "/api/inventory/receipt", json={"items": [
+    {"inventory_id": A_INV7.id, "quantity": 1, "price_per_unit": 1000}]})
+check(f"POST /api/inventory/receipt (A materiali) \u2192 {r.status_code} (404 shart)",
+      r.status_code == 404, r.text[:140])
+check("  \u21b3 A ombori O'ZGARMADI, xarid/harakat YO'Q", c0 == _a7(), f"{c0} -> {_a7()}")
+r = _req7("post", "/api/inventory/receipt", json={"items": [
+    {"inventory_id": B_INV7.id, "quantity": 1, "price_per_unit": 1000},
+    {"inventory_id": A_INV7.id, "quantity": 1, "price_per_unit": 1000}]})
+check(f"POST /api/inventory/receipt (B + A aralash) \u2192 {r.status_code} (404 shart)",
+      r.status_code == 404, r.text[:140])
+check("  \u21b3 aralash: B ombori ham O'ZGARMADI (yarim kirim yo'q)", c0 == _a7(), f"{c0} -> {_a7()}")
+_A_SUP7 = crud.create_supplier(db, schemas.SupplierCreate(name="AAA_SUP7"), company_id=1) \
+    if "company_id" in _insp6.signature(crud.create_supplier).parameters else None
+if _A_SUP7 is not None:
+    r = _req7("post", "/api/inventory/receipt", json={"supplier_id": _A_SUP7.id, "items": [
+        {"inventory_id": B_INV7.id, "quantity": 1, "price_per_unit": 1000}]})
+    check(f"POST /api/inventory/receipt (A ta'minotchisi) \u2192 {r.status_code} (404 shart, 500 emas)",
+          r.status_code == 404 and "company_id" not in r.text, r.text[:140])
+    check("  \u21b3 ta'minotchi: B ombori O'ZGARMADI", c0 == _a7(), f"{c0} -> {_a7()}")
+_o = _root7(lambda: crud.create_inventory_receipt(
+    db, items=[{"inventory_id": A_INV7.id, "quantity": 1, "price_per_unit": 1000}],
+    created_by="BBB", company_id=2))
+check("crud.create_inventory_receipt(company_id=2, A materiali) \u2192 rad (ValueError)",
+      _o.startswith("ValueError"), _o)
+check("  \u21b3 ildiz: A ombori O'ZGARMADI", c0 == _a7(), f"{c0} -> {_a7()}")
+
+# --- 7c. Qaytarish (S3) ---
+c0 = _a7()
+for _rs in ("Brak", "Ortiqcha"):
+    r = _req7("post", "/api/returns", json={"order_id": B_ORD7, "order_item_id": A_OI7,
+                    "item_name": "x", "quantity": 1, "reason": _rs})
+    check(f"POST /api/returns (B buyurtmasi + A detali, {_rs}) \u2192 {r.status_code} (404 shart)",
+          r.status_code == 404 and "777777" not in r.text, r.text[:140])
+    check(f"  \u21b3 A penoplasti O'ZGARMADI, qaytarish yozuvi YO'Q ({_rs})",
+          c0 == _a7(), f"{c0} -> {_a7()}")
+r = _req7("post", "/api/returns", json={"order_id": _ao7.id, "item_name": "x",
+                "quantity": 1, "reason": "Brak"})
+check(f"POST /api/returns (A buyurtmasi) \u2192 {r.status_code} (404 shart, 500 emas)",
+      r.status_code == 404, r.text[:140])
+r = _req7("post", "/api/returns", json={"order_id": 99999999, "item_name": "x",
+                "quantity": 1, "reason": "Brak"})
+check(f"POST /api/returns (mavjud bo'lmagan buyurtma) \u2192 {r.status_code} (404 shart, 500 emas)",
+      r.status_code == 404, r.text[:140])
+check("  \u21b3 hech narsa yozilmadi", c0 == _a7(), f"{c0} -> {_a7()}")
+for _cid7 in (2, None):
+    _o = _root7(lambda: crud.create_return_item(db, schemas.ReturnItemCreate(
+        order_id=B_ORD7, order_item_id=A_OI7, item_name="x", quantity=1,
+        reason="Brak"), company_id=_cid7))
+    check(f"crud.create_return_item(company_id={_cid7}, B buyurtmasi + A detali) \u2192 rad",
+          _o.startswith("ValueError"), _o)
+check("  \u21b3 ildiz: A penoplasti O'ZGARMADI", c0 == _a7(), f"{c0} -> {_a7()}")
+
+# --- 7d. Usta Telegram ID: POST va PUT BIR XIL qoida, filtrga bog'liq emas ---
+with contextlib.redirect_stdout(_quiet):
+    crud.create_master(db, schemas.MasterCreate(name="AAA_Usta7", phone="+998907770001",
+                                                telegram_id="7707001"), company_id=1)
+r = _req7("post", "/api/masters", json={"name": "BBB_Usta7a", "phone": "+998907770002",
+                                     "telegram_id": "7707001"})
+check(f"POST /api/masters (boshqa korxonadagi TG ID) \u2192 {r.status_code} (200: bir usta 2 korxonada)",
+      r.status_code == 200, r.text[:140])
+r2 = _req7("post", "/api/masters", json={"name": "BBB_Usta7b", "phone": "+998907770003",
+                                      "telegram_id": "7707001"})
+check(f"POST /api/masters (O'Z korxonasida band TG ID) \u2192 {r2.status_code} (400 shart)",
+      r2.status_code == 400, r2.text[:140])
+r3 = _req7("post", "/api/masters", json={"name": "BBB_Usta7c", "phone": "+998907770004"})
+_bm7 = r3.json().get("id") if r3.status_code == 200 else None
+r = _req7("put", f"/api/masters/{_bm7}", json={"name": "BBB_Usta7c", "phone": "+998907770004",
+                                            "telegram_id": "7707001"})
+check(f"PUT /api/masters/B (O'Z korxonasida band TG ID) \u2192 {r.status_code} (400 shart, 500 emas)",
+      r.status_code == 400, r.text[:140])
+db.expire_all()
+check("  \u21b3 A ustasining TG ID si o'zgarmadi, B da dublikat YO'Q",
+      db.query(_M7).filter(_M7.telegram_id == "7707001", _M7.company_id == 1).count() == 1
+      and db.query(_M7).filter(_M7.telegram_id == "7707001", _M7.company_id == 2).count() == 1)
+
+# --- 7e. Nazorat: B o'z ID lari bilan — o'tadi (404 umumiy rad etish emas) ---
+r = _req7("post", "/api/recipes", json={"name": _nm7("RN"), "batch_size_kg": 10,
+                "ingredients": [{"inventory_id": B_INV7.id, "quantity_kg": 1}]})
+check(f"nazorat: POST /api/recipes (B materiali) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200, r.text[:140])
+r = _req7("put", f"/api/recipes/{B_REC7}", json={"name": _nm7("RNP"), "batch_size_kg": 10,
+               "ingredients": [{"inventory_id": B_INV7.id, "quantity_kg": 2}]})
+check(f"nazorat: PUT /api/recipes/B (B materiali) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200, r.text[:140])
+r = _req7("post", "/api/inventory/receipt", json={"items": [
+    {"inventory_id": B_INV7.id, "quantity": 1, "price_per_unit": 1000}]})
+check(f"nazorat: POST /api/inventory/receipt (B materiali) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200, r.text[:140])
+r = _req7("post", "/api/returns", json={"order_id": B_ORD7, "order_item_id": B_OI7,
+                "item_name": "x", "quantity": 1, "reason": "Ortiqcha"})
+check(f"nazorat: POST /api/returns (B buyurtmasi + B detali) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200, r.text[:140])
+
+
+# ══════════════════════════════════════════════════════════════
 print("\n" + "=" * 66)
 print(f"NATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 print(f"tenant_context statistikasi: {_tc.get_stats()}")
