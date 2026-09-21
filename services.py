@@ -900,8 +900,12 @@ def get_notifications(db: Session, company_id: int = None) -> list:
     # CHIQARISHDAN ORTIB QOLGAN qoldiq (keyingi buyurtmaga ishlatish
     # uchun). Ular ODATDA 0 bo'lib turadi — bu me'yor, muammo emas,
     # shuning uchun bu ogohlantirishlarga kiritilmaydi.
+    # 20-band (2026-09-21): o'chirilgan (yashirilgan, `is_deleted`) materiallar
+    # ogohlantirishga KIRMAYDI — ular ombor ro'yxatida (`crud.get_inventory`)
+    # ko'rinmaydi, lekin ilgari bu yerda "qolmadi" deb chiqib turardi.
     empty_items = db.query(Inventory).filter(
         *( [Inventory.company_id == company_id] if company_id is not None else [] ),
+        Inventory.is_deleted.isnot(True),
         Inventory.stock_quantity <= 0,
         ~Inventory.item_name.like('Tayyor loy%')
     ).all()
@@ -918,6 +922,7 @@ def get_notifications(db: Session, company_id: int = None) -> list:
     period_start = now - timedelta(days=14)
     items = db.query(Inventory).filter(
         *( [Inventory.company_id == company_id] if company_id is not None else [] ),
+        Inventory.is_deleted.isnot(True),       # 20-band — yuqoridagi bilan bir xil
         Inventory.stock_quantity > 0,
         ~Inventory.item_name.like('Tayyor loy%')
     ).all()
@@ -3821,7 +3826,13 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
             if p and p.volume_per_unit and p.volume_per_unit > 0:
                 blocks = brak_volume / float(p.volume_per_unit)
                 old_qty = float(p.stock_quantity or 0)
-                p.stock_quantity = max(0, old_qty - blocks)
+                # 20-band (2026-09-21): 0 ga QIRQILMAYDI. Penoplast allaqachon
+                # kesilgan — sarf haqiqiy; jurnalga ham to'liq `blocks` yoziladi.
+                # Ilgari `max(0, ...)` manfiy qoldiqni ("qarz" — masalan
+                # `deduct_inventory_for_order` ataylab qoldirgan tanqislikni)
+                # jimgina 0 ga ko'tarib o'chirardi, jurnal esa to'liq sarfni
+                # ko'rsatardi — ombor va jurnal bir-biriga zid bo'lib qolardi.
+                p.stock_quantity = old_qty - blocks
                 db.add(InventoryMovement(
                     inventory_id=p.id, item_name=p.item_name, movement_type="out",
                     quantity=blocks, unit=p.unit,
@@ -3987,10 +3998,15 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
 
 
 def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = None,
-                           company_id: int = None) -> list:
+                           company_id: int = None, reason_override: str = None) -> list:
     """
     Loy ingredientlarini omborga qaytaradi (buyurtma o'chirilganda).
     recipe_id berilsa — aynan O'SHA retsept ishlatiladi.
+
+    20-band (2026-09-21): `reason_override` — jurnal sababi (masalan tayyor
+    mahsulot o'chirilganda). Ilgari u yo'l soxta "TERMOPANEL +" buyurtma
+    obyekti bilan chaqirilar va HAR QANDAY mahsulot o'chirilganda jurnalga
+    "Buyurtma TERMOPANEL + bekor qilindi" yozilardi. Berilmasa — eski matn.
 
     2026-09-21 — TENANT: retsept qidiruvi `resolve_recipe` ga o'tkazildi.
     Qaytarish ham xuddi ayirish kabi xavfli edi — begona retsept bilan
@@ -4026,7 +4042,7 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
             _crud.log_movement(
                 db, inv_item.id, inv_item.item_name, movement_type="in",
                 quantity=needed_kg, unit=inv_item.unit,
-                reason=f"Buyurtma {getattr(order, 'order_number', order.id)} bekor qilindi (loy qaytarildi)",
+                reason=reason_override or f"Buyurtma {getattr(order, 'order_number', order.id)} bekor qilindi (loy qaytarildi)",
                 order_id=order.id
             )
 
@@ -4096,7 +4112,10 @@ def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = Non
         blocks = diff / vol_per_unit
 
         if blocks > 0:
-            p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
+            # 20-band (2026-09-21): 0 ga QIRQILMAYDI — `deduct_inventory_for_order`
+            # bilan bir xil qoida (tanqislik yashirilmaydi, manfiy "qarz"
+            # keyingi kirimda qoplanadi). Jurnalga ham to'liq `blocks` yoziladi.
+            p.stock_quantity = float(p.stock_quantity) - blocks
             log.append(f"{p.item_name}: -{blocks:.2f} blok (qo'shildi)")
             # MUHIM: bu harakat AVVAL "Ombor harakatlari" jurnaliga yozilmasdi
             # — shuning uchun buyurtma tahrirlanganda Penoplast o'zgarishi

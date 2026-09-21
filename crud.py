@@ -527,6 +527,16 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
 _STOCK_REASON_MAX = 200
 
 
+def _jurnal_sabab(matn) -> str:
+    """20-band (2026-09-21): ombor jurnali `reason` ustuni String(200).
+    Nom qo'shiladigan sabablar (mahsulot nomi 150 belgigacha) ustundan oshsa
+    PostgreSQL COMMIT paytida yiqiladi (`log_movement` ichidagi try/except
+    uni USHLAMAYDI — `db.add` o'tadi, xato keyin chiqadi). Shuning uchun
+    sabab 200 belgiga xavfsiz qisqartiriladi."""
+    matn = "" if matn is None else str(matn)
+    return matn if len(matn) <= _STOCK_REASON_MAX else matn[:_STOCK_REASON_MAX - 1] + "…"
+
+
 def _stock_son(value):
     """`quantity_change` — ishorali (musbat = kirim, manfiy = chiqim), chekli,
     0 emas, `true/false` emas, sig'imdan katta emas. Aks holda ValueError."""
@@ -6272,7 +6282,10 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = volume / vol_per_unit
-            p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
+            # 20-band (2026-09-21): 0 ga QIRQILMAYDI. Yetishmovchilik yuqorida
+            # rad etiladi; qirqish faqat manfiy "qarz"ni jimgina o'chirardi
+            # (jurnalga esa to'liq `blocks` yoziladi).
+            p.stock_quantity = float(p.stock_quantity) - blocks
             peno_cost = blocks * float(p.price_per_unit or 0)
             log.append(f"{p.item_name}: -{blocks:.2f} blok")
             # MUHIM: avval bu yerda Ombor harakati (log_movement) UMUMAN
@@ -6538,13 +6551,26 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
             p = _del_inv(db.query(_Inv).filter(_Inv.id == fp.penoplast_id)).with_for_update().first()
             if p:
                 vpu = float(p.volume_per_unit or 1.0)
-                p.stock_quantity = float(p.stock_quantity) + (float(fp.volume_m3) / vpu)
+                _qaytgan_blok = float(fp.volume_m3) / vpu
+                p.stock_quantity = float(p.stock_quantity) + _qaytgan_blok
+                # 20-band (2026-09-21): qaytish JURNALGA yoziladi — ilgari
+                # `produce` "out" yozardi, o'chirishdagi qaytish esa yozilmasdi
+                # (jurnal yig'indisi ombor qoldig'iga mos kelmasdi).
+                log_movement(
+                    db, p.id, p.item_name, movement_type="in",
+                    quantity=_qaytgan_blok, unit=p.unit,
+                    reason=_jurnal_sabab(f"Mahsulot o'chirildi — {fp.name} (penoplast qaytarildi)")
+                )
         # Loy qaytadi
         if fp.actual_loy_kg and fp.actual_loy_kg > 0:
+            # 20-band: jurnal sababi — mahsulot nomi bilan (ilgari soxta
+            # buyurtma obyekti tufayli har doim "Buyurtma TERMOPANEL +
+            # bekor qilindi" yozilardi).
             _svc.return_loy_ingredients(
                 db, _TermoFakeOrder(fp.recipe_id, getattr(fp, 'company_id', None)),
                 float(fp.actual_loy_kg),
-                company_id=getattr(fp, 'company_id', None))
+                company_id=getattr(fp, 'company_id', None),
+                reason_override=_jurnal_sabab(f"Mahsulot o'chirildi — {fp.name} (loy qaytarildi)"))
         # Bog'liq yozuvlarni uzamiz (IN_PROGRESS'da sotuv bo'lmaydi, lekin
         # xavfsizlik uchun)
         from models import FinishedProductSale as _FPS, FinishedProductLoss as _FPL, OrderItem as _OI2
@@ -6901,9 +6927,18 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         if p:
             vol_per_unit = float(p.volume_per_unit or 1.0)
             blocks = add_volume / vol_per_unit
-            p.stock_quantity = max(0, float(p.stock_quantity) - blocks)
+            # 20-band (2026-09-21): 0 ga QIRQILMAYDI (yetishmovchilik yuqorida
+            # rad etiladi) va sarf ombor JURNALIGA yoziladi — ilgari "+"
+            # qo'shishdagi penoplast sarfi "Harakatlar tarixi"da ko'rinmasdi
+            # (`produce` va brak yo'llari esa yozardi).
+            p.stock_quantity = float(p.stock_quantity) - blocks
             peno_cost = blocks * float(p.price_per_unit or 0)
             log.append(f"{p.item_name}: -{blocks:.2f} blok")
+            log_movement(
+                db, p.id, p.item_name, movement_type="out", quantity=blocks,
+                unit=p.unit,
+                reason=_jurnal_sabab(f"Ishlab chiqarish (+{add_qty:g}): {fp.name}")
+            )
 
     # 2) Loy
     if add_loy > 0:
@@ -8722,16 +8757,26 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
             # keyin o'chirishsa) — bu yerda tekshiruv yo'q edi, zaxira
             # manfiyga tushib qolar edi. Boshqa joylardagi (masalan
             # update_stock()) "manfiy bo'lmasin" qoidasiga moslashtirildi.
+            # 20-band (2026-09-21, FOYDALANUVCHI QARORI — "hammasi"): xarid
+            # o'chirilganda qoldiq ARIFMETIK kamayadi, BARCHA materiallar
+            # uchun (penoplast ham). Ilgari 0 da qirqilardi: manfiy qoldiqdagi
+            # "qarz" o'chardi, ishlatilgan xariddan keyin o'chirilsa sarflangan
+            # qism yo'qolardi, jurnalga esa to'liq miqdor yozilardi (ombor va
+            # jurnal bir-biriga zid). Manfiy qoldiq keyingi kirimda qoplanadi
+            # (`_purchase_stock_no_commit`), qo'lda chiqim esa manfiyda rad
+            # etiladi (`update_stock`, 19-band).
             current = float(inv.stock_quantity or 0)
             new_qty = current - float(p.quantity)
-            if new_qty < 0:
-                new_qty = 0.0
+            if -1e-9 < new_qty < 0:
+                new_qty = 0.0       # suzuvchi nuqta qoldig'i (19-band bilan bir xil)
             inv.stock_quantity = new_qty
             try:
                 log_movement(db, inv.id, inv.item_name, movement_type="out",
                              quantity=float(p.quantity), unit=inv.unit,
-                             reason=f"Xarid o'chirildi (bekor qilindi) — #{purchase_id}" +
-                                    (" ⚠️ OGOHLANTIRISH: bu miqdorning bir qismi allaqachon ishlatilgan bo'lishi mumkin — zaxira 0 dan pastga tushirilmadi" if current < float(p.quantity) else ""))
+                             reason=_jurnal_sabab(
+                                 f"Xarid o'chirildi (bekor qilindi) — #{purchase_id}" +
+                                 (f" ⚠️ qoldiq manfiy: {new_qty:g} {inv.unit or ''} — keyingi kirimda qoplanadi"
+                                  if new_qty < 0 else "")))
             except Exception:
                 pass
 
