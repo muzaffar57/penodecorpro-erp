@@ -56,9 +56,11 @@ def _tenant_telegram(company_id=None):
 
     TARTIB:
       1) `company_id` berilsa — o'sha korxonaning sozlamasi;
-      2) berilmasa — joriy so'rovning korxonasi (`tenant_context`);
+      2) berilmasa — TIZIM xabari: muhit o'zgaruvchilari. Marshrutlar
+         `company_id` ni DOIM aniq beradi (tools/test_telegram_tenant.py);
       3) korxonada token sozlanmagan bo'lsa — MUHIT O'ZGARUVCHILARI
-         (`TELEGRAM_BOT_TOKEN`, `BACKUP_TELEGRAM_CHAT_ID`).
+         (`TELEGRAM_BOT_TOKEN`, `BACKUP_TELEGRAM_CHAT_ID`), lekin FAQAT
+         1-korxona uchun; boshqa korxona uchun ("", []).
 
     3-band ATAYLAB: birinchi korxona (tizim egasi) hech narsa
     sozlamasdan ham avvalgidek ishlashda davom etadi. Ikkinchi mijoz
@@ -68,24 +70,32 @@ def _tenant_telegram(company_id=None):
     env_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     env_chats = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "").strip()
 
+    # 2026-09-21 (9-sizish): ilgari `company_id` berilmasa korxona
+    # `tenant_context.get_current_company(_db)` dan olinardi — lekin `_db`
+    # shu yerda YANGI ochilgan sessiya, uning `info` si doim bo'sh. Natija:
+    # korxona hech qachon aniqlanmas, B ning xabari (buyurtma, qoldiq,
+    # mijoz) muhit o'zgaruvchisidagi 1-korxona chatiga ketardi — B o'z
+    # botini sozlagan bo'lsa HAM. `TENANT_FILTER` bunga ta'sir qilmaydi.
+    #
+    # QOIDA:
+    #   company_id=None  → tizim xabari (zaxira nusxa) → muhit sozlamasi;
+    #   korxonaning o'z boti bor → o'shaniki;
+    #   o'z boti yo'q: 1-korxona (tizim egasi) → muhit sozlamasi,
+    #                  BOSHQA korxona → HECH NARSA yuborilmaydi (uning
+    #                  ma'lumoti tizim egasining chatiga tushmasligi uchun).
     cid = company_id
+    if cid is None:
+        return env_token, [x.strip() for x in env_chats.split(",") if x.strip()]
     _db = None
     try:
         from database import SessionLocal as _SL
         _db = _SL()
-        if cid is None:
-            try:
-                import tenant_context as _tc
-                cid = _tc.get_current_company(_db)
-            except Exception:
-                cid = None
-        if cid is not None:
-            import crud as _c
-            t = (_c.get_setting(_db, "telegram_bot_token", "", company_id=cid) or "").strip()
-            c = (_c.get_setting(_db, "telegram_chat_id", "", company_id=cid) or "").strip()
-            if t:
-                chats = [x.strip() for x in c.split(",") if x.strip()]
-                return t, chats
+        import crud as _c
+        t = (_c.get_setting(_db, "telegram_bot_token", "", company_id=cid) or "").strip()
+        c = (_c.get_setting(_db, "telegram_chat_id", "", company_id=cid) or "").strip()
+        if t:
+            chats = [x.strip() for x in c.split(",") if x.strip()]
+            return t, chats
     except Exception as e:
         print(f"⚠ Korxona Telegram sozlamasi o'qilmadi: {e}")
     finally:
@@ -95,6 +105,8 @@ def _tenant_telegram(company_id=None):
             except Exception:
                 pass
 
+    if cid != auth.DEFAULT_COMPANY_ID:
+        return "", []
     return env_token, [x.strip() for x in env_chats.split(",") if x.strip()]
 
 
@@ -110,7 +122,16 @@ def _send_telegram(text: str, company_id=None):
     # sozlangan, ishlab turgan BACKUP_TELEGRAM_CHAT_ID'dan foydalanamiz —
     # shu bilan, shu funksiyaga bog'liq BARCHA (12 xil) bildirishnoma turi
     # birdaniga tuzatiladi.
-    chat_ids = _tenant_chats or [TELEGRAM_COATING_ID]
+    # Qattiq yozilgan zaxira chat — faqat tizim egasi (1-korxona) va tizim
+    # xabarlari uchun. Boshqa korxona boti sozlangan-u, chati kiritilmagan
+    # bo'lsa, uning xabari tizim egasining chatiga TUSHMASLIGI kerak.
+    if _tenant_chats:
+        chat_ids = _tenant_chats
+    elif company_id is None or company_id == auth.DEFAULT_COMPANY_ID:
+        chat_ids = [TELEGRAM_COATING_ID]
+    else:
+        print("⚠ Korxonaning Telegram chat manzili sozlanmagan — xabar yuborilmadi")
+        return
     for chat_id in chat_ids:
         try:
             url  = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -229,6 +250,9 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
         d = crud.get_delivery(db, delivery_id)
         if not d or not d.order:
             return
+        # 2026-09-21 (9-sizish): xabar yetkazish buyurtmasining O'Z
+        # korxonasi boti orqali ketadi (ilgari doim 1-korxona boti).
+        _cid_d = d.order.company_id
 
         recipients = []  # [(tg_id, rol)]
 
@@ -287,9 +311,9 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
         for tg_id, role in recipients:
             sent = False
             if pdf_bytes is not None:
-                sent = _send_telegram_document(tg_id, pdf_bytes, filename, caption, content_type="application/pdf")
+                sent = _send_telegram_document(tg_id, pdf_bytes, filename, caption, content_type="application/pdf", company_id=_cid_d)
             if not sent:
-                _send_telegram_to(tg_id, text_msg)
+                _send_telegram_to(tg_id, text_msg, company_id=_cid_d)
     except Exception as e:
         print(f"⚠ Yuk xati (PDF ham, matn ham) yuborilmadi: {e}")
         try:
@@ -2185,7 +2209,7 @@ def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db
             f"🏗 *PenoDecorPro* — Zamonaviy fasad dekorlari\n"
             f"📍 Andijon, O'zbekiston"
         )
-        _send_telegram_to(str(tg_id).strip(), msg)
+        _send_telegram_to(str(tg_id).strip(), msg, company_id=auth.company_id_of(current_user))
     return new_master
 
 
@@ -2363,7 +2387,7 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
                 f"📊 Jami barcha qarz: {fmt_money(all_debt)} so'm\n\n"
                 f"🏗 *PenoDecorPro* — {who}"
             )
-            _send_telegram(msg)
+            _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return {
         "status": "ok",
@@ -3085,7 +3109,7 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
         msg += f"━━━ KAM QOLGANLAR ({len(kam)} ta) ━━━\n" + "\n".join(kam) + "\n\n"
     msg += f"━━━ YETARLI ({len(yetarli)} ta) ━━━\n" + "\n".join(yetarli)
     msg += f"\n\n🏗 *PenoDecorPro* — Andijon"
-    _send_telegram(msg)
+    _send_telegram(msg, company_id=auth.company_id_of(current_user))
     return {"message": f"Ombor hisoboti yuborildi! ({len(items)} ta xomashyo)"}
 
 
@@ -3102,7 +3126,7 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
         emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
         lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
     msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
-    _send_telegram(msg)
+    _send_telegram(msg, company_id=auth.company_id_of(current_user))
     return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida SMS yuborildi!"}
 
 
@@ -3166,17 +3190,6 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
         _send_telegram(_msg2, company_id=_cid2)
     return {"sent": True, "companies": len(_per_company),
             "items": sum(len(v) for v in _per_company.values())}
-    low_items = []
-    lines = _all_lines
-    for item in low_items:
-        qty = float(item.stock_quantity)
-        min_q = float(item.min_stock)
-        deficit = min_q - qty
-        emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-        lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
-    msg = f"⚠️ *Kunlik ombor ogohlantirishi!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
-    _send_telegram(msg)
-    return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida xabar yuborildi"}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -3363,7 +3376,7 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     is_draft = getattr(order, 'is_draft', False)
     if not is_draft:
         services.deduct_inventory_for_order(db, new_order)
-    low_items = crud.get_low_stock_items(db) if not is_draft else []
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user)) if not is_draft else []
     if low_items:
         lines = []
         for item in low_items:
@@ -3373,7 +3386,7 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
         msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n*{new_order.order_number}* buyurtmadan keyin:\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
-        _send_telegram(msg)
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
     return new_order
 
 
@@ -3510,7 +3523,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
         }
 
     # Ombor ogohlantirishlari
-    low_items = crud.get_low_stock_items(db)
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if low_items:
         lines = []
         for item in low_items:
@@ -3522,7 +3535,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
         msg = (f"⚠️ *Ombor ogohlantirishlari!*\n\n*{ord_obj.order_number}* tahrirlangandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon")
-        _send_telegram(msg)
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return result
 @app.put("/api/orders/{order_id}/loy")
@@ -3537,34 +3550,35 @@ def api_update_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), 
     return result
 
 
-def _send_telegram_to_qoplamachi(text: str):
+def _send_telegram_to_qoplamachi(text: str, company_id=None):
     """Qoplamachining o'z shaxsiy chatiga xabar yuboradi — QOPLAMACHI_TELEGRAM_CHAT_ID
     Railway env varida sozlanadi (bir nechta bo'lsa, vergul bilan ajratiladi).
     Eski, buzilgan TELEGRAM_COATING_ID'dan farqli — bu yangi, ishlaydigan sozlama
     (2026-09-06, faqat 'necha kg loy tayyorlash kerak' xabari uchun qo'shildi)."""
     # Faza 3 (2-qadam): avval korxonaning o'z sozlamasi, bo'lmasa muhit
-    # o'zgaruvchisi. Shu bilan har korxonaning qoplamachisi o'z xabarini
-    # o'z botidan oladi.
+    # o'zgaruvchisi — FAQAT 1-korxona uchun.
+    # 2026-09-21 (9-sizish): ilgari korxona yangi ochilgan sessiyadan
+    # (`tenant_context.get_current_company`) o'qilardi — u doim bo'sh, shuning
+    # uchun B ning qoplama topshirig'i (mijoz, loy kg) 1-korxonaning
+    # qoplamachisiga ketardi. Endi korxona chaqiruvchidan aniq keladi.
     raw = ""
-    try:
-        from database import SessionLocal as _SL
-        import tenant_context as _tc
-        _d = _SL()
+    if company_id is not None:
         try:
-            _cid = _tc.get_current_company(_d)
-            if _cid is not None:
+            from database import SessionLocal as _SL
+            _d = _SL()
+            try:
                 raw = (crud.get_setting(_d, "telegram_qoplamachi_chat_id", "",
-                                        company_id=_cid) or "").strip()
-        finally:
-            _d.close()
-    except Exception:
-        raw = ""
-    if not raw:
+                                        company_id=company_id) or "").strip()
+            finally:
+                _d.close()
+        except Exception:
+            raw = ""
+    if not raw and (company_id is None or company_id == auth.DEFAULT_COMPANY_ID):
         raw = os.environ.get("QOPLAMACHI_TELEGRAM_CHAT_ID", "").strip()
     if not raw:
         return
     for chat_id in [c.strip() for c in raw.split(",") if c.strip()]:
-        _send_telegram_to(chat_id, text)
+        _send_telegram_to(chat_id, text, company_id=company_id)
 
 
 @app.post("/api/orders/{order_id}/coating-notify")
@@ -3596,8 +3610,8 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
                 f"🧱 Loy tayyorlang: *{int(loy_kg)} kg*\n\n"
                 f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
-            _send_telegram(msg)
-            _send_telegram_to_qoplamachi(msg)
+            _send_telegram(msg, company_id=auth.company_id_of(current_user))
+            _send_telegram_to_qoplamachi(msg, company_id=auth.company_id_of(current_user))
 
     # "Loy sotish" turidagi detallar — MUHIM: bu yerda ENDI ayirilmaydi!
     # Sababi: create_order() (buyurtma yaratilganda) — bu ishni ALLAQACHON
@@ -3632,7 +3646,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
                 f"🧱 Ishlatilgan loy: *{int(loy_kg)} kg*\n\n"
                 f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
-            _send_telegram(msg)
+            _send_telegram(msg, company_id=auth.company_id_of(current_user))
         if order.project and order.project.notes:
             notes = order.project.notes or ''
             tg_id = None
@@ -3669,7 +3683,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
                         f"Buyurtmangizni olishingiz mumkin!\n"
                         f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                     )
-                _send_telegram_to(tg_id, client_msg)
+                _send_telegram_to(tg_id, client_msg, company_id=auth.company_id_of(current_user))
 
     # Agar "Tayyor" belgilashda BUTUN mahsulot avtomatik bir yo'la
     # topshirilgan (yetkazilgan) deb belgilangan bo'lsa — o'sha yetkazish
@@ -3866,7 +3880,7 @@ def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(aut
 
 @app.get("/api/warnings/low-stock")
 def api_low_stock(db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
-    return {"warnings": services.get_low_stock_warnings(db)}
+    return {"warnings": services.get_low_stock_warnings(db, company_id=auth.company_id_of(current_user))}
 
 
 @app.get("/api/notifications")
@@ -3876,7 +3890,7 @@ def api_notifications(db: Session = Depends(get_db), current_user=Depends(auth.r
 
 @app.get("/api/dashboard/today-tasks")
 def api_today_tasks(db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
-    return services.get_today_tasks(db)
+    return services.get_today_tasks(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/production-periods")
@@ -5524,7 +5538,7 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
         raise HTTPException(status_code=400, detail=result)
 
     # Ombor ogohlantirishi
-    low_items = crud.get_low_stock_items(db)
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if low_items:
         lines = []
         for item in low_items:
@@ -5535,7 +5549,7 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTayyor mahsulot ishlab chiqarilgandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
-        _send_telegram(msg)
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return result
 @app.post("/api/finished/{fp_id}/complete")
@@ -5566,7 +5580,7 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
         raise HTTPException(status_code=400, detail=result)
 
     # Ombor ogohlantirishi
-    low_items = crud.get_low_stock_items(db)
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if low_items:
         lines = []
         for item in low_items:
@@ -5577,7 +5591,7 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
                + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
-        _send_telegram(msg)
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return result
 
@@ -5688,7 +5702,7 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
             + ("\n✅ *Buyurtma to'liq topshirildi!*" if result["is_fully_delivered"] else "")
             + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
         )
-        _send_telegram(msg)
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
         _send_delivery_pdf_to_customer(db, result["delivery_id"])
 
     return result

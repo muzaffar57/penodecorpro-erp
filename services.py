@@ -966,12 +966,15 @@ def get_notifications(db: Session, company_id: int = None) -> list:
     return notifications
 
 
-def check_low_stock(db: Session) -> List[Dict]:
+def check_low_stock(db: Session, company_id: int = None) -> List[Dict]:
     """Min qoldiqdan kam bo'lgan xomashyolar ro'yxati.
 
     Admin dashboardida ko'rsatish uchun.
     """
+    # 2026-09-21: QAT'IY korxona filtri — None bo'lsa bo'sh (ilgari
+    # filtr umuman yo'q edi: B dashboardida A ning xomashyo nomlari).
     low_items = db.query(Inventory).filter(
+        Inventory.company_id == company_id,
         Inventory.stock_quantity <= Inventory.min_stock,
         Inventory.min_stock > 0
     ).all()
@@ -991,7 +994,7 @@ def check_low_stock(db: Session) -> List[Dict]:
     return result
 
 
-def get_today_tasks(db: Session) -> List[Dict]:
+def get_today_tasks(db: Session, company_id: int = None) -> List[Dict]:
     """Dashboard 'Bugungi vazifalar' vidjeti uchun — bugun e'tibor talab
     qiladigan narsalar ro'yxati: bugun topshirilishi kerak bo'lgan
     buyurtmalar, muddati o'tgan buyurtmalar, va kam qolgan xomashyo.
@@ -1005,7 +1008,10 @@ def get_today_tasks(db: Session) -> List[Dict]:
     today_end = today_start + timedelta(days=1)
 
     # 1) Bugun topshirilishi kerak bo'lgan buyurtmalar
+    # 2026-09-21: QAT'IY korxona filtri (ilgari yo'q edi — B "bugungi
+    # vazifalar"da A ning buyurtma raqamlarini ko'rardi).
     due_today = db.query(Order).filter(
+        Order.company_id == company_id,
         Order.deadline >= today_start, Order.deadline < today_end,
         Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED]),
         Order.is_deleted.isnot(True)
@@ -1015,6 +1021,7 @@ def get_today_tasks(db: Session) -> List[Dict]:
 
     # 2) Muddati o'tgan (kechikkan) buyurtmalar
     overdue = db.query(Order).filter(
+        Order.company_id == company_id,
         Order.deadline < today_start,
         Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.READY]),
         Order.is_deleted.isnot(True)
@@ -1023,7 +1030,7 @@ def get_today_tasks(db: Session) -> List[Dict]:
         tasks.append({"icon": "⏰", "text": f"{overdue} ta buyurtma muddati o'tgan"})
 
     # 3) Kam qolgan xomashyo
-    low_stock = check_low_stock(db)
+    low_stock = check_low_stock(db, company_id)
     for item in low_stock[:5]:
         tasks.append({"icon": "⚠️", "text": f"{item['item_name']} kam qolgan ({item['stock_quantity']:g} {item['unit']})"})
 
@@ -1153,16 +1160,17 @@ def get_dashboard_stats(db: Session, company_id: int = None) -> Dict:
     sanoqlar M2/M3/M6 doirasida alohida ko'riladi.)"""
     from models import Project, Master
 
-    total_projects = db.query(Project).filter(Project.is_deleted.isnot(True)).count()
-    total_orders = db.query(Order).filter(Order.is_deleted.isnot(True)).count()
-    active_orders = db.query(Order).filter(Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
-    ready_orders = db.query(Order).filter(Order.status == OrderStatus.READY, Order.is_deleted.isnot(True)).count()
+    # 2026-09-21: sanoqlar QAT'IY korxona bo'yicha (ilgari butun baza).
+    total_projects = db.query(Project).filter(Project.company_id == company_id, Project.is_deleted.isnot(True)).count()
+    total_orders = db.query(Order).filter(Order.company_id == company_id, Order.is_deleted.isnot(True)).count()
+    active_orders = db.query(Order).filter(Order.company_id == company_id, Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).count()
+    ready_orders = db.query(Order).filter(Order.company_id == company_id, Order.status == OrderStatus.READY, Order.is_deleted.isnot(True)).count()
     _tmq = db.query(Master).filter(Master.is_active == True)
     if company_id is not None:      # M5
         _tmq = _tmq.filter(Master.company_id == company_id)
     total_masters = _tmq.count()
-    total_inventory_items = db.query(Inventory).count()
-    low_stock = check_low_stock(db)
+    total_inventory_items = db.query(Inventory).filter(Inventory.company_id == company_id).count()
+    low_stock = check_low_stock(db, company_id)
 
     return {
         "total_projects": total_projects,
@@ -1437,9 +1445,9 @@ def get_inventory_kpi(db: Session, company_id: int = None) -> Dict:
     }
 
 
-def get_low_stock_warnings(db: Session) -> List[Dict]:
+def get_low_stock_warnings(db: Session, company_id: int = None) -> List[Dict]:
     """check_low_stock ning alias — eski kodlarga moslik uchun."""
-    return check_low_stock(db)
+    return check_low_stock(db, company_id)
 
 
 # ============================================================
@@ -1617,7 +1625,7 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
     total_debt = float(total_budget) - float(total_paid)
 
     # --- 5. Omborxona holati (top yetishmayotganlar) ---
-    low_stock = check_low_stock(db)
+    low_stock = check_low_stock(db, company_id)
 
     return {
         "months": months_data,

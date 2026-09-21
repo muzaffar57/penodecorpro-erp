@@ -855,8 +855,11 @@ def get_low_stock_items(db: Session, company_id: int = None) -> List[Inventory]:
         Inventory.stock_quantity <= Inventory.min_stock,
         ~Inventory.item_name.like('Tayyor loy (%')
     )
-    if company_id is not None:
-        q = q.filter(Inventory.company_id == company_id)
+    # 2026-09-21: QAT'IY filtr — korxona noma'lum (None) bo'lsa bo'sh ro'yxat
+    # (`company_id IS NULL` hech narsa topmaydi). Ilgari shartli edi: None da
+    # BARCHA korxonalarning kam qolgan xomashyosi qaytib, Telegram xabariga
+    # aralashib ketardi (4 marshrut korxonasiz chaqirardi).
+    q = q.filter(Inventory.company_id == company_id)
     return q.all()
 
 
