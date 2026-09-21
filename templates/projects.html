@@ -299,17 +299,6 @@
   <img id="projLightboxImg" src="" alt="" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain">
 </div>
 
-<!-- To'lov modal -->
-<div id="payModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;width:360px;max-width:100%">
-    <div style="font-size:16px;font-weight:600;margin-bottom:18px">💰 To'lov qo'shish</div>
-    <div class="form-group"><label>Summa (so'm)</label><input type="number" id="pay-amount" placeholder="0" min="0"></div>
-    <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-gold w-full" id="proj-pay-save-btn" onclick="savePayment()">Qo'shish</button>
-      <button class="btn btn-outline w-full" onclick="document.getElementById('payModal').style.display='none'">Bekor</button>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -486,8 +475,10 @@ function switchTab(tab, force) {
 }
 
 function renderAsosiy(d) {
-  const _budget = parseFloat(d.budget)||0, _paid = parseFloat(d.paid)||0;
-  const _debtLeft = Math.max(0, _budget - _paid);
+  // 17c (2026-09-21): loyihaga to'g'ridan-to'g'ri "💰 To'lov qo'shish"
+  // tugmasi OLIB TASHLANDI (foydalanuvchi qarori "1"): u pulni to'lov
+  // yozuvisiz yozardi, Moliyaga tushmasdi va keyingi buyurtma to'lovida
+  // o'chib ketardi. To'lov faqat buyurtma orqali qabul qilinadi.
   document.getElementById('tabContent').innerHTML = `
     <div class="info-row"><span style="color:var(--text3)">Loyiha raqami</span><span style="font-weight:500">${d.num}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Mijoz</span><span style="font-weight:500">${escapeHtml(d.client)}</span></div>
@@ -501,7 +492,6 @@ function renderAsosiy(d) {
       <button class="btn btn-outline btn-sm" onclick="switchTab('payments')"><i class="ti ti-cash" style="font-size:12px"></i> To'lovlarni ko'rish</button>
       <button class="btn btn-outline btn-sm" onclick="switchTab('products')"><i class="ti ti-file-text" style="font-size:12px"></i> Hujjatlarni ko'rish</button>
       <button class="btn btn-green btn-sm" id="proj-complete-btn" onclick="markProjectComplete()"><i class="ti ti-check" style="font-size:12px"></i> Yakunlash</button>
-      <button class="btn btn-gold btn-sm" ${_debtLeft <= 0.5 ? 'disabled title="Qarzdorlik yo\'q — buyurtma to\'liq to\'langan" style="opacity:.45;cursor:not-allowed"' : ''} onclick="showPayModal()">💰 To'lov qo'shish</button>
       <button class="btn btn-outline btn-sm" style="color:#EF4444;border-color:#EF4444" onclick="deleteProj()">O'chirish</button>
     </div>`;
 }
@@ -811,28 +801,9 @@ async function markProjectComplete() {
   }
 }
 
-function showPayModal(){document.getElementById('payModal').style.display='flex';}
 function showAddModal(){document.getElementById('addModal').style.display='flex';}
 function closeModal(){
   document.getElementById('addModal').style.display='none';
-  document.getElementById('payModal').style.display='none';
-}
-
-let isSavingProjPayment = false;
-async function savePayment(){
-  const amount=parseFloat(document.getElementById('pay-amount').value);
-  if(!amount||amount<=0){projToast('Summa kiriting!');return;}
-  if (isSavingProjPayment) return; // Ikki marta bosishdan himoya
-  isSavingProjPayment = true;
-  const btn = document.getElementById('proj-pay-save-btn');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
-  try {
-    const res=await fetch(`/api/projects/${selectedProjId}/payment?amount=${amount}`,{method:'POST'});
-    if(res.ok){projToast('✓ To\'lov qo\'shildi!');setTimeout(()=>location.reload(),1200);return;}else projToast('Xato');
-  } finally {
-    isSavingProjPayment = false;
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }
-  }
 }
 
 async function deleteProj(){
