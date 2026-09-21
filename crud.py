@@ -1823,9 +1823,115 @@ def get_order(db: Session, order_id: int, company_id: int = None) -> Optional[Or
 # ORDER edit/delete
 # ============================================================
 
+# 2026-09-21 (13-sizish) — `PUT /api/order-items/{id}` tanasidagi HAR
+# qanday kalit tekshiruvsiz `setattr` bilan detalga yozilardi (O'LCHANGAN):
+#   * `company_id` + `order_id` + `penoplast_id` BIRGA A korxonaniki qilib
+#     yuborilsa, model qo'riqchisi hammasini "A niki" deb ko'rib o'tkazardi:
+#     B ning detali A ning buyurtmasiga ko'chardi. Filtr o'chiq: A penoplasti
+#     kamayib, A da ombor harakati yozilardi. Filtr yoniq: A ombori
+#     o'zgarmasa ham A buyurtmasi ichiga begona detal tushardi. Yolg'iz
+#     kalitlarni qo'riqchi 409 bilan ushlardi — faqat uchalasi birga ochiq.
+#   * `id` (asosiy kalit) o'zgarardi (200); `sub_details` ro'yxati omborni
+#     to'g'rilamasdan o'chardi; `order`, `delivered_qty` → 500.
+# Endi FAQAT detalning o'z xususiyatlari o'zgaradi. Bog'lanishlar
+# (korxona, buyurtma, tayyor mahsulot, retsept, mahsulot turi, rasm —
+# o'z marshruti bor) bu yo'l bilan O'ZGARMAYDI.
+_ORDER_ITEM_UPDATE_FIELDS = {
+    "name", "category", "width", "thickness", "length", "quantity",
+    "is_coated", "unit_price", "unit_price_for_volume", "price_per_m3",
+    "penoplast_id", "notes",
+}
+# Bazadagi Numeric(12,2) sig'imi — schemas.OrderItemCreate dagi bilan bir xil.
+_ORDER_ITEM_MAX_MONEY = 9_999_999_999.99
+
+
+def _json_son(key, value, bosh_mumkin, musbat, chegara=None):
+    """JSON tanasidan kelgan sonni QAT'IY tekshiradi (2026-09-21).
+
+    Matn, `true/false`, NaN/cheksizlik, manfiy (va `musbat` da nol) yoki
+    `chegara` dan katta qiymat — `ValueError` (marshrutlar uni 400 ga
+    aylantiradi). Ilgari bunday qiymatlar yo 500 berardi (`float("abc")`,
+    PostgreSQL da Numeric sig'imidan oshish), yo jimgina yozilardi
+    (manfiy narx, `true` → 1.0)."""
+    import math
+    if value is None:
+        if bosh_mumkin:
+            return None
+        raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"'{key}' son bo'lishi kerak")
+    v = float(value)
+    if math.isnan(v) or math.isinf(v):
+        raise ValueError(f"'{key}' son bo'lishi kerak")
+    if musbat and v <= 0:
+        raise ValueError(f"'{key}' musbat bo'lishi kerak")
+    if v < 0:
+        raise ValueError(f"'{key}' manfiy bo'lishi mumkin emas")
+    if chegara is not None and v > chegara:
+        raise ValueError(f"'{key}' juda katta")
+    return v
+
+
+def _clean_order_item_update(item_data) -> dict:
+    """Detal tahriri tanasini tekshiradi va tozalangan nusxasini qaytaradi.
+
+    Noma'lum yoki ruxsat etilmagan kalit, noto'g'ri tur yoki chegara
+    tashqarisidagi qiymat — `ValueError` (marshrut uni 400 ga aylantiradi).
+    Hech narsa yozilmasdan OLDIN chaqiriladi."""
+    _son = _json_son
+    if not isinstance(item_data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    notogri = sorted(str(k)[:40] for k in item_data
+                     if k not in _ORDER_ITEM_UPDATE_FIELDS)
+    if notogri:
+        raise ValueError("Bu maydonni o'zgartirib bo'lmaydi: " + ", ".join(notogri[:10]))
+
+    toza = {}
+    for key, value in item_data.items():
+        if key == "name":
+            if not isinstance(value, str) or len(value.strip()) < 2:
+                raise ValueError("Detal nomi kamida 2 belgi bo'lishi kerak")
+            toza[key] = value.strip()
+        elif key == "category":
+            if value is not None and not isinstance(value, str):
+                raise ValueError("'category' matn bo'lishi kerak")
+            toza[key] = value
+        elif key == "notes":
+            if value is not None and not isinstance(value, str):
+                raise ValueError("'notes' matn bo'lishi kerak")
+            toza[key] = value
+        elif key == "is_coated":
+            if not isinstance(value, bool):
+                raise ValueError("'is_coated' true yoki false bo'lishi kerak")
+            toza[key] = value
+        elif key == "penoplast_id":
+            if value is None:
+                toza[key] = None
+            elif isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError("'penoplast_id' musbat butun son bo'lishi kerak")
+            else:
+                toza[key] = value
+        elif key in ("width", "thickness", "length"):
+            toza[key] = _son(key, value, bosh_mumkin=True, musbat=False)
+        elif key == "quantity":
+            toza[key] = _son(key, value, bosh_mumkin=False, musbat=True)
+        elif key == "unit_price":
+            toza[key] = _son(key, value, bosh_mumkin=False, musbat=False,
+                             chegara=_ORDER_ITEM_MAX_MONEY)
+        elif key in ("unit_price_for_volume", "price_per_m3"):
+            toza[key] = _son(key, value, bosh_mumkin=True, musbat=False,
+                             chegara=_ORDER_ITEM_MAX_MONEY)
+    return toza
+
+
 def update_order_item(db: Session, item_id: int, item_data: dict,
                       company_id: int = None) -> Optional[OrderItem]:
-    """Buyurtma detalini yangilash — ombor farq bo'yicha to'g'rilanadi."""
+    """Buyurtma detalini yangilash — ombor farq bo'yicha to'g'rilanadi.
+
+    2026-09-21 (13-sizish): faqat `_ORDER_ITEM_UPDATE_FIELDS` dagi maydonlar
+    o'zgaradi; boshqa kalit yoki noto'g'ri qiymat — `ValueError`.
+    `penoplast_id` HAR DOIM detalning O'Z korxonasiga QAT'IY tekshiriladi
+    (`company_id` berilmasa ham) — begona material 404."""
     import services
 
     _q = db.query(OrderItem).filter(OrderItem.id == item_id)
@@ -1844,14 +1950,23 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
         return None
     is_draft = order.status == OrderStatus.DRAFT if order else False
 
-    # Topshirilgandan kam qilib bo'lmaydi
+    # 13-sizish: tana HECH NARSA yozilmasdan OLDIN tekshiriladi.
+    item_data = _clean_order_item_update(item_data)
+    if item_data.get("penoplast_id"):
+        _require_inventory_of_company(db, [item_data["penoplast_id"]],
+                                      db_item.company_id)
+
+    # Topshirilgandan kam qilib bo'lmaydi.
+    # 2026-09-21: ilgari `None` qaytarardi → marshrut "Detal topilmadi"
+    # (404) derdi — foydalanuvchi uchun noto'g'ri sabab. Endi aniq xabar.
     delivered = db_item.delivered_qty
     if delivered > 0.001:
         cat = (item_data.get('category') or db_item.category or '').lower()
         new_qty = float(item_data.get('length') or db_item.length or 0) if cat == 'profil' \
                   else float(item_data.get('quantity') or db_item.quantity or 0)
         if new_qty < delivered - 0.001:
-            return None
+            raise ValueError(
+                f"Topshirilgan miqdordan ({round(delivered, 3)}) kam qilib bo'lmaydi")
 
     # Eski holat snapshot
     # MUHIM (2026-09 audit): "finished_product_id" va "sub_details" ham
@@ -7319,8 +7434,18 @@ def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold
     ).first()
     if not tier:
         return {"success": False, "message": "Bosqich topilmadi"}
+    # 2026-09-21 — O'LCHANGAN: matnli summa (`float("abc")`) va matn
+    # bo'lmagan nom (`5.strip()`) → 500 edi; `1e20` summa SQLite da
+    # yozilardi, PostgreSQL da Numeric(12,2) sig'imidan oshib 500 berardi.
+    if gift_name is not None and not isinstance(gift_name, str):
+        return {"success": False, "message": "Sovg'a nomi matn bo'lishi kerak"}
     name = (gift_name or "").strip()
-    amt = float(threshold_amount or 0)
+    try:
+        amt = _json_son("threshold_amount", threshold_amount, bosh_mumkin=True,
+                        musbat=False, chegara=_ORDER_ITEM_MAX_MONEY) or 0
+    except ValueError:
+        return {"success": False, "message": "Summa to'g'ri son bo'lishi kerak "
+                                             "(musbat, 9 999 999 999.99 dan oshmasin)"}
     if not name or amt <= 0:
         return {"success": False, "message": "Sovg'a nomi va musbat summa shart"}
     tier.gift_name = name

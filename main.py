@@ -3205,9 +3205,26 @@ def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), cu
     item = db.query(crud.Inventory).filter(crud.Inventory.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Topilmadi")
-    item.price_per_unit = data.get("price_per_unit", 0)
-    if "volume_per_unit" in data:
-        item.volume_per_unit = data.get("volume_per_unit")
+    # 2026-09-21 — O'LCHANGAN: tanada `price_per_unit` bo'lmasa narx JIMGINA
+    # 0 ga tushardi (`{}` yoki faqat `volume_per_unit` → 0.00); manfiy narx
+    # (UI dagi oyna ham "-5000" ni o'tkazardi) saqlanardi; matn → 500;
+    # juda katta son PostgreSQL da Numeric(12,2) sig'imidan oshib 500.
+    # Endi hammasi yozishdan OLDIN tekshiriladi → 400.
+    if "price_per_unit" not in data:
+        raise HTTPException(status_code=400, detail="Narx (price_per_unit) berilmagan")
+    try:
+        narx = crud._json_son("price_per_unit", data.get("price_per_unit"),
+                              bosh_mumkin=False, musbat=False,
+                              chegara=crud._ORDER_ITEM_MAX_MONEY)
+        hajm = None
+        if "volume_per_unit" in data:
+            hajm = crud._json_son("volume_per_unit", data.get("volume_per_unit"),
+                                  bosh_mumkin=False, musbat=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    item.price_per_unit = narx
+    if hajm is not None:
+        item.volume_per_unit = hajm
     db.commit()
     return {"status": "ok", "price_per_unit": item.price_per_unit}
 
@@ -3222,10 +3239,15 @@ def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db)
     item = db.query(crud.Inventory).filter(crud.Inventory.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Topilmadi")
-    min_stock = data.get("min_stock")
-    if min_stock is None or float(min_stock) < 0:
+    # 2026-09-21 — O'LCHANGAN: matn → 500 (`float("abc")`), `true` → 1.0
+    # jimgina saqlanardi. Endi faqat haqiqiy, manfiy bo'lmagan son → aks
+    # holda 400.
+    try:
+        min_stock = crud._json_son("min_stock", data.get("min_stock"),
+                                   bosh_mumkin=False, musbat=False)
+    except ValueError:
         raise HTTPException(status_code=400, detail="Noto'g'ri qiymat")
-    item.min_stock = float(min_stock)
+    item.min_stock = min_stock
     db.commit()
     return {"status": "ok", "min_stock": item.min_stock}
 
@@ -4010,7 +4032,14 @@ def api_delete_order_item(item_id: int, db: Session = Depends(get_db), current_u
 
 @app.put("/api/order-items/{item_id}")
 def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    updated = crud.update_order_item(db, item_id, data, company_id=auth.company_id_of(current_user))
+    # 2026-09-21 (13-sizish): crud faqat ruxsat etilgan maydonlarni qabul
+    # qiladi; noto'g'ri kalit/qiymat va "topshirilgandan kam" — ValueError
+    # → 400. Begona `penoplast_id` — crud ichidan HTTPException 404.
+    try:
+        updated = crud.update_order_item(db, item_id, data, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Detal topilmadi")
     return {"status": "ok"}
