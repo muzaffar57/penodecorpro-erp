@@ -406,7 +406,8 @@ async function quickPayObligation(category, label, debt, year, month){
       body: JSON.stringify({ date: payDate+'T00:00:00', category, amount, notes: "To'lov (Qarzdorlar sahifasidan)" })
     });
     if (res.ok) location.reload();
-    else alert('Xato yuz berdi');
+    // 17e: server sababi (masalan: 'amount' musbat bo'lishi kerak).
+    else alert('❌ ' + await serverSababi(res, 'Xato yuz berdi'));
   } catch(e) { alert('Server xatosi'); }
 }
 

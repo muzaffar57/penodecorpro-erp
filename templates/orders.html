@@ -2558,7 +2558,14 @@ async function editAgreedAmount() {
       loadPayments(selectedOrderId);
       showMsg(`✓ Yangilandi! Chegirma: ${d.discount_percent.toFixed(2)}% · Qarz: ${formatNum(d.debt_amount)} so'm`, 'success');
     } else {
-      showMsg('❌ Xato', 'error');
+      // 17e: server sababi — `detail` obyekt (`detail.message`) yoki matn.
+      let sabab = 'Xato';
+      try {
+        const e = await res.json();
+        if (e && e.detail && typeof e.detail.message === 'string') sabab = e.detail.message;
+        else if (e && typeof e.detail === 'string') sabab = e.detail;
+      } catch(_) {}
+      showMsg('❌ ' + sabab, 'error');
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
 }
