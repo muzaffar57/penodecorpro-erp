@@ -706,6 +706,41 @@ function renderNotes(d) {
     <div style="font-size:13px;color:var(--text);white-space:pre-wrap">${d.notes ? escapeHtml(d.notes) : 'Izoh yo\'q'}</div>`;
 }
 
+// 16-band (2026-09-21): Mijoz Telegram ID va izoh BITTA `projects.notes`
+// ustunida saqlanadi. Server (main.py: yuk xati PDF va "Tayyor" xabari)
+// ID ni `notes.split('tg_id=')[1].split(',')[0]` bilan o'qiydi — ya'ni
+// VERGULGACHA bo'lgan qism ID, undan keyingisi server uchun ahamiyatsiz.
+// Shu sabab format: "tg_id=123456789, izoh matni".
+// Ilgari: (1) yaratish formasida `notes` kaliti IKKI MARTA yozilgan edi —
+// ikkinchisi birinchisini bosib, Telegram ID JIMGINA yo'qolardi (jonli
+// o'lchandi: 123456789 kiritildi, serverga `notes: null` ketdi);
+// (2) ID kiritilsa izoh butunlay tashlab yuborilardi, tahrir oynasi esa
+// ID bor loyihaning izohini bo'sh ko'rsatardi; (3) raqam bo'lmagan ID
+// (masalan "@user") saqlanib qolar, server esa uni jimgina e'tiborsiz
+// qoldirardi — mijozga xabar bormasdi va buni hech kim bilmasdi.
+// Ikkala forma (yaratish va tahrir) FAQAT shu ikki funksiyadan foydalanadi.
+const LOYIHA_TG_ID_RE = /^-?\d+$/;
+
+function loyihaIzohYasa(tgRaw, izohRaw) {
+  const tg = String(tgRaw == null ? '' : tgRaw).trim();
+  const izoh = String(izohRaw == null ? '' : izohRaw).trim();
+  if (tg && !LOYIHA_TG_ID_RE.test(tg)) {
+    return { xato: "Telegram ID faqat raqamlardan iborat bo'lishi kerak (masalan 123456789)" };
+  }
+  if (tg) return { notes: izoh ? `tg_id=${tg}, ${izoh}` : `tg_id=${tg}` };
+  return { notes: izoh || null };
+}
+
+function loyihaIzohAjrat(notesRaw) {
+  const notes = String(notesRaw == null ? '' : notesRaw);
+  const m = notes.match(/tg_id=(-?\d+)/);
+  if (!m) return { tg: '', izoh: notes === 'Yo\'q' ? '' : notes };
+  const qolgan = notes.replace(m[0], '')
+    .replace(/,\s*,/g, ',')
+    .replace(/^[\s,]+|[\s,]+$/g, '');
+  return { tg: m[1], izoh: qolgan };
+}
+
 function openEditModal() {
   const el = document.querySelector(`.proj-card[data-id="${selectedProjId}"]`);
   const d = el.dataset;
@@ -720,16 +755,21 @@ function openEditModal() {
   // loyihalarga uni qo'shish yoki tekshirish IMKONSIZ edi. Endi, agar
   // izohda "tg_id=..." belgisi bo'lsa, uni shu yerga ajratib chiqaramiz,
   // qolgan (haqiqiy) izohni esa "Izoh" maydonining o'ziga qoldiramiz.
-  const notes = d.notes || '';
-  const tgMatch = notes.match(/tg_id=(-?\d+)/);
-  document.getElementById('e-tg-id').value = tgMatch ? tgMatch[1] : '';
-  document.getElementById('e-notes').value = tgMatch ? '' : (notes === 'Yo\'q' ? '' : notes);
+  // 16-band: ID va izoh ALOHIDA ajratiladi — izoh endi yo'qolmaydi.
+  const ajr = loyihaIzohAjrat(d.notes);
+  document.getElementById('e-tg-id').value = ajr.tg;
+  document.getElementById('e-notes').value = ajr.izoh;
   document.getElementById('editModal').style.display = 'flex';
 }
 
 let isSavingEditProject = false;
 async function saveEditProject() {
   if (isSavingEditProject) return; // Ikki marta bosishdan himoya
+  // 16-band: Telegram ID tekshiruvi bayroq qo'yilishidan OLDIN — aks holda
+  // xato ID dan keyin tugma butunlay ishlamay qolardi.
+  const izohNatija = loyihaIzohYasa(document.getElementById('e-tg-id').value,
+                                    document.getElementById('e-notes').value);
+  if (izohNatija.xato) { projToast(izohNatija.xato); return; }
   isSavingEditProject = true;
   const btn = document.getElementById('proj-edit-save-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
@@ -740,9 +780,9 @@ async function saveEditProject() {
     client_address: document.getElementById('e-address').value.trim() || null,
     total_budget: parseFloat(document.getElementById('e-budget').value) || 0,
     status: document.getElementById('e-status').value,
-    // MUHIM: Yaratish formasidagi BIR XIL mantiq — agar Telegram ID
-    // kiritilgan bo'lsa, izoh o'rniga "tg_id=..." belgisi saqlanadi.
-    notes: document.getElementById('e-tg-id').value.trim() ? `tg_id=${document.getElementById('e-tg-id').value.trim()}` : (document.getElementById('e-notes').value.trim() || null)
+    // 16-band: yaratish formasi bilan BIR XIL — loyihaIzohYasa():
+    // "tg_id=ID, izoh" (izoh endi saqlanadi).
+    notes: izohNatija.notes
   };
   try {
     const res = await fetch(`/api/projects/${selectedProjId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
@@ -838,6 +878,10 @@ async function saveProject(){
       return;
     }
   }
+  // 16-band: Telegram ID tekshiruvi — himoya bayrog'idan OLDIN.
+  const izohNatija = loyihaIzohYasa(document.getElementById('f-tg-id').value,
+                                    document.getElementById('f-notes').value);
+  if (izohNatija.xato) { projToast(izohNatija.xato); return; }
   if (isSavingNewProject) return; // Ikki marta bosishdan himoya
   isSavingNewProject = true;
   const btn = document.getElementById('proj-new-save-btn');
@@ -845,13 +889,14 @@ async function saveProject(){
   try {
     const res=await fetch('/api/projects',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        client_name:client,client_phone:document.getElementById('f-phone').value||null,
-        client_address:document.getElementById('f-address').value||null,
-        notes: document.getElementById('f-tg-id').value ? `tg_id=${document.getElementById('f-tg-id').value.trim()}` : (document.getElementById('f-notes').value||null),
+        client_name:client,client_phone:phoneVal||null,
+        client_address:document.getElementById('f-address').value.trim()||null,
         project_name:pname,
         total_budget:parseFloat(document.getElementById('f-budget').value)||0,
         deadline:document.getElementById('f-deadline').value||null,
-        notes:document.getElementById('f-notes').value||null
+        // 16-band: ilgari `notes` shu obyektda IKKI MARTA edi — ikkinchisi
+        // Telegram ID ni bosib ketardi. Endi bitta, loyihaIzohYasa() dan.
+        notes:izohNatija.notes
       })});
     if(res.ok){projToast('✓ Loyiha yaratildi!');setTimeout(()=>location.reload(),1200);return;}else{const e=await res.json();projToast('Xato: '+(e.detail||''));}
   } finally {
