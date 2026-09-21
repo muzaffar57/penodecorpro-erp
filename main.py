@@ -2320,8 +2320,15 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
 
 
 @app.post("/api/masters", response_model=schemas.MasterRead)
-def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    new_master = crud.create_master(db, master, company_id=auth.company_id_of(current_user))
+def api_create_master(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # 15-band: xom JSON qat'iy tekshiriladi (pydantic `true` → 1.0, "5" → 5
+    # kabi JIM o'girardi; NaN → 500) — qoida buzilsa 400, hech narsa yozilmaydi.
+    try:
+        master = schemas.MasterCreate(**crud._clean_create("Master", data))
+        new_master = crud.create_master(db, master, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     tg_id = getattr(master, 'telegram_id', None)
     if tg_id and str(tg_id).strip().lstrip('-').isdigit():
         msg = (
@@ -2392,7 +2399,14 @@ def api_delete_master(master_id: int, db: Session = Depends(get_db), current_use
 
 
 @app.post("/api/inventory", response_model=schemas.InventoryRead)
-def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_create_item(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # 15-band: xom JSON qat'iy tekshiriladi (manfiy / juda katta narx, NaN,
+    # Infinity, `true` → 1.0, uzun matn, bo'sh birlik) — 400, hech narsa
+    # yozilmaydi.
+    try:
+        item = schemas.InventoryCreate(**crud._clean_create("Inventory", data))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     try:
         # M3/M8-F1: yangi material ALBATTA joriy adminning korxonasiga
         # tegishli — tenant endi `add_item()` ga BOSHIDAN uzatiladi
@@ -2400,6 +2414,9 @@ def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db)
         # ustun bo'sh qolardi).
         _it = crud.add_item(db, item, company_id=auth.company_id_of(current_user))
         return _it
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -2630,11 +2647,18 @@ def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.post("/api/employees")
-def api_create_employee(data: schemas.EmployeeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_create_employee(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     # M1/M8-F1: xodim joriy adminning korxonasiga biriktiriladi — tenant
     # endi `create_employee()` ga BOSHIDAN uzatiladi (ilgari qaytgandan
     # keyin qo'yilardi va ichki commit vaqtida ustun bo'sh qolardi).
-    emp = crud.create_employee(db, data, company_id=auth.company_id_of(current_user))
+    # 15-band: xom JSON qat'iy tekshiriladi (noto'g'ri `pay_type` endi 400 —
+    # ilgari JIMGINA "fixed" bo'lardi).
+    try:
+        emp_data = schemas.EmployeeCreate(**crud._clean_create("Employee", data))
+        emp = crud.create_employee(db, emp_data, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok", "id": emp.id}
 
 
@@ -3086,9 +3110,16 @@ async def supplier_receive_page(request: Request, db: Session = Depends(get_db),
 
 
 @app.post("/api/suppliers")
-def api_create_supplier(data: schemas.SupplierCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_create_supplier(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     # M8/F1a: ta'minotchi joriy adminning korxonasiga biriktiriladi.
-    s = crud.create_supplier(db, data, company_id=auth.company_id_of(current_user))
+    # 15-band: xom JSON qat'iy tekshiriladi (bo'shliqdan iborat nom, uzun
+    # telefon) — 400, hech narsa yozilmaydi.
+    try:
+        sup_data = schemas.SupplierCreate(**crud._clean_create("Supplier", data))
+        s = crud.create_supplier(db, sup_data, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok", "id": s.id}
 
 
@@ -3512,9 +3543,17 @@ def api_get_recipes(db: Session = Depends(get_db), current_user=Depends(auth.adm
 
 
 @app.post("/api/projects", response_model=schemas.ProjectRead)
-def api_create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_project(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     # M8/F1a: loyiha joriy adminning korxonasiga biriktiriladi.
-    return crud.create_project(db, project, company_id=auth.company_id_of(current_user))
+    # 15-band: xom JSON qat'iy tekshiriladi (manfiy / juda katta byudjet,
+    # NaN, Infinity, `total_paid` / `status` qo'lda) — 400; formadagi
+    # "Muddati" (`deadline`) endi saqlanadi.
+    try:
+        project = schemas.ProjectCreate(**crud._clean_create("Project", data))
+        return crud.create_project(db, project, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/projects", response_model=List[schemas.ProjectRead])

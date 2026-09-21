@@ -253,6 +253,9 @@ class ProjectCreate(BaseModel):
     client_address: Optional[str] = None
     description: Optional[str] = None
     total_budget: Optional[float] = 0
+    # 15-band: yaratish formasidagi "Muddati" — ilgari sxemada yo'q edi va
+    # JIMGINA tashlab yuborilardi (loyihalarning birortasida muddat yo'q edi).
+    deadline: Optional[datetime] = None
     notes: Optional[str] = None
 
 

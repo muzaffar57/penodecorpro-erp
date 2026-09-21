@@ -40,6 +40,9 @@ def create_master(db: Session, master_data: MasterCreate,
     esa yo'q. Endi ikkalasi bir xil: aniq, tushunarli xabar."""
     from fastapi import HTTPException
 
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    _clean_create("Master", master_data.model_dump(exclude_unset=True))
+
     # M5 (2026-09-18) — TENANT: takror tekshiruvi FAQAT shu korxona
     # ichida bo'ladi. Ilgari u butun tizim bo'yicha edi va ikki xato
     # berardi: (1) boshqa korxonadagi ustaning ISMI va HOLATI xabarda
@@ -71,6 +74,9 @@ def create_master(db: Session, master_data: MasterCreate,
         name=master_data.name,
         phone=master_data.phone,
         cashback_percent=master_data.cashback_percent,
+        # 15-band (O'LCHANGAN): ilgari `kpi_percent` umuman yozilmasdi —
+        # sxema uni qabul qilib, jimgina tashlab yuborardi (7 → 0.0).
+        kpi_percent=(master_data.kpi_percent if master_data.kpi_percent is not None else 0.0),
         telegram_id=master_data.telegram_id,
         region=master_data.region,
         notes=master_data.notes,
@@ -186,6 +192,8 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
     NOT NULL xatosi berardi — shuning uchun tenant endi boshidanoq
     beriladi. "Tiriltirish" (o'chirilgan qatorni qayta ishlatish) mantig'i
     ham SHU korxona ichida qidiradi."""
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    _clean_create("Inventory", item_data.model_dump(exclude_unset=True))
     is_peno = getattr(item_data, 'is_penoplast', False)
     is_default = getattr(item_data, 'is_default_penoplast', False)
 
@@ -228,6 +236,13 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
 
     existing_to_reuse = existing_deleted or existing_unused
     if existing_to_reuse:
+        # 15-band (O'LCHANGAN): qayta ishlatilayotgan qator korxonaning
+        # ASOSIY penoplasti bo'lsa-yu, yangi tana uni oddiy material qilsa —
+        # korxonada asosiy penoplast qolmasdi. `update_item` dagi qoida bilan
+        # bir xil: rad etiladi, hech narsa yozilmaydi.
+        if existing_to_reuse.is_default_penoplast and not is_peno:
+            raise ValueError("Asosiy penoplastni oddiy materialga aylantirib bo'lmaydi — "
+                             "avval boshqa penoplastni asosiy qiling")
         existing_to_reuse.is_deleted = False
         existing_to_reuse.stock_quantity = item_data.stock_quantity
         existing_to_reuse.unit = item_data.unit
@@ -240,7 +255,11 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
         existing_to_reuse.is_default_penoplast = (is_default and is_peno)
         if getattr(item_data, 'category', None):
             existing_to_reuse.category = item_data.category
-        existing_to_reuse.notes = item_data.notes
+        # 15-band (O'LCHANGAN): izoh berilmasa eski izoh JIMGINA o'chardi
+        # (UI yaratish formasi izoh yubormaydi). Endi kategoriya / birlik
+        # kabi — faqat berilganda yangilanadi.
+        if getattr(item_data, 'notes', None) is not None:
+            existing_to_reuse.notes = item_data.notes
         if getattr(item_data, 'base_unit', None) is not None:
             existing_to_reuse.base_unit = item_data.base_unit
         if getattr(item_data, 'conversion_factor', None) is not None:
@@ -257,6 +276,33 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
                 {"is_default_penoplast": False}, synchronize_session=False
             )
             existing_to_reuse.is_default_penoplast = True
+        db.flush()
+        # 15-band (O'LCHANGAN): bu yo'lda boshlang'ich qoldiq uchun xarid
+        # yozuvi yaratilmasdi (yangi qator yo'lida bor) — qoldiq 0 → 50
+        # bo'lsa ham, xarajat Moliyada ko'rinmasdi. Endi ikki yo'l bir xil.
+        _r_qty = float(item_data.stock_quantity or 0)
+        _r_price = float(item_data.price_per_unit or 0)
+        if _r_qty > 0 and _r_price > 0:
+            from models import InventoryPurchase
+            db.add(InventoryPurchase(
+                inventory_id=existing_to_reuse.id,
+                item_name=existing_to_reuse.item_name,
+                quantity=_r_qty,
+                unit=existing_to_reuse.unit,
+                price_per_unit=_r_price,
+                total_amount=round(_r_qty * _r_price, 2),
+                notes="Boshlang'ich qoldiq (material yaratilganda kiritilgan)"
+            ))
+        # 15-band (O'LCHANGAN): yangi qator yo'lidagi kabi — korxonada asosiy
+        # penoplast qolmagan bo'lsa, shu penoplast asosiy bo'ladi (aks holda
+        # yagona asosiy penoplast qayta yaratilganda korxonada 0 ta qolardi).
+        if is_peno and not existing_to_reuse.is_default_penoplast:
+            _bor = _scope(db.query(Inventory).filter(
+                Inventory.is_default_penoplast == True,
+                Inventory.id != existing_to_reuse.id
+            )).first()
+            if not _bor:
+                existing_to_reuse.is_default_penoplast = True
         db.commit()
         db.refresh(existing_to_reuse)
         return existing_to_reuse
@@ -1062,6 +1108,8 @@ def create_project(db: Session, project_data: ProjectCreate, company_id: int = N
     #
     # MAVJUD ma'lumotga ta'sir qilmaydi: 1-korxonada eng katta raqam
     # nechada bo'lsa, keyingisi o'shandan davom etadi.
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    _toza_pr = _clean_create("Project", project_data.model_dump(exclude_unset=True))
     import re as _re_pn
     _pq = db.query(Project.project_number)
     if company_id is not None:
@@ -1093,6 +1141,9 @@ def create_project(db: Session, project_data: ProjectCreate, company_id: int = N
         client_address=project_data.client_address,
         description=project_data.description,
         total_budget=project_data.total_budget or 0,
+        # 15-band (O'LCHANGAN): yaratish formasidagi "Muddati" sxemada yo'q
+        # edi va JIMGINA tashlab yuborilardi — hech bir yo'l uni yozmasdi.
+        deadline=_toza_pr.get("deadline"),
         notes=project_data.notes,
         status=ProjectStatus.ACTIVE
     )
@@ -2019,8 +2070,15 @@ def _clean_update(model: str, data) -> dict:
     son — `ValueError`. Matnlar O'ZGARTIRILMAYDI (faqat tekshiriladi);
     tanlov maydonlari kanonik qiymatga keltiriladi (`status` → enum NOMI,
     `pay_type` → enum QIYMATI) — pastdagi crud o'giruvchilari shuni kutadi."""
-    rules = _upd_rules()[model]
-    taqiq = _UPD_TAQIQ.get(model, {})
+    return _clean_by_rules(_upd_rules()[model], _UPD_TAQIQ.get(model, {}), data,
+                           "Bu maydonni o'zgartirib bo'lmaydi: ")
+
+
+def _clean_by_rules(rules: dict, taqiq: dict, data, notogri_xabar: str) -> dict:
+    """`_clean_update` va `_clean_create` ning umumiy yadrosi (2026-09-21,
+    15-band): qoida shakllari `_upd_rules` tepasidagi izohda. Qo'shimcha
+    shakl — ("sana", bosh_mumkin): `YYYY-MM-DD` yoki ISO sana-vaqt matni
+    (yoki crud ildizida `datetime`), 2000–2100 yillar; bo'sh matn → None."""
     if not isinstance(data, dict):
         raise ValueError("Noto'g'ri so'rov")
     for key in data:
@@ -2028,7 +2086,7 @@ def _clean_update(model: str, data) -> dict:
             raise ValueError(taqiq[key])
     notogri = sorted(str(k)[:40] for k in data if k not in rules)
     if notogri:
-        raise ValueError("Bu maydonni o'zgartirib bo'lmaydi: " + ", ".join(notogri[:10]))
+        raise ValueError(notogri_xabar + ", ".join(notogri[:10]))
 
     toza = {}
     for key, value in data.items():
@@ -2093,6 +2151,112 @@ def _clean_update(model: str, data) -> dict:
             if len(v) > 50:
                 raise ValueError(f"'{key}' juda uzun (50 belgidan ko'p)")
             toza[key] = v or None
+        elif tur == "sana":
+            if value is None or (isinstance(value, str) and value.strip() == ""):
+                if not qoida[1]:
+                    raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+                toza[key] = None
+                continue
+            if isinstance(value, datetime):
+                sana = value
+            elif isinstance(value, str) and len(value.strip()) <= 40:
+                try:
+                    sana = datetime.fromisoformat(value.strip())
+                except ValueError:
+                    raise ValueError(f"'{key}' sana bo'lishi kerak (YYYY-MM-DD)")
+            else:
+                raise ValueError(f"'{key}' sana bo'lishi kerak (YYYY-MM-DD)")
+            if sana.tzinfo is not None:
+                sana = sana.replace(tzinfo=None)
+            if sana.year < 2000 or sana.year > 2100:
+                raise ValueError(f"'{key}' 2000–2100 yillar oralig'ida bo'lishi kerak")
+            toza[key] = sana
+    return toza
+
+
+# 2026-09-21 (15-band) — YARATISH (POST) marshrutlari tanasi.
+# O'LCHANGAN (asl kod, lokal TestClient): `POST /api/inventory | masters |
+# employees | projects | suppliers` sxemalari deyarli cheklovsiz edi —
+# manfiy narx / byudjet / qo'shimcha oylik SAQLANARDI; `1e13` va `1e20`
+# (PostgreSQL Numeric(12,2) da 500); Infinity SAQLANARDI, NaN yo 500, yo
+# JIMGINA bo'sh qiymat; `true` → 1.0, "5000" → 5000 JIM o'girilardi; ustun
+# sig'imidan uzun matn (PostgreSQL da 500); faqat bo'shliqdan iborat nom /
+# birlik / telefon SAQLANARDI (hodim va ta'minotchida `strip()` dan keyin
+# BO'SH nom); noto'g'ri `pay_type` JIMGINA "fixed" ga aylanardi (200),
+# noto'g'ri `per_unit_type` / `production_type` yozilardi. Funksional xato:
+# `create_master` `kpi_percent` ni umuman yozmasdi (7 → 0.0), loyiha
+# yaratish formasidagi "Muddati" (`deadline`) sxemada yo'q edi — JIMGINA
+# tashlab yuborilardi (jonli: 23 loyihaning birortasida muddat yo'q).
+# Begona korxonaga sizish YO'Q: `company_id` / `id` kalitlari e'tiborsiz
+# qolardi, korxona sessiyadan olinadi — endi ular 400 (noma'lum maydon).
+# Qoidalar tahrir qoidalaridan (`_upd_rules`) olinadi — farqlar pastda.
+_CREATE_MAJBURIY = {
+    # model → {maydon: eng kam uzunlik (bo'shliqsiz) yoki None — faqat bor bo'lsin}
+    "Inventory": {"item_name": 2, "unit": 1},
+    "Master": {"name": 2, "phone": 7},
+    "Employee": {"name": 2, "pay_type": None},
+    "Project": {"project_name": 2, "client_name": 2},
+    "Supplier": {"name": 2},
+}
+
+_CREATE_TAQIQ = {
+    "Project": {
+        "total_paid": "To'langan summa to'lovlardan hisoblanadi — qo'lda kiritib bo'lmaydi",
+        "status": "Yangi loyiha har doim faol holatda yaratiladi",
+    },
+}
+
+
+def _create_rules():
+    """Model nomi → {maydon: qoida} — YARATISH uchun. Tahrir qoidalaridan
+    farqi: boshlang'ich qoldiq (`stock_quantity`) va `is_default_penoplast`
+    yaratishda RUXSAT (hisob yozuvi `add_item` ichida); sxemada majburiy
+    son bo'lgan maydonlar bo'sh (null) bo'la olmaydi; `is_active`, hodim
+    `effective_*` / `reason` va loyiha `status` yaratishda yo'q; loyiha
+    `deadline` qo'shiladi."""
+    r = _upd_rules()
+    inv = dict(r["Inventory"])
+    inv["stock_quantity"] = ("son", False, False, _UPD_SON_CHEGARA)
+    inv["min_stock"] = ("son", False, False, _UPD_SON_CHEGARA)
+    inv["volume_per_unit"] = ("son", False, True, _UPD_SON_CHEGARA)
+    inv["is_default_penoplast"] = ("bool", False)
+    ms = dict(r["Master"])
+    ms.pop("is_active")
+    ms["cashback_percent"] = ("son", False, False, 100.0)
+    em = dict(r["Employee"])
+    for k in ("is_active", "effective_year", "effective_month", "reason"):
+        em.pop(k)
+    for k in ("fixed_amount", "percent_value", "per_unit_rate"):
+        em[k] = (em[k][0], False, em[k][2], em[k][3])
+    em["per_unit_type"] = ("tanlov", False, {"blok": "blok", "metr": "metr", "dona": "dona"})
+    pr = dict(r["Project"])
+    pr.pop("status")
+    pr["deadline"] = ("sana", True)
+    sp = dict(r["Supplier"])
+    sp.pop("is_active")
+    return {"Inventory": inv, "Master": ms, "Employee": em, "Project": pr, "Supplier": sp}
+
+
+def _clean_create(model: str, data) -> dict:
+    """Yaratish tanasini QAT'IY tekshiradi va tozalangan nusxasini qaytaradi
+    (15-band). `data` — xom JSON (marshrut) yoki `model_dump(exclude_unset=
+    True)` (crud ildizi). Qoida buzilsa — `ValueError`, hech narsa yozilmaydi.
+    Matnlar O'ZGARTIRILMAYDI; tanlov maydonlari kanonik qiymatga keladi."""
+    toza = _clean_by_rules(_create_rules()[model], _CREATE_TAQIQ.get(model, {}),
+                           data, "Noma'lum maydon: ")
+    for key, eng_kam in _CREATE_MAJBURIY[model].items():
+        if toza.get(key) is None:
+            raise ValueError(f"'{key}' kiritilishi shart")
+        if eng_kam and len(toza[key].strip()) < eng_kam:
+            raise ValueError(f"'{key}' kamida {eng_kam} belgidan iborat bo'lishi kerak")
+    if model == "Inventory":
+        # Boshlang'ich qoldiq xarid yozuviga (`total_amount` Numeric(12,2))
+        # sig'ishi shart — aks holda PostgreSQL da material yaratilib, xarid
+        # yozuvi 500 bilan yiqilardi (material qoldiqli, xarajatsiz qolardi).
+        miqdor = toza.get("stock_quantity") or 0
+        narx = toza.get("price_per_unit") or 0
+        if miqdor > 0 and narx > 0 and round(miqdor * narx, 2) > _ORDER_ITEM_MAX_MONEY:
+            raise ValueError("Boshlang'ich qoldiq summasi (miqdor × narx) juda katta")
     return toza
 
 
@@ -6771,10 +6935,12 @@ def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -
     2026-09-18 — M8/F1: `company_id` ANIQ beriladi (ilgari endpoint uni
     keyin qo'yardi, funksiya ichidagi commit esa `DEFAULT 1` ga tayanardi)."""
     from models import EmployeeCompensationHistory
-    try:
-        pt = PayType(data.pay_type)
-    except ValueError:
-        pt = PayType.FIXED
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    # O'LCHANGAN: ilgari noto'g'ri `pay_type` JIMGINA "fixed" ga aylanardi
+    # (200), `per_unit_type` / `production_type` ixtiyoriy matn yozilardi.
+    # Tanlov maydonlari tozalangan (kanonik) qiymatdan olinadi.
+    toza = _clean_create("Employee", data.model_dump(exclude_unset=True))
+    pt = PayType(toza["pay_type"])
 
     emp = Employee(
         company_id=company_id,
@@ -6784,9 +6950,9 @@ def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -
         fixed_amount=data.fixed_amount,
         percent_value=data.percent_value,
         per_unit_rate=data.per_unit_rate,
-        per_unit_type=data.per_unit_type,
+        per_unit_type=toza.get("per_unit_type", data.per_unit_type),
         extra_monthly=getattr(data, 'extra_monthly', None),
-        production_type=getattr(data, 'production_type', None),
+        production_type=toza.get("production_type"),
         notes=data.notes
     )
     db.add(emp)
@@ -7940,6 +8106,8 @@ def create_supplier(db: Session, data: SupplierCreate, company_id: int = None) -
     bazadagi vaqtinchalik `DEFAULT 1` tufayli saqlanardi — ya'ni B korxona
     admini ta'minotchi yaratsa, u A korxonaga tushib qolardi. Endi tenant
     ANIQ beriladi (mijoz so'rovidan emas, sessiyadan)."""
+    # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
+    _clean_create("Supplier", data.model_dump(exclude_unset=True))
     s = Supplier(company_id=company_id,
                  name=data.name.strip(), phone=data.phone, notes=data.notes)
     db.add(s)
