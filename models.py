@@ -2045,6 +2045,18 @@ class TenantMismatchError(Exception):
     """Yozuvning company_id si ota-yozuvnikiga mos kelmadi."""
 
 
+# 2026-09-21 — O'LCHANGAN: `TENANT_FILTER=1` da himoya KO'R edi. Ota/havola
+# yozuvi `session.get()` bilan o'qiladi va bu o'qishning o'zi joriy korxona
+# filtridan o'tardi — BEGONA yozuv "mavjud emas" (None) bo'lib ko'rinardi,
+# `if ... is None: continue` esa uni jimgina o'tkazib yuborardi. Natija: filtr
+# o'chiq bo'lsa 409 bilan rad etiladigan bog'lanish (B ning buyurtma detaliga
+# A ning `penoplast_id` si) filtr yoniq bo'lganda BAZAGA YOZILARDI.
+# Himoyaning butun vazifasi — aynan begona yozuvni ko'rish, shuning uchun
+# bu ichki o'qish filtrsiz bajariladi. Hech narsa foydalanuvchiga
+# qaytarilmaydi — faqat `company_id` taqqoslanadi.
+_GUARD_READ_OPTS = {"skip_tenant_filter": True}
+
+
 def _resolve_parent_company(session, obj, rules):
     """Ota zanjiri bo'yicha birinchi topilgan company_id ni qaytaradi."""
     _mapped = {c.key for c in type(obj).__table__.columns}
@@ -2057,7 +2069,8 @@ def _resolve_parent_company(session, obj, rules):
         parent_cls = globals().get(parent_name)
         if parent_cls is None:
             continue
-        parent = session.get(parent_cls, fk_value)
+        parent = session.get(parent_cls, fk_value,
+                             execution_options=_GUARD_READ_OPTS)
         if parent is None:
             continue
         cid = getattr(parent, "company_id", None)
@@ -2094,7 +2107,8 @@ def _check_refs(session, obj, own_cid):
                 ref_cls = None
         if ref_cls is None:
             continue
-        ref = session.get(ref_cls, fk_value)
+        ref = session.get(ref_cls, fk_value,
+                          execution_options=_GUARD_READ_OPTS)
         if ref is None:
             continue
         ref_cid = getattr(ref, "company_id", None)

@@ -2107,8 +2107,9 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
     projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
     masters = crud.get_masters(db, only_active=True, company_id=auth.company_id_of(current_user))
     recipes = crud.get_recipes(db, company_id=auth.company_id_of(current_user))
-    penoplasts = services.get_penoplast_list(db)
-    default_p = services.get_default_penoplast(db)
+    # 2026-09-21 — TENANT: A ning penoplastlari B sahifasida ko'rinardi (O'LCHANGAN)
+    penoplasts = services.get_penoplast_list(db, company_id=auth.company_id_of(current_user))
+    default_p = services.get_default_penoplast(db, company_id=auth.company_id_of(current_user))
 
     # Loyiha bo'yicha guruhlaymiz
     groups = {}
@@ -3340,7 +3341,7 @@ def api_coating_notify_with_loy(order_id: int, loy_kg: float, db: Session = Depe
 def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
                       confirm_shortage: bool = False,
                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    check = services.check_inventory_for_order(db, order)
+    check = services.check_inventory_for_order(db, order, company_id=auth.company_id_of(current_user))
     # M4: tayyor mahsulot yetarliligi FAQAT joriy korxona ombori bo'yicha.
     fcheck = crud.check_finished_for_order(db, order.items,
                                            company_id=auth.company_id_of(current_user))
@@ -4504,8 +4505,10 @@ def api_update_agreed_amount(order_id: int, data: schemas.OrderAgreedUpdate, db:
 @app.get("/api/penoplasts")
 def api_get_penoplasts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Penoplast (plotnost) turlari ro'yxati."""
-    items = services.get_penoplast_list(db)
-    default_p = services.get_default_penoplast(db)
+    # 2026-09-21 — TENANT: A ning penoplastlari B ga qaytarilardi (O'LCHANGAN)
+    _cid = auth.company_id_of(current_user)
+    items = services.get_penoplast_list(db, company_id=_cid)
+    default_p = services.get_default_penoplast(db, company_id=_cid)
     return {
         "items": [{
             "id": p.id,
@@ -4526,13 +4529,25 @@ def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), curre
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Material topilmadi")
-    item = db.query(Inventory).filter(Inventory.id == item_id).first()
+    _cid = auth.company_id_of(current_user)
+    item = db.query(Inventory).filter(Inventory.id == item_id,
+                                      Inventory.company_id == _cid).first()
     if not item:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
     if not item.is_penoplast:
         raise HTTPException(status_code=400, detail="Bu penoplast emas")
 
-    db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
+    # 2026-09-21 — TENANT (O'LCHANGAN, filtr YONIQ holatda ham): bu ommaviy
+    # UPDATE butun bazadagi asosiy belgilarni o'chirardi — B o'z penoplastini
+    # asosiy qilsa, A ning asosiy plotnosti yo'qolardi. Tenant filtri faqat
+    # SELECT ga ta'sir qiladi, UPDATE ga emas — shuning uchun qo'lda cheklash
+    # SHART (crud.py dagi `_scope(...)` nusxasi bilan bir xil).
+    # Belgilanayotgan penoplastning o'zi UPDATE dan chiqariladi: aks holda
+    # u ham o'chirilib, pastdagi `= True` "o'zgarish yo'q" deb bazaga
+    # yozilmay qolishi mumkin (sinovda o'lchangan).
+    db.query(Inventory).filter(Inventory.is_default_penoplast == True,
+                               Inventory.company_id == _cid,
+                               Inventory.id != item.id).update(
         {"is_default_penoplast": False}
     )
     item.is_default_penoplast = True
@@ -4563,8 +4578,8 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
     # M2 saboqi: server chizadigan sahifa boshqa funksiyalardan o'qiydi.
     _cid = auth.company_id_of(current_user)
     items = crud.get_finished_products(db, company_id=_cid)
-    penoplasts = services.get_penoplast_list(db)
-    default_p = services.get_default_penoplast(db)
+    penoplasts = services.get_penoplast_list(db, company_id=_cid)
+    default_p = services.get_default_penoplast(db, company_id=_cid)
     recipes = crud.get_recipes(db, company_id=_cid)
     stats = crud.get_finished_stats(db, company_id=_cid)
     masters = crud.get_masters(db, only_active=True, company_id=_cid)

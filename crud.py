@@ -226,7 +226,14 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
         if getattr(item_data, 'conversion_factor', None) is not None:
             existing_to_reuse.conversion_factor = item_data.conversion_factor
         if is_peno and is_default:
-            _scope(db.query(Inventory).filter(Inventory.is_default_penoplast == True)).update(
+            # 2026-09-21 (O'LCHANGAN): qayta tiklanayotgan pozitsiyaning o'zi
+            # UPDATE dan chiqariladi. Aks holda autoflush uning `True` sini
+            # bazaga yozib, UPDATE uni `False` qilardi, xotiradagi `True`
+            # esa "o'zgarish yo'q" bo'lib qolardi — korxonada birorta ham
+            # asosiy penoplast qolmasdi.
+            _scope(db.query(Inventory).filter(
+                Inventory.is_default_penoplast == True,
+                Inventory.id != existing_to_reuse.id)).update(
                 {"is_default_penoplast": False}, synchronize_session=False
             )
             existing_to_reuse.is_default_penoplast = True
@@ -1819,7 +1826,8 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
 
     # Omborni farq bo'yicha to'g'rilaymiz
     if not is_draft:
-        services.adjust_inventory_diff(db, old_snap, new_snap, order_id=db_item.order_id)
+        services.adjust_inventory_diff(db, old_snap, new_snap, order_id=db_item.order_id,
+                                       company_id=db_item.company_id)
 
     # Order summasi
     if order:
@@ -2580,7 +2588,8 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
                 "length": s.length, "quantity": s.quantity,
             } for s in (db_item.sub_details or [])],
         }]
-        services.adjust_inventory_diff(db, old_snap, [], order_id=db_item.order_id)
+        services.adjust_inventory_diff(db, old_snap, [], order_id=db_item.order_id,
+                                       company_id=db_item.company_id)
 
     # 2026-09-17: shu detalga Production/MRP orqali band qilingan tayyor
     # mahsulot bo'lsa — avtomatik ozod qilamiz (aks holda, detal
@@ -4007,7 +4016,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
 
     # 2) Qoralama bo'lmasa — xomashyo yetishini tekshiramiz
     if not is_draft:
-        check = services.check_inventory_diff(db, old_snapshot, new_snapshot)
+        check = services.check_inventory_diff(db, old_snapshot, new_snapshot,
+                                              company_id=order.company_id)
         _all_short = []
         if not check["enough"]:
             _all_short += list(check["shortages"])
@@ -4212,7 +4222,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # 6) Omborni farq bo'yicha to'g'rilaymiz (qoralama emas bo'lsa)
     inventory_log = []
     if not is_draft:
-        inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot, order_id=order_id)
+        inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot, order_id=order_id,
+                                                       company_id=order.company_id)
         # Tayyor mahsulot farqi
         # M4: farq faqat SHU buyurtmaning korxonasidagi mahsulotlarga qo'llanadi.
         inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot,
@@ -5256,7 +5267,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     tmp.price_per_m3 = data.price_per_m3
     tmp.finished_product_id = None
 
-    default_p = services.get_default_penoplast(db)
+    default_p = services.get_default_penoplast(db, company_id=company_id)
     volume = services._item_volume_m3(db, tmp, default_p)
 
     pid = data.penoplast_id or (default_p.id if default_p else None)

@@ -3089,12 +3089,20 @@ def save_monthly_expense(db: Session, year: int, month: int, data: dict,
 # ============================================================
 # BUYURTMA SAQLASHDA OMBOR TEKSHIRUVI VA AYIRISH
 # ============================================================
-def get_penoplast_list(db: Session):
-    """Barcha penoplast (plotnost) turlari."""
+def get_penoplast_list(db: Session, company_id: int = None):
+    """Korxonaning penoplast (plotnost) turlari.
+
+    2026-09-21 — TENANT (O'LCHANGAN): filtr umuman yo'q edi — B korxona
+    `/api/penoplasts`, `/orders`, `/finished` da A ning penoplastlarini
+    (nomi, qoldig'i, narxi) ko'rardi. Korxona noma'lum bo'lsa — bo'sh
+    ro'yxat (begona ro'yxatdan xavfsizroq)."""
     from models import Inventory
     from sqlalchemy import or_
+    if company_id is None:
+        return []
     try:
         items = db.query(Inventory).filter(
+            Inventory.company_id == company_id,
             or_(
                 Inventory.is_penoplast == True,
                 Inventory.item_name.ilike("%penoplast%")
@@ -3105,6 +3113,7 @@ def get_penoplast_list(db: Session):
     except Exception:
         db.rollback()
         return db.query(Inventory).filter(
+            Inventory.company_id == company_id,
             Inventory.item_name.ilike("%penoplast%")
         ).all()
 
@@ -3117,8 +3126,17 @@ def get_default_penoplast(db: Session, company_id: int = None):
     materiali ishlatilib qolishi mumkin edi)."""
     from models import Inventory
 
+    # 2026-09-21 — O'LCHANGAN: 6 ta chaqiruvchi `company_id` bermasdi va
+    # bu yerda butun bazadagi BIRINCHI asosiy penoplast qaytardi — ya'ni
+    # odatda A niki. B ning penoplast tanlanmagan buyurtmasi A ning
+    # penoplastiga bog'lanib, 409 bilan rad etilardi (filtr o'chiq). Endi
+    # (loy retsepti bilan bir xil qoida) korxona noma'lum bo'lsa zaxira yo'li
+    # UMUMAN ishlamaydi: penoplastsiz qolish begona penoplastdan xavfsizroq.
+    if company_id is None:
+        return None
+
     def _scoped(q):
-        return q.filter(Inventory.company_id == company_id) if company_id is not None else q
+        return q.filter(Inventory.company_id == company_id)
 
     p = _scoped(db.query(Inventory).filter(
         Inventory.is_penoplast == True,
@@ -3282,14 +3300,42 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
     return 0.0
 
 
-def _group_volumes_by_penoplast(db, items) -> dict:
+def _peno_of(db, pid, company_id=None, lock=False):
+    """Penoplast pozitsiyasi — FAQAT shu korxona omboridan (2026-09-21).
+
+    `pid` detalning o'z havolasi yoki korxonaning asosiy penoplasti. Korxona
+    ma'lum bo'lsa, so'rov unga cheklanadi: begona pozitsiya topilmaydi va
+    hech qachon ayirilmaydi/qaytarilmaydi."""
+    from models import Inventory
+    if not pid:
+        return None
+    q = db.query(Inventory).filter(Inventory.id == pid)
+    if company_id is not None:
+        q = q.filter(Inventory.company_id == company_id)
+    if lock:
+        q = q.with_for_update()
+    return q.first()
+
+
+def _company_of_items(items):
+    """Detallar ro'yxatidan korxona (ORM detallarida `company_id` bor)."""
+    for it in items or []:
+        cid = getattr(it, 'company_id', None)
+        if cid:
+            return cid
+    return None
+
+
+def _group_volumes_by_penoplast(db, items, company_id=None) -> dict:
     """Detallarni plotnost bo'yicha guruhlaydi.
     Qaytaradi: {penoplast_id: total_volume_m3}
     MUHIM: "Tayyor mahsulotdan" tanlangan detallar (finished_product_id
     bor) — BU YERGA QO'SHILMAYDI, chunki ularning xomashyosi ALLAQACHON,
     o'sha mahsulot birinchi marta ishlab chiqarilganda ayirilgan edi.
     Agar shu yerda ham hisoblasak — IKKI MARTA ayirilgan bo'lardi."""
-    default_p = get_default_penoplast(db)
+    if company_id is None:
+        company_id = _company_of_items(items)
+    default_p = get_default_penoplast(db, company_id=company_id)
     default_id = default_p.id if default_p else None
 
     volumes = {}
@@ -3306,22 +3352,23 @@ def _group_volumes_by_penoplast(db, items) -> dict:
     return volumes
 
 
-def check_inventory_for_order(db: Session, order_data) -> dict:
+def check_inventory_for_order(db: Session, order_data, company_id: int = None) -> dict:
     """
     Buyurtma uchun xomashyo yetishini tekshiradi.
     Har detal o'z plotnostidan hisoblanadi.
+    company_id — `order_data` sxema (OrderCreate) bo'lsa, unda korxona
+    yo'q, shuning uchun chaqiruvchi aniq beradi; ORM buyurtmada o'zidan.
     """
-    from models import Inventory
-
+    cid = company_id if company_id is not None else getattr(order_data, 'company_id', None)
     shortages = []
-    volumes = _group_volumes_by_penoplast(db, order_data.items)
+    volumes = _group_volumes_by_penoplast(db, order_data.items, company_id=cid)
     total_volume_m3 = sum(volumes.values())
 
     if not volumes:
         return {"enough": True, "shortages": [], "total_volume_m3": 0}
 
     for pid, vol in volumes.items():
-        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        p = _peno_of(db, pid, cid)
         if not p:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
@@ -3344,14 +3391,14 @@ def deduct_inventory_for_order(db: Session, order) -> list:
     Buyurtma saqlangandan keyin ombordan xomashyo ayiradi.
     Har detal o'z plotnostidan ayiriladi.
     """
-    from models import Inventory
     import crud as _crud_lm
 
     log = []
-    volumes = _group_volumes_by_penoplast(db, order.items)
+    cid = getattr(order, 'company_id', None)
+    volumes = _group_volumes_by_penoplast(db, order.items, company_id=cid)
 
     for pid, vol in volumes.items():
-        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
+        p = _peno_of(db, pid, cid, lock=True)
         if not p:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
@@ -3439,7 +3486,6 @@ def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0) ->
     FAQAT hali topshirilmagan (mijozga berilmagan) qismi uchun xomashyoni
     omborga qaytaradi. Topshirib bo'lingan qism — mijozda, qaytmaydi.
     sign=-1.0 — buyurtma tiklanganda qayta ombordan yechish uchun."""
-    from models import Inventory
 
     log = []
     undelivered = get_undelivered_items(order)
@@ -3450,9 +3496,10 @@ def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0) ->
     verb = "qaytarildi" if sign > 0 else "qayta yechildi"
 
     # 1) Penoplast — qolgan qism bo'yicha
-    volumes = _group_volumes_by_penoplast(db, prorated_items)
+    cid = getattr(order, 'company_id', None)
+    volumes = _group_volumes_by_penoplast(db, prorated_items, company_id=cid)
     for pid, vol in volumes.items():
-        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
+        p = _peno_of(db, pid, cid, lock=True)
         if not p:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
@@ -3470,13 +3517,13 @@ def return_inventory_for_order(db: Session, order, sign: float = 1.0) -> list:
     sign=1.0 — qaytarish (standart). sign=-1.0 — teskarisi, ya'ni
     buyurtma TIKLANGANDA xuddi shu miqdorni qayta ombordan yechish uchun.
     """
-    from models import Inventory
 
     log = []
-    volumes = _group_volumes_by_penoplast(db, order.items)
+    cid = getattr(order, 'company_id', None)
+    volumes = _group_volumes_by_penoplast(db, order.items, company_id=cid)
 
     for pid, vol in volumes.items():
-        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
+        p = _peno_of(db, pid, cid, lock=True)
         if not p:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
@@ -3747,13 +3794,14 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
 
     Faqat log qaytaradi, hech qanday moliyaviy hisob-kitobni o'zgartirmaydi
     (bu — create_return_item() dagi refund_amount hisobidan MUSTAQIL)."""
-    from models import Inventory, InventoryMovement
+    from models import InventoryMovement
 
     log = []
     if brak_qty <= 0 or not order_item:
         return log
 
-    default_p = get_default_penoplast(db)
+    _bcid = getattr(order, 'company_id', None) or getattr(order_item, 'company_id', None)
+    default_p = get_default_penoplast(db, company_id=_bcid)
     total_volume = _item_volume_m3(db, order_item, default_p)
     qty_units = order_item.order_qty_normalized
     if total_volume > 0 and qty_units > 0:
@@ -3761,7 +3809,7 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
         brak_volume = per_unit_volume * brak_qty
         pid = order_item.penoplast_id or (default_p.id if default_p else None)
         if pid and brak_volume > 0:
-            p = db.query(Inventory).filter(Inventory.id == pid).first()
+            p = _peno_of(db, pid, _bcid)
             if p and p.volume_per_unit and p.volume_per_unit > 0:
                 blocks = brak_volume / float(p.volume_per_unit)
                 old_qty = float(p.stock_quantity or 0)
@@ -3998,13 +4046,13 @@ class _FakeItem:
         self.sub_details = d.get('sub_details') or []
 
 
-def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = None) -> list:
+def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = None,
+                          company_id: int = None) -> list:
     """Eski va yangi detallarni solishtirib, ombordagi penoplastni
     faqat farq miqdorida to'g'rilaydi.
 
     old_items / new_items — OrderItem obyektlari yoki dict lar ro'yxati.
     """
-    from models import Inventory
     import crud as _crud
 
     def _norm(items):
@@ -4013,8 +4061,11 @@ def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = Non
             out.append(_FakeItem(it) if isinstance(it, dict) else it)
         return out
 
-    old_vol = _group_volumes_by_penoplast(db, _norm(old_items))
-    new_vol = _group_volumes_by_penoplast(db, _norm(new_items))
+    if company_id is None and order_id:
+        from models import Order as _Ord
+        company_id = db.query(_Ord.company_id).filter(_Ord.id == order_id).scalar()
+    old_vol = _group_volumes_by_penoplast(db, _norm(old_items), company_id=company_id)
+    new_vol = _group_volumes_by_penoplast(db, _norm(new_items), company_id=company_id)
 
     log = []
     all_ids = set(old_vol.keys()) | set(new_vol.keys())
@@ -4027,7 +4078,7 @@ def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = Non
         if abs(diff) < 0.0001:
             continue
 
-        p = db.query(Inventory).filter(Inventory.id == pid).with_for_update().first()
+        p = _peno_of(db, pid, company_id, lock=True)
         if not p:
             continue
 
@@ -4053,22 +4104,21 @@ def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = Non
     return log
 
 
-def check_inventory_diff(db: Session, old_items, new_items) -> dict:
+def check_inventory_diff(db: Session, old_items, new_items, company_id: int = None) -> dict:
     """Tahrirlashdan keyin xomashyo yetadimi — tekshiradi."""
-    from models import Inventory
 
     def _norm(items):
         return [_FakeItem(it) if isinstance(it, dict) else it for it in items]
 
-    old_vol = _group_volumes_by_penoplast(db, _norm(old_items))
-    new_vol = _group_volumes_by_penoplast(db, _norm(new_items))
+    old_vol = _group_volumes_by_penoplast(db, _norm(old_items), company_id=company_id)
+    new_vol = _group_volumes_by_penoplast(db, _norm(new_items), company_id=company_id)
 
     shortages = []
     for pid in set(old_vol.keys()) | set(new_vol.keys()):
         diff = new_vol.get(pid, 0.0) - old_vol.get(pid, 0.0)
         if diff <= 0:
             continue
-        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        p = _peno_of(db, pid, company_id)
         if not p:
             continue
         vol_per_unit = float(p.volume_per_unit or 1.0)
@@ -4111,7 +4161,6 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None,
          birinchi retseptni olardi, ya'ni boshqa korxonanikini.
     O'lchangan: B korxona admini `/api/loy-cost` da A ning retsepti
     (`AAA_Rec`) va uning tan narxini ko'rdi."""
-    from models import Inventory
 
     # 2026-09-21 (2-tuzatish): qidiruv `resolve_recipe` ga o'tkazildi.
     # Sabab: bu yerdagi zaxira yo'l `company_id` BERILMAGANDA hamon
@@ -4475,7 +4524,6 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
     include_coating=True bo'lsa) loy. Brak qiymatini hisoblash uchun —
     sotuv narxi emas, xomashyo qiymati.
     include_coating=False — faqat Penoplast (loy hali tortilmagan holat uchun)."""
-    from models import Inventory
 
     if getattr(item, 'finished_product_id', None):
         # FASA 4B: avval bu yerda `cost_price / produced_quantity` ishlatilardi
@@ -4503,13 +4551,14 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
                 return float(fp.cost_price) / base_qty
         return 0.0
 
-    default_p = get_default_penoplast(db)
+    _ucid = getattr(order, 'company_id', None) or getattr(item, 'company_id', None)
+    default_p = get_default_penoplast(db, company_id=_ucid)
     volume = _item_volume_m3(db, item, default_p)
     pid = item.penoplast_id or (default_p.id if default_p else None)
 
     peno_cost_total = 0.0
     if volume > 0 and pid:
-        p = db.query(Inventory).filter(Inventory.id == pid).first()
+        p = _peno_of(db, pid, _ucid)
         if p and p.volume_per_unit:
             blocks = volume / float(p.volume_per_unit)
             peno_cost_total = blocks * float(p.price_per_unit or 0)
