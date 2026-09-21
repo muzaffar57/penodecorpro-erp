@@ -2476,12 +2476,22 @@ def api_update_inventory_item(item_id: int, data: dict = Body(...), db: Session 
 
 
 @app.post("/api/inventory/receipt")
-def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Session = Depends(get_db),
+def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(get_db),
                                   current_user=Depends(auth.admin_or_warehouse)):
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport/Tushirish/Yuklash/Boshqa) bilan birga, BITTA yagona
-    tranzaksiyada saqlaydi. Xato bo'lsa — hech narsa saqlanmaydi (rollback)."""
+    tranzaksiyada saqlaydi. Xato bo'lsa — hech narsa saqlanmaydi (rollback).
+
+    17b (2026-09-21): tana XOM `dict` va `crud._clean_val` bilan QAT'IY
+    tekshiriladi. O'LCHANGAN kamchiliklar: qator narxi `Infinity` → 500
+    bo'lsa ham YOZILARDI va `/api/inventory/purchases` ni buzardi;
+    `transport_cost: Infinity` → `/api/finance/history` ni buzardi;
+    miqdor `1e20`, qo'shimcha xarajatlar `1e20` (tan narx 3.9×10¹⁸),
+    `production_type: "xato"` (hisobotdan jim tushib qolardi),
+    `document_number` 500 belgi (ustun 50 — PostgreSQL da 500),
+    201 qator va noma'lum maydonlar — hammasi 200 qaytarardi."""
     who = current_user.full_name or current_user.username
+    data = _tana_400("Receipt", data, schemas.InventoryReceiptCreate)
     # 2026-09-21 (12-sizish): kirimdagi HAR bir material va ta'minotchi
     # FAQAT joriy korxonadan — HECH NARSA yozilishidan OLDIN. Ilgari B
     # A ning inventory_id sini bersa, A OMBORI ko'payardi (o'lchangan).
@@ -2489,6 +2499,15 @@ def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Sessi
     crud._require_inventory_of_company(db, [it.inventory_id for it in data.items], _cid)
     if data.supplier_id and not crud.get_supplier(db, data.supplier_id, company_id=_cid):
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+    # 17b: hujjat summasidan ORTIQ to'lov yozilmasin — kirim marshruti
+    # (`/api/inventory/{id}/purchase`) allaqachon shunday qiladi, UI ham
+    # shuni ko'rsatadi (`Math.min(paidNowTotal, grandTotal)`), lekin bu
+    # yerda cheklov YO'Q edi: `paid_now: 1e20` ta'minotchiga 1e20 lik
+    # to'lov yozib, qarz hisobini butunlay buzardi (o'lchandi).
+    _jami = sum(float(it.quantity) * float(it.price_per_unit) for it in data.items)
+    _jami += (float(data.transport_cost) + float(data.tushirish_cost)
+              + float(data.yuklash_cost) + float(data.boshqa_cost))
+    _paid_now = min(float(data.paid_now), round(_jami))
     try:
         result = crud.create_inventory_receipt(
             db,
@@ -2496,7 +2515,7 @@ def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Sessi
             transport_cost=data.transport_cost, tushirish_cost=data.tushirish_cost,
             yuklash_cost=data.yuklash_cost, boshqa_cost=data.boshqa_cost,
             add_to_cost=data.add_to_cost, supplier_id=data.supplier_id,
-            document_number=data.document_number, paid_now=data.paid_now,
+            document_number=data.document_number, paid_now=_paid_now,
             notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None),
             company_id=auth.company_id_of(current_user)
         )
@@ -2513,13 +2532,33 @@ def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Sessi
 
 
 @app.post("/api/inventory/{item_id}/purchase")
-def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi.
     paid_now > 0 bo'lsa — bir vaqtning o'zida xarid HAM yoziladi, HAM to'lov qilinadi,
-    qolgan qismi avtomatik qarz sifatida qoladi."""
-    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
-    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+    qolgan qismi avtomatik qarz sifatida qoladi.
+
+    17b (2026-09-21): tana XOM `dict` sifatida olinadi va `crud._clean_val`
+    bilan QAT'IY tekshiriladi. Ilgari pydantic sxemasi quyidagilarni JIM
+    o'tkazib yuborardi (hammasi O'LCHANGAN, `work/probe17b_iso.py`):
+    miqdor/narx `1e20` (SAQLANARDI), `Infinity`/`NaN` (500),
+    `quantity: true` → 1, narx `"5000"` (matn) → 5000,
+    `transport_payer: "xato"`, `payment_due_date: "2026-13-45"`,
+    noma'lum maydonlar, va eng jiddiysi — penoplast uchun
+    `volume_per_unit: Infinity`, u 500 bersa ham OMBORGA YOZILIB,
+    `/api/penoplasts` sahifasini butunlay ishlamay qo'yardi."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404) —
+    # TANA tekshiruvidan OLDIN, begona/yo'q id uchun oracle bo'lmasin.
+    _cid = auth.company_id_of(current_user)
+    if not auth.inventory_of_company(db, item_id, _cid):
         raise HTTPException(status_code=404, detail="Material topilmadi")
+    data = _tana_400("Purchase", data, schemas.StockPurchase)
+    # 17b: ta'minotchi shu korxonada BOR bo'lishi shart — kirim hujjati
+    # (`/api/inventory/receipt`) bilan bir xil qoida. Ilgari mavjud
+    # bo'lmagan `supplier_id` 200 qaytarardi (PostgreSQL da esa FK
+    # cheklovini buzib 500 berardi); begona korxonanikida model
+    # qo'riqchisi 409 berardi — endi ikkalasi ham aniq 404.
+    if data.supplier_id and not crud.get_supplier(db, data.supplier_id, company_id=_cid):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     who = current_user.full_name or current_user.username
 
     total_amount = round(data.quantity * data.price_per_unit)
@@ -3521,16 +3560,28 @@ def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=De
 
 
 @app.post("/api/recipes", response_model=schemas.RecipeRead)
-def api_create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_create_recipe(recipe: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """17b (2026-09-21): tana QAT'IY tekshiriladi. O'LCHANGAN kamchiliklar —
+    nom `"   "` (BO'SH nomli retsept saqlanardi), `batch_size_kg: Infinity`,
+    `batch_size_kg`/`quantity_kg` `1e20`, tarkibsiz retsept, bir material
+    IKKI marta (ombordan ikki baravar yechilardi) va noma'lum maydonlar —
+    hammasi 200 qaytarardi."""
+    recipe = _tana_400("RecipeBody", recipe, schemas.RecipeCreate)
     # M8/F1a: retsept joriy adminning korxonasiga biriktiriladi.
     return crud.create_recipe(db, recipe, company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/recipes/{recipe_id}", response_model=schemas.RecipeRead)
-def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+def api_update_recipe(recipe_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """17b: tahrir tanasi ham AYNAN shu qoidalar bilan tekshiriladi.
+    ⚠ Eng muhimi — `ingredients: []` bilan PUT yuborilsa retsept TARKIBI
+    BUTUNLAY o'chib ketardi (o'lchandi: 200 va ingredientlar 1 → 0).
+    Endi kamida 1 ta tarkibiy qism talab qilinadi (UI ham shunday)."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404) —
+    # TANA tekshiruvidan OLDIN (oracle yo'q).
     if not auth.recipe_of_company(db, recipe_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
+    data = _tana_400("RecipeBody", data, schemas.RecipeCreate)
     recipe = crud.update_recipe(db, recipe_id, data,
                                 company_id=auth.company_id_of(current_user))
     if not recipe:
@@ -5743,6 +5794,22 @@ def api_search_finished(q: str = "", category: Optional[str] = None, exclude_cat
         import traceback
         print("Tayyor mahsulot qidiruvida XATO:\n", traceback.format_exc())
         return {"items": [], "error": str(e)}
+
+
+def _tana_400(model: str, data, sxema):
+    """17b (2026-09-21): ombor kirimi / kirim hujjati / retsept tanasi —
+    xom JSON QAT'IY tekshiriladi (`crud._clean_val`), keyin sxemaga
+    o'giriladi. Qoida buzilsa 400 va `detail` — MATN (obyekt emas):
+    `supplier_receive.html` (`'❌ Xato: ' + e.detail`) va `recipes.html`
+    (`'Xato: ' + e.detail`) uni to'g'ridan-to'g'ri ko'rsatadi.
+
+    ⚠ Bu yordamchi `_fp_tana` dan FAQAT javob shakli bilan farq qiladi
+    (tayyor mahsulot sahifasi `detail.message` ni o'qiydi)."""
+    try:
+        toza = crud._clean_val(model, data)
+        return sxema(**toza)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 def _fp_tana(model: str, data, sxema):

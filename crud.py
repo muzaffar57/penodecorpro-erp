@@ -2392,6 +2392,18 @@ def _clean_create(model: str, data) -> dict:
 # tayyor holat, usta korxonada, summa sig'imi) crud ildizida.
 _FP_KATEGORIYA = {"profil": "profil", "panel": "panel", "dona": "dona", "blok": "blok"}
 _TOLOV_USULI = {"naqd": "naqd", "karta": "karta", "bank": "bank"}
+# 17b (2026-09-21) — ombor kirimi va kirim hujjati tanlovlari.
+# `transport_payer`: kim to'laydi — hech kim / o'zimiz / ta'minotchi
+# (`suppliers.html` shu uchtasini yuboradi; boshqa qiymat JIM e'tiborsiz
+# qolardi, ya'ni "o'z hisobimdan" deb belgilangan transport xarajati
+# YOZILMASDAN qolishi mumkin edi).
+_TRANSPORT_TOLOVCHI = {"none": "none", "self": "self", "supplier": "supplier"}
+# `production_type`: kirim qaysi yo'nalishga tegishli. `supplier_receive.html`
+# "Umumiy" uchun `null` yuboradi; `services.get_monthly_report` faqat
+# 'penoplast' va 'gips' qiymatlarini taniydi, boshqa har qanday matn
+# hisobotdan JIMGINA tushib qolardi.
+_ISHLAB_CHIQARISH_TURI = {"umumiy": "umumiy", "penoplast": "penoplast",
+                          "gips": "gips"}
 
 
 def _val_rules():
@@ -2455,6 +2467,68 @@ def _val_rules():
             "master_id": ("id", True),
             "confirm_below_cost": ("bool", False),
         },
+
+        # ── 17b (2026-09-21): ombor kirimi, kirim hujjati, retseptlar ──
+        # Maydonlar `suppliers.html` (632), `supplier_receive.html` (861) va
+        # `recipes.html` (395/408) YUBORADIGAN tanalarga AYNAN mos: UI ning
+        # birorta qonuniy so'rovi rad etilmaydi.
+        "Purchase": {
+            "quantity": ("son", False, True, son),
+            "price_per_unit": ("son", False, True, money),
+            "notes": ("matn", False, matn),
+            "supplier_id": ("id", True),
+            # Server `is_credit` ni O'ZI hisoblaydi (main.py) — tanadagisi
+            # e'tiborsiz qoladi, lekin sxemada bor, shuning uchun turi
+            # tekshiriladi.
+            "is_credit": ("bool", False),
+            "paid_now": ("son", True, False, money),
+            "transport_cost": ("son", True, False, money),
+            "transport_payer": ("tanlov", True, _TRANSPORT_TOLOVCHI),
+            # Penoplast uchun "1 blok necha m³" — MUSBAT bo'lishi shart.
+            # `Infinity` bu yerdan o'tib, `/api/penoplasts` sahifasini
+            # BUTUNLAY buzardi (o'lchandi: 500 va qiymat SAQLANARDI).
+            # UI penoplast bo'lmasa `null` yuboradi.
+            "volume_per_unit": ("son", True, True, son),
+            "payment_due_date": ("sana", True),
+            "is_opening_stock": ("bool", False),
+        },
+        "ReceiptItem": {
+            "inventory_id": ("id", False),
+            "quantity": ("son", False, True, son),
+            "price_per_unit": ("son", False, True, money),
+            "volume_per_unit": ("son", True, True, son),
+            "is_opening_stock": ("bool", False),
+            "notes": ("matn", False, matn),
+        },
+        "Receipt": {
+            "items": ("royxat", "ReceiptItem", 1, 200),
+            "supplier_id": ("id", True),
+            # `inventory_receipts.document_number` — String(50).
+            # 500 belgilik hujjat raqami PostgreSQL da COMMIT da yiqilardi.
+            "document_number": ("matn", False, 50),
+            "paid_now": ("son", True, False, money),
+            "transport_cost": ("son", True, False, money),
+            "tushirish_cost": ("son", True, False, money),
+            "yuklash_cost": ("son", True, False, money),
+            "boshqa_cost": ("son", True, False, money),
+            "add_to_cost": ("bool", False),
+            "notes": ("matn", False, matn),
+            "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+        },
+        "RecipeIngredient": {
+            "inventory_id": ("id", False),
+            "quantity_kg": ("son", False, True, son),
+        },
+        "RecipeBody": {
+            "name": ("matn", True, 100),
+            "batch_size_kg": ("son", True, True, son),
+            "notes": ("matn", False, matn),
+            # Kamida 1 ta tarkibiy qism — UI ham shuni talab qiladi
+            # ("Kamida bitta tarkibiy qism kiriting!"). Ilgari bo'sh
+            # ro'yxat bilan PUT yuborilsa retsept TARKIBI BUTUNLAY
+            # o'chib ketardi (o'lchandi).
+            "ingredients": ("royxat", "RecipeIngredient", 1, 100),
+        },
     }
 
 
@@ -2467,7 +2541,34 @@ _VAL_MAJBURIY = {
     "Sale": {"finished_product_id": None, "quantity": None, "unit_price": None},
     "SaleBatchItem": {"finished_product_id": None, "quantity": None, "unit_price": None},
     "SaleBatch": {"items": None},
+    # 17b (2026-09-21)
+    "Purchase": {"quantity": None, "price_per_unit": None},
+    "ReceiptItem": {"inventory_id": None, "quantity": None, "price_per_unit": None},
+    "Receipt": {"items": None},
+    "RecipeIngredient": {"inventory_id": None, "quantity_kg": None},
+    "RecipeBody": {"name": 1, "ingredients": None},
 }
+
+
+def _takror_material_yoq(qatorlar, kalit: str, ro_yxat_nomi: str):
+    """17b (2026-09-21): bitta materialni ro'yxatda IKKI MARTA ko'rsatishni
+    rad etadi.
+
+    Retseptda bu ANIQ xato: `services.deduct_loy_ingredients` har qatorni
+    alohida ayiradi, ya'ni bir material ikki qatorda bo'lsa ombordan IKKI
+    BARAVAR yechiladi, retsept oynasida esa bu ikki alohida qator bo'lib
+    ko'rinadi (o'lchandi: 200 va ikkala qator ham saqlanardi).
+
+    ⚠ Kirim HUJJATIDA (`Receipt`) bu ATAYLAB tekshirilmaydi: bir xil
+    materialni bitta hujjatda ikki xil narxda olish MUMKIN (ikki partiya),
+    va har qator o'z o'rtacha narxini to'g'ri hisoblaydi."""
+    korilgan = set()
+    for i, q in enumerate(qatorlar):
+        v = q.get(kalit) if isinstance(q, dict) else getattr(q, kalit, None)
+        if v in korilgan:
+            raise ValueError(f"'{ro_yxat_nomi}' {i + 1}-qator: bu material "
+                             f"ro'yxatda allaqachon bor")
+        korilgan.add(v)
 
 
 def _clean_val(model: str, data) -> dict:
@@ -2482,6 +2583,28 @@ def _clean_val(model: str, data) -> dict:
             raise ValueError(f"'{key}' kiritilishi shart")
         if eng_kam and len(toza[key].strip()) < eng_kam:
             raise ValueError(f"'{key}' kamida {eng_kam} belgidan iborat bo'lishi kerak")
+    # 17b: retsept tarkibida bir material IKKI MARTA bo'lmasin (kirim
+    # hujjatida — ataylab RUXSAT, sababi `_takror_material_yoq` izohida).
+    if model == "RecipeBody":
+        _takror_material_yoq(toza.get("ingredients") or [], "inventory_id",
+                             "ingredients")
+    # 17b: miqdor va narx ALOHIDA chegaradan o'tsa ham, KO'PAYTMASI
+    # `InventoryPurchase.total_amount` (Numeric(12,2)) sig'imidan oshishi
+    # mumkin (o'lchandi: 1e9 × 1e6 = 1e15 → 200, PostgreSQL da COMMIT da
+    # 500). Shuning uchun jami summa ham tekshiriladi.
+    if model in ("Purchase", "ReceiptItem"):
+        _miq, _nar = toza.get("quantity"), toza.get("price_per_unit")
+        if _miq is not None and _nar is not None:
+            if _miq * _nar > _ORDER_ITEM_MAX_MONEY:
+                raise ValueError("'quantity' × 'price_per_unit' juda katta "
+                                 "(jami summa sig'imdan oshdi)")
+    # 17b: "sana" qoidasi matnni `datetime` ga o'giradi, lekin bu yo'lda
+    # `schemas.StockPurchase.payment_due_date` — MATN (`Optional[str]`) va
+    # `_purchase_stock_no_commit` uni `strptime(..., "%Y-%m-%d")` bilan
+    # o'qiydi. Shuning uchun tekshiruvdan keyin AYNAN shu shaklga
+    # qaytariladi (sana haqiqiyligi allaqachon tasdiqlangan).
+    if model == "Purchase" and isinstance(toza.get("payment_due_date"), datetime):
+        toza["payment_due_date"] = toza["payment_due_date"].strftime("%Y-%m-%d")
     return toza
 
 
