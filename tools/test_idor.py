@@ -1059,6 +1059,340 @@ check(f"nazorat: PUT /api/gift-period/tier/B (to'g'ri qiymat) \u2192 {r.status_c
       f"{r.text[:100]} | {_tier8()}")
 
 
+
+# ══════════════════════════════════════════════════════════════
+section("9. TAHRIR TANASI (14-band): material / tayyor mahsulot / usta / hodim / loyiha / ta'minotchi")
+# ══════════════════════════════════════════════════════════════
+# 2026-09-21 — O'LCHANGAN (asl kod, lokal + jonli sinov):
+#   `PUT /api/inventory/{id}` manfiy narxni SAQLARDI (jonli: -5000 → 200;
+#   13.3 da `/price` yopilgan, bu ikkinchi yo'l ochiq edi), `stock_quantity`
+#   to'g'ridan (ombor harakatisiz), hajm 0, `is_default_penoplast`
+#   ikkinchi materialga; tayyor mahsulot manfiy miqdor/narx; usta cashback
+#   500 %; hodim manfiy oylik, noto'g'ri `pay_type` JIM e'tiborsiz (200);
+#   loyiha `total_paid` qo'lda, noto'g'ri `status` (SQLite da qator yozilib
+#   BUTUN loyihalar ro'yxati 500); ta'minotchi `null` nom → 500.
+# Pydantic `true` → 1.0, "5000" → 5000 ni JIM o'girardi — shuning uchun
+# tanalar XOM JSON matni sifatida ham yuboriladi (NaN / Infinity ham).
+# Har prob: status + qatorning XOM SQL nusxasi (ORM emas — asl kod o'qib
+# bo'lmaydigan enum yozishi mumkin) oldin/keyin. Asl kodda qator o'zgarsa,
+# keyingi prob mustaqil bo'lishi uchun SQL bilan tiklanadi.
+from sqlalchemy import text as _text9                    # noqa: E402
+from models import (FinishedProduct as _FP9, Master as _MS9,     # noqa: E402
+                    Employee as _EM9, Project as _PR9, Supplier as _SP9,
+                    InventoryMovement as _IMV9,
+                    EmployeeCompensationHistory as _ECH9)
+
+with contextlib.redirect_stdout(_quiet):
+    B_INV9 = crud.add_item(db, schemas.InventoryCreate(
+        item_name="BBB_INV9", unit="kg", stock_quantity=50, price_per_unit=1000),
+        company_id=2).id
+    _bdef9 = db.query(Inventory).filter(Inventory.company_id == 2,
+                                        Inventory.is_default_penoplast == True).first()  # noqa: E712
+    if _bdef9 is None:
+        _bdef9 = Inventory(company_id=2, item_name="BBB_PEN9", unit="dona",
+                           stock_quantity=10.0, price_per_unit=1000, volume_per_unit=1.4,
+                           is_penoplast=True, is_default_penoplast=True)
+        db.add(_bdef9)
+        db.commit()
+    B_DEF9 = _bdef9.id
+    _fpb = _FP9(company_id=2, name="BBB_FP9", category="profil", quantity=10,
+                produced_quantity=10, unit="metr", unit_price=5000, cost_price=1000)
+    _fpa = _FP9(company_id=1, name="AAA_FP9", category="profil", quantity=10,
+                produced_quantity=10, unit="metr", unit_price=5000, cost_price=1000)
+    db.add_all([_fpb, _fpa])
+    db.commit()
+    B_FP9, A_FP9 = _fpb.id, _fpa.id
+    B_M9 = crud.create_master(db, schemas.MasterCreate(
+        name="BBB_USTA9", phone="+998901119999"), company_id=2).id
+    A_M9 = crud.create_master(db, schemas.MasterCreate(
+        name="AAA_USTA9", phone="+998901118888"), company_id=1).id
+    B_E9 = crud.create_employee(db, schemas.EmployeeCreate(
+        name="BBB_HODIM9", pay_type="fixed", fixed_amount=1000000), company_id=2).id
+    A_E9 = crud.create_employee(db, schemas.EmployeeCreate(
+        name="AAA_HODIM9", pay_type="fixed", fixed_amount=1000000), company_id=1).id
+    B_P9 = crud.create_project(db, schemas.ProjectCreate(
+        project_name="BBB_L9", client_name="BBB_MIJOZ9"), company_id=2).id
+    A_P9 = crud.create_project(db, schemas.ProjectCreate(
+        project_name="AAA_L9", client_name="AAA_MIJOZ9"), company_id=1).id
+    B_S9 = crud.create_supplier(db, schemas.SupplierCreate(name="BBB_TAM9"), company_id=2).id
+    A_S9 = crud.create_supplier(db, schemas.SupplierCreate(name="AAA_TAM9"), company_id=1).id
+    A_INV9 = crud.add_item(db, schemas.InventoryCreate(
+        item_name="AAA_INV9", unit="kg", stock_quantity=50, price_per_unit=1000),
+        company_id=1).id
+
+_TAB9 = {"inv": Inventory.__tablename__, "fp": _FP9.__tablename__,
+         "ms": _MS9.__tablename__, "em": _EM9.__tablename__,
+         "pr": _PR9.__tablename__, "sp": _SP9.__tablename__}
+
+
+def _raw9(kind, oid):
+    """Qatorning XOM nusxasi (ORM emas — noto'g'ri enum ham o'qiladi)."""
+    db.rollback()
+    row = db.execute(_text9(f"SELECT * FROM {_TAB9[kind]} WHERE id = :i"), {"i": oid}).mappings().first()
+    return dict(row) if row is not None else None
+
+
+def _restore9(kind, oid, snap):
+    """Asl kod qatorni o'zgartirgan bo'lsa — SQL bilan tiklash."""
+    db.rollback()
+    cols = [k for k in snap if k != "id"]
+    db.execute(_text9(f"UPDATE {_TAB9[kind]} SET " + ", ".join(f"{c} = :{c}" for c in cols)
+                      + " WHERE id = :id"), snap)
+    db.commit()
+    db.expire_all()
+
+
+def _extra9(kind, oid):
+    """Qatordan tashqari kuzatiladigan hisob yozuvlari."""
+    db.rollback()
+    if kind == "inv":
+        return db.query(_IMV9).filter(_IMV9.inventory_id == oid).count()
+    if kind == "em":
+        return db.query(_ECH9).filter(_ECH9.employee_id == oid).count()
+    return None
+
+
+def _put9(url, body):
+    if isinstance(body, str):
+        return _req7("put", url, content=body, headers={"Content-Type": "application/json"})
+    return _req7("put", url, json=body)
+
+
+def _bad9(kind, url, oid, cases, extra_get=None):
+    """Har holat: 400 SHART + qator va hisob yozuvlari o'zgarmagan."""
+    for lbl, body in cases:
+        s0, e0 = _raw9(kind, oid), _extra9(kind, oid)
+        r = _put9(url, body)
+        s1, e1 = _raw9(kind, oid), _extra9(kind, oid)
+        check(f"PUT {url.rsplit('/', 1)[0]}/B ({lbl}) \u2192 {r.status_code} (400 shart)",
+              r.status_code == 400, r.text[:140])
+        ozg = [k for k in s0 if s0[k] != s1.get(k)]
+        check(f"  \u21b3 qator va hisob yozuvlari o'zgarmadi ({lbl})",
+              not ozg and e0 == e1, f"o'zgardi: {ozg[:4]} {e0}->{e1}")
+        if extra_get:
+            g = _req7("get", extra_get)
+            check(f"  \u21b3 GET {extra_get} \u2192 {g.status_code} (200 shart, ro'yxat buzilmadi) ({lbl})",
+                  g.status_code == 200, g.text[:100])
+        if ozg:
+            _restore9(kind, oid, s0)
+
+
+# --- 9a. Material: PUT /api/inventory/{id} ---
+_bad9("inv", f"/api/inventory/{B_INV9}", B_INV9, [
+    ("narx manfiy", {"price_per_unit": -5000}),
+    ("narx 1e20", {"price_per_unit": 1e20}),
+    ("narx true", {"price_per_unit": True}),
+    ("narx matn \"5000\"", {"price_per_unit": "5000"}),
+    ("narx NaN", '{"price_per_unit": NaN}'),
+    ("hajm 0", {"volume_per_unit": 0}),
+    ("hajm manfiy", {"volume_per_unit": -1}),
+    ("min qoldiq manfiy", {"min_stock": -3}),
+    ("stock_quantity to'g'ridan", {"stock_quantity": 999}),
+    ("is_default_penoplast", {"is_default_penoplast": True}),
+    ("nom bo'sh", {"item_name": ""}),
+    ("nom null", {"item_name": None}),
+    ("birlik null", {"unit": None}),
+    ("nom 101 belgi", {"item_name": "x" * 101}),
+    ("company_id", {"company_id": 1}),
+    ("id", {"id": 999999}),
+    ("conversion_factor Infinity", '{"conversion_factor": Infinity}'),
+    ("is_penoplast \"yes\" (pydantic JIM true qilardi)", {"is_penoplast": "yes"}),
+])
+_bad9("inv", f"/api/inventory/{B_DEF9}", B_DEF9, [
+    ("asosiy penoplast \u2192 is_penoplast false", {"is_penoplast": False}),
+])
+
+# --- 9b. Tayyor mahsulot: PUT /api/finished/{id} ---
+_bad9("fp", f"/api/finished/{B_FP9}", B_FP9, [
+    ("miqdor manfiy", {"quantity": -5}),
+    ("miqdor to'g'ridan (20)", {"quantity": 20}),
+    ("narx manfiy", {"unit_price": -1}),
+    ("narx 1e20", {"unit_price": 1e20}),
+    ("narx Infinity", '{"unit_price": Infinity}'),
+    ("nom bo'sh", {"name": ""}),
+    ("nom null", {"name": None}),
+    ("company_id", {"company_id": 1}),
+])
+
+# --- 9c. Usta: PUT /api/masters/{id} ---
+_bad9("ms", f"/api/masters/{B_M9}", B_M9, [
+    ("cashback manfiy", {"cashback_percent": -10}),
+    ("cashback 500", {"cashback_percent": 500}),
+    ("cashback NaN", '{"cashback_percent": NaN}'),
+    ("kpi manfiy", {"kpi_percent": -1}),
+    ("ism bo'sh", {"name": ""}),
+    ("telefon null", {"phone": None}),
+    ("is_active matn", {"is_active": "ha"}),
+    ("is_active 0 (pydantic JIM false qilardi)", {"is_active": 0}),
+    ("ism 101 belgi", {"name": "x" * 101}),
+    ("telegram_id true", {"telegram_id": True}),
+])
+
+# --- 9d. Hodim: PUT /api/employees/{id} ---
+_bad9("em", f"/api/employees/{B_E9}", B_E9, [
+    ("oylik manfiy", {"fixed_amount": -1000000}),
+    ("oylik 1e20", {"fixed_amount": 1e20}),
+    ("foiz 500", {"percent_value": 500}),
+    ("qo'shimcha manfiy", {"extra_monthly": -1}),
+    ("pay_type noto'g'ri", {"pay_type": "xato_tur"}),
+    ("pay_type null", {"pay_type": None}),
+    ("birlik turi noto'g'ri", {"per_unit_type": "kg", "fixed_amount": 5}),
+    ("effective_year 1999", {"effective_year": 1999, "fixed_amount": 5}),
+    ("effective_month true", {"effective_month": True, "fixed_amount": 5}),
+    ("ism bo'sh", {"name": ""}),
+])
+
+# --- 9e. Loyiha: PUT /api/projects/{id} ---
+_bad9("pr", f"/api/projects/{B_P9}", B_P9, [
+    ("total_paid qo'lda", {"total_paid": 100}),
+    ("total_paid manfiy", {"total_paid": -100}),
+    ("byudjet manfiy", {"total_budget": -5}),
+    ("byudjet 1e20", {"total_budget": 1e20}),
+    ("status noma'lum", {"status": "yoq_status"}),
+    ("status null", {"status": None}),
+    ("nom bo'sh", {"project_name": ""}),
+    ("mijoz null", {"client_name": None}),
+    ("izoh son", {"notes": 123}),
+], extra_get="/api/projects")
+
+# --- 9f. Ta'minotchi: PUT /api/suppliers/{id} ---
+_bad9("sp", f"/api/suppliers/{B_S9}", B_S9, [
+    ("nom bo'sh", {"name": ""}),
+    ("nom null", {"name": None}),
+    ("nom 151 belgi", {"name": "x" * 151}),
+    ("is_active matn", {"is_active": "ha"}),
+    ("telefon 21 belgi", {"phone": "1" * 21}),
+])
+
+# --- 9g. Begona ID + noto'g'ri tana → 404 (400 emas — ID borligi oshkor bo'lmasin) ---
+for _kind9, _url9, _aid9, _body9 in (
+        ("inv", "/api/inventory/{}", A_INV9, {"price_per_unit": -1}),
+        ("fp", "/api/finished/{}", A_FP9, {"unit_price": -1}),
+        ("ms", "/api/masters/{}", A_M9, {"cashback_percent": 500}),
+        ("em", "/api/employees/{}", A_E9, {"fixed_amount": -1}),
+        ("pr", "/api/projects/{}", A_P9, {"status": "yoq_status"}),
+        ("sp", "/api/suppliers/{}", A_S9, {"name": ""})):
+    s0 = _raw9(_kind9, _aid9)
+    r = _put9(_url9.format(_aid9), _body9)
+    s1 = _raw9(_kind9, _aid9)
+    check(f"PUT {_url9.format('A')} (begona ID + noto'g'ri tana) \u2192 {r.status_code} (404 shart) va A o'zgarmadi",
+          r.status_code == 404 and s0 == s1, f"{r.text[:100]}")
+    if s0 != s1:
+        _restore9(_kind9, _aid9, s0)
+
+
+# --- 9h. Ildiz qatlami: crud to'g'ridan (marshrutsiz) → ValueError ---
+def _root9(lbl, kind, oid, fn):
+    s0 = _raw9(kind, oid)
+    try:
+        fn()
+        natija = "xato chiqmadi"
+    except ValueError as e:
+        natija = "ValueError" if "ValidationError" not in type(e).__name__ else "pydantic"
+    except Exception as e:                           # noqa: BLE001
+        natija = f"{type(e).__name__}"
+    db.rollback()
+    s1 = _raw9(kind, oid)
+    check(f"ildiz: {lbl} \u2192 {natija} (ValueError shart) va qator o'zgarmadi",
+          natija == "ValueError" and s0 == s1, f"{[k for k in s0 if s0[k] != s1.get(k)][:4]}")
+    if s0 != s1:
+        _restore9(kind, oid, s0)
+
+
+_root9("update_item(narx -1)", "inv", B_INV9,
+       lambda: crud.update_item(db, B_INV9, schemas.InventoryUpdate(price_per_unit=-1)))
+_root9("update_item(stock_quantity 999)", "inv", B_INV9,
+       lambda: crud.update_item(db, B_INV9, schemas.InventoryUpdate(stock_quantity=999)))
+_root9("update_finished_product(quantity 999)", "fp", B_FP9,
+       lambda: crud.update_finished_product(db, B_FP9, {"quantity": 999}, company_id=2))
+_root9("update_master(cashback 500)", "ms", B_M9,
+       lambda: crud.update_master(db, B_M9, schemas.MasterUpdate(cashback_percent=500), company_id=2))
+_root9("update_employee(pay_type xato)", "em", B_E9,
+       lambda: crud.update_employee(db, B_E9, schemas.EmployeeUpdate(pay_type="xato_tur")))
+_root9("update_project(status noma'lum)", "pr", B_P9,
+       lambda: crud.update_project(db, B_P9, {"status": "yoq_status"}))
+_root9("update_project(total_paid qo'lda)", "pr", B_P9,
+       lambda: crud.update_project(db, B_P9, schemas.ProjectUpdate(total_paid=5)))
+_root9("update_supplier(nom bo'sh)", "sp", B_S9,
+       lambda: crud.update_supplier(db, B_S9, schemas.SupplierUpdate(name="")))
+
+# --- 9i. Statik: qoida jadvalida bog'lanish (FK) maydoni yo'q, hammasi ustun ---
+try:
+    _rules9 = crud._upd_rules()
+    _taqiq9 = crud._UPD_TAQIQ
+    _mod9 = {"Inventory": Inventory, "FinishedProduct": _FP9, "Master": _MS9,
+             "Employee": _EM9, "Project": _PR9, "Supplier": _SP9}
+    _yomon9 = []
+    for _mn9, _r9 in _rules9.items():
+        _cols9 = {c.name for c in _mod9[_mn9].__table__.columns}
+        for _f9 in _r9:
+            if _f9 in ("id", "company_id") or (_f9.endswith("_id") and _f9 != "telegram_id"):
+                _yomon9.append(f"{_mn9}.{_f9} (bog'lanish)")
+            if _f9 not in _cols9 and not (_mn9 == "Employee" and _f9 in (
+                    "effective_year", "effective_month", "reason")):
+                _yomon9.append(f"{_mn9}.{_f9} (ustun yo'q)")
+        for _t9 in _taqiq9.get(_mn9, {}):
+            if _t9 in _r9:
+                _yomon9.append(f"{_mn9}.{_t9} (taqiqlangan, lekin ruxsat ro'yxatida)")
+    check("statik: ruxsat ro'yxatlarida PK/FK maydoni yo'q, taqiqlanganlar ruxsatda emas",
+          not _yomon9 and set(_rules9) == set(_mod9), str(_yomon9[:5]))
+except Exception as _e9:                               # noqa: BLE001
+    check("statik: ruxsat ro'yxatlarida PK/FK maydoni yo'q, taqiqlanganlar ruxsatda emas",
+          False, f"{type(_e9).__name__}: {_e9}")
+
+# --- 9j. Nazorat: interfeys AYNAN yuboradigan tanalar → 200 VA haqiqatan yozildi ---
+def _ok9(lbl, kind, oid, url, body, kutilgan):
+    r = _put9(url, body)
+    s1 = _raw9(kind, oid)
+    farq = {k: (s1.get(k), v) for k, v in kutilgan.items() if s1.get(k) != v}
+    check(f"nazorat: PUT {url.rsplit('/', 1)[0]}/B ({lbl}) \u2192 {r.status_code} (200 shart) VA yozildi",
+          r.status_code == 200 and not farq, f"{r.text[:100]} | {farq}")
+
+
+_ok9("inventory.html: kategoriya", "inv", B_INV9, f"/api/inventory/{B_INV9}",
+     {"category": "Sinov9"}, {"category": "Sinov9"})
+_ok9("API: nom + min qoldiq + narx 0 + hajm", "inv", B_INV9, f"/api/inventory/{B_INV9}",
+     {"item_name": "BBB_INV9_Y", "min_stock": 5, "price_per_unit": 0, "volume_per_unit": 2.5},
+     {"item_name": "BBB_INV9_Y", "min_stock": 5.0, "volume_per_unit": 2.5})
+_ok9("finished.html: narx", "fp", B_FP9, f"/api/finished/{B_FP9}",
+     {"unit_price": 6500}, {"quantity": 10.0})
+check("  \u21b3 tayyor mahsulot narxi 6500 ga yozildi",
+      float(_raw9("fp", B_FP9)["unit_price"]) == 6500.0, str(_raw9("fp", B_FP9)["unit_price"]))
+_ok9("masters.html: to'liq forma (notes \"\")", "ms", B_M9, f"/api/masters/{B_M9}",
+     {"name": "BBB_USTA9_Y", "phone": "+998901119998", "region": None,
+      "cashback_percent": 2.5, "notes": "", "telegram_id": None},
+     {"name": "BBB_USTA9_Y", "phone": "+998901119998", "cashback_percent": 2.5})
+_ok9("masters_manage.html: telefonsiz", "ms", B_M9, f"/api/masters/{B_M9}",
+     {"name": "BBB_USTA9_Z", "region": None, "telegram_id": None, "notes": None},
+     {"name": "BBB_USTA9_Z", "phone": "+998901119998"})
+_ok9("masters_manage.html: faollashtirish", "ms", B_M9, f"/api/masters/{B_M9}",
+     {"is_active": True}, {"is_active": 1})
+_h0_9 = _extra9("em", B_E9)
+_ok9("kpi.html: to'liq forma (to'lov turi o'zgaradi)", "em", B_E9, f"/api/employees/{B_E9}",
+     {"name": "BBB_HODIM9_Y", "position": None, "pay_type": "per_unit", "fixed_amount": 0,
+      "percent_value": 0, "per_unit_rate": 1500, "per_unit_type": "metr",
+      "extra_monthly": None, "production_type": "penoplast", "notes": None,
+      "effective_year": 2026, "effective_month": 9, "reason": "sinov9"},
+     {"name": "BBB_HODIM9_Y", "pay_type": "PER_UNIT", "per_unit_type": "metr"})
+# create_employee joriy oy uchun tarix yozuvini o'zi ochadi; bir oy uchun
+# bitta yozuv (dizayn) — shuning uchun 2026-09 yozuvi YANGILANGANI tekshiriladi.
+db.rollback()
+_hist9 = db.execute(_text9(f"SELECT pay_type, per_unit_rate, reason FROM {_ECH9.__tablename__} "
+                           "WHERE employee_id = :e AND effective_year = 2026 AND effective_month = 9"),
+                    {"e": B_E9}).mappings().all()
+check("  \u21b3 hodim to'lov tarixi (2026-09) yangi to'lov turi va sabab bilan yozildi",
+      len(_hist9) == 1 and _hist9[0]["pay_type"] == "PER_UNIT"
+      and float(_hist9[0]["per_unit_rate"]) == 1500.0 and _hist9[0]["reason"] == "sinov9",
+      f"{[dict(x) for x in _hist9]} | yozuvlar soni {_h0_9} -> {_extra9('em', B_E9)}")
+_ok9("projects.html: tahrir formasi", "pr", B_P9, f"/api/projects/{B_P9}",
+     {"client_name": "BBB_MIJOZ9_Y", "client_phone": None, "project_name": "BBB_L9_Y",
+      "client_address": None, "total_budget": 1500000, "status": "ACTIVE", "notes": None},
+     {"project_name": "BBB_L9_Y", "client_name": "BBB_MIJOZ9_Y", "status": "ACTIVE"})
+_ok9("projects.html: yakunlash", "pr", B_P9, f"/api/projects/{B_P9}",
+     {"status": "COMPLETED"}, {"status": "COMPLETED"})
+_ok9("suppliers.html: forma", "sp", B_S9, f"/api/suppliers/{B_S9}",
+     {"name": "BBB_TAM9_Y", "phone": None, "notes": None}, {"name": "BBB_TAM9_Y"})
+
 # ══════════════════════════════════════════════════════════════
 print("\n" + "=" * 66)
 print(f"NATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
