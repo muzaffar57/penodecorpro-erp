@@ -5307,7 +5307,12 @@ async function deleteSelected() {
         location.reload();
       }
     } else {
-      showMsg('❌ Xato yuz berdi', 'error');
+      // 17d (2026-09-21): server sababi ko'rsatiladi (masalan "'actual_loy_kg'
+      // manfiy bo'lishi mumkin emas") — ilgari faqat "Xato yuz berdi".
+      const det = d && d.detail;
+      const sabab = (typeof det === 'string' && det) ? det
+                  : ((det && typeof det.message === 'string') ? det.message : 'Xato yuz berdi');
+      showMsg('❌ ' + sabab, 'error');
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
 }

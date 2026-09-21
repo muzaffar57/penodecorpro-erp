@@ -267,7 +267,7 @@
   <div style="background:#fff;border-radius:16px;padding:24px;width:380px;max-width:100%">
     <div style="font-size:16px;font-weight:700;margin-bottom:16px">+ Yangi doimiy majburiyat</div>
     <div class="form-group"><label>Belgi (emoji, ixtiyoriy)</label><input type="text" id="cat-icon" placeholder="📦" maxlength="2" style="width:60px"></div>
-    <div class="form-group"><label>Nomi</label><input type="text" id="cat-label" placeholder="Masalan: Kommunal xizmatlar"></div>
+    <div class="form-group"><label>Nomi</label><input type="text" id="cat-label" placeholder="Masalan: Kommunal xizmatlar" maxlength="60"></div>
     <div class="form-group"><label>Har oy to'lanishi kerak (so'm)</label><input type="text" id="cat-target" placeholder="0" oninput="formatPriceInput(this)"></div>
     <div class="form-group"><label>Har oy nechinchi sanagacha</label><input type="number" id="cat-dueday" value="5" min="1" max="28"></div>
     <div style="display:flex;gap:8px;margin-top:14px">
@@ -335,18 +335,44 @@ function openAddCategoryModal(){
 }
 function closeAddCategoryModal(){ document.getElementById('addCategoryModal').style.display = 'none'; }
 
+// 17d (2026-09-21): kategoriya kodi nomdan avtomatik yasaladi (lotin /
+// kirill harflar, bo'shliqsiz) va oxiriga 4 raqam qo'shiladi. Bazada kod
+// ustuni 30 belgi — ilgari 25 belgidan uzun nom (masalan "Kommunal
+// tolovlar va boshqa xarajat") 40 belgili kod berib, server 500 qaytarardi
+// va hech narsa saqlanmasdi (JONLI O'LCHANGAN). Endi asos 25 belgigacha
+// qisqartiriladi: 25 + '_' + 4 = 30. Nom o'zi (60 belgigacha) to'liq saqlanadi.
+function majburiyatKodi(label, vaqt) {
+  let asos = String(label || '').toLowerCase()
+    .replace(/[^a-z0-9а-яёʻʼ]+/gi, '_').replace(/^_+|_+$/g, '');
+  asos = asos.slice(0, 25).replace(/_+$/g, '');
+  if (!asos) asos = 'xarajat';
+  return asos + '_' + String(vaqt).slice(-4);
+}
+
+// 17d: server yuborgan SABABNI o'qish (`suppliers.html` dagi 21-band
+// naqshi) — `detail` matn bo'lsa o'zi, obyekt bo'lsa `detail.message`.
+// Ilgari har qanday xatoda faqat "Xato yuz berdi" chiqardi.
+async function serverSababi(res, standart) {
+  let sabab = standart || 'Xato';
+  try {
+    const d = await res.json();
+    if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+    else if (d && d.detail && typeof d.detail.message === 'string') sabab = d.detail.message;
+  } catch(e) {}
+  return sabab;
+}
+
 async function saveNewCategory(){
   const label = document.getElementById('cat-label').value.trim();
   const target = parseNum(document.getElementById('cat-target').value);
   const dueDay = parseInt(document.getElementById('cat-dueday').value) || 5;
   const icon = document.getElementById('cat-icon').value.trim() || '📦';
   if (!label || !target) { alert("Nom va summani to'ldiring"); return; }
-  // Kategoriya kodini nomdan avtomatik yasaymiz (lotin harflarga, bo'shliqsiz)
-  const category = label.toLowerCase().replace(/[^a-z0-9а-яёʻʼ]+/gi, '_').replace(/^_+|_+$/g, '') + '_' + Date.now().toString().slice(-4);
+  const category = majburiyatKodi(label, Date.now());
   try {
     const res = await fetch(`/api/obligations/recurring?category=${encodeURIComponent(category)}&label=${encodeURIComponent(label)}&monthly_target=${target}&icon=${encodeURIComponent(icon)}&due_day=${dueDay}`, {method:'POST'});
     if (res.ok) location.reload();
-    else alert('Xato yuz berdi');
+    else alert('❌ ' + await serverSababi(res, 'Xato yuz berdi'));
   } catch(e) { alert('Server xatosi'); }
 }
 
