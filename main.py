@@ -3488,6 +3488,12 @@ def api_coating_notify_with_loy(order_id: int, loy_kg: float, db: Session = Depe
 def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
                       confirm_shortage: bool = False,
                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # 2026-09-21 — TENANT (11-sizish): loyiha FAQAT joriy korxonadan.
+    # Buyurtmaning korxonasi loyihadan olinadi — begona loyiha = begona
+    # korxonada buyurtma va begona ombordan chiqim. Eng birinchi qator:
+    # yetishmovchilik tekshiruvlari ham begona loyiha uchun ishlamasin.
+    if not auth.project_of_company(db, order.project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     check = services.check_inventory_for_order(db, order, company_id=auth.company_id_of(current_user))
     # M4: tayyor mahsulot yetarliligi FAQAT joriy korxona ombori bo'yicha.
     fcheck = crud.check_finished_for_order(db, order.items,
@@ -3506,7 +3512,7 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
             "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
             "shortages": all_shortages
         })
-    new_order = crud.create_order(db, order)
+    new_order = crud.create_order(db, order, company_id=auth.company_id_of(current_user))
     is_draft = getattr(order, 'is_draft', False)
     if not is_draft:
         services.deduct_inventory_for_order(db, new_order)

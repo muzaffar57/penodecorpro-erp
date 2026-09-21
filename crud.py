@@ -1124,7 +1124,8 @@ def add_payment(db: Session, project_id: int, amount: float) -> Optional[Project
 # ORDER CRUD
 # ============================================================
 
-def create_order(db: Session, order_data: OrderCreate, performed_by: str = None) -> Order:
+def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
+                 company_id: int = None) -> Order:
     """Yangi buyurtma + detallar qo'shadi.
 
     Mantiq:
@@ -1137,6 +1138,22 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None)
     # ikkalasi bir xil raqamni olib qolishi mumkin — shu holatni xavfsiz
     # tarzda avtomatik qayta urinib, o'zi tuzatib qo'yadi.
     from sqlalchemy.exc import IntegrityError
+
+    # 2026-09-21 — TENANT (11-sizish). Buyurtmaning korxonasi LOYIHADAN
+    # olinadi (pastda `_company_id = _project.company_id`). Chaqiruvchi
+    # korxonasi berilsa, loyiha AYNAN shu korxonaniki bo'lishi shart —
+    # aks holda B A ning `project_id` sini yuborib, buyurtmani A
+    # korxonasida yaratar va A omboridan xomashyo ayirar edi (qo'riqchi
+    # ushlamasdi: buyurtma, detal, penoplast — hammasi "A niki").
+    # MUHIM: bu tekshiruv takroriy-yuborish himoyasidan va advisory
+    # qulfdan OLDIN turadi — aks holda B ga A ning yaqinda yaratilgan
+    # buyurtmasi (narxlari bilan) "dublikat" sifatida qaytib ketardi.
+    if company_id is not None:
+        if not db.query(Project.id).filter(
+                Project.id == order_data.project_id,
+                Project.company_id == company_id).first():
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
 
     # 2026-09-17 (audit topilmasi — haqiqiy, nozik xato): pastdagi
     # "so'nggi soniyalarda bir xil buyurtma bormi" tekshiruvi o'zi
