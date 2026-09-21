@@ -335,6 +335,21 @@ async function saveSupplier(){
   }catch(e){ err.style.display='block'; err.textContent='❌ Server xatosi'; }
 }
 
+// 21-band (2026-09-21): server yuborgan SABABNI o'qish — `detail` matn
+// bo'lsa o'zini, obyekt bo'lsa `detail.message` ni. JSON emas yoki ro'yxat
+// (FastAPI 422) — umumiy matn. Ilgari bu sahifadagi tugmalar har qanday
+// xatoda faqat "❌ Xato" derdi, ya'ni "Bu yetkazib beruvchida … qarz bor"
+// kabi aniq sabablarni foydalanuvchi KO'RMASDI.
+async function serverSababi(res, standart) {
+  let sabab = standart || 'Xato';
+  try {
+    const d = await res.json();
+    if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+    else if (d && d.detail && typeof d.detail.message === 'string') sabab = d.detail.message;
+  } catch(e) {}
+  return sabab;
+}
+
 async function deleteSupplier(id, debt){
   const s = suppliers.find(x => x.id === id);
   const name = s ? s.name : 'Bu yetkazib beruvchi';
@@ -351,7 +366,7 @@ async function deleteSupplier(id, debt){
     try {
       const res = await fetch(`/api/suppliers/${id}?force=true`, { method: 'DELETE' });
       if (res.ok) { showMsg('✓ O\'chirildi', 'success'); loadSuppliers(); }
-      else showMsg('❌ Xato', 'error');
+      else showMsg('❌ ' + (await serverSababi(res)), 'error');
     } catch(e) { showMsg('❌ Server xatosi', 'error'); }
     return;
   }
@@ -361,7 +376,7 @@ async function deleteSupplier(id, debt){
   try {
     const res = await fetch(`/api/suppliers/${id}`, { method: 'DELETE' });
     if (res.ok) { showMsg('✓ O\'chirildi', 'success'); loadSuppliers(); }
-    else showMsg('❌ Xato', 'error');
+    else showMsg('❌ ' + (await serverSababi(res)), 'error');
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
@@ -800,10 +815,22 @@ async function editPurchase(id, qty, price, isCredit) {
   const newPrice = parseFloat(newPriceStr);
   if (!newPrice || newPrice <= 0) { showMsg('❌ Noto\'g\'ri narx', 'error'); return; }
 
+  // 21-band (2026-09-21): ilgari bu oyna "ombordagi joriy miqdor
+  // o'zgarmaydi, kerak bo'lsa Omborxonada o'zingiz to'g'rilang" derdi.
+  // Bu, o'chirish bilan BIRGA ishlatilganda, ombordan yo'qdan miqdor
+  // yaratardi (server o'chirishda YOZUVDAGI miqdorni ayiradi). Endi
+  // server miqdor FARQINI omborga qo'llaydi — oyna ham shuni aytadi.
+  const farq = newQty - qty;
+  const farqMatn = Math.abs(farq) < 1e-9
+    ? "Miqdor o'zgarmadi — omborga ta'sir qilmaydi."
+    : (farq > 0
+        ? `Ombordagi qoldiq ${farq} ga KO'PAYADI.`
+        : `Ombordagi qoldiq ${Math.abs(farq)} ga KAMAYADI (qoldiq manfiyga ` +
+          `tushishi mumkin — keyingi kirimda qoplanadi).`);
   if (!(await customConfirm(
     "Tarixiy yozuv yangilanadi va qarz hisobi qayta hisoblanadi.\n\n" +
-    "⚠️ DIQQAT: Ombordagi joriy miqdor va o'rtacha narxga TA'SIR QILMAYDI " +
-    "(agar kerak bo'lsa Omborxonada qo'lda tuzating).\n\nDavom etilsinmi?"
+    "⚠️ " + farqMatn + " O'rtacha narx o'zgarmaydi.\n\nDavom etilsinmi?",
+    {danger: Math.abs(farq) > 1e-9}
   ))) return;
 
   if (inFlightPurchaseEdit.has(id)) return; // Ikki marta bosishdan himoya
@@ -818,7 +845,10 @@ async function editPurchase(id, qty, price, isCredit) {
       showMsg('✓ Yangilandi', 'success');
       openHistory(currentSupplierId, true);
       loadSuppliers();
-    } else showMsg('❌ Xato', 'error');
+    } else {
+      // 21-band: server sababini ko'rsatamiz (`serverSababi`).
+      showMsg('❌ ' + (await serverSababi(res)), 'error');
+    }
   } catch(e) { showMsg('❌ Server xatosi', 'error'); } finally {
     inFlightPurchaseEdit.delete(id);
   }
@@ -844,15 +874,9 @@ async function deletePurchase(id) {
       openHistory(currentSupplierId, true);
       loadSuppliers();
     } else {
-      // 20-band: server sababini ko'rsatamiz (`detail` matn yoki
-      // `detail.message`); JSON emas yoki ro'yxat (422) — umumiy matn.
-      let sabab = 'Xato';
-      try {
-        const d = await res.json();
-        if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
-        else if (d && d.detail && typeof d.detail.message === 'string') sabab = d.detail.message;
-      } catch(e2) {}
-      showMsg('❌ ' + sabab, 'error');
+      // 20-band: server sababini ko'rsatamiz (21-band da `serverSababi`
+      // yordamchisiga ko'chirildi — xulq AYNAN bir xil).
+      showMsg('❌ ' + (await serverSababi(res)), 'error');
     }
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
@@ -893,7 +917,7 @@ async function savePayment(confirmOverpay = false){
         await savePayment(true);
         return;
       }
-    } else showMsg('❌ Xato', 'error');
+    } else showMsg('❌ ' + (await serverSababi(res)), 'error');
   }catch(e){ showMsg('❌ Server xatosi', 'error'); } finally {
     isSavingSupplierPayment = false; setSupplierPayBtnSaving(false);
   }
