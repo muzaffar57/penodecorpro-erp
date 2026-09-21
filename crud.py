@@ -3718,7 +3718,7 @@ def get_return_stats(db: Session, company_id: int = None) -> dict:
     # hisoblaymiz (faqat "ishlab chiqarish braki" belgisi bilan — oddiy
     # "zaxiradan kamaytirish" bu yerga kirmaydi, u haqiqiy brak emas,
     # balki alohida yo'qotish turi).
-    _PROD_BRAK_MARKER = "Ishlab chiqarish jarayonida brak"
+    _PROD_BRAK_MARKER = _ISH_BRAK_BELGI
     # M4 (2026-09-18) — TENANT: bu so'rov korxona filtrisiz edi — B
     # korxonaning ishlab chiqarish braki A ning brak statistikasiga
     # qo'shilib ketardi.
@@ -5614,6 +5614,20 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
     }
 
 
+# 18-band (2026-09-21): "ishlab chiqarish braki" yozuvlarining sabab matni
+# SHU belgi bilan boshlanadi. Moliya (`services.get_monthly_report`,
+# `services.calculate_split_profit_report`) va `get_return_stats` ham aynan shu
+# boshlanish bo'yicha ajratadi — belgi o'zgarsa hammasi birga o'zgarishi
+# SHART (`tools/test_brak_bekor.py` G bo'limi buni qulflaydi).
+_ISH_BRAK_BELGI = "Ishlab chiqarish jarayonida brak"
+
+
+def _ish_brakimi(loss) -> bool:
+    """Yozuv "ishlab chiqarish braki" (mahsulot soniga tegmagan, xomashyo
+    sarflangan) mi — `record_finished_product_production_brak` yozgan."""
+    return (getattr(loss, "reason", None) or "").startswith(_ISH_BRAK_BELGI)
+
+
 def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = None,
                                  performed_by: str = None) -> dict:
     """Brak (yo'qotish) yozuvini BEKOR QILADI.
@@ -5639,6 +5653,21 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
     loss = q.first()
     if not loss:
         return {"success": False, "message": "Brak yozuvi topilmadi"}
+
+    # 18-band (2026-09-21, jonli o'lchandi): "ishlab chiqarish braki"
+    # mahsulot soniga TEGMAYDI, balki penoplast/loyni ombordan QO'SHIMCHA
+    # ayiradi; moliyadagi xarajati esa InventoryMovement ("Brak%") dan
+    # hisoblanadi, bu yozuvdan emas. Ilgari bu yerda uni ham oddiy brak
+    # kabi "bekor qilardi": mahsulot miqdori YO'QDAN oshardi (2 -> 2.1),
+    # tan narxi shishardi, penoplast omborga QAYTMASDI, xarajat moliyada
+    # QOLARDI — ya'ni bekor qilish hisobni tuzatmay, aksincha buzardi.
+    # Endi rad etiladi, hech narsa o'zgarmaydi. Korxona tekshiruvi
+    # YUQORIDA — begona yozuv baribir "topilmadi" (oracle yo'q).
+    if _ish_brakimi(loss):
+        return {"success": False, "kod": "ishlab_chiqarish_braki",
+                "message": ("Ishlab chiqarish brakini bu yo'l bilan bekor "
+                            "qilib bo'lmaydi — xomashyo ombordan allaqachon "
+                            "sarflangan, mahsulot soni esa o'zgarmagan edi")}
 
     qty = float(loss.quantity or 0)
     cost = float(loss.cost_amount or 0)
@@ -5804,7 +5833,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         quantity=brak_qty,
         unit=fp.unit,
         cost_amount=total_cost,
-        reason=f"Ishlab chiqarish jarayonida brak — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
+        reason=f"{_ISH_BRAK_BELGI} — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
                + (f". Izoh: {notes}" if notes else ""),
         created_by=created_by
     )

@@ -5751,6 +5751,12 @@ def api_delete_finished_loss(loss_id: int, db: Session = Depends(get_db),
     natija = crud.delete_finished_product_loss(
         db, loss_id, company_id=auth.company_id_of(current_user), performed_by=who)
     if not natija["success"]:
+        # 18-band: "ishlab chiqarish braki" — yozuv BOR (o'z korxonasida),
+        # lekin bekor qilish rad etiladi → 400 (UI `detail.message` ni
+        # o'qiydi). Qolgan hamma holat (yo'q / begona) — 404 (oracle yo'q).
+        if natija.get("kod") == "ishlab_chiqarish_braki":
+            raise HTTPException(status_code=400, detail={
+                "success": False, "message": natija["message"]})
         raise HTTPException(status_code=404, detail=natija["message"])
     return natija
 
