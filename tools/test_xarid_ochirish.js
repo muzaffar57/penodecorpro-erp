@@ -89,7 +89,17 @@ async function ishlat(javob, tasdiq = true) {
   const m = muhitYarat(javob, tasdiq);
   const f = olib('deletePurchase');
   if (!f) return { xato: 'topilmadi' };
-  try { vm.runInContext(f, m.ctx); } catch (e) { return { xato: 'sintaksis: ' + e.message }; }
+  // 21-band (2026-09-21): server sababini o'qish mantiqi `deletePurchase`
+  // ichidan `serverSababi` umumiy yordamchisiga ko'chirildi (sahifadagi
+  // 5 ta tugma endi bir xil ishlaydi). Xulq AYNAN bir xil — shuning
+  // uchun bu faylning tekshiruvlari O'ZGARMADI, faqat yordamchi ham
+  // muhitga yuklanadi. Topilmasa — yiqilgan tekshiruv (mutatsiya himoyasi).
+  const yordamchi = olib('serverSababi');
+  if (!yordamchi) return { xato: 'serverSababi topilmadi' };
+  try {
+    vm.runInContext(yordamchi, m.ctx);
+    vm.runInContext(f, m.ctx);
+  } catch (e) { return { xato: 'sintaksis: ' + e.message }; }
   try { await vm.runInContext('deletePurchase(55)', m.ctx); }
   catch (e) { return { xato: 'ishlashda: ' + e.message, m }; }
   return { xato: null, m };
