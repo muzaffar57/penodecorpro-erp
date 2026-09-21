@@ -150,16 +150,69 @@ def _tg_title(db, company_id, title):
     return f"🏗 *{nom} — {title}*" if nom else f"🏗 *{title}*"
 
 
+TG_TAGLINE_KEY = "tg_welcome_tagline"
+TG_TAGLINE_MAX = 150
+
+
+def _tg_tagline(db, company_id):
+    """Ustaga salom xabaridagi shior (2026-09-21, foydalanuvchi so'rovi).
+
+    Korxona sozlamada o'zi yozadi (Sozlamalar → Korxona brendi):
+      * kalit bor, matn bor  → aynan o'sha matn chiqadi;
+      * kalit bor, matn bo'sh → shior qatori UMUMAN chiqmaydi;
+      * kalit hech qachon yozilmagan → korxonaning "Shior" maydoni.
+    1-korxonaga ishga tushishda bir marta "Zamonaviy fasad dekorlari"
+    yozib qo'yiladi (eski qattiq matn) — keyin o'zi o'zgartiradi.
+    `company_id=None` da sozlama O'QILMAYDI: `crud.get_setting` korxonasiz
+    chaqirilsa ixtiyoriy korxonaning qatorini qaytaradi."""
+    shior = _tg_brand(db, company_id)[1]
+    if company_id is None:
+        return shior
+    try:
+        v = crud.get_setting(db, TG_TAGLINE_KEY, None, company_id=company_id)
+    except Exception:
+        v = None
+    return shior if v is None else (v or "").strip()
+
+
 def _tg_signature(db, company_id):
     """Ustaga salom xabari oxiri: "🏗 *Nom* — Shior" + "📍 Manzil".
     Bo'sh maydon qatori umuman yozilmaydi."""
-    nom, shior, manzil = _tg_brand(db, company_id)
+    nom, _sl, manzil = _tg_brand(db, company_id)
+    shior = _tg_tagline(db, company_id)
     qatorlar = []
     if nom:
         qatorlar.append(f"🏗 *{nom}*" + (f" — {shior}" if shior else ""))
     if manzil:
         qatorlar.append(f"📍 {manzil}")
     return "\n".join(qatorlar)
+
+
+def _tg_post_message(token, chat_id, text, reply_markup=None):
+    """sendMessage. Telegram Markdown ni rad etsa (HTTP 400 — "can't parse
+    entities") — o'sha matn parse_mode SIZ qayta yuboriladi.
+
+    2026-09-21: xabarlarga foydalanuvchi kiritgan matn (korxona nomi,
+    shior, mijoz/usta ismi, xomashyo nomi) qo'yiladi. Unda `*` yoki `_`
+    bo'lsa Telegram butun xabarni rad etardi va xabar jimgina yo'qolardi.
+    Endi bezaksiz bo'lsa ham, xabar YETIB BORADI. Boshqa xatolar (403,
+    tarmoq) — qayta urinilmaydi, chaqiruvchiga ko'tariladi."""
+    import urllib.error as _ue
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+    try:
+        req = urllib.request.Request(url, data=_json.dumps(payload).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        return urllib.request.urlopen(req, timeout=5)
+    except _ue.HTTPError as e:
+        if e.code != 400:
+            raise
+        payload.pop("parse_mode", None)
+        req = urllib.request.Request(url, data=_json.dumps(payload).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        return urllib.request.urlopen(req, timeout=5)
 
 
 def _send_telegram(text: str, company_id=None):
@@ -186,10 +239,7 @@ def _send_telegram(text: str, company_id=None):
         return
     for chat_id in chat_ids:
         try:
-            url  = f"https://api.telegram.org/bot{token}/sendMessage"
-            data = _json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}).encode("utf-8")
-            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=5)
+            _tg_post_message(token, chat_id, text)
             print(f"✓ Telegram xabar yuborildi ({chat_id})")
         except Exception as e:
             print(f"⚠ Telegram xabar yuborilmadi ({chat_id}): {e}")
@@ -203,10 +253,7 @@ def _send_telegram_to(chat_id: str, text: str, company_id=None):
         print("⚠ Telegram tokeni yo'q")
         return
     try:
-        url  = f"https://api.telegram.org/bot{token}/sendMessage"
-        data = _json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}).encode("utf-8")
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=5)
+        _tg_post_message(token, chat_id, text)
         print(f"✓ Telegram xabar yuborildi: {chat_id}")
     except Exception as e:
         print(f"⚠ Mijozga Telegram xabar yuborilmadi: {e}")
@@ -398,6 +445,42 @@ def _seed_default_company():
 
 
 _seed_default_company()
+
+
+def _seed_tg_tagline():
+    """2026-09-21: ustaga salomdagi shior endi sozlama (`tg_welcome_tagline`).
+
+    ENG ESKI korxonaga (PenoDecorPro) ESKI qattiq matn BIR MARTA yoziladi —
+    faqat kalit umuman yo'q bo'lsa. Shu bilan uning xabari o'zgarmaydi,
+    keyin foydalanuvchi sozlamadan istagan matnni yozadi. Kalit bor bo'lsa
+    (bo'sh bo'lsa ham — bu foydalanuvchi tanlovi) TEGILMAYDI.
+    Postgres ham, SQLite ham (ORM orqali) — shuning uchun alohida funksiya:
+    `_migrate_faza3_columns` faqat Postgresda ishlaydi va testda sinalmasdi.
+    Xatoni yutadi: ilovaning qolgan qismi baribir ishga tushishi kerak."""
+    try:
+        from database import SessionLocal as _SL
+        from production_models import Company as _Co
+        from models import CompanySetting as _CS
+        _d = _SL()
+        try:
+            eng_eski = _d.query(_Co.id).order_by(_Co.id).first()
+            if not eng_eski:
+                return
+            cid = eng_eski[0]
+            bor = _d.query(_CS).filter(_CS.company_id == cid,
+                                      _CS.key == "tg_welcome_tagline").first()
+            if bor is None:
+                _d.add(_CS(company_id=cid, key="tg_welcome_tagline",
+                           value="Zamonaviy fasad dekorlari"))
+                _d.commit()
+                print(f"✓ Korxona #{cid}: Telegram salom shiori yozildi")
+        finally:
+            _d.close()
+    except Exception as e:
+        print(f"⚠ Telegram salom shiori yozilmadi: {e}")
+
+
+_seed_tg_tagline()
 
 
 def _migrate_recipe_name_column():
@@ -4981,12 +5064,16 @@ def api_get_company(db: Session = Depends(get_db),
             "slogan": (getattr(row, "slogan", None) if row else None),
             "phone": (getattr(row, "phone", None) if row else None),
             "address": (getattr(row, "address", None) if row else None),
-            "logo_path": (getattr(row, "logo_path", None) if row else None)}
+            "logo_path": (getattr(row, "logo_path", None) if row else None),
+            # amaldagi qiymat (sozlama yoki shior) — interfeys shuni
+            # ko'rsatadi, saqlanganda xabar o'zgarmay qoladi
+            "tg_tagline": _tg_tagline(db, cid) if row else ""}
 
 
 @app.put("/api/settings/company")
 def api_set_company(name: str = Form(...), slogan: str = Form(None),
                     phone: str = Form(None), address: str = Form(None),
+                    tg_tagline: str = Form(None),
                     db: Session = Depends(get_db),
                     current_user=Depends(auth.admin_only)):
     """Korxona brendi: nomi, shiori, telefoni, manzili.
@@ -5018,6 +5105,16 @@ def api_set_company(name: str = Form(...), slogan: str = Form(None),
             raise HTTPException(status_code=400,
                                 detail=f"'{maydon}' juda uzun ({chegara} belgidan ko'p)")
         setattr(row, maydon, v or None)
+    # Ustaga salomdagi shior (2026-09-21). Interfeys uni DOIM yuboradi;
+    # bo'sh — "shior qatori chiqmasin". Maydonni umuman bilmaydigan eski
+    # chaqiruvchi (masalan skript) uchun — `None` kelsa ham bo'sh
+    # yoziladi, chunki FastAPI bo'sh maydonni ham `None` qiladi va ularni
+    # ajratib bo'lmaydi; interfeys amaldagi qiymatni oldindan yuklaydi.
+    _tl = (tg_tagline or "").strip()
+    if len(_tl) > TG_TAGLINE_MAX:
+        raise HTTPException(status_code=400,
+                            detail=f"'Telegram salom shiori' juda uzun ({TG_TAGLINE_MAX} belgidan ko'p)")
+    crud.set_setting(db, TG_TAGLINE_KEY, _tl, company_id=cid)
     db.commit()
     _clear_company_name_cache(cid)
     return {"status": "ok", "name": nom}
@@ -5107,7 +5204,10 @@ def api_get_telegram_bot(db: Session = Depends(get_db),
     chat = crud.get_setting(db, "telegram_chat_id", "", company_id=cid) or ""
     return {"configured": bool(tok),
             "token_hint": (("…" + tok[-4:]) if len(tok) >= 4 else ""),
-            "chat_id": chat}
+            "chat_id": chat,
+            # 9-sizish tuzatmasidan keyin o'z boti yo'q korxonaga xabar
+            # UMUMAN yuborilmaydi — umumiy bot faqat 1-korxonaniki
+            "uses_system_bot": cid == auth.DEFAULT_COMPANY_ID}
 
 
 @app.put("/api/settings/telegram-bot")
@@ -6167,10 +6267,8 @@ async def telegram_webhook(request: Request):
                           else "Botga xush kelibsiz!")
                        + "\n\nQuyidagi tugmalardan foydalaning:")
         try:
-            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
-            send_data = _json.dumps({"chat_id": chat_id, "text": welcome_msg, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
-            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=5)
+            _tg_post_message(os.environ.get('TELEGRAM_BOT_TOKEN', ''), chat_id,
+                             welcome_msg, reply_markup=keyboard)
         except Exception as e:
             print(f"Keyboard SMS xatosi: {e}")
         return {"ok": True}
@@ -6213,10 +6311,8 @@ async def telegram_webhook(request: Request):
         finally:
             db2.close()
         try:
-            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
-            send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
-            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=5)
+            _tg_post_message(os.environ.get('TELEGRAM_BOT_TOKEN', ''), chat_id,
+                             reply, reply_markup=keyboard)
         except Exception as e:
             _send_telegram_to(chat_id, reply)
         return {"ok": True}
@@ -6267,10 +6363,8 @@ async def telegram_webhook(request: Request):
         finally:
             db2.close()
         try:
-            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
-            send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
-            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=5)
+            _tg_post_message(os.environ.get('TELEGRAM_BOT_TOKEN', ''), chat_id,
+                             reply, reply_markup=keyboard)
         except Exception as e:
             _send_telegram_to(chat_id, reply)
         return {"ok": True}
