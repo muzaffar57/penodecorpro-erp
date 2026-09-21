@@ -49,8 +49,8 @@ K. Statik: marshrut turlari, 410 tanalari, sxema, UI (`debts.html` kod
 L. Sxema xatosi (422): tanada `Infinity`/`NaN` bo'lsa ham javob 422 (asl
    kodda FastAPI 422 javobining o'zi JSON ga yozilmay 500 berardi — har
    qanday marshrutda, masalan `agreed_amount`, xarajat `amount: -Infinity`).
-   ⚠ Xarajat `amount: +Infinity` bu yerda EMAS: sxemada faqat `ge=0`, u
-   SAQLANADI va Moliya tarixini buzadi — alohida 17e-band.
+   ⚠ Xarajat `amount: +Infinity` bu yerda EMAS — 17e-bandda tuzatildi
+   (`tools/test_xarajat_query.py`); 422 vositasi endi transport xarajati.
 
 ISHLATISH
 ---------
@@ -930,10 +930,15 @@ for label, url, raw in [
          json.dumps(tana("LQ_L2")).replace('"loy_kg": 10', '"loy_kg": NaN')),
         ("buyurtma loy_kg -Infinity", "/api/orders",
          json.dumps(tana("LQ_L3")).replace('"loy_kg": 10', '"loy_kg": -Infinity')),
-        ("xarajat amount -Infinity (sxema ge=0 rad etadi)", "/api/finance/transactions",
-         '{"category": "arenda", "amount": -Infinity}'),
-        ("xarajat amount NaN (ge=0 rad etadi)", "/api/finance/transactions",
-         '{"category": "arenda", "amount": NaN}')]:
+        # 17e (2026-09-22): vosita `/api/finance/transactions` dan
+        # `/api/transport-expenses` ga ko'chirildi — xarajat marshruti endi
+        # xom JSON ni o'zi tekshiradi va 400 beradi (`test_xarajat_query.py`).
+        # Bu yerda FAQAT 422-handler sinaladi: sxema (`gt=0`) rad etgan
+        # `-Infinity` / `NaN` javobi JSON ga yozilishi kerak.
+        ("transport amount -Infinity (sxema gt=0 rad etadi)", "/api/transport-expenses",
+         '{"amount": -Infinity, "notes": "LQ"}'),
+        ("transport amount NaN (gt=0 rad etadi)", "/api/transport-expenses",
+         '{"amount": NaN, "notes": "LQ"}')]:
     h0 = holat()
     r = req(c, "post", url, content=raw, headers={"Content-Type": "application/json"})
     try:
