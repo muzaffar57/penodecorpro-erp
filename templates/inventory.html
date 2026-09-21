@@ -566,7 +566,15 @@ async function saveChiqim() {
       body: JSON.stringify({quantity_change: -qty, reason: document.getElementById('chiqim-notes').value || null})
     });
     if(res.ok) { location.reload(); return; }
-    else invToast('Xato yuz berdi');
+    // 19-band: server sababini ko'rsatamiz (masalan "omborda 5 kg bor —
+    // 8 kg chiqim qilib bo'lmaydi"); ilgari faqat "Xato yuz berdi" edi.
+    let sabab = 'Xato yuz berdi';
+    try {
+      const d = await res.json();
+      if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+      else if (d && d.detail && typeof d.detail.message === 'string') sabab = d.detail.message;
+    } catch(e2) {}
+    invToast('❌ ' + sabab);
   } catch(e) { invToast('Server xatosi'); }
   isSavingChiqim = false;
   if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.textContent = 'Chiqim qilish'; }
