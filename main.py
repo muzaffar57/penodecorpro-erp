@@ -110,6 +110,58 @@ def _tenant_telegram(company_id=None):
     return env_token, [x.strip() for x in env_chats.split(",") if x.strip()]
 
 
+def _tg_brand(db, company_id):
+    """Telegram xabarlari uchun korxona brendi: (nom, shior, manzil).
+
+    2026-09-21 — BIZNES QARORI: boshqa korxonalarning xabarlarida
+    "🏗 PenoDecorPro — Andijon" CHIQMASLIGI kerak, har korxonaga faqat O'Z
+    nomi. Ilgari ~18 xabar matnida nom va manzil QATTIQ yozilgan edi.
+    Endi manba yagona — `company_brand.get_brand` (PDF lar ham undan oladi).
+    Qoida o'sha yerdagidek: korxona ma'lum-u maydon bo'sh bo'lsa — BO'SH
+    qoladi (platforma egasining manzili chiqmaydi). `company_id=None` —
+    tizim xabari, 1-korxona zaxira qiymatlari.
+    Hech qachon yiqilmaydi: baza o'qilmasa ham xabar yuborilishi kerak."""
+    try:
+        import company_brand as _cb
+        b = _cb.get_brand(db, company_id)
+        return ((b.get("name") or "").strip(), (b.get("slogan") or "").strip(),
+                (b.get("address") or "").strip())
+    except Exception:
+        return ("", "", "")
+
+
+def _tg_footer(db, company_id, bold=True, emoji="🏗", tail=None):
+    """Xabar oxiridagi imzo: "🏗 *Nom* — Manzil".
+
+    `tail` berilsa manzil o'rniga o'sha yoziladi ("🏗 *Nom* — Ali").
+    Manzil bo'sh bo'lsa " — ..." qismi UMUMAN yozilmaydi.
+    Nom ham topilmasa (baza xatosi) — bo'sh qator, begona nom emas."""
+    nom, _sl, manzil = _tg_brand(db, company_id)
+    if not nom:
+        return ""
+    n = f"*{nom}*" if bold else nom
+    dum = manzil if tail is None else tail
+    return f"{emoji} {n} — {dum}" if dum else f"{emoji} {n}"
+
+
+def _tg_title(db, company_id, title):
+    """Sarlavha: "🏗 *Nom — Yangi buyurtma*" (nom bo'lmasa — faqat sarlavha)."""
+    nom = _tg_brand(db, company_id)[0]
+    return f"🏗 *{nom} — {title}*" if nom else f"🏗 *{title}*"
+
+
+def _tg_signature(db, company_id):
+    """Ustaga salom xabari oxiri: "🏗 *Nom* — Shior" + "📍 Manzil".
+    Bo'sh maydon qatori umuman yozilmaydi."""
+    nom, shior, manzil = _tg_brand(db, company_id)
+    qatorlar = []
+    if nom:
+        qatorlar.append(f"🏗 *{nom}*" + (f" — {shior}" if shior else ""))
+    if manzil:
+        qatorlar.append(f"📍 {manzil}")
+    return "\n".join(qatorlar)
+
+
 def _send_telegram(text: str, company_id=None):
     token, _tenant_chats = _tenant_telegram(company_id)
     if not token:
@@ -2206,8 +2258,7 @@ def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db
             f"botimiz orqali istalgan vaqtda kuzatib\n"
             f"borishingiz mumkin. 📊\n\n"
             f"Ishlaringizda rivoj va baraka tilaymiz! 🌟\n\n"
-            f"🏗 *PenoDecorPro* — Zamonaviy fasad dekorlari\n"
-            f"📍 Andijon, O'zbekiston"
+            + _tg_signature(db, auth.company_id_of(current_user))
         )
         _send_telegram_to(str(tg_id).strip(), msg, company_id=auth.company_id_of(current_user))
     return new_master
@@ -2376,7 +2427,7 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
         if supplier:
             debt_info = crud.get_supplier_debt(db, data.supplier_id, company_id=auth.company_id_of(current_user))
             all_debt = sum(s["debt"] for s in crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user)))
-            paid_line = f"✅ Hoziroq to'landi: {fmt_money(paid_now)} so'm\\n" if paid_now > 0 else ""
+            paid_line = f"✅ Hoziroq to'landi: {fmt_money(paid_now)} so'm\n" if paid_now > 0 else ""
             msg = (
                 f"🚚 *Nasiya xarid qilindi*\n\n"
                 f"📦 {item.item_name}: {data.quantity:g} {item.unit} × {fmt_money(data.price_per_unit)}\n"
@@ -2385,7 +2436,7 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
                 f"\n🏪 Yetkazib beruvchi: *{supplier.name}*\n"
                 f"🔴 Shu hamkorga qarz: {fmt_money(debt_info['debt'])} so'm\n"
                 f"📊 Jami barcha qarz: {fmt_money(all_debt)} so'm\n\n"
-                f"🏗 *PenoDecorPro* — {who}"
+                + _tg_footer(db, auth.company_id_of(current_user), tail=who)
             )
             _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
@@ -3108,7 +3159,7 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
     if kam:
         msg += f"━━━ KAM QOLGANLAR ({len(kam)} ta) ━━━\n" + "\n".join(kam) + "\n\n"
     msg += f"━━━ YETARLI ({len(yetarli)} ta) ━━━\n" + "\n".join(yetarli)
-    msg += f"\n\n🏗 *PenoDecorPro* — Andijon"
+    msg += f"\n\n" + _tg_footer(db, auth.company_id_of(current_user))
     _send_telegram(msg, company_id=auth.company_id_of(current_user))
     return {"message": f"Ombor hisoboti yuborildi! ({len(items)} ta xomashyo)"}
 
@@ -3125,7 +3176,7 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
         deficit = min_q - qty
         emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
         lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
-    msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
+    msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
     _send_telegram(msg, company_id=auth.company_id_of(current_user))
     return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida SMS yuborildi!"}
 
@@ -3385,7 +3436,7 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
             deficit = min_q - qty
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
-        msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n*{new_order.order_number}* buyurtmadan keyin:\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
+        msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n*{new_order.order_number}* buyurtmadan keyin:\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
         _send_telegram(msg, company_id=auth.company_id_of(current_user))
     return new_order
 
@@ -3534,7 +3585,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
         ord_obj = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
         msg = (f"⚠️ *Ombor ogohlantirishlari!*\n\n*{ord_obj.order_number}* tahrirlangandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
-               + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon")
+               + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
         _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return result
@@ -3604,7 +3655,7 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
         # `create_order`/`update_order` da bir marta ayiriladi.
         if order.status != OrderStatus.DRAFT:
             msg = (
-                f"🏗 *PenoDecorPro — Yangi buyurtma*\n\n"
+                _tg_title(db, auth.company_id_of(current_user), "Yangi buyurtma") + "\n\n"
                 f"📋 Buyurtma: *{order.order_number}*\n"
                 f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
                 f"🧱 Loy tayyorlang: *{int(loy_kg)} kg*\n\n"
@@ -3640,7 +3691,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
     if order:
         if loy_kg and loy_kg > 0:
             msg = (
-                f"🏗 *PenoDecorPro — Buyurtma tayyor*\n\n"
+                _tg_title(db, auth.company_id_of(current_user), "Buyurtma tayyor") + "\n\n"
                 f"📋 Buyurtma: *{order.order_number}*\n"
                 f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
                 f"🧱 Ishlatilgan loy: *{int(loy_kg)} kg*\n\n"
@@ -3670,7 +3721,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
                         f"✅ *Buyurtmangiz to'liq yakunlandi!*\n\n"
                         f"📋 Buyurtma: *{order.order_number}*\n"
                         f"👤 Mijoz: {order.project.client_name}\n"
-                        f"🏗 PenoDecorPro — Andijon\n\n"
+                        f"{_tg_footer(db, auth.company_id_of(current_user), bold=False)}\n\n"
                         f"Barcha mahsulot to'liq topshirildi. Xarid uchun rahmat!\n"
                         f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                     )
@@ -3679,7 +3730,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
                         f"✅ *Buyurtmangiz tayyor!*\n\n"
                         f"📋 Buyurtma: *{order.order_number}*\n"
                         f"👤 Mijoz: {order.project.client_name}\n"
-                        f"🏗 PenoDecorPro — Andijon\n\n"
+                        f"{_tg_footer(db, auth.company_id_of(current_user), bold=False)}\n\n"
                         f"Buyurtmangizni olishingiz mumkin!\n"
                         f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                     )
@@ -5548,7 +5599,7 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTayyor mahsulot ishlab chiqarilgandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
-               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
+               + "\n━━━━━━━━━━━━━━━━━━━\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
         _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return result
@@ -5590,7 +5641,7 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
-               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
+               + "\n━━━━━━━━━━━━━━━━━━━\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
         _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return result
@@ -6104,9 +6155,17 @@ async def telegram_webhook(request: Request):
                 _send_telegram_to(chat_id, _amb)
                 return {"ok": True}
             keyboard = _master_bot_keyboard(db, master)
+            # 2026-09-21: bot — global (1-korxonaniki). Usta topilsa — uning
+            # korxonasi nomi, topilmasa — bot egasi (1-korxona) nomi.
+            _wh_cid = (getattr(master, "company_id", None) if master else None) \
+                or auth.DEFAULT_COMPANY_ID
+            _wh_nom = _tg_brand(db, _wh_cid)[0]
         finally:
             db.close()
-        welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro* bot ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
+        welcome_msg = ("Assalomu alaykum! 👋\n\n"
+                       + (f"*{_wh_nom}* bot ga xush kelibsiz!" if _wh_nom
+                          else "Botga xush kelibsiz!")
+                       + "\n\nQuyidagi tugmalardan foydalaning:")
         try:
             url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
             send_data = _json.dumps({"chat_id": chat_id, "text": welcome_msg, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
@@ -6130,7 +6189,8 @@ async def telegram_webhook(request: Request):
                 _send_telegram_to(chat_id, _amb)
                 return {"ok": True}
             if not master:
-                reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
+                reply = ("❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n"
+                         + _tg_footer(db, auth.DEFAULT_COMPANY_ID, bold=False, emoji="📞"))
             else:
                 # 2026-09-12: har doim ishlaydigan, yillik SOF FOYDADAN
                 # hisoblangan keshbek hisoboti (admin panelidagi "Ustalar
@@ -6141,7 +6201,7 @@ async def telegram_webhook(request: Request):
                 info = crud.get_master_yearly_cashback(
                     db, master.id, current_year,
                     company_id=getattr(master, "company_id", None))
-                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
+                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n" + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False)
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
@@ -6174,11 +6234,13 @@ async def telegram_webhook(request: Request):
                 _send_telegram_to(chat_id, _amb)
                 return {"ok": True}
             if not master:
-                reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
+                reply = ("❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n"
+                         + _tg_footer(db, auth.DEFAULT_COMPANY_ID, bold=False, emoji="📞"))
             else:
                 prog = crud.get_master_gift_period_progress(db, master.id)
                 if not prog["active"]:
-                    reply = "🎁 Hozircha faol sovg'a davri yo'q.\n\n🏗 PenoDecorPro — Andijon"
+                    reply = ("🎁 Hozircha faol sovg'a davri yo'q.\n\n"
+                             + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False))
                 else:
                     sales = prog["current_sales"]
                     reply = f"🎁 *Sovg'a davri — joriy holatingiz*\n\n👤 {master.name}\n━━━━━━━━━━━━━━━━━━━\n"
@@ -6192,7 +6254,8 @@ async def telegram_webhook(request: Request):
                             pct = max(0, min(100, round((progress / span) * 100))) if span > 0 else 0
                             reply += f"⬜ {t['gift_name']} — {pct}% (qolgan: {100-pct}%)\n"
                         prev_threshold = t["threshold_amount"]
-                    reply += f"━━━━━━━━━━━━━━━━━━━\n\n🏗 PenoDecorPro — Andijon"
+                    reply += ("━━━━━━━━━━━━━━━━━━━\n\n"
+                              + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False))
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
