@@ -1577,6 +1577,45 @@ try:
 except Exception as e:
     print(f"⚠ Hodim to'lov tarixi backfill xatosi: {e}")
 
+
+def _migrate_loyiha_tolangan_sinxron():
+    """17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan
+    bir marta tenglashtiradi.
+
+    Nima uchun: `total_paid` ilgari faqat oddiy buyurtma to'lovida
+    yangilanardi — yuk xati to'lovi, pul qaytarish, buyurtmani butunlay
+    o'chirish uni yangilamasdi, loyihaga "zaklat" esa to'lov yozuvisiz
+    qo'shilardi. Jonli sinov saytida PRJ-033: buyurtma to'liq to'langan
+    (2 560 000), loyiha kartasida "To'langan: 0". Endi har bir yo'l
+    `crud._loyiha_tolangan_yangila` ni chaqiradi; bu migratsiya esa ESKI
+    farqlarni tuzatadi.
+
+    IDEMPOTENT: faqat farq qiladigan qatorlar yangilanadi (ikkinchi
+    ishga tushishda 0 qator). Formula yordamchi bilan AYNAN bir xil —
+    loyiha buyurtmalaridagi barcha to'lovlar, loyiha korxonasi bo'yicha
+    qat'iy. PostgreSQL va SQLite da bir xil ishlaydi."""
+    from sqlalchemy import text   # main.py da modul darajasida import YO'Q
+    from database import engine
+    yigindi = (
+        "COALESCE((SELECT SUM(p.amount) FROM payments p "
+        "JOIN orders o ON o.id = p.order_id "
+        "WHERE o.project_id = projects.id "
+        "AND o.company_id = projects.company_id), 0)")
+    with engine.connect() as conn:
+        n = conn.execute(text(
+            f"UPDATE projects SET total_paid = {yigindi} "
+            f"WHERE COALESCE(total_paid, 0) <> {yigindi}")).rowcount
+        conn.commit()
+    if n:
+        print(f"✓ projects.total_paid to'lovlar bilan tenglashtirildi: {n} ta loyiha")
+    return n
+
+
+try:
+    _migrate_loyiha_tolangan_sinxron()
+except Exception as e:
+    print(f"⚠ Loyiha to'langan summasi sinxronlanmadi: {e}")
+
 app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False)
 
 # 2026-09-16: yangi, dinamik Production/MRP moduli — /api/production/... yo'llari
@@ -2248,14 +2287,22 @@ def api_projects_dashboard_stats(db: Session = Depends(get_db), current_user=Dep
 
 
 @app.post("/api/projects/{project_id}/payment")
-def api_add_payment(project_id: int, amount: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+def api_add_payment(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+    """17c (2026-09-21) — OLIB TASHLANGAN yo'l, foydalanuvchi qarori "1".
+
+    Bu marshrut loyihaga pulni TO'LOV YOZUVISIZ `total_paid` ga qo'shardi:
+    Moliyaga tushmasdi va keyingi buyurtma to'lovida izsiz o'chib ketardi
+    (O'LCHANGAN, `work/probe17c.py`). To'lov endi FAQAT buyurtma orqali
+    (`POST /api/payments`) qabul qilinadi. Marshrut butunlay o'chirilmadi —
+    brauzerda eski sahifa ochiq qolgan bo'lsa, foydalanuvchi jim 404/405
+    o'rniga ANIQ sababni ko'radi (410). Egalik tekshiruvi (404) BIRINCHI —
+    begona loyiha mavjudligi haqida hech narsa bildirilmaydi."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-    updated = crud.add_payment(db, project_id, amount)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-    return {"status": "ok", "total_paid": float(updated.total_paid)}
+    raise HTTPException(status_code=410, detail=(
+        "Loyihaga to'g'ridan-to'g'ri to'lov olib tashlandi — to'lovni "
+        "buyurtma orqali qo'shing (Buyurtmalar → To'lov)"))
 
 
 @app.get("/orders", response_class=HTMLResponse)
@@ -2731,23 +2778,27 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
 
 
 @app.post("/api/employees/{employee_id}/advance")
-def api_create_employee_advance(employee_id: int, amount: float, notes: Optional[str] = None,
+def api_create_employee_advance(employee_id: int, amount: Optional[str] = None,
+                                  notes: Optional[str] = None,
                                   adv_date: Optional[str] = None,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
-    adv_date — YYYY-MM-DD formatida, ixtiyoriy (berilmasa — bugungi sana)."""
+    adv_date — YYYY-MM-DD formatida, ixtiyoriy (berilmasa yoki bo'sh — bugungi sana).
+
+    17c (2026-09-21): `amount` MATN sifatida olinadi va `crud._clean_avans`
+    bilan QAT'IY o'qiladi (cheksizlik, NaN, manfiy, 0, sig'imdan katta —
+    400). Noto'g'ri sana endi JIMGINA bugunga aylanmaydi — 400."""
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
-    parsed_date = None
-    if adv_date:
-        try:
-            parsed_date = datetime.strptime(adv_date, "%Y-%m-%d")
-        except ValueError:
-            pass
-    adv = crud.create_employee_advance(db, employee_id, amount, notes,
-                                        given_by=current_user.full_name or current_user.username,
-                                        adv_date=parsed_date)
+    try:
+        toza = crud._clean_avans(amount, notes, adv_date)
+        adv = crud.create_employee_advance(db, employee_id, toza["amount"], toza["notes"],
+                                            given_by=current_user.full_name or current_user.username,
+                                            adv_date=toza["adv_date"])
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not adv:
         raise HTTPException(status_code=404, detail="Hodim topilmadi")
     return {"status": "ok", "id": adv.id}
@@ -2783,17 +2834,30 @@ def api_get_employee_adjustment(employee_id: int, year: int, month: int,
 
 
 @app.post("/api/employees/{employee_id}/monthly-adjustment")
-def api_set_employee_adjustment(employee_id: int, year: int, month: int,
-                                  reduction_amount: Optional[float] = None, reason: Optional[str] = None,
-                                  bonus_amount: Optional[float] = None, bonus_reason: Optional[str] = None,
+def api_set_employee_adjustment(employee_id: int, year: Optional[str] = None, month: Optional[str] = None,
+                                  reduction_amount: Optional[str] = None, reason: Optional[str] = None,
+                                  bonus_amount: Optional[str] = None, bonus_reason: Optional[str] = None,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Hodim uchun, shu oy uchun qo'lda kamaytirish va/yoki bonusni yozadi/yangilaydi/o'chiradi.
+
+    17c (2026-09-21): qiymatlar MATN sifatida olinadi va
+    `crud._clean_oylik_tuzatish` bilan QAT'IY o'qiladi — yil 2000–2100,
+    oy 1–12, summalar chekli va manfiy emas (400). 0 / bo'sh = o'chirish
+    (UI shunday ishlaydi) — SAQLANADI."""
     # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
-    """Hodim uchun, shu oy uchun qo'lda kamaytirish va/yoki bonusni yozadi/yangilaydi/o'chiradi."""
     who = current_user.full_name or current_user.username
-    crud.set_employee_monthly_adjustment(db, employee_id, year, month, reduction_amount, reason,
-                                          bonus_amount, bonus_reason, created_by=who)
+    try:
+        toza = crud._clean_oylik_tuzatish(year, month, reduction_amount, reason,
+                                          bonus_amount, bonus_reason)
+        crud.set_employee_monthly_adjustment(db, employee_id, toza["year"], toza["month"],
+                                              toza["reduction_amount"], toza["reason"],
+                                              toza["bonus_amount"], toza["bonus_reason"],
+                                              created_by=who)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok"}
 
 
@@ -3277,14 +3341,27 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
 
 
 @app.post("/api/suppliers/{supplier_id}/payment")
-def api_supplier_payment(supplier_id: int, data: schemas.SupplierPaymentCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_supplier_payment(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    # Egalik tekshiruvi TANA tekshiruvidan OLDIN — begona id uchun oracle yo'q.
     if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     who = current_user.full_name or current_user.username
-    data.supplier_id = supplier_id
+    # 17c (2026-09-21): xom JSON QAT'IY tekshiriladi (`crud._clean_val`).
+    # pydantic `true` ni 1 so'mga, `"5000"` ni 5000 ga JIMGINA o'girardi,
+    # `Infinity` ni esa o'tkazib yuborardi (O'LCHANGAN). `detail` — MATN:
+    # `suppliers.html` uni `serverSababi()` orqali ko'rsatadi.
+    try:
+        toza = crud._clean_val("SupplierPayment", data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    toza["supplier_id"] = supplier_id
+    data = schemas.SupplierPaymentCreate(**toza)
     try:
         p = crud.create_supplier_payment(db, data, paid_by=who, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     except crud.OverpaymentWarning as w:
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
@@ -4459,13 +4536,23 @@ def api_employee_obligation_timeline(employee_id: int, year: int, month: int, db
 
 
 @app.post("/api/obligations/employee/{employee_id}/close")
-def api_close_employee_debt(employee_id: int, year: int, month: int, amount: float,
+def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month: Optional[str] = None,
+                              amount: Optional[str] = None,
                               db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     # M5: xodim FAQAT joriy korxonadan (aks holda 404).
     if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
-    return services.close_employee_debt(db, employee_id, year, month, amount, paid_by=who)
+    # 17c (2026-09-21): qiymatlar QAT'IY o'qiladi (`crud._clean_oylik_yopish`)
+    # — ilgari 13-oy `datetime(...)` da 500 berardi, cheksiz summa avans
+    # sifatida saqlanib avanslar ro'yxatini buzardi.
+    try:
+        toza = crud._clean_oylik_yopish(year, month, amount)
+        return services.close_employee_debt(db, employee_id, toza["year"], toza["month"],
+                                            toza["amount"], paid_by=who)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/finance/cash-balance")

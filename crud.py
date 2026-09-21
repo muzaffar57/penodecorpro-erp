@@ -1301,15 +1301,40 @@ def get_projects_with_stats(db: Session, company_id: int = None) -> List:
     return projects
 
 
-def add_payment(db: Session, project_id: int, amount: float) -> Optional[Project]:
-    """Loyihaga zaklat (avans) qo'shish."""
-    db_project = db.query(Project).filter(Project.id == project_id).first()
-    if not db_project:
-        return None
-    db_project.total_paid = (float(db_project.total_paid or 0) + amount)
-    db.commit()
-    db.refresh(db_project)
-    return db_project
+def _loyiha_tolangan_yangila(db: Session, project) -> None:
+    """17c (2026-09-21): `Project.total_paid` ni HAQIQIY to'lovlardan qayta
+    hisoblaydi — loyiha buyurtmalaridagi BARCHA `Payment` yozuvlari
+    yig'indisi (qaytarilgan pulning manfiy yozuvi ham, yumshoq o'chirilgan
+    buyurtmaning to'lovlari ham — ular bazada qoladi va ilgari ham shu
+    formula bilan hisoblanardi).
+
+    NIMA UCHUN (O'LCHANGAN, `work/probe17c.py` va jonli sayt):
+      * `total_paid` ni faqat `create_payment` / `delete_payment`
+        yangilardi. Yuk xati orqali to'lov (`create_delivery`), pul
+        qaytarish (`mark_refunded`) va buyurtmani butunlay o'chirish (unga
+        bog'liq to'lovlar ham o'chadi) uni YANGILAMASDI. Jonli: PRJ-033
+        buyurtmasi to'liq to'langan (2 560 000), loyiha esa "To'langan: 0".
+      * Loyihaga to'g'ridan-to'g'ri "zaklat" (`add_payment`) to'lov
+        YOZUVISIZ `total_paid` ga qo'shilardi va keyingi buyurtma to'lovida
+        izsiz o'chib ketardi. Foydalanuvchi qarori "1" (2026-09-21):
+        bu yo'l OLIB TASHLANDI, to'lov faqat buyurtma orqali.
+    Endi `total_paid` — to'lovlar keshi, va uni o'zgartiradigan HAR BIR
+    yo'l shu yordamchini chaqiradi.
+
+    TENANT: yig'indi loyiha korxonasi bo'yicha QAT'IY cheklanadi (ota —
+    buyurtma — orqali; `Payment` da `company_id` yo'q). Sessiya
+    `autoflush=False` — shuning uchun avval `flush`.
+    Commit QILMAYDI — chaqiruvchining tranzaksiyasi ichida ishlaydi."""
+    if project is None:
+        return
+    from models import Payment as _Pay_lt
+    from sqlalchemy import func as _func_lt
+    db.flush()
+    jami = db.query(_func_lt.coalesce(_func_lt.sum(_Pay_lt.amount), 0)).join(
+        Order, Order.id == _Pay_lt.order_id).filter(
+        Order.project_id == project.id,
+        Order.company_id == project.company_id).scalar()
+    project.total_paid = round(float(jami or 0), 2)
 
 
 # ============================================================
@@ -2009,6 +2034,137 @@ def _json_son(key, value, bosh_mumkin, musbat, chegara=None):
     return v
 
 
+# ── 17c (2026-09-21): SO'ROV QATORIDAGI (query) sonlar ──────────────────
+# Pul miqdori URL ning o'zida keladigan marshrutlar (avans, oylik
+# tuzatish, oylik qarzini yopish) FastAPI `float` ga o'girilardi va
+# `inf` / `nan` / `-5` / `1e20` ni JIMGINA qabul qilardi (O'LCHANGAN,
+# `work/probe17c.py`): cheksiz avans avanslar ro'yxatini (500), cheksiz
+# bonus "Qarzdorlar" sahifasini (500) BUZARDI, manfiy bonus esa mavjud
+# bonusni jimgina o'chirardi. UI `parseFloat` / `parseNum` natijasini
+# to'g'ridan-to'g'ri URL ga qo'yadi — `Infinity` ham brauzerdan KELADI.
+# Shuning uchun marshrut qiymatni MATN sifatida oladi va bu yerda QAT'IY
+# o'qiladi: faqat oddiy o'nlik yozuv (`12`, `12.5`, `1e3`), boshqa hamma
+# narsa (`inf`, `Infinity`, `nan`, `true`, `12abc`, bo'sh — agar majburiy
+# bo'lsa) — `ValueError` (marshrut → 400, hech narsa yozilmaydi).
+_QUERY_SON_NAQSH = __import__("re").compile(
+    r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
+
+
+def _query_son(key, qiymat, bosh_mumkin, musbat, chegara=None):
+    """So'rov qatoridagi sonni QAT'IY o'qiydi. `qiymat` — marshrutdan MATN
+    (yoki `None`), crud ildizidan esa son ham bo'lishi mumkin (u holda
+    to'g'ridan-to'g'ri `_json_son`). Bo'sh matn — `None` kabi."""
+    if isinstance(qiymat, str):
+        q = qiymat.strip()
+        if q == "":
+            qiymat = None
+        elif not _QUERY_SON_NAQSH.match(q):
+            raise ValueError(f"'{key}' son bo'lishi kerak")
+        else:
+            qiymat = float(q)
+    return _json_son(key, qiymat, bosh_mumkin=bosh_mumkin, musbat=musbat,
+                     chegara=chegara)
+
+
+def _query_butun(key, qiymat, kichik, katta):
+    """So'rov qatoridagi MAJBURIY butun sonni `kichik`–`katta` oralig'ida
+    o'qiydi (yil, oy). Crud ildizidan `int` ham qabul qilinadi (`bool` —
+    yo'q)."""
+    if isinstance(qiymat, bool):
+        raise ValueError(f"'{key}' butun son bo'lishi kerak")
+    if isinstance(qiymat, str):
+        q = qiymat.strip()
+        if not q or not q.lstrip("+-").isdigit() or len(q) > 12:
+            raise ValueError(f"'{key}' butun son bo'lishi kerak")
+        qiymat = int(q)
+    if not isinstance(qiymat, int):
+        raise ValueError(f"'{key}' butun son bo'lishi kerak")
+    if qiymat < kichik or qiymat > katta:
+        raise ValueError(f"'{key}' {kichik}–{katta} oralig'ida bo'lishi kerak")
+    return qiymat
+
+
+def _query_matn(key, qiymat, uzunlik):
+    """Ixtiyoriy izoh matni: `None` / matn, `uzunlik` belgidan oshmasin."""
+    if qiymat is None:
+        return None
+    if not isinstance(qiymat, str):
+        raise ValueError(f"'{key}' matn bo'lishi kerak")
+    if len(qiymat) > uzunlik:
+        raise ValueError(f"'{key}' juda uzun ({uzunlik} belgidan ko'p)")
+    return qiymat
+
+
+# Yil oralig'i — `_clean_by_rules` dagi "sana" qoidasi bilan bir xil.
+_YIL_KICHIK, _YIL_KATTA = 2000, 2100
+
+
+def _clean_avans(amount, notes=None, adv_date=None) -> dict:
+    """17c: hodim avansi. `amount` — MUSBAT, chekli, `Numeric(12,2)` sig'imi
+    ichida; `notes` — matn (Text ustun, oqilona chegara); `adv_date` —
+    `YYYY-MM-DD` matni yoki `datetime`, bo'sh / `None` — bugun (UI sana
+    maydoni bo'sh bo'lsa `adv_date=` yuboradi — bu SAQLANADI).
+    Ilgari noto'g'ri sana (`abc`, `2026-13-45`) JIMGINA bugungi sanaga
+    aylanardi — avans boshqa oyga tushib, o'sha oy oyligi noto'g'ri
+    hisoblanardi (O'LCHANGAN)."""
+    toza = {
+        "amount": _query_son("amount", amount, bosh_mumkin=False, musbat=True,
+                             chegara=_ORDER_ITEM_MAX_MONEY),
+        "notes": _query_matn("notes", notes, _UPD_MATN_CHEGARA),
+        "adv_date": None,
+    }
+    if isinstance(adv_date, datetime):
+        sana = adv_date
+    elif adv_date is None or (isinstance(adv_date, str) and adv_date.strip() == ""):
+        sana = None
+    elif isinstance(adv_date, str):
+        try:
+            sana = datetime.strptime(adv_date.strip(), "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("'adv_date' YYYY-MM-DD ko'rinishidagi haqiqiy sana bo'lishi kerak")
+    else:
+        raise ValueError("'adv_date' YYYY-MM-DD ko'rinishidagi haqiqiy sana bo'lishi kerak")
+    if sana is not None and not (_YIL_KICHIK <= sana.year <= _YIL_KATTA):
+        raise ValueError(f"'adv_date' {_YIL_KICHIK}–{_YIL_KATTA} yillar oralig'ida bo'lishi kerak")
+    toza["adv_date"] = sana
+    return toza
+
+
+def _clean_oylik_tuzatish(year, month, reduction_amount=None, reason=None,
+                          bonus_amount=None, bonus_reason=None) -> dict:
+    """17c: hodimning oylik qo'lda kamaytirishi / bonusi.
+    `year` 2000–2100, `month` 1–12 (ilgari 13-oy, 0-oy, 1-yil, 99999-yil
+    yozilardi — hech bir hisobotda ko'rinmaydigan "yetim" yozuvlar).
+    Summalar — `None` (tegilmaydi), 0 (o'chiriladi — UI "Bo'sh/0 qoldirsangiz
+    o'chadi" deydi, bu SAQLANADI) yoki MUSBAT, chekli, sig'im ichida.
+    Manfiy summa ilgari mavjud bonusni JIMGINA o'chirardi — endi 400."""
+    return {
+        "year": _query_butun("year", year, _YIL_KICHIK, _YIL_KATTA),
+        "month": _query_butun("month", month, 1, 12),
+        "reduction_amount": _query_son("reduction_amount", reduction_amount,
+                                       bosh_mumkin=True, musbat=False,
+                                       chegara=_ORDER_ITEM_MAX_MONEY),
+        "reason": _query_matn("reason", reason, _UPD_MATN_CHEGARA),
+        "bonus_amount": _query_son("bonus_amount", bonus_amount,
+                                   bosh_mumkin=True, musbat=False,
+                                   chegara=_ORDER_ITEM_MAX_MONEY),
+        "bonus_reason": _query_matn("bonus_reason", bonus_reason, _UPD_MATN_CHEGARA),
+    }
+
+
+def _clean_oylik_yopish(year, month, amount) -> dict:
+    """17c: "Qarzdorlar" sahifasidagi hodim oylik qarzini yopish
+    (`services.close_employee_debt` — avans yozuvi yaratadi). `month` 13
+    ilgari `datetime(year, 13, …)` da 500 berardi; `amount` avans bilan bir
+    xil qoida (musbat, chekli, sig'im ichida)."""
+    return {
+        "year": _query_butun("year", year, _YIL_KICHIK, _YIL_KATTA),
+        "month": _query_butun("month", month, 1, 12),
+        "amount": _query_son("amount", amount, bosh_mumkin=False, musbat=True,
+                             chegara=_ORDER_ITEM_MAX_MONEY),
+    }
+
+
 # 2026-09-21 (14-band) — `setattr` sikllari: tahrir marshrutlari tanasi.
 # Material / tayyor mahsulot / usta / hodim / loyiha / ta'minotchi tahriri
 # tanadagi maydonni TEKSHIRUVSIZ yozardi (O'LCHANGAN, lokal va jonli):
@@ -2519,6 +2675,16 @@ def _val_rules():
             "inventory_id": ("id", False),
             "quantity_kg": ("son", False, True, son),
         },
+        # 17c (2026-09-21): ta'minotchiga to'lov — `suppliers.html` 906 va
+        # `supplier_receive.html` 518 AYNAN shu to'rt kalitni yuboradi.
+        # `supplier_id` tanada bo'lishi mumkin (UI yuboradi), lekin marshrut
+        # uni YO'L parametridan oladi.
+        "SupplierPayment": {
+            "supplier_id": ("id", True),
+            "amount": ("son", False, True, money),
+            "notes": ("matn", False, matn),
+            "confirm_overpay": ("bool", False),
+        },
         "RecipeBody": {
             "name": ("matn", True, 100),
             "batch_size_kg": ("son", True, True, son),
@@ -2547,6 +2713,8 @@ _VAL_MAJBURIY = {
     "Receipt": {"items": None},
     "RecipeIngredient": {"inventory_id": None, "quantity_kg": None},
     "RecipeBody": {"name": 1, "ingredients": None},
+    # 17c (2026-09-21)
+    "SupplierPayment": {"amount": None},
 }
 
 
@@ -3393,7 +3561,10 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
         # shuning uchun unga bog'liq to'lovlar ham — haqiqiy xizmat ko'rsatilmagani
         # sabab — buyurtma bilan BIRGA, avtomatik o'chiriladi.
         db.query(Payment).filter(Payment.order_id == order_id).delete()
+        _prj_do = db_order.project
         db.delete(db_order)
+        # 17c: o'chgan to'lovlar loyiha "To'langan" summasidan ham chiqadi.
+        _loyiha_tolangan_yangila(db, _prj_do)
         db.commit()
         log_activity(db, "deleted", "order", order_id, order_num, performed_by,
                      company_id=getattr(db_order, 'company_id', None))
@@ -3415,7 +3586,11 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
     )
     db.query(InventoryMovement).filter(InventoryMovement.order_id == order_id).update({"order_id": None})
     db.query(FinishedProduct).filter(FinishedProduct.from_order_id == order_id).update({"from_order_id": None})
+    _prj_pd = db_order.project
     db.delete(db_order)
+    # 17c: buyurtma bilan birga uning to'lovlari ham o'chadi (cascade) —
+    # loyiha "To'langan" summasi qayta hisoblanadi.
+    _loyiha_tolangan_yangila(db, _prj_pd)
     db.commit()
     log_activity(db, "permanently_deleted", "order", order_id, order_num, performed_by,
                  company_id=getattr(db_order, 'company_id', None))
@@ -3867,6 +4042,10 @@ def mark_refunded(db: Session, return_id: int, refunded_by: str = None) -> Optio
             notes=f"Qaytarilgan mahsulot uchun pul qaytarildi: {item.item_name} ({item.quantity} {item.unit})"
         )
         db.add(payment)
+        # 17c: manfiy to'lov loyiha "To'langan" summasiga ham tushadi —
+        # ilgari tushmasdi (`total_paid` faqat create/delete_payment da
+        # yangilanardi).
+        _loyiha_tolangan_yangila(db, order.project)
 
     item.is_refunded = True
     db.commit()
@@ -4105,13 +4284,8 @@ def create_payment(db: Session, payment_data: PaymentCreate,
     db.refresh(order)
     _update_order_payment_status(db, order)
 
-    # Loyihaning to'langan summasini yangilash
-    project = order.project
-    if project:
-        project.total_paid = sum(
-            sum(float(p.amount or 0) for p in (o.payments or []))
-            for o in (project.orders or [])
-        )
+    # Loyihaning to'langan summasini yangilash (17c: yagona yordamchi)
+    _loyiha_tolangan_yangila(db, order.project)
 
     db.commit()
     db.refresh(db_payment)
@@ -4173,12 +4347,8 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None,
     if order:
         db.refresh(order)
         _update_order_payment_status(db, order)
-        project = order.project
-        if project:
-            project.total_paid = sum(
-                sum(float(p.amount or 0) for p in (o.payments or []))
-                for o in (project.orders or [])
-            )
+        # 17c: yagona yordamchi
+        _loyiha_tolangan_yangila(db, order.project)
 
     db.commit()
     return True
@@ -5500,6 +5670,10 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
             db.flush()
             db.refresh(order)
             _update_order_payment_status(db, order)
+            # 17c (2026-09-21): yuk xati to'lovi loyiha "To'langan"
+            # summasini YANGILAMASDI — jonli PRJ-033 da aynan shu topildi
+            # (buyurtma to'liq to'langan, loyiha "To'langan: 0").
+            _loyiha_tolangan_yangila(db, order.project)
         except Exception as e:
             # Yetkazish saqlanishida davom etadi (ma'lumot yo'qolmasligi uchun),
             # lekin xato albatta logga yoziladi va foydalanuvchiga aniq ogohlantirish qaytariladi —
@@ -7541,6 +7715,14 @@ def set_employee_monthly_adjustment(db: Session, employee_id: int, year: int, mo
     Ikkalasi ham 0/bo'sh bo'lsa — yozuv butunlay o'chiriladi (endi kerak emas)."""
     from models import EmployeeMonthlyAdjustment
 
+    # 17c (2026-09-21): ILDIZ tekshiruvi — yil/oy oralig'i, summalar chekli
+    # va manfiy emas (manfiy ilgari mavjud yozuvni JIMGINA o'chirardi).
+    toza = _clean_oylik_tuzatish(year, month, reduction_amount, reason,
+                                 bonus_amount, bonus_reason)
+    year, month = toza["year"], toza["month"]
+    reduction_amount, reason = toza["reduction_amount"], toza["reason"]
+    bonus_amount, bonus_reason = toza["bonus_amount"], toza["bonus_reason"]
+
     existing = get_employee_monthly_adjustment(db, employee_id, year, month)
 
     new_reduction = float(reduction_amount) if reduction_amount is not None else float(existing.reduction_amount or 0) if existing else 0
@@ -7580,12 +7762,17 @@ def create_employee_advance(db: Session, employee_id: int, amount: float, notes:
     avans kechroq kiritilgan, lekin haqiqatda boshqa kunda berilgan bo'lsa)."""
     from models import EmployeeAdvance
 
+    # 17c (2026-09-21): ILDIZ tekshiruvi — marshrut chetlab o'tilsa ham
+    # (`services.close_employee_debt`, ichki chaqiruvlar) cheksiz / manfiy /
+    # sig'imdan katta avans yoki noto'g'ri sana yozilmaydi (`ValueError`).
+    toza = _clean_avans(amount, notes, adv_date)
     emp = db.query(Employee).filter(Employee.id == employee_id).first()
     if not emp:
         return None
-    adv = EmployeeAdvance(employee_id=employee_id, amount=amount, notes=notes, given_by=given_by)
-    if adv_date:
-        adv.date = adv_date
+    adv = EmployeeAdvance(employee_id=employee_id, amount=toza["amount"],
+                          notes=toza["notes"], given_by=given_by)
+    if toza["adv_date"]:
+        adv.date = toza["adv_date"]
     db.add(adv)
     db.commit()
     db.refresh(adv)
@@ -9065,6 +9252,11 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
 def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None,
                             company_id: int = None) -> SupplierPayment:
     """Yetkazib beruvchiga to'lov — bir nechta xaridni birdaniga yopishi mumkin."""
+    # 17c (2026-09-21): ILDIZ tekshiruvi — pydantic `Field(gt=0)` cheksizlik
+    # (`Infinity`, ortiqcha to'lov tasdig'i bilan SAQLANARDI va ta'minotchilar
+    # hamda qarzdorlar sahifalarini buzardi), `true` (→ 1 so'm), `"5000"`
+    # matni va sig'imdan katta summani o'tkazib yuborardi (O'LCHANGAN).
+    _clean_val("SupplierPayment", _val_dump(data, "SupplierPayment"))
     # M6 — TENANT: to'lov faqat SHU korxona ta'minotchisiga yozilishi mumkin.
     if company_id is not None:
         if not db.query(Supplier).filter(
