@@ -2296,10 +2296,33 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     _dp_end = _dt2(year + 1, 1, 1) if month == 12 else _dt2(year, month + 1, 1)
     # 2026-09-18 — TENANT (o'sha validatsiyada topilgan ikkinchi so'rov):
     # ishlab chiqarilgan miqdorlar ham korxona filtrisiz o'qilardi.
+    #
+    # 22-band (2026-09-21, FOYDALANUVCHI QARORI "2") — O'LCHANGAN
+    # (`work/probe22.py`). Ilgari bu so'rov mahsulot holatini UMUMAN
+    # ko'rmasdi va oyni `created_at` (ishlab chiqarishga QO'YILGAN sana)
+    # bo'yicha ajratardi. Natijada ikki xato bor edi:
+    #   (a) hali JARAYONDAGI (IN_PROGRESS), ya'ni qoplanmagan mahsulot ham
+    #       darhol qoplamachi bonusiga kirardi (10 metr → +10 000 so'm,
+    #       "Tayyor" bosilganda esa bonus BOSHQA o'zgarmasdi — demak haq
+    #       ish bitgani uchun emas, ish BOSHLANGANI uchun to'lanardi);
+    #   (b) avgustda boshlanib sentyabrda tayyor bo'lgan mahsulot
+    #       AVGUST oyiga tushardi (o'lchandi: avgust bonusi 7 000) —
+    #       ya'ni yopilgan oyning hisoboti keyin o'zgarib ketardi.
+    # Endi: FAQAT "Sotuvga tayyor" (READY) mahsulot hisoblanadi va u
+    # TAYYOR BO'LGAN oyga tushadi (`finished_production_at`). Eski
+    # yozuvlarda bu ustun bo'sh bo'lishi mumkin (u 2026-09 da qo'shilgan)
+    # — o'shalar uchun `created_at` ga qaytiladi, shunda tarix buzilmaydi.
+    #
+    # Bu — buyurtmalar bilan ham SIMMETRIK: yuqoridagi tsikl buyurtma
+    # detallarini faqat buyurtma "Tayyor" (READY) bo'lgan va shu oyda
+    # yakunlangan (`completed_at`) holatda qo'shadi.
+    _tayyor_sana = func.coalesce(FinishedProduct.finished_production_at,
+                                 FinishedProduct.created_at)
     _dpq = db.query(FinishedProduct).filter(
         FinishedProduct.source == StockSource.PRODUCED,
-        FinishedProduct.created_at >= _dp_start,
-        FinishedProduct.created_at < _dp_end
+        FinishedProduct.production_status == ProductionStatus.READY,
+        _tayyor_sana >= _dp_start,
+        _tayyor_sana < _dp_end
     )
     if company_id is not None:
         _dpq = _dpq.filter(FinishedProduct.company_id == company_id)
