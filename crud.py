@@ -1372,6 +1372,12 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
 
+    # 17d (2026-09-21): rejalashtirilgan loy (kg) — HECH NARSA yozilishidan
+    # OLDIN tekshiriladi. O'LCHANGAN: `loy_kg: Infinity` → loy xomashyosi
+    # qoldig'i −∞, `1e20` → −5×10¹⁹, `true` → 1 kg. Sxema (pydantic) ham
+    # rad etadi — bu ildiz to'sig'i sxemani chetlab chaqirilganda ishlaydi.
+    _json_loy("loy_kg", getattr(order_data, 'loy_kg', None))
+
     # 2026-09-17 (audit topilmasi — haqiqiy, nozik xato): pastdagi
     # "so'nggi soniyalarda bir xil buyurtma bormi" tekshiruvi o'zi
     # ATOMIK EMAS edi — ikkita so'rov AYNAN BIR VAQTDA kelsa (masalan
@@ -2162,6 +2168,81 @@ def _clean_oylik_yopish(year, month, amount) -> dict:
         "month": _query_butun("month", month, 1, 12),
         "amount": _query_son("amount", amount, bosh_mumkin=False, musbat=True,
                              chegara=_ORDER_ITEM_MAX_MONEY),
+    }
+
+
+# ── 17d (2026-09-21): LOY miqdori va doimiy majburiyat ──────────────────
+# O'LCHANGAN (`work/probe17d.py`, har prob alohida toza bazada, asl kod =
+# kech19): buyurtmaning loy miqdori 7 marshrutda URL da keladi va FastAPI
+# `float` uni tekshiruvsiz o'tkazardi:
+#   * `inf` → loy xomashyosi qoldig'i −Infinity SAQLANARDI, buyurtma
+#     kartasi (`/api/orders/{id}`) va "Qarzdorlar" / biznes-salomatlik
+#     sahifalari 500 (`/ready` va `PUT /loy` javobi 500 bo'lsa ham qiymat
+#     yozilib qolardi; `DELETE` esa 200 qaytarib buyurtmani o'chirardi);
+#   * manfiy reja / haqiqiy loy → omborga olinganidan KO'P qaytarilardi
+#     (5 kg olingan, −5 bilan 7.5 kg qaytdi);
+#   * `1e20` → qoldiq −5×10¹⁹; `nan` → `PUT /api/orders/{id}` detallarni
+#     saqlab bo'lgach 500 (yarim yozuv); `1_000` → 1000.
+# Tanadagi `loy_kg` (buyurtma yaratish) ham: `Infinity` → −∞, `true` → 1 kg,
+# `"5"` → 5 kg. Loy — og'irlik (kg): manfiy EMAS, chekli, `_UPD_SON_CHEGARA`
+# dan katta emas (17a `Produce.loy_kg` bilan bir xil chegara). 0 — ruxsat
+# ("loy yo'q" / rejani bekor qilish).
+def _query_loy(key, qiymat, bosh_mumkin):
+    """So'rov qatoridagi loy miqdori (kg) — MATN (marshrutdan) yoki son
+    (crud ildizidan). `bosh_mumkin` bo'lsa bo'sh / `None` → `None`."""
+    return _query_son(key, qiymat, bosh_mumkin=bosh_mumkin, musbat=False,
+                      chegara=_UPD_SON_CHEGARA)
+
+
+def _json_loy(key, qiymat):
+    """Tanadagi (JSON) ixtiyoriy loy miqdori: `None` yoki haqiqiy son.
+    Matn (`"5"`) va `true` RAD etiladi — `_query_son` matnni o'qirdi."""
+    return _json_son(key, qiymat, bosh_mumkin=True, musbat=False,
+                     chegara=_UPD_SON_CHEGARA)
+
+
+# `recurring_obligations` ustunlari: category String(30), label String(60),
+# icon String(10). PostgreSQL uzun matnni RAD etadi → 500 (JONLI O'LCHANGAN:
+# `debts.html` kodni nomdan yasaydi — 35 belgili nom → 40 belgili kod → 500,
+# hech narsa saqlanmadi). `monthly_target`: `inf` → "Qarzdorlar" sahifasi
+# va majburiyatlar ro'yxati 500; `nan` → NULL; manfiy / 0 / 1e20 qabul.
+# `due_day` (oyning nechanchi kuni): 0, −3, 32, 99999 qabul qilinardi.
+_MAJBURIYAT_KOD_MAX = 30
+_MAJBURIYAT_NOM_MAX = 60
+_MAJBURIYAT_BELGI_MAX = 10
+
+
+def _clean_majburiyat(category, label, monthly_target, icon=None, due_day=None) -> dict:
+    """17d: doimiy majburiyat (`POST /api/obligations/recurring`).
+    `category` — 1–30 belgi, `label` — 1–60 belgi (bo'sh / faqat bo'shliq —
+    yo'q), `icon` — 0–10 belgi (bo'sh → 📦), `monthly_target` — MUSBAT
+    (UI 0 ni o'zi rad etadi), chekli, `Numeric(12,2)` sig'imi ichida,
+    `due_day` — 1–31 (bo'sh → 5, UI ham shunday qiladi)."""
+    def _matn(key, v, uzunlik, majburiy):
+        if v is None:
+            if majburiy:
+                raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+            return None
+        if not isinstance(v, str):
+            raise ValueError(f"'{key}' matn bo'lishi kerak")
+        v = v.strip()
+        if majburiy and not v:
+            raise ValueError(f"'{key}' bo'sh bo'lishi mumkin emas")
+        if len(v) > uzunlik:
+            raise ValueError(f"'{key}' juda uzun ({uzunlik} belgidan ko'p)")
+        return v
+
+    kun = due_day
+    if kun is None or (isinstance(kun, str) and kun.strip() == ""):
+        kun = 5
+    return {
+        "category": _matn("category", category, _MAJBURIYAT_KOD_MAX, True),
+        "label": _matn("label", label, _MAJBURIYAT_NOM_MAX, True),
+        "icon": _matn("icon", icon, _MAJBURIYAT_BELGI_MAX, False) or "📦",
+        "monthly_target": _query_son("monthly_target", monthly_target,
+                                     bosh_mumkin=False, musbat=True,
+                                     chegara=_ORDER_ITEM_MAX_MONEY),
+        "due_day": _query_butun("due_day", kun, 1, 31),
     }
 
 
@@ -5456,6 +5537,15 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
 def update_order_loy(db: Session, order_id: int, new_loy: float) -> dict:
     """Loy rejasini o'zgartiradi — ombor farq bo'yicha to'g'rilanadi."""
     import services
+
+    # 17d (2026-09-21): yangi reja OMBORGA TEGILISHIDAN oldin tekshiriladi
+    # (`adjust_loy_diff` xomashyoni darhol o'zgartiradi va commit qiladi).
+    # O'LCHANGAN: `inf` → qoldiq −∞ va buyurtma kartasi 500; manfiy reja →
+    # omborga olinganidan KO'P qaytardi (5 kg olingan, −5 bilan 7.5 qaytdi).
+    try:
+        new_loy = _query_loy("loy_kg", new_loy, bosh_mumkin=False)
+    except ValueError as e:
+        return {"success": False, "message": str(e)}
 
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:

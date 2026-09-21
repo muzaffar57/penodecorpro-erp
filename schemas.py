@@ -353,7 +353,12 @@ class OrderCreate(BaseModel):
     planned_gips_kg: Optional[float] = None
     gips_additives: List[GipsAdditiveInput] = []
     base_price: Optional[float] = Field(default=None, le=9_999_999_999.99)
-    loy_kg: Optional[float] = None
+    # 17d (2026-09-21): rejalashtirilgan loy (kg). QAT'IY: faqat JSON son
+    # (`true` / `"5"` — yo'q, ilgari 1 va 5 kg ga o'girilardi), chekli
+    # (`Infinity` loy xomashyosini −∞ qilardi), manfiy emas, chegara
+    # `crud._UPD_SON_CHEGARA` bilan bir xil. Ildizda `crud._json_loy` ham bor.
+    loy_kg: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000.0,
+                                    allow_inf_nan=False, strict=True)
 
 
 class OrderItemSubDetailRead(BaseModel):

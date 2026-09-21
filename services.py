@@ -551,6 +551,16 @@ def set_recurring_obligation(db: Session, category: str, label: str, monthly_tar
     """Doimiy majburiyat kategoriyasini yaratadi yoki yangilaydi. Admin
     ISTALGAN yangi kategoriya nomini kiritishi mumkin."""
     from models import RecurringObligation
+    import crud as _crud_obl
+    # 17d (2026-09-21): qiymatlar QAT'IY (`crud._clean_majburiyat`) — xato
+    # bo'lsa `ValueError`, hech narsa yozilmaydi. O'LCHANGAN: `inf` summa
+    # "Qarzdorlar" sahifasini buzardi (500), `nan` → NULL, manfiy / 1e20
+    # qabul; kun 0 / −3 / 99999; PostgreSQL da 30 belgidan uzun kod → 500.
+    _toza = _crud_obl._clean_majburiyat(category, label, monthly_target,
+                                        icon=icon, due_day=due_day)
+    category, label = _toza["category"], _toza["label"]
+    monthly_target, icon, due_day = (_toza["monthly_target"], _toza["icon"],
+                                     _toza["due_day"])
     # M6 — TENANT: qidiruv ham, yangi yozuv ham korxona bilan. Ilgari
     # faqat `category` bo'yicha qidirilardi — A B ning majburiyatini
     # qayta yozib yuborishi mumkin edi.
@@ -1204,12 +1214,34 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     """
     from datetime import datetime
 
+    # 17d (2026-09-21): haqiqiy loy miqdori HECH NARSA o'zgarishidan oldin
+    # tekshiriladi. O'LCHANGAN: `inf` → buyurtma "Tayyor" bo'lib, loy
+    # xomashyosi qoldig'i −∞ saqlanardi va buyurtma kartasi, "Qarzdorlar",
+    # biznes-salomatlik 500; `1e20` → qoldiq −5×10¹⁹; `nan` / manfiy JIMGINA
+    # "kiritilmagan" deb qabul qilinardi. Bo'sh / `None` — "kiritilmagan"
+    # (reja bo'yicha), bu SAQLANADI.
+    import crud as _crud_loy
+    try:
+        loy_kg = _crud_loy._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
+    except ValueError as e:
+        return {"success": False, "message": str(e)}
+
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
     if order.status == OrderStatus.READY:
         return {"success": False, "message": "Bu buyurtma allaqachon tayyor"}
+
+    # 17d (2026-09-21): QORALAMA buyurtma "Tayyor" qilinmaydi. Qoralamada
+    # ombordan HECH NARSA yechilmagan (`deduct_inventory_for_order` faqat
+    # "Jarayonga olish" da ishlaydi) — uni "Tayyor" qilish xomashyosiz
+    # tayyor buyurtma, usta KPI va avtomatik yuk xati yaratardi (O'LCHANGAN:
+    # `POST /ready` qoralamaga 200 "yakunlandi"). UI qoralamaga "Tayyor"
+    # tugmasini ko'rsatmaydi (`orders.html`: `btn-ready` yashirin).
+    if order.status == OrderStatus.DRAFT:
+        return {"success": False,
+                "message": "Qoralama buyurtmani avval jarayonga oling — keyin \"Tayyor\" qilish mumkin"}
 
     # === HAMMA NARSA TAYYOR — BAJARAMIZ ===
     result = {

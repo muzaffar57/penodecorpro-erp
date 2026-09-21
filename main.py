@@ -1724,6 +1724,41 @@ async def custom_http_exception_handler(request: Request, exc: _StarletteHTTPExc
     # Boshqa barcha holatlar uchun — FastAPI'ning standart javobi bilan bir xil
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
 
+
+def _json_xavfsiz(qiymat):
+    """JSON ga yozib bo'lmaydigan son (`inf`, `-inf`, `nan`) → matn; ro'yxat
+    va lug'atlar ichida ham. Qolgan hamma narsa o'zgarmaydi."""
+    import math as _m
+    if isinstance(qiymat, float) and (_m.isinf(qiymat) or _m.isnan(qiymat)):
+        return str(qiymat)
+    if isinstance(qiymat, dict):
+        return {k: _json_xavfsiz(v) for k, v in qiymat.items()}
+    if isinstance(qiymat, (list, tuple)):
+        return [_json_xavfsiz(v) for v in qiymat]
+    return qiymat
+
+
+from fastapi.exceptions import RequestValidationError as _RequestValidationError  # noqa: E402
+from fastapi.encoders import jsonable_encoder as _jsonable_encoder  # noqa: E402
+
+
+@app.exception_handler(_RequestValidationError)
+async def xavfsiz_validatsiya_handler(request: Request, exc: _RequestValidationError):
+    """17d (2026-09-21): sxema xatosi javobi (422) — FastAPI standarti bilan
+    AYNAN bir xil shakl (`{"detail": [...]}`), faqat JSON ga sig'maydigan
+    qiymatlar matnga aylantiriladi.
+
+    O'LCHANGAN (asl kod): FastAPI 422 javobiga foydalanuvchi yuborgan
+    qiymatni (`input`) qo'shadi. Tanada `Infinity` / `NaN` bo'lsa va sxema
+    uni rad etsa (`allow_inf_nan=False`, `le=...`), javobning o'zi JSON ga
+    yozilmay (`Out of range float values are not JSON compliant`) umumiy
+    500 handleriga tushardi va har safar \"Backend xatoliklari\" jurnaliga
+    yozilardi: `POST /api/orders` `agreed_amount: Infinity`,
+    `POST /api/finance/transactions` `amount: -Infinity` / `NaN` va 17d
+    dagi `loy_kg: Infinity`. Ma'lumot yozilmasdi, lekin javob noto'g'ri edi."""
+    return JSONResponse(status_code=422,
+                        content={"detail": _json_xavfsiz(_jsonable_encoder(exc.errors()))})
+
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
 
@@ -3750,12 +3785,17 @@ def api_delete_project(project_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.post("/api/orders/coating-notify-new")
-def api_coating_notify_with_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    pass
+def api_coating_notify_with_loy(current_user=Depends(auth.admin_or_manager)):
+    """17d (2026-09-21): ESKIRGAN. Tanasi faqat `pass` edi — har qanday
+    so'rovga (hatto `loy_kg=inf`) 200 `null` qaytarib, hech narsa qilmasdi.
+    Hech bir sahifa chaqirmaydi; ishlaydigan yo'l —
+    `POST /api/orders/{id}/coating-notify`. Endi aniq 410."""
+    raise HTTPException(status_code=410,
+                        detail="Bu yo'l eskirgan — /api/orders/{id}/coating-notify dan foydalaning")
 
 
 @app.post("/api/orders", response_model=schemas.OrderRead)
-def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
+def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
                       confirm_shortage: bool = False,
                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     # 2026-09-21 — TENANT (11-sizish): loyiha FAQAT joriy korxonadan.
@@ -3764,6 +3804,23 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
     # yetishmovchilik tekshiruvlari ham begona loyiha uchun ishlamasin.
     if not auth.project_of_company(db, order.project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    # 17d (2026-09-21): loy miqdori QAT'IY (egalikdan KEYIN, hech narsadan
+    # OLDIN). O'LCHANGAN ikki muammo:
+    #   1) so'rov qatoridagi `loy_kg` (`inf`, `-5`, `1_0`) tekshiruvsiz;
+    #   2) yetishmovchilik tekshiruvi FAQAT so'rov qatoridagi `loy_kg` ni
+    #      ko'rardi, saqlanadigan reja esa TANADAGI `loy_kg` dan olinadi —
+    #      `orders.html` faqat tanaga yuboradi, shuning uchun loy
+    #      yetishmovchiligi ogohlantirishi UI da HECH QACHON chiqmasdi.
+    # Endi: bitta "samarali" reja — tana, u bo'lmasa so'rov qatori — ham
+    # tekshiruvga, ham saqlashga ketadi.
+    try:
+        _loy_q = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
+        crud._json_loy("loy_kg", order.loy_kg)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if order.loy_kg is None and _loy_q is not None:
+        order.loy_kg = _loy_q
+    loy_kg = order.loy_kg
     check = services.check_inventory_for_order(db, order, company_id=auth.company_id_of(current_user))
     # M4: tayyor mahsulot yetarliligi FAQAT joriy korxona ombori bo'yicha.
     fcheck = crud.check_finished_for_order(db, order.items,
@@ -3906,13 +3963,21 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
 
 
 @app.put("/api/orders/{order_id}")
-def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional[float] = None,
+def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional[str] = None,
                      confirm_shortage: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani tahrirlash — ombor faqat FARQ bo'yicha to'g'rilanadi."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # 17d (2026-09-21): loy rejasi DETALLAR saqlanishidan OLDIN tekshiriladi.
+    # O'LCHANGAN: `nan` → detallar allaqachon saqlanib, keyin 500 (yarim
+    # yozuv); `inf` → qoldiq −∞; manfiy → ortiqcha qaytarish. `detail`
+    # obyekt — UI tahrir oynasi `detail.message` ni ko'rsatadi.
+    try:
+        loy_kg = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage)
     if not result["success"]:
         # Xomashyo yetishmovchiligi — 409 (create bilan bir xil), frontend
@@ -3949,11 +4014,14 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
 
     return result
 @app.put("/api/orders/{order_id}/loy")
-def api_update_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_loy(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Loy rejasini o'zgartirish."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # 17d (2026-09-21): `loy_kg` MATN sifatida olinadi va ildizda
+    # (`crud.update_order_loy` → `_query_loy`) QAT'IY o'qiladi — majburiy,
+    # manfiy emas, chekli. Xato → 400, ombor O'ZGARMAYDI.
     result = crud.update_order_loy(db, order_id, loy_kg)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -3992,11 +4060,18 @@ def _send_telegram_to_qoplamachi(text: str, company_id=None):
 
 
 @app.post("/api/orders/{order_id}/coating-notify")
-def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Rejalashtirilgan loy: xomashyoni ayiradi + qoplamachiga xabar."""
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # 17d (2026-09-21): O'LCHANGAN — `inf` reja sifatida SAQLANIB, buyurtma
+    # kartasi 500; `1e20` saqlanardi; `nan`/manfiy jimgina 200. Endi
+    # majburiy, manfiy emas, chekli; 0 — hech narsa qilinmaydi (avvalgidek).
+    try:
+        loy_kg = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=False)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     inventory_log = []
 
@@ -4032,7 +4107,7 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
 
 
 @app.post("/api/orders/{order_id}/ready")
-def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
+def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                           db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     # ⚠ 2026-09-21, IDOR testi bilan topildi (tools/test_idor.py):
     # M2 qo'riqchisi TUSHIB QOLGAN edi. Pastdagi `crud.get_order(...)`
@@ -4043,6 +4118,15 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
     # (xomashyo hisobi va usta KPI si ham shu zanjirda).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # 17d (2026-09-21): haqiqiy loy QAT'IY — ixtiyoriy (bo'sh = reja
+    # bo'yicha), manfiy emas, chekli. O'LCHANGAN: `inf` → javob 500, LEKIN
+    # buyurtma "Tayyor" bo'lib qoldiq −∞ saqlanardi. `detail` obyekt — UI
+    # "Tayyor" oynasi `detail.message` ni ko'rsatadi. Ildiz
+    # (`services.complete_order`) ham shu qoidani tekshiradi.
+    try:
+        loy_kg = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     result = services.complete_order(db, order_id, loy_kg)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -4106,41 +4190,42 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None,
 
 
 @app.post("/api/orders/mark-all-ready")
-def api_mark_all_ready(loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    from models import Order, OrderStatus
-    # M2: OMMAVIY amal — FAQAT joriy korxonaning buyurtmalari.
-    # Filtrsiz bo'lsa, bitta tugma bosish BARCHA korxonalarning
-    # buyurtmalarini "tayyor" qilib, ularning omboriga yozardi.
-    pending = db.query(Order).filter(
-        Order.company_id == auth.company_id_of(current_user),
-        Order.status != OrderStatus.READY,
-        Order.is_deleted.isnot(True)).all()
-    processed = 0
-    failed = []
-    total_inventory_changes = []
-    loy_per_order = (loy_kg / len(pending)) if (loy_kg and len(pending) > 0) else None
-    for order in pending:
-        result = services.complete_order(db, order.id, loy_per_order)
-        if result["success"]:
-            processed += 1
-            if result.get("inventory_changes"):
-                total_inventory_changes.extend(result["inventory_changes"])
-        else:
-            reason = result.get("message", "")
-            if result.get("shortages"):
-                reason += " — " + ", ".join(result["shortages"][:3])
-            failed.append({"order_id": order.id, "reason": reason})
-    return {"processed": processed, "total_pending": len(pending), "failed": failed, "total_inventory_changes": total_inventory_changes}
+def api_mark_all_ready(current_user=Depends(auth.admin_or_manager)):
+    """17d (2026-09-21): O'CHIRILDI — aniq 410.
+
+    O'LCHANGAN (`work/probe17d.py`): bitta so'rov korxonaning "Tayyor"
+    bo'lmagan BARCHA buyurtmalarini, shu jumladan QORALAMALARNI ham
+    "Tayyor" qilardi (qoralamada ombordan hech narsa yechilmagan —
+    xomashyosiz tayyor buyurtma, usta KPI, avtomatik yuk xati). `loy_kg`
+    buyurtmalar soniga bo'linib, `inf` bilan qoldiq −∞ bo'lardi va
+    buyurtma, "Qarzdorlar", biznes-salomatlik sahifalari 500 berardi.
+    Hech bir sahifa bu yo'lni chaqirmaydi (`templates/` da yo'q) — har bir
+    buyurtma o'z "Tayyor" oynasidan (`POST /api/orders/{id}/ready`)
+    haqiqiy loy miqdori bilan yakunlanadi.
+    """
+    raise HTTPException(status_code=410,
+                        detail="Ommaviy \"Tayyor\" o'chirilgan — har bir buyurtmani o'z \"Tayyor\" oynasidan yakunlang")
 
 
 @app.delete("/api/orders/{order_id}")
-def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani o'chirish — xomashyo omborga qaytariladi.
     actual_loy_kg — agar berilsa, rejalashtirilgan loy bilan solishtirilib,
     ortgan qismi omborga qaytariladi (xuddi buyurtma yakunlanganidagi kabi)."""
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+
+    # 17d (2026-09-21): haqiqiy ishlatilgan loy QAT'IY — ixtiyoriy (bo'sh =
+    # berilmagan), manfiy emas, chekli. O'LCHANGAN: `inf` → 200 qaytib,
+    # buyurtma o'chirilar va loy xomashyosi qoldig'i −∞ bo'lardi; `-5` →
+    # rejadan ham ko'p (7.5 kg) qaytarardi; `1e20` → qoldiq −5×10¹⁹. Xato →
+    # 400, buyurtma va ombor O'ZGARMAYDI. `detail` obyekt — boshqa buyurtma
+    # xatolari bilan bir xil shakl.
+    try:
+        actual_loy_kg = crud._query_loy("actual_loy_kg", actual_loy_kg, bosh_mumkin=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
 
     log = []
     order_num = order.order_number
@@ -4504,10 +4589,23 @@ def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=De
 
 
 @app.post("/api/obligations/recurring")
-def api_set_recurring_obligation(category: str, label: str, monthly_target: float,
-                                   icon: str = "📦", due_day: int = 5,
+def api_set_recurring_obligation(category: Optional[str] = None, label: Optional[str] = None,
+                                   monthly_target: Optional[str] = None,
+                                   icon: Optional[str] = "📦", due_day: Optional[str] = None,
                                    db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    return services.set_recurring_obligation(db, category, label, monthly_target, icon=icon, due_day=due_day, company_id=auth.company_id_of(current_user))
+    """17d (2026-09-21): qiymatlar MATN sifatida olinadi va QAT'IY o'qiladi
+    (`crud._clean_majburiyat`) — summa musbat va chekli, kun 1–31, kod
+    ≤ 30, nom ≤ 60, belgi ≤ 10 belgi. Xato → 400 (`detail` MATN — `debts.html`
+    uni ko'rsatadi), hech narsa yozilmaydi. Ildiz
+    (`services.set_recurring_obligation`) ham shu qoidani chaqiradi."""
+    try:
+        toza = crud._clean_majburiyat(category, label, monthly_target, icon=icon, due_day=due_day)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return services.set_recurring_obligation(db, toza["category"], toza["label"],
+                                             toza["monthly_target"], icon=toza["icon"],
+                                             due_day=toza["due_day"],
+                                             company_id=auth.company_id_of(current_user))
 
 
 @app.delete("/api/obligations/recurring/{obligation_id}")
@@ -4722,9 +4820,20 @@ def api_update_expense_transaction(tx_id: int, data: schemas.ExpenseTransactionC
 
 
 @app.post("/api/finance/expense")
-def api_save_expense(year: int, month: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    services.save_monthly_expense(db, year, month, data, performed_by=current_user.full_name or current_user.username, company_id=auth.company_id_of(current_user))
-    return {"status": "ok"}
+def api_save_expense(current_user=Depends(auth.admin_or_financier)):
+    """17d (2026-09-21): ESKIRGAN — aniq 410.
+
+    Eski "oylik xarajat formasi" yo'li. Hech bir sahifa chaqirmaydi
+    (`templates/` da yo'q); xarajatlar endi `ExpenseTransaction` orqali
+    (`POST /api/finance/transactions`) yoziladi. O'LCHANGAN: `year`/`month`
+    tekshiruvsiz (13-oy, 0-oy, 1-yil, 99999-yil yozilardi), tana xom
+    `dict` — `\"abc\"` → 500, `Infinity` → `/api/finance/history` BUTUNLAY
+    500, `true` → 1, manfiy va 1e20 qabul. Eski `MonthlyExpense` yozuvlari
+    hisobotlarda (zaxira qiymat sifatida) o'qilishda davom etadi —
+    `services.save_monthly_expense` funksiyasi o'zgarmadi.
+    """
+    raise HTTPException(status_code=410,
+                        detail="Bu yo'l eskirgan — xarajatni Moliya sahifasidan qo'shing")
 
 
 @app.get("/api/orders/{order_id}/profit")
