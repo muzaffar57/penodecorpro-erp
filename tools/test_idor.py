@@ -802,6 +802,264 @@ check(f"nazorat: POST /api/returns (B buyurtmasi + B detali) \u2192 {r.status_co
 
 
 # ══════════════════════════════════════════════════════════════
+section("8. PUT /api/order-items/{id} — tanadagi kalitlar (13-sizish)")
+# ══════════════════════════════════════════════════════════════
+# 2026-09-21 — O'LCHANGAN (asl kod): tana `setattr` bilan tekshiruvsiz
+# yozilardi. `company_id` + `order_id` + `penoplast_id` BIRGA A niki qilib
+# yuborilsa → 200: B detali A buyurtmasiga ko'chardi (filtr o'chiq: A
+# penoplasti 100→99.5, A da ombor harakati; filtr yoniq: A buyurtmasiga
+# begona detal). `id` o'zgarardi, `sub_details` omborsiz o'chardi,
+# `order`/`delivered_qty` → 500. Endi faqat ruxsat etilgan maydonlar.
+B_PEN8 = Inventory(company_id=2, item_name="BBB_PENO8", unit="blok",
+                   stock_quantity=100.0, price_per_unit=1000, volume_per_unit=1.0)
+B_PEN8b = Inventory(company_id=2, item_name="BBB_PENO8b", unit="blok",
+                    stock_quantity=100.0, price_per_unit=2000, volume_per_unit=1.0)
+db.add_all([B_PEN8, B_PEN8b])
+db.commit()
+B_PEN8_ID, B_PEN8b_ID = B_PEN8.id, B_PEN8b.id
+A_ORD8 = _ao7.id
+_n8 = [0]
+
+
+def _b_item8(category="profil", penoplast=True):
+    """B korxonada YANGI buyurtma (qoralama emas) va uning detali."""
+    _n8[0] += 1
+    kw = dict(name=f"BBB_DETAL8_{_n8[0]}", category=category, width=10, thickness=10,
+              length=100, quantity=5, unit_price=1000, is_coated=False)
+    if penoplast:
+        kw["penoplast_id"] = B_PEN8_ID
+    with contextlib.redirect_stdout(_quiet):
+        o = crud.create_order(db, schemas.OrderCreate(
+            project_id=B["project"][-1].id, order_type="product",
+            items=[schemas.OrderItemCreate(**kw)]), performed_by="BBB")
+    oid = o.id
+    return oid, db.query(_OI7).filter(_OI7.order_id == oid).first().id
+
+
+def _a8():
+    """A holati: penoplast qoldig'i, A buyurtmasi detallari soni va summasi,
+    A penoplastidagi ombor harakatlari soni."""
+    db.expire_all()
+    _ao = db.get(Order, A_ORD8)
+    return (
+        round(float(db.get(Inventory, A_PEN7.id).stock_quantity), 6),
+        db.query(_OI7).filter(_OI7.order_id == A_ORD8).count(),
+        round(float(_ao.total_amount or 0), 2),
+        db.query(_IM7).filter(_IM7.inventory_id == A_PEN7.id).count(),
+    )
+
+
+def _bi8(iid):
+    """B detalining bog'lanishlari va asosiy qiymatlari (yo'q bo'lsa None)."""
+    db.expire_all()
+    it = db.get(_OI7, iid)
+    if it is None:
+        return None
+    return (it.company_id, it.order_id, it.penoplast_id, it.length,
+            float(it.quantity or 0), float(it.unit_price or 0), bool(it.is_coated),
+            it.name)
+
+
+def _pen8(i):
+    db.expire_all()
+    return round(float(db.get(Inventory, i).stock_quantity), 6)
+
+
+# --- 8a. A ga bog'lash: uchalasi birga, juft va yolg'iz ---
+_HUJUM8 = [
+    ("company_id + order_id + penoplast_id (A)",
+     lambda: {"company_id": 1, "order_id": A_ORD8, "penoplast_id": A_PEN7.id}, 400),
+    ("company_id + order_id (A)",
+     lambda: {"company_id": 1, "order_id": A_ORD8}, 400),
+    ("company_id=1", lambda: {"company_id": 1}, 400),
+    ("order_id=A", lambda: {"order_id": A_ORD8}, 400),
+    ("penoplast_id=A (yolg'iz)", lambda: {"penoplast_id": A_PEN7.id}, 404),
+    ("length + penoplast_id=A", lambda: {"length": 200, "penoplast_id": A_PEN7.id}, 404),
+]
+for _lbl, _mk, _kut in _HUJUM8:
+    _oid, _iid = _b_item8()
+    c0, b0 = _a8(), _bi8(_iid)
+    r = _req7("put", f"/api/order-items/{_iid}", json=_mk())
+    check(f"PUT /api/order-items/B ({_lbl}) \u2192 {r.status_code} ({_kut} shart)",
+          r.status_code == _kut and "777777" not in r.text, r.text[:140])
+    check(f"  \u21b3 A o'zgarmadi, B detali joyida ({_lbl})",
+          c0 == _a8() and b0 == _bi8(_iid), f"{c0} -> {_a8()} | {b0} -> {_bi8(_iid)}")
+
+# --- 8b. Tuzilma maydonlari: id, bog'lanishlar, xossalar ---
+for _lbl, _body in (("id = A detali", {"id": A_OI7}),
+                    ("id = 99999999", {"id": 99999999}),
+                    ("order (bog'lanish)", {"order": 5}),
+                    ("sub_details (bog'lanish)", {"sub_details": []}),
+                    ("delivered_qty (xossa)", {"delivered_qty": 5}),
+                    ("finished_product_id", {"finished_product_id": 1}),
+                    ("total_price", {"total_price": 1})):
+    _oid, _iid = _b_item8()
+    c0, b0 = _a8(), _bi8(_iid)
+    r = _req7("put", f"/api/order-items/{_iid}", json=_body)
+    check(f"PUT /api/order-items/B ({_lbl}) \u2192 {r.status_code} (400 shart)",
+          r.status_code == 400, r.text[:140])
+    check(f"  \u21b3 B detali o'z ID sida, o'zgarmagan ({_lbl})",
+          b0 is not None and b0 == _bi8(_iid) and c0 == _a8(), f"{b0} -> {_bi8(_iid)}")
+
+# --- 8c. Noto'g'ri qiymatlar → 400 (500 emas, jim yozilmaydi) ---
+for _lbl, _body in (("length matn", {"length": "abc"}),
+                    ("quantity 0", {"quantity": 0}),
+                    ("quantity true", {"quantity": True}),
+                    ("unit_price manfiy", {"unit_price": -1}),
+                    ("unit_price juda katta", {"unit_price": 1e13}),
+                    ("is_coated matn", {"is_coated": "ha"}),
+                    ("name bo'sh", {"name": " "}),
+                    ("penoplast_id matn", {"penoplast_id": "1"})):
+    _oid, _iid = _b_item8()
+    b0, p0 = _bi8(_iid), _pen8(B_PEN8_ID)
+    r = _req7("put", f"/api/order-items/{_iid}", json=_body)
+    check(f"PUT /api/order-items/B ({_lbl}) \u2192 {r.status_code} (400 shart)",
+          r.status_code == 400, r.text[:140])
+    check(f"  \u21b3 B detali va ombori o'zgarmadi ({_lbl})",
+          b0 == _bi8(_iid) and p0 == _pen8(B_PEN8_ID), f"{b0} -> {_bi8(_iid)}")
+
+# --- 8d. Topshirilgandan kam — aniq sabab bilan 400 (avval 404 "topilmadi") ---
+_oid, _iid = _b_item8(category="panel", penoplast=False)
+r = _req7("post", "/api/deliveries", json={"order_id": _oid,
+                                           "items": [{"order_item_id": _iid, "quantity": 3}]})
+check(f"tayyorgarlik: POST /api/deliveries (B detali, 3 dona) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200, r.text[:140])
+b0 = _bi8(_iid)
+r = _req7("put", f"/api/order-items/{_iid}", json={"quantity": 1})
+check(f"PUT /api/order-items/B (topshirilgan 3 dan kam: 1) \u2192 {r.status_code} (400 shart)",
+      r.status_code == 400 and "Topshirilgan" in r.text, r.text[:140])
+check("  \u21b3 B detali o'zgarmadi", b0 == _bi8(_iid), f"{b0} -> {_bi8(_iid)}")
+
+# --- 8e. Ildiz: crud (company_id BERILMAGAN) ham rad etadi ---
+_oid, _iid = _b_item8()
+c0, b0 = _a8(), _bi8(_iid)
+_o = _root7(lambda: crud.update_order_item(
+    db, _iid, {"company_id": 1, "order_id": A_ORD8, "penoplast_id": A_PEN7.id}))
+check("crud.update_order_item(uchalasi A, company_id berilmagan) \u2192 ValueError",
+      _o.startswith("ValueError"), _o)
+_o = _root7(lambda: crud.update_order_item(db, _iid, {"penoplast_id": A_PEN7.id}))
+check("crud.update_order_item(penoplast_id=A, company_id berilmagan) \u2192 HTTPException 404",
+      _o == "HTTPException:404", _o)
+check("  \u21b3 ildiz rad etishlari hech narsa yozmadi",
+      c0 == _a8() and b0 == _bi8(_iid), f"{c0} -> {_a8()} | {b0} -> {_bi8(_iid)}")
+
+# --- 8f. Statik: ruxsat ro'yxatida bog'lanish/kalit ustuni YO'Q ---
+# (penoplast_id bundan mustasno — u alohida QAT'IY tekshiriladi)
+_ruxsat8 = getattr(crud, "_ORDER_ITEM_UPDATE_FIELDS", None)
+_xavfli8 = sorted(c.key for c in _OI7.__table__.columns
+                  if (c.primary_key or c.foreign_keys) and c.key != "penoplast_id"
+                  and (_ruxsat8 is None or c.key in _ruxsat8))
+check("crud._ORDER_ITEM_UPDATE_FIELDS: id/company_id/FK ustunlari yo'q",
+      _ruxsat8 is not None and not _xavfli8, f"ro'yxat={_ruxsat8} xavfli={_xavfli8}")
+
+# --- 8g. Nazorat: B o'z qiymatlari bilan — o'tadi VA haqiqatan yoziladi ---
+_oid, _iid = _b_item8()
+p0 = _pen8(B_PEN8_ID)
+r = _req7("put", f"/api/order-items/{_iid}", json={"length": 150, "name": "BBB_TAHRIR8"})
+_b1 = _bi8(_iid)
+check(f"nazorat: PUT /api/order-items/B (length 150, nom) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200 and _b1 is not None and _b1[3] == 150 and _b1[7] == "BBB_TAHRIR8",
+      f"{r.text[:100]} | {_b1}")
+check("  \u21b3 B penoplasti farq bo'yicha kamaydi (ombor to'g'rilandi)",
+      _pen8(B_PEN8_ID) < p0, f"{p0} -> {_pen8(B_PEN8_ID)}")
+p0, p0b = _pen8(B_PEN8_ID), _pen8(B_PEN8b_ID)
+r = _req7("put", f"/api/order-items/{_iid}", json={"penoplast_id": B_PEN8b_ID})
+check(f"nazorat: PUT /api/order-items/B (penoplast_id = B ning boshqa materiali) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200 and _bi8(_iid)[2] == B_PEN8b_ID, r.text[:140])
+check("  \u21b3 eski material qaytdi, yangisidan yechildi",
+      _pen8(B_PEN8_ID) > p0 and _pen8(B_PEN8b_ID) < p0b,
+      f"{p0}->{_pen8(B_PEN8_ID)} / {p0b}->{_pen8(B_PEN8b_ID)}")
+
+# --- 8h. Tana qiymatlari: narx, min-stock, sovg'a darajasi (o'z korxonasida) ---
+# 2026-09-21 — O'LCHANGAN (asl kod): narx kaliti bo'lmasa narx JIMGINA 0
+# ga tushardi; manfiy narx saqlanardi (UI oynasi "-5000" ni o'tkazardi);
+# matn → 500; min-stock `true` → 1.0, matn → 500; sovg'a summasi matn /
+# nomi son → 500, `1e20` → 200 (PostgreSQL da Numeric(12,2) → 500).
+B_INV8 = Inventory(company_id=2, item_name="BBB_NARX8", unit="kg",
+                   stock_quantity=10.0, price_per_unit=1234, volume_per_unit=2.0,
+                   min_stock=3.0)
+db.add(B_INV8)
+db.commit()
+B_INV8_ID = B_INV8.id
+
+
+def _inv8():
+    db.expire_all()
+    i = db.get(Inventory, B_INV8_ID)
+    return (round(float(i.price_per_unit or 0), 2), float(i.volume_per_unit or 0),
+            float(i.min_stock or 0))
+
+
+for _lbl, _body in (("bo'sh tana — narx 0 ga tushmasin", {}),
+                    ("faqat volume_per_unit", {"volume_per_unit": 3}),
+                    ("narx manfiy", {"price_per_unit": -5000}),
+                    ("narx matn", {"price_per_unit": "abc"}),
+                    ("narx true", {"price_per_unit": True}),
+                    ("narx juda katta", {"price_per_unit": 1e20}),
+                    ("volume_per_unit 0", {"price_per_unit": 100, "volume_per_unit": 0}),
+                    ("volume_per_unit matn", {"price_per_unit": 100, "volume_per_unit": "x"})):
+    i0 = _inv8()
+    r = _req7("post", f"/api/inventory/{B_INV8_ID}/price", json=_body)
+    check(f"POST /api/inventory/B/price ({_lbl}) \u2192 {r.status_code} (400 shart)",
+          r.status_code == 400, r.text[:140])
+    check(f"  \u21b3 narx/hajm o'zgarmadi ({_lbl})", i0 == _inv8(), f"{i0} -> {_inv8()}")
+
+for _lbl, _body in (("matn", {"min_stock": "abc"}), ("true", {"min_stock": True}),
+                    ("manfiy", {"min_stock": -1}), ("yo'q", {})):
+    i0 = _inv8()
+    r = _req7("post", f"/api/inventory/{B_INV8_ID}/min-stock", json=_body)
+    check(f"POST /api/inventory/B/min-stock ({_lbl}) \u2192 {r.status_code} (400 shart)",
+          r.status_code == 400, r.text[:140])
+    check(f"  \u21b3 min-stock o'zgarmadi ({_lbl})", i0 == _inv8(), f"{i0} -> {_inv8()}")
+
+r = _req7("post", f"/api/inventory/{B_INV8_ID}/price", json={"price_per_unit": 0})
+check(f"nazorat: POST /api/inventory/B/price (0 — ruxsat) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200 and _inv8()[0] == 0.0, f"{r.text[:100]} | {_inv8()}")
+r = _req7("post", f"/api/inventory/{B_INV8_ID}/price",
+          json={"price_per_unit": 1500.5, "volume_per_unit": 2.5})
+check(f"nazorat: POST /api/inventory/B/price (1500.5, hajm 2.5) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200 and _inv8()[:2] == (1500.5, 2.5), f"{r.text[:100]} | {_inv8()}")
+r = _req7("post", f"/api/inventory/{B_INV8_ID}/min-stock", json={"min_stock": 7.5})
+check(f"nazorat: POST /api/inventory/B/min-stock (7.5) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200 and _inv8()[2] == 7.5, f"{r.text[:100]} | {_inv8()}")
+
+# Sovg'a darajasi: B ning faol davri (yo'q bo'lsa — ochiladi)
+if crud.get_active_gift_period(db, 2) is None:
+    r = _req7("post", "/api/gift-period/open",
+              json={"tiers": [{"gift_name": "BBB_SOVGA8", "threshold_amount": 1000000}]})
+    check(f"tayyorgarlik: POST /api/gift-period/open (B) \u2192 {r.status_code} (200 shart)",
+          r.status_code == 200, r.text[:140])
+_gp8 = crud.get_active_gift_period(db, 2)
+_GT8 = _models7.GiftPeriodTier
+_t8 = db.query(_GT8).filter(_GT8.period_id == _gp8.id).first() if _gp8 else None
+check("tayyorgarlik: B da faol davr va bosqich bor", _t8 is not None)
+_T8_ID = _t8.id if _t8 is not None else 0
+
+
+def _tier8():
+    db.expire_all()
+    t = db.get(_GT8, _T8_ID)
+    return (t.gift_name, round(float(t.threshold_amount), 2)) if t is not None else None
+
+
+for _lbl, _body in (("summa matn", {"gift_name": "X8", "threshold_amount": "abc"}),
+                    ("nom son", {"gift_name": 5, "threshold_amount": 100}),
+                    ("summa juda katta", {"gift_name": "X8", "threshold_amount": 1e20}),
+                    ("summa true", {"gift_name": "X8", "threshold_amount": True}),
+                    ("summa manfiy", {"gift_name": "X8", "threshold_amount": -10})):
+    t0 = _tier8()
+    r = _req7("put", f"/api/gift-period/tier/{_T8_ID}", json=_body)
+    check(f"PUT /api/gift-period/tier/B ({_lbl}) \u2192 {r.status_code} (400 shart)",
+          r.status_code == 400, r.text[:140])
+    check(f"  \u21b3 bosqich o'zgarmadi ({_lbl})", t0 == _tier8(), f"{t0} -> {_tier8()}")
+r = _req7("put", f"/api/gift-period/tier/{_T8_ID}",
+          json={"gift_name": "BBB_SOVGA8_YANGI", "threshold_amount": 2500000})
+check(f"nazorat: PUT /api/gift-period/tier/B (to'g'ri qiymat) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200 and _tier8() == ("BBB_SOVGA8_YANGI", 2500000.0),
+      f"{r.text[:100]} | {_tier8()}")
+
+
+# ══════════════════════════════════════════════════════════════
 print("\n" + "=" * 66)
 print(f"NATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 print(f"tenant_context statistikasi: {_tc.get_stats()}")
