@@ -369,16 +369,27 @@ bolim("F. ISHLAB CHIQARILGAN GIPS — hodim oyligiga HECH QANDAY yo'l bilan kirm
 # Gipsda "qoplama" tushunchasi yo'q. F2 — nazorat testi: xuddi shu
 # mahsulot oddiy turkumda bo'lsa, bonus QO'SHILADI (demak test haqiqatan
 # ishlayapti, doim 0 qaytarayotgani uchun emas).
-from models import FinishedProduct, StockSource  # noqa: E402
+from models import FinishedProduct, StockSource, ProductionStatus  # noqa: E402
 
 _qop = hodim("F_Qoplamachi", "fixed_plus_coating", cid=B_CID,
              fixed_amount=1_000_000, per_unit_rate=1_000)
 
 
 def _mahsulot(cat):
+    # 22-band (2026-09-21, foydalanuvchi qarori "2"): qoplamachi bonusi
+    # endi FAQAT "Sotuvga tayyor" (READY) mahsulot uchun va u TAYYOR
+    # BO'LGAN oyda hisoblanadi. Shuning uchun fikstura mahsuloti READY
+    # holatda va shu oyning `finished_production_at` sanasi bilan
+    # yaratiladi — aks holda F2 nazorati (bonus QO'SHILADI) hech qachon
+    # ishlamay qolardi va F1/F3 "doim 0" bo'lib, yolg'on o'tardi.
+    # Holatsiz yaratilgan yozuv bazada standart IN_PROGRESS bo'ladi.
+    # JARAYONDAGI mahsulot bonusga TUSHMASLIGI `test_qoplama_vaqti.py`
+    # da alohida qulflangan.
     fp = FinishedProduct(company_id=B_CID, name=f"F_{cat}", category=cat,
                          unit="dona", quantity=100, produced_quantity=100,
                          source=StockSource.PRODUCED, is_coated=True,
+                         production_status=ProductionStatus.READY,
+                         finished_production_at=datetime(YIL, OY, 10),
                          created_at=datetime(YIL, OY, 10))
     db.add(fp)
     db.commit()
