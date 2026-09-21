@@ -192,8 +192,32 @@ check("A10: breakdown'da 8 ta hodim", len(r["breakdown"]), 8)
 # ════════════════════════════════════════════════════════════════
 bolim("B. GIPS BIRLIK QULFI — 11.2b 4-qadam (gips_metr/qop/kg ketgan)")
 
+# 2026-09-21 (15-band): `create_employee` endi faqat blok/metr/dona ni qabul
+# qiladi (noto'g'ri birlik → ValueError / 400). Gips birliklari — faqat
+# ESKI yozuvlarda (ilgari yaratilgan) uchraydi, shuning uchun ular aynan
+# shunday taqlid qilinadi: hodim to'g'ri birlik bilan yaratilib, keyin
+# bazadagi qiymat (hodim + tarix yozuvi) to'g'ridan-to'g'ri eski birlikka
+# almashtiriladi. Tekshirilayotgan narsa o'zgarmadi: bunday eski yozuv
+# oylik hisobiga UMUMAN kirmasligi.
 for kod in ("gips_metr", "gips_qop", "gips_kg"):
-    e = hodim(f"B_{kod}", "per_unit", per_unit_rate=9_999, per_unit_type=kod)
+    e = hodim(f"B_{kod}", "per_unit", per_unit_rate=9_999, per_unit_type="blok")
+    e.per_unit_type = kod
+    for h in db.query(EmployeeCompensationHistory).filter(
+            EmployeeCompensationHistory.employee_id == e.id).all():
+        h.per_unit_type = kod
+    db.commit()
+_eski = db.query(Employee).filter(Employee.name.like("B_gips_%")).all()
+check("B0: 3 ta eski gips birlikli hodim bazada (taqlid to'g'ri)",
+      sorted(x.per_unit_type for x in _eski), ["gips_kg", "gips_metr", "gips_qop"])
+try:
+    crud.create_employee(db, schemas.EmployeeCreate(
+        name="B_gips_yangi", pay_type="per_unit", per_unit_rate=1, per_unit_type="gips_metr"),
+        company_id=A_CID)
+    _rad = False
+except ValueError:
+    db.rollback()
+    _rad = True
+check("B0b: yangi hodimni gips birligi bilan yaratish endi rad etiladi", _rad, True)
 r = oylik()
 for kod in ("gips_metr", "gips_qop", "gips_kg"):
     check(f"B: per_unit_type='{kod}' → hisobga umuman kirmaydi",

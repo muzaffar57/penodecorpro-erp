@@ -1394,6 +1394,451 @@ _ok9("suppliers.html: forma", "sp", B_S9, f"/api/suppliers/{B_S9}",
      {"name": "BBB_TAM9_Y", "phone": None, "notes": None}, {"name": "BBB_TAM9_Y"})
 
 # ══════════════════════════════════════════════════════════════
+section("10. YARATISH TANASI (15-band): material / usta / hodim / loyiha / ta'minotchi")
+# ══════════════════════════════════════════════════════════════
+# 2026-09-21 — O'LCHANGAN (asl kod, lokal TestClient): POST sxemalari
+# deyarli cheklovsiz edi — manfiy narx / byudjet / qo'shimcha oylik
+# SAQLANARDI; 1e13 / 1e20 (PostgreSQL Numeric(12,2) da 500); Infinity
+# SAQLANARDI, NaN yo 500, yo JIM bo'sh qiymat; `true` → 1.0, "5000" → 5000
+# JIM; ustun sig'imidan uzun matn (PostgreSQL da 500); bo'shliqdan iborat
+# nom / birlik / telefon; noto'g'ri `pay_type` JIMGINA "fixed" (200),
+# noto'g'ri `per_unit_type` / `production_type` yozilardi. Funksional:
+# usta `kpi_percent` yozilmasdi (7 → 0), loyiha "Muddati" (`deadline`)
+# JIMGINA tashlanardi; material qayta yaratilganda (qayta ishlatish yo'li)
+# boshlang'ich qoldiq xaridsiz, eski izoh o'chardi, yagona asosiy
+# penoplast yo'qolardi. Begona korxonaga sizish YO'Q edi (company_id
+# e'tiborsiz) — endi noma'lum kalit 400.
+# Har prob: 400 SHART + 7 jadvaldagi qatorlar soni o'zgarmagan (asl kodda
+# qator yaratilsa ham keyingi prob mustaqil — soni NISBIY solishtiriladi).
+from models import (InventoryPurchase as _IP10, Master as _MS10,          # noqa: E402
+                    Employee as _EM10, Project as _PR10, Supplier as _SP10,
+                    EmployeeCompensationHistory as _ECH10)
+
+_JAD10 = [Inventory.__tablename__, _IP10.__tablename__, _MS10.__tablename__,
+          _EM10.__tablename__, _ECH10.__tablename__, _PR10.__tablename__,
+          _SP10.__tablename__]
+
+
+def _cnt10():
+    db.rollback()
+    return tuple(db.execute(_text9(f"SELECT COUNT(*) FROM {t}")).scalar() for t in _JAD10)
+
+
+_n10c = [0]
+
+
+def _n10(p):
+    _n10c[0] += 1
+    return f"{p}10_{_n10c[0]:03d}"
+
+
+def _tel10():
+    _n10c[0] += 1
+    return f"+99897{_n10c[0]:07d}"
+
+
+def _post10(url, body):
+    if isinstance(body, str):
+        return _req7("post", url, content=body, headers={"Content-Type": "application/json"})
+    return _req7("post", url, json=body)
+
+
+def _bad10(url, cases):
+    for lbl, body in cases:
+        c0 = _cnt10()
+        r = _post10(url, body)
+        c1 = _cnt10()
+        check(f"POST {url} ({lbl}) \u2192 {r.status_code} (400 shart) VA hech narsa yaratilmadi",
+              r.status_code == 400 and c0 == c1, f"{r.text[:110]} | {c0} -> {c1}")
+
+
+def _inv10(**kw):
+    b = {"item_name": _n10("BBB_M"), "unit": "kg"}
+    b.update(kw)
+    return b
+
+
+def _invraw10(frag):
+    return '{"item_name":"%s","unit":"kg",%s}' % (_n10("BBB_M"), frag)
+
+
+# --- 10a. Material ---
+_bad10("/api/inventory", [
+    ("narx -5000", _inv10(price_per_unit=-5000)),
+    ("narx 1e13 > Numeric(12,2)", _inv10(price_per_unit=1e13)),
+    ("narx \"5000\" matn", _inv10(price_per_unit="5000")),
+    ("narx true", _inv10(price_per_unit=True)),
+    ("narx NaN", _invraw10('"price_per_unit":NaN')),
+    ("narx Infinity", _invraw10('"price_per_unit":Infinity')),
+    ("qoldiq 1e20", _inv10(stock_quantity=1e20)),
+    ("qoldiq true", _inv10(stock_quantity=True)),
+    ("qoldiq NaN", _invraw10('"stock_quantity":NaN')),
+    ("qoldiq Infinity", _invraw10('"stock_quantity":Infinity')),
+    ("min qoldiq NaN", _invraw10('"min_stock":NaN')),
+    ("hajm Infinity", _invraw10('"volume_per_unit":Infinity')),
+    ("konversiya NaN", _invraw10('"conversion_factor":NaN')),
+    ("birlik bo'sh", _inv10(unit="")),
+    ("birlik faqat bo'shliq", _inv10(unit="   ")),
+    ("birlik 30 belgi", _inv10(unit="x" * 30)),
+    ("kategoriya 80 belgi", _inv10(category="c" * 80)),
+    ("base_unit 30 belgi", _inv10(base_unit="g" * 30)),
+    ("is_penoplast \"yes\"", _inv10(is_penoplast="yes")),
+    ("is_penoplast 0", _inv10(is_penoplast=0)),
+    ("is_default_penoplast \"yes\"", _inv10(is_default_penoplast="yes")),
+    ("nom faqat bo'shliq", {"item_name": "   ", "unit": "kg"}),
+    ("nom ' a ' (bo'shliqsiz 1 belgi)", {"item_name": " a ", "unit": "kg"}),
+    ("company_id kaliti", _inv10(company_id=1)),
+    ("id kaliti", _inv10(id=999999)),
+    ("is_deleted kaliti", _inv10(is_deleted=True)),
+    ("miqdor x narx > Numeric(12,2)", _inv10(stock_quantity=1e9, price_per_unit=1000)),
+    ("birliksiz (majburiy)", {"item_name": _n10("BBB_M")}),
+])
+
+
+# --- 10b. Usta ---
+def _ms10(**kw):
+    b = {"name": _n10("BBB_U"), "phone": _tel10()}
+    b.update(kw)
+    return b
+
+
+def _msraw10(frag):
+    return '{"name":"%s","phone":"%s",%s}' % (_n10("BBB_U"), _tel10(), frag)
+
+
+_bad10("/api/masters", [
+    ("cashback true", _ms10(cashback_percent=True)),
+    ("cashback \"5\" matn", _ms10(cashback_percent="5")),
+    ("cashback NaN", _msraw10('"cashback_percent":NaN')),
+    ("cashback 500 %", _ms10(cashback_percent=500)),
+    ("kpi NaN", _msraw10('"kpi_percent":NaN')),
+    ("kpi -1", _ms10(kpi_percent=-1)),
+    ("ism faqat bo'shliq", _ms10(name="   ")),
+    ("telefon faqat bo'shliq", {"name": _n10("BBB_U"), "phone": "       "}),
+    ("hudud 80 belgi", _ms10(region="r" * 80)),
+    ("telegram_id 60 belgi", _ms10(telegram_id="1" * 60)),
+    ("is_active kaliti", _ms10(is_active=False)),
+    ("company_id kaliti", _ms10(company_id=1)),
+    ("telefonsiz (majburiy)", {"name": _n10("BBB_U")}),
+])
+
+
+# --- 10c. Hodim ---
+def _em10(**kw):
+    b = {"name": _n10("BBB_H"), "pay_type": "fixed", "fixed_amount": 1000}
+    b.update(kw)
+    return b
+
+
+def _emraw10(frag):
+    return '{"name":"%s","pay_type":"fixed",%s}' % (_n10("BBB_H"), frag)
+
+
+_bad10("/api/employees", [
+    ("pay_type \"xato\" (ilgari JIMGINA fixed)", _em10(pay_type="xato")),
+    ("oylik 1e13", _em10(fixed_amount=1e13)),
+    ("oylik true", _em10(fixed_amount=True)),
+    ("oylik NaN", _emraw10('"fixed_amount":NaN')),
+    ("oylik Infinity", _emraw10('"fixed_amount":Infinity')),
+    ("foiz NaN", _emraw10('"percent_value":NaN')),
+    ("foiz 500", _em10(percent_value=500)),
+    ("birlik narxi 1e13", _em10(per_unit_rate=1e13)),
+    ("per_unit_type \"xato\"", _em10(per_unit_type="xato")),
+    ("per_unit_type \"gips_metr\" (eski)", _em10(per_unit_type="gips_metr")),
+    ("qo'shimcha -1 000 000", _em10(extra_monthly=-1000000)),
+    ("qo'shimcha 1e13", _em10(extra_monthly=1e13)),
+    ("qo'shimcha NaN", _emraw10('"extra_monthly":NaN')),
+    ("production_type \"xato\"", _em10(production_type="xato")),
+    ("lavozim 150 belgi", _em10(position="p" * 150)),
+    ("ism faqat bo'shliq", _em10(name="    ")),
+    ("is_active kaliti", _em10(is_active=False)),
+    ("company_id kaliti", _em10(company_id=1)),
+    ("pay_type siz (majburiy)", {"name": _n10("BBB_H")}),
+])
+
+
+# --- 10d. Loyiha ---
+def _pr10(**kw):
+    b = {"project_name": _n10("BBB_L"), "client_name": "BBB_Mijoz10"}
+    b.update(kw)
+    return b
+
+
+def _prraw10(frag):
+    return '{"project_name":"%s","client_name":"BBB_Mijoz10",%s}' % (_n10("BBB_L"), frag)
+
+
+_bad10("/api/projects", [
+    ("byudjet -5", _pr10(total_budget=-5)),
+    ("byudjet 1e13", _pr10(total_budget=1e13)),
+    ("byudjet true", _pr10(total_budget=True)),
+    ("byudjet NaN", _prraw10('"total_budget":NaN')),
+    ("byudjet Infinity", _prraw10('"total_budget":Infinity')),
+    ("mijoz telefoni 30 belgi", _pr10(client_phone="9" * 30)),
+    ("mijoz faqat bo'shliq", _pr10(client_name="   ")),
+    ("total_paid qo'lda", _pr10(total_paid=999)),
+    ("status COMPLETED", _pr10(status="COMPLETED")),
+    ("company_id kaliti", _pr10(company_id=1)),
+    ("muddat \"15.10.2026\"", _pr10(deadline="15.10.2026")),
+    ("muddat 1990 yil", _pr10(deadline="1990-01-01")),
+    ("muddat son", _pr10(deadline=5)),
+    ("mijozsiz (majburiy)", {"project_name": _n10("BBB_L")}),
+])
+
+for _lbl, _body, _soz in (("total_paid", _pr10(total_paid=999), "to'lovlardan"),
+                         ("status", _pr10(status="COMPLETED"), "faol holatda")):
+    r = _post10("/api/projects", _body)
+    check(f"  \u21b3 loyiha {_lbl}: 400 aniq sabab bilan (\"{_soz}\")",
+          r.status_code == 400 and _soz in r.text, r.text[:110])
+
+# --- 10e. Ta'minotchi ---
+_bad10("/api/suppliers", [
+    ("telefon 30 belgi", {"name": _n10("BBB_T"), "phone": "9" * 30}),
+    ("nom faqat bo'shliq", {"name": "    "}),
+    ("nom ' b ' (bo'shliqsiz 1 belgi)", {"name": " b "}),
+    ("telefon son", {"name": _n10("BBB_T"), "phone": 123}),
+    ("is_active kaliti", {"name": _n10("BBB_T"), "is_active": False}),
+    ("company_id kaliti", {"name": _n10("BBB_T"), "company_id": 1}),
+    ("nomsiz (majburiy)", {"phone": "998901234567"}),
+])
+
+
+# --- 10f. Material qayta yaratish (qayta ishlatish yo'li) ---
+def _inv_row10(nm):
+    db.rollback()
+    db.expire_all()
+    return db.query(Inventory).filter(Inventory.company_id == 2, Inventory.item_name == nm).first()
+
+
+def _purch10(iid):
+    db.rollback()
+    return db.query(_IP10).filter(_IP10.inventory_id == iid).count()
+
+
+# (1) ishlatilmagan (qoldiq 0, xaridsiz) qator — qoldiq 50 bilan qayta
+_nm = _n10("BBB_R")
+_req7("post", "/api/inventory", json={"item_name": _nm, "unit": "kg", "stock_quantity": 0,
+                                      "notes": "asl izoh"})
+_o = _inv_row10(_nm)
+_p0 = _purch10(_o.id) if _o else None
+r = _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "kg", "stock_quantity": 50,
+                                          "price_per_unit": 1000})
+_o = _inv_row10(_nm)
+check(f"qayta yaratish (ishlatilmagan): qoldiq 50 \u2192 {r.status_code}, xarid yozuvi yaratildi",
+      r.status_code == 200 and _o is not None and _o.stock_quantity == 50
+      and _p0 == 0 and _purch10(_o.id) == 1, f"{r.text[:90]} | xarid {_p0} -> {_purch10(_o.id) if _o else None}")
+check("  \u21b3 izoh berilmagan — eski izoh saqlandi",
+      _o is not None and _o.notes == "asl izoh", repr(_o.notes if _o else None))
+
+# (2) o'chirilgan (yumshoq) qator — qoldiq 30 bilan tiriltirish
+_nm = _n10("BBB_R")
+r0 = _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "kg", "stock_quantity": 7,
+                                           "price_per_unit": 500})
+_o = _inv_row10(_nm)
+if _o is not None:
+    _req7("delete", f"/api/inventory/{_o.id}")
+_o = _inv_row10(_nm)
+_soft = bool(_o is not None and _o.is_deleted)
+_p0 = _purch10(_o.id) if _o else None
+r = _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "kg", "stock_quantity": 30,
+                                          "price_per_unit": 600})
+_o = _inv_row10(_nm)
+check(f"qayta yaratish (o'chirilgan): qoldiq 30 \u2192 {r.status_code}, yangi xarid yozuvi yaratildi",
+      _soft and r.status_code == 200 and _o is not None and not _o.is_deleted
+      and _p0 == 1 and _purch10(_o.id) == 2,
+      f"yumshoq={_soft} {r.text[:80]} | xarid {_p0} -> {_purch10(_o.id) if _o else None}")
+
+# (3) korxonaning ASOSIY penoplasti qayta yaratilganda
+_nm = _n10("BBB_P")
+_req7("post", "/api/inventory", json={"item_name": _nm, "unit": "blok", "stock_quantity": 0,
+                                      "is_penoplast": True})
+_px = _inv_row10(_nm)
+_px_id = _px.id if _px is not None else -1
+_rs = _req7("post", f"/api/inventory/{_px_id}/set-default-penoplast")
+
+
+def _def10():
+    db.rollback()
+    db.expire_all()
+    return [x.id for x in db.query(Inventory).filter(
+        Inventory.company_id == 2, Inventory.is_default_penoplast == True).all()]  # noqa: E712
+
+
+check(f"  (tayyorgarlik: yangi penoplast asosiy qilindi \u2192 {_rs.status_code})",
+      _rs.status_code == 200 and _def10() == [_px_id], f"{_rs.text[:80]} | {_def10()}")
+r = _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "blok", "is_penoplast": True,
+                                          "is_default_penoplast": False})
+check(f"qayta yaratish (asosiy penoplast, is_default false) \u2192 {r.status_code}, korxonada asosiy penoplast SAQLANDI",
+      r.status_code == 200 and _def10() == [_px_id], f"{r.text[:80]} | asosiylar: {_def10()}")
+c0 = _cnt10()
+r = _req7("post", "/api/inventory", json={"item_name": _nm, "unit": "blok", "is_penoplast": False})
+_o = _inv_row10(_nm)
+check(f"qayta yaratish (asosiy penoplast \u2192 oddiy material) \u2192 {r.status_code} (400 shart), o'zgarmadi",
+      r.status_code == 400 and _o is not None and _o.is_penoplast and _def10() == [_px_id]
+      and c0 == _cnt10(), f"{r.text[:90]} | peno={_o.is_penoplast if _o else None} asosiylar={_def10()}")
+_rs = _req7("post", f"/api/inventory/{B_DEF9}/set-default-penoplast")
+check(f"  (tiklash: B ning asl asosiy penoplasti qaytarildi \u2192 {_rs.status_code})",
+      _rs.status_code == 200 and _def10() == [B_DEF9], f"{_rs.text[:80]} | {_def10()}")
+
+
+# --- 10g. Ildiz: crud to'g'ridan-to'g'ri (pydantic o'tkazadigan, qoida rad etadigan) ---
+def _root10(lbl, fn):
+    c0 = _cnt10()
+    try:
+        with contextlib.redirect_stdout(_quiet):
+            fn()
+        ok, why = False, "xato chiqmadi"
+    except ValueError as e:
+        ok, why = True, str(e)[:60]
+    except Exception as e:                           # noqa: BLE001
+        ok, why = False, f"{type(e).__name__}: {str(e)[:60]}"
+    db.rollback()
+    c1 = _cnt10()
+    check(f"ildiz: {lbl} \u2192 ValueError VA hech narsa yaratilmadi",
+          ok and c0 == c1, f"{why} | {c0} -> {c1}")
+
+
+_root10("add_item narx -5", lambda: crud.add_item(db, schemas.InventoryCreate(
+    item_name=_n10("BBB_M"), unit="kg", price_per_unit=-5), company_id=2))
+_root10("add_item birlik '   '", lambda: crud.add_item(db, schemas.InventoryCreate(
+    item_name=_n10("BBB_M"), unit="   "), company_id=2))
+_root10("create_master hudud 80 belgi", lambda: crud.create_master(db, schemas.MasterCreate(
+    name=_n10("BBB_U"), phone=_tel10(), region="r" * 80), company_id=2))
+_root10("create_employee pay_type 'xato'", lambda: crud.create_employee(db, schemas.EmployeeCreate(
+    name=_n10("BBB_H"), pay_type="xato"), company_id=2))
+_root10("create_employee production_type 'xato'", lambda: crud.create_employee(
+    db, schemas.EmployeeCreate(name=_n10("BBB_H"), pay_type="fixed", production_type="xato"),
+    company_id=2))
+_root10("create_project byudjet -5", lambda: crud.create_project(db, schemas.ProjectCreate(
+    project_name=_n10("BBB_L"), client_name="BBB_Mijoz10", total_budget=-5), company_id=2))
+_root10("create_supplier nom '   '", lambda: crud.create_supplier(db, schemas.SupplierCreate(
+    name="   "), company_id=2))
+
+_c0 = _cnt10()
+try:
+    with contextlib.redirect_stdout(_quiet):
+        _e10 = crud.create_employee(db, schemas.EmployeeCreate(
+            name=_n10("BBB_H"), pay_type="PERCENT_SALES", percent_value=5), company_id=2)
+    _pt10 = _e10.pay_type.value
+except Exception as _x10:                              # noqa: BLE001
+    db.rollback()
+    _pt10 = f"{type(_x10).__name__}: {_x10}"
+check("ildiz nazorat: create_employee pay_type 'PERCENT_SALES' \u2192 percent_sales (JIMGINA fixed EMAS)",
+      _pt10 == "percent_sales", str(_pt10)[:100])
+
+# --- 10h. Statik: yaratish qoidalarida PK/FK yo'q, hammasi ustun ---
+try:
+    _cr10 = crud._create_rules()
+    _mod10 = {"Inventory": Inventory, "Master": _MS10, "Employee": _EM10,
+              "Project": _PR10, "Supplier": _SP10}
+    _yomon10 = []
+    for _mn, _r in _cr10.items():
+        _cols = {c.name: c for c in _mod10[_mn].__table__.columns}
+        for _f in _r:
+            if _f == "id" or _f == "company_id" or _f.endswith("_id") and _f != "telegram_id":
+                _yomon10.append(f"{_mn}.{_f} (bog'lanish)")
+            elif _f not in _cols:
+                _yomon10.append(f"{_mn}.{_f} (ustun yo'q)")
+            elif _cols[_f].primary_key or _cols[_f].foreign_keys:
+                _yomon10.append(f"{_mn}.{_f} (PK/FK)")
+        for _t in crud._CREATE_TAQIQ.get(_mn, {}):
+            if _t in _r:
+                _yomon10.append(f"{_mn}.{_t} (taqiqlangan, lekin ruxsatda)")
+        for _t in crud._CREATE_MAJBURIY.get(_mn, {}):
+            if _t not in _r:
+                _yomon10.append(f"{_mn}.{_t} (majburiy, lekin ruxsatda yo'q)")
+    check("statik: yaratish qoidalarida PK/FK yo'q, hammasi ustun, taqiq/majburiy mos",
+          not _yomon10 and set(_cr10) == set(_mod10) == set(crud._CREATE_MAJBURIY), str(_yomon10[:5]))
+except Exception as _e10:                              # noqa: BLE001
+    check("statik: yaratish qoidalarida PK/FK yo'q, hammasi ustun, taqiq/majburiy mos",
+          False, f"{type(_e10).__name__}: {_e10}")
+
+
+# --- 10i. Nazorat: interfeys AYNAN yuboradigan tanalar → 200 VA haqiqatan yozildi ---
+def _ok10(lbl, url, body, qator, kutilgan):
+    r = _post10(url, body)
+    db.rollback()
+    db.expire_all()
+    o = qator()
+    farq = {} if o is None else {k: (getattr(o, k), v) for k, v in kutilgan.items()
+                                 if getattr(o, k) != v}
+    check(f"nazorat: POST {url} ({lbl}) \u2192 {r.status_code} (200 shart) VA yozildi",
+          r.status_code == 200 and o is not None and not farq,
+          f"{r.text[:100]} | {'YOZILMADI' if o is None else farq}")
+    return o
+
+
+_nm = _n10("BBB_M")
+_ok10("supplier_receive.html: yangi penoplast", "/api/inventory",
+      {"item_name": _nm, "category": "Penoplast", "unit": "blok", "stock_quantity": 0,
+       "min_stock": 0, "is_penoplast": True, "is_default_penoplast": False, "volume_per_unit": 1.5},
+      lambda: _inv_row10(_nm),
+      {"unit": "blok", "category": "Penoplast", "is_penoplast": True, "volume_per_unit": 1.5})
+check("  \u21b3 korxonada asosiy penoplast o'zgarmadi", _def10() == [B_DEF9], str(_def10()))
+_nm = _n10("BBB_M")
+_ok10("suppliers.html: yangi material", "/api/inventory",
+      {"item_name": _nm, "category": "Kimyo", "unit": "kg", "stock_quantity": 0, "min_stock": 0},
+      lambda: _inv_row10(_nm), {"category": "Kimyo", "stock_quantity": 0.0})
+_nm = _n10("BBB_M")
+_o = _ok10("API: boshlang'ich qoldiq 10 × 1000", "/api/inventory",
+           {"item_name": _nm, "unit": "kg", "stock_quantity": 10, "price_per_unit": 1000},
+           lambda: _inv_row10(_nm), {"stock_quantity": 10.0})
+check("  \u21b3 boshlang'ich qoldiq xaridi (10 000) yozildi",
+      _o is not None and _purch10(_o.id) == 1, str(_purch10(_o.id) if _o else None))
+
+for _src, _reg in (("kpi.html", None), ("masters_manage.html", "Andijon")):
+    _nm, _tl = _n10("BBB_U"), _tel10()
+    _ok10(f"{_src}: usta formasi", "/api/masters",
+          {"name": _nm, "region": _reg, "telegram_id": None, "notes": None, "phone": _tl},
+          lambda: db.query(_MS10).filter(_MS10.company_id == 2, _MS10.name == _nm).first(),
+          {"phone": _tl, "region": _reg, "is_active": True})
+_nm = _n10("BBB_U")
+_ok10("API: cashback 5 + kpi 7 (ilgari kpi YOZILMASDI)", "/api/masters",
+      {"name": _nm, "phone": _tel10(), "cashback_percent": 5, "kpi_percent": 7},
+      lambda: db.query(_MS10).filter(_MS10.company_id == 2, _MS10.name == _nm).first(),
+      {"cashback_percent": 5.0, "kpi_percent": 7.0})
+
+_nm = _n10("BBB_H")
+_o = _ok10("kpi.html: hodim formasi (qoplama)", "/api/employees",
+           {"name": _nm, "position": None, "pay_type": "fixed_plus_coating", "fixed_amount": 2000000,
+            "percent_value": 0, "per_unit_rate": 1000, "per_unit_type": "metr",
+            "extra_monthly": None, "production_type": "penoplast", "notes": None},
+           lambda: db.query(_EM10).filter(_EM10.company_id == 2, _EM10.name == _nm).first(),
+           {"per_unit_type": "metr", "production_type": "penoplast", "extra_monthly": None})
+check("  \u21b3 to'lov turi fixed_plus_coating VA boshlang'ich tarix yozuvi (1 ta)",
+      _o is not None and _o.pay_type.value == "fixed_plus_coating"
+      and db.query(_ECH10).filter(_ECH10.employee_id == _o.id).count() == 1,
+      str(_o.pay_type if _o else None))
+
+_nm = _n10("BBB_L")
+_o = _ok10("projects.html: yangi loyiha + muddat", "/api/projects",
+           {"client_name": "BBB_Mijoz10", "client_phone": None, "client_address": None,
+            "notes": None, "project_name": _nm, "total_budget": 1500000, "deadline": "2026-10-15"},
+           lambda: db.query(_PR10).filter(_PR10.company_id == 2, _PR10.project_name == _nm).first(),
+           {"client_name": "BBB_Mijoz10"})
+check("  \u21b3 muddat 2026-10-15 saqlandi (ilgari JIMGINA tashlanardi), byudjet 1 500 000",
+      _o is not None and _o.deadline is not None and _o.deadline.date().isoformat() == "2026-10-15"
+      and float(_o.total_budget) == 1500000.0,
+      f"{_o.deadline if _o else None} / {_o.total_budget if _o else None}")
+_nm = _n10("BBB_L")
+_ok10("projects.html: muddatsiz (deadline null)", "/api/projects",
+      {"client_name": "BBB_Mijoz10", "client_phone": None, "client_address": None,
+       "notes": None, "project_name": _nm, "total_budget": 0, "deadline": None},
+      lambda: db.query(_PR10).filter(_PR10.company_id == 2, _PR10.project_name == _nm).first(),
+      {"deadline": None})
+check("  \u21b3 GET /api/projects \u2192 200", _req7("get", "/api/projects").status_code == 200)
+
+_nm = _n10("BBB_T")
+_ok10("supplier_receive.html: yangi ta'minotchi", "/api/suppliers", {"name": _nm, "phone": None},
+      lambda: db.query(_SP10).filter(_SP10.company_id == 2, _SP10.name == _nm).first(),
+      {"phone": None})
+_nm = _n10("BBB_T")
+_ok10("suppliers.html: forma", "/api/suppliers",
+      {"name": _nm, "phone": "+998901234567", "notes": "izoh10"},
+      lambda: db.query(_SP10).filter(_SP10.company_id == 2, _SP10.name == _nm).first(),
+      {"phone": "+998901234567", "notes": "izoh10"})
+
+# ══════════════════════════════════════════════════════════════
 print("\n" + "=" * 66)
 print(f"NATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 print(f"tenant_context statistikasi: {_tc.get_stats()}")
