@@ -345,6 +345,15 @@ def main():
         if korilgan[k] > known.get(k, 0):
             new_read.append(x)
 
+    # ⚠ 2026-09-21 — XRAPOVIK. Ilgari baselineda bor, lekin koddan
+    # YO'QOLGAN yozuvlar jimgina qolib ketardi. O'lchandi: tuzatilgan
+    # so'rovlar tufayli 16 ta shunday yozuv to'plangan edi (ekranda
+    # "156" turardi, kodda haqiqatda 140 ta). Eskirgan yozuv — "bo'sh
+    # o'rin": o'sha funksiyaga AYNAN shu filtrsiz so'rov qayta yozilsa,
+    # lint uni "ma'lum holat" deb o'tkazib yuborardi. Endi eskirgan
+    # yozuv ham darvozani yiqitadi — baseline faqat QISQARA oladi.
+    stale = known - Counter(key(x) for x in read_issues)
+
     if update:
         json.dump({"read": sorted(read_issues)}, open(BASELINE, "w", encoding="utf-8"),
                   ensure_ascii=False, indent=1)
@@ -379,6 +388,14 @@ def main():
         # gapirardi. Endi YOZUVLAR soni chiqadi — baseline fayli bilan teng.
         print(f"✓ O'QISH: yangi filtrsiz so'rov yo'q "
               f"(ma'lum holatlar: {sum(known.values())})")
+
+    if stale:
+        ok = False
+        print(f"\n⛔ BASELINE ESKIRGAN — kodda endi YO'Q ({sum(stale.values())} ta):")
+        for k, v in sorted(stale.items()):
+            print(f"   {v}x {k[:150]}")
+        print("\n   Bu yaxshi xabar (so'rov tuzatilgan), lekin o'rni yopilishi")
+        print("   kerak: python tools/tenant_lint.py --update")
 
     print("\n" + ("✅ TOZA" if ok else "❌ MUAMMO TOPILDI"))
     return 0 if ok else 1
