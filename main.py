@@ -4784,9 +4784,20 @@ def api_finance_history(months: int = 12, db: Session = Depends(get_db), current
 
 
 @app.post("/api/finance/transactions")
-def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: Session = Depends(get_db),
+def api_create_expense_transaction(data: dict = Body(...), db: Session = Depends(get_db),
                                     current_user=Depends(auth.admin_manager_accountant)):
-    tx = crud.create_expense_transaction(db, data.model_dump(), performed_by=current_user.full_name or current_user.username, source="manual", company_id=auth.company_id_of(current_user))
+    # 17e (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val`).
+    # O'LCHANGAN: `Infinity` summa 500 bersa ham yozuv SAQLANIB, Moliya
+    # tarixini BUTUNLAY buzardi; `true` → 1 so'm, `"5000"`, 0, 31+ belgili
+    # kategoriya (PostgreSQL da 500), noto'g'ri yo'nalish, 1970-yil sanasi
+    # qabul qilinardi. Xato → 400, `detail` MATN (`finance.html`,
+    # `kunlik_xarajat.html` uni to'g'ridan-to'g'ri ko'rsatadi).
+    try:
+        toza = crud._clean_val("ExpenseTransaction", data)
+        tx = crud.create_expense_transaction(db, toza, performed_by=current_user.full_name or current_user.username, source="manual", company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return schemas.ExpenseTransactionRead.model_validate(tx)
 
 
@@ -4807,13 +4818,23 @@ def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), cu
 
 
 @app.put("/api/finance/transactions/{tx_id}")
-def api_update_expense_transaction(tx_id: int, data: schemas.ExpenseTransactionCreate, db: Session = Depends(get_db),
+def api_update_expense_transaction(tx_id: int, data: dict = Body(...), db: Session = Depends(get_db),
                                     current_user=Depends(auth.admin_manager_accountant)):
     """2026-09-16: foydalanuvchi so'rovi bo'yicha qo'shildi — xato kiritilgan
     xarajat summasini o'chirib-qayta yozish o'rniga, to'g'ridan-to'g'ri
     tahrirlash imkonini beradi (masalan "125" o'rniga "125 000" bo'lishi
     kerak bo'lgan holatlar uchun)."""
-    tx = crud.update_expense_transaction(db, tx_id, data.model_dump(), company_id=auth.company_id_of(current_user))
+    # 17e (2026-09-22): egalik tekshiruvi TANA tekshiruvidan OLDIN — begona
+    # yozuv uchun yomon tana bilan ham 404 (oracle yo'q). Keyin tana
+    # yaratish bilan BIR XIL qat'iy qoida bilan tekshiriladi (xato → 400).
+    if not auth.expense_of_company(db, tx_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+    try:
+        toza = crud._clean_val("ExpenseTransaction", data)
+        tx = crud.update_expense_transaction(db, tx_id, toza, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not tx:
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
     return schemas.ExpenseTransactionRead.model_validate(tx)
@@ -5049,12 +5070,22 @@ def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.put("/api/orders/{order_id}/agreed-amount")
-def api_update_agreed_amount(order_id: int, data: schemas.OrderAgreedUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_agreed_amount(order_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Kelishilgan summani (chegirmadan keyingi narx) yangilash."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    order = crud.update_order_agreed_amount(db, order_id, data.agreed_amount)
+    # 17e (2026-09-22): summa QAT'IY — musbat, chekli, sig'im ichida
+    # (`crud._clean_val("OrderAgreed")`). O'LCHANGAN: `Infinity` → JONLI 500
+    # va `/logs` yozuvi; `1e20` saqlanardi; `true` → 1 so'm (99.9 % chegirma);
+    # `"800"` matn; 0 → chegirma 100 %, qarz esa jami summadan. `detail` —
+    # OBYEKT (`orders.html` boshqa buyurtma xatolari kabi `detail.message`).
+    try:
+        toza = crud._clean_val("OrderAgreed", data)
+        order = crud.update_order_agreed_amount(db, order_id, toza["agreed_amount"])
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     return {

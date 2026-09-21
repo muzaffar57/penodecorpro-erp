@@ -405,6 +405,10 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
     """Yangi xarajat tranzaksiyasini yaratadi. Bu funksiya faqat YANGI ExpenseTransaction
     jadvaliga yozadi — mavjud MonthlyExpense yoki hisob-kitob logikasiga umuman tegmaydi."""
     from models import ExpenseTransaction
+    # 17e (2026-09-22): ILDIZ — tana QAT'IY (summa musbat va chekli,
+    # kategoriya 1–30 belgi, yo'nalish ro'yxatdan, sana 2000–2100).
+    # Marshrut ham tekshiradi; bu qatlam boshqa chaqiruvchilar uchun.
+    data = _clean_val("ExpenseTransaction", _val_dump(data, "ExpenseTransaction"))
     # M6 — TENANT: company_id ANIQ beriladi (ota-FK yo'q, DEFAULT 1 ga tushmasin).
     tx = ExpenseTransaction(
         company_id=company_id,
@@ -432,6 +436,9 @@ def update_expense_transaction(db: Session, tx_id: int, data,
     har safar JORIY yozuvlar asosida qayta hisoblanadi) alohida ta'sir
     qilmaydi."""
     from models import ExpenseTransaction
+    # 17e (2026-09-22): ILDIZ — yaratish bilan BIR XIL qat'iy qoida
+    # (bazaga tegishdan OLDIN; xato → `ValueError`, hech narsa yozilmaydi).
+    data = _clean_val("ExpenseTransaction", _val_dump(data, "ExpenseTransaction"))
     _q = db.query(ExpenseTransaction).filter(ExpenseTransaction.id == tx_id)
     if company_id is not None:      # M6: faqat shu korxonadan
         _q = _q.filter(ExpenseTransaction.company_id == company_id)
@@ -2642,6 +2649,26 @@ _TRANSPORT_TOLOVCHI = {"none": "none", "self": "self", "supplier": "supplier"}
 _ISHLAB_CHIQARISH_TURI = {"umumiy": "umumiy", "penoplast": "penoplast",
                           "gips": "gips"}
 
+# ── 17e (2026-09-22): kunlik xarajat va kelishilgan summa ───────────────
+# O'LCHANGAN (`work/probe17e.py`, har prob alohida toza bazada, asl kod =
+# 17d): `POST`/`PUT /api/finance/transactions` sxemasida summa uchun faqat
+# `ge=0` bor edi:
+#   * `Infinity` → javob 500, LEKIN yozuv SAQLANARDI va shundan keyin
+#     `/api/finance/history` hamda xarajatlar ro'yxati BUTUNLAY 500;
+#   * `1e20` (PostgreSQL da Numeric(12,2) → 500), `true` → 1 so'm,
+#     `"5000"` → 5000, 0 so'm — qabul;
+#   * kategoriya bo'sh / faqat bo'shliq / 31–300 belgi (PostgreSQL da
+#     String(30) → 500) — qabul; noto'g'ri `production_type` ("xyz") —
+#     qabul, oylik hisobotdan JIMGINA tushib qolardi; 21 belgili — PG 500;
+#   * sana 0001-yil, 1999-yil, `12345` (→ 1970-yil) — qabul.
+# `PUT /api/orders/{id}/agreed-amount` (`OrderAgreedUpdate`, faqat `ge=0`):
+#   * `Infinity` → 500 (SQLite da SAQLANARDI, JONLI PostgreSQL da 500 va
+#     `/logs` ga yozuv); `1e20` saqlanardi; `true` → 1 so'm (chegirma
+#     99.9 %); `"800"` → 800; 0 → chegirma 100 %, lekin qarz JAMI summadan.
+# Endi: ruxsat ro'yxati + qat'iy turlar (`_clean_val`) marshrutda HAM crud
+# ildizida HAM (17b/17c naqshi).
+_XARAJAT_KATEGORIYA_MAX = 30
+
 
 def _val_rules():
     """17-band qoidalari: model (tana turi) → {maydon: qoida}."""
@@ -2776,6 +2803,26 @@ def _val_rules():
             # o'chib ketardi (o'lchandi).
             "ingredients": ("royxat", "RecipeIngredient", 1, 100),
         },
+        # 17e (2026-09-22): kunlik xarajat tranzaksiyasi — `finance.html`
+        # (qo'shish VA tahrirlash), `kunlik_xarajat.html`, `debts.html`
+        # (majburiyatni to'lash) AYNAN shu besh kalitdan foydalanadi.
+        # `expense_transactions`: category String(30), amount Numeric(12,2),
+        # notes Text, production_type String(20). Kategoriya ERKIN matn —
+        # `debts.html` majburiyat KODINI (≤ 30) kategoriya qilib yuboradi.
+        "ExpenseTransaction": {
+            "date": ("sana", True),
+            "category": ("matn", True, _XARAJAT_KATEGORIYA_MAX),
+            "amount": ("son", False, True, money),
+            "notes": ("matn", False, matn),
+            "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+        },
+        # 17e: buyurtmaning kelishilgan summasi (`orders.html`
+        # `editAgreedAmount` — faqat shu bitta kalit). MUSBAT: 0 ikki xil
+        # talqin qilinardi (chegirma 100 %, lekin `_update_order_payment_status`
+        # 0 ni "berilmagan" deb JAMI summaga qaytaradi); UI ham 0 ni rad etadi.
+        "OrderAgreed": {
+            "agreed_amount": ("son", False, True, money),
+        },
     }
 
 
@@ -2796,6 +2843,9 @@ _VAL_MAJBURIY = {
     "RecipeBody": {"name": 1, "ingredients": None},
     # 17c (2026-09-21)
     "SupplierPayment": {"amount": None},
+    # 17e (2026-09-22)
+    "ExpenseTransaction": {"category": 1, "amount": None},
+    "OrderAgreed": {"agreed_amount": None},
 }
 
 
@@ -4437,6 +4487,9 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None,
 
 def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float) -> Optional[Order]:
     """Kelishilgan summani (chegirmadan keyingi narx) yangilash."""
+    # 17e (2026-09-22): ILDIZ — summa MUSBAT, chekli, Numeric(12,2) sig'imi
+    # ichida (`true`, matn, `Infinity`, 0 — `ValueError`), bazaga tegishdan OLDIN.
+    agreed_amount = _clean_val("OrderAgreed", {"agreed_amount": agreed_amount})["agreed_amount"]
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         return None

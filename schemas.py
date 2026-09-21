@@ -6,7 +6,7 @@ Ular API ga keladigan va chiqadigan ma'lumotlarni tekshiradi.
 """
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
 
 
@@ -399,11 +399,16 @@ class OrderItemRead(BaseModel):
 
 
 class ExpenseTransactionCreate(BaseModel):
+    """17e (2026-09-22): marshrutlar endi xom JSON ni `crud._clean_val
+    ("ExpenseTransaction")` bilan tekshiradi; bu sxema ham xuddi shu
+    chegaralarni qo'yadi (boshqa joyda ishlatilsa — ikkinchi to'siq).
+    Ilgari faqat `ge=0` bor edi: `Infinity` SAQLANIB Moliya tarixini buzardi."""
     date: Optional[datetime] = None
-    category: str
-    amount: float = Field(..., ge=0)
-    notes: Optional[str] = None
-    production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
+    category: str = Field(..., min_length=1, max_length=30)
+    amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    production_type: Optional[Literal["umumiy", "penoplast", "gips"]] = Field(
+        default=None, description="umumiy / penoplast / gips")
 
 
 class ExpenseTransactionRead(BaseModel):
@@ -759,8 +764,12 @@ class OrderRead(BaseModel):
 
 
 class OrderAgreedUpdate(BaseModel):
-    """Kelishilgan summani yangilash."""
-    agreed_amount: float = Field(..., ge=0)
+    """Kelishilgan summani yangilash.
+
+    17e (2026-09-22): MUSBAT, chekli, Numeric(12,2) sig'imi ichida, faqat son
+    (marshrut xom JSON ni `crud._clean_val("OrderAgreed")` bilan tekshiradi;
+    bu — ikkinchi to'siq). Ilgari `ge=0`: `Infinity` va `1e20` o'tardi."""
+    agreed_amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True)
 
 
 class ProjectUpdate(BaseModel):
