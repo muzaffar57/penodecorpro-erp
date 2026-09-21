@@ -52,6 +52,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_DB}"
 os.environ["TELEGRAM_BOT_TOKEN"] = "ENV_TOKEN"
 os.environ["BACKUP_TELEGRAM_CHAT_ID"] = "ENV_CHAT"
 os.environ["QOPLAMACHI_TELEGRAM_CHAT_ID"] = "ENV_QOP"
+os.environ["TELEGRAM_WEBHOOK_SECRET"] = "WH_SECRET"
 
 import io                                          # noqa: E402
 import ast                                         # noqa: E402
@@ -405,6 +406,219 @@ for fn in ast.walk(_tree):
 check("yordamchilar (yuk xati, qoplamachi) ichki chaqiruvlari company_id beradi",
       all(v > 0 for v in _helpers.values()), str(_helpers))
 
+
+# ══════════════════════════════════════════════════════════════
+section("6. Brend: har korxona xabarida faqat O'Z nomi (2026-09-21)")
+# ══════════════════════════════════════════════════════════════
+# BIZNES QARORI: boshqa korxonalar xabarida "🏗 PenoDecorPro — Andijon"
+# chiqmasligi kerak. A (1) ning ma'lumoti 1-korxonaning HAQIQIY
+# qiymatiga tenglashtiriladi — shunda A matni ESKI qattiq matn bilan
+# harfma-harf bir xil bo'lishi tekshiriladi. B da manzil/shior BO'SH —
+# platforma egasining manzili sizib chiqmasligi ham tekshiriladi.
+def _M(name):
+    # mutatsiyada (eski kodda) yordamchi yo'q — skript qulamasin, qulf yiqilsin
+    return getattr(main, name, None)
+
+
+A_FOOT = "🏗 *PenoDecorPro* — Andijon"
+_ca = db.query(Company).filter(Company.id == 1).first()
+_ca.name, _ca.address, _ca.slogan = "PenoDecorPro", "Andijon", "Fasad bezaklari"
+_cb = db.query(Company).filter(Company.id == 2).first()
+_cb.name, _cb.address, _cb.slogan = "BBB_BREND", None, None
+db.commit()
+
+
+def _clean_b(label, texts):
+    blob = " | ".join(texts)
+    check(f"{label}: B nomi bor", "BBB_BREND" in blob, blob[:300])
+    check(f"{label}: 'PenoDecorPro' YO'Q", "PenoDecorPro" not in blob, blob[:300])
+    check(f"{label}: 'Andijon' YO'Q (bo'sh manzil bo'sh qoladi)",
+          "Andijon" not in blob, blob[:300])
+
+
+# 6.1 Ildiz yordamchilari
+check("_tg_footer(1) — eski matn bilan aynan bir xil",
+      safe(_M("_tg_footer"), db, 1) == A_FOOT, repr(safe(_M("_tg_footer"), db, 1)))
+check("_tg_footer(None) — tizim xabari: 1-korxona zaxirasi",
+      safe(_M("_tg_footer"), db, None) == A_FOOT, repr(safe(_M("_tg_footer"), db, None)))
+check("_tg_footer(2) — manzil bo'sh: ' — ' qismi yo'q",
+      safe(_M("_tg_footer"), db, 2) == "🏗 *BBB_BREND*", repr(safe(_M("_tg_footer"), db, 2)))
+check("_tg_footer(2, tail) — manzil o'rniga tail",
+      safe(_M("_tg_footer"), db, 2, tail="Ali") == "🏗 *BBB_BREND* — Ali")
+check("_tg_footer(1, bold=False, emoji=📞) — eski 'topilmadingiz' imzosi",
+      safe(_M("_tg_footer"), db, 1, bold=False, emoji="📞") == "📞 PenoDecorPro — Andijon")
+check("_tg_title(2) — B sarlavhasi",
+      safe(_M("_tg_title"), db, 2, "Yangi buyurtma") == "🏗 *BBB_BREND — Yangi buyurtma*")
+check("_tg_title(1) — eski sarlavha bilan bir xil",
+      safe(_M("_tg_title"), db, 1, "Buyurtma tayyor") == "🏗 *PenoDecorPro — Buyurtma tayyor*")
+check("_tg_signature(2) — shior/manzil bo'sh: faqat nom qatori",
+      safe(_M("_tg_signature"), db, 2) == "🏗 *BBB_BREND*", repr(safe(_M("_tg_signature"), db, 2)))
+check("_tg_footer(999) — mavjud bo'lmagan korxona: platforma nomi chiqmaydi",
+      "Andijon" not in str(safe(_M("_tg_footer"), db, 999)),
+      repr(safe(_M("_tg_footer"), db, 999)))
+
+# 6.2 HTTP: buyurtma (ombor ogohlantirishi) + qoplama + to'liq ombor hisoboti
+BR_TXT = {1: [], 2: []}
+for cid in (1, 2):
+    SENT.clear()
+    with contextlib.redirect_stdout(_quiet):
+        r = CL[cid].post("/api/orders", json={
+            "project_id": PROJ[cid], "order_type": "service", "items": [],
+            "agreed_amount": 7000 + cid, "notes": f"brand_probe_{cid}"})
+        oid = r.json().get("id") if r.status_code == 200 else 0
+        CL[cid].post(f"/api/orders/{oid}/coating-notify", params={"loy_kg": 7})
+        CL[cid].post("/api/inventory/low-stock-alert")
+        CL[cid].post("/api/inventory/full-stock-report")
+    BR_TXT[cid] = [t for _, _, t in SENT]
+    check(f"[{cid}] brend probasi: kamida 5 xabar", len(SENT) >= 5,
+          str([(a, b) for a, b, _ in SENT]))
+_clean_b("[2] buyurtma/qoplama/ombor", BR_TXT[2])
+check("[2] qoplama sarlavhasi B nomi bilan",
+      any(t.startswith("🏗 *BBB_BREND — Yangi buyurtma*\n\n") for t in BR_TXT[2]),
+      str([t[:40] for t in BR_TXT[2]]))
+check("[1] A: ombor xabarlari eski imzo bilan tugaydi (o'zgarmagan)",
+      sum(t.endswith("\n\n" + A_FOOT) for t in BR_TXT[1]) >= 3,
+      str([t[-40:] for t in BR_TXT[1]]))
+check("[1] A: qoplama sarlavhasi eski matn bilan bir xil",
+      any(t.startswith("🏗 *PenoDecorPro — Yangi buyurtma*\n\n") for t in BR_TXT[1]),
+      str([t[:40] for t in BR_TXT[1]]))
+
+# 6.3 Ustaga salom (POST /api/masters)
+for cid, tg in ((1, "700001"), (2, "700002")):
+    SENT.clear()
+    with contextlib.redirect_stdout(_quiet):
+        r = CL[cid].post("/api/masters", json={
+            "name": f"USTA_{cid}", "phone": f"+99890000000{cid}",
+            "telegram_id": tg, "cashback_percent": 5})
+    check(f"[{cid}] POST /api/masters → 200", r.status_code == 200,
+          f"{r.status_code} {r.text[:150]}")
+    _w = [t for _, ch, t in SENT if ch == tg]
+    check(f"[{cid}] ustaga salom yuborildi", len(_w) == 1, str(SENT)[:200])
+    if cid == 2:
+        _clean_b("[2] ustaga salom", _w)
+        check("[2] salom oxirida faqat nom qatori (shior/manzil bo'sh)",
+              _w and _w[0].endswith("🌟\n\n🏗 *BBB_BREND*"), repr(_w[0][-60:]) if _w else "")
+    else:
+        check("[1] A salomi: nom + shior + manzil DB dan",
+              _w and _w[0].endswith("🌟\n\n🏗 *PenoDecorPro* — Fasad bezaklari\n📍 Andijon"),
+              repr(_w[0][-80:]) if _w else "")
+
+# 6.4 Nasiya xarid: imzo + literal "\n" xatosi
+for cid in (1, 2):
+    _sup = crud.create_supplier(db, schemas.SupplierCreate(name=f"SUPP_{cid}X"),
+                                company_id=cid)
+    _inv = db.query(Inventory).filter(Inventory.company_id == cid).first()
+    SENT.clear()
+    with contextlib.redirect_stdout(_quiet):
+        r = CL[cid].post(f"/api/inventory/{_inv.id}/purchase", json={
+            "quantity": 1, "price_per_unit": 100, "supplier_id": _sup.id,
+            "paid_now": 30})
+    check(f"[{cid}] nasiya xarid → 200", r.status_code == 200,
+          f"{r.status_code} {r.text[:150]}")
+    _n = [t for _, _, t in SENT if "Nasiya xarid" in t]
+    check(f"[{cid}] nasiya xabari yuborildi", len(_n) == 1, str(SENT)[:200])
+    check(f"[{cid}] nasiya xabarida literal '\\n' YO'Q (qator uzilishi to'g'ri)",
+          _n and "\\n" not in _n[0], repr(_n[0][:200]) if _n else "")
+    _exp = {1: "🏗 *PenoDecorPro* — AAA", 2: "🏗 *BBB_BREND* — BBB"}[cid]
+    check(f"[{cid}] nasiya imzosi: {_exp}", _n and _n[0].endswith(_exp),
+          repr(_n[0][-50:]) if _n else "")
+
+# 6.5 Mijozga "tayyor" (api_mark_order_ready) — B mijozi B nomini ko'radi
+for cid, tg in ((1, "600001"), (2, "600002")):
+    with contextlib.redirect_stdout(_quiet):
+        _pid = crud.create_project(db, schemas.ProjectCreate(
+            project_name=f"RDY_{cid}_LOYIHA", client_name=f"RDY{cid}_MIJOZ",
+            notes=f"tg_id={tg}"), company_id=cid).id
+        r = CL[cid].post("/api/orders", json={
+            "project_id": _pid, "order_type": "service", "items": [],
+            "agreed_amount": 9100 + cid, "notes": f"rdy_probe_{cid}"})
+        oid = r.json().get("id") if r.status_code == 200 else 0
+        SENT.clear()
+        r2 = CL[cid].post(f"/api/orders/{oid}/ready", params={"loy_kg": 3})
+    check(f"[{cid}] /ready → 200", r2.status_code == 200,
+          f"{r2.status_code} {r2.text[:150]}")
+    _c = [t for _, ch, t in SENT if ch == tg and "Buyurtmangiz" in t]
+    _h = [t for _, _, t in SENT if "Buyurtma tayyor" in t]
+    check(f"[{cid}] mijozga xabar ketdi", len(_c) == 1, str([(a, b) for a, b, _ in SENT]))
+    if cid == 2:
+        _clean_b("[2] mijozga 'tayyor' + ichki 'Buyurtma tayyor'", _c + _h)
+    else:
+        check("[1] A mijoz xabari eski imzo bilan (qalin emas)",
+              _c and "\n🏗 PenoDecorPro — Andijon\n\n" in _c[0], repr(_c[0][:200]) if _c else "")
+
+# 6.6 Webhook — bot global (1-korxonaniki); usta topilsa — o'z korxonasi
+WH = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
+
+
+def _wh(chat, text):
+    SENT.clear()
+    with contextlib.redirect_stdout(_quiet):
+        r = WH.post("/telegram/webhook", json={"message": {
+            "chat": {"id": int(chat)}, "text": text}},
+            headers={"X-Telegram-Bot-Api-Secret-Token": "WH_SECRET"})
+    return r.status_code, [t for _, ch, t in SENT if ch == str(chat)]
+
+
+_st, _t = _wh("700002", "/start")
+check("[wh] B ustasi /start → 200 + javob", _st == 200 and len(_t) == 1, f"{_st} {_t}")
+_clean_b("[wh] B ustasi /start", _t)
+_st, _t = _wh("700002", "/bonus")
+check("[wh] B ustasi /bonus → javob (xatosiz)",
+      _st == 200 and len(_t) == 1 and "Xatolik" not in _t[0], f"{_st} {_t}")
+_clean_b("[wh] B ustasi /bonus", _t)
+_st, _t = _wh("700002", "/sovgalar")
+check("[wh] B ustasi /sovgalar → javob", _st == 200 and len(_t) == 1, f"{_st} {_t}")
+_clean_b("[wh] B ustasi /sovgalar", _t)
+_st, _t = _wh("700001", "/start")
+check("[wh] A ustasi /start — eski matn",
+      _t == ["Assalomu alaykum! 👋\n\n*PenoDecorPro* bot ga xush kelibsiz!\n\n"
+             "Quyidagi tugmalardan foydalaning:"], str(_t))
+_st, _t = _wh("700001", "/bonus")
+check("[wh] A ustasi /bonus — eski imzo",
+      len(_t) == 1 and _t[0].endswith("so'm*\n\n🏗 PenoDecorPro — Andijon"), str(_t)[:200])
+_st, _t = _wh("799999", "/bonus")
+check("[wh] noma'lum chat /bonus — bot egasi imzosi (eski matn)",
+      _t == ["❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator "
+             "bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"], str(_t))
+
+# 6.7 STATIK: main.py dagi satrlarda qattiq brend qolmagan
+_ALLOWED = {"PenoDecorProBoundary1234567890", "PenoDecorPro ERP",
+            "PenoDecorPro ERP ishlamoqda!"}
+_doc_ids = set()
+for _n in ast.walk(_tree):
+    if isinstance(_n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        if (_n.body and isinstance(_n.body[0], ast.Expr)
+                and isinstance(_n.body[0].value, ast.Constant)):
+            _doc_ids.add(id(_n.body[0].value))
+_hard = []
+for _n in ast.walk(_tree):
+    if (isinstance(_n, ast.Constant) and isinstance(_n.value, str)
+            and id(_n) not in _doc_ids
+            and ("PenoDecorPro" in _n.value or "Andijon" in _n.value)
+            and _n.value not in _ALLOWED
+            # ishga tushish migratsiyasi: ENG ESKI korxonaning O'Z bo'sh
+            # maydonlarini to'ldiradi (xabar matni emas)
+            and not _n.value.startswith("UPDATE companies SET")):
+        _hard.append(f"{_n.lineno}: {_n.value[:50]!r}")
+# Marshrutdagi har brend chaqiruvi korxonani current_user dan oladi
+# (HTTP sinalmagan api_produce / api_add_production / api_update_order ham)
+_BR = {"_tg_footer", "_tg_title", "_tg_signature", "_tg_brand"}
+_want = ast.dump(ast.parse("auth.company_id_of(current_user)", mode="eval").body)
+_bb, _bt = [], 0
+for fn in ast.walk(_tree):
+    if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        continue
+    if "current_user" not in {a.arg for a in fn.args.args + fn.args.kwonlyargs}:
+        continue
+    for node in ast.walk(fn):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id in _BR):
+            _bt += 1
+            if len(node.args) < 2 or ast.dump(node.args[1]) != _want:
+                _bb.append(f"{fn.name}:{node.lineno} {node.func.id}")
+check(f"marshrutlardagi {_bt} brend chaqiruvi — hammasi auth.company_id_of(current_user)",
+      _bt >= 12 and not _bb, f"jami={_bt} xato: {_bb}")
+check("main.py: xabar matnlarida qattiq 'PenoDecorPro'/'Andijon' YO'Q", not _hard, str(_hard))
 
 print("\n" + "=" * 66)
 print(f"NATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
