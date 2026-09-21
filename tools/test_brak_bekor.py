@@ -50,7 +50,7 @@ engine.dispose()
 import crud  # noqa: E402
 from production_models import Company  # noqa: E402
 from models import (  # noqa: E402
-    FinishedProduct, FinishedProductLoss, StockSource, ActivityLog,
+    FinishedProduct, FinishedProductLoss, StockSource, ActivityLog, ProductionStatus,
 )
 
 db = SessionLocal()
@@ -91,7 +91,10 @@ def yangi_fp(cid=1, qty=10, cost=1_000_000):
     fp = FinishedProduct(company_id=cid, name=f"Mahsulot {cid}", category="profil",
                          quantity=qty, produced_quantity=qty, unit="metr",
                          unit_price=200_000, cost_price=cost,
-                         source=StockSource.PRODUCED)
+                         source=StockSource.PRODUCED,
+                         # 17-band: ombordan chiqadigan amal (brak) faqat
+                         # TAYYOR mahsulotda — fikstura tayyor mahsulot.
+                         production_status=ProductionStatus.READY)
     db.add(fp)
     db.commit()
     db.refresh(fp)
