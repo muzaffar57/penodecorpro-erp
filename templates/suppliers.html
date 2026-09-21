@@ -825,10 +825,15 @@ async function editPurchase(id, qty, price, isCredit) {
 }
 
 async function deletePurchase(id) {
+  // 20-band (2026-09-21): ilgari bu oyna "ombordagi joriy miqdor AVTOMATIK
+  // o'zgarmaydi" deb ogohlantirardi — bu NOTO'G'RI edi: server xarid
+  // miqdorini ombordan AYIRADI (Omborxona sahifasidagi oyna to'g'ri
+  // yozardi). Endi ikkala sahifa bir xil haqiqatni aytadi.
   if (!(await customConfirm(
     "Bu xarid yozuvi o'chirilsinmi?\n\n" +
-    "⚠️ Qarz hisobi qayta hisoblanadi, lekin ombordagi joriy miqdor/narx " +
-    "AVTOMATIK o'zgarmaydi.\n\nDavom etilsinmi?",
+    "⚠️ Xarid miqdori OMBORDAN AYIRILADI va qarz hisobi qayta hisoblanadi. " +
+    "Agar bu xomashyo allaqachon ishlatilgan bo'lsa, qoldiq manfiyga tushishi " +
+    "mumkin — keyingi kirimda qoplanadi. O'rtacha narx o'zgarmaydi.\n\nDavom etilsinmi?",
     {danger:true}
   ))) return;
 
@@ -838,7 +843,17 @@ async function deletePurchase(id) {
       showMsg('✓ O\'chirildi', 'success');
       openHistory(currentSupplierId, true);
       loadSuppliers();
-    } else showMsg('❌ Xato', 'error');
+    } else {
+      // 20-band: server sababini ko'rsatamiz (`detail` matn yoki
+      // `detail.message`); JSON emas yoki ro'yxat (422) — umumiy matn.
+      let sabab = 'Xato';
+      try {
+        const d = await res.json();
+        if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+        else if (d && d.detail && typeof d.detail.message === 'string') sabab = d.detail.message;
+      } catch(e2) {}
+      showMsg('❌ ' + sabab, 'error');
+    }
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
 }
 
