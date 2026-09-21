@@ -8580,7 +8580,30 @@ def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
 
     # Bog'liq xaridlarni supplier_id=NULL qilamiz (tarixi Omborxonada saqlanib qoladi,
     # lekin endi hech kimga bog'lanmaydi) — to'lovlarni esa o'chiramiz (faqat shu supplierga tegishli)
+    #
+    # 21-band (2026-09-21, JONLI VA LOKAL O'LCHANGAN): `suppliers.id` ga
+    # ishora qiluvchi TO'RTTA ustun bor (models.py):
+    #     InventoryPurchase.supplier_id   (nullable)  — quyida NULL qilinardi
+    #     SupplierPayment.supplier_id     (NOT NULL)  — quyida o'chirilardi
+    #     InventoryMovement.supplier_id   (nullable)  — TEGILMASDI  ← nuqson
+    #     InventoryReceipt.supplier_id    (nullable)  — TEGILMASDI  ← nuqson
+    # Har kirimda `log_movement(..., supplier_id=...)` yoziladi, ya'ni BIR
+    # MARTA ham xarid qilingan ta'minotchini o'chirib bo'lmasdi: PostgreSQL
+    # `inventory_movements_supplier_id_fkey` cheklovini buzib COMMIT da
+    # yiqilardi va foydalanuvchi "Serverda kutilmagan xato yuz berdi" (500)
+    # ko'rardi. Xaridsiz ta'minotchi o'chgani uchun bu ilgari sezilmagan
+    # (kech13 nazorati aynan shunday edi). SQLite da FK cheklovi standart
+    # HOLATDA o'chiq — shuning uchun lokal testlarda ham ko'rinmagan
+    # (`tools/test_tamin_ochirish.py` `PRAGMA foreign_keys=ON` bilan
+    # ishlaydi va shu yo'lni qulflaydi).
+    from models import InventoryMovement, InventoryReceipt
     db.query(InventoryPurchase).filter(InventoryPurchase.supplier_id == supplier_id).update(
+        {"supplier_id": None}
+    )
+    db.query(InventoryMovement).filter(InventoryMovement.supplier_id == supplier_id).update(
+        {"supplier_id": None}
+    )
+    db.query(InventoryReceipt).filter(InventoryReceipt.supplier_id == supplier_id).update(
         {"supplier_id": None}
     )
     db.query(SupplierPayment).filter(SupplierPayment.supplier_id == supplier_id).delete()
@@ -8712,25 +8735,156 @@ def _purchase_of_company(db: Session, purchase_id: int, company_id: int = None):
     return q.first()
 
 
+def _xarid_son(value, nom: str) -> float:
+    """21-band (2026-09-21): xarid yozuvidagi son — musbat, chekli,
+    `true/false` emas, sig'imdan katta emas. Aks holda ValueError (→ 400).
+
+    Nima uchun kerak: `schemas.PurchaseUpdate` da `Field(gt=0)` bor, lekin
+    `float('inf') > 0` — ROST, ya'ni cheksizlik pydantic dan O'TADI. Tahrir
+    endi OMBORGA ham ta'sir qilgani uchun (pastga qarang), cheksiz yoki
+    haddan tashqari katta qiymat qoldiqni butunlay buzardi."""
+    import math
+    if value is None:
+        raise ValueError(f"'{nom}' bo'sh bo'lishi mumkin emas")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"'{nom}' son bo'lishi kerak")
+    v = float(value)
+    if math.isnan(v) or math.isinf(v):
+        raise ValueError(f"'{nom}' son bo'lishi kerak")
+    if v <= 0:
+        raise ValueError(f"'{nom}' 0 dan katta bo'lishi kerak")
+    if v > _UPD_SON_CHEGARA:
+        raise ValueError(f"'{nom}' juda katta")
+    return v
+
+
+# Xarid yozuvidagi izoh — `InventoryPurchase.notes` ustuni `Text` (cheklovsiz),
+# lekin cheksiz uzun matn sahifalarni va Telegram xabarlarini buzadi.
+_XARID_IZOH_MAX = 1000
+
+
+def _clean_xarid_tahrir(data) -> dict:
+    """Marshrut tanasi (xom JSON) → {"quantity", "price_per_unit",
+    "is_credit", "notes"}. Ruxsat ro'yxati + QAT'IY turlar; buzilsa
+    ValueError (→ 400). 19-band dagi `_clean_stock_change` naqshi.
+
+    Nima uchun pydantic yetarli emas: `schemas.PurchaseUpdate` "lax" rejimda
+    `true` ni JIMGINA `1.0` ga o'giradi (O'LCHANGAN: `{"quantity": true}` →
+    200 va qoldiq 1 ga tushardi). Tahrir endi OMBORGA ta'sir qilgani uchun
+    bunday jim o'girish ombor hisobini buzardi."""
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    RUXSAT = ("quantity", "price_per_unit", "is_credit", "notes")
+    notogri = sorted(str(k)[:40] for k in data if k not in RUXSAT)
+    if notogri:
+        raise ValueError("Noma'lum maydon: " + ", ".join(notogri[:10]))
+
+    toza = {}
+    if "quantity" in data and data["quantity"] is not None:
+        toza["quantity"] = _xarid_son(data["quantity"], "quantity")
+    if "price_per_unit" in data and data["price_per_unit"] is not None:
+        toza["price_per_unit"] = _xarid_son(data["price_per_unit"], "price_per_unit")
+    if "is_credit" in data and data["is_credit"] is not None:
+        if not isinstance(data["is_credit"], bool):
+            raise ValueError("'is_credit' ha/yo'q (true/false) bo'lishi kerak")
+        toza["is_credit"] = data["is_credit"]
+    if "notes" in data:
+        izoh = data["notes"]
+        if izoh is not None:
+            if not isinstance(izoh, str):
+                raise ValueError("'notes' matn bo'lishi kerak")
+            if len(izoh) > _XARID_IZOH_MAX:
+                raise ValueError(f"'notes' juda uzun ({_XARID_IZOH_MAX} belgidan ko'p)")
+        toza["notes"] = izoh
+    return toza
+
+
 def update_purchase(db: Session, purchase_id: int, data: dict,
                    company_id: int = None) -> Optional[InventoryPurchase]:
     """Xarid yozuvini tahrirlaydi.
-    DIQQAT: ombordagi joriy miqdor/o'rtacha narxni orqaga qaytarib hisoblamaydi —
-    faqat tarixiy yozuv va qarz hisobi (u har safar yangidan hisoblanadi) to'g'rilanadi."""
+
+    21-band (2026-09-21, O'LCHANGAN — lokal `work/probe20d.py`): ilgari bu
+    funksiya ATAYLAB omborga tegmasdi ("faqat tarixiy yozuv va qarz hisobi").
+    Lekin `delete_purchase` o'chirishda yozuvning JORIY `quantity` sini
+    ombordan ayiradi — ya'ni ikki amal bir-biriga zid edi:
+
+        kirim 3 kg  → qoldiq 3
+        tahrir 3→10 → qoldiq 3 (ombor tegilmaydi)
+        o'chirish   → qoldiq −7   (to'g'risi 0 — faqat 3 kg qo'shilgan edi)
+
+        kirim 10 kg → qoldiq 3 (oldingi holatdan)
+        tahrir 10→2 → qoldiq 3
+        o'chirish   → qoldiq 1    (to'g'risi −7)
+
+    Ya'ni yo'qdan 7 kg paydo bo'lardi (yoki 8 kg yo'qolardi) — 19/20-band
+    qoidasiga ("ombor va jurnal bir-biriga ZID BO'LMASIN") to'g'ridan-to'g'ri
+    qarshi.
+
+    TEXNIK YECHIM (ikki variantdan tanlandi): tahrirda FARQ omborga ham
+    qo'llanadi (jurnal yozuvi bilan). Shunda "xarid yozuvidagi miqdor" =
+    "shu xarid omborga qo'shgan miqdor" — invariant HAR DOIM to'g'ri, va
+    `delete_purchase` ning joriy `quantity` ni ayirishi avtomatik to'g'ri
+    bo'ladi. Ikkinchi variant (o'chirishda ASL kirim miqdorini saqlash)
+    yangi DB ustuni + migratsiya talab qilardi va eski yozuvlar baribir
+    xato qolardi; bundan tashqari ikkita "haqiqat manbai" saqlanib qolardi.
+
+    Foydalanuvchi uchun ham shu to'g'ri: miqdor tahrirlanishining sababi —
+    "kiritilgan son noto'g'ri edi", ya'ni OMBORDAGI son ham noto'g'ri.
+    Ilgari UI "kerak bo'lsa Omborxonada qo'lda tuzating" derdi — endi shart
+    emas (UI matni ham yangilandi).
+
+    O'rtacha NARX tegilmaydi (o'chirishda ham tegilmaydi — bir xil qoida):
+    tarixiy xarid narxi tuzatilsa, joriy o'rtacha tan narx qayta
+    hisoblanmaydi. Miqdor kamaytirilib qoldiq manfiyga tushsa — 20-band
+    qoidasi: manfiy ruxsat, keyingi kirimda qoplanadi."""
+    # 1) HECH NARSA yozilmasdan (va obyekt qidirilmasdan) OLDIN — tana
+    #    qat'iy tekshiriladi (ValueError → 400).
+    toza = _clean_xarid_tahrir(data)
+
     p = _purchase_of_company(db, purchase_id, company_id)    # M6
     if not p:
         return None
 
-    if "quantity" in data and data["quantity"] is not None:
-        p.quantity = data["quantity"]
-    if "price_per_unit" in data and data["price_per_unit"] is not None:
-        p.price_per_unit = data["price_per_unit"]
-    if "is_credit" in data and data["is_credit"] is not None:
-        p.is_credit = data["is_credit"]
-    if "notes" in data:
-        p.notes = data["notes"]
+    eski_qty = float(p.quantity or 0)
+
+    # 2) Yozuvning o'zi
+    if "quantity" in toza:
+        p.quantity = toza["quantity"]
+    if "price_per_unit" in toza:
+        p.price_per_unit = toza["price_per_unit"]
+    if "is_credit" in toza:
+        p.is_credit = toza["is_credit"]
+    if "notes" in toza:
+        p.notes = toza["notes"]
 
     p.total_amount = float(p.quantity) * float(p.price_per_unit)
+
+    # 3) Ombor — FAQAT miqdor farqi (narx emas)
+    farq = float(p.quantity) - eski_qty
+    if p.inventory_id and abs(farq) > 1e-9:
+        # QAT'IY filtr + qator qulfi (19-band `update_stock` bilan bir xil).
+        # `_purchase_of_company` allaqachon materialni korxona bo'yicha
+        # tekshirgan — bu ikkilamchi himoya.
+        inv = get_item_locked(db, p.inventory_id, company_id)
+        if inv:
+            joriy = float(inv.stock_quantity or 0)
+            yangi = joriy + farq
+            if -1e-9 < yangi < 0:
+                yangi = 0.0     # suzuvchi nuqta qoldig'i (19/20-band bilan bir xil)
+            inv.stock_quantity = yangi
+            try:
+                log_movement(
+                    db, inv.id, inv.item_name,
+                    movement_type=("in" if farq > 0 else "out"),
+                    quantity=abs(farq), unit=inv.unit,
+                    supplier_id=p.supplier_id,
+                    reason=_jurnal_sabab(
+                        f"Xarid tahrirlandi — #{purchase_id}: "
+                        f"{eski_qty:g} → {float(p.quantity):g} {inv.unit or ''}".rstrip() +
+                        (f" ⚠️ qoldiq manfiy: {yangi:g} {inv.unit or ''} — keyingi kirimda qoplanadi"
+                         if yangi < 0 else "")))
+            except Exception:
+                pass
 
     db.commit()
     db.refresh(p)

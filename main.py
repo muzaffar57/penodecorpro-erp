@@ -3195,12 +3195,32 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
 
 
 @app.put("/api/inventory/purchases/{purchase_id}")
-def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    """Xarid yozuvini tahrirlash — ombordagi joriy miqdor/narxga ta'sir qilmaydi."""
+def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """Xarid yozuvini tahrirlash.
+
+    21-band (2026-09-21): MIQDOR o'zgartirilsa — farqi OMBORGA ham
+    qo'llanadi (jurnal yozuvi bilan). Ilgari ombor tegilmasdi, lekin
+    `delete_purchase` joriy miqdorni ayirardi — natijada tahrir + o'chirish
+    ketma-ketligi ombordan yo'qdan miqdor yaratardi/yo'qotardi. Narx
+    tahriri esa avvalgidek faqat tarix va qarz hisobiga ta'sir qiladi.
+
+    Tana `schemas.PurchaseUpdate` (pydantic) o'rniga XOM `dict` sifatida
+    qabul qilinadi va `crud._clean_xarid_tahrir` bilan QAT'IY tekshiriladi
+    (14/15/17a/19-band naqshi). Sabab O'LCHANGAN: pydantic "lax" rejimda
+    `{"quantity": true}` ni jimgina `1.0` ga o'girardi va marshrut 200
+    qaytarardi — ombor 1 ga tushib qolardi. `schemas.PurchaseUpdate`
+    o'chirilmadi (boshqa joyda ishlatilmasa ham, zarari yo'q)."""
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    # Tana tekshiruvidan OLDIN — begona/yo'q id uchun oracle bo'lmasin.
     if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Xarid topilmadi")
-    updated = crud.update_purchase(db, purchase_id, data.model_dump(exclude_unset=True), company_id=auth.company_id_of(current_user))
+    try:
+        updated = crud.update_purchase(db, purchase_id, data, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        # 21-band: ildiz qat'iy tekshiruvi (noma'lum maydon, cheksizlik,
+        # bool, sig'im, izoh turi). Hech narsa yozilmagan bo'ladi.
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "total_amount": float(updated.total_amount)}
