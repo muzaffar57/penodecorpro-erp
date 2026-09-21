@@ -109,8 +109,26 @@ class _Resp:
         return b'{"ok": true}'
 
 
+PM = []          # har yuborilgan xabarning parse_mode i (SENT bilan parallel)
+ATTEMPTS = []    # har urinish (rad etilganlari ham): (chat, parse_mode)
+
+
 def _fake_urlopen(req, timeout=5):
+    import urllib.error as _ue
     url = req.full_url
+    if isinstance(getattr(req, "data", None), (bytes, bytearray)):
+        try:
+            _d = json.loads(req.data.decode("utf-8"))
+            _pm = _d.get("parse_mode")
+            ATTEMPTS.append((str(_d.get("chat_id")), _pm))
+            _tx = _d.get("text", "")
+            if _pm and "MD_BUZUQ" in _tx:
+                raise _ue.HTTPError(url, 400, "Bad Request: can't parse entities", {}, None)
+            if "MD_403" in _tx:
+                raise _ue.HTTPError(url, 403, "Forbidden", {}, None)
+            PM.append(_pm)
+        except (ValueError, UnicodeDecodeError):
+            pass
     token = url.split("/bot", 1)[1].split("/", 1)[0]
     body = req.data or b""
     try:
@@ -377,6 +395,10 @@ section("5. Statik: marshrutlardagi Telegram chaqiruvlari company_id beradi")
 _TG = {"_send_telegram", "_send_telegram_to", "_send_telegram_document",
        "_send_telegram_to_qoplamachi"}
 _src = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
+
+
+def _src_now():
+    return _src
 _tree = ast.parse(_src)
 _bad, _total = [], 0
 for fn in ast.walk(_tree):
@@ -499,8 +521,8 @@ for cid, tg in ((1, "700001"), (2, "700002")):
         check("[2] salom oxirida faqat nom qatori (shior/manzil bo'sh)",
               _w and _w[0].endswith("🌟\n\n🏗 *BBB_BREND*"), repr(_w[0][-60:]) if _w else "")
     else:
-        check("[1] A salomi: nom + shior + manzil DB dan",
-              _w and _w[0].endswith("🌟\n\n🏗 *PenoDecorPro* — Fasad bezaklari\n📍 Andijon"),
+        check("[1] A salomi: eski matn (nom va manzil DB dan, shior sozlamadan)",
+              _w and _w[0].endswith("🌟\n\n🏗 *PenoDecorPro* — Zamonaviy fasad dekorlari\n📍 Andijon"),
               repr(_w[0][-80:]) if _w else "")
 
 # 6.4 Nasiya xarid: imzo + literal "\n" xatosi
@@ -619,6 +641,156 @@ for fn in ast.walk(_tree):
 check(f"marshrutlardagi {_bt} brend chaqiruvi — hammasi auth.company_id_of(current_user)",
       _bt >= 12 and not _bb, f"jami={_bt} xato: {_bb}")
 check("main.py: xabar matnlarida qattiq 'PenoDecorPro'/'Andijon' YO'Q", not _hard, str(_hard))
+
+# ══════════════════════════════════════════════════════════════
+section("7. Ustaga salom shiori — sozlamadan (2026-09-21)")
+# ══════════════════════════════════════════════════════════════
+# Foydalanuvchi: "Zamonaviy fasad dekorlari" qolsin, lekin sozlamada
+# istalgan matnni yozsa — o'sha chiqsin. Bo'sh — shior qatori yo'q.
+_TK = "tg_welcome_tagline"
+with contextlib.redirect_stdout(_quiet):
+    safe(_M("_seed_tg_tagline"))            # qayta ishga tushish (import paytida ham ishlagan)
+check("seed: 1-korxonaga eski shior yozildi",
+      crud.get_setting(db, _TK, None, company_id=1) == "Zamonaviy fasad dekorlari",
+      repr(crud.get_setting(db, _TK, None, company_id=1)))
+check("seed: boshqa korxonaga yozilmadi",
+      crud.get_setting(db, _TK, None, company_id=2) is None
+      and crud.get_setting(db, _TK, None, company_id=3) is None)
+
+
+def _welcome(cid, tg, nm):
+    SENT.clear()
+    with contextlib.redirect_stdout(_quiet):
+        r = CL[cid].post("/api/masters", json={
+            "name": nm, "phone": f"+99891{abs(hash(nm)) % 10**7:07d}",
+            "telegram_id": tg, "cashback_percent": 1})
+    w = [t for _, ch, t in SENT if ch == tg]
+    return r.status_code, (w[0] if len(w) == 1 else repr(w))
+
+
+_st, _w = _welcome(1, "710001", "USTA_A_S1")
+check("[1] A salomi: eski matn — 'Zamonaviy fasad dekorlari' + manzil",
+      _st == 200 and _w.endswith("🌟\n\n🏗 *PenoDecorPro* — Zamonaviy fasad dekorlari\n📍 Andijon"),
+      repr(_w[-80:]))
+
+
+def _get_co(cid):
+    r = CL[cid].get("/api/settings/company")
+    return r.json() if r.status_code == 200 else {}
+
+
+def _put_co(cid, name, tl, slogan=""):
+    with contextlib.redirect_stdout(_quiet):
+        return CL[cid].put("/api/settings/company", data={
+            "name": name, "slogan": slogan, "phone": "", "address": "",
+            "tg_tagline": tl}).status_code
+
+
+check("[1] GET: tg_tagline = amaldagi matn",
+      _get_co(1).get("tg_tagline") == "Zamonaviy fasad dekorlari", str(_get_co(1)))
+check("[2] GET: kalit yo'q — shior maydoni (bo'sh)",
+      _get_co(2).get("tg_tagline") == "", str(_get_co(2)))
+
+# B o'z matnini yozadi
+check("[2] PUT o'z shiori → 200", _put_co(2, "BBB_BREND", "BBB_SHIOR_X") == 200)
+_st, _w = _welcome(2, "710002", "USTA_B_S1")
+check("[2] B salomi: aynan kiritilgan matn",
+      _st == 200 and _w.endswith("🌟\n\n🏗 *BBB_BREND* — BBB_SHIOR_X"), repr(_w[-60:]))
+check("[2] GET: kiritilgan matn qaytadi", _get_co(2).get("tg_tagline") == "BBB_SHIOR_X")
+_st, _w = _welcome(1, "710003", "USTA_A_S2")
+check("[1] B ning shiori A ga ta'sir qilmadi",
+      _w.endswith("— Zamonaviy fasad dekorlari\n📍 Andijon") and "BBB" not in _w, repr(_w[-60:]))
+
+# bo'sh — shior qatori yo'q; shior maydoni to'la bo'lsa ham qaytmaydi
+check("[2] PUT bo'sh shior (shior maydoni to'la) → 200",
+      _put_co(2, "BBB_BREND", "", slogan="BBB_SLOGAN_PDF") == 200)
+_st, _w = _welcome(2, "710004", "USTA_B_S2")
+check("[2] bo'sh: salom oxirida faqat nom (PDF shiori ham chiqmaydi)",
+      _w.endswith("🌟\n\n🏗 *BBB_BREND*"), repr(_w[-60:]))
+check("[2] GET: bo'sh qaytadi", _get_co(2).get("tg_tagline") == "", str(_get_co(2)))
+
+# kalit yo'q bo'lsa — shior maydoni (C)
+_cc = db.query(Company).filter(Company.id == 3).first()
+_cc.slogan = "CCC_SLOGAN"
+db.commit()
+check("[3] kalit yo'q: _tg_tagline = shior maydoni",
+      safe(_M("_tg_tagline"), db, 3) == "CCC_SLOGAN", repr(safe(_M("_tg_tagline"), db, 3)))
+check("_tg_tagline(None) — sozlama o'qilmaydi (1-korxona zaxira shiori)",
+      safe(_M("_tg_tagline"), db, None) == "Fasad bezaklari",
+      repr(safe(_M("_tg_tagline"), db, None)))
+
+# chegaralar va idempotentlik
+check("[2] 151 belgi → 400", _put_co(2, "BBB_BREND", "x" * 151) == 400)
+check("[2] 150 belgi → 200", _put_co(2, "BBB_BREND", "y" * 150) == 200)
+check("[1] A o'zgartiradi → 200", _put_co(1, "PenoDecorPro", "AAA_YANGI_SHIOR", slogan="Fasad bezaklari") == 200)
+with contextlib.redirect_stdout(_quiet):
+    safe(_M("_seed_tg_tagline"))
+check("seed qayta ishga tushishda A ning matnini QAYTA YOZMADI",
+      crud.get_setting(db, _TK, None, company_id=1) == "AAA_YANGI_SHIOR",
+      repr(crud.get_setting(db, _TK, None, company_id=1)))
+check("[1] A bo'sh qiladi → 200", _put_co(1, "PenoDecorPro", "", slogan="Fasad bezaklari") == 200)
+with contextlib.redirect_stdout(_quiet):
+    safe(_M("_seed_tg_tagline"))
+check("seed: bo'sh qiymat ham qayta yozilmaydi (foydalanuvchi tanlovi)",
+      crud.get_setting(db, _TK, None, company_id=1) == "",
+      repr(crud.get_setting(db, _TK, None, company_id=1)))
+_put_co(1, "PenoDecorPro", "Zamonaviy fasad dekorlari", slogan="Fasad bezaklari")
+# Andijon manzilini qaytarish (PUT manzilni bo'shatgan edi)
+_ca = db.query(Company).filter(Company.id == 1).first()
+db.refresh(_ca)
+_ca.address = "Andijon"
+db.commit()
+
+# ── Markdown 400 → oddiy matn bilan qayta ─────────────────────
+check("[2] PUT 'MD_BUZUQ' shior → 200", _put_co(2, "BBB_BREND", "MD_BUZUQ *belgi") == 200)
+ATTEMPTS.clear(); PM.clear()
+_st, _w = _welcome(2, "710005", "USTA_B_S3")
+check("[2] Markdown rad etildi → xabar baribir YETDI (1 marta)",
+      _st == 200 and "MD_BUZUQ" in _w, repr(_w[-60:]))
+check("[2] ikkinchi urinish parse_mode SIZ",
+      [a for a in ATTEMPTS if a[0] == "710005"] == [("710005", "Markdown"), ("710005", None)],
+      str(ATTEMPTS))
+_put_co(2, "BBB_BREND", "")
+
+# webhook (klaviaturali yuborish) — usta ismida buzuq belgi
+from models import Master as _Mst                  # noqa: E402
+_mb = db.query(_Mst).filter(_Mst.telegram_id == "700002").first()
+_mb.name = "MD_BUZUQ_USTA"
+db.commit()
+ATTEMPTS.clear()
+_st, _t = _wh("700002", "/bonus")
+check("[wh] Markdown rad etildi → javob baribir yetdi",
+      _st == 200 and len(_t) == 1 and "MD_BUZUQ_USTA" in _t[0], str(_t)[:150])
+check("[wh] ikkinchi urinish parse_mode SIZ",
+      [a[1] for a in ATTEMPTS if a[0] == "700002"] == ["Markdown", None], str(ATTEMPTS))
+_mb.name = "USTA_2"
+db.commit()
+
+# 403 (bot bloklangan) — qayta urinilmaydi, xato jim yutiladi
+ATTEMPTS.clear(); SENT.clear()
+with contextlib.redirect_stdout(_quiet):
+    _r = safe(main._send_telegram_to, "720001", "MD_403 test", company_id=2)
+check("403 — faqat BITTA urinish, xato ko'tarilmadi",
+      [a for a in ATTEMPTS if a[0] == "720001"] == [("720001", "Markdown")]
+      and not (isinstance(_r, tuple) and _r[:1] == ("XATO",)), f"{ATTEMPTS} {_r}")
+
+# ── Bot holati: "umumiy bot" faqat 1-korxonada rost ──────────
+_b1 = CL[1].get("/api/settings/telegram-bot").json()
+_b3 = CL[3].get("/api/settings/telegram-bot").json()
+check("[1] telegram-bot: uses_system_bot = True", _b1.get("uses_system_bot") is True, str(_b1))
+check("[3] telegram-bot: uses_system_bot = False (xabar yuborilmaydi)",
+      _b3.get("uses_system_bot") is False, str(_b3))
+
+# ── Interfeys (statik) ───────────────────────────────────────
+_ui = open(os.path.join(ROOT, "templates", "logs.html"), encoding="utf-8").read()
+check("logs.html: shior maydoni bor, yuklanadi va yuboriladi",
+      'id="co-tg-tagline"' in _ui
+      and "d.tg_tagline" in _ui
+      and "fd.append('tg_tagline'" in _ui)
+check("logs.html: boti yo'q korxonaga to'g'ri ogohlantirish",
+      "d.uses_system_bot" in _ui and "YUBORILMAYDI" in _ui)
+check("main.py: sendMessage to'g'ridan-to'g'ri faqat _tg_post_message ichida",
+      _src_now().count("/sendMessage") == 1, str(_src_now().count("/sendMessage")))
 
 print("\n" + "=" * 66)
 print(f"NATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
