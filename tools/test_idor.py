@@ -384,6 +384,157 @@ if _hc.status_code == 200:
 
 
 # ══════════════════════════════════════════════════════════════
+section("6. BODY ICHIDAGI ID: POST /api/orders + A ning project_id si")
+# ══════════════════════════════════════════════════════════════
+# 2026-09-21 (11-sizish, O'LCHANGAN). Buyurtmaning korxonasi LOYIHADAN
+# olinadi. Marshrut loyiha kimnikiligini tekshirmasdi: B A ning
+# `project_id` sini bersa, buyurtma A korxonasida yaratilardi va A ning
+# penoplasti bilan — A omboridan ayirilardi (TENANT_FILTER=0 da; filtr
+# yoniq bo'lsa loyiha qidiruvi 404 berardi). Model qo'riqchisi ushlamasdi:
+# buyurtma, detal, penoplast — hammasi bir korxonaniki (A) edi.
+# Qo'shimcha: 8 soniyalik "dublikat" himoyasi loyiha tekshiruvidan OLDIN
+# ishlardi — B ga A ning yangi buyurtmasi narxlari bilan qaytib ketardi.
+from models import OrderItem as _OI6                # noqa: E402
+
+A_PEN6 = Inventory(company_id=1, item_name="AAA_PENO6", unit="blok",
+                   stock_quantity=100.0, price_per_unit=200000,
+                   volume_per_unit=1.0)
+B_PEN6 = Inventory(company_id=2, item_name="BBB_PENO6", unit="blok",
+                   stock_quantity=1.0, price_per_unit=200000,
+                   volume_per_unit=1.0)
+db.add_all([A_PEN6, B_PEN6])
+db.commit()
+A_PROJ6 = a_id("project")
+B_PROJ6 = B["project"][-1].id
+
+
+def _counts6():
+    db.expire_all()
+    return (db.query(Order).count(), db.query(_OI6).count(),
+            db.query(Order).filter(Order.project_id == A_PROJ6).count(),
+            round(float(db.get(Inventory, A_PEN6.id).stock_quantity), 6))
+
+
+_n6 = [0]
+
+
+def _body6(project_id, **item):
+    _n6[0] += 1
+    it = {"name": f"BBB_D6_{_n6[0]}", "category": "panel", "width": 50,
+          "thickness": 10, "quantity": 2, "unit_price": 1000,
+          "is_coated": False}
+    it.update(item)
+    return {"project_id": project_id, "order_type": "product", "items": [it]}
+
+
+for lbl, body, qs in [
+    ("oddiy detal", _body6(A_PROJ6), "?confirm_shortage=true"),
+    ("+ A penoplasti", _body6(A_PROJ6, penoplast_id=A_PEN6.id), "?confirm_shortage=true"),
+    ("+ A penoplasti + loy_kg", _body6(A_PROJ6, penoplast_id=A_PEN6.id),
+     "?confirm_shortage=true&loy_kg=20"),
+]:
+    c0 = _counts6()
+    r = client.post("/api/orders" + qs, json=body)
+    c1 = _counts6()
+    check(f"POST /api/orders (A loyihasi, {lbl}) \u2192 {r.status_code}",
+          r.status_code == 404, ("YUK NOTO'G'RI: " if r.status_code == 422
+                                 else "SIZISH: ") + r.text[:120])
+    check(f"  \u21b3 yangi buyurtma/detal YO'Q, A penoplasti O'ZGARMADI ({lbl})",
+          c0 == c1, f"{c0} -> {c1}")
+
+# 6d. Yetishmovchilik bor yuk (B da 1 blok, so'ralgani ko'p) — begona
+# loyiha AYNAN 404 berishi shart, 409 "yetishmaydi" emas. Bu marshrut
+# qatlamidagi tekshiruv yetishmovchilik hisobidan OLDIN turganini qulflaydi.
+r = client.post("/api/orders", json=_body6(A_PROJ6, penoplast_id=B_PEN6.id,
+                                          quantity=500, width=100,
+                                          thickness=100))
+check(f"POST /api/orders (A loyihasi, yetishmovchilik yuki) \u2192 {r.status_code} (404 shart)",
+      r.status_code == 404, r.text[:140])
+
+# 6c. "Dublikat" orqali o'qish: A hozirgina buyurtma yaratdi, B xuddi
+# shu tarkibni A loyihasiga yuboradi.
+_dup_items = [schemas.OrderItemCreate(name="AAA_DUP6", category="panel",
+                                      quantity=3, unit_price=123457)]
+with contextlib.redirect_stdout(_quiet):
+    crud.create_order(db, schemas.OrderCreate(
+        project_id=A_PROJ6, order_type="product", items=_dup_items),
+        performed_by="AAA")
+c0 = _counts6()
+r = client.post("/api/orders?confirm_shortage=true", json={
+    "project_id": A_PROJ6, "order_type": "product",
+    "items": [{"name": "AAA_DUP6", "category": "panel", "quantity": 3,
+               "unit_price": 1}]})
+check(f"POST /api/orders (A ning yangi buyurtmasi dublikati) \u2192 {r.status_code}",
+      r.status_code == 404 and "AAA" not in r.text and "123457" not in r.text,
+      "A BUYURTMASI QAYTDI: " + r.text[:140])
+check("  \u21b3 dublikat urinishi hech narsa yaratmadi", c0 == _counts6())
+
+# 6e. Ildiz: crud.create_order korxona berilsa — begona loyihani rad etadi.
+# (Eski imzoda `company_id` yo'q — TypeError ham "himoya yo'q" hisoblanadi,
+# skript qulamaydi.)
+c0 = _counts6()
+_root = "yo'q"
+try:
+    with contextlib.redirect_stdout(_quiet):
+        crud.create_order(db, schemas.OrderCreate(
+            project_id=A_PROJ6, order_type="product",
+            items=[schemas.OrderItemCreate(name="BBB_ROOT6", category="panel",
+                                           quantity=1, unit_price=1)]),
+            company_id=2)
+    _root = "YARATILDI"
+except TypeError as e:
+    _root = f"imzo: {e}"
+except Exception as e:                               # noqa: BLE001
+    _root = f"{type(e).__name__}:{getattr(e, 'status_code', '')}"
+db.rollback()
+check("crud.create_order(company_id=2, A loyihasi) \u2192 HTTPException 404",
+      _root == "HTTPException:404", _root)
+check("  \u21b3 ildiz rad etishi hech narsa yaratmadi", c0 == _counts6(),
+      f"{c0} -> {_counts6()}")
+
+# 6e2. Ildizda tartib: A ning yangi buyurtmasi bilan bir xil tarkib —
+# crud qatlami ham A buyurtmasini "dublikat" sifatida QAYTARMASLIGI shart
+# (tekshiruv takroriy-yuborish himoyasidan OLDIN).
+with contextlib.redirect_stdout(_quiet):
+    crud.create_order(db, schemas.OrderCreate(
+        project_id=A_PROJ6, order_type="product",
+        items=[schemas.OrderItemCreate(name="AAA_DUP6B", category="panel",
+                                       quantity=4, unit_price=1)]),
+        performed_by="AAA")
+_root2 = "yo'q"
+try:
+    with contextlib.redirect_stdout(_quiet):
+        _ro = crud.create_order(db, schemas.OrderCreate(
+            project_id=A_PROJ6, order_type="product",
+            items=[schemas.OrderItemCreate(name="AAA_DUP6B", category="panel",
+                                           quantity=4, unit_price=1)]),
+            company_id=2)
+    _root2 = f"QAYTDI: {getattr(_ro, 'order_number', _ro)}"
+except TypeError as e:
+    _root2 = f"imzo: {e}"
+except Exception as e:                               # noqa: BLE001
+    _root2 = f"{type(e).__name__}:{getattr(e, 'status_code', '')}"
+db.rollback()
+check("crud.create_order(company_id=2) A dublikatini QAYTARMAYDI \u2192 404",
+      _root2 == "HTTPException:404", _root2)
+
+# 6e3. Ulanish: marshrut ildizga korxonani UZATADI (ikkinchi qatlam
+# o'lik bo'lib qolmasin — HTTP buni ko'rmaydi, marshrut qatlami yopadi).
+import inspect as _insp6                            # noqa: E402
+import re as _re6                                   # noqa: E402
+_src6 = _insp6.getsource(main.api_create_order)
+check("api_create_order: crud.create_order(..., company_id=auth.company_id_of(current_user))",
+      bool(_re6.search(r"crud\.create_order\(\s*db\s*,\s*order\s*,\s*company_id\s*=\s*"
+                       r"auth\.company_id_of\(current_user\)", _src6)),
+      "ildizga korxona uzatilmaydi")
+
+# 6f. Nazorat: B O'Z loyihasiga — o'tadi (404 umumiy rad etish emas).
+r = client.post("/api/orders?confirm_shortage=true", json=_body6(B_PROJ6))
+check(f"POST /api/orders (B O'Z loyihasi) \u2192 {r.status_code} (200 shart)",
+      r.status_code == 200, r.text[:140])
+
+
+# ══════════════════════════════════════════════════════════════
 print("\n" + "=" * 66)
 print(f"NATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 print(f"tenant_context statistikasi: {_tc.get_stats()}")
