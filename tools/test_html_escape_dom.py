@@ -87,6 +87,7 @@ import shutil
 import tempfile
 import threading
 import contextlib
+import datetime
 import subprocess
 import traceback
 
@@ -628,18 +629,27 @@ def main_ish():
             performed_by="DOM")
         sup = crud.create_supplier(db, schemas.SupplierCreate(name="DOM Taminotchi", phone="+998907654321"),
                                    company_id=1)
+        # kech33: axlat qutisi (`/trash`) uchun ALOHIDA buyurtma. kech32 da
+        # `/trash` da buyurtma umuman yo'q edi — `permanentDelete('order', ...)`
+        # chaqiruv joyi hech qachon chizilmasdi (ET01 mutatsiyasi 0 chiqqandi).
+        o3 = crud.create_order(db, schemas.OrderCreate(
+            project_id=p2.id, order_type="product",
+            items=[schemas.OrderItemCreate(name="DOM Detal 4 axlat", category="panel", width=100,
+                                           thickness=10, length=100, quantity=2, unit_price=40000,
+                                           is_coated=False)]),
+            performed_by="DOM")
     ids = dict(inv_a=inv_a.id, inv_kam=inv_kam.id, pen=pen.id, rec=rec.id, p1=p1.id, p2=p2.id,
-               emp=emp.id, o1=o1.id, o2=o2.id, sup=sup.id)
+               emp=emp.id, o1=o1.id, o2=o2.id, o3=o3.id, sup=sup.id)
     o1_items = [it.id for it in db.query(models.OrderItem).filter(models.OrderItem.order_id == o1.id)
                 .order_by(models.OrderItem.id).all()]
     # Yetkazish qoralama buyurtmaga yozilmaydi — ish holatiga o'tkazamiz
-    for oid in (o1.id, o2.id):
+    for oid in (o1.id, o2.id, o3.id):
         o = db.get(models.Order, oid)
         if str(getattr(o.status, "value", o.status)) == "draft":
             o.status = models.OrderStatus.IN_PROGRESS
     db.commit()
     db.close()
-    check("crud fikstura yaratildi (material, retsept, loyiha, hodim, buyurtma, ta'minotchi)", True)
+    check("crud fikstura yaratildi (material, retsept, loyiha, hodim, 3 buyurtma, ta'minotchi)", True)
 
     c = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
     r = c.post("/login", data={"username": ADMIN_LOGIN, "password": ADMIN_PAROL}, follow_redirects=False)
@@ -678,6 +688,25 @@ def main_ish():
          {"name": "DOM Karniz", "category": "profil", "is_coated": False, "penoplast_id": ids["pen"],
           "price_per_m3": None, "unit_price": 100000, "recipe_id": None, "notes": "izoh",
           "width": 10, "thickness": 10, "length": 10, "quantity": 5}),
+        # kech33: doimiy majburiyat — `/debts` da `company_obligations.recurring`
+        # va `recurring_targets` bo'limlarini CHIZDIRADI (ED01 / ED02 chaqiruv
+        # joylari). `icon` String(10) — belgi sig'maydi, u statik darvoza ishi.
+        ("doimiy majburiyat", "post", "/api/obligations/recurring",
+         ("params", {"category": "dom_ijara", "label": "DOM Ijara", "monthly_target": "500000",
+                     "icon": "\U0001F3E0", "due_day": "5"})),
+        # kech33: Kirim hujjati — `inventory_receipts` jadvali kech32 gacha
+        # BO'SH edi (ombor kirim tarixi va ta'minotchi sahifasi chizilmasdi).
+        ("kirim hujjati", "post", "/api/inventory/receipt",
+         {"items": [{"inventory_id": ids["inv_a"], "quantity": 3, "price_per_unit": 1200,
+                     "notes": "kirim qatori izohi"}],
+          "supplier_id": ids["sup"], "document_number": "DOM-KIRIM-1", "paid_now": 1000,
+          "transport_cost": 500, "tushirish_cost": 0, "yuklash_cost": 0, "boshqa_cost": 0,
+          "add_to_cost": False, "notes": "kirim hujjati izohi", "production_type": "umumiy"}),
+        # kech33: MRP mahsulot turi — BELGILASHDAN OLDIN yaratiladi, shunda
+        # 2-bo'lim `product_types.name` / `description` ga belgi yozadi.
+        ("MRP mahsulot turi", "post", "/api/production/product-types",
+         {"name": "DOM Mahsulot turi", "unit": "metr", "input_template": "quantity_only",
+          "pricing_formula": "unit_based"}),
     ]
     for nom, usul, url, tana in qadamlar:
         if isinstance(tana, tuple) and tana and tana[0] == "params":
@@ -685,6 +714,129 @@ def main_ish():
         else:
             rr = getattr(c, usul)(url, json=tana)
         check(f"fikstura: {nom} → {rr.status_code}", 200 <= rr.status_code < 300, rr.text[:200])
+
+    # ── kech33: id talab qiladigan qadamlar (halqadan keyin) ──────────
+    # (a) Tayyor mahsulot SOTUVI — `/reports` "top-products" va
+    #     "sales" jadvallarini to'ldiradi (kech30 B16: mutatsiya 0 chiqqandi,
+    #     chunki sotuv yo'q edi). `confirm_below_cost` — tan narxi tekshiruvi
+    #     fikstura narxlariga bog'liq bo'lmasligi uchun.
+    fp_ro = c.get("/api/finished")
+    fp_royxat = fp_ro.json() if fp_ro.status_code == 200 else []
+    fp_id = next((x["id"] for x in fp_royxat if x.get("name") == "DOM Karniz"), None)
+    check("fikstura: tayyor mahsulot ro'yxatda topildi", fp_id is not None,
+          fp_ro.text[:200])
+    if fp_id is not None:
+        # Sotishdan oldin "Tayyor" deb belgilanadi (ishlab chiqarilayotgan
+        # mahsulot sotilmaydi — `_FP_JARAYONDA_XABAR`).
+        rc_ = c.post(f"/api/finished/{fp_id}/complete")
+        check(f"fikstura: tayyor mahsulot 'Tayyor' → {rc_.status_code}",
+              200 <= rc_.status_code < 300, rc_.text[:300])
+        rs = c.post("/api/finished/sell", json={
+            "finished_product_id": fp_id, "quantity": 1, "unit_price": 100000,
+            "buyer_name": "DOM Xaridor", "payment_method": "naqd", "notes": "sotuv izohi",
+            "confirm_below_cost": True})
+        check(f"fikstura: tayyor mahsulot sotuvi → {rs.status_code}",
+              200 <= rs.status_code < 300, rs.text[:300])
+
+    # (b) Hodim AVANS SO'ROVI — `/dashboard` "kutilayotgan avans so'rovlari"
+    #     oynasi (kech30 B24). Xodim login oqimi (`/api/hodim/advance-request`)
+    #     alohida sessiya talab qiladi — ildiz funksiya to'g'ridan chaqiriladi.
+    db = SessionLocal()
+    try:
+        req = crud.create_advance_request(db, ids["emp"], 150000,
+                                          datetime.datetime(2026, 9, 10), "avans sababi")
+        if hasattr(req, "company_id") and getattr(req, "company_id", None) is None:
+            req.company_id = 1
+            db.commit()
+        check("fikstura: hodim avans so'rovi (kutilmoqda)", req is not None and req.id > 0)
+    except Exception as e:
+        db.rollback()
+        check("fikstura: hodim avans so'rovi (kutilmoqda)", False, repr(e)[:200])
+    finally:
+        db.close()
+
+    # (c) Axlat qutisiga BUYURTMA — `/trash` da `permanentDelete('order', ...)`
+    #     tugmasi chizilishi uchun (ET01).
+    #     O'LCHANGAN (kech33): `api_delete_order` da
+    #     `should_soft_delete = has_delivery or status in (READY, DELIVERED)`.
+    #     Yetkazishsiz buyurtma BUTUNLAY o'chadi va axlatga TUSHMAYDI —
+    #     shuning uchun avval bitta yetkazish yoziladi.
+    dbx = SessionLocal()
+    o3_item_id = dbx.query(models.OrderItem.id).filter(
+        models.OrderItem.order_id == ids["o3"]).order_by(models.OrderItem.id).scalar()
+    dbx.close()
+    rdlv = c.post("/api/deliveries", json={
+        "order_id": ids["o3"], "items": [{"order_item_id": o3_item_id, "quantity": 1}],
+        "notes": "axlat yetkazishi", "received_by": "Qabul", "transport_carrier": "Tashuvchi",
+        "transport_cost": 0, "transport_payer": "none", "payment_method": "naqd",
+        "payment_amount": 0})
+    check(f"fikstura: axlat buyurtmasiga yetkazish → {rdlv.status_code}",
+          200 <= rdlv.status_code < 300, rdlv.text[:300])
+    rd = c.delete(f"/api/orders/{ids['o3']}")
+    check(f"fikstura: buyurtma axlatga (soft delete) → {rd.status_code}",
+          200 <= rd.status_code < 300, rd.text[:300])
+    dbx = SessionLocal()
+    o3_bor = dbx.query(models.Order).filter(models.Order.id == ids["o3"],
+                                            models.Order.is_deleted.is_(True)).count()
+    dbx.close()
+    check("fikstura: buyurtma AXLATDA (is_deleted=True, butunlay o'chmagan)", o3_bor == 1,
+          f"topildi={o3_bor}")
+
+    # (d) Tayyor mahsulot YO'QOTISHI (`finished_product_losses`) — `/finished`
+    #     sahifasidagi yo'qotish tarixi.
+    if fp_id is not None:
+        rl = c.post("/api/finished/loss", json={
+            "finished_product_id": fp_id, "quantity": 1, "reason": "yo'qotish sababi"})
+        check(f"fikstura: tayyor mahsulot yo'qotishi → {rl.status_code}",
+              200 <= rl.status_code < 300, rl.text[:300])
+
+    # (e) MRP retsepti (BOM) — mahsulot turi id si kerak, shuning uchun
+    #     halqadan keyin. BELGILASHDAN OLDIN yaratiladi (2-bo'lim
+    #     `boms.variant_name` / `bom_items.notes` ga belgi yozadi).
+    rpt = c.get("/api/production/product-types")
+    pt_royxat = rpt.json() if rpt.status_code == 200 else []
+    pt_id = next((x["id"] for x in pt_royxat if x.get("name") == "DOM Mahsulot turi"), None)
+    check("fikstura: MRP mahsulot turi ro'yxatda topildi", pt_id is not None, rpt.text[:200])
+    ids["pt"] = pt_id
+    ids["bom"] = None
+    if pt_id is not None:
+        rb = c.post("/api/production/boms", json={
+            "product_type_id": pt_id, "variant_name": "DOM BOM varianti", "batch_quantity": 1,
+            "notes": "BOM izohi",
+            "items": [{"inventory_id": ids["inv_a"], "quantity": 1, "scrap_factor_percent": 0,
+                       "is_optional": False, "is_coating": False,
+                       "component_type": "raw_material", "notes": "BOM qatori izohi"}]})
+        check(f"fikstura: MRP retsepti (BOM) → {rb.status_code}",
+              200 <= rb.status_code < 300, rb.text[:300])
+        if 200 <= rb.status_code < 300:
+            ids["bom"] = rb.json().get("id")
+
+    # (f) Kunlik / oylik xarajat (`monthly_expenses`) va buyurtma ILOVASI
+    #     (`order_attachments`) — ikkalasi ham ildiz modeli orqali (birinchisi
+    #     faqat sahifa formasi bilan yoziladi, ikkinchisi HAQIQIY fayl yuklashni
+    #     talab qiladi; bu yerda kerakligi — CHIZILADIGAN matn ustunlari).
+    db = SessionLocal()
+    try:
+        me_cls = next((m.class_ for m in Base.registry.mappers
+                       if getattr(m.class_, "__tablename__", "") == "monthly_expenses"), None)
+        if me_cls is not None:
+            db.add(me_cls(company_id=1, year=2026, month=9, hodim1_ism="DOM Hodim 1",
+                          notes="kunlik xarajat izohi"))
+        oa_cls = next((m.class_ for m in Base.registry.mappers
+                       if getattr(m.class_, "__tablename__", "") == "order_attachments"), None)
+        if oa_cls is not None:
+            db.add(oa_cls(order_id=ids["o1"], file_url="/static/uploads/dom_ilova.pdf",
+                          file_name="DOM ilova.pdf", uploaded_by="DOM"))
+        db.commit()
+        check("fikstura: kunlik xarajat va buyurtma ilovasi yozuvlari",
+              me_cls is not None and oa_cls is not None,
+              f"monthly_expenses={me_cls is not None} order_attachments={oa_cls is not None}")
+    except Exception as e:
+        db.rollback()
+        check("fikstura: kunlik xarajat va buyurtma ilovasi yozuvlari", False, repr(e)[:250])
+    finally:
+        db.close()
+
     # Login tarixi: noto'g'ri urinish (username — hujumchi nazoratidagi matn)
     c2 = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
     c2.post("/login", data={"username": "DOM_yoq", "password": "notogri"}, follow_redirects=False)
@@ -798,6 +950,11 @@ def main_ish():
     H2P = "Loyiha \\');__h2p=1;// \"B\" &amp;"
     H2E = "Hodim \\');__h2e=1;// &amp;\n2"
     H2L = "u\\');__h2l=1;//&amp;"
+    # kech33 — uch sahifa rasmi (`onclick="open…Lightbox('{{ x }}')"` naqshi
+    # `data-src` ga o'tkazilgan; eski kodda `'` JS satridan chiqardi).
+    H2IJ = "/static/j');__h2j=1;//\"&amp;.png"
+    H2IC = "/static/c');__h2c=1;//\"&amp;.png"
+    H2IR = "/static/r');__h2r=1;//\"&amp;.png"
     db = SessionLocal()
     with contextlib.redirect_stdout(_quiet):
         inv_h2 = crud.add_item(db, schemas.InventoryCreate(
@@ -820,6 +977,29 @@ def main_ish():
         uid = con.execute(select(tu.c.id).where(tu.c.username != ADMIN_LOGIN).order_by(tu.c.id)).first()[0]
         con.execute(tu.update().where(tu.c.id == uid).values(username=H2L))
         h2["user"] = uid
+        # kech33: loyiha / retsept / qaytarish rasmlari. Loyiha — KO'RINADIGAN
+        # p2 (p_h2 o'chirilgan, u `/trash` da). Qaytarish qatori fiksturada
+        # bitta — eng kichik id.
+        tj = Base.metadata.tables["projects"]
+        tc_ = Base.metadata.tables["recipes"]
+        tr_ = Base.metadata.tables["return_items"]
+        con.execute(tj.update().where(tj.c.id == ids["p2"]).values(image_url=H2IJ))
+        con.execute(tc_.update().where(tc_.c.id == ids["rec"]).values(image_url=H2IC))
+        ret_id = con.execute(select(tr_.c.id).order_by(tr_.c.id)).first()
+        h2["ret"] = ret_id[0] if ret_id else None
+        if h2["ret"] is not None:
+            con.execute(tr_.update().where(tr_.c.id == h2["ret"]).values(image_url=H2IR))
+        # MRP "Batafsil" tugmasi snapshotda BELGILANGAN material nomini
+        # tashiydi — kutilgan qiymat shu yerda o'qiladi (belgi raqami oldindan
+        # ma'lum emas).
+        h2["inv_a_nom"] = con.execute(
+            select(ti.c.item_name).where(ti.c.id == ids["inv_a"])).scalar()
+        h2["rasmlar"] = (
+            con.execute(select(tj.c.image_url).where(tj.c.id == ids["p2"])).scalar(),
+            con.execute(select(tc_.c.image_url).where(tc_.c.id == ids["rec"])).scalar(),
+            (con.execute(select(tr_.c.image_url).where(tr_.c.id == h2["ret"])).scalar()
+             if h2["ret"] is not None else None),
+        )
         bazada = (
             tuple(con.execute(select(ti.c.item_name, ti.c.unit, ti.c.image_url).where(ti.c.id == h2["inv"])).first()),
             con.execute(select(tp.c.project_name).where(tp.c.id == h2["prj"])).scalar(),
@@ -828,6 +1008,31 @@ def main_ish():
         )
     check("H2 qiymatlari bazada AYNAN (material nomi / birligi / rasmi, loyiha, hodim, login)",
           bazada == ((H2N, H2U, H2I), H2P, H2E, H2L), repr(bazada)[:300])
+    check("H2 rasm manzillari bazada AYNAN (loyiha / retsept / qaytarish)",
+          h2["rasmlar"] == (H2IJ, H2IC, H2IR), repr(h2["rasmlar"])[:300])
+
+    # ── kech33: ishlab chiqarish BUYURTMASI — belgilashdan KEYIN ───────
+    # `recipe_snapshot_json` `start` paytida tuziladi va material NOMINI
+    # ichiga oladi. Shu sababli buyurtma 2-bo'limdan KEYIN yaratiladi:
+    # snapshot BELGILANGAN nomni oladi va `production.html` "Batafsil"
+    # tugmasi (`data-snap`) uni JSON sifatida tashiydi. kech32 da bu jadval
+    # bo'sh edi — EP00 mutatsiyasi 0 chiqqandi.
+    ids["po"] = None
+    if ids.get("pt") and ids.get("bom"):
+        rpo = c.post("/api/production/orders", json={
+            "product_type_id": ids["pt"], "bom_id": ids["bom"], "quantity": 2,
+            "source_type": "warehouse_stock", "notes": "MRP buyurtma izohi"})
+        check(f"fikstura: MRP ishlab chiqarish buyurtmasi → {rpo.status_code}",
+              200 <= rpo.status_code < 300, rpo.text[:300])
+        if 200 <= rpo.status_code < 300:
+            ids["po"] = (rpo.json().get("production_order") or {}).get("id")
+        if ids["po"]:
+            rst = c.post(f"/api/production/orders/{ids['po']}/start")
+            check(f"fikstura: MRP buyurtmasi boshlandi → {rst.status_code}",
+                  200 <= rst.status_code < 300, rst.text[:300])
+            rcm = c.post(f"/api/production/orders/{ids['po']}/complete")
+            check(f"fikstura: MRP buyurtmasi yakunlandi → {rcm.status_code}",
+                  200 <= rcm.status_code < 300, rcm.text[:300])
 
     # ─────────────────────────────────────────────────────────
     section("3. Lokal server + jsdom")
@@ -867,6 +1072,10 @@ def main_ish():
 
         sahifalar = [{"path": "__nazorat__", "html": NAZORAT_HTML}]
         amallar = {
+            # kech33: `#po-list` sahifa yuklanganda "Yuklanmoqda..." holicha
+            # qoladi — `loadProductionOrders()` FAQAT "Buyurtmalar" yorlig'i
+            # bosilganda chaqiriladi (O'LCHANGAN).
+            "/production": ["await loadProductionOrders()"],
             "/reports": [f"switchReport('{t}')" for t in
                          ("inventory", "sales", "products", "masters", "finance", "production",
                           "top-products", "top-materials")],
@@ -879,13 +1088,44 @@ def main_ish():
                         f"showValidationModal([{{text: {json.dumps(chr(39) + chr(34) + '><i class=xp902>')}, targetId: 'x'}}])",
                         f"showConfirmModal({json.dumps(chr(39) + chr(34) + '><i class=xp903>')})",
                         f"showPromptModal({json.dumps(chr(39) + chr(34) + '><i class=xp904>')}, "
-                        f"{json.dumps(chr(39) + chr(34) + '><i class=xp905>')})"],
+                        f"{json.dumps(chr(39) + chr(34) + '><i class=xp905>')})",
+                        # kech33 (EO00 / EO01 / EOP): tayyor mahsulot taklifi.
+                        # `.detal` qatori sahifada YO'Q — u `addItem()` bilan
+                        # yaratiladi (O'LCHANGAN). Qidiruv so'zi "DOM" emas:
+                        # 2-bo'lim tayyor mahsulot NOMINI belgi bilan
+                        # almashtirgan, nomda "xp" bor. `searchFinished`
+                        # kechiktirilgan (250 ms) — natijani kutamiz.
+                        "addItem(); const inp = document.querySelector('.detal .i-name'); "
+                        "if (inp) { inp.value = 'xp'; searchFinished(inp); "
+                        "await new Promise(r => setTimeout(r, 1400)); }",
+                        # kech33 (EO22–EO27): "Tayyor" natijasi. `openPdfSafe`
+                        # jsdom da PDF ocha olmaydi — vaqtincha bo'sh funksiya
+                        # (tekshirilayotgan narsa natija MATNINI chizish).
+                        f"window.openPdfSafe = () => {{}}; selectedOrderId = {ids['o2']}; "
+                        "await submitReadyModal();"],
         }
         # 6-bo'lim: sahifa ichidagi mantiqiy tekshiruvlar (ifoda `true` qaytarishi SHART).
         # /reports: jadval ustunlari endi escapeHtml bilan qaytadi; saralash kaliti
         # (`extractSortValue`) belgi kodlarini ASL belgiga qaytarishi shart — aks holda
         # "Qo'shimcha" kabi nomlar "qo&#39;shimcha" bo'lib saralanadi. Namunadagi
         # "&lt;" yozuvi `&amp;` ni OXIRIDA ochish tartibini ham tekshiradi.
+        # kech33: `/trash` va `/debts` tekshiruvlari uchun kutilgan qiymatlar —
+        # 2-bo'lim belgilaganidan KEYINGI HAQIQIY baza qiymatlari.
+        with engine.begin() as con:
+            t_ord = Base.metadata.tables["orders"]
+            t_obl = Base.metadata.tables["recurring_obligations"]
+            t_emp = Base.metadata.tables["employees"]
+            o3_raqam = con.execute(
+                select(t_ord.c.order_number).where(t_ord.c.id == ids["o3"])).scalar()
+            # DIQQAT: `category` ustuni ham 2-bo'limda BELGILANGAN, shuning
+            # uchun "dom_ijara" bo'yicha qidirib bo'lmaydi (kech33 da
+            # o'lchangan) — birinchi (yagona) qator o'qiladi.
+            _obl = con.execute(select(t_obl.c.category, t_obl.c.label)
+                               .order_by(t_obl.c.id)).first()
+            oblig_kod = _obl[0] if _obl else None
+            oblig_nom = _obl[1] if _obl else None
+            hodim_nom = con.execute(
+                select(t_emp.c.name).where(t_emp.c.id == ids["emp"])).scalar()
         saralash_namuna = "Qo'rg'oshin & <A> \"B\" &lt;"
         tekshiruvlar = {
             "/reports": [
@@ -898,14 +1138,25 @@ def main_ish():
         # kech32 — H2 tugmalari: `bos(tanlovchi, funksiya, ...kutilgan)` tugmani bosadi, funksiyani
         # vaqtincha almashtirib argumentlarini oladi; `kutilgan` — [argument indeksi, qiymat] juftlari.
         # Eski kodda: qiymat JS satridan chiqadi (`__h2*` paydo bo'ladi) yoki SyntaxError (argument yo'q).
+        # kech33: `kutilgan` elementi [indeks, qiymat] yoki [yo'l, qiymat] —
+        # yo'l JS ifodasi (masalan "[0][0].item_name"), chunki MRP "Batafsil"
+        # tugmasi birinchi argument sifatida MASSIV uzatadi. Taqqoslash
+        # avval `===`, so'ng JSON bilan (obyekt / massiv uchun).
+        H2_GLOBALLAR = ["__h2n", "__h2u", "__h2i", "__h2p", "__h2e", "__h2l",
+                        "__h2j", "__h2c", "__h2r", "__h2s", "__h2t"]
+
         def bos(tanlovchi, fn, kutilgan):
+            g = json.dumps(H2_GLOBALLAR)
             return (f"const el = {tanlovchi}; if (!el) return 'element topilmadi'; "
                     f"let got = null; const asl = window.{fn}; window.{fn} = (...a) => {{ got = a; }}; "
-                    "for (const k of ['__h2n','__h2u','__h2i','__h2p','__h2e','__h2l']) delete window[k]; "
+                    f"for (const k of {g}) delete window[k]; "
                     f"try {{ el.click(); }} finally {{ window.{fn} = asl; }} "
-                    "const bajarildi = ['__h2n','__h2u','__h2i','__h2p','__h2e','__h2l'].filter(k => k in window); "
+                    f"const bajarildi = {g}.filter(k => k in window); "
                     f"const K = {json.dumps(kutilgan)}; "
-                    "const ok = !!got && !bajarildi.length && K.every(([i, v]) => got[i] === v); "
+                    "const ok = !!got && !bajarildi.length && K.every(([i, v]) => { "
+                    "const x = (typeof i === 'number') ? got[i] "
+                    ": (new Function('got', 'return got' + i))(got); "
+                    "return x === v || JSON.stringify(x) === JSON.stringify(v); }); "
                     "return ok || JSON.stringify({got, bajarildi});")
         tekshiruvlar["/inventory"] = [
             ("H2: Chiqim tugmasi — nom va birlik AYNAN, kod bajarilmaydi",
@@ -919,6 +1170,19 @@ def main_ish():
                  f".find(i => i.getAttribute('src') === {json.dumps(H2I)})",
                  "openInvLightbox", [[0, H2I]])),
         ]
+        # kech33 (EOP): taklif elementidagi `data-fp` JSON — `pickFinished`
+        # uni AYNAN o'qishi shart. Eski kodda `'` → `&apos;` almashtirilar va
+        # `&apos;` MATNLI nom buzilardi.
+        tekshiruvlar["/orders"] = [
+            ("EOP: tayyor mahsulot taklifi — data-fp JSON AYNAN o'qiladi",
+             "const el = document.querySelector('.fp-sg-item[data-fp]'); "
+             "if (!el) return 'taklif elementi topilmadi'; "
+             "let fp; try { fp = JSON.parse(el.dataset.fp); } catch (e) { return 'JSON xato: ' + e.message; } "
+             "const r = await fetch('/api/finished/search?q=' + encodeURIComponent('xp')); "
+             "const d = await r.json(); "
+             "const asl = (d.items || []).find(x => x.id === fp.id); "
+             "return !!asl && asl.name === fp.name && asl.unit === fp.unit;"),
+        ]
         tekshiruvlar["/users"] = [
             ("H2: Parol tugmasi — login AYNAN, kod bajarilmaydi",
              bos(f"document.querySelector('button[onclick*=\"changePass({h2['user']},\"]')",
@@ -931,6 +1195,54 @@ def main_ish():
             ("H2: hodimni butunlay o'chirish — ism AYNAN, kod bajarilmaydi",
              bos(f"document.querySelector('button[onclick*=\"permanentDelete(\\'employee\\', {h2['emp']},\"]')",
                  "permanentDelete", [[0, "employee"], [1, h2["emp"]], [2, H2E]])),
+            # kech33 (ET01): axlatdagi BUYURTMA. `order_number` — server
+            # generatori, lekin chaqiruv joyi shu tekshiruvsiz umuman
+            # ishlamasdi (kech32 da axlatda buyurtma yo'q edi).
+            ("H2: buyurtmani butunlay o'chirish — raqam AYNAN, kod bajarilmaydi",
+             bos(f"document.querySelector('button[onclick*=\"permanentDelete(\\'order\\', {ids['o3']},\"]')",
+                 "permanentDelete", [[0, "order"], [1, ids["o3"]], ["[2]", o3_raqam]])),
+        ]
+        # kech33 (EP00): MRP "Batafsil" — `data-snap` JSON massivini tashiydi.
+        # Eski kodda `onclick='showSnapshot(${JSON.stringify(...)}, ...)'` edi:
+        # material nomidagi bitta `'` butun tugmani BUZARDI.
+        tekshiruvlar["/production"] = [
+            ("EP00: Batafsil — snapshot massivi va holat AYNAN, kod bajarilmaydi",
+             bos("document.querySelector('#po-list button[onclick*=\"showSnapshot\"]')",
+                 "showSnapshot",
+                 [["[0][0].item_name", h2["inv_a_nom"]], [1, "completed"]])),
+        ]
+        # kech33 (EJ00 / EC00 / ER02): uch sahifa rasmi — lightbox manzili.
+        tekshiruvlar["/projects"] = [
+            ("H2: loyiha rasmi — manzil AYNAN, kod bajarilmaydi",
+             bos(f"[...document.querySelectorAll('img[onclick*=\"openProjLightbox\"]')]"
+                 f".find(i => i.getAttribute('src') === {json.dumps(H2IJ)})",
+                 "openProjLightbox", [[0, H2IJ]])),
+        ]
+        tekshiruvlar["/recipes"] = [
+            ("H2: retsept rasmi — manzil AYNAN, kod bajarilmaydi",
+             bos(f"[...document.querySelectorAll('img[onclick*=\"openRecLightbox\"]')]"
+                 f".find(i => i.getAttribute('src') === {json.dumps(H2IC)})",
+                 "openRecLightbox", [[0, H2IC]])),
+        ]
+        tekshiruvlar["/returns"] = [
+            ("H2: qaytarish rasmi — manzil AYNAN, kod bajarilmaydi",
+             bos(f"[...document.querySelectorAll('img[onclick*=\"openReturnLightbox\"]')]"
+                 f".find(i => i.getAttribute('src') === {json.dumps(H2IR)})",
+                 "openReturnLightbox", [[0, H2IR]])),
+        ]
+        # kech33 (ED00–ED02): qarzlar sahifasi — majburiyat / kategoriya /
+        # hodim qatorlari. `|replace('"', '&quot;')` olib tashlangan; agar u
+        # qaytsa, dataset da `&quot;` MATNI qolib, qiymat BUZILADI.
+        tekshiruvlar["/debts"] = [
+            ("ED01: majburiyat qatori — kategoriya va nom AYNAN",
+             bos("document.querySelector('.oblig-item[onclick*=\"openObligTimeline\"]')",
+                 "openObligTimeline", [["[0]", oblig_kod], ["[1]", oblig_nom]])),
+            ("ED02: kategoriya chipi — nom AYNAN",
+             bos("document.querySelector('span[onclick*=\"deleteCategory\"]')",
+                 "deleteCategory", [["[1]", oblig_nom]])),
+            ("ED00: hodim qarzi qatori — ism AYNAN",
+             bos("document.querySelector('.oblig-item[onclick*=\"openEmpTimeline\"]')",
+                 "openEmpTimeline", [["[1]", hodim_nom]])),
         ]
         # DOM_SAHIFALAR=/reports,/dashboard — faqat shu sahifalar (nuqtali mutatsiya
         # ishlarini tezlatish uchun). Oddiy ishda (hammasi.sh) O'RNATILMAYDI.
