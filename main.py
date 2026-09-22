@@ -3532,7 +3532,12 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
     for item in items:
         qty = float(item.stock_quantity)
         min_q = float(item.min_stock or 0)
-        if min_q > 0 and qty <= min_q:
+        # kech37 (21-band, foydalanuvchi qarori: "Ortgan loy uchun chegara shart
+        # emas"): "Tayyor loy (...)" zaxirasi hisobotda doim "YETARLI" bo'limida —
+        # unga min > 0 qo'yilgan bo'lsa ham "KAM QOLGANLAR" ga tushmaydi
+        # (`services.TAYYOR_LOY_PREFIKS`, `crud.get_low_stock_items` bilan bir xil).
+        _tayyor_loy = str(item.item_name or "").startswith(services.TAYYOR_LOY_PREFIKS)
+        if min_q > 0 and qty <= min_q and not _tayyor_loy:
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             kam.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit}")
         else:
@@ -3688,7 +3693,12 @@ def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=De
     # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Material topilmadi")
-    result = crud.delete_item(db, item_id)
+    # kech37 (18-band): asosiy penoplastni (boshqa penoplast bor bo'lsa) o'chirish — 400
+    try:
+        result = crud.delete_item(db, item_id)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
     return {"status": "ok", "soft": result["soft"], "message": result["message"]}

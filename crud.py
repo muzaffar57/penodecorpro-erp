@@ -298,9 +298,11 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
         # penoplast qolmagan bo'lsa, shu penoplast asosiy bo'ladi (aks holda
         # yagona asosiy penoplast qayta yaratilganda korxonada 0 ta qolardi).
         if is_peno and not existing_to_reuse.is_default_penoplast:
+            # kech37 (18-band): yashirin qatordagi eski asosiy belgi hisobga olinmaydi
             _bor = _scope(db.query(Inventory).filter(
                 Inventory.is_default_penoplast == True,
-                Inventory.id != existing_to_reuse.id
+                Inventory.id != existing_to_reuse.id,
+                Inventory.is_deleted.isnot(True)
             )).first()
             if not _bor:
                 existing_to_reuse.is_default_penoplast = True
@@ -355,9 +357,13 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
         db.commit()
 
     # Agar birinchi penoplast bo'lsa — avtomatik asosiy qilamiz
+    # kech37 (18-band): yashirilgan (o'chirilgan) qatordagi eski asosiy belgi
+    # hisobga olinmaydi — aks holda korxonada ko'rinadigan asosiy penoplast
+    # bo'lmasa ham yangi penoplast asosiy bo'lmasdi (PG da O'LCHANGAN).
     if is_peno:
         has_default = _scope(db.query(Inventory).filter(
-            Inventory.is_default_penoplast == True
+            Inventory.is_default_penoplast == True,
+            Inventory.is_deleted.isnot(True)
         )).first()
         if not has_default:
             db_item.is_default_penoplast = True
@@ -992,6 +998,26 @@ def delete_item(db: Session, item_id: int) -> dict:
     if not db_item:
         return {"success": False, "message": "Xomashyo topilmadi"}
 
+    # kech37 (18-band, K37-1 — O'LCHANGAN, asl kod): asosiy penoplast bemalol
+    # o'chirilardi (200). Keyin korxonada "★ Asosiy" belgili penoplast qolmasdi,
+    # `/api/penoplasts` `default_id` esa tasodifiy qolgan penoplastga tushardi; PG da
+    # (tarixi bor → YASHIRILADI) yashirin qator `is_default_penoplast = True` ni
+    # saqlagani uchun keyin yaratilgan penoplast ham asosiy bo'lmasdi. Endi
+    # `update_item` / `add_item` dagi qoida bilan bir xil: boshqa ko'rinadigan
+    # penoplast bo'lsa — rad ("avval boshqa penoplastni asosiy qiling"); yagona
+    # penoplast bo'lsa — o'chiriladi / yashiriladi va belgisi olib tashlanadi
+    # (keyingi yangi penoplast avtomatik asosiy bo'ladi).
+    if db_item.is_default_penoplast:
+        _boshqa_peno = db.query(Inventory).filter(
+            Inventory.company_id == db_item.company_id,
+            Inventory.id != db_item.id,
+            Inventory.is_penoplast == True,
+            Inventory.is_deleted.isnot(True)
+        ).first()
+        if _boshqa_peno:
+            raise ValueError("Asosiy penoplastni o'chirib bo'lmaydi — avval boshqa penoplastni "
+                             "asosiy qiling (\"☆ Asosiy qilish\" tugmasi)")
+
     try:
         db.delete(db_item)
         db.commit()
@@ -1000,6 +1026,8 @@ def delete_item(db: Session, item_id: int) -> dict:
         db.rollback()
         db_item = get_item(db, item_id)
         db_item.is_deleted = True
+        # kech37 (18-band): yashirilgan qator asosiy penoplast bo'lib QOLMAYDI
+        db_item.is_default_penoplast = False
         db.commit()
         return {
             "success": True, "soft": True,

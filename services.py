@@ -461,10 +461,14 @@ def get_business_alerts(db: Session, company_id: int = None) -> list:
     alerts = []
 
     # 1) Kam qolgan xomashyo (min_stock dan kam)
+    # kech37 (21-band, foydalanuvchi qarori: "Ortgan loy uchun chegara shart
+    # emas"): "Tayyor loy (...)" zaxirasi (`TAYYOR_LOY_PREFIKS` izohi) hech
+    # qachon "kamaymoqda" deb chiqmaydi — hatto unga min > 0 qo'yilgan bo'lsa ham.
     _lsq = db.query(Inventory).filter(
         Inventory.is_deleted.isnot(True),
         Inventory.stock_quantity <= Inventory.min_stock,
-        Inventory.min_stock > 0
+        Inventory.min_stock > 0,
+        ~Inventory.item_name.like(TAYYOR_LOY_PREFIKS + '%')
     )
     if company_id is not None:      # M6
         _lsq = _lsq.filter(Inventory.company_id == company_id)
@@ -855,6 +859,12 @@ def get_production_period_stats(db: Session, company_id: int = None) -> dict:
 # Ishlatiladi: `get_notifications` (qo'ng'iroqcha), `get_inventory_kpi`
 # (Omborxona KPI); `crud.get_low_stock_items` (Telegram) — o'sha shakl
 # (`'Tayyor loy (%'`); `inventory.html` — `startswith('Tayyor loy (')`.
+# kech37 (21-band) — FOYDALANUVCHI QARORI: "Ortgan loy uchun chegara shart
+# emas." Ya'ni Tayyor loy ga min > 0 qo'yilgan bo'lsa ham u HECH QAYERDA "kam"
+# deb chiqmaydi: `check_low_stock` (bosh sahifa, dashboard, buyurtmalar sahifasi
+# ogohlantirishi, bugungi vazifalar, grafik), `get_business_alerts` (hisobotlar),
+# `main.api_full_stock_report` (Telegram "Ombor hisoboti"), `reports.html`
+# `stockDot`; Omborxona qatorida chegara ustuni "—" (tahrirlash tugmasi yo'q).
 # Ilgari qo'ng'iroqcha `'Tayyor loy%'` (qavssiz) ishlatardi: foydalanuvchi o'zi
 # yaratgan "Tayyor loy" nomli oddiy material tugasa ham ogohlantirilmasdi,
 # Telegram esa ogohlantirardi — endi ikkalasi bir xil.
@@ -968,11 +978,17 @@ def check_low_stock(db: Session, company_id: int = None) -> List[Dict]:
     # davom etardi — foydalanuvchi uni ko'ra ham, to'ldira ham olmaydi.
     # `get_business_alerts` / `get_notifications` dagidek yashirinlar chiqariladi
     # (`isnot(True)` — eski NULL qatorlar ko'rinadigan bo'lib qoladi).
+    # kech37 (21-band, foydalanuvchi qarori: "Ortgan loy uchun chegara shart
+    # emas"): "Tayyor loy (...)" zaxirasiga min > 0 qo'yilgan bo'lsa ham u bosh
+    # sahifa "Kam qolgan xomashyo", dashboard, buyurtmalar ogohlantirishi,
+    # bugungi vazifalar va grafikka TUSHMAYDI (ilgari tushardi — Omborxona KPI,
+    # qo'ng'iroqcha va Telegram esa uni chiqarib tashlardi). `TAYYOR_LOY_PREFIKS`.
     low_items = db.query(Inventory).filter(
         Inventory.company_id == company_id,
         Inventory.is_deleted.isnot(True),
         Inventory.stock_quantity <= Inventory.min_stock,
-        Inventory.min_stock > 0
+        Inventory.min_stock > 0,
+        ~Inventory.item_name.like(TAYYOR_LOY_PREFIKS + '%')
     ).all()
 
     result = []
@@ -3205,8 +3221,10 @@ def get_default_penoplast(db: Session, company_id: int = None):
     )).first()
     if p:
         return p
+    # kech37 (18-band): zaxira tanlovi BARQAROR — eng kichik id (15-band saboqi:
+    # PG da tartibsiz `.first()` UPDATE dan keyin boshqa qatorni qaytarishi mumkin)
     p = _scoped(db.query(Inventory).filter(
-        Inventory.is_penoplast == True, Inventory.is_deleted.isnot(True))).first()
+        Inventory.is_penoplast == True, Inventory.is_deleted.isnot(True))).order_by(Inventory.id).first()
     if p:
         return p
     return _scoped(db.query(Inventory).filter(
