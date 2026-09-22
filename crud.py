@@ -1019,7 +1019,11 @@ def get_low_stock_items(db: Session, company_id: int = None) -> List[Inventory]:
     ogohlantirishidan chiqarib tashlanadi — ombordagi haqiqiy miqdorning
     o'ziga (va keyingi buyurtmalar uchun ishlatilishiga) bu SIRA tegmaydi.
     """
+    # 2026-09-22 (kech34, K34-1): yashirilgan (o'chirilgan) material Telegram
+    # "kam qoldi" xabarlariga (qo'lda ogohlantirish, kunlik cron, buyurtma va
+    # ishlab chiqarishdan keyingi ogohlantirish) tushmaydi.
     q = db.query(Inventory).filter(
+        Inventory.is_deleted.isnot(True),
         Inventory.stock_quantity <= Inventory.min_stock,
         ~Inventory.item_name.like('Tayyor loy (%')
     )

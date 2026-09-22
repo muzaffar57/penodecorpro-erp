@@ -3519,8 +3519,11 @@ def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db)
 def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     from models import Inventory as Inv
     # M3: SMS hisoboti FAQAT joriy korxonaning materiallari bo'yicha.
+    # kech34 (K34-1): yashirilgan (o'chirilgan) materiallar hisobotga va
+    # "(N ta xomashyo)" soniga kirmaydi — Omborxona ro'yxati bilan bir xil.
     items = db.query(Inv).filter(
-        Inv.company_id == auth.company_id_of(current_user)
+        Inv.company_id == auth.company_id_of(current_user),
+        Inv.is_deleted.isnot(True)
     ).order_by(Inv.item_name).all()
     if not items:
         return {"message": "Omborxona bo'sh!"}
@@ -6707,36 +6710,6 @@ def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db
     db.delete(att)
     db.commit()
     return {"status": "ok"}
-    import delivery_pdf
-    import traceback
-
-    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
-    if not order:
-        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-
-    all_dlv = sorted(order.deliveries, key=lambda x: x.delivered_at or datetime.min)
-
-    if ids.strip():
-        try:
-            wanted = {int(x) for x in ids.split(',') if x.strip()}
-        except ValueError:
-            raise HTTPException(status_code=400, detail="ids noto'g'ri")
-        deliveries = [d for d in all_dlv if d.id in wanted]
-    else:
-        deliveries = all_dlv
-
-    if not deliveries:
-        raise HTTPException(status_code=400, detail="Yuk xati tanlanmagan")
-
-    try:
-        pdf_bytes = delivery_pdf.generate_summary_pdf(order, deliveries, db)
-    except Exception as e:
-        print("Hisob-kitob PDF XATO:\n", traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
-
-    filename = f"hisob_kitob_{order.order_number}.pdf"
-    return Response(content=pdf_bytes, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
 @app.delete("/api/deliveries/{delivery_id}")

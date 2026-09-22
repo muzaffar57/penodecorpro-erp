@@ -807,47 +807,6 @@ def close_employee_debt(db: Session, employee_id: int, year: int, month: int, am
     return {"success": adv is not None}
 
 
-
-    """Bosh sahifadagi 'Bugungi vazifalar' bloki uchun — faqat o'qish,
-    mavjud funksiyalardan (get_today_stats, low stock, loyihalar) foydalanadi."""
-    from models import Order, OrderStatus, Project, ProjectStatus, Inventory
-    from datetime import datetime, timedelta
-    from database import tashkent_today_start_utc
-
-    now = datetime.utcnow()
-    today_start = tashkent_today_start_utc()
-    today_end = today_start + timedelta(days=1)
-
-    tasks = []
-
-    due_today = db.query(Order).filter(
-        Order.deadline >= today_start, Order.deadline < today_end,
-        Order.status.notin_([OrderStatus.DELIVERED, OrderStatus.CANCELLED]),
-        Order.is_deleted.isnot(True)
-    ).count()
-    if due_today > 0:
-        tasks.append({"level": "red", "icon": "🔴", "text": f"{due_today} ta buyurtma bugun topshirilishi kerak"})
-
-    low_count = db.query(Inventory).filter(
-        Inventory.stock_quantity <= Inventory.min_stock, Inventory.min_stock > 0
-    ).count()
-    if low_count > 0:
-        tasks.append({"level": "orange", "icon": "🟡", "text": f"{low_count} ta xomashyo minimal qoldiqdan past"})
-
-    completed_today = db.query(Project).filter(
-        Project.completed_at >= today_start, Project.completed_at < today_end,
-        Project.status == ProjectStatus.COMPLETED,
-        Project.is_deleted.isnot(True)
-    ).count()
-    if completed_today > 0:
-        tasks.append({"level": "green", "icon": "🟢", "text": f"{completed_today} ta loyiha bugun yakunlandi"})
-
-    if not tasks:
-        tasks.append({"level": "green", "icon": "✅", "text": "Bugun shoshilinch vazifalar yo'q"})
-
-    return tasks
-
-
 def get_production_period_stats(db: Session, company_id: int = None) -> dict:
     """Ishlab chiqarish — bugun/hafta/oy bo'yicha nechta mahsulot chiqqani.
     Faqat o'qish, FinishedProduct.created_at (source=produced) asosida.
@@ -988,8 +947,16 @@ def check_low_stock(db: Session, company_id: int = None) -> List[Dict]:
     """
     # 2026-09-21: QAT'IY korxona filtri — None bo'lsa bo'sh (ilgari
     # filtr umuman yo'q edi: B dashboardida A ning xomashyo nomlari).
+    # 2026-09-22 (kech34, K34-1 — jonli O'LCHANGAN): o'chirilgan (tarixi bor,
+    # shuning uchun YASHIRILGAN — `crud.delete_item` soft) material Omborxona
+    # ro'yxatida yo'q, lekin bosh sahifa "Kam qolgan xomashyo", dashboard,
+    # buyurtmalar sahifasi ogohlantirishi va "Bugungi vazifalar" da ko'rinishda
+    # davom etardi — foydalanuvchi uni ko'ra ham, to'ldira ham olmaydi.
+    # `get_business_alerts` / `get_notifications` dagidek yashirinlar chiqariladi
+    # (`isnot(True)` — eski NULL qatorlar ko'rinadigan bo'lib qoladi).
     low_items = db.query(Inventory).filter(
         Inventory.company_id == company_id,
+        Inventory.is_deleted.isnot(True),
         Inventory.stock_quantity <= Inventory.min_stock,
         Inventory.min_stock > 0
     ).all()
@@ -1184,7 +1151,10 @@ def get_dashboard_stats(db: Session, company_id: int = None) -> Dict:
     if company_id is not None:      # M5
         _tmq = _tmq.filter(Master.company_id == company_id)
     total_masters = _tmq.count()
-    total_inventory_items = db.query(Inventory).filter(Inventory.company_id == company_id).count()
+    # kech34 (K34-1): yashirilgan (o'chirilgan) materiallar sanalmaydi.
+    total_inventory_items = db.query(Inventory).filter(
+        Inventory.company_id == company_id,
+        Inventory.is_deleted.isnot(True)).count()
     low_stock = check_low_stock(db, company_id)
 
     return {
