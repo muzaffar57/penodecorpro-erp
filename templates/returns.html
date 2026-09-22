@@ -766,8 +766,12 @@ async function saveReturn(){
 // ikkalasi ham bir xil ishni — mahsulot soniga tegmasdan qo'shimcha
 // xomashyoni ombordan ayirishni — qilardi.)
 let brakItems = [];
+// 17g (2026-09-22): oyna ochiq turganda qisman saqlangan brak bo'lsa — oyna
+// yopilganda ro'yxat yangilanadi (saqlangan yozuvlar sahifada ko'rinsin).
+let brakSaqlanganBor = false;
 
 function showBrakModal(){
+  brakSaqlanganBor = false;
   document.getElementById('brakModal').style.display='flex';
   document.getElementById('brak-project').value = '';
   document.getElementById('brak-notes').value = '';
@@ -775,7 +779,22 @@ function showBrakModal(){
   document.getElementById('brakList').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Avval loyiha tanlang</div>';
   brakItems = [];
 }
-function closeBrakModal(){ document.getElementById('brakModal').style.display='none'; }
+function closeBrakModal(){
+  document.getElementById('brakModal').style.display='none';
+  if (brakSaqlanganBor) { brakSaqlanganBor = false; location.reload(); }
+}
+
+// 17g (2026-09-22): server javobidagi SABAB — `detail` matn bo'lsa o'zi,
+// obyekt bo'lsa `detail.message`; JSON emas yoki ro'yxat (422) — holat kodi.
+async function brakServerSababi(res) {
+  let sabab = 'Xato (' + res.status + ')';
+  try {
+    const d = await res.json();
+    if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+    else if (d && d.detail && typeof d.detail.message === 'string' && d.detail.message) sabab = d.detail.message;
+  } catch(e) {}
+  return sabab;
+}
 
 let isSavingBrak = false;
 
@@ -833,7 +852,7 @@ async function saveBrakBatch(){
       el.style.borderColor = '#DC2626';
     } else {
       el.style.borderColor = '';
-      toSave.push({ item: it, qty });
+      toSave.push({ item: it, qty, el });
     }
   });
 
@@ -847,8 +866,15 @@ async function saveBrakBatch(){
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
 
   try {
+    // 17g (2026-09-22): ilgari server rad etgan qator JIMGINA tashlab
+    // yuborilardi (`if (res.ok) okCount++`, keyin oyna yopilib sahifa qayta
+    // yuklanardi) — foydalanuvchi brak yozilmaganini bilmasdi. Endi har rad
+    // etilgan qatorning server SABABI ko'rsatiladi, oyna ochiq qoladi;
+    // saqlangan qatorlar miqdori tozalanadi (qayta bosilsa ikki marta
+    // yozilmasin).
     let okCount = 0;
-    for (const { item, qty } of toSave) {
+    const xatolar = [];
+    for (const { item, qty, el } of toSave) {
       const res = await fetch('/api/returns', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
@@ -864,7 +890,19 @@ async function saveBrakBatch(){
           coating_applied: document.querySelector('input[name="brak-coating-applied"]:checked')?.value === 'yes'
         })
       });
-      if (res.ok) okCount++;
+      if (res.ok) {
+        okCount++;
+        if (el) el.value = '';
+      } else {
+        xatolar.push(`${item.name}: ${await brakServerSababi(res)}`);
+      }
+    }
+    if (xatolar.length) {
+      if (okCount) brakSaqlanganBor = true;
+      err.style.display = 'block';
+      err.textContent = '❌ ' + (okCount ? `${okCount} ta saqlandi, ` : '') +
+        `${xatolar.length} ta saqlanmadi — ` + xatolar.join('; ');
+      return;
     }
     closeBrakModal();
     location.reload();

@@ -2221,6 +2221,34 @@ function closeFullDlvModal() {
   document.getElementById('fullDlvModalOverlay').style.display = 'none';
 }
 
+// 17g (2026-09-22): yetkazish so'rovi — ikkala yo'l ("Yetkazish" oynasi va
+// "Bir yo'la to'liq topshirish") uchun umumiy. Shu yukka bog'liq to'lov endi
+// qo'lda to'lov bilan AYNAN bir xil tekshiriladi: qarzdan ko'p bo'lsa server 409
+// (`overpayment_warning`, `detail.message` — savol) qaytaradi va HECH NARSA
+// yozilmaydi. Shunda server savoli bilan tasdiq so'raladi: "Ha" →
+// `confirm_overpay: true` bilan qayta yuboriladi, "Bekor" → `null` (yetkazish
+// saqlanmagan). Boshqa javoblar o'zgarishsiz qaytariladi.
+async function yetkazishYubor(data) {
+  const yubor = () => fetch('/api/deliveries', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  let res = await yubor();
+  if (res.status === 409 && !data.confirm_overpay) {
+    let d = null;
+    try { d = await res.clone().json(); } catch(e) {}
+    if (d && d.detail && d.detail.type === 'overpayment_warning') {
+      const ha = await showConfirmModal('⚠️ ' + String(d.detail.message || ''),
+        {danger:true, okText:'Ha, davom etaman'});
+      if (!ha) return null;
+      data.confirm_overpay = true;
+      res = await yubor();
+    }
+  }
+  return res;
+}
+
 async function submitFullDlvModal() {
   const pending = _fullDlvPending;
   if (!pending) return;
@@ -2244,11 +2272,12 @@ async function submitFullDlvModal() {
   };
 
   try {
-    const res = await fetch('/api/deliveries', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
+    const res = await yetkazishYubor(data);
+    if (!res) {
+      // 17g: ortiqcha to'lov tasdiqlanmadi — hech narsa saqlanmagan
+      showMsg('Yetkazish saqlanmadi — to\'lov summasini tekshirib qayta kiriting', 'error');
+      return;
+    }
     const r = await res.json();
 
     if (res.ok) {
@@ -2307,11 +2336,10 @@ async function saveDelivery() {
   };
 
   try {
-    const res = await fetch('/api/deliveries', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
+    const res = await yetkazishYubor(data);
+    // 17g: ortiqcha to'lov tasdiqlanmadi — hech narsa saqlanmagan, oyna ochiq
+    // qoladi (foydalanuvchi to'lov summasini tuzatishi mumkin)
+    if (!res) return;
     const r = await res.json();
 
     if (res.ok) {
