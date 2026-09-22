@@ -32,6 +32,12 @@ Hammasi HAQIQIY PostgreSQL 16 da O'LCHANGAN (asl kod = 17f). SQLite
 4) TA'MINOTCHI: 8 s ichida shu summada qo'lda to'lov bo'lsa xarid to'lovi
    YARATILMASDI; avansli ta'minotchi yoki kasr so'mli xarid qisman to'langanda
    xarid saqlanib, keyin 500 (yarim saqlanish).
+6) TAKROR / PARALLEL YETKAZISH (kech27, HAQIQIY PG 16 da O'LCHANGAN, asl kod =
+   17g `3319f4a`, har holat 12 urinishdan 12 tasida): bir xil qisman yetkazish
+   (+ to'lov) ketma-ket ikki marta → 2 yetkazish, 2 to'lov; ikki foydalanuvchi
+   bir vaqtda 20 + 19 (qoldiq 30) → IKKALASI saqlanib 39 topshirilardi,
+   to'lovsiz holatda ikkala raqam ham bir xil "/Y-1" (qoldiq tekshiruvi qulfsiz,
+   qulf faqat to'lovda va tekshiruvdan KEYIN olinardi).
 5) QAYTARISH SUMMASI CHEGARASI UI ni to'smasin: `returns.html` summani 1 birlik
    narxini BUTUN so'mga yaxlitlab hisoblaydi va chegirmali buyurtmada
    chegirmasiz narxdan oladi — bu qiymatlar 400 bilan rad etilmasligi SHART
@@ -51,11 +57,18 @@ N. 3 xonali narx: xarid / kirim hujjati / tahrir / boshlang'ich qoldiq —
 S. Ta'minotchi to'lovi xarid bilan: takror-himoya, avans, kasr so'm
 F. Ildiz: `create_delivery`, `create_return_item`, `_tolov_chegarasi`,
    `_xarid_narx_jami`, `_pul2` — bazaga tegmasdan rad
+T. Takror / parallel yetkazish (kech27): bir xil so'rov → `duplicate`, o'sha
+   yetkazish, hech narsa qo'shilmaydi, Telegram / nakladnoy qayta ketmaydi;
+   har maydon farqi → yangi yetkazish; oyna 6 s ichida takror, 10 s da yangi;
+   to'liq yetkazish + to'liq to'lov takrori 200 (400 / 409 EMAS); begona
+   korxona — 400; eskirgan sessiya (qulfdan oldin o'qilgan qoldiq) va
+   chaqiruvchining yozilmagan o'zgarishi; PG da ikki oqim bir vaqtda
+   (bir xil / farqli, to'lovli / to'lovsiz); statik — qulf va imzo tartibi
 G. Statik: tekshiruv TARTIBI, marshrut turlari, qoidalar, sxemalar, UI
 H. 422 qoladi (tana lug'at emas / buzilgan JSON)
 K. KUMULYATIV: sahifalar 200; hech bir javob 5xx emas
 P. PostgreSQL (`PG_URL` bo'lsa): skript o'zini `QAYTARISH_PG_REJIM=1` bilan
-   YANGI bazada qayta ishga tushiradi (R, D, N, S, F, H, K), saqlangan pul
+   YANGI bazada qayta ishga tushiradi (R, D, N, S, F, T, H, K), saqlangan pul
    matni AYNAN kutilgan (masalan "3443.22").
 
 ISHLATISH
@@ -78,7 +91,9 @@ import shutil
 import inspect
 import tempfile
 import subprocess
+import threading
 from types import SimpleNamespace
+from datetime import datetime, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -1250,6 +1265,351 @@ def h_bolimi():
 # ══════════════════════════════════════════════════════════════
 # K. Kumulyativ
 # ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
+# T. Takror / parallel yetkazish (kech27)
+# ══════════════════════════════════════════════════════════════
+_T_N = [0]
+
+
+def _t_tana(oid, iid, miqdor=2, **ozg):
+    """`orders.html` `saveDelivery` shaklidagi to'liq tana (hamma maydon)."""
+    _T_N[0] += 1
+    tana = {
+        "order_id": oid,
+        "items": [{"order_item_id": iid, "quantity": miqdor}],
+        "received_by": "T Qabul",
+        "notes": "T izoh",
+        "payment_amount": 50000,
+        "payment_method": "naqd",
+        "transport_carrier": "T Tashuvchi",
+        "transport_cost": 15000,
+        "transport_payer": "company",
+    }
+    tana.update(ozg)
+    return tana
+
+
+def _t_yetkazishlar(oid):
+    d = SessionLocal()
+    try:
+        dl = d.query(Delivery).filter(Delivery.order_id == oid).order_by(Delivery.id).all()
+        py = d.query(Payment).filter(Payment.order_id == oid).count()
+        jami = sum(float(x.quantity) for x in d.query(DeliveryItem).join(
+            Delivery, Delivery.id == DeliveryItem.delivery_id).filter(
+            Delivery.order_id == oid).all())
+        return SimpleNamespace(soni=len(dl), tolov=py, jami=round(jami, 6),
+                               idlar=[x.id for x in dl],
+                               raqamlar=[x.delivery_number for x in dl])
+    finally:
+        d.close()
+
+
+def _t_eskirt(delivery_id, soniya):
+    d = SessionLocal()
+    try:
+        d.query(Delivery).filter(Delivery.id == delivery_id).update(
+            {"delivered_at": datetime.utcnow() - timedelta(seconds=soniya)},
+            synchronize_session=False)
+        d.commit()
+    finally:
+        d.close()
+
+
+def _t_ildiz(sessiya, oid, iid, miqdor, tolov=None):
+    """`crud.create_delivery` to'g'ridan (asl kodga qarshi ham qulamaydi)."""
+    try:
+        data = schemas.DeliveryCreate(
+            order_id=oid, items=[schemas.DeliveryItemCreate(order_item_id=iid, quantity=miqdor)],
+            payment_amount=tolov)
+        r = crud.create_delivery(sessiya, data, delivered_by="T", company_id=1)
+        return r if isinstance(r, dict) else {"success": False, "message": repr(r)}
+    except Exception as e:
+        try:
+            sessiya.rollback()
+        except Exception:
+            pass
+        return {"success": False, "message": f"ISTISNO {type(e).__name__}: {e}"}
+
+
+def t_bolimi():
+    section("T. Takror / parallel yetkazish (kech27)")
+    sanoq = {"tg": 0, "pdf": 0}
+    asl_tg = getattr(main, "_send_telegram", None)
+    asl_pdf = getattr(main, "_send_delivery_pdf_to_customer", None)
+
+    def _tg(*a, **k):
+        sanoq["tg"] += 1
+
+    def _pdf(*a, **k):
+        sanoq["pdf"] += 1
+
+    main._send_telegram = _tg
+    main._send_delivery_pdf_to_customer = _pdf
+    try:
+        _t_ketma_ket(sanoq)
+        _t_toliq_takror()
+        _t_begona()
+        _t_eskirgan_sessiya()
+        _t_parallel()
+    finally:
+        if asl_tg is not None:
+            main._send_telegram = asl_tg
+        if asl_pdf is not None:
+            main._send_delivery_pdf_to_customer = asl_pdf
+    if not PG_REJIM:
+        _t_statik()
+
+
+def _t_ketma_ket(sanoq):
+    # T1 — ketma-ket bir xil so'rov
+    tikla()
+    oid, (iid,), _ = yangi_buyurtma(miqdor=30)
+    tana = _t_tana(oid, iid)
+    r1 = req(C, "post", "/api/deliveries", json=tana)
+    j1 = jsn(r1) or {}
+    y1 = _t_yetkazishlar(oid)
+    tg1, pdf1 = sanoq["tg"], sanoq["pdf"]
+    check("T1 birinchi so'rov → 200, yangi yetkazish (duplicate yo'q), Telegram + nakladnoy 1 martadan",
+          r1.status_code == 200 and j1.get("success") is True and not j1.get("duplicate")
+          and y1.soni == 1 and y1.tolov == 1 and y1.jami == 2 and tg1 == 1 and pdf1 == 1,
+          f"{r1.status_code} {matn(r1)[:160]} {vars(y1)} tg={tg1} pdf={pdf1}")
+    h0 = holat()
+    r2 = req(C, "post", "/api/deliveries", json=tana)
+    j2 = jsn(r2) or {}
+    y2 = _t_yetkazishlar(oid)
+    check("T1 AYNAN takror → 200, duplicate=true, o'sha delivery_id va raqam",
+          r2.status_code == 200 and j2.get("success") is True and j2.get("duplicate") is True
+          and j2.get("delivery_id") == j1.get("delivery_id")
+          and j2.get("delivery_number") == j1.get("delivery_number"),
+          f"{r2.status_code} {matn(r2)[:200]}")
+    check("T1 takrordan keyin baza AYNAN o'zgarmagan (1 yetkazish, 1 to'lov, 2 metr)",
+          holat() == h0 and y2.soni == 1 and y2.tolov == 1 and y2.jami == 2, vars(y2))
+    check("T1 takrorda Telegram va nakladnoy QAYTA yuborilmagan",
+          sanoq["tg"] == tg1 and sanoq["pdf"] == pdf1, dict(sanoq))
+    check("T1 takror javobi xabari aniq ('takroriy so'rov, qayta yozilmadi')",
+          "takroriy so'rov, qayta yozilmadi" in str(j2.get("message", "")), j2.get("message"))
+
+    # T2 — har bir maydon farqi → YANGI yetkazish (haqiqiy alohida harakat)
+    farqlar = [
+        ("miqdor 3", {"items": [{"order_item_id": iid, "quantity": 3}]}),
+        ("to'lov 60 000", {"payment_amount": 60000}),
+        ("to'lov usuli plastik", {"payment_method": "plastik"}),
+        ("to'lovsiz", {"payment_amount": None}),
+        ("transport 16 000", {"transport_cost": 16000}),
+        ("to'lovchi mijoz", {"transport_payer": "client"}),
+        ("tashuvchi boshqa", {"transport_carrier": "T Boshqa"}),
+        ("qabul qiluvchi boshqa", {"received_by": "T Boshqa"}),
+        ("izoh boshqa", {"notes": "T boshqa izoh"}),
+    ]
+    for nom, ozg in farqlar:
+        oldin = _t_yetkazishlar(oid)
+        t = dict(tana)
+        t.update(ozg)
+        r = req(C, "post", "/api/deliveries", json=t)
+        j = jsn(r) or {}
+        keyin = _t_yetkazishlar(oid)
+        check(f"T2 farq '{nom}' → 200, YANGI yetkazish (duplicate yo'q)",
+              r.status_code == 200 and j.get("success") is True and not j.get("duplicate")
+              and keyin.soni == oldin.soni + 1 and j.get("delivery_id") not in oldin.idlar,
+              f"{r.status_code} {matn(r)[:160]} {oldin.soni}->{keyin.soni}")
+
+    # T3 — oyna: 6 s oldingi AYNAN shunday yetkazish → takror; 10 s → yangi
+    t3 = dict(tana)
+    t3["notes"] = "T3 oyna"
+    r = req(C, "post", "/api/deliveries", json=t3)
+    j = jsn(r) or {}
+    did = j.get("delivery_id")
+    _t_eskirt(did, 6) if did else None
+    oldin = _t_yetkazishlar(oid)
+    r = req(C, "post", "/api/deliveries", json=t3)
+    j6 = jsn(r) or {}
+    check("T3 6 soniya oldingi AYNAN shunday yetkazish → takror (yangi yozuv yo'q)",
+          r.status_code == 200 and j6.get("duplicate") is True and j6.get("delivery_id") == did
+          and _t_yetkazishlar(oid).soni == oldin.soni,
+          f"{r.status_code} {matn(r)[:160]}")
+    _t_eskirt(did, 10) if did else None
+    oldin = _t_yetkazishlar(oid)
+    r = req(C, "post", "/api/deliveries", json=t3)
+    j10 = jsn(r) or {}
+    check("T3 10 soniya oldingi → oyna o'tgan, YANGI yetkazish (haqiqiy takroriy topshirish)",
+          r.status_code == 200 and j10.get("success") is True and not j10.get("duplicate")
+          and _t_yetkazishlar(oid).soni == oldin.soni + 1,
+          f"{r.status_code} {matn(r)[:160]}")
+    yk = _t_yetkazishlar(oid)
+    check("T1–T3 yetkazish raqamlari takrorlanmagan",
+          len(yk.raqamlar) == len(set(yk.raqamlar)), yk.raqamlar)
+
+
+def _t_toliq_takror():
+    # T4 — to'liq yetkazish + to'liq to'lov takrori: qoldiq 0 va qarz 0 bo'lgach
+    # ham takror 200 (400 "Qoldiqdan ko'p" yoki 409 "ortiqcha to'lov" EMAS)
+    tikla()
+    oid, (iid,), _ = yangi_buyurtma(miqdor=10)
+    b0 = buyurtma(oid)
+    qarz = round(b0.debt) if b0 else 0
+    tana = _t_tana(oid, iid, miqdor=10, payment_amount=qarz, transport_cost=0,
+                   transport_payer="none", transport_carrier=None)
+    r1 = req(C, "post", "/api/deliveries", json=tana)
+    b1 = buyurtma(oid)
+    check("T4 to'liq yetkazish + to'liq to'lov → 200, qarz 0, 10 topshirilgan",
+          r1.status_code == 200 and b1 is not None and abs(b1.debt) < 0.01
+          and b1.delivered == [10.0], f"{r1.status_code} {matn(r1)[:160]} {vars(b1) if b1 else None}")
+    h0 = holat()
+    r2 = req(C, "post", "/api/deliveries", json=tana)
+    j2 = jsn(r2) or {}
+    check("T4 takror → 200 duplicate (400 'Qoldiqdan ko'p' / 409 EMAS), baza o'zgarmagan",
+          r2.status_code == 200 and j2.get("duplicate") is True
+          and j2.get("delivery_id") == (jsn(r1) or {}).get("delivery_id") and holat() == h0,
+          f"{r2.status_code} {matn(r2)[:200]}")
+    check("T4 takror javobida buyurtma holati haqiqiy (to'liq topshirilgan)",
+          j2.get("is_fully_delivered") is True and j2.get("delivery_percent") == 100,
+          {k: j2.get(k) for k in ("is_fully_delivered", "delivery_percent", "order_status")})
+
+
+def _t_begona():
+    # T5 — begona korxona AYNAN shu tanani yuborsa: 400, A ning yetkazishi qaytmaydi
+    tikla()
+    oid, (iid,), _ = yangi_buyurtma(miqdor=30)
+    tana = _t_tana(oid, iid)
+    r1 = req(C, "post", "/api/deliveries", json=tana)
+    j1 = jsn(r1) or {}
+    h0 = holat()
+    r2 = req(CB, "post", "/api/deliveries", json=tana)
+    m = matn(r2)
+    check("T5 begona korxona AYNAN shu tana → 400 'Buyurtma topilmadi', A ning yetkazishi qaytmagan",
+          r1.status_code == 200 and r2.status_code == 400 and "Buyurtma topilmadi" in m
+          and str(j1.get("delivery_number")) not in m and holat() == h0,
+          f"{r2.status_code} {m[:200]}")
+
+
+def _t_eskirgan_sessiya():
+    # T6 — sessiya qoldiqni qulfdan OLDIN o'qigan (masalan `services` "Tayyor"
+    # oqimi buyurtmani oldindan yuklaydi), orada boshqa so'rov 20 topshirgan:
+    # 19 lik yetkazish qulf ostida qayta o'qilgan qoldiq (10) bilan RAD etilishi
+    # SHART (aks holda 39 topshirilardi)
+    tikla()
+    oid, (iid,), _ = yangi_buyurtma(miqdor=30)
+    s1 = SessionLocal()
+    try:
+        o = s1.get(Order, oid)
+        _ = [i.remaining_qty for i in o.items]
+        _ = o.status, o.debt_amount
+        s2 = SessionLocal()
+        try:
+            r2 = _t_ildiz(s2, oid, iid, 20)
+        finally:
+            s2.close()
+        r1 = _t_ildiz(s1, oid, iid, 19)
+    finally:
+        s1.close()
+    y = _t_yetkazishlar(oid)
+    check("T6 eskirgan sessiya: 20 saqlandi, keyingi 19 'Qoldiqdan ko'p' bilan rad, jami 20",
+          r2.get("success") is True and r1.get("success") is False
+          and "Qoldiqdan ko'p" in str(r1.get("message")) and y.jami == 20 and y.soni == 1,
+          f"r2={r2} r1={r1} {vars(y)}")
+
+    # T7 — chaqiruvchining hali yozilmagan (flush qilinmagan) o'zgarishi
+    # yetkazish ichidagi qayta o'qishda YO'QOLMASLIGI shart (sessiya autoflush=False)
+    tikla()
+    oid, (iid,), _ = yangi_buyurtma(miqdor=30)
+    s1 = SessionLocal()
+    try:
+        o = s1.get(Order, oid)
+        o.notes = "T7_YOZILMAGAN_OZGARISH"
+        r = _t_ildiz(s1, oid, iid, 5)
+    finally:
+        s1.close()
+    d = SessionLocal()
+    try:
+        izoh = d.get(Order, oid).notes
+    finally:
+        d.close()
+    check("T7 chaqiruvchining yozilmagan o'zgarishi saqlangan (yetkazish bilan birga)",
+          r.get("success") is True and izoh == "T7_YOZILMAGAN_OZGARISH", f"{r} notes={izoh!r}")
+
+
+def _t_parallel():
+    # T8 — ikki oqim BIR VAQTDA (faqat HAQIQIY PostgreSQL; SQLite da haqiqiy
+    # parallellik yo'q). Har urinish YANGI buyurtmada.
+    if not PG_REJIM:
+        print("  (T8 parallel — faqat PG rejimida)")
+        return
+
+    def ikki(oid, iid, miqdorlar, tolovlar):
+        natija = [None, None]
+        bar = threading.Barrier(2)
+
+        def ish(k):
+            s = SessionLocal()
+            try:
+                try:
+                    bar.wait(timeout=30)
+                except Exception:
+                    pass
+                natija[k] = _t_ildiz(s, oid, iid, miqdorlar[k], tolovlar[k])
+            finally:
+                s.close()
+        ts = [threading.Thread(target=ish, args=(k,)) for k in range(2)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join(timeout=120)
+        return natija
+
+    for nom, miqdorlar, tolovlar, kutish in (
+            ("bir xil 5 + 5, to'lov bilan", (5, 5), (70000, 70000), "takror"),
+            ("farqli 20 + 19 (qoldiq 30), to'lovsiz", (20, 19), (None, None), "rad"),
+            ("farqli 20 + 19 (qoldiq 30), to'lov bilan", (20, 19), (80000, 90000), "rad")):
+        yomon = []
+        for k in range(3):
+            oid, (iid,), _ = yangi_buyurtma(miqdor=30)
+            tl = tuple(None if x is None else x + k for x in tolovlar)
+            nat = ikki(oid, iid, miqdorlar, tl)
+            y = _t_yetkazishlar(oid)
+            muvaffaq = [x for x in nat if x and x.get("success")]
+            if kutish == "takror":
+                ok = (y.soni == 1 and y.tolov == 1 and y.jami == 5 and len(muvaffaq) == 2
+                      and sum(1 for x in muvaffaq if x.get("duplicate") is True) == 1)
+            else:
+                rad = [x for x in nat if x and not x.get("success")]
+                ok = (y.soni == 1 and y.jami <= 30 and len(rad) == 1
+                      and "Qoldiqdan ko'p" in str(rad[0].get("message"))
+                      and y.tolov == (1 if tolovlar[0] else 0))
+            ok = ok and len(y.raqamlar) == len(set(y.raqamlar))
+            if not ok:
+                yomon.append((nat, vars(y)))
+        check(f"T8 parallel {nom}: 3 urinishda ham bitta yetkazish, oshib ketish yo'q",
+              not yomon, str(yomon[:1])[:400])
+
+
+def _t_statik():
+    # T9 — statik tartib (SQLite rejimida qulf/parallellik sinalmaydi)
+    try:
+        src = inspect.getsource(crud.create_delivery)
+    except Exception as e:
+        src = f"ISTISNO {e}"
+    check("T9 create_delivery: qulf → qayta o'qish → holat tekshiruvi → imzo → qoldiq → to'lov chegarasi",
+          tartibda(src, "_pul_qulfi(db, 101, order.id)", "db.expire_all()",
+                   "if order.is_deleted", "_yetkazish_imzo_sorov(", "for di in data.items:",
+                   "_tolov_chegarasi("), "tartib buzilgan")
+    check("T9 create_delivery: qulfdan OLDIN flush (chaqiruvchi o'zgarishi saqlansin)",
+          tartibda(src, "order = _oq.first()", "db.flush()", "_pul_qulfi(db, 101, order.id)"),
+          "flush yo'q yoki joyi noto'g'ri")
+    check("T9 create_delivery: qulf funksiyada BIR marta (to'lov blokida takror emas)",
+          src.count("_pul_qulfi(") == 1, src.count("_pul_qulfi("))
+    try:
+        rsrc = inspect.getsource(main.api_create_delivery)
+    except Exception as e:
+        rsrc = f"ISTISNO {e}"
+    check("T9 marshrut: takror javob Telegram / nakladnoy yuborishdan OLDIN qaytadi",
+          tartibda(rsrc, 'if not result["success"]', 'if result.get("duplicate"):',
+                   "return result", "_send_telegram("), "tartib buzilgan")
+    usul = getattr(crud, "_YETKAZISH_USULI", None)
+    check("T9 to'lov usuli jadvali yagona (yozuv va imzo bir xil)",
+          isinstance(usul, dict) and set(usul) == {"naqd", "plastik", "o'tkazma"}
+          and "_yetkazish_usuli(" in src and "method_map" not in src, usul)
+
+
 def k_bolimi():
     section("K. Kumulyativ — sahifalar 200, hech bir javob 5xx emas")
     yomon = sahifalar_yiqilgan(C)
@@ -1266,6 +1626,7 @@ d_bolimi()
 n_bolimi()
 s_bolimi()
 f_bolimi()
+t_bolimi()
 if not PG_REJIM:
     g_bolimi()
 h_bolimi()
