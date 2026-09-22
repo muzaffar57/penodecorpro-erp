@@ -865,15 +865,19 @@ async function saveBrakBatch(){
   const btn = document.getElementById('brak-save-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.dataset.origText = btn.textContent; btn.textContent = 'Saqlanmoqda...'; }
 
+  // 17g (2026-09-22): ilgari server rad etgan qator JIMGINA tashlab
+  // yuborilardi (`if (res.ok) okCount++`, keyin oyna yopilib sahifa qayta
+  // yuklanardi) — foydalanuvchi brak yozilmaganini bilmasdi. Endi har rad
+  // etilgan qatorning server SABABI ko'rsatiladi, oyna ochiq qoladi;
+  // saqlangan qatorlar miqdori tozalanadi (qayta bosilsa ikki marta
+  // yozilmasin). Hisoblagich `try` dan TASHQARIDA: tarmoq qator o'rtasida
+  // uzilsa ham oldin saqlanganlar soni ko'rsatiladi va oyna yopilganda
+  // ro'yxat yangilanadi (aks holda foydalanuvchi "hech narsa saqlanmadi" deb
+  // o'ylab qayta kiritardi — takroriy brak ruxsat etilgan, xomashyo ikki
+  // marta yechilardi).
+  let okCount = 0;
+  const xatolar = [];
   try {
-    // 17g (2026-09-22): ilgari server rad etgan qator JIMGINA tashlab
-    // yuborilardi (`if (res.ok) okCount++`, keyin oyna yopilib sahifa qayta
-    // yuklanardi) — foydalanuvchi brak yozilmaganini bilmasdi. Endi har rad
-    // etilgan qatorning server SABABI ko'rsatiladi, oyna ochiq qoladi;
-    // saqlangan qatorlar miqdori tozalanadi (qayta bosilsa ikki marta
-    // yozilmasin).
-    let okCount = 0;
-    const xatolar = [];
     for (const { item, qty, el } of toSave) {
       const res = await fetch('/api/returns', {
         method: 'POST', headers: {'Content-Type':'application/json'},
@@ -908,8 +912,9 @@ async function saveBrakBatch(){
     location.reload();
     return;
   } catch(e) {
+    if (okCount) brakSaqlanganBor = true;
     err.style.display='block';
-    err.textContent='❌ Server xatosi';
+    err.textContent='❌ Server xatosi' + (okCount ? ` — ${okCount} ta saqlandi, qolganlari saqlanmadi` : '');
   } finally {
     isSavingBrak = false;
     if (btn) { btn.disabled = false; btn.style.opacity = ''; if (btn.dataset.origText) btn.textContent = btn.dataset.origText; }

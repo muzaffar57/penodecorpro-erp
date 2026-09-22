@@ -2182,6 +2182,25 @@ function fillAllRemaining() {
 }
 
 let _fullDlvPending = null;
+// 17g (2026-09-22): yetkazish so'rovi ketayotganda ikkinchi bosish e'tiborsiz
+// qoldiriladi. O'LCHANGAN: server bir xil qisman yetkazishni ketma-ket ikki
+// marta qabul qiladi (3 + 3 metr, to'lov ham ikki marta yoziladi) — tugmani
+// tez ikki bosish shunday natija berardi. `saveDelivery` va
+// `submitFullDlvModal` uchun umumiy.
+let _dlvYuborilmoqda = false;
+
+// 17g (2026-09-22): `/api/deliveries` rad javobidagi SABAB. `detail` obyekt
+// bo'lsa `message` (+ `shortages`), matn bo'lsa o'zi (masalan sessiya
+// tugaganda 401) — ilgari matnli `detail` "Xato" deb ko'rsatilardi.
+function yetkazishXatoQismlari(r) {
+  const det = r ? r.detail : null;
+  if (typeof det === 'string' && det) return { xabar: det, kamlar: [] };
+  const d = (det && typeof det === 'object') ? det : {};
+  return {
+    xabar: (typeof d.message === 'string' && d.message) ? d.message : 'Xato',
+    kamlar: Array.isArray(d.shortages) ? d.shortages.map(s => String(s)) : []
+  };
+}
 
 async function quickFullDelivery() {
   if (!selectedOrderId || !dlvData) return;
@@ -2252,6 +2271,7 @@ async function yetkazishYubor(data) {
 async function submitFullDlvModal() {
   const pending = _fullDlvPending;
   if (!pending) return;
+  if (_dlvYuborilmoqda) return; // 17g: ikki marta bosishdan himoya
 
   const paymentAmount = parseNum(document.getElementById('fd-payment')?.value) || null;
   const transportCost = parseNum(document.getElementById('fd-transport')?.value) || 0;
@@ -2271,6 +2291,7 @@ async function submitFullDlvModal() {
     payment_method: 'naqd'
   };
 
+  _dlvYuborilmoqda = true;
   try {
     const res = await yetkazishYubor(data);
     if (!res) {
@@ -2289,16 +2310,19 @@ async function submitFullDlvModal() {
       }
       setTimeout(()=>location.reload(), r.payment_warning ? 9000 : 2500);
     } else {
-      const det = r.detail || {};
-      showMsg('❌ ' + (det.message || 'Xato') + (det.shortages?.length ? '\n' + det.shortages.join('\n') : ''), 'error');
+      const q = yetkazishXatoQismlari(r);
+      showMsg('❌ ' + q.xabar + (q.kamlar.length ? '\n' + q.kamlar.join('\n') : ''), 'error');
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
+  } finally {
+    _dlvYuborilmoqda = false;
   }
 }
 
 async function saveDelivery() {
   if (!selectedOrderId) return;
+  if (_dlvYuborilmoqda) return; // 17g: ikki marta bosishdan himoya (so'rov ketmoqda)
 
   const items = [];
   let hasOver = false;
@@ -2335,6 +2359,7 @@ async function saveDelivery() {
     transport_payer: document.getElementById('dlv-transport-payer').value || 'none'
   };
 
+  _dlvYuborilmoqda = true;
   try {
     const res = await yetkazishYubor(data);
     // 17g: ortiqcha to'lov tasdiqlanmadi — hech narsa saqlanmagan, oyna ochiq
@@ -2359,14 +2384,20 @@ async function saveDelivery() {
         showMsg(`✓ ${r.delivery_number} saqlandi · Bajarilish: ${r.delivery_percent}%`, 'success');
       }
     } else {
-      const det = r.detail || {};
+      // 17g: `shortages` ichida detal NOMI bor — foydalanuvchi kiritgan matn,
+      // HTML belgilari bilan AYNAN saqlanadi (O'LCHANGAN: `<img src=x
+      // onerror=...>` nomi bazaga tushadi). Shuning uchun `innerHTML` ga faqat
+      // `escapeHtml` dan o'tgan matn yoziladi.
+      const q = yetkazishXatoQismlari(r);
       err.style.display = 'block';
-      err.innerHTML = '❌ ' + (det.message || 'Xato') +
-        (det.shortages?.length ? '<br>' + det.shortages.join('<br>') : '');
+      err.innerHTML = '❌ ' + escapeHtml(q.xabar) +
+        (q.kamlar.length ? '<br>' + q.kamlar.map(escapeHtml).join('<br>') : '');
     }
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
+  } finally {
+    _dlvYuborilmoqda = false;
   }
 }
 
