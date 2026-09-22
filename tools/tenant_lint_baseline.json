@@ -51,7 +51,7 @@
   "crud.py:5816 db.query(Order) — korxona filtri yo'q (funksiya: get_delivery_status) │ order = db.query(Order).filter(Order.id == order_id).first()",
   "crud.py:6915 db.query(FinishedProductSale) — korxona filtri yo'q (funksiya: delete_finished_product) │ db.query(FinishedProductSale).filter(",
   "crud.py:6920 db.query(FinishedProductLoss) — korxona filtri yo'q (funksiya: delete_finished_product) │ db.query(FinishedProductLoss).filter(",
-  "crud.py:7058 db.query(FinishedProduct) — korxona filtri yo'q (funksiya: search_finished_products) │ items = db.query(FinishedProduct).filter(*filters).order_by(FinishedProduct.name).limit(10).all()",
+  "crud.py:7058 db.query(FinishedProduct) — korxona filtri yo'q (funksiya: search_finished_products) │ items = db.query(FinishedProduct).filter(*filters).order_by(FinishedProduct.name, FinishedProduct.id",
   "crud.py:769 db.query(Supplier) — korxona filtri yo'q (funksiya: _purchase_stock_no_commit) │ sup = db.query(Supplier).filter(Supplier.id == supplier_id).first()",
   "crud.py:7702 db.query(EmployeeMonthlyAdjustment) — korxona filtri yo'q (funksiya: get_employee_monthly_adjustment) │ return db.query(EmployeeMonthlyAdjustment).filter(",
   "crud.py:7769 db.query(Employee) — korxona filtri yo'q (funksiya: create_employee_advance) │ emp = db.query(Employee).filter(Employee.id == employee_id).first()",
