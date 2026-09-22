@@ -483,7 +483,7 @@ async function loadHistoryForSupplier(page){
       return `<tr style="background:${zebraBg}">
         <td style="font-weight:600;color:var(--r-text)">${dt.toLocaleDateString('uz')}</td>
         <td style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.is_credit?' <span style="color:#F59E0B;font-size:11px;font-weight:600">(nasiya)</span>':''}</td>
-        <td style="font-weight:600">${p.quantity} ${p.unit}</td>
+        <td style="font-weight:600">${p.quantity} ${escapeHtml(p.unit)}</td>
         <td style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>
         <td style="text-align:right;font-weight:800;color:var(--r-text)">${fmt(p.total_amount)} so'm</td>
         <td style="text-align:right;font-size:11.5px;font-weight:700;color:${p.is_credit?'#F59E0B':'#22C55E'}">${p.is_credit?'Nasiya':'To\'liq'}</td>
@@ -581,7 +581,7 @@ async function loadInvItemsForAp() {
     if (!invItems.length) { sel.innerHTML = '<option value="">⚠️ Omborxonada hech narsa yo\'q</option>'; return; }
     renderInvDropdown();
     apOnItemChange();
-  } catch(e) { sel.innerHTML = `<option value="">❌ ${e.message}</option>`; }
+  } catch(e) { sel.innerHTML = `<option value="">❌ ${escapeHtml(e.message)}</option>`; }
 }
 
 function renderInvDropdown(){
@@ -598,8 +598,8 @@ function renderInvDropdown(){
     return (ia===-1?99:ia)-(ib===-1?99:ib);
   });
   sel.innerHTML = sortedCats.map(cat => {
-    const opts = groups[cat].map(i => `<option value="${i.id}" data-unit="${i.unit}">${escapeHtml(i.item_name)} (${i.unit})</option>`).join('');
-    return `<optgroup label="${cat}">${opts}</optgroup>`;
+    const opts = groups[cat].map(i => `<option value="${i.id}" data-unit="${escapeHtml(i.unit)}">${escapeHtml(i.item_name)} (${escapeHtml(i.unit)})</option>`).join('');
+    return `<optgroup label="${escapeHtml(cat)}">${opts}</optgroup>`;
   }).join('');
 
   const hint = document.getElementById('ap-filter-hint');
@@ -756,8 +756,8 @@ function renderBasket(){
     tbody.innerHTML = apBasket.map((b,i)=>`
       <tr>
         <td>${i+1}</td>
-        <td style="font-weight:600;color:var(--r-text)">${b.itemName}${b.isPenoplast?' <span style="color:#B9783F;font-size:11px">(Penoplast)</span>':''}</td>
-        <td>${b.qty} ${b.unit}</td>
+        <td style="font-weight:600;color:var(--r-text)">${escapeHtml(b.itemName)}${b.isPenoplast?' <span style="color:#B9783F;font-size:11px">(Penoplast)</span>':''}</td>
+        <td>${b.qty} ${escapeHtml(b.unit)}</td>
         <td>${fmt(b.price)} so'm</td>
         <td style="text-align:right;font-weight:700">${fmt(b.total)} so'm</td>
         <td style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})"><i class="ti ti-trash" style="font-size:14px"></i></button></td>

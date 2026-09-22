@@ -252,7 +252,7 @@ function ingredientRowHtml(prefix, idx, item, qty) {
       <div class="recp-ing-drag" title="Surish">⋮⋮</div>
       <div class="recp-ing-icon" style="background:${st.bg};color:${st.fg}"><i class="ti ${st.icon}"></i></div>
       <div class="recp-ing-info">
-        <div class="recp-ing-name">${name}</div>
+        <div class="recp-ing-name">${escapeHtml(name)}</div>
         <span class="recp-cat-pill" style="background:${st.bg};color:${st.fg}">${st.label}</span>
       </div>
       <div class="recp-ing-qty">

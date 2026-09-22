@@ -125,7 +125,7 @@ function renderMasterList() {
       <div style="flex:1;min-width:0">
         <div class="mk-name">${escapeHtml(m.name)}</div>
         <div class="mk-meta">
-          ${m.phone || '—'}
+          ${escapeHtml(m.phone || '—')}
           ${m.region ? `<span class="mk-region"> · <i class="ti ti-map-pin" style="font-size:12px"></i> ${escapeHtml(m.region)}</span>` : ''}
         </div>
       </div>
@@ -156,7 +156,7 @@ function renderInactiveMasters() {
     <div class="mk-row" style="opacity:.6">
       <div style="flex:1;min-width:0">
         <div class="mk-name">${escapeHtml(m.name)}</div>
-        <div class="mk-meta">${m.phone || '—'}</div>
+        <div class="mk-meta">${escapeHtml(m.phone || '—')}</div>
       </div>
       <button class="btn btn-outline btn-sm" onclick="reactivateMaster(${m.id}, this)">✓ Faollashtirish</button>
     </div>`).join('');

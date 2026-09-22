@@ -861,11 +861,11 @@ function rowHtml(i) {
             onclick="markReady(${i.id})">✓ Sotuvga tayyor</button>
     <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish">✏️</button>
     <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
-            onclick="delFp(${i.id}, '${i.source}')" title="Bekor qilish">✕</button>
+            onclick="delFp(${i.id}, '${jsAttrEscape(i.source)}')" title="Bekor qilish">✕</button>
   ` : `
-    <button class="mini-btn" onclick="openSellModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${i.unit}', ${i.unit_price || 0})" title="Sotish" style="color:#16A34A;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>
+    <button class="mini-btn" onclick="openSellModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', ${i.unit_price || 0})" title="Sotish" style="color:#16A34A;border-color:#BBF7D0"><i class="ti ti-cash"></i></button>
     ${i.source === 'produced' ? `
-    <button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${i.unit}', '${i.category || ''}')"
+    <button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')"
             title="Kamaytirish (brak/yo'qotish)"
             style="color:#DC2626">−</button>
     <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1" placeholder="0">
@@ -876,7 +876,7 @@ function rowHtml(i) {
     <button class="mini-btn" onclick="toggleFpMore(event, ${i.id})" title="Yana"><i class="ti ti-dots"></i></button>
     <div class="fp-more" id="fp-more-${i.id}">
       <button class="mini-btn" onclick="editPrice(${i.id})" title="Narxni o'zgartirish"><i class="ti ti-edit"></i></button>
-      ${i.source !== 'produced' ? `<button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${i.unit}', '${i.category || ''}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>` : ''}
+      ${i.source !== 'produced' ? `<button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')" title="Kamaytirish (brak/yo'qotish)" style="color:#D97706;border-color:#FED7AA"><i class="ti ti-alert-triangle"></i></button>` : ''}
       <button class="mini-btn" onclick="openHistoryModal(${i.id})" title="Tarixni ko'rish"><i class="ti ti-history"></i></button>
       ${i.reserved_quantity > 0 ? `<button class="mini-btn" onclick="releaseFpReservation(${i.id}, '${jsAttrEscape(i.name)}')" title="Band qilishni bekor qilib, umumiy sotuvga qaytarish" style="color:#B91C1C;border-color:#FECACA"><i class="ti ti-lock-open"></i></button>` : ''}
       {% if current_user.role.value == 'admin' %}
@@ -884,16 +884,16 @@ function rowHtml(i) {
               style="color:#A86B36;border-color:#E5DFD3"><i class="ti ti-report-money"></i></button>
       {% endif %}
       <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8"
-              onclick="delFp(${i.id}, '${i.source}')" title="O'chirish"><i class="ti ti-trash"></i></button>
+              onclick="delFp(${i.id}, '${jsAttrEscape(i.source)}')" title="O'chirish"><i class="ti ti-trash"></i></button>
     </div>
   `;
 
   return `
   <div class="fp-row ${isRet ? 'returned' : ''} ${inProgress ? 'progress' : ''}" data-name="${escapeHtml(i.name.toLowerCase())}">
-    ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${escapeHtml(i.name)}" data-qty="${i.quantity}" data-unit="${i.unit}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
+    ${(!inProgress && !isRet) ? `<input type="checkbox" class="fp-batch-check" data-id="${i.id}" data-name="${escapeHtml(i.name)}" data-qty="${i.quantity}" data-unit="${escapeHtml(i.unit)}" data-price="${i.unit_price || 0}" onchange="onBatchCheckChange()" style="width:20px;height:20px;margin-right:10px;cursor:pointer;flex-shrink:0;accent-color:#16A34A;border:2px solid #94A3B8;border-radius:4px" onclick="event.stopPropagation()">` : `<div style="width:20px;margin-right:10px;flex-shrink:0"></div>`}
     <div class="fp-thumb" onclick="event.stopPropagation()">
       ${i.image_url
-        ? `<img src="${i.image_url}" alt="" onclick="event.preventDefault();event.stopPropagation();openLightbox('${i.image_url}')">`
+        ? `<img src="${escapeHtml(i.image_url)}" alt="" onclick="event.preventDefault();event.stopPropagation();openLightbox('${jsAttrEscape(i.image_url)}')">`
         : `<i class="ti ${
             i.category==='profil' ? 'ti-ruler-2' :
             i.category==='panel' ? 'ti-square' :
@@ -910,19 +910,19 @@ function rowHtml(i) {
         <span class="fp-sku">${fpSku(i)}</span>
         ${inProgress ? '<span class="fp-badge" style="background:#FEF3C7;color:#b7770d">⏳ ISHLAB CHIQARILMOQDA</span>' : ''}
         ${isRet ? '<span class="fp-badge" style="background:#DCFCE7;color:#1e7e34">♻️ QAYTGAN</span>' : ''}
-        ${i.reserved_quantity > 0 ? `<span class="fp-badge" style="background:#FEE2E2;color:#B91C1C" title="Bu miqdor umumiy sotuvdan ajratilgan — faqat shu buyurtma uchun">🔒 Band: ${i.reserved_quantity} ${unitLabel(i.unit)}</span>` : ''}
+        ${i.reserved_quantity > 0 ? `<span class="fp-badge" style="background:#FEE2E2;color:#B91C1C" title="Bu miqdor umumiy sotuvdan ajratilgan — faqat shu buyurtma uchun">🔒 Band: ${i.reserved_quantity} ${escapeHtml(unitLabel(i.unit))}</span>` : ''}
       </div>
-      <div class="fp-meta">${meta.join(' · ')}${profitPct !== null ? (cpu < 0 ? ` · <b style="color:#DC2626">⚠️ tannarx xato</b>` : ` · Foyda: <b style="color:${profitPct>=0?'#22C55E':'#DC2626'}">${profitPct}%</b>`) : ''}</div>
+      <div class="fp-meta">${meta.map(escapeHtml).join(' · ')}${profitPct !== null ? (cpu < 0 ? ` · <b style="color:#DC2626">⚠️ tannarx xato</b>` : ` · Foyda: <b style="color:${profitPct>=0?'#22C55E':'#DC2626'}">${profitPct}%</b>`) : ''}</div>
     </div>
 
     <div class="fp-stock-col">
-      <div class="fp-qty" style="color:${stColor}">${i.quantity} ${unitLabel(i.unit)}</div>
+      <div class="fp-qty" style="color:${stColor}">${i.quantity} ${escapeHtml(unitLabel(i.unit))}</div>
       ${!inProgress ? `<div class="fp-mini-bar"><div class="fp-mini-fill" style="width:${pct}%;background:${stColor}"></div></div>
       <span class="fp-badge" style="background:${stColor}22;color:${stColor};margin-top:3px;display:inline-block">${stLabel}</span>` : ''}
     </div>
 
     <div class="fp-price-col">
-      <div class="fp-price">${fmt(i.unit_price)}/${unitLabel(i.unit)}</div>
+      <div class="fp-price">${fmt(i.unit_price)}/${escapeHtml(unitLabel(i.unit))}</div>
       ${i.source === 'produced' ? (cpu < 0
         ? `<div style="font-size:10px;color:#DC2626;font-weight:700" title="Tannarx hisobida xatolik bor — ombor harakatlarini tekshiring">⚠️ tan: ${fmt(cpu)}</div>`
         : `<div style="font-size:10px;color:var(--text3)">tan: ${fmt(cpu)}</div>`) : ''}
@@ -968,7 +968,7 @@ function openHistoryModal(id) {
       Har bir kirim/chiqim harakati alohida jurnal sifatida hozircha saqlanmaydi — quyida shu mahsulot haqida mavjud ma'lumotlar ko'rsatilgan.
     </div>
     ${rows.map(r => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);font-size:12.5px">
-      <span style="color:var(--text3)">${r[0]}</span><span style="font-weight:500;color:var(--text)">${r[1]}</span>
+      <span style="color:var(--text3)">${escapeHtml(r[0])}</span><span style="font-weight:500;color:var(--text)">${escapeHtml(r[1])}</span>
     </div>`).join('')}`;
   document.getElementById('historyModal').style.display = 'flex';
 }
@@ -1180,12 +1180,12 @@ function openBatchSellModal() {
         <div style="display:flex;gap:8px;align-items:flex-end">
           <div style="flex:1">
             <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">Kerakli miqdor</div>
-            <input type="number" class="batch-qty" value="${it.maxQty}" max="${it.maxQty}" min="0" step="0.1" data-max="${it.maxQty}" data-unit="${it.unit}"
+            <input type="number" class="batch-qty" value="${it.maxQty}" max="${it.maxQty}" min="0" step="0.1" data-max="${it.maxQty}" data-unit="${escapeHtml(it.unit)}"
                    oninput="updateBatchTotal();updateBatchRemain(this)" style="width:100%;padding:8px 10px;border:1.5px solid var(--gold);border-radius:8px;font-size:14px;font-weight:600;box-sizing:border-box">
           </div>
           <div style="flex:1">
             <div style="font-size:11px;color:#16A34A;margin-bottom:3px;font-weight:600">Mavjud miqdor</div>
-            <div class="batch-remain" style="width:100%;padding:8px 10px;border:1.5px solid #BBF7D0;border-radius:8px;font-size:14px;font-weight:700;color:#15803D;background:#F0FDF4;box-sizing:border-box;text-align:center">${it.maxQty} ${it.unit}</div>
+            <div class="batch-remain" style="width:100%;padding:8px 10px;border:1.5px solid #BBF7D0;border-radius:8px;font-size:14px;font-weight:700;color:#15803D;background:#F0FDF4;box-sizing:border-box;text-align:center">${it.maxQty} ${escapeHtml(it.unit)}</div>
           </div>
           <div style="flex:1">
             <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">1 birlik narxi</div>
@@ -1701,7 +1701,7 @@ function pCalc() {
 
   const loyLine = loyKg > 0
     ? (loyCostPerKg > 0
-        ? `<br>🧱 Loy: <b>${loyKg} kg × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm</b>${loyRecipeName ? ` <span style="color:#aaa">(${loyRecipeName})</span>` : ''}`
+        ? `<br>🧱 Loy: <b>${loyKg} kg × ${fmt(loyCostPerKg)} = ${fmt(loyCost)} so'm</b>${loyRecipeName ? ` <span style="color:#aaa">(${escapeHtml(loyRecipeName)})</span>` : ''}`
         : `<br>🧱 Loy: <b>${loyKg} kg</b> <span style="color:#F59E0B">— retsept tanlanmagan</span>`)
     : '';
 
@@ -1852,8 +1852,10 @@ async function saveProduce() {
     } else {
       const d = r.detail || {};
       err.style.display = 'block';
-      err.innerHTML = '❌ ' + (d.message || 'Xato') +
-        (d.shortages?.length ? '<br>' + d.shortages.join('<br>') : '');
+      // 5.2d (C): server xabari va kamchiliklar (material NOMLARI — foydalanuvchi matni)
+      // HTML sifatida emas, MATN sifatida chiqadi (orders.html saveDelivery U1 naqshi).
+      err.innerHTML = '❌ ' + escapeHtml(d.message || 'Xato') +
+        (d.shortages?.length ? '<br>' + d.shortages.map(escapeHtml).join('<br>') : '');
     }
   } catch(e) {
     err.style.display = 'block';
@@ -1923,8 +1925,8 @@ async function openProfitModal(id) {
 
   const row = (label, val, color, bold) => `
     <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px${bold?';font-weight:700':''}">
-      <span style="color:${bold?'var(--text)':'#777'}">${label}</span>
-      <span style="color:${color||'var(--text)'};font-weight:${bold?'700':'600'}">${val}</span>
+      <span style="color:${bold?'var(--text)':'#777'}">${escapeHtml(label)}</span>
+      <span style="color:${color||'var(--text)'};font-weight:${bold?'700':'600'}">${escapeHtml(val)}</span>
     </div>`;
 
   // Loy va Penoplast narxini — ALOHIDA hisoblamasdan, backend'dan
@@ -1950,7 +1952,7 @@ async function openProfitModal(id) {
     <div style="background:#FAFAF8;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#666;line-height:1.8">
       📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}<br>
       📦 Hajm: <b>${(i.volume_m3 || 0).toFixed(4)} m³</b>
-      ${i.actual_loy_kg > 0 ? `· 🧱 Loy: <b>${i.actual_loy_kg} kg</b>${recipeName ? ` (${recipeName})` : ''}` : ''}
+      ${i.actual_loy_kg > 0 ? `· 🧱 Loy: <b>${i.actual_loy_kg} kg</b>${recipeName ? ` (${escapeHtml(recipeName)})` : ''}` : ''}
       ${i.created_by ? `<br>👤 ${escapeHtml(i.created_by)}` : ''}
     </div>
 
@@ -1972,7 +1974,7 @@ async function openProfitModal(id) {
 
     ${i.quantity > 0 ? `
     <div style="margin-top:14px;padding:10px 12px;background:#F8F5EF;border-radius:8px;font-size:12px;color:#666">
-      💡 1 ${i.unit} tan narxi: <b>${fmt(totalCost / i.quantity)} so'm</b> ·
+      💡 1 ${escapeHtml(i.unit)} tan narxi: <b>${fmt(totalCost / i.quantity)} so'm</b> ·
       Foyda: <b style="color:#22C55E">${fmt(profit / i.quantity)} so'm</b>
     </div>` : ''}`;
 }
@@ -2011,21 +2013,21 @@ async function showProfit(id) {
 
       <div style="background:#FAFAF8;border-radius:9px;padding:12px 14px;margin-top:10px">
         <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px">
-          <span style="color:#777">Sotuv narxi (1 ${d.unit})</span>
+          <span style="color:#777">Sotuv narxi (1 ${escapeHtml(d.unit)})</span>
           <span style="font-weight:600">${fmt(d.unit_price)} so'm</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px">
-          <span style="color:#777">Tan narxi (1 ${d.unit})</span>
+          <span style="color:#777">Tan narxi (1 ${escapeHtml(d.unit)})</span>
           <span style="font-weight:600;color:#DC2626">${fmt(d.cost_per_unit)} so'm</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:6px 0 4px;font-size:12.5px;border-top:1px solid #eee;margin-top:3px">
-          <span style="color:#555;font-weight:600">Foyda (1 ${d.unit})</span>
+          <span style="color:#555;font-weight:600">Foyda (1 ${escapeHtml(d.unit)})</span>
           <span style="font-weight:700;color:${d.profit_per_unit>0?'#22C55E':'#DC2626'}">${fmt(d.profit_per_unit)} so'm</span>
         </div>
       </div>
 
       <div style="display:flex;justify-content:space-between;padding:12px 0 4px;margin-top:10px;border-top:1px dashed #ddd">
-        <span style="font-size:13px;color:#777">Jami sotuv (${d.quantity} ${d.unit})</span>
+        <span style="font-size:13px;color:#777">Jami sotuv (${d.quantity} ${escapeHtml(d.unit)})</span>
         <span style="font-size:14px;font-weight:700;color:#22C55E">${fmt(d.revenue)} so'm</span>
       </div>
 

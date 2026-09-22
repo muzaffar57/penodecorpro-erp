@@ -529,7 +529,7 @@ async function loadCharts(){
 // ═══ 6. TOP REYTINGLAR ═══
 function topListHtml(rows, nameKey, valKey, valSuffix){
   if (!rows.length) return '<div class="bi-empty" style="padding:16px 0;font-size:12.5px">Ma\'lumot yo\'q</div>';
-  return rows.slice(0,8).map((r,i)=>`<div class="bi-top-row"><span class="bi-top-rank">${i+1}</span><span class="bi-top-name">${r[nameKey]}</span><span class="bi-top-val">${fmtShort(r[valKey])}${valSuffix||''}</span></div>`).join('');
+  return rows.slice(0,8).map((r,i)=>`<div class="bi-top-row"><span class="bi-top-rank">${i+1}</span><span class="bi-top-name">${escapeHtml(r[nameKey])}</span><span class="bi-top-val">${fmtShort(r[valKey])}${valSuffix||''}</span></div>`).join('');
 }
 
 async function loadTopRankings(){
@@ -570,7 +570,7 @@ async function loadForecast(){
   try {
     const fc = await fetch(`/api/reports/forecast?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
     const el = document.getElementById('forecastBody');
-    if (!fc.available) { el.innerHTML = `<div class="bi-empty">${fc.message||"Ma'lumot yo'q"}</div>`; return; }
+    if (!fc.available) { el.innerHTML = `<div class="bi-empty">${escapeHtml(fc.message||"Ma'lumot yo'q")}</div>`; return; }
     const pct = Math.round(fc.days_passed/fc.days_in_month*100);
     el.innerHTML = `
       <div style="font-size:12.5px;color:var(--b-text3);margin-bottom:16px">Oyning ${fc.days_passed}/${fc.days_in_month} kuni o'tdi (${pct}%) — joriy tendentsiya asosida hisoblangan</div>
@@ -602,7 +602,7 @@ async function loadAlerts(){
     const alerts = await fetch('/api/reports/alerts').then(r=>r.json());
     const el = document.getElementById('alertsBody');
     if (!alerts.length) { el.innerHTML = '<div class="bi-empty">Hozircha muhim ogohlantirish yo\'q</div>'; return; }
-    el.innerHTML = alerts.map(a => `<div class="bi-alert-row" style="background:${ALERT_BG[a.level]||'var(--b-bg)'}"><span class="bi-alert-icon">${ALERT_ICONS[a.level]||'ℹ️'}</span><span>${a.text}</span></div>`).join('');
+    el.innerHTML = alerts.map(a => `<div class="bi-alert-row" style="background:${ALERT_BG[a.level]||'var(--b-bg)'}"><span class="bi-alert-icon">${ALERT_ICONS[a.level]||'ℹ️'}</span><span>${escapeHtml(a.text)}</span></div>`).join('');
 
     // AI Summary — shu ogohlantirishlar + taqqoslashdan avtomatik yig'iladi
     buildAiSummary(alerts);
@@ -622,7 +622,9 @@ async function buildAiSummary(alerts){
       const f = comp.sof_foyda.change_pct;
       lines.push(`Sof foyda ${f>=0?'<b style="color:#22C55E">'+f+'% oshdi</b>':'<b style="color:#EF4444">'+Math.abs(f)+'% kamaydi</b>'}`);
     }
-    alerts.slice(0,3).forEach(a => lines.push(a.text));
+    // kech30: `lines` — HTML qatorlar (yuqoridagi <b> lar); ogohlantirish matnida
+    // foydalanuvchi kiritgan material nomi bor — shuning uchun escape qilinadi.
+    alerts.slice(0,3).forEach(a => lines.push(escapeHtml(a.text)));
     if (!lines.length) { document.getElementById('aiSummary').style.display='none'; return; }
     document.getElementById('aiSummaryList').innerHTML = lines.map(l=>`• ${l}`).join('<br>');
     document.getElementById('aiSummary').style.display = 'flex';
@@ -672,7 +674,15 @@ let currentSortAsc = true;
 function extractSortValue(html) {
   // HTML teglarini olib tashlab, sof matnni olamiz (masalan "<span>630.52
   // kg</span>" dan "630.52 kg")
-  const text = String(html).replace(/<[^>]*>/g, '').trim();
+  // 2026-09-22 (kech30): matnli ustunlar endi escapeHtml bilan qaytadi
+  // (innerHTML auditi) — teglar olib tashlangach, escapeHtml yasagan 5 ta
+  // belgi kodi ASL belgiga qaytariladi, aks holda "Qo'shimcha" kabi nomlar
+  // "qo&#39;shimcha" bo'lib saralanardi. `&amp;` — OXIRIDA (aks holda
+  // matndagi "&lt;" yozuvi ikki marta ochilib "<" bo'lib qolardi).
+  const text = String(html).replace(/<[^>]*>/g, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    .trim();
   // Boshida son bo'lsa (formatlangan, bo'shliqli sonlar ham — "630 000"),
   // SON sifatida solishtiramiz — aks holda, matn sifatida.
   const numMatch = text.replace(/\s/g, '').match(/^-?[\d.,]+/);
@@ -709,6 +719,11 @@ function renderTableHead() {
   }).join('') + '</tr>';
 }
 
+// kech30 (innerHTML auditi): ustun funksiyalari (setTable ga beriladigan
+// `[sarlavha, row => ...]`) HTML QAYTARADI — ba'zilari atayin teg bilan
+// (catBadge, stockDot, rangli summa). Shuning uchun bu funksiya o'zgarmaydi,
+// FOYDALANUVCHI MATNI (nom, birlik, kategoriya, hudud) esa har ustun
+// funksiyasining o'zida escapeHtml(...) bilan o'raladi.
 function renderTableRows() {
   if (!currentRows.length) {
     document.getElementById('repBody').innerHTML = `<tr><td colspan="${currentHeadersFull.length}" class="bi-empty">Ma'lumot yo'q</td></tr>`;
@@ -773,7 +788,7 @@ async function loadInventoryReport() {
     if (!cat || cat === '—') return '—';
     const key = cat.toLowerCase();
     const [bg, fg] = CAT_COLORS[key] || ['var(--b-bg)','var(--b-text2)'];
-    return `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:${bg};color:${fg}">${cat}</span>`;
+    return `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:${bg};color:${fg}">${escapeHtml(cat)}</span>`;
   }
   function stockDot(i) {
     const qty = i.stock_quantity;
@@ -784,10 +799,10 @@ async function loadInventoryReport() {
     return `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:7px;vertical-align:middle"></span>`;
   }
   setTable([
-    ["Nomi", i => i.item_name],
+    ["Nomi", i => escapeHtml(i.item_name)],
     ["Kategoriya", i => catBadge(i.category)],
-    ["Qoldiq", i => `${stockDot(i)}${fmtQty(i.stock_quantity)} ${i.unit}`],
-    ["Min. qoldiq", i => `${fmtQty(i.min_stock)} ${i.unit}`],
+    ["Qoldiq", i => `${stockDot(i)}${fmtQty(i.stock_quantity)} ${escapeHtml(i.unit)}`],
+    ["Min. qoldiq", i => `${fmtQty(i.min_stock)} ${escapeHtml(i.unit)}`],
     ["1 birlik narxi", i => fmt(i.price_per_unit) + " so'm"],
     ["Jami qiymat", i => `<span style="color:${(i.stock_quantity * (i.price_per_unit||0)) < 0 ? '#EF4444' : '#16A34A'};font-weight:600">${fmt(i.stock_quantity * (i.price_per_unit||0))} so'm</span>`],
   ], items);
@@ -821,9 +836,9 @@ async function loadSalesReport() {
 async function loadProductsReport() {
   const items = await fetch('/api/finished').then(r=>r.json());
   setTable([
-    ["Nomi", i => i.name],
+    ["Nomi", i => escapeHtml(i.name)],
     ["Manba", i => i.source === 'produced' ? 'Ishlab chiqarilgan' : 'Qaytgan'],
-    ["Qoldiq", i => `${i.quantity} ${i.unit}`],
+    ["Qoldiq", i => `${i.quantity} ${escapeHtml(i.unit)}`],
     ["Sotuv narxi", i => fmt(i.unit_price) + " so'm"],
     ["Jami qiymat", i => fmt(i.total_value) + " so'm"],
   ], items);
@@ -833,8 +848,8 @@ async function loadMastersReport() {
   const year = new Date().getFullYear();
   const rep = await fetch(`/api/masters/kpi-report?year=${year}&include_inactive=true`).then(r=>r.json());
   setTable([
-    ["Ism", m => m.name],
-    ["Hudud", m => m.region || '—'],
+    ["Ism", m => escapeHtml(m.name)],
+    ["Hudud", m => escapeHtml(m.region) || '—'],
     ["Buyurtmalar", m => m.orders_count + ' ta'],
     ["Yillik savdo", m => fmt(m.yearly_sales) + " so'm"],
     ["Yillik foyda", m => fmt(m.yearly_profit) + " so'm"],
@@ -871,9 +886,9 @@ async function loadFinanceReport() {
 async function loadProductionReport() {
   const items = await fetch('/api/finished?source=produced').then(r=>r.json());
   setTable([
-    ["Nomi", i => i.name],
+    ["Nomi", i => escapeHtml(i.name)],
     ["Holati", i => i.production_status === 'in_progress' ? "Jarayonda" : "Tayyor"],
-    ["Miqdor", i => `${i.quantity} ${i.unit}`],
+    ["Miqdor", i => `${i.quantity} ${escapeHtml(i.unit)}`],
     ["Sarflangan penoplast", i => (i.volume_m3||0).toFixed(3) + ' m³'],
     ["Tan narxi", i => fmt(i.cost_price) + " so'm"],
   ], items);
@@ -882,7 +897,7 @@ async function loadProductionReport() {
 async function loadTopProducts() {
   const rows = await fetch(`/api/dashboard/top-finished-products?days=${currentDays}&limit=20`).then(r=>r.json());
   setTable([
-    ["Mahsulot nomi", r => r.name],
+    ["Mahsulot nomi", r => escapeHtml(r.name)],
     ["Buyurtmalar soni", r => r.times_ordered + ' marta'],
     ["Jami miqdor", r => r.quantity],
     ["Jami daromad", r => fmt(r.revenue) + " so'm"],
@@ -892,8 +907,8 @@ async function loadTopProducts() {
 async function loadTopMaterials() {
   const rows = await fetch(`/api/reports/top-materials?days=${currentDays}`).then(r=>r.json());
   setTable([
-    ["Xomashyo nomi", r => r.item_name],
-    ["Jami sarflangan", r => `${r.total_qty} ${r.unit||''}`],
+    ["Xomashyo nomi", r => escapeHtml(r.item_name)],
+    ["Jami sarflangan", r => `${r.total_qty} ${escapeHtml(r.unit)}`],
     ["Harakatlar soni", r => r.movement_count + ' marta'],
   ], rows);
 }

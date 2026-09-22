@@ -480,12 +480,12 @@ function renderAsosiy(d) {
   // yozuvisiz yozardi, Moliyaga tushmasdi va keyingi buyurtma to'lovida
   // o'chib ketardi. To'lov faqat buyurtma orqali qabul qilinadi.
   document.getElementById('tabContent').innerHTML = `
-    <div class="info-row"><span style="color:var(--text3)">Loyiha raqami</span><span style="font-weight:500">${d.num}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Loyiha raqami</span><span style="font-weight:500">${escapeHtml(d.num)}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Mijoz</span><span style="font-weight:500">${escapeHtml(d.client)}</span></div>
-    <div class="info-row"><span style="color:var(--text3)">Telefon</span><span>${d.phone}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
     <div class="info-row"><span style="color:var(--text3)">Manzil</span><span>${escapeHtml(d.address)}</span></div>
-    <div class="info-row"><span style="color:var(--text3)">Boshlangan</span><span>${d.start}</span></div>
-    <div class="info-row"><span style="color:var(--text3)">Muddat</span><span>${d.deadline}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Boshlangan</span><span>${escapeHtml(d.start)}</span></div>
+    <div class="info-row"><span style="color:var(--text3)">Muddat</span><span>${escapeHtml(d.deadline)}</span></div>
     <div class="qa-row">
       <button class="btn btn-outline btn-sm" onclick="openEditModal()"><i class="ti ti-edit" style="font-size:12px"></i> Tahrirlash</button>
       <button class="btn btn-outline btn-sm" onclick="switchTab('orders')"><i class="ti ti-arrow-right" style="font-size:12px"></i> Buyurtmaga o'tish</button>
@@ -513,11 +513,11 @@ async function renderOrders(d) {
     document.getElementById('tabContent').innerHTML = orders.map(o => `
       <div class="info-row" style="cursor:pointer" onclick="window.location.href='/orders'">
         <div>
-          <div style="font-weight:600;font-size:13px">${o.order_number}</div>
+          <div style="font-weight:600;font-size:13px">${escapeHtml(o.order_number)}</div>
           <div style="font-size:13px;color:var(--text3)">${o.created_at ? new Date(o.created_at).toLocaleDateString('uz') : ''}</div>
         </div>
         <div style="text-align:right">
-          <span class="badge">${STATUS_LABELS[o.status]||o.status}</span>
+          <span class="badge">${escapeHtml(STATUS_LABELS[o.status]||o.status)}</span>
           <div style="font-size:12.5px;font-weight:600;margin-top:3px">${fmt(o.total_amount)} so'm</div>
         </div>
       </div>`).join('');
@@ -562,7 +562,7 @@ async function renderPayments(d) {
         <div class="zebra-icon zi-in"><i class="ti ti-cash"></i></div>
         <div style="flex:1;min-width:0">
           <div class="zebra-title">${fmt(p.amount)} so'm</div>
-          <div class="zebra-sub">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${p.payment_method || ''}${p.received_by ? ' · '+escapeHtml(p.received_by) : ''}</div>
+          <div class="zebra-sub">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${escapeHtml(p.payment_method || '')}${p.received_by ? ' · '+escapeHtml(p.received_by) : ''}</div>
         </div>
       </div>`).join('')}</div>`;
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
@@ -592,7 +592,7 @@ async function renderProducts(d) {
         <div class="prod-acc-head${gi===0?' expanded':''}" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('open')">
           <div class="prod-acc-head-left">
             <i class="ti ti-chevron-right prod-acc-chevron"></i>
-            <span style="font-weight:700;font-size:13.5px">${g.order_number}</span>
+            <span style="font-weight:700;font-size:13.5px">${escapeHtml(g.order_number)}</span>
           </div>
           <span style="font-size:12px;color:var(--text3)">${g.items.length} ta detal</span>
         </div>
@@ -602,9 +602,9 @@ async function renderProducts(d) {
               <div class="zebra-icon zi-neutral"><i class="ti ${CAT_ICON[(i.category||'').toLowerCase()] || 'ti-package'}"></i></div>
               <div style="flex:1;min-width:0">
                 <div class="zebra-title">${escapeHtml(i.name)}</div>
-                <div class="zebra-sub">${i.category||''}${i.is_coated?' · qoplamali':''}</div>
+                <div class="zebra-sub">${escapeHtml(i.category||'')}${i.is_coated?' · qoplamali':''}</div>
               </div>
-              <span class="zebra-val" style="color:var(--text2)">${i.order_qty_normalized} ${i.delivery_unit||''}</span>
+              <span class="zebra-val" style="color:var(--text2)">${i.order_qty_normalized} ${escapeHtml(i.delivery_unit||'')}</span>
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;
@@ -633,7 +633,7 @@ async function renderMaterials(d) {
         <div class="prod-acc-head${gi===0?' expanded':''}" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('open')">
           <div class="prod-acc-head-left">
             <i class="ti ti-chevron-right prod-acc-chevron"></i>
-            <span style="font-weight:700;font-size:13.5px">${g.order_number}</span>
+            <span style="font-weight:700;font-size:13.5px">${escapeHtml(g.order_number)}</span>
           </div>
           <span style="font-size:12px;color:var(--text3)">${g.items.length} ta xomashyo</span>
         </div>
@@ -645,7 +645,7 @@ async function renderMaterials(d) {
                 <div class="zebra-title">${escapeHtml(m.item_name)}</div>
                 <div class="zebra-sub">${new Date(m.created_at).toLocaleDateString('uz')} · ${escapeHtml(m.reason||'')}</div>
               </div>
-              <span class="zebra-val" style="color:#DC2626">−${m.quantity} ${m.unit||''}</span>
+              <span class="zebra-val" style="color:#DC2626">−${m.quantity} ${escapeHtml(m.unit||'')}</span>
             </div>`).join('')}</div>
         </div>
       </div>`).join('')}</div>`;
@@ -658,7 +658,7 @@ async function renderTimeline(d) {
     const payments = (await Promise.all(orders.map(o => fetch(`/api/payments?order_id=${o.id}`).then(r=>r.json())))).flat();
 
     let events = [];
-    events.push({ date: d.startRaw, icon: 'ti-target', text: `Loyiha yaratildi — ${escapeHtml(d.name)}` });
+    events.push({ date: d.startRaw, icon: 'ti-target', text: `Loyiha yaratildi — ${d.name}` });
     orders.forEach(o => {
       events.push({ date: o.created_at, icon: 'ti-package', text: `Buyurtma yaratildi — ${o.order_number}` });
       if (o.status === 'ready' || o.status === 'delivered') {
@@ -681,7 +681,7 @@ async function renderTimeline(d) {
       <div class="timeline-item">
         <div class="tl-dot-icon zebra-icon ${DOT_CLASS[e.icon]||'zi-neutral'}"><i class="ti ${e.icon}" style="font-size:13px"></i></div>
         <div>
-          <div style="font-size:13px;font-weight:500">${e.text}</div>
+          <div style="font-size:13px;font-weight:500">${escapeHtml(e.text)}</div>
           <div style="font-size:13px;color:var(--text3);margin-top:2px">${new Date(e.date).toLocaleString('uz')}</div>
         </div>
       </div>`).join('');

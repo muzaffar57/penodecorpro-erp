@@ -560,7 +560,7 @@ function renderMasterKpiList() {
         <div style="font-size:13px;font-weight:700;color:#22C55E">${fmt(m.gift_amount)}</div>
         <div style="font-size:11.5px;color:#bbb">sovg'a</div>
       </div>
-      <div style="display:flex;gap:4px;flex-shrink:0" data-id="${m.id}" data-name="${(m.name||'').replace(/"/g,'&quot;')}">
+      <div style="display:flex;gap:4px;flex-shrink:0" data-id="${m.id}" data-name="${escapeHtml(m.name||'')}">
         <button class="mini-btn" onclick="openMasterDetail(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Har buyurtma bo'yicha KPI"><i class="ti ti-list-details" style="font-size:13px"></i></button>
         <button class="mini-btn" onclick="editMaster(${m.id})">✏️</button>
         <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deactivateMaster(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Nofaollashtirish">🚫</button>
@@ -598,7 +598,7 @@ function renderInactiveMasters() {
     <div class="mk-row" style="opacity:.6">
       <div style="flex:1;min-width:0">
         <div class="mk-name">${escapeHtml(m.name)}</div>
-        <div class="mk-meta">${m.phone || '—'}</div>
+        <div class="mk-meta">${escapeHtml(m.phone || '—')}</div>
       </div>
       <button class="btn btn-outline btn-sm" onclick="reactivateMaster(${m.id}, this)">✓ Faollashtirish</button>
     </div>`).join('');
@@ -622,7 +622,7 @@ async function openMasterDetail(id, name) {
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
           <div>
-            <div style="font-size:13px;font-weight:600;color:var(--text)">${r.order_number || ('#'+r.order_id)}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(r.order_number || ('#' + r.order_id))}</div>
             <div style="font-size:13px;color:var(--text3);margin-top:2px">${dt} · Savdo: ${fmt(r.total_amount)} · Foyda: ${fmt(r.profit)}</div>
           </div>
           <div style="font-size:14px;font-weight:700;color:#22C55E;white-space:nowrap">+${fmt(r.kpi_amount)}</div>
@@ -797,7 +797,7 @@ async function loadEmployees() {
       else if (e.pay_type === 'percent_sales') detail = `Sotuvdan ${e.percent_value}%`;
       else if (e.pay_type === 'percent_profit') detail = `Foydadan ${e.percent_value}%`;
       else if (e.pay_type === 'per_unit') {
-        detail = `${fmt(e.per_unit_rate)} / ${e.per_unit_type}`;
+        detail = `${fmt(e.per_unit_rate)} / ${escapeHtml(e.per_unit_type)}`;
       }
       else if (e.pay_type === 'fixed_plus_coating') detail = `${fmt(e.fixed_amount)} + ${fmt(e.per_unit_rate)}/metr-dona`;
       if (e.extra_monthly) detail += ` · +${fmt(e.extra_monthly)} oylik`;
@@ -819,8 +819,8 @@ async function loadEmployees() {
         <div id="emp-fin-${e.id}" style="flex-shrink:0"></div>
         <div id="emp-status-${e.id}" style="flex-shrink:0"></div>
         <div style="display:flex;gap:4px;flex-shrink:0">
-          <button class="mini-btn" style="color:#D97706;border-color:#FDE68A" data-id="${e.id}" data-name="${(e.name||'').replace(/"/g,'&quot;')}" onclick="openAdvanceModal(this.dataset.id, this.dataset.name)" title="Avans berish">💰</button>
-          <button class="mini-btn" style="width:auto;padding:0 8px;gap:4px;color:#B9783F;border-color:#B9783F;background:#F8F2EB;font-weight:600;font-size:12px" data-id="${e.id}" data-name="${(e.name||'').replace(/"/g,'&quot;')}" data-phone="${(e.phone||'').replace(/"/g,'&quot;')}" onclick="openPanelAccessModal(this.dataset.id, this.dataset.name, this.dataset.phone)" title="Xodim o'z telefonidan kirishi uchun">🔑 Kirish</button>
+          <button class="mini-btn" style="color:#D97706;border-color:#FDE68A" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" onclick="openAdvanceModal(this.dataset.id, this.dataset.name)" title="Avans berish">💰</button>
+          <button class="mini-btn" style="width:auto;padding:0 8px;gap:4px;color:#B9783F;border-color:#B9783F;background:#F8F2EB;font-weight:600;font-size:12px" data-id="${e.id}" data-name="${escapeHtml(e.name||'')}" data-phone="${escapeHtml(e.phone||'')}" onclick="openPanelAccessModal(this.dataset.id, this.dataset.name, this.dataset.phone)" title="Xodim o'z telefonidan kirishi uchun">🔑 Kirish</button>
           <button class="mini-btn" onclick="editEmployee(${e.id})">✏️</button>
           <button class="mini-btn" style="color:#DC2626;border-color:#FADBD8" onclick="deleteEmployee(${e.id})">✕</button>
         </div>
@@ -1024,7 +1024,7 @@ async function loadCompHistory(empId) {
       let amountTxt = '';
       if (r.pay_type === 'fixed' || r.pay_type === 'fixed_plus_coating') amountTxt = `${fmt(r.fixed_amount)} so'm/oy`;
       else if (r.pay_type === 'percent_sales' || r.pay_type === 'percent_profit') amountTxt = `${r.percent_value}%`;
-      else if (r.pay_type === 'per_unit') amountTxt = `${fmt(r.per_unit_rate)} so'm/${r.per_unit_type}`;
+      else if (r.pay_type === 'per_unit') amountTxt = `${fmt(r.per_unit_rate)} so'm/${escapeHtml(r.per_unit_type)}`;
       const isCurrent = i === 0;
       return `
         <div style="padding:10px 0;border-bottom:1px solid #f5f5f5">
@@ -1032,8 +1032,8 @@ async function loadCompHistory(empId) {
             <span style="font-size:13px;font-weight:600;color:#222">${MONTH_NAMES_UZ[r.effective_month]} ${r.effective_year}${isCurrent ? ' <span style=\"font-size:10.5px;font-weight:600;color:#22C55E;background:#DCFCE7;padding:2px 7px;border-radius:8px;margin-left:4px\">joriy</span>' : ''}</span>
             <span style="font-size:13px;font-weight:700;color:#B9783F">${amountTxt}</span>
           </div>
-          <div style="font-size:11.5px;color:#aaa;margin-top:3px">${PAY_TYPE_LABELS[r.pay_type] || r.pay_type}${r.reason ? ' · ' + escapeHtml(r.reason) : ''}</div>
-          ${r.created_by ? `<div style="font-size:10.5px;color:#ccc;margin-top:2px">${escapeHtml(r.created_by)}${r.created_at ? ' · ' + r.created_at : ''}</div>` : ''}
+          <div style="font-size:11.5px;color:#aaa;margin-top:3px">${escapeHtml(PAY_TYPE_LABELS[r.pay_type] || r.pay_type)}${r.reason ? ' · ' + escapeHtml(r.reason) : ''}</div>
+          ${r.created_by ? `<div style="font-size:10.5px;color:#ccc;margin-top:2px">${escapeHtml(r.created_by)}${r.created_at ? ' · ' + escapeHtml(r.created_at) : ''}</div>` : ''}
         </div>`;
     }).join('');
   } catch (e) {
@@ -1229,7 +1229,7 @@ async function loadEmpMonthlyReport() {
                     <span style="font-weight:700;color:var(--text)">${escapeHtml(e.name)}</span>
                   </div>
                 </td>
-                <td style="padding:12px 6px;color:var(--text3);font-size:12px">${e.detail}</td>
+                <td style="padding:12px 6px;color:var(--text3);font-size:12px">${escapeHtml(e.detail)}</td>
                 <td style="padding:12px 6px;text-align:right;font-weight:600;color:var(--gold-dark)">${fmt(e.amount + (e.adjustment||0) - (e.bonus||0))} so'm</td>
                 <td style="padding:12px 6px;text-align:center">
                   <button type="button" onclick="event.stopPropagation();editEmpBonus(${e.employee_id}, '${jsAttrEscape(e.name)}', ${year}, ${month}, ${e.bonus||0}, '${jsAttrEscape(e.bonus_reason||'')}')"
@@ -1435,7 +1435,7 @@ async function loadGiftPeriod() {
     }
     if (summary) {
       summary.innerHTML = (data.active && data.tiers.length)
-        ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${data.tiers.map(t => `<span class="gift-tier-chip">🎁 ${t.gift_name}</span>`).join('')}</div>`
+        ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${data.tiers.map(t => `<span class="gift-tier-chip">🎁 ${escapeHtml(t.gift_name)}</span>`).join('')}</div>`
         : '';
     }
     if (box) {
@@ -1505,7 +1505,7 @@ function renderNewPeriodTiersList() {
   const el = document.getElementById('newPeriodTiersList');
   el.innerHTML = _newPeriodTiers.map((t, i) => `
     <div style="display:flex;gap:8px;align-items:center;background:var(--border2);border-radius:9px;padding:8px">
-      <input type="text" placeholder="Sovg'a nomi" value="${(t.name||'').replace(/"/g,'&quot;')}"
+      <input type="text" placeholder="Sovg'a nomi" value="${escapeHtml(t.name||'')}"
         oninput="_newPeriodTiers[${i}].name=this.value" class="input-field" style="flex:1;background:var(--white)">
       <input type="text" inputmode="numeric" placeholder="Savdo summasi (so'm)" value="${t.amount ? fmt(t.amount) : ''}"
         oninput="_newPeriodTiers[${i}].amount=parseNum(this.value); formatPriceInput(this)" class="input-field" style="width:180px;background:var(--white)">
@@ -1562,13 +1562,13 @@ function renderTierChipsHtml() {
   return _currentPeriodTiers.map(t => {
     if (t.id === _editingTierId) {
       return `<span style="display:inline-flex;gap:6px;align-items:center;background:var(--border2);border-radius:8px;padding:4px 8px;margin:2px 6px 2px 0">
-        <input type="text" id="tierEditName" value="${t.gift_name.replace(/"/g,'&quot;')}" class="input-field" style="width:110px;padding:5px 8px;font-size:12.5px">
+        <input type="text" id="tierEditName" value="${escapeHtml(t.gift_name)}" class="input-field" style="width:110px;padding:5px 8px;font-size:12.5px">
         <input type="text" inputmode="numeric" id="tierEditAmount" value="${fmt(t.threshold_amount)}" class="input-field" style="width:120px;padding:5px 8px;font-size:12.5px" oninput="formatPriceInput(this)">
         <button class="btn btn-gold btn-sm" style="padding:4px 9px;font-size:11.5px" onclick="saveTierEdit(${t.id})">✓</button>
         <button class="btn btn-outline btn-sm" style="padding:4px 9px;font-size:11.5px" onclick="cancelEditTier()">✕</button>
       </span>`;
     }
-    return `<span class="gift-tier-chip">${t.gift_name} — ${fmt(t.threshold_amount)} so'm
+    return `<span class="gift-tier-chip">${escapeHtml(t.gift_name)} — ${fmt(t.threshold_amount)} so'm
       <button onclick="startEditTier(${t.id})" style="border:none;background:transparent;cursor:pointer;color:var(--gold-dark);margin-left:2px;padding:0;vertical-align:-2px" title="Tahrirlash" aria-label="Tahrirlash"><i class="ti ti-pencil" style="font-size:13px"></i></button>
     </span>`;
   }).join('');
@@ -1618,8 +1618,8 @@ async function renderGiftPeriodActive(box, data) {
   }
   const rowsHtml = data.masters.map(m => {
     const tiersProgress = m.tiers.map(t => t.ready
-      ? `<span style="color:#16A34A;font-weight:600">✅ ${t.gift_name}</span>`
-      : `<span style="color:var(--text3)">⬜ ${t.gift_name}</span>`
+      ? `<span style="color:#16A34A;font-weight:600">✅ ${escapeHtml(t.gift_name)}</span>`
+      : `<span style="color:var(--text3)">⬜ ${escapeHtml(t.gift_name)}</span>`
     ).join(' &nbsp; ');
     const redeemBtn = m.ready_tier_id
       ? `<button class="btn btn-gold btn-sm" style="padding:4px 10px;font-size:11.5px" data-gift-name="${escapeHtml(m.ready_tier_name||'')}" onclick="redeemGiftPeriodTier(${m.master_id}, ${m.ready_tier_id}, this.dataset.giftName)">Berildi ✓</button>`

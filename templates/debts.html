@@ -475,10 +475,10 @@ function selectOrderDebt(el){
   document.getElementById('cd-name').textContent = d.client;
   document.getElementById('cd-avatar').textContent = (d.client || '?')[0].toUpperCase();
   document.getElementById('cd-body').innerHTML = `
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Buyurtma</span><span style="font-weight:600">${d.orderNumber}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Loyiha</span><span>${d.project}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${d.phone}</span></div>
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Muddat</span><span style="color:#F59E0B">${d.deadline}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Buyurtma</span><span style="font-weight:600">${escapeHtml(d.orderNumber)}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Loyiha</span><span>${escapeHtml(d.project)}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Muddat</span><span style="color:#F59E0B">${escapeHtml(d.deadline)}</span></div>
     <div class="dbt-sum-row"><span style="color:#9CA3AF">Kelishilgan summa</span><span style="font-weight:600">${fmt(agreed)} so'm</span></div>
     <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${fmt(paid)} so'm</span></div>
     <div class="dbt-sum-row" style="border-top:2px solid #EF4444;padding-top:10px;margin-top:4px">
@@ -548,7 +548,7 @@ function selectSupplierDebt(el){
   document.getElementById('sd-name').textContent = d.name;
   document.getElementById('sd-avatar').textContent = (d.name || '?')[0].toUpperCase();
   document.getElementById('sd-body').innerHTML = `
-    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${d.phone}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
     <div class="dbt-sum-row"><span style="color:#9CA3AF">Nasiya xaridlar</span><span>${d.count} ta</span></div>
     <div class="dbt-sum-row"><span style="color:#9CA3AF">Jami nasiya summasi</span><span style="font-weight:600">${fmt(credit)} so'm</span></div>
     <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${fmt(paid)} so'm</span></div>

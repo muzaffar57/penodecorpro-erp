@@ -140,11 +140,27 @@ function showMsg(text, type) {
 // tirnoq JavaScript qatoridan "chiqib ketishning" oldini OLMAYDI. Bu
 // funksiya, tirnoqni avval JavaScript qatori ichida xavfsiz qiladi
 // (backslash bilan), keyin natijani HTML atributi uchun ham escape qiladi.
+//
+// 2026-09-22 (kech30, jsdom da O'LCHANGAN nuqson tuzatildi): avval `&`
+// escape qilinmas edi. Brauzer atributni o'qiyotganda `&#39;` / `&apos;` /
+// `&#x27;` ni ASL `'` ga aylantiradi — ya'ni nomga `&#39;);...//` yozilsa,
+// tirnoq JavaScript qatoridan chiqib, yozilgan kod BAJARILARDI (oddiy `'`
+// ni funksiya ushlardi, entity ko'rinishidagisini — yo'q). Endi `&` ham
+// `&amp;` bo'ladi, shuning uchun atribut o'qilgach aynan kiritilgan matn
+// qoladi (`&#39;` — oddiy 5 ta belgi bo'lib). TARTIB MUHIM: `&` —
+// qolgan HTML almashtirishlaridan OLDIN (aks holda `&quot;` ning o'zi
+// `&amp;quot;` bo'lib, matn buziladi), lekin JS almashtirishlaridan KEYIN.
+// Qator uzilishi (`\n`, `\r`) ham JS ko'rinishiga o'tkaziladi: avval xom
+// qator uzilishi JavaScript qatorini sindirib (SyntaxError), tugma hech
+// narsa qilmay qolardi. Tekshiruv: tools/test_html_escape_dom.py 3a-bo'lim.
 function jsAttrEscape(str) {
   if (str === null || str === undefined) return '';
   return String(str)
     .replace(/\\/g, '\\\\')
     .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
@@ -447,10 +463,14 @@ function jsAttrEscape(str) {
           badge.style.display = 'flex';
           badge.textContent = urgent;
         }
+        // 2026-09-22 (kech30, 5.2 innerHTML auditi): bildirishnoma matnida
+        // FOYDALANUVCHI kiritgan material nomi bor ("<nom> qolmadi",
+        // services.get_notifications) — nomda `<`, `>` bo'lsa HTML bo'lib
+        // chizilardi (HAMMA sahifada). Ikon — server emoji, baribir escape.
         list.innerHTML = items.map(n => `
           <div style="display:flex;gap:10px;padding:9px 16px;align-items:flex-start">
-            <span style="font-size:14px">${n.icon}</span>
-            <span style="font-size:12.5px;color:var(--text);line-height:1.4">${n.text}</span>
+            <span style="font-size:14px">${escapeHtml(n.icon)}</span>
+            <span style="font-size:12.5px;color:var(--text);line-height:1.4">${escapeHtml(n.text)}</span>
           </div>`).join('');
       }).catch(() => {
         document.getElementById('notifList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12.5px">Yuklab bo\'lmadi</div>';
