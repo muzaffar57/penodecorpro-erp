@@ -847,6 +847,20 @@ def get_production_period_stats(db: Session, company_id: int = None) -> dict:
     }
 
 
+# kech36 (K35-1): "Tayyor loy" zaxirasini TANIYDIGAN YAGONA qoida — nom
+# `get_or_create_loy_stock` yasaydigan shakl (`f"Tayyor loy ({retsept})"`) bilan
+# boshlanadi. Bunday pozitsiya sotib olinadigan xomashyo EMAS, balki
+# buyurtmalardan ORTGAN loy; u odatda 0 / 0 turadi va bu me'yor — "kam qoldi" /
+# "qolmadi" ogohlantirishlariga va Omborxona "Kam qolganlar" soniga kirmaydi.
+# Ishlatiladi: `get_notifications` (qo'ng'iroqcha), `get_inventory_kpi`
+# (Omborxona KPI); `crud.get_low_stock_items` (Telegram) — o'sha shakl
+# (`'Tayyor loy (%'`); `inventory.html` — `startswith('Tayyor loy (')`.
+# Ilgari qo'ng'iroqcha `'Tayyor loy%'` (qavssiz) ishlatardi: foydalanuvchi o'zi
+# yaratgan "Tayyor loy" nomli oddiy material tugasa ham ogohlantirilmasdi,
+# Telegram esa ogohlantirardi — endi ikkalasi bir xil.
+TAYYOR_LOY_PREFIKS = "Tayyor loy ("
+
+
 def get_notifications(db: Session, company_id: int = None) -> list:
     """Bosh sahifa va butun tizim uchun bildirishnomalar — faqat o'qish.
 
@@ -876,7 +890,7 @@ def get_notifications(db: Session, company_id: int = None) -> list:
         *( [Inventory.company_id == company_id] if company_id is not None else [] ),
         Inventory.is_deleted.isnot(True),
         Inventory.stock_quantity <= 0,
-        ~Inventory.item_name.like('Tayyor loy%')
+        ~Inventory.item_name.like(TAYYOR_LOY_PREFIKS + '%')
     ).all()
     for item in empty_items:
         notifications.append({
@@ -893,7 +907,7 @@ def get_notifications(db: Session, company_id: int = None) -> list:
         *( [Inventory.company_id == company_id] if company_id is not None else [] ),
         Inventory.is_deleted.isnot(True),       # 20-band — yuqoridagi bilan bir xil
         Inventory.stock_quantity > 0,
-        ~Inventory.item_name.like('Tayyor loy%')
+        ~Inventory.item_name.like(TAYYOR_LOY_PREFIKS + '%')
     ).all()
     for item in items:
         total_out = db.query(func.sum(InventoryMovement.quantity)).filter(
@@ -1424,7 +1438,15 @@ def get_inventory_kpi(db: Session, company_id: int = None) -> Dict:
         _iq = _iq.filter(Inventory.company_id == company_id)
     items = _iq.all()
     total_items = len(items)
-    low_count = sum(1 for i in items if float(i.stock_quantity or 0) <= float(i.min_stock or 0))
+    # kech36 (K35-1, jonli O'LCHANGAN kech35): "Tayyor loy (...)" zaxirasi
+    # (`TAYYOR_LOY_PREFIKS` izohi) "Kam qolganlar" ga SANALMAYDI. Ilgari
+    # Omborxona "Kam qolganlar 1 ta" deb `Tayyor loy (Oq marmar)` 0 / 0 ni
+    # sanardi, holbuki qo'ng'iroqcha, bosh sahifa va Telegram uni ko'rsatmasdi.
+    # Endi `low_count` == `len(crud.get_low_stock_items(...))` (Telegram
+    # "kam qoldi" ro'yxati) — oddiy material 0 / 0 esa avvalgidek sanaladi.
+    low_count = sum(1 for i in items
+                    if not str(i.item_name or "").startswith(TAYYOR_LOY_PREFIKS)
+                    and float(i.stock_quantity or 0) <= float(i.min_stock or 0))
     total_value = sum(float(i.stock_quantity or 0) * float(i.price_per_unit or 0) for i in items)
 
     today_start = tashkent_today_start_utc()
