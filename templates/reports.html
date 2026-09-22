@@ -792,7 +792,9 @@ async function loadInventoryReport() {
   }
   function stockDot(i) {
     const qty = i.stock_quantity;
-    const min = i.min_stock || 0;
+    // kech37 (21-band, foydalanuvchi qarori: "Ortgan loy uchun chegara shart emas"):
+    // "Tayyor loy (...)" zaxirasi uchun chegara hisobga olinmaydi — hech qachon "kam qoldi" (sariq) emas
+    const min = String(i.item_name || '').startsWith('Tayyor loy (') ? 0 : (i.min_stock || 0);
     let color = '#22C55E'; // yetarli
     if (qty < 0) color = '#EF4444'; // manfiy/xato
     else if (min > 0 && qty <= min) color = '#F59E0B'; // kam qoldi

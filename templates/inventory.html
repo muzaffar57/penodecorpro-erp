@@ -142,7 +142,9 @@
     {% set cat_css = 'cat-Kimyoviy' if cat_class == "Kimyoviy qo'shimchalar" else ('cat-Qattiq' if cat_class == 'Qattiq qotishmalar' else ('cat-Gips' if cat_class == 'Gips' else 'cat-' + cat_class)) %}
     {# kech36 (K35-1): Tayyor loy zaxirasi ortgan loy — 0 bo'lishi me'yor, "Tugagan" / "Kam!" EMAS
        (KPI "Kam qolganlar" ham uni sanamaydi — `services.get_inventory_kpi`) #}
-    {% if is_loy %}{% set st = 'neutral' if qty <= 0 else 'ok' %}{% set st_label = "Bo'sh" if qty <= 0 else 'Yetarli' %}{% if qty <= 0 %}{% set pct = 0 %}{% endif %}
+    {# kech37 (21-band, foydalanuvchi qarori: "Ortgan loy uchun chegara shart emas"): Tayyor loy chizig'i
+       chegaraga nisbatan EMAS — bor bo'lsa to'liq (100 %), bo'lmasa bo'sh (0 %); min > 0 qo'yilgan bo'lsa ham #}
+    {% if is_loy %}{% set st = 'neutral' if qty <= 0 else 'ok' %}{% set st_label = "Bo'sh" if qty <= 0 else 'Yetarli' %}{% set pct = 0 if qty <= 0 else 100 %}
     {% elif qty <= minq %}{% set st = 'danger' %}{% set st_label = 'Tugagan' if qty <= 0 else 'Kam!' %}
     {% elif qty <= minq * 1.5 %}{% set st = 'warn' %}{% set st_label = 'Oz' %}
     {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% endif %}
@@ -176,8 +178,14 @@
         <div class="stock-bar" style="margin-top:6px"><div class="stock-fill {{ st if st != 'ok' else '' }}" style="width:{{ pct }}%"></div></div>
       </div>
       <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">
+        {% if is_loy %}
+        {# kech37 (21-band): Tayyor loy uchun minimal chegara yo'q — hech qayerda hisobga olinmaydi,
+           shuning uchun ko'rsatilmaydi va tahrirlash tugmasi ham yo'q #}
+        <span id="minstock-{{ item.id }}" title="Ortgan loy — minimal chegara qo'yilmaydi">—</span>
+        {% else %}
         <span id="minstock-{{ item.id }}">{{ item.min_stock }} {{ item.unit }}</span>
         <button class="btn btn-outline btn-xs" data-unit="{{ item.unit }}" onclick="editMinStock({{ item.id }}, {{ item.min_stock or 0 }}, this.dataset.unit)" title="Chegarani tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
+        {% endif %}
       </div>
       <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
       <div class="mat-col-updated" style="font-size:13.5px;color:var(--text3)">
