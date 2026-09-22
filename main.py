@@ -6417,6 +6417,11 @@ def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), c
         raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
+    if result.get("duplicate"):
+        # kech27: takroriy so'rov — yangi yetkazish YOZILMAGAN, mavjudi
+        # qaytarilgan (`crud.create_delivery`). Telegram xabari va mijozga
+        # nakladnoy birinchi so'rovda yuborilgan — QAYTA yuborilmaydi.
+        return result
 
     # Telegram xabar
     d = crud.get_delivery(db, result["delivery_id"])

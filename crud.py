@@ -5997,6 +5997,99 @@ def _mrp_deliver_stock(db: Session, order_item, qty: float,
     return log
 
 
+# ============================================================
+# YETKAZISH — TAKROR YUBORISH HIMOYASI VA QULF (kech27, 2026-09-22)
+# ============================================================
+# HAQIQIY PostgreSQL 16 da O'LCHANGAN (asl kod = 17g, `3319f4a`; har holat
+# 12 urinishdan 12 tasida):
+#   A) bir xil qisman yetkazish (+ to'lov 50 000) ketma-ket ikki marta
+#      yuborildi → ikkalasi 200: 2 yetkazish, 2 to'lov (pul ikki marta).
+#   B) xuddi shu so'rov ikki oqimda BIR VAQTDA → yana 2 yetkazish, 2 to'lov.
+#   C) ikki foydalanuvchi bir vaqtda 20 + 20 (qoldiq 30, to'lovsiz) →
+#      IKKALASI saqlandi: 40 topshirildi (buyurtma 30), ikkala yetkazish
+#      raqami ham bir xil "/Y-1". Qoldiq tekshiruvi qulfsiz edi — ikkala
+#      so'rov bir-birining yozuvini ko'rmasdan "sig'adi" deb o'tardi.
+#   D) C bilan bir xil, to'lov bilan → yana 40: qulf (101, buyurtma) faqat
+#      to'lov bo'lganda va qoldiq tekshiruvidan KEYIN olinardi.
+# Yechim (ikki qatlam, qo'lda to'lov / buyurtma himoyasi bilan bir naqsh):
+#   1) Qulf — HAR yetkazishda, har qanday tekshiruvdan OLDIN (to'lovdagi
+#      bilan bir fazo: 101, buyurtma). Keyin sessiya holati bazadan qayta
+#      o'qiladi — qoldiq, holat, qarz va yetkazish raqami navbatdagi so'rov
+#      uchun oldingisi yozib bo'lgandan keyingi haqiqiy qiymat bo'ladi.
+#   2) Imzo — qulf ichida: shu buyurtmada so'nggi `PUL_TAKROR_SONIYA`
+#      soniya ichida AYNAN shunday yetkazish (bazaga yoziladigan hamma
+#      narsa bir xil) bo'lsa, yangisi yozilmaydi, mavjudining o'zi
+#      `duplicate: true` bilan qaytariladi (qo'lda to'lov va buyurtmadagi
+#      kabi). Rad etish (400) EMAS — chunki birinchi so'rov haqiqatan
+#      saqlangan; xato ko'rgan foydalanuvchi oynadan keyin qayta kiritib,
+#      haqiqiy ikki marta yozib qo'yishi mumkin edi. Haqiqiy takroriy
+#      yetkazish oynadan keyin (yoki biror maydoni boshqacha bo'lsa) —
+#      odatdagidek yoziladi.
+
+# Yozish va imzo AYNAN bir xil usulni ishlatishi uchun yagona jadval
+_YETKAZISH_USULI = {
+    "naqd": PaymentMethod.CASH,
+    "plastik": PaymentMethod.CARD,
+    "o'tkazma": PaymentMethod.TRANSFER,
+}
+
+
+def _yetkazish_usuli(qiymat) -> "PaymentMethod":
+    return _YETKAZISH_USULI.get(qiymat or "naqd", PaymentMethod.CASH)
+
+
+def _yetkazish_imzo_sorov(data, detal_idlari) -> tuple:
+    """So'rovning imzosi — bazaga AYNAN nima yozilishi.
+
+    Qatorlar pastdagi yozuv bilan bir xil saralanadi: miqdori musbat va
+    shu buyurtmaning detali bo'lganlari (boshqalari yozilmaydi)."""
+    qatorlar = tuple(sorted(
+        (int(di.order_item_id), round(float(di.quantity), 6))
+        for di in (data.items or [])
+        if float(di.quantity or 0) > 0 and di.order_item_id in detal_idlari
+    ))
+    summa = getattr(data, 'payment_amount', None)
+    tolov = None
+    if summa and summa > 0:
+        tolov = (_pul2(summa), _yetkazish_usuli(getattr(data, 'payment_method', None)))
+    return (
+        qatorlar,
+        tolov,
+        _pul2(getattr(data, 'transport_cost', 0) or 0),
+        getattr(data, 'transport_payer', 'none') or 'none',
+        getattr(data, 'transport_carrier', None) or None,
+        getattr(data, 'received_by', None) or None,
+        getattr(data, 'notes', None) or None,
+    )
+
+
+def _yetkazish_imzo_bazadan(db: Session, d, korxona_id) -> tuple:
+    """Bazadagi yetkazishning imzosi (`_yetkazish_imzo_sorov` bilan bir shakl).
+
+    TENANT: `Payment` da korxona ustuni yo'q — filtr OTA (buyurtma) orqali;
+    `korxona_id` — chaqiruvchi allaqachon tekshirgan buyurtmaning korxonasi
+    (ortiqcha, lekin ataylab aniq: so'rov o'zi ham korxona bilan cheklangan)."""
+    qatorlar = tuple(sorted(
+        (int(x.order_item_id), round(float(x.quantity), 6)) for x in d.items
+    ))
+    tolovlar = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
+        Payment.delivery_id == d.id, Order.company_id == korxona_id).all()
+    tolov = None
+    if len(tolovlar) == 1:
+        tolov = (_pul2(tolovlar[0].amount or 0), tolovlar[0].payment_method)
+    elif tolovlar:
+        tolov = ("bir nechta", len(tolovlar))      # so'rov bilan hech qachon teng emas
+    return (
+        qatorlar,
+        tolov,
+        _pul2(d.transport_cost or 0),
+        d.transport_payer or 'none',
+        d.transport_carrier or None,
+        d.received_by or None,
+        d.notes or None,
+    )
+
+
 def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
                     company_id: int = None) -> dict:
     """Yangi yetkazish qo'shadi.
@@ -6018,6 +6111,18 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
+    # kech27: QULF — har qanday tekshiruvdan OLDIN, to'lov bo'lmasa ham
+    # (yuqoridagi "YETKAZISH — TAKROR YUBORISH HIMOYASI VA QULF" izohi, C/D).
+    # Korxona tekshiruvidan KEYIN — begona buyurtma raqami bilan qulf olinmaydi.
+    # `flush` — chaqiruvchining (masalan `services` "Tayyor" oqimi) hali
+    # yozilmagan o'zgarishlari `expire_all` da yo'qolmasin (sessiya
+    # `autoflush=False`). `expire_all` — qulfdan OLDIN o'qilgan buyurtma /
+    # detal / yetkazishlar holati eskirgan bo'lishi mumkin; endi hammasi
+    # qulf ostida bazadan qayta o'qiladi (oldingi so'rov yozib bo'lgach).
+    db.flush()
+    _pul_qulfi(db, 101, order.id)
+    db.expire_all()
+
     # MUHIM (2026-09 audit): o'chirilgan (is_deleted) buyurtmaga yetkazish
     # qo'shishga YO'L QO'YILMAYDI. Bunga yo'l qo'yilsa, buyurtma o'chirilgan
     # paytda hisoblangan delivery_percent (Loy proporsional qaytarish
@@ -6032,6 +6137,36 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
 
     if not data.items:
         return {"success": False, "message": "Kamida bitta detal kiriting"}
+
+    # kech27: TAKROR YUBORISH — qoldiq tekshiruvidan ham, to'lov chegarasidan
+    # ham OLDIN turishi SHART: birinchi so'rov yozilgach qoldiq va qarz
+    # kamayadi, takroriy so'rov ularga yetib kelsa foydalanuvchiga
+    # "Qoldiqdan ko'p berib bo'lmaydi!" yoki "ortiqcha to'lov" degan
+    # chalg'ituvchi xabar chiqardi — holbuki yetkazish haqiqatan saqlangan.
+    from datetime import timedelta as _td_dlv
+    _imzo = _yetkazish_imzo_sorov(data, {oi.id for oi in order.items})
+    if _imzo[0]:
+        # TENANT: `Delivery` da korxona ustuni yo'q — filtr OTA (buyurtma)
+        # orqali; buyurtma yuqorida korxona bilan tekshirilgan, bu yerda ham
+        # aniq cheklanadi.
+        _yaqinda = db.query(Delivery).join(Order, Order.id == Delivery.order_id).filter(
+            Delivery.order_id == order.id,
+            Order.company_id == order.company_id,
+            Delivery.delivered_at >= datetime.utcnow() - _td_dlv(seconds=PUL_TAKROR_SONIYA),
+        ).order_by(Delivery.delivered_at.desc(), Delivery.id.desc()).all()
+        for _eski in _yaqinda:
+            if _yetkazish_imzo_bazadan(db, _eski, order.company_id) == _imzo:
+                return {
+                    "success": True,
+                    "duplicate": True,
+                    "message": (f"{_eski.delivery_number} hozirgina saqlangan edi — "
+                                f"takroriy so'rov, qayta yozilmadi"),
+                    "delivery_id": _eski.id,
+                    "delivery_number": _eski.delivery_number,
+                    "delivery_percent": order.delivery_percent,
+                    "is_fully_delivered": order.is_fully_delivered,
+                    "order_status": order.status.value,
+                }
 
     # Tekshirish: qoldiqdan ko'p berilmasin
     errors = []
@@ -6064,11 +6199,11 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     # (`create_payment`) bilan AYNAN bir xil chegaralar ("3 baravar" qoidasi →
     # `ValueError`, qarzdan ko'p → `OverpaymentWarning`, marshrut → 409 va UI
     # tasdig'i), va bu tekshiruv yetkazish YOZILISHIDAN OLDIN: rad etilsa hech
-    # narsa saqlanmaydi. Qulf — qo'lda to'lov bilan bir xil fazo (101, buyurtma),
-    # ya'ni bir vaqtda kelgan qo'lda to'lov qarzni eskirtirib qo'ymaydi.
+    # narsa saqlanmaydi. Qulf (101, buyurtma — qo'lda to'lov bilan bir fazo)
+    # kech27 dan beri funksiya BOSHIDA olinadi (har yetkazishda), ya'ni bir
+    # vaqtda kelgan qo'lda to'lov yoki boshqa yetkazish qarzni eskirtirmaydi.
     payment_amount = getattr(data, 'payment_amount', None)
     if payment_amount and payment_amount > 0:
-        _pul_qulfi(db, 101, order.id)
         _tolov_chegarasi(order, payment_amount,
                          bool(getattr(data, 'confirm_overpay', False)))
 
@@ -6128,8 +6263,8 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     # bo'lsa — butun so'rov bekor bo'ladi (yetkazish to'lovsiz, yarim holda
     # qolmaydi), foydalanuvchi qayta yuboradi.
     if payment_amount and payment_amount > 0:
-        method_map = {"naqd": PaymentMethod.CASH, "plastik": PaymentMethod.CARD, "o'tkazma": PaymentMethod.TRANSFER}
-        pay_method = method_map.get(getattr(data, 'payment_method', None) or 'naqd', PaymentMethod.CASH)
+        # kech27: imzo tekshiruvi bilan AYNAN bir xil jadval (`_YETKAZISH_USULI`)
+        pay_method = _yetkazish_usuli(getattr(data, 'payment_method', None))
         db.add(Payment(
             order_id=order.id,
             delivery_id=db_delivery.id,
