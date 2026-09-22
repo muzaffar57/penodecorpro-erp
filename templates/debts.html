@@ -501,13 +501,32 @@ async function savePayment(){
   if (!amount || amount <= 0) { alert('Summa kiriting!'); return; }
   const writeOff = document.getElementById('pay-writeoff').checked;
   const notes = document.getElementById('pay-note').value;
+  const msg = document.getElementById('pay-msg');
 
-  const res = await fetch(`/api/payments?write_off_remainder=${writeOff}`, {
+  // 17f (2026-09-22): qarzdan ko'p summa kiritilsa server 409
+  // (`detail.type = "overpayment_warning"`, `detail.message` — savol) qaytaradi.
+  // Ilgari bu sahifa uni ham "Xato yuz berdi" deb ko'rsatardi — ya'ni mijoz
+  // qasddan ko'p (avans) to'lasa, uni bu yerdan umuman kiritib bo'lmasdi.
+  // Endi `orders.html` dagi kabi tasdiq so'raladi va `confirm_overpay: true`
+  // bilan qayta yuboriladi. Boshqa xatolarda server SABABI ko'rsatiladi.
+  const tana = { order_id: parseInt(selectedOrderId), amount, notes: notes || null };
+  const yubor = () => fetch(`/api/payments?write_off_remainder=${writeOff}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ order_id: parseInt(selectedOrderId), amount, notes: notes || null })
+    body: JSON.stringify(tana)
   });
 
-  const msg = document.getElementById('pay-msg');
+  let res = await yubor();
+  if (res.status === 409) {
+    let d = null;
+    try { d = await res.clone().json(); } catch(e) {}
+    if (d && d.detail && d.detail.type === 'overpayment_warning') {
+      const ha = await customConfirm(String(d.detail.message || ''), {danger: true, okText: 'Ha, davom etaman'});
+      if (!ha) { msg.style.display = 'none'; return; }
+      tana.confirm_overpay = true;
+      res = await yubor();
+    }
+  }
+
   msg.style.display = 'block';
   if (res.ok) {
     msg.style.background = '#DCFCE7'; msg.style.color = '#166534';
@@ -515,7 +534,7 @@ async function savePayment(){
     setTimeout(() => location.reload(), 1300);
   } else {
     msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
-    msg.textContent = 'Xato yuz berdi';
+    msg.textContent = '❌ ' + await serverSababi(res, 'Xato yuz berdi');
   }
 }
 

@@ -2623,11 +2623,29 @@ async function savePayment() {
 
   try {
     const url = writeOff ? '/api/payments?write_off_remainder=true' : '/api/payments';
-    const res = await fetch(url, {
+    const yubor = () => fetch(url, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(data)
     });
+    let res = await yubor();
+    // 17f (2026-09-22): yuqoridagi tasdiq faqat SAHIFADA ko'rinib turgan
+    // qarzga tayanadi (u eskirgan bo'lishi mumkin; "chegirmaga yozish"
+    // belgilanganda esa umuman so'ralmaydi). Server baribir 409
+    // (`overpayment_warning`) qaytarsa — uning aniq matni bilan so'raymiz va
+    // tasdiqlansa `confirm_overpay: true` bilan qayta yuboramiz. Ilgari bu
+    // holat ham "❌ To'lovni saqlashda xato" bo'lib qolardi.
+    if (res.status === 409 && !data.confirm_overpay) {
+      let d = null;
+      try { d = await res.clone().json(); } catch(e) {}
+      if (d && d.detail && d.detail.type === 'overpayment_warning') {
+        const proceed = await showConfirmModal('⚠️ ' + String(d.detail.message || ''),
+          {danger:true, okText:'Ha, davom etaman'});
+        if (!proceed) return;
+        data.confirm_overpay = true;
+        res = await yubor();
+      }
+    }
     if (res.ok) {
       const r = await res.json();
       closePaymentForm();
@@ -2642,11 +2660,26 @@ async function savePayment() {
         showMsg('✓ To\'lov qo\'shildi! Qarz: ' + formatNum(r.debt_amount) + ' so\'m', 'success');
       }
     } else {
-      showMsg('❌ To\'lovni saqlashda xato', 'error');
+      // 17f: server yuborgan aniq SABAB ("'amount' juda katta", "Buyurtma
+      // topilmadi" va h.k.) — ilgari faqat umumiy "saqlashda xato" chiqardi.
+      showMsg('❌ ' + await tolovXatoSababi(res, 'To\'lovni saqlashda xato'), 'error');
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
   }
+}
+
+// 17f (2026-09-22): to'lov javobidagi server SABABI — `detail` matn bo'lsa
+// o'zi, obyekt bo'lsa `detail.message`; JSON emas yoki ro'yxat (422) —
+// standart matn (`debts.html` / `suppliers.html` dagi `serverSababi` naqshi).
+async function tolovXatoSababi(res, standart) {
+  let sabab = standart || 'Xato';
+  try {
+    const d = await res.json();
+    if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+    else if (d && d.detail && typeof d.detail.message === 'string' && d.detail.message) sabab = d.detail.message;
+  } catch(e) {}
+  return sabab;
 }
 
 async function deletePayment(paymentId) {
