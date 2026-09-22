@@ -212,7 +212,7 @@ fetch('/api/dashboard/stats').then(r => r.json()).then(s => {
       return `<div class="stock-row">
         <div class="stock-head">
           <span class="stock-name">${escapeHtml(item.item_name)}</span>
-          <span class="stock-qty" style="color:${color}">${item.stock_quantity} ${item.unit}</span>
+          <span class="stock-qty" style="color:${color}">${item.stock_quantity} ${escapeHtml(item.unit)}</span>
         </div>
         <div class="stock-bar"><div class="stock-bar-fill" style="width:${pct}%;background:${color}"></div></div>
       </div>`;
@@ -293,10 +293,10 @@ fetch('/api/orders').then(r => r.json()).then(orders => {
   recentEl.innerHTML = recent.map(o => `
     <div class="list-row">
       <div>
-        <div class="list-title">${o.order_number || ('#' + o.id)}</div>
+        <div class="list-title">${o.order_number ? escapeHtml(o.order_number) : ('#' + o.id)}</div>
         <div class="list-sub">${o.order_type}</div>
       </div>
-      <span class="badge ${badgeClass[o.status] || 'badge-info'}">${STATUS_LABELS[o.status] || o.status}</span>
+      <span class="badge ${badgeClass[o.status] || 'badge-info'}">${STATUS_LABELS[o.status] || escapeHtml(o.status)}</span>
     </div>`).join('');
 }).catch(() => {
   document.getElementById('recentOrders').innerHTML = '<div class="list-sub">Yuklab bo\'lmadi</div>';

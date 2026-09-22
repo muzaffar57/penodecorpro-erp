@@ -185,11 +185,11 @@ function renderMasters(){
     <div class="m-card" style="animation-delay:${(i%20)*0.02}s">
       ${rankHtml}
       <div class="m-card-head">
-        <div class="m-avatar">${initials(m.name)}</div>
+        <div class="m-avatar">${escapeHtml(initials(m.name))}</div>
         <div>
-          <div class="m-name">${m.name}</div>
-          <div class="m-phone"><i class="ti ti-phone" style="font-size:10px"></i> ${m.phone}</div>
-          ${m.region ? `<div class="m-region"><i class="ti ti-map-pin" style="font-size:11px"></i> ${m.region}</div>` : ''}
+          <div class="m-name">${escapeHtml(m.name)}</div>
+          <div class="m-phone"><i class="ti ti-phone" style="font-size:10px"></i> ${escapeHtml(m.phone)}</div>
+          ${m.region ? `<div class="m-region"><i class="ti ti-map-pin" style="font-size:11px"></i> ${escapeHtml(m.region)}</div>` : ''}
         </div>
       </div>
       <div class="m-stats">
