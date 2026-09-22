@@ -603,20 +603,41 @@ class FinishedProductUpdate(BaseModel):
 # ============================================================
 
 class DeliveryItemCreate(BaseModel):
-    order_item_id: int
-    quantity: float = Field(..., gt=0)
+    """17g (2026-09-22): ikkinchi to'siq — marshrut xom JSON ni
+    `crud._clean_val("Delivery")` bilan tekshiradi. Ilgari faqat `gt=0` bor
+    edi: `Infinity` / `1e20` o'tib, "qoldiqdan ko'p" xabarida `inf metr`
+    bo'lib chiqardi."""
+    order_item_id: int = Field(..., ge=1, le=2_147_483_647, strict=True)
+    quantity: float = Field(..., gt=0, le=1_000_000_000_000.0, allow_inf_nan=False, strict=True)
 
 
 class DeliveryCreate(BaseModel):
-    order_id: int
-    items: List[DeliveryItemCreate] = []
-    received_by: Optional[str] = None
-    notes: Optional[str] = None
-    transport_carrier: Optional[str] = None
-    transport_cost: float = Field(default=0, ge=0)
-    transport_payer: str = Field(default="none", description="none/client/company/split")
-    payment_amount: Optional[float] = Field(default=None, ge=0, description="Shu yukka bog'liq to'lov (ixtiyoriy)")
-    payment_method: Optional[str] = Field(default="naqd", description="naqd/plastik/o'tkazma")
+    """Yangi yetkazish.
+
+    17g (2026-09-22): marshrut xom JSON ni `crud._clean_val("Delivery")` bilan
+    tekshiradi (u 1 tiyindan kichik to'lov / transportni ham rad etadi); bu
+    sxema — ikkinchi to'siq, ustun sig'imlari bilan bir xil. HAQIQIY PostgreSQL
+    da O'LCHANGAN (asl kod = 17f): to'lov / transport `Infinity` / `1e20` —
+    500; to'lov `true` → 1 so'm, `"7"` matni; noma'lum to'lovchi saqlanib
+    transport Moliyadan tushib qolardi; noma'lum usul jimgina "naqd";
+    qabul qiluvchi 101, tashuvchi 151, to'lovchi 21 belgi — 500.
+    `confirm_overpay` — qarzdan ko'p to'lov uchun aniq tasdiq (409 dan keyin)."""
+    order_id: int = Field(..., ge=1, le=2_147_483_647, strict=True)
+    items: List[DeliveryItemCreate] = Field(default_factory=list, max_length=500)
+    received_by: Optional[str] = Field(default=None, max_length=100)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    transport_carrier: Optional[str] = Field(default=None, max_length=150)
+    transport_cost: float = Field(default=0, ge=0, le=9_999_999_999.99, allow_inf_nan=False,
+                                  strict=True)
+    transport_payer: Literal["none", "client", "company", "split"] = Field(
+        default="none", description="none/client/company/split")
+    payment_amount: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99,
+                                            allow_inf_nan=False, strict=True,
+                                            description="Shu yukka bog'liq to'lov (ixtiyoriy)")
+    payment_method: Literal["naqd", "plastik", "o'tkazma"] = Field(
+        default="naqd", description="naqd/plastik/o'tkazma")
+    confirm_overpay: bool = Field(default=False, strict=True,
+                                  description="Qarzdan ko'p to'lov kiritilsa, aniq tasdiqlash uchun")
 
 
 class DeliveryItemRead(BaseModel):
@@ -807,17 +828,30 @@ class ProjectUpdate(BaseModel):
 # ============================================================
 
 class ReturnItemCreate(BaseModel):
-    order_id: int
-    item_name: str
-    quantity: float
-    unit: str = "dona"
-    reason: str
-    refund_amount: float = 0
-    to_stock: bool = Field(default=True, description="Tayyor mahsulotlar omboriga qo'shilsinmi")
-    order_item_id: Optional[int] = None
-    notes: Optional[str] = None
-    coating_applied: bool = Field(default=False, description="Brak bo'lganda loy allaqachon tortilgan bo'lsa True")
-    gips_kg_used: Optional[float] = Field(default=None, description="GIPS brak uchun — taxminan qancha gips ketgani")
+    """Yangi qaytarish.
+
+    17g (2026-09-22): marshrut xom JSON ni `crud._clean_val("Return")` bilan
+    tekshiradi (u 1 tiyindan kichik summani ham rad etadi); bu sxema —
+    ikkinchi to'siq, ustun sig'imlari bilan bir xil. Ilgari HECH QANDAY
+    cheklov yo'q edi — HAQIQIY PostgreSQL da O'LCHANGAN: manfiy / 0 / `1e20`
+    miqdor saqlanardi, `Infinity` / `NaN` miqdor tayyor mahsulot qoldig'ini
+    buzardi, `NaN` summa bazaga yozilardi, noma'lum sabab jimgina "Brak"."""
+    order_id: int = Field(..., ge=1, le=2_147_483_647, strict=True)
+    item_name: str = Field(..., min_length=1, max_length=150)
+    quantity: float = Field(..., gt=0, le=1_000_000_000_000.0, allow_inf_nan=False, strict=True)
+    unit: str = Field(default="dona", max_length=20)
+    reason: Literal["Brak", "Ortiqcha", "Notog'ri o'lcham", "Mijoz iltimosi"]
+    refund_amount: float = Field(default=0, ge=0, le=9_999_999_999.99, allow_inf_nan=False,
+                                 strict=True)
+    to_stock: bool = Field(default=True, strict=True,
+                           description="Tayyor mahsulotlar omboriga qo'shilsinmi")
+    order_item_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647, strict=True)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    coating_applied: bool = Field(default=False, strict=True,
+                                  description="Brak bo'lganda loy allaqachon tortilgan bo'lsa True")
+    gips_kg_used: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000.0,
+                                          allow_inf_nan=False, strict=True,
+                                          description="GIPS brak uchun — taxminan qancha gips ketgani")
 
 
 class ReturnItemRead(BaseModel):

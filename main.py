@@ -2643,9 +2643,14 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
         raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     who = current_user.full_name or current_user.username
 
-    total_amount = round(data.quantity * data.price_per_unit)
+    # 17g (2026-09-22): jami — bazaga yoziladigan AYNAN shu summa
+    # (`crud._xarid_narx_jami`: narx 2 xonaga yaxlitlanib, jami shu narxdan).
+    # Ilgari bu yerda butun so'mga yaxlitlanardi (`round(qty × narx)`), bazaga
+    # esa xom ko'paytma yozilardi — "to'liq to'langan"mi yoki nasiyami degan
+    # qaror boshqa summaga tayanardi.
+    total_amount = crud._xarid_narx_jami(data.quantity, data.price_per_unit)[1]
     paid_now = min(data.paid_now, total_amount)   # ortiqcha to'lanmasin
-    debt_remains = total_amount - paid_now
+    debt_remains = round(total_amount - paid_now, 2)
     is_credit = debt_remains > 0.01   # server o'zi hisoblaydi — frontenddan kelgan is_credit e'tiborga olinmaydi
 
     result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
@@ -2673,6 +2678,10 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
 
     # Hoziroq to'langan summa bo'lsa — darhol to'lov sifatida yoziladi (qarzdan ayiriladi)
     if is_credit and data.supplier_id and paid_now > 0:
+        # 17g: `ichki=True` — xarid allaqachon saqlangan; takror-yuborish
+        # himoyasi (ta'minotchi + summa + 8 s) va ortiqcha to'lov ogohlantirishi
+        # bu to'lovni yutib yubormasin / xariddan keyin 500 bermasin (sababi
+        # `crud.create_supplier_payment` izohida; kech23 da O'LCHANGAN).
         crud.create_supplier_payment(
             db,
             schemas.SupplierPaymentCreate(
@@ -2680,7 +2689,7 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
                 amount=paid_now,
                 notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan"
             ),
-            paid_by=who, company_id=auth.company_id_of(current_user)
+            paid_by=who, company_id=auth.company_id_of(current_user), ichki=True
         )
 
     # Nasiya bo'lsa — kompaniya qarzi oshgani haqida ogohlantirish
@@ -4942,7 +4951,21 @@ def api_get_project_items(project_id: int, db: Session = Depends(get_db), curren
 
 
 @app.post("/api/returns")
-def api_create_return(data: schemas.ReturnItemCreate, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+    # 17g (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
+    # ("Return")`), keyin sxemaga (berilmagan yoki `null` maydonlar — sxema
+    # standarti: birlik "dona", summa 0, omborga qaytsin). HAQIQIY PostgreSQL da
+    # O'LCHANGAN (asl kod = 17f): manfiy / 0 / `1e20` miqdor saqlanardi;
+    # `Infinity` / `NaN` miqdor SAQLANIB tayyor mahsulot qoldig'ini buzardi
+    # (javob 500); `NaN` summa bazaga yozilardi; noma'lum sabab jimgina "Brak";
+    # uzun nom / birlik — 500. `returns.html` (qaytarish va brak oynalari)
+    # yuboradigan tanalar AYNAN shu qoidalarga mos. Xato → 400, `detail` MATN
+    # (`returns.html`: `e.detail?.message || e.detail`).
+    try:
+        toza = crud._clean_val("Return", data)
+        data = schemas.ReturnItemCreate(**{k: v for k, v in toza.items() if v is not None})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     # 2026-09-21 (12-sizish): buyurtma FAQAT joriy korxonadan, detal esa
     # FAQAT shu buyurtmadan — hech narsa yozilishidan OLDIN. Ilgari begona
     # yoki mavjud bo'lmagan buyurtma 500 berardi, begona detal esa A
@@ -6361,10 +6384,37 @@ def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.post("/api/deliveries")
-def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yangi yetkazish."""
+    # 17g (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
+    # ("Delivery")`), keyin sxemaga (`null` maydonlar — sxema standarti).
+    # HAQIQIY PostgreSQL da O'LCHANGAN (asl kod = 17f): to'lov / transport
+    # `Infinity` / `1e20` — 500; to'lov `0.001` → 0 so'mlik to'lov; `true` →
+    # 1 so'm; noma'lum to'lovchi — transport Moliyadan tushib qolardi; uzun
+    # matnlar — 500; to'lov qo'lda to'lov chegaralarini (3 baravar, ortiqcha
+    # to'lov tasdig'i) chetlab o'tardi. Javob shakli crud javoblari bilan bir
+    # xil (`{"success": false, "message": ...}`) — `orders.html` `detail.message`
+    # ni o'qiydi. Qarzdan ko'p to'lov — 409 (`overpayment_warning`, `/api/payments`
+    # dagi bilan AYNAN bir xil), UI tasdiqlasa `confirm_overpay: true` bilan
+    # qayta yuboradi; bu holatda hech narsa yozilmagan bo'ladi.
+    try:
+        toza = crud._clean_val("Delivery", data)
+        data = schemas.DeliveryCreate(**{k: v for k, v in toza.items() if v is not None})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     who = current_user.full_name or current_user.username
-    result = crud.create_delivery(db, data, delivered_by=who, company_id=auth.company_id_of(current_user))
+    try:
+        result = crud.create_delivery(db, data, delivered_by=who, company_id=auth.company_id_of(current_user))
+    except crud.OverpaymentWarning as w:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "type": "overpayment_warning",
+            "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
+            "amount": w.amount, "debt": w.debt, "excess": w.excess
+        })
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 

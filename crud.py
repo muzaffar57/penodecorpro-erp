@@ -289,8 +289,9 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
                 item_name=existing_to_reuse.item_name,
                 quantity=_r_qty,
                 unit=existing_to_reuse.unit,
-                price_per_unit=_r_price,
-                total_amount=round(_r_qty * _r_price, 2),
+                # 17g: narx va jami bazadagidek yaxlitlanadi (`_xarid_narx_jami`)
+                price_per_unit=_xarid_narx_jami(_r_qty, _r_price)[0],
+                total_amount=_xarid_narx_jami(_r_qty, _r_price)[1],
                 notes="Boshlang'ich qoldiq (material yaratilganda kiritilgan)"
             ))
         # 15-band (O'LCHANGAN): yangi qator yo'lidagi kabi — korxonada asosiy
@@ -345,8 +346,9 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
             item_name=db_item.item_name,
             quantity=qty,
             unit=db_item.unit,
-            price_per_unit=price,
-            total_amount=round(qty * price, 2),
+            # 17g: narx va jami bazadagidek yaxlitlanadi (`_xarid_narx_jami`)
+            price_per_unit=_xarid_narx_jami(qty, price)[0],
+            total_amount=_xarid_narx_jami(qty, price)[1],
             notes="Boshlang'ich qoldiq (material yaratilganda kiritilgan)"
         )
         db.add(purchase)
@@ -753,13 +755,18 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
         except (ValueError, TypeError):
             due_date_parsed = None
 
+    # 17g (2026-09-22): narx va jami BAZADAGIDEK yaxlitlanadi — jami SHU
+    # (yaxlitlangan) narxdan hisoblanadi (sababi `_xarid_narx_jami` izohida;
+    # HAQIQIY PostgreSQL da O'LCHANGAN: 333 × 10.335 → narx 10.34, jami
+    # 3441.56). Ombordagi o'rtacha narx hisobiga tegilmaydi.
+    _narx2, _jami2 = _xarid_narx_jami(quantity, price_per_unit)
     purchase = InventoryPurchase(
         inventory_id=db_item.id,
         item_name=db_item.item_name,
         quantity=quantity,
         unit=db_item.unit,
-        price_per_unit=price_per_unit,
-        total_amount=quantity * price_per_unit,
+        price_per_unit=_narx2,
+        total_amount=_jami2,
         purchased_by=purchased_by,
         notes=notes,
         supplier_id=supplier_id,
@@ -789,7 +796,7 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
         "old_price": old_price,
         "new_price": float(db_item.price_per_unit),
         "old_qty": old_qty,
-        "purchase_total": quantity * price_per_unit,
+        "purchase_total": _jami2,
         "old_volume": old_volume,
         "new_volume": float(db_item.volume_per_unit),
         "volume_changed": volume_changed
@@ -2051,7 +2058,52 @@ _NOL_YOKI_TIYIN = {
     "Purchase": ("paid_now", "transport_cost"),
     "Receipt": ("paid_now", "transport_cost", "tushirish_cost", "yuklash_cost",
                 "boshqa_cost"),
+    # 17g (2026-09-22) — HAQIQIY PostgreSQL 16 da O'LCHANGAN (`work/probe17g_pg.py`,
+    # asl kod = 17f): yetkazishdagi to'lov `0.001` → 0.00 so'mlik `Payment`
+    # yozuvi; qaytarish summasi `0.001` → 0.00 saqlanardi (0 esa "server o'zi
+    # hisoblasin" degani — ya'ni foydalanuvchi bergan summa jimgina yo'qolardi);
+    # yetkazish transporti `0.001` → 0.00.
+    "Delivery": ("payment_amount", "transport_cost"),
+    "Return": ("refund_amount",),
 }
+
+
+def _pul2_decimal(v):
+    """Pul qiymatini PostgreSQL `Numeric(12,2)` bilan AYNAN bir xil yaxlitlaydi
+    va `Decimal` qaytaradi (17g, 2026-09-22).
+
+    HAQIQIY PostgreSQL 16 da O'LCHANGAN: baza sonni uning o'nlik yozuvi
+    bo'yicha, 0.5 ni YUQORIGA yaxlitlaydi — `10.335` → 10.34, `1000.005` →
+    1000.01, `0.125` → 0.13. Python ning `round(10.335, 2)` esa 10.33 beradi
+    (ikkilik kasr + "bankir" yaxlitlashi), ya'ni `round()` bilan hisoblangan
+    jami bazadagi narxdan boshqa narxga tayanardi. Shuning uchun bu yerda
+    `repr` (eng qisqa aniq o'nlik yozuv) + `ROUND_HALF_UP`."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return Decimal(repr(float(v))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _pul2(v) -> float:
+    """`_pul2_decimal` — `float` ko'rinishida (bazaga yoziladigan qiymat)."""
+    return float(_pul2_decimal(v))
+
+
+def _xarid_narx_jami(miqdor, narx):
+    """Xarid qatorining bazaga yoziladigan (narx, jami) juftligi (17g).
+
+    HAQIQIY PostgreSQL 16 da O'LCHANGAN (asl kod = 17f): narx va jami ALOHIDA
+    yaxlitlanardi — `3 × 1234.567` → narx 1234.57, jami 3703.70 (3 × 1234.57 =
+    3703.71); `333 × 10.335` → narx 10.34, jami 3441.56 (to'g'risi 3443.22 —
+    1.66 so'm farq, miqdor oshgani sari o'sadi); `7 × 0.125` → narx 0.13, jami
+    0.88. Ya'ni xarid tarixida ko'rinadigan "miqdor × narx" ta'minotchi
+    qarzidagi (jami yig'indisi) summadan farq qilardi. UI foydalanuvchidan
+    AYNAN 1 birlik narxini oladi (jamini o'zi hisoblaydi), shuning uchun:
+    avval narx bazadagidek 2 xonaga yaxlitlanadi, jami SHU narxdan hisoblanadi.
+    Foydalanuvchi to'xtatilmaydi; farq 1 birlikka yarim tiyindan oshmaydi."""
+    from decimal import Decimal, ROUND_HALF_UP
+    narx2 = _pul2_decimal(narx)
+    jami2 = (Decimal(repr(float(miqdor))) * narx2).quantize(Decimal("0.01"),
+                                                              rounding=ROUND_HALF_UP)
+    return float(narx2), float(jami2)
 
 
 def _json_son(key, value, bosh_mumkin, musbat, chegara=None):
@@ -2692,6 +2744,20 @@ _ISHLAB_CHIQARISH_TURI = {"umumiy": "umumiy", "penoplast": "penoplast",
 # sotuvining `_TOLOV_USULI` (naqd/karta/bank) — BOSHQA ro'yxat.
 _TOLOV_TURI = {"zaklat": "zaklat", "partial": "partial", "final": "final"}
 _TOLOV_USULI_MIJOZ = {"naqd": "naqd", "plastik": "plastik", "o'tkazma": "o'tkazma"}
+# 17g (2026-09-22) — qaytarish sababi: `models.ReturnReason` qiymatlari
+# (`returns.html` AYNAN "Ortiqcha" / "Brak" yuboradi). HAQIQIY PostgreSQL da
+# O'LCHANGAN: noma'lum sabab (`"xyz"`) JIMGINA "Brak" ga aylanardi — ya'ni
+# ombordan xomashyo yechilar va mahsulot omborga qaytmasdi.
+_QAYTARISH_SABABI = {"Brak": "Brak", "Ortiqcha": "Ortiqcha",
+                     "Notog'ri o'lcham": "Notog'ri o'lcham",
+                     "Mijoz iltimosi": "Mijoz iltimosi"}
+# 17g — yetkazish transporti kim hisobidan (`models.Delivery.company_transport_cost`
+# / `client_transport_cost` AYNAN shu to'rttasini taniydi; `orders.html`
+# `dlv-transport-payer` tanlovi ham shular). O'LCHANGAN: noma'lum qiymat
+# saqlanardi va transport summasi Moliyadan butunlay tushib qolardi (na
+# korxona, na mijoz hisobiga); 21+ belgi — String(20) → 500.
+_YETKAZISH_TOLOVCHI = {"none": "none", "client": "client", "company": "company",
+                       "split": "split"}
 
 # ── 17e (2026-09-22): kunlik xarajat va kelishilgan summa ───────────────
 # O'LCHANGAN (`work/probe17e.py`, har prob alohida toza bazada, asl kod =
@@ -2903,6 +2969,52 @@ def _val_rules():
         "GiftPeriodOpen": {
             "tiers": ("royxat", "GiftTier", 1, 50),
         },
+        # 17g (2026-09-22) — qaytarish (`POST /api/returns`). `returns.html`
+        # (qaytarish oynasi va "brak" oynasi) AYNAN shu kalitlarni yuboradi.
+        # HAQIQIY PostgreSQL da O'LCHANGAN (asl kod = 17f): miqdor manfiy / 0 /
+        # `1e20` — saqlanardi; `Infinity` / `NaN` — SAQLANARDI va tayyor
+        # mahsulot qoldig'ini cheksiz / "son emas" qilib qo'yardi (javob 500,
+        # keyin qoldiqni JSON ga aylantirib bo'lmaydi); summa `NaN` — bazaga
+        # "NaN" bo'lib yozilardi; `Infinity` / `1e20` — 500; nom 151 belgi,
+        # birlik 21 belgi — 500; `true` → 1, `"2"` matni — qabul.
+        # `ReturnItem`: item_name String(150), unit String(20), refund Numeric(12,2).
+        "Return": {
+            "order_id": ("id", False),
+            "order_item_id": ("id", True),
+            "item_name": ("matn", True, 150),
+            "quantity": ("son", False, True, son),
+            "unit": ("matn", False, 20),
+            "reason": ("tanlov", False, _QAYTARISH_SABABI),
+            "refund_amount": ("son", True, False, money),
+            "to_stock": ("bool", False),
+            "notes": ("matn", False, matn),
+            "coating_applied": ("bool", False),
+            "gips_kg_used": ("son", True, False, son),
+        },
+        # 17g — yetkazish (`POST /api/deliveries`). `orders.html` ("Yetkazish"
+        # oynasi va "Bir yo'la to'liq topshirish") AYNAN shu kalitlarni
+        # yuboradi; `confirm_overpay` — 409 tasdig'idan keyingi qayta yuborish.
+        # O'LCHANGAN: to'lov / transport `Infinity` / `1e20` — 500; to'lov `true`
+        # → 1 so'm, `"7"` matni; noma'lum usul JIMGINA "naqd"; qabul qiluvchi
+        # 101, tashuvchi 151, to'lovchi 21 belgi — 500.
+        # `Delivery`: received_by String(100), transport_carrier String(150),
+        # transport_payer String(20), transport_cost Numeric(12,2).
+        "Delivery": {
+            "order_id": ("id", False),
+            "items": ("royxat", "DeliveryItem", 1, 500),
+            "received_by": ("matn", False, 100),
+            "notes": ("matn", False, matn),
+            "transport_carrier": ("matn", False, 150),
+            "transport_cost": ("son", True, False, money),
+            "transport_payer": ("tanlov", True, _YETKAZISH_TOLOVCHI),
+            "payment_amount": ("son", True, False, money),
+            "payment_method": ("tanlov", True, _TOLOV_USULI_MIJOZ),
+            "confirm_overpay": ("bool", False),
+        },
+        "DeliveryItem": {
+            "order_item_id": ("id", False),
+            "quantity": ("son", False, True, son),
+        },
     }
 
 
@@ -2931,6 +3043,10 @@ _VAL_MAJBURIY = {
     "Payment": {"order_id": None, "amount": None},
     "GiftTier": {"gift_name": 1, "threshold_amount": None},
     "GiftPeriodOpen": {"tiers": None},
+    # 17g (2026-09-22)
+    "Return": {"order_id": None, "item_name": 1, "quantity": None, "reason": None},
+    "Delivery": {"order_id": None, "items": None},
+    "DeliveryItem": {"order_item_id": None, "quantity": None},
 }
 
 
@@ -2979,7 +3095,13 @@ def _clean_val(model: str, data) -> dict:
     if model in ("Purchase", "ReceiptItem"):
         _miq, _nar = toza.get("quantity"), toza.get("price_per_unit")
         if _miq is not None and _nar is not None:
-            if _miq * _nar > _ORDER_ITEM_MAX_MONEY:
+            # 17g: jami bazaga YAXLITLANGAN narxdan hisoblanib yoziladi
+            # (`_xarid_narx_jami`), shuning uchun sig'im ham SHU jamiga
+            # nisbatan tekshiriladi — xom ko'paytma sig'im ichida bo'lsa-da,
+            # yaxlitlangan narx bilan oshib ketishi mumkin (2 ×
+            # 4 999 999 999.995 → narx 5 000 000 000.00, jami 10 000 000 000.00).
+            if _miq * _nar > _ORDER_ITEM_MAX_MONEY or \
+                    _xarid_narx_jami(_miq, _nar)[1] > _ORDER_ITEM_MAX_MONEY:
                 raise ValueError("'quantity' × 'price_per_unit' juda katta "
                                  "(jami summa sig'imdan oshdi)")
     # 17f: 0 ruxsat etilgan, lekin hosila yozuv yaratadigan pul maydonlari —
@@ -4102,17 +4224,27 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     server o'zi tan narx/sotuv narxdan hisoblab qo'yadi."""
     import services
 
-    # M2: qaytarish FAQAT o'z korxonasining buyurtmasiga yozilishi mumkin.
-    if company_id is not None and getattr(data, 'order_id', None):
-        _o = db.query(Order).filter(Order.id == data.order_id,
-                                    Order.company_id == company_id).first()
-        if not _o:
-            raise ValueError("Buyurtma topilmadi")
+    # 17g (2026-09-22): ILDIZ — tana QAT'IY, bazaga tegishdan OLDIN (xato →
+    # `ValueError`, marshrut → 400, hech narsa yozilmaydi). HAQIQIY PostgreSQL
+    # da O'LCHANGAN (asl kod = 17f): miqdor manfiy / 0 / `1e20` — saqlanardi;
+    # `Infinity` / `NaN` — SAQLANARDI va tayyor mahsulot qoldig'ini cheksiz /
+    # "son emas" qilib qo'yardi (javob 500); summa `NaN` bazaga "NaN" bo'lib
+    # yozilardi, `Infinity` / `1e20` — 500, `0.001` → 0.00; nom / birlik
+    # sig'imdan uzun — 500; noma'lum sabab jimgina "Brak".
+    _clean_val("Return", _val_dump(data, "Return"))
 
-    try:
-        reason_enum = ReturnReason(data.reason)
-    except ValueError:
-        reason_enum = ReturnReason.DEFECT
+    # M2: qaytarish FAQAT o'z korxonasining buyurtmasiga yozilishi mumkin.
+    _oq = db.query(Order).filter(Order.id == data.order_id)
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    _o = _oq.first()
+    if not _o:
+        raise ValueError("Buyurtma topilmadi")
+
+    # 17g: sabab — faqat `models.ReturnReason` qiymatlari (yuqorida tekshirilgan).
+    # Ilgari noma'lum sabab JIMGINA "Brak" ga aylanardi (O'LCHANGAN): ombordan
+    # xomashyo yechilar, mahsulot esa omborga qaytmasdi.
+    reason_enum = ReturnReason(data.reason)
 
     order_item = None
     oi_id = getattr(data, 'order_item_id', None)
@@ -4134,7 +4266,31 @@ def create_return_item(db: Session, data: ReturnItemCreate,
             OrderItem.name == data.item_name
         ).first()
 
+    # 17g (2026-09-22): bitta qaytarishda buyurtmadagidan KO'P miqdor bo'lmaydi.
+    # `returns.html` buni faqat brauzerda tekshirardi (`order_qty_normalized`);
+    # server tekshirmasdi — HAQIQIY PostgreSQL da O'LCHANGAN: 1000 metrlik
+    # detaldan 1001 metr qaytarish 200 bilan saqlandi (omborga 1001 qo'shildi).
+    # Xabar UI dagi bilan bir xil.
+    if order_item is not None:
+        _buyurtmada = float(order_item.order_qty_normalized or 0)
+        if float(data.quantity) > _buyurtmada + 0.001:
+            raise ValueError(f"Buyurtmada {_buyurtmada:g} {order_item.delivery_unit} bor, "
+                             f"{float(data.quantity):g} qaytarib bo'lmaydi")
+
     refund_amount = float(data.refund_amount or 0)
+    # 17g: QO'LDA berilgan qaytarish summasi buyurtma qiymatidan oshmaydi —
+    # `mark_refunded` shu summani kelishilgan summadan ayiradi (0 dan pastga
+    # tushirmaydi) va AYNAN shu summada manfiy to'lov yozadi. O'LCHANGAN:
+    # 1 000 000 so'mlik buyurtmaga 9 000 000 000 so'm qaytarish saqlandi,
+    # "pul qaytarildi" belgisidan keyin kelishilgan summa 0, to'lovlar
+    # −9 000 000 000 bo'ldi. Qiymat `mark_refunded` dagi bilan bir xil ta'rif
+    # (kelishilgan, bo'lmasa jami summa). Server o'zi hisoblaydigan summa
+    # (0 berilganda) bu tekshiruvga kirmaydi.
+    if refund_amount > 0:
+        _qiymat = float(_o.agreed_amount or _o.total_amount or 0)
+        if refund_amount > _qiymat + 0.005:
+            raise ValueError(f"Qaytariladigan summa ({refund_amount:,.0f} so'm) buyurtma "
+                             f"qiymatidan ({_qiymat:,.0f} so'm) katta bo'lishi mumkin emas")
     if refund_amount <= 0 and order_item:
         ordered = order_item.order_qty_normalized
         if reason_enum == ReturnReason.DEFECT:
@@ -4427,6 +4583,35 @@ def _pul_qulfi(db: Session, ns: int, kalit) -> None:
         pass
 
 
+def _tolov_chegarasi(order, summa: float, confirm_overpay: bool) -> None:
+    """Mijoz to'lovining buyurtmaga nisbatan chegaralari — YAGONA manba (17g).
+
+    1) "3 baravar" qoidasi: summa buyurtmaning UMUMIY qiymatidan 3 baravardan
+       ko'p bo'lsa — deyarli aniq tasodifiy xato (ortiqcha nol) → `ValueError`.
+    2) Qarzdan ko'p summa — `OverpaymentWarning` (marshrut → 409, UI aniq
+       tasdiq so'raydi va `confirm_overpay: true` bilan qayta yuboradi).
+
+    17g gacha bu ikki qoida faqat `create_payment` ichida edi; yetkazishdagi
+    to'lov (`create_delivery`) `Payment` ni TO'G'RIDAN yozardi va ularni
+    chetlab o'tardi — HAQIQIY PostgreSQL da O'LCHANGAN: 1 000 000 so'mlik
+    buyurtmaga yetkazish bilan 5 000 000 so'm to'lov jimgina yozildi (qo'lda
+    to'lov yo'li xuddi shunday summani 400 bilan rad etadi), ortiqcha to'lov
+    tasdig'i ham so'ralmadi. Endi ikkala yo'l AYNAN shu funksiyani chaqiradi."""
+    order_total = float(order.total_amount or 0)
+    if order_total > 0 and float(summa) > order_total * 3:
+        raise ValueError(
+            f"Kiritilgan summa ({summa:,.0f}) buyurtma qiymatidan "
+            f"({order_total:,.0f}) juda katta — xato bo'lishi mumkin. "
+            f"Iltimos, summani tekshirib qayta kiriting."
+        )
+    current_debt = order.debt_amount
+    if float(summa) > current_debt and not confirm_overpay:
+        raise OverpaymentWarning(
+            amount=float(summa), debt=current_debt,
+            excess=float(summa) - current_debt
+        )
+
+
 def create_payment(db: Session, payment_data: PaymentCreate,
                    company_id: int = None) -> Payment:
     """Yangi to'lov qo'shish."""
@@ -4476,23 +4661,11 @@ def create_payment(db: Session, payment_data: PaymentCreate,
     # 3 baravardan ko'proq bo'lsa — bu, deyarli aniq, tasodifiy xato
     # (masalan ortiqcha nol qo'shilib ketgan). Kichik-o'rtacha ortiqcha
     # to'lovlar (mijoz qasddan ko'proq to'lasa) — bunga tegilmaydi.
-    order_total = float(order.total_amount or 0)
-    if order_total > 0 and float(payment_data.amount) > order_total * 3:
-        raise ValueError(
-            f"Kiritilgan summa ({payment_data.amount:,.0f}) buyurtma qiymatidan "
-            f"({order_total:,.0f}) juda katta — xato bo'lishi mumkin. "
-            f"Iltimos, summani tekshirib qayta kiriting."
-        )
-
     # Ortiqcha to'lov — qarzdan ko'p summa kiritilsa, aniq tasdiqlash talab qilinadi
     # (ehtiyotkorlik uchun — lekin AVANS sifatida qasddan ko'p to'lash ham mumkin,
-    # shuning uchun BUTUNLAY to'smaymiz, faqat tasdiqlashni so'raymiz)
-    current_debt = order.debt_amount
-    if float(payment_data.amount) > current_debt and not payment_data.confirm_overpay:
-        raise OverpaymentWarning(
-            amount=float(payment_data.amount), debt=current_debt,
-            excess=float(payment_data.amount) - current_debt
-        )
+    # shuning uchun BUTUNLAY to'smaymiz, faqat tasdiqlashni so'raymiz).
+    # 17g: ikkala qoida — `_tolov_chegarasi` (yetkazishdagi to'lov bilan umumiy).
+    _tolov_chegarasi(order, payment_data.amount, payment_data.confirm_overpay)
 
     # Enum ga aylantirish (yuqoridagi imzo tekshiruvi bilan bir xil mantiq)
     p_type = _pay_enum(PaymentType, payment_data.payment_type, PaymentType.PARTIAL)
@@ -5791,6 +5964,15 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
                     company_id: int = None) -> dict:
     """Yangi yetkazish qo'shadi.
     Ombor tegilmaydi — bu faqat mijozga topshirish hisobi."""
+    # 17g (2026-09-22): ILDIZ — tana QAT'IY, bazaga tegishdan OLDIN (xato →
+    # `ValueError`, hech narsa yozilmaydi). HAQIQIY PostgreSQL da O'LCHANGAN
+    # (asl kod = 17f): to'lov / transport `Infinity` / `1e20` — 500; to'lov
+    # `0.001` → 0.00 so'mlik to'lov yozuvi; noma'lum to'lovchi saqlanib
+    # transport Moliyadan tushib qolardi; noma'lum usul jimgina "naqd";
+    # uzun matnlar — 500. Marshrut ham tekshiradi; bu qatlam ichki
+    # chaqiruvchilar (`services` — "Tayyor" belgisidagi avtomatik yetkazish)
+    # uchun ham amal qiladi.
+    _clean_val("Delivery", _val_dump(data, "Delivery"))
     # M2: yetkazish FAQAT o'z korxonasining buyurtmasiga.
     _oq = db.query(Order).filter(Order.id == data.order_id)
     if company_id is not None:
@@ -5841,6 +6023,18 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     if not valid_items:
         return {"success": False, "message": "Yetkazish uchun miqdor kiritilmagan"}
 
+    # 17g (2026-09-22): shu yukka bog'liq to'lov — qo'lda to'lov
+    # (`create_payment`) bilan AYNAN bir xil chegaralar ("3 baravar" qoidasi →
+    # `ValueError`, qarzdan ko'p → `OverpaymentWarning`, marshrut → 409 va UI
+    # tasdig'i), va bu tekshiruv yetkazish YOZILISHIDAN OLDIN: rad etilsa hech
+    # narsa saqlanmaydi. Qulf — qo'lda to'lov bilan bir xil fazo (101, buyurtma),
+    # ya'ni bir vaqtda kelgan qo'lda to'lov qarzni eskirtirib qo'ymaydi.
+    payment_amount = getattr(data, 'payment_amount', None)
+    if payment_amount and payment_amount > 0:
+        _pul_qulfi(db, 101, order.id)
+        _tolov_chegarasi(order, payment_amount,
+                         bool(getattr(data, 'confirm_overpay', False)))
+
     # Yetkazish raqami: ORD-010-1/Y-2
     seq = db.query(Delivery).filter(Delivery.order_id == order.id).count() + 1
     delivery_number = f"{order.order_number}/Y-{seq}"
@@ -5884,49 +6078,45 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
         # emas, ro'yxat vaqt o'tishi bilan eski ishlar bilan to'lib ketmasin.
         order.is_pinned = False
 
-    # Shu yukka bog'liq to'lov (ixtiyoriy) — mavjud to'lov tizimidan foydalanadi
-    payment_amount = getattr(data, 'payment_amount', None)
-    payment_warning = None
+    # Shu yukka bog'liq to'lov (ixtiyoriy) — chegaralari yuqorida, yetkazish
+    # yozilishidan OLDIN tekshirilgan (`_tolov_chegarasi`).
+    # 17g (2026-09-22): to'lov yetkazish bilan BITTA tranzaksiyada (atomar)
+    # yoziladi. Ilgari bu yer `try/except` ichida edi — niyat "to'lov yozilmasa
+    # ham yetkazish saqlansin, foydalanuvchiga ogohlantirish" edi, lekin
+    # HAQIQIY PostgreSQL da O'LCHANGAN: `flush` xatosidan keyin sessiya
+    # tranzaksiyasi bekor bo'ladi va pastdagi `commit` `PendingRollbackError`
+    # beradi — ya'ni javob baribir 500, hech narsa saqlanmasdi (ogohlantirish
+    # hech qachon yetib bormasdi). Endi summa, usul va sig'im oldindan qat'iy
+    # tekshirilgani uchun bu yozuv xato bermaydi; kutilmagan baza xatosi
+    # bo'lsa — butun so'rov bekor bo'ladi (yetkazish to'lovsiz, yarim holda
+    # qolmaydi), foydalanuvchi qayta yuboradi.
     if payment_amount and payment_amount > 0:
-        try:
-            method_map = {"naqd": PaymentMethod.CASH, "plastik": PaymentMethod.CARD, "o'tkazma": PaymentMethod.TRANSFER}
-            pay_method = method_map.get(getattr(data, 'payment_method', None) or 'naqd', PaymentMethod.CASH)
-            db.add(Payment(
-                order_id=order.id,
-                delivery_id=db_delivery.id,
-                amount=payment_amount,
-                payment_type=PaymentType.PARTIAL,
-                payment_method=pay_method,
-                received_by=data.received_by,
-                notes=f"{delivery_number} yuki uchun to'lov"
-            ))
-            # MUHIM TUZATISH: avval bu yerda to'lov yozilgandan keyin
-            # buyurtmaning "To'lov holati" (payment_status) UMUMAN qayta
-            # hisoblanmasdi — chunki bu yerga to'g'ridan-to'g'ri Payment
-            # yozilardi, standart create_payment() (u har doim shu
-            # yangilashni chaqiradi) chetlab o'tilardi. Natijada, "Yuk
-            # xati" orqali to'liq to'lov qilingan buyurtmalar ham hamon
-            # "To'lanmagan" bo'lib ko'rinib qolardi (2026-08-21 zaxira
-            # tekshiruvida ORD-027-2/ORD-027-3'da aynan shu holat topildi).
-            db.flush()
-            db.refresh(order)
-            _update_order_payment_status(db, order)
-            # 17c (2026-09-21): yuk xati to'lovi loyiha "To'langan"
-            # summasini YANGILAMASDI — jonli PRJ-033 da aynan shu topildi
-            # (buyurtma to'liq to'langan, loyiha "To'langan: 0").
-            _loyiha_tolangan_yangila(db, order.project)
-        except Exception as e:
-            # Yetkazish saqlanishida davom etadi (ma'lumot yo'qolmasligi uchun),
-            # lekin xato albatta logga yoziladi va foydalanuvchiga aniq ogohlantirish qaytariladi —
-            # shunda u to'lovni QO'LDA qo'shishi mumkin (pul "yo'qolib qolmasligi" uchun).
-            try:
-                log_error(db, str(e), endpoint="create_delivery:payment_write")
-            except Exception:
-                pass
-            payment_warning = (
-                f"⚠️ Yetkazish saqlandi, LEKIN {payment_amount:,.0f} so'mlik to'lovni yozishda xato "
-                f"yuz berdi. Iltimos, to'lovni QO'LDA qo'shib qo'ying."
-            )
+        method_map = {"naqd": PaymentMethod.CASH, "plastik": PaymentMethod.CARD, "o'tkazma": PaymentMethod.TRANSFER}
+        pay_method = method_map.get(getattr(data, 'payment_method', None) or 'naqd', PaymentMethod.CASH)
+        db.add(Payment(
+            order_id=order.id,
+            delivery_id=db_delivery.id,
+            amount=payment_amount,
+            payment_type=PaymentType.PARTIAL,
+            payment_method=pay_method,
+            received_by=data.received_by,
+            notes=f"{delivery_number} yuki uchun to'lov"
+        ))
+        # MUHIM TUZATISH: avval bu yerda to'lov yozilgandan keyin
+        # buyurtmaning "To'lov holati" (payment_status) UMUMAN qayta
+        # hisoblanmasdi — chunki bu yerga to'g'ridan-to'g'ri Payment
+        # yozilardi, standart create_payment() (u har doim shu
+        # yangilashni chaqiradi) chetlab o'tilardi. Natijada, "Yuk
+        # xati" orqali to'liq to'lov qilingan buyurtmalar ham hamon
+        # "To'lanmagan" bo'lib ko'rinib qolardi (2026-08-21 zaxira
+        # tekshiruvida ORD-027-2/ORD-027-3'da aynan shu holat topildi).
+        db.flush()
+        db.refresh(order)
+        _update_order_payment_status(db, order)
+        # 17c (2026-09-21): yuk xati to'lovi loyiha "To'langan"
+        # summasini YANGILAMASDI — jonli PRJ-033 da aynan shu topildi
+        # (buyurtma to'liq to'langan, loyiha "To'langan: 0").
+        _loyiha_tolangan_yangila(db, order.project)
 
     db.commit()
     db.refresh(db_delivery)
@@ -5941,8 +6131,6 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
         "is_fully_delivered": fully,
         "order_status": order.status.value
     }
-    if payment_warning:
-        result["payment_warning"] = payment_warning
     if mrp_log:
         result["inventory_log"] = mrp_log   # 2026-09-20: MRP mahsuloti chiqdi
     return result
@@ -9456,7 +9644,9 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
     # yozuvning joriy qiymatidan olinadi. Hech narsa o'zgartirilmasdan OLDIN.
     _yangi_qty = toza.get("quantity", float(p.quantity or 0))
     _yangi_narx = toza.get("price_per_unit", float(p.price_per_unit or 0))
-    if _yangi_qty * _yangi_narx > _ORDER_ITEM_MAX_MONEY:
+    # 17g: jami YAXLITLANGAN narxdan yoziladi — sig'im ham shunga nisbatan.
+    if _yangi_qty * _yangi_narx > _ORDER_ITEM_MAX_MONEY or \
+            _xarid_narx_jami(_yangi_qty, _yangi_narx)[1] > _ORDER_ITEM_MAX_MONEY:
         raise ValueError("'quantity' × 'price_per_unit' juda katta "
                          "(jami summa sig'imdan oshdi)")
 
@@ -9470,7 +9660,10 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
     if "notes" in toza:
         p.notes = toza["notes"]
 
-    p.total_amount = float(p.quantity) * float(p.price_per_unit)
+    # 17g (2026-09-22): narx va jami bazadagidek yaxlitlanadi — jami SHU narxdan
+    # (HAQIQIY PostgreSQL da O'LCHANGAN: tahrir 7 × 0.125 → narx 0.13, jami 0.88).
+    p.price_per_unit, p.total_amount = _xarid_narx_jami(float(p.quantity),
+                                                        float(p.price_per_unit))
 
     # 3) Ombor — FAQAT miqdor farqi (narx emas)
     farq = float(p.quantity) - eski_qty
@@ -9553,8 +9746,25 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
 
 
 def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None,
-                            company_id: int = None) -> SupplierPayment:
-    """Yetkazib beruvchiga to'lov — bir nechta xaridni birdaniga yopishi mumkin."""
+                            company_id: int = None, ichki: bool = False) -> SupplierPayment:
+    """Yetkazib beruvchiga to'lov — bir nechta xaridni birdaniga yopishi mumkin.
+
+    `ichki=True` (17g, 2026-09-22) — xarid marshruti (`POST /api/inventory/
+    {id}/purchase`) "hoziroq to'langan" qismni XARID BILAN BIRGA yozganda.
+    Bu holda takror-yuborish himoyasi va ortiqcha to'lov ogohlantirishi
+    QO'LLANILMAYDI, chunki:
+      * xarid o'zi allaqachon saqlangan (marshrut to'lovni xarid COMMIT
+        qilingandan KEYIN yozadi) — O'LCHANGAN (kech23): 8 s ichida shu
+        ta'minotchiga shu summada qo'lda to'lov bo'lsa, xarid 200 qaytarardi,
+        lekin uning to'lovi YARATILMASDI (xarid to'liq nasiya bo'lib qolardi,
+        qarz ortiqcha ko'rinardi);
+      * summa marshrutda shu xarid jamisi bilan cheklangan (`min(paid_now,
+        jami)`), ya'ni bu "ortiqcha to'lov" bo'lishi mumkin emas; qarz esa
+        (`get_supplier_debt`) butun so'mga yaxlitlanadi va avans holatida 0 dan
+        pastga tushmaydi — ogohlantirish bu yerda 409 emas, xarid saqlangandan
+        keyingi 500 (yarim saqlanish) bo'lardi.
+    Kirim hujjati (`create_inventory_receipt`) o'z to'lovini xuddi shu sabab
+    bilan to'g'ridan yozadi. Tana va korxona tekshiruvi ikkala holda ham bor."""
     # 17c (2026-09-21): ILDIZ tekshiruvi — pydantic `Field(gt=0)` cheksizlik
     # (`Infinity`, ortiqcha to'lov tasdig'i bilan SAQLANARDI va ta'minotchilar
     # hamda qarzdorlar sahifalarini buzardi), `true` (→ 1 so'm), `"5000"`
@@ -9569,27 +9779,28 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
     # ── TAKROR YUBORISH HIMOYASI (buyurtma to'lovi bilan bir xil) ──────
     _pul_qulfi(db, 102, data.supplier_id)
 
-    # TENANT: yuqoridagi bilan bir xil sabab — ta'minotchi korxonasi
-    # SHU FUNKSIYANING BOSHIDA tekshirilgan (mos kelmasa 404), shuning
-    # uchun bu supplier_id faqat shu korxonaniki bo'lishi mumkin.
-    from datetime import timedelta as _td_sp
-    _summa_sp = round(float(data.amount or 0), 2)
-    _oldingi_sp = db.query(SupplierPayment).filter(
-        SupplierPayment.supplier_id == data.supplier_id,
-        SupplierPayment.amount == _summa_sp,
-        SupplierPayment.paid_at >= datetime.utcnow() - _td_sp(seconds=PUL_TAKROR_SONIYA),
-    ).order_by(SupplierPayment.paid_at.desc()).first()
-    if _oldingi_sp is not None:
-        _oldingi_sp._is_duplicate_submit = True
-        return _oldingi_sp
+    if not ichki:
+        # TENANT: yuqoridagi bilan bir xil sabab — ta'minotchi korxonasi
+        # SHU FUNKSIYANING BOSHIDA tekshirilgan (mos kelmasa 404), shuning
+        # uchun bu supplier_id faqat shu korxonaniki bo'lishi mumkin.
+        from datetime import timedelta as _td_sp
+        _summa_sp = round(float(data.amount or 0), 2)
+        _oldingi_sp = db.query(SupplierPayment).filter(
+            SupplierPayment.supplier_id == data.supplier_id,
+            SupplierPayment.amount == _summa_sp,
+            SupplierPayment.paid_at >= datetime.utcnow() - _td_sp(seconds=PUL_TAKROR_SONIYA),
+        ).order_by(SupplierPayment.paid_at.desc()).first()
+        if _oldingi_sp is not None:
+            _oldingi_sp._is_duplicate_submit = True
+            return _oldingi_sp
 
-    debt_info = get_supplier_debt(db, data.supplier_id, company_id=company_id)
-    current_debt = debt_info["debt"]
-    if float(data.amount) > current_debt and not data.confirm_overpay:
-        raise OverpaymentWarning(
-            amount=float(data.amount), debt=current_debt,
-            excess=float(data.amount) - current_debt
-        )
+        debt_info = get_supplier_debt(db, data.supplier_id, company_id=company_id)
+        current_debt = debt_info["debt"]
+        if float(data.amount) > current_debt and not data.confirm_overpay:
+            raise OverpaymentWarning(
+                amount=float(data.amount), debt=current_debt,
+                excess=float(data.amount) - current_debt
+            )
 
     p = SupplierPayment(
         supplier_id=data.supplier_id,
