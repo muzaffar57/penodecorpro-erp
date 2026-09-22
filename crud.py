@@ -7361,7 +7361,10 @@ def get_finished_products(db: Session, source: Optional[str] = None, only_availa
             pass
     if only_available:
         q = q.filter(FinishedProduct.quantity > 0)
-    return q.order_by(FinishedProduct.source, FinishedProduct.name).all()
+    # kech35 (15-band, jonli O'LCHANGAN kech28): nomi bir xil mahsulotlar orasida
+    # tartib aniqlanmagan edi (PG da UPDATE dan keyin o'rin almashardi) —
+    # `id` uchinchi (qidiruvda ikkinchi) kalit: tartib doim barqaror.
+    return q.order_by(FinishedProduct.source, FinishedProduct.name, FinishedProduct.id).all()
 
 
 def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: bool = False,
@@ -7383,14 +7386,17 @@ def get_finished_products_for_main_page(db: Session, days: int = 90, show_all: b
         base = base.filter(FinishedProduct.company_id == company_id)
 
     if show_all:
-        return base.order_by(FinishedProduct.source, FinishedProduct.name).all()
+        # kech35 (15-band, jonli O'LCHANGAN kech28): nomi bir xil mahsulotlar orasida
+        # tartib aniqlanmagan edi (PG da UPDATE dan keyin o'rin almashardi) —
+        # `id` uchinchi (qidiruvda ikkinchi) kalit: tartib doim barqaror.
+        return base.order_by(FinishedProduct.source, FinishedProduct.name, FinishedProduct.id).all()
 
     cutoff = datetime.utcnow() - timedelta(days=days)
     return base.filter(
         (FinishedProduct.created_at >= cutoff) |
         (FinishedProduct.quantity > 0) |
         (FinishedProduct.production_status == ProductionStatus.IN_PROGRESS)
-    ).order_by(FinishedProduct.source, FinishedProduct.name).all()
+    ).order_by(FinishedProduct.source, FinishedProduct.name, FinishedProduct.id).all()
 
 
 def update_finished_product(db: Session, fp_id: int, data: dict,
@@ -7660,7 +7666,10 @@ def search_finished_products(db: Session, query: str, category: str = None, excl
     elif exclude_category:
         filters.append(FinishedProduct.category != exclude_category)
 
-    items = db.query(FinishedProduct).filter(*filters).order_by(FinishedProduct.name).limit(10).all()
+    # kech35 (15-band, jonli O'LCHANGAN kech28): nomi bir xil mahsulotlar orasida
+    # tartib aniqlanmagan edi (PG da UPDATE dan keyin o'rin almashardi) —
+    # `id` uchinchi (qidiruvda ikkinchi) kalit: tartib doim barqaror.
+    items = db.query(FinishedProduct).filter(*filters).order_by(FinishedProduct.name, FinishedProduct.id).limit(10).all()
 
     result = []
     for fp in items:
