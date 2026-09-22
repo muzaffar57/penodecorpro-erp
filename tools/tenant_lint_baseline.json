@@ -117,9 +117,6 @@
   "services.py:4058 db.query(Inventory) — korxona filtri yo'q (funksiya: return_loy_ingredients) │ inv_item = db.query(Inventory).filter(",
   "services.py:4487 db.query(EmployeeMonthlyAdjustment) — korxona filtri yo'q (funksiya: calculate_monthly_employee_pay) │ adj = db.query(EmployeeMonthlyAdjustment).filter(",
   "services.py:4553 db.query(EmployeeAdvance) — korxona filtri yo'q (funksiya: get_employee_advances_list) │ rows = db.query(EmployeeAdvance).filter(",
-  "services.py:59 db.query(Inventory) — korxona filtri yo'q (funksiya: process_cutting) │ penoplast = db.query(Inventory).filter(",
-  "services.py:813 db.query(Order) — korxona filtri yo'q (funksiya: close_employee_debt) │ due_today = db.query(Order).filter(",
-  "services.py:821 db.query(Inventory) — korxona filtri yo'q (funksiya: close_employee_debt) │ low_count = db.query(Inventory).filter(",
-  "services.py:827 db.query(Project) — korxona filtri yo'q (funksiya: close_employee_debt) │ completed_today = db.query(Project).filter("
+  "services.py:59 db.query(Inventory) — korxona filtri yo'q (funksiya: process_cutting) │ penoplast = db.query(Inventory).filter("
  ]
 }
