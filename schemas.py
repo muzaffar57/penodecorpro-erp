@@ -623,7 +623,10 @@ class DeliveryCreate(BaseModel):
     qabul qiluvchi 101, tashuvchi 151, to'lovchi 21 belgi — 500.
     `confirm_overpay` — qarzdan ko'p to'lov uchun aniq tasdiq (409 dan keyin)."""
     order_id: int = Field(..., ge=1, le=2_147_483_647, strict=True)
-    items: List[DeliveryItemCreate] = Field(default_factory=list, max_length=500)
+    # kech25: 500 edi — 501 detalli buyurtmaning "Tayyor" belgisi (servis
+    # shu sxemani tuzadi) 500 xato berardi (O'LCHANGAN). Chegara crud qoidasi
+    # bilan bir xil.
+    items: List[DeliveryItemCreate] = Field(default_factory=list, max_length=100_000)
     received_by: Optional[str] = Field(default=None, max_length=100)
     notes: Optional[str] = Field(default=None, max_length=10_000)
     transport_carrier: Optional[str] = Field(default=None, max_length=150)

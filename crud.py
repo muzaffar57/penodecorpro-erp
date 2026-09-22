@@ -3001,7 +3001,14 @@ def _val_rules():
         # transport_payer String(20), transport_cost Numeric(12,2).
         "Delivery": {
             "order_id": ("id", False),
-            "items": ("royxat", "DeliveryItem", 1, 500),
+            # kech25: chegara 500 edi — O'LCHANGAN: 501 detalli buyurtmada
+            # "Tayyor" belgisi (servisdagi avtomatik yetkazish) 500 xato,
+            # "bir yo'la to'liq topshirish" 400 berardi (17f da ishlardi;
+            # buyurtma detallari soni cheklanmagan). Bir detal ikki marta
+            # berilmagani uchun (pastda) haqiqiy yetkazish qatorlari soni
+            # buyurtma detallari sonidan oshmaydi; bu chegara faqat
+            # bema'ni tanaga qarshi.
+            "items": ("royxat", "DeliveryItem", 1, 100_000),
             "received_by": ("matn", False, 100),
             "notes": ("matn", False, matn),
             "transport_carrier": ("matn", False, 150),
@@ -3050,7 +3057,8 @@ _VAL_MAJBURIY = {
 }
 
 
-def _takror_material_yoq(qatorlar, kalit: str, ro_yxat_nomi: str):
+def _takror_material_yoq(qatorlar, kalit: str, ro_yxat_nomi: str,
+                         nima: str = "material"):
     """17b (2026-09-21): bitta materialni ro'yxatda IKKI MARTA ko'rsatishni
     rad etadi.
 
@@ -3066,7 +3074,7 @@ def _takror_material_yoq(qatorlar, kalit: str, ro_yxat_nomi: str):
     for i, q in enumerate(qatorlar):
         v = q.get(kalit) if isinstance(q, dict) else getattr(q, kalit, None)
         if v in korilgan:
-            raise ValueError(f"'{ro_yxat_nomi}' {i + 1}-qator: bu material "
+            raise ValueError(f"'{ro_yxat_nomi}' {i + 1}-qator: bu {nima} "
                              f"ro'yxatda allaqachon bor")
         korilgan.add(v)
 
@@ -3088,6 +3096,16 @@ def _clean_val(model: str, data) -> dict:
     if model == "RecipeBody":
         _takror_material_yoq(toza.get("ingredients") or [], "inventory_id",
                              "ingredients")
+    # 17g (kech25, 2026-09-22): yetkazishda BIR detal ikki qatorda bo'lmasin.
+    # O'LCHANGAN (asl kod = 17f va 17g WIP): 10 metrlik detal [6, 6] qatorlar
+    # bilan berilganda 200 qaytib, 12 metr topshirilgan deb yozilardi —
+    # `create_delivery` har qatorni detalning bazadagi qoldig'i bilan ALOHIDA
+    # solishtiradi (shu so'rovdagi boshqa qatorlarni hisobga olmaydi).
+    # `orders.html` har detalni bir marta yuboradi; servis ("Tayyor")
+    # ham har detal uchun bitta qator tuzadi.
+    if model == "Delivery":
+        _takror_material_yoq(toza.get("items") or [], "order_item_id", "items",
+                             nima="detal")
     # 17b: miqdor va narx ALOHIDA chegaradan o'tsa ham, KO'PAYTMASI
     # `InventoryPurchase.total_amount` (Numeric(12,2)) sig'imidan oshishi
     # mumkin (o'lchandi: 1e9 × 1e6 = 1e15 → 200, PostgreSQL da COMMIT da
@@ -4265,17 +4283,24 @@ def create_return_item(db: Session, data: ReturnItemCreate,
             OrderItem.order_id == data.order_id,
             OrderItem.name == data.item_name
         ).first()
+    # 17g (kech25, 2026-09-22): qaytarish FAQAT buyurtmadagi detalga yoziladi.
+    # O'LCHANGAN (asl kod = 17f va 17g WIP): detal ID siz, buyurtmada YO'Q nom
+    # bilan (`"item_name": "boshqa"`) istalgan miqdor (999 999) 200 bilan
+    # saqlanardi — miqdor chegarasi, summa hisobi va omborga qaytarish faqat
+    # detal topilganda ishlaydi, ya'ni bunday yozuv hech narsaga tayanmasdi.
+    # `returns.html` (qaytarish va brak oynalari) doim `order_item_id` yuboradi.
+    if order_item is None:
+        raise ValueError("Buyurtma detali topilmadi")
 
     # 17g (2026-09-22): bitta qaytarishda buyurtmadagidan KO'P miqdor bo'lmaydi.
     # `returns.html` buni faqat brauzerda tekshirardi (`order_qty_normalized`);
     # server tekshirmasdi — HAQIQIY PostgreSQL da O'LCHANGAN: 1000 metrlik
     # detaldan 1001 metr qaytarish 200 bilan saqlandi (omborga 1001 qo'shildi).
     # Xabar UI dagi bilan bir xil.
-    if order_item is not None:
-        _buyurtmada = float(order_item.order_qty_normalized or 0)
-        if float(data.quantity) > _buyurtmada + 0.001:
-            raise ValueError(f"Buyurtmada {_buyurtmada:g} {order_item.delivery_unit} bor, "
-                             f"{float(data.quantity):g} qaytarib bo'lmaydi")
+    _buyurtmada = float(order_item.order_qty_normalized or 0)
+    if float(data.quantity) > _buyurtmada + 0.001:
+        raise ValueError(f"Buyurtmada {_buyurtmada:g} {order_item.delivery_unit} bor, "
+                         f"{float(data.quantity):g} qaytarib bo'lmaydi")
 
     refund_amount = float(data.refund_amount or 0)
     # 17g: QO'LDA berilgan qaytarish summasi buyurtma qiymatidan oshmaydi —
@@ -4286,9 +4311,21 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     # −9 000 000 000 bo'ldi. Qiymat `mark_refunded` dagi bilan bir xil ta'rif
     # (kelishilgan, bo'lmasa jami summa). Server o'zi hisoblaydigan summa
     # (0 berilganda) bu tekshiruvga kirmaydi.
+    # kech25 (2026-09-22) — chegara `returns.html` summasini rad etmasligi
+    # SHART (hodimda summa maydoni yashirin — uni tuzatib bo'lmaydi). UI summasi
+    # = Math.round(miqdor × 1 birlik narxi), narx esa detal jamisidan BUTUN
+    # so'mga yaxlitlangan va CHEGIRMASIZ (`price_per_unit_final`). O'LCHANGAN
+    # (17g WIP): chegirmali buyurtmada (kelishilgan 900 000, jami 1 000 000)
+    # butun qaytarish 1 000 000 → 400; 6 × 166 666.67 (jami 1 000 000.02) → UI
+    # 6 × 166 667 = 1 000 002 → 400. Shuning uchun chegara — kelishilgan va
+    # jami summaning KATTASI, ustiga birlik narxini yaxlitlash farqi (har
+    # birlikka 0.5 so'm + oxirgi yaxlitlash 0.5). Bema'ni summa (9e9) baribir
+    # rad etiladi. Chegirmali buyurtmada qaytarish qiymatini qanday hisoblash
+    # (chegirmasiz yoki chegirmali narx) — alohida BIZNES masalasi, bu yerda
+    # o'zgartirilmaydi.
     if refund_amount > 0:
-        _qiymat = float(_o.agreed_amount or _o.total_amount or 0)
-        if refund_amount > _qiymat + 0.005:
+        _qiymat = max(float(_o.agreed_amount or 0), float(_o.total_amount or 0))
+        if refund_amount > _qiymat + 0.5 * float(data.quantity) + 0.5:
             raise ValueError(f"Qaytariladigan summa ({refund_amount:,.0f} so'm) buyurtma "
                              f"qiymatidan ({_qiymat:,.0f} so'm) katta bo'lishi mumkin emas")
     if refund_amount <= 0 and order_item:
