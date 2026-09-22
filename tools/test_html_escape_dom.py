@@ -784,6 +784,52 @@ def main_ish():
           rr.status_code == 200 and "class=xp" in rr.text, rr.text[:160])
 
     # ─────────────────────────────────────────────────────────
+    section("2b. H2: server shablonidagi onclick JS satrlari uchun maxsus qiymatlar (kech32)")
+    # H2 (kech31 topilma, kech32 da jonli saytda O'LCHANGAN): Jinja autoescape `'` ni `&#39;`
+    # qiladi, brauzer atributni o'qiyotganda uni qaytaradi — `onclick="f('{{ x }}')"` da qiymat JS
+    # satridan chiqib KOD BAJARADI; `|replace("'", "\\'")` esa `\` bilan aylanib o'tiladi. Bunda DOM
+    # tuguni yaratilmaydi — 5-bo'lim ko'rmaydi. Shuning uchun maxsus qiymatlar (`\`, `'`, `"`, `&amp;`,
+    # `</script>`, yangi qator) yoziladi va 6-bo'limda tugma BOSILADI: chaqirilgan funksiya AYNAN
+    # bazadagi qiymatni olishi va `__h2*` o'zgaruvchisi paydo bo'lmasligi SHART.
+    # Qatorlar belgilashdan (2-bo'lim) KEYIN yaratiladi — belgili qatorlar o'z holicha qoladi.
+    H2N = "Qo'rg'oshin \\');__h2n=1;// \"A\" &amp; </script>\n2-qator"
+    H2U = "\\');__h2u=1;//&amp;"
+    H2I = "/static/x');__h2i=1;//\"&amp;.png"
+    H2P = "Loyiha \\');__h2p=1;// \"B\" &amp;"
+    H2E = "Hodim \\');__h2e=1;// &amp;\n2"
+    H2L = "u\\');__h2l=1;//&amp;"
+    db = SessionLocal()
+    with contextlib.redirect_stdout(_quiet):
+        inv_h2 = crud.add_item(db, schemas.InventoryCreate(
+            item_name="DOM H2 material", unit="kg", stock_quantity=10, price_per_unit=1000,
+            category="kimyo"), company_id=1)
+        p_h2 = crud.create_project(db, schemas.ProjectCreate(
+            project_name="DOM H2 loyiha", client_name="DOM H2 mijoz"), company_id=1)
+        e_h2 = crud.create_employee(db, schemas.EmployeeCreate(
+            name="DOM H2 hodim", position="Usta", pay_type="fixed", fixed_amount=1000), company_id=1)
+    h2 = dict(inv=inv_h2.id, prj=p_h2.id, prj_num=p_h2.project_number, emp=e_h2.id)
+    db.close()
+    with engine.begin() as con:
+        ti = Base.metadata.tables["inventory"]
+        tp = Base.metadata.tables["projects"]
+        te = Base.metadata.tables["employees"]
+        tu = Base.metadata.tables["users"]
+        con.execute(ti.update().where(ti.c.id == h2["inv"]).values(item_name=H2N, unit=H2U, image_url=H2I))
+        con.execute(tp.update().where(tp.c.id == h2["prj"]).values(project_name=H2P, is_deleted=True))
+        con.execute(te.update().where(te.c.id == h2["emp"]).values(name=H2E, is_deleted=True))
+        uid = con.execute(select(tu.c.id).where(tu.c.username != ADMIN_LOGIN).order_by(tu.c.id)).first()[0]
+        con.execute(tu.update().where(tu.c.id == uid).values(username=H2L))
+        h2["user"] = uid
+        bazada = (
+            tuple(con.execute(select(ti.c.item_name, ti.c.unit, ti.c.image_url).where(ti.c.id == h2["inv"])).first()),
+            con.execute(select(tp.c.project_name).where(tp.c.id == h2["prj"])).scalar(),
+            con.execute(select(te.c.name).where(te.c.id == h2["emp"])).scalar(),
+            con.execute(select(tu.c.username).where(tu.c.id == uid)).scalar(),
+        )
+    check("H2 qiymatlari bazada AYNAN (material nomi / birligi / rasmi, loyiha, hodim, login)",
+          bazada == ((H2N, H2U, H2I), H2P, H2E, H2L), repr(bazada)[:300])
+
+    # ─────────────────────────────────────────────────────────
     section("3. Lokal server + jsdom")
     node = shutil.which("node")
     check("node topildi", node is not None)
@@ -826,7 +872,14 @@ def main_ish():
                           "top-products", "top-materials")],
             "/orders": [f"openProject({ids['p1']})", f"await loadOrderItems({ids['o1']})",
                         f"await loadDeliveries({ids['o1']})", f"await loadPayments({ids['o1']})",
-                        f"await loadOrderAttachments({ids['o1']})"],
+                        f"await loadOrderAttachments({ids['o1']})",
+                        # kech32 (E guruhi): server rad javobi / tekshiruv matnlarini ko'rsatadigan
+                        # oynalar belgini HTML sifatida chizmasligi SHART (5-bo'lim yig'adi).
+                        f"showStockShortageModal([{json.dumps(chr(39) + chr(34) + '><i class=xp901>')}], {{}}, false, 0, 'naqd')",
+                        f"showValidationModal([{{text: {json.dumps(chr(39) + chr(34) + '><i class=xp902>')}, targetId: 'x'}}])",
+                        f"showConfirmModal({json.dumps(chr(39) + chr(34) + '><i class=xp903>')})",
+                        f"showPromptModal({json.dumps(chr(39) + chr(34) + '><i class=xp904>')}, "
+                        f"{json.dumps(chr(39) + chr(34) + '><i class=xp905>')})"],
         }
         # 6-bo'lim: sahifa ichidagi mantiqiy tekshiruvlar (ifoda `true` qaytarishi SHART).
         # /reports: jadval ustunlari endi escapeHtml bilan qaytadi; saralash kaliti
@@ -841,6 +894,44 @@ def main_ish():
                  "return extractSortValue('<span>' + escapeHtml(s) + '</span>').val === s.toLowerCase();"),
             ],
         }
+
+        # kech32 — H2 tugmalari: `bos(tanlovchi, funksiya, ...kutilgan)` tugmani bosadi, funksiyani
+        # vaqtincha almashtirib argumentlarini oladi; `kutilgan` — [argument indeksi, qiymat] juftlari.
+        # Eski kodda: qiymat JS satridan chiqadi (`__h2*` paydo bo'ladi) yoki SyntaxError (argument yo'q).
+        def bos(tanlovchi, fn, kutilgan):
+            return (f"const el = {tanlovchi}; if (!el) return 'element topilmadi'; "
+                    f"let got = null; const asl = window.{fn}; window.{fn} = (...a) => {{ got = a; }}; "
+                    "for (const k of ['__h2n','__h2u','__h2i','__h2p','__h2e','__h2l']) delete window[k]; "
+                    f"try {{ el.click(); }} finally {{ window.{fn} = asl; }} "
+                    "const bajarildi = ['__h2n','__h2u','__h2i','__h2p','__h2e','__h2l'].filter(k => k in window); "
+                    f"const K = {json.dumps(kutilgan)}; "
+                    "const ok = !!got && !bajarildi.length && K.every(([i, v]) => got[i] === v); "
+                    "return ok || JSON.stringify({got, bajarildi});")
+        tekshiruvlar["/inventory"] = [
+            ("H2: Chiqim tugmasi — nom va birlik AYNAN, kod bajarilmaydi",
+             bos(f"document.querySelector('button[onclick*=\"openChiqimModal({h2['inv']},\"]')",
+                 "openChiqimModal", [[0, h2["inv"]], [1, H2N], [2, H2U]])),
+            ("H2: Chegara tugmasi — birlik AYNAN, kod bajarilmaydi",
+             bos(f"document.querySelector('button[onclick*=\"editMinStock({h2['inv']},\"]')",
+                 "editMinStock", [[0, h2["inv"]], [2, H2U]])),
+            ("H2: rasm — lightbox manzili AYNAN, kod bajarilmaydi",
+             bos(f"[...document.querySelectorAll('img[onclick*=\"openInvLightbox\"]')]"
+                 f".find(i => i.getAttribute('src') === {json.dumps(H2I)})",
+                 "openInvLightbox", [[0, H2I]])),
+        ]
+        tekshiruvlar["/users"] = [
+            ("H2: Parol tugmasi — login AYNAN, kod bajarilmaydi",
+             bos(f"document.querySelector('button[onclick*=\"changePass({h2['user']},\"]')",
+                 "changePass", [[0, h2["user"]], [1, H2L]])),
+        ]
+        tekshiruvlar["/trash"] = [
+            ("H2: loyihani butunlay o'chirish — nom AYNAN, kod bajarilmaydi",
+             bos(f"document.querySelector('button[onclick*=\"permanentDelete(\\'project\\', {h2['prj']},\"]')",
+                 "permanentDelete", [[0, "project"], [1, h2["prj"]], [2, f"{h2['prj_num']} — {H2P}"]])),
+            ("H2: hodimni butunlay o'chirish — ism AYNAN, kod bajarilmaydi",
+             bos(f"document.querySelector('button[onclick*=\"permanentDelete(\\'employee\\', {h2['emp']},\"]')",
+                 "permanentDelete", [[0, "employee"], [1, h2["emp"]], [2, H2E]])),
+        ]
         # DOM_SAHIFALAR=/reports,/dashboard — faqat shu sahifalar (nuqtali mutatsiya
         # ishlarini tezlatish uchun). Oddiy ishda (hammasi.sh) O'RNATILMAYDI.
         faqat = [x.strip() for x in os.environ.get("DOM_SAHIFALAR", "").split(",") if x.strip()]
