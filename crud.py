@@ -2018,6 +2018,40 @@ _ORDER_ITEM_UPDATE_FIELDS = {
 }
 # Bazadagi Numeric(12,2) sig'imi — schemas.OrderItemCreate dagi bilan bir xil.
 _ORDER_ITEM_MAX_MONEY = 9_999_999_999.99
+# 17f (2026-09-22): Numeric(12,2) ustunidagi ENG KICHIK musbat qiymat — 1 tiyin.
+# HAQIQIY PostgreSQL 16 da O'LCHANGAN (`work/probe17f_pg.py`): musbat bo'lishi
+# SHART bo'lgan 12 ta pul yo'lining HAMMASI `0.001` ni 200 bilan qabul qilardi,
+# baza esa uni 0.00 ga yaxlitlardi — ya'ni "musbat" qoidasi jimgina buzilardi:
+# 0 so'mlik xarajat / avans / ta'minotchiga to'lov / mijoz to'lovi / transport,
+# 0 so'mlik oylik majburiyat va sovg'a bosqichi, 1 tiyinlik xarid jami bilan
+# 0 so'mlik narx, kelishilgan summa 0 (chegirma 100 %, qarz esa JAMI summadan —
+# 17e aynan to'sgan ikki talqin). SQLite yaxlitlamaydi, shuning uchun lokal
+# testlar buni ko'rmasdi. Qoida: `chegara` = pul sig'imi bo'lgan (ya'ni 2 xonali
+# pul ustuniga yoziladigan) MUSBAT son 2 xonagacha yaxlitlanganda ham kamida
+# 1 tiyin bo'lsin. Manfiy bo'lmasligi kifoya qiladigan (0 ruxsat) maydonlarga
+# tegilmaydi — ular uchun 0.00 ga yaxlitlanish qonuniy qiymat.
+_PUL_ENG_KAM = 0.01
+# 17f (2026-09-22) — 0 RUXSAT etilgan, lekin 0 dan katta bo'lsa HOSILA yozuv
+# yaratadigan pul maydonlari: 0 yoki kamida 1 tiyin. HAQIQIY PostgreSQL 16 da
+# O'LCHANGAN (`work/probe17f_hosila.py`):
+#   * xarid (`POST /api/inventory/{id}/purchase`) `paid_now: 0.001` — 17e da
+#     0.00 so'mlik ta'minotchiga to'lov yozilardi; ta'minotchi to'lovi ildizi
+#     17f da qat'iy bo'lgach esa xarid SAQLANIB (ombor +miqdor), keyin 500
+#     chiqardi (to'lov yozilmay qolardi — YARIM saqlanish), chunki marshrut
+#     to'lovni xarid COMMIT qilingandan KEYIN yozadi; `transport_payer: self`
+#     bilan `transport_cost: 0.001` — 0.00 so'mlik kirish transporti (transport
+#     ildizi qat'iy bo'lgach — xuddi shu yarim saqlanish bo'lardi);
+#   * kirim hujjati (`POST /api/inventory/receipt`) transport / tushirish /
+#     yuklash / boshqa xarajat `0.001` — Moliyada 0.00 so'mlik xarajat,
+#     `paid_now: 0.001` — 0.00 so'mlik ta'minotchiga to'lov.
+# Tana tekshiruvi har qanday yozuvdan OLDIN ishlaydi, shuning uchun bu yerda
+# to'sish yarim saqlanishni ham, 0 so'mlik hosila yozuvni ham yo'q qiladi.
+# Aniq 0 — ruxsat (to'lov / xarajat yo'q degani).
+_NOL_YOKI_TIYIN = {
+    "Purchase": ("paid_now", "transport_cost"),
+    "Receipt": ("paid_now", "transport_cost", "tushirish_cost", "yuklash_cost",
+                "boshqa_cost"),
+}
 
 
 def _json_son(key, value, bosh_mumkin, musbat, chegara=None):
@@ -2044,6 +2078,10 @@ def _json_son(key, value, bosh_mumkin, musbat, chegara=None):
         raise ValueError(f"'{key}' manfiy bo'lishi mumkin emas")
     if chegara is not None and v > chegara:
         raise ValueError(f"'{key}' juda katta")
+    # 17f: 2 xonali pul ustuniga yoziladigan MUSBAT son 0.00 ga aylanmasin.
+    if musbat and chegara == _ORDER_ITEM_MAX_MONEY and round(v, 2) < _PUL_ENG_KAM:
+        raise ValueError(f"'{key}' kamida {_PUL_ENG_KAM} bo'lishi kerak "
+                         "(1 tiyindan kichik summa bazada 0 ga aylanadi)")
     return v
 
 
@@ -2648,6 +2686,12 @@ _TRANSPORT_TOLOVCHI = {"none": "none", "self": "self", "supplier": "supplier"}
 # hisobotdan JIMGINA tushib qolardi.
 _ISHLAB_CHIQARISH_TURI = {"umumiy": "umumiy", "penoplast": "penoplast",
                           "gips": "gips"}
+# 17f (2026-09-22) — mijoz to'lovi tanlovlari: `models.PaymentType` va
+# `models.PaymentMethod` qiymatlari (`orders.html` to'lov oynasidagi
+# `pf-type` / `pf-method` va zaklat usuli AYNAN shular). Tayyor mahsulot
+# sotuvining `_TOLOV_USULI` (naqd/karta/bank) — BOSHQA ro'yxat.
+_TOLOV_TURI = {"zaklat": "zaklat", "partial": "partial", "final": "final"}
+_TOLOV_USULI_MIJOZ = {"naqd": "naqd", "plastik": "plastik", "o'tkazma": "o'tkazma"}
 
 # ── 17e (2026-09-22): kunlik xarajat va kelishilgan summa ───────────────
 # O'LCHANGAN (`work/probe17e.py`, har prob alohida toza bazada, asl kod =
@@ -2823,6 +2867,42 @@ def _val_rules():
         "OrderAgreed": {
             "agreed_amount": ("son", False, True, money),
         },
+
+        # ── 17f (2026-09-22) ──
+        # Kirish transporti (`POST /api/transport-expenses`). Hech bir sahifa
+        # bu marshrutga YOZMAYDI (faqat API) — shuning uchun qoidalar ustunlardan:
+        # amount Numeric(12,2), materials_note String(255), notes Text,
+        # production_type String(20) (kunlik xarajat bilan bir xil tanlov).
+        "TransportExpense": {
+            "amount": ("son", False, True, money),
+            "materials_note": ("matn", False, 255),
+            "notes": ("matn", False, matn),
+            "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+        },
+        # Mijoz to'lovi (`POST /api/payments`) — `orders.html` (to'lov oynasi
+        # va zaklat), `debts.html` (qarzni yopish) AYNAN shu kalitlarni
+        # yuboradi. Ilgari noto'g'ri `payment_type` / `payment_method` JIMGINA
+        # "partial" / "naqd" ga aylanardi, `true` → 1 so'mlik to'lov,
+        # `"5"` → 5 so'm, `order_id: true` → 1-buyurtma; PostgreSQL da
+        # `Infinity` / `1e20` takror-tekshiruv so'rovida 500 (O'LCHANGAN).
+        "Payment": {
+            "order_id": ("id", False),
+            "amount": ("son", False, True, money),
+            "payment_type": ("tanlov", True, _TOLOV_TURI),
+            "payment_method": ("tanlov", True, _TOLOV_USULI_MIJOZ),
+            "received_by": ("matn", False, 100),
+            "notes": ("matn", False, matn),
+            "confirm_overpay": ("bool", False),
+        },
+        # Sovg'a davri bosqichi (`kpi.html` — faqat shu ikki kalit).
+        # `gift_period_tiers.gift_name` String(100), threshold Numeric(12,2).
+        "GiftTier": {
+            "gift_name": ("matn", True, 100),
+            "threshold_amount": ("son", False, True, money),
+        },
+        "GiftPeriodOpen": {
+            "tiers": ("royxat", "GiftTier", 1, 50),
+        },
     }
 
 
@@ -2846,6 +2926,11 @@ _VAL_MAJBURIY = {
     # 17e (2026-09-22)
     "ExpenseTransaction": {"category": 1, "amount": None},
     "OrderAgreed": {"agreed_amount": None},
+    # 17f (2026-09-22)
+    "TransportExpense": {"amount": None},
+    "Payment": {"order_id": None, "amount": None},
+    "GiftTier": {"gift_name": 1, "threshold_amount": None},
+    "GiftPeriodOpen": {"tiers": None},
 }
 
 
@@ -2897,6 +2982,13 @@ def _clean_val(model: str, data) -> dict:
             if _miq * _nar > _ORDER_ITEM_MAX_MONEY:
                 raise ValueError("'quantity' × 'price_per_unit' juda katta "
                                  "(jami summa sig'imdan oshdi)")
+    # 17f: 0 ruxsat etilgan, lekin hosila yozuv yaratadigan pul maydonlari —
+    # 0 yoki kamida 1 tiyin (sababi `_NOL_YOKI_TIYIN` izohida).
+    for _nk in _NOL_YOKI_TIYIN.get(model, ()):
+        _nv = toza.get(_nk)
+        if _nv is not None and _nv > 0 and round(_nv, 2) < _PUL_ENG_KAM:
+            raise ValueError(f"'{_nk}' 0 yoki kamida {_PUL_ENG_KAM} bo'lishi kerak "
+                             "(1 tiyindan kichik summa bazada 0 ga aylanadi)")
     # 17b: "sana" qoidasi matnni `datetime` ga o'giradi, lekin bu yo'lda
     # `schemas.StockPurchase.payment_due_date` — MATN (`Optional[str]`) va
     # `_purchase_stock_no_commit` uni `strptime(..., "%Y-%m-%d")` bilan
@@ -4338,6 +4430,12 @@ def _pul_qulfi(db: Session, ns: int, kalit) -> None:
 def create_payment(db: Session, payment_data: PaymentCreate,
                    company_id: int = None) -> Payment:
     """Yangi to'lov qo'shish."""
+    # 17f (2026-09-22): ILDIZ — tana QAT'IY, bazaga tegishdan OLDIN (xato →
+    # `ValueError`, hech narsa yozilmaydi). HAQIQIY PostgreSQL da O'LCHANGAN:
+    # `Infinity` / `1e20` summa pastdagi takror-tekshiruv so'rovida
+    # (`Payment.amount == _summa`) 500 berardi; `0.001` → 0 so'mlik to'lov.
+    # Marshrut ham tekshiradi; bu qatlam boshqa chaqiruvchilar uchun.
+    _clean_val("Payment", _val_dump(payment_data, "Payment"))
     # M2: to'lov FAQAT o'z korxonasining buyurtmasiga yozilishi mumkin.
     _oq = db.query(Order).filter(Order.id == payment_data.order_id)
     if company_id is not None:
@@ -7689,14 +7787,20 @@ from schemas import TransportExpenseCreate
 def create_transport_expense(db: Session, data: TransportExpenseCreate, created_by: str = None,
                             company_id: int = None) -> TransportExpense:
     """Kirish transporti xarajatini yozadi."""
+    # 17f (2026-09-22): ILDIZ — tana QAT'IY (summa musbat, chekli, sig'im
+    # ichida va kamida 1 tiyin; `materials_note` ≤ 255; `production_type`
+    # ro'yxatdan), bazaga tegishdan OLDIN. Marshrut ham tekshiradi; bu qatlam
+    # ichki chaqiruvchi (xarid marshrutidagi "o'z hisobimdan" transport) va
+    # boshqa chaqiruvchilar uchun. `data` — lug'at, pydantic yoki oddiy obyekt.
+    toza = _clean_val("TransportExpense", _val_dump(data, "TransportExpense"))
     # M6 — TENANT: company_id ANIQ beriladi.
     exp = TransportExpense(
         company_id=company_id,
-        amount=data.amount,
-        materials_note=data.materials_note,
+        amount=toza["amount"],
+        materials_note=toza.get("materials_note"),
         created_by=created_by,
-        notes=data.notes,
-        production_type=getattr(data, 'production_type', None)
+        notes=toza.get("notes"),
+        production_type=toza.get("production_type")
     )
     db.add(exp)
     db.commit()
@@ -8543,6 +8647,29 @@ def master_in_active_gift_period(db: Session, master_id: int,
     return master_id in participant_ids
 
 
+_SOVGA_USTA_MAX = 1000
+_SOVGA_NOM_MAX = 100    # `gift_period_tiers.gift_name` — String(100)
+
+
+def _sovga_ustalari(master_ids) -> list:
+    """17f: sovg'a davri ishtirokchilari — `None` / bo'sh (barcha faol ustalar)
+    yoki musbat butun sonlar ro'yxati (`true` / matn / kasr — yo'q; ilgari
+    `int(True)` → 1-usta jimgina qo'shilardi, matn esa jim tashlanardi)."""
+    if master_ids is None:
+        return []
+    if not isinstance(master_ids, list):
+        raise ValueError("'master_ids' ro'yxat bo'lishi kerak")
+    if len(master_ids) > _SOVGA_USTA_MAX:
+        raise ValueError(f"'master_ids' juda ko'p ({_SOVGA_USTA_MAX} tadan ko'p)")
+    natija = []
+    for i, mid in enumerate(master_ids):
+        if isinstance(mid, bool) or not isinstance(mid, int) or not (1 <= mid <= 2_147_483_647):
+            raise ValueError(f"'master_ids' {i + 1}-qiymat: musbat butun son bo'lishi kerak")
+        if mid not in natija:
+            natija.append(mid)
+    return natija
+
+
 def open_gift_period(db: Session, tiers: list, master_ids: list = None, performed_by: str = None,
                     company_id: int = None) -> dict:
     """Yangi sovg'a davrini ochadi. `tiers` — [{"gift_name": str,
@@ -8553,14 +8680,23 @@ def open_gift_period(db: Session, tiers: list, master_ids: list = None, performe
     from models import GiftPeriod, GiftPeriodTier, GiftPeriodParticipant
     if get_active_gift_period(db, company_id):
         return {"success": False, "message": "Allaqachon faol sovg'a davri bor — avval uni yoping"}
-    clean_tiers = []
-    for t in (tiers or []):
-        name = (t.get("gift_name") or "").strip()
-        amt = float(t.get("threshold_amount") or 0)
-        if name and amt > 0:
-            clean_tiers.append((name, amt))
-    if not clean_tiers:
+    # 17f (2026-09-22) — HAQIQIY PostgreSQL da O'LCHANGAN (`work/probe17f_pg.py`):
+    # bosqichlar `float(t.get(...))` bilan TEKSHIRUVSIZ o'qilardi — `tiers`
+    # matn / `[5]` / summa "abc" / nom son / summa `Infinity` / `1e20` / 101
+    # belgili nom — HAMMASI 500; `0.001` → 0.00 so'mlik bosqich (har qanday
+    # savdo darhol "sovg'aga yetdi"); `"5000"` va `true` jimgina songa
+    # aylanardi; `master_ids` dagi `true` → 1-usta. `kpi.html` bo'sh
+    # qatorlarni O'ZI tashlab yuboradi va faqat {gift_name, threshold_amount}
+    # hamda butun sonli `master_ids` yuboradi — endi aynan shu talab qilinadi
+    # (yozishdan OLDIN, xato → 400).
+    if tiers is None or (isinstance(tiers, list) and not tiers):
         return {"success": False, "message": "Kamida bitta to'g'ri bosqich (nomi va musbat summasi bilan) kiriting"}
+    try:
+        toza = _clean_val("GiftPeriodOpen", {"tiers": tiers})
+        toza_ustalar = _sovga_ustalari(master_ids)
+    except ValueError as e:
+        return {"success": False, "message": str(e)}
+    clean_tiers = [(t["gift_name"].strip(), t["threshold_amount"]) for t in toza["tiers"]]
     clean_tiers.sort(key=lambda x: x[1])
     # M5: davr ANIQ joriy korxonaga tegishli bo'ladi (ilgari company_id
     # berilmagani uchun yozuv bazadagi vaqtinchalik DEFAULT 1 ga tushardi).
@@ -8569,11 +8705,7 @@ def open_gift_period(db: Session, tiers: list, master_ids: list = None, performe
     db.flush()
     for i, (name, amt) in enumerate(clean_tiers):
         db.add(GiftPeriodTier(period_id=period.id, gift_name=name, threshold_amount=amt, sort_order=i))
-    for mid in (master_ids or []):
-        try:
-            mid = int(mid)
-        except (TypeError, ValueError):
-            continue
+    for mid in toza_ustalar:
         # M5: faqat SHU korxonaning ustasi ishtirokchi bo'la oladi.
         if company_id is not None and not get_master(db, mid, company_id):
             continue
@@ -8716,6 +8848,13 @@ def update_gift_period_tier(db: Session, tier_id: int, gift_name: str, threshold
                                              "(musbat, 9 999 999 999.99 dan oshmasin)"}
     if not name or amt <= 0:
         return {"success": False, "message": "Sovg'a nomi va musbat summa shart"}
+    # 17f (2026-09-22) — HAQIQIY PostgreSQL da O'LCHANGAN: `0.001` → 0.00 so'mlik
+    # bosqich (200); 101+ belgili nom → String(100) → 500.
+    if round(amt, 2) < _PUL_ENG_KAM:
+        return {"success": False, "message": f"Summa kamida {_PUL_ENG_KAM} so'm bo'lishi kerak "
+                                             "(1 tiyindan kichik summa bazada 0 ga aylanadi)"}
+    if len(name) > _SOVGA_NOM_MAX:
+        return {"success": False, "message": f"Sovg'a nomi juda uzun ({_SOVGA_NOM_MAX} belgidan ko'p)"}
     tier.gift_name = name
     tier.threshold_amount = amt
     db.commit()
@@ -9188,9 +9327,16 @@ def _purchase_of_company(db: Session, purchase_id: int, company_id: int = None):
     return q.first()
 
 
-def _xarid_son(value, nom: str) -> float:
+def _xarid_son(value, nom: str, pul: bool = False) -> float:
     """21-band (2026-09-21): xarid yozuvidagi son — musbat, chekli,
     `true/false` emas, sig'imdan katta emas. Aks holda ValueError (→ 400).
+
+    17f (2026-09-22): `pul=True` — narx (`InventoryPurchase.price_per_unit`,
+    Numeric(12,2)). HAQIQIY PostgreSQL da O'LCHANGAN: narx uchun chegara
+    `_UPD_SON_CHEGARA` (1e12, Float ustunlar uchun) edi, ya'ni `1e10` narx
+    tekshiruvdan o'tib, COMMIT da "numeric field overflow" → 500; `0.001`
+    esa 0.00 bo'lib yozilardi (jami 0.01 bilan — narx va jami bir-biriga zid).
+    Endi narx — pul sig'imi ichida va kamida 1 tiyin.
 
     Nima uchun kerak: `schemas.PurchaseUpdate` da `Field(gt=0)` bor, lekin
     `float('inf') > 0` — ROST, ya'ni cheksizlik pydantic dan O'TADI. Tahrir
@@ -9206,8 +9352,11 @@ def _xarid_son(value, nom: str) -> float:
         raise ValueError(f"'{nom}' son bo'lishi kerak")
     if v <= 0:
         raise ValueError(f"'{nom}' 0 dan katta bo'lishi kerak")
-    if v > _UPD_SON_CHEGARA:
+    if v > (_ORDER_ITEM_MAX_MONEY if pul else _UPD_SON_CHEGARA):
         raise ValueError(f"'{nom}' juda katta")
+    if pul and round(v, 2) < _PUL_ENG_KAM:
+        raise ValueError(f"'{nom}' kamida {_PUL_ENG_KAM} bo'lishi kerak "
+                         "(1 tiyindan kichik summa bazada 0 ga aylanadi)")
     return v
 
 
@@ -9236,7 +9385,7 @@ def _clean_xarid_tahrir(data) -> dict:
     if "quantity" in data and data["quantity"] is not None:
         toza["quantity"] = _xarid_son(data["quantity"], "quantity")
     if "price_per_unit" in data and data["price_per_unit"] is not None:
-        toza["price_per_unit"] = _xarid_son(data["price_per_unit"], "price_per_unit")
+        toza["price_per_unit"] = _xarid_son(data["price_per_unit"], "price_per_unit", pul=True)
     if "is_credit" in data and data["is_credit"] is not None:
         if not isinstance(data["is_credit"], bool):
             raise ValueError("'is_credit' ha/yo'q (true/false) bo'lishi kerak")
@@ -9299,6 +9448,17 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
         return None
 
     eski_qty = float(p.quantity or 0)
+
+    # 17f (2026-09-22): miqdor va narx ALOHIDA chegaradan o'tsa ham, KO'PAYTMASI
+    # `total_amount` (Numeric(12,2)) sig'imidan oshishi mumkin — HAQIQIY
+    # PostgreSQL da O'LCHANGAN: 1e6 × 1e5 → COMMIT da 500 (17b yaratish yo'lida
+    # shu tekshiruv bor edi, tahrirda yo'q edi). Faqat BITTASI berilsa, ikkinchisi
+    # yozuvning joriy qiymatidan olinadi. Hech narsa o'zgartirilmasdan OLDIN.
+    _yangi_qty = toza.get("quantity", float(p.quantity or 0))
+    _yangi_narx = toza.get("price_per_unit", float(p.price_per_unit or 0))
+    if _yangi_qty * _yangi_narx > _ORDER_ITEM_MAX_MONEY:
+        raise ValueError("'quantity' × 'price_per_unit' juda katta "
+                         "(jami summa sig'imdan oshdi)")
 
     # 2) Yozuvning o'zi
     if "quantity" in toza:

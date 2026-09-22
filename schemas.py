@@ -697,22 +697,39 @@ class MasterKpiUpdate(BaseModel):
 
 
 class TransportExpenseCreate(BaseModel):
-    """Kirish transporti — xomashyo olib kelish xarajati."""
-    amount: float = Field(..., gt=0)
-    materials_note: Optional[str] = None
-    notes: Optional[str] = None
-    production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
+    """Kirish transporti — xomashyo olib kelish xarajati.
+
+    17f (2026-09-22): marshrut xom JSON ni `crud._clean_val
+    ("TransportExpense")` bilan tekshiradi (u 1 tiyindan kichik summani ham
+    rad etadi); bu sxema — ikkinchi to'siq, ustun sig'imlari bilan bir xil.
+    Ilgari faqat `gt=0` bor edi: `Infinity` / `1e20` / uzun matn PostgreSQL
+    da 500, `true` → 1 so'm, `"5"` matni, ro'yxatdan tashqari tur o'tardi."""
+    amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True)
+    materials_note: Optional[str] = Field(default=None, max_length=255)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    production_type: Optional[Literal["umumiy", "penoplast", "gips"]] = Field(
+        default=None, description="umumiy / penoplast / gips")
 
 
 class PaymentCreate(BaseModel):
-    """Yangi to'lov qo'shish."""
-    order_id: int
-    amount: float = Field(..., gt=0, description="To'lov summasi")
-    payment_type: str = Field(default="partial", description="zaklat / partial / final")
-    payment_method: str = Field(default="naqd", description="naqd / plastik / o'tkazma")
-    received_by: Optional[str] = None
-    notes: Optional[str] = None
-    confirm_overpay: bool = Field(default=False, description="Qarzdan ko'p to'lov kiritilsa, aniq tasdiqlash uchun")
+    """Yangi to'lov qo'shish.
+
+    17f (2026-09-22): marshrut xom JSON ni `crud._clean_val("Payment")` bilan
+    tekshiradi (u 1 tiyindan kichik summani ham rad etadi); bu sxema —
+    ikkinchi to'siq. Ilgari: `order_id: true` → 1-buyurtma, `amount: true` →
+    1 so'm, `"5"` matni, `Infinity` / `1e20` PostgreSQL da 500, noto'g'ri
+    tur / usul JIMGINA "partial" / "naqd" ga aylanardi."""
+    order_id: int = Field(..., ge=1, le=2_147_483_647, strict=True)
+    amount: float = Field(..., gt=0, le=9_999_999_999.99, allow_inf_nan=False, strict=True,
+                          description="To'lov summasi")
+    payment_type: Literal["zaklat", "partial", "final"] = Field(
+        default="partial", description="zaklat / partial / final")
+    payment_method: Literal["naqd", "plastik", "o'tkazma"] = Field(
+        default="naqd", description="naqd / plastik / o'tkazma")
+    received_by: Optional[str] = Field(default=None, max_length=100)
+    notes: Optional[str] = Field(default=None, max_length=10_000)
+    confirm_overpay: bool = Field(default=False, strict=True,
+                                  description="Qarzdan ko'p to'lov kiritilsa, aniq tasdiqlash uchun")
 
 
 class PaymentRead(BaseModel):

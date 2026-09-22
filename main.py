@@ -2746,10 +2746,21 @@ def api_purchase_stats(year: Optional[int] = None, month: Optional[int] = None,
 
 
 @app.post("/api/transport-expenses")
-def api_create_transport(data: schemas.TransportExpenseCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_transport(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Kirish transporti xarajatini qo'shish."""
+    # 17f (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
+    # ("TransportExpense")`). HAQIQIY PostgreSQL da O'LCHANGAN: `Infinity` /
+    # `1e20` / 25 belgili `production_type` / 300 belgili `materials_note` —
+    # 500; `0.001` → 0.00 so'mlik transport; `true` → 1 so'm, `"5"` matni,
+    # ro'yxatdan tashqari `production_type` JIMGINA qabul qilinardi. Hech bir
+    # sahifa bu marshrutga yozmaydi (faqat API). Xato → 400, `detail` MATN.
     who = current_user.full_name or current_user.username
-    exp = crud.create_transport_expense(db, data, created_by=who, company_id=auth.company_id_of(current_user))
+    try:
+        toza = crud._clean_val("TransportExpense", data)
+        exp = crud.create_transport_expense(db, toza, created_by=who, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok", "id": exp.id, "amount": float(exp.amount)}
 
 
@@ -4988,13 +4999,27 @@ def api_delete_return(return_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.post("/api/payments")
-def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
+def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """Yangi to'lov qo'shish.
     write_off_remainder=true bo'lsa — to'lovdan keyin qolgan (kichik) qarz
     CHEGIRMA sifatida yozib yuboriladi (jami summadan ham ayiriladi —
     shuning uchun FOYDA hisobotida ham to'g'ri, kamroq ko'rsatiladi)."""
-    if not data.received_by:
-        data.received_by = current_user.full_name or current_user.username
+    # 17f (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
+    # ("Payment")`). HAQIQIY PostgreSQL da O'LCHANGAN: `Infinity` / `1e20` —
+    # 500 (takror-tekshiruv so'rovida); `0.001` → 0 so'mlik to'lov; `true` →
+    # 1 so'mlik to'lov; `"5"` matni; `order_id: true` → 1-buyurtma;
+    # noto'g'ri `payment_type` / `payment_method` JIMGINA "partial" / "naqd"
+    # ga aylanardi. `orders.html` (to'lov oynasi, zaklat) va `debts.html`
+    # (qarzni yopish) yuboradigan tanalar AYNAN shu qoidalarga mos. Xato →
+    # 400, `detail` MATN. Berilmagan (yoki `null`) maydonlar sxema
+    # standartini oladi (partial / naqd / tasdiqsiz).
+    try:
+        toza = crud._clean_val("Payment", data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not toza.get("received_by"):
+        toza["received_by"] = current_user.full_name or current_user.username
+    data = schemas.PaymentCreate(**{k: v for k, v in toza.items() if v is not None})
     try:
         payment = crud.create_payment(db, data, company_id=auth.company_id_of(current_user))
     except crud.OverpaymentWarning as w:
