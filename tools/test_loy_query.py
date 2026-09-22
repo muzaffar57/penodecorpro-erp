@@ -50,7 +50,12 @@ L. Sxema xatosi (422): tanada `Infinity`/`NaN` bo'lsa ham javob 422 (asl
    kodda FastAPI 422 javobining o'zi JSON ga yozilmay 500 berardi — har
    qanday marshrutda, masalan `agreed_amount`, xarajat `amount: -Infinity`).
    ⚠ Xarajat `amount: +Infinity` bu yerda EMAS — 17e-bandda tuzatildi
-   (`tools/test_xarajat_query.py`); 422 vositasi endi transport xarajati.
+   (`tools/test_xarajat_query.py`). 17f da transport xarajati ham xom JSON
+   ni o'zi tekshirib 400 beradigan bo'ldi (`tools/test_pul_query.py`), shuning
+   uchun 422 vositasi endi `PUT /api/masters/{id}/kpi` (`MasterKpiUpdate`,
+   `ge=0, le=100` — `-Infinity`, `NaN`, `+Infinity` ni pydantic rad etadi,
+   tana handlerdan OLDIN tekshiriladi; mavjud bo'lmagan usta id bilan — agar
+   so'rov handlerga yetsa 404 chiqib tekshiruv yiqiladi).
 
 ISHLATISH
 ---------
@@ -931,16 +936,22 @@ for label, url, raw in [
         ("buyurtma loy_kg -Infinity", "/api/orders",
          json.dumps(tana("LQ_L3")).replace('"loy_kg": 10', '"loy_kg": -Infinity')),
         # 17e (2026-09-22): vosita `/api/finance/transactions` dan
-        # `/api/transport-expenses` ga ko'chirildi — xarajat marshruti endi
-        # xom JSON ni o'zi tekshiradi va 400 beradi (`test_xarajat_query.py`).
-        # Bu yerda FAQAT 422-handler sinaladi: sxema (`gt=0`) rad etgan
-        # `-Infinity` / `NaN` javobi JSON ga yozilishi kerak.
-        ("transport amount -Infinity (sxema gt=0 rad etadi)", "/api/transport-expenses",
-         '{"amount": -Infinity, "notes": "LQ"}'),
-        ("transport amount NaN (gt=0 rad etadi)", "/api/transport-expenses",
-         '{"amount": NaN, "notes": "LQ"}')]:
+        # `/api/transport-expenses` ga ko'chirilgan edi; 17f (2026-09-22) da
+        # transport marshruti ham xom JSON ni o'zi tekshirib 400 beradigan
+        # bo'ldi (`test_pul_query.py`), shuning uchun vosita endi usta KPI
+        # foizi (`MasterKpiUpdate.kpi_percent`, `ge=0, le=100`). Bu yerda FAQAT
+        # 422-handler sinaladi: sxema rad etgan `-Infinity` / `NaN` /
+        # `+Infinity` javobi JSON ga yozilishi kerak. Usta id MAVJUD EMAS —
+        # tana handlerdan OLDIN rad etilmasa 404 chiqadi va tekshiruv yiqiladi.
+        ("usta kpi_percent -Infinity (sxema ge=0 rad etadi)", "/api/masters/999999/kpi",
+         '{"kpi_percent": -Infinity}'),
+        ("usta kpi_percent NaN (sxema rad etadi)", "/api/masters/999999/kpi",
+         '{"kpi_percent": NaN}'),
+        ("usta kpi_percent +Infinity (sxema le=100 rad etadi)", "/api/masters/999999/kpi",
+         '{"kpi_percent": Infinity}')]:
     h0 = holat()
-    r = req(c, "post", url, content=raw, headers={"Content-Type": "application/json"})
+    _metod = "put" if url.startswith("/api/masters/") else "post"
+    r = req(c, _metod, url, content=raw, headers={"Content-Type": "application/json"})
     try:
         d = r.json().get("detail")
     except Exception:
