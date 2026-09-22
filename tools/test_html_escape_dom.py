@@ -47,10 +47,21 @@ QANDAY ISHLAYDI
    ishlaydi, `fetch` lokal serverga (cookie bilan) yo'naltiriladi,
    tarmoq tinchigach `i.xp` tugunlari sanaladi. Ba'zi sahifalarda
    yuklanishdan keyin qo'shimcha oqimlar chaqiriladi (`AMALLAR` —
-   masalan hisobotning har bir turi, buyurtma tafsilotlari).
+   masalan hisobotning har bir turi, buyurtma tafsilotlari). Amallardan
+   keyin sahifa ichida mantiqiy TEKSHIRUVLAR ham bajariladi (6-bo'lim,
+   kech30): escape qo'shilgani sahifaning boshqa xulqini buzmaganini
+   isbotlash uchun (masalan hisobot jadvalini saralash kaliti).
 4. IJOBIY NAZORAT: har ishga tushirishda sun'iy sahifa xom `innerHTML`
    bilan chiziladi — belgi topilishi SHART. Bu "0 ta sizish" natijasi
    buzilgan qurilma (cookie, fetch, jsdom) tufayli emasligini isbotlaydi.
+5. UMUMIY YORDAMCHILAR (3a-bo'lim, kech30): `escapeHtml` va
+   `jsAttrEscape` HAQIQIY `templates/base.html` dan olinib, o'z
+   kontekstida (matn, qo'shtirnoqli va yakka tirnoqli atribut, onclick
+   ichidagi JS satri) 13 xil qiyin matn bilan sinaladi: natija AYNAN
+   kiritilgan matn bo'lishi, kod bajarilmasligi, HTML tuguni
+   yaratilmasligi SHART. Sabab: entity ko'rinishidagi tirnoq (`&#39;`)
+   kodni bajaradi, lekin DOM tugun yaratmaydi — 5-bo'lim uni ko'rmaydi
+   (kech30 da `jsAttrEscape` da aynan shunday nuqson O'LCHANGAN).
 
 CHEKLOV: jsdom yuklanishda va AMALLAR da ishlaydigan kodni ko'radi;
 faqat tugma bosilganda ochiladigan oynalar STATIK darvoza
@@ -330,6 +341,18 @@ async function sahifa(p) {
     await tinch();
     yigish(a.slice(0, 40));
   }
+  // Sahifa ichidagi mantiqiy tekshiruvlar (6-bo'lim): ifoda `true` qaytarsa o'tadi.
+  res.tekshiruv = [];
+  for (const [nom, ifoda] of p.tekshiruvlar || []) {
+    let ok = false, qiymat = null;
+    try {
+      qiymat = await w.eval("(async () => { " + ifoda + " })()");
+      ok = qiymat === true;
+    } catch (e) {
+      qiymat = "xato: " + String(e && e.message).slice(0, 160);
+    }
+    res.tekshiruv.push({ nom, ok, qiymat: typeof qiymat === "string" ? qiymat.slice(0, 200) : qiymat });
+  }
   w.close();
   return res;
 }
@@ -357,6 +380,191 @@ fetch('/api/inventory').then(function (r) { return r.json(); }).then(function (a
   document.getElementById('k2').innerHTML = a.map(function (i) { return '<b data-x="' + i.item_name + '">x</b>'; }).join('');
 });
 </script></body></html>"""
+
+# ══════════════════════════════════════════════════════════════
+# 3a. Umumiy yordamchilar: base.html dagi escapeHtml / jsAttrEscape
+# ══════════════════════════════════════════════════════════════
+# Nima uchun alohida: sahifa belgisi (`'"><i class=xpN>`) xom `'` va `"`
+# ishlatadi. `jsAttrEscape` ularni to'g'ri ushlaydi, lekin kech30 da
+# O'LCHANDI: `&#39;` kabi entity ko'rinishidagi tirnoq brauzer atributni
+# o'qiganda ASL `'` ga aylanib, onclick JS satridan chiqib kod BAJARILARDI
+# (`&` escape qilinmagan edi). Bunday bajarilish DOM tugunini yaratmaydi —
+# 5-bo'lim uni ko'rmaydi. Shuning uchun har yordamchi o'zi ishlatiladigan
+# kontekstda haqiqiy HTML tahlili bilan sinaladi. Talab: natija AYNAN
+# kiritilgan matn, kod bajarilmagan, HTML tuguni yaratilmagan. Funksiyalar
+# HAQIQIY `templates/base.html` dan olinadi (nusxa emas).
+# Eslatma: HTML standarti matn va atributdagi `\r` ni `\n` ga aylantiradi
+# (kirish oqimini normallashtirish) — bu nuqson emas, shuning uchun matn /
+# atribut kontekstida kutilgan qiymatda `\r\n` / `\r` → `\n`. onclick JS
+# satrida esa `\r` ham AYNAN qaytishi shart (jsAttrEscape `\\r` qiladi).
+YORDAMCHI_YUKLAR = [
+    ("xom belgi", "'\"><i class=xp0>"),
+    ("&#39; entity", "&#39;);window.__p=1;//"),
+    ("&apos; entity", "&apos;);window.__p=1;//"),
+    ("&#x27; entity", "&#x27;);window.__p=1;//"),
+    ("&quot; entity", "&quot;);window.__p=1;//"),
+    ("tayyor entity matni", "&amp;lt;b&gt; &lt;"),
+    ("qator uzilishi", "a\nb"),
+    ("karetka qaytishi", "a\rb"),
+    ("oxirida backslash", "a\\"),
+    ("backslash + tirnoq", "\\'"),
+    ("script yopilishi", "</script><i class=xp0>"),
+    ("o'zbekcha matn", "Qo'rg'oshin \"A\" <5kg> & co"),
+    ("emoji", "🔴 5 ta"),
+]
+YORDAMCHI_KONTEKSTLAR = ["matn", "atribut (\")", "atribut (')", "onclick JS satri"]
+
+YORDAMCHI_JS = r"""
+let JSDOM, VirtualConsole;
+try {
+  ({ JSDOM, VirtualConsole } = require("jsdom"));
+} catch (e) {
+  console.log(JSON.stringify({ fatal: "jsdom topilmadi: " + String(e.message).slice(0, 200) }));
+  process.exit(3);
+}
+const d = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
+// Har kontekst sahifalardagi haqiqiy ishlatilishdek: innerHTML ga template
+// literal bilan yoziladi.
+const SHABLON = {
+  "matn": "`<p id=t>${escapeHtml(window.__y)}</p>`",
+  "atribut (\")": "`<b id=t data-x=\"${escapeHtml(window.__y)}\"></b>`",
+  "atribut (')": "`<b id=t data-x='${escapeHtml(window.__y)}'></b>`",
+  "onclick JS satri": "`<button id=t onclick=\"f('${jsAttrEscape(window.__y)}')\">x</button>`",
+};
+function bir(kontekst, y) {
+  const xatolar = [];
+  const vc = new VirtualConsole();
+  vc.on("jsdomError", e => xatolar.push(String((e && (e.message || e)) || "").slice(0, 140)));
+  const dom = new JSDOM("<!doctype html><html><body><div id=r></div><script>" + d.kod +
+    "\nwindow.__arg = undefined; window.__p = 0; function f(a) { window.__arg = a; }</script></body></html>",
+    { runScripts: "dangerously", virtualConsole: vc });
+  const w = dom.window;
+  w.__y = y;
+  try {
+    w.eval("document.getElementById('r').innerHTML = " + SHABLON[kontekst] + ";");
+  } catch (e) {
+    xatolar.push("chizish: " + String(e && e.message).slice(0, 140));
+  }
+  const kutilgan = kontekst === "onclick JS satri" ? y : y.replace(/\r\n?/g, "\n");
+  const t = w.document.getElementById("t");
+  const tugun = w.document.querySelectorAll("#r i").length;
+  let olingan = null, ok = false;
+  if (t) {
+    if (kontekst === "matn") {
+      olingan = t.textContent;
+      ok = olingan === kutilgan && t.children.length === 0;
+    } else if (kontekst.startsWith("atribut")) {
+      olingan = t.getAttribute("data-x");
+      ok = olingan === kutilgan && tugun === 0;
+    } else {
+      try { t.click(); } catch (e) { xatolar.push("bosish: " + String(e && e.message).slice(0, 140)); }
+      olingan = w.__arg === undefined ? "(f chaqirilmadi)" : w.__arg;
+      ok = w.__arg === kutilgan && w.__p === 0 && tugun === 0;
+    }
+  } else {
+    xatolar.push("#t elementi chizilmadi");
+  }
+  const bajarildi = w.__p === 1;
+  w.close();
+  return { kontekst, ok, olingan, bajarildi, tugun, xato: xatolar.join(" | ") };
+}
+for (const k of d.kontekstlar) {
+  for (const [nom, y] of d.yuklar) {
+    let r;
+    try {
+      r = bir(k, y);
+    } catch (e) {
+      r = { kontekst: k, ok: false, olingan: null, bajarildi: false, tugun: 0,
+            xato: "QULADI: " + String(e && e.message).slice(0, 200) };
+    }
+    r.nom = nom;
+    console.log(JSON.stringify(r));
+  }
+}
+console.log(JSON.stringify({ tugadi: true }));
+process.exit(0);
+"""
+
+
+def yordamchi_kodi():
+    """`templates/base.html` dan escapeHtml va jsAttrEscape funksiyalarining
+    HAQIQIY matni (qavslar muvozanati bo'yicha). Topilmasa — None."""
+    try:
+        with open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8") as fh:
+            s = fh.read()
+    except OSError:
+        return None
+    qismlar = []
+    for nom in ("escapeHtml", "jsAttrEscape"):
+        i = s.find("function " + nom + "(")
+        if i < 0:
+            return None
+        j = s.find("{", i)
+        if j < 0:
+            return None
+        chuqurlik = 0
+        k = j
+        while k < len(s):
+            if s[k] == "{":
+                chuqurlik += 1
+            elif s[k] == "}":
+                chuqurlik -= 1
+                if chuqurlik == 0:
+                    break
+            k += 1
+        if k >= len(s):
+            return None
+        qismlar.append(s[i:k + 1])
+    return "\n".join(qismlar)
+
+
+def yordamchi_bolimi(node, env):
+    section("3a. Umumiy yordamchilar (base.html escapeHtml / jsAttrEscape): "
+            "haqiqiy HTML tahlilida AYNAN qaytishi SHART")
+    kod = yordamchi_kodi()
+    check("base.html dan escapeHtml va jsAttrEscape olindi", kod is not None)
+    if kod is None:
+        return
+    pj = os.path.join(_TMP, "yordamchi.json")
+    with open(pj, "w", encoding="utf-8") as fh:
+        json.dump({"kod": kod, "yuklar": YORDAMCHI_YUKLAR, "kontekstlar": YORDAMCHI_KONTEKSTLAR},
+                  fh, ensure_ascii=False)
+    js = os.path.join(_TMP, "yordamchi.js")
+    with open(js, "w", encoding="utf-8") as fh:
+        fh.write(YORDAMCHI_JS)
+    try:
+        k = subprocess.run([node, js, pj], capture_output=True, text=True, timeout=240, env=env)
+        chiqish, xato_matn = k.stdout, k.stderr
+    except Exception as e:
+        chiqish, xato_matn = "", repr(e)
+    natija = {}
+    fatal = None
+    tugadi = False
+    for q in chiqish.splitlines():
+        q = q.strip()
+        if not q.startswith("{"):
+            continue
+        try:
+            d = json.loads(q)
+        except Exception:
+            continue
+        if "fatal" in d:
+            fatal = d["fatal"]
+        elif d.get("tugadi"):
+            tugadi = True
+        elif "kontekst" in d:
+            natija[(d["kontekst"], d.get("nom"))] = d
+    check("yordamchi sinovi jsdom da ishladi", fatal is None and tugadi,
+          (fatal or "") + " " + xato_matn[-300:])
+    for kt in YORDAMCHI_KONTEKSTLAR:
+        for nom, y in YORDAMCHI_YUKLAR:
+            d = natija.get((kt, nom))
+            if d is None:
+                check(f"{kt}: {nom}", False, "natija yo'q")
+                continue
+            tafsil = (f"kiritilgan={y!r} olingan={d.get('olingan')!r} bajarildi={d.get('bajarildi')} "
+                      f"tugun={d.get('tugun')} {d.get('xato') or ''}")
+            check(f"{kt}: {nom}", d.get("ok") is True, tafsil[:400])
 
 
 def bosh_port():
@@ -588,6 +796,7 @@ def main_ish():
     env = dict(os.environ)
     env["NODE_PATH"] = os.pathsep.join(x for x in (os.environ.get("NODE_PATH", ""), npm_root,
                                                     os.path.join(ROOT, "node_modules")) if x)
+    yordamchi_bolimi(node, env)
     import uvicorn
     port = bosh_port()
     server = uvicorn.Server(uvicorn.Config(main.app, host="127.0.0.1", port=port,
@@ -619,8 +828,29 @@ def main_ish():
                         f"await loadDeliveries({ids['o1']})", f"await loadPayments({ids['o1']})",
                         f"await loadOrderAttachments({ids['o1']})"],
         }
+        # 6-bo'lim: sahifa ichidagi mantiqiy tekshiruvlar (ifoda `true` qaytarishi SHART).
+        # /reports: jadval ustunlari endi escapeHtml bilan qaytadi; saralash kaliti
+        # (`extractSortValue`) belgi kodlarini ASL belgiga qaytarishi shart — aks holda
+        # "Qo'shimcha" kabi nomlar "qo&#39;shimcha" bo'lib saralanadi. Namunadagi
+        # "&lt;" yozuvi `&amp;` ni OXIRIDA ochish tartibini ham tekshiradi.
+        saralash_namuna = "Qo'rg'oshin & <A> \"B\" &lt;"
+        tekshiruvlar = {
+            "/reports": [
+                ("saralash kaliti escape qilingan matnni AYNAN tiklaydi (extractSortValue)",
+                 f"const s = {json.dumps(saralash_namuna)}; "
+                 "return extractSortValue('<span>' + escapeHtml(s) + '</span>').val === s.toLowerCase();"),
+            ],
+        }
+        # DOM_SAHIFALAR=/reports,/dashboard — faqat shu sahifalar (nuqtali mutatsiya
+        # ishlarini tezlatish uchun). Oddiy ishda (hammasi.sh) O'RNATILMAYDI.
+        faqat = [x.strip() for x in os.environ.get("DOM_SAHIFALAR", "").split(",") if x.strip()]
+        if faqat:
+            info(f"DOM_SAHIFALAR filtri: faqat {faqat} — to'liq tekshiruv EMAS")
         for pth in SAHIFALAR + [f"/suppliers/receive?supplier_id={ids['sup']}"]:
-            sahifalar.append({"path": pth, "amallar": amallar.get(pth, [])})
+            if faqat and pth.split("?")[0] not in faqat:
+                continue
+            sahifalar.append({"path": pth, "amallar": amallar.get(pth, []),
+                              "tekshiruvlar": tekshiruvlar.get(pth, [])})
         pj = os.path.join(_TMP, "sahifalar.json")
         with open(pj, "w", encoding="utf-8") as fh:
             json.dump(sahifalar, fh, ensure_ascii=False)
@@ -679,6 +909,17 @@ def main_ish():
             topildi = [nomla(x) for x in d["topildi"]]
             check(f"{d['page']}: in'ektsiya yo'q (topildi {len(topildi)})", not topildi,
                   "\n       ↳ ".join(sorted(set(topildi)))[:5000])
+
+        section("6. Sahifa ichidagi mantiqiy tekshiruvlar (escape boshqa xulqni buzmagan)")
+        for pth, royxat in tekshiruvlar.items():
+            if faqat and pth not in faqat:
+                continue
+            d = next((x for x in natijalar if x["page"] == pth), None)
+            olingan = {t["nom"]: t for t in (d or {}).get("tekshiruv", [])}
+            for nom, _ in royxat:
+                t = olingan.get(nom)
+                check(f"{pth}: {nom}", t is not None and t.get("ok") is True,
+                      json.dumps(t, ensure_ascii=False)[:300] if t else "natija yo'q")
     finally:
         server.should_exit = True
         th.join(timeout=10)
