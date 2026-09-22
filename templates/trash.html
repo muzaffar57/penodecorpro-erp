@@ -27,7 +27,7 @@
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-dark" onclick="restoreItem('project', {{ p.id }}, this)">↩️ Tiklash</button>
-          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" onclick="permanentDelete('project', {{ p.id }}, '{{ (p.project_number ~ ' — ' ~ p.project_name)|replace("'", "\\'") }}', this)">❌ Butunlay o'chirish</button>
+          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" data-label="{{ p.project_number ~ ' — ' ~ p.project_name }}" onclick="permanentDelete('project', {{ p.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
         </div>
       </div>
       {% endfor %}
@@ -50,7 +50,7 @@
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-dark" onclick="restoreItem('order', {{ o.id }}, this)">↩️ Tiklash</button>
-          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" onclick="permanentDelete('order', {{ o.id }}, '{{ o.order_number }}', this)">❌ Butunlay o'chirish</button>
+          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" data-label="{{ o.order_number }}" onclick="permanentDelete('order', {{ o.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
         </div>
       </div>
       {% endfor %}
@@ -74,7 +74,7 @@
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-dark" onclick="restoreItem('employee', {{ emp.id }}, this)">↩️ Tiklash</button>
-          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" onclick="permanentDelete('employee', {{ emp.id }}, '{{ emp.name|replace("'", "\\'") }}', this)">❌ Butunlay o'chirish</button>
+          <button class="btn btn-outline" style="color:#DC2626;border-color:#FADBD8" data-label="{{ emp.name }}" onclick="permanentDelete('employee', {{ emp.id }}, this.dataset.label, this)">❌ Butunlay o'chirish</button>
         </div>
       </div>
       {% endfor %}

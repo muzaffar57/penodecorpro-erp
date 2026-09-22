@@ -170,7 +170,7 @@
            data-image="{{ p.image_url or '' }}">
         <label class="proj-thumb" onclick="event.stopPropagation()">
           {% if p.image_url %}
-          <img src="{{ p.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openProjLightbox('{{ p.image_url }}')">
+          <img src="{{ p.image_url }}" alt="" data-src="{{ p.image_url }}" onclick="event.preventDefault();event.stopPropagation();openProjLightbox(this.dataset.src)">
           {% else %}
           <i class="ti ti-building-skyscraper" onclick="event.preventDefault();event.stopPropagation();document.getElementById('pimg-{{ p.id }}').click()"></i>
           {% endif %}

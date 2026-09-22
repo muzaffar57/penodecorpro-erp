@@ -145,7 +145,7 @@
       <div style="display:flex;gap:10px;align-items:stretch">
         <label class="mat-thumb" title="{{ '' if item.image_url else 'Rasm yuklash' }}">
           {% if item.image_url %}
-          <img src="{{ item.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openInvLightbox('{{ item.image_url }}')">
+          <img src="{{ item.image_url }}" alt="" data-src="{{ item.image_url }}" onclick="event.preventDefault();event.stopPropagation();openInvLightbox(this.dataset.src)">
           <div class="mat-thumb-cam" onclick="event.preventDefault();event.stopPropagation();this.closest('.mat-thumb').querySelector('input[type=file]').click()"><i class="ti ti-camera"></i></div>
           {% else %}<i class="ti ti-flask-2"></i>{% endif %}
           <input type="file" accept="image/*" onchange="uploadInventoryImage({{ item.id }}, this)">
@@ -171,7 +171,7 @@
       </div>
       <div class="mat-col-min" style="color:var(--text3);font-size:14.5px">
         <span id="minstock-{{ item.id }}">{{ item.min_stock }} {{ item.unit }}</span>
-        <button class="btn btn-outline btn-xs" onclick="editMinStock({{ item.id }}, {{ item.min_stock or 0 }}, '{{ item.unit }}')" title="Chegarani tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
+        <button class="btn btn-outline btn-xs" data-unit="{{ item.unit }}" onclick="editMinStock({{ item.id }}, {{ item.min_stock or 0 }}, this.dataset.unit)" title="Chegarani tuzatish" style="margin-left:4px"><i class="ti ti-edit" style="font-size:12px"></i></button>
       </div>
       <div><span class="stat-badge {{ st }}">{{ st_label }}</span></div>
       <div class="mat-col-updated" style="font-size:13.5px;color:var(--text3)">
@@ -184,7 +184,7 @@
       </div>
       <div class="mat-actions">
         {% if current_user.role.value == 'admin' %}
-        <button class="act-btn out" onclick="openChiqimModal({{ item.id }}, '{{ item.item_name|replace("'", "\\'") }}', '{{ item.unit }}', {{ qty }})" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
+        <button class="act-btn out" data-name="{{ item.item_name }}" data-unit="{{ item.unit }}" onclick="openChiqimModal({{ item.id }}, this.dataset.name, this.dataset.unit, {{ qty }})" title="Chiqim (tuzatish)"><i class="ti ti-minus"></i></button>
         <button class="act-btn danger" onclick="deleteItem({{ item.id }})" title="O'chirish"><i class="ti ti-trash"></i></button>
         {% endif %}
       </div>

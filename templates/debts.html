@@ -188,7 +188,7 @@
         <div style="padding:8px 18px 18px">
           {% if company_obligations.employees %}
             {% for e in company_obligations.employees %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer;display:flex;gap:12px" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name|replace('"', '&quot;') }}" data-year="{{ e.year }}" data-month="{{ e.month }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName)">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer;display:flex;gap:12px" data-emp-id="{{ e.employee_id }}" data-emp-name="{{ e.name }}" data-year="{{ e.year }}" data-month="{{ e.month }}" onclick="openEmpTimeline(this.dataset.empId, this.dataset.empName)">
               <div class="dbt-avatar" style="background:{{ '#FEF2F2' if e.status=='overdue' else '#FFFBEB' }};color:{{ '#EF4444' if e.status=='overdue' else '#F59E0B' }};width:34px;height:34px;font-size:13px">{{ (e.name or '?')[0]|upper }}</div>
               <div style="flex:1">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -220,7 +220,7 @@
             {% for r in company_obligations.recurring %}
             {% set status_color = {'overdue':'#EF4444','due_soon':'#F59E0B','partial':'#F59E0B','full':'#22C55E'} %}
             {% set status_label = {'overdue':'Muddati o\'tgan','due_soon':'Muddat yaqin','partial':'Qisman to\'langan','full':'To\'liq yopilgan'} %}
-            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" data-category="{{ r.category }}" data-label="{{ r.label|replace('"', '&quot;') }}" data-year="{{ r.year }}" data-month="{{ r.month }}" onclick="openObligTimeline(this.dataset.category, this.dataset.label)">
+            <div class="oblig-item" style="padding:12px 0;border-bottom:1px solid #F3F4F6;cursor:pointer" data-category="{{ r.category }}" data-label="{{ r.label }}" data-year="{{ r.year }}" data-month="{{ r.month }}" onclick="openObligTimeline(this.dataset.category, this.dataset.label)">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
                   <div style="display:flex;align-items:center;gap:6px">
@@ -249,7 +249,7 @@
             {% for t in recurring_targets %}
             <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;background:var(--d-bg);padding:4px 9px;border-radius:12px;margin:2px 4px 2px 0">
               {{ t.icon }} {{ t.label }}
-              <span data-id="{{ t.id }}" data-label="{{ t.label|replace('"', '&quot;') }}" onclick="deleteCategory(this.dataset.id, this.dataset.label)" style="cursor:pointer;color:#EF4444;margin-left:2px">✕</span>
+              <span data-id="{{ t.id }}" data-label="{{ t.label }}" onclick="deleteCategory(this.dataset.id, this.dataset.label)" style="cursor:pointer;color:#EF4444;margin-left:2px">✕</span>
             </span>
             {% endfor %}
           </div>

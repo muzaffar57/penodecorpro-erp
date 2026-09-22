@@ -617,7 +617,7 @@ async function loadProductionOrders(){
     let actions = '';
     if (po.status === 'draft') actions = `<button class="btn btn-dark btn-sm" onclick="doStart(${po.id})">Boshlash</button> <button class="btn btn-outline btn-sm" onclick="doCancel(${po.id})">Bekor</button>`;
     else if (po.status === 'in_progress') actions = `<button class="btn btn-dark btn-sm" onclick="doComplete(${po.id})">Yakunlash</button> <button class="btn btn-outline btn-sm" onclick="doCancel(${po.id})">Bekor</button>`;
-    else actions = `<button class="btn btn-outline btn-sm" onclick='showSnapshot(${JSON.stringify(po.recipe_snapshot)}, "${po.status}")'>Batafsil</button>`;
+    else actions = `<button class="btn btn-outline btn-sm" data-snap="${escapeHtml(JSON.stringify(po.recipe_snapshot || []))}" data-status="${escapeHtml(po.status)}" onclick="showSnapshot(JSON.parse(this.dataset.snap), this.dataset.status)">Batafsil</button>`;
     return `<tr>
       <td>#${po.id}</td>
       <td>${escapeHtml(pt ? pt.name : '—')}</td>

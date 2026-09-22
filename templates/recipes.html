@@ -101,7 +101,7 @@
     <div class="rec-head">
       <label class="rec-thumb" title="{{ '' if recipe.image_url else 'Rasm yuklash' }}">
         {% if recipe.image_url %}
-        <img src="{{ recipe.image_url }}" alt="" onclick="event.preventDefault();event.stopPropagation();openRecLightbox('{{ recipe.image_url }}')">
+        <img src="{{ recipe.image_url }}" alt="" data-src="{{ recipe.image_url }}" onclick="event.preventDefault();event.stopPropagation();openRecLightbox(this.dataset.src)">
         <div class="rec-thumb-cam" onclick="event.preventDefault();event.stopPropagation();this.closest('.rec-thumb').querySelector('input[type=file]').click()"><i class="ti ti-camera"></i></div>
         {% else %}<i class="ti ti-flask"></i>{% endif %}
         <input type="file" accept="image/*" onchange="uploadRecipeImage({{ recipe.id }}, this)">

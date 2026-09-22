@@ -1361,7 +1361,7 @@ function searchFinished(input) {
 
       box.innerHTML = items.map(i => `
         <div class="fp-sg-item" onmousedown="pickFinished(this, ${i.id})"
-             data-fp='${JSON.stringify(i).replace(/'/g, "&apos;")}'>
+             data-fp='${escapeHtml(JSON.stringify(i))}'>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
             <div style="min-width:0">
               <div style="font-size:14.5px;font-weight:600;color:var(--text)">
@@ -1372,7 +1372,7 @@ function searchFinished(input) {
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
-              <div style="font-size:14px;font-weight:700;color:#22C55E">${i.quantity} ${i.unit}</div>
+              <div style="font-size:14px;font-weight:700;color:#22C55E">${i.quantity} ${escapeHtml(i.unit)}</div>
               <div style="font-size:12px;color:#A86B36">${formatNum(i.unit_price)}/${i.unit==='metr'?'m':'ta'}</div>
             </div>
           </div>
@@ -1392,7 +1392,10 @@ function hideFpSuggest(input) {
 function pickFinished(el, fpId) {
   const row = el.closest('.detal');
   if (!row) return;
-  const fp = JSON.parse(el.dataset.fp.replace(/&apos;/g, "'"));
+  // kech32: data-fp endi escapeHtml bilan yoziladi — brauzer atributni o'qiyotganda
+  // entity larni o'zi ochadi, dataset AYNAN JSON beradi (qo'shimcha almashtirish
+  // nomdagi "&apos;" matnini buzardi).
+  const fp = JSON.parse(el.dataset.fp);
 
   row.dataset.fpId = fp.id;
   row.dataset.fpMax = fp.quantity;
@@ -1711,7 +1714,7 @@ function selectOrder(id, el) {
       ab.innerHTML = d.warnings.slice(0,3).map(w=>`
         <div style="display:flex;justify-content:space-between;font-size:14px;padding:5px 0;border-bottom:1px solid #f5f5f5">
           <span style="color:#555">${escapeHtml(w.item_name)}</span>
-          <span style="color:#EF4444;font-weight:500">${(parseFloat(w.stock_quantity)||0).toFixed(2).replace(/\.?0+$/,'')} ${w.unit}</span>
+          <span style="color:#EF4444;font-weight:500">${(parseFloat(w.stock_quantity)||0).toFixed(2).replace(/\.?0+$/,'')} ${escapeHtml(w.unit)}</span>
         </div>`).join('');
     } else {
       ac.style.display = 'none';
@@ -1764,7 +1767,7 @@ async function loadOrderItems(id) {
     container.innerHTML = items.map(item => {
       const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
       const thumb = item.image_url
-        ? `<img src="${item.image_url}" alt="" onclick="event.stopPropagation();openItemImgLightbox('${item.image_url}')">
+        ? `<img src="${escapeHtml(item.image_url)}" alt="" onclick="event.stopPropagation();openItemImgLightbox('${jsAttrEscape(item.image_url)}')">
            <div class="prod-thumb-cam" onclick="event.stopPropagation();document.getElementById('itemimg-${item.id}').click()"><i class="ti ti-camera"></i></div>`
         : `<i class="ti ${icon}" aria-hidden="true"></i>`;
       return `
@@ -1810,7 +1813,9 @@ async function loadOrderAttachments(orderId) {
     grid.innerHTML = atts.map(a => {
       const isImg = /\.(jpg|jpeg|png|webp)$/i.test(a.file_url);
       const isPdf = /\.pdf$/i.test(a.file_url);
-      const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      // kech32: mahalliy esc endi umumiy escapeHtml ga tayanadi (u ' ni ham escape qiladi) —
+      // statik darvoza "faqat escapeHtml / jsAttrEscape" qoidasini ruxsat ro'yxatisiz tekshiradi.
+      const esc = s => escapeHtml(s || '');
       const needsDownload = !isImg && !isPdf;
       const safeName = esc(a.file_name || '');
       const nameAttr = safeName ? ` download="${safeName}"` : '';
@@ -1913,7 +1918,7 @@ async function loadDeliveries(orderId) {
               ${it.is_done ? '✅' : '📦'} ${escapeHtml(it.name)}
             </div>
             <div style="font-size:14px;font-weight:600;color:${it.is_done?'#22C55E':'#DC2626'}">
-              ${it.is_done ? 'tugadi' : `qoldi ${it.remaining} ${it.unit}`}
+              ${it.is_done ? 'tugadi' : `qoldi ${it.remaining} ${escapeHtml(it.unit)}`}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
@@ -1921,7 +1926,7 @@ async function loadDeliveries(orderId) {
               <div style="height:100%;width:${it.percent}%;background:${color};border-radius:3px"></div>
             </div>
             <div style="font-size:13px;color:#aaa;white-space:nowrap;min-width:95px;text-align:right">
-              ${it.delivered} / ${it.ordered} ${it.unit}
+              ${it.delivered} / ${it.ordered} ${escapeHtml(it.unit)}
             </div>
           </div>
         </div>`;
@@ -2118,7 +2123,7 @@ function openDeliveryModal() {
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:500;color:var(--text)">${escapeHtml(it.name)}</div>
         <div style="font-size:13px;color:#aaa;margin-top:1px">
-          ${it.is_done ? '✅ To\'liq topshirilgan' : `Qoldi: <b style="color:#DC2626">${it.remaining} ${it.unit}</b> · Jami ${it.ordered} ${it.unit}`}
+          ${it.is_done ? '✅ To\'liq topshirilgan' : `Qoldi: <b style="color:#DC2626">${it.remaining} ${escapeHtml(it.unit)}</b> · Jami ${it.ordered} ${escapeHtml(it.unit)}`}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
@@ -2461,7 +2466,7 @@ async function activateDraft() {
         showMsg('❌ ' + det.message + '\n' + det.shortages.join('\n'), 'error');
         const box = document.getElementById('resultBox');
         if (box) {
-          box.innerHTML = `<b>❌ ${det.message}</b><br><br>` + det.shortages.map(x=>`• ${x}`).join('<br>');
+          box.innerHTML = `<b>❌ ${escapeHtml(det.message)}</b><br><br>` + det.shortages.map(x=>`• ${escapeHtml(x)}`).join('<br>');
           box.className = 'result-box error';
           box.style.display = 'block';
         }
@@ -3198,9 +3203,9 @@ function updateDetalSummary(row) {
   }
 
   const parts = [];
-  if (name) parts.push(`<b>${name}</b>`); else parts.push('<span style="color:var(--text3)">(nomsiz)</span>');
-  if (dim) parts.push(dim);
-  if (price && parseFloat(price.replace(/\s/g,'')) > 0) parts.push(`<span class="val">${price} so'm</span>`);
+  if (name) parts.push(`<b>${escapeHtml(name)}</b>`); else parts.push('<span style="color:var(--text3)">(nomsiz)</span>');
+  if (dim) parts.push(escapeHtml(dim));
+  if (price && parseFloat(price.replace(/\s/g,'')) > 0) parts.push(`<span class="val">${escapeHtml(price)} so'm</span>`);
 
   summaryEl.innerHTML = parts.join(' <span style="color:var(--border)">·</span> ');
 }
@@ -3979,8 +3984,8 @@ function updateTotal() {
         <div onclick="scrollToDetail('${row.id}')" style="display:flex;justify-content:space-between;align-items:center;
                     padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;cursor:pointer" title="Bosib, shu detalga o'ting">
           <div>
-            <div style="font-weight:500;color:#111">${name || ('Detal #'+(i+1))}</div>
-            <div style="font-size:13px;color:#aaa">${qtyText}</div>
+            <div style="font-weight:500;color:#111">${escapeHtml(name) || ('Detal #'+(i+1))}</div>
+            <div style="font-size:13px;color:#aaa">${escapeHtml(qtyText)}</div>
           </div>
           <div style="font-weight:600;color:#B9783F">${Number(price).toLocaleString('ru-RU')} so'm</div>
         </div>`;
@@ -4107,7 +4112,7 @@ function showValidationModal(issues) {
   list.innerHTML = issues.map(it => `
     <div class="val-item" onclick="scrollToValidationField('${it.targetId}')">
       <i class="ti ti-point"></i>
-      <span>${it.text}</span>
+      <span>${escapeHtml(it.text)}</span>
     </div>`).join('');
   document.getElementById('validationModal').style.display = 'flex';
 }
@@ -4303,7 +4308,7 @@ function showStockShortageModal(shortages, data, isDraft, zaklat, zaklatMethod) 
   list.innerHTML = shortages.map(s => `
     <div class="val-item">
       <i class="ti ti-alert-triangle"></i>
-      <span>${s}</span>
+      <span>${escapeHtml(s)}</span>
     </div>`).join('') + `
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-outline" style="flex:1" onclick="closeValidationModal()">Bekor qilish</button>
@@ -4634,7 +4639,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           row.dataset.dlvUnit = dlvInfo.unit;
           const badge = row.querySelector('.detal-badge');
           if (badge) {
-            badge.innerHTML += ` <span style="background:#FEF3C7;color:#b7770d;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px">📦 ${dlvInfo.delivered} ${dlvInfo.unit} topshirilgan</span>`;
+            badge.innerHTML += ` <span style="background:#FEF3C7;color:#b7770d;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px">📦 ${dlvInfo.delivered} ${escapeHtml(dlvInfo.unit)} topshirilgan</span>`;
           }
           // O'chirish tugmasini bloklaymiz
           const rm = row.querySelector('.detal-rm');
@@ -4985,7 +4990,7 @@ async function updateOrder(orderId) {
     if (res.ok) {
       let html = '<b>✓ Buyurtma yangilandi!</b><br>';
       if (result.inventory_log?.length) {
-        html += '<br>📦 Ombor to\'g\'rilandi:<br>' + result.inventory_log.join('<br>');
+        html += '<br>📦 Ombor to\'g\'rilandi:<br>' + result.inventory_log.map(escapeHtml).join('<br>');
       } else {
         html += '<br>📦 Ombor o\'zgarmadi';
       }
@@ -5043,8 +5048,8 @@ async function updateOrder(orderId) {
       }
     } else {
       const det = result.detail || {};
-      let html = '<b>❌ ' + (det.message || 'Xato') + '</b>';
-      if (det.shortages?.length) html += '<br><br>' + det.shortages.map(x=>`• ${x}`).join('<br>');
+      let html = '<b>❌ ' + escapeHtml(det.message || 'Xato') + '</b>';
+      if (det.shortages?.length) html += '<br><br>' + det.shortages.map(x=>`• ${escapeHtml(x)}`).join('<br>');
       if (box) { box.innerHTML = html; box.className = 'result-box error'; box.style.display = 'block'; }
       showMsg('❌ ' + (det.message || 'Xato'), 'error');
     }
@@ -5058,8 +5063,8 @@ function showPromptModal(message, defaultValue = '', options = {}) {
     document.getElementById('genericConfirmIcon').textContent = options.icon || '✏️';
     document.getElementById('genericConfirmTitle').textContent = options.title || "Ma'lumot kiriting";
     document.getElementById('genericConfirmMsg').innerHTML =
-      message.replace(/\n/g, '<br>') +
-      `<input type="${options.type || 'text'}" id="genericPromptInput" value="${defaultValue}" placeholder="${options.placeholder || ''}"
+      escapeHtml(message).replace(/\n/g, '<br>') +
+      `<input type="${options.type || 'text'}" id="genericPromptInput" value="${escapeHtml(defaultValue)}" placeholder="${options.placeholder || ''}"
         style="width:100%;margin-top:12px;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">`;
     const okBtn = document.getElementById('genericConfirmOk');
     const cancelBtn = document.getElementById('genericConfirmCancel');
@@ -5086,7 +5091,7 @@ function showConfirmModal(message, options = {}) {
     const overlay = document.getElementById('genericConfirmOverlay');
     document.getElementById('genericConfirmIcon').textContent = options.danger ? '⚠️' : (options.icon || '❓');
     document.getElementById('genericConfirmTitle').textContent = options.title || 'Tasdiqlang';
-    document.getElementById('genericConfirmMsg').innerHTML = message.replace(/\n/g, '<br>');
+    document.getElementById('genericConfirmMsg').innerHTML = escapeHtml(message).replace(/\n/g, '<br>');
     const okBtn = document.getElementById('genericConfirmOk');
     const cancelBtn = document.getElementById('genericConfirmCancel');
     okBtn.textContent = options.okText || "✓ Ha";
@@ -5160,25 +5165,25 @@ async function submitReadyModal() {
     if (res.ok) {
       let html = '<b>✓ Buyurtma tayyor!</b><br>';
       if (result.auto_delivery) {
-        html += `<br>🚚 ${result.auto_delivery.message}`;
+        html += `<br>🚚 ${escapeHtml(result.auto_delivery.message)}`;
         if (result.auto_delivery.delivery_id) {
           openPdfSafe(`/api/deliveries/${result.auto_delivery.delivery_id}/pdf`);
         }
       }
       if (result.partial_return) {
-        html += `<br>📦 ${result.partial_return.message}`;
+        html += `<br>📦 ${escapeHtml(result.partial_return.message)}`;
       }
       if (result.finalized) {
         const f = result.finalized;
         const clr = f.overpaid ? '#DC2626' : (f.debt > 0 ? '#F59E0B' : '#22C55E');
-        html += `<br><br><div style="border:1.5px solid ${clr};border-radius:8px;padding:10px;color:${clr};font-weight:600">💰 ${f.message}</div>`;
+        html += `<br><br><div style="border:1.5px solid ${clr};border-radius:8px;padding:10px;color:${clr};font-weight:600">💰 ${escapeHtml(f.message)}</div>`;
       }
       if (result.loy_info) {
         const li = result.loy_info;
         const icon = li.action === 'ortdi' ? '🟢' : (li.action === 'qoshimcha' ? '🟠' : '✓');
-        html += `<br>🧱 Loy: reja ${li.planned} kg → haqiqiy ${li.actual} kg<br>${icon} ${li.message}`;
+        html += `<br>🧱 Loy: reja ${li.planned} kg → haqiqiy ${li.actual} kg<br>${icon} ${escapeHtml(li.message)}`;
       }
-      if (result.inventory_changes?.length) html += '<br><br>📦 Ombor:<br>' + result.inventory_changes.join('<br>');
+      if (result.inventory_changes?.length) html += '<br><br>📦 Ombor:<br>' + result.inventory_changes.map(escapeHtml).join('<br>');
       if (result.master_kpi) {
         const k = result.master_kpi;
         html += `<br><br>👷 Usta KPI: ${formatNum(k.total_kpi)} so'm`;
@@ -5188,8 +5193,8 @@ async function submitReadyModal() {
       setTimeout(()=>location.reload(), 6000);
     } else {
       let html = '<b>❌ Xato!</b><br>';
-      if (result.detail?.shortages) html += result.detail.shortages.join('<br>');
-      else html += result.detail?.message || JSON.stringify(result.detail);
+      if (result.detail?.shortages) html += result.detail.shortages.map(escapeHtml).join('<br>');
+      else html += escapeHtml(result.detail?.message || JSON.stringify(result.detail));
       box.innerHTML = html; box.className = 'result-box error';
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
@@ -5237,8 +5242,8 @@ async function loadProfit() {
         <div style="font-size:13px;color:#B8B2A5;font-weight:700;width:20px;flex-shrink:0;margin-top:1px">${num}</div>
         <div style="font-size:17px;flex-shrink:0">${ico}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:14px;font-weight:600;color:#222">${mainName}</div>
-          ${subDetail ? `<div style="font-size:12px;color:#B0AAA0;margin-top:2px">${subDetail}</div>` : ''}
+          <div style="font-size:14px;font-weight:600;color:#222">${escapeHtml(mainName)}</div>
+          ${subDetail ? `<div style="font-size:12px;color:#B0AAA0;margin-top:2px">${escapeHtml(subDetail)}</div>` : ''}
         </div>
         <div style="font-weight:700;color:#DC2626;white-space:nowrap;font-size:14.5px">−${Number(b.summa).toLocaleString('ru-RU')} so'm</div>
       </div>`;
@@ -5388,7 +5393,7 @@ async function deleteSelected() {
       const box = document.getElementById('resultBox');
       if (d.inventory_log?.length) {
         if (box) {
-          box.innerHTML = '<b>✓ Buyurtma o\'chirildi!</b><br><br>♻️ Omborga qaytdi:<br>' + d.inventory_log.join('<br>');
+          box.innerHTML = '<b>✓ Buyurtma o\'chirildi!</b><br><br>♻️ Omborga qaytdi:<br>' + d.inventory_log.map(escapeHtml).join('<br>');
           box.className = 'result-box success';
           box.style.display = 'block';
         }
@@ -5396,7 +5401,7 @@ async function deleteSelected() {
         setTimeout(()=>location.reload(), 3000);
       } else if (d.reason) {
         if (box) {
-          box.innerHTML = '<b>✓ Buyurtma o\'chirildi</b><br><br>ℹ️ ' + d.reason;
+          box.innerHTML = '<b>✓ Buyurtma o\'chirildi</b><br><br>ℹ️ ' + escapeHtml(d.reason);
           box.className = 'result-box';
           box.style.display = 'block';
         }

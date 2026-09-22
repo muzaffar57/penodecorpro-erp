@@ -305,12 +305,12 @@ async function loadPlatformCompanies() {
       '<th style="padding:6px 8px"></th></tr>' +
       rows.map(c => '<tr style="border-top:1px solid var(--border2)">' +
         '<td style="padding:6px 8px">' + c.id + '</td>' +
-        '<td style="padding:6px 8px;font-weight:600">' + (c.name || '') + '</td>' +
-        '<td style="padding:6px 8px;font-family:monospace;color:var(--text3)">' + (c.code || '') + '</td>' +
+        '<td style="padding:6px 8px;font-weight:600">' + escapeHtml(c.name || '') + '</td>' +
+        '<td style="padding:6px 8px;font-family:monospace;color:var(--text3)">' + escapeHtml(c.code || '') + '</td>' +
         '<td style="padding:6px 8px">' + c.users + '</td>' +
         '<td style="padding:6px 8px">' +
         '<button class="btn btn-sm" style="background:var(--bg);color:var(--text3);font-size:11.5px" ' +
-        'onclick="resetAdminPassword(' + c.id + ", '" + String(c.name || '').replace(/'/g, "") + "')" + '">' +
+        'onclick="resetAdminPassword(' + c.id + ", '" + jsAttrEscape(String(c.name || '')) + "')" + '">' +
         'Parolni tiklash</button></td></tr>').join('') + '</table>';
   } catch (e) { el.textContent = 'Yuklab bo\'lmadi'; }
 }
@@ -323,15 +323,15 @@ async function resetAdminPassword(cid, nom) {
   const d = await r.json().catch(() => ({}));
   const res = document.getElementById('nc-result');
   if (!r.ok) {
-    res.innerHTML = '<span style="color:#c00">' + (d.detail || 'Xato') + '</span>';
+    res.innerHTML = '<span style="color:#c00">' + escapeHtml(d.detail || 'Xato') + '</span>';
     return;
   }
   res.innerHTML =
     '<div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px">' +
-    '<div style="font-weight:700;margin-bottom:8px">🔑 Parol yangilandi — ' + nom + '</div>' +
+    '<div style="font-weight:700;margin-bottom:8px">🔑 Parol yangilandi — ' + escapeHtml(nom) + '</div>' +
     '<div style="font-size:12.5px;line-height:1.9">' +
-    'Login: <b style="font-family:monospace">' + d.username + '</b><br>' +
-    'Yangi parol: <b style="font-family:monospace;font-size:14px">' + d.password + '</b></div>' +
+    'Login: <b style="font-family:monospace">' + escapeHtml(d.username) + '</b><br>' +
+    'Yangi parol: <b style="font-family:monospace;font-size:14px">' + escapeHtml(d.password) + '</b></div>' +
     '<div style="margin-top:10px;font-size:12px;color:#c0392b">⚠ Parol faqat shu yerda ko\'rsatiladi.</div></div>';
 }
 
@@ -347,16 +347,16 @@ async function createCompany() {
   const r = await fetch('/api/platform/companies', { method: 'POST', body: fd });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) {
-    res.innerHTML = '<span style="color:#c00">' + (d.detail || 'Xato') + '</span>';
+    res.innerHTML = '<span style="color:#c00">' + escapeHtml(d.detail || 'Xato') + '</span>';
     return;
   }
   res.innerHTML =
     '<div style="background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px">' +
     '<div style="font-weight:700;margin-bottom:8px">✓ Korxona yaratildi</div>' +
     '<div style="font-size:12.5px;line-height:1.9">' +
-    'Korxona: <b>' + d.company.name + '</b> (kod ' + d.company.code + ')<br>' +
-    'Login: <b style="font-family:monospace">' + d.admin.username + '</b><br>' +
-    'Parol: <b style="font-family:monospace;font-size:14px">' + d.admin.password + '</b>' +
+    'Korxona: <b>' + escapeHtml(d.company.name) + '</b> (kod ' + escapeHtml(d.company.code) + ')<br>' +
+    'Login: <b style="font-family:monospace">' + escapeHtml(d.admin.username) + '</b><br>' +
+    'Parol: <b style="font-family:monospace;font-size:14px">' + escapeHtml(d.admin.password) + '</b>' +
     '</div>' +
     '<div style="margin-top:10px;font-size:12px;color:#c0392b">⚠ Parol faqat shu yerda ko\'rsatiladi. ' +
     'Nusxa oling va mijozga yuboring — keyin tiklab bo\'lmaydi.</div></div>';
@@ -397,7 +397,7 @@ async function uploadLogo() {
     inp.value = '';
     loadCompany();
   } else {
-    el.innerHTML = '<span style="color:#c00">' + (d.detail || 'Xato') + '</span>';
+    el.innerHTML = '<span style="color:#c00">' + escapeHtml(d.detail || 'Xato') + '</span>';
   }
 }
 
@@ -417,7 +417,7 @@ async function saveCompany() {
     setTimeout(() => location.reload(), 900);
   } else {
     const d = await r.json().catch(() => ({}));
-    el.innerHTML = '<span style="color:#c00">' + (d.detail || 'Xato') + '</span>';
+    el.innerHTML = '<span style="color:#c00">' + escapeHtml(d.detail || 'Xato') + '</span>';
   }
 }
 
@@ -428,9 +428,9 @@ async function loadCategories() {
     const d = await fetch('/api/settings/categories').then(r => r.json());
     el.innerHTML = d.categories.map(c =>
       '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
-      '<input type="checkbox" class="cat-cb" value="' + c.code + '"' +
+      '<input type="checkbox" class="cat-cb" value="' + escapeHtml(c.code) + '"' +
       (c.enabled ? ' checked' : '') + ' style="width:16px;height:16px;cursor:pointer">' +
-      c.label + '</label>').join('');
+      escapeHtml(c.label) + '</label>').join('');
   } catch (e) { el.textContent = "Yuklab bo'lmadi"; }
 }
 
@@ -455,7 +455,7 @@ async function loadTgBot() {
     const el = document.getElementById('tg-status');
     if (d.configured) {
       el.innerHTML = '<span style="color:var(--green,#0a0)">✓ O\'z boti sozlangan</span> ' +
-                     '<span style="color:var(--text3)">(token ' + (d.token_hint || '') + ')</span>';
+                     '<span style="color:var(--text3)">(token ' + escapeHtml(d.token_hint || '') + ')</span>';
       document.getElementById('tg-chat').value = d.chat_id || '';
     } else {
       el.innerHTML = d.uses_system_bot
