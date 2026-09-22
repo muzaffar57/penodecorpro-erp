@@ -25,6 +25,17 @@ Tuzatish (kech36):
     o'rniga o'sha yagona qoida: foydalanuvchi o'zi yaratgan "Tayyor loy"
     nomli ODDIY material tugasa, endi Telegram kabi u ham ogohlantiradi.
 
+21-band (kech37) — FOYDALANUVCHI QARORI: "Ortgan loy uchun chegara shart emas."
+Ya'ni Tayyor loy ga min > 0 qo'yilgan bo'lsa ham u HECH QAYERDA "kam" emas. Ilgari
+(kod o'qib va shu test bilan O'LCHANGAN) bosh sahifa / dashboard / buyurtmalar
+ogohlantirishi / bugungi vazifalar / grafik (`services.check_low_stock`), hisobotlar
+ogohlantirishi (`services.get_business_alerts`), Telegram "Ombor hisoboti"
+(`main.api_full_stock_report`) va hisobotlar jadvalidagi sariq nuqta
+(`reports.html` `stockDot`) uni "kam" deb ko'rsatardi — KPI, qo'ng'iroqcha va
+Telegram "kam qoldi" esa ko'rsatmasdi. Endi hammasi bir xil; Omborxona qatorida
+Tayyor loy chegara ustuni "—" (tahrirlash tugmasi yo'q), chizig'i chegaraga
+nisbatan emas (bor — 100 %, yo'q — 0 %). 8- va 9-bo'limlar.
+
 Tayyor loy fiksturasi HAQIQIY generator (`get_or_create_loy_stock`) bilan
 yaratiladi — nom shakli ishlab chiqarishdagi bilan aynan bir xil bo'lishi uchun.
 
@@ -395,6 +406,162 @@ _b2 = [b for b in _ph2.split('<div class="mat-row"')[1:]
        if f'data-name="{html.escape(loy_nomi(L0).lower())}"' in b]
 _st2 = re.search(r'data-status="([^"]*)"', _b2[0]).group(1) if _b2 else None
 check("L0 qoldiq 4 → 'ok' (Yetarli)", _st2 == "ok", str(_st2))
+
+section("8. 21-band — Tayyor loy ga min > 0 qo'yilgan: HECH QAYERDA 'kam' emas (foydalanuvchi qarori)")
+# Fikstura yangilanadi: Tayyor loy zaxiralariga chegara (L0 4 / 10, L1 5 / 10, L2 3 / 10 — hammasi
+# qoldiq <= min); o'xshash nomli ODDIY materiallarga ham chegara: T3 "AAA Tayyor loy (nusxa)" 0 / 5
+# (prefiks nom BOSHIDA emas), T4 "Tayyor loyqa KPI" 10 / 20 (qavssiz) — ular "kam" bo'lishi SHART.
+_s = SessionLocal()
+try:
+    for _k, _mn in ((L0, 10), (L1, 10), (T3, 5), (T4, 20)):
+        _s.query(Inventory).filter(Inventory.id == IDS.get(_k)).update(
+            {"min_stock": _mn}, synchronize_session=False)
+    _s.commit()
+    _hol = {i.item_name: (float(i.stock_quantity or 0), float(i.min_stock or 0)) for i in _s.query(Inventory).filter(
+        Inventory.id.in_([v for v in IDS.values() if v])).all()}
+finally:
+    _s.close()
+check("fikstura: L0 4/10, L1 5/10, L2 3/10 (Tayyor loy); M1 1/5, T1 0/5, T3 0/5, T4 10/20 (oddiy)",
+      _hol.get(loy_nomi(L0)) == (4.0, 10.0) and _hol.get(loy_nomi(L1)) == (5.0, 10.0)
+      and _hol.get(loy_nomi(L2)) == (3.0, 10.0) and _hol.get(M1) == (1.0, 5.0) and _hol.get(T1) == (0.0, 5.0)
+      and _hol.get(T3) == (0.0, 5.0) and _hol.get(T4) == (10.0, 20.0), str(_hol)[:260])
+
+FIKS = set(_hol)                   # fiksturadagi HAMMA nom (Tayyor loy zaxiralari ham)
+KAM = {M1, T1, T3, T4}             # min > 0 va qoldiq <= min — oddiy materiallar
+
+
+def fiks(nomlar):
+    return {n for n in nomlar if n in FIKS}
+
+
+def nomlar_ol(ro_yxat, kalit="item_name"):
+    return [x.get(kalit) for x in ro_yxat if isinstance(x, dict)] if isinstance(ro_yxat, list) else None
+
+
+_st = js(req(C, "get", "/api/dashboard/stats")) or {}
+_li = _st.get("low_stock_items")
+_ln = nomlar_ol(_li)
+check("/api/dashboard/stats (bosh sahifa '/', dashboard) — low_stock_items fikstura qismi AYNAN {M1, T1, T3, T4}; "
+      "Tayyor loy (L0, L1, L2) YO'Q",
+      _ln is not None and fiks(_ln) == KAM, f"{sorted(fiks(_ln or []))} (javob: {str(_st)[:160]})")
+check("/api/dashboard/stats low_stock_count == len(low_stock_items)",
+      _ln is not None and _st.get("low_stock_count") == len(_ln), f"{_st.get('low_stock_count')} vs {len(_ln or [])}")
+
+_wr = js(req(C, "get", "/api/warnings/low-stock")) or {}
+_wn = nomlar_ol(_wr.get("warnings"))
+check("/api/warnings/low-stock (buyurtmalar sahifasi ogohlantirishi) — AYNAN {M1, T1, T3, T4}, Tayyor loy YO'Q",
+      _wn is not None and fiks(_wn) == KAM, f"{sorted(fiks(_wn or []))} {str(_wr)[:120]}")
+
+_td = js(req(C, "get", "/api/dashboard/today-tasks")) or []
+_tdn = [x.get("text", "").split(" kam qolgan (")[0] for x in _td
+        if isinstance(x, dict) and " kam qolgan (" in x.get("text", "")]
+check("/api/dashboard/today-tasks 'Bugungi vazifalar' — kam qolganlar AYNAN {M1, T1, T3, T4}, Tayyor loy YO'Q",
+      fiks(_tdn) == KAM, f"{sorted(fiks(_tdn))} {str(_td)[:160]}")
+
+_ch = js(req(C, "get", "/api/dashboard/charts")) or {}
+_chn = nomlar_ol(_ch.get("low_stock"))
+check("/api/dashboard/charts low_stock (dashboard grafigi) — AYNAN {M1, T1, T3, T4}, Tayyor loy YO'Q",
+      _chn is not None and fiks(_chn) == KAM, f"{sorted(fiks(_chn or []))} {str(_ch.get('low_stock'))[:160]}")
+
+_al = js(req(C, "get", "/api/reports/alerts")) or []
+_aln = []
+for _a in (_al if isinstance(_al, list) else []):
+    _mm = re.match(r"^Omborda (.*) kamaymoqda \(", str((_a or {}).get("text", "")))
+    if _mm:
+        _aln.append(_mm.group(1))
+check("/api/reports/alerts (hisobotlar 'kamaymoqda') — AYNAN {M1, T1, T3, T4}, Tayyor loy YO'Q",
+      fiks(_aln) == KAM, f"{sorted(fiks(_aln))} {str(_al)[:160]}")
+
+TG.clear()
+_r = req(C, "post", "/api/inventory/full-stock-report")
+_msg = " ".join(t for _, t in TG)
+_kam_q, _, _yet_q = _msg.partition("━━━ YETARLI")
+# Qator shakli: "<emoji> <nom>: <qoldiq> <birlik>" — " <nom>: " bilan qidiriladi ("Tayyor loy" (T1)
+# nomi boshqa nomlarning ichida ham bor, ikki nuqta bilan esa faqat o'z qatoriga mos keladi).
+check("Telegram 'Ombor hisoboti' → 200, 'KAM QOLGANLAR' da M1, T1, T3, T4 BOR",
+      _r.status_code == 200 and bool(_yet_q) and all(f" {n}: " in _kam_q for n in KAM),
+      f"{_r.status_code} {_msg[:240]}")
+check("Telegram 'Ombor hisoboti' — Tayyor loy (L0, L1, L2) 'KAM QOLGANLAR' da YO'Q, 'YETARLI' da BOR",
+      bool(_yet_q) and not any(f" {loy_nomi(x)}: " in _kam_q for x in (L0, L1, L2))
+      and all(f" {loy_nomi(x)}: " in _yet_q for x in (L0, L1, L2)), _msg[:300])
+
+_k3 = _kpi()
+_d3 = SessionLocal()
+_g3 = safe(crud.get_low_stock_items, _d3, company_id=1)
+_d3.close()
+check("Omborxona KPI == Telegram 'kam qoldi' == boshlang'ich + 4 (M1, T1, T3, T4) — Tayyor loy chegarasi sanalmaydi",
+      isinstance(_g3, list) and _k3.get("low_count") == len(_g3) == B_LOW + 4,
+      f"KPI {_k3.get('low_count')}, Telegram {len(_g3) if isinstance(_g3, list) else _g3} (boshlang'ich {B_LOW})")
+
+section("9. 21-band — Omborxona qatori va hisobotlar jadvali (Tayyor loy chegarasiz)")
+_ph3 = getattr(req(C, "get", "/inventory"), "text", "") or ""
+_blok = {}
+for _b in _ph3.split('<div class="mat-row"')[1:]:
+    _nm = re.search(r'data-name="([^"]*)"', _b)
+    if _nm:
+        _blok[html.unescape(_nm.group(1))] = _b
+
+
+def min_ustun(nom):
+    _mm = re.search(r'<div class="mat-col-min"[^>]*>(.*?)</div>', _blok.get(nom.lower(), ""), re.S)
+    return _mm.group(1) if _mm else None
+
+
+_mu = {x: min_ustun(loy_nomi(x)) for x in (L0, L1, L2)}
+check("Tayyor loy qatorlari (L0, L1, L2): chegara ustuni '—', 'Chegarani tuzatish' (editMinStock) tugmasi YO'Q",
+      all(v is not None and ">—<" in v and "editMinStock(" not in v for v in _mu.values()), str(_mu)[:300])
+_mu1 = min_ustun(M1)
+check("oddiy M1 qatori: chegara '5.0 kg' va editMinStock tugmasi avvalgidek BOR",
+      _mu1 is not None and "editMinStock(" in _mu1 and "5.0 kg" in _mu1, str(_mu1)[:200])
+_fl = re.search(r'class="stock-fill[^"]*" style="width:([^%"]*)%', _blok.get(loy_nomi(L2).lower(), ""))
+check("L2 Tayyor loy 3 / 10 — chizig'i chegaraga nisbatan EMAS: 100 % (ilgari 30 %)",
+      bool(_fl) and _fl.group(1).strip() == "100", _fl.group(1) if _fl else "topilmadi")
+
+# reports.html `stockDot` — node da (sahifadagi HAQIQIY funksiya matni, qavs muvozanati bilan ajratiladi)
+import json as _json                               # noqa: E402
+import subprocess as _sp                           # noqa: E402
+import shutil as _sh                               # noqa: E402
+
+_rep = open(os.path.join(ROOT, "templates", "reports.html"), encoding="utf-8").read()
+_i0 = _rep.find("function stockDot(i) {")
+_fn = None
+if _i0 >= 0:
+    _d, _j = 0, _rep.find("{", _i0)
+    while _j < len(_rep):
+        if _rep[_j] == "{":
+            _d += 1
+        elif _rep[_j] == "}":
+            _d -= 1
+            if _d == 0:
+                _fn = _rep[_i0:_j + 1]
+                break
+        _j += 1
+HOLAT = [  # (nom, qoldiq, min, kutilgan rang)
+    ("Tayyor loy (KPI_CHEGARA)", 3, 10, "#22C55E"), ("Tayyor loy (KPI_OQ)", 0, 10, "#22C55E"),
+    ("Tayyor loy (KPI_OQ)", -1, 0, "#EF4444"),
+    ("Tayyor loy", 0, 5, "#F59E0B"), ("AAA Tayyor loy (nusxa)", 0, 5, "#F59E0B"),
+    ("Tayyor loyqa KPI", 10, 20, "#F59E0B"), ("KPI_ODDIY_KAM", 1, 5, "#F59E0B"),
+    ("KPI_ODDIY_YETARLI", 50, 5, "#22C55E"), (None, 1, 5, "#F59E0B"), ("KPI_MANFIY", -2, 0, "#EF4444"),
+]
+_rang = None
+_node = _sh.which("node")
+if _fn and _node:
+    _tmpf = os.path.join(tempfile.mkdtemp(), "stockdot.js")
+    open(_tmpf, "w", encoding="utf-8").write(
+        "const f = (" + _fn + ");\n"
+        "const h = JSON.parse(process.argv[2]);\n"
+        "console.log(JSON.stringify(h.map(x => { const m = String(f({item_name: x[0], stock_quantity: x[1], "
+        "min_stock: x[2]})).match(/background:(#[0-9A-Fa-f]{6})/); return m ? m[1] : null; })));\n")
+    try:
+        _p = _sp.run([_node, _tmpf, _json.dumps(HOLAT)], capture_output=True, text=True, timeout=60)
+        _rang = _json.loads(_p.stdout.strip() or "null")
+    except Exception as e:                 # noqa: BLE001
+        _rang = f"XATO {type(e).__name__}: {e}"
+check("reports.html stockDot: Tayyor loy (3/10, 0/10) — yashil (chegarasiz), manfiy qoldiq — qizil",
+      isinstance(_rang, list) and _rang[:3] == [h[3] for h in HOLAT[:3]],
+      f"funksiya {'bor' if _fn else 'YOQ'}, node {'bor' if _node else 'YOQ'}: {_rang}")
+check("reports.html stockDot: o'xshash nomli ODDIY materiallar va oddiy qoidalar avvalgidek",
+      isinstance(_rang, list) and _rang[3:] == [h[3] for h in HOLAT[3:]], str(_rang))
 
 print("\n" + "=" * 66)
 print(f"REJIM: {'PostgreSQL' if PG_URL else 'SQLite'}")
