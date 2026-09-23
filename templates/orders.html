@@ -4802,7 +4802,13 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 
       // Kelishilgan summa
       const fpEl = document.getElementById('final_price');
-      if (fpEl && order.agreed_amount) fpEl.value = formatNum(order.agreed_amount);
+      // 28-band (kech43): ASL (pul qaytarishdan oldingi) kelishilgan summa — server saqlashda
+      // pul qaytarish kamaytirishini o'zi QAYTA ayiradi. Ilgari joriy summa ko'rsatilardi:
+      // saqlanganda qaytarilgan tovar "chegirma" ga aylanardi, 0 bo'lsa (to'liq qaytgan)
+      // maydon bo'sh qolib, qarz qayta paydo bo'lardi.
+      const _aslKel = order.kelishilgan_asl ?? order.agreed_amount;
+      const _qaytKam = parseFloat(order.pul_qaytarish_kamaytirgan || 0);
+      if (fpEl && _aslKel) fpEl.value = formatNum(_aslKel);
 
       // Chegirma haqida ma'lumot
       if (editDiscountPct > 0) {
@@ -4810,6 +4816,14 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         if (hint) {
           hint.style.display = 'block';
           hint.innerHTML = `💡 Bu buyurtmada <b>${editDiscountPct.toFixed(2)}%</b> chegirma bor. Detallar o'zgarsa — kelishilgan summa shu foiz bo'yicha avtomatik qayta hisoblanadi.`;
+        }
+      }
+      if (_qaytKam > 0.005) {
+        const hint = document.getElementById('discount-auto-hint');
+        if (hint) {
+          hint.style.display = 'block';
+          hint.innerHTML = (editDiscountPct > 0 ? hint.innerHTML + '<br>' : '') +
+            `↩️ Qaytarilgan mahsulot uchun <b>${formatNum(_qaytKam)} so'm</b> kelishilgan summadan ayirilgan. Bu yerda — qaytarishdan OLDINGI summa; saqlanganda ${formatNum(_qaytKam)} so'm yana avtomatik ayiriladi.`;
         }
       }
 
