@@ -702,6 +702,9 @@ async function deleteReturn(id){
   let matn = "Bu qaytarish yozuvini o'chirasizmi?";
   if (omborga) matn += "\n\n📦 Omborga qo'shilgan " + omborga + " Tayyor mahsulotlardan olib tashlanadi.";
   if (pulQaytgan) matn += "\n\n💰 Mijozga qaytarilgan pul ham bekor qilinadi: kelishilgan summa qayta tiklanadi, manfiy to'lov yozuvi o'chadi.";
+  // kech45 (13-band): brak uchun ombordan yechilgan xomashyo omborga qaytadi
+  // (tizim yangilanishidan OLDIN yozilgan brakda bog'lam yo'q — qaytmaydi).
+  if (row && row.dataset.reason === 'Brak') matn += "\n\n🧱 Brak uchun ombordan yechilgan xomashyo (penoplast, loy) omborga qaytariladi. Tizim yangilanishidan oldin yozilgan brakda xomashyo qaytmaydi.";
   if (!(await customConfirm(matn, {danger:true, okText:"Ha, o'chirish"}))) return;
   if (inFlightDeleteReturn.has(id)) return; // Ikki marta bosishdan himoya
   inFlightDeleteReturn.add(id);
