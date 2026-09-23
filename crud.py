@@ -4712,8 +4712,20 @@ def create_payment(db: Session, payment_data: PaymentCreate,
     # kelinmaydi. Ya'ni bu order_id faqat shu korxonaniki bo'lishi mumkin.
     from datetime import timedelta as _td_pay
     _summa = round(float(payment_data.amount or 0), 2)
+    # kech38 (5-bo'lim 13-band): himoya FAQAT qo'lda kiritilgan to'lovlar
+    # orasida (`delivery_id IS NULL`). O'LCHANGAN (SQLite va HAQIQIY
+    # PostgreSQL 16, asl kod `c7a11f3`): yuk bilan 50 000 naqd to'lov
+    # yozilgach 8 s ichida qo'lda kiritilgan 50 000 naqd to'lov JIM yutilardi
+    # (javob `duplicate: true`, yangi yozuv yo'q; `orders.html` bu belgini
+    # o'qimaydi — foydalanuvchi "saqlandi" ko'rardi). Teskari tartibda (avval
+    # qo'lda, keyin yuk bilan) esa ikkalasi yozilardi — ya'ni bu "bir pulni
+    # ikki joyda yozish"ga qarshi himoya EMAS, tasodif edi. Himoyaning
+    # maqsadi — AYNAN bir so'rovning qayta yuborilishi (ikki bosish, tarmoq
+    # takrori); yuk to'lovi qo'lda to'lov so'rovining takrori bo'la olmaydi,
+    # uning o'z himoyasi bor (`create_delivery` imzosi).
     _oldingi = db.query(Payment).filter(
         Payment.order_id == payment_data.order_id,
+        Payment.delivery_id.is_(None),
         Payment.amount == _summa,
         Payment.payment_type == _pay_enum(PaymentType, payment_data.payment_type,
                                           PaymentType.PARTIAL),
@@ -4778,6 +4790,19 @@ def get_payments(db: Session, order_id: Optional[int] = None,
     return query.order_by(Payment.paid_at.desc()).all()
 
 
+def _tolov_audit_matni(payment) -> str:
+    """To'lovning audit uchun to'liq tafsiloti (summa, tur, usul, kim qabul
+    qilgan, qachon, izoh). kech38: `delete_payment` va `delete_delivery`
+    (yuk bilan birga to'lovni o'chirish — 12-band) uchun YAGONA manba."""
+    return (
+        f"{payment.amount:,.0f} so'm · {payment.payment_type.value if payment.payment_type else '-'} · "
+        f"{payment.payment_method.value if payment.payment_method else '-'} · "
+        f"qabul qilgan: {payment.received_by or '-'} · "
+        f"sana: {payment.paid_at.strftime('%Y-%m-%d %H:%M') if payment.paid_at else '-'}"
+        + (f" · izoh: {payment.notes}" if payment.notes else "")
+    )
+
+
 def delete_payment(db: Session, payment_id: int, performed_by: str = None,
                    company_id: int = None) -> bool:
     """To'lovni o'chirish.
@@ -4797,13 +4822,7 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None,
 
     order = payment.order
     order_label = order.order_number if order else f"#{payment.order_id}"
-    detail = (
-        f"{payment.amount:,.0f} so'm · {payment.payment_type.value if payment.payment_type else '-'} · "
-        f"{payment.payment_method.value if payment.payment_method else '-'} · "
-        f"qabul qilgan: {payment.received_by or '-'} · "
-        f"sana: {payment.paid_at.strftime('%Y-%m-%d %H:%M') if payment.paid_at else '-'}"
-        + (f" · izoh: {payment.notes}" if payment.notes else "")
-    )
+    detail = _tolov_audit_matni(payment)
     log_activity(
         db, "deleted", "payment", payment.id,
         company_id=getattr(order, 'company_id', None),   # M7
@@ -6170,13 +6189,31 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     if not data.items:
         return {"success": False, "message": "Kamida bitta detal kiriting"}
 
+    # kech38 (5-bo'lim 6-band): shu buyurtmaga TEGISHLI BO'LMAGAN yoki umuman
+    # mavjud bo'lmagan detal qatori — butun so'rov RAD etiladi. Ilgari bunday
+    # qator pastdagi siklda jimgina tashlab yuborilar, qolganlari 200 bilan
+    # saqlanardi — O'LCHANGAN (SQLite va HAQIQIY PostgreSQL 16, asl kod
+    # `c7a11f3`): [o'z detali 2, boshqa buyurtma detali 3] → 200, faqat o'z
+    # detali yozildi; [yo'q id, o'z detali] → 200. Haqiqiy holat: yetkazish
+    # oynasi ochiq turganda boshqa xodim detalni o'chirsa, foydalanuvchi
+    # "saqlandi" ko'rardi, lekin bir qator izsiz yo'qolardi. Tekshiruv IMZO
+    # va qoldiq tekshiruvidan OLDIN: noto'g'ri so'rov "takroriy" deb ham
+    # qabul qilinmaydi (imzo bunday qatorlarni e'tiborsiz qoldiradi).
+    # `order.items` — `expire_all` dan keyin, qulf ostida bazadan o'qiladi.
+    _detal_idlari = {oi.id for oi in order.items}
+    for _qator_n, _dq in enumerate(data.items, 1):
+        if _dq.order_item_id not in _detal_idlari:
+            return {"success": False,
+                    "message": (f"'items' {_qator_n}-qator: bu detal shu buyurtmada topilmadi "
+                                f"(o'chirilgan bo'lishi mumkin) — sahifani yangilab, qayta kiriting")}
+
     # kech27: TAKROR YUBORISH — qoldiq tekshiruvidan ham, to'lov chegarasidan
     # ham OLDIN turishi SHART: birinchi so'rov yozilgach qoldiq va qarz
     # kamayadi, takroriy so'rov ularga yetib kelsa foydalanuvchiga
     # "Qoldiqdan ko'p berib bo'lmaydi!" yoki "ortiqcha to'lov" degan
     # chalg'ituvchi xabar chiqardi — holbuki yetkazish haqiqatan saqlangan.
     from datetime import timedelta as _td_dlv
-    _imzo = _yetkazish_imzo_sorov(data, {oi.id for oi in order.items})
+    _imzo = _yetkazish_imzo_sorov(data, _detal_idlari)
     if _imzo[0]:
         # TENANT: `Delivery` da korxona ustuni yo'q — filtr OTA (buyurtma)
         # orqali; buyurtma yuqorida korxona bilan tekshirilgan, bu yerda ham
@@ -6416,16 +6453,124 @@ def get_delivery(db: Session, delivery_id: int, company_id: int = None) -> Optio
     return _dq.first()
 
 
-def delete_delivery(db: Session, delivery_id: int) -> bool:
-    """Yetkazishni o'chirish."""
-    d = db.query(Delivery).filter(Delivery.id == delivery_id).first()
+class YukToloviBor(Exception):
+    """kech38 (5-bo'lim 12-band): o'chirilayotgan yuk xatiga to'lov bog'langan,
+    foydalanuvchi esa to'lov bilan nima qilishni hali aytmagan (`tolov`).
+    Marshrut → 409 (`detail.type = "delivery_has_payment"`), `orders.html`
+    `deleteDelivery` uch tugmali oyna ko'rsatadi."""
+
+    def __init__(self, raqam, tolovlar):
+        self.raqam = raqam
+        self.tolovlar = list(tolovlar)              # [(payment_id, summa)]
+        self.jami = round(sum(s for _, s in self.tolovlar), 2)
+        jm = f"{self.jami:,.0f}"
+        nechta = (f"{jm} so'm to'lov" if len(self.tolovlar) == 1
+                  else f"{len(self.tolovlar)} ta to'lov (jami {jm} so'm)")
+        super().__init__(
+            f"Bu yuk xatiga ({raqam}) {nechta} bog'langan.\n\n"
+            f"To'lov ham o'chirilsinmi yoki saqlab qolinsinmi?\n\n"
+            f"• \"To'lovni ham o'chirish\" — mijoz bu pulni bermagan bo'lsa "
+            f"(qarz {jm} so'mga ko'payadi).\n"
+            f"• \"To'lovni saqlab qolish\" — pul haqiqatan olingan bo'lsa "
+            f"(to'lov buyurtmada oddiy to'lov bo'lib qoladi, qarz o'zgarmaydi).")
+
+
+YUK_TOLOV_AMALLARI = ("ochir", "qoldir")
+
+
+def delete_delivery(db: Session, delivery_id: int, company_id: int = None,
+                    tolov: str = None, performed_by: str = None):
+    """Yetkazishni (yuk xatini) o'chirish.
+
+    Qaytaradi: muvaffaqiyatda `{"tolov_ochirildi": N, "tolov_saqlandi": M}`
+    (doim rost qiymat), topilmasa `False`.
+
+    kech38 (5-bo'lim 12-band) — O'LCHANGAN (asl kod `c7a11f3`):
+      * HAQIQIY PostgreSQL da (jonli sinov saytida ham) to'lov bog'langan
+        yukni o'chirish → 500 (`payments_delivery_id_fkey`, 23503), hech narsa
+        o'zgarmasdi; `orders.html` `deleteDelivery` esa `!res.ok` da HECH
+        QANDAY xabar ko'rsatmasdi — tugma "ishlamaydigandek" edi.
+      * SQLite da (tashqi kalit tekshirilmaydi) yuk o'char, to'lov esa
+        mavjud bo'lmagan yukka ishora qilib qolardi; SQLite id ni qayta
+        ishlatgani uchun u keyingi (boshqa buyurtmaning) yukiga \"bog'lanib\"
+        qolardi.
+    FOYDALANUVCHI QARORI (kech38): \"Har safar so'rasin\" — pul haqiqatan
+    olinganini faqat xodim biladi. Shuning uchun:
+      * `tolov=None` va yukka to'lov bog'langan → `YukToloviBor` (hech narsa
+        o'zgarmaydi; marshrut → 409, UI so'raydi);
+      * `tolov="ochir"` → to'lov(lar) ham o'chiriladi (audit izi bilan —
+        `delete_payment` dagi AYNAN matn), qarz ko'payadi;
+      * `tolov="qoldir"` → to'lov buyurtmada oddiy to'lov bo'lib qoladi
+        (`delivery_id = NULL`, izohga belgi, audit izi), qarz o'zgarmaydi;
+      * boshqa qiymat → `ValueError` (400). To'lovsiz yukda `tolov` e'tiborsiz.
+    Hammasi BITTA tranzaksiyada: `log_activity` o'zi `commit` qiladi (qulfni
+    bo'shatib, yarim holatni saqlab qo'yardi) — shuning uchun audit yozuvi
+    shu yerda to'g'ridan qo'shiladi.
+
+    QULF (5-bo'lim 14-bandning shu funksiyaga tegishli qismi): (101,
+    buyurtma) — `create_delivery` va `create_payment` bilan bir fazo. Qulfsiz
+    parallel \"yukni o'chirish\" + \"yangi yuk\" buyurtmani yarim topshirilgan
+    holda \"Yetkazildi\" deb qoldirishi mumkin edi (yangi yuk eski yukni
+    ko'radi, o'chirish esa yangi yukni ko'rmaydi)."""
+    if tolov is not None and tolov not in YUK_TOLOV_AMALLARI:
+        raise ValueError("'tolov' noto'g'ri qiymat — faqat 'ochir' yoki 'qoldir'")
+    _dq = db.query(Delivery).filter(Delivery.id == delivery_id)
+    if company_id is not None:
+        _dq = _dq.join(Order, Order.id == Delivery.order_id).filter(
+            Order.company_id == company_id)
+    d = _dq.first()
     if not d:
         return False
     order = d.order
+    # QULF — `create_delivery` naqshi: yozilmagan o'zgarish yo'qolmasin
+    # (`flush`), qulf, so'ng qulf ostida HAMMASI bazadan qayta o'qiladi.
+    db.flush()
+    _pul_qulfi(db, 101, order.id)
+    db.expire_all()
+    d = db.query(Delivery).join(Order, Order.id == Delivery.order_id).filter(
+        Delivery.id == delivery_id, Order.company_id == order.company_id).first()
+    if not d:
+        return False            # parallel so'rov allaqachon o'chirgan
+    order = d.order
+
+    # TENANT: `Payment` da korxona ustuni yo'q — OTA (buyurtma) orqali.
+    tolovlar = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
+        Payment.delivery_id == d.id,
+        Payment.order_id == order.id,
+        Order.company_id == order.company_id,
+    ).order_by(Payment.id).all()
+    if tolovlar and tolov is None:
+        raise YukToloviBor(d.delivery_number,
+                           [(p.id, float(p.amount or 0)) for p in tolovlar])
+
+    from models import ActivityLog
+    _ochirildi = _saqlandi = 0
+    for p in tolovlar:
+        if tolov == "ochir":
+            db.add(ActivityLog(
+                company_id=order.company_id, action="deleted", entity_type="payment",
+                entity_id=p.id, entity_label=f"Buyurtma {order.order_number}",
+                performed_by=performed_by,
+                new_value=_tolov_audit_matni(p) + f" · yuk xati {d.delivery_number} bilan birga"))
+            db.delete(p)
+            _ochirildi += 1
+        else:
+            p.delivery_id = None
+            p.notes = ((p.notes or "") + f" · yuk xati {d.delivery_number} o'chirilgan, "
+                       f"to'lov saqlab qolingan").strip(" ·")
+            db.add(ActivityLog(
+                company_id=order.company_id, action="updated", entity_type="payment",
+                entity_id=p.id, entity_label=f"Buyurtma {order.order_number}",
+                performed_by=performed_by, old_value=f"yuk xati {d.delivery_number}",
+                new_value="yuk xati o'chirildi — to'lov saqlab qolindi (oddiy to'lov)"))
+            _saqlandi += 1
+    if tolovlar:
+        db.flush()              # tashqi kalit: to'lov yozuvlari yukdan OLDIN
+
     # 2026-09-20: yuk xati bo'yicha ombordan chiqqan MRP mahsuloti
     # QAYTADI — chiqarish bilan AYNAN simmetrik (barqaror 1 birlik tan
     # narxi ishlatilgani uchun summa ham aynan tiklanadi).
-    _cid = getattr(order, 'company_id', None) if order else None
+    _cid = order.company_id
     for di in list(d.items or []):
         _oi = db.query(OrderItem).filter(OrderItem.id == di.order_item_id).first()
         if _oi:
@@ -6435,13 +6580,16 @@ def delete_delivery(db: Session, delivery_id: int) -> bool:
     db.flush()
 
     # Status qayta hisoblanadi
-    if order:
-        db.refresh(order)
-        if not order.is_fully_delivered and order.status == OrderStatus.DELIVERED:
-            order.status = OrderStatus.READY
+    db.refresh(order)
+    if not order.is_fully_delivered and order.status == OrderStatus.DELIVERED:
+        order.status = OrderStatus.READY
+    if tolovlar:
+        # to'lov holati va loyiha "To'langan" summasi (`delete_payment` bilan bir xil)
+        _update_order_payment_status(db, order)
+        _loyiha_tolangan_yangila(db, order.project)
 
     db.commit()
-    return True
+    return {"tolov_ochirildi": _ochirildi, "tolov_saqlandi": _saqlandi}
 
 
 def get_delivery_status(db: Session, order_id: int) -> dict:

@@ -6723,14 +6723,38 @@ def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db
 
 
 @app.delete("/api/deliveries/{delivery_id}")
-def api_delete_delivery(delivery_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Yetkazishni o'chirish."""
+def api_delete_delivery(delivery_id: int, tolov: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yetkazishni o'chirish.
+
+    kech38 (5-bo'lim 12-band): yukka to'lov bog'langan bo'lsa va `tolov`
+    berilmagan bo'lsa — 409 (`detail.type = "delivery_has_payment"`, hech
+    narsa o'zgarmaydi); UI so'raydi va `?tolov=ochir` (to'lov ham o'chadi) yoki
+    `?tolov=qoldir` (to'lov oddiy to'lov bo'lib qoladi) bilan qayta yuboradi.
+    Boshqa qiymat — 400. Ilgari HAQIQIY PostgreSQL da 500 edi
+    (`crud.delete_delivery` izohi)."""
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
-    if not auth.delivery_of_company(db, delivery_id, auth.company_id_of(current_user)):
+    _cid = auth.company_id_of(current_user)
+    if not auth.delivery_of_company(db, delivery_id, _cid):
         raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
-    if not crud.delete_delivery(db, delivery_id):
+    who = current_user.full_name or current_user.username
+    try:
+        natija = crud.delete_delivery(db, delivery_id, company_id=_cid, tolov=tolov,
+                                      performed_by=who)
+    except crud.YukToloviBor as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "type": "delivery_has_payment",
+            "message": str(e),
+            "delivery_number": e.raqam,
+            "payments": [{"id": pid, "amount": s} for pid, s in e.tolovlar],
+            "total": e.jami,
+        })
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
+    if not natija:
         raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
-    return {"status": "ok"}
+    return {"status": "ok", **natija}
 
 
 @app.get("/api/loy-cost")
