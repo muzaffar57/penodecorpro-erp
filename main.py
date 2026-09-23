@@ -5214,12 +5214,16 @@ def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_use
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     naqd = float(getattr(item, "naqd_qaytarildi", 0) or 0)
     kam = float(item.refund_agreed_delta or 0)
+    # Sonlar alohida (minglik ajratgich — bo'shliq); ilgari butun matnga `.replace(",", " ")`
+    # qo'llanib, gapdagi vergul ham yo'qolardi (JONLI kech42: "chegirildi  naqd").
+    def _som(v):
+        return f"{v:,.0f}".replace(",", " ")
     if naqd >= 0.01:
-        xabar = (f"Kelishilgan summa {kam:,.0f} so'mga kamaydi; mijozga {naqd:,.0f} so'm naqd "
-                 f"qaytarilgan deb yozildi (u ortiqcha to'lagan qism).").replace(",", " ")
+        xabar = (f"Kelishilgan summa {_som(kam)} so'mga kamaydi; mijozga {_som(naqd)} so'm naqd "
+                 f"qaytarilgan deb yozildi (u ortiqcha to'lagan qism).")
     else:
-        xabar = (f"Kelishilgan summa {kam:,.0f} so'mga kamaydi — qarzdan chegirildi, naqd pul "
-                 f"qaytarilmadi (mijoz ortiqcha to'lamagan).").replace(",", " ")
+        xabar = (f"Kelishilgan summa {_som(kam)} so'mga kamaydi — qarzdan chegirildi, naqd pul "
+                 f"qaytarilmadi (mijoz ortiqcha to'lamagan).")
     return {"status": "ok", "is_refunded": item.is_refunded, "naqd_qaytarildi": naqd,
             "kelishilgan_kamaydi": kam, "xabar": xabar}
 
