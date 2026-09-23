@@ -4454,12 +4454,24 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     if to_stock and reason_enum != ReturnReason.DEFECT:
         oi = order_item
         if oi:
+            # kech40 (22-band, K39-1): omborga NIMA qo'shilgani yozuvga saqlanadi —
+            # o'chirishda AYNAN shu ayiriladi (`delete_return_item`). `commit=False`:
+            # yozuv, bog'lam va ombor BITTA tranzaksiyada (ilgari
+            # `add_returned_to_stock` o'zi commit qilardi — yozuv bog'lamsiz saqlanib,
+            # (101, buyurtma) qulfi yig'indi tekshiruvidan keyin muddatidan oldin
+            # bo'shardi).
+            _ombor = {}
             fp = add_returned_to_stock(
                 db, oi, float(data.quantity), reason_enum.value,
                 order_id=data.order_id,
-                notes=f"{data.notes or ''}".strip() or None
+                notes=f"{data.notes or ''}".strip() or None,
+                commit=False, natija=_ombor
             )
             if fp:
+                item.finished_product_id = fp.id
+                item.stock_qty = _ombor.get("qty")
+                item.stock_cost = _ombor.get("cost")
+                item.stock_volume_m3 = _ombor.get("volume")
                 print(f"✓ Tayyor mahsulotlar omboriga: {fp.name} +{data.quantity} {fp.unit}")
 
     db.commit()
@@ -4510,7 +4522,8 @@ def get_return_item(db: Session, return_id: int) -> Optional[ReturnItem]:
     return db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
 
 
-def mark_refunded(db: Session, return_id: int, refunded_by: str = None) -> Optional[ReturnItem]:
+def mark_refunded(db: Session, return_id: int, refunded_by: str = None,
+                  company_id: int = None) -> Optional[ReturnItem]:
     """Qaytarishni 'pul qaytarildi' deb belgilaydi VA buni moliyaga to'g'ri
     ta'sir qiladigan qilib yozadi:
 
@@ -4518,24 +4531,59 @@ def mark_refunded(db: Session, return_id: int, refunded_by: str = None) -> Optio
        kamaytiriladi. Shu orqali bu pul endi Moliyadagi daromad/foyda
        hisob-kitoblarida (calculate_order_profit agreed_amount'dan
        foydalanadi) AVTOMATIK kamayadi — alohida "kirim" bo'lib qolmaydi.
-    2) MANFIY to'lov yozuvi qo'shiladi (mijozga naqd qaytarilgan puл),
+    2) MANFIY to'lov yozuvi qo'shiladi (mijozga naqd qaytarilgan pul),
        shunda "To'langan" va "Qarz qoldi" ham to'g'ri, izchil qoladi.
-    """
-    item = get_return_item(db, return_id)
+
+    kech40 (5-bo'lim 22-band, FOYDALANUVCHI QARORI B — qaytarish o'chirilsa
+    hammasi orqaga qaytadi): manfiy to'lov qaytarishga BOG'LANADI
+    (`Payment.return_item_id`), kelishilgan summa AYNAN qanchaga kamaygani
+    (`refund_agreed_delta` — `max(0, …)` tufayli summadan kam bo'lishi mumkin)
+    va vaqti (`refunded_at` — yangi belgilash belgisi) saqlanadi.
+    QULF (101, buyurtma) — to'lovlar va `delete_return_item` bilan bir fazo:
+    qulfsiz ikki parallel so'rov ikkalasi ham "hali qaytarilmagan" deb ko'rib
+    pulni IKKI marta qaytarardi (UI dagi `inFlightRefundToggle` faqat bitta
+    tabni to'sadi); o'chirish bilan poygada esa bog'lamsiz manfiy to'lov
+    qolishi mumkin edi. Korxona: `company_id` berilsa yozuv FAQAT shu
+    korxonadan (marshrut ham tekshiradi — ikki to'siq)."""
+    _rq = db.query(ReturnItem).filter(ReturnItem.id == return_id)
+    if company_id is not None:
+        _rq = _rq.filter(ReturnItem.company_id == company_id)
+    item = _rq.first()
     if not item:
         return None
     if item.is_refunded:
         return item  # Allaqachon qaytarilgan — qayta ishlamaymiz
+    _cid = item.company_id
+    # QULF — `create_delivery` naqshi: yozilmagan o'zgarish yo'qolmasin
+    # (`flush`), qulf, so'ng qulf ostida bazadan QAYTA o'qiladi.
+    db.flush()
+    if item.order_id is not None:
+        _pul_qulfi(db, 101, item.order_id)
+    db.expire_all()
+    item = db.query(ReturnItem).filter(ReturnItem.id == return_id,
+                                       ReturnItem.company_id == _cid).first()
+    if not item:
+        return None             # parallel so'rov o'chirib yuborgan
+    if item.is_refunded:
+        return item             # parallel so'rov allaqachon belgilagan
 
     from models import Payment, PaymentType
     refund_amount = float(item.refund_amount or 0)
+    order = None
+    if item.order_id is not None:
+        order = db.query(Order).filter(Order.id == item.order_id,
+                                       Order.company_id == _cid).first()
+    _kamaydi = 0.0
 
-    if refund_amount > 0 and item.order:
-        order = item.order
-        order.agreed_amount = max(0, float(order.agreed_amount or order.total_amount or 0) - refund_amount)
+    if refund_amount > 0 and order is not None:
+        _eski = float(order.agreed_amount or order.total_amount or 0)
+        _yangi = max(0, _eski - refund_amount)
+        order.agreed_amount = _yangi
+        _kamaydi = _eski - _yangi
 
         payment = Payment(
             order_id=order.id,
+            return_item_id=item.id,
             amount=-refund_amount,
             payment_type=PaymentType.PARTIAL,
             received_by=refunded_by,
@@ -4548,18 +4596,177 @@ def mark_refunded(db: Session, return_id: int, refunded_by: str = None) -> Optio
         _loyiha_tolangan_yangila(db, order.project)
 
     item.is_refunded = True
+    item.refunded_at = datetime.utcnow()
+    item.refund_agreed_delta = _pul2(_kamaydi)
     db.commit()
     db.refresh(item)
     return item
 
 
-def delete_return_item(db: Session, return_id: int) -> bool:
-    item = get_return_item(db, return_id)
+def delete_return_item(db: Session, return_id: int, company_id: int = None,
+                       performed_by: str = None):
+    """Qaytarish yozuvini o'chirish — qaytarish umuman bo'lmagandek.
+
+    Qaytaradi: muvaffaqiyatda dict (doim rost qiymat), topilmasa `False`;
+    o'chirib bo'lmasa `ValueError` (marshrut → 400, HECH NARSA o'zgarmaydi).
+
+    kech40 (5-bo'lim 22-band, K39-1) — O'LCHANGAN (asl kod, SQLite va HAQIQIY
+    PostgreSQL, `work/probe40.py`): funksiya faqat yozuvni o'chirardi.
+      * Omborga qaytgan detal: tayyor mahsulot QOLARDI — qayta kiritilsa ikki
+        baravar (10 → 20); qisman sotilgan / band qilingan bo'lsa ham jim 200.
+      * "Pul qaytdi" bosilgan: kamaytirilgan kelishilgan summa va manfiy
+        to'lov QOLARDI — qayta kiritib yana bosilsa pul IKKI marta qaytarilgan
+        bo'lib ko'rinardi (700 000 → 400 000, −300 000 × 2).
+    Endi (FOYDALANUVCHI QARORI B, kech40 — "hammasi orqaga qaytsin"):
+      1) Ombor: yozuv bilan qo'shilgan AYNAN miqdor / tan narxi / hajm
+         (`stock_*`) tayyor mahsulotdan ayiriladi. Bo'sh qoldiq (qoldiq −
+         band) yetmasa — rad (mahsulot sotilgan / band / kamaytirilgan).
+         Mahsulot faqat shu qaytarishlardan paydo bo'lgan va boshqa hech narsa
+         unga ishora qilmasa — butunlay o'chadi (bo'sh "arvoh" karta qolmaydi).
+         Mahsulot o'zi o'chirilgan bo'lsa (bog'lam uzilgan) — ayiradigan narsa yo'q.
+      2) Pul: `refunded_at` bor (yangi belgilash) — bog'langan manfiy to'lov(lar)
+         o'chadi (audit izi bilan), kelishilgan summa `refund_agreed_delta` ga
+         tiklanadi, to'lov holati va loyiha "To'langan" summasi qayta
+         hisoblanadi. `refunded_at` YO'Q (yangilanishdan oldingi belgilash) va
+         pul haqiqatan qaytarilgan — to'lov bog'lami noma'lum → RAD (taxmin
+         qilinmaydi).
+      3) Brak: xomashyo qaytarilmaydi — avvalgidek (13-band, alohida ish).
+         Yangilanishdan OLDINGI omborga qaytgan yozuv (`stock_qty` NULL) —
+         ombor bog'lami noma'lum, avvalgidek faqat yozuv o'chadi.
+    Hamma tekshiruv O'ZGARTIRISHDAN OLDIN; hammasi BITTA tranzaksiyada
+    (`log_activity` o'zi commit qiladi — ishlatilmaydi, audit to'g'ridan).
+    QULF (101, buyurtma) — `create_return_item` (yig'indi), `mark_refunded`
+    va to'lovlar bilan bir fazo; tayyor mahsulot qatori `FOR UPDATE` (sotuv
+    bilan navbat)."""
+    from models import ActivityLog, Payment
+    _rq = db.query(ReturnItem).filter(ReturnItem.id == return_id)
+    if company_id is not None:
+        _rq = _rq.filter(ReturnItem.company_id == company_id)
+    item = _rq.first()
     if not item:
         return False
+    _cid = item.company_id
+    db.flush()
+    if item.order_id is not None:
+        _pul_qulfi(db, 101, item.order_id)
+    db.expire_all()
+    item = db.query(ReturnItem).filter(ReturnItem.id == return_id,
+                                       ReturnItem.company_id == _cid).first()
+    if not item:
+        return False            # parallel so'rov allaqachon o'chirgan
+    order = None
+    if item.order_id is not None:
+        order = db.query(Order).filter(Order.id == item.order_id,
+                                       Order.company_id == _cid).first()
+
+    # ── 1) TEKSHIRUVLAR — hech narsa o'zgartirilmaydi ────────────────
+    _summa = float(item.refund_amount or 0)
+    pul_orqaga = bool(item.is_refunded) and _summa > 0 and order is not None
+    if pul_orqaga and item.refunded_at is None:
+        raise ValueError(
+            f"Bu qaytarish uchun mijozga {_summa:,.0f} so'm qaytarilgani tizim yangilanishidan "
+            f"OLDIN belgilangan — qaysi to'lov yozuvi ekani saqlanmagan, shuning uchun pulni "
+            f"avtomatik bekor qilib bo'lmaydi va qaytarish o'chirilmadi")
+
+    fp = None
+    _sq = float(item.stock_qty or 0)
+    if _sq > 0 and item.finished_product_id is not None:
+        fp = get_finished_product(db, item.finished_product_id, _cid, lock=True)
+        if fp is not None:
+            _bor = float(fp.quantity or 0)
+            _band = float(fp.reserved_quantity or 0)
+            _bosh = _bor - _band
+            if _bosh + 0.001 < _sq:
+                _izoh = f" (qoldiq {_miqdor_matn(max(_bor, 0))}, shundan band {_miqdor_matn(_band)})" if _band > 0 else ""
+                raise ValueError(
+                    f"Bu qaytarish bilan \"{fp.name}\" omboriga {_miqdor_matn(_sq)} {fp.unit} qo'shilgan, "
+                    f"hozir bo'sh qoldig'i {_miqdor_matn(max(_bosh, 0))} {fp.unit}{_izoh} — mahsulot "
+                    f"sotilgan, band qilingan yoki kamaytirilgan, shuning uchun qaytarishni o'chirib bo'lmaydi")
+
+    # ── 2) PUL orqaga ────────────────────────────────────────────────
+    _tolov_soni = 0
+    if pul_orqaga:
+        # TENANT: `Payment` da korxona ustuni yo'q — OTA (buyurtma) orqali.
+        tolovlar = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
+            Payment.return_item_id == item.id,
+            Payment.order_id == order.id,
+            Order.company_id == _cid,
+        ).order_by(Payment.id).all()
+        for p in tolovlar:
+            db.add(ActivityLog(
+                company_id=_cid, action="deleted", entity_type="payment",
+                entity_id=p.id, entity_label=f"Buyurtma {order.order_number}",
+                performed_by=performed_by,
+                new_value=_tolov_audit_matni(p) + f" · qaytarish #{item.id} o'chirilgani uchun "
+                                                  f"(pul qaytarish bekor qilindi)"))
+            db.delete(p)
+            _tolov_soni += 1
+        _asos = float(order.agreed_amount) if order.agreed_amount is not None else float(order.total_amount or 0)
+        order.agreed_amount = _pul2(_asos + float(item.refund_agreed_delta or 0))
+
+    # ── 3) OMBOR orqaga ──────────────────────────────────────────────
+    def _ayir(eski, qancha):
+        _q = float(eski or 0) - float(qancha or 0)
+        return 0.0 if _q < 1e-9 else _q
+    _fp_ochiriladi = False
+    if fp is not None:
+        fp.quantity = _ayir(fp.quantity, _sq)
+        fp.produced_quantity = _ayir(fp.produced_quantity, _sq)
+        fp.cost_price = _pul2(_ayir(fp.cost_price, item.stock_cost))
+        fp.volume_m3 = round(_ayir(fp.volume_m3, item.stock_volume_m3), 9)
+        _fp_ochiriladi = (fp.source == StockSource.RETURNED
+                          and float(fp.quantity or 0) <= 1e-9
+                          and float(fp.produced_quantity or 0) <= 1e-9
+                          and float(fp.reserved_quantity or 0) <= 1e-9)
+
+    _qator = (f"{item.item_name} · {_miqdor_matn(item.quantity or 0)} {item.unit or ''} · "
+              f"{item.reason.value if item.reason else '-'}")
+    if fp is not None:
+        _qator += f" · ombordan olindi: {_miqdor_matn(_sq)} {fp.unit} ({fp.name})"
+    if pul_orqaga:
+        _qator += f" · pul qaytarish bekor qilindi: {_summa:,.0f} so'm (to'lov yozuvi: {_tolov_soni})"
+    db.add(ActivityLog(
+        company_id=_cid, action="deleted", entity_type="return", entity_id=item.id,
+        entity_label=(f"Buyurtma {order.order_number}" if order is not None else "Qaytarish"),
+        performed_by=performed_by, new_value=_qator))
+    _fp_id = fp.id if fp is not None else None
     db.delete(item)
+    db.flush()                  # tashqi kalitlar: to'lov va yozuv mahsulotdan OLDIN
+
+    if _fp_ochiriladi:
+        from models import FinishedProductSale as _FPS3, FinishedProductLoss as _FPL3
+        _havola = (
+            db.query(ReturnItem.id).filter(ReturnItem.finished_product_id == _fp_id,
+                                           ReturnItem.company_id == _cid).first()
+            or db.query(_FPS3.id).filter(_FPS3.finished_product_id == _fp_id).first()
+            or db.query(_FPL3.id).filter(_FPL3.finished_product_id == _fp_id).first()
+            or db.query(OrderItem.id).filter(OrderItem.finished_product_id == _fp_id,
+                                             OrderItem.company_id == _cid).first()
+        )
+        if _havola is None:
+            try:
+                from production_models import ProductionOrder as _PO3
+                _havola = db.query(_PO3.id).filter(_PO3.finished_product_id == _fp_id).first()
+            except ImportError:
+                _havola = None
+        if _havola is None:
+            db.delete(fp)
+            db.flush()
+        else:
+            _fp_ochiriladi = False
+
+    if pul_orqaga:
+        db.expire(order, ["payments"])
+        _update_order_payment_status(db, order)
+        _loyiha_tolangan_yangila(db, order.project)
+
     db.commit()
-    return True
+    return {
+        "ombordan_olindi": _sq if fp is not None else 0,
+        "mahsulot_ochirildi": bool(_fp_ochiriladi),
+        "pul_bekor_qilindi": _summa if pul_orqaga else 0,
+        "tolov_ochirildi": _tolov_soni,
+    }
 
 
 def get_return_stats(db: Session, company_id: int = None) -> dict:
@@ -7672,8 +7879,15 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     # OMBORGA QAYTARAMIZ. (READY — "Sotuvga tayyor" bosilgan — mahsulot
     # esa pastdagi qat'iy qoidaga bo'ysunadi: qoldiq 0 bo'lishi kerak,
     # xomashyo qaytmaydi.)
-    from models import ProductionStatus as _PS
-    if fp.production_status == _PS.IN_PROGRESS:
+    # kech40 (K40-1) — O'LCHANGAN (asl kod, SQLite va PG, `work/probe40b.py`):
+    # qaytgan (RETURNED) mahsulot holati belgilanmay yaratilardi (bazada
+    # standart IN_PROGRESS), shuning uchun bu "xato tuzatish" tarmog'iga
+    # tushardi: 100 metr qoldig'i bor qaytgan mahsulot jim o'chirilar va uning
+    # `volume_m3` si PENOPLAST omboriga QAYTARILARDI (99 → 100 blok) — penoplast
+    # allaqachon mahsulotga aylangan, qaytish soxta. Qaytgan mahsulot doim
+    # tayyor (`_fp_tayyormi` — UI bilan bir xil), u pastdagi qat'iy qoidaga
+    # bo'ysunadi (qoldiq 0 bo'lishi kerak, xomashyo qaytmaydi).
+    if not _fp_tayyormi(fp):
         import services as _svc
         from models import Inventory as _Inv
         # M4: qaytariladigan xomashyo ham faqat SHU mahsulotning korxonasidan.
@@ -7724,6 +7938,11 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
         db.query(_FPS).filter(_FPS.finished_product_id == fp_id).update({"finished_product_id": None})
         db.query(_FPL).filter(_FPL.finished_product_id == fp_id).update({"finished_product_id": None})
         db.query(_OI2).filter(_OI2.finished_product_id == fp_id).update({"finished_product_id": None})
+        # kech40 (22-band): qaytarish yozuvi endi omborga qo'shilgan mahsulotiga
+        # bog'lanadi — uzilmasa PostgreSQL FK o'chirishni bloklaydi.
+        db.query(ReturnItem).filter(ReturnItem.finished_product_id == fp_id,
+                                    ReturnItem.company_id == fp.company_id).update(
+            {"finished_product_id": None}, synchronize_session=False)
         db.delete(fp)
         db.commit()
         return True
@@ -7763,6 +7982,12 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
     # saqlaydi, faqat o'chirilgan mahsulotga havolasini yo'qotadi).
     from models import OrderItem as _OI
     db.query(_OI).filter(_OI.finished_product_id == fp_id).update({"finished_product_id": None})
+    # kech40 (22-band): qaytarish yozuvlari — bog'lam uziladi (yozuv tarix
+    # sifatida qoladi; mahsulot endi yo'q — keyin qaytarish o'chirilsa
+    # ayiradigan narsa ham yo'q). Uzilmasa PostgreSQL FK o'chirishni bloklaydi.
+    db.query(ReturnItem).filter(ReturnItem.finished_product_id == fp_id,
+                                ReturnItem.company_id == fp.company_id).update(
+        {"finished_product_id": None}, synchronize_session=False)
 
     db.delete(fp)
     db.commit()
@@ -7770,7 +7995,8 @@ def delete_finished_product(db: Session, fp_id: int, return_to_stock: bool = Fal
 
 
 def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
-                          order_id: int = None, notes: str = None) -> Optional[FinishedProduct]:
+                          order_id: int = None, notes: str = None,
+                          commit: bool = True, natija: dict = None) -> Optional[FinishedProduct]:
     """Buyurtmadan qaytgan detalni tayyor mahsulotlar omboriga qo'shadi.
     Sotuv narxi (unit_price) — buyurtmadagi narx (o'zgarmaydi).
     Tan narxi (cost_price) — asl xomashyo qiymatidan hisoblanadi (avval
@@ -7778,6 +8004,7 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     buyurtmada ishlatilsa, o'sha buyurtmaning foydasi — demak usta KPI'si
     ham — sun'iy oshirilgan bo'lib chiqardi)."""
     import services as _svc
+    from models import ProductionStatus as _PS_ret
 
     if quantity <= 0 or not order_item:
         return None
@@ -7799,6 +8026,10 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         full_volume = _svc._item_volume_m3(db, order_item, None)
         per_unit_volume = full_volume / ordered
     new_volume = round(per_unit_volume * quantity, 6)
+    # kech40 (22-band): chaqiruvchiga AYNAN nima qo'shilgani (qaytarish yozuvi
+    # o'chirilganda shu ayiriladi — tan narxi keyin o'zgarishi mumkin).
+    if natija is not None:
+        natija.update(qty=float(quantity), cost=new_cost_price, volume=new_volume)
 
     # Bir xili bo'lsa birlashtiramiz.
     # M4 (2026-09-18) — TENANT: bu "birlashtirish" so'rovi korxona
@@ -7827,7 +8058,10 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         _rq = _rq.filter(FinishedProduct.product_type_id.is_(None))
     else:
         _rq = _rq.filter(FinishedProduct.product_type_id == _ret_pt)
-    existing = _rq.first()
+    # kech40 (22-band): qator QULFLANADI — sotuv / kamaytirish / qaytarishni
+    # o'chirish ham `FOR UPDATE` bilan o'qiydi; qulfsiz o'qib-yozish parallel
+    # sotuvning kamaytirishini ustidan yozib yuborardi (yo'qolgan yangilanish).
+    existing = _rq.with_for_update().first()
 
     if existing:
         existing.quantity = float(existing.quantity or 0) + quantity
@@ -7837,7 +8071,10 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         # Agar mavjud yozuvda hali rasm bo'lmasa — asl detal rasmini olamiz
         if not existing.image_url and order_item.image_url:
             existing.image_url = order_item.image_url
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(existing)
         return existing
 
@@ -7863,10 +8100,17 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         # yo'qolmasin. Eski turkumlarda bu maydon NULL — bu ATAYLAB.
         product_type_id=getattr(order_item, "product_type_id", None),
         image_url=order_item.image_url,
-        notes=notes
+        notes=notes,
+        # kech40 (K40-1): qaytgan mahsulot DOIM tayyor (sotiladi) — holat aniq
+        # yoziladi (ilgari bazada standart IN_PROGRESS qolardi; eski qatorlar
+        # `main._migrate_qaytarish_orqaga` da tuzatiladi).
+        production_status=_PS_ret.READY,
     )
     db.add(fp)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(fp)
     return fp
 

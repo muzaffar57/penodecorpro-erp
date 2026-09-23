@@ -1652,11 +1652,90 @@ def _migrate_return_order_item():
         print(f"⚠ return_items.order_item_id migratsiyasi o'tkazib yuborildi: {e}")
 
 
+def _migrate_qaytarish_orqaga():
+    """kech40 (5-bo'lim 22-band + K40-1) — IDEMPOTENT, PostgreSQL va SQLite.
+
+      A) `payments.return_item_id` — odatda `database.sync_missing_columns()`
+         allaqachon qo'shgan (indeks va kalitsiz); yo'q bo'lsa shu yerda.
+      B) Indeks `ix_payments_return_item_id` (yo'q bo'lsa).
+      C) Faqat PostgreSQL: chet el kaliti `ON DELETE SET NULL` (yo'q bo'lsa;
+         yetim qiymat bo'lsa QO'YILMAYDI, soni logga).
+      D) K40-1: qaytgan (RETURNED) tayyor mahsulot bazada standart IN_PROGRESS
+         bilan qolgan — READY qilinadi (u doim sotiladi: UI va
+         `crud._fp_tayyormi` allaqachon shunday deb biladi). Belgi kerak emas —
+         shartning o'zi takrorlanmaydi (yangi qaytgan mahsulot READY yoziladi).
+      `return_items.stock_*`, `refunded_at`, `refund_agreed_delta` — faqat
+      `sync_missing_columns` (eski yozuvlarda NULL = bog'lam noma'lum,
+      o'chirish ularga avvalgidek ta'sir qiladi — taxmin qilinmaydi).
+    """
+    from sqlalchemy import text, inspect as _insp   # main.py da modul darajasida import YO'Q
+    from database import engine
+    try:
+        _i = _insp(engine)
+        jadvallar = set(_i.get_table_names())
+        with engine.connect() as conn:
+            if "payments" in jadvallar:
+                ustunlar = {c["name"] for c in _i.get_columns("payments")}
+                indekslar = {ix["name"] for ix in _i.get_indexes("payments")}
+                # ── A. Ustun ──
+                if "return_item_id" not in ustunlar:
+                    conn.execute(text("ALTER TABLE payments ADD COLUMN return_item_id INTEGER"))
+                    conn.commit()
+                    print("✓ payments.return_item_id qo'shildi")
+                # ── B. Indeks ──
+                if "ix_payments_return_item_id" not in indekslar:
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_payments_return_item_id "
+                                      "ON payments (return_item_id)"))
+                    conn.commit()
+                    print("✓ ix_payments_return_item_id indeksi qo'shildi")
+                # ── C. Chet el kaliti (faqat PostgreSQL) ──
+                if engine.dialect.name == "postgresql":
+                    bor_kalit = conn.execute(text(
+                        "SELECT 1 FROM pg_constraint c "
+                        "JOIN pg_class t ON t.oid = c.conrelid "
+                        "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey) "
+                        "WHERE t.relname = 'payments' AND c.contype = 'f' "
+                        "AND a.attname = 'return_item_id'")).first()
+                    if not bor_kalit:
+                        yetim = conn.execute(text(
+                            "SELECT COUNT(*) FROM payments p "
+                            "LEFT JOIN return_items r ON r.id = p.return_item_id "
+                            "WHERE p.return_item_id IS NOT NULL AND r.id IS NULL")).scalar() or 0
+                        if yetim:
+                            print(f"⚠ payments.return_item_id: {yetim} ta yetim qiymat — "
+                                  f"chet el kaliti QO'YILMADI")
+                        else:
+                            conn.execute(text(
+                                "ALTER TABLE payments ADD CONSTRAINT "
+                                "payments_return_item_id_fkey FOREIGN KEY (return_item_id) "
+                                "REFERENCES return_items(id) ON DELETE SET NULL"))
+                            conn.commit()
+                            print("✓ payments_return_item_id_fkey chet el kaliti qo'shildi")
+            # ── D. K40-1: qaytgan mahsulot holati ──
+            if "finished_products" in jadvallar:
+                shart = "source = 'RETURNED' AND production_status = 'IN_PROGRESS'"
+                soni = conn.execute(text(
+                    f"SELECT COUNT(*) FROM finished_products WHERE {shart}")).scalar() or 0
+                if soni:
+                    conn.execute(text(
+                        f"UPDATE finished_products SET production_status = 'READY' WHERE {shart}"))
+                    conn.commit()
+                    print(f"✓ Qaytgan tayyor mahsulot holati tuzatildi (jarayonda → tayyor): {soni} ta")
+    except Exception as e:
+        try:
+            with engine.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ Qaytarish (orqaga qaytarish) migratsiyasi o'tkazib yuborildi: {e}")
+
+
 _migrate_drop_company_id_defaults()
 _migrate_faza3_columns()
 _migrate_float_to_numeric()
 _migrate_fp_product_type()
 _migrate_return_order_item()
+_migrate_qaytarish_orqaga()
 
 from database import SessionLocal
 _db = SessionLocal()
@@ -5114,7 +5193,8 @@ def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_use
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     who = current_user.full_name or current_user.username
-    item = crud.mark_refunded(db, return_id, refunded_by=who)
+    item = crud.mark_refunded(db, return_id, refunded_by=who,
+                              company_id=auth.company_id_of(current_user))
     if not item:
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     return {"status": "ok", "is_refunded": item.is_refunded}
@@ -5125,9 +5205,19 @@ def api_delete_return(return_id: int, db: Session = Depends(get_db), current_use
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
-    if not crud.delete_return_item(db, return_id):
+    # kech40 (22-band): o'chirish hammasini orqaga qaytaradi (ombor, pul — foydalanuvchi
+    # qarori B); orqaga qaytarib bo'lmasa `ValueError` → 400 aniq sabab bilan, hech narsa
+    # o'zgarmaydi (qulf ham bo'shatiladi).
+    try:
+        natija = crud.delete_return_item(
+            db, return_id, company_id=auth.company_id_of(current_user),
+            performed_by=current_user.full_name or current_user.username)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    if not natija:
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
-    return {"status": "ok"}
+    return {"status": "ok", **natija}
 
 
 # ============================================================
@@ -6443,13 +6533,15 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
     """Tayyor mahsulotni o'chirish.
     - IN_PROGRESS: xato tuzatish deb hisoblanadi — o'chadi, xomashyo qaytadi.
     - READY: faqat qoldiq 0 bo'lsa o'chadi, xomashyo qaytmaydi."""
-    from models import ProductionStatus as _PS
     # M4: mahsulot FAQAT joriy korxonadan (aks holda 404).
     _cid = auth.company_id_of(current_user)
     fp = auth.finished_product_of_company(db, fp_id, _cid)
     if not fp:
         raise HTTPException(status_code=404, detail="Topilmadi")
-    if fp.production_status != _PS.IN_PROGRESS and float(fp.quantity or 0) > 0.001:
+    # kech40 (K40-1): qaytgan (RETURNED) mahsulot bazada IN_PROGRESS bo'lib qolgan bo'lsa ham
+    # TAYYOR hisoblanadi (`crud._fp_tayyormi` — UI bilan bir xil) — qoldig'i bor qaytgan
+    # mahsulot ilgari jim o'chirilar va penoplasti omborga soxta qaytarilardi.
+    if crud._fp_tayyormi(fp) and float(fp.quantity or 0) > 0.001:
         raise HTTPException(
             status_code=400,
             detail=f"Bu mahsulotda hali {float(fp.quantity):g} {fp.unit} qoldiq bor — "

@@ -900,6 +900,31 @@ class ReturnItem(Base):
     # `payments.delivery_id` sinfi).
     order_item_id = Column(Integer, ForeignKey("order_items.id", ondelete="SET NULL"),
                            nullable=True, index=True)
+    # kech40 (5-bo'lim 22-band, K39-1) — qaytarish yozuvi O'CHIRILGANDA hammasi
+    # AYNAN orqaga qaytishi uchun, yozuv paytida NIMA o'zgargani saqlanadi.
+    # O'LCHANGAN (asl kod, SQLite va PostgreSQL): o'chirish faqat yozuvni
+    # o'chirardi — omborga qo'shilgan tayyor mahsulot QOLARDI (qayta kiritilsa
+    # 10 → 20), pul qaytarilgan bo'lsa kamaytirilgan kelishilgan summa va manfiy
+    # to'lov QOLARDI (qayta kiritib yana "pul qaytdi" bosilsa — ikki marta).
+    #  * `finished_product_id` (yuqorida, ilgari hech qachon to'ldirilmasdi) +
+    #    `stock_qty` / `stock_cost` / `stock_volume_m3` — `add_returned_to_stock`
+    #    shu yozuv uchun tayyor mahsulotga AYNAN qancha qo'shgani (miqdor, tan
+    #    narxi, penoplast hajmi). Tan narxi keyin o'zgarishi mumkin, shuning uchun
+    #    qayta hisoblanmaydi — saqlangani ayiriladi. NULL = omborga tushmagan
+    #    (brak, `to_stock=false`) yoki yangilanishdan OLDINGI yozuv (bog'lam
+    #    noma'lum — o'chirish omborga tegmaydi, avvalgidek).
+    stock_qty = Column(Float, nullable=True)
+    stock_cost = Column(Numeric(12, 2), nullable=True)
+    stock_volume_m3 = Column(Float, nullable=True)
+    #  * FOYDALANUVCHI QARORI (kech40, B): pul qaytarilgan qaytarish o'chirilsa —
+    #    kelishilgan summa tiklanadi va manfiy to'lov o'chadi. `refunded_at` —
+    #    "pul qaytdi" YANGI kod bilan bosilganining belgisi (manfiy to'lov
+    #    `payments.return_item_id` orqali bog'langan); NULL + `is_refunded` =
+    #    eski belgilash, to'lov bog'lami yo'q → o'chirish rad etiladi (taxmin
+    #    qilinmaydi). `refund_agreed_delta` — kelishilgan summa AYNAN qanchaga
+    #    kamaygani (`max(0, …)` tufayli summadan kam bo'lishi mumkin).
+    refunded_at = Column(DateTime, nullable=True)
+    refund_agreed_delta = Column(Numeric(12, 2), nullable=True)
 
     order = relationship("Order", back_populates="returns")
 
@@ -1759,6 +1784,13 @@ class Payment(Base):
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
     delivery_id = Column(Integer, ForeignKey("deliveries.id"), nullable=True, index=True)  # Qaysi yukka bog'liq (ixtiyoriy)
+    # kech40 (22-band, foydalanuvchi qarori B): "pul qaytdi" bosilganda yoziladigan
+    # MANFIY to'lov qaysi qaytarishniki — qaytarish o'chirilsa AYNAN shu to'lov
+    # o'chiriladi (izoh matni bo'yicha qidirish — taxmin). Qaytarish yozuvi
+    # o'chsa — NULL (PostgreSQL `ON DELETE SET NULL`; kod baribir to'lovni oldin
+    # o'chiradi).
+    return_item_id = Column(Integer, ForeignKey("return_items.id", ondelete="SET NULL"),
+                            nullable=True, index=True)
 
     amount = Column(Numeric(12, 2), nullable=False)
     payment_type = Column(Enum(PaymentType), default=PaymentType.PARTIAL, nullable=False)
@@ -2009,6 +2041,9 @@ _TENANT_REFS = {
     "ReturnItem": [("finished_product_id", "FinishedProduct"),
                    # kech39: qaytarish qaysi buyurtma detalidan (3-band)
                    ("order_item_id", "OrderItem")],
+    # kech40 (22-band): pul qaytarish to'lovi — qaysi qaytarishniki (begona
+    # korxona qaytarishiga bog'langan to'lov yozishdayoq rad etiladi)
+    "Payment": [("return_item_id", "ReturnItem")],
     # Yetkazish qatori — qaysi detalga
     "DeliveryItem": [("order_item_id", "OrderItem")],
     # Ombor harakati — qaysi material/buyurtma/ta'minotchiga
