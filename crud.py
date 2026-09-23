@@ -4321,6 +4321,31 @@ def _som_butun(v) -> float:
     return float(Decimal(repr(float(v))).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
+def pul_qaytarish_kamaytirgan(db: Session, order) -> float:
+    """28-band (kech43, K42-2): buyurtmaning kelishilgan summasini YANGI pul
+    qaytarishlar (kech40 dan keyin belgilangan — `refunded_at` bor) AYNAN qanchaga
+    kamaytirgani: `refund_agreed_delta` yig'indisi (so'm).
+
+    Kelishilgan summani QAYTA HISOBLAYDIGAN har joy (buyurtmani tahrirlash,
+    qisman yakunlash, qo'lda kelishilgan summa) shu miqdorni hisobga olishi SHART.
+    O'LCHANGAN (asl kod, SQLite = PG, `work/probe43.py`): tahrirdan keyin pul
+    qaytarish kamaytirishi yo'qolardi (qarz qayta paydo bo'lardi, 150 000 naqd
+    qaytarilgan to'liq to'langan buyurtmada 150 000 "qarz"), yoki "chegirma" ga
+    aylanib keyingi qaytarish narxini tushirardi (30 %), qaytarishni o'chirish esa
+    summani JAMIDAN ham oshirardi (500 000 lik buyurtma 1 000 000).
+
+    Yangilanishdan OLDINGI pul qaytarishlar (`refunded_at` bo'sh) — qancha
+    kamaytirgani yozilmagan, taxmin qilinmaydi (0 deb olinadi)."""
+    if order is None or getattr(order, "id", None) is None:
+        return 0.0
+    _qaytganlar = db.query(ReturnItem).filter(
+        ReturnItem.order_id == order.id,
+        ReturnItem.company_id == order.company_id,
+        ReturnItem.is_refunded.is_(True),
+        ReturnItem.refunded_at.isnot(None)).all()
+    return float(sum(float(r.refund_agreed_delta or 0) for r in _qaytganlar))
+
+
 def qaytarish_narx_koeffitsienti(db: Session, order) -> float:
     """4-band (kech42, FOYDALANUVCHI QARORI: "Chegirmali narxdan"): qaytarish
     summasi buyurtmaning KELISHILGAN (chegirmali) narxidan hisoblanadi —
@@ -4341,12 +4366,7 @@ def qaytarish_narx_koeffitsienti(db: Session, order) -> float:
     dp = float(order.discount_percent or 0)
     if total <= 0 or dp <= 0:
         return 1.0
-    _qaytganlar = db.query(ReturnItem).filter(
-        ReturnItem.order_id == order.id,
-        ReturnItem.company_id == order.company_id,
-        ReturnItem.is_refunded.is_(True),
-        ReturnItem.refunded_at.isnot(None)).all()
-    asl = order.kelishilgan_summa + sum(float(r.refund_agreed_delta or 0) for r in _qaytganlar)
+    asl = order.kelishilgan_summa + pul_qaytarish_kamaytirgan(db, order)
     k = asl / total
     if abs((1.0 - k) * 100.0 - dp) <= 0.0051:
         return min(1.0, max(0.0, k))
@@ -5260,9 +5280,15 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
     total = float(order.total_amount or 0)
     order.agreed_amount = agreed_amount
 
-    # Chegirma foizini hisoblash
-    if total > 0 and agreed_amount < total:
-        order.discount_percent = round((total - agreed_amount) / total * 100, 2)
+    # Chegirma foizini hisoblash.
+    # 28-band (kech43): to'lov panelida xodim JORIY (pul qaytarishdan keyingi)
+    # summani ko'rib yangisini yozadi — summa yozilgandek saqlanadi, lekin
+    # chegirma foizi (narx chegirmasi) pul qaytarish kamaytirishisiz ASL summadan:
+    # aks holda qaytarilgan tovar "chegirma" bo'lib, keyingi qaytarish narxi
+    # tushib ketardi (4-band koeffitsienti).
+    _asl_qolda = float(agreed_amount) + pul_qaytarish_kamaytirgan(db, order)
+    if total > 0 and _asl_qolda < total:
+        order.discount_percent = round((total - _asl_qolda) / total * 100, 2)
     else:
         order.discount_percent = 0.0
 
@@ -5478,7 +5504,11 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
     order.total_amount = new_total_amount
 
     discount_pct = float(order.discount_percent or 0)
-    new_agreed = round(new_total_amount * (1 - discount_pct / 100), 2)
+    # 28-band (kech43, O'LCHANGAN S5): 50 m berilgan, 20 m qaytib pul qaytarilgan
+    # buyurtma "Tayyor" bosilganda summa 250 000 bo'lardi (to'g'risi 150 000) —
+    # pul qaytarish kamaytirishi QAYTA ayiriladi (manfiy bo'lmaydi).
+    _qaytgan_kam = pul_qaytarish_kamaytirgan(db, order)
+    new_agreed = round(max(0.0, new_total_amount * (1 - discount_pct / 100) - _qaytgan_kam), 2)
     order.agreed_amount = new_agreed
 
     paid = order.paid_amount
@@ -6268,24 +6298,37 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
 
     old_total = float(order.total_amount or 0)
     old_discount_pct = float(order.discount_percent or 0)
+    # 28-band (kech43, K42-2 — O'LCHANGAN, `work/probe43.py`): kelishilgan summa
+    # ikki qismdan iborat — ASL kelishilgan narx (chegirma / ustama bilan) va pul
+    # qaytarishlar kamaytirishi (`pul_qaytarish_kamaytirgan`). Tahrir ASL summani
+    # oladi (UI formasi ham ASL summani ko'rsatadi — `/api/orders/{id}`
+    # `kelishilgan_asl`), saqlanganda pul qaytarish kamaytirishi QAYTA ayiriladi.
+    # Chegirma foizi — faqat narx chegirmasi (ASL summadan).
+    _qaytgan_kam = pul_qaytarish_kamaytirgan(db, order)
+    _eski_asl = order.kelishilgan_summa + _qaytgan_kam
     order.total_amount = total_amount
     order.base_price = getattr(order_data, 'base_price', None)
 
     agreed = getattr(order_data, 'agreed_amount', None)
 
     if agreed:
-        # Xodim qo'lda summa kiritdi — shuni olamiz
-        order.agreed_amount = agreed
-    elif old_discount_pct > 0 and abs(total_amount - old_total) > 0.01:
+        # Xodim qo'lda (ASL) summa kiritdi — shuni olamiz
+        _asl = float(agreed)
+    elif abs(total_amount - old_total) <= 0.01:
+        # Jami o'zgarmadi — ASL kelishilgan summa O'ZGARMAYDI (chegirma, ustama,
+        # kechirilgan qarz saqlanadi; ilgari chegirma jim yo'qolardi)
+        _asl = _eski_asl
+    elif old_discount_pct > 0:
         # Jami o'zgardi, chegirma foizi saqlanadi
-        order.agreed_amount = round(total_amount * (1 - old_discount_pct / 100))
+        _asl = round(total_amount * (1 - old_discount_pct / 100))
     else:
-        order.agreed_amount = total_amount
+        _asl = total_amount
+    order.agreed_amount = _pul2(max(0.0, _asl - _qaytgan_kam))
 
-    # Chegirma foizini qayta hisoblaymiz
-    if total_amount > 0 and float(order.agreed_amount) < total_amount:
+    # Chegirma foizini qayta hisoblaymiz (ASL summadan)
+    if total_amount > 0 and _asl < total_amount:
         order.discount_percent = round(
-            (total_amount - float(order.agreed_amount)) / total_amount * 100, 2)
+            (total_amount - _asl) / total_amount * 100, 2)
     else:
         order.discount_percent = 0.0
 

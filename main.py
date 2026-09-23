@@ -4096,6 +4096,7 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
 
     # kech42 (4-band): qaytarish narxi koeffitsienti — bir marta (har detalga so'rov emas)
     _qkoef = crud.qaytarish_narx_koeffitsienti(db, order)
+    _qkam = crud.pul_qaytarish_kamaytirgan(db, order)
     return {
         "id": order.id,
         "order_number": order.order_number,
@@ -4104,6 +4105,11 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "status": order.status.value if order.status else None,
         "total_amount": float(order.total_amount or 0),
         "agreed_amount": order.kelishilgan_summa,
+        # 28-band (kech43): pul qaytarishlar kelishilgan summani qanchaga kamaytirgani va
+        # ASL (qaytarishdan oldingi) kelishilgan summa — tahrir formasi ASL summani ko'rsatadi,
+        # `PUT /api/orders/{id}` uni oladi va kamaytirishni o'zi QAYTA ayiradi.
+        "pul_qaytarish_kamaytirgan": _qkam,
+        "kelishilgan_asl": round(order.kelishilgan_summa + _qkam, 2),
         "discount_percent": order.discount_percent or 0,
         "payment_status": order.payment_status.value if order.payment_status else "unpaid",
         "paid_amount": order.paid_amount,
