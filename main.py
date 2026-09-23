@@ -18,7 +18,17 @@ import schemas
 import crud
 import services
 import auth
-from models import UserRole, Inventory, OrderStatus, OrderGipsAdditive
+from models import UserRole, Inventory, OrderStatus
+
+# 2026-09-16: Dinamik Ishlab chiqarish (Production/MRP) moduli — ATAYLAB
+# alohida fayllarda (production_models.py, production_routes.py va h.k.),
+# main.py'ni yanada kattalashtirmaslik uchun. Bu import — yangi jadvallar
+# (companies, product_types, boms, bom_items, production_orders) pastdagi
+# init_database() chaqirilganda AVTOMATIK yaratilishi uchun SHART
+# (Base.metadata barcha modellarni "ko'rishi" kerak).
+import production_models
+from production_routes import router as production_router
+import production_service
 
 import urllib.request
 import json as _json
@@ -39,10 +49,176 @@ def fmt_money(n) -> str:
         return "0"
 
 
-def _send_telegram(text: str):
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+def _tenant_telegram(company_id=None):
+    """Joriy korxonaning Telegram sozlamasini qaytaradi (Faza 3, 2-qadam).
+
+    Qaytaradi: (token, [chat_id, ...])
+
+    TARTIB:
+      1) `company_id` berilsa — o'sha korxonaning sozlamasi;
+      2) berilmasa — TIZIM xabari: muhit o'zgaruvchilari. Marshrutlar
+         `company_id` ni DOIM aniq beradi (tools/test_telegram_tenant.py);
+      3) korxonada token sozlanmagan bo'lsa — MUHIT O'ZGARUVCHILARI
+         (`TELEGRAM_BOT_TOKEN`, `BACKUP_TELEGRAM_CHAT_ID`), lekin FAQAT
+         1-korxona uchun; boshqa korxona uchun ("", []).
+
+    3-band ATAYLAB: birinchi korxona (tizim egasi) hech narsa
+    sozlamasdan ham avvalgidek ishlashda davom etadi. Ikkinchi mijoz
+    esa @BotFather dan o'z botini olib, sozlamalarga qo'yadi va o'z
+    xabarlarini O'Z botidan oladi.
+    """
+    env_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    env_chats = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "").strip()
+
+    # 2026-09-21 (9-sizish): ilgari `company_id` berilmasa korxona
+    # `tenant_context.get_current_company(_db)` dan olinardi — lekin `_db`
+    # shu yerda YANGI ochilgan sessiya, uning `info` si doim bo'sh. Natija:
+    # korxona hech qachon aniqlanmas, B ning xabari (buyurtma, qoldiq,
+    # mijoz) muhit o'zgaruvchisidagi 1-korxona chatiga ketardi — B o'z
+    # botini sozlagan bo'lsa HAM. `TENANT_FILTER` bunga ta'sir qilmaydi.
+    #
+    # QOIDA:
+    #   company_id=None  → tizim xabari (zaxira nusxa) → muhit sozlamasi;
+    #   korxonaning o'z boti bor → o'shaniki;
+    #   o'z boti yo'q: 1-korxona (tizim egasi) → muhit sozlamasi,
+    #                  BOSHQA korxona → HECH NARSA yuborilmaydi (uning
+    #                  ma'lumoti tizim egasining chatiga tushmasligi uchun).
+    cid = company_id
+    if cid is None:
+        return env_token, [x.strip() for x in env_chats.split(",") if x.strip()]
+    _db = None
+    try:
+        from database import SessionLocal as _SL
+        _db = _SL()
+        import crud as _c
+        t = (_c.get_setting(_db, "telegram_bot_token", "", company_id=cid) or "").strip()
+        c = (_c.get_setting(_db, "telegram_chat_id", "", company_id=cid) or "").strip()
+        if t:
+            chats = [x.strip() for x in c.split(",") if x.strip()]
+            return t, chats
+    except Exception as e:
+        print(f"⚠ Korxona Telegram sozlamasi o'qilmadi: {e}")
+    finally:
+        if _db is not None:
+            try:
+                _db.close()
+            except Exception:
+                pass
+
+    if cid != auth.DEFAULT_COMPANY_ID:
+        return "", []
+    return env_token, [x.strip() for x in env_chats.split(",") if x.strip()]
+
+
+def _tg_brand(db, company_id):
+    """Telegram xabarlari uchun korxona brendi: (nom, shior, manzil).
+
+    2026-09-21 — BIZNES QARORI: boshqa korxonalarning xabarlarida
+    "🏗 PenoDecorPro — Andijon" CHIQMASLIGI kerak, har korxonaga faqat O'Z
+    nomi. Ilgari ~18 xabar matnida nom va manzil QATTIQ yozilgan edi.
+    Endi manba yagona — `company_brand.get_brand` (PDF lar ham undan oladi).
+    Qoida o'sha yerdagidek: korxona ma'lum-u maydon bo'sh bo'lsa — BO'SH
+    qoladi (platforma egasining manzili chiqmaydi). `company_id=None` —
+    tizim xabari, 1-korxona zaxira qiymatlari.
+    Hech qachon yiqilmaydi: baza o'qilmasa ham xabar yuborilishi kerak."""
+    try:
+        import company_brand as _cb
+        b = _cb.get_brand(db, company_id)
+        return ((b.get("name") or "").strip(), (b.get("slogan") or "").strip(),
+                (b.get("address") or "").strip())
+    except Exception:
+        return ("", "", "")
+
+
+def _tg_footer(db, company_id, bold=True, emoji="🏗", tail=None):
+    """Xabar oxiridagi imzo: "🏗 *Nom* — Manzil".
+
+    `tail` berilsa manzil o'rniga o'sha yoziladi ("🏗 *Nom* — Ali").
+    Manzil bo'sh bo'lsa " — ..." qismi UMUMAN yozilmaydi.
+    Nom ham topilmasa (baza xatosi) — bo'sh qator, begona nom emas."""
+    nom, _sl, manzil = _tg_brand(db, company_id)
+    if not nom:
+        return ""
+    n = f"*{nom}*" if bold else nom
+    dum = manzil if tail is None else tail
+    return f"{emoji} {n} — {dum}" if dum else f"{emoji} {n}"
+
+
+def _tg_title(db, company_id, title):
+    """Sarlavha: "🏗 *Nom — Yangi buyurtma*" (nom bo'lmasa — faqat sarlavha)."""
+    nom = _tg_brand(db, company_id)[0]
+    return f"🏗 *{nom} — {title}*" if nom else f"🏗 *{title}*"
+
+
+TG_TAGLINE_KEY = "tg_welcome_tagline"
+TG_TAGLINE_MAX = 150
+
+
+def _tg_tagline(db, company_id):
+    """Ustaga salom xabaridagi shior (2026-09-21, foydalanuvchi so'rovi).
+
+    Korxona sozlamada o'zi yozadi (Sozlamalar → Korxona brendi):
+      * kalit bor, matn bor  → aynan o'sha matn chiqadi;
+      * kalit bor, matn bo'sh → shior qatori UMUMAN chiqmaydi;
+      * kalit hech qachon yozilmagan → korxonaning "Shior" maydoni.
+    1-korxonaga ishga tushishda bir marta "Zamonaviy fasad dekorlari"
+    yozib qo'yiladi (eski qattiq matn) — keyin o'zi o'zgartiradi.
+    `company_id=None` da sozlama O'QILMAYDI: `crud.get_setting` korxonasiz
+    chaqirilsa ixtiyoriy korxonaning qatorini qaytaradi."""
+    shior = _tg_brand(db, company_id)[1]
+    if company_id is None:
+        return shior
+    try:
+        v = crud.get_setting(db, TG_TAGLINE_KEY, None, company_id=company_id)
+    except Exception:
+        v = None
+    return shior if v is None else (v or "").strip()
+
+
+def _tg_signature(db, company_id):
+    """Ustaga salom xabari oxiri: "🏗 *Nom* — Shior" + "📍 Manzil".
+    Bo'sh maydon qatori umuman yozilmaydi."""
+    nom, _sl, manzil = _tg_brand(db, company_id)
+    shior = _tg_tagline(db, company_id)
+    qatorlar = []
+    if nom:
+        qatorlar.append(f"🏗 *{nom}*" + (f" — {shior}" if shior else ""))
+    if manzil:
+        qatorlar.append(f"📍 {manzil}")
+    return "\n".join(qatorlar)
+
+
+def _tg_post_message(token, chat_id, text, reply_markup=None):
+    """sendMessage. Telegram Markdown ni rad etsa (HTTP 400 — "can't parse
+    entities") — o'sha matn parse_mode SIZ qayta yuboriladi.
+
+    2026-09-21: xabarlarga foydalanuvchi kiritgan matn (korxona nomi,
+    shior, mijoz/usta ismi, xomashyo nomi) qo'yiladi. Unda `*` yoki `_`
+    bo'lsa Telegram butun xabarni rad etardi va xabar jimgina yo'qolardi.
+    Endi bezaksiz bo'lsa ham, xabar YETIB BORADI. Boshqa xatolar (403,
+    tarmoq) — qayta urinilmaydi, chaqiruvchiga ko'tariladi."""
+    import urllib.error as _ue
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+    try:
+        req = urllib.request.Request(url, data=_json.dumps(payload).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        return urllib.request.urlopen(req, timeout=5)
+    except _ue.HTTPError as e:
+        if e.code != 400:
+            raise
+        payload.pop("parse_mode", None)
+        req = urllib.request.Request(url, data=_json.dumps(payload).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        return urllib.request.urlopen(req, timeout=5)
+
+
+def _send_telegram(text: str, company_id=None):
+    token, _tenant_chats = _tenant_telegram(company_id)
     if not token:
-        print("⚠ TELEGRAM_BOT_TOKEN yo'q")
+        print("⚠ Telegram tokeni yo'q (korxona sozlamasi ham, muhit o'zgaruvchisi ham)")
         return
     # MUHIM (2026-08-18): avval, bu funksiya, ESKIRGAN/NOTO'G'RI bo'lib
     # qolgan, qattiq yozilgan TELEGRAM_COATING_ID'ga yuborardi (Telegram
@@ -51,42 +227,46 @@ def _send_telegram(text: str):
     # sozlangan, ishlab turgan BACKUP_TELEGRAM_CHAT_ID'dan foydalanamiz —
     # shu bilan, shu funksiyaga bog'liq BARCHA (12 xil) bildirishnoma turi
     # birdaniga tuzatiladi.
-    chat_ids_raw = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "").strip()
-    chat_ids = [c.strip() for c in chat_ids_raw.split(",") if c.strip()] or [TELEGRAM_COATING_ID]
+    # Qattiq yozilgan zaxira chat — faqat tizim egasi (1-korxona) va tizim
+    # xabarlari uchun. Boshqa korxona boti sozlangan-u, chati kiritilmagan
+    # bo'lsa, uning xabari tizim egasining chatiga TUSHMASLIGI kerak.
+    if _tenant_chats:
+        chat_ids = _tenant_chats
+    elif company_id is None or company_id == auth.DEFAULT_COMPANY_ID:
+        chat_ids = [TELEGRAM_COATING_ID]
+    else:
+        print("⚠ Korxonaning Telegram chat manzili sozlanmagan — xabar yuborilmadi")
+        return
     for chat_id in chat_ids:
         try:
-            url  = f"https://api.telegram.org/bot{token}/sendMessage"
-            data = _json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}).encode("utf-8")
-            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=5)
+            _tg_post_message(token, chat_id, text)
             print(f"✓ Telegram xabar yuborildi ({chat_id})")
         except Exception as e:
             print(f"⚠ Telegram xabar yuborilmadi ({chat_id}): {e}")
 
 
-def _send_telegram_to(chat_id: str, text: str):
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+def _send_telegram_to(chat_id: str, text: str, company_id=None):
+    """Aniq bir chatga xabar (mijoz, usta, qoplamachi).
+    Bot tokeni — korxonanikidan, bo'lmasa muhit o'zgaruvchisidan."""
+    token, _ = _tenant_telegram(company_id)
     if not token:
-        print("⚠ TELEGRAM_BOT_TOKEN yo'q")
+        print("⚠ Telegram tokeni yo'q")
         return
     try:
-        url  = f"https://api.telegram.org/bot{token}/sendMessage"
-        data = _json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}).encode("utf-8")
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=5)
+        _tg_post_message(token, chat_id, text)
         print(f"✓ Telegram xabar yuborildi: {chat_id}")
     except Exception as e:
         print(f"⚠ Mijozga Telegram xabar yuborilmadi: {e}")
 
 def _send_telegram_document(chat_id: str, file_bytes: bytes, filename: str, caption: str = "",
-                             content_type: str = "application/json"):
+                             content_type: str = "application/json", company_id=None):
     """Telegram orqali fayl (masalan zaxira nusxa yoki Yuk xati PDF) yuboradi.
     content_type — fayl turiga mos qiymat berilishi kerak (masalan PDF uchun
     "application/pdf"); standart qiymat (application/json) — eski, zaxira
     nusxa funksiyasi bilan mos bo'lishi uchun saqlangan."""
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    token, _ = _tenant_telegram(company_id)
     if not token or not chat_id:
-        print("⚠ TELEGRAM_BOT_TOKEN yoki chat_id yo'q — fayl yuborilmadi")
+        print("⚠ Telegram tokeni yoki chat_id yo'q — fayl yuborilmadi")
         return False
     try:
         import urllib.request as _ur
@@ -125,7 +305,10 @@ def _master_bot_keyboard(db, master=None) -> dict:
     sovg'a davri BOR va shu usta o'sha davrda ISHTIROK ETSA ko'rinadi
     (2026-09-12; ustalar tanlab olinishi qo'shildi 2026-09-12 kech)."""
     try:
-        show_gifts_btn = bool(master) and crud.master_in_active_gift_period(db, master.id)
+        # M5: davr/ishtirok ustaning O'Z korxonasi ichida tekshiriladi.
+        # (Telegram orqali topish usuli o'zgartirilmadi — F19.)
+        show_gifts_btn = bool(master) and crud.master_in_active_gift_period(
+            db, master.id, company_id=getattr(master, "company_id", None))
     except Exception:
         show_gifts_btn = False
     if show_gifts_btn:
@@ -160,9 +343,15 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
     o'rniga xuddi shu ma'lumot bilan ODDIY MATN xabar yuboriladi, shunda
     hech kim butunlay xabarsiz qolmaydi."""
     try:
+        # Ichki yordamchi: tenant tekshiruvi CHAQIRUVCHI endpointda
+        # allaqachon bajarilgan (u yerda get_delivery company_id bilan
+        # chaqiriladi). Bu yerda current_user yo'q.
         d = crud.get_delivery(db, delivery_id)
         if not d or not d.order:
             return
+        # 2026-09-21 (9-sizish): xabar yetkazish buyurtmasining O'Z
+        # korxonasi boti orqali ketadi (ilgari doim 1-korxona boti).
+        _cid_d = d.order.company_id
 
         recipients = []  # [(tg_id, rol)]
 
@@ -221,9 +410,9 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
         for tg_id, role in recipients:
             sent = False
             if pdf_bytes is not None:
-                sent = _send_telegram_document(tg_id, pdf_bytes, filename, caption, content_type="application/pdf")
+                sent = _send_telegram_document(tg_id, pdf_bytes, filename, caption, content_type="application/pdf", company_id=_cid_d)
             if not sent:
-                _send_telegram_to(tg_id, text_msg)
+                _send_telegram_to(tg_id, text_msg, company_id=_cid_d)
     except Exception as e:
         print(f"⚠ Yuk xati (PDF ham, matn ham) yuborilmadi: {e}")
         try:
@@ -233,6 +422,65 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
 
 
 init_database()
+
+
+def _seed_default_company():
+    """2026-09-16: yangi Production moduli uchun — SaaS'gacha ishlatiladigan
+    YAGONA korxona yozuvini (id=1) bir marta yaratib qo'yadi. Xatoni
+    boshqa init funksiyalari kabi yutib yuboradi — agar biror sabab bilan
+    ishlamasa, ilovaning QOLGAN qismi baribir ishlashda davom etishi kerak."""
+    try:
+        from database import SessionLocal as _SL
+        from production_models import Company as _Company
+        _db = _SL()
+        try:
+            if not _db.query(_Company).filter(_Company.id == 1).first():
+                _db.add(_Company(id=1, name="PenodecorPro", allow_negative_stock=False))
+                _db.commit()
+                print("✅ Production moduli uchun asosiy Company (id=1) yaratildi")
+        finally:
+            _db.close()
+    except Exception as e:
+        print(f"⚠️ Company (id=1) seed qilishda xato (o'tkazib yuborildi): {e}")
+
+
+_seed_default_company()
+
+
+def _seed_tg_tagline():
+    """2026-09-21: ustaga salomdagi shior endi sozlama (`tg_welcome_tagline`).
+
+    ENG ESKI korxonaga (PenoDecorPro) ESKI qattiq matn BIR MARTA yoziladi —
+    faqat kalit umuman yo'q bo'lsa. Shu bilan uning xabari o'zgarmaydi,
+    keyin foydalanuvchi sozlamadan istagan matnni yozadi. Kalit bor bo'lsa
+    (bo'sh bo'lsa ham — bu foydalanuvchi tanlovi) TEGILMAYDI.
+    Postgres ham, SQLite ham (ORM orqali) — shuning uchun alohida funksiya:
+    `_migrate_faza3_columns` faqat Postgresda ishlaydi va testda sinalmasdi.
+    Xatoni yutadi: ilovaning qolgan qismi baribir ishga tushishi kerak."""
+    try:
+        from database import SessionLocal as _SL
+        from production_models import Company as _Co
+        from models import CompanySetting as _CS
+        _d = _SL()
+        try:
+            eng_eski = _d.query(_Co.id).order_by(_Co.id).first()
+            if not eng_eski:
+                return
+            cid = eng_eski[0]
+            bor = _d.query(_CS).filter(_CS.company_id == cid,
+                                      _CS.key == "tg_welcome_tagline").first()
+            if bor is None:
+                _d.add(_CS(company_id=cid, key="tg_welcome_tagline",
+                           value="Zamonaviy fasad dekorlari"))
+                _d.commit()
+                print(f"✓ Korxona #{cid}: Telegram salom shiori yozildi")
+        finally:
+            _d.close()
+    except Exception as e:
+        print(f"⚠ Telegram salom shiori yozilmadi: {e}")
+
+
+_seed_tg_tagline()
 
 
 def _migrate_recipe_name_column():
@@ -261,19 +509,6 @@ def _migrate_recipe_name_column():
             print(f"⚠ recipes.name migratsiyasi: {e}")
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# MA'LUMOT O'ZGARTIRUVCHI MIGRATSIYALAR REJIMI  (2026-09-20)
-#
-# Migratsiya zanjiri tuzatilgandan keyin, ilgari HECH QACHON ishlamagan
-# ikkita UPDATE real ma'lumotga birinchi marta tegadi. Shuning uchun:
-#
-#   True  = FAQAT SANAYDI. Hech narsa o'zgarmaydi, logda nechta qator
-#           tegishi ko'rsatiladi. ← birinchi deploy shunday
-#   False = HAQIQATAN BAJARADI.  ← logni ko'rib, zaxira olingandan keyin
-# ═══════════════════════════════════════════════════════════════════════
-MIGRATSIYA_FAQAT_SANASH = True
-
-
 def _migrate_payment_columns():
     """Mavjud bazaga to'lov ustunlarini qo'shadi (agar yo'q bo'lsa)."""
     from sqlalchemy import text, inspect
@@ -288,7 +523,6 @@ def _migrate_payment_columns():
         cols = [c['name'] for c in inspector.get_columns('orders')]
 
         migrations = []
-        _data_updates = []   # (nom, sanash SQL, bajarish SQL)
         if 'agreed_amount' not in cols:
             migrations.append("ALTER TABLE orders ADD COLUMN agreed_amount NUMERIC(12,2) DEFAULT 0")
         if 'payment_status' not in cols:
@@ -382,15 +616,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE order_items ADD COLUMN finished_product_id INTEGER")
         if 'unit_price_for_volume' not in oi_cols:
             migrations.append("ALTER TABLE order_items ADD COLUMN unit_price_for_volume NUMERIC(12,2)")
-        if 'gips_unit' not in oi_cols:
-            migrations.append("ALTER TABLE order_items ADD COLUMN gips_unit VARCHAR(10)")
 
-        # GIPS — Order, Employee, ReturnItem yangi ustunlari
         ord_cols = [c['name'] for c in inspector.get_columns('orders')]
-        if 'planned_gips_kg' not in ord_cols:
-            migrations.append("ALTER TABLE orders ADD COLUMN planned_gips_kg FLOAT")
-        if 'actual_gips_kg' not in ord_cols:
-            migrations.append("ALTER TABLE orders ADD COLUMN actual_gips_kg FLOAT")
         if 'actual_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN actual_loy_kg FLOAT")
         if 'base_price' not in ord_cols:
@@ -405,18 +632,10 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE finished_product_sales ADD COLUMN original_total NUMERIC(12,2)")
         if 'group_discount_percent' not in fps_cols:
             migrations.append("ALTER TABLE finished_product_sales ADD COLUMN group_discount_percent FLOAT")
-        if 'gips_inventory_id' not in ord_cols:
-            migrations.append("ALTER TABLE orders ADD COLUMN gips_inventory_id INTEGER")
 
         emp_cols = [c['name'] for c in inspector.get_columns('employees')]
-        if 'gul_rate' not in emp_cols:
-            migrations.append("ALTER TABLE employees ADD COLUMN gul_rate NUMERIC(12,2)")
         if 'extra_monthly' not in emp_cols:
             migrations.append("ALTER TABLE employees ADD COLUMN extra_monthly NUMERIC(12,2)")
-
-        ret_cols = [c['name'] for c in inspector.get_columns('return_items')]
-        if 'gips_kg_used' not in ret_cols:
-            migrations.append("ALTER TABLE return_items ADD COLUMN gips_kg_used FLOAT")
 
         et_cols = [c['name'] for c in inspector.get_columns('expense_transactions')]
         if 'production_type' not in et_cols:
@@ -427,10 +646,6 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE transport_expenses ADD COLUMN production_type VARCHAR(20)")
 
         fp_cols = [c['name'] for c in inspector.get_columns('finished_products')]
-        if 'gips_kg_used' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN gips_kg_used FLOAT")
-        if 'gips_inventory_id' not in fp_cols:
-            migrations.append("ALTER TABLE finished_products ADD COLUMN gips_inventory_id INTEGER")
         if 'produced_quantity' not in fp_cols:
             migrations.append("ALTER TABLE finished_products ADD COLUMN produced_quantity FLOAT")
         if 'price_per_m3' not in fp_cols:
@@ -451,13 +666,16 @@ def _migrate_payment_columns():
         # to'ldirilmagan bo'lishi mumkin). Eski, "Sotuvga tayyor" yozuvlar
         # uchun, hozirgi qoldiqni "asl ishlab chiqarilgan" deb belgilaymiz —
         # bu nuqtadan boshlab, hodim haqi endi yana kamayib ketmaydi.
-        _data_updates.append((
-            "finished_products.produced_quantity backfill (HODIM HAQIGA ta'sir qiladi)",
-            "SELECT count(*) FROM finished_products "
-            "WHERE produced_quantity IS NULL AND production_status = 'READY'",
+        # 2026-09-19 — TUZATISH: bu so'rov har ishga tushishda yiqilardi.
+        # `production_status` — PostgreSQL enum va unda qiymat KATTA harf
+        # bilan ('READY') saqlanadi; bu yerda 'ready' yozilgani uchun
+        # "invalid input value for enum productionstatus" xatosi chiqardi.
+        # Yiqilgan so'rov tranzaksiyani buzardi va KEYINGI IKKI migratsiya
+        # ham umuman bajarilmay qolardi (pastdagi rollback tuzatishiga qarang).
+        migrations.append(
             "UPDATE finished_products SET produced_quantity = quantity "
-            "WHERE produced_quantity IS NULL AND production_status = 'READY'",
-        ))
+            "WHERE produced_quantity IS NULL AND production_status = 'READY'"
+        )
 
         emp_cols2 = [c['name'] for c in inspector.get_columns('employees')]
         if 'production_type' not in emp_cols2:
@@ -477,11 +695,7 @@ def _migrate_payment_columns():
         # Bir martalik: "Boshqa" kategoriyasidagi mavjud materiallarni
         # "Bazalt"ga o'tkazamiz (chunki bu bo'lim aslida faqat Bazalt bilan
         # bog'liq materiallar uchun ishlatilgan edi — aniqroq nom).
-        _data_updates.append((
-            "inventory kategoriyasi: 'Boshqa' -> 'Bazalt'",
-            "SELECT count(*) FROM inventory WHERE category = 'Boshqa'",
-            "UPDATE inventory SET category = 'Bazalt' WHERE category = 'Boshqa'",
-        ))
+        migrations.append("UPDATE inventory SET category = 'Bazalt' WHERE category = 'Boshqa'")
 
         # return_items — endi ikkita manbadan brak yozish mumkin: buyurtmadan
         # (order_id) YOKI tayyor mahsulot ishlab chiqarishdan (finished_product_id).
@@ -499,42 +713,20 @@ def _migrate_payment_columns():
                         conn.commit()
                         print(f"✓ Migratsiya: {sql[:60]}...")
                     except Exception as e:
-                        # MUHIM: rollback bo'lmasa, Postgres'da tranzaksiya
-                        # "aborted" holatda qoladi va SHU ULANISHDAGI keyingi
-                        # HAMMA migratsiya jimgina yiqiladi.
+                        # 2026-09-19 — MUHIM TUZATISH: ilgari bu yerda
+                        # `rollback()` yo'q edi. PostgreSQL'da bitta so'rov
+                        # yiqilsa tranzaksiya "aborted" holatiga o'tadi va
+                        # SHU ULANISHDAGI keyingi BARCHA so'rovlar
+                        # "current transaction is aborted" bilan rad etiladi.
+                        # Ya'ni bitta xato butun ro'yxatning qolganini
+                        # o'ldirardi — jonli logda aynan shu ko'rindi:
+                        # `return_items.order_id DROP NOT NULL` hech qachon
+                        # bajarilmagan edi.
                         try:
                             conn.rollback()
                         except Exception:
                             pass
                         print(f"⚠ Migratsiya o'tkazib yuborildi: {e}")
-
-        # ── MA'LUMOTNI O'ZGARTIRADIGAN MIGRATSIYALAR ────────────────────
-        # Bular ustun qo'shmaydi — REAL MA'LUMOTNI o'zgartiradi.
-        # MIGRATSIYA_FAQAT_SANASH kalitiga qarang (fayl boshida).
-        if _data_updates:
-            print("─" * 60)
-            rejim = "FAQAT SANASH (hech narsa o'zgarmaydi)" if MIGRATSIYA_FAQAT_SANASH else "BAJARISH"
-            print(f"MA'LUMOT MIGRATSIYALARI — rejim: {rejim}")
-            with engine.connect() as conn:
-                for nom, count_sql, update_sql in _data_updates:
-                    try:
-                        soni = conn.execute(text(count_sql)).scalar() or 0
-                        if MIGRATSIYA_FAQAT_SANASH:
-                            print(f"   🔢 {nom}")
-                            print(f"      → {soni} qatorga tegadi (HOZIR O'ZGARTIRILMADI)")
-                        elif soni:
-                            conn.execute(text(update_sql))
-                            conn.commit()
-                            print(f"   ✓ {nom}: {soni} qator o'zgartirildi")
-                        else:
-                            print(f"   • {nom}: o'zgartiriladigan qator yo'q")
-                    except Exception as e:
-                        try:
-                            conn.rollback()
-                        except Exception:
-                            pass
-                        print(f"   ⚠ {nom}: {e}")
-            print("─" * 60)
 
         # PostgreSQL enum ga yangi qiymatlarni qo'shish
         enum_additions = [
@@ -583,17 +775,21 @@ def _migrate_payment_columns():
             try:
                 conn.execute(text(
                     "UPDATE orders SET agreed_amount = total_amount "
-                    "WHERE agreed_amount IS NULL OR agreed_amount = 0"
+                    # kech42 (K42-1): faqat BO'SH (NULL). Ilgari `OR agreed_amount = 0`
+                    # ham bor edi — HAR ishga tushishda to'liq qaytarilgan / qarzi
+                    # kechirilgan buyurtmaning qonuniy 0 summasini jami summaga
+                    # qaytarib, yopilgan qarzni "tiriltirardi".
+                    "WHERE agreed_amount IS NULL"
                 ))
                 conn.commit()
             except Exception as e:
-                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
-                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
                 try:
                     conn.rollback()
                 except Exception:
                     pass
-                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -620,13 +816,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
-                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
-                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
                 try:
                     conn.rollback()
                 except Exception:
                     pass
-                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -694,13 +890,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
-                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
-                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
                 try:
                     conn.rollback()
                 except Exception:
                     pass
-                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -719,13 +915,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
-                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
-                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
                 try:
                     conn.rollback()
                 except Exception:
                     pass
-                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -741,13 +937,13 @@ def _migrate_payment_columns():
                 """))
                 conn.commit()
             except Exception as e:
-                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
-                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
                 try:
                     conn.rollback()
                 except Exception:
                     pass
-                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -764,13 +960,13 @@ def _migrate_payment_columns():
                 ))
                 conn.commit()
             except Exception as e:
-                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
-                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
                 try:
                     conn.rollback()
                 except Exception:
                     pass
-                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -791,13 +987,13 @@ def _migrate_payment_columns():
                     ))
                     conn.commit()
             except Exception as e:
-                # MUHIM: bu 7 ta blok BITTA ulanishni baham ko'radi — rollback
-                # bo'lmasa, birinchi xato qolganlarining hammasini o'ldiradi.
+                # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
+                # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
+                # ulanishdagi KEYINGI migratsiyalar ham bajarilmay qoladi.
                 try:
                     conn.rollback()
                 except Exception:
                     pass
-                print(f"⚠ Migratsiya bloki o'tkazib yuborildi: {e}")
                 try:
                     from database import SessionLocal as _SL
                     _ldb = _SL()
@@ -805,45 +1001,941 @@ def _migrate_payment_columns():
                     _ldb.close()
                 except Exception:
                     pass
-        # ── MIGRATSIYA NATIJASINI LOGDA TASDIQLASH ──────────────────────
-        # Faqat o'qish (SELECT). Maqsad: deploy logida "bajarildi" degan
-        # so'zga emas, haqiqiy baza holatiga qarab xulosa qilish.
-        try:
-            with engine.connect() as _chk:
-                row = _chk.execute(text("""
-                    SELECT
-                      (SELECT is_nullable FROM information_schema.columns
-                         WHERE table_schema='public' AND table_name='return_items'
-                           AND column_name='order_id')                      AS ri_order_id_nullable,
-                      (SELECT count(*) FROM information_schema.columns
-                         WHERE table_schema='public' AND table_name='return_items'
-                           AND column_name='finished_product_id')           AS ri_finished_product_id,
-                      (SELECT count(*) FROM information_schema.columns
-                         WHERE table_schema='public' AND table_name='employees'
-                           AND column_name='production_type')               AS emp_production_type,
-                      (SELECT count(*) FROM information_schema.columns
-                         WHERE table_schema='public' AND table_name='inventory_receipts'
-                           AND column_name='production_type')               AS ir_production_type,
-                      (SELECT count(*) FROM information_schema.columns
-                         WHERE table_schema='public' AND table_name='employee_monthly_adjustments'
-                           AND column_name='bonus_amount')                  AS ema_bonus_amount,
-                      (SELECT count(*) FROM inventory
-                         WHERE category = 'Boshqa')                         AS inv_boshqa_qoldi,
-                      (SELECT count(*) FROM finished_products
-                         WHERE produced_quantity IS NULL
-                           AND production_status = 'READY')                 AS fp_backfill_qoldi
-                """)).mappings().first()
-            print("🔎 MIGRATSIYA HOLATI (1 = bor/bajarildi, 0 = yo'q):")
-            for k, v in dict(row).items():
-                print(f"   • {k} = {v}")
-        except Exception as e:
-            print(f"⚠ Migratsiya holatini tekshirib bo'lmadi: {e}")
     except Exception as e:
         print(f"⚠ Migratsiya xatosi: {e}")
 
 
+def _migrate_drop_company_id_defaults():
+    """M8/F1 (2026-09-18) — VAQTINCHALIK `DEFAULT 1` ni olib tashlaydi.
+
+    SaaS migratsiyasi boshlanganda 25 ta jadvalning `company_id` ustuniga
+    vaqtinchalik `DEFAULT 1` qo'yilgan edi — shunda eski kod (hali
+    `company_id` uzatmaydigan) ishlashda davom etardi. Endi barcha yozish
+    yo'llari tenantni ANIQ beradi, shuning uchun bu default KERAK EMAS va
+    XAVFLI: u unutilgan `company_id` ni jimgina 1-korxonaga yozib qo'yadi,
+    ya'ni ma'lumot sizib chiqadi va hech qanday xato chiqmaydi. M4–M8
+    davomida aynan shu naqsh BESH marta takrorlandi.
+
+    Default olib tashlangach, unutilgan `company_id` darhol NOT NULL
+    xatosi beradi — jim sizish o'rniga baland, ko'rinadigan nosozlik.
+
+    XAVFSIZLIK QOIDALARI:
+      • Faqat PostgreSQL'da ishlaydi (SQLite ALTER COLUMN ni qo'llamaydi).
+      • AVVAL tekshiradi: birorta jadvalda `company_id IS NULL` bo'lsa yoki
+        `companies` da mavjud bo'lmagan korxonaga ishora qilsa — HECH NARSA
+        o'zgartirmaydi va sababini yozadi.
+      • DDL faqat DEFAULT ni olib tashlaydi: qatorlar, qiymatlar va
+        NOT NULL cheklovi TEGILMAYDI.
+      • Idempotent: qayta-qayta ishga tushsa ham zarar yo'q.
+    """
+    TABLES = [
+        "users", "masters", "master_gifts", "gift_periods", "inventory",
+        "recipes", "projects", "orders", "order_items", "return_items",
+        "inventory_movements", "inventory_receipts", "employees",
+        "cash_transactions", "company_settings", "activity_logs",
+        "login_history", "recurring_obligations", "suppliers",
+        "transport_expenses", "finished_products", "finished_product_sales",
+        "finished_product_losses", "expense_transactions", "monthly_expenses",
+    ]
+    # MUHIM (2026-09-19, Railway logidan aniqlangan): `text` bu faylning
+    # global nomlar fazosida YO'Q. U import qilinmagani uchun bu migratsiya
+    # har ishga tushishda jimgina "name 'text' is not defined" xatosi bilan
+    # o'tkazib yuborilgan — ya'ni HECH QACHON bajarilmagan.
+    from sqlalchemy import text
+    try:
+        from database import engine
+        if engine.dialect.name != "postgresql":
+            return   # SQLite (lokal sinov) — o'tkazib yuboriladi
+
+        with engine.connect() as conn:
+            # --- 1) Hozirgi holat: qaysi jadvalda default bor ---
+            rows = conn.execute(text(
+                "SELECT table_name, column_default FROM information_schema.columns "
+                "WHERE table_schema='public' AND column_name='company_id' "
+                "AND column_default IS NOT NULL"
+            )).fetchall()
+            bor = {r[0] for r in rows}
+            if not bor:
+                return   # allaqachon tozalangan — jim chiqamiz
+
+            # --- 2) XAVFSIZLIK TEKSHIRUVI (DDL dan OLDIN) ---
+            muammo = []
+            for t in TABLES:
+                if t not in bor:
+                    continue
+                n_null = conn.execute(text(
+                    f"SELECT COUNT(*) FROM {t} WHERE company_id IS NULL")).scalar()
+                if n_null:
+                    muammo.append(f"{t}: {n_null} ta NULL company_id")
+                n_yetim = conn.execute(text(
+                    f"SELECT COUNT(*) FROM {t} c WHERE NOT EXISTS "
+                    f"(SELECT 1 FROM companies k WHERE k.id = c.company_id)")).scalar()
+                if n_yetim:
+                    muammo.append(f"{t}: {n_yetim} ta yetim company_id")
+            if muammo:
+                print("⛔ DEFAULT 1 olib tashlanmadi — avval quyidagilar tuzatilsin:")
+                for m in muammo:
+                    print(f"   • {m}")
+                return
+
+            # --- 3) Qator sonlarini yozib olamiz (DDL ularga tegmasligi shart) ---
+            oldin = {t: conn.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar()
+                     for t in TABLES if t in bor}
+
+            # --- 4) DDL: faqat DEFAULT olib tashlanadi ---
+            ozgardi = []
+            for t in sorted(bor):
+                if t not in TABLES:
+                    continue   # ro'yxatda yo'q jadvalga TEGMAYMIZ
+                conn.execute(text(f"ALTER TABLE {t} ALTER COLUMN company_id DROP DEFAULT"))
+                ozgardi.append(t)
+            conn.commit()
+
+            # --- 5) Tekshirish: default yo'q, qatorlar o'zgarmagan ---
+            qolgan = conn.execute(text(
+                "SELECT table_name FROM information_schema.columns "
+                "WHERE table_schema='public' AND column_name='company_id' "
+                "AND column_default IS NOT NULL"
+            )).fetchall()
+            keyin = {t: conn.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar()
+                     for t in oldin}
+            farq = {t: (oldin[t], keyin[t]) for t in oldin if oldin[t] != keyin[t]}
+
+            print(f"✓ company_id DEFAULT olib tashlandi: {len(ozgardi)} ta jadval")
+            if qolgan:
+                print(f"⚠ Hamon default bor: {[r[0] for r in qolgan]}")
+            if farq:
+                print(f"⛔ QATOR SONI O'ZGARDI (kutilmagan!): {farq}")
+    except Exception as e:
+        print(f"⚠ company_id DEFAULT migratsiyasi o'tkazib yuborildi: {e}")
+
+
 _migrate_recipe_name_column()
 _migrate_payment_columns()
+def _migrate_faza3_columns():
+    """Faza 3 (2026-09-19) — uchta yangi ustun. Xavfsiz va idempotent.
+
+      1) `error_logs.company_id`  — xatolarni korxonaga bog'lash uchun.
+         NULL = platforma xatosi (fon vazifasi, login oldidagi xato).
+         Eski yozuvlar NULL bo'lib qoladi: ularni korxonalarga taqsimlab
+         bo'lmaydi (`performed_by` bo'sh edi), shuning uchun ular
+         platforma xatosi sifatida qoladi — bu ATAYLAB.
+      2) `gift_period_tiers.company_id` — model qo'riqchisi ota yozuvda
+         shu ustunni qidiradi; backfill `gift_periods` dan olinadi.
+      3) `users.is_platform_admin` — SaaS egasi bayrog'i. Backfill:
+         ENG ESKI admin (eng kichik id) platforma admini deb belgilanadi,
+         aks holda hech kim platforma amallarini bajara olmay qolardi.
+    """
+    from sqlalchemy import text   # yuqoridagi bilan bir xil sabab
+    try:
+        from database import engine
+        if engine.dialect.name != "postgresql":
+            return
+        with engine.connect() as conn:
+            def has_col(t, c):
+                return conn.execute(text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_schema='public' AND table_name=:t AND column_name=:c"
+                ), {"t": t, "c": c}).first() is not None
+
+            if not has_col("error_logs", "company_id"):
+                conn.execute(text(
+                    "ALTER TABLE error_logs ADD COLUMN company_id INTEGER "
+                    "REFERENCES companies(id)"))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_error_logs_company_id "
+                    "ON error_logs (company_id)"))
+                conn.commit()
+                print("✓ error_logs.company_id qo'shildi")
+
+            if not has_col("gift_period_tiers", "company_id"):
+                conn.execute(text(
+                    "ALTER TABLE gift_period_tiers ADD COLUMN company_id INTEGER "
+                    "REFERENCES companies(id)"))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_gift_period_tiers_company_id "
+                    "ON gift_period_tiers (company_id)"))
+                conn.commit()
+                print("✓ gift_period_tiers.company_id qo'shildi")
+
+            # TO'LDIRISH — ustun qo'shish bilan BIR BLOKDA emas, ALOHIDA va
+            # IDEMPOTENT. Sabab (2026-09-19, jonli sinovda aniqlangan):
+            # ustun qo'shilgan, lekin to'ldirish ishlamay qolgan edi va
+            # qiymatlar NULL bo'lib qoldi. Global filtr esa NULL larni
+            # kesib tashlaydi — natijada A korxonaning 7 ta sovg'a darajasi
+            # interfeysdan butunlay yo'qoldi. Endi har ishga tushishda
+            # to'ldirilmaganlari qayta to'ldiriladi.
+            if has_col("gift_period_tiers", "company_id"):
+                n_null = conn.execute(text(
+                    "SELECT COUNT(*) FROM gift_period_tiers WHERE company_id IS NULL")).scalar()
+                if n_null:
+                    conn.execute(text(
+                        "UPDATE gift_period_tiers t SET company_id = "
+                        "(SELECT p.company_id FROM gift_periods p WHERE p.id = t.period_id) "
+                        "WHERE t.company_id IS NULL"))
+                    conn.commit()
+                    qoldi = conn.execute(text(
+                        "SELECT COUNT(*) FROM gift_period_tiers WHERE company_id IS NULL")).scalar()
+                    print(f"✓ gift_period_tiers to'ldirildi: {n_null} ta, qolgani: {qoldi}")
+
+            if not has_col("users", "is_platform_admin"):
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN is_platform_admin BOOLEAN "
+                    "NOT NULL DEFAULT false"))
+                conn.commit()
+                print("✓ users.is_platform_admin qo'shildi")
+
+            # PLATFORMA ADMINI — ham ALOHIDA va IDEMPOTENT.
+            # Birinchi urinishda rol `'ADMIN'` deb qidirilgan edi, bazada
+            # esa u kichik harf bilan (`'admin'`) saqlanadi — shu sababli
+            # hech kim platforma admini bo'lmay qoldi va tizim egasining
+            # o'zi ham platforma amallariga kira olmadi. Endi solishtirish
+            # harf registriga bog'liq emas.
+            # --- Korxona brendi: slogan, phone, address, logo_path ---
+            for _ust, _tur in (("slogan", "VARCHAR(150)"),
+                               ("phone", "VARCHAR(60)"),
+                               ("address", "VARCHAR(200)"),
+                               ("logo_path", "VARCHAR(255)")):
+                if not has_col("companies", _ust):
+                    try:
+                        conn.execute(text(
+                            f"ALTER TABLE companies ADD COLUMN {_ust} {_tur}"))
+                        conn.commit()
+                        print(f"✓ companies.{_ust} qo'shildi")
+                    except Exception as _e:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        print(f"⚠ companies.{_ust} qo'shilmadi: {_e}")
+
+            # Eng eski korxona (platforma egasi) uchun HOZIRGI brendni
+            # biriktiramiz — logotip, shior, manzil, telefon. Aks holda
+            # uning hujjatlari bu maydonlarsiz qolardi, chunki endi
+            # zaxira qiymatlar faqat korxona noma'lum bo'lganda
+            # ishlatiladi.
+            # 2026-09-20 — TUZATISH: ilgari shart `logo_path IS NOT NULL`
+            # edi. Oldingi deployda logotip allaqachon qo'yilgani uchun
+            # shior/manzil/telefon to'ldirilmay qolgan va yuk xati
+            # yiqilgan edi. Endi har bir maydon ALOHIDA to'ldiriladi
+            # (faqat bo'sh bo'lsa) — amal idempotent.
+            try:
+                eng_eski = conn.execute(text(
+                    "SELECT id FROM companies ORDER BY id LIMIT 1")).scalar()
+                if eng_eski:
+                    n_t = conn.execute(text(
+                        "UPDATE companies SET "
+                        "  logo_path = COALESCE(logo_path, 'static/logo_transparent.png'), "
+                        "  slogan    = COALESCE(slogan, 'Fasad bezaklari'), "
+                        "  address   = COALESCE(address, 'Andijon'), "
+                        "  phone     = COALESCE(phone, '+998 97 999 57 57') "
+                        "WHERE id = :i AND (logo_path IS NULL OR slogan IS NULL "
+                        "                   OR address IS NULL OR phone IS NULL)"
+                    ), {"i": eng_eski}).rowcount
+                    conn.commit()
+                    if n_t:
+                        print(f"✓ Eng eski korxona (#{eng_eski}) brendi to'ldirildi")
+            except Exception as _e:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ logo_path biriktirilmadi: {_e}")
+
+            # --- login_history.company_id: NOT NULL -> NULL ruxsat ---
+            # 2026-09-20: noma'lum foydalanuvchi nomi bilan kirishga
+            # urinilganda korxona aniqlanmaydi. `DEFAULT 1` olib
+            # tashlangach `/login` 500 qaytara boshlagan edi.
+            try:
+                nn = conn.execute(text(
+                    "SELECT is_nullable FROM information_schema.columns "
+                    "WHERE table_schema='public' AND table_name='login_history' "
+                    "  AND column_name='company_id'")).scalar()
+                if nn == "NO":
+                    conn.execute(text(
+                        "ALTER TABLE login_history ALTER COLUMN company_id DROP NOT NULL"))
+                    conn.commit()
+                    print("✓ login_history.company_id endi NULL qabul qiladi")
+            except Exception as _e:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ login_history.company_id o'zgartirilmadi: {_e}")
+
+            # --- Master.telegram_id: global unique -> (company_id, telegram_id) ---
+            # Ilgari bitta Telegram hisobi butun tizimda FAQAT BITTA usta
+            # bo'la olardi — SaaS uchun to'g'ri emas.
+            try:
+                eski = conn.execute(text(
+                    "SELECT conname FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname = 'masters' AND c.contype = 'u' "
+                    "  AND pg_get_constraintdef(c.oid) = 'UNIQUE (telegram_id)'"
+                )).fetchall()
+                for (cname,) in eski:
+                    conn.execute(text(f'ALTER TABLE masters DROP CONSTRAINT "{cname}"'))
+                    print(f"✓ masters: eski global cheklov olib tashlandi ({cname})")
+                yangi = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname='masters' AND c.conname='uq_master_company_telegram'"
+                )).first()
+                if not yangi:
+                    # Avval takrorlanish bor-yo'qligini tekshiramiz
+                    dub = conn.execute(text(
+                        "SELECT COUNT(*) FROM (SELECT company_id, telegram_id FROM masters "
+                        "WHERE telegram_id IS NOT NULL GROUP BY company_id, telegram_id "
+                        "HAVING COUNT(*) > 1) x")).scalar()
+                    if dub:
+                        print(f"⛔ masters: {dub} ta takrorlanuvchi (company_id, telegram_id) — "
+                              f"cheklov qo'shilmadi")
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE masters ADD CONSTRAINT uq_master_company_telegram "
+                            "UNIQUE (company_id, telegram_id)"))
+                        print("✓ masters: (company_id, telegram_id) cheklovi qo'shildi")
+                conn.commit()
+            except Exception as _e:
+                print(f"⚠ masters.telegram_id cheklovi o'zgartirilmadi: {_e}")
+
+            # --- User.telegram_id: global unique -> (company_id, telegram_id) ---
+            # `Master` bilan bir xil sabab (Faza 5).
+            try:
+                eski_u = conn.execute(text(
+                    "SELECT conname FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname = 'users' AND c.contype = 'u' "
+                    "  AND pg_get_constraintdef(c.oid) = 'UNIQUE (telegram_id)'"
+                )).fetchall()
+                for (cname,) in eski_u:
+                    conn.execute(text(f'ALTER TABLE users DROP CONSTRAINT "{cname}"'))
+                    print(f"✓ users: eski global cheklov olib tashlandi ({cname})")
+                yangi_u = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname='users' AND c.conname='uq_user_company_telegram'"
+                )).first()
+                if not yangi_u:
+                    dub_u = conn.execute(text(
+                        "SELECT COUNT(*) FROM (SELECT company_id, telegram_id FROM users "
+                        "WHERE telegram_id IS NOT NULL GROUP BY company_id, telegram_id "
+                        "HAVING COUNT(*) > 1) x")).scalar()
+                    if dub_u:
+                        print(f"⛔ users: {dub_u} ta takrorlanuvchi (company_id, telegram_id) — "
+                              f"cheklov qo'shilmadi")
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE users ADD CONSTRAINT uq_user_company_telegram "
+                            "UNIQUE (company_id, telegram_id)"))
+                        print("✓ users: (company_id, telegram_id) cheklovi qo'shildi")
+                conn.commit()
+            except Exception as _e:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"⚠ users.telegram_id cheklovi o'zgartirilmadi: {_e}")
+
+            if has_col("users", "is_platform_admin"):
+                bor = conn.execute(text(
+                    "SELECT COUNT(*) FROM users WHERE is_platform_admin = true")).scalar()
+                if not bor:
+                    conn.execute(text(
+                        "UPDATE users SET is_platform_admin = true WHERE id = "
+                        "(SELECT id FROM users WHERE lower(role::text) = 'admin' "
+                        " ORDER BY id LIMIT 1)"))
+                    conn.commit()
+                    who = conn.execute(text(
+                        "SELECT username FROM users WHERE is_platform_admin = true")).fetchall()
+                    print(f"✓ Platforma admini belgilandi: {[w[0] for w in who]}")
+    except Exception as e:
+        print(f"⚠ Faza 3 migratsiyasi o'tkazib yuborildi: {e}")
+
+
+def _migrate_float_to_numeric():
+    """Bosqich 1 (2026-09-20) — to'rtta pul maydoni `Float` dan
+    `Numeric(12,2)` ga o'tkaziladi.
+
+    Nega: `Float` ikkilik kasr bo'lgani uchun pulda yaxlitlash xatosini
+    ASTA-SEKIN TO'PLAYDI (klassik 0.1 + 0.2 != 0.3). Loyihadagi boshqa
+    38 ta pul maydoni allaqachon `Numeric` — shu to'rttasi qolib ketgan.
+
+    Nega HOZIR: bu jadvallarda ma'lumot deyarli yo'q, ya'ni migratsiya
+    bir daqiqalik ish. Keyinroq tarixiy qiymatlarni qayta hisoblash
+    kerak bo'lardi.
+
+    Idempotent: ustun turi allaqachon `numeric` bo'lsa, tegilmaydi.
+    Xavfsiz: o'zgartirishdan OLDIN eng katta qiymat tekshiriladi —
+    Numeric(12,2) ga sig'masa, o'sha ustun O'TKAZIB YUBORILADI (xato
+    bilan yiqilmaydi) va logda aniq ogohlantirish chiqadi.
+    """
+    from sqlalchemy import text
+    MAYDONLAR = [
+        ("gift_period_tiers", "threshold_amount"),
+        ("master_gift_period_redemptions", "sales_amount"),
+        ("master_gift_period_redemptions", "profit_amount"),
+        ("finished_products", "price_per_m3"),
+    ]
+    CHEK = 10_000_000_000          # Numeric(12,2) chegarasi
+    try:
+        from database import engine
+        if engine.dialect.name != "postgresql":
+            return
+        with engine.connect() as conn:
+            for jadval, ustun in MAYDONLAR:
+                try:
+                    tur = conn.execute(text(
+                        "SELECT data_type FROM information_schema.columns "
+                        "WHERE table_schema='public' AND table_name=:t AND column_name=:c"
+                    ), {"t": jadval, "c": ustun}).scalar()
+
+                    if tur is None:
+                        print(f"• {jadval}.{ustun}: ustun yo'q, o'tkazildi")
+                        continue
+                    if tur == "numeric":
+                        continue          # allaqachon to'g'ri
+
+                    # Sig'masa — tegmaymiz
+                    katta = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {jadval} "
+                        f"WHERE {ustun} IS NOT NULL AND ABS({ustun}) >= {CHEK}"
+                    )).scalar() or 0
+                    if katta:
+                        print(f"⚠ {jadval}.{ustun}: {katta} ta qiymat Numeric(12,2) ga "
+                              f"sig'maydi — O'TKAZIB YUBORILDI, qo'lda ko'rish kerak")
+                        continue
+
+                    # Nechta qiymat yaxlitlanadi — logda ko'rinib tursin
+                    yax = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {jadval} WHERE {ustun} IS NOT NULL "
+                        f"AND ROUND({ustun}::numeric, 2) <> {ustun}::numeric"
+                    )).scalar() or 0
+
+                    conn.execute(text(
+                        f"ALTER TABLE {jadval} ALTER COLUMN {ustun} "
+                        f"TYPE NUMERIC(12,2) USING ROUND({ustun}::numeric, 2)"
+                    ))
+                    conn.commit()
+                    print(f"✓ {jadval}.{ustun}: {tur} -> numeric(12,2)"
+                          + (f" ({yax} ta qiymat tiyingacha yaxlitlandi)" if yax else ""))
+                except Exception as e:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    print(f"⚠ {jadval}.{ustun} o'tkazilmadi: {e}")
+    except Exception as e:
+        print(f"⚠ Float->Numeric migratsiyasi o'tkazib yuborildi: {e}")
+
+
+def _migrate_fp_product_type():
+    """Bosqich 3, 10-band (2026-09-20) — `finished_products.product_type_id`.
+
+    Nima uchun: tayyor mahsulot qaysi mahsulot TURIDAN ekani hech qayerda
+    saqlanmasdi. MRP ishlab chiqarish buyurtmasi buni BILARDI
+    (`production_orders.product_type_id`), lekin yaratgan tayyor mahsulotiga
+    yozmasdi. 12-band (liniya bo'yicha moliya) aynan shu ustunga tayanadi.
+
+    Uch qadam, har biri ALOHIDA va IDEMPOTENT:
+      A) ustun + indeks + chet el kaliti (yo'q bo'lsa);
+      B) SANAB CHIQADI — nechta yozuv to'ldiriladi, hech narsa o'zgartirmay;
+      C) TO'LDIRADI — faqat `production_orders` orqali, ya'ni ANIQ bog'lam
+         bo'yicha. Taxmin (nom bo'yicha moslashtirish va h.k.) QILINMAYDI.
+
+    Eski, qattiq kodlangan turkumlar (profil/panel/dona/blok) uchun
+    hali `ProductType` yozuvi yo'q — ular NULL bo'lib
+    qoladi. Bu ATAYLAB: ularni 11-band ko'chiradi.
+    """
+    from sqlalchemy import text   # main.py da modul darajasida import YO'Q
+    try:
+        from database import engine
+        if engine.dialect.name != "postgresql":
+            return
+        with engine.connect() as conn:
+            bor = conn.execute(text(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema='public' AND table_name='finished_products' "
+                "AND column_name='product_type_id'")).first() is not None
+
+            # ── A. Ustun ──────────────────────────────────────────
+            if not bor:
+                conn.execute(text(
+                    "ALTER TABLE finished_products ADD COLUMN product_type_id "
+                    "INTEGER REFERENCES product_types(id)"))
+                conn.commit()
+                print("✓ finished_products.product_type_id qo'shildi")
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_finished_products_product_type_id "
+                "ON finished_products (product_type_id)"))
+            conn.commit()
+
+            # ── A2. CHET EL KALITI — ALOHIDA, chunki ustunni ko'pincha
+            # `sync_missing_columns()` birinchi bo'lib qo'shadi va u
+            # faqat `ALTER TABLE ... ADD COLUMN <tur>` yozadi, REFERENCES
+            # QO'SHMAYDI. Natijada yuqoridagi shart o'tib ketadi va
+            # kalit umuman yaratilmay qolardi (haqiqiy PostgreSQL'da
+            # 2026-09-20 da shunday chiqdi). Shuning uchun kalit har
+            # doim alohida, o'z shartida tekshiriladi.
+            for jadval, ustun in (("finished_products", "product_type_id"),
+                                  ("order_items", "product_type_id")):
+                kalit = f"{jadval}_{ustun}_fkey"
+                bor_kalit = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "WHERE t.relname = :j AND c.contype = 'f' "
+                    "  AND c.conname = :k"), {"j": jadval, "k": kalit}).first()
+                if bor_kalit:
+                    continue
+                # Yetim qiymat bo'lsa kalit yaratilmaydi — avval SANAYMIZ
+                yetim = conn.execute(text(
+                    f"SELECT COUNT(*) FROM {jadval} x "
+                    f"LEFT JOIN product_types t ON t.id = x.{ustun} "
+                    f"WHERE x.{ustun} IS NOT NULL AND t.id IS NULL")).scalar() or 0
+                if yetim:
+                    print(f"⚠ {jadval}.{ustun}: {yetim} ta yetim qiymat — "
+                          f"chet el kaliti QO'YILMADI")
+                    continue
+                try:
+                    conn.execute(text(
+                        f"ALTER TABLE {jadval} ADD CONSTRAINT {kalit} "
+                        f"FOREIGN KEY ({ustun}) REFERENCES product_types(id)"))
+                    conn.commit()
+                    print(f"✓ {kalit} chet el kaliti qo'shildi")
+                except Exception as _fe:
+                    conn.rollback()
+                    print(f"⚠ {kalit} qo'shilmadi: {_fe}")
+                conn.execute(text(
+                    f"CREATE INDEX IF NOT EXISTS ix_{jadval}_{ustun} "
+                    f"ON {jadval} ({ustun})"))
+                conn.commit()
+
+            # ── B. AVVAL FAQAT SANAYDI ────────────────────────────
+            # Qoida (2026-09-20): ma'lumotni o'zgartiradigan migratsiya
+            # avval nechta yozuvga tegishini logda ko'rsatadi.
+            nomzod = conn.execute(text(
+                "SELECT COUNT(*) FROM finished_products f "
+                "JOIN production_orders p ON p.finished_product_id = f.id "
+                "WHERE f.product_type_id IS NULL "
+                "  AND p.product_type_id IS NOT NULL")).scalar() or 0
+            jami_null = conn.execute(text(
+                "SELECT COUNT(*) FROM finished_products "
+                "WHERE product_type_id IS NULL")).scalar() or 0
+            print(f"• FP turi: to'ldiriladi {nomzod} ta, "
+                  f"NULL qoladi {jami_null - nomzod} ta (eski turkumlar — ataylab)")
+
+            # ── C. TO'LDIRISH ─────────────────────────────────────
+            if nomzod:
+                conn.execute(text(
+                    "UPDATE finished_products f SET product_type_id = p.product_type_id "
+                    "FROM production_orders p "
+                    "WHERE p.finished_product_id = f.id "
+                    "  AND f.product_type_id IS NULL "
+                    "  AND p.product_type_id IS NOT NULL"))
+                conn.commit()
+                qoldi = conn.execute(text(
+                    "SELECT COUNT(*) FROM finished_products f "
+                    "JOIN production_orders p ON p.finished_product_id = f.id "
+                    "WHERE f.product_type_id IS NULL "
+                    "  AND p.product_type_id IS NOT NULL")).scalar() or 0
+                print(f"✓ FP turi to'ldirildi: {nomzod} ta, qolgani {qoldi} ta")
+
+            # ── D. Nazorat: boshqa korxonaning turiga ishora qilyaptimi? ──
+            # Tenant xavfsizligi — bog'lam noto'g'ri korxonaga ketmasligi
+            # kerak. Faqat XABAR beradi, hech narsa o'zgartirmaydi.
+            chalkash = conn.execute(text(
+                "SELECT COUNT(*) FROM finished_products f "
+                "JOIN product_types t ON t.id = f.product_type_id "
+                "WHERE f.company_id IS DISTINCT FROM t.company_id")).scalar() or 0
+            if chalkash:
+                print(f"⚠ FP turi: {chalkash} ta yozuv BOSHQA korxonaning turiga ishora qilyapti!")
+    except Exception as e:
+        try:
+            from database import engine as _e
+            with _e.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ FP product_type migratsiyasi o'tkazib yuborildi: {e}")
+
+
+def _migrate_return_order_item():
+    """kech39 (5-bo'lim 3-band) — `return_items.order_item_id`.
+
+    Nima uchun: qaytarish yozuvida faqat `item_name` bor edi, bitta buyurtmada
+    esa bir xil nomli ikki detal bo'lishi mumkin (O'LCHANGAN). Detal bo'yicha
+    yig'indi (omborga qaytgan jami <= buyurtmadagi miqdor) uchun aniq bog'lam
+    kerak.
+
+    Qadamlar (IDEMPOTENT, PostgreSQL va SQLite):
+      A) Ustun — odatda `database.sync_missing_columns()` allaqachon qo'shgan
+         (u faqat `ADD COLUMN INTEGER` yozadi: indeks va kalitsiz); yo'q bo'lsa
+         shu yerda qo'shiladi.
+      B) BIR MARTALIK to'ldirish. Belgisi — `ix_return_items_order_item_id`
+         indeksi YO'QLIGI (yangi bazada `create_all` indeksni o'zi yaratadi va
+         bog'lanadigan eski yozuv bo'lmaydi). Avval SANAYDI (logda), keyin
+         FAQAT nomi o'z buyurtmasida YAGONA bo'lgan detalga bog'laydi — boshqa
+         nomzod yo'q, ya'ni taxmin emas. Nomi takrorlangan / topilmaganlar
+         NULL qoladi. Indeks shu tranzaksiyada yaratiladi (PG da DDL
+         tranzaksion), shuning uchun keyingi ishga tushishlarda to'ldirish
+         TAKRORLANMAYDI: aks holda keyinchalik detal qayta nomlansa, eski
+         noaniq yozuv tasodifiy detalga bog'lanib qolardi.
+         Korxona: detal AYNAN o'sha buyurtmadan (`oi.order_id = order_id`) —
+         boshqa korxona detaliga bog'lanish imkonsiz.
+      C) Faqat PostgreSQL: chet el kaliti `ON DELETE SET NULL` (yo'q bo'lsa).
+         Yetim qiymat bo'lsa kalit QO'YILMAYDI va soni logga yoziladi.
+    """
+    from sqlalchemy import text, inspect as _insp   # main.py da modul darajasida import YO'Q
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "return_items" not in _i.get_table_names():
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("return_items")}
+        indekslar = {ix["name"] for ix in _i.get_indexes("return_items")}
+        with engine.connect() as conn:
+            # ── A. Ustun ──────────────────────────────────────────
+            if "order_item_id" not in ustunlar:
+                conn.execute(text("ALTER TABLE return_items ADD COLUMN order_item_id INTEGER"))
+                conn.commit()
+                print("✓ return_items.order_item_id qo'shildi")
+
+            # ── B. Bir martalik to'ldirish (belgi — indeks yo'qligi) ──
+            if "ix_return_items_order_item_id" not in indekslar:
+                nomdosh = ("(SELECT COUNT(*) FROM order_items oi "
+                           "WHERE oi.order_id = return_items.order_id "
+                           "AND oi.name = return_items.item_name)")
+                shart = ("order_item_id IS NULL AND order_id IS NOT NULL "
+                         f"AND {nomdosh} = 1")
+                jami = conn.execute(text(
+                    "SELECT COUNT(*) FROM return_items "
+                    "WHERE order_item_id IS NULL AND order_id IS NOT NULL")).scalar() or 0
+                yagona = conn.execute(text(
+                    f"SELECT COUNT(*) FROM return_items WHERE {shart}")).scalar() or 0
+                print(f"• Qaytarish detali: bog'lanadi {yagona} ta, NULL qoladi "
+                      f"{jami - yagona} ta (nomi takrorlangan yoki topilmagan — taxmin qilinmaydi)")
+                if yagona:
+                    conn.execute(text(
+                        "UPDATE return_items SET order_item_id = ("
+                        "SELECT oi.id FROM order_items oi "
+                        "WHERE oi.order_id = return_items.order_id "
+                        "AND oi.name = return_items.item_name) "
+                        f"WHERE {shart}"))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_return_items_order_item_id "
+                    "ON return_items (order_item_id)"))
+                conn.commit()
+
+            # ── C. Chet el kaliti (faqat PostgreSQL) ──────────────
+            if engine.dialect.name == "postgresql":
+                bor_kalit = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey) "
+                    "WHERE t.relname = 'return_items' AND c.contype = 'f' "
+                    "AND a.attname = 'order_item_id'")).first()
+                if not bor_kalit:
+                    yetim = conn.execute(text(
+                        "SELECT COUNT(*) FROM return_items r "
+                        "LEFT JOIN order_items oi ON oi.id = r.order_item_id "
+                        "WHERE r.order_item_id IS NOT NULL AND oi.id IS NULL")).scalar() or 0
+                    if yetim:
+                        print(f"⚠ return_items.order_item_id: {yetim} ta yetim qiymat — "
+                              f"chet el kaliti QO'YILMADI")
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE return_items ADD CONSTRAINT "
+                            "return_items_order_item_id_fkey FOREIGN KEY (order_item_id) "
+                            "REFERENCES order_items(id) ON DELETE SET NULL"))
+                        conn.commit()
+                        print("✓ return_items_order_item_id_fkey chet el kaliti qo'shildi")
+    except Exception as e:
+        try:
+            with engine.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ return_items.order_item_id migratsiyasi o'tkazib yuborildi: {e}")
+
+
+def _migrate_qaytarish_orqaga():
+    """kech40 (5-bo'lim 22-band + K40-1) — IDEMPOTENT, PostgreSQL va SQLite.
+
+      A) `payments.return_item_id` — odatda `database.sync_missing_columns()`
+         allaqachon qo'shgan (indeks va kalitsiz); yo'q bo'lsa shu yerda.
+      B) Indeks `ix_payments_return_item_id` (yo'q bo'lsa).
+      C) Faqat PostgreSQL: chet el kaliti `ON DELETE SET NULL` (yo'q bo'lsa;
+         yetim qiymat bo'lsa QO'YILMAYDI, soni logga).
+      D) K40-1: qaytgan (RETURNED) tayyor mahsulot bazada standart IN_PROGRESS
+         bilan qolgan — READY qilinadi (u doim sotiladi: UI va
+         `crud._fp_tayyormi` allaqachon shunday deb biladi). Belgi kerak emas —
+         shartning o'zi takrorlanmaydi (yangi qaytgan mahsulot READY yoziladi).
+      `return_items.stock_*`, `refunded_at`, `refund_agreed_delta` — faqat
+      `sync_missing_columns` (eski yozuvlarda NULL = bog'lam noma'lum,
+      o'chirish ularga avvalgidek ta'sir qiladi — taxmin qilinmaydi).
+    """
+    from sqlalchemy import text, inspect as _insp   # main.py da modul darajasida import YO'Q
+    from database import engine
+    try:
+        _i = _insp(engine)
+        jadvallar = set(_i.get_table_names())
+        with engine.connect() as conn:
+            if "payments" in jadvallar:
+                ustunlar = {c["name"] for c in _i.get_columns("payments")}
+                indekslar = {ix["name"] for ix in _i.get_indexes("payments")}
+                # ── A. Ustun ──
+                if "return_item_id" not in ustunlar:
+                    conn.execute(text("ALTER TABLE payments ADD COLUMN return_item_id INTEGER"))
+                    conn.commit()
+                    print("✓ payments.return_item_id qo'shildi")
+                # ── B. Indeks ──
+                if "ix_payments_return_item_id" not in indekslar:
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_payments_return_item_id "
+                                      "ON payments (return_item_id)"))
+                    conn.commit()
+                    print("✓ ix_payments_return_item_id indeksi qo'shildi")
+                # ── C. Chet el kaliti (faqat PostgreSQL) ──
+                if engine.dialect.name == "postgresql":
+                    bor_kalit = conn.execute(text(
+                        "SELECT 1 FROM pg_constraint c "
+                        "JOIN pg_class t ON t.oid = c.conrelid "
+                        "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey) "
+                        "WHERE t.relname = 'payments' AND c.contype = 'f' "
+                        "AND a.attname = 'return_item_id'")).first()
+                    if not bor_kalit:
+                        yetim = conn.execute(text(
+                            "SELECT COUNT(*) FROM payments p "
+                            "LEFT JOIN return_items r ON r.id = p.return_item_id "
+                            "WHERE p.return_item_id IS NOT NULL AND r.id IS NULL")).scalar() or 0
+                        if yetim:
+                            print(f"⚠ payments.return_item_id: {yetim} ta yetim qiymat — "
+                                  f"chet el kaliti QO'YILMADI")
+                        else:
+                            conn.execute(text(
+                                "ALTER TABLE payments ADD CONSTRAINT "
+                                "payments_return_item_id_fkey FOREIGN KEY (return_item_id) "
+                                "REFERENCES return_items(id) ON DELETE SET NULL"))
+                            conn.commit()
+                            print("✓ payments_return_item_id_fkey chet el kaliti qo'shildi")
+            # ── D. K40-1: qaytgan mahsulot holati ──
+            if "finished_products" in jadvallar:
+                shart = "source = 'RETURNED' AND production_status = 'IN_PROGRESS'"
+                soni = conn.execute(text(
+                    f"SELECT COUNT(*) FROM finished_products WHERE {shart}")).scalar() or 0
+                if soni:
+                    conn.execute(text(
+                        f"UPDATE finished_products SET production_status = 'READY' WHERE {shart}"))
+                    conn.commit()
+                    print(f"✓ Qaytgan tayyor mahsulot holati tuzatildi (jarayonda → tayyor): {soni} ta")
+    except Exception as e:
+        try:
+            with engine.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ Qaytarish (orqaga qaytarish) migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_drop_company_id_defaults()
+_migrate_faza3_columns()
+_migrate_float_to_numeric()
+_migrate_fp_product_type()
+_migrate_return_order_item()
+_migrate_qaytarish_orqaga()
+
+
+def _migrate_brak_harakat():
+    """kech45 (13-band, 6-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+
+      A) `inventory_movements.return_item_id` — odatda
+         `database.sync_missing_columns()` allaqachon qo'shgan (indeks va
+         kalitsiz); yo'q bo'lsa shu yerda.
+      B) Indeks `ix_inventory_movements_return_item_id` (yo'q bo'lsa).
+      C) Faqat PostgreSQL: chet el kaliti `ON DELETE SET NULL` (yo'q bo'lsa;
+         yetim qiymat bo'lsa QO'YILMAYDI, soni logga).
+    Eski harakatlar to'ldirilMAYDI — qaysi brak yozuviniki ekani faqat matn
+    (`reason`) dan taxmin qilinardi; taxmin qilinmaydi.
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "inventory_movements" not in set(_i.get_table_names()):
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("inventory_movements")}
+        indekslar = {ix["name"] for ix in _i.get_indexes("inventory_movements")}
+        with engine.connect() as conn:
+            if "return_item_id" not in ustunlar:
+                conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN return_item_id INTEGER"))
+                conn.commit()
+                print("✓ inventory_movements.return_item_id qo'shildi")
+            if "ix_inventory_movements_return_item_id" not in indekslar:
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_inventory_movements_return_item_id "
+                                  "ON inventory_movements (return_item_id)"))
+                conn.commit()
+                print("✓ ix_inventory_movements_return_item_id indeksi qo'shildi")
+            if engine.dialect.name == "postgresql":
+                bor_kalit = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey) "
+                    "WHERE t.relname = 'inventory_movements' AND c.contype = 'f' "
+                    "AND a.attname = 'return_item_id'")).first()
+                if not bor_kalit:
+                    yetim = conn.execute(text(
+                        "SELECT COUNT(*) FROM inventory_movements m "
+                        "LEFT JOIN return_items r ON r.id = m.return_item_id "
+                        "WHERE m.return_item_id IS NOT NULL AND r.id IS NULL")).scalar() or 0
+                    if yetim:
+                        print(f"⚠ inventory_movements.return_item_id: {yetim} ta yetim qiymat — "
+                              f"chet el kaliti QO'YILMADI")
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE inventory_movements ADD CONSTRAINT "
+                            "inventory_movements_return_item_id_fkey FOREIGN KEY (return_item_id) "
+                            "REFERENCES return_items(id) ON DELETE SET NULL"))
+                        conn.commit()
+                        print("✓ inventory_movements_return_item_id_fkey chet el kaliti qo'shildi")
+    except Exception as e:
+        try:
+            with engine.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ Brak harakati migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_brak_harakat()
+
+
+def _migrate_harakat_narx():
+    """kech46 (13-band, 2-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    `inventory_movements.unit_cost` — odatda `database.sync_missing_columns()`
+    allaqachon qo'shgan; yo'q bo'lsa shu yerda. Eski harakatlar
+    to'ldirilMAYDI — ularning chiqim paytidagi narxi noma'lum (hisobot ular
+    uchun joriy narxni ishlatadi, avvalgidek).
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "inventory_movements" not in set(_i.get_table_names()):
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("inventory_movements")}
+        if "unit_cost" not in ustunlar:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN unit_cost DOUBLE PRECISION"))
+                conn.commit()
+            print("✓ inventory_movements.unit_cost qo'shildi")
+    except Exception as e:
+        print(f"⚠ Harakat narxi migratsiyasi o'tkazib yuborildi: {e}")
+
+
+
+_migrate_harakat_narx()
+
+
+def _migrate_eski_buyurtma_narxi():
+    """kech49 (5-bo'lim 33-band) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    FOYDALANUVCHI QARORI (kech48, so'zma-so'z: "A JAVOBIM"): eski buyurtmalar
+    BUGUNGI narxda muzlatilsin. Zip 47 gacha yozilgan chiqim harakatlarida
+    `unit_cost` yo'q (NULL) — buyurtma tan narxi (`services.calculate_order_profit`
+    → `_buyurtma_sarf_narxlari`) ular uchun JORIY narxni oladi va material narxi
+    o'zgarsa o'tgan oylar foydasi o'zgaraveradi (kech47 jonli: penoplast x2 →
+    sentyabr sof foydasi ~10.6 mln ga siljidi). Bu migratsiya ularga shu paytdagi
+    `price_per_unit` ni yozadi: hozirgi hisobot raqamlari AYNAN qoladi, keyingi
+    narx o'zgarishi ularni o'zgartirmaydi.
+
+    Faqat buyurtma sarfi: `order_id` bor, "out", `unit_cost` NULL, material
+    mavjud. BRAK harakatlari (`return_item_id` bor YOKI sabab "Brak%" — brak
+    xulosasi bilan AYNAN bir shart) bu yerda TEGILMAYDI — ular alohida
+    `_migrate_eski_brak_narxi()` da (37-band, kech51). Kirim ("in") — NULL qoladi (narx
+    o'rtachadan olinadi). Narxsiz material — 0 (`crud.log_movement` bilan bir
+    xil). Qayta ishga tushsa — NULL qolmagani uchun hech narsa o'zgarmaydi;
+    allaqachon yozilgan narx HECH QACHON almashtirilmaydi.
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "inventory_movements" not in set(_i.get_table_names()):
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("inventory_movements")}
+        if "unit_cost" not in ustunlar or "return_item_id" not in ustunlar:
+            return
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "UPDATE inventory_movements SET unit_cost = COALESCE(("
+                "SELECT inventory.price_per_unit FROM inventory "
+                "WHERE inventory.id = inventory_movements.inventory_id), 0) "
+                "WHERE unit_cost IS NULL AND movement_type = 'out' "
+                "AND order_id IS NOT NULL AND return_item_id IS NULL "
+                "AND (reason IS NULL OR reason NOT LIKE :brak) "
+                "AND inventory_id IN (SELECT inventory.id FROM inventory)"),
+                {"brak": "Brak%"})
+            conn.commit()
+            n = r.rowcount or 0
+        if n and n > 0:
+            print(f"✓ Eski buyurtma harakatlari bugungi narxda muzlatildi: {n} ta")
+    except Exception as e:
+        print(f"⚠ Eski buyurtma narxi migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_eski_buyurtma_narxi()
+
+
+def _migrate_eski_brak_narxi():
+    """kech51 (5-bo'lim 37-band) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    FOYDALANUVCHI QARORI (kech51, tugma bilan): "A — bugungi narxda muzlatilsin".
+    Zip 47 gacha yozilgan BRAK chiqim harakatlarida `unit_cost` yo'q (NULL) — brak
+    xulosasi (`crud.get_brak_material_summary` → Moliya brak bo'limi, oylik hisobot
+    `brak_xarajat` → sof foyda, liniya hisoboti) ular uchun JORIY narxni oladi va
+    material narxi o'zgarsa allaqachon bo'lib o'tgan brak xarajati o'zgaraveradi
+    (kech47 / kech50 jonli: penoplast x2 → eski brak 747 343 → 1 494 352, sentyabr sof
+    foydasi −747 009). Bu migratsiya ularga shu paytdagi `price_per_unit` ni yozadi:
+    hozirgi hisobot raqamlari AYNAN qoladi, keyingi narx o'zgarishi ularni
+    o'zgartirmaydi (yozilgan paytdagi haqiqiy narx noma'lum — taxmin qilinmaydi,
+    hisobot hozir ko'rsatayotgan qiymat saqlanadi).
+
+    Faqat brak: "out", `unit_cost` NULL, brak (yozuvga bog'langan — `return_item_id`
+    bor — YOKI sabab "Brak%": brak xulosasi bilan AYNAN bir shart, 33-band
+    migratsiyasidagi brak ta'rifi bilan bir xil — ikkalasi birga har eski chiqimni
+    FAQAT BIR marta qamraydi), material mavjud. `order_id` SHART EMAS — ishlab
+    chiqarish braki ("Brak (ishlab chiqarish) — ...") buyurtmasiz yoziladi. Narxsiz
+    material — 0 (`crud.log_movement` bilan bir xil). Kirim ("in"), brakdan boshqa
+    chiqim, materialsiz harakat — TEGILMAYDI. Qayta ishga tushsa — NULL qolmagani
+    uchun hech narsa o'zgarmaydi; allaqachon yozilgan narx HECH QACHON
+    almashtirilmaydi. Har harakat O'Z materialining narxini oladi (korxonalar
+    aralashmaydi).
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "inventory_movements" not in set(_i.get_table_names()):
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("inventory_movements")}
+        if "unit_cost" not in ustunlar or "return_item_id" not in ustunlar:
+            return
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "UPDATE inventory_movements SET unit_cost = COALESCE(("
+                "SELECT inventory.price_per_unit FROM inventory "
+                "WHERE inventory.id = inventory_movements.inventory_id), 0) "
+                "WHERE unit_cost IS NULL AND movement_type = 'out' "
+                "AND (return_item_id IS NOT NULL OR reason LIKE :brak) "
+                "AND inventory_id IN (SELECT inventory.id FROM inventory)"),
+                {"brak": "Brak%"})
+            conn.commit()
+            n = r.rowcount or 0
+        if n and n > 0:
+            print(f"✓ Eski brak harakatlari bugungi narxda muzlatildi: {n} ta")
+    except Exception as e:
+        print(f"⚠ Eski brak narxi migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_eski_brak_narxi()
 
 from database import SessionLocal
 _db = SessionLocal()
@@ -864,7 +1956,59 @@ try:
 except Exception as e:
     print(f"⚠ Hodim to'lov tarixi backfill xatosi: {e}")
 
+
+def _migrate_loyiha_tolangan_sinxron():
+    """17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan
+    bir marta tenglashtiradi.
+
+    Nima uchun: `total_paid` ilgari faqat oddiy buyurtma to'lovida
+    yangilanardi — yuk xati to'lovi, pul qaytarish, buyurtmani butunlay
+    o'chirish uni yangilamasdi, loyihaga "zaklat" esa to'lov yozuvisiz
+    qo'shilardi. Jonli sinov saytida PRJ-033: buyurtma to'liq to'langan
+    (2 560 000), loyiha kartasida "To'langan: 0". Endi har bir yo'l
+    `crud._loyiha_tolangan_yangila` ni chaqiradi; bu migratsiya esa ESKI
+    farqlarni tuzatadi.
+
+    IDEMPOTENT: faqat farq qiladigan qatorlar yangilanadi (ikkinchi
+    ishga tushishda 0 qator). Formula yordamchi bilan AYNAN bir xil —
+    loyiha buyurtmalaridagi barcha to'lovlar, loyiha korxonasi bo'yicha
+    qat'iy. PostgreSQL va SQLite da bir xil ishlaydi."""
+    from sqlalchemy import text   # main.py da modul darajasida import YO'Q
+    from database import engine
+    yigindi = (
+        "COALESCE((SELECT SUM(p.amount) FROM payments p "
+        "JOIN orders o ON o.id = p.order_id "
+        "WHERE o.project_id = projects.id "
+        "AND o.company_id = projects.company_id), 0)")
+    with engine.connect() as conn:
+        n = conn.execute(text(
+            f"UPDATE projects SET total_paid = {yigindi} "
+            f"WHERE COALESCE(total_paid, 0) <> {yigindi}")).rowcount
+        conn.commit()
+    if n:
+        print(f"✓ projects.total_paid to'lovlar bilan tenglashtirildi: {n} ta loyiha")
+    return n
+
+
+try:
+    _migrate_loyiha_tolangan_sinxron()
+except Exception as e:
+    print(f"⚠ Loyiha to'langan summasi sinxronlanmadi: {e}")
+
 app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False)
+
+# 2026-09-16: yangi, dinamik Production/MRP moduli — /api/production/... yo'llari
+app.include_router(production_router)
+
+# 2026-09-18: VAQTINCHALIK — SaaS ko'p-tenantlilik migratsiyasi (/api/saas-migration/...).
+# Faqat ADMIN kira oladi, standart holatda DRY-RUN (sinov) rejimida ishlaydi.
+# Migratsiya to'liq tugagach, bu 2 qator VA saas_migration.py fayli olib tashlanadi.
+try:
+    from saas_migration import router as saas_migration_router
+    if saas_migration_router is not None:
+        app.include_router(saas_migration_router)
+except Exception as _e:
+    print(f"⚠ SaaS migratsiya moduli yuklanmadi (o'tkazib yuborildi): {_e}")
 
 
 @app.middleware("http")
@@ -891,9 +2035,28 @@ async def global_error_logger(request: Request, exc: Exception):
     try:
         log_db = SessionLocal()
         try:
+            # Faza 3: xatoni KORXONAGA bog'laymiz. Sessiya tokenidan
+            # foydalanuvchi aniqlansa — uning korxonasi; aniqlanmasa
+            # (fon vazifasi, login oldidagi xato) NULL qoladi va bu
+            # PLATFORMA xatosi hisoblanadi.
+            _cid, _who = None, None
+            try:
+                _tok = request.cookies.get("session_token")
+                if _tok:
+                    _sess = auth.get_session(log_db, _tok)
+                    if _sess:
+                        from models import User as _U_err
+                        _u = log_db.query(_U_err).filter(
+                            _U_err.id == _sess["user_id"]).first()
+                        if _u is not None:
+                            _cid = getattr(_u, "company_id", None)
+                            _who = getattr(_u, "full_name", None) or getattr(_u, "username", None)
+            except Exception:
+                _cid, _who = None, None
             crud.log_error(
                 log_db, error_message=str(exc), stack_trace=traceback.format_exc(),
-                endpoint=str(request.url.path), method=request.method
+                endpoint=str(request.url.path), method=request.method,
+                performed_by=_who, company_id=_cid
             )
         finally:
             log_db.close()
@@ -901,8 +2064,244 @@ async def global_error_logger(request: Request, exc: Exception):
         pass  # Log yozishning o'zi xato bersa — asosiy oqimni to'xtatmaymiz
     return JSONResponse(status_code=500, content={"detail": "Serverda kutilmagan xato yuz berdi"})
 
+
+# 2026-09-17 (audit topilmasi — haqiqiy xato): seans tugagan yoki umuman
+# kirilmagan holda HIMOYALANGAN SAHIFA (masalan /users, /dashboard) ochilsa,
+# FastAPI'ning standart xatti-harakati — xom JSON matn qaytarish edi
+# (`{"detail": "Iltimos, tizimga kiring"}`), foydalanuvchi esa "sayt
+# buzilibdimi?" deb chalkashib qolishi mumkin edi. Endi bunday holatda —
+# FAQAT sahifa (HTML) so'rovlari uchun — chiroyli /login sahifasiga
+# yo'naltiriladi. API so'rovlari (/api/...) uchun xatti-harakat
+# O'ZGARTIRILMAYDI — ular hamon aniq JSON xato qaytarib olishi kerak
+# (frontend shu javobni o'qib, o'ziga yarasha ko'rsatadi).
+# 2026-09-18 — M4. Korxonalararo bog'lanish urinishi (`models._tenant_guard`)
+# `TenantMismatchError` beradi. Himoya O'ZGARMAYDI — tranzaksiya avvalgidek
+# to'liq bekor qilinadi (rollback) va bazaga hech narsa yozilmaydi. Faqat
+# foydalanuvchiga qaytariladigan javob to'g'rilanadi: ilgari bu xato
+# yuqoridagi umumiy `Exception` ishlovchisiga tushib, xom 500 "Serverda
+# kutilmagan xato yuz berdi" ko'rinardi. Endi — mavjud API konvensiyasiga
+# mos 409 va tushunarli xabar.
+from models import TenantMismatchError as _TenantMismatchError
+
+
+@app.exception_handler(_TenantMismatchError)
+async def tenant_mismatch_handler(request: Request, exc: _TenantMismatchError):
+    return JSONResponse(
+        status_code=409,
+        content={"detail": "Boshqa korxonaning ma'lumoti bilan bog'lab bo'lmaydi. "
+                           "Amal bekor qilindi."},
+    )
+
+
+from starlette.exceptions import HTTPException as _StarletteHTTPException
+
+
+@app.exception_handler(_StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: _StarletteHTTPException):
+    if exc.status_code == 401 and not request.url.path.startswith("/api/"):
+        return RedirectResponse(url="/login", status_code=302)
+    # Boshqa barcha holatlar uchun — FastAPI'ning standart javobi bilan bir xil
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
+
+
+def _json_xavfsiz(qiymat):
+    """JSON ga yozib bo'lmaydigan son (`inf`, `-inf`, `nan`) → matn; ro'yxat
+    va lug'atlar ichida ham. Qolgan hamma narsa o'zgarmaydi."""
+    import math as _m
+    if isinstance(qiymat, float) and (_m.isinf(qiymat) or _m.isnan(qiymat)):
+        return str(qiymat)
+    if isinstance(qiymat, dict):
+        return {k: _json_xavfsiz(v) for k, v in qiymat.items()}
+    if isinstance(qiymat, (list, tuple)):
+        return [_json_xavfsiz(v) for v in qiymat]
+    return qiymat
+
+
+from fastapi.exceptions import RequestValidationError as _RequestValidationError  # noqa: E402
+from fastapi.encoders import jsonable_encoder as _jsonable_encoder  # noqa: E402
+
+
+@app.exception_handler(_RequestValidationError)
+async def xavfsiz_validatsiya_handler(request: Request, exc: _RequestValidationError):
+    """17d (2026-09-21): sxema xatosi javobi (422) — FastAPI standarti bilan
+    AYNAN bir xil shakl (`{"detail": [...]}`), faqat JSON ga sig'maydigan
+    qiymatlar matnga aylantiriladi.
+
+    O'LCHANGAN (asl kod): FastAPI 422 javobiga foydalanuvchi yuborgan
+    qiymatni (`input`) qo'shadi. Tanada `Infinity` / `NaN` bo'lsa va sxema
+    uni rad etsa (`allow_inf_nan=False`, `le=...`), javobning o'zi JSON ga
+    yozilmay (`Out of range float values are not JSON compliant`) umumiy
+    500 handleriga tushardi va har safar \"Backend xatoliklari\" jurnaliga
+    yozilardi: `POST /api/orders` `agreed_amount: Infinity`,
+    `POST /api/finance/transactions` `amount: -Infinity` / `NaN` va 17d
+    dagi `loy_kg: Infinity`. Ma'lumot yozilmasdi, lekin javob noto'g'ri edi."""
+    return JSONResponse(status_code=422,
+                        content={"detail": _json_xavfsiz(_jsonable_encoder(exc.errors()))})
+
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
+
+
+# ============================================================
+# Korxona nomi — interfeysda ko'rsatish uchun (Faza 5)
+# ============================================================
+# NEGA KERAK: sarlavhada "PenoDecorPro · Andijon" QATTIQ yozilgan edi.
+# SaaS da bu noto'g'ri — ikkinchi mijoz o'z ERP sida boshqa korxonaning
+# nomini ko'rib turardi. Endi nom bazadan olinadi.
+#
+# Har sahifada bazaga so'rov yubormaslik uchun kichik keshda saqlanadi;
+# nom o'zgartirilganda kesh tozalanadi.
+_company_name_cache = {}
+
+
+def company_name_of(company_id):
+    """Korxona nomini qaytaradi (keshdan yoki bazadan)."""
+    if company_id is None:
+        return None
+    if company_id in _company_name_cache:
+        return _company_name_cache[company_id]
+    try:
+        from database import SessionLocal as _SL
+        from production_models import Company as _Co
+        _d = _SL()
+        try:
+            row = _d.query(_Co).filter(_Co.id == company_id).first()
+            nom = row.name if row else None
+        finally:
+            _d.close()
+    except Exception:
+        nom = None
+    _company_name_cache[company_id] = nom
+    return nom
+
+
+def _clear_company_name_cache(company_id=None):
+    if company_id is None:
+        _company_name_cache.clear()
+    else:
+        _company_name_cache.pop(company_id, None)
+
+
+def company_logo_of(company_id):
+    """Korxona logotipining yo'li (interfeys uchun). Yo'q bo'lsa None."""
+    if company_id is None:
+        return None
+    try:
+        import os as _os
+        from database import SessionLocal as _SL
+        from production_models import Company as _Co
+        _d = _SL()
+        try:
+            row = _d.query(_Co).filter(_Co.id == company_id).first()
+            yol = (getattr(row, "logo_path", None) or "").strip() if row else ""
+        finally:
+            _d.close()
+        if not yol:
+            return None
+        tola = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), yol)
+        return yol if _os.path.exists(tola) else None
+    except Exception:
+        return None
+
+
+templates.env.globals["company_name_of"] = company_name_of
+# ============================================================
+# Ixtiyoriy mahsulot kategoriyalari (Faza 5)
+# ============================================================
+# Dasturda "Loy sotish" va "Blok" — PenoDecorPro ning o'ziga xos
+# yo'nalishlari. Boshqa korxona ularni
+# ishlab chiqarmasligi mumkin, lekin interfeysda ular baribir
+# ko'rinardi va yangi mijozni chalkashtirardi.
+#
+# Endi har korxona o'ziga keraklisini tanlaydi. Sozlama bo'sh bo'lsa —
+# HAMMASI ko'rinadi, ya'ni mavjud korxonada hech narsa o'zgarmaydi.
+# Yangi korxona yaratilganda esa faqat asosiy turlar yoqiladi.
+IXTIYORIY_KATEGORIYALAR = [
+    # 11.2a (2026-09-20): `termopanel` BUTUNLAY olib tashlandi — kodi
+    # ham, interfeysi ham qolmadi, shuning uchun ro'yxatda ham yo'q.
+    # 11.2b (2026-09-20): `gips` ham xuddi shunday BUTUNLAY olib
+    # tashlandi — kerak bo'lsa MRP dan o'z retsepti bilan yaratiladi.
+    ("loy_sotish", "🪣 Loy sotish"),
+    # Bosqich 3, 11.1-band (2026-09-20) — `blok` ESKIRGAN turkumga o'tdi.
+    # Endi uning o'rniga MRP dan o'z mahsulot turingizni yaratasiz:
+    # retseptda "1 metr uchun necha blok penoplast" deb yozasiz, qoplama
+    # koeffitsiyentini ham o'zingiz belgilaysiz. Eski `blok` kodi
+    # O'CHIRILMADI — mavjud yozuvlar avvalgidek ko'rinadi va hisoblanadi.
+    ("blok", "🧊 Blok (eskirgan — MRP dan foydalaning)"),
+]
+_ASOSIY_KATEGORIYALAR = ["profil", "panel", "dona"]
+
+# Hech qachon sozlanmagan korxonada ixtiyoriy turlarning HAMMASI yoqiq
+# bo'ladi (eski xatti-harakat saqlanadi). Lekin ESKIRGAN turlar bundan
+# MUSTASNO — ular faqat ATAYLAB yoqilganda ko'rinadi. Aks holda `blok`
+# ni ixtiyoriy qilishning ma'nosi qolmasdi: u baribir hammaga
+# ko'rinaverardi.
+_ESKIRGAN_KATEGORIYALAR = {"blok"}
+
+
+_kategoriya_cache = {}
+
+
+def _clear_category_cache(company_id=None):
+    if company_id is None:
+        _kategoriya_cache.clear()
+    else:
+        _kategoriya_cache.pop(company_id, None)
+
+
+def enabled_categories_of(company_id):
+    """Korxonada yoqilgan ixtiyoriy kategoriyalar to'plami.
+
+    Bitta sahifa renderida bu funksiya 10+ marta chaqiriladi, shuning
+    uchun natija keshda saqlanadi; sozlama o'zgarganda kesh tozalanadi.
+    """
+    if company_id is None:
+        return {k for k, _ in IXTIYORIY_KATEGORIYALAR
+                if k not in _ESKIRGAN_KATEGORIYALAR}
+    if company_id in _kategoriya_cache:
+        return _kategoriya_cache[company_id]
+    try:
+        from database import SessionLocal as _SL
+        _d = _SL()
+        try:
+            xom = crud.get_setting(_d, "enabled_categories", None, company_id=company_id)
+        finally:
+            _d.close()
+    except Exception:
+        xom = None
+    if xom is None:
+        # Hech qachon sozlanmagan — hammasi yoqiq (eski xatti-harakat),
+        # ESKIRGANlardan tashqari (11.1-band).
+        natija = {k for k, _ in IXTIYORIY_KATEGORIYALAR
+                  if k not in _ESKIRGAN_KATEGORIYALAR}
+    else:
+        # ⚠ 2026-09-21: sozlama satri — bu ESKI MATN, bazada yillab
+        # o'zgarmay yotishi mumkin. Undagi so'z hali MAVJUD turkummi,
+        # tekshirilishi SHART. Aks holda 11.2a/11.2b da butunlay olib
+        # tashlangan `termopanel` / `gips` eski satrdan qaytib kelardi,
+        # admin esa ularni sozlamalar sahifasida KO'RMASDI ham (ro'yxatda
+        # yo'q), ya'ni O'CHIRA OLMASDI. Endi noma'lum so'z jimgina
+        # e'tiborsiz qoldiriladi — sozlama o'zi-o'zidan tozalanadi.
+        _malum = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+        natija = {x.strip() for x in xom.split(",") if x.strip() in _malum}
+    _kategoriya_cache[company_id] = natija
+    return natija
+
+
+def cat_on(code, company_id=None):
+    """Shablonlar uchun: shu kategoriya ko'rsatilsinmi?"""
+    if code in _ASOSIY_KATEGORIYALAR:
+        return True
+    return code in enabled_categories_of(company_id)
+
+
+templates.env.globals["company_logo_of"] = company_logo_of
+templates.env.globals["cat_on"] = cat_on
+# 2026-09-17: statik fayllar (masalan translit.js) uchun cache-busting —
+# brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
+# Har deploy'da bu qiymat o'zgarishi kerak (masalan shu sana-vaqt) —
+# shunda "?v=..." o'zgarib, brauzer albatta YANGI faylni yuklaydi.
+templates.env.globals["static_version"] = "20260917-1"
 
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -989,17 +2388,22 @@ async def logout(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    users = auth.get_all_users(db)
+    users = auth.get_all_users(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "users.html", {"users": users, "current_user": current_user, "now": datetime.now().strftime("%d.%m.%Y %H:%M"), "active_page": "users"})
 
 
 @app.get("/trash", response_class=HTMLResponse)
 async def trash_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """O'chirilgan buyurtma, loyiha va xodimlar — inson xatosidan himoya uchun tiklash imkoni."""
-    deleted_orders = crud.get_deleted_orders(db)
-    deleted_projects = crud.get_deleted_projects(db)
-    deleted_employees = crud.get_deleted_employees(db)
-    activity_log = crud.get_activity_log(db, limit=50)
+    deleted_orders = crud.get_deleted_orders(db, company_id=auth.company_id_of(current_user))
+    deleted_projects = crud.get_deleted_projects(db, company_id=auth.company_id_of(current_user))
+    deleted_employees = crud.get_deleted_employees(db, company_id=auth.company_id_of(current_user))
+    # ⚠ 2026-09-21: `company_id` uzatilmagan edi — B korxona admini A ning
+    # audit jurnalini (kim nimani o'chirgani, usta/hodim nomlari) ko'rardi.
+    # `crud.get_activity_log` da parametr ALLAQACHON bor edi, faqat shu
+    # chaqiruvda unutilgan; `/logs` sahifasida to'g'ri uzatilgan.
+    activity_log = crud.get_activity_log(db, limit=50,
+                                         company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "trash.html", {
         "deleted_orders": deleted_orders, "deleted_projects": deleted_projects,
         "deleted_employees": deleted_employees,
@@ -1011,11 +2415,26 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Tizim jurnallari — kirish tarixi va backend xatoliklari (faqat admin)."""
-    login_history = crud.get_login_history(db, limit=100)
-    error_logs = crud.get_error_logs(db, limit=100)
-    activity_log = crud.get_activity_log(db, limit=100)
+    # M7: audit izi va kirish tarixi FAQAT joriy korxonaniki.
+    # Faza 3 (2026-09-19): `error_logs.company_id` ustuni qo'shildi —
+    # endi xatolar ham to'g'ri ajratiladi: korxonaniki o'ziga, platforma
+    # xatolari (NULL) hammaga.
+    _cid = auth.company_id_of(current_user)
+    login_history = crud.get_login_history(db, limit=100, company_id=_cid)
+    # 2026-09-20 — Texnik xatolar (Python traceback) FAQAT platforma
+    # administratori uchun. Sabab: bunday xabar korxona egasiga hech narsa
+    # bermaydi, lekin ikki xil zarar keltiradi — (1) "dastur buzuqmi?"
+    # degan keraksiz xavotir, (2) fayl yo'llari, jadval nomlari va ba'zan
+    # qiymatlar oshkor bo'lishi. Xatoni topish va tuzatish — xizmat
+    # ko'rsatuvchining ishi. Ro'yxat umuman YUBORILMAYDI, ya'ni HTML
+    # ichida ham qolmaydi.
+    _platforma = bool(getattr(current_user, "is_platform_admin", False))
+    error_logs = crud.get_error_logs(
+        db, limit=100, company_id=_cid, include_platform=True) if _platforma else []
+    activity_log = crud.get_activity_log(db, limit=100, company_id=_cid)
     return templates.TemplateResponse(request, "logs.html", {
-        "login_history": login_history, "error_logs": error_logs, "activity_log": activity_log,
+        "login_history": login_history, "error_logs": error_logs,
+         "is_platform_admin": _platforma, "activity_log": activity_log,
         "current_user": current_user, "active_page": "logs"
     })
 
@@ -1025,13 +2444,52 @@ def api_system_health_check(db: Session = Depends(get_db), current_user=Depends(
     """Tizimdagi barcha ENUM ustunlarini tekshiradi (faqat o'qish, hech
     narsani o'zgartirmaydi) — noto'g'ri (masalan katta/kichik harf mos
     kelmaydigan) qiymatlarni oldindan aniqlash uchun."""
-    result = crud.check_system_health(db)
-    result["financial"] = crud.check_financial_consistency(db)
+    _cid = auth.company_id_of(current_user)
+
+    # 2026-09-20 — Bu tekshiruv IKKI xil narsadan iborat:
+    #   • TEXNIK skan (enum ustunlari) — natijasi "productionstatus
+    #     ustunida noto'g'ri qiymat" kabi xabarlar. Korxona egasi buni
+    #     tushunmaydi va u bilan hech narsa qila olmaydi. Faqat platforma
+    #     administratori uchun.
+    #   • MOLIYAVIY izchillik — "buyurtma summasi detallar yig'indisiga
+    #     mos emas", "ombor qoldig'i manfiy" kabi. Bu AYNAN biznes
+    #     muammosi va mijoz uni o'zi tuzata oladi — shuning uchun
+    #     hammaga ko'rsatiladi.
+    _platforma = bool(getattr(current_user, "is_platform_admin", False))
+    moliyaviy = crud.check_financial_consistency(db, company_id=_cid)
+
+    if _platforma:
+        result = crud.check_system_health(db, company_id=_cid)
+    else:
+        result = {"total_checks": 0, "issues_found": 0, "issues": [],
+                  "check_errors": [], "technical_hidden": True}
+    result["financial"] = moliyaviy
+    result["is_platform_admin"] = _platforma
+
+    # 2026-09-21: avtomatik tenant filtri HOZIR yoqilganmi — operatsion
+    # o'qish. Ilgari buni bilishning yagona yo'li Railway sozlamalariga
+    # kirish edi, u yerda esa qiymat yashirin ko'rinadi: "o'zgaruvchi bor"
+    # degani "qiymati 1" degani EMAS. Himoya to'ri jimgina o'chiq qolishi
+    # mumkin va buni hech kim sezmaydi.
+    # `stats` — ishga tushgandan beri: nechta ORM so'rovga filtr
+    # qo'llangan / kontekst bo'lmagani uchun o'tkazib yuborilgan.
+    # `filtered` 0 bo'lib turishi filtr AMALDA ishlamayotganini bildiradi.
+    try:
+        import tenant_context as _tc
+        result["tenant_filter"] = {
+            "enabled": bool(_tc.ENABLED),
+            "stats": _tc.get_stats(),
+        }
+    except Exception as _e:
+        result["tenant_filter"] = {"enabled": None, "error": str(_e)[:120]}
     return result
 
 
 @app.post("/api/orders/{order_id}/restore")
 def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.restore_order(db, order_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
@@ -1040,6 +2498,9 @@ def api_restore_order(order_id: int, db: Session = Depends(get_db), current_user
 
 @app.post("/api/projects/{project_id}/restore")
 def api_restore_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.restore_project(db, project_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -1049,6 +2510,9 @@ def api_restore_project(project_id: int, db: Session = Depends(get_db), current_
 @app.delete("/api/orders/{order_id}/permanent")
 def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Butunlay o'chirish — faqat 'chiqindi qutisi'dagi (avval yumshoq o'chirilgan) buyurtma uchun."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.permanent_delete_order(db, order_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
@@ -1058,6 +2522,9 @@ def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), cur
 @app.delete("/api/projects/{project_id}/permanent")
 def api_permanent_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Butunlay o'chirish — faqat 'chiqindi qutisi'dagi (avval yumshoq o'chirilgan) loyiha uchun."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
     ok, msg = crud.permanent_delete_project(db, project_id, performed_by=who)
     if not ok:
@@ -1071,13 +2538,17 @@ def api_create_user(data: dict, db: Session = Depends(get_db), current_user=Depe
         role = UserRole(data.get("role", "manager"))
     except ValueError:
         raise HTTPException(status_code=400, detail="Noto'g'ri rol")
-    user = auth.create_user(db, data["username"], data["password"], role, data.get("full_name", ""))
+    # M1: yangi foydalanuvchi ALBATTA joriy adminning korxonasiga tegishli.
+    user = auth.create_user(db, data["username"], data["password"], role,
+                            data.get("full_name", ""),
+                            company_id=auth.company_id_of(current_user))
     return {"id": user.id, "username": user.username, "role": user.role.value}
 
 
 @app.post("/api/users/{user_id}/toggle")
 def api_toggle_user(user_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    user = auth.toggle_user_active(db, user_id)
+    user = auth.toggle_user_active(db, user_id,
+                                   company_id=auth.company_id_of(current_user))
     if not user:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"is_active": user.is_active}
@@ -1088,7 +2559,24 @@ def api_change_password(user_id: int, data: dict, db: Session = Depends(get_db),
     new_pass = data.get("new_password", "")
     if len(new_pass) < 6:
         raise HTTPException(status_code=400, detail="Parol kamida 6 belgi")
-    if not auth.change_password(db, user_id, new_pass):
+
+    # 2026-09-20 — O'Z parolini almashtirishda ESKI parol so'raladi.
+    # Sabab: kimdir ochiq qolgan sessiyadan foydalanib parolni almashtirib,
+    # egasini o'z tizimidan qulflab qo'yishi mumkin. Boshqa foydalanuvchining
+    # parolini tiklashda esa eski parol so'ralmaydi — admin uni bilmaydi
+    # (aynan shuning uchun tiklayapti).
+    if user_id == current_user.id:
+        eski = data.get("current_password", "")
+        if not eski:
+            raise HTTPException(status_code=400,
+                                detail="Joriy parolni kiriting")
+        # `verify_and_upgrade_password` — login oqimida ishlatiladigan
+        # AYNI funksiya (eski SHA-256 hashni bcrypt ga ham ko'chiradi).
+        if not auth.verify_and_upgrade_password(db, current_user, eski):
+            raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
+
+    if not auth.change_password(db, user_id, new_pass,
+                                company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
@@ -1113,7 +2601,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    stats = services.get_dashboard_stats(db)
+    stats = services.get_dashboard_stats(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "dashboard.html", {"stats": stats, "current_user": current_user, "active_page": "dashboard"})
 
 
@@ -1137,15 +2625,18 @@ async def masters_manage_page(request: Request, db: Session = Depends(get_db), c
 
 @app.get("/inventory", response_class=HTMLResponse)
 async def inventory_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
-    items = crud.get_inventory(db)
-    kpi = services.get_inventory_kpi(db)
-    suppliers = crud.get_suppliers(db)
+    items = crud.get_inventory(db, company_id=auth.company_id_of(current_user))
+    kpi = services.get_inventory_kpi(db, company_id=auth.company_id_of(current_user))
+    suppliers = crud.get_suppliers(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "inventory.html", {"items": items, "kpi": kpi, "suppliers": suppliers, "current_user": current_user, "active_page": "inventory"})
 
 
 @app.post("/api/inventory/{item_id}/image")
 def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                                 current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     from models import Inventory
     item = db.query(Inventory).filter(Inventory.id == item_id).first()
     if not item:
@@ -1158,20 +2649,29 @@ def api_upload_inventory_image(item_id: int, file: UploadFile = File(...), db: S
 
 @app.get("/api/inventory/kpi")
 def api_inventory_kpi(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
-    return services.get_inventory_kpi(db)
+    return services.get_inventory_kpi(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/recipes", response_class=HTMLResponse)
 async def recipes_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    recipes = crud.get_recipes(db)
+    recipes = crud.get_recipes(db, company_id=auth.company_id_of(current_user))
     insights = {r.id: crud.get_recipe_insights(db, r.id) for r in recipes}
     return templates.TemplateResponse(request, "recipes.html", {"recipes": recipes, "insights": insights, "current_user": current_user, "active_page": "recipes"})
 
 
+@app.get("/production", response_class=HTMLResponse)
+async def production_page(request: Request, current_user=Depends(auth.admin_or_warehouse)):
+    """2026-09-16: yangi Dinamik Ishlab chiqarish (Production/MRP) sahifasi.
+    Barcha ma'lumotlar (mahsulot turlari, retseptlar, buyurtmalar)
+    frontendda AJAX orqali /api/production/... dan yuklanadi — shuning
+    uchun bu yerga hech qanday kontekst uzatish shart emas."""
+    return templates.TemplateResponse(request, "production.html", {"current_user": current_user, "active_page": "production"})
+
+
 @app.get("/projects", response_class=HTMLResponse)
 async def projects_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
-    projects = crud.get_projects_with_stats(db)
-    kpi = crud.get_projects_dashboard_stats(db)
+    projects = crud.get_projects_with_stats(db, company_id=auth.company_id_of(current_user))
+    kpi = crud.get_projects_dashboard_stats(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "projects.html", {"projects": projects, "kpi": kpi, "current_user": current_user, "active_page": "projects"})
 
 
@@ -1185,7 +2685,9 @@ def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depend
         Order.project_id,
         func.count(Order.id).label("total"),
         func.sum(case((Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]), 1), else_=0)).label("ready")
-    ).filter(Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED])).group_by(Order.project_id).all()
+    ).filter(Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]),
+             Order.company_id == auth.company_id_of(current_user)
+    ).group_by(Order.project_id).all()
 
     result = {}
     for project_id, total, ready in rows:
@@ -1195,27 +2697,39 @@ def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depend
 
 @app.get("/api/projects/dashboard-stats")
 def api_projects_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
-    return crud.get_projects_dashboard_stats(db)
+    return crud.get_projects_dashboard_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/projects/{project_id}/payment")
-def api_add_payment(project_id: int, amount: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
-    updated = crud.add_payment(db, project_id, amount)
-    if not updated:
+def api_add_payment(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
+    """17c (2026-09-21) — OLIB TASHLANGAN yo'l, foydalanuvchi qarori "1".
+
+    Bu marshrut loyihaga pulni TO'LOV YOZUVISIZ `total_paid` ga qo'shardi:
+    Moliyaga tushmasdi va keyingi buyurtma to'lovida izsiz o'chib ketardi
+    (O'LCHANGAN, `work/probe17c.py`). To'lov endi FAQAT buyurtma orqali
+    (`POST /api/payments`) qabul qilinadi. Marshrut butunlay o'chirilmadi —
+    brauzerda eski sahifa ochiq qolgan bo'lsa, foydalanuvchi jim 404/405
+    o'rniga ANIQ sababni ko'radi (410). Egalik tekshiruvi (404) BIRINCHI —
+    begona loyiha mavjudligi haqida hech narsa bildirilmaydi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-    return {"status": "ok", "total_paid": float(updated.total_paid)}
+    raise HTTPException(status_code=410, detail=(
+        "Loyihaga to'g'ridan-to'g'ri to'lov olib tashlandi — to'lovni "
+        "buyurtma orqali qo'shing (Buyurtmalar → To'lov)"))
 
 
 @app.get("/orders", response_class=HTMLResponse)
 async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.orders_page_access)):
-    orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all)
+    orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user))
     for o in orders:
         o.deadline_urgency = crud.get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered)
-    projects = crud.get_projects(db)
-    masters = crud.get_masters(db, only_active=True)
-    recipes = crud.get_recipes(db)
-    penoplasts = services.get_penoplast_list(db)
-    default_p = services.get_default_penoplast(db)
+    projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
+    masters = crud.get_masters(db, only_active=True, company_id=auth.company_id_of(current_user))
+    recipes = crud.get_recipes(db, company_id=auth.company_id_of(current_user))
+    # 2026-09-21 — TENANT: A ning penoplastlari B sahifasida ko'rinardi (O'LCHANGAN)
+    penoplasts = services.get_penoplast_list(db, company_id=auth.company_id_of(current_user))
+    default_p = services.get_default_penoplast(db, company_id=auth.company_id_of(current_user))
 
     # Loyiha bo'yicha guruhlaymiz
     groups = {}
@@ -1233,7 +2747,7 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
             }
         g = groups[pid]
         g["orders"].append(o)
-        g["total"] += float(o.agreed_amount or o.total_amount or 0)
+        g["total"] += o.kelishilgan_summa
         g["debt"] += o.debt_amount
         if o.status.value not in ("ready", "delivered", "cancelled"):
             g["active"] += 1
@@ -1267,8 +2781,15 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
 
 
 @app.post("/api/masters", response_model=schemas.MasterRead)
-def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    new_master = crud.create_master(db, master)
+def api_create_master(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # 15-band: xom JSON qat'iy tekshiriladi (pydantic `true` → 1.0, "5" → 5
+    # kabi JIM o'girardi; NaN → 500) — qoida buzilsa 400, hech narsa yozilmaydi.
+    try:
+        master = schemas.MasterCreate(**crud._clean_create("Master", data))
+        new_master = crud.create_master(db, master, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     tg_id = getattr(master, 'telegram_id', None)
     if tg_id and str(tg_id).strip().lstrip('-').isdigit():
         msg = (
@@ -1288,17 +2809,16 @@ def api_create_master(master: schemas.MasterCreate, db: Session = Depends(get_db
             f"botimiz orqali istalgan vaqtda kuzatib\n"
             f"borishingiz mumkin. 📊\n\n"
             f"Ishlaringizda rivoj va baraka tilaymiz! 🌟\n\n"
-            f"🏗 *PenoDecorPro* — Zamonaviy fasad dekorlari\n"
-            f"📍 Andijon, O'zbekiston"
+            + _tg_signature(db, auth.company_id_of(current_user))
         )
-        _send_telegram_to(str(tg_id).strip(), msg)
+        _send_telegram_to(str(tg_id).strip(), msg, company_id=auth.company_id_of(current_user))
     return new_master
 
 
 @app.delete("/api/masters/{master_id}/delete")
 def api_delete_master_permanent(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    from models import Master
-    master = db.query(Master).filter(Master.id == master_id).first()
+    # M5: usta FAQAT joriy korxonadan (aks holda 404).
+    master = auth.master_of_company(db, master_id, auth.company_id_of(current_user))
     if not master:
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     db.delete(master)
@@ -1308,12 +2828,25 @@ def api_delete_master_permanent(master_id: int, db: Session = Depends(get_db), c
 
 @app.get("/api/masters", response_model=List[schemas.MasterRead])
 def api_get_masters(only_active: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.get_masters(db, only_active=only_active)
+    return crud.get_masters(db, only_active=only_active,
+                           company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/masters/{master_id}", response_model=schemas.MasterRead)
-def api_update_master(master_id: int, data: schemas.MasterUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    updated = crud.update_master(db, master_id, data)
+def api_update_master(master_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # 14-band: avval obyekt korxonadan (404) — tana tekshiruvi undan KEYIN,
+    # aks holda begona ID + noto'g'ri tana 400 berib, ID borligini oshkor qilardi.
+    cid = auth.company_id_of(current_user)
+    if not crud.get_master(db, master_id, cid):
+        raise HTTPException(status_code=404, detail="Usta topilmadi")
+    # Xom JSON qat'iy tekshiriladi (pydantic `true` → 1.0 kabi JIM o'girardi).
+    try:
+        toza = crud._clean_update("Master", data)
+        updated = crud.update_master(db, master_id, schemas.MasterUpdate(**toza),
+                                    company_id=cid)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     return updated
@@ -1321,15 +2854,30 @@ def api_update_master(master_id: int, data: schemas.MasterUpdate, db: Session = 
 
 @app.delete("/api/masters/{master_id}")
 def api_delete_master(master_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    if not crud.delete_master(db, master_id):
+    if not crud.delete_master(db, master_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     return {"status": "ok"}
 
 
 @app.post("/api/inventory", response_model=schemas.InventoryRead)
-def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_create_item(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # 15-band: xom JSON qat'iy tekshiriladi (manfiy / juda katta narx, NaN,
+    # Infinity, `true` → 1.0, uzun matn, bo'sh birlik) — 400, hech narsa
+    # yozilmaydi.
     try:
-        return crud.add_item(db, item)
+        item = schemas.InventoryCreate(**crud._clean_create("Inventory", data))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        # M3/M8-F1: yangi material ALBATTA joriy adminning korxonasiga
+        # tegishli — tenant endi `add_item()` ga BOSHIDAN uzatiladi
+        # (ilgari qaytgandan keyin qo'yilardi va ichki commit vaqtida
+        # ustun bo'sh qolardi).
+        _it = crud.add_item(db, item, company_id=auth.company_id_of(current_user))
+        return _it
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -1341,36 +2889,86 @@ def api_create_item(item: schemas.InventoryCreate, db: Session = Depends(get_db)
 
 @app.get("/api/inventory", response_model=List[schemas.InventoryRead])
 def api_get_inventory(db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
-    return crud.get_inventory(db)
+    return crud.get_inventory(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/inventory/{item_id}/stock", response_model=schemas.InventoryRead)
-def api_update_stock(item_id: int, change: schemas.StockChange, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.)."""
-    updated = crud.update_stock(db, item_id, change.quantity_change,
-                                 performed_by=current_user.full_name or current_user.username,
-                                 notes=change.reason)
+def api_update_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Qoldiqni narxsiz tuzatish (inventarizatsiya, kamomad va h.k.).
+
+    19-band (2026-09-21): tana xom JSON — qat'iy tekshiriladi (NaN/cheksiz/
+    `true`/0/uzun izoh → 400); chiqim mavjud qoldiqdan ko'p bo'lsa 400 (ilgari
+    jimgina 0 ga qirqilardi). Material korxonaga tana tekshiruvidan OLDIN
+    (begona/yo'q id + yomon tana → 404, oracle yo'q)."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    _cid = auth.company_id_of(current_user)
+    if not auth.inventory_of_company(db, item_id, _cid):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
+    try:
+        toza = crud._clean_stock_change(data)
+        updated = crud.update_stock(db, item_id, toza["quantity_change"],
+                                     performed_by=current_user.full_name or current_user.username,
+                                     notes=toza["reason"], company_id=_cid)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
     return updated
 
 
 @app.put("/api/inventory/{item_id}")
-def api_update_inventory_item(item_id: int, data: schemas.InventoryUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_update_inventory_item(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xomashyo ma'lumotlarini yangilash (nomi, min qoldiq, kategoriya va h.k.)."""
-    updated = crud.update_item(db, item_id, data)
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
+    # 14-band: xom JSON qat'iy tekshiriladi; qoldiq / asosiy penoplast bu
+    # yo'ldan o'zgarmaydi (o'z yo'li bor). Qoida buzilsa 400, hech narsa yozilmaydi.
+    try:
+        toza = crud._clean_update("Inventory", data)
+        updated = crud.update_item(db, item_id, schemas.InventoryUpdate(**toza))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "category": updated.category}
 
 
 @app.post("/api/inventory/receipt")
-def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Session = Depends(get_db),
+def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(get_db),
                                   current_user=Depends(auth.admin_or_warehouse)):
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport/Tushirish/Yuklash/Boshqa) bilan birga, BITTA yagona
-    tranzaksiyada saqlaydi. Xato bo'lsa — hech narsa saqlanmaydi (rollback)."""
+    tranzaksiyada saqlaydi. Xato bo'lsa — hech narsa saqlanmaydi (rollback).
+
+    17b (2026-09-21): tana XOM `dict` va `crud._clean_val` bilan QAT'IY
+    tekshiriladi. O'LCHANGAN kamchiliklar: qator narxi `Infinity` → 500
+    bo'lsa ham YOZILARDI va `/api/inventory/purchases` ni buzardi;
+    `transport_cost: Infinity` → `/api/finance/history` ni buzardi;
+    miqdor `1e20`, qo'shimcha xarajatlar `1e20` (tan narx 3.9×10¹⁸),
+    `production_type: "xato"` (hisobotdan jim tushib qolardi),
+    `document_number` 500 belgi (ustun 50 — PostgreSQL da 500),
+    201 qator va noma'lum maydonlar — hammasi 200 qaytarardi."""
     who = current_user.full_name or current_user.username
+    data = _tana_400("Receipt", data, schemas.InventoryReceiptCreate)
+    # 2026-09-21 (12-sizish): kirimdagi HAR bir material va ta'minotchi
+    # FAQAT joriy korxonadan — HECH NARSA yozilishidan OLDIN. Ilgari B
+    # A ning inventory_id sini bersa, A OMBORI ko'payardi (o'lchangan).
+    _cid = auth.company_id_of(current_user)
+    crud._require_inventory_of_company(db, [it.inventory_id for it in data.items], _cid)
+    if data.supplier_id and not crud.get_supplier(db, data.supplier_id, company_id=_cid):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+    # 17b: hujjat summasidan ORTIQ to'lov yozilmasin — kirim marshruti
+    # (`/api/inventory/{id}/purchase`) allaqachon shunday qiladi, UI ham
+    # shuni ko'rsatadi (`Math.min(paidNowTotal, grandTotal)`), lekin bu
+    # yerda cheklov YO'Q edi: `paid_now: 1e20` ta'minotchiga 1e20 lik
+    # to'lov yozib, qarz hisobini butunlay buzardi (o'lchandi).
+    _jami = sum(float(it.quantity) * float(it.price_per_unit) for it in data.items)
+    _jami += (float(data.transport_cost) + float(data.tushirish_cost)
+              + float(data.yuklash_cost) + float(data.boshqa_cost))
+    _paid_now = min(float(data.paid_now), round(_jami))
     try:
         result = crud.create_inventory_receipt(
             db,
@@ -1378,10 +2976,16 @@ def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Sessi
             transport_cost=data.transport_cost, tushirish_cost=data.tushirish_cost,
             yuklash_cost=data.yuklash_cost, boshqa_cost=data.boshqa_cost,
             add_to_cost=data.add_to_cost, supplier_id=data.supplier_id,
-            document_number=data.document_number, paid_now=data.paid_now,
-            notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None)
+            document_number=data.document_number, paid_now=_paid_now,
+            notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None),
+            company_id=auth.company_id_of(current_user)
         )
         return result
+    except (HTTPException, _TenantMismatchError):
+        # 12-sizish: bular o'z holati bilan chiqsin (404 / 409) — pastdagi
+        # umumiy `except` ularni 500 ga aylantirib, begona yozuv haqidagi
+        # ichki xato matnini ham foydalanuvchiga ko'rsatardi.
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -1389,15 +2993,43 @@ def api_create_inventory_receipt(data: schemas.InventoryReceiptCreate, db: Sessi
 
 
 @app.post("/api/inventory/{item_id}/purchase")
-def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Ombor kirimi — xarid narxi bilan. O'rtacha vaznli narx hisoblanadi.
     paid_now > 0 bo'lsa — bir vaqtning o'zida xarid HAM yoziladi, HAM to'lov qilinadi,
-    qolgan qismi avtomatik qarz sifatida qoladi."""
+    qolgan qismi avtomatik qarz sifatida qoladi.
+
+    17b (2026-09-21): tana XOM `dict` sifatida olinadi va `crud._clean_val`
+    bilan QAT'IY tekshiriladi. Ilgari pydantic sxemasi quyidagilarni JIM
+    o'tkazib yuborardi (hammasi O'LCHANGAN, `work/probe17b_iso.py`):
+    miqdor/narx `1e20` (SAQLANARDI), `Infinity`/`NaN` (500),
+    `quantity: true` → 1, narx `"5000"` (matn) → 5000,
+    `transport_payer: "xato"`, `payment_due_date: "2026-13-45"`,
+    noma'lum maydonlar, va eng jiddiysi — penoplast uchun
+    `volume_per_unit: Infinity`, u 500 bersa ham OMBORGA YOZILIB,
+    `/api/penoplasts` sahifasini butunlay ishlamay qo'yardi."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404) —
+    # TANA tekshiruvidan OLDIN, begona/yo'q id uchun oracle bo'lmasin.
+    _cid = auth.company_id_of(current_user)
+    if not auth.inventory_of_company(db, item_id, _cid):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
+    data = _tana_400("Purchase", data, schemas.StockPurchase)
+    # 17b: ta'minotchi shu korxonada BOR bo'lishi shart — kirim hujjati
+    # (`/api/inventory/receipt`) bilan bir xil qoida. Ilgari mavjud
+    # bo'lmagan `supplier_id` 200 qaytarardi (PostgreSQL da esa FK
+    # cheklovini buzib 500 berardi); begona korxonanikida model
+    # qo'riqchisi 409 berardi — endi ikkalasi ham aniq 404.
+    if data.supplier_id and not crud.get_supplier(db, data.supplier_id, company_id=_cid):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     who = current_user.full_name or current_user.username
 
-    total_amount = round(data.quantity * data.price_per_unit)
+    # 17g (2026-09-22): jami — bazaga yoziladigan AYNAN shu summa
+    # (`crud._xarid_narx_jami`: narx 2 xonaga yaxlitlanib, jami shu narxdan).
+    # Ilgari bu yerda butun so'mga yaxlitlanardi (`round(qty × narx)`), bazaga
+    # esa xom ko'paytma yozilardi — "to'liq to'langan"mi yoki nasiyami degan
+    # qaror boshqa summaga tayanardi.
+    total_amount = crud._xarid_narx_jami(data.quantity, data.price_per_unit)[1]
     paid_now = min(data.paid_now, total_amount)   # ortiqcha to'lanmasin
-    debt_remains = total_amount - paid_now
+    debt_remains = round(total_amount - paid_now, 2)
     is_credit = debt_remains > 0.01   # server o'zi hisoblaydi — frontenddan kelgan is_credit e'tiborga olinmaydi
 
     result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
@@ -1420,11 +3052,15 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
                 materials_note=item.item_name,
                 notes=f"{item.item_name} xaridi bilan birga"
             ),
-            created_by=who
+            created_by=who, company_id=auth.company_id_of(current_user)
         )
 
     # Hoziroq to'langan summa bo'lsa — darhol to'lov sifatida yoziladi (qarzdan ayiriladi)
     if is_credit and data.supplier_id and paid_now > 0:
+        # 17g: `ichki=True` — xarid allaqachon saqlangan; takror-yuborish
+        # himoyasi (ta'minotchi + summa + 8 s) va ortiqcha to'lov ogohlantirishi
+        # bu to'lovni yutib yubormasin / xariddan keyin 500 bermasin (sababi
+        # `crud.create_supplier_payment` izohida; kech23 da O'LCHANGAN).
         crud.create_supplier_payment(
             db,
             schemas.SupplierPaymentCreate(
@@ -1432,16 +3068,16 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
                 amount=paid_now,
                 notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan"
             ),
-            paid_by=who
+            paid_by=who, company_id=auth.company_id_of(current_user), ichki=True
         )
 
     # Nasiya bo'lsa — kompaniya qarzi oshgani haqida ogohlantirish
     if is_credit and data.supplier_id:
         supplier = crud.get_supplier(db, data.supplier_id)
         if supplier:
-            debt_info = crud.get_supplier_debt(db, data.supplier_id)
-            all_debt = sum(s["debt"] for s in crud.get_suppliers_with_debt(db))
-            paid_line = f"✅ Hoziroq to'landi: {fmt_money(paid_now)} so'm\\n" if paid_now > 0 else ""
+            debt_info = crud.get_supplier_debt(db, data.supplier_id, company_id=auth.company_id_of(current_user))
+            all_debt = sum(s["debt"] for s in crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user)))
+            paid_line = f"✅ Hoziroq to'landi: {fmt_money(paid_now)} so'm\n" if paid_now > 0 else ""
             msg = (
                 f"🚚 *Nasiya xarid qilindi*\n\n"
                 f"📦 {item.item_name}: {data.quantity:g} {item.unit} × {fmt_money(data.price_per_unit)}\n"
@@ -1450,9 +3086,9 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
                 f"\n🏪 Yetkazib beruvchi: *{supplier.name}*\n"
                 f"🔴 Shu hamkorga qarz: {fmt_money(debt_info['debt'])} so'm\n"
                 f"📊 Jami barcha qarz: {fmt_money(all_debt)} so'm\n\n"
-                f"🏗 *PenoDecorPro* — {who}"
+                + _tg_footer(db, auth.company_id_of(current_user), tail=who)
             )
-            _send_telegram(msg)
+            _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return {
         "status": "ok",
@@ -1474,7 +3110,7 @@ def api_purchase_stock(item_id: int, data: schemas.StockPurchase, db: Session = 
 def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
                       db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     """Xaridlar tarixi."""
-    items = crud.get_purchases(db, limit=limit, item_id=item_id)
+    items = crud.get_purchases(db, limit=limit, item_id=item_id, company_id=auth.company_id_of(current_user))
     return [{
         "id": p.id,
         "inventory_id": p.inventory_id,
@@ -1494,21 +3130,32 @@ def api_get_purchases(item_id: Optional[int] = None, limit: int = 100,
 def api_purchase_stats(year: Optional[int] = None, month: Optional[int] = None,
                        db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     """Material bo'yicha xarid statistikasi (oylik)."""
-    return crud.get_purchase_stats(db, year=year, month=month)
+    return crud.get_purchase_stats(db, year=year, month=month, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/transport-expenses")
-def api_create_transport(data: schemas.TransportExpenseCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_transport(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Kirish transporti xarajatini qo'shish."""
+    # 17f (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
+    # ("TransportExpense")`). HAQIQIY PostgreSQL da O'LCHANGAN: `Infinity` /
+    # `1e20` / 25 belgili `production_type` / 300 belgili `materials_note` —
+    # 500; `0.001` → 0.00 so'mlik transport; `true` → 1 so'm, `"5"` matni,
+    # ro'yxatdan tashqari `production_type` JIMGINA qabul qilinardi. Hech bir
+    # sahifa bu marshrutga yozmaydi (faqat API). Xato → 400, `detail` MATN.
     who = current_user.full_name or current_user.username
-    exp = crud.create_transport_expense(db, data, created_by=who)
+    try:
+        toza = crud._clean_val("TransportExpense", data)
+        exp = crud.create_transport_expense(db, toza, created_by=who, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok", "id": exp.id, "amount": float(exp.amount)}
 
 
 @app.get("/api/transport-expenses")
 def api_get_transport(limit: int = 100, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Kirish transporti tarixi."""
-    items = crud.get_transport_expenses(db, limit=limit)
+    items = crud.get_transport_expenses(db, limit=limit, company_id=auth.company_id_of(current_user))
     return [{
         "id": e.id,
         "amount": float(e.amount),
@@ -1521,7 +3168,7 @@ def api_get_transport(limit: int = 100, db: Session = Depends(get_db), current_u
 
 @app.delete("/api/transport-expenses/{exp_id}")
 def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    if not crud.delete_transport_expense(db, exp_id):
+    if not crud.delete_transport_expense(db, exp_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
@@ -1531,14 +3178,25 @@ def api_delete_transport(exp_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.post("/api/employees")
-def api_create_employee(data: schemas.EmployeeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    emp = crud.create_employee(db, data)
+def api_create_employee(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1/M8-F1: xodim joriy adminning korxonasiga biriktiriladi — tenant
+    # endi `create_employee()` ga BOSHIDAN uzatiladi (ilgari qaytgandan
+    # keyin qo'yilardi va ichki commit vaqtida ustun bo'sh qolardi).
+    # 15-band: xom JSON qat'iy tekshiriladi (noto'g'ri `pay_type` endi 400 —
+    # ilgari JIMGINA "fixed" bo'lardi).
+    try:
+        emp_data = schemas.EmployeeCreate(**crud._clean_create("Employee", data))
+        emp = crud.create_employee(db, emp_data, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok", "id": emp.id}
 
 
 @app.get("/api/employees")
 def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    items = crud.get_employees(db, only_active=only_active)
+    items = crud.get_employees(db, only_active=only_active,
+                               company_id=auth.company_id_of(current_user))
     return [{
         "id": e.id, "name": e.name, "position": e.position,
         "pay_type": e.pay_type.value,
@@ -1546,7 +3204,6 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
         "percent_value": float(e.percent_value or 0),
         "per_unit_rate": float(e.per_unit_rate or 0),
         "per_unit_type": e.per_unit_type,
-        "gul_rate": float(e.gul_rate) if e.gul_rate is not None else None,
         "extra_monthly": float(e.extra_monthly) if e.extra_monthly is not None else None,
         "production_type": e.production_type,
         "is_active": e.is_active,
@@ -1555,20 +3212,27 @@ def api_get_employees(only_active: bool = True, db: Session = Depends(get_db), c
 
 
 @app.post("/api/employees/{employee_id}/advance")
-def api_create_employee_advance(employee_id: int, amount: float, notes: Optional[str] = None,
+def api_create_employee_advance(employee_id: int, amount: Optional[str] = None,
+                                  notes: Optional[str] = None,
                                   adv_date: Optional[str] = None,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Hodimga avans (oldindan pul) berilganini qayd etadi.
-    adv_date — YYYY-MM-DD formatida, ixtiyoriy (berilmasa — bugungi sana)."""
-    parsed_date = None
-    if adv_date:
-        try:
-            parsed_date = datetime.strptime(adv_date, "%Y-%m-%d")
-        except ValueError:
-            pass
-    adv = crud.create_employee_advance(db, employee_id, amount, notes,
-                                        given_by=current_user.full_name or current_user.username,
-                                        adv_date=parsed_date)
+    adv_date — YYYY-MM-DD formatida, ixtiyoriy (berilmasa yoki bo'sh — bugungi sana).
+
+    17c (2026-09-21): `amount` MATN sifatida olinadi va `crud._clean_avans`
+    bilan QAT'IY o'qiladi (cheksizlik, NaN, manfiy, 0, sig'imdan katta —
+    400). Noto'g'ri sana endi JIMGINA bugunga aylanmaydi — 400."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
+    try:
+        toza = crud._clean_avans(amount, notes, adv_date)
+        adv = crud.create_employee_advance(db, employee_id, toza["amount"], toza["notes"],
+                                            given_by=current_user.full_name or current_user.username,
+                                            adv_date=toza["adv_date"])
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not adv:
         raise HTTPException(status_code=404, detail="Hodim topilmadi")
     return {"status": "ok", "id": adv.id}
@@ -1578,6 +3242,9 @@ def api_create_employee_advance(employee_id: int, amount: float, notes: Optional
 def api_get_employee_advances(employee_id: int, year: int, month: int,
                                 db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Hodimga shu oyda berilgan barcha avanslar ro'yxati."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     return {
         "advances": services.get_employee_advances_list(db, employee_id, year, month),
         "total": services.get_employee_advances_total(db, employee_id, year, month)
@@ -1588,6 +3255,9 @@ def api_get_employee_advances(employee_id: int, year: int, month: int,
 def api_get_employee_adjustment(employee_id: int, year: int, month: int,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Hodim uchun, shu oy uchun saqlangan qo'lda kamaytirish/bonusni qaytaradi."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     adj = crud.get_employee_monthly_adjustment(db, employee_id, year, month)
     if not adj:
         return {"reduction_amount": 0, "reason": None, "bonus_amount": 0, "bonus_reason": None}
@@ -1598,28 +3268,60 @@ def api_get_employee_adjustment(employee_id: int, year: int, month: int,
 
 
 @app.post("/api/employees/{employee_id}/monthly-adjustment")
-def api_set_employee_adjustment(employee_id: int, year: int, month: int,
-                                  reduction_amount: Optional[float] = None, reason: Optional[str] = None,
-                                  bonus_amount: Optional[float] = None, bonus_reason: Optional[str] = None,
+def api_set_employee_adjustment(employee_id: int, year: Optional[str] = None, month: Optional[str] = None,
+                                  reduction_amount: Optional[str] = None, reason: Optional[str] = None,
+                                  bonus_amount: Optional[str] = None, bonus_reason: Optional[str] = None,
                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Hodim uchun, shu oy uchun qo'lda kamaytirish va/yoki bonusni yozadi/yangilaydi/o'chiradi."""
+    """Hodim uchun, shu oy uchun qo'lda kamaytirish va/yoki bonusni yozadi/yangilaydi/o'chiradi.
+
+    17c (2026-09-21): qiymatlar MATN sifatida olinadi va
+    `crud._clean_oylik_tuzatish` bilan QAT'IY o'qiladi — yil 2000–2100,
+    oy 1–12, summalar chekli va manfiy emas (400). 0 / bo'sh = o'chirish
+    (UI shunday ishlaydi) — SAQLANADI."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
-    crud.set_employee_monthly_adjustment(db, employee_id, year, month, reduction_amount, reason,
-                                          bonus_amount, bonus_reason, created_by=who)
+    try:
+        toza = crud._clean_oylik_tuzatish(year, month, reduction_amount, reason,
+                                          bonus_amount, bonus_reason)
+        crud.set_employee_monthly_adjustment(db, employee_id, toza["year"], toza["month"],
+                                              toza["reduction_amount"], toza["reason"],
+                                              toza["bonus_amount"], toza["bonus_reason"],
+                                              created_by=who)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok"}
 
 
 @app.delete("/api/employees/advance/{advance_id}")
 def api_delete_employee_advance(advance_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: avansning O'ZIDA company_id yo'q — u xodimga bog'langan.
+    # Shuning uchun ota (xodim) orqali tekshiramiz.
+    from models import EmployeeAdvance as _EA
+    _adv = db.query(_EA).filter(_EA.id == advance_id).first()
+    if not _adv or not auth.employee_of_company(
+            db, _adv.employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Topilmadi")
     if not crud.delete_employee_advance(db, advance_id):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
 
 @app.put("/api/employees/{emp_id}")
-def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+def api_update_employee(emp_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
-    emp = crud.update_employee(db, emp_id, data, updated_by=who)
+    # 14-band: xom JSON qat'iy tekshiriladi (400, hech narsa yozilmaydi).
+    try:
+        toza = crud._clean_update("Employee", data)
+        emp = crud.update_employee(db, emp_id, schemas.EmployeeUpdate(**toza), updated_by=who)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not emp:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
@@ -1629,6 +3331,9 @@ def api_update_employee(emp_id: int, data: schemas.EmployeeUpdate, db: Session =
 def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Hodimning to'lov (oylik/foiz/birlik narxi) o'zgarishlar tarixi —
     eng yangisi birinchi bo'lib qaytadi."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     from models import EmployeeCompensationHistory
     rows = db.query(EmployeeCompensationHistory).filter(
         EmployeeCompensationHistory.employee_id == emp_id
@@ -1643,7 +3348,6 @@ def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db)
         "percent_value": r.percent_value,
         "per_unit_rate": float(r.per_unit_rate or 0),
         "per_unit_type": r.per_unit_type,
-        "gul_rate": float(r.gul_rate) if r.gul_rate else None,
         "extra_monthly": float(r.extra_monthly) if r.extra_monthly else None,
         "reason": r.reason,
         "created_by": r.created_by,
@@ -1656,11 +3360,15 @@ def api_backfill_compensation_history(db: Session = Depends(get_db), current_use
     """Bir martalik migratsiya — tarix yozuvi hali yo'q eski hodimlar
     uchun boshlang'ich to'lov tarixini yaratadi. Xavfsiz — bir necha marta
     bossa ham, allaqachon tarixi bor hodimlarga qayta tegilmaydi."""
-    return crud.backfill_employee_compensation_history(db)
+    return crud.backfill_employee_compensation_history(
+        db, company_id=auth.company_id_of(current_user))
 
 
 @app.delete("/api/employees/{emp_id}")
 def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.delete_employee(db, emp_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -1669,6 +3377,9 @@ def api_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user
 
 @app.post("/api/employees/{emp_id}/restore")
 def api_restore_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.restore_employee(db, emp_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Xodim topilmadi")
@@ -1677,6 +3388,9 @@ def api_restore_employee(emp_id: int, db: Session = Depends(get_db), current_use
 
 @app.delete("/api/employees/{emp_id}/permanent")
 def api_permanent_delete_employee(emp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.permanent_delete_employee(db, emp_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Xodim topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
@@ -1687,6 +3401,9 @@ def api_permanent_delete_employee(emp_id: int, db: Session = Depends(get_db), cu
 def api_set_employee_login(emp_id: int, phone: str = Form(...), pin: str = Form(...),
                             db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Admin — xodimga telefon+PIN belgilaydi, shu orqali u o'z paneliga kira oladi."""
+    # M1: xodim FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.employee_of_company(db, emp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     if len(pin.strip()) != 4 or not pin.strip().isdigit():
         raise HTTPException(status_code=400, detail="PIN kod aynan 4 xonali raqam bo'lishi kerak")
     try:
@@ -1712,7 +3429,8 @@ async def hodim_login_page(request: Request, db: Session = Depends(get_db)):
 
 
 @app.post("/hodim/login")
-async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str = Form(...), db: Session = Depends(get_db)):
+async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str = Form(...),
+                              korxona: str = Form(""), db: Session = Depends(get_db)):
     ip = request.client.host if request.client else None
     ua = request.headers.get("user-agent", "")[:250]
 
@@ -1722,7 +3440,17 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
             "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining."
         })
 
-    emp = crud.authenticate_employee(db, phone, pin)
+    # M1 (CRITICAL): korxona kontekstisiz kirishga yo'l yo'q.
+    # Mijoz yuborgan kod QIDIRUV KALITI, unga ishonilmaydi — korxona
+    # bazadan topiladi. Bitta korxonali o'rnatmada kod bo'sh bo'lishi mumkin.
+    _korxona = crud.resolve_company_by_code(db, korxona)
+    if not _korxona:
+        crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
+        return templates.TemplateResponse(request, "hodim_login.html", {
+            "error": "Korxona kodi topilmadi. Kodni administratordan so'rang."
+        })
+
+    emp = crud.authenticate_employee(db, phone, pin, company_id=_korxona.id)
     if not emp:
         crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "hodim_login.html", {"error": "Telefon yoki PIN noto'g'ri!"})
@@ -1778,12 +3506,13 @@ def api_hodim_advance_request(amount: float = Form(...), requested_date: str = F
 
 @app.get("/api/admin/pending-advance-requests")
 def api_pending_advance_requests(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return crud.get_pending_advance_requests(db)
+    return crud.get_pending_advance_requests(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/admin/advance-requests/{request_id}/confirm")
 def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username)
+    result = crud.confirm_advance_request(db, request_id, current_user.full_name or current_user.username,
+                                         company_id=auth.company_id_of(current_user))
     if not result:
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
     return result
@@ -1791,7 +3520,8 @@ def api_confirm_advance_request(request_id: int, db: Session = Depends(get_db), 
 
 @app.post("/api/admin/advance-requests/{request_id}/reject")
 def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    if not crud.reject_advance_request(db, request_id, current_user.full_name or current_user.username):
+    if not crud.reject_advance_request(db, request_id, current_user.full_name or current_user.username,
+                                      company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
     return {"status": "ok"}
 
@@ -1802,7 +3532,8 @@ def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), c
 
 @app.put("/api/masters/{master_id}/kpi")
 def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    m = crud.update_master_kpi(db, master_id, data.kpi_percent)
+    m = crud.update_master_kpi(db, master_id, data.kpi_percent,
+                               company_id=auth.company_id_of(current_user))
     if not m:
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     return {"status": "ok", "kpi_percent": m.kpi_percent}
@@ -1811,7 +3542,7 @@ def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Ses
 @app.get("/api/settings/ehson-percent")
 def api_get_ehson_percent(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Ehson (xayriya) foizini o'qiydi — admin belgilagan, sof foydadan ajratiladigan ulush."""
-    percent = crud.get_setting(db, "ehson_percent", "0")
+    percent = crud.get_setting(db, "ehson_percent", "0", company_id=auth.company_id_of(current_user))
     return {"ehson_percent": float(percent or 0)}
 
 
@@ -1820,7 +3551,7 @@ def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_
     """Ehson foizini belgilaydi — faqat Admin o'zgartira oladi."""
     if percent < 0 or percent > 100:
         raise HTTPException(status_code=400, detail="Foiz 0 dan 100 gacha bo'lishi kerak")
-    crud.set_setting(db, "ehson_percent", str(percent))
+    crud.set_setting(db, "ehson_percent", str(percent), company_id=auth.company_id_of(current_user))
     return {"status": "ok", "ehson_percent": percent}
 
 
@@ -1828,7 +3559,8 @@ def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_
 def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
                             db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     y = year or datetime.now().year
-    return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive)
+    return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive,
+                                      company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/masters/{master_id}/kpi-detail")
@@ -1836,19 +3568,21 @@ def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     from datetime import datetime
     y = year or datetime.now().year
-    return crud.get_master_kpi_detail(db, master_id, y)
+    return crud.get_master_kpi_detail(db, master_id, y,
+                                     company_id=auth.company_id_of(current_user))
 
 
 # ── "Sovg'a davri" (2026-09-12, savdo-summasi asosidagi, davriy) ──────
 @app.get("/api/gift-period")
 def api_get_gift_period(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return crud.get_gift_period_overview(db)
+    return crud.get_gift_period_overview(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/gift-period/open")
 def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
-    result = crud.open_gift_period(db, data.get("tiers") or [], master_ids=data.get("master_ids"), performed_by=who)
+    result = crud.open_gift_period(db, data.get("tiers") or [], master_ids=data.get("master_ids"),
+                                  performed_by=who, company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
@@ -1856,7 +3590,8 @@ def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user
 
 @app.put("/api/gift-period/tier/{tier_id}")
 def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    result = crud.update_gift_period_tier(db, tier_id, data.get("gift_name"), data.get("threshold_amount"))
+    result = crud.update_gift_period_tier(db, tier_id, data.get("gift_name"), data.get("threshold_amount"),
+                                         company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
@@ -1867,7 +3602,8 @@ def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), cur
     """2026-09-16: davrni to'xtatmasdan, yangi/faollashtirilgan ustani
     aniq-ishtirokchi ro'yxatiga qo'shish uchun."""
     who = current_user.full_name or current_user.username
-    result = crud.add_master_to_active_gift_period(db, data.get("master_id"), performed_by=who)
+    result = crud.add_master_to_active_gift_period(db, data.get("master_id"), performed_by=who,
+                                                  company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
@@ -1877,7 +3613,8 @@ def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), cur
 def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
     force = bool((data or {}).get("force"))
-    result = crud.close_gift_period(db, performed_by=who, force=force)
+    result = crud.close_gift_period(db, performed_by=who, force=force,
+                                   company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -1886,7 +3623,8 @@ def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(g
 @app.post("/api/gift-period/redeem/{master_id}/{tier_id}")
 def api_redeem_gift_period_tier(master_id: int, tier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
-    result = crud.redeem_gift_period_tier(db, master_id, tier_id, performed_by=who)
+    result = crud.redeem_gift_period_tier(db, master_id, tier_id, performed_by=who,
+                                         company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
     return result
@@ -1896,7 +3634,7 @@ def api_redeem_gift_period_tier(master_id: int, tier_id: int, db: Session = Depe
 def api_transport_stats(year: Optional[int] = None, month: Optional[int] = None,
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Transport xarajatlari statistikasi (kirish + chiqish)."""
-    return crud.get_transport_stats(db, year=year, month=month)
+    return crud.get_transport_stats(db, year=year, month=month, company_id=auth.company_id_of(current_user))
 
 
 # ============================================================
@@ -1913,26 +3651,43 @@ async def supplier_receive_page(request: Request, db: Session = Depends(get_db),
     """Yetkazib beruvchidan mahsulot kirim qilish — to'liq sahifa ko'rinishi.
     Backend/API o'zgarmagan — xuddi suppliers.html'dagi (sinalgan) xarid
     mexanizmining o'zi, faqat kattaroq, tartibli sahifa dizaynida."""
-    suppliers = crud.get_suppliers(db)
+    suppliers = crud.get_suppliers(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "supplier_receive.html", {
         "current_user": current_user, "active_page": "supplier_receive", "suppliers": suppliers
     })
 
 
 @app.post("/api/suppliers")
-def api_create_supplier(data: schemas.SupplierCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    s = crud.create_supplier(db, data)
+def api_create_supplier(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # M8/F1a: ta'minotchi joriy adminning korxonasiga biriktiriladi.
+    # 15-band: xom JSON qat'iy tekshiriladi (bo'shliqdan iborat nom, uzun
+    # telefon) — 400, hech narsa yozilmaydi.
+    try:
+        sup_data = schemas.SupplierCreate(**crud._clean_create("Supplier", data))
+        s = crud.create_supplier(db, sup_data, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "ok", "id": s.id}
 
 
 @app.get("/api/suppliers")
 def api_get_suppliers(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    return crud.get_suppliers_with_debt(db)
+    return crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/suppliers/{supplier_id}")
-def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    s = crud.update_supplier(db, supplier_id, data)
+def api_update_supplier(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
+    # 14-band: xom JSON qat'iy tekshiriladi (400, hech narsa yozilmaydi).
+    try:
+        toza = crud._clean_update("Supplier", data)
+        s = crud.update_supplier(db, supplier_id, schemas.SupplierUpdate(**toza))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not s:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
@@ -1941,6 +3696,9 @@ def api_update_supplier(supplier_id: int, data: schemas.SupplierUpdate, db: Sess
 @app.delete("/api/suppliers/{supplier_id}")
 def api_delete_supplier(supplier_id: int, force: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Yetkazib beruvchini o'chirish. Qarzi bo'lsa force=true kerak."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     result = crud.delete_supplier(db, supplier_id, force=force)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -1954,23 +3712,52 @@ def api_supplier_history(supplier_id: int, start_date: Optional[str] = None, end
     """Yetkazib beruvchi tarixi. start_date/end_date — YYYY-MM-DD formatida (ixtiyoriy).
     page/page_size — xaridlar ro'yxati sahifalanadi (standart: 20 tadan)."""
     from datetime import datetime as dt
+    from database import TASHKENT_OFFSET
 
-    s = crud.get_supplier(db, supplier_id)
+    s = crud.get_supplier(db, supplier_id, company_id=auth.company_id_of(current_user))
     if not s:
         raise HTTPException(status_code=404, detail="Topilmadi")
 
-    sd = dt.strptime(start_date, "%Y-%m-%d") if start_date else None
-    ed = dt.strptime(end_date, "%Y-%m-%d") if end_date else None
+    # 2026-09-17 (audit topilmasi): foydalanuvchi kiritgan sana — Toshkent
+    # taqvimi bo'yicha ("bugun 2026-09-01" deganda, u albatta Toshkent
+    # kunini nazarda tutadi). Bazadagi vaqtlar esa UTC'da saqlanadi,
+    # shuning uchun solishtirishdan oldin -5 soat siljitiladi.
+    sd = (dt.strptime(start_date, "%Y-%m-%d") - TASHKENT_OFFSET) if start_date else None
+    ed = (dt.strptime(end_date, "%Y-%m-%d") - TASHKENT_OFFSET) if end_date else None
 
     history = crud.get_supplier_history(db, supplier_id, start_date=sd, end_date=ed,
-                                         page=page, page_size=page_size)
+                                         page=page, page_size=page_size,
+                                         company_id=auth.company_id_of(current_user))
     return {"name": s.name, "phone": s.phone, **history}
 
 
 @app.put("/api/inventory/purchases/{purchase_id}")
-def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    """Xarid yozuvini tahrirlash — ombordagi joriy miqdor/narxga ta'sir qilmaydi."""
-    updated = crud.update_purchase(db, purchase_id, data.model_dump(exclude_unset=True))
+def api_update_purchase(purchase_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """Xarid yozuvini tahrirlash.
+
+    21-band (2026-09-21): MIQDOR o'zgartirilsa — farqi OMBORGA ham
+    qo'llanadi (jurnal yozuvi bilan). Ilgari ombor tegilmasdi, lekin
+    `delete_purchase` joriy miqdorni ayirardi — natijada tahrir + o'chirish
+    ketma-ketligi ombordan yo'qdan miqdor yaratardi/yo'qotardi. Narx
+    tahriri esa avvalgidek faqat tarix va qarz hisobiga ta'sir qiladi.
+
+    Tana `schemas.PurchaseUpdate` (pydantic) o'rniga XOM `dict` sifatida
+    qabul qilinadi va `crud._clean_xarid_tahrir` bilan QAT'IY tekshiriladi
+    (14/15/17a/19-band naqshi). Sabab O'LCHANGAN: pydantic "lax" rejimda
+    `{"quantity": true}` ni jimgina `1.0` ga o'girardi va marshrut 200
+    qaytarardi — ombor 1 ga tushib qolardi. `schemas.PurchaseUpdate`
+    o'chirilmadi (boshqa joyda ishlatilmasa ham, zarari yo'q)."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    # Tana tekshiruvidan OLDIN — begona/yo'q id uchun oracle bo'lmasin.
+    if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xarid topilmadi")
+    try:
+        updated = crud.update_purchase(db, purchase_id, data, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        # 21-band: ildiz qat'iy tekshiruvi (noma'lum maydon, cheksizlik,
+        # bool, sig'im, izoh turi). Hech narsa yozilmagan bo'ladi.
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "total_amount": float(updated.total_amount)}
@@ -1979,30 +3766,49 @@ def api_update_purchase(purchase_id: int, data: schemas.PurchaseUpdate, db: Sess
 @app.delete("/api/inventory/purchases/{purchase_id}")
 def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xarid yozuvini o'chirish — ham OMBORdan miqdorni qaytaradi, ham pul oqimidan olib tashlaydi (to'liq bekor qilish)."""
-    if not crud.delete_purchase(db, purchase_id):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.purchase_of_company(db, purchase_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xarid topilmadi")
+    if not crud.delete_purchase(db, purchase_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
 
 @app.post("/api/suppliers/{supplier_id}/payment")
-def api_supplier_payment(supplier_id: int, data: schemas.SupplierPaymentCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def api_supplier_payment(supplier_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    # Egalik tekshiruvi TANA tekshiruvidan OLDIN — begona id uchun oracle yo'q.
+    if not auth.supplier_of_company(db, supplier_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Ta'minotchi topilmadi")
     who = current_user.full_name or current_user.username
-    data.supplier_id = supplier_id
+    # 17c (2026-09-21): xom JSON QAT'IY tekshiriladi (`crud._clean_val`).
+    # pydantic `true` ni 1 so'mga, `"5000"` ni 5000 ga JIMGINA o'girardi,
+    # `Infinity` ni esa o'tkazib yuborardi (O'LCHANGAN). `detail` — MATN:
+    # `suppliers.html` uni `serverSababi()` orqali ko'rsatadi.
     try:
-        p = crud.create_supplier_payment(db, data, paid_by=who)
+        toza = crud._clean_val("SupplierPayment", data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    toza["supplier_id"] = supplier_id
+    data = schemas.SupplierPaymentCreate(**toza)
+    try:
+        p = crud.create_supplier_payment(db, data, paid_by=who, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     except crud.OverpaymentWarning as w:
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
             "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
             "amount": w.amount, "debt": w.debt, "excess": w.excess
         })
-    debt_info = crud.get_supplier_debt(db, supplier_id)
+    debt_info = crud.get_supplier_debt(db, supplier_id, company_id=auth.company_id_of(current_user))
     return {"status": "ok", "payment_id": p.id, **debt_info}
 
 
 @app.delete("/api/suppliers/payments/{payment_id}")
 def api_delete_supplier_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    if not crud.delete_supplier_payment(db, payment_id):
+    if not crud.delete_supplier_payment(db, payment_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
@@ -2010,7 +3816,7 @@ def api_delete_supplier_payment(payment_id: int, db: Session = Depends(get_db), 
 @app.get("/api/suppliers/debt-total")
 def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Barcha yetkazib beruvchilarga jami qarz — dashboard uchun."""
-    suppliers = crud.get_suppliers_with_debt(db)
+    suppliers = crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user))
     total = sum(s["debt"] for s in suppliers)
     return {"total_debt": total, "supplier_count": sum(1 for s in suppliers if s["debt"] > 0)}
 
@@ -2018,29 +3824,49 @@ def api_suppliers_debt_total(db: Session = Depends(get_db), current_user=Depends
 @app.get("/api/suppliers/due-dates")
 def api_suppliers_due_dates(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Qarz to'lash muddatlari — Dashboard ogohlantirishi uchun."""
-    return crud.get_supplier_payment_due_dates(db)
+    return crud.get_supplier_payment_due_dates(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/suppliers/{supplier_id}/purchased-items")
 def api_supplier_purchased_items(supplier_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Shu yetkazib beruvchidan ilgari xarid qilingan materiallar — Kirim sahifasida qulaylik uchun."""
-    return crud.get_supplier_purchased_items(db, supplier_id)
+    return crud.get_supplier_purchased_items(db, supplier_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/inventory/purchase-trend")
 def api_purchase_trend(months: int = 6, db: Session = Depends(get_db), current_user=Depends(auth.inventory_view)):
     """Oxirgi N oy xarid tendensiyasi."""
-    return crud.get_purchase_stats_range(db, months=months)
+    return crud.get_purchase_stats_range(db, months=months, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/inventory/{item_id}/price")
 def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     item = db.query(crud.Inventory).filter(crud.Inventory.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Topilmadi")
-    item.price_per_unit = data.get("price_per_unit", 0)
-    if "volume_per_unit" in data:
-        item.volume_per_unit = data.get("volume_per_unit")
+    # 2026-09-21 — O'LCHANGAN: tanada `price_per_unit` bo'lmasa narx JIMGINA
+    # 0 ga tushardi (`{}` yoki faqat `volume_per_unit` → 0.00); manfiy narx
+    # (UI dagi oyna ham "-5000" ni o'tkazardi) saqlanardi; matn → 500;
+    # juda katta son PostgreSQL da Numeric(12,2) sig'imidan oshib 500.
+    # Endi hammasi yozishdan OLDIN tekshiriladi → 400.
+    if "price_per_unit" not in data:
+        raise HTTPException(status_code=400, detail="Narx (price_per_unit) berilmagan")
+    try:
+        narx = crud._json_son("price_per_unit", data.get("price_per_unit"),
+                              bosh_mumkin=False, musbat=False,
+                              chegara=crud._ORDER_ITEM_MAX_MONEY)
+        hajm = None
+        if "volume_per_unit" in data:
+            hajm = crud._json_son("volume_per_unit", data.get("volume_per_unit"),
+                                  bosh_mumkin=False, musbat=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    item.price_per_unit = narx
+    if hajm is not None:
+        item.volume_per_unit = hajm
     db.commit()
     return {"status": "ok", "price_per_unit": item.price_per_unit}
 
@@ -2049,13 +3875,21 @@ def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), cu
 def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Xomashyoning 'kam qoldi' ogohlantirishi ishga tushadigan chegarasini
     (min_stock) o'zgartiradi — admin/ombor xodimi o'zi belgilaydi."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
     item = db.query(crud.Inventory).filter(crud.Inventory.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Topilmadi")
-    min_stock = data.get("min_stock")
-    if min_stock is None or float(min_stock) < 0:
+    # 2026-09-21 — O'LCHANGAN: matn → 500 (`float("abc")`), `true` → 1.0
+    # jimgina saqlanardi. Endi faqat haqiqiy, manfiy bo'lmagan son → aks
+    # holda 400.
+    try:
+        min_stock = crud._json_son("min_stock", data.get("min_stock"),
+                                   bosh_mumkin=False, musbat=False)
+    except ValueError:
         raise HTTPException(status_code=400, detail="Noto'g'ri qiymat")
-    item.min_stock = float(min_stock)
+    item.min_stock = min_stock
     db.commit()
     return {"status": "ok", "min_stock": item.min_stock}
 
@@ -2063,7 +3897,13 @@ def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db)
 @app.post("/api/inventory/full-stock-report")
 def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     from models import Inventory as Inv
-    items = db.query(Inv).order_by(Inv.item_name).all()
+    # M3: SMS hisoboti FAQAT joriy korxonaning materiallari bo'yicha.
+    # kech34 (K34-1): yashirilgan (o'chirilgan) materiallar hisobotga va
+    # "(N ta xomashyo)" soniga kirmaydi — Omborxona ro'yxati bilan bir xil.
+    items = db.query(Inv).filter(
+        Inv.company_id == auth.company_id_of(current_user),
+        Inv.is_deleted.isnot(True)
+    ).order_by(Inv.item_name).all()
     if not items:
         return {"message": "Omborxona bo'sh!"}
     yetarli = []
@@ -2071,7 +3911,12 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
     for item in items:
         qty = float(item.stock_quantity)
         min_q = float(item.min_stock or 0)
-        if min_q > 0 and qty <= min_q:
+        # kech37 (21-band, foydalanuvchi qarori: "Ortgan loy uchun chegara shart
+        # emas"): "Tayyor loy (...)" zaxirasi hisobotda doim "YETARLI" bo'limida —
+        # unga min > 0 qo'yilgan bo'lsa ham "KAM QOLGANLAR" ga tushmaydi
+        # (`services.TAYYOR_LOY_PREFIKS`, `crud.get_low_stock_items` bilan bir xil).
+        _tayyor_loy = str(item.item_name or "").startswith(services.TAYYOR_LOY_PREFIKS)
+        if min_q > 0 and qty <= min_q and not _tayyor_loy:
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             kam.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit}")
         else:
@@ -2081,14 +3926,14 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
     if kam:
         msg += f"━━━ KAM QOLGANLAR ({len(kam)} ta) ━━━\n" + "\n".join(kam) + "\n\n"
     msg += f"━━━ YETARLI ({len(yetarli)} ta) ━━━\n" + "\n".join(yetarli)
-    msg += f"\n\n🏗 *PenoDecorPro* — Andijon"
-    _send_telegram(msg)
+    msg += f"\n\n" + _tg_footer(db, auth.company_id_of(current_user))
+    _send_telegram(msg, company_id=auth.company_id_of(current_user))
     return {"message": f"Ombor hisoboti yuborildi! ({len(items)} ta xomashyo)"}
 
 
 @app.post("/api/inventory/low-stock-alert")
 def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    low_items = crud.get_low_stock_items(db)
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if not low_items:
         return {"sent": False, "message": "Barcha xomashyolar yetarli — SMS yuborilmadi!"}
     lines = []
@@ -2098,8 +3943,8 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
         deficit = min_q - qty
         emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
         lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
-    msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
-    _send_telegram(msg)
+    msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
+    _send_telegram(msg, company_id=auth.company_id_of(current_user))
     return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida SMS yuborildi!"}
 
 
@@ -2118,19 +3963,51 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail="CRON_SECRET Railway'da o'rnatilmagan")
     if secret != CRON_SECRET:
         raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
-    low_items = crud.get_low_stock_items(db)
-    if not low_items:
+    # 2026-09-19 — Faza 3: ilgari bu so'rov KORXONA FILTRISIZ edi, ya'ni
+    # bitta ogohlantirish xabarida BARCHA korxonalarning materiallari
+    # aralashib ketardi. Endi har bir korxona alohida ko'rib chiqiladi.
+    # (Hozircha yagona Telegram manzili bor, shuning uchun xabarga korxona
+    # nomi qo'shiladi; har korxonaga alohida manzil — Telegram arxitekturasi
+    # qaroridan keyin.)
+    from production_models import Company as _Co
+    _companies = [c.id for c in db.query(_Co).all()] or [None]
+    _all_lines, _sent_any = [], False
+    _per_company = {}
+    for _cid in _companies:
+        low_items = crud.get_low_stock_items(db, company_id=_cid)
+        if not low_items:
+            continue
+        _sent_any = True
+        _cname = None
+        try:
+            _cname = db.query(_Co).filter(_Co.id == _cid).first().name
+        except Exception:
+            pass
+        _per_company.setdefault(_cid, [])
+        if len(_companies) > 1 and _cname:
+            _all_lines.append(f"\n🏢 *{_cname}*")
+        for item in low_items:
+            qty = float(item.stock_quantity)
+            min_q = float(item.min_stock)
+            deficit = min_q - qty
+            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
+            _satr = (f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi "
+                     f"(min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
+            _all_lines.append(_satr)
+            _per_company[_cid].append(_satr)
+    if not _sent_any:
         return {"sent": False, "message": "Barcha xomashyolar yetarli"}
-    lines = []
-    for item in low_items:
-        qty = float(item.stock_quantity)
-        min_q = float(item.min_stock)
-        deficit = min_q - qty
-        emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-        lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
-    msg = f"⚠️ *Kunlik ombor ogohlantirishi!*\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
-    _send_telegram(msg)
-    return {"sent": True, "message": f"{len(low_items)} ta kam qolgan xomashyo haqida xabar yuborildi"}
+    # Faza 3 (2-qadam): har korxonaga O'Z boti/chat manzili orqali alohida
+    # xabar yuboriladi — korxonalar bir-birining ombor holatini ko'rmaydi.
+    for _cid2, _lines2 in _per_company.items():
+        if not _lines2:
+            continue
+        _msg2 = ("⚠️ *Kunlik ombor ogohlantirishi!*\n\n━━━━━━━━━━━━━━━━━━━\n"
+                 + "\n".join(_lines2)
+                 + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨")
+        _send_telegram(_msg2, company_id=_cid2)
+    return {"sent": True, "companies": len(_per_company),
+            "items": sum(len(v) for v in _per_company.values())}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2192,20 +4069,45 @@ def api_find_chat_id(secret: str = ""):
 
 @app.delete("/api/inventory/{item_id}")
 def api_delete_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    result = crud.delete_item(db, item_id)
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
+    # kech37 (18-band): asosiy penoplastni (boshqa penoplast bor bo'lsa) o'chirish — 400
+    try:
+        result = crud.delete_item(db, item_id)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
     return {"status": "ok", "soft": result["soft"], "message": result["message"]}
 
 
 @app.post("/api/recipes", response_model=schemas.RecipeRead)
-def api_create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    return crud.create_recipe(db, recipe)
+def api_create_recipe(recipe: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """17b (2026-09-21): tana QAT'IY tekshiriladi. O'LCHANGAN kamchiliklar —
+    nom `"   "` (BO'SH nomli retsept saqlanardi), `batch_size_kg: Infinity`,
+    `batch_size_kg`/`quantity_kg` `1e20`, tarkibsiz retsept, bir material
+    IKKI marta (ombordan ikki baravar yechilardi) va noma'lum maydonlar —
+    hammasi 200 qaytarardi."""
+    recipe = _tana_400("RecipeBody", recipe, schemas.RecipeCreate)
+    # M8/F1a: retsept joriy adminning korxonasiga biriktiriladi.
+    return crud.create_recipe(db, recipe, company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/recipes/{recipe_id}", response_model=schemas.RecipeRead)
-def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    recipe = crud.update_recipe(db, recipe_id, data)
+def api_update_recipe(recipe_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """17b: tahrir tanasi ham AYNAN shu qoidalar bilan tekshiriladi.
+    ⚠ Eng muhimi — `ingredients: []` bilan PUT yuborilsa retsept TARKIBI
+    BUTUNLAY o'chib ketardi (o'lchandi: 200 va ingredientlar 1 → 0).
+    Endi kamida 1 ta tarkibiy qism talab qilinadi (UI ham shunday)."""
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404) —
+    # TANA tekshiruvidan OLDIN (oracle yo'q).
+    if not auth.recipe_of_company(db, recipe_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Retsept topilmadi")
+    data = _tana_400("RecipeBody", data, schemas.RecipeCreate)
+    recipe = crud.update_recipe(db, recipe_id, data,
+                                company_id=auth.company_id_of(current_user))
     if not recipe:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
     return recipe
@@ -2214,6 +4116,9 @@ def api_update_recipe(recipe_id: int, data: schemas.RecipeCreate, db: Session = 
 @app.post("/api/recipes/{recipe_id}/image")
 def api_upload_recipe_image(recipe_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                              current_user=Depends(auth.admin_or_warehouse)):
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.recipe_of_company(db, recipe_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Retsept topilmadi")
     from models import Recipe
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
     if not recipe:
@@ -2227,7 +4132,10 @@ def api_upload_recipe_image(recipe_id: int, file: UploadFile = File(...), db: Se
 @app.delete("/api/recipes/{recipe_id}")
 def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     from models import Recipe
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    # M3: retsept FAQAT joriy korxonadan (aks holda 404).
+    recipe = db.query(Recipe).filter(
+        Recipe.id == recipe_id,
+        Recipe.company_id == auth.company_id_of(current_user)).first()
     if not recipe:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
     db.delete(recipe)
@@ -2237,22 +4145,41 @@ def api_delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_use
 
 @app.get("/api/recipes", response_model=List[schemas.RecipeRead])
 def api_get_recipes(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
-    return crud.get_recipes(db)
+    return crud.get_recipes(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/projects", response_model=schemas.ProjectRead)
-def api_create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.create_project(db, project)
+def api_create_project(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # M8/F1a: loyiha joriy adminning korxonasiga biriktiriladi.
+    # 15-band: xom JSON qat'iy tekshiriladi (manfiy / juda katta byudjet,
+    # NaN, Infinity, `total_paid` / `status` qo'lda) — 400; formadagi
+    # "Muddati" (`deadline`) endi saqlanadi.
+    try:
+        project = schemas.ProjectCreate(**crud._clean_create("Project", data))
+        return crud.create_project(db, project, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/projects", response_model=List[schemas.ProjectRead])
 def api_get_projects(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.get_projects(db)
+    return crud.get_projects(db, company_id=auth.company_id_of(current_user))
 
 
 @app.put("/api/projects/{project_id}", response_model=schemas.ProjectRead)
-def api_update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    updated = crud.update_project(db, project_id, project)
+def api_update_project(project_id: int, project: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    # 14-band: xom JSON qat'iy tekshiriladi; `total_paid` to'lovlardan
+    # hisoblanadi, noma'lum `status` rad etiladi (400, hech narsa yozilmaydi).
+    try:
+        toza = crud._clean_update("Project", project)
+        updated = crud.update_project(db, project_id, schemas.ProjectUpdate(**toza))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     return updated
@@ -2260,6 +4187,9 @@ def api_update_project(project_id: int, project: schemas.ProjectUpdate, db: Sess
 
 @app.delete("/api/projects/{project_id}")
 def api_delete_project(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
     if not crud.delete_project(db, project_id, performed_by=who):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -2267,35 +4197,65 @@ def api_delete_project(project_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.post("/api/orders/coating-notify-new")
-def api_coating_notify_with_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    pass
+def api_coating_notify_with_loy(current_user=Depends(auth.admin_or_manager)):
+    """17d (2026-09-21): ESKIRGAN. Tanasi faqat `pass` edi — har qanday
+    so'rovga (hatto `loy_kg=inf`) 200 `null` qaytarib, hech narsa qilmasdi.
+    Hech bir sahifa chaqirmaydi; ishlaydigan yo'l —
+    `POST /api/orders/{id}/coating-notify`. Endi aniq 410."""
+    raise HTTPException(status_code=410,
+                        detail="Bu yo'l eskirgan — /api/orders/{id}/coating-notify dan foydalaning")
 
 
 @app.post("/api/orders", response_model=schemas.OrderRead)
-def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
+def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
                       confirm_shortage: bool = False,
                       db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    check = services.check_inventory_for_order(db, order)
-    tcheck = services.check_termopanel_for_order(db, order)
-    fcheck = crud.check_finished_for_order(db, order.items)
-    lcheck = services.check_loy_ingredients_for_order(db, order.recipe_id, loy_kg or 0)
-    gcheck = services.check_gips_for_order(db, order)
+    # 2026-09-21 — TENANT (11-sizish): loyiha FAQAT joriy korxonadan.
+    # Buyurtmaning korxonasi loyihadan olinadi — begona loyiha = begona
+    # korxonada buyurtma va begona ombordan chiqim. Eng birinchi qator:
+    # yetishmovchilik tekshiruvlari ham begona loyiha uchun ishlamasin.
+    if not auth.project_of_company(db, order.project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    # 17d (2026-09-21): loy miqdori QAT'IY (egalikdan KEYIN, hech narsadan
+    # OLDIN). O'LCHANGAN ikki muammo:
+    #   1) so'rov qatoridagi `loy_kg` (`inf`, `-5`, `1_0`) tekshiruvsiz;
+    #   2) yetishmovchilik tekshiruvi FAQAT so'rov qatoridagi `loy_kg` ni
+    #      ko'rardi, saqlanadigan reja esa TANADAGI `loy_kg` dan olinadi —
+    #      `orders.html` faqat tanaga yuboradi, shuning uchun loy
+    #      yetishmovchiligi ogohlantirishi UI da HECH QACHON chiqmasdi.
+    # Endi: bitta "samarali" reja — tana, u bo'lmasa so'rov qatori — ham
+    # tekshiruvga, ham saqlashga ketadi.
+    try:
+        _loy_q = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
+        crud._json_loy("loy_kg", order.loy_kg)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if order.loy_kg is None and _loy_q is not None:
+        order.loy_kg = _loy_q
+    loy_kg = order.loy_kg
+    check = services.check_inventory_for_order(db, order, company_id=auth.company_id_of(current_user))
+    # M4: tayyor mahsulot yetarliligi FAQAT joriy korxona ombori bo'yicha.
+    fcheck = crud.check_finished_for_order(db, order.items,
+                                           company_id=auth.company_id_of(current_user))
+    # 2026-09-21 — TENANT: loy yetishmovchiligi ham FAQAT joriy korxona
+    # retsepti/ombori bo'yicha tekshiriladi.
+    lcheck = services.check_loy_ingredients_for_order(
+        db, order.recipe_id, loy_kg or 0,
+        company_id=auth.company_id_of(current_user))
 
-    all_shortages = (list(check.get("shortages", [])) + list(tcheck.get("shortages", []))
-                      + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", []))
-                      + list(gcheck.get("shortages", [])))
+    all_shortages = (list(check.get("shortages", []))
+                      + list(fcheck.get("shortages", [])) + list(lcheck.get("shortages", [])))
     if all_shortages and not confirm_shortage:
         raise HTTPException(status_code=409, detail={
             "type": "stock_shortage_warning",
             "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
             "shortages": all_shortages
         })
-    new_order = crud.create_order(db, order)
+    new_order = crud.create_order(db, order, company_id=auth.company_id_of(current_user))
     is_draft = getattr(order, 'is_draft', False)
     if not is_draft:
         services.deduct_inventory_for_order(db, new_order)
-        services.deduct_termopanel_for_order(db, new_order, order)
-    low_items = crud.get_low_stock_items(db) if not is_draft else []
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user)) if not is_draft else []
     if low_items:
         lines = []
         for item in low_items:
@@ -2304,14 +4264,15 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[float] = None,
             deficit = min_q - qty
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
-        msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n*{new_order.order_number}* buyurtmadan keyin:\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon"
-        _send_telegram(msg)
+        msg = f"⚠️ *Ombor ogohlantirishlari!*\n\n*{new_order.order_number}* buyurtmadan keyin:\n\n━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines) + f"\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user))
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
     return new_order
 
 
 @app.get("/api/orders", response_model=List[schemas.OrderRead])
 def api_get_orders(project_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return crud.get_orders(db, project_id=project_id)
+    return crud.get_orders(db, project_id=project_id,
+                           company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/orders/pinned")
@@ -2320,15 +4281,18 @@ def api_get_pinned_orders(db: Session = Depends(get_db), current_user=Depends(au
     # (dinamik) marshrutdan OLDIN turishi SHART — aks holda FastAPI
     # "pinned" so'zini order_id sifatida ushlab, xato qaytaradi (2026-09-13
     # da aynan shu xato topilib, shu yerga ko'chirilgan edi).
-    return crud.get_pinned_orders(db)
+    return crud.get_pinned_orders(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/orders/{order_id}")
 def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
+    # kech42 (4-band): qaytarish narxi koeffitsienti — bir marta (har detalga so'rov emas)
+    _qkoef = crud.qaytarish_narx_koeffitsienti(db, order)
+    _qkam = crud.pul_qaytarish_kamaytirgan(db, order)
     return {
         "id": order.id,
         "order_number": order.order_number,
@@ -2336,7 +4300,12 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "order_type": order.order_type.value if order.order_type else None,
         "status": order.status.value if order.status else None,
         "total_amount": float(order.total_amount or 0),
-        "agreed_amount": float(order.agreed_amount or order.total_amount or 0),
+        "agreed_amount": order.kelishilgan_summa,
+        # 28-band (kech43): pul qaytarishlar kelishilgan summani qanchaga kamaytirgani va
+        # ASL (qaytarishdan oldingi) kelishilgan summa — tahrir formasi ASL summani ko'rsatadi,
+        # `PUT /api/orders/{id}` uni oladi va kamaytirishni o'zi QAYTA ayiradi.
+        "pul_qaytarish_kamaytirgan": _qkam,
+        "kelishilgan_asl": round(order.kelishilgan_summa + _qkam, 2),
         "discount_percent": order.discount_percent or 0,
         "payment_status": order.payment_status.value if order.payment_status else "unpaid",
         "paid_amount": order.paid_amount,
@@ -2352,6 +4321,9 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "deadline": order.deadline.isoformat() if order.deadline else None,
         "base_price": float(order.base_price) if order.base_price is not None else None,
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
+        # 2026-09-17: Milestone 4 — Production/MRP tayyorlik ko'rsatkichi
+        # (Order.status'ga umuman tegishli emas — faqat ko'rsatish uchun).
+        "mrp_readiness": production_service.get_order_mrp_readiness(db, order.id),
         "notes": order.notes,
         "items": [{
             "id": i.id,
@@ -2368,12 +4340,15 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "penoplast_name": i.penoplast.item_name if i.penoplast else None,
             "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
             "notes": i.notes,
-            "gips_unit": getattr(i, 'gips_unit', None),
             "recipe_id": i.recipe_id,
             "finished_product_id": i.finished_product_id,
+            "product_type_id": getattr(i, 'product_type_id', None),
             "order_qty_normalized": i.order_qty_normalized,
             "delivery_unit": i.delivery_unit,
             "price_per_unit_final": round(float(i.total_price or 0) / i.order_qty_normalized) if i.order_qty_normalized else 0,
+            # kech42 (4-band): qaytarish 1 birlik narxi — KELISHILGAN narx bo'yicha
+            # (`returns.html` shuni oladi; server avto-summasi bilan bir xil).
+            "refund_price_per_unit": crud.qaytarish_birlik_narxi(db, order, i, koef=_qkoef),
             "cost_price_per_unit": services.get_order_item_unit_cost(db, order, i),
             "cost_price_per_unit_no_coating": services.get_order_item_unit_cost(db, order, i, include_coating=False),
             # MUHIM: Ichki qo'shimcha detallar — bu yerga QO'SHILMASA, bu
@@ -2406,24 +4381,26 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "paid_at": p.paid_at.isoformat() if p.paid_at else None,
             "received_by": p.received_by,
             "notes": p.notes
-        } for p in order.payments],
-        "planned_gips_kg": order.planned_gips_kg,
-        "actual_gips_kg": order.actual_gips_kg,
-        "gips_inventory_id": order.gips_inventory_id,
-        "gips_additives": [{
-            "id": a.id,
-            "inventory_id": a.inventory_id,
-            "planned_qty": float(a.planned_qty or 0),
-            "actual_qty": float(a.actual_qty) if a.actual_qty is not None else None
-        } for a in order.gips_additives]
+        } for p in order.payments]
     }
 
 
 @app.put("/api/orders/{order_id}")
-def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional[float] = None,
+def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional[str] = None,
                      confirm_shortage: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani tahrirlash — ombor faqat FARQ bo'yicha to'g'rilanadi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # 17d (2026-09-21): loy rejasi DETALLAR saqlanishidan OLDIN tekshiriladi.
+    # O'LCHANGAN: `nan` → detallar allaqachon saqlanib, keyin 500 (yarim
+    # yozuv); `inf` → qoldiq −∞; manfiy → ortiqcha qaytarish. `detail`
+    # obyekt — UI tahrir oynasi `detail.message` ni ko'rsatadi.
+    try:
+        loy_kg = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage)
     if not result["success"]:
         # Xomashyo yetishmovchiligi — 409 (create bilan bir xil), frontend
@@ -2444,7 +4421,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
         }
 
     # Ombor ogohlantirishlari
-    low_items = crud.get_low_stock_items(db)
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if low_items:
         lines = []
         for item in low_items:
@@ -2452,51 +4429,72 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
             min_q = float(item.min_stock)
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
-        ord_obj = crud.get_order(db, order_id)
+        ord_obj = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
         msg = (f"⚠️ *Ombor ogohlantirishlari!*\n\n*{ord_obj.order_number}* tahrirlangandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
-               + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n🏗 *PenoDecorPro* — Andijon")
-        _send_telegram(msg)
+               + "\n━━━━━━━━━━━━━━━━━━━\n\nZudlik bilan buyurtma bering! 🚨\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return result
-
-
-@app.post("/api/orders/{order_id}/termopanel-loy")
-def api_complete_termopanel_loy(order_id: int, actual_loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Termopanel buyurtmasi yakunlanganda — reja/haqiqiy loy farqini to'g'irlaydi."""
-    result = crud.complete_termopanel_loy(db, order_id, actual_loy_kg)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
-    return result
-
-
 @app.put("/api/orders/{order_id}/loy")
-def api_update_loy(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_loy(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Loy rejasini o'zgartirish."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # 17d (2026-09-21): `loy_kg` MATN sifatida olinadi va ildizda
+    # (`crud.update_order_loy` → `_query_loy`) QAT'IY o'qiladi — majburiy,
+    # manfiy emas, chekli. Xato → 400, ombor O'ZGARMAYDI.
     result = crud.update_order_loy(db, order_id, loy_kg)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
 
 
-def _send_telegram_to_qoplamachi(text: str):
+def _send_telegram_to_qoplamachi(text: str, company_id=None):
     """Qoplamachining o'z shaxsiy chatiga xabar yuboradi — QOPLAMACHI_TELEGRAM_CHAT_ID
     Railway env varida sozlanadi (bir nechta bo'lsa, vergul bilan ajratiladi).
     Eski, buzilgan TELEGRAM_COATING_ID'dan farqli — bu yangi, ishlaydigan sozlama
     (2026-09-06, faqat 'necha kg loy tayyorlash kerak' xabari uchun qo'shildi)."""
-    raw = os.environ.get("QOPLAMACHI_TELEGRAM_CHAT_ID", "").strip()
+    # Faza 3 (2-qadam): avval korxonaning o'z sozlamasi, bo'lmasa muhit
+    # o'zgaruvchisi — FAQAT 1-korxona uchun.
+    # 2026-09-21 (9-sizish): ilgari korxona yangi ochilgan sessiyadan
+    # (`tenant_context.get_current_company`) o'qilardi — u doim bo'sh, shuning
+    # uchun B ning qoplama topshirig'i (mijoz, loy kg) 1-korxonaning
+    # qoplamachisiga ketardi. Endi korxona chaqiruvchidan aniq keladi.
+    raw = ""
+    if company_id is not None:
+        try:
+            from database import SessionLocal as _SL
+            _d = _SL()
+            try:
+                raw = (crud.get_setting(_d, "telegram_qoplamachi_chat_id", "",
+                                        company_id=company_id) or "").strip()
+            finally:
+                _d.close()
+        except Exception:
+            raw = ""
+    if not raw and (company_id is None or company_id == auth.DEFAULT_COMPANY_ID):
+        raw = os.environ.get("QOPLAMACHI_TELEGRAM_CHAT_ID", "").strip()
     if not raw:
         return
     for chat_id in [c.strip() for c in raw.split(",") if c.strip()]:
-        _send_telegram_to(chat_id, text)
+        _send_telegram_to(chat_id, text, company_id=company_id)
 
 
 @app.post("/api/orders/{order_id}/coating-notify")
-def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Rejalashtirilgan loy: xomashyoni ayiradi + qoplamachiga xabar."""
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # 17d (2026-09-21): O'LCHANGAN — `inf` reja sifatida SAQLANIB, buyurtma
+    # kartasi 500; `1e20` saqlanardi; `nan`/manfiy jimgina 200. Endi
+    # majburiy, manfiy emas, chekli; 0 — hech narsa qilinmaydi (avvalgidek).
+    try:
+        loy_kg = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=False)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     inventory_log = []
 
@@ -2514,14 +4512,14 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
         # `create_order`/`update_order` da bir marta ayiriladi.
         if order.status != OrderStatus.DRAFT:
             msg = (
-                f"🏗 *PenoDecorPro — Yangi buyurtma*\n\n"
+                _tg_title(db, auth.company_id_of(current_user), "Yangi buyurtma") + "\n\n"
                 f"📋 Buyurtma: *{order.order_number}*\n"
                 f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
                 f"🧱 Loy tayyorlang: *{int(loy_kg)} kg*\n\n"
                 f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
-            _send_telegram(msg)
-            _send_telegram_to_qoplamachi(msg)
+            _send_telegram(msg, company_id=auth.company_id_of(current_user))
+            _send_telegram_to_qoplamachi(msg, company_id=auth.company_id_of(current_user))
 
     # "Loy sotish" turidagi detallar — MUHIM: bu yerda ENDI ayirilmaydi!
     # Sababi: create_order() (buyurtma yaratilganda) — bu ishni ALLAQACHON
@@ -2532,26 +4530,40 @@ def api_coating_notify(order_id: int, loy_kg: float, db: Session = Depends(get_d
 
 
 @app.post("/api/orders/{order_id}/ready")
-def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg: Optional[float] = None,
-                          gisht_dona: Optional[float] = None,
-                          gips_additives_actual: Optional[List[schemas.GipsAdditiveActual]] = Body(default=None),
+def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                           db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    additives_list = [a.dict() for a in gips_additives_actual] if gips_additives_actual else None
-    result = services.complete_order(db, order_id, loy_kg, gips_kg=gips_kg,
-                                      gips_additives_actual=additives_list, gisht_dona=gisht_dona)
+    # ⚠ 2026-09-21, IDOR testi bilan topildi (tools/test_idor.py):
+    # M2 qo'riqchisi TUSHIB QOLGAN edi. Pastdagi `crud.get_order(...)`
+    # korxona bo'yicha cheklangan, LEKIN u faqat Telegram xabari uchun —
+    # zarar undan OLDIN, `services.complete_order` da yetkaziladi.
+    # O'lchangan: B korxona admini A ning buyurtmasini `in_progress` dan
+    # `ready` ga o'tkazdi va A da avtomatik yetkazish yozuvi yaratildi
+    # (xomashyo hisobi va usta KPI si ham shu zanjirda).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # 17d (2026-09-21): haqiqiy loy QAT'IY — ixtiyoriy (bo'sh = reja
+    # bo'yicha), manfiy emas, chekli. O'LCHANGAN: `inf` → javob 500, LEKIN
+    # buyurtma "Tayyor" bo'lib qoldiq −∞ saqlanardi. `detail` obyekt — UI
+    # "Tayyor" oynasi `detail.message` ni ko'rsatadi. Ildiz
+    # (`services.complete_order`) ham shu qoidani tekshiradi.
+    try:
+        loy_kg = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
+    result = services.complete_order(db, order_id, loy_kg)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if order:
         if loy_kg and loy_kg > 0:
             msg = (
-                f"🏗 *PenoDecorPro — Buyurtma tayyor*\n\n"
+                _tg_title(db, auth.company_id_of(current_user), "Buyurtma tayyor") + "\n\n"
                 f"📋 Buyurtma: *{order.order_number}*\n"
                 f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
                 f"🧱 Ishlatilgan loy: *{int(loy_kg)} kg*\n\n"
                 f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
-            _send_telegram(msg)
+            _send_telegram(msg, company_id=auth.company_id_of(current_user))
         if order.project and order.project.notes:
             notes = order.project.notes or ''
             tg_id = None
@@ -2575,7 +4587,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
                         f"✅ *Buyurtmangiz to'liq yakunlandi!*\n\n"
                         f"📋 Buyurtma: *{order.order_number}*\n"
                         f"👤 Mijoz: {order.project.client_name}\n"
-                        f"🏗 PenoDecorPro — Andijon\n\n"
+                        f"{_tg_footer(db, auth.company_id_of(current_user), bold=False)}\n\n"
                         f"Barcha mahsulot to'liq topshirildi. Xarid uchun rahmat!\n"
                         f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                     )
@@ -2584,11 +4596,11 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
                         f"✅ *Buyurtmangiz tayyor!*\n\n"
                         f"📋 Buyurtma: *{order.order_number}*\n"
                         f"👤 Mijoz: {order.project.client_name}\n"
-                        f"🏗 PenoDecorPro — Andijon\n\n"
+                        f"{_tg_footer(db, auth.company_id_of(current_user), bold=False)}\n\n"
                         f"Buyurtmangizni olishingiz mumkin!\n"
                         f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
                     )
-                _send_telegram_to(tg_id, client_msg)
+                _send_telegram_to(tg_id, client_msg, company_id=auth.company_id_of(current_user))
 
     # Agar "Tayyor" belgilashda BUTUN mahsulot avtomatik bir yo'la
     # topshirilgan (yetkazilgan) deb belgilangan bo'lsa — o'sha yetkazish
@@ -2601,35 +4613,42 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[float] = None, gips_kg:
 
 
 @app.post("/api/orders/mark-all-ready")
-def api_mark_all_ready(loy_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    from models import Order, OrderStatus
-    pending = db.query(Order).filter(Order.status != OrderStatus.READY, Order.is_deleted.isnot(True)).all()
-    processed = 0
-    failed = []
-    total_inventory_changes = []
-    loy_per_order = (loy_kg / len(pending)) if (loy_kg and len(pending) > 0) else None
-    for order in pending:
-        result = services.complete_order(db, order.id, loy_per_order)
-        if result["success"]:
-            processed += 1
-            if result.get("inventory_changes"):
-                total_inventory_changes.extend(result["inventory_changes"])
-        else:
-            reason = result.get("message", "")
-            if result.get("shortages"):
-                reason += " — " + ", ".join(result["shortages"][:3])
-            failed.append({"order_id": order.id, "reason": reason})
-    return {"processed": processed, "total_pending": len(pending), "failed": failed, "total_inventory_changes": total_inventory_changes}
+def api_mark_all_ready(current_user=Depends(auth.admin_or_manager)):
+    """17d (2026-09-21): O'CHIRILDI — aniq 410.
+
+    O'LCHANGAN (`work/probe17d.py`): bitta so'rov korxonaning "Tayyor"
+    bo'lmagan BARCHA buyurtmalarini, shu jumladan QORALAMALARNI ham
+    "Tayyor" qilardi (qoralamada ombordan hech narsa yechilmagan —
+    xomashyosiz tayyor buyurtma, usta KPI, avtomatik yuk xati). `loy_kg`
+    buyurtmalar soniga bo'linib, `inf` bilan qoldiq −∞ bo'lardi va
+    buyurtma, "Qarzdorlar", biznes-salomatlik sahifalari 500 berardi.
+    Hech bir sahifa bu yo'lni chaqirmaydi (`templates/` da yo'q) — har bir
+    buyurtma o'z "Tayyor" oynasidan (`POST /api/orders/{id}/ready`)
+    haqiqiy loy miqdori bilan yakunlanadi.
+    """
+    raise HTTPException(status_code=410,
+                        detail="Ommaviy \"Tayyor\" o'chirilgan — har bir buyurtmani o'z \"Tayyor\" oynasidan yakunlang")
 
 
 @app.delete("/api/orders/{order_id}")
-def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actual_gips_kg: Optional[float] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmani o'chirish — xomashyo omborga qaytariladi.
     actual_loy_kg — agar berilsa, rejalashtirilgan loy bilan solishtirilib,
     ortgan qismi omborga qaytariladi (xuddi buyurtma yakunlanganidagi kabi)."""
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+
+    # 17d (2026-09-21): haqiqiy ishlatilgan loy QAT'IY — ixtiyoriy (bo'sh =
+    # berilmagan), manfiy emas, chekli. O'LCHANGAN: `inf` → 200 qaytib,
+    # buyurtma o'chirilar va loy xomashyosi qoldig'i −∞ bo'lardi; `-5` →
+    # rejadan ham ko'p (7.5 kg) qaytarardi; `1e20` → qoldiq −5×10¹⁹. Xato →
+    # 400, buyurtma va ombor O'ZGARMAYDI. `detail` obyekt — boshqa buyurtma
+    # xatolari bilan bir xil shakl.
+    try:
+        actual_loy_kg = crud._query_loy("actual_loy_kg", actual_loy_kg, bosh_mumkin=True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
 
     log = []
     order_num = order.order_number
@@ -2650,7 +4669,6 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
         else:
             # Hech narsa topshirilmagan — hammasi qaytadi
             log.extend(services.return_inventory_for_order(db, order))
-            log.extend(services.return_termopanel_for_order(db, order))
 
         # Tayyor mahsulotlar qaytadi — hech narsa topshirilmagan bo'lsa TO'LIQ,
         # QISMAN topshirilgan bo'lsa faqat QOLGAN (topshirilmagan) qismi
@@ -2665,7 +4683,7 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
         #   - QISMAN topshirilgan bo'lsa — buyurtmaning yetkazilgan foiziga qarab,
         #     QOLGAN (topshirilmagan) qism uchun mo'ljallangan loy proporsional qaytadi
         #     (aniq "qancha ishlatilgani" ma'lum bo'lmagani uchun taxminiy hisob).
-        planned_loy = services._get_planned_loy(order) + crud.get_termopanel_planned_loy(order)
+        planned_loy = services._get_planned_loy(order)
 
         if actual_loy_kg is not None:
             diff = planned_loy - float(actual_loy_kg)
@@ -2703,41 +4721,6 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
                 if remaining > 0.001:
                     log.extend(services.return_loy_ingredients(db, order, float(remaining), recipe_id=item.recipe_id))
 
-        # GIPS — xuddi Loy kabi: reja/haqiqiy solishtirib qaytariladi.
-        # actual_gips_kg berilgan bo'lsa — ortgan qismi aniq qaytadi. Berilmagan bo'lsa:
-        #   - hech narsa topshirilmagan bo'lsa — to'liq reja qaytadi;
-        #   - QISMAN topshirilgan bo'lsa — yetkazilgan foizga qarab, QOLGAN qism
-        #     uchun mo'ljallangan gips proporsional qaytadi.
-        planned_gips = float(order.planned_gips_kg or 0)
-        # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
-        # delivery_percent EMAS — faqat 'gips' kategoriyali detallar
-        # bo'yicha hisoblangan ulush (qarang: services.gips_relevant_
-        # remaining_fraction izohi — aynan Loy'dagi bilan bir xil sabab).
-        gips_remaining_fraction = services.gips_relevant_remaining_fraction(order) if has_delivery else 1.0
-        if planned_gips > 0 and order.gips_inventory_id:
-            if actual_gips_kg is not None:
-                diff = planned_gips - float(actual_gips_kg)
-                if abs(diff) > 0.01:
-                    r = services.deduct_gips_main(db, order.gips_inventory_id, -diff, order, reason=f"Buyurtma o'chirildi ({order_num})")
-                    if r:
-                        log.append(r)
-            else:
-                proportional_gips = planned_gips * gips_remaining_fraction
-                if proportional_gips > 0.01:
-                    r = services.deduct_gips_main(db, order.gips_inventory_id, -proportional_gips, order, reason=f"Buyurtma o'chirildi ({order_num})")
-                    if r:
-                        log.append(r)
-
-        # Gips qo'shimchalari — xuddi asosiy gips kabi: hech narsa topshirilmagan
-        # bo'lsa to'liq reja, QISMAN topshirilgan bo'lsa QOLGAN qism proporsional qaytadi.
-        if actual_gips_kg is None:
-            gips_adds = db.query(OrderGipsAdditive).filter(OrderGipsAdditive.order_id == order.id).all()
-            if gips_adds and gips_remaining_fraction > 0:
-                return_list = [{"inventory_id": a.inventory_id, "qty": -float(a.planned_qty or 0) * gips_remaining_fraction} for a in gips_adds]
-                return_list = [r for r in return_list if abs(r["qty"]) > 0.001]
-                if return_list:
-                    log.extend(services.deduct_gips_additives(db, return_list, order, reason=f"Buyurtma o'chirildi ({order_num})"))
-
         # MUHIM: "qaytarildi" deb BELGILAYMIZ — shu buyurtma keyinchalik
         # tiklanib, YANA o'chirilsa ham, ombor IKKINCHI MARTA qaytarilmasin.
         order.stock_returned = True
@@ -2766,7 +4749,7 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
     )
 
     # MUHIM: yuqorida yaratilgan yangi "ombor harakati" yozuvlari (masalan
-    # Gips qaytarilgani) hali bazaga yozilmagan (faqat xotirada) bo'lishi
+    # Loy qaytarilgani) hali bazaga yozilmagan (faqat xotirada) bo'lishi
     # mumkin. Ularni ENDI, delete_order ichidagi "bog'lanishni uzish"
     # so'rovidan OLDIN, bazaga yozib qo'yamiz — aks holda FK xatosi chiqadi.
     db.flush()
@@ -2785,14 +4768,21 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[float] = None, actua
 
 @app.delete("/api/order-items/{item_id}")
 def api_delete_order_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    if not crud.delete_order_item(db, item_id):
+    if not crud.delete_order_item(db, item_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Detal topilmadi")
     return {"status": "ok"}
 
 
 @app.put("/api/order-items/{item_id}")
 def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    updated = crud.update_order_item(db, item_id, data)
+    # 2026-09-21 (13-sizish): crud faqat ruxsat etilgan maydonlarni qabul
+    # qiladi; noto'g'ri kalit/qiymat va "topshirilgandan kam" — ValueError
+    # → 400. Begona `penoplast_id` — crud ichidan HTTPException 404.
+    try:
+        updated = crud.update_order_item(db, item_id, data, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Detal topilmadi")
     return {"status": "ok"}
@@ -2800,37 +4790,37 @@ def api_update_order_item(item_id: int, data: dict, db: Session = Depends(get_db
 
 @app.get("/api/dashboard/stats")
 def api_dashboard_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_dashboard_stats(db)
+    return services.get_dashboard_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/today")
 def api_dashboard_today(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_today_stats(db)
+    return services.get_today_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/charts")
 def api_dashboard_charts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_chart_data(db)
+    return services.get_chart_data(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/warnings/low-stock")
 def api_low_stock(db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
-    return {"warnings": services.get_low_stock_warnings(db)}
+    return {"warnings": services.get_low_stock_warnings(db, company_id=auth.company_id_of(current_user))}
 
 
 @app.get("/api/notifications")
 def api_notifications(db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
-    return services.get_notifications(db)
+    return services.get_notifications(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/today-tasks")
 def api_today_tasks(db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
-    return services.get_today_tasks(db)
+    return services.get_today_tasks(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/production-periods")
 def api_production_periods(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_production_period_stats(db)
+    return services.get_production_period_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/inventory/movements")
@@ -2839,12 +4829,16 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
                              date_to: Optional[str] = None, limit: int = 100, db: Session = Depends(get_db),
                              current_user=Depends(auth.inventory_view)):
     """Ombor harakatlari jurnali — kirim va chiqimlar tarixi (faqat o'qish).
+
+    M3: faqat joriy korxonaning harakatlari.
     date_from/date_to — 'YYYY-MM-DD' ko'rinishida, ma'lum kunlar oralig'ini
     ko'rish uchun (masalan, hodim ishga kelmagan kunlarda qancha xomashyo
     ishlatilganini tekshirish uchun)."""
     from models import InventoryMovement
     from datetime import datetime, timedelta
-    q = db.query(InventoryMovement)
+    from database import TASHKENT_OFFSET
+    q = db.query(InventoryMovement).filter(
+        InventoryMovement.company_id == auth.company_id_of(current_user))
     if item_id:
         q = q.filter(InventoryMovement.inventory_id == item_id)
     if movement_type in ("in", "out"):
@@ -2853,12 +4847,15 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
         q = q.filter(InventoryMovement.order_id == order_id)
     if date_from:
         try:
-            q = q.filter(InventoryMovement.created_at >= datetime.strptime(date_from, "%Y-%m-%d"))
+            # 2026-09-17 (audit topilmasi): foydalanuvchi tanlagan sana —
+            # Toshkent taqvimi bo'yicha, bazadagi vaqt esa UTC — shuning
+            # uchun solishtirishdan oldin -5 soat siljitiladi.
+            q = q.filter(InventoryMovement.created_at >= datetime.strptime(date_from, "%Y-%m-%d") - TASHKENT_OFFSET)
         except ValueError:
             pass
     if date_to:
         try:
-            dt = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            dt = datetime.strptime(date_to, "%Y-%m-%d") - TASHKENT_OFFSET + timedelta(days=1)
             q = q.filter(InventoryMovement.created_at < dt)
         except ValueError:
             pass
@@ -2870,6 +4867,9 @@ def api_inventory_movements(item_id: Optional[int] = None, movement_type: Option
 def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
     """Loyiha detali uchun qo'shimcha ko'rsatkichlar — faqat o'qish, mavjud
     calculate_order_profit() dan foydalanadi, hech narsani o'zgartirmaydi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     import services
     from models import Order, OrderStatus
 
@@ -2881,7 +4881,8 @@ def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), cur
         status_counts[st] = status_counts.get(st, 0) + 1
         if o.status == OrderStatus.READY:
             try:
-                total_profit += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+                total_profit += float(services.calculate_order_profit(
+                    db, o.id, company_id=auth.company_id_of(current_user)).get("foyda", 0))
             except Exception as e:
                 try:
                     crud.log_error(db, str(e), endpoint=f"project_detail:calculate_order_profit order#{o.id}")
@@ -2910,7 +4911,9 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
        get_suppliers_with_debt() funksiyasidan)."""
     from models import Order, OrderStatus
 
+    # M2: qarzdorlar ro'yxati FAQAT joriy korxonaning buyurtmalaridan.
     orders = db.query(Order).filter(
+        Order.company_id == auth.company_id_of(current_user),
         Order.is_deleted.isnot(True),
         Order.status != OrderStatus.DRAFT
     ).all()
@@ -2918,15 +4921,15 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
     order_debts.sort(key=lambda o: float(o.debt_amount or 0), reverse=True)
     total_customer_debt = sum(float(o.debt_amount or 0) for o in order_debts)
 
-    suppliers_all = crud.get_suppliers_with_debt(db)
+    suppliers_all = crud.get_suppliers_with_debt(db, company_id=auth.company_id_of(current_user))
     supplier_debts = [s for s in suppliers_all if s['debt'] > 0]
     supplier_debts.sort(key=lambda s: s['debt'], reverse=True)
     total_supplier_debt = sum(s['debt'] for s in supplier_debts)
 
     from datetime import datetime as _dt
     now = _dt.utcnow()
-    company_obligations = services.get_company_obligations_status(db, now.year, now.month)
-    recurring_targets = services.get_recurring_obligations(db)
+    company_obligations = services.get_company_obligations_status(db, now.year, now.month, company_id=auth.company_id_of(current_user))
+    recurring_targets = services.get_recurring_obligations(db, company_id=auth.company_id_of(current_user))
 
     return templates.TemplateResponse(request, "debts.html", {
         "order_debts": order_debts,
@@ -2947,7 +4950,8 @@ async def reports_page(request: Request, db: Session = Depends(get_db), current_
 
 @app.get("/api/reports/top-products")
 def api_reports_top_products(days: int = 90, limit: int = 15, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_top_products_report(db, days=days, limit=limit)
+    return services.get_top_products_report(
+        db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/top-finished-products")
@@ -2958,17 +4962,17 @@ def api_dashboard_top_finished_products(days: int = 30, limit: int = 5, db: Sess
 
 @app.get("/api/reports/top-materials")
 def api_reports_top_materials(days: int = 90, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_top_materials_report(db, days=days)
+    return services.get_top_materials_report(db, days=days, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/top-customers")
 def api_reports_top_customers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_top_customers_report(db, days=days, limit=limit)
+    return services.get_top_customers_report(db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/top-suppliers")
 def api_reports_top_suppliers(days: int = 90, limit: int = 10, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_top_suppliers_report(db, days=days, limit=limit)
+    return services.get_top_suppliers_report(db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/comparison")
@@ -2983,7 +4987,7 @@ def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), c
 
 @app.get("/api/reports/alerts")
 def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_business_alerts(db)
+    return services.get_business_alerts(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/brak-materials")
@@ -2991,72 +4995,115 @@ def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optio
                                  db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Brak sabab sarflangan xomashyo — nomi, miqdori, tan narxi bo'yicha qiymati."""
     from datetime import datetime as dt
-    sd = dt.strptime(start_date, "%Y-%m-%d") if start_date else None
-    ed = dt.strptime(end_date, "%Y-%m-%d") + timedelta(days=1) if end_date else None
-    return crud.get_brak_material_summary(db, start_date=sd, end_date=ed)
+    from database import TASHKENT_OFFSET
+    sd = (dt.strptime(start_date, "%Y-%m-%d") - TASHKENT_OFFSET) if start_date else None
+    ed = (dt.strptime(end_date, "%Y-%m-%d") - TASHKENT_OFFSET + timedelta(days=1)) if end_date else None
+    return crud.get_brak_material_summary(db, start_date=sd, end_date=ed, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/business-health")
 def api_reports_business_health(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_business_health(db)
+    return services.get_business_health(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/obligations/recurring")
 def api_get_recurring_obligations(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_recurring_obligations(db)
+    return services.get_recurring_obligations(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/obligations/recurring")
-def api_set_recurring_obligation(category: str, label: str, monthly_target: float,
-                                   icon: str = "📦", due_day: int = 5,
+def api_set_recurring_obligation(category: Optional[str] = None, label: Optional[str] = None,
+                                   monthly_target: Optional[str] = None,
+                                   icon: Optional[str] = "📦", due_day: Optional[str] = None,
                                    db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    return services.set_recurring_obligation(db, category, label, monthly_target, icon=icon, due_day=due_day)
+    """17d (2026-09-21): qiymatlar MATN sifatida olinadi va QAT'IY o'qiladi
+    (`crud._clean_majburiyat`) — summa musbat va chekli, kun 1–31, kod
+    ≤ 30, nom ≤ 60, belgi ≤ 10 belgi. Xato → 400 (`detail` MATN — `debts.html`
+    uni ko'rsatadi), hech narsa yozilmaydi. Ildiz
+    (`services.set_recurring_obligation`) ham shu qoidani chaqiradi."""
+    try:
+        toza = crud._clean_majburiyat(category, label, monthly_target, icon=icon, due_day=due_day)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return services.set_recurring_obligation(db, toza["category"], toza["label"],
+                                             toza["monthly_target"], icon=toza["icon"],
+                                             due_day=toza["due_day"],
+                                             company_id=auth.company_id_of(current_user))
 
 
 @app.delete("/api/obligations/recurring/{obligation_id}")
 def api_delete_recurring_obligation(obligation_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    if not services.delete_recurring_obligation(db, obligation_id):
+    if not services.delete_recurring_obligation(db, obligation_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
 
 
 @app.get("/api/obligations/status")
 def api_obligations_status(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return services.get_company_obligations_status(db, year, month)
+    return services.get_company_obligations_status(db, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/obligations/timeline")
 def api_obligations_timeline(category: str, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    return services.get_obligation_timeline(db, category, year, month)
+    return services.get_obligation_timeline(db, category, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/obligations/employee/{employee_id}/timeline")
 def api_employee_obligation_timeline(employee_id: int, year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # M5: xodim FAQAT joriy korxonadan (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     return services.get_employee_payment_timeline(db, employee_id, year, month)
 
 
 @app.post("/api/obligations/employee/{employee_id}/close")
-def api_close_employee_debt(employee_id: int, year: int, month: int, amount: float,
+def api_close_employee_debt(employee_id: int, year: Optional[str] = None, month: Optional[str] = None,
+                              amount: Optional[str] = None,
                               db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # M5: xodim FAQAT joriy korxonadan (aks holda 404).
+    if not auth.employee_of_company(db, employee_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Xodim topilmadi")
     who = current_user.full_name or current_user.username
-    return services.close_employee_debt(db, employee_id, year, month, amount, paid_by=who)
+    # 17c (2026-09-21): qiymatlar QAT'IY o'qiladi (`crud._clean_oylik_yopish`)
+    # — ilgari 13-oy `datetime(...)` da 500 berardi, cheksiz summa avans
+    # sifatida saqlanib avanslar ro'yxatini buzardi.
+    try:
+        toza = crud._clean_oylik_yopish(year, month, amount)
+        return services.close_employee_debt(db, employee_id, toza["year"], toza["month"],
+                                            toza["amount"], paid_by=who)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/finance/cash-balance")
 def api_get_cash_balance(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Kassa balansi — kompaniyada hozir haqiqatda qancha naqd pul bor."""
-    return services.get_cash_balance(db)
+    return services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/cash-transactions")
 def api_get_cash_transactions(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Kassaga qo'lda qilingan yozuvlar tarixi."""
-    rows = crud.get_cash_transactions(db)
+    rows = crud.get_cash_transactions(db, company_id=auth.company_id_of(current_user))
     return [{
         "id": r.id, "category": r.category, "amount": float(r.amount),
         "notes": r.notes, "performed_by": r.performed_by,
         "created_at": r.created_at.isoformat() if r.created_at else None
     } for r in rows]
+
+
+@app.delete("/api/finance/cash-transactions/{tx_id}")
+def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
+                                current_user=Depends(auth.admin_only)):
+    """Kassaga qo'lda qo'shilgan yozuvni o'chiradi — faqat Admin.
+    Yozuv FAQAT joriy korxonadan topiladi (aks holda 404)."""
+    _cid = auth.company_id_of(current_user)
+    if not auth.cash_transaction_of_company(db, tx_id, _cid):
+        raise HTTPException(status_code=404, detail="Kassa yozuvi topilmadi")
+    if not crud.delete_cash_transaction(db, tx_id, company_id=_cid):
+        raise HTTPException(status_code=404, detail="Kassa yozuvi topilmadi")
+    return {"status": "ok"}
 
 
 @app.post("/api/finance/cash-transaction")
@@ -3068,8 +5115,8 @@ def api_record_cash_transaction(category: str = Form(...), amount: float = Form(
     if category not in ("boshlangich", "usta_kpi", "ehson"):
         raise HTTPException(status_code=400, detail="Noto'g'ri kategoriya")
     who = current_user.full_name or current_user.username
-    tx = crud.record_cash_transaction(db, category, amount, notes=notes, performed_by=who)
-    balance = services.get_cash_balance(db)
+    tx = crud.record_cash_transaction(db, category, amount, notes=notes, performed_by=who, company_id=auth.company_id_of(current_user))
+    balance = services.get_cash_balance(db, company_id=auth.company_id_of(current_user))
     return {"status": "ok", "transaction_id": tx.id, "new_balance": balance["balance"]}
 
 
@@ -3088,14 +5135,17 @@ async def kunlik_xarajat_page(request: Request, db: Session = Depends(get_db), c
 
 @app.get("/api/finance/report")
 def api_finance_report(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_monthly_report(db, year, month)
+    # M4: hisobotning tayyor mahsulot qismi joriy korxona bilan cheklanadi
+    # (qolgan qismlari M6 da ko'riladi).
+    return services.get_monthly_report(db, year, month,
+                                       company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/debt-summary")
 def api_finance_debt_summary(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Mijoz, yetkazuvchi, hodim va doimiy majburiyatlar qarzini — bitta
     joyga jamlab beradi ("Moliya" sahifasidagi yangi bo'lim uchun)."""
-    return services.get_full_debt_summary(db, year, month)
+    return services.get_full_debt_summary(db, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/split-profit-pdf")
@@ -3104,8 +5154,9 @@ def api_split_profit_pdf(year: int, month: int, db: Session = Depends(get_db), c
     from fastapi.responses import Response
     import finance_pdf
 
-    split = services.calculate_split_profit_report(db, year, month)
-    pdf_bytes = finance_pdf.generate_split_profit_pdf(split, year, month)
+    split = services.calculate_split_profit_report(db, year, month, company_id=auth.company_id_of(current_user))
+    pdf_bytes = finance_pdf.generate_split_profit_pdf(
+        split, year, month, db=db, company_id=auth.company_id_of(current_user))
     filename = f"gips_penoplast_hisobot_{year}_{month:02d}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
@@ -3118,18 +5169,20 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
     import finance_pdf
     from datetime import datetime as _dt
 
-    report = services.get_monthly_report(db, year, month)
+    report = services.get_monthly_report(db, year, month,
+                                        company_id=auth.company_id_of(current_user))
 
     _start = _dt(year, month, 1)
     _end = _dt(year + 1, 1, 1) if month == 12 else _dt(year, month + 1, 1)
-    expense_transactions = crud.get_expense_transactions(db, year=year, month=month)
+    expense_transactions = crud.get_expense_transactions(db, year=year, month=month, company_id=auth.company_id_of(current_user))
 
-    brak_summary = crud.get_brak_material_summary(db, start_date=_start, end_date=_end)
+    brak_summary = crud.get_brak_material_summary(db, start_date=_start, end_date=_end, company_id=auth.company_id_of(current_user))
     brak_by_material = brak_summary.get("by_material", [])
-    debt_summary = services.get_full_debt_summary(db, year, month)
+    debt_summary = services.get_full_debt_summary(db, year, month, company_id=auth.company_id_of(current_user))
 
     pdf_bytes = finance_pdf.generate_finance_report_pdf(
-        report, expense_transactions, brak_by_material, year, month, debt_summary
+        report, expense_transactions, brak_by_material, year, month, debt_summary,
+        db=db, company_id=auth.company_id_of(current_user)
     )
     filename = f"moliyaviy_hisobot_{year}_{month:02d}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
@@ -3145,18 +5198,29 @@ def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(g
         d = date_cls.fromisoformat(target_date)
     else:
         d = date_cls.today()
-    return services.get_daily_finance_summary(db, d)
+    return services.get_daily_finance_summary(db, d, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finance/history")
 def api_finance_history(months: int = 12, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_finance_history(db, months)
+    return services.get_finance_history(db, months, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/finance/transactions")
-def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: Session = Depends(get_db),
+def api_create_expense_transaction(data: dict = Body(...), db: Session = Depends(get_db),
                                     current_user=Depends(auth.admin_manager_accountant)):
-    tx = crud.create_expense_transaction(db, data.model_dump(), performed_by=current_user.full_name or current_user.username, source="manual")
+    # 17e (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val`).
+    # O'LCHANGAN: `Infinity` summa 500 bersa ham yozuv SAQLANIB, Moliya
+    # tarixini BUTUNLAY buzardi; `true` → 1 so'm, `"5000"`, 0, 31+ belgili
+    # kategoriya (PostgreSQL da 500), noto'g'ri yo'nalish, 1970-yil sanasi
+    # qabul qilinardi. Xato → 400, `detail` MATN (`finance.html`,
+    # `kunlik_xarajat.html` uni to'g'ridan-to'g'ri ko'rsatadi).
+    try:
+        toza = crud._clean_val("ExpenseTransaction", data)
+        tx = crud.create_expense_transaction(db, toza, performed_by=current_user.full_name or current_user.username, source="manual", company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     return schemas.ExpenseTransactionRead.model_validate(tx)
 
 
@@ -3164,27 +5228,64 @@ def api_create_expense_transaction(data: schemas.ExpenseTransactionCreate, db: S
 def api_list_expense_transactions(year: Optional[int] = None, month: Optional[int] = None,
                                    day: Optional[int] = None, category: Optional[str] = None,
                                    db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    rows = crud.get_expense_transactions(db, year=year, month=month, day=day, category=category)
+    rows = crud.get_expense_transactions(db, year=year, month=month, day=day, category=category, company_id=auth.company_id_of(current_user))
     return [schemas.ExpenseTransactionRead.model_validate(r) for r in rows]
 
 
 @app.delete("/api/finance/transactions/{tx_id}")
 def api_delete_expense_transaction(tx_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    ok = crud.delete_expense_transaction(db, tx_id)
+    ok = crud.delete_expense_transaction(db, tx_id, company_id=auth.company_id_of(current_user))
     if not ok:
         raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
     return {"status": "ok"}
 
 
+@app.put("/api/finance/transactions/{tx_id}")
+def api_update_expense_transaction(tx_id: int, data: dict = Body(...), db: Session = Depends(get_db),
+                                    current_user=Depends(auth.admin_manager_accountant)):
+    """2026-09-16: foydalanuvchi so'rovi bo'yicha qo'shildi — xato kiritilgan
+    xarajat summasini o'chirib-qayta yozish o'rniga, to'g'ridan-to'g'ri
+    tahrirlash imkonini beradi (masalan "125" o'rniga "125 000" bo'lishi
+    kerak bo'lgan holatlar uchun)."""
+    # 17e (2026-09-22): egalik tekshiruvi TANA tekshiruvidan OLDIN — begona
+    # yozuv uchun yomon tana bilan ham 404 (oracle yo'q). Keyin tana
+    # yaratish bilan BIR XIL qat'iy qoida bilan tekshiriladi (xato → 400).
+    if not auth.expense_of_company(db, tx_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+    try:
+        toza = crud._clean_val("ExpenseTransaction", data)
+        tx = crud.update_expense_transaction(db, tx_id, toza, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    if not tx:
+        raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+    return schemas.ExpenseTransactionRead.model_validate(tx)
+
+
 @app.post("/api/finance/expense")
-def api_save_expense(year: int, month: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    services.save_monthly_expense(db, year, month, data, performed_by=current_user.full_name or current_user.username)
-    return {"status": "ok"}
+def api_save_expense(current_user=Depends(auth.admin_or_financier)):
+    """17d (2026-09-21): ESKIRGAN — aniq 410.
+
+    Eski "oylik xarajat formasi" yo'li. Hech bir sahifa chaqirmaydi
+    (`templates/` da yo'q); xarajatlar endi `ExpenseTransaction` orqali
+    (`POST /api/finance/transactions`) yoziladi. O'LCHANGAN: `year`/`month`
+    tekshiruvsiz (13-oy, 0-oy, 1-yil, 99999-yil yozilardi), tana xom
+    `dict` — `\"abc\"` → 500, `Infinity` → `/api/finance/history` BUTUNLAY
+    500, `true` → 1, manfiy va 1e20 qabul. Eski `MonthlyExpense` yozuvlari
+    hisobotlarda (zaxira qiymat sifatida) o'qilishda davom etadi —
+    `services.save_monthly_expense` funksiyasi o'zgarmadi.
+    """
+    raise HTTPException(status_code=410,
+                        detail="Bu yo'l eskirgan — xarajatni Moliya sahifasidan qo'shing")
 
 
 @app.get("/api/orders/{order_id}/profit")
 def api_order_profit(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    return services.calculate_order_profit(db, order_id)
+    # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
+    if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    return services.calculate_order_profit(db, order_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/orders/{order_id}/pdf")
@@ -3192,7 +5293,7 @@ def api_order_pdf(order_id: int, db: Session = Depends(get_db), current_user=Dep
     from fastapi.responses import Response
     import pdf_service
     import traceback
-    order = crud.get_order(db, order_id)
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     try:
@@ -3212,9 +5313,10 @@ async def health():
 
 @app.get("/returns", response_class=HTMLResponse)
 async def returns_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all)
-    orders  = crud.get_orders_for_main_page(db, days=90, show_all=True)
-    projects = crud.get_projects(db)
+    returns = crud.get_return_items_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user))
+    orders  = crud.get_orders_for_main_page(db, days=90, show_all=True,
+                                            company_id=auth.company_id_of(current_user))
+    projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "returns.html", {
         "returns": returns, "orders": orders, "projects": projects,
         "current_user": current_user, "show_all": show_all
@@ -3224,6 +5326,9 @@ async def returns_page(request: Request, show_all: bool = False, db: Session = D
 @app.get("/api/projects/{project_id}/items")
 def api_get_project_items(project_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Loyihadagi barcha buyurtmalar detallari — brak yozish uchun (narxsiz)."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     from models import Order, OrderStatus
 
     orders = db.query(Order).filter(
@@ -3249,34 +5354,100 @@ def api_get_project_items(project_id: int, db: Session = Depends(get_db), curren
 
 
 @app.post("/api/returns")
-def api_create_return(data: schemas.ReturnItemCreate, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    return crud.create_return_item(db, data)
+def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+    # 17g (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
+    # ("Return")`), keyin sxemaga (berilmagan yoki `null` maydonlar — sxema
+    # standarti: birlik "dona", summa 0, omborga qaytsin). HAQIQIY PostgreSQL da
+    # O'LCHANGAN (asl kod = 17f): manfiy / 0 / `1e20` miqdor saqlanardi;
+    # `Infinity` / `NaN` miqdor SAQLANIB tayyor mahsulot qoldig'ini buzardi
+    # (javob 500); `NaN` summa bazaga yozilardi; noma'lum sabab jimgina "Brak";
+    # uzun nom / birlik — 500. `returns.html` (qaytarish va brak oynalari)
+    # yuboradigan tanalar AYNAN shu qoidalarga mos. Xato → 400, `detail` MATN
+    # (`returns.html`: `e.detail?.message || e.detail`).
+    try:
+        toza = crud._clean_val("Return", data)
+        data = schemas.ReturnItemCreate(**{k: v for k, v in toza.items() if v is not None})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    # 2026-09-21 (12-sizish): buyurtma FAQAT joriy korxonadan, detal esa
+    # FAQAT shu buyurtmadan — hech narsa yozilishidan OLDIN. Ilgari begona
+    # yoki mavjud bo'lmagan buyurtma 500 berardi, begona detal esa A
+    # omborini kamaytirardi (o'lchangan).
+    _cid = auth.company_id_of(current_user)
+    if not auth.order_of_company(db, data.order_id, _cid):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    if data.order_item_id:
+        from models import OrderItem as _OI_r
+        if not db.query(_OI_r.id).filter(_OI_r.id == data.order_item_id,
+                                         _OI_r.order_id == data.order_id).first():
+            raise HTTPException(status_code=404, detail="Buyurtma detali topilmadi")
+    try:
+        return crud.create_return_item(db, data, company_id=_cid)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/returns")
 def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    return crud.get_return_items(db, order_id=order_id)
+    return crud.get_return_items(db, order_id=order_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/returns/stats")
 def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    return crud.get_return_stats(db)
+    return crud.get_return_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/api/returns/{return_id}/refund")
 def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     who = current_user.full_name or current_user.username
-    item = crud.mark_refunded(db, return_id, refunded_by=who)
+    # kech42: brak — 400 (mijozga pul qaytarilmaydi); javobda nima bo'lgani
+    # (qarzdan chegirildimi, naqd qancha) — UI shuni ko'rsatadi.
+    try:
+        item = crud.mark_refunded(db, return_id, refunded_by=who,
+                                  company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not item:
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
-    return {"status": "ok", "is_refunded": item.is_refunded}
+    naqd = float(getattr(item, "naqd_qaytarildi", 0) or 0)
+    kam = float(item.refund_agreed_delta or 0)
+    # Sonlar alohida (minglik ajratgich — bo'shliq); ilgari butun matnga `.replace(",", " ")`
+    # qo'llanib, gapdagi vergul ham yo'qolardi (JONLI kech42: "chegirildi  naqd").
+    def _som(v):
+        return f"{v:,.0f}".replace(",", " ")
+    if naqd >= 0.01:
+        xabar = (f"Kelishilgan summa {_som(kam)} so'mga kamaydi; mijozga {_som(naqd)} so'm naqd "
+                 f"qaytarilgan deb yozildi (u ortiqcha to'lagan qism).")
+    else:
+        xabar = (f"Kelishilgan summa {_som(kam)} so'mga kamaydi — qarzdan chegirildi, naqd pul "
+                 f"qaytarilmadi (mijoz ortiqcha to'lamagan).")
+    return {"status": "ok", "is_refunded": item.is_refunded, "naqd_qaytarildi": naqd,
+            "kelishilgan_kamaydi": kam, "xabar": xabar}
 
 
 @app.delete("/api/returns/{return_id}")
 def api_delete_return(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.manager_or_warehouse)):
-    if not crud.delete_return_item(db, return_id):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
-    return {"status": "ok"}
+    # kech40 (22-band): o'chirish hammasini orqaga qaytaradi (ombor, pul — foydalanuvchi
+    # qarori B); orqaga qaytarib bo'lmasa `ValueError` → 400 aniq sabab bilan, hech narsa
+    # o'zgarmaydi (qulf ham bo'shatiladi).
+    try:
+        natija = crud.delete_return_item(
+            db, return_id, company_id=auth.company_id_of(current_user),
+            performed_by=current_user.full_name or current_user.username)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    if not natija:
+        raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
+    return {"status": "ok", **natija}
 
 
 # ============================================================
@@ -3284,15 +5455,29 @@ def api_delete_return(return_id: int, db: Session = Depends(get_db), current_use
 # ============================================================
 
 @app.post("/api/payments")
-def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
+def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """Yangi to'lov qo'shish.
     write_off_remainder=true bo'lsa — to'lovdan keyin qolgan (kichik) qarz
     CHEGIRMA sifatida yozib yuboriladi (jami summadan ham ayiriladi —
     shuning uchun FOYDA hisobotida ham to'g'ri, kamroq ko'rsatiladi)."""
-    if not data.received_by:
-        data.received_by = current_user.full_name or current_user.username
+    # 17f (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
+    # ("Payment")`). HAQIQIY PostgreSQL da O'LCHANGAN: `Infinity` / `1e20` —
+    # 500 (takror-tekshiruv so'rovida); `0.001` → 0 so'mlik to'lov; `true` →
+    # 1 so'mlik to'lov; `"5"` matni; `order_id: true` → 1-buyurtma;
+    # noto'g'ri `payment_type` / `payment_method` JIMGINA "partial" / "naqd"
+    # ga aylanardi. `orders.html` (to'lov oynasi, zaklat) va `debts.html`
+    # (qarzni yopish) yuboradigan tanalar AYNAN shu qoidalarga mos. Xato →
+    # 400, `detail` MATN. Berilmagan (yoki `null`) maydonlar sxema
+    # standartini oladi (partial / naqd / tasdiqsiz).
     try:
-        payment = crud.create_payment(db, data)
+        toza = crud._clean_val("Payment", data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not toza.get("received_by"):
+        toza["received_by"] = current_user.full_name or current_user.username
+    data = schemas.PaymentCreate(**{k: v for k, v in toza.items() if v is not None})
+    try:
+        payment = crud.create_payment(db, data, company_id=auth.company_id_of(current_user))
     except crud.OverpaymentWarning as w:
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
@@ -3303,7 +5488,7 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
         status = 404 if "topilmadi" in str(e) else 400
         raise HTTPException(status_code=status, detail=str(e))
 
-    order = crud.get_order(db, data.order_id)
+    order = crud.get_order(db, data.order_id, company_id=auth.company_id_of(current_user))
 
     write_off_info = None
     if write_off_remainder and order:
@@ -3314,7 +5499,7 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
             # buyurtmaning asl (chegirmasiz) qiymatini ko'rsatib turadi,
             # "Chegirma" esa (Jami - Kelishilgan) o'zi avtomatik kattalashadi —
             # boshidagi chegirma bilan bu "kechirilgan" summa TABIIY qo'shilib boradi.
-            order.agreed_amount = float(order.agreed_amount or order.total_amount or 0) - remaining
+            order.agreed_amount = order.kelishilgan_summa - remaining
             import re as _re
             base_notes = _re.sub(r'\s*\[WRITEOFF:[\d.]+\]', '', order.notes or '').strip()
             order.notes = (base_notes + f" [WRITEOFF:{remaining:.0f}]").strip()
@@ -3329,6 +5514,9 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
     return {
         "status": "ok",
         "payment_id": payment.id,
+        # Takror yuborilgan so'rov bo'lsa — yangi yozuv YARATILMAGAN,
+        # mavjudining o'zi qaytarilgan (crud.create_payment ga qarang)
+        "duplicate": bool(getattr(payment, "_is_duplicate_submit", False)),
         "paid_amount": order.paid_amount,
         "debt_amount": order.debt_amount,
         "payment_status": order.payment_status.value,
@@ -3340,7 +5528,7 @@ def api_create_payment(data: schemas.PaymentCreate, write_off_remainder: bool = 
 @app.get("/api/payments")
 def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """To'lovlar ro'yxati."""
-    payments = crud.get_payments(db, order_id=order_id)
+    payments = crud.get_payments(db, order_id=order_id, company_id=auth.company_id_of(current_user))
     return [{
         "id": p.id,
         "order_id": p.order_id,
@@ -3357,15 +5545,28 @@ def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_d
 def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """To'lovni o'chirish."""
     who = current_user.full_name or current_user.username
-    if not crud.delete_payment(db, payment_id, performed_by=who):
+    if not crud.delete_payment(db, payment_id, performed_by=who, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="To'lov topilmadi")
     return {"status": "ok"}
 
 
 @app.put("/api/orders/{order_id}/agreed-amount")
-def api_update_agreed_amount(order_id: int, data: schemas.OrderAgreedUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_update_agreed_amount(order_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Kelishilgan summani (chegirmadan keyingi narx) yangilash."""
-    order = crud.update_order_agreed_amount(db, order_id, data.agreed_amount)
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    # 17e (2026-09-22): summa QAT'IY — musbat, chekli, sig'im ichida
+    # (`crud._clean_val("OrderAgreed")`). O'LCHANGAN: `Infinity` → JONLI 500
+    # va `/logs` yozuvi; `1e20` saqlanardi; `true` → 1 so'm (99.9 % chegirma);
+    # `"800"` matn; 0 → chegirma 100 %, qarz esa jami summadan. `detail` —
+    # OBYEKT (`orders.html` boshqa buyurtma xatolari kabi `detail.message`).
+    try:
+        toza = crud._clean_val("OrderAgreed", data)
+        order = crud.update_order_agreed_amount(db, order_id, toza["agreed_amount"])
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     return {
@@ -3382,8 +5583,10 @@ def api_update_agreed_amount(order_id: int, data: schemas.OrderAgreedUpdate, db:
 @app.get("/api/penoplasts")
 def api_get_penoplasts(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Penoplast (plotnost) turlari ro'yxati."""
-    items = services.get_penoplast_list(db)
-    default_p = services.get_default_penoplast(db)
+    # 2026-09-21 — TENANT: A ning penoplastlari B ga qaytarilardi (O'LCHANGAN)
+    _cid = auth.company_id_of(current_user)
+    items = services.get_penoplast_list(db, company_id=_cid)
+    default_p = services.get_default_penoplast(db, company_id=_cid)
     return {
         "items": [{
             "id": p.id,
@@ -3401,13 +5604,28 @@ def api_get_penoplasts(db: Session = Depends(get_db), current_user=Depends(auth.
 @app.post("/api/inventory/{item_id}/set-default-penoplast")
 def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """Asosiy plotnost qilib belgilash."""
-    item = db.query(Inventory).filter(Inventory.id == item_id).first()
+    # M3: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.inventory_of_company(db, item_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Material topilmadi")
+    _cid = auth.company_id_of(current_user)
+    item = db.query(Inventory).filter(Inventory.id == item_id,
+                                      Inventory.company_id == _cid).first()
     if not item:
         raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
     if not item.is_penoplast:
         raise HTTPException(status_code=400, detail="Bu penoplast emas")
 
-    db.query(Inventory).filter(Inventory.is_default_penoplast == True).update(
+    # 2026-09-21 — TENANT (O'LCHANGAN, filtr YONIQ holatda ham): bu ommaviy
+    # UPDATE butun bazadagi asosiy belgilarni o'chirardi — B o'z penoplastini
+    # asosiy qilsa, A ning asosiy plotnosti yo'qolardi. Tenant filtri faqat
+    # SELECT ga ta'sir qiladi, UPDATE ga emas — shuning uchun qo'lda cheklash
+    # SHART (crud.py dagi `_scope(...)` nusxasi bilan bir xil).
+    # Belgilanayotgan penoplastning o'zi UPDATE dan chiqariladi: aks holda
+    # u ham o'chirilib, pastdagi `= True` "o'zgarish yo'q" deb bazaga
+    # yozilmay qolishi mumkin (sinovda o'lchangan).
+    db.query(Inventory).filter(Inventory.is_default_penoplast == True,
+                               Inventory.company_id == _cid,
+                               Inventory.id != item.id).update(
         {"is_default_penoplast": False}
     )
     item.is_default_penoplast = True
@@ -3418,6 +5636,9 @@ def api_set_default_penoplast(item_id: int, db: Session = Depends(get_db), curre
 @app.post("/api/orders/{order_id}/activate")
 def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Qoralamani jarayonga olish — ombordan xomashyo yechiladi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = crud.activate_draft_order(db, order_id)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -3431,12 +5652,15 @@ def api_activate_draft(order_id: int, db: Session = Depends(get_db), current_use
 @app.get("/finished", response_class=HTMLResponse)
 async def finished_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotlar sahifasi."""
-    items = crud.get_finished_products(db)
-    penoplasts = services.get_penoplast_list(db)
-    default_p = services.get_default_penoplast(db)
-    recipes = crud.get_recipes(db)
-    stats = crud.get_finished_stats(db)
-    masters = crud.get_masters(db, only_active=True)
+    # M4 (2026-09-18): SAHIFA ham API kabi tenant bilan cheklanadi —
+    # M2 saboqi: server chizadigan sahifa boshqa funksiyalardan o'qiydi.
+    _cid = auth.company_id_of(current_user)
+    items = crud.get_finished_products(db, company_id=_cid)
+    penoplasts = services.get_penoplast_list(db, company_id=_cid)
+    default_p = services.get_default_penoplast(db, company_id=_cid)
+    recipes = crud.get_recipes(db, company_id=_cid)
+    stats = crud.get_finished_stats(db, company_id=_cid)
+    masters = crud.get_masters(db, only_active=True, company_id=_cid)
     return templates.TemplateResponse(request, "finished.html", {
         "items": items, "penoplasts": penoplasts,
         "default_penoplast_id": default_p.id if default_p else None,
@@ -3446,7 +5670,7 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
 
 
 @app.get("/api/system/telegram-debug")
-def api_telegram_debug(current_user=Depends(auth.admin_only)):
+def api_telegram_debug(current_user=Depends(auth.platform_admin_only)):
     """Diagnostika: server qaysi botga ulanganini va oxirgi kimlar
     botga 'Start' bosganini (chat_id'lari bilan) ko'rsatadi."""
     import urllib.request as _ur
@@ -3488,7 +5712,7 @@ def api_telegram_debug(current_user=Depends(auth.admin_only)):
 
 
 @app.post("/api/system/telegram-setup-webhook-security")
-def api_telegram_setup_webhook_security(request: Request, current_user=Depends(auth.admin_only)):
+def api_telegram_setup_webhook_security(request: Request, current_user=Depends(auth.platform_admin_only)):
     """BIR MARTALIK sozlash: Telegram webhookni, XAVFSIZ IMZO bilan qayta
     ro'yxatdan o'tkazadi. Shundan keyin — soxta (Telegram'dan bo'lmagan)
     so'rovlar avtomatik rad etiladi.
@@ -3550,7 +5774,7 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
 
 
 @app.post("/api/system/backup/send-now")
-def api_backup_send_now(current_user=Depends(auth.admin_only)):
+def api_backup_send_now(current_user=Depends(auth.platform_admin_only)):
     """Kunlik avtomatik backup vazifasini HOZIROQ, qo'lda ishga tushiradi
     (23:30 ni kutmasdan, Telegram ulanishini sinab ko'rish uchun)."""
     run_daily_backup()
@@ -3558,12 +5782,23 @@ def api_backup_send_now(current_user=Depends(auth.admin_only)):
 
 
 @app.get("/api/system/backup")
-def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    """Butun bazaning to'liq zaxira nusxasini JSON fayl sifatida yuklab beradi."""
+def api_system_backup(db: Session = Depends(get_db),
+                      current_user=Depends(auth.platform_admin_only)):
+    """Korxona ma'lumotining to'liq zaxira nusxasi (JSON).
+
+    2026-09-20 — endi FAQAT platforma administratori uchun. Ilgari har
+    qanday korxona admini (hisobchi ham admin roliga ega bo'lsa) bitta
+    so'rov bilan butun biznesni — mijozlar, narxlar, foyda, maoshlar —
+    yuklab olardi. Interfeysdan tugmani olib tashlash yetarli emas edi:
+    manzilni to'g'ridan-to'g'ri ochish ham mumkin.
+
+    Kunlik zaxira (barcha korxonalar) avvalgidek rejalashtiruvchi orqali
+    platforma egasiga boradi.""" 
     import json
     from fastapi.responses import Response
 
-    backup_data = crud.export_full_backup(db)
+    # M7: tenant admin FAQAT o'z korxonasining zahira nusxasini oladi.
+    backup_data = crud.export_full_backup(db, company_id=auth.company_id_of(current_user))
     filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d_%H-%M')}.json"
     content = json.dumps(backup_data, ensure_ascii=False, indent=2)
     return Response(
@@ -3573,9 +5808,560 @@ def api_system_backup(db: Session = Depends(get_db), current_user=Depends(auth.a
     )
 
 
+@app.get("/api/platform/companies")
+def api_platform_companies(db: Session = Depends(get_db),
+                           current_user=Depends(auth.platform_admin_only)):
+    """Platformadagi barcha korxonalar ro'yxati (faqat platforma admini)."""
+    from production_models import Company as _Co
+    from models import User as _U
+    import tenant_context as _tc
+    # MUHIM (2026-09-19, jonli sinovda aniqlangan): bu PLATFORMA amali —
+    # u ataylab BARCHA korxonalarni ko'rishi kerak. Global tenant filtri
+    # esa so'rovlarga joriy korxona shartini qo'shadi va boshqa
+    # korxonalarning yozuvlarini yashiradi (sinovda B korxona
+    # "0 foydalanuvchi" bo'lib ko'rindi). `system_context` shu filtrni
+    # SHU sessiyada vaqtincha o'chiradi.
+    with _tc.system_context(db):
+        rows = db.query(_Co).order_by(_Co.id).all()
+        out = []
+        for c in rows:
+            n_users = db.query(_U).filter(_U.company_id == c.id).count()
+            out.append({"id": c.id, "name": c.name, "code": c.code,
+                        "users": n_users,
+                        "created_at": c.created_at.isoformat() if c.created_at else None})
+    return out
+
+
+@app.post("/api/platform/companies")
+def api_platform_create_company(name: str = Form(...), admin_username: str = Form(...),
+                                admin_full_name: str = Form(""),
+                                db: Session = Depends(get_db),
+                                current_user=Depends(auth.platform_admin_only)):
+    """Yangi korxona va uning BIRINCHI admin hisobini yaratadi (Faza 5).
+
+    NEGA KERAK: shu paytgacha yangi korxona faqat baza orqali yaratilardi.
+    Mijoz qabul qilish takrorlanadigan ish — u interfeysda bo'lishi kerak.
+
+    PAROL: tizim o'zi TASODIFIY parol chiqaradi va uni javobda BIR MARTA
+    qaytaradi. Baza faqat hashini saqlaydi, ya'ni keyin uni hech kim
+    (siz ham) ko'ra olmaydi. Mijoz kirgach o'z parolini almashtiradi —
+    "Foydalanuvchilar" sahifasidan.
+
+    Hammasi bitta tranzaksiyada: hisob yaratilmasa, korxona ham
+    yaratilmaydi (yarim holat qolmaydi)."""
+    import secrets, string, re as _re_co
+    from production_models import Company as _Co
+    from models import User as _U, UserRole as _UR
+
+    nom = (name or "").strip()
+    login = (admin_username or "").strip()
+    if len(nom) < 2:
+        raise HTTPException(status_code=400, detail="Korxona nomi juda qisqa")
+    if not _re_co.fullmatch(r"[A-Za-z0-9_.-]{3,50}", login):
+        raise HTTPException(
+            status_code=400,
+            detail="Login 3-50 belgi: lotin harflari, raqam, _ . - belgilaridan iborat bo'lsin")
+    import tenant_context as _tc
+    # Login butun tizim bo'yicha yagona — tekshiruv ham global bo'lishi
+    # SHART. Aks holda boshqa korxonada band login "bo'sh" ko'rinadi va
+    # yaratish bazada tushunarsiz xato bilan yiqiladi.
+    with _tc.system_context(db):
+        band = db.query(_U).filter(_U.username == login).first() is not None
+    if band:
+        raise HTTPException(status_code=400, detail="Bu login band")
+
+    # Korxona kodi — nomdan, band bo'lsa raqam qo'shiladi
+    asos = _re_co.sub(r"[^A-Z0-9]+", "-", nom.upper()).strip("-")[:24] or "KORXONA"
+    kod, i = asos, 1
+    with _tc.system_context(db):
+        while db.query(_Co).filter(_Co.code == kod).first():
+            i += 1
+            kod = f"{asos[:20]}-{i}"
+
+    # Tasodifiy parol — o'qish oson bo'lishi uchun chalkash belgilarsiz
+    alifbo = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+    parol = "".join(secrets.choice(alifbo) for _ in range(12))
+
+    try:
+        korxona = _Co(name=nom, code=kod)
+        db.add(korxona)
+        db.flush()                      # id kerak
+        auth.create_user(db, login, parol, _UR.ADMIN,
+                         (admin_full_name or nom).strip(),
+                         company_id=korxona.id)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Yaratib bo'lmadi: {e}")
+
+    # Yangi korxonada ixtiyoriy turlar (blok, loy) O'CHIQ —
+    # mijoz kerak bo'lsa sozlamalardan yoqadi. Aks holda u birinchi kuni
+    # o'zi ishlab chiqarmaydigan turlarni ko'rib chalkashardi.
+    try:
+        crud.set_setting(db, "enabled_categories", "", company_id=korxona.id)
+        _clear_category_cache(korxona.id)
+    except Exception:
+        pass
+
+    _clear_company_name_cache()
+    return {"status": "ok", "company": {"id": korxona.id, "name": nom, "code": kod},
+            "admin": {"username": login, "password": parol},
+            "eslatma": "Parol FAQAT SHU YERDA ko'rsatiladi — keyin tiklab bo'lmaydi."}
+
+
+@app.post("/api/platform/companies/{company_id}/reset-admin-password")
+def api_platform_reset_admin_password(company_id: int, username: str = Form(""),
+                                      db: Session = Depends(get_db),
+                                      current_user=Depends(auth.platform_admin_only)):
+    """Korxona adminining parolini qayta tiklaydi (Faza 5).
+
+    NEGA KERAK: parol yaratishda BIR MARTA ko'rsatiladi va bazada faqat
+    hashi saqlanadi — ya'ni uni hech kim (siz ham) qayta ko'ra olmaydi.
+    Mijoz parolni yo'qotsa, uni tiklashning yo'li bo'lishi SHART, aks holda
+    korxona butunlay qulflanib qoladi.
+
+    `username` berilmasa — o'sha korxonaning ENG ESKI admin hisobi olinadi.
+    Yangi parol javobda BIR MARTA qaytariladi.
+    """
+    import secrets
+    from models import User as _U, UserRole as _UR
+    import tenant_context as _tc
+
+    # Platforma amali — global filtr o'chiriladi, aks holda boshqa
+    # korxonaning hisobi "topilmadi" bo'lib ko'rinadi.
+    with _tc.system_context(db):
+        q = db.query(_U).filter(_U.company_id == company_id)
+        if (username or "").strip():
+            u = q.filter(_U.username == username.strip()).first()
+        else:
+            u = q.filter(_U.role == _UR.ADMIN).order_by(_U.id).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="Bu korxonada admin topilmadi")
+        if getattr(u, "is_platform_admin", False):
+            raise HTTPException(
+                status_code=400,
+                detail="Platforma adminining paroli bu yerdan tiklanmaydi")
+
+        alifbo = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+        parol = "".join(secrets.choice(alifbo) for _ in range(12))
+        u.password_hash = auth.hash_password(parol)
+
+        # ── HISOBDORLIK ────────────────────────────────────────────
+        # Platforma admini texnik jihatdan har doim kira oladi (bazaga
+        # to'g'ridan-to'g'ri kirish bor) — buni yashirishning ma'nosi yo'q.
+        # Ishonchni yaratadigan narsa — imkoniyatning yo'qligi emas, balki
+        # har bir bunday amalning KO'RINADIGAN bo'lishi. Shuning uchun:
+        #   1) yozuv MIJOZNING o'z audit jurnaliga tushadi;
+        #   2) mijozning Telegram botiga darhol xabar ketadi.
+        # Ya'ni siz parolni tiklay olasiz, lekin JIMGINA emas.
+        crud.log_activity(
+            db, "password_reset", "user", u.id, u.username,
+            performed_by=f"Platforma administratori ({current_user.username})",
+            new_value="Parol platforma administratori tomonidan tiklandi",
+            company_id=company_id)
+        db.commit()
+        login = u.username
+
+    # Xabarnoma tranzaksiyadan KEYIN — Telegram ishlamasa ham parol
+    # tiklangan bo'lib qoladi.
+    try:
+        _send_telegram(
+            f"🔑 *Diqqat: parol tiklandi*\n\n"
+            f"`{login}` hisobining paroli platforma administratori "
+            f"tomonidan yangilandi.\n\n"
+            f"Agar buni siz so'ramagan bo'lsangiz — darhol bog'laning.",
+            company_id=company_id)
+    except Exception:
+        pass
+
+    return {"status": "ok", "username": login, "password": parol,
+            "eslatma": "Parol FAQAT SHU YERDA ko'rsatiladi. "
+                       "Mijozning audit jurnaliga yozuv tushdi va botiga xabar yuborildi."}
+
+
+@app.get("/api/settings/company")
+def api_get_company(db: Session = Depends(get_db),
+                    current_user=Depends(auth.require_login)):
+    """Joriy korxona ma'lumoti (nomi interfeysda ko'rsatiladi)."""
+    from production_models import Company as _Co
+    cid = auth.company_id_of(current_user)
+    row = db.query(_Co).filter(_Co.id == cid).first()
+    return {"id": cid, "name": (row.name if row else None),
+            "code": (row.code if row else None),
+            "slogan": (getattr(row, "slogan", None) if row else None),
+            "phone": (getattr(row, "phone", None) if row else None),
+            "address": (getattr(row, "address", None) if row else None),
+            "logo_path": (getattr(row, "logo_path", None) if row else None),
+            # amaldagi qiymat (sozlama yoki shior) — interfeys shuni
+            # ko'rsatadi, saqlanganda xabar o'zgarmay qoladi
+            "tg_tagline": _tg_tagline(db, cid) if row else ""}
+
+
+@app.put("/api/settings/company")
+def api_set_company(name: str = Form(...), slogan: str = Form(None),
+                    phone: str = Form(None), address: str = Form(None),
+                    tg_tagline: str = Form(None),
+                    db: Session = Depends(get_db),
+                    current_user=Depends(auth.admin_only)):
+    """Korxona brendi: nomi, shiori, telefoni, manzili.
+
+    Bu ma'lumot yuk xati, nakladnoy va moliya hisobotlarida ishlatiladi.
+    Berilmagan (None) maydon o'zgarmaydi; bo'sh matn — tozalaydi."""
+    from production_models import Company as _Co
+    nom = (name or "").strip()
+    if len(nom) < 2:
+        raise HTTPException(status_code=400, detail="Nom juda qisqa")
+    if len(nom) > 200:
+        raise HTTPException(status_code=400, detail="Nom juda uzun (200 belgidan ko'p)")
+    cid = auth.company_id_of(current_user)
+    row = db.query(_Co).filter(_Co.id == cid).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    row.name = nom
+    # 2026-09-20 — MUHIM: bo'sh maydon "tozalash" degani.
+    # Ilgari `if qiymat is None: continue` yozilgan edi, lekin FastAPI
+    # bo'sh form maydonini `None` deb uzatadi — natijada foydalanuvchi
+    # telefonni o'chirib saqlasa, eski qiymat joyida qolardi (jonli
+    # sinovda aniqlandi). Endi to'rttala maydon HAR DOIM so'rovdan
+    # o'rnatiladi: interfeys ularni doim birga yuboradi.
+    for maydon, qiymat, chegara in (("slogan", slogan, 150),
+                                    ("phone", phone, 60),
+                                    ("address", address, 200)):
+        v = (qiymat or "").strip()
+        if len(v) > chegara:
+            raise HTTPException(status_code=400,
+                                detail=f"'{maydon}' juda uzun ({chegara} belgidan ko'p)")
+        setattr(row, maydon, v or None)
+    # Ustaga salomdagi shior (2026-09-21). Interfeys uni DOIM yuboradi;
+    # bo'sh — "shior qatori chiqmasin". Maydonni umuman bilmaydigan eski
+    # chaqiruvchi (masalan skript) uchun — `None` kelsa ham bo'sh
+    # yoziladi, chunki FastAPI bo'sh maydonni ham `None` qiladi va ularni
+    # ajratib bo'lmaydi; interfeys amaldagi qiymatni oldindan yuklaydi.
+    _tl = (tg_tagline or "").strip()
+    if len(_tl) > TG_TAGLINE_MAX:
+        raise HTTPException(status_code=400,
+                            detail=f"'Telegram salom shiori' juda uzun ({TG_TAGLINE_MAX} belgidan ko'p)")
+    crud.set_setting(db, TG_TAGLINE_KEY, _tl, company_id=cid)
+    db.commit()
+    _clear_company_name_cache(cid)
+    return {"status": "ok", "name": nom}
+
+
+@app.get("/api/settings/categories")
+def api_get_categories(db: Session = Depends(get_db),
+                       current_user=Depends(auth.admin_only)):
+    """Ixtiyoriy kategoriyalar va ularning holati."""
+    cid = auth.company_id_of(current_user)
+    yoqilgan = enabled_categories_of(cid)
+    return {"categories": [{"code": k, "label": v, "enabled": k in yoqilgan}
+                           for k, v in IXTIYORIY_KATEGORIYALAR]}
+
+
+@app.put("/api/settings/categories")
+def api_set_categories(codes: str = Form(""), db: Session = Depends(get_db),
+                       current_user=Depends(auth.admin_only)):
+    """Yoqilgan kategoriyalarni saqlaydi (vergul bilan ajratilgan).
+
+    Bo'sh yuborilsa — barcha ixtiyoriy turlar o'chadi (faqat asosiy
+    uchtasi qoladi). Asosiy turlar (profil, panel, donali)
+    har doim yoqiq va bu yerdan o'chirilmaydi."""
+    ruxsat = {k for k, _ in IXTIYORIY_KATEGORIYALAR}
+    tanlangan = [x.strip() for x in (codes or "").split(",") if x.strip() in ruxsat]
+    _cid = auth.company_id_of(current_user)
+    crud.set_setting(db, "enabled_categories", ",".join(tanlangan), company_id=_cid)
+    _clear_category_cache(_cid)
+    return {"status": "ok", "enabled": tanlangan}
+
+
+@app.post("/api/settings/company/logo")
+async def api_upload_company_logo(file: UploadFile = File(...),
+                                  db: Session = Depends(get_db),
+                                  current_user=Depends(auth.admin_only)):
+    """Korxona logotipini yuklaydi (hujjatlarda ishlatiladi).
+
+    Faqat rasm, 2 MB gacha. Fayl `static/logos/company_<id>.<kengaytma>`
+    nomi bilan saqlanadi — ya'ni har korxonaning o'z fayli bor va
+    bir-birining ustiga yozilmaydi."""
+    import os as _os
+    RUXSAT = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
+    if file.content_type not in RUXSAT:
+        raise HTTPException(status_code=400,
+                            detail="Faqat PNG, JPG yoki WEBP rasm yuklash mumkin")
+    data = await file.read()
+    if len(data) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Rasm 2 MB dan katta bo'lmasin")
+    if not data:
+        raise HTTPException(status_code=400, detail="Fayl bo'sh")
+
+    cid = auth.company_id_of(current_user)
+    papka = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static", "logos")
+    _os.makedirs(papka, exist_ok=True)
+    kengaytma = RUXSAT[file.content_type]
+    nom = f"company_{cid}{kengaytma}"
+    with open(_os.path.join(papka, nom), "wb") as f:
+        f.write(data)
+
+    from production_models import Company as _Co
+    row = db.query(_Co).filter(_Co.id == cid).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    # Eski boshqa kengaytmali fayllarni tozalaymiz
+    for k in (".png", ".jpg", ".webp"):
+        if k != kengaytma:
+            eski = _os.path.join(papka, f"company_{cid}{k}")
+            if _os.path.exists(eski):
+                try:
+                    _os.remove(eski)
+                except OSError:
+                    pass
+    row.logo_path = f"static/logos/{nom}"
+    db.commit()
+    return {"status": "ok", "logo_path": row.logo_path}
+
+
+@app.get("/api/settings/telegram-bot")
+def api_get_telegram_bot(db: Session = Depends(get_db),
+                         current_user=Depends(auth.admin_only)):
+    """Korxonaning o'z Telegram boti sozlamasi (Faza 3).
+
+    Token QAYTARILMAYDI — faqat sozlangan yoki yo'qligi va oxirgi 4 belgisi.
+    Aks holda token brauzer tarixida va loglarda qolib ketardi."""
+    cid = auth.company_id_of(current_user)
+    tok = crud.get_setting(db, "telegram_bot_token", "", company_id=cid) or ""
+    chat = crud.get_setting(db, "telegram_chat_id", "", company_id=cid) or ""
+    return {"configured": bool(tok),
+            "token_hint": (("…" + tok[-4:]) if len(tok) >= 4 else ""),
+            "chat_id": chat,
+            # 9-sizish tuzatmasidan keyin o'z boti yo'q korxonaga xabar
+            # UMUMAN yuborilmaydi — umumiy bot faqat 1-korxonaniki
+            "uses_system_bot": cid == auth.DEFAULT_COMPANY_ID}
+
+
+@app.put("/api/settings/telegram-bot")
+def api_set_telegram_bot(token: str = Form(""), chat_id: str = Form(""),
+                         db: Session = Depends(get_db),
+                         current_user=Depends(auth.admin_only)):
+    """Korxonaning Telegram boti tokenini va xabar manzilini saqlaydi.
+
+    Har korxona O'Z botiga ega bo'ladi (@BotFather orqali yaratiladi).
+    Bo'sh token yuborilsa — eski qiymat saqlanib qoladi (tasodifan
+    o'chirib yubormaslik uchun); tozalash uchun "-" yuboriladi."""
+    cid = auth.company_id_of(current_user)
+    t = (token or "").strip()
+    if t == "-":
+        crud.set_setting(db, "telegram_bot_token", "", company_id=cid)
+    elif t:
+        crud.set_setting(db, "telegram_bot_token", t, company_id=cid)
+    c = (chat_id or "").strip()
+    if c == "-":
+        crud.set_setting(db, "telegram_chat_id", "", company_id=cid)
+    elif c:
+        crud.set_setting(db, "telegram_chat_id", c, company_id=cid)
+    return {"status": "ok"}
+
+
+@app.post("/api/system/restore")
+async def api_restore_backup(file: UploadFile = File(...),
+                             replace: bool = False,
+                             db: Session = Depends(get_db),
+                             current_user=Depends(auth.platform_admin_only)):
+    """Zaxira nusxadan korxona ma'lumotini tiklaydi (Faza 2).
+
+    Faqat JORIY korxonaga tiklanadi. Korxonada ma'lumot bo'lsa,
+    `?replace=true` berilmaguncha rad etiladi; berilsa avval SHU korxona
+    tozalanadi (boshqa korxonalarga tegilmaydi). Hammasi bitta
+    tranzaksiyada — xato bo'lsa hech narsa o'zgarmaydi."""
+    import json as _json_r
+    try:
+        raw = await file.read()
+        data = _json_r.loads(raw.decode("utf-8"))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Faylni o'qib bo'lmadi: {e}")
+
+    result = crud.import_full_backup(
+        db, data, company_id=auth.company_id_of(current_user), replace=replace)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Tiklash amalga oshmadi"))
+    return result
+
+
+# ============================================================
+# ZAXIRADAN TIKLASH — OPERATOR SAHIFASI  (2026-09-20)
+# ============================================================
+# Nega alohida sahifa: `POST /api/system/restore` faqat API orqali
+# chaqirilardi, ya'ni fayl yuklash uchun maxsus vosita kerak edi.
+# Bu sahifa o'sha bo'shliqni yopadi.
+#
+# Nega JavaScriptsiz: bu operator vositasi — eng kam harakatlanuvchi
+# qismdan iborat bo'lgani ma'qul. Oddiy HTML forma POST qiladi, natijani
+# server chizadi. Hech qanday fetch, hech qanday dinamik holat.
+#
+# Nega `/api/` dan TASHQARIDA: sessiya tugasa, 401 javobi `/login` ga
+# yo'naltirilsin (api yo'llari xom JSON qaytaradi).
+
+_TIKLASH_SOZ = "TIKLASHNI-TASDIQLAYMAN"
+
+
+def _tiklash_html(tana: str) -> str:
+    return f"""<!doctype html><html lang="uz"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zaxiradan tiklash</title><style>
+ body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+   background:#f6f7f9;color:#1a1d21;margin:0;padding:24px;line-height:1.55}}
+ .w{{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e3e6ea;
+   border-radius:12px;padding:28px}}
+ h1{{font-size:20px;margin:0 0 4px}} .sub{{color:#6b7280;font-size:13px;margin-bottom:22px}}
+ .ogoh{{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:14px;
+   font-size:13px;margin-bottom:20px}}
+ .xato{{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;margin-bottom:18px}}
+ .ok{{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:18px}}
+ label{{display:block;font-size:12px;font-weight:600;text-transform:uppercase;
+   letter-spacing:.03em;color:#6b7280;margin:16px 0 6px}}
+ input[type=text],input[type=file]{{width:100%;box-sizing:border-box;padding:10px 12px;
+   border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff}}
+ .qator{{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:14px}}
+ button{{margin-top:22px;width:100%;padding:12px;border:0;border-radius:8px;
+   background:#111827;color:#fff;font-size:15px;font-weight:600;cursor:pointer}}
+ table{{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}}
+ td{{padding:5px 0;border-bottom:1px solid #f1f2f4}}
+ td:last-child{{text-align:right;font-variant-numeric:tabular-nums}}
+ a{{color:#2563eb}} code{{background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12px}}
+</style></head><body><div class="w">{tana}</div></body></html>"""
+
+
+@app.get("/tiklash", response_class=HTMLResponse)
+def tiklash_sahifa(request: Request, db: Session = Depends(get_db),
+                   current_user=Depends(auth.platform_admin_only)):
+    """Zaxira faylini yuklash formasi."""
+    from models import Order as _O, Inventory as _I, Master as _M, Project as _P
+    cid = auth.company_id_of(current_user)
+    son = {
+        "Buyurtmalar": db.query(_O).filter(_O.company_id == cid).count(),
+        "Loyihalar": db.query(_P).filter(_P.company_id == cid).count(),
+        "Ombor": db.query(_I).filter(_I.company_id == cid).count(),
+        "Ustalar": db.query(_M).filter(_M.company_id == cid).count(),
+    }
+    jadval = "".join(f"<tr><td>{k}</td><td><b>{v}</b></td></tr>" for k, v in son.items())
+    bosh = sum(son.values()) == 0
+
+    tana = f"""
+    <h1>Zaxiradan tiklash</h1>
+    <div class="sub">Korxona <b>#{cid}</b> · foydalanuvchi <b>{current_user.username}</b></div>
+
+    <div class="ogoh">
+      <b>Hozirgi holat</b>
+      <table>{jadval}</table>
+      <div style="margin-top:10px">
+        { "Korxona bo'sh — ustiga yozish belgisi kerak emas."
+          if bosh else
+          "Korxonada ma'lumot bor. Tiklash uchun <b>ustiga yozish</b> belgilanishi "
+          "va tasdiqlash so'zi kiritilishi shart. Mavjud ma'lumot <b>o'chadi</b>." }
+      </div>
+    </div>
+
+    <form method="post" action="/tiklash" enctype="multipart/form-data">
+      <label>Zaxira fayli (.json)</label>
+      <input type="file" name="file" accept=".json,application/json" required>
+
+      <div class="qator">
+        <input type="checkbox" name="replace" value="true" id="r">
+        <label for="r" style="margin:0;text-transform:none;font-weight:500;color:#1a1d21">
+          Mavjud ma'lumot ustiga yozilsin (avval tozalanadi)
+        </label>
+      </div>
+
+      <label>Tasdiqlash so'zi</label>
+      <input type="text" name="confirm" placeholder="{_TIKLASH_SOZ}" autocomplete="off">
+      <div style="font-size:12px;color:#6b7280;margin-top:5px">
+        Faqat ustiga yozishda talab qilinadi. Aynan shunday yozing:
+        <code>{_TIKLASH_SOZ}</code>
+      </div>
+
+      <button type="submit">Tiklashni boshlash</button>
+    </form>
+
+    <div style="font-size:12px;color:#6b7280;margin-top:20px">
+      Login hisoblari (<code>users</code>) tiklanmaydi — hozirgi hisoblaringiz
+      saqlanib qoladi. Boshqa korxonalarga tegilmaydi. Hammasi bitta
+      tranzaksiyada: xato bo'lsa hech narsa o'zgarmaydi.
+    </div>
+    """
+    return HTMLResponse(_tiklash_html(tana))
+
+
+@app.post("/tiklash", response_class=HTMLResponse)
+async def tiklash_bajarish(file: UploadFile = File(...),
+                           replace: str = Form(default=""),
+                           confirm: str = Form(default=""),
+                           db: Session = Depends(get_db),
+                           current_user=Depends(auth.platform_admin_only)):
+    """Formadan kelgan faylni tiklaydi va natijani sahifada ko'rsatadi."""
+    import json as _js_t
+
+    def xato(matn):
+        return HTMLResponse(_tiklash_html(
+            f'<h1>Tiklash bajarilmadi</h1><div class="xato">{matn}</div>'
+            f'<a href="/tiklash">&larr; Qaytish</a>'), status_code=400)
+
+    ustiga = str(replace).lower() in ("true", "on", "1", "yes")
+    if ustiga and confirm.strip() != _TIKLASH_SOZ:
+        return xato(f"Ustiga yozish uchun tasdiqlash so'zi kerak: <code>{_TIKLASH_SOZ}</code>")
+
+    raw = await file.read()
+    if not raw:
+        return xato("Fayl bo'sh.")
+    if len(raw) > 200 * 1024 * 1024:
+        return xato("Fayl juda katta (200 MB dan oshdi).")
+    try:
+        data = _js_t.loads(raw.decode("utf-8"))
+    except Exception as e:
+        return xato(f"JSON o'qilmadi: {e}")
+
+    try:
+        natija = crud.import_full_backup(
+            db, data, company_id=auth.company_id_of(current_user), replace=ustiga)
+    except Exception as e:
+        return xato(f"Tiklashda xato: {e}")
+
+    if not natija.get("success"):
+        return xato(natija.get("message", "Tiklash amalga oshmadi"))
+
+    per = natija.get("per_table") or {}
+    jadval = "".join(f"<tr><td>{k}</td><td><b>{v}</b></td></tr>"
+                     for k, v in sorted(per.items()) if v)
+    tashlab = natija.get("skipped_tables") or []
+
+    try:
+        crud.log_activity(db, action="Zaxiradan tiklash", entity_type="system",
+                          entity_id=0, entity_label=file.filename,
+                          performed_by=getattr(current_user, "username", None),
+                          new_value=f"ustiga_yozish={ustiga}")
+    except Exception:
+        pass
+
+    tana = (f'<h1>Tiklash yakunlandi</h1>'
+            f'<div class="ok">'
+            f'<b>{natija.get("restored_rows", 0)}</b> ta yozuv, '
+            f'<b>{natija.get("restored_tables", 0)}</b> ta jadvalga tiklandi.<br>'
+            f'Ketma-ketliklar (sequence) to\'g\'rilandi: '
+            f'<b>{natija.get("sequences_fixed", 0)}</b>'
+            + (f'<br>Tashlab ketilgan jadvallar: <code>'
+               + ", ".join(map(str, tashlab)) + "</code>" if tashlab else "")
+            + f'</div>'
+            f'<table>{jadval}</table>'
+            f'<div style="font-size:12px;color:#6b7280;margin-top:16px">'
+            f'Login hisoblari tiklanmadi — hozirgi hisobingiz bilan davom eting.</div>'
+            f'<div style="margin-top:18px"><a href="/">Bosh sahifa</a> &nbsp;\u00b7&nbsp; '
+            f'<a href="/tiklash">Tiklash sahifasi</a></div>')
+    return HTMLResponse(_tiklash_html(tana))
+
+
 @app.post("/api/system/factory-reset")
 def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
-                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+                       db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):
     """DIQQAT: QAYTARIB BO'LMAYDIGAN AMAL!
     Foydalanuvchilardan (login) TASHQARI — BARCHA ma'lumotni butunlay o'chiradi:
     buyurtmalar, ombor, retseptlar, ustalar, yetkazib beruvchilar, loyihalar va h.k.
@@ -3590,75 +6376,14 @@ def api_factory_reset(confirm: str = "", keep_only_self: bool = False,
                    "DIQQAT: bu amal QAYTARIB BO'LMAYDI!"
         )
     keep_id = current_user.id if keep_only_self else None
-    result = crud.factory_reset_all_data(db, keep_only_user_id=keep_id)
-    msg = "Barcha ma'lumot tozalandi (faqat siz qoldingiz)" if keep_only_self else "Barcha ma'lumot tozalandi (Foydalanuvchilardan tashqari)"
+    # M7: reset FAQAT joriy korxona doirasida — boshqa korxona ma'lumoti
+    # o'chmaydi.
+    result = crud.factory_reset_all_data(db, keep_only_user_id=keep_id,
+                                         company_id=auth.company_id_of(current_user))
+    msg = ("Korxonangizning barcha ma'lumoti tozalandi (faqat siz qoldingiz)"
+           if keep_only_self else
+           "Korxonangizning barcha ma'lumoti tozalandi (Foydalanuvchilardan tashqari)")
     return {"status": "ok", "message": msg, "deleted": result}
-
-
-@app.post("/api/system/restore")
-async def api_system_restore(
-    file: UploadFile = File(...),
-    replace: bool = False,
-    confirm: str = "",
-    db: Session = Depends(get_db),
-    current_user=Depends(auth.admin_only),
-):
-    """Zaxira nusxa (JSON) faylidan bazani tiklaydi.
-
-    - `replace=false` (sukut): baza bo'sh bo'lmasa RAD ETADI.
-    - `replace=true`: mavjud ma'lumot o'chirilib, ustiga yoziladi —
-      shu holatda `confirm=TIKLASHNI-TASDIQLAYMAN` ham talab qilinadi.
-    - Login hisoblari (`users`) TIKLANMAYDI — hozirgi hisoblar saqlanadi,
-      aks holda tiklashdan keyin tizimga kira olmay qolish xavfi bor.
-    - Hammasi bitta tranzaksiyada: xato chiqsa hech narsa o'zgarmaydi.
-    """
-    import json as _js
-
-    REQUIRED_PHRASE = "TIKLASHNI-TASDIQLAYMAN"
-    if replace and confirm != REQUIRED_PHRASE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Ustiga yozish uchun ?replace=true&confirm={REQUIRED_PHRASE} "
-                   "qo'shing. DIQQAT: mavjud ma'lumot o'chiriladi!"
-        )
-
-    raw = await file.read()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Fayl bo'sh.")
-    if len(raw) > 200 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Fayl juda katta (200 MB dan oshdi).")
-
-    try:
-        data = _js.loads(raw.decode("utf-8"))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"JSON o'qilmadi: {e}")
-
-    try:
-        result = crud.import_full_backup(db, data, replace=replace)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Tiklashda xato: {e}")
-
-    try:
-        crud.log_activity(
-            db,
-            action="Zaxiradan tiklash",
-            entity_type="system",
-            entity_id=0,
-            entity_label=file.filename,
-            performed_by=getattr(current_user, "username", None),
-            new_value=f"{result.get('jami_yozuv')} yozuv tiklandi, replace={replace}",
-        )
-    except Exception:
-        pass
-
-    return {
-        "status": "ok",
-        "message": f"Tiklandi: {result.get('jami_yozuv')} ta yozuv. "
-                   "Login hisoblari o'zgarmadi.",
-        "natija": result,
-    }
 
 
 @app.get("/kpi", response_class=HTMLResponse)
@@ -3673,14 +6398,20 @@ async def kpi_page(request: Request, db: Session = Depends(get_db), current_user
 def api_get_finished(source: Optional[str] = None, only_available: bool = False, show_all: bool = False,
                      db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotlar ro'yxati."""
+    _cid = auth.company_id_of(current_user)   # M4
     if source or only_available:
-        items = crud.get_finished_products(db, source=source, only_available=only_available)
+        items = crud.get_finished_products(db, source=source, only_available=only_available,
+                                           company_id=_cid)
     else:
-        items = crud.get_finished_products_for_main_page(db, days=90, show_all=show_all)
+        items = crud.get_finished_products_for_main_page(db, days=90, show_all=show_all,
+                                                         company_id=_cid)
     return [{
         "id": fp.id,
         "name": fp.name,
         "category": fp.category,
+        # Bosqich 3, 10-band — tayyor mahsulotning mahsulot TURI.
+        # Eski turkumlarda NULL (hali `ProductType` yozuvi yo'q).
+        "product_type_id": fp.product_type_id,
         "width": fp.width,
         "thickness": fp.thickness,
         "is_coated": fp.is_coated,
@@ -3697,14 +6428,14 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "actual_loy_kg": float(fp.actual_loy_kg) if fp.actual_loy_kg is not None else None,
         "unit_volume_m3": float(fp.unit_volume_m3) if fp.unit_volume_m3 is not None else None,
         "unit_loy_kg": float(fp.unit_loy_kg) if fp.unit_loy_kg is not None else None,
-        "gips_kg_used": float(fp.gips_kg_used) if fp.gips_kg_used is not None else None,
-        "gips_inventory_id": fp.gips_inventory_id,
         "production_status": fp.production_status.value if fp.production_status else None,
         "recipe_id": fp.recipe_id,
         "created_at": fp.created_at.isoformat() if fp.created_at else None,
         "created_by": fp.created_by,
         "notes": fp.notes,
         "image_url": fp.image_url,
+        "reserved_quantity": float(fp.reserved_quantity or 0),
+        "reserved_for_order_item_id": fp.reserved_for_order_item_id,
         "total_value": round(float(fp.quantity or 0) * float(fp.unit_price or 0))
     } for fp in items]
 
@@ -3712,8 +6443,8 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
 @app.post("/api/finished/{fp_id}/image")
 def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                                current_user=Depends(auth.admin_warehouse_or_manager)):
-    from models import FinishedProduct
-    fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda 404).
+    fp = auth.finished_product_of_company(db, fp_id, auth.company_id_of(current_user))
     if not fp:
         raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
     url = _save_upload(file, "finished", ALLOWED_IMAGE_EXT)
@@ -3725,6 +6456,9 @@ def api_upload_finished_image(fp_id: int, file: UploadFile = File(...), db: Sess
 @app.post("/api/projects/{project_id}/image")
 def api_upload_project_image(project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                               current_user=Depends(auth.admin_manager_accountant)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     from models import Project
     proj = db.query(Project).filter(Project.id == project_id).first()
     if not proj:
@@ -3738,6 +6472,9 @@ def api_upload_project_image(project_id: int, file: UploadFile = File(...), db: 
 @app.post("/api/returns/{return_id}/image")
 def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                              current_user=Depends(auth.manager_or_warehouse)):
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     from models import ReturnItem
     ret = db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
     if not ret:
@@ -3750,47 +6487,111 @@ def api_upload_return_image(return_id: int, file: UploadFile = File(...), db: Se
 
 @app.get("/api/finished/stats")
 def api_finished_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
-    return crud.get_finished_stats(db)
+    return crud.get_finished_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/finished/search")
 def api_search_finished(q: str = "", category: Optional[str] = None, exclude_category: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Nom bo'yicha qidirish — buyurtmada taklif uchun. category — masalan
-    'gips', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
+    'profil', faqat shu turdagi mahsulotlarni ko'rsatish uchun (ixtiyoriy)."""
     try:
-        return {"items": crud.search_finished_products(db, q, category=category, exclude_category=exclude_category)}
+        return {"items": crud.search_finished_products(db, q, category=category,
+                                                      exclude_category=exclude_category,
+                                                      company_id=auth.company_id_of(current_user))}
     except Exception as e:
         import traceback
         print("Tayyor mahsulot qidiruvida XATO:\n", traceback.format_exc())
         return {"items": [], "error": str(e)}
 
 
+def _tana_400(model: str, data, sxema):
+    """17b (2026-09-21): ombor kirimi / kirim hujjati / retsept tanasi —
+    xom JSON QAT'IY tekshiriladi (`crud._clean_val`), keyin sxemaga
+    o'giriladi. Qoida buzilsa 400 va `detail` — MATN (obyekt emas):
+    `supplier_receive.html` (`'❌ Xato: ' + e.detail`) va `recipes.html`
+    (`'Xato: ' + e.detail`) uni to'g'ridan-to'g'ri ko'rsatadi.
+
+    ⚠ Bu yordamchi `_fp_tana` dan FAQAT javob shakli bilan farq qiladi
+    (tayyor mahsulot sahifasi `detail.message` ni o'qiydi)."""
+    try:
+        toza = crud._clean_val(model, data)
+        return sxema(**toza)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+def _fp_tana(model: str, data, sxema):
+    """17-band: tayyor mahsulot marshrutlari tanasi — xom JSON QAT'IY
+    tekshiriladi (`crud._clean_val`), keyin sxemaga o'giriladi. Qoida
+    buzilsa 400 — javob shakli crud javoblari bilan bir xil
+    (`{"success": false, "message": ...}`), UI `detail.message` ni o'qiydi."""
+    try:
+        toza = crud._clean_val(model, data)
+        return sxema(**toza)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
+
+
 @app.post("/api/finished/loss")
-def api_record_finished_loss(data: schemas.FinishedProductLossCreate, db: Session = Depends(get_db),
+def api_record_finished_loss(data: dict = Body(...), db: Session = Depends(get_db),
                                current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni kamaytirish (o'chirish emas)."""
+    data = _fp_tana("Loss", data, schemas.FinishedProductLossCreate)
     who = current_user.full_name or current_user.username
-    result = crud.record_finished_product_loss(db, data, created_by=who)
+    result = crud.record_finished_product_loss(db, data, created_by=who,
+                                              company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
 
 
+@app.delete("/api/finished/loss/{loss_id}")
+def api_delete_finished_loss(loss_id: int, db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Xato yozilgan brakni bekor qiladi (2026-09-20 da qo'shildi).
+
+    Ilgari brakni orqaga qaytarish yo'li UMUMAN yo'q edi — bir marta
+    yozilgan brak Moliyadagi "Brak xarajati" da abadiy qolib ketardi.
+    Faqat admin, faqat o'z korxonasi, Faoliyat jurnaliga yoziladi."""
+    who = current_user.full_name or current_user.username
+    natija = crud.delete_finished_product_loss(
+        db, loss_id, company_id=auth.company_id_of(current_user), performed_by=who)
+    if not natija["success"]:
+        # 18-band: "ishlab chiqarish braki" — yozuv BOR (o'z korxonasida),
+        # lekin bekor qilish rad etiladi → 400 (UI `detail.message` ni
+        # o'qiydi). Qolgan hamma holat (yo'q / begona) — 404 (oracle yo'q).
+        if natija.get("kod") == "ishlab_chiqarish_braki":
+            raise HTTPException(status_code=400, detail={
+                "success": False, "message": natija["message"]})
+        raise HTTPException(status_code=404, detail=natija["message"])
+    return natija
+
+
+@app.post("/api/finished/{fp_id}/release-reservation")
+def api_release_finished_product_reservation(fp_id: int, db: Session = Depends(get_db),
+                                               current_user=Depends(auth.admin_warehouse_or_manager)):
+    """2026-09-17: Production/MRP orqali biror buyurtmaga band qilingan
+    tayyor mahsulotni ozod qilib, umumiy sotuvga qaytaradi."""
+    who = current_user.full_name or current_user.username
+    result = crud.release_finished_product_reservation(
+        db, fp_id, performed_by=who, company_id=auth.company_id_of(current_user))
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+
 @app.post("/api/finished/production-brak")
-def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCreate, db: Session = Depends(get_db),
+def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(get_db),
                                    current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak — mahsulot
-    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi. Profil/
-    Panel/Donali/Blok/Termopanel — `brak_qty` (mahsulot birligida) orqali,
-    BARQAROR nisbatdan hisoblab. Gips — `gips_kg_brak` orqali, xodim
-    to'g'ridan-to'g'ri kiritgan ANIQ kg (hisoblanmaydi, chunki gips
-    sarfi metrga proporsional emas), qo'shimcha materiallar esa faqat
-    `additives_brak` ko'rsatilgan bo'lsagina (ixtiyoriy) ayiriladi."""
+    soniga tegmaydi, faqat qo'shimcha xomashyo ombordan ayiriladi.
+    Profil/Panel/Donali/Blok — `brak_qty` (mahsulot birligida) orqali,
+    BARQAROR nisbatdan hisoblab."""
+    data = _fp_tana("ProductionBrak", data, schemas.FinishedProductProductionBrakCreate)
     who = current_user.full_name or current_user.username
     result = crud.record_finished_product_production_brak(
         db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
-        gips_kg_brak=data.gips_kg_brak,
-        additives_brak=[a.dict() for a in data.additives_brak] if data.additives_brak else None,
+        company_id=auth.company_id_of(current_user),
     )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
@@ -3798,22 +6599,26 @@ def api_finished_production_brak(data: schemas.FinishedProductProductionBrakCrea
 
 
 @app.post("/api/finished/sell-batch")
-def api_sell_finished_products_batch(data: schemas.FinishedProductSaleBatchCreate, db: Session = Depends(get_db),
+def api_sell_finished_products_batch(data: dict = Body(...), db: Session = Depends(get_db),
                                        current_user=Depends(auth.admin_warehouse_or_manager)):
     """Bir nechta turli tayyor mahsulotni, bitta xaridorga, bitta Yuk xati bilan sotish."""
+    data = _fp_tana("SaleBatch", data, schemas.FinishedProductSaleBatchCreate)
     who = current_user.full_name or current_user.username
-    result = crud.sell_finished_products_batch(db, data, created_by=who)
+    result = crud.sell_finished_products_batch(db, data, created_by=who,
+                                              company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
 
 
 @app.post("/api/finished/sell")
-def api_sell_finished_product(data: schemas.FinishedProductSaleCreate, db: Session = Depends(get_db),
+def api_sell_finished_product(data: dict = Body(...), db: Session = Depends(get_db),
                                 current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni to'g'ridan-to'g'ri sotish (buyurtma/Yuk xatisiz)."""
+    data = _fp_tana("Sale", data, schemas.FinishedProductSaleCreate)
     who = current_user.full_name or current_user.username
-    result = crud.sell_finished_product(db, data, created_by=who)
+    result = crud.sell_finished_product(db, data, created_by=who,
+                                       company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -3825,7 +6630,10 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
     """Tayyor mahsulot savdolari tarixi (ixtiyoriy oy/yil filtri bilan)."""
     from models import FinishedProductSale
     from sqlalchemy import extract
-    q = db.query(FinishedProductSale).order_by(FinishedProductSale.sold_at.desc())
+    # M4 (2026-09-18) — TENANT: sotuvlar ro'yxati korxona filtrisiz edi (H-5).
+    q = db.query(FinishedProductSale).filter(
+        FinishedProductSale.company_id == auth.company_id_of(current_user)
+    ).order_by(FinishedProductSale.sold_at.desc())
     if year:
         q = q.filter(extract('year', FinishedProductSale.sold_at) == year)
     if month:
@@ -3839,27 +6647,18 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
     } for s in sales]
 
 
-@app.post("/api/finished/produce-gips")
-def api_produce_gips(data: schemas.GipsProduceCreate, db: Session = Depends(get_db),
-                      current_user=Depends(auth.admin_warehouse_or_manager)):
-    """Gips mahsulotini to'g'ridan-to'g'ri (buyurtmasiz) ishlab chiqarish."""
-    who = current_user.full_name or current_user.username
-    result = crud.produce_gips_finished_product(db, data, created_by=who)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
-    return result
-
-
 @app.post("/api/finished/produce")
-def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def api_produce(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot ishlab chiqarish."""
+    data = _fp_tana("Produce", data, schemas.ProduceCreate)
     who = current_user.full_name or current_user.username
-    result = crud.produce_finished_product(db, data, created_by=who)
+    result = crud.produce_finished_product(db, data, created_by=who,
+                                          company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
     # Ombor ogohlantirishi
-    low_items = crud.get_low_stock_items(db)
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if low_items:
         lines = []
         for item in low_items:
@@ -3869,40 +6668,14 @@ def api_produce(data: schemas.ProduceCreate, db: Session = Depends(get_db), curr
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTayyor mahsulot ishlab chiqarilgandan keyin:\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
-               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
-        _send_telegram(msg)
+               + "\n━━━━━━━━━━━━━━━━━━━\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return result
-
-
-@app.post("/api/finished/produce-termopanel")
-def api_produce_termopanel(data: schemas.TermopanelProduceCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
-    """Bazalt asosidagi termopanel ishlab chiqarish (kvadrat metr bo'yicha)."""
-    who = current_user.full_name or current_user.username
-    result = crud.produce_termopanel(db, data, created_by=who)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
-
-    low_items = crud.get_low_stock_items(db)
-    if low_items:
-        lines = []
-        for item in low_items:
-            qty = float(item.stock_quantity)
-            min_q = float(item.min_stock)
-            emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
-        msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTermopanel ishlab chiqarilgandan keyin:\n\n"
-               + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
-               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
-        _send_telegram(msg)
-
-    return result
-
-
 @app.post("/api/finished/{fp_id}/complete")
 def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Mahsulotni 'Tayyor' deb belgilash — sotuvga tayyor."""
-    result = crud.complete_production(db, fp_id)
+    result = crud.complete_production(db, fp_id, company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -3911,22 +6684,28 @@ def api_complete_production(fp_id: int, db: Session = Depends(get_db), current_u
 @app.get("/api/finished/{fp_id}/profit")
 def api_finished_profit(fp_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Tayyor mahsulot foydasi (faqat admin)."""
-    result = crud.get_finished_profit(db, fp_id)
+    result = crud.get_finished_profit(db, fp_id, company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
     return result
 
 
 @app.post("/api/finished/{fp_id}/add")
-def api_add_production(fp_id: int, data: schemas.StockAdjust,
+def api_add_production(fp_id: int, data: dict = Body(...),
                        db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotga miqdor qo'shish — xomashyo proporsional yechiladi."""
-    result = crud.add_to_production(db, fp_id, data.quantity)
+    # 17-band: begona / mavjud bo'lmagan ID — tana tekshiruvidan OLDIN 404
+    # (aks holda yomon tana 400 berib, ID borligini oshkor qilardi).
+    if not crud.get_finished_product(db, fp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    data = _fp_tana("StockAdjust", data, schemas.StockAdjust)
+    result = crud.add_to_production(db, fp_id, data.quantity,
+                                    company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
 
     # Ombor ogohlantirishi
-    low_items = crud.get_low_stock_items(db)
+    low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
     if low_items:
         lines = []
         for item in low_items:
@@ -3936,27 +6715,43 @@ def api_add_production(fp_id: int, data: schemas.StockAdjust,
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\n"
                + "━━━━━━━━━━━━━━━━━━━\n" + "\n".join(lines)
-               + "\n━━━━━━━━━━━━━━━━━━━\n\n🏗 *PenoDecorPro* — Andijon")
-        _send_telegram(msg)
+               + "\n━━━━━━━━━━━━━━━━━━━\n\n" + _tg_footer(db, auth.company_id_of(current_user)))
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
 
     return result
 
 
 @app.post("/api/finished/{fp_id}/reduce")
-def api_reduce_production(fp_id: int, data: schemas.StockAdjust,
+def api_reduce_production(fp_id: int, data: dict = Body(...),
                           db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot miqdorini kamaytirish (brak/singan) — xomashyo qaytmaydi."""
-    result = crud.reduce_production(db, fp_id, data.quantity, data.reason)
+    # 17-band: begona ID — tana tekshiruvidan OLDIN 404 (oracle bo'lmasin).
+    if not crud.get_finished_product(db, fp_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    data = _fp_tana("StockAdjust", data, schemas.StockAdjust)
+    result = crud.reduce_production(db, fp_id, data.quantity, data.reason,
+                                    company_id=auth.company_id_of(current_user))
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return result
 
 
 @app.put("/api/finished/{fp_id}")
-def api_update_finished(fp_id: int, data: schemas.FinishedProductUpdate,
+def api_update_finished(fp_id: int, data: dict = Body(...),
                         db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulotni tahrirlash."""
-    fp = crud.update_finished_product(db, fp_id, data.model_dump(exclude_unset=True))
+    cid = auth.company_id_of(current_user)
+    # 14-band: avval obyekt korxonadan (404) — tana tekshiruvi undan KEYIN
+    # (begona ID + noto'g'ri tana 400 berib ID borligini oshkor qilmasin).
+    if not crud.get_finished_product(db, fp_id, cid):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    # Xom JSON qat'iy tekshiriladi; miqdor bu yo'ldan o'zgarmaydi (400).
+    try:
+        toza = crud._clean_update("FinishedProduct", data)
+        fp = crud.update_finished_product(db, fp_id, toza, company_id=cid)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not fp:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "quantity": float(fp.quantity), "unit_price": float(fp.unit_price or 0)}
@@ -3968,18 +6763,22 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
     """Tayyor mahsulotni o'chirish.
     - IN_PROGRESS: xato tuzatish deb hisoblanadi — o'chadi, xomashyo qaytadi.
     - READY: faqat qoldiq 0 bo'lsa o'chadi, xomashyo qaytmaydi."""
-    from models import FinishedProduct as _FP, ProductionStatus as _PS
-    fp = db.query(_FP).filter(_FP.id == fp_id).first()
+    # M4: mahsulot FAQAT joriy korxonadan (aks holda 404).
+    _cid = auth.company_id_of(current_user)
+    fp = auth.finished_product_of_company(db, fp_id, _cid)
     if not fp:
         raise HTTPException(status_code=404, detail="Topilmadi")
-    if fp.production_status != _PS.IN_PROGRESS and float(fp.quantity or 0) > 0.001:
+    # kech40 (K40-1): qaytgan (RETURNED) mahsulot bazada IN_PROGRESS bo'lib qolgan bo'lsa ham
+    # TAYYOR hisoblanadi (`crud._fp_tayyormi` — UI bilan bir xil) — qoldig'i bor qaytgan
+    # mahsulot ilgari jim o'chirilar va penoplasti omborga soxta qaytarilardi.
+    if crud._fp_tayyormi(fp) and float(fp.quantity or 0) > 0.001:
         raise HTTPException(
             status_code=400,
             detail=f"Bu mahsulotda hali {float(fp.quantity):g} {fp.unit} qoldiq bor — "
                    f"o'chirib bo'lmaydi. Avval to'liq soting yoki \"Kamaytirish (brak)\" "
                    f"orqali nolga tushiring, keyin o'chiring."
         )
-    if not crud.delete_finished_product(db, fp_id):
+    if not crud.delete_finished_product(db, fp_id, company_id=_cid):
         raise HTTPException(status_code=400, detail="O'chirib bo'lmadi")
     return {"status": "ok"}
 
@@ -3991,6 +6790,9 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
 @app.get("/api/orders/{order_id}/delivery-status")
 def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Buyurtmaning yetkazish holati."""
+    # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
+    if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = crud.get_delivery_status(db, order_id)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
@@ -3999,6 +6801,17 @@ def api_delivery_status(order_id: int, db: Session = Depends(get_db), current_us
 
 @app.post("/api/orders/{order_id}/pin")
 def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    # ⚠ 2026-09-21, IDOR testi bilan topildi (tools/test_idor.py):
+    # bu yerda M2 qo'riqchisi TUSHIB QOLGAN edi. `crud.toggle_order_pin`
+    # buyurtmani faqat ID bo'yicha topadi, korxonani tekshirmaydi —
+    # natijada B korxona admini A korxonaning buyurtmasini qadab/yechib
+    # qo'ya olardi (HTTP da o'lchangan: 200 qaytdi va `is_pinned`
+    # HAQIQATAN o'zgardi). Bundan tashqari 200/404 farqi "bu ID boshqa
+    # korxonada bormi" degan savolga javob berardi.
+    # `TENANT_FILTER=1` buni yopadi, lekin u standart holatda O'CHIQ va
+    # o'chirilishi mumkin — shuning uchun teshik ILDIZIDAN yopiladi.
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     result = crud.toggle_order_pin(db, order_id)
     if not result.get("success"):
         raise HTTPException(status_code=404, detail=result.get("message", "Topilmadi"))
@@ -4006,12 +6819,44 @@ def api_toggle_order_pin(order_id: int, db: Session = Depends(get_db), current_u
 
 
 @app.post("/api/deliveries")
-def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yangi yetkazish."""
+    # 17g (2026-09-22): xom JSON QAT'IY tekshiriladi (`crud._clean_val
+    # ("Delivery")`), keyin sxemaga (`null` maydonlar — sxema standarti).
+    # HAQIQIY PostgreSQL da O'LCHANGAN (asl kod = 17f): to'lov / transport
+    # `Infinity` / `1e20` — 500; to'lov `0.001` → 0 so'mlik to'lov; `true` →
+    # 1 so'm; noma'lum to'lovchi — transport Moliyadan tushib qolardi; uzun
+    # matnlar — 500; to'lov qo'lda to'lov chegaralarini (3 baravar, ortiqcha
+    # to'lov tasdig'i) chetlab o'tardi. Javob shakli crud javoblari bilan bir
+    # xil (`{"success": false, "message": ...}`) — `orders.html` `detail.message`
+    # ni o'qiydi. Qarzdan ko'p to'lov — 409 (`overpayment_warning`, `/api/payments`
+    # dagi bilan AYNAN bir xil), UI tasdiqlasa `confirm_overpay: true` bilan
+    # qayta yuboradi; bu holatda hech narsa yozilmagan bo'ladi.
+    try:
+        toza = crud._clean_val("Delivery", data)
+        data = schemas.DeliveryCreate(**{k: v for k, v in toza.items() if v is not None})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     who = current_user.full_name or current_user.username
-    result = crud.create_delivery(db, data, delivered_by=who)
+    try:
+        result = crud.create_delivery(db, data, delivered_by=who, company_id=auth.company_id_of(current_user))
+    except crud.OverpaymentWarning as w:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "type": "overpayment_warning",
+            "message": f"Kiritilgan summa ({w.amount:,.0f} so'm) qarzdan ({w.debt:,.0f} so'm) {w.excess:,.0f} so'mga ko'p. Shunday ham davom etasizmi?",
+            "amount": w.amount, "debt": w.debt, "excess": w.excess
+        })
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
+    if result.get("duplicate"):
+        # kech27: takroriy so'rov — yangi yetkazish YOZILMAGAN, mavjudi
+        # qaytarilgan (`crud.create_delivery`). Telegram xabari va mijozga
+        # nakladnoy birinchi so'rovda yuborilgan — QAYTA yuborilmaydi.
+        return result
 
     # Telegram xabar
     d = crud.get_delivery(db, result["delivery_id"])
@@ -4030,7 +6875,7 @@ def api_create_delivery(data: schemas.DeliveryCreate, db: Session = Depends(get_
             + ("\n✅ *Buyurtma to'liq topshirildi!*" if result["is_fully_delivered"] else "")
             + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
         )
-        _send_telegram(msg)
+        _send_telegram(msg, company_id=auth.company_id_of(current_user))
         _send_delivery_pdf_to_customer(db, result["delivery_id"])
 
     return result
@@ -4044,7 +6889,12 @@ def api_finished_sale_batch_pdf(group_id: str, db: Session = Depends(get_db), cu
     import traceback
     from models import FinishedProductSale
 
-    sales = db.query(FinishedProductSale).filter(FinishedProductSale.sale_group_id == group_id).order_by(FinishedProductSale.id).all()
+    # M4 (2026-09-18) — TENANT: `group_id` ota tekshiruvisiz ishlatilardi —
+    # A korxona xodimi B ning yuk xatini ochishi mumkin edi (H-7).
+    sales = db.query(FinishedProductSale).filter(
+        FinishedProductSale.sale_group_id == group_id,
+        FinishedProductSale.company_id == auth.company_id_of(current_user)
+    ).order_by(FinishedProductSale.id).all()
     if not sales:
         raise HTTPException(status_code=404, detail="Sotuv guruhi topilmadi")
     try:
@@ -4066,7 +6916,11 @@ def api_finished_sale_pdf(sale_id: int, db: Session = Depends(get_db), current_u
     import traceback
     from models import FinishedProductSale
 
-    sale = db.query(FinishedProductSale).filter(FinishedProductSale.id == sale_id).first()
+    # M4 (2026-09-18) — TENANT: `sale_id` ota tekshiruvisiz ishlatilardi (H-7).
+    sale = db.query(FinishedProductSale).filter(
+        FinishedProductSale.id == sale_id,
+        FinishedProductSale.company_id == auth.company_id_of(current_user)
+    ).first()
     if not sale:
         raise HTTPException(status_code=404, detail="Sotuv topilmadi")
     try:
@@ -4087,7 +6941,7 @@ def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_us
     import delivery_pdf
     import traceback
 
-    d = crud.get_delivery(db, delivery_id)
+    d = crud.get_delivery(db, delivery_id, company_id=auth.company_id_of(current_user))
     if not d:
         raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
     try:
@@ -4105,6 +6959,9 @@ def api_delivery_pdf(delivery_id: int, db: Session = Depends(get_db), current_us
 def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Hisob-kitob varaqasi — tanlangan nakladnoylar bo'yicha.
     ids — vergul bilan ajratilgan delivery ID lar: '3,5,7'. Bo'sh bo'lsa — hammasi."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     from fastapi.responses import Response
     import delivery_pdf as _delivery_pdf
     import traceback as _tb
@@ -4142,6 +6999,32 @@ def api_summary_pdf(order_id: int, ids: str = "", db: Session = Depends(get_db),
 # MAHSULOT RASMI VA BUYURTMA FAYLLARI (faqat qo'shimcha — hisob-kitobga ta'sir qilmaydi)
 # ============================================================
 
+def _master_by_chat_id(db, chat_id):
+    """Telegram chat_id bo'yicha ustani topadi (ko'p-tenantga tayyor).
+
+    2026-09-19 — Faza 3 (Telegram): ilgari `Master.telegram_id` butun tizim
+    bo'yicha YAGONA edi, shuning uchun bitta usta faqat BITTA korxonada
+    ro'yxatdan o'ta olardi. SaaS uchun bu to'g'ri emas: bir usta ikki
+    korxonada ishlashi mumkin. Cheklov `(company_id, telegram_id)` ga
+    o'zgartirildi, ya'ni endi bir nechta moslik bo'lishi MUMKIN.
+
+    Qaytaradi: (master, xato_matni). Bir nechta moslik topilsa — usta
+    qaysi korxona nomidan yozayotgani NOMA'LUM, shuning uchun hech biri
+    tanlanmaydi va tushunarli xabar qaytariladi. (Har korxonaga alohida
+    bot ulanganda, korxona bot tokenidan aniqlanadi va bu holat
+    umuman tug'ilmaydi — bu keyingi qadam.)"""
+    from models import Master as _Mst
+    rows = db.query(_Mst).filter(_Mst.telegram_id == chat_id,
+                                 _Mst.is_active == True).all()
+    if not rows:
+        return None, None
+    if len(rows) == 1:
+        return rows[0], None
+    return None, ("Sizning Telegram hisobingiz bir nechta korxonada usta "
+                  "sifatida ro'yxatdan o'tgan. Iltimos, korxona "
+                  "administratoriga murojaat qiling.")
+
+
 ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 # CorelDRAW (.cdr) va AutoCAD (.dwg, .dxf) chizmalarini ham buyurtmaga
 # biriktirish mumkin bo'lishi uchun qo'shildi (2026-09).
@@ -4169,6 +7052,12 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
 @app.post("/api/order-items/{item_id}/image")
 def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                                  current_user=Depends(auth.orders_page_access)):
+    # M2: detal FAQAT joriy korxonadan (aks holda 404).
+    from models import OrderItem as _OI_g
+    if not db.query(_OI_g).filter(
+            _OI_g.id == item_id,
+            _OI_g.company_id == auth.company_id_of(current_user)).first():
+        raise HTTPException(status_code=404, detail="Detal topilmadi")
     from models import OrderItem
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
@@ -4182,6 +7071,12 @@ def api_upload_order_item_image(item_id: int, file: UploadFile = File(...), db: 
 @app.delete("/api/order-items/{item_id}/image")
 def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
                                  current_user=Depends(auth.orders_page_access)):
+    # M2: detal FAQAT joriy korxonadan (aks holda 404).
+    from models import OrderItem as _OI_g
+    if not db.query(_OI_g).filter(
+            _OI_g.id == item_id,
+            _OI_g.company_id == auth.company_id_of(current_user)).first():
+        raise HTTPException(status_code=404, detail="Detal topilmadi")
     from models import OrderItem
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
@@ -4195,7 +7090,10 @@ def api_delete_order_item_image(item_id: int, db: Session = Depends(get_db),
 def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
                                  current_user=Depends(auth.orders_page_access)):
     from models import OrderAttachment, Order
-    order = db.query(Order).filter(Order.id == order_id).first()
+    # M2: fayl FAQAT o'z korxonasining buyurtmasiga biriktiriladi.
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.company_id == auth.company_id_of(current_user)).first()
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     url = _save_upload(file, "order_attachments", ALLOWED_FILE_EXT)
@@ -4212,6 +7110,9 @@ def api_upload_order_attachment(order_id: int, file: UploadFile = File(...), db:
 @app.get("/api/orders/{order_id}/attachments")
 def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     from models import OrderAttachment
+    # M2: buyurtma FAQAT joriy korxonadan (aks holda 404).
+    if not crud.get_order(db, order_id, company_id=auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     atts = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).order_by(OrderAttachment.uploaded_at.desc()).all()
     return [schemas.OrderAttachmentRead.model_validate(a) for a in atts]
 
@@ -4220,7 +7121,13 @@ def api_list_order_attachments(order_id: int, db: Session = Depends(get_db), cur
 def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db),
                                  current_user=Depends(auth.orders_page_access)):
     from models import OrderAttachment
-    att = db.query(OrderAttachment).filter(OrderAttachment.id == attachment_id).first()
+    # M2: biriktirmada company_id yo'q — ota (buyurtma) orqali tekshiriladi.
+    from models import Order as _Ord
+    att = (db.query(OrderAttachment)
+           .join(_Ord, _Ord.id == OrderAttachment.order_id)
+           .filter(OrderAttachment.id == attachment_id,
+                   _Ord.company_id == auth.company_id_of(current_user))
+           .first())
     if not att:
         raise HTTPException(status_code=404, detail="Fayl topilmadi")
     try:
@@ -4235,65 +7142,71 @@ def api_delete_order_attachment(attachment_id: int, db: Session = Depends(get_db
     db.delete(att)
     db.commit()
     return {"status": "ok"}
-    import delivery_pdf
-    import traceback
-
-    order = crud.get_order(db, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-
-    all_dlv = sorted(order.deliveries, key=lambda x: x.delivered_at or datetime.min)
-
-    if ids.strip():
-        try:
-            wanted = {int(x) for x in ids.split(',') if x.strip()}
-        except ValueError:
-            raise HTTPException(status_code=400, detail="ids noto'g'ri")
-        deliveries = [d for d in all_dlv if d.id in wanted]
-    else:
-        deliveries = all_dlv
-
-    if not deliveries:
-        raise HTTPException(status_code=400, detail="Yuk xati tanlanmagan")
-
-    try:
-        pdf_bytes = delivery_pdf.generate_summary_pdf(order, deliveries, db)
-    except Exception as e:
-        print("Hisob-kitob PDF XATO:\n", traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"PDF xato: {str(e)}")
-
-    filename = f"hisob_kitob_{order.order_number}.pdf"
-    return Response(content=pdf_bytes, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
 @app.delete("/api/deliveries/{delivery_id}")
-def api_delete_delivery(delivery_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Yetkazishni o'chirish."""
-    if not crud.delete_delivery(db, delivery_id):
+def api_delete_delivery(delivery_id: int, tolov: Optional[str] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
+    """Yetkazishni o'chirish.
+
+    kech38 (5-bo'lim 12-band): yukka to'lov bog'langan bo'lsa va `tolov`
+    berilmagan bo'lsa — 409 (`detail.type = "delivery_has_payment"`, hech
+    narsa o'zgarmaydi); UI so'raydi va `?tolov=ochir` (to'lov ham o'chadi) yoki
+    `?tolov=qoldir` (to'lov oddiy to'lov bo'lib qoladi) bilan qayta yuboradi.
+    Boshqa qiymat — 400. Ilgari HAQIQIY PostgreSQL da 500 edi
+    (`crud.delete_delivery` izohi)."""
+    # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
+    _cid = auth.company_id_of(current_user)
+    if not auth.delivery_of_company(db, delivery_id, _cid):
         raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
-    return {"status": "ok"}
+    who = current_user.full_name or current_user.username
+    try:
+        natija = crud.delete_delivery(db, delivery_id, company_id=_cid, tolov=tolov,
+                                      performed_by=who)
+    except crud.YukToloviBor as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "type": "delivery_has_payment",
+            "message": str(e),
+            "delivery_number": e.raqam,
+            "payments": [{"id": pid, "amount": s} for pid, s in e.tolovlar],
+            "total": e.jami,
+        })
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
+    if not natija:
+        raise HTTPException(status_code=404, detail="Yetkazish topilmadi")
+    return {"status": "ok", **natija}
 
 
 @app.get("/api/loy-cost")
 def api_loy_cost(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """1 kg loyning tan narxi (retsept bo'yicha)."""
-    return services.get_loy_cost_per_kg(db, recipe_id)
+    return services.get_loy_cost_per_kg(
+        db, recipe_id, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/loy-stock")
 def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Tayyor loy zaxirasi."""
     from models import Recipe
+    # ⚠ 2026-09-21: ikkala so'rov ham korxona bo'yicha cheklanmagan edi.
+    # `db.query(Recipe).first()` BUTUN bazadagi birinchi retseptni olardi.
+    # O'lchangan: B korxona admini A ning retseptini (`AAA_Rec`) ko'rdi,
+    # ustiga `get_or_create_loy_stock` B korxonasida "Tayyor loy (AAA_Rec)"
+    # nomli ombor pozitsiyasini YARATIB ham qo'ydi — ya'ni bu faqat o'qish
+    # sizishi emas, korxonalararo YOZISH ham edi.
+    _cid = auth.company_id_of(current_user)
+    _rq = db.query(Recipe).filter(Recipe.company_id == _cid)
     recipe = None
     if recipe_id:
-        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+        recipe = _rq.filter(Recipe.id == recipe_id).first()
     if not recipe:
-        recipe = db.query(Recipe).first()
+        recipe = _rq.first()
     if not recipe:
         return {"stock_kg": 0, "name": None}
 
-    stock = services.get_or_create_loy_stock(db, recipe)
+    stock = services.get_or_create_loy_stock(db, recipe, company_id=auth.company_id_of(current_user))
     if not stock:
         return {"stock_kg": 0, "name": None}
     return {
@@ -4305,25 +7218,23 @@ def api_loy_stock(recipe_id: Optional[int] = None, db: Session = Depends(get_db)
 
 @app.get("/api/orders/{order_id}/planned-loy")
 def api_planned_loy(order_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    """Buyurtmada rejalashtirilgan loy miqdori — oddiy detallar + termopanel (bazalt) birga."""
-    order = crud.get_order(db, order_id)
+    """Buyurtmada rejalashtirilgan loy miqdori (qoplama uchun)."""
+    order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
-    order_planned = services._get_planned_loy(order)
-    termo_planned = crud.get_termopanel_planned_loy(order)
-    return {"planned_loy": order_planned + termo_planned}
+    return {"planned_loy": services._get_planned_loy(order)}
 
 
 @app.get("/api/dashboard/deliveries")
 def api_delivery_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Yetkazish statistikasi."""
-    return crud.get_delivery_stats(db)
+    return crud.get_delivery_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/dashboard/debts")
 def api_debt_stats(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
     """Qarzdorlik statistikasi."""
-    return crud.get_debt_stats(db)
+    return crud.get_debt_stats(db, company_id=auth.company_id_of(current_user))
 
 
 @app.post("/telegram/webhook")
@@ -4355,16 +7266,25 @@ async def telegram_webhook(request: Request):
         db = SessionLocal()
         try:
             from models import Master
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            master, _amb = _master_by_chat_id(db, chat_id)
+            if _amb:
+                _send_telegram_to(chat_id, _amb)
+                return {"ok": True}
             keyboard = _master_bot_keyboard(db, master)
+            # 2026-09-21: bot — global (1-korxonaniki). Usta topilsa — uning
+            # korxonasi nomi, topilmasa — bot egasi (1-korxona) nomi.
+            _wh_cid = (getattr(master, "company_id", None) if master else None) \
+                or auth.DEFAULT_COMPANY_ID
+            _wh_nom = _tg_brand(db, _wh_cid)[0]
         finally:
             db.close()
-        welcome_msg = "Assalomu alaykum! 👋\n\n*PenoDecorPro* bot ga xush kelibsiz!\n\nQuyidagi tugmalardan foydalaning:"
+        welcome_msg = ("Assalomu alaykum! 👋\n\n"
+                       + (f"*{_wh_nom}* bot ga xush kelibsiz!" if _wh_nom
+                          else "Botga xush kelibsiz!")
+                       + "\n\nQuyidagi tugmalardan foydalaning:")
         try:
-            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
-            send_data = _json.dumps({"chat_id": chat_id, "text": welcome_msg, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
-            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=5)
+            _tg_post_message(os.environ.get('TELEGRAM_BOT_TOKEN', ''), chat_id,
+                             welcome_msg, reply_markup=keyboard)
         except Exception as e:
             print(f"Keyboard SMS xatosi: {e}")
         return {"ok": True}
@@ -4378,9 +7298,13 @@ async def telegram_webhook(request: Request):
         db = SessionLocal()
         try:
             from models import Master
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            master, _amb = _master_by_chat_id(db, chat_id)
+            if _amb:
+                _send_telegram_to(chat_id, _amb)
+                return {"ok": True}
             if not master:
-                reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
+                reply = ("❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n"
+                         + _tg_footer(db, auth.DEFAULT_COMPANY_ID, bold=False, emoji="📞"))
             else:
                 # 2026-09-12: har doim ishlaydigan, yillik SOF FOYDADAN
                 # hisoblangan keshbek hisoboti (admin panelidagi "Ustalar
@@ -4388,8 +7312,10 @@ async def telegram_webhook(request: Request):
                 # davrlaridagi buyurtmalar bu yerdan chiqarib tashlanadi —
                 # crud.get_master_yearly_cashback() ichida hisobga olinadi.
                 current_year = datetime.now().year
-                info = crud.get_master_yearly_cashback(db, master.id, current_year)
-                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n🏗 PenoDecorPro — Andijon"
+                info = crud.get_master_yearly_cashback(
+                    db, master.id, current_year,
+                    company_id=getattr(master, "company_id", None))
+                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {int(info['jami_bonus']):,} so'm*\n\n" + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False)
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
@@ -4401,10 +7327,8 @@ async def telegram_webhook(request: Request):
         finally:
             db2.close()
         try:
-            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
-            send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
-            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=5)
+            _tg_post_message(os.environ.get('TELEGRAM_BOT_TOKEN', ''), chat_id,
+                             reply, reply_markup=keyboard)
         except Exception as e:
             _send_telegram_to(chat_id, reply)
         return {"ok": True}
@@ -4417,13 +7341,18 @@ async def telegram_webhook(request: Request):
         db = SessionLocal()
         try:
             from models import Master
-            master = db.query(Master).filter(Master.telegram_id == chat_id, Master.is_active == True).first()
+            master, _amb = _master_by_chat_id(db, chat_id)
+            if _amb:
+                _send_telegram_to(chat_id, _amb)
+                return {"ok": True}
             if not master:
-                reply = "❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n📞 PenoDecorPro — Andijon"
+                reply = ("❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n"
+                         + _tg_footer(db, auth.DEFAULT_COMPANY_ID, bold=False, emoji="📞"))
             else:
                 prog = crud.get_master_gift_period_progress(db, master.id)
                 if not prog["active"]:
-                    reply = "🎁 Hozircha faol sovg'a davri yo'q.\n\n🏗 PenoDecorPro — Andijon"
+                    reply = ("🎁 Hozircha faol sovg'a davri yo'q.\n\n"
+                             + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False))
                 else:
                     sales = prog["current_sales"]
                     reply = f"🎁 *Sovg'a davri — joriy holatingiz*\n\n👤 {master.name}\n━━━━━━━━━━━━━━━━━━━\n"
@@ -4437,7 +7366,8 @@ async def telegram_webhook(request: Request):
                             pct = max(0, min(100, round((progress / span) * 100))) if span > 0 else 0
                             reply += f"⬜ {t['gift_name']} — {pct}% (qolgan: {100-pct}%)\n"
                         prev_threshold = t["threshold_amount"]
-                    reply += f"━━━━━━━━━━━━━━━━━━━\n\n🏗 PenoDecorPro — Andijon"
+                    reply += ("━━━━━━━━━━━━━━━━━━━\n\n"
+                              + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False))
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
@@ -4449,10 +7379,8 @@ async def telegram_webhook(request: Request):
         finally:
             db2.close()
         try:
-            url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_BOT_TOKEN', '')}/sendMessage"
-            send_data = _json.dumps({"chat_id": chat_id, "text": reply, "parse_mode": "Markdown", "reply_markup": keyboard}).encode("utf-8")
-            req = urllib.request.Request(url, data=send_data, headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=5)
+            _tg_post_message(os.environ.get('TELEGRAM_BOT_TOKEN', ''), chat_id,
+                             reply, reply_markup=keyboard)
         except Exception as e:
             _send_telegram_to(chat_id, reply)
         return {"ok": True}
@@ -4478,8 +7406,38 @@ def run_daily_backup():
 
     db = SessionLocal()
     try:
+        # M7: kunlik zaxira — PLATFORMA darajasidagi tizim amali (hech qanday
+        # tenant so'rovi orqali emas, rejalashtiruvchi tomonidan ishga
+        # tushadi) va u platforma egasining o'z Telegram chatiga ketadi,
+        # shuning uchun ATAYLAB butun bazani qamraydi. Tenantga hech narsa
+        # oshkor qilinmaydi. Parol/PIN hashlari esa endi `export_full_backup`
+        # ning o'zida umuman chiqarilmaydi.
+        # Faza 3 (2-qadam): kunlik zaxira ATAYLAB platforma darajasida
+        # qoladi — u rejalashtiruvchi tomonidan, hech qanday korxona
+        # so'rovisiz ishga tushadi va platforma egasining chatiga boradi.
+        # Shu sababli u muhit o'zgaruvchilaridagi token/chatni ishlatadi.
         backup_data = crud.export_full_backup(db)
         content = _json_mod.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
+
+        # Faza 4: Telegram bitta faylda 50 MB gacha ruxsat beradi. Mijozlar
+        # ko'paygan sari zaxira kattalashadi va chegaradan oshsa fayl
+        # JIMGINA yuborilmay qoladi — ya'ni kunlar davomida zaxirasiz
+        # qolish mumkin. Shuning uchun 40 MB dan oshganda ogohlantirish
+        # yuboriladi, 49 MB dan oshganda esa fayl o'rniga xabar ketadi.
+        _mb = len(content) / (1024 * 1024)
+        if _mb >= 49:
+            _send_telegram(
+                f"⛔ *Kunlik zaxira YUBORILMADI*\n\nFayl hajmi {_mb:.1f} MB — "
+                f"Telegram chegarasi (50 MB) dan oshdi.\n\n"
+                f"Zaxirani qo'lda yuklab oling: /api/system/backup\n"
+                f"Uzoq muddatli yechim kerak (masalan bulutli saqlash).")
+            print(f"⛔ Kunlik zaxira yuborilmadi — {_mb:.1f} MB")
+            return
+        if _mb >= 40:
+            _send_telegram(
+                f"⚠️ *Zaxira hajmi ogohlantirishi*\n\nBugungi zaxira {_mb:.1f} MB.\n"
+                f"Telegram chegarasi 50 MB. Yaqinlashyapti — boshqa saqlash "
+                f"usulini rejalashtirish vaqti keldi.")
         filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d')}.json"
 
         total_rows = sum(len(rows) for rows in backup_data["tables"].values())
