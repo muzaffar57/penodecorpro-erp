@@ -1830,7 +1830,58 @@ def _migrate_harakat_narx():
         print(f"⚠ Harakat narxi migratsiyasi o'tkazib yuborildi: {e}")
 
 
+
 _migrate_harakat_narx()
+
+
+def _migrate_eski_buyurtma_narxi():
+    """kech49 (5-bo'lim 33-band) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    FOYDALANUVCHI QARORI (kech48, so'zma-so'z: "A JAVOBIM"): eski buyurtmalar
+    BUGUNGI narxda muzlatilsin. Zip 47 gacha yozilgan chiqim harakatlarida
+    `unit_cost` yo'q (NULL) — buyurtma tan narxi (`services.calculate_order_profit`
+    → `_buyurtma_sarf_narxlari`) ular uchun JORIY narxni oladi va material narxi
+    o'zgarsa o'tgan oylar foydasi o'zgaraveradi (kech47 jonli: penoplast x2 →
+    sentyabr sof foydasi ~10.6 mln ga siljidi). Bu migratsiya ularga shu paytdagi
+    `price_per_unit` ni yozadi: hozirgi hisobot raqamlari AYNAN qoladi, keyingi
+    narx o'zgarishi ularni o'zgartirmaydi.
+
+    Faqat buyurtma sarfi: `order_id` bor, "out", `unit_cost` NULL, material
+    mavjud. BRAK harakatlari (`return_item_id` bor YOKI sabab "Brak%" — brak
+    xulosasi bilan AYNAN bir shart) TEGILMAYDI — 13-band 2-qadam qoidasi
+    (eski brak harakatlari joriy narxda). Kirim ("in") — NULL qoladi (narx
+    o'rtachadan olinadi). Narxsiz material — 0 (`crud.log_movement` bilan bir
+    xil). Qayta ishga tushsa — NULL qolmagani uchun hech narsa o'zgarmaydi;
+    allaqachon yozilgan narx HECH QACHON almashtirilmaydi.
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "inventory_movements" not in set(_i.get_table_names()):
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("inventory_movements")}
+        if "unit_cost" not in ustunlar or "return_item_id" not in ustunlar:
+            return
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "UPDATE inventory_movements SET unit_cost = COALESCE(("
+                "SELECT inventory.price_per_unit FROM inventory "
+                "WHERE inventory.id = inventory_movements.inventory_id), 0) "
+                "WHERE unit_cost IS NULL AND movement_type = 'out' "
+                "AND order_id IS NOT NULL AND return_item_id IS NULL "
+                "AND (reason IS NULL OR reason NOT LIKE :brak) "
+                "AND inventory_id IN (SELECT inventory.id FROM inventory)"),
+                {"brak": "Brak%"})
+            conn.commit()
+            n = r.rowcount or 0
+        if n and n > 0:
+            print(f"✓ Eski buyurtma harakatlari bugungi narxda muzlatildi: {n} ta")
+    except Exception as e:
+        print(f"⚠ Eski buyurtma narxi migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_eski_buyurtma_narxi()
 
 from database import SessionLocal
 _db = SessionLocal()

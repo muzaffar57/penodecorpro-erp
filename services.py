@@ -1720,6 +1720,90 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
 # BUYURTMA FOYDA VA TAN NARXI HISOBLASH (faqat Admin uchun)
 # ============================================================
 
+def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
+    """kech48 (K47-1, 5-bo'lim 32-band) — FOYDALANUVCHI QARORI (kech47, tugma):
+    "Ishlatilgan paytdagi narxda muzlatilsin".
+
+    Buyurtma tan narxi (`calculate_order_profit`) xomashyoni JORIY narx bilan
+    baholardi: penoplast yoki kley narxi o'zgarsa, O'TGAN buyurtmalar foydasi
+    va o'tgan oylarning sof foydasi orqaga qarab o'zgarardi (JONLI O'LCHANGAN,
+    kech47: penoplast 276 narxi x2 bo'lganda 2026-09 sof foydasi −11.38 mln
+    so'mga siljidi; lokal `work/probe47.py`: narxlar x3 → tan narx x3).
+
+    Qaytaradi: {inventory_id: shu buyurtmada 1 birlik narxi} — faqat shu
+    buyurtmaning ombor harakatlarida uchragan materiallar uchun.
+
+    Manba — shu buyurtmaning (`order_id`, korxona) harakatlari, `id` (vaqt)
+    tartibida, O'RTACHA TANNARX usulida:
+      * chiqim ("out") — miqdor × `unit_cost` (chiqim paytidagi narx, zip 47
+        dan beri `crud.log_movement` yozadi); `unit_cost` i yo'q ESKI harakat —
+        joriy narx (brak hisobotidagi `_harakat_narxi` qoidasi bilan bir xil);
+      * kirim ("in" — tahrirda kamaytirish, loy xomashyosining qaytishi) —
+        o'sha paytdagi o'rtacha narxda ayiriladi (qolgan qism narxi o'zgarmaydi);
+        chiqimdan oldingi kirim (jurnal yozilmagan eski chiqim) — e'tiborsiz.
+    BRAK harakatlari (`return_item_id` bor YOKI sabab "Brak%" — brak xarajati
+    `crud.get_brak_material_summary` da AYNAN shu shart bilan alohida
+    hisoblanadi) kirmaydi — aks holda brak narxi buyurtma narxiga aralashardi.
+    Harakati yo'q material (jurnal yozilmagan eski buyurtma, to'liq tayyor loy
+    zaxirasidan olingan qoplama) lug'atda YO'Q — chaqiruvchi JORIY narxni
+    oladi (avvalgi xulq, eski narx noma'lum — taxmin qilinmaydi).
+    """
+    from models import InventoryMovement as _IMv
+    from sqlalchemy import or_ as _or_sn, not_ as _not_sn
+    _oid_sn = getattr(order, "id", None)
+    if _oid_sn is None:
+        return {}
+    _hq = db.query(_IMv).filter(
+        _IMv.order_id == _oid_sn,
+        _IMv.return_item_id.is_(None),
+        _or_sn(_IMv.reason.is_(None), _not_sn(_IMv.reason.like("Brak%"))),
+    )
+    _cid_sn = getattr(order, "company_id", None)
+    if _cid_sn is not None:
+        _hq = _hq.filter(_IMv.company_id == _cid_sn)
+    harakatlar = _hq.order_by(_IMv.id).all()
+    if not harakatlar:
+        return {}
+    _inv_ids = {h.inventory_id for h in harakatlar if h.inventory_id}
+    joriy = {}
+    if _inv_ids:
+        _jq = db.query(Inventory).filter(Inventory.id.in_(_inv_ids))
+        if _cid_sn is not None:
+            _jq = _jq.filter(Inventory.company_id == _cid_sn)
+        for _inv_sn in _jq.all():
+            joriy[_inv_sn.id] = float(_inv_sn.price_per_unit or 0)
+    hisob = {}   # inventory_id -> [miqdor, qiymat, oxirgi o'rtacha narx]
+    for h in harakatlar:
+        if not h.inventory_id:
+            continue
+        miqdor = float(h.quantity or 0)
+        if miqdor <= 0:
+            continue
+        x = hisob.setdefault(h.inventory_id, [0.0, 0.0, None])
+        if h.movement_type == "out":
+            narx = float(h.unit_cost) if h.unit_cost is not None else joriy.get(h.inventory_id, 0.0)
+            x[0] += miqdor
+            x[1] += miqdor * narx
+            x[2] = x[1] / x[0]
+        elif h.movement_type == "in":
+            if x[0] <= 1e-12:
+                continue
+            ortacha = x[1] / x[0]
+            olindi = min(miqdor, x[0])
+            x[0] -= olindi
+            x[1] -= olindi * ortacha
+            if x[0] <= 1e-12:
+                x[0], x[1] = 0.0, 0.0
+    natija = {}
+    for _iid_sn, (m, v, oxirgi) in hisob.items():
+        if m > 1e-12:
+            natija[_iid_sn] = v / m
+        elif oxirgi is not None:
+            # Hammasi qaytgan (jurnal bo'yicha) — oxirgi ma'lum narx.
+            natija[_iid_sn] = oxirgi
+    return natija
+
+
 def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -> Dict:
     """
     Buyurtma uchun tan narxi va foyda hisoblaydi.
@@ -1728,6 +1812,11 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
     Foyda = Sotuv narxi - Tan narxi
 
     M6 — TENANT: company_id berilsa, buyurtma FAQAT shu korxonadan olinadi.
+
+    kech48 (K47-1, 5-bo'lim 32-band): xomashyo (penoplast, qoplama va loy
+    sotish ingredientlari) shu buyurtmada ISHLATILGAN paytdagi narxda
+    baholanadi (`_buyurtma_sarf_narxlari`) — keyingi narx o'zgarishi o'tgan
+    buyurtma foydasini o'zgartirmaydi. Hajm / miqdor mantig'i O'ZGARMAGAN.
     """
     _oq = db.query(Order).filter(Order.id == order_id)
     if company_id is not None:
@@ -1749,6 +1838,17 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
     # emas, chunki turli detallar turli plotnostdan bo'lishi mumkin
     # (buni biz alohida "1 m³ narxi" maydoni orqali qo'llab-quvvatlaymiz).
     default_penoplast = get_default_penoplast(db, company_id=getattr(order, "company_id", None))
+
+    # kech48 (K47-1): shu buyurtmada ishlatilgan paytdagi narxlar.
+    _sarf_narx = _buyurtma_sarf_narxlari(db, order)
+
+    def _narx(inv):
+        """1 birlik narxi: shu buyurtmada muzlatilgan, bo'lmasa — joriy."""
+        if inv is None:
+            return 0.0
+        if inv.id in _sarf_narx:
+            return float(_sarf_narx[inv.id])
+        return float(inv.price_per_unit or 0)
 
     penoplast_xarajat = 0.0
     penoplast_breakdown_by_item = {}  # penoplast_id -> {"vol": ..., "narx_per_m3": ...}
@@ -1791,7 +1891,9 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
             #      dona") usulni umuman bilmasdi.
             # Endi hajm manbasi BITTA: _item_volume_m3 — ya'ni ombordan
             # qancha yechilsa, foyda hisobida ham aynan shuncha.
-            vol = _item_volume_m3(db, item, default_penoplast)
+            _pid_dona = item.penoplast_id or (default_penoplast.id if default_penoplast else None)
+            vol = _item_volume_m3(db, item, default_penoplast,
+                                  penoplast_narxi=_sarf_narx.get(_pid_dona))
 
         elif cat == 'blok':
             # Blokdan chiqadigan mahsulot uchun — "length" maydonida
@@ -1814,9 +1916,12 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         key = pid
         if key not in penoplast_breakdown_by_item:
             inv_item = db.query(Inventory).filter(Inventory.id == pid).first()
-            if not inv_item or not inv_item.price_per_unit or not inv_item.volume_per_unit:
+            # kech48 (K47-1): blok narxi — shu buyurtmada ishlatilgan paytdagi.
+            # Narx 0 / yo'q bo'lsa — avvalgidek o'tkaziladi.
+            _blok_narxi = _narx(inv_item)
+            if not inv_item or not _blok_narxi or not inv_item.volume_per_unit:
                 continue
-            narx_per_m3 = float(inv_item.price_per_unit) / float(inv_item.volume_per_unit)
+            narx_per_m3 = _blok_narxi / float(inv_item.volume_per_unit)
             penoplast_breakdown_by_item[key] = {"vol": 0.0, "narx_per_m3": narx_per_m3, "nomi": inv_item.item_name}
         penoplast_breakdown_by_item[key]["vol"] += vol
 
@@ -1916,9 +2021,10 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         narx_per_kg = 0.0
         for ing in recipe.ingredients:
             mat_kg = float(ing.quantity_kg or 0)
-            if mat_kg <= 0 or not ing.inventory or not ing.inventory.price_per_unit:
+            _ing_narx = _narx(ing.inventory)   # kech48 (K47-1)
+            if mat_kg <= 0 or not ing.inventory or not _ing_narx:
                 continue
-            narx_per_kg += (mat_kg / batch) * float(ing.inventory.price_per_unit)
+            narx_per_kg += (mat_kg / batch) * _ing_narx
         loy_sotish_xarajat = qty_kg * narx_per_kg
         if loy_sotish_xarajat > 0:
             breakdown.append({
@@ -1964,9 +2070,10 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
             narx_per_kg = 0.0
             for ing in recipe.ingredients:
                 mat_kg = float(ing.quantity_kg or 0)
-                if mat_kg <= 0 or not ing.inventory or not ing.inventory.price_per_unit:
+                _ing_narx = _narx(ing.inventory)   # kech48 (K47-1)
+                if mat_kg <= 0 or not ing.inventory or not _ing_narx:
                     continue
-                narx_per_kg += (mat_kg / batch) * float(ing.inventory.price_per_unit)
+                narx_per_kg += (mat_kg / batch) * _ing_narx
 
             qoplama_xarajat = loy_kg * narx_per_kg
             if qoplama_xarajat > 0:
@@ -3320,7 +3427,7 @@ def _sub_details_volume_m3(item) -> float:
     return total
 
 
-def _item_volume_m3(db, item, default_penoplast=None) -> float:
+def _item_volume_m3(db, item, default_penoplast=None, penoplast_narxi=None) -> float:
     """Bitta detalning hajmini (m³) hisoblaydi.
 
     Donali mahsulot uchun:
@@ -3387,9 +3494,17 @@ def _item_volume_m3(db, item, default_penoplast=None) -> float:
         if price_m3 <= 0:
             pid = getattr(item, 'penoplast_id', None)
             p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast
-            if p and p.price_per_unit and p.volume_per_unit:
+            # kech48 (K47-1, 5-bo'lim 32-band): `penoplast_narxi` — foyda hisobi
+            # (`calculate_order_profit`) shu buyurtmaning MUZLATILGAN 1 blok
+            # narxini beradi. Bu zaxira yo'lda hajm = summa ÷ narx, tan narx esa
+            # hajm × narx — ikkalasi BIR narxdan bo'lmasa (hajm joriy, narx
+            # muzlatilgan) tan narx joriy narx bilan suzardi. Boshqa
+            # chaqiruvchilar (ombordan yechish, tahrir farqi) bermaydi — xulq
+            # o'zgarmaydi.
+            _pn = penoplast_narxi if penoplast_narxi is not None else (p.price_per_unit if p else None)
+            if p and _pn and p.volume_per_unit:
                 # Tan narxi: blok narxi ÷ blok hajmi = 1 m³ tan narxi
-                price_m3 = float(p.price_per_unit) / float(p.volume_per_unit)
+                price_m3 = float(_pn) / float(p.volume_per_unit)
 
         if price_m3 <= 0:
             return 0.0
