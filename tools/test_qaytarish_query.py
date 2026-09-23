@@ -558,7 +558,14 @@ def r_bolimi():
           r.status_code == 200 and soni(ReturnItem) == n0 + 1 and ri is not None
           and yaqin(ri.quantity, 2), f"{r.status_code} {matn(r)[:160]}")
     tikla()
-    r = req(C, "post", "/api/returns", json={**asos, "quantity": 10})
+    # kech39 (5-bo'lim 3-band): YANGI buyurtma — PG rejimida tiklash yo'q, oldingi
+    # problar `asos` detaliga qaytarish yozgan; endi brakdan boshqa qaytarishlar
+    # detal bo'yicha JAMLANADI (<= buyurtmadagi), shuning uchun o'sha detalda
+    # 10 metr 400 beradi (to'g'ri). Bu tekshiruvning maqsadi — BITTA qaytarish
+    # buyurtmadagi miqdorga TENG bo'lishi mumkinligi.
+    _o10, (_i10,), (_n10,) = yangi_buyurtma()
+    r = req(C, "post", "/api/returns", json={**asos, "order_id": _o10, "order_item_id": _i10,
+                                             "item_name": _n10, "quantity": 10})
     check("R butun buyurtma miqdori (10 dan 10) → 200", r.status_code == 200,
           f"{r.status_code} {matn(r)[:160]}")
 

@@ -36,7 +36,6 @@
   "crud.py:3834 db.query(Order) — korxona filtri yo'q (funksiya: permanent_delete_project) │ order_count = db.query(Order).filter(Order.project_id == project_id).count()",
   "crud.py:3847 db.query(Project) — korxona filtri yo'q (funksiya: restore_project) │ db_project = db.query(Project).filter(Project.id == project_id).first()",
   "crud.py:3903 db.query(OrderItem) — korxona filtri yo'q (funksiya: create_return_item) │ order_item = db.query(OrderItem).filter(",
-  "crud.py:3909 db.query(OrderItem) — korxona filtri yo'q (funksiya: create_return_item) │ order_item = db.query(OrderItem).filter(",
   "crud.py:4010 db.query(ReturnItem) — korxona filtri yo'q (funksiya: get_return_item) │ return db.query(ReturnItem).filter(ReturnItem.id == return_id).first()",
   "crud.py:4232 db.query(Payment) — korxona filtri yo'q (funksiya: create_payment) │ _oldingi = db.query(Payment).filter(",
   "crud.py:4359 db.query(Order) — korxona filtri yo'q (funksiya: update_order_agreed_amount) │ order = db.query(Order).filter(Order.id == order_id).first()",
