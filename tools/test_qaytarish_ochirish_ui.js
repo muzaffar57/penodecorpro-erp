@@ -223,6 +223,47 @@ async function main() {
     await chaqir(sb, 'toggleRefund', 5, false);
     tekshir("T4 404 → server sababi", qisqa(yozuv.alert) === qisqa(['❌ Qaytarish topilmadi']), qisqa(yozuv.alert));
   }
+  // kech44 (29-band): muvaffaqiyat xabari (`j.xabar`, 24-band — "qarzdan chegirildi" / "naqd qaytarildi")
+  // foydalanuvchiga sahifa yangilanishidan OLDIN ko'rsatiladi; xabar yo'q / buzuq javobda — jim yangilanadi.
+  const XABAR = "Kelishilgan summa 180 000 so'mga kamaydi — qarzdan chegirildi, naqd pul qaytarilmadi (mijoz ortiqcha to'lamagan).";
+  {
+    const { sb, yozuv } = muhit({ javob: { status: 200, body: { status: 'ok', naqd_qaytarildi: 0, xabar: XABAR } } });
+    let alertReloadPaytida = -1;
+    sb.location = { reload: () => { yozuv.reload++; alertReloadPaytida = yozuv.alert.length; } };
+    const r = await chaqir(sb, 'toggleRefund', 5, false);
+    tekshir("T5 200 + xabar → AYNAN bitta alert '✓ ' + xabar",
+      r === 'ok' && qisqa(yozuv.alert) === qisqa(['✓ ' + XABAR]), `${r} ${qisqa(yozuv.alert)}`);
+    tekshir("T5b alert sahifa yangilanishidan OLDIN (yangilanish paytida alert allaqachon bor)",
+      yozuv.reload === 1 && alertReloadPaytida === 1, `reload=${yozuv.reload} alertReloadPaytida=${alertReloadPaytida}`);
+  }
+  {
+    const { sb, yozuv } = muhit({ javob: { status: 200, body: { status: 'ok' } } });
+    const r = await chaqir(sb, 'toggleRefund', 5, false);
+    tekshir("T6 200, xabar YO'Q → alert yo'q, yangilandi", r === 'ok' && yozuv.alert.length === 0 && yozuv.reload === 1, `${r} ${qisqa(yozuv)}`);
+  }
+  {
+    const { sb, yozuv } = muhit({ javob: { status: 200 } });
+    const r = await chaqir(sb, 'toggleRefund', 5, false);
+    tekshir("T7 200, JSON EMAS → istisno yo'q, alert yo'q, yangilandi", r === 'ok' && yozuv.alert.length === 0 && yozuv.reload === 1, `${r} ${qisqa(yozuv)}`);
+  }
+  {
+    const { sb, yozuv } = muhit({ javob: { status: 200, body: { xabar: 5 } } });
+    const r = await chaqir(sb, 'toggleRefund', 5, false);
+    tekshir("T8 xabar satr EMAS (5) → alert yo'q", r === 'ok' && yozuv.alert.length === 0 && yozuv.reload === 1, `${r} ${qisqa(yozuv)}`);
+    const m2 = muhit({ javob: { status: 200, body: { xabar: '' } } });
+    const r2 = await chaqir(m2.sb, 'toggleRefund', 5, false);
+    tekshir("T8b xabar bo'sh satr → alert yo'q ('✓ ' yolg'iz chiqmaydi)", r2 === 'ok' && m2.yozuv.alert.length === 0 && m2.yozuv.reload === 1, `${r2} ${qisqa(m2.yozuv)}`);
+    const m3 = muhit({ javob: { status: 200, body: null } });
+    const r3 = await chaqir(m3.sb, 'toggleRefund', 5, false);
+    tekshir("T8c javob null → istisno yo'q, alert yo'q", r3 === 'ok' && m3.yozuv.alert.length === 0 && m3.yozuv.reload === 1, `${r3} ${qisqa(m3.yozuv)}`);
+  }
+  {
+    const { sb, yozuv } = muhit({ javob: { status: 200, body: { xabar: XABAR } } });
+    await chaqir(sb, 'toggleRefund', 5, false);
+    const tm = yozuv.confirm.length ? String(yozuv.confirm[0][0]) : '';
+    tekshir("T9 tasdiq matni: kelishilgan summadan chegiriladi, naqd faqat ortiqcha qism (24-band)",
+      tm.includes('kelishilgan summasidan chegiriladi') && tm.includes("ortiqcha to'lagan"), tm.slice(0, 120));
+  }
 
   bolim("F. delFp (finished.html) — rad javobida server sababi (K40-1)");
   const fsabab = "Bu mahsulotda hali 5 metr qoldiq bor — o'chirib bo'lmaydi.";
