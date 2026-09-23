@@ -1553,10 +1553,110 @@ def _migrate_fp_product_type():
         print(f"⚠ FP product_type migratsiyasi o'tkazib yuborildi: {e}")
 
 
+def _migrate_return_order_item():
+    """kech39 (5-bo'lim 3-band) — `return_items.order_item_id`.
+
+    Nima uchun: qaytarish yozuvida faqat `item_name` bor edi, bitta buyurtmada
+    esa bir xil nomli ikki detal bo'lishi mumkin (O'LCHANGAN). Detal bo'yicha
+    yig'indi (omborga qaytgan jami <= buyurtmadagi miqdor) uchun aniq bog'lam
+    kerak.
+
+    Qadamlar (IDEMPOTENT, PostgreSQL va SQLite):
+      A) Ustun — odatda `database.sync_missing_columns()` allaqachon qo'shgan
+         (u faqat `ADD COLUMN INTEGER` yozadi: indeks va kalitsiz); yo'q bo'lsa
+         shu yerda qo'shiladi.
+      B) BIR MARTALIK to'ldirish. Belgisi — `ix_return_items_order_item_id`
+         indeksi YO'QLIGI (yangi bazada `create_all` indeksni o'zi yaratadi va
+         bog'lanadigan eski yozuv bo'lmaydi). Avval SANAYDI (logda), keyin
+         FAQAT nomi o'z buyurtmasida YAGONA bo'lgan detalga bog'laydi — boshqa
+         nomzod yo'q, ya'ni taxmin emas. Nomi takrorlangan / topilmaganlar
+         NULL qoladi. Indeks shu tranzaksiyada yaratiladi (PG da DDL
+         tranzaksion), shuning uchun keyingi ishga tushishlarda to'ldirish
+         TAKRORLANMAYDI: aks holda keyinchalik detal qayta nomlansa, eski
+         noaniq yozuv tasodifiy detalga bog'lanib qolardi.
+         Korxona: detal AYNAN o'sha buyurtmadan (`oi.order_id = order_id`) —
+         boshqa korxona detaliga bog'lanish imkonsiz.
+      C) Faqat PostgreSQL: chet el kaliti `ON DELETE SET NULL` (yo'q bo'lsa).
+         Yetim qiymat bo'lsa kalit QO'YILMAYDI va soni logga yoziladi.
+    """
+    from sqlalchemy import text, inspect as _insp   # main.py da modul darajasida import YO'Q
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "return_items" not in _i.get_table_names():
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("return_items")}
+        indekslar = {ix["name"] for ix in _i.get_indexes("return_items")}
+        with engine.connect() as conn:
+            # ── A. Ustun ──────────────────────────────────────────
+            if "order_item_id" not in ustunlar:
+                conn.execute(text("ALTER TABLE return_items ADD COLUMN order_item_id INTEGER"))
+                conn.commit()
+                print("✓ return_items.order_item_id qo'shildi")
+
+            # ── B. Bir martalik to'ldirish (belgi — indeks yo'qligi) ──
+            if "ix_return_items_order_item_id" not in indekslar:
+                nomdosh = ("(SELECT COUNT(*) FROM order_items oi "
+                           "WHERE oi.order_id = return_items.order_id "
+                           "AND oi.name = return_items.item_name)")
+                shart = ("order_item_id IS NULL AND order_id IS NOT NULL "
+                         f"AND {nomdosh} = 1")
+                jami = conn.execute(text(
+                    "SELECT COUNT(*) FROM return_items "
+                    "WHERE order_item_id IS NULL AND order_id IS NOT NULL")).scalar() or 0
+                yagona = conn.execute(text(
+                    f"SELECT COUNT(*) FROM return_items WHERE {shart}")).scalar() or 0
+                print(f"• Qaytarish detali: bog'lanadi {yagona} ta, NULL qoladi "
+                      f"{jami - yagona} ta (nomi takrorlangan yoki topilmagan — taxmin qilinmaydi)")
+                if yagona:
+                    conn.execute(text(
+                        "UPDATE return_items SET order_item_id = ("
+                        "SELECT oi.id FROM order_items oi "
+                        "WHERE oi.order_id = return_items.order_id "
+                        "AND oi.name = return_items.item_name) "
+                        f"WHERE {shart}"))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_return_items_order_item_id "
+                    "ON return_items (order_item_id)"))
+                conn.commit()
+
+            # ── C. Chet el kaliti (faqat PostgreSQL) ──────────────
+            if engine.dialect.name == "postgresql":
+                bor_kalit = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey) "
+                    "WHERE t.relname = 'return_items' AND c.contype = 'f' "
+                    "AND a.attname = 'order_item_id'")).first()
+                if not bor_kalit:
+                    yetim = conn.execute(text(
+                        "SELECT COUNT(*) FROM return_items r "
+                        "LEFT JOIN order_items oi ON oi.id = r.order_item_id "
+                        "WHERE r.order_item_id IS NOT NULL AND oi.id IS NULL")).scalar() or 0
+                    if yetim:
+                        print(f"⚠ return_items.order_item_id: {yetim} ta yetim qiymat — "
+                              f"chet el kaliti QO'YILMADI")
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE return_items ADD CONSTRAINT "
+                            "return_items_order_item_id_fkey FOREIGN KEY (order_item_id) "
+                            "REFERENCES order_items(id) ON DELETE SET NULL"))
+                        conn.commit()
+                        print("✓ return_items_order_item_id_fkey chet el kaliti qo'shildi")
+    except Exception as e:
+        try:
+            with engine.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ return_items.order_item_id migratsiyasi o'tkazib yuborildi: {e}")
+
+
 _migrate_drop_company_id_defaults()
 _migrate_faza3_columns()
 _migrate_float_to_numeric()
 _migrate_fp_product_type()
+_migrate_return_order_item()
 
 from database import SessionLocal
 _db = SessionLocal()

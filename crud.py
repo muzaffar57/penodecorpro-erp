@@ -4266,6 +4266,13 @@ from models import ReturnItem, ReturnReason
 from schemas import ReturnItemCreate
 
 
+def _miqdor_matn(x) -> str:
+    """Miqdor xabar uchun: 3 xonagacha, ortiqcha nolsiz (6.0 -> '6',
+    3.3333 -> '3.333'). `:g` katta sonni 1.2e+06 qilib yuborardi."""
+    s = f"{float(x):.3f}".rstrip("0").rstrip(".")
+    return "0" if s in ("", "-0") else s
+
+
 def create_return_item(db: Session, data: ReturnItemCreate,
                        company_id: int = None) -> ReturnItem:
     """Yangi qaytarishni bazaga qo'shadi.
@@ -4311,10 +4318,22 @@ def create_return_item(db: Session, data: ReturnItemCreate,
         if not order_item:
             raise ValueError("Buyurtma detali topilmadi")
     if not order_item:
-        order_item = db.query(OrderItem).filter(
+        # kech39 (5-bo'lim 3-band): detal raqamisiz (faqat nom) so'rov — nom
+        # buyurtmada YAGONA bo'lsagina qabul qilinadi. O'LCHANGAN (asl kod
+        # `8265a94`, SQLite va HAQIQIY PG 16): bitta buyurtmada bir xil nomli
+        # ikki detal bo'lishi mumkin (`POST /api/orders` 200), `.first()` esa
+        # ulardan birini TAXMIN qilardi — omborga qaytarish, summa va endi
+        # yig'indi boshqa detalga yozilib ketardi. `returns.html` doim
+        # `order_item_id` yuboradi.
+        _nomdoshlar = db.query(OrderItem).filter(
+            OrderItem.company_id == _o.company_id,
             OrderItem.order_id == data.order_id,
             OrderItem.name == data.item_name
-        ).first()
+        ).order_by(OrderItem.id).all()
+        if len(_nomdoshlar) > 1:
+            raise ValueError(f"Buyurtmada '{data.item_name}' nomli {len(_nomdoshlar)} ta detal bor — "
+                             f"qaysi biri qaytayotganini tanlang (detal raqami kerak)")
+        order_item = _nomdoshlar[0] if _nomdoshlar else None
     # 17g (kech25, 2026-09-22): qaytarish FAQAT buyurtmadagi detalga yoziladi.
     # O'LCHANGAN (asl kod = 17f va 17g WIP): detal ID siz, buyurtmada YO'Q nom
     # bilan (`"item_name": "boshqa"`) istalgan miqdor (999 999) 200 bilan
@@ -4333,6 +4352,37 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     if float(data.quantity) > _buyurtmada + 0.001:
         raise ValueError(f"Buyurtmada {_buyurtmada:g} {order_item.delivery_unit} bor, "
                          f"{float(data.quantity):g} qaytarib bo'lmaydi")
+
+    # kech39 (5-bo'lim 3-band): omborga QAYTADIGAN sabablar (brakdan boshqa
+    # hammasi; `to_stock=false` ham — mahsulot mijozdan baribir qaytgan) bo'yicha
+    # shu DETALNING jami qaytarilgani buyurtmadagi miqdordan oshmaydi.
+    # O'LCHANGAN (asl kod `8265a94`, SQLite va HAQIQIY PG 16, `work/probe39.py`):
+    # 10 metrli detaldan "Ortiqcha" 6 + 6 + 6 metr — uchalasi 200, tayyor
+    # mahsulotlar omboriga 18 metr qo'shildi. Brak uchun yig'indi cheklovi
+    # QO'YILMAYDI (takroriy brak haqiqatda bo'ladi — kelishilgan) va brak
+    # yig'indiga KIRMAYDI. Detal `order_item_id` ustuni bo'yicha (nom bo'yicha
+    # EMAS); detal raqamisiz eski yozuvlar (migratsiya bog'lay olmaganlari —
+    # nomi buyurtmada takrorlangan yoki topilmagan) yig'indiga kirmaydi: qaysi
+    # detalniki ekani noma'lum, taxmin qilinmaydi.
+    # Qulf (101, buyurtma) — yetkazish va to'lov bilan bir xil: ikki bir
+    # vaqtli qaytarish ikkalasi ham "sig'adi" deb o'tib ketmasin (faqat PG;
+    # yig'indi qulf OLINGANDAN KEYIN o'qiladi).
+    if reason_enum != ReturnReason.DEFECT:
+        from sqlalchemy import func as _fn_q
+        _pul_qulfi(db, 101, _o.id)
+        _oldin = float(db.query(_fn_q.coalesce(_fn_q.sum(ReturnItem.quantity), 0)).filter(
+            ReturnItem.company_id == _o.company_id,
+            ReturnItem.order_item_id == order_item.id,
+            ReturnItem.reason != ReturnReason.DEFECT).scalar() or 0)
+        _qolgan = _buyurtmada - _oldin
+        if float(data.quantity) > _qolgan + 0.001:
+            _b = order_item.delivery_unit
+            if _qolgan <= 0.001:
+                raise ValueError(f"Bu detalning hammasi ({_miqdor_matn(_buyurtmada)} {_b}) allaqachon "
+                                 f"qaytarilgan — yana qaytarib bo'lmaydi (brak bundan mustasno)")
+            raise ValueError(f"Bu detaldan avval {_miqdor_matn(_oldin)} {_b} qaytarilgan (buyurtmada "
+                             f"{_miqdor_matn(_buyurtmada)} {_b}) — yana ko'pi bilan "
+                             f"{_miqdor_matn(_qolgan)} {_b} qaytarish mumkin")
 
     refund_amount = float(data.refund_amount or 0)
     # 17g: QO'LDA berilgan qaytarish summasi buyurtma qiymatidan oshmaydi —
@@ -4375,6 +4425,8 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     item = ReturnItem(
         company_id=company_id,
         order_id=data.order_id,
+        # kech39 (3-band): detal raqami — yig'indi shu bo'yicha hisoblanadi
+        order_item_id=order_item.id,
         item_name=data.item_name,
         quantity=data.quantity,
         unit=data.unit,

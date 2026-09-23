@@ -888,6 +888,18 @@ class ReturnItem(Base):
     image_url = Column(String(255), nullable=True)  # Mahsulot rasmi (ixtiyoriy)
     coating_applied = Column(Boolean, default=False)  # Brak bo'lganda loy allaqachon tortilganmi
     gips_kg_used = Column(Float, nullable=True)  # GIPS brak uchun — taxminan qancha gips ketgani (qo'lda kiritiladi)
+    # kech39 (5-bo'lim 3-band): qaysi buyurtma DETALIDAN qaytgani. Ilgari faqat
+    # `item_name` saqlanardi — bitta buyurtmada bir xil nomli ikki detal bo'lishi
+    # mumkin (O'LCHANGAN: `POST /api/orders` 200), shuning uchun detal bo'yicha
+    # yig'indini (omborga qaytgan jami <= buyurtmadagi miqdor) hisoblab
+    # bo'lmasdi. Yangi yozuvlarda `crud.create_return_item` doim to'ldiradi;
+    # eskilari `main._migrate_return_order_item` da FAQAT nomi buyurtmada
+    # YAGONA bo'lsa bog'lanadi (qolganlari NULL — taxmin qilinmaydi). Detal
+    # o'chirilsa — NULL (PostgreSQL `ON DELETE SET NULL`); oddiy kalit bo'lsa
+    # detalni o'chirish FK 23503 bilan 500 berardi (12-banddagi
+    # `payments.delivery_id` sinfi).
+    order_item_id = Column(Integer, ForeignKey("order_items.id", ondelete="SET NULL"),
+                           nullable=True, index=True)
 
     order = relationship("Order", back_populates="returns")
 
@@ -1994,7 +2006,9 @@ _TENANT_REFS = {
     # Retsept tarkibidagi xomashyo
     "RecipeIngredient": [("inventory_id", "Inventory")],
     # Qaytarish — qaysi tayyor mahsulotga
-    "ReturnItem": [("finished_product_id", "FinishedProduct")],
+    "ReturnItem": [("finished_product_id", "FinishedProduct"),
+                   # kech39: qaytarish qaysi buyurtma detalidan (3-band)
+                   ("order_item_id", "OrderItem")],
     # Yetkazish qatori — qaysi detalga
     "DeliveryItem": [("order_item_id", "OrderItem")],
     # Ombor harakati — qaysi material/buyurtma/ta'minotchiga
