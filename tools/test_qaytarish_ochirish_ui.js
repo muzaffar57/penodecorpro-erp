@@ -159,6 +159,17 @@ async function main() {
     await chaqir(sb, 'deleteReturn', 5);
     tekshir("R4 \"Bekor\" → so'rov YO'Q", yozuv.fetch.length === 0 && yozuv.reload === 0, qisqa(yozuv));
   }
+  {
+    // kech45 (13-band): brak yozuvi — xomashyo qaytishi haqida ogohlantirish
+    const { sb, yozuv } = muhit({ qatorlar: { 9: { refund: 'no', stock: '', reason: 'Brak' } }, javob: { status: 200, body: {} } });
+    await chaqir(sb, 'deleteReturn', 9);
+    const m = String((yozuv.confirm[0] || [])[0] || '');
+    tekshir("R3b brak: \"xomashyo … omborga qaytariladi\" + eski yozuv ogohlantirishi",
+      m.includes('🧱') && m.includes('omborga qaytariladi') && m.includes('oldin yozilgan brakda xomashyo qaytmaydi'), qisqa(m));
+    const { sb: sb2, yozuv: y2 } = muhit({ qatorlar: { 10: { refund: 'no', stock: '', reason: 'Ortiqcha' } }, javob: { status: 200, body: {} } });
+    await chaqir(sb2, 'deleteReturn', 10);
+    tekshir("R3c brakdan boshqa: brak qatori YO'Q", !String((y2.confirm[0] || [])[0] || '').includes('🧱'), qisqa(y2.confirm));
+  }
   const sabab = "Bu qaytarish bilan \"QO\" omboriga 10 metr qo'shilgan, hozir bo'sh qoldig'i 2 metr — mahsulot sotilgan";
   {
     const { sb, yozuv } = muhit({ qatorlar: { 5: { refund: 'no', stock: '10 metr' } }, javob: { status: 400, body: { detail: sabab } } });
