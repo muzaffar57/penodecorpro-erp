@@ -624,7 +624,9 @@ function currentUnitPrice(item){
     const coatingApplied = document.querySelector('input[name="f-coating-applied"]:checked')?.value === 'yes';
     return coatingApplied ? (item.cost_price_per_unit || 0) : (item.cost_price_per_unit_no_coating ?? item.cost_price_per_unit ?? 0);
   }
-  return item.price_per_unit_final || 0;
+  // kech42 (4-band, foydalanuvchi qarori "Chegirmali narxdan"): KELISHILGAN narx
+  // (server avto-summasi bilan bir xil); eski server javobida yo'q bo'lsa — eskisi.
+  return item.refund_price_per_unit ?? item.price_per_unit_final ?? 0;
 }
 
 function onItemChange(){
@@ -669,7 +671,7 @@ function calcValue(){
   const priceLabel = document.getElementById('f-price-label');
   const priceInput = document.getElementById('f-unit-price');
   const hideForManager = IS_MANAGER && reason === 'Brak';  // tan narxi — moliyaviy ma'lumot
-  if (priceLabel) priceLabel.textContent = (reason === 'Brak') ? "1 birlik TAN narxi (xomashyo)" : "1 birlik SOTUV narxi";
+  if (priceLabel) priceLabel.textContent = (reason === 'Brak') ? "1 birlik TAN narxi (xomashyo)" : "1 birlik narxi (kelishilgan, chegirma bilan)";
   if (priceInput) priceInput.value = hideForManager ? '— (moliyaviy)' : (fmt(unitPrice) + " so'm");
 
   const qty = parseFloat(document.getElementById('f-qty').value) || 0;
@@ -723,12 +725,20 @@ async function deleteReturn(id){
 const inFlightRefundToggle = new Set();
 async function toggleRefund(id, current){
   if (current) return; // Faqat "kutilmoqda" -> "qaytdi" tomon, orqaga qaytarilmaydi
-  if (!(await customConfirm("Pul mijozga qaytarildi deb belgilaysizmi?"))) return;
+  // kech42 (24-band): to'lanmagan pul qaytarilmaydi — summa qarzdan chegiriladi,
+  // naqd faqat mijoz ortiqcha to'lagan qism uchun (server hisoblaydi va aytadi).
+  if (!(await customConfirm("Qaytgan mahsulot summasi buyurtmaning kelishilgan summasidan chegiriladi.\n" +
+      "Mijoz ortiqcha to'lagan bo'lsa — faqat o'sha qismi naqd qaytarilgan deb yoziladi.\n\nDavom etasizmi?"))) return;
   if (inFlightRefundToggle.has(id)) return; // Ikki marta bosishdan himoya
   inFlightRefundToggle.add(id);
   try {
     const res = await fetch(`/api/returns/${id}/refund`, {method:'POST'});
-    if (res.ok) location.reload();
+    if (res.ok) {
+      let j = {};
+      try { j = await res.json(); } catch (_) {}
+      if (j && typeof j.xabar === 'string' && j.xabar) alert('✓ ' + j.xabar);
+      location.reload();
+    }
     else {
       // kech40: server sababi (ilgari faqat "Xato")
       let e = {};

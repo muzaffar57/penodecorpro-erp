@@ -297,7 +297,7 @@ input[type=number]{-moz-appearance:textfield}
                 {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>
                 {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
               </div>
-              <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.agreed_amount or o.total_amount or 0).replace(",", " ") }} so'm</div>
+              <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.kelishilgan_summa).replace(",", " ") }} so'm</div>
               {% if urgency == 'overdue' %}
               <div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o'tgan!</div>
               {% elif urgency == 'today' %}
@@ -2525,7 +2525,7 @@ async function loadPayments(orderId) {
     const order = await res.json();
 
     const total = order.total_amount || 0;
-    const agreed = order.agreed_amount || total;
+    const agreed = order.agreed_amount ?? total;  // kech42 K42-1: 0 — haqiqiy qiymat
     const paid = order.paid_amount || 0;
     const debt = order.debt_amount || 0;
     const discount = total - agreed;
@@ -2633,7 +2633,7 @@ async function editAgreedAmount() {
     if (!r.ok) return;
     const o = await r.json();
     const total = o.total_amount || 0;
-    const cur = o.agreed_amount || total;
+    const cur = o.agreed_amount ?? total;  // kech42 K42-1
 
     const v = await showPromptModal(
       `Kelishilgan summani kiriting (so'm):\n\n` +
@@ -5494,7 +5494,7 @@ function renderPinnedOrders(rows) {
       : o.status === 'ready' ? '<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>'
       : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>'
       : '<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>';
-    const amount = o.agreed_amount || o.total_amount || 0;
+    const amount = (o.agreed_amount ?? o.total_amount) || 0;  // kech42 K42-1
     const urgencyBorder = o.deadline_urgency === 'overdue' ? 'border-left:3px solid #DC2626'
       : (o.deadline_urgency === 'today' || o.deadline_urgency === 'tomorrow') ? 'border-left:3px solid #F59E0B' : '';
     const urgencyText = o.deadline_urgency === 'overdue' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o\'tgan!</div>'
