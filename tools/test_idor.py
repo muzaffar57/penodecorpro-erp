@@ -60,6 +60,14 @@ def _fk_on(dbapi_conn, _rec):
     cur.close()
 
 
+# kech40: `import main` dagi migratsiyalar ochgan ulanishlar tinglovchidan OLDIN
+# yaratilgan (PRAGMA siz) va hovuzda qoladi — so'rov shunday ulanishni olsa SQLite
+# tashqi kalitlarni TEKSHIRMAYDI (10f "o'chirilgan qatorni tiriltirish" ham butunlay
+# o'chirishga tushib yiqildi, kech40 da O'LCHANDI: yangi migratsiya hovuzdagi ulanishlar
+# tartibini o'zgartirdi). Boshqa testlardagi kabi hovuz tozalanadi.
+engine.dispose()
+
+
 from production_models import Company              # noqa: E402
 from models import (                               # noqa: E402
     UserRole, Inventory, Recipe, Project, Employee, Order, User,
