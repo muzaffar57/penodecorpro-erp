@@ -395,7 +395,7 @@ def bolim_b():
           and taxminan(h["debt"], 350_000) and h["status"] == "unpaid", (pr.status_code, h))
     check("B1 javob: naqd 0, kamaydi 150 000, xabarda 'qarzdan chegirildi'", isinstance(j, dict)
           and taxminan(j.get("naqd_qaytarildi"), 0) and taxminan(j.get("kelishilgan_kamaydi"), 150_000)
-          and "qarzdan chegirildi" in str(j.get("xabar")), j)
+          and "qarzdan chegirildi, naqd pul qaytarilmadi" in str(j.get("xabar")), j)
     check("B1 yozuv: pul qaytarilgan, delta 150 000", (ri(rid) or {}).get("is_refunded") is True
           and taxminan((ri(rid) or {}).get("delta"), 150_000), ri(rid))
     b1 = (oid, rid)
@@ -420,7 +420,7 @@ def bolim_b():
     check("B3 manfiy to'lov qaytarishga bog'langan, loyiha −100 000, javob naqd 100 000",
           [t[2] for t in h["manfiy"]] == [rid] and taxminan(h["loyiha"], l0 - 100_000)
           and taxminan(j.get("naqd_qaytarildi") if isinstance(j, dict) else None, 100_000)
-          and "100 000" in str((j or {}).get("xabar")), (h, l0, j))
+          and "300 000 so'mga kamaydi; mijozga 100 000 so'm naqd" in str((j or {}).get("xabar")), (h, l0, j))
     b3 = (oid, rid)
 
     oid, iid, nom = buyurtma(tolangan=500_000)
