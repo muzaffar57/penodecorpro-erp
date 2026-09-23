@@ -623,6 +623,9 @@ def bolim_boshqa():
 def bolim_pul():
     section("R. Pul qaytarilgan qaytarishni o'chirish — hammasi orqaga")
     O, i1, _b = buyurtma("QO_R", dona=10, narx=100_000)        # 1 000 000, 100 metr → 10 000 / metr
+    # kech42 (24-band): naqd faqat mijoz ORTIQCHA to'lagan qism uchun — manfiy to'lov
+    # (va uning bog'lami / o'chirilishi) sinalishi uchun buyurtma to'liq to'langan.
+    req(C, "post", "/api/payments", json={"order_id": O, "amount": 1_000_000, "payment_method": "naqd"})
     p0 = pul(O)
     _, rr = qaytar(O, i1, 30, to_stock=False)                  # 300 000
     r = pul_qaytdi(rr)
@@ -694,6 +697,7 @@ def bolim_pul():
 
     section("R7. Manfiy to'lov qo'lda o'chirilgan — qaytarishni o'chirish baribir kelishilgan summani tiklaydi")
     O, i1, _b = buyurtma("QO_R7", dona=10, narx=100_000)
+    req(C, "post", "/api/payments", json={"order_id": O, "amount": 1_000_000, "payment_method": "naqd"})  # kech42: to'langan
     _, r7 = qaytar(O, i1, 30, to_stock=False)
     pul_qaytdi(r7)
     m = pul(O)["manfiy"]
@@ -843,6 +847,8 @@ def bolim_parallel():
     yomon = []
     for k in range(3):
         O, i1, _b = buyurtma(f"QO_P1_{k}", dona=10, narx=100_000)
+        # kech42 (24-band): to'langan — aks holda naqd (manfiy to'lov) umuman yozilmaydi va poyga ko'rinmaydi
+        req(C, "post", "/api/payments", json={"order_id": O, "amount": 1_000_000, "payment_method": "naqd"})
         _, rp = qaytar(O, i1, 30, to_stock=False)
         n = _ikki(lambda s: bool(crud.mark_refunded(s, rp, refunded_by="P1a")),
                   lambda s: bool(crud.mark_refunded(s, rp, refunded_by="P1b")))
@@ -854,6 +860,8 @@ def bolim_parallel():
     yomon = []
     for k in range(3):
         O, i1, _b = buyurtma(f"QO_P2_{k}", dona=10, narx=100_000)
+        # kech42 (24-band): to'langan — aks holda naqd (manfiy to'lov) umuman yozilmaydi va poyga ko'rinmaydi
+        req(C, "post", "/api/payments", json={"order_id": O, "amount": 1_000_000, "payment_method": "naqd"})
         _, rp = qaytar(O, i1, 30, to_stock=False)
         n = _ikki(lambda s: crud.delete_return_item(s, rp),
                   lambda s: crud.mark_refunded(s, rp, refunded_by="P2"))

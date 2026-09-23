@@ -348,10 +348,15 @@ check("B9 total_paid = 250 000 — yuk xati to'lovi ham kiradi (ILGARI KIRMASDI,
       yaqin(tolangan(P_ID), 250_000) and yaqin(tolangan(P_ID), tolov_yigindi(P_ID)),
       f"{tolangan(P_ID)} / {tolov_yigindi(P_ID)}")
 
+# kech42: brakka pul qaytarilmaydi (400) — sabab "Ortiqcha"; 24-band: naqd faqat ORTIQCHA
+# to'langan qism — buyurtmaning kelishilgan summasi to'langaniga (250 000) teng qilinadi,
+# shunda 30 000 qaytishi AYNAN 30 000 naqd (manfiy to'lov) beradi.
 _ret = ReturnItem(company_id=1, order_id=O1, item_name="TQ_DETAL qaytarish", quantity=1,
-                  unit="dona", reason=list(ReturnReason)[0], refund_amount=30_000,
+                  unit="dona", reason=ReturnReason.EXCESS, refund_amount=30_000,
                   is_refunded=False)
 db.add(_ret)
+_o1_ = db.get(Order, O1)
+_o1_.agreed_amount = 250_000
 db.commit()
 r = req("post", f"/api/returns/{_ret.id}/refund")
 check(f"B10 pul qaytarildi (30 000) → {r.status_code} (200 shart)", r.status_code == 200,
