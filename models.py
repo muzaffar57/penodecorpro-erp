@@ -972,6 +972,12 @@ class InventoryMovement(Base):
     reason = Column(String(200), nullable=True)   # masalan "Yetkazib beruvchi: ABC" yoki "Buyurtma ORD-001-3"
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True, index=True)
+    # kech45 (13-band, 6-qadam): shu harakatni yaratgan BRAK yozuvi (buyurtma
+    # detali braki uchun ombordan yechilgan penoplast / loy). Brak yozuvi
+    # o'chirilganda AYNAN shu harakatlar topilib, miqdori omborga qaytariladi.
+    # Eski harakatlarda NULL — bog'lam noma'lum, ularga tegilmaydi.
+    return_item_id = Column(Integer, ForeignKey("return_items.id", ondelete="SET NULL"),
+                            nullable=True, index=True)
 
     performed_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
@@ -2062,7 +2068,9 @@ _TENANT_REFS = {
     "DeliveryItem": [("order_item_id", "OrderItem")],
     # Ombor harakati — qaysi material/buyurtma/ta'minotchiga
     "InventoryMovement": [("inventory_id", "Inventory"), ("order_id", "Order"),
-                          ("supplier_id", "Supplier")],
+                          ("supplier_id", "Supplier"),
+                          # kech45 (13-band): qaysi brak yozuvi yaratgan
+                          ("return_item_id", "ReturnItem")],
 
     # --- M3 (2026-09-18) ---
     # Ishlab chiqarish retsepti (BOM) qatori qaysi materialga ishora qiladi.

@@ -522,12 +522,18 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
         if _cid is None and inventory_id:
             _inv_row = db.query(Inventory.company_id).filter(Inventory.id == inventory_id).first()
             _cid = _inv_row[0] if _inv_row else None
+        # kech45 (13-band, 6-qadam): `create_return_item` brak xomashyosini
+        # yechayotganda sessiyaga brak yozuvi raqamini qo'yadi — shu oraliqda
+        # yozilgan HAR harakat (penoplast, tayyor loy, loy ingredientlari —
+        # `services` ichidagi chuqur chaqiruvlar ham) unga bog'lanadi.
+        _brak_rid = db.info.get("_brak_qaytarish_id") if movement_type == "out" else None
         db.add(InventoryMovement(
             company_id=_cid,
             inventory_id=inventory_id, item_name=item_name, movement_type=movement_type,
             quantity=abs(float(quantity)), unit=unit, reason=reason,
             order_id=order_id, supplier_id=supplier_id,
-            performed_by=performed_by, notes=notes
+            performed_by=performed_by, notes=notes,
+            return_item_id=_brak_rid
         ))
     except Exception as e:
         try:
@@ -4572,10 +4578,17 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     # BRAK bo'lsa — sarflangan xomashyoni (Penoplast + shart bo'lsa Loy)
     # ombordan haqiqatda yechamiz (moliyaviy hisobdan MUSTAQIL, alohida)
     if reason_enum == ReturnReason.DEFECT and order_item and order_item.order:
-        brak_log = services.deduct_raw_material_for_brak(
-            db, order_item, order_item.order, float(data.quantity or 0),
-            getattr(data, 'coating_applied', False)
-        )
+        # kech45 (13-band, 6-qadam): yechilgan har harakat shu brak yozuviga
+        # bog'lanadi (`log_movement` sessiyadagi belgini o'qiydi) — o'chirishda
+        # AYNAN o'sha miqdor omborga qaytadi. Belgi `finally` da olinadi.
+        db.info["_brak_qaytarish_id"] = item.id
+        try:
+            brak_log = services.deduct_raw_material_for_brak(
+                db, order_item, order_item.order, float(data.quantity or 0),
+                getattr(data, 'coating_applied', False)
+            )
+        finally:
+            db.info.pop("_brak_qaytarish_id", None)
         if brak_log:
             print(f"✓ Brak uchun xomashyo yechildi: {brak_log}")
 
@@ -4785,7 +4798,13 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
          hisoblanadi. `refunded_at` YO'Q (yangilanishdan oldingi belgilash) va
          pul haqiqatan qaytarilgan — to'lov bog'lami noma'lum → RAD (taxmin
          qilinmaydi).
-      3) Brak: xomashyo qaytarilmaydi — avvalgidek (13-band, alohida ish).
+      3) Brak (kech45, 13-band 6-qadam): shu yozuvga bog'langan ombor
+         harakatlari (`InventoryMovement.return_item_id` — brak uchun yechilgan
+         penoplast / tayyor loy / loy ingredientlari) miqdori omborga
+         QAYTARILADI va harakatlar o'chiriladi — brak xarajati (hisobot va sof
+         foyda harakatlardan hisoblanadi) ham yo'qoladi. Bog'lamsiz ESKI brak
+         yozuvi — xomashyo avvalgidek qaytmaydi (qaysi harakat ekani noma'lum,
+         taxmin qilinmaydi).
          Yangilanishdan OLDINGI omborga qaytgan yozuv (`stock_qty` NULL) —
          ombor bog'lami noma'lum, avvalgidek faqat yozuv o'chadi.
     Hamma tekshiruv O'ZGARTIRISHDAN OLDIN; hammasi BITTA tranzaksiyada
@@ -4874,8 +4893,31 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
                           and float(fp.produced_quantity or 0) <= 1e-9
                           and float(fp.reserved_quantity or 0) <= 1e-9)
 
+    # ── 3b) BRAK xomashyosi orqaga (kech45, 13-band 6-qadam) ─────────
+    from models import InventoryMovement as _IM4
+    _xom = []
+    if item.reason == ReturnReason.DEFECT:
+        _harakatlar = db.query(_IM4).filter(
+            _IM4.return_item_id == item.id,
+            _IM4.company_id == _cid,
+            _IM4.movement_type == "out",
+        ).order_by(_IM4.id).all()
+        for _h in _harakatlar:
+            _inv = None
+            if _h.inventory_id is not None:
+                _inv = db.query(Inventory).filter(
+                    Inventory.id == _h.inventory_id,
+                    Inventory.company_id == _cid,
+                ).with_for_update().first()
+            if _inv is not None:
+                _inv.stock_quantity = float(_inv.stock_quantity or 0) + float(_h.quantity or 0)
+                _xom.append(f"{_inv.item_name} +{_miqdor_matn(float(_h.quantity or 0))} {_inv.unit or ''}".rstrip())
+            db.delete(_h)
+
     _qator = (f"{item.item_name} · {_miqdor_matn(item.quantity or 0)} {item.unit or ''} · "
               f"{item.reason.value if item.reason else '-'}")
+    if _xom:
+        _qator += " · brak xomashyosi omborga qaytdi: " + "; ".join(_xom)
     if fp is not None:
         _qator += f" · ombordan olindi: {_miqdor_matn(_sq)} {fp.unit} ({fp.name})"
     if pul_orqaga:
@@ -4921,6 +4963,7 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
         "mahsulot_ochirildi": bool(_fp_ochiriladi),
         "pul_bekor_qilindi": _summa if pul_orqaga else 0,
         "tolov_ochirildi": _tolov_soni,
+        "xomashyo_qaytdi": len(_xom),
     }
 
 

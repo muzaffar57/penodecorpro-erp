@@ -1741,6 +1741,70 @@ _migrate_fp_product_type()
 _migrate_return_order_item()
 _migrate_qaytarish_orqaga()
 
+
+def _migrate_brak_harakat():
+    """kech45 (13-band, 6-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+
+      A) `inventory_movements.return_item_id` — odatda
+         `database.sync_missing_columns()` allaqachon qo'shgan (indeks va
+         kalitsiz); yo'q bo'lsa shu yerda.
+      B) Indeks `ix_inventory_movements_return_item_id` (yo'q bo'lsa).
+      C) Faqat PostgreSQL: chet el kaliti `ON DELETE SET NULL` (yo'q bo'lsa;
+         yetim qiymat bo'lsa QO'YILMAYDI, soni logga).
+    Eski harakatlar to'ldirilMAYDI — qaysi brak yozuviniki ekani faqat matn
+    (`reason`) dan taxmin qilinardi; taxmin qilinmaydi.
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "inventory_movements" not in set(_i.get_table_names()):
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("inventory_movements")}
+        indekslar = {ix["name"] for ix in _i.get_indexes("inventory_movements")}
+        with engine.connect() as conn:
+            if "return_item_id" not in ustunlar:
+                conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN return_item_id INTEGER"))
+                conn.commit()
+                print("✓ inventory_movements.return_item_id qo'shildi")
+            if "ix_inventory_movements_return_item_id" not in indekslar:
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_inventory_movements_return_item_id "
+                                  "ON inventory_movements (return_item_id)"))
+                conn.commit()
+                print("✓ ix_inventory_movements_return_item_id indeksi qo'shildi")
+            if engine.dialect.name == "postgresql":
+                bor_kalit = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey) "
+                    "WHERE t.relname = 'inventory_movements' AND c.contype = 'f' "
+                    "AND a.attname = 'return_item_id'")).first()
+                if not bor_kalit:
+                    yetim = conn.execute(text(
+                        "SELECT COUNT(*) FROM inventory_movements m "
+                        "LEFT JOIN return_items r ON r.id = m.return_item_id "
+                        "WHERE m.return_item_id IS NOT NULL AND r.id IS NULL")).scalar() or 0
+                    if yetim:
+                        print(f"⚠ inventory_movements.return_item_id: {yetim} ta yetim qiymat — "
+                              f"chet el kaliti QO'YILMADI")
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE inventory_movements ADD CONSTRAINT "
+                            "inventory_movements_return_item_id_fkey FOREIGN KEY (return_item_id) "
+                            "REFERENCES return_items(id) ON DELETE SET NULL"))
+                        conn.commit()
+                        print("✓ inventory_movements_return_item_id_fkey chet el kaliti qo'shildi")
+    except Exception as e:
+        try:
+            with engine.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ Brak harakati migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_brak_harakat()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
