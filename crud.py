@@ -3287,6 +3287,22 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
     db_item = _q.first()
     if not db_item:
         return None
+    # kech41 (5-bo'lim 14-band, K41-1) — QULF (101, buyurtma), yetkazish /
+    # to'lov / qaytarish bilan BIR fazo. HAQIQIY PostgreSQL da O'LCHANGAN
+    # (asl kod, `work/probe41.py`, 3 / 3 urinish): qulfsiz "topshirilgan"
+    # tekshiruvi bir vaqtdagi yetkazishni ko'rmasdi —
+    # detal 10 → 6 ga kamaytirilayotganda 8 topshirilsa, ikkalasi saqlanib
+    # detal 6, topshirilgan 8 bo'lib qolardi (ikkala tartibda ham).
+    # Naqsh `create_delivery` / `delete_delivery` dagi bilan bir xil:
+    # yozilmagan o'zgarish yo'qolmasin (`flush`), qulf, so'ng qulf ostida
+    # bazadan QAYTA o'qiladi (`expire_all`).
+    if db_item.order_id is not None:
+        db.flush()
+        _pul_qulfi(db, 101, db_item.order_id)
+        db.expire_all()
+        db_item = _q.first()
+        if not db_item:
+            return None
 
     order = db_item.order
     # MUHIM (2026-09 audit): o'chirilgan buyurtmaning detalini tahrirlab
@@ -3364,7 +3380,7 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
     # Omborni farq bo'yicha to'g'rilaymiz
     if not is_draft:
         services.adjust_inventory_diff(db, old_snap, new_snap, order_id=db_item.order_id,
-                                       company_id=db_item.company_id)
+                                       company_id=db_item.company_id, commit=False)
 
     # Order summasi
     if order:
@@ -3898,11 +3914,18 @@ def _auto_release_mrp_reservations(db: Session, order_item_ids, performed_by: st
     ).all()
     for fp in fps:
         if fp.reserved_quantity:
-            log_activity(db, "auto_release_reservation", "finished_product", fp.id,
-                         entity_label=fp.name, performed_by=performed_by,
-                         company_id=getattr(fp, 'company_id', None),
-                         old_value=f"band: {fp.reserved_quantity}",
-                         new_value="band emas — bog'langan buyurtma/detal o'chirilgani uchun avtomatik ozod qilindi")
+            # kech41 (14-band): `log_activity` O'ZI `commit` qiladi — yuqoridagi
+            # "commit QILINMAYDI" va'dasini buzar va `delete_order_item` /
+            # `delete_order` dagi qulfni (101, buyurtma) muddatidan oldin
+            # bo'shatardi (kech38 saboqi). Audit yozuvi bir xil maydonlar bilan
+            # sessiyaga qo'shiladi, chaqiruvchining `commit` i bilan saqlanadi.
+            from models import ActivityLog as _AL_rel
+            db.add(_AL_rel(
+                company_id=getattr(fp, 'company_id', None),
+                action="auto_release_reservation", entity_type="finished_product",
+                entity_id=fp.id, entity_label=fp.name, performed_by=performed_by,
+                old_value=f"band: {fp.reserved_quantity}",
+                new_value="band emas — bog'langan buyurtma/detal o'chirilgani uchun avtomatik ozod qilindi"))
         fp.reserved_quantity = 0.0
         fp.reserved_for_order_item_id = None
 
@@ -4089,6 +4112,23 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
     db_item = _iq.first()
     if not db_item:
         return False
+    # kech41 (5-bo'lim 14-band, K41-1) — QULF (101, buyurtma), yetkazish /
+    # to'lov / qaytarish bilan BIR fazo. HAQIQIY PostgreSQL da O'LCHANGAN
+    # (asl kod, `work/probe41.py`, 3 / 3 urinish): qulfsiz "topshirilgan"
+    # tekshiruvi bir vaqtdagi yetkazishni ko'rmasdi —
+    # detal o'chirilayotganda undan 3 topshirilsa, detal o'chib, yuk xati
+    # qolardi (buyurtma summasi 0, penoplast TO'LIQ omborga "qaytardi");
+    # teskari tartibda o'chirish FK xatosi bilan 500 berardi.
+    # Naqsh `create_delivery` / `delete_delivery` dagi bilan bir xil:
+    # yozilmagan o'zgarish yo'qolmasin (`flush`), qulf, so'ng qulf ostida
+    # bazadan QAYTA o'qiladi (`expire_all`).
+    if db_item.order_id is not None:
+        db.flush()
+        _pul_qulfi(db, 101, db_item.order_id)
+        db.expire_all()
+        db_item = _iq.first()
+        if not db_item:
+            return False
 
     # Topshirilgan bo'lsa — o'chirib bo'lmaydi
     if db_item.delivered_qty > 0.001:
@@ -4133,7 +4173,7 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
             } for s in (db_item.sub_details or [])],
         }]
         services.adjust_inventory_diff(db, old_snap, [], order_id=db_item.order_id,
-                                       company_id=db_item.company_id)
+                                       company_id=db_item.company_id, commit=False)
 
     # 2026-09-17: shu detalga Production/MRP orqali band qilingan tayyor
     # mahsulot bo'lsa — avtomatik ozod qilamiz (aks holda, detal
@@ -5863,6 +5903,23 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     import re
 
     order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+    # kech41 (5-bo'lim 14-band, K41-1) — QULF (101, buyurtma), yetkazish /
+    # to'lov / qaytarish bilan BIR fazo. HAQIQIY PostgreSQL da O'LCHANGAN
+    # (asl kod, `work/probe41.py`, 3 / 3 urinish): qulfsiz "topshirilgan"
+    # tekshiruvi bir vaqtdagi yetkazishni ko'rmasdi —
+    # butun buyurtma tahriri (`PUT /api/orders/{id}` — UI dagi "Tahrirlash")
+    # ham xuddi `update_order_item` / `delete_order_item` kabi "topshirilgan"
+    # miqdorni qulfsiz o'qirdi.
+    # Naqsh `create_delivery` / `delete_delivery` dagi bilan bir xil:
+    # yozilmagan o'zgarish yo'qolmasin (`flush`), qulf, so'ng qulf ostida
+    # bazadan QAYTA o'qiladi (`expire_all`).
+    _cid_q = order.company_id
+    db.flush()
+    _pul_qulfi(db, 101, order.id)
+    db.expire_all()
+    order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_q).first()
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 

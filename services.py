@@ -1230,6 +1230,22 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
+    # kech41 (5-bo'lim 14-band, K41-1) — QULF (101, buyurtma), yetkazish /
+    # to'lov / detal tahriri bilan BIR fazo; qulf ostida bazadan QAYTA
+    # o'qiladi. HAQIQIY PostgreSQL da O'LCHANGAN (asl kod, `work/probe41.py`,
+    # 3 / 3): "Tayyor" bosilayotganda boshqa xodim 5 / 10 topshirsa, buyurtma
+    # READY bo'lib qolardi — qolgan 5 topshirilmagan, summa yakunlanmagan
+    # ("hech narsa topshirilmagan" deb eskirgan holatdan qaror qilinardi,
+    # avtomatik yuk esa qulf ostida "Qoldiqdan ko'p" bilan jim rad etilardi).
+    import crud as _crud_qulf
+    _cid_q = order.company_id
+    db.flush()
+    _crud_qulf._pul_qulfi(db, 101, order.id)
+    db.expire_all()
+    order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_q).first()
+    if not order:
+        return {"success": False, "message": "Buyurtma topilmadi"}
+
     if order.status == OrderStatus.READY:
         return {"success": False, "message": "Bu buyurtma allaqachon tayyor"}
 
@@ -1244,6 +1260,12 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 "message": "Qoralama buyurtmani avval jarayonga oling — keyin \"Tayyor\" qilish mumkin"}
 
     # === HAMMA NARSA TAYYOR — BAJARAMIZ ===
+    # kech41 (14-band): holat DARHOL READY — quyidagi oraliq `commit` lar
+    # qulfni bo'shatadi; parallel ikkinchi "Tayyor" qulfdan keyin READY ni
+    # ko'rib rad etiladi (O'LCHANGAN: asl kodda ikkalasi ham "yakunlandi" —
+    # loy / qaytishlar ikki marta ishlanardi). Oxiridagi `order.status =
+    # READY` o'z joyida qoladi (avtomatik yuk DELIVERED qo'yishi mumkin).
+    order.status = OrderStatus.READY
     result = {
         "success": True,
         "message": "✓ Buyurtma yakunlandi!",
@@ -1340,6 +1362,14 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
         }
 
     db.commit()
+
+    # kech41 (14-band): `commit` qulfni bo'shatdi — qisman / to'liq qarori
+    # oldidan qulf QAYTA olinadi va holat bazadan qayta o'qiladi (oraliqda
+    # yozilgan yuk xati hisobga olinsin).
+    _crud_qulf._pul_qulfi(db, 101, order.id)
+    db.expire_all()
+    order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_q).first()
+    is_partial_completion = bool(order.deliveries) and not order.is_fully_delivered
 
     # === QISMAN TOPSHIRILGAN HOLATDA YAKUNLASH ===
     # Agar buyurtma ALLAQACHON qisman topshirilgan bo'lsa-yu (masalan 64%),
@@ -4138,11 +4168,17 @@ class _FakeItem:
 
 
 def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = None,
-                          company_id: int = None) -> list:
+                          company_id: int = None, commit: bool = True) -> list:
     """Eski va yangi detallarni solishtirib, ombordagi penoplastni
     faqat farq miqdorida to'g'rilaydi.
 
     old_items / new_items — OrderItem obyektlari yoki dict lar ro'yxati.
+
+    kech41 (14-band): `commit=False` — faqat `flush`; chaqiruvchi qulf (101,
+    buyurtma) ostida ishlasa, oraliq `commit` qulfni muddatidan OLDIN
+    bo'shatmasin. O'LCHANGAN (PG): `delete_order_item` qulf olsa ham shu
+    `commit` qulfni bo'shatar, parallel yetkazish detal hali o'chmagan holatni
+    ko'rib, keyin FK xatosi (500) bilan yiqilardi.
     """
     import crud as _crud
 
@@ -4194,7 +4230,10 @@ def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = Non
                                 reason="Buyurtma tahrirlandi — detal kamaytirildi/o'chirildi", order_id=order_id)
 
     if log:
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
     return log
 
 
