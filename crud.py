@@ -527,13 +527,28 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
         # yozilgan HAR harakat (penoplast, tayyor loy, loy ingredientlari —
         # `services` ichidagi chuqur chaqiruvlar ham) unga bog'lanadi.
         _brak_rid = db.info.get("_brak_qaytarish_id") if movement_type == "out" else None
+        # kech46 (13-band, 2-qadam): chiqim paytidagi 1 birlik narxi muzlatiladi.
+        # `db.get` — sessiyadagi (hali yozilmagan) o'zgarishni ham ko'radi.
+        # Narx belgilanmagan material — 0 (hisobot ham 0 deb hisoblardi).
+        # Material topilmasa (o'chirilgan) — NULL. Narxni o'qish yiqilsa ham
+        # harakat YOZILADI (narxsiz — hisobot joriy narxni oladi): tashqi
+        # `except` butun harakatni tashlab yuborardi (kech46 M04 da O'LCHANDI).
+        _narx = None
+        if movement_type == "out" and inventory_id:
+            try:
+                _inv_narx = db.get(Inventory, inventory_id)
+                if _inv_narx is not None:
+                    _narx = float(_inv_narx.price_per_unit or 0)
+            except Exception:
+                _narx = None
         db.add(InventoryMovement(
             company_id=_cid,
             inventory_id=inventory_id, item_name=item_name, movement_type=movement_type,
             quantity=abs(float(quantity)), unit=unit, reason=reason,
             order_id=order_id, supplier_id=supplier_id,
             performed_by=performed_by, notes=notes,
-            return_item_id=_brak_rid
+            return_item_id=_brak_rid,
+            unit_cost=_narx
         ))
     except Exception as e:
         try:
@@ -10730,8 +10745,16 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
       xomashyo qancha brak bo'lganini ko'rsatadi.
     - total_value, total_penoplast_m3: umumiy jami.
 
-    Faqat o'qish. Joriy narx (price_per_unit) asosida hisoblanadi."""
+    Faqat o'qish. kech46 (13-band, 2-qadam): har harakat CHIQIM paytidagi
+    muzlatilgan narx (`unit_cost`) bilan baholanadi; u yo'q (eski harakat)
+    bo'lsa — materialning joriy narxi (`price_per_unit`), avvalgidek.
+    `by_material[].unit_price` — o'rtacha narx (qiymat / miqdor)."""
     from models import Inventory, InventoryMovement, Order
+
+    def _harakat_narxi(harakat, inv):
+        if harakat.unit_cost is not None:
+            return float(harakat.unit_cost)
+        return float(inv.price_per_unit or 0) if inv else 0.0
 
     q = db.query(InventoryMovement).filter(
         InventoryMovement.movement_type == "out",
@@ -10769,7 +10792,7 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
     penoplast_brak_value = 0.0
     for r in rows:
         inv = inv_map.get(r.inventory_id)
-        price = float(inv.price_per_unit or 0) if inv else 0.0
+        price = _harakat_narxi(r, inv)
         value = float(r.quantity or 0) * price
         m3 = m3_for(inv, r.quantity)
         total_value += value
@@ -10788,6 +10811,9 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
 
     by_material = sorted(by_material_agg.values(), key=lambda x: -x["value"])
     for m in by_material:
+        # Turli narxdagi harakatlar birlashganda — o'rtacha narx
+        if m["quantity"] > 0:
+            m["unit_price"] = m["value"] / m["quantity"]
         m["quantity"] = round(m["quantity"], 3)
         m["value"] = round(m["value"])
         m["m3"] = round(m["m3"], 3) if m["m3"] > 0 else None
@@ -10798,7 +10824,7 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
         if not r.order_id:
             continue
         inv = inv_map.get(r.inventory_id)
-        price = float(inv.price_per_unit or 0) if inv else 0.0
+        price = _harakat_narxi(r, inv)
         value = float(r.quantity or 0) * price
         m3 = m3_for(inv, r.quantity)
         if r.order_id not in by_order_agg:

@@ -978,6 +978,13 @@ class InventoryMovement(Base):
     # Eski harakatlarda NULL — bog'lam noma'lum, ularga tegilmaydi.
     return_item_id = Column(Integer, ForeignKey("return_items.id", ondelete="SET NULL"),
                             nullable=True, index=True)
+    # kech46 (13-band, 2-qadam): CHIQIM ("out") paytidagi materialning 1 birlik
+    # narxi (`inventory.price_per_unit`) — muzlatilgan. Brak xarajati hisoboti
+    # va sof foyda shu narxni o'qiydi, shuning uchun keyinroq narx o'zgarsa
+    # o'tgan oy brakining qiymati o'zgarmaydi. Kirim ("in") va ushbu
+    # yangilanishdan OLDINGI harakatlarda NULL — hisobot ular uchun joriy
+    # narxni ishlatadi (avvalgidek; eski narx noma'lum, taxmin qilinmaydi).
+    unit_cost = Column(Float, nullable=True)
 
     performed_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)

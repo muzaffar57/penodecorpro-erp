@@ -3934,7 +3934,9 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
                     reason=f"Brak — {order_item.name} ({brak_qty:g} birlik)",
                     order_id=order.id if order else None,
                     # kech45 (13-band): brak yozuviga bog'lam (o'chirishda qaytadi)
-                    return_item_id=db.info.get("_brak_qaytarish_id")
+                    return_item_id=db.info.get("_brak_qaytarish_id"),
+                    # kech46 (13-band, 2-qadam): chiqim paytidagi narx muzlatiladi
+                    unit_cost=float(p.price_per_unit or 0)
                 ))
                 log.append(f"{p.item_name}: -{blocks:.3f} blok (brak uchun)")
 

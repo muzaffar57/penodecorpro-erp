@@ -1805,6 +1805,33 @@ def _migrate_brak_harakat():
 
 _migrate_brak_harakat()
 
+
+def _migrate_harakat_narx():
+    """kech46 (13-band, 2-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    `inventory_movements.unit_cost` — odatda `database.sync_missing_columns()`
+    allaqachon qo'shgan; yo'q bo'lsa shu yerda. Eski harakatlar
+    to'ldirilMAYDI — ularning chiqim paytidagi narxi noma'lum (hisobot ular
+    uchun joriy narxni ishlatadi, avvalgidek).
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "inventory_movements" not in set(_i.get_table_names()):
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("inventory_movements")}
+        if "unit_cost" not in ustunlar:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE inventory_movements ADD COLUMN unit_cost DOUBLE PRECISION"))
+                conn.commit()
+            print("✓ inventory_movements.unit_cost qo'shildi")
+    except Exception as e:
+        print(f"⚠ Harakat narxi migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_harakat_narx()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
