@@ -46,7 +46,6 @@
   "crud.py:5582 db.query(OrderItem) — korxona filtri yo'q (funksiya: create_delivery) │ oi = db.query(OrderItem).filter(",
   "crud.py:5604 db.query(Delivery) — korxona filtri yo'q (funksiya: create_delivery) │ seq = db.query(Delivery).filter(Delivery.order_id == order.id).count() + 1",
   "crud.py:5742 db.query(Order) — korxona filtri yo'q (funksiya: toggle_order_pin) │ order = db.query(Order).filter(Order.id == order_id, Order.is_deleted.isnot(True)).first()",
-  "crud.py:5788 db.query(Delivery) — korxona filtri yo'q (funksiya: delete_delivery) │ d = db.query(Delivery).filter(Delivery.id == delivery_id).first()",
   "crud.py:5797 db.query(OrderItem) — korxona filtri yo'q (funksiya: delete_delivery) │ _oi = db.query(OrderItem).filter(OrderItem.id == di.order_item_id).first()",
   "crud.py:5816 db.query(Order) — korxona filtri yo'q (funksiya: get_delivery_status) │ order = db.query(Order).filter(Order.id == order_id).first()",
   "crud.py:6915 db.query(FinishedProductSale) — korxona filtri yo'q (funksiya: delete_finished_product) │ db.query(FinishedProductSale).filter(",
