@@ -696,6 +696,11 @@ input[type=number]{-moz-appearance:textfield}
             <span style="color:var(--text2)">Chegirma:</span>
             <span id="pay-discount" style="font-weight:600;color:#F59E0B">—</span>
           </div>
+          <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-refund-row"
+               title="Qaytarilgan mahsulot uchun pul qaytarilganda kelishilgan summa shu miqdorga kamaygan (chegirma emas)">
+            <span style="color:var(--text2)">↩️ Qaytarish:</span>
+            <span id="pay-refund" style="font-weight:600;color:#7C3AED">—</span>
+          </div>
           <div style="padding:10px 0 8px;border-top:1px solid var(--border2);margin-top:6px;padding-top:12px">
             <div style="color:var(--text2);font-weight:600;font-size:14.5px;margin-bottom:6px">Kelishilgan:</div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -2528,7 +2533,13 @@ async function loadPayments(orderId) {
     const agreed = order.agreed_amount ?? total;  // kech42 K42-1: 0 — haqiqiy qiymat
     const paid = order.paid_amount || 0;
     const debt = order.debt_amount || 0;
-    const discount = total - agreed;
+    // kech44 (30-band): kelishilgan summa = ASL kelishilgan − pul qaytarish kamaytirishi
+    // (`crud.pul_qaytarish_kamaytirgan`). Ilgari "Chegirma" = jami − kelishilgan edi, ya'ni
+    // pul qaytarish ham chegirma bo'lib ko'rinardi. Endi chegirma ASL summadan, qaytarish
+    // kamaytirishi alohida qatorda. Server bu maydonlarni bermasa (eski kod) — avvalgi xulq.
+    const qaytKam = Math.max(0, Number(order.pul_qaytarish_kamaytirgan) || 0);
+    const aslKel = (order.kelishilgan_asl ?? null) !== null ? Number(order.kelishilgan_asl) : agreed + qaytKam;
+    const discount = Math.round((total - aslKel) * 100) / 100;
 
     document.getElementById('pay-total').textContent = formatNum(total) + " so'm";
     document.getElementById('pay-agreed').textContent = formatNum(agreed) + " so'm";
@@ -2571,6 +2582,15 @@ async function loadPayments(orderId) {
         '−' + formatNum(discount) + " so'm (" + (order.discount_percent || 0).toFixed(1) + "%)";
     } else {
       dRow.style.display = 'none';
+    }
+    const qRow = document.getElementById('pay-refund-row');
+    if (qRow) {
+      if (qaytKam > 0) {
+        qRow.style.display = 'flex';
+        document.getElementById('pay-refund').textContent = '−' + formatNum(qaytKam) + " so'm";
+      } else {
+        qRow.style.display = 'none';
+      }
     }
 
     // Status badge
