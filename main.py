@@ -1848,8 +1848,8 @@ def _migrate_eski_buyurtma_narxi():
 
     Faqat buyurtma sarfi: `order_id` bor, "out", `unit_cost` NULL, material
     mavjud. BRAK harakatlari (`return_item_id` bor YOKI sabab "Brak%" — brak
-    xulosasi bilan AYNAN bir shart) TEGILMAYDI — 13-band 2-qadam qoidasi
-    (eski brak harakatlari joriy narxda). Kirim ("in") — NULL qoladi (narx
+    xulosasi bilan AYNAN bir shart) bu yerda TEGILMAYDI — ular alohida
+    `_migrate_eski_brak_narxi()` da (37-band, kech51). Kirim ("in") — NULL qoladi (narx
     o'rtachadan olinadi). Narxsiz material — 0 (`crud.log_movement` bilan bir
     xil). Qayta ishga tushsa — NULL qolmagani uchun hech narsa o'zgarmaydi;
     allaqachon yozilgan narx HECH QACHON almashtirilmaydi.
@@ -1882,6 +1882,60 @@ def _migrate_eski_buyurtma_narxi():
 
 
 _migrate_eski_buyurtma_narxi()
+
+
+def _migrate_eski_brak_narxi():
+    """kech51 (5-bo'lim 37-band) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    FOYDALANUVCHI QARORI (kech51, tugma bilan): "A — bugungi narxda muzlatilsin".
+    Zip 47 gacha yozilgan BRAK chiqim harakatlarida `unit_cost` yo'q (NULL) — brak
+    xulosasi (`crud.get_brak_material_summary` → Moliya brak bo'limi, oylik hisobot
+    `brak_xarajat` → sof foyda, liniya hisoboti) ular uchun JORIY narxni oladi va
+    material narxi o'zgarsa allaqachon bo'lib o'tgan brak xarajati o'zgaraveradi
+    (kech47 / kech50 jonli: penoplast x2 → eski brak 747 343 → 1 494 352, sentyabr sof
+    foydasi −747 009). Bu migratsiya ularga shu paytdagi `price_per_unit` ni yozadi:
+    hozirgi hisobot raqamlari AYNAN qoladi, keyingi narx o'zgarishi ularni
+    o'zgartirmaydi (yozilgan paytdagi haqiqiy narx noma'lum — taxmin qilinmaydi,
+    hisobot hozir ko'rsatayotgan qiymat saqlanadi).
+
+    Faqat brak: "out", `unit_cost` NULL, brak (yozuvga bog'langan — `return_item_id`
+    bor — YOKI sabab "Brak%": brak xulosasi bilan AYNAN bir shart, 33-band
+    migratsiyasidagi brak ta'rifi bilan bir xil — ikkalasi birga har eski chiqimni
+    FAQAT BIR marta qamraydi), material mavjud. `order_id` SHART EMAS — ishlab
+    chiqarish braki ("Brak (ishlab chiqarish) — ...") buyurtmasiz yoziladi. Narxsiz
+    material — 0 (`crud.log_movement` bilan bir xil). Kirim ("in"), brakdan boshqa
+    chiqim, materialsiz harakat — TEGILMAYDI. Qayta ishga tushsa — NULL qolmagani
+    uchun hech narsa o'zgarmaydi; allaqachon yozilgan narx HECH QACHON
+    almashtirilmaydi. Har harakat O'Z materialining narxini oladi (korxonalar
+    aralashmaydi).
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "inventory_movements" not in set(_i.get_table_names()):
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("inventory_movements")}
+        if "unit_cost" not in ustunlar or "return_item_id" not in ustunlar:
+            return
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "UPDATE inventory_movements SET unit_cost = COALESCE(("
+                "SELECT inventory.price_per_unit FROM inventory "
+                "WHERE inventory.id = inventory_movements.inventory_id), 0) "
+                "WHERE unit_cost IS NULL AND movement_type = 'out' "
+                "AND (return_item_id IS NOT NULL OR reason LIKE :brak) "
+                "AND inventory_id IN (SELECT inventory.id FROM inventory)"),
+                {"brak": "Brak%"})
+            conn.commit()
+            n = r.rowcount or 0
+        if n and n > 0:
+            print(f"✓ Eski brak harakatlari bugungi narxda muzlatildi: {n} ta")
+    except Exception as e:
+        print(f"⚠ Eski brak narxi migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_eski_brak_narxi()
 
 from database import SessionLocal
 _db = SessionLocal()
