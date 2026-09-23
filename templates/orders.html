@@ -355,6 +355,7 @@ input[type=number]{-moz-appearance:textfield}
         </div>
         <div style="padding:20px 24px 24px;display:flex;gap:10px">
           <button id="genericConfirmCancel" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+          <button id="genericConfirmAlt" style="display:none;flex:1;padding:12px;border-radius:10px;border:1.5px solid #16A34A;background:#fff;color:#16A34A;font-weight:600;font-size:14px;cursor:pointer"></button>
           <button id="genericConfirmOk" style="flex:1;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Ha</button>
         </div>
       </div>
@@ -2406,15 +2407,49 @@ async function saveDelivery() {
   }
 }
 
+// kech38 (5-bo'lim 12-band): yukka to'lov bog'langan bo'lsa server 409
+// (`detail.type = "delivery_has_payment"`) qaytaradi — FOYDALANUVCHI QARORI
+// "Har safar so'rasin": uch tugmali oyna — "To'lovni ham o'chirish"
+// (`?tolov=ochir`), "To'lovni saqlab qolish" (`?tolov=qoldir`), "Bekor
+// qilish" (hech narsa yuborilmaydi). Ilgari (asl kod) HAQIQIY PostgreSQL da
+// bu holat 500 edi va `!res.ok` da HECH QANDAY xabar chiqmasdi — endi har
+// rad javobida server SABABI ko'rsatiladi (`yetkazishXatoQismlari`).
+// Ikkinchi so'rov ham rad etilsa — faqat xabar, qayta so'rash sikli YO'Q.
 async function deleteDelivery(id) {
   if (!await showConfirmModal('Bu topshirishni o\'chirasizmi?\n\nMiqdorlar qoldiqqa qaytadi.', {danger:true, okText:"O'chirish"})) return;
+  const sabab = async (res) => {
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    return yetkazishXatoQismlari(d).xabar;
+  };
   try {
-    const res = await fetch(`/api/deliveries/${id}`, { method:'DELETE' });
+    let res = await fetch(`/api/deliveries/${id}`, { method:'DELETE' });
+    let tolovAmali = null;
+    if (res.status === 409) {
+      let d = null;
+      try { d = await res.clone().json(); } catch (e) { d = null; }
+      const det = d && d.detail;
+      if (det && typeof det === 'object' && det.type === 'delivery_has_payment') {
+        const tanlov = await showConfirmModal(String(det.message || ''), {
+          danger: true, title: "Yukka to'lov bog'langan",
+          okText: "To'lovni ham o'chirish", altText: "To'lovni saqlab qolish"
+        });
+        if (tanlov === true) tolovAmali = 'ochir';
+        else if (tanlov === 'alt') tolovAmali = 'qoldir';
+        else { showMsg("O'chirish bekor qilindi — hech narsa o'zgarmadi", 'success'); return; }
+        res = await fetch(`/api/deliveries/${id}?tolov=${tolovAmali}`, { method:'DELETE' });
+      }
+    }
     if (res.ok) {
       loadDeliveries(selectedOrderId);
-      showMsg('✓ O\'chirildi', 'success');
+      if (tolovAmali) loadPayments(selectedOrderId);
+      showMsg(tolovAmali === 'ochir' ? "✓ Yuk xati va unga bog'langan to'lov o'chirildi"
+            : tolovAmali === 'qoldir' ? "✓ Yuk xati o'chirildi — to'lov saqlab qolindi"
+            : '✓ O\'chirildi', 'success');
+    } else {
+      showMsg('❌ ' + await sabab(res), 'error');
     }
-  } catch(e) { showMsg('❌ Xato', 'error'); }
+  } catch(e) { showMsg('❌ Tarmoq xatosi', 'error'); }
 }
 
 // ── LOY ZAXIRASI ──────────────────────────────────────────
@@ -5094,17 +5129,34 @@ function showConfirmModal(message, options = {}) {
     document.getElementById('genericConfirmMsg').innerHTML = escapeHtml(message).replace(/\n/g, '<br>');
     const okBtn = document.getElementById('genericConfirmOk');
     const cancelBtn = document.getElementById('genericConfirmCancel');
+    // kech38 (12-band): ixtiyoriy UCHINCHI tugma — `options.altText` berilsa
+    // ko'rinadi va natija 'alt' bo'ladi (yuk xatini o'chirishda "To'lovni
+    // saqlab qolish"). Berilmasa (qolgan HAMMA chaqiruvlar) tugma yashirin,
+    // natija avvalgidek faqat true / false. Uch tugmada qator ustunga
+    // aylanadi (asosiy tugma tepada), yopilganda asliga qaytadi.
+    const altBtn = document.getElementById('genericConfirmAlt');
+    const tugmalarQatori = okBtn.parentElement;
     okBtn.textContent = options.okText || "✓ Ha";
     okBtn.style.background = options.danger ? '#DC2626' : '#16A34A';
+    if (altBtn) {
+      altBtn.textContent = options.altText || '';
+      altBtn.style.display = options.altText ? 'block' : 'none';
+    }
+    if (tugmalarQatori && tugmalarQatori.style) {
+      tugmalarQatori.style.flexDirection = (altBtn && options.altText) ? 'column-reverse' : '';
+    }
 
     const cleanup = (result) => {
       overlay.style.display = 'none';
       okBtn.onclick = null;
       cancelBtn.onclick = null;
+      if (altBtn) { altBtn.onclick = null; altBtn.style.display = 'none'; }
+      if (tugmalarQatori && tugmalarQatori.style) tugmalarQatori.style.flexDirection = '';
       resolve(result);
     };
     okBtn.onclick = () => cleanup(true);
     cancelBtn.onclick = () => cleanup(false);
+    if (altBtn && options.altText) altBtn.onclick = () => cleanup('alt');
     overlay.style.display = 'flex';
   });
 }
