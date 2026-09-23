@@ -148,7 +148,7 @@
     {% if returns %}
     {% for r in returns %}
     {% set is_defect = r.reason.value == 'Brak' %}
-    <div class="ret-row" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}"
+    <div class="ret-row" id="row-{{ r.id }}" data-reason="{{ r.reason.value }}" data-refund="{{ 'yes' if r.is_refunded else 'no' }}" data-stock="{{ ('%g'|format(r.stock_qty) ~ ' ' ~ (r.unit or '')) if r.stock_qty else '' }}"
          data-order="{{ r.order.order_number if r.order else '' }}"
          data-search="{{ (r.order.order_number if r.order else '') ~ ' ' ~ (r.order.project.client_name if r.order and r.order.project else '') ~ ' ' ~ r.item_name }}"
          style="animation-delay:{{ (loop.index0 % 20)*0.02 }}s">
@@ -681,10 +681,43 @@ function calcValue(){
   if (valEl) valEl.style.textShadow = hideForManager ? '0 0 8px rgba(0,0,0,.4)' : 'none';
 }
 
+// kech40 (22-band, foydalanuvchi qarori B): o'chirish qaytarishni UMUMAN bo'lmagandek
+// qiladi — omborga qo'shilgan miqdor Tayyor mahsulotlardan olinadi, pul qaytarilgan
+// bo'lsa u ham bekor qilinadi. Ilgari oyna "Moliya va Tayyor mahsulotlarga ta'sir
+// qilmaydi" derdi (O'LCHANGAN: shunday edi — qayta kiritilsa ombor / pul ikki marta
+// hisoblanardi). Rad javobida server SABABI ko'rsatiladi (ilgari faqat "Xato").
+const inFlightDeleteReturn = new Set();
+function qaytarishXatoMatni(e) {
+  const d = e && e.detail;
+  if (typeof d === 'string' && d) return d;
+  if (d && typeof d === 'object' && d.message) return d.message;
+  return 'Xato';
+}
 async function deleteReturn(id){
-  if(!(await customConfirm("Bu qaytarish yozuvini o'chirasizmi? (Moliya va Tayyor mahsulotlarga ta'sir qilmaydi, faqat tarixiy yozuv o'chadi)", {danger:true, okText:"Ha, o'chirish"})))return;
-  const res=await fetch(`/api/returns/${id}`,{method:'DELETE'});
-  if(res.ok)document.getElementById('row-'+id)?.remove();else alert('Xato');
+  const row = document.getElementById('row-' + id);
+  const pulQaytgan = !!row && row.dataset.refund === 'yes';
+  const omborga = (row && row.dataset.stock) || '';
+  let matn = "Bu qaytarish yozuvini o'chirasizmi?";
+  if (omborga) matn += "\n\n📦 Omborga qo'shilgan " + omborga + " Tayyor mahsulotlardan olib tashlanadi.";
+  if (pulQaytgan) matn += "\n\n💰 Mijozga qaytarilgan pul ham bekor qilinadi: kelishilgan summa qayta tiklanadi, manfiy to'lov yozuvi o'chadi.";
+  if (!(await customConfirm(matn, {danger:true, okText:"Ha, o'chirish"}))) return;
+  if (inFlightDeleteReturn.has(id)) return; // Ikki marta bosishdan himoya
+  inFlightDeleteReturn.add(id);
+  try {
+    let res;
+    try {
+      res = await fetch(`/api/returns/${id}`, {method:'DELETE'});
+    } catch (e) {
+      alert("❌ Tarmoq xatosi — sahifani yangilab, holatni tekshiring");
+      return;
+    }
+    if (res.ok) { location.reload(); return; }
+    let e = {};
+    try { e = await res.json(); } catch (_) {}
+    alert('❌ ' + qaytarishXatoMatni(e));
+  } finally {
+    inFlightDeleteReturn.delete(id);
+  }
 }
 
 const inFlightRefundToggle = new Set();
@@ -696,7 +729,12 @@ async function toggleRefund(id, current){
   try {
     const res = await fetch(`/api/returns/${id}/refund`, {method:'POST'});
     if (res.ok) location.reload();
-    else alert('Xato');
+    else {
+      // kech40: server sababi (ilgari faqat "Xato")
+      let e = {};
+      try { e = await res.json(); } catch (_) {}
+      alert('❌ ' + qaytarishXatoMatni(e));
+    }
   } finally {
     inFlightRefundToggle.delete(id);
   }

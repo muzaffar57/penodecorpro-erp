@@ -1424,6 +1424,14 @@ async function delFp(id, source) {
   try {
     const res = await fetch(`/api/finished/${id}?return_to_stock=${back}`, {method:'DELETE'});
     if (res.ok) { loadFp(); showMsg('✓ O\'chirildi', 'success'); }
+    else {
+      // kech40 (K40-1): rad javobida server SABABI (ilgari hech narsa ko'rsatilmasdi —
+      // tugma "ishlamaydigandek" edi; endi qoldig'i bor qaytgan mahsulot ham rad etiladi)
+      let e = {};
+      try { e = await res.json(); } catch (_) {}
+      const d = e && e.detail;
+      showMsg('❌ ' + ((typeof d === 'string' && d) ? d : ((d && d.message) || 'Xato')), 'error');
+    }
   } catch(e) { showMsg('Xato', 'error'); }
 }
 
