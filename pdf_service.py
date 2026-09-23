@@ -315,7 +315,7 @@ def generate_nakladnoy(order, db=None) -> bytes:
     # ── JAMI HISOB ────────────────────────────────────────────
     subtotal = sum(float(i.total_price or 0) for i in items)
     total    = float(order.total_amount or subtotal or 0)
-    agreed   = float(order.agreed_amount or total)
+    agreed   = float(order.agreed_amount) if order.agreed_amount is not None else total  # kech42 K42-1
     discount = max(total - agreed, 0)
 
     # MUHIM: Yetkazib berishda mijoz o'z ulushini (masalan 50/50 holatda)

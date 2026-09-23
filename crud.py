@@ -3771,7 +3771,7 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     for o in orders:
         pays = db.query(Payment).filter(Payment.order_id == o.id).all()
         paid = sum(float(p.amount or 0) for p in pays)
-        agreed = float(o.agreed_amount or o.total_amount or 0)
+        agreed = o.kelishilgan_summa
         debt = float(o.debt_amount or 0)
         expected_debt = agreed - paid
         diff = abs(debt - expected_debt)
@@ -4313,6 +4313,58 @@ def _miqdor_matn(x) -> str:
     return "0" if s in ("", "-0") else s
 
 
+def _som_butun(v) -> float:
+    """Butun so'mga, 0.5 YUQORIGA (musbat sonlarda JS `Math.round` bilan bir xil —
+    UI summasi va server avto-summasi farq qilmasin). Python `round()` —
+    "bankir" yaxlitlashi, 0.5 da farq berardi."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return float(Decimal(repr(float(v))).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def qaytarish_narx_koeffitsienti(db: Session, order) -> float:
+    """4-band (kech42, FOYDALANUVCHI QARORI: "Chegirmali narxdan"): qaytarish
+    summasi buyurtmaning KELISHILGAN (chegirmali) narxidan hisoblanadi —
+    1 000 000 lik buyurtma 900 000 ga kelishilgan bo'lsa, butun qaytarish
+    900 000. Koeffitsient = kelishilgan / jami (<= 1).
+
+    Joriy `agreed_amount` pul qaytarishlardan keyin KAMAYADI (mark_refunded) —
+    shuning uchun ASL kelishilgan = joriy + yangi belgilangan pul
+    qaytarishlarning `refund_agreed_delta` yig'indisi. U saqlangan chegirma
+    foiziga (`discount_percent`, 2 xonagacha yaxlitlangan) mos kelsa — aniq
+    nisbat; mos kelmasa (qarz kechirilgan — bu narx chegirmasi emas,
+    yangilanishdan oldingi pul qaytarish, qo'lda o'zgartirish) — saqlangan
+    foiz. Chegirma yo'q yoki ustama (kelishilgan > jami) — 1 (qaror faqat
+    chegirma haqida)."""
+    if order is None:
+        return 1.0
+    total = float(order.total_amount or 0)
+    dp = float(order.discount_percent or 0)
+    if total <= 0 or dp <= 0:
+        return 1.0
+    _qaytganlar = db.query(ReturnItem).filter(
+        ReturnItem.order_id == order.id,
+        ReturnItem.company_id == order.company_id,
+        ReturnItem.is_refunded.is_(True),
+        ReturnItem.refunded_at.isnot(None)).all()
+    asl = order.kelishilgan_summa + sum(float(r.refund_agreed_delta or 0) for r in _qaytganlar)
+    k = asl / total
+    if abs((1.0 - k) * 100.0 - dp) <= 0.0051:
+        return min(1.0, max(0.0, k))
+    return min(1.0, max(0.0, 1.0 - dp / 100.0))
+
+
+def qaytarish_birlik_narxi(db: Session, order, order_item, koef: float = None) -> float:
+    """Qaytarishning 1 birlik narxi (kelishilgan narx bo'yicha, tiyingacha).
+    UI (`returns.html` `currentUnitPrice`) ham AYNAN shu qiymatni oladi
+    (`/api/orders/{id}` → `refund_price_per_unit`)."""
+    ordered = float(order_item.order_qty_normalized or 0)
+    if ordered <= 0:
+        return 0.0
+    if koef is None:
+        koef = qaytarish_narx_koeffitsienti(db, order)
+    return _pul2(float(order_item.total_price or 0) / ordered * koef)
+
+
 def create_return_item(db: Session, data: ReturnItemCreate,
                        company_id: int = None) -> ReturnItem:
     """Yangi qaytarishni bazaga qo'shadi.
@@ -4445,20 +4497,38 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     # rad etiladi. Chegirmali buyurtmada qaytarish qiymatini qanday hisoblash
     # (chegirmasiz yoki chegirmali narx) — alohida BIZNES masalasi, bu yerda
     # o'zgartirilmaydi.
+    # kech42 (4-band, FOYDALANUVCHI QARORI "Chegirmali narxdan"): brakdan boshqa
+    # qaytarish summasi KELISHILGAN narxdan (`qaytarish_birlik_narxi`). O'LCHANGAN
+    # (asl kod): 500 000 lik buyurtma 450 000 ga kelishilgan — butun qaytarish
+    # 500 000 yozilardi. Qo'lda kiritilgan summa ham shu detal qismining
+    # kelishilgan qiymatidan oshmaydi (+ yaxlitlash farqi: har birlikka 0.5
+    # so'm + 0.5 — eski sahifadan chegirmasiz buyurtmaga butun so'mli narx
+    # bilan yuborilgan summa rad etilmasin). Brak — avvalgidek (tan narx,
+    # buyurtma darajasidagi chegara).
+    _birlik = None
+    if reason_enum != ReturnReason.DEFECT and order_item is not None:
+        _birlik = qaytarish_birlik_narxi(db, _o, order_item)
     if refund_amount > 0:
-        _qiymat = max(float(_o.agreed_amount or 0), float(_o.total_amount or 0))
-        if refund_amount > _qiymat + 0.5 * float(data.quantity) + 0.5:
-            raise ValueError(f"Qaytariladigan summa ({refund_amount:,.0f} so'm) buyurtma "
-                             f"qiymatidan ({_qiymat:,.0f} so'm) katta bo'lishi mumkin emas")
+        _mq = float(data.quantity)
+        if _birlik is not None:
+            _qiymat = _som_butun(_birlik * _mq)
+            if refund_amount > _birlik * _mq + 0.5 * _mq + 0.5:
+                raise ValueError(f"Qaytariladigan summa ({refund_amount:,.0f} so'm) bu detal qismining "
+                                 f"kelishilgan qiymatidan ({_qiymat:,.0f} so'm = {_miqdor_matn(_mq)} × "
+                                 f"{_birlik:,.2f} so'm) katta bo'lishi mumkin emas")
+        else:
+            _qiymat = max(_o.kelishilgan_summa, float(_o.total_amount or 0))
+            if refund_amount > _qiymat + 0.5 * _mq + 0.5:
+                raise ValueError(f"Qaytariladigan summa ({refund_amount:,.0f} so'm) buyurtma "
+                                 f"qiymatidan ({_qiymat:,.0f} so'm) katta bo'lishi mumkin emas")
     if refund_amount <= 0 and order_item:
-        ordered = order_item.order_qty_normalized
         if reason_enum == ReturnReason.DEFECT:
             # Brak — tan narx (xomashyo qiymati)
             unit_price = services.get_order_item_unit_cost(db, order_item.order, order_item)
+            refund_amount = round(unit_price * float(data.quantity or 0))
         else:
-            # Butun — sotuv narxi
-            unit_price = (float(order_item.total_price or 0) / ordered) if ordered else 0
-        refund_amount = round(unit_price * float(data.quantity or 0))
+            # Butun — kelishilgan (chegirmali) sotuv narxi
+            refund_amount = _som_butun((_birlik or 0) * float(data.quantity or 0))
 
     # M8/F1: `order_id` va `finished_product_id` ikkalasi ham NULL
     # bo'lishi mumkin — korxonani buyurtmadan olamiz.
@@ -4593,6 +4663,13 @@ def mark_refunded(db: Session, return_id: int, refunded_by: str = None,
         return None
     if item.is_refunded:
         return item  # Allaqachon qaytarilgan — qayta ishlamaymiz
+    # kech42 (FOYDALANUVCHI, so'zma-so'z mazmuni): brak — ishlab chiqarish
+    # zarari; mijozga yaroqsiz mahsulot HECH QACHON berilmaydi, buyurtma baribir
+    # to'liq tayyorlanadi — demak brak uchun mijozga pul qaytarilmaydi. UI
+    # tugmani brakda ko'rsatmaydi, lekin server tekshirmasdi (O'LCHANGAN:
+    # `POST /api/returns/{id}/refund` brak yozuviga 200, −25 000 to'lov).
+    if item.reason == ReturnReason.DEFECT:
+        raise ValueError("Brak — ishlab chiqarish zarari, mijozga pul qaytarilmaydi")
     _cid = item.company_id
     # QULF — `create_delivery` naqshi: yozilmagan o'zgarish yo'qolmasin
     # (`flush`), qulf, so'ng qulf ostida bazadan QAYTA o'qiladi.
@@ -4615,31 +4692,49 @@ def mark_refunded(db: Session, return_id: int, refunded_by: str = None,
                                        Order.company_id == _cid).first()
     _kamaydi = 0.0
 
+    _naqd = 0.0
     if refund_amount > 0 and order is not None:
-        _eski = float(order.agreed_amount or order.total_amount or 0)
-        _yangi = max(0, _eski - refund_amount)
-        order.agreed_amount = _yangi
+        _eski = order.kelishilgan_summa
+        _yangi = max(0.0, _eski - refund_amount)
+        order.agreed_amount = _pul2(_yangi)
         _kamaydi = _eski - _yangi
 
-        payment = Payment(
-            order_id=order.id,
-            return_item_id=item.id,
-            amount=-refund_amount,
-            payment_type=PaymentType.PARTIAL,
-            received_by=refunded_by,
-            notes=f"Qaytarilgan mahsulot uchun pul qaytarildi: {item.item_name} ({item.quantity} {item.unit})"
-        )
-        db.add(payment)
-        # 17c: manfiy to'lov loyiha "To'langan" summasiga ham tushadi —
-        # ilgari tushmasdi (`total_paid` faqat create/delete_payment da
-        # yangilanardi).
-        _loyiha_tolangan_yangila(db, order.project)
+        # kech42 (24-band, qaror: "real hayotdagidek"): to'lanmagan pulni
+        # qaytarib bo'lmaydi — qaytgan mahsulot QARZDAN chegiriladi, naqd faqat
+        # mijoz ORTIQCHA to'lagan qism uchun: min(summa, max(0, to'langan −
+        # yangi kelishilgan)). O'LCHANGAN (asl kod): to'lanmagan buyurtmada 30 m
+        # qaytishi −150 000 to'lov yozib, qarzni kelishilgandan katta
+        # ko'rsatardi; 200 000 to'langan + 300 000 qaytgan → −300 000 to'lov va
+        # qarz 300 000 (asli 0, naqd yo'q). To'liq to'langanda — avvalgidek.
+        _tolangan = sum(float(p.amount or 0) for p in (order.payments or []))
+        _naqd = _pul2(min(refund_amount, max(0.0, _tolangan - _yangi)))
+        if _naqd >= 0.01:
+            payment = Payment(
+                order_id=order.id,
+                return_item_id=item.id,
+                amount=-_naqd,
+                payment_type=PaymentType.PARTIAL,
+                received_by=refunded_by,
+                notes=f"Qaytarilgan mahsulot uchun pul qaytarildi: {item.item_name} ({item.quantity} {item.unit})"
+            )
+            db.add(payment)
+            db.flush()
+            # 17c: manfiy to'lov loyiha "To'langan" summasiga ham tushadi —
+            # ilgari tushmasdi (`total_paid` faqat create/delete_payment da
+            # yangilanardi).
+            _loyiha_tolangan_yangila(db, order.project)
+        # kech42: to'lov holati ham yangilanadi (ilgari yangilanmasdi —
+        # O'LCHANGAN: to'liq qaytgan to'langan buyurtma "paid" + qarz 500 000).
+        db.flush()
+        db.expire(order, ["payments"])
+        _update_order_payment_status(db, order)
 
     item.is_refunded = True
     item.refunded_at = datetime.utcnow()
     item.refund_agreed_delta = _pul2(_kamaydi)
     db.commit()
     db.refresh(item)
+    item.naqd_qaytarildi = float(_naqd or 0)   # marshrut xabari uchun (bazaga yozilmaydi)
     return item
 
 
@@ -4887,10 +4982,20 @@ from schemas import PaymentCreate
 def _update_order_payment_status(db: Session, order: Order) -> None:
     """Buyurtmaning to'lov holatini yangilaydi.
     Qarz to'liq to'lansa — avtomatik arxivga o'tkazadi."""
-    agreed = float(order.agreed_amount or order.total_amount or 0)
+    agreed = order.kelishilgan_summa
     paid = sum(float(p.amount or 0) for p in (order.payments or []))
+    total = float(order.total_amount or 0)
 
-    if paid <= 0:
+    # kech42 (K42-1): kelishilgan summa 0 (hammasi qaytarilgan / qarz to'liq
+    # kechirilgan) va mijozdan qarz yo'q — hisob yopiq. Ilgari bu holda 0
+    # "kiritilmagan" deb olinib, jami summa bo'yicha "to'lanmagan" chiqardi.
+    # `total > 0` — bo'sh (0 so'mlik) yangi buyurtma arxivga tushib qolmasin.
+    if agreed <= 0.005 and total > 0 and paid >= -0.005:
+        order.payment_status = PaymentStatus.PAID
+        order.is_archived = True
+        if not order.closed_at:
+            order.closed_at = datetime.utcnow()
+    elif paid <= 0:
         order.payment_status = PaymentStatus.UNPAID
         order.is_archived = False
         order.closed_at = None
@@ -5222,7 +5327,7 @@ def get_debt_stats(db: Session, company_id: int = None) -> dict:
     debt_orders = []
 
     for o in orders:
-        agreed = float(o.agreed_amount or o.total_amount or 0)
+        agreed = o.kelishilgan_summa
         paid = sum(float(p.amount or 0) for p in (o.payments or []))
         debt = max(agreed - paid, 0)
 
@@ -6751,7 +6856,7 @@ def get_pinned_orders(db: Session, company_id: int = None) -> list:
             "project_name": o.project.project_name if o.project else "—",
             "status": o.status.value,
             "total_amount": float(o.total_amount or 0),
-            "agreed_amount": float(o.agreed_amount or 0) if o.agreed_amount else None,
+            "agreed_amount": float(o.agreed_amount) if o.agreed_amount is not None else None,
             "master_name": o.master.name if o.master else "—",
             "created_at": o.created_at.strftime("%d.%m.%Y") if o.created_at else "—",
             "deadline": o.deadline.strftime("%d.%m.%Y") if o.deadline else None,

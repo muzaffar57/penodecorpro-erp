@@ -641,9 +641,23 @@ class Order(Base):
         return sum(float(p.amount or 0) for p in (self.payments or []))
 
     @property
+    def kelishilgan_summa(self):
+        """Kelishilgan summa (float).
+
+        kech42 (K42-1, O'LCHANGAN): 0 — HAQIQIY qiymat (to'liq qaytarilib pul
+        qaytarilgan yoki qarzi to'liq kechirilgan buyurtma). Ilgari hamma joyda
+        `agreed_amount or total_amount` yozilgan edi — 0 "kiritilmagan" deb
+        olinib, o'rniga JAMI summa chiqardi: to'lanmagan, to'liq qaytarilgan
+        buyurtmada qarz 1 000 000 (asli 0) ko'rinardi. Faqat bo'sh (NULL)
+        bo'lsa jami summa olinadi."""
+        if self.agreed_amount is not None:
+            return float(self.agreed_amount)
+        return float(self.total_amount or 0)
+
+    @property
     def debt_amount(self):
         """Qarz qoldi."""
-        agreed = float(self.agreed_amount or self.total_amount or 0)
+        agreed = self.kelishilgan_summa
         return max(agreed - self.paid_amount, 0)
 
     def __repr__(self):

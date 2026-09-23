@@ -775,7 +775,11 @@ def _migrate_payment_columns():
             try:
                 conn.execute(text(
                     "UPDATE orders SET agreed_amount = total_amount "
-                    "WHERE agreed_amount IS NULL OR agreed_amount = 0"
+                    # kech42 (K42-1): faqat BO'SH (NULL). Ilgari `OR agreed_amount = 0`
+                    # ham bor edi — HAR ishga tushishda to'liq qaytarilgan / qarzi
+                    # kechirilgan buyurtmaning qonuniy 0 summasini jami summaga
+                    # qaytarib, yopilgan qarzni "tiriltirardi".
+                    "WHERE agreed_amount IS NULL"
                 ))
                 conn.commit()
             except Exception as e:
@@ -2547,7 +2551,7 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
             }
         g = groups[pid]
         g["orders"].append(o)
-        g["total"] += float(o.agreed_amount or o.total_amount or 0)
+        g["total"] += o.kelishilgan_summa
         g["debt"] += o.debt_amount
         if o.status.value not in ("ready", "delivered", "cancelled"):
             g["active"] += 1
@@ -4090,6 +4094,8 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
     if not order:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
+    # kech42 (4-band): qaytarish narxi koeffitsienti — bir marta (har detalga so'rov emas)
+    _qkoef = crud.qaytarish_narx_koeffitsienti(db, order)
     return {
         "id": order.id,
         "order_number": order.order_number,
@@ -4097,7 +4103,7 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "order_type": order.order_type.value if order.order_type else None,
         "status": order.status.value if order.status else None,
         "total_amount": float(order.total_amount or 0),
-        "agreed_amount": float(order.agreed_amount or order.total_amount or 0),
+        "agreed_amount": order.kelishilgan_summa,
         "discount_percent": order.discount_percent or 0,
         "payment_status": order.payment_status.value if order.payment_status else "unpaid",
         "paid_amount": order.paid_amount,
@@ -4138,6 +4144,9 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "order_qty_normalized": i.order_qty_normalized,
             "delivery_unit": i.delivery_unit,
             "price_per_unit_final": round(float(i.total_price or 0) / i.order_qty_normalized) if i.order_qty_normalized else 0,
+            # kech42 (4-band): qaytarish 1 birlik narxi — KELISHILGAN narx bo'yicha
+            # (`returns.html` shuni oladi; server avto-summasi bilan bir xil).
+            "refund_price_per_unit": crud.qaytarish_birlik_narxi(db, order, i, koef=_qkoef),
             "cost_price_per_unit": services.get_order_item_unit_cost(db, order, i),
             "cost_price_per_unit_no_coating": services.get_order_item_unit_cost(db, order, i, include_coating=False),
             # MUHIM: Ichki qo'shimcha detallar — bu yerga QO'SHILMASA, bu
@@ -5193,11 +5202,26 @@ def api_mark_refunded(return_id: int, db: Session = Depends(get_db), current_use
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     who = current_user.full_name or current_user.username
-    item = crud.mark_refunded(db, return_id, refunded_by=who,
-                              company_id=auth.company_id_of(current_user))
+    # kech42: brak — 400 (mijozga pul qaytarilmaydi); javobda nima bo'lgani
+    # (qarzdan chegirildimi, naqd qancha) — UI shuni ko'rsatadi.
+    try:
+        item = crud.mark_refunded(db, return_id, refunded_by=who,
+                                  company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not item:
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
-    return {"status": "ok", "is_refunded": item.is_refunded}
+    naqd = float(getattr(item, "naqd_qaytarildi", 0) or 0)
+    kam = float(item.refund_agreed_delta or 0)
+    if naqd >= 0.01:
+        xabar = (f"Kelishilgan summa {kam:,.0f} so'mga kamaydi; mijozga {naqd:,.0f} so'm naqd "
+                 f"qaytarilgan deb yozildi (u ortiqcha to'lagan qism).").replace(",", " ")
+    else:
+        xabar = (f"Kelishilgan summa {kam:,.0f} so'mga kamaydi — qarzdan chegirildi, naqd pul "
+                 f"qaytarilmadi (mijoz ortiqcha to'lamagan).").replace(",", " ")
+    return {"status": "ok", "is_refunded": item.is_refunded, "naqd_qaytarildi": naqd,
+            "kelishilgan_kamaydi": kam, "xabar": xabar}
 
 
 @app.delete("/api/returns/{return_id}")
@@ -5269,7 +5293,7 @@ def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False
             # buyurtmaning asl (chegirmasiz) qiymatini ko'rsatib turadi,
             # "Chegirma" esa (Jami - Kelishilgan) o'zi avtomatik kattalashadi —
             # boshidagi chegirma bilan bu "kechirilgan" summa TABIIY qo'shilib boradi.
-            order.agreed_amount = float(order.agreed_amount or order.total_amount or 0) - remaining
+            order.agreed_amount = order.kelishilgan_summa - remaining
             import re as _re
             base_notes = _re.sub(r'\s*\[WRITEOFF:[\d.]+\]', '', order.notes or '').strip()
             order.notes = (base_notes + f" [WRITEOFF:{remaining:.0f}]").strip()

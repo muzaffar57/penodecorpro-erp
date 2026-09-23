@@ -521,7 +521,7 @@ def get_business_health(db: Session, company_id: int = None) -> dict:
         _bhq = _bhq.filter(Order.company_id == company_id)
     orders = _bhq.all()
     total_debt = sum(float(o.debt_amount or 0) for o in orders)
-    total_revenue = sum(float(o.agreed_amount or o.total_amount or 0) for o in orders) or 1
+    total_revenue = sum(o.kelishilgan_summa for o in orders) or 1
     debt_ratio = total_debt / total_revenue * 100
     debt_status = "green" if debt_ratio < 15 else ("orange" if debt_ratio < 30 else "red")
 
@@ -1123,7 +1123,7 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
         except Exception:
             db.rollback()
         o_total = float(o.total_amount or 0)
-        o_agreed = float(o.agreed_amount or o_total or 0)
+        o_agreed = o.kelishilgan_summa
         if o_total > 0:
             for it in o.items:
                 share = (float(it.total_price or 0) / o_total) * o_agreed
@@ -1427,7 +1427,7 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
             # qoidaga mos: chegirma qilingan buyurtmada usta cashbacki ham
             # chegirmadan OLDINGI (shishirilgan) summadan emas, HAQIQIY
             # kelishilgan summadan hisoblanishi kerak.
-            cashback = float(order.agreed_amount or order.total_amount or 0) * 0.03
+            cashback = order.kelishilgan_summa * 0.03
             total_meters = sum(
                 (item.length or 0) * item.quantity for item in order.items if item.is_coated
             )
@@ -1590,7 +1590,7 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         peno_rev = 0.0
         for o in month_orders:
             o_total = float(o.total_amount or 0)
-            o_agreed = float(o.agreed_amount or o_total or 0)
+            o_agreed = o.kelishilgan_summa
             if o_total <= 0:
                 continue
             for it in o.items:
@@ -1739,7 +1739,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
     # Kelishilgan (chegirmadan keyingi, haqiqatan mijoz to'laydigan) summadan
     # hisoblanadi — shunda har qanday chegirma (boshidagi ham, keyin
     # "kechirilgan" ham) foyda hisobotida to'g'ri, avtomatik hisobga olinadi.
-    sotuv_narxi = float(order.agreed_amount or order.total_amount or 0)
+    sotuv_narxi = order.kelishilgan_summa
     breakdown = []
     tan_narxi_jami = 0.0
 
@@ -2227,7 +2227,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # "Umumiy jami"ni olamiz. Bu — Buyurtmalar ro'yxati va har bir
     # buyurtmaning foyda hisobi (calculate_order_profit) bilan BIR XIL
     # manba — aks holda "Jami daromad" bu ikkisidan farq qilib qolar edi.
-    daromad = sum(float(o.agreed_amount or o.total_amount or 0) for o in ready_orders)
+    daromad = sum(o.kelishilgan_summa for o in ready_orders)
     buyurtmalar_soni = len(ready_orders)
 
     # ── TAYYOR MAHSULOT TO'G'RIDAN-TO'G'RI SOTUVI ──
@@ -2636,7 +2636,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     penoplast_daromad = 0.0
     for order in ready_orders:
         order_total = float(order.total_amount or 0)
-        order_agreed = float(order.agreed_amount or order_total or 0)
+        order_agreed = order.kelishilgan_summa
         if order_total <= 0:
             continue
         for item in order.items:

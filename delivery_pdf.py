@@ -471,7 +471,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         notice = Table([[
             Paragraph(
                 f"⚠️ QISMAN YETKAZISH — bu hujjat buyurtmaning FAQAT shu qismini ko'rsatadi "
-                f"(umumiy bajarilish: {pct}%). Buyurtmaning JAMI summasi — {float(order.agreed_amount or order.total_amount or 0):,.0f} so'm.",
+                f"(umumiy bajarilish: {pct}%). Buyurtmaning JAMI summasi — {order.kelishilgan_summa:,.0f} so'm.",
                 ParagraphStyle('warn', fontName='Helvetica-Bold', fontSize=8.5,
                                textColor=colors.HexColor("#92400E"), alignment=TA_CENTER, leading=12)
             )
@@ -639,7 +639,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     # ---- Umumiy moliyaviy holat ----
     if order:
         total_amount = float(order.total_amount or 0)
-        agreed = float(order.agreed_amount or total_amount)
+        agreed = order.kelishilgan_summa
         disc_pct = float(order.discount_percent or 0)
         paid = order.paid_amount
         debt = order.debt_amount
@@ -989,7 +989,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
 
     # ---- Moliyaviy hisob ----
     total_amount = float(order.total_amount or 0)
-    agreed = float(order.agreed_amount or total_amount)
+    agreed = order.kelishilgan_summa
     disc_pct = float(order.discount_percent or 0)
     paid = order.paid_amount
     debt = order.debt_amount
