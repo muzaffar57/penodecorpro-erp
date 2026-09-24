@@ -4124,9 +4124,15 @@ def _mrp_eski_surat_qoplamalari(db, po) -> set:
 
 
 def _mrp_birlik_sarfi(db, company_id, order_item=None, finished_product=None,
-                      qoplama: bool = True):
+                      qoplama: bool = True, surat_narxlari: dict = None):
     """MRP mahsulotining 1 birligi uchun xomashyo: {inventory_id: miqdor (ombor birligida)}.
-    None — surati bor ishlab chiqarish buyurtmasi YO'Q (hali boshlanmagan)."""
+    None — surati bor ishlab chiqarish buyurtmasi YO'Q (hali boshlanmagan).
+
+    kech55 (34-band): `surat_narxlari` (lug'at) berilsa — har material uchun
+    [miqdor, qiymat] yig'iladi, qiymat suratdagi `unit_price_at_time` (ishlab
+    chiqarish paytidagi ombor birligi narxi) bilan; chaqiruvchi o'rtacha narxni
+    oladi. Sarf (qaytadigan natija) va qatorlar tanlovi O'ZGARMAYDI.
+    """
     import json as _json_ms
     from production_models import ProductionOrder
     q = db.query(ProductionOrder).filter(
@@ -4170,13 +4176,19 @@ def _mrp_birlik_sarfi(db, company_id, order_item=None, finished_product=None,
             if kerak <= 0 or not qator.get("inventory_id"):
                 continue
             sarf[qator["inventory_id"]] = sarf.get(qator["inventory_id"], 0.0) + kerak
+            if surat_narxlari is not None and qator.get("unit_price_at_time") is not None:
+                _sx = surat_narxlari.setdefault(qator["inventory_id"], [0.0, 0.0])
+                _sx[0] += kerak
+                _sx[1] += kerak * float(qator.get("unit_price_at_time") or 0)
     if jami_miqdor <= 0:
         return None
     return {k: v / jami_miqdor for k, v in sarf.items()}
 
 
-def _mrp_sarf_qiymati(db, sarf: dict, company_id) -> float:
-    """1 birlik sarfning JORIY narxdagi qiymati (brak yozilgan paytdagi narx — 13-band 2-qadam)."""
+def _mrp_sarf_qiymati(db, sarf: dict, company_id, narxlar: dict = None) -> float:
+    """1 birlik sarfning JORIY narxdagi qiymati (brak yozilgan paytdagi narx — 13-band 2-qadam).
+    kech55 (34-band): `narxlar` berilsa ({inventory_id: narx}) — lug'atdagi material o'sha
+    narxda (qaytgan mahsulot — ishlab chiqarish paytidagi narx), qolgani joriy narxda."""
     from models import Inventory
     jami = 0.0
     for inv_id, miqdor in (sarf or {}).items():
@@ -4185,7 +4197,8 @@ def _mrp_sarf_qiymati(db, sarf: dict, company_id) -> float:
             q = q.filter(Inventory.company_id == company_id)
         inv = q.first()
         if inv:
-            jami += float(miqdor) * float(inv.price_per_unit or 0)
+            _nx = narxlar.get(inv_id) if narxlar else None
+            jami += float(miqdor) * (float(_nx) if _nx is not None else float(inv.price_per_unit or 0))
     return jami
 
 
@@ -4607,7 +4620,7 @@ def adjust_loy_diff(db: Session, order, old_loy: float, new_loy: float) -> list:
 
 
 def get_loy_cost_per_kg(db: Session, recipe_id: int = None,
-                        company_id: int = None) -> dict:
+                        company_id: int = None, narxlar: dict = None) -> dict:
     """Retsept bo'yicha 1 kg loyning tan narxi.
 
     ⚠ 2026-09-21: `company_id` YO'Q edi. Ikki xavf bor edi:
@@ -4636,13 +4649,19 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None,
         if kg <= 0 or not ing.inventory:
             continue
         inv = ing.inventory
-        if inv.price_per_unit:
-            per_kg = (kg / batch) * float(inv.price_per_unit)
+        # kech55 (34-band): `narxlar` berilsa ({inventory_id: 1 birlik narxi} —
+        # buyurtmada ISHLATILGAN paytdagi narx, `_buyurtma_sarf_narxlari`) o'sha
+        # narx; lug'atda yo'q material va `narxlar` berilmagan chaqiruv — JORIY
+        # narx (avvalgi xulq AYNAN).
+        _ing_narx = (float(narxlar[inv.id]) if (narxlar and inv.id in narxlar)
+                     else float(inv.price_per_unit or 0))
+        if _ing_narx:
+            per_kg = (kg / batch) * _ing_narx
             cost += per_kg
             breakdown.append({
                 "name": inv.item_name,
                 "kg_per_batch": kg,
-                "price": float(inv.price_per_unit),
+                "price": _ing_narx,
                 "cost_per_kg": round(per_kg, 2)
             })
 
@@ -4974,11 +4993,22 @@ def fmt_num(n):
         return "0"
 
 
-def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = True) -> float:
+def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = True,
+                             muzlatilgan: bool = False) -> float:
     """Bitta detalning 1 birlik (metr/dona) TAN NARXI — penoplast + (agar
     include_coating=True bo'lsa) loy. Brak qiymatini hisoblash uchun —
     sotuv narxi emas, xomashyo qiymati.
-    include_coating=False — faqat Penoplast (loy hali tortilmagan holat uchun)."""
+    include_coating=False — faqat Penoplast (loy hali tortilmagan holat uchun).
+
+    kech55 (5-bo'lim 34-band, O'LCHANGAN — `work/probe56.py`): muzlatilgan=True —
+    xomashyo shu buyurtmada ISHLATILGAN paytdagi narxda (`_buyurtma_sarf_narxlari`,
+    32-band qarori "ishlatilgan paytdagi narxda muzlatilsin" bilan bir xil manba);
+    MRP mahsuloti — ishlab chiqarish suratidagi narxda (`unit_price_at_time`).
+    Faqat QAYTGAN mahsulot tannarxi uchun (`crud.add_returned_to_stock`): aks holda
+    narx oshgandan keyin qaytgan 2 m (5 000 so'm/m ga qilingan) 30 000 so'm tannarx
+    bilan omborga tushib, sotuv / kamaytirishda foydani sun'iy kamaytirardi.
+    Brak summasi va oldindan ko'rish — JORIY narx (13-band 2-qadam), muzlatilgan=False.
+    Jurnali yo'q eski buyurtma / surat narxisiz qator — joriy narx (taxmin qilinmaydi)."""
 
     if getattr(item, 'finished_product_id', None):
         # FASA 4B: avval bu yerda `cost_price / produced_quantity` ishlatilardi
@@ -5007,21 +5037,29 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
         return 0.0
 
     _ucid = getattr(order, 'company_id', None) or getattr(item, 'company_id', None)
+    # kech55 (34-band): muzlatilgan narxlar (faqat muzlatilgan=True da; aks holda bo'sh — joriy narx).
+    _mz_narx = _buyurtma_sarf_narxlari(db, order) if (muzlatilgan and order is not None) else {}
     # kech54 (13-band, 5-qadam): MRP mahsuloti — retsept suratidagi xomashyo JORIY narxda
     # (brak yozilgan paytdagi narx); surat yo'q — 0 (brak baribir rad etiladi).
     if (getattr(item, 'category', None) or '').lower() == 'mrp_product':
-        _msarf = _mrp_birlik_sarfi(db, _ucid, order_item=item, qoplama=include_coating)
-        return round(_mrp_sarf_qiymati(db, _msarf, _ucid)) if _msarf else 0.0
+        _mz_surat = {} if muzlatilgan else None
+        _msarf = _mrp_birlik_sarfi(db, _ucid, order_item=item, qoplama=include_coating,
+                                   surat_narxlari=_mz_surat)
+        _mz_mrp = {k: v / m for k, (m, v) in (_mz_surat or {}).items() if m > 0}
+        return round(_mrp_sarf_qiymati(db, _msarf, _ucid, narxlar=_mz_mrp)) if _msarf else 0.0
     default_p = get_default_penoplast(db, company_id=_ucid)
-    volume = _item_volume_m3(db, item, default_p)
     pid = item.penoplast_id or (default_p.id if default_p else None)
+    volume = _item_volume_m3(db, item, default_p,
+                             penoplast_narxi=(_mz_narx.get(pid) if pid else None))
 
     peno_cost_total = 0.0
     if volume > 0 and pid:
         p = _peno_of(db, pid, _ucid)
         if p and p.volume_per_unit:
             blocks = volume / float(p.volume_per_unit)
-            peno_cost_total = blocks * float(p.price_per_unit or 0)
+            _blok_narx = _mz_narx.get(p.id)
+            peno_cost_total = blocks * (float(_blok_narx) if _blok_narx is not None
+                                        else float(p.price_per_unit or 0))
 
     qty_units = item.order_qty_normalized
     peno_cost_per_unit = (peno_cost_total / qty_units) if qty_units > 0 else 0.0
@@ -5040,7 +5078,8 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
         if loy_kg_per_unit > 0:
             # 2026-09-21 — TENANT: korxona buyurtmaning O'ZIDAN olinadi.
             loy_info = get_loy_cost_per_kg(
-                db, recipe_id, company_id=getattr(order, 'company_id', None))
+                db, recipe_id, company_id=getattr(order, 'company_id', None),
+                narxlar=_mz_narx or None)
             loy_cost_per_unit = loy_kg_per_unit * float(loy_info.get("cost_per_kg", 0))
 
     return round(peno_cost_per_unit + loy_cost_per_unit)

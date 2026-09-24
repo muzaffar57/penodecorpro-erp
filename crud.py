@@ -8440,7 +8440,11 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     unit_p = (total_price / ordered) if ordered > 0 else 0.0
     unit = order_item.delivery_unit
 
-    unit_cost = _svc.get_order_item_unit_cost(db, order_item.order, order_item)
+    # kech55 (5-bo'lim 34-band): tannarx — shu buyurtmada ISHLATILGAN paytdagi narxda
+    # (buyurtma tan narxi bilan bir manba, `_buyurtma_sarf_narxlari`; MRP — surat narxi).
+    # O'LCHANGAN (`work/probe56.py`): narx x3 dan keyin 2 m qaytarish 30 000 (joriy)
+    # yozardi, mahsulot esa 10 000 ga qilingan — sotuvda foyda 20 000 kam ko'rinardi.
+    unit_cost = _svc.get_order_item_unit_cost(db, order_item.order, order_item, muzlatilgan=True)
     new_cost_price = round(unit_cost * quantity, 2)
 
     # MUHIM: "Xarajatlar" (Foyda hisobi oynasi) — volume_m3'ga tayanib,
@@ -8449,7 +8453,12 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     # "Xarajatlar → Penoplast" qatori noto'g'ri "0" ko'rsatardi.
     per_unit_volume = 0.0
     if ordered > 0:
-        full_volume = _svc._item_volume_m3(db, order_item, None)
+        # kech55 (34-band): donaning zaxira hajm yo'li (penoplast narxidan) — ishlatilgan
+        # paytdagi narxda (`calculate_order_profit` bilan bir xil).
+        _ret_pid = getattr(order_item, 'penoplast_id', None)
+        _ret_narx = (_svc._buyurtma_sarf_narxlari(db, order_item.order).get(_ret_pid)
+                     if (_ret_pid and getattr(order_item, 'order', None) is not None) else None)
+        full_volume = _svc._item_volume_m3(db, order_item, None, penoplast_narxi=_ret_narx)
         per_unit_volume = full_volume / ordered
     new_volume = round(per_unit_volume * quantity, 6)
     # kech40 (22-band): chaqiruvchiga AYNAN nima qo'shilgani (qaytarish yozuvi
