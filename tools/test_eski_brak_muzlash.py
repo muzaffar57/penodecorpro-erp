@@ -408,8 +408,10 @@ _d.query(InventoryMovement).filter(InventoryMovement.order_id == O3,
 _d.query(InventoryMovement).filter(InventoryMovement.order_id == O6,
                                    InventoryMovement.reason.like("Brak%")).update({"reason": "TB bog'langan boshqa sabab"},
                                                                                  synchronize_session=False)
-# HAMMA harakat — zip 47 gacha kabi narxsiz
+# HAMMA harakat — zip 47 gacha kabi narxsiz (kech52: va brak belgisisiz — eski harakatlarda NULL)
 _d.query(InventoryMovement).update({"unit_cost": None}, synchronize_session=False)
+if hasattr(InventoryMovement, "is_brak"):
+    _d.query(InventoryMovement).update({"is_brak": None}, synchronize_session=False)
 _d.commit()
 _d.close()
 

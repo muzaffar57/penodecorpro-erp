@@ -638,8 +638,9 @@ try:
     _bs = inspect.getsource(crud.get_brak_material_summary)
 except Exception:                          # noqa: BLE001
     _bs = ""
-check("S6 yordamchi brakni brak xulosasi bilan AYNAN bir shartda chiqaradi (reason.like(\"Brak%\"))",
-      'reason.like("Brak%")' in _ys and 'reason.like("Brak%")' in _bs and "return_item_id.is_(None)" in _ys)
+# kech52 (13-band, 3-qadam): ikkalasi ham YAGONA `crud.brak_harakati_sharti` ni ishlatadi (matn emas).
+check("S6 yordamchi brakni brak xulosasi bilan AYNAN bir shartda chiqaradi (crud.brak_harakati_sharti)",
+      "_not_sn(_crud_sn.brak_harakati_sharti(_IMv))" in _ys and "brak_harakati_sharti(InventoryMovement)" in _bs)
 check("S7 yordamchi korxona filtri bilan", "_IMv.company_id == _cid_sn" in _ys and "Inventory.company_id == _cid_sn" in _ys)
 
 print()

@@ -374,7 +374,13 @@ def chiqim(inv_id, nom, miqdor, sabab, order_id=None, tur="out"):
         if inv_id:
             m = d.get(Inventory, inv_id)
             m.stock_quantity = float(m.stock_quantity or 0) + (miqdor if tur == "in" else -miqdor)
-        crud.log_movement(d, inv_id, nom, tur, miqdor, "kg", reason=sabab, order_id=order_id, company_id=1)
+        # kech52 (13-band, 3-qadam): ilova brak harakatini BELGI bilan yozadi (`is_brak`) — hisobot
+        # sabab matniga qaramaydi. Shu yordamchi brakni simulyatsiya qilganda ("Brak ..." chiqim)
+        # belgini ham qo'yadi; belgi ustuni yo'q (eski) kodda — avvalgidek.
+        _k = {}
+        if tur == "out" and (sabab or "").startswith("Brak") and hasattr(InventoryMovement, "is_brak"):
+            _k["is_brak"] = True
+        crud.log_movement(d, inv_id, nom, tur, miqdor, "kg", reason=sabab, order_id=order_id, company_id=1, **_k)
         d.commit()
         return d.query(InventoryMovement).order_by(InventoryMovement.id.desc()).first().id
     finally:
