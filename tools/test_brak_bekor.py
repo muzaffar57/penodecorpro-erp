@@ -342,9 +342,13 @@ BELGI = getattr(crud, "_ISH_BRAK_BELGI", None)
 check("crud._ISH_BRAK_BELGI mavjud", BELGI == "Ishlab chiqarish jarayonida brak", str(BELGI))
 check("crud._ish_brakimi mavjud", callable(getattr(crud, "_ish_brakimi", None)))
 _src_services = open(os.path.join(ROOT, "services.py"), encoding="utf-8").read()
-check("services.py dagi 2 ta moliya belgisi AYNAN shu matn",
-      BELGI is not None and _src_services.count(f'"{BELGI}"') == 2,
-      str(_src_services.count('"Ishlab chiqarish jarayonida brak"')))
+# kech57 (40-band): services literal NUSXA saqlamaydi — crud konstantasini oladi
+# (ilgari bu tekshiruv 2 ta nusxa AYNAN shu matn ekanini qulflardi).
+check("services.py da belgi literal nusxasi YO'Q, crud._ISH_BRAK_BELGI ishlatiladi",
+      BELGI is not None and _src_services.count(f'"{BELGI}"') == 0
+      and _src_services.count("._ISH_BRAK_BELGI") >= 3,
+      str((_src_services.count('"Ishlab chiqarish jarayonida brak"'),
+           _src_services.count("._ISH_BRAK_BELGI"))))
 _src_crud = open(os.path.join(ROOT, "crud.py"), encoding="utf-8").read()
 check("crud.py da belgi matni FAQAT bir marta (konstanta) yozilgan",
       _src_crud.count('"Ishlab chiqarish jarayonida brak"') == 1,
