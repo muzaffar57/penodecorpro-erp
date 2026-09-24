@@ -1784,6 +1784,34 @@ def _fp_for_tenant(db: Session, fp_id: int, company_id: int = None):
     return fp
 
 
+def _fp_qulf(db: Session, fp_ids, company_id: int = None) -> None:
+    """kech64 (68-band): buyurtma detallari bog'langan tayyor mahsulot (TM) qatorlarini
+    `SELECT ... FOR UPDATE` bilan, id TARTIBIDA qulflaydi va qiymatlarini bazadan QAYTA
+    yuklaydi (`populate_existing`).
+
+    O'LCHANGAN (HAQIQIY PG, `work/probe68.py`, 3 / 3): `_fp_for_tenant` qatorni qulfsiz
+    o'qiydi, chaqiruvchilar esa MUTLAQ qiymat yozadi (`fp.quantity = cur - diff`). TM sotuvi
+    (u qatorni qulflaydi) tugamasdan buyurtma tahriri yoki o'chirilishi shu TM ni o'qisa,
+    sotuv YO'QOLARDI: sotuv 5 || tahrir +5 → 85 (to'g'risi 80); sotuv 5 || buyurtmani
+    o'chirish (+10) → 100 (to'g'risi 95); bir buyurtmani ikki joydan tahrirlash (TM + penoplast
+    detali) → 87 (to'g'risi 82).
+    - Avval `flush` — sessiyadagi yozilmagan TM o'zgarishi `populate_existing` da yo'qolmasin.
+    - Id tartibi — ikki tranzaksiya bir nechta TM ni turli tartibda qulflab, bir-birini
+      kutib qolmasin.
+    - Korxona filtri bilan (M4); korxona noma'lum bo'lsa qulflanmaydi (eski chaqiruv —
+      xulq avvalgidek)."""
+    if company_id is None:
+        return
+    ids = sorted({int(i) for i in (fp_ids or []) if i})
+    if not ids:
+        return
+    db.flush()
+    for _i in ids:
+        db.query(FinishedProduct).filter(
+            FinishedProduct.id == _i, FinishedProduct.company_id == company_id
+        ).populate_existing().with_for_update().first()
+
+
 def _fp_item_qty(item) -> float:
     """Detalning tayyor mahsulotdan olinadigan miqdori."""
     cat = (item.category or '').lower()
@@ -1860,6 +1888,8 @@ def _take_finished_for_order(db: Session, order, company_id: int = None) -> list
     qoldig'ini yechishiga olib kelardi."""
     log = []
     cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    # kech64 (68-band): TM qatorlari o'qishdan OLDIN qulflanadi (`_fp_qulf`).
+    _fp_qulf(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid)
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -1905,6 +1935,8 @@ def _return_finished_for_order(db: Session, order, sign: float = 1.0,
     verb = "qaytarildi" if sign > 0 else "qayta yechildi"
     # M4 (2026-09-18) — TENANT: _take bilan AYNAN bir xil qoida.
     cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    # kech64 (68-band): TM qatorlari o'qishdan OLDIN qulflanadi (`_fp_qulf`).
+    _fp_qulf(db, [getattr(_it, 'finished_product_id', None) for _it in order.items], cid)
     for it in order.items:
         fpid = getattr(it, 'finished_product_id', None)
         if not fpid:
@@ -1961,7 +1993,9 @@ def _adjust_finished_diff(db: Session, old_items, new_items,
     new_g = _group(new_items)
     log = []
 
-    for fpid in set(old_g) | set(new_g):
+    # kech64 (68-band): TM qatorlari o'qishdan OLDIN, id tartibida qulflanadi (`_fp_qulf`).
+    _fp_qulf(db, set(old_g) | set(new_g), company_id)
+    for fpid in sorted(set(old_g) | set(new_g)):
         diff = new_g.get(fpid, 0.0) - old_g.get(fpid, 0.0)
         if abs(diff) < 0.001:
             continue
@@ -5685,31 +5719,51 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
+    # kech65 (K65-2): qulf (101, buyurtma) → expire_all → qulf ostida QAYTA o'qish → holat
+    # tekshiruvi; yechishlar `commit=False`, oxirida BITTA `db.commit()`. O'LCHANGAN (HAQIQIY PG,
+    # `work/probe65c.py`, 3 / 3): bir qoralamani ikki joydan (yoki ikki marta bosib) jarayonga
+    # olish — IKKALASI ham "jarayonga olindi", penoplast IKKI MARTA yechilardi (holat qulfsiz
+    # o'qilar, `deduct_inventory_for_order` o'rtada commit qilardi).
+    _cid_q = getattr(order, 'company_id', None)
+    db.flush()
+    _pul_qulfi(db, 101, order.id)
+    db.expire_all()
+    _oq = db.query(Order).filter(Order.id == order_id)
+    if _cid_q is not None:
+        _oq = _oq.filter(Order.company_id == _cid_q)
+    order = _oq.first()
+    if not order:
+        db.rollback()
+        return {"success": False, "message": "Buyurtma topilmadi"}
+
     if order.status != OrderStatus.DRAFT:
+        db.rollback()
         return {"success": False, "message": "Bu buyurtma qoralama emas"}
 
     # Xomashyo yetarliligini tekshiramiz
     check = services.check_inventory_for_order(db, order)
     all_shortages = list(check.get("shortages", []))
     if all_shortages:
+        db.rollback()
         return {
             "success": False,
             "message": "Xomashyo yetishmayapti!",
             "shortages": all_shortages
         }
 
-    # Ombordan penoplast yechamiz
-    log = services.deduct_inventory_for_order(db, order)
+    # Ombordan penoplast yechamiz (kech65: commit=False — qulf oxirigacha)
+    log = services.deduct_inventory_for_order(db, order, commit=False)
 
     # "Loy sotish" detallari — har biri o'z retseptiga ko'ra
     for oi in order.items:
         if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id and oi.quantity:
-            log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id))
+            log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id,
+                                                       commit=False))
 
     # Rejalashtirilgan loy (qoplama) bo'lsa — uni ham yechamiz
     planned_loy = services._get_planned_loy(order)
     if planned_loy > 0:
-        loy_log = services.deduct_loy_ingredients(db, order, planned_loy)
+        loy_log = services.deduct_loy_ingredients(db, order, planned_loy, commit=False)
         log.extend(loy_log)
 
     # Tayyor mahsulotlarni yechamiz
@@ -6724,8 +6778,12 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # 6) Omborni farq bo'yicha to'g'rilaymiz (qoralama emas bo'lsa)
     inventory_log = []
     if not is_draft:
+        # kech64 (68-band): commit YO'Q (faqat flush) — butun 6-qadam qulf (101, buyurtma) ostida BITTA
+        # tranzaksiya (oxirgi `db.commit()`). O'LCHANGAN (PG): standart `commit=True` penoplast
+        # farqi bo'lganda qulfni shu yerda bo'shatardi — TM farqi qulfsiz qolar va keyingi qadam
+        # istisno bersa tahrir YARIM saqlanardi (detal va penoplast o'zgargan, TM yo'q).
         inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot, order_id=order_id,
-                                                       company_id=order.company_id)
+                                                       company_id=order.company_id, commit=False)
         # kech63 (53-band): qoplama retsepti almashtirilgan bo'lsa — uning qatorlari jurnal boshida.
         inventory_log[:0] = _qr53_log
         # Tayyor mahsulot farqi
@@ -6745,9 +6803,11 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             diff = new_loysale_by_recipe.get(rid, 0) - old_loysale_by_recipe.get(rid, 0)
             if abs(diff) > 0.001:
                 if diff > 0:
-                    inventory_log.extend(services.deduct_loy_ingredients(db, order, diff, recipe_id=rid))
+                    inventory_log.extend(services.deduct_loy_ingredients(db, order, diff, recipe_id=rid,
+                                                                         commit=False))
                 else:
-                    inventory_log.extend(services.return_loy_ingredients(db, order, abs(diff), recipe_id=rid))
+                    inventory_log.extend(services.return_loy_ingredients(db, order, abs(diff), recipe_id=rid,
+                                                                         commit=False))
 
         db.commit()
 
@@ -8037,6 +8097,13 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
     _savatda = {}
 
     try:
+        # kech65 (K65-1): savatchadagi HAMMA TM qatorlari hech narsa o'qilmasdan OLDIN, id
+        # TARTIBIDA qulflanadi (`_fp_qulf`). O'LCHANGAN (HAQIQIY PG, `work/probe65b.py`, 3 / 3):
+        # qator-qator qulf savatcha TARTIBIDA edi — [B, A] savatcha || shu TM lar bilan buyurtma
+        # tahriri (A, B) → deadlock (tahrir 40P01 bilan yiqilardi); [A, B] || [B, A] ikki savatcha →
+        # ikkinchisi "Xato yuz berdi: ... deadlock detected". Hamma TM qulflovchilar (tahrir, olish,
+        # qaytarish, savatcha) endi bir xil tartibda qulflaydi.
+        _fp_qulf(db, [getattr(_it, 'finished_product_id', None) for _it in data.items], company_id)
         # ── 1-BOSQICH: har detalning ASL summasini hisoblab, tekshiramiz ──
         # (hali DB'ga yozmaymiz — avval umumiy asl jamini bilishimiz kerak,
         #  chegirma koeffitsientini shundan hisoblaymiz.)

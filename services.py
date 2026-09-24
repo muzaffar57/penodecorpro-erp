@@ -3812,10 +3812,14 @@ def check_inventory_for_order(db: Session, order_data, company_id: int = None) -
     }
 
 
-def deduct_inventory_for_order(db: Session, order) -> list:
+def deduct_inventory_for_order(db: Session, order, commit: bool = True) -> list:
     """
     Buyurtma saqlangandan keyin ombordan xomashyo ayiradi.
     Har detal o'z plotnostidan ayiriladi.
+
+    kech65 (K65-2): `commit=False` — oxirida faqat `flush`; chaqiruvchi qulf (101, buyurtma)
+    ostida ishlasa (qoralamani jarayonga olish), oraliq `commit` qulfni muddatidan OLDIN
+    bo'shatardi.
     """
     import crud as _crud_lm
 
@@ -3847,7 +3851,10 @@ def deduct_inventory_for_order(db: Session, order) -> list:
             pass
 
     if volumes:
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
     return log
 class _ProratedItem:
     """Buyurtma detalining faqat 'qolgan (topshirilmagan) qismi'ni ifodalovchi
