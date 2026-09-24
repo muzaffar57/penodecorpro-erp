@@ -106,7 +106,6 @@
   "services.py:1733 db.query(Inventory) — korxona filtri yo'q (funksiya: calculate_order_profit) │ p_blok = db.query(Inventory).filter(Inventory.id == pid_for_blok).first() if pid_for_blok else None",
   "services.py:1746 db.query(Inventory) — korxona filtri yo'q (funksiya: calculate_order_profit) │ inv_item = db.query(Inventory).filter(Inventory.id == pid).first()",
   "services.py:1842 db.query(Recipe) — korxona filtri yo'q (funksiya: calculate_order_profit) │ recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()",
-  "services.py:1889 db.query(Recipe) — korxona filtri yo'q (funksiya: calculate_order_profit) │ recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()",
   "services.py:2726 db.query(Employee) — korxona filtri yo'q (funksiya: calculate_split_profit_report) │ emp_map = {e.id: e for e in db.query(Employee).filter(Employee.id.in_(emp_ids)).all()} if emp_ids el",
   "services.py:3317 db.query(Inventory) — korxona filtri yo'q (funksiya: _item_volume_m3) │ p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast",
   "services.py:3332 db.query(Inventory) — korxona filtri yo'q (funksiya: _item_volume_m3) │ p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast",
