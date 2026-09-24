@@ -7414,7 +7414,8 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
         quantity=data.quantity,
         unit=fp.unit,
         cost_amount=cost_amount,
-        reason=data.reason,
+        # kech57 (K57-1): izoh belgi bilan boshlansa — "Izoh: " (yuqoridagi yordamchi)
+        reason=_ish_brak_belgisidan_ajrat(data.reason),
         created_by=created_by,
         # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
         brak_bosqich=getattr(data, 'brak_bosqich', None),
@@ -7445,6 +7446,25 @@ def _ish_brakimi(loss) -> bool:
     """Yozuv "ishlab chiqarish braki" (mahsulot soniga tegmagan, xomashyo
     sarflangan) mi — `record_finished_product_production_brak` yozgan."""
     return (getattr(loss, "reason", None) or "").startswith(_ISH_BRAK_BELGI)
+
+
+def _ish_brak_belgisidan_ajrat(reason):
+    """kech57 (K57-1, 40-band): "tayyor turgan, keyin yo'qoldi" yozuvining izohi
+    (foydalanuvchi matni) ishlab chiqarish braki BELGISI bilan boshlansa, yozuv
+    ishlab chiqarish braki deb o'qilardi (O'LCHANGAN, SQLite va PG, `work/probe57.py`):
+    mahsulot soni va tan narxi kamaygan, lekin Moliya uni brak xarajatiga
+    QO'SHMASDI (sof foyda oshib ko'rinardi), `/returns/stats` ishlab chiqarish
+    braki deb sanardi, tahlil turi noto'g'ri, bekor qilish esa rad etilardi.
+
+    Buxgalteriya matnga emas, REJIMGA bo'ysunishi uchun bunday izoh "Izoh: "
+    bilan saqlanadi — foydalanuvchi matni o'zgarmaydi, faqat belgi boshida
+    qolmaydi. Katta-kichik harf farqsiz: SQLite `LIKE` ASCII da harf farqlamaydi
+    (`get_return_stats`), shunda har bazada bir xil."""
+    if reason is None:
+        return None
+    if str(reason).lower().startswith(_ISH_BRAK_BELGI.lower()):
+        return "Izoh: " + str(reason)
+    return reason
 
 
 def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = None,

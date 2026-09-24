@@ -2851,7 +2851,11 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # yozuvlari BU YERDA hisobga OLINMAYDI, aks holda IKKI MARTA
     # ayirilib, "Sof foyda" haqiqatdan kamroq ko'rsatilardi.
     from models import FinishedProductLoss as _FPL
-    _PROD_BRAK_MARKER = "Ishlab chiqarish jarayonida brak"
+    # kech57 (40-band): belgi — YAGONA manba `crud._ISH_BRAK_BELGI` (ilgari shu
+    # yerda literal nusxa edi; biri o'zgarsa ishlab chiqarish braki ikki marta
+    # ayirilardi yoki bekor qilish ruxsat etilardi).
+    import crud as _crud_belgi
+    _PROD_BRAK_MARKER = _crud_belgi._ISH_BRAK_BELGI
     _fplq = db.query(_FPL).filter(
         extract('year', _FPL.lost_at) == year,
         extract('month', _FPL.lost_at) == month
@@ -3157,7 +3161,9 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     #    ham qo'shilsa, IKKI MARTA hisoblangan bo'lardi (get_monthly_report
     #    dagi bir xil tuzatishga qarang).
     from models import FinishedProductLoss as _FPL2
-    _PROD_BRAK_MARKER2 = "Ishlab chiqarish jarayonida brak"
+    # kech57 (40-band): belgi — YAGONA manba `crud._ISH_BRAK_BELGI`.
+    import crud as _crud_belgi2
+    _PROD_BRAK_MARKER2 = _crud_belgi2._ISH_BRAK_BELGI
     _fplq2 = db.query(_FPL2).filter(
         extract('year', _FPL2.lost_at) == year,
         extract('month', _FPL2.lost_at) == month
