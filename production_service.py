@@ -362,6 +362,11 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
             included = (not item.is_optional) or (item.id in selected_optional_ids)
             line = _compute_bom_line(item, po.quantity, bom.batch_quantity)
             line["included"] = included
+            # kech54 (13-band, 5-qadam): qator qoplama uchunmi va qaysi BOM qatori —
+            # brak sarfi (`services._mrp_birlik_sarfi`) qoplama qatorini ANIQ ajratsin
+            # (bitta material retseptda ikki marta — xomashyo va qoplama — bo'lishi mumkin).
+            line["is_coating"] = bool(getattr(item, "is_coating", False))
+            line["bom_item_id"] = item.id
             if not included:
                 # Tanlanmagan ixtiyoriy komponent — suratga kiradi (shaffoflik
                 # uchun, "bu safar ishlatilmagan" deb ko'rsatish mumkin bo'lsin),

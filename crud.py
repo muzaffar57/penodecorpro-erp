@@ -4551,6 +4551,19 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     # Qulf (101, buyurtma) — yetkazish va to'lov bilan bir xil: ikki bir
     # vaqtli qaytarish ikkalasi ham "sig'adi" deb o'tib ketmasin (faqat PG;
     # yig'indi qulf OLINGANDAN KEYIN o'qiladi).
+    # kech54 (13-band, 5-qadam): MRP detali braki xomashyosi shu detalni ishlab chiqargan
+    # buyurtmaning retsept SURATIDAN olinadi (`services._mrp_birlik_sarfi`). Surat yo'q —
+    # ishlab chiqarish hali boshlanmagan: brak faqat ishlab chiqarish ichida bo'ladi
+    # (foydalanuvchi qoidasi, 2026-09-23), sarfni hisoblab bo'lmaydi — taxmin qilinmaydi,
+    # hech narsa yozilishidan OLDIN rad etiladi (ilgari summa 0 bilan jim saqlanardi).
+    if (reason_enum == ReturnReason.DEFECT
+            and (order_item.category or '').lower() == 'mrp_product'
+            and not getattr(order_item, 'finished_product_id', None)
+            and services._mrp_birlik_sarfi(db, _o.company_id, order_item=order_item) is None):
+        raise ValueError("Bu MRP mahsuloti uchun ishlab chiqarish hali boshlanmagan — brak faqat "
+                         "ishlab chiqarish jarayonida yoziladi (xomashyo sarfini retsept suratidan "
+                         "olib bo'lmaydi)")
+
     if reason_enum != ReturnReason.DEFECT:
         from sqlalchemy import func as _fn_q
         _pul_qulfi(db, 101, _o.id)
@@ -4616,7 +4629,14 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     if refund_amount <= 0 and order_item:
         if reason_enum == ReturnReason.DEFECT:
             # Brak — tan narx (xomashyo qiymati)
-            unit_price = services.get_order_item_unit_cost(db, order_item.order, order_item)
+            # kech54 (42-band): loy FAQAT tortilgan bo'lsa ("✂️ Yo'q — loygacha" — loysiz).
+            # O'LCHANGAN (asl kod `aecce02`, `work/probe54.py`): qoplamali profil 1 m loygacha
+            # brak — ombordan faqat penoplast (5 000) yechilardi, summa esa loy bilan 10 200
+            # yozilardi (Qaytarishlar sahifasi "Brak qiymati" Moliyadan katta). FOYDALANUVCHI
+            # QARORI (kech54): eski yozuvlar O'ZGARMAYDI — faqat yangilari to'g'ri.
+            unit_price = services.get_order_item_unit_cost(
+                db, order_item.order, order_item,
+                include_coating=bool(getattr(data, 'coating_applied', False)))
             refund_amount = round(unit_price * float(data.quantity or 0))
         else:
             # Butun — kelishilgan (chegirmali) sotuv narxi
@@ -7512,6 +7532,23 @@ def _ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, penoplast_vol_ne
     return {"success": True, "peno_cost": peno_cost, "loy_cost": loy_cost}
 
 
+def _mrp_ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, qatorlar, log) -> dict:
+    """kech54 (13-band, 5-qadam): MRP tayyor mahsuloti ishlab chiqarish braki — yetarliligi
+    tekshirilgan surat qatorlarini ombordan yechadi. Chaqiruvchining brak oynasi
+    (`_brak_harakat`) ichida: `log_movement` harakatni brak deb belgilaydi va narxni muzlatadi.
+    Ombor 0 dan pastga tushmaydi (tekshiruv chaqiruvchida, hech narsa yozilmasdan OLDIN)."""
+    xomashyo_cost = 0.0
+    for inv, kerak in qatorlar:
+        inv.stock_quantity = float(inv.stock_quantity or 0) - kerak
+        xomashyo_cost += kerak * float(inv.price_per_unit or 0)
+        log_movement(
+            db, inv.id, inv.item_name, movement_type="out",
+            quantity=kerak, unit=inv.unit,
+            reason=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)"))
+        log.append(f"{inv.item_name}: -{kerak:g} {inv.unit}")
+    return {"success": True, "peno_cost": 0.0, "loy_cost": 0.0, "xomashyo_cost": xomashyo_cost}
+
+
 def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
                                               notes: str = None, created_by: str = None,
                                               company_id: int = None, brak_bosqich: str = None) -> dict:
@@ -7565,7 +7602,33 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     penoplast_vol_needed = brak_qty * unit_vol
     loy_kg_needed = (brak_qty * unit_loy) if fp.is_coated else 0.0
 
-    if penoplast_vol_needed <= 0 and loy_kg_needed <= 0:
+    # kech54 (13-band, 5-qadam): MRP tayyor mahsuloti (`dynamic_bom`) — penoplast / loy
+    # nisbati yo'q (O'LCHANGAN, asl kod: 400 "xomashyo nisbati topilmadi"). Qo'shimcha sarf —
+    # shu mahsulotni ishlab chiqargan buyurtmaning retsept SURATIDAN, 1 birlikka (qoplama
+    # bilan — penoplast yo'lidagi `fp.is_coated` loyi kabi; qadoqsiz). Yetarlilik HAMMASI shu
+    # yerda, yozuvdan OLDIN (penoplast yo'li bilan bir xil qat'iy qoida).
+    _mrp_qatorlar = None
+    if (fp.category or '') == 'dynamic_bom':
+        import services as _svc_mrp
+        _sarf = _svc_mrp._mrp_birlik_sarfi(db, _brak_cid, finished_product=fp, qoplama=True)
+        _mrp_qatorlar = []
+        for _inv_id, _birlik in sorted((_sarf or {}).items()):
+            _kerak = float(_birlik) * float(brak_qty)
+            if _kerak <= 0:
+                continue
+            _inv = _brak_inv(_inv_id)
+            if not _inv:
+                return {"success": False, "message": f"Xomashyo ombordan topilmadi (ID {_inv_id})"}
+            if float(_inv.stock_quantity or 0) < _kerak:
+                return {"success": False,
+                        "message": (f"{_inv.item_name} yetishmayapti! Kerak: {_kerak:.2f} {_inv.unit}, "
+                                    f"omborda: {float(_inv.stock_quantity or 0):.2f} {_inv.unit}")}
+            _mrp_qatorlar.append((_inv, _kerak))
+        if not _mrp_qatorlar:
+            return {"success": False, "message": ("Bu mahsulotning ishlab chiqarish retsepti surati topilmadi "
+                                                  "(hali ishlab chiqarilmagan bo'lishi mumkin) — qo'lda hisoblash kerak")}
+
+    if _mrp_qatorlar is None and penoplast_vol_needed <= 0 and loy_kg_needed <= 0:
         return {"success": False, "message": "Bu mahsulot uchun xomashyo nisbati topilmadi (eski yozuv bo'lishi mumkin) — qo'lda hisoblash kerak"}
 
     log = []
@@ -7580,16 +7643,22 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     # sessiyada qoldirmaydi.
     db.info["_brak_harakat"] = True
     try:
-        _xom = _ishlab_chiqarish_braki_xomashyo(
-            db, fp, brak_qty, penoplast_vol_needed, loy_kg_needed, company_id, _brak_inv, log)
+        if _mrp_qatorlar is not None:
+            # kech54 (13-band, 5-qadam): MRP mahsuloti — surat qatorlari (yuqorida tekshirilgan)
+            _xom = _mrp_ishlab_chiqarish_braki_xomashyo(db, fp, brak_qty, _mrp_qatorlar, log)
+        else:
+            _xom = _ishlab_chiqarish_braki_xomashyo(
+                db, fp, brak_qty, penoplast_vol_needed, loy_kg_needed, company_id, _brak_inv, log)
     finally:
         db.info.pop("_brak_harakat", None)
     if not _xom.get("success"):
         return _xom
     peno_cost = _xom["peno_cost"]
     loy_cost = _xom["loy_cost"]
+    # kech54 (5-qadam): MRP mahsulotining surat xomashyosi (boshqa turlarda 0)
+    xomashyo_cost = float(_xom.get("xomashyo_cost", 0.0))
 
-    total_cost = peno_cost + loy_cost
+    total_cost = peno_cost + loy_cost + xomashyo_cost
 
     # MUHIM: fp.quantity GA TEGILMAYDI — yakuniy mahsulot miqdori
     # o'zgarmagani uchun. Faqat Moliyada xarajat sifatida qayd etiladi.
@@ -7617,6 +7686,7 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         "cost_amount": float(total_cost),
         "penoplast_cost": float(peno_cost),
         "loy_cost": float(loy_cost),
+        "xomashyo_cost": float(xomashyo_cost),   # kech54 (5-qadam): MRP surat xomashyosi
         "log": log,
     }
 

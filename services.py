@@ -4006,6 +4006,217 @@ def take_loy_from_stock(db: Session, recipe, kg_needed: float, order=None, reaso
 # va InventoryMovement'ni izchil qayd etadi.
 
 
+# ════════════════════════════════════════════════════════════════════
+# kech54 (13-band, 41-band) — BRAK LOYI: buyurtma loyining detalga tushadigan ulushi
+# ════════════════════════════════════════════════════════════════════
+# O'LCHANGAN (asl kod `aecce02`, SQLite va HAQIQIY PG 16, `work/probe54.py`): buyurtmada
+# loy BITTA umumiy son bo'lib kiritiladi ("Loy miqdori — barcha detallar uchun"), brakda
+# esa u detallarga `order_qty_normalized` yig'indisi bo'yicha bo'linardi — metr (profil,
+# panel) va dona bir xil birlik deb qo'shilardi (profil 10 m + panel 10 m + 100 dona, loy
+# 30 kg: 100 dona loyning 25 kg ini "olardi"); maxrajga tayyor mahsulotdan olingan detal va
+# MRP detali ham kirardi, holbuki bu buyurtma loyidan ular uchun sarf YO'Q (`_loy_remaining_
+# fraction` ham ularni chiqaradi) — yangi profil braki 1 kg o'rniga 0.5 kg loy yechardi.
+# FOYDALANUVCHI QARORI (kech54, tugma bilan): "Qoplama narxi ulushiga qarab (qimmat detal
+# ko'proq)". Qoplama narxi — detal narxining qoplama uchun olingan qismi: penoplast
+# detallarida qoplamali narx = qoplamasiz × QOPLAMA_NARX_KOEF (frontend `calculateItem`,
+# `crud.create_order` izohi — narx YAKUNIY holda saqlanadi), ya'ni qoplama qismi =
+# narx × (1 − 1 / KOEF). Ichki qo'shimcha detallar (`sub_details`) — o'z qoplama belgisi va
+# narxi bilan (ota narxiga ALLAQACHON qo'shilgan, shuning uchun otadan ayiriladi).
+# Hamma detal narxi 0 bo'lsa (narxsiz buyurtma) — eski usul (birlik soni), taxmin qilinmaydi.
+QOPLAMA_NARX_KOEF = 2.0
+
+
+def _buyurtma_loyi_kg(order) -> float:
+    """Buyurtmaning loy miqdori (kg): haqiqiy → izohdagi `loy_kg=` → reja (avvalgidek)."""
+    loy_kg = float(order.actual_loy_kg) if order.actual_loy_kg is not None else 0.0
+    if loy_kg <= 0 and order.notes:
+        import re as _re_loykg54
+        m = _re_loykg54.search(r'loy_kg=([\d.]+)', str(order.notes))
+        if m:
+            try:
+                loy_kg = float(m.group(1))
+            except ValueError:
+                pass
+    if loy_kg <= 0:
+        loy_kg = _get_planned_loy(order)
+    return float(loy_kg or 0)
+
+
+def _buyurtma_loyi_detalimi(oi) -> bool:
+    """Detal buyurtmaning UMUMIY loyidan sarf qiladimi: tayyor mahsulotdan olingan
+    (loyi ishlab chiqarishda sarflangan), "Loy sotish" (o'z retsepti bilan alohida
+    yechiladi) va MRP detali (qoplamasi o'z BOM ining qoplama qatoridan) — YO'Q."""
+    cat = (getattr(oi, 'category', None) or '').lower()
+    if cat in ('loy_sotish', 'mrp_product'):
+        return False
+    return not getattr(oi, 'finished_product_id', None)
+
+
+def _qoplama_narxi(oi) -> float:
+    """Detal narxining QOPLAMA uchun olingan qismi (so'm) — 41-band qarori."""
+    ulush = 1.0 - 1.0 / QOPLAMA_NARX_KOEF
+    subs = list(getattr(oi, 'sub_details', None) or [])
+    sub_jami = sum(max(0.0, float(getattr(s, 'total_price', 0) or 0)) for s in subs)
+    asosiy = max(0.0, float(getattr(oi, 'total_price', 0) or 0) - sub_jami)
+    q = asosiy * ulush if getattr(oi, 'is_coated', False) else 0.0
+    for s in subs:
+        if getattr(s, 'is_coated', False):
+            q += max(0.0, float(getattr(s, 'total_price', 0) or 0)) * ulush
+    return q
+
+
+def _brak_loyi_birlikka(order, order_item) -> float:
+    """Detalning 1 birligi (`order_qty_normalized` birligi) uchun buyurtma loyidan
+    tushadigan kg. Brak yechimi (`deduct_raw_material_for_brak`) va brak summasi
+    (`get_order_item_unit_cost`) SHU BITTA manbadan oladi."""
+    if not order or not order_item or not getattr(order_item, 'is_coated', False):
+        return 0.0
+    if not _buyurtma_loyi_detalimi(order_item):
+        return 0.0
+    miqdor = float(order_item.order_qty_normalized or 0)
+    if miqdor <= 0:
+        return 0.0
+    loy_kg = _buyurtma_loyi_kg(order)
+    if loy_kg <= 0:
+        return 0.0
+    loy_detallari = [oi for oi in (order.items or []) if _buyurtma_loyi_detalimi(oi)]
+    jami = sum(_qoplama_narxi(oi) for oi in loy_detallari)
+    if jami > 0:
+        return loy_kg * (_qoplama_narxi(order_item) / jami) / miqdor
+    # Zaxira: buyurtmada narx yo'q — eski usul (qoplamali detallar birlik soni bo'yicha)
+    birliklar = sum(float(oi.order_qty_normalized or 0) for oi in loy_detallari if oi.is_coated)
+    return (loy_kg / birliklar) if birliklar > 0 else 0.0
+
+
+# ════════════════════════════════════════════════════════════════════
+# kech54 (13-band, 5-qadam) — MRP MAHSULOTI BRAKI: retsept SURATIDAN
+# ════════════════════════════════════════════════════════════════════
+# O'LCHANGAN (asl kod `aecce02`, SQLite va HAQIQIY PG 16, `work/probe55.py`): MRP detali
+# (penoplast / loy retsepti yo'q) braki summasi 0 va xomashyo yechilmasdi; qoplamali MRP
+# detalida esa BUYURTMA loyi retseptidan (MRP qoplamasi emas) yechilardi; "Ishlab
+# chiqarishda chiqdi" (MRP tayyor mahsuloti) — 400 "xomashyo nisbati topilmadi".
+# YECHIM (texnik — Claude): 1 birlik sarf — shu mahsulotni ishlab chiqargan (boshlangan
+# yoki yakunlangan) ishlab chiqarish buyurtmasi(lar)ning `recipe_snapshot_json` idan,
+# OMBOR birligida (`total_quantity_needed_stock_unit`, isrof foizi bilan), bir necha
+# buyurtma bo'lsa — miqdor bo'yicha o'rtacha. Qadoq (`packaging`) qatorlari brakda
+# sarflanmaydi (brak — ishlab chiqarish ichida, qadoqdan oldin). Qoplama qatorlari —
+# faqat qoplama tortilgan bo'lsa (buyurtma braki: "loy tortilganmi"). Bekor qilingan
+# / qoralama buyurtma hisobga olinmaydi. Surat yo'q (ishlab chiqarish boshlanmagan) — None.
+
+
+def _mrp_eski_surat_qoplamalari(db, po) -> set:
+    """`is_coating` kaliti bo'lmagan (kech54 dan oldingi) suratlar uchun: qoplama
+    xomashyolari — buyurtmada TANLANGAN ixtiyoriy qatorlardan `is_coating` belgililari;
+    ular BOM dan o'chib ketgan bo'lsa — shu BOM ning hozirgi qoplama qatorlari."""
+    import json as _json_eq
+    from production_models import BOMItem
+    try:
+        tanlangan = set(_json_eq.loads(po.selected_optional_bom_item_ids_json or "[]"))
+    except Exception:
+        tanlangan = set()
+    bis = db.query(BOMItem).filter(BOMItem.bom_id == po.bom_id,
+                                       BOMItem.company_id == po.company_id).all()
+    inv = {bi.inventory_id for bi in bis
+           if bi.id in tanlangan and bi.is_optional and getattr(bi, 'is_coating', False)}
+    if inv:
+        return inv
+    return {bi.inventory_id for bi in bis if bi.is_optional and getattr(bi, 'is_coating', False)}
+
+
+def _mrp_birlik_sarfi(db, company_id, order_item=None, finished_product=None,
+                      qoplama: bool = True):
+    """MRP mahsulotining 1 birligi uchun xomashyo: {inventory_id: miqdor (ombor birligida)}.
+    None — surati bor ishlab chiqarish buyurtmasi YO'Q (hali boshlanmagan)."""
+    import json as _json_ms
+    from production_models import ProductionOrder
+    q = db.query(ProductionOrder).filter(
+        ProductionOrder.status.in_(["in_progress", "completed"]),
+        ProductionOrder.recipe_snapshot_json.isnot(None))
+    if company_id is not None:
+        q = q.filter(ProductionOrder.company_id == company_id)
+    if order_item is not None:
+        q = q.filter(ProductionOrder.source_order_item_id == order_item.id)
+    elif finished_product is not None:
+        q = q.filter(ProductionOrder.finished_product_id == finished_product.id)
+    else:
+        return None
+    jami_miqdor = 0.0
+    sarf = {}
+    for po in q.order_by(ProductionOrder.id).all():
+        pq = float(po.quantity or 0)
+        try:
+            surat = _json_ms.loads(po.recipe_snapshot_json or "[]")
+        except Exception:
+            surat = None
+        if pq <= 0 or not isinstance(surat, list):
+            continue
+        jami_miqdor += pq
+        eski_qoplama = None
+        for qator in surat:
+            if not isinstance(qator, dict) or not qator.get("included"):
+                continue
+            if (qator.get("component_type") or "raw_material") == "packaging":
+                continue
+            if "is_coating" in qator:
+                qoplamami = bool(qator.get("is_coating"))
+            else:
+                if eski_qoplama is None:
+                    eski_qoplama = _mrp_eski_surat_qoplamalari(db, po)
+                qoplamami = bool(qator.get("is_optional")) and qator.get("inventory_id") in eski_qoplama
+            if qoplamami and not qoplama:
+                continue
+            kerak = float(qator.get("total_quantity_needed_stock_unit",
+                                    qator.get("total_quantity_needed", 0)) or 0)
+            if kerak <= 0 or not qator.get("inventory_id"):
+                continue
+            sarf[qator["inventory_id"]] = sarf.get(qator["inventory_id"], 0.0) + kerak
+    if jami_miqdor <= 0:
+        return None
+    return {k: v / jami_miqdor for k, v in sarf.items()}
+
+
+def _mrp_sarf_qiymati(db, sarf: dict, company_id) -> float:
+    """1 birlik sarfning JORIY narxdagi qiymati (brak yozilgan paytdagi narx — 13-band 2-qadam)."""
+    from models import Inventory
+    jami = 0.0
+    for inv_id, miqdor in (sarf or {}).items():
+        q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if company_id is not None:
+            q = q.filter(Inventory.company_id == company_id)
+        inv = q.first()
+        if inv:
+            jami += float(miqdor) * float(inv.price_per_unit or 0)
+    return jami
+
+
+def _mrp_brakini_yech(db, order_item, order, brak_qty: float, coating_applied: bool,
+                      company_id, log: list) -> list:
+    """Buyurtmadagi MRP detali braki: suratdagi 1 birlik sarf × brak miqdori ombordan
+    yechiladi (`crud.log_movement` — brak yozuviga bog'lam, brak belgisi va narx shu
+    yerdan). Ombor 0 ga qirqilmaydi (20-band qoidasi — xomashyo haqiqatan sarflangan)."""
+    import crud as _crud_mb
+    from models import Inventory
+    sarf = _mrp_birlik_sarfi(db, company_id, order_item=order_item, qoplama=bool(coating_applied))
+    for inv_id, birlik in sorted((sarf or {}).items()):
+        kerak = float(birlik) * float(brak_qty)
+        if kerak <= 0:
+            continue
+        q = db.query(Inventory).filter(Inventory.id == inv_id)
+        if company_id is not None:
+            q = q.filter(Inventory.company_id == company_id)
+        inv = q.with_for_update().first()
+        if not inv:
+            continue
+        inv.stock_quantity = float(inv.stock_quantity or 0) - kerak
+        _crud_mb.log_movement(
+            db, inv.id, inv.item_name, movement_type="out", quantity=kerak, unit=inv.unit,
+            reason=_crud_mb._jurnal_sabab(f"Brak — {order_item.name} (MRP, {brak_qty:g} birlik)"),
+            order_id=order.id if order else None, company_id=getattr(inv, 'company_id', None))
+        log.append(f"{inv.item_name}: -{kerak:g} {inv.unit} (brak — MRP)")
+    db.commit()
+    return log
+
+
 def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float, coating_applied: bool) -> list:
     """Brak bo'lgan detal uchun xomashyoni ombordan yechadi.
 
@@ -4025,6 +4236,11 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
         return log
 
     _bcid = getattr(order, 'company_id', None) or getattr(order_item, 'company_id', None)
+    # kech54 (13-band, 5-qadam): MRP detali — retsept suratidan (yuqoridagi izoh).
+    # Tayyor mahsulotdan olingan MRP detali — avvalgidek (xomashyo yechilmaydi).
+    if ((getattr(order_item, 'category', None) or '').lower() == 'mrp_product'
+            and not getattr(order_item, 'finished_product_id', None)):
+        return _mrp_brakini_yech(db, order_item, order, brak_qty, coating_applied, _bcid, log)
     default_p = get_default_penoplast(db, company_id=_bcid)
     total_volume = _item_volume_m3(db, order_item, default_p)
     qty_units = order_item.order_qty_normalized
@@ -4059,25 +4275,9 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
                 log.append(f"{p.item_name}: -{blocks:.3f} blok (brak uchun)")
 
     if coating_applied and order_item.is_coated and order:
-        loy_kg = float(order.actual_loy_kg) if order.actual_loy_kg is not None else 0.0
-        if loy_kg <= 0 and order.notes:
-            import re as _re_loykg2
-            m = _re_loykg2.search(r'loy_kg=([\d.]+)', str(order.notes))
-            if m:
-                try:
-                    loy_kg = float(m.group(1))
-                except ValueError:
-                    pass
-        if loy_kg <= 0:
-            loy_kg = _get_planned_loy(order)
-
-        total_coated_units = 0.0
-        for oi in order.items:
-            if oi.is_coated:
-                total_coated_units += oi.order_qty_normalized
-
-        if loy_kg > 0 and total_coated_units > 0:
-            loy_per_unit = loy_kg / total_coated_units
+        # kech54 (41-band): 1 birlik loyi — qoplama narxi ulushi bo'yicha (`_brak_loyi_birlikka`)
+        loy_per_unit = _brak_loyi_birlikka(order, order_item)
+        if loy_per_unit > 0:
             brak_loy_kg = loy_per_unit * brak_qty
             if brak_loy_kg > 0:
                 loy_log = deduct_loy_ingredients(
@@ -4807,6 +5007,11 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
         return 0.0
 
     _ucid = getattr(order, 'company_id', None) or getattr(item, 'company_id', None)
+    # kech54 (13-band, 5-qadam): MRP mahsuloti — retsept suratidagi xomashyo JORIY narxda
+    # (brak yozilgan paytdagi narx); surat yo'q — 0 (brak baribir rad etiladi).
+    if (getattr(item, 'category', None) or '').lower() == 'mrp_product':
+        _msarf = _mrp_birlik_sarfi(db, _ucid, order_item=item, qoplama=include_coating)
+        return round(_mrp_sarf_qiymati(db, _msarf, _ucid)) if _msarf else 0.0
     default_p = get_default_penoplast(db, company_id=_ucid)
     volume = _item_volume_m3(db, item, default_p)
     pid = item.penoplast_id or (default_p.id if default_p else None)
@@ -4823,29 +5028,16 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
 
     loy_cost_per_unit = 0.0
     if include_coating and item.is_coated and order:
-        loy_kg = float(order.actual_loy_kg) if order.actual_loy_kg is not None else 0.0
-        if loy_kg <= 0 and order.notes:
-            import re as _re_loykg3
-            m = _re_loykg3.search(r'loy_kg=([\d.]+)', str(order.notes))
-            if m:
-                try:
-                    loy_kg = float(m.group(1))
-                except ValueError:
-                    pass
-        if loy_kg <= 0:
-            loy_kg = _get_planned_loy(order)
-
-        total_coated_units = 0.0
         recipe_id = None
         for oi in order.items:
             if not oi.is_coated:
                 continue
-            total_coated_units += oi.order_qty_normalized
             if not recipe_id and oi.recipe_id:
                 recipe_id = oi.recipe_id
 
-        if loy_kg > 0 and total_coated_units > 0:
-            loy_kg_per_unit = loy_kg / total_coated_units
+        # kech54 (41-band): 1 birlik loyi — qoplama narxi ulushi bo'yicha (`_brak_loyi_birlikka`)
+        loy_kg_per_unit = _brak_loyi_birlikka(order, item)
+        if loy_kg_per_unit > 0:
             # 2026-09-21 — TENANT: korxona buyurtmaning O'ZIDAN olinadi.
             loy_info = get_loy_cost_per_kg(
                 db, recipe_id, company_id=getattr(order, 'company_id', None))
