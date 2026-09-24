@@ -200,6 +200,21 @@ input[type=number]{-moz-appearance:textfield}
           {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
       </div>
+      <!-- kech56 (13-band, 7-qadam): brak SABABI va JAVOBGAR hodim — ixtiyoriy (ikkala rejimda). -->
+      <div>
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Nima sababdan? (ixtiyoriy)</label>
+        <select id="loss-cause" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
+          <option value="">— Tanlanmagan —</option>
+          {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Kim sabab bo'ldi? (ixtiyoriy)</label>
+        <select id="loss-worker" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
+          <option value="">— Tanlanmagan —</option>
+          {% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}{% if h.position %} — {{ h.position }}{% endif %}</option>{% endfor %}
+        </select>
+      </div>
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
       <button onclick="closeLossModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
@@ -1058,7 +1073,14 @@ let _lossMode = 'stock';
 function lossBosqichTana() {
   const el = document.getElementById('loss-stage');
   const v = (el && el.value) || '';
-  return v ? { brak_bosqich: v } : {};
+  // kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim — tanlansagina
+  // (hech biri tanlanmasa tana AYNAN avvalgidek).
+  const sEl = document.getElementById('loss-cause');
+  const s = (sEl && sEl.value) || '';
+  const jEl = document.getElementById('loss-worker');
+  const j = parseInt((jEl && jEl.value) || '', 10);
+  return Object.assign({}, v ? { brak_bosqich: v } : {}, s ? { brak_sabab: s } : {},
+                       j > 0 ? { brak_javobgar_id: j } : {});
 }
 
 function openLossModal(id, name, quantity, unit, category) {
@@ -1070,6 +1092,10 @@ function openLossModal(id, name, quantity, unit, category) {
   document.getElementById('loss-reason').value = '';
   const _lossStage = document.getElementById('loss-stage');   // kech53
   if (_lossStage) _lossStage.value = '';
+  const _lossCause = document.getElementById('loss-cause');   // kech56
+  if (_lossCause) _lossCause.value = '';
+  const _lossWorker = document.getElementById('loss-worker'); // kech56
+  if (_lossWorker) _lossWorker.value = '';
 
   const canProdBrak = PROD_BRAK_CATEGORIES.includes(_lossData.category);
   document.getElementById('loss-mode-toggle').style.display = canProdBrak ? 'flex' : 'none';

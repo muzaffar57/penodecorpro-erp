@@ -276,6 +276,12 @@
           <span class="dash-info-label"><i class="ti ti-circle-check" style="color:#22C55E"></i> Butun qaytgan (bu oy)</span>
           <span id="brk-whole-count" class="dash-info-val" style="color:#22C55E">—</span>
         </div>
+        <!-- kech56 (13-band, 7-qadam): brak ulushi (Moliya bilan bir manba) va me'yor -->
+        <div class="dash-info-row">
+          <span class="dash-info-label">Brak ulushi (bu oy, me'yor <span id="brk-meyor">—</span>)</span>
+          <span id="brk-foiz" class="dash-info-val">—</span>
+        </div>
+        <div id="brk-ogohlantirish" style="display:none;background:#FEE2E2;color:#991B1B;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12.5px;font-weight:700"></div>
         <div class="dash-info-row total">
           <span>Jami brak (barcha vaqt)</span>
           <span id="brk-total-value" style="color:#DC2626">—</span>
@@ -474,6 +480,7 @@ async function loadAll(){
   loadSupplierDebt();
   loadFinishedStats();
   loadReturnStats();
+  loadBrakFoiz();   // kech56 (13-band, 7-qadam)
   loadTasks();
   loadProdPeriods();
   loadTopProducts();
@@ -580,6 +587,28 @@ async function loadReturnStats(){
     document.getElementById('brk-whole-count').textContent = (d.whole_month_count||0) + ' ta';
     document.getElementById('brk-total-value').textContent = fmt(d.brak_total_value||0) + " so'm";
   }catch(e){console.error('Return stats:',e);}
+}
+
+// kech56 (13-band, 7-qadam): brak ulushi va me'yor ogohlantirishi (server hisoblaydi).
+async function loadBrakFoiz(){
+  try{
+    const r = await fetch('/api/reports/brak-tahlil?oylar=1');
+    if (!r.ok) return;
+    const d = await r.json();
+    const foizMatn = f => (f === null || f === undefined) ? '—' : (Number(f) + ' %');
+    const mey = document.getElementById('brk-meyor');
+    if (mey) mey.textContent = foizMatn(d.meyor_foiz);
+    const el = document.getElementById('brk-foiz');
+    if (el) {
+      el.textContent = foizMatn(d.brak_foizi);
+      el.style.color = d.meyordan_oshdi ? '#DC2626' : '#16A34A';
+    }
+    const og = document.getElementById('brk-ogohlantirish');
+    if (og) {
+      if (d.ogohlantirish) { og.textContent = '⚠️ ' + d.ogohlantirish; og.style.display = 'block'; }
+      else { og.textContent = ''; og.style.display = 'none'; }
+    }
+  }catch(e){console.error('Brak foizi:',e);}
 }
 
 async function loadSupplierDebt(){

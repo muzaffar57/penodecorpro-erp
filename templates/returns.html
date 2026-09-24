@@ -93,6 +93,29 @@
   </div>
 
   {% if current_user.role.value == 'admin' %}
+  <!-- kech56 (13-band, 7-qadam): BRAK TAHLILI — ulush (Moliya bilan bir manba), me'yor
+       (foydalanuvchi qarori 5 %), bosqich / sabab / javobgar / detal, oylar, yo'qotishlar. -->
+  <div class="card" style="margin-bottom:14px" id="brakTahlilCard">
+    <div class="card-head" style="cursor:pointer;user-select:none" onclick="toggleBrakTahlil()">
+      <h3>📊 Brak tahlili <span id="brakTahlilBadge" style="font-size:12px;font-weight:600;margin-left:8px"></span></h3>
+      <i class="ti ti-chevron-down" id="brakTahlilChevron" style="font-size:16px;transition:transform .2s"></i>
+    </div>
+    <div id="brakTahlilBody" style="display:none;padding:14px">
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:12px">Oy</label>
+          <input type="month" id="brak-tahlil-oy" style="padding:7px 10px;font-size:13px">
+        </div>
+        <button class="btn btn-dark btn-sm" onclick="loadBrakTahlil()">🔍 Ko'rsatish</button>
+      </div>
+      <div id="brakTahlilContent">
+        <div style="text-align:center;padding:24px;color:#bbb;font-size:13px">Yuklanmoqda...</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if current_user.role.value == 'admin' %}
   <div class="card" style="margin-bottom:14px">
     <div class="card-head" style="cursor:pointer;user-select:none" onclick="toggleBrakSummary()">
       <h3>🧱 Brak — sarflangan xomashyo xulosasi</h3>
@@ -173,7 +196,7 @@
         <div style="font-size:13px;font-weight:600">{{ r.quantity }} {{ r.unit }}</div>
       </div>
       <div class="ret-status" style="min-width:100px;text-align:center">
-        {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% if r.brak_bosqich %}<div class="brak-bosqich" style="font-size:11px;color:#991B1B;margin-top:4px">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif %}{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
+        {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% if r.brak_bosqich %}<div class="brak-bosqich" style="font-size:11px;color:#991B1B;margin-top:4px">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif %}{% if r.brak_sabab %}<div class="brak-sabab" style="font-size:11px;color:#991B1B;margin-top:2px">{{ (brak_sabablari or {}).get(r.brak_sabab, r.brak_sabab) }}</div>{% endif %}{% if r.brak_javobgar_id %}<div class="brak-javobgar" style="font-size:11px;color:#64748B;margin-top:2px">👤 {{ (hodim_nomlari or {}).get(r.brak_javobgar_id, "O'chirilgan hodim") }}</div>{% endif %}{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
       </div>
       <div class="ret-dest" style="min-width:130px;text-align:center">
         {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash" style="font-size:12px"></i> Chiqindiga ketdi</span>
@@ -346,6 +369,23 @@
         </select>
       </div>
 
+      <!-- kech56 (13-band, 7-qadam; foydalanuvchi qarori): brak SABABI va JAVOBGAR hodim —
+           ixtiyoriy, butun ro'yxat uchun bitta. Tanlanmasa tana O'ZGARMAYDI. -->
+      <div class="form-group" style="margin-top:12px">
+        <label>Nima sababdan brak bo'ldi? <span style="color:#aaa;font-weight:400">(ixtiyoriy)</span></label>
+        <select id="brak-cause">
+          <option value="">— Tanlanmagan —</option>
+          {% for k, v in (brak_sabablari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>Brakka kim sabab bo'ldi? <span style="color:#aaa;font-weight:400">(ixtiyoriy)</span></label>
+        <select id="brak-worker">
+          <option value="">— Tanlanmagan —</option>
+          {% for h in (brak_hodimlari or []) %}<option value="{{ h.id }}">{{ h.name }}{% if h.position %} — {{ h.position }}{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+
       <div class="form-group" style="margin-top:12px">
         <label>Sabab / izoh</label>
         <input type="text" id="brak-notes" placeholder="Masalan: kesish jarayonida sinib ketdi">
@@ -399,6 +439,153 @@ function unitShortLabel(unit) {
 <script>
 const IS_ADMIN = {{ 'true' if current_user.role.value == 'admin' else 'false' }};
 const IS_MANAGER = {{ 'true' if current_user.role.value == 'manager' else 'false' }};
+
+// kech56 (13-band, 7-qadam): BRAK TAHLILI. Ulush va me'yor — server (`/api/reports/brak-tahlil`,
+// Moliya bilan bir manba); bu yerda faqat chiziladi. Har matn `escapeHtml` bilan.
+const BRAK_OY_NOMLARI = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust',
+                         'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr'];
+function brakTahlilOyMatn(y, m) { return String(y) + '-' + String(m).padStart(2, '0'); }
+function brakFoizMatn(f) { return (f === null || f === undefined) ? '—' : (Number(f) + ' %'); }
+
+function toggleBrakTahlil(){
+  const body = document.getElementById('brakTahlilBody');
+  const chev = document.getElementById('brakTahlilChevron');
+  if (!body) return;
+  const ochiq = body.style.display === 'block';
+  body.style.display = ochiq ? 'none' : 'block';
+  if (chev) chev.style.transform = ochiq ? 'rotate(0deg)' : 'rotate(180deg)';
+  if (!ochiq) loadBrakTahlil();
+}
+
+// Sarlavhadagi belgi — sahifa ochilganda (yig'iq holatda ham) joriy oy ulushi va
+// me'yordan oshgani ko'rinadi.
+async function loadBrakTahlilBadge(){
+  const b = document.getElementById('brakTahlilBadge');
+  if (!b) return;
+  try {
+    const r = await fetch('/api/reports/brak-tahlil?oylar=1');
+    if (!r.ok) return;
+    const d = await r.json();
+    const oy = document.getElementById('brak-tahlil-oy');
+    if (oy && !oy.value) oy.value = brakTahlilOyMatn(d.yil, d.oy);
+    if (d.brak_foizi === null || d.brak_foizi === undefined) { b.textContent = ''; return; }
+    b.textContent = (d.meyordan_oshdi ? '⚠️ ' : '') + 'bu oy ' + brakFoizMatn(d.brak_foizi) +
+                    " (me'yor " + brakFoizMatn(d.meyor_foiz) + ')';
+    b.style.color = d.meyordan_oshdi ? '#DC2626' : '#16A34A';
+  } catch (e) { /* belgi — qo'shimcha; xato sahifani to'xtatmaydi */ }
+}
+
+async function loadBrakTahlil(){
+  const content = document.getElementById('brakTahlilContent');
+  if (!content) return;
+  const oyEl = document.getElementById('brak-tahlil-oy');
+  let url = '/api/reports/brak-tahlil?oylar=6';
+  const t = oyEl ? /^(\d{4})-(\d{2})$/.exec(oyEl.value || '') : null;
+  if (t) url += '&year=' + parseInt(t[1], 10) + '&month=' + parseInt(t[2], 10);
+  content.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Yuklanmoqda...</div>';
+  let d;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) {
+      let sabab = 'Xato (' + r.status + ')';
+      try { const j = await r.json(); if (j && typeof j.detail === 'string' && j.detail) sabab = j.detail; } catch (e) {}
+      content.innerHTML = '<div style="color:#DC2626;padding:14px">❌ ' + escapeHtml(sabab) + '</div>';
+      return;
+    }
+    d = await r.json();
+  } catch (e) {
+    content.innerHTML = '<div style="color:#DC2626;padding:14px">❌ Tarmoq xatosi</div>';
+    return;
+  }
+  content.innerHTML = brakTahlilHtml(d);
+}
+
+function brakTahlilHtml(d){
+  const fmt = n => Math.round(Number(n) || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const oyNomi = (y, m) => (BRAK_OY_NOMLARI[Number(m) - 1] || String(m)) + ' ' + String(y);
+  const foizBor = d.brak_foizi !== null && d.brak_foizi !== undefined;
+  const oshdi = !!d.meyordan_oshdi;
+  const sarlavha = s => '<div style="font-size:13px;font-weight:700;color:#555;margin:6px 0 8px">' + escapeHtml(s) + '</div>';
+  const bosh = '<div style="color:#bbb;font-size:13px;margin-bottom:16px">Ma\'lumot yo\'q</div>';
+  const th = 'padding:8px 6px';
+  const td = 'padding:8px 6px';
+  let html = '';
+  if (d.ogohlantirish) {
+    html += `<div class="brak-ogohlantirish" style="background:#FEE2E2;border:1px solid #FCA5A5;color:#991B1B;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:700">⚠️ ${escapeHtml(d.ogohlantirish)}</div>`;
+  }
+  html += `<div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px;background:${oshdi ? '#FEE2E2' : '#DCFCE7'};border-radius:10px;padding:14px 16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#475569">Brak ulushi — ${escapeHtml(oyNomi(d.yil, d.oy))}</div>
+        <div class="brak-foiz" style="font-size:24px;font-weight:800;color:${foizBor ? (oshdi ? '#DC2626' : '#16A34A') : '#94A3B8'};margin-top:4px">${escapeHtml(brakFoizMatn(d.brak_foizi))}</div>
+        <div style="font-size:12px;color:#64748B;margin-top:2px">Me'yor: ${escapeHtml(brakFoizMatn(d.meyor_foiz))}</div>
+      </div>
+      <div style="flex:1;min-width:180px;background:#F8FAFC;border-radius:10px;padding:14px 16px;font-size:13px;color:#334155">
+        <div>Brak xarajati (Moliya): <b>${fmt(d.brak_xarajat)} so'm</b></div>
+        <div style="margin-top:4px">Ishlab chiqarish tan narxi: <b>${fmt(d.ishlab_chiqarish_xarajat)} so'm</b></div>
+        ${foizBor ? '' : '<div style="margin-top:4px;color:#94A3B8">Bu oyda tayyor bo\'lgan buyurtma yo\'q — ulushni hisoblab bo\'lmaydi</div>'}
+      </div>
+    </div>`;
+  html += `<div style="font-size:12px;color:#94A3B8;margin-bottom:12px">Quyidagi taqsimot — shu oyning brak va yo'qotish yozuvlari bo'yicha (${Number(d.yozuvlar_soni) || 0} ta, ${fmt(d.yozuvlar_qiymati)} so'm). Eski yozuvlarda Moliyadagi jami bilan farq bo'lishi mumkin.</div>`;
+
+  const guruh = (nom, arr) => {
+    if (!arr || !arr.length) return sarlavha(nom) + bosh;
+    return sarlavha(nom) + `<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:18px">
+      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+        <th style="${th}">Nomi</th><th style="${th};text-align:right">Soni</th>
+        <th style="${th};text-align:right">Qiymati</th><th style="${th};text-align:right">Ulushi</th></tr></thead>
+      <tbody>${arr.map(x => `<tr style="border-bottom:1px solid #f5f5f5">
+        <td style="${td};font-weight:600">${escapeHtml(x.nomi)}</td>
+        <td style="${td};text-align:right">${Number(x.soni) || 0}</td>
+        <td style="${td};text-align:right;font-weight:700;color:#DC2626">${fmt(x.qiymat)} so'm</td>
+        <td style="${td};text-align:right">${escapeHtml(brakFoizMatn(x.ulush))}</td></tr>`).join('')}</tbody></table>`;
+  };
+  html += guruh('🧭 Bosqich bo\'yicha', d.bosqichlar);
+  html += guruh('❓ Sabab bo\'yicha', d.sabablar);
+  html += guruh('👤 Javobgar hodim bo\'yicha', d.javobgarlar);
+
+  const top = d.top_detallar || [];
+  html += sarlavha('🔝 Eng ko\'p brak — 5 ta mahsulot / detal');
+  html += !top.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:18px">
+      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+        <th style="${th}">Nomi</th><th style="${th};text-align:right">Miqdor</th><th style="${th};text-align:right">Soni</th>
+        <th style="${th};text-align:right">Qiymati</th></tr></thead>
+      <tbody>${top.map(x => `<tr style="border-bottom:1px solid #f5f5f5">
+        <td style="${td};font-weight:600">${escapeHtml(x.nomi)}</td>
+        <td style="${td};text-align:right">${Number(x.miqdor) || 0} ${escapeHtml(x.birlik || '')}</td>
+        <td style="${td};text-align:right">${Number(x.soni) || 0}</td>
+        <td style="${td};text-align:right;font-weight:700;color:#DC2626">${fmt(x.qiymat)} so'm</td></tr>`).join('')}</tbody></table>`;
+
+  const tr = d.trend || [];
+  html += sarlavha('📈 Oylar bo\'yicha brak ulushi');
+  html += !tr.length ? bosh : `<table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:18px">
+      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+        <th style="${th}">Oy</th><th style="${th};text-align:right">Brak</th><th style="${th};text-align:right">Ishlab chiqarish</th>
+        <th style="${th};text-align:right">Ulushi</th></tr></thead>
+      <tbody>${tr.map(x => `<tr class="brak-trend-qator" style="border-bottom:1px solid #f5f5f5">
+        <td style="${td}">${escapeHtml(oyNomi(x.yil, x.oy))}</td>
+        <td style="${td};text-align:right">${fmt(x.brak_xarajat)} so'm</td>
+        <td style="${td};text-align:right">${fmt(x.ishlab_chiqarish_xarajat)} so'm</td>
+        <td style="${td};text-align:right;font-weight:700;color:${x.meyordan_oshdi ? '#DC2626' : '#334155'}">${x.meyordan_oshdi ? '⚠️ ' : ''}${escapeHtml(brakFoizMatn(x.brak_foizi))}</td></tr>`).join('')}</tbody></table>`;
+
+  const yq = d.yoqotishlar || [];
+  html += sarlavha('📦 Tayyor mahsulot yo\'qotishlari va ishlab chiqarish braki');
+  html += !yq.length ? bosh : `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px">
+      <thead><tr style="border-bottom:2px solid #eee;text-align:left;color:#888;font-size:12px;text-transform:uppercase">
+        <th style="${th}">Sana</th><th style="${th}">Mahsulot</th><th style="${th};text-align:right">Miqdor</th>
+        <th style="${th}">Turi</th><th style="${th}">Bosqich</th><th style="${th}">Sabab</th><th style="${th}">Javobgar</th>
+        <th style="${th};text-align:right">Qiymati</th><th style="${th}">Yozgan</th></tr></thead>
+      <tbody>${yq.map(x => `<tr class="brak-yoqotish-qator" style="border-bottom:1px solid #f5f5f5">
+        <td style="${td};white-space:nowrap">${escapeHtml(String(x.sana || '').slice(0, 10))}</td>
+        <td style="${td};font-weight:600">${escapeHtml(x.nomi)}</td>
+        <td style="${td};text-align:right">${Number(x.miqdor) || 0} ${escapeHtml(x.birlik || '')}</td>
+        <td style="${td}">${escapeHtml(x.turi)}</td>
+        <td style="${td}">${escapeHtml(x.bosqich || '—')}</td>
+        <td style="${td}">${escapeHtml(x.sabab || '—')}</td>
+        <td style="${td}">${escapeHtml(x.javobgar || '—')}</td>
+        <td style="${td};text-align:right;font-weight:700;color:#DC2626">${fmt(x.qiymat)} so'm</td>
+        <td style="${td}">${escapeHtml(x.yozgan || '')}</td></tr>`).join('')}</tbody></table></div>`;
+  return html;
+}
 
 function toggleBrakSummary(){
   const body = document.getElementById('brakSummaryBody');
@@ -838,6 +1025,10 @@ function showBrakModal(){
   document.getElementById('brak-notes').value = '';
   const _bosqichSel = document.getElementById('brak-stage');   // kech53
   if (_bosqichSel) _bosqichSel.value = '';
+  const _sababSel = document.getElementById('brak-cause');     // kech56
+  if (_sababSel) _sababSel.value = '';
+  const _javobgarSel = document.getElementById('brak-worker'); // kech56
+  if (_javobgarSel) _javobgarSel.value = '';
   document.getElementById('brak-error').style.display = 'none';
   document.getElementById('brakList').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Avval loyiha tanlang</div>';
   brakItems = [];
@@ -903,6 +1094,11 @@ async function saveBrakBatch(){
   // (tanlanmasa tana AYNAN avvalgidek).
   const _bosqichEl = document.getElementById('brak-stage');
   const bosqich = (_bosqichEl && _bosqichEl.value) || '';
+  // kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim — tanlansagina.
+  const _sababEl = document.getElementById('brak-cause');
+  const sabab = (_sababEl && _sababEl.value) || '';
+  const _javobgarEl = document.getElementById('brak-worker');
+  const javobgarId = parseInt((_javobgarEl && _javobgarEl.value) || '', 10);
 
   const inputs = document.querySelectorAll('.brak-qty-inp');
   const toSave = [];
@@ -959,7 +1155,9 @@ async function saveBrakBatch(){
           to_stock: false,
           notes,
           coating_applied: document.querySelector('input[name="brak-coating-applied"]:checked')?.value === 'yes',
-          ...(bosqich ? { brak_bosqich: bosqich } : {})
+          ...(bosqich ? { brak_bosqich: bosqich } : {}),
+          ...(sabab ? { brak_sabab: sabab } : {}),
+          ...(javobgarId > 0 ? { brak_javobgar_id: javobgarId } : {})
         })
       });
       if (res.ok) {
@@ -998,5 +1196,7 @@ fetch('/api/returns/stats').then(r=>r.json()).then(s=>{
     const btv = document.getElementById('k-brak-total-value'); if (btv) btv.textContent = fmt(s.brak_total_value) + " so'm";
   }
 }).catch(()=>{});
+// kech56 (13-band, 7-qadam): brak tahlili sarlavhasidagi joriy oy ulushi (faqat admin).
+if (IS_ADMIN) loadBrakTahlilBadge();
 </script>
 {% endblock %}
