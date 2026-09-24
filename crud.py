@@ -5036,8 +5036,16 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
         return 0.0 if _q < 1e-9 else _q
     _fp_ochiriladi = False
     if fp is not None:
+        # kech59 (47-band): qo'shilgandagi og'irlikli o'rtachaning TESKARISI (muzlagan birlik tannarx)
+        _qb59 = float(fp.quantity or 0)
+        _sb59 = float(fp.unit_cost_stable) if fp.unit_cost_stable is not None else 0.0
         fp.quantity = _ayir(fp.quantity, _sq)
         fp.produced_quantity = _ayir(fp.produced_quantity, _sq)
+        _qa59 = float(fp.quantity or 0)
+        if _sb59 > 0 and _qa59 > 1e-9:
+            _yangi_b59 = (_sb59 * _qb59 - float(item.stock_cost or 0)) / _qa59
+            if _yangi_b59 > 0:
+                fp.unit_cost_stable = _yangi_b59
         fp.cost_price = _pul2(_ayir(fp.cost_price, item.stock_cost))
         fp.volume_m3 = round(_ayir(fp.volume_m3, item.stock_volume_m3), 9)
         _fp_ochiriladi = (fp.source == StockSource.RETURNED
@@ -8240,6 +8248,11 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
         unit_volume_m3=(volume / qty) if qty > 0 else 0,
         unit_loy_kg=(loy_kg / qty) if qty > 0 else 0,
         recipe_id=data.recipe_id,
+        # kech59 (47-band, K59-4): 1 birlik tannarxi ISHLAB CHIQARILGAN paytdagi narxda muzlaydi
+        # (32-band qarori "ishlatilgan paytdagi narxda muzlatilsin" bilan bir xil). Ilgari yozilmasdi —
+        # `_fp_stable_unit_cost` penoplast / loyning JORIY narxidan hisoblardi: narx oshsa sotuv,
+        # buyurtmaga olish va qaytarish tannarxi ham oshardi (O'LCHANGAN — work/probe59_47.py).
+        unit_cost_stable=(total_cost / qty) if qty > 0 else None,
         production_status=ProductionStatus.IN_PROGRESS,
         created_by=created_by,
         notes=data.notes
@@ -8624,6 +8637,14 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
     existing = _rq.with_for_update().first()
 
     if existing:
+        # kech59 (47-band): qaytgan qismning muzlagan tannarxi mavjud qoldiq bilan og'irlikli o'rtacha
+        # (qaytarish o'chirilsa `delete_return_item` teskarisini qiladi). Qoldiq QO'SHISHDAN OLDIN o'qiladi.
+        _eski_q59 = float(existing.quantity or 0)
+        _eski_b59 = _fp_stable_unit_cost(db, existing)
+        if _eski_b59 <= 0 and _eski_q59 > 0 and existing.cost_price:
+            _eski_b59 = float(existing.cost_price) / _eski_q59
+        if _eski_q59 + quantity > 0:
+            existing.unit_cost_stable = (_eski_b59 * _eski_q59 + new_cost_price) / (_eski_q59 + quantity)
         existing.quantity = float(existing.quantity or 0) + quantity
         existing.produced_quantity = float(existing.produced_quantity or 0) + quantity
         existing.cost_price = float(existing.cost_price or 0) + new_cost_price
@@ -8650,6 +8671,10 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         unit=unit,
         unit_price=unit_p,
         cost_price=new_cost_price,
+        # kech59 (47-band): qaytgan mahsulotning 1 birlik tannarxi — buyurtmada ISHLATILGAN paytdagi
+        # narx (34-band) muzlaydi; aks holda buyurtmaga olinganda / foyda hisobida
+        # `cost_price / produced_quantity` qoldiq kamaygan sari siljirdi (K59-1).
+        unit_cost_stable=(new_cost_price / quantity) if (quantity > 0 and new_cost_price > 0) else None,
         volume_m3=new_volume,
         source=StockSource.RETURNED,
         from_order_id=order_id or order_item.order_id,
@@ -8815,6 +8840,10 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         return {"success": False, "message": "Faqat ishlab chiqarilgan mahsulotga qo'shiladi"}
 
     base_qty = float(fp.quantity or 0)
+    # kech59 (47-band): qo'shishdan OLDINGI 1 birlik tannarxi (og'irlikli o'rtacha uchun)
+    _eski_birlik59 = _fp_stable_unit_cost(db, fp)
+    if _eski_birlik59 <= 0 and base_qty > 0 and fp.cost_price:
+        _eski_birlik59 = float(fp.cost_price) / base_qty
 
     # MUHIM: Profil uchun — "quantity" odatda 1 (bitta buyum), lekin HAJM
     # aslida UZUNLIK (metr) bo'yicha hisoblangan. Shuning uchun "1 birlikka
@@ -8927,6 +8956,11 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     fp.actual_loy_kg = float(fp.actual_loy_kg or 0) + add_loy
     fp.planned_loy_kg = float(fp.planned_loy_kg or 0) + add_loy
     fp.cost_price = float(fp.cost_price or 0) + peno_cost + loy_cost
+    # kech59 (47-band): yangi partiya SHU paytdagi narxda — qoldiq bilan og'irlikli o'rtacha
+    # (omborda turgan eski qism eski narxda qoladi, butun mahsulot joriy narxga o'tmaydi).
+    _jami_qty59 = base_qty + add_qty
+    if _jami_qty59 > 0:
+        fp.unit_cost_stable = (_eski_birlik59 * base_qty + peno_cost + loy_cost) / _jami_qty59
 
     db.commit()
     db.refresh(fp)

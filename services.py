@@ -1993,9 +1993,19 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         if not fp_c:
             continue
         base_qty = float(fp_c.produced_quantity if fp_c.produced_quantity is not None else (fp_c.quantity or 0))
-        if base_qty <= 0 or not fp_c.cost_price:
-            continue
-        unit_cost = float(fp_c.cost_price) / base_qty
+        # kech59 (47-band, K59-1): `cost_price` buyurtmaga olingan / sotilgan sari KAMAYADI,
+        # `produced_quantity` esa o'zgarmaydi — nisbat siljirdi (O'LCHANGAN: 10 m x 7 600 = 76 000
+        # o'rniga 68 400, boshqa buyurtma olgach 53 200; TM butunlay olinsa — 0). Muzlagan birlik
+        # tannarx — olish / qaytarish / sotuv bilan BITTA manba (`crud._fp_stable_unit_cost`);
+        # bo'lmasa — eski formula.
+        import crud as _crud_fp59
+        _muz59 = _crud_fp59._fp_stable_unit_cost(db, fp_c)
+        if _muz59 > 0:
+            unit_cost = _muz59
+        else:
+            if base_qty <= 0 or not fp_c.cost_price:
+                continue
+            unit_cost = float(fp_c.cost_price) / base_qty
         used_qty = float(item.length if (item.category or '').lower() == 'profil' else item.quantity or 0)
         tayyor_mahsulot_xarajat += unit_cost * used_qty
     if tayyor_mahsulot_xarajat > 0:

@@ -2113,6 +2113,48 @@ def _migrate_qoplama_retsept():
 
 _migrate_qoplama_retsept()
 
+
+def _migrate_tm_birlik_tannarx():
+    """kech59 (47-band, K59-1 / K59-2 / K59-4) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    `finished_products.unit_cost_stable` bo'sh (NULL) tayyor mahsulotlarga 1 birlik tannarxi BUGUNGI
+    narxda yoziladi — hozir hisobotda ishlatilayotgan qiymatning AYNI o'zi, shuning uchun deploy
+    paytida hech bir raqam o'zgarmaydi, keyin narx o'zgarsa tannarx o'zgarmaydi (33 / 37-band "A"
+    qarori bilan bir xil qoida). Manba tartibi (`crud._fp_stable_unit_cost` bilan bir xil):
+    birlik hajm / loy JORIY narxda -> `cost_price / quantity` -> `cost_price / produced_quantity`.
+    Hech biri bo'lmasa (qoldiq va tannarx 0) — NULL qoladi. Yangi mahsulotlar yaratilishida
+    muzlaydi (crud: ishlab chiqarish, qo'shimcha ishlab chiqarish, qaytgan mahsulot).
+    """
+    from database import SessionLocal as _SL59
+    from models import FinishedProduct as _FP59
+    _d = _SL59()
+    try:
+        _n = 0
+        for _f in _d.query(_FP59).filter(_FP59.unit_cost_stable.is_(None)).order_by(_FP59.id).all():
+            _b = crud._fp_stable_unit_cost(_d, _f)
+            if _b <= 0:
+                _q = float(_f.quantity or 0)
+                _p = float(_f.produced_quantity or 0)
+                _c = float(_f.cost_price or 0)
+                if _q > 0 and _c > 0:
+                    _b = _c / _q
+                elif _p > 0 and _c > 0:
+                    _b = _c / _p
+            if _b > 0:
+                _f.unit_cost_stable = _b
+                _n += 1
+        if _n:
+            _d.commit()
+            print(f"✓ Tayyor mahsulot 1 birlik tannarxi muzlatildi: {_n} ta")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ Tayyor mahsulot tannarxi migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_tm_birlik_tannarx()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
