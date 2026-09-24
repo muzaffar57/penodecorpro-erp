@@ -2049,6 +2049,70 @@ def _migrate_brak_sabab_javobgar():
 
 _migrate_brak_sabab_javobgar()
 
+
+def _migrate_qoplama_retsept():
+    """kech58 (K58-1 / K58-2 / K58-3, 43-band) — IDEMPOTENT, PostgreSQL va SQLite.
+
+      A) `orders.qoplama_retsept_id` — odatda `database.sync_missing_columns()` allaqachon
+         qo'shgan (indeks va kalitsiz); yo'q bo'lsa shu yerda. STANDARTSIZ.
+      B) Indeks `ix_orders_qoplama_retsept_id` (yo'q bo'lsa).
+      C) Faqat PostgreSQL: chet el kaliti `recipes(id) ON DELETE SET NULL` (yo'q bo'lsa;
+         yetim qiymat bo'lsa QO'YILMAYDI, soni logga).
+    Eski buyurtmalar TO'LDIRILMAYDI — foydalanuvchi qarori (kech58): "faqat yangi buyurtmalar",
+    eski buyurtmalar foydasi va loy qaytarish qoidasi o'zgarmaydi.
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        jadvallar = set(_i.get_table_names())
+        if "orders" not in jadvallar or "recipes" not in jadvallar:
+            return
+        with engine.connect() as conn:
+            ustunlar = {c["name"] for c in _i.get_columns("orders")}
+            indekslar = {ix["name"] for ix in _i.get_indexes("orders")}
+            if "qoplama_retsept_id" not in ustunlar:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN qoplama_retsept_id INTEGER"))
+                conn.commit()
+                print("✓ orders.qoplama_retsept_id qo'shildi")
+            if "ix_orders_qoplama_retsept_id" not in indekslar:
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_qoplama_retsept_id "
+                                  "ON orders (qoplama_retsept_id)"))
+                conn.commit()
+                print("✓ ix_orders_qoplama_retsept_id indeksi qo'shildi")
+            if engine.dialect.name == "postgresql":
+                bor_kalit = conn.execute(text(
+                    "SELECT 1 FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey) "
+                    "WHERE t.relname = 'orders' AND c.contype = 'f' "
+                    "AND a.attname = 'qoplama_retsept_id'")).first()
+                if not bor_kalit:
+                    yetim = conn.execute(text(
+                        "SELECT COUNT(*) FROM orders x "
+                        "LEFT JOIN recipes r ON r.id = x.qoplama_retsept_id "
+                        "WHERE x.qoplama_retsept_id IS NOT NULL AND r.id IS NULL")).scalar() or 0
+                    if yetim:
+                        print(f"⚠ orders.qoplama_retsept_id: {yetim} ta yetim qiymat — "
+                              f"chet el kaliti QO'YILMADI")
+                    else:
+                        conn.execute(text(
+                            "ALTER TABLE orders ADD CONSTRAINT orders_qoplama_retsept_id_fkey "
+                            "FOREIGN KEY (qoplama_retsept_id) REFERENCES recipes(id) "
+                            "ON DELETE SET NULL"))
+                        conn.commit()
+                        print("✓ orders_qoplama_retsept_id_fkey chet el kaliti qo'shildi")
+    except Exception as e:
+        try:
+            with engine.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ Qoplama retsepti migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_qoplama_retsept()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:

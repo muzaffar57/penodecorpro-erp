@@ -596,6 +596,12 @@ class Order(Base):
     actual_gips_kg = Column(Float, nullable=True)
     actual_loy_kg = Column(Float, nullable=True)  # Haqiqiy Loy (qoplama) miqdori — "Tayyor" bosilganda kiritiladi
     planned_loy_kg = Column(Float, nullable=True)  # Rejalashtirilgan Loy (qoplama) — buyurtma yaratilganda/tahrirlashda
+    # kech58 (K58-1 / K58-2 / K58-3, 43-band): buyurtmaning UMUMIY qoplama loyi qaysi retseptdan
+    # yechilgan / yechiladi. FAQAT kech58 dan keyin YARATILGAN buyurtmaga yoziladi (foydalanuvchi
+    # qarori: eski buyurtmalar foydasi o'zgarmaydi); eski (NULL) — avvalgi qoida AYNAN
+    # (`services.buyurtma_qoplama_retsept_nomzodlari`). Retsept o'chirilsa — NULL (PG).
+    qoplama_retsept_id = Column(Integer, ForeignKey("recipes.id", ondelete="SET NULL"),
+                                nullable=True, index=True)
     base_price = Column(Numeric(12, 2), nullable=True)  # "1 m³ asosiy narxi" — hodim kiritgan, tahrirlashda tiklanishi uchun
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Aniq qaysi Gips xomashyosi ishlatilgani
 
@@ -2143,7 +2149,9 @@ _TENANT_REFS = {
                             # kech56 (13-band, 7-qadam): javobgar hodim
                             ("brak_javobgar_id", "Employee")],
     # Buyurtma — qaysi loyiha va ustaga
-    "Order": [("project_id", "Project"), ("master_id", "Master")],
+    "Order": [("project_id", "Project"), ("master_id", "Master"),
+              # kech58 (K58-1): qoplama retsepti — faqat o'z korxonasiniki
+              ("qoplama_retsept_id", "Recipe")],
 
     # --- M5 (2026-09-18) — ustalar / hodimlar / sovg'a ---
     # Ota "bu yozuv kimniki" degan savolga javob beradi; bu yerdagi

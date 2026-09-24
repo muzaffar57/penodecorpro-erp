@@ -2060,11 +2060,17 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
     if loy_kg > 0:
 
         # Retsept bo'yicha 1 kg loy narxi
+        # kech58 (K58-1 / K58-2): YAGONA manba. Yangi buyurtma — `qoplama_retsept_id` (retsept
+        # tanlanmagan bo'lsa ham — loy yechilgan retsept); eski (NULL) — avvalgi qoida AYNAN
+        # (birinchi `recipe_id` li detal, zaxirasiz) — foydalanuvchi qarori "faqat yangi".
         recipe = None
-        for item in order.items:
-            if item.recipe_id:
-                recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
-                break
+        _qcid = company_id if company_id is not None else getattr(order, 'company_id', None)
+        for _qrid in buyurtma_qoplama_retsept_nomzodlari(order):
+            _rq = db.query(Recipe).filter(Recipe.id == _qrid)
+            if _qcid is not None:
+                _rq = _rq.filter(Recipe.company_id == _qcid)
+            recipe = _rq.first()
+            break
 
         if recipe and loy_kg > 0:
             batch = float(recipe.batch_size_kg or 100)
@@ -4029,6 +4035,86 @@ def _set_planned_loy(order, kg: float) -> None:
     order.notes = ','.join(parts)
 
 
+# ════════════════════════════════════════════════════════════════════
+# kech58 (K58-1 / K58-2 / K58-3, 43-band) — BUYURTMA QOPLAMA RETSEPTI: YAGONA MANBA
+# ════════════════════════════════════════════════════════════════════
+# O'LCHANGAN (asl kod `e7dd594`, `work/probe58.py`, SQLite va HAQIQIY PG 16 — AYNAN):
+#   K58-1: birinchi detal "Loy sotish" bo'lsa, buyurtmaning UMUMIY loyi tanlangan retseptdan
+#          emas, "Loy sotish" retseptidan yechilardi (R1 5 200 / R2 20 000 so'm/kg: foydadagi
+#          qoplama 52 000, to'g'risi 200 000). Brak summasi — birinchi QOPLAMALI detal
+#          retseptidan, brak yechimi — detalning O'Z retseptidan: UCH xil manba (43-band).
+#   K58-2: retsept "— Yo'q —" — loy korxonaning birinchi retseptidan yechilardi, lekin
+#          foydada qoplama xarajati UMUMAN yo'q edi (jonli: buyurtma 185, 234 564.48 so'm).
+#   K58-3: tahrirda retsept R1 -> R2 — ombor tegilmasdi, o'chirilganda loy R2 ga qaytardi
+#          (R2 dan olinmagan 10 kg paydo bo'ldi, R1 ning 10 kg i qaytmadi).
+# YECHIM (texnik — Claude): `orders.qoplama_retsept_id` — umumiy loy qaysi retseptdan yechilgan.
+# FAQAT kech58 dan keyin YARATILGAN buyurtmaga yoziladi (FOYDALANUVCHI QARORI kech58:
+# "Yo'q, faqat yangi buyurtmalar" — eski buyurtmalar foydasi o'zgarmaydi). Eski (NULL)
+# buyurtma — avvalgi qoida AYNAN. Yechish, qaytarish, foyda, brak summasi va brak yechimi —
+# hammasi `resolve_recipe(order=...)` / `buyurtma_qoplama_retsept_nomzodlari` orqali.
+
+def _qoplama_retsept_nomzodlari_yangi(order) -> list:
+    """YANGI buyurtma uchun qoplama retsepti nomzodlari (ustuvorlik tartibida, takrorsiz):
+    1) buyurtma loyidan sarflaydigan QOPLAMALI detal (`_buyurtma_loyi_detalimi`);
+    2) "Loy sotish" dan boshqa detal (UI buyurtma retseptini shu detallarga yozadi va
+       tahrirda shu qoida bilan o'qiydi — `orders.html` `mainItem`);
+    3) istalgan detal.
+    Detallar `id` tartibida (PG da `ORDER BY` siz tartib UPDATE dan keyin o'zgarishi mumkin)."""
+    items = list(getattr(order, 'items', None) or [])
+    tartib = sorted(range(len(items)), key=lambda i: (getattr(items[i], 'id', None) is None,
+                                                       getattr(items[i], 'id', None) or 0, i))
+    items = [items[i] for i in tartib]
+
+    def _tur(x):
+        return (getattr(x, 'category', None) or '').lower()
+
+    guruhlar = (
+        [x for x in items if getattr(x, 'is_coated', False) and _buyurtma_loyi_detalimi(x)],
+        [x for x in items if _tur(x) != 'loy_sotish'],
+        items,
+    )
+    natija = []
+    for g in guruhlar:
+        for x in g:
+            rid = getattr(x, 'recipe_id', None)
+            if rid and rid not in natija:
+                natija.append(rid)
+    return natija
+
+
+def buyurtma_qoplama_retsept_nomzodlari(order) -> list:
+    """Buyurtma UMUMIY loyi retsepti nomzodlari — `resolve_recipe(order=...)` va foyda uchun.
+    `qoplama_retsept_id` bor (kech58 dan keyin yaratilgan buyurtma) — avval u; so'ng (eski
+    NULL buyurtmada — FAQAT) avvalgi qoida AYNAN: `order.items` tartibida `recipe_id` li detallar."""
+    natija = []
+    saqlangan = getattr(order, 'qoplama_retsept_id', None)
+    if saqlangan:
+        natija.append(saqlangan)
+    for x in (getattr(order, 'items', None) or []):
+        rid = getattr(x, 'recipe_id', None)
+        if rid and rid not in natija:
+            natija.append(rid)
+    return natija
+
+
+def buyurtma_qoplama_retseptini_tanla(db: Session, order, company_id: int = None):
+    """YANGI qoida bo'yicha qoplama retsepti (korxona doirasida). Hech bir detalda retsept
+    bo'lmasa — `resolve_recipe` zaxirasi (korxonaning birinchi retsepti): loy baribir shundan
+    yechiladi, shuning uchun foyda ham shu retseptni ko'rishi SHART (K58-2)."""
+    from models import Recipe
+    cid = company_id if company_id is not None else getattr(order, 'company_id', None)
+    q = db.query(Recipe)
+    if cid is not None:
+        q = q.filter(Recipe.company_id == cid)
+    for rid in _qoplama_retsept_nomzodlari_yangi(order):
+        r = q.filter(Recipe.id == rid).first()
+        if r:
+            return r
+    if cid is None:
+        return None
+    return resolve_recipe(db, company_id=cid)
+
+
 def resolve_recipe(db: Session, recipe_id: int = None, order=None,
                    company_id: int = None):
     """Retseptni HAR DOIM bitta korxona doirasida topadi — YAGONA manba.
@@ -4071,12 +4157,12 @@ def resolve_recipe(db: Session, recipe_id: int = None, order=None,
             return r
 
     if order is not None:
-        for item in (getattr(order, 'items', None) or []):
-            rid = getattr(item, 'recipe_id', None)
-            if rid:
-                r = q.filter(Recipe.id == rid).first()
-                if r:
-                    return r
+        # kech58 (K58-1): buyurtmaning SAQLANGAN qoplama retsepti (yangi buyurtma), so'ng
+        # avvalgi qoida AYNAN (eski buyurtma) — `buyurtma_qoplama_retsept_nomzodlari`.
+        for rid in buyurtma_qoplama_retsept_nomzodlari(order):
+            r = q.filter(Recipe.id == rid).first()
+            if r:
+                return r
 
     # Zaxira yo'l — FAQAT korxona aniq bo'lganda
     if cid is not None:
@@ -4479,8 +4565,10 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
         if loy_per_unit > 0:
             brak_loy_kg = loy_per_unit * brak_qty
             if brak_loy_kg > 0:
+                # kech58 (K58-1, 43-band): brak loyi — buyurtma loyi YECHILGAN retseptdan
+                # (`resolve_recipe(order=...)`), detalning o'z `recipe_id` sidan EMAS.
                 loy_log = deduct_loy_ingredients(
-                    db, order, brak_loy_kg, recipe_id=order_item.recipe_id,
+                    db, order, brak_loy_kg, recipe_id=None,
                     reason_override=f"Brak — {order_item.name} (qoplama, {brak_qty:g} birlik)"
                 )
                 log.extend([f"{l} (brak — qoplama)" for l in loy_log])
@@ -5252,12 +5340,10 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
 
     loy_cost_per_unit = 0.0
     if include_coating and item.is_coated and order:
-        recipe_id = None
-        for oi in order.items:
-            if not oi.is_coated:
-                continue
-            if not recipe_id and oi.recipe_id:
-                recipe_id = oi.recipe_id
+        # kech58 (K58-1, 43-band): brak summasidagi loy narxi — buyurtma loyi YECHILGAN
+        # retseptdan (brak yechimi va buyurtma yechimi bilan BITTA manba).
+        _qr58 = resolve_recipe(db, order=order, company_id=getattr(order, 'company_id', None))
+        recipe_id = _qr58.id if _qr58 else None
 
         # kech54 (41-band): 1 birlik loyi — qoplama narxi ulushi bo'yicha (`_brak_loyi_birlikka`)
         loy_kg_per_unit = _brak_loyi_birlikka(order, item)

@@ -1674,6 +1674,12 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     _planned_loy_direct = float(getattr(order_data, 'loy_kg', None) or 0)
     _services._set_planned_loy(db_order, _planned_loy_direct)
 
+    # kech58 (K58-1 / K58-2): buyurtma UMUMIY loyi retsepti — yaratishda BIR MARTA belgilanadi
+    # (qoralama ham). Yechish / qaytarish / foyda / brak — hammasi shu retseptdan.
+    db.expire(db_order, ['items'])
+    _qr58 = _services.buyurtma_qoplama_retseptini_tanla(db, db_order)
+    db_order.qoplama_retsept_id = _qr58.id if _qr58 else None
+
     # Tayyor mahsulotlardan yechamiz (qoralama bo'lmasa)
     if not is_draft:
         _take_finished_for_order(db, db_order)
@@ -6304,6 +6310,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     } for it in order_data.items]
 
     is_draft = order.status == OrderStatus.DRAFT
+    # kech58 (K58-3): tahrirdan OLDINGI qoplama retsepti — umumiy loy SHUNDAN yechilgan.
+    _qr58_oldin = services.resolve_recipe(db, company_id=order.company_id, order=order)
 
     # 2) Qoralama bo'lmasa — xomashyo yetishini tekshiramiz
     if not is_draft:
@@ -6521,6 +6529,22 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     else:
         order.discount_percent = 0.0
 
+    db.flush()
+
+    # kech58 (K58-3): qoplama retsepti tahrirda. O'LCHANGAN (asl kod, `work/probe58.py` S6):
+    # retsept R1 -> R2 tahririda ombor tegilmasdi, o'chirishda esa loy R2 ga qaytardi.
+    #  - Qoralama (hech narsa yechilmagan) — yangi tanlovga ergashadi.
+    #  - Qoralama emas: umumiy loy qaysi retseptdan YECHILGAN bo'lsa — shu saqlanadi
+    #    (yangi buyurtmada ustun allaqachon bor; eski NULL buyurtmada — faqat retsept
+    #    o'zgaradigan bo'lsa, oldingisi yoziladi, aks holda avvalgi qoida AYNAN qoladi).
+    db.expire(order, ['items'])
+    if is_draft:
+        _qr58_yangi = services.buyurtma_qoplama_retseptini_tanla(db, order)
+        order.qoplama_retsept_id = _qr58_yangi.id if _qr58_yangi else None
+    elif order.qoplama_retsept_id is None and _qr58_oldin is not None:
+        _qr58_keyin = services.resolve_recipe(db, company_id=order.company_id, order=order)
+        if _qr58_keyin is None or _qr58_keyin.id != _qr58_oldin.id:
+            order.qoplama_retsept_id = _qr58_oldin.id
     db.flush()
 
     # 6) Omborni farq bo'yicha to'g'rilaymiz (qoralama emas bo'lsa)
