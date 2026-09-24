@@ -3442,12 +3442,20 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
     # Topshirilgandan kam qilib bo'lmaydi.
     # 2026-09-21: ilgari `None` qaytarardi → marshrut "Detal topilmadi"
     # (404) derdi — foydalanuvchi uchun noto'g'ri sabab. Endi aniq xabar.
+    # kech60 (57-band): omborga ortiqcha qo'yilgan qism ham chiqqan — undan kam qilib bo'lmaydi
+    # (aks holda kamaytirish uning xomashyosini IKKINCHI marta qaytarardi).
     delivered = db_item.delivered_qty
-    if delivered > 0.001:
+    _ortiqcha_u = db_item.ortiqcha_qty
+    if delivered + _ortiqcha_u > 0.001:
         cat = (item_data.get('category') or db_item.category or '').lower()
         new_qty = float(item_data.get('length') or db_item.length or 0) if cat == 'profil' \
                   else float(item_data.get('quantity') or db_item.quantity or 0)
-        if new_qty < delivered - 0.001:
+        if new_qty < delivered + _ortiqcha_u - 0.001:
+            if _ortiqcha_u > 0.001:
+                raise ValueError(
+                    f"Topshirilgan ({round(delivered, 3)}) va omborga ortiqcha qaytarilgan "
+                    f"({round(_ortiqcha_u, 3)}) miqdordan kam qilib bo'lmaydi "
+                    f"(kamida {round(delivered + _ortiqcha_u, 3)})")
             raise ValueError(
                 f"Topshirilgan miqdordan ({round(delivered, 3)}) kam qilib bo'lmaydi")
 
@@ -4152,12 +4160,14 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
         return False
 
     if db_order.stock_returned:
-        has_delivery = bool(db_order.deliveries)
+        # kech60 (57-band): "qisman chiqqan" sharti — `services.buyurtmadan_qisman_chiqqan` (pastda)
         is_fully_delivered = db_order.status == OrderStatus.DELIVERED or db_order.is_fully_delivered
 
         if not is_fully_delivered:
-            if has_delivery:
-                # Qisman topshirilgan edi — faqat qolgan qism qayta yechiladi
+            # kech60 (57-band): o'chirishdagi (`main.api_delete_order`) bilan AYNAN bir xil
+            # shart — topshirilgan YOKI omborga ortiqcha qo'yilgan qism bo'lsa, faqat qolgan qism.
+            if services.buyurtmadan_qisman_chiqqan(db_order):
+                # Qisman topshirilgan / omborga qo'yilgan edi — faqat qolgan qism qayta yechiladi
                 services.return_inventory_for_order_partial(db, db_order, sign=-1.0)
             else:
                 # Hech narsa topshirilmagan edi — hammasi qayta yechiladi
@@ -4181,7 +4191,8 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
             # ulush (qarang: main.py'dagi bir xil tuzatish va services.py
             # dagi loy_relevant_remaining_fraction
             # fraction izohlari).
-            loy_remaining_fraction = services.loy_relevant_remaining_fraction(db_order) if has_delivery else 1.0
+            loy_remaining_fraction = (services.loy_relevant_remaining_fraction(db_order)
+                                      if services.buyurtmadan_qisman_chiqqan(db_order) else 1.0)
 
             # Loy (qoplama) — rejalashtirilgan miqdor (yoki QOLGAN ulushi) qayta yechiladi.
             # Eslatma: agar o'chirishda "haqiqatda qancha ishlatilgan edi"
@@ -4253,6 +4264,17 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
     # Topshirilgan bo'lsa — o'chirib bo'lmaydi
     if db_item.delivered_qty > 0.001:
         return False
+    # kech60 (57-band, K59-3): detaldan ortiqcha mahsulot omborga qo'yilgan bo'lsa — rad
+    # (ValueError -> marshrut 400, hech narsa o'zgarmaydi). O'LCHANGAN (asl kod): 10 m dan
+    # 5 m omborga qo'yilgach detal o'chirilsa penoplast 10 m uchun to'liq qaytardi VA 5 m
+    # tayyor mahsulot qolardi (ikki marta). Yo'l: qaytarishni o'chirish (22-band — tayyor
+    # mahsulot AYNAN olinadi) yoki detal miqdorini kamaytirish (omborga qo'yilgandan kam emas).
+    _ortiqcha_d = db_item.ortiqcha_qty
+    if _ortiqcha_d > 0.001:
+        raise ValueError(
+            f"«{db_item.name}» detalidan {_miqdor_matn(_ortiqcha_d)} {db_item.delivery_unit} ortiqcha "
+            f"mahsulot omborga qaytarilgan — detalni o'chirib bo'lmaydi. Avval o'sha qaytarishni "
+            f"o'chiring yoki detal miqdorini kamaytiring (kamida {_miqdor_matn(_ortiqcha_d)})")
 
     order = db_item.order
     # MUHIM (2026-09 audit): o'chirilgan buyurtmaning detalini o'chirib
@@ -4505,6 +4527,25 @@ def qaytarish_birlik_narxi(db: Session, order, order_item, koef: float = None) -
     return _pul2(float(order_item.total_price or 0) / ordered * koef)
 
 
+def _qaytarish_ortiqcha_qismi(db: Session, order_item, miqdor: float) -> float:
+    """kech60 (57-band, K59-3): yangi (brakdan boshqa) qaytarishning mijozga HALI
+    TOPSHIRILMAGAN qismi. Qoida: qaytarish avval topshirilgan (va hali qaytarilmagan)
+    miqdordan olinadi, qolgani — ortiqcha (omborga qo'yilgan). Topshirilgan miqdor
+    bazadan QAYTA o'qiladi (chaqiruvchi qulf (101, buyurtma) ostida). Eski yozuv
+    (`ortiqcha_miqdor` NULL) — to'liq topshirilgandan deb olinadi.
+    Migratsiya (`main._migrate_ortiqcha_qaytarish`) — AYNAN shu qoida, yozilish tartibida."""
+    from sqlalchemy import func as _fn_o
+    db.expire(order_item, ["deliveries"])
+    _topsh = float(order_item.delivered_qty or 0)
+    _oldin_topshdan = float(db.query(_fn_o.coalesce(_fn_o.sum(
+        ReturnItem.quantity - _fn_o.coalesce(ReturnItem.ortiqcha_miqdor, 0)), 0)).filter(
+        ReturnItem.company_id == order_item.company_id,
+        ReturnItem.order_item_id == order_item.id,
+        ReturnItem.reason != ReturnReason.DEFECT).scalar() or 0)
+    _bor = max(0.0, _topsh - _oldin_topshdan)
+    return max(0.0, float(miqdor) - _bor)
+
+
 def create_return_item(db: Session, data: ReturnItemCreate,
                        company_id: int = None) -> ReturnItem:
     """Yangi qaytarishni bazaga qo'shadi.
@@ -4642,6 +4683,18 @@ def create_return_item(db: Session, data: ReturnItemCreate,
                              f"{_miqdor_matn(_buyurtmada)} {_b}) — yana ko'pi bilan "
                              f"{_miqdor_matn(_qolgan)} {_b} qaytarish mumkin")
 
+    # kech60 (57-band, K59-3): brakdan boshqa qaytarishning mijozga HALI TOPSHIRILMAGAN qismi
+    # (ortiqcha mahsulot omborga qo'yiladi — FOYDALANUVCHI QARORI, kech60). Qulf (101) yuqorida
+    # olingan — topshirilgan miqdor bazadan qayta o'qiladi (bir vaqtdagi yuk xati hisobga olinsin).
+    _ortiqcha_yangi = None
+    if reason_enum != ReturnReason.DEFECT:
+        _ortiqcha_yangi = _qaytarish_ortiqcha_qismi(db, order_item, float(data.quantity))
+        # O'chirilgan buyurtmada omborga qo'yish — o'chirish / tiklash simmetriyasini buzadi
+        # (o'chirishda qolgan qism xomashyosi allaqachon qaytgan).
+        if _o.is_deleted and _ortiqcha_yangi > 0.001:
+            raise ValueError("Buyurtma o'chirilgan — topshirilmagan mahsulotni omborga qaytarib bo'lmaydi "
+                             "(uning xomashyosi o'chirishda qaytgan)")
+
     refund_amount = float(data.refund_amount or 0)
     # 17g: QO'LDA berilgan qaytarish summasi buyurtma qiymatidan oshmaydi —
     # `mark_refunded` shu summani kelishilgan summadan ayiradi (0 dan pastga
@@ -4722,7 +4775,9 @@ def create_return_item(db: Session, data: ReturnItemCreate,
         brak_bosqich=(_bosqich if reason_enum == ReturnReason.DEFECT else None),
         # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar (yuqorida faqat brakka ruxsat)
         brak_sabab=(_sabab if reason_enum == ReturnReason.DEFECT else None),
-        brak_javobgar_id=(_javobgar if reason_enum == ReturnReason.DEFECT else None)
+        brak_javobgar_id=(_javobgar if reason_enum == ReturnReason.DEFECT else None),
+        # kech60 (57-band): mijozga topshirilmagan (ortiqcha, omborga qo'yilgan) qism; brak — NULL
+        ortiqcha_miqdor=_ortiqcha_yangi
     )
     db.add(item)
     db.flush()
@@ -4986,6 +5041,14 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
                                        Order.company_id == _cid).first()
 
     # ── 1) TEKSHIRUVLAR — hech narsa o'zgartirilmaydi ────────────────
+    # kech60 (57-band): o'chirilgan buyurtmaning ORTIQCHA (topshirilmagan, omborga qo'yilgan)
+    # qaytarishi o'chirilmaydi — o'chirishda qolgan qism xomashyosi qaytgan, tiklash esa
+    # AYNAN o'shani qayta yechadi; qaytarish o'chsa ortiqcha qism buyurtmaga qaytib,
+    # tiklashda xomashyo ko'proq yechilardi (simmetriya buziladi).
+    if (order is not None and order.is_deleted and item.reason != ReturnReason.DEFECT
+            and float(item.ortiqcha_miqdor or 0) > 0.001):
+        raise ValueError("Buyurtma o'chirilgan — uning topshirilmagan (ortiqcha) mahsuloti qaytarishini "
+                         "o'chirib bo'lmaydi. Avval buyurtmani tiklang")
     _summa = float(item.refund_amount or 0)
     pul_orqaga = bool(item.is_refunded) and _summa > 0 and order is not None
     if pul_orqaga and item.refunded_at is None:
@@ -5689,7 +5752,10 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
         ordered = item.order_qty_normalized
         if ordered <= 0:
             continue
-        delivered = item.delivered_qty
+        # kech60 (57-band): omborga ORTIQCHA qo'yilgan qism ham buyurtmada qoladi — u mijoz
+        # uchun ishlab chiqarilgan (pul masalasi — alohida "Pul qaytdi" orqali, 24 / 28-band).
+        # Aks holda miqdor topshirilganga tushib, qaytarilgan yig'indi buyurtmadan oshardi.
+        delivered = min(item.delivered_qty + item.ortiqcha_qty, ordered)
         fraction = min(delivered / ordered, 1.0)
 
         old_total = float(item.total_price or 0)
@@ -6368,6 +6434,25 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # Tekshiramiz
     for oi in old_items:
         delivered = oi.delivered_qty
+        # kech60 (57-band, K59-3): omborga ortiqcha qo'yilgan qism ham chiqqan — undan kam
+        # qilib / o'chirib bo'lmaydi. O'LCHANGAN (asl kod): 10 m dan 5 m omborga qo'yilib
+        # 10 -> 3 m qilinsa penoplast 7 m uchun qaytardi VA 5 m tayyor mahsulot qolardi.
+        _ortiqcha_f = oi.ortiqcha_qty
+        if _ortiqcha_f > 0.001:
+            _nd_f = matched.get(oi.id)
+            _kamida_f = delivered + _ortiqcha_f
+            if _nd_f is None:
+                delivery_errors.append(
+                    f"«{oi.name}» — {_miqdor_matn(_ortiqcha_f)} {oi.delivery_unit} ortiqcha mahsulot "
+                    f"omborga qaytarilgan, o'chirib bo'lmaydi (avval qaytarishni o'chiring)")
+                continue
+            _new_f = _qty_of(_nd_f)
+            if _new_f < _kamida_f - 0.001:
+                delivery_errors.append(
+                    f"«{oi.name}» — {_miqdor_matn(_ortiqcha_f)} {oi.delivery_unit} omborga ortiqcha "
+                    f"qaytarilgan" + (f", {delivered:g} {oi.delivery_unit} topshirilgan" if delivered > 0.001 else "")
+                    + f" — {_new_f:g} qilib bo'lmaydi (kamida {_miqdor_matn(_kamida_f)})")
+                continue
         if delivered <= 0.001:
             continue          # topshirilmagan — hech qanday cheklov yo'q
 
@@ -7294,9 +7379,11 @@ def get_delivery_status(db: Session, order_id: int) -> dict:
             "unit": it.delivery_unit,
             "ordered": round(ordered, 2),
             "delivered": round(delivered, 2),
-            "remaining": round(max(ordered - delivered, 0), 2),
+            # kech60 (57-band): omborga ortiqcha qo'yilgan qism ham chiqqan (`remaining_qty`)
+            "remaining": round(it.remaining_qty, 2),
+            "ortiqcha": round(it.ortiqcha_qty, 2),
             "percent": round(delivered / ordered * 100, 1) if ordered > 0 else 0,
-            "is_done": (ordered - delivered) <= 0.001
+            "is_done": it.remaining_qty <= 0.001
         })
 
     return {

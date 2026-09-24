@@ -2155,6 +2155,77 @@ def _migrate_tm_birlik_tannarx():
 
 _migrate_tm_birlik_tannarx()
 
+
+def _migrate_ortiqcha_qaytarish():
+    """kech60 (57-band, K59-3) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    `return_items.ortiqcha_miqdor` — qaytarilgan miqdorning mijozga HALI TOPSHIRILMAGAN qismi
+    (ortiqcha mahsulot omborga qo'yilgan). Ustun odatda `database.sync_missing_columns()` bilan
+    qo'shiladi; yo'q bo'lsa shu yerda. Bo'sh (NULL) eski yozuvlar (brakdan boshqa, detalga
+    bog'langan) YOZILISH TARTIBI bo'yicha to'ldiriladi — `crud._qaytarish_ortiqcha_qismi` bilan
+    bir xil qoida: har qaytarish avval o'sha paytgacha topshirilgan (va hali qaytarilmagan)
+    miqdordan, qolgani — ortiqcha. Yuk xati vaqti `deliveries.delivered_at`, qaytarish vaqti
+    `returned_at` (teng bo'lsa — yuk xati oldin). Brak va detalsiz yozuv — NULL qoladi.
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine, SessionLocal as _SL60
+    from datetime import datetime as _dt60
+    from models import ReturnItem as _RI60, ReturnReason as _RR60, Delivery as _DV60, DeliveryItem as _DI60
+    try:
+        _i = _insp(engine)
+        if "return_items" not in set(_i.get_table_names()):
+            return
+        if "ortiqcha_miqdor" not in {c["name"] for c in _i.get_columns("return_items")}:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE return_items ADD COLUMN ortiqcha_miqdor FLOAT"))
+                conn.commit()
+                print("✓ return_items.ortiqcha_miqdor qo'shildi")
+    except Exception as e:
+        print(f"⚠ return_items.ortiqcha_miqdor ustuni tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    _d = _SL60()
+    try:
+        _bosh = (_d.query(_RI60.order_item_id)
+                 .filter(_RI60.ortiqcha_miqdor.is_(None), _RI60.order_item_id.isnot(None),
+                         _RI60.reason != _RR60.DEFECT)
+                 .distinct().all())
+        _n = 0
+        for (_iid,) in _bosh:
+            _yuklar = (_d.query(_DV60.delivered_at, _DI60.quantity)
+                       .join(_DV60, _DV60.id == _DI60.delivery_id)
+                       .filter(_DI60.order_item_id == _iid).all())
+            _qayt = (_d.query(_RI60)
+                     .filter(_RI60.order_item_id == _iid, _RI60.reason != _RR60.DEFECT)
+                     .order_by(_RI60.returned_at, _RI60.id).all())
+            _hodisa = [(_t, 0, float(_q or 0), None) for _t, _q in _yuklar]
+            _hodisa += [(_r.returned_at, 1, float(_r.quantity or 0), _r) for _r in _qayt]
+            _hodisa.sort(key=lambda h: (h[0] or _dt60.min, h[1], h[3].id if h[3] is not None else 0))
+            _topsh = 0.0          # shu paytgacha topshirilgan
+            _topshdan = 0.0       # topshirilgandan qaytarilgan (ortiqcha EMAS qism)
+            for _t, _tur, _q, _r in _hodisa:
+                if _tur == 0:
+                    _topsh += _q
+                    continue
+                if _r.ortiqcha_miqdor is not None:
+                    _topshdan += max(0.0, _q - float(_r.ortiqcha_miqdor))
+                    continue
+                _bor = max(0.0, _topsh - _topshdan)
+                _ol = min(_q, _bor)
+                _r.ortiqcha_miqdor = max(0.0, _q - _ol)
+                _topshdan += _ol
+                _n += 1
+        if _n:
+            _d.commit()
+            print(f"✓ Qaytarishlarning ortiqcha (topshirilmagan) qismi to'ldirildi: {_n} ta")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ Qaytarish ortiqcha qismi migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_ortiqcha_qaytarish()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
@@ -4879,10 +4950,14 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
     has_delivery = bool(order.deliveries)
     is_fully_delivered = order.status == OrderStatus.DELIVERED or order.is_fully_delivered
     can_return = order.status != OrderStatus.DRAFT and not is_fully_delivered
+    # kech60 (57-band, K59-3): qisman CHIQQAN — topshirilgan yoki ortiqcha sifatida omborga
+    # qo'yilgan qism bor. Shunda faqat QOLGAN qism xomashyosi qaytadi (omborga qo'yilgani
+    # tayyor mahsulotlar omborida qoladi — ikki marta hisoblanmaydi).
+    qisman = services.buyurtmadan_qisman_chiqqan(order)
 
     if can_return and not order.stock_returned:
-        if has_delivery:
-            # Qisman topshirilgan — faqat qolgan qismi qaytadi
+        if qisman:
+            # Qisman topshirilgan / omborga qo'yilgan — faqat qolgan qismi qaytadi
             log.extend(services.return_inventory_for_order_partial(db, order))
         else:
             # Hech narsa topshirilmagan — hammasi qaytadi
@@ -4910,7 +4985,7 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
             elif diff < -0.01:
                 log.extend(services.deduct_loy_ingredients(db, order, abs(diff)))
         elif planned_loy > 0:
-            if not has_delivery:
+            if not qisman:
                 log.extend(services.return_loy_ingredients(db, order, planned_loy))
             else:
                 # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
@@ -4947,11 +5022,16 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
     reason = None
     if order.status == OrderStatus.DRAFT:
         reason = "Qoralama — ombordan hech narsa yechilmagan edi"
+    elif is_fully_delivered and not has_delivery:
+        # kech60 (57-band): hech narsa topshirilmagan, hammasi ortiqcha sifatida omborga qo'yilgan
+        reason = "Mahsulotning hammasi omborga qaytarilgan (ortiqcha) — tayyor mahsulotlar omborida, xomashyo qaytmaydi"
     elif is_fully_delivered:
         reason = "Buyurtma TO'LIQ YETKAZILGAN — mahsulot mijozda, xomashyo qaytmaydi"
     elif has_delivery:
         pct = order.delivery_percent
         reason = f"Qisman topshirilgan ({pct:.0f}%) — faqat QOLGAN ({100-pct:.0f}%) qismi uchun xomashyo qaytdi"
+    elif qisman:
+        reason = "Omborga qaytarilgan (ortiqcha) qism tayyor mahsulotlar omborida qoldi — xomashyo faqat qolgan qism uchun qaytdi"
 
     # Kelajakda KPI/hisobotlar uchun saqlanishi kerakmi?
     # Har qanday haqiqiy ish izi bo'lsa (yetkazish, tayyor, to'langan) — yumshoq o'chiramiz.
@@ -4986,7 +5066,13 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
 
 @app.delete("/api/order-items/{item_id}")
 def api_delete_order_item(item_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_manager)):
-    if not crud.delete_order_item(db, item_id, company_id=auth.company_id_of(current_user)):
+    # kech60 (57-band): omborga ortiqcha qo'yilgan detal — aniq sabab bilan 400 (hech narsa o'zgarmaydi)
+    try:
+        _ok = crud.delete_order_item(db, item_id, company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    if not _ok:
         raise HTTPException(status_code=404, detail="Detal topilmadi")
     return {"status": "ok"}
 

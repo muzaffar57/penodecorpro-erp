@@ -829,8 +829,27 @@ class OrderItem(Base):
 
     @property
     def remaining_qty(self):
-        """Qolgan miqdor."""
-        return max(self.order_qty_normalized - self.delivered_qty, 0)
+        """Qolgan (hali topshirilishi kerak) miqdor.
+
+        kech60 (57-band, K59-3): omborga qo'yilgan ORTIQCHA qism (`ortiqcha_qty`) ham
+        buyurtmadan chiqqan — u yana topshirilmaydi va o'chirishda xomashyo sifatida
+        qaytmaydi. Yetkazish foizi (`Order.delivery_percent`) — faqat topshirilgan."""
+        return max(self.order_qty_normalized - self.delivered_qty - self.ortiqcha_qty, 0)
+
+    @property
+    def ortiqcha_qty(self):
+        """kech60 (57-band): shu detaldan omborga qo'yilgan ortiqcha (mijozga topshirilmagan)
+        miqdor — brakdan boshqa, hozir MAVJUD qaytarish yozuvlarining `ortiqcha_miqdor`
+        yig'indisi. Yozuv o'chirilsa (22-band — tayyor mahsulot AYNAN olinadi) qism
+        buyurtmaga qaytadi."""
+        order = self.order
+        if order is None or self.id is None:
+            return 0.0
+        jami = 0.0
+        for r in (order.returns or []):
+            if r.order_item_id == self.id and r.reason != ReturnReason.DEFECT:
+                jami += float(r.ortiqcha_miqdor or 0)
+        return jami
 
     def __repr__(self):
         return f"<OrderItem {self.name} x{self.quantity}>"
@@ -920,6 +939,20 @@ class ReturnItem(Base):
     # `payments.delivery_id` sinfi).
     order_item_id = Column(Integer, ForeignKey("order_items.id", ondelete="SET NULL"),
                            nullable=True, index=True)
+    # kech60 (57-band, K59-3) — qaytarilgan miqdorning mijozga HALI TOPSHIRILMAGAN
+    # qismi (ortiqcha mahsulot omborga qo'yilgan). FOYDALANUVCHI QARORI (kech60):
+    # "kerak bo'lmay qolgan ortiqcha mahsulotni omborga qo'yamiz" — bunday qaytarish
+    # hayotda BOR. Yozilgan paytda hisoblanadi (`crud._qaytarish_ortiqcha_qismi`:
+    # avval topshirilgandan, qolgani — ortiqcha). Bu qism buyurtmadan CHIQQAN
+    # hisoblanadi (`OrderItem.remaining_qty` dan ayiriladi): yana topshirilmaydi,
+    # buyurtma / detal o'chirilganda yoki kamaytirilganda uning xomashyosi IKKINCHI
+    # marta qaytmaydi. O'LCHANGAN (asl kod `55b6f69`, `work/probe60_k3.py`): 10 m
+    # profildan 5 m omborga qo'yilib buyurtma o'chirilsa penoplast 10 m uchun to'liq
+    # qaytardi VA 5 m tayyor mahsulot ham qolardi (25 000 so'm ikki marta); detalni
+    # o'chirish, 10 -> 3 m tahrir, qisman topshirilganni o'chirish — xuddi shunday.
+    # Brak va detalsiz yozuv — NULL (ishlatilmaydi). Eski yozuvlar migratsiyada
+    # (`main._migrate_ortiqcha_qaytarish`) yozilish tartibi bo'yicha to'ldiriladi.
+    ortiqcha_miqdor = Column(Float, nullable=True)
     # kech40 (5-bo'lim 22-band, K39-1) — qaytarish yozuvi O'CHIRILGANDA hammasi
     # AYNAN orqaga qaytishi uchun, yozuv paytida NIMA o'zgargani saqlanadi.
     # O'LCHANGAN (asl kod, SQLite va PostgreSQL): o'chirish faqat yozuvni

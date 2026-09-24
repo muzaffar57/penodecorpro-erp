@@ -3898,13 +3898,25 @@ def get_undelivered_items(order):
         ordered = item.order_qty_normalized
         if ordered <= 0:
             continue
-        delivered = item.delivered_qty
-        remaining = max(ordered - delivered, 0)
+        # kech60 (57-band): omborga qo'yilgan ortiqcha qism ham buyurtmadan chiqqan
+        # (`OrderItem.remaining_qty`) — uning xomashyosi IKKINCHI marta qaytmaydi.
+        remaining = item.remaining_qty
         if remaining <= 0.001:
-            continue  # To'liq topshirilgan — qaytariladigan narsa yo'q
+            continue  # To'liq topshirilgan / omborga qo'yilgan — qaytariladigan narsa yo'q
         fraction = remaining / ordered
         result.append((item, fraction, remaining, ordered))
     return result
+
+
+def buyurtmadan_qisman_chiqqan(order) -> bool:
+    """kech60 (57-band, K59-3): buyurtmadan biror qism allaqachon CHIQQANMI — mijozga
+    topshirilgan YOKI ortiqcha sifatida omborga qo'yilgan. Shunda o'chirish / tiklash
+    xomashyoni faqat QOLGAN qism uchun qaytaradi / qayta yechadi
+    (`return_inventory_for_order_partial`, loy — `loy_relevant_remaining_fraction`).
+    Ikkalasi ham yo'q bo'lsa — avvalgidek butun buyurtma (`return_inventory_for_order`)."""
+    if order.deliveries:
+        return True
+    return any(it.ortiqcha_qty > 0.001 for it in (order.items or []))
 
 
 def return_inventory_for_order_partial(db: Session, order, sign: float = 1.0) -> list:
@@ -3997,7 +4009,8 @@ def _remaining_fraction_for_items(items) -> float:
         if ordered <= 0:
             continue
         total_ordered += ordered
-        total_delivered += min(it.delivered_qty, ordered)
+        # kech60 (57-band): omborga qo'yilgan ortiqcha qism ham chiqqan hisoblanadi
+        total_delivered += min(it.delivered_qty + it.ortiqcha_qty, ordered)
     if total_ordered <= 0:
         return 1.0
     return max(0.0, 1 - total_delivered / total_ordered)
