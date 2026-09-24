@@ -496,10 +496,19 @@ def bolim_ochirish():
     O, (i1, i2) = yangi_buyurtma(["QY_E1", "QY_E2"])
     qaytar(O, i1, 2)
     r = req(C, "delete", f"/api/order-items/{i1}")
-    check("E1 qaytarishi bor detalni o'chirish → 200 (500 EMAS)", r.status_code == 200, (r.status_code, r.text[:200]))
+    # kech60 (57-band, K59-3; FOYDALANUVCHI QARORI "Ha" — ortiqcha mahsulot omborga qo'yiladi): topshirilmagan
+    # detaldan "Ortiqcha" qaytarilgan bo'lsa, detalni o'chirish xomashyoni IKKINCHI marta qaytarardi — endi ATAYLAB 400
+    # (kech39 da bu yerda 200 kutilgan edi; E1 ning maqsadi — FK 500 bo'lmasin — pastda brak bilan saqlanadi).
+    check("E1 ortiqcha qaytarilgan detalni o'chirish → 400 (500 EMAS; 57-band)",
+          r.status_code == 400 and "omborga qaytarilgan" in r.text, (r.status_code, r.text[:200]))
+    check("E1 rad etilganda qaytarish yozuvi detalga bog'liq qoldi", [x[2] for x in yozuvlar(O)] == [i1], yozuvlar(O))
+    rb = qaytar(O, i2, 1, sabab="Brak")
+    r = req(C, "delete", f"/api/order-items/{i2}")
+    check("E1b brak yozuvi bor detalni o'chirish → 200 (500 EMAS)", rb.status_code == 200 and r.status_code == 200,
+          (rb.status_code, rb.text[:120], r.status_code, r.text[:200]))
     if PG_URL:
-        check("E1 PG: qaytarish yozuvi qoldi, order_item_id NULL (SET NULL)",
-              [x[2] for x in yozuvlar(O)] == [None], yozuvlar(O))
+        check("E1b PG: brak yozuvi qoldi, order_item_id NULL (SET NULL)",
+              [x[2] for x in yozuvlar(O) if x[0] == "Brak"] == [None], yozuvlar(O))
     O2, (j1,) = yangi_buyurtma()
     qaytar(O2, j1, 3)
     r = req(C, "delete", f"/api/orders/{O2}")
