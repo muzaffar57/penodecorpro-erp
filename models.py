@@ -939,6 +939,12 @@ class ReturnItem(Base):
     #    kamaygani (`max(0, …)` tufayli summadan kam bo'lishi mumkin).
     refunded_at = Column(DateTime, nullable=True)
     refund_agreed_delta = Column(Numeric(12, 2), nullable=True)
+    # kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy, faqat brak yozuvida
+    # (`crud.BRAK_BOSQICHLARI` kodlari: kesish / qoplash / quritish /
+    # saqlash_tashish). NULL — tanlanmagan yoki shu yangilanishdan oldingi yozuv.
+    # STANDARTSIZ (kech52 saboqi: `database.sync_missing_columns` ORM `default=`
+    # ni ESKI qatorlarga ham yozadi — eski brak "tanlangan" bo'lib qolardi).
+    brak_bosqich = Column(String(20), nullable=True)
 
     order = relationship("Order", back_populates="returns")
 
@@ -1739,6 +1745,10 @@ class FinishedProductLoss(Base):
     reason = Column(Text, nullable=True)
     lost_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(String(100), nullable=True)
+    # kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy ("Kamaytirish" va
+    # ishlab chiqarish braki oynasi). `ReturnItem.brak_bosqich` bilan bir xil
+    # kodlar; NULL — tanlanmagan / eski yozuv. STANDARTSIZ (sabab — yuqorida).
+    brak_bosqich = Column(String(20), nullable=True)
 
     finished_product = relationship("FinishedProduct")
 

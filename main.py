@@ -5360,6 +5360,7 @@ async def returns_page(request: Request, show_all: bool = False, db: Session = D
     projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
     return templates.TemplateResponse(request, "returns.html", {
         "returns": returns, "orders": orders, "projects": projects,
+        "brak_bosqichlari": crud.BRAK_BOSQICHLARI,   # kech53 (13-band, 1-qadam)
         "current_user": current_user, "show_all": show_all
     })
 
@@ -5706,6 +5707,7 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
         "items": items, "penoplasts": penoplasts,
         "default_penoplast_id": default_p.id if default_p else None,
         "recipes": recipes, "stats": stats, "masters": masters,
+        "brak_bosqichlari": crud.BRAK_BOSQICHLARI,   # kech53 (13-band, 1-qadam)
         "current_user": current_user, "active_page": "finished"
     })
 
@@ -6633,6 +6635,7 @@ def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(g
     result = crud.record_finished_product_production_brak(
         db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
         company_id=auth.company_id_of(current_user),
+        brak_bosqich=data.brak_bosqich,   # kech53 (13-band, 1-qadam)
     )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)

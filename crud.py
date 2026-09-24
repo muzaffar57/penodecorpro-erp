@@ -2830,6 +2830,19 @@ _TOLOV_USULI_MIJOZ = {"naqd": "naqd", "plastik": "plastik", "o'tkazma": "o'tkazm
 _QAYTARISH_SABABI = {"Brak": "Brak", "Ortiqcha": "Ortiqcha",
                      "Notog'ri o'lcham": "Notog'ri o'lcham",
                      "Mijoz iltimosi": "Mijoz iltimosi"}
+# kech53 (13-band, 1-qadam) — brak BOSQICHLARI (foydalanuvchi ro'yxati, kech45:
+# "Kesish, Qoplash (loy tortish), Quritish, Saqlash / tashish"). Kod → yorliq.
+# YAGONA manba: `returns.html` / `finished.html` tanlovi va ro'yxatdagi yorliq
+# shu lug'atdan chiziladi (marshrut kontekstida `brak_bosqichlari`); sxemalardagi
+# `Literal` ro'yxati bilan mosligi testda tekshiriladi. Bosqich IXTIYORIY —
+# tanlanmasa NULL, brak yozish oqimi (miqdor, qiymat, xomashyo) O'ZGARMAYDI.
+BRAK_BOSQICHLARI = {
+    "kesish": "Kesish (penoplast kesish)",
+    "qoplash": "Qoplash (loy tortish)",
+    "quritish": "Quritish",
+    "saqlash_tashish": "Saqlash / tashish",
+}
+_BRAK_BOSQICHI = {k: k for k in BRAK_BOSQICHLARI}
 # 17g — yetkazish transporti kim hisobidan (`models.Delivery.company_transport_cost`
 # / `client_transport_cost` AYNAN shu to'rttasini taniydi; `orders.html`
 # `dlv-transport-payer` tanlovi ham shular). O'LCHANGAN: noma'lum qiymat
@@ -2897,11 +2910,15 @@ def _val_rules():
             "finished_product_id": ("id", False),
             "quantity": ("son", False, True, son),
             "reason": ("matn", False, matn),
+            # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
+            "brak_bosqich": ("tanlov", True, _BRAK_BOSQICHI),
         },
         "ProductionBrak": {
             "finished_product_id": ("id", False),
             "brak_qty": ("son", False, True, son),
             "notes": ("matn", False, matn),
+            # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
+            "brak_bosqich": ("tanlov", True, _BRAK_BOSQICHI),
         },
         "Sale": dict(sotuv, **{
             "buyer_name": ("matn", False, 150),
@@ -3069,6 +3086,8 @@ def _val_rules():
             "notes": ("matn", False, matn),
             "coating_applied": ("bool", False),
             "gips_kg_used": ("son", True, False, son),
+            # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (faqat "Brak")
+            "brak_bosqich": ("tanlov", True, _BRAK_BOSQICHI),
         },
         # 17g — yetkazish (`POST /api/deliveries`). `orders.html` ("Yetkazish"
         # oynasi va "Bir yo'la to'liq topshirish") AYNAN shu kalitlarni
@@ -4461,6 +4480,12 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     # Ilgari noma'lum sabab JIMGINA "Brak" ga aylanardi (O'LCHANGAN): ombordan
     # xomashyo yechilar, mahsulot esa omborga qaytmasdi.
     reason_enum = ReturnReason(data.reason)
+    # kech53 (13-band, 1-qadam): bosqich FAQAT brak uchun — boshqa sababga
+    # berilsa jim tashlanmaydi, hech narsa yozilishidan OLDIN rad etiladi
+    # (texnik qaror: noto'g'ri tana — xato, ma'lumot emas).
+    _bosqich = getattr(data, 'brak_bosqich', None)
+    if _bosqich is not None and reason_enum != ReturnReason.DEFECT:
+        raise ValueError("Brak bosqichi faqat \"Brak\" sababi uchun tanlanadi")
 
     order_item = None
     oi_id = getattr(data, 'order_item_id', None)
@@ -4611,7 +4636,9 @@ def create_return_item(db: Session, data: ReturnItemCreate,
         refund_amount=refund_amount,
         is_refunded=False,
         notes=data.notes,
-        coating_applied=(getattr(data, 'coating_applied', False) if reason_enum == ReturnReason.DEFECT else False)
+        coating_applied=(getattr(data, 'coating_applied', False) if reason_enum == ReturnReason.DEFECT else False),
+        # kech53 (13-band, 1-qadam): ixtiyoriy bosqich (yuqorida faqat brakka ruxsat)
+        brak_bosqich=(_bosqich if reason_enum == ReturnReason.DEFECT else None)
     )
     db.add(item)
     db.flush()
@@ -7304,7 +7331,9 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
         unit=fp.unit,
         cost_amount=cost_amount,
         reason=data.reason,
-        created_by=created_by
+        created_by=created_by,
+        # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
+        brak_bosqich=getattr(data, 'brak_bosqich', None)
     )
     db.add(loss)
     db.commit()
@@ -7485,7 +7514,7 @@ def _ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, penoplast_vol_ne
 
 def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
                                               notes: str = None, created_by: str = None,
-                                              company_id: int = None) -> dict:
+                                              company_id: int = None, brak_bosqich: str = None) -> dict:
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak (masalan
     kesish yoki qoplama tortish paytida sinib ketishi) — bu, mahsulotdan
     KEYINCHALIK (allaqachon tayyor turgan holda) yo'qotilishidan FARQ
@@ -7507,7 +7536,8 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     # 17-band: qiymatlar QAT'IY — hech narsa yozilmasdan OLDIN.
     try:
         _clean_val("ProductionBrak", {"finished_product_id": finished_product_id,
-                                      "brak_qty": brak_qty, "notes": notes})
+                                      "brak_qty": brak_qty, "notes": notes,
+                                      "brak_bosqich": brak_bosqich})
     except ValueError as _e:
         return {"success": False, "message": str(_e)}
     fp = get_finished_product(db, finished_product_id, company_id, lock=True)
@@ -7573,7 +7603,9 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
         cost_amount=total_cost,
         reason=f"{_ISH_BRAK_BELGI} — qo'shimcha xomashyo sarflandi (mahsulot soniga tegmaydi)"
                + (f". Izoh: {notes}" if notes else ""),
-        created_by=created_by
+        created_by=created_by,
+        # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (`_clean_val` tekshirgan)
+        brak_bosqich=brak_bosqich
     )
     db.add(loss)
     db.commit()

@@ -459,6 +459,8 @@ class FinishedProductLossCreate(BaseModel):
     finished_product_id: int
     quantity: float = Field(..., gt=0)
     reason: Optional[str] = None
+    # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (`crud.BRAK_BOSQICHLARI`).
+    brak_bosqich: Optional[Literal["kesish", "qoplash", "quritish", "saqlash_tashish"]] = None
 
 
 class GipsProduceAdditive(BaseModel):
@@ -486,6 +488,8 @@ class FinishedProductProductionBrakCreate(BaseModel):
     gips_kg_brak: Optional[float] = Field(default=None, gt=0, description="Faqat Gips uchun — to'g'ridan-to'g'ri kiritilgan, isrof bo'lgan kg")
     additives_brak: Optional[List[GipsProduceAdditive]] = Field(default=None, description="Faqat Gips uchun, ixtiyoriy — qo'shimcha materiallardan isrof bo'lgan bo'lsa")
     notes: Optional[str] = None
+    # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (`crud.BRAK_BOSQICHLARI`).
+    brak_bosqich: Optional[Literal["kesish", "qoplash", "quritish", "saqlash_tashish"]] = None
 
 
 class FinishedProductSaleCreate(BaseModel):
@@ -855,6 +859,9 @@ class ReturnItemCreate(BaseModel):
     gips_kg_used: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000.0,
                                           allow_inf_nan=False, strict=True,
                                           description="GIPS brak uchun — taxminan qancha gips ketgani")
+    # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi — FAQAT sabab "Brak"
+    # bo'lganda (`crud.create_return_item` boshqa sababda 400 beradi).
+    brak_bosqich: Optional[Literal["kesish", "qoplash", "quritish", "saqlash_tashish"]] = None
 
 
 class ReturnItemRead(BaseModel):
