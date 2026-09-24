@@ -4462,6 +4462,27 @@ async function confirmDuplicatePick() {
 // kelishilgan summa/chegirma va loy REJA miqdorlari olib kelinmaydi —
 // bular yangi (odatda kichikroq) miqdor uchun boshqacha bo'ladi, xodim
 // ularni yangidan, to'g'ri kiritishi kerak.
+// 75-band (kech67): "Tayyor mahsulotdan" olingan detalning SAQLANGAN 1 birlik narxi.
+// Tahrirda narx SHUNDAN tiklanadi — tayyor mahsulotning JORIY narxidan emas (u keyin
+// o'zgargan bo'lishi yoki mahsulot ro'yxatdan yashirin bo'lishi mumkin; oldin detal
+// narxi shunda jimgina joriy narxga yoki 0 ga o'zgarib ketardi).
+// collectItems shakliga teskari: profil — unit_price = qator narxi / miqdor, qator
+// narxi = 1 metr narxi x uzunlik, demak 1 metr = unit_price x miqdor / uzunlik;
+// panel / blok / dona — unit_price 1 birlik (metr / dona) narxining o'zi.
+// Aniqlab bo'lmasa (narx yo'q, profil uzunligi 0) — null.
+function tmSaqlanganBirlikNarxi(item, cat) {
+  if (!item || item.unit_price === null || item.unit_price === undefined || item.unit_price === '') return null;
+  const up = parseFloat(item.unit_price);
+  if (!isFinite(up) || up < 0) return null;
+  if (cat === 'profil') {
+    const uzunlik = parseFloat(item.length) || 0;
+    if (uzunlik <= 0) return null;
+    const miqdor = parseFloat(item.quantity) || 1;
+    return up * miqdor / uzunlik;
+  }
+  return up;
+}
+
 async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx = null) {
   if (!selectedOrderId) return;
   const editId = selectedOrderId; // showNewForm null qilishidan oldin saqlab qo'yamiz
@@ -4741,6 +4762,10 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           // xatosini NOTO'G'RI bergan bo'lardi. Aniq qiymat fetch tugagach
           // o'rnatiladi, va yakuniy, ishonchli tekshiruvni SERVER qiladi.
           row.dataset.fpMax = 1e9;
+          // 75-band: narx — detalning SAQLANGAN narxidan, fetch dan OLDIN (mahsulot
+          // ro'yxatda bo'lmasa ham narx bor; fetch tugashidan oldingi hisob ham to'g'ri).
+          const _tmSaqlangan = tmSaqlanganBirlikNarxi(item, cat);
+          if (_tmSaqlangan !== null) row.dataset.fpPrice = String(_tmSaqlangan);
           // Qoldiqni olamiz
           fetch(`/api/finished`).then(r=>r.json()).then(list => {
             const fp = list.find(f => f.id === item.finished_product_id);
@@ -4756,10 +4781,12 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
               // mumkin edi.
               const used = (item.category === 'profil') ? (item.length||0) : (item.quantity||0);
               row.dataset.fpMax = isDup ? fp.quantity : (fp.quantity + used);
-              // MUHIM: fpPrice'ni ham tiklaymiz — aks holda tahrirlashda,
-              // narx buyurtmaning 1m³ narxidan QAYTA hisoblanib, tayyor
-              // mahsulotning O'Z narxi (masalan 18 000) buzilib ketardi.
-              row.dataset.fpPrice = fp.unit_price;
+              // 75-band: 'edit' rejimida narx SAQLANGAN narxda qoladi (yuqorida
+              // o'rnatildi) — bu fetch faqat qoldiq (fpMax) uchun. 'duplicate'
+              // (nusxa — YANGI sotuv) rejimida esa tayyor mahsulotning JORIY narxi,
+              // xuddi yangi tanlovdagidek (pickFinished). Saqlangan narxni aniqlab
+              // bo'lmasa — joriy narx (narx bo'sh qolmasin).
+              if (isDup || _tmSaqlangan === null) row.dataset.fpPrice = fp.unit_price;
               const tg = document.getElementById('fptag-' + row.id);
               if (tg) tg.firstChild.textContent = `🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor `;
               // fpMax va fpPrice o'rnatildi — narx/tekshiruvni qayta hisoblaymiz
