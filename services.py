@@ -4034,12 +4034,19 @@ def loy_relevant_remaining_fraction(order) -> float:
     Endi FAQAT haqiqatda LOY sarflaydigan detallar (qoplamali
     EMAS — uning loyi alohida tizim orqali hisoblanadi — va "Tayyor
     mahsulotdan" EMAS — uning xomashyosi ishlab chiqarishda allaqachon
-    sarflangan) bo'yicha QOLGAN ulush hisoblanadi."""
+    sarflangan) bo'yicha QOLGAN ulush hisoblanadi.
+
+    kech62 (44-band, O'LCHANGAN — asl `25bcd8d`, SQLite va PG 16 AYNAN, `work/probe62.py`):
+    bu ro'yxat MRP detalini (`mrp_product`) ham buyurtma loyini sarflovchi deb sanardi, holbuki
+    MRP detali qoplamasi o'z BOM ining qoplama qatoridan yechiladi (11.0-band, ishlab chiqarishda
+    avtomatik) — 41-band `_buyurtma_loyi_detalimi` ham uni chiqaradi. Natija: qoplamali profil 10 m
+    (topshirilmagan) + qoplamali MRP 10 (to'liq topshirilgan), loy 30 kg — o'chirishda 15 kg qaytardi
+    (to'g'risi 30), tiklashda 15 kg yechdi; aksi (profil topshirilgan, MRP yo'q) — 15 kg qaytardi
+    (to'g'risi 0). Endi predikat YAGONA: qoplamali VA `_buyurtma_loyi_detalimi`."""
     items = [
         it for it in (order.items or [])
         if it.is_coated
-        and (it.category or '').lower() != 'loy_sotish'
-        and not getattr(it, 'finished_product_id', None)
+        and _buyurtma_loyi_detalimi(it)
     ]
     if not items:
         return 1.0
