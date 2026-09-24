@@ -6749,6 +6749,8 @@ def api_get_finished(source: Optional[str] = None, only_available: bool = False,
         "thickness": fp.thickness,
         "is_coated": fp.is_coated,
         "quantity": float(fp.quantity or 0),
+        # kech61 (K61-3): "+" oldindan ko'rishi eski yozuvda jami hajmni JAMI ishlab chiqarilganga bo'ladi.
+        "produced_quantity": float(fp.produced_quantity) if fp.produced_quantity is not None else None,
         "unit": fp.unit,
         "unit_price": float(fp.unit_price or 0),
         "cost_price": float(fp.cost_price or 0),

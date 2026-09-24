@@ -8926,6 +8926,16 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
     if fp.source != StockSource.PRODUCED:
         return {"success": False, "message": "Faqat ishlab chiqarilgan mahsulotga qo'shiladi"}
 
+    # kech61 (K61-1) — O'LCHANGAN (`work/probe61.py`, asl `5e736a8`, SQLite + PG): MRP (Ishlab
+    # chiqarish moduli) mahsulotida `unit_volume_m3` / `unit_loy_kg` / `volume_m3` bo'sh — "+" 1 birlik
+    # xomashyoni 0 deb olib, 10 m² ni HECH NARSA yechmasdan qo'shdi (tannarx 30 000 da qoldi, 1 birlik
+    # 3 000 -> 1 500). MRP mahsuloti retsept (BOM) bo'yicha FAQAT ishlab chiqarish buyurtmasi orqali
+    # ko'paytiriladi — u yerda xomashyo yechiladi va tannarx muzlaydi.
+    if fp.category == "dynamic_bom" or getattr(fp, "product_type_id", None) is not None:
+        return {"success": False,
+                "message": "Bu mahsulot «Ishlab chiqarish» bo'limida retsept bo'yicha tayyorlanadi — "
+                           "qo'shimcha partiyani o'sha yerda yarating (xomashyo retsept bo'yicha yechiladi)"}
+
     base_qty = float(fp.quantity or 0)
     # kech59 (47-band): qo'shishdan OLDINGI 1 birlik tannarxi (og'irlikli o'rtacha uchun)
     _eski_birlik59 = _fp_stable_unit_cost(db, fp)
@@ -8950,8 +8960,13 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
         unit_volume = float(fp.unit_volume_m3 or 0)
         unit_loy = float(fp.unit_loy_kg or 0)
     elif base_qty > 0:
-        unit_volume = float(fp.volume_m3 or 0) / base_qty
-        unit_loy = float(fp.actual_loy_kg or 0) / base_qty
+        # kech61 (K61-3) — O'LCHANGAN: `volume_m3` / `actual_loy_kg` sotuvda KAMAYMAYDI (jami), shuning
+        # uchun ular JAMI ishlab chiqarilgan miqdorga bo'linadi. Qoldiqqa bo'linsa 100 m dan 80 m sotilgach
+        # "+10" 0.1 blok o'rniga 0.5 blok yechardi (5 barobar). `produced_quantity` bo'sh bo'lsa — qoldiq.
+        _jami_q61 = float(fp.produced_quantity or 0)
+        _bol61 = _jami_q61 if _jami_q61 > 0 else base_qty
+        unit_volume = float(fp.volume_m3 or 0) / _bol61
+        unit_loy = float(fp.actual_loy_kg or 0) / _bol61
     else:
         return {
             "success": False,
@@ -8961,6 +8976,13 @@ def add_to_production(db: Session, fp_id: int, add_qty: float, performed_by: str
 
     add_volume = unit_volume * add_qty
     add_loy = unit_loy * add_qty
+
+    # kech61 (K61-1): hech qanday xomashyo yechilmasa "+" bepul mahsulot yaratadi (tannarx o'zgarmaydi,
+    # 1 birlik tannarxi pasayadi) — rad etiladi.
+    if add_volume <= 0 and add_loy <= 0:
+        return {"success": False,
+                "message": "Bu mahsulotning 1 birligiga qancha xomashyo ketishi noma'lum — "
+                           "\"+\" xomashyosiz miqdor qo'sha olmaydi. Yangi ishlab chiqarish yarating."}
 
     # Xomashyo yetadimi
     shortages = []
@@ -9147,11 +9169,21 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
     revenue = qty * unit_price
     total_cost = float(fp.cost_price or 0)
 
+    # kech61 (46-band) — O'LCHANGAN (`work/probe61.py`): `volume_m3` / `actual_loy_kg` JAMI ishlab
+    # chiqarilgan (qaytgan) miqdorniki — sotuv / buyurtmaga olish / kamaytirishda kamaymaydi, `cost_price`
+    # esa kamayadi. 100 m dan 60 m sotilgach oyna "Penoplast 500 000 + Loy 260 000" va "Tan narxi 304 000"
+    # ko'rsatardi. Xarajat qatorlari endi QOLDIQ ulushi bilan (qoldiq / jami ishlab chiqarilgan).
+    _jami_q46 = float(fp.produced_quantity or 0)
+    _ulush46 = min(1.0, qty / _jami_q46) if _jami_q46 > 0 else 1.0
+    jami_volume = float(fp.volume_m3 or 0)
+    jami_loy = float(fp.actual_loy_kg or 0)
+    qoldiq_volume = jami_volume * _ulush46
+
     # Loy narxi
     loy_cost = 0.0
     loy_per_kg = 0.0
     recipe_name = None
-    loy_kg = float(fp.actual_loy_kg or 0)
+    loy_kg = jami_loy * _ulush46
     if loy_kg > 0:
         # 2026-09-21 — TENANT: korxona aniq beriladi. Oldin berilmagani
         # uchun, `fp.recipe_id` bo'sh mahsulotning foyda hisobotida
@@ -9172,11 +9204,11 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
     # xomashyo narxlari vaqt o'tishi bilan ko'tarilgan bo'lsa), manfiy
     # chiqib, "Penoplast: 0 so'm" deb noto'g'ri ko'rsatilardi.
     peno_cost = 0.0
-    if fp.penoplast_id and float(fp.volume_m3 or 0) > 0:
+    if fp.penoplast_id and qoldiq_volume > 0:
         peno_inv = _pf_inv(db.query(Inventory).filter(Inventory.id == fp.penoplast_id)).first()
         if peno_inv and peno_inv.volume_per_unit and peno_inv.price_per_unit:
             price_per_m3 = float(peno_inv.price_per_unit) / float(peno_inv.volume_per_unit)
-            peno_cost = float(fp.volume_m3) * price_per_m3
+            peno_cost = qoldiq_volume * price_per_m3
 
     profit = revenue - total_cost
     margin = (profit / revenue * 100) if revenue > 0 else 0
@@ -9199,7 +9231,10 @@ def get_finished_profit(db: Session, fp_id: int, company_id: int = None) -> dict
         "margin": round(margin, 1),
         "cost_per_unit": round(total_cost / qty) if qty > 0 else 0,
         "profit_per_unit": round(profit / qty) if qty > 0 else 0,
-        "volume_m3": float(fp.volume_m3 or 0),
+        # kech61 (46-band): qoldiq uchun (xarajat qatorlari bilan bir xil); jami — tarix uchun.
+        "volume_m3": round(qoldiq_volume, 6),
+        "jami_volume_m3": jami_volume,
+        "jami_loy_kg": jami_loy,
         "source": fp.source.value,
         "production_status": fp.production_status.value if fp.production_status else None,
     }
