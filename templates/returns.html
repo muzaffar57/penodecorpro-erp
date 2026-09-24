@@ -173,7 +173,7 @@
         <div style="font-size:13px;font-weight:600">{{ r.quantity }} {{ r.unit }}</div>
       </div>
       <div class="ret-status" style="min-width:100px;text-align:center">
-        {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
+        {% if is_defect %}<span class="badge badge-danger">🔴 Brak</span>{% if r.brak_bosqich %}<div class="brak-bosqich" style="font-size:11px;color:#991B1B;margin-top:4px">{{ (brak_bosqichlari or {}).get(r.brak_bosqich, r.brak_bosqich) }}</div>{% endif %}{% else %}<span class="badge badge-ready">🟢 Butun</span>{% endif %}
       </div>
       <div class="ret-dest" style="min-width:130px;text-align:center">
         {% if is_defect %}<span class="dest-badge dest-scrap"><i class="ti ti-trash" style="font-size:12px"></i> Chiqindiga ketdi</span>
@@ -334,6 +334,16 @@
             </label>
           </div>
         </div>
+      </div>
+
+      <!-- kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy, butun ro'yxat uchun
+           bitta ("loy tortilganmi" savoli kabi). Tanlanmasa tana O'ZGARMAYDI. -->
+      <div class="form-group" style="margin-top:12px">
+        <label>Qaysi bosqichda brak bo'ldi? <span style="color:#aaa;font-weight:400">(ixtiyoriy)</span></label>
+        <select id="brak-stage">
+          <option value="">— Tanlanmagan —</option>
+          {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
       </div>
 
       <div class="form-group" style="margin-top:12px">
@@ -826,6 +836,8 @@ function showBrakModal(){
   document.getElementById('brakModal').style.display='flex';
   document.getElementById('brak-project').value = '';
   document.getElementById('brak-notes').value = '';
+  const _bosqichSel = document.getElementById('brak-stage');   // kech53
+  if (_bosqichSel) _bosqichSel.value = '';
   document.getElementById('brak-error').style.display = 'none';
   document.getElementById('brakList').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px">Avval loyiha tanlang</div>';
   brakItems = [];
@@ -887,6 +899,10 @@ async function onBrakProjectChange(){
 async function saveBrakBatch(){
   const err = document.getElementById('brak-error');
   const notes = document.getElementById('brak-notes').value.trim() || null;
+  // kech53 (13-band, 1-qadam): ixtiyoriy bosqich — tanlansagina tanaga qo'shiladi
+  // (tanlanmasa tana AYNAN avvalgidek).
+  const _bosqichEl = document.getElementById('brak-stage');
+  const bosqich = (_bosqichEl && _bosqichEl.value) || '';
 
   const inputs = document.querySelectorAll('.brak-qty-inp');
   const toSave = [];
@@ -942,7 +958,8 @@ async function saveBrakBatch(){
           refund_amount: 0,
           to_stock: false,
           notes,
-          coating_applied: document.querySelector('input[name="brak-coating-applied"]:checked')?.value === 'yes'
+          coating_applied: document.querySelector('input[name="brak-coating-applied"]:checked')?.value === 'yes',
+          ...(bosqich ? { brak_bosqich: bosqich } : {})
         })
       });
       if (res.ok) {

@@ -192,6 +192,14 @@ input[type=number]{-moz-appearance:textfield}
         <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Sabab (ixtiyoriy)</label>
         <input type="text" id="loss-reason" placeholder="Masalan: tashishda sindi" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
       </div>
+      <!-- kech53 (13-band, 1-qadam): brak BOSQICHI — ixtiyoriy (ikkala rejimda). -->
+      <div>
+        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">Qaysi bosqichda? (ixtiyoriy)</label>
+        <select id="loss-stage" style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box;background:#fff">
+          <option value="">— Tanlanmagan —</option>
+          {% for k, v in (brak_bosqichlari or {}).items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </div>
     </div>
     <div style="padding:16px 22px 20px;display:flex;gap:10px;border-top:1px solid #f0f0f0">
       <button onclick="closeLossModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
@@ -1043,6 +1051,14 @@ let _lossData = null;
 const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok'];
 let _lossMode = 'stock';
 
+// kech53 (13-band, 1-qadam): "Kamaytirish" oynasidagi ixtiyoriy brak bosqichi —
+// tanlansagina tanaga qo'shiladi (tanlanmasa tana AYNAN avvalgidek).
+function lossBosqichTana() {
+  const el = document.getElementById('loss-stage');
+  const v = (el && el.value) || '';
+  return v ? { brak_bosqich: v } : {};
+}
+
 function openLossModal(id, name, quantity, unit, category) {
   _lossData = { id, name, quantity, unit, category: (category || '').toLowerCase() };
   document.getElementById('loss-modal-sub').textContent = name;
@@ -1050,6 +1066,8 @@ function openLossModal(id, name, quantity, unit, category) {
   document.getElementById('loss-qty').value = '';
   document.getElementById('loss-qty').max = quantity;
   document.getElementById('loss-reason').value = '';
+  const _lossStage = document.getElementById('loss-stage');   // kech53
+  if (_lossStage) _lossStage.value = '';
 
   const canProdBrak = PROD_BRAK_CATEGORIES.includes(_lossData.category);
   document.getElementById('loss-mode-toggle').style.display = canProdBrak ? 'flex' : 'none';
@@ -1089,7 +1107,8 @@ async function submitLoss() {
         body: JSON.stringify({
           finished_product_id: _lossData.id,
           quantity: qty,
-          reason: document.getElementById('loss-reason').value.trim() || null
+          reason: document.getElementById('loss-reason').value.trim() || null,
+          ...lossBosqichTana()   // kech53 (13-band, 1-qadam)
         })
       });
       const r = await res.json();
@@ -1113,7 +1132,8 @@ async function submitLoss() {
         body: JSON.stringify({
           finished_product_id: _lossData.id,
           brak_qty: qty,
-          notes: document.getElementById('loss-reason').value.trim() || null
+          notes: document.getElementById('loss-reason').value.trim() || null,
+          ...lossBosqichTana()   // kech53 (13-band, 1-qadam)
         })
       });
       const r = await res.json();
