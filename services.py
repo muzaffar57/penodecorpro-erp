@@ -1741,22 +1741,23 @@ def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
       * kirim ("in" — tahrirda kamaytirish, loy xomashyosining qaytishi) —
         o'sha paytdagi o'rtacha narxda ayiriladi (qolgan qism narxi o'zgarmaydi);
         chiqimdan oldingi kirim (jurnal yozilmagan eski chiqim) — e'tiborsiz.
-    BRAK harakatlari (`return_item_id` bor YOKI sabab "Brak%" — brak xarajati
-    `crud.get_brak_material_summary` da AYNAN shu shart bilan alohida
+    BRAK harakatlari (kech52: `crud.brak_harakati_sharti` — `is_brak` belgisi,
+    belgisiz eski harakat — `return_item_id` bor YOKI sabab "Brak%"; brak
+    xarajati `crud.get_brak_material_summary` da AYNAN shu shart bilan alohida
     hisoblanadi) kirmaydi — aks holda brak narxi buyurtma narxiga aralashardi.
     Harakati yo'q material (jurnal yozilmagan eski buyurtma, to'liq tayyor loy
     zaxirasidan olingan qoplama) lug'atda YO'Q — chaqiruvchi JORIY narxni
     oladi (avvalgi xulq, eski narx noma'lum — taxmin qilinmaydi).
     """
     from models import InventoryMovement as _IMv
-    from sqlalchemy import or_ as _or_sn, not_ as _not_sn
+    from sqlalchemy import not_ as _not_sn
+    import crud as _crud_sn
     _oid_sn = getattr(order, "id", None)
     if _oid_sn is None:
         return {}
     _hq = db.query(_IMv).filter(
         _IMv.order_id == _oid_sn,
-        _IMv.return_item_id.is_(None),
-        _or_sn(_IMv.reason.is_(None), _not_sn(_IMv.reason.like("Brak%"))),
+        _not_sn(_crud_sn.brak_harakati_sharti(_IMv)),
     )
     _cid_sn = getattr(order, "company_id", None)
     if _cid_sn is not None:
@@ -4051,7 +4052,9 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
                     # kech45 (13-band): brak yozuviga bog'lam (o'chirishda qaytadi)
                     return_item_id=db.info.get("_brak_qaytarish_id"),
                     # kech46 (13-band, 2-qadam): chiqim paytidagi narx muzlatiladi
-                    unit_cost=float(p.price_per_unit or 0)
+                    unit_cost=float(p.price_per_unit or 0),
+                    # kech52 (13-band, 3-qadam): brak belgisi — hisobot matnga qaramaydi
+                    is_brak=True
                 ))
                 log.append(f"{p.item_name}: -{blocks:.3f} blok (brak uchun)")
 

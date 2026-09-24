@@ -505,8 +505,16 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
                   quantity: float, unit: Optional[str] = None, reason: Optional[str] = None,
                   order_id: Optional[int] = None, supplier_id: Optional[int] = None,
                   performed_by: Optional[str] = None, notes: Optional[str] = None,
-                  company_id: Optional[int] = None):
+                  company_id: Optional[int] = None, is_brak: Optional[bool] = None):
     """Ombor harakati jurnaliga bitta yozuv qo'shadi.
+
+    kech52 (13-band, 3-qadam): `is_brak` — brak harakati belgisi (hisobot shu
+    belgiga qaraydi, sabab matniga emas). Berilmasa: CHIQIM brak oynasi ichida
+    bo'lsa True — `create_return_item` brak yozuvi raqamini
+    (`db.info["_brak_qaytarish_id"]`) yoki ishlab chiqarish braki
+    `db.info["_brak_harakat"]` belgisini sessiyaga qo'yadi (chuqur `services`
+    chaqiruvlari — tayyor loy, loy ingredientlari — ham shu yo'l bilan
+    belgilanadi); aks holda False. Hech qachon NULL yozilmaydi.
 
     MUHIM: bu funksiya faqat LOG yozadi — hech qanday hisob-kitobga yoki
     stock_quantity qiymatiga ta'sir qilmaydi. Xato yuz bersa ham asosiy
@@ -527,6 +535,11 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
         # yozilgan HAR harakat (penoplast, tayyor loy, loy ingredientlari —
         # `services` ichidagi chuqur chaqiruvlar ham) unga bog'lanadi.
         _brak_rid = db.info.get("_brak_qaytarish_id") if movement_type == "out" else None
+        if is_brak is None:
+            _brak = movement_type == "out" and (_brak_rid is not None
+                                                or bool(db.info.get("_brak_harakat")))
+        else:
+            _brak = bool(is_brak)
         # kech46 (13-band, 2-qadam): chiqim paytidagi 1 birlik narxi muzlatiladi.
         # `db.get` — sessiyadagi (hali yozilmagan) o'zgarishni ham ko'radi.
         # Narx belgilanmagan material — 0 (hisobot ham 0 deb hisoblardi).
@@ -548,7 +561,8 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
             order_id=order_id, supplier_id=supplier_id,
             performed_by=performed_by, notes=notes,
             return_item_id=_brak_rid,
-            unit_cost=_narx
+            unit_cost=_narx,
+            is_brak=_brak
         ))
     except Exception as e:
         try:
@@ -609,6 +623,11 @@ def _clean_stock_change(data) -> dict:
     return {"quantity_change": qc, "reason": reason}
 
 
+# kech52 (13-band, 3-qadam, 38-band qarori "C"): Omborxonadagi qo'lda "Chiqim" izohi shu
+# so'z bilan boshlansa — o'sha chiqim brak xarajati hisoblanadi (`update_stock`).
+QOLDA_BRAK_BOSHI = "Brak"
+
+
 def update_stock(db: Session, item_id: int, quantity_change: float, performed_by: Optional[str] = None,
                  notes: Optional[str] = None, company_id: int = None) -> Optional[Inventory]:
     """Mahsulot qoldig'ini yangilaydi (musbat = qo'shish, manfiy = ayirish).
@@ -649,7 +668,14 @@ def update_stock(db: Session, item_id: int, quantity_change: float, performed_by
         db, db_item.id, db_item.item_name,
         movement_type="in" if qc > 0 else "out",
         quantity=qc, unit=db_item.unit,
-        reason=notes or "Qo'lda tuzatish (inventarizatsiya)", performed_by=performed_by
+        reason=notes or "Qo'lda tuzatish (inventarizatsiya)", performed_by=performed_by,
+        # kech52 (13-band, 3-qadam) — FOYDALANUVCHI QARORI (38-band, tugma bilan): "C — izoh
+        # 'Brak' bilan boshlansa, brak hisoblansin (hozirgidek)". Qo'lda CHIQIM izohi
+        # QOLDA_BRAK_BOSHI bilan boshlansa — brak xarajati (Moliya, sof foyda). Katta-kichik
+        # harfga SEZGIR — Railway (PostgreSQL) dagi avvalgi `LIKE 'Brak%'` xulqi bilan AYNAN
+        # (kichik harfli "brak" avval SQLite da brak, PG da brak EMAS edi — endi ikkala bazada
+        # bir xil: EMAS). Belgi YOZISH paytida bir marta aniqlanadi, keyin matnga qaralmaydi.
+        is_brak=(qc < 0 and str(notes or "").startswith(QOLDA_BRAK_BOSHI))
     )
     db.commit()
     db.refresh(db_item)
@@ -7376,6 +7402,87 @@ def delete_finished_product_loss(db: Session, loss_id: int, company_id: int = No
             "ombor_tiklandi": tiklandi, "mahsulot": nomi}
 
 
+def _ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, penoplast_vol_needed,
+                                     loy_kg_needed, company_id, _brak_inv, log) -> dict:
+    """kech52 (13-band, 3-qadam): `record_finished_product_production_brak` ning
+    xomashyo yechish qismi (mazmuni O'ZGARMAGAN — faqat ko'chirildi; chaqiruvchi uni
+    brak belgisi oynasi ichida `try/finally` bilan chaqiradi). Muvaffaqiyatda
+    `{"success": True, "peno_cost", "loy_cost"}`, aks holda chaqiruvchi qaytaradigan
+    `{"success": False, "message"}` (hech narsa yozilmasdan OLDIN — avvalgidek).
+
+    K52-1 (kech52, PostgreSQL da O'LCHANDI): harakat sababi 150 belgili mahsulot
+    nomi, qoplama va "12.345" kabi miqdor bilan 201 belgi bo'lardi — `reason`
+    String(200), COMMIT da 500 ("Serverda kutilmagan xato"), brak yozilmasdi.
+    Endi `_jurnal_sabab` (200 belgiga xavfsiz qisqartirish; boshi o'zgarmaydi)."""
+    import services
+    peno_cost = 0.0
+    loy_cost = 0.0
+
+    # 1) Penoplast — QO'SHIMCHA ayiriladi
+    if penoplast_vol_needed > 0:
+        if not fp.penoplast_id:
+            return {"success": False, "message": "Bu mahsulotning Penoplast turi noma'lum — qo'lda hisoblash kerak"}
+        p = _brak_inv(fp.penoplast_id)
+        if not p:
+            return {"success": False, "message": "Penoplast ombordan topilmadi"}
+        vol_per_unit = float(p.volume_per_unit or 1.0)
+        blocks = penoplast_vol_needed / vol_per_unit
+        if float(p.stock_quantity) < blocks:
+            return {"success": False, "message": f"Penoplast yetishmayapti! Kerak: {blocks:.2f} blok, omborda: {float(p.stock_quantity):.2f} blok"}
+        p.stock_quantity = float(p.stock_quantity) - blocks
+        peno_cost = blocks * float(p.price_per_unit or 0)
+        log.append(f"{p.item_name}: -{blocks:.2f} blok")
+        # MUHIM (2026-09 audit): oldin bu yerda log_movement() chaqirilmagan
+        # edi — Penoplast kamayishi ombor tarixida (InventoryMovement)
+        # umuman ko'rinmas edi, va "Brak xarajati" hisobotiga (Returns
+        # sahifasidagi get_brak_material_summary, "Brak%" bo'yicha qidiradi)
+        # bu miqdor UMUMAN kirmasdi — brak orqali sarflangan xomashyo
+        # hisobotdan butunlay yashiringan bo'lardi.
+        log_movement(
+            db, p.id, p.item_name, movement_type="out",
+            quantity=blocks, unit=p.unit,
+            reason=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)")
+        )
+
+    # 2) Loy — QO'SHIMCHA ayiriladi (agar qoplama bo'lsa), xuddi shu
+    # retseptdan (fp.recipe_id), ishlab chiqarishdagi kabi
+    if loy_kg_needed > 0:
+        # 2026-09-21 — TENANT. Oldin bu yerda `db.query(Recipe).first()`
+        # zaxira yo'li bor edi: retsepti YO'Q korxona brak yozsa, BOSHQA
+        # korxonaning retsepti olinar va uning ingredientlari o'sha
+        # korxonaning omboridan ayirilar edi (o'lchangan: 995 → 992.5 kg).
+        _brak_cid = company_id if company_id is not None else getattr(fp, 'company_id', None)
+        recipe = services.resolve_recipe(db, recipe_id=fp.recipe_id,
+                                         company_id=_brak_cid)
+        loy_info = services.get_loy_cost_per_kg(
+            db, recipe.id if recipe else None, company_id=_brak_cid)
+        loy_cost = loy_kg_needed * float(loy_info.get("cost_per_kg", 0))
+
+        class _FakeOrder:
+            def __init__(self, rid, cid):
+                self.id = None
+                # `company_id` SHART: services.resolve_recipe korxonani
+                # buyurtma obyektidan ham oladi.
+                self.company_id = cid
+                self.order_number = "TAYYOR MAHSULOT — ISHLAB CHIQARISH BRAKI"
+        fake = _FakeOrder(recipe.id if recipe else None, _brak_cid)
+        log.extend(services.deduct_loy_ingredients(
+            db, fake, loy_kg_needed, use_stock=False,
+            recipe_id=(recipe.id if recipe else None),
+            company_id=_brak_cid,
+            # MUHIM (2026-09 audit): reason "Brak" bilan boshlanishi SHART —
+            # get_brak_material_summary() aynan "Brak%" naqshi bo'yicha
+            # qidiradi (boshqa "Brak (ishlab chiqarish) — ..." yozuvlari
+            # bilan bir xil uslubda). Avvalgi matn ("Tayyor mahsulot ishlab
+            # chiqarish braki: ...") bu naqshga to'g'ri kelmagani uchun,
+            # shu yo'l orqali yozilgan loy sarfi "Brak xarajati" hisobotidan
+            # butunlay tashqarida qolar edi.
+            reason_override=_jurnal_sabab(f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {brak_qty:g} birlik)")
+        ))
+
+    return {"success": True, "peno_cost": peno_cost, "loy_cost": loy_cost}
+
+
 def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
                                               notes: str = None, created_by: str = None,
                                               company_id: int = None) -> dict:
@@ -7395,7 +7502,6 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     `brak_qty` (mahsulot birligida) berilib, xomashyo BARQAROR nisbatdan
     hisoblanadi."""
     from models import FinishedProduct, FinishedProductLoss, Inventory
-    import services
 
     # M4: mahsulot FAQAT joriy korxonadan (aks holda "topilmadi").
     # 17-band: qiymatlar QAT'IY — hech narsa yozilmasdan OLDIN.
@@ -7436,67 +7542,22 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     peno_cost = 0.0
     loy_cost = 0.0
 
-    # 1) Penoplast — QO'SHIMCHA ayiriladi
-    if penoplast_vol_needed > 0:
-        if not fp.penoplast_id:
-            return {"success": False, "message": "Bu mahsulotning Penoplast turi noma'lum — qo'lda hisoblash kerak"}
-        p = _brak_inv(fp.penoplast_id)
-        if not p:
-            return {"success": False, "message": "Penoplast ombordan topilmadi"}
-        vol_per_unit = float(p.volume_per_unit or 1.0)
-        blocks = penoplast_vol_needed / vol_per_unit
-        if float(p.stock_quantity) < blocks:
-            return {"success": False, "message": f"Penoplast yetishmayapti! Kerak: {blocks:.2f} blok, omborda: {float(p.stock_quantity):.2f} blok"}
-        p.stock_quantity = float(p.stock_quantity) - blocks
-        peno_cost = blocks * float(p.price_per_unit or 0)
-        log.append(f"{p.item_name}: -{blocks:.2f} blok")
-        # MUHIM (2026-09 audit): oldin bu yerda log_movement() chaqirilmagan
-        # edi — Penoplast kamayishi ombor tarixida (InventoryMovement)
-        # umuman ko'rinmas edi, va "Brak xarajati" hisobotiga (Returns
-        # sahifasidagi get_brak_material_summary, "Brak%" bo'yicha qidiradi)
-        # bu miqdor UMUMAN kirmasdi — brak orqali sarflangan xomashyo
-        # hisobotdan butunlay yashiringan bo'lardi.
-        log_movement(
-            db, p.id, p.item_name, movement_type="out",
-            quantity=blocks, unit=p.unit,
-            reason=f"Brak (ishlab chiqarish) — {fp.name} ({brak_qty:g} birlik)"
-        )
-
-    # 2) Loy — QO'SHIMCHA ayiriladi (agar qoplama bo'lsa), xuddi shu
-    # retseptdan (fp.recipe_id), ishlab chiqarishdagi kabi
-    if loy_kg_needed > 0:
-        # 2026-09-21 — TENANT. Oldin bu yerda `db.query(Recipe).first()`
-        # zaxira yo'li bor edi: retsepti YO'Q korxona brak yozsa, BOSHQA
-        # korxonaning retsepti olinar va uning ingredientlari o'sha
-        # korxonaning omboridan ayirilar edi (o'lchangan: 995 → 992.5 kg).
-        _brak_cid = company_id if company_id is not None else getattr(fp, 'company_id', None)
-        recipe = services.resolve_recipe(db, recipe_id=fp.recipe_id,
-                                         company_id=_brak_cid)
-        loy_info = services.get_loy_cost_per_kg(
-            db, recipe.id if recipe else None, company_id=_brak_cid)
-        loy_cost = loy_kg_needed * float(loy_info.get("cost_per_kg", 0))
-
-        class _FakeOrder:
-            def __init__(self, rid, cid):
-                self.id = None
-                # `company_id` SHART: services.resolve_recipe korxonani
-                # buyurtma obyektidan ham oladi.
-                self.company_id = cid
-                self.order_number = "TAYYOR MAHSULOT — ISHLAB CHIQARISH BRAKI"
-        fake = _FakeOrder(recipe.id if recipe else None, _brak_cid)
-        log.extend(services.deduct_loy_ingredients(
-            db, fake, loy_kg_needed, use_stock=False,
-            recipe_id=(recipe.id if recipe else None),
-            company_id=_brak_cid,
-            # MUHIM (2026-09 audit): reason "Brak" bilan boshlanishi SHART —
-            # get_brak_material_summary() aynan "Brak%" naqshi bo'yicha
-            # qidiradi (boshqa "Brak (ishlab chiqarish) — ..." yozuvlari
-            # bilan bir xil uslubda). Avvalgi matn ("Tayyor mahsulot ishlab
-            # chiqarish braki: ...") bu naqshga to'g'ri kelmagani uchun,
-            # shu yo'l orqali yozilgan loy sarfi "Brak xarajati" hisobotidan
-            # butunlay tashqarida qolar edi.
-            reason_override=f"Brak (ishlab chiqarish) — {fp.name} (qoplama, {brak_qty:g} birlik)"
-        ))
+    # kech52 (13-band, 3-qadam): xomashyo yechish — `_ishlab_chiqarish_braki_xomashyo`.
+    # Shu oraliqda yozilgan HAR chiqim harakati (penoplast, loy ingredientlari —
+    # `services` ichidagi chuqur chaqiruvlar ham) `log_movement` da brak deb
+    # belgilanadi (`db.info["_brak_harakat"]`); belgi `finally` da olinadi —
+    # yordamchidagi erta `return` (penoplast yetishmayapti va h.k.) ham uni
+    # sessiyada qoldirmaydi.
+    db.info["_brak_harakat"] = True
+    try:
+        _xom = _ishlab_chiqarish_braki_xomashyo(
+            db, fp, brak_qty, penoplast_vol_needed, loy_kg_needed, company_id, _brak_inv, log)
+    finally:
+        db.info.pop("_brak_harakat", None)
+    if not _xom.get("success"):
+        return _xom
+    peno_cost = _xom["peno_cost"]
+    loy_cost = _xom["loy_cost"]
 
     total_cost = peno_cost + loy_cost
 
@@ -10734,6 +10795,32 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
     return p
 
 
+# kech52 (13-band, 3-qadam): ESKI (belgi yozilmagan) harakatlar uchun brak
+# ta'rifi — 33 / 37-band migratsiyalari va `main._migrate_brak_belgisi` bilan
+# AYNAN bir xil (yozuvga bog'langan YOKI sabab shu naqsh bilan boshlanadi).
+BRAK_ESKI_NAQSH = "Brak%"
+
+
+def brak_harakati_sharti(IM=None):
+    """kech52 (13-band, 3-qadam) — "bu harakat brakmi" ning YAGONA SQL sharti.
+
+    Yangi harakat — `is_brak` belgisi (sabab matnidan qat'i nazar). Belgi NULL
+    (shu yangilanishdan oldin yozilgan, migratsiya hali to'ldirmagan yoki
+    deploy paytida eski server yozgan) — eski ta'rif: `return_item_id` bor YOKI
+    sabab "Brak%" bilan boshlanadi. Sabab NULL bo'lsa ham natija aniq True /
+    False (NULL emas) — `not_(...)` bilan xavfsiz ishlatiladi.
+    Chaqiruvchilar: `get_brak_material_summary` (+ "out"),
+    `services._buyurtma_sarf_narxlari` (inkor)."""
+    from sqlalchemy import and_ as _and_bs, or_ as _or_bs
+    if IM is None:
+        from models import InventoryMovement as IM
+    return _or_bs(
+        IM.is_brak.is_(True),
+        _and_bs(IM.is_brak.is_(None),
+                _or_bs(IM.return_item_id.isnot(None),
+                       _and_bs(IM.reason.isnot(None), IM.reason.like(BRAK_ESKI_NAQSH)))))
+
+
 def get_brak_material_summary(db: Session, start_date=None, end_date=None,
                              company_id: int = None) -> dict:
     """Brak (defekt) sabab ombordan yechilgan XOMASHYO bo'yicha xulosa.
@@ -10756,9 +10843,11 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
             return float(harakat.unit_cost)
         return float(inv.price_per_unit or 0) if inv else 0.0
 
+    # kech52 (13-band, 3-qadam): brak — `is_brak` belgisi (eski harakatlar —
+    # eski ta'rif), sabab matni EMAS: matn o'zgarsa hisobot nolga tushmaydi.
     q = db.query(InventoryMovement).filter(
         InventoryMovement.movement_type == "out",
-        InventoryMovement.reason.like("Brak%")
+        brak_harakati_sharti(InventoryMovement)
     )
     if company_id is not None:      # M6
         q = q.filter(InventoryMovement.company_id == company_id)

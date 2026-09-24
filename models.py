@@ -985,6 +985,20 @@ class InventoryMovement(Base):
     # yangilanishdan OLDINGI harakatlarda NULL — hisobot ular uchun joriy
     # narxni ishlatadi (avvalgidek; eski narx noma'lum, taxmin qilinmaydi).
     unit_cost = Column(Float, nullable=True)
+    # kech52 (13-band, 3-qadam): BRAK harakati belgisi. Brak xarajati hisoboti
+    # (`crud.get_brak_material_summary` → Moliya, oylik hisobot, sof foyda,
+    # liniya hisoboti) va buyurtma tan narxidan brakni ajratish
+    # (`services._buyurtma_sarf_narxlari`) endi sabab MATNIGA ("Brak%") emas,
+    # shu belgiga qaraydi — sabab matni o'zgarsa (tarjima, yangi yozuv shakli)
+    # hisobot jimgina nolga tushmaydi. Yangi harakatda HAR DOIM True / False
+    # (`crud.log_movement` va `services.deduct_raw_material_for_brak` yozadi).
+    # NULL — shu yangilanishdan OLDINGI harakat: `main._migrate_brak_belgisi()`
+    # uni eski ta'rif bilan (bog'langan YOKI sabab "Brak%") to'ldiradi; o'qishda
+    # ham NULL qator eski ta'rif bilan baholanadi (`crud.brak_harakati_sharti`).
+    # ⚠ Standart qiymat (`default=`) BERILMAYDI: `database.sync_missing_columns`
+    # uni `ADD COLUMN ... DEFAULT FALSE` qilib ESKI qatorlarga ham yozardi —
+    # eski brak "brak emas" bo'lib, hisobotdan yo'qolardi.
+    is_brak = Column(Boolean, nullable=True)
 
     performed_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)

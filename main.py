@@ -1937,6 +1937,47 @@ def _migrate_eski_brak_narxi():
 
 _migrate_eski_brak_narxi()
 
+
+def _migrate_brak_belgisi():
+    """kech52 (13-band, 3-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    `inventory_movements.is_brak` (brak harakati belgisi) — hisobot endi sabab
+    MATNIGA emas, shu belgiga qaraydi. Ustunni `database.sync_missing_columns`
+    qo'shadi (standartsiz — eski qatorlar NULL); bu migratsiya belgi yozilmagan
+    (NULL) HAR qatorni eski ta'rif bilan to'ldiradi: `return_item_id` bor YOKI
+    sabab "Brak%" bilan boshlanadi → TRUE, aks holda FALSE (33 / 37-band
+    migratsiyalari va `crud.brak_harakati_sharti` dagi ta'rif bilan AYNAN — hozirgi
+    hisobot raqamlari o'zgarmaydi). Faqat NULL qatorlar — yangi kod yozgan
+    belgi HECH QACHON almashtirilmaydi; qayta ishga tushsa NULL qolmagani uchun
+    hech narsa o'zgarmaydi (deploy paytida eski server yozib qo'ygan qatorlarni
+    keyingi ishga tushishda to'ldiradi; ungacha o'qish ham ularni eski ta'rif
+    bilan baholaydi).
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "inventory_movements" not in set(_i.get_table_names()):
+            return
+        ustunlar = {c["name"] for c in _i.get_columns("inventory_movements")}
+        if "is_brak" not in ustunlar or "return_item_id" not in ustunlar:
+            return
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "UPDATE inventory_movements SET is_brak = CASE WHEN "
+                "(return_item_id IS NOT NULL OR (reason IS NOT NULL AND reason LIKE :brak)) "
+                "THEN TRUE ELSE FALSE END WHERE is_brak IS NULL"),
+                {"brak": "Brak%"})
+            conn.commit()
+            n = r.rowcount or 0
+        if n and n > 0:
+            print(f"✓ Ombor harakatlariga brak belgisi yozildi: {n} ta")
+    except Exception as e:
+        print(f"⚠ Brak belgisi migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_brak_belgisi()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
