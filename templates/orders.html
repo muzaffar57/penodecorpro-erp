@@ -4513,10 +4513,19 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     // aks holda bo'sh ko'rinib, chalkashtirar edi.
     const recipeSel = document.getElementById('recipe_id');
     if (recipeSel && itemsToUse.length) {
-      const mainItem = itemsToUse.find(it =>
-        it.recipe_id && !['loy_sotish'].includes((it.category || '').toLowerCase())
-      );
-      if (mainItem) recipeSel.value = mainItem.recipe_id;
+      // kech63 (53 / 67-band): TAHRIRDA — buyurtmaning SAQLANGAN qoplama retsepti
+      // (`qoplama_retsept_id` — umumiy loy AYNAN shundan yechilgan, yagona manba). U yo'q
+      // (eski buyurtma) yoki ro'yxatda yo'q bo'lsa, hamda NUSXA olishda — avvalgidek detallardan.
+      const _qrId = (!isDup && order.qoplama_retsept_id) ? String(order.qoplama_retsept_id) : '';
+      const _qrBor = !!_qrId && Array.from(recipeSel.options || []).some(o => String(o.value) === _qrId);
+      if (_qrBor) {
+        recipeSel.value = _qrId;
+      } else {
+        const mainItem = itemsToUse.find(it =>
+          it.recipe_id && !['loy_sotish'].includes((it.category || '').toLowerCase())
+        );
+        if (mainItem) recipeSel.value = mainItem.recipe_id;
+      }
     }
 
     // "1 m³ asosiy narxi" — endi saqlanadi, tahrirlashda tiklaymiz
