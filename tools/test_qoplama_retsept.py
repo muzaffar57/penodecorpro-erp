@@ -475,8 +475,12 @@ _s1 = stok()
 _t["recipe_id"] = ID["R2"]
 _ru = req(C, "put", f"/api/orders/{o7}", json=_t, params={"confirm_shortage": "true"})
 check("C1 jarayondagi buyurtma tahriri R1 -> R2 (200)", _ru.status_code == 200, _ru.status_code)
-check("C1 qoplama_retsept_id R1 da qoldi (loy R1 dan yechilgan)", qr(o7) == ID["R1"], qr(o7))
-check("C1 tahrir omborga tegmadi", farq(_s1, stok()) == {"KLEY": 0.0, "AKR": 0.0, "BOYOQ": 0.0}, farq(_s1, stok()))
+# kech63 (53-band) — FOYDALANUVCHI QARORI (kech62): jarayondagi buyurtmada retsept o'zgartirilsa eski retsept loyi
+# QAYTADI, yangisidan YECHILADI (kech58 dagi "tahrir omborga tegmaydi, R1 da qoladi" qoidasi shu qaror bilan almashdi;
+# tafsilot va chekka holatlar — tools/test_retsept_almashtirish.py).
+check("C1 qoplama_retsept_id R2 ga o'tdi (kech63, 53-band qarori)", qr(o7) == ID["R2"], qr(o7))
+check("C1 tahrir: R1 loyi qaytdi (Kley +6, Akril +4), R2 dan yechildi (Bo'yoq -10)",
+      farq(_s1, stok()) == {"KLEY": 6.0, "AKR": 4.0, "BOYOQ": -10.0}, farq(_s1, stok()))
 check("C1 o'chirish (200) va ombor AYNAN (asl kodda Bo'yoq +10, Kley -6, Akril -4)",
       ochir(o7) == 200 and farq(_s0, stok()) == {"KLEY": 0.0, "AKR": 0.0, "BOYOQ": 0.0}, farq(_s0, stok()))
 
@@ -559,8 +563,8 @@ check("D2 eski retseptsiz buyurtma: tayyor + foydada qoplama qatori AVVALGIDEK Y
 _s0 = stok()
 _t["recipe_id"] = ID["R2"]
 _ru = req(C, "put", f"/api/orders/{d3}", json=_t, params={"confirm_shortage": "true"})
-check("D3 eski buyurtma tahriri R1 -> R2: yechilgan retsept (R1) muzlatildi",
-      _ru.status_code == 200 and qr(d3) == ID["R1"], (_ru.status_code, qr(d3)))
+check("D3 eski buyurtma tahriri R1 -> R2: almashtirildi — qoplama R2 (kech63, 53-band qarori)",
+      _ru.status_code == 200 and qr(d3) == ID["R2"], (_ru.status_code, qr(d3)))
 check("D3 o'chirish va ombor AYNAN (R1 ga qaytdi)", ochir(d3) == 200
       and farq(_s0, stok()) == {"KLEY": 6.0, "AKR": 4.0, "BOYOQ": 0.0}, farq(_s0, stok()))
 _ru = req(C, "put", f"/api/orders/{d4}", json=dict(_t2, items=[dict(_t2["items"][0], length=12)]),
@@ -582,8 +586,8 @@ finally:
 _t5["recipe_id"] = ID["R2"]
 _t5["items"] = [dict(_t5["items"][0], name=nom())]
 _ru = req(C, "put", f"/api/orders/{d5}", json=_t5, params={"confirm_shortage": "true"})
-check("D5 eski buyurtma: detal almashdi + R2 -> yechilgan retsept (R1) muzlatildi",
-      bool(d5) and _ru.status_code == 200 and qr(d5) == ID["R1"], (d5, _ru.status_code, qr(d5)))
+check("D5 eski buyurtma: detal almashdi + R2 -> almashtirildi — qoplama R2 (kech63, 53-band qarori)",
+      bool(d5) and _ru.status_code == 200 and qr(d5) == ID["R2"], (d5, _ru.status_code, qr(d5)))
 check("D5 o'chirish va ombor AYNAN (R1 ga qaytdi)", ochir(d5) == 200
       and farq(_s0, stok()) == {"KLEY": 0.0, "AKR": 0.0, "BOYOQ": 0.0}, farq(_s0, stok()))
 
