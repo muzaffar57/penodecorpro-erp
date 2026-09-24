@@ -1978,6 +1978,77 @@ def _migrate_brak_belgisi():
 
 _migrate_brak_belgisi()
 
+
+def _migrate_brak_sabab_javobgar():
+    """kech56 (13-band, 7-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+
+      A) `return_items` va `finished_product_losses` da `brak_sabab`, `brak_javobgar_id` —
+         odatda `database.sync_missing_columns()` allaqachon qo'shgan (indeks va kalitsiz);
+         yo'q bo'lsa shu yerda. STANDARTSIZ — eski yozuvlar NULL (tanlanmagan).
+      B) Indeks `ix_<jadval>_brak_javobgar_id` (yo'q bo'lsa).
+      C) Faqat PostgreSQL: chet el kaliti `employees(id) ON DELETE SET NULL` (yo'q bo'lsa;
+         yetim qiymat bo'lsa QO'YILMAYDI, soni logga).
+    Eski yozuvlar to'ldirilMAYDI — sabab / javobgar yozilmagan, taxmin qilinmaydi.
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        jadvallar = set(_i.get_table_names())
+        if "employees" not in jadvallar:
+            return
+        with engine.connect() as conn:
+            for jadval in ("return_items", "finished_product_losses"):
+                if jadval not in jadvallar:
+                    continue
+                ustunlar = {c["name"] for c in _i.get_columns(jadval)}
+                indekslar = {ix["name"] for ix in _i.get_indexes(jadval)}
+                if "brak_sabab" not in ustunlar:
+                    conn.execute(text(f"ALTER TABLE {jadval} ADD COLUMN brak_sabab VARCHAR(20)"))
+                    conn.commit()
+                    print(f"✓ {jadval}.brak_sabab qo'shildi")
+                if "brak_javobgar_id" not in ustunlar:
+                    conn.execute(text(f"ALTER TABLE {jadval} ADD COLUMN brak_javobgar_id INTEGER"))
+                    conn.commit()
+                    print(f"✓ {jadval}.brak_javobgar_id qo'shildi")
+                _ix = f"ix_{jadval}_brak_javobgar_id"
+                if _ix not in indekslar:
+                    conn.execute(text(f"CREATE INDEX IF NOT EXISTS {_ix} ON {jadval} (brak_javobgar_id)"))
+                    conn.commit()
+                    print(f"✓ {_ix} indeksi qo'shildi")
+                if engine.dialect.name == "postgresql":
+                    bor_kalit = conn.execute(text(
+                        "SELECT 1 FROM pg_constraint c "
+                        "JOIN pg_class t ON t.oid = c.conrelid "
+                        "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey) "
+                        "WHERE t.relname = :j AND c.contype = 'f' "
+                        "AND a.attname = 'brak_javobgar_id'"), {"j": jadval}).first()
+                    if not bor_kalit:
+                        yetim = conn.execute(text(
+                            f"SELECT COUNT(*) FROM {jadval} x "
+                            f"LEFT JOIN employees e ON e.id = x.brak_javobgar_id "
+                            f"WHERE x.brak_javobgar_id IS NOT NULL AND e.id IS NULL")).scalar() or 0
+                        if yetim:
+                            print(f"⚠ {jadval}.brak_javobgar_id: {yetim} ta yetim qiymat — "
+                                  f"chet el kaliti QO'YILMADI")
+                        else:
+                            conn.execute(text(
+                                f"ALTER TABLE {jadval} ADD CONSTRAINT {jadval}_brak_javobgar_id_fkey "
+                                f"FOREIGN KEY (brak_javobgar_id) REFERENCES employees(id) "
+                                f"ON DELETE SET NULL"))
+                            conn.commit()
+                            print(f"✓ {jadval}_brak_javobgar_id_fkey chet el kaliti qo'shildi")
+    except Exception as e:
+        try:
+            with engine.connect() as c:
+                c.rollback()
+        except Exception:
+            pass
+        print(f"⚠ Brak sababi / javobgar migratsiyasi o'tkazib yuborildi: {e}")
+
+
+_migrate_brak_sabab_javobgar()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
@@ -5031,6 +5102,24 @@ def api_reports_alerts(db: Session = Depends(get_db), current_user=Depends(auth.
     return services.get_business_alerts(db, company_id=auth.company_id_of(current_user))
 
 
+@app.get("/api/reports/brak-tahlil")
+def api_brak_tahlil(year: Optional[int] = None, month: Optional[int] = None, oylar: int = 6,
+                    db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    """kech56 (13-band, 7-qadam): oylik brak tahlili — ulush (Moliyadagi brak xarajati ÷
+    ishlab chiqarish tan narxi), me'yor (`crud.BRAK_MEYORI_FOIZ`, foydalanuvchi qarori
+    5 %) va ogohlantirish, bosqich / sabab / javobgar / detal bo'yicha taqsimot, tayyor
+    mahsulot yo'qotishlari, oxirgi `oylar` oy. Oy berilmasa — joriy (UTC, Moliya bilan
+    bir xil). Faqat o'qiydi. Pul ma'lumoti — Moliya huquqi (`admin_or_financier`)."""
+    _hozir = datetime.utcnow()
+    y = _hozir.year if year is None else year
+    m = _hozir.month if month is None else month
+    if not (2000 <= y <= 2100) or not (1 <= m <= 12) or not (1 <= oylar <= 24):
+        raise HTTPException(status_code=400,
+                            detail="Yil 2000–2100, oy 1–12, oylar soni 1–24 oralig'ida bo'lishi kerak")
+    return services.get_brak_tahlil(db, y, m, company_id=auth.company_id_of(current_user),
+                                    oylar=oylar)
+
+
 @app.get("/api/reports/brak-materials")
 def api_reports_brak_materials(start_date: Optional[str] = None, end_date: Optional[str] = None,
                                  db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
@@ -5361,6 +5450,12 @@ async def returns_page(request: Request, show_all: bool = False, db: Session = D
     return templates.TemplateResponse(request, "returns.html", {
         "returns": returns, "orders": orders, "projects": projects,
         "brak_bosqichlari": crud.BRAK_BOSQICHLARI,   # kech53 (13-band, 1-qadam)
+        # kech56 (13-band, 7-qadam): sabab ro'yxati, javobgar tanlovi (faol hodimlar),
+        # ro'yxatdagi javobgar yorlig'i (o'chirilganlar ham)
+        "brak_sabablari": crud.BRAK_SABABLARI,
+        "brak_hodimlari": crud.get_employees(db, only_active=True,
+                                             company_id=auth.company_id_of(current_user)),
+        "hodim_nomlari": crud.hodim_nomlari(db, company_id=auth.company_id_of(current_user)),
         "current_user": current_user, "show_all": show_all
     })
 
@@ -5708,6 +5803,9 @@ async def finished_page(request: Request, db: Session = Depends(get_db), current
         "default_penoplast_id": default_p.id if default_p else None,
         "recipes": recipes, "stats": stats, "masters": masters,
         "brak_bosqichlari": crud.BRAK_BOSQICHLARI,   # kech53 (13-band, 1-qadam)
+        # kech56 (13-band, 7-qadam): sabab ro'yxati va javobgar tanlovi (faol hodimlar)
+        "brak_sabablari": crud.BRAK_SABABLARI,
+        "brak_hodimlari": crud.get_employees(db, only_active=True, company_id=_cid),
         "current_user": current_user, "active_page": "finished"
     })
 
@@ -6636,6 +6734,8 @@ def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(g
         db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
         company_id=auth.company_id_of(current_user),
         brak_bosqich=data.brak_bosqich,   # kech53 (13-band, 1-qadam)
+        brak_sabab=data.brak_sabab,               # kech56 (13-band, 7-qadam)
+        brak_javobgar_id=data.brak_javobgar_id,   # kech56 (13-band, 7-qadam)
     )
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)

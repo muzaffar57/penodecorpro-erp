@@ -2260,6 +2260,186 @@ def get_finance_history(db: Session, months_count: int = 12, company_id: int = N
     return list(reversed(history))  # eskisidan yangisiga
 
 
+# ============================================================
+# kech56 (13-band, 7-qadam) — BRAK TAHLILI
+# ============================================================
+# Foydalanuvchi qarorlari (kech56, tugma bilan): me'yor "5 %" (`crud.BRAK_MEYORI_FOIZ`),
+# sabab ro'yxati (`crud.BRAK_SABABLARI`), javobgar hodim — ixtiyoriy.
+# Texnik qaror (Claude): brak ULUSHI = oylik brak xarajati ÷ ishlab chiqarish tan
+# narxi × 100 — ikkala son `get_monthly_report` dan (Moliya bilan BIR manba, narxlar
+# muzlatilgan). Taqsimot (bosqich / sabab / javobgar / detal) — shu oyning brak
+# YOZUVLARI qiymati bo'yicha (buyurtma detali braki `refund_amount`, tayyor mahsulot
+# yo'qotishi `cost_amount`). Faqat O'QIYDI — hech narsa yozmaydi.
+
+def _brak_oylari(year: int, month: int, oylar: int) -> list:
+    """(yil, oy) juftlari — eskisidan yangisiga, oxirgisi (year, month)."""
+    natija = []
+    y, m = int(year), int(month)
+    for _ in range(max(1, int(oylar))):
+        natija.append((y, m))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    return list(reversed(natija))
+
+
+def _brak_foizi(brak: float, ishlab: float):
+    """Brak ulushi foizda (2 xona). Ishlab chiqarish tan narxi 0 bo'lsa — None:
+    bo'lib bo'lmaydi, taxmin qilinmaydi (UI "hisoblab bo'lmaydi" deydi)."""
+    if ishlab is None or float(ishlab) <= 0:
+        return None
+    return round(float(brak or 0) / float(ishlab) * 100.0, 2)
+
+
+def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
+                    oylar: int = 6) -> dict:
+    """Oylik brak tahlili: ulush va me'yor (ogohlantirish), bosqich / sabab /
+    javobgar hodim / detal bo'yicha taqsimot, tayyor mahsulot yo'qotishlari
+    ro'yxati va oxirgi `oylar` oy bo'yicha ulush."""
+    import crud as _cr
+    from models import ReturnItem, ReturnReason, FinishedProductLoss, Employee
+    from sqlalchemy import extract
+
+    meyor = float(_cr.BRAK_MEYORI_FOIZ)
+
+    # 1) Ulush — Moliya bilan BIR manba.
+    trend = []
+    for (yy, mm) in _brak_oylari(year, month, oylar):
+        rep = get_monthly_report(db, yy, mm, company_id=company_id)
+        brak = float(rep.get("brak_xarajat") or 0)
+        ishlab = float(rep.get("ishlab_chiqarish_xarajat") or 0)
+        foiz = _brak_foizi(brak, ishlab)
+        trend.append({
+            "yil": yy, "oy": mm,
+            "brak_xarajat": round(brak),
+            "ishlab_chiqarish_xarajat": round(ishlab),
+            "brak_foizi": foiz,
+            "meyordan_oshdi": bool(foiz is not None and foiz > meyor),
+        })
+    joriy = trend[-1]
+
+    # 2) Shu oyning yozuvlari (korxona filtri bilan).
+    _rq = db.query(ReturnItem).filter(
+        ReturnItem.reason == ReturnReason.DEFECT,
+        extract('year', ReturnItem.returned_at) == year,
+        extract('month', ReturnItem.returned_at) == month,
+    )
+    if company_id is not None:
+        _rq = _rq.filter(ReturnItem.company_id == company_id)
+    braklar = _rq.order_by(ReturnItem.id).all()
+
+    _lq = db.query(FinishedProductLoss).filter(
+        extract('year', FinishedProductLoss.lost_at) == year,
+        extract('month', FinishedProductLoss.lost_at) == month,
+    )
+    if company_id is not None:
+        _lq = _lq.filter(FinishedProductLoss.company_id == company_id)
+    yoqotishlar = _lq.order_by(FinishedProductLoss.id).all()
+
+    _hodim_idlari = {r.brak_javobgar_id for r in braklar if r.brak_javobgar_id} | \
+                    {l.brak_javobgar_id for l in yoqotishlar if l.brak_javobgar_id}
+    ismlar = {}
+    if _hodim_idlari:
+        _eq = db.query(Employee.id, Employee.name).filter(Employee.id.in_(sorted(_hodim_idlari)))
+        if company_id is not None:
+            _eq = _eq.filter(Employee.company_id == company_id)
+        ismlar = {i: n for i, n in _eq.all()}
+
+    def _javobgar_ismi(hid):
+        if not hid:
+            return None
+        return ismlar.get(hid) or "O'chirilgan hodim"
+
+    yozuvlar = []
+    for r in braklar:
+        yozuvlar.append({
+            "nomi": r.item_name or "", "birlik": r.unit or "",
+            "miqdor": float(r.quantity or 0), "qiymat": float(r.refund_amount or 0),
+            "bosqich": r.brak_bosqich, "sabab": r.brak_sabab, "javobgar_id": r.brak_javobgar_id,
+        })
+    yoqotish_royxati = []
+    for l in yoqotishlar:
+        ish_braki = (l.reason or "").startswith(_cr._ISH_BRAK_BELGI)
+        yozuvlar.append({
+            "nomi": l.product_name or "", "birlik": l.unit or "",
+            "miqdor": float(l.quantity or 0), "qiymat": float(l.cost_amount or 0),
+            "bosqich": l.brak_bosqich, "sabab": l.brak_sabab, "javobgar_id": l.brak_javobgar_id,
+        })
+        yoqotish_royxati.append({
+            "id": l.id,
+            "sana": l.lost_at.isoformat() if l.lost_at else None,
+            "nomi": l.product_name or "",
+            "miqdor": float(l.quantity or 0),
+            "birlik": l.unit or "",
+            "qiymat": round(float(l.cost_amount or 0), 2),
+            "turi": "Ishlab chiqarish braki" if ish_braki else "Yo'qotish (tayyor turgan)",
+            "bosqich": _cr.BRAK_BOSQICHLARI.get(l.brak_bosqich, l.brak_bosqich) if l.brak_bosqich else None,
+            "sabab": _cr.BRAK_SABABLARI.get(l.brak_sabab, l.brak_sabab) if l.brak_sabab else None,
+            "javobgar": _javobgar_ismi(l.brak_javobgar_id),
+            "izoh": l.reason or "",
+            "yozgan": l.created_by or "",
+        })
+
+    jami_qiymat = sum(y["qiymat"] for y in yozuvlar)
+
+    def _ulush(q):
+        return round(q / jami_qiymat * 100.0, 1) if jami_qiymat > 0 else 0.0
+
+    def _taqsimot(maydon, yorliq_fn):
+        """Kod bo'yicha guruh — qiymat kamayishi tartibida, tanlanmaganlar OXIRIDA."""
+        hisob = {}
+        for y in yozuvlar:
+            h = hisob.setdefault(y[maydon], {"soni": 0, "qiymat": 0.0})
+            h["soni"] += 1
+            h["qiymat"] += y["qiymat"]
+        bor = sorted((k for k in hisob if k is not None),
+                     key=lambda k: (-hisob[k]["qiymat"], str(k)))
+        natija = []
+        for k in bor + ([None] if None in hisob else []):
+            natija.append({
+                "kod": k,
+                "nomi": yorliq_fn(k) if k is not None else "Belgilanmagan",
+                "soni": hisob[k]["soni"],
+                "qiymat": round(hisob[k]["qiymat"], 2),
+                "ulush": _ulush(hisob[k]["qiymat"]),
+            })
+        return natija
+
+    detal = {}
+    for y in yozuvlar:
+        d = detal.setdefault((y["nomi"], y["birlik"]), {"soni": 0, "miqdor": 0.0, "qiymat": 0.0})
+        d["soni"] += 1
+        d["miqdor"] += y["miqdor"]
+        d["qiymat"] += y["qiymat"]
+    top = sorted(detal.items(), key=lambda kv: (-kv[1]["qiymat"], kv[0][0], kv[0][1]))[:5]
+
+    foiz = joriy["brak_foizi"]
+    oshdi = joriy["meyordan_oshdi"]
+    return {
+        "yil": int(year), "oy": int(month),
+        "meyor_foiz": meyor,
+        "brak_xarajat": joriy["brak_xarajat"],
+        "ishlab_chiqarish_xarajat": joriy["ishlab_chiqarish_xarajat"],
+        "brak_foizi": foiz,
+        "meyordan_oshdi": oshdi,
+        "ogohlantirish": (f"Brak me'yordan oshdi: {foiz:g} % (me'yor {meyor:g} %)" if oshdi else None),
+        "yozuvlar_soni": len(yozuvlar),
+        "yozuvlar_qiymati": round(jami_qiymat, 2),
+        "bosqichlar": _taqsimot("bosqich", lambda k: _cr.BRAK_BOSQICHLARI.get(k, k)),
+        "sabablar": _taqsimot("sabab", lambda k: _cr.BRAK_SABABLARI.get(k, k)),
+        "javobgarlar": _taqsimot("javobgar_id", _javobgar_ismi),
+        "top_detallar": [
+            {"nomi": k[0], "birlik": k[1], "soni": v["soni"],
+             "miqdor": round(v["miqdor"], 3), "qiymat": round(v["qiymat"], 2),
+             "ulush": _ulush(v["qiymat"])}
+            for k, v in top
+        ],
+        "yoqotishlar": yoqotish_royxati,
+        "trend": trend,
+    }
+
+
 def _monthly_category_amount(db: Session, year: int, month: int, category: str, fallback: float,
                             company_id: int = None) -> float:
     """Berilgan oy/kategoriya uchun ExpenseTransaction yig'indisini qaytaradi.

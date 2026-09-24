@@ -945,6 +945,13 @@ class ReturnItem(Base):
     # STANDARTSIZ (kech52 saboqi: `database.sync_missing_columns` ORM `default=`
     # ni ESKI qatorlarga ham yozadi — eski brak "tanlangan" bo'lib qolardi).
     brak_bosqich = Column(String(20), nullable=True)
+    # kech56 (13-band, 7-qadam; foydalanuvchi qarori): brak SABABI — ixtiyoriy
+    # (`crud.BRAK_SABABLARI` kodlari: xomashyo / ishchi / uskuna / olcham / boshqa) va
+    # brakka sabab bo'lgan JAVOBGAR hodim — ixtiyoriy. NULL — tanlanmagan yoki eski
+    # yozuv. STANDARTSIZ (kech52 saboqi). Hodim butunlay o'chirilsa — NULL (PG FK).
+    brak_sabab = Column(String(20), nullable=True)
+    brak_javobgar_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"),
+                              nullable=True, index=True)
 
     order = relationship("Order", back_populates="returns")
 
@@ -1749,6 +1756,11 @@ class FinishedProductLoss(Base):
     # ishlab chiqarish braki oynasi). `ReturnItem.brak_bosqich` bilan bir xil
     # kodlar; NULL — tanlanmagan / eski yozuv. STANDARTSIZ (sabab — yuqorida).
     brak_bosqich = Column(String(20), nullable=True)
+    # kech56 (13-band, 7-qadam): brak SABABI va JAVOBGAR hodim — ixtiyoriy
+    # (`ReturnItem` bilan bir xil kodlar va qoida).
+    brak_sabab = Column(String(20), nullable=True)
+    brak_javobgar_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"),
+                              nullable=True, index=True)
 
     finished_product = relationship("FinishedProduct")
 
@@ -2091,7 +2103,9 @@ _TENANT_REFS = {
     # Qaytarish — qaysi tayyor mahsulotga
     "ReturnItem": [("finished_product_id", "FinishedProduct"),
                    # kech39: qaytarish qaysi buyurtma detalidan (3-band)
-                   ("order_item_id", "OrderItem")],
+                   ("order_item_id", "OrderItem"),
+                   # kech56 (13-band, 7-qadam): brakka sabab bo'lgan javobgar hodim
+                   ("brak_javobgar_id", "Employee")],
     # kech40 (22-band): pul qaytarish to'lovi — qaysi qaytarishniki (begona
     # korxona qaytarishiga bog'langan to'lov yozishdayoq rad etiladi)
     "Payment": [("return_item_id", "ReturnItem")],
@@ -2125,7 +2139,9 @@ _TENANT_REFS = {
     # Sotuv/brak — qaysi mahsulot/ustaga
     "FinishedProductSale": [("finished_product_id", "FinishedProduct"),
                             ("master_id", "Master")],
-    "FinishedProductLoss": [("finished_product_id", "FinishedProduct")],
+    "FinishedProductLoss": [("finished_product_id", "FinishedProduct"),
+                            # kech56 (13-band, 7-qadam): javobgar hodim
+                            ("brak_javobgar_id", "Employee")],
     # Buyurtma — qaysi loyiha va ustaga
     "Order": [("project_id", "Project"), ("master_id", "Master")],
 

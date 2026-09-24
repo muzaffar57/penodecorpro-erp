@@ -462,6 +462,11 @@ class FinishedProductLossCreate(BaseModel):
     # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (`crud.BRAK_BOSQICHLARI`).
     brak_bosqich: Optional[Literal["kesish", "qoplash", "quritish", "saqlash_tashish"]] = None
 
+    # kech56 (13-band, 7-qadam): ixtiyoriy brak sababi (`crud.BRAK_SABABLARI`) va
+    # javobgar hodim (shu korxonaning hodimi — `crud._brak_javobgar_tekshir`).
+    brak_sabab: Optional[Literal["xomashyo", "ishchi", "uskuna", "olcham", "boshqa"]] = None
+    brak_javobgar_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647, strict=True)
+
 
 class GipsProduceAdditive(BaseModel):
     inventory_id: int
@@ -490,6 +495,11 @@ class FinishedProductProductionBrakCreate(BaseModel):
     notes: Optional[str] = None
     # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (`crud.BRAK_BOSQICHLARI`).
     brak_bosqich: Optional[Literal["kesish", "qoplash", "quritish", "saqlash_tashish"]] = None
+
+    # kech56 (13-band, 7-qadam): ixtiyoriy brak sababi (`crud.BRAK_SABABLARI`) va
+    # javobgar hodim (shu korxonaning hodimi — `crud._brak_javobgar_tekshir`).
+    brak_sabab: Optional[Literal["xomashyo", "ishchi", "uskuna", "olcham", "boshqa"]] = None
+    brak_javobgar_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647, strict=True)
 
 
 class FinishedProductSaleCreate(BaseModel):
@@ -862,6 +872,11 @@ class ReturnItemCreate(BaseModel):
     # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi — FAQAT sabab "Brak"
     # bo'lganda (`crud.create_return_item` boshqa sababda 400 beradi).
     brak_bosqich: Optional[Literal["kesish", "qoplash", "quritish", "saqlash_tashish"]] = None
+
+    # kech56 (13-band, 7-qadam): ixtiyoriy brak sababi (`crud.BRAK_SABABLARI`) va
+    # javobgar hodim (shu korxonaning hodimi — `crud._brak_javobgar_tekshir`).
+    brak_sabab: Optional[Literal["xomashyo", "ishchi", "uskuna", "olcham", "boshqa"]] = None
+    brak_javobgar_id: Optional[int] = Field(default=None, ge=1, le=2_147_483_647, strict=True)
 
 
 class ReturnItemRead(BaseModel):

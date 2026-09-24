@@ -2843,6 +2843,45 @@ BRAK_BOSQICHLARI = {
     "saqlash_tashish": "Saqlash / tashish",
 }
 _BRAK_BOSQICHI = {k: k for k in BRAK_BOSQICHLARI}
+# kech56 (13-band, 7-qadam) — brak SABABLARI (foydalanuvchi qarori, kech56: "Ha, taklif
+# qilingan ro'yxat bilan"). Kod → yorliq; YAGONA manba (UI tanlovi, ro'yxat yorlig'i,
+# tahlil). Sabab IXTIYORIY — tanlanmasa NULL; brak yozish oqimi O'ZGARMAYDI.
+BRAK_SABABLARI = {
+    "xomashyo": "Xomashyo sifati",
+    "ishchi": "Ishchi xatosi",
+    "uskuna": "Uskuna / stanok nosozligi",
+    "olcham": "O'lcham / qolip xatosi",
+    "boshqa": "Boshqa",
+}
+_BRAK_SABABI = {k: k for k in BRAK_SABABLARI}
+# kech56 (13-band, 7-qadam) — brak ME'YORI (foydalanuvchi qarori, kech56: "5 %"): oylik
+# brak ulushi (Moliyadagi brak xarajati ÷ ishlab chiqarish tan narxi) shundan OSHSA —
+# ogohlantirish (`services.get_brak_tahlil`, `/returns` va `/dashboard`).
+BRAK_MEYORI_FOIZ = 5.0
+
+
+def _brak_javobgar_tekshir(db, hodim_id, company_id):
+    """kech56: brakka javobgar hodim — FAQAT shu korxonaning o'chirilmagan hodimi.
+    Berilmasa (None) — hech narsa. Topilmasa `ValueError` (marshrut → 400), hech
+    narsa yozilishidan OLDIN chaqiriladi."""
+    if hodim_id is None:
+        return None
+    _q = db.query(Employee.id).filter(Employee.id == hodim_id,
+                                      Employee.is_deleted.isnot(True))
+    if company_id is not None:
+        _q = _q.filter(Employee.company_id == company_id)
+    if _q.first() is None:
+        raise ValueError("Javobgar hodim topilmadi")
+    return hodim_id
+
+
+def hodim_nomlari(db, company_id=None) -> dict:
+    """kech56: {hodim id: ism} — brak ro'yxatidagi javobgar yorlig'i uchun
+    (o'chirilgan hodimlar ham — tarixiy yozuv nomsiz qolmasin)."""
+    _q = db.query(Employee.id, Employee.name)
+    if company_id is not None:
+        _q = _q.filter(Employee.company_id == company_id)
+    return {i: n for i, n in _q.all()}
 # 17g — yetkazish transporti kim hisobidan (`models.Delivery.company_transport_cost`
 # / `client_transport_cost` AYNAN shu to'rttasini taniydi; `orders.html`
 # `dlv-transport-payer` tanlovi ham shular). O'LCHANGAN: noma'lum qiymat
@@ -2912,6 +2951,9 @@ def _val_rules():
             "reason": ("matn", False, matn),
             # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
             "brak_bosqich": ("tanlov", True, _BRAK_BOSQICHI),
+            # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim
+            "brak_sabab": ("tanlov", True, _BRAK_SABABI),
+            "brak_javobgar_id": ("id", True),
         },
         "ProductionBrak": {
             "finished_product_id": ("id", False),
@@ -2919,6 +2961,9 @@ def _val_rules():
             "notes": ("matn", False, matn),
             # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
             "brak_bosqich": ("tanlov", True, _BRAK_BOSQICHI),
+            # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim
+            "brak_sabab": ("tanlov", True, _BRAK_SABABI),
+            "brak_javobgar_id": ("id", True),
         },
         "Sale": dict(sotuv, **{
             "buyer_name": ("matn", False, 150),
@@ -3088,6 +3133,9 @@ def _val_rules():
             "gips_kg_used": ("son", True, False, son),
             # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (faqat "Brak")
             "brak_bosqich": ("tanlov", True, _BRAK_BOSQICHI),
+            # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim (faqat "Brak")
+            "brak_sabab": ("tanlov", True, _BRAK_SABABI),
+            "brak_javobgar_id": ("id", True),
         },
         # 17g — yetkazish (`POST /api/deliveries`). `orders.html` ("Yetkazish"
         # oynasi va "Bir yo'la to'liq topshirish") AYNAN shu kalitlarni
@@ -4486,6 +4534,13 @@ def create_return_item(db: Session, data: ReturnItemCreate,
     _bosqich = getattr(data, 'brak_bosqich', None)
     if _bosqich is not None and reason_enum != ReturnReason.DEFECT:
         raise ValueError("Brak bosqichi faqat \"Brak\" sababi uchun tanlanadi")
+    # kech56 (13-band, 7-qadam): sabab va javobgar hodim — bosqich kabi FAQAT brak
+    # uchun; javobgar — shu korxonaning hodimi (hech narsa yozilishidan OLDIN).
+    _sabab = getattr(data, 'brak_sabab', None)
+    _javobgar = getattr(data, 'brak_javobgar_id', None)
+    if (_sabab is not None or _javobgar is not None) and reason_enum != ReturnReason.DEFECT:
+        raise ValueError("Brak sababi va javobgar hodim faqat \"Brak\" sababi uchun tanlanadi")
+    _brak_javobgar_tekshir(db, _javobgar, _o.company_id)
 
     order_item = None
     oi_id = getattr(data, 'order_item_id', None)
@@ -4658,7 +4713,10 @@ def create_return_item(db: Session, data: ReturnItemCreate,
         notes=data.notes,
         coating_applied=(getattr(data, 'coating_applied', False) if reason_enum == ReturnReason.DEFECT else False),
         # kech53 (13-band, 1-qadam): ixtiyoriy bosqich (yuqorida faqat brakka ruxsat)
-        brak_bosqich=(_bosqich if reason_enum == ReturnReason.DEFECT else None)
+        brak_bosqich=(_bosqich if reason_enum == ReturnReason.DEFECT else None),
+        # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar (yuqorida faqat brakka ruxsat)
+        brak_sabab=(_sabab if reason_enum == ReturnReason.DEFECT else None),
+        brak_javobgar_id=(_javobgar if reason_enum == ReturnReason.DEFECT else None)
     )
     db.add(item)
     db.flush()
@@ -7334,6 +7392,12 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
     available = float(fp.quantity or 0)
     if data.quantity > available + 0.001:
         return {"success": False, "message": f"Omborda faqat {available:g} {fp.unit} bor, {data.quantity:g} kamaytira olmaysiz"}
+    # kech56 (13-band, 7-qadam): javobgar hodim — shu korxonaning hodimi (yozuvdan OLDIN)
+    try:
+        _brak_javobgar_tekshir(db, getattr(data, 'brak_javobgar_id', None),
+                               getattr(fp, 'company_id', None))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
 
     unit_cost = (float(fp.cost_price or 0) / available) if available > 0 else 0
     cost_amount = unit_cost * data.quantity
@@ -7353,7 +7417,10 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
         reason=data.reason,
         created_by=created_by,
         # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi
-        brak_bosqich=getattr(data, 'brak_bosqich', None)
+        brak_bosqich=getattr(data, 'brak_bosqich', None),
+        # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim
+        brak_sabab=getattr(data, 'brak_sabab', None),
+        brak_javobgar_id=getattr(data, 'brak_javobgar_id', None)
     )
     db.add(loss)
     db.commit()
@@ -7551,7 +7618,9 @@ def _mrp_ishlab_chiqarish_braki_xomashyo(db: Session, fp, brak_qty, qatorlar, lo
 
 def record_finished_product_production_brak(db: Session, finished_product_id: int, brak_qty: float = None,
                                               notes: str = None, created_by: str = None,
-                                              company_id: int = None, brak_bosqich: str = None) -> dict:
+                                              company_id: int = None, brak_bosqich: str = None,
+                                              brak_sabab: str = None,
+                                              brak_javobgar_id: int = None) -> dict:
     """Tayyor mahsulot ISHLAB CHIQARISH JARAYONIDA chiqqan brak (masalan
     kesish yoki qoplama tortish paytida sinib ketishi) — bu, mahsulotdan
     KEYINCHALIK (allaqachon tayyor turgan holda) yo'qotilishidan FARQ
@@ -7574,12 +7643,21 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
     try:
         _clean_val("ProductionBrak", {"finished_product_id": finished_product_id,
                                       "brak_qty": brak_qty, "notes": notes,
+                                      # kech56 (13-band, 7-qadam): sabab va javobgar hodim
+                                      "brak_sabab": brak_sabab,
+                                      "brak_javobgar_id": brak_javobgar_id,
                                       "brak_bosqich": brak_bosqich})
     except ValueError as _e:
         return {"success": False, "message": str(_e)}
     fp = get_finished_product(db, finished_product_id, company_id, lock=True)
     if not fp:
         return {"success": False, "message": "Mahsulot topilmadi"}
+    # kech56 (13-band, 7-qadam): javobgar hodim — shu korxonaning hodimi (xomashyo
+    # yechilishidan va yozuvdan OLDIN)
+    try:
+        _brak_javobgar_tekshir(db, brak_javobgar_id, getattr(fp, 'company_id', None))
+    except ValueError as _e:
+        return {"success": False, "message": str(_e)}
 
     # M4: brak'da ayiriladigan XOMASHYO ham faqat shu korxonaniki bo'lishi
     # shart — aks holda A korxonaning braki B korxonaning omborini
@@ -7674,7 +7752,10 @@ def record_finished_product_production_brak(db: Session, finished_product_id: in
                + (f". Izoh: {notes}" if notes else ""),
         created_by=created_by,
         # kech53 (13-band, 1-qadam): ixtiyoriy brak bosqichi (`_clean_val` tekshirgan)
-        brak_bosqich=brak_bosqich
+        brak_bosqich=brak_bosqich,
+        # kech56 (13-band, 7-qadam): ixtiyoriy sabab va javobgar hodim (tekshirilgan)
+        brak_sabab=brak_sabab,
+        brak_javobgar_id=brak_javobgar_id
     )
     db.add(loss)
     db.commit()
