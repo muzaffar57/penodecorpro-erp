@@ -447,7 +447,7 @@ input[type=number]{-moz-appearance:textfield}
               <input type="text" id="base_price" placeholder="Masalan: 1 200 000" oninput="formatPriceInput(this);recalcAll()">
             </div>
             <div class="form-group" style="margin:0">
-              <label style="display:flex;align-items:center;gap:6px">Loy miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— barcha detallar uchun</span></label>
+              <label style="display:flex;align-items:center;gap:6px">Loy miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— qoplamali penoplast detallari uchun (MRP mahsuloti qoplamasi o'z retseptidan)</span></label>
               <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
                      oninput="checkLoyStock();updateLiveStats()" style="border-color:var(--gold)">
             </div>
@@ -4227,8 +4227,12 @@ async function saveOrder(isDraft = false) {
   // OLINMAGAN) detalda "Qoplama: Ha" bo'lsa so'raladi. Tayyor mahsulotdan
   // olingan detallar — allaqachon qoplangan (ishlab chiqarilganda), shu
   // buyurtmada YANGI loy sarflanmaydi, shuning uchun ular hisobga olinmaydi.
+  // kech62 (K62-1): MRP mahsuloti ham — uning qoplamasi o'z retseptining (BOM) qoplama
+  // qatoridan ishlab chiqarishda yechiladi (backend `_buyurtma_loyi_detalimi`); faqat MRP
+  // qoplamali buyurtmada loy kg so'ralsa, qoplama ikki marta yechilardi (O'LCHANGAN).
   const anyCoated = Array.from(document.querySelectorAll('.detal')).some(row => {
     if (row.dataset.fpId) return false;
+    if (row.querySelector('.i-type')?.value === 'mrp_product') return false;
     const cEl = row.querySelector('.i-c');
     return cEl && cEl.value === 'true';
   });
@@ -5211,7 +5215,12 @@ async function markReadySelected() {
     if (orderRes.ok) orderData = await orderRes.json();
   } catch(e) {}
 
-  const hasCoatable = (planned > 0) || (orderData && orderData.items && orderData.items.some(it => it.is_coated));
+  // kech62 (K62-1): buyurtma loyini sarflovchi detal — backend `_buyurtma_loyi_detalimi` bilan
+  // bir xil (MRP mahsuloti, "Loy sotish" va Tayyor mahsulotdan olingan detal — YO'Q).
+  const hasCoatable = (planned > 0) || (orderData && orderData.items && orderData.items.some(it =>
+    it.is_coated
+    && !['mrp_product', 'loy_sotish'].includes(String(it.category || '').toLowerCase())
+    && !it.finished_product_id));
   _readyModalData = { planned, hasCoatable, orderData };
 
   // Kartochka ichini quramiz
