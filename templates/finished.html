@@ -1048,7 +1048,9 @@ async function addProduction(id, qty, item) {
 
 let _lossData = null;
 
-const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok'];
+// kech54 (13-band, 5-qadam): MRP tayyor mahsuloti (`dynamic_bom`) — ishlab chiqarish braki
+// retsept SURATIDAN yoziladi (server). Qaytgan MRP (`mrp_product`) — surati yo'q, qo'shilmaydi.
+const PROD_BRAK_CATEGORIES = ['profil', 'panel', 'dona', 'blok', 'dynamic_bom'];
 let _lossMode = 'stock';
 
 // kech53 (13-band, 1-qadam): "Kamaytirish" oynasidagi ixtiyoriy brak bosqichi —
