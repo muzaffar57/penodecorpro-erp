@@ -891,10 +891,12 @@ function rowHtml(i) {
     <button class="mini-btn" onclick="openLossModal(${i.id}, '${jsAttrEscape(i.name)}', ${i.quantity}, '${jsAttrEscape(i.unit)}', '${jsAttrEscape(i.category || '')}')"
             title="Kamaytirish (brak/yo'qotish)"
             style="color:#DC2626">−</button>
+    ${(i.category !== 'dynamic_bom' && !i.product_type_id) ? `
     <input class="fp-inp" id="fq-${i.id}" type="number" step="any" value="1" placeholder="0">
     <button class="mini-btn" onclick="stepFp(${i.id})"
             title="Qo'shish — xomashyo proporsional yechiladi"
             style="color:#22C55E">+</button>
+    ` : ''}
     ` : ''}
     <button class="mini-btn" onclick="toggleFpMore(event, ${i.id})" title="Yana"><i class="ti ti-dots"></i></button>
     <div class="fp-more" id="fp-more-${i.id}">
@@ -1021,8 +1023,10 @@ async function addProduction(id, qty, item) {
     unitVol = item.unit_volume_m3;
     unitLoy = item.unit_loy_kg || 0;
   } else if (item.quantity > 0) {
-    unitVol = (item.volume_m3 || 0) / item.quantity;
-    unitLoy = (item.actual_loy_kg || 0) / item.quantity;
+    // kech61 (K61-3): jami hajm / loy JAMI ishlab chiqarilgan miqdorga bo'linadi (server bilan bir xil).
+    const bol = (item.produced_quantity > 0) ? item.produced_quantity : item.quantity;
+    unitVol = (item.volume_m3 || 0) / bol;
+    unitLoy = (item.actual_loy_kg || 0) / bol;
   } else {
     unitVol = 0; unitLoy = 0;
   }
@@ -1990,6 +1994,8 @@ async function openProfitModal(id) {
   // alohida (va bir-biridan farqli chiqishi mumkin bo'lgan) hisoblash
   // o'rniga, BITTA, ishonchli manbadan foydalanishni ta'minlaydi.
   let loyCost = 0, loyPerKg = 0, recipeName = '', penoCost = 0;
+  // kech61 (46-band): hajm / loy — QOLDIQ uchun (server `volume_m3` / `loy_kg`); javob kelmasa — jami.
+  let qVol = i.volume_m3 || 0, qLoy = i.actual_loy_kg || 0;
   try {
     const d = await fetch(`/api/finished/${id}/profit`).then(r => r.json());
     if (d.success) {
@@ -1997,8 +2003,11 @@ async function openProfitModal(id) {
       loyPerKg = d.loy_cost_per_kg || 0;
       recipeName = d.recipe || '';
       penoCost = d.penoplast_cost || 0;
+      qVol = d.volume_m3 || 0;
+      qLoy = d.loy_kg || 0;
     }
   } catch(e) {}
+  const qLoyTxt = Math.round(qLoy * 100) / 100;
 
   const w2 = fpWidth2(i);
   const dims = (i.width && i.thickness)
@@ -2007,14 +2016,14 @@ async function openProfitModal(id) {
   document.getElementById('pm-body').innerHTML = `
     <div style="background:#FAFAF8;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#666;line-height:1.8">
       📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}<br>
-      📦 Hajm: <b>${(i.volume_m3 || 0).toFixed(4)} m³</b>
-      ${i.actual_loy_kg > 0 ? `· 🧱 Loy: <b>${i.actual_loy_kg} kg</b>${recipeName ? ` (${escapeHtml(recipeName)})` : ''}` : ''}
+      📦 Hajm (qoldiq): <b>${qVol.toFixed(4)} m³</b>
+      ${qLoy > 0 ? `· 🧱 Loy: <b>${qLoyTxt} kg</b>${recipeName ? ` (${escapeHtml(recipeName)})` : ''}` : ''}
       ${i.created_by ? `<br>👤 ${escapeHtml(i.created_by)}` : ''}
     </div>
 
     <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
     ${row('📦 Penoplast', fmt(penoCost) + " so'm")}
-    ${loyCost > 0 ? row(`🧱 Loy (${i.actual_loy_kg} kg × ${fmt(loyPerKg)})`, fmt(loyCost) + " so'm") : ''}
+    ${loyCost > 0 ? row(`🧱 Loy (${qLoyTxt} kg × ${fmt(loyPerKg)})`, fmt(loyCost) + " so'm") : ''}
     <div style="border-top:1px solid #eee;margin:4px 0"></div>
     ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}
 
