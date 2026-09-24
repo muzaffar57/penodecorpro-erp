@@ -6297,6 +6297,12 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
 
     db.commit()
     return counts
+def _retsept_nomi53(r) -> str:
+    """kech63 (53-band): retsept nomi xabar / jurnal uchun (nom enum yoki matn bo'lishi mumkin)."""
+    n = getattr(r, 'name', None)
+    return str(getattr(n, 'value', n) or '')
+
+
 def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: bool = False, performed_by: str = None) -> dict:
     """Buyurtmani to'liq yangilaydi:
     - Detallarni almashtiradi
@@ -6386,6 +6392,10 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     is_draft = order.status == OrderStatus.DRAFT
     # kech58 (K58-3): tahrirdan OLDINGI qoplama retsepti — umumiy loy SHUNDAN yechilgan.
     _qr58_oldin = services.resolve_recipe(db, company_id=order.company_id, order=order)
+    # kech63 (53-band): tahrirdan OLDINGI foydalanuvchi TANLOVI (YANGI qoida — detallardan; UI shu
+    # tanlovni ko'rsatadi) va umumiy loy REJASI (shu `_qr58_oldin` retseptidan yechilgan miqdor).
+    _qr53_tanlov_oldin = None if is_draft else services.buyurtma_qoplama_retseptini_tanla(db, order)
+    _loy53 = 0.0 if is_draft else float(services._get_planned_loy(order) or 0)
 
     # 2) Qoralama bo'lmasa — xomashyo yetishini tekshiramiz
     if not is_draft:
@@ -6630,14 +6640,85 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     #  - Qoralama emas: umumiy loy qaysi retseptdan YECHILGAN bo'lsa — shu saqlanadi
     #    (yangi buyurtmada ustun allaqachon bor; eski NULL buyurtmada — faqat retsept
     #    o'zgaradigan bo'lsa, oldingisi yoziladi, aks holda avvalgi qoida AYNAN qoladi).
+    #
+    # kech63 (53-band) — FOYDALANUVCHI QARORI (kech62, tugma): "Oq loy omborga qaytsin, Kulrang
+    # yechilsin" — jarayondagi buyurtmada qoplama retsepti o'zgartirilsa eski retsept loyi omborga
+    # QAYTADI, yangisidan YECHILADI. O'LCHANGAN (asl kod `25bcd8d`, `work/probe53.py`): PUT R1 -> R2
+    # 200 "Buyurtma yangilandi!" berardi, ombor tegilmasdi, `qoplama_retsept_id` R1 da qolardi, detallar
+    # va tahrir oynasi esa R2 ni ko'rsatardi — foydalanuvchi almashtirdim deb o'ylardi (JIM).
+    # Qoida (texnik — Claude):
+    #  - ALMASHTIRISH = foydalanuvchi TANLOVI o'zgargan (`buyurtma_qoplama_retseptini_tanla` tahrirdan
+    #    OLDIN va KEYIN farqli) VA yangi tanlov loy yechilgan retseptdan (`_qr58_oldin`) farqli.
+    #    Tanlov o'zgarmagan tahrir (masalan eski NULL buyurtma, K58-1 shakli) — kech58 qoidasi AYNAN.
+    #  - Loy rejasi > 0 va buyurtmadan biror qism CHIQQAN (topshirilgan / omborga ortiqcha) yoki
+    #    "Tayyor" (haqiqiy loy yozilgan) — 400, HECH NARSA yozilmaydi (loyning bir qismi mahsulotda —
+    #    qaytarib bo'lmaydi; aralash retsept foydani buzadi).
+    #  - Aks holda eski retseptga BUTUN reja qaytadi (o'chirishdagi yo'l — `return_loy_ingredients`),
+    #    yangisidan yechiladi (yaratishdagi yo'l — `deduct_loy_ingredients`, avval tayyor loy zaxirasi).
+    #    Yangi retsept xomashyosi yetmasa — yaratishdagidek 409 "davom etasizmi?" (`confirm_shortage`).
+    #  - Qulf (101) ostida, `commit=False` — tahrir bilan BITTA tranzaksiya (keyingi `commit` —
+    #    `adjust_inventory_diff`). Loy miqdori ham o'zgarsa — `PUT` keyin `update_order_loy` farqni
+    #    YANGI retseptda qo'llaydi (`resolve_recipe` -> `qoplama_retsept_id`).
+    #  - Loy rejasi 0 — ombor tegilmaydi, faqat yangi tanlov yoziladi (keyingi loy shundan yechiladi).
     db.expire(order, ['items'])
+    _qr53_log = []
+    _qr53_matn = None
     if is_draft:
         _qr58_yangi = services.buyurtma_qoplama_retseptini_tanla(db, order)
         order.qoplama_retsept_id = _qr58_yangi.id if _qr58_yangi else None
-    elif order.qoplama_retsept_id is None and _qr58_oldin is not None:
-        _qr58_keyin = services.resolve_recipe(db, company_id=order.company_id, order=order)
-        if _qr58_keyin is None or _qr58_keyin.id != _qr58_oldin.id:
-            order.qoplama_retsept_id = _qr58_oldin.id
+    else:
+        _qr53_keyin = services.buyurtma_qoplama_retseptini_tanla(db, order)
+        _qr53_ozgardi = getattr(_qr53_tanlov_oldin, 'id', None) != getattr(_qr53_keyin, 'id', None)
+        if (_qr53_ozgardi and _qr58_oldin is not None and _qr53_keyin is not None
+                and _qr53_keyin.id != _qr58_oldin.id):
+            _eski53 = _retsept_nomi53(_qr58_oldin)
+            _yangi53 = _retsept_nomi53(_qr53_keyin)
+            if _loy53 > 0.001:
+                _sabab53 = None
+                if order.actual_loy_kg is not None:
+                    _sabab53 = "buyurtma «Tayyor» qilingan (haqiqiy loy yozilgan)"
+                elif services.buyurtmadan_qisman_chiqqan(order):
+                    _sabab53 = "buyurtmadan mahsulot allaqachon topshirilgan yoki omborga qaytarilgan"
+                if _sabab53:
+                    db.rollback()
+                    return {
+                        "success": False,
+                        "message": "Qoplama retseptini o'zgartirib bo'lmaydi!",
+                        "shortages": [
+                            f"Loy ({_miqdor_matn(_loy53)} kg) «{_eski53}» retseptidan yechilgan va {_sabab53} — "
+                            f"loyning bir qismi ishlatilgan, uni «{_yangi53}» ga almashtirib bo'lmaydi. "
+                            f"Retseptni «{_eski53}» holicha qoldiring."
+                        ]
+                    }
+                if not confirm_shortage:
+                    _lchk53 = services.check_loy_ingredients_for_order(
+                        db, _qr53_keyin.id, _loy53, company_id=order.company_id, commit=False)
+                    if not _lchk53.get("enough", True):
+                        db.rollback()
+                        return {
+                            "success": False,
+                            "type": "stock_shortage_warning",
+                            "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
+                            "shortages": list(_lchk53.get("shortages") or [])
+                        }
+                _nomer53 = order.order_number or order.id
+                _qr53_log.append(
+                    f"🔄 Qoplama retsepti almashtirildi: «{_eski53}» → «{_yangi53}» — {_miqdor_matn(_loy53)} kg loy: "
+                    f"eskisi omborga qaytdi, yangisidan yechildi")
+                _qr53_log.extend(services.return_loy_ingredients(
+                    db, order, _loy53, recipe_id=_qr58_oldin.id, company_id=order.company_id,
+                    reason_override=f"Buyurtma {_nomer53} — qoplama retsepti almashtirildi (eski retsept loyi qaytarildi)",
+                    commit=False))
+                _qr53_log.extend(services.deduct_loy_ingredients(
+                    db, order, _loy53, recipe_id=_qr53_keyin.id, company_id=order.company_id,
+                    reason_override=f"Buyurtma {_nomer53} (loy — yangi qoplama retsepti)",
+                    commit=False))
+            order.qoplama_retsept_id = _qr53_keyin.id
+            _qr53_matn = f"qoplama retsepti «{_eski53}» → «{_yangi53}»"
+        elif order.qoplama_retsept_id is None and _qr58_oldin is not None:
+            _qr58_keyin = services.resolve_recipe(db, company_id=order.company_id, order=order)
+            if _qr58_keyin is None or _qr58_keyin.id != _qr58_oldin.id:
+                order.qoplama_retsept_id = _qr58_oldin.id
     db.flush()
 
     # 6) Omborni farq bo'yicha to'g'rilaymiz (qoralama emas bo'lsa)
@@ -6645,6 +6726,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     if not is_draft:
         inventory_log = services.adjust_inventory_diff(db, old_snapshot, new_snapshot, order_id=order_id,
                                                        company_id=order.company_id)
+        # kech63 (53-band): qoplama retsepti almashtirilgan bo'lsa — uning qatorlari jurnal boshida.
+        inventory_log[:0] = _qr53_log
         # Tayyor mahsulot farqi
         # M4: farq faqat SHU buyurtmaning korxonasidagi mahsulotlarga qo'llanadi.
         inventory_log.extend(_adjust_finished_diff(db, old_snapshot, new_snapshot,
@@ -6690,6 +6773,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # kelgan edi (Termopanel belgisi yo'qolishi, va h.k.).
     try:
         _audit_after = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
+        if _qr53_matn:
+            _audit_after += f"; {_qr53_matn}"
         log_activity(db, "updated", "order", order.id, order.order_number, performed_by,
                       old_value=_audit_before, new_value=_audit_after,
                       company_id=getattr(order, 'company_id', None))

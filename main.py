@@ -4613,6 +4613,9 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         # 2026-09-17: Milestone 4 — Production/MRP tayyorlik ko'rsatkichi
         # (Order.status'ga umuman tegishli emas — faqat ko'rsatish uchun).
         "mrp_readiness": production_service.get_order_mrp_readiness(db, order.id),
+        # kech63 (53 / 67-band): buyurtmaning qoplama retsepti — umumiy loy AYNAN shundan yechilgan
+        # (yagona manba). Tahrir oynasi retsept tanlovini shundan oladi (eski NULL — detallardan).
+        "qoplama_retsept_id": getattr(order, 'qoplama_retsept_id', None),
         "notes": order.notes,
         "items": [{
             "id": i.id,

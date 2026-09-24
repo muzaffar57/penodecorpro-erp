@@ -4205,7 +4205,7 @@ def _get_order_recipe(db: Session, order, company_id: int = None):
     return resolve_recipe(db, order=order, company_id=company_id)
 
 
-def get_or_create_loy_stock(db: Session, recipe, company_id: int = None):
+def get_or_create_loy_stock(db: Session, recipe, company_id: int = None, commit: bool = True):
     """Retsept uchun 'Tayyor loy' ombor pozitsiyasini topadi yoki yaratadi.
 
     2026-09-18 — M8/F1a: qidiruv FAQAT `item_name` bo'yicha global edi va
@@ -4247,8 +4247,13 @@ def get_or_create_loy_stock(db: Session, recipe, company_id: int = None):
         notes="Buyurtmalardan ortgan tayyor loy — avtomatik yaratilgan"
     )
     db.add(stock)
-    db.commit()
-    db.refresh(stock)
+    # kech63 (53-band): `commit=False` — chaqiruvchi qulf (101, buyurtma) ostida BITTA tranzaksiyada
+    # ishlaydi (buyurtma tahriri); oraliq `commit` qulfni muddatidan OLDIN bo'shatardi.
+    if commit:
+        db.commit()
+        db.refresh(stock)
+    else:
+        db.flush()
     print(f"✓ Ombor pozitsiyasi yaratildi: {item_name}")
     return stock
 
@@ -4267,13 +4272,15 @@ def add_loy_to_stock(db: Session, recipe, kg: float) -> str:
     return msg
 
 
-def take_loy_from_stock(db: Session, recipe, kg_needed: float, order=None, reason_override: str = None):
+def take_loy_from_stock(db: Session, recipe, kg_needed: float, order=None, reason_override: str = None,
+                        commit: bool = True):
     """Ombordagi tayyor loydan oladi.
-    Qaytaradi: (olingan_kg, qolgan_ehtiyoj_kg, log_matni)"""
+    Qaytaradi: (olingan_kg, qolgan_ehtiyoj_kg, log_matni)
+    kech63 (53-band): `commit=False` — faqat `flush` (chaqiruvchining tranzaksiyasi / qulfi saqlanadi)."""
     if kg_needed <= 0:
         return 0.0, 0.0, ""
 
-    stock = get_or_create_loy_stock(db, recipe)
+    stock = get_or_create_loy_stock(db, recipe, commit=commit)
     if not stock:
         return 0.0, kg_needed, ""
 
@@ -4291,7 +4298,10 @@ def take_loy_from_stock(db: Session, recipe, kg_needed: float, order=None, reaso
             reason=reason_override or f"Buyurtma {getattr(order, 'order_number', order.id) if order else '?'} (tayyor loy zaxirasidan)",
             order_id=order.id if order else None
         )
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     msg = f"{stock.item_name}: -{taken:.1f} kg (zaxiradan)"
     print(f"✓ {msg}")
     return taken, kg_needed - taken, msg
@@ -4608,7 +4618,7 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
 
 
 def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: float,
-                                    company_id: int = None) -> dict:
+                                    company_id: int = None, commit: bool = True) -> dict:
     """Qoplama (loy) uchun kerakli xomashyo yetarli-yetarli emasligini
     OLDINDAN tekshiradi (hali hech narsa ayirilmasdan). Avval "tayyor loy"
     zaxirasi hisobga olinadi, keyin qolgan qism uchun retsept xomashyosi
@@ -4624,7 +4634,8 @@ def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: f
         return {"enough": True, "shortages": []}
 
     # Tayyor loy zaxirasi bor-yo'qligini tekshiramiz (ayirmasdan, faqat o'qib)
-    stock = get_or_create_loy_stock(db, recipe)
+    # kech63 (53-band): `commit=False` — pozitsiya yangi yaratilsa ham faqat `flush` (tahrir qulfi).
+    stock = get_or_create_loy_stock(db, recipe, commit=commit)
     available_stock = float(stock.stock_quantity or 0) if stock else 0.0
     remaining_kg = max(0.0, loy_kg - available_stock)
 
@@ -4648,7 +4659,7 @@ def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: f
     return {"enough": len(shortages) == 0, "shortages": shortages}
 
 
-def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True, recipe_id: int = None, reason_override: str = None, company_id: int = None) -> list:
+def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True, recipe_id: int = None, reason_override: str = None, company_id: int = None, commit: bool = True) -> list:
     """
     Loy (qoplama) uchun ingredientlarni ombordan ayiradi.
     use_stock=True bo'lsa — avval tayyor loy zaxirasidan oladi.
@@ -4657,6 +4668,8 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
     mumkin). Berilmasa — avvalgidek, buyurtmadan avtomatik topiladi.
     reason_override berilsa — jurnal yozuvida standart "Buyurtma X (loy)"
     o'rniga shu matn ishlatiladi (masalan brak hisoboti uchun "Brak — ...").
+    kech63 (53-band): `commit=False` — oxirida (va tayyor loy zaxirasida) faqat `flush`:
+    chaqiruvchi qulf (101, buyurtma) ostida BITTA tranzaksiyada ishlaydi (buyurtma tahriri).
     """
     from models import Inventory
 
@@ -4678,7 +4691,8 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
 
     # 1) Avval tayyor loy zaxirasidan olamiz
     if use_stock:
-        taken, loy_kg, msg = take_loy_from_stock(db, recipe, loy_kg, order=order, reason_override=reason_override)
+        taken, loy_kg, msg = take_loy_from_stock(db, recipe, loy_kg, order=order, reason_override=reason_override,
+                                                 commit=commit)
         if msg:
             log.append(msg)
         if loy_kg <= 0:
@@ -4727,12 +4741,16 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
                 order_id=order.id if order else None
             )
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return log
 
 
 def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = None,
-                           company_id: int = None, reason_override: str = None) -> list:
+                           company_id: int = None, reason_override: str = None,
+                           commit: bool = True) -> list:
     """
     Loy ingredientlarini omborga qaytaradi (buyurtma o'chirilganda).
     recipe_id berilsa — aynan O'SHA retsept ishlatiladi.
@@ -4745,6 +4763,8 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
     2026-09-21 — TENANT: retsept qidiruvi `resolve_recipe` ga o'tkazildi.
     Qaytarish ham xuddi ayirish kabi xavfli edi — begona retsept bilan
     BEGONA omborga xomashyo "qaytarilardi".
+
+    kech63 (53-band): `commit=False` — oxirida faqat `flush` (buyurtma tahriri qulf ostida).
     """
     from models import Inventory
 
@@ -4780,7 +4800,10 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
                 order_id=order.id
             )
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return log
 
 
