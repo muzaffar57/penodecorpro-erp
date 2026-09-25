@@ -5018,116 +5018,121 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
     # tayyor mahsulotlar omborida qoladi — ikki marta hisoblanmaydi).
     qisman = services.buyurtmadan_qisman_chiqqan(order)
 
-    if can_return and not order.stock_returned:
-        if qisman:
-            # Qisman topshirilgan / omborga qo'yilgan — faqat qolgan qismi qaytadi
-            log.extend(services.return_inventory_for_order_partial(db, order))
-        else:
-            # Hech narsa topshirilmagan — hammasi qaytadi
-            log.extend(services.return_inventory_for_order(db, order))
-
-        # Tayyor mahsulotlar qaytadi — hech narsa topshirilmagan bo'lsa TO'LIQ,
-        # QISMAN topshirilgan bo'lsa faqat QOLGAN (topshirilmagan) qismi
-        # (_return_finished_for_order o'zi item.remaining_qty orqali farqni
-        # to'g'ri hisoblaydi — topshirilgan qism mijozda qoladi).
-        log.extend(crud._return_finished_for_order(db, order))
-
-        # Loy ingredientlari — reja/haqiqiy solishtirib qaytariladi.
-        # actual_loy_kg berilgan bo'lsa (hodim "qancha ishlatildi" deb yozgan) —
-        # ortgan qismi aniq qaytadi. Berilmagan bo'lsa:
-        #   - hech narsa topshirilmagan bo'lsa — to'liq rejalashtirilgan miqdor qaytadi;
-        #   - QISMAN topshirilgan bo'lsa — buyurtmaning yetkazilgan foiziga qarab,
-        #     QOLGAN (topshirilmagan) qism uchun mo'ljallangan loy proporsional qaytadi
-        #     (aniq "qancha ishlatilgani" ma'lum bo'lmagani uchun taxminiy hisob).
-        planned_loy = services._get_planned_loy(order)
-        # kech77 (95-band, K77-1 — O'LCHANGAN `work/probe95.py`, SQLite = PG): HAQIQATDA qo'llangan loy
-        # (+ qaytgan, − qo'shimcha yechilgan) buyurtmada saqlanadi — `crud.restore_order` AYNAN shuni teskari
-        # qiladi. Ilgari tiklash DOIM reja × qolgan ulushni qayta yechardi: `actual_loy_kg` bilan o'chirilgan
-        # buyurtma tiklansa loy qoldig'i abadiy siljirdi (qisman 4/10, loy 10: actual=10 → −6, actual=7 → −3,
-        # actual=12 → −8; yuksiz "Tayyor", actual=3 → −3).
-        loy_qollangan = 0.0
-
-        if actual_loy_kg is not None:
-            diff = planned_loy - float(actual_loy_kg)
-            if diff > 0.01:
-                log.extend(services.return_loy_ingredients(db, order, diff))
-                loy_qollangan = diff
-            elif diff < -0.01:
-                log.extend(services.deduct_loy_ingredients(db, order, abs(diff)))
-                loy_qollangan = diff
-        elif planned_loy > 0:
-            if not qisman:
-                log.extend(services.return_loy_ingredients(db, order, planned_loy))
-                loy_qollangan = float(planned_loy)
+    # kech81 (99-band — O'LCHANGAN, `work/probe99.py`, SQLite = PG 16): xomashyo / tayyor mahsulot / loy
+    # qaytarish va buyurtmani o'chirish BITTA tranzaksiyada (`crud.bitta_tranzaksiya`). Ilgari
+    # `return_inventory_for_order` va `return_loy_ingredients` o'zi commit qilardi — keyingi qadam yiqilsa
+    # ombor qaytgan, buyurtma o'chmagan qolar va qayta o'chirish IKKINCHI marta qaytarardi.
+    with crud.bitta_tranzaksiya(db):
+        if can_return and not order.stock_returned:
+            if qisman:
+                # Qisman topshirilgan / omborga qo'yilgan — faqat qolgan qismi qaytadi
+                log.extend(services.return_inventory_for_order_partial(db, order))
             else:
-                # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
-                # delivery_percent EMAS — faqat haqiqatda loy sarflaydigan
-                # detallar bo'yicha hisoblangan ulush ishlatiladi (qarang:
-                # services.loy_relevant_remaining_fraction izohi).
-                remaining_fraction = services.loy_relevant_remaining_fraction(order)
-                proportional_loy = planned_loy * remaining_fraction
-                if proportional_loy > 0.01:
-                    log.extend(services.return_loy_ingredients(db, order, proportional_loy))
-                    loy_qollangan = proportional_loy
-        order.ochirishda_loy_kg = loy_qollangan
+                # Hech narsa topshirilmagan — hammasi qaytadi
+                log.extend(services.return_inventory_for_order(db, order))
 
-        # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, ALOHIDA
-        # (item.remaining_qty asosida) qaytariladi.
-        # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): avval bu butun
-        # buyurtmaning order-wide has_delivery'iga qarab HAMMASI YOKI HECH
-        # NARSA tarzida ishlardi — agar buyurtmadagi BOSHQA bir detal
-        # (masalan profil) qisman topshirilgan bo'lsa, shu "loy sotish"
-        # detali o'zi UMUMAN topshirilmagan bo'lsa ham, uning loyi
-        # UMUMAN qaytmas edi. Endi har bir "loy sotish" detali o'zining
-        # remaining_qty'i (topshirilmagan qismi) bo'yicha, mustaqil
-        # qaytariladi — boshqa detallarning yetkazilish holatidan qat'i
-        # nazar.
-        for item in order.items:
-            if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
-                remaining = item.remaining_qty
-                if remaining > 0.001:
-                    log.extend(services.return_loy_ingredients(db, order, float(remaining), recipe_id=item.recipe_id))
+            # Tayyor mahsulotlar qaytadi — hech narsa topshirilmagan bo'lsa TO'LIQ,
+            # QISMAN topshirilgan bo'lsa faqat QOLGAN (topshirilmagan) qismi
+            # (_return_finished_for_order o'zi item.remaining_qty orqali farqni
+            # to'g'ri hisoblaydi — topshirilgan qism mijozda qoladi).
+            log.extend(crud._return_finished_for_order(db, order))
 
-        # MUHIM: "qaytarildi" deb BELGILAYMIZ — shu buyurtma keyinchalik
-        # tiklanib, YANA o'chirilsa ham, ombor IKKINCHI MARTA qaytarilmasin.
-        order.stock_returned = True
+            # Loy ingredientlari — reja/haqiqiy solishtirib qaytariladi.
+            # actual_loy_kg berilgan bo'lsa (hodim "qancha ishlatildi" deb yozgan) —
+            # ortgan qismi aniq qaytadi. Berilmagan bo'lsa:
+            #   - hech narsa topshirilmagan bo'lsa — to'liq rejalashtirilgan miqdor qaytadi;
+            #   - QISMAN topshirilgan bo'lsa — buyurtmaning yetkazilgan foiziga qarab,
+            #     QOLGAN (topshirilmagan) qism uchun mo'ljallangan loy proporsional qaytadi
+            #     (aniq "qancha ishlatilgani" ma'lum bo'lmagani uchun taxminiy hisob).
+            planned_loy = services._get_planned_loy(order)
+            # kech77 (95-band, K77-1 — O'LCHANGAN `work/probe95.py`, SQLite = PG): HAQIQATDA qo'llangan loy
+            # (+ qaytgan, − qo'shimcha yechilgan) buyurtmada saqlanadi — `crud.restore_order` AYNAN shuni teskari
+            # qiladi. Ilgari tiklash DOIM reja × qolgan ulushni qayta yechardi: `actual_loy_kg` bilan o'chirilgan
+            # buyurtma tiklansa loy qoldig'i abadiy siljirdi (qisman 4/10, loy 10: actual=10 → −6, actual=7 → −3,
+            # actual=12 → −8; yuksiz "Tayyor", actual=3 → −3).
+            loy_qollangan = 0.0
 
-    # Nima uchun (to'liq) qaytmagani — foydalanuvchiga aytamiz
-    reason = None
-    if order.status == OrderStatus.DRAFT:
-        reason = "Qoralama — ombordan hech narsa yechilmagan edi"
-    elif is_fully_delivered and not has_delivery:
-        # kech60 (57-band): hech narsa topshirilmagan, hammasi ortiqcha sifatida omborga qo'yilgan
-        reason = "Mahsulotning hammasi omborga qaytarilgan (ortiqcha) — tayyor mahsulotlar omborida, xomashyo qaytmaydi"
-    elif is_fully_delivered:
-        reason = "Buyurtma TO'LIQ YETKAZILGAN — mahsulot mijozda, xomashyo qaytmaydi"
-    elif has_delivery:
-        pct = order.delivery_percent
-        reason = f"Qisman topshirilgan ({pct:.0f}%) — faqat QOLGAN ({100-pct:.0f}%) qismi uchun xomashyo qaytdi"
-    elif qisman:
-        reason = "Omborga qaytarilgan (ortiqcha) qism tayyor mahsulotlar omborida qoldi — xomashyo faqat qolgan qism uchun qaytdi"
+            if actual_loy_kg is not None:
+                diff = planned_loy - float(actual_loy_kg)
+                if diff > 0.01:
+                    log.extend(services.return_loy_ingredients(db, order, diff))
+                    loy_qollangan = diff
+                elif diff < -0.01:
+                    log.extend(services.deduct_loy_ingredients(db, order, abs(diff)))
+                    loy_qollangan = diff
+            elif planned_loy > 0:
+                if not qisman:
+                    log.extend(services.return_loy_ingredients(db, order, planned_loy))
+                    loy_qollangan = float(planned_loy)
+                else:
+                    # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
+                    # delivery_percent EMAS — faqat haqiqatda loy sarflaydigan
+                    # detallar bo'yicha hisoblangan ulush ishlatiladi (qarang:
+                    # services.loy_relevant_remaining_fraction izohi).
+                    remaining_fraction = services.loy_relevant_remaining_fraction(order)
+                    proportional_loy = planned_loy * remaining_fraction
+                    if proportional_loy > 0.01:
+                        log.extend(services.return_loy_ingredients(db, order, proportional_loy))
+                        loy_qollangan = proportional_loy
+            order.ochirishda_loy_kg = loy_qollangan
 
-    # Kelajakda KPI/hisobotlar uchun saqlanishi kerakmi?
-    # Har qanday haqiqiy ish izi bo'lsa (yetkazish, tayyor, to'langan) — yumshoq o'chiramiz.
-    # MUHIM: "to'lov qilingan" — endi yakka o'zi yumshoq o'chirishga sabab
-    # bo'lmaydi. Agar buyurtmaga HECH NARSA topshirilmagan bo'lsa (hali
-    # ish boshlanmagan, chin bekor qilish) — buyurtma BUTUNLAY o'chadi,
-    # va unga bog'liq TO'LOVLAR HAM avtomatik birga o'chadi (pastda,
-    # crud.delete_order ichida) — moliyaviy iz qoldirishning hojati yo'q,
-    # chunki hech qanday haqiqiy xizmat ko'rsatilmagan edi.
-    should_soft_delete = (
-        has_delivery
-        or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
-    )
+            # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, ALOHIDA
+            # (item.remaining_qty asosida) qaytariladi.
+            # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): avval bu butun
+            # buyurtmaning order-wide has_delivery'iga qarab HAMMASI YOKI HECH
+            # NARSA tarzida ishlardi — agar buyurtmadagi BOSHQA bir detal
+            # (masalan profil) qisman topshirilgan bo'lsa, shu "loy sotish"
+            # detali o'zi UMUMAN topshirilmagan bo'lsa ham, uning loyi
+            # UMUMAN qaytmas edi. Endi har bir "loy sotish" detali o'zining
+            # remaining_qty'i (topshirilmagan qismi) bo'yicha, mustaqil
+            # qaytariladi — boshqa detallarning yetkazilish holatidan qat'i
+            # nazar.
+            for item in order.items:
+                if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
+                    remaining = item.remaining_qty
+                    if remaining > 0.001:
+                        log.extend(services.return_loy_ingredients(db, order, float(remaining), recipe_id=item.recipe_id))
 
-    # MUHIM: yuqorida yaratilgan yangi "ombor harakati" yozuvlari (masalan
-    # Loy qaytarilgani) hali bazaga yozilmagan (faqat xotirada) bo'lishi
-    # mumkin. Ularni ENDI, delete_order ichidagi "bog'lanishni uzish"
-    # so'rovidan OLDIN, bazaga yozib qo'yamiz — aks holda FK xatosi chiqadi.
-    db.flush()
+            # MUHIM: "qaytarildi" deb BELGILAYMIZ — shu buyurtma keyinchalik
+            # tiklanib, YANA o'chirilsa ham, ombor IKKINCHI MARTA qaytarilmasin.
+            order.stock_returned = True
 
-    if not crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username)):
-        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+        # Nima uchun (to'liq) qaytmagani — foydalanuvchiga aytamiz
+        reason = None
+        if order.status == OrderStatus.DRAFT:
+            reason = "Qoralama — ombordan hech narsa yechilmagan edi"
+        elif is_fully_delivered and not has_delivery:
+            # kech60 (57-band): hech narsa topshirilmagan, hammasi ortiqcha sifatida omborga qo'yilgan
+            reason = "Mahsulotning hammasi omborga qaytarilgan (ortiqcha) — tayyor mahsulotlar omborida, xomashyo qaytmaydi"
+        elif is_fully_delivered:
+            reason = "Buyurtma TO'LIQ YETKAZILGAN — mahsulot mijozda, xomashyo qaytmaydi"
+        elif has_delivery:
+            pct = order.delivery_percent
+            reason = f"Qisman topshirilgan ({pct:.0f}%) — faqat QOLGAN ({100-pct:.0f}%) qismi uchun xomashyo qaytdi"
+        elif qisman:
+            reason = "Omborga qaytarilgan (ortiqcha) qism tayyor mahsulotlar omborida qoldi — xomashyo faqat qolgan qism uchun qaytdi"
+
+        # Kelajakda KPI/hisobotlar uchun saqlanishi kerakmi?
+        # Har qanday haqiqiy ish izi bo'lsa (yetkazish, tayyor, to'langan) — yumshoq o'chiramiz.
+        # MUHIM: "to'lov qilingan" — endi yakka o'zi yumshoq o'chirishga sabab
+        # bo'lmaydi. Agar buyurtmaga HECH NARSA topshirilmagan bo'lsa (hali
+        # ish boshlanmagan, chin bekor qilish) — buyurtma BUTUNLAY o'chadi,
+        # va unga bog'liq TO'LOVLAR HAM avtomatik birga o'chadi (pastda,
+        # crud.delete_order ichida) — moliyaviy iz qoldirishning hojati yo'q,
+        # chunki hech qanday haqiqiy xizmat ko'rsatilmagan edi.
+        should_soft_delete = (
+            has_delivery
+            or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
+        )
+
+        # MUHIM: yuqorida yaratilgan yangi "ombor harakati" yozuvlari (masalan
+        # Loy qaytarilgani) hali bazaga yozilmagan (faqat xotirada) bo'lishi
+        # mumkin. Ularni ENDI, delete_order ichidagi "bog'lanishni uzish"
+        # so'rovidan OLDIN, bazaga yozib qo'yamiz — aks holda FK xatosi chiqadi.
+        db.flush()
+
+        if not crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username)):
+            raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
     if log:
         print(f"✓ {order_num} o'chirildi. Omborga qaytdi: {log}")

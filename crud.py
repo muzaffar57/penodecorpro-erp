@@ -5,6 +5,7 @@ CRUD = Create (yaratish), Read (o'qish), Update (yangilash), Delete (o'chirish).
 Bu fayl bazaga yozish va o'qish funksiyalarini saqlaydi.
 """
 
+import contextlib
 from typing import List, Optional, Dict
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -4115,6 +4116,48 @@ def _auto_release_mrp_reservations(db: Session, order_item_ids, performed_by: st
         fp.reserved_for_order_item_id = None
 
 
+@contextlib.contextmanager
+def bitta_tranzaksiya(db: Session):
+    """kech81 (99-band) — ichidagi HAMMA yozuv BITTA tranzaksiyada: yo hammasi saqlanadi, yo hech biri.
+
+    O'LCHANGAN (`work/probe99.py`, asl kod `5ab360f` (zip 76), SQLite = PG 16 AYNAN, 72 dan 22 yiqilish):
+    buyurtmani o'chirish (`main.api_delete_order`) va tiklash (`restore_order`) xomashyoni bir necha
+    yordamchi orqali qaytaradi / yechadi — `services.return_inventory_for_order`, `return_loy_ingredients`,
+    `deduct_loy_ingredients`, `take_loy_from_stock`, `log_activity` — va ularning HAR BIRI o'zi `commit`
+    qilardi. Keyingi qadam yiqilsa (tarmoq uzilishi, 404, istisno) penoplast / loy omborda qaytgan
+    (yoki yechilgan) bo'lib QOLARDI, buyurtma esa o'chmagan / tiklanmagan va `stock_returned` o'zgarmagan —
+    foydalanuvchi qayta bossa ombor IKKINCHI marta o'zgarardi (qoplamali 10 m, loy 10 kg: penoplast
+    +0.2 blok / kley +20 kg o'rniga +0.1 / +10; qisman topshirilgan: +0.12 / +12 o'rniga +0.06 / +6;
+    tiklashda −0.2 / −20 o'rniga −0.1 / −10).
+
+    Qanday ishlaydi: blok ichida sessiyaning `commit()` i `flush()` ga almashtiriladi (yordamchilar
+    o'zgartirilmaydi — kelajakda qo'shilgan ichki `commit` ham bir tranzaksiyaga tushadi), blok oxirida
+    BITTA haqiqiy `commit`; blok ichidagi istalgan istisnoda (HTTPException ham) — `rollback` va istisno
+    qayta ko'tariladi. Ichma-ich ishlatish mumkin: ichkisi tashqi tranzaksiyaga qo'shiladi, haqiqiy
+    `commit` faqat eng tashqisining oxirida.
+    """
+    _oldin = db.__dict__.get("commit")
+    db.commit = db.flush
+
+    def _qaytar():
+        if _oldin is None:
+            db.__dict__.pop("commit", None)
+        else:
+            db.commit = _oldin
+
+    try:
+        yield db
+    except BaseException:
+        _qaytar()
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001 — asl istisno muhimroq
+            pass
+        raise
+    _qaytar()
+    db.commit()
+
+
 def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: str = None) -> bool:
     """Buyurtmani o'chirish.
     soft=True bo'lsa — bazadan o'chirilmaydi, faqat 'is_deleted' belgisi qo'yiladi.
@@ -4216,80 +4259,85 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
     if not db_order:
         return False
 
-    if db_order.stock_returned:
-        # kech60 (57-band): "qisman chiqqan" sharti — `services.buyurtmadan_qisman_chiqqan` (pastda)
-        is_fully_delivered = db_order.status == OrderStatus.DELIVERED or db_order.is_fully_delivered
+    # kech81 (99-band — O'LCHANGAN, `work/probe99.py`): qayta yechish, bayroqlar va jurnal BITTA tranzaksiyada.
+    # Ilgari `return_inventory_for_order(sign=-1)` / `deduct_loy_ingredients` o'zi commit qilardi — keyingi
+    # qadam yiqilsa xomashyo yechilgan, buyurtma esa o'chirilgan (`stock_returned` True) qolar, qayta tiklash
+    # IKKINCHI marta yechardi (yuksiz READY: penoplast −0.2 / kley −20 o'rniga −0.1 / −10).
+    with bitta_tranzaksiya(db):
+        if db_order.stock_returned:
+            # kech60 (57-band): "qisman chiqqan" sharti — `services.buyurtmadan_qisman_chiqqan` (pastda)
+            is_fully_delivered = db_order.status == OrderStatus.DELIVERED or db_order.is_fully_delivered
 
-        if not is_fully_delivered:
-            # kech60 (57-band): o'chirishdagi (`main.api_delete_order`) bilan AYNAN bir xil
-            # shart — topshirilgan YOKI omborga ortiqcha qo'yilgan qism bo'lsa, faqat qolgan qism.
-            if services.buyurtmadan_qisman_chiqqan(db_order):
-                # Qisman topshirilgan / omborga qo'yilgan edi — faqat qolgan qism qayta yechiladi
-                services.return_inventory_for_order_partial(db, db_order, sign=-1.0)
-            else:
-                # Hech narsa topshirilmagan edi — hammasi qayta yechiladi
-                services.return_inventory_for_order(db, db_order, sign=-1.0)
+            if not is_fully_delivered:
+                # kech60 (57-band): o'chirishdagi (`main.api_delete_order`) bilan AYNAN bir xil
+                # shart — topshirilgan YOKI omborga ortiqcha qo'yilgan qism bo'lsa, faqat qolgan qism.
+                if services.buyurtmadan_qisman_chiqqan(db_order):
+                    # Qisman topshirilgan / omborga qo'yilgan edi — faqat qolgan qism qayta yechiladi
+                    services.return_inventory_for_order_partial(db, db_order, sign=-1.0)
+                else:
+                    # Hech narsa topshirilmagan edi — hammasi qayta yechiladi
+                    services.return_inventory_for_order(db, db_order, sign=-1.0)
 
-            # Tayyor mahsulotlar qayta yechiladi — hech narsa topshirilmagan
-            # bo'lsa TO'LIQ, QISMAN topshirilgan bo'lsa faqat QOLGAN qismi
-            # (_return_finished_for_order item.remaining_qty orqali o'zi farqni
-            # to'g'ri hisoblaydi — bu o'chirishdagi qaytarishning aynan aksi).
-            _return_finished_for_order(db, db_order, sign=-1.0)
+                # Tayyor mahsulotlar qayta yechiladi — hech narsa topshirilmagan
+                # bo'lsa TO'LIQ, QISMAN topshirilgan bo'lsa faqat QOLGAN qismi
+                # (_return_finished_for_order item.remaining_qty orqali o'zi farqni
+                # to'g'ri hisoblaydi — bu o'chirishdagi qaytarishning aynan aksi).
+                _return_finished_for_order(db, db_order, sign=-1.0)
 
-            # Loy uchun QOLGAN (topshirilmagan) qism ulushi — o'chirishda
-            # QANCHA qaytarilgan bo'lsa, tiklashda AYNAN O'SHA qism qayta
-            # yechiladi (bu ulush o'zgarmaydi, chunki buyurtma o'chirilgan
-            # holatda yetkazishlar qo'shilmaydi va detallar tahrirlanmaydi —
-            # create_delivery/update_order_item/delete_order_item endi
-            # is_deleted buyurtmalarni rad etadi).
-            # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
-            # delivery_percent EMAS — Loy uchun ALOHIDA, faqat shu
-            # xomashyoni haqiqatda sarflaydigan detallar bo'yicha hisoblangan
-            # ulush (qarang: main.py'dagi bir xil tuzatish va services.py
-            # dagi loy_relevant_remaining_fraction
-            # fraction izohlari).
-            loy_remaining_fraction = (services.loy_relevant_remaining_fraction(db_order)
-                                      if services.buyurtmadan_qisman_chiqqan(db_order) else 1.0)
+                # Loy uchun QOLGAN (topshirilmagan) qism ulushi — o'chirishda
+                # QANCHA qaytarilgan bo'lsa, tiklashda AYNAN O'SHA qism qayta
+                # yechiladi (bu ulush o'zgarmaydi, chunki buyurtma o'chirilgan
+                # holatda yetkazishlar qo'shilmaydi va detallar tahrirlanmaydi —
+                # create_delivery/update_order_item/delete_order_item endi
+                # is_deleted buyurtmalarni rad etadi).
+                # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
+                # delivery_percent EMAS — Loy uchun ALOHIDA, faqat shu
+                # xomashyoni haqiqatda sarflaydigan detallar bo'yicha hisoblangan
+                # ulush (qarang: main.py'dagi bir xil tuzatish va services.py
+                # dagi loy_relevant_remaining_fraction
+                # fraction izohlari).
+                loy_remaining_fraction = (services.loy_relevant_remaining_fraction(db_order)
+                                          if services.buyurtmadan_qisman_chiqqan(db_order) else 1.0)
 
-            # Loy (qoplama). kech77 (95-band, K77-1 — O'LCHANGAN `work/probe95.py`, SQLite = PG): o'chirishda
-            # HAQIQATDA qo'llangan miqdor (`ochirishda_loy_kg`: + qaytgan, − qo'shimcha yechilgan) AYNAN teskari
-            # qilinadi. Ilgari bu yerda DOIM reja × qolgan ulush qayta yechilardi ("aniq qiymat saqlanmagan") —
-            # hodim o'chirishda "haqiqatda qancha ishlatilgan" deb boshqa miqdor yozgan bo'lsa, tiklash loy
-            # qoldig'ini abadiy siljitardi (qisman 4/10, loy 10: actual=7 → −3, actual=12 → −8). NULL — kech77 dan
-            # OLDIN o'chirilgan buyurtma (o'shanda UI miqdor so'ramasdi — qaytgani aynan reja × ulush edi): eski qoida.
-            planned_loy = services._get_planned_loy(db_order)
-            _qollangan = getattr(db_order, 'ochirishda_loy_kg', None)
-            if _qollangan is not None:
-                _qollangan = float(_qollangan)
-                if _qollangan > 0.01:
-                    services.deduct_loy_ingredients(db, db_order, _qollangan)
-                elif _qollangan < -0.01:
-                    services.return_loy_ingredients(
-                        db, db_order, abs(_qollangan),
-                        reason_override=f"Buyurtma {db_order.order_number} tiklandi (o'chirishda qo'shimcha yechilgan loy qaytarildi)")
-            else:
-                redo_loy = planned_loy * loy_remaining_fraction
-                if redo_loy > 0.01:
-                    services.deduct_loy_ingredients(db, db_order, redo_loy)
+                # Loy (qoplama). kech77 (95-band, K77-1 — O'LCHANGAN `work/probe95.py`, SQLite = PG): o'chirishda
+                # HAQIQATDA qo'llangan miqdor (`ochirishda_loy_kg`: + qaytgan, − qo'shimcha yechilgan) AYNAN teskari
+                # qilinadi. Ilgari bu yerda DOIM reja × qolgan ulush qayta yechilardi ("aniq qiymat saqlanmagan") —
+                # hodim o'chirishda "haqiqatda qancha ishlatilgan" deb boshqa miqdor yozgan bo'lsa, tiklash loy
+                # qoldig'ini abadiy siljitardi (qisman 4/10, loy 10: actual=7 → −3, actual=12 → −8). NULL — kech77 dan
+                # OLDIN o'chirilgan buyurtma (o'shanda UI miqdor so'ramasdi — qaytgani aynan reja × ulush edi): eski qoida.
+                planned_loy = services._get_planned_loy(db_order)
+                _qollangan = getattr(db_order, 'ochirishda_loy_kg', None)
+                if _qollangan is not None:
+                    _qollangan = float(_qollangan)
+                    if _qollangan > 0.01:
+                        services.deduct_loy_ingredients(db, db_order, _qollangan)
+                    elif _qollangan < -0.01:
+                        services.return_loy_ingredients(
+                            db, db_order, abs(_qollangan),
+                            reason_override=f"Buyurtma {db_order.order_number} tiklandi (o'chirishda qo'shimcha yechilgan loy qaytarildi)")
+                else:
+                    redo_loy = planned_loy * loy_remaining_fraction
+                    if redo_loy > 0.01:
+                        services.deduct_loy_ingredients(db, db_order, redo_loy)
 
-            # "Loy sotish" detallari — har biri o'z remaining_qty'i bo'yicha
-            # ALOHIDA qayta yechiladi (o'chirishdagi bilan bir xil, item
-            # darajasida — order-wide has_delivery emas; qarang: yuqoridagi
-            # main.py'dagi bir xil tuzatish).
-            for item in db_order.items:
-                if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
-                    remaining = item.remaining_qty
-                    if remaining > 0.001:
-                        services.deduct_loy_ingredients(db, db_order, float(remaining), recipe_id=item.recipe_id)
+                # "Loy sotish" detallari — har biri o'z remaining_qty'i bo'yicha
+                # ALOHIDA qayta yechiladi (o'chirishdagi bilan bir xil, item
+                # darajasida — order-wide has_delivery emas; qarang: yuqoridagi
+                # main.py'dagi bir xil tuzatish).
+                for item in db_order.items:
+                    if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
+                        remaining = item.remaining_qty
+                        if remaining > 0.001:
+                            services.deduct_loy_ingredients(db, db_order, float(remaining), recipe_id=item.recipe_id)
 
-        db_order.stock_returned = False
-        # kech77 (K77-1): qo'llangan loy teskari qilindi — keyingi o'chirish o'zini qayta yozadi
-        db_order.ochirishda_loy_kg = None
+            db_order.stock_returned = False
+            # kech77 (K77-1): qo'llangan loy teskari qilindi — keyingi o'chirish o'zini qayta yozadi
+            db_order.ochirishda_loy_kg = None
 
-    db_order.is_deleted = False
-    db.commit()
-    log_activity(db, "restored", "order", order_id, db_order.order_number, performed_by,
-                 company_id=getattr(db_order, 'company_id', None))
+        db_order.is_deleted = False
+        db.commit()
+        log_activity(db, "restored", "order", order_id, db_order.order_number, performed_by,
+                     company_id=getattr(db_order, 'company_id', None))
     return True
 
 
