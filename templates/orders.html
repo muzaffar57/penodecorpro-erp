@@ -1758,6 +1758,31 @@ function itemParamsText(item) {
   return `${item.quantity || 0} dona`;
 }
 
+// kech80 (88-band): buyurtmadagi MRP tayyorlik belgisi — server holati (`mrp_readiness.holat`) bo'yicha
+// uchta ko'rinish. Ilgari faqat «band qilingan» tekshirilardi: boshlangan, lekin YAKUNLANMAGAN ishlab
+// chiqarish ham «✅ MRP: tayyor» ko'rinib, «Tayyor» tugmasi 400 berardi.
+function mrpSon(x) {
+  return String(+Number(x || 0).toFixed(3));
+}
+function mrpTayyorlikBelgisi(mr) {
+  if (!mr || !mr.applicable) return '';
+  if (mr.fully_ready) {
+    return '<span class="badge" style="background:#DCFCE7;color:#15803D" title="Buyurtmadagi barcha MRP mahsulotlari ishlab chiqarilgan — topshirishga tayyor">✅ MRP: tayyor</span>';
+  }
+  const qism = (mr.items || []).filter(i => !i.is_ready).map(i => {
+    const q = [];
+    if ((i.remaining_quantity || 0) > 0.0001) q.push('yana ' + mrpSon(i.remaining_quantity));
+    if ((i.ishlab_chiqarilmoqda || 0) > 0.0001) q.push('ishlab chiqarilmoqda ' + mrpSon(i.ishlab_chiqarilmoqda));
+    q.push('tayyor ' + mrpSon(i.tayyor_quantity));
+    return (i.item_name || '') + ': ' + q.join(', ');
+  }).join('; ');
+  if (mr.holat === 'ishlab_chiqarilmoqda') {
+    const izoh = 'Hamma MRP mahsuloti band qilingan, lekin ishlab chiqarish hali yakunlanmagan — «Tayyor» va yuk xati uchun avval ishlab chiqarishni yakunlang. ' + qism;
+    return `<span class="badge" style="background:#DBEAFE;color:#1D4ED8" title="${escapeHtml(izoh)}">🏭 MRP: ishlab chiqarilmoqda</span>`;
+  }
+  return `<span class="badge" style="background:#FEF3C7;color:#B45309" title="${escapeHtml(qism)}">⏳ MRP: kutilmoqda</span>`;
+}
+
 async function loadOrderItems(id) {
   const container = document.getElementById('od-items-container');
   container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:14px">Yuklanmoqda...</div>`;
@@ -1776,15 +1801,8 @@ async function loadOrderItems(id) {
     // emas"ga qaytadi, alohida "rollback" kodi kerak emas.
     const mrpEl = document.getElementById('od-mrp-readiness');
     if (mrpEl) {
-      const mr = order.mrp_readiness;
-      if (!mr || !mr.applicable) {
-        mrpEl.innerHTML = '';
-      } else if (mr.fully_ready) {
-        mrpEl.innerHTML = '<span class="badge" style="background:#DCFCE7;color:#15803D" title="Buyurtmadagi barcha MRP mahsulotlari ombordan band qilingan">✅ MRP: tayyor</span>';
-      } else {
-        const need = mr.items.filter(i => !i.is_ready).map(i => `${escapeHtml(i.item_name)}: yana ${i.remaining_quantity}`).join(', ');
-        mrpEl.innerHTML = `<span class="badge" style="background:#FEF3C7;color:#B45309" title="${escapeHtml(need)}">⏳ MRP: kutilmoqda</span>`;
-      }
+      // kech80 (88-band): uchta holat — `mrpTayyorlikBelgisi` (yuqorida).
+      mrpEl.innerHTML = mrpTayyorlikBelgisi(order.mrp_readiness);
     }
     if (!items.length) {
       container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:14px">Detallar yo'q</div>`;
