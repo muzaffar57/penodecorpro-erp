@@ -5357,12 +5357,12 @@ def api_reports_top_suppliers(days: int = 90, limit: int = 10, db: Session = Dep
 
 @app.get("/api/reports/comparison")
 def api_reports_comparison(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_monthly_comparison(db, year, month)
+    return services.get_monthly_comparison(db, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/forecast")
 def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    return services.get_simple_forecast(db, year, month)
+    return services.get_simple_forecast(db, year, month, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/alerts")

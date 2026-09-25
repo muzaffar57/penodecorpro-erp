@@ -403,18 +403,22 @@ def get_top_suppliers_report(db: Session, days: int = 90, limit: int = 10, compa
     } for r in rows]
 
 
-def get_monthly_comparison(db: Session, year: int, month: int) -> dict:
+def get_monthly_comparison(db: Session, year: int, month: int, company_id: int = None) -> dict:
     """Joriy oyni o'tgan oy bilan solishtiradi — Daromad, Xarajat, Sof foyda,
     Rentabellik. Mavjud get_monthly_report()dan foydalanadi, hech qanday
-    yangi hisob-kitob qoidasi kiritmaydi — faqat ikkita natijani solishtiradi."""
+    yangi hisob-kitob qoidasi kiritmaydi — faqat ikkita natijani solishtiradi.
+
+    101-band (kech79, O'LCHANGAN): company_id berilmasa get_monthly_report
+    HAMMA korxonalarning yig'indisini qaytaradi — marshrut uni DOIM uzatadi
+    (None — faqat orqaga moslik / platforma darajasi)."""
     prev_month = month - 1
     prev_year = year
     if prev_month < 1:
         prev_month = 12
         prev_year -= 1
 
-    current = get_monthly_report(db, year, month)
-    previous = get_monthly_report(db, prev_year, prev_month)
+    current = get_monthly_report(db, year, month, company_id=company_id)
+    previous = get_monthly_report(db, prev_year, prev_month, company_id=company_id)
 
     def pct_change(cur, prev):
         if not prev:
@@ -434,7 +438,7 @@ def get_monthly_comparison(db: Session, year: int, month: int) -> dict:
     return comparison
 
 
-def get_simple_forecast(db: Session, year: int, month: int) -> dict:
+def get_simple_forecast(db: Session, year: int, month: int, company_id: int = None) -> dict:
     """Oddiy statistik bashorat — shu oyning HOZIRGACHA bo'lgan kunlik
     o'rtachasi asosida, oy oxirigacha taxminiy natijani hisoblaydi.
     Bu — sun'iy intellekt emas, oddiy chiziqli ekstrapolyatsiya."""
@@ -451,7 +455,8 @@ def get_simple_forecast(db: Session, year: int, month: int) -> dict:
     else:
         days_passed = 0  # Kelajak oy — hali ma'lumot yo'q
 
-    report = get_monthly_report(db, year, month)
+    # 101-band (kech79): korxona get_monthly_report ga uzatiladi (get_monthly_comparison izohi).
+    report = get_monthly_report(db, year, month, company_id=company_id)
 
     if days_passed <= 0:
         return {"available": False, "message": "Bu oy uchun hali ma'lumot yo'q"}
