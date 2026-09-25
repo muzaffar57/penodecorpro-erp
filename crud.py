@@ -7532,7 +7532,14 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     # Hammasi berilgan bo'lsa — status
     fully = order.is_fully_delivered
     if fully and order.status not in (OrderStatus.DELIVERED, OrderStatus.CANCELLED):
-        order.status = OrderStatus.DELIVERED
+        # kech75 (91 / 92-band, FOYDALANUVCHI QARORI B): "Tayyor" (READY) — hodim bosgan
+        # yakun; oylik hisobot va usta KPI faqat READY ni sanaydi. Yuk xati uni DELIVERED ga
+        # PASAYTIRMAYDI. O'LCHANGAN (`work/probe91.py` Q5 / Q7, asl kod): "Tayyor" buyurtmada
+        # yuk bo'lmasa (masalan hammasi "Ortiqcha" qaytib, keyin qaytarish o'chirilgan) va
+        # qolgani yuk bilan topshirilsa — DELIVERED bo'lib, hisobotdan JIM chiqib ketardi
+        # (daromad −500 000). "Tayyor" dagi avtomatik yuk ham shu yo'ldan o'tadi — READY qoladi.
+        if order.status != OrderStatus.READY:
+            order.status = OrderStatus.DELIVERED
         if not order.completed_at:
             order.completed_at = datetime.utcnow()
         # 2026-09-13: to'liq topshirilgan buyurtma "Pin qilingan" ro'yxatidan
@@ -7754,6 +7761,20 @@ def delete_delivery(db: Session, delivery_id: int, company_id: int = None,
         return False            # parallel so'rov allaqachon o'chirgan
     order = d.order
 
+    # kech75 (92-band, FOYDALANUVCHI QARORI B — "taqiqlansin"): "Tayyor" (READY) buyurtmaning
+    # yuk xati O'CHIRILMAYDI. O'LCHANGAN (`work/probe89.py` M2 / P1, SQLite = PG): o'chirilsa
+    # holat READY qolib mahsulot / MRP bandi omborga qaytardi, daromad va tan narx esa oylik
+    # hisobotda qolardi; keyin buyurtma o'chirilsa xomashyo ham qaytib, tan narx ikki joyda.
+    # Tekshiruv QULF ostida (holat parallel "Tayyor" bilan poyga qilmasin) va to'lov
+    # so'rovidan (`YukToloviBor`) OLDIN — rad etilganda hech narsa o'zgarmaydi.
+    if order.status == OrderStatus.READY:
+        _tayyor = '"Tayyor"'
+        raise ValueError(
+            f"Buyurtma {order.order_number} {_tayyor} deb belgilangan — yuk xatini "
+            f"({d.delivery_number}) o'chirib bo'lmaydi. {_tayyor} buyurtma oylik hisobot va "
+            f"usta KPI ga kirgan: yuk xati o'chirilsa mahsulot omborga qaytib, daromad "
+            f"hisobotda qolardi.")
+
     # TENANT: `Payment` da korxona ustuni yo'q — OTA (buyurtma) orqali.
     tolovlar = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
         Payment.delivery_id == d.id,
@@ -7803,8 +7824,11 @@ def delete_delivery(db: Session, delivery_id: int, company_id: int = None,
 
     # Status qayta hisoblanadi
     db.refresh(order)
+    # kech75 (91 / 92-band, QAROR B): to'liq YETKAZILGAN (hali "Tayyor" bosilmagan) buyurtmaning
+    # yuki o'chirilsa — JARAYONDA (`update_order_full` 8-qadami bilan bir xil). Ilgari READY
+    # bo'lardi: hech kim "Tayyor" bosmagan buyurtma oylik hisobotga kirardi (probe89 M1 / P2).
     if not order.is_fully_delivered and order.status == OrderStatus.DELIVERED:
-        order.status = OrderStatus.READY
+        order.status = OrderStatus.IN_PROGRESS
     if tolovlar:
         # to'lov holati va loyiha "To'langan" summasi (`delete_payment` bilan bir xil)
         _update_order_payment_status(db, order)

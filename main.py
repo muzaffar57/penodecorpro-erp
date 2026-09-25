@@ -4604,6 +4604,8 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "is_archived": bool(order.is_archived),
         "is_draft": order.status == OrderStatus.DRAFT if order.status else False,
         "delivery_percent": order.delivery_percent,
+        # kech75 (93 / 94-band): o'chirish nima qilishi — tasdiq matni shundan (server bilan yagona)
+        "ochirish": _buyurtma_ochirish_rejasi(order),
         "master_id": order.master_id,
         "master_name": order.master.name if order.master else None,
         "client_name": order.project.client_name if order.project else None,
@@ -4922,6 +4924,38 @@ def api_mark_all_ready(current_user=Depends(auth.admin_or_manager)):
     """
     raise HTTPException(status_code=410,
                         detail="Ommaviy \"Tayyor\" o'chirilgan — har bir buyurtmani o'z \"Tayyor\" oynasidan yakunlang")
+
+
+def _buyurtma_ochirish_rejasi(order) -> dict:
+    """kech75 (93 / 94-band): buyurtmani o'chirish NIMA qilishi — `GET /api/orders/{id}` orqali
+    `orders.html` o'chirish tasdig'i matni uchun. Shartlar `api_delete_order` dagi bilan AYNAN
+    (u yerdagi kod o'zgartirilmadi); tenglikni `tools/test_tayyor_yuk.py` HAR holatda amal
+    natijasi bilan solishtiradi — biri o'zgarsa test yiqiladi.
+
+    O'LCHANGAN (`work/probe89.py`, asl kod): tasdiq matni server shartidan farq qilardi —
+    to'liq YETKAZILGAN va qisman topshirilgan buyurtma "hisobotlarda saqlanib qoladi" derdi
+    (oylik hisobot / usta KPI faqat READY ni sanaydi — ular hisobotda YO'Q, P2 / P4); yuksiz
+    READY uchun "xomashyo QAYTARILMAYDI" derdi (server qaytaradi, P1)."""
+    has_delivery = bool(order.deliveries)
+    is_fully_delivered = order.status == OrderStatus.DELIVERED or order.is_fully_delivered
+    can_return = order.status != OrderStatus.DRAFT and not is_fully_delivered
+    # kech60 (57-band, K59-3): qisman CHIQQAN — topshirilgan yoki ortiqcha sifatida omborga
+    # qo'yilgan qism bor. Shunda faqat QOLGAN qism xomashyosi qaytadi (omborga qo'yilgani
+    # tayyor mahsulotlar omborida qoladi — ikki marta hisoblanmaydi).
+    qisman = services.buyurtmadan_qisman_chiqqan(order)
+    # Har qanday haqiqiy ish izi bo'lsa (yetkazish, tayyor) — yumshoq o'chiriladi (pastda izoh).
+    yumshoq = has_delivery or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
+    return {
+        "yuk_bor": has_delivery,
+        "toliq_topshirilgan": bool(is_fully_delivered),
+        "xomashyo_qaytishi_mumkin": bool(can_return),
+        "xomashyo_qaytadi": bool(can_return and not order.stock_returned),
+        "qisman": bool(qisman),
+        "yumshoq": bool(yumshoq),
+        # oylik hisobot va usta KPI faqat READY ni sanaydi (yumshoq o'chirilgan READY ham —
+        # moliyaviy tarix); DELIVERED / qisman topshirilgan — hisobotda YO'Q (91-band, QAROR B).
+        "hisobotda_qoladi": order.status == OrderStatus.READY,
+    }
 
 
 @app.delete("/api/orders/{order_id}")
