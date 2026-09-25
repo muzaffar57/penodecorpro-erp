@@ -62,7 +62,7 @@ from production_models import (  # noqa: E402
 )
 from models import (  # noqa: E402
     FinishedProduct, StockSource, Project, Order, OrderItem, OrderType,
-    ProjectStatus,
+    ProjectStatus, ProductionStatus,
 )
 
 db = SessionLocal()
@@ -238,7 +238,9 @@ fp8 = FinishedProduct(
     quantity=100, produced_quantity=100, unit="m2", unit_price=0,
     cost_price=8_144_736.86, source=StockSource.PRODUCED,
     product_type_id=tur.id, reserved_for_order_item_id=it8.id,
-    reserved_quantity=100, unit_cost_stable=8_144_736.86 / 100)
+    reserved_quantity=100, unit_cost_stable=8_144_736.86 / 100,
+    # kech70: ishlab chiqarish YAKUNLANGAN (jarayondagi TM yuk xati bilan topshirilmaydi)
+    production_status=ProductionStatus.READY)
 db.add(fp8)
 db.commit()
 check("H boshlang'ich ombor", float(fp8.quantity), 100)
