@@ -4751,6 +4751,14 @@ def create_return_item(db: Session, data: ReturnItemCreate,
         if _o.is_deleted and _ortiqcha_yangi > 0.001:
             raise ValueError("Buyurtma o'chirilgan — topshirilmagan mahsulotni omborga qaytarib bo'lmaydi "
                              "(uning xomashyosi o'chirishda qaytgan)")
+    # kech73 (86-band, K72-1): MRP detalining ortiqcha qismi — band TAYYOR TM dan erkin qoldiqqa
+    # (`_mrp_ortiqcha_reja`; yetmasa ValueError — hali HECH NARSA yozilmagan). `to_stock=false` —
+    # omborga hech narsa qo'shilmaydi, band ham o'zgarmaydi (API; UI doim `to_stock: true`).
+    _mrp_ozod_reja = None
+    if (reason_enum != ReturnReason.DEFECT and _ortiqcha_yangi is not None and _ortiqcha_yangi > 0.001
+            and getattr(data, 'to_stock', True) and order_item is not None
+            and _mrp_yetkazish_detalimi(order_item)):
+        _mrp_ozod_reja = _mrp_ortiqcha_reja(db, order_item, _ortiqcha_yangi, _o.company_id)
 
     refund_amount = float(data.refund_amount or 0)
     # 17g: QO'LDA berilgan qaytarish summasi buyurtma qiymatidan oshmaydi —
@@ -4868,18 +4876,32 @@ def create_return_item(db: Session, data: ReturnItemCreate,
             # (101, buyurtma) qulfi yig'indi tekshiruvidan keyin muddatidan oldin
             # bo'shardi).
             _ombor = {}
-            fp = add_returned_to_stock(
-                db, oi, float(data.quantity), reason_enum.value,
-                order_id=data.order_id,
-                notes=f"{data.notes or ''}".strip() or None,
-                commit=False, natija=_ombor
-            )
+            # kech73 (86-band): MRP detalining ortiqcha qismi YANGI TM bo'lmaydi — band TM dan erkin
+            # qoldiqqa; `add_returned_to_stock` ga faqat mijozdan QAYTGAN (topshirilgan) qism.
+            _ombor_miqdor = float(data.quantity)
+            if _mrp_ozod_reja is not None:
+                import json as _json_oz
+                _ombor_miqdor = max(0.0, float(data.quantity) - float(_ortiqcha_yangi))
+                _ozod_yoz = []
+                for _fp_oz, _q_oz in _mrp_ozod_reja:
+                    _fp_oz.reserved_quantity = max(0.0, float(_fp_oz.reserved_quantity or 0) - _q_oz)
+                    _ozod_yoz.append([_fp_oz.id, round(_q_oz, 6)])
+                    print(f"✓ MRP band → erkin qoldiq: {_fp_oz.name} {_q_oz:g} {_fp_oz.unit}")
+                item.mrp_ozod = _json_oz.dumps(_ozod_yoz)
+            fp = None
+            if _ombor_miqdor > 1e-9:
+                fp = add_returned_to_stock(
+                    db, oi, _ombor_miqdor, reason_enum.value,
+                    order_id=data.order_id,
+                    notes=f"{data.notes or ''}".strip() or None,
+                    commit=False, natija=_ombor
+                )
             if fp:
                 item.finished_product_id = fp.id
                 item.stock_qty = _ombor.get("qty")
                 item.stock_cost = _ombor.get("cost")
                 item.stock_volume_m3 = _ombor.get("volume")
-                print(f"✓ Tayyor mahsulotlar omboriga: {fp.name} +{data.quantity} {fp.unit}")
+                print(f"✓ Tayyor mahsulotlar omboriga: {fp.name} +{_ombor_miqdor:g} {fp.unit}")
 
     db.commit()
     db.refresh(item)
@@ -5114,6 +5136,35 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
             f"OLDIN belgilangan — qaysi to'lov yozuvi ekani saqlanmagan, shuning uchun pulni "
             f"avtomatik bekor qilib bo'lmaydi va qaytarish o'chirilmadi")
 
+    # kech73 (86-band, K72-1): MRP detalining ortiqcha qismi band TM dan erkin qoldiqqa o'tgan
+    # (`mrp_ozod`) — o'chirishda AYNAN shu TM larga band qaytadi. TM hali SHU detalga bog'langan bo'lsa
+    # bo'sh qoldig'i yetishi SHART (sotilgan / kamaytirilgan bo'lsa — rad, hech narsa o'zgarmaydi);
+    # band ozod qilingan (admin yoki buyurtma o'chirilgan) TM ga band qayta yopilmaydi — mahsulot
+    # erkin qoldiqda qoladi (K71-1 qoidasi bilan bir xil). Qulf — id tartibida (band TM lar RETURNED
+    # TM dan oldin yaratilgan).
+    _ozod = _mrp_ozod_oqi(item) or []
+    _ozod_reja = []
+    _ozod_ozodlar = []
+    if _ozod:
+        _ozod_tm = {f.id: f for f in _mrp_tmlar_idlar(db, [r[0] for r in _ozod], _cid)}
+        for _fid_oz, _q_oz in _ozod:
+            _f_oz = _ozod_tm.get(_fid_oz)
+            if _f_oz is None or _q_oz <= 1e-9:
+                continue
+            if item.order_item_id is not None and _f_oz.reserved_for_order_item_id == item.order_item_id:
+                _bor_oz = float(_f_oz.quantity or 0)
+                _band_oz = float(_f_oz.reserved_quantity or 0)
+                _bosh_oz = _bor_oz - _band_oz
+                if _bosh_oz + 0.001 < _q_oz:
+                    raise ValueError(
+                        f"Bu qaytarish bilan \"{_f_oz.name}\" bandidan {_miqdor_matn(_q_oz)} {_f_oz.unit} erkin qoldiqqa "
+                        f"o'tkazilgan, hozir bo'sh qoldig'i {_miqdor_matn(max(_bosh_oz, 0))} {_f_oz.unit} (qoldiq "
+                        f"{_miqdor_matn(max(_bor_oz, 0))}, shundan band {_miqdor_matn(_band_oz)}) — mahsulot sotilgan "
+                        f"yoki kamaytirilgan, shuning uchun qaytarishni o'chirib bo'lmaydi")
+                _ozod_reja.append((_f_oz, _q_oz))
+            else:
+                _ozod_ozodlar.append((_f_oz, _q_oz))
+
     fp = None
     _sq = float(item.stock_qty or 0)
     if _sq > 0 and item.finished_product_id is not None:
@@ -5154,6 +5205,8 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
     def _ayir(eski, qancha):
         _q = float(eski or 0) - float(qancha or 0)
         return 0.0 if _q < 1e-9 else _q
+    for _f_oz, _q_oz in _ozod_reja:
+        _f_oz.reserved_quantity = float(_f_oz.reserved_quantity or 0) + _q_oz
     _fp_ochiriladi = False
     if fp is not None:
         # kech59 (47-band): qo'shilgandagi og'irlikli o'rtachaning TESKARISI (muzlagan birlik tannarx)
@@ -5198,6 +5251,12 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
               f"{item.reason.value if item.reason else '-'}")
     if _xom:
         _qator += " · brak xomashyosi omborga qaytdi: " + "; ".join(_xom)
+    if _ozod_reja:
+        _qator += " · MRP bandi tiklandi: " + "; ".join(
+            f"{_f.name} +{_miqdor_matn(_q)} {_f.unit or ''}".rstrip() for _f, _q in _ozod_reja)
+    if _ozod_ozodlar:
+        _qator += " · band ozod qilingan — erkin qoldiqda qoldi: " + "; ".join(
+            f"{_f.name} {_miqdor_matn(_q)} {_f.unit or ''}".rstrip() for _f, _q in _ozod_ozodlar)
     if fp is not None:
         _qator += f" · ombordan olindi: {_miqdor_matn(_sq)} {fp.unit} ({fp.name})"
     if pul_orqaga:
@@ -6991,6 +7050,88 @@ def _mrp_olingan_oqi(delivery_item):
         return [(int(r[0]), float(r[1])) for r in _json.loads(xom)]
     except Exception:
         return None
+
+
+def _mrp_ozod_oqi(return_item):
+    """kech73 (86-band): `ReturnItem.mrp_ozod` → [(tm_id, miqdor), ...]; yozilmagan / buzilgan → None."""
+    xom = getattr(return_item, 'mrp_ozod', None)
+    if not xom:
+        return None
+    try:
+        import json as _json
+        return [(int(r[0]), float(r[1])) for r in _json.loads(xom)]
+    except Exception:
+        return None
+
+
+def _mrp_ortiqcha_reja(db: Session, order_item, ortiqcha: float, company_id: int = None) -> list:
+    """kech73 (86-band, K72-1): MRP detalidan brakdan boshqa qaytarishning mijozga TOPSHIRILMAGAN
+    (ortiqcha) qismi omborga qo'yilganda mahsulot YANGI tayyor mahsulot (TM) bo'lib yaratilmaydi —
+    SHU detalga band qilingan TAYYOR TM bandidan erkin qoldiqqa o'tadi.
+
+    O'LCHANGAN (`work/probe73.py`, asl kod = zip 69, SQLite = HAQIQIY PG): `add_returned_to_stock`
+    band TM ga tegmay YANGI TM yaratardi:
+      * hech narsa ishlab chiqarilmagan detal 10 → "Ortiqcha" 3 → omborda 3 m² (tan narx 0) "havodan";
+      * PO 10 tayyor (band 10) → "Ortiqcha" 3 → yangi TM 3 / 9 000, band TM 10 / 10 o'zgarmaydi —
+        omborda 13 m² / 39 000 (to'g'risi 10 / 30 000); qolgan 7 topshirilgach band TM 3 / 3
+        topshirilgan detalga yopishib qoladi;
+      * aralash (yuk 5, qaytarish 7 = 5 topshirilgan + 2 ortiqcha) → yangi TM 7 → 12 m² (to'g'risi 10);
+      * PO jarayonda (TM hali tayyor emas) → "Ortiqcha" 3 → omborda 3 m² / 9 000 (ishlab chiqarilmagan);
+      * buyurtma o'chirilganda band ozod bo'ladi → ortiqcha ikki marta (13 m²).
+    Qoida (texnik — Claude; 57-band "Ha" va K70-1 "Taqiqlansin" ruhida):
+      * omborga faqat ISHLAB CHIQARILGAN ortiqcha qo'yiladi: tayyor band (jarayondagi TM emas —
+        `_fp_tayyormi`; har TM dan `min(qoldiq, band)`) − qaytarishdan KEYIN topshirilishi kerak
+        bo'lgan qoldiq ≥ ortiqcha. Yetmasa — ValueError, HECH NARSA yozilmaydi (mijozga kerak
+        bo'lmagan, hali ishlab chiqarilmagan miqdor — detal miqdorini kamaytirish bilan);
+      * bo'shatish ENG YANGI TM dan (teskari id): yuk xati (`_mrp_deliver_stock`) TM ni id tartibida
+        `quantity` bo'yicha oladi — erkin qism oxirgi TM da tursa, topshirish uni yemaydi;
+      * qulf — `_mrp_band_tmlar` (id tartibida FOR UPDATE — `_fp_qulf` bilan bir xil, deadlock yo'q);
+      * qoldiq bazadan QAYTA o'qiladi (chaqiruvchi (101, buyurtma) qulfi ostida; yangi / boshqa
+        so'rovdagi qaytarish sessiyadagi `order.returns` ro'yxatida bo'lmasligi mumkin — kech60 saboqi).
+    Qaytaradi: [(fp, miqdor), ...] — chaqiruvchi `reserved_quantity` ni kamaytiradi va
+    `ReturnItem.mrp_ozod` ga yozadi (o'chirishda AYNAN shu TM larga band qaytadi)."""
+    from sqlalchemy import func as _fn_oz
+    ortiqcha = float(ortiqcha or 0)
+    if ortiqcha <= 1e-9:
+        return []
+    cid = company_id if company_id is not None else getattr(order_item, 'company_id', None)
+    tmlar = _mrp_band_tmlar(db, order_item, cid, lock=True)
+    tayyor = [fp for fp in tmlar if _fp_tayyormi(fp)]
+
+    def _band(fp):
+        return max(0.0, min(float(fp.quantity or 0), float(fp.reserved_quantity or 0)))
+
+    tayyor_band = sum(_band(fp) for fp in tayyor)
+    jarayonda = sum(max(0.0, float(fp.reserved_quantity or 0)) for fp in tmlar if not _fp_tayyormi(fp))
+    db.expire(order_item, ["deliveries"])
+    _oldingi = float(db.query(_fn_oz.coalesce(_fn_oz.sum(ReturnItem.ortiqcha_miqdor), 0)).filter(
+        ReturnItem.company_id == cid,
+        ReturnItem.order_item_id == order_item.id,
+        ReturnItem.reason != ReturnReason.DEFECT).scalar() or 0)
+    _qolgan = max(0.0, float(order_item.order_qty_normalized or 0)
+                  - float(order_item.delivered_qty or 0) - _oldingi)
+    keyin_qolgan = max(0.0, _qolgan - ortiqcha)
+    mumkin = max(0.0, tayyor_band - keyin_qolgan)
+    if ortiqcha > mumkin + 1e-6:
+        _b = order_item.delivery_unit or ''
+        _jr = (f"; yana {_miqdor_matn(jarayonda)} {_b} hali ishlab chiqarilmoqda — tugagach qayta urinib ko'ring"
+               if jarayonda > 1e-9 else "")
+        raise ValueError(
+            f"«{order_item.name}» — MRP mahsuloti: omborga faqat ISHLAB CHIQARILGAN ortiqcha mahsulotni qo'yish "
+            f"mumkin. So'ralgan ortiqcha {_miqdor_matn(ortiqcha)} {_b}, tayyor ortiqcha {_miqdor_matn(mumkin)} {_b} "
+            f"(shu detalga band tayyor mahsulot {_miqdor_matn(tayyor_band)} {_b}, mijozga topshirilishi kerak "
+            f"qoladigan {_miqdor_matn(keyin_qolgan)} {_b}{_jr}). Mijozga kerak bo'lmagan, hali ishlab "
+            f"chiqarilmagan miqdor uchun buyurtma detalining miqdorini kamaytiring")
+    reja = []
+    qoldi = ortiqcha
+    for fp in reversed(tayyor):
+        if qoldi <= 1e-9:
+            break
+        q = min(qoldi, _band(fp))
+        if q > 1e-9:
+            reja.append((fp, q))
+            qoldi -= q
+    return reja
 
 
 def _mrp_deliver_stock(db: Session, order_item, qty: float,

@@ -953,6 +953,12 @@ class ReturnItem(Base):
     # Brak va detalsiz yozuv — NULL (ishlatilmaydi). Eski yozuvlar migratsiyada
     # (`main._migrate_ortiqcha_qaytarish`) yozilish tartibi bo'yicha to'ldiriladi.
     ortiqcha_miqdor = Column(Float, nullable=True)
+    # kech73 (86-band, K72-1): MRP detalidan (ishlab chiqarish buyurtmasi band qilgan tayyor
+    # mahsulot) ortiqcha qism omborga qo'yilganda YANGI tayyor mahsulot yaratilmaydi — shu detalga
+    # band TM ning bandidan erkin qoldiqqa o'tadi. Qaysi TM dan qancha: JSON `[[tm_id, miqdor], ...]`.
+    # O'chirishda AYNAN shu TM larga band qaytadi. Boshqa yozuvlar — NULL (`default=` BERILMAGAN —
+    # `sync_missing_columns` eski qatorlarga yozmasin, kech52 saboqi).
+    mrp_ozod = Column(Text, nullable=True)
     # kech40 (5-bo'lim 22-band, K39-1) — qaytarish yozuvi O'CHIRILGANDA hammasi
     # AYNAN orqaga qaytishi uchun, yozuv paytida NIMA o'zgargani saqlanadi.
     # O'LCHANGAN (asl kod, SQLite va PostgreSQL): o'chirish faqat yozuvni
