@@ -117,6 +117,55 @@ def _compute_bom_line(bom_item: BOMItem, production_quantity: float, batch_quant
 # 1. PRODUCTION ORDER YARATISH (DRAFT)
 # ============================================================
 
+def mrp_detal_kerak(db: Session, order_item) -> dict:
+    """kech72 (85-band, K71-2 — O'LCHANGAN: `work/probe85.py`, `work/probe85b.py`): MRP detali uchun
+    HALI ishlab chiqarib band qilish KERAK bo'lgan miqdor — YAGONA qoida. Tayyorlik belgisi
+    (`get_order_mrp_readiness`), "Mijoz buyurtmasi asosida" ro'yxati (`get_mrp_order_items_status`),
+    ishlab chiqarish buyurtmasini yaratish va boshlash (qulfli) tekshiruvlari — hammasi shu yerdan.
+
+    Ilgari to'rt joyda ham `quantity − SUM(band)` edi. Yuk xati band TM dan olgach band kamayadi,
+    detal miqdori esa o'zgarmaydi — shuning uchun:
+      * detal 10, 10 ishlab chiqarilgan, 5 topshirilgan → "tayyor EMAS, yana 5", ro'yxatda "kerak 5";
+      * TO'LIQ topshirilgan detal → ro'yxatda "kerak 10", yangi ishlab chiqarish QABUL qilinardi
+        (xomashyo ikkinchi marta yechilar, ortiqcha mahsulot shu detalga band bo'lib qolardi);
+      * buyurtma yaratilganda ombordagi TM dan olingan detal (`finished_product_id`) ham "kerak 3".
+
+    kerak = qolgan − band, bu yerda
+      qolgan = `OrderItem.remaining_qty` (buyurtma − topshirilgan − omborga qo'yilgan ortiqcha) —
+               yetkazish oynasidagi "qolgan" bilan AYNAN bir xil;
+      ombordan olingan detal (`finished_product_id`) — qolgan = 0 (butun miqdor buyurtma
+               yaratilganda TM dan yechilgan, `crud._take_finished_for_order`);
+      band   = shu detalga band qilingan TM lar `reserved_quantity` yig'indisi (jarayondagi ham).
+    Manfiy bo'lishi mumkin (eski ortiqcha band) — chaqiruvchi `max(0, …)` bilan ko'rsatadi.
+
+    Yuk xati band TM dan olganda band ham, qolgan ham bir xil kamayadi — natija o'zgarmaydi,
+    shuning uchun yetkazish bilan parallel boshlash yangi poyga tug'dirmaydi."""
+    from models import FinishedProduct
+    band = float(db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
+        FinishedProduct.reserved_for_order_item_id == order_item.id
+    ).scalar() or 0.0)
+    ombordan = bool(getattr(order_item, 'finished_product_id', None))
+    topshirilgan = float(order_item.delivered_qty or 0)
+    qolgan = 0.0 if ombordan else float(order_item.remaining_qty or 0)
+    return {
+        "band": band,
+        "topshirilgan": topshirilgan,
+        "qolgan": qolgan,
+        "ombordan": ombordan,
+        "kerak": qolgan - band,
+    }
+
+
+def _mrp_kerak_izoh(k: dict) -> str:
+    """kech72 (85-band): rad xabaridagi qavs ichi — nima uchun kam qolgani."""
+    qism = [f"allaqachon {k['band']:g} band qilingan"]
+    if k["topshirilgan"] > 0.0001:
+        qism.append(f"{k['topshirilgan']:g} topshirilgan")
+    if k["ombordan"]:
+        qism.append("detal buyurtma yaratilganda ombordagi tayyor mahsulotdan olingan")
+    return ", ".join(qism)
+
+
 def get_order_mrp_readiness(db: Session, order_id: int) -> dict:
     """2026-09-17 (Milestone 4 — xavfsiz variant): buyurtmadagi barcha
     'mrp_product' turidagi detallar TO'LIQ band qilinganmi (demak,
@@ -139,7 +188,7 @@ def get_order_mrp_readiness(db: Session, order_id: int) -> dict:
     birga tayyorlanadi) — shuning uchun ular har doim "tayyor" deb
     hisoblanadi, faqat MRP qismi haqiqiy to'siq bo'la oladi.
     """
-    from models import OrderItem, FinishedProduct
+    from models import OrderItem
     mrp_items = db.query(OrderItem).filter(
         OrderItem.order_id == order_id, OrderItem.category == 'mrp_product'
     ).all()
@@ -148,16 +197,16 @@ def get_order_mrp_readiness(db: Session, order_id: int) -> dict:
 
     lines = []
     for item in mrp_items:
-        reserved = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
-            FinishedProduct.reserved_for_order_item_id == item.id
-        ).scalar() or 0.0
+        # kech72 (85-band): topshirilgan va ombordan olingan qism ham hisobga olinadi (yagona qoida).
+        k = mrp_detal_kerak(db, item)
         needed = float(item.quantity or 0)
-        remaining = needed - float(reserved)
+        remaining = k["kerak"]
         lines.append({
             "order_item_id": item.id,
             "item_name": item.name,
             "needed_quantity": needed,
-            "reserved_quantity": float(reserved),
+            "reserved_quantity": k["band"],
+            "delivered_quantity": k["topshirilgan"],
             "remaining_quantity": max(0.0, remaining),
             "is_ready": remaining <= 0.0001,
         })
@@ -176,7 +225,7 @@ def get_mrp_order_items_status(db: Session, company_id: int, product_type_id: in
     ro'yxat qilib qaytaradi. Faqat hali TO'LIQ band qilinmaganlari
     (remaining_quantity > 0) qaytariladi — allaqachon to'liq
     ta'minlanganlar ro'yxatda ko'rinmaydi (ular allaqachon bajarilgan)."""
-    from models import OrderItem, Order, Project, FinishedProduct
+    from models import OrderItem, Order, Project
     # M4 (2026-09-18) — TENANT: `company_id` parametri qabul qilinardi,
     # lekin so'rovda UMUMAN ishlatilmasdi — B korxonaning buyurtma
     # detallari A ning "ishlab chiqarish kerak" ro'yxatida chiqardi.
@@ -189,10 +238,10 @@ def get_mrp_order_items_status(db: Session, company_id: int, product_type_id: in
     items = q.all()
     result = []
     for item in items:
-        reserved = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
-            FinishedProduct.reserved_for_order_item_id == item.id
-        ).scalar() or 0.0
-        remaining = float(item.quantity or 0) - float(reserved)
+        # kech72 (85-band): to'liq topshirilgan / ombordan olingan detal ro'yxatga CHIQMAYDI (yagona qoida).
+        k = mrp_detal_kerak(db, item)
+        reserved = k["band"]
+        remaining = k["kerak"]
         if remaining <= 0.0001:
             continue
         order = db.query(Order).filter(Order.id == item.order_id).first()
@@ -206,6 +255,7 @@ def get_mrp_order_items_status(db: Session, company_id: int, product_type_id: in
             "product_type_id": item.product_type_id,
             "needed_quantity": float(item.quantity or 0),
             "already_reserved": float(reserved),
+            "delivered_quantity": k["topshirilgan"],
             "remaining_quantity": remaining,
             # 11.0-band — detal qoplamalimi. Ishlab chiqarish oynasi shunga
             # qarab qoplama tarkibini o'zi belgilaydi.
@@ -240,7 +290,7 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
 
     source_order_id = data.source_order_id
     if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value:
-        from models import OrderItem, FinishedProduct
+        from models import OrderItem
         # M2 (2026-09-18): detal SHU korxonaniki bo'lishi shart. Ilgari faqat
         # id bo'yicha olinardi — A korxonaning ishlab chiqarish buyurtmasi
         # B korxonaning buyurtma-detaliga bog'lanib qolishi mumkin edi.
@@ -258,12 +308,11 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
         # tekshiruv start_production_order()da, qatorni qulflab
         # (with_for_update) amalga oshiriladi — shu yerdagi tekshiruv
         # buni ALMASHTIRMAYDI, faqat oldindan xabardor qiladi.
-        already_reserved = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
-            FinishedProduct.reserved_for_order_item_id == order_item.id
-        ).scalar() or 0.0
-        remaining = float(order_item.quantity or 0) - float(already_reserved)
+        # kech72 (85-band, K71-2): kerak = qolgan (topshirilgan / ombordan olingan chiqarilgan) − band.
+        _k = mrp_detal_kerak(db, order_item)
+        remaining = max(0.0, _k["kerak"])
         if data.quantity > remaining + 0.0001:
-            return {"success": False, "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} {product_type.unit} kerak (allaqachon {already_reserved:g} band qilingan) — {data.quantity:g} ko'p"}
+            return {"success": False, "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} {product_type.unit} kerak ({_mrp_kerak_izoh(_k)}) — {data.quantity:g} ko'p"}
         source_order_id = order_item.order_id
 
         # QO'SHILDI 2026-09-20 (11.0-band) — QOPLAMA AVTOMATIK BELGILANADI.
@@ -416,21 +465,21 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
         # ko'rib, kerak bo'lsa to'g'ri rad etiladi — omborni "ortiqcha
         # band qilib qo'yish" (over-reservation) imkonsiz bo'ladi.
         if po.source_order_item_id:
-            from models import OrderItem, FinishedProduct
+            from models import OrderItem
             locked_item = db.query(OrderItem).filter(
                 OrderItem.id == po.source_order_item_id,
                 OrderItem.company_id == company_id,          # M4
             ).with_for_update().first()
             if locked_item:
-                already_reserved = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
-                    FinishedProduct.reserved_for_order_item_id == locked_item.id
-                ).scalar() or 0.0
-                remaining = float(locked_item.quantity or 0) - float(already_reserved)
+                # kech72 (85-band, K71-2): yaratishdagi bilan AYNAN bir qoida (`mrp_detal_kerak`) —
+                # topshirilgan va ombordan olingan qism ham chiqariladi. Qulf ostida o'qiladi.
+                _k = mrp_detal_kerak(db, locked_item)
+                remaining = max(0.0, _k["kerak"])
                 if po.quantity > remaining + 0.0001:
                     db.rollback()
                     return {
                         "success": False,
-                        "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} kerak — boshqa ishlab chiqarish buyurtmasi shu orada band qilib ulgurgan. {po.quantity:g} band qilib bo'lmaydi.",
+                        "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} kerak ({_mrp_kerak_izoh(_k)}) — boshqa ishlab chiqarish buyurtmasi band qilib ulgurgan yoki detal topshirilgan. {po.quantity:g} band qilib bo'lmaydi.",
                     }
 
         # Mavjud "Tayyor mahsulotlar" jadvaliga "ishlab chiqarilmoqda" yozuvi
