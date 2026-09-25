@@ -576,6 +576,11 @@ class Order(Base):
     is_archived = Column(Boolean, default=False)           # Arxivga o'tdimi (to'lov to'liq yopilganda)
     is_deleted = Column(Boolean, default=False)             # "O'chirilgan" — lekin KPI/hisobot uchun saqlanadi
     is_pinned = Column(Boolean, default=False)              # "Pin qilingan" — muhim buyurtmalar ro'yxati tepasida (2026-09-13)
+    # kech77 (95-band, K77-1): buyurtma o'chirilganda buyurtma LOYI bo'yicha HAQIQATDA qo'llangan miqdor (kg):
+    # musbat — omborga QAYTGAN, manfiy — qo'shimcha YECHILGAN (hodim rejadan ko'p ishlatilgan deb yozganda), 0 — hech
+    # narsa. `crud.restore_order` AYNAN shuni teskari qiladi. NULL — kech77 dan OLDIN o'chirilgan (yoki hali
+    # o'chirilmagan) buyurtma: tiklash eski qoida bilan (reja × qolgan ulush) — o'shanda UI miqdor so'ramasdi.
+    ochirishda_loy_kg = Column(Float, nullable=True)
     stock_returned = Column(Boolean, default=False)         # O'chirilganda ombor QAYTARILGANMI — takroriy (tiklab-qayta o'chirilganda ikki marta) qaytarib yubormaslik uchun
 
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)

@@ -4251,15 +4251,26 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
             loy_remaining_fraction = (services.loy_relevant_remaining_fraction(db_order)
                                       if services.buyurtmadan_qisman_chiqqan(db_order) else 1.0)
 
-            # Loy (qoplama) — rejalashtirilgan miqdor (yoki QOLGAN ulushi) qayta yechiladi.
-            # Eslatma: agar o'chirishda "haqiqatda qancha ishlatilgan edi"
-            # deb alohida qiymat kiritilgan bo'lsa, o'sha aniq qiymat
-            # saqlanmaganligi sabab, bu yerda REJADAGI (standart) miqdor
-            # asos qilib olinadi — aksariyat holatlarda bu aynan to'g'ri keladi.
+            # Loy (qoplama). kech77 (95-band, K77-1 — O'LCHANGAN `work/probe95.py`, SQLite = PG): o'chirishda
+            # HAQIQATDA qo'llangan miqdor (`ochirishda_loy_kg`: + qaytgan, − qo'shimcha yechilgan) AYNAN teskari
+            # qilinadi. Ilgari bu yerda DOIM reja × qolgan ulush qayta yechilardi ("aniq qiymat saqlanmagan") —
+            # hodim o'chirishda "haqiqatda qancha ishlatilgan" deb boshqa miqdor yozgan bo'lsa, tiklash loy
+            # qoldig'ini abadiy siljitardi (qisman 4/10, loy 10: actual=7 → −3, actual=12 → −8). NULL — kech77 dan
+            # OLDIN o'chirilgan buyurtma (o'shanda UI miqdor so'ramasdi — qaytgani aynan reja × ulush edi): eski qoida.
             planned_loy = services._get_planned_loy(db_order)
-            redo_loy = planned_loy * loy_remaining_fraction
-            if redo_loy > 0.01:
-                services.deduct_loy_ingredients(db, db_order, redo_loy)
+            _qollangan = getattr(db_order, 'ochirishda_loy_kg', None)
+            if _qollangan is not None:
+                _qollangan = float(_qollangan)
+                if _qollangan > 0.01:
+                    services.deduct_loy_ingredients(db, db_order, _qollangan)
+                elif _qollangan < -0.01:
+                    services.return_loy_ingredients(
+                        db, db_order, abs(_qollangan),
+                        reason_override=f"Buyurtma {db_order.order_number} tiklandi (o'chirishda qo'shimcha yechilgan loy qaytarildi)")
+            else:
+                redo_loy = planned_loy * loy_remaining_fraction
+                if redo_loy > 0.01:
+                    services.deduct_loy_ingredients(db, db_order, redo_loy)
 
             # "Loy sotish" detallari — har biri o'z remaining_qty'i bo'yicha
             # ALOHIDA qayta yechiladi (o'chirishdagi bilan bir xil, item
@@ -4272,6 +4283,8 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
                         services.deduct_loy_ingredients(db, db_order, float(remaining), recipe_id=item.recipe_id)
 
         db_order.stock_returned = False
+        # kech77 (K77-1): qo'llangan loy teskari qilindi — keyingi o'chirish o'zini qayta yozadi
+        db_order.ochirishda_loy_kg = None
 
     db_order.is_deleted = False
     db.commit()

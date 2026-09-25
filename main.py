@@ -624,6 +624,9 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE orders ADD COLUMN base_price NUMERIC(12,2)")
         if 'planned_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN planned_loy_kg FLOAT")
+        # kech77 (95-band, K77-1): o'chirishda qo'llangan loy — tiklash uni AYNAN teskari qiladi
+        if 'ochirishda_loy_kg' not in ord_cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN ochirishda_loy_kg FLOAT")
 
         fps_cols = [c['name'] for c in inspector.get_columns('finished_product_sales')]
         if 'sale_group_id' not in fps_cols:
@@ -4945,6 +4948,23 @@ def _buyurtma_ochirish_rejasi(order) -> dict:
     qisman = services.buyurtmadan_qisman_chiqqan(order)
     # Har qanday haqiqiy ish izi bo'lsa (yetkazish, tayyor) — yumshoq o'chiriladi (pastda izoh).
     yumshoq = has_delivery or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
+    # kech77 (95-band, O'LCHANGAN — `work/probe95.py`, SQLite = PG): buyurtma LOYI bo'yicha o'chirish
+    # `actual_loy_kg` SIZ nima qiladi (`api_delete_order` dagi shoxlar bilan AYNAN): qoralama / to'liq
+    # topshirilgan / allaqachon qaytarilgan — 0; hech narsa chiqmagan — butun reja; qisman chiqqan — reja ×
+    # `loy_relevant_remaining_fraction` (0.01 dan kichik — 0). `loy_sorov` — `orders.html` "Haqiqatda qancha loy
+    # ISHLATILGAN edi?" so'rovini FAQAT shu proporsional (taxminiy) shoxda chiqaradi; standart qiymat —
+    # `loy_ishlatilgan_taxmin`: hodim o'zgartirmasa `actual_loy_kg` yuborilmaydi va natija AYNAN proporsional.
+    # Ilgari so'rov `o.deliveries` ga (bu API da YO'Q) bog'langan edi — HECH QACHON chiqmasdi.
+    loy_reja = services._get_planned_loy(order)
+    loy_shoxi = bool(can_return and not order.stock_returned and loy_reja > 0)
+    if not loy_shoxi:
+        loy_qaytadi = 0.0
+    elif not qisman:
+        loy_qaytadi = float(loy_reja)
+    else:
+        loy_qaytadi = float(loy_reja) * services.loy_relevant_remaining_fraction(order)
+        if loy_qaytadi <= 0.01:
+            loy_qaytadi = 0.0
     return {
         "yuk_bor": has_delivery,
         "toliq_topshirilgan": bool(is_fully_delivered),
@@ -4955,6 +4975,10 @@ def _buyurtma_ochirish_rejasi(order) -> dict:
         # oylik hisobot va usta KPI faqat READY ni sanaydi (yumshoq o'chirilgan READY ham —
         # moliyaviy tarix); DELIVERED / qisman topshirilgan — hisobotda YO'Q (91-band, QAROR B).
         "hisobotda_qoladi": order.status == OrderStatus.READY,
+        "loy_reja": float(loy_reja or 0),
+        "loy_qaytadi_taxmin": loy_qaytadi,
+        "loy_ishlatilgan_taxmin": (float(loy_reja) - loy_qaytadi) if loy_shoxi else 0.0,
+        "loy_sorov": bool(loy_shoxi and qisman),
     }
 
 
@@ -5016,16 +5040,25 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
         #     QOLGAN (topshirilmagan) qism uchun mo'ljallangan loy proporsional qaytadi
         #     (aniq "qancha ishlatilgani" ma'lum bo'lmagani uchun taxminiy hisob).
         planned_loy = services._get_planned_loy(order)
+        # kech77 (95-band, K77-1 — O'LCHANGAN `work/probe95.py`, SQLite = PG): HAQIQATDA qo'llangan loy
+        # (+ qaytgan, − qo'shimcha yechilgan) buyurtmada saqlanadi — `crud.restore_order` AYNAN shuni teskari
+        # qiladi. Ilgari tiklash DOIM reja × qolgan ulushni qayta yechardi: `actual_loy_kg` bilan o'chirilgan
+        # buyurtma tiklansa loy qoldig'i abadiy siljirdi (qisman 4/10, loy 10: actual=10 → −6, actual=7 → −3,
+        # actual=12 → −8; yuksiz "Tayyor", actual=3 → −3).
+        loy_qollangan = 0.0
 
         if actual_loy_kg is not None:
             diff = planned_loy - float(actual_loy_kg)
             if diff > 0.01:
                 log.extend(services.return_loy_ingredients(db, order, diff))
+                loy_qollangan = diff
             elif diff < -0.01:
                 log.extend(services.deduct_loy_ingredients(db, order, abs(diff)))
+                loy_qollangan = diff
         elif planned_loy > 0:
             if not qisman:
                 log.extend(services.return_loy_ingredients(db, order, planned_loy))
+                loy_qollangan = float(planned_loy)
             else:
                 # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
                 # delivery_percent EMAS — faqat haqiqatda loy sarflaydigan
@@ -5035,6 +5068,8 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
                 proportional_loy = planned_loy * remaining_fraction
                 if proportional_loy > 0.01:
                     log.extend(services.return_loy_ingredients(db, order, proportional_loy))
+                    loy_qollangan = proportional_loy
+        order.ochirishda_loy_kg = loy_qollangan
 
         # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, ALOHIDA
         # (item.remaining_qty asosida) qaytariladi.
