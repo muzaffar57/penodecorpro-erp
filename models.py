@@ -1866,6 +1866,11 @@ class DeliveryItem(Base):
 
     quantity = Column(Float, nullable=False)   # Shu safar berilgan miqdor
     unit = Column(String(20), default="dona")  # metr / dona
+    # kech70 (76-band): MRP detali — shu yuk QAYSI tayyor mahsulotdan (TM) QANCHA olgani,
+    # JSON `[[tm_id, miqdor], ...]`. Yuk xati o'chirilganda mahsulot AYNAN shu TM larga
+    # qaytadi. Eski yozuvlarda NULL — standart qiymat ataylab BERILMAYDI (kech52 saboqi:
+    # `sync_missing_columns` `default=` ni eski qatorlarga ham yozadi).
+    mrp_olingan = Column(Text, nullable=True)
 
     delivery = relationship("Delivery", back_populates="items")
     order_item = relationship("OrderItem", back_populates="deliveries")

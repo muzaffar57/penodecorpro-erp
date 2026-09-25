@@ -6932,8 +6932,70 @@ from models import Delivery, DeliveryItem
 from schemas import DeliveryCreate
 
 
+def _mrp_yetkazish_detalimi(order_item) -> bool:
+    """kech70 (76-band): detal MRP orqali yetkaziladimi — ishlab chiqarish buyurtmasi SHU detalga
+    band qilgan tayyor mahsulot (TM) yuk xati bilan chiqadi. Buyurtma yaratilganda ombordan olingan
+    TM li detal (`finished_product_id`) — yo'q: u yaratishda allaqachon olingan."""
+    return (((getattr(order_item, 'category', None) or '').lower() == 'mrp_product')
+            and not getattr(order_item, 'finished_product_id', None))
+
+
+def _mrp_band_tmlar(db: Session, order_item, company_id: int = None, lock: bool = True) -> list:
+    """Shu detalga band qilingan TM lar — id TARTIBIDA.
+
+    kech70 (O'LCHANGAN, HAQIQIY PG): so'rovda ORDER BY yo'q edi — PG da UPDATE dan keyin qator
+    joylashuvi o'zgarib, qaysi partiyadan olinishi / qaytishi tasodifga bog'liq edi (bir xil amal
+    SQLite da 34 000, PG da 36 000 tan narx). Id tartibi `_fp_qulf` bilan bir xil — deadlock yo'q.
+    `lock` — `FOR UPDATE` + bazadan qayta yuklash (`populate_existing`; oldin `flush`, sessiyadagi
+    yozilmagan o'zgarish yo'qolmasin — kech64 saboqi)."""
+    cid = company_id if company_id is not None else getattr(order_item, 'company_id', None)
+    q = db.query(FinishedProduct).filter(
+        FinishedProduct.reserved_for_order_item_id == order_item.id)
+    if cid is not None:
+        q = q.filter(FinishedProduct.company_id == cid)
+    q = q.order_by(FinishedProduct.id)
+    if lock:
+        db.flush()
+        q = q.with_for_update().populate_existing()
+    return q.all()
+
+
+def _mrp_tmlar_idlar(db: Session, idlar, company_id: int = None) -> list:
+    """kech71 (K71-1): yuk qatorida YOZILGAN TM lar — id bo'yicha, detalga bog'langanmi-yo'qmi
+    qat'i nazar (band ozod qilingan TM ham topiladi). Id TARTIBIDA, `FOR UPDATE` + bazadan qayta
+    yuklash — `_mrp_band_tmlar` bilan bir xil qulf tartibi."""
+    idlar = sorted({int(i) for i in (idlar or [])})
+    if not idlar:
+        return []
+    q = db.query(FinishedProduct).filter(FinishedProduct.id.in_(idlar))
+    if company_id is not None:
+        q = q.filter(FinishedProduct.company_id == company_id)
+    db.flush()
+    return q.order_by(FinishedProduct.id).with_for_update().populate_existing().all()
+
+
+def _mrp_tayyor_qoldiq(db: Session, order_item, company_id: int = None, lock: bool = True) -> float:
+    """kech70 (FOYDALANUVCHI QARORI "Taqiqlansin"): shu detal uchun TAYYOR (ishlab chiqarilgan)
+    va hali topshirilmagan miqdor — jarayondagi (IN_PROGRESS) TM hisoblanmaydi (`_fp_tayyormi`)."""
+    return sum(float(fp.quantity or 0) for fp in _mrp_band_tmlar(db, order_item, company_id, lock)
+               if _fp_tayyormi(fp))
+
+
+def _mrp_olingan_oqi(delivery_item):
+    """`DeliveryItem.mrp_olingan` → [(tm_id, miqdor), ...]; yozilmagan (eski) / buzilgan → None."""
+    xom = getattr(delivery_item, 'mrp_olingan', None)
+    if not xom:
+        return None
+    try:
+        import json as _json
+        return [(int(r[0]), float(r[1])) for r in _json.loads(xom)]
+    except Exception:
+        return None
+
+
 def _mrp_deliver_stock(db: Session, order_item, qty: float,
-                       company_id: int = None, sign: float = 1.0) -> list:
+                       company_id: int = None, sign: float = 1.0,
+                       natija: dict = None, olingan=None) -> list:
     """MRP orqali SHU DETALGA band qilingan tayyor mahsulotni yuk xati
     bo'yicha ombordan chiqaradi (sign=1) yoki qaytaradi (sign=-1).
 
@@ -6949,21 +7011,33 @@ def _mrp_deliver_stock(db: Session, order_item, qty: float,
 
     Tan narx BARQAROR `unit_cost_stable` dan kamaytiriladi, shuning uchun
     chiqarish va qaytarish aynan teng bo'ladi.
+
+    kech70 (76-band + K70-1, O'LCHANGAN `work/probe76.py`, SQLite + HAQIQIY PG 16):
+    bir detalga IKKI ishlab chiqarish buyurtmasi (TM A 5 × 3 000, B 5 × 5 000; jami 40 000):
+      * yuk 8 → A 5 + B 3 olindi; yuk o'chirildi → BUTUN 8 BIRINCHI topilgan TM ga qaytdi: A 8
+        (ishlab chiqarilgani 5!), B 2, tan narx 34 000 (−6 000 — keyingi sotuv foydasi sun'iy
+        oshardi). PG da tartib UPDATE dan keyin o'zgarib, 36 000 ham chiqdi.
+      * K70-1: faqat 5 ishlab chiqarilgan detalga yuk 8 → 200 (3 hech qayerdan yechilmadi);
+        yuk o'chirilganda TM 8 / 24 000 — 3 birlik va 9 000 so'm "havodan" paydo bo'ldi.
+    Yechim (texnik — Claude):
+      * olish — id TARTIBIDA, faqat TAYYOR (jarayondagi emas) TM dan; qaysi TM dan qancha
+        olingani `natija["olingan"]` → `DeliveryItem.mrp_olingan` ga yoziladi;
+      * qaytarish — `olingan` berilsa AYNAN shu TM larga shu miqdor; eski yozuvda (NULL) — teskari
+        id tartibida, har TM ga ISHLAB CHIQARILGANIDAN OSHMAYDIGAN miqdorgacha (ortig'i qaytmaydi);
+      * ishlab chiqarilganidan ko'p topshirish — `create_delivery` da RAD (foydalanuvchi qarori).
     """
     if not order_item or qty <= 0:
         return []
-    cid = company_id if company_id is not None else getattr(order_item, 'company_id', None)
-    q = db.query(FinishedProduct).filter(
-        FinishedProduct.reserved_for_order_item_id == order_item.id)
-    if cid is not None:
-        q = q.filter(FinishedProduct.company_id == cid)
     log = []
     qoldi = float(qty)
-    for fp in q.with_for_update().all():
-        if qoldi <= 1e-9:
-            break
-        unit_cost = _fp_stable_unit_cost(db, fp)
-        if sign > 0:
+    if sign > 0:
+        olindi = []
+        for fp in _mrp_band_tmlar(db, order_item, company_id):
+            if qoldi <= 1e-9:
+                break
+            if not _fp_tayyormi(fp):
+                continue
+            unit_cost = _fp_stable_unit_cost(db, fp)
             olinadi = min(qoldi, float(fp.quantity or 0))
             if olinadi <= 1e-9:
                 continue
@@ -6972,6 +7046,7 @@ def _mrp_deliver_stock(db: Session, order_item, qty: float,
             if unit_cost > 0:
                 fp.cost_price = max(0.0, float(fp.cost_price or 0) - unit_cost * olinadi)
             log.append(f"🏭 {fp.name}: -{olinadi:g} {fp.unit} (yuk xati bo'yicha)")
+            olindi.append([fp.id, round(olinadi, 6)])
             qoldi -= olinadi
             # MUHIM: `reserved_for_order_item_id` TOZALANMAYDI, garchi
             # `reserved_quantity` 0 ga tushsa ham. Bu — mahsulot qaysi
@@ -6979,14 +7054,54 @@ def _mrp_deliver_stock(db: Session, order_item, qty: float,
             # Tozalansa, yuk xati keyin o'chirilganda mahsulotni topib
             # bo'lmay qolardi va qaytarish ishlamasdi (sinovda aynan
             # shunday chiqdi). Bandlik miqdori 0 — bu yetarli belgi.
+        if natija is not None:
+            natija["olingan"] = olindi
+    else:
+        reja = []
+        if olingan is not None:
+            # kech71 (K71-1, O'LCHANGAN `work/probe71r.py`, asl kod VA kech70 WIP): TM faqat
+            # SHU detalga bog'langanlar ichidan qidirilardi. Qisman topshirilgan detalning
+            # qolgan bandi “ozod qilish” bilan ochilib, keyin yuk xati o'chirilsa (UI da mumkin),
+            # topshirilgan 3 m² (9 000 so'm tan narx) HECH QAYERGA qaytmasdi. Endi yozilgan id
+            # bo'yicha topiladi; band ozod qilingan bo'lsa mahsulot ERKIN qoldiqqa qaytadi.
+            _cid_q = company_id if company_id is not None else getattr(order_item, 'company_id', None)
+            boyicha = {fp.id: fp for fp in _mrp_tmlar_idlar(db, [r[0] for r in olingan], _cid_q)}
+            for fid, miqdor in olingan:
+                fp = boyicha.get(fid)
+                if fp is None:
+                    log.append(f"⚠ Tayyor mahsulot #{fid} topilmadi — {miqdor:g} qaytarilmadi")
+                    continue
+                if miqdor > 1e-9:
+                    reja.append((fp, float(miqdor)))
         else:
-            fp.quantity = float(fp.quantity or 0) + qoldi
-            fp.reserved_quantity = float(fp.reserved_quantity or 0) + qoldi
+            # Eski yozuv (kech70 dan oldin — qaysi TM dan olingani yozilmagan): olish tartibining
+            # aksi (teskari id), har TM ga ishlab chiqarilganidan OSHMAYDIGAN miqdorgacha.
+            tmlar = _mrp_band_tmlar(db, order_item, company_id)
+            for fp in reversed(tmlar):
+                if qoldi <= 1e-9:
+                    break
+                if fp.produced_quantity is None:
+                    sigadi = qoldi
+                else:
+                    sigadi = max(0.0, float(fp.produced_quantity or 0) - float(fp.quantity or 0))
+                miqdor = min(qoldi, sigadi)
+                if miqdor > 1e-9:
+                    reja.append((fp, miqdor))
+                    qoldi -= miqdor
+            if qoldi > 1e-9:
+                log.append(f"⚠ {qoldi:g} ishlab chiqarilganidan ortiq topshirilgan edi — omborga qaytarilmadi")
+        for fp, miqdor in reja:
+            unit_cost = _fp_stable_unit_cost(db, fp)
+            fp.quantity = float(fp.quantity or 0) + miqdor
+            if fp.reserved_for_order_item_id == order_item.id:
+                fp.reserved_quantity = float(fp.reserved_quantity or 0) + miqdor
+                _qayer = "yuk xati bekor qilindi"
+            else:
+                # kech71: band ozod qilingan — mahsulot erkin qoldiqqa (boshqa detal bandiga EMAS).
+                _qayer = "yuk xati bekor qilindi; band ozod qilingan — erkin qoldiqqa"
             if unit_cost > 0:
-                fp.cost_price = float(fp.cost_price or 0) + unit_cost * qoldi
-            log.append(f"🏭 {fp.name}: +{qoldi:g} {fp.unit} (yuk xati bekor qilindi)")
-            qoldi = 0.0
-            break
+                fp.cost_price = float(fp.cost_price or 0) + unit_cost * miqdor
+            log.append(f"🏭 {fp.name}: +{miqdor:g} {fp.unit} ({_qayer})")
     if log:
         db.flush()
     return log
@@ -7183,6 +7298,7 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
 
     # Tekshirish: qoldiqdan ko'p berilmasin
     errors = []
+    mrp_kam = []
     valid_items = []
     for di in data.items:
         if di.quantity <= 0:
@@ -7200,10 +7316,24 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
                 f"lekin qoldi {remaining:g} {oi.delivery_unit}"
             )
             continue
+        # kech70 (FOYDALANUVCHI QARORI "Taqiqlansin", K70-1): MRP detali faqat ishlab chiqarilgan
+        # (TAYYOR) miqdorgacha topshiriladi. Ilgari 5 tayyor detalga 8 yozilardi — 3 hech qayerdan
+        # yechilmasdi (xomashyo, tan narx, foyda noto'g'ri). TM qatorlari shu yerda qulflanadi
+        # (id tartibida) — keyingi chiqarish aynan shu qoldiqni ko'radi.
+        if _mrp_yetkazish_detalimi(oi):
+            _tayyor = _mrp_tayyor_qoldiq(db, oi, order.company_id)
+            if di.quantity > _tayyor + 0.001:
+                mrp_kam.append(
+                    f"{oi.name}: {di.quantity:g} {oi.delivery_unit} berilmoqchi, lekin tayyor "
+                    f"(ishlab chiqarilgan) {_tayyor:g} {oi.delivery_unit} — avval ishlab chiqarishni yakunlang"
+                )
+                continue
         valid_items.append((oi, di.quantity))
 
     if errors:
         return {"success": False, "message": "Qoldiqdan ko'p berib bo'lmaydi!", "shortages": errors}
+    if mrp_kam:
+        return {"success": False, "message": "Ishlab chiqarilganidan ko'p berib bo'lmaydi!", "shortages": mrp_kam}
 
     if not valid_items:
         return {"success": False, "message": "Yetkazish uchun miqdor kiritilmagan"}
@@ -7239,15 +7369,21 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
 
     mrp_log = []
     for oi, qty in valid_items:
-        db.add(DeliveryItem(
+        _di = DeliveryItem(
             delivery_id=db_delivery.id,
             order_item_id=oi.id,
             quantity=qty,
             unit=oi.delivery_unit
-        ))
+        )
+        db.add(_di)
         # 2026-09-20: MRP orqali shu detalga band qilingan tayyor mahsulot
         # aynan SHU YERDA ombordan chiqadi (yuqoridagi izohga qarang).
-        mrp_log.extend(_mrp_deliver_stock(db, oi, qty, company_id=company_id))
+        # kech70: qaysi TM dan qancha olingani yuk qatoriga yoziladi — o'chirishda AYNAN qaytadi.
+        _mn = {}
+        mrp_log.extend(_mrp_deliver_stock(db, oi, qty, company_id=company_id, natija=_mn))
+        if _mn.get("olingan"):
+            import json as _json
+            _di.mrp_olingan = _json.dumps(_mn["olingan"])
 
     db.flush()
     db.refresh(order)
@@ -7519,7 +7655,8 @@ def delete_delivery(db: Session, delivery_id: int, company_id: int = None,
         _oi = db.query(OrderItem).filter(OrderItem.id == di.order_item_id).first()
         if _oi:
             _mrp_deliver_stock(db, _oi, float(di.quantity or 0),
-                               company_id=_cid, sign=-1.0)
+                               company_id=_cid, sign=-1.0,
+                               olingan=_mrp_olingan_oqi(di))
     db.delete(d)
     db.flush()
 

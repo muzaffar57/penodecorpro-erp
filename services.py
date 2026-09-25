@@ -1259,6 +1259,25 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
         return {"success": False,
                 "message": "Qoralama buyurtmani avval jarayonga oling — keyin \"Tayyor\" qilish mumkin"}
 
+    # kech70 (FOYDALANUVCHI QARORI "Taqiqlansin"): hali hech narsa topshirilmagan buyurtmada
+    # "Tayyor" butun qoldiqni AVTOMATIK yuk xati bilan topshiradi (pastda). MRP detali ishlab
+    # chiqarilmagan / kam ishlab chiqarilgan bo'lsa u yuk xati rad etiladi — shuning uchun
+    # "Tayyor" ham HECH NARSAGA tegmasdan OLDIN aniq sabab bilan rad etiladi (aks holda
+    # buyurtma "tayyor" bo'lib, yuk xati jim yozilmay qolardi).
+    if not order.deliveries:
+        _mrp_kam = []
+        for _it in order.items:
+            if _crud_qulf._mrp_yetkazish_detalimi(_it):
+                _kerak = float(_it.remaining_qty or 0)
+                if _kerak > 0.001:
+                    _tayyor = _crud_qulf._mrp_tayyor_qoldiq(db, _it, order.company_id, lock=False)
+                    if _kerak > _tayyor + 0.001:
+                        _mrp_kam.append(f"{_it.name}: kerak {_kerak:g}, tayyor {_tayyor:g}")
+        if _mrp_kam:
+            return {"success": False,
+                    "message": ("MRP mahsuloti hali to'liq ishlab chiqarilmagan — avval ishlab "
+                                "chiqarishni yakunlang: " + "; ".join(_mrp_kam))}
+
     # === HAMMA NARSA TAYYOR — BAJARAMIZ ===
     # kech41 (14-band): holat DARHOL READY — quyidagi oraliq `commit` lar
     # qulfni bo'shatadi; parallel ikkinchi "Tayyor" qulfdan keyin READY ni
