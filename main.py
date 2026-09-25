@@ -627,6 +627,9 @@ def _migrate_payment_columns():
         # kech77 (95-band, K77-1): o'chirishda qo'llangan loy — tiklash uni AYNAN teskari qiladi
         if 'ochirishda_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN ochirishda_loy_kg FLOAT")
+        # kech82 (102-band): buyurtma loyi manbasi (tayyor loy zaxirasi / xom) — NULL: eski buyurtma, eski qoida
+        if 'loy_manba_json' not in ord_cols:
+            migrations.append("ALTER TABLE orders ADD COLUMN loy_manba_json TEXT")
 
         fps_cols = [c['name'] for c in inspector.get_columns('finished_product_sales')]
         if 'sale_group_id' not in fps_cols:
@@ -5024,6 +5027,8 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
     # ombor qaytgan, buyurtma o'chmagan qolar va qayta o'chirish IKKINCHI marta qaytarardi.
     with crud.bitta_tranzaksiya(db):
         if can_return and not order.stock_returned:
+            # kech82 (102-band): o'chirish yozuvi (tiklash uchun) yangidan
+            services.loy_manba_ochirish_boshla(order)
             if qisman:
                 # Qisman topshirilgan / omborga qo'yilgan — faqat qolgan qismi qaytadi
                 log.extend(services.return_inventory_for_order_partial(db, order))
@@ -5044,54 +5049,57 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
             #   - QISMAN topshirilgan bo'lsa — buyurtmaning yetkazilgan foiziga qarab,
             #     QOLGAN (topshirilmagan) qism uchun mo'ljallangan loy proporsional qaytadi
             #     (aniq "qancha ishlatilgani" ma'lum bo'lmagani uchun taxminiy hisob).
-            planned_loy = services._get_planned_loy(order)
-            # kech77 (95-band, K77-1 — O'LCHANGAN `work/probe95.py`, SQLite = PG): HAQIQATDA qo'llangan loy
-            # (+ qaytgan, − qo'shimcha yechilgan) buyurtmada saqlanadi — `crud.restore_order` AYNAN shuni teskari
-            # qiladi. Ilgari tiklash DOIM reja × qolgan ulushni qayta yechardi: `actual_loy_kg` bilan o'chirilgan
-            # buyurtma tiklansa loy qoldig'i abadiy siljirdi (qisman 4/10, loy 10: actual=10 → −6, actual=7 → −3,
-            # actual=12 → −8; yuksiz "Tayyor", actual=3 → −3).
-            loy_qollangan = 0.0
+            # kech82 (102-band, QAROR "A"): ishlatilmagan loy OLINGAN joyiga — zaxiradan olingani tayyor loy zaxirasiga,
+            # xomdan olingani xomga (qisman qaytishda avval xom qism); nima qilingani tiklash uchun yoziladi.
+            with services.loy_manba_rejimi(db, "ochirish"):
+                planned_loy = services._get_planned_loy(order)
+                # kech77 (95-band, K77-1 — O'LCHANGAN `work/probe95.py`, SQLite = PG): HAQIQATDA qo'llangan loy
+                # (+ qaytgan, − qo'shimcha yechilgan) buyurtmada saqlanadi — `crud.restore_order` AYNAN shuni teskari
+                # qiladi. Ilgari tiklash DOIM reja × qolgan ulushni qayta yechardi: `actual_loy_kg` bilan o'chirilgan
+                # buyurtma tiklansa loy qoldig'i abadiy siljirdi (qisman 4/10, loy 10: actual=10 → −6, actual=7 → −3,
+                # actual=12 → −8; yuksiz "Tayyor", actual=3 → −3).
+                loy_qollangan = 0.0
 
-            if actual_loy_kg is not None:
-                diff = planned_loy - float(actual_loy_kg)
-                if diff > 0.01:
-                    log.extend(services.return_loy_ingredients(db, order, diff))
-                    loy_qollangan = diff
-                elif diff < -0.01:
-                    log.extend(services.deduct_loy_ingredients(db, order, abs(diff)))
-                    loy_qollangan = diff
-            elif planned_loy > 0:
-                if not qisman:
-                    log.extend(services.return_loy_ingredients(db, order, planned_loy))
-                    loy_qollangan = float(planned_loy)
-                else:
-                    # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
-                    # delivery_percent EMAS — faqat haqiqatda loy sarflaydigan
-                    # detallar bo'yicha hisoblangan ulush ishlatiladi (qarang:
-                    # services.loy_relevant_remaining_fraction izohi).
-                    remaining_fraction = services.loy_relevant_remaining_fraction(order)
-                    proportional_loy = planned_loy * remaining_fraction
-                    if proportional_loy > 0.01:
-                        log.extend(services.return_loy_ingredients(db, order, proportional_loy))
-                        loy_qollangan = proportional_loy
-            order.ochirishda_loy_kg = loy_qollangan
+                if actual_loy_kg is not None:
+                    diff = planned_loy - float(actual_loy_kg)
+                    if diff > 0.01:
+                        log.extend(services.return_loy_ingredients(db, order, diff))
+                        loy_qollangan = diff
+                    elif diff < -0.01:
+                        log.extend(services.deduct_loy_ingredients(db, order, abs(diff)))
+                        loy_qollangan = diff
+                elif planned_loy > 0:
+                    if not qisman:
+                        log.extend(services.return_loy_ingredients(db, order, planned_loy))
+                        loy_qollangan = float(planned_loy)
+                    else:
+                        # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): order-wide
+                        # delivery_percent EMAS — faqat haqiqatda loy sarflaydigan
+                        # detallar bo'yicha hisoblangan ulush ishlatiladi (qarang:
+                        # services.loy_relevant_remaining_fraction izohi).
+                        remaining_fraction = services.loy_relevant_remaining_fraction(order)
+                        proportional_loy = planned_loy * remaining_fraction
+                        if proportional_loy > 0.01:
+                            log.extend(services.return_loy_ingredients(db, order, proportional_loy))
+                            loy_qollangan = proportional_loy
+                order.ochirishda_loy_kg = loy_qollangan
 
-            # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, ALOHIDA
-            # (item.remaining_qty asosida) qaytariladi.
-            # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): avval bu butun
-            # buyurtmaning order-wide has_delivery'iga qarab HAMMASI YOKI HECH
-            # NARSA tarzida ishlardi — agar buyurtmadagi BOSHQA bir detal
-            # (masalan profil) qisman topshirilgan bo'lsa, shu "loy sotish"
-            # detali o'zi UMUMAN topshirilmagan bo'lsa ham, uning loyi
-            # UMUMAN qaytmas edi. Endi har bir "loy sotish" detali o'zining
-            # remaining_qty'i (topshirilmagan qismi) bo'yicha, mustaqil
-            # qaytariladi — boshqa detallarning yetkazilish holatidan qat'i
-            # nazar.
-            for item in order.items:
-                if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
-                    remaining = item.remaining_qty
-                    if remaining > 0.001:
-                        log.extend(services.return_loy_ingredients(db, order, float(remaining), recipe_id=item.recipe_id))
+                # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, ALOHIDA
+                # (item.remaining_qty asosida) qaytariladi.
+                # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): avval bu butun
+                # buyurtmaning order-wide has_delivery'iga qarab HAMMASI YOKI HECH
+                # NARSA tarzida ishlardi — agar buyurtmadagi BOSHQA bir detal
+                # (masalan profil) qisman topshirilgan bo'lsa, shu "loy sotish"
+                # detali o'zi UMUMAN topshirilmagan bo'lsa ham, uning loyi
+                # UMUMAN qaytmas edi. Endi har bir "loy sotish" detali o'zining
+                # remaining_qty'i (topshirilmagan qismi) bo'yicha, mustaqil
+                # qaytariladi — boshqa detallarning yetkazilish holatidan qat'i
+                # nazar.
+                for item in order.items:
+                    if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
+                        remaining = item.remaining_qty
+                        if remaining > 0.001:
+                            log.extend(services.return_loy_ingredients(db, order, float(remaining), recipe_id=item.recipe_id))
 
             # MUHIM: "qaytarildi" deb BELGILAYMIZ — shu buyurtma keyinchalik
             # tiklanib, YANA o'chirilsa ham, ombor IKKINCHI MARTA qaytarilmasin.

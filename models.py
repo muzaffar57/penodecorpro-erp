@@ -581,6 +581,12 @@ class Order(Base):
     # narsa. `crud.restore_order` AYNAN shuni teskari qiladi. NULL — kech77 dan OLDIN o'chirilgan (yoki hali
     # o'chirilmagan) buyurtma: tiklash eski qoida bilan (reja × qolgan ulush) — o'shanda UI miqdor so'ramasdi.
     ochirishda_loy_kg = Column(Float, nullable=True)
+    # kech82 (102-band, QAROR "A"): buyurtma LOYI qayerdan olingani (retsept bo'yicha, JSON):
+    # {"r": {"<retsept_id>": {"z": tayyor loy zaxirasidan, "x": xom ingredientlardan}}, "o": {...}} — "r" ushlab
+    # turilgan loy, "o" — o'chirish nima qilgani (+ qaytgan, − qo'shimcha yechilgan; tiklash AYNAN teskarisi).
+    # Loy qaytganda avval xom qism, qolgani zaxiraga (`services` dagi "BUYURTMA LOYI OLINGAN JOYIGA QAYTADI").
+    # NULL — migratsiyadan OLDINGI buyurtma: eski qoida (qaytish xomga, tiklash xomdan).
+    loy_manba_json = Column(Text, nullable=True)
     stock_returned = Column(Boolean, default=False)         # O'chirilganda ombor QAYTARILGANMI — takroriy (tiklab-qayta o'chirilganda ikki marta) qaytarib yubormaslik uchun
 
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)

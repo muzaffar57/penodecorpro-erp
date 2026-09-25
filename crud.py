@@ -1697,6 +1697,8 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     import services as _services
     _planned_loy_direct = float(getattr(order_data, 'loy_kg', None) or 0)
     _services._set_planned_loy(db_order, _planned_loy_direct)
+    # kech82 (102-band): loy manbasi kuzatuvi (tayyor loy zaxirasi / xom) — yangi buyurtma (qoralama ham)
+    db_order.loy_manba_json = _services.LOY_MANBA_BOSH
 
     # kech58 (K58-1 / K58-2): buyurtma UMUMIY loyi retsepti — yaratishda BIR MARTA belgilanadi
     # (qoralama ham). Yechish / qaytarish / foyda / brak — hammasi shu retseptdan.
@@ -1708,32 +1710,34 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     if not is_draft:
         _take_finished_for_order(db, db_order)
 
-        # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, alohida
-        # ombordan yechiladi (buyurtma to'g'ridan-to'g'ri, qoralamasiz
-        # yaratilganda ham ishlashi kerak — avval bu yerda YO'Q edi)
-        for item in db_order.items:
-            if (item.category or '').lower() == 'loy_sotish':
-                if item.recipe_id and item.quantity:
-                    _services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
-                elif item.quantity:
-                    # MUHIM: retsept tanlanmagan "Loy sotish" detali —
-                    # xomashyo AYIRILMAYDI. Frontend endi buni oldindan
-                    # tekshiradi, lekin API to'g'ridan-to'g'ri chaqirilsa ham
-                    # (masalan SaaS mijozi tomonidan) — bu holat KUZATILISHI
-                    # kerak, shuning uchun xato jurnaliga yozamiz.
-                    try:
-                        log_error(db, f"Loy sotish detali (#{item.id}, {item.name}) — retsept tanlanmagan, xomashyo ayirilmadi!",
-                                  endpoint="create_order:loy_sotish_missing_recipe")
-                    except Exception:
-                        pass
+        # kech82 (102-band): buyurtma loyi — zaxiradan / xomdan qancha olingani yoziladi
+        with _services.loy_manba_rejimi(db, "ushla"):
+            # "Loy sotish" detallari — har biri o'z retseptiga ko'ra, alohida
+            # ombordan yechiladi (buyurtma to'g'ridan-to'g'ri, qoralamasiz
+            # yaratilganda ham ishlashi kerak — avval bu yerda YO'Q edi)
+            for item in db_order.items:
+                if (item.category or '').lower() == 'loy_sotish':
+                    if item.recipe_id and item.quantity:
+                        _services.deduct_loy_ingredients(db, db_order, float(item.quantity), recipe_id=item.recipe_id)
+                    elif item.quantity:
+                        # MUHIM: retsept tanlanmagan "Loy sotish" detali —
+                        # xomashyo AYIRILMAYDI. Frontend endi buni oldindan
+                        # tekshiradi, lekin API to'g'ridan-to'g'ri chaqirilsa ham
+                        # (masalan SaaS mijozi tomonidan) — bu holat KUZATILISHI
+                        # kerak, shuning uchun xato jurnaliga yozamiz.
+                        try:
+                            log_error(db, f"Loy sotish detali (#{item.id}, {item.name}) — retsept tanlanmagan, xomashyo ayirilmadi!",
+                                      endpoint="create_order:loy_sotish_missing_recipe")
+                        except Exception:
+                            pass
 
-        # UMUMIY QOPLAMA uchun Rejalashtirilgan Loy — MUHIM: bu ham avval
-        # BUTUNLAY YO'Q edi (faqat qoralama faollashtirish va tiklashda bor
-        # edi). To'g'ridan-to'g'ri yaratilgan buyurtmada, umumiy qoplama
-        # uchun xomashyo HECH QACHON ayirilmasdi.
-        _planned_loy_general = _planned_loy_direct
-        if _planned_loy_general > 0:
-            _services.deduct_loy_ingredients(db, db_order, _planned_loy_general)
+            # UMUMIY QOPLAMA uchun Rejalashtirilgan Loy — MUHIM: bu ham avval
+            # BUTUNLAY YO'Q edi (faqat qoralama faollashtirish va tiklashda bor
+            # edi). To'g'ridan-to'g'ri yaratilgan buyurtmada, umumiy qoplama
+            # uchun xomashyo HECH QACHON ayirilmasdi.
+            _planned_loy_general = _planned_loy_direct
+            if _planned_loy_general > 0:
+                _services.deduct_loy_ingredients(db, db_order, _planned_loy_general)
 
     db.commit()
     db.refresh(db_order)
@@ -4305,34 +4309,39 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
                 # hodim o'chirishda "haqiqatda qancha ishlatilgan" deb boshqa miqdor yozgan bo'lsa, tiklash loy
                 # qoldig'ini abadiy siljitardi (qisman 4/10, loy 10: actual=7 → −3, actual=12 → −8). NULL — kech77 dan
                 # OLDIN o'chirilgan buyurtma (o'shanda UI miqdor so'ramasdi — qaytgani aynan reja × ulush edi): eski qoida.
-                planned_loy = services._get_planned_loy(db_order)
-                _qollangan = getattr(db_order, 'ochirishda_loy_kg', None)
-                if _qollangan is not None:
-                    _qollangan = float(_qollangan)
-                    if _qollangan > 0.01:
-                        services.deduct_loy_ingredients(db, db_order, _qollangan)
-                    elif _qollangan < -0.01:
-                        services.return_loy_ingredients(
-                            db, db_order, abs(_qollangan),
-                            reason_override=f"Buyurtma {db_order.order_number} tiklandi (o'chirishda qo'shimcha yechilgan loy qaytarildi)")
-                else:
-                    redo_loy = planned_loy * loy_remaining_fraction
-                    if redo_loy > 0.01:
-                        services.deduct_loy_ingredients(db, db_order, redo_loy)
+                # kech82 (102-band): o'chirishning AYNAN teskarisi — zaxiraga qaytgan loy zaxiradan, xomga qaytgani
+                # xomdan (o'chirish yozuvi "o" bo'yicha; yozuvsiz eski o'chirish — faqat xomdan).
+                with services.loy_manba_rejimi(db, "tiklash"):
+                    planned_loy = services._get_planned_loy(db_order)
+                    _qollangan = getattr(db_order, 'ochirishda_loy_kg', None)
+                    if _qollangan is not None:
+                        _qollangan = float(_qollangan)
+                        if _qollangan > 0.01:
+                            services.deduct_loy_ingredients(db, db_order, _qollangan)
+                        elif _qollangan < -0.01:
+                            services.return_loy_ingredients(
+                                db, db_order, abs(_qollangan),
+                                reason_override=f"Buyurtma {db_order.order_number} tiklandi (o'chirishda qo'shimcha yechilgan loy qaytarildi)")
+                    else:
+                        redo_loy = planned_loy * loy_remaining_fraction
+                        if redo_loy > 0.01:
+                            services.deduct_loy_ingredients(db, db_order, redo_loy)
 
-                # "Loy sotish" detallari — har biri o'z remaining_qty'i bo'yicha
-                # ALOHIDA qayta yechiladi (o'chirishdagi bilan bir xil, item
-                # darajasida — order-wide has_delivery emas; qarang: yuqoridagi
-                # main.py'dagi bir xil tuzatish).
-                for item in db_order.items:
-                    if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
-                        remaining = item.remaining_qty
-                        if remaining > 0.001:
-                            services.deduct_loy_ingredients(db, db_order, float(remaining), recipe_id=item.recipe_id)
+                    # "Loy sotish" detallari — har biri o'z remaining_qty'i bo'yicha
+                    # ALOHIDA qayta yechiladi (o'chirishdagi bilan bir xil, item
+                    # darajasida — order-wide has_delivery emas; qarang: yuqoridagi
+                    # main.py'dagi bir xil tuzatish).
+                    for item in db_order.items:
+                        if (item.category or '').lower() == 'loy_sotish' and item.recipe_id:
+                            remaining = item.remaining_qty
+                            if remaining > 0.001:
+                                services.deduct_loy_ingredients(db, db_order, float(remaining), recipe_id=item.recipe_id)
 
             db_order.stock_returned = False
             # kech77 (K77-1): qo'llangan loy teskari qilindi — keyingi o'chirish o'zini qayta yozadi
             db_order.ochirishda_loy_kg = None
+            # kech82 (102-band): o'chirish yozuvi teskari qilindi
+            services.loy_manba_ochirish_tozala(db_order)
 
         db_order.is_deleted = False
         db.commit()
@@ -5894,20 +5903,27 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
             "shortages": all_shortages
         }
 
+    # kech82 (102-band): qoralamadan hech narsa yechilmagan edi — loy manbasi kuzatuvi shu yerdan TO'LIQ
+    # (migratsiyadan oldin yaratilgan qoralama ham).
+    if getattr(order, 'loy_manba_json', None) is None:
+        order.loy_manba_json = services.LOY_MANBA_BOSH
+
     # Ombordan penoplast yechamiz (kech65: commit=False — qulf oxirigacha)
     log = services.deduct_inventory_for_order(db, order, commit=False)
 
-    # "Loy sotish" detallari — har biri o'z retseptiga ko'ra
-    for oi in order.items:
-        if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id and oi.quantity:
-            log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id,
-                                                       commit=False))
+    # kech82 (102-band): buyurtma loyi — zaxiradan / xomdan qancha olingani yoziladi
+    with services.loy_manba_rejimi(db, "ushla"):
+        # "Loy sotish" detallari — har biri o'z retseptiga ko'ra
+        for oi in order.items:
+            if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id and oi.quantity:
+                log.extend(services.deduct_loy_ingredients(db, order, float(oi.quantity), recipe_id=oi.recipe_id,
+                                                           commit=False))
 
-    # Rejalashtirilgan loy (qoplama) bo'lsa — uni ham yechamiz
-    planned_loy = services._get_planned_loy(order)
-    if planned_loy > 0:
-        loy_log = services.deduct_loy_ingredients(db, order, planned_loy, commit=False)
-        log.extend(loy_log)
+        # Rejalashtirilgan loy (qoplama) bo'lsa — uni ham yechamiz
+        planned_loy = services._get_planned_loy(order)
+        if planned_loy > 0:
+            loy_log = services.deduct_loy_ingredients(db, order, planned_loy, commit=False)
+            log.extend(loy_log)
 
     # Tayyor mahsulotlarni yechamiz
     log.extend(_take_finished_for_order(db, order))
@@ -6908,14 +6924,16 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
                 _qr53_log.append(
                     f"🔄 Qoplama retsepti almashtirildi: «{_eski53}» → «{_yangi53}» — {_miqdor_matn(_loy53)} kg loy: "
                     f"eskisi omborga qaytdi, yangisidan yechildi")
-                _qr53_log.extend(services.return_loy_ingredients(
-                    db, order, _loy53, recipe_id=_qr58_oldin.id, company_id=order.company_id,
-                    reason_override=f"Buyurtma {_nomer53} — qoplama retsepti almashtirildi (eski retsept loyi qaytarildi)",
-                    commit=False))
-                _qr53_log.extend(services.deduct_loy_ingredients(
-                    db, order, _loy53, recipe_id=_qr53_keyin.id, company_id=order.company_id,
-                    reason_override=f"Buyurtma {_nomer53} (loy — yangi qoplama retsepti)",
-                    commit=False))
+                # kech82 (102-band): eski retsept loyi OLINGAN joyiga, yangisi — manbasi yoziladi
+                with services.loy_manba_rejimi(db, "ushla"):
+                    _qr53_log.extend(services.return_loy_ingredients(
+                        db, order, _loy53, recipe_id=_qr58_oldin.id, company_id=order.company_id,
+                        reason_override=f"Buyurtma {_nomer53} — qoplama retsepti almashtirildi (eski retsept loyi qaytarildi)",
+                        commit=False))
+                    _qr53_log.extend(services.deduct_loy_ingredients(
+                        db, order, _loy53, recipe_id=_qr53_keyin.id, company_id=order.company_id,
+                        reason_override=f"Buyurtma {_nomer53} (loy — yangi qoplama retsepti)",
+                        commit=False))
             order.qoplama_retsept_id = _qr53_keyin.id
             _qr53_matn = f"qoplama retsepti «{_eski53}» → «{_yangi53}»"
         elif order.qoplama_retsept_id is None and _qr58_oldin is not None:
@@ -6948,15 +6966,17 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             if (oi.category or '').lower() == 'loy_sotish' and oi.recipe_id:
                 new_loysale_by_recipe[oi.recipe_id] = new_loysale_by_recipe.get(oi.recipe_id, 0) + float(oi.quantity or 0)
         all_recipe_ids = set(old_loysale_by_recipe.keys()) | set(new_loysale_by_recipe.keys())
-        for rid in all_recipe_ids:
-            diff = new_loysale_by_recipe.get(rid, 0) - old_loysale_by_recipe.get(rid, 0)
-            if abs(diff) > 0.001:
-                if diff > 0:
-                    inventory_log.extend(services.deduct_loy_ingredients(db, order, diff, recipe_id=rid,
-                                                                         commit=False))
-                else:
-                    inventory_log.extend(services.return_loy_ingredients(db, order, abs(diff), recipe_id=rid,
-                                                                         commit=False))
+        # kech82 (102-band): "Loy sotish" farqi — manbasi yoziladi / olingan joyiga qaytadi
+        with services.loy_manba_rejimi(db, "ushla"):
+            for rid in all_recipe_ids:
+                diff = new_loysale_by_recipe.get(rid, 0) - old_loysale_by_recipe.get(rid, 0)
+                if abs(diff) > 0.001:
+                    if diff > 0:
+                        inventory_log.extend(services.deduct_loy_ingredients(db, order, diff, recipe_id=rid,
+                                                                             commit=False))
+                    else:
+                        inventory_log.extend(services.return_loy_ingredients(db, order, abs(diff), recipe_id=rid,
+                                                                             commit=False))
 
         db.commit()
 

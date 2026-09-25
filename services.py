@@ -1354,8 +1354,11 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
         elif diff < -0.01:
             extra = abs(diff)
             if is_partial_completion:
-                # Aralashtirilmagan — xom xomashyo o'z joyiga qaytadi
-                ing_log = return_loy_ingredients(db, order, extra)
+                # Aralashtirilmagan — xom xomashyo o'z joyiga qaytadi.
+                # kech82 (102-band): buyurtma loyining bir qismi tayyor loy ZAXIRASIDAN olingan bo'lsa — u birinchi
+                # ishlatilgan; ortgan qism xom qismdan ko'p bo'lsa, ortig'i zaxiraga qaytadi (olingan joyiga).
+                with loy_manba_rejimi(db, "ushla"):
+                    ing_log = return_loy_ingredients(db, order, extra)
                 result["inventory_changes"].extend(ing_log)
                 result["loy_info"] = {
                     "planned": planned_loy,
@@ -4714,6 +4717,199 @@ def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: f
     return {"enough": len(shortages) == 0, "shortages": shortages}
 
 
+# ════════════════════════════════════════════════════════════════════
+# kech82 (102-band, FOYDALANUVCHI QARORI "A") — BUYURTMA LOYI OLINGAN JOYIGA QAYTADI
+# ════════════════════════════════════════════════════════════════════
+# O'LCHANGAN (asl kod = zip 77, `work/probe102.py`, SQLite = PG 16 — 20 / 103 yiqilish AYNAN; JONLI — buyurtma
+# 218, "Tayyor loy (Oq marmar)"): buyurtma loyni `deduct_loy_ingredients(use_stock=True)` bilan AVVAL
+# "Tayyor loy (<retsept>)" zaxirasidan oladi, `return_loy_ingredients` esa DOIM xom ingredientlarga qaytarardi —
+# o'chirish, "Loy sotish", qisman "Tayyor" dagi ortgan loy, loy rejasini kamaytirish, qoplama retseptini
+# almashtirish. Har sikl tayyor loyni xom ashyoga "aylantirardi" (zaxiradan 10 kg olgan buyurtmani o'chirish ->
+# tiklash -> o'chirish: zaxira -20, kley +20 — hech qachon sotib olinmagan xomashyo). Tiklash esa o'chirish xomga
+# qaytargan loyni ZAXIRADAN yechardi.
+#
+# Endi buyurtma (`Order.loy_manba_json`, retsept bo'yicha) ushlab turgan loyining qancha qismi zaxiradan (`z`),
+# qanchasi xomdan (`x`) olinganini saqlaydi ("r" bo'limi). Qaytishda avval XOM qism, qolgani (zaxiradan olingan
+# qismgacha) ZAXIRAGA: buyurtma tayyor (aralashtirilgan) loyni birinchi ishlatadi, ishlatilmay qolgani —
+# aralashtirilmagan xom ashyo (`complete_order` dagi qisman yakunlash qoidasi bilan bir xil). To'liq qaytishda
+# natija AYNAN olingan joylar. O'chirish nima qilganini ("o" bo'limi: + qaytgan, - qo'shimcha yechilgan) yozadi —
+# tiklash AYNAN teskarisi. NULL — migratsiyadan OLDINGI buyurtma: eski qoida (qaytish xomga); uning tiklanishi ham
+# faqat xomdan (o'sha o'chirish xomga qaytargan). Qoralama faollashtirilganda kuzatuv boshlanadi (hech narsa
+# yechilmagan edi).
+#
+# Rejim sessiyada (`db.info`, brakdagi `_brak_qaytarish_id` naqshi) — chaqiruv qatorlari o'zgarmaydi:
+#   "ushla"    — buyurtma loyi yechiladi / ishlatilmagani qaytadi (yaratish, faollashtirish, tahrir, qisman "Tayyor");
+#   "ochirish" — buyurtma o'chirilmoqda (qaytish va qo'shimcha sarf "o" ga yoziladi);
+#   "tiklash"  — o'chirishning teskarisi ("o" bo'yicha).
+# Rejimsiz chaqiruvlar (brak, tayyor mahsulot, "Tayyor" dagi qo'shimcha sarf) — avvalgidek, hech narsa yozilmaydi.
+import contextlib as _contextlib_lm
+
+LOY_MANBA_KALIT = "_loy_manba_rejimi"
+LOY_MANBA_REJIMLARI = ("ushla", "ochirish", "tiklash")
+LOY_MANBA_BOSH = '{"r": {}}'
+_LM_EPS = 1e-9
+
+
+@_contextlib_lm.contextmanager
+def loy_manba_rejimi(db, rejim):
+    """Blok ichidagi `deduct_loy_ingredients` / `return_loy_ingredients` chaqiruvlari buyurtma loyi manbasini
+    `rejim` bo'yicha hisobga oladi. Blokdan keyin (istisnoda ham) oldingi holat qaytadi."""
+    if rejim not in LOY_MANBA_REJIMLARI:
+        raise ValueError(f"Noma'lum loy manbasi rejimi: {rejim}")
+    _yoq = object()
+    eski = db.info.get(LOY_MANBA_KALIT, _yoq)
+    db.info[LOY_MANBA_KALIT] = rejim
+    try:
+        yield
+    finally:
+        if eski is _yoq:
+            db.info.pop(LOY_MANBA_KALIT, None)
+        else:
+            db.info[LOY_MANBA_KALIT] = eski
+
+
+def _loy_manba_joriy_rejim(db, order):
+    """Faol rejim — faqat haqiqiy buyurtma (`loy_manba_json` atributi bor) uchun; soxta buyurtma — None."""
+    if order is None or not hasattr(order, "loy_manba_json"):
+        return None
+    info = getattr(db, "info", None)
+    rejim = info.get(LOY_MANBA_KALIT) if isinstance(info, dict) else None
+    return rejim if rejim in LOY_MANBA_REJIMLARI else None
+
+
+def loy_manba_ol(order):
+    """`Order.loy_manba_json` -> dict yoki None (NULL / buzuq qiymat / buyurtma emas)."""
+    import json as _json_lm
+    raw = getattr(order, "loy_manba_json", None) if order is not None else None
+    if not raw:
+        return None
+    try:
+        d = _json_lm.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return d if isinstance(d, dict) else None
+
+
+def _loy_manba_saqla(order, d):
+    import json as _json_lm
+    order.loy_manba_json = _json_lm.dumps(d, sort_keys=True) if d else None
+
+
+def _lm_son(d, bolim, kalit, maydon):
+    try:
+        return float(((d.get(bolim) or {}).get(kalit) or {}).get(maydon) or 0.0)
+    except (AttributeError, TypeError, ValueError):
+        return 0.0
+
+
+def _lm_qosh(d, bolim, kalit, maydon, qiymat):
+    b = d.get(bolim)
+    if not isinstance(b, dict):
+        b = {}
+        d[bolim] = b
+    k = b.get(kalit)
+    if not isinstance(k, dict):
+        k = {}
+        b[kalit] = k
+    try:
+        eski = float(k.get(maydon) or 0.0)
+    except (TypeError, ValueError):
+        eski = 0.0
+    yangi = eski + float(qiymat)
+    if abs(yangi) < _LM_EPS:
+        yangi = 0.0
+    k[maydon] = yangi
+
+
+def loy_manba_ochirish_boshla(order):
+    """O'chirishda ombor qaytishidan OLDIN: "o" bo'limi yangidan (tiklash shu yozuv bo'yicha)."""
+    if order is None or not hasattr(order, "loy_manba_json"):
+        return
+    d = loy_manba_ol(order) or {}
+    d["o"] = {}
+    _loy_manba_saqla(order, d)
+
+
+def loy_manba_ochirish_tozala(order):
+    """Tiklash tugagach: "o" bo'limi olib tashlanadi (kuzatilmaydigan eski buyurtma — yana NULL)."""
+    if order is None or not hasattr(order, "loy_manba_json"):
+        return
+    d = loy_manba_ol(order)
+    if d is None:
+        return
+    d.pop("o", None)
+    _loy_manba_saqla(order, d)
+
+
+def _loy_manba_tiklash_zaxira_kg(order, kalit, kg):
+    """Tiklashda shu yechishning qancha qismi ZAXIRADAN olinadi — o'chirish zaxiraga qaytargan qismgacha.
+    O'chirish yozuvi yo'q (migratsiyadan oldin o'chirilgan) — 0: o'sha o'chirish hammasini xomga qaytargan."""
+    d = loy_manba_ol(order)
+    if d is None or "o" not in d:
+        return 0.0
+    return min(float(kg), max(0.0, _lm_son(d, "o", kalit, "z")))
+
+
+def _loy_manba_yechish_qayd(order, rejim, kalit, jami, stokdan, kerak_z=0.0):
+    """`deduct_loy_ingredients` natijasini yozadi: jami — yechilgan loy (kg), stokdan — shundan zaxiradan."""
+    d = loy_manba_ol(order)
+    xom = max(0.0, float(jami) - float(stokdan))
+    ozgardi = False
+    if rejim == "ushla":
+        if d is not None and "r" in d:
+            _lm_qosh(d, "r", kalit, "z", stokdan)
+            _lm_qosh(d, "r", kalit, "x", xom)
+            ozgardi = True
+    elif rejim == "ochirish":
+        # Hodim rejadan KO'P ishlatgan (qo'shimcha sarf) — ushlanmaydi, faqat tiklash uchun yoziladi.
+        d = d if d is not None else {}
+        _lm_qosh(d, "o", kalit, "z", -float(stokdan))
+        _lm_qosh(d, "o", kalit, "x", -xom)
+        ozgardi = True
+    elif rejim == "tiklash":
+        if d is not None and "o" in d:
+            _lm_qosh(d, "o", kalit, "z", -float(kerak_z))
+            _lm_qosh(d, "o", kalit, "x", -(float(jami) - float(kerak_z)))
+            ozgardi = True
+        if d is not None and "r" in d:
+            _lm_qosh(d, "r", kalit, "z", stokdan)
+            _lm_qosh(d, "r", kalit, "x", xom)
+            ozgardi = True
+    if ozgardi:
+        _loy_manba_saqla(order, d)
+
+
+def _loy_manba_qaytish_zaxiraga(order, rejim, kalit, kg):
+    """`return_loy_ingredients`: qaytadigan `kg` loydan qanchasi TAYYOR LOY ZAXIRASIGA (qolgani xomga)."""
+    d = loy_manba_ol(order)
+    kg = float(kg)
+    zaxiraga = 0.0
+    ozgardi = False
+    if rejim in ("ushla", "ochirish"):
+        if d is not None and "r" in d:
+            rx = min(kg, max(0.0, _lm_son(d, "r", kalit, "x")))
+            rz = min(kg - rx, max(0.0, _lm_son(d, "r", kalit, "z")))
+            _lm_qosh(d, "r", kalit, "x", -rx)
+            _lm_qosh(d, "r", kalit, "z", -rz)
+            zaxiraga = rz
+            ozgardi = True
+        if rejim == "ochirish":
+            d = d if d is not None else {}
+            _lm_qosh(d, "o", kalit, "z", zaxiraga)
+            _lm_qosh(d, "o", kalit, "x", kg - zaxiraga)
+            ozgardi = True
+    elif rejim == "tiklash":
+        # O'chirishdagi QO'SHIMCHA sarf teskarisi: zaxiradan olingani zaxiraga, xomdan olingani xomga.
+        if d is not None and "o" in d:
+            zaxiraga = min(kg, max(0.0, -_lm_son(d, "o", kalit, "z")))
+            _lm_qosh(d, "o", kalit, "z", zaxiraga)
+            _lm_qosh(d, "o", kalit, "x", kg - zaxiraga)
+            ozgardi = True
+    if ozgardi:
+        _loy_manba_saqla(order, d)
+    return zaxiraga
+
+
 def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = True, recipe_id: int = None, reason_override: str = None, company_id: int = None, commit: bool = True) -> list:
     """
     Loy (qoplama) uchun ingredientlarni ombordan ayiradi.
@@ -4745,13 +4941,38 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
         return []
 
     # 1) Avval tayyor loy zaxirasidan olamiz
-    if use_stock:
+    # kech82 (102-band): buyurtma loyi manbasi (yuqoridagi "OLINGAN JOYIGA QAYTADI" izohi). Tiklashda zaxiradan
+    # faqat o'chirish zaxiraga qaytargan qismgacha, qolgani xomdan — o'chirishning AYNAN teskarisi.
+    _lm_rejim = _loy_manba_joriy_rejim(db, order)
+    _lm_kalit = str(recipe.id)
+    _lm_jami = float(loy_kg)
+    _lm_stokdan = 0.0
+    _lm_kerak_z = 0.0
+    if _lm_rejim == "tiklash":
+        _lm_kerak_z = _loy_manba_tiklash_zaxira_kg(order, _lm_kalit, loy_kg)
+        if _lm_kerak_z > _LM_EPS:
+            taken, _lm_qoldi, msg = take_loy_from_stock(db, recipe, _lm_kerak_z, order=order,
+                                                         reason_override=reason_override, commit=commit)
+            if msg:
+                log.append(msg)
+            _lm_stokdan = float(taken)
+            loy_kg = loy_kg - float(taken)
+    elif use_stock:
         taken, loy_kg, msg = take_loy_from_stock(db, recipe, loy_kg, order=order, reason_override=reason_override,
                                                  commit=commit)
         if msg:
             log.append(msg)
-        if loy_kg <= 0:
-            return log  # Zaxira yetdi, xomashyo kerak emas
+        _lm_stokdan = float(taken)
+    if _lm_rejim:
+        _loy_manba_yechish_qayd(order, _lm_rejim, _lm_kalit, _lm_jami, _lm_stokdan, _lm_kerak_z)
+    if loy_kg <= 0:
+        if _lm_rejim:
+            # loy manbasi yozuvi ham shu chaqiruvning o'zida saqlanadi (zaxira qismi allaqachon yozilgan)
+            if commit:
+                db.commit()
+            else:
+                db.flush()
+        return log  # Zaxira yetdi, xomashyo kerak emas
 
     batch = float(recipe.batch_size_kg or 100)
 
@@ -4833,6 +5054,33 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
 
     if not recipe:
         return []
+
+    # kech82 (102-band): buyurtma loyi manbasi rejimida zaxiradan olingan qism (xom qismdan ortgani) TAYYOR LOY
+    # ZAXIRASIGA qaytadi — jurnalga "in" harakati bilan; qolgani avvalgidek xom ingredientlarga.
+    _lm_rejim = _loy_manba_joriy_rejim(db, order)
+    _lm_zaxiraga = 0.0
+    if _lm_rejim:
+        _lm_zaxiraga = _loy_manba_qaytish_zaxiraga(order, _lm_rejim, str(recipe.id), loy_kg)
+    if _lm_zaxiraga > _LM_EPS:
+        _zx = get_or_create_loy_stock(db, recipe, commit=False)
+        if _zx is not None:
+            _zx.stock_quantity = float(_zx.stock_quantity or 0) + _lm_zaxiraga
+            log.append(f"{_zx.item_name}: +{_lm_zaxiraga:.2f} kg tayyor loy zaxirasiga qaytarildi")
+            import crud as _crud_lm
+            _crud_lm.log_movement(
+                db, _zx.id, _zx.item_name, movement_type="in",
+                quantity=_lm_zaxiraga, unit=_zx.unit,
+                reason=reason_override or (f"Buyurtma {getattr(order, 'order_number', order.id)} — ishlatilmagan loy "
+                                           f"tayyor loy zaxirasiga qaytarildi"),
+                order_id=order.id
+            )
+            loy_kg = loy_kg - _lm_zaxiraga
+    if loy_kg <= _LM_EPS:
+        if commit:
+            db.commit()
+        else:
+            db.flush()
+        return log
 
     batch = float(recipe.batch_size_kg or 100)
 
@@ -4991,12 +5239,14 @@ def adjust_loy_diff(db: Session, order, old_loy: float, new_loy: float) -> list:
     log = []
     recipe = _get_order_recipe(db, order)
 
-    if diff > 0:
-        # Loy ko'paydi — farq uchun xomashyo ayiramiz
-        log.extend(deduct_loy_ingredients(db, order, diff))
-    else:
-        # Loy kamaydi — farqni omborga qaytaramiz
-        log.extend(return_loy_ingredients(db, order, abs(diff)))
+    # kech82 (102-band): buyurtma loyi — ko'payganda zaxira / xom manbasi yoziladi, kamayganda olingan joyiga qaytadi.
+    with loy_manba_rejimi(db, "ushla"):
+        if diff > 0:
+            # Loy ko'paydi — farq uchun xomashyo ayiramiz
+            log.extend(deduct_loy_ingredients(db, order, diff))
+        else:
+            # Loy kamaydi — farqni omborga qaytaramiz
+            log.extend(return_loy_ingredients(db, order, abs(diff)))
 
     return log
 
