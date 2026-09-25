@@ -1455,7 +1455,16 @@ function pickFinished(el, fpId) {
     // foydalanadi, va narx avtomatik to'ldiriladi.
     row.querySelector('.i-q').value = '';
     const up = row.querySelector('.i-unitprice');
-    if (up) up.value = Math.round(fp.unit_price);
+    // K69-1 (kech69): narx ANIQ (kasri bilan) — `row.dataset.unitprice` ga ham yoziladi,
+    // maydonda esa yaxlitlangan ko'rinishi (tahrir oynasidagi kabi, `formatNum`). Oldin maydonga
+    // faqat `Math.round(...)` yozilardi: 1 dona 1 333.33 so'mlik tayyor mahsulot 1 333 bo'lib
+    // sotilardi (7 dona — 9 331 o'rniga 9 333.31; profil TM da narx aniq edi), qatorda oldingi
+    // hisobdan qolgan eski aniq narx bo'lsa (yaxlitlangani teng) — o'sha ESKI narx olinardi.
+    if (up) {
+      const fpNarx = parseFloat(fp.unit_price) || 0;
+      up.value = formatNum(fpNarx);
+      row.dataset.unitprice = fpNarx;
+    }
   }
 
   // Belgi qo'yamiz
@@ -4848,6 +4857,19 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
               // xuddi yangi tanlovdagidek (pickFinished). Saqlangan narxni aniqlab
               // bo'lmasa — joriy narx (narx bo'sh qolmasin).
               if (isDup || _tmSaqlangan === null) row.dataset.fpPrice = fp.unit_price;
+              // 78-band (kech69): Donalik TM qatori narxni fpPrice dan EMAS, "1 dona narxi"
+              // maydonidan (`.i-unitprice` / `row.dataset.unitprice`) oladi — shuning uchun o'sha
+              // qoida (nusxa yoki saqlangan narx aniqlanmagan -> JORIY narx) shu maydonga ham.
+              // Oldin nusxada Donalik TM eski (saqlangan) narxda, profil / panel / blok esa
+              // joriy narxda qolardi. 'edit' rejimida saqlangan narx o'zgarmaydi (75-band).
+              if ((isDup || _tmSaqlangan === null) && cat === 'dona') {
+                const upTm = row.querySelector('.i-unitprice');
+                if (upTm) {
+                  const fpNarxTm = parseFloat(fp.unit_price) || 0;
+                  upTm.value = formatNum(fpNarxTm);
+                  row.dataset.unitprice = fpNarxTm;
+                }
+              }
               const tg = document.getElementById('fptag-' + row.id);
               if (tg) tg.firstChild.textContent = `🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor `;
               // fpMax va fpPrice o'rnatildi — narx/tekshiruvni qayta hisoblaymiz
