@@ -525,6 +525,10 @@ narx(1)
 o8 = yarat([mrp(10)])
 i8, n8 = detallar(o8)[0]
 ishlab(o8, i8, 10)
+# kech73 (86-band): avval 2 birlik TOPSHIRILADI — qaytarish mijozdan QAYTGAN mahsulot (topshirilmagan MRP ortiqchasi
+# endi yangi TM yaratmaydi, band TM dan erkin qoldiqqa o'tadi — tools/test_mrp_ortiqcha.py).
+req(C, "post", "/api/deliveries", json={"order_id": o8, "items": [{"order_item_id": i8, "quantity": 2}],
+                                     "notes": "Q8 yuk", "transport_cost": 0, "transport_payer": "none", "payment_method": "naqd"})
 narx(3)
 s, q8, r = qaytar(o8, i8, n8, 2, unit="m²")
 check("Q8 MRP: ishlab chiqarilgandan keyin narx x3, 2 birlik qaytdi — tannarx 6 000 (surat narxi; asl: 18 000)",
@@ -536,6 +540,10 @@ narx(1)
 o10 = yarat([mrp(10)])
 i10, n10 = detallar(o10)[0]
 ishlab(o10, i10, 10)
+# kech73 (86-band): avval 2 birlik TOPSHIRILADI — qaytarish mijozdan QAYTGAN mahsulot (topshirilmagan MRP ortiqchasi
+# endi yangi TM yaratmaydi, band TM dan erkin qoldiqqa o'tadi — tools/test_mrp_ortiqcha.py).
+req(C, "post", "/api/deliveries", json={"order_id": o10, "items": [{"order_item_id": i10, "quantity": 2}],
+                                     "notes": "Q10 yuk", "transport_cost": 0, "transport_payer": "none", "payment_method": "naqd"})
 s, q10, r = qaytar(o10, i10, n10, 2, unit="m²")
 check("Q10 MRP narx o'zgarmagan — 6 000 (kech54 C9 bilan bir xil)", s == 200 and taxminan(_fp(q10), 6_000), f"{s} {fp_of(q10)}")
 

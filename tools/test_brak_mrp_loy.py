@@ -613,6 +613,10 @@ finally:
 o = yarat([mrp(10)])
 dt = detallar(o)
 ishlab(o, dt[0][0], 10)
+# kech73 (86-band): avval 2 birlik TOPSHIRILADI — qaytarish mijozdan QAYTGAN mahsulot (topshirilmagan MRP ortiqchasi
+# endi yangi TM yaratmaydi, band TM dan erkin qoldiqqa o'tadi — tools/test_mrp_ortiqcha.py).
+req(C, "post", "/api/deliveries", json={"order_id": o, "items": [{"order_item_id": dt[0][0], "quantity": 2}],
+                                     "notes": "C9 yuk", "transport_cost": 0, "transport_payer": "none", "payment_method": "naqd"})
 r = req(C, "post", "/api/returns", json={"order_id": o, "order_item_id": dt[0][0], "item_name": dt[0][1], "quantity": 2,
                                          "unit": "m²", "reason": "Ortiqcha", "refund_amount": 0, "to_stock": True})
 _rid9 = (js(r) or {}).get("id")
