@@ -559,13 +559,15 @@ def bolim_12():
               r.status_code == 200 and not _yuk_bormi(did) and holat(O)["detal"] == {i1: 0},
               (r.status_code, r.text[:150]))
 
-    # 12f — to'liq topshirilgan (Yetkazildi) → o'chirilsa "Tayyor", to'lov holati qayta hisoblanadi
+    # 12f — to'liq topshirilgan (Yetkazildi) → o'chirilsa "Jarayonda", to'lov holati qayta hisoblanadi.
+    # kech75 (92-band, FOYDALANUVCHI QARORI B): ilgari "Tayyor" (ready) bo'lardi — hech kim "Tayyor"
+    # bosmagan buyurtma oylik hisobotga kirardi. Endi `update_order_full` bilan bir xil — in_progress.
     O, i1, did, raqam = _yuk_tolov_bilan(summa=100000, miqdor=10, detal_miqdor=10)
     h_old = holat(O)
     r = req(C, "delete", f"/api/deliveries/{did}?tolov=ochir")
     h = holat(O)
-    check("12f to'liq topshirilgan buyurtma: 'delivered' → o'chirilgach 'ready', 'unpaid'",
-          h_old["holat"] == "delivered" and r.status_code == 200 and h["holat"] == "ready"
+    check("12f to'liq topshirilgan buyurtma: 'delivered' → o'chirilgach 'in_progress', 'unpaid'",
+          h_old["holat"] == "delivered" and r.status_code == 200 and h["holat"] == "in_progress"
           and h["tolov_holati"] == "unpaid" and h["tolangan"] == 0, (h_old, h))
 
     # 12g — bir yukka IKKI to'lov (eski ma'lumot) — ikkalasi ko'rsatiladi va o'chadi
