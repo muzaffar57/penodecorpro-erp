@@ -294,7 +294,7 @@ input[type=number]{-moz-appearance:textfield}
                 </div>
                 {% if o.status.value == 'draft' %}<span class="badge" style="font-size:9px;background:#F0F0F0;color:#666">📝 Qoralama</span>
                 {% elif o.status.value == 'ready' %}<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>
-                {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>
+                {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:9px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>
                 {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
               </div>
               <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.kelishilgan_summa).replace(",", " ") }} so'm</div>
@@ -1678,12 +1678,19 @@ function selectOrder(id, el) {
 
   // Status
   const isDraft = d.status === 'draft';
-  const isReady = d.status === 'ready' || d.status === 'delivered';
+  // kech75 (91-band, FOYDALANUVCHI QARORI B): to'liq YETKAZILGAN (delivered) buyurtma hali "Tayyor"
+  // EMAS — oylik hisobot va usta KPI faqat hodim "Tayyor" bosgan (ready) buyurtmani sanaydi. Ilgari
+  // delivered ham "✓ Tayyor" ko'rinar va "Tayyor" tugmasi yashirinardi — bunday buyurtmani
+  // hisobotga kiritishning yo'li yo'q edi (jonli: 171 / 172).
+  const isReady = d.status === 'ready';
+  const isDelivered = d.status === 'delivered';
   const statusEl = document.getElementById('od-status');
   statusEl.innerHTML = isDraft
     ? '<span class="badge" style="background:#F0F0F0;color:#666">📝 Qoralama</span>'
-    : (isReady ? '<span class="badge badge-ready">✓ Tayyor</span>'
-               : '<span class="badge badge-progress">Jarayonda</span>');
+    : isReady ? '<span class="badge badge-ready">✓ Tayyor</span>'
+    : isDelivered ? '<span class="badge badge-delivered">📦 Yetkazildi</span>'
+        + ' <span id="od-tayyor-kutilmoqda" style="font-size:12px;color:#B45309">«Tayyor» deb belgilanmagan — oylik hisobot va usta KPI ga kirmaydi</span>'
+    : '<span class="badge badge-progress">Jarayonda</span>';
 
   // Draft banner
   document.getElementById('draftBanner').style.display = isDraft ? 'block' : 'none';
@@ -1692,7 +1699,7 @@ function selectOrder(id, el) {
 
   // Amallar tugmalari
   document.getElementById('btn-ready').style.display  = (isReady || isDraft) ? 'none' : 'block';
-  document.getElementById('btn-edit').style.display   = isReady ? 'none' : 'block';
+  document.getElementById('btn-edit').style.display   = (isReady || isDelivered) ? 'none' : 'block';
   // "Nusxa olish" — TAYYOR buyurtmalar uchun ham ko'rinadi (aslida shu holat
   // uchun mo'ljallangan: mijoz keyinroq qo'shimcha metr so'rasa, tahrirlab
   // bo'lmaydigan tayyor buyurtma o'rniga, shundan NUSXA olib yangi buyurtma
@@ -2000,9 +2007,12 @@ function renderDeliveryHistory(showAll) {
             <a href="/api/deliveries/${dl.id}/pdf" target="_blank"
                style="width:26px;height:26px;border-radius:6px;background:#F8F2EB;border:none;color:#B9783F;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none"
                title="Nakladnoy PDF">📄</a>
-            <button onclick="deleteDelivery(${dl.id})"
+            ${d.status === 'ready'
+              ? `<span class="dlv-qulf" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#94A3B8"
+                 title="Buyurtma «Tayyor» — yuk xatini o'chirib bo'lmaydi">🔒</span>`
+              : `<button onclick="deleteDelivery(${dl.id})"
                style="width:26px;height:26px;border-radius:6px;background:#FEE;border:none;color:#DC2626;font-size:14px;cursor:pointer"
-               title="O'chirish">✕</button>
+               title="O'chirish">✕</button>`}
           </div>
         </div>`;
       }).join('');
@@ -5538,20 +5548,31 @@ async function deleteSelected() {
       orderNum = o.order_number || selectedOrderId;
       hasDelivery = (o.deliveries?.length || 0) > 0;
 
+      // kech75 (93 / 94-band): matn SERVER rejasidan (`ochirish` — `api_delete_order` bilan yagona
+      // manba). Ilgari delivered / qisman topshirilgan uchun "hisobotlarda saqlanib qoladi" derdi
+      // (hisobot faqat "Tayyor" ni sanaydi — ular hisobotda YO'Q), yuksiz "Tayyor" uchun esa
+      // "xomashyo QAYTARILMAYDI" derdi (server qaytaradi). `hasDelivery` (`o.deliveries`) bu API da YO'Q —
+      // doim false edi (O'LCHANDI, `tools/test_tayyor_yuk.py` F11): qisman topshirilgan buyurtma "Butunlay
+      // o'chiriladi" va "to'lov ham AVTOMATIK o'chadi" deb ko'rinardi (server yumshoq o'chiradi, to'lov qoladi).
+      // Yuk borligi ham rejadan (`oc.yuk_bor`); loy so'rovi (`hasDelivery`) o'zgartirilmadi (95-band).
+      const oc = o.ochirish || {};
       let isSoftCase = false;
       if (o.is_draft) {
         info = '\n\n📝 Qoralama — ombordan hech narsa yechilmagan edi. Butunlay o\'chiriladi.';
-      } else if (o.status === 'ready') {
-        info = '\n\n⚠️ Buyurtma TAYYOR — mahsulot ishlab chiqarilgan.\n   Xomashyo omborga QAYTARILMAYDI!\n   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.';
-        isSoftCase = true;
-      } else if (o.status === 'delivered') {
-        info = '\n\n⚠️ Buyurtma YETKAZILGAN — mahsulot mijozda.\n   Xomashyo omborga QAYTARILMAYDI!\n   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.';
-        isSoftCase = true;
-      } else if (hasDelivery) {
-        info = `\n\n📦 Mahsulot qisman topshirilgan (${o.delivery_percent || 0}%).\n   ♻️ Faqat QOLGAN (${(100-(o.delivery_percent||0)).toFixed(0)}%) qism uchun xomashyo omborga qaytadi — topshirilgan qism (mijozda) tegilmaydi.\n   ℹ️ Buyurtma "Buyurtmalar" ro'yxatidan yo'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.`;
-        isSoftCase = true;
       } else {
-        info = '\n\n♻️ Xomashyo (penoplast va loy) omborga qaytariladi. Butunlay o\'chiriladi.';
+        isSoftCase = !!oc.yumshoq;
+        const qatorlar = [];
+        if (o.status === 'ready') qatorlar.push('⚠️ Buyurtma TAYYOR deb belgilangan.');
+        else if (o.status === 'delivered') qatorlar.push('⚠️ Buyurtma to\'liq YETKAZILGAN — mahsulot mijozda («Tayyor» deb belgilanmagan).');
+        else if (oc.yuk_bor) qatorlar.push(`📦 Mahsulot qisman topshirilgan (${o.delivery_percent || 0}%).`);
+        if (!oc.xomashyo_qaytadi) qatorlar.push('   Xomashyo omborga QAYTARILMAYDI!');
+        else if (oc.qisman && oc.yuk_bor) qatorlar.push(`   ♻️ Faqat QOLGAN (${(100-(o.delivery_percent||0)).toFixed(0)}%) qism uchun xomashyo omborga qaytadi — topshirilgan qism (mijozda) tegilmaydi.`);
+        else if (oc.qisman) qatorlar.push('   ♻️ Faqat QOLGAN qism uchun xomashyo omborga qaytadi — omborga qaytarilgan (ortiqcha) qism tayyor mahsulotlar omborida qoladi.');
+        else qatorlar.push('   ♻️ Xomashyo (penoplast va loy) omborga qaytariladi.');
+        if (!oc.yumshoq) qatorlar.push('   Butunlay o\'chiriladi.');
+        else if (oc.hisobotda_qoladi) qatorlar.push('   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.');
+        else qatorlar.push('   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi. U «Tayyor» deb belgilanmagan — Usta KPI va oylik/yillik hisobotlarga KIRMAYDI.');
+        info = '\n\n' + qatorlar.join('\n');
       }
 
       if (o.paid_amount > 0) {
@@ -5654,7 +5675,7 @@ function renderPinnedOrders(rows) {
   list.innerHTML = rows.map(o => {
     const badge = o.status === 'draft' ? '<span class="badge" style="font-size:9px;background:#F0F0F0;color:#666">📝 Qoralama</span>'
       : o.status === 'ready' ? '<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>'
-      : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>'
+      : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:9px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>'
       : '<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>';
     const amount = (o.agreed_amount ?? o.total_amount) || 0;  // kech42 K42-1
     const urgencyBorder = o.deadline_urgency === 'overdue' ? 'border-left:3px solid #DC2626'
