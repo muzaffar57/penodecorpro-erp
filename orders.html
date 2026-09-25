@@ -182,14 +182,12 @@
 .type-opt.active[data-value="panel"]{background:#7C3AED}
 .type-opt.active[data-value="dona"]{background:#DB2777}
 .type-opt.active[data-value="blok"]{background:#0D9488}
-.type-opt.active[data-value="termopanel"]{background:#EA580C}
 .type-opt.active[data-value="loy_sotish"]{background:#0891B2}
-.type-opt.active[data-value="gips"]{background:#4F46E5}
 .type-confirm-text{font-size:12px;color:var(--text2);margin-top:6px;font-weight:500}
 /* MUHIM (2026-09): Profil/Panel/Donali — hajm (m³) bo'yicha hisoblanadigan
-   turlar — bitta guruhda birga turadi; qolganlari (Blok, Termopanel,
-   Loy sotish, Gips) — har biri o'z mantig'i bilan alohida hisoblangani
-   uchun ingichka ajratuvchi chiziq bilan bir-biridan ajratilgan. */
+   turlar — bitta guruhda birga turadi; qolganlari (Blok, Loy sotish) —
+   har biri o'z mantig'i bilan alohida hisoblangani uchun ingichka
+   ajratuvchi chiziq bilan bir-biridan ajratilgan. */
 .tur-group{display:flex;flex-wrap:wrap;gap:6px}
 .tur-sep{width:1px;height:22px;background:var(--border);flex-shrink:0}
 /* Raqam maydonlaridagi yuqori/pastga strelkalarni yashiramiz — sichqoncha
@@ -299,7 +297,7 @@ input[type=number]{-moz-appearance:textfield}
                 {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>
                 {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
               </div>
-              <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.agreed_amount or o.total_amount or 0).replace(",", " ") }} so'm</div>
+              <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.kelishilgan_summa).replace(",", " ") }} so'm</div>
               {% if urgency == 'overdue' %}
               <div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o'tgan!</div>
               {% elif urgency == 'today' %}
@@ -357,6 +355,7 @@ input[type=number]{-moz-appearance:textfield}
         </div>
         <div style="padding:20px 24px 24px;display:flex;gap:10px">
           <button id="genericConfirmCancel" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
+          <button id="genericConfirmAlt" style="display:none;flex:1;padding:12px;border-radius:10px;border:1.5px solid #16A34A;background:#fff;color:#16A34A;font-weight:600;font-size:14px;cursor:pointer"></button>
           <button id="genericConfirmOk" style="flex:1;padding:12px;border-radius:10px;border:none;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Ha</button>
         </div>
       </div>
@@ -448,28 +447,9 @@ input[type=number]{-moz-appearance:textfield}
               <input type="text" id="base_price" placeholder="Masalan: 1 200 000" oninput="formatPriceInput(this);recalcAll()">
             </div>
             <div class="form-group" style="margin:0">
-              <label style="display:flex;align-items:center;gap:6px">Loy miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— barcha detallar uchun</span></label>
+              <label style="display:flex;align-items:center;gap:6px">Loy miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— qoplamali penoplast detallari uchun (MRP mahsuloti qoplamasi o'z retseptidan)</span></label>
               <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
                      oninput="checkLoyStock();updateLiveStats()" style="border-color:var(--gold)">
-            </div>
-
-            <div id="gips-section-wrap" style="display:none;margin-top:14px;padding:14px;border-radius:10px;background:#FCE7F3;border:1px solid #F9A8D4">
-              <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px">🧱 Gips xomashyosi</div>
-              <div class="form-group" style="margin-bottom:10px">
-                <label>Qaysi Gips xomashyosi ishlatiladi</label>
-                <select id="gips_inventory_id"><option value="">— Tanlang —</option></select>
-              </div>
-              <div class="form-group" style="margin:0">
-                <label style="display:flex;align-items:center;gap:6px">Gips miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— taxminiy, barcha Gips detallari uchun</span></label>
-                <input type="number" id="gips_kg" placeholder="0" min="0" step="0.5" oninput="updateLiveStats()">
-              </div>
-              <div style="margin-top:12px">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                  <label style="margin:0">Qo'shimchalar (ixtiyoriy)</label>
-                  <button type="button" class="btn btn-outline btn-sm" onclick="addGipsAdditive()" style="font-size:13px;padding:7px 14px">+ Qo'shimcha qo'shish</button>
-                </div>
-                <div id="gips-additives-list"></div>
-              </div>
             </div>
           </div>
 
@@ -715,6 +695,11 @@ input[type=number]{-moz-appearance:textfield}
           <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-discount-row">
             <span style="color:var(--text2)">Chegirma:</span>
             <span id="pay-discount" style="font-weight:600;color:#F59E0B">—</span>
+          </div>
+          <div style="display:none;justify-content:space-between;padding:6px 0;font-size:14.5px" id="pay-refund-row"
+               title="Qaytarilgan mahsulot uchun pul qaytarilganda kelishilgan summa shu miqdorga kamaygan (chegirma emas)">
+            <span style="color:var(--text2)">↩️ Qaytarish:</span>
+            <span id="pay-refund" style="font-weight:600;color:#7C3AED">—</span>
           </div>
           <div style="padding:10px 0 8px;border-top:1px solid var(--border2);margin-top:6px;padding-top:12px">
             <div style="color:var(--text2);font-weight:600;font-size:14.5px;margin-bottom:6px">Kelishilgan:</div>
@@ -1089,13 +1074,6 @@ function saveDraftLS() {
       recipe_id: document.getElementById('recipe_id')?.value || '',
       base_price: document.getElementById('base_price')?.value || '',
       loy_kg: document.getElementById('loy_kg')?.value || '',
-      // Gips bo'limi maydonlari — ilgari umuman saqlanmagan edi.
-      gips_inventory_id: document.getElementById('gips_inventory_id')?.value || '',
-      gips_kg: document.getElementById('gips_kg')?.value || '',
-      gipsAdditives: Array.from(document.querySelectorAll('#gips-additives-list .gips-add-row')).map(r => ({
-        inv: r.querySelector('.gips-add-inv')?.value || '',
-        qty: r.querySelector('.gips-add-qty')?.value || ''
-      })).filter(a => a.inv),
       rows
     };
     localStorage.setItem(ORDER_DRAFT_LS_KEY, JSON.stringify(draft));
@@ -1128,6 +1106,8 @@ async function restoreDraftLS(draft) {
     // AVVAL turini o'rnatamiz (shu orqali kerakli maydonlar ko'rinadi)
     const typeEl = row.querySelector('.i-type');
     if (typeEl && rowData['i-type']) {
+      // 77-band: qoralama saqlangandan keyin tur o'chirilgan bo'lsa ham — kiritilgani saqlanadi.
+      turVariantiniTaminla(row, rowData['i-type']);
       typeEl.value = rowData['i-type'];
       row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === rowData['i-type']));
       toggleFields(row);
@@ -1157,27 +1137,6 @@ async function restoreDraftLS(draft) {
     updateDetalSummary(r);
     if (idx > 0) r.classList.add('collapsed');
   });
-
-  // GIPS — bo'lim tepadagi qatorlar orasida Gips turi bo'lsa avtomatik
-  // ko'rinadi (checkGipsSectionVisibility() toggleFields() ichida chaqiriladi),
-  // lekin dropdown variantlari ASINXRON yuklanadi — shuning uchun qiymatlarni
-  // qo'yishdan oldin uni kutib turishimiz kerak (tahrirlashda ham xuddi shu
-  // yo'l tutilgan — pastdagi editOrder() ga qarang).
-  if (draft.gips_inventory_id || draft.gips_kg || (draft.gipsAdditives && draft.gipsAdditives.length)) {
-    checkGipsSectionVisibility();
-    await loadGipsInventoryOptions();
-    const gipsKgEl = document.getElementById('gips_kg');
-    if (gipsKgEl && draft.gips_kg) gipsKgEl.value = draft.gips_kg;
-    const gipsInvEl = document.getElementById('gips_inventory_id');
-    if (gipsInvEl && draft.gips_inventory_id) gipsInvEl.value = draft.gips_inventory_id;
-    (draft.gipsAdditives || []).forEach(a => {
-      addGipsAdditive(a.inv);
-      const addRows = document.querySelectorAll('#gips-additives-list .gips-add-row');
-      const lastRow = addRows[addRows.length - 1];
-      const qtyEl = lastRow?.querySelector('.gips-add-qty');
-      if (qtyEl && a.qty) qtyEl.value = a.qty;
-    });
-  }
 
   updateTotal();
   updateLiveStats();
@@ -1400,15 +1359,7 @@ function searchFinished(input) {
 
   fpSearchTimer = setTimeout(async () => {
     try {
-      // MUHIM: Gips qatorida — faqat Gips, boshqa turlarda (Profil/Panel/
-      // Donalik/Blok) — Gips YASHIRILADI (ikkala yo'nalishda ham).
-      const rowType = row.querySelector('.i-type')?.value || '';
       let url = `/api/finished/search?q=${encodeURIComponent(q)}`;
-      if (rowType === 'gips') {
-        url += `&category=gips`;
-      } else if (['profil', 'panel', 'dona', 'blok'].includes(rowType)) {
-        url += `&exclude_category=gips`;
-      }
       const res = await fetch(url);
       if (!res.ok) return;
       const d = await res.json();
@@ -1418,7 +1369,7 @@ function searchFinished(input) {
 
       box.innerHTML = items.map(i => `
         <div class="fp-sg-item" onmousedown="pickFinished(this, ${i.id})"
-             data-fp='${JSON.stringify(i).replace(/'/g, "&apos;")}'>
+             data-fp='${escapeHtml(JSON.stringify(i))}'>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
             <div style="min-width:0">
               <div style="font-size:14.5px;font-weight:600;color:var(--text)">
@@ -1429,7 +1380,7 @@ function searchFinished(input) {
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
-              <div style="font-size:14px;font-weight:700;color:#22C55E">${i.quantity} ${i.unit}</div>
+              <div style="font-size:14px;font-weight:700;color:#22C55E">${i.quantity} ${escapeHtml(i.unit)}</div>
               <div style="font-size:12px;color:#A86B36">${formatNum(i.unit_price)}/${i.unit==='metr'?'m':'ta'}</div>
             </div>
           </div>
@@ -1449,7 +1400,10 @@ function hideFpSuggest(input) {
 function pickFinished(el, fpId) {
   const row = el.closest('.detal');
   if (!row) return;
-  const fp = JSON.parse(el.dataset.fp.replace(/&apos;/g, "'"));
+  // kech32: data-fp endi escapeHtml bilan yoziladi — brauzer atributni o'qiyotganda
+  // entity larni o'zi ochadi, dataset AYNAN JSON beradi (qo'shimcha almashtirish
+  // nomdagi "&apos;" matnini buzardi).
+  const fp = JSON.parse(el.dataset.fp);
 
   row.dataset.fpId = fp.id;
   row.dataset.fpMax = fp.quantity;
@@ -1460,21 +1414,16 @@ function pickFinished(el, fpId) {
   row.querySelector('.i-name').value = fp.name;
   const typeEl = row.querySelector('.i-type');
   // Forma faqat profil/panel/dona/blok turlarini biladi — boshqa (masalan
-  // "termopanel" kabi kvadrat metr bo'yicha o'lchanadigan) kategoriyalar
   // xavfsiz tarzda "dona" rejimida ko'rsatiladi (miqdor + narx maydoni bilan).
-  const knownTypes = ['profil', 'panel', 'dona', 'blok', 'gips', 'termopanel'];
+  const knownTypes = ['profil', 'panel', 'dona', 'blok'];
   const effectiveType = knownTypes.includes(fp.category) ? fp.category : 'dona';
   if (typeEl) {
+    // 77-band: blok TM, blok turi korxonada o'chiq — shu qatorga variant (aks holda '' -> narx 0).
+    turVariantiniTaminla(row, effectiveType);
     typeEl.value = effectiveType;
     row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === effectiveType));
     toggleFields(row);
     updateTypeConfirmText(row, effectiveType);
-  }
-  // Gips uchun — o'ziga xos "birlik" (metr/dona/m²) selektorini ham
-  // tayyor mahsulotning o'z birligiga moslab qo'yamiz.
-  if (effectiveType === 'gips') {
-    const guEl = row.querySelector('.i-gips-unit');
-    if (guEl && fp.unit) { guEl.value = fp.unit; onGipsUnitChange(row); }
   }
   if (fp.width) row.querySelector('.i-h').value = fp.width;
   if (fp.thickness) {
@@ -1499,16 +1448,23 @@ function pickFinished(el, fpId) {
   // deb nomlanadi). Buni chalkashtirmaslik uchun aniq ajratamiz.
   if (fp.unit === 'metr' && (effectiveType === 'panel' || effectiveType === 'blok')) {
     row.querySelector('.i-q').value = '';
-  } else if (fp.unit === 'metr' && effectiveType !== 'gips') {
+  } else if (fp.unit === 'metr') {
     row.querySelector('.i-l').value = '';
   } else {
-    // Donalik, Gips (istalgan birligida — metr/dona/m²), Panel/Blok (dona
-    // asosida) — barchasi ".i-q" dan foydalanadi, va narx avtomatik
-    // to'ldiriladi (Gipsda ×2 qoplama tushunchasi yo'q, shuning uchun
-    // to'g'ridan-to'g'ri, o'zgarishsiz).
+    // Donalik, Panel/Blok (dona asosida) — barchasi ".i-q" dan
+    // foydalanadi, va narx avtomatik to'ldiriladi.
     row.querySelector('.i-q').value = '';
     const up = row.querySelector('.i-unitprice');
-    if (up) up.value = Math.round(fp.unit_price);
+    // K69-1 (kech69): narx ANIQ (kasri bilan) — `row.dataset.unitprice` ga ham yoziladi,
+    // maydonda esa yaxlitlangan ko'rinishi (tahrir oynasidagi kabi, `formatNum`). Oldin maydonga
+    // faqat `Math.round(...)` yozilardi: 1 dona 1 333.33 so'mlik tayyor mahsulot 1 333 bo'lib
+    // sotilardi (7 dona — 9 331 o'rniga 9 333.31; profil TM da narx aniq edi), qatorda oldingi
+    // hisobdan qolgan eski aniq narx bo'lsa (yaxlitlangani teng) — o'sha ESKI narx olinardi.
+    if (up) {
+      const fpNarx = parseFloat(fp.unit_price) || 0;
+      up.value = formatNum(fpNarx);
+      row.dataset.unitprice = fpNarx;
+    }
   }
 
   // Belgi qo'yamiz
@@ -1546,7 +1502,7 @@ function pickFinished(el, fpId) {
   // Mahsulot ALLAQACHON shu ko'rinishda ishlab chiqarilgan — buyurtma
   // ichida ularni o'zgartirish MANTIQSIZ (chunki bu — omborda haqiqatan
   // mavjud bo'lgan buyum, uni "qayta belgilab" bo'lmaydi).
-  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c', '.i-gips-unit'].forEach(sel => {
+  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c'].forEach(sel => {
     const x = row.querySelector(sel);
     if (x) {
       x.disabled = true;
@@ -1603,7 +1559,7 @@ function clearFinished(rowId) {
   });
 
   // Nom/o'lcham/Qoplama maydonlarini ham qaytadan yoqamiz
-  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c', '.i-gips-unit'].forEach(sel => {
+  ['.i-name', '.i-h', '.i-w', '.i-t', '.i-l', '.i-c'].forEach(sel => {
     const x = row.querySelector(sel);
     if (x) { x.disabled = false; x.style.opacity = ''; x.title = ''; }
   });
@@ -1777,7 +1733,7 @@ function selectOrder(id, el) {
       ab.innerHTML = d.warnings.slice(0,3).map(w=>`
         <div style="display:flex;justify-content:space-between;font-size:14px;padding:5px 0;border-bottom:1px solid #f5f5f5">
           <span style="color:#555">${escapeHtml(w.item_name)}</span>
-          <span style="color:#EF4444;font-weight:500">${(parseFloat(w.stock_quantity)||0).toFixed(2).replace(/\.?0+$/,'')} ${w.unit}</span>
+          <span style="color:#EF4444;font-weight:500">${(parseFloat(w.stock_quantity)||0).toFixed(2).replace(/\.?0+$/,'')} ${escapeHtml(w.unit)}</span>
         </div>`).join('');
     } else {
       ac.style.display = 'none';
@@ -1785,18 +1741,13 @@ function selectOrder(id, el) {
   }).catch(()=>{});
 }
 
-const ITEM_TYPE_ICON = {profil: 'ti-ruler-2', panel: 'ti-square', dona: 'ti-box', blok: 'ti-cube', gips: 'ti-brick'};
+const ITEM_TYPE_ICON = {profil: 'ti-ruler-2', panel: 'ti-square', dona: 'ti-box', blok: 'ti-cube'};
 
 function itemParamsText(item) {
   const cat = (item.category || '').toLowerCase();
   if (cat === 'profil') return `${item.width || 0}×${item.thickness || 0} sm · ${item.length || 0} m`;
   if (cat === 'panel') return `${item.width || 0}×${item.thickness || 0} sm`;
   if (cat === 'blok') return `${item.quantity || 0} m kerak`;
-  if (cat === 'gips') {
-    const gu = (item.gips_unit || 'metr');
-    const unitText = gu === 'm2' ? 'm²' : (gu === 'dona' ? 'dona' : 'metr');
-    return `${item.quantity || 0} ${unitText}`;
-  }
   return `${item.quantity || 0} dona`;
 }
 
@@ -1835,7 +1786,7 @@ async function loadOrderItems(id) {
     container.innerHTML = items.map(item => {
       const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
       const thumb = item.image_url
-        ? `<img src="${item.image_url}" alt="" onclick="event.stopPropagation();openItemImgLightbox('${item.image_url}')">
+        ? `<img src="${escapeHtml(item.image_url)}" alt="" onclick="event.stopPropagation();openItemImgLightbox('${jsAttrEscape(item.image_url)}')">
            <div class="prod-thumb-cam" onclick="event.stopPropagation();document.getElementById('itemimg-${item.id}').click()"><i class="ti ti-camera"></i></div>`
         : `<i class="ti ${icon}" aria-hidden="true"></i>`;
       return `
@@ -1845,7 +1796,7 @@ async function loadOrderItems(id) {
           <input type="file" id="itemimg-${item.id}" accept="image/*" onchange="uploadItemImage(${item.id}, this)" style="${item.image_url ? 'display:none' : ''}">
         </div>
         <div class="prod-info">
-          <div class="prod-name">${escapeHtml(item.name)}${(item.category || '').toLowerCase() === 'gips' ? ' <span style="background:#FCE7F3;color:#9D174D;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle">🧱 GIPS</span>' : ''}</div>
+          <div class="prod-name">${escapeHtml(item.name)}</div>
           <div class="prod-meta">${itemParamsText(item)}${item.is_coated ? ' · Qoplama bor' : ''}</div>
         </div>
         <div class="prod-total">${formatNum(item.total_price)} so'm</div>
@@ -1881,7 +1832,9 @@ async function loadOrderAttachments(orderId) {
     grid.innerHTML = atts.map(a => {
       const isImg = /\.(jpg|jpeg|png|webp)$/i.test(a.file_url);
       const isPdf = /\.pdf$/i.test(a.file_url);
-      const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      // kech32: mahalliy esc endi umumiy escapeHtml ga tayanadi (u ' ni ham escape qiladi) —
+      // statik darvoza "faqat escapeHtml / jsAttrEscape" qoidasini ruxsat ro'yxatisiz tekshiradi.
+      const esc = s => escapeHtml(s || '');
       const needsDownload = !isImg && !isPdf;
       const safeName = esc(a.file_name || '');
       const nameAttr = safeName ? ` download="${safeName}"` : '';
@@ -1984,7 +1937,7 @@ async function loadDeliveries(orderId) {
               ${it.is_done ? '✅' : '📦'} ${escapeHtml(it.name)}
             </div>
             <div style="font-size:14px;font-weight:600;color:${it.is_done?'#22C55E':'#DC2626'}">
-              ${it.is_done ? 'tugadi' : `qoldi ${it.remaining} ${it.unit}`}
+              ${it.is_done ? 'tugadi' : `qoldi ${it.remaining} ${escapeHtml(it.unit)}`}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
@@ -1992,7 +1945,7 @@ async function loadDeliveries(orderId) {
               <div style="height:100%;width:${it.percent}%;background:${color};border-radius:3px"></div>
             </div>
             <div style="font-size:13px;color:#aaa;white-space:nowrap;min-width:95px;text-align:right">
-              ${it.delivered} / ${it.ordered} ${it.unit}
+              ${it.delivered} / ${it.ordered} ${escapeHtml(it.unit)}
             </div>
           </div>
         </div>`;
@@ -2189,7 +2142,7 @@ function openDeliveryModal() {
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:500;color:var(--text)">${escapeHtml(it.name)}</div>
         <div style="font-size:13px;color:#aaa;margin-top:1px">
-          ${it.is_done ? '✅ To\'liq topshirilgan' : `Qoldi: <b style="color:#DC2626">${it.remaining} ${it.unit}</b> · Jami ${it.ordered} ${it.unit}`}
+          ${it.is_done ? '✅ To\'liq topshirilgan' : `Qoldi: <b style="color:#DC2626">${it.remaining} ${escapeHtml(it.unit)}</b> · Jami ${it.ordered} ${escapeHtml(it.unit)}`}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
@@ -2253,6 +2206,25 @@ function fillAllRemaining() {
 }
 
 let _fullDlvPending = null;
+// 17g (2026-09-22): yetkazish so'rovi ketayotganda ikkinchi bosish e'tiborsiz
+// qoldiriladi. O'LCHANGAN: server bir xil qisman yetkazishni ketma-ket ikki
+// marta qabul qiladi (3 + 3 metr, to'lov ham ikki marta yoziladi) — tugmani
+// tez ikki bosish shunday natija berardi. `saveDelivery` va
+// `submitFullDlvModal` uchun umumiy.
+let _dlvYuborilmoqda = false;
+
+// 17g (2026-09-22): `/api/deliveries` rad javobidagi SABAB. `detail` obyekt
+// bo'lsa `message` (+ `shortages`), matn bo'lsa o'zi (masalan sessiya
+// tugaganda 401) — ilgari matnli `detail` "Xato" deb ko'rsatilardi.
+function yetkazishXatoQismlari(r) {
+  const det = r ? r.detail : null;
+  if (typeof det === 'string' && det) return { xabar: det, kamlar: [] };
+  const d = (det && typeof det === 'object') ? det : {};
+  return {
+    xabar: (typeof d.message === 'string' && d.message) ? d.message : 'Xato',
+    kamlar: Array.isArray(d.shortages) ? d.shortages.map(s => String(s)) : []
+  };
+}
 
 async function quickFullDelivery() {
   if (!selectedOrderId || !dlvData) return;
@@ -2292,9 +2264,38 @@ function closeFullDlvModal() {
   document.getElementById('fullDlvModalOverlay').style.display = 'none';
 }
 
+// 17g (2026-09-22): yetkazish so'rovi — ikkala yo'l ("Yetkazish" oynasi va
+// "Bir yo'la to'liq topshirish") uchun umumiy. Shu yukka bog'liq to'lov endi
+// qo'lda to'lov bilan AYNAN bir xil tekshiriladi: qarzdan ko'p bo'lsa server 409
+// (`overpayment_warning`, `detail.message` — savol) qaytaradi va HECH NARSA
+// yozilmaydi. Shunda server savoli bilan tasdiq so'raladi: "Ha" →
+// `confirm_overpay: true` bilan qayta yuboriladi, "Bekor" → `null` (yetkazish
+// saqlanmagan). Boshqa javoblar o'zgarishsiz qaytariladi.
+async function yetkazishYubor(data) {
+  const yubor = () => fetch('/api/deliveries', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  let res = await yubor();
+  if (res.status === 409 && !data.confirm_overpay) {
+    let d = null;
+    try { d = await res.clone().json(); } catch(e) {}
+    if (d && d.detail && d.detail.type === 'overpayment_warning') {
+      const ha = await showConfirmModal('⚠️ ' + String(d.detail.message || ''),
+        {danger:true, okText:'Ha, davom etaman'});
+      if (!ha) return null;
+      data.confirm_overpay = true;
+      res = await yubor();
+    }
+  }
+  return res;
+}
+
 async function submitFullDlvModal() {
   const pending = _fullDlvPending;
   if (!pending) return;
+  if (_dlvYuborilmoqda) return; // 17g: ikki marta bosishdan himoya
 
   const paymentAmount = parseNum(document.getElementById('fd-payment')?.value) || null;
   const transportCost = parseNum(document.getElementById('fd-transport')?.value) || 0;
@@ -2314,12 +2315,14 @@ async function submitFullDlvModal() {
     payment_method: 'naqd'
   };
 
+  _dlvYuborilmoqda = true;
   try {
-    const res = await fetch('/api/deliveries', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
+    const res = await yetkazishYubor(data);
+    if (!res) {
+      // 17g: ortiqcha to'lov tasdiqlanmadi — hech narsa saqlanmagan
+      showMsg('Yetkazish saqlanmadi — to\'lov summasini tekshirib qayta kiriting', 'error');
+      return;
+    }
     const r = await res.json();
 
     if (res.ok) {
@@ -2331,16 +2334,19 @@ async function submitFullDlvModal() {
       }
       setTimeout(()=>location.reload(), r.payment_warning ? 9000 : 2500);
     } else {
-      const det = r.detail || {};
-      showMsg('❌ ' + (det.message || 'Xato') + (det.shortages?.length ? '\n' + det.shortages.join('\n') : ''), 'error');
+      const q = yetkazishXatoQismlari(r);
+      showMsg('❌ ' + q.xabar + (q.kamlar.length ? '\n' + q.kamlar.join('\n') : ''), 'error');
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
+  } finally {
+    _dlvYuborilmoqda = false;
   }
 }
 
 async function saveDelivery() {
   if (!selectedOrderId) return;
+  if (_dlvYuborilmoqda) return; // 17g: ikki marta bosishdan himoya (so'rov ketmoqda)
 
   const items = [];
   let hasOver = false;
@@ -2377,12 +2383,12 @@ async function saveDelivery() {
     transport_payer: document.getElementById('dlv-transport-payer').value || 'none'
   };
 
+  _dlvYuborilmoqda = true;
   try {
-    const res = await fetch('/api/deliveries', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
+    const res = await yetkazishYubor(data);
+    // 17g: ortiqcha to'lov tasdiqlanmadi — hech narsa saqlanmagan, oyna ochiq
+    // qoladi (foydalanuvchi to'lov summasini tuzatishi mumkin)
+    if (!res) return;
     const r = await res.json();
 
     if (res.ok) {
@@ -2402,162 +2408,70 @@ async function saveDelivery() {
         showMsg(`✓ ${r.delivery_number} saqlandi · Bajarilish: ${r.delivery_percent}%`, 'success');
       }
     } else {
-      const det = r.detail || {};
+      // 17g: `shortages` ichida detal NOMI bor — foydalanuvchi kiritgan matn,
+      // HTML belgilari bilan AYNAN saqlanadi (O'LCHANGAN: `<img src=x
+      // onerror=...>` nomi bazaga tushadi). Shuning uchun `innerHTML` ga faqat
+      // `escapeHtml` dan o'tgan matn yoziladi.
+      const q = yetkazishXatoQismlari(r);
       err.style.display = 'block';
-      err.innerHTML = '❌ ' + (det.message || 'Xato') +
-        (det.shortages?.length ? '<br>' + det.shortages.join('<br>') : '');
+      err.innerHTML = '❌ ' + escapeHtml(q.xabar) +
+        (q.kamlar.length ? '<br>' + q.kamlar.map(escapeHtml).join('<br>') : '');
     }
   } catch(e) {
     err.style.display = 'block';
     err.textContent = '❌ Server xatosi';
+  } finally {
+    _dlvYuborilmoqda = false;
   }
 }
 
+// kech38 (5-bo'lim 12-band): yukka to'lov bog'langan bo'lsa server 409
+// (`detail.type = "delivery_has_payment"`) qaytaradi — FOYDALANUVCHI QARORI
+// "Har safar so'rasin": uch tugmali oyna — "To'lovni ham o'chirish"
+// (`?tolov=ochir`), "To'lovni saqlab qolish" (`?tolov=qoldir`), "Bekor
+// qilish" (hech narsa yuborilmaydi). Ilgari (asl kod) HAQIQIY PostgreSQL da
+// bu holat 500 edi va `!res.ok` da HECH QANDAY xabar chiqmasdi — endi har
+// rad javobida server SABABI ko'rsatiladi (`yetkazishXatoQismlari`).
+// Ikkinchi so'rov ham rad etilsa — faqat xabar, qayta so'rash sikli YO'Q.
 async function deleteDelivery(id) {
   if (!await showConfirmModal('Bu topshirishni o\'chirasizmi?\n\nMiqdorlar qoldiqqa qaytadi.', {danger:true, okText:"O'chirish"})) return;
+  const sabab = async (res) => {
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    return yetkazishXatoQismlari(d).xabar;
+  };
   try {
-    const res = await fetch(`/api/deliveries/${id}`, { method:'DELETE' });
+    let res = await fetch(`/api/deliveries/${id}`, { method:'DELETE' });
+    let tolovAmali = null;
+    if (res.status === 409) {
+      let d = null;
+      try { d = await res.clone().json(); } catch (e) { d = null; }
+      const det = d && d.detail;
+      if (det && typeof det === 'object' && det.type === 'delivery_has_payment') {
+        const tanlov = await showConfirmModal(String(det.message || ''), {
+          danger: true, title: "Yukka to'lov bog'langan",
+          okText: "To'lovni ham o'chirish", altText: "To'lovni saqlab qolish"
+        });
+        if (tanlov === true) tolovAmali = 'ochir';
+        else if (tanlov === 'alt') tolovAmali = 'qoldir';
+        else { showMsg("O'chirish bekor qilindi — hech narsa o'zgarmadi", 'success'); return; }
+        res = await fetch(`/api/deliveries/${id}?tolov=${tolovAmali}`, { method:'DELETE' });
+      }
+    }
     if (res.ok) {
       loadDeliveries(selectedOrderId);
-      showMsg('✓ O\'chirildi', 'success');
+      if (tolovAmali) loadPayments(selectedOrderId);
+      showMsg(tolovAmali === 'ochir' ? "✓ Yuk xati va unga bog'langan to'lov o'chirildi"
+            : tolovAmali === 'qoldir' ? "✓ Yuk xati o'chirildi — to'lov saqlab qolindi"
+            : '✓ O\'chirildi', 'success');
+    } else {
+      showMsg('❌ ' + await sabab(res), 'error');
     }
-  } catch(e) { showMsg('❌ Xato', 'error'); }
+  } catch(e) { showMsg('❌ Tarmoq xatosi', 'error'); }
 }
 
 // ── LOY ZAXIRASI ──────────────────────────────────────────
 let loyStockCache = null;
-
-// ── GIPS BO'LIMI ─────────────────────────────────────────────
-let gipsInvCache = null;
-
-// 2026-09-15: audit paytida topilgan xato — bu funksiya avval FAQAT
-// TUR tugmasi bosilganda chaqirilar edi (toggleFields() ichida). Agar
-// foydalanuvchi avval TUR="Gips"ni tanlab, KEYIN detal NOMINI yozgan
-// bo'lsa (yoki aksincha, ammo NOM keyinroq to'ldirilgan bo'lsa) — bu
-// bo'lim yashiringan holicha qolib ketardi, va "Gips miqdori (kg)
-// kiritilmagan" xatosi chiqsa-da, foydalanuvchi o'sha maydonni
-// EKRANDA UMUMAN KO'RA OLMAS EDI — buyurtmani saqlab bo'lmas edi.
-// Endi bu funksiya NOM maydoni o'zgarganda ham qayta chaqiriladi
-// (yuqoridagi ".i-name" oninput'iga qarang).
-function checkGipsSectionVisibility() {
-  const wrap = document.getElementById('gips-section-wrap');
-  if (!wrap) return;
-  const rows = Array.from(document.querySelectorAll('.detal'));
-  const namedRows = rows.filter(r => r.querySelector('.i-name')?.value?.trim());
-  const anyGips = namedRows.some(r => r.querySelector('.i-type')?.value === 'gips');
-  wrap.style.display = anyGips ? '' : 'none';
-  if (anyGips && !gipsInvCache) loadGipsInventoryOptions();
-
-  // Faqat Gips (Penoplast/Bazalt aralashmagan) buyurtmalarda — Retsept,
-  // Loy miqdori va "1 m³ asosiy narxi" maydonlari BLOKLANADI (ular Gipsga
-  // umuman aloqasi yo'q). Aralash bo'lsa — ochiq qoladi.
-  const onlyGips = namedRows.length > 0 && namedRows.every(r => r.querySelector('.i-type')?.value === 'gips');
-  ['recipe_id', 'loy_kg', 'base_price'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.disabled = onlyGips;
-    el.style.opacity = onlyGips ? '0.45' : '';
-    el.style.cursor = onlyGips ? 'not-allowed' : '';
-    el.style.background = onlyGips ? 'var(--border2)' : '';
-  });
-}
-
-async function loadGipsInventoryOptions() {
-  try {
-    gipsInvCache = await fetch('/api/inventory').then(r => r.json());
-  } catch(e) { gipsInvCache = []; }
-  // MUHIM (2026-09): ro'yxat endi kategoriyaga qarab CHEKLANMAYDI — Termopanel
-  // (Bazalt) tanlovidagi kabi, butun ombordan istalgan nomdagi materialni
-  // tanlash mumkin. Sababi: kategoriyani "Gips" deb aniq belgilash — mijozga
-  // bog'liq inson omili; agar u boshqacha nomlansa/kategoriyalansa, ro'yxat
-  // butunlay bo'sh chiqib, Gips buyurtmasini yaratib bo'lmay qolar edi.
-  const sorted = [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
-  const opts = i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`;
-  const emptyMsg = sorted.length ? '' : '<option value="" disabled>Omborda xomashyo yo\'q — avval kirim qiling</option>';
-
-  const mainSel = document.getElementById('gips_inventory_id');
-  if (mainSel) {
-    const cur = mainSel.value;
-    mainSel.innerHTML = '<option value="">— Tanlang —</option>' + sorted.map(opts).join('') + emptyMsg;
-    const guess = sorted.find(i => i.item_name.toLowerCase().includes('gips'));
-    if (cur) mainSel.value = cur; else if (guess) mainSel.value = guess.id;
-  }
-  // Mavjud qo'shimcha qatorlaridagi dropdownlarni ham yangilaymiz
-  document.querySelectorAll('.gips-add-inv').forEach(sel => {
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">— Material tanlang —</option>' + sorted.map(opts).join('') + emptyMsg;
-    if (cur) sel.value = cur;
-  });
-}
-
-function addGipsAdditive(prefillId, prefillQty) {
-  const list = document.getElementById('gips-additives-list');
-  if (!list) return;
-  // Bosh Gips tanlovi bilan bir xil — endi kategoriyaga qarab CHEKLANMAYDI.
-  const sorted = gipsInvCache ? [...gipsInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name)) : [];
-  const opts = sorted.map(i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`).join('');
-  const row = document.createElement('div');
-  row.className = 'gips-add-row';
-  row.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-bottom:8px';
-  row.innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center">
-      <select class="gips-add-inv" onchange="onGipsAdditiveSelect(this)" style="flex:2;padding:9px 10px;font-size:14px"><option value="">— Material tanlang —</option>${opts}</select>
-      <input type="number" class="gips-add-qty" placeholder="Miqdor" min="0" step="0.1" style="flex:1;padding:9px 10px;font-size:14px">
-      <button type="button" onclick="this.closest('.gips-add-row').remove()" style="flex-shrink:0;width:36px;height:36px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
-    </div>
-    <div class="gips-add-hint" style="font-size:12px;color:#9CA3AF;padding-left:2px"></div>
-  `;
-  list.appendChild(row);
-  if (prefillId) {
-    const sel = row.querySelector('.gips-add-inv');
-    sel.value = prefillId;
-    onGipsAdditiveSelect(sel);
-  }
-  if (prefillQty) {
-    const ratio = parseFloat(row.dataset.ratio);
-    // prefillQty — serverdan KONTEYNER (rulon/qop) birligida keladi;
-    // agar tabiiy birlik (metr/kg) ko'rsatilayotgan bo'lsa — orqaga aylantiramiz
-    row.querySelector('.gips-add-qty').value = ratio > 0 ? (prefillQty * ratio) : prefillQty;
-  }
-}
-
-function onGipsAdditiveSelect(selectEl) {
-  const row = selectEl.closest('.gips-add-row');
-  const qtyInput = row.querySelector('.gips-add-qty');
-  const hint = row.querySelector('.gips-add-hint');
-  const invId = parseInt(selectEl.value);
-  const item = (gipsInvCache || []).find(i => i.id === invId);
-  const unit = (item?.unit || '').toLowerCase();
-  const ratio = item ? parseFloat(item.volume_per_unit) : 0;
-  // "Konteyner" birligida saqlanadigan materiallar (rulon/qop) uchun —
-  // tabiiy birlikda (metr/kg) so'raymiz, avtomatik aylantiramiz.
-  if (item && ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop')) {
-    const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
-    qtyInput.placeholder = `Necha ${naturalUnit} kerak?`;
-    row.dataset.ratio = ratio;
-    row.dataset.naturalUnit = naturalUnit;
-    if (hint) hint.textContent = `📐 1 ${unit} = ${ratio} ${naturalUnit} — siz ${naturalUnit}da yozasiz, tizim o'zi ${unit}ga aylantiradi`;
-  } else {
-    qtyInput.placeholder = item ? `Miqdor (${item.unit})` : 'Miqdor';
-    delete row.dataset.ratio;
-    delete row.dataset.naturalUnit;
-    if (hint) hint.textContent = '';
-  }
-}
-
-function collectGipsAdditives() {
-  const rows = document.querySelectorAll('.gips-add-row');
-  const result = [];
-  rows.forEach(row => {
-    const invId = parseInt(row.querySelector('.gips-add-inv')?.value) || null;
-    let qty = parseFloat(row.querySelector('.gips-add-qty')?.value) || 0;
-    const ratio = parseFloat(row.dataset.ratio);
-    // Tabiiy birlikdan (metr/kg) konteyner birligiga (rulon/qop) aylantiramiz
-    if (ratio > 0) qty = qty / ratio;
-    if (invId && qty > 0) result.push({ inventory_id: invId, planned_qty: qty });
-  });
-  return result;
-}
 
 async function checkLoyStock() {
   const el = document.getElementById('loy-stock-info');
@@ -2605,7 +2519,7 @@ async function activateDraft() {
         showMsg('❌ ' + det.message + '\n' + det.shortages.join('\n'), 'error');
         const box = document.getElementById('resultBox');
         if (box) {
-          box.innerHTML = `<b>❌ ${det.message}</b><br><br>` + det.shortages.map(x=>`• ${x}`).join('<br>');
+          box.innerHTML = `<b>❌ ${escapeHtml(det.message)}</b><br><br>` + det.shortages.map(x=>`• ${escapeHtml(x)}`).join('<br>');
           box.className = 'result-box error';
           box.style.display = 'block';
         }
@@ -2629,10 +2543,16 @@ async function loadPayments(orderId) {
     const order = await res.json();
 
     const total = order.total_amount || 0;
-    const agreed = order.agreed_amount || total;
+    const agreed = order.agreed_amount ?? total;  // kech42 K42-1: 0 — haqiqiy qiymat
     const paid = order.paid_amount || 0;
     const debt = order.debt_amount || 0;
-    const discount = total - agreed;
+    // kech44 (30-band): kelishilgan summa = ASL kelishilgan − pul qaytarish kamaytirishi
+    // (`crud.pul_qaytarish_kamaytirgan`). Ilgari "Chegirma" = jami − kelishilgan edi, ya'ni
+    // pul qaytarish ham chegirma bo'lib ko'rinardi. Endi chegirma ASL summadan, qaytarish
+    // kamaytirishi alohida qatorda. Server bu maydonlarni bermasa (eski kod) — avvalgi xulq.
+    const qaytKam = Math.max(0, Number(order.pul_qaytarish_kamaytirgan) || 0);
+    const aslKel = (order.kelishilgan_asl ?? null) !== null ? Number(order.kelishilgan_asl) : agreed + qaytKam;
+    const discount = Math.round((total - aslKel) * 100) / 100;
 
     document.getElementById('pay-total').textContent = formatNum(total) + " so'm";
     document.getElementById('pay-agreed').textContent = formatNum(agreed) + " so'm";
@@ -2675,6 +2595,15 @@ async function loadPayments(orderId) {
         '−' + formatNum(discount) + " so'm (" + (order.discount_percent || 0).toFixed(1) + "%)";
     } else {
       dRow.style.display = 'none';
+    }
+    const qRow = document.getElementById('pay-refund-row');
+    if (qRow) {
+      if (qaytKam > 0) {
+        qRow.style.display = 'flex';
+        document.getElementById('pay-refund').textContent = '−' + formatNum(qaytKam) + " so'm";
+      } else {
+        qRow.style.display = 'none';
+      }
     }
 
     // Status badge
@@ -2737,7 +2666,7 @@ async function editAgreedAmount() {
     if (!r.ok) return;
     const o = await r.json();
     const total = o.total_amount || 0;
-    const cur = o.agreed_amount || total;
+    const cur = o.agreed_amount ?? total;  // kech42 K42-1
 
     const v = await showPromptModal(
       `Kelishilgan summani kiriting (so'm):\n\n` +
@@ -2761,7 +2690,14 @@ async function editAgreedAmount() {
       loadPayments(selectedOrderId);
       showMsg(`✓ Yangilandi! Chegirma: ${d.discount_percent.toFixed(2)}% · Qarz: ${formatNum(d.debt_amount)} so'm`, 'success');
     } else {
-      showMsg('❌ Xato', 'error');
+      // 17e: server sababi — `detail` obyekt (`detail.message`) yoki matn.
+      let sabab = 'Xato';
+      try {
+        const e = await res.json();
+        if (e && e.detail && typeof e.detail.message === 'string') sabab = e.detail.message;
+        else if (e && typeof e.detail === 'string') sabab = e.detail;
+      } catch(_) {}
+      showMsg('❌ ' + sabab, 'error');
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
 }
@@ -2819,11 +2755,29 @@ async function savePayment() {
 
   try {
     const url = writeOff ? '/api/payments?write_off_remainder=true' : '/api/payments';
-    const res = await fetch(url, {
+    const yubor = () => fetch(url, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(data)
     });
+    let res = await yubor();
+    // 17f (2026-09-22): yuqoridagi tasdiq faqat SAHIFADA ko'rinib turgan
+    // qarzga tayanadi (u eskirgan bo'lishi mumkin; "chegirmaga yozish"
+    // belgilanganda esa umuman so'ralmaydi). Server baribir 409
+    // (`overpayment_warning`) qaytarsa — uning aniq matni bilan so'raymiz va
+    // tasdiqlansa `confirm_overpay: true` bilan qayta yuboramiz. Ilgari bu
+    // holat ham "❌ To'lovni saqlashda xato" bo'lib qolardi.
+    if (res.status === 409 && !data.confirm_overpay) {
+      let d = null;
+      try { d = await res.clone().json(); } catch(e) {}
+      if (d && d.detail && d.detail.type === 'overpayment_warning') {
+        const proceed = await showConfirmModal('⚠️ ' + String(d.detail.message || ''),
+          {danger:true, okText:'Ha, davom etaman'});
+        if (!proceed) return;
+        data.confirm_overpay = true;
+        res = await yubor();
+      }
+    }
     if (res.ok) {
       const r = await res.json();
       closePaymentForm();
@@ -2838,11 +2792,26 @@ async function savePayment() {
         showMsg('✓ To\'lov qo\'shildi! Qarz: ' + formatNum(r.debt_amount) + ' so\'m', 'success');
       }
     } else {
-      showMsg('❌ To\'lovni saqlashda xato', 'error');
+      // 17f: server yuborgan aniq SABAB ("'amount' juda katta", "Buyurtma
+      // topilmadi" va h.k.) — ilgari faqat umumiy "saqlashda xato" chiqardi.
+      showMsg('❌ ' + await tolovXatoSababi(res, 'To\'lovni saqlashda xato'), 'error');
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
   }
+}
+
+// 17f (2026-09-22): to'lov javobidagi server SABABI — `detail` matn bo'lsa
+// o'zi, obyekt bo'lsa `detail.message`; JSON emas yoki ro'yxat (422) —
+// standart matn (`debts.html` / `suppliers.html` dagi `serverSababi` naqshi).
+async function tolovXatoSababi(res, standart) {
+  let sabab = standart || 'Xato';
+  try {
+    const d = await res.json();
+    if (d && typeof d.detail === 'string' && d.detail) sabab = d.detail;
+    else if (d && d.detail && typeof d.detail.message === 'string' && d.detail.message) sabab = d.detail.message;
+  } catch(e) {}
+  return sabab;
 }
 
 async function deletePayment(paymentId) {
@@ -2961,14 +2930,14 @@ function addItem() {
         <span class="detal-badge">Detal #${itemCount}</span>
         <span class="detal-summary"></span>
       </div>
-      <button class="detal-rm" onclick="event.stopPropagation();this.closest('.detal').remove();updateTotal();checkGipsSectionVisibility()">✕</button>
+      <button class="detal-rm" onclick="event.stopPropagation();this.closest('.detal').remove();updateTotal()">✕</button>
     </div>
     <div class="detal-body">
     <div class="detal-grid">
       <div class="dif" style="grid-column:1/-1;position:relative;background:#F3E4CC;border:2px solid #A86B36">
         <label style="color:#A86B36">Nomi</label>
         <input placeholder="Karniz M-06" class="i-name" autocomplete="off"
-               oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'));checkGipsSectionVisibility()" onblur="hideFpSuggest(this)">
+               oninput="searchFinished(this);updateTotal();updateLiveStats();updateDetalSummary(this.closest('.detal'))" onblur="hideFpSuggest(this)">
         <div class="fp-suggest" style="display:none"></div>
       </div>
       <div class="dif dif-tur" style="grid-column:1/-1">
@@ -2980,13 +2949,9 @@ function addItem() {
             <div class="type-opt" data-value="dona" onclick="selectTypeOpt(this,'dona')">⭐ Donali</div>
           </div>
           <div class="tur-sep"></div>
-          <div class="type-opt" data-value="blok" onclick="selectTypeOpt(this,'blok')">🧊 Blok (butun narxda)</div>
-          <div class="tur-sep"></div>
-{% if cat_on('termopanel', current_user.company_id) %}          <div class="type-opt" data-value="termopanel" onclick="selectTypeOpt(this,'termopanel')">🪨 Termopanel (Bazalt)</div>{% endif %}
+{% if cat_on('blok', current_user.company_id) %}          <div class="type-opt" data-value="blok" onclick="selectTypeOpt(this,'blok')">🧊 Blok (butun narxda)</div>{% endif %}
           <div class="tur-sep"></div>
 {% if cat_on('loy_sotish', current_user.company_id) %}          <div class="type-opt" data-value="loy_sotish" onclick="selectTypeOpt(this,'loy_sotish')">🪣 Loy sotish (tayyor holda)</div>{% endif %}
-          <div class="tur-sep"></div>
-{% if cat_on('gips', current_user.company_id) %}          <div class="type-opt" data-value="gips" onclick="selectTypeOpt(this,'gips')">🧱 Gips</div>{% endif %}
           <div class="tur-sep"></div>
           <div class="type-opt" data-value="mrp_product" onclick="openMrpProductPicker(this)">🏭 MRP Mahsuloti</div>
         </div>
@@ -2995,10 +2960,8 @@ function addItem() {
           <option value="profil">Profil</option>
           <option value="panel">Panel</option>
           <option value="dona">Donali</option>
-          <option value="blok">Blok (butun narxda)</option>
-{% if cat_on('termopanel', current_user.company_id) %}          <option value="termopanel">Termopanel (Bazalt)</option>{% endif %}
+{% if cat_on('blok', current_user.company_id) %}          <option value="blok">Blok (butun narxda)</option>{% endif %}
 {% if cat_on('loy_sotish', current_user.company_id) %}          <option value="loy_sotish">🪣 Loy sotish (tayyor holda)</option>{% endif %}
-{% if cat_on('gips', current_user.company_id) %}          <option value="gips">🧱 Gips</option>{% endif %}
           <option value="mrp_product">🏭 MRP Mahsuloti</option>
         </select>
       </div>
@@ -3018,15 +2981,7 @@ function addItem() {
             <div class="dif i-donayield-wrap" style="display:none"><label>1 metrdan nechta</label><div class="unit-input-wrap"><input type="number" placeholder="masalan 5" class="i-donayield" step="0.1" min="0.01" oninput="calculateItem(this.closest('.detal'))"><span class="unit-suffix">dona</span></div></div>
             <div class="dif i-l-wrap"><label class="i-l-label">Uzunlik</label><div class="unit-input-wrap"><input type="number" placeholder="" value="0" class="i-l" step="0.1" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">m</span></div></div>
             <div class="dif i-q-wrap"><label class="i-q-label">Miqdor</label><div class="unit-input-wrap"><input type="number" placeholder="" class="i-q" value="1" min="0" step="0.5" oninput="clampNonNegative(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix i-q-suffix">dona</span></div></div>
-            <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);calculateItem(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
-            <div class="dif i-gips-unit-wrap" style="display:none">
-              <label>Birligi</label>
-              <select class="i-gips-unit" onchange="onGipsUnitChange(this.closest('.detal'))">
-                <option value="metr">Metr</option>
-                <option value="dona">Dona</option>
-                <option value="m2">M²</option>
-              </select>
-            </div>
+            <div class="dif i-unitprice-wrap" style="display:none"><label class="i-unitprice-label">1 dona narxi</label><div class="unit-input-wrap"><input type="text" placeholder="" class="i-unitprice" oninput="formatPriceInput(this);onUnitPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
             <div class="dif i-blokprice-wrap" style="display:none"><label>1 blok narxi (tayyor)</label><div class="unit-input-wrap"><input type="text" placeholder="1 500 000" class="i-blokprice" oninput="formatPriceInput(this);onBlokPriceInput(this.closest('.detal'))"><span class="unit-suffix">so'm</span></div></div>
             <div class="dif i-blokmult-wrap" style="display:none"><label>Qoplama koeffitsienti</label><div class="unit-input-wrap"><input type="number" value="2" placeholder="masalan 2" class="i-blokmult" step="0.1" min="1" oninput="recalcBlokPrice(this.closest('.detal'))"></div></div>
           </div>
@@ -3037,24 +2992,6 @@ function addItem() {
         <div class="subdetail-list"></div>
         <button type="button" onclick="addSubDetailRow(this.closest('.detal'))" style="margin-top:4px;padding:7px 12px;font-size:13px;border:1px solid #B9783F;background:#fff;color:#A86B36;border-radius:8px;cursor:pointer">+ Ichki qo'shimcha detal qo'shish</button>
       </div>
-      <div class="dgrp i-termo-xomashyo-grp" style="grid-column:1/-1;display:none">
-        <div class="dgrp-title">🪨 Xomashyo (Bazalt tizimi)</div>
-        <div class="dgrp-row" style="grid-template-columns:repeat(3,1fr)">
-          <div class="dif i-termo-bazalt-wrap">
-            <label>Bazalt turi</label>
-            <select class="i-termo-bazalt" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
-          </div>
-          <div class="dif i-termo-serp-wrap">
-            <label>Serpiyanka (tur)</label>
-            <select class="i-termo-serp" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
-          </div>
-          <div class="dif i-termo-kley-wrap">
-            <label>Kley (tur)</label>
-            <select class="i-termo-kley" onchange="calculateItem(this.closest('.detal'))"><option value="">Yuklanmoqda...</option></select>
-          </div>
-        </div>
-      </div>
-      <div class="dif i-termo-loy-wrap" style="display:none"></div>
       <div class="dif i-loysale-recipe-wrap" style="display:none">
         <label>Loy turi (retsept)</label>
         <select class="i-loysale-recipe" onchange="calculateItem(this.closest('.detal'))">${RECIPE_OPTIONS}</select>
@@ -3117,7 +3054,11 @@ function addItem() {
   // MUHIM: yangi qator ENDI eng birinchi (prepend), shuning uchun "oldingi"
   // qator — konteynerdagi IKKINCHI element.
   const prevRow = container.children[1];
-  const lastType = prevRow ? prevRow.querySelector('.i-type')?.value : null;
+  // 77-band: oldingi qator turi faqat mavjud detal uchun qo'shilgan bo'lsa (korxonada o'chirilgan tur,
+  // `turVariantiniTaminla`) — yangi qatorga O'TMAYDI: yangi detal o'chirilgan turni tanlay olmaydi,
+  // standart (Profil) qoladi. Aks holda `.value` jimgina '' bo'lardi (tur yo'q, narx 0).
+  const lastTypeAsl = prevRow ? prevRow.querySelector('.i-type')?.value : null;
+  const lastType = turVariantiBor(div, lastTypeAsl) ? lastTypeAsl : null;
   if (lastType) {
     const typeSel = div.querySelector('.i-type');
     if (typeSel) typeSel.value = lastType;
@@ -3203,8 +3144,8 @@ function setSubDetailCoating(el, isCoated) {
 // chaqiradi — hisob-kitob mantig'i O'ZGARMAYDI, faqat kirish usuli.
 const TYPE_DISPLAY_NAME = {
   profil: '📏 Profil', panel: '🔲 Panel', dona: '⭐ Donali',
-  blok: '🧊 Blok', termopanel: '🪨 Termopanel (Bazalt)',
-  loy_sotish: '🪣 Loy sotish', gips: '🧱 Gips', mrp_product: '🏭 MRP Mahsuloti',
+  blok: '🧊 Blok',
+  loy_sotish: '🪣 Loy sotish', mrp_product: '🏭 MRP Mahsuloti',
 };
 function updateTypeConfirmText(row, type) {
   const el = row.querySelector('.type-confirm-text');
@@ -3213,6 +3154,57 @@ function updateTypeConfirmText(row, type) {
   const qSuffix = row.querySelector('.i-q-suffix')?.textContent || '';
   const name = TYPE_DISPLAY_NAME[type] || type;
   el.textContent = `✓ ${name} tanlandi — "${qLabel}" (${qSuffix}) bo'yicha hisoblanadi`;
+}
+
+// ── 77-band (kech68) — korxonada O'CHIRILGAN tur, MAVJUD detal ──────────────────────
+// Ixtiyoriy / eskirgan turlar (`blok`, `loy_sotish`) uchun `.i-type` varianti va `.type-opt`
+// tugmasi shablonda FAQAT korxonada yoqilgan bo'lsa chiziladi (`main.cat_on`; `blok` ESKIRGAN —
+// sozlanmagan korxonada standart O'CHIQ). Mavjud yozuv (tahrir / nusxa, tayyor mahsulot, saqlangan
+// qoralama) shunday turda bo'lsa `select.value = 'blok'` JIMGINA '' bo'lardi. O'LCHANGAN (kech67,
+// `work/probe67_blok.py`): blok detalli buyurtmani ochib hech narsaga tegmay "Saqlash" — kategoriya
+// '', narx 300 000 -> 0, `length` blok soni o'rniga metr (0.5 -> 40), izoh (blok narxi) yo'qoldi,
+// penoplast 0.5 blok SOXTA omborga qaytdi.
+// Endi SHU qatorga variant va tugma qo'shiladi — "mavjud yozuvlar avvalgidek ko'rinadi va
+// hisoblanadi" (main.py, 11.1-band). Boshqa qatorlarga va yangi detal tanloviga QO'SHILMAYDI.
+// `sep` — shablondagi o'rni: shu tartib raqamli `.tur-sep` dan keyin (blok 1-, loy 2-ajratgichdan keyin).
+const TUR_QATOR_VARIANTLARI = {
+  blok:       { variant: 'Blok (butun narxda)',          tugma: '🧊 Blok (butun narxda)',          sep: 0 },
+  loy_sotish: { variant: '🪣 Loy sotish (tayyor holda)', tugma: '🪣 Loy sotish (tayyor holda)', sep: 1 },
+};
+
+// Qatorning yashirin `.i-type` tanlovida shu tur varianti bormi.
+function turVariantiBor(row, cat) {
+  const sel = row ? row.querySelector('.i-type') : null;
+  if (!sel || !cat) return false;
+  return Array.from(sel.options).some(o => o.value === cat);
+}
+
+// Mavjud detal turi shu qatorda tanlanadigan bo'lsin: variant yo'q bo'lsa (korxonada o'chirilgan
+// ixtiyoriy / eskirgan tur) — SHU qatorga variant va tugma qo'shiladi. Natija: tur endi qatorda
+// bormi (true) yoki forma bu turni umuman bilmaydi (false — masalan butunlay olib tashlangan eski tur;
+// unda server bo'sh turni rad etadi, ma'lumot jimgina buzilmaydi).
+function turVariantiniTaminla(row, cat) {
+  if (turVariantiBor(row, cat)) return true;
+  const sel = row ? row.querySelector('.i-type') : null;
+  const t = (cat && Object.prototype.hasOwnProperty.call(TUR_QATOR_VARIANTLARI, cat)) ? TUR_QATOR_VARIANTLARI[cat] : null;
+  if (!sel || !t) return false;
+  const opt = document.createElement('option');
+  opt.value = cat;
+  opt.textContent = t.variant;
+  sel.appendChild(opt);
+  const tg = row.querySelector('.type-toggle');
+  if (tg && !Array.from(tg.querySelectorAll('.type-opt')).some(o => o.dataset.value === cat)) {
+    const b = document.createElement('div');
+    b.className = 'type-opt';
+    b.dataset.value = cat;
+    b.textContent = t.tugma;
+    b.title = "Bu tur korxona sozlamasida o'chirilgan — faqat shu mavjud detal uchun ko'rsatilmoqda";
+    b.onclick = function () { selectTypeOpt(b, cat); };
+    const seplar = Array.from(tg.children).filter(c => c.classList.contains('tur-sep'));
+    const ref = seplar[t.sep] || null;
+    if (ref) tg.insertBefore(b, ref.nextSibling); else tg.appendChild(b);
+  }
+  return true;
 }
 
 function selectTypeOpt(btn, value) {
@@ -3285,6 +3277,10 @@ function selectMrpProduct(row, pt) {
   row.dataset.mrpProductTypeId = pt.id;
   row.dataset.mrpInputTemplate = pt.input_template;
   row.dataset.mrpUnit = pt.unit;
+  // 11.0-band — qoplama sozlamasi mahsulot TURIDAN keladi (korxona uni
+  // MRP da o'zi yozadi: 2, 2.5, ...). Bu yerda faqat o'qiladi.
+  row.dataset.mrpSupportsCoating = pt.supports_coating ? '1' : '0';
+  row.dataset.mrpCoatingMult = pt.coating_price_multiplier || '';
   const btn = row.querySelector('.type-opt[data-value="mrp_product"]');
   if (btn) {
     btn.textContent = '🏭 ' + (pt.name.length > 22 ? pt.name.slice(0, 22) + '…' : pt.name);
@@ -3318,11 +3314,9 @@ function updateDetalSummary(row) {
   const price = priceEl ? priceEl.value : '';
 
   let dim = '';
-  if (type === 'dona' || type === 'blok' || type === 'gips') {
+  if (type === 'dona' || type === 'blok') {
     const q = row.querySelector('.i-q')?.value;
-    const gUnit = row.querySelector('.i-gips-unit');
-    const unitLbl = (type === 'gips' && gUnit) ? (gUnit.options[gUnit.selectedIndex]?.text || '') : 'dona';
-    if (q) dim = `${q} ${unitLbl}`;
+    if (q) dim = `${q} dona`;
   } else if (type === 'loy_sotish') {
     const q = row.querySelector('.i-q')?.value;
     if (q) dim = `${q} kg`;
@@ -3332,11 +3326,23 @@ function updateDetalSummary(row) {
   }
 
   const parts = [];
-  if (name) parts.push(`<b>${name}</b>`); else parts.push('<span style="color:var(--text3)">(nomsiz)</span>');
-  if (dim) parts.push(dim);
-  if (price && parseFloat(price.replace(/\s/g,'')) > 0) parts.push(`<span class="val">${price} so'm</span>`);
+  if (name) parts.push(`<b>${escapeHtml(name)}</b>`); else parts.push('<span style="color:var(--text3)">(nomsiz)</span>');
+  if (dim) parts.push(escapeHtml(dim));
+  if (price && parseFloat(price.replace(/\s/g,'')) > 0) parts.push(`<span class="val">${escapeHtml(price)} so'm</span>`);
 
   summaryEl.innerHTML = parts.join(' <span style="color:var(--border)">·</span> ');
+}
+
+// 11.0-band — "1 birlik narxi" maydoniga yozilganda. MRP mahsuloti
+// qoplamani qo'llasa, qoplamasiz ASOS narxni alohida saqlab qo'yamiz;
+// qolgan hamma turkumlar uchun xatti-harakat AVVALGIDEK qoladi.
+function onUnitPriceInput(row) {
+  const type = row.querySelector('.i-type')?.value;
+  if (type === 'mrp_product' && row.dataset.mrpSupportsCoating === '1') {
+    onMrpPriceInput(row);
+    return;
+  }
+  calculateItem(row);
 }
 
 function onCoatToggle(row) {
@@ -3345,6 +3351,38 @@ function onCoatToggle(row) {
     recalcBlokPrice(row);
     return;
   }
+  if (type === 'mrp_product') {
+    recalcMrpPrice(row);
+    return;
+  }
+  calculateItem(row);
+}
+
+// 11.0-band — MRP mahsulotining qoplamali narxi.
+// `blok` dagi recalcBlokPrice() bilan AYNAN bir xil naqsh: `dataset` da
+// QOPLAMASIZ asos narx saqlanadi, maydonda esa YAKUNIY narx turadi.
+// Farqi bitta — koeffitsiyent qatorda emas, mahsulot TURIDA yozilgan.
+function recalcMrpPrice(row) {
+  const upEl = row.querySelector('.i-unitprice');
+  if (!upEl) return;
+  const isCoated = row.querySelector('.i-c')?.value === 'true';
+  const mult = parseFloat(row.dataset.mrpCoatingMult) || 1;
+  const base = parseFloat(row.dataset.mrpBase) || 0;
+  if (base > 0) {
+    upEl.value = formatNum(Math.round(isCoated ? base * mult : base));
+  }
+  calculateItem(row);
+}
+
+// Xodim narxni qo'lda yozganda — uni ASOS sifatida saqlaymiz, shunda
+// keyin Qoplama yoqilsa/o'chirilsa hisob izchil qoladi (blok bilan bir xil).
+function onMrpPriceInput(row) {
+  const upEl = row.querySelector('.i-unitprice');
+  if (!upEl) return;
+  const isCoated = row.querySelector('.i-c')?.value === 'true';
+  const mult = parseFloat(row.dataset.mrpCoatingMult) || 1;
+  const typed = parseNum(upEl.value) || 0;
+  row.dataset.mrpBase = (isCoated && mult > 0) ? (typed / mult) : typed;
   calculateItem(row);
 }
 
@@ -3366,14 +3404,8 @@ function toggleFields(row) {
   // m3price) yashiringan holatdagina yashiramiz — aks holda hech qachon
   // to'liq bo'sh bo'lib qolmaydi.
   const coatPenoGrp = coatField?.closest('.dgrp');
-  const tBazaltW = row.querySelector('.i-termo-bazalt-wrap');
-  const tSerpW = row.querySelector('.i-termo-serp-wrap');
-  const tKleyW = row.querySelector('.i-termo-kley-wrap');
-  const tLoyW = row.querySelector('.i-termo-loy-wrap');
   const lsRecipeW = row.querySelector('.i-loysale-recipe-wrap');
-  const gipsUnitW = row.querySelector('.i-gips-unit-wrap');
   const donaYieldW = row.querySelector('.i-donayield-wrap');
-  const termoXomashyoGrp = row.querySelector('.i-termo-xomashyo-grp');
   const dimsRow = row.querySelector('.i-dims-box .dgrp-row');
   const qtyRow = row.querySelector('.i-qty-box .dgrp-row');
 
@@ -3398,8 +3430,7 @@ function toggleFields(row) {
   }
 
   // Termopanel bo'lmasa — termo maydonlarini yashiramiz, penoplast maydonini ko'rsatamiz
-  [tBazaltW, tSerpW, tKleyW, tLoyW, lsRecipeW, gipsUnitW, donaYieldW].forEach(el => { if (el) el.style.display = 'none'; });
-  if (termoXomashyoGrp) termoXomashyoGrp.style.display = 'none';
+  [lsRecipeW, donaYieldW].forEach(el => { if (el) el.style.display = 'none'; });
   if (penoField) penoField.style.display = '';
 
   // "Ichki qo'shimcha detal" — faqat Profil (karniz) turida ko'rinadi
@@ -3448,23 +3479,6 @@ function toggleFields(row) {
     if (m3Field) m3Field.style.display = 'none';   // blok narxi to'g'ridan-to'g'ri, m³ orqali hisoblanmaydi
     if (coatField) coatField.style.display = '';   // qoplamali/qoplamasiz — "Qoplama koeffitsienti" (i-blokmult) orqali narxni haqiqatan ham ko'paytiradi (recalcBlokPrice() ga qarang)
     ['i-h','i-w','i-t'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
-  } else if (type === 'termopanel') {
-    hW.style.display = 'none'; wW.style.display = 'none';
-    tW.style.display = 'none'; lW.style.display = 'none';
-    qW.style.display = 'block';   // Necha kvadrat metr
-    if (upW) upW.style.display = 'block';
-    if (bpW) bpW.style.display = 'none';
-    if (bmW) bmW.style.display = 'none';
-    if (m3Field) m3Field.style.display = 'none';
-    if (coatField) coatField.style.display = 'none';  // Termopanel doim qoplamali — Loy maydoni orqali
-    if (penoField) penoField.style.display = 'none';  // Penoplast ishlatilmaydi
-    if (tBazaltW) tBazaltW.style.display = '';
-    if (termoXomashyoGrp) termoXomashyoGrp.style.display = '';
-    if (tSerpW) tSerpW.style.display = '';
-    if (tKleyW) tKleyW.style.display = '';
-    if (tLoyW) tLoyW.style.display = '';
-    ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
-    loadTermoInventoryFor(row);
   } else if (type === 'loy_sotish') {
     hW.style.display = 'none'; wW.style.display = 'none';
     tW.style.display = 'none'; lW.style.display = 'none';
@@ -3477,21 +3491,6 @@ function toggleFields(row) {
     if (penoField) penoField.style.display = 'none';  // Penoplast ishlatilmaydi
     if (lsRecipeW) lsRecipeW.style.display = '';
     ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
-  } else if (type === 'gips') {
-    // Erkin qator: Nomi + Birlik (metr/dona/m²) + Narx + Miqdor — hech
-    // qanday retsept/formula yo'q (Penoplast maydonlariga umuman ehtiyoj yo'q)
-    hW.style.display = 'none'; wW.style.display = 'none';
-    tW.style.display = 'none'; lW.style.display = 'none';
-    qW.style.display = 'block';
-    if (upW) upW.style.display = 'block';
-    if (bpW) bpW.style.display = 'none';
-    if (bmW) bmW.style.display = 'none';
-    if (m3Field) m3Field.style.display = 'none';
-    if (coatField) coatField.style.display = 'none';  // Gips — o'zi tayyor mahsulot, qoplama tushunchasi yo'q
-    if (penoField) penoField.style.display = 'none';
-    if (gipsUnitW) gipsUnitW.style.display = '';
-    ['i-h','i-w','i-t','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; });
-    onGipsUnitChange(row);
   } else if (type === 'mrp_product') {
     // 2026-09-16: Production/MRP'da yaratilgan DINAMIK mahsulot turi.
     // Narx har doim oddiy: Miqdor x Narx (murakkab formulasi
@@ -3510,7 +3509,11 @@ function toggleFields(row) {
     if (bpW) bpW.style.display = 'none';
     if (bmW) bmW.style.display = 'none';
     if (m3Field) m3Field.style.display = 'none';
-    if (coatField) coatField.style.display = 'none';
+    // 11.0-band — tur qoplamani qo'llasa, Qoplama tugmasi chiqadi.
+    // Koeffitsiyent turda yozilgan; bu yerda faqat qo'llaniladi.
+    const mrpCoat = row.dataset.mrpSupportsCoating === '1';
+    if (coatField) coatField.style.display = mrpCoat ? '' : 'none';
+    if (!mrpCoat) syncCoatingUI(row, false);
     if (penoField) penoField.style.display = 'none';
     if (!showDims) { ['i-h','i-l'].forEach(c => { const el = row.querySelector('.'+c); if(el) el.value=''; }); }
     if (tmpl !== 'dimensional_3d') { const el = row.querySelector('.i-t'); if(el) el.value=''; }
@@ -3538,9 +3541,9 @@ function toggleFields(row) {
     coatPenoGrp.style.display = (coatHidden && penoHidden && m3Hidden) ? 'none' : '';
   }
 
-  // "O'lcham" (Eni/Kengligi/Qalinlik) qutisi — Blok/Termopanel/Gips/Loy
-  // sotishda uchalasi ham kerak emas, bo'sh qolib ketmasligi uchun,
-  // shu holatda qutining O'ZINI butunlay yashiramiz.
+  // "O'lcham" (Eni/Kengligi/Qalinlik) qutisi — Blok/Loy sotishda
+  // uchalasi ham kerak emas, bo'sh qolib ketmasligi uchun, shu
+  // holatda qutining O'ZINI butunlay yashiramiz.
   const dimsBox = row.querySelector('.i-dims-box');
   if (dimsBox) {
     const hHidden = hW && hW.style.display === 'none';
@@ -3561,12 +3564,12 @@ function toggleFields(row) {
     qtyBox.style.display = allHidden ? 'none' : '';
   }
 
-  // "Hajm" kartochkasi — Termopanel/Gips/Loy sotishda ma'nosiz (bu
-  // turlarda xomashyo Penoplast m³ orqali EMAS, alohida yo'l bilan
-  // hisoblanadi) — shuning uchun bu 3 turda butunlay yashiramiz.
+  // "Hajm" kartochkasi — Loy sotishda ma'nosiz (bu turda xomashyo
+  // Penoplast m³ orqali EMAS, alohida yo'l bilan hisoblanadi) —
+  // shuning uchun bu turda butunlay yashiramiz.
   const volCard = row.querySelector('.i-vol-card');
   if (volCard) {
-    volCard.style.display = (type === 'termopanel' || type === 'gips' || type === 'loy_sotish') ? 'none' : '';
+    volCard.style.display = (type === 'loy_sotish') ? 'none' : '';
   }
 
   // Miqdor maydonining nomi va birligi: panel — metr, blok — kerakli metr, dona — dona
@@ -3574,10 +3577,10 @@ function toggleFields(row) {
   const qSuffix = row.querySelector('.i-q-suffix');
   const mrpUnit = row.dataset.mrpUnit || 'dona';
   if (qLabel) {
-    qLabel.textContent = (type === 'panel') ? 'Uzunlik' : (type === 'blok') ? "Necha metr kerak" : (type === 'termopanel') ? "Necha kvadrat metr" : (type === 'loy_sotish') ? "Necha kg" : (type === 'mrp_product') ? 'Miqdor' : 'Miqdor';
+    qLabel.textContent = (type === 'panel') ? 'Uzunlik' : (type === 'blok') ? "Necha metr kerak" : (type === 'loy_sotish') ? "Necha kg" : (type === 'mrp_product') ? 'Miqdor' : 'Miqdor';
   }
   if (qSuffix) {
-    qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : (type === 'termopanel') ? 'm²' : (type === 'loy_sotish') ? 'kg' : (type === 'mrp_product') ? mrpUnit : 'dona';
+    qSuffix.textContent = (type === 'panel' || type === 'blok') ? 'm' : (type === 'loy_sotish') ? 'kg' : (type === 'mrp_product') ? mrpUnit : 'dona';
   }
   const lLabel = row.querySelector('.i-l-label');
   if (lLabel) {
@@ -3585,11 +3588,11 @@ function toggleFields(row) {
   }
   const upLabel = row.querySelector('.i-unitprice-label');
   if (upLabel) {
-    upLabel.textContent = (type === 'termopanel') ? "1 kvadrat metr narxi" : (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 dona narxi";
+    upLabel.textContent = (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 dona narxi";
   }
   const permLabel = row.querySelector('.i-perm-label');
   if (permLabel) {
-    permLabel.textContent = (type === 'termopanel') ? "1 m² narxi" : (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 metr narxi";
+    permLabel.textContent = (type === 'loy_sotish') ? "1 kg narxi" : (type === 'mrp_product') ? `1 ${mrpUnit} narxi` : "1 metr narxi";
   }
   // "Eni" -> "Bo'yi", "Kengligi" -> "Qalinligi" — FAQAT Profil va Donalikda
   // (Panelda "Kengligi" maydoni endi butunlay yashirilgan — yuqoridagi
@@ -3600,7 +3603,6 @@ function toggleFields(row) {
   if (hLabel) hLabel.textContent = useAltNames ? "Bo'yi" : "Eni";
   if (wLabel) wLabel.textContent = useAltNames ? "Qalinligi" : "Kengligi";
   row.dataset.lastType = type;
-  checkGipsSectionVisibility();
 
   // MUHIM: "O'lcham" qutisidagi ustunlar soni, DOIM "4" bo'lib qolsa —
   // Donalik kabi, atigi 2 ta maydoni bor turlarda, ular tor bo'lib,
@@ -3616,53 +3618,6 @@ function toggleFields(row) {
   }
 }
 
-function onGipsUnitChange(row) {
-  const unit = row.querySelector('.i-gips-unit')?.value || 'metr';
-  const qLabel = row.querySelector('.i-q-label');
-  const qSuffix = row.querySelector('.i-q-suffix');
-  const upLabel = row.querySelector('.i-unitprice-label');
-  const unitText = unit === 'metr' ? 'metr' : unit === 'm2' ? 'm²' : 'dona';
-  if (qLabel) qLabel.textContent = 'Miqdor';
-  if (qSuffix) qSuffix.textContent = unitText;
-  if (upLabel) upLabel.textContent = `1 ${unitText} narxi`;
-  calculateItem(row);
-}
-
-let termoInvCache = null;
-async function loadTermoInventoryFor(row) {
-  const bazaltSel = row.querySelector('.i-termo-bazalt');
-  const serpSel = row.querySelector('.i-termo-serp');
-  const kleySel = row.querySelector('.i-termo-kley');
-  if (!bazaltSel) return;
-  if (!termoInvCache) {
-    try { termoInvCache = await fetch('/api/inventory').then(r => r.json()); }
-    catch(e) { termoInvCache = []; }
-  }
-  const opts = i => `<option value="${i.id}">${escapeHtml(i.item_name)} (${i.stock_quantity} ${i.unit})</option>`;
-
-  // MUHIM: ro'yxatlar endi nomga qarab CHEKLANMAYDI — butun ombordan
-  // istalgan nomdagi materialni tanlash mumkin. Qulaylik uchun, agar
-  // nomida mos so'z topilsa, avtomatik oldindan tanlab qo'yiladi.
-  const allSorted = [...termoInvCache].sort((a,b) => a.item_name.localeCompare(b.item_name));
-  const fillSel = (sel, matchWord, emptyMsg) => {
-    if (!sel) return;
-    const prevValue = sel.value;  // MUHIM: qayta to'ldirishdan oldin, joriy tanlovni eslab qolamiz
-    if (!allSorted.length) { sel.innerHTML = `<option value="">${emptyMsg}</option>`; return; }
-    sel.innerHTML = '<option value="">— Tanlang —</option>' + allSorted.map(opts).join('');
-    if (prevValue && allSorted.some(i => String(i.id) === prevValue)) {
-      // Joriy (allaqachon tanlangan yoki tiklangan) qiymat hali mavjud —
-      // uni SAQLAB QOLAMIZ, "taxminiy" tanlov bilan ustidan bosib yubormaymiz
-      sel.value = prevValue;
-      return;
-    }
-    const guess = termoInvCache.find(i => i.item_name.toLowerCase().includes(matchWord));
-    if (guess) sel.value = guess.id;
-  };
-  fillSel(bazaltSel, 'bazalt', "Omborda xomashyo yo'q — avval kirim qiling");
-  fillSel(serpSel, 'serpiyank', "Omborda xomashyo yo'q — avval kirim qiling");
-  fillSel(kleySel, 'kley', "Omborda xomashyo yo'q — avval kirim qiling");
-  calculateItem(row);
-}
 
 function toggleDonaVolLock(row) {
   if (row.dataset.donaVolLocked === 'true') {
@@ -3990,24 +3945,6 @@ function calculateItem(row) {
       ? `${volume_total.toFixed(3)} m³ (${blokKerak.toFixed(2)} blok)`
       : '—';
     }
-  } else if (type === 'termopanel') {
-    // qty = kerakli kvadrat metr, i-unitprice = 1 m² narxi
-    const upEl = row.querySelector('.i-unitprice');
-    const unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
-    perMeterPrice = unitPrice;
-    price = unitPrice * qty;
-    // Penoplast/m³ hisobiga aloqasi yo'q — bazalt alohida ombordan yechiladi
-    volume_total = 0;
-    row.querySelector('.i-vol').value = '— (bazalt alohida hisoblanadi)';
-
-    const bazaltEl = row.querySelector('.i-termo-bazalt');
-    const serpEl = row.querySelector('.i-termo-serp');
-    const kleyEl = row.querySelector('.i-termo-kley');
-    const loyEl = row.querySelector('.i-termo-loy');
-    row.dataset.termoBazaltId = bazaltEl ? bazaltEl.value : '';
-    row.dataset.termoSerpId = serpEl ? serpEl.value : '';
-    row.dataset.termoKleyId = kleyEl ? kleyEl.value : '';
-    row.dataset.termoLoy = loyEl ? (parseFloat(loyEl.value) || 0) : 0;
   } else if (type === 'loy_sotish') {
     // qty = necha kg, i-unitprice = 1 kg narxi. Penoplast/m³ ishlatilmaydi —
     // loy alohida, tanlangan retsept bo'yicha ombordan yechiladi.
@@ -4020,16 +3957,6 @@ function calculateItem(row) {
 
     const recipeEl = row.querySelector('.i-loysale-recipe');
     row.dataset.loysaleRecipeId = recipeEl ? recipeEl.value : '';
-  } else if (type === 'gips') {
-    // Erkin qator: narx = miqdor × 1 birlik narxi. Xomashyo (Gips va
-    // qo'shimchalar) — ITEM darajasida EMAS, butun BUYURTMA darajasida
-    // (pastdagi umumiy "Gips miqdori" bo'limida) alohida hisoblanadi.
-    const upEl = row.querySelector('.i-unitprice');
-    const unitPrice = upEl ? parseNum(upEl.value) || 0 : 0;
-    perMeterPrice = unitPrice;
-    price = unitPrice * qty;
-    volume_total = 0;
-    row.querySelector('.i-vol').value = '— (Gips, alohida hisoblanadi)';
   } else if (type === 'mrp_product') {
     // 2026-09-16: narx har doim oddiy — miqdor x narx. Xomashyo sarfi
     // BU YERDA HISOBLANMAYDI — u Production/MRP modulida, alohida
@@ -4085,15 +4012,6 @@ function updateLiveStats() {
       // haqiqiy kerakli metr (.i-q) hisoblanishi kerak, normasi (.i-l) emas.
       const qEl = row.querySelector('.i-q');
       if (qEl) totalLength += parseFloat(qEl.value || 0);
-    } else if (rowType === 'gips') {
-      // Gipsda uzunlik ".i-l" emas, ".i-q" (Miqdor) maydonida — va faqat
-      // birligi "metr" bo'lgan qatorlarni "Umumiy uzunlik"ka qo'shamiz
-      // (dona/m² qatorlar mos emas, chalkashtirmaslik uchun qo'shilmaydi).
-      const gipsUnit = row.querySelector('.i-gips-unit')?.value;
-      if (gipsUnit === 'metr') {
-        const qEl2 = row.querySelector('.i-q');
-        if (qEl2) totalLength += parseFloat(qEl2.value || 0);
-      }
     } else {
       const lEl = row.querySelector('.i-l');
       if (lEl) totalLength += parseFloat(lEl.value || 0);
@@ -4189,8 +4107,8 @@ function updateTotal() {
         <div onclick="scrollToDetail('${row.id}')" style="display:flex;justify-content:space-between;align-items:center;
                     padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;cursor:pointer" title="Bosib, shu detalga o'ting">
           <div>
-            <div style="font-weight:500;color:#111">${name || ('Detal #'+(i+1))}</div>
-            <div style="font-size:13px;color:#aaa">${qtyText}</div>
+            <div style="font-weight:500;color:#111">${escapeHtml(name) || ('Detal #'+(i+1))}</div>
+            <div style="font-size:13px;color:#aaa">${escapeHtml(qtyText)}</div>
           </div>
           <div style="font-weight:600;color:#B9783F">${Number(price).toLocaleString('ru-RU')} so'm</div>
         </div>`;
@@ -4317,7 +4235,7 @@ function showValidationModal(issues) {
   list.innerHTML = issues.map(it => `
     <div class="val-item" onclick="scrollToValidationField('${it.targetId}')">
       <i class="ti ti-point"></i>
-      <span>${it.text}</span>
+      <span>${escapeHtml(it.text)}</span>
     </div>`).join('');
   document.getElementById('validationModal').style.display = 'flex';
 }
@@ -4377,25 +4295,18 @@ async function saveOrder(isDraft = false) {
   // OLINMAGAN) detalda "Qoplama: Ha" bo'lsa so'raladi. Tayyor mahsulotdan
   // olingan detallar — allaqachon qoplangan (ishlab chiqarilganda), shu
   // buyurtmada YANGI loy sarflanmaydi, shuning uchun ular hisobga olinmaydi.
+  // kech62 (K62-1): MRP mahsuloti ham — uning qoplamasi o'z retseptining (BOM) qoplama
+  // qatoridan ishlab chiqarishda yechiladi (backend `_buyurtma_loyi_detalimi`); faqat MRP
+  // qoplamali buyurtmada loy kg so'ralsa, qoplama ikki marta yechilardi (O'LCHANGAN).
   const anyCoated = Array.from(document.querySelectorAll('.detal')).some(row => {
     if (row.dataset.fpId) return false;
+    if (row.querySelector('.i-type')?.value === 'mrp_product') return false;
     const cEl = row.querySelector('.i-c');
     return cEl && cEl.value === 'true';
   });
   const loyVal = parseFloat(document.getElementById('loy_kg')?.value) || 0;
   if (anyCoated && !loyVal) {
     issues.push({ text: "Loy miqdori (kg) kiritilmagan", targetId: 'loy_kg' });
-  }
-
-  // Gips miqdori -- faqat kamida bitta Gips turdagi detal bo'lsa so'raladi
-  const anyGips = Array.from(document.querySelectorAll('.i-type')).some(el => el.value === 'gips');
-  const gipsVal = parseFloat(document.getElementById('gips_kg')?.value) || 0;
-  const gipsInvVal = document.getElementById('gips_inventory_id')?.value || '';
-  if (anyGips && !gipsVal) {
-    issues.push({ text: "Gips miqdori (kg) kiritilmagan", targetId: 'gips_kg' });
-  }
-  if (anyGips && gipsVal && !gipsInvVal) {
-    issues.push({ text: "Qaysi Gips xomashyosi ishlatilishi tanlanmagan", targetId: 'gips_inventory_id' });
   }
 
   // Asosiy bo'lmagan plotnost tanlangan, lekin shu detalning o'z 1 m3 narxi yo'q
@@ -4459,9 +4370,6 @@ async function saveOrder(isDraft = false) {
     deadline: document.getElementById('deadline_input')?.value || null,
     is_draft: isDraft,
     items,
-    gips_inventory_id: parseInt(document.getElementById('gips_inventory_id')?.value) || null,
-    planned_gips_kg: parseFloat(document.getElementById('gips_kg')?.value) || null,
-    gips_additives: collectGipsAdditives(),
     base_price: parseNum(document.getElementById('base_price')?.value || '0') || null,
     loy_kg: parseFloat(document.getElementById('loy_kg')?.value || '0') || null
   };
@@ -4527,7 +4435,7 @@ function showStockShortageModal(shortages, data, isDraft, zaklat, zaklatMethod) 
   list.innerHTML = shortages.map(s => `
     <div class="val-item">
       <i class="ti ti-alert-triangle"></i>
-      <span>${s}</span>
+      <span>${escapeHtml(s)}</span>
     </div>`).join('') + `
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-outline" style="flex:1" onclick="closeValidationModal()">Bekor qilish</button>
@@ -4619,9 +4527,30 @@ async function confirmDuplicatePick() {
 // buyurtmani tahrirlash O'RNIGA, undan nusxa olib, tezda yangi, kichik
 // buyurtma yozish mumkin bo'lsin deb). 'duplicate' rejimida: eski buyurtmaga
 // HECH NARSA yozilmaydi (faqat GET so'rovlar), "topshirilgan" belgilari,
-// kelishilgan summa/chegirma va loy/gips REJA miqdorlari olib kelinmaydi —
+// kelishilgan summa/chegirma va loy REJA miqdorlari olib kelinmaydi —
 // bular yangi (odatda kichikroq) miqdor uchun boshqacha bo'ladi, xodim
 // ularni yangidan, to'g'ri kiritishi kerak.
+// 75-band (kech67): "Tayyor mahsulotdan" olingan detalning SAQLANGAN 1 birlik narxi.
+// Tahrirda narx SHUNDAN tiklanadi — tayyor mahsulotning JORIY narxidan emas (u keyin
+// o'zgargan bo'lishi yoki mahsulot ro'yxatdan yashirin bo'lishi mumkin; oldin detal
+// narxi shunda jimgina joriy narxga yoki 0 ga o'zgarib ketardi).
+// collectItems shakliga teskari: profil — unit_price = qator narxi / miqdor, qator
+// narxi = 1 metr narxi x uzunlik, demak 1 metr = unit_price x miqdor / uzunlik;
+// panel / blok / dona — unit_price 1 birlik (metr / dona) narxining o'zi.
+// Aniqlab bo'lmasa (narx yo'q, profil uzunligi 0) — null.
+function tmSaqlanganBirlikNarxi(item, cat) {
+  if (!item || item.unit_price === null || item.unit_price === undefined || item.unit_price === '') return null;
+  const up = parseFloat(item.unit_price);
+  if (!isFinite(up) || up < 0) return null;
+  if (cat === 'profil') {
+    const uzunlik = parseFloat(item.length) || 0;
+    if (uzunlik <= 0) return null;
+    const miqdor = parseFloat(item.quantity) || 1;
+    return up * miqdor / uzunlik;
+  }
+  return up;
+}
+
 async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx = null) {
   if (!selectedOrderId) return;
   const editId = selectedOrderId; // showNewForm null qilishidan oldin saqlab qo'yamiz
@@ -4673,10 +4602,19 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     // aks holda bo'sh ko'rinib, chalkashtirar edi.
     const recipeSel = document.getElementById('recipe_id');
     if (recipeSel && itemsToUse.length) {
-      const mainItem = itemsToUse.find(it =>
-        it.recipe_id && !['gips', 'loy_sotish', 'termopanel'].includes((it.category || '').toLowerCase())
-      );
-      if (mainItem) recipeSel.value = mainItem.recipe_id;
+      // kech63 (53 / 67-band): TAHRIRDA — buyurtmaning SAQLANGAN qoplama retsepti
+      // (`qoplama_retsept_id` — umumiy loy AYNAN shundan yechilgan, yagona manba). U yo'q
+      // (eski buyurtma) yoki ro'yxatda yo'q bo'lsa, hamda NUSXA olishda — avvalgidek detallardan.
+      const _qrId = (!isDup && order.qoplama_retsept_id) ? String(order.qoplama_retsept_id) : '';
+      const _qrBor = !!_qrId && Array.from(recipeSel.options || []).some(o => String(o.value) === _qrId);
+      if (_qrBor) {
+        recipeSel.value = _qrId;
+      } else {
+        const mainItem = itemsToUse.find(it =>
+          it.recipe_id && !['loy_sotish'].includes((it.category || '').toLowerCase())
+        );
+        if (mainItem) recipeSel.value = mainItem.recipe_id;
+      }
     }
 
     // "1 m³ asosiy narxi" — endi saqlanadi, tahrirlashda tiklaymiz
@@ -4713,8 +4651,12 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
             row.dataset.mrpProductTypeId = pt.id;
             row.dataset.mrpInputTemplate = pt.input_template;
             row.dataset.mrpUnit = pt.unit;
+            row.dataset.mrpSupportsCoating = pt.supports_coating ? '1' : '0';
+            row.dataset.mrpCoatingMult = pt.coating_price_multiplier || '';
           }
         }
+        // 77-band: korxonada o'chirilgan tur (eskirgan `blok`) — shu qatorga variant (aks holda '').
+        turVariantiniTaminla(row, cat);
         typeEl.value = cat;
         row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === cat));
         toggleFields(row);
@@ -4742,7 +4684,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
             // calcItemRow bu maydondagi qiymatni O'ZGARTIRMASDAN, TO'G'RIDAN
             // TO'G'RI yakuniy narx sifatida ishlatadi (xuddi qo'lda narx
             // kiritilgandek) — shuning uchun bu yerga saqlangan unit_price
-            // TO'LIQ, o'zgarishsiz qo'yiladi (Termopanel/Gips/Loy sotish
+            // TO'LIQ, o'zgarishsiz qo'yiladi (Loy sotish
             // bilan bir xil, oddiy qoida).
             const rawPrice = parseFloat(item.unit_price || 0);
             upEl.value = formatNum(rawPrice);
@@ -4771,43 +4713,6 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           row.querySelector('.i-h').value = item.width || 0;
           row.querySelector('.i-t').value = item.thickness || 0;
           row.querySelector('.i-q').value = item.quantity || 1;
-        } else if (cat === 'termopanel') {
-          // MUHIM TUZATISH: avval bu tur uchun umuman tiklash yozilmagan edi —
-          // shuning uchun m² va tanlangan Bazalt "unutilib", saqlaganda
-          // noto'g'ri (standart) qiymat yuborilib, ombor xato tuzatilar edi.
-          row.querySelector('.i-q').value = item.quantity || 0;
-
-          // MUHIM: "1 birlik narxi" (sotuv narxi) ham tiklanishi SHART —
-          // bo'lmasa, har safar tahrirlashda 0 bo'lib saqlanib qolar edi
-          const tUpEl = row.querySelector('.i-unitprice');
-          if (tUpEl) {
-            tUpEl.value = formatNum(parseFloat(item.unit_price || 0));
-            row.dataset.unitprice = parseFloat(item.unit_price || 0);
-          }
-
-          const bm = (item.notes || '').match(/bazalt_id=(\d+)/);
-          const originalBazaltId = bm ? bm[1] : null;
-          const sm = (item.notes || '').match(/serp_id=(\d+)/);
-          const originalSerpId = sm ? sm[1] : null;
-          const km = (item.notes || '').match(/kley_id=(\d+)/);
-          const originalKleyId = km ? km[1] : null;
-
-          loadTermoInventoryFor(row).then(() => {
-            const bazaltSel = row.querySelector('.i-termo-bazalt');
-            const serpSel = row.querySelector('.i-termo-serp');
-            const kleySel = row.querySelector('.i-termo-kley');
-            const restoreIfExists = (sel, id) => {
-              if (!sel || !id) return;
-              // Agar shu material hali ro'yxatda bo'lmasa (masalan nomi
-              // o'zgargan) — mavjud tanlovni qoldiramiz, aks holda aslini tiklaymiz
-              const exists = Array.from(sel.options).some(o => o.value === id);
-              if (exists) sel.value = id;
-            };
-            restoreIfExists(bazaltSel, originalBazaltId);
-            restoreIfExists(serpSel, originalSerpId);
-            restoreIfExists(kleySel, originalKleyId);
-            calculateItem(row);
-          });
         } else if (cat === 'blok') {
           row.querySelector('.i-q').value = item.quantity || 0;   // Necha metr kerak
 
@@ -4836,15 +4741,6 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           if (item.penoplast_id) {
             const peEl = row.querySelector('.i-peno');
             if (peEl) peEl.value = item.penoplast_id;
-          }
-        } else if (cat === 'gips') {
-          row.querySelector('.i-q').value = item.quantity || 0;
-          const gu = row.querySelector('.i-gips-unit');
-          if (gu) { gu.value = item.gips_unit || 'metr'; onGipsUnitChange(row); }
-          const upEl = row.querySelector('.i-unitprice');
-          if (upEl) {
-            upEl.value = formatNum(parseFloat(item.unit_price || 0));
-            row.dataset.unitprice = parseFloat(item.unit_price || 0);
           }
         } else if (cat === 'loy_sotish') {
           row.querySelector('.i-q').value = item.quantity || 0;
@@ -4902,7 +4798,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           row.dataset.dlvUnit = dlvInfo.unit;
           const badge = row.querySelector('.detal-badge');
           if (badge) {
-            badge.innerHTML += ` <span style="background:#FEF3C7;color:#b7770d;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px">📦 ${dlvInfo.delivered} ${dlvInfo.unit} topshirilgan</span>`;
+            badge.innerHTML += ` <span style="background:#FEF3C7;color:#b7770d;padding:1px 6px;border-radius:8px;font-size:9px;margin-left:4px">📦 ${dlvInfo.delivered} ${escapeHtml(dlvInfo.unit)} topshirilgan</span>`;
           }
           // O'chirish tugmasini bloklaymiz
           const rm = row.querySelector('.detal-rm');
@@ -4936,6 +4832,10 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           // xatosini NOTO'G'RI bergan bo'lardi. Aniq qiymat fetch tugagach
           // o'rnatiladi, va yakuniy, ishonchli tekshiruvni SERVER qiladi.
           row.dataset.fpMax = 1e9;
+          // 75-band: narx — detalning SAQLANGAN narxidan, fetch dan OLDIN (mahsulot
+          // ro'yxatda bo'lmasa ham narx bor; fetch tugashidan oldingi hisob ham to'g'ri).
+          const _tmSaqlangan = tmSaqlanganBirlikNarxi(item, cat);
+          if (_tmSaqlangan !== null) row.dataset.fpPrice = String(_tmSaqlangan);
           // Qoldiqni olamiz
           fetch(`/api/finished`).then(r=>r.json()).then(list => {
             const fp = list.find(f => f.id === item.finished_product_id);
@@ -4951,10 +4851,25 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
               // mumkin edi.
               const used = (item.category === 'profil') ? (item.length||0) : (item.quantity||0);
               row.dataset.fpMax = isDup ? fp.quantity : (fp.quantity + used);
-              // MUHIM: fpPrice'ni ham tiklaymiz — aks holda tahrirlashda,
-              // narx buyurtmaning 1m³ narxidan QAYTA hisoblanib, tayyor
-              // mahsulotning O'Z narxi (masalan 18 000) buzilib ketardi.
-              row.dataset.fpPrice = fp.unit_price;
+              // 75-band: 'edit' rejimida narx SAQLANGAN narxda qoladi (yuqorida
+              // o'rnatildi) — bu fetch faqat qoldiq (fpMax) uchun. 'duplicate'
+              // (nusxa — YANGI sotuv) rejimida esa tayyor mahsulotning JORIY narxi,
+              // xuddi yangi tanlovdagidek (pickFinished). Saqlangan narxni aniqlab
+              // bo'lmasa — joriy narx (narx bo'sh qolmasin).
+              if (isDup || _tmSaqlangan === null) row.dataset.fpPrice = fp.unit_price;
+              // 78-band (kech69): Donalik TM qatori narxni fpPrice dan EMAS, "1 dona narxi"
+              // maydonidan (`.i-unitprice` / `row.dataset.unitprice`) oladi — shuning uchun o'sha
+              // qoida (nusxa yoki saqlangan narx aniqlanmagan -> JORIY narx) shu maydonga ham.
+              // Oldin nusxada Donalik TM eski (saqlangan) narxda, profil / panel / blok esa
+              // joriy narxda qolardi. 'edit' rejimida saqlangan narx o'zgarmaydi (75-band).
+              if ((isDup || _tmSaqlangan === null) && cat === 'dona') {
+                const upTm = row.querySelector('.i-unitprice');
+                if (upTm) {
+                  const fpNarxTm = parseFloat(fp.unit_price) || 0;
+                  upTm.value = formatNum(fpNarxTm);
+                  row.dataset.unitprice = fpNarxTm;
+                }
+              }
               const tg = document.getElementById('fptag-' + row.id);
               if (tg) tg.firstChild.textContent = `🏭 Tayyor mahsulotdan · ${fp.quantity} ${fpUnitLabel(fp.unit)} bor `;
               // fpMax va fpPrice o'rnatildi — narx/tekshiruvni qayta hisoblaymiz
@@ -4992,7 +4907,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     if (isDup) {
       // ── NUSXA OLISH rejimi: bu — ALOHIDA, YANGI buyurtma. Eski
       // buyurtmaning topshirish holati, kelishilgan summa/chegirma va
-      // rejalashtirilgan loy/gips miqdorlari BU YERGA olib kelinmaydi —
+      // rejalashtirilgan loy miqdori BU YERGA olib kelinmaydi —
       // ular yangi (odatda boshqacha) miqdor uchun endi to'g'ri kelmaydi,
       // xodim ularni (kerak bo'lsa) yangidan kiritadi. editMode/currentEditOrderId
       // showNewForm() tomonidan allaqachon to'g'ri (false/null) qilib qo'yilgan.
@@ -5030,7 +4945,13 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 
       // Kelishilgan summa
       const fpEl = document.getElementById('final_price');
-      if (fpEl && order.agreed_amount) fpEl.value = formatNum(order.agreed_amount);
+      // 28-band (kech43): ASL (pul qaytarishdan oldingi) kelishilgan summa — server saqlashda
+      // pul qaytarish kamaytirishini o'zi QAYTA ayiradi. Ilgari joriy summa ko'rsatilardi:
+      // saqlanganda qaytarilgan tovar "chegirma" ga aylanardi, 0 bo'lsa (to'liq qaytgan)
+      // maydon bo'sh qolib, qarz qayta paydo bo'lardi.
+      const _aslKel = order.kelishilgan_asl ?? order.agreed_amount;
+      const _qaytKam = parseFloat(order.pul_qaytarish_kamaytirgan || 0);
+      if (fpEl && _aslKel) fpEl.value = formatNum(_aslKel);
 
       // Chegirma haqida ma'lumot
       if (editDiscountPct > 0) {
@@ -5038,6 +4959,14 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         if (hint) {
           hint.style.display = 'block';
           hint.innerHTML = `💡 Bu buyurtmada <b>${editDiscountPct.toFixed(2)}%</b> chegirma bor. Detallar o'zgarsa — kelishilgan summa shu foiz bo'yicha avtomatik qayta hisoblanadi.`;
+        }
+      }
+      if (_qaytKam > 0.005) {
+        const hint = document.getElementById('discount-auto-hint');
+        if (hint) {
+          hint.style.display = 'block';
+          hint.innerHTML = (editDiscountPct > 0 ? hint.innerHTML + '<br>' : '') +
+            `↩️ Qaytarilgan mahsulot uchun <b>${formatNum(_qaytKam)} so'm</b> kelishilgan summadan ayirilgan. Bu yerda — qaytarishdan OLDINGI summa; saqlanganda ${formatNum(_qaytKam)} so'm yana avtomatik ayiriladi.`;
         }
       }
 
@@ -5050,17 +4979,6 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
           if (loyEl && ld.planned_loy) { loyEl.value = ld.planned_loy; checkLoyStock(); }
         }
       } catch(e) {}
-
-      // GIPS — mavjud buyurtmadagi Gips ma'lumotlarini tiklaymiz
-      if (order.planned_gips_kg || order.gips_inventory_id || (order.gips_additives && order.gips_additives.length)) {
-        checkGipsSectionVisibility();
-        await loadGipsInventoryOptions();
-        const gipsKgEl = document.getElementById('gips_kg');
-        if (gipsKgEl && order.planned_gips_kg) gipsKgEl.value = order.planned_gips_kg;
-        const gipsInvEl = document.getElementById('gips_inventory_id');
-        if (gipsInvEl && order.gips_inventory_id) gipsInvEl.value = order.gips_inventory_id;
-        (order.gips_additives || []).forEach(a => addGipsAdditive(a.inventory_id, a.planned_qty));
-      }
 
       // Zaklat maydonini yashiramiz (tahrirlashda to'lov "To'lovlar" bo'limidan qo'shiladi)
       const zWrap = document.getElementById('zaklat-field-wrap');
@@ -5168,20 +5086,6 @@ function collectItems() {
                    quantity: kerakMetr, unit_price: perMetr, is_coated: isCoated,
                    penoplast_id: penoId, price_per_m3: null, finished_product_id: fpId,
                    notes: `blok_narxi=${blokPrice},blok_yield=${chiqadiPerBlok}` });
-    } else if (type === 'termopanel') {
-      const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
-      // MUHIM: tayyor mahsulotdan olingan bo'lsa (fpId bor) — bazalt/serpiyanka/
-      // kley id'larini YUBORMAYMIZ (null). Aks holda backend ularni xomashyo
-      // deb ayirib, [TERMO:...] belgisi qo'shardi — keyin o'chirishda noto'g'ri
-      // qaytarardi. Tayyor mahsulotning xomashyosi allaqachon ishlab
-      // chiqarishda ayirilgan.
-      items.push({ name, category: 'termopanel', width: null, thickness: null, length: null,
-                   quantity: qty, unit_price: unitP, is_coated: true,
-                   penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
-                   bazalt_item_id: fpId ? null : (parseInt(row.dataset.termoBazaltId) || null),
-                   serpiyanka_item_id: fpId ? null : (parseInt(row.dataset.termoSerpId) || null),
-                   kley_item_id: fpId ? null : (parseInt(row.dataset.termoKleyId) || null),
-                   termo_loy_kg: parseFloat(row.dataset.termoLoy) || 0 });
     } else if (type === 'loy_sotish') {
       const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
       const recipeId = parseInt(row.dataset.loysaleRecipeId) || null;
@@ -5189,21 +5093,19 @@ function collectItems() {
                    quantity: qty, unit_price: unitP, is_coated: false,
                    penoplast_id: null, price_per_m3: null, finished_product_id: null,
                    recipe_id: recipeId });
-    } else if (type === 'gips') {
-      const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
-      const gipsUnit = row.querySelector('.i-gips-unit')?.value || 'metr';
-      items.push({ name, category: 'gips', width: null, thickness: null, length: null,
-                   quantity: qty, unit_price: unitP, is_coated: false,
-                   penoplast_id: null, price_per_m3: null, finished_product_id: fpId,
-                   gips_unit: gipsUnit });
     } else if (type === 'mrp_product') {
       const unitP = parseNum(row.querySelector('.i-unitprice')?.value) || 0;
       const productTypeId = parseInt(row.dataset.mrpProductTypeId) || null;
       const showDims = ['dimensional_3d','area_2d'].includes(row.dataset.mrpInputTemplate);
+      // 11.0-band: qoplama endi HAQIQIY qiymat bilan saqlanadi — ilgari
+      // bu yerda doim `false` yozilardi va ishlab chiqarish qoplama
+      // xomashyosini hech qachon yecholmasdi.
+      const mrpCoated = row.dataset.mrpSupportsCoating === '1'
+        && row.querySelector('.i-c')?.value === 'true';
       items.push({ name, category: 'mrp_product', width: showDims ? h : null,
                    thickness: (row.dataset.mrpInputTemplate === 'dimensional_3d') ? t : null,
                    length: showDims ? l : null,
-                   quantity: qty, unit_price: unitP, is_coated: false,
+                   quantity: qty, unit_price: unitP, is_coated: mrpCoated,
                    penoplast_id: null, price_per_m3: null, finished_product_id: null,
                    product_type_id: productTypeId });
     } else {
@@ -5261,9 +5163,6 @@ async function updateOrder(orderId) {
     agreed_amount: finalPrice || undefined,
     deadline: document.getElementById('deadline_input')?.value || null,
     items,
-    gips_inventory_id: parseInt(document.getElementById('gips_inventory_id')?.value) || null,
-    planned_gips_kg: parseFloat(document.getElementById('gips_kg')?.value) || null,
-    gips_additives: collectGipsAdditives(),
     base_price: parseNum(document.getElementById('base_price')?.value || '0') || null,
     loy_kg: parseFloat(document.getElementById('loy_kg')?.value || '0') || null
   };
@@ -5283,7 +5182,7 @@ async function updateOrder(orderId) {
     if (res.ok) {
       let html = '<b>✓ Buyurtma yangilandi!</b><br>';
       if (result.inventory_log?.length) {
-        html += '<br>📦 Ombor to\'g\'rilandi:<br>' + result.inventory_log.join('<br>');
+        html += '<br>📦 Ombor to\'g\'rilandi:<br>' + result.inventory_log.map(escapeHtml).join('<br>');
       } else {
         html += '<br>📦 Ombor o\'zgarmadi';
       }
@@ -5341,8 +5240,8 @@ async function updateOrder(orderId) {
       }
     } else {
       const det = result.detail || {};
-      let html = '<b>❌ ' + (det.message || 'Xato') + '</b>';
-      if (det.shortages?.length) html += '<br><br>' + det.shortages.map(x=>`• ${x}`).join('<br>');
+      let html = '<b>❌ ' + escapeHtml(det.message || 'Xato') + '</b>';
+      if (det.shortages?.length) html += '<br><br>' + det.shortages.map(x=>`• ${escapeHtml(x)}`).join('<br>');
       if (box) { box.innerHTML = html; box.className = 'result-box error'; box.style.display = 'block'; }
       showMsg('❌ ' + (det.message || 'Xato'), 'error');
     }
@@ -5356,8 +5255,8 @@ function showPromptModal(message, defaultValue = '', options = {}) {
     document.getElementById('genericConfirmIcon').textContent = options.icon || '✏️';
     document.getElementById('genericConfirmTitle').textContent = options.title || "Ma'lumot kiriting";
     document.getElementById('genericConfirmMsg').innerHTML =
-      message.replace(/\n/g, '<br>') +
-      `<input type="${options.type || 'text'}" id="genericPromptInput" value="${defaultValue}" placeholder="${options.placeholder || ''}"
+      escapeHtml(message).replace(/\n/g, '<br>') +
+      `<input type="${options.type || 'text'}" id="genericPromptInput" value="${escapeHtml(defaultValue)}" placeholder="${options.placeholder || ''}"
         style="width:100%;margin-top:12px;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">`;
     const okBtn = document.getElementById('genericConfirmOk');
     const cancelBtn = document.getElementById('genericConfirmCancel');
@@ -5384,20 +5283,37 @@ function showConfirmModal(message, options = {}) {
     const overlay = document.getElementById('genericConfirmOverlay');
     document.getElementById('genericConfirmIcon').textContent = options.danger ? '⚠️' : (options.icon || '❓');
     document.getElementById('genericConfirmTitle').textContent = options.title || 'Tasdiqlang';
-    document.getElementById('genericConfirmMsg').innerHTML = message.replace(/\n/g, '<br>');
+    document.getElementById('genericConfirmMsg').innerHTML = escapeHtml(message).replace(/\n/g, '<br>');
     const okBtn = document.getElementById('genericConfirmOk');
     const cancelBtn = document.getElementById('genericConfirmCancel');
+    // kech38 (12-band): ixtiyoriy UCHINCHI tugma — `options.altText` berilsa
+    // ko'rinadi va natija 'alt' bo'ladi (yuk xatini o'chirishda "To'lovni
+    // saqlab qolish"). Berilmasa (qolgan HAMMA chaqiruvlar) tugma yashirin,
+    // natija avvalgidek faqat true / false. Uch tugmada qator ustunga
+    // aylanadi (asosiy tugma tepada), yopilganda asliga qaytadi.
+    const altBtn = document.getElementById('genericConfirmAlt');
+    const tugmalarQatori = okBtn.parentElement;
     okBtn.textContent = options.okText || "✓ Ha";
     okBtn.style.background = options.danger ? '#DC2626' : '#16A34A';
+    if (altBtn) {
+      altBtn.textContent = options.altText || '';
+      altBtn.style.display = options.altText ? 'block' : 'none';
+    }
+    if (tugmalarQatori && tugmalarQatori.style) {
+      tugmalarQatori.style.flexDirection = (altBtn && options.altText) ? 'column-reverse' : '';
+    }
 
     const cleanup = (result) => {
       overlay.style.display = 'none';
       okBtn.onclick = null;
       cancelBtn.onclick = null;
+      if (altBtn) { altBtn.onclick = null; altBtn.style.display = 'none'; }
+      if (tugmalarQatori && tugmalarQatori.style) tugmalarQatori.style.flexDirection = '';
       resolve(result);
     };
     okBtn.onclick = () => cleanup(true);
     cancelBtn.onclick = () => cleanup(false);
+    if (altBtn && options.altText) altBtn.onclick = () => cleanup('alt');
     overlay.style.display = 'flex';
   });
 }
@@ -5405,7 +5321,7 @@ function showConfirmModal(message, options = {}) {
 async function markReadySelected() {
   if (!selectedOrderId) return;
 
-  // Rejalashtirilgan loy va Gips ma'lumotlarini oldindan yig'amiz
+  // Rejalashtirilgan loy ma'lumotini oldindan yig'amiz
   let planned = 0;
   try {
     const r = await fetch(`/api/orders/${selectedOrderId}/planned-loy`);
@@ -5418,14 +5334,13 @@ async function markReadySelected() {
     if (orderRes.ok) orderData = await orderRes.json();
   } catch(e) {}
 
-  const hasGips = orderData && (orderData.planned_gips_kg || orderData.gips_inventory_id);
-  const gipsAdditives = (orderData && orderData.gips_additives) || [];
-  if (gipsAdditives.length && !gipsInvCache) {
-    try { gipsInvCache = await fetch('/api/inventory').then(r => r.json()); } catch(e) { gipsInvCache = []; }
-  }
-
-  const hasCoatable = (planned > 0) || (orderData && orderData.items && orderData.items.some(it => it.is_coated));
-  _readyModalData = { planned, hasGips, hasCoatable, orderData, gipsAdditives };
+  // kech62 (K62-1): buyurtma loyini sarflovchi detal — backend `_buyurtma_loyi_detalimi` bilan
+  // bir xil (MRP mahsuloti, "Loy sotish" va Tayyor mahsulotdan olingan detal — YO'Q).
+  const hasCoatable = (planned > 0) || (orderData && orderData.items && orderData.items.some(it =>
+    it.is_coated
+    && !['mrp_product', 'loy_sotish'].includes(String(it.category || '').toLowerCase())
+    && !it.finished_product_id));
+  _readyModalData = { planned, hasCoatable, orderData };
 
   // Kartochka ichini quramiz
   const body = document.getElementById('readyModalBody');
@@ -5440,38 +5355,6 @@ async function markReadySelected() {
     </div>`;
   }
 
-  // GIPS
-  if (hasGips) {
-    const plannedGips = orderData.planned_gips_kg || 0;
-    html += `<div style="background:#FCE7F3;border-radius:10px;padding:14px">
-      <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin-bottom:6px">🧱 Haqiqatda necha kg Gips ishlatildi?</label>
-      <div style="font-size:12px;color:#BE185D;margin-bottom:6px">📋 Rejada: ${plannedGips} kg (xomashyo allaqachon ayirilgan)</div>
-      <input type="number" id="rm-gips" value="${plannedGips || ''}" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
-
-      <label style="font-size:13px;font-weight:600;color:#9D174D;display:block;margin:14px 0 6px">🧱 G'isht formasiga solingan? (ixtiyoriy — necha dona)</label>
-      <input type="number" id="rm-gisht" placeholder="0" style="width:100%;padding:11px 12px;border:1.5px solid #F9A8D4;border-radius:9px;font-size:15px;box-sizing:border-box">
-    </div>`;
-
-    // Qo'shimchalar
-    for (const add of gipsAdditives) {
-      const item = (gipsInvCache || []).find(i => i.id === add.inventory_id);
-      const invName = item?.item_name || `Material #${add.inventory_id}`;
-      const unit = (item?.unit || '').toLowerCase();
-      const ratio = item ? parseFloat(item.volume_per_unit) : 0;
-      const isContainer = ratio > 0 && ratio !== 1 && (unit === 'rulon' || unit === 'qop');
-      const naturalUnit = unit === 'rulon' ? 'metr' : 'kg';
-      const displayUnit = isContainer ? naturalUnit : (item?.unit || '');
-      const plannedDisplay = isContainer ? (add.planned_qty * ratio) : add.planned_qty;
-      html += `<div>
-        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:6px">📦 "${invName}" — necha ${displayUnit} ishlatildi?</label>
-        <div style="font-size:12px;color:#94A3B8;margin-bottom:6px">Rejada: ${plannedDisplay.toFixed ? plannedDisplay.toFixed(2) : plannedDisplay} ${displayUnit}</div>
-        <input type="number" class="rm-additive" data-inv-id="${add.inventory_id}" data-ratio="${isContainer ? ratio : ''}"
-               value="${plannedDisplay.toFixed ? plannedDisplay.toFixed(2) : plannedDisplay}" placeholder="0"
-               style="width:100%;padding:11px 12px;border:1.5px solid #E2E8F0;border-radius:9px;font-size:15px;box-sizing:border-box">
-      </div>`;
-    }
-  }
-
   body.innerHTML = html;
   document.getElementById('readyModalOverlay').style.display = 'flex';
 }
@@ -5482,68 +5365,39 @@ function closeReadyModal() {
 
 async function submitReadyModal() {
   const loyKg = document.getElementById('rm-loy')?.value || '';
-  let gipsKg = null, gishtDona = null;
-  const gipsAdditivesActual = [];
-
-  if (_readyModalData?.hasGips) {
-    const gVal = document.getElementById('rm-gips')?.value;
-    if (gVal !== '' && gVal !== undefined) gipsKg = parseFloat(gVal);
-    const ghVal = document.getElementById('rm-gisht')?.value;
-    if (ghVal && parseFloat(ghVal) > 0) gishtDona = parseFloat(ghVal);
-
-    document.querySelectorAll('.rm-additive').forEach(inp => {
-      const invId = parseInt(inp.dataset.invId);
-      const ratio = parseFloat(inp.dataset.ratio);
-      let val = parseFloat(inp.value) || 0;
-      if (ratio > 0) val = val / ratio;
-      if (invId && val >= 0) gipsAdditivesActual.push({ inventory_id: invId, actual_qty: val });
-    });
-  }
 
   closeReadyModal();
 
   let url = `/api/orders/${selectedOrderId}/ready`;
   const qs = [];
   if (loyKg) qs.push(`loy_kg=${parseFloat(loyKg)}`);
-  if (gipsKg !== null) qs.push(`gips_kg=${gipsKg}`);
-  if (gishtDona !== null) qs.push(`gisht_dona=${gishtDona}`);
   if (qs.length) url += '?' + qs.join('&');
   try {
-    const res = await fetch(url, { method:'POST',
-      headers: gipsAdditivesActual.length ? {'Content-Type':'application/json'} : undefined,
-      body: gipsAdditivesActual.length ? JSON.stringify(gipsAdditivesActual) : undefined
-    });
+    const res = await fetch(url, { method:'POST' });
     const result = await res.json();
     const box = document.getElementById('resultBox');
     if (res.ok) {
       let html = '<b>✓ Buyurtma tayyor!</b><br>';
       if (result.auto_delivery) {
-        html += `<br>🚚 ${result.auto_delivery.message}`;
+        html += `<br>🚚 ${escapeHtml(result.auto_delivery.message)}`;
         if (result.auto_delivery.delivery_id) {
           openPdfSafe(`/api/deliveries/${result.auto_delivery.delivery_id}/pdf`);
         }
       }
       if (result.partial_return) {
-        html += `<br>📦 ${result.partial_return.message}`;
+        html += `<br>📦 ${escapeHtml(result.partial_return.message)}`;
       }
       if (result.finalized) {
         const f = result.finalized;
         const clr = f.overpaid ? '#DC2626' : (f.debt > 0 ? '#F59E0B' : '#22C55E');
-        html += `<br><br><div style="border:1.5px solid ${clr};border-radius:8px;padding:10px;color:${clr};font-weight:600">💰 ${f.message}</div>`;
+        html += `<br><br><div style="border:1.5px solid ${clr};border-radius:8px;padding:10px;color:${clr};font-weight:600">💰 ${escapeHtml(f.message)}</div>`;
       }
       if (result.loy_info) {
         const li = result.loy_info;
         const icon = li.action === 'ortdi' ? '🟢' : (li.action === 'qoshimcha' ? '🟠' : '✓');
-        html += `<br>🧱 Loy: reja ${li.planned} kg → haqiqiy ${li.actual} kg<br>${icon} ${li.message}`;
+        html += `<br>🧱 Loy: reja ${li.planned} kg → haqiqiy ${li.actual} kg<br>${icon} ${escapeHtml(li.message)}`;
       }
-      if (result.gips_info) {
-        const gi = result.gips_info;
-        html += `<br>🧱 Gips: reja ${gi.planned} kg → haqiqiy ${gi.actual} kg<br>${gi.message}`;
-      }
-      if (result.gisht_info) {
-        html += `<br>🧱 ${result.gisht_info.message}`;
-      }
-      if (result.inventory_changes?.length) html += '<br><br>📦 Ombor:<br>' + result.inventory_changes.join('<br>');
+      if (result.inventory_changes?.length) html += '<br><br>📦 Ombor:<br>' + result.inventory_changes.map(escapeHtml).join('<br>');
       if (result.master_kpi) {
         const k = result.master_kpi;
         html += `<br><br>👷 Usta KPI: ${formatNum(k.total_kpi)} so'm`;
@@ -5553,8 +5407,8 @@ async function submitReadyModal() {
       setTimeout(()=>location.reload(), 6000);
     } else {
       let html = '<b>❌ Xato!</b><br>';
-      if (result.detail?.shortages) html += result.detail.shortages.join('<br>');
-      else html += result.detail?.message || JSON.stringify(result.detail);
+      if (result.detail?.shortages) html += result.detail.shortages.map(escapeHtml).join('<br>');
+      else html += escapeHtml(result.detail?.message || JSON.stringify(result.detail));
       box.innerHTML = html; box.className = 'result-box error';
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
@@ -5589,8 +5443,7 @@ async function loadProfit() {
   if (d.breakdown && d.breakdown.length) {
     breakdownHTML = d.breakdown.map((b, i) => {
       const ico = b.nomi.toLowerCase().includes('penoplast') ? '🪵' :
-                  b.nomi.toLowerCase().includes('usta') ? '👷' :
-                  b.nomi.toLowerCase().includes('gips') ? '🧱' : '🎨';
+                  b.nomi.toLowerCase().includes('usta') ? '👷' : '🎨';
       const num = String(i + 1).padStart(2, '0');
       // MUHIM: bu, faqat ko'RINISHNI ajratish — b.nomi'ning o'zi
       // o'zgarmaydi, faqat "Nomi (12.3 kg × 4 500 so'm/kg)" ko'rinishidagi
@@ -5603,8 +5456,8 @@ async function loadProfit() {
         <div style="font-size:13px;color:#B8B2A5;font-weight:700;width:20px;flex-shrink:0;margin-top:1px">${num}</div>
         <div style="font-size:17px;flex-shrink:0">${ico}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:14px;font-weight:600;color:#222">${mainName}</div>
-          ${subDetail ? `<div style="font-size:12px;color:#B0AAA0;margin-top:2px">${subDetail}</div>` : ''}
+          <div style="font-size:14px;font-weight:600;color:#222">${escapeHtml(mainName)}</div>
+          ${subDetail ? `<div style="font-size:12px;color:#B0AAA0;margin-top:2px">${escapeHtml(subDetail)}</div>` : ''}
         </div>
         <div style="font-weight:700;color:#DC2626;white-space:nowrap;font-size:14.5px">−${Number(b.summa).toLocaleString('ru-RU')} so'm</div>
       </div>`;
@@ -5754,7 +5607,7 @@ async function deleteSelected() {
       const box = document.getElementById('resultBox');
       if (d.inventory_log?.length) {
         if (box) {
-          box.innerHTML = '<b>✓ Buyurtma o\'chirildi!</b><br><br>♻️ Omborga qaytdi:<br>' + d.inventory_log.join('<br>');
+          box.innerHTML = '<b>✓ Buyurtma o\'chirildi!</b><br><br>♻️ Omborga qaytdi:<br>' + d.inventory_log.map(escapeHtml).join('<br>');
           box.className = 'result-box success';
           box.style.display = 'block';
         }
@@ -5762,7 +5615,7 @@ async function deleteSelected() {
         setTimeout(()=>location.reload(), 3000);
       } else if (d.reason) {
         if (box) {
-          box.innerHTML = '<b>✓ Buyurtma o\'chirildi</b><br><br>ℹ️ ' + d.reason;
+          box.innerHTML = '<b>✓ Buyurtma o\'chirildi</b><br><br>ℹ️ ' + escapeHtml(d.reason);
           box.className = 'result-box';
           box.style.display = 'block';
         }
@@ -5772,7 +5625,12 @@ async function deleteSelected() {
         location.reload();
       }
     } else {
-      showMsg('❌ Xato yuz berdi', 'error');
+      // 17d (2026-09-21): server sababi ko'rsatiladi (masalan "'actual_loy_kg'
+      // manfiy bo'lishi mumkin emas") — ilgari faqat "Xato yuz berdi".
+      const det = d && d.detail;
+      const sabab = (typeof det === 'string' && det) ? det
+                  : ((det && typeof det.message === 'string') ? det.message : 'Xato yuz berdi');
+      showMsg('❌ ' + sabab, 'error');
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
 }
@@ -5798,7 +5656,7 @@ function renderPinnedOrders(rows) {
       : o.status === 'ready' ? '<span class="badge badge-ready" style="font-size:9px">✓ Tayyor</span>'
       : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:9px">Yetkazildi</span>'
       : '<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>';
-    const amount = o.agreed_amount || o.total_amount || 0;
+    const amount = (o.agreed_amount ?? o.total_amount) || 0;  // kech42 K42-1
     const urgencyBorder = o.deadline_urgency === 'overdue' ? 'border-left:3px solid #DC2626'
       : (o.deadline_urgency === 'today' || o.deadline_urgency === 'tomorrow') ? 'border-left:3px solid #F59E0B' : '';
     const urgencyText = o.deadline_urgency === 'overdue' ? '<div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o\'tgan!</div>'
