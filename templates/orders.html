@@ -5540,13 +5540,15 @@ async function deleteSelected() {
   // Buyurtma holatini olamiz
   let info = '';
   let orderNum = selectedOrderId;
-  let hasDelivery = false;
+  // kech77 (95-band): loy so'rovi SERVER rejasidan (`ochirish.loy_sorov` — `api_delete_order` ning proporsional
+  // shoxi bilan AYNAN). Ilgari `hasDelivery` (`o.deliveries` — bu API da YO'Q) ga bog'langan edi: DOIM false,
+  // so'rov HECH QACHON chiqmasdi (O'LCHANDI — `tools/test_tayyor_yuk.py` F11, `tools/test_ochirish_loy.py`).
+  let loyReja = null;
   try {
     const r = await fetch(`/api/orders/${selectedOrderId}`);
     if (r.ok) {
       const o = await r.json();
       orderNum = o.order_number || selectedOrderId;
-      hasDelivery = (o.deliveries?.length || 0) > 0;
 
       // kech75 (93 / 94-band): matn SERVER rejasidan (`ochirish` — `api_delete_order` bilan yagona
       // manba). Ilgari delivered / qisman topshirilgan uchun "hisobotlarda saqlanib qoladi" derdi
@@ -5554,8 +5556,9 @@ async function deleteSelected() {
       // "xomashyo QAYTARILMAYDI" derdi (server qaytaradi). `hasDelivery` (`o.deliveries`) bu API da YO'Q —
       // doim false edi (O'LCHANDI, `tools/test_tayyor_yuk.py` F11): qisman topshirilgan buyurtma "Butunlay
       // o'chiriladi" va "to'lov ham AVTOMATIK o'chadi" deb ko'rinardi (server yumshoq o'chiradi, to'lov qoladi).
-      // Yuk borligi ham rejadan (`oc.yuk_bor`); loy so'rovi (`hasDelivery`) o'zgartirilmadi (95-band).
+      // Yuk borligi ham rejadan (`oc.yuk_bor`); loy so'rovi — kech77 dan `oc.loy_sorov` (95-band, pastda).
       const oc = o.ochirish || {};
+      if (oc.loy_sorov) loyReja = oc;
       let isSoftCase = false;
       if (o.is_draft) {
         info = '\n\n📝 Qoralama — ombordan hech narsa yechilmagan edi. Butunlay o\'chiriladi.';
@@ -5586,39 +5589,32 @@ async function deleteSelected() {
           info += `\n\n⚠️ DIQQAT: ${formatNum(o.paid_amount)} so'm to'lov ham buyurtma bilan BIRGA, AVTOMATIK o'chadi!\n   Agar mijozga hali pulni qaytarib bermagan bo'lsangiz — avval qaytaring, keyin o'chiring.`;
         }
       }
-      if (hasDelivery && !isSoftCase) {
-        info += `\n📦 ${o.deliveries.length} ta yuk xati ham o'chadi.`;
-      }
     }
   } catch(e) {}
 
   if (!await showConfirmModal(`${orderNum} o'chirilsinmi?${info}`, {danger:true, okText:"O'chirish"})) return;
 
-  // Agar rejalashtirilgan loy bo'lsa VA qisman topshirilgan bo'lsa —
-  // "qancha ishlatilgan edi" deb so'raymiz (chunki haqiqiy miqdor rejadan
-  // farq qilishi mumkin). LEKIN hech narsa topshirilmagan bo'lsa — bu
-  // savolni SO'RAMAYMIZ, chunki mijozga hech narsa yetmagan, demak
-  // REJALASHTIRILGAN LOYNING HAMMASI avtomatik omborga qaytishi kerak
-  // (backend buni o'zi, actual_loy_kg berilmasa, to'g'ri bajaradi).
+  // Qisman chiqqan (topshirilgan / omborga ortiqcha qo'yilgan) buyurtmada loy qolgan qism ulushiga qarab
+  // TAXMINAN qaytadi — hodim haqiqatda qancha ishlatilganini bilsa, to'g'rilaydi. Hech narsa chiqmagan bo'lsa
+  // so'ralmaydi (rejaning hammasi qaytadi). Standart qiymat — server taxmini: o'zgartirilmasa (yoki bo'sh)
+  // `actual_loy_kg` YUBORILMAYDI — natija aynan taxminiy (proporsional). "Bekor" — o'chirish BEKOR qilinadi.
   let actualLoyParam = '';
-  if (hasDelivery) {
-    try {
-      const plr = await fetch(`/api/orders/${selectedOrderId}/planned-loy`);
-      if (plr.ok) {
-        const pld = await plr.json();
-        const planned = pld.planned_loy || 0;
-        if (planned > 0) {
-          const actual = await showPromptModal(
-            `🪣 Bu buyurtma uchun rejada ${planned} kg loy bor edi.\n\nHaqiqatda qancha loy ISHLATILGAN edi?\n\n(Ortgan qismi omborga qaytadi. Bilmasangiz — bo'sh qoldiring)`,
-            String(planned),
-            {icon:'🪣', title:'Haqiqiy loy miqdori', type:'number'}
-          );
-          if (actual !== null && actual !== '' && !isNaN(parseFloat(actual))) {
-            actualLoyParam = `?actual_loy_kg=${parseFloat(actual)}`;
-          }
-        }
-      }
-    } catch(e) {}
+  if (loyReja) {
+    const reja = Number(loyReja.loy_reja) || 0;
+    const taxmin = Math.round((Number(loyReja.loy_ishlatilgan_taxmin) || 0) * 100) / 100;
+    const qaytadi = Math.round((Number(loyReja.loy_qaytadi_taxmin) || 0) * 100) / 100;
+    const actual = await showPromptModal(
+      `🪣 Bu buyurtma uchun rejada ${reja} kg loy bor edi.\n\nHaqiqatda qancha loy ISHLATILGAN edi?\n\n`
+      + `Taxmin (topshirilgan qism ulushiga ko'ra): ${taxmin} kg ishlatilgan — o'zgartirmasangiz ${qaytadi} kg omborga qaytadi.\n`
+      + `Boshqa miqdor yozsangiz — rejadan ortgani qaytadi (rejadan ko'p bo'lsa, farqi ombordan yechiladi). Bilmasangiz — bo'sh qoldiring.`,
+      String(taxmin),
+      {icon:'🪣', title:'Haqiqiy loy miqdori', type:'number', okText:"O'chirish"}
+    );
+    if (actual === null) return;
+    const matn = String(actual).trim();
+    if (matn !== '' && !(Number.isFinite(Number(matn)) && Math.abs(Number(matn) - taxmin) < 1e-9)) {
+      actualLoyParam = `?actual_loy_kg=${encodeURIComponent(matn)}`;
+    }
   }
 
   try {
