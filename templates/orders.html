@@ -1106,6 +1106,8 @@ async function restoreDraftLS(draft) {
     // AVVAL turini o'rnatamiz (shu orqali kerakli maydonlar ko'rinadi)
     const typeEl = row.querySelector('.i-type');
     if (typeEl && rowData['i-type']) {
+      // 77-band: qoralama saqlangandan keyin tur o'chirilgan bo'lsa ham — kiritilgani saqlanadi.
+      turVariantiniTaminla(row, rowData['i-type']);
       typeEl.value = rowData['i-type'];
       row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === rowData['i-type']));
       toggleFields(row);
@@ -1416,6 +1418,8 @@ function pickFinished(el, fpId) {
   const knownTypes = ['profil', 'panel', 'dona', 'blok'];
   const effectiveType = knownTypes.includes(fp.category) ? fp.category : 'dona';
   if (typeEl) {
+    // 77-band: blok TM, blok turi korxonada o'chiq — shu qatorga variant (aks holda '' -> narx 0).
+    turVariantiniTaminla(row, effectiveType);
     typeEl.value = effectiveType;
     row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === effectiveType));
     toggleFields(row);
@@ -3041,7 +3045,11 @@ function addItem() {
   // MUHIM: yangi qator ENDI eng birinchi (prepend), shuning uchun "oldingi"
   // qator — konteynerdagi IKKINCHI element.
   const prevRow = container.children[1];
-  const lastType = prevRow ? prevRow.querySelector('.i-type')?.value : null;
+  // 77-band: oldingi qator turi faqat mavjud detal uchun qo'shilgan bo'lsa (korxonada o'chirilgan tur,
+  // `turVariantiniTaminla`) — yangi qatorga O'TMAYDI: yangi detal o'chirilgan turni tanlay olmaydi,
+  // standart (Profil) qoladi. Aks holda `.value` jimgina '' bo'lardi (tur yo'q, narx 0).
+  const lastTypeAsl = prevRow ? prevRow.querySelector('.i-type')?.value : null;
+  const lastType = turVariantiBor(div, lastTypeAsl) ? lastTypeAsl : null;
   if (lastType) {
     const typeSel = div.querySelector('.i-type');
     if (typeSel) typeSel.value = lastType;
@@ -3137,6 +3145,57 @@ function updateTypeConfirmText(row, type) {
   const qSuffix = row.querySelector('.i-q-suffix')?.textContent || '';
   const name = TYPE_DISPLAY_NAME[type] || type;
   el.textContent = `✓ ${name} tanlandi — "${qLabel}" (${qSuffix}) bo'yicha hisoblanadi`;
+}
+
+// ── 77-band (kech68) — korxonada O'CHIRILGAN tur, MAVJUD detal ──────────────────────
+// Ixtiyoriy / eskirgan turlar (`blok`, `loy_sotish`) uchun `.i-type` varianti va `.type-opt`
+// tugmasi shablonda FAQAT korxonada yoqilgan bo'lsa chiziladi (`main.cat_on`; `blok` ESKIRGAN —
+// sozlanmagan korxonada standart O'CHIQ). Mavjud yozuv (tahrir / nusxa, tayyor mahsulot, saqlangan
+// qoralama) shunday turda bo'lsa `select.value = 'blok'` JIMGINA '' bo'lardi. O'LCHANGAN (kech67,
+// `work/probe67_blok.py`): blok detalli buyurtmani ochib hech narsaga tegmay "Saqlash" — kategoriya
+// '', narx 300 000 -> 0, `length` blok soni o'rniga metr (0.5 -> 40), izoh (blok narxi) yo'qoldi,
+// penoplast 0.5 blok SOXTA omborga qaytdi.
+// Endi SHU qatorga variant va tugma qo'shiladi — "mavjud yozuvlar avvalgidek ko'rinadi va
+// hisoblanadi" (main.py, 11.1-band). Boshqa qatorlarga va yangi detal tanloviga QO'SHILMAYDI.
+// `sep` — shablondagi o'rni: shu tartib raqamli `.tur-sep` dan keyin (blok 1-, loy 2-ajratgichdan keyin).
+const TUR_QATOR_VARIANTLARI = {
+  blok:       { variant: 'Blok (butun narxda)',          tugma: '🧊 Blok (butun narxda)',          sep: 0 },
+  loy_sotish: { variant: '🪣 Loy sotish (tayyor holda)', tugma: '🪣 Loy sotish (tayyor holda)', sep: 1 },
+};
+
+// Qatorning yashirin `.i-type` tanlovida shu tur varianti bormi.
+function turVariantiBor(row, cat) {
+  const sel = row ? row.querySelector('.i-type') : null;
+  if (!sel || !cat) return false;
+  return Array.from(sel.options).some(o => o.value === cat);
+}
+
+// Mavjud detal turi shu qatorda tanlanadigan bo'lsin: variant yo'q bo'lsa (korxonada o'chirilgan
+// ixtiyoriy / eskirgan tur) — SHU qatorga variant va tugma qo'shiladi. Natija: tur endi qatorda
+// bormi (true) yoki forma bu turni umuman bilmaydi (false — masalan butunlay olib tashlangan eski tur;
+// unda server bo'sh turni rad etadi, ma'lumot jimgina buzilmaydi).
+function turVariantiniTaminla(row, cat) {
+  if (turVariantiBor(row, cat)) return true;
+  const sel = row ? row.querySelector('.i-type') : null;
+  const t = (cat && Object.prototype.hasOwnProperty.call(TUR_QATOR_VARIANTLARI, cat)) ? TUR_QATOR_VARIANTLARI[cat] : null;
+  if (!sel || !t) return false;
+  const opt = document.createElement('option');
+  opt.value = cat;
+  opt.textContent = t.variant;
+  sel.appendChild(opt);
+  const tg = row.querySelector('.type-toggle');
+  if (tg && !Array.from(tg.querySelectorAll('.type-opt')).some(o => o.dataset.value === cat)) {
+    const b = document.createElement('div');
+    b.className = 'type-opt';
+    b.dataset.value = cat;
+    b.textContent = t.tugma;
+    b.title = "Bu tur korxona sozlamasida o'chirilgan — faqat shu mavjud detal uchun ko'rsatilmoqda";
+    b.onclick = function () { selectTypeOpt(b, cat); };
+    const seplar = Array.from(tg.children).filter(c => c.classList.contains('tur-sep'));
+    const ref = seplar[t.sep] || null;
+    if (ref) tg.insertBefore(b, ref.nextSibling); else tg.appendChild(b);
+  }
+  return true;
 }
 
 function selectTypeOpt(btn, value) {
@@ -4587,6 +4646,8 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
             row.dataset.mrpCoatingMult = pt.coating_price_multiplier || '';
           }
         }
+        // 77-band: korxonada o'chirilgan tur (eskirgan `blok`) — shu qatorga variant (aks holda '').
+        turVariantiniTaminla(row, cat);
         typeEl.value = cat;
         row.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('active', o.dataset.value === cat));
         toggleFields(row);
