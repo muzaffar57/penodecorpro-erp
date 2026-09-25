@@ -254,12 +254,18 @@ def get_top_products_report(db: Session, days: int = 90, limit: int = 15,
     } for r in rows]
 
 
-def get_top_finished_products_sold(db: Session, days: int = 30, limit: int = 5) -> list:
+def get_top_finished_products_sold(db: Session, days: int = 30, limit: int = 5,
+                                   company_id: int = None) -> list:
     """Dashboard uchun — FAQAT 'Tayyor mahsulotlar' bo'limidan sotilgan
     tovarlar (OrderItem.finished_product_id to'ldirilgan, ya'ni buyurtma
     tayyor ombordan berilgan — maxsus buyurtma qilingan detal EMAS).
     Qaytarilgan miqdor (ReturnItem) — nomi va buyurtma ID'si bo'yicha
-    moslashtirilib, sotilgan miqdordan AYRIB tashlanadi. Faqat o'qish."""
+    moslashtirilib, sotilgan miqdordan AYRIB tashlanadi. Faqat o'qish.
+
+    kech78 (98-band): `company_id` YO'Q edi — marshrut korxonasiz chaqirardi, `TENANT_FILTER`
+    o'chiq bo'lsa B korxona admini A ning tayyor mahsulot sotuvlarini (nomi va summasi) ko'rardi
+    (O'LCHANDI, work/probe98.py). Endi `get_top_products_report` dagi kabi: berilsa buyurtma VA
+    qaytarish so'rovi shu korxona bilan cheklanadi (global filtrga tayanmasdan)."""
     from models import OrderItem, Order, OrderStatus, ReturnItem
     from sqlalchemy import func
     from datetime import datetime, timedelta
@@ -278,15 +284,19 @@ def get_top_finished_products_sold(db: Session, days: int = 30, limit: int = 5) 
         # yetkazilgan, lekin "Tayyor" bosilmagan buyurtma shu ro'yxatda bor, oylik hisobotda yo'q edi.
         Order.status == OrderStatus.READY,
         Order.completed_at >= period_start
-    ).group_by(OrderItem.name, OrderItem.order_id).all()
+    )
+    if company_id is not None:
+        sold_rows = sold_rows.filter(Order.company_id == company_id)
+    sold_rows = sold_rows.group_by(OrderItem.name, OrderItem.order_id).all()
 
     # Qaytarishlarni (nomi + buyurtma bo'yicha) yig'amiz, keyin ayiramiz
     returns = db.query(
         ReturnItem.item_name, ReturnItem.order_id,
         func.sum(ReturnItem.quantity).label("ret_qty")
-    ).filter(ReturnItem.returned_at >= period_start).group_by(
-        ReturnItem.item_name, ReturnItem.order_id
-    ).all()
+    ).filter(ReturnItem.returned_at >= period_start)
+    if company_id is not None:
+        returns = returns.filter(ReturnItem.company_id == company_id)
+    returns = returns.group_by(ReturnItem.item_name, ReturnItem.order_id).all()
     returned_map = {(r.item_name, r.order_id): float(r.ret_qty or 0) for r in returns}
 
     totals = {}

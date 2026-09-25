@@ -5335,7 +5335,9 @@ def api_reports_top_products(days: int = 90, limit: int = 15, db: Session = Depe
 @app.get("/api/dashboard/top-finished-products")
 def api_dashboard_top_finished_products(days: int = 30, limit: int = 5, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """Dashboard uchun — faqat Tayyor mahsulotlardan sotilgan tovarlar (qaytganlari ayrilgan)."""
-    return services.get_top_finished_products_sold(db, days=days, limit=limit)
+    # kech78 (98-band): korxona filtri — global `TENANT_FILTER` ga tayanmasdan.
+    return services.get_top_finished_products_sold(
+        db, days=days, limit=limit, company_id=auth.company_id_of(current_user))
 
 
 @app.get("/api/reports/top-materials")
