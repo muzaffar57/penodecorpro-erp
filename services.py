@@ -239,7 +239,10 @@ def get_top_products_report(db: Session, days: int = 90, limit: int = 15,
     if company_id is not None:
         _q = _q.filter(Order.company_id == company_id)
     rows = _q.filter(
-        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
+        # kech76 (97-band, QAROR B — 91-band): hisobotga FAQAT hodim "Tayyor" bosgan (READY) buyurtma
+        # kiradi — oylik hisobot / usta KPI bilan bir xil. Ilgari DELIVERED ham sanalardi: to'liq
+        # yetkazilgan, lekin "Tayyor" bosilmagan buyurtma shu ro'yxatda bor, oylik hisobotda yo'q edi.
+        Order.status == OrderStatus.READY,
         Order.completed_at >= period_start
     ).group_by(OrderItem.name).order_by(func.sum(OrderItem.total_price).desc()).limit(limit).all()
 
@@ -270,7 +273,10 @@ def get_top_finished_products_sold(db: Session, days: int = 30, limit: int = 5) 
         func.sum(OrderItem.quantity).label("qty")
     ).join(Order, OrderItem.order_id == Order.id).filter(
         OrderItem.finished_product_id.isnot(None),
-        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
+        # kech76 (97-band, QAROR B — 91-band): hisobotga FAQAT hodim "Tayyor" bosgan (READY) buyurtma
+        # kiradi — oylik hisobot / usta KPI bilan bir xil. Ilgari DELIVERED ham sanalardi: to'liq
+        # yetkazilgan, lekin "Tayyor" bosilmagan buyurtma shu ro'yxatda bor, oylik hisobotda yo'q edi.
+        Order.status == OrderStatus.READY,
         Order.completed_at >= period_start
     ).group_by(OrderItem.name, OrderItem.order_id).all()
 
@@ -348,7 +354,10 @@ def get_top_customers_report(db: Session, days: int = 90, limit: int = 10, compa
         func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0)).label("revenue"),
         func.count(Order.id).label("orders_count")
     ).join(Project, Order.project_id == Project.id).filter(
-        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]),
+        # kech76 (97-band, QAROR B — 91-band): hisobotga FAQAT hodim "Tayyor" bosgan (READY) buyurtma
+        # kiradi — oylik hisobot / usta KPI bilan bir xil. Ilgari DELIVERED ham sanalardi: to'liq
+        # yetkazilgan, lekin "Tayyor" bosilmagan buyurtma shu ro'yxatda bor, oylik hisobotda yo'q edi.
+        Order.status == OrderStatus.READY,
         Order.completed_at >= period_start,
         *( [Order.company_id == company_id] if company_id is not None else [] )   # M6
     ).group_by(Project.client_name).order_by(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0)).desc()).limit(limit).all()
@@ -2171,7 +2180,10 @@ def get_daily_finance_summary(db: Session, target_date, company_id: int = None) 
     _otq = db.query(Order).filter(
         Order.completed_at >= start,
         Order.completed_at < end,
-        Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED])
+        # kech76 (97-band, QAROR B — 91-band): hisobotga FAQAT hodim "Tayyor" bosgan (READY) buyurtma
+        # kiradi — oylik hisobot / usta KPI bilan bir xil. Ilgari DELIVERED ham sanalardi: to'liq
+        # yetkazilgan, lekin "Tayyor" bosilmagan buyurtma shu ro'yxatda bor, oylik hisobotda yo'q edi.
+        Order.status == OrderStatus.READY
     )
     if company_id is not None:
         _otq = _otq.filter(Order.company_id == company_id)
