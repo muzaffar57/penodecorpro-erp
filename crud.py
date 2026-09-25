@@ -1434,6 +1434,23 @@ def _loyiha_tolangan_yangila(db: Session, project) -> None:
 # ORDER CRUD
 # ============================================================
 
+def _detal_turi_tekshir(items):
+    """77-band (kech68) — detal turi (kategoriya) BO'SH satr bo'lsa: ValueError (aniq sabab).
+
+    O'LCHANGAN (kech67, `work/probe67_blok.py`): `orders.html` da tur varianti yo'q qator (korxonada
+    o'chirilgan eskirgan `blok`) `category: ''` bilan yuborilardi va server QABUL QILARDI —
+    detal narxi 0, uzunlik boshqa ma'noda, penoplast soxta qaytardi. Bo'sh tur hech qachon to'g'ri
+    emas (UI doim tur yuboradi). `None` (maydon berilmagan — API standarti) tegilmaydi.
+    """
+    for n, it in enumerate(items or [], start=1):
+        k = it.get("category") if isinstance(it, dict) else getattr(it, "category", None)
+        if isinstance(k, str) and not k.strip():
+            nom = (it.get("name") if isinstance(it, dict) else getattr(it, "name", None)) or ""
+            raise ValueError(
+                f"{n}-detal («{str(nom)[:60]}»): detal turi ko'rsatilmagan — sahifani yangilab, "
+                f"detal turini (Profil / Panel / Donali ...) tanlang va qayta saqlang")
+
+
 def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
                  company_id: int = None) -> Order:
     """Yangi buyurtma + detallar qo'shadi.
@@ -1470,6 +1487,12 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     # qoldig'i −∞, `1e20` → −5×10¹⁹, `true` → 1 kg. Sxema (pydantic) ham
     # rad etadi — bu ildiz to'sig'i sxemani chetlab chaqirilganda ishlaydi.
     _json_loy("loy_kg", getattr(order_data, 'loy_kg', None))
+    # 77-band (kech68): bo'sh detal turi — HECH NARSA yozilishidan OLDIN rad (ildiz to'sig'i).
+    try:
+        _detal_turi_tekshir(getattr(order_data, "items", None))
+    except ValueError as _e_tur:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(_e_tur))
 
     # 2026-09-17 (audit topilmasi — haqiqiy, nozik xato): pastdagi
     # "so'nggi soniyalarda bir xil buyurtma bormi" tekshiruvi o'zi
@@ -6365,6 +6388,12 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     """
     import services
     import re
+
+    # 77-band (kech68): bo'sh detal turi — qulf va HECH NARSA o'zgarishidan OLDIN rad.
+    try:
+        _detal_turi_tekshir(getattr(order_data, "items", None))
+    except ValueError as _e_tur:
+        return {"success": False, "message": str(_e_tur)}
 
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:

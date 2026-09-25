@@ -4517,6 +4517,8 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
     try:
         _loy_q = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
         crud._json_loy("loy_kg", order.loy_kg)
+        # 77-band (kech68): bo'sh detal turi — yetishmovchilik tekshiruvi (409) dan ham OLDIN.
+        crud._detal_turi_tekshir(order.items)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if order.loy_kg is None and _loy_q is not None:
