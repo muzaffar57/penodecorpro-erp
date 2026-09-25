@@ -199,6 +199,13 @@ def get_order_mrp_readiness(db: Session, order_id: int) -> dict:
     for item in mrp_items:
         # kech72 (85-band): topshirilgan va ombordan olingan qism ham hisobga olinadi (yagona qoida).
         k = mrp_detal_kerak(db, item)
+        # kech80 (88-band — O'LCHANGAN, `work/probe88.py`): BAND qilingan — hali TAYYOR degani emas.
+        # Band ishlab chiqarish BOSHLANGANDA qo'yiladi; yakunlanmagan (IN_PROGRESS) ishlab chiqarish
+        # «✅ MRP: tayyor» ko'rsatardi, «Tayyor» tugmasi esa 400 berardi. «Tayyor» tugmasi va yuk xati
+        # bilan AYNAN bir xil shart — `crud.mrp_topshirish_holati` (`mrp_tayyor_yetadimi`).
+        # `remaining_quantity` (hali ishlab chiqarib band qilish kerak) — O'ZGARMADI: jarayondagi band
+        # yangi ishlab chiqarishni talab qilmaydi (ro'yxat / PO yaratish ham shu qoidada).
+        _th = crud.mrp_topshirish_holati(db, item)
         needed = float(item.quantity or 0)
         remaining = k["kerak"]
         lines.append({
@@ -208,12 +215,28 @@ def get_order_mrp_readiness(db: Session, order_id: int) -> dict:
             "reserved_quantity": k["band"],
             "delivered_quantity": k["topshirilgan"],
             "remaining_quantity": max(0.0, remaining),
-            "is_ready": remaining <= 0.0001,
+            "tayyor_quantity": _th["tayyor"],
+            "ishlab_chiqarilmoqda": _th["jarayonda"],
+            "is_ready": remaining <= 0.0001 and _th["yetadi"],
         })
 
+    fully_ready = all(l["is_ready"] for l in lines)
+    # kech80 (88-band): UI uchun uchta holat —
+    #   "tayyor"               — hamma MRP detali ishlab chiqarilgan, topshirishga tayyor;
+    #   "ishlab_chiqarilmoqda" — hammasi band qilingan, tayyor bo'lmagan qism faqat JARAYONDAGI ishlab
+    #                            chiqarishda (yangi ishlab chiqarish kerak EMAS — boshlanganini yakunlash);
+    #   "kutilmoqda"           — hali ishlab chiqarib band qilish kerak (yoki boshqa sabab).
+    if fully_ready:
+        holat = "tayyor"
+    elif all(l["is_ready"] or (l["remaining_quantity"] <= 0.0001 and l["ishlab_chiqarilmoqda"] > 0.0001)
+             for l in lines):
+        holat = "ishlab_chiqarilmoqda"
+    else:
+        holat = "kutilmoqda"
     return {
         "applicable": True,
-        "fully_ready": all(l["is_ready"] for l in lines),
+        "fully_ready": fully_ready,
+        "holat": holat,
         "items": lines,
     }
 

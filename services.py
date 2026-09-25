@@ -1295,7 +1295,9 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 _kerak = float(_it.remaining_qty or 0)
                 if _kerak > 0.001:
                     _tayyor = _crud_qulf._mrp_tayyor_qoldiq(db, _it, order.company_id, lock=False)
-                    if _kerak > _tayyor + 0.001:
+                    # kech80 (88-band): shart YAGONA yordamchida — buyurtmadagi «MRP: tayyor» belgisi ham
+                    # aynan shu shart bilan (`crud.mrp_topshirish_holati`).
+                    if not _crud_qulf.mrp_tayyor_yetadimi(_kerak, _tayyor):
                         _mrp_kam.append(f"{_it.name}: kerak {_kerak:g}, tayyor {_tayyor:g}")
         if _mrp_kam:
             return {"success": False,

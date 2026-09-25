@@ -7053,6 +7053,42 @@ def _mrp_tayyor_qoldiq(db: Session, order_item, company_id: int = None, lock: bo
                if _fp_tayyormi(fp))
 
 
+def mrp_tayyor_yetadimi(qolgan: float, tayyor: float) -> bool:
+    """kech80 (88-band): MRP detalining hali topshirilishi kerak bo'lgan qoldig'i (`qolgan`) TAYYOR
+    (ishlab chiqarilgan) mahsulot bilan to'liq qoplanadimi — YAGONA shart. «Tayyor» tugmasi
+    (`services.complete_order`) va buyurtmadagi «MRP: tayyor» belgisi
+    (`production_service.get_order_mrp_readiness`, `mrp_topshirish_holati` orqali) shu funksiyadan;
+    yuk xati (`create_delivery` `mrp_kam`) ham xuddi shu chegara (tayyor + 0.001) bilan."""
+    return not (qolgan > 0.001 and qolgan > tayyor + 0.001)
+
+
+def mrp_topshirish_holati(db: Session, order_item, company_id: int = None, lock: bool = False) -> dict:
+    """kech80 (88-band — O'LCHANGAN, `work/probe88.py`): MRP detali topshirishga TAYYORMI.
+
+    Ilgari buyurtmadagi belgi faqat BAND qilinganini tekshirardi (`production_service.mrp_detal_kerak`),
+    band esa ishlab chiqarish BOSHLANGANDA qo'yiladi — ishlab chiqarish hali yakunlanmagan
+    (IN_PROGRESS) detal ham «✅ MRP: tayyor» ko'rinardi, «Tayyor» tugmasi esa 400 berardi
+    («… kerak 5, tayyor 0»); 3 tayyor + 2 jarayonda — xuddi shunday.
+
+    Qaytaradi:
+      qolgan    — hali topshirilishi kerak (`OrderItem.remaining_qty` — yetkazish oynasidagi «qolgan»);
+      tayyor    — shu detalga band qilingan TAYYOR TM lar qoldig'i (`_mrp_tayyor_qoldiq` — yuk xati va
+                  «Tayyor» tugmasi bilan AYNAN bir xil manba);
+      jarayonda — JARAYONDAGI TM lar bandi (ishlab chiqarish boshlangan, yakunlanmagan);
+      yetadi    — `mrp_tayyor_yetadimi(qolgan, tayyor)`.
+    MRP orqali yetkazilmaydigan detal (ombordagi TM dan olingan / MRP emas) — qolgan 0, yetadi True
+    (unga ishlab chiqarish kutilmaydi, «Tayyor» tugmasi ham uni tekshirmaydi)."""
+    if not _mrp_yetkazish_detalimi(order_item):
+        return {"qolgan": 0.0, "tayyor": 0.0, "jarayonda": 0.0, "yetadi": True}
+    qolgan = float(order_item.remaining_qty or 0)
+    tayyor = float(_mrp_tayyor_qoldiq(db, order_item, company_id, lock))
+    jarayonda = float(sum(float(fp.reserved_quantity or 0)
+                          for fp in _mrp_band_tmlar(db, order_item, company_id, lock=False)
+                          if not _fp_tayyormi(fp)))
+    return {"qolgan": qolgan, "tayyor": tayyor, "jarayonda": jarayonda,
+            "yetadi": mrp_tayyor_yetadimi(qolgan, tayyor)}
+
+
 def _mrp_olingan_oqi(delivery_item):
     """`DeliveryItem.mrp_olingan` → [(tm_id, miqdor), ...]; yozilmagan (eski) / buzilgan → None."""
     xom = getattr(delivery_item, 'mrp_olingan', None)
