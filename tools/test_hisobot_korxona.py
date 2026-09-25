@@ -65,6 +65,24 @@ from fastapi.routing import APIRoute               # noqa: E402
 from reportlab import rl_config                    # noqa: E402
 
 rl_config.invariant = 1   # PDF javoblari bayt-baytga takrorlanadi (sana / ID doimiy) — S bo'limi uchun
+# kech81 (K81-1 — O'LCHANGAN: s81 etalonida S1 1 marta `/api/finance/report-pdf` bilan yiqildi, qayta yurgizishda
+# 32 / 32): PDF pastki qatorida joriy vaqt DAQIQA aniqligida (`finance_pdf` "Yaratildi: dd.mm.YYYY HH:MM",
+# `delivery_pdf` / `pdf_service` ham) — OLDIN va KEYIN o'lchovlari daqiqa chegarasini kesib o'tsa javob farq
+# qiladi. Test uchun shu uch modulning `datetime.now` i muzlatiladi (korxona sizishiga sezgirlik o'zgarmaydi).
+import delivery_pdf as _dpdf                       # noqa: E402
+import finance_pdf as _fpdf                        # noqa: E402
+import pdf_service as _ppdf                        # noqa: E402
+
+
+class _MuzlaganVaqt(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return datetime(2026, 1, 15, 12, 0, 0, tzinfo=tz)
+
+
+for _pm in (_dpdf, _fpdf, _ppdf):
+    if getattr(_pm, "datetime", None) is datetime:
+        _pm.datetime = _MuzlaganVaqt
 
 YORLIQ = "[PG] " if PG_URL else ""
 OK = FAIL = 0
