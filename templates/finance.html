@@ -897,6 +897,13 @@ function buildExpDetail(d){
         <span class="fin-exp-val" style="color:#EF4444">${fmtFull(d.brak_xarajat||0)} so'm</span>
       </div>`;
   }
+  // kech87 (104-band): korxona to'lagan transport — sof foydadan ayriladi (jami xarajat ichida)
+  if ((d.transport_xarajat||0) > 0) {
+    tailHtml += `<div class="fin-exp-row">
+        <span class="fin-exp-name" style="color:#D97706">🚚 Transport (kirish + yetkazish)</span>
+        <span class="fin-exp-val" style="color:#D97706">${fmtFull(d.transport_xarajat||0)} so'm</span>
+      </div>`;
+  }
   tailHtml += `<div class="fin-total-row"><span>Jami xarajat:</span><span style="color:var(--f-danger)">${fmtFull(d.jami_xarajat+(d.ishlab_chiqarish_xarajat||0))} so'm</span></div>
     <div class="fin-total-row" style="margin-top:6px;border-top:none;padding-top:0"><span>Jami daromad:</span><span style="color:var(--f-success)">${fmtFull(d.daromad)} so'm</span></div>`;
 
@@ -980,7 +987,7 @@ function initDailyTx(){
 }
 
 const CAT_LABELS = {arenda:'Arenda', elektr:'Elektr', tushlik:'Tushlik', soliqlar:'Soliqlar', reklama:'Reklama', kutilmagan:'Kutilmagan xarajat', boshqa:'Boshqa'};
-const SOURCE_LABELS = {monthly_form:'Oylik forma', manual:'Qo\'lda kiritilgan'};
+const SOURCE_LABELS = {monthly_form:'Oylik forma', manual:'Qo\'lda kiritilgan', inventory_receipt:'Kirim hujjati', kirim_tannarx:'Kirim (tannarxda)'};
 const CAT_ICONS = {arenda:'🏠', elektr:'⚡', tushlik:'🍽️', soliqlar:'📋', reklama:'📢', kutilmagan:'⚠️', boshqa:'📦'};
 
 async function loadDailyTransactions(){
