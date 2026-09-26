@@ -238,7 +238,10 @@ for _r in main.app.routes:
                 _ok = False
         if _ok:
             YOLLAR.append((_r.path, _par))
-SHOVQIN = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?|\d\d:\d\d:\d\d")
+# kech88 (106-band, O'LCHANGAN — kech87 tf1: S1 bir marta `/users` bilan yiqildi): sahifalarda daqiqa aniqligidagi
+# joriy vaqt ham bor (`main.users_page` — `now` "dd.mm.YYYY HH:MM") — OLDIN / KEYIN o'lchovlari daqiqa chegarasini
+# kesib o'tsa javob farq qiladi. Shu shakl ham normallashtiriladi (S0 — deterministik tekshiruv).
+SHOVQIN = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?|\d\d:\d\d:\d\d|\d\d\.\d\d\.\d{4} \d\d:\d\d")
 
 
 def surat(c):
@@ -333,6 +336,10 @@ _s.close()
 section("S — umumiy sizish darvozasi (A ning HAMMA parametrsiz GET javoblari)")
 _ozgargan = sorted(p for p in OLDIN if OLDIN[p] != KEYIN.get(p))
 print(f"  yo'llar: {len(YOLLAR)}   o'zgargan: {_ozgargan}")
+# kech88 (106-band): daqiqa chegarasi deterministik — ikki xil daqiqali vaqt bir xil normallashadi (asl regex bilan yiqiladi)
+check("S0 shovqin: daqiqasi farqli sahifa vaqti (dd.mm.YYYY HH:MM) bir xil normallashadi",
+      SHOVQIN.sub("T", "Yangilandi: 26.09.2026 08:45 |") == SHOVQIN.sub("T", "Yangilandi: 26.09.2026 08:46 |")
+      and SHOVQIN.sub("T", "ORD-051-7 12.50") == "ORD-051-7 12.50")
 check("S1 B korxona ma'lumoti qo'shilgach A ning birorta GET javobi O'ZGARMADI", not _ozgargan, _ozgargan)
 check(f"S2 yo'llar soni yetarli (>= 90; hozir {len(YOLLAR)})", len(YOLLAR) >= 90, len(YOLLAR))
 _b_ozi = sorted(p for p, v in B_SURAT.items() if "HK mijoz B" in v or "HK detal B" in v or "HK material B" in v)
