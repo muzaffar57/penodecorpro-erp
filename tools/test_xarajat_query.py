@@ -505,7 +505,10 @@ for nom, raw in YOMON_AG:
 for nom, qiymat, chegirma, holati in [("800 (chegirma 20 %)", 800, 20.0, "unpaid"),
                                       ("1000 (chegirmasiz)", 1000, 0.0, "unpaid"),
                                       ("1500 (jamidan ko'p)", 1500, 0.0, "unpaid"),
-                                      ("0.01 (eng kichik)", 0.01, 100.0, "unpaid"),
+                                      # kech92 (119-band): qoldiq 0.5 so'mdan oshmasa — qarz yo'q
+                                      # (`models.QARZ_BARDOSH`, K42-1 kengaydi) — 0.01 so'mlik
+                                      # kelishilgan, to'lovsiz — "to'langan" (hisob yopiq).
+                                      ("0.01 (eng kichik)", 0.01, 100.0, "paid"),
                                       ("999.5 (kasr)", 999.5, 0.05, "unpaid")]:
     tikla()
     r = xom(C, "put", f"/api/orders/{O_ID}/agreed-amount", json.dumps({"agreed_amount": qiymat}))
