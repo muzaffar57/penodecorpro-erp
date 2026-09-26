@@ -372,8 +372,9 @@
           <div class="fin-card-body">
             <div class="fin-section-title" style="margin-bottom:12px"><i class="ti ti-cash"></i> Naqd xarajatlar <span style="font-weight:400;color:var(--f-text3);font-size:13px">— bu oy</span></div>
             <div class="fin-info-note">
-              Bu ko'rsatkich <b>Sof foyda</b>ga kirmaydi — chunki bu shu oy <b>sotib olingan</b> xomashyo puli,
+              Bu — shu oy <b>chiqib ketgan</b> pul. Xomashyo xaridi <b>Sof foyda</b>ga to'g'ridan-to'g'ri kirmaydi — bu shu oy <b>sotib olingan</b> xomashyo puli,
               "Ishlab chiqarish xarajati" esa shu oy <b>tugagan buyurtmalarga sarflangan</b> xomashyo tan narxi.
+              Transport va kirim hujjati xarajatlari Sof foydada o'z qatorida (yoki xomashyo tannarxida) hisoblangan.
             </div>
             <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
               <span id="cash-total" style="font-size:19px;font-weight:800;color:var(--f-warning)">—</span>
@@ -381,6 +382,7 @@
             <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-shopping-cart" style="font-size:13px"></i> Xomashyo xaridi</span><span class="fin-exp-val" id="cash-purchase">—</span></div>
             <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kirish)</span><span class="fin-exp-val" id="cash-tr-in">—</span></div>
             <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-truck" style="font-size:13px"></i> Transport (kompaniya ulushi)</span><span class="fin-exp-val" id="cash-tr-out">—</span></div>
+            <div class="fin-exp-row"><span class="fin-exp-name"><i class="ti ti-file-invoice" style="font-size:13px"></i> Kirim hujjati xarajatlari (transport, tushirish, yuklash)</span><span class="fin-exp-val" id="cash-kirim">—</span></div>
             <div id="cash-by-material" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--f-border);font-size:13px;color:var(--f-text3);display:none"></div>
           </div>
         </div>
@@ -770,6 +772,8 @@ function buildCashSection(d){
   document.getElementById('cash-purchase').textContent = fmtFull(d.xomashyo_xaridi||0) + " so'm";
   document.getElementById('cash-tr-in').textContent = fmtFull(d.transport_kirish||0) + " so'm";
   document.getElementById('cash-tr-out').textContent = fmtFull(d.transport_chiqish_company||0) + " so'm";
+  // kech88 (105-band): kirim hujjatining qo'shimcha xarajatlari (naqd jamida bor)
+  document.getElementById('cash-kirim').textContent = fmtFull(d.kirim_xarajatlari||0) + " so'm";
 
   const box = document.getElementById('cash-by-material');
   if (d.xomashyo_by_material && d.xomashyo_by_material.length) {
