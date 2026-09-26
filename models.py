@@ -1970,6 +1970,11 @@ class OrderAttachment(Base):
 # Ustun `String(20)` — qiymat 13 belgi.
 KIRIM_TANNARX_MANBA = "kirim_tannarx"
 
+# kech88 (105-band): kirim hujjatining TANNARXGA QO'SHILMAGAN qo'shimcha xarajati (`crud.create_inventory_receipt`
+# shu qiymatni yozadi — 2026-07 dan beri). Bunday yozuv oylik hisobotda "qo'shimcha xarajat" sifatida sof foydadan
+# ayriladi; "Naqd xarajatlar" ko'rsatkichi ikkala manbani (shu va `KIRIM_TANNARX_MANBA`) chiqib ketgan pul deb sanaydi.
+KIRIM_XARAJAT_MANBA = "inventory_receipt"
+
 
 class ExpenseTransaction(Base):
     """Har bir xarajatni ALOHIDA tranzaksiya sifatida saqlaydi (SaaS arxitekturasi uchun).

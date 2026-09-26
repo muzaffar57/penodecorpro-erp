@@ -3014,7 +3014,26 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     xomashyo_xaridi = purchase_stats["total_amount"]
     transport_kirish = transport_stats["inbound_total"]
     transport_chiqish = transport_stats["outbound_company"]
-    naqd_xarajat_jami = xomashyo_xaridi + transport_kirish + transport_chiqish
+    # kech88 (105-band, O'LCHANGAN — probe105 K1 / K2 / K4 / K6): kirim hujjatining qo'shimcha xarajatlari
+    # (transport / tushirish / yuklash / boshqa) ham shu oy chiqib ketgan pul — ilgari bu ko'rsatkichga KIRMASDI
+    # (kunlik xarajatda esa kirardi). Ikkala tur sanaladi: tannarxga qo'shilmagan (`KIRIM_XARAJAT_MANBA` — sof foydada
+    # "qo'shimcha xarajat") va tannarxga qo'shilgan (`KIRIM_TANNARX_MANBA` — xomashyo narxida). Qo'lda yozilgan
+    # xarajat (manba "manual") bu yerga KIRMAYDI — kategoriyasi "transport_kirim" bo'lsa ham (probe105 K5).
+    # `kirim_xarajatlari_jamida` — shulardan `jami_xarajat` ICHIDA ham bor qismi (bosh sahifa "Chiqim" i uni ikki
+    # marta qo'shmasligi uchun).
+    from models import KIRIM_XARAJAT_MANBA as _KXM_nq, KIRIM_TANNARX_MANBA as _KTM_nq
+    _kx_rows = db.query(
+        ExpenseTransaction.source, _func.sum(ExpenseTransaction.amount)
+    ).filter(
+        _extract('year', ExpenseTransaction.date) == year,
+        _extract('month', ExpenseTransaction.date) == month,
+        ExpenseTransaction.source.in_([_KXM_nq, _KTM_nq]),
+        *( [ExpenseTransaction.company_id == company_id] if company_id is not None else [] )  # M6
+    ).group_by(ExpenseTransaction.source).all()
+    _kx = {src: float(total or 0) for src, total in _kx_rows}
+    kirim_xarajatlari = round(sum(_kx.values()))
+    kirim_xarajatlari_jamida = float(_kx.get(_KXM_nq, 0.0))
+    naqd_xarajat_jami = xomashyo_xaridi + transport_kirish + transport_chiqish + kirim_xarajatlari
 
     # ── 6. TURLAR BO'YICHA TAQSIMOT (informatsion, faqat ko'rsatish uchun) ──
     # Daromad — har bir detalning ulushi bo'yicha (kelishilgan summaga mos
@@ -3129,6 +3148,9 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         "transport_xarajat_kirish": transport_xarajat_kirish,
         "transport_xarajat_yetkazish": transport_xarajat_yetkazish,
         "naqd_xarajat_jami": naqd_xarajat_jami,
+        # kech88 (105-band): kirim hujjati qo'shimcha xarajatlari (naqd ichida) va ularning jami_xarajat dagi qismi
+        "kirim_xarajatlari": kirim_xarajatlari,
+        "kirim_xarajatlari_jamida": kirim_xarajatlari_jamida,
     }
 
 
@@ -3377,9 +3399,24 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
     if company_id is not None:
         _meq = _meq.filter(MonthlyExpense.company_id == company_id)
     me_rows = _meq.all()
+    # kech88 (108-band, O'LCHANGAN — probe105b C7): eski oylik forma (`save_monthly_expense`) arenda / elektr /
+    # tushlik / soliqni IKKI joyga yozadi — `MonthlyExpense` qatori VA `monthly_form` manbali `ExpenseTransaction`.
+    # Kassa ikkalasini ham ayirardi (1 000 so'mlik arenda → −2 000). Endi oylik hisobot qoidasi
+    # (`_monthly_category_amount`) bilan bir xil: shu oy / kategoriya uchun BIRORTA tranzaksiya bo'lsa — faqat
+    # tranzaksiyalar (ular pastdagi `chiqim_qoshimcha` da), bo'lmasa — `MonthlyExpense` qiymati (eski oy, C8).
+    from sqlalchemy import extract as _extract_cash
+    _OYLIK_KAT = ("arenda", "elektr", "tushlik", "soliqlar")
+    _mtq = db.query(
+        _extract_cash('year', ExpenseTransaction.date), _extract_cash('month', ExpenseTransaction.date),
+        ExpenseTransaction.category
+    ).filter(ExpenseTransaction.category.in_(_OYLIK_KAT))
+    if company_id is not None:
+        _mtq = _mtq.filter(ExpenseTransaction.company_id == company_id)
+    _tranzaksiyali = {(int(y), int(mo), cat) for y, mo, cat in _mtq.distinct().all()}
     chiqim_oylik = sum(
-        float(m.arenda or 0) + float(m.elektr or 0) + float(m.tushlik or 0) + float(m.soliqlar or 0)
-        for m in me_rows
+        float(getattr(m, cat) or 0)
+        for m in me_rows for cat in _OYLIK_KAT
+        if (int(m.year), int(m.month), cat) not in _tranzaksiyali
     )
     _etq = db.query(func.sum(ExpenseTransaction.amount))
     if company_id is not None:
@@ -3390,6 +3427,17 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
     if company_id is not None:
         _teq = _teq.filter(TransportExpense.company_id == company_id)
     chiqim_transport = float(_teq.scalar() or 0)
+
+    # kech88 (107-band, O'LCHANGAN — probe105b C4 / C5; 104-band QARORI: korxona to'lagan yetkazish transporti —
+    # xarajat): mijozga yuk yetkazishda korxona to'lagan qism ("company" — to'liq, "split" — yarmi,
+    # `Delivery.company_transport_cost` — oylik hisobot bilan AYNAN bir qoida) kassadan chiqib ketgan pul. Ilgari
+    # kassada umuman YO'Q edi (sinovda 625 000 so'm). Yuk xati o'chirilsa — yozuv yo'qoladi, pul qaytadi.
+    from models import Delivery as _Dlv_cash
+    _dvq = db.query(_Dlv_cash).filter(_Dlv_cash.transport_cost > 0)
+    if company_id is not None:      # M6: ota (buyurtma) orqali
+        _dvq = _dvq.join(_Ord_cash, _Ord_cash.id == _Dlv_cash.order_id).filter(
+            _Ord_cash.company_id == company_id)
+    chiqim_yetkazish_transport = float(sum(float(d.company_transport_cost or 0) for d in _dvq.all()))
     # M5 — avans yig'indisi: `EmployeeAdvance`da company_id ustuni yo'q,
     # tenant otasi (Employee) orqali cheklanadi.
     _avq = db.query(func.sum(EmployeeAdvance.amount))
@@ -3406,7 +3454,8 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
 
     jami_kirim = kirim_tolov + kirim_tayyor_sotuv
     jami_chiqim = (chiqim_xomashyo_naqd + chiqim_yetkazib_beruvchi + chiqim_oylik +
-                   chiqim_qoshimcha + chiqim_transport + chiqim_avans)
+                   chiqim_qoshimcha + chiqim_transport + chiqim_avans +
+                   chiqim_yetkazish_transport)
 
     balance = jami_kirim - jami_chiqim + qolda_jami
 
@@ -3419,6 +3468,7 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
         "chiqim_oylik": round(chiqim_oylik),
         "chiqim_qoshimcha": round(chiqim_qoshimcha),
         "chiqim_transport": round(chiqim_transport),
+        "chiqim_yetkazish_transport": round(chiqim_yetkazish_transport),
         "chiqim_avans": round(chiqim_avans),
         "qolda_jami": round(qolda_jami),
     }
