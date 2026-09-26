@@ -10,8 +10,6 @@
   "crud.py:1131 db.query(RecipeIngredient) — korxona filtri yo'q (funksiya: update_recipe) │ db.query(RecipeIngredient).filter(RecipeIngredient.recipe_id == recipe_id).delete()",
   "crud.py:1406 db.query(Order) — korxona filtri yo'q (funksiya: create_order) │ _recent_order = db.query(Order).filter(",
   "crud.py:1430 db.query(Project) — korxona filtri yo'q (funksiya: create_order) │ _project = db.query(Project).filter(Project.id == order_data.project_id).first()",
-  "crud.py:1453 db.query(Order) — korxona filtri yo'q (funksiya: create_order) │ _mavjud = db.query(Order.order_number).filter(",
-  "crud.py:1472 db.query(Order) — korxona filtri yo'q (funksiya: create_order) │ seq = db.query(Order).filter(Order.project_id == order_data.project_id).count() + 1 + attempt",
   "crud.py:1671 db.query(FinishedProduct) — korxona filtri yo'q (funksiya: _fp_for_tenant) │ fp = db.query(FinishedProduct).filter(FinishedProduct.id == fp_id).first()",
   "crud.py:231 db.query(InventoryPurchase) — korxona filtri yo'q (funksiya: add_item) │ has_purchase = db.query(InventoryPurchase).filter(",
   "crud.py:3347 db.query(OrderItem) — korxona filtri yo'q (funksiya: check_financial_consistency) │ items = db.query(OrderItem).filter(OrderItem.order_id == o.id).all()",
