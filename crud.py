@@ -5604,21 +5604,27 @@ def get_return_stats(db: Session, company_id: int = None) -> dict:
 # ============================================================
 
 from models import Payment, PaymentType, PaymentMethod, PaymentStatus
+from models import QARZ_BARDOSH, pul_tiyin, pul_tiyin_yigindi
 from schemas import PaymentCreate
 
 
 def _update_order_payment_status(db: Session, order: Order) -> None:
     """Buyurtmaning to'lov holatini yangilaydi.
     Qarz to'liq to'lansa — avtomatik arxivga o'tkazadi."""
-    agreed = order.kelishilgan_summa
-    paid = sum(float(p.amount or 0) for p in (order.payments or []))
+    # kech92 (119-band, O'LCHANGAN — `models.QARZ_BARDOSH` izohi): summalar
+    # tiyin aniqligida, qoldiq 0.5 so'mdan oshmasa — qarz yo'q (`debt_amount`
+    # bilan AYNAN bir qoida). Ilgari `float` yig'indi QAT'IY solishtirilardi:
+    # to'liq to'langan buyurtma qarzi 1.2e-11 / 0.40000000002 bilan "qisman"
+    # qolib, arxivga o'tmasdi.
+    agreed = pul_tiyin(order.kelishilgan_summa)
+    paid = order.paid_amount
     total = float(order.total_amount or 0)
 
     # kech42 (K42-1): kelishilgan summa 0 (hammasi qaytarilgan / qarz to'liq
     # kechirilgan) va mijozdan qarz yo'q — hisob yopiq. Ilgari bu holda 0
     # "kiritilmagan" deb olinib, jami summa bo'yicha "to'lanmagan" chiqardi.
     # `total > 0` — bo'sh (0 so'mlik) yangi buyurtma arxivga tushib qolmasin.
-    if agreed <= 0.005 and total > 0 and paid >= -0.005:
+    if agreed <= QARZ_BARDOSH and total > 0 and paid >= -0.005:
         order.payment_status = PaymentStatus.PAID
         order.is_archived = True
         if not order.closed_at:
@@ -5627,7 +5633,7 @@ def _update_order_payment_status(db: Session, order: Order) -> None:
         order.payment_status = PaymentStatus.UNPAID
         order.is_archived = False
         order.closed_at = None
-    elif paid < agreed:
+    elif pul_tiyin(agreed - paid) > QARZ_BARDOSH:
         order.payment_status = PaymentStatus.PARTIAL
         order.is_archived = False
         order.closed_at = None
@@ -5706,10 +5712,15 @@ def _tolov_chegarasi(order, summa: float, confirm_overpay: bool) -> None:
             f"Iltimos, summani tekshirib qayta kiriting."
         )
     current_debt = order.debt_amount
-    if float(summa) > current_debt and not confirm_overpay:
+    # kech92 (119-band, O'LCHANGAN): kelishilgan 461 538.75 da UI ko'rsatgan
+    # qarz (butun so'm) 461 539 to'lansa "qarzdan (461,539 so'm) 0 so'mga ko'p"
+    # tasdig'i (409) chiqardi. Ortiqcha — tiyin aniqligida va faqat yarim
+    # so'mdan KO'P bo'lsa (`QARZ_BARDOSH`, `debt_amount` bilan bir qoida).
+    _ortiqcha = pul_tiyin(float(summa) - current_debt)
+    if _ortiqcha > QARZ_BARDOSH and not confirm_overpay:
         raise OverpaymentWarning(
             amount=float(summa), debt=current_debt,
-            excess=float(summa) - current_debt
+            excess=_ortiqcha
         )
 
 
@@ -5956,17 +5967,21 @@ def get_debt_stats(db: Session, company_id: int = None) -> dict:
         Order.is_deleted.isnot(True)
     ).all()
 
-    total_agreed = 0.0
-    total_paid = 0.0
+    # kech92 (119-band): qarz — `Order.debt_amount` (tiyin aniqligi, 0.5 so'm
+    # chegarasi); ilgari bu yerda o'z `float` hisobi bor edi — to'liq to'langan
+    # buyurtma 1.2e-11 / 0.40000000002 qarz bilan ro'yxatga tushar, jami qarz
+    # 461539.95000000007 chiqardi. Jamilar tiyin aniqligida qo'shiladi.
+    _agreed_lar = []
+    _paid_lar = []
     debt_orders = []
 
     for o in orders:
         agreed = o.kelishilgan_summa
-        paid = sum(float(p.amount or 0) for p in (o.payments or []))
-        debt = max(agreed - paid, 0)
+        paid = o.paid_amount
+        debt = o.debt_amount
 
-        total_agreed += agreed
-        total_paid += paid
+        _agreed_lar.append(agreed)
+        _paid_lar.append(paid)
 
         if debt > 0:
             days_passed = (datetime.utcnow() - o.created_at).days if o.created_at else 0
@@ -5995,19 +6010,19 @@ def get_debt_stats(db: Session, company_id: int = None) -> dict:
         _tpq = _tpq.join(Order, Order.id == Payment.order_id).filter(
             Order.company_id == company_id)
     today_payments = _tpq.all()
-    today_sum = sum(
-        float(p.amount or 0) for p in today_payments
+    today_sum = pul_tiyin_yigindi(
+        p.amount for p in today_payments
         if p.paid_at and tashkent_date(p.paid_at) == today
     )
 
     return {
-        "total_agreed": total_agreed,
-        "total_paid": total_paid,
+        "total_agreed": pul_tiyin_yigindi(_agreed_lar),
+        "total_paid": pul_tiyin_yigindi(_paid_lar),
         # MUHIM: bu — har bir buyurtmaning (hech qachon manfiy bo'lmaydigan)
         # qarzlari YIG'INDISI, "jami kelishilgan - jami to'langan" emas.
         # Aks holda, agar ba'zi mijozlar ORTIQCHA to'lagan bo'lsa (masalan
         # oldindan to'lov), umumiy natija noto'g'ri, MANFIY chiqib qolar edi.
-        "total_debt": sum(d["debt_amount"] for d in debt_orders),
+        "total_debt": pul_tiyin_yigindi(d["debt_amount"] for d in debt_orders),
         "debt_orders_count": len(debt_orders),
         "overdue_count": sum(1 for d in debt_orders if d["is_overdue"]),
         "today_payments": today_sum,

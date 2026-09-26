@@ -33,6 +33,48 @@ Base = declarative_base()
 
 
 # ============================================================
+# PUL — tiyin aniqligi va "qarz yo'q" chegarasi (kech92, 119-band)
+# ============================================================
+# HAQIQIY PostgreSQL 16 va SQLite da O'LCHANGAN (`work/probe119.py`, asl kod =
+# zip 85): to'langan summa `float` lar yig'indisi sifatida hisoblanardi va
+# kelishilgan summa bilan QAT'IY (`paid < agreed`) solishtirilardi:
+#   * tiyinli qaytarishlar (3 × −166 517.15) yoki tiyinli to'lovlar
+#     (2 674.60 + 1 236.47 = 3 911.07) dan keyin to'langan = 3911.0699999999997
+#     — qarz 4.5e-13, holat "qisman", buyurtma arxivga O'TMASDI;
+#   * UI yo'li: kelishilgan 461 538.40, mijoz ko'rinib turgan qarzni
+#     (`formatNum` — butun so'm) 461 538 to'laydi → qarz 0.40000000002, holat
+#     "qisman", dashboard qarzdorlar ro'yxatida, 30 kundan keyin "qarzdor"
+#     ogohlantirishi; "chegirmaga yozish" esa 0.5 so'mdan kichik qoldiqni
+#     yozmaydi (BERK KO'CHA); kelishilgan .75 da ko'rinib turgan qarz
+#     (461 539) to'lansa — "qarzdan 0 so'mga ko'p" degan tasdiq (409).
+# Tizimdagi mavjud qoida — 0.5 so'mdan kichik qoldiq "qarz yo'q" (qarzdorlar
+# sahifasi va hisobot `> 0.5`, "chegirmaga yozish" `> 0.5`, majburiyatlar
+# `<= 0.5`), UI esa qarzni butun so'mda ko'rsatadi va butun so'm qabul qiladi.
+# Endi buyurtma qarzi / holati / ortiqcha to'lov tekshiruvi ham AYNAN shu
+# qoidada: yig'indi va ayirma tiyinga yaxlitlanadi (bazadagi `Numeric(12,2)`
+# kabi — HALF_UP), qoldiq `QARZ_BARDOSH` dan oshmasa — qarz 0.
+QARZ_BARDOSH = 0.5
+
+
+def pul_tiyin(v) -> float:
+    """Pul qiymati — 2 xonaga HALF_UP (bazadagi `Numeric(12,2)` va
+    `crud._pul2` bilan AYNAN). Manfiy nol (−0.0) qaytmaydi."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return float(Decimal(repr(float(v or 0))).quantize(Decimal("0.01"),
+                                                       rounding=ROUND_HALF_UP)) + 0.0
+
+
+def pul_tiyin_yigindi(qiymatlar) -> float:
+    """Pul qiymatlari yig'indisi — `Decimal` da ANIQ qo'shiladi (float
+    shovqini to'planmaydi), natija tiyinga yaxlitlanadi."""
+    from decimal import Decimal, ROUND_HALF_UP
+    jami = Decimal("0")
+    for v in qiymatlar:
+        jami += Decimal(repr(float(v or 0)))
+    return float(jami.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) + 0.0
+
+
+# ============================================================
 # ENUM lar
 # ============================================================
 
@@ -663,8 +705,13 @@ class Order(Base):
 
     @property
     def paid_amount(self):
-        """To'langan jami summa."""
-        return sum(float(p.amount or 0) for p in (self.payments or []))
+        """To'langan jami summa — tiyin aniqligida (kech92, 119-band: `float`
+        yig'indisi 448.54999999998836 berardi, to'g'risi 448.55). To'lov
+        bo'lmasa — 0 (avvalgidek)."""
+        tolovlar = self.payments or []
+        if not tolovlar:
+            return 0
+        return pul_tiyin_yigindi(p.amount for p in tolovlar)
 
     @property
     def kelishilgan_summa(self):
@@ -682,9 +729,14 @@ class Order(Base):
 
     @property
     def debt_amount(self):
-        """Qarz qoldi."""
-        agreed = self.kelishilgan_summa
-        return max(agreed - self.paid_amount, 0)
+        """Qarz qoldi — tiyin aniqligida; `QARZ_BARDOSH` (0.5 so'm) dan
+        oshmaydigan qoldiq — qarz YO'Q (kech92, 119-band; UI qarzni butun
+        so'mda ko'rsatadi va butun so'm qabul qiladi). Qiymat shakli
+        avvalgidek: to'liq to'langan — 0.0, ortiqcha to'langan — 0."""
+        qoldiq = pul_tiyin(self.kelishilgan_summa - self.paid_amount)
+        if qoldiq > QARZ_BARDOSH:
+            return qoldiq
+        return 0.0 if qoldiq >= 0 else 0
 
     def __repr__(self):
         return f"<Order #{self.order_number} (Project #{self.project_id})>"
