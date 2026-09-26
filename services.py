@@ -1076,6 +1076,8 @@ def get_today_tasks(db: Session, company_id: int = None) -> List[Dict]:
     return tasks
 
 
+# kech90 (110-band): hisobot keshi bilan o'raladi — `_hisobot_keshi_bilan` pastda (kech89 bloki) aniqlangani
+# uchun o'rash o'sha blokdan keyin: `get_today_stats = _hisobot_keshi_bilan(get_today_stats)`.
 def get_today_stats(db: Session, company_id: int = None) -> Dict:
     """Dashboard yuqori qatori uchun 'bugungi kun' statistikasi.
 
@@ -1136,6 +1138,7 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
         Order.completed_at >= today_start, Order.completed_at < today_end,
         Order.status == OrderStatus.READY
     ).all()
+    _hk_tayyorla(db, completed_today)    # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
     today_profit = 0.0
     today_gips_revenue = 0.0
     today_penoplast_revenue = 0.0
@@ -1951,6 +1954,22 @@ def _hk_tayyorla(db, orders):
         for fp in db.query(FinishedProduct).filter(FinishedProduct.id.in_(_b),
                                                    FinishedProduct.company_id.in_(cids)).all():
             _tm[(fp.id, fp.company_id)] = fp
+
+
+def _hk_loyihalar(db, projects):
+    """kech90 (110-band): loyihalar ro'yxatidagi "Tayyor" buyurtmalarni `_hk_tayyorla` bilan oldindan o'qiydi
+    (kesh yo'q bo'lsa — hech narsa, asl yo'l). `Project.orders` ro'yxatlari ATAYLAB asl (lazy) yo'l bilan
+    o'qiladi — loyiha boshiga 1 so'rov: PG da `project_id = ?` (lazy) va `project_id IN (...)` (selectinload)
+    so'rovlari ORDER BY siz TURLI tartib qaytarishi O'LCHANDI (kech90 `probe90_tartib`: 6 dan 2 loyihada),
+    ro'yxat tartibi esa foyda yig'indisi tartibini belgilaydi — natija AYNAN qolishi uchun."""
+    if _hk(db) is None or not projects:
+        return
+    from models import OrderStatus as _OS_hk
+    _hk_tayyorla(db, [o for p in projects for o in (p.orders or []) if o.status == _OS_hk.READY])
+
+
+# kech90 (110-band): bosh sahifa "bugun" (`/api/dashboard/today`) — hisobot keshi ichida (yuqorida aniqlangan).
+get_today_stats = _hisobot_keshi_bilan(get_today_stats)
 
 
 def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:

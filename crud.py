@@ -1373,6 +1373,23 @@ def get_projects(db: Session, company_id: int = None) -> List[Project]:
     return q.order_by(Project.start_date.desc()).all()
 
 
+def _hisobot_keshida(fn):
+    """kech90 (110-band): funksiya (birinchi argumenti — `db`) `services.hisobot_keshi` ichida bajariladi —
+    har buyurtma uchun `calculate_order_profit` so'rovlari (buyurtma, detal, harakat, material, PO, TM,
+    retsept, usta) bir necha IN so'roviga tushadi, natija AYNAN (kech89 52-band keshi). `services`
+    chaqiruv paytida import qilinadi (modul darajasida aylanma import yo'q)."""
+    import functools as _ft_hk
+
+    @_ft_hk.wraps(fn)
+    def _o(*args, **kwargs):
+        import services as _sv_hk
+        _db = args[0] if args else kwargs.get("db")
+        with _sv_hk.hisobot_keshi(_db):
+            return fn(*args, **kwargs)
+    return _o
+
+
+@_hisobot_keshida
 def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
     """Loyihalar sahifasi uchun KPI ko'rsatkichlari — faqat o'qish, mavjud hisob-kitoblarga
     (get_projects_with_stats, calculate_order_profit) tegmaydi, faqat ulardan foydalanadi."""
@@ -1384,6 +1401,7 @@ def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
     if company_id is not None:
         _dq = _dq.filter(Project.company_id == company_id)
     projects = _dq.all()
+    services._hk_loyihalar(db, projects)     # kech90 (110-band): loyihalardagi "Tayyor" buyurtmalar oldindan
     now = datetime.utcnow()
 
     active = sum(1 for p in projects if p.status == ProjectStatus.ACTIVE)
@@ -10738,6 +10756,7 @@ def update_master_kpi(db: Session, master_id: int, kpi_percent: float,
     return m
 
 
+@_hisobot_keshida
 def get_master_kpi_detail(db: Session, master_id: int, year: int,
                           company_id: int = None) -> list:
     """Bitta usta uchun — shu yilgi HAR BIR buyurtmadan qancha KPI (sovg'a ulushi)
@@ -10758,6 +10777,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
         Order.status == OrderStatus.READY,
         extract('year', Order.completed_at) == year
     ).order_by(Order.completed_at.desc()).all()
+    services._hk_tayyorla(db, orders)        # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
     kpi_pct = float(master.kpi_percent or 0)
     result = []
@@ -10801,6 +10821,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
     return result
 
 
+@_hisobot_keshida
 def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = False,
                           company_id: int = None) -> dict:
     """Har usta uchun yillik SOF FOYDA, KPI% va hisoblangan sovg'a.
@@ -10828,6 +10849,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         Order.status == OrderStatus.READY,
         extract('year', Order.completed_at) == year
     ).all() if master_ids else []
+    services._hk_tayyorla(db, all_orders)    # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
     orders_by_master = {}
     for o in all_orders:
@@ -11335,6 +11357,7 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
     return {"success": True}
 
 
+@_hisobot_keshida
 def get_master_yearly_cashback(db: Session, master_id: int, year: int,
                               company_id: int = None) -> dict:
     """'Bonuslarim' (bot) uchun — yillik keshbek hisoboti. Har qanday
@@ -11376,6 +11399,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
     if cid is not None:
         _oq = _oq.filter(Order.company_id == cid)
     orders = _oq.order_by(Order.completed_at.desc()).all()
+    services._hk_tayyorla(db, orders)        # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
     yearly_profit = 0.0
     buyurtmalar = []

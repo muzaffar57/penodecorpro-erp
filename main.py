@@ -5395,18 +5395,22 @@ def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), cur
     orders = db.query(Order).filter(Order.project_id == project_id, Order.is_deleted.isnot(True)).all()
     status_counts = {}
     total_profit = 0.0
-    for o in orders:
-        st = o.status.value
-        status_counts[st] = status_counts.get(st, 0) + 1
-        if o.status == OrderStatus.READY:
-            try:
-                total_profit += float(services.calculate_order_profit(
-                    db, o.id, company_id=auth.company_id_of(current_user)).get("foyda", 0))
-            except Exception as e:
+    # kech90 (110-band): "Tayyor" buyurtmalar foydasi hisobot keshi ichida — buyurtma sikli so'rovlari
+    # (buyurtma, detal, harakat, material, PO, TM, retsept, usta) bir necha IN so'roviga; natija AYNAN.
+    with services.hisobot_keshi(db):
+        services._hk_tayyorla(db, [o for o in orders if o.status == OrderStatus.READY])
+        for o in orders:
+            st = o.status.value
+            status_counts[st] = status_counts.get(st, 0) + 1
+            if o.status == OrderStatus.READY:
                 try:
-                    crud.log_error(db, str(e), endpoint=f"project_detail:calculate_order_profit order#{o.id}")
-                except Exception:
-                    pass
+                    total_profit += float(services.calculate_order_profit(
+                        db, o.id, company_id=auth.company_id_of(current_user)).get("foyda", 0))
+                except Exception as e:
+                    try:
+                        crud.log_error(db, str(e), endpoint=f"project_detail:calculate_order_profit order#{o.id}")
+                    except Exception:
+                        pass
 
     ready_count = status_counts.get("ready", 0) + status_counts.get("delivered", 0)
     total_count = len(orders)
