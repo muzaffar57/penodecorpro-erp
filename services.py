@@ -1768,6 +1768,191 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
 # BUYURTMA FOYDA VA TAN NARXI HISOBLASH (faqat Admin uchun)
 # ============================================================
 
+# ============================================================
+# kech89 (52-band) — HISOBOT KESHI: buyurtma sikli so'rovlari bir necha IN so'roviga
+# ============================================================
+# O'LCHANGAN (kech88 `work/probe52.py`; kech89 `work/dump52.py IZ=1`, murakkab fikstura, SQLite = PG):
+# `GET /api/finance/report` SQL so'rovlari = 31 + 17 × N (N — shu oy "Tayyor" buyurtmalar; jonli 21 ta →
+# ~388 so'rov, ~3.5 s: Railway bazasi bilan har so'rov bir necha ms). Sabab — `calculate_order_profit`
+# (hisobotning o'zi, Ehson va usta KPI — har buyurtma uchun 2–3 marta) buyurtmani, standart penoplastni,
+# harakatlarni, material narxini, detallarni, ichki detallarni, ishlab chiqarish buyurtmalarini, retseptni
+# va ustani ALOHIDA so'raydi; hisobot ham har detal uchun materialni (`_inv_rep`) so'raydi.
+#
+# YECHIM (texnik — Claude): hisobot funksiyalari (`@_hisobot_keshi_bilan`) davomida sessiyada KESH turadi,
+# buyurtmalar ro'yxati `_hk_tayyorla` bilan bir necha IN so'rovi orqali oldindan o'qiladi. Hisob-kitob
+# mantig'i O'ZGARMAYDI: har o'qish joyida — kesh bo'lsa keshdan (asl so'rovning filtr qoidasi Python da,
+# tartibi asl bilan bir xil), bo'lmasa ASL so'rov satri o'zgarishsiz (else-shoxida). Keshda yo'q narsa —
+# asl so'rov bilan o'qiladi va eslab qolinadi, ya'ni natija hech qachon "taxmin" emas. Oldindan o'qish
+# so'rovlari korxona bo'yicha cheklangan (buyurtmalarning O'Z korxonasi); begona korxona yozuvi (buzilgan
+# holat) oldindan o'qilmaydi — unga asl so'rov o'zi javob beradi. Kesh faqat hisobot (O'QISH) davomida
+# yashaydi va hisobot tugashi bilan o'chadi — yozuvchi yo'llar (buyurtma, «Tayyor», sovg'a davri
+# yopilishi) va alohida `calculate_order_profit` chaqiruvi uni ko'rmaydi (asl yo'l).
+# `HISOBOT_KESHI_YOQIQ = False` — kesh umuman yoqilmaydi (test: kesh bilan va keshsiz natija AYNAN).
+import contextlib as _contextlib_hk
+import functools as _functools_hk
+
+HISOBOT_KESHI_YOQIQ = True
+_HK_KALIT = "_hisobot_keshi"
+_HK_YOQ = object()          # "keshda yo'q" belgisi (None — haqiqiy natija bo'lishi mumkin)
+
+
+class _HisobotKeshi:
+    """Bitta hisobot davomidagi o'qishlar: `d[bo'lim][kalit]`. Obyektlar KUCHLI havola bilan
+    saqlanadi — sessiyaning identity map i kuchsiz havola tutadi, aks holda obyekt yo'qolib, uning
+    ro'yxatlari (`items`, `sub_details`, `ingredients`) qayta so'ralardi.
+
+    Bo'limlar: "buyurtma" (order_id -> Order), "inv" (id -> `Inventory.id == id` natijasi, korxonasiz —
+    asl so'rov kabi), "std" (company_id -> standart penoplast), "harakat" (order_id -> brak EMAS
+    harakatlar, id tartibida), "po" (order_item_id -> tugagan PO lar, baza tartibida), "tm"
+    ((fp_id, company_id) -> TM), "tm_birlik" (fp_id -> muzlagan birlik tannarx), "retsept" (id -> Recipe,
+    korxonasiz), "retsept_k" ((id, company_id) -> Recipe). "harakat" / "po" ro'yxatlarida bir necha
+    korxona yozuvi bo'lishi mumkin — korxona sharti O'QISHDA qo'llanadi (asl so'rovdagidek)."""
+
+    def __init__(self):
+        self.d = {}
+
+
+def _hk(db):
+    """Faol hisobot keshi yoki None."""
+    _info = getattr(db, "info", None)
+    return _info.get(_HK_KALIT) if isinstance(_info, dict) else None
+
+
+@_contextlib_hk.contextmanager
+def hisobot_keshi(db):
+    """Hisobot keshini yoqadi. Ichma-ich chaqiruvda TASHQI kesh ishlatiladi (tarix → 12 oylik hisobot)."""
+    _info = getattr(db, "info", None)
+    if (not HISOBOT_KESHI_YOQIQ) or (not isinstance(_info, dict)) or (_info.get(_HK_KALIT) is not None):
+        yield _hk(db)
+        return
+    _k = _HisobotKeshi()
+    _info[_HK_KALIT] = _k
+    try:
+        yield _k
+    finally:
+        _info.pop(_HK_KALIT, None)
+
+
+def _hisobot_keshi_bilan(fn):
+    """Dekorator: funksiya (birinchi argumenti — `db`) hisobot keshi ichida bajariladi."""
+    @_functools_hk.wraps(fn)
+    def _o(*args, **kwargs):
+        _db = args[0] if args else kwargs.get("db")
+        with hisobot_keshi(_db):
+            return fn(*args, **kwargs)
+    return _o
+
+
+def _hk_ol(db, bolim, kalit):
+    """Keshdagi qiymat yoki `_HK_YOQ` (kesh yo'q yoki kalit yo'q)."""
+    _k = _hk(db)
+    if _k is None:
+        return _HK_YOQ
+    return _k.d.get(bolim, {}).get(kalit, _HK_YOQ)
+
+
+def _hk_qoy(db, bolim, kalit, qiymat):
+    """Kesh bo'lsa — eslab qoladi. Qiymatni qaytaradi."""
+    _k = _hk(db)
+    if _k is not None:
+        _k.d.setdefault(bolim, {})[kalit] = qiymat
+    return qiymat
+
+
+def _hk_std_peno(db, company_id):
+    """`get_default_penoplast(db, company_id=company_id)` — hisobot davomida bir marta."""
+    _x = _hk_ol(db, "std", company_id)
+    if _x is not _HK_YOQ:
+        return _x
+    _p = get_default_penoplast(db, company_id=company_id)
+    _hk_qoy(db, "std", company_id, _p)
+    if _p is not None:
+        _hk_qoy(db, "inv", _p.id, _p)
+    return _p
+
+
+def _hk_bolaklar(qator, n=500):
+    """IN ro'yxatini bo'laklarga bo'ladi (SQLite parametr chegarasi)."""
+    qator = list(qator)
+    for i in range(0, len(qator), n):
+        yield qator[i:i + n]
+
+
+def _hk_tayyorla(db, orders):
+    """Buyurtmalar ro'yxati uchun keyingi o'qishlarni OLDINDAN yuklaydi (kesh yo'q bo'lsa — hech narsa):
+    detallar + ichki detallar + usta (munosabatning O'Z yuklovchisi — lazy bilan bir xil shart va tartib:
+    detallar ORDER BY siz, ichki detallar `id` bo'yicha), brak EMAS harakatlar (`id` tartibida), tugagan
+    PO lar, materiallar (detal penoplasti, harakat materiali, standart penoplast), TM lar. Hammasi
+    buyurtmalarning O'Z korxonasi bilan cheklangan; korxonasiz (eski) buyurtma — keshsiz (asl yo'l)."""
+    _k = _hk(db)
+    if _k is None:
+        return
+    _bu = _k.d.setdefault("buyurtma", {})
+    yangi = []
+    for o in orders or []:
+        _oid = getattr(o, "id", None)
+        if _oid is None or getattr(o, "company_id", None) is None or _oid in _bu:
+            continue
+        _bu[_oid] = o
+        yangi.append(o)
+    if not yangi:
+        return
+    from sqlalchemy import not_ as _not_hk
+    from sqlalchemy.orm import selectinload as _sil_hk
+    from models import InventoryMovement, FinishedProduct
+    import crud as _crud_hk
+    ids = [o.id for o in yangi]
+    cids = sorted({o.company_id for o in yangi})
+    # 1) detallar, ichki detallar, usta — identity map dagi O'SHA buyurtma obyektlariga yuklanadi.
+    for _b in _hk_bolaklar(ids):
+        db.query(Order).filter(Order.id.in_(_b), Order.company_id.in_(cids)).options(
+            _sil_hk(Order.items).selectinload(OrderItem.sub_details),
+            _sil_hk(Order.master)).all()
+    items = [it for o in yangi for it in (o.items or [])]
+    item_ids = [it.id for it in items]
+    # 2) harakatlar — `_buyurtma_sarf_narxlari` sharti (brak EMAS), `id` tartibida.
+    _har = _k.d.setdefault("harakat", {})
+    _t = {oid: [] for oid in ids}
+    for _b in _hk_bolaklar(ids):
+        for h in db.query(InventoryMovement).filter(
+                InventoryMovement.order_id.in_(_b),
+                _not_hk(_crud_hk.brak_harakati_sharti(InventoryMovement)),
+                InventoryMovement.company_id.in_(cids)).order_by(InventoryMovement.id).all():
+            _t[h.order_id].append(h)
+    _har.update(_t)
+    # 3) tugagan ishlab chiqarish buyurtmalari (MRP detali tannarxi) — ORDER BY siz (asl so'rov kabi).
+    try:
+        from production_models import ProductionOrder
+        _tp = {iid: [] for iid in item_ids}
+        for _b in _hk_bolaklar(item_ids):
+            for p in db.query(ProductionOrder).filter(
+                    ProductionOrder.source_order_item_id.in_(_b),
+                    ProductionOrder.status == "completed",
+                    ProductionOrder.company_id.in_(cids)).all():
+                _tp[p.source_order_item_id].append(p)
+        _k.d.setdefault("po", {}).update(_tp)
+    except Exception:
+        pass    # asl kod ham PO xatosini yutadi — keshsiz qoladi (har detal asl so'rov bilan)
+    # 4) materiallar
+    for _c in cids:
+        _hk_std_peno(db, _c)
+    _inv = _k.d.setdefault("inv", {})
+    _iids = {it.penoplast_id for it in items if getattr(it, "penoplast_id", None)}
+    for oid in ids:
+        _iids |= {h.inventory_id for h in _t[oid] if h.inventory_id}
+    _iids = sorted(i for i in _iids if i not in _inv)
+    for _b in _hk_bolaklar(_iids):
+        for inv in db.query(Inventory).filter(Inventory.id.in_(_b), Inventory.company_id.in_(cids)).all():
+            _inv[inv.id] = inv
+    # 5) tayyor mahsulotlar (TM detal) — kalit (id, korxona): asl so'rov buyurtma korxonasi bilan.
+    _fids = sorted({it.finished_product_id for it in items if getattr(it, "finished_product_id", None)})
+    _tm = _k.d.setdefault("tm", {})
+    for _b in _hk_bolaklar(_fids):
+        for fp in db.query(FinishedProduct).filter(FinishedProduct.id.in_(_b),
+                                                   FinishedProduct.company_id.in_(cids)).all():
+            _tm[(fp.id, fp.company_id)] = fp
+
+
 def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
     """kech48 (K47-1, 5-bo'lim 32-band) — FOYDALANUVCHI QARORI (kech47, tugma):
     "Ishlatilgan paytdagi narxda muzlatilsin".
@@ -1803,24 +1988,38 @@ def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
     _oid_sn = getattr(order, "id", None)
     if _oid_sn is None:
         return {}
-    _hq = db.query(_IMv).filter(
-        _IMv.order_id == _oid_sn,
-        _not_sn(_crud_sn.brak_harakati_sharti(_IMv)),
-    )
     _cid_sn = getattr(order, "company_id", None)
-    if _cid_sn is not None:
-        _hq = _hq.filter(_IMv.company_id == _cid_sn)
-    harakatlar = _hq.order_by(_IMv.id).all()
+    _x_h = _hk_ol(db, "harakat", _oid_sn)
+    if _x_h is not _HK_YOQ:
+        # kech89 (52-band): hisobot keshidan — asl sharti (brak EMAS, `id` tartibi) bilan oldindan
+        # o'qilgan; korxona sharti shu yerda (asl so'rovdagidek).
+        harakatlar = [h for h in _x_h if _cid_sn is None or h.company_id == _cid_sn]
+    else:
+        _hq = db.query(_IMv).filter(
+            _IMv.order_id == _oid_sn,
+            _not_sn(_crud_sn.brak_harakati_sharti(_IMv)),
+        )
+        if _cid_sn is not None:
+            _hq = _hq.filter(_IMv.company_id == _cid_sn)
+        harakatlar = _hq.order_by(_IMv.id).all()
     if not harakatlar:
         return {}
     _inv_ids = {h.inventory_id for h in harakatlar if h.inventory_id}
     joriy = {}
     if _inv_ids:
-        _jq = db.query(Inventory).filter(Inventory.id.in_(_inv_ids))
-        if _cid_sn is not None:
-            _jq = _jq.filter(Inventory.company_id == _cid_sn)
-        for _inv_sn in _jq.all():
-            joriy[_inv_sn.id] = float(_inv_sn.price_per_unit or 0)
+        _x_j = [_hk_ol(db, "inv", _i) for _i in _inv_ids]
+        if all(_x is not _HK_YOQ for _x in _x_j):
+            # kech89 (52-band): hammasi keshda (id bo'yicha) — korxona sharti asl so'rovdagidek
+            for _inv_sn in _x_j:
+                if _inv_sn is not None and (_cid_sn is None or _inv_sn.company_id == _cid_sn):
+                    joriy[_inv_sn.id] = float(_inv_sn.price_per_unit or 0)
+        else:
+            _jq = db.query(Inventory).filter(Inventory.id.in_(_inv_ids))
+            if _cid_sn is not None:
+                _jq = _jq.filter(Inventory.company_id == _cid_sn)
+            for _inv_sn in _jq.all():
+                joriy[_inv_sn.id] = float(_inv_sn.price_per_unit or 0)
+                _hk_qoy(db, "inv", _inv_sn.id, _inv_sn)
     hisob = {}   # inventory_id -> [miqdor, qiymat, oxirgi o'rtacha narx]
     for h in harakatlar:
         if not h.inventory_id:
@@ -1867,10 +2066,16 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
     baholanadi (`_buyurtma_sarf_narxlari`) — keyingi narx o'zgarishi o'tgan
     buyurtma foydasini o'zgartirmaydi. Hajm / miqdor mantig'i O'ZGARMAGAN.
     """
-    _oq = db.query(Order).filter(Order.id == order_id)
-    if company_id is not None:
-        _oq = _oq.filter(Order.company_id == company_id)
-    order = _oq.first()
+    _x_o = _hk_ol(db, "buyurtma", order_id)
+    if _x_o is not _HK_YOQ:
+        # kech89 (52-band): hisobot keshi (`_hk_tayyorla`) — o'sha sessiya obyekti; korxona sharti
+        # asl so'rovdagidek.
+        order = _x_o if (company_id is None or _x_o.company_id == company_id) else None
+    else:
+        _oq = db.query(Order).filter(Order.id == order_id)
+        if company_id is not None:
+            _oq = _oq.filter(Order.company_id == company_id)
+        order = _oq.first()
     if not order:
         return {"success": False, "message": "Buyurtma topilmadi"}
 
@@ -1886,7 +2091,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
     # plotnost/narxga) qarab hisoblanadi — "birinchi topilgan Penoplast"
     # emas, chunki turli detallar turli plotnostdan bo'lishi mumkin
     # (buni biz alohida "1 m³ narxi" maydoni orqali qo'llab-quvvatlaymiz).
-    default_penoplast = get_default_penoplast(db, company_id=getattr(order, "company_id", None))
+    default_penoplast = _hk_std_peno(db, getattr(order, "company_id", None))   # kech89: hisobotda bir marta
 
     # kech48 (K47-1): shu buyurtmada ishlatilgan paytdagi narxlar.
     _sarf_narx = _buyurtma_sarf_narxlari(db, order)
@@ -1951,7 +2156,13 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
             # xuddi shu mantiq (deduct_inventory_for_order bilan bir xil).
             blok_soni = float(item.length or 0)
             pid_for_blok = item.penoplast_id or (default_penoplast.id if default_penoplast else None)
-            p_blok = db.query(Inventory).filter(Inventory.id == pid_for_blok).first() if pid_for_blok else None
+            _x_b = _hk_ol(db, "inv", pid_for_blok) if pid_for_blok else _HK_YOQ
+            if _x_b is _HK_YOQ:
+                p_blok = db.query(Inventory).filter(Inventory.id == pid_for_blok).first() if pid_for_blok else None
+                if pid_for_blok:
+                    _hk_qoy(db, "inv", pid_for_blok, p_blok)
+            else:
+                p_blok = _x_b
             if p_blok and p_blok.volume_per_unit and blok_soni > 0:
                 vol = blok_soni * float(p_blok.volume_per_unit)
 
@@ -1964,7 +2175,12 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
             continue
         key = pid
         if key not in penoplast_breakdown_by_item:
-            inv_item = db.query(Inventory).filter(Inventory.id == pid).first()
+            _x_i = _hk_ol(db, "inv", pid)
+            if _x_i is _HK_YOQ:
+                inv_item = db.query(Inventory).filter(Inventory.id == pid).first()
+                _hk_qoy(db, "inv", pid, inv_item)
+            else:
+                inv_item = _x_i
             # kech48 (K47-1): blok narxi — shu buyurtmada ishlatilgan paytdagi.
             # Narx 0 / yo'q bo'lsa — avvalgidek o'tkaziladi.
             _blok_narxi = _narx(inv_item)
@@ -2018,14 +2234,20 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
             # yoki hali tugallanmagani xarajat hisoblanmaydi.
             try:
                 from production_models import ProductionOrder as _PO_cost
-                _pq = db.query(_PO_cost).filter(
-                    _PO_cost.source_order_item_id == item.id,
-                    _PO_cost.status == "completed",
-                )
                 _ord_cid0 = getattr(order, 'company_id', None)
-                if _ord_cid0 is not None:
-                    _pq = _pq.filter(_PO_cost.company_id == _ord_cid0)
-                for _po_c in _pq.all():
+                _x_po = _hk_ol(db, "po", item.id)
+                if _x_po is not _HK_YOQ:
+                    # kech89 (52-band): keshdan (tugagan, baza tartibida) — korxona sharti asl kabi
+                    _po_royxat = [_p for _p in _x_po if _ord_cid0 is None or _p.company_id == _ord_cid0]
+                else:
+                    _pq = db.query(_PO_cost).filter(
+                        _PO_cost.source_order_item_id == item.id,
+                        _PO_cost.status == "completed",
+                    )
+                    if _ord_cid0 is not None:
+                        _pq = _pq.filter(_PO_cost.company_id == _ord_cid0)
+                    _po_royxat = _pq.all()
+                for _po_c in _po_royxat:
                     tayyor_mahsulot_xarajat += float(_po_c.total_cost or 0)
             except Exception:
                 pass
@@ -2033,11 +2255,16 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         # M4 (2026-09-18) — TENANT: mahsulot buyurtmaning O'Z korxonasidan
         # bo'lishi shart. Chaqiruvchi allaqachon tenant-safe bo'lsa ham,
         # funksiyaning o'zi endi mustaqil himoyalangan.
-        _fpq = db.query(_FP_cost).filter(_FP_cost.id == fpid)
         _ord_cid = getattr(order, 'company_id', None)
-        if _ord_cid is not None:
-            _fpq = _fpq.filter(_FP_cost.company_id == _ord_cid)
-        fp_c = _fpq.first()
+        _x_tm = _hk_ol(db, "tm", (fpid, _ord_cid))
+        if _x_tm is _HK_YOQ:
+            _fpq = db.query(_FP_cost).filter(_FP_cost.id == fpid)
+            if _ord_cid is not None:
+                _fpq = _fpq.filter(_FP_cost.company_id == _ord_cid)
+            fp_c = _fpq.first()
+            _hk_qoy(db, "tm", (fpid, _ord_cid), fp_c)
+        else:
+            fp_c = _x_tm
         if not fp_c:
             continue
         base_qty = float(fp_c.produced_quantity if fp_c.produced_quantity is not None else (fp_c.quantity or 0))
@@ -2047,7 +2274,12 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         # tannarx — olish / qaytarish / sotuv bilan BITTA manba (`crud._fp_stable_unit_cost`);
         # bo'lmasa — eski formula.
         import crud as _crud_fp59
-        _muz59 = _crud_fp59._fp_stable_unit_cost(db, fp_c)
+        _x_mz = _hk_ol(db, "tm_birlik", fp_c.id)
+        if _x_mz is _HK_YOQ:
+            _muz59 = _crud_fp59._fp_stable_unit_cost(db, fp_c)
+            _hk_qoy(db, "tm_birlik", fp_c.id, _muz59)
+        else:
+            _muz59 = _x_mz
         if _muz59 > 0:
             unit_cost = _muz59
         else:
@@ -2073,7 +2305,12 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         qty_kg = float(item.quantity or 0)
         if qty_kg <= 0:
             continue
-        recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
+        _x_r = _hk_ol(db, "retsept", item.recipe_id)
+        if _x_r is _HK_YOQ:
+            recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
+            _hk_qoy(db, "retsept", item.recipe_id, recipe)
+        else:
+            recipe = _x_r
         if not recipe:
             continue
         batch = float(recipe.batch_size_kg or 100)
@@ -2124,10 +2361,15 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         recipe = None
         _qcid = company_id if company_id is not None else getattr(order, 'company_id', None)
         for _qrid in buyurtma_qoplama_retsept_nomzodlari(order):
-            _rq = db.query(Recipe).filter(Recipe.id == _qrid)
-            if _qcid is not None:
-                _rq = _rq.filter(Recipe.company_id == _qcid)
-            recipe = _rq.first()
+            _x_q = _hk_ol(db, "retsept_k", (_qrid, _qcid))
+            if _x_q is _HK_YOQ:
+                _rq = db.query(Recipe).filter(Recipe.id == _qrid)
+                if _qcid is not None:
+                    _rq = _rq.filter(Recipe.company_id == _qcid)
+                recipe = _rq.first()
+                _hk_qoy(db, "retsept_k", (_qrid, _qcid), recipe)
+            else:
+                recipe = _x_q
             break
 
         if recipe and loy_kg > 0:
@@ -2180,6 +2422,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
 # OYLIK HISOBOT
 # ============================================================
 
+@_hisobot_keshi_bilan
 def get_daily_finance_summary(db: Session, target_date, company_id: int = None) -> Dict:
     """Bitta kun uchun to'liq moliyaviy ko'rinish:
     - Savdo (shu kun 'Tayyor' bo'lgan buyurtmalar): sotuv, tan narx, foyda
@@ -2208,6 +2451,7 @@ def get_daily_finance_summary(db: Session, target_date, company_id: int = None) 
     if company_id is not None:
         _otq = _otq.filter(Order.company_id == company_id)
     orders_today = _otq.all()
+    _hk_tayyorla(db, orders_today)       # kech89 (52-band): N+1 o'rniga bir necha IN so'rovi
 
     total_sales = 0.0
     total_cost = 0.0
@@ -2314,6 +2558,7 @@ def get_daily_finance_summary(db: Session, target_date, company_id: int = None) 
     }
 
 
+@_hisobot_keshi_bilan
 def get_finance_history(db: Session, months_count: int = 12, company_id: int = None) -> list:
     """Oxirgi N oy uchun moliyaviy tarix — grafik va 'Xarajatlar tarixi' jadvali uchun.
     MUHIM: hech qanday yangi hisob-kitob yo'q — faqat mavjud get_monthly_report()
@@ -2370,6 +2615,7 @@ def _brak_foizi(brak: float, ishlab: float):
     return round(float(brak or 0) / float(ishlab) * 100.0, 2)
 
 
+@_hisobot_keshi_bilan
 def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
                     oylar: int = 6) -> dict:
     """Oylik brak tahlili: ulush va me'yor (ogohlantirish), bosqich / sabab /
@@ -2554,6 +2800,7 @@ def _monthly_category_amount(db: Session, year: int, month: int, category: str, 
         return float(fallback or 0)
 
 
+@_hisobot_keshi_bilan
 def get_monthly_report(db: Session, year: int, month: int, company_id: int = None) -> Dict:
     """
     Berilgan oy uchun to'liq moliyaviy hisobot:
@@ -2567,6 +2814,10 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         """M6 — TENANT: hisobot ichidagi material qidiruvlari joriy korxonadan."""
         if not inv_id:
             return None
+        _x_r = _hk_ol(db, "inv", inv_id)
+        if _x_r is not _HK_YOQ:
+            # kech89 (52-band): keshdan (id bo'yicha) — korxona sharti asl so'rovdagidek
+            return _x_r if (_x_r is None or company_id is None or _x_r.company_id == company_id) else None
         _q = db.query(_Inv_rep).filter(_Inv_rep.id == inv_id)
         if company_id is not None:
             _q = _q.filter(_Inv_rep.company_id == company_id)
@@ -2588,6 +2839,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     if company_id is not None:
         _roq = _roq.filter(Order.company_id == company_id)
     ready_orders = _roq.all()
+    _hk_tayyorla(db, ready_orders)       # kech89 (52-band): N+1 o'rniga bir necha IN so'rovi
 
     # MUHIM: "Kelishilgan summa" (agreed_amount) bo'lsa — shuni, aks holda
     # "Umumiy jami"ni olamiz. Bu — Buyurtmalar ro'yxati va har bir
@@ -2807,7 +3059,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
 
     # Jami ishlatilgan blok (hodim to'lovi "per_unit: blok" uchun)
     jami_blok = 0.0
-    default_p = get_default_penoplast(db, company_id=company_id)
+    default_p = _hk_std_peno(db, company_id)   # kech89: hisobotda bir marta
     for order in orders_this_month:
         for item in order.items:
             if getattr(item, 'finished_product_id', None):
@@ -3154,6 +3406,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     }
 
 
+@_hisobot_keshi_bilan
 def calculate_split_profit_report(db: Session, year: int, month: int, company_id: int = None) -> dict:
     """Gips va Penoplast uchun MUSTAQIL, to'liq ajratilgan sof foyda hisoboti.
 
@@ -3190,6 +3443,7 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     if company_id is not None:
         _spq = _spq.filter(Order.company_id == company_id)
     ready_orders = _spq.all()
+    _hk_tayyorla(db, ready_orders)       # kech89 (52-band)
     gips_direct_cost = 0.0
     peno_direct_cost = 0.0
     for o in ready_orders:
@@ -3835,7 +4089,13 @@ def _item_volume_m3(db, item, default_penoplast=None, penoplast_narxi=None) -> f
         # Bo'lmasa — buyurtmadagi boshqa detallardan, oxirida penoplast tan narxidan
         if price_m3 <= 0:
             pid = getattr(item, 'penoplast_id', None)
-            p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast
+            _x_p = _hk_ol(db, "inv", pid) if pid else _HK_YOQ     # kech89 (52-band): hisobot keshi
+            if _x_p is _HK_YOQ:
+                p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast
+                if pid:
+                    _hk_qoy(db, "inv", pid, p)
+            else:
+                p = _x_p
             # kech48 (K47-1, 5-bo'lim 32-band): `penoplast_narxi` — foyda hisobi
             # (`calculate_order_profit`) shu buyurtmaning MUZLATILGAN 1 blok
             # narxini beradi. Bu zaxira yo'lda hajm = summa ÷ narx, tan narx esa
@@ -3858,7 +4118,13 @@ def _item_volume_m3(db, item, default_penoplast=None, penoplast_narxi=None) -> f
         # ko'rsatiladigan), length = ISHLATILGAN blok soni (ombordan shuncha yechiladi).
         blok_soni = float(item.length or 0)
         pid = getattr(item, 'penoplast_id', None)
-        p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast
+        _x_p = _hk_ol(db, "inv", pid) if pid else _HK_YOQ         # kech89 (52-band): hisobot keshi
+        if _x_p is _HK_YOQ:
+            p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast
+            if pid:
+                _hk_qoy(db, "inv", pid, p)
+        else:
+            p = _x_p
         if p and p.volume_per_unit and blok_soni > 0:
             return blok_soni * float(p.volume_per_unit)
 
@@ -5428,6 +5694,7 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         if company_id is not None:      # M5
             _oq = _oq.filter(Order.company_id == company_id)
         orders = _oq.all()
+        _hk_tayyorla(db, orders)         # kech89 (52-band): hisobot ichida — allaqachon keshda
 
         monthly_profit = 0.0
         for o in orders:
@@ -5496,6 +5763,7 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
     if company_id is not None:      # M5
         _oq = _oq.filter(Order.company_id == company_id)
     orders = _oq.all()
+    _hk_tayyorla(db, orders)             # kech89 (52-band): hisobot ichida — allaqachon keshda
 
     monthly_profit = 0.0
     for o in orders:
