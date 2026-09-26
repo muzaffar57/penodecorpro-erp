@@ -8758,8 +8758,14 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                 return {"success": False, "message": f"{fp.name}: sotish mumkin faqat {available:g} {fp.unit} bor{extra}, {_jami_qty:g} sota olmaysiz"}
             _savatda[fp.id] = _jami_qty
 
-            orig_total = item.quantity * item.unit_price
-            if round(orig_total, 2) > _ORDER_ITEM_MAX_MONEY:
+            # kech91 (7-band, O'LCHANGAN — `work/probe7.py`, SQLite + HAQIQIY PG): narx va jami ALOHIDA yaxlitlanardi
+            # (xariddagi 17g nuqsoni): `333 × 10.335` → bazada narx 10.34, jami 3441.56 (333 × 10.34 = 3443.22 —
+            # 1.66 so'm farq, miqdor oshgani sari o'sadi); `7 × 0.125` → PG narx 0.13, jami 0.88 (7 × 0.13 = 0.91);
+            # javobda `3441.5550000000003`. Endi xariddagidek: narx bazadagidek 2 xonaga (HALF_UP), jami SHU narxdan
+            # (`_xarid_narx_jami`); tan narxdan past tekshiruvi ham yoziladigan narx bilan. UI butun son yuboradi —
+            # uning natijasi o'zgarmaydi.
+            _narx2, orig_total = _xarid_narx_jami(item.quantity, item.unit_price)
+            if orig_total > _ORDER_ITEM_MAX_MONEY:
                 db.rollback()
                 return {"success": False, "message": f"{fp.name}: sotuv summasi (miqdor × narx) juda katta"}
             # FASA 4B: yagona manba — pastdagi izohga qarang (sell_finished_product)
@@ -8769,7 +8775,7 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
 
             # XAVFSIZLIK/NAZORAT: sell_finished_product'dagi bilan bir xil —
             # sotuv narxi tan narxidan past bo'lsa, aniq tasdiqlash so'raladi.
-            if unit_cost > 0 and float(item.unit_price) < unit_cost and not getattr(data, "confirm_below_cost", False):
+            if unit_cost > 0 and float(_narx2) < unit_cost and not getattr(data, "confirm_below_cost", False):
                 db.rollback()
                 return {
                     "success": False,
@@ -8785,7 +8791,7 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
             prepared.append({
                 "fp": fp,
                 "quantity": item.quantity,
-                "unit_price": item.unit_price,
+                "unit_price": _narx2,
                 "original_total": orig_total,
                 "cost_amount": cost_amount,
             })
@@ -8798,7 +8804,9 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
             agreed_grand_total = original_grand_total
             discount_percent = 0.0
         else:
-            agreed_grand_total = float(agreed)
+            # kech91 (7-band): kelishilgan summa ham bazadagidek 2 xonaga (HALF_UP) — qatorlar yig'indisi
+            # AYNAN shu summa (O'LCHANGAN: 800.005 → qatorlar 800.00; to'g'risi 800.01).
+            agreed_grand_total = _pul2(agreed)
             discount_percent = round((1 - agreed_grand_total / original_grand_total) * 100, 2)
 
         # ── 2-BOSQICH: yozib chiqamiz. Chegirma har qatorga PROPORSIONAL ──
@@ -8896,8 +8904,14 @@ def sell_finished_product(db: Session, data, created_by: str = None,
     if _usta_xato:
         return {"success": False, "message": _usta_xato}
 
-    total_amount = data.quantity * data.unit_price
-    if round(total_amount, 2) > _ORDER_ITEM_MAX_MONEY:
+    # kech91 (7-band, O'LCHANGAN — `work/probe7.py`, SQLite + HAQIQIY PG): narx va jami ALOHIDA yaxlitlanardi
+    # (xariddagi 17g nuqsoni): `333 × 10.335` → bazada narx 10.34, jami 3441.56 (333 × 10.34 = 3443.22 —
+    # 1.66 so'm farq, miqdor oshgani sari o'sadi); `7 × 0.125` → PG narx 0.13, jami 0.88 (7 × 0.13 = 0.91);
+    # javobda `3441.5550000000003`. Endi xariddagidek: narx bazadagidek 2 xonaga (HALF_UP), jami SHU narxdan
+    # (`_xarid_narx_jami`); tan narxdan past tekshiruvi ham yoziladigan narx bilan. UI butun son yuboradi —
+    # uning natijasi o'zgarmaydi.
+    _sotuv_narx, total_amount = _xarid_narx_jami(data.quantity, data.unit_price)
+    if total_amount > _ORDER_ITEM_MAX_MONEY:
         return {"success": False, "message": "Sotuv summasi (miqdor × narx) juda katta"}
     # FASA 4B: "1 birlik tan narxi" endi BARCHA joyda (sotish, buyurtmaga
     # olish/qaytarish, hisobot) BITTA manbadan — _fp_stable_unit_cost'dan
@@ -8916,7 +8930,7 @@ def sell_finished_product(db: Session, data, created_by: str = None,
     # narxining o'zi (mahsulot tannarxi — ichki, nozik ma'lumot) xabarda
     # KO'RSATILMAYDI — xodim uni bilmasligi kerak, faqat "bu narxda sotib
     # bo'lmaydi" degan xabarni ko'radi.
-    if unit_cost > 0 and float(data.unit_price) < unit_cost and not getattr(data, "confirm_below_cost", False):
+    if unit_cost > 0 and float(_sotuv_narx) < unit_cost and not getattr(data, "confirm_below_cost", False):
         return {
             "success": False,
             "type": "below_cost_warning",
@@ -8938,7 +8952,7 @@ def sell_finished_product(db: Session, data, created_by: str = None,
         product_name=fp.name,
         quantity=data.quantity,
         unit=fp.unit,
-        unit_price=data.unit_price,
+        unit_price=_sotuv_narx,
         total_amount=total_amount,
         cost_amount=cost_amount,
         buyer_name=data.buyer_name,
@@ -10890,9 +10904,13 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         gift = yearly_profit * (m.kpi_percent or 0) / 100
         total_gift += gift
 
+        # kech91 (115-band, O'LCHANGAN — `work/probe90_null.py`): PG `DESC` da NULL larni BIRINCHI qo'yadi,
+        # SQLite — OXIRIDA. "Tayyor" buyurtmalardan birining `completed_at` i NULL bo'lsa (eski / qo'lda
+        # tuzatilgan ma'lumot) PG da "Oxirgi buyurtma" sanasi BO'SH chiqardi, SQLite da — haqiqiy oxirgi
+        # sana. `nullslast()` — ikkala bazada ham eng oxirgi HAQIQIY sana (SQLite natijasi bilan AYNAN).
         last_order = db.query(Order).filter(
             Order.master_id == m.id, Order.status == OrderStatus.READY
-        ).order_by(Order.completed_at.desc()).first()
+        ).order_by(Order.completed_at.desc().nullslast()).first()
 
         rows.append({
             "id": m.id,
