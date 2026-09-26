@@ -149,6 +149,11 @@ class Company(Base):
     # korxona xohlasa, buni yumshoq ogohlantirishga o'zgartira oladi.
     allow_negative_stock = Column(Boolean, default=False, nullable=False)
 
+    # kech86 (QAROR "A" loyiha raqamiga ham): korxonada BERILGAN eng katta loyiha raqami (PRJ-<N>). Loyiha
+    # butunlay o'chirilsa ham raqami qayta berilmaydi. NULL — hali hisoblanmagan (birinchi yangi loyiha
+    # mavjud loyihalar va faoliyat jurnalidan hisoblaydi). `default=` ATAYLAB YO'Q.
+    oxirgi_loyiha_seq = Column(Integer, nullable=True)
+
     # 2026-09-20 — KORXONA BRENDI (Faza 5).
     # Ilgari yuk xati, nakladnoy va moliya hisobotlarida "PenoDecorPro ·
     # Fasad bezaklari · Andijon · +998 97 999 57 57" QATTIQ yozilgan edi —

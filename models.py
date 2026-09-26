@@ -522,6 +522,11 @@ class Project(Base):
 
     total_budget = Column(Numeric(12, 2), default=0)
     total_paid = Column(Numeric(12, 2), default=0)
+    # kech86 (100-band, QAROR "A"): loyihada BERILGAN eng katta buyurtma tartib raqami (ORD-051-<N>).
+    # Raqam HECH QACHON qayta berilmaydi — o'chirilgan buyurtmaning raqami ham band qoladi. NULL — hali
+    # hisoblanmagan (`main._migrate_buyurtma_raqam_hisoblagich` yoki birinchi buyurtma to'ldiradi).
+    # `default=` ATAYLAB YO'Q (sync_missing_columns eski qatorlarga 0 yozib, jurnal hisobini o'tkazib yuborardi).
+    oxirgi_buyurtma_seq = Column(Integer, nullable=True)
 
     start_date = Column(DateTime, default=datetime.utcnow)
     deadline = Column(DateTime, nullable=True)
@@ -587,6 +592,10 @@ class Order(Base):
     # Loy qaytganda avval xom qism, qolgani zaxiraga (`services` dagi "BUYURTMA LOYI OLINGAN JOYIGA QAYTADI").
     # NULL — migratsiyadan OLDINGI buyurtma: eski qoida (qaytish xomga, tiklash xomdan).
     loy_manba_json = Column(Text, nullable=True)
+    # kech86 (QAROR "A" yuk xatiga ham): shu buyurtmada BERILGAN eng katta yuk xati tartib raqami (…/Y-<N>).
+    # Yuk xati o'chirilsa ham raqami qayta berilmaydi. NULL — hali yuk yo'q yoki eski buyurtma (mavjud yuklardan
+    # hisoblanadi). `default=` ATAYLAB YO'Q.
+    oxirgi_yuk_seq = Column(Integer, nullable=True)
     stock_returned = Column(Boolean, default=False)         # O'chirilganda ombor QAYTARILGANMI — takroriy (tiklab-qayta o'chirilganda ikki marta) qaytarib yubormaslik uchun
 
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)

@@ -2232,6 +2232,65 @@ def _migrate_ortiqcha_qaytarish():
 
 _migrate_ortiqcha_qaytarish()
 
+
+def _migrate_buyurtma_raqam_hisoblagich():
+    """kech86 (100-band, QAROR "A" — buyurtma raqami hech qachon qayta berilmaydi) — IDEMPOTENT, PG va SQLite.
+
+    `projects.oxirgi_buyurtma_seq` — loyihada BERILGAN eng katta buyurtma tartib raqami. Ustun odatda
+    `database.sync_missing_columns()` qo'shadi (NULL, standart qiymatsiz); yo'q bo'lsa shu yerda. Bo'sh (NULL)
+    har loyiha to'ldiriladi: `crud.buyurtma_raqam_asosi(..., jurnal=True)` — korxonadagi shu prefiksli
+    buyurtmalar (yumshoq o'chirilganlar ham) VA faoliyat jurnalidagi buyurtma yozuvlari (qattiq o'chirilgan
+    buyurtma raqami faqat jurnalda qoladi). Prefiks — `crud._buyurtma_prefiksi` (create_order bilan bir qoida).
+    Faqat NULL lar ishlanadi — qayta yuklanishda hech narsa o'zgarmaydi.
+    """
+    from sqlalchemy import text, inspect as _insp
+    from database import engine, SessionLocal as _SL86
+    from models import Project as _PR86
+    import crud as _crud86
+    try:
+        _i = _insp(engine)
+        if "projects" not in set(_i.get_table_names()):
+            return
+        if "oxirgi_buyurtma_seq" not in {c["name"] for c in _i.get_columns("projects")}:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE projects ADD COLUMN oxirgi_buyurtma_seq INTEGER"))
+                conn.commit()
+                print("✓ projects.oxirgi_buyurtma_seq qo'shildi")
+    except Exception as e:
+        print(f"⚠ projects.oxirgi_buyurtma_seq ustuni tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    # kech86 (QAROR "A" yuk xati / loyiha raqamiga ham): `orders.oxirgi_yuk_seq`, `companies.oxirgi_loyiha_seq` —
+    # odatda sync_missing_columns qo'shadi; yo'q bo'lsa shu yerda. To'ldirish shart emas: NULL bo'lsa birinchi
+    # yangi yuk / loyiha mavjud yozuvlardan (loyihada — faoliyat jurnalidan ham) o'zi hisoblaydi.
+    for _jad86, _ust86 in (("orders", "oxirgi_yuk_seq"), ("companies", "oxirgi_loyiha_seq")):
+        try:
+            _i2 = _insp(engine)
+            if _jad86 in set(_i2.get_table_names()) and _ust86 not in {c["name"] for c in _i2.get_columns(_jad86)}:
+                with engine.connect() as conn:
+                    conn.execute(text(f"ALTER TABLE {_jad86} ADD COLUMN {_ust86} INTEGER"))
+                    conn.commit()
+                    print(f"✓ {_jad86}.{_ust86} qo'shildi")
+        except Exception as e:
+            print(f"⚠ {_jad86}.{_ust86} ustuni tekshiruvi o'tkazib yuborildi: {e}")
+    _d = _SL86()
+    try:
+        _n = 0
+        for _p in _d.query(_PR86).filter(_PR86.oxirgi_buyurtma_seq.is_(None)).order_by(_PR86.id).all():
+            _pref = _crud86._buyurtma_prefiksi(_d, _p)
+            _p.oxirgi_buyurtma_seq = _crud86.buyurtma_raqam_asosi(_d, _p, _pref, jurnal=True)
+            _n += 1
+        if _n:
+            _d.commit()
+            print(f"✓ projects.oxirgi_buyurtma_seq to'ldirildi: {_n} loyiha")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ projects.oxirgi_buyurtma_seq to'ldirish o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_buyurtma_raqam_hisoblagich()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:

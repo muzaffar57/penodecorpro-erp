@@ -1259,6 +1259,31 @@ from models import Project, Order, OrderItem, OrderItemSubDetail, ProjectStatus,
 from schemas import ProjectCreate, OrderCreate
 
 
+def loyiha_raqam_asosi(db: Session, company_id) -> int:
+    """kech86 (QAROR "A" loyiha raqamiga ham): korxonada shu paytgacha BERILGAN eng katta loyiha raqami.
+
+    Korxona hisoblagichi `companies.oxirgi_loyiha_seq` (bazadan YANGI o'qiladi); u bo'sh (NULL) bo'lsa —
+    faoliyat jurnalidagi loyiha yozuvlari (`PRJ-003 — nomi`; butunlay o'chirilgan loyiha raqami faqat shu
+    yerda qoladi). Mavjud loyihalar raqamini `create_project` o'zi hisoblaydi.
+    """
+    if company_id is None:
+        return 0
+    import re as _re86p
+    from production_models import Company as _Co86
+    from models import ActivityLog as _AL86p
+    _h = db.query(_Co86.oxirgi_loyiha_seq).filter(_Co86.id == company_id).scalar()
+    _eng = int(_h or 0)
+    if _h is None:
+        _jq = db.query(_AL86p.entity_label).filter(
+            _AL86p.entity_type == "project", _AL86p.company_id == company_id,
+            _AL86p.entity_label.like("PRJ-%"))
+        for (_lab,) in _jq.all():
+            _m = _re86p.match(r"PRJ-(\d+)", str(_lab or ""))
+            if _m and int(_m.group(1)) > _eng:
+                _eng = int(_m.group(1))
+    return _eng
+
+
 def create_project(db: Session, project_data: ProjectCreate, company_id: int = None) -> Project:
     """Yangi loyiha qo'shadi.
 
@@ -1291,6 +1316,12 @@ def create_project(db: Session, project_data: ProjectCreate, company_id: int = N
         if _m:
             _raqamlar.append(int(_m.group(1)))
     next_num = (max(_raqamlar) + 1) if _raqamlar else 1
+    # kech86 (QAROR "A" loyiha raqamiga ham — O'LCHANDI probe86c: PRJ-003 butunlay o'chirilgach yangi
+    # loyiha yana PRJ-003 edi). Korxona qulfi (bir korxonada loyihalar ketma-ket raqamlanadi), keyin
+    # berilgan eng katta raqamdan KEYINGISI. Hisoblagich loyiha qo'shilgach yangilanadi.
+    if company_id is not None:
+        _pul_qulfi(db, 186, company_id)
+        next_num = max(next_num, loyiha_raqam_asosi(db, company_id) + 1)
 
     # Agar shu raqam SHU KORXONADA band bo'lsa, keyingisini olamiz
     def _band(n):
@@ -1319,6 +1350,11 @@ def create_project(db: Session, project_data: ProjectCreate, company_id: int = N
         status=ProjectStatus.ACTIVE
     )
     db.add(db_project)
+    if company_id is not None:
+        from production_models import Company as _Co86s
+        _kp86 = db.query(_Co86s).filter(_Co86s.id == company_id).first()
+        if _kp86 is not None and int(_kp86.oxirgi_loyiha_seq or 0) < next_num:
+            _kp86.oxirgi_loyiha_seq = next_num
     db.commit()
     db.refresh(db_project)
     return db_project
@@ -1452,6 +1488,89 @@ def _detal_turi_tekshir(items):
                 f"detal turini (Profil / Panel / Donali ...) tanlang va qayta saqlang")
 
 
+_BUYURTMA_RAQAM_URINISH = 5
+
+
+def _buyurtma_prefiksi(db: Session, project) -> str:
+    """Buyurtma raqamidagi loyiha prefiksi (`ORD-<prefiks>-<seq>`) — `create_order` qoidasi (2026-09-20),
+    kech86 da yordamchiga ko'chirildi (migratsiya ham AYNAN shu qoidadan foydalanadi):
+      1) loyihada buyurtma bo'lsa — birinchisining prefiksi;
+      2) bo'lmasa — loyihaning O'Z raqamidan (`PRJ-007` -> `007`);
+      3) ikkalasi ham bo'lmasa — `project_id` (3 xonali).
+    """
+    import re as _re_on
+    _mq = db.query(Order.order_number).filter(Order.project_id == project.id)
+    if getattr(project, "company_id", None) is not None:
+        _mq = _mq.filter(Order.company_id == project.company_id)
+    _mavjud = _mq.order_by(Order.id.asc()).first()
+
+    _prefiks = None
+    if _mavjud and _mavjud[0]:
+        _m = _re_on.match(r"ORD-(\d+)-", _mavjud[0])
+        if _m:
+            _prefiks = _m.group(1)
+    if _prefiks is None and getattr(project, "project_number", None):
+        _m = _re_on.search(r"(\d+)", project.project_number)
+        if _m:
+            _prefiks = f"{int(_m.group(1)):03d}"
+    if _prefiks is None:
+        _prefiks = f"{project.id:03d}"
+    return _prefiks
+
+
+def _buyurtma_seq_ol(raqam, prefiks):
+    """`ORD-<prefiks>-<N>` dan N (butun son); boshqa shakl — None."""
+    import re as _re86
+    _m = _re86.fullmatch(r"ORD-" + _re86.escape(str(prefiks)) + r"-(\d+)", str(raqam or "").strip())
+    return int(_m.group(1)) if _m else None
+
+
+def buyurtma_raqam_asosi(db: Session, project, prefiks, jurnal=None) -> int:
+    """kech86 (100-band, QAROR "A"): loyihada shu paytgacha BERILGAN eng katta buyurtma tartib raqami.
+
+    Manbalar (eng kattasi olinadi — raqam faqat o'sadi, bo'shliq qoladi):
+      - loyiha hisoblagichi `projects.oxirgi_buyurtma_seq` (bazadan YANGI o'qiladi — identity map eskirgan bo'lishi mumkin);
+      - korxonadagi SHU prefiksli HAMMA buyurtmalar (yumshoq o'chirilganlar ham; bir prefiks ikki loyihada
+        uchrasa ham to'qnashuv bo'lmasin);
+      - hisoblagich bo'sh (NULL) bo'lsa (yoki `jurnal=True`) — faoliyat jurnalidagi buyurtma yozuvlari
+        (qattiq o'chirilgan buyurtma raqami faqat shu yerda qoladi).
+    """
+    _cid = getattr(project, "company_id", None)
+    _hq = db.query(Project.oxirgi_buyurtma_seq).filter(Project.id == project.id)
+    if _cid is not None:
+        _hq = _hq.filter(Project.company_id == _cid)
+    _hisob = _hq.scalar()
+    _eng = int(_hisob or 0)
+    _oq = db.query(Order.order_number).filter(Order.order_number.like(f"ORD-{prefiks}-%"))
+    if _cid is not None:
+        _oq = _oq.filter(Order.company_id == _cid)
+    for (_r,) in _oq.all():
+        _s = _buyurtma_seq_ol(_r, prefiks)
+        if _s is not None and _s > _eng:
+            _eng = _s
+    if jurnal is None:
+        jurnal = _hisob is None
+    if jurnal:
+        from models import ActivityLog as _AL86
+        _jq = db.query(_AL86.entity_label).filter(
+            _AL86.entity_type == "order", _AL86.entity_label.like(f"ORD-{prefiks}-%"))
+        if _cid is not None:
+            _jq = _jq.filter(_AL86.company_id == _cid)
+        for (_r,) in _jq.all():
+            _s = _buyurtma_seq_ol(_r, prefiks)
+            if _s is not None and _s > _eng:
+                _eng = _s
+    return _eng
+
+
+def _buyurtma_raqami_bandmi(db: Session, company_id, raqam) -> bool:
+    """Shu korxonada shu raqamli buyurtma bormi (unique `uq_orders_company_order_number` bilan bir xil fazo)."""
+    _q = db.query(Order.id).filter(Order.order_number == raqam)
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    return _q.first() is not None
+
+
 def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
                  company_id: int = None) -> Order:
     """Yangi buyurtma + detallar qo'shadi.
@@ -1572,29 +1691,27 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     #   2) Buyurtma yo'q bo'lsa — loyihaning O'Z raqamidan olinadi
     #      (`PRJ-007` -> `ORD-007-1`), bu hujjatda ko'rinadigan raqam.
     #   3) Ikkalasi ham bo'lmasa — eski usul, `project_id`.
-    import re as _re_on
-    _mavjud = db.query(Order.order_number).filter(
-        Order.project_id == order_data.project_id
-    ).order_by(Order.id.asc()).first()
+    _prefiks = _buyurtma_prefiksi(db, _project)
 
-    _prefiks = None
-    if _mavjud and _mavjud[0]:
-        _m = _re_on.match(r"ORD-(\d+)-", _mavjud[0])
-        if _m:
-            _prefiks = _m.group(1)
-    if _prefiks is None and getattr(_project, "project_number", None):
-        _m = _re_on.search(r"(\d+)", _project.project_number)
-        if _m:
-            _prefiks = f"{int(_m.group(1)):03d}"
-    if _prefiks is None:
-        _prefiks = f"{order_data.project_id:03d}"
-
+    # kech86 (100-band, QAROR "A" — raqam HECH QACHON qayta berilmaydi). Ilgari
+    # `seq = loyihadagi buyurtmalar SONI + 1 + urinish` edi (O'LCHANDI, probe100): qattiq o'chirilgan
+    # OXIRGI buyurtma raqami yangisiga qayta berilardi (jurnalda bir raqam — ikki buyurtma); o'rtadagisi
+    # o'chirilsa to'qnashuv -> `db.rollback()` advisory qulfni ham, endpoint tranzaksiyasini ham bekor
+    # qilardi (parallel takror-himoya ishlamay IKKI buyurtma, penoplast ikki marta — probe100b); birinchi
+    # 5 tasi o'chirilsa loyihaga buyurtma umuman yaratilmasdi (500). Endi: seq = BERILGAN eng katta
+    # raqam + 1 (`buyurtma_raqam_asosi`), band raqam oldindan o'tkazib yuboriladi; PG da bir vaqtdagi
+    # to'qnashuv (bir prefiksli boshqa loyiha) — faqat SAVEPOINT bekor qilinadi (qulf va oldingi
+    # yozuvlar saqlanadi), keyingi raqam; urinishlar tugasa — 409 (500 EMAS), hech narsa yozilmaydi.
+    from fastapi import HTTPException as _HE86
+    _pg86 = db.bind.dialect.name == "postgresql"
+    seq = buyurtma_raqam_asosi(db, _project, _prefiks)
     db_order = None
-    max_attempts = 5
-    for attempt in range(max_attempts):
-        seq = db.query(Order).filter(Order.project_id == order_data.project_id).count() + 1 + attempt
+    for attempt in range(_BUYURTMA_RAQAM_URINISH):
+        seq += 1
+        while _buyurtma_raqami_bandmi(db, _company_id, f"ORD-{_prefiks}-{seq}"):
+            seq += 1
         order_number = f"ORD-{_prefiks}-{seq}"
-        db_order = Order(
+        _yangi_buyurtma = Order(
             company_id=_company_id,
             order_number=order_number,
             project_id=order_data.project_id,
@@ -1605,14 +1722,22 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             notes=order_data.notes,
             total_amount=0
         )
-        db.add(db_order)
         try:
-            db.flush()  # ID olish uchun
-            break  # Muvaffaqiyatli — raqam band emas edi
+            if _pg86:
+                with db.begin_nested():
+                    db.add(_yangi_buyurtma)
+                    db.flush()  # ID olish uchun
+            else:
+                db.add(_yangi_buyurtma)
+                db.flush()  # ID olish uchun
         except IntegrityError:
-            db.rollback()
-            if attempt == max_attempts - 1:
-                raise  # 5 marta urinib bo'lmasa, haqiqiy xato bor demak
+            if not _pg86:
+                raise _HE86(status_code=409, detail=f"Buyurtma raqami {order_number} band — qayta urinib ko'ring. Hech narsa saqlanmadi.")
+            continue
+        db_order = _yangi_buyurtma
+        break  # Muvaffaqiyatli — raqam band emas edi
+    if db_order is None:
+        raise _HE86(status_code=409, detail="Buyurtma raqamini ajratib bo'lmadi (bir vaqtda juda ko'p so'rov) — qayta urinib ko'ring. Hech narsa saqlanmadi.")
 
     # Detallarni qo'shamiz va umumiy summani hisoblaymiz
     total_amount = 0
@@ -1738,6 +1863,13 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             _planned_loy_general = _planned_loy_direct
             if _planned_loy_general > 0:
                 _services.deduct_loy_ingredients(db, db_order, _planned_loy_general)
+
+    # kech86 (100-band): berilgan raqam loyiha hisoblagichiga yoziladi — keyingi buyurtma undan KATTA
+    # raqam oladi (bu buyurtma o'chirilsa ham). Loyiha qatori ATAYLAB OXIRIDA yangilanadi: tayyor mahsulot /
+    # ombor qulflaridan KEYIN (yuk xati + to'lov ham avval TM, keyin loyiha qatorini qulflaydi — teskari
+    # tartib deadlock berardi). Bir loyihaning buyurtmalari yuqoridagi advisory qulf bilan ketma-ket.
+    if int(_project.oxirgi_buyurtma_seq or 0) < seq:
+        _project.oxirgi_buyurtma_seq = seq
 
     db.commit()
     db.refresh(db_order)
@@ -7610,6 +7742,26 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
 
     # Yetkazish raqami: ORD-010-1/Y-2
     seq = db.query(Delivery).filter(Delivery.order_id == order.id).count() + 1
+    # kech86 (K86-1, O'LCHANDI probe86c — SQLite va PG): `yuklar SONI + 1` o'rtadagi yuk xati
+    # o'chirilgach MAVJUD raqamni berardi (Y-1, Y-3, Y-3 — ikki hujjat bir raqamda). Endi raqam mavjud
+    # yuklarning eng kattasidan KEYIN (buyurtma qulfi 101 ostida — bir buyurtmaning yuklari ketma-ket).
+    import re as _re_y86
+    _yq86 = db.query(Delivery.delivery_number).join(Order, Order.id == Delivery.order_id).filter(
+        Delivery.order_id == order.id)
+    if getattr(order, "company_id", None) is not None:
+        _yq86 = _yq86.filter(Order.company_id == order.company_id)
+    for (_dn86,) in _yq86.all():
+        _my86 = _re_y86.search(r"/Y-(\d+)$", _dn86 or "")
+        if _my86 and int(_my86.group(1)) >= seq:
+            seq = int(_my86.group(1)) + 1
+    # kech86 (QAROR "A" yuk xatiga ham): buyurtma hisoblagichi — OXIRGI yuk xati o'chirilsa ham uning raqami
+    # qayta berilmaydi (hisoblagich yakuniy commitdan oldin yoziladi).
+    _yh86 = db.query(Order.oxirgi_yuk_seq).filter(Order.id == order.id)
+    if getattr(order, "company_id", None) is not None:
+        _yh86 = _yh86.filter(Order.company_id == order.company_id)
+    _yh86 = _yh86.scalar()
+    if _yh86 is not None and int(_yh86) >= seq:
+        seq = int(_yh86) + 1
     delivery_number = f"{order.order_number}/Y-{seq}"
 
     db_delivery = Delivery(
@@ -7703,6 +7855,10 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
         # summasini YANGILAMASDI — jonli PRJ-033 da aynan shu topildi
         # (buyurtma to'liq to'langan, loyiha "To'langan: 0").
         _loyiha_tolangan_yangila(db, order.project)
+
+    # kech86 (QAROR "A" yuk xatiga ham): berilgan yuk raqami buyurtma hisoblagichiga.
+    if int(order.oxirgi_yuk_seq or 0) < seq:
+        order.oxirgi_yuk_seq = seq
 
     db.commit()
     db.refresh(db_delivery)
