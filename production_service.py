@@ -40,6 +40,7 @@ qo'shilgan/mustahkamlangan narsalar:
 """
 
 import json
+import math
 from datetime import datetime
 from typing import List, Optional
 
@@ -59,6 +60,34 @@ from production_models import (
 
 def _get_company(db: Session, company_id: int) -> Optional[Company]:
     return db.query(Company).filter(Company.id == company_id).first()
+
+
+# kech93 (K93-2, 8-band o'lchovida topildi — HAQIQIY PostgreSQL 16 da
+# O'LCHANGAN `work/probe8b.py` M15 / M16, `work/probe8c.py`): katta miqdorli
+# ishlab chiqarish "Boshlash" dan o'tib, "Yakunlash" da 500 berardi —
+# `numeric field overflow`: tayyor mahsulot `cost_price` Numeric(12,2)
+# (1e9 kg × 100 so'm), buyurtma jamilari Numeric(14,2) (1e12 dona).
+# Buyurtma "jarayonda" qotib qolardi (faqat bekor qilish). Endi tannarx
+# bazaga sig'maydigan bo'lsa — boshlashda (erta) VA yakunlashda (oxirgi
+# yozuvchi) aniq xabar bilan rad etiladi, hech narsa yozilmaydi.
+_TANNARX_MAX = 9_999_999_999.99            # FinishedProduct.cost_price — Numeric(12,2)
+_BIRLIK_TANNARX_MAX = 9_999_999_999.9999   # FinishedProduct.unit_cost_stable — Numeric(14,4)
+
+
+def _tannarx_sigimi_xatosi(total_cost, quantity):
+    """Tannarx (jami va 1 birlik) bazaga sig'adimi: sig'masa — xabar matni,
+    sig'sa — None. `ProductionOrder.total_*` Numeric(14,2) — `cost_price`
+    dan kengroq, shuning uchun alohida tekshirilmaydi (jamidan katta emas)."""
+    t = float(total_cost or 0)
+    if not math.isfinite(t) or round(t, 2) > _TANNARX_MAX:
+        return (f"Ishlab chiqarish tannarxi juda katta ({t:,.2f} so'm) — tizim "
+                f"sig'imidan ({_TANNARX_MAX:,.2f} so'm) oshadi. Miqdorni kamaytiring "
+                f"yoki retseptni tekshiring.")
+    q = float(quantity or 0)
+    if q > 0 and round(t / q, 4) > _BIRLIK_TANNARX_MAX:
+        return ("1 birlik tannarxi juda katta — tizim sig'imidan oshadi. Retsept "
+                "miqdorlari va partiya hajmini tekshiring.")
+    return None
 
 
 def _compute_bom_line(bom_item: BOMItem, production_quantity: float, batch_quantity: float) -> dict:
@@ -308,6 +337,26 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
     if not bom:
         return {"success": False, "message": "Tanlangan retsept (BOM) topilmadi yoki faol emas"}
 
+    # kech93 (K93-1, 8-band o'lchovida topildi — HAQIQIY PostgreSQL 16 da
+    # O'LCHANGAN, `work/probe8b.py` M12 / M13): "Omborga" (warehouse_stock)
+    # buyurtmada `source_order_id` / `source_order_item_id` TEKSHIRUVSIZ
+    # saqlanardi — BEGONA korxonaning buyurtmasi / detali ham (200). Boshlashda
+    # A korxonaning tayyor mahsuloti B korxona detaliga BAND qilinardi: B
+    # detalining "kerak" miqdori 10 → 8 bo'ldi (`mrp_detal_kerak` band ni
+    # korxonasiz sanaydi). Yo'q buyurtma id si — PostgreSQL 500 (FK). O'z
+    # detali ham yaratishdagi "kerak" tekshiruvisiz band bo'lardi (50 > 10).
+    # Endi: omborga — hech qanday bog'lanishsiz; mijoz buyurtmasiga — buyurtma
+    # id si detaldan olinadi (berilgan bo'lsa, AYNAN o'sha bo'lishi shart).
+    _manba_buyurtma = getattr(data, "source_order_id", None)
+    _manba_detal = getattr(data, "source_order_item_id", None)
+    if data.source_type not in (ProductionSourceType.CUSTOMER_ORDER.value,
+                                ProductionSourceType.WAREHOUSE_STOCK.value):
+        return {"success": False, "message": "Noto'g'ri manba turi (source_type)"}
+    if data.source_type == ProductionSourceType.WAREHOUSE_STOCK.value and \
+            (_manba_buyurtma is not None or _manba_detal is not None):
+        return {"success": False, "message": "Omborga ishlab chiqarishda buyurtma yoki "
+                                             "buyurtma-detali ko'rsatilmaydi"}
+
     if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value and not data.source_order_item_id:
         return {"success": False, "message": "Mijoz buyurtmasi asosida ishlab chiqarish uchun source_order_item_id shart"}
 
@@ -325,6 +374,11 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
             return {"success": False, "message": "Tanlangan buyurtma-detali topilmadi"}
         if order_item.product_type_id != product_type.id:
             return {"success": False, "message": f"Bu detal '{product_type.name}' uchun emas — noto'g'ri detal tanlangan"}
+        # kech93 (K93-1): berilgan buyurtma id si detalning O'Z buyurtmasi bo'lsin
+        # (ilgari jimgina detaldagisi bilan almashtirilardi — xato tana ko'rinmasdi).
+        if _manba_buyurtma is not None and _manba_buyurtma != order_item.order_id:
+            return {"success": False, "message": "Buyurtma (source_order_id) tanlangan "
+                                                 "buyurtma-detalining buyurtmasiga mos emas"}
         # 2026-09-17: ORTIQCHA BAND QILISHNING oldini olish (haqiqiy xato,
         # foydalanuvchi topdi). Bu yerdagi tekshiruv — DASTLABKI, tezkor
         # signal uchun (hali qulflanmagan); HAQIQIY, poyga-xavfsiz
@@ -504,6 +558,33 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
                         "success": False,
                         "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} kerak ({_mrp_kerak_izoh(_k)}) — boshqa ishlab chiqarish buyurtmasi band qilib ulgurgan yoki detal topshirilgan. {po.quantity:g} band qilib bo'lmaydi.",
                     }
+            else:
+                # kech93 (K93-1): detal SHU korxonada topilmadi (begona yoki
+                # yo'q id — K93-1 dan oldin yaratilgan buyurtmalarda bo'lishi
+                # mumkin). Ilgari tekshiruvsiz davom etib, tayyor mahsulot shu
+                # (begona) detalga BAND qilinardi — O'LCHANGAN. Endi boshlanmaydi.
+                db.rollback()
+                return {
+                    "success": False,
+                    "message": "Bog'langan buyurtma-detali topilmadi (boshqa korxonaniki yoki "
+                               "o'chirilgan) — bu ishlab chiqarishni boshlab bo'lmaydi. "
+                               "Uni bekor qilib, qaytadan yarating.",
+                }
+
+        # kech93 (K93-2): tannarx bazaga sig'maydigan bo'lsa — ERTA rad
+        # (yakunlashdagi hisob bilan bir xil: kiritilgan qatorlar narxi +
+        # retseptdagi qat'iy / foizli qo'shimcha xarajatlar).
+        _tm = sum(float(_l.get("line_cost") or 0) for _l in snapshot if _l.get("included"))
+        _tq = 0.0
+        for _bi in bom.items:
+            if _bi.fixed_cost_per_unit:
+                _tq += float(_bi.fixed_cost_per_unit) * float(po.quantity or 0)
+            if _bi.percentage_cost:
+                _tq += _tm * (float(_bi.percentage_cost) / 100.0)
+        _sig_xato = _tannarx_sigimi_xatosi(_tm + _tq, po.quantity)
+        if _sig_xato:
+            db.rollback()
+            return {"success": False, "message": _sig_xato}
 
         # Mavjud "Tayyor mahsulotlar" jadvaliga "ishlab chiqarilmoqda" yozuvi
         from models import FinishedProduct, StockSource, ProductionStatus as FPStatus
@@ -659,6 +740,13 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
                     total_extra_cost += total_material_cost * (float(item.percentage_cost) / 100.0)
 
         total_cost = total_material_cost + total_extra_cost
+
+        # kech93 (K93-2): oxirgi yozuvchi — tannarx bazaga sig'masa, ayirilgan
+        # xomashyo ham bekor (rollback), buyurtma "jarayonda" qoladi.
+        _sig_xato = _tannarx_sigimi_xatosi(total_cost, po.quantity)
+        if _sig_xato:
+            db.rollback()
+            return {"success": False, "message": _sig_xato}
 
         po.total_material_cost = total_material_cost
         po.total_extra_cost = total_extra_cost

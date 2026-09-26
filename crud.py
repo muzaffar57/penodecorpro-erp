@@ -2368,6 +2368,11 @@ _NOL_YOKI_TIYIN = {
     # yetkazish transporti `0.001` → 0.00.
     "Delivery": ("payment_amount", "transport_cost"),
     "Return": ("refund_amount",),
+    # kech93 (8-band, O'LCHANGAN `work/probe8b.py` M5 / M10): mahsulot turining
+    # qat'iy narxi va retsept qatorining qat'iy xarajati `0.001` → 0.00 bo'lib
+    # saqlanardi. 0 — "yo'q" (ruxsat), aks holda kamida 1 tiyin.
+    "ProductType": ("fixed_unit_price",),
+    "BOMItem": ("fixed_cost_per_unit",),
 }
 
 
@@ -2894,6 +2899,27 @@ def _clean_by_rules(rules: dict, taqiq: dict, data, notogri_xabar: str) -> dict:
                 except ValueError as e:
                     raise ValueError(f"'{key}' {i + 1}-qator: {e}")
             toza[key] = qatorlar
+        elif tur == "idlar":
+            # kech93 (8-band): bog'lanish ID lari RO'YXATI (masalan ishlab
+            # chiqarishda tanlangan ixtiyoriy retsept qatorlari). O'LCHANGAN
+            # (`work/probe8b.py` M14, asl kod): pydantic `true` va "1" ni 1 ga
+            # JIM o'girardi, 2**31 esa saqlanardi. Har qiymat — musbat butun son
+            # (bool emas), takrorlar bir marta qoldiriladi; `null` — bo'sh ro'yxat.
+            eng_kop = qoida[1]
+            if value is None:
+                toza[key] = []
+                continue
+            if not isinstance(value, list):
+                raise ValueError(f"'{key}' ro'yxat bo'lishi kerak")
+            if len(value) > eng_kop:
+                raise ValueError(f"'{key}' juda ko'p ({eng_kop} tadan ko'p)")
+            idlar = []
+            for i, el in enumerate(value):
+                if isinstance(el, bool) or not isinstance(el, int) or not (1 <= el <= 2_147_483_647):
+                    raise ValueError(f"'{key}' {i + 1}-qiymat: musbat butun son bo'lishi kerak")
+                if el not in idlar:
+                    idlar.append(el)
+            toza[key] = idlar
         elif tur == "sana":
             if value is None or (isinstance(value, str) and value.strip() == ""):
                 if not qoida[1]:
@@ -3135,11 +3161,48 @@ _YETKAZISH_TOLOVCHI = {"none": "none", "client": "client", "company": "company",
 _XARAJAT_KATEGORIYA_MAX = 30
 
 
+# kech93 (8-band) — foydalanuvchi, parol va ishlab chiqarish tanalari chegaralari.
+_LOGIN_MAX = 50                 # `users.username` String(50)
+_TOLIQ_ISM_MAX = 100            # `users.full_name` String(100)
+_PAROL_MIN = 6                  # parol almashtirishdagi mavjud qoida — endi yaratishda ham
+_PAROL_MAX_BELGI = 72
+# bcrypt 72 BAYTDAN keyingi qismini JIM tashlab yuboradi — HAQIQIY o'lchangan
+# (`work/probe8b.py` U2 / U3 / P5, bcrypt 4.2.0): 72 ta "A" + "X" parol bilan
+# yaratilgan foydalanuvchi 72 ta "A" + "Y" (BOSHQA parol) bilan ham kirdi; 40 ta
+# kirill harfli (80 bayt) parolda — 36 harf + ixtiyoriy dum bilan. Ya'ni
+# foydalanuvchi "uzun parol qo'ydim" deb o'ylaydi, aslida oxiri hisobga
+# olinmaydi. Endi 72 baytdan uzun parol ANIQ rad etiladi (jim kesish o'rniga).
+# Kirish (login) va mavjud xeshlarga TEGILMAYDI — faqat yangi parol qo'yish.
+_PAROL_MAX_BAYT = 72
+_QOPLAMA_KOEF_MAX = 100.0       # `production_schemas.ProductTypeCreate` `le=100` (ustun Numeric(5,2))
+_RETSEPT_QATOR_MAX = 500        # bitta retsept (BOM) qatorlari / tanlangan ixtiyoriy qatorlar
+
+
+def _faqat_kalitlar(data, ruxsat) -> dict:
+    """kech93 (8-band): xom JSON tanasida FAQAT ruxsat etilgan kalitlar bo'lsin
+    (qiymatlarni o'z funksiyasi tekshiradi). O'LCHANGAN: sovg'a davrini ochish /
+    bosqichni tahrirlash, material narxi / min qoldig'i marshrutlari noma'lum
+    kalitni JIM e'tiborsiz qoldirardi (200). Xabar `_clean_by_rules` bilan bir xil."""
+    if not isinstance(data, dict):
+        raise ValueError("Noto'g'ri so'rov")
+    notogri = sorted(str(k)[:40] for k in data if k not in ruxsat)
+    if notogri:
+        raise ValueError("Noma'lum maydon: " + ", ".join(notogri[:10]))
+    return data
+
+
 def _val_rules():
     """17-band qoidalari: model (tana turi) → {maydon: qoida}."""
     money = _ORDER_ITEM_MAX_MONEY
     son = _UPD_SON_CHEGARA
     matn = _UPD_MATN_CHEGARA
+    # kech93 (8-band): rol va ishlab chiqarish tanlovlari — ENUM lardan olinadi
+    # (qo'lda yozilgan ro'yxat emas: enum o'zgarsa, qoida ham o'zgaradi).
+    from models import UserRole as _UR
+    from production_models import (InputTemplate as _IT, PricingFormula as _PF,
+                                   BOMComponentType as _BCT,
+                                   ProductionSourceType as _PST)
+    rol = {r.value: r.value for r in _UR}
     sotuv = {
         "finished_product_id": ("id", False),
         "quantity": ("son", False, True, son),
@@ -3392,6 +3455,97 @@ def _val_rules():
             "order_item_id": ("id", False),
             "quantity": ("son", False, True, son),
         },
+
+        # ── kech93 (8-band) — tanasi ilgari QAT'IY tekshirilmagan marshrutlar ──
+        # HAQIQIY PostgreSQL 16 da O'LCHANGAN (`work/probe8.py`, `work/probe8b.py`,
+        # asl kod = zip 86). Foydalanuvchi yaratish (`POST /api/users`;
+        # `users.html` AYNAN shu to'rt kalitni yuboradi): kalit yo'q / `true` /
+        # son / NaN → 500; login 51 belgi, to'liq ism 101 belgi → PostgreSQL 500
+        # (SQLite jim saqlardi); login `''` yoki faqat bo'shliq / tab → BO'SH
+        # loginli foydalanuvchi yaratilardi; parol 1 belgi → qabul (almashtirishda
+        # ≥ 6 edi); noma'lum kalit (`is_platform_admin`, `company_id`) — jim.
+        "UserCreate": {
+            "username": ("matn", True, _LOGIN_MAX),
+            "password": ("matn", True, _PAROL_MAX_BELGI),
+            "full_name": ("matn", False, _TOLIQ_ISM_MAX),
+            "role": ("tanlov", False, rol),
+        },
+        # Parolni almashtirish (`users.html`: `new_password`, o'z parolida
+        # `current_password` ham). O'LCHANGAN: `new_password` `true` / son /
+        # ro'yxat / `null` → 500; o'z parolida `current_password` son / ro'yxat /
+        # `true` → 500 (bcrypt `.encode()`); noma'lum kalit — jim.
+        # `current_password` — MAVJUD parol (72 baytdan uzun eski parol ham
+        # kiritila olsin), shuning uchun faqat umumiy matn chegarasi.
+        "UserPassword": {
+            "new_password": ("matn", True, _PAROL_MAX_BELGI),
+            "current_password": ("matn", False, matn),
+        },
+        # Sovg'a davriga usta qo'shish (`kpi.html` — faqat `master_id`, butun
+        # son). O'LCHANGAN: `true` / "1" / 1.0 / 2**31 → PostgreSQL 500 (SQLite
+        # da `true` = 1-usta!); noma'lum kalit — jim.
+        "GiftAddMaster": {
+            "master_id": ("id", False),
+        },
+        # Davrni yopish (`kpi.html` — faqat `force`: true / false). O'LCHANGAN:
+        # `{"force": "false"}` → `bool("false")` = True va `{"force": 1}` →
+        # MAJBURIY yopish (sovg'aga yetgan ustalar sovg'asiz qolardi).
+        "GiftClose": {
+            "force": ("bool", True),
+        },
+        # Ishlab chiqarish (`production.html`). O'LCHANGAN: pydantic "lax" —
+        # `true` → 1, "yes" → True, noma'lum kalit jim (`company_id`,
+        # `is_active`, `status`); tanlov maydonlariga ixtiyoriy matn ('qalbaki');
+        # PostgreSQL da narx 1e20 / `Infinity` / 9 999 999 999.995 → 500,
+        # retsept partiyasi `Infinity` BAZAGA yozilardi; faqat bo'shliqli tur /
+        # retsept nomi → '' saqlanardi; qoplama koeffitsiyenti 0.001 → 0.00
+        # (qoplamali narx × 0); qat'iy narx 0.001 → 0.00; id 2**31 va yo'q
+        # material → PostgreSQL 500 (SQLite jim bog'lamsiz qator saqlardi).
+        # Ustunlar: `product_types` name String(150), unit String(20),
+        # fixed_unit_price Numeric(12,2), coating_price_multiplier Numeric(5,2);
+        # `boms` variant_name String(100), batch_quantity Float; `bom_items`
+        # quantity / scrap / percentage Float, fixed_cost Numeric(12,2);
+        # `production_orders` quantity Float.
+        "ProductType": {
+            "name": ("matn", True, 150),
+            "unit": ("matn", True, 20),
+            "input_template": ("tanlov", False, {m.value: m.value for m in _IT}),
+            "pricing_formula": ("tanlov", False, {m.value: m.value for m in _PF}),
+            "fixed_unit_price": ("son", True, False, money),
+            "supports_coating": ("bool", False),
+            "coating_price_multiplier": ("son", True, True, _QOPLAMA_KOEF_MAX),
+            "notes": ("matn", False, matn),
+        },
+        "BOMItem": {
+            "inventory_id": ("id", False),
+            "component_type": ("tanlov", False, {m.value: m.value for m in _BCT}),
+            "quantity": ("son", False, True, son),
+            "scrap_factor_percent": ("son", False, False, 100.0),
+            "is_optional": ("bool", False),
+            "is_coating": ("bool", False),
+            "fixed_cost_per_unit": ("son", True, False, money),
+            "percentage_cost": ("son", True, False, 1000.0),
+            "notes": ("matn", False, matn),
+        },
+        # Retsept: kamida bitta qator (`production.html` ham "Kamida bitta
+        # komponent qo'shing" deb to'xtatadi; O'LCHANGAN: server bo'sh retseptni
+        # qabul qilardi va undan 0 tannarxli mahsulot "ishlab chiqarilardi").
+        "BOM": {
+            "product_type_id": ("id", False),
+            "variant_name": ("matn", False, 100),
+            "batch_quantity": ("son", False, True, son),
+            "notes": ("matn", False, matn),
+            "items": ("royxat", "BOMItem", 1, _RETSEPT_QATOR_MAX),
+        },
+        "ProductionOrder": {
+            "product_type_id": ("id", False),
+            "bom_id": ("id", False),
+            "quantity": ("son", False, True, son),
+            "source_type": ("tanlov", False, {m.value: m.value for m in _PST}),
+            "source_order_id": ("id", True),
+            "source_order_item_id": ("id", True),
+            "selected_optional_bom_item_ids": ("idlar", _RETSEPT_QATOR_MAX),
+            "notes": ("matn", False, matn),
+        },
     }
 
 
@@ -3424,6 +3578,15 @@ _VAL_MAJBURIY = {
     "Return": {"order_id": None, "item_name": 1, "quantity": None, "reason": None},
     "Delivery": {"order_id": None, "items": None},
     "DeliveryItem": {"order_item_id": None, "quantity": None},
+    # kech93 (8-band). `UserPassword` bu yerda YO'Q — kalit bo'lmasa ham
+    # xabar avvalgidek "Parol kamida 6 belgi" (`_clean_val` oxirida).
+    "UserCreate": {"username": 1, "password": None},
+    "GiftAddMaster": {"master_id": None},
+    "ProductType": {"name": 1, "unit": 1, "input_template": None, "pricing_formula": None},
+    "BOMItem": {"inventory_id": None, "quantity": None},
+    "BOM": {"product_type_id": None, "batch_quantity": None, "items": None},
+    "ProductionOrder": {"product_type_id": None, "bom_id": None, "quantity": None,
+                        "source_type": None},
 }
 
 
@@ -3506,6 +3669,37 @@ def _clean_val(model: str, data) -> dict:
     # qaytariladi (sana haqiqiyligi allaqachon tasdiqlangan).
     if model == "Purchase" and isinstance(toza.get("payment_due_date"), datetime):
         toza["payment_due_date"] = toza["payment_due_date"].strftime("%Y-%m-%d")
+    # kech93 (8-band): parol qoidalari — yaratishda VA almashtirishda BIR XIL
+    # (eng kami 6 belgi — avval faqat almashtirishda edi; eng ko'pi 72 bayt —
+    # sababi `_PAROL_MAX_BAYT` izohida).
+    if model in ("UserCreate", "UserPassword"):
+        _pk = "password" if model == "UserCreate" else "new_password"
+        _parol = toza.get(_pk)
+        if _parol is None or len(_parol) < _PAROL_MIN:
+            raise ValueError(f"Parol kamida {_PAROL_MIN} belgi")
+        if len(_parol.encode("utf-8")) > _PAROL_MAX_BAYT:
+            raise ValueError(f"Parol juda uzun: ko'pi bilan {_PAROL_MAX_BAYT} bayt "
+                             f"(lotin harflarida {_PAROL_MAX_BAYT} belgi, kirill harflarida "
+                             f"{_PAROL_MAX_BAYT // 2} belgi)")
+    # Login bazaga chetidagi bo'shliqlarsiz yoziladi (`auth.create_user` va
+    # login formasi ham `strip()` qiladi) — chegara ham shu qiymatga.
+    if model == "UserCreate":
+        toza["username"] = toza["username"].strip()
+    if model == "ProductType":
+        _koef = toza.get("coating_price_multiplier")
+        # Numeric(5,2): 0.005 dan kichik koeffitsiyent bazada 0.00 bo'ladi.
+        if _koef is not None and round(_koef, 2) < _PUL_ENG_KAM:
+            raise ValueError(f"'coating_price_multiplier' kamida {_PUL_ENG_KAM} bo'lishi kerak "
+                             "(bazada 2 xonagacha saqlanadi — kichigi 0 ga aylanadi)")
+        # Sxemadagi `_qoplama_tekshir` bilan bir xil qoida — bu yerda o'qiladigan
+        # matn bilan (sxema 422 ro'yxati UI da "[object Object]" bo'lib chiqardi).
+        if toza.get("supports_coating") and _koef is None:
+            raise ValueError("Qoplama yoqilgan — qoplama narx koeffitsiyentini kiriting "
+                             "(masalan 2 yoki 2.5)")
+    # Retsept nomi: bo'sh / faqat bo'shliq — "Standart" (bo'sh matn ilgari ham
+    # shunday edi; faqat bo'shliqli nom esa '' bo'lib saqlanardi — O'LCHANGAN).
+    if model == "BOM":
+        toza["variant_name"] = (toza.get("variant_name") or "").strip() or "Standart"
     return toza
 
 
@@ -10776,6 +10970,12 @@ def get_employee_own_requests(db: Session, employee_id: int, limit: int = 20) ->
 
 def update_master_kpi(db: Session, master_id: int, kpi_percent: float,
                       company_id: int = None) -> Optional[Master]:
+    # kech93 (8-band): ildizda ham QAT'IY — marshrut sxemasi (`MasterKpiUpdate`,
+    # strict) birinchi to'siq. `true` / "7" / NaN / cheksiz / 0..100 dan
+    # tashqari — `ValueError` (O'LCHANGAN: sxema "lax" edi, `true` → 1.0,
+    # "7" → 7.0 jim saqlanardi).
+    kpi_percent = _json_son("kpi_percent", kpi_percent, bosh_mumkin=False,
+                            musbat=False, chegara=100.0)
     m = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not m:
         return None
@@ -11318,6 +11518,12 @@ def add_master_to_active_gift_period(db: Session, master_id: int, performed_by: 
     — yangi usta ALLAQACHON avtomatik ishtirok etadi (dinamik so'rov
     orqali), shunchaki shu haqda xabar qaytariladi.
     """
+    # kech93 (8-band, O'LCHANGAN): `true` / "1" / 1.0 / 2**31 — PostgreSQL 500
+    # edi (SQLite da `true` = 1-usta). Ildizda ham QAT'IY (marshrut — birinchi to'siq).
+    try:
+        master_id = _clean_val("GiftAddMaster", {"master_id": master_id})["master_id"]
+    except ValueError as e:
+        return {"success": False, "message": str(e)}
     period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}
@@ -11357,6 +11563,11 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
     ustaning checkpoint'dan keyingi qoldiq savdosi FOYDA orqali (KPI% ×)
     avtomatik keshbek hisobiga o'tkaziladi."""
     from models import MasterGiftPeriodRedemption
+    # kech93 (8-band): `force` — FAQAT haqiqiy true / false. O'LCHANGAN: marshrut
+    # `bool("false")` = True, `bool(1)` = True qilardi — majburiy yopish, ya'ni
+    # sovg'aga yetgan ustalarning sovg'asi keshbekka aylanib ketardi.
+    if not isinstance(force, bool):
+        return {"success": False, "message": "'force' true yoki false bo'lishi kerak"}
     period = get_active_gift_period(db, company_id)
     if not period:
         return {"success": False, "message": "Faol sovg'a davri yo'q"}

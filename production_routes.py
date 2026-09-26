@@ -11,11 +11,13 @@ migratsiyasi boshlanganda, bu joyga "joriy foydalanuvchining
 korxonasi" degan haqiqiy mantiq keladi.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import auth
+import crud
+from models import Inventory
 from database import get_db
 import production_schemas as schemas
 import production_service as service
@@ -33,6 +35,35 @@ router = APIRouter(prefix="/api/production", tags=["production"])
 DEFAULT_COMPANY_ID = 1
 
 
+def _tana(model: str, data, sxema):
+    """kech93 (8-band): xom JSON QAT'IY tekshiriladi (`crud._clean_val`), keyin
+    sxemaga o'giriladi (sxema ham strict — ikkinchi to'siq). Qoida buzilsa 400 va
+    `detail` — MATN: `production.html` `'Xato: ' + e.detail` ni ko'rsatadi
+    (sxemaning 422 ro'yxati "Xato: [object Object]" bo'lib chiqardi)."""
+    try:
+        toza = crud._clean_val(model, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return sxema(**toza)
+
+
+def _retsept_materiallari(db: Session, items, company_id: int) -> None:
+    """kech93 (8-band, HAQIQIY PostgreSQL da O'LCHANGAN `work/probe8b.py` M7 / M8):
+    yo'q material id si (va 2**31) — PostgreSQL 500 (FK / integer), SQLite esa
+    JIM bog'lamsiz retsept qatori saqlardi; begona korxona materiali — 409 (ORM
+    qo'riqchisi). Endi har qator materiali SHU korxonada bo'lishi shart → 400
+    (qaysi qator ekani bilan; begona — "topilmadi", oracle yo'q)."""
+    ids = {it.inventory_id for it in items}
+    bor = set()
+    if ids:
+        bor = {r[0] for r in db.query(Inventory.id).filter(
+            Inventory.id.in_(ids), Inventory.company_id == company_id).all()}
+    for i, it in enumerate(items):
+        if it.inventory_id not in bor:
+            raise HTTPException(status_code=400,
+                                detail=f"'items' {i + 1}-qator: material topilmadi")
+
+
 # ============================================================
 # MAHSULOT TURLARI (ProductType)
 # ============================================================
@@ -45,7 +76,9 @@ def list_product_types(db: Session = Depends(get_db), current_user=Depends(auth.
 
 
 @router.post("/product-types", response_model=schemas.ProductTypeRead)
-def create_product_type(data: schemas.ProductTypeCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def create_product_type(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # kech93 (8-band): tana QAT'IY (`_tana`), sabab — `crud._val_rules()["ProductType"]` izohida.
+    data = _tana("ProductType", data, schemas.ProductTypeCreate)
     _cid = auth.company_id_of(current_user)
     # QO'SHILDI 2026-09-20 — nom TAKRORLANMASIN.
     # Ilgari hech qanday shart yo'q edi: bitta korxona aynan bir xil
@@ -98,13 +131,17 @@ def list_boms_for_product(pt_id: int, db: Session = Depends(get_db), current_use
 
 
 @router.post("/boms", response_model=schemas.BOMRead)
-def create_bom(data: schemas.BOMCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def create_bom(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    # kech93 (8-band): tana QAT'IY (`_tana`), materiallar — shu korxonadan.
+    data = _tana("BOM", data, schemas.BOMCreate)
     pt = db.query(ProductType).filter(ProductType.id == data.product_type_id, ProductType.company_id == auth.company_id_of(current_user)).first()
     if not pt:
         raise HTTPException(status_code=404, detail="Mahsulot turi topilmadi")
+    _retsept_materiallari(db, data.items, auth.company_id_of(current_user))
     # QO'SHILDI 2026-09-20 — variant nomi ham TAKRORLANMASIN (yuqoridagi
     # bilan bir xil sabab: ro'yxatda ikkita "Standart" ajralmaydi).
-    _vnom = (data.variant_name or "Standart").strip()
+    # kech93: faqat bo'shliqli nom ham "Standart" (ilgari '' saqlanardi).
+    _vnom = (data.variant_name or "").strip() or "Standart"
     _bor = db.query(BOM).filter(
         BOM.product_type_id == pt.id,
         BOM.company_id == auth.company_id_of(current_user),
@@ -134,14 +171,17 @@ def create_bom(data: schemas.BOMCreate, db: Session = Depends(get_db), current_u
 
 
 @router.put("/boms/{bom_id}", response_model=schemas.BOMRead)
-def update_bom(bom_id: int, data: schemas.BOMCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """MUHIM: bu FAQAT hali IN_PROGRESS/COMPLETED bo'lmagan kelajakdagi
     ishlab chiqarishlarga ta'sir qiladi — chunki boshlangan buyurtmalar
     o'zining recipe_snapshot_json'idan foydalanadi, JORIY BOM'ni emas."""
+    # kech93 (8-band): tana QAT'IY (`_tana`), materiallar — shu korxonadan.
+    data = _tana("BOM", data, schemas.BOMCreate)
     bom = db.query(BOM).filter(BOM.id == bom_id, BOM.company_id == auth.company_id_of(current_user)).first()
     if not bom:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
-    _vnom = (data.variant_name or "Standart").strip()
+    _retsept_materiallari(db, data.items, auth.company_id_of(current_user))
+    _vnom = (data.variant_name or "").strip() or "Standart"
     _bor = db.query(BOM).filter(
         BOM.product_type_id == bom.product_type_id,
         BOM.company_id == auth.company_id_of(current_user),
@@ -202,7 +242,9 @@ def list_mrp_order_items_pending(product_type_id: int = None, db: Session = Depe
 
 
 @router.post("/orders")
-def create_order(data: schemas.ProductionOrderCreate, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+def create_order(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+    # kech93 (8-band): tana QAT'IY (`_tana`); manba bog'lanishlari — servisda (K93-1).
+    data = _tana("ProductionOrder", data, schemas.ProductionOrderCreate)
     result = service.create_production_order(db, auth.company_id_of(current_user), data, created_by=current_user.full_name or current_user.username)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])

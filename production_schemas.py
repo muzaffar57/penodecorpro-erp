@@ -7,8 +7,31 @@ rejimi yoqilgan.
 """
 
 from datetime import datetime
-from typing import List, Optional
-from pydantic import BaseModel, Field, model_validator
+from typing import Annotated, List, Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+# kech93 (8-band) — KIRISH (Create) sxemalari QAT'IY: bu IKKINCHI to'siq.
+# Birinchisi — marshrutdagi `crud._clean_val` (o'qiladigan matn bilan 400;
+# `production.html` 422 ro'yxatini "[object Object]" deb ko'rsatardi).
+# HAQIQIY PostgreSQL 16 da O'LCHANGAN (`work/probe8.py`, `work/probe8b.py`):
+# "lax" sxema `true` → 1, "yes" → True, "1" → 1 ga JIM o'girardi, noma'lum
+# kalitlar (`company_id`, `is_active`, `status`) jim tashlanardi, tanlov
+# maydonlariga ixtiyoriy matn yozilardi, `Infinity` retsept partiyasi BAZAGA
+# tushardi, 1e20 narx / 2**31 id → 500.
+_QATIY = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+_ID = Annotated[int, Field(ge=1, le=2_147_483_647)]
+_PUL_MAX = 9_999_999_999.99        # Numeric(12,2)
+_SON_MAX = 1_000_000_000_000.0     # Float miqdorlar — crud._UPD_SON_CHEGARA bilan bir xil
+_MATN_MAX = 10_000                 # Text — crud._UPD_MATN_CHEGARA bilan bir xil
+_QATOR_MAX = 500                   # crud._RETSEPT_QATOR_MAX
+# Tanlov qiymatlari — production_models dagi enum qiymatlari bilan AYNAN
+# (test `test_tana_qatiy` H bo'limi tenglikni tekshiradi).
+_KIRITISH_SHABLONI = Literal["quantity_only", "dimensional_3d", "area_2d",
+                             "weight_volume", "flexible_unit"]
+_NARX_FORMULASI = Literal["volume_based", "area_based", "fixed_price", "unit_based"]
+_KOMPONENT_TURI = Literal["raw_material", "packaging"]
+_MANBA_TURI = Literal["customer_order", "warehouse_stock"]
 
 
 # ============================================================
@@ -16,11 +39,12 @@ from pydantic import BaseModel, Field, model_validator
 # ============================================================
 
 class ProductTypeCreate(BaseModel):
+    model_config = _QATIY
     name: str = Field(..., min_length=1, max_length=150, description="Masalan: Travertin, Kafel kley")
     unit: str = Field(..., min_length=1, max_length=20, description="dona / m² / kg / litr")
-    input_template: str = Field(..., description="quantity_only / dimensional_3d / area_2d / weight_volume / flexible_unit")
-    pricing_formula: str = Field(..., description="volume_based / area_based / fixed_price / unit_based")
-    fixed_unit_price: Optional[float] = Field(default=None, ge=0, description="Faqat pricing_formula=fixed_price bo'lsa")
+    input_template: _KIRITISH_SHABLONI = Field(..., description="quantity_only / dimensional_3d / area_2d / weight_volume / flexible_unit")
+    pricing_formula: _NARX_FORMULASI = Field(..., description="volume_based / area_based / fixed_price / unit_based")
+    fixed_unit_price: Optional[float] = Field(default=None, ge=0, le=_PUL_MAX, description="Faqat pricing_formula=fixed_price bo'lsa")
     # 11.0-band — qoplama. `supports_coating=True` bo'lsa, buyurtmada shu
     # mahsulot uchun "Qoplama" tugmasi chiqadi va narx koeffitsiyentga
     # ko'paytiriladi. Koeffitsiyent har korxonada har xil (2 / 2.5 / ...).
@@ -28,7 +52,7 @@ class ProductTypeCreate(BaseModel):
     coating_price_multiplier: Optional[float] = Field(
         default=None, gt=0, le=100,
         description="Qoplamali narx koeffitsiyenti, masalan 2 yoki 2.5")
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=_MATN_MAX)
 
     @model_validator(mode="after")
     def _qoplama_tekshir(self):
@@ -66,17 +90,18 @@ class ProductTypeRead(BaseModel):
 # ============================================================
 
 class BOMItemCreate(BaseModel):
-    inventory_id: int
-    component_type: str = Field(default="raw_material", description="raw_material / packaging")
-    quantity: float = Field(..., gt=0, description="BOM.batch_quantity uchun kerak miqdor")
+    model_config = _QATIY
+    inventory_id: _ID
+    component_type: _KOMPONENT_TURI = Field(default="raw_material", description="raw_material / packaging")
+    quantity: float = Field(..., gt=0, le=_SON_MAX, description="BOM.batch_quantity uchun kerak miqdor")
     scrap_factor_percent: float = Field(default=0.0, ge=0, le=100)
     is_optional: bool = False
     # 11.0-band — shu ixtiyoriy qator aynan QOPLAMA uchunmi. Faqat
     # `is_optional=True` bo'lganda ma'noga ega.
     is_coating: bool = False
-    fixed_cost_per_unit: Optional[float] = Field(default=None, ge=0)
+    fixed_cost_per_unit: Optional[float] = Field(default=None, ge=0, le=_PUL_MAX)
     percentage_cost: Optional[float] = Field(default=None, ge=0, le=1000)
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=_MATN_MAX)
 
 
 class BOMItemRead(BaseModel):
@@ -101,11 +126,12 @@ class BOMItemRead(BaseModel):
 # ============================================================
 
 class BOMCreate(BaseModel):
-    product_type_id: int
+    model_config = _QATIY
+    product_type_id: _ID
     variant_name: str = Field(default="Standart", max_length=100)
-    batch_quantity: float = Field(..., gt=0)
-    notes: Optional[str] = None
-    items: List[BOMItemCreate] = Field(default_factory=list)
+    batch_quantity: float = Field(..., gt=0, le=_SON_MAX)
+    notes: Optional[str] = Field(default=None, max_length=_MATN_MAX)
+    items: List[BOMItemCreate] = Field(..., min_length=1, max_length=_QATOR_MAX)
 
 
 class BOMRead(BaseModel):
@@ -130,14 +156,15 @@ class BOMRead(BaseModel):
 class ProductionOrderCreate(BaseModel):
     """DRAFT holatida yaratish uchun. Hali hech qanday ombor
     tekshiruvi/band qilish sodir bo'lmaydi."""
-    product_type_id: int
-    bom_id: int
-    quantity: float = Field(..., gt=0)
-    source_type: str = Field(..., description="customer_order / warehouse_stock")
-    source_order_id: Optional[int] = Field(default=None, description="Faqat source_type=customer_order bo'lsa")
-    source_order_item_id: Optional[int] = Field(default=None, description="Aniq QAYSI buyurtma-detalini to'ldirish uchun — rezervatsiya shu orqali ishlaydi")
-    selected_optional_bom_item_ids: List[int] = Field(default_factory=list, description="Tanlangan ixtiyoriy komponentlar (masalan Qoplama)")
-    notes: Optional[str] = None
+    model_config = _QATIY
+    product_type_id: _ID
+    bom_id: _ID
+    quantity: float = Field(..., gt=0, le=_SON_MAX)
+    source_type: _MANBA_TURI = Field(..., description="customer_order / warehouse_stock")
+    source_order_id: Optional[_ID] = Field(default=None, description="Faqat source_type=customer_order bo'lsa")
+    source_order_item_id: Optional[_ID] = Field(default=None, description="Aniq QAYSI buyurtma-detalini to'ldirish uchun — rezervatsiya shu orqali ishlaydi")
+    selected_optional_bom_item_ids: List[_ID] = Field(default_factory=list, max_length=_QATOR_MAX, description="Tanlangan ixtiyoriy komponentlar (masalan Qoplama)")
+    notes: Optional[str] = Field(default=None, max_length=_MATN_MAX)
 
 
 class ProductionOrderSnapshotLine(BaseModel):

@@ -2928,13 +2928,21 @@ def api_permanent_delete_project(project_id: int, db: Session = Depends(get_db),
 
 @app.post("/api/users")
 def api_create_user(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    # kech93 (8-band): xom JSON QAT'IY tekshiriladi (`crud._clean_val("UserCreate")`).
+    # HAQIQIY PostgreSQL da O'LCHANGAN (`work/probe8.py`, `work/probe8b.py`): kalit
+    # yo'q / `true` / son / NaN → 500; login 51 / ism 101 belgi → 500; bo'sh
+    # (yoki faqat bo'shliq / tab) login → BO'SH loginli foydalanuvchi; parol
+    # 1 belgi → qabul; 72 baytdan uzun parolning oxiri JIM tashlanardi (bcrypt).
+    # `users.html` yuboradigan tana (username, password, role, full_name) AYNAN
+    # shu qoidalarga mos. Xato → 400, `detail` MATN (forma "Xato: ..." ko'rsatadi).
     try:
-        role = UserRole(data.get("role", "manager"))
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Noto'g'ri rol")
+        toza = crud._clean_val("UserCreate", data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    role = UserRole(toza.get("role") or "manager")
     # M1: yangi foydalanuvchi ALBATTA joriy adminning korxonasiga tegishli.
-    user = auth.create_user(db, data["username"], data["password"], role,
-                            data.get("full_name", ""),
+    user = auth.create_user(db, toza["username"], toza["password"], role,
+                            toza.get("full_name", ""),
                             company_id=auth.company_id_of(current_user))
     return {"id": user.id, "username": user.username, "role": user.role.value}
 
@@ -2950,9 +2958,16 @@ def api_toggle_user(user_id: int, db: Session = Depends(get_db), current_user=De
 
 @app.post("/api/users/{user_id}/password")
 def api_change_password(user_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
-    new_pass = data.get("new_password", "")
-    if len(new_pass) < 6:
-        raise HTTPException(status_code=400, detail="Parol kamida 6 belgi")
+    # kech93 (8-band): xom JSON QAT'IY (`crud._clean_val("UserPassword")`).
+    # O'LCHANGAN: `new_password` `true` / son / ro'yxat / `null` → 500; o'z
+    # parolida `current_password` son / ro'yxat / `true` → 500; noma'lum kalit
+    # jim; 72 baytdan uzun yangi parolning oxiri JIM tashlanardi (bcrypt).
+    # Kalit yo'q yoki qisqa — xabar avvalgidek "Parol kamida 6 belgi".
+    try:
+        toza = crud._clean_val("UserPassword", data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    new_pass = toza["new_password"]
 
     # 2026-09-20 — O'Z parolini almashtirishda ESKI parol so'raladi.
     # Sabab: kimdir ochiq qolgan sessiyadan foydalanib parolni almashtirib,
@@ -2960,7 +2975,7 @@ def api_change_password(user_id: int, data: dict, db: Session = Depends(get_db),
     # parolini tiklashda esa eski parol so'ralmaydi — admin uni bilmaydi
     # (aynan shuning uchun tiklayapti).
     if user_id == current_user.id:
-        eski = data.get("current_password", "")
+        eski = toza.get("current_password") or ""
         if not eski:
             raise HTTPException(status_code=400,
                                 detail="Joriy parolni kiriting")
@@ -3933,8 +3948,13 @@ def api_reject_advance_request(request_id: int, db: Session = Depends(get_db), c
 
 @app.put("/api/masters/{master_id}/kpi")
 def api_update_master_kpi(master_id: int, data: schemas.MasterKpiUpdate, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    m = crud.update_master_kpi(db, master_id, data.kpi_percent,
-                               company_id=auth.company_id_of(current_user))
+    # kech93 (8-band): tana — `schemas.MasterKpiUpdate` (strict, noma'lum kalit
+    # yo'q, NaN / cheksiz yo'q → 422); crud ildizi ham tekshiradi (→ 400).
+    try:
+        m = crud.update_master_kpi(db, master_id, data.kpi_percent,
+                                   company_id=auth.company_id_of(current_user))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if not m:
         raise HTTPException(status_code=404, detail="Usta topilmadi")
     return {"status": "ok", "kpi_percent": m.kpi_percent}
@@ -3981,6 +4001,13 @@ def api_get_gift_period(db: Session = Depends(get_db), current_user=Depends(auth
 
 @app.post("/api/gift-period/open")
 def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    # kech93 (8-band): faqat `kpi.html` yuboradigan ikki kalit (`tiers`,
+    # `master_ids`); qiymatlarni `crud.open_gift_period` QAT'IY tekshiradi (17f).
+    # O'LCHANGAN: noma'lum kalit jim e'tiborsiz qolardi.
+    try:
+        crud._faqat_kalitlar(data, {"tiers", "master_ids"})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     who = current_user.full_name or current_user.username
     result = crud.open_gift_period(db, data.get("tiers") or [], master_ids=data.get("master_ids"),
                                   performed_by=who, company_id=auth.company_id_of(current_user))
@@ -3991,6 +4018,13 @@ def api_open_gift_period(data: dict, db: Session = Depends(get_db), current_user
 
 @app.put("/api/gift-period/tier/{tier_id}")
 def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
+    # kech93 (8-band): faqat `kpi.html` yuboradigan ikki kalit; qiymatlarni
+    # `crud.update_gift_period_tier` tekshiradi. O'LCHANGAN: noma'lum kalit
+    # (`period_id`) jim e'tiborsiz qolardi (200).
+    try:
+        crud._faqat_kalitlar(data, {"gift_name", "threshold_amount"})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     result = crud.update_gift_period_tier(db, tier_id, data.get("gift_name"), data.get("threshold_amount"),
                                          company_id=auth.company_id_of(current_user))
     if not result.get("success"):
@@ -4002,8 +4036,15 @@ def api_update_gift_period_tier(tier_id: int, data: dict, db: Session = Depends(
 def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     """2026-09-16: davrni to'xtatmasdan, yangi/faollashtirilgan ustani
     aniq-ishtirokchi ro'yxatiga qo'shish uchun."""
+    # kech93 (8-band): `{"master_id": <musbat butun son>}` — boshqa hech narsa.
+    # O'LCHANGAN: `true` / "1" / 1.0 / 2**31 → PostgreSQL 500 (SQLite da
+    # `true` = 1-usta), noma'lum kalit jim.
+    try:
+        toza = crud._clean_val("GiftAddMaster", data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     who = current_user.full_name or current_user.username
-    result = crud.add_master_to_active_gift_period(db, data.get("master_id"), performed_by=who,
+    result = crud.add_master_to_active_gift_period(db, toza["master_id"], performed_by=who,
                                                   company_id=auth.company_id_of(current_user))
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message", "Xato yuz berdi"))
@@ -4013,7 +4054,14 @@ def api_add_master_to_gift_period(data: dict, db: Session = Depends(get_db), cur
 @app.post("/api/gift-period/close")
 def api_close_gift_period(data: dict = Body(default={}), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     who = current_user.full_name or current_user.username
-    force = bool((data or {}).get("force"))
+    # kech93 (8-band): `force` — FAQAT true / false (yoki berilmagan / null).
+    # O'LCHANGAN: `bool("false")` = True va `{"force": 1}` → MAJBURIY yopish;
+    # noma'lum kalit jim. Tana `null` — avvalgidek oddiy yopish.
+    try:
+        toza = crud._clean_val("GiftClose", data if data is not None else {})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    force = toza.get("force") is True
     result = crud.close_gift_period(db, performed_by=who, force=force,
                                    company_id=auth.company_id_of(current_user))
     if not result.get("success"):
@@ -4253,6 +4301,12 @@ def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), cu
     # (UI dagi oyna ham "-5000" ni o'tkazardi) saqlanardi; matn → 500;
     # juda katta son PostgreSQL da Numeric(12,2) sig'imidan oshib 500.
     # Endi hammasi yozishdan OLDIN tekshiriladi → 400.
+    # kech93 (8-band): faqat `inventory.html` yuboradigan kalitlar (O'LCHANGAN:
+    # noma'lum kalit — `stock_quantity` ham — jim e'tiborsiz qolardi).
+    try:
+        crud._faqat_kalitlar(data, {"price_per_unit", "volume_per_unit"})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if "price_per_unit" not in data:
         raise HTTPException(status_code=400, detail="Narx (price_per_unit) berilmagan")
     try:
@@ -4261,8 +4315,11 @@ def api_update_price(item_id: int, data: dict, db: Session = Depends(get_db), cu
                               chegara=crud._ORDER_ITEM_MAX_MONEY)
         hajm = None
         if "volume_per_unit" in data:
+            # kech93: hajm chegarasi — material tahriridagi (`PUT /api/inventory`)
+            # bilan bir xil (O'LCHANGAN: bu yo'l 1e300 ni saqlardi).
             hajm = crud._json_son("volume_per_unit", data.get("volume_per_unit"),
-                                  bosh_mumkin=False, musbat=True)
+                                  bosh_mumkin=False, musbat=True,
+                                  chegara=crud._UPD_SON_CHEGARA)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     item.price_per_unit = narx
@@ -4285,9 +4342,16 @@ def api_update_min_stock(item_id: int, data: dict, db: Session = Depends(get_db)
     # 2026-09-21 — O'LCHANGAN: matn → 500 (`float("abc")`), `true` → 1.0
     # jimgina saqlanardi. Endi faqat haqiqiy, manfiy bo'lmagan son → aks
     # holda 400.
+    # kech93 (8-band): faqat `min_stock` (O'LCHANGAN: noma'lum kalit jim);
+    # chegara — material tahriridagi bilan bir xil (bu yo'l 1e300 ni saqlardi).
+    try:
+        crud._faqat_kalitlar(data, {"min_stock"})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     try:
         min_stock = crud._json_son("min_stock", data.get("min_stock"),
-                                   bosh_mumkin=False, musbat=False)
+                                   bosh_mumkin=False, musbat=False,
+                                   chegara=crud._UPD_SON_CHEGARA)
     except ValueError:
         raise HTTPException(status_code=400, detail="Noto'g'ri qiymat")
     item.min_stock = min_stock

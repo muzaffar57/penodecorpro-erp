@@ -7,7 +7,7 @@ Ular API ga keladigan va chiqadigan ma'lumotlarni tekshiradi.
 
 from datetime import datetime
 from typing import Optional, List, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============================================================
@@ -731,6 +731,12 @@ class EmployeeRead(BaseModel):
 
 
 class MasterKpiUpdate(BaseModel):
+    """Usta KPI foizi (`kpi.html` — faqat `kpi_percent`, son).
+
+    kech93 (8-band, O'LCHANGAN `work/probe8.py`): sxema "lax" edi — `true` → 1.0,
+    "7" → 7.0 JIM saqlanardi, noma'lum kalit e'tiborsiz qolardi. Endi strict
+    (son — faqat JSON son), noma'lum kalit va NaN / cheksiz — 422."""
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
     kpi_percent: float = Field(..., ge=0, le=100)
 
 
