@@ -1963,6 +1963,14 @@ class OrderAttachment(Base):
 # 13. MONTHLY EXPENSE — Oylik xarajatlar
 # ============================================================
 
+# kech87 (104-band): kirim hujjatidagi qo'shimcha xarajat (transport / tushirish / yuklash / boshqa) "tannarxga
+# qo'shish" bilan yozilganda `ExpenseTransaction.source` shu qiymatni oladi. Bunday xarajat xomashyo tannarxida
+# (o'rtacha narxda) hisoblanadi va xomashyo ishlatilganda "ishlab chiqarish xarajati" orqali foydadan ayriladi —
+# shuning uchun oylik sof foydadan ALOHIDA ayrilmaydi (ilgari ikki marta ayrilardi — O'LCHANGAN, probe104 K4/K5).
+# Ustun `String(20)` — qiymat 13 belgi.
+KIRIM_TANNARX_MANBA = "kirim_tannarx"
+
+
 class ExpenseTransaction(Base):
     """Har bir xarajatni ALOHIDA tranzaksiya sifatida saqlaydi (SaaS arxitekturasi uchun).
 

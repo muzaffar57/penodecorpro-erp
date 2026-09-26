@@ -887,7 +887,7 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
     SaaS uchun kengaytiriladigan: kelajakda yangi xarajat turi qo'shish uchun,
     shu funksiyaga yangi parametr va extra_costs ro'yxatiga yangi qator
     qo'shish kifoya."""
-    from models import InventoryReceipt, ExpenseTransaction
+    from models import InventoryReceipt, ExpenseTransaction, KIRIM_TANNARX_MANBA
 
     if not items:
         return {"success": False, "error": "Hech qanday mahsulot kiritilmagan"}
@@ -949,8 +949,10 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
         # 4 ta qo'shimcha xarajat turini, Moliyada ALOHIDA ko'rinishi uchun,
         # ExpenseTransaction sifatida yozamiz (add_to_cost holatidan qat'i
         # nazar — bu, "qancha transportga ketdi" kabi statistik ko'rinish
-        # uchun, hisob-kitobga qo'sh marta qo'shilib ketmaydi, chunki
-        # get_monthly_report o'zi buni alohida qatorga chiqaradi).
+        # uchun). kech87 (104-band, O'LCHANGAN): ilgari "tannarxga qo'shish" bilan yozilgan xarajat sof
+        # foydadan HAM ayrilardi (bir marta shu yozuv orqali, yana bir marta xomashyo tannarxi orqali) —
+        # endi bunday yozuv `source = KIRIM_TANNARX_MANBA` bilan belgilanadi va oylik hisobot uni sof
+        # foydaga alohida qo'shmaydi (Moliyada ko'rinishi saqlanadi).
         # MUHIM: agar BUTUN hujjatdagi barcha mahsulotlar "Ombordagi mavjud
         # xomashyo" (boshlang'ich ombor) deb belgilangan bo'lsa — bu haqiqiy
         # xarid/tranzaksiya EMAS, shunchaki mavjud zaxirani tizimga kiritish.
@@ -960,6 +962,9 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
         # boshlang'ich ombor) bo'lsa — xavfsizlik uchun, xarajatlar odatdagidek
         # yoziladi (chunki hujjatning bir qismi haqiqiy xarid hisoblanadi).
         all_opening_stock = all(bool(it.get("is_opening_stock", False)) for it in items)
+        # kech87 (104-band): xarajat haqiqatan tannarxga qo'shildimi — yuqoridagi `extra_share` sharti bilan
+        # AYNAN bir xil (qo'shilmagan bo'lsa — oddiy xarajat, sof foydadan ayriladi).
+        _tannarxga = bool(add_to_cost and total_extra > 0 and items_total_value > 0)
 
         cost_categories = [
             ("transport_kirim", transport_cost, "Transport (kirim)"),
@@ -979,7 +984,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                     company_id=company_id,
                     date=receipt.receipt_date, category=cat, amount=amount,
                     notes=f"{label} — Kirim #{receipt.id}" + (f" ({document_number})" if document_number else ""),
-                    created_by=created_by, source="inventory_receipt",
+                    created_by=created_by,
+                    source=(KIRIM_TANNARX_MANBA if _tannarxga else "inventory_receipt"),
                     production_type=production_type
                 )
                 db.add(tx)

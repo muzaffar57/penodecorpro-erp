@@ -2275,6 +2275,17 @@ def get_daily_finance_summary(db: Session, target_date, company_id: int = None) 
             _Ord_day.company_id == company_id)
     deliveries_today = _dtq.all()
     transport_total = sum(d.company_transport_cost for d in deliveries_today)
+    # kech87 (104-band, QAROR): kirish transporti (xarid oynasidagi "o'z hisobimdan" va alohida "Kirish
+    # transporti") ham shu kunning transport xarajati — ilgari kunlikda YO'Q edi (O'LCHANGAN, probe104 K1 / K2).
+    from models import TransportExpense as _TE_day
+    from sqlalchemy import func as _func_td
+    _teq_day = db.query(_func_td.sum(_TE_day.amount)).filter(
+        _TE_day.expense_date >= start,
+        _TE_day.expense_date < end
+    )
+    if company_id is not None:      # M6
+        _teq_day = _teq_day.filter(_TE_day.company_id == company_id)
+    transport_total += float(_teq_day.scalar() or 0)
 
     total_expense = material_total + other_total + transport_total
 
@@ -2877,7 +2888,8 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # va h.k. — bular MonthlyExpense'da "qattiq" maydon sifatida yo'q,
     # shuning uchun ExpenseTransaction'dan TO'G'RIDAN-TO'G'RI, dinamik yig'ib olinadi.
     from models import ExpenseTransaction
-    from sqlalchemy import func as _func, extract as _extract
+    from sqlalchemy import func as _func, extract as _extract, or_ as _or_kt
+    from models import KIRIM_TANNARX_MANBA as _KTM
     KNOWN_FIXED_CATEGORIES = {"arenda", "elektr", "tushlik", "soliqlar"}
     extra_rows = db.query(
         ExpenseTransaction.category, _func.sum(ExpenseTransaction.amount)
@@ -2885,6 +2897,9 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         _extract('year', ExpenseTransaction.date) == year,
         _extract('month', ExpenseTransaction.date) == month,
         ~ExpenseTransaction.category.in_(KNOWN_FIXED_CATEGORIES),
+        # kech87 (104-band): tannarxga qo'shilgan kirim xarajati — xomashyo tannarxida, ikkinchi marta EMAS.
+        # NULL `source` (eski yozuvlar) — oddiy xarajat (`!=` NULL ni tashlab yuborardi — shuning uchun `or_`).
+        _or_kt(ExpenseTransaction.source.is_(None), ExpenseTransaction.source != _KTM),
         *( [ExpenseTransaction.company_id == company_id] if company_id is not None else [] )  # M6
     ).group_by(ExpenseTransaction.category).all()
     qoshimcha_xarajatlar = {cat: float(total or 0) for cat, total in extra_rows}
@@ -2938,13 +2953,26 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
 
     # Jami xarajat (arenda/elektr/tushlik/soliq/reklama/kutilmagan va h.k. — hodim
     # to'lovi endi "Ustalar KPI / Hodimlar" bo'limida alohida hisoblanadi)
+    # kech87 (104-band, FOYDALANUVCHI QARORI): korxona to'lagan transport — to'langan oyning xarajati.
+    # (1) kirish transporti: xarid oynasidagi "o'z hisobimdan" va alohida "Kirish transporti"
+    #     (`TransportExpense`, `expense_date` bo'yicha); (2) yetkazish transporti — korxona hisobidan
+    #     (`Delivery.company_transport_cost`: "company" — to'liq, "split" — yarmi; `delivered_at` bo'yicha).
+    # Ilgari ikkalasi ham sof foydaga UMUMAN kirmasdi (faqat "naqd xarajat" qatorida — O'LCHANGAN, probe104
+    # K1 / K2 / K7 / K9). Kirim hujjatining transporti bu yerga KIRMAYDI — u `ExpenseTransaction`
+    # ("transport_kirim") sifatida yuqoridagi qo'shimcha xarajatlarda (yoki tannarxda) allaqachon bor.
+    _tr_foyda = get_transport_stats_for_period(db, year, month, company_id=company_id)
+    transport_xarajat_kirish = float(_tr_foyda.get("inbound_aniq", 0) or 0)
+    transport_xarajat_yetkazish = float(_tr_foyda.get("outbound_company_aniq", 0) or 0)
+    transport_xarajat = transport_xarajat_kirish + transport_xarajat_yetkazish
+
     jami_xarajat_eski = (
         xarajatlar["arenda"] +
         xarajatlar["elektr"] +
         xarajatlar["tushlik"] +
         xarajatlar["soliqlar"] +
         qoshimcha_xarajat_jami +
-        brak_xarajat
+        brak_xarajat +
+        transport_xarajat
     )
 
     # ── 4b. USTA YILLIK KPI (oylik ulush) ─────────────────────
@@ -3019,20 +3047,23 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # Xarajat — "Xarajat qo'shish"da yo'nalish belgilangan tranzaksiyalar
     # (Umumiy/Penoplast/Gips), shu oy uchun.
     from models import ExpenseTransaction as _ET, TransportExpense as _TE
-    from sqlalchemy import extract as _extract_pt, func as _func_pt
+    from sqlalchemy import extract as _extract_pt, func as _func_pt, or_ as _or_pt
+    from models import KIRIM_TANNARX_MANBA as _KTM_pt
+    # kech87 (104-band): tannarxga qo'shilgan kirim xarajati — xomashyo tannarxida (sof foyda bilan bir qoida)
+    _et_foydaga = _or_pt(_ET.source.is_(None), _ET.source != _KTM_pt)
     # M6 — TENANT: gips/penoplast bo'linishidagi 4 ta agregat.
     def _pt_scope(q, model):
         return q.filter(model.company_id == company_id) if company_id is not None else q
 
     gips_qoshimcha_xarajat = float(_pt_scope(db.query(_func_pt.sum(_ET.amount)).filter(
-        _ET.production_type == 'gips',
+        _ET.production_type == 'gips', _et_foydaga,
         _extract_pt('year', _ET.date) == year, _extract_pt('month', _ET.date) == month
     ), _ET).scalar() or 0) + float(_pt_scope(db.query(_func_pt.sum(_TE.amount)).filter(
         _TE.production_type == 'gips',
         _extract_pt('year', _TE.expense_date) == year, _extract_pt('month', _TE.expense_date) == month
     ), _TE).scalar() or 0)
     penoplast_qoshimcha_xarajat = float(_pt_scope(db.query(_func_pt.sum(_ET.amount)).filter(
-        _ET.production_type == 'penoplast',
+        _ET.production_type == 'penoplast', _et_foydaga,
         _extract_pt('year', _ET.date) == year, _extract_pt('month', _ET.date) == month
     ), _ET).scalar() or 0) + float(_pt_scope(db.query(_func_pt.sum(_TE.amount)).filter(
         _TE.production_type == 'penoplast',
@@ -3093,6 +3124,10 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         "xomashyo_by_material": purchase_stats["by_material"],
         "transport_kirish": transport_kirish,
         "transport_chiqish_company": transport_chiqish,
+        # kech87 (104-band): sof foydadan ayrilgan transport (jami_xarajat ICHIDA)
+        "transport_xarajat": transport_xarajat,
+        "transport_xarajat_kirish": transport_xarajat_kirish,
+        "transport_xarajat_yetkazish": transport_xarajat_yetkazish,
         "naqd_xarajat_jami": naqd_xarajat_jami,
     }
 
@@ -3463,6 +3498,9 @@ def get_transport_stats_for_period(db: Session, year: int, month: int,
     return {
         "inbound_total": round(inbound_total),
         "outbound_company": round(outbound_company),
+        # kech87 (104-band): sof foyda uchun — YAXLITLANMAGAN (tiyingacha aniq)
+        "inbound_aniq": float(inbound_total),
+        "outbound_company_aniq": float(outbound_company),
     }
 
 

@@ -2291,6 +2291,46 @@ def _migrate_buyurtma_raqam_hisoblagich():
 
 _migrate_buyurtma_raqam_hisoblagich()
 
+
+def _migrate_kirim_tannarx_manba():
+    """kech87 (104-band) — IDEMPOTENT, PG va SQLite.
+
+    Eski kirim hujjati qo'shimcha xarajatlari (`ExpenseTransaction.source == "inventory_receipt"`, izohida
+    "Kirim #N") — N-hujjat "tannarxga qo'shish" (`add_to_cost`) bilan yozilgan bo'lsa, xarajat xomashyo
+    tannarxiga allaqachon qo'shilgan: bunday yozuv `models.KIRIM_TANNARX_MANBA` bilan belgilanadi va oylik
+    sof foydadan ikkinchi marta ayrilmaydi. Hujjat SHU korxonaniki bo'lishi SHART. Faqat
+    "inventory_receipt" lar ko'riladi — qayta yuklanishda hech narsa o'zgarmaydi.
+    """
+    import re as _re87
+    from database import SessionLocal as _SL87
+    from models import ExpenseTransaction as _ET87, InventoryReceipt as _IR87, KIRIM_TANNARX_MANBA as _KTM87
+    _d = _SL87()
+    try:
+        _n = 0
+        _txs = _d.query(_ET87).filter(_ET87.source == "inventory_receipt").all()
+        if _txs:
+            _hujjat = {_r.id: _r for _r in _d.query(_IR87).filter(_IR87.add_to_cost.is_(True)).all()}
+            for _t in _txs:
+                _m = _re87.search(r"Kirim #(\d+)", _t.notes or "")
+                if not _m:
+                    continue
+                _r = _hujjat.get(int(_m.group(1)))
+                if _r is None or _r.company_id != _t.company_id:
+                    continue
+                _t.source = _KTM87
+                _n += 1
+        if _n:
+            _d.commit()
+            print(f"✓ Tannarxga qo'shilgan kirim xarajatlari belgilandi: {_n} ta")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ Kirim xarajatlarini belgilash o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_kirim_tannarx_manba()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
