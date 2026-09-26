@@ -195,6 +195,10 @@ class ProductionOrderSnapshotLine(BaseModel):
     total_quantity_needed_stock_unit: float
     unit_price_at_time: float
     line_cost: float
+    # kech94 (122-band): qo'shimcha xarajat ham suratga olinadi (yakunlash shu
+    # qiymatlardan va faqat kiritilgan qatorlardan hisoblaydi). Eski suratda yo'q — None.
+    fixed_cost_per_unit: Optional[float] = None
+    percentage_cost: Optional[float] = None
 
 
 class ProductionOrderRead(BaseModel):

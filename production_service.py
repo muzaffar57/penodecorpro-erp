@@ -90,6 +90,64 @@ def _tannarx_sigimi_xatosi(total_cost, quantity):
     return None
 
 
+# kech94 (122-band, O'LCHANGAN — `work/probe122.py`, SQLite = PG): yakunlash
+# qo'shimcha xarajatni (`fixed_cost_per_unit`, `percentage_cost`) JORIY
+# retseptdan va HAMMA qatorlardan olardi: (a) TANLANMAGAN ixtiyoriy qator
+# xarajati ham qo'shilardi (qat'iy 1000 × 2 → tannarx 200 o'rniga 2 200,
+# foizli 50 % → 300); (b) boshlangandan KEYIN retseptga yozilgan xarajat
+# tannarxni o'zgartirardi (500 × 2 → 1 200) — qoida #2 (surat o'zgarmasligi)
+# buzilardi, xomashyo narxi esa suratdan olinardi. Endi xarajat boshlashda
+# suratga (`recipe_snapshot_json` qatoriga) yoziladi va FAQAT kiritilgan
+# (`included`) qatorlardan hisoblanadi — boshlashdagi sig'im tekshiruvi
+# (K93-2) ham, yakunlash ham SHU bitta funksiya bilan.
+_XARAJAT_KALITI = "fixed_cost_per_unit"
+
+
+def _qoshimcha_xarajat(db: Session, po, snapshot: list, material_cost: float, company_id: int) -> float:
+    """Ishlab chiqarish buyurtmasining qo'shimcha xarajati (qat'iy + foizli).
+
+    Surat kech94 dan keyin olingan bo'lsa (qatorlarda `fixed_cost_per_unit`
+    kaliti bor) — faqat suratdagi KIRITILGAN qatorlar: qat'iy × miqdor +
+    xomashyo tannarxi × foiz / 100. Retsept keyin o'zgarsa ham natija
+    o'zgarmaydi.
+
+    Eski surat (kech94 dan OLDIN boshlangan, xarajat kalitsiz) — xarajat
+    suratda yo'q, shuning uchun JORIY retseptdan olinadi (avvalgi xulq),
+    lekin surat `bom_item_id` bersa (kech54 dan beri) FAQAT suratdagi
+    kiritilgan qatorlar hisoblanadi — tanlanmagan ixtiyoriy qator va
+    boshlangandan keyin qo'shilgan qator kirmaydi. `bom_item_id` siz juda
+    eski surat — butun joriy retsept (o'zgarishsiz eski xulq)."""
+    q = float(po.quantity or 0)
+    m = float(material_cost or 0)
+    qatorlar = [l for l in (snapshot or []) if isinstance(l, dict)]
+    if any(_XARAJAT_KALITI in l for l in qatorlar):
+        jami = 0.0
+        for l in qatorlar:
+            if not l.get("included"):
+                continue
+            f = float(l.get("fixed_cost_per_unit") or 0)
+            p = float(l.get("percentage_cost") or 0)
+            if f:
+                jami += f * q
+            if p:
+                jami += m * (p / 100.0)
+        return jami
+    bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
+    if not bom:
+        return 0.0
+    idli = any("bom_item_id" in l for l in qatorlar)
+    kiritilgan = {l.get("bom_item_id") for l in qatorlar if l.get("included")}
+    jami = 0.0
+    for item in bom.items:
+        if idli and item.id not in kiritilgan:
+            continue
+        if item.fixed_cost_per_unit:
+            jami += float(item.fixed_cost_per_unit) * q
+        if item.percentage_cost:
+            jami += m * (float(item.percentage_cost) / 100.0)
+    return jami
+
+
 def _compute_bom_line(bom_item: BOMItem, production_quantity: float, batch_quantity: float) -> dict:
     """Bitta BOMItem uchun, berilgan ishlab chiqarish miqdoriga mos
     ravishda, ISROF FOIZINI HISOBGA OLGAN HOLDA, kerakli xomashyo
@@ -493,6 +551,10 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
             # (bitta material retseptda ikki marta — xomashyo va qoplama — bo'lishi mumkin).
             line["is_coating"] = bool(getattr(item, "is_coating", False))
             line["bom_item_id"] = item.id
+            # kech94 (122-band): qo'shimcha xarajat ham SURATGA olinadi (qoida #2) —
+            # yakunlashda JORIY retsept emas, shu qiymatlar va faqat kiritilgan qatorlar.
+            line["fixed_cost_per_unit"] = float(item.fixed_cost_per_unit or 0)
+            line["percentage_cost"] = float(item.percentage_cost or 0)
             if not included:
                 # Tanlanmagan ixtiyoriy komponent — suratga kiradi (shaffoflik
                 # uchun, "bu safar ishlatilmagan" deb ko'rsatish mumkin bo'lsin),
@@ -573,14 +635,10 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
 
         # kech93 (K93-2): tannarx bazaga sig'maydigan bo'lsa — ERTA rad
         # (yakunlashdagi hisob bilan bir xil: kiritilgan qatorlar narxi +
-        # retseptdagi qat'iy / foizli qo'shimcha xarajatlar).
+        # suratdagi kiritilgan qatorlarning qat'iy / foizli xarajati — kech94,
+        # 122-band: ilgari tanlanmagan ixtiyoriy qator ham qo'shilardi).
         _tm = sum(float(_l.get("line_cost") or 0) for _l in snapshot if _l.get("included"))
-        _tq = 0.0
-        for _bi in bom.items:
-            if _bi.fixed_cost_per_unit:
-                _tq += float(_bi.fixed_cost_per_unit) * float(po.quantity or 0)
-            if _bi.percentage_cost:
-                _tq += _tm * (float(_bi.percentage_cost) / 100.0)
+        _tq = _qoshimcha_xarajat(db, po, snapshot, _tm, company_id)
         _sig_xato = _tannarx_sigimi_xatosi(_tm + _tq, po.quantity)
         if _sig_xato:
             db.rollback()
@@ -728,16 +786,11 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
             )
             total_material_cost += line["line_cost"]
 
-        # Qo'shimcha xarajatlar (fixed_cost_per_unit, percentage_cost) —
-        # BOMItem'dan emas, snapshot momentidagi narxdan hisoblanadi
-        bom = db.query(BOM).filter(BOM.id == po.bom_id, BOM.company_id == company_id).first()
-        total_extra_cost = 0.0
-        if bom:
-            for item in bom.items:
-                if item.fixed_cost_per_unit:
-                    total_extra_cost += float(item.fixed_cost_per_unit) * po.quantity
-                if item.percentage_cost:
-                    total_extra_cost += total_material_cost * (float(item.percentage_cost) / 100.0)
+        # Qo'shimcha xarajatlar (fixed_cost_per_unit, percentage_cost) — kech94
+        # (122-band): SURATdan va faqat kiritilgan qatorlardan (ilgari izoh
+        # "snapshot momentidagi" derdi, kod esa JORIY retseptning HAMMA
+        # qatorini o'qirdi — O'LCHANGAN). Eski surat — `_qoshimcha_xarajat` izohi.
+        total_extra_cost = _qoshimcha_xarajat(db, po, snapshot, total_material_cost, company_id)
 
         total_cost = total_material_cost + total_extra_cost
 
