@@ -3264,17 +3264,20 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
     _jami += (float(data.transport_cost) + float(data.tushirish_cost)
               + float(data.yuklash_cost) + float(data.boshqa_cost))
     _paid_now = min(float(data.paid_now), round(_jami))
+    # kech84 (103-band): kirim hujjati butun endpoint bo'yicha BITTA tranzaksiyada (ichki saqlashlar ham shu
+    # tranzaksiyaga tushadi) — ish tugashidan oldingi har qanday xato hech narsa qoldirmaydi.
     try:
-        result = crud.create_inventory_receipt(
-            db,
-            items=[it.model_dump() for it in data.items],
-            transport_cost=data.transport_cost, tushirish_cost=data.tushirish_cost,
-            yuklash_cost=data.yuklash_cost, boshqa_cost=data.boshqa_cost,
-            add_to_cost=data.add_to_cost, supplier_id=data.supplier_id,
-            document_number=data.document_number, paid_now=_paid_now,
-            notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None),
-            company_id=auth.company_id_of(current_user)
-        )
+        with crud.bitta_tranzaksiya(db):
+            result = crud.create_inventory_receipt(
+                db,
+                items=[it.model_dump() for it in data.items],
+                transport_cost=data.transport_cost, tushirish_cost=data.tushirish_cost,
+                yuklash_cost=data.yuklash_cost, boshqa_cost=data.boshqa_cost,
+                add_to_cost=data.add_to_cost, supplier_id=data.supplier_id,
+                document_number=data.document_number, paid_now=_paid_now,
+                notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None),
+                company_id=auth.company_id_of(current_user)
+            )
         return result
     except (HTTPException, _TenantMismatchError):
         # 12-sizish: bular o'z holati bilan chiqsin (404 / 409) — pastdagi
@@ -3327,44 +3330,48 @@ def api_purchase_stock(item_id: int, data: dict = Body(...), db: Session = Depen
     debt_remains = round(total_amount - paid_now, 2)
     is_credit = debt_remains > 0.01   # server o'zi hisoblaydi — frontenddan kelgan is_credit e'tiborga olinmaydi
 
-    result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
-                                  purchased_by=who, notes=data.notes,
-                                  supplier_id=data.supplier_id, is_credit=is_credit,
-                                  volume_per_unit=data.volume_per_unit,
-                                  payment_due_date=data.payment_due_date,
-                                  is_opening_stock=data.is_opening_stock)
-    if not result:
-        raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
+    # kech84 (103-band, O'LCHANGAN): kirim (ombor + xarid yozuvi), transport xarajati va hoziroq to'lov BITTA
+    # tranzaksiyada. Ilgari kirim o'zi saqlanardi — transport / ta'minotchi to'lovidan oldin xato bo'lsa kirim
+    # QOLARDI, qayta urinish omborni, xaridni va transportni IKKI MARTA yozardi. Telegram — blokdan KEYIN.
+    with crud.bitta_tranzaksiya(db):
+        result = crud.purchase_stock(db, item_id, data.quantity, data.price_per_unit,
+                                      purchased_by=who, notes=data.notes,
+                                      supplier_id=data.supplier_id, is_credit=is_credit,
+                                      volume_per_unit=data.volume_per_unit,
+                                      payment_due_date=data.payment_due_date,
+                                      is_opening_stock=data.is_opening_stock)
+        if not result:
+            raise HTTPException(status_code=404, detail="Xomashyo topilmadi")
 
-    item = result["item"]
+        item = result["item"]
 
-    # Transport — "O'z hisobimdan" tanlansa xarajat sifatida yoziladi
-    if data.transport_payer == "self" and data.transport_cost > 0:
-        crud.create_transport_expense(
-            db,
-            schemas.TransportExpenseCreate(
-                amount=data.transport_cost,
-                materials_note=item.item_name,
-                notes=f"{item.item_name} xaridi bilan birga"
-            ),
-            created_by=who, company_id=auth.company_id_of(current_user)
-        )
+        # Transport — "O'z hisobimdan" tanlansa xarajat sifatida yoziladi
+        if data.transport_payer == "self" and data.transport_cost > 0:
+            crud.create_transport_expense(
+                db,
+                schemas.TransportExpenseCreate(
+                    amount=data.transport_cost,
+                    materials_note=item.item_name,
+                    notes=f"{item.item_name} xaridi bilan birga"
+                ),
+                created_by=who, company_id=auth.company_id_of(current_user)
+            )
 
-    # Hoziroq to'langan summa bo'lsa — darhol to'lov sifatida yoziladi (qarzdan ayiriladi)
-    if is_credit and data.supplier_id and paid_now > 0:
-        # 17g: `ichki=True` — xarid allaqachon saqlangan; takror-yuborish
-        # himoyasi (ta'minotchi + summa + 8 s) va ortiqcha to'lov ogohlantirishi
-        # bu to'lovni yutib yubormasin / xariddan keyin 500 bermasin (sababi
-        # `crud.create_supplier_payment` izohida; kech23 da O'LCHANGAN).
-        crud.create_supplier_payment(
-            db,
-            schemas.SupplierPaymentCreate(
-                supplier_id=data.supplier_id,
-                amount=paid_now,
-                notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan"
-            ),
-            paid_by=who, company_id=auth.company_id_of(current_user), ichki=True
-        )
+        # Hoziroq to'langan summa bo'lsa — darhol to'lov sifatida yoziladi (qarzdan ayiriladi)
+        if is_credit and data.supplier_id and paid_now > 0:
+            # 17g: `ichki=True` — xarid allaqachon saqlangan; takror-yuborish
+            # himoyasi (ta'minotchi + summa + 8 s) va ortiqcha to'lov ogohlantirishi
+            # bu to'lovni yutib yubormasin / xariddan keyin 500 bermasin (sababi
+            # `crud.create_supplier_payment` izohida; kech23 da O'LCHANGAN).
+            crud.create_supplier_payment(
+                db,
+                schemas.SupplierPaymentCreate(
+                    supplier_id=data.supplier_id,
+                    amount=paid_now,
+                    notes=f"{item.item_name} xaridi bilan bir vaqtda to'langan"
+                ),
+                paid_by=who, company_id=auth.company_id_of(current_user), ichki=True
+            )
 
     # Nasiya bo'lsa — kompaniya qarzi oshgani haqida ogohlantirish
     if is_credit and data.supplier_id:
@@ -4548,10 +4555,23 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
             "message": "Omborda yetishmayotgan xomashyo bor. Shunday ham davom etasizmi?",
             "shortages": all_shortages
         })
-    new_order = crud.create_order(db, order, company_id=auth.company_id_of(current_user))
-    is_draft = getattr(order, 'is_draft', False)
-    if not is_draft:
-        services.deduct_inventory_for_order(db, new_order)
+    # kech84 (103-band, O'LCHANGAN — `work/probe103.py`, SQLite = PG 16 AYNAN): buyurtma yaratish BITTA
+    # tranzaksiyada (`crud.bitta_tranzaksiya`). Ilgari `crud.create_order` (buyurtma + loy yechish) o'zi
+    # saqlardi, penoplast esa keyin alohida yechilardi — orada xato bo'lsa buyurtma va yechilgan loy QOLARDI,
+    # qayta urinish ikkinchi buyurtma yaratib loyni IKKI MARTA yechardi. Telegram — blokdan KEYIN.
+    with crud.bitta_tranzaksiya(db):
+        new_order = crud.create_order(db, order, company_id=auth.company_id_of(current_user))
+        # kech84 (K84-1, O'LCHANGAN — `tools/test_atomik_103.py` T2, asl kod `2170432` da ham): `crud.create_order`
+        # 8 s ichida AYNAN shunday tarkibli buyurtmani (ikki marta bosish, tarmoq takrori) YANGI yaratmay, MAVJUDINI
+        # `_is_duplicate_submit` belgisi bilan qaytaradi — lekin bu yerda penoplast baribir yana yechilardi (bitta
+        # buyurtma, penoplast -0.2 o'rniga -0.1 kutilgan). Belgi tekshiruvi 2026-08-22 da bor edi, `abb2044`
+        # (2026-09-01) da tushib qolgan. Takrorda ombor, Telegram — hech narsa qayta qilinmaydi.
+        takror = bool(getattr(new_order, '_is_duplicate_submit', False))
+        is_draft = getattr(order, 'is_draft', False)
+        if not is_draft and not takror:
+            services.deduct_inventory_for_order(db, new_order)
+    if takror:
+        return new_order
     low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user)) if not is_draft else []
     if low_items:
         lines = []
@@ -4747,9 +4767,13 @@ def api_update_loy(order_id: int, loy_kg: Optional[str] = None, db: Session = De
     # 17d (2026-09-21): `loy_kg` MATN sifatida olinadi va ildizda
     # (`crud.update_order_loy` → `_query_loy`) QAT'IY o'qiladi — majburiy,
     # manfiy emas, chekli. Xato → 400, ombor O'ZGARMAYDI.
-    result = crud.update_order_loy(db, order_id, loy_kg)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
+    # kech84 (103-band, O'LCHANGAN): loy yechish / qaytarish va yangi reja BITTA tranzaksiyada. Ilgari loy
+    # farqi alohida saqlanardi — reja yozilishidan oldin xato bo'lsa qoldiq o'zgargan, reja eski qolardi va
+    # qayta urinish loyni IKKI MARTA yechardi.
+    with crud.bitta_tranzaksiya(db):
+        result = crud.update_order_loy(db, order_id, loy_kg)
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result)
     return result
 
 
@@ -4852,9 +4876,14 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
         loy_kg = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
     except ValueError as e:
         raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
-    result = services.complete_order(db, order_id, loy_kg)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
+    # kech84 (103-band, O'LCHANGAN): «Tayyor» — loy farqi, qisman yakun, avto yuk xati, usta KPI va holat
+    # BITTA tranzaksiyada. Ilgari `services.complete_order` loy farqini saqlab, keyin avto yuk yozardi —
+    # orada xato bo'lsa loy yechilgan, avto yuk YO'Q holat qolardi (qayta urinish 400). Rad javobi (400)
+    # ham blok ICHIDA — yozilgan hamma narsa bekor bo'ladi. Telegram / Yuk xati PDF — blokdan KEYIN.
+    with crud.bitta_tranzaksiya(db):
+        result = services.complete_order(db, order_id, loy_kg)
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result)
     order = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
     if order:
         if loy_kg and loy_kg > 0:
@@ -5799,11 +5828,18 @@ def api_create_return(data: dict = Body(...), db: Session = Depends(get_db), cur
         if not db.query(_OI_r.id).filter(_OI_r.id == data.order_item_id,
                                          _OI_r.order_id == data.order_id).first():
             raise HTTPException(status_code=404, detail="Buyurtma detali topilmadi")
+    # kech84 (103-band, O'LCHANGAN): qaytarish yozuvi, ombor (brak xomashyosi / tayyor mahsulot) va pul BITTA
+    # tranzaksiyada — butun ish saqlanishidan oldin xato bo'lsa hech narsa yozilmaydi (qayta urinish — bir marta).
     try:
-        return crud.create_return_item(db, data, company_id=_cid)
+        with crud.bitta_tranzaksiya(db):
+            _qaytarish = crud.create_return_item(db, data, company_id=_cid)
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
+    # Javob shakli avvalgidek: blok oxiridagi saqlash obyektni eskirtiradi (expire), FastAPI esa ORM
+    # obyektini maydonlari bo'yicha o'qiydi — yangilanmasa javob bo'sh chiqardi.
+    db.refresh(_qaytarish)
+    return _qaytarish
 
 
 @app.get("/api/returns")
@@ -7013,15 +7049,18 @@ def api_finished_production_brak(data: dict = Body(...), db: Session = Depends(g
     BARQAROR nisbatdan hisoblab."""
     data = _fp_tana("ProductionBrak", data, schemas.FinishedProductProductionBrakCreate)
     who = current_user.full_name or current_user.username
-    result = crud.record_finished_product_production_brak(
-        db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
-        company_id=auth.company_id_of(current_user),
-        brak_bosqich=data.brak_bosqich,   # kech53 (13-band, 1-qadam)
-        brak_sabab=data.brak_sabab,               # kech56 (13-band, 7-qadam)
-        brak_javobgar_id=data.brak_javobgar_id,   # kech56 (13-band, 7-qadam)
-    )
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
+    # kech84 (103-band, O'LCHANGAN): brak xomashyosi va yo'qotish yozuvi BITTA tranzaksiyada (xomashyo yechilgach
+    # xato bo'lsa yozuv yo'q, qayta urinish xomashyoni IKKI MARTA yechardi).
+    with crud.bitta_tranzaksiya(db):
+        result = crud.record_finished_product_production_brak(
+            db, data.finished_product_id, data.brak_qty, data.notes, created_by=who,
+            company_id=auth.company_id_of(current_user),
+            brak_bosqich=data.brak_bosqich,   # kech53 (13-band, 1-qadam)
+            brak_sabab=data.brak_sabab,               # kech56 (13-band, 7-qadam)
+            brak_javobgar_id=data.brak_javobgar_id,   # kech56 (13-band, 7-qadam)
+        )
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result)
     return result
 
 
@@ -7079,10 +7118,13 @@ def api_produce(data: dict = Body(...), db: Session = Depends(get_db), current_u
     """Tayyor mahsulot ishlab chiqarish."""
     data = _fp_tana("Produce", data, schemas.ProduceCreate)
     who = current_user.full_name or current_user.username
-    result = crud.produce_finished_product(db, data, created_by=who,
-                                          company_id=auth.company_id_of(current_user))
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
+    # kech84 (103-band, O'LCHANGAN): xomashyo yechish va tayyor mahsulot yozuvi BITTA tranzaksiyada. Ilgari
+    # loy yechilgach xato bo'lsa mahsulot yozilmay, xomashyo yechilgan qolardi (qayta urinish — IKKI MARTA).
+    with crud.bitta_tranzaksiya(db):
+        result = crud.produce_finished_product(db, data, created_by=who,
+                                              company_id=auth.company_id_of(current_user))
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result)
 
     # Ombor ogohlantirishi
     low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
@@ -7126,10 +7168,13 @@ def api_add_production(fp_id: int, data: dict = Body(...),
     if not crud.get_finished_product(db, fp_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     data = _fp_tana("StockAdjust", data, schemas.StockAdjust)
-    result = crud.add_to_production(db, fp_id, data.quantity,
-                                    company_id=auth.company_id_of(current_user))
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result)
+    # kech84 (103-band, O'LCHANGAN): xomashyo yechish va miqdor qo'shish BITTA tranzaksiyada (qayta urinish
+    # xomashyoni IKKI MARTA yechardi).
+    with crud.bitta_tranzaksiya(db):
+        result = crud.add_to_production(db, fp_id, data.quantity,
+                                        company_id=auth.company_id_of(current_user))
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result)
 
     # Ombor ogohlantirishi
     low_items = crud.get_low_stock_items(db, company_id=auth.company_id_of(current_user))
@@ -7205,8 +7250,12 @@ def api_delete_finished(fp_id: int, return_to_stock: bool = False,
                    f"o'chirib bo'lmaydi. Avval to'liq soting yoki \"Kamaytirish (brak)\" "
                    f"orqali nolga tushiring, keyin o'chiring."
         )
-    if not crud.delete_finished_product(db, fp_id, company_id=_cid):
-        raise HTTPException(status_code=400, detail="O'chirib bo'lmadi")
+    # kech84 (103-band, O'LCHANGAN): loy / penoplast qaytarish va mahsulotni o'chirish BITTA tranzaksiyada.
+    # Ilgari loy qaytgach xato bo'lsa mahsulot o'chmay qolardi — qayta urinish loyni IKKI MARTA qaytarardi
+    # (ombor soxta ko'payardi).
+    with crud.bitta_tranzaksiya(db):
+        if not crud.delete_finished_product(db, fp_id, company_id=_cid):
+            raise HTTPException(status_code=400, detail="O'chirib bo'lmadi")
     return {"status": "ok"}
 
 
