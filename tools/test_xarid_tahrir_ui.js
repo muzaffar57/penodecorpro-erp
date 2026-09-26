@@ -116,6 +116,13 @@ async function tahrirla(javob, promptlar, tasdiq = true,
   try {
     vm.runInContext('const inFlightPurchaseEdit = new Set();', m.ctx);
     vm.runInContext(yordamchi, m.ctx);
+    // 118-band (kech94): editPurchase sahifaning YAGONA son / narx o'qish
+    // yordamchilarini ishlatadi (parseNum, narxniOqi, narxKorinishi) — ular ham
+    // HTML dan o'qiladi (asl faylda faqat parseNum bor — zarari yo'q).
+    for (const nom of ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi']) {
+      const y = olib(nom);
+      if (y) vm.runInContext(y, m.ctx);
+    }
     vm.runInContext(f, m.ctx);
   } catch (e) { return { xato: 'sintaksis: ' + e.message }; }
   try { await vm.runInContext(`editPurchase(${args})`, m.ctx); }

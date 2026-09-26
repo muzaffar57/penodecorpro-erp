@@ -845,9 +845,15 @@ r = req(C, "post", "/api/production/orders", json=dict(PO0, quantity=2))
 _pk3 = ((js(r) or {}).get("production_order") or {}).get("id")
 r = req(C, "post", f"/api/production/orders/{_pk3}/start")
 check("K2 oddiy buyurtma boshlandi (nazorat) → 200", r.status_code == 200 and (po(_pk3) or [None] * 6)[5] == "in_progress", f"{r.status_code}")
-# yakunlashgacha retseptga ULKAN qat'iy xarajat qo'shildi (yakunlash qo'shimcha xarajatni JORIY retseptdan oladi)
+# yakunlashgacha SURATGA ULKAN qat'iy xarajat yozildi (kech94, 122-band: yakunlash qo'shimcha xarajatni
+# JORIY retseptdan emas, suratdan oladi — surat Core bilan tahrirlanadi, asli K4 dan oldin qaytariladi)
 s = SessionLocal()
-s.execute(BOMItem.__table__.update().where(BOMItem.bom_id == BOMID, BOMItem.inventory_id == INVID).values(fixed_cost_per_unit=9_000_000_000))
+_surat_asl = s.get(ProductionOrder, _pk3).recipe_snapshot_json
+_surat = json.loads(_surat_asl or "[]")
+for _l in _surat:
+    if _l.get("inventory_id") == INVID:
+        _l["fixed_cost_per_unit"] = 9_000_000_000
+s.execute(ProductionOrder.__table__.update().where(ProductionOrder.id == _pk3).values(recipe_snapshot_json=json.dumps(_surat)))
 s.commit()
 s.close()
 i0, m0 = inv(), harakatlar()
@@ -856,7 +862,7 @@ check("K3 yakunlash: tannarx 18e9 > sig'im → 409, JARAYONDA qoldi, xomashyo ay
       r.status_code == 409 and "tannarxi juda katta" in str(detail(r)) and (po(_pk3) or [None] * 6)[5] == "in_progress"
       and inv() == i0 and harakatlar() == m0, f"{r.status_code} {r.text[:160]} {i0} -> {inv()}")
 s = SessionLocal()
-s.execute(BOMItem.__table__.update().where(BOMItem.bom_id == BOMID, BOMItem.inventory_id == INVID).values(fixed_cost_per_unit=None))
+s.execute(ProductionOrder.__table__.update().where(ProductionOrder.id == _pk3).values(recipe_snapshot_json=_surat_asl))
 s.commit()
 s.close()
 r = req(C, "post", f"/api/production/orders/{_pk3}/complete")
