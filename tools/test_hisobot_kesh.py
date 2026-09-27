@@ -723,11 +723,18 @@ check("H2 oylik: buyurtmalar ro'yxati o'qilgach DARHOL oldindan o'qiladi",
       "ready_orders = _roq.all()\n    _hk_tayyorla(db, ready_orders)" in _srcr)
 check("H3 kunlik: buyurtmalar ro'yxati o'qilgach DARHOL oldindan o'qiladi",
       "orders_today = _otq.all()\n    _hk_tayyorla(db, orders_today)" in _srcd)
-check("H4 foyda: ASL so'rovlar else-shoxida o'zgarishsiz (material, PO, TM, retsept)",
-      tartibda(_srcp, "inv_item = db.query(Inventory).filter(Inventory.id == pid).first()",
+# kech99 (112-band): material qidiruvi `_korxona_materiali` da (o'z so'rovi korxonali, kesh bilan), loy sotish retsepti
+# korxonali ("retsept_k") — ASL korxonasiz qatorlar endi yo'q; tartib va qolgan ASL so'rovlar (PO, TM, qoplama retsepti) — avvalgidek.
+try:
+    _srckm = inspect.getsource(services._korxona_materiali)
+except Exception:                          # noqa: BLE001
+    _srckm = ""
+check("H4 foyda: keshsiz shoxlar (material — `_korxona_materiali`, PO, TM, loy sotish / qoplama retsepti) tartibda",
+      tartibda(_srcp, "inv_item = _korxona_materiali(db, pid, _cid112)",
                "_PO_cost.source_order_item_id == item.id", "_fpq = db.query(_FP_cost).filter(_FP_cost.id == fpid)",
-               "recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()",
-               "_rq = db.query(Recipe).filter(Recipe.id == _qrid)"))
+               "_lrq = db.query(Recipe).filter(Recipe.id == item.recipe_id)",
+               "_rq = db.query(Recipe).filter(Recipe.id == _qrid)")
+      and "_q = db.query(Inventory).filter(Inventory.id == pid)" in _srckm)
 check("H5 oldindan o'qish korxona bilan cheklangan (buyurtma, harakat, PO, material, TM)",
       tartibda(_srct, "Order.company_id.in_(cids)", "InventoryMovement.company_id.in_(cids)",
                "ProductionOrder.company_id.in_(cids)", "Inventory.company_id.in_(cids)",

@@ -27,6 +27,7 @@ ISHLATISH
 
 Chiqish kodi: 0 — toza, 1 — yangi muammo topildi.
 """
+import ast
 import io
 import json
 import os
@@ -77,6 +78,32 @@ def _load_models():
         if "company_id = Column" in body:
             has_cid.add(name)
     return all_models, has_cid, rules
+
+
+def _taxalluslar(src, all_models):
+    """kech99 (113-band): fayldagi model TAXALLUSLARI — `{taxallus: model}`.
+
+    O'LCHANGAN: `from models import InventoryMovement as _IMv`, `from production_models import ProductionOrder
+    as _PO_cost` yoki `_X = Model` bilan yozilgan so'rov (`db.query(_IMv)`) lint ga UMUMAN ko'rinmasdi — nom
+    haqiqiy model nomlari bilan solishtirilardi (crud 22, main 21, services 24 ta tenant taxallusi). Taxallus
+    `ast` bilan yig'iladi (ko'p qatorli import ham); sintaksis buzilgan bo'lsa — bo'sh (xavfsiz tomon: eski xulq).
+    Bir taxallus ikki xil modelga ishlatilsa — noaniq, olinmaydi (hozir yo'q; `NOANIQ` ro'yxatida chiqadi)."""
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return {}, set()
+    topildi = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom) and n.module in ("models", "production_models"):
+            for a in n.names:
+                if a.asname and a.name in all_models and a.asname != a.name:
+                    topildi.setdefault(a.asname, set()).add(a.name)
+        elif isinstance(n, ast.Assign) and isinstance(n.value, ast.Name) and n.value.id in all_models:
+            for tg in n.targets:
+                if isinstance(tg, ast.Name) and tg.id != n.value.id:
+                    topildi.setdefault(tg.id, set()).add(n.value.id)
+    noaniq = {k for k, v in topildi.items() if len(v) > 1}
+    return {k: next(iter(v)) for k, v in topildi.items() if k not in noaniq}, noaniq
 
 
 def _enclosing_function(tree_lines, lineno):
@@ -239,7 +266,12 @@ def scan():
         path = os.path.join(ROOT, fname)
         if not os.path.exists(path):
             continue
-        lines = open(path, encoding="utf-8").read().split("\n")
+        _src = open(path, encoding="utf-8").read()
+        lines = _src.split("\n")
+        # kech99 (113-band): model taxalluslari (`_IMv` -> InventoryMovement)
+        tax, noaniq = _taxalluslar(_src, all_models)
+        for _nq in sorted(noaniq):
+            write_issues.append(f"{fname}: taxallus '{_nq}' bir necha modelga ishlatilgan — lint uni tekshira olmaydi")
 
         # ⚠ 2026-09-21: `company_id` ni IZOH va DOCSTRING dan hisobga
         # olmaslik uchun "faqat kod" nusxasi tayyorlanadi.
@@ -255,9 +287,12 @@ def scan():
         # yozilishi mumkin — ikkalasi ham tekshiriladi. (Birinchi
         # versiyada faqat ko'p qatorli shakl qamralgan edi va o'z
         # sinovimizda bir qatorli regressiya e'tibordan chetda qolgan.)
+        # kech99 (113-band): konstruktor taxallus bilan ham (`_ET(...)` — ExpenseTransaction)
+        _yozish_nomlari = [(m, m) for m in sorted(tenant_roots)] + \
+            [(a, m) for a, m in sorted(tax.items()) if m in tenant_roots]
         for i, line in enumerate(lines):
-            for model in tenant_roots:
-                if not re.search(rf"(?<![\w.]){model}\s*\(", line):
+            for nom, model in _yozish_nomlari:
+                if not re.search(rf"(?<![\w.]){re.escape(nom)}\s*\(", line):
                     continue
                 if "db.query" in line or "isinstance(" in line or "import" in line:
                     continue
@@ -273,15 +308,26 @@ def scan():
                     fn = _enclosing_function(lines, i + 1)
                     if fn in ALLOW_FUNCTIONS:
                         continue
-                    write_issues.append(f"{fname}:{i+1} {model}() — company_id berilmagan (funksiya: {fn})")
+                    _tx = "" if nom == model else f" (taxallus {nom})"
+                    write_issues.append(f"{fname}:{i+1} {model}(){_tx} — company_id berilmagan (funksiya: {fn})")
 
         # --- 2) O'QISH: tenant modeli bo'yicha filtrsiz so'rov ---
         # ⚠ kod_lines ustida yuriladi: docstringdagi MISOL kod
         # (masalan `auth.py` dagi ishlatilish namunasi) so'rov emas.
         oramchilar = _oramchilar(kod_lines)
         for i, line in enumerate(kod_lines):
-            for m in re.finditer(r"db\.query\(\s*([A-Za-z_]\w*)", line):
-                model = m.group(1)
+            for m in re.finditer(r"db\.query\(\s*([A-Za-z_]\w*)(?:\s*\.\s*([A-Za-z_]\w*))?", line):
+                # kech99 (113-band): haqiqiy nom (`Order`, `Order.id`) → taxallus (`_IMv`) → modul orqali
+                # (`crud.Inventory`, `models.Order`)
+                _n1, _n2 = m.group(1), m.group(2)
+                if _n1 in all_models:
+                    model = _n1
+                elif _n1 in tax:
+                    model = tax[_n1]
+                elif _n2 and _n2 in all_models:
+                    model = _n2
+                else:
+                    continue
                 if model not in tenant_any:
                     continue
                 fn = _enclosing_function(lines, i + 1)
