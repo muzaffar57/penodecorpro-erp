@@ -1125,14 +1125,21 @@ from models import Recipe, RecipeIngredient
 from schemas import RecipeCreate
 
 
-def get_recipe_insights(db: Session, recipe_id: int) -> Dict:
+def get_recipe_insights(db: Session, recipe_id: int, company_id: int = None) -> Dict:
     """Retsept uchun qo'shimcha ma'lumot — faqat ko'rsatish uchun, hech narsani o'zgartirmaydi.
     - cost_per_kg: 1 kg tayyor aralashma tannarxi (ombordagi joriy narxlar bo'yicha)
     - used_in: shu retseptni ishlatgan buyurtma detallari (nomi bo'yicha noyob)
+
+    kech99 (112-band): `company_id` berilsa retsept FAQAT shu korxonadan; ingredient materiali va "ishlatilgan"
+    buyurtmalar — retseptning O'Z korxonasidan (begona ingredient narxi / begona buyurtma detali nomi chiqmaydi).
     """
     from models import Recipe, Inventory, OrderItem, Order
+    import services as _svc_ri
 
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    _rq = db.query(Recipe).filter(Recipe.id == recipe_id)
+    if company_id is not None:
+        _rq = _rq.filter(Recipe.company_id == company_id)
+    recipe = _rq.first()
     if not recipe:
         return {"cost_per_kg": 0, "used_in": []}
 
@@ -1140,14 +1147,15 @@ def get_recipe_insights(db: Session, recipe_id: int) -> Dict:
     for ing in recipe.ingredients:
         if not ing.quantity_kg or ing.quantity_kg <= 0:
             continue
-        if ing.inventory and ing.inventory.price_per_unit:
-            total_cost += float(ing.quantity_kg) * float(ing.inventory.price_per_unit)
+        _ing_inv = _svc_ri._retsept_materiali(ing, recipe)
+        if _ing_inv and _ing_inv.price_per_unit:
+            total_cost += float(ing.quantity_kg) * float(_ing_inv.price_per_unit)
 
     batch = float(recipe.batch_size_kg or 1)
     cost_per_kg = total_cost / batch if batch > 0 else 0
 
     items = db.query(OrderItem.name).join(Order, OrderItem.order_id == Order.id).filter(
-        OrderItem.recipe_id == recipe_id
+        OrderItem.recipe_id == recipe_id, Order.company_id == recipe.company_id
     ).distinct().limit(12).all()
     used_in = [i[0] for i in items]
 
@@ -9413,7 +9421,7 @@ def produce_finished_product(db: Session, data: ProduceCreate, created_by: str =
     tmp.finished_product_id = None
 
     default_p = services.get_default_penoplast(db, company_id=company_id)
-    volume = services._item_volume_m3(db, tmp, default_p)
+    volume = services._item_volume_m3(db, tmp, default_p, company_id=company_id)   # kech99 (112-band)
 
     pid = data.penoplast_id or (default_p.id if default_p else None)
 

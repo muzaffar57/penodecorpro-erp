@@ -512,13 +512,29 @@ class RecipeIngredient(Base):
     recipe = relationship("Recipe", back_populates="ingredients")
     inventory = relationship("Inventory")
 
+    def _oz_materiali(self):
+        """kech99 (112-band): ingredient materiali — FAQAT retseptning O'Z korxonasidan. 2026-09-21 (12-sizish) dan
+        OLDINGI (yoki Core bilan yozilgan) ingredient begona materialga ishora qilishi mumkin — Retseptlar sahifasi
+        uning NOMINI boshqa korxonaga ko'rsatardi. Begona material "yo'q" ("—"): tahrirlab saqlashda
+        (`crud._require_inventory_of_company`) almashtirish talab qilinadi."""
+        _inv = self.inventory
+        if _inv is None:
+            return None
+        _r = self.recipe
+        _rcid = getattr(_r, "company_id", None) if _r is not None else None
+        if _rcid is not None and getattr(_inv, "company_id", None) != _rcid:
+            return None
+        return _inv
+
     @property
     def item_name(self):
-        return self.inventory.item_name if self.inventory else "—"
+        _inv = self._oz_materiali()
+        return _inv.item_name if _inv else "—"
 
     @property
     def unit(self):
-        return self.inventory.unit if self.inventory else "kg"
+        _inv = self._oz_materiali()
+        return _inv.unit if _inv else "kg"
 
     def __repr__(self):
         return f"<RecipeIngredient {self.item_name}: {self.quantity_kg}kg>"

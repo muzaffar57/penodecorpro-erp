@@ -1841,12 +1841,13 @@ class _HisobotKeshi:
     saqlanadi — sessiyaning identity map i kuchsiz havola tutadi, aks holda obyekt yo'qolib, uning
     ro'yxatlari (`items`, `sub_details`, `ingredients`) qayta so'ralardi.
 
-    Bo'limlar: "buyurtma" (order_id -> Order), "inv" (id -> `Inventory.id == id` natijasi, korxonasiz —
-    asl so'rov kabi), "std" (company_id -> standart penoplast), "harakat" (order_id -> brak EMAS
-    harakatlar, id tartibida), "po" (order_item_id -> tugagan PO lar, baza tartibida), "tm"
-    ((fp_id, company_id) -> TM), "tm_birlik" (fp_id -> muzlagan birlik tannarx), "retsept" (id -> Recipe,
-    korxonasiz), "retsept_k" ((id, company_id) -> Recipe). "harakat" / "po" ro'yxatlarida bir necha
-    korxona yozuvi bo'lishi mumkin — korxona sharti O'QISHDA qo'llanadi (asl so'rovdagidek)."""
+    Bo'limlar: "buyurtma" (order_id -> Order), "inv" (id -> material qatori; korxona sharti O'QISHDA —
+    kech99, 112-band: `_korxona_materiali`, `_inv_rep`, `_buyurtma_sarf_narxlari`), "inv_begona"
+    ((id, company_id) -> True: shu korxonada yo'q material — qayta so'ralmaydi), "std" (company_id -> standart
+    penoplast), "harakat" (order_id -> brak EMAS harakatlar, id tartibida), "po" (order_item_id -> tugagan PO
+    lar, baza tartibida), "tm" ((fp_id, company_id) -> TM), "tm_birlik" (fp_id -> muzlagan birlik tannarx),
+    "retsept_k" ((id, company_id) -> Recipe). "harakat" / "po" ro'yxatlarida bir necha korxona yozuvi bo'lishi
+    mumkin — korxona sharti O'QISHDA qo'llanadi (asl so'rovdagidek)."""
 
     def __init__(self):
         self.d = {}
@@ -1909,6 +1910,55 @@ def _hk_std_peno(db, company_id):
     if _p is not None:
         _hk_qoy(db, "inv", _p.id, _p)
     return _p
+
+
+def _korxona_materiali(db, pid, company_id):
+    """kech99 (112-band): material (penoplast / blok) `id` bo'yicha — FAQAT shu korxonadan.
+
+    O'LCHANGAN (`work/probe112.py`, SQLite = PG): foyda hisobi (`calculate_order_profit`) va hajm
+    (`_item_volume_m3`) materialni korxonasiz (`Inventory.id == pid`) qidirardi — A detali B penoplastiga ishora
+    qilsa (faqat Core bilan: eski / ko'chirilgan ma'lumot; ORM `_TENANT_REFS` yo'l qo'ymaydi) B narxi va hajmi
+    olinardi (profil 0.05 m³ × 400 000 — A narxi 500 000; blok hajmi B ning 0.25 m³ i bilan). Ombordan yechish
+    (`_peno_of`) va oylik hisobot (`_inv_rep`) esa begona pozitsiyani "topilmaydi" deb o'tkazib yuborardi — endi
+    hammasi BIR qoida: begona material na hisobda, na omborda qatnashadi. `company_id` None — asl korxonasiz
+    qidiruv.
+
+    Hisobot keshi: "inv" (id -> qator) o'qilganda korxona tekshiriladi; keshda yo'q — korxonali so'rov, topilgan
+    qator "inv" ga, topilmagani "inv_begona" ga ((id, korxona) — shu korxona uchun qayta so'ralmaydi)."""
+    if not pid:
+        return None
+    _x = _hk_ol(db, "inv", pid)
+    if _x is not _HK_YOQ:
+        return _x if (_x is None or company_id is None or _x.company_id == company_id) else None
+    if company_id is not None and _hk_ol(db, "inv_begona", (pid, company_id)) is True:
+        return None
+    _q = db.query(Inventory).filter(Inventory.id == pid)
+    if company_id is not None:
+        _q = _q.filter(Inventory.company_id == company_id)
+    _p = _q.first()
+    if _p is not None or company_id is None:
+        _hk_qoy(db, "inv", pid, _p)
+    else:
+        _hk_qoy(db, "inv_begona", (pid, company_id), True)
+    return _p
+
+
+def _retsept_materiali(ing, recipe):
+    """kech99 (112-band): retsept ingredientining materiali — FAQAT retseptning O'Z korxonasidan.
+
+    `recipe.ingredients` → `ing.inventory` munosabati korxonasiz. 2026-09-21 (12-sizish) dan beri yangi ingredient
+    faqat o'z materiali bilan yoziladi, lekin undan OLDINGI (yoki Core bilan yozilgan) ingredient begona materialga
+    ishora qilishi mumkin. O'LCHANGAN (`work/probe112.py`): A retseptining ingredienti B materialiga — A ning
+    yetishmovchilik xabarida B material nomi va qoldig'i, `get_loy_cost_per_kg` / foyda B narxi bilan; loy yechish /
+    qaytarish B omboriga yozmoqchi bo'lib ORM qo'riqchisida 409 (A buyurtmasini yaratish, "Tayyor", loy rejasi,
+    o'chirish — hammasi rad). Endi begona ingredient o'tkazib yuboriladi (penoplast `_peno_of` qoidasi)."""
+    _inv = getattr(ing, "inventory", None)
+    if _inv is None:
+        return None
+    _rcid = getattr(recipe, "company_id", None)
+    if _rcid is not None and getattr(_inv, "company_id", None) != _rcid:
+        return None
+    return _inv
 
 
 def _hk_bolaklar(qator, n=500):
@@ -2068,7 +2118,9 @@ def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
     _inv_ids = {h.inventory_id for h in harakatlar if h.inventory_id}
     joriy = {}
     if _inv_ids:
-        _x_j = [_hk_ol(db, "inv", _i) for _i in _inv_ids]
+        # kech99 (112-band): shu korxonada yo'qligi keshda ma'lum ("inv_begona") id — "topilmadi" (qayta so'ralmaydi)
+        _x_j = [(None if (_cid_sn is not None and _hk_ol(db, "inv_begona", (_i, _cid_sn)) is True)
+                 else _hk_ol(db, "inv", _i)) for _i in _inv_ids]
         if all(_x is not _HK_YOQ for _x in _x_j):
             # kech89 (52-band): hammasi keshda (id bo'yicha) — korxona sharti asl so'rovdagidek
             for _inv_sn in _x_j:
@@ -2081,6 +2133,10 @@ def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
             for _inv_sn in _jq.all():
                 joriy[_inv_sn.id] = float(_inv_sn.price_per_unit or 0)
                 _hk_qoy(db, "inv", _inv_sn.id, _inv_sn)
+            if _cid_sn is not None:
+                for _i in _inv_ids:
+                    if _i not in joriy:
+                        _hk_qoy(db, "inv_begona", (_i, _cid_sn), True)
     hisob = {}   # inventory_id -> [miqdor, qiymat, oxirgi o'rtacha narx]
     for h in harakatlar:
         if not h.inventory_id:
@@ -2167,6 +2223,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
 
     penoplast_xarajat = 0.0
     penoplast_breakdown_by_item = {}  # penoplast_id -> {"vol": ..., "narx_per_m3": ...}
+    _cid112 = getattr(order, "company_id", None)   # kech99 (112-band): materiallar FAQAT buyurtma korxonasidan
     for item in order.items:
         # MUHIM: "Tayyor mahsulotdan" tanlangan detallar — xomashyosi
         # ALLAQACHON, mahsulot birinchi marta ishlab chiqarilganda
@@ -2217,13 +2274,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
             # xuddi shu mantiq (deduct_inventory_for_order bilan bir xil).
             blok_soni = float(item.length or 0)
             pid_for_blok = item.penoplast_id or (default_penoplast.id if default_penoplast else None)
-            _x_b = _hk_ol(db, "inv", pid_for_blok) if pid_for_blok else _HK_YOQ
-            if _x_b is _HK_YOQ:
-                p_blok = db.query(Inventory).filter(Inventory.id == pid_for_blok).first() if pid_for_blok else None
-                if pid_for_blok:
-                    _hk_qoy(db, "inv", pid_for_blok, p_blok)
-            else:
-                p_blok = _x_b
+            p_blok = _korxona_materiali(db, pid_for_blok, _cid112)   # kech99 (112-band)
             if p_blok and p_blok.volume_per_unit and blok_soni > 0:
                 vol = blok_soni * float(p_blok.volume_per_unit)
 
@@ -2236,12 +2287,7 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
             continue
         key = pid
         if key not in penoplast_breakdown_by_item:
-            _x_i = _hk_ol(db, "inv", pid)
-            if _x_i is _HK_YOQ:
-                inv_item = db.query(Inventory).filter(Inventory.id == pid).first()
-                _hk_qoy(db, "inv", pid, inv_item)
-            else:
-                inv_item = _x_i
+            inv_item = _korxona_materiali(db, pid, _cid112)   # kech99 (112-band)
             # kech48 (K47-1): blok narxi — shu buyurtmada ishlatilgan paytdagi.
             # Narx 0 / yo'q bo'lsa — avvalgidek o'tkaziladi.
             _blok_narxi = _narx(inv_item)
@@ -2366,10 +2412,15 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         qty_kg = float(item.quantity or 0)
         if qty_kg <= 0:
             continue
-        _x_r = _hk_ol(db, "retsept", item.recipe_id)
+        # kech99 (112-band): retsept FAQAT buyurtma korxonasidan (qoplama retsepti kabi — "retsept_k").
+        _lcid = company_id if company_id is not None else getattr(order, 'company_id', None)
+        _x_r = _hk_ol(db, "retsept_k", (item.recipe_id, _lcid))
         if _x_r is _HK_YOQ:
-            recipe = db.query(Recipe).filter(Recipe.id == item.recipe_id).first()
-            _hk_qoy(db, "retsept", item.recipe_id, recipe)
+            _lrq = db.query(Recipe).filter(Recipe.id == item.recipe_id)
+            if _lcid is not None:
+                _lrq = _lrq.filter(Recipe.company_id == _lcid)
+            recipe = _lrq.first()
+            _hk_qoy(db, "retsept_k", (item.recipe_id, _lcid), recipe)
         else:
             recipe = _x_r
         if not recipe:
@@ -2378,8 +2429,9 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
         narx_per_kg = 0.0
         for ing in recipe.ingredients:
             mat_kg = float(ing.quantity_kg or 0)
-            _ing_narx = _narx(ing.inventory)   # kech48 (K47-1)
-            if mat_kg <= 0 or not ing.inventory or not _ing_narx:
+            _ing_inv = _retsept_materiali(ing, recipe)   # kech99 (112-band)
+            _ing_narx = _narx(_ing_inv)   # kech48 (K47-1)
+            if mat_kg <= 0 or not _ing_inv or not _ing_narx:
                 continue
             narx_per_kg += (mat_kg / batch) * _ing_narx
         loy_sotish_xarajat = qty_kg * narx_per_kg
@@ -2438,8 +2490,9 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
             narx_per_kg = 0.0
             for ing in recipe.ingredients:
                 mat_kg = float(ing.quantity_kg or 0)
-                _ing_narx = _narx(ing.inventory)   # kech48 (K47-1)
-                if mat_kg <= 0 or not ing.inventory or not _ing_narx:
+                _ing_inv = _retsept_materiali(ing, recipe)   # kech99 (112-band)
+                _ing_narx = _narx(_ing_inv)   # kech48 (K47-1)
+                if mat_kg <= 0 or not _ing_inv or not _ing_narx:
                     continue
                 narx_per_kg += (mat_kg / batch) * _ing_narx
 
@@ -2867,22 +2920,15 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     Berilgan oy uchun to'liq moliyaviy hisobot:
     Daromad - Xarajatlar = Sof foyda
     """
-    from models import Order, OrderStatus, MonthlyExpense, OrderItem, Inventory as _Inv_rep
+    from models import Order, OrderStatus, MonthlyExpense, OrderItem
     from sqlalchemy import func, extract
     from datetime import datetime
 
     def _inv_rep(inv_id):
         """M6 — TENANT: hisobot ichidagi material qidiruvlari joriy korxonadan."""
-        if not inv_id:
-            return None
-        _x_r = _hk_ol(db, "inv", inv_id)
-        if _x_r is not _HK_YOQ:
-            # kech89 (52-band): keshdan (id bo'yicha) — korxona sharti asl so'rovdagidek
-            return _x_r if (_x_r is None or company_id is None or _x_r.company_id == company_id) else None
-        _q = db.query(_Inv_rep).filter(_Inv_rep.id == inv_id)
-        if company_id is not None:
-            _q = _q.filter(_Inv_rep.company_id == company_id)
-        return _q.first()
+        # kech89 (52-band): hisobot keshi; kech99 (112-band): foyda / hajm bilan BITTA qoida va kesh
+        # (`_korxona_materiali` — korxona sharti, "inv" / "inv_begona")
+        return _korxona_materiali(db, inv_id, company_id)
 
     # ── 1. DAROMAD va SOF FOYDA (tayyor buyurtmalar) ────────
     # MUHIM: bu yerda Order.is_deleted ATAYLAB tekshirilmaydi — o'chirilgan
@@ -4084,14 +4130,19 @@ def _sub_details_volume_m3(item) -> float:
     return total
 
 
-def _item_volume_m3(db, item, default_penoplast=None, penoplast_narxi=None) -> float:
+def _item_volume_m3(db, item, default_penoplast=None, penoplast_narxi=None, company_id=None) -> float:
     """Bitta detalning hajmini (m³) hisoblaydi.
 
     Donali mahsulot uchun:
         hajm = (1 dona narxi ÷ 1 m³ sotuv narxi) × miqdor
     unit_price — QOPLAMASIZ narx (qoplama hajmga ta'sir qilmaydi).
+
+    kech99 (112-band): detal penoplasti (dona — narx-nisbat zaxirasi, blok — 1 blok hajmi) FAQAT korxonadan
+    (`_korxona_materiali`): `company_id` berilmasa — detalning O'Z korxonasi (ORM detali); soxta detal
+    (`_FakeItem`, `_Tmp`) chaqiruvchisi korxonani beradi. Begona penoplast — hajm 0 (ombordan yechish ham uni
+    o'tkazib yuboradi — `_peno_of`).
     """
-    from models import Inventory
+    _cid_v = company_id if company_id is not None else getattr(item, 'company_id', None)
 
     # Tayyor mahsulotdan olingan — xomashyo hisoblanmaydi
     if getattr(item, 'finished_product_id', None):
@@ -4150,13 +4201,8 @@ def _item_volume_m3(db, item, default_penoplast=None, penoplast_narxi=None) -> f
         # Bo'lmasa — buyurtmadagi boshqa detallardan, oxirida penoplast tan narxidan
         if price_m3 <= 0:
             pid = getattr(item, 'penoplast_id', None)
-            _x_p = _hk_ol(db, "inv", pid) if pid else _HK_YOQ     # kech89 (52-band): hisobot keshi
-            if _x_p is _HK_YOQ:
-                p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast
-                if pid:
-                    _hk_qoy(db, "inv", pid, p)
-            else:
-                p = _x_p
+            # kech89 (52-band): hisobot keshi; kech99 (112-band): FAQAT korxonadan
+            p = _korxona_materiali(db, pid, _cid_v) if pid else default_penoplast
             # kech48 (K47-1, 5-bo'lim 32-band): `penoplast_narxi` — foyda hisobi
             # (`calculate_order_profit`) shu buyurtmaning MUZLATILGAN 1 blok
             # narxini beradi. Bu zaxira yo'lda hajm = summa ÷ narx, tan narx esa
@@ -4179,13 +4225,8 @@ def _item_volume_m3(db, item, default_penoplast=None, penoplast_narxi=None) -> f
         # ko'rsatiladigan), length = ISHLATILGAN blok soni (ombordan shuncha yechiladi).
         blok_soni = float(item.length or 0)
         pid = getattr(item, 'penoplast_id', None)
-        _x_p = _hk_ol(db, "inv", pid) if pid else _HK_YOQ         # kech89 (52-band): hisobot keshi
-        if _x_p is _HK_YOQ:
-            p = db.query(Inventory).filter(Inventory.id == pid).first() if pid else default_penoplast
-            if pid:
-                _hk_qoy(db, "inv", pid, p)
-        else:
-            p = _x_p
+        # kech89 (52-band): hisobot keshi; kech99 (112-band): FAQAT korxonadan
+        p = _korxona_materiali(db, pid, _cid_v) if pid else default_penoplast
         if p and p.volume_per_unit and blok_soni > 0:
             return blok_soni * float(p.volume_per_unit)
 
@@ -4234,7 +4275,7 @@ def _group_volumes_by_penoplast(db, items, company_id=None) -> dict:
     for item in items:
         if getattr(item, 'finished_product_id', None):
             continue
-        vol = _item_volume_m3(db, item, default_p)
+        vol = _item_volume_m3(db, item, default_p, company_id=company_id)   # kech99 (112-band)
         if vol <= 0:
             continue
         pid = getattr(item, 'penoplast_id', None) or default_id
@@ -5063,7 +5104,7 @@ def deduct_raw_material_for_brak(db: Session, order_item, order, brak_qty: float
             and not getattr(order_item, 'finished_product_id', None)):
         return _mrp_brakini_yech(db, order_item, order, brak_qty, coating_applied, _bcid, log)
     default_p = get_default_penoplast(db, company_id=_bcid)
-    total_volume = _item_volume_m3(db, order_item, default_p)
+    total_volume = _item_volume_m3(db, order_item, default_p, company_id=_bcid)   # kech99 (112-band)
     qty_units = order_item.order_qty_normalized
     if total_volume > 0 and qty_units > 0:
         per_unit_volume = total_volume / qty_units
@@ -5142,10 +5183,12 @@ def check_loy_ingredients_for_order(db: Session, order_recipe_id: int, loy_kg: f
     shortages = []
     for ing in recipe.ingredients:
         recipe_kg = float(ing.quantity_kg or 0)
-        if recipe_kg <= 0 or not ing.inventory:
+        # kech99 (112-band): begona ingredient (eski ma'lumot) — o'tkazib yuboriladi, B nomi / qoldig'i A ga chiqmaydi
+        if recipe_kg <= 0 or not _retsept_materiali(ing, recipe):
             continue
         needed_kg = remaining_kg * (recipe_kg / batch)
-        inv_item = db.query(Inventory).filter(Inventory.id == ing.inventory_id).first()
+        inv_item = db.query(Inventory).filter(Inventory.id == ing.inventory_id,
+                                              Inventory.company_id == recipe.company_id).first()
         if inv_item and float(inv_item.stock_quantity or 0) < needed_kg:
             shortages.append(
                 f"{inv_item.item_name} (loy uchun): kerak {needed_kg:.2f} {inv_item.unit}, "
@@ -5416,11 +5459,13 @@ def deduct_loy_ingredients(db: Session, order, loy_kg: float, use_stock: bool = 
 
     for ing in recipe.ingredients:
         recipe_kg = float(ing.quantity_kg or 0)
-        if recipe_kg <= 0 or not ing.inventory:
+        # kech99 (112-band): begona ingredient (eski ma'lumot) — yechilmaydi (penoplast `_peno_of` qoidasi)
+        if recipe_kg <= 0 or not _retsept_materiali(ing, recipe):
             continue
         needed_kg = loy_kg * (recipe_kg / batch)
         inv_item = db.query(Inventory).filter(
-            Inventory.id == ing.inventory_id
+            Inventory.id == ing.inventory_id,
+            Inventory.company_id == recipe.company_id,
         ).with_for_update().first()
         if inv_item:
             # 2026-09-21 — FOYDALANUVCHI QARORI (19-band): loy xomashyosi
@@ -5524,11 +5569,13 @@ def return_loy_ingredients(db: Session, order, loy_kg: float, recipe_id: int = N
 
     for ing in recipe.ingredients:
         recipe_kg = float(ing.quantity_kg or 0)
-        if recipe_kg <= 0 or not ing.inventory:
+        # kech99 (112-band): begona ingredient (eski ma'lumot) — qaytarilmaydi (yechilmagan ham)
+        if recipe_kg <= 0 or not _retsept_materiali(ing, recipe):
             continue
         needed_kg = loy_kg * (recipe_kg / batch)
         inv_item = db.query(Inventory).filter(
-            Inventory.id == ing.inventory_id
+            Inventory.id == ing.inventory_id,
+            Inventory.company_id == recipe.company_id,
         ).with_for_update().first()
         if inv_item:
             inv_item.stock_quantity = float(inv_item.stock_quantity) + needed_kg
@@ -5729,9 +5776,9 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None,
     breakdown = []
     for ing in recipe.ingredients:
         kg = float(ing.quantity_kg or 0)
-        if kg <= 0 or not ing.inventory:
+        inv = _retsept_materiali(ing, recipe)   # kech99 (112-band): begona ingredient — hisobga kirmaydi
+        if kg <= 0 or not inv:
             continue
-        inv = ing.inventory
         # kech55 (34-band): `narxlar` berilsa ({inventory_id: 1 birlik narxi} —
         # buyurtmada ISHLATILGAN paytdagi narx, `_buyurtma_sarf_narxlari`) o'sha
         # narx; lug'atda yo'q material va `narxlar` berilmagan chaqiruv — JORIY
@@ -6176,7 +6223,7 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
     default_p = get_default_penoplast(db, company_id=_ucid)
     pid = item.penoplast_id or (default_p.id if default_p else None)
     volume = _item_volume_m3(db, item, default_p,
-                             penoplast_narxi=(_mz_narx.get(pid) if pid else None))
+                             penoplast_narxi=(_mz_narx.get(pid) if pid else None), company_id=_ucid)   # kech99
 
     peno_cost_total = 0.0
     if volume > 0 and pid:

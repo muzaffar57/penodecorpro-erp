@@ -2908,7 +2908,11 @@ def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), cur
     if not auth.order_of_company(db, order_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     who = current_user.full_name or current_user.username
-    if not crud.permanent_delete_order(db, order_id, performed_by=who):
+    # kech99 (probe103 qoldig'i I, O'LCHANGAN): o'chirish `commit` qilingach audit yozuvida xato bo'lsa buyurtma IZSIZ
+    # o'chardi (audit yo'q). Endi o'chirish va audit BITTA tranzaksiyada.
+    with crud.bitta_tranzaksiya(db):
+        _ok = crud.permanent_delete_order(db, order_id, performed_by=who)
+    if not _ok:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
     return {"status": "ok"}
 
@@ -2920,7 +2924,9 @@ def api_permanent_delete_project(project_id: int, db: Session = Depends(get_db),
     if not auth.project_of_company(db, project_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     who = current_user.full_name or current_user.username
-    ok, msg = crud.permanent_delete_project(db, project_id, performed_by=who)
+    # kech99 (probe103 qoldig'i I): butunlay o'chirish va audit BITTA tranzaksiyada (buyurtma kabi)
+    with crud.bitta_tranzaksiya(db):
+        ok, msg = crud.permanent_delete_project(db, project_id, performed_by=who)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
     return {"status": "ok"}
@@ -6090,6 +6096,33 @@ def api_delete_return(return_id: int, db: Session = Depends(get_db), current_use
 # PAYMENTS — To'lovlar API
 # ============================================================
 
+def _tolov_qoldigini_chegirmaga(db: Session, order):
+    """To'lovdan keyin qolgan (kichik) qarzni CHEGIRMA sifatida yozadi (`write_off_remainder=true`); natija — javobdagi
+    `write_off` (yoki None). kech99: `api_create_payment` ichidan ko'chirildi — to'lov bilan BITTA tranzaksiyada
+    chaqiriladi (o'zi `commit` qilmaydi; mantiq AYNAN)."""
+    if not order:
+        return None
+    remaining = order.debt_amount
+    if remaining > 0.5:
+        # MUHIM: faqat "Kelishilgan"(agreed_amount)ni kamaytiramiz.
+        # "Jami summa"(total_amount)ga TEGMAYMIZ — shunda u har doim
+        # buyurtmaning asl (chegirmasiz) qiymatini ko'rsatib turadi,
+        # "Chegirma" esa (Jami - Kelishilgan) o'zi avtomatik kattalashadi —
+        # boshidagi chegirma bilan bu "kechirilgan" summa TABIIY qo'shilib boradi.
+        order.agreed_amount = order.kelishilgan_summa - remaining
+        import re as _re
+        base_notes = _re.sub(r'\s*\[WRITEOFF:[\d.]+\]', '', order.notes or '').strip()
+        order.notes = (base_notes + f" [WRITEOFF:{remaining:.0f}]").strip()
+        crud._update_order_payment_status(db, order)
+        db.flush()
+        db.refresh(order)
+        return {
+            "amount": round(remaining),
+            "message": f"Qolgan {remaining:.0f} so'm chegirmaga qo'shildi (foyda hisobotida ham to'g'ri ayiriladi)"
+        }
+    return None
+
+
 @app.post("/api/payments")
 def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """Yangi to'lov qo'shish.
@@ -6112,8 +6145,15 @@ def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False
     if not toza.get("received_by"):
         toza["received_by"] = current_user.full_name or current_user.username
     data = schemas.PaymentCreate(**{k: v for k, v in toza.items() if v is not None})
+    # kech99 (probe103 qoldig'i G, O'LCHANGAN `work/probeGHI.py`): to'lov o'zi saqlanib (`commit`), keyingi qadam
+    # (javob uchun buyurtma, qoldiqni chegirmaga yozish) yiqilsa — 500, lekin to'lov QOLARDI; 8 s dan keyin qayta
+    # yuborilsa ikkinchi to'lov yozilardi (G2: 30 000 × 2) yoki "qarzdan ko'p" 409 chiqardi (G1). Endi hammasi BITTA
+    # tranzaksiyada (`crud.bitta_tranzaksiya` — ichki `commit` lar `flush`, oxirida bitta `commit`, istisnoda `rollback`).
     try:
-        payment = crud.create_payment(db, data, company_id=auth.company_id_of(current_user))
+        with crud.bitta_tranzaksiya(db):
+            payment = crud.create_payment(db, data, company_id=auth.company_id_of(current_user))
+            order = crud.get_order(db, data.order_id, company_id=auth.company_id_of(current_user))
+            write_off_info = _tolov_qoldigini_chegirmaga(db, order) if write_off_remainder else None
     except crud.OverpaymentWarning as w:
         raise HTTPException(status_code=409, detail={
             "type": "overpayment_warning",
@@ -6123,29 +6163,6 @@ def api_create_payment(data: dict = Body(...), write_off_remainder: bool = False
     except ValueError as e:
         status = 404 if "topilmadi" in str(e) else 400
         raise HTTPException(status_code=status, detail=str(e))
-
-    order = crud.get_order(db, data.order_id, company_id=auth.company_id_of(current_user))
-
-    write_off_info = None
-    if write_off_remainder and order:
-        remaining = order.debt_amount
-        if remaining > 0.5:
-            # MUHIM: faqat "Kelishilgan"(agreed_amount)ni kamaytiramiz.
-            # "Jami summa"(total_amount)ga TEGMAYMIZ — shunda u har doim
-            # buyurtmaning asl (chegirmasiz) qiymatini ko'rsatib turadi,
-            # "Chegirma" esa (Jami - Kelishilgan) o'zi avtomatik kattalashadi —
-            # boshidagi chegirma bilan bu "kechirilgan" summa TABIIY qo'shilib boradi.
-            order.agreed_amount = order.kelishilgan_summa - remaining
-            import re as _re
-            base_notes = _re.sub(r'\s*\[WRITEOFF:[\d.]+\]', '', order.notes or '').strip()
-            order.notes = (base_notes + f" [WRITEOFF:{remaining:.0f}]").strip()
-            crud._update_order_payment_status(db, order)
-            db.commit()
-            db.refresh(order)
-            write_off_info = {
-                "amount": round(remaining),
-                "message": f"Qolgan {remaining:.0f} so'm chegirmaga qo'shildi (foyda hisobotida ham to'g'ri ayiriladi)"
-            }
 
     return {
         "status": "ok",
@@ -6181,7 +6198,11 @@ def api_get_payments(order_id: Optional[int] = None, db: Session = Depends(get_d
 def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_user=Depends(auth.order_payments)):
     """To'lovni o'chirish."""
     who = current_user.full_name or current_user.username
-    if not crud.delete_payment(db, payment_id, performed_by=who, company_id=auth.company_id_of(current_user)):
+    # kech99 (probe103 qoldig'i H, O'LCHANGAN): audit ("deleted") o'zi `commit` qilinib, keyin to'lov o'chirishda xato
+    # bo'lsa — to'lov QOLARDI, audit esa "o'chirildi" derdi; qayta urinish ikkinchi audit yozardi. Endi BITTA tranzaksiya.
+    with crud.bitta_tranzaksiya(db):
+        _ok = crud.delete_payment(db, payment_id, performed_by=who, company_id=auth.company_id_of(current_user))
+    if not _ok:
         raise HTTPException(status_code=404, detail="To'lov topilmadi")
     return {"status": "ok"}
 
