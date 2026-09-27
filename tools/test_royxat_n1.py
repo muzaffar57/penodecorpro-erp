@@ -438,7 +438,13 @@ for nom, fn in FUNK:
 # mustaqil hisob
 section("B2 mustaqil hisob")
 _s = SessionLocal()
-_orders_a = _s.query(Order).filter(Order.company_id == 1, Order.is_deleted.isnot(True),
+# kech100 (134-band QAROR "A" + K100-5): mijoz qarzi to'plami — o'chirilmagan YOKI o'chirilgan READY / DELIVERED
+# (hisobotda qolgan), qoralamasiz (Qarzdorlar sahifasi bilan bir xil). Mustaqil hisob o'sha ta'rif bilan.
+from sqlalchemy import or_ as _or100               # noqa: E402
+from models import OrderStatus as _OS100           # noqa: E402
+_orders_a = _s.query(Order).filter(Order.company_id == 1,
+                                   _or100(Order.is_deleted.isnot(True), Order.status.in_([_OS100.READY, _OS100.DELIVERED])),
+                                   Order.status != _OS100.DRAFT,
                                    Order.is_archived == False).order_by(Order.id).all()   # noqa: E712
 _tol = {}
 for p in _s.query(Payment).all():

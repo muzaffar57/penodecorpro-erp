@@ -1158,8 +1158,9 @@ check(f"H7 update_order_full: retsept almashtirish va 'Loy sotish' farqi 'ushla'
       and chaqiruvlar_soni(_uf, "return_loy_ingredients") == 2, (_n, _yoq))
 _cp = manba(services, "complete_order")
 _n, _yoq = with_ichida(_cp, "loy_manba_rejimi(db, 'ushla')", ("return_loy_ingredients",))
-check(f"H8 complete_order: qisman yakunlashda ortgan loy qaytishi 'ushla' rejimida (tashqarida: {_yoq})",
-      _n == 1 and not _yoq and chaqiruvlar_soni(_cp, "return_loy_ingredients") == 1, (_n, _yoq))
+# kech100 (K100-1): qisman «Tayyor» "Loy sotish" ning qolgan qismini ham qaytaradi — ikkinchi 'ushla' bloki
+check(f"H8 complete_order: qisman yakunlashda ortgan loy va 'Loy sotish' qolgan qismi 'ushla' rejimida (2 blok; tashqarida: {_yoq})",
+      _n == 2 and not _yoq and chaqiruvlar_soni(_cp, "return_loy_ingredients") == 2, (_n, _yoq))
 _al = manba(services, "adjust_loy_diff")
 _n, _yoq = with_ichida(_al, "loy_manba_rejimi(db, 'ushla')", ("return_loy_ingredients", "deduct_loy_ingredients"))
 check(f"H9 adjust_loy_diff: ikkala yo'nalish 'ushla' rejimida (tashqarida: {_yoq})", _n == 1 and not _yoq, (_n, _yoq))

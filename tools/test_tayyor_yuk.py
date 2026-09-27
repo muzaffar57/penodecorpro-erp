@@ -629,8 +629,10 @@ def _e8():
 
 
 e_holat("E1 jarayonda, yuksiz", _e1, (False, True, False, False))
-e_holat("E2 qisman topshirilgan (5 / 10)", _e2, (True, True, False, True))
-e_holat("E3 to'liq YETKAZILGAN (Tayyor emas)", _e3, (True, False, False, True))
+# kech100 (93-band, FOYDALANUVCHI QARORI "B"): topshirilgan (qisman / to'liq, «Tayyor» bosilmagan) buyurtma o'chirishda
+# topshirilgan qismi bilan YAKUNLANADI — hisobotda qoladi (yuqoridagi "reja == amal" hisobot +1 ni ham tekshiradi).
+e_holat("E2 qisman topshirilgan (5 / 10)", _e2, (True, True, True, True))
+e_holat("E3 to'liq YETKAZILGAN (Tayyor emas)", _e3, (True, False, True, True))
 e_holat("E4 Tayyor (yuk bilan)", _e4, (True, False, True, True))
 e_holat("E5 eski yuksiz Tayyor", _e5, (True, True, True, False))
 e_holat("E6 qoralama", _e6, (False, False, False, False))
@@ -844,13 +846,16 @@ if not PG_URL:
         return t[0] if t else ""
 
     t_del, t_rdy, t_qis, t_prg, t_eski = matn(6), matn(7), matn(8), matn(9), matn(10)
-    check("F9 tasdiq (delivered): YETKAZILGAN, xomashyo QAYTARILMAYDI, hisobotga KIRMAYDI, \"saqlanib qoladi\" YO'Q",
-          "YETKAZILGAN" in t_del and "QAYTARILMAYDI" in t_del and "KIRMAYDI" in t_del and "saqlanib qoladi" not in t_del, t_del)
+    # kech100 (93-band, QAROR "B"): o'chirishda YAKUNLANADI — hisobotda qoladi ("KIRMAYDI" EMAS)
+    check("F9 tasdiq (delivered): YETKAZILGAN, xomashyo QAYTARILMAYDI, YAKUNLANADI — hisobotda qoladi",
+          "YETKAZILGAN" in t_del and "QAYTARILMAYDI" in t_del and "YAKUNLANADI" in t_del and "hisobotda qoladi" in t_del
+          and "KIRMAYDI" not in t_del, t_del)
     check("F10 tasdiq (ready, yuk bilan): TAYYOR, QAYTARILMAYDI, hisobotlarda saqlanib qoladi",
           "TAYYOR" in t_rdy and "QAYTARILMAYDI" in t_rdy and "saqlanib qoladi" in t_rdy and "KIRMAYDI" not in t_rdy, t_rdy)
-    check("F11 tasdiq (qisman): qisman, faqat QOLGAN qism, hisobotga KIRMAYDI",
-          "qisman topshirilgan" in t_qis and "Faqat QOLGAN" in t_qis and "KIRMAYDI" in t_qis
-          and "saqlanib qoladi" not in t_qis, t_qis)
+    # kech100 (93-band, QAROR "B"): topshirilgan qism YAKUNLANADI — hisobotda qoladi, summa topshirilganga
+    check("F11 tasdiq (qisman): qisman, faqat QOLGAN qism, YAKUNLANADI — hisobotda qoladi, summa topshirilganga",
+          "qisman topshirilgan" in t_qis and "Faqat QOLGAN" in t_qis and "YAKUNLANADI" in t_qis
+          and "hisobotda qoladi" in t_qis and "Buyurtma summasi:" in t_qis and "KIRMAYDI" not in t_qis, t_qis)
     check("F12 tasdiq (jarayonda): xomashyo qaytariladi, butunlay o'chiriladi",
           "omborga qaytariladi" in t_prg and "Butunlay" in t_prg and "QAYTARILMAYDI" not in t_prg, t_prg)
     check("F13 tasdiq (eski yuksiz ready): TAYYOR, xomashyo QAYTARILADI (server kabi), hisobotda qoladi",
