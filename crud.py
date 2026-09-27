@@ -11568,7 +11568,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
     result = []
     for o in orders:
         try:
-            profit_data = services.calculate_order_profit(db, o.id)
+            profit_data = services.yakun_foydasi(db, o)      # kech102 (144-band): yakunlangan paytdagi
             profit = float(profit_data.get("foyda", 0))
         except Exception:
             db.rollback()
@@ -11580,6 +11580,22 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
             "total_amount": float(o.total_amount or 0),
             "profit": round(profit),
             "kpi_amount": round(profit * kpi_pct / 100),
+        })
+
+    # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu yilda bo'lgan qaytarishlar (buyurtma
+    # yakunlangandan keyin) — alohida qator, qaytarish paytida (foyda — qaytarilgan pul − omborga qaytgan tannarx).
+    for _h144 in services.davr_qaytarishlari(db, datetime(year, 1, 1), datetime(year + 1, 1, 1),
+                                             company_id=master.company_id, master_id=master_id):
+        _o144 = _h144["order"]
+        _tur144 = {"pul": "mijozga pul qaytarildi", "ombor": "mahsulot omborga qaytdi",
+                   "ombor+pul": "mahsulot omborga qaytdi, pul qaytarildi"}.get(_h144["tur"], "qaytarish")
+        result.append({
+            "order_id": _o144.id,
+            "order_number": f"↩️ {_o144.order_number} ({_tur144})",
+            "completed_at": _h144["vaqt"].isoformat(),
+            "total_amount": round(_h144["daromad"], 2),
+            "profit": round(_h144["foyda"]),
+            "kpi_amount": round(_h144["foyda"] * kpi_pct / 100),
         })
 
     # MUHIM (2026-09): Tayyor mahsulot bo'limidan TO'G'RIDAN-TO'G'RI
@@ -11665,6 +11681,13 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         for _mid, _mx in _oxq.group_by(Order.master_id).all():
             _oxirgi_sana[_mid] = _mx
 
+    # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu yilda bo'lgan qaytarishlar o'sha buyurtma
+    # ustasining yillik foydasiga (buyurtmaning o'zi — yakunlangan paytdagi holatda). "Yillik sotuv" (jami summa) — o'zgarmaydi.
+    _qaytarish_usta = {}
+    for _h144 in services.davr_qaytarishlari(db, datetime(year, 1, 1), datetime(year + 1, 1, 1),
+                                             company_id=company_id):
+        _qaytarish_usta[_h144["master_id"]] = _qaytarish_usta.get(_h144["master_id"], 0.0) + _h144["foyda"]
+
     for m in masters:
         orders = orders_by_master.get(m.id, [])
 
@@ -11673,7 +11696,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         for o in orders:
             yearly_sales += float(o.total_amount or 0)
             try:
-                profit_data = services.calculate_order_profit(db, o.id)
+                profit_data = services.yakun_foydasi(db, o)
                 yearly_profit += float(profit_data.get("foyda", 0))
             except Exception as e:
                 db.rollback()
@@ -11685,6 +11708,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         for s in fp_sales_by_master.get(m.id, []):
             yearly_sales += float(s.total_amount or 0)
             yearly_profit += float(s.total_amount or 0) - float(s.cost_amount or 0)
+        yearly_profit += _qaytarish_usta.get(m.id, 0.0)      # kech102 (144-band)
 
         gift = yearly_profit * (m.kpi_percent or 0) / 100
         total_gift += gift
@@ -11906,9 +11930,12 @@ def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt,
         q1 = q1.filter(Order.company_id == company_id)
     for o in q1.all():
         try:
-            total += float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+            total += float(services.yakun_foydasi(db, o).get("foyda", 0))    # kech102 (144-band)
         except Exception:
             db.rollback()
+    # kech102 (144-band): davr ichida bo'lgan qaytarishlar (buyurtma yakunlangandan keyin) — o'sha payt bo'yicha
+    total += sum(_h144["foyda"] for _h144 in services.davr_qaytarishlari(
+        db, start_dt, end_dt, company_id=company_id, master_id=master_id, oraliq="(]"))
     q2 = db.query(FinishedProductSale).filter(
         FinishedProductSale.master_id == master_id,
         FinishedProductSale.sold_at > start_dt, FinishedProductSale.sold_at <= end_dt,
@@ -12219,12 +12246,20 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
         if _in_any_period(o.completed_at):
             continue
         try:
-            foyda = float(services.calculate_order_profit(db, o.id).get("foyda", 0))
+            foyda = float(services.yakun_foydasi(db, o).get("foyda", 0))    # kech102 (144-band)
         except Exception:
             db.rollback()
             foyda = 0.0
         yearly_profit += foyda
         buyurtmalar.append((o.order_number, foyda))
+    # kech102 (144-band): shu yilda bo'lgan qaytarishlar — qaytarish PAYTI sovg'a davriga tushsa, o'sha davrda
+    # (davr yopilganda `_gift_period_profit_since` hisobida), aks holda keshbekda.
+    for _h144 in services.davr_qaytarishlari(db, datetime(year, 1, 1), datetime(year + 1, 1, 1),
+                                             company_id=cid, master_id=master_id):
+        if _in_any_period(_h144["vaqt"]):
+            continue
+        yearly_profit += _h144["foyda"]
+        buyurtmalar.append((f"↩️ {_h144['order'].order_number}", _h144["foyda"]))
 
     _sq = db.query(FinishedProductSale).filter(
         FinishedProductSale.master_id == master_id,

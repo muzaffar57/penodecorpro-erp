@@ -1171,13 +1171,13 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
     today_penoplast_revenue = 0.0
     for o in completed_today:
         try:
-            p = calculate_order_profit(db, o.id, company_id=company_id)
+            p = yakun_foydasi(db, o, company_id=company_id)      # kech102 (144-band): yakunlangan paytdagi
             if p.get("success"):
                 today_profit += p.get("foyda", 0)
         except Exception:
             db.rollback()
         o_total = float(o.total_amount or 0)
-        o_agreed = o.kelishilgan_summa
+        o_agreed = yakun_daromadi(db, o)
         if o_total > 0:
             for it in o.items:
                 share = (float(it.total_price or 0) / o_total) * o_agreed
@@ -1185,6 +1185,13 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
                     today_gips_revenue += share
                 else:
                     today_penoplast_revenue += share
+    # kech102 (144-band, QAROR "Qaytarish oyida"): bugun bo'lgan qaytarishlar (yakunlangan buyurtmalardan keyin)
+    for _h144 in davr_qaytarishlari(db, today_start, today_end, company_id=company_id):
+        today_profit += _h144["foyda"]
+        if _h144["gips"]:
+            today_gips_revenue += _h144["daromad"]
+        else:
+            today_penoplast_revenue += _h144["daromad"]
 
     # ── Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
     # sotilganlar — avval bu "Bugungi" statistikada hisobga olinmasdi. ──
@@ -2075,7 +2082,9 @@ def _hk_tayyorla(db, orders):
     for _b in _hk_bolaklar(ids):
         db.query(Order).filter(Order.id.in_(_b), Order.company_id.in_(cids)).options(
             _sil_hk(Order.items).selectinload(OrderItem.sub_details),
-            _sil_hk(Order.master)).all()
+            _sil_hk(Order.master),
+            # kech102 (144-band): qaytarish hodisalari (`_qaytarish_hodisalari`) — buyurtma boshiga so'rov o'rniga
+            _sil_hk(Order.returns)).all()
     items = [it for o in yangi for it in (o.items or [])]
     item_ids = [it.id for it in items]
     # 2) harakatlar — `_buyurtma_sarf_narxlari` sharti (brak EMAS), `id` tartibida.
@@ -2268,7 +2277,11 @@ def _mrp_detal_tannarxi(db: Session, order, item, po_royxat) -> float:
     for _p in po_royxat:
         jami += float(_p.total_cost or 0)
         miqdor += float(_p.quantity or 0)
-    if miqdor <= 0 or float(item.quantity or 0) >= miqdor - 1e-6:
+    # kech102 (K102-1, 138-band qoldig'i — O'LCHANGAN `work/probe144.py` mrp-A-O, SQLite = PG): "Ortiqcha" qaytarilgan
+    # (topshirilmagan — band → erkin omborga) dona detal miqdorida qoladi (yakunlashda miqdor = topshirilgan + ortiqcha);
+    # miqdor ishlab chiqarilganga teng bo'lgani uchun asl qoida BUTUN T ni olardi — 10 dan 4 tasi omborga qaytib, keyin
+    # sotilsa ular IKKI marta (30 000 o'rniga 42 000). Shart endi ortiqchasiz miqdor bilan (ortiqcha yo'q — AYNAN asl).
+    if miqdor <= 0 or float(item.quantity or 0) - float(getattr(item, "ortiqcha_qty", 0) or 0) >= miqdor - 1e-6:
         return jami
     import crud as _crud138
     from models import Delivery as _D138, DeliveryItem as _DI138, FinishedProduct as _FP138
@@ -2306,7 +2319,135 @@ def _mrp_detal_tannarxi(db: Session, order, item, po_royxat) -> float:
     return natija
 
 
-def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -> Dict:
+# ── 144-band (kech102): QAYTARISH — daromad va tannarx QAYSI davrga tushadi ──────────────────────────────────
+# FOYDALANUVCHI QARORI (kech102, 2026-09-27): "Qaytarish oyida" — o'tgan oylar O'ZGARMAYDI, qaytarish bo'lgan oyda
+# alohida qator (daromad: mijozga qaytarilgan pul, tannarx: omborga qaytgan mahsulot tannarxi); usta KPI — "Ha,
+# yo'qotilgan foydaga" (qaytarilgan pul − omborga qaytgan tannarx).
+# O'LCHANGAN (asl kod `c89a22e`, SQLite = PG, `work/probe144.py`, 10 birlikdan 3 tasi qaytgan): omborga qaytgan
+# mahsulot tannarxi IKKI marta hisoblanardi — buyurtma tannarxida (o'zgarmasdi) va qayta sotilganda (qaytgan TM
+# tannarxi): profil +21 000, panel +41 100, tayyor mahsulotdan +18 000, MRP +9 000; "Pul qaytdi" esa buyurtmaning
+# kelishilgan summasini kamaytirib, daromadni BUYURTMA yakunlangan (o'tgan) oyda o'zgartirardi (−150 000, joriy oy 0).
+# Qoida (bitta manba): buyurtmaning qaytarish HODISALARI — "pul" (`refunded_at`; `refund_agreed_delta` — kelishilgan
+# summa AYNAN qanchaga kamaygani) va "ombor" (`returned_at`; `stock_cost` — omborga qo'yilgan TM tannarxi).
+# `calculate_order_profit(..., holat_vaqti=t)` — t dan OLDINGI hodisalar qo'llangan holat (None — hammasi, hozirgi
+# holat). Davr hisobotlarida buyurtma — yakunlangan paytdagi holatda (`yakun_foydasi`, `yakun_daromadi`);
+# yakunlanishdan KEYINGI hodisa — o'zi bo'lgan davrda (`davr_qaytarishlari`: holat(t + 1 mks) − holat(t)).
+# Brak — hodisa EMAS (pul qaytarilmaydi, omborga tushmaydi, xomashyosi — alohida brak xarajati). Eski yozuvlar
+# (`refunded_at` / `stock_cost` bo'sh — kech40 dan oldin) — qancha ekani yozilmagan, taxmin qilinmaydi (avvalgidek).
+def _qaytarish_hodisalari(db: Session, order) -> list:
+    """Buyurtmaning qaytarish hodisalari: [(tur, vaqt, summa, qaytarish)] — tur "pul" (kelishilgan summa `summa` ga
+    kamaygan) yoki "ombor" (omborga `summa` tannarxli mahsulot qaytgan). Faqat buyurtma korxonasining brakdan boshqa
+    yozuvlari (`crud.pul_qaytarish_kamaytirgan` bilan bir shart). Manba — `Order.returns` (hisobot keshida oldindan
+    yuklangan — `_hk_tayyorla`)."""
+    from models import ReturnReason as _RR144
+    if order is None or getattr(order, "id", None) is None:
+        return []
+    _cid = getattr(order, "company_id", None)
+    natija = []
+    for r in (order.returns or []):
+        if _cid is not None and r.company_id != _cid:
+            continue
+        if r.reason == _RR144.DEFECT:
+            continue
+        _d = float(r.refund_agreed_delta or 0)
+        if r.is_refunded and r.refunded_at is not None and _d > 0:
+            natija.append(("pul", r.refunded_at, _d, r))
+        _s = float(r.stock_cost or 0)
+        if r.finished_product_id is not None and r.returned_at is not None and _s > 0:
+            natija.append(("ombor", r.returned_at, _s, r))
+    return natija
+
+
+def _yakun_vaqti(order):
+    """Buyurtma yakunlangan payt («Tayyor» — READY va `completed_at` bor) yoki None."""
+    if order is None:
+        return None
+    if getattr(order, "status", None) == OrderStatus.READY and getattr(order, "completed_at", None) is not None:
+        return order.completed_at
+    return None
+
+
+def yakun_daromadi(db: Session, order) -> float:
+    """Buyurtma YAKUNLANGAN paytdagi daromad: joriy kelishilgan summa + yakunlanishdan keyin "Pul qaytdi" bilan
+    kamaygan qism (u qaytarish bo'lgan davrda hisoblanadi — `davr_qaytarishlari`)."""
+    _s = float(order.kelishilgan_summa)
+    _t = _yakun_vaqti(order)
+    if _t is None:
+        return _s
+    return _s + sum(summa for tur, vaqt, summa, _r in _qaytarish_hodisalari(db, order)
+                    if tur == "pul" and vaqt >= _t)
+
+
+def yakun_foydasi(db: Session, order, company_id: int = None) -> Dict:
+    """`calculate_order_profit` — buyurtma yakunlangan paytdagi holatda (davr hisobotlari uchun)."""
+    return calculate_order_profit(db, order.id, company_id=company_id, holat_vaqti=_yakun_vaqti(order))
+
+
+def davr_qaytarishlari(db: Session, boshi, oxiri, company_id: int = None, master_id: int = None,
+                       oraliq: str = "[)") -> list:
+    """`boshi` … `oxiri` oralig'ida (standart [boshi, oxiri); `oraliq` — "(]" va h.k.) bo'lgan, buyurtma
+    YAKUNLANGANDAN keyingi qaytarish hodisalari — har bir paytga alohida:
+    {"order", "order_id", "master_id", "vaqt", "tur", "daromad", "tannarx", "foyda", "gips"}. Qiymat — hodisadan
+    keyingi va oldingi holat farqi (`calculate_order_profit(holat_vaqti=vaqt + 1 mks) − (holat_vaqti=vaqt)`) —
+    usta haqi (foydadan %) ham shu farqqa kiradi; odatda daromad −(qaytarilgan pul), tannarx −(omborga qaytgan).
+    Hisobot keshida natija eslab qolinadi (bir hisobotda oylik hisobot, KPI, ehson — bitta so'rov)."""
+    from datetime import timedelta as _td144
+    from sqlalchemy import or_ as _or144, and_ as _and144
+    from models import ReturnItem as _RI144, ReturnReason as _RR144
+    if boshi is None or oxiri is None:
+        return []
+    _eps = _td144(microseconds=1)
+    a = boshi if oraliq[0] == "[" else boshi + _eps
+    b = oxiri if oraliq[1] == ")" else oxiri + _eps
+    _kalit = (a, b, company_id, master_id)
+    _x = _hk_ol(db, "qaytarish_davr", _kalit)
+    if _x is not _HK_YOQ:
+        return _x
+    _q = db.query(_RI144.order_id).join(Order, Order.id == _RI144.order_id).filter(
+        _RI144.reason != _RR144.DEFECT,
+        _RI144.company_id == Order.company_id,
+        Order.status == OrderStatus.READY,
+        Order.completed_at.isnot(None),
+        Order.completed_at < b,
+        _or144(
+            _and144(_RI144.is_refunded.is_(True), _RI144.refunded_at >= a, _RI144.refunded_at < b),
+            _and144(_RI144.finished_product_id.isnot(None), _RI144.returned_at >= a, _RI144.returned_at < b)))
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id, _RI144.company_id == company_id)
+    if master_id is not None:
+        _q = _q.filter(Order.master_id == master_id)
+    _oids = sorted({_r[0] for _r in _q.distinct().all() if _r[0] is not None})
+    natija = []
+    if _oids:
+        _oq = db.query(Order).filter(Order.id.in_(_oids))
+        if company_id is not None:
+            _oq = _oq.filter(Order.company_id == company_id)
+        _orders = _oq.order_by(Order.id).all()
+        _hk_tayyorla(db, _orders)
+        for o in _orders:
+            _c = o.completed_at
+            _hod = _qaytarish_hodisalari(db, o)
+            _vaqtlar = sorted({vaqt for _t, vaqt, _s, _r in _hod if a <= vaqt < b and vaqt >= _c})
+            _gips_detal = {it.id for it in (o.items or []) if (it.category or "").lower() == "gips"}
+            for _v in _vaqtlar:
+                _p0 = calculate_order_profit(db, o.id, company_id=company_id, holat_vaqti=_v)
+                _p1 = calculate_order_profit(db, o.id, company_id=company_id, holat_vaqti=_v + _eps)
+                if not (_p0.get("success") and _p1.get("success")):
+                    continue
+                _shu = [(t, r) for t, vaqt, _s, r in _hod if vaqt == _v]
+                natija.append({
+                    "order": o, "order_id": o.id, "master_id": o.master_id, "vaqt": _v,
+                    "tur": "+".join(sorted({t for t, _r in _shu})),
+                    "daromad": float(_p1["sotuv_narxi"]) - float(_p0["sotuv_narxi"]),
+                    "tannarx": float(_p1["tan_narxi"]) - float(_p0["tan_narxi"]),
+                    "foyda": float(_p1["foyda"]) - float(_p0["foyda"]),
+                    "gips": any(r.order_item_id in _gips_detal for _t, r in _shu),
+                })
+    _hk_qoy(db, "qaytarish_davr", _kalit, natija)
+    return natija
+
+
+def calculate_order_profit(db: Session, order_id: int, company_id: int = None, holat_vaqti=None) -> Dict:
     """
     Buyurtma uchun tan narxi va foyda hisoblaydi.
 
@@ -2319,6 +2460,11 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
     sotish ingredientlari) shu buyurtmada ISHLATILGAN paytdagi narxda
     baholanadi (`_buyurtma_sarf_narxlari`) — keyingi narx o'zgarishi o'tgan
     buyurtma foydasini o'zgartirmaydi. Hajm / miqdor mantig'i O'ZGARMAGAN.
+
+    kech102 (144-band): omborga qaytgan mahsulot tannarxi (`stock_cost`) buyurtma tannarxidan AYRILADI (qayta
+    sotilganda TM sotuvi tannarxida — ikki marta emas). `holat_vaqti` — shu paytdan OLDINGI qaytarish hodisalari
+    qo'llangan holat (keyingi "Pul qaytdi" qaytarib qo'shiladi, keyingi omborga qaytish ayrilmaydi); None — hozirgi
+    holat (hammasi). Davr hisobotlari — `yakun_foydasi` (yakunlangan payt) + `davr_qaytarishlari`.
     """
     _x_o = _hk_ol(db, "buyurtma", order_id)
     if _x_o is not _HK_YOQ:
@@ -2641,6 +2787,24 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
                 })
                 tan_narxi_jami += qoplama_xarajat
 
+    # ── 2b. QAYTARISHLAR (144-band, kech102) ─────────────────
+    # Omborga qaytgan mahsulot buyurtmadan CHIQDI — uning tannarxi (`stock_cost`; qayta sotilganda TM sotuvi tannarxida
+    # hisoblanadi) shu yerda ayriladi. "Pul qaytdi" joriy kelishilgan summada allaqachon bor; `holat_vaqti` berilsa —
+    # undan KEYINGI pul qaytarish qaytarib qo'shiladi, keyingi omborga qaytish esa ayrilmaydi (ular o'z davrida).
+    _omborga_qaytgan = 0.0
+    for _tur144, _vaqt144, _summa144, _r144 in _qaytarish_hodisalari(db, order):
+        if _tur144 == "ombor":
+            if holat_vaqti is None or _vaqt144 < holat_vaqti:
+                _omborga_qaytgan += _summa144
+        elif holat_vaqti is not None and _vaqt144 >= holat_vaqti:
+            sotuv_narxi += _summa144
+    if _omborga_qaytgan > 0:
+        breakdown.append({
+            "nomi": "↩️ Omborga qaytgan mahsulot (tannarxdan ayrildi)",
+            "summa": -_omborga_qaytgan
+        })
+        tan_narxi_jami -= _omborga_qaytgan
+
     # ── 3. USTA HAQI (cashback% — foydadan) ─────────────────
     usta_haqi = 0.0
     if order.master and order.master.cashback_percent > 0:
@@ -2707,10 +2871,15 @@ def get_daily_finance_summary(db: Session, target_date, company_id: int = None) 
     total_sales = 0.0
     total_cost = 0.0
     for o in orders_today:
-        p = calculate_order_profit(db, o.id, company_id=company_id)
+        p = yakun_foydasi(db, o, company_id=company_id)        # kech102 (144-band): yakunlangan paytdagi
         if p.get("success"):
             total_sales += p["sotuv_narxi"]
             total_cost += p["tan_narxi"]
+    # kech102 (144-band, QAROR "Qaytarish oyida"): shu kuni bo'lgan qaytarishlar (yakunlangan buyurtmalardan keyin)
+    _qaytarishlar_kun = davr_qaytarishlari(db, start, end, company_id=company_id)
+    for _h144 in _qaytarishlar_kun:
+        total_sales += _h144["daromad"]
+        total_cost += _h144["tannarx"]
 
     # ── 1b) SAVDO — shu kun to'g'ridan-to'g'ri sotilgan tayyor mahsulotlar ──
     # (Tayyor mahsulotlar bo'limidan, buyurtmasiz sotilganlar — avval bu
@@ -2791,6 +2960,10 @@ def get_daily_finance_summary(db: Session, target_date, company_id: int = None) 
             "total": round(total_sales),
             "cost": round(total_cost),
             "profit": round(total_profit),
+            # kech102 (144-band): shu kungi qaytarishlar (yuqoridagi summalar ICHIDA)
+            "qaytarish_soni": len(_qaytarishlar_kun),
+            "qaytarish_daromad": round(sum(h["daromad"] for h in _qaytarishlar_kun)),
+            "qaytarish_tannarx": round(sum(h["tannarx"] for h in _qaytarishlar_kun)),
         },
         "expenses": {
             "total": round(total_expense),
@@ -3089,7 +3262,9 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # "Umumiy jami"ni olamiz. Bu — Buyurtmalar ro'yxati va har bir
     # buyurtmaning foyda hisobi (calculate_order_profit) bilan BIR XIL
     # manba — aks holda "Jami daromad" bu ikkisidan farq qilib qolar edi.
-    daromad = sum(o.kelishilgan_summa for o in ready_orders)
+    # kech102 (144-band, QAROR "Qaytarish oyida"): buyurtma YAKUNLANGAN paytdagi daromad — keyingi "Pul qaytdi"
+    # qaytarish bo'lgan oyda (pastda, "1b"), o'tgan oy hisoboti o'zgarmaydi.
+    daromad = sum(yakun_daromadi(db, o) for o in ready_orders)
     buyurtmalar_soni = len(ready_orders)
 
     # ── TAYYOR MAHSULOT TO'G'RIDAN-TO'G'RI SOTUVI ──
@@ -3117,7 +3292,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     ishlab_chiqarish_xarajat = 0.0
     for order in ready_orders:
         try:
-            profit_data = calculate_order_profit(db, order.id, company_id=company_id)
+            profit_data = yakun_foydasi(db, order, company_id=company_id)    # kech102 (144-band)
             ishlab_chiqarish_xarajat += float(profit_data.get("tan_narxi", 0))
         except Exception as e:
             try:
@@ -3125,6 +3300,17 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
                 _crud_log.log_error(db, str(e), endpoint=f"get_monthly_report:calculate_order_profit order#{order.id}")
             except Exception:
                 pass
+
+    # ── 1b. QAYTARISHLAR (144-band, kech102 — FOYDALANUVCHI QARORI "Qaytarish oyida") ──
+    # Shu oyda bo'lgan (buyurtma yakunlangandan KEYINGI) qaytarishlar: mijozga qaytarilgan pul — daromaddan,
+    # omborga qaytgan mahsulot tannarxi — ishlab chiqarish xarajatidan ayriladi (alohida qator — `qaytarish_*`).
+    _q144_boshi = datetime(year, month, 1)
+    _q144_oxiri = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    _qaytarishlar = davr_qaytarishlari(db, _q144_boshi, _q144_oxiri, company_id=company_id)
+    qaytarish_daromad = sum(h["daromad"] for h in _qaytarishlar)
+    qaytarish_tannarx = sum(h["tannarx"] for h in _qaytarishlar)
+    daromad += qaytarish_daromad
+    ishlab_chiqarish_xarajat += qaytarish_tannarx
 
     sof_daromad = daromad - ishlab_chiqarish_xarajat
 
@@ -3538,7 +3724,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     penoplast_daromad = 0.0
     for order in ready_orders:
         order_total = float(order.total_amount or 0)
-        order_agreed = order.kelishilgan_summa
+        order_agreed = yakun_daromadi(db, order)     # kech102 (144-band): yakunlangan paytdagi
         if order_total <= 0:
             continue
         for item in order.items:
@@ -3547,6 +3733,12 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
                 gips_daromad += share
             else:
                 penoplast_daromad += share
+    # kech102 (144-band): shu oydagi qaytarishlar — qaytgan detal turi bo'yicha
+    for _h144 in _qaytarishlar:
+        if _h144["gips"]:
+            gips_daromad += _h144["daromad"]
+        else:
+            penoplast_daromad += _h144["daromad"]
 
     # Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
     # sotilganlar — shu yuqoridagi fp_sales ro'yxatidan, kategoriyasi
@@ -3599,6 +3791,10 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         ][month],
         "daromad": round(daromad + fp_sales_daromad),
         "daromad_buyurtmalardan": round(daromad),
+        # kech102 (144-band): shu oydagi qaytarishlar (daromad va ishlab chiqarish xarajati ICHIDA) — alohida qator uchun
+        "qaytarish_daromad": round(qaytarish_daromad),
+        "qaytarish_tannarx": round(qaytarish_tannarx),
+        "qaytarish_soni": len(_qaytarishlar),
         "fp_sales_daromad": round(fp_sales_daromad),
         "fp_sales_foyda": round(fp_sales_foyda),
         "fp_sales_soni": len(fp_sales),
@@ -3692,7 +3888,7 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     peno_direct_cost = 0.0
     for o in ready_orders:
         try:
-            profit_data = calculate_order_profit(db, o.id, company_id=company_id)
+            profit_data = yakun_foydasi(db, o, company_id=company_id)    # kech102 (144-band)
         except Exception:
             continue
         for line in profit_data.get("breakdown", []):
@@ -3701,6 +3897,15 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
                 gips_direct_cost += amt
             else:
                 peno_direct_cost += amt
+    # kech102 (144-band): shu oydagi qaytarishlar tannarxi (oylik hisobot `qaytarish_tannarx` bilan bir manba)
+    from datetime import datetime as _dt144s
+    for _h144 in davr_qaytarishlari(db, _dt144s(year, month, 1),
+                                   _dt144s(year + 1, 1, 1) if month == 12 else _dt144s(year, month + 1, 1),
+                                   company_id=company_id):
+        if _h144["gips"]:
+            gips_direct_cost += _h144["tannarx"]
+        else:
+            peno_direct_cost += _h144["tannarx"]
 
     # ── 2. HODIM TO'LOVI — Yo'nalish bo'yicha aniq, belgilanmaganlar ulush bo'yicha
     gips_emp = 0.0
@@ -5989,6 +6194,14 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         ).all():
             _sotuv_oy.setdefault(_s.master_id, []).append(_s)
     _hk_tayyorla(db, [o for _l in _buyurtma_oy.values() for o in _l])   # kech89 (52-band): hisobot ichida
+    # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu oyda bo'lgan qaytarishlar o'sha buyurtma ustasining
+    # foydasiga (qaytarilgan pul − omborga qaytgan tannarx); buyurtmaning o'zi — yakunlangan paytdagi holatda.
+    from datetime import datetime as _dt144k
+    _qaytarish_usta = {}
+    for _h144 in davr_qaytarishlari(db, _dt144k(year, month, 1),
+                                   _dt144k(year + 1, 1, 1) if month == 12 else _dt144k(year, month + 1, 1),
+                                   company_id=company_id):
+        _qaytarish_usta[_h144["master_id"]] = _qaytarish_usta.get(_h144["master_id"], 0.0) + _h144["foyda"]
 
     for m in masters:
         orders = _buyurtma_oy.get(m.id, [])
@@ -5996,7 +6209,7 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         monthly_profit = 0.0
         for o in orders:
             try:
-                profit_data = calculate_order_profit(db, o.id)
+                profit_data = yakun_foydasi(db, o)
                 monthly_profit += float(profit_data.get("foyda", 0))
             except Exception as e:
                 try:
@@ -6013,6 +6226,7 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         # KPI umuman hisoblanmay qolar edi.
         fp_sales = _sotuv_oy.get(m.id, [])
         monthly_profit += sum(float(s.total_amount or 0) - float(s.cost_amount or 0) for s in fp_sales)
+        monthly_profit += _qaytarish_usta.get(m.id, 0.0)      # kech102 (144-band)
 
         if monthly_profit <= 0:
             continue
@@ -6061,13 +6275,18 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
     monthly_profit = 0.0
     for o in orders:
         try:
-            profit_data = calculate_order_profit(db, o.id)
+            profit_data = yakun_foydasi(db, o)       # kech102 (144-band): yakunlangan paytdagi
             monthly_profit += float(profit_data.get("foyda", 0))
         except Exception as e:
             try:
                 _crud.log_error(db, str(e), endpoint=f"calculate_monthly_ehson:calculate_order_profit order#{o.id}")
             except Exception:
                 pass
+    # kech102 (144-band, QAROR "Qaytarish oyida"): shu oyda bo'lgan qaytarishlar
+    from datetime import datetime as _dt144e
+    monthly_profit += sum(_h144["foyda"] for _h144 in davr_qaytarishlari(
+        db, _dt144e(year, month, 1), _dt144e(year + 1, 1, 1) if month == 12 else _dt144e(year, month + 1, 1),
+        company_id=company_id))
 
     # Tayyor mahsulot to'g'ridan-to'g'ri sotuvi ham —
     # bu ham korxonaning haqiqiy foydasi, Ehson shu foydadan hisoblanadi
