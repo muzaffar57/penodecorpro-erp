@@ -931,7 +931,7 @@ check("H6 sovg'a davri YOPILISHI (yozuvchi) — tegilmagan: o'ralmagan, kesh / o
       and "hisobot_keshi" not in _s_gp)
 check("H7 asl so'rov satrlari o'zgarmagan (lint baseline langarlari)",
       "    orders = db.query(Order).filter(Order.project_id == project_id, Order.is_deleted.isnot(True)).all()" in _s_api
-      and "    all_orders = db.query(Order).filter(" in _s_rep and "        last_order = db.query(Order).filter(" in _s_rep
+      and "    all_orders = db.query(Order).filter(" in _s_rep     # kech98 (129-band): `last_order` qatori GROUP BY ga o'tdi
       and "    orders = db.query(Order).filter(\n        Order.master_id == master_id," in _s_det)
 
 print(f"\nNATIJA: o'tdi = {OK} yiqildi = {FAIL} jami = {OK + FAIL}")

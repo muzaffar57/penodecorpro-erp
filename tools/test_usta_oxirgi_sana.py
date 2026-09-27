@@ -7,7 +7,8 @@ ikkala bazada ham ustaning "Tayyor" buyurtmalari orasidagi eng oxirgi HAQIQIY `c
 O'LCHANGAN (asl kod, `work/probe90_null.py`, kech90): `last_order` = `ORDER BY completed_at DESC .first()` —
 PostgreSQL `DESC` da NULL larni BIRINCHI qo'yadi (SQLite — oxirida). Ustaning birorta "Tayyor" buyurtmasida
 `completed_at` NULL bo'lsa (eski / qo'lda tuzatilgan ma'lumot) PG da sana BO'SH ("Hali yo'q") chiqardi,
-SQLite da — haqiqiy oxirgi sana. Tuzatish: `.desc().nullslast()`.
+SQLite da — haqiqiy oxirgi sana. Tuzatish: `.desc().nullslast()`. kech98 (129-band): usta boshiga alohida so'rov
+o'rniga bitta GROUP BY (`MAX(completed_at)` — NULL lar e'tiborsiz, natija AYNAN); statik H bo'limi yangi shaklga moslandi.
 
 Bo'limlar: A — funksiya to'g'ridan (8 usta, har biri alohida holat: NULL aralash, faqat NULL, "Tayyor" yo'q,
 DELIVERED keyinroq, o'chirilgan buyurtma, nofaol usta, o'tgan yil, begona korxona); B — kesh bilan / keshsiz
@@ -349,17 +350,18 @@ check("E5 boshqa ustalar o'zgarmadi", {k: v for k, v in _e4.items() if k != "U1"
 
 section("H — statik")
 _fn = manba(crud, "get_masters_kpi_report")
-check("H1 last_order: DESC NULLS LAST", ").order_by(Order.completed_at.desc().nullslast()).first()" in _fn, _fn[-900:])
-check("H2 asl so'rov qatori saqlangan (lint baseline / test_kesh_oquvchi langari)",
-      "        last_order = db.query(Order).filter(" in _fn)
+check("H1 oxirgi sana: bitta GROUP BY MAX (kech98, 129-band — NULL lar e'tiborsiz)",
+      "_func_kpi.max(Order.completed_at)" in _fn and ".group_by(Order.master_id)" in _fn, _fn[-900:])
+check("H2 usta boshiga alohida so'rov YO'Q (asl `last_order = db.query(Order)` qatori olib tashlangan)",
+      "        last_order = db.query(Order).filter(" not in _fn and "Order.master_id == m.id" not in _fn)
 try:
     _crud_src = open(os.path.join(ROOT, "crud.py"), encoding="utf-8").read()
 except Exception as e:                     # noqa: BLE001
     _crud_src = f"{type(e).__name__}: {e}"
 check("H3 crud.py da NULLS LAST SIZ `completed_at DESC .first()` qolmagan",
       ".order_by(Order.completed_at.desc()).first()" not in _crud_src)
-check("H4 javob maydoni o'zgarmagan (completed_at, NULL himoyasi bilan)",
-      '"last_order_date": last_order.completed_at.isoformat() if last_order and last_order.completed_at else None' in _fn)
+check("H4 javob maydoni o'zgarmagan (MAX natijasi, NULL himoyasi bilan)",
+      '"last_order_date": _oxirgi.isoformat() if _oxirgi is not None else None' in _fn)
 
 print(f"\nNATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 if FAILED:

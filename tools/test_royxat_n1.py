@@ -500,8 +500,8 @@ _tur = {}
 for x in _fc["issues"]:
     _tur.setdefault(x["type"], []).append(x["label"])
 _on = {o.id: o.order_number for o in _s.query(Order).all()}
-check("B46 izchillik: ortiqcha to'langan buyurtma — debt_mismatch (asl qoida: qarz 0 ↔ kutilgan manfiy)",
-      any(_on[O_ORT] in l for l in _tur.get("debt_mismatch", [])), _tur)
+check("B46 izchillik: ortiqcha to'langan buyurtma — debt_mismatch EMAS (kech98, 130-band: qarz 0 — `debt_amount` qoidasi bo'yicha to'g'ri)",
+      not any(_on[O_ORT] in l for l in _tur.get("debt_mismatch", [])), _tur)
 check("B47 izchillik: ortiqcha yetkazilgan detal — over_delivery", len(_tur.get("over_delivery", [])) >= 1, _tur)
 check("B48 izchillik: narxsiz detal (qoralama EMAS) — zero_price_item", any(_on[O_NOL] in l for l in _tur.get("zero_price_item", [])),
       _tur)
@@ -530,9 +530,13 @@ def _eski_izchillik(db, company_id):
                         "diff": round(diff, 2)})
     for o in orders:
         pays = db.query(Payment).filter(Payment.order_id == o.id).all()
-        paid = sum(float(p.amount or 0) for p in pays)
+        # kech98 (130-band): kutilgan qarz — `Order.debt_amount` qoidasi (tiyin, bardosh 0.5, ortiqcha — 0), mustaqil
+        paid = sum((Decimal(repr(float(p.amount or 0))) for p in pays), Decimal("0"))
         debt = float(o.debt_amount or 0)
-        expected_debt = o.kelishilgan_summa - paid
+        expected_debt = float((Decimal(repr(float(o.kelishilgan_summa))) - paid).quantize(Decimal("0.01"),
+                                                                                           rounding=ROUND_HALF_UP))
+        if expected_debt <= 0.5:
+            expected_debt = 0.0
         diff = abs(debt - expected_debt)
         if diff > 1:
             iss.append({"type": "debt_mismatch", "label": f"Buyurtma {o.order_number}",
@@ -575,8 +579,8 @@ for _cid in (1, 2, None):
         _s2.close()
     check(f"B60 izchillik c{_cid}: 4 tekshiruv natijasi ASL algoritm (alohida so'rovlar) bilan AYNAN ({len(_eski_iz)} ta)",
           jsonla(_yangi_iz) == jsonla(_eski_iz), (len(_yangi_iz), len(_eski_iz), _yangi_iz[:2], _eski_iz[:2]))
-check("B61 izchillik: debt_mismatch FAQAT ortiqcha to'langan buyurtma", sorted(_tur.get("debt_mismatch", [])) ==
-      [f"Buyurtma {_on[O_ORT]}"], _tur.get("debt_mismatch"))
+check("B61 izchillik: debt_mismatch YO'Q (ortiqcha to'langan ham — kech98, 130-band)", sorted(_tur.get("debt_mismatch", [])) == [],
+      _tur.get("debt_mismatch"))
 _al = json.loads(NATIJA[("alerts", 1)])
 check("B50 ogohlantirish: muddati o'tgan qarzdor (40 kun) — 1 ta",
       any("1 ta qarzdorning muddati" in a["text"] for a in _al), _al)
