@@ -298,6 +298,11 @@ input[type=number]{-moz-appearance:textfield}
                 {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
               </div>
               <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.kelishilgan_summa).replace(",", " ") }} so'm</div>
+              {# kech100 (131-band): mijozga qaytarilishi kerak bo'lgan ortiqcha to'lov — DOIMIY belgi #}
+              {% set ort131 = o.ortiqcha_tolov %}
+              {% if ort131 > 0 %}
+              <div class="ort-qaytarish" style="margin-top:3px;font-size:11.5px;color:#C2410C;font-weight:700">↩ Qaytarish kerak: {{ ("{:,.2f}" if (ort131 % 1) else "{:,.0f}").format(ort131).replace(",", " ") }} so'm</div>
+              {% endif %}
               {% if urgency == 'overdue' %}
               <div class="deadline-pulse" style="margin-top:3px;font-size:11.5px;color:#DC2626;font-weight:700">🔴 Muddati o'tgan!</div>
               {% elif urgency == 'today' %}
@@ -2721,10 +2726,12 @@ async function loadPayments(orderId) {
     const badge = document.getElementById('pay-status-badge');
     const st = order.payment_status || 'unpaid';
     let badgeHtml = '';
-    const overpaidMatch = (order.notes || '').match(/\[OVERPAID:([\d.]+)\]/);
-    if (overpaidMatch) {
-      const overpaidAmt = parseFloat(overpaidMatch[1]);
-      badgeHtml += `<div style="background:#FEE2E2;border:1.5px solid #DC2626;color:#DC2626;padding:8px 12px;border-radius:9px;font-size:13px;font-weight:700;margin-bottom:8px">⚠️ Mijozga ${formatNum(overpaidAmt)} so'm QAYTARILISHI kerak (ortiqcha to'langan)</div>`;
+    // kech100 (131-band, QAROR "B"): DOIMIY belgi — server hisobi (`ortiqcha_tolov` = to'langan − kelishilgan, yarim
+    // so'mgacha 0). Ilgari izohdagi `[OVERPAID:…]` surati o'qilardi: faqat qisman «Tayyor» yozardi, tasdiqlangan
+    // ortiqcha to'lov / kamaytirilgan kelishilgan summada YO'Q, qaytarilgandan keyin ham qolardi (O'LCHANDI, probe131).
+    const ortiqcha131 = Number(order.ortiqcha_tolov) || 0;
+    if (ortiqcha131 > 0) {
+      badgeHtml += `<div style="background:#FFF7ED;border:1.5px solid #F97316;color:#C2410C;padding:8px 12px;border-radius:9px;font-size:13px;font-weight:700;margin-bottom:8px">↩ Mijozga ${escapeHtml(narxKorinishi(ortiqcha131))} so'm QAYTARILISHI kerak (ortiqcha to'langan) · <a href="/debts?qaytarish=${encodeURIComponent(String(order.id))}" style="color:#C2410C">Qaytarildi deb yozish →</a></div>`;
     }
     if (st === 'paid') {
       badgeHtml += '<span style="background:#DCFCE7;color:#1e7e34;padding:5px 14px;border-radius:20px;font-size:14px;font-weight:600">✅ To\'liq to\'langan — Arxivda</span>';
@@ -5766,6 +5773,19 @@ async function deleteSelected() {
         else if (oc.qisman) qatorlar.push('   ♻️ Faqat QOLGAN qism uchun xomashyo omborga qaytadi — omborga qaytarilgan (ortiqcha) qism tayyor mahsulotlar omborida qoladi.');
         else qatorlar.push('   ♻️ Xomashyo (penoplast va loy) omborga qaytariladi.');
         if (!oc.yumshoq) qatorlar.push('   Butunlay o\'chiriladi.');
+        // kech100 (93-band, QAROR "B"): topshirilgan (qisman / to'liq, «Tayyor» bosilmagan) buyurtma o'chirishda
+        // topshirilgan qismi bilan YAKUNLANADI — summa, ortiqcha to'lov / qarz SERVER oldindan hisobidan (`oc.yopish`).
+        else if (oc.yopiladi && oc.yopish) {
+          const y = oc.yopish;
+          qatorlar.push('   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi. Topshirilgan qism «Tayyor» kabi YAKUNLANADI — '
+            + `${formatNum(y.new_agreed)} so'm daromad, tannarx va Usta KPI oylik/yillik hisobotda qoladi.`);
+          if (Math.abs(Number(y.new_agreed) - Number(y.old_agreed)) >= 0.005)
+            qatorlar.push(`   Buyurtma summasi: ${formatNum(y.old_agreed)} → ${formatNum(y.new_agreed)} so'm (topshirilgan miqdorga).`);
+          if (Number(y.ortiqcha) > 0)
+            qatorlar.push(`   ⚠️ Mijoz ${formatNum(y.ortiqcha)} so'm ORTIQCHA to'lagan bo'ladi — pulni qaytarish kerak (Qarzdorlar → «Mijozga qaytarish kerak»).`);
+          else if (Number(y.qarz) > 0)
+            qatorlar.push(`   💳 Mijoz qarzi: ${formatNum(y.qarz)} so'm.`);
+        }
         else if (oc.hisobotda_qoladi) qatorlar.push('   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi, lekin Usta KPI va oylik/yillik hisobotlarda saqlanib qoladi.');
         else qatorlar.push('   ℹ️ Buyurtma "Buyurtmalar" ro\'yxatidan yo\'qoladi. U «Tayyor» deb belgilanmagan — Usta KPI va oylik/yillik hisobotlarga KIRMAYDI.');
         info = '\n\n' + qatorlar.join('\n');
@@ -5815,9 +5835,11 @@ async function deleteSelected() {
     const d = await res.json();
     if (res.ok) {
       const box = document.getElementById('resultBox');
+      // kech100 (93-band): topshirilgan qism yakunlandi — server xabari (summa, ortiqcha to'lov / qarz)
+      const yopXabar = (d.yopildi && d.yopildi.message) ? '<br><br>💰 ' + escapeHtml(d.yopildi.message) : '';
       if (d.inventory_log?.length) {
         if (box) {
-          box.innerHTML = '<b>✓ Buyurtma o\'chirildi!</b><br><br>♻️ Omborga qaytdi:<br>' + d.inventory_log.map(escapeHtml).join('<br>');
+          box.innerHTML = '<b>✓ Buyurtma o\'chirildi!</b><br><br>♻️ Omborga qaytdi:<br>' + d.inventory_log.map(escapeHtml).join('<br>') + yopXabar;
           box.className = 'result-box success';
           box.style.display = 'block';
         }
@@ -5825,7 +5847,7 @@ async function deleteSelected() {
         setTimeout(()=>location.reload(), 3000);
       } else if (d.reason) {
         if (box) {
-          box.innerHTML = '<b>✓ Buyurtma o\'chirildi</b><br><br>ℹ️ ' + escapeHtml(d.reason);
+          box.innerHTML = '<b>✓ Buyurtma o\'chirildi</b><br><br>ℹ️ ' + escapeHtml(d.reason) + yopXabar;
           box.className = 'result-box';
           box.style.display = 'block';
         }

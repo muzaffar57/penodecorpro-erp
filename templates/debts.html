@@ -64,8 +64,17 @@
     </div>
   </div>
 
+  {# kech100 (131-band, QAROR "B"): mijozga qaytarilishi kerak bo'lgan ortiqcha to'lovlar — DOIMIY eslatma #}
+  {% if ortiqcha_royxat %}
+  <div id="qaytarish-banner" style="background:#FFF7ED;border:1.5px solid #F97316;color:#9A3412;border-radius:12px;padding:12px 16px;margin:-8px 0 18px;font-size:13.5px;font-weight:600;cursor:pointer" onclick="switchTab('refunds')">
+    ↩ {{ ortiqcha_royxat|length }} ta buyurtma bo'yicha mijozlarga
+    {{ ("{:,.2f}" if (total_ortiqcha % 1) else "{:,.0f}").format(total_ortiqcha).replace(",", " ") }} so'm QAYTARILISHI kerak (ortiqcha to'langan) — «Mijozga qaytarish» bo'limi
+  </div>
+  {% endif %}
+
   <div class="dbt-tabs">
     <button class="dbt-tab active" data-t="customers" onclick="switchTab('customers')"><i class="ti ti-user" style="vertical-align:-2px"></i> Bizga qarzdorlar ({{ order_debts|length }})</button>
+    <button class="dbt-tab" data-t="refunds" onclick="switchTab('refunds')"><i class="ti ti-arrow-back-up" style="vertical-align:-2px"></i> Mijozga qaytarish ({{ ortiqcha_royxat|length }})</button>
     <button class="dbt-tab" data-t="suppliers" onclick="switchTab('suppliers')"><i class="ti ti-truck" style="vertical-align:-2px"></i> Hamkorlarga qarzimiz ({{ supplier_debts|length }})</button>
     <button class="dbt-tab" data-t="company" onclick="switchTab('company')"><i class="ti ti-building" style="vertical-align:-2px"></i> Boshqa majburiyatlarimiz ({{ (company_obligations.employees|length) + (company_obligations.recurring|length) }})</button>
   </div>
@@ -87,13 +96,14 @@
                  data-agreed="{{ o.agreed_amount }}"
                  data-paid="{{ o.paid_amount }}"
                  data-debt="{{ o.debt_amount }}"
+                 data-deleted="{{ 'true' if o.is_deleted else 'false' }}"
                  data-deadline="{{ o.deadline.strftime('%d.%m.%Y') if o.deadline else '—' }}">
               <div class="dbt-avatar">{{ (o.project.client_name or '?')[0]|upper }}</div>
               <div class="dbt-item-body">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
                   <div>
                     <div class="dbt-item-name">{{ o.project.client_name }}</div>
-                    <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name }}</div>
+                    <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name }}{% if o.is_deleted %} · <span class="qarz-ochirilgan" style="color:#DC2626">o'chirilgan</span>{% endif %}</div>
                   </div>
                   <div class="dbt-item-amount">{{ "{:,.0f}".format(o.debt_amount).replace(",", " ") }} so'm</div>
                 </div>
@@ -129,6 +139,73 @@
             </label>
             <button class="btn btn-dark w-full" onclick="savePayment()">✓ To'lovni qabul qilish</button>
             <div id="pay-msg" style="display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- kech100 (131-band): MIJOZGA QAYTARISH KERAK — ortiqcha to'langan buyurtmalar -->
+  <div id="tab-refunds" style="display:none">
+    <div class="dbt-grid">
+      <div class="dbt-card">
+        <div class="dbt-list">
+          {% if ortiqcha_royxat %}
+            {% for o in ortiqcha_royxat %}
+            {% set ort = o.ortiqcha_tolov %}
+            <div class="dbt-item" onclick="selectRefund(this)"
+                 data-id="{{ o.id }}"
+                 data-order-number="{{ o.order_number }}"
+                 data-client="{{ o.project.client_name if o.project else '—' }}"
+                 data-phone="{{ (o.project.client_phone if o.project else None) or '—' }}"
+                 data-project="{{ o.project.project_name if o.project else '—' }}"
+                 data-agreed="{{ o.kelishilgan_summa }}"
+                 data-paid="{{ o.paid_amount }}"
+                 data-ortiqcha="{{ ort }}"
+                 data-deleted="{{ 'true' if o.is_deleted else 'false' }}">
+              <div class="dbt-avatar" style="background:#FFF7ED;color:#C2410C">{{ ((o.project.client_name if o.project else '') or '?')[0]|upper }}</div>
+              <div class="dbt-item-body">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                  <div>
+                    <div class="dbt-item-name">{{ o.project.client_name if o.project else '—' }}</div>
+                    <div class="dbt-item-sub">{{ o.order_number }} · {{ o.project.project_name if o.project else '—' }}{% if o.is_deleted %} · <span style="color:#DC2626">o'chirilgan</span>{% endif %}</div>
+                  </div>
+                  <div class="dbt-item-amount" style="color:#EA580C">↩ {{ ("{:,.2f}" if (ort % 1) else "{:,.0f}").format(ort).replace(",", " ") }} so'm</div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="dbt-empty"><i class="ti ti-circle-check"></i><div style="font-size:15px;font-weight:600;color:var(--d-text2)">Mijozlarga qaytariladigan ortiqcha to'lov yo'q</div></div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="dbt-card" id="refDetailCard">
+          <div style="padding:16px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px">
+            <div class="dbt-avatar" id="rd-avatar" style="width:30px;height:30px;font-size:12px;background:#FFF7ED;color:#C2410C">?</div>
+            <span id="rd-name">Buyurtma tanlang</span>
+          </div>
+          <div style="padding:16px 18px" id="rd-body">
+            <div style="text-align:center;padding:20px;color:var(--d-text3);font-size:13px">Chapdan buyurtmani tanlang</div>
+          </div>
+        </div>
+
+        <div class="dbt-card" id="refundCard" style="display:none;border-left:3px solid #F97316">
+          <div style="padding:14px 18px;border-bottom:1px solid #F3F4F6;font-weight:700;font-size:14px">↩ Mijozga qaytarildi deb yozish</div>
+          <div style="padding:16px 18px">
+            <div class="form-group"><label>Qaytarilgan summa (so'm)</label><input type="text" id="ref-amount" placeholder="0" oninput="formatPriceInput(this)"></div>
+            <div class="form-group"><label>Qaysi usulda qaytarildi</label>
+              <select id="ref-method" style="width:100%;padding:9px 10px;border:1px solid #E5E7EB;border-radius:8px">
+                <option value="naqd">Naqd</option>
+                <option value="plastik">Plastik</option>
+                <option value="o'tkazma">O'tkazma</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Izoh (ixtiyoriy)</label><input type="text" id="ref-note" placeholder="..." maxlength="300"></div>
+            <button class="btn btn-dark w-full" onclick="saveRefund()">✓ Qaytarildi</button>
+            <div id="ref-msg" style="display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px"></div>
           </div>
         </div>
       </div>
@@ -412,6 +489,8 @@ function switchTab(t){
   document.getElementById('tab-customers').style.display = t === 'customers' ? 'block' : 'none';
   document.getElementById('tab-suppliers').style.display = t === 'suppliers' ? 'block' : 'none';
   document.getElementById('tab-company').style.display = t === 'company' ? 'block' : 'none';
+  // kech100 (131-band): "Mijozga qaytarish" bo'limi
+  document.getElementById('tab-refunds').style.display = t === 'refunds' ? 'block' : 'none';
 }
 
 function openAddCategoryModal(){
@@ -576,7 +655,9 @@ function selectOrderDebt(el){
     </div>
     <div style="margin-top:10px"><div class="dbt-progress-track"><div class="dbt-progress-fill" style="width:${pct}%"></div></div>
       <div style="font-size:11px;color:#9CA3AF;margin-top:4px;text-align:right">${pct}% to'langan</div></div>
-    <a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">Buyurtmalar sahifasida ochish →</a>`;
+    ${d.deleted === 'true'
+      ? '<div style="margin-top:12px;font-size:12px;color:#DC2626;text-align:center">Buyurtma o\'chirilgan (topshirilgan qismi hisobotda) — qarz undirilishi kerak</div><a href="/trash" style="display:block;margin-top:6px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">O\'chirilganlar sahifasida ochish →</a>'
+      : '<a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">Buyurtmalar sahifasida ochish →</a>'}`;
 
   document.getElementById('payCard').style.display = 'block';
   // 124-band (kech95, O'LCHANGAN `work/probe124.py` D1): aniq qarz (ilgari `fmt` — butun so'm, 0.25 ortiqcha to'lanardi)
@@ -629,6 +710,73 @@ async function savePayment(){
   }
 }
 
+// ── kech100 (131-band, QAROR "B"): "Mijozga qaytarish kerak" — tanlash va "Qaytarildi" ─────────────
+let selectedRefundId = null;
+
+function selectRefund(el){
+  document.querySelectorAll('#tab-refunds .dbt-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  selectedRefundId = el.dataset.id;
+  const d = el.dataset;
+  const agreed = parseFloat(d.agreed), paid = parseFloat(d.paid), ort = parseFloat(d.ortiqcha);
+  document.getElementById('rd-name').textContent = d.client;
+  document.getElementById('rd-avatar').textContent = (d.client || '?')[0].toUpperCase();
+  document.getElementById('rd-body').innerHTML = `
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Buyurtma</span><span style="font-weight:600">${escapeHtml(d.orderNumber)}${d.deleted === 'true' ? ' <span style="color:#DC2626">(o\'chirilgan)</span>' : ''}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Loyiha</span><span>${escapeHtml(d.project)}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Telefon</span><span>${escapeHtml(d.phone)}</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">Kelishilgan summa</span><span style="font-weight:600">${escapeHtml(narxKorinishi(agreed))} so'm</span></div>
+    <div class="dbt-sum-row"><span style="color:#9CA3AF">To'langan</span><span style="font-weight:600;color:#22C55E">${escapeHtml(narxKorinishi(paid))} so'm</span></div>
+    <div class="dbt-sum-row" style="border-top:2px solid #F97316;padding-top:10px;margin-top:4px">
+      <span style="font-weight:700">QAYTARISH KERAK:</span><span style="font-weight:800;font-size:17px;color:#EA580C">${escapeHtml(narxKorinishi(ort))} so'm</span>
+    </div>`;
+  document.getElementById('refundCard').style.display = 'block';
+  // Aniq (tiyinli) summa — butun ortiqcha; qisman qaytarish uchun o'zgartirish mumkin
+  document.getElementById('ref-amount').value = narxKorinishi(ort);
+  document.getElementById('ref-method').value = 'naqd';
+  document.getElementById('ref-note').value = '';
+  document.getElementById('ref-msg').style.display = 'none';
+}
+
+let _refundYuborilmoqda = false;
+async function saveRefund(){
+  if (!selectedRefundId || _refundYuborilmoqda) return;
+  const msg = document.getElementById('ref-msg');
+  const amount = parseNum(document.getElementById('ref-amount').value);
+  if (!amount || amount <= 0) {
+    msg.style.display = 'block'; msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
+    msg.textContent = '❌ Summa kiriting';
+    return;
+  }
+  const tana = { amount, payment_method: document.getElementById('ref-method').value,
+                 notes: document.getElementById('ref-note').value || null };
+  const ha = await customConfirm(`Mijozga ${narxKorinishi(amount)} so'm qaytarildi deb yozilsinmi? (kassadan chiqim)`,
+                                 {okText: 'Ha, qaytarildi'});
+  if (!ha) return;
+  _refundYuborilmoqda = true;
+  try {
+    const res = await fetch(`/api/orders/${encodeURIComponent(selectedRefundId)}/refund-overpayment`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(tana)
+    });
+    msg.style.display = 'block';
+    if (res.ok) {
+      const d = await res.json();
+      msg.style.background = '#DCFCE7'; msg.style.color = '#166534';
+      msg.textContent = `✓ ${narxKorinishi(d.qaytarildi)} so'm qaytarildi deb yozildi` +
+        (Number(d.ortiqcha_qoldi) > 0 ? ` — yana ${narxKorinishi(d.ortiqcha_qoldi)} so'm qaytarish kerak` : '');
+      setTimeout(() => location.reload(), 1300);
+    } else {
+      msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
+      msg.textContent = '❌ ' + await serverSababi(res, 'Xato yuz berdi');
+    }
+  } catch (e) {
+    msg.style.display = 'block'; msg.style.background = '#FEE2E2'; msg.style.color = '#DC2626';
+    msg.textContent = '❌ Server bilan aloqa yo\'q';
+  } finally {
+    _refundYuborilmoqda = false;
+  }
+}
+
 function selectSupplierDebt(el){
   document.querySelectorAll('#tab-suppliers .dbt-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
@@ -653,6 +801,13 @@ function selectSupplierDebt(el){
 window.addEventListener('load', () => {
   const first = document.querySelector('#tab-customers .dbt-item');
   if (first) selectOrderDebt(first);
+  // kech100 (131-band): /debts?qaytarish=<buyurtma id> (Buyurtmalar sahifasidagi belgidan) — shu buyurtma ochiladi
+  const firstR = document.querySelector('#tab-refunds .dbt-item');
+  let qid = null;
+  try { qid = new URLSearchParams(location.search).get('qaytarish'); } catch (e) { qid = null; }
+  const tanlangan = qid ? Array.from(document.querySelectorAll('#tab-refunds .dbt-item')).find(x => x.dataset.id === String(qid)) : null;
+  if (tanlangan) { switchTab('refunds'); selectRefund(tanlangan); tanlangan.scrollIntoView({block: 'nearest'}); }
+  else if (firstR) selectRefund(firstR);
   const firstS = document.querySelector('#tab-suppliers .dbt-item');
   if (firstS) selectSupplierDebt(firstS);
 });
