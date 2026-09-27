@@ -75,6 +75,22 @@ const etalonPanel = (eniSm, qalinSm, miqdor, narxM3, qoplama) => {
   return { hajm: e * q * miqdor, narx };
 };
 
+// ── kech95 (117-band): buyurtma sahifasi qator jamisi — SERVER qoidasi (narx 2 xonaga HALF_UP, jami SHU
+// narxdan). Etalon MUSTAQIL: sonning o'nlik yozuvi satr sifatida yaxlitlanadi (shablondagi BigInt kodi
+// ishlatilmaydi). Test qiymatlari oddiy (eksponentsiz) — shunga mo'ljallangan.
+function _halfUpButun(x) {
+  const s = String(x);
+  if (/e/i.test(s)) throw new Error('etalonJami: eksponentli son ' + s);
+  const [b, k = ''] = s.replace('-', '').split('.');
+  let n = parseInt(b || '0', 10);
+  if ((k.charAt(0) || '0') >= '5') n += 1;
+  return s.charAt(0) === '-' ? -n : n;
+}
+const etalonJami = (miqdor, birlik) => {
+  const tiyin = _halfUpButun(Number((birlik * 100).toPrecision(15)));
+  return _halfUpButun(Number((miqdor * tiyin).toPrecision(15))) / 100;
+};
+
 // ── Soxta DOM ──
 function soxtaElement(qiymat) {
   return { value: qiymat === undefined ? '' : String(qiymat), style: {},
@@ -108,7 +124,11 @@ const ctxA = {
   updateTotal() {}, updateLiveStats() {}, updateDetalSummary() {},
 };
 vm.createContext(ctxA);
-for (const nom of ['parseNum', 'formatNum', 'calcSubDetailRow', 'calculateItem'])
+// kech95 (117-band): calculateItem qator jamisini server qoidasi bilan hisoblaydi (`buyurtmaJami` va
+// uning yordamchilari), Donalik narx maydoni `narxKorinishi` bilan to'ldiriladi (124-band) — ular ham
+// shablondan JONLI o'qiladi (topilmasa — test yiqiladi).
+for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', 'formatNum', '_onlikQism', '_tiyinHalfUp',
+                   'buyurtmaJami', 'calcSubDetailRow', 'calculateItem'])
   vm.runInContext(olib(ORDERS, nom), ctxA, { filename: `orders.html:${nom}` });
 
 const BAZA = 1000000;
@@ -126,7 +146,7 @@ for (const [h, w, l, c] of [[20, 10, 3, false], [15, 7.5, 3.4, true],
   const r = ishlat({ 'i-type': 'profil', 'i-h': h, 'i-w': w, 'i-t': 0, 'i-l': l,
                      'i-q': 1, 'i-c': String(c) });
   const k = etalonProfil(h, w, l, BAZA, c);
-  check(`A profil ${h}x${w}cm ${l}m ${c ? 'qoplamali' : 'oddiy'} — narx`, r.narx, k.narx);
+  check(`A profil ${h}x${w}cm ${l}m ${c ? 'qoplamali' : 'oddiy'} — narx`, r.narx, etalonJami(1, k.narx));
   check(`A profil ${h}x${w}cm ${l}m ${c ? 'qoplamali' : 'oddiy'} — hajm`, r.hajm, k.hajm);
 }
 
@@ -136,7 +156,7 @@ for (const [h, t, q, c] of [[50, 2, 10, false], [120, 3.5, 7, true],
   const r = ishlat({ 'i-type': 'panel', 'i-h': h, 'i-w': 0, 'i-t': t, 'i-l': 0,
                      'i-q': q, 'i-c': String(c) });
   const k = etalonPanel(h, t, q, BAZA, c);
-  check(`A panel ${h}x${t}cm x${q} ${c ? 'qoplamali' : 'oddiy'} — narx`, r.narx, k.narx);
+  check(`A panel ${h}x${t}cm x${q} ${c ? 'qoplamali' : 'oddiy'} — narx`, r.narx, etalonJami(q, k.narx / q));
   check(`A panel ${h}x${t}cm x${q} ${c ? 'qoplamali' : 'oddiy'} — hajm`, r.hajm, k.hajm);
 }
 
@@ -152,7 +172,7 @@ for (const [h, t, chiqim, qty, c] of [[12, 8, 4, 25, false], [10, 10, 2, 7, fals
   check(`A dona ${h}x${t}cm 1m dan ${chiqim} ta, ${qty} dona${c ? ' qoplamali' : ''} — hajm`,
         r.hajm, birHajm * qty);
   check(`A dona ${h}x${t}cm 1m dan ${chiqim} ta, ${qty} dona${c ? ' qoplamali' : ''} — narx`,
-        r.narx, birNarx * qty);
+        r.narx, etalonJami(qty, birNarx));
 }
 
 // A4. Donali — QULFLANGAN hajm: narx erkin, hajm o'zgarmaydi, x2 QILINMAYDI
@@ -181,7 +201,7 @@ for (const [blokNarx, chiqim, kerak] of [[800000, 2.5, 30], [600000, 3, 10],
                      'i-l': chiqim, 'i-q': kerak, 'i-c': 'false',
                      'i-blokprice': String(blokNarx), 'i-peno': '1' });
   check(`A blok ${blokNarx}so'm, 1 blokdan ${chiqim}m, ${kerak}m kerak — narx`,
-        r.narx, (blokNarx / chiqim) * kerak);
+        r.narx, etalonJami(kerak, blokNarx / chiqim));
   check(`A blok ${blokNarx}so'm, 1 blokdan ${chiqim}m, ${kerak}m kerak — hajm`,
         r.hajm, (kerak / chiqim) * 0.9);
 }

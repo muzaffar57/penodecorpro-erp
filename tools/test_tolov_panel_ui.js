@@ -69,7 +69,9 @@ function konst(src, nom) {
 }
 
 function element(id) {
-  return { id, value: '', checked: false, textContent: '', style: {}, innerHTML: '' };
+  // kech95 (124-band): `loadPayments` aniq qarzni `#pay-debt` ning `dataset.qarz` iga yozadi — haqiqiy DOM
+  // elementidagi kabi `dataset` bor.
+  return { id, value: '', checked: false, textContent: '', style: {}, innerHTML: '', dataset: {} };
 }
 
 const ELEMENT_IDLAR = [

@@ -9,7 +9,8 @@ Nuqsonlar (kech69 da O'LCHANGAN, `work/probe78.py`, `staging` = `5830d40`):
   78     Nusxa (`editSelected('duplicate')`) da Donalik TM ESKI (saqlangan) narxda, profil / panel /
          blok esa (75-band qarori) TM ro'yxatda bo'lsa JORIY narxda — nomuvofiqlik (1 500 va 2 000).
 
-Tuzatish (`templates/orders.html`): `pickFinished` — `up.value = formatNum(narx)` +
+Tuzatish (`templates/orders.html`): `pickFinished` — `up.value = narxKorinishi(narx)` (kech95, 124-band: maydon 2 xonagacha
+AYNAN; ilgari `formatNum` — butun so'm) +
 `row.dataset.unitprice = narx` (aniq); `editSelected` fetch ichida — `(isDup || _tmSaqlangan ===
 null) && cat === 'dona'` bo'lsa "1 dona narxi" maydoni ham JORIY TM narxiga. 'edit' rejimida
 saqlangan narx o'zgarmaydi (75-band).
@@ -288,9 +289,9 @@ const kut = ms => new Promise(r => setTimeout(r, ms));
         const bt = row.querySelector('.type-opt[data-value="dona"]');
         if (bt) w.selectTypeOpt(bt, "dona");
         row = w.document.querySelectorAll(".detal")[0];
-        // aniq narx formula hisobidan qolgan holat (maydon yaxlitlangan, dataset aniq — Donalik formulasi
-        // yoki tahrir oynasi shunday yozadi; qo'lda kiritishda `formatPriceInput` maydonni butun qiladi)
-        row.querySelector(".i-unitprice").value = w.formatNum(parseFloat(a5));
+        // aniq narx oldingi hisobdan qolgan holat (kech95, 124-band: maydonni Donalik formulasi / tahrir oynasi
+        // `narxKorinishi` bilan — 2 xonagacha AYNAN — yozadi, dataset aniq)
+        row.querySelector(".i-unitprice").value = w.narxKorinishi(parseFloat(a5));
         row.dataset.unitprice = a5;
         w.calculateItem(row);
         row = w.document.querySelectorAll(".detal")[0];
@@ -451,7 +452,8 @@ check("A1a collectItems: 1 dona narxi ANIQ 1333.33 (yaxlitlanmagan)", teng(iA1.g
 check("A1b bazada qator narxi 9333.31 (7 x 1333.33)", teng(birinchi(bA1).get("total_price"), 9333.31), bA1)
 check("A1c bazada 1 dona narxi 1333.33", teng(birinchi(bA1).get("unit_price"), 1333.33), bA1)
 check("A1d buyurtma jami 9333.31", teng((bA1 or {}).get("total"), 9333.31), bA1)
-check("A1e maydonda ko'rinishi yaxlitlangan '1 333' (formatNum)", yA1.get("maydon_tanlov") == "1 333", yA1.get("maydon_tanlov"))
+check("A1e maydonda ko'rinishi AYNAN '1 333.33' (narxKorinishi — 124-band; ilgari formatNum '1 333')",
+      yA1.get("maydon_tanlov") == "1 333.33", yA1.get("maydon_tanlov"))
 check("A1f TM bog'lanishi bor", birinchi(bA1).get("fp") == TM_A1, bA1)
 
 TM_A2 = yangi_tm("TMD dona eski ds", "dona", 1333.33, "dona")
@@ -568,14 +570,14 @@ section("D. statik — tartib")
 PF = funksiya_matni(HTML, "pickFinished") or ""
 ES = funksiya_matni(HTML, "editSelected") or ""
 check("D1 pickFinished va editSelected topildi", bool(PF) and bool(ES))
-check("D2 pickFinished: maydon formatNum, aniq narx row.dataset.unitprice ga",
+check("D2 pickFinished: maydon narxKorinishi (124-band), aniq narx row.dataset.unitprice ga",
       tartibda(PF, "const up = row.querySelector('.i-unitprice');", "const fpNarx = parseFloat(fp.unit_price) || 0;",
-               "up.value = formatNum(fpNarx);", "row.dataset.unitprice = fpNarx;"))
+               "up.value = narxKorinishi(fpNarx);", "row.dataset.unitprice = fpNarx;"))
 _yaxlit = [x for x in PF.splitlines() if "up.value = Math.round(" in x]
 check("D3 pickFinished da `up.value = Math.round(...)` kod qatori YO'Q", not _yaxlit, _yaxlit)
 check("D4 editSelected fetch ichida: fpPrice qoidasi, so'ng Donalik maydoni, so'ng calculateItem",
       tartibda(ES, "fetch(`/api/finished`)", "if (isDup || _tmSaqlangan === null) row.dataset.fpPrice = fp.unit_price;",
-               "if ((isDup || _tmSaqlangan === null) && cat === 'dona') {", "upTm.value = formatNum(fpNarxTm);",
+               "if ((isDup || _tmSaqlangan === null) && cat === 'dona') {", "upTm.value = narxKorinishi(fpNarxTm);",
                "row.dataset.unitprice = fpNarxTm;", "calculateItem(row);", "checkFpLimit(row);"))
 
 try:

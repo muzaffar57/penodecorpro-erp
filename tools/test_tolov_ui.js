@@ -132,7 +132,10 @@ async function ishga(m, kod, chaqiruv) {
 // ══════════════════════════════════════════════════════════════
 // orders.html
 // ══════════════════════════════════════════════════════════════
-const O_FN = ['parseNum', 'savePayment', 'tolovXatoSababi'].map((n) => olib(ORDERS, n));
+// kech95 (124-band): savePayment ortiqcha to'lov tekshiruvi uchun aniq qarzni `_joriyQarz` dan oladi —
+// u ham shablondan JONLI o'qiladi.
+const O_NOMLAR = ['parseNum', 'savePayment', 'tolovXatoSababi', '_joriyQarz'];
+const O_FN = O_NOMLAR.map((n) => olib(ORDERS, n));
 const O_KOD = O_FN.filter(Boolean).join('\n');
 
 function oElementlar(o) {
@@ -158,7 +161,7 @@ async function oSina(o, javoblar, tasdiq = true) {
 async function ordersBolimi() {
   bolim('orders.html — savePayment');
   tekshir('O parseNum / savePayment / tolovXatoSababi topildi', O_FN.every(Boolean),
-          O_FN.map((f, i) => (f ? '' : ['parseNum', 'savePayment', 'tolovXatoSababi'][i])).join(' '));
+          O_FN.map((f, i) => (f ? '' : O_NOMLAR[i])).join(' '));
 
   let m = await oSina({}, [javob(200, { debt_amount: 850000, is_archived: false })]);
   const t = m.sorovlar[0] && m.sorovlar[0].tana;
