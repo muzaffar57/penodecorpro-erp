@@ -958,13 +958,19 @@ def get_notifications(db: Session, company_id: int = None) -> list:
         Inventory.stock_quantity > 0,
         ~Inventory.item_name.like(TAYYOR_LOY_PREFIKS + '%')
     ).all()
-    for item in items:
-        total_out = db.query(func.sum(InventoryMovement.quantity)).filter(
+    # kech98 (129-band, O'LCHANGAN `work/probe116.py`): 14 kunlik chiqim material boshiga ALOHIDA SUM edi — endi
+    # bitta GROUP BY (shartlar AYNAN: korxona, material, "out", davr).
+    _chiqim_14 = {}
+    for _b in _hk_bolaklar([it.id for it in items]):
+        for _iid, _sm in db.query(InventoryMovement.inventory_id, func.sum(InventoryMovement.quantity)).filter(
             *( [InventoryMovement.company_id == company_id] if company_id is not None else [] ),
-            InventoryMovement.inventory_id == item.id,
+            InventoryMovement.inventory_id.in_(_b),
             InventoryMovement.movement_type == "out",
             InventoryMovement.created_at >= period_start
-        ).scalar()
+        ).group_by(InventoryMovement.inventory_id).all():
+            _chiqim_14[_iid] = _sm
+    for item in items:
+        total_out = _chiqim_14.get(item.id)
         total_out = float(total_out or 0)
         if total_out <= 0:
             continue  # Sarf tarixi yo'q — bashorat qilib bo'lmaydi
@@ -1176,6 +1182,9 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
 
     # ── Tayyor mahsulotlar bo'limidan to'g'ridan-to'g'ri (buyurtmasiz)
     # sotilganlar — avval bu "Bugungi" statistikada hisobga olinmasdi. ──
+    # kech98 (129-band, O'LCHANGAN `work/probe116.py`): sotuv boshiga mahsulot (turkum uchun) ALOHIDA yuklanardi —
+    # endi bitta IN so'rovi (o'sha munosabat, o'sha korxona sharti).
+    from sqlalchemy.orm import selectinload as _sil_td
     fp_sales_today = db.query(FinishedProductSale).filter(
         *( [FinishedProductSale.company_id == company_id] if company_id is not None else [] )
     ).outerjoin(
@@ -1183,7 +1192,7 @@ def get_today_stats(db: Session, company_id: int = None) -> Dict:
     ).filter(
         FinishedProductSale.sold_at >= today_start,
         FinishedProductSale.sold_at < today_end
-    ).all()
+    ).options(_sil_td(FinishedProductSale.finished_product)).all()
     for s in fp_sales_today:
         s_total = float(s.total_amount or 0)
         s_cost = float(s.cost_amount or 0)
@@ -1681,7 +1690,9 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
             # company_id ustuni bo'yicha qo'yiladi — mahsuloti o'chirilgan
             # (finished_product_id = NULL) sotuvlar ham to'g'ri qoladi.
             _mfsq = _mfsq.filter(FinishedProductSale.company_id == company_id)
-        month_fp_sales = _mfsq.all()
+        # kech98 (129-band, O'LCHANGAN `work/probe116.py`): sotuv boshiga mahsulot (turkum uchun) ALOHIDA yuklanardi —
+        # endi bitta IN so'rovi (o'sha munosabat, o'sha korxona sharti).
+        month_fp_sales = _mfsq.options(_sil_cd(FinishedProductSale.finished_product)).all()
         for s in month_fp_sales:
             s_total = float(s.total_amount or 0)
             revenue += s_total
@@ -1715,18 +1726,27 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
     if company_id is not None:      # M5
         _cmq = _cmq.filter(Master.company_id == company_id)
     masters = _cmq.all()
+    # kech98 (129-band, O'LCHANGAN `work/probe116.py`): usta boshiga 2 so'rov (kelishilgan summa SUM, buyurtmalar soni)
+    # edi — endi ikkita GROUP BY so'rovi, shartlar AYNAN (summa — "Tayyor", o'chirilganlar ham; soni — o'chirilmaganlar).
+    _mids_cd = [m.id for m in masters]
+    _jami_cd, _soni_cd = {}, {}
+    for _b in _hk_bolaklar(_mids_cd):
+        for _mid, _sm in _oc(db.query(Order.master_id, func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
+            Order.master_id.in_(_b),
+            Order.status == OrderStatus.READY
+        )).group_by(Order.master_id).all():
+            _jami_cd[_mid] = _sm
+        for _mid, _n in _oc(db.query(Order.master_id, func.count(Order.id)).filter(
+            Order.master_id.in_(_b),
+            Order.is_deleted.isnot(True)
+        )).group_by(Order.master_id).all():
+            _soni_cd[_mid] = _n
     master_kpi = []
     for m in masters:
         # MUHIM: bu ham daromad (moliyaviy) hisob-kitobi — o'chirilgan
         # buyurtmalar ham hisobga olinadi.
-        total = _oc(db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
-            Order.master_id == m.id,
-            Order.status == OrderStatus.READY
-        )).scalar() or 0
-        order_count = _oc(db.query(Order).filter(
-            Order.master_id == m.id,
-            Order.is_deleted.isnot(True)
-        )).count()
+        total = _jami_cd.get(m.id) or 0
+        order_count = _soni_cd.get(m.id, 0)
         master_kpi.append({
             "name": m.name,
             "total": float(total),

@@ -1446,7 +1446,10 @@ def get_projects_with_stats(db: Session, company_id: int = None) -> List:
     # +10 so'rov); endi bitta IN so'rovi (tartib — `Project.orders` order_by=id).
     projects = _pq.options(_sil_ps(Project.orders)).order_by(Project.start_date.desc()).all()
     for p in projects:
-        orders_count = len(p.orders) if p.orders else 0
+        # kech98 (130-band, O'LCHANGAN `work/probe130.py`): kartadagi "N ta buyurtma" yumshoq o'chirilganlarni ham
+        # sanardi (3), loyihaning "Buyurtmalar" yorlig'i (`get_orders`) va detali (`total_orders`) — 2. Endi soni —
+        # o'chirilmaganlar (yorliq bilan bir xil); summa — moliyaviy tarix (o'chirilganlar ham, avvalgidek).
+        orders_count = sum(1 for o in (p.orders or []) if not o.is_deleted)
         orders_sum = sum(float(o.total_amount or 0) for o in (p.orders or []))
         budget = float(p.total_budget or 0)
         paid = float(p.total_paid or 0)
@@ -4456,12 +4459,18 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
             })
 
     # 2) Qarz = kelishilgan − to'langan?
+    # kech98 (130-band, O'LCHANGAN `work/probe130.py`): kutilgan qarz `Order.debt_amount` QOIDASI bilan — tiyin
+    # aniqligida, qoldiq yarim so'mdan (`QARZ_BARDOSH`) oshmasa 0, ortiqcha to'langan — 0. Ilgari xom ayirma olinardi:
+    # ortiqcha to'langan (tasdiqlangan) buyurtma "Qarz hisobi mos emas" (kutilgan −5 000) bo'lib chiqardi — holbuki
+    # qarz 0 formula bo'yicha TO'G'RI. Tekshiruv maqsadi — qarz hisobining o'zi buzilganini topish.
     for o in orders:
         pays = list(o.payments or [])
-        paid = sum(float(p.amount or 0) for p in pays)
+        paid = pul_tiyin_yigindi(p.amount for p in pays)
         agreed = o.kelishilgan_summa
         debt = float(o.debt_amount or 0)
-        expected_debt = agreed - paid
+        expected_debt = pul_tiyin(agreed - paid)
+        if expected_debt <= QARZ_BARDOSH:
+            expected_debt = 0.0
         diff = abs(debt - expected_debt)
         if diff > 1:
             issues.append({
@@ -11294,6 +11303,20 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     for s in all_fp_sales:
         fp_sales_by_master.setdefault(s.master_id, []).append(s)
 
+    # kech98 (129-band, O'LCHANGAN `work/probe116.py`): "Oxirgi buyurtma" usta boshiga ALOHIDA so'ralardi
+    # (`ORDER BY completed_at DESC NULLS LAST` — faqat `completed_at` ishlatilardi). Endi bitta GROUP BY: MAX NULL larni
+    # tashlaydi — eng so'nggi HAQIQIY sana; "Tayyor" buyurtmasi yo'q yoki hammasining sanasi NULL — None (kech91,
+    # 115-band `nullslast()` natijasi bilan AYNAN; `tools/test_usta_oxirgi_sana.py` E bo'limi).
+    from sqlalchemy import func as _func_kpi
+    _oxirgi_sana = {}
+    for _i in range(0, len(master_ids), 500):
+        _oxq = db.query(Order.master_id, _func_kpi.max(Order.completed_at)).filter(
+            Order.master_id.in_(master_ids[_i:_i + 500]), Order.status == OrderStatus.READY)
+        if company_id is not None:      # ota (usta) orqali — ro'yxat allaqachon korxonaniki, natija o'zgarmaydi
+            _oxq = _oxq.join(Master, Master.id == Order.master_id).filter(Master.company_id == company_id)
+        for _mid, _mx in _oxq.group_by(Order.master_id).all():
+            _oxirgi_sana[_mid] = _mx
+
     for m in masters:
         orders = orders_by_master.get(m.id, [])
 
@@ -11321,10 +11344,8 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
         # kech91 (115-band, O'LCHANGAN — `work/probe90_null.py`): PG `DESC` da NULL larni BIRINCHI qo'yadi,
         # SQLite — OXIRIDA. "Tayyor" buyurtmalardan birining `completed_at` i NULL bo'lsa (eski / qo'lda
         # tuzatilgan ma'lumot) PG da "Oxirgi buyurtma" sanasi BO'SH chiqardi, SQLite da — haqiqiy oxirgi
-        # sana. `nullslast()` — ikkala bazada ham eng oxirgi HAQIQIY sana (SQLite natijasi bilan AYNAN).
-        last_order = db.query(Order).filter(
-            Order.master_id == m.id, Order.status == OrderStatus.READY
-        ).order_by(Order.completed_at.desc().nullslast()).first()
+        # sana. kech98 (129-band): yuqoridagi MAX — ikkala bazada ham eng oxirgi HAQIQIY sana.
+        _oxirgi = _oxirgi_sana.get(m.id)
 
         rows.append({
             "id": m.id,
@@ -11342,7 +11363,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             "yearly_profit": round(yearly_profit),
             "orders_count": len(orders),
             "gift_amount": round(gift),
-            "last_order_date": last_order.completed_at.isoformat() if last_order and last_order.completed_at else None
+            "last_order_date": _oxirgi.isoformat() if _oxirgi is not None else None
         })
 
     rows.sort(key=lambda x: x["gift_amount"], reverse=True)
@@ -11995,33 +12016,108 @@ def delete_supplier(db: Session, supplier_id: int, force: bool = False) -> dict:
     return {"success": True}
 
 
+def _som_butun_int(v) -> int:
+    """kech98 (129-band): pul qiymati → butun so'm, 0.5 YUQORIGA (`_som_butun` qoidasi — JS `Math.round` va bazadagi
+    `Numeric` HALF_UP bilan bir xil); natija `int` (ta'minotchi maydonlari avvalgidek butun son)."""
+    from decimal import Decimal, ROUND_HALF_UP
+    return int(Decimal(str(v)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def _taminotchi_toplami(db: Session, supplier_ids, company_id: int = None, faqat_nasiya: bool = False) -> dict:
+    """kech98 (129-band, O'LCHANGAN `work/probe116.py` + `work/probe129a.py`): ta'minotchilar qarzi va xarid statistikasi
+    BIR NECHA so'rov bilan — ilgari ta'minotchi boshiga 3 so'rov edi (nasiya xaridlar, to'lovlar, barcha xaridlar;
+    `/api/suppliers`, `/api/suppliers/debt-total`, `/debts`, qarzlar xulosasi, hisobot PDF).
+
+    Pul yig'indilari `Decimal` da ANIQ (qator qiymatlari — bazadagi `Numeric(12,2)`, avvalgi `float(...)` bilan bir
+    xil). Ilgari float yig'indi QATOR TARTIBIGA bog'liq edi — O'LCHANGAN: 29 972.26 + 19 244.86 + 144.38 = 49 361.50
+    qarz SQLite da 49 361, PG da birinchi xaridning faqat IZOHI tahrirlangach (qator jismoniy oxirga ko'chadi) 49 362
+    ko'rinardi — pul o'zgarmasdan.
+
+    Qaytaradi: {ta'minotchi_id: {"kredit": Decimal (nasiya xaridlar), "tolov": Decimal, "soni": nasiya xaridlar soni,
+    "oxirgi": eng so'nggi `purchased_at` (NULL lar e'tiborsiz) yoki None, "oy_soni" / "oy_jami": joriy (UTC) oy
+    xaridlari (nasiya va naqd)}}. `faqat_nasiya=True` — faqat qarz uchun (naqd xaridlar o'qilmaydi).
+    `company_id` berilsa — ota (ta'minotchi) orqali shu korxona bilan cheklanadi."""
+    from decimal import Decimal
+    from datetime import datetime as _dt_tt
+    _hozir = _dt_tt.utcnow()
+    natija = {}
+    for sid in supplier_ids:
+        natija[sid] = {"kredit": Decimal("0"), "tolov": Decimal("0"), "soni": 0, "oxirgi": None,
+                       "oy_soni": 0, "oy_jami": Decimal("0")}
+    _ids = list(natija)
+    for _i in range(0, len(_ids), 500):
+        _bolak = _ids[_i:_i + 500]
+        _xq = db.query(InventoryPurchase.supplier_id, InventoryPurchase.total_amount, InventoryPurchase.is_credit,
+                       InventoryPurchase.purchased_at).filter(InventoryPurchase.supplier_id.in_(_bolak))
+        if faqat_nasiya:
+            _xq = _xq.filter(InventoryPurchase.is_credit == True)
+        if company_id is not None:
+            _xq = _xq.join(Supplier, Supplier.id == InventoryPurchase.supplier_id).filter(
+                Supplier.company_id == company_id)
+        for _sid, _summa, _nasiya, _vaqt in _xq.all():
+            _t = natija[_sid]
+            _d = Decimal(str(_summa if _summa is not None else 0))
+            if _nasiya:
+                _t["kredit"] += _d
+                _t["soni"] += 1
+            if _vaqt is not None:
+                if _t["oxirgi"] is None or _vaqt > _t["oxirgi"]:
+                    _t["oxirgi"] = _vaqt
+                if _vaqt.year == _hozir.year and _vaqt.month == _hozir.month:
+                    _t["oy_soni"] += 1
+                    _t["oy_jami"] += _d
+        _tq = db.query(SupplierPayment.supplier_id, SupplierPayment.amount).filter(
+            SupplierPayment.supplier_id.in_(_bolak))
+        if company_id is not None:
+            _tq = _tq.join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(
+                Supplier.company_id == company_id)
+        for _sid, _summa in _tq.all():
+            natija[_sid]["tolov"] += Decimal(str(_summa if _summa is not None else 0))
+    return natija
+
+
+def _taminotchi_aniq_qarz(t) -> float:
+    """kech98 (129-band): ta'minotchi qarzi TIYIN aniqligida (manfiy — ortiqcha to'langan — 0)."""
+    from decimal import Decimal
+    _q = t["kredit"] - t["tolov"]
+    return float(_q) if _q > Decimal("0") else 0.0
+
+
+def _taminotchi_qarz_korinishi(t) -> dict:
+    """kech98 (129-band): `get_supplier_debt` javobi — shakl avvalgidek (butun so'm, `int`).
+
+    Qoida (texnik, O'LCHANGAN `work/probe129a.py`): summalar aniq (`_taminotchi_toplami`), butun so'mga 0.5 YUQORIGA
+    (`_som_butun_int`); qarz qoldig'i yarim so'mdan oshmasa — 0 (`QARZ_BARDOSH`, mijoz qarzi — `Order.debt_amount` —
+    bilan bir qoida). Ilgari Python `round()` (bankir): 102.50 → 102, lekin 101.50 → 102; 1 002.50 − 1 000 qoldig'i
+    "2 so'm" edi."""
+    from decimal import Decimal
+    _q = t["kredit"] - t["tolov"]
+    if _q <= Decimal(str(QARZ_BARDOSH)):
+        _q = Decimal("0")
+    return {
+        "total_credit": _som_butun_int(t["kredit"]),
+        "total_paid": _som_butun_int(t["tolov"]),
+        "debt": _som_butun_int(_q),
+        "purchase_count": t["soni"]
+    }
+
+
 def get_supplier_debt(db: Session, supplier_id: int, company_id: int = None) -> dict:
     """Yetkazib beruvchiga qancha qarzdorlik bor.
 
     M6 — TENANT: ta'minotchi boshqa korxonaniki bo'lsa, bo'sh natija
-    qaytadi (xarid/to'lov summalari umuman o'qilmaydi)."""
+    qaytadi (xarid/to'lov summalari umuman o'qilmaydi).
+
+    kech98 (129-band): yig'indi va yaxlitlash — `_taminotchi_toplami` / `_taminotchi_qarz_korinishi` (ro'yxat bilan
+    YAGONA qoida)."""
     if company_id is not None:
         _sup = db.query(Supplier).filter(
             Supplier.id == supplier_id, Supplier.company_id == company_id).first()
         if not _sup:
             return {"total_credit": 0, "total_paid": 0, "debt": 0, "purchase_count": 0}
 
-    purchases = db.query(InventoryPurchase).filter(
-        InventoryPurchase.supplier_id == supplier_id,
-        InventoryPurchase.is_credit == True
-    ).all()
-    payments = db.query(SupplierPayment).filter(SupplierPayment.supplier_id == supplier_id).all()
-
-    total_credit = sum(float(p.total_amount) for p in purchases)
-    total_paid = sum(float(p.amount) for p in payments)
-    debt = max(0, total_credit - total_paid)
-
-    return {
-        "total_credit": round(total_credit),
-        "total_paid": round(total_paid),
-        "debt": round(debt),
-        "purchase_count": len(purchases)
-    }
+    _t = _taminotchi_toplami(db, [supplier_id], company_id=company_id, faqat_nasiya=True)[supplier_id]
+    return _taminotchi_qarz_korinishi(_t)
 
 
 def get_supplier_payment_due_dates(db: Session, company_id: int = None) -> List[dict]:
@@ -12049,15 +12145,23 @@ def get_supplier_payment_due_dates(db: Session, company_id: int = None) -> List[
         if sid not in earliest_by_supplier or p.payment_due_date < earliest_by_supplier[sid]:
             earliest_by_supplier[sid] = p.payment_due_date
 
-    result = []
-    for sid, due_date in earliest_by_supplier.items():
-        debt_info = get_supplier_debt(db, sid, company_id=company_id)
-        if debt_info["debt"] <= 0:
-            continue  # To'lab bo'lingan — ogohlantirish kerak emas
-        _sq = db.query(Supplier).filter(Supplier.id == sid)
+    # kech98 (129-band): qarz va ta'minotchi har biri uchun ALOHIDA so'ralardi — endi bir necha IN so'rovi (qarz
+    # qoidasi `get_supplier_debt` bilan AYNAN — `_taminotchi_qarz_korinishi`).
+    _sids = list(earliest_by_supplier)
+    _toplam = _taminotchi_toplami(db, _sids, company_id=company_id, faqat_nasiya=True)
+    _suppliers = {}
+    for _i in range(0, len(_sids), 500):
+        _sq = db.query(Supplier).filter(Supplier.id.in_(_sids[_i:_i + 500]))
         if company_id is not None:
             _sq = _sq.filter(Supplier.company_id == company_id)
-        supplier = _sq.first()
+        for _x in _sq.all():
+            _suppliers[_x.id] = _x
+    result = []
+    for sid, due_date in earliest_by_supplier.items():
+        debt_info = _taminotchi_qarz_korinishi(_toplam[sid])
+        if debt_info["debt"] <= 0:
+            continue  # To'lab bo'lingan — ogohlantirish kerak emas
+        supplier = _suppliers.get(sid)
         if not supplier:
             continue
         days_left = (due_date.date() - now.date()).days
@@ -12074,24 +12178,17 @@ def get_supplier_payment_due_dates(db: Session, company_id: int = None) -> List[
 
 def get_suppliers_with_debt(db: Session, company_id: int = None) -> List[dict]:
     """Barcha yetkazib beruvchilar va ularning qarzdorligi + oxirgi xarid, oylik statistika."""
-    from datetime import datetime as dt
-
-    now = dt.utcnow()
     suppliers = get_suppliers(db, only_active=True, company_id=company_id)
+    # kech98 (129-band, O'LCHANGAN `work/probe116.py`): ta'minotchi boshiga 3 so'rov (qarz — 2, barcha xaridlar — 1)
+    # edi — endi bir necha IN so'rovi (`_taminotchi_toplami`). Oxirgi xarid — eng so'nggi `purchased_at` (NULL lar
+    # e'tiborsiz; ilgari PG da `DESC` NULL ni BIRINCHI qo'yib `.isoformat()` 500 berardi — `work/probe129a.py` R7);
+    # oylik jami — aniq yig'indi, butun so'mga 0.5 yuqoriga (qarz bilan bir qoida).
+    _toplam = _taminotchi_toplami(db, [s.id for s in suppliers], company_id=company_id)
     result = []
     for s in suppliers:
-        debt_info = get_supplier_debt(db, s.id)
-
-        all_purchases = db.query(InventoryPurchase).filter(
-            InventoryPurchase.supplier_id == s.id
-        ).order_by(InventoryPurchase.purchased_at.desc()).all()
-
-        last_purchase_at = all_purchases[0].purchased_at.isoformat() if all_purchases else None
-
-        month_purchases = [p for p in all_purchases
-                           if p.purchased_at and p.purchased_at.year == now.year
-                           and p.purchased_at.month == now.month]
-        month_total = sum(float(p.total_amount) for p in month_purchases)
+        _t = _toplam[s.id]
+        debt_info = _taminotchi_qarz_korinishi(_t)
+        last_purchase_at = _t["oxirgi"].isoformat() if _t["oxirgi"] is not None else None
 
         result.append({
             "id": s.id,
@@ -12099,8 +12196,8 @@ def get_suppliers_with_debt(db: Session, company_id: int = None) -> List[dict]:
             "phone": s.phone,
             "notes": s.notes,
             "last_purchase_at": last_purchase_at,
-            "month_count": len(month_purchases),
-            "month_total": round(month_total),
+            "month_count": _t["oy_soni"],
+            "month_total": _som_butun_int(_t["oy_jami"]),
             **debt_info
         })
     result.sort(key=lambda x: x["debt"], reverse=True)
@@ -12396,12 +12493,17 @@ def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: s
             _oldingi_sp._is_duplicate_submit = True
             return _oldingi_sp
 
-        debt_info = get_supplier_debt(db, data.supplier_id, company_id=company_id)
-        current_debt = debt_info["debt"]
-        if float(data.amount) > current_debt and not data.confirm_overpay:
+        # kech98 (129-band, O'LCHANGAN `work/probe129a.py` R3): qarz butun so'mga yaxlitlangan qiymat bilan
+        # solishtirilardi — 7 × 1 000.07 = 7 000.49 qarzga AYNAN 7 000.49 to'lansa "Kiritilgan summa (7,000 so'm)
+        # qarzdan (7,000 so'm) 0 so'mga ko'p" (409) chiqardi. Endi qarz TIYIN aniqligida, ortiqcha faqat yarim
+        # so'mdan KO'P bo'lsa (`QARZ_BARDOSH` — mijoz to'lovi `_tolov_chegarasi` bilan bir qoida).
+        _tt = _taminotchi_toplami(db, [data.supplier_id], company_id=company_id, faqat_nasiya=True)[data.supplier_id]
+        current_debt = _taminotchi_aniq_qarz(_tt)
+        _ortiqcha = pul_tiyin(float(data.amount) - current_debt)
+        if _ortiqcha > QARZ_BARDOSH and not data.confirm_overpay:
             raise OverpaymentWarning(
                 amount=float(data.amount), debt=current_debt,
-                excess=float(data.amount) - current_debt
+                excess=_ortiqcha
             )
 
     p = SupplierPayment(
