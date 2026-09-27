@@ -626,7 +626,8 @@ async function fillEhsonAmount(){
     const res = await fetch(`/api/finance/report?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
     const d = await res.json();
     const amount = d.ehson_xarajat || 0;
-    document.getElementById('cashtx-amount').value = fmtFull(amount);
+    // 124-band (kech95): hisoblangan summa tiyini bilan (ilgari `fmtFull` — butun so'm, saqlashda yaxlitlanardi)
+    document.getElementById('cashtx-amount').value = narxKorinishi(amount);
     if (amount <= 0) {
       btn.textContent = "Bu oy uchun hisoblangan Ehson yo'q";
       setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
@@ -1150,7 +1151,8 @@ function editTx(id, dateIso, category, amount, notes, prodType){
   document.getElementById('tx-modal-title').textContent = "✏️ Xarajatni tahrirlash";
   document.getElementById('tx-f-date').value = (dateIso || '').slice(0, 10);
   document.getElementById('tx-f-category').value = category || 'boshqa';
-  document.getElementById('tx-f-amount').value = fmtFull(amount);
+  // 124-band (kech95, O'LCHANGAN `work/probe124.py` X1: 12 345.67 tahrirlanganda 12 346 bo'lib saqlanardi)
+  document.getElementById('tx-f-amount').value = narxKorinishi(amount);
   document.getElementById('tx-f-notes').value = notes || '';
   document.getElementById('tx-f-prodtype').value = prodType || '';
   document.getElementById('txModal').style.display = 'flex';

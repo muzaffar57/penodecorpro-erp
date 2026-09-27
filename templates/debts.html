@@ -579,7 +579,8 @@ function selectOrderDebt(el){
     <a href="/orders" style="display:block;margin-top:12px;text-align:center;font-size:12.5px;color:#B9783F;text-decoration:none">Buyurtmalar sahifasida ochish →</a>`;
 
   document.getElementById('payCard').style.display = 'block';
-  document.getElementById('pay-amount').value = fmt(debt);
+  // 124-band (kech95, O'LCHANGAN `work/probe124.py` D1): aniq qarz (ilgari `fmt` — butun so'm, 0.25 ortiqcha to'lanardi)
+  document.getElementById('pay-amount').value = narxKorinishi(debt);
   document.getElementById('pay-note').value = '';
   document.getElementById('pay-writeoff').checked = false;
   document.getElementById('pay-msg').style.display = 'none';

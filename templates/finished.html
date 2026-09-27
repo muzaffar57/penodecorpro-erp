@@ -1319,7 +1319,7 @@ function openBatchSellModal() {
           </div>
           <div style="flex:1">
             <div style="font-size:11px;color:#94A3B8;margin-bottom:3px">1 birlik narxi</div>
-            <input type="text" class="batch-price" value="${fmt(it.price)}" oninput="formatPriceInput(this);updateBatchTotal()"
+            <input type="text" class="batch-price" value="${narxKorinishi(it.price)}" oninput="formatPriceInput(this);updateBatchTotal()"
                    style="width:100%;padding:8px 10px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:14px;box-sizing:border-box">
           </div>
         </div>
