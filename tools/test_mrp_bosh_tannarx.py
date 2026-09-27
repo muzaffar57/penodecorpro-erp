@@ -383,6 +383,9 @@ try:
     _it = s.get(OrderItem, b1["iid"])
     _pol = s.query(ProductionOrder).filter(ProductionOrder.source_order_item_id == b1["iid"]).all()
     _f = getattr(services, "_mrp_detal_tannarxi", None)
+    # kech102 (K102-1): yordamchi detalning ortiqcha qaytarishini `Order.returns` dan o'qiydi (hisobot keshida oldindan,
+    # `calculate_order_profit` baribir yuklaydi — 144-band) — sanoq yordamchining O'Z so'rovlari uchun.
+    list(_o.returns or [])
     event.listen(engine, "before_cursor_execute", _sanoq)
     try:
         _v = _f(s, _o, _it, _pol) if _f else None
@@ -447,7 +450,8 @@ check("S1 calculate_order_profit: MRP shoxi — _mrp_detal_tannarxi (PO ro'yxati
       tartibda(_cp, "_po_royxat = _pq.all()", "tayyor_mahsulot_xarajat += _mrp_detal_tannarxi(db, order, item, _po_royxat)"), "")
 _md = manba(services, "_mrp_detal_tannarxi")
 check("S2 yordamchi: miqdor ≥ ishlab chiqarilgan — asl qoida (so'rovsiz); manbasiz yuk — asl qoida; korxona sharti; T × ishlatilgan / Q",
-      tartibda(_md, "if miqdor <= 0 or float(item.quantity or 0) >= miqdor - 1e-6:", "return jami",
+      tartibda(_md, 'if miqdor <= 0 or float(item.quantity or 0) - float(getattr(item, "ortiqcha_qty", 0) or 0) >= miqdor - 1e-6:',
+               "return jami",
                "if getattr(order, 'company_id', None) is not None:\n        _dq = _dq.join(Order, Order.id == _D138.order_id).filter(Order.company_id == order.company_id)",
                "_crud138._mrp_olingan_oqi(_di)", "if _o is None:", "return jami",
                "_FP138.company_id == order.company_id",

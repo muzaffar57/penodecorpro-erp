@@ -288,7 +288,8 @@ section("E. Narx x2 da ikkinchi buyurtma 10 m oladi (K59-1 siljishi)")
 s, O2, I2, N2 = buyurtma(FP, 10, PRJ[1])
 check("E0 buyurtma 200", s == 200 and O2, s)
 check("E1 manba TM 80 / 608 000 (asl: 532 000)", taxminan(tm(FP)[0], 80) and taxminan(tm(FP)[1], 608_000), tm(FP))
-check("E2 BIRINCHI buyurtma foydasi SILJIMADI — 76 000 (asl: 53 200)", taxminan(tan(O1), 76_000), tan(O1))
+check("E2 BIRINCHI buyurtma foydasi SILJIMADI — 76 000 − D da omborga qaytgan 38 000 (kech102, 144-band; asl: 53 200)",
+      taxminan(tan(O1), 76_000 - SC), (tan(O1), SC))
 check("E3 ikkinchi buyurtma tan narxi 76 000 (asl: 53 200)", taxminan(tan(O2), 76_000), tan(O2))
 
 # ══════════════════════════════════════════════════════════════
