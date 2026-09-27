@@ -915,10 +915,11 @@ check("H2 usta KPI tafsiloti: buyurtmalar o'qilgach DARHOL oldindan o'qiladi",
       "    ).order_by(Order.completed_at.desc()).all()\n    services._hk_tayyorla(db, orders)" in _s_det)
 check("H2 keshbek: buyurtmalar o'qilgach DARHOL oldindan o'qiladi",
       "    orders = _oq.order_by(Order.completed_at.desc()).all()\n    services._hk_tayyorla(db, orders)" in _s_kb)
+# kech101 (K101-5): foyda sikli loyihaning BARCHA «Tayyor» buyurtmalari (o'chirilgani ham — `_tayyorlar`) ustida.
 check("H3 loyiha detali: sikl hisobot keshi ichida, \"Tayyor\"lar sikldan OLDIN oldindan o'qiladi",
       tartibda(_s_api, "    with services.hisobot_keshi(db):\n",
-               "        services._hk_tayyorla(db, [o for o in orders if o.status == OrderStatus.READY])\n",
-               "        for o in orders:\n"))
+               "        services._hk_tayyorla(db, _tayyorlar)\n",
+               "        for o in _tayyorlar:\n"))
 check("H4 _hk_loyihalar: kesh yo'q — chiqadi; ro'yxatlar ASL (lazy) yo'l bilan; \"Tayyor\"lar oldindan o'qiladi",
       tartibda(_s_yl, "if _hk(db) is None or not projects:",
                "_hk_tayyorla(db, [o for p in projects for o in (p.orders or []) if o.status == _OS_hk.READY])")
@@ -930,7 +931,8 @@ check("H6 sovg'a davri YOPILISHI (yozuvchi) — tegilmagan: o'ralmagan, kesh / o
       _s_gp and not hasattr(crud._gift_period_profit_since, "__wrapped__") and "_hk_tayyorla" not in _s_gp
       and "hisobot_keshi" not in _s_gp)
 check("H7 asl so'rov satrlari o'zgarmagan (lint baseline langarlari)",
-      "    orders = db.query(Order).filter(Order.project_id == project_id, Order.is_deleted.isnot(True)).all()" in _s_api
+      "    orders = db.query(Order).filter(Order.project_id == project_id, Order.is_deleted.isnot(True),\n"
+      "                                    Order.company_id == auth.company_id_of(current_user)).all()" in _s_api   # kech101 (139)
       and "    all_orders = db.query(Order).filter(" in _s_rep     # kech98 (129-band): `last_order` qatori GROUP BY ga o'tdi
       and "    orders = db.query(Order).filter(\n        Order.master_id == master_id," in _s_det)
 
