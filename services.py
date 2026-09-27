@@ -1260,6 +1260,15 @@ def get_dashboard_stats(db: Session, company_id: int = None) -> Dict:
 # 5. TO'LIQ BUYURTMA YAKUNLASH (Cutting + Coating + KPI)
 # ============================================================
 
+class _TayyorBekor(Exception):
+    """kech101 (142-band): «Tayyor» o'rtasida bekor qilish — `complete_order` tranzaksiyasi `rollback` bo'ladi,
+    chaqiruvchiga `natija` (`success: False`) qaytadi."""
+
+    def __init__(self, natija: Dict):
+        super().__init__(natija.get("message"))
+        self.natija = natija
+
+
 def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -> Dict:
     """Buyurtmani to'liq yakunlash — barcha avtomatika:
 
@@ -1283,292 +1292,326 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     except ValueError as e:
         return {"success": False, "message": str(e)}
 
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        return {"success": False, "message": "Buyurtma topilmadi"}
+    # kech101 (142-band, O'LCHANGAN — `work/probe142.py`, SQLite = PG): quyidagi HAMMA ish BITTA tranzaksiyada —
+    # chaqiruvchidan qat'i nazar. API (`main.api_mark_order_ready`) kech84 dan beri `crud.bitta_tranzaksiya` ichida
+    # chaqiradi (A: 9 nosozlik nuqtasi — xatodan keyin holat AYNAN oldingi, qayta urinish = NAZORAT), lekin funksiyaning
+    # O'ZI oraliq `commit` lar bilan yozilgan edi (kech41): tranzaksiyasiz chaqirilsa (B) qolgan qism xomashyosi /
+    # tayyor mahsulot / "Loy sotish" / MRP bandi / miqdor yakunlash yoki avtomatik yuk xatosida buyurtma READY + loy
+    # yechilgan holda SAQLANIB QOLARDI, qayta «Tayyor» esa "allaqachon tayyor" (400) — tuzatib bo'lmas yarim holat.
+    # Endi ichki `commit` lar `flush` (`bitta_tranzaksiya` — API bilan ichma-ich: bitta tashqi tranzaksiya), qulf (101)
+    # «Tayyor» OXIRIGACHA ushlanadi: parallel o'chirish / yuk / to'lov «Tayyor» ni yarim holatda ko'rmaydi.
+    import crud as _crud_tr
+    try:
+        with _crud_tr.bitta_tranzaksiya(db):
+            order = db.query(Order).filter(Order.id == order_id).first()
+            if not order:
+                return {"success": False, "message": "Buyurtma topilmadi"}
 
-    # kech41 (5-bo'lim 14-band, K41-1) — QULF (101, buyurtma), yetkazish /
-    # to'lov / detal tahriri bilan BIR fazo; qulf ostida bazadan QAYTA
-    # o'qiladi. HAQIQIY PostgreSQL da O'LCHANGAN (asl kod, `work/probe41.py`,
-    # 3 / 3): "Tayyor" bosilayotganda boshqa xodim 5 / 10 topshirsa, buyurtma
-    # READY bo'lib qolardi — qolgan 5 topshirilmagan, summa yakunlanmagan
-    # ("hech narsa topshirilmagan" deb eskirgan holatdan qaror qilinardi,
-    # avtomatik yuk esa qulf ostida "Qoldiqdan ko'p" bilan jim rad etilardi).
-    import crud as _crud_qulf
-    _cid_q = order.company_id
-    db.flush()
-    _crud_qulf._pul_qulfi(db, 101, order.id)
-    db.expire_all()
-    order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_q).first()
-    if not order:
-        return {"success": False, "message": "Buyurtma topilmadi"}
+            # kech41 (5-bo'lim 14-band, K41-1) — QULF (101, buyurtma), yetkazish /
+            # to'lov / detal tahriri bilan BIR fazo; qulf ostida bazadan QAYTA
+            # o'qiladi. HAQIQIY PostgreSQL da O'LCHANGAN (asl kod, `work/probe41.py`,
+            # 3 / 3): "Tayyor" bosilayotganda boshqa xodim 5 / 10 topshirsa, buyurtma
+            # READY bo'lib qolardi — qolgan 5 topshirilmagan, summa yakunlanmagan
+            # ("hech narsa topshirilmagan" deb eskirgan holatdan qaror qilinardi,
+            # avtomatik yuk esa qulf ostida "Qoldiqdan ko'p" bilan jim rad etilardi).
+            import crud as _crud_qulf
+            _cid_q = order.company_id
+            db.flush()
+            _crud_qulf._pul_qulfi(db, 101, order.id)
+            db.expire_all()
+            order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_q).first()
+            if not order:
+                return {"success": False, "message": "Buyurtma topilmadi"}
 
-    if order.status == OrderStatus.READY:
-        return {"success": False, "message": "Bu buyurtma allaqachon tayyor"}
+            if order.status == OrderStatus.READY:
+                return {"success": False, "message": "Bu buyurtma allaqachon tayyor"}
 
-    # 17d (2026-09-21): QORALAMA buyurtma "Tayyor" qilinmaydi. Qoralamada
-    # ombordan HECH NARSA yechilmagan (`deduct_inventory_for_order` faqat
-    # "Jarayonga olish" da ishlaydi) — uni "Tayyor" qilish xomashyosiz
-    # tayyor buyurtma, usta KPI va avtomatik yuk xati yaratardi (O'LCHANGAN:
-    # `POST /ready` qoralamaga 200 "yakunlandi"). UI qoralamaga "Tayyor"
-    # tugmasini ko'rsatmaydi (`orders.html`: `btn-ready` yashirin).
-    if order.status == OrderStatus.DRAFT:
-        return {"success": False,
-                "message": "Qoralama buyurtmani avval jarayonga oling — keyin \"Tayyor\" qilish mumkin"}
+            # kech101 (K101-1, O'LCHANGAN — `work/probe142.py` C1 / C2, SQLite = PG): kech100 dan OLDIN o'chirilgan
+            # (IN_PROGRESS — qolgan qism xomashyosi o'chirishda qaytgan, `stock_returned`; DELIVERED) buyurtma «Tayyor»
+            # qilinardi (200): qisman — penoplast IKKINCHI marta qaytdi (+0.06 blok), ikkalasi ham READY bo'lib oylik
+            # hisobot / usta KPI ga kirdi (+1 buyurtma) — Savatdagi buyurtma uchun, 140-band BIZNES qarorini chetlab.
+            # Yuk xati (`create_delivery`) kabi — avval tiklash.
+            if order.is_deleted:
+                return {"success": False, "message": _crud_tr.OCHIRILGAN_BUYURTMA_XABARI}
 
-    # kech70 (FOYDALANUVCHI QARORI "Taqiqlansin"): hali hech narsa topshirilmagan buyurtmada
-    # "Tayyor" butun qoldiqni AVTOMATIK yuk xati bilan topshiradi (pastda). MRP detali ishlab
-    # chiqarilmagan / kam ishlab chiqarilgan bo'lsa u yuk xati rad etiladi — shuning uchun
-    # "Tayyor" ham HECH NARSAGA tegmasdan OLDIN aniq sabab bilan rad etiladi (aks holda
-    # buyurtma "tayyor" bo'lib, yuk xati jim yozilmay qolardi).
-    if not order.deliveries:
-        _mrp_kam = []
-        for _it in order.items:
-            if _crud_qulf._mrp_yetkazish_detalimi(_it):
-                _kerak = float(_it.remaining_qty or 0)
-                if _kerak > 0.001:
-                    _tayyor = _crud_qulf._mrp_tayyor_qoldiq(db, _it, order.company_id, lock=False)
-                    # kech80 (88-band): shart YAGONA yordamchida — buyurtmadagi «MRP: tayyor» belgisi ham
-                    # aynan shu shart bilan (`crud.mrp_topshirish_holati`).
-                    if not _crud_qulf.mrp_tayyor_yetadimi(_kerak, _tayyor):
-                        _mrp_kam.append(f"{_it.name}: kerak {_kerak:g}, tayyor {_tayyor:g}")
-        if _mrp_kam:
-            return {"success": False,
-                    "message": ("MRP mahsuloti hali to'liq ishlab chiqarilmagan — avval ishlab "
-                                "chiqarishni yakunlang: " + "; ".join(_mrp_kam))}
+            # 17d (2026-09-21): QORALAMA buyurtma "Tayyor" qilinmaydi. Qoralamada
+            # ombordan HECH NARSA yechilmagan (`deduct_inventory_for_order` faqat
+            # "Jarayonga olish" da ishlaydi) — uni "Tayyor" qilish xomashyosiz
+            # tayyor buyurtma, usta KPI va avtomatik yuk xati yaratardi (O'LCHANGAN:
+            # `POST /ready` qoralamaga 200 "yakunlandi"). UI qoralamaga "Tayyor"
+            # tugmasini ko'rsatmaydi (`orders.html`: `btn-ready` yashirin).
+            if order.status == OrderStatus.DRAFT:
+                return {"success": False,
+                        "message": "Qoralama buyurtmani avval jarayonga oling — keyin \"Tayyor\" qilish mumkin"}
 
-    # === HAMMA NARSA TAYYOR — BAJARAMIZ ===
-    # kech41 (14-band): holat DARHOL READY — quyidagi oraliq `commit` lar
-    # qulfni bo'shatadi; parallel ikkinchi "Tayyor" qulfdan keyin READY ni
-    # ko'rib rad etiladi (O'LCHANGAN: asl kodda ikkalasi ham "yakunlandi" —
-    # loy / qaytishlar ikki marta ishlanardi). Oxiridagi `order.status =
-    # READY` o'z joyida qoladi (avtomatik yuk DELIVERED qo'yishi mumkin).
-    order.status = OrderStatus.READY
-    result = {
-        "success": True,
-        "message": "✓ Buyurtma yakunlandi!",
-        "inventory_changes": [],
-        "master_kpi": None
-    }
+            # kech70 (FOYDALANUVCHI QARORI "Taqiqlansin"): hali hech narsa topshirilmagan buyurtmada
+            # "Tayyor" butun qoldiqni AVTOMATIK yuk xati bilan topshiradi (pastda). MRP detali ishlab
+            # chiqarilmagan / kam ishlab chiqarilgan bo'lsa u yuk xati rad etiladi — shuning uchun
+            # "Tayyor" ham HECH NARSAGA tegmasdan OLDIN aniq sabab bilan rad etiladi (aks holda
+            # buyurtma "tayyor" bo'lib, yuk xati jim yozilmay qolardi).
+            if not order.deliveries:
+                _mrp_kam = []
+                for _it in order.items:
+                    if _crud_qulf._mrp_yetkazish_detalimi(_it):
+                        _kerak = float(_it.remaining_qty or 0)
+                        if _kerak > 0.001:
+                            _tayyor = _crud_qulf._mrp_tayyor_qoldiq(db, _it, order.company_id, lock=False)
+                            # kech80 (88-band): shart YAGONA yordamchida — buyurtmadagi «MRP: tayyor» belgisi ham
+                            # aynan shu shart bilan (`crud.mrp_topshirish_holati`).
+                            if not _crud_qulf.mrp_tayyor_yetadimi(_kerak, _tayyor):
+                                _mrp_kam.append(f"{_it.name}: kerak {_kerak:g}, tayyor {_tayyor:g}")
+                if _mrp_kam:
+                    return {"success": False,
+                            "message": ("MRP mahsuloti hali to'liq ishlab chiqarilmagan — avval ishlab "
+                                        "chiqarishni yakunlang: " + "; ".join(_mrp_kam))}
 
-    # === LOY HISOB-KITOBI ===
-    # Buyurtma yaratilganda rejalashtirilgan loy allaqachon ayirilgan.
-    # Endi haqiqiy miqdor bilan solishtiramiz.
-    import crud as _crud
-    order_planned = _get_planned_loy(order)
-    planned_loy = order_planned
-    actual_loy = float(loy_kg or 0)
-
-    # MUHIM FARQ:
-    # - TO'LIQ yakunlashda (yoki hali hech narsa topshirilmagan holatda) —
-    #   hodim REJA bo'yicha loy aralashtirgan, ortgani — HAQIQATAN aralashtirilgan,
-    #   faqat ishlatilmagan tayyor loy. "Tayyor loy" ombor pozitsiyasiga qo'shiladi.
-    # - QISMAN yakunlashda — hodim FAQAT bajargan ishiga yarasha loy tayyorlaydi,
-    # rejadagi qolgan qismni umuman ARALASHTIRMAYDI HAM. Demak "ortgan" qism —
-    # bu XOM XOMASHYO (Akril, Qum va h.k.), ular o'z joyiga qaytishi kerak,
-    # "Tayyor loy" ga emas.
-    is_partial_completion = bool(order.deliveries) and not order.is_fully_delivered
-
-    if actual_loy > 0:
-        recipe = _get_order_recipe(db, order)
-        diff = actual_loy - planned_loy
-
-        if diff > 0.01:
-            # Ko'proq ketdi — farq uchun xomashyo ayiramiz (ikkala holatda ham bir xil)
-            loy_log = deduct_loy_ingredients(db, order, diff)
-            result["inventory_changes"].extend(loy_log)
-            result["loy_info"] = {
-                "planned": planned_loy,
-                "actual": actual_loy,
-                "diff": round(diff, 1),
-                "action": "qoshimcha",
-                "message": f"Rejadan {diff:.1f} kg ko'p ketdi — xomashyo ayirildi"
-            }
-        elif diff < -0.01:
-            extra = abs(diff)
-            if is_partial_completion:
-                # Aralashtirilmagan — xom xomashyo o'z joyiga qaytadi.
-                # kech82 (102-band): buyurtma loyining bir qismi tayyor loy ZAXIRASIDAN olingan bo'lsa — u birinchi
-                # ishlatilgan; ortgan qism xom qismdan ko'p bo'lsa, ortig'i zaxiraga qaytadi (olingan joyiga).
-                with loy_manba_rejimi(db, "ushla"):
-                    ing_log = return_loy_ingredients(db, order, extra)
-                result["inventory_changes"].extend(ing_log)
-                result["loy_info"] = {
-                    "planned": planned_loy,
-                    "actual": actual_loy,
-                    "diff": round(diff, 1),
-                    "action": "ortdi",
-                    "message": f"Qisman yakunlandi — {extra:.1f} kg uchun XOM XOMASHYO (aralashtirilmagan) o'z joyiga qaytdi"
-                }
-            else:
-                # To'liq yakunlangan — haqiqatan aralashtirilgan, tayyor loy sifatida saqlanadi
-                msg = add_loy_to_stock(db, recipe, extra)
-                if msg:
-                    result["inventory_changes"].append(msg)
-                result["loy_info"] = {
-                    "planned": planned_loy,
-                    "actual": actual_loy,
-                    "diff": round(diff, 1),
-                    "action": "ortdi",
-                    "message": f"{extra:.1f} kg loy ortdi — omborga (Tayyor loy) qo'shildi"
-                }
-        else:
-            result["loy_info"] = {
-                "planned": planned_loy,
-                "actual": actual_loy,
-                "diff": 0,
-                "action": "teng",
-                "message": "Reja bo'yicha ketdi"
+            # === HAMMA NARSA TAYYOR — BAJARAMIZ ===
+            # kech41 (14-band): holat DARHOL READY — quyidagi oraliq `commit` lar
+            # qulfni bo'shatadi; parallel ikkinchi "Tayyor" qulfdan keyin READY ni
+            # ko'rib rad etiladi (O'LCHANGAN: asl kodda ikkalasi ham "yakunlandi" —
+            # loy / qaytishlar ikki marta ishlanardi). Oxiridagi `order.status =
+            # READY` o'z joyida qoladi (avtomatik yuk DELIVERED qo'yishi mumkin).
+            # kech101 (142-band): endi `commit` = `flush` (yuqoridagi `bitta_tranzaksiya`) — qulf bo'shamaydi, ikkinchi
+            # «Tayyor» qulfni KUTADI va birinchisi saqlangach READY ni ko'rib rad etiladi (natija o'sha).
+            order.status = OrderStatus.READY
+            result = {
+                "success": True,
+                "message": "✓ Buyurtma yakunlandi!",
+                "inventory_changes": [],
+                "master_kpi": None
             }
 
-        # MUHIM: haqiqiy kiritilgan umumiy loy miqdorini (Termopanel VA
-        # oddiy qismni QO'SHIB, ULUSHGA BO'LMASDAN) order.notes'ga yozamiz —
-        # foyda hisoblashda BITTA umumiy "Qoplama" xarajati sifatida
-        # ko'rsatiladi. Formula/taxmin EMAS — aynan hodim "Tayyor"
-        # bosganda kiritgan haqiqiy son.
-        if actual_loy > 0:
-            import re as _re_loy
-            base_notes = _re_loy.sub(r',?\s*loy_kg=[\d.]+', '', order.notes or '').strip().strip(',').strip()
-            order.notes = (base_notes + f", loy_kg={actual_loy:.4f}").strip(', ')
-            order.actual_loy_kg = actual_loy
+            # === LOY HISOB-KITOBI ===
+            # Buyurtma yaratilganda rejalashtirilgan loy allaqachon ayirilgan.
+            # Endi haqiqiy miqdor bilan solishtiramiz.
+            import crud as _crud
+            order_planned = _get_planned_loy(order)
+            planned_loy = order_planned
+            actual_loy = float(loy_kg or 0)
+
+            # MUHIM FARQ:
+            # - TO'LIQ yakunlashda (yoki hali hech narsa topshirilmagan holatda) —
+            #   hodim REJA bo'yicha loy aralashtirgan, ortgani — HAQIQATAN aralashtirilgan,
+            #   faqat ishlatilmagan tayyor loy. "Tayyor loy" ombor pozitsiyasiga qo'shiladi.
+            # - QISMAN yakunlashda — hodim FAQAT bajargan ishiga yarasha loy tayyorlaydi,
+            # rejadagi qolgan qismni umuman ARALASHTIRMAYDI HAM. Demak "ortgan" qism —
+            # bu XOM XOMASHYO (Akril, Qum va h.k.), ular o'z joyiga qaytishi kerak,
+            # "Tayyor loy" ga emas.
+            is_partial_completion = bool(order.deliveries) and not order.is_fully_delivered
+
+            if actual_loy > 0:
+                recipe = _get_order_recipe(db, order)
+                diff = actual_loy - planned_loy
+
+                if diff > 0.01:
+                    # Ko'proq ketdi — farq uchun xomashyo ayiramiz (ikkala holatda ham bir xil)
+                    loy_log = deduct_loy_ingredients(db, order, diff)
+                    result["inventory_changes"].extend(loy_log)
+                    result["loy_info"] = {
+                        "planned": planned_loy,
+                        "actual": actual_loy,
+                        "diff": round(diff, 1),
+                        "action": "qoshimcha",
+                        "message": f"Rejadan {diff:.1f} kg ko'p ketdi — xomashyo ayirildi"
+                    }
+                elif diff < -0.01:
+                    extra = abs(diff)
+                    if is_partial_completion:
+                        # Aralashtirilmagan — xom xomashyo o'z joyiga qaytadi.
+                        # kech82 (102-band): buyurtma loyining bir qismi tayyor loy ZAXIRASIDAN olingan bo'lsa — u birinchi
+                        # ishlatilgan; ortgan qism xom qismdan ko'p bo'lsa, ortig'i zaxiraga qaytadi (olingan joyiga).
+                        with loy_manba_rejimi(db, "ushla"):
+                            ing_log = return_loy_ingredients(db, order, extra)
+                        result["inventory_changes"].extend(ing_log)
+                        result["loy_info"] = {
+                            "planned": planned_loy,
+                            "actual": actual_loy,
+                            "diff": round(diff, 1),
+                            "action": "ortdi",
+                            "message": f"Qisman yakunlandi — {extra:.1f} kg uchun XOM XOMASHYO (aralashtirilmagan) o'z joyiga qaytdi"
+                        }
+                    else:
+                        # To'liq yakunlangan — haqiqatan aralashtirilgan, tayyor loy sifatida saqlanadi
+                        msg = add_loy_to_stock(db, recipe, extra)
+                        if msg:
+                            result["inventory_changes"].append(msg)
+                        result["loy_info"] = {
+                            "planned": planned_loy,
+                            "actual": actual_loy,
+                            "diff": round(diff, 1),
+                            "action": "ortdi",
+                            "message": f"{extra:.1f} kg loy ortdi — omborga (Tayyor loy) qo'shildi"
+                        }
+                else:
+                    result["loy_info"] = {
+                        "planned": planned_loy,
+                        "actual": actual_loy,
+                        "diff": 0,
+                        "action": "teng",
+                        "message": "Reja bo'yicha ketdi"
+                    }
+
+                # MUHIM: haqiqiy kiritilgan umumiy loy miqdorini (Termopanel VA
+                # oddiy qismni QO'SHIB, ULUSHGA BO'LMASDAN) order.notes'ga yozamiz —
+                # foyda hisoblashda BITTA umumiy "Qoplama" xarajati sifatida
+                # ko'rsatiladi. Formula/taxmin EMAS — aynan hodim "Tayyor"
+                # bosganda kiritgan haqiqiy son.
+                if actual_loy > 0:
+                    import re as _re_loy
+                    base_notes = _re_loy.sub(r',?\s*loy_kg=[\d.]+', '', order.notes or '').strip().strip(',').strip()
+                    order.notes = (base_notes + f", loy_kg={actual_loy:.4f}").strip(', ')
+                    order.actual_loy_kg = actual_loy
+                    db.commit()
+            elif planned_loy > 0:
+                # Haqiqiy miqdor kiritilmadi — reja bo'yicha deb hisoblaymiz
+                result["loy_info"] = {
+                    "planned": planned_loy,
+                    "actual": planned_loy,
+                    "diff": 0,
+                    "action": "teng",
+                    "message": "Reja bo'yicha hisoblandi"
+                }
+
             db.commit()
-    elif planned_loy > 0:
-        # Haqiqiy miqdor kiritilmadi — reja bo'yicha deb hisoblaymiz
-        result["loy_info"] = {
-            "planned": planned_loy,
-            "actual": planned_loy,
-            "diff": 0,
-            "action": "teng",
-            "message": "Reja bo'yicha hisoblandi"
-        }
 
-    db.commit()
+            # kech41 (14-band): `commit` qulfni bo'shatdi — qisman / to'liq qarori
+            # oldidan qulf QAYTA olinadi va holat bazadan qayta o'qiladi (oraliqda
+            # yozilgan yuk xati hisobga olinsin).
+            _crud_qulf._pul_qulfi(db, 101, order.id)
+            db.expire_all()
+            order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_q).first()
+            is_partial_completion = bool(order.deliveries) and not order.is_fully_delivered
 
-    # kech41 (14-band): `commit` qulfni bo'shatdi — qisman / to'liq qarori
-    # oldidan qulf QAYTA olinadi va holat bazadan qayta o'qiladi (oraliqda
-    # yozilgan yuk xati hisobga olinsin).
-    _crud_qulf._pul_qulfi(db, 101, order.id)
-    db.expire_all()
-    order = db.query(Order).filter(Order.id == order_id, Order.company_id == _cid_q).first()
-    is_partial_completion = bool(order.deliveries) and not order.is_fully_delivered
+            # === QISMAN TOPSHIRILGAN HOLATDA YAKUNLASH ===
+            # Agar buyurtma ALLAQACHON qisman topshirilgan bo'lsa-yu (masalan 64%),
+            # shu holda "Tayyor" bosilsa — bu "qolgani kerak emas, shu bilan yakunlaymiz"
+            # degani. Qolgan (topshirilmagan) qism uchun xomashyo omborga qaytadi.
+            # (Hali hech narsa topshirilmagan — oddiy holat — bunga tegilmaydi.)
+            if is_partial_completion:
+                partial_log = return_inventory_for_order_partial(db, order)
+                # kech100 (K100-1 / K100-2 / K100-3a — O'LCHANGAN `work/probe_k100_mrp.py`, asl SQLite = PG; 93-band oracle
+                # testi `tools/test_ochirish_yopish.py` topdi): qolgan (topshirilmagan) qismning TAYYOR MAHSULOTI, "Loy sotish"
+                # XOMASHYOSI va MRP BANDI qaytmasdi — "Loy sotish" 20 kg dan 4 kg topshirilib «Tayyor»: 16 kg qum na omborda,
+                # na tannarxda; tayyor mahsulotdan 10 m dan 4 m: 6 m tayyor mahsulot yo'qoldi; MRP 10 dan 4: 6 tasi READY
+                # buyurtmaga abadiy BAND. Endi o'chirishdagi (`main.api_delete_order`) bilan AYNAN: tayyor mahsulot
+                # (`_return_finished_for_order` — `remaining_qty`), "Loy sotish" retsepti bo'yicha qolgan kg (buyurtma loyi
+                # manbasi — "ushla", yuqoridagi ortgan loy kabi), MRP bandi ozod (`_auto_release_mrp_reservations`). Buyurtma
+                # miqdori pastda topshirilganga tushiriladi — qaytgan qism tannarxga kirmaydi (ikki marta hisob yo'q).
+                partial_log.extend(_crud._return_finished_for_order(db, order))
+                with loy_manba_rejimi(db, "ushla"):
+                    for _it100 in order.items:
+                        if (_it100.category or '').lower() == 'loy_sotish' and _it100.recipe_id:
+                            _qolgan100 = _it100.remaining_qty
+                            if _qolgan100 > 0.001:
+                                partial_log.extend(return_loy_ingredients(db, order, float(_qolgan100),
+                                                                          recipe_id=_it100.recipe_id))
+                _crud._auto_release_mrp_reservations(db, [_it100.id for _it100 in order.items],
+                                                     "«Tayyor» (qisman yakunlash)")
+                if partial_log:
+                    result["inventory_changes"].extend(partial_log)
+                    result["partial_return"] = {
+                        "delivery_percent": order.delivery_percent,
+                        "message": f"Qisman topshirilgan ({order.delivery_percent:.0f}%) — qolgan qism uchun xomashyo omborga qaytdi"
+                    }
 
-    # === QISMAN TOPSHIRILGAN HOLATDA YAKUNLASH ===
-    # Agar buyurtma ALLAQACHON qisman topshirilgan bo'lsa-yu (masalan 64%),
-    # shu holda "Tayyor" bosilsa — bu "qolgani kerak emas, shu bilan yakunlaymiz"
-    # degani. Qolgan (topshirilmagan) qism uchun xomashyo omborga qaytadi.
-    # (Hali hech narsa topshirilmagan — oddiy holat — bunga tegilmaydi.)
-    if is_partial_completion:
-        partial_log = return_inventory_for_order_partial(db, order)
-        # kech100 (K100-1 / K100-2 / K100-3a — O'LCHANGAN `work/probe_k100_mrp.py`, asl SQLite = PG; 93-band oracle
-        # testi `tools/test_ochirish_yopish.py` topdi): qolgan (topshirilmagan) qismning TAYYOR MAHSULOTI, "Loy sotish"
-        # XOMASHYOSI va MRP BANDI qaytmasdi — "Loy sotish" 20 kg dan 4 kg topshirilib «Tayyor»: 16 kg qum na omborda,
-        # na tannarxda; tayyor mahsulotdan 10 m dan 4 m: 6 m tayyor mahsulot yo'qoldi; MRP 10 dan 4: 6 tasi READY
-        # buyurtmaga abadiy BAND. Endi o'chirishdagi (`main.api_delete_order`) bilan AYNAN: tayyor mahsulot
-        # (`_return_finished_for_order` — `remaining_qty`), "Loy sotish" retsepti bo'yicha qolgan kg (buyurtma loyi
-        # manbasi — "ushla", yuqoridagi ortgan loy kabi), MRP bandi ozod (`_auto_release_mrp_reservations`). Buyurtma
-        # miqdori pastda topshirilganga tushiriladi — qaytgan qism tannarxga kirmaydi (ikki marta hisob yo'q).
-        partial_log.extend(_crud._return_finished_for_order(db, order))
-        with loy_manba_rejimi(db, "ushla"):
-            for _it100 in order.items:
-                if (_it100.category or '').lower() == 'loy_sotish' and _it100.recipe_id:
-                    _qolgan100 = _it100.remaining_qty
-                    if _qolgan100 > 0.001:
-                        partial_log.extend(return_loy_ingredients(db, order, float(_qolgan100),
-                                                                  recipe_id=_it100.recipe_id))
-        _crud._auto_release_mrp_reservations(db, [_it100.id for _it100 in order.items],
-                                             "«Tayyor» (qisman yakunlash)")
-        if partial_log:
-            result["inventory_changes"].extend(partial_log)
-            result["partial_return"] = {
-                "delivery_percent": order.delivery_percent,
-                "message": f"Qisman topshirilgan ({order.delivery_percent:.0f}%) — qolgan qism uchun xomashyo omborga qaytdi"
-            }
+                # Buyurtma miqdori/summasi — HAQIQATDA berilgan miqdorga tushiriladi
+                fin = _crud.finalize_partial_order_quantities(db, order)
+                result["finalized"] = fin
+                msg = f"Buyurtma summasi {fin['old_total']:.0f} → {fin['new_total']:.0f} so'mga tushirildi (haqiqatda berilgan miqdorga mos)."
+                if fin["overpaid"]:
+                    msg += f" ⚠️ Mijoz {fin['overpaid']:.0f} so'm ortiqcha to'lagan — QAYTARILISHI kerak!"
+                elif fin["debt"] > 0:
+                    msg += f" Qarz qoldi: {fin['debt']:.0f} so'm."
+                else:
+                    msg += " To'lov to'liq yopilgan."
+                result["finalized"]["message"] = msg
+            elif not order.deliveries:
+                # Hali HECH NARSA topshirilmagan — bu odatiy holat.
+                # "Tayyor" bosilishi bilan — mahsulot BIR YO'LA, TO'LIQ topshirilgan deb
+                # avtomatik yozib qo'yamiz (alohida "Bir yo'la to'liq topshirish"
+                # tugmasini bosish shart emas).
+                from schemas import DeliveryCreate, DeliveryItemCreate
+                delivery_items = []
+                for item in order.items:
+                    remaining = item.remaining_qty
+                    if remaining > 0.001:
+                        delivery_items.append(DeliveryItemCreate(order_item_id=item.id, quantity=remaining))
 
-        # Buyurtma miqdori/summasi — HAQIQATDA berilgan miqdorga tushiriladi
-        fin = _crud.finalize_partial_order_quantities(db, order)
-        result["finalized"] = fin
-        msg = f"Buyurtma summasi {fin['old_total']:.0f} → {fin['new_total']:.0f} so'mga tushirildi (haqiqatda berilgan miqdorga mos)."
-        if fin["overpaid"]:
-            msg += f" ⚠️ Mijoz {fin['overpaid']:.0f} so'm ortiqcha to'lagan — QAYTARILISHI kerak!"
-        elif fin["debt"] > 0:
-            msg += f" Qarz qoldi: {fin['debt']:.0f} so'm."
-        else:
-            msg += " To'lov to'liq yopilgan."
-        result["finalized"]["message"] = msg
-    elif not order.deliveries:
-        # Hali HECH NARSA topshirilmagan — bu odatiy holat.
-        # "Tayyor" bosilishi bilan — mahsulot BIR YO'LA, TO'LIQ topshirilgan deb
-        # avtomatik yozib qo'yamiz (alohida "Bir yo'la to'liq topshirish"
-        # tugmasini bosish shart emas).
-        from schemas import DeliveryCreate, DeliveryItemCreate
-        delivery_items = []
-        for item in order.items:
-            remaining = item.remaining_qty
-            if remaining > 0.001:
-                delivery_items.append(DeliveryItemCreate(order_item_id=item.id, quantity=remaining))
+                if delivery_items:
+                    dcreate = DeliveryCreate(order_id=order.id, items=delivery_items)
+                    dres = _crud.create_delivery(db, dcreate, delivered_by="Avtomatik (Tayyor deb belgilashda)")
+                    if dres.get("success"):
+                        result["auto_delivery"] = {
+                            "delivery_id": dres.get("delivery_id"),
+                            "message": "✅ Barcha mahsulot avtomatik ravishda BIR YO'LA topshirilgan deb belgilandi."
+                        }
+                    else:
+                        # kech101 (142-band, O'LCHANGAN — `work/probe142.py` A / B "JIM rad"): avtomatik yuk xati rad
+                        # etilsa (`success: False` — istisnosiz) «Tayyor» 200 qaytarib buyurtmani yuksiz READY qilardi —
+                        # oylik hisobot / usta KPI ga kirdi (+1, 500 000), mahsulot topshirilmagan, qayta «Tayyor» —
+                        # "allaqachon tayyor". Endi BUTUN «Tayyor» bekor (tranzaksiya `rollback`), sabab xabarda.
+                        _sabab101 = str(dres.get("message") or "yuk xati yozilmadi")
+                        if dres.get("shortages"):
+                            _sabab101 += ": " + "; ".join(str(x) for x in dres.get("shortages"))
+                        raise _TayyorBekor({"success": False,
+                                            "message": ("Avtomatik yuk xati yozilmadi — «Tayyor» bekor qilindi, hech narsa "
+                                                        "saqlanmadi. Sabab: " + _sabab101)})
 
-        if delivery_items:
-            dcreate = DeliveryCreate(order_id=order.id, items=delivery_items)
-            dres = _crud.create_delivery(db, dcreate, delivered_by="Avtomatik (Tayyor deb belgilashda)")
-            if dres.get("success"):
-                result["auto_delivery"] = {
-                    "delivery_id": dres.get("delivery_id"),
-                    "message": "✅ Barcha mahsulot avtomatik ravishda BIR YO'LA topshirilgan deb belgilandi."
-                }
+            # 3. USTA KPI
+            if order.master_id:
+                master = db.query(Master).filter(Master.id == order.master_id).first()
+                if master:
+                    # MUHIM: kelishilgan summa (agreed_amount) bo'lsa — shundan 3%
+                    # olinadi, aks holda umumiy summadan. Bu — daromad/foyda hisobi
+                    # bilan (masalan yuqoridagi "daromad" yig'indisida) BIR XIL
+                    # qoidaga mos: chegirma qilingan buyurtmada usta cashbacki ham
+                    # chegirmadan OLDINGI (shishirilgan) summadan emas, HAQIQIY
+                    # kelishilgan summadan hisoblanishi kerak.
+                    cashback = order.kelishilgan_summa * 0.03
+                    total_meters = sum(
+                        (item.length or 0) * item.quantity for item in order.items if item.is_coated
+                    )
+                    # MUHIM: Ichki qo'shimcha detallar (sub_details) — bularning
+                    # qoplama holati ASOSIY detalning is_coated'idan MUSTAQIL,
+                    # xuddi qoplamachi bonusi hisoblanadigan get_monthly_report()
+                    # dagi kabi (o'sha yerda ham xuddi shu sabab bilan alohida
+                    # tekshiriladi). Bu yerda ham xuddi shunday — asosiy qoplamasiz
+                    # bo'lsa ham ichki qoplamali bo'lishi, yoki aksincha, mumkin.
+                    for item in order.items:
+                        for sub in (item.sub_details or []):
+                            if not getattr(sub, 'is_coated', False):
+                                continue
+                            sub_cat = (getattr(sub, 'category', None) or '').lower()
+                            if sub_cat == 'panel':
+                                total_meters += float(getattr(sub, 'quantity', 0) or 0)
+                            else:  # 'profil' (standart)
+                                total_meters += float(getattr(sub, 'length', 0) or 0) * float(getattr(sub, 'quantity', 1) or 1)
+                    meter_bonus = total_meters * 1000
+                    total_kpi = cashback + meter_bonus
+                    result["master_kpi"] = {
+                        "master": master.name,
+                        "cashback_3%": round(cashback),
+                        "meter_bonus": round(meter_bonus),
+                        "total_kpi": round(total_kpi),
+                        "total_meters": total_meters
+                    }
 
-    # 3. USTA KPI
-    if order.master_id:
-        master = db.query(Master).filter(Master.id == order.master_id).first()
-        if master:
-            # MUHIM: kelishilgan summa (agreed_amount) bo'lsa — shundan 3%
-            # olinadi, aks holda umumiy summadan. Bu — daromad/foyda hisobi
-            # bilan (masalan yuqoridagi "daromad" yig'indisida) BIR XIL
-            # qoidaga mos: chegirma qilingan buyurtmada usta cashbacki ham
-            # chegirmadan OLDINGI (shishirilgan) summadan emas, HAQIQIY
-            # kelishilgan summadan hisoblanishi kerak.
-            cashback = order.kelishilgan_summa * 0.03
-            total_meters = sum(
-                (item.length or 0) * item.quantity for item in order.items if item.is_coated
-            )
-            # MUHIM: Ichki qo'shimcha detallar (sub_details) — bularning
-            # qoplama holati ASOSIY detalning is_coated'idan MUSTAQIL,
-            # xuddi qoplamachi bonusi hisoblanadigan get_monthly_report()
-            # dagi kabi (o'sha yerda ham xuddi shu sabab bilan alohida
-            # tekshiriladi). Bu yerda ham xuddi shunday — asosiy qoplamasiz
-            # bo'lsa ham ichki qoplamali bo'lishi, yoki aksincha, mumkin.
-            for item in order.items:
-                for sub in (item.sub_details or []):
-                    if not getattr(sub, 'is_coated', False):
-                        continue
-                    sub_cat = (getattr(sub, 'category', None) or '').lower()
-                    if sub_cat == 'panel':
-                        total_meters += float(getattr(sub, 'quantity', 0) or 0)
-                    else:  # 'profil' (standart)
-                        total_meters += float(getattr(sub, 'length', 0) or 0) * float(getattr(sub, 'quantity', 1) or 1)
-            meter_bonus = total_meters * 1000
-            total_kpi = cashback + meter_bonus
-            result["master_kpi"] = {
-                "master": master.name,
-                "cashback_3%": round(cashback),
-                "meter_bonus": round(meter_bonus),
-                "total_kpi": round(total_kpi),
-                "total_meters": total_meters
-            }
+            # 4. Status yangilash
+            order.status = OrderStatus.READY
+            order.completed_at = datetime.utcnow()
+            # Loy miqdorini notes ga saqlaymiz (foyda hisoblash uchun)
+            if loy_kg and loy_kg > 0:
+                import re as _re_loykg_w
+                existing_notes = order.notes or ''
+                base_notes = _re_loykg_w.sub(r',?\s*loy_kg=[\d.]+', '', existing_notes).strip().strip(',').strip()
+                order.notes = (base_notes + f", loy_kg={loy_kg}").strip(', ')
+                order.actual_loy_kg = float(loy_kg)
+            db.commit()
+            db.refresh(order)
 
-    # 4. Status yangilash
-    order.status = OrderStatus.READY
-    order.completed_at = datetime.utcnow()
-    # Loy miqdorini notes ga saqlaymiz (foyda hisoblash uchun)
-    if loy_kg and loy_kg > 0:
-        import re as _re_loykg_w
-        existing_notes = order.notes or ''
-        base_notes = _re_loykg_w.sub(r',?\s*loy_kg=[\d.]+', '', existing_notes).strip().strip(',').strip()
-        order.notes = (base_notes + f", loy_kg={loy_kg}").strip(', ')
-        order.actual_loy_kg = float(loy_kg)
-    db.commit()
-    db.refresh(order)
-
-    return result
+            return result
+    except _TayyorBekor as _rad101:
+        return _rad101.natija
 
 
 def get_inventory_kpi(db: Session, company_id: int = None) -> Dict:
@@ -2204,6 +2247,65 @@ def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
     return natija
 
 
+def _mrp_detal_tannarxi(db: Session, order, item, po_royxat) -> float:
+    """kech101 (138-band) — MRP detalining buyurtma tannarxidagi ulushi.
+
+    O'LCHANGAN (asl kod = zip 94, `work/probe138.py`, SQLite = PG): tannarx — detalga bog'langan YAKUNLANGAN ishlab chiqarish
+    buyurtmalarining BUTUN `total_cost` i edi. 10 dona ishlab chiqarilib 4 tasi topshirilgach buyurtma yakunlansa (qisman
+    «Tayyor» yoki o'chirish — kech100 K100-3a: qolgan 6 dona band dan ERKIN omborga o'tadi) buyurtma tannarxi 30 000 (10 dona)
+    qolardi, erkin 6 dona sotilganda yana 18 000 — oylik hisobotda 30 000 lik ishlab chiqarish uchun 48 000 xarajat (M1 / M2);
+    ikki ishlab chiqarish (4 × 3 000 + 6 × 6 000) — 84 000 (to'g'risi 48 000, M6). Boshqa turlar (profil, tayyor mahsulotdan
+    olingan) yakunlashda miqdor topshirilganga tushib, qolgan qism omborga qaytgani uchun tannarx O'ZI kamayadi — MRP esa
+    miqdorga qaramasdi.
+
+    Qoida: har ishlab chiqarish buyurtmasi (Q dona, T so'm) uchun SHU buyurtma ISHLATGAN dona — yuk xatlarida o'sha tayyor
+    mahsulotdan olingani (`DeliveryItem.mrp_olingan`) + hali shu detalga BAND qolgani; tannarx = T × ishlatilgan / Q (hammasi
+    ishlatilgan bo'lsa — AYNAN T, yaxlitlash siljishi yo'q). Detal miqdori ishlab chiqarilganidan kam bo'lmasa (odatiy holat —
+    hech narsa bo'shamagan, jarayondagi buyurtma ham, kech59 J: topshirish tannarxni kamaytirmaydi) — AYNAN asl qoida (T yig'indisi,
+    qo'shimcha so'rov yo'q). Manbasi yozilmagan (kech71 dan oldingi) yuk xati bo'lsa — asl qoida (taxmin qilinmaydi)."""
+    jami = 0.0
+    miqdor = 0.0
+    for _p in po_royxat:
+        jami += float(_p.total_cost or 0)
+        miqdor += float(_p.quantity or 0)
+    if miqdor <= 0 or float(item.quantity or 0) >= miqdor - 1e-6:
+        return jami
+    import crud as _crud138
+    from models import Delivery as _D138, DeliveryItem as _DI138, FinishedProduct as _FP138
+    olingan = {}
+    _dq = db.query(_DI138).join(_D138, _D138.id == _DI138.delivery_id).filter(
+        _D138.order_id == order.id, _DI138.order_item_id == item.id)
+    if getattr(order, 'company_id', None) is not None:
+        _dq = _dq.join(Order, Order.id == _D138.order_id).filter(Order.company_id == order.company_id)
+    for _di in _dq.order_by(_DI138.id).all():
+        _o = _crud138._mrp_olingan_oqi(_di)
+        if _o is None:
+            if float(_di.quantity or 0) > 1e-9:
+                return jami
+            continue
+        for _tm, _q in _o:
+            olingan[_tm] = olingan.get(_tm, 0.0) + float(_q)
+    _fp_idlar = [_p.finished_product_id for _p in po_royxat if _p.finished_product_id]
+    tmlar = {}
+    if _fp_idlar:
+        _fq = db.query(_FP138).filter(_FP138.id.in_(_fp_idlar))
+        if getattr(order, 'company_id', None) is not None:
+            _fq = _fq.filter(_FP138.company_id == order.company_id)
+        tmlar = {_f.id: _f for _f in _fq.all()}
+    natija = 0.0
+    for _p in po_royxat:
+        _Q = float(_p.quantity or 0)
+        _T = float(_p.total_cost or 0)
+        if _Q <= 0:
+            continue
+        _ishlatilgan = olingan.get(_p.finished_product_id, 0.0)
+        _f = tmlar.get(_p.finished_product_id)
+        if _f is not None and _f.reserved_for_order_item_id == item.id:
+            _ishlatilgan += float(_f.reserved_quantity or 0)
+        natija += _T if _ishlatilgan >= _Q - 1e-6 else _T * _ishlatilgan / _Q
+    return natija
+
+
 def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -> Dict:
     """
     Buyurtma uchun tan narxi va foyda hisoblaydi.
@@ -2389,8 +2491,8 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None) -
                     if _ord_cid0 is not None:
                         _pq = _pq.filter(_PO_cost.company_id == _ord_cid0)
                     _po_royxat = _pq.all()
-                for _po_c in _po_royxat:
-                    tayyor_mahsulot_xarajat += float(_po_c.total_cost or 0)
+                # kech101 (138-band): bo'shagan dona tannarxi buyurtmaga KIRMAYDI — `_mrp_detal_tannarxi` (izohi o'sha yerda).
+                tayyor_mahsulot_xarajat += _mrp_detal_tannarxi(db, order, item, _po_royxat)
             except Exception:
                 pass
             continue

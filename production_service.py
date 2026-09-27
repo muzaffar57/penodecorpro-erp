@@ -430,6 +430,13 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
         ).first()
         if not order_item:
             return {"success": False, "message": "Tanlangan buyurtma-detali topilmadi"}
+        # kech101 (K101-4, O'LCHANGAN — `work/probe142.py` C6, SQLite = PG): kech100 dan OLDIN o'chirilgan (IN_PROGRESS)
+        # MRP buyurtmasining detaliga ishlab chiqarish yaratilardi (200) — boshlanganda mahsulot Savatdagi buyurtmaga BAND
+        # bo'lib, hech kimga sotilmasdi. O'chirilgan buyurtma ustidagi boshqa amallar bilan AYNAN rad.
+        _ob101 = getattr(order_item, "order", None)
+        if _ob101 is not None and _ob101.is_deleted:
+            import crud as _crud101
+            return {"success": False, "message": _crud101.OCHIRILGAN_BUYURTMA_XABARI}
         if order_item.product_type_id != product_type.id:
             return {"success": False, "message": f"Bu detal '{product_type.name}' uchun emas — noto'g'ri detal tanlangan"}
         # kech93 (K93-1): berilgan buyurtma id si detalning O'Z buyurtmasi bo'lsin
@@ -610,6 +617,13 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
                 OrderItem.company_id == company_id,          # M4
             ).with_for_update().first()
             if locked_item:
+                # kech101 (K101-4): yaratilgandan KEYIN buyurtma o'chirilgan bo'lsa (kech100 dan oldingi — IN_PROGRESS,
+                # qolgan qism kerak bo'lib turadi) — boshlanmaydi: mahsulot Savatdagi buyurtmaga band qilinmasin.
+                _ob101 = getattr(locked_item, "order", None)
+                if _ob101 is not None and _ob101.is_deleted:
+                    import crud as _crud101
+                    db.rollback()
+                    return {"success": False, "message": _crud101.OCHIRILGAN_BUYURTMA_XABARI}
                 # kech72 (85-band, K71-2): yaratishdagi bilan AYNAN bir qoida (`mrp_detal_kerak`) —
                 # topshirilgan va ombordan olingan qism ham chiqariladi. Qulf ostida o'qiladi.
                 _k = mrp_detal_kerak(db, locked_item)

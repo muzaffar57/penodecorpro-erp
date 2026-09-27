@@ -3092,7 +3092,13 @@ async def projects_page(request: Request, db: Session = Depends(get_db), current
 
 @app.get("/api/projects/progress-map")
 def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depends(auth.admin_manager_accountant)):
-    """Har bir loyiha uchun bajarilish foizi (tayyor/yetkazilgan buyurtmalar ulushi) — faqat o'qish."""
+    """Har bir loyiha uchun bajarilish foizi (tayyor/yetkazilgan buyurtmalar ulushi) — faqat o'qish.
+
+    kech101 (139-band, O'LCHANGAN — `work/probe139.py`, SQLite = PG): o'chirilgan buyurtmalar (Savatdagi — kech100 dan oldingi
+    IN_PROGRESS ham, yangi uslubdagi READY ham) maxrajda / suratda edi — kartada "4 ta buyurtma" (R1, R2 «Tayyor», I1 jarayonda,
+    D1 qoralama), chiziq esa 50 % (3 / 6: o'chirilgan X1 READY, X2 / X3 IN_PROGRESS bilan); loyiha detali `progress_pct` boshqa
+    formula (qoralama maxrajda) — 50 %. Kartadagi buyurtmalar bo'yicha to'g'risi — 67 % (2 / 3). Endi bitta qoida
+    (`crud.loyiha_bajarilish_foizi` bilan AYNAN): o'chirilmaganlar, qoralama / bekor qilinganlar maxrajda emas."""
     from models import Order, OrderStatus
     from sqlalchemy import func, case
 
@@ -3101,6 +3107,7 @@ def api_projects_progress_map(db: Session = Depends(get_db), current_user=Depend
         func.count(Order.id).label("total"),
         func.sum(case((Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]), 1), else_=0)).label("ready")
     ).filter(Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]),
+             Order.is_deleted.isnot(True),
              Order.company_id == auth.company_id_of(current_user)
     ).group_by(Order.project_id).all()
 
@@ -5531,29 +5538,39 @@ def api_project_detail_stats(project_id: int, db: Session = Depends(get_db), cur
     import services
     from models import Order, OrderStatus
 
-    orders = db.query(Order).filter(Order.project_id == project_id, Order.is_deleted.isnot(True)).all()
+    # kech101 (139-band): korxona sharti ham (buzilgan korxonalararo bog'lanishda begona buyurtma sanalmasin — xarita kabi).
+    orders = db.query(Order).filter(Order.project_id == project_id, Order.is_deleted.isnot(True),
+                                    Order.company_id == auth.company_id_of(current_user)).all()
+    # kech101 (K101-5, O'LCHANGAN — `work/probe139.py`, SQLite = PG): loyiha "Sof foyda" FAQAT o'chirilmagan «Tayyor»
+    # buyurtmalardan edi (630 000) — qisman topshirilib o'chirilgan (READY — 93 "B": daromad / tannarx hisobotda QOLADI) X1
+    # ning 172 000 foydasi yo'q edi, oylik hisobot va Loyihalar sahifasi "Sof foyda" (`get_projects_dashboard_stats`) esa uni
+    # oladi (802 000). Endi foyda — loyihaning BARCHA «Tayyor» buyurtmalari (o'chirilgani ham); soni / holatlari —
+    # o'chirilmaganlar (Buyurtmalar yorlig'i bilan bir xil).
+    _tayyorlar = db.query(Order).filter(Order.project_id == project_id,
+                                        Order.company_id == auth.company_id_of(current_user),
+                                        Order.status == OrderStatus.READY).order_by(Order.id).all()
     status_counts = {}
     total_profit = 0.0
+    for o in orders:
+        st = o.status.value
+        status_counts[st] = status_counts.get(st, 0) + 1
     # kech90 (110-band): "Tayyor" buyurtmalar foydasi hisobot keshi ichida — buyurtma sikli so'rovlari
     # (buyurtma, detal, harakat, material, PO, TM, retsept, usta) bir necha IN so'roviga; natija AYNAN.
     with services.hisobot_keshi(db):
-        services._hk_tayyorla(db, [o for o in orders if o.status == OrderStatus.READY])
-        for o in orders:
-            st = o.status.value
-            status_counts[st] = status_counts.get(st, 0) + 1
-            if o.status == OrderStatus.READY:
+        services._hk_tayyorla(db, _tayyorlar)
+        for o in _tayyorlar:
+            try:
+                total_profit += float(services.calculate_order_profit(
+                    db, o.id, company_id=auth.company_id_of(current_user)).get("foyda", 0))
+            except Exception as e:
                 try:
-                    total_profit += float(services.calculate_order_profit(
-                        db, o.id, company_id=auth.company_id_of(current_user)).get("foyda", 0))
-                except Exception as e:
-                    try:
-                        crud.log_error(db, str(e), endpoint=f"project_detail:calculate_order_profit order#{o.id}")
-                    except Exception:
-                        pass
+                    crud.log_error(db, str(e), endpoint=f"project_detail:calculate_order_profit order#{o.id}")
+                except Exception:
+                    pass
 
-    ready_count = status_counts.get("ready", 0) + status_counts.get("delivered", 0)
     total_count = len(orders)
-    progress_pct = round((ready_count / total_count) * 100) if total_count else 0
+    # kech101 (139-band): Loyihalar kartasi chizig'i (`/api/projects/progress-map`) bilan YAGONA qoida.
+    progress_pct = crud.loyiha_bajarilish_foizi(orders)
 
     return {
         "status_counts": status_counts,

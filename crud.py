@@ -1397,6 +1397,22 @@ def _hisobot_keshida(fn):
     return _o
 
 
+def loyiha_bajarilish_foizi(buyurtmalar) -> int:
+    """kech101 (139-band): loyiha bajarilish foizi — YAGONA qoida (Loyihalar kartasi chizig'i `GET /api/projects/progress-map`
+    va loyiha detali `progress_pct`). To'plam — loyihaning Buyurtmalar yorlig'i / kartadagi "N ta buyurtma" bilan bir xil
+    (o'chirilmaganlar), ish boshlanmagan (qoralama) va bekor qilinganlar maxrajga KIRMAYDI; bajarilgan — «Tayyor» (READY) va
+    yetkazilgan (DELIVERED). Bo'sh to'plam — 0."""
+    from models import OrderStatus as _OS139
+    jami = tayyor = 0
+    for o in buyurtmalar:
+        if o.is_deleted or o.status in (_OS139.DRAFT, _OS139.CANCELLED):
+            continue
+        jami += 1
+        if o.status in (_OS139.READY, _OS139.DELIVERED):
+            tayyor += 1
+    return round((tayyor / jami) * 100) if jami else 0
+
+
 @_hisobot_keshida
 def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
     """Loyihalar sahifasi uchun KPI ko'rsatkichlari — faqat o'qish, mavjud hisob-kitoblarga
@@ -7410,6 +7426,13 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     if order.status == OrderStatus.READY:
         return {"success": False, "message": "Tayyor buyurtmani tahrirlab bo'lmaydi"}
 
+    # kech101 (K101-2, O'LCHANGAN — `work/probe142.py` C3, SQLite = PG): kech100 dan OLDIN o'chirilgan (IN_PROGRESS,
+    # qolgan qism xomashyosi qaytgan — `stock_returned`) buyurtma to'liq tahrir qilinardi: 10 → 12 m — Savatdagi buyurtma
+    # uchun penoplast 0.02 blok YECHILDI (tiklash esa qaytgan qismni yana yechadi). Detal tahriri (`update_order_item`) buni
+    # 2026-09 auditdan beri rad etadi — to'liq tahrir ham AYNAN shunday (qulf ostidagi holat bilan).
+    if order.is_deleted:
+        return {"success": False, "message": OCHIRILGAN_BUYURTMA_XABARI}
+
     # AUDIT uchun — tahrirlashdan OLDINGI qisqa holatni saqlab qo'yamiz
     _audit_before = f"Jami: {float(order.total_amount or 0):,.0f} so'm, {len(order.items)} ta detal".replace(',', ' ')
 
@@ -8321,6 +8344,11 @@ def _yetkazish_imzo_bazadan(db: Session, d, korxona_id) -> tuple:
     )
 
 
+# kech101 (K101-1 … K101-4): o'chirilgan (Savatdagi) buyurtma ustida ombor / holat / miqdorga ta'sir qiladigan amallarning
+# YAGONA rad matni — yuk xati (2026-09 audit), «Tayyor», to'liq tahrir, yuk xatini o'chirish, ishlab chiqarishni bog'lash / boshlash.
+OCHIRILGAN_BUYURTMA_XABARI = "Bu buyurtma o'chirilgan — avval uni tiklang"
+
+
 def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
                     company_id: int = None) -> dict:
     """Yangi yetkazish qo'shadi.
@@ -8361,7 +8389,7 @@ def create_delivery(db: Session, data: DeliveryCreate, delivered_by: str = None,
     # va tiklash orasida o'zgarib qolib, ombor hisobini buzib qo'yishi mumkin
     # edi (masalan eski ochiq varaq yoki to'g'ridan-to'g'ri API chaqiruvi orqali).
     if order.is_deleted:
-        return {"success": False, "message": "Bu buyurtma o'chirilgan — avval uni tiklang"}
+        return {"success": False, "message": OCHIRILGAN_BUYURTMA_XABARI}
 
     if order.status == OrderStatus.DRAFT:
         return {"success": False, "message": "Qoralama buyurtmani yetkazib bo'lmaydi"}
@@ -8778,6 +8806,15 @@ def delete_delivery(db: Session, delivery_id: int, company_id: int = None,
             f"({d.delivery_number}) o'chirib bo'lmaydi. {_tayyor} buyurtma oylik hisobot va "
             f"usta KPI ga kirgan: yuk xati o'chirilsa mahsulot omborga qaytib, daromad "
             f"hisobotda qolardi.")
+
+    # kech101 (K101-3, O'LCHANGAN — `work/probe142.py` C5, SQLite = PG): kech100 dan OLDIN o'chirilgan qisman topshirilgan
+    # (IN_PROGRESS) buyurtmaning yuk xati o'chirilardi (200) — o'chirishda faqat QOLGAN 6 m xomashyosi qaytgan edi, tiklash
+    # esa endi butun 10 m ni yechdi: penoplast 0.04 blok (topshirilgan 4 m) va loy IKKI marta yechildi (NAZORAT — o'chirilmagan
+    # buyurtmada yuk xatini o'chirish — 0). Yuk xati qo'shish (`create_delivery`) buni 2026-09 auditdan beri rad etadi (o'sha
+    # sabab: o'chirish va tiklash orasida topshirilgan ulush o'zgarmasin) — o'chirish ham AYNAN shunday. Qulf ostida,
+    # to'lov so'rovidan (`YukToloviBor`) OLDIN — rad etilganda hech narsa o'zgarmaydi.
+    if order.is_deleted:
+        raise ValueError(OCHIRILGAN_BUYURTMA_XABARI)
 
     # TENANT: `Payment` da korxona ustuni yo'q — OTA (buyurtma) orqali.
     tolovlar = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
