@@ -1397,10 +1397,13 @@ def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
     from models import Order, OrderStatus
     from datetime import datetime
 
+    from sqlalchemy.orm import selectinload as _sil_pd
     _dq = db.query(Project).filter(Project.is_deleted.isnot(True))
     if company_id is not None:
         _dq = _dq.filter(Project.company_id == company_id)
-    projects = _dq.all()
+    # kech97 (116-band): loyiha buyurtmalari ro'yxati bitta IN so'rovi bilan (tartib — `Project.orders` order_by=id,
+    # lazy bilan AYNAN); ilgari loyiha boshiga 1 so'rov (jonli 23 loyiha — 23 so'rov).
+    projects = _dq.options(_sil_pd(Project.orders)).all()
     services._hk_loyihalar(db, projects)     # kech90 (110-band): loyihalardagi "Tayyor" buyurtmalar oldindan
     now = datetime.utcnow()
 
@@ -1435,10 +1438,13 @@ def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
 
 def get_projects_with_stats(db: Session, company_id: int = None) -> List:
     """Loyihalar + buyurtmalar summasi + qarz hisobi (orders ham qo'shilgan)."""
+    from sqlalchemy.orm import selectinload as _sil_ps
     _pq = db.query(Project).filter(Project.is_deleted.isnot(True))
     if company_id is not None:
         _pq = _pq.filter(Project.company_id == company_id)
-    projects = _pq.order_by(Project.start_date.desc()).all()
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): `p.orders` loyiha boshiga alohida so'rov edi (+10 loyiha —
+    # +10 so'rov); endi bitta IN so'rovi (tartib — `Project.orders` order_by=id).
+    projects = _pq.options(_sil_ps(Project.orders)).order_by(Project.start_date.desc()).all()
     for p in projects:
         orders_count = len(p.orders) if p.orders else 0
         orders_sum = sum(float(o.total_amount or 0) for o in (p.orders or []))
@@ -2244,7 +2250,13 @@ def check_finished_for_order(db: Session, items, company_id: int = None) -> dict
 
 def get_orders(db: Session, project_id: Optional[int] = None,
                company_id: int = None) -> List[Order]:
-    query = db.query(Order).filter(Order.is_deleted.isnot(True))
+    """`/api/orders` (`schemas.OrderRead`: detallar + ichki detallar, to'lovlar, gips qo'shimchalari, to'langan /
+    qarz). kech97 (116-band, O'LCHANGAN `work/probe116.py`): javob ro'yxatlari buyurtma boshiga 4 ta so'rov edi
+    (+10 buyurtma — +40); endi munosabatlar bir necha IN so'rovi bilan (tartib — munosabat order_by=id)."""
+    from sqlalchemy.orm import selectinload as _sil_go
+    query = db.query(Order).filter(Order.is_deleted.isnot(True)).options(
+        _sil_go(Order.items).selectinload(OrderItem.sub_details),
+        _sil_go(Order.payments), _sil_go(Order.gips_additives))
     if company_id is not None:
         query = query.filter(Order.company_id == company_id)
     if project_id:
@@ -2253,7 +2265,7 @@ def get_orders(db: Session, project_id: Optional[int] = None,
 
 
 def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False,
-                             company_id: int = None) -> List[Order]:
+                             company_id: int = None, royxat_uchun: bool = False) -> List[Order]:
     """Buyurtmalar sahifasining ASOSIY ro'yxati uchun — tezlik uchun,
     faqat SO'NGGI `days` kunlik yakunlangan buyurtmalarni ko'rsatadi.
 
@@ -2262,11 +2274,20 @@ def get_orders_for_main_page(db: Session, days: int = 90, show_all: bool = False
     hali ishlanishi kerak bo'lgan, e'tibor talab qiladigan ish.
 
     show_all=True bo'lsa — barcha (eski) buyurtmalar ham qo'shiladi
-    ("Eski buyurtmalarni ko'rish" tugmasi uchun)."""
+    ("Eski buyurtmalarni ko'rish" tugmasi uchun).
+
+    kech97 (116-band, O'LCHANGAN `work/probe116.py`): `royxat_uchun=True` (Buyurtmalar sahifasi) — sahifa har
+    buyurtma uchun `is_fully_delivered` (detallar, har detal yetkazishlari, qaytarishlar) va `debt_amount`
+    (to'lovlar) ni o'qiydi: +10 buyurtma — +40 so'rov edi. Endi shu ro'yxatlar bir necha IN so'rovi bilan
+    (tartib — munosabat order_by=id). Qaytarishlar sahifasi bu ro'yxatlarni o'qimaydi — standart (False)."""
     from models import OrderStatus
     from datetime import timedelta
+    from sqlalchemy.orm import selectinload as _sil_mp
 
     _mq = db.query(Order)
+    if royxat_uchun:
+        _mq = _mq.options(_sil_mp(Order.items).selectinload(OrderItem.deliveries),
+                          _sil_mp(Order.returns), _sil_mp(Order.payments))
     if company_id is not None:
         _mq = _mq.filter(Order.company_id == company_id)
     base = _mq.filter(Order.is_deleted.isnot(True))
@@ -4415,9 +4436,14 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     def _oic(q):   # OrderItem bo'yicha
         return q.filter(OrderItem.company_id == company_id) if company_id is not None else q
 
-    orders = _oc(db.query(Order).filter(Order.is_deleted.is_(False))).all()
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): detal, to'lov va yetkazish buyurtma / detal boshiga ALOHIDA
+    # so'ralardi (+10 buyurtma — +50 so'rov). Endi o'sha munosabatlar (o'sha FK sharti; TENANT_FILTER da o'sha
+    # korxona sharti) bir necha IN so'rovi bilan, tartib — munosabat order_by=id.
+    from sqlalchemy.orm import selectinload as _sil_fc
+    orders = _oc(db.query(Order).filter(Order.is_deleted.is_(False))).options(
+        _sil_fc(Order.items), _sil_fc(Order.payments)).all()
     for o in orders:
-        items = db.query(OrderItem).filter(OrderItem.order_id == o.id).all()
+        items = list(o.items or [])
         items_sum = sum(float(it.unit_price or 0) * float(it.quantity or 1) for it in items)
         total = float(o.total_amount or 0)
         diff = abs(items_sum - total)
@@ -4431,7 +4457,7 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
 
     # 2) Qarz = kelishilgan − to'langan?
     for o in orders:
-        pays = db.query(Payment).filter(Payment.order_id == o.id).all()
+        pays = list(o.payments or [])
         paid = sum(float(p.amount or 0) for p in pays)
         agreed = o.kelishilgan_summa
         debt = float(o.debt_amount or 0)
@@ -4491,12 +4517,10 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     # 6) Yetkazib berilgan miqdor, buyurtma qilingandan ko'pmi? (turkumga
     # qarab TO'G'RI maydonni solishtiramiz — "profil" uchun "length",
     # qolganlari uchun "quantity")
-    from models import DeliveryItem
-    for it in _oic(db.query(OrderItem)).all():
+    for it in _oic(db.query(OrderItem)).options(_sil_fc(OrderItem.deliveries)).all():
         cat = (it.category or '').lower()
         ordered = float(it.length or 0) if cat == 'profil' else float(it.quantity or 0)
-        delivered = sum(float(di.quantity or 0) for di in
-                         db.query(DeliveryItem).filter(DeliveryItem.order_item_id == it.id).all())
+        delivered = sum(float(di.quantity or 0) for di in (it.deliveries or []))
         if delivered > ordered + 0.01:
             issues.append({
                 "type": "over_delivery",
@@ -4508,8 +4532,10 @@ def check_financial_consistency(db: Session, company_id: int = None) -> dict:
     # 8) Qoralama bo'lmagan buyurtmada, narxi "0" bo'lgan detal bormi?
     # (bu, narx kiritishni unutib qo'yganini bildirishi mumkin)
     from models import OrderStatus
+    # kech97 (116-band): detallar 1-tekshiruvda (o'sha sessiya, o'sha buyurtmalar — bu ro'yxat uning qismi) oldindan
+    # yuklangan — qayta so'ralmaydi (kmut97a N24: alohida yuklash — ekvivalent).
     for o in _oc(db.query(Order).filter(Order.is_deleted.is_(False), Order.status != OrderStatus.DRAFT)).all():
-        for it in db.query(OrderItem).filter(OrderItem.order_id == o.id).all():
+        for it in (o.items or []):
             if float(it.unit_price or 0) <= 0:
                 issues.append({
                     "type": "zero_price_item",
@@ -6241,13 +6267,17 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
 
 def get_delivery_stats(db: Session, company_id: int = None) -> dict:
     """Yetkazish statistikasi — dashboard uchun."""
+    from sqlalchemy.orm import selectinload as _sil_ds
     _oq = db.query(Order).filter(
         Order.status.notin_([OrderStatus.DRAFT, OrderStatus.CANCELLED]),
         Order.is_deleted.isnot(True)
     )
     if company_id is not None:
         _oq = _oq.filter(Order.company_id == company_id)
-    orders = _oq.all()
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): yetkazish foizi (detallar, yetkazishlar), qolgan miqdor
+    # (qaytarishlar), qarz (to'lovlar), mijoz (loyiha) — buyurtma boshiga 2+ so'rov edi; endi IN so'rovlari.
+    orders = _oq.options(_sil_ds(Order.items).selectinload(OrderItem.deliveries), _sil_ds(Order.returns),
+                         _sil_ds(Order.payments), _sil_ds(Order.project)).all()
 
     partial = []
     not_started = 0
@@ -6281,13 +6311,15 @@ def get_delivery_stats(db: Session, company_id: int = None) -> dict:
 
 def get_debt_stats(db: Session, company_id: int = None) -> dict:
     """Qarzdorlik statistikasi — dashboard uchun."""
+    from sqlalchemy.orm import selectinload as _sil_db
     _dq = db.query(Order)
     if company_id is not None:
         _dq = _dq.filter(Order.company_id == company_id)
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): to'lovlar va loyiha buyurtma boshiga so'ralardi (+10 — +20).
     orders = _dq.filter(
         Order.is_archived == False,
         Order.is_deleted.isnot(True)
-    ).all()
+    ).options(_sil_db(Order.payments), _sil_db(Order.project)).all()
 
     # kech92 (119-band): qarz — `Order.debt_amount` (tiyin aniqligi, 0.5 so'm
     # chegarasi); ilgari bu yerda o'z `float` hisobi bor edi — to'liq to'langan
@@ -10766,21 +10798,36 @@ def get_employee_compensation_for_month(db: Session, employee_id: int, year: int
     rows = db.query(EmployeeCompensationHistory).filter(
         EmployeeCompensationHistory.employee_id == employee_id
     ).all()
-
-    candidates = [r for r in rows if (r.effective_year, r.effective_month) <= (year, month)]
-    if candidates:
-        best = max(candidates, key=lambda r: (r.effective_year, r.effective_month, r.id))
-        return {
-            "pay_type": best.pay_type, "fixed_amount": best.fixed_amount,
-            "percent_value": best.percent_value, "per_unit_rate": best.per_unit_rate,
-            "per_unit_type": best.per_unit_type,
-            "extra_monthly": best.extra_monthly,
-        }
+    tanlangan = _kompensatsiya_tanla(rows, year, month)
+    if tanlangan is not None:
+        return tanlangan
 
     # Zaxira variant — tarix yo'q bo'lsa, joriy qiymatdan foydalanish
     emp = get_employee(db, employee_id)
     if not emp:
         return None
+    return _kompensatsiya_joriy(emp)
+
+
+def _kompensatsiya_tanla(rows, year: int, month: int):
+    """kech97 (111-band): to'lov tarixi yozuvlaridan (bitta hodimniki) (year, month) da amal qilganini tanlaydi —
+    `get_employee_compensation_for_month` va oylik hisobotning oldindan o'qilgan yo'li (`services.
+    calculate_monthly_employee_pay`) uchun YAGONA qoida: (effective_year, effective_month) <= (year, month)
+    bo'lganlardan eng so'nggisi (teng bo'lsa — kattaroq id). Tarix yo'q bo'lsa — None."""
+    candidates = [r for r in rows if (r.effective_year, r.effective_month) <= (year, month)]
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda r: (r.effective_year, r.effective_month, r.id))
+    return {
+        "pay_type": best.pay_type, "fixed_amount": best.fixed_amount,
+        "percent_value": best.percent_value, "per_unit_rate": best.per_unit_rate,
+        "per_unit_type": best.per_unit_type,
+        "extra_monthly": best.extra_monthly,
+    }
+
+
+def _kompensatsiya_joriy(emp):
+    """kech97 (111-band): tarix yozuvi yo'q hodim — joriy (Employee jadvalidagi) qiymatlar."""
     return {
         "pay_type": emp.pay_type, "fixed_amount": emp.fixed_amount,
         "percent_value": emp.percent_value, "per_unit_rate": emp.per_unit_rate,

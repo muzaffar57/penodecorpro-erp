@@ -504,13 +504,15 @@ def get_business_alerts(db: Session, company_id: int = None) -> list:
         })
 
     # 2) Muddati o'tgan qarzdorlar (30+ kun oldin yaratilgan, hali qarzi bor)
+    from sqlalchemy.orm import selectinload as _sil_ba
     _odq = db.query(Order).filter(
         Order.is_deleted.isnot(True),
         Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED, OrderStatus.IN_PROGRESS])
     )
     if company_id is not None:      # M6
         _odq = _odq.filter(Order.company_id == company_id)
-    old_debt_orders = _odq.all()
+    # kech97 (116-band): qarz (to'lovlar) buyurtma boshiga so'ralardi — endi bitta IN so'rovi.
+    old_debt_orders = _odq.options(_sil_ba(Order.payments)).all()
     overdue_count = 0
     for o in old_debt_orders:
         if float(o.debt_amount or 0) > 0 and o.created_at and (datetime.utcnow() - o.created_at).days > 30:
@@ -540,10 +542,11 @@ def get_business_health(db: Session, company_id: int = None) -> dict:
     foyda_foiz = float(report.get("foyda_foiz", 0) or 0)
     rentabellik_status = "green" if foyda_foiz >= 15 else ("orange" if foyda_foiz >= 5 else "red")
 
+    from sqlalchemy.orm import selectinload as _sil_bh
     _bhq = db.query(Order).filter(Order.is_deleted.isnot(True))
     if company_id is not None:      # M6
         _bhq = _bhq.filter(Order.company_id == company_id)
-    orders = _bhq.all()
+    orders = _bhq.options(_sil_bh(Order.payments)).all()     # kech97 (116-band): to'lovlar bitta IN so'rovi
     total_debt = sum(float(o.debt_amount or 0) for o in orders)
     total_revenue = sum(o.kelishilgan_summa for o in orders) or 1
     debt_ratio = total_debt / total_revenue * 100
@@ -699,6 +702,24 @@ def get_company_obligations_status(db: Session, year: int, month: int,
     if company_id is not None:      # M6
         _obq = _obq.filter(RecurringObligation.company_id == company_id)
     obligations = _obq.all()
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): xarajatlar majburiyat × oy boshiga ALOHIDA so'ralardi
+    # (+10 majburiyat — +30). Endi oy boshiga BITTA so'rov (o'sha shartlar, kategoriyalar ro'yxati bilan),
+    # kategoriya bo'yicha guruhlanadi; tartib `date DESC` (asl), teng sanada — `id DESC` (aniq tartib).
+    _kat_ob = sorted({o.category for o in obligations if float(o.monthly_target or 0) > 0})
+    _xarajat_ob = {}
+    for (_y_ob, _m_ob) in months_to_check:
+        _guruh = _xarajat_ob.setdefault((_y_ob, _m_ob), {})
+        if not _kat_ob:
+            continue
+        _txq = db.query(ExpenseTransaction).filter(
+            ExpenseTransaction.category.in_(_kat_ob),
+            func.extract('year', ExpenseTransaction.date) == _y_ob,
+            func.extract('month', ExpenseTransaction.date) == _m_ob
+        )
+        if company_id is not None:      # M6
+            _txq = _txq.filter(ExpenseTransaction.company_id == company_id)
+        for _t in _txq.order_by(ExpenseTransaction.date.desc(), ExpenseTransaction.id.desc()).all():
+            _guruh.setdefault(_t.category, []).append(_t)
     for obl in obligations:
         target = float(obl.monthly_target or 0)
         if target <= 0:
@@ -716,14 +737,7 @@ def get_company_obligations_status(db: Session, year: int, month: int,
                 if obl.created_at > _chk_month_end:
                     continue
             is_current = (chk_year, chk_month) == (year, month)
-            _txq = db.query(ExpenseTransaction).filter(
-                ExpenseTransaction.category == obl.category,
-                func.extract('year', ExpenseTransaction.date) == chk_year,
-                func.extract('month', ExpenseTransaction.date) == chk_month
-            )
-            if company_id is not None:      # M6
-                _txq = _txq.filter(ExpenseTransaction.company_id == company_id)
-            txs = _txq.order_by(ExpenseTransaction.date.desc()).all()
+            txs = _xarajat_ob[(chk_year, chk_month)].get(obl.category, [])
             paid = sum(float(t.amount or 0) for t in txs)
             debt = max(0, target - paid)
             if debt <= 0.5:
@@ -772,7 +786,8 @@ def get_full_debt_summary(db: Session, year: int, month: int,
     )
     if company_id is not None:
         _oq = _oq.filter(Order.company_id == company_id)
-    orders = _oq.all()
+    from sqlalchemy.orm import selectinload as _sil_fd
+    orders = _oq.options(_sil_fd(Order.payments)).all()     # kech97 (116-band): to'lovlar bitta IN so'rovi
     order_debts = [o for o in orders if float(o.debt_amount or 0) > 0.5]
     total_customer_debt = round(sum(float(o.debt_amount or 0) for o in order_debts))
 
@@ -1595,6 +1610,7 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
     olinmaydi va hech qanday standart 1-korxonaga tushmaydi."""
     from models import Project, Master, Order, OrderItem, OrderStatus, FinishedProductSale, FinishedProduct
     from sqlalchemy import func
+    from sqlalchemy.orm import selectinload as _sil_cd
     from datetime import datetime, timedelta
 
     def _oc(q):
@@ -1632,11 +1648,12 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         # Gips va Penoplast (va boshqa) — detal darajasida, ulush bo'yicha
         # ajratilgan holda (har bir detalning umumiy summadagi ulushi ×
         # kelishilgan summa — chegirma/qo'shimchani ham to'g'ri hisobga oladi)
+        # kech97 (116-band): detallar "Tayyor" buyurtma boshiga so'ralardi — endi bitta IN so'rovi (order_by=id).
         month_orders = _oc(db.query(Order).filter(
             Order.created_at >= month_start,
             Order.created_at < month_end,
             Order.status == OrderStatus.READY
-        )).all()
+        )).options(_sil_cd(Order.items)).all()
         gips_rev = 0.0
         peno_rev = 0.0
         for o in month_orders:
@@ -1958,10 +1975,12 @@ def _hk_tayyorla(db, orders):
 
 def _hk_loyihalar(db, projects):
     """kech90 (110-band): loyihalar ro'yxatidagi "Tayyor" buyurtmalarni `_hk_tayyorla` bilan oldindan o'qiydi
-    (kesh yo'q bo'lsa — hech narsa, asl yo'l). `Project.orders` ro'yxatlari ATAYLAB asl (lazy) yo'l bilan
-    o'qiladi — loyiha boshiga 1 so'rov: PG da `project_id = ?` (lazy) va `project_id IN (...)` (selectinload)
-    so'rovlari ORDER BY siz TURLI tartib qaytarishi O'LCHANDI (kech90 `probe90_tartib`: 6 dan 2 loyihada),
-    ro'yxat tartibi esa foyda yig'indisi tartibini belgilaydi — natija AYNAN qolishi uchun."""
+    (kesh yo'q bo'lsa — hech narsa, asl yo'l).
+
+    kech97 (114 / 116-band): `Project.orders` ro'yxatlarini chaqiruvchi oldindan (selectinload, bitta IN so'rovi)
+    yuklaydi. kech90 da ular ATAYLAB lazy qoldirilgan edi — PG da `project_id = ?` va `project_id IN (...)`
+    so'rovlari ORDER BY siz TURLI tartib qaytarardi (kech90 `probe90_tartib`: 6 dan 2 loyihada), tartib esa foyda
+    yig'indisi tartibini belgilaydi. Endi munosabatda `order_by=Order.id` — ikkala yo'l ham AYNAN id tartibida."""
     if _hk(db) is None or not projects:
         return
     from models import OrderStatus as _OS_hk
@@ -1970,6 +1989,9 @@ def _hk_loyihalar(db, projects):
 
 # kech90 (110-band): bosh sahifa "bugun" (`/api/dashboard/today`) — hisobot keshi ichida (yuqorida aniqlangan).
 get_today_stats = _hisobot_keshi_bilan(get_today_stats)
+# kech97 (116-band): majburiyatlar holati (Qarzdorlar sahifasi, Moliya qarz xulosasi, PDF) 3 oylik hisobotni chaqiradi —
+# endi ular BITTA kesh bilan (tarix kabi; ichma-ich chaqiruvda tashqi kesh ishlatiladi), natija AYNAN.
+get_company_obligations_status = _hisobot_keshi_bilan(get_company_obligations_status)
 
 
 def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
@@ -5720,6 +5742,7 @@ def get_loy_cost_per_kg(db: Session, recipe_id: int = None,
 # USTA KPI VA HODIM TO'LOVI — Oylik hisobga qo'shish
 # ============================================================
 
+@_hisobot_keshi_bilan      # kech97 (111-band): alohida chaqirilganda ham buyurtma foydalari oldindan o'qiladi
 def calculate_monthly_master_kpi(db: Session, year: int, month: int,
                                  company_id: int = None) -> dict:
     """Shu oy SOF FOYDASIDAN usta KPI xarajatini hisoblaydi (yillik jamlanadi,
@@ -5737,19 +5760,34 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
     breakdown = []
     total = 0.0
 
-    for m in masters:
+    # kech97 (111-band, O'LCHANGAN `work/probe116.py`): oy buyurtmalari va TM sotuvlari usta boshiga ALOHIDA
+    # so'ralardi (usta boshiga 2 so'rov; tarix — 12 oy). Endi bitta IN so'rovi bilan (o'sha shartlar), usta bo'yicha
+    # guruhlanadi — har usta ro'yxati asl so'rovdagi tartibda (ORDER BY siz, baza tartibi).
+    _mids = [m.id for m in masters]
+    _buyurtma_oy, _sotuv_oy = {}, {}
+    for _b in _hk_bolaklar(_mids):
         # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
         # tarix (shu jumladan Usta KPI hisobi) o'zgarmasligi kerak.
         _oq = db.query(Order).filter(
-            Order.master_id == m.id,
+            Order.master_id.in_(_b),
             Order.status == OrderStatus.READY,
             extract('year', Order.completed_at) == year,
             extract('month', Order.completed_at) == month
         )
         if company_id is not None:      # M5
             _oq = _oq.filter(Order.company_id == company_id)
-        orders = _oq.all()
-        _hk_tayyorla(db, orders)         # kech89 (52-band): hisobot ichida — allaqachon keshda
+        for _o in _oq.all():
+            _buyurtma_oy.setdefault(_o.master_id, []).append(_o)
+        for _s in db.query(_FPS_kpi).filter(
+            _FPS_kpi.master_id.in_(_b),
+            extract('year', _FPS_kpi.sold_at) == year,
+            extract('month', _FPS_kpi.sold_at) == month
+        ).all():
+            _sotuv_oy.setdefault(_s.master_id, []).append(_s)
+    _hk_tayyorla(db, [o for _l in _buyurtma_oy.values() for o in _l])   # kech89 (52-band): hisobot ichida
+
+    for m in masters:
+        orders = _buyurtma_oy.get(m.id, [])
 
         monthly_profit = 0.0
         for o in orders:
@@ -5769,11 +5807,7 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         # hisobiga qo'shiladi. Aks holda usta "Tayyor mahsulot" bo'limidan
         # to'g'ridan-to'g'ri xarid qilib sotsa, buyurtma ochilmagani uchun
         # KPI umuman hisoblanmay qolar edi.
-        fp_sales = db.query(_FPS_kpi).filter(
-            _FPS_kpi.master_id == m.id,
-            extract('year', _FPS_kpi.sold_at) == year,
-            extract('month', _FPS_kpi.sold_at) == month
-        ).all()
+        fp_sales = _sotuv_oy.get(m.id, [])
         monthly_profit += sum(float(s.total_amount or 0) - float(s.cost_amount or 0) for s in fp_sales)
 
         if monthly_profit <= 0:
@@ -5893,6 +5927,38 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         "metr": jami_metr, "dona": jami_dona, "blok": jami_blok,
     }
 
+    # kech97 (111-band, O'LCHANGAN `work/probe116.py`): to'lov tarixi, oylik tuzatish va avans hodim boshiga ALOHIDA
+    # so'ralardi (hodim boshiga 4 so'rov; tarix — 12 oy). Endi hammasi bir necha IN / GROUP BY so'rovi bilan, tanlash
+    # qoidasi AYNAN: to'lov tarixi — `crud._kompensatsiya_tanla` (yagona), tarix yo'q — hodimning joriy qiymatlari;
+    # tuzatish — hodimning BIRINCHI yozuvi (eng kichik id — asl `.first()`); avans — bazadagi SUM.
+    from models import EmployeeCompensationHistory, EmployeeMonthlyAdjustment, EmployeeAdvance
+    from sqlalchemy import extract as _extract_oy, func as _func_oy
+    _eids = [e.id for e in employees]
+    _tarix_oy, _tuzatish_oy, _avans_oy = {}, {}, {}
+    for _b in _hk_bolaklar(_eids):
+        _tq = db.query(EmployeeCompensationHistory).filter(EmployeeCompensationHistory.employee_id.in_(_b))
+        if company_id is not None:      # ota (hodim) orqali — ro'yxat allaqachon korxonaniki
+            _tq = _tq.join(Employee, Employee.id == EmployeeCompensationHistory.employee_id).filter(
+                Employee.company_id == company_id)
+        for _r in _tq.all():
+            _tarix_oy.setdefault(_r.employee_id, []).append(_r)
+        _aq = db.query(EmployeeMonthlyAdjustment).filter(EmployeeMonthlyAdjustment.employee_id.in_(_b),
+                                                        EmployeeMonthlyAdjustment.year == year,
+                                                        EmployeeMonthlyAdjustment.month == month)
+        if company_id is not None:
+            _aq = _aq.join(Employee, Employee.id == EmployeeMonthlyAdjustment.employee_id).filter(
+                Employee.company_id == company_id)
+        for _r in _aq.order_by(EmployeeMonthlyAdjustment.id).all():
+            _tuzatish_oy.setdefault(_r.employee_id, _r)
+        _vq = db.query(EmployeeAdvance.employee_id, _func_oy.sum(EmployeeAdvance.amount)).filter(
+            EmployeeAdvance.employee_id.in_(_b), _extract_oy('year', EmployeeAdvance.date) == year,
+            _extract_oy('month', EmployeeAdvance.date) == month)
+        if company_id is not None:
+            _vq = _vq.join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(
+                Employee.company_id == company_id)
+        for _eid, _s in _vq.group_by(EmployeeAdvance.employee_id).all():
+            _avans_oy[_eid] = float(_s or 0)
+
     for e in employees:
         amount = 0.0
         detail = ""
@@ -5901,7 +5967,9 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         # aynan shu (year, month) uchun O'SHA PAYTDA amal qilgan to'lov
         # parametrlari olinadi. Shu sababli, oylik keyinchalik oshirilsa
         # ham, o'tgan oylarning hisob-kitobi o'zgarib qolmaydi.
-        comp = _crud.get_employee_compensation_for_month(db, e.id, year, month)
+        comp = _crud._kompensatsiya_tanla(_tarix_oy.get(e.id, []), year, month)
+        if comp is None:
+            comp = _crud._kompensatsiya_joriy(e)
         c_pay_type = comp["pay_type"]
         c_fixed = comp["fixed_amount"]
         c_percent = comp["percent_value"]
@@ -5948,12 +6016,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         adjustment_reason = None
         bonus = 0.0
         bonus_reason_val = None
-        from models import EmployeeMonthlyAdjustment
-        adj = db.query(EmployeeMonthlyAdjustment).filter(
-            EmployeeMonthlyAdjustment.employee_id == e.id,
-            EmployeeMonthlyAdjustment.year == year,
-            EmployeeMonthlyAdjustment.month == month
-        ).first()
+        adj = _tuzatish_oy.get(e.id)
         if adj:
             if float(adj.reduction_amount or 0) > 0:
                 adjustment = float(adj.reduction_amount)
@@ -5978,7 +6041,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         # qoladi (shunda uni yana ko'rish/tuzatish mumkin bo'ladi).
         if amount > 0 or adjustment > 0 or bonus > 0:
             total += amount
-            avans = get_employee_advances_total(db, e.id, year, month)
+            avans = _avans_oy.get(e.id, 0.0)
             breakdown.append({
                 "employee_id": e.id,
                 "name": e.name,

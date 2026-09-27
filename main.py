@@ -3130,7 +3130,8 @@ def api_add_payment(project_id: int, db: Session = Depends(get_db), current_user
 
 @app.get("/orders", response_class=HTMLResponse)
 async def orders_page(request: Request, show_all: bool = False, db: Session = Depends(get_db), current_user=Depends(auth.orders_page_access)):
-    orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user))
+    orders = crud.get_orders_for_main_page(db, days=90, show_all=show_all, company_id=auth.company_id_of(current_user),
+                                           royxat_uchun=True)     # kech97 (116-band): ro'yxatlar oldindan
     for o in orders:
         o.deadline_urgency = crud.get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered)
     projects = crud.get_projects(db, company_id=auth.company_id_of(current_user))
@@ -5507,12 +5508,15 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
        get_suppliers_with_debt() funksiyasidan)."""
     from models import Order, OrderStatus
 
+    from sqlalchemy.orm import selectinload as _sil_dp
     # M2: qarzdorlar ro'yxati FAQAT joriy korxonaning buyurtmalaridan.
+    # kech97 (116-band, O'LCHANGAN `work/probe116.py`): to'lovlar (qarz) va loyiha (shablonda mijoz) buyurtma boshiga
+    # so'ralardi (+10 — +20); endi IN so'rovlari.
     orders = db.query(Order).filter(
         Order.company_id == auth.company_id_of(current_user),
         Order.is_deleted.isnot(True),
         Order.status != OrderStatus.DRAFT
-    ).all()
+    ).options(_sil_dp(Order.payments), _sil_dp(Order.project)).all()
     order_debts = [o for o in orders if float(o.debt_amount or 0) > 0.5]
     order_debts.sort(key=lambda o: float(o.debt_amount or 0), reverse=True)
     total_customer_debt = sum(float(o.debt_amount or 0) for o in order_debts)

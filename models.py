@@ -578,7 +578,9 @@ class Project(Base):
     image_url = Column(String(255), nullable=True)  # Loyiha rasmi (ixtiyoriy)
     is_deleted = Column(Boolean, default=False)  # "O'chirilgan" — lekin tiklash uchun saqlanadi
 
-    orders = relationship("Order", back_populates="project", cascade="all, delete-orphan")
+    # kech97 (114-band): ro'yxat tartibi `id` bo'yicha (Order.items izohiga qarang).
+    orders = relationship("Order", back_populates="project", cascade="all, delete-orphan",
+                          order_by="Order.id")
 
     def __repr__(self):
         return f"<Project #{self.project_number} — {self.project_name}>"
@@ -667,12 +669,21 @@ class Order(Base):
     base_price = Column(Numeric(12, 2), nullable=True)  # "1 m³ asosiy narxi" — hodim kiritgan, tahrirlashda tiklanishi uchun
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Aniq qaysi Gips xomashyosi ishlatilgani
 
-    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
-    returns = relationship("ReturnItem", back_populates="order", cascade="all, delete-orphan")
-    payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
+    # kech97 (114-band, O'LCHANGAN — kech90 `probe90_tartib`): ORDER BY siz PostgreSQL ro'yxat tartibi so'rov
+    # SHAKLIGA (lazy `= ?` / selectinload `IN (...)`) va qatorning jismoniy joyiga (UPDATE dan keyin ko'chadi)
+    # bog'liq edi — bir xil buyurtma ro'yxati ikki yo'lda turli tartibda chiqardi (SQLite da doim id tartibi).
+    # Tartib float yig'indilarning oxirgi raqamlarini va UI ro'yxatini belgilaydi, shuning uchun ro'yxatlarni
+    # oldindan (IN bilan) yuklash xavfsiz bo'lishi uchun tartib aniq: `id` (yaratilish) bo'yicha.
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan",
+                         order_by="OrderItem.id")
+    returns = relationship("ReturnItem", back_populates="order", cascade="all, delete-orphan",
+                           order_by="ReturnItem.id")
+    payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan",
+                            order_by="Payment.id")
     deliveries = relationship("Delivery", back_populates="order", cascade="all, delete-orphan")
     attachments = relationship("OrderAttachment", back_populates="order", cascade="all, delete-orphan")
-    gips_additives = relationship("OrderGipsAdditive", back_populates="order", cascade="all, delete-orphan")
+    gips_additives = relationship("OrderGipsAdditive", back_populates="order", cascade="all, delete-orphan",
+                                  order_by="OrderGipsAdditive.id")
 
     @property
     def delivery_percent(self):
@@ -842,7 +853,8 @@ class OrderItem(Base):
     product_type = relationship("ProductType")
 
     order = relationship("Order", back_populates="items")
-    deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan")
+    deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan",
+                              order_by="DeliveryItem.id")     # kech97 (114-band)
 
     # Ichki qo'shimcha detallar (masalan karniz ichidagi rebristo/qo'shimcha
     # profil) — xuddi shu xomashyodan (parent bilan bir xil penoplast_id),
