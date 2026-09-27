@@ -708,10 +708,13 @@ B20 = {k: chaqir(f, kesh=True)[1] for k, f in B_FN.items()}
 B20.update({k: api(C, u, kesh=True)[1] for k, u in B_API.items()})
 B20_off = {k: chaqir(f, kesh=False)[1] for k, f in B_FN.items()}
 B20_off.update({k: api(C, u, kesh=False)[1] for k, u in B_API.items()})
+# kech97 (114 / 116-band): `Project.orders` endi order_by=id — loyihalar KPI ro'yxatlarni bitta IN so'rovi bilan oldindan
+# yuklaydi (kech90 da ataylab lazy — loyiha boshiga 1 so'rov edi, chegara +10 edi); endi hamma o'quvchi uchun <= 2.
 B_LOY = {"loyihalar KPI", "API loyihalar KPI"}
 for _k in list(B_FN) + list(B_API):
-    _ch = 2 + (10 if _k in B_LOY else 0)
-    check(f"B1 {_k}: +20 buyurtma" + (" / +10 loyiha (ro'yxat ataylab lazy — loyiha boshiga 1)" if _k in B_LOY else "")
+    _ch = 2
+    check(f"B1 {_k}: +20 buyurtma" + (" / +10 loyiha (kech97: ro'yxatlar oldindan — loyiha boshiga so'rov YO'Q)"
+                                      if _k in B_LOY else "")
           + f" — so'rovlar {B0[_k]} -> {B20[_k]} (farq <= {_ch})", B20[_k] - B0[_k] <= _ch,
           f"oldin={B0[_k]} keyin={B20[_k]}")
     check(f"B2 {_k}: ASL yo'l N+1 (nazorat — o'lchov sezgir): keshsiz {B20_off[_k]} > kesh {B20[_k]} + 60",
@@ -904,8 +907,8 @@ _s_yl = _manba(_loy) if callable(_loy) else ""
 _s_dek = _manba(getattr(crud, "_hisobot_keshida", None)) if getattr(crud, "_hisobot_keshida", None) else ""
 check("H2 bugun: buyurtmalar o'qilgach DARHOL oldindan o'qiladi",
       "        Order.status == OrderStatus.READY\n    ).all()\n    _hk_tayyorla(db, completed_today)" in _s_bugun)
-check("H2 loyihalar KPI: loyihalar o'qilgach DARHOL `_hk_loyihalar`",
-      "    projects = _dq.all()\n    services._hk_loyihalar(db, projects)" in _s_loy)
+check("H2 loyihalar KPI: loyihalar (buyurtmalar ro'yxati bilan — kech97) o'qilgach DARHOL `_hk_loyihalar`",
+      "    projects = _dq.options(_sil_pd(Project.orders)).all()\n    services._hk_loyihalar(db, projects)" in _s_loy)
 check("H2 usta KPI: buyurtmalar o'qilgach DARHOL oldindan o'qiladi",
       "    ).all() if master_ids else []\n    services._hk_tayyorla(db, all_orders)" in _s_rep)
 check("H2 usta KPI tafsiloti: buyurtmalar o'qilgach DARHOL oldindan o'qiladi",
