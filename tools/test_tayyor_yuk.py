@@ -192,7 +192,7 @@ REC = Recipe(company_id=1, name="TY retsept", batch_size_kg=100.0)
 _db.add(REC)
 _db.flush()
 _db.add(RecipeIngredient(recipe_id=REC.id, inventory_id=KLEY.id, quantity_kg=100.0))
-USTA = Master(company_id=1, name="TY Usta", phone="+998900007575")
+USTA = Master(company_id=1, name="TY Usta", phone="+998900007575", kpi_percent=10.0)   # kech103 (45-band): A8
 _db.add(USTA)
 _db.commit()
 ID = {"PRJ": PRJ.id, "TOSH": TOSH.id, "PENO": PENO.id, "KLEY": KLEY.id, "REC": REC.id, "USTA": USTA.id}
@@ -389,7 +389,9 @@ check("A5 completed_at = bosilgan payt (eski 15.01 o'rniga)",
 check("A6 loy farqi BIR marta: kley -2 kg (reja 10 allaqachon yechilgan)", taxminan(qoldiq(ID["KLEY"]), k0 - 2),
       (k0, qoldiq(ID["KLEY"])))
 check("A7 penoplast QAYTA yechilmadi", taxminan(qoldiq(ID["PENO"]), p0), (p0, qoldiq(ID["PENO"])))
-check("A8 usta KPI hisoblandi (javobda)", ((d.get("master_kpi") or {}).get("total_kpi") or 0) > 0, d.get("master_kpi"))
+check("A8 usta KPI hisoblandi (javobda; kech103 — buyurtma foydasi × 10 %)",
+      ((d.get("master_kpi") or {}).get("total_kpi") or 0) > 0 and (d.get("master_kpi") or {}).get("kpi_percent") == 10.0,
+      d.get("master_kpi"))
 h1 = hisobot()
 check("A9 hisobotga KIRDI: +1 buyurtma, +500 000 daromad", h1[0] == H0[0] + 1 and taxminan(h1[1], H0[1] + 500_000, 0.01),
       (H0, h1))
@@ -636,7 +638,8 @@ e_holat("E3 to'liq YETKAZILGAN (Tayyor emas)", _e3, (True, False, True, True))
 e_holat("E4 Tayyor (yuk bilan)", _e4, (True, False, True, True))
 e_holat("E5 eski yuksiz Tayyor", _e5, (True, True, True, False))
 e_holat("E6 qoralama", _e6, (False, False, False, False))
-e_holat("E7 jarayonda, 4 m ortiqcha omborga", _e7, (False, True, False, True))
+# kech103 (59-band, QAROR "Tarix saqlansin"): qaytarish yozuvi (ortiqcha) bor buyurtma — YUMSHOQ (oldin False edi)
+e_holat("E7 jarayonda, 4 m ortiqcha omborga", _e7, (True, True, False, True))
 e_holat("E8 jarayonda, xomashyo avval qaytarilgan (stock_returned)", _e8, (False, False, False, False))
 
 # ══════════════════════════════════════════════════════════════
@@ -944,9 +947,12 @@ _ad = manba(main, "api_delete_order")
 _ifodalar = ("is_fully_delivered = order.status == OrderStatus.DELIVERED or order.is_fully_delivered",
              "can_return = order.status != OrderStatus.DRAFT and not is_fully_delivered",
              "qisman = services.buyurtmadan_qisman_chiqqan(order)",
-             "order.status in (OrderStatus.READY, OrderStatus.DELIVERED)")
+             "crud.ochirishda_yumshoqmi(order)")      # kech103 (59): yumshoq sharti BITTA funksiyada
 check("H4 o'chirish rejasi va api_delete_order — AYNAN bir xil shartlar",
       all(x in _rj and x in _ad for x in _ifodalar), [x for x in _ifodalar if x not in _rj or x not in _ad])
+check("H4b yumshoq sharti (crud.ochirishda_yumshoqmi): yuk xati, READY / DELIVERED, qaytarish yozuvi (kech103, 59)",
+      tartibda(manba(crud, "ochirishda_yumshoqmi"), "bool(order.deliveries)",
+               "order.status in (OrderStatus.READY, OrderStatus.DELIVERED)", "bool(order.returns)"))
 check("H5 GET /api/orders/{id} rejani qaytaradi", '"ochirish": _buyurtma_ochirish_rejasi(order)' in manba(main, "api_get_order"))
 _html = open(os.path.join(ROOT, "templates", "orders.html"), encoding="utf-8").read()
 check("H6 orders.html: isReady faqat ready; tahrir delivered da ham yashirin",

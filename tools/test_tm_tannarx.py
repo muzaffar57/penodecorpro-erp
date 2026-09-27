@@ -21,7 +21,8 @@ YECHIM (texnik — Claude; 32-band qarori "ishlatilgan paytdagi narxda muzlatils
   * buyurtma foydasi — muzlagan birlik tannarx (`_fp_stable_unit_cost`), bo'lmasa eski formula;
   * `main._migrate_tm_birlik_tannarx` — bo'sh (NULL) qatorlar BUGUNGI qiymatda (33 / 37-band "A" qoidasi).
   Qoldiq chegara (hujjat 56-band): TM ga keyin YANGI partiya qo'shilsa o'rtacha o'zgaradi va avval
-  olingan detal foydasi / qaytarishi yangi o'rtachada baholanadi — bu test uni tekshirmaydi.
+  olingan detal foydasi / qaytarishi yangi o'rtachada baholanardi — kech103 da TUZATILDI (detal olingan paytdagi
+  birlik, `order_items.fp_unit_cost`), darvozasi `tools/test_tm_detal_tannarx.py`; bu yerda I1 / I2 moslandi.
 
 REJIMLAR: SQLite; `PG_URL` berilsa — har ishga YANGI PG bazasi.
     python3 tools/test_tm_tannarx.py
@@ -333,8 +334,9 @@ section("I. Qaytgan TM ga yana qaytarish qo'shiladi va o'chiriladi")
 # ══════════════════════════════════════════════════════════════
 s, R_I, RFP2, SC2 = qaytar(O1, I1, N1, 2)
 check("I0 ikkinchi qaytarish 200, o'sha qaytgan TM ga qo'shildi", s == 200 and RFP2 == RFP, (s, RFP2, RFP))
-check("I1 qaytarish tannarxi 2 x 9 120 = 18 240 (manba TM o'rtachasi)", taxminan(SC2, 18_240), SC2)
-check("I2 qaytgan TM birlik (38 000 + 18 240) / 7 = 8 034.2857", taxminan(tm(RFP)[2], 56_240 / 7),
+check("I1 qaytarish tannarxi 2 x 7 600 = 15 200 (O1 OLGAN paytdagi birlik — kech103, 56-band; oldin manba TM "
+      "ning joriy o'rtachasi 2 x 9 120 = 18 240)", taxminan(SC2, 15_200), SC2)
+check("I2 qaytgan TM birlik (38 000 + 15 200) / 7 = 7 600 (kech103; oldin 8 034.2857)", taxminan(tm(RFP)[2], 7_600),
       tm(RFP))
 r = req(C, "delete", f"/api/returns/{R_I}")
 check("I3 qaytarish o'chirildi 200 — qaytgan TM 5 m / 38 000, birlik 7 600 ga QAYTDI",

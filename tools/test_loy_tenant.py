@@ -223,13 +223,22 @@ probe("POST /api/finished/produce (loy 20 kg, retseptsiz)",
                            "penoplast_id": B_PENO.id, "loy_kg": 20,
                            "unit_price": 1000}))
 
-probe("POST /api/orders (umumiy qoplama loy_kg=30)",
-      lambda: B.post("/api/orders?loy_kg=30&confirm_shortage=true",
-                     json={"project_id": B_PROJ.id, "order_type": "product",
-                           "loy_kg": 30,
-                           "items": [{"name": "BBB_Detal", "category": "panel",
-                                      "quantity": 1, "unit_price": 100000,
-                                      "is_coated": True}]}))
+# kech103 (5-bo'lim 54-band, QAROR "Majburiy tanlov"): loy rejalashtirilgan qoplamali buyurtma retseptsiz SAQLANMAYDI
+# (ilgari 2xx — B da retsept yo'q, hech narsa yechilmasdi). A ning retsept id si bilan ham — "topilmadi" (korxona sharti).
+# MAQSAD o'zgarmaydi: B ning amali A omboriga TEGMAYDI.
+for _lbl54, _qosh54, _xabar54 in (("retseptsiz", {}, "tanlanmagan"),
+                                  ("A ning recipe_id si bilan", {"recipe_id": A_REC.id}, "topilmadi")):
+    _before54 = a_state()
+    r = B.post("/api/orders?loy_kg=30&confirm_shortage=true",
+               json=dict({"project_id": B_PROJ.id, "order_type": "product",
+                          "loy_kg": 30,
+                          "items": [{"name": "BBB_Detal", "category": "panel",
+                                     "quantity": 1, "unit_price": 100000,
+                                     "is_coated": True}]}, **_qosh54))
+    check(f"POST /api/orders (umumiy qoplama loy_kg=30, {_lbl54}) — 400, sabab aytiladi (kech103, 54: retsept majburiy)",
+          r.status_code == 400 and _xabar54 in r.text, f"HTTP {r.status_code}: {r.text[:160]}")
+    check(f"POST /api/orders (umumiy qoplama loy_kg=30, {_lbl54}) — A ombori O'ZGARMADI",
+          a_state() == _before54, "o'zgardi")
 
 # A ning retsept ID sini B o'zi aniq ko'rsatsa — rad etilishi yoki
 # e'tiborsiz qoldirilishi kerak, lekin A omboriga tegmasligi SHART.

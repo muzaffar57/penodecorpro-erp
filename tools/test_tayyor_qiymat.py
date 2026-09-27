@@ -63,6 +63,12 @@ def _fk_on(dbapi_conn, _rec):
     cur.close()
 
 
+# kech103 (5-bo'lim 25-band): `import main` dagi migratsiyalar ochgan ulanishlar tinglovchidan OLDIN yaratilgan
+# (PRAGMA siz) va hovuzda qoladi — so'rov shunday ulanishni olsa SQLite tashqi kalitlarni TEKSHIRMAYDI (kech40 da
+# `test_idor.py` da O'LCHANGAN). Boshqa testlardagi kabi hovuz tozalanadi.
+engine.dispose()
+
+
 # Telegram xabarlari sinovda yuborilmaydi
 main._send_telegram = lambda *a, **k: None
 

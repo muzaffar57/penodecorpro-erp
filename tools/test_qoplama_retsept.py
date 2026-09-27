@@ -231,6 +231,21 @@ def yarat(items, recipe_id, loy_kg, draft=False, klient=None, prj="PRJ"):
     return d.get("id") if isinstance(d, dict) else None
 
 
+def yarat_eski54(items, recipe_id, loy_kg, draft=False, klient=None, prj="PRJ"):
+    """kech103 (54-band, QAROR "Majburiy tanlov"): API endi loy rejalashtirilgan retseptsiz buyurtmani rad etadi. ESKI
+    (54 dan OLDIN saqlangan) retseptsiz buyurtmalar bazada QOLADI — ular yaratishdagi retsept tekshiruvi vaqtincha
+    o'chirilgan holda yaratiladi (D bo'limidagi `buyurtma_qoplama_retseptini_tanla` naqshi); tekshiruv yo'q (asl) kodda —
+    oddiy `yarat`."""
+    _asl54 = getattr(crud, "qoplama_retsepti_tekshir", None)
+    if _asl54 is not None:
+        crud.qoplama_retsepti_tekshir = lambda *a, **k: None
+    try:
+        return yarat(items, recipe_id, loy_kg, draft=draft, klient=klient, prj=prj)
+    finally:
+        if _asl54 is not None:
+            crud.qoplama_retsepti_tekshir = _asl54
+
+
 def detallar(oid):
     if not oid:
         return []
@@ -376,9 +391,16 @@ check("A3 IKKINCHI detal braki loyi buyurtma loyi retseptidan (R1): Kley 0.6 / A
 check("A3 brak summasi = xarajat = 10 200 (asl kodda 10 200 / 25 000)",
       taxminan(_b3.get("summa"), 10_200, 0.5) and taxminan(_b3.get("xarajat"), 10_200, 0.5), _b3)
 
-# A4 — retsept "— Yo'q —" (UI): korxonaning birinchi retsepti (R1) — foyda ham shuni ko'radi
+# A4 — retsept "— Yo'q —" (UI): korxonaning birinchi retsepti (R1) — foyda ham shuni ko'radi.
+# kech103 (54-band, QAROR "Majburiy tanlov"): API endi RAD etadi (A4a); A4 — ESKI (54 dan oldingi) shunday buyurtma.
 _s0 = stok()
-o4 = yarat([profil(10)], None, 10)
+_r4a = req(C, "post", "/api/orders", json=tana([profil(10)], None, 10), params={"confirm_shortage": "true"})
+check("A4a (kech103, 54) API: retseptsiz, loy 10 — 400 'Qoplama retsepti tanlanmagan', ombor o'zgarmadi",
+      getattr(crud, "qoplama_retsepti_tekshir", None) is None
+      or (_r4a.status_code == 400 and "Qoplama retsepti tanlanmagan" in _r4a.text and farq(_s0, stok()) == {
+          "KLEY": 0.0, "AKR": 0.0, "BOYOQ": 0.0}), (_r4a.status_code, _r4a.text[:160]))
+_s0 = stok()
+o4 = yarat_eski54([profil(10)], None, 10)
 _s1 = stok()
 check("A4 qoplama_retsept_id = korxonaning birinchi retsepti (R1)", qr(o4) == ID["R1"], qr(o4))
 check("A4 loy R1 dan: Kley 6 / Akril 4", farq(_s0, _s1) == {"KLEY": -6.0, "AKR": -4.0, "BOYOQ": 0.0}, farq(_s0, _s1))
@@ -533,7 +555,7 @@ try:
     _s0 = stok()
     d1 = yarat([loy_sotish(5, ID["R1"]), profil(10)], ID["R2"], 10)
     _s1 = stok()
-    d2 = yarat([profil(10)], None, 10)
+    d2 = yarat_eski54([profil(10)], None, 10)      # kech103 (54): eski retseptsiz buyurtma
     _t = tana([profil(10)], ID["R1"], 10)
     _rc = req(C, "post", "/api/orders", json=_t, params={"confirm_shortage": "true"})
     d3 = (js(_rc) or {}).get("id")
@@ -594,7 +616,12 @@ check("D5 o'chirish va ombor AYNAN (R1 ga qaytdi)", ochir(d5) == 200
 # ══════════════════════════════════════════════════════════════
 section("E. Korxona chegarasi")
 # ══════════════════════════════════════════════════════════════
-ob = yarat([profil(10, peno="PENOB")], None, 10, klient=CB, prj="PRJB")
+# kech103 (54-band): B ning retseptsiz buyurtmasi API da RAD (E0); E1 — ESKI (54 dan oldingi) shunday buyurtma.
+_r0e = req(CB, "post", "/api/orders", json=tana([profil(10, peno="PENOB")], None, 10, prj="PRJB"),
+           params={"confirm_shortage": "true"})
+check("E0 (kech103, 54) B korxona API: retseptsiz, loy 10 — 400",
+      getattr(crud, "qoplama_retsepti_tekshir", None) is None or _r0e.status_code == 400, (_r0e.status_code, _r0e.text[:160]))
+ob = yarat_eski54([profil(10, peno="PENOB")], None, 10, klient=CB, prj="PRJB")
 check("E1 B korxona retseptsiz buyurtmasi — o'z retsepti (RB), A niki EMAS", qr(ob) == ID["RB"], qr(ob))
 _dbe = SessionLocal()
 _xato = None

@@ -821,7 +821,7 @@ check("S1 api_delete_order: QULF (101) va qayta o'qish — ombor ishidan OLDIN",
       tartibda(_ad, "crud._pul_qulfi(db, 101, order.id)", "db.expire_all()", "order = crud.get_order(db, order_id",
                "with crud.bitta_tranzaksiya(db):", "services.return_inventory_for_order_partial(db, order)"), "")
 check("S2 api_delete_order: yakunlash sabab va yumshoq qaroridan KEYIN, o'chirishdan OLDIN",
-      tartibda(_ad, "reason = None", "should_soft_delete = (", "if crud.ochirishda_yopiladimi(order):",
+      tartibda(_ad, "reason = None", "should_soft_delete = crud.ochirishda_yumshoqmi(order)", "if crud.ochirishda_yopiladimi(order):",
                "crud.ochirishda_topshirilganni_yopish(db, order, loy_ishlatilgan=_loy_ishlatilgan100)",
                "crud.delete_order(db, order_id, soft=should_soft_delete"), "")
 _ro = manba(crud, "restore_order")
