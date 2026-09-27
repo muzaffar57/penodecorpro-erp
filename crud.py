@@ -1604,6 +1604,8 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     - Har bir item ning total_price = quantity * unit_price (qoplamali bo'lsa x2)
     - Buyurtma umumiy summasi avtomatik hisoblanadi
     """
+    # K95-1 (kech95): sig'im — HECH NARSA yozilmasdan OLDIN (marshrut ham shu bilan 400 beradi).
+    _buyurtma_sigim_tekshir(getattr(order_data, "items", None) or [])
     # Order raqami: ORD-{project_id}-{seq}
     # Bir necha kishi AYNAN BIR VAQTDA shu loyihaga buyurtma yaratsa,
     # ikkalasi bir xil raqamni olib qolishi mumkin — shu holatni xavfsiz
@@ -1764,7 +1766,7 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
         raise _HE86(status_code=409, detail="Buyurtma raqamini ajratib bo'lmadi (bir vaqtda juda ko'p so'rov) — qayta urinib ko'ring. Hech narsa saqlanmadi.")
 
     # Detallarni qo'shamiz va umumiy summani hisoblaymiz
-    total_amount = 0
+    _jamilar = []
     for item_data in order_data.items:
         # unit_price allaqachon frontend tomonida YAKUNIY (qoplamali bo'lsa
         # allaqachon ×2 qilingan) holda yuboriladi — bu barcha turlar
@@ -1779,9 +1781,9 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
         # tasdiqlangan: 1000 so'm/dona yuborilsa, 2000 so'm/dona saqlanardi).
         # Endi — boshqa barcha turlar kabi, unit_price O'ZGARTIRILMASDAN
         # ishlatiladi.
-        _stored_unit_price = item_data.unit_price
-        item_total = _stored_unit_price * item_data.quantity
-        total_amount += item_total
+        # 117-band (kech95): narx bazadagidek 2 xonaga (HALF_UP), jami SHU narxdan (`_buyurtma_narx_jami`).
+        _stored_unit_price, item_total = _buyurtma_narx_jami(item_data.quantity, item_data.unit_price)
+        _jamilar.append(item_total)
 
         db_item = OrderItem(
             order_id=db_order.id,
@@ -1794,10 +1796,10 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             is_coated=item_data.is_coated,
             recipe_id=(getattr(item_data, 'recipe_id', None) or order_data.recipe_id),
             penoplast_id=getattr(item_data, 'penoplast_id', None),
-            price_per_m3=getattr(item_data, 'price_per_m3', None),
+            price_per_m3=_pul2_bosh(getattr(item_data, 'price_per_m3', None)),
             finished_product_id=getattr(item_data, 'finished_product_id', None),
             unit_price=_stored_unit_price,
-            unit_price_for_volume=getattr(item_data, 'unit_price_for_volume', None),
+            unit_price_for_volume=_pul2_bosh(getattr(item_data, 'unit_price_for_volume', None)),
             product_type_id=getattr(item_data, 'product_type_id', None),
             total_price=item_total,
             notes=item_data.notes
@@ -1832,9 +1834,10 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             ))
 
 
+    total_amount = _pul_yigindi(_jamilar)
     db_order.total_amount = total_amount
-    # Kelishilgan summa — boshida jami summaga teng (chegirmasiz)
-    db_order.agreed_amount = getattr(order_data, 'agreed_amount', None) or total_amount
+    # Kelishilgan summa — boshida jami summaga teng (chegirmasiz). 117-band: bazadagidek 2 xonaga.
+    db_order.agreed_amount = _pul2(getattr(order_data, 'agreed_amount', None) or total_amount)
     db_order.base_price = getattr(order_data, 'base_price', None)
     if total_amount > 0 and float(db_order.agreed_amount) < total_amount:
         db_order.discount_percent = round((total_amount - float(db_order.agreed_amount)) / total_amount * 100, 2)
@@ -2412,6 +2415,101 @@ def _xarid_narx_jami(miqdor, narx):
     jami2 = (Decimal(repr(float(miqdor))) * narx2).quantize(Decimal("0.01"),
                                                               rounding=ROUND_HALF_UP)
     return float(narx2), float(jami2)
+
+
+def _buyurtma_narx_jami(miqdor, narx):
+    """Buyurtma detalining bazaga yoziladigan (narx, jami) juftligi (117-band, kech95).
+
+    HAQIQIY PostgreSQL 16 va SQLite da O'LCHANGAN (kech94 `work/probe117.py`, asl kod): detal narxi
+    `Numeric(12,2)` ga yaxlitlanib yozilardi, jami esa YAXLITLANMAGAN narxdan — `333 × 10.335` → narx
+    10.34, jami 3441.56 (10.34 × 333 = 3443.22, 1.66 so'm farq, miqdor oshgani sari o'sadi); `7 × 0.125`
+    → narx SQLite 0.12 / PG 0.13, jami 0.88; 3 detalli buyurtma jami detallar jamisidan 1 tiyin farq
+    qilardi (7146.13 ↔ 7146.14). Tizimning o'z muvofiqlik tekshiruvi (`check_financial_consistency` —
+    "narx × miqdor = jami") bunday buyurtmani "order_total_mismatch" deb ko'rsatardi. Qoida xariddagi
+    (17g) va TM sotuvidagi (7-band) bilan BIR XIL: narx 2 xonaga (HALF_UP), jami SHU narxdan
+    (`_xarid_narx_jami`). Brauzer (`orders.html` `buyurtmaJami`) jamini AYNAN shu qoida bilan
+    ko'rsatadi — forma "Jami" si saqlanadigan summa bilan bir xil."""
+    return _xarid_narx_jami(miqdor, narx)
+
+
+def _pul_yigindi(qiymatlar) -> float:
+    """2 xonali pul qiymatlari yig'indisi o'nlik arifmetikada (float shovqinisiz) — 117-band.
+    Ilgari `sum(float(...))` edi (masalan 0.1 + 0.2 = 0.30000000000000004)."""
+    from decimal import Decimal
+    return float(sum((_pul2_decimal(v or 0) for v in qiymatlar), Decimal("0")))
+
+
+def _pul2_bosh(v):
+    """`_pul2`, lekin `None` — `None` (ixtiyoriy pul maydonlari: `price_per_m3`,
+    `unit_price_for_volume`) — 117-band: hisob bazaga yoziladigan qiymat bilan."""
+    return None if v is None else _pul2(v)
+
+
+_BUYURTMA_DETAL_SIGIM_XABAR = ("Detal summasi (miqdor × narx) juda katta — bitta detal "
+                               "9 999 999 999.99 so'mdan oshmasligi kerak. Hech narsa saqlanmadi.")
+_BUYURTMA_JAMI_SIGIM_XABAR = ("Buyurtma jami summasi juda katta — 9 999 999 999.99 so'mdan "
+                              "oshmasligi kerak. Hech narsa saqlanmadi.")
+
+
+def _jamilar_sigimi(jamilar):
+    """K95-1 (kech95): detal jamilari va ularning yig'indisi `Numeric(12,2)` sig'imiga sig'adimi."""
+    for j in jamilar:
+        if float(j or 0) > _ORDER_ITEM_MAX_MONEY:
+            raise ValueError(_BUYURTMA_DETAL_SIGIM_XABAR)
+    if _pul_yigindi(jamilar) > _ORDER_ITEM_MAX_MONEY:
+        raise ValueError(_BUYURTMA_JAMI_SIGIM_XABAR)
+
+
+def _buyurtma_sigim_tekshir(detallar):
+    """K95-1 (kech95) — buyurtma detallari (sxema obyekti yoki lug'at) sig'imi, HECH NARSA yozilmasdan OLDIN.
+
+    HAQIQIY PostgreSQL 16 da O'LCHANGAN (`work/probe117b.py` (5), asl kod): narx va miqdor ALOHIDA
+    chegaradan o'tsa ham (narx ≤ 9 999 999 999.99, miqdorda chegara yo'q) jami `Numeric(12,2)` dan
+    oshardi — 9 999 999 999.99 × 2 yoki 6e9 + 6e9 li buyurtma: yaratish, to'liq tahrir va
+    `PUT /api/order-items` — 500 "Serverda kutilmagan xato" (SQLite esa 200 bilan yozardi). Endi aniq
+    xabar (400). Jami yozuvchi qoida bilan hisoblanadi (`_buyurtma_narx_jami`); avval float ko'paytma
+    tekshiriladi — juda katta son `Decimal.quantize` ni yiqitmasin (xariddagi 17b naqshi)."""
+    import math
+    jamilar = []
+    for d in (detallar or []):
+        _q = d.get("quantity") if isinstance(d, dict) else getattr(d, "quantity", None)
+        _n = d.get("unit_price") if isinstance(d, dict) else getattr(d, "unit_price", None)
+        _q = float(_q) if _q else 1.0
+        _n = float(_n or 0)
+        if not (math.isfinite(_q) and math.isfinite(_n)):
+            raise ValueError("Detal miqdori va narxi chekli son bo'lishi kerak. Hech narsa saqlanmadi.")
+        if _q * _n > _ORDER_ITEM_MAX_MONEY:
+            raise ValueError(_BUYURTMA_DETAL_SIGIM_XABAR)
+        jamilar.append(_buyurtma_narx_jami(_q, _n)[1])
+    _jamilar_sigimi(jamilar)
+
+
+def _detal_ozgargach_buyurtma(db: Session, order, eski_jami: float, eski_chegirma: float) -> None:
+    """Bitta detal tahriri / o'chirilishidan keyin buyurtma jami va KELISHILGAN summa (117-band, kech95).
+
+    O'LCHANGAN (`work/probe117b.py` (6), SQLite = PG, asl kod): `PUT` / `DELETE /api/order-items`
+    jamini qayta hisoblardi, kelishilgan summaga esa UMUMAN tegmasdi — chegirmasiz 12 000 li buyurtma
+    detali kamaytirilib jami 6 000 bo'lganda kelishilgan 12 000 qolardi (mijoz qarzi 6 000 ga ortiq),
+    20 % chegirmali 9 600 ham 9 600 qolardi. Endi to'liq tahrirdagi ("kelishilgan summa
+    yuborilmagan") qoida bilan BIR XIL (`update_order_full` 28-band): jami o'zgarmasa — kelishilgan
+    summa o'zgarmaydi; chegirma bo'lsa — foiz saqlanadi; aks holda kelishilgan = jami; pul qaytarish
+    kamaytirishi qayta ayiriladi. UI bu marshrutlarni chaqirmaydi (faqat API)."""
+    order.total_amount = _pul_yigindi(it.total_price for it in order.items)
+    _yangi = float(order.total_amount)
+    if abs(_yangi - float(eski_jami or 0)) > 0.005:
+        _qk = pul_qaytarish_kamaytirgan(db, order)
+        if float(eski_chegirma or 0) > 0:
+            _asl = round(_yangi * (1 - float(eski_chegirma) / 100))
+        else:
+            _asl = _yangi
+        order.agreed_amount = _pul2(max(0.0, _asl - _qk))
+        if _yangi > 0 and _asl < _yangi:
+            order.discount_percent = round((_yangi - _asl) / _yangi * 100, 2)
+        else:
+            order.discount_percent = 0.0
+    db.flush()
+    db.refresh(order)
+    _update_order_payment_status(db, order)
 
 
 def _json_son(key, value, bosh_mumkin, musbat, chegara=None):
@@ -3844,9 +3942,19 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
     if order and order.is_deleted:
         return None
     is_draft = order.status == OrderStatus.DRAFT if order else False
+    # 117-band (kech95): tahrirdan / o'chirishdan OLDINGI jami va chegirma (`_detal_ozgargach_buyurtma`).
+    _eski_jami117 = float(order.total_amount or 0) if order else 0.0
+    _eski_chegirma117 = float(order.discount_percent or 0) if order else 0.0
 
     # 13-sizish: tana HECH NARSA yozilmasdan OLDIN tekshiriladi.
     item_data = _clean_order_item_update(item_data)
+    # K95-1 (kech95): yangi detal jami va buyurtma jami sig'imi — HECH NARSA yozilmasdan OLDIN.
+    _buyurtma_sigim_tekshir([{"quantity": item_data.get("quantity", db_item.quantity),
+                              "unit_price": item_data.get("unit_price", db_item.unit_price)}])
+    if order is not None:
+        _jamilar_sigimi([_buyurtma_narx_jami(item_data.get("quantity", db_item.quantity) or 1,
+                                             item_data.get("unit_price", db_item.unit_price) or 0)[1]]
+                        + [it.total_price or 0 for it in order.items if it.id != db_item.id])
     if item_data.get("penoplast_id"):
         _require_inventory_of_company(db, [item_data["penoplast_id"]],
                                       db_item.company_id)
@@ -3898,7 +4006,8 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
         if hasattr(db_item, field):
             setattr(db_item, field, value)
 
-    db_item.total_price = float(db_item.unit_price or 0) * float(db_item.quantity or 1)
+    # 117-band (kech95): narx 2 xonaga (HALF_UP), jami SHU narxdan (`_buyurtma_narx_jami`).
+    db_item.unit_price, db_item.total_price = _buyurtma_narx_jami(db_item.quantity or 1, db_item.unit_price or 0)
     db.flush()
 
     # Yangi holat snapshot — "sub_details" bu funksiya orqali o'zgartirilmaydi
@@ -3922,12 +4031,9 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
         services.adjust_inventory_diff(db, old_snap, new_snap, order_id=db_item.order_id,
                                        company_id=db_item.company_id, commit=False)
 
-    # Order summasi
+    # Order summasi va kelishilgan summa (117-band — `_detal_ozgargach_buyurtma`)
     if order:
-        order.total_amount = sum(float(it.total_price or 0) for it in order.items)
-        db.flush()
-        db.refresh(order)
-        _update_order_payment_status(db, order)
+        _detal_ozgargach_buyurtma(db, order, _eski_jami117, _eski_chegirma117)
 
     db.commit()
     db.refresh(db_item)
@@ -4760,6 +4866,9 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
     if order and order.is_deleted:
         return False
     is_draft = order.status == OrderStatus.DRAFT if order else False
+    # 117-band (kech95): tahrirdan / o'chirishdan OLDINGI jami va chegirma (`_detal_ozgargach_buyurtma`).
+    _eski_jami117 = float(order.total_amount or 0) if order else 0.0
+    _eski_chegirma117 = float(order.discount_percent or 0) if order else 0.0
 
     # O'chiriladigan detalning xomashyosini qaytaramiz
     if not is_draft:
@@ -4815,10 +4924,8 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
     db.flush()
 
     if order:
-        order.total_amount = sum(float(it.total_price or 0) for it in order.items)
-        db.flush()
-        db.refresh(order)
-        _update_order_payment_status(db, order)
+        # 117-band (kech95): jami va kelishilgan summa — `_detal_ozgargach_buyurtma`
+        _detal_ozgargach_buyurtma(db, order, _eski_jami117, _eski_chegirma117)
 
     db.commit()
     return True
@@ -6336,15 +6443,23 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
         delivered = min(item.delivered_qty + item.ortiqcha_qty, ordered)
         fraction = min(delivered / ordered, 1.0)
 
+        # 117-band (kech95, O'LCHANGAN `work/probe117b.py` (7) / (7b), SQLite + PG): jami "eski jami × ulush"
+        # edi — narx × topshirilgan bilan mos emas (10.335 × 333, 100 topshirildi → 1033.50, narx 10.34 × 100 =
+        # 1034.00); profilda narx butun uzunlikniki qolardi (100 000, jami 40 000) — muvofiqlik tekshiruvi
+        # yolg'on "order_total_mismatch" berardi. To'liq topshirilgan detal — O'ZGARMAYDI (avval ham shunday).
+        if fraction >= 1.0:
+            continue
         old_total = float(item.total_price or 0)
-        new_total = round(old_total * fraction, 2)
-
         cat = (item.category or '').lower()
         if cat == 'profil':
+            # profil: miqdor (dona) odatda 1, narx — butun uzunlik narxi; jami uzunlik ulushiga (HALF_UP),
+            # narx = jami / miqdor (narx × miqdor = jami).
             item.length = delivered
+            _q117 = float(item.quantity or 1)
+            item.unit_price, item.total_price = _buyurtma_narx_jami(_q117, _pul2(old_total * fraction) / _q117)
         else:
             item.quantity = delivered
-        item.total_price = new_total
+            item.unit_price, item.total_price = _buyurtma_narx_jami(delivered, item.unit_price or 0)
 
     new_total_amount = round(sum(float(i.total_price or 0) for i in order.items), 2)
     old_total_amount = float(order.total_amount or 0)
@@ -6355,7 +6470,7 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
     # buyurtma "Tayyor" bosilganda summa 250 000 bo'lardi (to'g'risi 150 000) —
     # pul qaytarish kamaytirishi QAYTA ayiriladi (manfiy bo'lmaydi).
     _qaytgan_kam = pul_qaytarish_kamaytirgan(db, order)
-    new_agreed = round(max(0.0, new_total_amount * (1 - discount_pct / 100) - _qaytgan_kam), 2)
+    new_agreed = _pul2(max(0.0, new_total_amount * (1 - discount_pct / 100) - _qaytgan_kam))
     order.agreed_amount = new_agreed
 
     paid = order.paid_amount
@@ -6893,6 +7008,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # 77-band (kech68): bo'sh detal turi — qulf va HECH NARSA o'zgarishidan OLDIN rad.
     try:
         _detal_turi_tekshir(getattr(order_data, "items", None))
+        # K95-1 (kech95): sig'im — qulf va HECH NARSA o'zgarishidan OLDIN.
+        _buyurtma_sigim_tekshir(getattr(order_data, "items", None) or [])
     except ValueError as _e_tur:
         return {"success": False, "message": str(_e_tur)}
 
@@ -6962,10 +7079,12 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "thickness": it.thickness,
         "length": it.length,
         "quantity": float(it.quantity or 1),
-        "unit_price": float(it.unit_price or 0),
-        "unit_price_for_volume": getattr(it, 'unit_price_for_volume', None),
+        # 117-band (kech95): yangi holat — bazaga YOZILADIGAN qiymatlar (2 xona). Ilgari xom narx edi:
+        # eski holat bazadan (2 xona) o'qilgani uchun o'zgarishsiz saqlashda ham Donalik hajmi farqi chiqardi.
+        "unit_price": _buyurtma_narx_jami(it.quantity or 1, it.unit_price or 0)[0],
+        "unit_price_for_volume": _pul2_bosh(getattr(it, 'unit_price_for_volume', None)),
         "penoplast_id": getattr(it, 'penoplast_id', None),
-        "price_per_m3": getattr(it, 'price_per_m3', None),
+        "price_per_m3": _pul2_bosh(getattr(it, 'price_per_m3', None)),
         "finished_product_id": getattr(it, 'finished_product_id', None),
         "sub_details": [{
             "category": sd.category, "width": sd.width, "thickness": sd.thickness,
@@ -7072,7 +7191,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         }
 
     # 4) Detallarni yangilaymiz — topshirilganlarini SAQLAB
-    total_amount = 0
+    _jamilar = []
     keep_ids = set()
 
     for oi in old_items:
@@ -7085,9 +7204,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         # MUHIM TUZATISH (2026-09 audit): "dona" uchun qo'shimcha ×2
         # qilinmaydi endi — sabab yuqoridagi create_order()dagi izohda
         # (frontend allaqachon yakuniy, qoplamali narx yuboradi).
-        _stored_up1 = float(nd.unit_price or 0)
-        item_total = _stored_up1 * float(nd.quantity or 1)
-        total_amount += item_total
+        # 117-band (kech95): narx 2 xonaga (HALF_UP), jami SHU narxdan (`_buyurtma_narx_jami`).
+        _stored_up1, item_total = _buyurtma_narx_jami(nd.quantity or 1, nd.unit_price or 0)
+        _jamilar.append(item_total)
 
         oi.width = nd.width
         oi.thickness = nd.thickness
@@ -7106,10 +7225,10 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         # umumiy retseptiga tushadi.
         oi.recipe_id = getattr(nd, 'recipe_id', None) or order_data.recipe_id
         oi.penoplast_id = getattr(nd, 'penoplast_id', None)
-        oi.price_per_m3 = getattr(nd, 'price_per_m3', None)
+        oi.price_per_m3 = _pul2_bosh(getattr(nd, 'price_per_m3', None))
         oi.finished_product_id = getattr(nd, 'finished_product_id', None)
         oi.unit_price = _stored_up1
-        oi.unit_price_for_volume = getattr(nd, 'unit_price_for_volume', None)
+        oi.unit_price_for_volume = _pul2_bosh(getattr(nd, 'unit_price_for_volume', None))
         oi.product_type_id = getattr(nd, 'product_type_id', None)
         oi.total_price = item_total
         oi.notes = nd.notes
@@ -7139,9 +7258,8 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             continue
         # MUHIM TUZATISH (2026-09 audit): "dona" uchun qo'shimcha ×2
         # qilinmaydi endi — sabab yuqoridagi create_order()dagi izohda.
-        _stored_up2 = float(nd.unit_price or 0)
-        item_total = _stored_up2 * float(nd.quantity or 1)
-        total_amount += item_total
+        _stored_up2, item_total = _buyurtma_narx_jami(nd.quantity or 1, nd.unit_price or 0)
+        _jamilar.append(item_total)
         _new_item_notes = nd.notes
         _new_oi = OrderItem(
             order_id=order.id,
@@ -7154,10 +7272,10 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             is_coated=nd.is_coated,
             recipe_id=(getattr(nd, 'recipe_id', None) or order_data.recipe_id),
             penoplast_id=getattr(nd, 'penoplast_id', None),
-            price_per_m3=getattr(nd, 'price_per_m3', None),
+            price_per_m3=_pul2_bosh(getattr(nd, 'price_per_m3', None)),
             finished_product_id=getattr(nd, 'finished_product_id', None),
             unit_price=_stored_up2,
-            unit_price_for_volume=getattr(nd, 'unit_price_for_volume', None),
+            unit_price_for_volume=_pul2_bosh(getattr(nd, 'unit_price_for_volume', None)),
             product_type_id=getattr(nd, 'product_type_id', None),
             total_price=item_total,
             notes=_new_item_notes
@@ -7180,6 +7298,7 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     if getattr(order_data, 'deadline', None):
         order.deadline = order_data.deadline
 
+    total_amount = _pul_yigindi(_jamilar)
     old_total = float(order.total_amount or 0)
     old_discount_pct = float(order.discount_percent or 0)
     # 28-band (kech43, K42-2 — O'LCHANGAN, `work/probe43.py`): kelishilgan summa
@@ -8995,7 +9114,8 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
                     )
                 }
 
-            cost_amount = unit_cost * item.quantity
+            # 117-band (kech95): sotuv tannarxi bazadagidek 2 xonaga (bitta sotuvdagi bilan bir xil sabab).
+            cost_amount = _pul2(unit_cost * item.quantity)
 
             prepared.append({
                 "fp": fp,
@@ -9042,7 +9162,7 @@ def sell_finished_products_batch(db: Session, data, created_by: str = None,
 
             fp.quantity = float(fp.quantity or 0) - p["quantity"]
             if fp.cost_price:
-                fp.cost_price = float(fp.cost_price) - p["cost_amount"]
+                fp.cost_price = float(_pul2_decimal(fp.cost_price) - _pul2_decimal(p["cost_amount"]))
 
             sale = FinishedProductSale(
                 company_id=getattr(fp, 'company_id', None),   # M8/F1
@@ -9149,11 +9269,16 @@ def sell_finished_product(db: Session, data, created_by: str = None,
             )
         }
 
-    cost_amount = unit_cost * data.quantity
+    # 117-band (kech95, kech91 kuzatuvi — O'LCHANGAN `work/probe117b.py` (8), SQLite + PG): sotuv tannarxi va
+    # qolgan tannarx ALOHIDA yaxlitlanardi — PG da 10.01 li mahsulotning yarmi sotilganda 5.01 + 5.01 = 10.02
+    # (1 tiyin paydo bo'lardi), SQLite da 5.00 + 5.00 (yo'qolardi); javobdagi `profit` yaxlitlanmagan
+    # (14.995000000000001, bazada 14.99). Endi sotuv tannarxi bazadagidek 2 xonaga (HALF_UP), qolgani AYNAN
+    # ayirma (o'nlik), foyda — bazadagi summalardan.
+    cost_amount = _pul2(unit_cost * data.quantity)
 
     fp.quantity = available - data.quantity
     if fp.cost_price:
-        fp.cost_price = float(fp.cost_price) - cost_amount
+        fp.cost_price = float(_pul2_decimal(fp.cost_price) - _pul2_decimal(cost_amount))
 
     sale = FinishedProductSale(
         company_id=getattr(fp, 'company_id', None),      # M8/F1
@@ -9178,7 +9303,7 @@ def sell_finished_product(db: Session, data, created_by: str = None,
         "sale_id": sale.id,
         "product_name": fp.name,
         "total_amount": float(total_amount),
-        "profit": float(total_amount - cost_amount),
+        "profit": float(_pul2_decimal(total_amount) - _pul2_decimal(cost_amount)),
         "remaining_stock": float(fp.quantity)
     }
 
