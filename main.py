@@ -2162,6 +2162,61 @@ def _migrate_tm_birlik_tannarx():
 _migrate_tm_birlik_tannarx()
 
 
+def _migrate_tm_detal_tannarx():
+    """kech103 (5-bo'lim 56-band) — IDEMPOTENT, PostgreSQL va SQLite.
+
+    `order_items.fp_unit_cost` — tayyor mahsulotdan olingan detalning OLINGAN paytdagi 1 birlik tannarxi. Ustun odatda
+    `database.sync_missing_columns()` bilan qo'shiladi; yo'q bo'lsa shu yerda. Bo'sh (NULL) eski detallar (qoralama emas —
+    qoralamada hali hech narsa olinmagan) TM ning BUGUNGI birlik tannarxida (`crud._fp_stable_unit_cost` — hozir buyurtma
+    foydasida ishlatilayotgan qiymatning AYNI o'zi) yoziladi: deploy paytida hech bir raqam o'zgarmaydi, keyin TM
+    o'rtachasi o'zgarsa buyurtma tannarxi o'zgarmaydi (33 / 37 / 47-band "A" qoidasi bilan bir xil). TM faqat
+    buyurtmaning O'Z korxonasidan; topilmasa yoki tannarxi 0 — NULL qoladi (avvalgi qoida)."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine, SessionLocal as _SL103
+    from models import (OrderItem as _OI103, Order as _O103, OrderStatus as _OS103,
+                        FinishedProduct as _FP103)
+    try:
+        _i = _insp(engine)
+        if "order_items" not in set(_i.get_table_names()):
+            return
+        if "fp_unit_cost" not in {c["name"] for c in _i.get_columns("order_items")}:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE order_items ADD COLUMN fp_unit_cost NUMERIC(14, 4)"))
+            print("✓ order_items.fp_unit_cost qo'shildi")
+    except Exception as e:
+        print(f"⚠ order_items.fp_unit_cost ustuni tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    _d = _SL103()
+    try:
+        _qator = (_d.query(_OI103, _O103.company_id)
+                  .join(_O103, _O103.id == _OI103.order_id)
+                  .filter(_OI103.finished_product_id.isnot(None), _OI103.fp_unit_cost.is_(None),
+                          _OI103.company_id == _O103.company_id, _O103.status != _OS103.DRAFT)
+                  .order_by(_OI103.id).all())
+        _birlik = {}
+        _n = 0
+        for _it, _cid in _qator:
+            _k = (_it.finished_product_id, _cid)
+            if _k not in _birlik:
+                _f = _d.query(_FP103).filter(_FP103.id == _it.finished_product_id,
+                                             _FP103.company_id == _cid).first()
+                _birlik[_k] = crud._fp_stable_unit_cost(_d, _f) if _f is not None else 0.0
+            if _birlik[_k] > 0:
+                _it.fp_unit_cost = _birlik[_k]
+                _n += 1
+        if _n:
+            _d.commit()
+            print(f"✓ Tayyor mahsulotdan olingan detallar tannarxi muzlatildi: {_n} ta")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ Tayyor mahsulot detali tannarxi migratsiyasi o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_tm_detal_tannarx()
+
+
 def _migrate_ortiqcha_qaytarish():
     """kech60 (57-band, K59-3) — IDEMPOTENT, PostgreSQL va SQLite.
 
@@ -4740,6 +4795,15 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
     if order.loy_kg is None and _loy_q is not None:
         order.loy_kg = _loy_q
     loy_kg = order.loy_kg
+    # kech103 (5-bo'lim 54-band, FOYDALANUVCHI QARORI "Majburiy tanlov"): loy rejalashtirilgan (> 0) buyurtmada qoplama
+    # retsepti ANIQ tanlanishi SHART (qoralama ham) — `crud.qoplama_retsepti_tekshir`; yetishmovchilik (409) dan OLDIN.
+    # O'LCHANGAN (`work/probe54r.py` A1 / A2 / A6 / A7 / A8 / Q1): retseptsiz buyurtma saqlanib, loy jimgina zaxira
+    # retseptdan (PG da tartibsiz) yechilardi; yo'q retsept id si PG da 500 berardi.
+    try:
+        crud.qoplama_retsepti_tekshir(db, auth.company_id_of(current_user), loy_kg, order.items,
+                                      buyurtma_retsept_id=order.recipe_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     check = services.check_inventory_for_order(db, order, company_id=auth.company_id_of(current_user))
     # M4: tayyor mahsulot yetarliligi FAQAT joriy korxona ombori bo'yicha.
     fcheck = crud.check_finished_for_order(db, order.items,
@@ -4928,7 +4992,8 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
         loy_kg = crud._query_loy("loy_kg", loy_kg, bosh_mumkin=True)
     except ValueError as e:
         raise HTTPException(status_code=400, detail={"success": False, "message": str(e)})
-    result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage)
+    # kech103 (54-band): tahrirdan keyingi loy rejasi — qoplama retsepti tekshiruvi uchun (`crud.qoplama_retsepti_tekshir`)
+    result = crud.update_order_full(db, order_id, order, confirm_shortage=confirm_shortage, yangi_loy_kg=loy_kg)
     if not result["success"]:
         # Xomashyo yetishmovchiligi — 409 (create bilan bir xil), frontend
         # "davom etasizmi?" oynasini ko'rsatib, confirm_shortage=true bilan
@@ -5183,8 +5248,9 @@ def _buyurtma_ochirish_rejasi(order) -> dict:
     # qo'yilgan qism bor. Shunda faqat QOLGAN qism xomashyosi qaytadi (omborga qo'yilgani
     # tayyor mahsulotlar omborida qoladi — ikki marta hisoblanmaydi).
     qisman = services.buyurtmadan_qisman_chiqqan(order)
-    # Har qanday haqiqiy ish izi bo'lsa (yetkazish, tayyor) — yumshoq o'chiriladi (pastda izoh).
-    yumshoq = has_delivery or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
+    # Har qanday haqiqiy ish izi bo'lsa (yetkazish, tayyor, kech103 dan qaytarish yozuvi) — yumshoq o'chiriladi
+    # (`crud.ochirishda_yumshoqmi` — `api_delete_order` bilan BITTA shart).
+    yumshoq = crud.ochirishda_yumshoqmi(order)
     # kech77 (95-band, O'LCHANGAN — `work/probe95.py`, SQLite = PG): buyurtma LOYI bo'yicha o'chirish
     # `actual_loy_kg` SIZ nima qiladi (`api_delete_order` dagi shoxlar bilan AYNAN): qoralama / to'liq
     # topshirilgan / allaqachon qaytarilgan — 0; hech narsa chiqmagan — butun reja; qisman chiqqan — reja ×
@@ -5219,6 +5285,8 @@ def _buyurtma_ochirish_rejasi(order) -> dict:
         "xomashyo_qaytadi": bool(can_return and not order.stock_returned),
         "qisman": bool(qisman),
         "yumshoq": bool(yumshoq),
+        # kech103 (59-band): qaytarish (ortiqcha / brak) yozuvi bor — tasdiq matni "tarix saqlanadi" qatori uchun
+        "qaytarish_bor": bool(order.returns),
         # oylik hisobot va usta KPI faqat READY ni sanaydi (yumshoq o'chirilgan READY ham —
         # moliyaviy tarix). kech100 (93-band, QAROR "B"): topshirilgan (qisman / DELIVERED) buyurtma o'chirishda
         # topshirilgan qismi bilan YAKUNLANADI (READY) — u ham hisobotda qoladi.
@@ -5393,10 +5461,11 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
         # va unga bog'liq TO'LOVLAR HAM avtomatik birga o'chadi (pastda,
         # crud.delete_order ichida) — moliyaviy iz qoldirishning hojati yo'q,
         # chunki hech qanday haqiqiy xizmat ko'rsatilmagan edi.
-        should_soft_delete = (
-            has_delivery
-            or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
-        )
+        # kech103 (5-bo'lim 59-band, FOYDALANUVCHI QARORI "Tarix saqlansin"): qaytarish yozuvi (ortiqcha — omborga
+        # qo'yilgan mahsulot, brak) bo'lsa ham YUMSHOQ — buyurtma, qaytarish va to'lov yozuvlari saqlanadi (tayyor
+        # mahsulotlar omboridagi ortiqcha qayerdan kelgani ko'rinadi; brak xarajati hisobot bilan statistikada bir xil).
+        # Shart `crud.ochirishda_yumshoqmi` da (o'chirish rejasi bilan BITTA). Ombor ishi (yuqorida) o'zgarmaydi.
+        should_soft_delete = crud.ochirishda_yumshoqmi(order)
 
         # kech100 (93-band, FOYDALANUVCHI QARORI "B" — misol: 100 m dan 40 m topshirilib o'chirilsa, topshirilgan 40 m
         # DAROMADI, TANNARXI va usta KPI hisobotda QOLADI). O'LCHANGAN (`work/probe93.py`, asl kod): IN_PROGRESS /

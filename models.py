@@ -857,6 +857,14 @@ class OrderItem(Base):
     # (reserved_for_order_item_id, rezervatsiya uchun), shuning uchun
     # SQLAlchemy ikkita jadval orasidagi FK yo'lini avtomatik aniqlay olmaydi.
     finished_product = relationship("FinishedProduct", foreign_keys=[finished_product_id])
+    # kech103 (5-bo'lim 56-band, O'LCHANGAN `work/probe56tm.py`, SQLite = PG): tayyor mahsulotdan OLINGAN paytdagi
+    # 1 birlik tannarxi (shu detal ushlab turgan miqdor bo'yicha og'irlikli o'rtacha). TM ning o'z birlik tannarxi
+    # (`FinishedProduct.unit_cost_stable`) keyin boshqa narxdagi partiya ("+" qo'shish) yoki qaytgan mahsulot qo'shilganda
+    # o'zgaradi — ilgari avval olingan detal tannarxi ham, uning omborga qaytishi ham YANGI o'rtachada baholanardi
+    # (10 m × 7 600 = 76 000 lik buyurtma +20 m dan keyin 89 818 bo'lib qolardi, o'tgan oy hisobotini ham o'zgartirib).
+    # NULL — yozilmagan (tannarxsiz TM yoki eski yozuv; `main._migrate_tm_detal_tannarx` deploy paytida to'ldiradi):
+    # avvalgi qoida (TM ning joriy birlik tannarxi).
+    fp_unit_cost = Column(Numeric(14, 4), nullable=True)
 
     unit_price = Column(Numeric(12, 2), default=0)
     total_price = Column(Numeric(12, 2), default=0)
@@ -1084,6 +1092,18 @@ class ReturnItem(Base):
     # O'chirishda AYNAN shu TM larga band qaytadi. Boshqa yozuvlar — NULL (`default=` BERILMAGAN —
     # `sync_missing_columns` eski qatorlarga yozmasin, kech52 saboqi).
     mrp_ozod = Column(Text, nullable=True)
+
+    @property
+    def mrp_ozod_miqdor(self) -> float:
+        """kech103 (90-band): MRP detalidan ortiqcha qism band TM dan erkin qoldiqqa o'tkazilgan jami miqdor (`mrp_ozod`
+        yig'indisi; yozilmagan / buzilgan — 0). Qaytarishlar sahifasidagi o'chirish tasdig'i uchun."""
+        if not self.mrp_ozod:
+            return 0.0
+        try:
+            import json as _json90
+            return float(sum(float(r[1]) for r in _json90.loads(self.mrp_ozod)))
+        except Exception:
+            return 0.0
     # kech40 (5-bo'lim 22-band, K39-1) — qaytarish yozuvi O'CHIRILGANDA hammasi
     # AYNAN orqaga qaytishi uchun, yozuv paytida NIMA o'zgargani saqlanadi.
     # O'LCHANGAN (asl kod, SQLite va PostgreSQL): o'chirish faqat yozuvni

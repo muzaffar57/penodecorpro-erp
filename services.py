@@ -3,213 +3,27 @@ PenoDecorPro ERP — Biznes mantiqi (Services)
 ==============================================
 Avtomatik hisob-kitob va ishlab chiqarish nazorati.
 
-Asosiy funksiyalar:
-1. check_admin_role() — faqat admin uchun ruxsat
-2. process_cutting() — kesish: penoplast blok hisob-kitob
-3. process_coating() — qoplama: retsept bo'yicha ombor kamayishi
-4. check_low_stock() — minimal qoldiq ogohlantirishi
+Asosiy funksiyalar: minimal qoldiq ogohlantirishi (`check_low_stock`), buyurtmani yakunlash (`complete_order`),
+buyurtma foydasi (`calculate_order_profit`), oylik hisobot va usta KPI. (kech103, 55-band: eski "1–3" bo'limlar —
+`check_admin_role`, `process_cutting`, `calculate_coating_materials`, `process_coating` — o'lik edi, olib tashlandi.)
 """
 
 from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
 
 from models import (
-    User, UserRole, Inventory, Recipe, Order, OrderItem,
+    Inventory, Recipe, Order, OrderItem,
     Master, OrderStatus
 )
 
 
 # ============================================================
-# 1. ADMIN NAZORATI
+# kech103 (5-bo'lim 55-band, 18-band o'lik kod auditi): bu yerdagi eski "1. ADMIN NAZORATI", "2. AVTOMATIK KESISH",
+# "3. AVTOMATIK QOPLAMA" yordamchilari (`check_admin_role`, `process_cutting`, `calculate_coating_materials`,
+# `process_coating`) OLIB TASHLANDI: loyiha bo'ylab chaqiruvchisi yo'q edi (grep — `.py` / `.html` / `.js`), materialni
+# NOMI bo'yicha (`ilike`) korxona filtrisiz qidirib ombordan yechardi (tenant lint baseline 4 yozuvi). Kesish / qoplama
+# xomashyosi buyurtma yaratish / «Tayyor» yo'llarida (`deduct_*`, `complete_order`) hisoblanadi.
 # ============================================================
-
-def check_admin_role(user: User):
-    """Faqat admin foydalanuvchisi bu amalni qila oladi.
-    Xato bo'lsa HTTPException ko'taradi."""
-    if not user or user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=403,
-            detail="Bu amal faqat ADMIN uchun ruxsat etilgan!"
-        )
-
-
-
-# ============================================================
-# 2. AVTOMATIK KESISH (Penoplast bloklari)
-# ============================================================
-
-# Standart penoplast blok hajmi (m³)
-PENOPLAST_BLOCK_VOLUME_M3 = 1.0  # 1 m × 1 m × 1 m = 1 m³
-# Yo'qotish foizi (kesish vaqtida)
-CUTTING_LOSS_PERCENT = 5.0  # 5% yo'qotish
-
-
-
-def process_cutting(db: Session, order_id: int, volume_m3: float) -> Dict:
-    """Kesish jarayonini boshqaradi.
-
-    Formula: total_volume / volume_per_unit = necha dona blok kerak
-    Misol: 2.5 m³ kerak, blok hajmi 1.0 m³ -> 3 dona blok
-    """
-    if volume_m3 <= 0:
-        return {"success": False, "message": "Hajm 0 dan katta bo'lishi kerak"}
-
-    # Inventory dan penoplast topish
-    penoplast = db.query(Inventory).filter(
-        Inventory.item_name.ilike("%penoplast%")
-    ).with_for_update().first()
-
-    if not penoplast:
-        return {
-            "success": False,
-            "message": "Omborda 'Penoplast' xomashyosi yo'q!"
-        }
-
-    # Yo'qotish bilan haqiqiy hajm
-    actual_needed = volume_m3 * (1 + CUTTING_LOSS_PERCENT / 100)
-
-    # Blok hajmiga bo'lib, donalar sonini topamiz
-    block_volume = penoplast.volume_per_unit or 1.0
-    blocks_needed = int(actual_needed / block_volume)
-    if actual_needed % block_volume > 0:
-        blocks_needed += 1
-
-    if penoplast.stock_quantity < blocks_needed:
-        return {
-            "success": False,
-            "message": f"Penoplast yetarli emas! Kerak: {blocks_needed} dona, omborda: {penoplast.stock_quantity:.0f} {penoplast.unit}",
-            "needed": blocks_needed,
-            "available": penoplast.stock_quantity
-        }
-
-    # Kamaytirish
-    penoplast.stock_quantity -= blocks_needed
-    db.commit()
-
-    return {
-        "success": True,
-        "message": f"Kesish bajarildi! {blocks_needed} ta blok ishlatildi.",
-        "calculation": {
-            "volume_m3_requested": volume_m3,
-            "volume_m3_with_loss": actual_needed,
-            "block_volume_m3": block_volume,
-            "blocks_needed": blocks_needed
-        },
-        "inventory_updated": {
-            "item": penoplast.item_name,
-            "deducted": blocks_needed,
-            "remaining": penoplast.stock_quantity
-        }
-    }
-
-
-# ============================================================
-# 3. AVTOMATIK QOPLAMA (Retsept bo'yicha)
-# ============================================================
-
-# Standart: 1 m² qoplama uchun ~2 kg loy ketadi
-KG_PER_SQUARE_METER = 2.0
-
-
-def calculate_coating_materials(coated_area_m2: float, recipe: Recipe) -> Dict:
-    """Berilgan qoplama maydoni uchun retsept bo'yicha materiallar hisobi.
-
-    Misol: 50 m² qoplama uchun 100 kg loy kerak.
-    Retsept 150 kg uchun yozilgan bo'lsa, 100/150 = 0.667 koeffitsient.
-    Har bir ingredient shu koeffitsientga ko'paytirilib hisoblanadi.
-    """
-    total_kg_needed = coated_area_m2 * KG_PER_SQUARE_METER
-    coefficient = total_kg_needed / recipe.batch_size_kg if recipe.batch_size_kg else 0
-
-    materials = {ing.item_name: float(ing.quantity_kg or 0) * coefficient for ing in recipe.ingredients}
-
-    # Faqat qiymati 0 dan katta bo'lganlarini qoldiramiz
-    materials = {k: v for k, v in materials.items() if v > 0}
-
-    return {
-        "coated_area_m2": coated_area_m2,
-        "total_loy_kg": total_kg_needed,
-        "batches": coefficient,
-        "materials": materials
-    }
-
-
-def process_coating(db: Session, order_id: int, coated_area_m2: float) -> Dict:
-    """Qoplama jarayonini boshqaradi.
-
-    1. Buyurtmadagi retseptni oladi
-    2. Maydonga qarab materiallar miqdorini hisoblaydi
-    3. Har birini Inventory dan ayiradi
-    4. Yetarli emas bo'lsa xato qaytaradi
-    """
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        return {"success": False, "message": "Buyurtma topilmadi"}
-
-    # Buyurtmadagi item lardan recipe_id topish
-    recipe_id = None
-    for item in order.items:
-        if item.recipe_id:
-            recipe_id = item.recipe_id
-            break
-
-    if not recipe_id:
-        return {"success": False, "message": "Buyurtmaga retsept biriktirilmagan"}
-
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
-    if not recipe:
-        return {"success": False, "message": "Retsept topilmadi"}
-
-    # Materiallar hisobi
-    calc = calculate_coating_materials(coated_area_m2, recipe)
-
-    # Avval barcha materiallar yetarliligini tekshiramiz
-    shortages = []
-    items_to_deduct = []
-
-    for comp_name, qty_needed in calc["materials"].items():
-        inv_item = db.query(Inventory).filter(
-            Inventory.item_name.ilike(f"%{comp_name}%")
-        ).with_for_update().first()
-
-        if not inv_item:
-            shortages.append(f"{comp_name}: omborda yo'q")
-            continue
-
-        if inv_item.stock_quantity < qty_needed:
-            shortages.append(
-                f"{inv_item.item_name}: kerak {qty_needed:.2f}, bor {inv_item.stock_quantity:.2f} {inv_item.unit}"
-            )
-        else:
-            items_to_deduct.append((inv_item, qty_needed))
-
-    if shortages:
-        return {
-            "success": False,
-            "message": "Xomashyo yetarli emas!",
-            "shortages": shortages
-        }
-
-    # Hammasi yetarli — kamaytiramiz
-    deducted = []
-    for inv_item, qty in items_to_deduct:
-        inv_item.stock_quantity -= qty
-        deducted.append({
-            "item": inv_item.item_name,
-            "deducted": round(qty, 2),
-            "unit": inv_item.unit,
-            "remaining": round(inv_item.stock_quantity, 2)
-        })
-
-    db.commit()
-
-    return {
-        "success": True,
-        "message": f"Qoplama bajarildi! {coated_area_m2} m² maydon uchun materiallar ishlatildi.",
-        "calculation": calc,
-        "deducted_items": deducted
-    }
 
 
 # ============================================================
@@ -1564,44 +1378,18 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                                             "message": ("Avtomatik yuk xati yozilmadi — «Tayyor» bekor qilindi, hech narsa "
                                                         "saqlanmadi. Sabab: " + _sabab101)})
 
-            # 3. USTA KPI
+            # 3. USTA KPI — kech103 (5-bo'lim 45-band, O'LCHANGAN `work/probe103ui.py` T1): «Tayyor» oynasidagi "👷 Usta
+            # KPI" ilgari eski formula edi (kelishilgan summaning 3 % + qoplamali metr × 1 000 so'm; profil metri
+            # `length × quantity`) — hech qayerda hisobga tushmaydigan, ustaning haqiqiy KPI si (`/kpi`, oylik hisobot —
+            # buyurtma foydasi × `kpi_percent`) bilan mos kelmaydigan raqam (500 000 lik buyurtma: 25 000 ↔ 43 000).
+            # Endi shu buyurtmaning yakunlangan paytdagi foydasi (`yakun_foydasi`) × ustaning KPI foizi — pastda, holat
+            # READY bo'lgach (oylik KPI bilan BITTA qoida; foyda manfiy bo'lsa — 0).
+            _usta45 = None
             if order.master_id:
-                master = db.query(Master).filter(Master.id == order.master_id).first()
-                if master:
-                    # MUHIM: kelishilgan summa (agreed_amount) bo'lsa — shundan 3%
-                    # olinadi, aks holda umumiy summadan. Bu — daromad/foyda hisobi
-                    # bilan (masalan yuqoridagi "daromad" yig'indisida) BIR XIL
-                    # qoidaga mos: chegirma qilingan buyurtmada usta cashbacki ham
-                    # chegirmadan OLDINGI (shishirilgan) summadan emas, HAQIQIY
-                    # kelishilgan summadan hisoblanishi kerak.
-                    cashback = order.kelishilgan_summa * 0.03
-                    total_meters = sum(
-                        (item.length or 0) * item.quantity for item in order.items if item.is_coated
-                    )
-                    # MUHIM: Ichki qo'shimcha detallar (sub_details) — bularning
-                    # qoplama holati ASOSIY detalning is_coated'idan MUSTAQIL,
-                    # xuddi qoplamachi bonusi hisoblanadigan get_monthly_report()
-                    # dagi kabi (o'sha yerda ham xuddi shu sabab bilan alohida
-                    # tekshiriladi). Bu yerda ham xuddi shunday — asosiy qoplamasiz
-                    # bo'lsa ham ichki qoplamali bo'lishi, yoki aksincha, mumkin.
-                    for item in order.items:
-                        for sub in (item.sub_details or []):
-                            if not getattr(sub, 'is_coated', False):
-                                continue
-                            sub_cat = (getattr(sub, 'category', None) or '').lower()
-                            if sub_cat == 'panel':
-                                total_meters += float(getattr(sub, 'quantity', 0) or 0)
-                            else:  # 'profil' (standart)
-                                total_meters += float(getattr(sub, 'length', 0) or 0) * float(getattr(sub, 'quantity', 1) or 1)
-                    meter_bonus = total_meters * 1000
-                    total_kpi = cashback + meter_bonus
-                    result["master_kpi"] = {
-                        "master": master.name,
-                        "cashback_3%": round(cashback),
-                        "meter_bonus": round(meter_bonus),
-                        "total_kpi": round(total_kpi),
-                        "total_meters": total_meters
-                    }
+                _mq45 = db.query(Master).filter(Master.id == order.master_id)
+                if getattr(order, 'company_id', None) is not None:
+                    _mq45 = _mq45.filter(Master.company_id == order.company_id)
+                _usta45 = _mq45.first()
 
             # 4. Status yangilash
             order.status = OrderStatus.READY
@@ -1613,6 +1401,25 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                 base_notes = _re_loykg_w.sub(r',?\s*loy_kg=[\d.]+', '', existing_notes).strip().strip(',').strip()
                 order.notes = (base_notes + f", loy_kg={loy_kg}").strip(', ')
                 order.actual_loy_kg = float(loy_kg)
+            # kech103 (45-band): usta KPI — shu buyurtma foydasi × KPI foizi (oylik KPI bilan bir qoida).
+            if _usta45 is not None and float(_usta45.kpi_percent or 0) > 0:
+                try:
+                    db.flush()
+                    _foyda45 = float(yakun_foydasi(db, order, company_id=getattr(order, 'company_id', None))
+                                     .get("foyda", 0) or 0)
+                    _pct45 = float(_usta45.kpi_percent or 0)
+                    result["master_kpi"] = {
+                        "master": _usta45.name,
+                        "kpi_percent": _pct45,
+                        "foyda": round(_foyda45),
+                        "total_kpi": round(max(_foyda45, 0.0) * _pct45 / 100),
+                    }
+                except Exception as _e45:
+                    try:
+                        import crud as _crud45
+                        _crud45.log_error(db, str(_e45), endpoint=f"complete_order:master_kpi order#{order.id}")
+                    except Exception:
+                        pass
             db.commit()
             db.refresh(order)
 
@@ -2670,7 +2477,14 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
             _hk_qoy(db, "tm_birlik", fp_c.id, _muz59)
         else:
             _muz59 = _x_mz
-        if _muz59 > 0:
+        # kech103 (56-band, O'LCHANGAN `work/probe56tm.py`, SQLite = PG): detal OLINGAN paytdagi birlik
+        # (`order_items.fp_unit_cost`) — TM ga keyin boshqa narxda partiya ("+") yoki qaytgan mahsulot qo'shilsa
+        # o'rtacha o'zgaradi, avval olingan detal tannarxi (va o'tgan oy hisoboti) O'ZGARMAYDI (ilgari 76 000 →
+        # 89 818). Yozilmagan (eski / tannarxsiz TM) — avvalgi qoida.
+        _c56 = _crud_fp59._tm_detal_birligi(item)
+        if _c56 is not None:
+            unit_cost = _c56
+        elif _muz59 > 0:
             unit_cost = _muz59
         else:
             if base_qty <= 0 or not fp_c.cost_price:
@@ -5073,9 +4887,13 @@ def resolve_recipe(db: Session, recipe_id: int = None, order=None,
             if r:
                 return r
 
-    # Zaxira yo'l — FAQAT korxona aniq bo'lganda
+    # Zaxira yo'l — FAQAT korxona aniq bo'lganda.
+    # kech103 (K103-6, O'LCHANGAN `work/probe54r.py`, HAQIQIY PG 16): "birinchi retsept" `ORDER BY` siz edi — PG qatorlarni
+    # jismoniy joylashuv tartibida beradi (UPDATE dan keyin o'zgaradi): SQLite da REC (id 1), PG da "Loy sotish"
+    # retsepti (id 2) chiqdi. Endi AYNAN birinchi (id tartibida). 54-band dan keyin yangi buyurtma loyi bu yo'lga
+    # tushmaydi (retsept majburiy) — eski buyurtmalar va retseptsiz so'rovlar (`/api/loy-stock` va h.k.) uchun.
     if cid is not None:
-        return q.first()
+        return q.order_by(Recipe.id).first()
     return None
 
 
@@ -6556,6 +6374,12 @@ def get_order_item_unit_cost(db: Session, order, item, include_coating: bool = T
         fp = _ucq.first()
         if fp:
             import crud as _crud_unitcost
+            # kech103 (56-band): muzlatilgan (omborga qaytgan mahsulot tannarxi — 34-band) — detal OLINGAN paytdagi
+            # birlik (`fp_unit_cost`); ilgari TM ning JORIY o'rtachasi (5 m: 44 909, olingani 38 000). Brak summasi
+            # (muzlatilgan=False) — avvalgidek joriy (13-band 2-qadam).
+            _c56 = _crud_unitcost._tm_detal_birligi(item) if muzlatilgan else None
+            if _c56 is not None:
+                return _c56
             unit_cost = _crud_unitcost._fp_stable_unit_cost(db, fp)
             if unit_cost > 0:
                 return unit_cost
