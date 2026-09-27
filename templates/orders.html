@@ -3217,7 +3217,9 @@ function recalcBlokPrice(row) {
   const mult = parseFloat(row.querySelector('.i-blokmult')?.value) || 2;
   const base = parseFloat(row.dataset.blokBase) || 0;
   if (base > 0) {
-    bpEl.value = formatNum(Math.round(isCoated ? base * mult : base));
+    // 125-band (kech96, O'LCHANGAN `work/probe125.py` B1 / B2): butun so'mga yaxlitlanardi — yozilgan qoplamali
+    // 1 500 000,75 → Yo'q (750 000) → Bor (1 500 001); 1 000 000,50 × 2.5 → 2 500 001. Endi 2 xona (server narxi).
+    bpEl.value = narxKorinishi(tiyinga(isCoated ? base * mult : base));
   }
   calculateItem(row);
 }
@@ -3494,7 +3496,9 @@ function recalcMrpPrice(row) {
   const mult = parseFloat(row.dataset.mrpCoatingMult) || 1;
   const base = parseFloat(row.dataset.mrpBase) || 0;
   if (base > 0) {
-    upEl.value = formatNum(Math.round(isCoated ? base * mult : base));
+    // 125-band (kech96, O'LCHANGAN `work/probe125.py` M1): koeffitsient 2.5, yozilgan 1 000 000,50 → Yo'q
+    // (400 000) → Bor (1 000 001) edi. Endi 2 xona (server narxi) — blok bilan bir qoida.
+    upEl.value = narxKorinishi(tiyinga(isCoated ? base * mult : base));
   }
   calculateItem(row);
 }
@@ -3870,6 +3874,21 @@ function buyurtmaJami(miqdor, narx) {
   const qq = _onlikQism(q);
   const jamiT = _tiyinHalfUp(qq.m * narxT, qq.d - 2);
   return { narx: Number(narxT) / 100, jami: Number(jamiT) / 100 };
+}
+// ── 125-band (kech96): hisoblangan pul qiymati — 2 xona (server qoidasi), yig'indi — TIYINDA ────────────
+// `tiyinga(x)` — bitta qiymatni bazaga yoziladigandek 2 xonaga (HALF_UP, `buyurtmaJami` bilan bir qoida):
+// 750 000.375 → 750 000.38; 1 516.666… → 1 516.67. Ilgari hisoblangan standartlar (blok / MRP narxi qoplama yoki
+// koeffitsient o'zgarganda, TM formasidagi "1 dona narxi", "To'liq to'lash") butun so'mga yaxlitlanardi
+// (O'LCHANGAN kech96 `work/probe125.py`, HAQIQIY brauzer): yozilgan 1 500 000,75 → qoplama Yo'q → Bor →
+// 1 500 001; TM "1 dona narxi" 1 517 (buyurtma sahifasi AYNAN shu o'lchamda 1 516.67).
+// `pulYigindi(ro'yxat)` — 2 xonali summalar yig'indisi butun tiyinlarda (float shovqinisiz).
+function tiyinga(x) {
+  return buyurtmaJami(1, x).narx;
+}
+function pulYigindi(qiymatlar) {
+  let t = 0;
+  for (const v of qiymatlar) t += Math.round((Number(v) || 0) * 100);
+  return t / 100;
 }
 
 function calcSubDetailRow(subRow, basePrice) {

@@ -305,6 +305,61 @@ function formatPriceInput(input) {
     input.setSelectionRange(k, k);
   } catch (e) { /* kursor — faqat qulaylik */ }
 }
+
+// ── 117-band (kech95): buyurtma detali jami — SERVER qoidasi bilan AYNAN ─────────────────────
+// Server (`crud._buyurtma_narx_jami` = `_xarid_narx_jami`): narx bazadagidek 2 xonaga (HALF_UP —
+// yarimda noldan uzoqqa), jami SHU narxdan (miqdor × narx, yana 2 xonaga HALF_UP). Ikkalasi ham
+// sonning ENG QISQA o'nlik yozuvidan (Python `repr` = JS `String`) — float shovqinisiz:
+// 10.335 × 333 → narx 10.34, jami 3 443.22; 0.125 × 7 → 0.13 / 0.91; 333.333 × 3 → 999.99.
+// Ilgari forma "Jami" si xom ko'paytma edi (3 441.555), server esa boshqasini saqlardi (O'LCHANGAN
+// kech94 `work/probe117.py`). Endi forma jami, chegirma va kelishilgan summa saqlanadigan jamidan.
+function _onlikQism(x) {
+  const s = String(x).toLowerCase();
+  const j = s.indexOf('e');
+  let a = j >= 0 ? s.slice(0, j) : s;
+  let d = j >= 0 ? parseInt(s.slice(j + 1), 10) : 0;
+  let manfiy = false;
+  if (a.charAt(0) === '-') { manfiy = true; a = a.slice(1); } else if (a.charAt(0) === '+') { a = a.slice(1); }
+  const n = a.indexOf('.');
+  if (n >= 0) { d -= a.length - n - 1; a = a.slice(0, n) + a.slice(n + 1); }
+  const m = BigInt(a || '0');
+  return { m: manfiy ? -m : m, d: d };
+}
+function _tiyinHalfUp(m, d) {
+  // m × 10^d so'm → tiyin (BigInt), yarim — noldan uzoqqa (Python ROUND_HALF_UP)
+  const k = d + 2;
+  if (k >= 0) return m * (10n ** BigInt(k));
+  const b = 10n ** BigInt(-k);
+  const manfiy = m < 0n;
+  const a = manfiy ? -m : m;
+  let q = a / b;
+  if ((a % b) * 2n >= b) q += 1n;
+  return manfiy ? -q : q;
+}
+function buyurtmaJami(miqdor, narx) {
+  const q = Number(miqdor), n = Number(narx);
+  if (!isFinite(q) || !isFinite(n)) return { narx: 0, jami: 0 };
+  const nq = _onlikQism(n);
+  const narxT = _tiyinHalfUp(nq.m, nq.d);
+  const qq = _onlikQism(q);
+  const jamiT = _tiyinHalfUp(qq.m * narxT, qq.d - 2);
+  return { narx: Number(narxT) / 100, jami: Number(jamiT) / 100 };
+}
+// ── 125-band (kech96): hisoblangan pul qiymati — 2 xona (server qoidasi), yig'indi — TIYINDA ────────────
+// `tiyinga(x)` — bitta qiymatni bazaga yoziladigandek 2 xonaga (HALF_UP, `buyurtmaJami` bilan bir qoida):
+// 750 000.375 → 750 000.38; 1 516.666… → 1 516.67. Ilgari hisoblangan standartlar (blok / MRP narxi qoplama yoki
+// koeffitsient o'zgarganda, TM formasidagi "1 dona narxi", "To'liq to'lash") butun so'mga yaxlitlanardi
+// (O'LCHANGAN kech96 `work/probe125.py`, HAQIQIY brauzer): yozilgan 1 500 000,75 → qoplama Yo'q → Bor →
+// 1 500 001; TM "1 dona narxi" 1 517 (buyurtma sahifasi AYNAN shu o'lchamda 1 516.67).
+// `pulYigindi(ro'yxat)` — 2 xonali summalar yig'indisi butun tiyinlarda (float shovqinisiz).
+function tiyinga(x) {
+  return buyurtmaJami(1, x).narx;
+}
+function pulYigindi(qiymatlar) {
+  let t = 0;
+  for (const v of qiymatlar) t += Math.round((Number(v) || 0) * 100);
+  return t / 100;
+}
 function showMsg(t, type){
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;bottom:22px;right:22px;z-index:2000;padding:12px 18px;border-radius:10px;
@@ -611,25 +666,38 @@ function apToggleTransport() {
   }
 }
 
-function apFillFullPaid() {
+// 125-band (kech96): joriy (hali savatga qo'shilmagan) qatorning jamisi — SERVER qoidasi bilan
+// (`crud._xarid_narx_jami`: narx 2 xonaga HALF_UP, jami shu narxdan; `buyurtmaJami` — o'sha qoida).
+function apJoriyJami() {
   const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
   const price = parseNum(document.getElementById('ap-price').value) || 0;
-  document.getElementById('ap-paid-now').value = Math.round(qty * price) || '';
+  return (qty > 0 && price > 0) ? buyurtmaJami(qty, price).jami : 0;
+}
+
+function apFillFullPaid() {
+  // 125-band (kech96, O'LCHANGAN `work/probe125.py` S1 / S2 — HAQIQIY brauzer): "To'liq to'lash" faqat JORIY qatorni
+  // butun so'mga yaxlitlab yozardi (`Math.round(qty × price)`): savatdagi qatorlar tushib qolardi (S2: savatda
+  // 2 × 500,50 + joriy 3 × 1 000 → to'lov 3 000, oyna "✓ To'liq to'landi" derdi, ta'minotchiga 1 001 so'm qarz
+  // QOLDI); tiyinli jami yashirin qarz qoldirardi (S1: 7 × 1 000,07 = 7 000.49 → 7 000 to'lov, xarid nasiya,
+  // 0.49 qarz "0 so'm" bo'lib ko'rinadi). Endi — savat + joriy qator, har biri server jamisi bilan (tiyingacha).
+  const grand = pulYigindi(apBasket.map(b => b.total).concat([apJoriyJami()]));
+  document.getElementById('ap-paid-now').value = grand > 0 ? String(grand) : '';
   apCalc();
 }
 
 function apCalc() {
-  const qty = parseFloat(document.getElementById('ap-qty').value) || 0;
-  const price = parseNum(document.getElementById('ap-price').value) || 0;
-  const total = qty * price;
-  document.getElementById('ap-total').textContent = 'Jami: ' + fmt(total) + " so'm";
+  const total = apJoriyJami();
+  document.getElementById('ap-total').textContent = 'Jami: ' + narxKorinishi(total) + " so'm";
 
+  // 125-band (kech96): qarz — savat + joriy qator bo'yicha (to'lov saqlashda hamma qatorga taqsimlanadi —
+  // `saveAddPurchase`), ilgari faqat joriy qator bilan solishtirilardi (S2 — "✓ To'liq to'landi", qarz 1 001).
   const paidNow = parseFloat(document.getElementById('ap-paid-now').value) || 0;
   const hint = document.getElementById('ap-debt-hint');
-  if (total > 0) {
-    const debt = Math.max(0, total - paidNow);
-    if (debt > 0.01) {
-      hint.innerHTML = `To'landi: <b style="color:#22C55E">${fmt(paidNow)}</b> · Qarz qoladi: <b style="color:#DC2626">${fmt(debt)} so'm</b>`;
+  const grand = pulYigindi(apBasket.map(b => b.total).concat([total]));
+  if (grand > 0) {
+    const debt = Math.max(0, pulYigindi([grand, -paidNow]));
+    if (debt > 0.005) {
+      hint.innerHTML = `To'landi: <b style="color:#22C55E">${narxKorinishi(paidNow)}</b> · Qarz qoladi: <b style="color:#DC2626">${narxKorinishi(debt)} so'm</b>`;
     } else {
       hint.innerHTML = `<b style="color:#22C55E">✓ To'liq to'landi — qarz yo'q</b>`;
     }
@@ -652,7 +720,8 @@ async function apAddToBasket() {
   if (!qty || !price) { showMsg('❌ Miqdor va narxni kiriting', 'error'); return; }
   if (item && item.is_penoplast) { showMsg('❌ Penoplast — savatga qo\'shib bo\'lmaydi, alohida saqlang', 'error'); return; }
 
-  apBasket.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: qty*price });
+  // 125-band (kech96): qator jamisi — server qoidasi bilan (bazaga yoziladigan AYNAN summa)
+  apBasket.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: buyurtmaJami(qty, price).jami });
 
   document.getElementById('ap-item').value = '';
   document.getElementById('ap-qty').value = '';
@@ -673,12 +742,12 @@ function renderApBasket() {
   box.style.display = 'block';
   list.innerHTML = apBasket.map((b, i) => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:#166534">
-      <span>${escapeHtml(b.itemName)} — ${b.qty} ${escapeHtml(b.unit)} × ${fmt(b.price)}</span>
-      <span style="display:flex;align-items:center;gap:6px"><b>${fmt(b.total)}</b>
+      <span>${escapeHtml(b.itemName)} — ${b.qty} ${escapeHtml(b.unit)} × ${narxKorinishi(b.price)}</span>
+      <span style="display:flex;align-items:center;gap:6px"><b>${narxKorinishi(b.total)}</b>
         <button onclick="apRemoveFromBasket(${i})" style="border:none;background:none;color:#DC2626;cursor:pointer">✕</button></span>
     </div>`).join('');
-  const grandTotal = apBasket.reduce((s,b)=>s+b.total, 0);
-  document.getElementById('ap-basket-total').textContent = fmt(grandTotal) + " so'm";
+  const grandTotal = pulYigindi(apBasket.map(b => b.total));
+  document.getElementById('ap-basket-total').textContent = narxKorinishi(grandTotal) + " so'm";
   document.getElementById('ap-save-btn').textContent = `✓ Barchasini saqlash (${apBasket.length + 1} tagacha material)`;
 }
 
@@ -698,14 +767,14 @@ async function saveAddPurchase() {
   const lines = [...apBasket];
   if (itemId && qty && price) {
     const item = invItems.find(i => i.id === itemId);
-    lines.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: qty*price });
+    lines.push({ itemId, itemName: item ? item.item_name : '?', unit: item ? item.unit : '', qty, price, total: buyurtmaJami(qty, price).jami });
   }
   if (!lines.length) { showMsg('❌ Kamida bitta material kiriting', 'error'); return; }
 
   const paidNow = parseFloat(document.getElementById('ap-paid-now').value) || 0;
   const transportPayer = document.getElementById('ap-transport-payer').value;
   const transportCost = parseNum(document.getElementById('ap-transport-cost').value) || 0;
-  const grandTotal = lines.reduce((s,l)=>s+l.total, 0);
+  const grandTotal = pulYigindi(lines.map(l => l.total));
 
   if (paidNow > grandTotal + 0.01) {
     showMsg("❌ To'langan summa jami summadan ko'p bo'lishi mumkin emas", 'error'); return;
@@ -724,8 +793,26 @@ async function saveAddPurchase() {
   let totalPaid = 0, totalDebt = 0, hadError = false;
   document.getElementById('ap-save-btn').disabled = true;
 
-  for (const line of lines) {
-    const linePaid = grandTotal > 0 ? round2(paidNow * (line.total / grandTotal)) : 0;
+  // 125-band (kech96): to'lov qatorlarga TIYINDA taqsimlanadi — ulushlar yig'indisi AYNAN to'langan summa (ilgari
+  // har ulush alohida `round2` qilinardi — yig'indi ±1 tiyin farq qilishi mumkin edi), hech bir qatorga o'z
+  // jamisidan ko'p emas (server `min(paid_now, jami)` ortiqchani jim tashlardi). Katta summalar — BigInt.
+  const grandT = Math.round(grandTotal * 100);
+  const paidT = Math.max(0, Math.min(Math.round(paidNow * 100), grandT));
+  const ulushT = lines.map(l => {
+    const t = Math.round(l.total * 100);
+    return grandT > 0 ? Math.min(t, Number((BigInt(paidT) * BigInt(t)) / BigInt(grandT))) : 0;
+  });
+  let qoldiqT = paidT - ulushT.reduce((s, x) => s + x, 0);
+  for (let i = 0; i < lines.length && qoldiqT > 0; i++) {
+    const bosh = Math.round(lines[i].total * 100) - ulushT[i];
+    const q = Math.min(qoldiqT, bosh);
+    ulushT[i] += q;
+    qoldiqT -= q;
+  }
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const linePaid = ulushT[li] / 100;
     try {
       const res = await fetch(`/api/inventory/${line.itemId}/purchase`, {
         method: 'POST',
@@ -754,8 +841,8 @@ async function saveAddPurchase() {
   if (hadError) {
     showMsg('⚠️ Ba\'zi materiallar saqlanmadi — qaytadan tekshiring', 'error');
   } else {
-    let msg = `✓ ${lines.length} ta material xaridi yozildi\n💰 To'landi: ${fmt(totalPaid)} so'm`;
-    if (totalDebt > 0.01) msg += `\n🔴 Qarz: ${fmt(totalDebt)} so'm`;
+    let msg = `✓ ${lines.length} ta material xaridi yozildi\n💰 To'landi: ${narxKorinishi(pulYigindi([totalPaid]))} so'm`;
+    if (totalDebt > 0.005) msg += `\n🔴 Qarz: ${narxKorinishi(pulYigindi([totalDebt]))} so'm`;
     showMsg(msg, 'success');
   }
 
