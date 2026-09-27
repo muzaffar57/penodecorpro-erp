@@ -273,7 +273,9 @@ const ctxC = {
   },
 };
 vm.createContext(ctxC);
-for (const nom of ['parseNum', 'pCalc'])
+// kech96 (125-band): pCalc Donalik "1 dona narxi" 2 xonaga (`tiyinga`), jami — shu narx × miqdor (`buyurtmaJami`,
+// orders.html bilan AYNAN qoida), xulosa oynasi `narxKorinishi` — ular ham finished.html dan yuklanadi.
+for (const nom of ['parseNum', 'narxMatni', 'narxKorinishi', '_onlikQism', '_tiyinHalfUp', 'buyurtmaJami', 'tiyinga', 'pCalc'])
   vm.runInContext(olib(FINISHED, nom), ctxC, { filename: `finished.html:${nom}` });
 
 function pIshlat(qiymatlar) {
@@ -344,6 +346,20 @@ for (const [h, t, chiqim, qty, c] of [[12, 8, 4, 25, false], [10, 10, 2, 7, true
         p.price, birNarx * qty);
   check(`C pCalc dona ${h}x${t}cm 1m dan ${chiqim} ta — orders.html bilan BIR XIL`,
         p.price, o.narx);
+}
+
+// C4b. kech96 (125-band): kasrli birlik narxi — TM formasi va buyurtma sahifasi AYNAN (2 xonali narx × miqdor).
+// 10 × 10 sm, 1 m dan 3 dona, 1 000 000 → 1 666.666… → 1 666.67; × 11 = 18 333.37 (xom ko'paytma 18 333.33 edi).
+for (const [h, t, chiqim, qty] of [[10, 10, 3, 11], [12, 7, 6, 13]]) {
+  const p = pIshlat({ 'p-type': 'dona', 'p-h': h, 'p-w': 0, 'p-t': t, 'p-l': 0,
+                      'p-q': qty, 'p-coated': 'false', 'p-m3': String(BAZA),
+                      'p-donayield': chiqim, 'p-up': '0' });
+  const o = ishlat({ 'i-type': 'dona', 'i-h': h, 'i-t': t, 'i-w': 0, 'i-l': 0,
+                     'i-q': qty, 'i-c': 'false', 'i-donayield': chiqim,
+                     'i-unitprice': 0 });
+  const birNarx2 = Math.round((h / 100) * (t / 100) / 2 / chiqim * BAZA * 100) / 100;
+  check(`C pCalc dona ${h}x${t}cm 1m dan ${chiqim} ta x${qty} — 1 dona narxi 2 xona`, p.perUnitPrice, birNarx2);
+  check(`C pCalc dona ${h}x${t}cm 1m dan ${chiqim} ta x${qty} — orders.html bilan BIR XIL (kasrli narx)`, p.price, o.narx);
 }
 
 // ════════════════════════════════════════════════════════════════

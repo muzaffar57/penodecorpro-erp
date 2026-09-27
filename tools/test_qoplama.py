@@ -260,16 +260,21 @@ bolim("G. Narx koeffitsiyenti — brauzer formulasi")
 # ════════════════════════════════════════════════════════════════
 # `orders.html` dagi recalcMrpPrice() bilan AYNAN bir xil qoida:
 #   yakuniy narx = asos narx x (qoplamali ? koeffitsiyent : 1)
+# 125-band (kech96): natija 2 xonaga (HALF_UP — `tiyinga`), ilgari butun so'mga yaxlitlanardi.
 
 
 def brauzer_narx(asos, qoplamali, mult):
-    return round(asos * mult) if qoplamali else round(asos)
+    from decimal import Decimal, ROUND_HALF_UP
+    x = asos * mult if qoplamali else asos
+    return float(Decimal(repr(float(x))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 check("20 000, qoplamasiz -> 20 000", brauzer_narx(20000, False, 2.5) == 20000)
 check("20 000, qoplamali x2.5 -> 50 000",
       brauzer_narx(20000, True, 2.5) == 50000)
 check("20 000, qoplamali x2 -> 40 000", brauzer_narx(20000, True, 2) == 40000)
+check("125-band: 400 000.2 x2.5 -> 1 000 000.50 (butun so'mga EMAS)",
+      brauzer_narx(400000.2, True, 2.5) == 1000000.5)
 check("jami: 100 metr x 50 000 = 5 000 000",
       brauzer_narx(20000, True, 2.5) * 100 == 5_000_000)
 # Teskari yo'l: xodim YAKUNIY narxni qo'lda yozsa, asos qayta tiklanadi

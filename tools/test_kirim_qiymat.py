@@ -452,10 +452,12 @@ r = req("post", RU, json={
     "supplier_id": S_ID, "paid_now": 900000, "transport_cost": 100})
 db.expire_all()
 _oxirgi = db.query(SupplierPayment).order_by(SupplierPayment.id.desc()).first()
-check("D7 paid_now hujjat summasidan katta → to'lov 600 ga QIRQILDI",
+# 125-band (kech96): chegara — ta'minotchi qarziga yoziladigan summa (mahsulotlar 500); transport 100 — korxona
+# xarajati (Moliyada), ta'minotchi qarziga kirmaydi. Ilgari 600 ga qirqilardi (100 yashirin ortiqcha to'lov).
+check("D7 paid_now mahsulotlar jamisidan katta → to'lov 500 ga QIRQILDI (transport qarzga kirmaydi)",
       r.status_code == 200
       and db.query(SupplierPayment).count() == _tol_oldin + 1
-      and _oxirgi is not None and yaqin(_oxirgi.amount, 600.0),
+      and _oxirgi is not None and yaqin(_oxirgi.amount, 500.0),
       f"{r.status_code} to'lov={None if not _oxirgi else float(_oxirgi.amount)}")
 
 for u in ["/", "/inventory", "/finance", "/suppliers", "/suppliers/receive",
@@ -707,8 +709,9 @@ check("G7 retsept marshrutlari xom dict oladi",
 check("G8 `_tana_400` yordamchisi bor va 4 marta ishlatiladi",
       "def _tana_400(" in MAIN and MAIN.count("_tana_400(") >= 5,
       f"soni={MAIN.count('_tana_400(')}")
-check("G9 receipt paid_now hujjat summasigacha qirqiladi",
-      "_paid_now = min(float(data.paid_now), round(_jami))" in MAIN)
+check("G9 receipt paid_now ta'minotchi qarziga yoziladigan summagacha qirqiladi (125-band)",
+      "_paid_now = min(float(data.paid_now), float(_jami))" in MAIN
+      and "crud._xarid_narx_jami(it.quantity, it.price_per_unit)[1] for it in data.items" in MAIN)
 check("G10 `_TRANSPORT_TOLOVCHI` va `_ISHLAB_CHIQARISH_TURI` mavjud",
       "_TRANSPORT_TOLOVCHI = {" in CRUD and "_ISHLAB_CHIQARISH_TURI = {" in CRUD)
 _TP = set(getattr(crud, "_TRANSPORT_TOLOVCHI", {}) or {})

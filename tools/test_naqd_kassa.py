@@ -144,7 +144,10 @@ def ayir(a, b):
         return None
 
 
-NOW = datetime.now()
+# 123-band (kech96, O'LCHANGAN — butun to'plam soat siljitilib: `run/h96tz.sh`, `run/h96vaqt.sh`): server yozuvlarni
+# UTC da (`utcnow`) saqlaydi va hisobotni shu bilan oladi — test ham UTC dan oladi. Ilgari `datetime.now()` (lokal,
+# konteyner +05) edi: 19:00–24:00 UTC da kun, oy oxirida oy boshqa bo'lib, test SOXTA yiqilardi (K92-1).
+NOW = datetime.utcnow()
 Y, M = NOW.year, NOW.month
 
 
