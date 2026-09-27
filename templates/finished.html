@@ -2163,17 +2163,28 @@ async function openProfitModal(id) {
   const dims = (i.width && i.thickness)
     ? (w2 ? `${i.width}×${w2}×${i.thickness} sm` : `${i.width}×${i.thickness} sm`) : '—';
 
+  // kech103 (66-band): MRP (retsept bo'yicha ishlab chiqarilgan) mahsulotda hajm / penoplast / loy maydonlari yo'q —
+  // "Hajm 0.0000 m³" va "Penoplast 0 so'm" ma'nosiz edi; tannarx — ishlab chiqarish suratidagi xomashyo.
+  const mrp66 = (i.category === 'dynamic_bom' || !!i.product_type_id);
+  // kech103 (62-band): qatorlar xomashyoning JORIY narxida, "Tan narxi" esa ishlab chiqarilgan paytdagi narxda muzlagan
+  // (47-band) — narx o'zgarsa yig'indi tan narxiga teng emasdi; farq alohida qatorda ko'rsatiladi.
+  const narxFarqi62 = totalCost - penoCost - loyCost;
+  const xarajatQatorlari = mrp66
+    ? row('🏭 Xomashyo (retsept bo\'yicha, ishlab chiqarilgan paytda)', fmt(totalCost) + " so'm")
+    : `${row('📦 Penoplast', fmt(penoCost) + " so'm")}
+    ${loyCost > 0 ? row(`🧱 Loy (${qLoyTxt} kg × ${fmt(loyPerKg)})`, fmt(loyCost) + " so'm") : ''}
+    ${Math.abs(narxFarqi62) >= 1 ? row('↕ Narx farqi (qatorlar joriy narxda, tan narxi ishlab chiqarilgan paytda)', fmt(narxFarqi62) + " so'm", '#777') : ''}`;
+
   document.getElementById('pm-body').innerHTML = `
     <div style="background:#FAFAF8;border-radius:9px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#666;line-height:1.8">
-      📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}<br>
-      📦 Hajm (qoldiq): <b>${qVol.toFixed(4)} m³</b>
+      📐 ${dims} · ${i.is_coated ? 'qoplamali' : 'qoplamasiz'}
+      ${mrp66 ? '' : `<br>📦 Hajm (qoldiq): <b>${qVol.toFixed(4)} m³</b>`}
       ${qLoy > 0 ? `· 🧱 Loy: <b>${qLoyTxt} kg</b>${recipeName ? ` (${escapeHtml(recipeName)})` : ''}` : ''}
       ${i.created_by ? `<br>👤 ${escapeHtml(i.created_by)}` : ''}
     </div>
 
     <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:4px">XARAJATLAR</div>
-    ${row('📦 Penoplast', fmt(penoCost) + " so'm")}
-    ${loyCost > 0 ? row(`🧱 Loy (${qLoyTxt} kg × ${fmt(loyPerKg)})`, fmt(loyCost) + " so'm") : ''}
+    ${xarajatQatorlari}
     <div style="border-top:1px solid #eee;margin:4px 0"></div>
     ${row('Tan narxi', fmt(totalCost) + " so'm", '#DC2626', true)}
 
@@ -2194,74 +2205,8 @@ async function openProfitModal(id) {
     </div>` : ''}`;
 }
 
-async function showProfit(id) {
-  const item = fpItems.find(i => i.id === id);
-  if (!item) return;
-
-  document.getElementById('pm-sub').textContent = `${item.name} · ${item.quantity} ${item.unit}`;
-  document.getElementById('pm-body').innerHTML = '<div style="text-align:center;padding:20px;color:#bbb">Yuklanmoqda...</div>';
-  document.getElementById('profitModal').style.display = 'flex';
-
-  try {
-    const res = await fetch(`/api/finished/${id}/profit`);
-    if (!res.ok) {
-      document.getElementById('pm-body').innerHTML =
-        '<div style="text-align:center;padding:20px;color:#DC2626">Ruxsat yo\'q yoki xato</div>';
-      return;
-    }
-    const d = await res.json();
-
-    const rows = (d.breakdown || []).map(b => `
-      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:12.5px">
-        <span style="color:#666;flex:1;min-width:0;padding-right:10px">${escapeHtml(b.name)}</span>
-        <span style="font-weight:600;color:var(--text);white-space:nowrap">${fmt(b.cost)} so'm</span>
-      </div>`).join('');
-
-    document.getElementById('pm-body').innerHTML = `
-      <div style="font-size:12px;font-weight:600;color:#777;margin-bottom:8px">Xarajat tarkibi</div>
-      ${rows || '<div style="color:#bbb;font-size:12px;padding:8px 0">Xarajat ma\'lumoti yo\'q</div>'}
-
-      <div style="display:flex;justify-content:space-between;padding:10px 0 8px;border-top:2px solid var(--text);margin-top:6px">
-        <span style="font-size:13px;font-weight:700">Jami tan narxi</span>
-        <span style="font-size:14px;font-weight:700;color:#DC2626">${fmt(d.total_cost)} so'm</span>
-      </div>
-
-      <div style="background:#FAFAF8;border-radius:9px;padding:12px 14px;margin-top:10px">
-        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px">
-          <span style="color:#777">Sotuv narxi (1 ${escapeHtml(d.unit)})</span>
-          <span style="font-weight:600">${fmt(d.unit_price)} so'm</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px">
-          <span style="color:#777">Tan narxi (1 ${escapeHtml(d.unit)})</span>
-          <span style="font-weight:600;color:#DC2626">${fmt(d.cost_per_unit)} so'm</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:6px 0 4px;font-size:12.5px;border-top:1px solid #eee;margin-top:3px">
-          <span style="color:#555;font-weight:600">Foyda (1 ${escapeHtml(d.unit)})</span>
-          <span style="font-weight:700;color:${d.profit_per_unit>0?'#22C55E':'#DC2626'}">${fmt(d.profit_per_unit)} so'm</span>
-        </div>
-      </div>
-
-      <div style="display:flex;justify-content:space-between;padding:12px 0 4px;margin-top:10px;border-top:1px dashed #ddd">
-        <span style="font-size:13px;color:#777">Jami sotuv (${d.quantity} ${escapeHtml(d.unit)})</span>
-        <span style="font-size:14px;font-weight:700;color:#22C55E">${fmt(d.revenue)} so'm</span>
-      </div>
-
-      <div style="background:${d.profit>0?'#DCFCE7':'#FEE2E2'};border-radius:10px;padding:14px;margin-top:10px;text-align:center">
-        <div style="font-size:12px;color:#777;margin-bottom:3px">📈 UMUMIY FOYDA</div>
-        <div style="font-size:22px;font-weight:800;color:${d.profit>0?'#1e7e34':'#DC2626'}">
-          ${fmt(d.profit)} so'm
-        </div>
-        <div style="font-size:12px;color:#888;margin-top:2px">Rentabellik: ${d.margin}%</div>
-      </div>
-
-      <div style="font-size:10.5px;color:#bbb;margin-top:10px;text-align:center">
-        Hajm: ${d.volume_m3.toFixed(4)} m³${d.loy_kg > 0 ? ` · Loy: ${d.loy_kg} kg` : ''}
-      </div>`;
-  } catch(e) {
-    document.getElementById('pm-body').innerHTML =
-      '<div style="text-align:center;padding:20px;color:#DC2626">Server xatosi</div>';
-  }
-}
+// kech103 (5-bo'lim 64-band): o'lik `showProfit` (chaqiruvchisi yo'q, backend `breakdown` bermaydi) olib tashlandi —
+// foyda oynasi `openProfitModal`.
 
 loadFp();
 
