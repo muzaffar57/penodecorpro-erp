@@ -3990,6 +3990,10 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
         "category": s.category, "width": s.width, "thickness": s.thickness,
         "length": s.length, "quantity": s.quantity,
     } for s in (db_item.sub_details or [])]
+    # 126-band (kech96, O'LCHANGAN `work/probe126.py` D1–D3): snapshotda qulflangan narx, detalning o'z
+    # "1 m³ narxi" va buyurtma asosiy narxi YO'Q edi — Donalik (eski usul) hajmi penoplast tannarxidan
+    # hisoblanib, 34 → 40 da 0.12 yechilardi (kerak 0.06). To'liq tahrir / yaratish bilan bir qoida.
+    _bp126 = float(order.base_price) if order is not None and order.base_price is not None else None
     old_snap = [{
         "category": db_item.category,
         "width": db_item.width,
@@ -3997,7 +4001,10 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
         "length": db_item.length,
         "quantity": float(db_item.quantity or 1),
         "unit_price": float(db_item.unit_price or 0),
+        "unit_price_for_volume": float(db_item.unit_price_for_volume) if db_item.unit_price_for_volume is not None else None,
         "penoplast_id": db_item.penoplast_id,
+        "price_per_m3": float(db_item.price_per_m3) if db_item.price_per_m3 else None,
+        "order_base_price": _bp126,
         "finished_product_id": db_item.finished_product_id,
         "sub_details": old_sub_details,
     }]
@@ -4008,6 +4015,12 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
 
     # 117-band (kech95): narx 2 xonaga (HALF_UP), jami SHU narxdan (`_buyurtma_narx_jami`).
     db_item.unit_price, db_item.total_price = _buyurtma_narx_jami(db_item.quantity or 1, db_item.unit_price or 0)
+    # 126-band (kech96, O'LCHANGAN — yakuniy etalon `test_buyurtma_narx_jami` H, SQLite = PG): qulflangan narx va "1 m³ narxi"
+    # ham bazaga yoziladigan qiymatga (2 xona, HALF_UP) — yaratish / to'liq tahrir bilan bir qoida (`_pul2_bosh`). Aks holda
+    # yangi snapshot (endi bu kalitlarni o'qiydi) API dan kelgan 3 xonali qiymatni (3 997.125) ko'rardi, eski holat esa
+    # bazadagi 3 997.13 ni — "1 m³ narxi" 10 da o'zgarishsiz tahrir 0.017 m³ qaytarardi; SQLite esa xom qiymatni saqlardi.
+    db_item.unit_price_for_volume = _pul2_bosh(db_item.unit_price_for_volume)
+    db_item.price_per_m3 = _pul2_bosh(db_item.price_per_m3)
     db.flush()
 
     # Yangi holat snapshot — "sub_details" bu funksiya orqali o'zgartirilmaydi
@@ -4021,7 +4034,10 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
         "length": db_item.length,
         "quantity": float(db_item.quantity or 1),
         "unit_price": float(db_item.unit_price or 0),
+        "unit_price_for_volume": float(db_item.unit_price_for_volume) if db_item.unit_price_for_volume is not None else None,
         "penoplast_id": db_item.penoplast_id,
+        "price_per_m3": float(db_item.price_per_m3) if db_item.price_per_m3 else None,
+        "order_base_price": _bp126,
         "finished_product_id": db_item.finished_product_id,
         "sub_details": old_sub_details,
     }]
@@ -4879,6 +4895,11 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
             "length": db_item.length,
             "quantity": float(db_item.quantity or 1),
             "unit_price": float(db_item.unit_price or 0),
+            # 126-band (kech96, O'LCHANGAN `work/probe126.py` D1–D3): qulflangan narx, o'z "1 m³ narxi" va buyurtma
+            # asosiy narxi — Donalik (eski usul) yechilgan hajm AYNAN qaytsin (ilgari 0.40 o'rniga 0.80 qaytardi).
+            "unit_price_for_volume": float(db_item.unit_price_for_volume) if db_item.unit_price_for_volume is not None else None,
+            "price_per_m3": float(db_item.price_per_m3) if db_item.price_per_m3 else None,
+            "order_base_price": (float(order.base_price) if order is not None and order.base_price is not None else None),
             "penoplast_id": db_item.penoplast_id,
             # MUHIM (2026-09 audit): "Tayyor mahsulotdan" tanlangan detal
             # bo'lsa — bu maydon bo'lmasa, _item_volume_m3() buni oddiy
@@ -7056,6 +7077,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "unit_price_for_volume": float(i.unit_price_for_volume) if i.unit_price_for_volume is not None else None,
         "penoplast_id": i.penoplast_id,
         "price_per_m3": float(i.price_per_m3) if i.price_per_m3 else None,
+        # 126-band (kech96, O'LCHANGAN `work/probe126.py` T2): tahrirdan OLDINGI asosiy narx — Donalik (eski usul)
+        # hajmi yaratishdagi qoida bilan (ilgari dict snapshot penoplast tannarxiga tushardi: 34 → 40 da 0.12, kerak 0.06).
+        "order_base_price": float(order.base_price) if order.base_price is not None else None,
         "finished_product_id": i.finished_product_id,
         # Ichki qo'shimcha detallar — omborni FARQ bo'yicha to'g'ri
         # hisoblash uchun (bo'lmasa, tahrirlashda ularning hajmi "yo'q
@@ -7085,6 +7109,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
         "unit_price_for_volume": _pul2_bosh(getattr(it, 'unit_price_for_volume', None)),
         "penoplast_id": getattr(it, 'penoplast_id', None),
         "price_per_m3": _pul2_bosh(getattr(it, 'price_per_m3', None)),
+        # 126-band (kech96): tahrirdan KEYINGI asosiy narx (`order.base_price` pastda shu qiymatga o'rnatiladi)
+        "order_base_price": (float(getattr(order_data, 'base_price', None))
+                             if getattr(order_data, 'base_price', None) is not None else None),
         "finished_product_id": getattr(it, 'finished_product_id', None),
         "sub_details": [{
             "category": sd.category, "width": sd.width, "thickness": sd.thickness,

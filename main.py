@@ -3374,10 +3374,17 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
     # shuni ko'rsatadi (`Math.min(paidNowTotal, grandTotal)`), lekin bu
     # yerda cheklov YO'Q edi: `paid_now: 1e20` ta'minotchiga 1e20 lik
     # to'lov yozib, qarz hisobini butunlay buzardi (o'lchandi).
-    _jami = sum(float(it.quantity) * float(it.price_per_unit) for it in data.items)
-    _jami += (float(data.transport_cost) + float(data.tushirish_cost)
-              + float(data.yuklash_cost) + float(data.boshqa_cost))
-    _paid_now = min(float(data.paid_now), round(_jami))
+    # 125-band (kech96, O'LCHANGAN `work/probe125.py` R1 / R2 — HAQIQIY brauzer, SQLite = PG): chegara qo'shimcha
+    # xarajatlarni ham qo'shib, xom ko'paytmadan BUTUN so'mga yaxlitlanardi (`round(_jami)`). Qo'shimcha xarajatlar
+    # ta'minotchi qarziga KIRMAYDI (korxona xarajati — `create_inventory_receipt` ularni Moliyaga yozadi, kassadan
+    # chiqadi), shuning uchun ortiqchasi yashirin avansga aylanardi: 100 000 + transport 20 000 → to'lov 120 000,
+    # qarz 0 ko'rinadi, keyingi 50 000 nasiya → 30 000; kassa −140 000 (transport ikki marta). Tiyinli jami esa
+    # yashirin qarz qoldirardi (7 × 1 000.07 = 7 000.49 → chegara 7 000). Endi chegara — ta'minotchi qarziga
+    # yoziladigan AYNAN summa: nasiya bo'ladigan qatorlar (ta'minotchi bor, boshlang'ich ombor emas) jamisi, har biri
+    # `crud._xarid_narx_jami` bilan (bazadagi `InventoryPurchase.total_amount`).
+    _jami = crud._pul_yigindi(crud._xarid_narx_jami(it.quantity, it.price_per_unit)[1] for it in data.items
+                             if data.supplier_id and not it.is_opening_stock)
+    _paid_now = min(float(data.paid_now), float(_jami))
     # kech84 (103-band): kirim hujjati butun endpoint bo'yicha BITTA tranzaksiyada (ichki saqlashlar ham shu
     # tranzaksiyaga tushadi) — ish tugashidan oldingi har qanday xato hech narsa qoldirmaydi.
     try:
@@ -3979,7 +3986,7 @@ def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_
 @app.get("/api/masters/kpi-report")
 def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
                             db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    y = year or datetime.now().year
+    y = year or datetime.utcnow().year     # 123-band (kech96): joriy yil — UTC (yozuvlar bilan bir soat)
     return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive,
                                       company_id=auth.company_id_of(current_user))
 
@@ -3988,7 +3995,7 @@ def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = 
 def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
     from datetime import datetime
-    y = year or datetime.now().year
+    y = year or datetime.utcnow().year     # 123-band (kech96): joriy yil — UTC
     return crud.get_master_kpi_detail(db, master_id, y,
                                      company_id=auth.company_id_of(current_user))
 
@@ -5806,7 +5813,9 @@ def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(g
     if target_date:
         d = date_cls.fromisoformat(target_date)
     else:
-        d = date_cls.today()
+        # 123-band (kech96): "bugun" — UTC (yozuvlar `utcnow` bilan saqlanadi). `date.today()` jarayon mintaqasiga
+        # bog'liq edi — TZ o'rnatilgan muhitda 19:00–24:00 UTC oralig'idagi yozuvlar "bugun" dan tushib qolardi.
+        d = datetime.utcnow().date()
     return services.get_daily_finance_summary(db, d, company_id=auth.company_id_of(current_user))
 
 
@@ -7956,7 +7965,7 @@ async def telegram_webhook(request: Request):
                 # KPI" bilan bir xil formula). Faol/o'tgan sovg'a
                 # davrlaridagi buyurtmalar bu yerdan chiqarib tashlanadi —
                 # crud.get_master_yearly_cashback() ichida hisobga olinadi.
-                current_year = datetime.now().year
+                current_year = datetime.utcnow().year     # 123-band (kech96): UTC (yozuvlar bilan bir soat)
                 info = crud.get_master_yearly_cashback(
                     db, master.id, current_year,
                     company_id=getattr(master, "company_id", None))

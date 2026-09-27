@@ -4202,6 +4202,20 @@ def _group_volumes_by_penoplast(db, items, company_id=None) -> dict:
     return volumes
 
 
+def _sxema_detal_dict(it, base_price) -> dict:
+    """126-band (kech96): sxema (pydantic) detalidan ombor hisobi uchun dict (`_FakeItem`) — asosiy narx bilan."""
+    if isinstance(it, dict):
+        d = dict(it)
+    elif hasattr(it, 'model_dump'):
+        d = it.model_dump()
+    else:
+        d = {k: getattr(it, k, None) for k in ('category', 'width', 'thickness', 'length', 'quantity', 'unit_price',
+                                             'unit_price_for_volume', 'penoplast_id', 'price_per_m3',
+                                             'finished_product_id', 'sub_details')}
+    d['order_base_price'] = float(base_price) if base_price is not None else None
+    return d
+
+
 def check_inventory_for_order(db: Session, order_data, company_id: int = None) -> dict:
     """
     Buyurtma uchun xomashyo yetishini tekshiradi.
@@ -4211,7 +4225,16 @@ def check_inventory_for_order(db: Session, order_data, company_id: int = None) -
     """
     cid = company_id if company_id is not None else getattr(order_data, 'company_id', None)
     shortages = []
-    volumes = _group_volumes_by_penoplast(db, order_data.items, company_id=cid)
+    # 126-band (kech96, O'LCHANGAN `work/probe126.py` D5): sxema detallarida (`OrderCreate`) `order` yo'q —
+    # Donalik (eski usul) hajmi asosiy narx o'rniga penoplast tannarxidan hisoblanib, yetarli qoldiqda ham
+    # "yetishmaydi" (409) ogohlantirishi chiqardi (qoldiq 0.5, kerak 0.34 → "kerak 0.7 blok"). Yechish
+    # (`deduct_inventory_for_order` — OrderItem obyekti) bilan BIR qoida: asosiy narx snapshotga beriladi.
+    _tek_items = order_data.items
+    _tek_bp = getattr(order_data, 'base_price', None)
+    if _tek_bp:
+        _tek_items = [it if hasattr(it, 'order') else _FakeItem(_sxema_detal_dict(it, _tek_bp))
+                      for it in (order_data.items or [])]
+    volumes = _group_volumes_by_penoplast(db, _tek_items, company_id=cid)
     total_volume_m3 = sum(volumes.values())
 
     if not volumes:
@@ -5503,6 +5526,19 @@ class _FakeItem:
         # Ichki qo'shimcha detallar — dict shaklida keladi (bevosita
         # _item_volume_m3/_sub_details_volume_m3 buni o'qiy oladi)
         self.sub_details = d.get('sub_details') or []
+        # 126-band (kech96, O'LCHANGAN `work/probe126.py`): Donalik (eski usul — hajm narxdan) hajmi uchun
+        # buyurtmaning "Asosiy narx"i. `_item_volume_m3` uni `item.order.base_price` dan o'qiydi — OrderItem
+        # obyektida bor (yaratishda yechish, buyurtmani o'chirish), dict snapshotda YO'Q edi: to'liq / detal
+        # tahriri, detalni o'chirish va yaratishdagi yetishlik tekshiruvi penoplast tannarxi zaxirasiga tushib,
+        # hajmni boshqa qoida bilan hisoblardi (asosiy narx 1 000 000, tannarx 500 000 → farq IKKI baravar).
+        _bp = d.get('order_base_price')
+        self.order = _SnapshotBuyurtma(_bp) if _bp is not None else None
+
+
+class _SnapshotBuyurtma:
+    """126-band (kech96): `_FakeItem.order` — faqat `base_price` (hajm hisobi shuni o'qiydi)."""
+    def __init__(self, base_price):
+        self.base_price = base_price
 
 
 def adjust_inventory_diff(db: Session, old_items, new_items, order_id: int = None,
