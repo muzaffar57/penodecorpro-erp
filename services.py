@@ -505,8 +505,10 @@ def get_business_alerts(db: Session, company_id: int = None) -> list:
 
     # 2) Muddati o'tgan qarzdorlar (30+ kun oldin yaratilgan, hali qarzi bor)
     from sqlalchemy.orm import selectinload as _sil_ba
+    # kech100 (134-band, QAROR "A"): o'chirilgan, lekin hisobotda qolgan qarzdor HAM (Qarzdorlar bilan bir shart)
+    import crud as _crud_qz134
     _odq = db.query(Order).filter(
-        Order.is_deleted.isnot(True),
+        _crud_qz134.qarz_hisobidagi_buyurtma_sharti(),
         Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED, OrderStatus.IN_PROGRESS])
     )
     if company_id is not None:      # M6
@@ -543,7 +545,9 @@ def get_business_health(db: Session, company_id: int = None) -> dict:
     rentabellik_status = "green" if foyda_foiz >= 15 else ("orange" if foyda_foiz >= 5 else "red")
 
     from sqlalchemy.orm import selectinload as _sil_bh
-    _bhq = db.query(Order).filter(Order.is_deleted.isnot(True))
+    # kech100 (134-band, QAROR "A"): qarz ulushi — Qarzdorlar bilan bir shart (o'chirilgan READY / DELIVERED HAM)
+    import crud as _crud_qz134
+    _bhq = db.query(Order).filter(_crud_qz134.qarz_hisobidagi_buyurtma_sharti())
     if company_id is not None:      # M6
         _bhq = _bhq.filter(Order.company_id == company_id)
     orders = _bhq.options(_sil_bh(Order.payments)).all()     # kech97 (116-band): to'lovlar bitta IN so'rovi
@@ -780,8 +784,10 @@ def get_full_debt_summary(db: Session, year: int, month: int,
 
     # M6 (2026-09-18) — TENANT: mijoz qarzi, ta'minotchi qarzi va
     # kompaniyaning o'z majburiyatlari — hammasi joriy korxona bo'yicha.
+    # kech100 (134-band, QAROR "A"): Qarzdorlar sahifasi bilan AYNAN bir shart (o'chirilgan READY / DELIVERED qarzi HAM)
+    import crud as _crud_qz134
     _oq = db.query(Order).filter(
-        Order.is_deleted.isnot(True),
+        _crud_qz134.qarz_hisobidagi_buyurtma_sharti(),
         Order.status != OrderStatus.DRAFT
     )
     if company_id is not None:
@@ -1453,6 +1459,24 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
     # (Hali hech narsa topshirilmagan — oddiy holat — bunga tegilmaydi.)
     if is_partial_completion:
         partial_log = return_inventory_for_order_partial(db, order)
+        # kech100 (K100-1 / K100-2 / K100-3a — O'LCHANGAN `work/probe_k100_mrp.py`, asl SQLite = PG; 93-band oracle
+        # testi `tools/test_ochirish_yopish.py` topdi): qolgan (topshirilmagan) qismning TAYYOR MAHSULOTI, "Loy sotish"
+        # XOMASHYOSI va MRP BANDI qaytmasdi — "Loy sotish" 20 kg dan 4 kg topshirilib «Tayyor»: 16 kg qum na omborda,
+        # na tannarxda; tayyor mahsulotdan 10 m dan 4 m: 6 m tayyor mahsulot yo'qoldi; MRP 10 dan 4: 6 tasi READY
+        # buyurtmaga abadiy BAND. Endi o'chirishdagi (`main.api_delete_order`) bilan AYNAN: tayyor mahsulot
+        # (`_return_finished_for_order` — `remaining_qty`), "Loy sotish" retsepti bo'yicha qolgan kg (buyurtma loyi
+        # manbasi — "ushla", yuqoridagi ortgan loy kabi), MRP bandi ozod (`_auto_release_mrp_reservations`). Buyurtma
+        # miqdori pastda topshirilganga tushiriladi — qaytgan qism tannarxga kirmaydi (ikki marta hisob yo'q).
+        partial_log.extend(_crud._return_finished_for_order(db, order))
+        with loy_manba_rejimi(db, "ushla"):
+            for _it100 in order.items:
+                if (_it100.category or '').lower() == 'loy_sotish' and _it100.recipe_id:
+                    _qolgan100 = _it100.remaining_qty
+                    if _qolgan100 > 0.001:
+                        partial_log.extend(return_loy_ingredients(db, order, float(_qolgan100),
+                                                                  recipe_id=_it100.recipe_id))
+        _crud._auto_release_mrp_reservations(db, [_it100.id for _it100 in order.items],
+                                             "«Tayyor» (qisman yakunlash)")
         if partial_log:
             result["inventory_changes"].extend(partial_log)
             result["partial_return"] = {
@@ -1785,7 +1809,18 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         _tpq = _tpq.join(_Ord_ch, _Ord_ch.id == Payment.order_id).filter(
             _Ord_ch.company_id == company_id)
     total_paid = _tpq.scalar() or 0
-    total_debt = float(total_budget) - float(total_paid)
+    # kech100 (134-band / K100-4, O'LCHANGAN `work/probe134.py`): "Jami qarz" = byudjet − HAMMA to'lovlar edi — hisobga
+    # kirmagan buyurtmalar (eski o'chirilgan IN_PROGRESS, qoralama zaklati) to'lovlari va ORTIQCHA to'lovlar boshqa
+    # mijozlar qarzini "yopardi" (asl: 900 000, haqiqiy qarzlar yig'indisi 1 000 000). Endi — Qarzdorlar sahifasi bilan
+    # AYNAN: shu buyurtmalar (`crud.qarz_hisobidagi_buyurtma_sharti`, qoralamasiz) qarzlari yig'indisi (tiyin, 0.5 bardosh).
+    import crud as _crud_qz134
+    from sqlalchemy.orm import selectinload as _sil_qz134
+    from models import pul_tiyin_yigindi as _pty134
+    _qz_buyurtmalar = _oc(db.query(Order).filter(
+        _crud_qz134.qarz_hisobidagi_buyurtma_sharti(),
+        Order.status != OrderStatus.DRAFT
+    )).options(_sil_qz134(Order.payments)).all()
+    total_debt = _pty134(o.debt_amount for o in _qz_buyurtmalar if float(o.debt_amount or 0) > 0.5)
 
     # --- 5. Omborxona holati (top yetishmayotganlar) ---
     low_stock = check_low_stock(db, company_id)
@@ -1798,7 +1833,7 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
             "total_revenue": float(total_revenue),
             "total_paid": float(total_paid),
             "total_budget": float(total_budget),
-            "total_debt": max(0, total_debt)
+            "total_debt": total_debt
         },
         "low_stock": low_stock[:5]
     }

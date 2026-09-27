@@ -4783,6 +4783,10 @@ def restore_order(db: Session, order_id: int, performed_by: str = None) -> bool:
     # qadam yiqilsa xomashyo yechilgan, buyurtma esa o'chirilgan (`stock_returned` True) qolar, qayta tiklash
     # IKKINCHI marta yechardi (yuksiz READY: penoplast −0.2 / kley −20 o'rniga −0.1 / −10).
     with bitta_tranzaksiya(db):
+        # kech100 (93-band): o'chirishda topshirilgan qismi bilan YAKUNLANGAN buyurtma — AVVAL yakunlash bekor qilinadi
+        # (detallar / summalar / holat / loy o'chirishdan OLDINGI holatga), so'ng odatdagi tiklash: qolgan qism
+        # xomashyosi qayta yechiladi — natija kech100 dan oldingi tiklash bilan AYNAN (`tools/test_ochirish_yopish.py`).
+        ochirish_yopishini_bekor_qil(db, db_order)
         if db_order.stock_returned:
             # kech60 (57-band): "qisman chiqqan" sharti — `services.buyurtmadan_qisman_chiqqan` (pastda)
             is_fully_delivered = db_order.status == OrderStatus.DELIVERED or db_order.is_fully_delivered
@@ -6112,6 +6116,16 @@ def create_payment(db: Session, payment_data: PaymentCreate,
     # bu yerga yetib kelsa foydalanuvchiga "ortiqcha to'lov" degan
     # chalg'ituvchi oyna chiqib qolardi.
     _pul_qulfi(db, 101, payment_data.order_id)
+    # kech100 (93-band, O'LCHANGAN `work/probe93b.py` — HAQIQIY PostgreSQL, parallel 2 oqim): buyurtma QULFDAN OLDIN
+    # o'qilgan edi — qulfni kutish paytida boshqa amal (o'chirishdagi yakunlash, qisman «Tayyor», kelishilgan summa
+    # tahriri) kelishilgan summani kamaytirsa, "qarzdan ko'p" tekshiruvi ESKI summa bilan o'tardi: kelishilgan 500 000
+    # o'chirish yakunlashida 200 000 ga tushgach 500 000 to'lov TASDIQSIZ yozildi (3 / 3; kutishsiz holatda — 409).
+    # Endi qulf ostida bazadan QAYTA o'qiladi (`create_delivery` naqshi); parallel butunlay o'chirilgan bo'lsa —
+    # "Buyurtma topilmadi" (ilgari PG da FK xatosi — 500).
+    db.expire_all()
+    order = _oq.first()
+    if not order:
+        raise ValueError("Buyurtma topilmadi")
 
     # TENANT: bu so'rovda company_id filtri ATAYLAB yo'q. Payment'da
     # bunday ustun umuman yo'q, filtrlash OTA orqali bo'ladi — va ota
@@ -6181,6 +6195,111 @@ def create_payment(db: Session, payment_data: PaymentCreate,
     db.commit()
     db.refresh(db_payment)
     return db_payment
+
+
+# ============================================================
+# kech100 (131-band, FOYDALANUVCHI QARORI "B"): "MIJOZGA QAYTARISH KERAK" — ortiqcha to'lov ro'yxati va qaytarish
+# ============================================================
+# O'LCHANGAN (`work/probe131.py`, asl kod): to'langan > kelishilgan (tasdiqlangan ortiqcha to'lov, oldindan to'langan
+# qisman «Tayyor», kelishilgan summa kamaytirilgan) buyurtma hech qayerda ko'rinmasdi va uni yopish yo'li yo'q edi.
+# Ko'rsatkich — `Order.ortiqcha_tolov` (to'lovlar va kelishilgan summadan HAR SAFAR hisoblanadi — DOIMIY belgi;
+# `debt_amount` bilan bir bardosh). Yopish — MANFIY to'lov (mijozga pul qaytarildi): 24-band "Pul qaytdi" qoidasi
+# bilan bir xil yozuv (kassa kirimini kamaytiradi, to'langan summa kelishilganga tushadi). Qaytarish to'lovini o'chirish
+# (odatdagi to'lov o'chirish) ortiqchani qayta ochadi. O'chirilgan (yumshoq) buyurtma ham ro'yxatda — pul baribir
+# mijozniki (93-band yakunlashi ham ortiqcha to'lov qoldirishi mumkin).
+ORTIQCHA_QAYTARISH_BELGI = "↩ Ortiqcha to'lov mijozga qaytarildi"
+
+
+class OrtiqchaTolovYoq(ValueError):
+    """kech100 (131-band): buyurtmada mijozga qaytariladigan ortiqcha to'lov yo'q (marshrut → 409)."""
+
+
+def get_ortiqcha_tolovlar(db: Session, company_id: int = None) -> list:
+    """kech100 (131-band): mijozga QAYTARILISHI kerak bo'lgan (to'langan > kelishilgan) buyurtmalar — o'chirilgan
+    (yumshoq) buyurtmalar HAM. Tartib: ortiqcha summa kamayishi bo'yicha, teng bo'lsa id. So'rovlar soni buyurtmalar
+    soniga bog'liq EMAS: to'lovlar yig'indisi bitta GROUP BY (korxona — ota, buyurtma orqali) bilan saralanadi,
+    to'lovlar va loyiha bitta IN bilan yuklanadi; yakuniy shart — `Order.ortiqcha_tolov` (tiyin aniqligida)."""
+    from sqlalchemy import func as _f131
+    from sqlalchemy.orm import selectinload as _sil131
+    _sq = db.query(Payment.order_id.label("oid"), _f131.sum(Payment.amount).label("tol")) \
+        .join(Order, Order.id == Payment.order_id)
+    if company_id is not None:
+        _sq = _sq.filter(Order.company_id == company_id)
+    _sq = _sq.group_by(Payment.order_id).subquery()
+    _q = db.query(Order).join(_sq, _sq.c.oid == Order.id).filter(
+        _sq.c.tol > _f131.coalesce(Order.agreed_amount, Order.total_amount, 0) + 0.4)
+    if company_id is not None:
+        _q = _q.filter(Order.company_id == company_id)
+    royxat = [o for o in _q.options(_sil131(Order.payments), _sil131(Order.project)).all() if o.ortiqcha_tolov > 0]
+    royxat.sort(key=lambda o: (-o.ortiqcha_tolov, o.id))
+    return royxat
+
+
+def ortiqcha_tolovni_qaytar(db: Session, order_id: int, summa: float = None, usul: str = None, izoh: str = None,
+                            kim: str = None, company_id: int = None):
+    """kech100 (131-band): mijozga ortiqcha to'lovni QAYTARISH — manfiy to'lov yoziladi. `summa` berilmasa — butun
+    ortiqcha; qisman qaytarish mumkin (qolgani ro'yxatda qoladi). QULF (101, buyurtma) — to'lov / yuk / «Tayyor» /
+    o'chirish bilan bir fazo; ortiqcha qulf ostida bazadan QAYTA o'qilgan buyurtmadan hisoblanadi (ikki parallel
+    "Qaytarildi" pulni ikki marta chiqarmaydi). Takror yuborish (bir xil summa, `PUL_TAKROR_SONIYA` ichida) — yangi
+    yozuv YO'Q, mavjudi qaytadi (`_is_duplicate_submit`). Xatolar: `LookupError` (topilmadi), `OrtiqchaTolovYoq`
+    (ortiqcha yo'q), `ValueError` (summa noto'g'ri). `commit` — chaqiruvchining `bitta_tranzaksiya` si oxirida.
+    Qaytaradi: (to'lov, buyurtma)."""
+    import math as _m131
+    from datetime import timedelta as _td131
+    _oq = db.query(Order).filter(Order.id == order_id)
+    if company_id is not None:
+        _oq = _oq.filter(Order.company_id == company_id)
+    if not _oq.first():
+        raise LookupError("Buyurtma topilmadi")
+    db.flush()
+    _pul_qulfi(db, 101, order_id)
+    db.expire_all()
+    order = _oq.first()
+    if not order:
+        raise LookupError("Buyurtma topilmadi")
+    if summa is not None:
+        if isinstance(summa, bool) or not isinstance(summa, (int, float)) or not _m131.isfinite(float(summa)):
+            raise ValueError("Qaytariladigan summa son bo'lishi kerak")
+        summa = _pul2(float(summa))
+        if summa <= 0:
+            raise ValueError("Qaytariladigan summa musbat bo'lishi kerak")
+        # Takror yuborish — ortiqcha tekshiruvidan OLDIN (birinchi so'rov o'tgach ortiqcha 0 — chalg'ituvchi 409 bo'lardi)
+        _oldingi = db.query(Payment).join(Order, Order.id == Payment.order_id).filter(
+            Order.company_id == order.company_id,       # korxona — ota (buyurtma) orqali, lint ko'radi
+            Payment.order_id == order.id,
+            Payment.delivery_id.is_(None),
+            Payment.return_item_id.is_(None),
+            Payment.amount == -summa,
+            Payment.notes.like(ORTIQCHA_QAYTARISH_BELGI + "%"),
+            Payment.paid_at >= datetime.utcnow() - _td131(seconds=PUL_TAKROR_SONIYA),
+        ).order_by(Payment.paid_at.desc()).first()
+        if _oldingi is not None:
+            _oldingi._is_duplicate_submit = True
+            return _oldingi, order
+    ortiqcha = order.ortiqcha_tolov
+    if ortiqcha <= 0:
+        raise OrtiqchaTolovYoq("Bu buyurtmada mijozga qaytariladigan ortiqcha to'lov yo'q")
+    if summa is None:
+        summa = _pul2(ortiqcha)
+    if summa > ortiqcha + 0.005:
+        raise ValueError(f"Qaytariladigan summa ({summa:,.2f} so'm) ortiqcha to'lovdan ({ortiqcha:,.2f} so'm) ko'p")
+    p = Payment(
+        order_id=order.id,
+        amount=-summa,
+        payment_type=PaymentType.PARTIAL,
+        payment_method=_pay_enum(PaymentMethod, usul, PaymentMethod.CASH),
+        received_by=kim,
+        notes=(ORTIQCHA_QAYTARISH_BELGI + (f": {izoh}" if izoh else "")),
+    )
+    db.add(p)
+    db.flush()
+    db.expire(order, ["payments"])
+    _update_order_payment_status(db, order)
+    _loyiha_tolangan_yangila(db, order.project)
+    log_activity(db, "refunded", "order", order.id, order.order_number, kim,
+                 new_value=f"Ortiqcha to'lov mijozga qaytarildi: {summa:,.2f} so'm", company_id=order.company_id)
+    db.commit()
+    return p, order
 
 
 def get_payments(db: Session, order_id: Optional[int] = None,
@@ -6326,6 +6445,15 @@ def get_delivery_stats(db: Session, company_id: int = None) -> dict:
     }
 
 
+def qarz_hisobidagi_buyurtma_sharti():
+    """kech100 (134-band, FOYDALANUVCHI QARORI "A"): mijoz QARZI hisobiga kiradigan buyurtma — o'chirilmagan YOKI
+    o'chirilgan, lekin READY / DELIVERED (moliyaviy tarix: hisobotda qolgan, mahsulot mijozga berilgan — pul undirilishi
+    kerak; bosh sahifa "byudjet" qoidasi bilan bir xil). Eski o'chirilgan IN_PROGRESS (kech100 dan oldin qisman
+    topshirilib o'chirilgan — summa topshirilganga tushirilmagan) KIRMAYDI. SQL sharti (`filter` ga)."""
+    from sqlalchemy import or_ as _or134
+    return _or134(Order.is_deleted.isnot(True), Order.status.in_([OrderStatus.READY, OrderStatus.DELIVERED]))
+
+
 def get_debt_stats(db: Session, company_id: int = None) -> dict:
     """Qarzdorlik statistikasi — dashboard uchun."""
     from sqlalchemy.orm import selectinload as _sil_db
@@ -6333,9 +6461,13 @@ def get_debt_stats(db: Session, company_id: int = None) -> dict:
     if company_id is not None:
         _dq = _dq.filter(Order.company_id == company_id)
     # kech97 (116-band, O'LCHANGAN `work/probe116.py`): to'lovlar va loyiha buyurtma boshiga so'ralardi (+10 — +20).
+    # kech100 (134-band, QAROR "A"): o'chirilgan, lekin hisobotda qolgan (READY / DELIVERED) buyurtma qarzi HAM.
+    # K100-5 (O'LCHANGAN `tools/test_qarz_ochirilgan.py` B3): QORALAMA (zaklat bilan) bosh sahifa qarzdorlari ro'yxatiga
+    # tushardi (70 000 zaklatli qoralama — "430 000 qarz"), Qarzdorlar sahifasi esa qoralamani olmaydi — endi bir xil.
     orders = _dq.filter(
         Order.is_archived == False,
-        Order.is_deleted.isnot(True)
+        qarz_hisobidagi_buyurtma_sharti(),
+        Order.status != OrderStatus.DRAFT
     ).options(_sil_db(Order.payments), _sil_db(Order.project)).all()
 
     # kech92 (119-band): qarz — `Order.debt_amount` (tiyin aniqligi, 0.5 so'm
@@ -6367,7 +6499,8 @@ def get_debt_stats(db: Session, company_id: int = None) -> dict:
                 "payment_status": o.payment_status.value if o.payment_status else "unpaid",
                 "days_passed": days_passed,
                 "is_overdue": days_passed > 30,
-                "created_at": o.created_at.isoformat() if o.created_at else None
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+                "is_deleted": bool(o.is_deleted),        # kech100 (134-band): ro'yxatda "o'chirilgan" belgisi
             })
 
     debt_orders.sort(key=lambda x: x["debt_amount"], reverse=True)
@@ -6492,7 +6625,7 @@ def activate_draft_order(db: Session, order_id: int, performed_by: str = None) -
 # ============================================================
 # BUYURTMANI TAHRIRLASH (ombor farq bo'yicha to'g'rilanadi)
 # ============================================================
-def finalize_partial_order_quantities(db: Session, order) -> dict:
+def finalize_partial_order_quantities(db: Session, order, faqat_hisob: bool = False) -> dict:
     """Buyurtma QISMAN topshirilgan holatda yakunlanganda —
     har bir detalning miqdorini (va narxini) HAQIQATDA berilgan
     miqdorga moslab qisqartiradi. Boshida yozilgan (lekin berilmagan)
@@ -6500,9 +6633,14 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
 
     Keyin: jami summa qayta hisoblanadi, to'langan pul bilan solishtiriladi —
     ortiqcha to'lov bo'lsa 'qaytarilishi kerak' deb belgilanadi,
-    yetmasa — oddiy qarz sifatida qoladi (avtomatik, debt_amount orqali)."""
+    yetmasa — oddiy qarz sifatida qoladi (avtomatik, debt_amount orqali).
+
+    kech100 (93-band): `faqat_hisob=True` — HECH NARSA o'zgartirilmaydi (na obyekt, na baza, `commit` yo'q):
+    o'chirish tasdig'i oldindan ko'rsatadigan natija (`ochirish_yopish_hisobi`) — AYNAN shu formulalar bilan
+    (yagona manba); qaytgan lug'at shakli o'sha (qarz — `debt_amount` qoidasi bilan)."""
     import re as _re
 
+    _yangi_jami = {}      # kech100: detal id → yakunlangandagi jami (faqat_hisob da obyekt o'zgarmaydi)
     for item in order.items:
         ordered = item.order_qty_normalized
         if ordered <= 0:
@@ -6524,16 +6662,22 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
         if cat == 'profil':
             # profil: miqdor (dona) odatda 1, narx — butun uzunlik narxi; jami uzunlik ulushiga (HALF_UP),
             # narx = jami / miqdor (narx × miqdor = jami).
-            item.length = delivered
             _q117 = float(item.quantity or 1)
-            item.unit_price, item.total_price = _buyurtma_narx_jami(_q117, _pul2(old_total * fraction) / _q117)
+            _narx100, _jami100 = _buyurtma_narx_jami(_q117, _pul2(old_total * fraction) / _q117)
+            if not faqat_hisob:
+                item.length = delivered
+                item.unit_price, item.total_price = _narx100, _jami100
         else:
-            item.quantity = delivered
-            item.unit_price, item.total_price = _buyurtma_narx_jami(delivered, item.unit_price or 0)
+            _narx100, _jami100 = _buyurtma_narx_jami(delivered, item.unit_price or 0)
+            if not faqat_hisob:
+                item.quantity = delivered
+                item.unit_price, item.total_price = _narx100, _jami100
+        _yangi_jami[item.id] = float(_jami100)
 
-    new_total_amount = round(sum(float(i.total_price or 0) for i in order.items), 2)
+    new_total_amount = round(sum(_yangi_jami.get(i.id, float(i.total_price or 0)) for i in order.items), 2)
     old_total_amount = float(order.total_amount or 0)
-    order.total_amount = new_total_amount
+    if not faqat_hisob:
+        order.total_amount = new_total_amount
 
     discount_pct = float(order.discount_percent or 0)
     # 28-band (kech43, O'LCHANGAN S5): 50 m berilgan, 20 m qaytib pul qaytarilgan
@@ -6541,12 +6685,24 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
     # pul qaytarish kamaytirishi QAYTA ayiriladi (manfiy bo'lmaydi).
     _qaytgan_kam = pul_qaytarish_kamaytirgan(db, order)
     new_agreed = _pul2(max(0.0, new_total_amount * (1 - discount_pct / 100) - _qaytgan_kam))
-    order.agreed_amount = new_agreed
 
     paid = order.paid_amount
     overpaid = None
     if paid > new_agreed + 1:
         overpaid = round(paid - new_agreed, 2)
+    if faqat_hisob:
+        # kech100 (93-band): oldindan ko'rish — o'zgartirmasdan, o'sha shakl
+        _qarz100 = pul_tiyin(new_agreed - paid)
+        return {
+            "old_total": old_total_amount,
+            "new_total": new_total_amount,
+            "new_agreed": new_agreed,
+            "paid": paid,
+            "overpaid": overpaid,
+            "debt": _qarz100 if _qarz100 > QARZ_BARDOSH else 0.0,
+        }
+    order.agreed_amount = new_agreed
+    if overpaid is not None:
         base_notes = _re.sub(r'\s*\[OVERPAID:[\d.]+\]', '', order.notes or '').strip()
         order.notes = (base_notes + f" [OVERPAID:{overpaid}]").strip()
 
@@ -6569,6 +6725,153 @@ def finalize_partial_order_quantities(db: Session, order) -> dict:
         "overpaid": overpaid,
         "debt": order.debt_amount
     }
+
+
+# ============================================================
+# kech100 (93-band, FOYDALANUVCHI QARORI "B"): O'CHIRILGAN TOPSHIRILGAN BUYURTMA — YAKUNLASH / TIKLASH
+# ============================================================
+# O'LCHANGAN (`work/probe93.py`, asl kod = zip 93, SQLite = PG): 10 m dan 4 m topshirilgan buyurtma o'chirilsa
+# IN_PROGRESS + o'chirilgan qolardi — oylik / yillik hisobot (daromad 200 000, tannarx 28 000, qoplamachi bonusi
+# 40 000), usta KPI (17 200), kunlik moliya, grafik, eng yaxshi mijozlar, ehson foydasi uni SANAMASDI (hammasi faqat
+# READY ni oladi); bosh sahifa "Jami byudjet / qarz" dan esa 500 000 butunlay tushib qolardi. To'liq topshirilgan,
+# lekin «Tayyor» bosilmagan (DELIVERED) buyurtma o'chirilsa ham hisobotga kirmasdi. NAZORAT: xuddi shu buyurtma
+# qisman «Tayyor» (loy 4 kg) qilinib keyin o'chirilsa — hammasi hisobotda (qaror "B" kutgan natija).
+# QAROR "B" (misol bilan): "100 m dan 40 m topshirilib buyurtma o'chirilsa, topshirilgan 40 m DAROMADI, TANNARXI va
+# usta KPI hisobotda QOLADI" ("qisman bo'lsa ham tovar berilgan bo'ladi"). Texnik yechim (Claude): o'chirish
+# topshirilgan qismni qisman «Tayyor» bilan AYNAN bir qoida bilan YAKUNLAYDI — `finalize_partial_order_quantities`
+# (miqdor / narx / jami / kelishilgan summa topshirilganga, ortiqcha to'lov), ishlatilgan loy (reja − o'chirishda
+# qaytgan; to'liq topshirilganda — reja), holat READY, `completed_at` — o'chirilgan PAYT («Tayyor» ham bosilgan
+# paytni yozadi; o'tgan / yopilgan oy hisoboti o'zgarmaydi — oxirgi yuk sanasi o'tgan oyga tushib, yopilgan oyni
+# o'zgartirardi). Shundan keyin mavjud "o'chirilgan READY — moliyaviy tarix" qoidasi BARCHA hisobotlarda (oylik,
+# yillik, usta KPI / sovg'a, ehson, kunlik, grafik, mijozlar) o'zi ishlaydi — har hisobot funksiyasiga alohida
+# "topshirilgan ulush" formulasi qo'shilmaydi (yagona manba). Yakunlashdan OLDINGI holat `ochirish_yopish_json` da —
+# tiklash AYNAN qaytaradi (kech100 dan oldingi tiklash bilan bir xil natija).
+
+def ochirishda_yopiladimi(order) -> bool:
+    """kech100 (93-band): o'chirishda buyurtma topshirilgan qismi bilan YAKUNLANADIMI — yuk xati BOR va hali «Tayyor»
+    (READY) emas (qoralama / bekor — yo'q). Hech narsa topshirilmagan (yuksiz) buyurtma — butunlay o'chadi (o'zgarmagan)."""
+    return bool(order.deliveries) and order.status not in (OrderStatus.READY, OrderStatus.DRAFT, OrderStatus.CANCELLED)
+
+
+def _yopish_natijasi(order, fin: dict, eski_kelishilgan: float, toliq: bool) -> dict:
+    """kech100 (93-band): yakunlash natijasi (oldindan ko'rish va haqiqiy — bir shakl)."""
+    from models import ortiqcha_tolov_qiymati
+    natija = dict(fin)
+    natija["old_agreed"] = eski_kelishilgan
+    natija["toliq_topshirilgan"] = bool(toliq)
+    natija["ortiqcha"] = ortiqcha_tolov_qiymati(natija.get("paid") or 0, natija.get("new_agreed") or 0)
+    natija["qarz"] = float(natija.get("debt") or 0)
+    msg = (f"Topshirilgan qism YAKUNLANDI («Tayyor» kabi): buyurtma summasi {eski_kelishilgan:,.0f} → "
+           f"{float(natija.get('new_agreed') or 0):,.0f} so'm — daromad, tannarx va usta KPI oylik / yillik hisobotda qoladi.")
+    if natija["ortiqcha"] > 0:
+        msg += (f" ⚠️ Mijoz {natija['ortiqcha']:,.0f} so'm ORTIQCHA to'lagan — pulni QAYTARISH kerak "
+                f"(Qarzdorlar → «Mijozga qaytarish kerak»).")
+    elif natija["qarz"] > 0:
+        msg += f" Mijoz qarzi: {natija['qarz']:,.0f} so'm."
+    natija["message"] = msg
+    return natija
+
+
+def ochirish_yopish_hisobi(db: Session, order) -> dict:
+    """kech100 (93-band): o'chirish tasdig'i uchun OLDINDAN ko'rish — hech narsa o'zgartirmaydi. Natija
+    `ochirishda_topshirilganni_yopish` bilan AYNAN (bir xil formula — `finalize_partial_order_quantities(faqat_hisob=True)`)."""
+    toliq = order.status == OrderStatus.DELIVERED or order.is_fully_delivered
+    eski = order.kelishilgan_summa
+    if toliq:
+        fin = {"old_total": float(order.total_amount or 0), "new_total": float(order.total_amount or 0),
+               "new_agreed": eski, "paid": order.paid_amount, "overpaid": None, "debt": order.debt_amount}
+    else:
+        fin = finalize_partial_order_quantities(db, order, faqat_hisob=True)
+    return _yopish_natijasi(order, fin, eski, toliq)
+
+
+def _pul_matn100(v):
+    return None if v is None else str(v)
+
+
+def _pul_ol100(s):
+    from decimal import Decimal
+    return None if s is None else Decimal(str(s))
+
+
+def ochirishda_topshirilganni_yopish(db: Session, order, loy_ishlatilgan: float = None) -> dict:
+    """kech100 (93-band): o'chirilayotgan topshirilgan buyurtmani topshirilgan qismi bilan YAKUNLAYDI (qisman «Tayyor»
+    qoidasi). FAQAT `bitta_tranzaksiya` ichida chaqiriladi (`main.api_delete_order`) — `finalize_partial_order_quantities`
+    ichidagi `commit` u yerda `flush`. Ombor (qolgan qism xomashyosi / tayyor mahsulot / loy) — chaqiruvchida,
+    AVVAL (o'zgarmagan). `loy_ishlatilgan` — shu o'chirishda hisoblangan (reja − qaytgan); berilmasa: to'liq
+    topshirilgan — reja, aks holda reja × topshirilgan loy ulushi."""
+    import json as _json
+    import services
+    toliq = order.status == OrderStatus.DELIVERED or order.is_fully_delivered
+    eski = order.kelishilgan_summa
+    if loy_ishlatilgan is None:
+        _reja = float(services._get_planned_loy(order) or 0)
+        loy_ishlatilgan = _reja if toliq else _reja * (1.0 - services.loy_relevant_remaining_fraction(order))
+    # Oldingi holat — tiklash (`ochirish_yopishini_bekor_qil`) AYNAN qaytaradi
+    order.ochirish_yopish_json = _json.dumps({
+        "v": 1,
+        "status": order.status.value if order.status else None,
+        "completed_at": order.completed_at.isoformat() if order.completed_at else None,
+        "total_amount": _pul_matn100(order.total_amount),
+        "agreed_amount": _pul_matn100(order.agreed_amount),
+        "notes": order.notes,
+        "actual_loy_kg": order.actual_loy_kg,
+        "payment_status": order.payment_status.value if order.payment_status else None,
+        "is_archived": bool(order.is_archived),
+        "closed_at": order.closed_at.isoformat() if order.closed_at else None,
+        "items": [{"id": i.id, "quantity": i.quantity, "length": i.length,
+                   "unit_price": _pul_matn100(i.unit_price), "total_price": _pul_matn100(i.total_price)}
+                  for i in order.items],
+    }, ensure_ascii=False)
+    if toliq:
+        fin = {"old_total": float(order.total_amount or 0), "new_total": float(order.total_amount or 0),
+               "new_agreed": eski, "paid": order.paid_amount, "overpaid": None, "debt": order.debt_amount}
+    else:
+        fin = finalize_partial_order_quantities(db, order)
+    # Ishlatilgan loy — foyda (qoplama tannarxi) shundan: «Tayyor» dagi `actual_loy_kg` bilan bir ma'no
+    if order.actual_loy_kg is None and float(loy_ishlatilgan or 0) > 0.01:
+        order.actual_loy_kg = round(float(loy_ishlatilgan), 4)
+    order.status = OrderStatus.READY
+    order.completed_at = datetime.utcnow()
+    db.flush()
+    return _yopish_natijasi(order, fin, eski, toliq)
+
+
+def ochirish_yopishini_bekor_qil(db: Session, order) -> bool:
+    """kech100 (93-band): tiklashda o'chirish yakunlashini AYNAN bekor qiladi — detallar (miqdor / uzunlik / narx /
+    jami), buyurtma summalari, izoh, loy, holat, sanalar o'chirishdan OLDINGI holatga; to'lov holati hozirgi
+    to'lovlardan qayta hisoblanadi (o'chirilgan paytda mijozga pul qaytarilgan bo'lishi mumkin — 131-band). Yakunlanmagan
+    (NULL) — hech narsa qilmaydi, `False`."""
+    import json as _json
+    raw = getattr(order, "ochirish_yopish_json", None)
+    if not raw:
+        return False
+    snap = _json.loads(raw)
+    _by_id = {i.id: i for i in order.items}
+    for s in snap.get("items") or []:
+        it = _by_id.get(s.get("id"))
+        if it is None:
+            continue
+        it.quantity = s.get("quantity")
+        it.length = s.get("length")
+        it.unit_price = _pul_ol100(s.get("unit_price"))
+        it.total_price = _pul_ol100(s.get("total_price"))
+    order.total_amount = _pul_ol100(snap.get("total_amount"))
+    order.agreed_amount = _pul_ol100(snap.get("agreed_amount"))
+    order.notes = snap.get("notes")
+    order.actual_loy_kg = snap.get("actual_loy_kg")
+    if snap.get("status"):
+        order.status = OrderStatus(snap["status"])
+    order.completed_at = datetime.fromisoformat(snap["completed_at"]) if snap.get("completed_at") else None
+    if snap.get("payment_status"):
+        order.payment_status = PaymentStatus(snap["payment_status"])
+    order.is_archived = bool(snap.get("is_archived"))
+    order.closed_at = datetime.fromisoformat(snap["closed_at"]) if snap.get("closed_at") else None
+    order.ochirish_yopish_json = None
+    db.flush()
+    db.expire(order, ["payments"])
+    _update_order_payment_status(db, order)
+    return True
 
 
 # ============================================================
@@ -12341,6 +12644,13 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
     p = _purchase_of_company(db, purchase_id, company_id)    # M6
     if not p:
         return None
+
+    # kech100 (109-band, O'LCHANGAN — `work/probe109.py` T1): nasiya FAQAT ta'minotchili, boshlang'ich ombor bo'lmagan
+    # xaridda (yaratish va Ombor Kirim hujjati qoidasi). Ilgari ta'minotchisiz naqd xarid tahrirda nasiyaga o'tkazilsa
+    # kassadan yo'qolardi, qarz esa hech kimga yozilmasdi. Hech narsa o'zgartirilmasdan OLDIN.
+    if toza.get("is_credit") is True and (not p.supplier_id or p.is_opening_stock):
+        raise ValueError("Ta'minotchisiz yoki boshlang'ich ombor xaridi nasiya bo'lolmaydi "
+                         "(nasiya — faqat ta'minotchidan olingan xarid)")
 
     eski_qty = float(p.quantity or 0)
 

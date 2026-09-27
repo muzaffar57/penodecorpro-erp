@@ -74,6 +74,15 @@ def pul_tiyin_yigindi(qiymatlar) -> float:
     return float(jami.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) + 0.0
 
 
+def ortiqcha_tolov_qiymati(tolangan, kelishilgan) -> float:
+    """kech100 (131-band, FOYDALANUVCHI QARORI "B"): mijoz kelishilgan summadan ORTIQCHA to'lagan (qaytarilishi
+    kerak bo'lgan) qism — tiyin aniqligida, `Order.debt_amount` ning aksi va AYNAN bir bardosh: ortiqcha yarim
+    so'mdan (`QARZ_BARDOSH`) oshmasa — 0 (UI summani butun so'mda ko'rsatadi). Manfiy to'lov (mijozga qaytarilgan
+    pul — 24-band "Pul qaytdi" va "Qaytarildi") to'langan summani kamaytiradi — ortiqcha shunga yopiladi."""
+    q = pul_tiyin(float(tolangan or 0) - float(kelishilgan or 0))
+    return q if q > QARZ_BARDOSH else 0.0
+
+
 # ============================================================
 # ENUM lar
 # ============================================================
@@ -652,6 +661,14 @@ class Order(Base):
     # Loy qaytganda avval xom qism, qolgani zaxiraga (`services` dagi "BUYURTMA LOYI OLINGAN JOYIGA QAYTADI").
     # NULL — migratsiyadan OLDINGI buyurtma: eski qoida (qaytish xomga, tiklash xomdan).
     loy_manba_json = Column(Text, nullable=True)
+    # kech100 (93-band, FOYDALANUVCHI QARORI "B" — "qisman bo'lsa ham tovar berilgan bo'ladi"): topshirilgan (qisman
+    # yoki to'liq, lekin «Tayyor» bosilmagan) buyurtma O'CHIRILGANDA u topshirilgan qismi bilan YAKUNLANADI («Tayyor»
+    # qisman yakunlash qoidasi: miqdor / summa topshirilganga, holat READY, `completed_at` — o'chirilgan payt) — daromad,
+    # tannarx va usta KPI hisobotda qoladi (`crud.ochirishda_topshirilganni_yopish`). Bu ustunda yakunlashdan OLDINGI
+    # holat (JSON) saqlanadi — `crud.restore_order` uni AYNAN qaytaradi (buyurtma avvalgi holatiga, qolgan qism
+    # xomashyosi avvalgidek qayta yechiladi). NULL — yakunlanmagan (yoki kech100 dan OLDIN o'chirilgan) buyurtma.
+    # `default=` ATAYLAB YO'Q (`sync_missing_columns` ustunni NULL bilan qo'shadi).
+    ochirish_yopish_json = Column(Text, nullable=True)
     # kech86 (QAROR "A" yuk xatiga ham): shu buyurtmada BERILGAN eng katta yuk xati tartib raqami (…/Y-<N>).
     # Yuk xati o'chirilsa ham raqami qayta berilmaydi. NULL — hali yuk yo'q yoki eski buyurtma (mavjud yuklardan
     # hisoblanadi). `default=` ATAYLAB YO'Q.
@@ -764,6 +781,14 @@ class Order(Base):
         if qoldiq > QARZ_BARDOSH:
             return qoldiq
         return 0.0 if qoldiq >= 0 else 0
+
+    @property
+    def ortiqcha_tolov(self):
+        """kech100 (131-band): mijozga QAYTARILISHI kerak bo'lgan ortiqcha to'lov (to'langan − kelishilgan, tiyin
+        aniqligida; yarim so'mgacha — 0). DOIMIY ko'rsatkich: to'lovlar va kelishilgan summadan har safar hisoblanadi
+        (ilgari faqat qisman «Tayyor» izohga `[OVERPAID:…]` yozardi — keyingi to'lov / qaytarishni bilmasdi).
+        Qaytarilgach (manfiy to'lov) — 0."""
+        return ortiqcha_tolov_qiymati(self.paid_amount, self.kelishilgan_summa)
 
     def __repr__(self):
         return f"<Order #{self.order_number} (Project #{self.project_id})>"
