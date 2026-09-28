@@ -1,5 +1,6 @@
 import os
-from datetime import datetime, timedelta
+import datetime as _dt_modul     # kech106: tur tekshiruvi — HAQIQIY sinflar (testlar `database.datetime` ni almashtiradi)
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base
@@ -41,6 +42,26 @@ def tashkent_date(dt: datetime = None):
     if dt is None:
         dt = datetime.utcnow()
     return (dt + TASHKENT_OFFSET).date()
+
+
+def tashkent_vaqt(dt: datetime = None) -> datetime:
+    """kech106 (9 + 50-band B qismi; egasi qarori kech105 — "Toshkent vaqti bo'yicha"): KO'RINISH uchun Toshkent
+    devor soati (naive datetime). `dt` — bazadagi UTC (naive) vaqt; berilmasa — HOZIR.
+
+    PDF, Telegram xabari, sahifa (Jinja `|toshkent` filtri) va jurnal matnlaridagi sana-vaqt FAQAT shu orqali
+    yoziladi. O'LCHANGAN (work/probe106.py, TZ=UTC — Railway kabi): ilgari `datetime.now()` (jarayon mintaqasi —
+    Railway da UTC) va bazadagi UTC qiymatni to'g'ridan-to'g'ri `strftime` qilish Toshkent vaqtidan 5 soat orqada
+    ko'rsatardi — Toshkent 01.10 01:30 dagi amal "30.09.2026 20:30" bo'lib chiqardi. Mintaqali (aware) qiymat avval
+    UTC ga o'giriladi; faqat SANA (`date`) — kalendar kuni, siljitilmaydi. Natija bazaga YOZILMAYDI (saqlash — UTC)."""
+    if dt is None:
+        dt = datetime.utcnow()
+    elif not isinstance(dt, _dt_modul.datetime):
+        if isinstance(dt, _dt_modul.date):
+            return datetime(dt.year, dt.month, dt.day)
+        raise TypeError(f"tashkent_vaqt: datetime kerak, {type(dt).__name__} berildi")
+    elif dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt + TASHKENT_OFFSET
 
 
 # kech105 (9 + 50-band) — FOYDALANUVCHI QARORI (2026-09-28, "Toshkent vaqti bo'yicha"): hisobotlarning kun / oy /

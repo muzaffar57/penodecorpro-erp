@@ -7,7 +7,22 @@ Bosqichma-bosqich topshirish uchun isbot hujjati.
 from company_brand import get_brand, company_id_of  # 2026-09-20: korxona brendi
 
 import io
-from datetime import datetime, timezone, timedelta
+# kech106 (9 + 50-band B qismi): hujjatdagi HAMMA sana-vaqt — `database.tashkent_vaqt` (yagona manba). Ilgari bu
+# faylda alohida `UZB_TZ` formulasi bor edi (yuk xati / TM sotuvi — to'g'ri), hisob-kitob varaqasining "Davr" va
+# yuk qatorlari esa bazadagi UTC sanasini chiqarardi (Toshkent 00:00–05:00 dagi yuk — KECHAGI kun).
+from database import tashkent_vaqt as _tashkent_vaqt
+# kech106 (K106-1): PDF shrifti — Liberation Sans (Kirill, "№", "−"; Helvetica metrikasi) standart Helvetica NOMLARI
+# bilan (`pdf_shrift.py`). Ilgari Kirill yozilgan nom, "№" va emoji QORA KVADRAT (■) bo'lib chiqardi.
+from pdf_shrift import shriftlarni_ulash as _shriftlarni_ulash
+_shriftlarni_ulash()
+# kech106 (K106-3): foydalanuvchi matni (nom, izoh, telefon, korxona ma'lumoti) Paragraph ga XAVFSIZ — "<" / "&"
+# belgilash deb o'qilmaydi (ilgari "Karniz <A>" kabi nom yoki "<b>izoh" bo'lsa PDF 500 edi).
+from xml.sax.saxutils import escape as _xml_escape
+
+
+def _x(qiymat):
+    return _xml_escape("" if qiymat is None else str(qiymat))
+
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -24,8 +39,6 @@ GREEN = colors.HexColor("#2E7D52")
 RED = colors.HexColor("#C0392B")
 GRAY = colors.HexColor("#8E8E93")
 LIGHT = colors.HexColor("#F6F4F0")
-
-UZB_TZ = timezone(timedelta(hours=5))
 
 
 def _fmt(n):
@@ -70,9 +83,9 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
     el = []
 
     header = Table([[
-        Paragraph("PENODECORPRO", st_title),
+        Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
     ], [
-        Paragraph(_brand["subtitle"], st_sub),
+        Paragraph(_x(_brand["subtitle"]), st_sub),
     ]], colWidths=[18*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -100,10 +113,7 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
     el.append(Spacer(1, 8))
 
     first = sales[0]
-    dt = first.sold_at or datetime.now(UZB_TZ)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc).astimezone(UZB_TZ)
-    date_str = dt.strftime("%d.%m.%Y  %H:%M")
+    date_str = _tashkent_vaqt(first.sold_at).strftime("%d.%m.%Y  %H:%M")
 
     pay_labels = {"naqd": "Naqd", "karta": "Karta", "bank": "Bank o'tkazmasi"}
     info_rows = [
@@ -208,7 +218,7 @@ def generate_finished_sale_batch_pdf(sales: list, group_id: str, db=None) -> byt
     el.append(Spacer(1, 14))
 
     if first.notes:
-        el.append(Paragraph(f"<b>Izoh:</b> {first.notes}", st_norm))
+        el.append(Paragraph(f"<b>Izoh:</b> {_x(first.notes)}", st_norm))
         el.append(Spacer(1, 10))
 
     el.append(Spacer(1, 20))
@@ -248,9 +258,9 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
     el = []
 
     header = Table([[
-        Paragraph("PENODECORPRO", st_title),
+        Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
     ], [
-        Paragraph(_brand["subtitle"], st_sub),
+        Paragraph(_x(_brand["subtitle"]), st_sub),
     ]], colWidths=[18*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -277,10 +287,7 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
     el.append(title2)
     el.append(Spacer(1, 8))
 
-    dt = sale.sold_at or datetime.now(UZB_TZ)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc).astimezone(UZB_TZ)
-    date_str = dt.strftime("%d.%m.%Y  %H:%M")
+    date_str = _tashkent_vaqt(sale.sold_at).strftime("%d.%m.%Y  %H:%M")
 
     pay_labels = {"naqd": "Naqd", "karta": "Karta", "bank": "Bank o'tkazmasi"}
     info_rows = [
@@ -344,7 +351,7 @@ def generate_finished_sale_pdf(sale, db=None) -> bytes:
     el.append(Spacer(1, 14))
 
     if sale.notes:
-        el.append(Paragraph(f"<b>Izoh:</b> {sale.notes}", st_norm))
+        el.append(Paragraph(f"<b>Izoh:</b> {_x(sale.notes)}", st_norm))
         el.append(Spacer(1, 10))
 
     el.append(Spacer(1, 20))
@@ -432,9 +439,9 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
     # ---- Sarlavha ----
     header = Table([[
-        Paragraph("PENODECORPRO", st_title),
+        Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO" — boshqa korxonada ham
     ], [
-        Paragraph(_brand["subtitle"], st_sub),
+        Paragraph(_x(_brand["subtitle"]), st_sub),
     ]], colWidths=[18*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -470,7 +477,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         pct = order.delivery_percent
         notice = Table([[
             Paragraph(
-                f"⚠️ QISMAN YETKAZISH — bu hujjat buyurtmaning FAQAT shu qismini ko'rsatadi "
+                f"QISMAN YETKAZISH — bu hujjat buyurtmaning FAQAT shu qismini ko'rsatadi "
                 f"(umumiy bajarilish: {pct}%). Buyurtmaning JAMI summasi — {order.kelishilgan_summa:,.0f} so'm.",
                 ParagraphStyle('warn', fontName='Helvetica-Bold', fontSize=8.5,
                                textColor=colors.HexColor("#92400E"), alignment=TA_CENTER, leading=12)
@@ -487,10 +494,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     el.append(Spacer(1, sp(8)))
 
     # ---- Ma'lumotlar ----
-    dt = delivery.delivered_at or datetime.now(UZB_TZ)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc).astimezone(UZB_TZ)
-    date_str = dt.strftime("%d.%m.%Y  %H:%M")
+    date_str = _tashkent_vaqt(delivery.delivered_at).strftime("%d.%m.%Y  %H:%M")
 
     info_rows = [
         ["Buyurtma:", order.order_number if order else "—",
@@ -554,7 +558,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
         delivery_total += line_sum
 
         if (oi.category or '').lower() == 'gips':
-            item_label = f"🧱 {oi.name} (GIPS)"
+            item_label = f"{oi.name} (GIPS)"
         elif oi.is_coated:
             item_label = f"{oi.name or '—'} (qoplamali)"
         else:
@@ -622,7 +626,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     if delivery_payment:
         el.append(Spacer(1, sp(4)))
         pay_note = Table([[
-            Paragraph(f"💰 <b>Shu yuk uchun to'lov qilindi:</b> {_fmt(float(delivery_payment.amount))} so'm",
+            Paragraph(f"<b>Shu yuk uchun to'lov qilindi:</b> {_fmt(float(delivery_payment.amount))} so'm",
                       ParagraphStyle('pn', fontName='Helvetica-Bold', fontSize=9, textColor=colors.HexColor("#166534")))
         ]], colWidths=[18*cm])
         pay_note.setStyle(TableStyle([
@@ -745,7 +749,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
         parts = []
         if carrier:
-            parts.append(f"<b>{carrier}</b>")
+            parts.append(f"<b>{_x(carrier)}</b>")
         if t_cost > 0:
             parts.append(f"{_fmt(t_cost)} so'm")
         if payer_label:
@@ -753,7 +757,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
 
         el.append(Spacer(1, sp(6)))
         transport = Table([[Paragraph(
-            "🚚 <b>Transport:</b> " + "  ·  ".join(parts), st_small
+            "<b>Transport:</b> " + "  ·  ".join(parts), st_small
         )]], colWidths=[18*cm])
         transport.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F0F6FA")),
@@ -766,7 +770,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     # ---- Izoh ----
     if delivery.notes:
         el.append(Spacer(1, sp(6)))
-        note = Table([[Paragraph(f"<b>Izoh:</b> {delivery.notes}", st_small)]], colWidths=[18*cm])
+        note = Table([[Paragraph(f"<b>Izoh:</b> {_x(delivery.notes)}", st_small)]], colWidths=[18*cm])
         note.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), LIGHT),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
@@ -796,7 +800,7 @@ def generate_delivery_pdf(delivery, db=None) -> bytes:
     # ---- Footer ----
     el.append(Spacer(1, sp(10)))
     footer = Table([[Paragraph(
-        f"{_brand['name']}  ·  {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
+        f"{_x(_brand['name'])}  ·  {_tashkent_vaqt().strftime('%d.%m.%Y %H:%M')}  ·  "
         f"Ushbu hujjat mahsulot topshirilganini tasdiqlaydi",
         ParagraphStyle('f', fontName='Helvetica', fontSize=7,
                        textColor=GRAY, alignment=TA_CENTER)
@@ -845,8 +849,8 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
 
     # ---- Sarlavha ----
     header = Table([
-        [Paragraph("PENODECORPRO", st_title)],
-        [Paragraph(_brand["subtitle"], st_sub)],
+        [Paragraph(_x(_brand["name"].upper()), st_title)],   # kech106 (K106-4): ilgari qattiq "PENODECORPRO"
+        [Paragraph(_x(_brand["subtitle"]), st_sub)],
     ], colWidths=[18.2*cm])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -875,10 +879,9 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     # ---- Ma'lumotlar ----
     dts = [d.delivered_at for d in deliveries if d.delivered_at]
     if dts:
-        d1, d2 = min(dts), max(dts)
-        for x in (d1, d2):
-            if x.tzinfo is None:
-                pass
+        # kech106 (9 + 50-band B qismi): Toshkent kunlari (ilgari UTC sanasi — bu yerdagi `tzinfo` tekshiruvi
+        # hech narsa qilmas edi).
+        d1, d2 = _tashkent_vaqt(min(dts)), _tashkent_vaqt(max(dts))
         davr = (f"{d1.strftime('%d.%m.%Y')} — {d2.strftime('%d.%m.%Y')}"
                 if d1.date() != d2.date() else d1.strftime('%d.%m.%Y'))
     else:
@@ -890,7 +893,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
         ["Loyiha:", (project.project_name if project else "—"),
          "Yuk xatlari:", f"{len(deliveries)} ta"],
         ["Telefon:", (project.client_phone if project and project.client_phone else "—"),
-         "Sana:", datetime.now(UZB_TZ).strftime("%d.%m.%Y %H:%M")],
+         "Sana:", _tashkent_vaqt().strftime("%d.%m.%Y %H:%M")],
     ], colWidths=[2*cm, 7*cm, 2.4*cm, 6.8*cm])
     info.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
@@ -923,7 +926,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     grand_total = 0.0
     for idx, d in enumerate(deliveries, 1):
         dt = d.delivered_at
-        date_s = dt.strftime("%d.%m.%Y") if dt else "—"
+        date_s = _tashkent_vaqt(dt).strftime("%d.%m.%Y") if dt else "—"     # kech106: Toshkent kuni
         yuk_no = (d.delivery_number or "").split('/')[-1]
 
         section_rows.append(len(data))
@@ -942,7 +945,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
             dsum += line_sum
             u = 'm' if di.unit == 'metr' else 'ta'
             data.append([
-                Paragraph(oi.name, st_item),
+                Paragraph(_x(oi.name), st_item),
                 f"{_num(qty)} {u}",
                 _fmt(unit_p) + " so'm",
                 _fmt(line_sum),
@@ -1045,7 +1048,7 @@ def generate_summary_pdf(order, deliveries, db=None) -> bytes:
     # ---- Footer ----
     el.append(Spacer(1, 14))
     footer = Table([[Paragraph(
-        f"{_brand['name']}  ·  {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
+        f"{_x(_brand['name'])}  ·  {_tashkent_vaqt().strftime('%d.%m.%Y %H:%M')}  ·  "
         f"Ushbu hujjat {len(deliveries)} ta yuk xati bo'yicha hisob-kitobni tasdiqlaydi",
         ParagraphStyle('f', fontName='Helvetica', fontSize=7,
                        textColor=GRAY, alignment=TA_CENTER)

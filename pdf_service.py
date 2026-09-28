@@ -11,8 +11,22 @@ Ishlatilishi:
 from company_brand import get_brand, company_id_of  # 2026-09-20: korxona brendi
 
 import io
-from datetime import datetime
 from typing import Optional
+# kech106 (9 + 50-band B qismi): hujjatdagi sana-vaqt — Toshkent devor soati (ilgari `datetime.now()` — Railway da
+# UTC, "Sana" va "Chiqarilgan" Toshkent 00:00–05:00 da KECHAGI kun; "Yaratilgan sana" — bazadagi UTC sanasi).
+from database import tashkent_vaqt as _tashkent_vaqt
+# kech106 (K106-1): PDF shrifti — Liberation Sans (Kirill, "№", "−"; Helvetica metrikasi) standart Helvetica NOMLARI
+# bilan (`pdf_shrift.py`). Ilgari Kirill yozilgan nom, "№" va emoji QORA KVADRAT (■) bo'lib chiqardi.
+from pdf_shrift import shriftlarni_ulash as _shriftlarni_ulash
+_shriftlarni_ulash()
+# kech106 (K106-3): foydalanuvchi matni (nom, izoh, telefon, korxona ma'lumoti) Paragraph ga XAVFSIZ — "<" / "&"
+# belgilash deb o'qilmaydi (ilgari "Karniz <A>" kabi nom yoki "<b>izoh" bo'lsa PDF 500 edi).
+from xml.sax.saxutils import escape as _xml_escape
+
+
+def _x(qiymat):
+    return _xml_escape("" if qiymat is None else str(qiymat))
+
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
@@ -128,14 +142,14 @@ def generate_nakladnoy(order, db=None) -> bytes:
         logo_img.hAlign = 'LEFT'
         header_left = [
             logo_img,
-            Paragraph(_brand["slogan"], st["company_sub"]),
-            Paragraph(_kontakt, st["company_sub"]),
+            Paragraph(_x(_brand["slogan"]), st["company_sub"]),
+            Paragraph(_x(_kontakt), st["company_sub"]),
         ]
     else:
         header_left = [
-            Paragraph(_brand["name"], st["company"]),
-            Paragraph(_brand["slogan"], st["company_sub"]),
-            Paragraph(_kontakt, st["company_sub"]),
+            Paragraph(_x(_brand["name"]), st["company"]),
+            Paragraph(_x(_brand["slogan"]), st["company_sub"]),
+            Paragraph(_x(_kontakt), st["company_sub"]),
         ]
     # Bo'sh qatorlarni olib tashlaymiz (maydon to'ldirilmagan bo'lsa,
     # hujjatda bo'sh joy qolib ketmasin).
@@ -146,8 +160,8 @@ def generate_nakladnoy(order, db=None) -> bytes:
         header_left,
         [
             Paragraph("NAKLADNOY", st["doc_title"]),
-            Paragraph(f"# {order.order_number}", st["doc_num"]),
-            Paragraph(f"Sana: {datetime.now().strftime('%d.%m.%Y')}", st["doc_num"]),
+            Paragraph(f"# {_x(order.order_number)}", st["doc_num"]),
+            Paragraph(f"Sana: {_tashkent_vaqt().strftime('%d.%m.%Y')}", st["doc_num"]),
         ],
     ]]
 
@@ -171,23 +185,23 @@ def generate_nakladnoy(order, db=None) -> bytes:
     info_data = [[
         [
             Paragraph("MIJOZ", st["section_label"]),
-            Paragraph(project.client_name if project else "—", st["section_value"]),
+            Paragraph(_x(project.client_name if project else "—"), st["section_value"]),
             Spacer(1, 4*(1-cx*0.7)),
             Paragraph("TELEFON", st["section_label"]),
-            Paragraph(project.client_phone or "—", st["section_value_sm"]),
+            Paragraph(_x(project.client_phone or "—"), st["section_value_sm"]),
             Spacer(1, 4*(1-cx*0.7)),
             Paragraph("MANZIL", st["section_label"]),
-            Paragraph(project.client_address or "—", st["section_value_sm"]),
+            Paragraph(_x(project.client_address or "—"), st["section_value_sm"]),
         ],
         [
             Paragraph("LOYIHA", st["section_label"]),
-            Paragraph(project.project_name if project else "—", st["section_value"]),
+            Paragraph(_x(project.project_name if project else "—"), st["section_value"]),
             Spacer(1, 4*(1-cx*0.7)),
             Paragraph("BUYURTMA RAQAMI", st["section_label"]),
             Paragraph(order.order_number, st["section_value_sm"]),
             Spacer(1, 4*(1-cx*0.7)),
             Paragraph("YARATILGAN SANA", st["section_label"]),
-            Paragraph(order.created_at.strftime("%d.%m.%Y") if order.created_at else "—", st["section_value_sm"]),
+            Paragraph(_tashkent_vaqt(order.created_at).strftime("%d.%m.%Y") if order.created_at else "—", st["section_value_sm"]),
         ],
         [
             Paragraph("HOLATI", st["section_label"]),
@@ -197,7 +211,7 @@ def generate_nakladnoy(order, db=None) -> bytes:
             Paragraph(order_type, st["section_value_sm"]),
             Spacer(1, 4*(1-cx*0.7)),
             Paragraph("USTA", st["section_label"]),
-            Paragraph(order.master.name if order.master else "Belgilanmagan", st["section_value_sm"]),
+            Paragraph(_x(order.master.name if order.master else "Belgilanmagan"), st["section_value_sm"]),
         ],
     ]]
 
@@ -267,7 +281,7 @@ def generate_nakladnoy(order, db=None) -> bytes:
         true_unit_price = (total_price / miqdor) if miqdor > 0 else unit_price
 
         if (item.category or '').lower() == 'gips':
-            item_label = f"🧱 {item.name} (GIPS)"
+            item_label = f"{item.name} (GIPS)"
         elif item.is_coated:
             item_label = f"{item.name} (qoplamali)"
         else:
@@ -275,9 +289,9 @@ def generate_nakladnoy(order, db=None) -> bytes:
 
         table_data.append([
             Paragraph(str(i+1), st["table_cell_c"]),
-            Paragraph(item_label, st["table_cell"]),
-            Paragraph(unit, st["table_cell_c"]),
-            Paragraph(miqdor_txt, st["table_cell_c"]),
+            Paragraph(_x(item_label), st["table_cell"]),
+            Paragraph(_x(unit), st["table_cell_c"]),
+            Paragraph(_x(miqdor_txt), st["table_cell_c"]),
             Paragraph(f"{true_unit_price:,.0f}", st["table_cell_r"]),
             Paragraph(f"{total_price:,.0f}", st["table_cell_r"]),
         ])
@@ -391,7 +405,7 @@ def generate_nakladnoy(order, db=None) -> bytes:
         if notes_clean:
             story.append(HRFlowable(width="100%", thickness=0.5, color=LGRAY, spaceAfter=6))
             story.append(Paragraph("Izoh:", st["section_label"]))
-            story.append(Paragraph(notes_clean, st["note"]))
+            story.append(Paragraph(_x(notes_clean), st["note"]))
             story.append(Spacer(1, 10*(1-cx*0.7)))
 
     # ── IMZO QATORI ───────────────────────────────────────────
@@ -422,8 +436,8 @@ def generate_nakladnoy(order, db=None) -> bytes:
     story.append(Spacer(1, 16*(1-cx*0.7)))
     story.append(HRFlowable(width="100%", thickness=0.5, color=LGRAY, spaceAfter=6))
     story.append(Paragraph(
-        f"{_brand['name']} · Chiqarilgan: {datetime.now().strftime('%d.%m.%Y %H:%M')} · "
-        f"Buyurtma: {order.order_number}",
+        f"{_x(_brand['name'])} · Chiqarilgan: {_tashkent_vaqt().strftime('%d.%m.%Y %H:%M')} · "
+        f"Buyurtma: {_x(order.order_number)}",
         st["footer"]
     ))
 

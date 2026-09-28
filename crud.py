@@ -11,6 +11,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 # kech105 (9 + 50-band): Toshkent kalendari yordamchilari — `database.py` (hisobot kun / oy / yil chegarasi)
 from database import tashkent_date as _tashkent_date, tashkent_kunida as _tashkent_kunida, tashkent_oyida as _tashkent_oyida, tashkent_yilida as _tashkent_yilida, tashkent_oy_oraligi as _tashkent_oy_oraligi, tashkent_yil_oraligi as _tashkent_yil_oraligi
+# kech106 (9 + 50-band B qismi): matnga yoziladigan sana-vaqt (jurnal, ro'yxat) — Toshkent devor soati
+from database import tashkent_vaqt as _tashkent_vaqt
 
 from models import Master
 from schemas import MasterCreate, MasterUpdate
@@ -6475,7 +6477,7 @@ def _tolov_audit_matni(payment) -> str:
         f"{payment.amount:,.0f} so'm · {payment.payment_type.value if payment.payment_type else '-'} · "
         f"{payment.payment_method.value if payment.payment_method else '-'} · "
         f"qabul qilgan: {payment.received_by or '-'} · "
-        f"sana: {payment.paid_at.strftime('%Y-%m-%d %H:%M') if payment.paid_at else '-'}"
+        f"sana: {_tashkent_vaqt(payment.paid_at).strftime('%Y-%m-%d %H:%M') if payment.paid_at else '-'}"   # kech106: Toshkent
         + (f" · izoh: {payment.notes}" if payment.notes else "")
     )
 
@@ -9000,8 +9002,9 @@ def get_pinned_orders(db: Session, company_id: int = None) -> list:
             "total_amount": float(o.total_amount or 0),
             "agreed_amount": float(o.agreed_amount) if o.agreed_amount is not None else None,
             "master_name": o.master.name if o.master else "—",
-            "created_at": o.created_at.strftime("%d.%m.%Y") if o.created_at else "—",
-            "deadline": o.deadline.strftime("%d.%m.%Y") if o.deadline else None,
+            # kech106 (9 + 50-band B qismi): Toshkent kuni (ilgari UTC — tungi buyurtma "kecha" bo'lib chiqardi)
+            "created_at": _tashkent_vaqt(o.created_at).strftime("%d.%m.%Y") if o.created_at else "—",
+            "deadline": _tashkent_vaqt(o.deadline).strftime("%d.%m.%Y") if o.deadline else None,
             "deadline_urgency": get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered),
             "project_id": o.project_id,
         })

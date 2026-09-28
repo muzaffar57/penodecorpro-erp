@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -95,15 +95,19 @@ Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'li
 - `auth.py` — login (cookie sessiya, bcrypt), rollar va qorovullar (`admin_only`, `platform_admin_only`, …),
   korxona qorovullari (`order_of_company` va h.k.), hodim (PIN) paneli sessiyasi.
 - `schemas.py` — Pydantic sxemalari (kirish tekshiruvi: manfiy / haddan katta qiymatlar 422).
-- `database.py` — ulanish (`pool_pre_ping`, `pool_recycle=280`), `get_db`, Toshkent vaqti yordamchilari.
+- `database.py` — ulanish (`pool_pre_ping`, `pool_recycle=280`), `get_db`, Toshkent vaqti yordamchilari (hisobot davri —
+  `tashkent_oyida` va h.k.; ko'rinish — `tashkent_vaqt`).
 - `tenant_context.py` — `TENANT_FILTER=1` bo'lsa har so'rovga korxona filtri (sessiya obyektiga bog'langan).
 - `company_brand.py` — hujjatlardagi korxona nomi / telefoni / logotipi (korxona bo'yicha).
-- `pdf_service.py`, `delivery_pdf.py`, `finance_pdf.py` — nakladnoy, yuk xati, oylik moliya hisobotining PDF lari.
+- `pdf_service.py`, `delivery_pdf.py`, `finance_pdf.py` — nakladnoy, yuk xati, oylik moliya hisobotining PDF lari
+  (foydalanuvchi matni — `_x(…)`, katta sarlavha — korxona nomi; kech106, K106-3 / K106-4).
+- `pdf_shrift.py` + `fonts/` — PDF shrifti: Liberation Sans 2.1.5 (SIL OFL 1.1, `fonts/OFL.txt`) standart Helvetica nomlari
+  bilan (kech106, K106-1); har PDF moduli boshida `shriftlarni_ulash()`.
 - `saas_migration.py` — VAQTINCHALIK: ko'p korxonali (SaaS) migratsiya sahifasi `/saas-migratsiya`
   (bosqichlar W1–W6, dry-run; `sinov` da BAJARILGAN, `main` da hali bajarilmagan).
 - `erp_backup_tekshiruv.py` — JSON zaxira faylini tekshiruvchi mustaqil skript (tiklamaydi).
-- `templates/` — 25 ta Jinja2 sahifa (`base.html` — umumiy qobiq); `static/` — CSS, logotiplar, `translit.js`
-  (Kirill ↔ Lotin). Statik fayl o'zgarsa `main.py` dagi `static_version` ni oshiring (kesh).
+- `templates/` — 25 ta Jinja2 sahifa (`base.html` — umumiy qobiq va brauzer vaqti yordamchilari `tk*`); `static/` — CSS,
+  logotiplar, `translit.js` (Kirill ↔ Lotin). Statik fayl o'zgarsa `main.py` dagi `static_version` ni oshiring (kesh).
 - `tools/` — testlar (`test_*.py`, `test_*.js`), `tenant_lint.py` (+ `tenant_lint_baseline.json`),
   `narx_etalon_baza.py` / `narx_etalon_jonli.json` (narx etaloni), `pasport_xarita.py` (shu faylning xaritasi),
   `hammasi.sh` (barcha testlar), `vaqt_sayohati.sh` (+ `vaqt_sayohati/sitecustomize.py` — to'plam soat chegarasi paytlarida).
@@ -135,8 +139,36 @@ ISHLATILMAYDI, u UTC oyini oladi); "bugun" / joriy oy / yil — `database.tashke
 `database.tashkent_today_start_utc` (`datetime.utcnow().date()` / `.year` ham, jarayon mintaqasiga bog'liq
 `date.today()` / `datetime.now()` ham EMAS). Faqat sana kiritiladigan qiymatlar (xarajat / avans sanasi — 00:00) o'z
 kunida qoladi. Bosh sahifa grafigi (`services.get_chart_data`) — Toshkent kalendar oylari, daromadi «Tayyor» oyi
-bo'yicha (oylik hisobot kabi; kech105, K105-4). Ko'rinishdagi vaqtlar (PDF, Telegram xabari, brauzer) hali UTC /
-mahalliy — 7-bo'lim.
+bo'yicha (oylik hisobot kabi; kech105, K105-4).
+KO'RINISH ham Toshkent vaqtida (kech106): serverda sana-vaqt matni — `database.tashkent_vaqt(dt)` (berilmasa — hozir;
+`datetime.now()` / `date.today()` ISHLATILMAYDI — Railway jarayoni UTC da), shablonda — Jinja `|toshkent` filtri
+(`{{ o.created_at|toshkent('%d.%m.%Y') }}`; istisno — `ErrorLog.created_at`, u `models._uzb_now` bilan allaqachon
+Toshkentda), PDF lar ham shu orqali. Brauzerda — `templates/base.html` dagi `tk*` yordamchilari (`templates/hodim_panel.html`
+da AYNAN nusxa): `tkMs` zona belgisiz server vaqtini UTC deb o'qiydi (`new Date(s)` uni MAHALLIY deb o'qiydi — 5 soat
+orqada), `tkSana` / `tkSanaVaqt` / `tkToliq` — ko'rsatish (til va format o'zgarmaydi), `tkISO()` — "bugun"
+(`<input type="date">` standarti; `toISOString()` — UTC sanasi), `tkHozir()` — joriy oy / yil, `tkKunFarqi` — Toshkent
+kalendar kunlari. Shablon JS da (`tk*` blokidan tashqarida) `new Date(server_vaqti)`, `toISOString()`, mahalliy
+`getMonth()` / `toLocaleDateString` ishlatilmaydi.
+
+**PDF shrifti (kech106, K106-1).** ReportLab standart Helvetica (Type1, WinAnsi) Kirill harflari, "№" va emoji ni QORA
+KVADRAT (■) qilib chizadi — shuning uchun `pdf_shrift.shriftlarni_ulash()` Liberation Sans ni 'Helvetica', 'Helvetica-Bold',
+'Helvetica-Oblique', 'Helvetica-BoldOblique' NOMLARI bilan ro'yxatga oladi (metrikasi Helvetica bilan bir xil — joylashuv
+o'zgarmaydi; PDF kodidagi `fontName='Helvetica…'` va `<b>` / `<i>` o'zgarishsiz TTF ni oladi); shriftda yo'q belgi
+(ma'lumotdagi emoji) chizilmaydi. PDF kodi matnlarida emoji / shriftda yo'q belgi ishlatilmaydi; `fonts/` deployga kiradi;
+ReportLab `requirements.txt` da 4.2.x (yangilansa — `tools/test_pdf_shrift.py` qayta).
+
+**PDF matni (kech106, K106-3 / K106-4).** ReportLab `Paragraph` matnni BELGILASH (markup) sifatida o'qiydi: foydalanuvchi
+matnidagi "<" + harf ("Karniz <A>", izoh "<b>izoh") PDF ni 500 qilardi — shuning uchun `Paragraph` ga foydalanuvchi /
+korxona matni (nom, telefon, manzil, izoh, tashuvchi, turkum) FAQAT `_x(…)` (xml escape; har PDF modulida) orqali; tizim
+qiymatlari (raqam, holat yorlig'i, oy nomi, hujjat raqami) — `tools/test_pdf_matn.py` dagi ro'yxatda. Jadval katagidagi
+oddiy satr (Paragraph emas) belgilash sifatida o'qilmaydi. Hujjatning katta sarlavhasi — korxona nomi
+(`_brand["name"].upper()`); qattiq "PENODECORPRO" YO'Q (boshqa korxona hujjatida bizning nom chiqardi).
+
+**Moliya xarajatlar ro'yxati (kech106, K106-2).** Oylik hisobot PDF idagi "Xarajatlar tafsiloti" va Moliya sahifasidagi
+xarajatlar ro'yxati (`buildExpDetail`) — hisobot (`services.get_monthly_report`) qismlaridan, JAMI XARAJAT bilan BIR manba:
+asosiy 4 turkum (`xarajatlar`), qo'shimcha turkumlar (`qoshimcha_xarajatlar` — tannarxga qo'shilgan kirim xarajatlari
+kirmaydi), transport (xarid va yuk — korxona hisobidan), usta KPI, hodimlar, Ehson, brak, ishlab chiqarish; "Boshqa" /
+"Kutilmagan" — izoh bo'yicha. Qatorlar yig'indisi = JAMI (tekshiruv shu xossa bilan).
 
 **Buyurtma hayoti.** Holatlar: `draft` (qoralama) → `new` / `in_progress` (jarayonda) → `delivered` (hammasi topshirilgan,
 lekin «Tayyor» bosilmagan) → `ready` («Tayyor» — YAKUNIY, hisobotga kiradi); `cancelled`. Yuk xati (`crud.create_delivery`) —
@@ -212,7 +244,7 @@ python3 -m pyflakes crud.py main.py schemas.py services.py
 Har test oxirida `NATIJA: o'tdi = N yiqildi = M jami = K`; talab — `yiqildi = 0` va chiqish kodi 0. PG testlarini
 parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayllarni tahrirlamang.
 
-**Kutilgan natija (kech105 o'lchovi, 2026-09-28, zip 100 fayllari bilan):** `bash tools/hammasi.sh` — 123 test fayli (Python va JS), jami **11 636** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **11 637** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 74 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 108); pyflakes — `crud.py` 63, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
+**Kutilgan natija (kech106 o'lchovi, 2026-09-28, zip 101 fayllari bilan):** `bash tools/hammasi.sh` — 128 test fayli (Python va JS), jami **11 882** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **11 883** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 78 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 108); pyflakes — `crud.py` 63, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
 
 **Darvozalar (o'zgartirishdan keyin yiqilsa — sababini toping, testni "moslab" yashirmang):**
 
@@ -245,6 +277,15 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   `tools/test_ombor_turkum_ui.js`.
 - Vaqt — Toshkent kalendari (kun / oy / yil chegaralari, "bugun", jarayon mintaqasiga bog'liq emaslik):
   `tools/test_toshkent_vaqt.py`, `tools/test_soat_utc.py`; butun to'plam chegara paytlarida — `tools/vaqt_sayohati.sh`.
+  Ko'rinish (kech106): server — `tools/test_toshkent_korinish.py` (Telegram, PDF, sahifalar, API matnlari, AST statik);
+  brauzer — `tools/test_toshkent_korinish_ui.js` (tk yordamchilari va sahifa funksiyalari UCH mintaqada: Asia/Tashkent,
+  UTC, America/New_York — natija AYNAN; statik: shablon JS da `new Date(` faqat saralash taqqoslashida, `toISOString()` —
+  faqat `tk*` blokida).
+- PDF shrifti (7 PDF — Kirill ma'lumot, "№", qora kvadrat yo'q; metrika = Helvetica; ma'lumotdagi emoji; statik — kod
+  matnlarida shriftda yo'q belgi yo'q): `tools/test_pdf_shrift.py`.
+- PDF matni va sarlavhasi ("<" / "&" li foydalanuvchi matni — 7 PDF 200 va matn AYNAN; 2-korxona sarlavhasi; statik —
+  `Paragraph` ga `_x`): `tools/test_pdf_matn.py`.
+- Moliya xarajatlar ro'yxati = JAMI (PDF va sahifa; 205 ta tranzaksiya — cheklovsiz; eski oylik shakl): `tools/test_moliya_tafsilot.py`.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -345,10 +386,8 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   (ko'chirishdan keyin o'tgan oylar raqami shuncha o'zgaradi — egasiga misol bilan); READY, lekin `completed_at` NULL
   buyurtmalar — bosh sahifa grafigidan chiqadi (oylik hisobot ularni allaqachon sanamaydi).
 - **`staging` da ✅ belgisiz qolgan eski bandlar (oxirgi TOPSHIRIQ, 5-bo'lim) — `main` dan OLDIN ko'rib chiqiladi:** 9 va 50 —
-  (kech105, zip 100) SERVER hisobot chegaralari Toshkent kalendariga o'tkazildi (A qism, egasi qarori — 6-bo'lim); QOLDI:
-  B — ko'rinish (PDF nakladnoy sanasi, Telegram xabarlari vaqti `datetime.now()`, `templates/users.html` "now", Jinja
-  `strftime` — UTC) va C — brauzer (JSON vaqtlar 'Z' siz — JS mahalliy vaqt deb o'qiydi; `new Date().toISOString().slice(0, 10)`
-  standart sanasi UTC — `templates/hodim_panel.html`, `templates/supplier_receive.html`); 10 — kech23 qoldiqlari (loyiha tahririda muddat, hodim
+  YOPILDI (kech105 zip 100 — hisobot chegaralari; kech106 zip 101 — ko'rinish: PDF, Telegram, sahifalar, brauzer
+  standart sanalari va joriy oy — 4-bo'lim "Vaqt"); 10 — kech23 qoldiqlari (loyiha tahririda muddat, hodim
   paneli, UI 400 sabablari, hech bir handler ko'rsatmaydigan `templates/masters.html`, "Kirim hujjatini bekor qilish", Telegram
   dizayni xavfi); 26, 36, 49, 71 — hujjatlangan chegaralar (tuzatish rejalanmagan).
 - **Egasi hal qiladi:** brak mahsulotning keyingi taqdiri (chiqindi / tuzatildi / qayta ishlatildi / 2-nav);
@@ -385,6 +424,32 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   `agreed_amount = 0` — xuddi shu sinf). Tekshiruv: material yaratib, serverni QAYTA ishga tushirib solishtirish.
 - GitHub'da yuklashdan OLDIN shox (branch) nomini tekshiring: 2026-09-24 da zip 51 ning `main.py` si `main` ga
   tushgan, keyin `main` ga eski (15-sentabr) nusxa yuklangan (K105-1) — `main` tarixini ham `git log` bilan kuzating.
+- Brauzerda `new Date("2026-09-30T20:30:00")` (zona belgisiz) — MAHALLIY vaqt (Toshkent kompyuterida 5 soat orqada),
+  `new Date().toISOString().slice(0, 10)` — UTC sanasi (Toshkent 00:00–05:00 da KECHA), mahalliy oy boshi
+  `new Date(y, m, 1).toISOString()` — UTC+ mintaqada OLDINGI kun (kech106: brak xulosasi "shu oy" oldingi oyning oxirgi
+  kunidan boshlanardi).
+  Ko'rinishni o'lchash — HAQIQIY brauzerda (Playwright: `timezone_id`, `page.clock.set_fixed_time`), kamida 3 mintaqada.
+- Testda modul `datetime` sinfini almashtirish ("hozir" simulyatsiyasi) shu moduldagi `isinstance(x, datetime)` ni aldaydi —
+  tur tekshiruvi HAQIQIY sinf bilan (`import datetime as _dt_modul`; kech106 `database.tashkent_vaqt`).
+- Shablon funksiyasini vm / node da yurgizadigan eski testlar yangi umumiy yordamchi (`base.html`) chaqirilganda
+  "is not defined" bilan yiqiladi — kontekstga o'sha yordamchilarni yuklang (kech106: 5 test moslandi).
+- Testdagi muzlatish (masalan K81-1 — PDF "hozir") VAQT MANBAI bilan birga ko'chishi shart: kech106 da PDF modullari
+  `datetime` o'rniga `database.tashkent_vaqt` ga o'tgach `tools/test_hisobot_korxona.py` muzlatishi jimgina ishlamay
+  qoldi (daqiqa chegarasida S1 yiqilardi — vaqt sayohati bilan O'LCHANDI) — endi S6 deterministik tekshiradi.
+- ReportLab standart shriftlari (Helvetica, Times, Courier — Type1, WinAnsi) Kirill / "№" / emoji ni ■ qiladi; PDF ni
+  HAQIQIY chizib (`pdftoppm`) ko'ring. `registerFont` nom band bo'lsa TTF ni JIM o'tkazib yuboradi va har TTF uchun
+  o'z "oilasi"ni yozib `<b>` / `<i>` ni buzadi (`pdf_shrift.py` ikkalasini tuzatadi). PDF oqimini o'qishda Flate ikkilik
+  ma'lumotini `strip()` qilmang — `/Length` bo'yicha kesing (oqim bo'shliq baytida tugashi mumkin).
+- "Jami" va uning "tafsiloti" ALOHIDA hisoblansa, albatta ajraladi (K106-2: PDF jadvali tranzaksiyalarni qayta sanab,
+  asosiy turkumlarni ikki marta chiqardi, transportni tushirib qoldirdi — qatorlar 5 251 550, JAMI 3 151 600): ro'yxatni
+  jami bilan BIR manbadan quring va "qatorlar yig'indisi = jami" xossasini boy fiksturada tekshiring.
+- ReportLab `Paragraph` ga foydalanuvchi matnini xom bermang (`<` — belgilash, PDF 500); bir modulda tuzatilgan
+  qattiq qiymat (2026-09-20 — "PenoDecorPro" brendi) boshqa modullarda QOLGAN bo'lishi mumkin — butun turni qidiring
+  (K106-4: 6 sarlavha).
+- PDF o'quvchi (testlarda, kutubxonasiz): ASCII85 tugatuvchisi `~>` ni FAQAT bir marta olib tashlang (`rstrip(b"~>")`
+  ma'lumotning oxirgi ">" ini ham o'chiradi — ~1–2 % oqim; kontent vaqtga bog'liq bo'lgani uchun vaqt sayohatida
+  TASODIFAN yiqildi); `BT … ET` bloklarini TOKENLAB ajrating (satr ichidagi "ET" — "YETKAZISH" — `BT(.*?)ET` ni
+  uzadi, qator jim tashlanadi). Har PDF o'quvchili testda o'quvchining o'zi uchun sun'iy PDF nazorati bor.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -1088,6 +1153,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_loyiha_izchillik.py` · PG — kech98 (2026-09-27), 130-band.
 - `test_material_korxona.py` · PG — kech99 (2026-09-27), 112-band.
 - `test_mijozga_qaytarish.py` · PG — kech100 darvozasi (2026-09-27, 131-band, FOYDALANUVCHI QARORI "B" — "Kerak").
+- `test_moliya_tafsilot.py` · PG — kech106, K106-2 darvozasi: oylik moliya hisobotining xarajatlar ro'yxati (PDF "Xarajatlar tafsiloti" jadvali va Moliya sahifasidagi ro'yxat) JAMI XARAJAT bilan BIR xil bo'ls…
 - `test_mrp_bosh_tannarx.py` · PG — kech101 darvozasi (2026-09-27, 138-band): MRP detali tannarxi — BO'SHAGAN dona ikki marta emas.
 - `test_mrp_kerak.py` · PG — kech72 darvozasi (2026-09-25, 85-band / K71-2): MRP detali uchun "hali ishlab chiqarish KERAK" miqdori — YAGONA qoida.
 - `test_mrp_loy_ulush.py` · PG — 5-bo'lim 44-band + K62-1 darvozasi (kech62, 2026-09-24): MRP detali buyurtma LOYINI sarflamaydi — YAGONA qoida.
@@ -1107,6 +1173,8 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_ombor_turkum.py` · PG — kech105 darvozasi: K105-2 (ombor turkumi "Boshqa" har deployda "Bazalt" ga aylanardi) va K105-3 (penoplast belgisi material NOMIDAN har deployda qo'yilardi; Ta'minotchilar sahi…
 - `test_ortiqcha_qaytarish.py` · PG — 5-bo'lim 57-band darvozasi (kech60, 2026-09-24): ORTIQCHA mahsulot omborga.
 - `test_pasport.py` · PG — `LOYIHA_PASPORTI.md` (16-band) izchilligi va shablon → marshrut havolalari darvozasi (kech104, 2026-09-28).
+- `test_pdf_matn.py` · PG — kech106, K106-3 va K106-4 darvozasi: PDF hujjatlardagi foydalanuvchi matni va korxona nomi.
+- `test_pdf_shrift.py` · PG — kech106, K106-1 darvozasi: PDF hujjatlarda shriftda YO'Q belgi (QORA KVADRAT ■) chiqmasin.
 - `test_peno_tenant.py` — "asosiy penoplast" bo'yicha korxonalararo darvoza va `models._tenant_guard` ning filtr ostida ishlashi.
 - `test_pul_query.py` · PG — 17f-band: pul maydonlarining ANIQLIGI (1 tiyindan kichik musbat summa) va SIG'IMI (Numeric(12,2)), kirish transporti, mijoz to'lovi, sovg'a davri, xarid tahriri va xarid / kirim h…
 - `test_qarz_ochirilgan.py` · PG — kech100 darvozasi (2026-09-27, 134-band, FOYDALANUVCHI QARORI "A"; K100-4).
@@ -1142,6 +1210,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_tm_tannarx.py` · PG — 5-bo'lim 47-band darvozasi (kech59, 2026-09-24): TAYYOR MAHSULOT 1 birlik tannarxi.
 - `test_tolov_query.py` — 17c-band: so'rov qatoridagi pul marshrutlari va loyiha "To'langan" summasi.
 - `test_top_tm_korxona.py` · PG — kech78 darvozasi (2026-09-25, 98-band): Dashboard "Tayyor mahsulotdan eng ko'p sotilganlar" (`/api/dashboard/top-finished-products`, `services.get_top_finished_products_sold`…
+- `test_toshkent_korinish.py` · PG — kech106, 9 + 50-band B qismi darvozasi (server KO'RINISHI). FOYDALANUVCHI QARORI (kech105, 2026-09-28): "Toshkent vaqti bo'yicha" — hisobot chegaralari (A qism, zip 100 —…
 - `test_toshkent_vaqt.py` · PG — kech105, 9 + 50-band darvozasi. FOYDALANUVCHI QARORI (2026-09-28): "Toshkent vaqti bo'yicha (Tavsiya)" — hisobotlarning kun / oy / yil chegaralari TOSHKENT kalendari bo'yicha,…
 - `test_transport_foyda.py` · PG — kech87 darvozasi (2026-09-26, 104-band).
 - `test_usta_oxirgi_sana.py` · PG — kech91 darvozasi (2026-09-26, 115-band): Usta KPI hisobotidagi "Oxirgi buyurtma" sanasi (`crud.get_masters_kpi_report` → `last_order_date`, `/api/masters/kpi-report`, `/mas…
@@ -1164,10 +1233,11 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_tahrir_tiyin_ui.js` · JS — kech95 (2026-09-27), 124-band + 117-band (brauzer qismi).
 - `test_tolov_panel_ui.js` · JS — tools/test_tolov_panel_ui.js — kech44, 30-band.
 - `test_tolov_ui.js` · JS — mijoz to'lovini saqlash (`savePayment`) ikki sahifada: templates/orders.html (to'lov oynasi) va templates/debts.html (qarzni yopish).
+- `test_toshkent_korinish_ui.js` · JS — kech106, 9 + 50-band C qismi darvozasi (BRAUZER ko'rinishi). FOYDALANUVCHI QARORI (kech105, 2026-09-28): "Toshkent vaqti bo'yicha" — ekrandagi sana-vaqt, "bugun" standa…
 - `test_xarid_ochirish.js` · JS — Ta'minotchilar sahifasidagi xaridni o'chirish (`deletePurchase`, templates/suppliers.html).
 - `test_xarid_tahrir_ui.js` · JS — Ta'minotchilar sahifasidagi xaridni TAHRIRLASH (`editPurchase`) va server sababini ko'rsatish (`serverSababi`), templates/suppliers.html.
 - `test_yetkazish_ui.js` · JS — 17g (2026-09-22): yetkazish va brak yozish UI si.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 
-Jami test fayllari: 123 (Python 105, JS 18).
+Jami test fayllari: 128 (Python 109, JS 19).
 <!-- AVTO:TESTLAR OXIRI -->

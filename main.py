@@ -16,6 +16,9 @@ from sqlalchemy.exc import IntegrityError
 from database import init_database, get_db
 # kech105 (9 + 50-band): Toshkent kalendari yordamchilari — `database.py` (hisobot kun / oy / yil chegarasi)
 from database import tashkent_oy_oraligi as _tashkent_oy_oraligi
+# kech106 (9 + 50-band B qismi): KO'RINISHDAGI sana-vaqt (Telegram, sahifa, fayl nomi) — Toshkent devor soati.
+# `datetime.now()` ISHLATILMAYDI (jarayon mintaqasi — Railway da UTC, 5 soat orqada).
+from database import tashkent_vaqt as _t_vaqt
 import schemas
 import crud
 import services
@@ -397,7 +400,7 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
             f"📄 Yuk xati — {d.delivery_number}\n"
             f"👤 Mijoz: {client}\n"
             f"📋 Buyurtma: {d.order.order_number}\n"
-            f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
         )
         text_msg = (
             f"📦 *Yuk xati* — {d.delivery_number}\n\n"
@@ -406,7 +409,7 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
             + "\n".join(lines)
             + "\n\n⚠️ Texnik sabab bilan PDF fayl yuborib bo'lmadi — shuning "
               "uchun ma'lumot matn ko'rinishida yuborildi.\n"
-            + f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            + f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
         )
 
         for tg_id, role in recipients:
@@ -2778,6 +2781,19 @@ templates.env.globals["cat_on"] = cat_on
 # shunda "?v=..." o'zgarib, brauzer albatta YANGI faylni yuklaydi.
 templates.env.globals["static_version"] = "20260917-1"
 
+
+def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
+    """kech106 (9 + 50-band B qismi): Jinja filtri — bazadagi UTC vaqtni TOSHKENT vaqtida ko'rsatadi:
+    `{{ o.created_at|toshkent('%d.%m.%Y') }}` (standart format — "kun.oy.yil soat:daqiqa"). Qiymat yo'q — bo'sh
+    satr. Shablonlarda bazadagi vaqt `strftime` bilan TO'G'RIDAN-TO'G'RI chiqarilmaydi (UTC — 5 soat orqada;
+    O'LCHANGAN: work/probe106.py). Istisno — `ErrorLog.created_at` (`models._uzb_now` allaqachon Toshkent)."""
+    if qiymat is None or qiymat == "":
+        return ""
+    return _t_vaqt(qiymat).strftime(fmt)
+
+
+templates.env.filters["toshkent"] = _toshkent_filtr
+
 import os
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 os.makedirs(static_dir, exist_ok=True)
@@ -2864,7 +2880,7 @@ async def logout(request: Request, db: Session = Depends(get_db)):
 @app.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     users = auth.get_all_users(db, company_id=auth.company_id_of(current_user))
-    return templates.TemplateResponse(request, "users.html", {"users": users, "current_user": current_user, "now": datetime.now().strftime("%d.%m.%Y %H:%M"), "active_page": "users"})
+    return templates.TemplateResponse(request, "users.html", {"users": users, "current_user": current_user, "now": _t_vaqt().strftime("%d.%m.%Y %H:%M"), "active_page": "users"})
 
 
 @app.get("/trash", response_class=HTMLResponse)
@@ -3886,7 +3902,7 @@ def api_employee_compensation_history(emp_id: int, db: Session = Depends(get_db)
         "extra_monthly": float(r.extra_monthly) if r.extra_monthly else None,
         "reason": r.reason,
         "created_by": r.created_by,
-        "created_at": r.created_at.strftime("%d.%m.%Y %H:%M") if r.created_at else None,
+        "created_at": _t_vaqt(r.created_at).strftime("%d.%m.%Y %H:%M") if r.created_at else None,
     } for r in rows]
 
 
@@ -4506,7 +4522,7 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
             kam.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit}")
         else:
             yetarli.append(f"✅ {item.item_name}: {qty:.1f} {item.unit}")
-    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    now = _t_vaqt().strftime("%d.%m.%Y %H:%M")
     msg = f"📋 *Ombor hisoboti*\n_{now}_\n\n"
     if kam:
         msg += f"━━━ KAM QOLGANLAR ({len(kam)} ta) ━━━\n" + "\n".join(kam) + "\n\n"
@@ -5139,7 +5155,7 @@ def api_coating_notify(order_id: int, loy_kg: Optional[str] = None, db: Session 
                 f"📋 Buyurtma: *{order.order_number}*\n"
                 f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
                 f"🧱 Loy tayyorlang: *{int(loy_kg)} kg*\n\n"
-                f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
             )
             _send_telegram(msg, company_id=auth.company_id_of(current_user))
             _send_telegram_to_qoplamachi(msg, company_id=auth.company_id_of(current_user))
@@ -5189,7 +5205,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                 f"📋 Buyurtma: *{order.order_number}*\n"
                 f"👤 Mijoz: {order.project.client_name if order.project else '—'}\n"
                 f"🧱 Ishlatilgan loy: *{int(loy_kg)} kg*\n\n"
-                f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
             )
             _send_telegram(msg, company_id=auth.company_id_of(current_user))
         if order.project and order.project.notes:
@@ -5217,7 +5233,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                         f"👤 Mijoz: {order.project.client_name}\n"
                         f"{_tg_footer(db, auth.company_id_of(current_user), bold=False)}\n\n"
                         f"Barcha mahsulot to'liq topshirildi. Xarid uchun rahmat!\n"
-                        f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                        f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
                     )
                 else:
                     client_msg = (
@@ -5226,7 +5242,7 @@ def api_mark_order_ready(order_id: int, loy_kg: Optional[str] = None,
                         f"👤 Mijoz: {order.project.client_name}\n"
                         f"{_tg_footer(db, auth.company_id_of(current_user), bold=False)}\n\n"
                         f"Buyurtmangizni olishingiz mumkin!\n"
-                        f"⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                        f"⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
                     )
                 _send_telegram_to(tg_id, client_msg, company_id=auth.company_id_of(current_user))
 
@@ -5979,7 +5995,9 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
                                         company_id=auth.company_id_of(current_user))
 
     _start, _end = _tashkent_oy_oraligi(year, month)
-    expense_transactions = crud.get_expense_transactions(db, year=year, month=month, company_id=auth.company_id_of(current_user))
+    # kech106 (K106-2): oyning HAMMA tranzaksiyasi (standart 200 ta cheklov — PDF izohli qatorlari to'liq bo'lmasdi)
+    expense_transactions = crud.get_expense_transactions(db, year=year, month=month, limit=None,
+                                                         company_id=auth.company_id_of(current_user))
 
     brak_summary = crud.get_brak_material_summary(db, start_date=_start, end_date=_end, company_id=auth.company_id_of(current_user))
     brak_by_material = brak_summary.get("by_material", [])
@@ -6793,7 +6811,7 @@ def api_system_backup(db: Session = Depends(get_db),
 
     # M7: tenant admin FAQAT o'z korxonasining zahira nusxasini oladi.
     backup_data = crud.export_full_backup(db, company_id=auth.company_id_of(current_user))
-    filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d_%H-%M')}.json"
+    filename = f"penodecorpro-backup-{_t_vaqt().strftime('%Y-%m-%d_%H-%M')}.json"   # kech106: Toshkent vaqti
     content = json.dumps(backup_data, ensure_ascii=False, indent=2)
     return Response(
         content=content,
@@ -7888,7 +7906,7 @@ def api_create_delivery(data: dict = Body(...), db: Session = Depends(get_db), c
             + "\n".join(lines)
             + f"\n\n📊 Bajarilish: *{result['delivery_percent']}%*"
             + ("\n✅ *Buyurtma to'liq topshirildi!*" if result["is_fully_delivered"] else "")
-            + f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            + f"\n⏰ {_t_vaqt().strftime('%d.%m.%Y %H:%M')}"
         )
         _send_telegram(msg, company_id=auth.company_id_of(current_user))
         _send_delivery_pdf_to_customer(db, result["delivery_id"])
@@ -8454,10 +8472,12 @@ def run_daily_backup():
                 f"⚠️ *Zaxira hajmi ogohlantirishi*\n\nBugungi zaxira {_mb:.1f} MB.\n"
                 f"Telegram chegarasi 50 MB. Yaqinlashyapti — boshqa saqlash "
                 f"usulini rejalashtirish vaqti keldi.")
-        filename = f"penodecorpro-backup-{datetime.utcnow().strftime('%Y-%m-%d')}.json"
+        # kech106 (9 + 50-band B qismi): fayl nomi va xabardagi sana — Toshkent kuni (zaxira 23:30 Toshkentda
+        # yuradi — UTC sanasi bilan bir xil, lekin qo'lda / kechikib ishga tushsa ham to'g'ri kun).
+        filename = f"penodecorpro-backup-{_t_vaqt().strftime('%Y-%m-%d')}.json"
 
         total_rows = sum(len(rows) for rows in backup_data["tables"].values())
-        caption = f"🗄 Kunlik avtomatik zaxira nusxa\n📅 {datetime.utcnow().strftime('%d.%m.%Y')}\n📊 Jami {total_rows} ta yozuv"
+        caption = f"🗄 Kunlik avtomatik zaxira nusxa\n📅 {_t_vaqt().strftime('%d.%m.%Y')}\n📊 Jami {total_rows} ta yozuv"
 
         for chat_id in chat_ids:
             _send_telegram_document(chat_id, content, filename, caption)

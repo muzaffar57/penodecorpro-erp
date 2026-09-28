@@ -9,7 +9,21 @@ foydani — bitta, tartibli hujjatga birlashtiradi.
 from company_brand import get_brand  # 2026-09-20: korxona brendi
 
 import io
-from datetime import datetime, timezone, timedelta
+# kech106 (9 + 50-band B qismi): "Yaratildi" vaqti — `database.tashkent_vaqt` (yagona manba; ilgari alohida `UZB_TZ`).
+from database import tashkent_vaqt as _tashkent_vaqt
+# kech106 (K106-2): tannarxga qo'shilgan kirim xarajatlari manbasi — hisobot JAMI XARAJAT ga kirmaydi (kech87, 104-band).
+from models import KIRIM_TANNARX_MANBA as _KIRIM_TANNARX_MANBA
+from xml.sax.saxutils import escape as _xml_escape
+# kech106 (K106-1): PDF shrifti — Liberation Sans (Kirill, "№", "−"; Helvetica metrikasi) standart Helvetica NOMLARI
+# bilan (`pdf_shrift.py`). Ilgari Kirill yozilgan nom, "№" va emoji QORA KVADRAT (■) bo'lib chiqardi.
+from pdf_shrift import shriftlarni_ulash as _shriftlarni_ulash
+_shriftlarni_ulash()
+# kech106 (K106-3): foydalanuvchi matni (nom, izoh, telefon, korxona ma'lumoti) Paragraph ga XAVFSIZ — "<" / "&"
+# belgilash deb o'qilmaydi (ilgari "Karniz <A>" kabi nom yoki "<b>izoh" bo'lsa PDF 500 edi).
+
+def _x(qiymat):
+    return _xml_escape("" if qiymat is None else str(qiymat))
+
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -26,8 +40,6 @@ GREEN = colors.HexColor("#2E7D52")
 RED = colors.HexColor("#C0392B")
 GRAY = colors.HexColor("#8E8E93")
 LIGHT = colors.HexColor("#F6F4F0")
-
-UZB_TZ = timezone(timedelta(hours=5))
 
 MONTH_NAMES = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
                "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"]
@@ -66,7 +78,7 @@ def generate_split_profit_pdf(split: dict, year: int, month: int,
 
     el = []
 
-    header = Table([[Paragraph("PENODECORPRO", st_title)],
+    header = Table([[Paragraph(_x(_brand["name"].upper()), st_title)],   # kech106 (K106-4): ilgari qattiq "PENODECORPRO"
                      [Paragraph("Gips va Penoplast — mustaqil sof foyda hisoboti", st_sub)]], colWidths=[W])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -80,7 +92,7 @@ def generate_split_profit_pdf(split: dict, year: int, month: int,
 
     du = split.get("daromad_ulushi", {})
     el.append(Paragraph(
-        f"Daromad ulushi: 🏭 Penoplast {du.get('penoplast_foiz',0)}% · 🧱 Gips {du.get('gips_foiz',0)}%"
+        f"Daromad ulushi: Penoplast {du.get('penoplast_foiz',0)}% · Gips {du.get('gips_foiz',0)}%"
         f" &nbsp;&nbsp;|&nbsp;&nbsp; Umumiy xarajatlar (arenda/svet/soliq/Ehson/brak) shu nisbatda taqsimlangan",
         st_small
     ))
@@ -126,12 +138,12 @@ def generate_split_profit_pdf(split: dict, year: int, month: int,
         ]))
         return KeepTogether([head, tbl, Spacer(1, 16)])
 
-    el.append(section("🏭 PENOPLAST VA BOSHQA", colors.HexColor("#1E40AF"), split["penoplast"]))
-    el.append(section("🧱 GIPS", colors.HexColor("#9D174D"), split["gips"]))
+    el.append(section("PENOPLAST VA BOSHQA", colors.HexColor("#1E40AF"), split["penoplast"]))
+    el.append(section("GIPS", colors.HexColor("#9D174D"), split["gips"]))
 
     el.append(Spacer(1, 6))
     el.append(Paragraph(
-        "⚠️ Eslatma: Yo'nalishi aniq belgilanmagan hodimlar va umumiy xarajatlar (arenda, svet, soliq, Ehson) — "
+        "Eslatma: Yo'nalishi aniq belgilanmagan hodimlar va umumiy xarajatlar (arenda, svet, soliq, Ehson) — "
         "ikkala yo'nalish ham bitta joyda faoliyat yuritgani uchun, daromad nisbatiga qarab taxminiy taqsimlangan. "
         "Xomashyo va Brak/yo'qotish — aniq, materialning o'z turi bo'yicha hisoblangan.",
         ParagraphStyle('note', fontName='Helvetica-Oblique', fontSize=8, textColor=GRAY, leading=11)
@@ -179,9 +191,9 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
 
     # ── SARLAVHA ──
     header = Table([[
-        Paragraph("PENODECORPRO", st_title),
+        Paragraph(_x(_brand["name"].upper()), st_title),   # kech106 (K106-4): ilgari qattiq "PENODECORPRO"
     ], [
-        Paragraph(_brand["subtitle"], st_sub),
+        Paragraph(_x(_brand["subtitle"]), st_sub),
     ]], colWidths=[W])
     header.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), DARK),
@@ -302,66 +314,84 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
 
     def _add_row(name, amount, bg=colors.white):
         if amount and float(amount) != 0:
-            rows.append([Paragraph(name, st_cell), Paragraph(f"{_fmt(amount)} so'm", st_cell_r)])
+            # kech106 (K106-2): nom — foydalanuvchi matni (turkum, izoh, usta / hodim ismi) bo'lishi mumkin; ReportLab
+            # Paragraph uni belgilash sifatida o'qimasin ("a<b>c" — qalin "c", "&amp;" — "&") — matn AYNAN ko'rinadi.
+            rows.append([Paragraph(_x(name), st_cell), Paragraph(f"{_fmt(amount)} so'm", st_cell_r)])
             row_colors.append(bg)
 
     # 1) Ishlab chiqarish xarajati (tan narx)
-    _add_row("🏭 Ishlab chiqarish xarajati (xomashyo tan narxi)", report.get("ishlab_chiqarish_xarajat", 0))
+    _add_row("Ishlab chiqarish xarajati (xomashyo tan narxi)", report.get("ishlab_chiqarish_xarajat", 0))
 
     # 1b) Arenda/Elektr/Tushlik/Soliqlar — eski (asosiy maydonlar) mexanizmi
     # orqali kiritilgan bo'lsa (Xarajat qo'shish oynasidagi "asosiy" turlar)
     x = report.get("xarajatlar", {}) or {}
-    _add_row("🏠 Arenda", x.get("arenda", 0))
-    _add_row("💡 Elektr", x.get("elektr", 0))
-    _add_row("🍽️ Tushlik", x.get("tushlik", 0))
-    _add_row("🧾 Soliqlar", x.get("soliqlar", 0))
+    _add_row("Arenda", x.get("arenda", 0))
+    _add_row("Elektr", x.get("elektr", 0))
+    _add_row("Tushlik", x.get("tushlik", 0))
+    _add_row("Soliqlar", x.get("soliqlar", 0))
 
     # 2) Usta yillik KPI — har bir usta
     for b in report.get("usta_kpi_breakdown", []):
-        _add_row(f"🏆 Usta KPI — {b['master_name']} ({b['kpi_percent']}% × foyda {_fmt(b['monthly_profit'])})", b['kpi_amount'])
+        _add_row(f"Usta KPI — {b['master_name']} ({b['kpi_percent']}% × foyda {_fmt(b['monthly_profit'])})", b['kpi_amount'])
 
     # 3) Hodimlar (moslashuvchan) — har biri
     for b in report.get("hodimlar_moslashuvchan_breakdown", []):
         nm = b['name'] + (f" ({b['position']})" if b.get('position') else "")
-        _add_row(f"👷 {nm} — {b['detail']}", b['amount'])
+        _add_row(f"{nm} — {b['detail']}", b['amount'])
 
     # 4) Ehson
-    _add_row("🤲 Ehson (xayriya)", report.get("ehson_xarajat", 0))
+    _add_row("Ehson (xayriya)", report.get("ehson_xarajat", 0))
 
     # 5) Brak — har bir xomashyo turi bo'yicha, so'ng jami
     for m in (brak_by_material or []):
-        _add_row(f"🗑️ Brak — {m.get('item_name', '—')}", m.get('value', 0))
+        _add_row(f"Brak — {m.get('item_name', '—')}", m.get('value', 0))
     if not brak_by_material and report.get("brak_xarajat", 0):
-        _add_row("🗑️ Brak (yaroqsiz xomashyo)", report.get("brak_xarajat", 0))
+        _add_row("Brak (yaroqsiz xomashyo)", report.get("brak_xarajat", 0))
 
-    # 6) Kunlik xarajat tranzaksiyalari — nomma-nom (Arenda, Soliq va h.k.)
+    # 5b) kech106 (K106-2, O'LCHANGAN — `work/probe106m.py`): korxona to'lagan TRANSPORT — hisobotning JAMI XARAJAT i
+    # ichida (kech87, 104-band), lekin bu jadvalda YO'Q edi (qatorlar yig'indisi JAMI dan kam chiqardi).
+    _add_row("Transport — xomashyo xaridi (kirish)", report.get("transport_xarajat_kirish", 0))
+    _add_row("Transport — yuk yetkazish (korxona hisobidan)", report.get("transport_xarajat_yetkazish", 0))
+
+    # 6) Qo'shimcha xarajatlar — hisobotning `qoshimcha_xarajatlar` i (JAMI XARAJAT bilan BIR manba).
+    # kech106 (K106-2): ilgari shu oyning HAMMA tranzaksiyasi qayta sanalardi — asosiy 4 turkum (Arenda, Elektr, Tushlik,
+    # Soliqlar — yuqorida, 1b) IKKINCHI marta chiqardi, tannarxga qo'shilgan kirim xarajatlari (JAMI ga kirmaydi) ham
+    # ro'yxatda edi, kirim turkumlari xom kalit bilan ("transport_kirim"), tranzaksiyalar 200 ta bilan cheklangan edi.
     # MUHIM (2026-08-18): "Boshqa" va "Kutilmagan xarajat" — bular UMUMIY
     # turkumlar, shuning uchun ular ICHIDA, alohida IZOH (masalan "Texnik
     # ko'rik" yoki "Tozalik xizmati") bo'yicha, YANA batafsil ajratiladi —
     # aks holda, turli xil xarajatlar bitta "Boshqa: 110 000" qatorida
-    # yashirinib, pul qayerga ketayotgani noaniq bo'lib qolardi. Aniq
-    # turkumlar (Arenda, Elektr va h.k.) esa, avvalgidek, oddiy jamlanadi.
+    # yashirinib, pul qayerga ketayotgani noaniq bo'lib qolardi. Izohlar yig'indisi
+    # turkum jamidan farq qilsa (masalan tranzaksiyalar to'liq berilmagan bo'lsa) — qoldiq alohida qator.
     CAT_LABELS = {"arenda": "Arenda", "elektr": "Elektr", "tushlik": "Tushlik",
                   "soliqlar": "Soliqlar", "reklama": "Reklama",
-                  "kutilmagan": "Kutilmagan xarajat", "boshqa": "Boshqa"}
+                  "kutilmagan": "Kutilmagan xarajat", "boshqa": "Boshqa",
+                  "transport_kirim": "Kirim hujjati — transport",
+                  "tushirish_kirim": "Kirim hujjati — tushirish (grushchik)",
+                  "yuklash_kirim": "Kirim hujjati — yuklash",
+                  "kirim_boshqa": "Kirim hujjati — boshqa xarajat"}
     GENERIC_CATS = {"boshqa", "kutilmagan"}
+    qoshimcha = report.get("qoshimcha_xarajatlar", {}) or {}
 
-    tx_by_cat = {}       # aniq turkumlar uchun — {cat: jami_summa}
     tx_by_detail = {}    # umumiy turkumlar uchun — {(cat, izoh): jami_summa}
     for tx in (expense_transactions or []):
         cat = getattr(tx, 'category', None) or 'boshqa'
+        if cat not in GENERIC_CATS or cat not in qoshimcha or getattr(tx, 'source', None) == _KIRIM_TANNARX_MANBA:
+            continue
         amt = float(getattr(tx, 'amount', 0) or 0)
-        if cat in GENERIC_CATS:
-            note = (getattr(tx, 'notes', None) or 'Izohsiz').strip() or 'Izohsiz'
-            key = (cat, note)
-            tx_by_detail[key] = tx_by_detail.get(key, 0) + amt
-        else:
-            tx_by_cat[cat] = tx_by_cat.get(cat, 0) + amt
+        note = (getattr(tx, 'notes', None) or 'Izohsiz').strip() or 'Izohsiz'
+        key = (cat, note)
+        tx_by_detail[key] = tx_by_detail.get(key, 0) + amt
 
-    for cat, amt in sorted(tx_by_cat.items(), key=lambda x: -x[1]):
-        _add_row(f"📋 {CAT_LABELS.get(cat, cat)}", amt)
+    for cat, amt in sorted(((c, float(a or 0)) for c, a in qoshimcha.items() if c not in GENERIC_CATS),
+                           key=lambda x: -x[1]):
+        _add_row(f"{CAT_LABELS.get(cat, cat)}", amt)
     for (cat, note), amt in sorted(tx_by_detail.items(), key=lambda x: -x[1]):
-        _add_row(f"📋 {CAT_LABELS.get(cat, cat)} — {note}", amt)
+        _add_row(f"{CAT_LABELS.get(cat, cat)} — {note}", amt)
+    for cat in sorted(c for c in qoshimcha if c in GENERIC_CATS):
+        qoldiq = float(qoshimcha[cat] or 0) - sum(a for (c, _), a in tx_by_detail.items() if c == cat)
+        if abs(qoldiq) >= 0.5:
+            _add_row(f"{CAT_LABELS.get(cat, cat)} — boshqa yozuvlar", qoldiq)
 
     # Jami xarajat qatori
     rows.append([Paragraph("<b>JAMI XARAJAT</b>", ParagraphStyle('tf', fontName='Helvetica-Bold', fontSize=9.5, textColor=DARK)),
@@ -410,7 +440,7 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
     # ── FOOTER ──
     el.append(Spacer(1, 12))
     footer = Table([[Paragraph(
-        f"{_brand['name']}  ·  Yaratildi: {datetime.now(UZB_TZ).strftime('%d.%m.%Y %H:%M')}  ·  "
+        f"{_x(_brand['name'])}  ·  Yaratildi: {_tashkent_vaqt().strftime('%d.%m.%Y %H:%M')}  ·  "
         f"Ushbu hisobot {MONTH_NAMES[month]} {year} oyi uchun avtomatik yaratildi",
         ParagraphStyle('f', fontName='Helvetica', fontSize=7, textColor=GRAY, alignment=TA_CENTER)
     )]], colWidths=[W])
