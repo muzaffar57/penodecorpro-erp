@@ -1,0 +1,543 @@
+{% extends "base.html" %}
+{% block title %}Platforma paneli — PenoDecorPro ERP{% endblock %}
+{% block page_title %}Platforma{% endblock %}
+{% block page_sub %}Mijoz korxonalar — obuna muddati, bloklash, faollik{% endblock %}
+
+{% block head %}
+<style>
+  /* kech111 — PLATFORMA PANELI, egasi QARORI kech110 "B — Kartochkalar" (Design artifact «Platforma admin paneli —
+     variantlar», VariantB). Ranglar — style.css o'zgaruvchilari (qorong'i rejim ham). */
+  .pl-wrap{padding:14px;display:flex;flex-direction:column;gap:16px;max-width:1280px}
+  .pl-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+  .pl-stat{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-card);padding:12px 14px}
+  .pl-stat .l{font-size:12px;color:var(--text2)}
+  .pl-stat .n{font-size:20px;font-weight:700;color:var(--text);margin-top:2px}
+  .pl-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+  .pl-chips{display:flex;gap:8px;flex-wrap:wrap}
+  .pl-chip{height:36px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:var(--white);
+           color:var(--text);font-size:13px;font-weight:600;cursor:pointer}
+  .pl-chip.aktiv{background:var(--dark);color:#fff;border-color:var(--dark)}
+  .pl-chip[data-filtr="yaqin"]:not(.aktiv){background:#FEF3C7;border-color:#F5D98B;color:#78350F}
+  .pl-chip[data-filtr="bloklangan"]:not(.aktiv){border-color:#F3C7C7;color:#991B1B}
+  .pl-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .pl-search{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:1px solid var(--border);
+             border-radius:10px;background:var(--white);width:240px;max-width:100%}
+  .pl-search input{border:0;outline:none;font-size:13.5px;width:100%;background:transparent;color:var(--text)}
+  .pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
+  @media (max-width:560px){.pl-grid{grid-template-columns:1fr}}
+  .pl-card{background:var(--white);border:1px solid var(--border);border-radius:13px;padding:18px;display:flex;
+           flex-direction:column;gap:14px}
+  .pl-card.yaqin{border-color:#F5D98B}
+  .pl-card.otgan{border-color:#F3C7C7}
+  .pl-card.bloklangan{background:#FBF5F5;border-color:#F3C7C7}
+  html[data-theme="dark"] .pl-card.bloklangan{background:#2A1E22}
+  .pl-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .pl-nom{font-size:16px;font-weight:700;color:var(--text);word-break:break-word}
+  .pl-kod{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2)}
+  .pl-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap;display:inline-flex;gap:6px;align-items:center}
+  .pl-b-faol{background:#DCFCE7;color:#166534}
+  .pl-b-yaqin{background:#FEF3C7;color:#78350F}
+  .pl-b-otgan{background:#FEE2E2;color:#991B1B}
+  .pl-b-bloklangan{background:#FEE2E2;color:#991B1B}
+  .pl-b-muddatsiz{background:var(--bg);color:var(--text2)}
+  .pl-b-sinov{background:#E0E7FF;color:#3730A3}
+  .pl-muddat{display:flex;justify-content:space-between;font-size:13px;gap:10px}
+  .pl-muddat .chap{color:var(--text2)}
+  .pl-bar{height:8px;background:var(--border2);border-radius:999px;overflow:hidden}
+  .pl-bar > div{height:8px;border-radius:999px}
+  .pl-raqam{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .pl-raqam .l{font-size:12px;color:var(--text2)}
+  .pl-raqam .n{font-size:17px;font-weight:700;color:var(--text)}
+  .pl-raqam .n.kichik{font-size:14px;font-weight:600}
+  .pl-blok{font-size:13px;color:#7F1D1D;line-height:1.5;background:var(--white);border:1px solid #F3C7C7;border-radius:10px;padding:10px 12px}
+  html[data-theme="dark"] .pl-blok{color:#FCA5A5}
+  .pl-btns{display:flex;gap:8px;flex-wrap:wrap}
+  .pl-btn{height:40px;padding:0 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);
+          background:var(--white);color:var(--text)}
+  .pl-btn.qora{background:var(--dark);color:#fff;border-color:var(--dark)}
+  .pl-btn.qizil{border-color:#F3C7C7;color:#991B1B}
+  .pl-btn.yashil{background:#166534;color:#fff;border-color:#166534}
+  .pl-btn.shaffof{border-color:transparent;background:transparent;color:var(--text2)}
+  .pl-izoh{font-size:12.5px;color:var(--text2);line-height:1.6}
+  .pl-bottom{display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,2fr);gap:14px;align-items:start}
+  @media (max-width:900px){.pl-bottom{grid-template-columns:1fr}}
+  .pl-field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px}
+  .pl-field input,.pl-field select{height:40px;border:1px solid var(--border);border-radius:9px;padding:0 10px;font-size:13.5px;
+          width:100%;background:var(--white);color:var(--text)}
+  .pl-xato{padding:10px 14px;border-bottom:1px solid var(--border2);cursor:pointer}
+  .pl-xato .m{font-size:13px;color:#DC2626;font-weight:600;word-break:break-word}
+  .pl-xato .s{font-size:12px;color:var(--text3);margin-top:3px}
+  .pl-xato pre{display:none;margin-top:8px;padding:10px;background:#1F2937;color:#E5E7EB;border-radius:8px;font-size:11.5px;
+          white-space:pre-wrap;word-break:break-word;max-height:360px;overflow-y:auto}
+  .pl-xato.ochiq pre{display:block}
+  .pl-modal{position:fixed;inset:0;background:rgba(24,27,34,.55);display:none;align-items:center;justify-content:center;z-index:2500;padding:16px}
+  .pl-modal.ochiq{display:flex}
+  .pl-oyna{width:500px;max-width:100%;background:var(--white);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px;
+           max-height:calc(100vh - 32px);overflow-y:auto}
+  .pl-oyna h2{margin:0;font-size:18px;font-weight:700;color:var(--text)}
+  .pl-oyna ul{margin:0;padding-left:20px;font-size:13.5px;line-height:1.7;color:var(--text2)}
+  .pl-oylar{display:flex;gap:8px;flex-wrap:wrap}
+  .pl-oylar label{display:flex;align-items:center;gap:6px;height:40px;padding:0 12px;border:1px solid var(--border);border-radius:9px;
+          font-size:13.5px;cursor:pointer;color:var(--text)}
+  .pl-korish{font-size:13.5px;font-weight:600;color:var(--text);background:var(--bg);border-radius:10px;padding:10px 12px}
+  .pl-xabar{background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:14px;font-size:12.5px;line-height:1.9}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pl-wrap">
+
+  <div class="pl-stats" id="plRaqamlar" aria-live="polite">
+    <div class="pl-stat"><div class="l">Yuklanmoqda…</div><div class="n">—</div></div>
+  </div>
+
+  <div class="pl-head">
+    <div class="pl-chips" role="group" aria-label="Saralash" id="plChiplar">
+      <button type="button" class="pl-chip aktiv" data-filtr="hammasi">Hammasi</button>
+      <button type="button" class="pl-chip" data-filtr="faol">Faol</button>
+      <button type="button" class="pl-chip" data-filtr="yaqin">Muddati yaqin</button>
+      <button type="button" class="pl-chip" data-filtr="bloklangan">Bloklangan</button>
+      <button type="button" class="pl-chip" data-filtr="sinov">Sinov davri</button>
+    </div>
+    <div class="pl-tools">
+      <label class="pl-search">
+        <i class="ti ti-search" style="font-size:16px;color:var(--text2)" aria-hidden="true"></i>
+        <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Korxona qidirish</span>
+        <input type="search" id="plQidiruv" placeholder="Nomi yoki kodi" autocomplete="off">
+      </label>
+      <button type="button" class="pl-btn qora" id="plYangiBtn">+ Yangi korxona</button>
+    </div>
+  </div>
+
+  <div class="card" id="plYangi" style="display:none">
+    <div class="card-head"><h3>➕ Yangi korxona qo'shish</h3></div>
+    <div style="padding:18px">
+      <div class="pl-izoh" style="margin-bottom:14px">
+        Korxona va uning birinchi admin hisobi yaratiladi, <b id="plSinovMatn">30 kunlik sinov davri</b> bilan.
+        Parolni tizim o'zi chiqaradi va <b>faqat bir marta</b> ko'rsatadi — uni mijozga yuboring.
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <div class="pl-field" style="width:230px"><label for="ncNom">Korxona nomi</label>
+          <input type="text" id="ncNom" placeholder="Masalan: Alfa Dekor" maxlength="200"></div>
+        <div class="pl-field" style="width:180px"><label for="ncLogin">Admin login</label>
+          <input type="text" id="ncLogin" placeholder="alfa_admin" maxlength="50"></div>
+        <div class="pl-field" style="width:180px"><label for="ncIsm">Admin ismi</label>
+          <input type="text" id="ncIsm" placeholder="ixtiyoriy" maxlength="100"></div>
+        <button type="button" class="pl-btn qora" id="ncYarat">Yaratish</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="plNatija"></div>
+
+  <div class="pl-grid" id="plKartalar"><div class="pl-izoh">Yuklanmoqda…</div></div>
+  <div class="pl-izoh" id="plPastIzoh">
+    Chiziq — obuna davrining qolgan qismi. Muddatga 7 kun qolganda kartochka sariq bo'ladi va Telegram'ga eslatma
+    ketadi; muddat tugagach 3 kun imtiyoz, so'ng kirish avtomatik yopiladi (ma'lumot o'chmaydi).
+    <span id="plEgaIzoh"></span>
+  </div>
+
+  <div class="pl-bottom">
+    <div class="card">
+      <div class="card-head"><h3>📞 Aloqa telefoni</h3></div>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+        <div class="pl-izoh">Bloklangan korxonaning kirish sahifasida, hodim panelida, botda va obuna ogohlantirishida
+          ko'rinadi. Bo'sh bo'lsa — korxonangiz hujjatlaridagi telefon.</div>
+        <div class="pl-field"><label for="plTelefon">Telefon</label>
+          <input type="text" id="plTelefon" maxlength="60" placeholder="+998 __ ___ __ __"></div>
+        <div><button type="button" class="pl-btn qora" id="plTelefonSaqla">Saqlash</button>
+          <span id="plTelefonNatija" class="pl-izoh" style="margin-left:8px"></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>⚠️ Hamma korxonalar xatolari</h3></div>
+      <div style="padding:12px 14px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid var(--border2)">
+        <div class="pl-field" style="width:220px"><label for="xtKorxona">Korxona</label>
+          <select id="xtKorxona"><option value="">Hammasi</option><option value="platforma">Platforma (korxonasiz)</option></select></div>
+        <div class="pl-field" style="width:220px"><label for="xtQidiruv">Qidiruv</label>
+          <input type="search" id="xtQidiruv" placeholder="xabar, manzil yoki kim"></div>
+        <button type="button" class="pl-btn" id="xtYangila">Ko'rsatish</button>
+      </div>
+      <div id="xtRoyxat" style="max-height:520px;overflow-y:auto"><div class="pl-izoh" style="padding:14px">Yuklanmoqda…</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="pl-modal" id="plModal" role="dialog" aria-modal="true" aria-labelledby="plModalSarlavha">
+  <div class="pl-oyna" id="plOyna"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ══ kech111 — PLATFORMA PANELI. Hamma hisob serverda (`obuna.py`): holat, muddat, uzaytirish sanasi (`korish=1`).
+// Brauzer faqat ko'rsatadi — formula nusxasi YO'Q. Foydalanuvchi matni — escapeHtml; tugmalar — data-* (onclick YO'Q).
+var PL = {royxat: [], raqam: null, filtr: 'hammasi', qidiruv: '', sabablar: [], oylar: [1, 3, 6, 12]};
+
+function plSana(iso) {                     // "2026-11-15" → "15.11.2026" (sana — kalendar kuni, siljitilmaydi)
+  var s = String(iso || '');
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4) : '';
+}
+function plSon(n) { return Number(n || 0).toLocaleString('ru-RU'); }
+function plKirish(v) {                     // oxirgi kirish (UTC server vaqti) → "Bugun, 18:02" / "Kecha, …" / "5 kun oldin"
+  if (!v) return {matn: 'Hali kirmagan', ogoh: true};
+  var f = tkKunFarqi(v);
+  if (f === 0) return {matn: 'Bugun, ' + tkVaqt(v), ogoh: false};
+  if (f === -1) return {matn: 'Kecha, ' + tkVaqt(v), ogoh: false};
+  if (!isNaN(f) && f < 0) return {matn: (-f) + ' kun oldin', ogoh: f < -14};
+  return {matn: tkSanaVaqt(v), ogoh: false};
+}
+function plFiltrgaMos(r) {
+  var h = r.holat || {}, b = h.bosqich;
+  if (PL.filtr === 'faol' && !(b === 'faol' || b === 'muddatsiz')) return false;
+  if (PL.filtr === 'yaqin' && !(b === 'yaqin' || b === 'otgan')) return false;
+  if (PL.filtr === 'bloklangan' && b !== 'bloklangan') return false;
+  if (PL.filtr === 'sinov' && !(h.sinov && !h.bloklangan)) return false;
+  var q = PL.qidiruv.trim().toLowerCase();
+  if (q && String(r.name || '').toLowerCase().indexOf(q) < 0 && String(r.code || '').toLowerCase().indexOf(q) < 0) return false;
+  return true;
+}
+
+function plBadge(h) {
+  var lock = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>';
+  var t = {faol: ['pl-b-faol', 'Faol'], yaqin: ['pl-b-yaqin', 'Muddati yaqin'], otgan: ['pl-b-otgan', 'Muddati o\'tdi'],
+           bloklangan: ['pl-b-bloklangan', lock + 'Bloklangan'], muddatsiz: ['pl-b-muddatsiz', 'Muddatsiz']}[h.bosqich]
+          || ['pl-b-muddatsiz', escapeHtml(h.bosqich)];
+  var sinov = (h.sinov && !h.bloklangan) ? ' <span class="pl-badge pl-b-sinov">Sinov</span>' : '';
+  return '<span class="pl-badge ' + t[0] + '">' + t[1] + '</span>' + sinov;
+}
+
+function plMuddat(h) {                     // obuna qatori + chiziq (bloklanmagan korxona)
+  if (!h.obuna_tugash) return '<div class="pl-muddat"><span class="chap">Obuna muddatsiz</span></div>';
+  var turi = h.sinov ? 'Sinov davri' : 'Obuna';
+  var ong, rang, fon;
+  if (h.bosqich === 'otgan') {
+    ong = 'Tugadi — ' + (h.yopilishga === 1 ? 'ertaga' : h.yopilishga + ' kundan keyin') + ' yopiladi';
+    rang = '#991B1B'; fon = '#DC2626';
+  } else {
+    ong = h.qolgan_kun === 0 ? 'Bugun tugaydi' : h.qolgan_kun + ' kun qoldi';
+    rang = h.bosqich === 'yaqin' ? '#92400E' : '#166534'; fon = h.bosqich === 'yaqin' ? '#D97706' : '#22A05A';
+  }
+  var ulush = 0;
+  if (h.bosqich !== 'otgan' && h.davr_kun) ulush = Math.max(0, Math.min(100, Math.round(100 * h.qolgan_kun / h.davr_kun)));
+  if (h.bosqich !== 'otgan' && !h.davr_kun) ulush = 100;
+  return '<div style="display:flex;flex-direction:column;gap:6px">' +
+    '<div class="pl-muddat"><span class="chap">' + turi + ' ' + plSana(h.obuna_tugash) + ' gacha</span>' +
+    '<span style="font-weight:600;color:' + rang + '">' + escapeHtml(ong) + '</span></div>' +
+    '<div class="pl-bar" role="img" aria-label="Qolgan qismi ' + ulush + ' foiz"><div style="width:' + ulush + '%;background:' + fon + '"></div></div></div>';
+}
+
+function plKarta(r) {
+  var h = r.holat || {};
+  var kirish = plKirish(r.oxirgi_kirish);
+  var blok = '';
+  if (h.bloklangan) {
+    var qachon = h.bloklangan_at ? tkSana(h.bloklangan_at, 'ru-RU') + ' dan bloklangan' : 'Bloklangan';
+    blok = '<div class="pl-blok">' + escapeHtml(qachon) + ' · sabab: <b>' + escapeHtml(h.sabab || '—') + '</b>' +
+      (h.obuna_tugash ? ' · obuna ' + plSana(h.obuna_tugash) + ' da tugagan' : '') +
+      (r.blok_izoh ? '<br>Izoh: ' + escapeHtml(r.blok_izoh) : '') + '. Ma\'lumoti saqlangan.</div>';
+  }
+  var id = escapeHtml(r.id);
+  var tugmalar;
+  if (h.bloklangan) {
+    tugmalar = '<button type="button" class="pl-btn yashil" data-amal="och" data-id="' + id + '">Ochish</button>' +
+      '<button type="button" class="pl-btn" data-amal="uzaytir" data-och="1" data-id="' + id + '">Uzaytirib ochish</button>' +
+      '<button type="button" class="pl-btn shaffof" data-amal="parol" data-id="' + id + '">Parolni tiklash</button>';
+  } else {
+    var sariq = (h.bosqich === 'yaqin' || h.bosqich === 'otgan');
+    tugmalar = '<button type="button" class="pl-btn' + (sariq ? ' qora' : '') + '" data-amal="uzaytir" data-id="' + id + '">Muddatni uzaytirish</button>' +
+      '<button type="button" class="pl-btn qizil" data-amal="blokla" data-id="' + id + '">Bloklash</button>' +
+      '<button type="button" class="pl-btn shaffof" data-amal="parol" data-id="' + id + '">Parolni tiklash</button>';
+  }
+  var dan = r.created_at ? ' · ' + escapeHtml(tkSana(r.created_at, 'ru-RU')) + ' dan' : '';   // Toshkent kuni (UTC emas)
+  return '<section class="pl-card ' + escapeHtml(h.bosqich || '') + '" aria-label="' + escapeHtml(r.name || '') + '" data-korxona="' + id + '">' +
+    '<div class="pl-top"><div><div class="pl-nom">' + escapeHtml(r.name || '') + '</div>' +
+    '<div class="pl-kod">' + escapeHtml(r.code || '—') + dan + '</div></div><div>' + plBadge(h) + '</div></div>' +
+    (h.bloklangan ? blok : plMuddat(h)) +
+    '<div class="pl-raqam">' +
+    '<div><div class="l">Foydalanuvchi</div><div class="n">' + plSon(r.users) + '</div></div>' +
+    '<div><div class="l">' + (h.bloklangan ? 'Buyurtma (jami)' : 'Buyurtma (shu oy)') + '</div><div class="n">' +
+      plSon(h.bloklangan ? r.buyurtma_jami : r.buyurtma_shu_oy) + '</div></div>' +
+    '<div><div class="l">Oxirgi kirish</div><div class="n kichik"' + (kirish.ogoh ? ' style="color:#92400E"' : '') + '>' +
+      escapeHtml(kirish.matn) + '</div></div></div>' +
+    '<div class="pl-btns">' + tugmalar + '</div></section>';
+}
+
+function plChizish() {
+  var mijoz = PL.royxat.filter(function (r) { return !r.platforma_egasi; });
+  var ega = PL.royxat.filter(function (r) { return r.platforma_egasi; });
+  var sana = {hammasi: mijoz.length, faol: 0, yaqin: 0, bloklangan: 0, sinov: 0};
+  mijoz.forEach(function (r) {
+    var h = r.holat || {};
+    if (h.bosqich === 'faol' || h.bosqich === 'muddatsiz') sana.faol++;
+    if (h.bosqich === 'yaqin' || h.bosqich === 'otgan') sana.yaqin++;
+    if (h.bosqich === 'bloklangan') sana.bloklangan++;
+    if (h.sinov && !h.bloklangan) sana.sinov++;
+  });
+  var nomlar = {hammasi: 'Hammasi', faol: 'Faol', yaqin: 'Muddati yaqin', bloklangan: 'Bloklangan', sinov: 'Sinov davri'};
+  document.querySelectorAll('#plChiplar .pl-chip').forEach(function (b) {
+    var f = b.dataset.filtr;
+    b.textContent = nomlar[f] + ' · ' + sana[f];
+    b.classList.toggle('aktiv', f === PL.filtr);
+    b.setAttribute('aria-pressed', f === PL.filtr ? 'true' : 'false');
+  });
+  var ko = mijoz.filter(plFiltrgaMos);
+  var el = document.getElementById('plKartalar');
+  el.innerHTML = ko.length ? ko.map(plKarta).join('')
+    : '<div class="pl-izoh">' + (mijoz.length ? 'Tanlovga mos korxona yo\'q.' : 'Hali mijoz korxona yo\'q — «+ Yangi korxona» bilan qo\'shing.') + '</div>';
+  document.getElementById('plEgaIzoh').textContent = ega.length
+    ? 'O\'z korxonangiz (' + ega.map(function (r) { return r.name; }).join(', ') + ') bu ro\'yxatda ko\'rinmaydi — u muddatsiz va bloklanmaydi.'
+    : '';
+  var sel = document.getElementById('xtKorxona'), tanlangan = sel.value;
+  var variantlar = [['', 'Hammasi'], ['platforma', 'Platforma (korxonasiz)']].concat(
+    PL.royxat.map(function (r) { return [String(r.id), r.name || '']; }));
+  sel.innerHTML = variantlar.map(function (v) {
+    return '<option value="' + escapeHtml(v[0]) + '">' + escapeHtml(v[1]) + '</option>';
+  }).join('');
+  sel.value = tanlangan;
+}
+
+function plRaqamlarChiz() {
+  var r = PL.raqam || {};
+  var q = [['Mijoz korxonalar', r.jami], ['Faol', r.faol], ['Sinov davrida', r.sinov], ['Muddati yaqin', r.muddati_yaqin],
+           ['Bloklangan', r.bloklangan], ['Bugun kirishlar', r.bugun_kirish], ['Bugun xatolar', r.bugun_xato]];
+  document.getElementById('plRaqamlar').innerHTML = q.map(function (x) {
+    return '<div class="pl-stat"><div class="l">' + escapeHtml(x[0]) + '</div><div class="n">' + plSon(x[1]) + '</div></div>';
+  }).join('');
+}
+
+async function plYukla() {
+  try {
+    var jv = await Promise.all([fetch('/api/platform/companies'), fetch('/api/platform/summary')]);
+    if (!jv[0].ok) { document.getElementById('plKartalar').innerHTML = '<div class="pl-izoh">' + escapeHtml(await serverXatoSababi(jv[0], 'Yuklab bo\'lmadi')) + '</div>'; return; }
+    PL.royxat = await jv[0].json();
+    if (jv[1].ok) {
+      var s = await jv[1].json();
+      PL.raqam = s.raqamlar; PL.sabablar = s.sabablar || []; PL.oylar = s.oylar || PL.oylar;
+      var tel = document.getElementById('plTelefon');
+      if (document.activeElement !== tel) tel.value = s.aloqa_telefoni || '';
+      document.getElementById('plSinovMatn').textContent = (s.sinov_kun || 30) + ' kunlik sinov davri';
+      plRaqamlarChiz();
+    }
+    plChizish();
+  } catch (e) {
+    document.getElementById('plKartalar').innerHTML = '<div class="pl-izoh">Yuklab bo\'lmadi</div>';
+  }
+}
+
+function plKorxona(id) { return PL.royxat.find(function (r) { return String(r.id) === String(id); }) || null; }
+
+// ── Modal oyna ──
+function plModalOch(html) {
+  document.getElementById('plOyna').innerHTML = html;
+  document.getElementById('plModal').classList.add('ochiq');
+  var f = document.querySelector('#plOyna select, #plOyna input, #plOyna button');
+  if (f) f.focus();
+}
+function plModalYop() { document.getElementById('plModal').classList.remove('ochiq'); document.getElementById('plOyna').innerHTML = ''; }
+
+function plBloklashOynasi(r) {
+  plModalOch(
+    '<div style="display:flex;align-items:center;gap:12px"><span style="width:40px;height:40px;border-radius:12px;background:#FEE2E2;display:flex;align-items:center;justify-content:center">' +
+    '<i class="ti ti-lock" style="color:#991B1B" aria-hidden="true"></i></span>' +
+    '<h2 id="plModalSarlavha">' + escapeHtml(r.name || '') + ' korxonasini bloklash</h2></div>' +
+    '<ul><li>korxona foydalanuvchilari tizimga kira olmaydi — ochiq sessiyalar darhol yopiladi;</li>' +
+    '<li>hodim paneli va korxonaning Telegram boti ishlamaydi;</li>' +
+    '<li><b>ma\'lumotlar o\'chmaydi</b> — «Ochish» bilan hammasi avvalgidek qaytadi.</li></ul>' +
+    '<div class="pl-field"><label for="blSabab">Sabab</label><select id="blSabab">' +
+    PL.sabablar.map(function (s) { return '<option>' + escapeHtml(s) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="pl-field"><label for="blIzoh">Izoh (ixtiyoriy — faqat siz ko\'rasiz)</label><input id="blIzoh" type="text" maxlength="500"></div>' +
+    '<div id="blXato" class="pl-izoh" style="color:#DC2626"></div>' +
+    '<div class="pl-btns" style="justify-content:flex-end"><button type="button" class="pl-btn" data-modal="yop">Bekor</button>' +
+    '<button type="button" class="pl-btn" style="background:#B91C1C;color:#fff;border-color:#B91C1C" data-modal="blokla" data-id="' + escapeHtml(r.id) + '">Bloklash</button></div>');
+}
+
+async function plBlokla(id) {
+  var fd = new FormData();
+  fd.append('sabab', document.getElementById('blSabab').value);
+  fd.append('izoh', document.getElementById('blIzoh').value.trim());
+  var res = await fetch('/api/platform/companies/' + id + '/block', {method: 'POST', body: fd});
+  if (!res.ok) { document.getElementById('blXato').textContent = await serverXatoSababi(res, 'Bloklab bo\'lmadi'); return; }
+  plModalYop();
+  showMsg('Korxona bloklandi', 'success');
+  plYukla();
+}
+
+function plUzaytirishOynasi(r, ochsin) {
+  var h = r.holat || {};
+  var hozir = h.obuna_tugash ? (h.sinov ? 'Sinov davri ' : 'Obuna ') + plSana(h.obuna_tugash) + ' gacha' : 'Muddatsiz';
+  plModalOch(
+    '<h2 id="plModalSarlavha">' + escapeHtml(r.name || '') + ' — muddatni uzaytirish</h2>' +
+    '<div class="pl-izoh">Hozir: <b>' + escapeHtml(hozir) + '</b>. Muddat hali tugamagan bo\'lsa — eski sanadan davom etadi, ' +
+    'tugagan bo\'lsa — bugundan hisoblanadi.' + (ochsin ? ' Uzaytirilgach korxona <b>ochiladi</b>.' : '') + '</div>' +
+    '<div class="pl-oylar" role="radiogroup" aria-label="Muddat">' +
+    PL.oylar.map(function (m, i) {
+      return '<label><input type="radio" name="uzOy" value="' + Number(m) + '"' + (i === 0 ? ' checked' : '') + '> +' + Number(m) + ' oy</label>';
+    }).join('') +
+    '<label><input type="radio" name="uzOy" value="sana"> Aniq sana</label></div>' +
+    '<div class="pl-field" id="uzSanaJoy" style="display:none"><label for="uzSana">Obuna qaysi kungacha</label><input type="date" id="uzSana"></div>' +
+    '<div class="pl-korish" id="uzKorish" aria-live="polite">Hisoblanmoqda…</div>' +
+    '<div id="uzXato" class="pl-izoh" style="color:#DC2626"></div>' +
+    '<div class="pl-btns" style="justify-content:flex-end"><button type="button" class="pl-btn" data-modal="yop">Bekor</button>' +
+    '<button type="button" class="pl-btn qora" data-modal="uzaytir" data-id="' + escapeHtml(r.id) + '"' + (ochsin ? ' data-och="1"' : '') + '>' +
+    (ochsin ? 'Uzaytirib ochish' : 'Uzaytirish') + '</button></div>');
+  document.getElementById('uzSana').value = tkISO();
+  plUzaytirKorish(r.id);
+}
+
+function plUzaytirTanlov() {
+  var t = document.querySelector('input[name="uzOy"]:checked');
+  var v = t ? t.value : '';
+  var fd = new FormData();
+  if (v === 'sana') fd.append('sana', document.getElementById('uzSana').value);
+  else fd.append('oy', v);
+  return fd;
+}
+
+async function plUzaytirKorish(id) {
+  var t = document.querySelector('input[name="uzOy"]:checked');
+  document.getElementById('uzSanaJoy').style.display = (t && t.value === 'sana') ? '' : 'none';
+  var fd = plUzaytirTanlov();
+  fd.append('korish', '1');
+  var el = document.getElementById('uzKorish');
+  var res = await fetch('/api/platform/companies/' + id + '/extend', {method: 'POST', body: fd});
+  if (!document.getElementById('uzKorish')) return;
+  if (!res.ok) { el.textContent = await serverXatoSababi(res, 'Hisoblab bo\'lmadi'); return; }
+  var d = await res.json();
+  el.textContent = 'Yangi muddat: ' + plSana(d.obuna_tugash) + ' gacha';
+}
+
+async function plUzaytir(id, ochsin) {
+  var res = await fetch('/api/platform/companies/' + id + '/extend', {method: 'POST', body: plUzaytirTanlov()});
+  if (!res.ok) { document.getElementById('uzXato').textContent = await serverXatoSababi(res, 'Uzaytirib bo\'lmadi'); return; }
+  var d = await res.json();
+  if (ochsin && d.holat && d.holat.bloklangan) {
+    var r2 = await fetch('/api/platform/companies/' + id + '/unblock', {method: 'POST', body: new FormData()});
+    if (!r2.ok) { document.getElementById('uzXato').textContent = await serverXatoSababi(r2, 'Muddat uzaytirildi, lekin ochib bo\'lmadi'); plYukla(); return; }
+  }
+  plModalYop();
+  showMsg('Obuna ' + plSana(d.obuna_tugash) + ' gacha uzaytirildi', 'success');
+  plYukla();
+}
+
+async function plOch(id) {
+  var r = plKorxona(id); if (!r) return;
+  var h = r.holat || {};
+  // Imtiyoz bo'ladimi — server hal qiladi (`obuna.och`); javobdagi `imtiyoz_gacha` pastda ko'rsatiladi.
+  var izoh = 'Korxona yana tizimga kira oladi.';
+  if (h.avtomatik) izoh += ' Obuna muddati o\'tgan — 3 kunlik imtiyoz beriladi; shu kunlarda uzaytirilmasa, yana avtomatik yopiladi.';
+  var ok = await customConfirm('«' + (r.name || '') + '» ochilsinmi?', izoh, {okText: 'Ochish'});
+  if (!ok) return;
+  var res = await fetch('/api/platform/companies/' + id + '/unblock', {method: 'POST', body: new FormData()});
+  if (!res.ok) { showMsg(await serverXatoSababi(res, 'Ochib bo\'lmadi'), 'error'); return; }
+  var d = await res.json();
+  showMsg(d.imtiyoz_gacha ? 'Ochildi — imtiyoz ' + plSana(d.imtiyoz_gacha) + ' gacha' : 'Korxona ochildi', 'success');
+  plYukla();
+}
+
+function plNatijaChiz(sarlavha, qatorlar) {
+  document.getElementById('plNatija').innerHTML = '<div class="pl-xabar"><div style="font-weight:700;margin-bottom:8px">' + escapeHtml(sarlavha) + '</div>' +
+    qatorlar.map(function (q) { return escapeHtml(q[0]) + ': <b style="font-family:monospace;font-size:14px">' + escapeHtml(q[1]) + '</b>'; }).join('<br>') +
+    '<div style="margin-top:10px;font-size:12px;color:#c0392b">⚠ Parol faqat shu yerda ko\'rsatiladi — nusxa oling va mijozga yuboring.</div></div>';
+  var _n = document.getElementById('plNatija');
+  if (_n.scrollIntoView) _n.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+async function plParol(id) {
+  var r = plKorxona(id); if (!r) return;
+  var ok = await customConfirm('«' + (r.name || '') + '» adminining paroli yangilansinmi?',
+    'Eski parol ishlamay qoladi. Mijozning audit jurnaliga yozuv tushadi va botiga xabar boradi.', {okText: 'Yangilash', danger: true});
+  if (!ok) return;
+  var res = await fetch('/api/platform/companies/' + id + '/reset-admin-password', {method: 'POST', body: new FormData()});
+  if (!res.ok) { showMsg(await serverXatoSababi(res, 'Parolni tiklab bo\'lmadi'), 'error'); return; }
+  var d = await res.json();
+  plNatijaChiz('🔑 Parol yangilandi — ' + (r.name || ''), [['Login', d.username], ['Yangi parol', d.password]]);
+}
+
+async function plYarat() {
+  var nom = document.getElementById('ncNom').value.trim(), login = document.getElementById('ncLogin').value.trim();
+  if (!nom || !login) { showMsg('Korxona nomi va admin login shart', 'error'); return; }
+  var fd = new FormData();
+  fd.append('name', nom); fd.append('admin_username', login); fd.append('admin_full_name', document.getElementById('ncIsm').value.trim());
+  var res = await fetch('/api/platform/companies', {method: 'POST', body: fd});
+  if (!res.ok) { showMsg(await serverXatoSababi(res, 'Yaratib bo\'lmadi'), 'error'); return; }
+  var d = await res.json();
+  plNatijaChiz('✓ Korxona yaratildi — ' + d.company.name, [['Kod', d.company.code],
+    ['Sinov davri', plSana(d.company.obuna_tugash) + ' gacha'], ['Login', d.admin.username], ['Parol', d.admin.password]]);
+  ['ncNom', 'ncLogin', 'ncIsm'].forEach(function (i) { document.getElementById(i).value = ''; });
+  document.getElementById('plYangi').style.display = 'none';
+  plYukla();
+}
+
+async function plTelefonSaqla() {
+  var fd = new FormData();
+  fd.append('telefon', document.getElementById('plTelefon').value.trim());
+  var res = await fetch('/api/platform/contact-phone', {method: 'POST', body: fd});
+  var el = document.getElementById('plTelefonNatija');
+  if (!res.ok) { el.textContent = await serverXatoSababi(res, 'Saqlanmadi'); return; }
+  var d = await res.json();
+  document.getElementById('plTelefon').value = d.aloqa_telefoni || '';
+  el.textContent = '✓ Saqlandi';
+}
+
+async function plXatolar() {
+  var k = document.getElementById('xtKorxona').value, q = document.getElementById('xtQidiruv').value.trim();
+  var el = document.getElementById('xtRoyxat');
+  var u = new URLSearchParams(); if (k) u.set('korxona', k); if (q) u.set('q', q);
+  var res = await fetch('/api/platform/errors' + (u.toString() ? '?' + u.toString() : ''));
+  if (!res.ok) { el.innerHTML = '<div class="pl-izoh" style="padding:14px">' + escapeHtml(await serverXatoSababi(res, 'Yuklab bo\'lmadi')) + '</div>'; return; }
+  var rows = await res.json();
+  el.innerHTML = rows.length ? rows.map(function (x) {
+    return '<div class="pl-xato" data-xato="1"><div style="display:flex;justify-content:space-between;gap:10px">' +
+      '<div class="m">' + escapeHtml(x.xabar) + '</div><div class="s" style="white-space:nowrap;margin:0">' + escapeHtml(x.vaqt) + '</div></div>' +
+      '<div class="s">' + escapeHtml(x.korxona || 'Platforma') + ' · ' + escapeHtml(x.method) + ' ' + escapeHtml(x.endpoint) +
+      (x.kim ? ' · ' + escapeHtml(x.kim) : '') + (x.trace ? ' — bosib to\'liq ko\'ring ▾' : '') + '</div>' +
+      (x.trace ? '<pre>' + escapeHtml(x.trace) + '</pre>' : '') + '</div>';
+  }).join('') : '<div class="pl-izoh" style="padding:14px">Xato yo\'q ✅</div>';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('plChiplar').addEventListener('click', function (e) {
+    var b = e.target.closest('.pl-chip'); if (!b) return;
+    PL.filtr = b.dataset.filtr; plChizish();
+  });
+  document.getElementById('plQidiruv').addEventListener('input', function (e) { PL.qidiruv = e.target.value; plChizish(); });
+  document.getElementById('plYangiBtn').addEventListener('click', function () {
+    var f = document.getElementById('plYangi'); f.style.display = f.style.display === 'none' ? '' : 'none';
+    if (f.style.display === '') document.getElementById('ncNom').focus();
+  });
+  document.getElementById('ncYarat').addEventListener('click', plYarat);
+  document.getElementById('plTelefonSaqla').addEventListener('click', plTelefonSaqla);
+  document.getElementById('xtYangila').addEventListener('click', plXatolar);
+  document.getElementById('xtKorxona').addEventListener('change', plXatolar);
+  document.getElementById('xtRoyxat').addEventListener('click', function (e) {
+    var r = e.target.closest('[data-xato]'); if (r) r.classList.toggle('ochiq');
+  });
+  document.getElementById('plKartalar').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-amal]'); if (!b) return;
+    var r = plKorxona(b.dataset.id); if (!r) return;
+    if (b.dataset.amal === 'blokla') plBloklashOynasi(r);
+    else if (b.dataset.amal === 'uzaytir') plUzaytirishOynasi(r, b.dataset.och === '1');
+    else if (b.dataset.amal === 'och') plOch(r.id);
+    else if (b.dataset.amal === 'parol') plParol(r.id);
+  });
+  var modal = document.getElementById('plModal');
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) { plModalYop(); return; }
+    var b = e.target.closest('button[data-modal]'); if (!b) return;
+    if (b.dataset.modal === 'yop') plModalYop();
+    else if (b.dataset.modal === 'blokla') plBlokla(b.dataset.id);
+    else if (b.dataset.modal === 'uzaytir') plUzaytir(b.dataset.id, b.dataset.och === '1');
+  });
+  modal.addEventListener('change', function (e) {
+    if (e.target.name === 'uzOy' || e.target.id === 'uzSana') {
+      var b = modal.querySelector('button[data-modal="uzaytir"]'); if (b) plUzaytirKorish(b.dataset.id);
+    }
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modal.classList.contains('ochiq')) plModalYop(); });
+  plYukla();
+  plXatolar();
+});
+</script>
+{% endblock %}

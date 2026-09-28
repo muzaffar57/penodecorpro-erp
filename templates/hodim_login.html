@@ -37,6 +37,9 @@
       {% if error %}
       <div class="error-box">⚠️ {{ error }}</div>
       {% endif %}
+      {% if bloklangan %}
+      <div class="error-box" role="alert" id="blokXabari" style="align-items:flex-start;line-height:1.55">🔒 {{ bloklangan }}</div>
+      {% endif %}
 
       <form method="post" action="/hodim/login">
         <label class="field-label">Korxona kodi</label>

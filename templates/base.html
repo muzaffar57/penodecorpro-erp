@@ -439,6 +439,13 @@ function jsAttrEscape(str) {
         <span class="n-txt">Tizim jurnallari</span>
       </a>
       {% endif %}
+      {# kech111 — platforma paneli (mijoz korxonalar, obuna, bloklash) — FAQAT platforma admini #}
+      {% if current_user.is_platform_admin %}
+      <a href="/platforma" class="nav-item {% if active_page == 'platforma' %}active{% endif %}">
+        <i class="ti ti-building-skyscraper n-ico"></i>
+        <span class="n-txt">Platforma</span>
+      </a>
+      {% endif %}
     </nav>
 
     <div class="s-bottom">
@@ -483,6 +490,26 @@ function jsAttrEscape(str) {
         <button id="themeToggle" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
           <i class="ti ti-moon" id="themeIcon" style="font-size:16px"></i>
         </button>
+        {# kech111 — obuna ogohlantirishi (egasi QARORI "Admin, keyin hamma": muddatga ≤ 7 kun — korxona adminiga sariq;
+           muddat tugagan, 3 kunlik imtiyoz — hammaga qizil). YUQORI PANELDA — sahifa joyini egallamaydi (ko'p sahifa
+           `height: calc(100vh - 58px)` bilan qurilgan: kontent ustidagi qator ularning pastini kesib qo'yardi — kech111
+           da brauzerda o'lchandi). Bosilsa — to'liq matn (telefon bilan). Matn serverdan (`obuna.banner`), escape. #}
+        {% set _obuna_b = obuna_banneri(current_user) if current_user else None %}
+        {% if _obuna_b %}
+        <div id="obunaWrap" style="position:relative;margin-right:10px">
+          <button type="button" id="obunaBanner" aria-expanded="false" aria-controls="obunaPanel"
+                  onclick="var p=document.getElementById('obunaPanel');var o=p.style.display==='none';p.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');"
+                  style="height:36px;display:flex;align-items:center;gap:7px;padding:0 12px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:600;white-space:nowrap;
+                         {% if _obuna_b.daraja == 'qizil' %}background:#FEE2E2;border:1px solid #F3C7C7;color:#7F1D1D{% else %}background:#FEF3C7;border:1px solid #F5D98B;color:#78350F{% endif %}">
+            <i class="ti {% if _obuna_b.daraja == 'qizil' %}ti-lock{% else %}ti-calendar-plus{% endif %}" style="font-size:16px" aria-hidden="true"></i>
+            <span class="obuna-qisqa">{{ _obuna_b.qisqa }}</span>
+          </button>
+          <div id="obunaPanel" role="status" style="display:none;position:absolute;top:44px;right:0;width:340px;max-width:calc(100vw - 24px);padding:14px 16px;border-radius:12px;
+               font-size:13px;line-height:1.55;box-shadow:var(--shadow-card);z-index:1000;
+               {% if _obuna_b.daraja == 'qizil' %}background:#FEE2E2;border:1px solid #F3C7C7;color:#7F1D1D{% else %}background:#FEF3C7;border:1px solid #F5D98B;color:#78350F{% endif %}">{{ _obuna_b.matn }}</div>
+        </div>
+        <style>@media (max-width: 640px){ #obunaBanner .obuna-qisqa{display:none} }</style>
+        {% endif %}
         <div id="notifWrap" style="position:relative;margin-right:10px">
           <button id="notifBell" onclick="toggleNotifPanel()" style="position:relative;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)">
             <i class="ti ti-bell" style="font-size:17px"></i>
