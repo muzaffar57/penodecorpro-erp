@@ -9,6 +9,8 @@ import contextlib
 from typing import List, Optional, Dict
 from datetime import datetime
 from sqlalchemy.orm import Session
+# kech105 (9 + 50-band): Toshkent kalendari yordamchilari — `database.py` (hisobot kun / oy / yil chegarasi)
+from database import tashkent_date as _tashkent_date, tashkent_kunida as _tashkent_kunida, tashkent_oyida as _tashkent_oyida, tashkent_yilida as _tashkent_yilida, tashkent_oy_oraligi as _tashkent_oy_oraligi, tashkent_yil_oraligi as _tashkent_yil_oraligi
 
 from models import Master
 from schemas import MasterCreate, MasterUpdate
@@ -481,16 +483,20 @@ def get_expense_transactions(db: Session, year: Optional[int] = None, month: Opt
                               company_id: int = None):
     """Xarajat tranzaksiyalari ro'yxati — faqat o'qish (M6 — tenant-safe)."""
     from models import ExpenseTransaction
-    from sqlalchemy import extract
+    from datetime import date as _date_kx
     q = db.query(ExpenseTransaction)
     if company_id is not None:
         q = q.filter(ExpenseTransaction.company_id == company_id)
-    if year:
-        q = q.filter(extract('year', ExpenseTransaction.date) == year)
-    if month:
-        q = q.filter(extract('month', ExpenseTransaction.date) == month)
-    if day:
-        q = q.filter(extract('day', ExpenseTransaction.date) == day)
+    # kech105 (9 + 50-band, QAROR "Toshkent vaqti bo'yicha"): yil / oy / kun — TOSHKENT kalendari (ilgari UTC
+    # `extract` — Toshkent vaqti bilan 00:00–05:00 dagi xarajat oldingi kun / oyda chiqardi).
+    if (month and not year) or (day and not (year and month)):
+        raise ValueError("Oy filtri faqat yil bilan, kun filtri — yil va oy bilan birga beriladi")
+    if year and month and day:
+        q = q.filter(_tashkent_kunida(ExpenseTransaction.date, _date_kx(int(year), int(month), int(day))))
+    elif year and month:
+        q = q.filter(_tashkent_oyida(ExpenseTransaction.date, year, month))
+    elif year:
+        q = q.filter(_tashkent_yilida(ExpenseTransaction.date, year))
     if category:
         q = q.filter(ExpenseTransaction.category == category)
     return q.order_by(ExpenseTransaction.date.desc()).limit(limit).all()
@@ -1426,7 +1432,6 @@ def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
     (get_projects_with_stats, calculate_order_profit) tegmaydi, faqat ulardan foydalanadi."""
     import services
     from models import Order, OrderStatus
-    from datetime import datetime
 
     from sqlalchemy.orm import selectinload as _sil_pd
     _dq = db.query(Project).filter(Project.is_deleted.isnot(True))
@@ -1436,13 +1441,16 @@ def get_projects_dashboard_stats(db: Session, company_id: int = None) -> dict:
     # lazy bilan AYNAN); ilgari loyiha boshiga 1 so'rov (jonli 23 loyiha — 23 so'rov).
     projects = _dq.options(_sil_pd(Project.orders)).all()
     services._hk_loyihalar(db, projects)     # kech90 (110-band): loyihalardagi "Tayyor" buyurtmalar oldindan
-    now = datetime.utcnow()
+    now = _tashkent_date()        # kech105 (9 + 50-band): "shu oy" — Toshkent kalendari
+
+    def _shu_oyda(v):
+        return v is not None and (_tashkent_date(v).year, _tashkent_date(v).month) == (now.year, now.month)
 
     active = sum(1 for p in projects if p.status == ProjectStatus.ACTIVE)
     completed = sum(1 for p in projects if p.status == ProjectStatus.COMPLETED)
     on_hold = sum(1 for p in projects if p.status == ProjectStatus.ON_HOLD)
-    started_this_month = sum(1 for p in projects if p.start_date and p.start_date.year == now.year and p.start_date.month == now.month)
-    completed_this_month = sum(1 for p in projects if p.completed_at and p.completed_at.year == now.year and p.completed_at.month == now.month)
+    started_this_month = sum(1 for p in projects if _shu_oyda(p.start_date))
+    completed_this_month = sum(1 for p in projects if _shu_oyda(p.completed_at))
 
     total_profit = 0.0
     for p in projects:
@@ -6042,7 +6050,6 @@ def delete_return_item(db: Session, return_id: int, company_id: int = None,
 
 def get_return_stats(db: Session, company_id: int = None) -> dict:
     """Qaytarishlar statistikasi — jami va shu oy bo'yicha."""
-    from datetime import datetime
     from models import ReturnReason, FinishedProductLoss
 
     _rq = db.query(ReturnItem)
@@ -6062,8 +6069,12 @@ def get_return_stats(db: Session, company_id: int = None) -> dict:
     brak_total_value = sum(float(r.refund_amount or 0) for r in brak_items)
     brak_total_count = len(brak_items)
 
-    now = datetime.utcnow()
-    month_brak = [r for r in brak_items if r.returned_at and r.returned_at.year == now.year and r.returned_at.month == now.month]
+    now = _tashkent_date()        # kech105 (9 + 50-band): "shu oy" — Toshkent kalendari
+
+    def _shu_oyda(v):
+        return v is not None and (_tashkent_date(v).year, _tashkent_date(v).month) == (now.year, now.month)
+
+    month_brak = [r for r in brak_items if _shu_oyda(r.returned_at)]
     brak_month_value = sum(float(r.refund_amount or 0) for r in month_brak)
     brak_month_count = len(month_brak)
 
@@ -6087,12 +6098,12 @@ def get_return_stats(db: Session, company_id: int = None) -> dict:
     prod_brak_losses = _pbq.all()
     brak_total_count += len(prod_brak_losses)
     brak_total_value += sum(float(l.cost_amount or 0) for l in prod_brak_losses)
-    month_prod_brak = [l for l in prod_brak_losses if l.lost_at and l.lost_at.year == now.year and l.lost_at.month == now.month]
+    month_prod_brak = [l for l in prod_brak_losses if _shu_oyda(l.lost_at)]
     brak_month_count += len(month_prod_brak)
     brak_month_value += sum(float(l.cost_amount or 0) for l in month_prod_brak)
 
     whole_items = [r for r in all_returns if r.reason != ReturnReason.DEFECT]
-    month_whole = [r for r in whole_items if r.returned_at and r.returned_at.year == now.year and r.returned_at.month == now.month]
+    month_whole = [r for r in whole_items if _shu_oyda(r.returned_at)]
 
     return {
         "total_count": total_count,
@@ -11106,14 +11117,12 @@ def get_purchase_stats(db: Session, year: int = None, month: int = None,
     """Material bo'yicha xarid statistikasi — Moliya/Dashboard uchun.
     year/month berilmasa — joriy oy."""
     from models import InventoryPurchase
-    from datetime import datetime as dt
 
-    now = dt.utcnow()
+    now = _tashkent_date()        # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
     year = year or now.year
     month = month or now.month
 
-    start = dt(year, month, 1)
-    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+    start, end = _tashkent_oy_oraligi(year, month)
 
     _pq = db.query(InventoryPurchase)
     if company_id is not None:
@@ -11152,14 +11161,12 @@ def get_purchase_stats(db: Session, year: int = None, month: int = None,
 def get_purchase_stats_range(db: Session, months: int = 6, company_id: int = None) -> dict:
     """Oxirgi N oy bo'yicha xarid tendensiyasi (dashboard grafik uchun)."""
     from models import InventoryPurchase
-    from datetime import datetime as dt
 
-    now = dt.utcnow()
+    now = _tashkent_date()        # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
     result = []
     y, m = now.year, now.month
     for _ in range(months):
-        start = dt(y, m, 1)
-        end = dt(y + 1, 1, 1) if m == 12 else dt(y, m + 1, 1)
+        start, end = _tashkent_oy_oraligi(y, m)
         _prq = db.query(InventoryPurchase).filter(
             InventoryPurchase.purchased_at >= start,
             InventoryPurchase.purchased_at < end,
@@ -11237,13 +11244,11 @@ def get_transport_stats(db: Session, year: int = None, month: int = None,
     M6 — TENANT: kirish transporti `TransportExpense.company_id` bo'yicha,
     chiqish transporti esa ota (Delivery → Order) orqali cheklanadi."""
     from models import Delivery, Order as _Ord_ts
-    from datetime import datetime as dt
 
-    now = dt.utcnow()
+    now = _tashkent_date()        # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
     year = year or now.year
     month = month or now.month
-    start = dt(year, month, 1)
-    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+    start, end = _tashkent_oy_oraligi(year, month)
 
     # Kirish transporti
     _iq = db.query(TransportExpense).filter(
@@ -11322,9 +11327,10 @@ def create_employee(db: Session, data: EmployeeCreate, company_id: int = None) -
 
     # Boshlang'ich to'lov tarixi yozuvi — ishga kirgan oyidan boshlab
     hire = emp.hire_date or datetime.utcnow()
+    _hire_t = _tashkent_date(hire)      # kech105 (9 + 50-band): ishga kirgan oy — Toshkent kalendari (ilgari UTC)
     db.add(EmployeeCompensationHistory(
         employee_id=emp.id,
-        effective_year=hire.year, effective_month=hire.month,
+        effective_year=_hire_t.year, effective_month=_hire_t.month,
         pay_type=emp.pay_type, fixed_amount=emp.fixed_amount,
         percent_value=emp.percent_value, per_unit_rate=emp.per_unit_rate,
         per_unit_type=emp.per_unit_type,
@@ -11511,9 +11517,10 @@ def backfill_employee_compensation_history(db: Session, company_id: int = None) 
         if has_history:
             continue
         hire = emp.hire_date or datetime.utcnow()
+        _hire_t = _tashkent_date(hire)      # kech105 (9 + 50-band): ishga kirgan oy — Toshkent kalendari
         db.add(EmployeeCompensationHistory(
             employee_id=emp.id,
-            effective_year=hire.year, effective_month=hire.month,
+            effective_year=_hire_t.year, effective_month=_hire_t.month,
             pay_type=emp.pay_type, fixed_amount=emp.fixed_amount,
             percent_value=emp.percent_value, per_unit_rate=emp.per_unit_rate,
             per_unit_type=emp.per_unit_type,
@@ -11564,7 +11571,7 @@ def update_employee(db: Session, emp_id: int, data: EmployeeUpdate, updated_by: 
         setattr(emp, k, v)
 
     if comp_changed:
-        now = datetime.utcnow()
+        now = _tashkent_date()    # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
         eff_year = effective_year or now.year
         eff_month = effective_month or now.month
 
@@ -11846,7 +11853,6 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
     calculate_order_profit() dan olingan tayyor foyda asosida hisoblanadi."""
     import services
     from models import Order, OrderStatus, Master
-    from sqlalchemy import extract
 
     master = get_master(db, master_id, company_id)   # M5: faqat shu korxonadan
     if not master:
@@ -11857,7 +11863,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
     orders = db.query(Order).filter(
         Order.master_id == master_id,
         Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year
+        _tashkent_yilida(Order.completed_at, year)
     ).order_by(Order.completed_at.desc()).all()
     services._hk_tayyorla(db, orders)        # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
@@ -11881,7 +11887,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
 
     # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu yilda bo'lgan qaytarishlar (buyurtma
     # yakunlangandan keyin) — alohida qator, qaytarish paytida (foyda — qaytarilgan pul − omborga qaytgan tannarx).
-    for _h144 in services.davr_qaytarishlari(db, datetime(year, 1, 1), datetime(year + 1, 1, 1),
+    for _h144 in services.davr_qaytarishlari(db, *_tashkent_yil_oraligi(year),
                                              company_id=master.company_id, master_id=master_id):
         _o144 = _h144["order"]
         _tur144 = {"pul": "mijozga pul qaytarildi", "ombor": "mahsulot omborga qaytdi",
@@ -11902,7 +11908,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
     from models import FinishedProductSale as _FPS_detail
     fp_sales = db.query(_FPS_detail).filter(
         _FPS_detail.master_id == master_id,
-        extract('year', _FPS_detail.sold_at) == year
+        _tashkent_yilida(_FPS_detail.sold_at, year)
     ).all()
     for s in fp_sales:
         profit = float(s.total_amount or 0) - float(s.cost_amount or 0)
@@ -11926,7 +11932,6 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     include_inactive=False bo'lsa — avvalgidek faqat faol ustalar (eski xatti-harakat saqlanadi)."""
     import services
     from models import Order, OrderStatus, FinishedProductSale as _FPS_report
-    from sqlalchemy import extract
 
     q = db.query(Master)
     if company_id is not None:       # M5: faqat shu korxona ustalari
@@ -11945,7 +11950,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     all_orders = db.query(Order).filter(
         Order.master_id.in_(master_ids),
         Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year
+        _tashkent_yilida(Order.completed_at, year)
     ).all() if master_ids else []
     services._hk_tayyorla(db, all_orders)    # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
@@ -11958,7 +11963,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     # ular ham yillik sotuv/foyda/sovg'a hisobiga qo'shiladi.
     all_fp_sales = db.query(_FPS_report).filter(
         _FPS_report.master_id.in_(master_ids),
-        extract('year', _FPS_report.sold_at) == year
+        _tashkent_yilida(_FPS_report.sold_at, year)
     ).all() if master_ids else []
     fp_sales_by_master = {}
     for s in all_fp_sales:
@@ -11981,7 +11986,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu yilda bo'lgan qaytarishlar o'sha buyurtma
     # ustasining yillik foydasiga (buyurtmaning o'zi — yakunlangan paytdagi holatda). "Yillik sotuv" (jami summa) — o'zgarmaydi.
     _qaytarish_usta = {}
-    for _h144 in services.davr_qaytarishlari(db, datetime(year, 1, 1), datetime(year + 1, 1, 1),
+    for _h144 in services.davr_qaytarishlari(db, *_tashkent_yil_oraligi(year),
                                              company_id=company_id):
         _qaytarish_usta[_h144["master_id"]] = _qaytarish_usta.get(_h144["master_id"], 0.0) + _h144["foyda"]
 
@@ -12502,7 +12507,6 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
     ketayapti); o'rniga, yopilgan davrlarning 'cashback_conversion'
     yozuvlari (ushbu yilga tegishlilari) qo'shiladi."""
     import services
-    from sqlalchemy import extract
     from models import Order, OrderStatus, FinishedProductSale, GiftPeriod, MasterGiftPeriodRedemption, Master
 
     # M5 (2026-09-18) — TENANT: usta, davrlar, buyurtmalar, sotuvlar va
@@ -12530,7 +12534,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
 
     _oq = db.query(Order).filter(
         Order.master_id == master_id, Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year,
+        _tashkent_yilida(Order.completed_at, year),
     )
     if cid is not None:
         _oq = _oq.filter(Order.company_id == cid)
@@ -12551,7 +12555,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
         buyurtmalar.append((o.order_number, foyda))
     # kech102 (144-band): shu yilda bo'lgan qaytarishlar — qaytarish PAYTI sovg'a davriga tushsa, o'sha davrda
     # (davr yopilganda `_gift_period_profit_since` hisobida), aks holda keshbekda.
-    for _h144 in services.davr_qaytarishlari(db, datetime(year, 1, 1), datetime(year + 1, 1, 1),
+    for _h144 in services.davr_qaytarishlari(db, *_tashkent_yil_oraligi(year),
                                              company_id=cid, master_id=master_id):
         if _in_any_period(_h144["vaqt"]):
             continue
@@ -12560,7 +12564,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
 
     _sq = db.query(FinishedProductSale).filter(
         FinishedProductSale.master_id == master_id,
-        extract('year', FinishedProductSale.sold_at) == year,
+        _tashkent_yilida(FinishedProductSale.sold_at, year),
     )
     if cid is not None:
         _sq = _sq.filter(FinishedProductSale.company_id == cid)
@@ -12575,7 +12579,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
     _cq = db.query(MasterGiftPeriodRedemption).filter(
         MasterGiftPeriodRedemption.master_id == master_id,
         MasterGiftPeriodRedemption.kind == "cashback_conversion",
-        extract('year', MasterGiftPeriodRedemption.redeemed_at) == year,
+        _tashkent_yilida(MasterGiftPeriodRedemption.redeemed_at, year),
     )
     if cid is not None:
         # MasterGiftPeriodRedemption'da company_id ustuni yo'q — tenant
@@ -12718,8 +12722,7 @@ def _taminotchi_toplami(db: Session, supplier_ids, company_id: int = None, faqat
     xaridlari (nasiya va naqd)}}. `faqat_nasiya=True` — faqat qarz uchun (naqd xaridlar o'qilmaydi).
     `company_id` berilsa — ota (ta'minotchi) orqali shu korxona bilan cheklanadi."""
     from decimal import Decimal
-    from datetime import datetime as _dt_tt
-    _hozir = _dt_tt.utcnow()
+    _hozir = _tashkent_date()     # kech105 (9 + 50-band): "shu oy" — Toshkent kalendari
     natija = {}
     for sid in supplier_ids:
         natija[sid] = {"kredit": Decimal("0"), "tolov": Decimal("0"), "soni": 0, "oxirgi": None,
@@ -12743,7 +12746,7 @@ def _taminotchi_toplami(db: Session, supplier_ids, company_id: int = None, faqat
             if _vaqt is not None:
                 if _t["oxirgi"] is None or _vaqt > _t["oxirgi"]:
                     _t["oxirgi"] = _vaqt
-                if _vaqt.year == _hozir.year and _vaqt.month == _hozir.month:
+                if (_tashkent_date(_vaqt).year, _tashkent_date(_vaqt).month) == (_hozir.year, _hozir.month):
                     _t["oy_soni"] += 1
                     _t["oy_jami"] += _d
         _tq = db.query(SupplierPayment.supplier_id, SupplierPayment.amount).filter(
@@ -12805,9 +12808,8 @@ def get_supplier_payment_due_dates(db: Session, company_id: int = None) -> List[
     xaridlarni topadi — har bir yetkazib beruvchi uchun ENG YAQIN
     (eng shoshilinch) muddatni qaytaradi. Dashboard ogohlantirishi uchun.
     Faqat o'qish — hech narsani o'zgartirmaydi."""
-    from datetime import datetime as dt
 
-    now = dt.utcnow()
+    now = _tashkent_date()        # kech105 (9 + 50-band): "bugun" — Toshkent kalendari
     _uq = db.query(InventoryPurchase).filter(
         InventoryPurchase.is_credit == True,
         InventoryPurchase.payment_due_date.isnot(None),
@@ -12844,7 +12846,7 @@ def get_supplier_payment_due_dates(db: Session, company_id: int = None) -> List[
         supplier = _suppliers.get(sid)
         if not supplier:
             continue
-        days_left = (due_date.date() - now.date()).days
+        days_left = (due_date.date() - now).days
         status = "overdue" if days_left < 0 else ("due_soon" if days_left <= 3 else "ok")
         result.append({
             "supplier_id": sid, "supplier_name": supplier.name,

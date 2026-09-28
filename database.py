@@ -42,6 +42,53 @@ def tashkent_date(dt: datetime = None):
         dt = datetime.utcnow()
     return (dt + TASHKENT_OFFSET).date()
 
+
+# kech105 (9 + 50-band) — FOYDALANUVCHI QARORI (2026-09-28, "Toshkent vaqti bo'yicha"): hisobotlarning kun / oy /
+# yil chegaralari TOSHKENT kalendari bo'yicha — kun 00:00 da almashadi (ilgari oylik / kunlik hisobot, KPI, xarajat
+# ro'yxatlari UTC bo'yicha — Toshkent vaqti bilan 05:00 da almashardi: 1-oktyabr 01:30 dagi «Tayyor» sentyabrga
+# tushardi, "Bugun" oynasi esa uni 1-oktyabr derdi). Bazadagi vaqtlar UTC (naive) — Toshkent davri [boshi, oxiri)
+# UTC ko'rinishida olinadi. Faqat SANA kiritiladigan qiymatlar (xarajat / avans sanasi — yarim tun 00:00) o'z
+# kunida qoladi: Toshkent D kuni = [D−1 19:00, D 19:00) UTC — D 00:00 shu oraliqda.
+def tashkent_kun_oraligi(sana):
+    """Toshkent kalendar kuni (`date`) → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI."""
+    boshi = datetime(sana.year, sana.month, sana.day) - TASHKENT_OFFSET
+    return boshi, boshi + timedelta(days=1)
+
+
+def tashkent_oy_oraligi(yil, oy):
+    """Toshkent kalendar oyi → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI."""
+    yil, oy = int(yil), int(oy)
+    oxiri = datetime(yil + 1, 1, 1) if oy == 12 else datetime(yil, oy + 1, 1)
+    return datetime(yil, oy, 1) - TASHKENT_OFFSET, oxiri - TASHKENT_OFFSET
+
+
+def tashkent_yil_oraligi(yil):
+    """Toshkent kalendar yili → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI."""
+    yil = int(yil)
+    return datetime(yil, 1, 1) - TASHKENT_OFFSET, datetime(yil + 1, 1, 1) - TASHKENT_OFFSET
+
+
+def tashkent_kunida(ustun, sana):
+    """SQLAlchemy sharti: UTC ustun Toshkent `sana` kunida."""
+    from sqlalchemy import and_
+    boshi, oxiri = tashkent_kun_oraligi(sana)
+    return and_(ustun >= boshi, ustun < oxiri)
+
+
+def tashkent_oyida(ustun, yil, oy):
+    """SQLAlchemy sharti: UTC ustun Toshkent `yil` / `oy` oyida (`extract('year') == … AND extract('month') == …`
+    o'rniga — u UTC oyini olardi)."""
+    from sqlalchemy import and_
+    boshi, oxiri = tashkent_oy_oraligi(yil, oy)
+    return and_(ustun >= boshi, ustun < oxiri)
+
+
+def tashkent_yilida(ustun, yil):
+    """SQLAlchemy sharti: UTC ustun Toshkent `yil` yilida."""
+    from sqlalchemy import and_
+    boshi, oxiri = tashkent_yil_oraligi(yil)
+    return and_(ustun >= boshi, ustun < oxiri)
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./penodecor_erp.db")
 
 # Railway postgres:// → postgresql+pg8000://

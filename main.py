@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from database import init_database, get_db
+# kech105 (9 + 50-band): Toshkent kalendari yordamchilari — `database.py` (hisobot kun / oy / yil chegarasi)
+from database import tashkent_oy_oraligi as _tashkent_oy_oraligi
 import schemas
 import crud
 import services
@@ -4096,7 +4098,8 @@ def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_
 @app.get("/api/masters/kpi-report")
 def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
                             db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    y = year or datetime.utcnow().year     # 123-band (kech96): joriy yil — UTC (yozuvlar bilan bir soat)
+    from database import tashkent_date as _t_sana
+    y = year or _t_sana().year     # kech105 (9 + 50-band): joriy yil — Toshkent kalendari
     return crud.get_masters_kpi_report(db, y, include_inactive=include_inactive,
                                       company_id=auth.company_id_of(current_user))
 
@@ -4104,8 +4107,8 @@ def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = 
 @app.get("/api/masters/{master_id}/kpi-detail")
 def api_master_kpi_detail(master_id: int, year: Optional[int] = None,
                            db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    from datetime import datetime
-    y = year or datetime.utcnow().year     # 123-band (kech96): joriy yil — UTC
+    from database import tashkent_date as _t_sana
+    y = year or _t_sana().year     # kech105 (9 + 50-band): joriy yil — Toshkent kalendari
     return crud.get_master_kpi_detail(db, master_id, y,
                                      company_id=auth.company_id_of(current_user))
 
@@ -5707,8 +5710,8 @@ async def debts_page(request: Request, db: Session = Depends(get_db), current_us
     supplier_debts.sort(key=lambda s: s['debt'], reverse=True)
     total_supplier_debt = sum(s['debt'] for s in supplier_debts)
 
-    from datetime import datetime as _dt
-    now = _dt.utcnow()
+    from database import tashkent_date as _t_sana
+    now = _t_sana()      # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
     company_obligations = services.get_company_obligations_status(db, now.year, now.month, company_id=auth.company_id_of(current_user))
     recurring_targets = services.get_recurring_obligations(db, company_id=auth.company_id_of(current_user))
 
@@ -5781,9 +5784,10 @@ def api_brak_tahlil(year: Optional[int] = None, month: Optional[int] = None, oyl
     """kech56 (13-band, 7-qadam): oylik brak tahlili — ulush (Moliyadagi brak xarajati ÷
     ishlab chiqarish tan narxi), me'yor (`crud.BRAK_MEYORI_FOIZ`, foydalanuvchi qarori
     5 %) va ogohlantirish, bosqich / sabab / javobgar / detal bo'yicha taqsimot, tayyor
-    mahsulot yo'qotishlari, oxirgi `oylar` oy. Oy berilmasa — joriy (UTC, Moliya bilan
-    bir xil). Faqat o'qiydi. Pul ma'lumoti — Moliya huquqi (`admin_or_financier`)."""
-    _hozir = datetime.utcnow()
+    mahsulot yo'qotishlari, oxirgi `oylar` oy. Oy berilmasa — joriy (kech105: Toshkent kalendari,
+    Moliya bilan bir xil). Faqat o'qiydi. Pul ma'lumoti — Moliya huquqi (`admin_or_financier`)."""
+    from database import tashkent_date as _t_sana
+    _hozir = _t_sana()      # kech105 (9 + 50-band): joriy oy — Toshkent kalendari (ilgari UTC)
     y = _hozir.year if year is None else year
     m = _hozir.month if month is None else month
     if not (2000 <= y <= 2100) or not (1 <= m <= 12) or not (1 <= oylar <= 24):
@@ -5970,13 +5974,11 @@ def api_finance_report_pdf(year: int, month: int, db: Session = Depends(get_db),
     """Bir oylik to'liq moliyaviy hisobot — PDF (yuklab olish uchun)."""
     from fastapi.responses import Response
     import finance_pdf
-    from datetime import datetime as _dt
 
     report = services.get_monthly_report(db, year, month,
                                         company_id=auth.company_id_of(current_user))
 
-    _start = _dt(year, month, 1)
-    _end = _dt(year + 1, 1, 1) if month == 12 else _dt(year, month + 1, 1)
+    _start, _end = _tashkent_oy_oraligi(year, month)
     expense_transactions = crud.get_expense_transactions(db, year=year, month=month, company_id=auth.company_id_of(current_user))
 
     brak_summary = crud.get_brak_material_summary(db, start_date=_start, end_date=_end, company_id=auth.company_id_of(current_user))
@@ -6000,9 +6002,10 @@ def api_finance_daily(target_date: Optional[str] = None, db: Session = Depends(g
     if target_date:
         d = date_cls.fromisoformat(target_date)
     else:
-        # 123-band (kech96): "bugun" — UTC (yozuvlar `utcnow` bilan saqlanadi). `date.today()` jarayon mintaqasiga
-        # bog'liq edi — TZ o'rnatilgan muhitda 19:00–24:00 UTC oralig'idagi yozuvlar "bugun" dan tushib qolardi.
-        d = datetime.utcnow().date()
+        # kech105 (9 + 50-band, QAROR "Toshkent vaqti bo'yicha"): "bugun" — TOSHKENT kalendar kuni (kunlik hisobot ham
+        # Toshkent kuni bo'yicha). Jarayon mintaqasiga bog'liq emas (123-band qoidasi saqlanadi).
+        from database import tashkent_date as _t_sana
+        d = _t_sana()
     return services.get_daily_finance_summary(db, d, company_id=auth.company_id_of(current_user))
 
 
@@ -6033,7 +6036,11 @@ def api_create_expense_transaction(data: dict = Body(...), db: Session = Depends
 def api_list_expense_transactions(year: Optional[int] = None, month: Optional[int] = None,
                                    day: Optional[int] = None, category: Optional[str] = None,
                                    db: Session = Depends(get_db), current_user=Depends(auth.admin_or_financier)):
-    rows = crud.get_expense_transactions(db, year=year, month=month, day=day, category=category, company_id=auth.company_id_of(current_user))
+    try:
+        rows = crud.get_expense_transactions(db, year=year, month=month, day=day, category=category,
+                                             company_id=auth.company_id_of(current_user))
+    except ValueError as e:      # kech105: oy / kun filtri yilsiz — 400 (ilgari UTC `extract` bilan har yilni olardi)
+        raise HTTPException(status_code=400, detail=str(e))
     return [schemas.ExpenseTransactionRead.model_validate(r) for r in rows]
 
 
@@ -7624,15 +7631,18 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
                             db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
     """Tayyor mahsulot savdolari tarixi (ixtiyoriy oy/yil filtri bilan)."""
     from models import FinishedProductSale
-    from sqlalchemy import extract
+    from database import tashkent_oyida as _t_oyida, tashkent_yilida as _t_yilida
     # M4 (2026-09-18) — TENANT: sotuvlar ro'yxati korxona filtrisiz edi (H-5).
     q = db.query(FinishedProductSale).filter(
         FinishedProductSale.company_id == auth.company_id_of(current_user)
     ).order_by(FinishedProductSale.sold_at.desc())
-    if year:
-        q = q.filter(extract('year', FinishedProductSale.sold_at) == year)
-    if month:
-        q = q.filter(extract('month', FinishedProductSale.sold_at) == month)
+    # kech105 (9 + 50-band): yil / oy — TOSHKENT kalendari (ilgari UTC `extract`).
+    if year and month:
+        q = q.filter(_t_oyida(FinishedProductSale.sold_at, year, month))
+    elif year:
+        q = q.filter(_t_yilida(FinishedProductSale.sold_at, year))
+    elif month:
+        raise HTTPException(status_code=400, detail="Oy filtri faqat yil bilan birga beriladi")
     sales = q.limit(200).all()
     return [{
         "id": s.id, "product_name": s.product_name, "quantity": float(s.quantity),
@@ -8316,7 +8326,8 @@ async def telegram_webhook(request: Request):
                 # KPI" bilan bir xil formula). Faol/o'tgan sovg'a
                 # davrlaridagi buyurtmalar bu yerdan chiqarib tashlanadi —
                 # crud.get_master_yearly_cashback() ichida hisobga olinadi.
-                current_year = datetime.utcnow().year     # 123-band (kech96): UTC (yozuvlar bilan bir soat)
+                from database import tashkent_date as _t_sana
+                current_year = _t_sana().year     # kech105 (9 + 50-band): joriy yil — Toshkent kalendari
                 info = crud.get_master_yearly_cashback(
                     db, master.id, current_year,
                     company_id=getattr(master, "company_id", None))

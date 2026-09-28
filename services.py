@@ -10,6 +10,8 @@ buyurtma foydasi (`calculate_order_profit`), oylik hisobot va usta KPI. (kech103
 
 from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
+# kech105 (9 + 50-band): Toshkent kalendari yordamchilari — `database.py` (hisobot kun / oy / yil chegarasi)
+from database import tashkent_date as _tashkent_date, tashkent_oyida as _tashkent_oyida, tashkent_kun_oraligi as _tashkent_kun_oraligi, tashkent_oy_oraligi as _tashkent_oy_oraligi
 
 from models import (
     Inventory, Recipe, Order, OrderItem,
@@ -256,10 +258,9 @@ def get_simple_forecast(db: Session, year: int, month: int, company_id: int = No
     """Oddiy statistik bashorat — shu oyning HOZIRGACHA bo'lgan kunlik
     o'rtachasi asosida, oy oxirigacha taxminiy natijani hisoblaydi.
     Bu — sun'iy intellekt emas, oddiy chiziqli ekstrapolyatsiya."""
-    from datetime import datetime
     import calendar
 
-    now = datetime.utcnow()
+    now = _tashkent_date()        # kech105 (9 + 50-band): joriy oy / kun — Toshkent kalendari
     days_in_month = calendar.monthrange(year, month)[1]
 
     if year == now.year and month == now.month:
@@ -349,10 +350,9 @@ def get_business_alerts(db: Session, company_id: int = None) -> list:
 def get_business_health(db: Session, company_id: int = None) -> dict:
     """6 ta asosiy ko'rsatkich bo'yicha oddiy holat (yashil/sariq/qizil).
     Chegaralar oddiy, tushunarli qoidalarga asoslangan. Faqat o'qish."""
-    from datetime import datetime
     from models import Order
 
-    now = datetime.utcnow()
+    now = _tashkent_date()        # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
     report = get_monthly_report(db, now.year, now.month, company_id=company_id)
 
     foyda_foiz = float(report.get("foyda_foiz", 0) or 0)
@@ -473,10 +473,8 @@ def get_company_obligations_status(db: Session, year: int, month: int,
     ("year"/"month" maydonlari orqali) aniq bildiradi — shu orqali,
     "To'landi" tugmasi bosilganda, to'lov TO'G'RI oyga yozilishi ta'minlanadi."""
     from models import RecurringObligation, ExpenseTransaction
-    from sqlalchemy import func
-    from datetime import datetime
 
-    today = datetime.utcnow()
+    today = _tashkent_date()      # kech105 (9 + 50-band): muddat kuni — Toshkent kalendari
     OY_NOMLARI = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
                   "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"]
 
@@ -531,8 +529,7 @@ def get_company_obligations_status(db: Session, year: int, month: int,
             continue
         _txq = db.query(ExpenseTransaction).filter(
             ExpenseTransaction.category.in_(_kat_ob),
-            func.extract('year', ExpenseTransaction.date) == _y_ob,
-            func.extract('month', ExpenseTransaction.date) == _m_ob
+            _tashkent_oyida(ExpenseTransaction.date, _y_ob, _m_ob)
         )
         if company_id is not None:      # M6
             _txq = _txq.filter(ExpenseTransaction.company_id == company_id)
@@ -550,9 +547,10 @@ def get_company_obligations_status(db: Session, year: int, month: int,
             # Bu majburiyat, hali YARATILMAGAN oy uchun — tekshirmaymiz
             # (aynan hodim ishga kirish sanasi bilan bir xil mantiq).
             if obl.created_at:
-                _last_day_chk = __import__('calendar').monthrange(chk_year, chk_month)[1]
-                _chk_month_end = datetime(chk_year, chk_month, _last_day_chk, 23, 59, 59)
-                if obl.created_at > _chk_month_end:
+                # kech105 (9 + 50-band): oy oxiri — TOSHKENT kalendari (ilgari UTC 23:59:59 — Toshkent 1-kun
+                # 00:00–05:00 da yaratilgan majburiyat o'tgan oyga ham qarz yozardi)
+                _chk_month_end = _tashkent_oy_oraligi(chk_year, chk_month)[1]
+                if obl.created_at >= _chk_month_end:
                     continue
             is_current = (chk_year, chk_month) == (year, month)
             txs = _xarajat_ob[(chk_year, chk_month)].get(obl.category, [])
@@ -635,11 +633,9 @@ def get_obligation_timeline(db: Session, category: str, year: int, month: int,
                            company_id: int = None) -> list:
     """Bitta kategoriya uchun, shu oydagi barcha to'lovlar tarixi (timeline)."""
     from models import ExpenseTransaction
-    from sqlalchemy import func
     _tq = db.query(ExpenseTransaction).filter(
         ExpenseTransaction.category == category,
-        func.extract('year', ExpenseTransaction.date) == year,
-        func.extract('month', ExpenseTransaction.date) == month
+        _tashkent_oyida(ExpenseTransaction.date, year, month)
     )
     if company_id is not None:      # M6
         _tq = _tq.filter(ExpenseTransaction.company_id == company_id)
@@ -664,7 +660,8 @@ def close_employee_debt(db: Session, employee_id: int, year: int, month: int, am
     oylikdan ayriladi)."""
     from datetime import datetime
     import crud as _crud
-    adv_date = datetime(year, month, min(28, datetime.utcnow().day) if (year, month) == (datetime.utcnow().year, datetime.utcnow().month) else 28)
+    _bugun_t = _tashkent_date()   # kech105 (9 + 50-band): joriy oy / kun — Toshkent kalendari
+    adv_date = datetime(year, month, min(28, _bugun_t.day) if (year, month) == (_bugun_t.year, _bugun_t.month) else 28)
     adv = _crud.create_employee_advance(db, employee_id, amount, notes="Oy oxiri — qolgan oylik to'landi",
                                          given_by=paid_by, adv_date=adv_date)
     return {"success": adv is not None}
@@ -690,8 +687,12 @@ def get_production_period_stats(db: Session, company_id: int = None) -> dict:
     from database import tashkent_today_start_utc
 
     today_start = tashkent_today_start_utc()
-    week_start = today_start - timedelta(days=today_start.weekday())
-    month_start = today_start.replace(day=1)
+    # kech105 (9 + 50-band, O'LCHANGAN): hafta / oy boshi TOSHKENT sanasidan. Ilgari UTC ko'rinishidagi
+    # `today_start` (oldingi kun 19:00) ning `weekday()` / `replace(day=1)` idan olinardi — hafta SESHANBA 00:00 dan,
+    # oy esa 2-kun 00:00 dan boshlanardi (Toshkent vaqti bilan).
+    _bugun_t = _tashkent_date()
+    week_start = today_start - timedelta(days=_bugun_t.weekday())
+    month_start = _tashkent_oy_oraligi(_bugun_t.year, _bugun_t.month)[0]
 
     def _count_since(since):
         q = db.query(FinishedProduct).filter(
@@ -1501,7 +1502,7 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
     from models import Project, Master, Order, OrderItem, OrderStatus, FinishedProductSale, FinishedProduct
     from sqlalchemy import func
     from sqlalchemy.orm import selectinload as _sil_cd
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     def _oc(q):
         """Order bo'yicha so'rovni joriy korxona bilan cheklaydi."""
@@ -1509,16 +1510,16 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
 
     # --- 1. Oxirgi 6 oylik buyurtmalar soni ---
     months_data = []
-    now = datetime.utcnow()
+    # kech105 (9 + 50-band, QAROR "Toshkent vaqti bo'yicha"): oxirgi 6 oy — TOSHKENT kalendar oylari. Ilgari oy
+    # boshi `now − i × 30 kun` dan olinardi (UTC; 31 kunlik oylar ketma-ket kelganda bir oy ikki marta / tushib
+    # qolishi mumkin edi) va chegara Toshkent vaqti bilan 05:00 da edi.
+    _bugun_t = _tashkent_date()
     for i in range(5, -1, -1):
-        # Har bir oy boshi va oxiri
-        month_start = (now.replace(day=1) - timedelta(days=i*30)).replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0)
-        if i == 0:
-            month_end = now
-        else:
-            next_month = month_start.replace(day=28) + timedelta(days=4)
-            month_end = next_month.replace(day=1)
+        _oy_y, _oy_m = _bugun_t.year, _bugun_t.month - i
+        while _oy_m <= 0:
+            _oy_m += 12
+            _oy_y -= 1
+        month_start, month_end = _tashkent_oy_oraligi(_oy_y, _oy_m)
 
         count = _oc(db.query(Order).filter(
             Order.created_at >= month_start,
@@ -1530,8 +1531,8 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         # buyurtmalar ham hisobga olinishi kerak (faqat "count" — necha ta
         # buyurtma yaratilgani — o'zgarishsiz qoladi, chunki bu shunchaki son).
         revenue = float(_oc(db.query(func.sum(func.coalesce(Order.agreed_amount, Order.total_amount, 0))).filter(
-            Order.created_at >= month_start,
-            Order.created_at < month_end,
+            Order.completed_at >= month_start,      # kech105 (K105-4): «Tayyor» oyi — oylik hisobot bilan bir qoida
+            Order.completed_at < month_end,
             Order.status == OrderStatus.READY
         )).scalar() or 0)
 
@@ -1540,8 +1541,8 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
         # kelishilgan summa — chegirma/qo'shimchani ham to'g'ri hisobga oladi)
         # kech97 (116-band): detallar "Tayyor" buyurtma boshiga so'ralardi — endi bitta IN so'rovi (order_by=id).
         month_orders = _oc(db.query(Order).filter(
-            Order.created_at >= month_start,
-            Order.created_at < month_end,
+            Order.completed_at >= month_start,      # kech105 (K105-4): «Tayyor» oyi
+            Order.completed_at < month_end,
             Order.status == OrderStatus.READY
         )).options(_sil_cd(Order.items)).all()
         gips_rev = 0.0
@@ -1584,7 +1585,7 @@ def get_chart_data(db: Session, company_id: int = None) -> Dict:
                 peno_rev += s_total
 
         months_data.append({
-            "label": month_start.strftime("%b %Y"),
+            "label": datetime(_oy_y, _oy_m, 1).strftime("%b %Y"),
             "gips_revenue": round(gips_rev),
             "penoplast_revenue": round(peno_rev),
             "orders": count,
@@ -2658,10 +2659,10 @@ def get_daily_finance_summary(db: Session, target_date, company_id: int = None) 
     - Xarajat: xomashyo xaridi (nimaga qancha) + boshqa xarajatlar (nimaga qancha)
     """
     from models import InventoryPurchase, ExpenseTransaction, FinishedProductSale
-    from datetime import datetime as dt, timedelta
 
-    start = dt.combine(target_date, dt.min.time())
-    end = start + timedelta(days=1)
+    # kech105 (9 + 50-band, QAROR "Toshkent vaqti bo'yicha"): kun — TOSHKENT kalendar kuni (ilgari UTC yarim tunidan —
+    # Toshkent 00:00–05:00 dagi «Tayyor» / sotuv / xarajat oldingi kunda chiqardi).
+    start, end = _tashkent_kun_oraligi(target_date)
 
     # ── 1) SAVDO — shu kun yakunlangan buyurtmalar ──
     # MUHIM: o'chirilgan buyurtmalar ham hisobga olinadi — moliyaviy
@@ -2801,9 +2802,8 @@ def get_finance_history(db: Session, months_count: int = 12, company_id: int = N
     """Oxirgi N oy uchun moliyaviy tarix — grafik va 'Xarajatlar tarixi' jadvali uchun.
     MUHIM: hech qanday yangi hisob-kitob yo'q — faqat mavjud get_monthly_report()
     funksiyasini har oy uchun alohida chaqiradi va natijalarni ro'yxatga yig'adi."""
-    from datetime import datetime
 
-    today = datetime.utcnow()
+    today = _tashkent_date()      # kech105 (9 + 50-band): joriy oy — Toshkent kalendari
     y, m = today.year, today.month
     history = []
     for i in range(months_count):
@@ -2861,7 +2861,6 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
     ro'yxati va oxirgi `oylar` oy bo'yicha ulush."""
     import crud as _cr
     from models import ReturnItem, ReturnReason, FinishedProductLoss, Employee
-    from sqlalchemy import extract
 
     meyor = float(_cr.BRAK_MEYORI_FOIZ)
 
@@ -2884,16 +2883,14 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
     # 2) Shu oyning yozuvlari (korxona filtri bilan).
     _rq = db.query(ReturnItem).filter(
         ReturnItem.reason == ReturnReason.DEFECT,
-        extract('year', ReturnItem.returned_at) == year,
-        extract('month', ReturnItem.returned_at) == month,
+        _tashkent_oyida(ReturnItem.returned_at, year, month),
     )
     if company_id is not None:
         _rq = _rq.filter(ReturnItem.company_id == company_id)
     braklar = _rq.order_by(ReturnItem.id).all()
 
     _lq = db.query(FinishedProductLoss).filter(
-        extract('year', FinishedProductLoss.lost_at) == year,
-        extract('month', FinishedProductLoss.lost_at) == month,
+        _tashkent_oyida(FinishedProductLoss.lost_at, year, month),
     )
     if company_id is not None:
         _lq = _lq.filter(FinishedProductLoss.company_id == company_id)
@@ -3013,11 +3010,10 @@ def _monthly_category_amount(db: Session, year: int, month: int, category: str, 
     hisobot o'zgarmaydi, faqat yangi tranzaksiyalar mavjud bo'lgan oylar aniqroq hisoblanadi.
     """
     from models import ExpenseTransaction
-    from sqlalchemy import func, extract
+    from sqlalchemy import func
     try:
         _eq = db.query(ExpenseTransaction.id).filter(
-            extract('year', ExpenseTransaction.date) == year,
-            extract('month', ExpenseTransaction.date) == month,
+            _tashkent_oyida(ExpenseTransaction.date, year, month),
             ExpenseTransaction.category == category
         )
         if company_id is not None:      # M6
@@ -3026,8 +3022,7 @@ def _monthly_category_amount(db: Session, year: int, month: int, category: str, 
         if not exists:
             return float(fallback or 0)
         _sq = db.query(func.sum(ExpenseTransaction.amount)).filter(
-            extract('year', ExpenseTransaction.date) == year,
-            extract('month', ExpenseTransaction.date) == month,
+            _tashkent_oyida(ExpenseTransaction.date, year, month),
             ExpenseTransaction.category == category
         )
         if company_id is not None:
@@ -3045,8 +3040,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     Daromad - Xarajatlar = Sof foyda
     """
     from models import Order, OrderStatus, MonthlyExpense, OrderItem
-    from sqlalchemy import func, extract
-    from datetime import datetime
+    from sqlalchemy import func
 
     def _inv_rep(inv_id):
         """M6 — TENANT: hisobot ichidagi material qidiruvlari joriy korxonadan."""
@@ -3064,8 +3058,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # bo'yicha (ilgari faqat tayyor mahsulot qismi filtrlangan edi).
     _roq = db.query(Order).filter(
         Order.status == OrderStatus.READY,
-        extract('year',  Order.completed_at) == year,
-        extract('month', Order.completed_at) == month
+        _tashkent_oyida(Order.completed_at, year, month)
     )
     if company_id is not None:
         _roq = _roq.filter(Order.company_id == company_id)
@@ -3092,8 +3085,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # hisobotida A ning tayyor mahsulot sotuvi (812 000 so'm) daromad
     # sifatida ko'rinardi, holbuki B da birorta sotuv yo'q.
     _fpsq = db.query(_FPS).filter(
-        extract('year', _FPS.sold_at) == year,
-        extract('month', _FPS.sold_at) == month
+        _tashkent_oyida(_FPS.sold_at, year, month)
     )
     if company_id is not None:
         _fpsq = _fpsq.filter(_FPS.company_id == company_id)
@@ -3118,8 +3110,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # ── 1b. QAYTARISHLAR (144-band, kech102 — FOYDALANUVCHI QARORI "Qaytarish oyida") ──
     # Shu oyda bo'lgan (buyurtma yakunlangandan KEYINGI) qaytarishlar: mijozga qaytarilgan pul — daromaddan,
     # omborga qaytgan mahsulot tannarxi — ishlab chiqarish xarajatidan ayriladi (alohida qator — `qaytarish_*`).
-    _q144_boshi = datetime(year, month, 1)
-    _q144_oxiri = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    _q144_boshi, _q144_oxiri = _tashkent_oy_oraligi(year, month)
     _qaytarishlar = davr_qaytarishlari(db, _q144_boshi, _q144_oxiri, company_id=company_id)
     qaytarish_daromad = sum(h["daromad"] for h in _qaytarishlar)
     qaytarish_tannarx = sum(h["tannarx"] for h in _qaytarishlar)
@@ -3136,8 +3127,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # ham noto'g'ri kamaytirib yubormasligi kerak).
     _otmq = db.query(Order).filter(
         Order.status == OrderStatus.READY,
-        extract('year',  Order.completed_at) == year,
-        extract('month', Order.completed_at) == month
+        _tashkent_oyida(Order.completed_at, year, month)
     )
     if company_id is not None:      # M6
         _otmq = _otmq.filter(Order.company_id == company_id)
@@ -3223,9 +3213,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # butunlay olib tashlangani uchun istisno ham olib tashlandi — endi
     # ishlab chiqarilgan BARCHA mahsulot hodim oyligiga kiradi.
     from models import FinishedProduct, StockSource, ProductionStatus
-    from datetime import datetime as _dt2
-    _dp_start = _dt2(year, month, 1)
-    _dp_end = _dt2(year + 1, 1, 1) if month == 12 else _dt2(year, month + 1, 1)
+    _dp_start, _dp_end = _tashkent_oy_oraligi(year, month)
     # 2026-09-18 — TENANT (o'sha validatsiyada topilgan ikkinchi so'rov):
     # ishlab chiqarilgan miqdorlar ham korxona filtrisiz o'qilardi.
     #
@@ -3315,9 +3303,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
                 jami_blok += vol / float(p.volume_per_unit)
 
     from models import FinishedProduct, StockSource
-    from datetime import datetime as _dt
-    fp_start = _dt(year, month, 1)
-    fp_end = _dt(year + 1, 1, 1) if month == 12 else _dt(year, month + 1, 1)
+    fp_start, fp_end = _tashkent_oy_oraligi(year, month)
     # M4 (2026-09-18) — TENANT: hisobotning TAYYOR MAHSULOT qismi.
     # ESLATMA: bu funksiyaning qolgan so'rovlari hali tenant bilan
     # cheklanmagan — ular M6 (moliya/hisobotlar) bosqichida ko'riladi.
@@ -3384,14 +3370,13 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # va h.k. — bular MonthlyExpense'da "qattiq" maydon sifatida yo'q,
     # shuning uchun ExpenseTransaction'dan TO'G'RIDAN-TO'G'RI, dinamik yig'ib olinadi.
     from models import ExpenseTransaction
-    from sqlalchemy import func as _func, extract as _extract, or_ as _or_kt
+    from sqlalchemy import func as _func, or_ as _or_kt
     from models import KIRIM_TANNARX_MANBA as _KTM
     KNOWN_FIXED_CATEGORIES = {"arenda", "elektr", "tushlik", "soliqlar"}
     extra_rows = db.query(
         ExpenseTransaction.category, _func.sum(ExpenseTransaction.amount)
     ).filter(
-        _extract('year', ExpenseTransaction.date) == year,
-        _extract('month', ExpenseTransaction.date) == month,
+        _tashkent_oyida(ExpenseTransaction.date, year, month),
         ~ExpenseTransaction.category.in_(KNOWN_FIXED_CATEGORIES),
         # kech87 (104-band): tannarxga qo'shilgan kirim xarajati — xomashyo tannarxida, ikkinchi marta EMAS.
         # NULL `source` (eski yozuvlar) — oddiy xarajat (`!=` NULL ni tashlab yuborardi — shuning uchun `or_`).
@@ -3405,9 +3390,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # Bu — haqiqiy zarar (xomashyo ishlatildi, lekin sotilmadi), shuning
     # uchun boshqa xarajatlar kabi Sof foydadan ayirilishi kerak.
     import crud as _crud_brak
-    from datetime import datetime as _dt_brak
-    _brak_start = _dt_brak(year, month, 1)
-    _brak_end = _dt_brak(year + 1, 1, 1) if month == 12 else _dt_brak(year, month + 1, 1)
+    _brak_start, _brak_end = _tashkent_oy_oraligi(year, month)
     try:
         brak_summary = _crud_brak.get_brak_material_summary(db, start_date=_brak_start, end_date=_brak_end, company_id=company_id)
         brak_xarajat = float(brak_summary.get("total_value", 0) or 0)
@@ -3435,8 +3418,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     import crud as _crud_belgi
     _PROD_BRAK_MARKER = _crud_belgi._ISH_BRAK_BELGI
     _fplq = db.query(_FPL).filter(
-        extract('year', _FPL.lost_at) == year,
-        extract('month', _FPL.lost_at) == month
+        _tashkent_oyida(_FPL.lost_at, year, month)
     )
     if company_id is not None:      # M6
         _fplq = _fplq.filter(_FPL.company_id == company_id)
@@ -3521,8 +3503,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     _kx_rows = db.query(
         ExpenseTransaction.source, _func.sum(ExpenseTransaction.amount)
     ).filter(
-        _extract('year', ExpenseTransaction.date) == year,
-        _extract('month', ExpenseTransaction.date) == month,
+        _tashkent_oyida(ExpenseTransaction.date, year, month),
         ExpenseTransaction.source.in_([_KXM_nq, _KTM_nq]),
         *( [ExpenseTransaction.company_id == company_id] if company_id is not None else [] )  # M6
     ).group_by(ExpenseTransaction.source).all()
@@ -3568,7 +3549,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     # Xarajat — "Xarajat qo'shish"da yo'nalish belgilangan tranzaksiyalar
     # (Umumiy/Penoplast/Gips), shu oy uchun.
     from models import ExpenseTransaction as _ET, TransportExpense as _TE
-    from sqlalchemy import extract as _extract_pt, func as _func_pt, or_ as _or_pt
+    from sqlalchemy import func as _func_pt, or_ as _or_pt
     from models import KIRIM_TANNARX_MANBA as _KTM_pt
     # kech87 (104-band): tannarxga qo'shilgan kirim xarajati — xomashyo tannarxida (sof foyda bilan bir qoida)
     _et_foydaga = _or_pt(_ET.source.is_(None), _ET.source != _KTM_pt)
@@ -3578,17 +3559,17 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
 
     gips_qoshimcha_xarajat = float(_pt_scope(db.query(_func_pt.sum(_ET.amount)).filter(
         _ET.production_type == 'gips', _et_foydaga,
-        _extract_pt('year', _ET.date) == year, _extract_pt('month', _ET.date) == month
+        _tashkent_oyida(_ET.date, year, month)
     ), _ET).scalar() or 0) + float(_pt_scope(db.query(_func_pt.sum(_TE.amount)).filter(
         _TE.production_type == 'gips',
-        _extract_pt('year', _TE.expense_date) == year, _extract_pt('month', _TE.expense_date) == month
+        _tashkent_oyida(_TE.expense_date, year, month)
     ), _TE).scalar() or 0)
     penoplast_qoshimcha_xarajat = float(_pt_scope(db.query(_func_pt.sum(_ET.amount)).filter(
         _ET.production_type == 'penoplast', _et_foydaga,
-        _extract_pt('year', _ET.date) == year, _extract_pt('month', _ET.date) == month
+        _tashkent_oyida(_ET.date, year, month)
     ), _ET).scalar() or 0) + float(_pt_scope(db.query(_func_pt.sum(_TE.amount)).filter(
         _TE.production_type == 'penoplast',
-        _extract_pt('year', _TE.expense_date) == year, _extract_pt('month', _TE.expense_date) == month
+        _tashkent_oyida(_TE.expense_date, year, month)
     ), _TE).scalar() or 0)
 
     turlar_boyicha = {
@@ -3675,7 +3656,7 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
       bo'linadi (bitta joyda ikkalasi ham faoliyat yuritgani uchun).
     """
     from models import Employee
-    from sqlalchemy import func, extract
+    from sqlalchemy import func
 
     # M6 (2026-09-18) — TENANT: bo'lingan foyda hisobotining barcha qismlari.
     full = get_monthly_report(db, year, month, company_id=company_id)
@@ -3691,8 +3672,7 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     # "🧱 Gips" bilan boshlanuvchi qatorlarni ajratib olamiz.
     _spq = db.query(Order).filter(
         Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year,
-        extract('month', Order.completed_at) == month
+        _tashkent_oyida(Order.completed_at, year, month)
     )
     if company_id is not None:
         _spq = _spq.filter(Order.company_id == company_id)
@@ -3712,9 +3692,7 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
             else:
                 peno_direct_cost += amt
     # kech102 (144-band): shu oydagi qaytarishlar tannarxi (oylik hisobot `qaytarish_tannarx` bilan bir manba)
-    from datetime import datetime as _dt144s
-    for _h144 in davr_qaytarishlari(db, _dt144s(year, month, 1),
-                                   _dt144s(year + 1, 1, 1) if month == 12 else _dt144s(year, month + 1, 1),
+    for _h144 in davr_qaytarishlari(db, *_tashkent_oy_oraligi(year, month),
                                    company_id=company_id):
         if _h144["gips"]:
             gips_direct_cost += _h144["tannarx"]
@@ -3749,9 +3727,7 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     )
     # Yo'nalish BELGILANMAGAN qo'shimcha xarajatlar (production_type=None bo'lganlar)
     from models import ExpenseTransaction as _ET2
-    from datetime import datetime as _dt2
-    _s = _dt2(year, month, 1)
-    _e = _dt2(year + 1, 1, 1) if month == 12 else _dt2(year, month + 1, 1)
+    _s, _e = _tashkent_oy_oraligi(year, month)
     # Yo'nalish BELGILANMAGAN qo'shimcha xarajatlar (production_type=None) —
     # bular taxminiy (nisbat bo'yicha) taqsimlanadi
     def _sp_scope(q, model):
@@ -3785,10 +3761,8 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     # BRAK — endi TAXMINIY emas, ANIQ ajratiladi:
     # 1) Xomashyo braki — get_brak_material_summary() ombordagi materialning
     #    o'z kategoriyasidan (Gips yoki boshqa) aniq bilinadi.
-    from datetime import datetime as _dt3
     import crud as _crud_brak2
-    _bs = _dt3(year, month, 1)
-    _be = _dt3(year + 1, 1, 1) if month == 12 else _dt3(year, month + 1, 1)
+    _bs, _be = _tashkent_oy_oraligi(year, month)
     _brak_mat = _crud_brak2.get_brak_material_summary(db, start_date=_bs, end_date=_be,
                                                       company_id=company_id)
     gips_brak = float(_brak_mat.get("gips_brak_value", 0))
@@ -3806,8 +3780,7 @@ def calculate_split_profit_report(db: Session, year: int, month: int, company_id
     import crud as _crud_belgi2
     _PROD_BRAK_MARKER2 = _crud_belgi2._ISH_BRAK_BELGI
     _fplq2 = db.query(_FPL2).filter(
-        extract('year', _FPL2.lost_at) == year,
-        extract('month', _FPL2.lost_at) == month
+        _tashkent_oyida(_FPL2.lost_at, year, month)
     )
     if company_id is not None:      # M6
         _fplq2 = _fplq2.filter(_FPL2.company_id == company_id)
@@ -3921,15 +3894,15 @@ def get_cash_balance(db: Session, company_id: int = None) -> dict:
     # Kassa ikkalasini ham ayirardi (1 000 so'mlik arenda → −2 000). Endi oylik hisobot qoidasi
     # (`_monthly_category_amount`) bilan bir xil: shu oy / kategoriya uchun BIRORTA tranzaksiya bo'lsa — faqat
     # tranzaksiyalar (ular pastdagi `chiqim_qoshimcha` da), bo'lmasa — `MonthlyExpense` qiymati (eski oy, C8).
-    from sqlalchemy import extract as _extract_cash
     _OYLIK_KAT = ("arenda", "elektr", "tushlik", "soliqlar")
-    _mtq = db.query(
-        _extract_cash('year', ExpenseTransaction.date), _extract_cash('month', ExpenseTransaction.date),
-        ExpenseTransaction.category
-    ).filter(ExpenseTransaction.category.in_(_OYLIK_KAT))
+    _mtq = db.query(ExpenseTransaction.date, ExpenseTransaction.category
+                    ).filter(ExpenseTransaction.category.in_(_OYLIK_KAT))
     if company_id is not None:
         _mtq = _mtq.filter(ExpenseTransaction.company_id == company_id)
-    _tranzaksiyali = {(int(y), int(mo), cat) for y, mo, cat in _mtq.distinct().all()}
+    # kech105 (9 + 50-band): tranzaksiya oyi — TOSHKENT kalendari (oylik hisobot `_monthly_category_amount` bilan bir
+    # qoida; ilgari SQL `extract` — UTC oyi).
+    _tranzaksiyali = {(_tashkent_date(d).year, _tashkent_date(d).month, cat)
+                      for d, cat in _mtq.distinct().all() if d is not None}
     chiqim_oylik = sum(
         float(getattr(m, cat) or 0)
         for m in me_rows for cat in _OYLIK_KAT
@@ -4000,10 +3973,8 @@ def get_purchase_stats_for_period(db: Session, year: int, month: int,
     kiritish). Aks holda, "shu oy xarajati" noto'g'ri, shishirilgan
     chiqib qolar edi."""
     from models import InventoryPurchase, Inventory as _Inv_ps
-    from datetime import datetime as dt
 
-    start = dt(year, month, 1)
-    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+    start, end = _tashkent_oy_oraligi(year, month)
 
     # M6 — TENANT: `InventoryPurchase`da company_id yo'q, ota (material) orqali.
     _pq = db.query(InventoryPurchase).filter(
@@ -4037,10 +4008,8 @@ def get_transport_stats_for_period(db: Session, year: int, month: int,
                                   company_id: int = None) -> dict:
     """Berilgan oy uchun transport xarajatlari."""
     from models import TransportExpense, Delivery, Order as _Ord_tp
-    from datetime import datetime as dt
 
-    start = dt(year, month, 1)
-    end = dt(year + 1, 1, 1) if month == 12 else dt(year, month + 1, 1)
+    start, end = _tashkent_oy_oraligi(year, month)
 
     _iq = db.query(TransportExpense).filter(
         TransportExpense.expense_date >= start,
@@ -4085,7 +4054,6 @@ def save_monthly_expense(db: Session, year: int, month: int, data: dict,
     almashtiriladi — qo'lda kiritilgan tranzaksiyalarga tegilmaydi.
     """
     from models import MonthlyExpense, ExpenseTransaction
-    from sqlalchemy import extract
     from datetime import datetime as _datetime
 
     # M6 (2026-09-18) — TENANT: qator (year, month) bo'yicha GLOBAL
@@ -4135,8 +4103,7 @@ def save_monthly_expense(db: Session, year: int, month: int, data: dict,
             # 'monthly_form' tranzaksiyalari o'chib ketardi, yangisi esa
             # DEFAULT 1 ga yozilardi.
             _delq = db.query(ExpenseTransaction).filter(
-                extract('year', ExpenseTransaction.date) == year,
-                extract('month', ExpenseTransaction.date) == month,
+                _tashkent_oyida(ExpenseTransaction.date, year, month),
                 ExpenseTransaction.category == cat,
                 ExpenseTransaction.source == "monthly_form"
             )
@@ -5982,7 +5949,6 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
     """Shu oy SOF FOYDASIDAN usta KPI xarajatini hisoblaydi (yillik jamlanadi,
     lekin har oy tegishli ulushi xarajat sifatida yoziladi)."""
     from models import Order, OrderStatus, Master, FinishedProductSale as _FPS_kpi
-    from sqlalchemy import extract
 
     # M5 (2026-09-18) — TENANT: ilgari barcha korxonalar ustalari
     # olinardi, ya'ni B ustasining KPI xarajati A ning oylik hisobiga
@@ -6005,8 +5971,7 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         _oq = db.query(Order).filter(
             Order.master_id.in_(_b),
             Order.status == OrderStatus.READY,
-            extract('year', Order.completed_at) == year,
-            extract('month', Order.completed_at) == month
+            _tashkent_oyida(Order.completed_at, year, month)
         )
         if company_id is not None:      # M5
             _oq = _oq.filter(Order.company_id == company_id)
@@ -6014,17 +5979,14 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
             _buyurtma_oy.setdefault(_o.master_id, []).append(_o)
         for _s in db.query(_FPS_kpi).filter(
             _FPS_kpi.master_id.in_(_b),
-            extract('year', _FPS_kpi.sold_at) == year,
-            extract('month', _FPS_kpi.sold_at) == month
+            _tashkent_oyida(_FPS_kpi.sold_at, year, month)
         ).all():
             _sotuv_oy.setdefault(_s.master_id, []).append(_s)
     _hk_tayyorla(db, [o for _l in _buyurtma_oy.values() for o in _l])   # kech89 (52-band): hisobot ichida
     # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu oyda bo'lgan qaytarishlar o'sha buyurtma ustasining
     # foydasiga (qaytarilgan pul − omborga qaytgan tannarx); buyurtmaning o'zi — yakunlangan paytdagi holatda.
-    from datetime import datetime as _dt144k
     _qaytarish_usta = {}
-    for _h144 in davr_qaytarishlari(db, _dt144k(year, month, 1),
-                                   _dt144k(year + 1, 1, 1) if month == 12 else _dt144k(year, month + 1, 1),
+    for _h144 in davr_qaytarishlari(db, *_tashkent_oy_oraligi(year, month),
                                    company_id=company_id):
         _qaytarish_usta[_h144["master_id"]] = _qaytarish_usta.get(_h144["master_id"], 0.0) + _h144["foyda"]
 
@@ -6079,7 +6041,6 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
     ko'rsatkichi uchun ham ishlatiladi — Ehson yoqilgan-yoqilmaganidan
     qat'i nazar)."""
     from models import Order, OrderStatus
-    from sqlalchemy import extract
     import crud as _crud
 
     percent = float(_crud.get_setting(db, "ehson_percent", "0",
@@ -6089,8 +6050,7 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
     # tarix (shu jumladan Ehson hisobi) o'zgarmasligi kerak.
     _oq = db.query(Order).filter(
         Order.status == OrderStatus.READY,
-        extract('year', Order.completed_at) == year,
-        extract('month', Order.completed_at) == month
+        _tashkent_oyida(Order.completed_at, year, month)
     )
     if company_id is not None:      # M5
         _oq = _oq.filter(Order.company_id == company_id)
@@ -6108,9 +6068,8 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
             except Exception:
                 pass
     # kech102 (144-band, QAROR "Qaytarish oyida"): shu oyda bo'lgan qaytarishlar
-    from datetime import datetime as _dt144e
     monthly_profit += sum(_h144["foyda"] for _h144 in davr_qaytarishlari(
-        db, _dt144e(year, month, 1), _dt144e(year + 1, 1, 1) if month == 12 else _dt144e(year, month + 1, 1),
+        db, *_tashkent_oy_oraligi(year, month),
         company_id=company_id))
 
     # Tayyor mahsulot to'g'ridan-to'g'ri sotuvi ham —
@@ -6121,8 +6080,7 @@ def calculate_monthly_ehson(db: Session, year: int, month: int,
     # so'rov FAIL-2 ning bir qismi edi — A ning sotuv foydasi B ning
     # ehson hisobiga qo'shilardi.
     _fpsq2 = db.query(_FPS).filter(
-        extract('year', _FPS.sold_at) == year,
-        extract('month', _FPS.sold_at) == month
+        _tashkent_oyida(_FPS.sold_at, year, month)
     )
     if company_id is not None:
         _fpsq2 = _fpsq2.filter(_FPS.company_id == company_id)
@@ -6147,8 +6105,6 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     jami_qoplama_birlik — shu oy QOPLANGAN detallar: metr + dona (profil/panel metrda,
     donali dona bilan, bittalashtirib qo'shilgan) — qoplamachi bonusi uchun."""
     from models import Employee, PayType
-    from datetime import datetime as _dt_emp
-    from calendar import monthrange as _monthrange_emp
     import crud as _crud
 
     # MUHIM (2026-09): hodim, FAQAT allaqachon ISHGA KIRGAN oylar uchun
@@ -6156,14 +6112,15 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     # hodim, tizim tomonidan, "Iyul/Avgust uchun ham qarzdormiz" deb,
     # NOTO'G'RI hisoblanib qolar edi (garchi u hali ishga kirmagan bo'lsa
     # ham). Shu oyning OXIRGI kunigacha ishga kirgan hodimlarni olamiz.
-    _last_day = _monthrange_emp(year, month)[1]
-    _month_end = _dt_emp(year, month, _last_day, 23, 59, 59)
+    # kech105 (9 + 50-band): oy oxiri — TOSHKENT kalendari (`hire_date` — UTC vaqt, standart `utcnow`; Toshkent 1-kun
+    # 00:00–05:00 da qo'shilgan hodim o'tgan oy oyligiga ham tushardi). Oxiri KIRMAYDI.
+    _month_end = _tashkent_oy_oraligi(year, month)[1]
     # M5 (2026-09-18) — TENANT: B korxonaning xodimi A ning oylik
     # to'lov hisobiga tushmasligi uchun.
     _eq = db.query(Employee).filter(
         Employee.is_active == True,
         Employee.is_deleted.isnot(True),
-        Employee.hire_date <= _month_end
+        Employee.hire_date < _month_end
     )
     if company_id is not None:
         _eq = _eq.filter(Employee.company_id == company_id)
@@ -6180,7 +6137,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
     # qoidasi AYNAN: to'lov tarixi — `crud._kompensatsiya_tanla` (yagona), tarix yo'q — hodimning joriy qiymatlari;
     # tuzatish — hodimning BIRINCHI yozuvi (eng kichik id — asl `.first()`); avans — bazadagi SUM.
     from models import EmployeeCompensationHistory, EmployeeMonthlyAdjustment, EmployeeAdvance
-    from sqlalchemy import extract as _extract_oy, func as _func_oy
+    from sqlalchemy import func as _func_oy
     _eids = [e.id for e in employees]
     _tarix_oy, _tuzatish_oy, _avans_oy = {}, {}, {}
     for _b in _hk_bolaklar(_eids):
@@ -6199,8 +6156,7 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
         for _r in _aq.order_by(EmployeeMonthlyAdjustment.id).all():
             _tuzatish_oy.setdefault(_r.employee_id, _r)
         _vq = db.query(EmployeeAdvance.employee_id, _func_oy.sum(EmployeeAdvance.amount)).filter(
-            EmployeeAdvance.employee_id.in_(_b), _extract_oy('year', EmployeeAdvance.date) == year,
-            _extract_oy('month', EmployeeAdvance.date) == month)
+            EmployeeAdvance.employee_id.in_(_b), _tashkent_oyida(EmployeeAdvance.date, year, month))
         if company_id is not None:
             _vq = _vq.join(Employee, Employee.id == EmployeeAdvance.employee_id).filter(
                 Employee.company_id == company_id)
@@ -6311,12 +6267,11 @@ def calculate_monthly_employee_pay(db: Session, year: int, month: int,
 def get_employee_advances_total(db: Session, employee_id: int, year: int, month: int) -> float:
     """Hodimga shu OYda berilgan barcha avanslar yig'indisi."""
     from models import EmployeeAdvance
-    from sqlalchemy import extract as _extract, func as _func
+    from sqlalchemy import func as _func
 
     total = db.query(_func.sum(EmployeeAdvance.amount)).filter(
         EmployeeAdvance.employee_id == employee_id,
-        _extract('year', EmployeeAdvance.date) == year,
-        _extract('month', EmployeeAdvance.date) == month
+        _tashkent_oyida(EmployeeAdvance.date, year, month)
     ).scalar()
     return float(total or 0)
 
@@ -6324,12 +6279,10 @@ def get_employee_advances_total(db: Session, employee_id: int, year: int, month:
 def get_employee_advances_list(db: Session, employee_id: int, year: int, month: int) -> list:
     """Hodimga shu OYda berilgan barcha avanslar ro'yxati (sana, summa, izoh bilan)."""
     from models import EmployeeAdvance
-    from sqlalchemy import extract as _extract
 
     rows = db.query(EmployeeAdvance).filter(
         EmployeeAdvance.employee_id == employee_id,
-        _extract('year', EmployeeAdvance.date) == year,
-        _extract('month', EmployeeAdvance.date) == month
+        _tashkent_oyida(EmployeeAdvance.date, year, month)
     ).order_by(EmployeeAdvance.date.desc()).all()
     return [{
         "id": r.id,

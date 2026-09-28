@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -106,7 +106,7 @@ Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'li
   (Kirill ↔ Lotin). Statik fayl o'zgarsa `main.py` dagi `static_version` ni oshiring (kesh).
 - `tools/` — testlar (`test_*.py`, `test_*.js`), `tenant_lint.py` (+ `tenant_lint_baseline.json`),
   `narx_etalon_baza.py` / `narx_etalon_jonli.json` (narx etaloni), `pasport_xarita.py` (shu faylning xaritasi),
-  `hammasi.sh` (barcha testlar).
+  `hammasi.sh` (barcha testlar), `vaqt_sayohati.sh` (+ `vaqt_sayohati/sitecustomize.py` — to'plam soat chegarasi paytlarida).
 
 ## 4. Asosiy qoidalar (kodda)
 
@@ -128,8 +128,15 @@ narsa saqlanmaydi). Pul amallari `crud._pul_qulfi` (PostgreSQL advisory lock) os
 takror yuborish himoyasi `crud.PUL_TAKROR_SONIYA` (8 s). Buyurtma yaratish loyiha bo'yicha qulflanadi
 (`crud.create_order`). Ombor qatori `with_for_update()` bilan — bunday modelga `lazy="joined"` qo'yilmaydi.
 
-**Vaqt.** Baza vaqtni UTC da saqlaydi; "bugun" / oy chegarasi Toshkent (UTC+5) bo'yicha —
-`database.tashkent_today_start_utc`, `database.tashkent_date`.
+**Vaqt.** Baza vaqtni UTC da (naive) saqlaydi (`datetime.utcnow`). Hisobotlarning kun / oy / yil chegaralari —
+TOSHKENT kalendari (UTC+5, kun 00:00 da almashadi; kech105 QARORI, 6-bo'lim): davr sharti `database.tashkent_kunida`,
+`database.tashkent_oyida`, `database.tashkent_yilida` (UTC `[boshi, oxiri)` oralig'i — `extract('year' / 'month')`
+ISHLATILMAYDI, u UTC oyini oladi); "bugun" / joriy oy / yil — `database.tashkent_date()`,
+`database.tashkent_today_start_utc` (`datetime.utcnow().date()` / `.year` ham, jarayon mintaqasiga bog'liq
+`date.today()` / `datetime.now()` ham EMAS). Faqat sana kiritiladigan qiymatlar (xarajat / avans sanasi — 00:00) o'z
+kunida qoladi. Bosh sahifa grafigi (`services.get_chart_data`) — Toshkent kalendar oylari, daromadi «Tayyor» oyi
+bo'yicha (oylik hisobot kabi; kech105, K105-4). Ko'rinishdagi vaqtlar (PDF, Telegram xabari, brauzer) hali UTC /
+mahalliy — 7-bo'lim.
 
 **Buyurtma hayoti.** Holatlar: `draft` (qoralama) → `new` / `in_progress` (jarayonda) → `delivered` (hammasi topshirilgan,
 lekin «Tayyor» bosilmagan) → `ready` («Tayyor» — YAKUNIY, hisobotga kiradi); `cancelled`. Yuk xati (`crud.create_delivery`) —
@@ -198,13 +205,14 @@ PG_URL=postgresql://postgres@127.0.0.1:5432 python3 tools/test_tm_tannarx.py
 node tools/test_kichik103_ui.js               # bitta JS test (shablonning haqiqiy JavaScript'i, jsdom)
 python3 tools/tenant_lint.py                  # korxona filtri lint — "TOZA" kutiladi
 python3 tools/pasport_xarita.py --tekshir     # shu pasport xaritasi kod bilan mos
+bash tools/vaqt_sayohati.sh                   # vaqt / sana mantig'iga tegilsa: to'plam 4 chegara paytida (pip install time-machine)
 python3 -m pyflakes crud.py main.py schemas.py services.py
 ```
 
 Har test oxirida `NATIJA: o'tdi = N yiqildi = M jami = K`; talab — `yiqildi = 0` va chiqish kodi 0. PG testlarini
 parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayllarni tahrirlamang.
 
-**Kutilgan natija (kech105 o'lchovi, 2026-09-28, zip 99 fayllari bilan):** `bash tools/hammasi.sh` — 122 test fayli (Python va JS), jami **11 580** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **11 581** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 73 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 108); pyflakes — `crud.py` 63, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
+**Kutilgan natija (kech105 o'lchovi, 2026-09-28, zip 100 fayllari bilan):** `bash tools/hammasi.sh` — 123 test fayli (Python va JS), jami **11 636** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **11 637** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 74 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 108); pyflakes — `crud.py` 63, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
 
 **Darvozalar (o'zgartirishdan keyin yiqilsa — sababini toping, testni "moslab" yashirmang):**
 
@@ -235,6 +243,8 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
 - Shu pasport va shablon → marshrut havolalari: `tools/test_pasport.py`.
 - Ombor turkumi va penoplast belgisi (qayta ishga tushishda o'zgarmasligi, yangi material): `tools/test_ombor_turkum.py`,
   `tools/test_ombor_turkum_ui.js`.
+- Vaqt — Toshkent kalendari (kun / oy / yil chegaralari, "bugun", jarayon mintaqasiga bog'liq emaslik):
+  `tools/test_toshkent_vaqt.py`, `tools/test_soat_utc.py`; butun to'plam chegara paytlarida — `tools/vaqt_sayohati.sh`.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -311,6 +321,9 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 **Moliya va ombor**
 - (kech87, 104) Xomashyo xaridida korxona to'lagan transport — to'langan oyning xarajati; mijozga yetkazishda
   korxona to'lagan transport — to'langan oyda sof foydadan ayriladi.
+- (kech105, 2026-09-28, 9 va 50) "Toshkent vaqti bo'yicha": hisobotlarning kun / oy / yil chegaralari — Toshkent
+  kalendari (kun 00:00 da almashadi); hamma hisobot va "Bugun" bir xil; o'tgan oylarda tungi (00:00–05:00) yozuvlar
+  to'g'ri kun / oyga ko'chadi.
 - (kech36) Ortgan loy (Tayyor loy) uchun minimal chegara shart emas — "kam qoldi" ogohlantirishiga kirmaydi.
 - (2026-09-16) Joriy sovg'a davri ataylab yangi ustalar uchun (eski ustalar qatnashmaydi).
 
@@ -328,9 +341,14 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   emas materiallar (eski kod nomdan majburan belgilagan — masalan "… penoplast kleyi"); `is_penoplast` NULL soni;
   `Boshqa` / `Bazalt` turkumli materiallar; `produced_quantity` NULL li READY tayyor mahsulotlar (staging kodi
   ko'chirishda ularni birinchi marta to'ldiradi — hodim haqiga ta'sir).
+  (kech105, 9 + 50 / K105-4) `main` o'lchoviga: har oy bo'yicha Toshkent 1-kun 00:00–05:00 dagi «Tayyor» / to'lov / xarajat
+  (ko'chirishdan keyin o'tgan oylar raqami shuncha o'zgaradi — egasiga misol bilan); READY, lekin `completed_at` NULL
+  buyurtmalar — bosh sahifa grafigidan chiqadi (oylik hisobot ularni allaqachon sanamaydi).
 - **`staging` da ✅ belgisiz qolgan eski bandlar (oxirgi TOPSHIRIQ, 5-bo'lim) — `main` dan OLDIN ko'rib chiqiladi:** 9 va 50 —
-  hisobotlarning kun / oy chegarasi UTC bo'yicha (Toshkent vaqti bilan kun 05:00 da almashadi: oyning 1-kuni 00:00–05:00 dagi
-  amal oldingi oyga tushadi; kech96 da "dizayn" deb qoldirilgan); 10 — kech23 qoldiqlari (loyiha tahririda muddat, hodim
+  (kech105, zip 100) SERVER hisobot chegaralari Toshkent kalendariga o'tkazildi (A qism, egasi qarori — 6-bo'lim); QOLDI:
+  B — ko'rinish (PDF nakladnoy sanasi, Telegram xabarlari vaqti `datetime.now()`, `templates/users.html` "now", Jinja
+  `strftime` — UTC) va C — brauzer (JSON vaqtlar 'Z' siz — JS mahalliy vaqt deb o'qiydi; `new Date().toISOString().slice(0, 10)`
+  standart sanasi UTC — `templates/hodim_panel.html`, `templates/supplier_receive.html`); 10 — kech23 qoldiqlari (loyiha tahririda muddat, hodim
   paneli, UI 400 sabablari, hech bir handler ko'rsatmaydigan `templates/masters.html`, "Kirim hujjatini bekor qilish", Telegram
   dizayni xavfi); 26, 36, 49, 71 — hujjatlangan chegaralar (tuzatish rejalanmagan).
 - **Egasi hal qiladi:** brak mahsulotning keyingi taqdiri (chiqindi / tuzatildi / qayta ishlatildi / 2-nav);
@@ -358,6 +376,10 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   klon + MD5.
 - Shablondagi tugma o'chirilgan marshrutni chaqirib qolgan (K104-1, 404) — `tools/test_pasport.py` B bo'limi
   endi har `/api/` havolasini tekshiradi.
+- `extract('month', ustun)` va `datetime(yil, oy, 1)` oralig'i UTC oyini oladi (Toshkent vaqti bilan 1-kun 00:00–05:00
+  dagi amal oldingi oyga tushardi) — Toshkent oyi uchun `database.tashkent_oyida`. Testda ham "joriy yil / oy / kun"
+  `datetime.utcnow()` dan EMAS, Toshkent devor soatidan (UTC + 5) — aks holda Toshkent 00:00–05:00 da SOXTA yiqilish
+  (kech105 vaqt sayohati o'lchovi; endi `tools/vaqt_sayohati.sh` — TZ=UTC va TZ=Asia/Tashkent, 4 payt).
 - «Bir martalik» deb yozilgan ishga tushish UPDATE si shartsiz bo'lsa — HAR deployda ishlaydi va foydalanuvchi
   tanlovini jimgina qayta yozadi (K105-2 `'Boshqa'` → `'Bazalt'`, K105-3 nomdan penoplast belgisi; K42-1
   `agreed_amount = 0` — xuddi shu sinf). Tekshiruv: material yaratib, serverni QAYTA ishga tushirib solishtirish.
@@ -1120,6 +1142,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_tm_tannarx.py` · PG — 5-bo'lim 47-band darvozasi (kech59, 2026-09-24): TAYYOR MAHSULOT 1 birlik tannarxi.
 - `test_tolov_query.py` — 17c-band: so'rov qatoridagi pul marshrutlari va loyiha "To'langan" summasi.
 - `test_top_tm_korxona.py` · PG — kech78 darvozasi (2026-09-25, 98-band): Dashboard "Tayyor mahsulotdan eng ko'p sotilganlar" (`/api/dashboard/top-finished-products`, `services.get_top_finished_products_sold`…
+- `test_toshkent_vaqt.py` · PG — kech105, 9 + 50-band darvozasi. FOYDALANUVCHI QARORI (2026-09-28): "Toshkent vaqti bo'yicha (Tavsiya)" — hisobotlarning kun / oy / yil chegaralari TOSHKENT kalendari bo'yicha,…
 - `test_transport_foyda.py` · PG — kech87 darvozasi (2026-09-26, 104-band).
 - `test_usta_oxirgi_sana.py` · PG — kech91 darvozasi (2026-09-26, 115-band): Usta KPI hisobotidagi "Oxirgi buyurtma" sanasi (`crud.get_masters_kpi_report` → `last_order_date`, `/api/masters/kpi-report`, `/mas…
 - `test_xarajat_query.py` — 17e-band: kunlik xarajat tranzaksiyasi va buyurtmaning kelishilgan summasi.
@@ -1146,5 +1169,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yetkazish_ui.js` · JS — 17g (2026-09-22): yetkazish va brak yozish UI si.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 
-Jami test fayllari: 122 (Python 104, JS 18).
+Jami test fayllari: 123 (Python 105, JS 18).
 <!-- AVTO:TESTLAR OXIRI -->
