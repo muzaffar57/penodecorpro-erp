@@ -488,7 +488,7 @@ const PAY_COLORS = {
 
 // ── USTA YILLIK KPI ────────────────────────────────────────
 async function loadMasterKpi() {
-  const year = parseInt(document.getElementById('kpi-year').value) || new Date().getFullYear();
+  const year = parseInt(document.getElementById('kpi-year').value) || tkHozir().yil;
   document.getElementById('k-year').textContent = year;
 
   try {
@@ -605,7 +605,7 @@ function renderInactiveMasters() {
 }
 
 async function openMasterDetail(id, name) {
-  const year = parseInt(document.getElementById('kpi-year').value) || new Date().getFullYear();
+  const year = parseInt(document.getElementById('kpi-year').value) || tkHozir().yil;
   document.getElementById('md-title').textContent = `${name} — buyurtmalar bo'yicha KPI (${year})`;
   document.getElementById('masterDetailModal').style.display = 'flex';
   const list = document.getElementById('md-list');
@@ -618,7 +618,7 @@ async function openMasterDetail(id, name) {
     } else {
       const totalKpi = rows.reduce((s,r)=>s+r.kpi_amount, 0);
       list.innerHTML = rows.map(r => {
-        const dt = r.completed_at ? new Date(r.completed_at).toLocaleDateString('uz') : '—';
+        const dt = r.completed_at ? tkSana(r.completed_at) : '—';
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
           <div>
@@ -828,9 +828,9 @@ async function loadEmployees() {
     }).join('');
 
     // Har bir hodim uchun — shu oy berilgan avans summasini yuklaymiz
-    const now = new Date();
+    const tk = tkHozir();     // kech106: "shu oy" — Toshkent
     empItems.forEach(e => {
-      fetch(`/api/employees/${e.id}/advances?year=${now.getFullYear()}&month=${now.getMonth()+1}`)
+      fetch(`/api/employees/${e.id}/advances?year=${tk.yil}&month=${tk.oy}`)
         .then(r => r.json())
         .then(d => {
           const el = document.getElementById(`emp-avans-${e.id}`);
@@ -846,7 +846,7 @@ function openAdvanceModal(empId, empName) {
   document.getElementById('adv-emp-name').textContent = empName;
   document.getElementById('adv-amount').value = '';
   document.getElementById('adv-notes').value = '';
-  document.getElementById('adv-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('adv-date').value = tkISO();     // kech106: bugun — Toshkent (ilgari UTC sanasi)
   document.getElementById('advanceModal').style.display = 'flex';
   loadAdvanceHistory(empId);
 }
@@ -909,8 +909,8 @@ async function savePanelAccess() {
 }
 
 async function loadAdvanceHistory(empId) {
-  const now = new Date();
-  const res = await fetch(`/api/employees/${empId}/advances?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
+  const tk = tkHozir();     // kech106: "shu oy" — Toshkent
+  const res = await fetch(`/api/employees/${empId}/advances?year=${tk.yil}&month=${tk.oy}`);
   const d = await res.json();
   const list = document.getElementById('adv-history');
   document.getElementById('adv-total').textContent = fmt(d.total) + " so'm";
@@ -920,7 +920,7 @@ async function loadAdvanceHistory(empId) {
   }
   list.innerHTML = d.advances.map(a => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:12.5px">
-      <span>${new Date(a.date).toLocaleDateString('uz')} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
+      <span>${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
       <span style="display:flex;align-items:center;gap:6px">
         <b>${fmt(a.amount)} so'm</b>
         <button onclick="deleteAdvance(${a.id})" style="border:none;background:none;color:#DC2626;cursor:pointer;font-size:13px">✕</button>
@@ -1161,8 +1161,8 @@ function editEmployee(id) {
   setProdType(e.production_type || '');
   document.getElementById('emp-error').style.display = 'none';
 
-  const now = new Date();
-  document.getElementById('e-effective-month').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const tk = tkHozir();     // kech106: joriy oy — Toshkent
+  document.getElementById('e-effective-month').value = `${tk.yil}-${String(tk.oy).padStart(2,'0')}`;
   document.getElementById('e-reason').value = '';
   document.getElementById('emp-effective-section').style.display = 'block';
 
@@ -1264,15 +1264,15 @@ async function deleteEmployee(id) {
 const MONTH_NAMES_UZ = ['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
 
 function initEmpReportSelectors() {
-  const now = new Date();
+  const tk = tkHozir();     // kech106: joriy oy / yil — Toshkent
   const monthSel = document.getElementById('emp-report-month');
   const yearSel = document.getElementById('emp-report-year');
   monthSel.innerHTML = MONTH_NAMES_UZ.slice(1).map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
-  monthSel.value = now.getMonth()+1;
+  monthSel.value = tk.oy;
   let yearsHtml = '';
-  for (let y = now.getFullYear(); y >= now.getFullYear()-3; y--) yearsHtml += `<option value="${y}">${y}</option>`;
+  for (let y = tk.yil; y >= tk.yil-3; y--) yearsHtml += `<option value="${y}">${y}</option>`;
   yearSel.innerHTML = yearsHtml;
-  yearSel.value = now.getFullYear();
+  yearSel.value = tk.yil;
 }
 
 async function loadEmpMonthlyReport() {
@@ -1462,7 +1462,7 @@ async function toggleEmpAdvanceDetail(empId, idx, year, month) {
     const d = await res.json();
     const html = d.advances.map(a => `
       <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px;color:#92400E">
-        <span>${new Date(a.date).toLocaleDateString('uz')} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
+        <span>${tkSana(a.date)} ${a.notes ? '— '+escapeHtml(a.notes) : ''}</span>
         <span style="font-weight:600">${fmt(a.amount)} so'm</span>
       </div>`).join('');
     detailBox.innerHTML = html;
@@ -1576,7 +1576,7 @@ async function toggleGiftPeriodMasterPicker() {
   if (!allMasterKpiData || !allMasterKpiData.length) {
     picker.innerHTML = '<div style="color:var(--text3);font-size:13px">Yuklanmoqda...</div>';
     try {
-      const year = parseInt(document.getElementById('kpi-year').value) || new Date().getFullYear();
+      const year = parseInt(document.getElementById('kpi-year').value) || tkHozir().yil;
       const d = await fetch(`/api/masters/kpi-report?year=${year}`).then(r => r.json());
       allMasterKpiData = d.masters;
     } catch(e) {}
@@ -1694,7 +1694,7 @@ async function renderGiftPeriodActive(box, data) {
   // dagi tanlov-piker bug'i kabi), shu yerda ham zaxira yuklab olamiz.
   if (!allMasterKpiData || !allMasterKpiData.length) {
     try {
-      const year = parseInt(document.getElementById('kpi-year')?.value) || new Date().getFullYear();
+      const year = parseInt(document.getElementById('kpi-year')?.value) || tkHozir().yil;
       const d = await fetch(`/api/masters/kpi-report?year=${year}`).then(r => r.json());
       allMasterKpiData = d.masters;
     } catch(e) {}
@@ -1804,7 +1804,7 @@ async function submitCloseGiftPeriod(force) {
   } catch(e) { alert("❌ Server bilan aloqa yo'q"); } finally { isClosingGiftPeriod = false; }
 }
 
-document.getElementById('kpi-year').value = new Date().getFullYear();
+document.getElementById('kpi-year').value = tkHozir().yil;     // kech106: joriy yil — Toshkent
 loadEhsonPercent();
 loadMasterKpi();
 loadGiftPeriod();
@@ -1817,9 +1817,9 @@ loadEmpMonthlyReport();
 // summa" KPI kartalari uchun. Mavjud, sinalgan /api/finance/report dan
 // foydalanadi — yangi hisoblash formulasi yo'q, faqat qo'shimcha ko'rsatish.
 async function loadCurrentMonthEmpStatus() {
-  const now = new Date();
+  const tk = tkHozir();     // kech106: joriy oy — Toshkent
   try {
-    const d = await fetch(`/api/finance/report?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r => r.json());
+    const d = await fetch(`/api/finance/report?year=${tk.yil}&month=${tk.oy}`).then(r => r.json());
     const list = d.hodimlar_breakdown || [];
     const totalCalc = list.reduce((s,e) => s + (e.amount||0), 0);
     const totalUnpaid = list.reduce((s,e) => s + Math.max(0, e.qolgan||0), 0);

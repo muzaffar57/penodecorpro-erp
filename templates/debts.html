@@ -97,7 +97,7 @@
                  data-paid="{{ o.paid_amount }}"
                  data-debt="{{ o.debt_amount }}"
                  data-deleted="{{ 'true' if o.is_deleted else 'false' }}"
-                 data-deadline="{{ o.deadline.strftime('%d.%m.%Y') if o.deadline else '—' }}">
+                 data-deadline="{{ o.deadline|toshkent('%d.%m.%Y') if o.deadline else '—' }}">
               <div class="dbt-avatar">{{ (o.project.client_name or '?')[0]|upper }}</div>
               <div class="dbt-item-body">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -562,12 +562,15 @@ async function quickPayObligation(category, label, debt, year, month){
   // MUHIM: agar bu, o'tgan oydan qolgan qarz bo'lsa — to'lovni, "bugungi
   // sana"ga emas, balki qarzning O'ZI tegishli bo'lgan oyga yozamiz
   // (aks holda, kechikkan to'lov, boshqa oy hisobotini buzib qo'yardi).
-  const now = new Date();
-  const y = parseInt(year) || now.getFullYear();
-  const m = parseInt(month) || (now.getMonth() + 1);
-  const isCurrentMonth = (y === now.getFullYear() && m === (now.getMonth() + 1));
+  // kech106 (9 + 50-band C qismi, O'LCHANGAN — work/probe106ui.py): joriy oy va "bugun" — TOSHKENT. Ilgari
+  // `now.toISOString()` (UTC sanasi): Toshkent 1-kun 00:00–05:00 da joriy oy to'lovi O'TGAN oyning oxirgi kuniga
+  // (o'tgan oy hisobotiga) yozilardi.
+  const tk = tkHozir();
+  const y = parseInt(year) || tk.yil;
+  const m = parseInt(month) || tk.oy;
+  const isCurrentMonth = (y === tk.yil && m === tk.oy);
   const payDate = isCurrentMonth
-    ? now.toISOString().slice(0, 10)
+    ? tkISO()
     : `${y}-${String(m).padStart(2, '0')}-28`;
   try {
     const res = await fetch('/api/finance/transactions', {
@@ -585,9 +588,9 @@ async function openObligTimeline(category, label){
   document.getElementById('tl-sub').textContent = 'Shu oy';
   document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Yuklanmoqda...</div>';
   document.getElementById('timelineModal').style.display = 'flex';
-  const now = new Date();
+  const tk = tkHozir();     // kech106: "Shu oy" — Toshkent
   try {
-    const rows = await fetch(`/api/obligations/timeline?category=${category}&year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const rows = await fetch(`/api/obligations/timeline?category=${category}&year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     renderTimeline(rows);
   } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444">Xato yuz berdi</div>'; }
 }
@@ -597,9 +600,9 @@ async function openEmpTimeline(empId, name){
   document.getElementById('tl-sub').textContent = 'Shu oy (avans + yakuniy to\'lovlar)';
   document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Yuklanmoqda...</div>';
   document.getElementById('timelineModal').style.display = 'flex';
-  const now = new Date();
+  const tk = tkHozir();     // kech106: "Shu oy" — Toshkent
   try {
-    const rows = await fetch(`/api/obligations/employee/${empId}/timeline?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const rows = await fetch(`/api/obligations/employee/${empId}/timeline?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     renderTimeline(rows);
   } catch(e) { document.getElementById('tl-list').innerHTML = '<div style="text-align:center;padding:20px;color:#EF4444">Xato yuz berdi</div>'; }
 }
@@ -608,9 +611,8 @@ function renderTimeline(rows){
   const el = document.getElementById('tl-list');
   if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:#9CA3AF">Bu oy hali to\'lov bo\'lmagan</div>'; return; }
   el.innerHTML = rows.map(r => {
-    const d = new Date(r.date);
     return `<div class="tl-row">
-      <div><div style="font-weight:500">${d.toLocaleDateString('uz')}</div><div style="font-size:11.5px;color:#9CA3AF">${escapeHtml(r.notes||'')} ${r.created_by?'· '+escapeHtml(r.created_by):''}</div></div>
+      <div><div style="font-weight:500">${tkSana(r.date)}</div><div style="font-size:11.5px;color:#9CA3AF">${escapeHtml(r.notes||'')} ${r.created_by?'· '+escapeHtml(r.created_by):''}</div></div>
       <div style="font-weight:700;color:#22C55E">${fmt(r.amount)} so'm</div>
     </div>`;
   }).join('');
@@ -622,8 +624,9 @@ async function closeEmployeeDebt(empId, name, amount, year, month){
   // MUHIM: "hozirgi sana" emas, balki bu qarz AYNAN qaysi oyga tegishli
   // bo'lsa — o'sha yil/oyni yuboramiz (aks holda, kechikkan to'lov,
   // noto'g'ri — hozirgi — oy hisobotiga yozilib qolardi).
-  const y = year || new Date().getFullYear();
-  const m = month || (new Date().getMonth() + 1);
+  const tk = tkHozir();     // kech106: joriy oy — Toshkent
+  const y = year || tk.yil;
+  const m = month || tk.oy;
   try {
     const res = await fetch(`/api/obligations/employee/${empId}/close?year=${y}&month=${m}&amount=${amount}`, {method:'POST'});
     if (res.ok) location.reload();

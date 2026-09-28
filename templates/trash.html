@@ -95,7 +95,7 @@
           <b>{{ a.entity_label or (a.entity_type ~ '#' ~ a.entity_id) }}</b>
           {% if a.action == 'deleted' %}o'chirildi{% elif a.action == 'restored' %}tiklandi{% else %}butunlay o'chirildi{% endif %}
         </div>
-        <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at.strftime('%d.%m.%Y %H:%M') if a.created_at else '' }}</div>
+        <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at|toshkent }}</div>
       </div>
       {% endfor %}
     </div>

@@ -281,7 +281,7 @@ input[type=number]{-moz-appearance:textfield}
                  data-status="{{ o.status.value }}"
                  data-total="{{ o.total_amount }}"
                  data-master="{{ o.master.name if o.master else '—' }}"
-                 data-date="{{ o.created_at.strftime('%d.%m.%Y') }}"
+                 data-date="{{ o.created_at|toshkent('%d.%m.%Y') }}"
                  data-project-id="{{ g.project_id }}"
                  data-order-id="{{ o.id }}"
                  data-pinned="{{ 'true' if o.is_pinned else 'false' }}">
@@ -297,7 +297,7 @@ input[type=number]{-moz-appearance:textfield}
                 {% elif o.status.value == 'delivered' %}<span class="badge badge-delivered" style="font-size:9px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>
                 {% else %}<span class="badge badge-progress" style="font-size:9px">Jarayonda</span>{% endif %}
               </div>
-              <div class="ord-date">{{ o.created_at.strftime('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.kelishilgan_summa).replace(",", " ") }} so'm</div>
+              <div class="ord-date">{{ o.created_at|toshkent('%d.%m.%Y') }} · {{ "{:,.0f}".format(o.kelishilgan_summa).replace(",", " ") }} so'm</div>
               {# kech100 (131-band): mijozga qaytarilishi kerak bo'lgan ortiqcha to'lov — DOIMIY belgi #}
               {% set ort131 = o.ortiqcha_tolov %}
               {% if ort131 > 0 %}
@@ -2094,8 +2094,7 @@ function renderDeliveryHistory(showAll) {
 
   {
       hist.innerHTML = shown.map(dl => {
-        const dt = new Date(dl.delivered_at);
-        const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+        const ds = tkSanaVaqt(dl.delivered_at);
         const items = dl.items.map(i => `${escapeHtml(i.item_name)}: <b>${i.quantity}${i.unit==='metr'?'m':' ta'}</b>`).join(' · ');
         return `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f0f0f0;gap:8px">
@@ -2163,14 +2162,13 @@ function openSummaryModal() {
     new Date(a.delivered_at) - new Date(b.delivered_at));
 
   document.getElementById('sumList').innerHTML = sorted.map(d => {
-    const dt = new Date(d.delivered_at);
-    const ds = dt.toLocaleDateString('uz');
+    const ds = tkSana(d.delivered_at);
     const items = d.items.map(i =>
       `${escapeHtml(i.item_name)} — ${i.quantity}${i.unit==='metr'?'m':' ta'}`).join(' · ');
     return `
     <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">
       <input type="checkbox" class="sum-chk" value="${d.id}" data-sum="${d.total_sum || 0}"
-             data-ts="${dt.getTime()}" checked onchange="updateSumTotal()"
+             data-ts="${tkMs(d.delivered_at)}" checked onchange="updateSumTotal()"
              style="width:17px;height:17px;cursor:pointer;margin-top:2px;flex-shrink:0">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:7px">
@@ -2690,14 +2688,12 @@ async function loadPayments(orderId) {
 
     const sDeadline = document.getElementById('s-deadline');
     if (sDeadline) {
-      const dateStr = order.deadline ? new Date(order.deadline).toLocaleDateString('uz') : '—';
+      const dateStr = order.deadline ? tkSana(order.deadline) : '—';
       // 2026-09-13: muddat yaqinlashsa/o'tsa — rangli (va eng shoshilinch
       // holatlarda pulslaydigan) ogohlantirish qo'shamiz
       let suffix = '', color = '', pulse = false;
       if (order.deadline && !['delivered', 'cancelled'].includes(order.status) && order.delivery_percent < 100) {
-        const todayD = new Date(); todayD.setHours(0,0,0,0);
-        const dlD = new Date(order.deadline); dlD.setHours(0,0,0,0);
-        const daysLeft = Math.round((dlD - todayD) / 86400000);
+        const daysLeft = tkKunFarqi(order.deadline);     // kech106: Toshkent kalendar kunlari
         if (daysLeft < 0) { color = '#DC2626'; suffix = " · 🔴 o'tgan!"; pulse = true; }
         else if (daysLeft === 0) { color = '#D97706'; suffix = ' · ⏰ bugun!'; pulse = true; }
         else if (daysLeft === 1) { color = '#D97706'; suffix = ' · ⏰ ertaga'; }
@@ -2769,8 +2765,7 @@ async function loadPayments(orderId) {
       return;
     }
     list.innerHTML = payments.map(p => {
-      const d = new Date(p.paid_at);
-      const dStr = d.toLocaleDateString('uz') + ' ' + d.toLocaleTimeString('uz', {hour:'2-digit',minute:'2-digit'});
+      const dStr = tkSanaVaqt(p.paid_at);
       return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0">
           <div style="flex:1">
@@ -4834,7 +4829,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     if (projSel) projSel.value = order.project_id || '';
     if (masterSel) masterSel.value = order.master_id || '';
     const deadlineInp = document.getElementById('deadline_input');
-    if (deadlineInp) deadlineInp.value = order.deadline ? order.deadline.slice(0, 10) : '';
+    if (deadlineInp) deadlineInp.value = order.deadline ? tkISO(order.deadline) : '';
 
     // "RETSEPT" (umumiy qoplama retsepti) — bu, Order darajasida saqlanmaydi
     // (faqat har bir detalga meros bo'lib o'tadi), shuning uchun tahrirlashda

@@ -390,11 +390,13 @@ async function loadSuppliers(){
 
 function daysAgoText(iso) {
   if (!iso) return "Hali xarid yo'q";
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  // kech106: Toshkent KALENDAR kunlari ("Bugun" — bugungi Toshkent sanasi, "Kecha" — kechagisi). Ilgari o'tgan
+  // 24 soatlik bo'laklar va zona belgisiz vaqt mahalliy deb o'qilardi (5 soat xato).
+  const diff = -tkKunFarqi(iso);
   if (diff <= 0) return "Bugun";
   if (diff === 1) return "Kecha";
   if (diff < 30) return `${diff} kun oldin`;
-  return new Date(iso).toLocaleDateString('uz');
+  return tkSana(iso);
 }
 
 function renderSupplierList(list){
@@ -954,8 +956,7 @@ async function openHistory(id, keepFilter, page){
       pu.innerHTML = sortedCats.map(cat => {
         const g = groups[cat];
         const rows = g.items.map(p => {
-          const dt = new Date(p.purchased_at);
-          const ds = dt.toLocaleDateString('uz');
+          const ds = tkSana(p.purchased_at);
           return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5">
             <div>
@@ -988,8 +989,7 @@ async function openHistory(id, keepFilter, page){
       pa.innerHTML = '<div style="text-align:center;padding:14px;color:#bbb;font-size:12px">To\'lov yo\'q</div>';
     } else {
       pa.innerHTML = d.payments.map(p => {
-        const dt = new Date(p.paid_at);
-        const ds = dt.toLocaleDateString('uz');
+        const ds = tkSana(p.paid_at);
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">
           <div>

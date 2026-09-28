@@ -113,6 +113,60 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ══ UMUMIY (kech106, 9 + 50-band C qismi — egasi qarori kech105: "Toshkent vaqti bo'yicha"): TOSHKENT VAQTI.
+// Server vaqtni bazadagi UTC da, ZONA BELGISIZ beradi ("2026-09-30T20:30:00"). `new Date(s)` bunday satrni
+// brauzerning MAHALLIY vaqti deb o'qiydi — Toshkentdagi kompyuterda 5 soat orqada (Toshkent 01.10 01:30 dagi to'lov
+// "30.09 20:30"), `new Date().toISOString().slice(0, 10)` esa UTC sanasi — Toshkent 00:00–05:00 da KECHAGI kun
+// (avans / kirim / xarajat standart sanasi o'tgan oyga tushardi). O'LCHANGAN: work/probe106ui.py (haqiqiy Chromium).
+// QOIDA: serverdan kelgan vaqtni ko'rsatish, "bugun" sanasi va joriy oy / yil — FAQAT shu yordamchilar orqali.
+// Brauzer qaysi mintaqada bo'lmasin, natija Toshkent: UTC+5, yozgi vaqt yo'q (server `database.TASHKENT_OFFSET`).
+// Bu blok base.html va hodim_panel.html da AYNAN bir xil (tools/test_toshkent_korinish_ui.js tekshiradi).
+function tkMs(v) {
+  // Server vaqti → haqiqiy UTC millisekund (NaN — qiymat yo'q / noto'g'ri). Zona belgisiz satr — UTC; faqat sana
+  // ("2026-10-01") — o'sha kun 00:00 UTC; Date va son — o'zi.
+  if (v === null || v === undefined || v === '') return NaN;
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'number') return v;
+  let s = String(v).trim().replace(' ', 'T');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s += 'T00:00:00';
+  s = s.replace(/(\.\d{3})\d+/, '$1');
+  if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(s)) s += 'Z';
+  return Date.parse(s);
+}
+function tkDate(v) {
+  // Toshkent devor soati — qaytgan Date ning UTC maydonlarida (getUTCFullYear / getUTCHours …). Argumentsiz — HOZIR.
+  const SILJISH_MS = 5 * 60 * 60 * 1000;
+  return new Date((arguments.length ? tkMs(v) : Date.now()) + SILJISH_MS);
+}
+function tkSana(v, til, opt) {   // "01/10/2026" ('uz'), "01.10.2026" ('ru-RU'); qiymat yo'q — ''
+  const d = tkDate(v);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString(til || 'uz', Object.assign({}, opt || {}, {timeZone: 'UTC'}));
+}
+function tkVaqt(v, til) {        // "01:30"
+  const d = tkDate(v);
+  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString(til || 'uz', {hour: '2-digit', minute: '2-digit', timeZone: 'UTC'});
+}
+function tkSanaVaqt(v) {         // "01/10/2026 01:30"
+  const s = tkSana(v);
+  return s ? s + ' ' + tkVaqt(v) : '';
+}
+function tkToliq(v, til) {       // "01/10/2026, 01:30:00" (toLocaleString)
+  const d = tkDate(v);
+  return isNaN(d.getTime()) ? '' : d.toLocaleString(til || 'uz', {timeZone: 'UTC'});
+}
+function tkISO(v) {              // "2026-10-01" — Toshkent sanasi (<input type="date">); argumentsiz — BUGUN
+  const d = arguments.length ? tkDate(v) : tkDate();
+  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+function tkHozir() {             // joriy Toshkent {yil, oy (1–12), kun}
+  const d = tkDate();
+  return {yil: d.getUTCFullYear(), oy: d.getUTCMonth() + 1, kun: d.getUTCDate()};
+}
+function tkKunFarqi(v) {         // v ning Toshkent sanasi − bugungi Toshkent sanasi (kunlarda); noto'g'ri — NaN
+  const a = tkISO(v), b = tkISO();
+  return a ? Math.round((Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 86400000) : NaN;
+}
+
 // 2026-09-17 (UX audit topilmasi): ba'zi sahifalarda (masalan Ishlab
 // chiqarish) xato xabarlari hali ham brauzerning eski, sahifani
 // bloklaydigan alert() orqali chiqar edi — bu ilovaning boshqa

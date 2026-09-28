@@ -378,7 +378,7 @@
 </script>
 
 <script>
-document.getElementById('r-date').value = new Date().toISOString().slice(0,10);
+document.getElementById('r-date').value = tkISO();     // kech106: bugun — Toshkent (ilgari UTC sanasi)
 
 function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,' '); }
 // ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
@@ -619,12 +619,11 @@ async function loadHistoryForSupplier(page){
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Xarid tarixi yo\'q</td></tr>';
   } else {
     tbody.innerHTML = d.purchases.map((p, idx) => {
-      const dt = new Date(p.purchased_at);
       // 1 birlik narxi — faqat ko'rsatish uchun (Summa / Miqdor), backendga hech qanday ta'siri yo'q
       const unitPrice = p.quantity > 0 ? (p.total_amount / p.quantity) : 0;
       const zebraBg = idx % 2 === 0 ? 'transparent' : 'var(--r-bg)';
       return `<tr style="background:${zebraBg}">
-        <td style="font-weight:600;color:var(--r-text)">${dt.toLocaleDateString('uz')}</td>
+        <td style="font-weight:600;color:var(--r-text)">${tkSana(p.purchased_at)}</td>
         <td style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.is_credit?' <span style="color:#F59E0B;font-size:11px;font-weight:600">(nasiya)</span>':''}</td>
         <td style="font-weight:600">${p.quantity} ${escapeHtml(p.unit)}</td>
         <td style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>

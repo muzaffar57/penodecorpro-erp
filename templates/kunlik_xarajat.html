@@ -42,7 +42,7 @@
 </div>
 
 <script>
-document.getElementById('kx-date').value = new Date().toISOString().slice(0, 10);
+document.getElementById('kx-date').value = tkISO();     // kech106: bugun — Toshkent (ilgari UTC sanasi)
 
 function kxFormatAmount(el) {
   let v = el.value.replace(/\D/g, '');

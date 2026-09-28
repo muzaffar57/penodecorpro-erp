@@ -214,7 +214,7 @@
         {% endif %}
       </div>
       {% endif %}
-      <div class="ret-date" style="min-width:80px;text-align:right;font-size:13px;color:var(--text3)">{{ r.returned_at.strftime('%d.%m.%Y') }}</div>
+      <div class="ret-date" style="min-width:80px;text-align:right;font-size:13px;color:var(--text3)">{{ r.returned_at|toshkent('%d.%m.%Y') }}</div>
       <button class="mini-btn" style="color:#EF4444;border-color:#FADBD8" onclick="deleteReturn({{ r.id }})" title="O'chirish"><i class="ti ti-trash" style="font-size:12px"></i></button>
     </div>
     {% endfor %}
@@ -575,7 +575,7 @@ function brakTahlilHtml(d){
         <th style="${th}">Turi</th><th style="${th}">Bosqich</th><th style="${th}">Sabab</th><th style="${th}">Javobgar</th>
         <th style="${th};text-align:right">Qiymati</th><th style="${th}">Yozgan</th></tr></thead>
       <tbody>${yq.map(x => `<tr class="brak-yoqotish-qator" style="border-bottom:1px solid #f5f5f5">
-        <td style="${td};white-space:nowrap">${escapeHtml(String(x.sana || '').slice(0, 10))}</td>
+        <td style="${td};white-space:nowrap">${escapeHtml(tkISO(x.sana))}</td>
         <td style="${td};font-weight:600">${escapeHtml(x.nomi)}</td>
         <td style="${td};text-align:right">${Number(x.miqdor) || 0} ${escapeHtml(x.birlik || '')}</td>
         <td style="${td}">${escapeHtml(x.turi)}</td>
@@ -599,10 +599,11 @@ function toggleBrakSummary(){
 }
 
 function brakSummaryThisMonth(){
-  const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  document.getElementById('brak-sum-start').value = first.toISOString().slice(0,10);
-  document.getElementById('brak-sum-end').value = now.toISOString().slice(0,10);
+  // kech106 (9 + 50-band C qismi, O'LCHANGAN — work/probe106ui.py): Toshkent oyi. Ilgari mahalliy oy boshi
+  // `toISOString()` bilan UTC ga o'girilardi — Toshkent brauzerida HAR DOIM oldingi oyning oxirgi kuni (30.09) edi.
+  const tk = tkHozir();
+  document.getElementById('brak-sum-start').value = `${tk.yil}-${String(tk.oy).padStart(2, '0')}-01`;
+  document.getElementById('brak-sum-end').value = tkISO();
   loadBrakSummary();
 }
 

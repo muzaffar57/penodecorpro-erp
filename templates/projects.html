@@ -161,9 +161,9 @@
            data-status="{{ p.status.name }}"
            data-budget="{{ p.total_budget }}"
            data-paid="{{ p.total_paid }}"
-           data-start="{{ p.start_date.strftime('%d.%m.%Y') if p.start_date else '—' }}"
-           data-start-raw="{{ p.start_date.strftime('%Y-%m-%d') if p.start_date else '' }}"
-           data-deadline="{{ p.deadline.strftime('%d.%m.%Y') if p.deadline else '—' }}"
+           data-start="{{ p.start_date|toshkent('%d.%m.%Y') if p.start_date else '—' }}"
+           data-start-raw="{{ p.start_date|toshkent('%Y-%m-%d') if p.start_date else '' }}"
+           data-deadline="{{ p.deadline|toshkent('%d.%m.%Y') if p.deadline else '—' }}"
            data-deadline-raw="{{ p.deadline.isoformat() if p.deadline else '' }}"
            data-orders="{{ p.orders_count }}"
            data-notes="{{ p.notes or '' }}"
@@ -440,7 +440,7 @@ async function loadStatusPanel(d){
 
   let deadlineTxt = '—', deadlineColor = 'var(--text)';
   if (d.deadlineRaw) {
-    const days = Math.ceil((new Date(d.deadlineRaw) - new Date()) / 86400000);
+    const days = tkKunFarqi(d.deadlineRaw);     // kech106: Toshkent kalendar kunlari
     deadlineTxt = days >= 0 ? `${days} kun qoldi` : `${Math.abs(days)} kun kechikdi`;
     deadlineColor = days < 0 ? '#DC2626' : (days <= 3 ? '#F59E0B' : 'var(--text)');
   }
@@ -514,7 +514,7 @@ async function renderOrders(d) {
       <div class="info-row" style="cursor:pointer" onclick="window.location.href='/orders'">
         <div>
           <div style="font-weight:600;font-size:13px">${escapeHtml(o.order_number)}</div>
-          <div style="font-size:13px;color:var(--text3)">${o.created_at ? new Date(o.created_at).toLocaleDateString('uz') : ''}</div>
+          <div style="font-size:13px;color:var(--text3)">${o.created_at ? tkSana(o.created_at) : ''}</div>
         </div>
         <div style="text-align:right">
           <span class="badge">${escapeHtml(STATUS_LABELS[o.status]||o.status)}</span>
@@ -562,7 +562,7 @@ async function renderPayments(d) {
         <div class="zebra-icon zi-in"><i class="ti ti-cash"></i></div>
         <div style="flex:1;min-width:0">
           <div class="zebra-title">${fmt(p.amount)} so'm</div>
-          <div class="zebra-sub">${p.paid_at ? new Date(p.paid_at).toLocaleDateString('uz') : ''} · ${escapeHtml(p.payment_method || '')}${p.received_by ? ' · '+escapeHtml(p.received_by) : ''}</div>
+          <div class="zebra-sub">${p.paid_at ? tkSana(p.paid_at) : ''} · ${escapeHtml(p.payment_method || '')}${p.received_by ? ' · '+escapeHtml(p.received_by) : ''}</div>
         </div>
       </div>`).join('')}</div>`;
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }
@@ -643,7 +643,7 @@ async function renderMaterials(d) {
               <div class="zebra-icon zi-out"><i class="ti ti-package-export"></i></div>
               <div style="flex:1;min-width:0">
                 <div class="zebra-title">${escapeHtml(m.item_name)}</div>
-                <div class="zebra-sub">${new Date(m.created_at).toLocaleDateString('uz')} · ${escapeHtml(m.reason||'')}</div>
+                <div class="zebra-sub">${tkSana(m.created_at)} · ${escapeHtml(m.reason||'')}</div>
               </div>
               <span class="zebra-val" style="color:#DC2626">−${m.quantity} ${escapeHtml(m.unit||'')}</span>
             </div>`).join('')}</div>
@@ -682,7 +682,7 @@ async function renderTimeline(d) {
         <div class="tl-dot-icon zebra-icon ${DOT_CLASS[e.icon]||'zi-neutral'}"><i class="ti ${e.icon}" style="font-size:13px"></i></div>
         <div>
           <div style="font-size:13px;font-weight:500">${escapeHtml(e.text)}</div>
-          <div style="font-size:13px;color:var(--text3);margin-top:2px">${new Date(e.date).toLocaleString('uz')}</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">${tkToliq(e.date)}</div>
         </div>
       </div>`).join('');
   } catch(e) { document.getElementById('tabContent').innerHTML = '<div style="color:#DC2626;text-align:center;padding:20px">Yuklashda xato</div>'; }

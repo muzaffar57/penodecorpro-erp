@@ -99,7 +99,7 @@
 <script>
 let allMasters = [];
 let kpiData = [];
-const CURRENT_YEAR = new Date().getFullYear();
+const CURRENT_YEAR = tkHozir().yil;
 
 function fmt(n){ n=n||0; if(n>=1e6) return (n/1e6).toFixed(1)+' mln'; if(n>=1e3) return (n/1e3).toFixed(0)+' ming'; return Math.round(n).toString(); }
 function initials(name){ return (name||'').trim().split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase(); }
@@ -180,7 +180,7 @@ function renderMasters(){
     const rankHtml = m.rank <= 3 && k.gift_amount > 0
       ? `<span class="rank-badge rank-${m.rank}">${m.rank===1?'🏆 TOP 1':m.rank===2?'TOP 2':'TOP 3'}</span>`
       : '';
-    const lastOrder = k.last_order_date ? new Date(k.last_order_date).toLocaleDateString('uz') : "Hali yo'q";
+    const lastOrder = k.last_order_date ? tkSana(k.last_order_date) : "Hali yo'q";
     return `
     <div class="m-card" style="animation-delay:${(i%20)*0.02}s">
       ${rankHtml}

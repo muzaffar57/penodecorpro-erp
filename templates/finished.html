@@ -833,8 +833,9 @@ async function loadStats() {
   const types = fpItems.length;
   const totalQty = fpItems.reduce((s,i)=>s+i.quantity, 0);
   const lowCount = fpItems.filter(i => suggestedReserve(i) > 0 && i.quantity > 0 && i.quantity < suggestedReserve(i)).length;
-  const today = new Date().toDateString();
-  const todayProduced = fpItems.filter(i => i.source === 'produced' && i.created_at && new Date(i.created_at).toDateString() === today).length;
+  // kech106: "bugun" — Toshkent kuni (ilgari 00:00–05:00 da ishlab chiqarilgani "kecha" sanalardi)
+  const today = tkISO();
+  const todayProduced = fpItems.filter(i => i.source === 'produced' && i.created_at && tkISO(i.created_at) === today).length;
 
   document.getElementById('k-types').textContent = types + ' tur';
   document.getElementById('k-total-qty').textContent = fmt(totalQty) + ' birlik';
@@ -1102,7 +1103,7 @@ function openHistoryModal(id) {
   const item = fpItems.find(i => i.id === id);
   if (!item) return;
   document.getElementById('hist-title').textContent = item.name + ' — tarix';
-  const dt = item.created_at ? new Date(item.created_at).toLocaleString('uz') : '—';
+  const dt = item.created_at ? tkToliq(item.created_at) : '—';
   const rows = [];
   rows.push(['Yaratilgan sana', dt]);
   rows.push(['Manba', item.source === 'produced' ? 'Ishlab chiqarilgan' : 'Buyurtmadan qaytgan']);

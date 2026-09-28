@@ -388,8 +388,8 @@ async function loadHealth(){
 
 // ═══ 2. ASOSIY KPI (joriy oy, tarixdan oxirgi nuqta) ═══
 async function loadKpi(){
-  const now = new Date();
-  document.getElementById('kpiPeriodLabel').textContent = `— ${MONTH_NAMES[now.getMonth()+1]} ${now.getFullYear()}`;
+  const tk = tkHozir();     // kech106: joriy oy — Toshkent
+  document.getElementById('kpiPeriodLabel').textContent = `— ${MONTH_NAMES[tk.oy]} ${tk.yil}`;
   try {
     const hist = await fetch('/api/finance/history?months=1').then(r=>r.json());
     const cur = hist.length ? hist[hist.length-1] : null;
@@ -404,7 +404,7 @@ async function loadKpi(){
 
   // Taqqoslash bilan % o'zgarishni ham shu yerga qo'yamiz
   try {
-    const comp = await fetch(`/api/reports/comparison?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const comp = await fetch(`/api/reports/comparison?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     const setCh = (id, val) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -549,9 +549,9 @@ async function loadTopRankings(){
 
 // ═══ 7. TAQQOSLASH ═══
 async function loadComparison(){
-  const now = new Date();
+  const tk = tkHozir();     // kech106: joriy oy — Toshkent
   try {
-    const comp = await fetch(`/api/reports/comparison?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const comp = await fetch(`/api/reports/comparison?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     Object.entries(comp).forEach(([key, v]) => {
       const el = document.getElementById(`comp-${key}`);
       if (!el) return;
@@ -566,9 +566,9 @@ async function loadComparison(){
 
 // ═══ 8. FORECAST ═══
 async function loadForecast(){
-  const now = new Date();
+  const tk = tkHozir();     // kech106: joriy oy — Toshkent
   try {
-    const fc = await fetch(`/api/reports/forecast?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const fc = await fetch(`/api/reports/forecast?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     const el = document.getElementById('forecastBody');
     if (!fc.available) { el.innerHTML = `<div class="bi-empty">${escapeHtml(fc.message||"Ma'lumot yo'q")}</div>`; return; }
     const pct = Math.round(fc.days_passed/fc.days_in_month*100);
@@ -610,9 +610,9 @@ async function loadAlerts(){
 }
 
 async function buildAiSummary(alerts){
-  const now = new Date();
+  const tk = tkHozir();     // kech106: joriy oy — Toshkent
   try {
-    const comp = await fetch(`/api/reports/comparison?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const comp = await fetch(`/api/reports/comparison?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     const lines = [];
     if (comp.daromad) {
       const d = comp.daromad.change_pct;
@@ -847,7 +847,7 @@ async function loadProductsReport() {
 }
 
 async function loadMastersReport() {
-  const year = new Date().getFullYear();
+  const year = tkHozir().yil;     // kech106: joriy yil — Toshkent
   const rep = await fetch(`/api/masters/kpi-report?year=${year}&include_inactive=true`).then(r=>r.json());
   setTable([
     ["Ism", m => escapeHtml(m.name)],
@@ -861,8 +861,8 @@ async function loadMastersReport() {
 
   // Ehson (xayriya) — shu oy uchun, alohida banner sifatida ko'rsatamiz
   try {
-    const now = new Date();
-    const fr = await fetch(`/api/finance/report?year=${now.getFullYear()}&month=${now.getMonth()+1}`).then(r=>r.json());
+    const tk = tkHozir();     // kech106: joriy oy — Toshkent
+    const fr = await fetch(`/api/finance/report?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     const banner = document.getElementById('ehsonSummaryBanner');
     if ((fr.ehson_xarajat||0) > 0) {
       document.getElementById('ehsonSummaryVal').textContent = fmt(fr.ehson_xarajat) + " so'm";

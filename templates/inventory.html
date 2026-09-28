@@ -743,8 +743,7 @@ async function openPurchaseHistory() {
     list.innerHTML = entries.map(e => {
       if (e.type === 'single') {
         const p = e.item;
-        const dt = new Date(p.purchased_at);
-        const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+        const ds = tkSanaVaqt(p.purchased_at);
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)">
           <div>
@@ -766,8 +765,7 @@ async function openPurchaseHistory() {
         </div>`;
       }
       // Guruh — bosiladigan, qisqartirilgan qator
-      const dt = new Date(e.latest);
-      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+      const ds = tkSanaVaqt(e.latest);
       const total = e.items.reduce((s, p) => s + p.total_amount, 0);
       const namesPreview = escapeHtml(e.items.slice(0, 3).map(p => p.item_name).join(', ') + (e.items.length > 3 ? '…' : ''));
       return `
@@ -795,8 +793,7 @@ function openPhDrawer(receiptId) {
   document.getElementById('phDrawerTitle').textContent = `📦 Kirim #${receiptId}`;
   document.getElementById('phDrawerSub').textContent = `${rows.length} ta material · ${fmt(total)} so'm`;
   document.getElementById('phDrawerBody').innerHTML = rows.map(p => {
-    const dt = new Date(p.purchased_at);
-    const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+    const ds = tkSanaVaqt(p.purchased_at);
     return `
     <div class="mv-row">
       <div style="flex:1;min-width:0">
@@ -943,8 +940,7 @@ async function loadMovements(type) {
 
     let groupsHtml = order.map(idx => {
       const g = groupsArr[idx];
-      const dt = new Date(g.latestDate);
-      const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+      const ds = tkSanaVaqt(g.latestDate);
       const label = g.label || (g.orderId ? `Buyurtma #${g.orderId}` : 'Boshqa');
       return `
       <div class="mv-order-row" onclick="openMvDrawer(${idx})">
@@ -964,8 +960,7 @@ async function loadMovements(type) {
 }
 
 function mvRowHtml(m) {
-  const dt = new Date(m.created_at);
-  const ds = dt.toLocaleDateString('uz') + ' ' + dt.toLocaleTimeString('uz',{hour:'2-digit',minute:'2-digit'});
+  const ds = tkSanaVaqt(m.created_at);
   return `
   <div class="mv-row">
     <div style="flex:1;min-width:0">

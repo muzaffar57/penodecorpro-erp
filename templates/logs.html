@@ -37,7 +37,7 @@
           {% if l.success %}muvaffaqiyatli kirdi{% else %}noto'g'ri urinish{% endif %}
           <span style="color:var(--text3)">· {{ l.ip_address or '—' }}</span>
         </div>
-        <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ l.created_at.strftime('%d.%m.%Y %H:%M') if l.created_at else '' }}</div>
+        <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ l.created_at|toshkent }}</div>
       </div>
       {% endfor %}
     </div>
@@ -55,6 +55,7 @@
       <div class="err-row" onclick="toggleErrDetail(this)" style="padding:12px 18px;border-bottom:1px solid var(--border2);cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
           <div style="font-size:13px;color:#DC2626;font-weight:600">{{ e.error_message[:200] }}</div>
+          {# kech106: ErrorLog.created_at — ALLAQACHON Toshkent vaqti (models._uzb_now) — |toshkent filtri QO'LLANMAYDI #}
           <div style="font-size:12px;color:var(--text3);white-space:nowrap;flex-shrink:0">{{ e.created_at.strftime('%d.%m.%Y %H:%M') if e.created_at else '' }}</div>
         </div>
         <div style="font-size:12px;color:var(--text3);margin-top:4px">{{ e.method or '' }} {{ e.endpoint or '' }} {% if e.performed_by %}· {{ e.performed_by }}{% endif %} <span style="color:var(--f-primary,#B9783F)">— bosib to'liq ko'ring ▾</span></div>
@@ -90,7 +91,7 @@
             <b>{{ a.entity_label or (a.entity_type ~ '#' ~ a.entity_id) }}</b>
             {% if a.action == 'deleted' %}o'chirildi{% elif a.action == 'restored' %}tiklandi{% elif a.action == 'permanently_deleted' %}butunlay o'chirildi{% elif a.action == 'created' %}yaratildi{% elif a.action == 'updated' %}tahrirlandi{% elif a.action == 'activated' %}jarayonga olindi{% elif a.action == 'produced' %}ishlab chiqarildi{% else %}{{ a.action }}{% endif %}
           </div>
-          <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at.strftime('%d.%m.%Y %H:%M') if a.created_at else '' }}</div>
+          <div style="font-size:12px;color:var(--text3);white-space:nowrap">{{ a.performed_by or '—' }} · {{ a.created_at|toshkent }}</div>
         </div>
         {% if a.action == 'updated' and a.old_value and a.new_value %}
         <div style="font-size:11.5px;color:var(--text3);margin-top:3px;padding-left:22px">{{ a.old_value }} <span style="color:var(--gold-dark)">→</span> {{ a.new_value }}</div>
@@ -507,9 +508,9 @@ async function runHealthCheck() {
     // biznes muammosi va uni o'zi tuzata oladi.
     let html = '';
     if (d.technical_hidden) {
-      html += `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${new Date(d.checked_at).toLocaleString('uz')}</div>`;
+      html += `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${tkToliq(d.checked_at)}</div>`;
     } else {
-      html += `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${new Date(d.checked_at).toLocaleString('uz')} · ${d.total_checks} ta joy tekshirildi</div>`;
+      html += `<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Tekshirilgan sana: ${tkToliq(d.checked_at)} · ${d.total_checks} ta joy tekshirildi</div>`;
     }
 
     if (d.technical_hidden) {

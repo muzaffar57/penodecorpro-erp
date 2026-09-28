@@ -46,7 +46,7 @@
               {% if u.is_active %}<span class="badge badge-ready">Faol</span>
               {% else %}<span class="badge badge-cancelled">O'chirilgan</span>{% endif %}
             </td>
-            <td style="color:var(--text3);font-size:12px">{{ u.created_at.strftime('%d.%m.%Y') if u.created_at else '—' }}</td>
+            <td style="color:var(--text3);font-size:12px">{{ u.created_at|toshkent('%d.%m.%Y') if u.created_at else '—' }}</td>
             <td>
               {% if u.username != current_user.username %}
               <div style="display:flex;gap:4px">

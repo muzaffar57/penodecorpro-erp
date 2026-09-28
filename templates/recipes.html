@@ -110,8 +110,8 @@
         <div style="font-size:15px;font-weight:500;color:var(--text)">{{ recipe.name }} retsepti</div>
         <div class="rec-meta">
           {{ recipe.batch_size_kg }} kg batch
-          {% if recipe.updated_at %} · Yangilangan: {{ recipe.updated_at.strftime('%d.%m.%Y') }}
-          {% else %} · Yaratilgan: {{ recipe.created_at.strftime('%d.%m.%Y') }}{% endif %}
+          {% if recipe.updated_at %} · Yangilangan: {{ recipe.updated_at|toshkent('%d.%m.%Y') }}
+          {% else %} · Yaratilgan: {{ recipe.created_at|toshkent('%d.%m.%Y') }}{% endif %}
         </div>
       </div>
       <button class="btn btn-outline btn-xs" onclick='openEditModal({{ recipe.id }}, {{ recipe.name|tojson }}, {{ recipe.batch_size_kg }}, {{ recipe.notes|tojson }}, {{ recipe.ingredients|map(attribute="inventory_id")|list|tojson }}, {{ recipe.ingredients|map(attribute="quantity_kg")|list|tojson }}, {{ recipe.ingredients|map(attribute="item_name")|list|tojson }}, {{ recipe.ingredients|map(attribute="unit")|list|tojson }})' title="Tahrirlash"><i class="ti ti-edit"></i></button>
