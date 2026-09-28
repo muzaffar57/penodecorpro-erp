@@ -144,6 +144,9 @@ async function yangila(itemsFn, javob) {
     fetch: async (u, o) => { fetchlar.push([u, o && o.method, o && o.body]); return { ok: true, json: async () => ({}) }; },
     location: { reload() {} }, setTimeout: () => 0, clearDraftLS: () => {}, loadOrders: async () => {}, hideNewForm: () => {},
     localStorage: { removeItem() {} }, window: {},
+    // kech110 (K110-1): sahifaning yuqori darajadagi holati (`let editUserTouched = false;`) — `updateOrder` summani faqat
+    // qo'lda yozilganda yuboradi; bu test summa yuborilishiga emas, 0-narx ogohlantirishiga qaraydi
+    editUserTouched: false,
   });
   const qism = [NOL, UPDATE, FORMATNUM].filter(Boolean).map(jinjasiz);
   if (!UPDATE) return { xato: 'updateOrder topilmadi', tasdiq, fetchlar };

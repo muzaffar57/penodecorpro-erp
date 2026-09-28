@@ -628,9 +628,11 @@ check("S1 create / to'liq tahrir: jami _buyurtma_narx_jami + _pul_yigindi; xom k
       and "item_data.unit_price * item_data.quantity" not in _co
       and _uo.count("_buyurtma_narx_jami(nd.quantity or 1, nd.unit_price or 0)") == 2
       and "* float(nd.quantity or 1)" not in _uo, "")
+# kech110 (K110-1): `_detal_ozgargach_buyurtma` endi eski chegirma FOIZINI (2 xonaga yaxlitlangan) olmaydi — eski
+# kelishilgan summani o'zi o'qiydi (`crud.kelishilgan_qayta_hisob`, nisbat); tekshiruv ma'nosi AYNAN.
 check("S2 detal tahriri / o'chirish: _detal_ozgargach_buyurtma; sig'im tekshiruvi yozishdan OLDIN",
-      "_detal_ozgargach_buyurtma(db, order, _eski_jami117, _eski_chegirma117)" in _ui
-      and "_detal_ozgargach_buyurtma(db, order, _eski_jami117, _eski_chegirma117)" in _di
+      "_detal_ozgargach_buyurtma(db, order, _eski_jami117)" in _ui
+      and "_detal_ozgargach_buyurtma(db, order, _eski_jami117)" in _di
       and 0 <= _ui.find("_buyurtma_sigim_tekshir(") < _ui.find("setattr(db_item, field, value)"), "")
 check("S3 finalize: narx x topshirilgan (_buyurtma_narx_jami), 'old_total * fraction, 2)' yo'q",
       "_buyurtma_narx_jami(delivered, item.unit_price or 0)" in _fi and "round(old_total * fraction, 2)" not in _fi, "")
