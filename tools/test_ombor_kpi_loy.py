@@ -453,8 +453,9 @@ check("/api/warnings/low-stock (buyurtmalar sahifasi ogohlantirishi) — AYNAN {
       _wn is not None and fiks(_wn) == KAM, f"{sorted(fiks(_wn or []))} {str(_wr)[:120]}")
 
 _td = js(req(C, "get", "/api/dashboard/today-tasks")) or []
-_tdn = [x.get("text", "").split(" kam qolgan (")[0] for x in _td
-        if isinstance(x, dict) and " kam qolgan (" in x.get("text", "")]
+# kech108 (K108-2, MOSLANDI): qoldiq ≤ 0 — "… tugagan (…)", aks holda "… kam qolgan (…)" (to'plam ma'nosi AYNAN)
+_tdn = [re.split(r" (?:kam qolgan|tugagan) \(", x.get("text", ""))[0] for x in _td
+        if isinstance(x, dict) and re.search(r" (?:kam qolgan|tugagan) \(", x.get("text", ""))]
 check("/api/dashboard/today-tasks 'Bugungi vazifalar' — kam qolganlar AYNAN {M1, T1, T3, T4}, Tayyor loy YO'Q",
       fiks(_tdn) == KAM, f"{sorted(fiks(_tdn))} {str(_td)[:160]}")
 
@@ -466,7 +467,8 @@ check("/api/dashboard/charts low_stock (dashboard grafigi) — AYNAN {M1, T1, T3
 _al = js(req(C, "get", "/api/reports/alerts")) or []
 _aln = []
 for _a in (_al if isinstance(_al, list) else []):
-    _mm = re.match(r"^Omborda (.*) kamaymoqda \(", str((_a or {}).get("text", "")))
+    # kech108 (K108-2, MOSLANDI): qoldiq ≤ 0 — "Omborda … tugadi (…)", aks holda "… kamaymoqda (…)"
+    _mm = re.match(r"^Omborda (.*) (?:kamaymoqda|tugadi) \(", str((_a or {}).get("text", "")))
     if _mm:
         _aln.append(_mm.group(1))
 check("/api/reports/alerts (hisobotlar 'kamaymoqda') — AYNAN {M1, T1, T3, T4}, Tayyor loy YO'Q",

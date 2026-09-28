@@ -450,7 +450,8 @@ const ESC = olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s)
     ["I12 tahrir: retsept tanlangan — odatdagi tasdiq oynasi", '3', false],
   ]) {
     const { m, holat } = formaMuhit(retsept, 10, {});
-    const r = await ishga(m, (RMX || '') + '\n' + (UO || ''), 'updateOrder(9)');
+    // kech108 (71, MOSLANDI): updateOrder endi `_narxiNolgaTushgan` yordamchisini chaqiradi — u ham yuklanadi
+    const r = await ishga(m, (RMX || '') + '\n' + (olib(ORDERS, '_narxiNolgaTushgan') || '') + '\n' + (UO || ''), 'updateOrder(9)');
     const xatoMatn = JSON.stringify(holat.modal);
     tekshir(nom, !r.xato && (bloklanadi
       ? (m.tasdiqlar.length === 0 && xatoMatn.includes('Qoplama retsepti tanlanmagan') && !m.sorovlar.some((x) => x.method === 'PUT'))
