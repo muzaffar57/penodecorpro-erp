@@ -1118,6 +1118,32 @@ def delete_item(db: Session, item_id: int) -> dict:
         }
 
 
+def kam_qoldiq_sharti():
+    """kech108 (K108-2, 19-band — EGASI QARORI "Ha, ko'rinsin"): "kam qolgan xomashyo" ning YAGONA sharti.
+
+    Qoldiq ≤ minimal qoldiq; minimal qoldiq belgilanmagan (0 / NULL) bo'lsa — 0: TUGAGAN material (qoldiq ≤ 0) ham
+    "kam" (qo'ng'iroqcha «qolmadi» va Omborxona «Kam qolganlar» bilan bir xil). Yashirilgan (`is_deleted`) material va
+    "Tayyor loy (" zaxirasi (kech36 / kech37 21-band qarori — ortgan loy uchun chegara yo'q) — hech qachon.
+    Ilgari uch xil qoida bor edi (O'LCHANGAN — `main` ning haqiqiy ma'lumotida Penoplast 10P −0.06 / 0: KPI va
+    qo'ng'iroqcha "tugagan", bosh sahifa "Barcha xomashyo yetarli"). Ishlatiladi: `get_low_stock_items` (Telegram
+    ogohlantirishlari), `services.check_low_stock` (bosh sahifa, dashboard, buyurtmalar sahifasi, bugungi vazifalar,
+    grafik), `services.get_business_alerts` (hisobotlar); `services.get_inventory_kpi` va `main.api_full_stock_report`
+    — xuddi shu qoida Python da (`kam_qoldiqmi`)."""
+    from sqlalchemy import func as _f
+    return (Inventory.is_deleted.isnot(True),
+            _f.coalesce(Inventory.stock_quantity, 0) <= _f.coalesce(Inventory.min_stock, 0),
+            ~Inventory.item_name.like('Tayyor loy (%'))
+
+
+def kam_qoldiqmi(item) -> bool:
+    """`kam_qoldiq_sharti` ning Python nusxasi (bitta obyekt uchun) — AYNAN o'sha qoida."""
+    if getattr(item, "is_deleted", False):
+        return False
+    if str(getattr(item, "item_name", "") or "").startswith("Tayyor loy ("):
+        return False
+    return float(getattr(item, "stock_quantity", 0) or 0) <= float(getattr(item, "min_stock", 0) or 0)
+
+
 def get_low_stock_items(db: Session, company_id: int = None) -> List[Inventory]:
     """Qoldiq min_stock dan kam bo'lgan xomashyolar (ogohlantirish).
 
@@ -1132,11 +1158,8 @@ def get_low_stock_items(db: Session, company_id: int = None) -> List[Inventory]:
     # 2026-09-22 (kech34, K34-1): yashirilgan (o'chirilgan) material Telegram
     # "kam qoldi" xabarlariga (qo'lda ogohlantirish, kunlik cron, buyurtma va
     # ishlab chiqarishdan keyingi ogohlantirish) tushmaydi.
-    q = db.query(Inventory).filter(
-        Inventory.is_deleted.isnot(True),
-        Inventory.stock_quantity <= Inventory.min_stock,
-        ~Inventory.item_name.like('Tayyor loy (%')
-    )
+    # kech108 (K108-2): YAGONA shart — `kam_qoldiq_sharti` (NULL min / qoldiq — 0)
+    q = db.query(Inventory).filter(*kam_qoldiq_sharti())
     # 2026-09-21: QAT'IY filtr — korxona noma'lum (None) bo'lsa bo'sh ro'yxat
     # (`company_id IS NULL` hech narsa topmaydi). Ilgari shartli edi: None da
     # BARCHA korxonalarning kam qolgan xomashyosi qaytib, Telegram xabariga
@@ -12331,7 +12354,13 @@ def get_master_gift_period_progress(db: Session, master_id: int,
     """Faol davr bo'yicha — ustaning joriy (oxirgi reset'dan keyingi)
     savdosi, barcha bosqichlar va ENG YUQORI qaysi biriga 'tayyor' ekani.
     Agar davr faol bo'lsa-yu, bu usta unda ISHTIROK ETMASA — 'active: False'
-    qaytariladi (usta uchun davr umuman ko'rinmasligi kerak)."""
+    qaytariladi (usta uchun davr umuman ko'rinmasligi kerak).
+
+    kech108 (K107-1): korxona MAJBURIY — berilmasa `active: False` (ilgari `None` → butun tizimdagi BIRINCHI faol davr:
+    ikkinchi korxona ustasi Telegram «Sovg'alar» da "faol davr yo'q" ko'rardi, yoki begona davr bilan solishtirilardi).
+    Chaqiruvchi ustaning korxonasini beradi (`main` — `master.company_id`)."""
+    if company_id is None:
+        return {"active": False}
     period = get_active_gift_period(db, company_id)
     if not period or not master_in_active_gift_period(db, master_id, company_id):
         return {"active": False}

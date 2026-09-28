@@ -4558,10 +4558,11 @@ def api_full_stock_report(db: Session = Depends(get_db), current_user=Depends(au
         # emas"): "Tayyor loy (...)" zaxirasi hisobotda doim "YETARLI" bo'limida —
         # unga min > 0 qo'yilgan bo'lsa ham "KAM QOLGANLAR" ga tushmaydi
         # (`services.TAYYOR_LOY_PREFIKS`, `crud.get_low_stock_items` bilan bir xil).
-        _tayyor_loy = str(item.item_name or "").startswith(services.TAYYOR_LOY_PREFIKS)
-        if min_q > 0 and qty <= min_q and not _tayyor_loy:
+        # kech108 (K108-2, egasi qarori "Ha, ko'rinsin"): YAGONA qoida `crud.kam_qoldiqmi` — minimal qoldig'i
+        # belgilanmagan material TUGASA ham "KAM QOLGANLAR" da (ilgari `min_q > 0` SHART edi).
+        if crud.kam_qoldiqmi(item):
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
-            kam.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit}")
+            kam.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit}" + (" — tugagan" if qty <= 0 else ""))
         else:
             yetarli.append(f"✅ {item.item_name}: {qty:.1f} {item.unit}")
     now = _t_vaqt().strftime("%d.%m.%Y %H:%M")
@@ -4582,7 +4583,7 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
     lines = []
     for item in low_items:
         qty = float(item.stock_quantity)
-        min_q = float(item.min_stock)
+        min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
         deficit = min_q - qty
         emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
         lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
@@ -4631,7 +4632,7 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
             _all_lines.append(f"\n🏢 *{_cname}*")
         for item in low_items:
             qty = float(item.stock_quantity)
-            min_q = float(item.min_stock)
+            min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             deficit = min_q - qty
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             _satr = (f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi "
@@ -4929,7 +4930,7 @@ def api_create_order(order: schemas.OrderCreate, loy_kg: Optional[str] = None,
         lines = []
         for item in low_items:
             qty = float(item.stock_quantity)
-            min_q = float(item.min_stock)
+            min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             deficit = min_q - qty
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f}, yetishmaydi: {deficit:.1f})")
@@ -5103,7 +5104,7 @@ def api_update_order(order_id: int, order: schemas.OrderCreate, loy_kg: Optional
         lines = []
         for item in low_items:
             qty = float(item.stock_quantity)
-            min_q = float(item.min_stock)
+            min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
         ord_obj = crud.get_order(db, order_id, company_id=auth.company_id_of(current_user))
@@ -7731,7 +7732,7 @@ def api_produce(data: dict = Body(...), db: Session = Depends(get_db), current_u
         lines = []
         for item in low_items:
             qty = float(item.stock_quantity)
-            min_q = float(item.min_stock)
+            min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\nTayyor mahsulot ishlab chiqarilgandan keyin:\n\n"
@@ -7781,7 +7782,7 @@ def api_add_production(fp_id: int, data: dict = Body(...),
         lines = []
         for item in low_items:
             qty = float(item.stock_quantity)
-            min_q = float(item.min_stock)
+            min_q = float(item.min_stock or 0)   # kech108 (K108-2): NULL min — 0
             emoji = "🔴" if qty <= min_q * 0.5 else "🟡"
             lines.append(f"{emoji} {item.item_name}: {qty:.1f} {item.unit} qoldi (min: {min_q:.0f})")
         msg = ("⚠️ *Ombor ogohlantirishlari!*\n\n"
@@ -8425,7 +8426,9 @@ async def telegram_webhook(request: Request):
                 reply = ("❌ Siz ustalar ro'yxatida topilmadingiz.\n\nIltimos, administrator bilan bog'laning.\n\n"
                          + _tg_footer(db, auth.DEFAULT_COMPANY_ID, bold=False, emoji="📞"))
             else:
-                prog = crud.get_master_gift_period_progress(db, master.id)
+                # kech108 (K107-1): ustaning O'Z korxonasidagi davr (ilgari korxonasiz — tizimdagi birinchi faol davr)
+                prog = crud.get_master_gift_period_progress(db, master.id,
+                                                            company_id=getattr(master, "company_id", None))
                 if not prog["active"]:
                     reply = ("🎁 Hozircha faol sovg'a davri yo'q.\n\n"
                              + _tg_footer(db, getattr(master, "company_id", None) or auth.DEFAULT_COMPANY_ID, bold=False))

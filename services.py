@@ -303,19 +303,19 @@ def get_business_alerts(db: Session, company_id: int = None) -> list:
     # kech37 (21-band, foydalanuvchi qarori: "Ortgan loy uchun chegara shart
     # emas"): "Tayyor loy (...)" zaxirasi (`TAYYOR_LOY_PREFIKS` izohi) hech
     # qachon "kamaymoqda" deb chiqmaydi — hatto unga min > 0 qo'yilgan bo'lsa ham.
-    _lsq = db.query(Inventory).filter(
-        Inventory.is_deleted.isnot(True),
-        Inventory.stock_quantity <= Inventory.min_stock,
-        Inventory.min_stock > 0,
-        ~Inventory.item_name.like(TAYYOR_LOY_PREFIKS + '%')
-    )
+    # kech108 (K108-2, egasi qarori "Ha, ko'rinsin"): YAGONA shart `crud.kam_qoldiq_sharti` — minimal qoldig'i
+    # belgilanmagan material TUGASA ham chiqadi (ilgari `min_stock > 0` SHART edi).
+    import crud as _crud_kq
+    _lsq = db.query(Inventory).filter(*_crud_kq.kam_qoldiq_sharti())
     if company_id is not None:      # M6
         _lsq = _lsq.filter(Inventory.company_id == company_id)
     low_stock = _lsq.all()
     for item in low_stock[:5]:
+        _q = float(item.stock_quantity or 0)
         alerts.append({
             "level": "red",
-            "text": f"Omborda {item.item_name} kamaymoqda ({item.stock_quantity:g} {item.unit} qoldi)"
+            "text": (f"Omborda {item.item_name} tugadi ({_q:g} {item.unit})" if _q <= 0
+                     else f"Omborda {item.item_name} kamaymoqda ({_q:g} {item.unit} qoldi)")
         })
 
     # 2) Muddati o'tgan qarzdorlar (30+ kun oldin yaratilgan, hali qarzi bor)
@@ -849,24 +849,29 @@ def check_low_stock(db: Session, company_id: int = None) -> List[Dict]:
     # sahifa "Kam qolgan xomashyo", dashboard, buyurtmalar ogohlantirishi,
     # bugungi vazifalar va grafikka TUSHMAYDI (ilgari tushardi — Omborxona KPI,
     # qo'ng'iroqcha va Telegram esa uni chiqarib tashlardi). `TAYYOR_LOY_PREFIKS`.
+    # kech108 (K108-2, 19-band — EGASI QARORI "Ha, ko'rinsin"): YAGONA shart `crud.kam_qoldiq_sharti` —
+    # minimal qoldig'i belgilanmagan (0 / NULL) material TUGASA (qoldiq ≤ 0) ham chiqadi. Ilgari `min_stock > 0` SHART
+    # edi: O'LCHANGAN (`main` ning haqiqiy ma'lumoti) — Penoplast 10P −0.06 / 0: qo'ng'iroqcha "qolmadi", Omborxona
+    # "Kam qolganlar: 1 ta", bosh sahifa esa "Barcha xomashyo yetarli".
+    import crud as _crud_kq
     low_items = db.query(Inventory).filter(
         Inventory.company_id == company_id,
-        Inventory.is_deleted.isnot(True),
-        Inventory.stock_quantity <= Inventory.min_stock,
-        Inventory.min_stock > 0,
-        ~Inventory.item_name.like(TAYYOR_LOY_PREFIKS + '%')
+        *_crud_kq.kam_qoldiq_sharti()
     ).all()
 
     result = []
     for item in low_items:
+        _q = float(item.stock_quantity or 0)
+        _m = float(item.min_stock or 0)
         result.append({
             "id": item.id,
             "item_name": item.item_name,
-            "stock_quantity": float(item.stock_quantity),
-            "min_stock": float(item.min_stock),
+            "stock_quantity": _q,
+            "min_stock": _m,
             "unit": item.unit,
-            "deficit": float(item.min_stock - item.stock_quantity),
-            "alert": "⚠️ Xomashyo yetishmayapti!"
+            "deficit": _m - _q,
+            "tugagan": _q <= 0,
+            "alert": "⚠️ Xomashyo tugagan!" if _q <= 0 else "⚠️ Xomashyo yetishmayapti!"
         })
 
     return result
@@ -910,7 +915,9 @@ def get_today_tasks(db: Session, company_id: int = None) -> List[Dict]:
     # 3) Kam qolgan xomashyo
     low_stock = check_low_stock(db, company_id)
     for item in low_stock[:5]:
-        tasks.append({"icon": "⚠️", "text": f"{item['item_name']} kam qolgan ({item['stock_quantity']:g} {item['unit']})"})
+        # kech108 (K108-2): qoldiq ≤ 0 — "tugagan"
+        _hol = "tugagan" if item.get("tugagan") else "kam qolgan"
+        tasks.append({"icon": "⚠️", "text": f"{item['item_name']} {_hol} ({item['stock_quantity']:g} {item['unit']})"})
 
     if not tasks:
         tasks.append({"icon": "✅", "text": "Bugun uchun alohida vazifa yo'q"})
@@ -1447,9 +1454,9 @@ def get_inventory_kpi(db: Session, company_id: int = None) -> Dict:
     # sanardi, holbuki qo'ng'iroqcha, bosh sahifa va Telegram uni ko'rsatmasdi.
     # Endi `low_count` == `len(crud.get_low_stock_items(...))` (Telegram
     # "kam qoldi" ro'yxati) — oddiy material 0 / 0 esa avvalgidek sanaladi.
-    low_count = sum(1 for i in items
-                    if not str(i.item_name or "").startswith(TAYYOR_LOY_PREFIKS)
-                    and float(i.stock_quantity or 0) <= float(i.min_stock or 0))
+    # kech108 (K108-2): AYNAN `crud.kam_qoldiq_sharti` qoidasi (Python nusxasi `crud.kam_qoldiqmi`)
+    import crud as _crud_kq
+    low_count = sum(1 for i in items if _crud_kq.kam_qoldiqmi(i))
     total_value = sum(float(i.stock_quantity or 0) * float(i.price_per_unit or 0) for i in items)
 
     today_start = tashkent_today_start_utc()

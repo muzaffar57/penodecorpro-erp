@@ -18,6 +18,7 @@ from typing import Optional
 
 from fastapi import Request, HTTPException, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from database import get_db
 from models import User, UserRole
@@ -353,6 +354,15 @@ def all_staff(request: Request, db: Session = Depends(get_db)) -> User:
 # Foydalanuvchi CRUD (faqat admin uchun)
 # ============================================================
 
+def _login_egasi(db: Session, username: str):
+    """kech108 (K107-2): login (`User.username`) BUTUN TIZIM bo'yicha yagona (`ix_users_username`) — egasi har qanday
+    korxonadan. Tizim so'rovi (`skip_tenant_filter`): TENANT_FILTER=1 da global filtr so'rovni joriy korxona bilan
+    cheklardi va boshqa korxonadagi band login ko'rinmasdi (INSERT → unique xatosi → 500). Faqat bandlikni tekshirish
+    uchun (foydalanuvchi ma'lumoti chaqiruvchiga qaytmaydi — `create_user` faqat None / emasligini ko'radi)."""
+    return (db.query(User).execution_options(skip_tenant_filter=True)
+            .filter(User.username == username).first())
+
+
 def create_user(db: Session, username: str, password: str,
                 role: UserRole, full_name: str = "",
                 company_id: int = None) -> User:
@@ -377,8 +387,11 @@ def create_user(db: Session, username: str, password: str,
     Keyingi bosqichda bu parametr MAJBURIY bo'ladi va chaqiruvchi uni
     get_current_company_id() dan oladi."""
     username = username.strip()
-    # Username band emasligini tekshiramiz
-    existing = db.query(User).filter(User.username == username).first()
+    # Username band emasligini tekshiramiz.
+    # kech108 (K107-2, O'LCHANGAN): login BUTUN TIZIM bo'yicha yagona (`ix_users_username`) — tekshiruv ham butun tizim
+    # bo'yicha (tizim so'rovi, `skip_tenant_filter`). Ilgari TENANT_FILTER=1 da global filtr so'rovni joriy korxona bilan
+    # cheklardi: boshqa korxonadagi login ko'rinmas, INSERT unique xatosi bilan 500 berardi (400 o'rniga).
+    existing = _login_egasi(db, username)
     if existing:
         raise HTTPException(status_code=400, detail="Bu username band")
 
@@ -392,7 +405,14 @@ def create_user(db: Session, username: str, password: str,
         created_at=datetime.utcnow()
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # kech108 (K107-2): parallel yaratish — tekshiruvdan keyin boshqa so'rov shu loginni yozib ulgurgan
+        db.rollback()
+        if _login_egasi(db, username) is not None:
+            raise HTTPException(status_code=400, detail="Bu username band")
+        raise
     db.refresh(user)
     return user
 
