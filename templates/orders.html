@@ -1188,8 +1188,13 @@ window.addEventListener('beforeunload', saveDraftLS);
 document.addEventListener('DOMContentLoaded', checkForDraftOnLoad);
 
 let currentEditOrderId = null; // xavfsizlik uchun — tahrirlanayotgan buyurtma ID'si
-let editDiscountPct = 0;       // tahrirlashdagi saqlangan chegirma foizi
-let editUserTouched = false;   // xodim kelishilgan summani qo'lda o'zgartirdimi
+// kech110 (K110-1): tahrirda kelishilgan summani qayta hisoblash asosi — `kelishilganQayta` (server
+// `crud.kelishilgan_qayta_hisob` bilan AYNAN). Ilgari faqat saqlangan chegirma FOIZI (`discount_percent`, 2 xonaga
+// yaxlitlangan) bor edi: chegirmasiz / ustamali buyurtmada detal o'zgarsa kelishilgan summa ESKICHA qolardi.
+let editJami0 = 0;             // asos jami (server `total_amount` yoki xodim summani qo'lda yozgan paytdagi jami)
+let editAsl0 = 0;              // shu jamidagi ASL kelishilgan summa (pul qaytarishdan oldingi)
+let editKech = 0;              // to'lovda kechirilgan qarz (so'm) — jami o'zgarsa ham so'mda saqlanadi
+let editUserTouched = false;   // xodim kelishilgan summani qo'lda o'zgartirdimi (faqat shunda PUT summani yuboradi)
 let editInitialLoadDone = false; // MUHIM (2026-09): tahrirlash, hali TO'LIQ
   // yuklanmagan bo'lsa — "chegirmani qayta hisoblash"ni ISHGA TUSHIRMAYMIZ
   // (aks holda, saqlangan "Kelishilgan summa", dumaloqlashtirish tufayli,
@@ -3027,11 +3032,13 @@ function showNewForm() {
   // Tahrirlash rejimidan qaytish
   editMode = false;
   currentEditOrderId = null;
-  editDiscountPct = 0;
+  editJami0 = 0;
+  editAsl0 = 0;
+  editKech = 0;
   editUserTouched = false;
   editInitialLoadDone = false;
   const hint = document.getElementById('discount-auto-hint');
-  if (hint) hint.style.display = 'none';
+  if (hint) { hint.style.display = 'none'; hint.dataset.yuklash = ''; }
   const eb = document.getElementById('editBanner');
   if (eb) eb.style.display = 'none';
   _tahrirBanneriTikla();   // kech108 (K108-3): oldingi tahrirdagi topshirish ogohlantirishi / rangi qolmasin
@@ -4384,18 +4391,19 @@ function calcDiscount() {
   const fp = document.getElementById('final_price');
   const di = document.getElementById('discount_info');
   if (!fp || !di) return;
-  // Tahrirlashda xodim summani qo'lda o'zgartirsa — foizni yangilaymiz
+  // Tahrirlashda xodim summani qo'lda o'zgartirsa — u YANGI asos (K110-1): keyingi detal o'zgarishlari
+  // shu jami ↔ summa nisbatidan hisoblanadi (chegirma, ustama yoki chegirmasiz — `kelishilganQayta`)
   if (editMode && document.activeElement === fp) {
     editUserTouched = true;
-    let tot = 0;
-    document.querySelectorAll('.detal').forEach(r => { if (r.querySelector('.i-name')?.value?.trim()) tot += parseFloat(r.dataset.price || 0); });
-    const fv = parseNum(fp.value);
-    editDiscountPct = (tot > 0 && fv > 0 && fv < tot) ? ((tot - fv) / tot * 100) : 0;
+    editJami0 = _tiyin110(getNamedTotal());
+    editAsl0 = parseNum(fp.value) || 0;
   }
   let total = getNamedTotal();
   const finalPrice = parseNum(fp.value);
   if (!finalPrice || !total) { di.style.display = 'none'; return; }
-  const discount = total - finalPrice;
+  // K110-1 (O'LCHANGAN K6): tiyinlarda taqqoslanadi — float yig'indi shovqini (107 000.48000000001) chegirmasiz
+  // buyurtmani «📉 Chegirma: 0 so'm (0.0%)» qilib ko'rsatardi
+  const discount = _tiyin110(total - finalPrice);
   di.style.display = 'block';
   if (discount > 0) {
     const pct = (discount / total * 100).toFixed(1);
@@ -4424,7 +4432,7 @@ function calcDebt() {
   if (!agreed) { dbi.style.display = 'none'; return; }
   if (!zaklat) { dbi.style.display = 'none'; return; }
 
-  const debt = agreed - zaklat;
+  const debt = _tiyin110(agreed - zaklat);   // K110-1: tiyinlarda (float shovqini «+0 so'm ortiqcha» ko'rsatmasin)
   dbi.style.display = 'block';
 
   if (debt > 0) {
@@ -4454,23 +4462,66 @@ function recalcAll() {
   document.querySelectorAll('.detal').forEach(row => calculateItem(row));
 }
 
-// Tahrirlashda jami o'zgarsa — kelishilgan summani foiz bo'yicha qayta hisoblaymiz
+// kech110 (K110-1): tiyinga HALF_UP — server `crud._tiyin_float` bilan AYNAN bir xil amallar
+function _tiyin110(v) {
+  return Math.floor(Number(v) * 100 + 0.5) / 100;
+}
+
+// kech110 (K110-1, egasi QARORLARI: ustama — "Foizi saqlansin", kechirilgan qarz — "So'mda qolsin"): jami o'zgarganda
+// KELISHILGAN summa — server `crud.kelishilgan_qayta_hisob` bilan AYNAN (paritet — tools/test_kelishilgan_nisbat.py).
+// Narx kelishuvi P = ASL + kechirilgan: jami o'zgarmagan — ASL o'zgarmaydi; chegirmasiz (P = jami) — P = yangi jami;
+// chegirma / ustama — nisbat (butun so'mga HALF_UP); kechirilgan qarz so'mda ayiriladi. Qaytaradi {asl, narx}.
+// So'm → BUTUN tiyin (server `crud._tiyinda` bilan AYNAN)
+function _tiyinda110(v) {
+  return Math.round((Number(v) || 0) * 100);
+}
+// Hisob BUTUN tiyinlarda (BigInt) — float bilan `yangi × P / eski` .5 chegarasida 1 so'mga adashardi
+function kelishilganQayta(eskiJami, yangiJami, eskiAsl, kechirilgan) {
+  const t0c = _tiyinda110(eskiJami);
+  const t1c = _tiyinda110(yangiJami);
+  const xc = _tiyinda110(kechirilgan);
+  const p0c = _tiyinda110(eskiAsl) + xc;
+  if (t1c === t0c) return { asl: Number(eskiAsl) || 0, narx: p0c / 100 };
+  let p1c;
+  if (t0c <= 0 || p0c === t0c) p1c = t1c;
+  else {
+    const surat = BigInt(t1c) * BigInt(p0c);
+    const maxraj = BigInt(t0c) * 100n;
+    p1c = Number((2n * surat + maxraj) / (2n * maxraj)) * 100;
+  }
+  return { asl: Math.max(0, (p1c - xc) / 100), narx: p1c / 100 };
+}
+
+// Tahrirlashda jami o'zgarsa — kelishilgan summani YAGONA qoida bilan qayta hisoblaymiz (K110-1: ilgari faqat
+// chegirmali buyurtmada; chegirmasiz / ustamali buyurtmada summa eskicha qolib, mijoz qarzi noto'g'ri chiqardi;
+// nomsiz — saqlanmaydigan — detal ham hisobga kirardi)
 function reapplyDiscount() {
-  if (!editMode || editDiscountPct <= 0 || !editInitialLoadDone) return;
+  if (!editMode || !editInitialLoadDone) return;
   const fp = document.getElementById('final_price');
   if (!fp || document.activeElement === fp) return;   // xodim yozayotgan bo'lsa tegmaymiz
 
-  let total = 0;
-  document.querySelectorAll('.detal').forEach(r => total += parseFloat(r.dataset.price || 0));
+  const total = _tiyin110(getNamedTotal());           // faqat NOMLI (saqlanadigan) detallar — collectItems kabi
   if (total <= 0) return;
-
-  const newAgreed = Math.round(total * (1 - editDiscountPct / 100));
-  fp.value = formatNum(newAgreed);
-
+  const r = kelishilganQayta(editJami0, total, editAsl0, editKech);
+  fp.value = narxKorinishi(r.asl);
   const hint = document.getElementById('discount-auto-hint');
-  if (hint) {
+  if (hint && Math.abs(total - editJami0) <= 0.005) {
+    // jami asos holiga qaytdi (detal olib tashlanib, qayta qo'shildi) — yuklangandagi eslatma tiklanadi
+    hint.innerHTML = hint.dataset.yuklash || '';
+    hint.style.display = hint.dataset.yuklash ? 'block' : 'none';
+  } else if (hint) {
+    const p0 = _tiyin110(editAsl0 + editKech);
+    let matn;
+    if (editJami0 <= 0 || Math.abs(p0 - editJami0) <= 0.005) {
+      matn = `🔄 Chegirmasiz — kelishilgan summa yangi jami bo'yicha qayta hisoblandi.`;
+    } else if (p0 < editJami0) {
+      matn = `🔄 Chegirma <b>${((editJami0 - p0) / editJami0 * 100).toFixed(2)}%</b> saqlandi — kelishilgan summa avtomatik qayta hisoblandi.`;
+    } else {
+      matn = `🔄 Ustama <b>+${((p0 - editJami0) / editJami0 * 100).toFixed(2)}%</b> saqlandi — kelishilgan summa avtomatik qayta hisoblandi.`;
+    }
+    if (editKech > 0.005) matn += ` Kechirilgan qarz <b>${narxKorinishi(editKech)} so'm</b> ayirildi.`;
     hint.style.display = 'block';
-    hint.innerHTML = `🔄 Chegirma <b>${editDiscountPct.toFixed(2)}%</b> saqlandi — kelishilgan summa avtomatik qayta hisoblandi. Kerak bo'lsa qo'lda o'zgartiring.`;
+    hint.innerHTML = matn + " Kerak bo'lsa qo'lda o'zgartiring.";
   }
   calcDiscount();
 }
@@ -5195,7 +5246,10 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       currentEditOrderId = editId;
       editUserTouched = false;
       editInitialLoadDone = false;
-      editDiscountPct = parseFloat(order.discount_percent || 0);
+      // kech110 (K110-1): kelishilgan summa hisobining asosi — server qiymatlari (jami, ASL summa, kechirilgan qarz)
+      editJami0 = parseFloat(order.total_amount || 0);
+      editAsl0 = parseFloat(order.kelishilgan_asl ?? order.agreed_amount ?? 0) || 0;
+      editKech = parseFloat(order.kechirilgan_qarz || 0);
 
       // Topshirish holati — tahrirlashda cheklov uchun (kech103, K103-4: detallar chizilishidan OLDIN o'qilgan — yuqorida)
       const dd = _dlvHolat103;
@@ -5214,19 +5268,29 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       // 124-band (kech95, O'LCHANGAN O1: 6 228 752.75 → "6 228 753" → saqlashda kelishilgan +0.25, qarz +0.25)
       if (fpEl && _aslKel) fpEl.value = narxKorinishi(_aslKel);
 
-      // Chegirma haqida ma'lumot
-      if (editDiscountPct > 0) {
+      // Chegirma / ustama / kechirilgan qarz haqida ma'lumot (K110-1)
+      const _p0110 = _tiyin110(editAsl0 + editKech);
+      const _eslatma110 = [];
+      if (editJami0 > 0 && _p0110 < editJami0 - 0.005) {
+        _eslatma110.push(`💡 Bu buyurtmada <b>${((editJami0 - _p0110) / editJami0 * 100).toFixed(2)}%</b> chegirma bor. Detallar o'zgarsa — kelishilgan summa shu foiz bo'yicha avtomatik qayta hisoblanadi.`);
+      } else if (editJami0 > 0 && _p0110 > editJami0 + 0.005) {
+        _eslatma110.push(`💡 Bu buyurtmada <b>+${((_p0110 - editJami0) / editJami0 * 100).toFixed(2)}%</b> ustama bor. Detallar o'zgarsa — kelishilgan summa shu foiz bo'yicha avtomatik qayta hisoblanadi.`);
+      }
+      if (editKech > 0.005) {
+        _eslatma110.push(`💡 To'lovda kechirilgan qarz: <b>${narxKorinishi(editKech)} so'm</b> — detallar o'zgarsa ham so'mda saqlanadi.`);
+      }
+      if (_eslatma110.length) {
         const hint = document.getElementById('discount-auto-hint');
         if (hint) {
           hint.style.display = 'block';
-          hint.innerHTML = `💡 Bu buyurtmada <b>${editDiscountPct.toFixed(2)}%</b> chegirma bor. Detallar o'zgarsa — kelishilgan summa shu foiz bo'yicha avtomatik qayta hisoblanadi.`;
+          hint.innerHTML = _eslatma110.join('<br>');
         }
       }
       if (_qaytKam > 0.005) {
         const hint = document.getElementById('discount-auto-hint');
         if (hint) {
           hint.style.display = 'block';
-          hint.innerHTML = (editDiscountPct > 0 ? hint.innerHTML + '<br>' : '') +
+          hint.innerHTML = (_eslatma110.length ? hint.innerHTML + '<br>' : '') +
             `↩️ Qaytarilgan mahsulot uchun <b>${formatNum(_qaytKam)} so'm</b> kelishilgan summadan ayirilgan. Bu yerda — qaytarishdan OLDINGI summa; saqlanganda ${formatNum(_qaytKam)} so'm yana avtomatik ayiriladi.`;
         }
       }
@@ -5266,6 +5330,11 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
     }
 
     calcDiscount();
+    if (editMode) {
+      // K110-1: yuklangandagi eslatma (chegirma / ustama / kechirilgan / qaytarish) — jami asos holiga qaytsa tiklanadi
+      const _h110 = document.getElementById('discount-auto-hint');
+      if (_h110) _h110.dataset.yuklash = _h110.style.display === 'none' ? '' : _h110.innerHTML;
+    }
     editInitialLoadDone = true;
 
   } catch(e) {
@@ -5491,7 +5560,11 @@ async function updateOrder(orderId) {
     order_type: 'product',   // Buyurtma turi tanlovi olib tashlandi — doim mahsulot
     recipe_id: parseInt(document.getElementById('recipe_id').value) || null,
     master_id: parseInt(document.getElementById('master_id').value) || null,
-    agreed_amount: finalPrice || undefined,
+    // kech110 (K110-1): summa FAQAT xodim uni qo'lda yozgan bo'lsa yuboriladi — aks holda server YAGONA qoidasi
+    // (`crud.kelishilgan_qayta_hisob`, forma ko'rsatgan qiymat bilan AYNAN) hal qiladi. Ilgari forma har doim eski
+    // summani yuborardi va server uni "qo'lda kiritilgan" deb olardi (chegirmasiz buyurtmada jami 400 000 → 300 000,
+    // kelishilgan 400 000 qolardi).
+    agreed_amount: (editUserTouched && finalPrice) ? finalPrice : undefined,
     deadline: document.getElementById('deadline_input')?.value || null,
     items,
     base_price: parseNum(document.getElementById('base_price')?.value || '0') || null,
@@ -5522,7 +5595,9 @@ async function updateOrder(orderId) {
         if (Math.abs(pc.new_total - pc.old_total) > 1) {
           html += `<br><br>💵 Jami: ${formatNum(pc.old_total)} → <b>${formatNum(pc.new_total)} so'm</b>`;
           if (pc.new_discount_pct > 0) {
-            html += `<br>📉 Chegirma: <b>${pc.new_discount_pct.toFixed(2)}%</b> → Kelishilgan: <b>${formatNum(result.agreed_amount)} so'm</b>`;
+            html += `<br>📉 Chegirma: <b>${pc.new_discount_pct.toFixed(2)}%</b> → Kelishilgan: <b>${narxKorinishi(result.agreed_amount)} so'm</b>`;
+          } else if (Math.abs(Number(result.agreed_amount) - Number(pc.new_total)) > 0.005) {
+            html += `<br>🤝 Kelishilgan: <b>${narxKorinishi(result.agreed_amount)} so'm</b>`;
           }
         }
       }
