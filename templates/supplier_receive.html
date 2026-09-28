@@ -122,7 +122,7 @@
               <div class="rcv-cat-opt" data-value="penoplast" onclick="selectProdType(this,'penoplast')">🏭 Penoplast</div>
 {% if cat_on('gips', current_user.company_id) %}              <div class="rcv-cat-opt" data-value="gips" onclick="selectProdType(this,'gips')">🧱 Gips</div>{% endif %}
             </div>
-            <div style="font-size:11px;color:var(--r-text3);margin-top:5px">"Umumiy" — faqat Penoplast yoki Gipsga aloqasi yo'q xarid uchun (masalan Bazalt, boshqa material)</div>
+            <div style="font-size:11px;color:var(--r-text3);margin-top:5px">"Umumiy" — faqat Penoplast yoki Gipsga aloqasi yo'q xarid uchun (masalan podveska, setka yoki boshqa material)</div>
             <select id="ap-prod-type" style="display:none">
               <option value="">Umumiy</option>
               <option value="penoplast">🏭 Penoplast</option>
@@ -174,14 +174,14 @@
 
           <div id="ap-newitem-form" class="rcv-newitem-box">
             <div class="rcv-row rcv-row-3" style="margin-bottom:0">
-              <div class="rcv-field"><label>Yangi material nomi</label><input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat" oninput="updateBazaltWrapVisibility()"></div>
+              <div class="rcv-field"><label>Yangi material nomi</label><input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat"></div>
               <div class="rcv-field">
                 <label>Kategoriya (Tasnif)</label>
                 <select id="ap-newitem-category" onchange="onNewItemCategoryChange()">
                   <option value="Penoplast">Penoplast</option>
                   <option value="Kimyoviy qo'shimchalar" selected>Kimyoviy qo'shimcha</option>
                   <option value="Qattiq qotishmalar">Mineral qo'shimcha</option>
-                  <option value="Bazalt">🧱 Bazalt</option>
+                  <option value="Boshqa">Boshqa</option>
                 </select>
               </div>
               <div class="rcv-field">
@@ -735,7 +735,7 @@ function renderInvDropdown(){
   }
   const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Gips', 'Bazalt', 'Boshqa'];
   const groups = {};
-  list.forEach(i => { const cat = i.category || 'Bazalt'; if (!groups[cat]) groups[cat]=[]; groups[cat].push(i); });
+  list.forEach(i => { const cat = i.category || 'Boshqa'; if (!groups[cat]) groups[cat]=[]; groups[cat].push(i); });
   const sortedCats = Object.keys(groups).sort((a,b)=>{
     const ia=catOrder.indexOf(a), ib=catOrder.indexOf(b);
     return (ia===-1?99:ia)-(ib===-1?99:ib);
@@ -818,13 +818,6 @@ function selectProdType(btn, value){
 function onNewItemCategoryChange(){
   const cat = document.getElementById('ap-newitem-category').value;
   document.getElementById('ap-newitem-peno-wrap').style.display = cat === 'Penoplast' ? 'grid' : 'none';
-  updateBazaltWrapVisibility();
-}
-
-function updateBazaltWrapVisibility(){
-  // MUHIM: kategoriya nomiga emas, MATERIAL NOMIGA qarab ko'rsatamiz —
-  // shunda "Boshqa" yoki istalgan boshqa kategoriya tanlansa ham, agar
-  const name = (document.getElementById('ap-newitem-name')?.value || '').toLowerCase();
 }
 
 async function apResolveItemId(){

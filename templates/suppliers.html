@@ -112,7 +112,7 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <div class="form-group" style="margin:0">
               <label style="font-size:11px">Turi</label>
-              <select id="ap-newitem-category" style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
+              <select id="ap-newitem-category" onchange="apNewItemCategoryChange()" style="width:100%;height:34px;padding:0 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12.5px;outline:none">
                 <option value="Penoplast">Penoplast</option>
                 <option value="Kimyoviy qo'shimchalar" selected>Kimyoviy qo'shimcha</option>
                 <option value="Qattiq qotishmalar">Mineral qo'shimcha</option>
@@ -575,7 +575,33 @@ function apToggleNewItem() {
   if (apCreatingNewItem) {
     document.getElementById('ap-newitem-name').value = '';
     document.getElementById('ap-volume-wrap').style.display = 'none';
+    apNewItemCategoryChange();
+  } else {
+    apOnItemChange();
   }
+}
+
+// kech105 (K105-3): yangi material "Penoplast" turkumi bilan yozilsa — blok hajmi ("1 blok necha m³?")
+// maydoni ko'rinadi va MAJBURIY (Kirim sahifasidagi kabi). Ilgari yangi penoplast oddiy material bo'lib
+// yaratilardi: buyurtmadagi plotnost tanlovida yo'q, hajmi so'ralmasdi.
+function apYangiPenoplastmi() {
+  return apCreatingNewItem && document.getElementById('ap-newitem-category').value === 'Penoplast';
+}
+
+function apNewItemCategoryChange() {
+  if (!apCreatingNewItem) return;
+  const wrap = document.getElementById('ap-volume-wrap');
+  const volInp = document.getElementById('ap-volume');
+  if (apYangiPenoplastmi()) {
+    wrap.style.display = 'block';
+    volInp.value = '';
+    document.getElementById('ap-volume-hint').textContent =
+      "Yangi penoplast (plotnost): 1 blok necha m³ ekanini kiriting — majburiy.";
+  } else {
+    wrap.style.display = 'none';
+    volInp.value = '';
+  }
+  apCalc();
 }
 
 // Agar "yangi material" rejimida bo'lsak — avval uni Omborxonada
@@ -588,16 +614,26 @@ async function apResolveItemId() {
   if (!name) { showMsg('❌ Yangi material nomini kiriting', 'error'); return null; }
   const category = document.getElementById('ap-newitem-category').value;
   const unit = document.getElementById('ap-newitem-unit').value;
+  // kech105 (K105-3): "Penoplast" turkumi — penoplast (plotnost) belgisi va blok hajmi TANADA; hajm
+  // kiritilmasa material YARATILMAYDI.
+  const isPeno = category === 'Penoplast';
+  const tana = { item_name: name, category, unit, stock_quantity: 0, min_stock: 0, is_penoplast: isPeno };
+  if (isPeno) {
+    const hajm = parseFloat(document.getElementById('ap-volume').value) || 0;
+    if (!(hajm > 0)) { showMsg('❌ Penoplast uchun 1 blok necha m³ ekanini kiriting', 'error'); return null; }
+    tana.volume_per_unit = hajm;
+  }
 
   try {
     const res = await fetch('/api/inventory', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ item_name: name, category, unit, stock_quantity: 0, min_stock: 0 })
+      body: JSON.stringify(tana)
     });
     if (!res.ok) { showMsg('❌ Yangi material yaratib bo\'lmadi', 'error'); return null; }
     const created = await res.json();
     invItems.push({ id: created.id, item_name: created.item_name, unit: created.unit,
-                     category: created.category, is_penoplast: created.is_penoplast });
+                     category: created.category, is_penoplast: created.is_penoplast,
+                     volume_per_unit: created.volume_per_unit });
     apToggleNewItem(); // yangi-material rejimidan chiqamiz, endi u ro'yxatda bor
     const sel = document.getElementById('ap-item');
     const opt = document.createElement('option');
@@ -605,6 +641,7 @@ async function apResolveItemId() {
     opt.textContent = `${created.item_name} (${created.unit})`;
     sel.appendChild(opt);
     sel.value = created.id;
+    apOnItemChange(); // kech105: yangi penoplast — hajm maydoni kiritilgan qiymat bilan qoladi
     return created.id;
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
@@ -710,6 +747,9 @@ let apBasket = [];
 
 async function apAddToBasket() {
   const wasCreatingNew = apCreatingNewItem;
+  // kech105 (K105-3): yangi penoplast savatga tushmaydi — material YARATILISHIDAN OLDIN rad etiladi
+  // (ilgari avval yaratilib, keyin "savatga qo'shib bo'lmaydi" derdi).
+  if (apYangiPenoplastmi()) { showMsg('❌ Penoplast — savatga qo\'shib bo\'lmaydi, alohida saqlang', 'error'); return; }
   const itemId = await apResolveItemId();
   if (!itemId) { if (!wasCreatingNew) showMsg('❌ Materialni tanlang', 'error'); return; }
 
@@ -758,9 +798,23 @@ async function saveAddPurchase() {
   const price = parseNum(document.getElementById('ap-price').value) || 0;
   let itemId = null;
   if (qty && price) {
+    // kech105 (K105-3): penoplast savat bilan BIRGA saqlanmaydi (blok hajmi faqat yakka xaridda yuboriladi) —
+    // yangi penoplast material YARATILISHIDAN OLDIN, mavjudi ham rad etiladi.
+    if (apBasket.length) {
+      const _tanlangan = apCreatingNewItem ? null
+        : invItems.find(i => i.id === (parseInt(document.getElementById('ap-item').value) || null));
+      if (apYangiPenoplastmi() || (_tanlangan && _tanlangan.is_penoplast)) {
+        showMsg("❌ Penoplast — savatdagi materiallar bilan birga saqlab bo'lmaydi, alohida saqlang", 'error');
+        return;
+      }
+    }
     // Faqat joriy qator to'ldirilgan bo'lsa — materialni aniqlaymiz
     // (agar "yangi material" rejimida bo'lsa, shu yerda avtomatik yaratiladi)
+    const _yangiEdi = apCreatingNewItem;
     itemId = await apResolveItemId();
+    // kech105: joriy qator to'ldirilgan-u, material aniqlanmagan bo'lsa — saqlash TO'XTAYDI (ilgari savat
+    // jimgina saqlanib, joriy qator tashlab ketilardi).
+    if (!itemId) { if (!_yangiEdi) showMsg('❌ Materialni tanlang', 'error'); return; }
   }
 
   // Joriy formadagi to'ldirilgan qatorni ham ro'yxatga qo'shamiz (agar to'ldirilgan bo'lsa)
