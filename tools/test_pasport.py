@@ -257,11 +257,13 @@ check("B3 users.html → /api/system/telegram-delete-webhook havolasi marshrutga
       "/api/system/telegram-delete-webhook" in _naqshlar)
 # O'quvchining o'zi to'g'riligini nazorat: ma'lum murakkab shakllar
 try:
-    _logs = PX.shablon_api_yollari("templates/logs.html") if PX else []
+    # kech111: platforma korxonalari UI si `logs.html` dan alohida sahifaga (`platforma.html`) ko'chdi — shakl AYNAN
+    # (`'/api/platform/companies/' + id + '/reset-admin-password'`), o'quvchining o'zi tekshiriladi.
+    _logs = PX.shablon_api_yollari("templates/platforma.html") if PX else []
     _ord = PX.shablon_api_yollari("templates/orders.html") if PX else []
 except Exception:                          # noqa: BLE001
     _logs, _ord = [], []
-check("B4 o'quvchi: `'/api/platform/companies/' + cid + '/reset-admin-password'` → `.../{}/reset-admin-password`",
+check("B4 o'quvchi: `'/api/platform/companies/' + id + '/reset-admin-password'` → `.../{}/reset-admin-password` (platforma.html)",
       "/api/platform/companies/{}/reset-admin-password" in _logs, _logs)
 check("B5 o'quvchi: shablon satri `${id}` → `{}` (orders.html `/api/orders/{}/profit`)", "/api/orders/{}/profit" in _ord, _ord[:12])
 
