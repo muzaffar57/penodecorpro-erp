@@ -403,6 +403,9 @@ input[type=number]{-moz-appearance:textfield}
       <div id="editBanner" style="display:none;background:#F8F2EB;border:1.5px solid #E8D5C0;border-radius:10px;padding:11px 14px;margin-bottom:12px">
         <div style="font-size:13px;font-weight:600;color:#A86B36">✏️ Tahrirlash rejimi — <span id="editOrderNum"></span></div>
         <div style="font-size:13px;color:#A88A64;margin-top:3px">Saqlaganda ombor faqat farq miqdorida to'g'rilanadi. Buyurtma raqami va to'lovlar saqlanadi.</div>
+        <!-- kech108 (K108-3): topshirish ogohlantirishi — ALOHIDA bola (`_tahrirBanneriTopshirish`); banner mazmuni
+             (ayniqsa `editOrderNum`) hech qachon ustidan yozilmaydi -->
+        <div id="editBannerTopshirish" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #FDE68A"></div>
       </div>
       <div class="card">
         <div class="card-head">
@@ -2982,6 +2985,35 @@ function filterProjectSelect(query) {
   });
 }
 
+// kech108 (K108-3, O'LCHANGAN `work/probe108ed.py`, `main` ning haqiqiy ma'lumotida ORD-051-1 / ORD-038-1): tahrir bannerining
+// topshirish ogohlantirishi. Ilgari `editBanner.innerHTML = …` bilan yozilardi — ichidagi `#editOrderNum` o'chib, keyingi
+// qatorda TypeError ("Server xatosi: Cannot set properties of null") va tahrir oynasi yarim sozlangan holda qolardi.
+function _tahrirBanneriTopshirish(dd) {
+  const eb = document.getElementById('editBanner');
+  const t = document.getElementById('editBannerTopshirish');
+  if (!eb || !t) return;
+  eb.style.background = '#FEF3C7';
+  eb.style.borderColor = '#FDE68A';
+  const foiz = Number((dd && dd.delivery_percent) || 0);
+  t.innerHTML = `
+    <div style="font-size:13px;font-weight:600;color:#b7770d">📦 Bu buyurtmada mahsulot topshirila boshlagan (${Number.isFinite(foiz) ? foiz : 0}%)</div>
+    <div style="font-size:13px;color:#997;margin-top:3px">Topshirilgan (va omborga ortiqcha qaytarilgan) miqdordan kam qilib bo'lmaydi. Yangi detal qo'shish yoki miqdorni oshirish mumkin.</div>`;
+  t.style.display = 'block';
+}
+
+function _tahrirBanneriTikla() {
+  const eb = document.getElementById('editBanner');
+  const t = document.getElementById('editBannerTopshirish');
+  if (eb) {
+    eb.style.background = '#F8F2EB';
+    eb.style.borderColor = '#E8D5C0';
+  }
+  if (t) {
+    t.innerHTML = '';
+    t.style.display = 'none';
+  }
+}
+
 function showNewForm() {
   // 2026-09-15: audit paytida topilgan kamchilik — loyihalar soni ko'payib
   // ketsa (SaaS'da bir necha o'nlab/yuzlab bo'lishi mumkin), oddiy
@@ -3002,6 +3034,7 @@ function showNewForm() {
   if (hint) hint.style.display = 'none';
   const eb = document.getElementById('editBanner');
   if (eb) eb.style.display = 'none';
+  _tahrirBanneriTikla();   // kech108 (K108-3): oldingi tahrirdagi topshirish ogohlantirishi / rangi qolmasin
   const ft = document.getElementById('formTitle');
   if (ft) ft.textContent = 'Yangi buyurtma';
   const saveBtn = document.querySelector('#newOrderForm .btn-dark');
@@ -4876,6 +4909,9 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         if (!row) return;
 
         row.querySelector('.i-name').value = item.name || '';
+        // kech108 (71): tahrir ochilgandagi SAQLANGAN narx — saqlashda 0 ga tushsa ogohlantiriladi (`_narxiNolgaTushgan`).
+        // Nusxa olishda (yangi buyurtma) belgilanmaydi.
+        if (!isDup) row.dataset.saqlanganNarx = String(parseFloat(item.unit_price || 0) || 0);
 
         const typeEl = row.querySelector('.i-type');
         const cat = item.category || 'profil';
@@ -5163,14 +5199,7 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       // Topshirish holati — tahrirlashda cheklov uchun (kech103, K103-4: detallar chizilishidan OLDIN o'qilgan — yuqorida)
       const dd = _dlvHolat103;
       if (dd && Object.keys(window._dlvMap || {}).length) {
-        const eb2 = document.getElementById('editBanner');
-        if (eb2) {
-          eb2.style.background = '#FEF3C7';
-          eb2.style.borderColor = '#FDE68A';
-          eb2.innerHTML = `
-            <div style="font-size:13px;font-weight:600;color:#b7770d">📦 Bu buyurtmada mahsulot topshirila boshlagan (${dd.delivery_percent}%)</div>
-            <div style="font-size:13px;color:#997;margin-top:3px">Topshirilgan (va omborga ortiqcha qaytarilgan) miqdordan kam qilib bo'lmaydi. Yangi detal qo'shish yoki miqdorni oshirish mumkin.</div>`;
-        }
+        _tahrirBanneriTopshirish(dd);   // kech108 (K108-3): banner mazmuni (editOrderNum) saqlanadi
       }
 
       // Kelishilgan summa
@@ -5215,9 +5244,12 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       const zWrap = document.getElementById('zaklat-field-wrap');
       if (zWrap) zWrap.style.display = 'none';
 
-      document.getElementById('editBanner').style.display = 'block';
-      document.getElementById('editOrderNum').textContent = order.order_number;
-      document.getElementById('formTitle').textContent = 'Buyurtmani tahrirlash';
+      const _eb108 = document.getElementById('editBanner');
+      if (_eb108) _eb108.style.display = 'block';
+      const _eon108 = document.getElementById('editOrderNum');
+      if (_eon108) _eon108.textContent = order.order_number;
+      const _ft108 = document.getElementById('formTitle');
+      if (_ft108) _ft108.textContent = 'Buyurtmani tahrirlash';
 
       showMsg(`✏️ ${order.order_number} tahrirlash rejimida`, 'success');
 
@@ -5242,7 +5274,20 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 // ── Buyurtmani yangilash ──────────────────────────────────
 function collectItems() {
   const items = [];
+  // kech108 (71): har yuboriladigan detalga uning qatori — sanalmaydigan `_qator` xossasi (JSON.stringify uni YUBORMAYDI);
+  // `_narxiNolgaTushgan` saqlangan narxni shu qatordan o'qiydi. Har tarmoq (panel / dona / blok / …) `items.push` qiladi.
+  let _qator108 = null;
+  const _qosh108 = items.push.bind(items);
+  items.push = (...xs) => {
+    xs.forEach(x => {
+      if (x && typeof x === 'object' && _qator108) {
+        Object.defineProperty(x, '_qator', { value: _qator108, enumerable: false, configurable: true });
+      }
+    });
+    return _qosh108(...xs);
+  };
   document.querySelectorAll('.detal').forEach(row => {
+    _qator108 = row;
     const name = sanitizeToLatin(row.querySelector('.i-name').value.trim());
     if (!name) return;
     const type = row.querySelector('.i-type').value;
@@ -5381,6 +5426,19 @@ function retseptMajburiyXatosi54(anyCoated, loyVal) {
   };
 }
 
+// kech108 (71-band qoldig'i, O'LCHANGAN kech107 `work/probe107u71.py`): `base_price` siz (API / eski) yaratilgan buyurtma
+// tahrirda o'zgarishsiz saqlansa detal narxi 200 000 → 0 (jami 0) — JIM edi. Saqlangan narxi > 0, yangi narxi 0 bo'lgan
+// detallar ro'yxati (nom, eski, yangi) — `updateOrder` ogohlantiradi.
+function _narxiNolgaTushgan(items) {
+  return (items || []).filter(it => {
+    const r = it && it._qator;
+    const eski = r && r.dataset ? (parseFloat(r.dataset.saqlanganNarx || '0') || 0) : 0;
+    const yangi = parseFloat(it && it.unit_price);
+    return eski > 0 && !(yangi > 0);
+  }).map(it => ({ nom: String(it.name || ''), eski: parseFloat(it._qator.dataset.saqlanganNarx) || 0,
+                  yangi: parseFloat(it.unit_price) || 0 }));
+}
+
 async function updateOrder(orderId) {
   const projId = parseInt(document.getElementById('project_id').value);
   if (!projId) { showMsg('Loyiha tanlang!', 'error'); return; }
@@ -5412,6 +5470,14 @@ async function updateOrder(orderId) {
   });
   const retseptXato54 = retseptMajburiyXatosi54(anyCoated54, parseFloat(document.getElementById('loy_kg')?.value) || 0);
   if (retseptXato54) { showValidationModal([retseptXato54]); return; }
+
+  // kech108 (71): saqlangan narxi bor detal 0 ga tushsa — JIM saqlanmaydi (matn modalda ekranlanadi — showConfirmModal)
+  const nol108 = _narxiNolgaTushgan(items);
+  if (nol108.length) {
+    const qatorlar108 = nol108.map(x => `• ${x.nom}: ${formatNum(x.eski)} → 0 so'm`).join('\n');
+    if (!await showConfirmModal(`Quyidagi detal(lar) narxi 0 ga tushadi:\n\n${qatorlar108}\n\nOdatda bu «Asosiy narx (1 m³)» yoki detal narxi kiritilmaganda bo'ladi. Shunday saqlansinmi?\n«Bekor» — hech narsa o'zgarmaydi.`,
+                                {icon: '⚠️', title: 'Narx 0 ga tushadi', okText: 'Ha, 0 bilan saqlash'})) return;
+  }
 
   if (!await showConfirmModal("O'zgarishlar saqlansinmi?\n\nOmbor faqat farq miqdorida to'g'rilanadi:\n• Ko'paysa — xomashyo qo'shimcha ayiriladi\n• Kamaysa — omborga qaytariladi", {icon:'💾', okText:'Saqlash'})) return;
 

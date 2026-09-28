@@ -567,9 +567,9 @@ function buildWarnList(lowStockItems){
     <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border2)">
       <div>
         <div style="font-size:12.5px;font-weight:500;color:var(--text)">${escapeHtml(item.item_name)}</div>
-        <div style="font-size:12.5px;color:var(--text3)">Kam qoldi</div>
+        <div style="font-size:12.5px;color:var(--text3)">${(Number(item.stock_quantity) || 0) <= 0 ? 'Tugagan' : 'Kam qoldi'}</div>
       </div>
-      <span class="badge badge-danger">${item.stock_quantity} ${escapeHtml(item.unit)}</span>
+      <span class="badge badge-danger">${escapeHtml(String(Math.round((Number(item.stock_quantity) || 0) * 100) / 100))} ${escapeHtml(item.unit)}</span>
     </div>`).join('');
 }
 

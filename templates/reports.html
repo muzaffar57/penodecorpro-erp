@@ -794,10 +794,13 @@ async function loadInventoryReport() {
     const qty = i.stock_quantity;
     // kech37 (21-band, foydalanuvchi qarori: "Ortgan loy uchun chegara shart emas"):
     // "Tayyor loy (...)" zaxirasi uchun chegara hisobga olinmaydi — hech qachon "kam qoldi" (sariq) emas
-    const min = String(i.item_name || '').startsWith('Tayyor loy (') ? 0 : (i.min_stock || 0);
+    const loy = String(i.item_name || '').startsWith('Tayyor loy (');
+    const min = loy ? 0 : (i.min_stock || 0);
     let color = '#22C55E'; // yetarli
     if (qty < 0) color = '#EF4444'; // manfiy/xato
-    else if (min > 0 && qty <= min) color = '#F59E0B'; // kam qoldi
+    // kech108 (K108-2, egasi qarori "Ha, ko'rinsin"): minimal qoldig'i belgilanmagan (0) TUGAGAN material ham "kam"
+    // (`crud.kam_qoldiq_sharti` bilan bir qoida; Tayyor loy — hech qachon)
+    else if (!loy && qty <= min) color = '#F59E0B'; // kam qoldi
     return `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:7px;vertical-align:middle"></span>`;
   }
   setTable([

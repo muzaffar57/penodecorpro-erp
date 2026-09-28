@@ -133,7 +133,8 @@
     {% for item in peno_items + normal_items + loy_items %}
     {% set qty = item.stock_quantity|float %}
     {% set minq = item.min_stock|float %}
-    {% set pct = [[((qty / minq * 100)|round if minq > 0 else 100), 0]|max, 100]|min %}
+    {# kech108 (K108-2): minimal qoldig'i belgilanmagan (0) TUGAGAN material — chizig'i 0 % (ilgari 100 % edi, holati "Tugagan") #}
+    {% set pct = [[((qty / minq * 100)|round if minq > 0 else (0 if qty <= 0 else 100)), 0]|max, 100]|min %}
     {# kech36 (K35-1): "Tayyor loy (...)" — `services.TAYYOR_LOY_PREFIKS` bilan AYNAN bir qoida #}
     {% set is_loy = (item.item_name or '').startswith('Tayyor loy (') %}
     {% set is_peno = item.is_penoplast or 'penoplast' in item.item_name|lower %}

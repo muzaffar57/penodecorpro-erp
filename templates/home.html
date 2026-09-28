@@ -203,22 +203,30 @@ fetch('/api/dashboard/stats').then(r => r.json()).then(s => {
   document.getElementById('k-masters').textContent = fmt(s.total_masters);
 
   const lowStockEl = document.getElementById('lowStock');
-  if (!s.low_stock_items || s.low_stock_items.length === 0) {
-    lowStockEl.innerHTML = '<div class="list-sub">Barcha xomashyo yetarli</div>';
-  } else {
-    lowStockEl.innerHTML = s.low_stock_items.slice(0, 5).map(item => {
-      const pct = Math.min(100, Math.round((item.stock_quantity / item.min_stock) * 100));
-      const color = pct < 40 ? '#EF4444' : '#F59E0B';
-      return `<div class="stock-row">
+  lowStockEl.innerHTML = kamQoldiqHtml(s.low_stock_items);
+}).catch(() => {});
+
+// kech108 (K108-2, egasi qarori "Ha, ko'rinsin"): «Kam qolgan xomashyo» bloki. Minimal qoldig'i belgilanmagan
+// (0) TUGAGAN material ham keladi — ilgari chiziq `qoldiq / min` (0 ga bo'lish → NaN / −Infinity %) edi. Endi: min > 0 —
+// qoldiq / min (0–100 %), aks holda 0 %; qoldiq ≤ 0 — "tugagan" (qizil); son — ko'pi bilan 2 kasr.
+function kamQoldiqHtml(items) {
+  if (!items || items.length === 0) return '<div class="list-sub">Barcha xomashyo yetarli</div>';
+  return items.slice(0, 5).map(item => {
+    const q = Number(item.stock_quantity) || 0;
+    const m = Number(item.min_stock) || 0;
+    const pct = m > 0 ? Math.max(0, Math.min(100, Math.round((q / m) * 100))) : 0;
+    const tugagan = q <= 0;
+    const color = (tugagan || pct < 40) ? '#EF4444' : '#F59E0B';
+    const qMatn = String(Math.round(q * 100) / 100);
+    return `<div class="stock-row">
         <div class="stock-head">
           <span class="stock-name">${escapeHtml(item.item_name)}</span>
-          <span class="stock-qty" style="color:${color}">${item.stock_quantity} ${escapeHtml(item.unit)}</span>
+          <span class="stock-qty" style="color:${color}">${escapeHtml(qMatn)} ${escapeHtml(item.unit)}${tugagan ? ' — tugagan' : ''}</span>
         </div>
         <div class="stock-bar"><div class="stock-bar-fill" style="width:${pct}%;background:${color}"></div></div>
       </div>`;
-    }).join('');
-  }
-}).catch(() => {});
+  }).join('');
+}
 
 fetch('/api/dashboard/charts').then(r => r.json()).then(c => {
   document.getElementById('k-debt').textContent = fmtM(c.finance.total_debt) + " so'm";
