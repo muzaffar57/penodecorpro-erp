@@ -246,6 +246,8 @@ with open(_JS_YURGIZ, "w", encoding="utf-8") as _f:
 const fs = require('fs');
 const src = fs.readFileSync(process.argv[2], 'utf8');
 const data = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+// kech106: sahifa funksiyalari joriy oyni `tkHozir()` (templates/base.html) dan oladi — yordamchilar global yuklanadi
+if (process.argv[4]) (0, eval)(fs.readFileSync(process.argv[4], 'utf8'));
 const els = {};
 global.document = { getElementById: id => (els[id] = els[id] || { id, style: {}, textContent: '', innerHTML: '' }) };
 global.fetch = async () => ({ ok: true, json: async () => data });
@@ -275,17 +277,34 @@ def shablon_funksiya(fayl, bosh):
     return src[i:j + 2] if j > 0 else ""
 
 
+def _tk_yordamchilar():
+    """kech106: templates/base.html dagi Toshkent vaqti yordamchilari (`function tkMs(` … `tkKunFarqi` oxiri)."""
+    try:
+        with open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8") as f:
+            src = f.read()
+    except Exception:                      # noqa: BLE001
+        return ""
+    i, j = src.find("function tkMs("), src.find("function tkKunFarqi(")
+    if i < 0 or j < 0:
+        return ""
+    k = src.find("\n}\n", j)
+    return src[i:k + 2] if k > 0 else ""
+
+
 def js_yurgiz(fn_src, data):
     if not _NODE or not fn_src:
         return {"xato": "node yoki funksiya yo'q"}
     fs = os.path.join(_T, "fn.js")
     fd = os.path.join(_T, "data.json")
+    fy = os.path.join(_T, "yordam.js")
     with open(fs, "w", encoding="utf-8") as f:
         f.write(fn_src)
     with open(fd, "w", encoding="utf-8") as f:
         json.dump(data, f)
+    with open(fy, "w", encoding="utf-8") as f:
+        f.write(_tk_yordamchilar())
     try:
-        out = subprocess.run([_NODE, _JS_YURGIZ, fs, fd], capture_output=True, text=True, timeout=60).stdout
+        out = subprocess.run([_NODE, _JS_YURGIZ, fs, fd, fy], capture_output=True, text=True, timeout=60).stdout
     except Exception as e:                 # noqa: BLE001
         return {"xato": str(e)}
     for line in out.splitlines():

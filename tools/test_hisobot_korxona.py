@@ -83,6 +83,20 @@ class _MuzlaganVaqt(datetime):
 for _pm in (_dpdf, _fpdf, _ppdf):
     if getattr(_pm, "datetime", None) is datetime:
         _pm.datetime = _MuzlaganVaqt
+# kech106 (9 + 50-band B qismi, O'LCHANGAN — vaqt sayohati bilan daqiqa chegarasidan 5 soniya oldin boshlanganda S1
+# `/api/finance/report-pdf` bilan yiqildi; e627685 da yiqilmaydi): PDF modullari "hozir" ni endi `database.tashkent_vaqt()`
+# dan oladi (modulda `datetime` yo'q) — muzlatish o'sha nomga ham qo'llanadi (S6 — deterministik tekshiruv).
+import database as _dbm                            # noqa: E402
+_ASL_TK = _dbm.tashkent_vaqt
+
+
+def _muzlagan_tk(dt=None):
+    return _ASL_TK(dt) if dt is not None else datetime(2026, 1, 15, 12, 0, 0)
+
+
+for _pm in (_dpdf, _fpdf, _ppdf):
+    if getattr(_pm, "_tashkent_vaqt", None) is _ASL_TK:
+        _pm._tashkent_vaqt = _muzlagan_tk
 
 YORLIQ = "[PG] " if PG_URL else ""
 OK = FAIL = 0
@@ -354,6 +368,9 @@ check("S4 A o'z ma'lumotini ko'radi, B nomini hech qayerda ko'rmaydi",
 # cron yo'llari maxfiy kalit sozlanmagan muhitda ATAYLAB 503 qaytaradi (main: "CRON_SECRET ... o'rnatilmagan").
 _xato5 = sorted(p for p, v in KEYIN.items() if v.startswith("5") and "CRON_SECRET" not in v)
 check("S5 A ning GET javoblarida 5xx yo'q (cron 503 — dizayn)", not _xato5, _xato5)
+check("S6 PDF modullarining \"hozir\" i muzlatilgan (daqiqa chegarasi S1 ni buzmaydi; kech106 — `_tashkent_vaqt`)",
+      all(getattr(_pm, "_tashkent_vaqt", lambda: None)() == datetime(2026, 1, 15, 12, 0) for _pm in (_dpdf, _fpdf, _ppdf)),
+      [getattr(_pm, "_tashkent_vaqt", None) for _pm in (_dpdf, _fpdf, _ppdf)])
 
 section("H — statik")
 _fc = manba(services, "get_monthly_comparison")

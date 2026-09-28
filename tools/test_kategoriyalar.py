@@ -207,6 +207,8 @@ check("kpi.html dagi 'blok' — hodim to'lov birligi selectida",
 from jinja2 import Environment, FileSystemLoader  # noqa: E402
 env = Environment(loader=FileSystemLoader(os.path.join(ROOT, "templates")))
 env.globals["cat_on"] = main.cat_on
+# kech106: ilova filtrlari ham (masalan `toshkent` — bazadagi UTC vaqtni Toshkent vaqtida ko'rsatadi)
+env.filters.update(main.templates.env.filters)
 for f in ("orders.html", "finished.html", "production.html"):
     try:
         env.get_template(f)

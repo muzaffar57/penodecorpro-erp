@@ -327,7 +327,10 @@ function tahlilNamuna(qosh) {
 function tahlilKodi() {
   const qismlar = [olib(BASE, 'escapeHtml'), konst(RETURNS, 'BRAK_OY_NOMLARI'), olib(RETURNS, 'brakTahlilOyMatn'),
                    olib(RETURNS, 'brakFoizMatn'), olib(RETURNS, 'brakTahlilHtml')];
-  return qismlar.every(Boolean) ? qismlar.join('\n') : null;
+  // kech106: yo'qotish sanasi `tkISO` (base.html — Toshkent vaqti yordamchilari) orqali
+  const tk = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi']
+    .map(n => olib(BASE, n)).filter(Boolean);
+  return qismlar.every(Boolean) ? tk.concat(qismlar).join('\n') : null;
 }
 
 async function tahlilChiz(d) {

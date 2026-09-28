@@ -86,6 +86,8 @@ function yukla(ctx, src, nomlar, sahifa) {
   return yoq;
 }
 const YORDAMCHI = ['parseNum', 'narxMatni', 'narxniOqi', 'narxKorinishi', 'formatPriceInput'];
+// kech106: finance.html funksiyalari "bugun" / joriy oyni base.html dagi Toshkent vaqti yordamchilaridan oladi
+const TK_FUNKS = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi'];
 
 // ── Soxta DOM ──
 function el(qiymat, qo) {
@@ -378,7 +380,8 @@ async function tolovSina(summa, qarz) {
                   fetch: async () => javob(200, { ehson_xarajat: 1234.56 }),
                   fmtFull: (n) => Number(Math.round(n || 0)).toLocaleString('ru-RU') };
     vm.createContext(ctx);
-    const yoq = yukla(ctx, SRC.finance, YORDAMCHI.concat(['editTx', 'fillEhsonAmount']), 'finance');
+    const yoq = yukla(ctx, oqi('base'), TK_FUNKS, 'base')
+      .concat(yukla(ctx, SRC.finance, YORDAMCHI.concat(['editTx', 'fillEhsonAmount']), 'finance'));
     ctx.editTx(3, '2026-09-20T00:00:00', 'boshqa', 12345.67, 'izoh', '');
     tekshir('X xarajat tahriri: summa "12 345.67" (asl: "12 346")', e['tx-f-amount'].value === '12 345.67',
             jsn({ v: e['tx-f-amount'].value, yoq }));

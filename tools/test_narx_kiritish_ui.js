@@ -95,12 +95,20 @@ function sana(src, nom) {
 }
 
 // Sahifaning 5 yordamchisi yuklangan soxta muhit.
+// kech106: sahifa funksiyalari joriy oy / "bugun" ni base.html dagi Toshkent vaqti yordamchilaridan oladi
+const TK_FUNKS = ['tkMs', 'tkDate', 'tkSana', 'tkVaqt', 'tkSanaVaqt', 'tkToliq', 'tkISO', 'tkHozir', 'tkKunFarqi'];
+const BASE_SRC = (() => { try { return fs.readFileSync(path.join(TDIR, 'base.html'), 'utf8'); } catch (e) { return ''; } })();
 function muhit(sahifa, qoshimcha) {
   const ctx = Object.assign({ console }, qoshimcha || {});
   vm.createContext(ctx);
   const xatolar = [];
   for (const f of FUNKS) {
     const t = olib(SRC[sahifa], f);
+    if (!t) continue;
+    try { vm.runInContext(t, ctx); } catch (e) { xatolar.push(f + ': ' + e.message); }
+  }
+  for (const f of TK_FUNKS) {
+    const t = olib(BASE_SRC, f);
     if (!t) continue;
     try { vm.runInContext(t, ctx); } catch (e) { xatolar.push(f + ': ' + e.message); }
   }
