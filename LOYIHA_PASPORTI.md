@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -105,6 +105,8 @@ Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'li
   bilan (kech106, K106-1); har PDF moduli boshida `shriftlarni_ulash()`.
 - `saas_migration.py` — VAQTINCHALIK: ko'p korxonali (SaaS) migratsiya sahifasi `/saas-migratsiya`
   (bosqichlar W1–W6, dry-run; `sinov` da BAJARILGAN, `main` da hali bajarilmagan).
+- `saas_otish.py` — (kech109, K108-1) `main` ga BIR MARTALIK o'tish: ilova ishga tushishida, `init_database()` dan OLDIN,
+  eski (to'lqinlarsiz) bazani aniqlab `saas_migration` to'lqinlarini SINOV → HAQIQIY bajaradi (4-bo'lim "`main` ko'chirishi").
 - `erp_backup_tekshiruv.py` — JSON zaxira faylini tekshiruvchi mustaqil skript (tiklamaydi).
 - `templates/` — 24 ta Jinja2 sahifa (`base.html` — umumiy qobiq, brauzer vaqti yordamchilari `tk*`, server rad sababi
   `xatoSababi` / `serverXatoSababi`; kech107 da hech bir handler ko'rsatmaydigan eski usta shabloni olib tashlandi); `static/` — CSS,
@@ -208,6 +210,30 @@ ogohlantirishi — `#editBannerTopshirish` bolasida (`_tahrirBanneriTopshirish`)
 — K108-3. Saqlangan narxi > 0 detal saqlashda 0 ga tushsa — umumiy tasdiqdan OLDIN ogohlantirish («Bekor» — PUT yo'q;
 `row.dataset.saqlanganNarx`, `collectItems` → sanalmaydigan `_qator`, `_narxiNolgaTushgan`) — 71-band.
 
+**MRP bandi va ishlab chiqarish bog'lamlari — korxona chegarasi (kech109, 10b E-1).** Qo'riqchi (`models._TENANT_REFS`)
+`FinishedProduct.reserved_for_order_item_id` va `ProductionOrder` manbalarini (buyurtma, detal, tayyor mahsulot, mahsulot turi,
+retsept) ham tekshiradi — begona korxona yozuviga bog'lash rad (409). Eski ma'lumotda begona korxona mahsuloti detalga band bo'lsa:
+`crud._auto_release_mrp_reservations` detal korxonasining O'Z mahsulotlarini ozod qiladi (+ jurnal), BEGONA mahsulotda faqat FK
+bog'lamini uzadi (band miqdori va egasining jurnali o'zgarmaydi — egasi «Tayyor mahsulotlar» da o'zi ozod qiladi);
+`production_service.mrp_detal_kerak` — band faqat detal korxonasidan; korxonani tozalash begona ishoralarni uzadi (FK).
+
+**Buyurtma tahriri — ishlab chiqarishga bog'langan detal (kech109, K109-2).** Tahrirda detallar NOM + TUR bo'yicha moslanadi:
+olib tashlangan yoki NOMI o'zgargan detal o'chiriladi. Unga FAOL ishlab chiqarish bog'lami bo'lsa (band tayyor mahsulot yoki
+qoralama / jarayondagi ishlab chiqarish buyurtmasi) — 400, sabab ro'yxati (`crud._mrp_faol_boglamlar`: "«nom» — 3 m² tayyor
+mahsulot band; ishlab chiqarish buyurtmasi #7 (qoralama)"), hech narsa o'zgarmaydi (ilgari PG da 500). Faol bo'lmagan (tarixiy)
+bog'lam — `delete_order_item` naqshi bilan uziladi. Tahrirda «📝 Vaqtincha saqlash» tugmasi yashiriladi (`#draftSaveBtn`,
+K109-1 — ilgari `.btn-outline` birinchisi «✕ Yopish» topilib, tugma ko'rinib qolardi; bosilsa haqiqiy saqlash bo'lardi).
+
+**`main` ko'chirishi — bitta yuklash (kech109, K108-1).** `main.py` modul darajasida, `init_database()` dan OLDIN
+`saas_otish.startup_otish(engine)`: PostgreSQL, `users` jadvali bor va to'lqin jadvallaridan birida `company_id` yo'q — eski
+baza. Shunda: (1) SINOV — `companies` (id=1) + W1 … W6 (W2B, W3B ichida) + `verify_tables` + M1KOD BITTA tranzaksiyada (har
+qadam savepoint), oxirida HAMMASI qaytariladi; biror qadam to'xtasa (NULL, yetim, takror, qulf) — baza O'ZGARMAYDI; (2) HAQIQIY —
+xuddi shu, har qadam o'z tranzaksiyasida (`saas_migration.run_step`); (3) xato — `RuntimeError`, ilova ATAYLAB ishga
+tushmaydi (Railway logida qadam va sabab); qayta ishga tushish davom ettiradi (qadamlar idempotent, eski kod qisman o'tgan
+baza bilan ishlaydi — vaqtinchalik DEFAULT 1). Yangi / staging baza — hech narsa qilinmaydi. `saas_migration.py` (3.12
+sintaksisi) faqat eski bazada yuklanadi. Korxonalar id ketma-ketligi har ishga tushishda MAX(id) ga tenglashtiriladi
+(`_seed_default_company`, K109-3 — ilgari id=1 aniq yozilgani uchun platformadan BIRINCHI "korxona qo'shish" 400 berardi).
+
 **Buyurtma hayoti.** Holatlar: `draft` (qoralama) → `new` / `in_progress` (jarayonda) → `delivered` (hammasi topshirilgan,
 lekin «Tayyor» bosilmagan) → `ready` («Tayyor» — YAKUNIY, hisobotga kiradi); `cancelled`. Yuk xati (`crud.create_delivery`) —
 qisman topshirish. «Tayyor» — `services.complete_order` (jarayondagi yoki topshirilgan buyurtmadan; bitta tranzaksiya;
@@ -286,7 +312,7 @@ python3 -m pyflakes crud.py main.py schemas.py services.py
 Har test oxirida `NATIJA: o'tdi = N yiqildi = M jami = K`; talab — `yiqildi = 0` va chiqish kodi 0. PG testlarini
 parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayllarni tahrirlamang.
 
-**Kutilgan natija (kech108 o'lchovi, 2026-09-28, zip 103 fayllari bilan):** `bash tools/hammasi.sh` — 143 test fayli (Python va JS), jami **12 210** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **12 211** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 86 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 108); pyflakes — `crud.py` 63, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
+**Kutilgan natija (kech109 o'lchovi, 2026-09-28, zip 104 fayllari bilan):** `bash tools/hammasi.sh` — 148 test fayli (Python va JS), jami **12 303** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **12 304** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 90 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 106); pyflakes — `crud.py` 62, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
 
 **Darvozalar (o'zgartirishdan keyin yiqilsa — sababini toping, testni "moslab" yashirmang):**
 
@@ -336,6 +362,13 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
 - Server rad sababi — kpi / inventory / finished ning 29 joyi (matn, obyekt, ro'yxat): `tools/test_xato_sababi_ui.js`.
 - Loyiha tahriri (muddat, tozalash, izolyatsiya): `tools/test_loyiha_tahrir.py`, `tools/test_loyiha_tahrir_ui.js`;
   hodim avans so'rovi (tekshiruv, takror, PG poyga): `tools/test_hodim_avans.py`.
+- (kech109) MRP bandi korxona chegarasi va tahrirda ishlab chiqarishga bog'langan detal (E-1, K109-2 — SQLite, PG, TF1):
+  `tools/test_mrp_band_korxona.py`; hodim to'lov tarixi korxona bo'yicha + o'lik funksiya (E-2 / E-3):
+  `tools/test_hodim_tarix_korxona.py`; lint ko'r nuqtalari (func / case so'rovlari, `.filter(*ro'yxat)`, K107-3):
+  `tools/test_lint_func_royxat.py`; `main` ko'chirish mexanizmi (SINOV → HAQIQIY, soxta `saas_migration` bilan) va korxona id
+  ketma-ketligi (K108-1, K109-3): `tools/test_saas_otish.py`; tahrirda qoralama tugmasi (HAQIQIY forma markupi, K109-1):
+  `tools/test_qoralama_tugma_ui.js`. Haqiqiy `main` ma'lumoti ustidagi o'tish (python3.12 — `saas_migration` sintaksisi;
+  `python3.12 -m pip install -r requirements.txt httpx2`): ISH zipidagi `otish109.sh`.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -442,9 +475,16 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   `users.company_id` yo'q), undan oldin 5 migratsiya qisman bajariladi — ko'chirishda W1–W6 staging kodidan OLDIN
   bajarilishi SHART (texnik tartib — `main` bosqichida, egasi `main` ga o'zi hech narsa yuklamaydi). JSON zaxira sxemani
   (enum turlari) bermaydi — haqiqiy ko'chirishdan oldin Railway to'liq zaxirasi.
+- **`main` ko'chirish MEXANIZMI — TAYYOR (kech109, K108-1):** `saas_otish.py` (4-bo'lim). `main` zaxirasining lokal nusxasida
+  (HAQIQIY PG 16, staging kodi python3.12): bitta ishga tushish — to'lqinlar + migratsiyalar, 0 SQL xato, `/login` 200; ikkinchi
+  ishga tushish — ma'lumot va sxema AYNAN; natija kech108 dagi ikki bosqichli usul bilan AYNAN (sxema — `pg_dump` farqi bo'sh,
+  ma'lumot — vaqt tamg'alaridan tashqari); 93 hisobot kech108 KEYIN bilan AYNAN (farq faqat K108-2 — kam qolgan 0 → 1, va vaqt
+  tamg'alari); `orders` ni boshqa ulanish ushlab tursa — SINOV W3 da "qulf band" bilan to'xtaydi, baza O'ZGARMAYDI, qayta
+  ishga tushganda yakunlanadi.
 - **`main` ga ko'chirish (keyingi bosqich).** Avval `production` ning to'liq zaxirasi (+ PITR), so'ng `main`
   bazasida faqat o'qish o'lchovlari (eski ma'lumotdagi chekka holatlar — topilganlari egasiga BIZNES savoli),
-  keyin `saas_migration.py` bosqichlari (W1–W6, `company_id`) `main` bazasida dry-run va haqiqiy, so'ng kod.
+  keyin kod (to'lqinlar — `saas_otish.py`, birinchi ishga tushishda avtomatik; hech kim ishlamayotgan paytda — eski ilova
+  o'tish paytida bir necha soniya yozishda xato berishi mumkin: to'lqinlardan keyin DEFAULT 1 olib tashlanadi).
   Ko'chirishda: `TENANT_FILTER=1`, korxona nomi, `enabled_categories`, `projects.total_paid` sinxron
   migratsiyasi (farqli loyihalarni oldin ko'rsatish). To'liq ro'yxat — oxirgi TOPSHIRIQ hujjatining 6-bo'limi.
   (kech105, K105-1) `main` da hozir `main.py` ning 2026-09-15 nusxasi ishlaydi (24.09 da zip 51 ning `main.py` si
@@ -462,8 +502,8 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   standart sanalari va joriy oy — 4-bo'lim "Vaqt"); 10 — kech23 qoldiqlari: YOPILDI kech107 (loyiha tahririda muddat,
   hodim paneli avansi, UI 400 sabablari, o'lik usta shabloni, "Kirim hujjatini bekor qilish", Telegram — qaror "Boshqa
   bot"); lint baseline (108) TOIFALANDI (kech107, kod o'qish — A 9, B 84, C 12, E 3; natija — oxirgi TOPSHIRIQ):
-  E-1 (eski ko'p-korxona MRP bandi — `crud._auto_release_mrp_reservations`) o'lchanadi (`main` da tayyor mahsulot 0 —
-  ta'sir yo'q); TENANT_FILTER=1 da `auth.create_user` band login 500 va Telegram «Sovg'alar» boshqa korxona ustasiga "faol davr
+  E-1, E-2, E-3 — TUZATILDI kech109 (E toifasi 0; baseline 106 — №14 lint ko'r nuqtasi edi, K107-3 da lint kengaytirildi);
+  TENANT_FILTER=1 da `auth.create_user` band login 500 va Telegram «Sovg'alar» boshqa korxona ustasiga "faol davr
   yo'q" — TUZATILDI kech108 (K107-2, K107-1); 36, 49 — YOPILDI kech107; 26 — hujjat (qaytarishda `to_stock: false`
   faqat API, UI yubormaydi); 71 — YOPILDI kech108 (`main` ning 32 buyurtmasida tahrir → narx o'zgarmadi; `base_price` siz buyurtmada 0 ga
   tushish — endi ogohlantirish, «Bekor» — hech narsa o'zgarmaydi).
@@ -545,6 +585,14 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   TypeError (K108-3). Ogohlantirish — alohida bola elementga; o'rnatish — null-xavfsiz; forma qayta ochilganda tiklansin.
 - TENANT_FILTER=1: butun tizim bo'yicha YAGONA ustun (login) bandligini tekshirish — tizim so'rovi (`skip_tenant_filter`),
   aks holda boshqa korxonadagi qiymat ko'rinmaydi va INSERT 500 beradi (K107-2).
+- TENANT_FILTER=1 da FK bog'lamini uzish uchun ORM bilan YUKLAB o'zgartirish ishlamaydi — begona yozuv so'rovga ko'rinmaydi
+  va bog'lam qoladi (PG FK — 500); FK uzish — bulk UPDATE (filtr faqat SELECT ga qo'yiladi) (E-1).
+- Bog'liq migratsiya qadamlarining dry-run'i alohida-alohida o'tmaydi (W2B — "avval W2 ni bajaring"): butun zanjirni BITTA
+  tranzaksiyada savepoint'lar bilan yurgizib, oxirida qaytaring (`saas_otish._SinovMotori`) — keyingi qadam oldingisini ko'radi.
+- PostgreSQL da id ni ANIQ yozish (`Company(id=1, …)`) ketma-ketlikni surmaydi — keyingi avtomatik id takrorlanadi (K109-3);
+  aniq id dan keyin `setval(pg_get_serial_sequence(…), MAX(id))`.
+- Tugmani CSS sinfining BIRINCHISI bilan topish (`querySelector('.btn-outline')`) — sahifaga boshqa shunday tugma qo'shilganda
+  jimgina boshqasini topadi (K109-1, iyundan beri); tugmaga `id`.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -578,36 +626,37 @@ Kod o'qiydigan muhit o'zgaruvchilari (Railway → Variables). Ro'yxat `os.getenv
 bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sxema / ma'lumot migratsiyalari
 (Alembic YO'Q). Yangi migratsiya shu ro'yxat oxiriga qo'shiladi.
 
-1. `init_database`
-2. `_seed_default_company` — 2026-09-16: yangi Production moduli uchun — SaaS'gacha ishlatiladigan YAGONA korxona yozuvini (id=1) bir marta yaratib qo'yadi. Xatoni boshqa init funksiyalari kabi yuti…
-3. `_seed_tg_tagline` — 2026-09-21: ustaga salomdagi shior endi sozlama (`tg_welcome_tagline`).
-4. `_migrate_recipe_name_column` — ESKI QOLDIQ TUZATISH: bazada "recipes.name" ustuni, hozir kodda umuman mavjud bo'lmagan "recipetype" maxsus (enum) turi sifatida qolib ketgan edi (eski, allaqachon o'zga…
-5. `_migrate_payment_columns` — Mavjud bazaga to'lov ustunlarini qo'shadi (agar yo'q bo'lsa).
-6. `_migrate_drop_company_id_defaults` — M8/F1 (2026-09-18) — VAQTINCHALIK `DEFAULT 1` ni olib tashlaydi.
-7. `_migrate_faza3_columns` — Faza 3 (2026-09-19) — uchta yangi ustun. Xavfsiz va idempotent.
-8. `_migrate_float_to_numeric` — Bosqich 1 (2026-09-20) — to'rtta pul maydoni `Float` dan `Numeric(12,2)` ga o'tkaziladi.
-9. `_migrate_fp_product_type` — Bosqich 3, 10-band (2026-09-20) — `finished_products.product_type_id`.
-10. `_migrate_return_order_item` — kech39 (5-bo'lim 3-band) — `return_items.order_item_id`.
-11. `_migrate_qaytarish_orqaga` — kech40 (5-bo'lim 22-band + K40-1) — IDEMPOTENT, PostgreSQL va SQLite.
-12. `_migrate_brak_harakat` — kech45 (13-band, 6-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
-13. `_migrate_harakat_narx` — kech46 (13-band, 2-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
-14. `_migrate_eski_buyurtma_narxi` — kech49 (5-bo'lim 33-band) — IDEMPOTENT, PostgreSQL va SQLite.
-15. `_migrate_eski_brak_narxi` — kech51 (5-bo'lim 37-band) — IDEMPOTENT, PostgreSQL va SQLite.
-16. `_migrate_brak_belgisi` — kech52 (13-band, 3-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
-17. `_migrate_brak_sabab_javobgar` — kech56 (13-band, 7-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
-18. `_migrate_qoplama_retsept` — kech58 (K58-1 / K58-2 / K58-3, 43-band) — IDEMPOTENT, PostgreSQL va SQLite.
-19. `_migrate_tm_birlik_tannarx` — kech59 (47-band, K59-1 / K59-2 / K59-4) — IDEMPOTENT, PostgreSQL va SQLite.
-20. `_migrate_tm_detal_tannarx` — kech103 (5-bo'lim 56-band) — IDEMPOTENT, PostgreSQL va SQLite.
-21. `_migrate_ortiqcha_qaytarish` — kech60 (57-band, K59-3) — IDEMPOTENT, PostgreSQL va SQLite.
-22. `_migrate_buyurtma_raqam_hisoblagich` — kech86 (100-band, QAROR "A" — buyurtma raqami hech qachon qayta berilmaydi) — IDEMPOTENT, PG va SQLite.
-23. `_migrate_kirim_tannarx_manba` — kech87 (104-band) — IDEMPOTENT, PG va SQLite.
-24. `auth.create_default_admin`
-25. `crud.backfill_employee_compensation_history`
-26. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
-27. `app.include_router(production_router)`
-28. `app.include_router(saas_migration_router)`
-29. `_scheduler.add_job`
-30. `_scheduler.start`
+1. `_saas_otish.startup_otish`
+2. `init_database`
+3. `_seed_default_company` — 2026-09-16: yangi Production moduli uchun — SaaS'gacha ishlatiladigan YAGONA korxona yozuvini (id=1) bir marta yaratib qo'yadi. Xatoni boshqa init funksiyalari kabi yuti…
+4. `_seed_tg_tagline` — 2026-09-21: ustaga salomdagi shior endi sozlama (`tg_welcome_tagline`).
+5. `_migrate_recipe_name_column` — ESKI QOLDIQ TUZATISH: bazada "recipes.name" ustuni, hozir kodda umuman mavjud bo'lmagan "recipetype" maxsus (enum) turi sifatida qolib ketgan edi (eski, allaqachon o'zga…
+6. `_migrate_payment_columns` — Mavjud bazaga to'lov ustunlarini qo'shadi (agar yo'q bo'lsa).
+7. `_migrate_drop_company_id_defaults` — M8/F1 (2026-09-18) — VAQTINCHALIK `DEFAULT 1` ni olib tashlaydi.
+8. `_migrate_faza3_columns` — Faza 3 (2026-09-19) — uchta yangi ustun. Xavfsiz va idempotent.
+9. `_migrate_float_to_numeric` — Bosqich 1 (2026-09-20) — to'rtta pul maydoni `Float` dan `Numeric(12,2)` ga o'tkaziladi.
+10. `_migrate_fp_product_type` — Bosqich 3, 10-band (2026-09-20) — `finished_products.product_type_id`.
+11. `_migrate_return_order_item` — kech39 (5-bo'lim 3-band) — `return_items.order_item_id`.
+12. `_migrate_qaytarish_orqaga` — kech40 (5-bo'lim 22-band + K40-1) — IDEMPOTENT, PostgreSQL va SQLite.
+13. `_migrate_brak_harakat` — kech45 (13-band, 6-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+14. `_migrate_harakat_narx` — kech46 (13-band, 2-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+15. `_migrate_eski_buyurtma_narxi` — kech49 (5-bo'lim 33-band) — IDEMPOTENT, PostgreSQL va SQLite.
+16. `_migrate_eski_brak_narxi` — kech51 (5-bo'lim 37-band) — IDEMPOTENT, PostgreSQL va SQLite.
+17. `_migrate_brak_belgisi` — kech52 (13-band, 3-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+18. `_migrate_brak_sabab_javobgar` — kech56 (13-band, 7-qadam) — IDEMPOTENT, PostgreSQL va SQLite.
+19. `_migrate_qoplama_retsept` — kech58 (K58-1 / K58-2 / K58-3, 43-band) — IDEMPOTENT, PostgreSQL va SQLite.
+20. `_migrate_tm_birlik_tannarx` — kech59 (47-band, K59-1 / K59-2 / K59-4) — IDEMPOTENT, PostgreSQL va SQLite.
+21. `_migrate_tm_detal_tannarx` — kech103 (5-bo'lim 56-band) — IDEMPOTENT, PostgreSQL va SQLite.
+22. `_migrate_ortiqcha_qaytarish` — kech60 (57-band, K59-3) — IDEMPOTENT, PostgreSQL va SQLite.
+23. `_migrate_buyurtma_raqam_hisoblagich` — kech86 (100-band, QAROR "A" — buyurtma raqami hech qachon qayta berilmaydi) — IDEMPOTENT, PG va SQLite.
+24. `_migrate_kirim_tannarx_manba` — kech87 (104-band) — IDEMPOTENT, PG va SQLite.
+25. `auth.create_default_admin`
+26. `crud.backfill_employee_compensation_history`
+27. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
+28. `app.include_router(production_router)`
+29. `app.include_router(saas_migration_router)`
+30. `_scheduler.add_job`
+31. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -1234,6 +1283,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_hisobot_tayyor.py` · PG — kech76 darvozasi (2026-09-25, 97-band): hisobotlar FAQAT "Tayyor" (READY) buyurtmani sanaydi — 91-band FOYDALANUVCHI QARORI "B" ("to'liq topshirilgan buyurtma hisobotga / ust…
 - `test_hodim_avans.py` · PG — kech107 darvozasi (5-bo'lim 10-band, "hodim paneli"): hodim o'zi yozadigan "avans oldim" so'rovi (`POST /api/hodim/advance-request`, `/hodim` paneli — telefon + PIN) — QAT'IY te…
 - `test_hodim_oyligi.py` — Moslashuvchan hodim oyligi hisobi.
+- `test_hodim_tarix_korxona.py` · PG — kech109 darvozasi: 10b E-2 / E-3 — chaqirilmaydigan korxonasiz o'qish funksiyalari.
 - `test_html_escape.py` — STATIK DARVOZA — shablonlardagi escape qoidalari (5.2d 4-band, kech33).
 - `test_html_escape_dom.py` — DINAMIK innerHTML / HTML in'ektsiya darvozasi (5-bo'lim 2-band, kech29).
 - `test_idor.py` — IDOR (Insecure Direct Object Reference) darvozasi.
@@ -1245,6 +1295,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_kirim_bekor.py` · PG — kech107 darvozasi (5-bo'lim 10-band, "Kirim hujjatini bekor qilish"): Ombor KIRIM HUJJATINI butunlay bekor qilish va xarid o'chirilganda O'RTACHA NARXning qaytishi. UI qismi — `…
 - `test_kirim_qiymat.py` — 17b: ombor kirimi, kirim HUJJATI va retseptlar tanalarining QAT'IY tekshiruvi.
 - `test_kirim_tolov_chegara.py` · PG — kech96 (2026-09-27), 125-band (server + brauzer↔server paritet qismi).
+- `test_lint_func_royxat.py` · PG — kech109, K107-3: `tools/tenant_lint.py` ko'r nuqtalari.
 - `test_lint_taxallus.py` · PG — kech99 (2026-09-27), 113-band.
 - `test_loy_manba.py` · PG — kech82 darvozasi (2026-09-26, 102-band, FOYDALANUVCHI QARORI "A"): buyurtmaning ishlatilmagan LOYI OLINGAN joyiga qaytadi — tayyor loy zaxirasidan olingani zaxiraga, xom ingredien…
 - `test_loy_manfiy.py` — 19-band: loy xomashyosi yetishmasa qoldiq MANFIYGA tushadi, kirimda qoplanadi; qo'lda chiqim manfiy qoldiqdagi qarzni o'chira olmaydi.
@@ -1256,6 +1307,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_material_korxona.py` · PG — kech99 (2026-09-27), 112-band.
 - `test_mijozga_qaytarish.py` · PG — kech100 darvozasi (2026-09-27, 131-band, FOYDALANUVCHI QARORI "B" — "Kerak").
 - `test_moliya_tafsilot.py` · PG — kech106, K106-2 darvozasi: oylik moliya hisobotining xarajatlar ro'yxati (PDF "Xarajatlar tafsiloti" jadvali va Moliya sahifasidagi ro'yxat) JAMI XARAJAT bilan BIR xil bo'ls…
+- `test_mrp_band_korxona.py` · PG — kech109 darvozasi: MRP bandi va ishlab chiqarish bog'lamlari — korxona chegarasi (10b E-1) va buyurtma tahririda ishlab chiqarishga bog'langan detal (K109-2).
 - `test_mrp_bosh_tannarx.py` · PG — kech101 darvozasi (2026-09-27, 138-band): MRP detali tannarxi — BO'SHAGAN dona ikki marta emas.
 - `test_mrp_kerak.py` · PG — kech72 darvozasi (2026-09-25, 85-band / K71-2): MRP detali uchun "hali ishlab chiqarish KERAK" miqdori — YAGONA qoida.
 - `test_mrp_loy_ulush.py` · PG — 5-bo'lim 44-band + K62-1 darvozasi (kech62, 2026-09-24): MRP detali buyurtma LOYINI sarflamaydi — YAGONA qoida.
@@ -1293,6 +1345,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_qoplama_vaqti.py` — 22-band: qoplamachi bonusi (va ishlab chiqarish miqdoriga bog'liq hodim to'lovi) FAQAT mahsulot "Sotuvga tayyor" (READY) bo'lganda, va u TAYYOR BO'LGAN oyda hisoblanadi.
 - `test_retsept_almashtirish.py` · PG — 5-bo'lim 53-band (+ 67-band) darvozasi (kech63, 2026-09-24): jarayondagi buyurtmada QOPLAMA RETSEPTI o'zgartirilsa eski retsept loyi omborga QAYTADI, yangisidan YECHILA…
 - `test_royxat_n1.py` · PG — kech97 (2026-09-27), 116-band 1-qadam (buyurtma / loyiha N+1) + 114-band (ro'yxat tartibi).
+- `test_saas_otish.py` · PG — kech109 darvozasi: `main` ko'chirishi (K108-1) — `saas_otish.py` va korxona id ketma-ketligi (K109-3).
 - `test_soat_utc.py` — kech96 (2026-09-27), 123-band.
 - `test_sovga_davr_tenant.py` · PG — kech108, K107-1 darvozasi: Telegram usta boti «🎁 Sovg'alar» ikki korxonada.
 - `test_taminotchisiz_xarid.py` · PG — kech100 darvozasi (2026-09-27, 109-band).
@@ -1339,6 +1392,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_ombor_chiqim.js` · JS — Ombor sahifasidagi "Chiqim" oynasi (`saveChiqim`).
 - `test_ombor_turkum_ui.js` · JS — kech105 (K105-2 / K105-3) UI darvozasi.
 - `test_qaytarish_ochirish_ui.js` · JS — kech40 (2026-09-23), 5-bo'lim 22-band + K40-1: qaytarishni o'chirish va qaytgan tayyor mahsulotni o'chirish UI si.
+- `test_qoralama_tugma_ui.js` · JS — kech109, K109-1: buyurtma TAHRIRIDA «📝 Vaqtincha saqlash» tugmasi yashirilishi (templates/orders.html).
 - `test_standart_tiyin_ui.js` · JS — kech96 (2026-09-27), 125-band + K96-1 (brauzer qismi).
 - `test_tahrir_banner_ui.js` · JS — kech108, K108-3: topshirila boshlagan buyurtmani tahrirlash oynasi (templates/orders.html).
 - `test_tahrir_tiyin_ui.js` · JS — kech95 (2026-09-27), 124-band + 117-band (brauzer qismi).
@@ -1351,5 +1405,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yetkazish_ui.js` · JS — 17g (2026-09-22): yetkazish va brak yozish UI si.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 
-Jami test fayllari: 143 (Python 117, JS 26).
+Jami test fayllari: 148 (Python 121, JS 27).
 <!-- AVTO:TESTLAR OXIRI -->

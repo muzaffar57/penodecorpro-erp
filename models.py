@@ -2349,7 +2349,17 @@ _TENANT_REFS = {
                         # Bosqich 3, 10-band (2026-09-20) — yangi bog'lam.
                         # `ProductType` production_models.py da, qo'riqchi
                         # uni kech import orqali topadi (_check_refs).
-                        ("product_type_id", "ProductType")],
+                        ("product_type_id", "ProductType"),
+                        # kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` S4): MRP bandi — qaysi detalga.
+                        # Ilgari qo'riqchida yo'q edi: A mahsuloti B detaliga ORM bilan band qilinardi
+                        # (K93-1 xizmat tekshiruvidan tashqari yo'l — xom yozuv, kelajakdagi kod).
+                        ("reserved_for_order_item_id", "OrderItem")],
+    # kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` S5): ishlab chiqarish buyurtmasi — manba buyurtma / detal,
+    # tayyor mahsulot, mahsulot turi va retsept BIR korxonada. Ilgari A buyurtmasi B detaliga manba qilib yozilardi
+    # (K93-1 dan oldingi eski ma'lumot shakli) — B detali o'chirilganda / korxonasi tozalanganda FK 500.
+    "ProductionOrder": [("source_order_id", "Order"), ("source_order_item_id", "OrderItem"),
+                        ("finished_product_id", "FinishedProduct"),
+                        ("product_type_id", "ProductType"), ("bom_id", "BOM")],
     # Sotuv/brak — qaysi mahsulot/ustaga
     "FinishedProductSale": [("finished_product_id", "FinishedProduct"),
                             ("master_id", "Master")],

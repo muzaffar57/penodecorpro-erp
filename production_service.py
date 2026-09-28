@@ -228,9 +228,15 @@ def mrp_detal_kerak(db: Session, order_item) -> dict:
     Yuk xati band TM dan olganda band ham, qolgan ham bir xil kamayadi — natija o'zgarmaydi,
     shuning uchun yetkazish bilan parallel boshlash yangi poyga tug'dirmaydi."""
     from models import FinishedProduct
-    band = float(db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
-        FinishedProduct.reserved_for_order_item_id == order_item.id
-    ).scalar() or 0.0)
+    # kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` S1): band — faqat detal korxonasining TM laridan. Ilgari
+    # begona (A) mahsuloti B detaliga band bo'lsa (K93-1 dan oldingi eski ma'lumot) B ning "kerak" miqdori 10 → 5
+    # bo'lardi — B kam ishlab chiqarardi (TENANT_FILTER=1 da ro'yxat 10, tekshiruv esa 5 — ikki xil javob).
+    _bq109 = db.query(func.coalesce(func.sum(FinishedProduct.reserved_quantity), 0.0)).filter(
+        FinishedProduct.reserved_for_order_item_id == order_item.id)
+    _cid109 = getattr(order_item, 'company_id', None)
+    if _cid109 is not None:
+        _bq109 = _bq109.filter(FinishedProduct.company_id == _cid109)
+    band = float(_bq109.scalar() or 0.0)
     ombordan = bool(getattr(order_item, 'finished_product_id', None))
     topshirilgan = float(order_item.delivered_qty or 0)
     qolgan = 0.0 if ombordan else float(order_item.remaining_qty or 0)

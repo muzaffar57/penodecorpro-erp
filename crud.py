@@ -4798,13 +4798,40 @@ def _auto_release_mrp_reservations(db: Session, order_item_ids, performed_by: st
     MUHIM: bu yerda commit QILINMAYDI — chaqiruvchi funksiya (delete_order/
     delete_order_item) o'zining umumiy tranzaksiyasi ichida keyinroq
     commit qiladi, shu bilan hammasi bitta atomik amal bo'lib qoladi.
+
+    kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` — SQLite, PG 16, PG + TENANT_FILTER=1): BEGONA korxonaning
+    tayyor mahsuloti shu detalga band bo'lsa (K93-1 dan oldingi eski ma'lumot) — B buyurtmasini o'chirish A bandini
+    5 → 0 qilar va A jurnaliga B foydalanuvchisi nomi bilan yozardi; TENANT_FILTER=1 da esa A mahsuloti so'rovga
+    ko'rinmay, bog'lam uzilmas va B o'z buyurtmasini / detalini o'chira olmasdi (PG FK — 500). Endi: detal
+    korxonasining O'Z TM lari — avvalgidek ozod + jurnal; BEGONA TM larda FAQAT FK bog'lami uziladi (bulk UPDATE —
+    filtrga bog'liq emas), band miqdori va egasining jurnali O'ZGARMAYDI (egasi «Tayyor mahsulotlar» da o'zi ozod qiladi).
     """
     from models import FinishedProduct
+    from sqlalchemy import or_ as _or109
     if not order_item_ids:
         return
-    fps = db.query(FinishedProduct).filter(
-        FinishedProduct.reserved_for_order_item_id.in_(order_item_ids)
-    ).all()
+    _idlar109 = sorted({int(i) for i in order_item_ids if i is not None})
+    if not _idlar109:
+        return
+    # detal egasi (korxona) — chaqiruvchi o'z korxonasi bo'yicha tekshirgan detallar
+    _guruh109 = {}
+    for _iid109, _cid109 in db.query(OrderItem.id, OrderItem.company_id).filter(OrderItem.id.in_(_idlar109)).all():
+        _guruh109.setdefault(_cid109, []).append(_iid109)
+    _topilmagan109 = [i for i in _idlar109 if not any(i in v for v in _guruh109.values())]
+    if _topilmagan109:
+        _guruh109.setdefault(None, []).extend(_topilmagan109)
+    fps = []
+    for _cid109, _oz109 in _guruh109.items():
+        _fq109 = db.query(FinishedProduct).filter(FinishedProduct.reserved_for_order_item_id.in_(_oz109))
+        if _cid109 is not None:
+            # BEGONA korxona TM lari — faqat FK bog'lami (miqdor / jurnal o'zgarmaydi)
+            db.query(FinishedProduct).filter(
+                FinishedProduct.reserved_for_order_item_id.in_(_oz109),
+                FinishedProduct.company_id != _cid109,
+            ).update({"reserved_for_order_item_id": None}, synchronize_session="evaluate")
+            _fq109 = _fq109.filter(_or109(FinishedProduct.company_id == _cid109,
+                                          FinishedProduct.company_id.is_(None)))
+        fps.extend(_fq109.order_by(FinishedProduct.id).all())
     for fp in fps:
         if fp.reserved_quantity:
             # kech41 (14-band): `log_activity` O'ZI `commit` qiladi — yuqoridagi
@@ -5743,10 +5770,6 @@ def get_return_items_for_main_page(db: Session, days: int = 90, show_all: bool =
         cutoff = datetime.utcnow() - timedelta(days=days)
         query = query.filter(ReturnItem.returned_at >= cutoff)
     return query.order_by(ReturnItem.returned_at.desc()).all()
-
-
-def get_return_item(db: Session, return_id: int) -> Optional[ReturnItem]:
-    return db.query(ReturnItem).filter(ReturnItem.id == return_id).first()
 
 
 def mark_refunded(db: Session, return_id: int, refunded_by: str = None,
@@ -7551,6 +7574,31 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
     if _fp_ids:
         db.query(FinishedProduct).filter(FinishedProduct.id.in_(_fp_ids)).update(
             {"reserved_for_order_item_id": None}, synchronize_session=False)
+    # kech109 (10b E-1, O'LCHANGAN `work/probe109e1.py` S7 — HAQIQIY PG): BOSHQA korxona yozuvi shu korxonaning
+    # detali / buyurtmasi / TM iga ishora qilsa (K93-1 dan oldingi eski ma'lumot: begona TM bandi, begona ishlab
+    # chiqarish buyurtmasi manbasi) — tozalash FK bilan 500 berib, butunlay orqaga qaytardi. Faqat FK bog'lami
+    # uziladi; begona yozuvning boshqa maydonlari (band miqdori, holati) O'ZGARMAYDI.
+    if company_id is not None:
+        from production_models import ProductionOrder as _PO109
+        _buy109 = [r[0] for r in db.query(Order.id).filter(Order.company_id == company_id).all()]
+        if _oi_ids:
+            db.query(FinishedProduct).filter(FinishedProduct.company_id != company_id,
+                                             FinishedProduct.reserved_for_order_item_id.in_(_oi_ids)).update(
+                {"reserved_for_order_item_id": None}, synchronize_session=False)
+            db.query(_PO109).filter(_PO109.company_id != company_id,
+                                    _PO109.source_order_item_id.in_(_oi_ids)).update(
+                {"source_order_item_id": None}, synchronize_session=False)
+        if _buy109:
+            db.query(_PO109).filter(_PO109.company_id != company_id,
+                                    _PO109.source_order_id.in_(_buy109)).update(
+                {"source_order_id": None}, synchronize_session=False)
+        if _fp_ids:
+            db.query(_PO109).filter(_PO109.company_id != company_id,
+                                    _PO109.finished_product_id.in_(_fp_ids)).update(
+                {"finished_product_id": None}, synchronize_session=False)
+            db.query(OrderItem).filter(OrderItem.company_id != company_id,
+                                       OrderItem.finished_product_id.in_(_fp_ids)).update(
+                {"finished_product_id": None}, synchronize_session=False)
     db.flush()
 
     tables_in_order = _reset_table_order()
@@ -7708,6 +7756,36 @@ def qoplama_retsepti_tekshir(db: Session, company_id, loy_kg, detallar, buyurtma
         f"Qoplama retsepti tanlanmagan: buyurtmada {_kg} kg loy rejalashtirilgan, lekin loy qaysi retseptdan "
         f"tayyorlanishi ko'rsatilmagan. «Retsept» maydonidan retseptni tanlang (korxonada retsept bo'lmasa — avval "
         f"«Retseptlar» bo'limida yarating). Hech narsa saqlanmadi")
+
+
+def _mrp_faol_boglamlar(db: Session, detallar) -> list:
+    """kech109 (K109-2): detallarga FAOL ishlab chiqarish bog'lami — shu korxonaning band tayyor mahsuloti
+    (`reserved_quantity` > 0) yoki qoralama / jarayondagi ishlab chiqarish buyurtmasi. Har detal uchun bitta
+    o'qiladigan qator (detal nomi, band miqdori, buyurtma raqamlari); bog'lam yo'q — bo'sh ro'yxat.
+    Begona korxona yozuvlari (K93-1 dan oldingi eski ma'lumot) hisobga olinmaydi — ularda faqat FK uziladi."""
+    from production_models import ProductionOrder as _PO109f
+    xatolar = []
+    for oi in (detallar or []):
+        _cid = getattr(oi, 'company_id', None)
+        _fq = db.query(FinishedProduct).filter(FinishedProduct.reserved_for_order_item_id == oi.id,
+                                               FinishedProduct.reserved_quantity > 0.0001)
+        _pq = db.query(_PO109f).filter(_PO109f.source_order_item_id == oi.id,
+                                       _PO109f.status.in_(("draft", "in_progress")))
+        if _cid is not None:
+            _fq = _fq.filter(FinishedProduct.company_id == _cid)
+            _pq = _pq.filter(_PO109f.company_id == _cid)
+        _band = round(sum(float(f.reserved_quantity or 0) for f in _fq.all()), 6)
+        _faol = _pq.order_by(_PO109f.id).all()
+        if _band <= 0.0001 and not _faol:
+            continue
+        _qism = []
+        if _band > 0.0001:
+            _qism.append(f"{_miqdor_matn(_band)} {oi.delivery_unit} tayyor mahsulot band")
+        if _faol:
+            _qism.append("ishlab chiqarish buyurtmasi " + ", ".join(
+                f"#{p.id} ({'qoralama' if p.status == 'draft' else 'jarayonda'})" for p in _faol))
+        xatolar.append(f"«{oi.name}» — " + "; ".join(_qism))
+    return xatolar
 
 
 def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: bool = False, performed_by: str = None,
@@ -7938,6 +8016,23 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             "shortages": delivery_errors
         }
 
+    # kech109 (K109-2, O'LCHANGAN `work/probe109e1.py` S8 — HAQIQIY PG 16; SQLite FK ni tekshirmaydi): tahrirda
+    # olib tashlangan (yoki NOMI o'zgargan — moslash nom + tur bo'yicha, eski detal o'chadi) MRP detaliga ishlab
+    # chiqarish bog'langan bo'lsa (band tayyor mahsulot, qoralama yoki yakunlangan ishlab chiqarish buyurtmasi) —
+    # PG da 500 "Serverda kutilmagan xato" (FK), SQLite da jim: band va manba YO'Q detalga ishora qilib qolardi.
+    # Endi: FAOL bog'lam (band TM yoki qoralama / jarayondagi buyurtma) — 400, aniq sabab, hech narsa o'zgarmaydi
+    # (nomi o'zgarganda band jimgina bo'shab, mahsulot ikkinchi marta ishlab chiqarilmasin); faol bo'lmagan (tarixiy)
+    # bog'lam — pastda `delete_order_item` naqshi bilan uziladi.
+    _mrp_xato109 = _mrp_faol_boglamlar(db, [oi for oi in old_items if matched.get(oi.id) is None])
+    if _mrp_xato109:
+        return {
+            "success": False,
+            "message": ("Ishlab chiqarishga bog'langan detalni tahrirda olib tashlab (yoki nomini o'zgartirib) "
+                        "bo'lmaydi. Nomi avvalgidek qolsin; detal kerak bo'lmasa — avval «Tayyor mahsulotlar» da "
+                        "bandni bo'shating yoki «Ishlab chiqarish» da buyurtmani bekor qiling."),
+            "shortages": _mrp_xato109
+        }
+
     # 4) Detallarni yangilaymiz — topshirilganlarini SAQLAB
     _jamilar = []
     keep_ids = set()
@@ -7952,6 +8047,12 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             if _tm56_eski[0]:
                 _tm56.append({"detal": None, "eski_tm": _tm56_eski[0], "eski_miqdor": _tm56_eski[1],
                               "eski_birlik": _tm56_eski[2], "yangi_tm": None, "yangi_miqdor": 0.0})
+            # kech109 (K109-2): faol bog'lam yuqorida rad etilgan; qolgan (tarixiy) MRP bog'lamlari — FK uziladi
+            # (`delete_order_item` naqshi): band 0 TM ko'rsatgichi, yakunlangan / bekor qilingan buyurtma manbasi.
+            _auto_release_mrp_reservations(db, [oi.id], performed_by)
+            from production_models import ProductionOrder as _PO109t
+            db.query(_PO109t).filter(_PO109t.source_order_item_id == oi.id).update(
+                {"source_order_item_id": None}, synchronize_session=False)
             db.delete(oi)
             continue
 
@@ -11511,7 +11612,7 @@ def delete_employee_advance(db: Session, advance_id: int) -> bool:
     return True
 
 
-def get_employee_compensation_for_month(db: Session, employee_id: int, year: int, month: int):
+def get_employee_compensation_for_month(db: Session, employee_id: int, year: int, month: int, *, company_id: int):
     """Berilgan (year, month) uchun hodimning O'SHA PAYTDA amal qilgan
     to'lov parametrlarini qaytaradi (joriy/hozirgi qiymat emas!).
 
@@ -11519,18 +11620,28 @@ def get_employee_compensation_for_month(db: Session, employee_id: int, year: int
     ENG SO'NGGI (eng yaqin o'tmishdagi) yozuv olinadi. Agar hech qanday
     tarix yozuvi topilmasa (masalan, migratsiyadan oldin backfill
     qilinmagan eski ma'lumot) — xavfsiz variant sifatida hodimning
-    joriy (Employee jadvalidagi) qiymatlariga qaytiladi."""
+    joriy (Employee jadvalidagi) qiymatlariga qaytiladi.
+
+    kech109 (10b E-2): `company_id` MAJBURIY (kalit so'z bilan; berilmasa — TypeError, None — ValueError). Ilgari
+    korxona parametri ham, tekshiruvi ham yo'q edi — dasturda chaqirilmaydi (faqat testlar), lekin kelajakdagi
+    marshrut uni `auth.employee_of_company` siz chaqirsa, begona korxona hodimining to'lov tarixi qaytardi.
+    Endi tarix ham, zaxira (joriy qiymat) ham FAQAT shu korxona hodimidan; begona hodim — None."""
     from models import EmployeeCompensationHistory
 
-    rows = db.query(EmployeeCompensationHistory).filter(
-        EmployeeCompensationHistory.employee_id == employee_id
+    if company_id is None:
+        raise ValueError("company_id majburiy — hodim to'lov tarixi faqat o'z korxonasidan o'qiladi")
+    rows = db.query(EmployeeCompensationHistory).join(
+        Employee, Employee.id == EmployeeCompensationHistory.employee_id
+    ).filter(
+        EmployeeCompensationHistory.employee_id == employee_id,
+        Employee.company_id == company_id,
     ).all()
     tanlangan = _kompensatsiya_tanla(rows, year, month)
     if tanlangan is not None:
         return tanlangan
 
-    # Zaxira variant — tarix yo'q bo'lsa, joriy qiymatdan foydalanish
-    emp = get_employee(db, employee_id)
+    # Zaxira variant — tarix yo'q bo'lsa, joriy qiymatdan foydalanish (faqat shu korxona hodimi)
+    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.company_id == company_id).first()
     if not emp:
         return None
     return _kompensatsiya_joriy(emp)

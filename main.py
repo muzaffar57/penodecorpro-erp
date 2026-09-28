@@ -426,6 +426,15 @@ def _send_delivery_pdf_to_customer(db, delivery_id: int):
             pass
 
 
+# kech109 (K108-1, O'LCHANGAN kech108 — `main` zaxirasining lokal nusxasi): SaaS to'lqinlarisiz (eski, bitta
+# korxonali) bazada bu kod importda yiqilardi va undan oldin bir nechta migratsiya QISMAN bajarilardi. Endi eski baza
+# `init_database()` dan OLDIN aniqlanadi va `saas_migration` to'lqinlari (W1–W6, W2B, W3B, M1KOD) SINOV → HAQIQIY
+# tartibida bajariladi (`saas_otish.py`). Yangi / staging baza — hech narsa qilinmaydi. Xato — ilova ATAYLAB ishga
+# tushmaydi (RuntimeError, Railway logida qadam va sabab).
+import saas_otish as _saas_otish          # noqa: E402
+from database import engine as _otish_motori  # noqa: E402
+_saas_otish.startup_otish(_otish_motori)
+
 init_database()
 
 
@@ -443,6 +452,14 @@ def _seed_default_company():
                 _db.add(_Company(id=1, name="PenodecorPro", allow_negative_stock=False))
                 _db.commit()
                 print("✅ Production moduli uchun asosiy Company (id=1) yaratildi")
+            # kech109 (K109-3, O'LCHANGAN `work/probe109k.py` — HAQIQIY PG 16): id=1 ANIQ yozilgani uchun
+            # `companies` id ketma-ketligi surilmasdi — platformadan BIRINCHI "korxona qo'shish" 400 (takroriy
+            # kalit companies_pkey, id=1), ikkinchisi o'tardi. Har ishga tushishda ketma-ketlik MAX(id) ga.
+            if _db.bind is not None and _db.bind.dialect.name == "postgresql":
+                from sqlalchemy import text as _t109
+                _db.execute(_t109("SELECT setval(pg_get_serial_sequence('companies', 'id'), "
+                                  "(SELECT MAX(id) FROM companies), true)"))
+                _db.commit()
         finally:
             _db.close()
     except Exception as e:
