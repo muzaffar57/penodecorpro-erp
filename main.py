@@ -2444,7 +2444,12 @@ try:
 except Exception as e:
     print(f"⚠ Loyiha to'langan summasi sinxronlanmadi: {e}")
 
-app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False)
+# kech104 (K104-2): FastAPI ning o'rnatilgan API hujjatlari (/openapi.json, /docs, /redoc) login-siz
+# ochiq edi — butun API sxemasi (barcha marshrutlar, /api/system/* va /api/platform/* ham) har kimga ko'rinardi.
+# Ilova ularni ishlatmaydi (shablon / test havolasi yo'q) — o'chirildi. Marshrutlar xaritasi:
+# LOYIHA_PASPORTI.md (tools/pasport_xarita.py).
+app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False,
+              docs_url=None, redoc_url=None, openapi_url=None)
 
 # 2026-09-16: yangi, dinamik Production/MRP moduli — /api/production/... yo'llari
 app.include_router(production_router)
@@ -6688,6 +6693,53 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
         )
     }
 
+
+@app.post("/api/system/telegram-delete-webhook")
+def api_telegram_delete_webhook(current_user=Depends(auth.platform_admin_only)):
+    """FAVQULODDA TUZATISH — "Foydalanuvchilar" sahifasidagi qizil tugma (`deleteTelegramWebhook`).
+
+    Nima qiladi: TELEGRAM_BOT_TOKEN botining webhookini Telegram tomonida BUTUNLAY o'chiradi
+    (`deleteWebhook`, kutib turgan xabarlar saqlanadi — `drop_pending_updates=false`). Bitta bot
+    bir vaqtda faqat BITTASINI ishlata oladi: webhook YOKI polling. Agar token aslida boshqa,
+    alohida serverda "polling" rejimida ishlaydigan botga tegishli bo'lsa, yuqoridagi
+    "Telegram xavfsizligini yoqish" tugmasi (`telegram-setup-webhook-security`) uni noto'g'ri
+    webhook rejimiga o'tkazib, to'xtatib qo'yishi mumkin — shu marshrut botni asl holatiga qaytaradi.
+
+    kech104 (K104-1): marshrut 2026-09-01 dagi tozalashda (`abb2044`) olib tashlangan, tugma va
+    uning ogohlantirishi esa sahifada qolgan edi — platforma admini bosganda 404 "Not Found".
+    Qayta tiklandi. Qorovul qo'shni `telegram-setup-webhook-security` bilan bir xil —
+    FAQAT platforma admini (korxona admini global botga tegolmaydi)."""
+    import urllib.request as _ur
+    import json as _json_mod
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
+
+    try:
+        del_url = f"https://api.telegram.org/bot{token}/deleteWebhook?drop_pending_updates=false"
+        req = _ur.Request(del_url, method="POST")
+        with _ur.urlopen(req, timeout=10) as r:
+            tg_response = _json_mod.loads(r.read())
+    except _ur.HTTPError as e:
+        # Telegram xato sababini JSON ichida qaytaradi — qo'shni marshrutdagi kabi o'qib ko'rsatamiz.
+        try:
+            err_body = _json_mod.loads(e.read().decode())
+            err_detail = err_body.get("description", str(e))
+        except Exception:
+            err_detail = str(e)
+        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {err_detail}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Telegram bilan bog'lanishda xato: {e}")
+
+    if not tg_response.get("ok"):
+        raise HTTPException(status_code=400, detail=f"Telegram rad etdi: {tg_response.get('description')}")
+
+    return {
+        "status": "ok",
+        "message": ("✅ Webhook o'chirildi. Bot endi o'zining asl \"polling\" rejimiga qaytishi kerak "
+                    "(agar u shu rejimda ishlagan bo'lsa)."),
+    }
 
 @app.post("/api/system/backup/send-now")
 def api_backup_send_now(current_user=Depends(auth.platform_admin_only)):
