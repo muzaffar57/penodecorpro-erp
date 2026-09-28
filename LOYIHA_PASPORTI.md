@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -150,6 +150,11 @@ tayyor mahsulot birligi — `crud._fp_stable_unit_cost`, detal `fp_unit_cost`). 
 **Turkumlar.** Doimiy (kodda): `profil`, `panel`, `dona`. Ixtiyoriy: `loy_sotish`; eskirgan: `blok` (faqat
 yoqilsa). `gips`, `termopanel` koddan olib tashlangan — kerak bo'lsa korxona MRP da o'z mahsulot turini
 yaratadi (`mrp_product`). Korxona sozlamasi — `main.enabled_categories_of`.
+Ombor (xomashyo) turkumlari: `Penoplast`, `Kimyoviy qo'shimchalar`, `Qattiq qotishmalar` (Minerallar), `Boshqa` —
+Ta'minotchilar va Kirim sahifalarida bir xil ro'yxat; turkum berilmasa nomidan — `crud.guess_category`. Penoplast
+(plotnost) — `is_penoplast` BELGISI, nom emas: ro'yxat `services.get_penoplast_list`, asosiy —
+`services.get_default_penoplast` (nom bo'yicha faqat belgisi NULL eski qatorlar); turkum aniq "Penoplast", belgi
+yuborilmagan bo'lsa — `crud.add_item` penoplast qiladi (kech105, K105-3).
 
 **MRP.** Ishlab chiqarish buyurtmasi retsept suratini boshlashda oladi (`production_service.start_production_order`),
 yakunlashda xomashyoni yechadi va yetmasa rad etadi (`production_service.complete_production_order`,
@@ -159,7 +164,9 @@ yakunlashda xomashyoni yechadi va yetmasa rad etadi (`production_service.complet
 ketma-ket yuradi — 9-bo'lim ISHGA_TUSHISH. Har biri IDEMPOTENT, o'z `try/except` va `conn.rollback()` bilan
 (bitta xato keyingilarini o'ldirmasin), `from sqlalchemy import text` funksiya ICHIDA (modul darajasida yo'q).
 Xom SQL da enum qiymatlari NOMI bilan: `'READY'` (`'ready'` emas). Migratsiya muvaffaqiyati Railway deploy
-logidan tekshiriladi. Sxemani tiklash — faqat zaxiradan.
+logidan tekshiriladi. Sxemani tiklash — faqat zaxiradan. Ma'lumot to'ldiruvchi (UPDATE) migratsiya foydalanuvchi
+qiymatini HAR ishga tushishda qayta yozmasin: bir martalik to'ldirish — faqat ustun SHU ishga tushishda yangi
+qo'shilganda (kech105: `'Boshqa'` → `'Bazalt'` olib tashlandi; nomdan `is_penoplast` va asosiy plotnost — bir marta).
 
 **Xavfsizlik.** Shablonlarda foydalanuvchi matni `escapeHtml` bilan; `onclick` ga qiymat `data-*` atribut orqali
 (`|tojson` emas). `/api/` da 401 — JSON, sahifalarda — `/login` ga yo'naltirish. Platforma amallari
@@ -197,7 +204,7 @@ python3 -m pyflakes crud.py main.py schemas.py services.py
 Har test oxirida `NATIJA: o'tdi = N yiqildi = M jami = K`; talab — `yiqildi = 0` va chiqish kodi 0. PG testlarini
 parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayllarni tahrirlamang.
 
-**Kutilgan natija (kech104 o'lchovi, 2026-09-28, zip 98 fayllari bilan):** `bash tools/hammasi.sh` — 120 test fayli (Python va JS), jami **11 500** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **11 501** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 72 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 108); pyflakes — `crud.py` 63, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
+**Kutilgan natija (kech105 o'lchovi, 2026-09-28, zip 99 fayllari bilan):** `bash tools/hammasi.sh` — 122 test fayli (Python va JS), jami **11 580** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **11 581** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 73 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 108); pyflakes — `crud.py` 63, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
 
 **Darvozalar (o'zgartirishdan keyin yiqilsa — sababini toping, testni "moslab" yashirmang):**
 
@@ -226,6 +233,8 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   `tools/test_hisobot_kesh.py`, `tools/test_kesh_oquvchi.py`.
 - HTML in'ektsiya: `tools/test_html_escape.py` (statik), `tools/test_html_escape_dom.py` (dinamik).
 - Shu pasport va shablon → marshrut havolalari: `tools/test_pasport.py`.
+- Ombor turkumi va penoplast belgisi (qayta ishga tushishda o'zgarmasligi, yangi material): `tools/test_ombor_turkum.py`,
+  `tools/test_ombor_turkum_ui.js`.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -240,6 +249,9 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - (2026-09-20) `main` ga bosqichma-bosqich emas — hammasi `staging` da tugab, BIR marta ehtiyotkor ko'chirish;
   keyin sotuv. Istisno: `main` ga bugun zarar berayotgan narsa alohida kichik reliz bo'lishi mumkin.
 - (kech91) "Hammasini staging da" — mayda UX, o'lik kod, tezlik kuzatuvlari ham `main` dan OLDIN.
+- (kech105, K105-1) `main` shoxidagi 2026-09-24 xato yuklash oqibati (`main.py` 15-sentabr nusxasi: sovg'a davriga
+  usta qo'shish «+ Qo'shish» va zaxiradan tiklash marshrutlari yo'q) — "Yo'q, katta ko'chirishda tuzalsin": hozir
+  `main` ga tegilmaydi, bir martalik ko'chirishda tuzaladi.
 - (2026-09-20) Rus tilida so'zlashuvchi mijozlarga ham sotiladi — interfeys tarjimasi (i18n) kerak; (kech104) u `main` ga
   ko'chirishdan KEYIN, rus tilidagi mijozga sotishdan OLDIN qilinadi.
 
@@ -309,6 +321,13 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   keyin `saas_migration.py` bosqichlari (W1–W6, `company_id`) `main` bazasida dry-run va haqiqiy, so'ng kod.
   Ko'chirishda: `TENANT_FILTER=1`, korxona nomi, `enabled_categories`, `projects.total_paid` sinxron
   migratsiyasi (farqli loyihalarni oldin ko'rsatish). To'liq ro'yxat — oxirgi TOPSHIRIQ hujjatining 6-bo'limi.
+  (kech105, K105-1) `main` da hozir `main.py` ning 2026-09-15 nusxasi ishlaydi (24.09 da zip 51 ning `main.py` si
+  adashib `main` ga yuklangan, 1,5 daqiqadan keyin eski nusxa bilan almashtirilgan): ko'chirishgacha KPI → Sovg'a
+  davri → «+ Qo'shish» 404; ma'lumotga zarar YO'Q (lokal PG simulyatsiyasi — `pg_dump` oldin = keyin).
+  (kech105, K105-2 / K105-3) `main` o'lchovlariga (zaxira JSON): `is_penoplast` = true, lekin turkumi `Penoplast`
+  emas materiallar (eski kod nomdan majburan belgilagan — masalan "… penoplast kleyi"); `is_penoplast` NULL soni;
+  `Boshqa` / `Bazalt` turkumli materiallar; `produced_quantity` NULL li READY tayyor mahsulotlar (staging kodi
+  ko'chirishda ularni birinchi marta to'ldiradi — hodim haqiga ta'sir).
 - **`staging` da ✅ belgisiz qolgan eski bandlar (oxirgi TOPSHIRIQ, 5-bo'lim) — `main` dan OLDIN ko'rib chiqiladi:** 9 va 50 —
   hisobotlarning kun / oy chegarasi UTC bo'yicha (Toshkent vaqti bilan kun 05:00 da almashadi: oyning 1-kuni 00:00–05:00 dagi
   amal oldingi oyga tushadi; kech96 da "dizayn" deb qoldirilgan); 10 — kech23 qoldiqlari (loyiha tahririda muddat, hodim
@@ -339,6 +358,11 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   klon + MD5.
 - Shablondagi tugma o'chirilgan marshrutni chaqirib qolgan (K104-1, 404) — `tools/test_pasport.py` B bo'limi
   endi har `/api/` havolasini tekshiradi.
+- «Bir martalik» deb yozilgan ishga tushish UPDATE si shartsiz bo'lsa — HAR deployda ishlaydi va foydalanuvchi
+  tanlovini jimgina qayta yozadi (K105-2 `'Boshqa'` → `'Bazalt'`, K105-3 nomdan penoplast belgisi; K42-1
+  `agreed_amount = 0` — xuddi shu sinf). Tekshiruv: material yaratib, serverni QAYTA ishga tushirib solishtirish.
+- GitHub'da yuklashdan OLDIN shox (branch) nomini tekshiring: 2026-09-24 da zip 51 ning `main.py` si `main` ga
+  tushgan, keyin `main` ga eski (15-sentabr) nusxa yuklangan (K105-1) — `main` tarixini ham `git log` bilan kuzating.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -1058,6 +1082,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_ochirish_loy.py` · PG — kech77 darvozasi (2026-09-25, 95-band + K77-1): qisman chiqqan buyurtmani o'chirishda "Haqiqatda qancha loy ISHLATILGAN edi?" so'rovi va o'chirish <-> tiklash LOY simmetriyasi.
 - `test_ochirish_yopish.py` · PG — kech100 darvozasi (2026-09-27, 93-band, FOYDALANUVCHI QARORI "B").
 - `test_ombor_kpi_loy.py` · PG — K35-1 darvozasi (kech36, 2026-09-23).
+- `test_ombor_turkum.py` · PG — kech105 darvozasi: K105-2 (ombor turkumi "Boshqa" har deployda "Bazalt" ga aylanardi) va K105-3 (penoplast belgisi material NOMIDAN har deployda qo'yilardi; Ta'minotchilar sahi…
 - `test_ortiqcha_qaytarish.py` · PG — 5-bo'lim 57-band darvozasi (kech60, 2026-09-24): ORTIQCHA mahsulot omborga.
 - `test_pasport.py` · PG — `LOYIHA_PASPORTI.md` (16-band) izchilligi va shablon → marshrut havolalari darvozasi (kech104, 2026-09-28).
 - `test_peno_tenant.py` — "asosiy penoplast" bo'yicha korxonalararo darvoza va `models._tenant_guard` ning filtr ostida ishlashi.
@@ -1110,6 +1135,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_narx_frontend.js` · JS — BRAUZERDAGI narx formulalarining etaloni.
 - `test_narx_kiritish_ui.js` · JS — 118-band (kech94): pul / son kiritishning YAGONA qoidasi 9 sahifada (debts, finance, finished, hodim_panel, inventory, kpi, orders, supplier_receive, suppliers).
 - `test_ombor_chiqim.js` · JS — Ombor sahifasidagi "Chiqim" oynasi (`saveChiqim`).
+- `test_ombor_turkum_ui.js` · JS — kech105 (K105-2 / K105-3) UI darvozasi.
 - `test_qaytarish_ochirish_ui.js` · JS — kech40 (2026-09-23), 5-bo'lim 22-band + K40-1: qaytarishni o'chirish va qaytgan tayyor mahsulotni o'chirish UI si.
 - `test_standart_tiyin_ui.js` · JS — kech96 (2026-09-27), 125-band + K96-1 (brauzer qismi).
 - `test_tahrir_tiyin_ui.js` · JS — kech95 (2026-09-27), 124-band + 117-band (brauzer qismi).
@@ -1120,5 +1146,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yetkazish_ui.js` · JS — 17g (2026-09-22): yetkazish va brak yozish UI si.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 
-Jami test fayllari: 120 (Python 103, JS 17).
+Jami test fayllari: 122 (Python 104, JS 18).
 <!-- AVTO:TESTLAR OXIRI -->

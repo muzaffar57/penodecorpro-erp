@@ -4169,15 +4169,19 @@ def get_penoplast_list(db: Session, company_id: int = None):
     (nomi, qoldig'i, narxi) ko'rardi. Korxona noma'lum bo'lsa — bo'sh
     ro'yxat (begona ro'yxatdan xavfsizroq)."""
     from models import Inventory
-    from sqlalchemy import or_
+    from sqlalchemy import or_, and_
     if company_id is None:
         return []
     try:
+        # kech105 (K105-3, O'LCHANGAN — work/probe105.py): nom bo'yicha FAQAT belgisi NOMA'LUM (NULL) eski
+        # qatorlar. Ilgari nomida "penoplast" bo'lgan HAR material (masalan ataylab `is_penoplast=false`
+        # yaratilgan "Penoplast kleyi" — Kimyoviy qo'shimcha) buyurtma / tayyor mahsulot oynasidagi plotnost
+        # tanlovida chiqardi. ANIQ "penoplast emas" (false) material — hech qachon plotnost emas.
         items = db.query(Inventory).filter(
             Inventory.company_id == company_id,
             or_(
                 Inventory.is_penoplast == True,
-                Inventory.item_name.ilike("%penoplast%")
+                and_(Inventory.is_penoplast.is_(None), Inventory.item_name.ilike("%penoplast%"))
             ),
             Inventory.is_deleted.isnot(True)
         ).order_by(Inventory.item_name).all()
@@ -4223,9 +4227,12 @@ def get_default_penoplast(db: Session, company_id: int = None):
         Inventory.is_penoplast == True, Inventory.is_deleted.isnot(True))).order_by(Inventory.id).first()
     if p:
         return p
+    # kech105 (K105-3): nom bo'yicha zaxira FAQAT belgisi NOMA'LUM (NULL) eski qatorlar — ANIQ
+    # `is_penoplast = false` material ("Penoplast kleyi") asosiy plotnost bo'lmaydi; tartib barqaror (id).
     return _scoped(db.query(Inventory).filter(
+        Inventory.is_penoplast.is_(None),
         Inventory.item_name.ilike("%penoplast%"), Inventory.is_deleted.isnot(True)
-    )).first()
+    )).order_by(Inventory.id).first()
 
 
 def _sub_detail_field(sub, name, default=None):

@@ -196,6 +196,13 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
     # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
     _clean_create("Inventory", item_data.model_dump(exclude_unset=True))
     is_peno = getattr(item_data, 'is_penoplast', False)
+    # kech105 (K105-3, O'LCHANGAN — work/probe105.py): turkum ANIQ "Penoplast", `is_penoplast` esa umuman
+    # YUBORILMAGAN bo'lsa (Ta'minotchilar sahifasi shunday yuborardi) — bu penoplast (plotnost). Ilgari
+    # oddiy material bo'lib qolardi: buyurtma plotnost tanlovida yo'q, blok hajmi so'ralmasdi. ANIQ
+    # yuborilgan `is_penoplast` (true / false) — o'zgarishsiz.
+    if (not is_peno and str(getattr(item_data, 'category', None) or '').strip() == 'Penoplast'
+            and 'is_penoplast' not in getattr(item_data, 'model_fields_set', set())):
+        is_peno = True
     is_default = getattr(item_data, 'is_default_penoplast', False)
 
     # MUHIM: agar shu nomdagi xomashyo avval o'chirilgan bo'lsa (lekin xarid

@@ -605,6 +605,14 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE inventory ADD COLUMN is_penoplast BOOLEAN DEFAULT FALSE")
         if 'is_default_penoplast' not in inv_cols:
             migrations.append("ALTER TABLE inventory ADD COLUMN is_default_penoplast BOOLEAN DEFAULT FALSE")
+        # kech105 (K105-3, O'LCHANGAN — work/probe105.py, SQLite = PG): pastdagi "ism bo'yicha penoplast
+        # belgisi" va "asosiy plotnost" to'ldirishlari FAQAT eski bazaga shu ustunlar YANGI qo'shilayotgan
+        # ishga tushishda (bir marta) bajariladi. Ilgari ular HAR deployda yurib, foydalanuvchi ataylab
+        # penoplast EMAS deb yaratgan "… penoplast …" nomli materialni (masalan "Penoplast kleyi" —
+        # Kimyoviy qo'shimcha) penoplastga aylantirardi, korxonada plotnost bo'lmasa — hatto ASOSIY
+        # plotnost qilib qo'yardi.
+        _penoplast_ustuni_yangi = 'is_penoplast' not in inv_cols
+        _asosiy_ustuni_yangi = 'is_default_penoplast' not in inv_cols
 
         # OrderItem — plotnost ustunlari
         oi_cols = [c['name'] for c in inspector.get_columns('order_items')]
@@ -698,10 +706,15 @@ def _migrate_payment_columns():
             if 'bonus_reason' not in ema_cols:
                 migrations.append("ALTER TABLE employee_monthly_adjustments ADD COLUMN bonus_reason TEXT")
 
-        # Bir martalik: "Boshqa" kategoriyasidagi mavjud materiallarni
-        # "Bazalt"ga o'tkazamiz (chunki bu bo'lim aslida faqat Bazalt bilan
-        # bog'liq materiallar uchun ishlatilgan edi — aniqroq nom).
-        migrations.append("UPDATE inventory SET category = 'Bazalt' WHERE category = 'Boshqa'")
+        # kech105 (K105-2, O'LCHANGAN — work/probe105.py, SQLite = PG; jonli sinovda 3 material): bu yerda
+        # "bir martalik" deb `UPDATE inventory SET category = 'Bazalt' WHERE category = 'Boshqa'` turardi,
+        # lekin u HAR ishga tushishda (har deployda) bajarilardi: nomidan turkum topilmagan
+        # (`crud.guess_category` → 'Boshqa'), Ta'minotchilar sahifasida "Boshqa" tanlangan yoki Omborxonada
+        # qo'lda "Boshqa" qilingan HAR material keyingi deployda jimgina "Bazalt" bo'lib qolardi
+        # ("Podveska", "Qorishma (travertin)", "Tayyor loy (Oq marmar)"), kirim yozuvida esa "Boshqa"
+        # qolardi. Bazalt yo'nalishi koddan olib tashlangan (QAROR 2026-09-20); `main` bazasida bu UPDATE
+        # hech qachon muvaffaqiyatli bajarilmagan (oldidagi 'ready' enum xatosi tranzaksiyani buzardi) —
+        # BUTUNLAY olib tashlandi.
 
         # return_items — endi ikkita manbadan brak yozish mumkin: buyurtmadan
         # (order_id) YOKI tayyor mahsulot ishlab chiqarishdan (finished_product_id).
@@ -958,13 +971,16 @@ def _migrate_payment_columns():
                 except Exception:
                     pass
 
-            # Mavjud "Penoplast" nomli pozitsiyalarni belgilaymiz
+            # Mavjud "Penoplast" nomli pozitsiyalarni belgilaymiz — kech105 (K105-3): FAQAT `is_penoplast`
+            # ustuni shu ishga tushishda YANGI qo'shilganda (eski baza, bir marta). Keyin belgini
+            # foydalanuvchi qo'yadi (Ta'minotchilar / Kirim sahifasi, "Penoplast" turkumi).
             try:
-                conn.execute(text(
-                    "UPDATE inventory SET is_penoplast = TRUE "
-                    "WHERE LOWER(item_name) LIKE '%penoplast%' AND is_penoplast = FALSE"
-                ))
-                conn.commit()
+                if _penoplast_ustuni_yangi:
+                    conn.execute(text(
+                        "UPDATE inventory SET is_penoplast = TRUE "
+                        "WHERE LOWER(item_name) LIKE '%penoplast%' AND is_penoplast = FALSE"
+                    ))
+                    conn.commit()
             except Exception as e:
                 # 2026-09-19: xatodan keyin ulanishni tozalaymiz — aks holda
                 # PostgreSQL tranzaksiyani "aborted" holatiga o'tkazadi va shu
@@ -981,11 +997,14 @@ def _migrate_payment_columns():
                 except Exception:
                     pass
 
-            # Agar asosiy plotnost yo'q bo'lsa — birinchisini asosiy qilamiz
+            # Agar asosiy plotnost yo'q bo'lsa — birinchisini asosiy qilamiz. kech105 (K105-3): FAQAT
+            # `is_default_penoplast` ustuni shu ishga tushishda YANGI qo'shilganda (eski baza, bir marta).
+            # Keyin korxonada asosiy plotnost bo'lmasa `services.get_default_penoplast` shu korxonaning eng
+            # kichik id li penoplastini oladi (bazaga yozmasdan, korxona bo'yicha).
             try:
                 r = conn.execute(text(
                     "SELECT COUNT(*) FROM inventory WHERE is_default_penoplast = TRUE"
-                )).scalar()
+                )).scalar() if _asosiy_ustuni_yangi else 1
                 if not r:
                     conn.execute(text(
                         "UPDATE inventory SET is_default_penoplast = TRUE "
