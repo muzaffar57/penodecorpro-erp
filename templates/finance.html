@@ -890,7 +890,11 @@ function buildExpDetail(d){
       .map(k => ({n:escapeHtml(QX_NOMI[k] || k), v:qx[k]||0})),
   ].filter(r=>r.v>0);
   const el=document.getElementById('expDetail');
-  if(!rows.length && !(d.usta_kpi_breakdown&&d.usta_kpi_breakdown.length) && !(d.hodimlar_moslashuvchan_breakdown&&d.hodimlar_moslashuvchan_breakdown.length) && !((d.qaytarish_soni||0) > 0)){
+  // kech107 (49-band yonida, O'LCHANGAN — tools/test_brak_bitta_raqam_ui.js): faqat brak / tayyor mahsulot yo'qotishi /
+  // transport / ishlab chiqarish / ehson (yoki faqat daromad) bo'lgan oyda ham "Xarajat kiritilmagan" chiqib, pastdagi
+  // qatorlar, jami xarajat va sof foyda bloki YASHIRINARDI. Endi bo'sh holat — faqat HECH qanday xarajat va daromad bo'lmasa.
+  const hisobotSummasi = Math.abs(d.jami_xarajat||0) + Math.abs(d.ishlab_chiqarish_xarajat||0) + Math.abs(d.daromad||0);
+  if(!rows.length && !(d.usta_kpi_breakdown&&d.usta_kpi_breakdown.length) && !(d.hodimlar_moslashuvchan_breakdown&&d.hodimlar_moslashuvchan_breakdown.length) && !((d.qaytarish_soni||0) > 0) && !(hisobotSummasi > 0)){
     el.innerHTML='<div class="fin-empty" style="padding:24px"><span style="font-size:13px">Xarajat kiritilmagan</span></div>';
     document.getElementById('profitBlock').style.display='none';
     return;
@@ -997,6 +1001,13 @@ function buildExpDetail(d){
     tailHtml += `<div class="fin-exp-row">
         <span class="fin-exp-name" style="color:#EF4444">🗑️ Brak (yaroqsiz xomashyo)</span>
         <span class="fin-exp-val" style="color:#EF4444">${fmtFull(d.brak_xarajat||0)} so'm</span>
+      </div>`;
+  }
+  // kech107 (49-band, "Bitta raqam"): omborda tayyor turgan mahsulot yo'qotishi — Brakdan ALOHIDA qator (jami xarajat ichida)
+  if ((d.fp_loss_xarajat||0) > 0) {
+    tailHtml += `<div class="fin-exp-row">
+        <span class="fin-exp-name" style="color:#B45309">📦 Tayyor mahsulot yo'qotishi (omborda)</span>
+        <span class="fin-exp-val" style="color:#B45309">${fmtFull(d.fp_loss_xarajat||0)} so'm</span>
       </div>`;
   }
   // kech87 (104-band): korxona to'lagan transport — sof foydadan ayriladi (jami xarajat ichida)

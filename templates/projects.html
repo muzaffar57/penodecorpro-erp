@@ -286,6 +286,8 @@
         </select>
       </div>
     </div>
+    <!-- kech107 (10a): muddatni tahrirda ham qo'shish / o'zgartirish / olib tashlash (bo'sh — muddatsiz) -->
+    <div class="form-group" style="margin-top:12px"><label>Muddati</label><input type="date" id="e-deadline"></div>
     <div class="form-group"><label>Izoh</label><input type="text" id="e-notes"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-dark w-full" id="proj-edit-save-btn" onclick="saveEditProject()">Saqlash</button>
@@ -740,6 +742,8 @@ function openEditModal() {
   document.getElementById('e-address').value = d.address === '—' ? '' : d.address;
   document.getElementById('e-budget').value = d.budget;
   document.getElementById('e-status').value = d.status;
+  // kech107 (10a): muddat — Toshkent sanasi (<input type="date">), yo'q bo'lsa bo'sh.
+  document.getElementById('e-deadline').value = d.deadlineRaw ? tkISO(d.deadlineRaw) : '';
   // MUHIM (2026-08-26): avval "Mijoz Telegram ID" maydoni bu formada
   // UMUMAN yo'q edi — shuning uchun eski (allaqachon yaratilgan)
   // loyihalarga uni qo'shish yoki tekshirish IMKONSIZ edi. Endi, agar
@@ -770,6 +774,8 @@ async function saveEditProject() {
     client_address: document.getElementById('e-address').value.trim() || null,
     total_budget: parseFloat(document.getElementById('e-budget').value) || 0,
     status: document.getElementById('e-status').value,
+    // kech107 (10a): bo'sh maydon — muddat olib tashlanadi (server `null` ni tozalaydi).
+    deadline: document.getElementById('e-deadline').value || null,
     // 16-band: yaratish formasi bilan BIR XIL — loyihaIzohYasa():
     // "tg_id=ID, izoh" (izoh endi saqlanadi).
     notes: izohNatija.notes

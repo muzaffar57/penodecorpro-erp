@@ -266,6 +266,11 @@
       <button onclick="closePhDrawer()" style="width:30px;height:30px;border-radius:50%;background:var(--border2);border:none;font-size:15px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
     <div class="mv-drawer-body" id="phDrawerBody"></div>
+    <!-- kech107 (10f): butun kirim hujjatini bekor qilish (ombor, narx, qo'shimcha xarajatlar, to'lov — so'rab) -->
+    <div style="padding:12px 18px;border-top:1px solid var(--border2)">
+      <button id="phDrawerBekor" class="btn btn-outline" style="width:100%;color:#DC2626;border-color:#FCA5A5"
+              onclick="kirimHujjatiniBekorQil(this.dataset.receiptId)">🗑 Kirim hujjatini bekor qilish</button>
+    </div>
   </div>
 </div>
 
@@ -477,7 +482,7 @@ async function uploadInventoryImage(id, input) {
       location.reload();
     } else {
       const err = await res.json().catch(()=>({}));
-      invToast('❌ Rasm yuklanmadi.\n\nSabab: ' + (err.detail || `Server xatosi (${res.status})`));
+      invToast('❌ Rasm yuklanmadi.\n\nSabab: ' + xatoSababi(err, `Server xatosi (${res.status})`));
     }
   } catch(e) {
     invToast('❌ Server bilan bog\'lanib bo\'lmadi: ' + e.message);
@@ -498,8 +503,7 @@ async function setDefaultPenoplast(id){
       invToast('✓ ' + d.name + ' asosiy plotnost qilib belgilandi!');
       location.reload();
     } else {
-      const e = await res.json();
-      invToast('❌ ' + (e.detail || 'Xato'));
+      invToast('❌ ' + await serverXatoSababi(res, 'Xato'));
     }
   } finally {
     inFlightInvActions.delete(key);
@@ -514,7 +518,7 @@ async function sendFullStockReport() {
     const res = await fetch('/api/inventory/full-stock-report', {method:'POST'});
     const d = await res.json();
     if (res.ok) invToast('✅ ' + d.message);
-    else invToast('❌ Xato yuz berdi');
+    else invToast('❌ ' + xatoSababi(d));
   } finally {
     isSendingStockReport = false;
   }
@@ -531,7 +535,7 @@ async function sendLowStockAlert() {
       if (d.sent) invToast('✅ SMS yuborildi!\n\n' + d.message);
       else invToast('ℹ️ ' + d.message);
     } else {
-      invToast('❌ Xato yuz berdi');
+      invToast('❌ ' + xatoSababi(d));
     }
   } finally {
     isSendingLowStockAlert = false;
@@ -591,7 +595,7 @@ async function editPrice(id, currentPrice) {
     if (res.ok) {
       document.getElementById('price-'+id).textContent = Number(narx).toLocaleString('ru-RU') + ' so\'m';
       invToast('✓ Narx yangilandi!');
-    } else invToast('Xato yuz berdi');
+    } else invToast('❌ ' + await serverXatoSababi(res));
   } finally {
     inFlightInvActions.delete(key);
   }
@@ -615,7 +619,7 @@ async function editMinStock(id, currentMin, unit) {
     if (res.ok) {
       document.getElementById('minstock-'+id).textContent = miqdor + ' ' + unit;
       invToast('✓ Chegara yangilandi!');
-    } else invToast('Xato yuz berdi');
+    } else invToast('❌ ' + await serverXatoSababi(res));
   } finally {
     inFlightInvActions.delete(key);
   }
@@ -640,7 +644,7 @@ async function editCategory(el) {
       body: JSON.stringify({category: val.trim()})
     });
     if (res.ok) location.reload();
-    else invToast('Xato yuz berdi');
+    else invToast('❌ ' + await serverXatoSababi(res));
   } catch(e) { invToast('Server xatosi'); } finally {
     inFlightInvActions.delete(key);
   }
@@ -791,6 +795,7 @@ function openPhDrawer(receiptId) {
   const rows = phAllPurchases.filter(p => String(p.receipt_id) === String(receiptId));
   const total = rows.reduce((s, p) => s + p.total_amount, 0);
   document.getElementById('phDrawerTitle').textContent = `📦 Kirim #${receiptId}`;
+  document.getElementById('phDrawerBekor').dataset.receiptId = String(receiptId);
   document.getElementById('phDrawerSub').textContent = `${rows.length} ta material · ${fmt(total)} so'm`;
   document.getElementById('phDrawerBody').innerHTML = rows.map(p => {
     const ds = tkSanaVaqt(p.purchased_at);
@@ -816,6 +821,61 @@ function closePhDrawer() {
   document.getElementById('phDrawerOverlay').style.display = 'none';
 }
 
+// kech107 (10f, O'LCHANGAN `work/probe107f.py`): ilgari faqat xaridlarni bittalab o'chirish mumkin edi — hujjatning
+// qo'shimcha xarajatlari (Moliya), «hozir to'langan» to'lovi va o'rtacha narx eski holatga qaytmasdi. Endi server
+// rejasi (`cancel-plan` — hech narsa o'zgarmaydi) ko'rsatiladi; to'lov bo'lsa — EGASI QARORI "Har safar so'rasin":
+// «To'lovni ham o'chirish» / «Ta'minotchida avans qolsin» / «Bekor».
+function kirimBekorRejaMatni(r) {
+  const qator = [];
+  (r.materiallar || []).forEach(m => {
+    if (m.topilmadi) { qator.push(`• ${m.nomi}: material topilmadi — faqat xarid yozuvi o'chadi`); return; }
+    let s = `• ${m.nomi}: −${m.miqdor} ${m.birlik || ''} (qoldiq ${m.joriy_qoldiq} → ${m.yangi_qoldiq})`;
+    s += m.narx_qaytdi ? `, narx ${fmt(m.joriy_narx)} → ${fmt(m.yangi_narx)} so'm`
+                       : `, narx o'zgarmaydi (${fmt(m.joriy_narx)} so'm)`;
+    qator.push(s);
+  });
+  if ((r.xarajatlar || []).length) qator.push(`• Moliyadagi qo'shimcha xarajatlar o'chadi: ${fmt(r.xarajatlar_jami)} so'm`);
+  if ((r.manfiy || []).length) qator.push(`⚠️ Qoldiq manfiyga tushadi: ${r.manfiy.join(', ')} — keyingi kirimda qoplanadi`);
+  return qator.join('\n');
+}
+
+let _kirimBekorYuborilmoqda = false;
+async function kirimHujjatiniBekorQil(receiptId) {
+  if (!receiptId || _kirimBekorYuborilmoqda) return;
+  let reja = null;
+  try {
+    const r = await fetch(`/api/inventory/receipts/${receiptId}/cancel-plan`);
+    if (!r.ok) { invToast('❌ ' + await serverXatoSababi(r)); return; }
+    reja = await r.json();
+  } catch (e) { invToast('Server xatosi'); return; }
+  const sarlavha = `Kirim #${receiptId}` + (reja.document_number ? ` (${reja.document_number})` : '') + ' — bekor qilish';
+  const matn = kirimBekorRejaMatni(reja);
+  let tolov = null;
+  if (reja.tolov) {
+    const t = await customConfirm(sarlavha,
+      matn + `\n\nHujjat bilan ta'minotchiga ${fmt(reja.tolov.summa)} so'm to'langan — u bilan nima qilinsin?`,
+      {danger: true, okText: "To'lovni ham o'chirish", altText: "Ta'minotchida avans qolsin", cancelText: 'Bekor'});
+    if (t === true) tolov = 'ochirish';
+    else if (t === 'alt') tolov = 'avans';
+    else return;
+  } else if (!(await customConfirm(sarlavha, matn, {danger: true, okText: 'Bekor qilish', cancelText: 'Orqaga'}))) {
+    return;
+  }
+  _kirimBekorYuborilmoqda = true;
+  try {
+    const res = await fetch(`/api/inventory/receipts/${receiptId}/cancel` + (tolov ? `?tolov=${tolov}` : ''),
+                            { method: 'POST' });
+    if (res.ok) {
+      invToast(tolov === 'avans' ? `✓ Kirim #${receiptId} bekor qilindi — to'lov ta'minotchida avans bo'lib qoldi.`
+                                 : `✓ Kirim #${receiptId} bekor qilindi — ombor, narx va xarajatlar orqaga qaytdi.`);
+      closePhDrawer();
+      setTimeout(() => location.reload(), 800);
+    } else {
+      invToast('❌ ' + await serverXatoSababi(res));
+    }
+  } catch (e) { invToast('Server xatosi'); } finally { _kirimBekorYuborilmoqda = false; }
+}
+
 async function deletePurchase(id, name, qty) {
   const ok = await customConfirm(
     `"${name}" xaridini (${qty} birlik) bekor qilasizmi?\n\n` +
@@ -831,8 +891,7 @@ async function deletePurchase(id, name, qty) {
       openPurchaseHistory();        // ro'yxatni yangilaymiz
       setTimeout(() => location.reload(), 600);  // ombor qoldig'i ham yangilanishi uchun
     } else {
-      const d = await res.json().catch(() => ({}));
-      invToast(d.detail || 'Xato yuz berdi');
+      invToast('❌ ' + await serverXatoSababi(res));
     }
   } catch(e) { invToast('Server xatosi'); }
 }
@@ -998,8 +1057,7 @@ async function deleteItem(id) {
     }
     location.reload();
   } else {
-    const err = await res.json().catch(()=>({}));
-    invToast('❌ Xato: ' + (err.detail || 'Noma\'lum xato'));
+    invToast('❌ Xato: ' + await serverXatoSababi(res, 'Noma\'lum xato'));
   }
 }
 

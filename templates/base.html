@@ -167,6 +167,34 @@ function tkKunFarqi(v) {         // v ning Toshkent sanasi − bugungi Toshkent 
   return a ? Math.round((Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 86400000) : NaN;
 }
 
+// ══ UMUMIY (kech107, 10d — O'LCHANGAN): SERVER RAD ETGANDA SABAB. Server 400 / 404 / 409 / 422 da sababni `detail`
+// ichida beradi: matn ("Omborda yetarli emas …"), obyekt (`{type, message}` — ogohlantirishlar, `{error}`) yoki
+// pydantic ro'yxati (`[{loc, msg}]`). Ilgari kpi / inventory / finished sahifalarining ko'p joyida sabab tashlanib
+// "Xato yuz berdi" chiqardi, `r.detail?.message` MATN sababni yo'qotardi, obyekt esa "[object Object]" bo'lib chiqardi.
+// QOIDA: rad javobidagi sabab FAQAT shu ikki yordamchi bilan o'qiladi (tools/test_xato_sababi_ui.js tekshiradi).
+function xatoSababi(javob, standart) {
+  const d = (javob && typeof javob === 'object') ? javob.detail : undefined;
+  if (typeof d === 'string' && d.trim()) return d;
+  if (d && typeof d === 'object' && !Array.isArray(d)) {
+    if (typeof d.message === 'string' && d.message.trim()) return d.message;
+    if (typeof d.error === 'string' && d.error.trim()) return d.error;
+  }
+  if (Array.isArray(d) && d.length) {
+    const qism = d.map(x => {
+      if (!x || typeof x !== 'object') return (x === null || x === undefined) ? '' : String(x);
+      const joy = Array.isArray(x.loc) ? x.loc.filter(k => k !== 'body' && k !== 'query').join('.') : '';
+      const xabar = typeof x.msg === 'string' ? x.msg : '';
+      return xabar ? (joy ? joy + ': ' : '') + xabar : '';
+    }).filter(Boolean);
+    if (qism.length) return qism.join('; ');
+  }
+  return standart || 'Xato yuz berdi';
+}
+async function serverXatoSababi(res, standart) {
+  // `fetch` javobidan (hali o'qilmagan tana) — JSON bo'lmasa standart matn.
+  try { return xatoSababi(await res.json(), standart); } catch (e) { return standart || 'Xato yuz berdi'; }
+}
+
 // 2026-09-17 (UX audit topilmasi): ba'zi sahifalarda (masalan Ishlab
 // chiqarish) xato xabarlari hali ham brauzerning eski, sahifani
 // bloklaydigan alert() orqali chiqar edi — bu ilovaning boshqa
@@ -548,8 +576,9 @@ function jsAttrEscape(str) {
   <div style="background:var(--white);border-radius:14px;width:420px;max-width:100%;padding:24px;box-shadow:var(--shadow-card)">
     <div id="ccModalTitle" style="font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px;display:none"></div>
     <div id="ccModalMessage" style="font-size:14px;color:var(--text2);line-height:1.6;white-space:pre-wrap;margin-bottom:18px"></div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="ccModalCancel" class="btn btn-outline" style="flex:1">Bekor</button>
+      <button id="ccModalAlt" class="btn btn-outline" style="flex:1;display:none"></button>
       <button id="ccModalOk" class="btn btn-gold" style="flex:1">Tasdiqlash</button>
     </div>
   </div>
@@ -572,6 +601,14 @@ function customConfirm(a, b, c) {
     okBtn.className = 'btn ' + (opts.danger ? 'btn-red' : 'btn-gold');
     okBtn.style.flex = '1';
     cancelBtn.textContent = opts.cancelText || 'Bekor';
+    // kech107 (10f): ixtiyoriy UCHINCHI tugma — `opts.altText` berilsa ko'rinadi va 'alt' qaytaradi
+    // (masalan kirim hujjatini bekor qilishda: "To'lovni ham o'chirish" / "Avans qolsin" / "Bekor").
+    var altBtn = document.getElementById('ccModalAlt');
+    if (altBtn) {
+      altBtn.textContent = opts.altText || '';
+      altBtn.style.display = opts.altText ? '' : 'none';
+      altBtn.onclick = opts.altText ? function() { cleanup('alt'); } : null;
+    }
     modal.style.display = 'flex';
     function cleanup(result) {
       modal.style.display = 'none';

@@ -651,7 +651,7 @@ async function saveMasterKpi(id) {
       body: JSON.stringify({kpi_percent: val})
     });
     if (res.ok) loadMasterKpi();
-    else alert("❌ KPI foizini saqlashda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+    else alert('❌ ' + await serverXatoSababi(res, "KPI foizini saqlashda xato yuz berdi. Iltimos, qayta urinib ko'ring."));
   } catch(e) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
   } finally {
@@ -753,7 +753,7 @@ async function deactivateMaster(id, name) {
   try {
     const res = await fetch(`/api/masters/${id}`, { method: 'DELETE' });
     if (res.ok) { loadMasterKpi(); loadAllMastersFull(); }
-    else alert("❌ Nofaol qilishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+    else alert('❌ ' + await serverXatoSababi(res, "Nofaol qilishda xato yuz berdi. Iltimos, qayta urinib ko'ring."));
   } catch(e) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
   }
@@ -768,7 +768,7 @@ async function reactivateMaster(id, btn) {
       body: JSON.stringify({is_active: true})
     });
     if (res.ok) { loadMasterKpi(); loadAllMastersFull(); renderInactiveMasters(); return; }
-    else alert("❌ Faollashtirishda xato yuz berdi. Iltimos, qayta urinib ko'ring.");
+    else alert('❌ ' + await serverXatoSababi(res, "Faollashtirishda xato yuz berdi. Iltimos, qayta urinib ko'ring."));
   } catch(e) {
     alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
   } finally {
@@ -945,7 +945,7 @@ async function saveAdvance() {
       document.getElementById('adv-notes').value = '';
       loadAdvanceHistory(advanceEmpId);
       loadEmployees();
-    } else alert('Xato yuz berdi');
+    } else alert('❌ ' + await serverXatoSababi(res));
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
@@ -956,6 +956,7 @@ async function deleteAdvance(id) {
   if (!(await customConfirm("Bu avans yozuvini o'chirasizmi?"))) return;
   const res = await fetch(`/api/employees/advance/${id}`, {method:'DELETE'});
   if (res.ok) { loadAdvanceHistory(advanceEmpId); loadEmployees(); }
+  else alert('❌ ' + await serverXatoSababi(res));     // kech107 (10d): ilgari rad jim qolardi
 }
 
 // ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
@@ -1259,6 +1260,7 @@ async function deleteEmployee(id) {
   if (!(await customConfirm("Hodim o'chirilsinmi?\n\n(Ma'lumot yo'qolmaydi — \"O'chirilganlar\" bo'limidan keyin tiklash mumkin)"))) return;
   const res = await fetch(`/api/employees/${id}`, {method:'DELETE'});
   if (res.ok) loadEmployees();
+  else alert('❌ ' + await serverXatoSababi(res));     // kech107 (10d): ilgari rad jim qolardi
 }
 
 const MONTH_NAMES_UZ = ['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
@@ -1402,7 +1404,7 @@ async function editEmpAdjustment(empId, empName, year, month, currentAmount, cur
     if (res.ok) {
       loadEmpMonthlyReport();
     } else {
-      alert('Xato yuz berdi');
+      alert('❌ ' + await serverXatoSababi(res));
     }
   } finally {
     inFlightEmpAdjustment.delete(key);
@@ -1426,7 +1428,7 @@ async function editEmpBonus(empId, empName, year, month, currentAmount, currentR
     if (res.ok) {
       loadEmpMonthlyReport();
     } else {
-      alert('Xato yuz berdi');
+      alert('❌ ' + await serverXatoSababi(res));
     }
   } finally {
     inFlightEmpAdjustment.delete(key);
@@ -1796,10 +1798,10 @@ async function submitCloseGiftPeriod(force) {
         });
         if (res.ok) { loadGiftPeriod(); return; }
         e = await res.json();
-        alert('❌ ' + (e.detail && e.detail.message ? e.detail.message : 'Xato'));
+        alert('❌ ' + xatoSababi(e, 'Xato'));
       }
     } else {
-      alert('❌ ' + (detail && detail.message ? detail.message : (typeof detail === 'string' ? detail : 'Xato')));
+      alert('❌ ' + xatoSababi(e, 'Xato'));
     }
   } catch(e) { alert("❌ Server bilan aloqa yo'q"); } finally { isClosingGiftPeriod = false; }
 }

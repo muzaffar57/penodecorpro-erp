@@ -178,7 +178,7 @@ input[type=number]{-moz-appearance:textfield}
         <div id="loss-mode-prod" class="type-opt" style="flex:1;min-width:0;text-align:center;white-space:normal;line-height:1.35;padding:8px 6px" onclick="setLossMode('production')">🏭 Ishlab chiqarishda chiqdi</div>
       </div>
       <div id="loss-info-stock" style="background:#FEF3C7;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#92400E;line-height:1.6">
-        Bu — mahsulotni <b>o'chirmaydi</b>, faqat miqdorini kamaytiradi (masalan sinib/buzilib, endi sotib bo'lmaydigan qismi uchun). Tan narxi avtomatik <b>Moliyada Brak xarajatiga</b> qo'shiladi.
+        Bu — mahsulotni <b>o'chirmaydi</b>, faqat miqdorini kamaytiradi (masalan sinib/buzilib, endi sotib bo'lmaydigan qismi uchun). Tan narxi avtomatik <b>Moliyada «Tayyor mahsulot yo'qotishi» qatoriga</b> qo'shiladi.
       </div>
       <div id="loss-info-production" style="display:none;background:#F8F2EB;border-radius:9px;padding:11px 14px;font-size:12.5px;color:#A86B36;line-height:1.6">
         Bu — kesish/qoplama jarayonida chiqqan brak uchun. <b>Mahsulot soni o'zgarmaydi</b> (siz baribir to'liq miqdorni topshirasiz) — faqat qayta ishlab chiqarish uchun sarflangan <b>qo'shimcha xomashyo</b> ombordan ayiriladi va Moliyada xarajat sifatida qayd etiladi.
@@ -969,7 +969,7 @@ async function uploadFpImage(id, input) {
   try {
     const res = await fetch(`/api/finished/${id}/image`, { method: 'POST', body: fd });
     if (res.ok) { loadFp(); }
-    else showMsg('Rasm yuklanmadi', 'error');
+    else showMsg('Rasm yuklanmadi: ' + await serverXatoSababi(res, 'server rad etdi'), 'error');
   } catch(e) { showMsg('Server xatosi', 'error'); }
 }
 
@@ -1192,8 +1192,8 @@ async function addProduction(id, qty, item) {
       if (r.inventory_log?.length) msg += '\n\n📦 ' + r.inventory_log.join('\n');
       showMsg(msg, 'success');
     } else {
-      const d = r.detail || {};
-      showMsg('❌ ' + (d.message || 'Xato') +
+      const d = (r.detail && typeof r.detail === 'object') ? r.detail : {};
+      showMsg('❌ ' + xatoSababi(r, 'Xato') +
         (d.shortages?.length ? '\n' + d.shortages.join('\n') : ''), 'error');
     }
   } catch(e) { showMsg('❌ Server xatosi', 'error'); }
@@ -1281,13 +1281,13 @@ async function submitLoss() {
       if (res.ok) {
         closeLossModal();
         {% if current_user.role.value == 'admin' %}
-        showMsg(`✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada Brak xarajatiga qo'shildi`, 'success');
+        showMsg(`✓ Kamaytirildi! Tan narxi (${fmt(r.cost_amount)} so'm) Moliyada «Tayyor mahsulot yo'qotishi» qatoriga qo'shildi`, 'success');
         {% else %}
         showMsg(`✓ Kamaytirildi!`, 'success');
         {% endif %}
         setTimeout(() => location.reload(), 1500);
       } else {
-        showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
+        showMsg(xatoSababi(r), 'error');
       }
     } catch(e) { showMsg('Server xatosi', 'error'); }
   } else {
@@ -1308,7 +1308,7 @@ async function submitLoss() {
         showMsg(`✓ Xomashyo ayirildi! Qo'shimcha xarajat: ${fmt(r.cost_amount)} so'm (mahsulot soni o'zgarmadi)`, 'success');
         setTimeout(() => location.reload(), 1500);
       } else {
-        showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
+        showMsg(xatoSababi(r), 'error');
       }
     } catch(e) { showMsg('Server xatosi', 'error'); }
   }
@@ -1496,7 +1496,7 @@ async function submitBatchSell(confirmBelowCost) {
       const ok = await customConfirm('Diqqat — zarar bilan sotuv', r.detail.message, {okText: 'Ha, davom etish', danger: true});
       if (ok) await submitBatchSell(true);
     } else {
-      showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
+      showMsg(xatoSababi(r), 'error');
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
 }
@@ -1571,7 +1571,7 @@ async function submitSell(confirmBelowCost) {
       const ok = await customConfirm('Diqqat — zarar bilan sotuv', r.detail.message, {okText: 'Ha, davom etish', danger: true});
       if (ok) await submitSell(true);
     } else {
-      showMsg(r.detail?.message || 'Xato yuz berdi', 'error');
+      showMsg(xatoSababi(r), 'error');
     }
   } catch(e) { showMsg('Server xatosi', 'error'); }
 }
@@ -1592,6 +1592,7 @@ async function editPrice(id) {
       body: JSON.stringify({unit_price: val})
     });
     if (res.ok) { loadFp(); showMsg('✓ Narx yangilandi', 'success'); }
+    else showMsg('❌ ' + await serverXatoSababi(res, 'Narx saqlanmadi'), 'error');   // kech107 (10d): ilgari jim
   } catch(e) { showMsg('Xato', 'error'); }
 }
 
@@ -1615,10 +1616,7 @@ async function delFp(id, source) {
     else {
       // kech40 (K40-1): rad javobida server SABABI (ilgari hech narsa ko'rsatilmasdi —
       // tugma "ishlamaydigandek" edi; endi qoldig'i bor qaytgan mahsulot ham rad etiladi)
-      let e = {};
-      try { e = await res.json(); } catch (_) {}
-      const d = e && e.detail;
-      showMsg('❌ ' + ((typeof d === 'string' && d) ? d : ((d && d.message) || 'Xato')), 'error');
+      showMsg('❌ ' + await serverXatoSababi(res, 'Xato'), 'error');
     }
   } catch(e) { showMsg('Xato', 'error'); }
 }
@@ -2061,11 +2059,11 @@ async function saveProduce() {
       msg += '\n\n✓ Tayyor bo\'lganda "Sotuvga tayyor" tugmasini bosing';
       showMsg(msg, 'success');
     } else {
-      const d = r.detail || {};
+      const d = (r.detail && typeof r.detail === 'object') ? r.detail : {};
       err.style.display = 'block';
       // 5.2d (C): server xabari va kamchiliklar (material NOMLARI — foydalanuvchi matni)
       // HTML sifatida emas, MATN sifatida chiqadi (orders.html saveDelivery U1 naqshi).
-      err.innerHTML = '❌ ' + escapeHtml(d.message || 'Xato') +
+      err.innerHTML = '❌ ' + escapeHtml(xatoSababi(r, 'Xato')) +
         (d.shortages?.length ? '<br>' + d.shortages.map(escapeHtml).join('<br>') : '');
     }
   } catch(e) {
@@ -2085,7 +2083,7 @@ async function releaseFpReservation(id, name) {
       loadFp();
       showMsg(`✅ ${r.message || 'Ozod qilindi'}`, 'success');
     } else {
-      showMsg('❌ ' + (r.detail || 'Xato'), 'error');
+      showMsg('❌ ' + xatoSababi(r, 'Xato'), 'error');
     }
   } catch(e) {
     showMsg('❌ Server bilan aloqa yo\'q', 'error');
@@ -2109,7 +2107,7 @@ async function markReady(id) {
       loadFp();
       showMsg(`✅ ${r.name} — SOTUVGA TAYYOR! (${r.quantity} ${r.unit})`, 'success');
     } else {
-      showMsg('❌ ' + ((r.detail || {}).message || 'Xato'), 'error');
+      showMsg('❌ ' + xatoSababi(r, 'Xato'), 'error');
     }
   } catch(e) {
     showMsg('❌ Server xatosi', 'error');
