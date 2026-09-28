@@ -62,7 +62,7 @@ else:
 
 import io                                          # noqa: E402
 import contextlib                                  # noqa: E402
-from datetime import datetime                      # noqa: E402
+from datetime import datetime, timedelta           # noqa: E402
 
 _quiet = io.StringIO()
 with contextlib.redirect_stdout(_quiet):
@@ -370,13 +370,13 @@ def balans():
 
 
 def hisobot_ishlab():
-    n = datetime.utcnow()
+    n = datetime.utcnow() + timedelta(hours=5)      # kech105: hisobot oyi — Toshkent devor soati
     d = js(req(C, "get", "/api/finance/report", params={"year": n.year, "month": n.month})) or {}
     return d.get("ishlab_chiqarish_xarajat")
 
 
 def usta_oy():
-    n = datetime.utcnow()
+    n = datetime.utcnow() + timedelta(hours=5)      # kech105: KPI oyi — Toshkent devor soati
     s = SessionLocal()
     try:
         with contextlib.redirect_stdout(_quiet):

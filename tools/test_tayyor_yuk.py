@@ -70,7 +70,7 @@ os.environ.pop("TENANT_FILTER", None)
 
 import io                                          # noqa: E402
 import contextlib                                  # noqa: E402
-from datetime import datetime                      # noqa: E402
+from datetime import datetime, timedelta           # noqa: E402
 
 _quiet = io.StringIO()
 with contextlib.redirect_stdout(_quiet):
@@ -318,7 +318,7 @@ def holat(oid):
 def hisobot():
     s = SessionLocal()
     try:
-        n = datetime.utcnow()
+        n = datetime.utcnow() + timedelta(hours=5)      # kech105: hisobot oyi — Toshkent devor soati
         with contextlib.redirect_stdout(_quiet):
             r = services.get_monthly_report(s, n.year, n.month, company_id=1)
         return (int(r.get("buyurtmalar_soni") or 0), round(float(r.get("daromad_buyurtmalardan") or 0), 2),

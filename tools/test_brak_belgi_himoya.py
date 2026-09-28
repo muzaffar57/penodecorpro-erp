@@ -45,7 +45,7 @@ import io
 import inspect
 import tempfile
 import contextlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ROOT = os.environ.get("REPO") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
@@ -115,7 +115,8 @@ def bolim(t):
 
 
 BELGI = "Ishlab chiqarish jarayonida brak"
-_N = datetime.utcnow()
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi
+_N = datetime.utcnow() + timedelta(hours=5)
 YIL, OY = _N.year, _N.month
 
 for _cid, _nom in ((1, "A"), (2, "B")):

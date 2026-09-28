@@ -383,11 +383,13 @@ tayyor("OB2", klient=CB)
 # ── ORM / Core qo'shimchalar (migratsiyalardan KEYIN — eski NULL qatorlar NULL qoladi) ──
 _db = SessionLocal()
 _hozir = datetime.utcnow()
-_oy1 = (_hozir.replace(day=1) - timedelta(days=1)).replace(day=14, hour=9, minute=0, second=0, microsecond=0)
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi; saqlanadigan vaqt — UTC `_hozir`
+_hozir_t = _hozir + timedelta(hours=5)
+_oy1 = (_hozir_t.replace(day=1) - timedelta(days=1)).replace(day=14, hour=9, minute=0, second=0, microsecond=0)
 _oy2 = (_oy1.replace(day=1) - timedelta(days=1)).replace(day=20, hour=11, minute=0, second=0, microsecond=0)
-_kecha = (_hozir - timedelta(days=1)).replace(hour=7, minute=30, second=0, microsecond=0)
-if _kecha.month != _hozir.month:
-    _kecha = _hozir.replace(hour=0, minute=5, second=0, microsecond=0)
+_kecha = (_hozir_t - timedelta(days=1)).replace(hour=7, minute=30, second=0, microsecond=0)
+if _kecha.month != _hozir_t.month:
+    _kecha = _hozir_t.replace(hour=0, minute=5, second=0, microsecond=0)
 for _k, _t in (("O9a", _oy1), ("O9b", _oy2), ("O9c", _kecha)):
     if ID.get(_k):
         _db.get(Order, ID[_k]).completed_at = _t
@@ -472,8 +474,8 @@ qayd("kirim hujjati", req(C, "post", "/api/inventory/receipt", json={
 section("0. Fikstura")
 check("F1 fikstura qadamlari xatosiz (API javoblari kutilgandek)", not QADAM, QADAM[:5])
 _s = SessionLocal()
-_tayyorlar = _s.query(Order).filter(Order.company_id == 1, Order.completed_at >= _hozir.replace(
-    day=1, hour=0, minute=0, second=0, microsecond=0)).count()
+_tayyorlar = _s.query(Order).filter(Order.company_id == 1, Order.completed_at >= _hozir_t.replace(
+    day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=5)).count()
 _s.close()
 check("F2 joriy oyda A korxonaning yakunlangan buyurtmalari >= 11", _tayyorlar >= 11, _tayyorlar)
 
@@ -523,7 +525,8 @@ def chaqir(fn, kesh=True):
     return v, n
 
 
-hozir = datetime.utcnow()
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi
+hozir = datetime.utcnow() + timedelta(hours=5)
 Y, M = hozir.year, hozir.month
 
 

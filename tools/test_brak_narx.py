@@ -298,8 +298,9 @@ def audit(rid):
 # ══════════════════════════════════════════════════════════════
 # Yordamchilar
 # ══════════════════════════════════════════════════════════════
-from datetime import datetime as _dt        # noqa: E402
-_HOZ = _dt.utcnow()
+from datetime import datetime as _dt, timedelta as _td        # noqa: E402
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi
+_HOZ = _dt.utcnow() + _td(hours=5)
 YIL, OY = _HOZ.year, _HOZ.month
 
 

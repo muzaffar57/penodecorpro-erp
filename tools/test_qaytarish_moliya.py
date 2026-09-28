@@ -367,7 +367,7 @@ def ombor_farq(a, b):
 
 def korsatkich(mid, mijoz):
     s = SessionLocal()
-    n = datetime.utcnow()
+    n = datetime.utcnow() + timedelta(hours=5)      # kech105: hisobot yil / oy / kuni — Toshkent devor soati
     try:
         with contextlib.redirect_stdout(_quiet):
             rep = services.get_monthly_report(s, n.year, n.month, company_id=1)
@@ -454,7 +454,8 @@ def tayyorla(shakl):
 import json                                        # noqa: E402
 import subprocess                                  # noqa: E402
 
-HOZIR = datetime.utcnow()
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi
+HOZIR = datetime.utcnow() + timedelta(hours=5)
 Y, M = HOZIR.year, HOZIR.month
 OY0 = (Y - 1, 12) if M == 1 else (Y, M - 1)
 NARX = {"PENO": 500_000.0, "KLEY": 2_000.0, "QUM": 1_000.0}
@@ -519,7 +520,8 @@ def umumiy():
         with contextlib.redirect_stdout(_quiet):
             kassa = float(services.get_cash_balance(s, company_id=1).get("balance") or 0)
             ehs = float(services.calculate_monthly_ehson(s, Y, M, company_id=1).get("monthly_profit") or 0)
-            kun = services.get_daily_finance_summary(s, datetime.utcnow().date(), company_id=1).get("sales") or {}
+            kun = services.get_daily_finance_summary(s, (datetime.utcnow() + timedelta(hours=5)).date(),
+                                                    company_id=1).get("sales") or {}      # kech105: Toshkent "bugun"i
             bugun = float(services.get_today_stats(s, company_id=1).get("today_profit") or 0)
             split = services.calculate_split_profit_report(s, Y, M, company_id=1)
             pd = float(crud.get_projects_dashboard_stats(s, company_id=1).get("total_profit") or 0)
@@ -817,8 +819,11 @@ if _DAVR is not None:
     _ss = SessionLocal()
     try:
         with contextlib.redirect_stdout(_quiet):
-            _dq = _DAVR(_ss, datetime(Y, M, 1), datetime(Y + 1, 1, 1) if M == 12 else datetime(Y, M + 1, 1), company_id=1)
-            _dq0 = _DAVR(_ss, datetime(OY0[0], OY0[1], 1), datetime(Y, M, 1), company_id=1)
+            # kech105: davr chegaralari — Toshkent oyi UTC ko'rinishida (server hisobotlari kabi: − 5 soat)
+            _T5 = timedelta(hours=5)
+            _dq = _DAVR(_ss, datetime(Y, M, 1) - _T5, (datetime(Y + 1, 1, 1) if M == 12 else datetime(Y, M + 1, 1)) - _T5,
+                        company_id=1)
+            _dq0 = _DAVR(_ss, datetime(OY0[0], OY0[1], 1) - _T5, datetime(Y, M, 1) - _T5, company_id=1)
         _bu = [h for h in _dq if h["order_id"] == oid]
         check("R davr_qaytarishlari (shu oy): 2 hodisa, jami", len(_bu) == 2 and teng(sum(h["daromad"] for h in _bu), -delta, 0.01)
               and teng(sum(h["tannarx"] for h in _bu), -stock, 0.01), _bu)
@@ -943,8 +948,11 @@ if _DAVR is not None:
     _ss = SessionLocal()
     try:
         with contextlib.redirect_stdout(_quiet):
-            _dA = _DAVR(_ss, datetime(Y, M, 1), datetime(Y + 1, 1, 1) if M == 12 else datetime(Y, M + 1, 1), company_id=1)
-            _dB = _DAVR(_ss, datetime(Y, M, 1), datetime(Y + 1, 1, 1) if M == 12 else datetime(Y, M + 1, 1), company_id=2)
+            _T5 = timedelta(hours=5)      # kech105: Toshkent oyi chegaralari (UTC ko'rinishida)
+            _dA = _DAVR(_ss, datetime(Y, M, 1) - _T5, (datetime(Y + 1, 1, 1) if M == 12 else datetime(Y, M + 1, 1)) - _T5,
+                        company_id=1)
+            _dB = _DAVR(_ss, datetime(Y, M, 1) - _T5, (datetime(Y + 1, 1, 1) if M == 12 else datetime(Y, M + 1, 1)) - _T5,
+                        company_id=2)
         check("K3 A davrida B buyurtmasi yo'q", not [h for h in _dA if h["order_id"] == _oBid], _dA)
         check("K3 B davrida faqat B buyurtmasi", _dB and all(h["order_id"] == _oBid for h in _dB), _dB)
     finally:

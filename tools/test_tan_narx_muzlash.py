@@ -290,8 +290,9 @@ def jurnal(oid, inv_id, turi, miqdor, reason="TN qo'lda harakat"):
         d.close()
 
 
-from datetime import datetime as _dt        # noqa: E402
-_HOZ = _dt.utcnow()
+from datetime import datetime as _dt, timedelta as _td        # noqa: E402
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi
+_HOZ = _dt.utcnow() + _td(hours=5)
 YIL, OY = _HOZ.year, _HOZ.month
 
 
@@ -303,7 +304,9 @@ def hisobotlar():
         with contextlib.redirect_stdout(_quiet):
             m = services.get_monthly_report(d, YIL, OY, company_id=1)
             sp = services.calculate_split_profit_report(d, YIL, OY, company_id=1)
-            kun = services.get_daily_finance_summary(d, _dt.now().date(), company_id=1)
+            # kech105: ikkinchi kun ko'rinishi — UTC sanasi (lokal `now()` emas — jarayon mintaqasiga bog'liq bo'lmasin);
+            # `kun2` — Toshkent "bugun"i
+            kun = services.get_daily_finance_summary(d, _dt.utcnow().date(), company_id=1)
             kun2 = services.get_daily_finance_summary(d, _HOZ.date(), company_id=1)
         return (round(float(m.get("ishlab_chiqarish_xarajat") or 0), 4),
                 round(float(m.get("sof_foyda") or 0), 4),

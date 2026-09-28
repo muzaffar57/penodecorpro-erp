@@ -367,7 +367,7 @@ def ombor_farq(a, b):
 
 def korsatkich(mid, mijoz):
     s = SessionLocal()
-    n = datetime.utcnow()
+    n = datetime.utcnow() + timedelta(hours=5)      # kech105: hisobot yil / oy / kuni — Toshkent devor soati
     try:
         with contextlib.redirect_stdout(_quiet):
             rep = services.get_monthly_report(s, n.year, n.month, company_id=1)

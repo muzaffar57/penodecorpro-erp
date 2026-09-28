@@ -225,10 +225,11 @@ def holat(fp_id, peno_id, cid):
     yozuv = db.query(FinishedProductLoss).filter(
         FinishedProductLoss.finished_product_id == fp_id).count()
     try:
-        from datetime import datetime as _dt
+        from datetime import datetime as _dt, timedelta as _td
         # 123-band (kech96, O'LCHANGAN — vaqt sayohati oy chegarasida): server yozuvlari UTC da, hisobot oyi ham
         # UTC dan (ilgari lokal `now()` — Toshkent 1-sana 00:00–05:00 da boshqa oy, SOXTA yiqilish).
-        _n = _dt.utcnow()
+        # kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot oyi — Toshkent devor soati (UTC + 5).
+        _n = _dt.utcnow() + _td(hours=5)
         rep = services.get_monthly_report(db, _n.year, _n.month, company_id=cid)
         sof = round(float(rep.get("sof_foyda", 0) or 0), 4)
     except Exception as _e:          # hisobot yiqilsa ham skript QULAMASIN

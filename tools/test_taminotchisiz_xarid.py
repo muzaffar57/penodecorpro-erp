@@ -25,7 +25,7 @@ import os
 import sys
 import inspect
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -183,7 +183,7 @@ def holat(sup=None):
     s = SessionLocal()
     try:
         k = services.get_cash_balance(s, company_id=1)
-        n = datetime.utcnow()
+        n = datetime.utcnow() + timedelta(hours=5)      # kech105: hisobot oyi — Toshkent devor soati
         return {
             "naqd": float(k["chiqim_xomashyo_naqd"]),
             "taminotchiga": float(k["chiqim_yetkazib_beruvchi"]),

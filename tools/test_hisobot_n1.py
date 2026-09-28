@@ -152,7 +152,9 @@ def jsonla(x):
 
 
 HOZIR = datetime.utcnow()
-Y, M = HOZIR.year, HOZIR.month
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi; saqlanadigan vaqt — UTC `HOZIR`
+_HOZIR_T = HOZIR + timedelta(hours=5)
+Y, M = _HOZIR_T.year, _HOZIR_T.month
 
 
 def oy_oldin(y, m, k):
@@ -299,7 +301,7 @@ ob_qosh(3, "o")
 # maxsus: yaratilishidan OLDINGI oy tekshirilmaydigan majburiyat; to'liq to'langan; faol emas; B korxona
 _s = SessionLocal()
 _s.add(RecurringObligation(company_id=1, category="hn1_yangi", label="HN1 yangi", icon="📦", monthly_target=70_000,
-                           due_day=3, is_active=True, created_at=HOZIR.replace(day=1) + timedelta(hours=1)))
+                           due_day=3, is_active=True, created_at=_HOZIR_T.replace(day=1) + timedelta(hours=1) - timedelta(hours=5)))
 _s.add(RecurringObligation(company_id=1, category="hn1_tolik", label="HN1 to'liq", icon="📦", monthly_target=30_000,
                            due_day=3, is_active=True, created_at=HOZIR.replace(day=1) - timedelta(days=100)))
 for _oy in (HOZIR, _OY1_KUN, _OY2_KUN):
@@ -520,10 +522,12 @@ for m in _s.query(Master).filter(Master.company_id == 1, Master.is_active == Tru
     foyda = 0.0
     for o in _s.query(Order).filter(Order.master_id == m.id, Order.status == OrderStatus.READY,
                                     Order.company_id == 1).all():
-        if o.completed_at and (o.completed_at.year, o.completed_at.month) == (Y, M):
+        if o.completed_at and ((o.completed_at + timedelta(hours=5)).year,
+                               (o.completed_at + timedelta(hours=5)).month) == (Y, M):      # kech105: Toshkent oyi
             foyda += float(services.calculate_order_profit(_s, o.id).get("foyda", 0))
     for sv in _s.query(FinishedProductSale).filter(FinishedProductSale.master_id == m.id).all():
-        if sv.sold_at and (sv.sold_at.year, sv.sold_at.month) == (Y, M):
+        if sv.sold_at and ((sv.sold_at + timedelta(hours=5)).year,
+                           (sv.sold_at + timedelta(hours=5)).month) == (Y, M):      # kech105: Toshkent oyi
             foyda += float(sv.total_amount or 0) - float(sv.cost_amount or 0)
     if foyda > 0:
         _kut.append({"master_name": m.name, "kpi_percent": m.kpi_percent, "monthly_profit": round(foyda),
@@ -541,11 +545,12 @@ for obl in _s.query(RecurringObligation).filter(RecurringObligation.company_id =
         continue
     for (yy, mm) in ((Y, M), OY1, OY2):
         import calendar as _cal
-        if obl.created_at and obl.created_at > datetime(yy, mm, _cal.monthrange(yy, mm)[1], 23, 59, 59):
+        # kech105: oy oxiri — Toshkent kalendari (UTC ko'rinishida − 5 soat), server kabi
+        if obl.created_at and obl.created_at > datetime(yy, mm, _cal.monthrange(yy, mm)[1], 23, 59, 59) - timedelta(hours=5):
             continue
         txs = [x for x in _s.query(ExpenseTransaction).filter(ExpenseTransaction.company_id == 1,
                                                                 ExpenseTransaction.category == obl.category).all()
-               if (x.date.year, x.date.month) == (yy, mm)]
+               if ((x.date + timedelta(hours=5)).year, (x.date + timedelta(hours=5)).month) == (yy, mm)]
         paid = sum(float(x.amount or 0) for x in txs)
         debt = max(0, t - paid)
         if debt <= 0.5:

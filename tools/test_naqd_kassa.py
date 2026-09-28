@@ -28,7 +28,7 @@ import shutil
 import inspect
 import tempfile
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -147,8 +147,11 @@ def ayir(a, b):
 # 123-band (kech96, O'LCHANGAN — butun to'plam soat siljitilib: `run/h96tz.sh`, `run/h96vaqt.sh`): server yozuvlarni
 # UTC da (`utcnow`) saqlaydi va hisobotni shu bilan oladi — test ham UTC dan oladi. Ilgari `datetime.now()` (lokal,
 # konteyner +05) edi: 19:00–24:00 UTC da kun, oy oxirida oy boshqa bo'lib, test SOXTA yiqilardi (K92-1).
+# kech105 (9 + 50-band, FOYDALANUVCHI QARORI "Toshkent vaqti bo'yicha"): hisobot oyi endi TOSHKENT kalendari —
+# yozuv vaqti `NOW` (UTC, server kabi), hisobot davri — Toshkent devor soati `_TOSH` (UTC + 5).
 NOW = datetime.utcnow()
-Y, M = NOW.year, NOW.month
+_TOSH = NOW + timedelta(hours=5)
+Y, M = _TOSH.year, _TOSH.month
 
 
 def oy_oldin(k):

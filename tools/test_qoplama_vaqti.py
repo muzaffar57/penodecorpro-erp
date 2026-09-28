@@ -75,7 +75,7 @@ import tenant_context as _tc                       # noqa: E402
 
 engine.dispose()
 
-from datetime import datetime                      # noqa: E402
+from datetime import datetime, timedelta           # noqa: E402
 from production_models import Company              # noqa: E402
 from models import (                               # noqa: E402
     UserRole, Inventory, FinishedProduct, ProductionStatus, StockSource,
@@ -129,7 +129,8 @@ db.add(PENO)
 db.commit()
 P_ID = PENO.id
 
-NOW = datetime.utcnow()
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi
+NOW = datetime.utcnow() + timedelta(hours=5)
 YIL, OY = NOW.year, NOW.month
 OLD_YIL, OLD_OY = (YIL - 1, 12) if OY == 1 else (YIL, OY - 1)
 

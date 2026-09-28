@@ -357,8 +357,8 @@ def brak_xulosa():
 
 
 def sof_foyda():
-    from datetime import datetime as _dt
-    _h = _dt.utcnow()
+    from datetime import datetime as _dt, timedelta as _td
+    _h = _dt.utcnow() + _td(hours=5)      # kech105: hisobot oyi — Toshkent devor soati
     return (js(req(C, "get", "/api/finance/report", params={"year": _h.year, "month": _h.month})) or {}).get("sof_foyda")
 
 

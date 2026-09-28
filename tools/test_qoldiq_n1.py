@@ -192,7 +192,9 @@ def hu(x):
 
 
 HOZIR = datetime.utcnow()
-Y, M = HOZIR.year, HOZIR.month
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi; saqlanadigan vaqt — UTC `HOZIR`
+_HOZIR_T = HOZIR + timedelta(hours=5)
+Y, M = _HOZIR_T.year, _HOZIR_T.month
 
 # ── Fikstura ────────────────────────────────────────────────────────────────────────────────────────────────
 _db = SessionLocal()
@@ -618,7 +620,9 @@ def kutilgan(sid):
         if qarz <= Decimal("0.5"):
             qarz = Decimal("0")
         vaqtlar = [p.purchased_at for p in pur if p.purchased_at is not None]
-        oy = [p for p in pur if p.purchased_at is not None and (p.purchased_at.year, p.purchased_at.month) == (Y, M)]
+        # kech105: xarid oyi — Toshkent kalendari (bazadagi UTC vaqt + 5 soat), server kabi
+        oy = [p for p in pur if p.purchased_at is not None
+              and ((p.purchased_at + timedelta(hours=5)).year, (p.purchased_at + timedelta(hours=5)).month) == (Y, M)]
         return {"total_credit": hu(kredit), "total_paid": hu(tolov), "debt": hu(qarz),
                 "purchase_count": sum(1 for p in pur if p.is_credit),
                 "last_purchase_at": max(vaqtlar).isoformat() if vaqtlar else None,
@@ -726,7 +730,7 @@ def kutilgan_muddat(cid):
         for p in rows:
             if p.supplier_id not in eng or p.payment_due_date < eng[p.supplier_id]:
                 eng[p.supplier_id] = p.payment_due_date
-        now = datetime.utcnow()
+        now = datetime.utcnow() + timedelta(hours=5)      # kech105: "bugun" — Toshkent kalendari (server kabi)
         out = []
         for sid, due in eng.items():
             q = kutilgan(sid)["debt"]

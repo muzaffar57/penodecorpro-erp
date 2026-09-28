@@ -49,7 +49,7 @@ os.environ.pop("TENANT_FILTER", None)
 
 import io                                          # noqa: E402
 import contextlib                                  # noqa: E402
-from datetime import datetime, date                # noqa: E402
+from datetime import datetime, timedelta           # noqa: E402
 
 _quiet = io.StringIO()
 with contextlib.redirect_stdout(_quiet):
@@ -220,7 +220,8 @@ def mijoz(harf):
     return c
 
 
-BUGUN = date.today().isoformat()
+# kech105: "bugun" — Toshkent kalendari (server kabi; lokal `date.today()` jarayon mintaqasiga bog'liq edi)
+BUGUN = (datetime.utcnow() + timedelta(hours=5)).date().isoformat()
 QIYMAT = {"year": 2026, "month": 9, "days": 365, "limit": 500, "target_date": BUGUN, "date": BUGUN,
           "sana": BUGUN, "start_date": "2026-01-01", "end_date": "2026-12-31", "start": "2026-01-01",
           "end": "2026-12-31", "oylar": 12, "category": "arenda", "period": "month", "q": "HK", "show_all": True}
@@ -260,7 +261,9 @@ KEYIN = surat(CA)
 CB = mijoz("B")
 B_SURAT = surat(CB)
 
-YIL, OY = datetime.utcnow().year, datetime.utcnow().month
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi
+_T = datetime.utcnow() + timedelta(hours=5)
+YIL, OY = _T.year, _T.month
 _OY_OLDIN = (YIL, OY - 1) if OY > 1 else (YIL - 1, 12)
 
 

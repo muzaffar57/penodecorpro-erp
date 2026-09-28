@@ -50,7 +50,7 @@ os.environ.pop("TENANT_FILTER", None)
 import io                                          # noqa: E402
 import re                                          # noqa: E402
 import contextlib                                  # noqa: E402
-from datetime import datetime                      # noqa: E402
+from datetime import datetime, timedelta           # noqa: E402
 
 _quiet = io.StringIO()
 with contextlib.redirect_stdout(_quiet):
@@ -338,7 +338,7 @@ check("A6 I1 «Tayyor» — 100 % (karta = detal = qoida)", xm.get(P1) == dt.get
 section("B. Loyiha \"Sof foyda\" — barcha «Tayyor» (o'chirilgan X1 ham) = oylik hisobot = Loyihalar sahifasi")
 f = foydalar(P1)
 st, dt = detal(P1)
-_n0 = datetime.utcnow()
+_n0 = datetime.utcnow() + timedelta(hours=5)      # kech105: hisobot oyi — Toshkent devor soati
 s = SessionLocal()
 try:
     with contextlib.redirect_stdout(_quiet):

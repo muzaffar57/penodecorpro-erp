@@ -137,10 +137,14 @@ def teng(a, b, tol=0.005):
 # 123-band (kech96, O'LCHANGAN — butun to'plam soat siljitilib: `run/h96tz.sh`, `run/h96vaqt.sh`): server yozuvlarni
 # UTC da (`utcnow`) saqlaydi va hisobotni shu bilan oladi — test ham UTC dan oladi. Ilgari `datetime.now()` (lokal,
 # konteyner +05) edi: 19:00–24:00 UTC da kun, oy oxirida oy boshqa bo'lib, test SOXTA yiqilardi (K92-1).
+# kech105 (9 + 50-band, FOYDALANUVCHI QARORI "Toshkent vaqti bo'yicha"): hisobot kun / oy / yili endi TOSHKENT
+# kalendari — yozuv vaqti `NOW` (UTC, server kabi), hisobot davri — Toshkent devor soati `_TOSH` (UTC + 5; jarayon
+# mintaqasiga bog'liq emas).
 NOW = datetime.utcnow()
-Y, M = NOW.year, NOW.month
-BUGUN = NOW.date().isoformat()
-_OLDINGI = NOW.replace(day=1) - timedelta(days=1)
+_TOSH = NOW + timedelta(hours=5)
+Y, M = _TOSH.year, _TOSH.month
+BUGUN = _TOSH.date().isoformat()
+_OLDINGI = _TOSH.replace(day=1) - timedelta(days=1)
 OY, OM = _OLDINGI.year, _OLDINGI.month
 _OLDINGI_SANA = datetime(OY, OM, 15, 12, 0, 0)
 

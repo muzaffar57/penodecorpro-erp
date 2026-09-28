@@ -49,7 +49,7 @@ os.environ.pop("TENANT_FILTER", None)
 
 import io                                          # noqa: E402
 import contextlib                                  # noqa: E402
-from datetime import datetime                      # noqa: E402
+from datetime import datetime, timedelta           # noqa: E402
 from decimal import Decimal, ROUND_HALF_UP         # noqa: E402
 
 _quiet = io.StringIO()
@@ -309,7 +309,7 @@ check("F2 savatcha: juda katta → 400, yozuv yo'q", _st == 400 and sotuvlar_son
 section("G — Moliya, sotuvlar ro'yxati va PDF shu qiymatlarni o'qiydi")
 _st, _d, _row = sot("G1", 333, 10.335)
 _gid = _d.get("sale_id")
-_now = datetime.utcnow()
+_now = datetime.utcnow() + timedelta(hours=5)      # kech105: hisobot oyi — Toshkent devor soati
 _rep = js(req(C, "get", "/api/finance/report", params={"year": _now.year, "month": _now.month})) or {}
 _s = SessionLocal()
 try:

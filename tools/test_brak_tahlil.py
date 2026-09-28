@@ -41,7 +41,7 @@ import html as _html
 import typing
 import inspect
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -217,7 +217,8 @@ if (_s1, _s2, _s3, _s4, _s5) != (302, 302, 302, 302, 302):
     print("NATIJA:  o'tdi = 0   yiqildi = 1   jami = 1")
     sys.exit(1)
 
-_BU = datetime.utcnow()
+# kech105 (9 + 50-band, "Toshkent vaqti bo'yicha"): hisobot davri — Toshkent devor soati (UTC + 5), server kabi
+_BU = datetime.utcnow() + timedelta(hours=5)
 YIL, OY = _BU.year, _BU.month
 
 # ══════════════════════════════════════════════════════════════
@@ -652,7 +653,7 @@ for _nomi, _p in (("oy 13", {"year": 2026, "month": 13}), ("oy 0", {"year": 2026
     _s, _ = tahlil(C, **_p)
     check(f"D5 noto'g'ri so'rov ({_nomi}) → 400 / 422", _s in (400, 422), _s)
 _s, _d5 = tahlil(C, oylar=1)
-check("D5b parametrsiz — joriy oy (UTC, Moliya bilan bir xil)",
+check("D5b parametrsiz — joriy oy (kech105: Toshkent kalendari, Moliya bilan bir xil)",
       _s == 200 and (_d5 or {}).get("yil") == YIL and (_d5 or {}).get("oy") == OY, (_s, str(_d5)[:200]))
 _ruxsat = [(n, tahlil(c, oylar=1)[0]) for n, c in (("ombor", CW), ("menejer", CM), ("moliyachi", CF), ("admin", C))]
 check("D6 huquq: ombor / menejer → 403; moliyachi va admin → 200 (pul ma'lumoti — Moliya huquqi)",
@@ -681,17 +682,20 @@ finally:
 
 
 def kutilgan(korxona=1, yil=YIL, oy=OY):
-    """Test o'zi (mustaqil) hisoblagan taqsimot: shu oy brak yozuvlari + yo'qotishlar."""
+    """Test o'zi (mustaqil) hisoblagan taqsimot: shu oy brak yozuvlari + yo'qotishlar. kech105: yozuv oyi — Toshkent
+    kalendari (bazadagi UTC vaqt + 5 soat), server kabi."""
     d = SessionLocal()
     try:
         yoz = []
         for r in d.query(ReturnItem).filter(ReturnItem.company_id == korxona).all():
-            if r.reason == ReturnReason.DEFECT and r.returned_at and (r.returned_at.year, r.returned_at.month) == (yil, oy):
+            _t = r.returned_at + timedelta(hours=5) if r.returned_at else None
+            if r.reason == ReturnReason.DEFECT and _t and (_t.year, _t.month) == (yil, oy):
                 yoz.append((r.item_name, r.unit, float(r.quantity), float(r.refund_amount or 0),
                             getattr(r, "brak_bosqich", None), getattr(r, "brak_sabab", None),
                             getattr(r, "brak_javobgar_id", None)))
         for l in d.query(FinishedProductLoss).filter(FinishedProductLoss.company_id == korxona).all():
-            if l.lost_at and (l.lost_at.year, l.lost_at.month) == (yil, oy):
+            _t = l.lost_at + timedelta(hours=5) if l.lost_at else None
+            if _t and (_t.year, _t.month) == (yil, oy):
                 yoz.append((l.product_name, l.unit, float(l.quantity), float(l.cost_amount or 0),
                             getattr(l, "brak_bosqich", None), getattr(l, "brak_sabab", None),
                             getattr(l, "brak_javobgar_id", None)))

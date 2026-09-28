@@ -51,7 +51,16 @@ os.environ.pop("TENANT_FILTER", None)
 
 import io                                          # noqa: E402
 import contextlib                                  # noqa: E402
-from datetime import datetime                      # noqa: E402
+from datetime import datetime, timedelta           # noqa: E402
+
+
+def _toshkent_oy():
+    """kech105 (9 + 50-band, QAROR «Toshkent vaqti bo'yicha»): joriy (yil, oy) — Toshkent devor soati (UTC + 5),
+    server kabi."""
+    _t = datetime.utcnow() + timedelta(hours=5)
+    return _t.year, _t.month
+
+
 
 _quiet = io.StringIO()
 with contextlib.redirect_stdout(_quiet):
@@ -243,7 +252,7 @@ def usta_hissa(mid):
     s = SessionLocal()
     try:
         with contextlib.redirect_stdout(_quiet):
-            k = services.calculate_monthly_master_kpi(s, datetime.utcnow().year, datetime.utcnow().month, company_id=1)
+            k = services.calculate_monthly_master_kpi(s, *_toshkent_oy(), company_id=1)
         nomi = s.get(Master, mid).name
     finally:
         s.close()
@@ -561,7 +570,7 @@ def brak_holati():
     _s = SessionLocal()
     try:
         with contextlib.redirect_stdout(_quiet):
-            h = services.get_monthly_report(_s, datetime.utcnow().year, datetime.utcnow().month, company_id=1)
+            h = services.get_monthly_report(_s, *_toshkent_oy(), company_id=1)
     finally:
         _s.close()
     st = js(req(C, "get", "/api/returns/stats")) or {}
