@@ -645,9 +645,14 @@ try:
           (csrc.count("InventoryMovement("), ssrc.count("InventoryMovement("), msrc.count("InventoryMovement(")))
     bs = csrc[csrc.find("def get_brak_material_summary"):]
     bs = bs[:bs.find("\ndef ", 10)]
-    check("S5 xulosa: ikkala sikl _harakat_narxi dan, joriy narx faqat zaxira",
-          bs.count("price = _harakat_narxi(r, inv)") == 2 and "if harakat.unit_cost is not None:" in bs
-          and bs.count("inv.price_per_unit") == 1, (bs.count("price = _harakat_narxi(r, inv)"), bs.count("inv.price_per_unit")))
+    # kech107 (49-band): qoida YAGONA — modul darajasidagi `_brak_harakat_narxi` (tahlilning yozuv qiymati ham shu).
+    bq = csrc[csrc.find("def _brak_harakat_narxi"):]
+    bq = bq[:bq.find("\ndef ", 10)]
+    check("S5 xulosa: ikkala sikl _harakat_narxi dan, joriy narx faqat zaxira (qoida — `_brak_harakat_narxi`)",
+          bs.count("price = _harakat_narxi(r, inv)") == 2 and "return _brak_harakat_narxi(harakat, inv)" in bs
+          and "if harakat.unit_cost is not None:" in bq and bq.count("inv.price_per_unit") == 1
+          and bs.count("inv.price_per_unit") == 0,
+          (bs.count("price = _harakat_narxi(r, inv)"), bq.count("inv.price_per_unit"), bs.count("inv.price_per_unit")))
     check("S6 migratsiya modul darajasida, brak harakati migratsiyasidan keyin chaqiriladi",
           tartibda(msrc, "def _migrate_harakat_narx", "\n_migrate_brak_harakat()\n", "\n_migrate_harakat_narx()\n")
           or tartibda(msrc, "\n_migrate_brak_harakat()\n", "def _migrate_harakat_narx", "\n_migrate_harakat_narx()\n"), "")

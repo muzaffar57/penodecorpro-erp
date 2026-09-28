@@ -780,8 +780,10 @@ check("S1 xulosa yagona shartni ishlatadi, matn qidiruvi yo'q",
       "brak_harakati_sharti(InventoryMovement)" in _xul and 'reason.like("Brak%")' not in _xul)
 check("S2 kodda 'reason.like(\"Brak%\")' qolmadi (crud, services)",
       'reason.like("Brak%")' not in _crud_src and 'reason.like("Brak%")' not in _srv_src)
-_sarf = inspect.getsource(services._buyurtma_sarf_narxlari)
-check("S3 buyurtma sarfi yagona shartni inkor qiladi", "_not_sn(_crud_sn.brak_harakati_sharti(_IMv))" in _sarf)
+_sarf = inspect.getsource(services._buyurtma_sarf_narxlari) + \
+    (inspect.getsource(services._buyurtma_sarf_hisobi) if hasattr(services, "_buyurtma_sarf_hisobi") else "")
+check("S3 buyurtma sarfi yagona shartni inkor qiladi (kech107: hisob — `_buyurtma_sarf_hisobi`)",
+      "_not_sn(_crud_sn.brak_harakati_sharti(_IMv))" in _sarf)
 _ded = inspect.getsource(services.deduct_raw_material_for_brak)
 check("S4 services penoplast brak harakati is_brak=True yozadi", "is_brak=True" in _ded)
 _lm = inspect.getsource(crud.log_movement)

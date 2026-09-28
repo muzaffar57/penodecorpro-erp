@@ -172,10 +172,13 @@ def yangi_peno_fp(peno_id, cid=1, qty=10.0, cost=100_000.0):
 
 
 def moliya_brak():
+    """kech107 (49-band, egasi qarori "Bitta raqam"): Moliyada brak (`brak_xarajat`) va omborda tayyor turgan mahsulot
+    yo'qotishi (`fp_loss_xarajat`) — ikki ALOHIDA qator (ikkalasi jami xarajat ichida). Bu test "Moliya hisobga oldimi /
+    ikki marta emasmi" ni tekshiradi — ikkala qatorning YIG'INDISI (40-band ma'nosi o'zgarmaydi)."""
     db.expire_all()
     try:
-        return round(float(services.get_monthly_report(db, YIL, OY, company_id=1)
-                           .get("brak_xarajat", 0) or 0), 2)
+        _rep = services.get_monthly_report(db, YIL, OY, company_id=1)
+        return round(float(_rep.get("brak_xarajat", 0) or 0) + float(_rep.get("fp_loss_xarajat", 0) or 0), 2)
     except Exception as e:           # hisobot yiqilsa ham skript QULAMASIN
         return f"xato: {type(e).__name__}"
 

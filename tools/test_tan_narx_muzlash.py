@@ -501,8 +501,9 @@ check("E3a 'Tayyor' (50 kg — hammasi zaxiradan)", r.status_code == 200, f"{r.s
 _fi = [h for h in harakatlar(F) if h.inventory_id in (KLEY_ID, AKR_ID)]
 check("E3b ingredient harakati YO'Q (hammasi tayyor loydan)", not _fi, [(h.inventory_id, h.quantity) for h in _fi])
 narxlar(3)
-check("E3 x3: penoplast muzlatilgan 500 000 + qoplama JORIY 50 × 15 600 = 780 000 → 1 280 000 (narx noma'lum)",
-      taxminan(tan(F), 1_280_000), tan(F))
+check("E3 x3: penoplast muzlatilgan 500 000 + qoplama ZAXIRADAN OLINGAN paytdagi narxda 50 × 5 200 = 260 000 → 760 000 "
+      "(kech107, 36-band; asl: JORIY narx — 1 280 000)",
+      taxminan(tan(F), 760_000), tan(F))
 narxlar(1)
 loy_zaxira(0)
 
@@ -627,14 +628,17 @@ try:
 except Exception as e:                     # noqa: BLE001
     _cop = ""
     print("  (manba o'qilmadi)", e)
-check("S2 calculate_order_profit yordamchini chaqiradi", "_buyurtma_sarf_narxlari(db, order)" in _cop)
+check("S2 calculate_order_profit yordamchini chaqiradi (kech107: hisob — `_buyurtma_sarf_hisobi`, bir marta)",
+      "_buyurtma_sarf_hisobi(db, order)" in _cop)
 check("S3 penoplast narxi joriy narxdan emas (`float(inv_item.price_per_unit)` yo'q)",
       _cop and "float(inv_item.price_per_unit)" not in _cop)
 check("S4 ingredient narxi joriy narxdan emas (`float(ing.inventory.price_per_unit)` yo'q)",
       _cop and "float(ing.inventory.price_per_unit)" not in _cop)
 check("S5 dona zaxira yo'liga muzlatilgan narx beriladi", "penoplast_narxi=_sarf_narx.get(" in _cop)
 try:
-    _ys = inspect.getsource(_yord) if callable(_yord) else ""
+    # kech107 (36-band): shartlar `_buyurtma_sarf_hisobi` da (narxlar funksiyasi undan oladi) — ikkala manba.
+    _ys = (inspect.getsource(_yord) if callable(_yord) else "") + \
+        (inspect.getsource(services._buyurtma_sarf_hisobi) if callable(getattr(services, "_buyurtma_sarf_hisobi", None)) else "")
 except Exception:                          # noqa: BLE001
     _ys = ""
 try:

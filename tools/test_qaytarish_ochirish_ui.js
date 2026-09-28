@@ -32,6 +32,8 @@ function oqi(p) {
 }
 const RETURNS = oqi(process.argv[2] || path.join(ROOT, 'templates', 'returns.html'));
 const FINISHED = oqi(process.argv[3] || path.join(ROOT, 'templates', 'finished.html'));
+// kech107 (10d): rad sababi — base.html dagi YAGONA yordamchilar (`xatoSababi`, `serverXatoSababi`) orqali.
+const BASE = oqi(process.argv[4] || path.join(ROOT, 'templates', 'base.html'));
 
 let OK = 0, FAIL = 0;
 const FAILED = [];
@@ -102,7 +104,8 @@ function muhit(opts) {
   };
   vm.createContext(sb);
   const kodlar = [];
-  for (const [src, nom] of [[RETURNS, 'qaytarishXatoMatni'], [RETURNS, 'deleteReturn'],
+  for (const [src, nom] of [[BASE, 'xatoSababi'], [BASE, 'serverXatoSababi'],
+                           [RETURNS, 'qaytarishXatoMatni'], [RETURNS, 'deleteReturn'],
                            [RETURNS, 'toggleRefund'], [FINISHED, 'delFp']]) {
     const k = olib(src, nom);
     if (k) kodlar.push(k + `\nglobalThis.${nom} = ${nom};`);

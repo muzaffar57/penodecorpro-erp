@@ -483,7 +483,6 @@ function statik() {
     'projects.html': ['tkKunFarqi(d.deadlineRaw)', 'tkSana(o.created_at)', 'tkSana(p.paid_at)', 'tkSana(m.created_at)', 'tkToliq(e.date)'],
     'kpi.html': ['tkSana(r.completed_at)', 'tkSana(a.date)', "getElementById('adv-date').value = tkISO()"],
     'dashboard.html': ['tkSana(due.due_date)', 'tkSana(r.requested_date)'],
-    'masters.html': ['tkHozir().yil', 'tkSana(k.last_order_date)'],
     'hodim_panel.html': ["getElementById('f-date').value = tkISO()", 'tkSana(r.requested_date)'],
     'returns.html': ['tkISO(x.sana)'],
     'finance.html': ["tkSana(r.created_at, 'ru-RU')", 'tkSana(t.date)', 'tkISO(dateIso)'],
@@ -496,7 +495,7 @@ function statik() {
   const tkIshlatadi = fayllar.filter(f => /\btk(Ms|Date|Sana|Vaqt|SanaVaqt|Toliq|ISO|Hozir|KunFarqi)\(/.test(jsQismi(oqi(f))));
   const asossiz = tkIshlatadi.filter(f => f !== 'base.html' && f !== 'hodim_panel.html' && !/\{%\s*extends\s+["']base\.html["']\s*%\}/.test(oqi(f)));
   const TK_SAHIFALAR = ['dashboard.html', 'debts.html', 'finance.html', 'finished.html', 'hodim_panel.html', 'inventory.html',
-                        'kpi.html', 'kunlik_xarajat.html', 'logs.html', 'masters.html', 'orders.html', 'projects.html',
+                        'kpi.html', 'kunlik_xarajat.html', 'logs.html', 'orders.html', 'projects.html',
                         'reports.html', 'returns.html', 'supplier_receive.html', 'suppliers.html'];
   tekshir(`S8 tk ishlatadigan shablonlar (${TK_SAHIFALAR.length} ta kutilgan) base.html ni kengaytiradi (hodim_panel — o'z nusxasi)`,
           TK_SAHIFALAR.every(f => tkIshlatadi.includes(f)) && !asossiz.length,

@@ -682,20 +682,32 @@ finally:
 
 
 def kutilgan(korxona=1, yil=YIL, oy=OY):
-    """Test o'zi (mustaqil) hisoblagan taqsimot: shu oy brak yozuvlari + yo'qotishlar. kech105: yozuv oyi — Toshkent
-    kalendari (bazadagi UTC vaqt + 5 soat), server kabi."""
+    """Test o'zi (mustaqil) hisoblagan taqsimot. kech107 (49-band, egasi qarori "Bitta raqam"): shu oyning BRAK
+    yozuvlari — buyurtma braki qiymati unga bog'langan brak chiqim harakatlari (miqdor × chiqim paytidagi narx; u yo'q —
+    material narxi; belgi False — brak emas), ishlab chiqarish braki — `cost_amount`; omborda tayyor turgan yo'qotish
+    taqsimotga KIRMAYDI (Moliyada alohida qator). kech105: yozuv oyi — Toshkent kalendari (bazadagi UTC + 5), server kabi."""
     d = SessionLocal()
     try:
+        def _bogl(rid):
+            q = 0.0
+            for m in d.query(InventoryMovement).filter(InventoryMovement.return_item_id == rid,
+                                                       InventoryMovement.movement_type == "out").all():
+                if m.is_brak is False:
+                    continue
+                narx = m.unit_cost if m.unit_cost is not None else (
+                    float(d.get(Inventory, m.inventory_id).price_per_unit or 0) if m.inventory_id else 0.0)
+                q += float(m.quantity or 0) * float(narx)
+            return q
         yoz = []
         for r in d.query(ReturnItem).filter(ReturnItem.company_id == korxona).all():
             _t = r.returned_at + timedelta(hours=5) if r.returned_at else None
             if r.reason == ReturnReason.DEFECT and _t and (_t.year, _t.month) == (yil, oy):
-                yoz.append((r.item_name, r.unit, float(r.quantity), float(r.refund_amount or 0),
+                yoz.append((r.item_name, r.unit, float(r.quantity), _bogl(r.id),
                             getattr(r, "brak_bosqich", None), getattr(r, "brak_sabab", None),
                             getattr(r, "brak_javobgar_id", None)))
         for l in d.query(FinishedProductLoss).filter(FinishedProductLoss.company_id == korxona).all():
             _t = l.lost_at + timedelta(hours=5) if l.lost_at else None
-            if _t and (_t.year, _t.month) == (yil, oy):
+            if _t and (_t.year, _t.month) == (yil, oy) and (l.reason or "").startswith(crud._ISH_BRAK_BELGI):
                 yoz.append((l.product_name, l.unit, float(l.quantity), float(l.cost_amount or 0),
                             getattr(l, "brak_bosqich", None), getattr(l, "brak_sabab", None),
                             getattr(l, "brak_javobgar_id", None)))
@@ -745,7 +757,8 @@ _yoz = kutilgan()
 _s, _e = tahlil(C, year=YIL, month=OY, oylar=1)
 _e = _e or {}
 _jami = round(sum(y[3] for y in _yoz), 2)
-check("E1 yozuvlar soni va qiymati — shu oyning brak yozuvlari + yo'qotishlar (brakdan boshqasi va o'tgan oy YO'Q)",
+check("E1 yozuvlar soni va qiymati — shu oyning BRAK yozuvlari, haqiqiy xomashyo (kech107: tayyor turgan yo'qotish, "
+      "brakdan boshqasi va o'tgan oy YO'Q)",
       _s == 200 and _e.get("yozuvlar_soni") == len(_yoz) and taxminan(_e.get("yozuvlar_qiymati"), _jami, 0.01)
       and _ort.status_code == 200 and _eski.status_code == 200,
       (_s, _e.get("yozuvlar_soni"), len(_yoz), _e.get("yozuvlar_qiymati"), _jami))

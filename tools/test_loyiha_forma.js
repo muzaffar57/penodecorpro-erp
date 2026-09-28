@@ -390,9 +390,10 @@ async function main() {
            'tg_id=42, Izoh');
     } else tekshir('F12 tuzatilgach qayta bosish → PUT ketadi', false, 'muhit yo\'q');
     teng('F13 server tahrirdan keyin ham ID ni o\'qiydi', serverOqiydi(t3.tana && t3.tana.notes), '987654321');
-    teng('F14 tahrir tanasining kalitlari o\'zgarmagan (14-band qoidasi)',
+    // kech107 (10a): tahrir oynasida "Muddati" — tana `deadline` ni ham yuboradi (bo'sh — null); qolgan kalitlar AYNAN.
+    teng('F14 tahrir tanasining kalitlari o\'zgarmagan (14-band qoidasi; kech107 — + deadline)',
          t1.tana && Object.keys(t1.tana).sort(),
-         ['client_address', 'client_name', 'client_phone', 'notes', 'project_name', 'status',
+         ['client_address', 'client_name', 'client_phone', 'deadline', 'notes', 'project_name', 'status',
           'total_budget']);
   }
 
