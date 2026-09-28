@@ -305,7 +305,7 @@ function qator(elementlar, dataset) {
       + ' var currentSupplierId = 5; var apCreatingNewItem = false; var _tanlangan = 11;'
       + ' async function apResolveItemId() { return _tanlangan; }', ctx);
     const yoq = yukla(ctx, SRC.suppliers, NARX118.concat(YORDAM, ['fmt', 'apJoriyJami', 'apFillFullPaid', 'apCalc',
-      'apAddToBasket', 'renderApBasket', 'round2', 'saveAddPurchase']), 'suppliers');
+      'apAddToBasket', 'renderApBasket', 'round2', 'saveAddPurchase', 'apYangiPenoplastmi']), 'suppliers');
     return { ctx, e, tanalar, yoq };
   }
   // Server `_xarid_narx_jami` ning mustaqil (satr asosidagi) nusxasi — test ichida
