@@ -844,6 +844,9 @@ class ProjectUpdate(BaseModel):
     total_paid: Optional[float] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+    # kech107 (10a): tahrirda muddat (`crud._upd_rules` — "sana"). Maydon sxemada bo'lmasa pydantic uni JIM
+    # tashlab yuborardi (yaratishdagi 15-band nuqsoni bilan bir xil sinf).
+    deadline: Optional[datetime] = None
 
 
 # ============================================================

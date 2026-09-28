@@ -521,8 +521,12 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
                   quantity: float, unit: Optional[str] = None, reason: Optional[str] = None,
                   order_id: Optional[int] = None, supplier_id: Optional[int] = None,
                   performed_by: Optional[str] = None, notes: Optional[str] = None,
-                  company_id: Optional[int] = None, is_brak: Optional[bool] = None):
+                  company_id: Optional[int] = None, is_brak: Optional[bool] = None,
+                  unit_cost: Optional[float] = None):
     """Ombor harakati jurnaliga bitta yozuv qo'shadi.
+
+    kech107 (36-band): `unit_cost` — CHIQIM narxi berilsa (masalan tayyor loy zaxirasi: olingan paytdagi retsept
+    tannarxi — pozitsiyaning o'z narxi yo'q), shu narx muzlatiladi; berilmasa — avvalgidek materialning joriy narxi.
 
     kech52 (13-band, 3-qadam): `is_brak` — brak harakati belgisi (hisobot shu
     belgiga qaraydi, sabab matniga emas). Berilmasa: CHIQIM brak oynasi ichida
@@ -563,7 +567,13 @@ def log_movement(db: Session, inventory_id: Optional[int], item_name: str, movem
         # harakat YOZILADI (narxsiz — hisobot joriy narxni oladi): tashqi
         # `except` butun harakatni tashlab yuborardi (kech46 M04 da O'LCHANDI).
         _narx = None
-        if movement_type == "out" and inventory_id:
+        if movement_type == "out" and inventory_id and unit_cost is not None:
+            # kech107 (36-band): chaqiruvchi bergan narx (tayyor loy zaxirasi — retsept tannarxi).
+            try:
+                _narx = float(unit_cost)
+            except (TypeError, ValueError):
+                _narx = None
+        elif movement_type == "out" and inventory_id:
             try:
                 _inv_narx = db.get(Inventory, inventory_id)
                 if _inv_narx is not None:
@@ -843,7 +853,10 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
         category=db_item.category,
         payment_due_date=due_date_parsed,
         is_opening_stock=is_opening_stock,
-        extra_cost_per_unit=round(extra_cost_per_unit or 0.0, 4)
+        extra_cost_per_unit=round(extra_cost_per_unit or 0.0, 4),
+        # kech107 (10f): bekor qilishda narxni AYNAN qaytarish uchun (NULL narx — 0, tizim uni 0 deb hisoblaydi).
+        narx_oldin=round(old_price, 2),
+        narx_keyin=round(float(db_item.price_per_unit or 0), 2)
     )
     db.add(purchase)
     supplier_name = None
@@ -3022,6 +3035,9 @@ def _upd_rules():
             "total_budget": ("son", True, False, money),
             "status": ("tanlov", False, st),
             "notes": ("matn", False, _UPD_MATN_CHEGARA),
+            # kech107 (10a, O'LCHANGAN `work/probe107a.py`): tahrirda ham muddat — qo'shish, o'zgartirish,
+            # olib tashlash (`null`). Ilgari faqat yaratishda edi (400 "Bu maydonni o'zgartirib bo'lmaydi").
+            "deadline": ("sana", True),
         },
         "Supplier": {
             "name": ("matn", True, 150),
@@ -3249,7 +3265,7 @@ def _create_rules():
     yaratishda RUXSAT (hisob yozuvi `add_item` ichida); sxemada majburiy
     son bo'lgan maydonlar bo'sh (null) bo'la olmaydi; `is_active`, hodim
     `effective_*` / `reason` va loyiha `status` yaratishda yo'q; loyiha
-    `deadline` qo'shiladi."""
+    `deadline` — tahrir qoidasidan (kech107 dan u yerda ham bor; pastdagi qator — o'zgarmagan xulq)."""
     r = _upd_rules()
     inv = dict(r["Inventory"])
     inv["stock_quantity"] = ("son", False, False, _UPD_SON_CHEGARA)
@@ -5148,6 +5164,10 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
     return True
 
 
+# kech107 (10a): tahrirda `null` bilan TOZALANADIGAN (ixtiyoriy) loyiha maydonlari — `update_project`.
+LOYIHA_TOZALANADIGAN = ("client_phone", "client_address", "description", "notes", "deadline")
+
+
 def update_project(db: Session, project_id: int, project_data) -> Optional[Project]:
     """Loyihani yangilash."""
     db_project = db.query(Project).filter(Project.id == project_id).first()
@@ -5178,9 +5198,20 @@ def update_project(db: Session, project_id: int, project_data) -> Optional[Proje
         if matched:
             update_data['status'] = matched
 
+    # kech107 (10a, O'LCHANGAN `work/probe107a.py`, SQLite = PG): ilgari `value is not None` sharti bilan
+    # YUBORILGAN `null` jimgina tashlab yuborilardi — tahrir oynasida telefon / manzil / Telegram ID (izoh) tozalansa
+    # 200 qaytib, eski qiymat joyida qolardi (mijozga Telegram xabarlari davom etardi). `update_data` faqat
+    # YUBORILGAN kalitlar (`exclude_unset`); ixtiyoriy maydon `null` — tozalanadi, `total_budget: null` — 0
+    # (`create_project` bilan bir qoida), majburiy maydonlar `null` ni `_clean_update` allaqachon rad etgan (400).
     for field, value in update_data.items():
-        if hasattr(db_project, field) and value is not None:
-            setattr(db_project, field, value)
+        if not hasattr(db_project, field):
+            continue
+        if value is None:
+            if field == "total_budget":
+                value = 0
+            elif field not in LOYIHA_TOZALANADIGAN:
+                continue
+        setattr(db_project, field, value)
 
     db.commit()
     db.refresh(db_project)
@@ -6066,9 +6097,8 @@ def get_return_stats(db: Session, company_id: int = None) -> dict:
     for r in ReturnReason:
         by_reason[r.value] = sum(1 for i in all_returns if i.reason == r)
 
-    # Brak qiymati — jami va shu oy
+    # Brak — jami va shu oy: SONI — brak yozuvlari (quyida ishlab chiqarish braki ham), QIYMATI — pastda (kech107).
     brak_items = [r for r in all_returns if r.reason == ReturnReason.DEFECT]
-    brak_total_value = sum(float(r.refund_amount or 0) for r in brak_items)
     brak_total_count = len(brak_items)
 
     now = _tashkent_date()        # kech105 (9 + 50-band): "shu oy" — Toshkent kalendari
@@ -6077,7 +6107,6 @@ def get_return_stats(db: Session, company_id: int = None) -> dict:
         return v is not None and (_tashkent_date(v).year, _tashkent_date(v).month) == (now.year, now.month)
 
     month_brak = [r for r in brak_items if _shu_oyda(r.returned_at)]
-    brak_month_value = sum(float(r.refund_amount or 0) for r in month_brak)
     brak_month_count = len(month_brak)
 
     # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): "Ishlab chiqarish
@@ -6099,10 +6128,20 @@ def get_return_stats(db: Session, company_id: int = None) -> dict:
         _pbq = _pbq.filter(FinishedProductLoss.company_id == company_id)
     prod_brak_losses = _pbq.all()
     brak_total_count += len(prod_brak_losses)
-    brak_total_value += sum(float(l.cost_amount or 0) for l in prod_brak_losses)
     month_prod_brak = [l for l in prod_brak_losses if _shu_oyda(l.lost_at)]
     brak_month_count += len(month_prod_brak)
-    brak_month_value += sum(float(l.cost_amount or 0) for l in month_prod_brak)
+
+    # kech107 (49-band, egasi qarori "Bitta raqam"; O'LCHANGAN `work/probe107b.py`, SQLite = PG): ilgari QIYMAT yozuvdagi
+    # saqlangan summa (`refund_amount`, zip 54 dan oldingi yozuvlarda — taxminiy) + ishlab chiqarish braki `cost_amount`
+    # edi: Moliyadagi "Brak" qatoridan (brak HARAKATLARI + tayyor turgan yo'qotish) va tahlildan (yozuvlar + HAMMA
+    # yo'qotishlar) boshqa raqam (asl: 86 905 / 124 560 / 136 905; haqiqiy xomashyo 74 560). Endi QIYMAT — Moliya
+    # "Brak" qatori bilan AYNAN bir funksiya va bir davr: brak chiqim harakatlari (chiqim paytidagi muzlatilgan narx),
+    # shu oy — Toshkent oyi (`tashkent_oy_oraligi`), jami — hamma vaqt. Omborda tayyor turgan mahsulot yo'qotishi bu
+    # yerga KIRMAYDI (Moliyada alohida qator — "Tayyor mahsulot yo'qotishi").
+    brak_total_value = float(get_brak_material_summary(db, company_id=company_id).get("total_value") or 0)
+    _oy_boshi, _oy_oxiri = _tashkent_oy_oraligi(now.year, now.month)
+    brak_month_value = float(get_brak_material_summary(db, start_date=_oy_boshi, end_date=_oy_oxiri,
+                                                       company_id=company_id).get("total_value") or 0)
 
     whole_items = [r for r in all_returns if r.reason != ReturnReason.DEFECT]
     month_whole = [r for r in whole_items if _shu_oyda(r.returned_at)]
@@ -9320,7 +9359,9 @@ def record_finished_product_loss(db: Session, data, created_by: str = None,
                                 company_id: int = None) -> dict:
     """Tayyor mahsulotdan brak/yo'qotish sababli miqdorni KAMAYTIRADI
     (butunlay o'chirmaydi). Tan narx — o'sha mahsulotning 1 birlik tan
-    narxiga proporsional hisoblanadi, va Moliyada Brak xarajatiga qo'shiladi."""
+    narxiga proporsional hisoblanadi, va Moliyada "Tayyor mahsulot yo'qotishi
+    (omborda)" qatoriga qo'shiladi (kech107, 49-band — "Brak" qatoridan ALOHIDA;
+    jami xarajat o'zgarmaydi)."""
     from models import FinishedProduct, FinishedProductLoss
 
     # 17-band: tana qiymatlari QAT'IY — hech narsa yozilmasdan OLDIN.
@@ -11726,9 +11767,30 @@ def authenticate_employee(db: Session, phone: str, pin: str, company_id: int = N
     return emp
 
 
-def create_advance_request(db: Session, employee_id: int, amount: float, requested_date, notes: str = None):
-    """Xodim o'zi 'avans oldim' deb yozadi — hali TASDIQLANMAGAN holatda."""
+def create_advance_request(db: Session, employee_id: int, amount: float, requested_date, notes: str = None,
+                           company_id: int = None):
+    """Xodim o'zi 'avans oldim' deb yozadi — hali TASDIQLANMAGAN holatda.
+
+    kech107 (10c, O'LCHANGAN `work/probe107h.py`): bir xil so'rov ikki marta yuborilsa (tugma ikki bosilsa, tarmoq
+    takrorlasa) IKKI so'rov yozilardi — admin ikkalasini tasdiqlasa avans ikki marta. Endi pul yo'llaridagi qoida bilan
+    bir xil: shu hodimning (summa, sana) bir xil KUTILAYOTGAN so'rovi `PUL_TAKROR_SONIYA` ichida bo'lsa — o'sha so'rov
+    qaytadi (yangisi yozilmaydi); PG da hodim bo'yicha qulf (`_pul_qulfi(107, hodim)`) — parallel ikki so'rov ham bitta."""
     from models import AdvanceRequest, AdvanceRequestStatus
+    from datetime import timedelta as _td107
+    _pul_qulfi(db, 107, employee_id)
+    _tq = db.query(AdvanceRequest).filter(
+        AdvanceRequest.employee_id == employee_id,
+        AdvanceRequest.status == AdvanceRequestStatus.PENDING,
+        AdvanceRequest.amount == round(float(amount), 2),
+        AdvanceRequest.requested_date == requested_date,
+        AdvanceRequest.submitted_at >= datetime.utcnow() - _td107(seconds=PUL_TAKROR_SONIYA),
+    )
+    if company_id is not None:      # TENANT: ota (hodim) orqali — `get_pending_advance_requests` bilan bir xil
+        _tq = _tq.join(Employee, Employee.id == AdvanceRequest.employee_id).filter(Employee.company_id == company_id)
+    _oldingi = _tq.order_by(AdvanceRequest.id.desc()).first()
+    if _oldingi is not None:
+        _oldingi._is_duplicate_submit = True
+        return _oldingi
     req = AdvanceRequest(
         employee_id=employee_id, amount=amount,
         requested_date=requested_date, notes=notes,
@@ -13007,9 +13069,9 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
     Ilgari UI "kerak bo'lsa Omborxonada qo'lda tuzating" derdi — endi shart
     emas (UI matni ham yangilandi).
 
-    O'rtacha NARX tegilmaydi (o'chirishda ham tegilmaydi — bir xil qoida):
-    tarixiy xarid narxi tuzatilsa, joriy o'rtacha tan narx qayta
-    hisoblanmaydi. Miqdor kamaytirilib qoldiq manfiyga tushsa — 20-band
+    O'rtacha NARX tegilmaydi: tarixiy xarid narxi tuzatilsa, joriy o'rtacha tan
+    narx qayta hisoblanmaydi (kech107, 10f: o'CHIRISHDA esa narx `narx_keyin` ga
+    teng bo'lsa `narx_oldin` ga qaytadi — `_xarid_narxini_qaytar`). Miqdor kamaytirilib qoldiq manfiyga tushsa — 20-band
     qoidasi: manfiy ruxsat, keyingi kirimda qoplanadi."""
     # 1) HECH NARSA yozilmasdan (va obyekt qidirilmasdan) OLDIN — tana
     #    qat'iy tekshiriladi (ValueError → 400).
@@ -13088,13 +13150,34 @@ def update_purchase(db: Session, purchase_id: int, data: dict,
     return p
 
 
+def _xarid_narxini_qaytar(joriy_narx: float, p) -> tuple:
+    """kech107 (10f) — xarid bekor qilinganda materialning O'RTACHA narxi (YAGONA qoida: yakka xarid ham, kirim hujjati ham).
+
+    O'LCHANGAN (asl, `work/probe107f.py`, SQLite = PG): Akril 100 kg × 1 000; xato kirim 100 kg × 3 000 → o'rtacha
+    2 000; xarid o'chirilgach qoldiq 100 kg, narx 2 000 da QOLARDI (1 000 emas) — keyingi har sarf ikki baravar
+    qimmat hisoblanardi. Qoida: xarid yozilganda `narx_oldin` / `narx_keyin` saqlanadi; material narxi hali
+    `narx_keyin` ga teng bo'lsa (orada boshqa kirim, qo'lda narx o'zgartirish bo'lmagan) — narx `narx_oldin` ga
+    qaytadi: "xarid bo'lmagandek" narx AYNAN shu (oradagi sarf / qaytish narxni o'zgartirmaydi). Aks holda — yoki eski
+    (kech107 dan oldingi, NULL) xaridda — narx TEGILMAYDI (21-band avvalgi xulqi): orada boshqa kirim bo'lsa teskari
+    hisob noaniq, qo'lda qo'yilgan narxni esa bekor qilish bosib ketmasligi kerak.
+    Qaytaradi: (yangi narx, qaytdimi)."""
+    joriy = float(joriy_narx or 0)
+    if p is None or getattr(p, "narx_oldin", None) is None or getattr(p, "narx_keyin", None) is None:
+        return joriy, False
+    if abs(joriy - float(p.narx_keyin)) > 0.005:
+        return joriy, False
+    return round(float(p.narx_oldin), 2), True
+
+
 def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
                    company_id: int = None) -> bool:
     """Xarid yozuvini o'chiradi.
     reverse_stock=True (standart) bo'lsa — bu xaridda qo'shilgan miqdorni
     ombordan ham QAYTARIB oladi (ya'ni to'liq bekor qiladi — ham pul oqimi,
     ham ombor). Bu, ayniqsa "boshlang'ich ombor"ni xato kirim qilib, keyin
-    tuzatmoqchi bo'lganda kerak."""
+    tuzatmoqchi bo'lganda kerak.
+
+    kech107 (10f): o'rtacha narx ham qaytadi — `_xarid_narxini_qaytar` (shartlari o'sha yerda)."""
     p = _purchase_of_company(db, purchase_id, company_id)    # M6
     if not p:
         return False
@@ -13121,6 +13204,8 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
             if -1e-9 < new_qty < 0:
                 new_qty = 0.0       # suzuvchi nuqta qoldig'i (19-band bilan bir xil)
             inv.stock_quantity = new_qty
+            # kech107 (10f): o'rtacha narx "xarid bo'lmagandek" (shart bajarilmasa — tegilmaydi).
+            inv.price_per_unit = _xarid_narxini_qaytar(inv.price_per_unit, p)[0]
             try:
                 log_movement(db, inv.id, inv.item_name, movement_type="out",
                              quantity=float(p.quantity), unit=inv.unit,
@@ -13134,6 +13219,160 @@ def delete_purchase(db: Session, purchase_id: int, reverse_stock: bool = True,
     db.delete(p)
     db.commit()
     return True
+
+
+# kech107 (10f): kirim hujjati qo'shimcha xarajatlari turlari — `create_inventory_receipt` `cost_categories` bilan AYNAN.
+KIRIM_XARAJAT_TURLARI = ("transport_kirim", "tushirish_kirim", "yuklash_kirim", "kirim_boshqa")
+KIRIM_BEKOR_TOLOV = ("ochirish", "avans")
+
+
+class KirimTolovTanloviKerak(Exception):
+    """kech107 (10f): kirim hujjatining «hozir to'langan» to'lovi bor, tanlov (`ochirish` / `avans`) berilmagan —
+    marshrut 409 `receipt_has_payment` qaytaradi, UI egasidan so'raydi (qaror "Har safar so'rasin")."""
+
+    def __init__(self, summa: float, xabar: str):
+        super().__init__(xabar)
+        self.summa = summa
+        self.xabar = xabar
+
+
+def _kirim_hujjati_qismlari(db: Session, receipt) -> dict:
+    """kech107 (10f) — kirim hujjati yozgan HAMMA narsa: xaridlar (`receipt_id`), qo'shimcha xarajatlar (Moliya —
+    manba "inventory_receipt" / "kirim_tannarx", tur `KIRIM_XARAJAT_TURLARI`, izohida AYNAN "Kirim #N" —
+    `_migrate_kirim_tannarx_manba` bilan bir qoida; "#1" "#12" ni tutmaydi) va "Kirim to'lovi — #N" ta'minotchi
+    to'lovi. Hammasi hujjat korxonasidan (xarid / to'lov — ota orqali)."""
+    import re as _re107
+    from models import ExpenseTransaction as _ET107, KIRIM_TANNARX_MANBA as _KTM107
+    xaridlar = db.query(InventoryPurchase).join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(
+        InventoryPurchase.receipt_id == receipt.id, Inventory.company_id == receipt.company_id
+    ).order_by(InventoryPurchase.id).all()
+    _naqsh = _re107.compile(r"Kirim #(\d+)(?!\d)")
+    xarajatlar = [t for t in db.query(_ET107).filter(
+        _ET107.company_id == receipt.company_id,
+        _ET107.source.in_(("inventory_receipt", _KTM107)),
+        _ET107.category.in_(KIRIM_XARAJAT_TURLARI),
+        _ET107.notes.like(f"%Kirim #{receipt.id}%"),
+    ).order_by(_ET107.id).all() if any(int(_m) == receipt.id for _m in _naqsh.findall(t.notes or ""))]
+    tolovlar = []
+    if receipt.supplier_id:
+        _tn = _re107.compile(r"^Kirim to'lovi — #" + str(receipt.id) + r"(?!\d)")
+        tolovlar = [t for t in db.query(SupplierPayment).join(Supplier, Supplier.id == SupplierPayment.supplier_id).filter(
+            SupplierPayment.supplier_id == receipt.supplier_id,
+            Supplier.company_id == receipt.company_id,
+            SupplierPayment.notes.like(f"Kirim to'lovi — #{receipt.id}%"),
+        ).order_by(SupplierPayment.id).all() if _tn.match(t.notes or "")]
+    return {"xaridlar": xaridlar, "xarajatlar": xarajatlar, "tolovlar": tolovlar}
+
+
+def kirim_hujjatini_bekor_qilish(db: Session, receipt_id: int, company_id: int = None, tolov: str = None,
+                                 faqat_hisob: bool = False, performed_by: str = None) -> Optional[dict]:
+    """kech107 (10f) — Ombor KIRIM HUJJATINI butunlay bekor qilish. Reja (`faqat_hisob=True` — HECH NARSA o'zgarmaydi,
+    oynada ko'rsatiladi) va amal — BITTA funksiya (kech100 "reja = amal" qoidasi).
+
+    Nima orqaga qaytadi: har xarid — ombor miqdori (20-band: arifmetik, manfiyga ham — keyingi kirimda qoplanadi),
+    o'rtacha narx (`_xarid_narxini_qaytar`; hujjatda bir material ikki qatorda bo'lsa oxirgisidan boshlab), jurnal
+    yozuvi, xarid qatori; hujjatning Moliyadagi qo'shimcha xarajatlari (transport, tushirish, yuklash, boshqa — ikkala
+    manba); «hozir to'langan» ta'minotchi to'lovi — egasi qarori "Har safar so'rasin": `tolov="ochirish"` — o'chadi,
+    `tolov="avans"` — qoladi (ta'minotchida avans; izoh "Avans (bekor qilingan Kirim to'lovi — #N …)"); hujjat qatorining
+    o'zi; audit jurnali.
+    To'lov bor-u tanlov berilmasa — `KirimTolovTanloviKerak` (hech narsa o'zgarmaydi). Tranzaksiya — chaqiruvchida
+    (`bitta_tranzaksiya`). Topilmasa (yoki begona korxona) — None."""
+    from models import InventoryReceipt as _IR107
+    _rq = db.query(_IR107).filter(_IR107.id == receipt_id)
+    if company_id is not None:
+        _rq = _rq.filter(_IR107.company_id == company_id)
+    if not faqat_hisob:
+        _rq = _rq.with_for_update()
+    receipt = _rq.first()
+    if receipt is None:
+        return None
+    qism = _kirim_hujjati_qismlari(db, receipt)
+    tolov_jami = pul_tiyin_yigindi(float(t.amount or 0) for t in qism["tolovlar"])
+    if tolov is not None and tolov not in KIRIM_BEKOR_TOLOV:
+        raise ValueError("To'lov tanlovi noto'g'ri — 'ochirish' yoki 'avans'")
+    if not faqat_hisob and qism["tolovlar"] and tolov is None:
+        raise KirimTolovTanloviKerak(
+            tolov_jami,
+            f"Kirim #{receipt.id} bilan ta'minotchiga {tolov_jami:,.0f} so'm to'langan. "
+            "To'lovni ham o'chirasizmi yoki ta'minotchida avans bo'lib qolsinmi?".replace(",", " "))
+
+    holat = {}          # inventory_id -> [qoldiq, narx] — bir material ikki qatorda bo'lsa ketma-ket
+    materiallar = []
+    for p in reversed(qism["xaridlar"]):
+        if faqat_hisob:
+            inv = db.query(Inventory).filter(Inventory.id == p.inventory_id,
+                                             Inventory.company_id == receipt.company_id).first()
+        else:
+            inv = get_item_locked(db, p.inventory_id, receipt.company_id)
+        miqdor = float(p.quantity or 0)
+        if inv is None:
+            materiallar.append({"purchase_id": p.id, "inventory_id": p.inventory_id, "nomi": p.item_name,
+                                "miqdor": miqdor, "birlik": p.unit, "topilmadi": True})
+            if not faqat_hisob:
+                db.delete(p)
+            continue
+        qoldiq, narx = holat.get(inv.id, (float(inv.stock_quantity or 0), float(inv.price_per_unit or 0)))
+        yangi_narx, qaytdi = _xarid_narxini_qaytar(narx, p)
+        yangi_qoldiq = qoldiq - miqdor
+        if -1e-9 < yangi_qoldiq < 0:
+            yangi_qoldiq = 0.0      # suzuvchi nuqta qoldig'i (19 / 20-band bilan bir xil)
+        holat[inv.id] = (yangi_qoldiq, yangi_narx)
+        materiallar.append({
+            "purchase_id": p.id, "inventory_id": inv.id, "nomi": inv.item_name, "miqdor": miqdor,
+            "birlik": inv.unit, "joriy_qoldiq": qoldiq, "yangi_qoldiq": yangi_qoldiq,
+            "joriy_narx": narx, "yangi_narx": yangi_narx, "narx_qaytdi": qaytdi,
+            "xarid_narxi": float(p.price_per_unit or 0), "summa": float(p.total_amount or 0),
+        })
+        if not faqat_hisob:
+            try:
+                log_movement(db, inv.id, inv.item_name, movement_type="out", quantity=miqdor, unit=inv.unit,
+                             supplier_id=p.supplier_id, performed_by=performed_by, company_id=receipt.company_id,
+                             reason=_jurnal_sabab(
+                                 f"Kirim #{receipt.id} bekor qilindi — xarid #{p.id}" +
+                                 (f" ⚠️ qoldiq manfiy: {yangi_qoldiq:g} {inv.unit or ''} — keyingi kirimda qoplanadi"
+                                  if yangi_qoldiq < 0 else "")))
+            except Exception:
+                pass
+            inv.stock_quantity = yangi_qoldiq
+            inv.price_per_unit = yangi_narx
+            db.delete(p)
+    materiallar.reverse()
+
+    xarajatlar = [{"id": t.id, "turi": t.category, "summa": float(t.amount or 0), "izoh": t.notes}
+                  for t in qism["xarajatlar"]]
+    natija = {
+        "receipt_id": receipt.id,
+        "document_number": receipt.document_number,
+        "supplier_id": receipt.supplier_id,
+        "sana": receipt.receipt_date.isoformat() if receipt.receipt_date else None,
+        "materiallar": materiallar,
+        "xarajatlar": xarajatlar,
+        "xarajatlar_jami": pul_tiyin_yigindi(x["summa"] for x in xarajatlar),
+        "tolov": ({"summa": tolov_jami, "soni": len(qism["tolovlar"])} if qism["tolovlar"] else None),
+        "tolov_amali": (tolov if qism["tolovlar"] else None),
+        "manfiy": [m["nomi"] for m in materiallar if (m.get("yangi_qoldiq") or 0) < 0],
+        "bekor_qilindi": not faqat_hisob,
+    }
+    if faqat_hisob:
+        return natija
+
+    for t in qism["xarajatlar"]:
+        db.delete(t)
+    for t in qism["tolovlar"]:
+        if tolov == "ochirish":
+            db.delete(t)
+        else:
+            # Izoh "Kirim to'lovi — #N" bilan BOSHLANMASIN: shu raqamli hujjat qayta bekor qilinmaydi (qator o'chadi),
+            # lekin SQLite id ni qayta berishi mumkin — yangi hujjat eski avansni "o'z to'lovi" deb olmasin (O'LCHANDI).
+            t.notes = f"Avans (bekor qilingan {(t.notes or '').strip()})"
+    db.delete(receipt)
+    log_activity(db, "deleted", "inventory_receipt", receipt_id,
+                 entity_label=f"Kirim hujjati #{receipt_id}" + (f" ({receipt.document_number})" if receipt.document_number else ""),
+                 performed_by=performed_by, company_id=receipt.company_id,
+                 new_value=(f"{len(materiallar)} ta material, qo'shimcha xarajat {natija['xarajatlar_jami']:,.0f} so'm"
+                            + (f", to'lov {tolov_jami:,.0f} so'm — " + ("o'chirildi" if tolov == "ochirish" else "avans")
+                               if qism["tolovlar"] else "")).replace(",", " "))
+    return natija
 
 
 def create_supplier_payment(db: Session, data: SupplierPaymentCreate, paid_by: str = None,
@@ -13236,6 +13475,44 @@ def brak_harakati_sharti(IM=None):
                        _and_bs(IM.reason.isnot(None), IM.reason.like(BRAK_ESKI_NAQSH)))))
 
 
+def _brak_harakat_narxi(harakat, inv) -> float:
+    """kech107 (49-band) — brak harakatining 1 birlik narxi, YAGONA qoida: CHIQIM paytidagi muzlatilgan `unit_cost`
+    (kech46, 13-band 2-qadam); u yo'q (eski harakat) — materialning joriy narxi; material ham yo'q — 0.
+    Chaqiruvchilar: `get_brak_material_summary` (Moliya "Brak" qatori, karta, PDF) va `brak_yozuv_qiymatlari` (tahlil)."""
+    if harakat.unit_cost is not None:
+        return float(harakat.unit_cost)
+    return float(inv.price_per_unit or 0) if inv else 0.0
+
+
+def brak_yozuv_qiymatlari(db: Session, return_item_ids, company_id: int = None) -> dict:
+    """kech107 (49-band, egasi qarori "Bitta raqam") — har brak YOZUVINING haqiqiy xomashyo narxi: shu yozuvga
+    bog'langan (`return_item_id`) brak chiqim harakatlari — miqdor × `_brak_harakat_narxi` (Moliyadagi "Brak" qatori
+    bilan AYNAN bir qoida). Bog'langan harakati yo'q yozuv — 0 (xomashyo yechilmagan, yoki bog'lamdan oldingi eski
+    yozuv — uning harakati Moliyada "bog'lanmagan" bo'lib sanaladi). Yozuvdagi saqlangan summa (`refund_amount`) —
+    TEGILMAYDI va bu yerda ishlatilmaydi. Qaytaradi: {return_item_id: qiymat} (har berilgan id uchun)."""
+    from models import InventoryMovement as _IM107, Inventory as _Inv107
+    ids = sorted({int(i) for i in (return_item_ids or []) if i is not None})
+    natija = {i: 0.0 for i in ids}
+    if not ids:
+        return natija
+    q = db.query(_IM107).filter(_IM107.movement_type == "out", brak_harakati_sharti(_IM107),
+                                _IM107.return_item_id.in_(ids))
+    if company_id is not None:
+        q = q.filter(_IM107.company_id == company_id)
+    rows = q.all()
+    inv_ids = sorted({r.inventory_id for r in rows if r.inventory_id})
+    inv_map = {}
+    if inv_ids:
+        _iq = db.query(_Inv107).filter(_Inv107.id.in_(inv_ids))
+        if company_id is not None:
+            _iq = _iq.filter(_Inv107.company_id == company_id)
+        inv_map = {i.id: i for i in _iq.all()}
+    for r in rows:
+        natija[r.return_item_id] = natija.get(r.return_item_id, 0.0) + \
+            float(r.quantity or 0) * _brak_harakat_narxi(r, inv_map.get(r.inventory_id))
+    return natija
+
+
 def get_brak_material_summary(db: Session, start_date=None, end_date=None,
                              company_id: int = None) -> dict:
     """Brak (defekt) sabab ombordan yechilgan XOMASHYO bo'yicha xulosa.
@@ -13254,9 +13531,8 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
     from models import Inventory, InventoryMovement, Order
 
     def _harakat_narxi(harakat, inv):
-        if harakat.unit_cost is not None:
-            return float(harakat.unit_cost)
-        return float(inv.price_per_unit or 0) if inv else 0.0
+        # kech107 (49-band): qoida YAGONA — `_brak_harakat_narxi` (tahlilning yozuv qiymati ham shu).
+        return _brak_harakat_narxi(harakat, inv)
 
     # kech52 (13-band, 3-qadam): brak — `is_brak` belgisi (eski harakatlar —
     # eski ta'rif), sabab matni EMAS: matn o'zgarsa hisobot nolga tushmaydi.
@@ -13269,7 +13545,9 @@ def get_brak_material_summary(db: Session, start_date=None, end_date=None,
     if start_date:
         q = q.filter(InventoryMovement.created_at >= start_date)
     if end_date:
-        q = q.filter(InventoryMovement.created_at <= end_date)
+        # kech107 (49-band): oxiri KIRMAYDI — hamma chaqiruvchi (`tashkent_oy_oraligi`, brak-materials marshruti:
+        # tugash kuni + 1 kun) shunday beradi; ilgari `<=` bilan aynan 1-kun 00:00 dagi harakat IKKI oyda sanalardi.
+        q = q.filter(InventoryMovement.created_at < end_date)
     rows = q.order_by(InventoryMovement.created_at.desc()).all()
 
     if not rows:

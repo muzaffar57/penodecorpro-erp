@@ -1960,6 +1960,13 @@ get_company_obligations_status = _hisobot_keshi_bilan(get_company_obligations_st
 
 
 def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
+    """{inventory_id: shu buyurtmada 1 birlik narxi} — `_buyurtma_sarf_hisobi` dan (qoidalar o'sha yerda).
+    kech107 (36-band): hisob (sof miqdor ham) alohida funksiyaga ajratildi — qoplamaning tayyor loy zaxirasidan olingan
+    qismi uchun miqdor ham kerak; narxlar AYNAN avvalgidek."""
+    return {_iid: _narx for _iid, (_miqdor, _narx) in _buyurtma_sarf_hisobi(db, order).items()}
+
+
+def _buyurtma_sarf_hisobi(db: Session, order) -> Dict:
     """kech48 (K47-1, 5-bo'lim 32-band) — FOYDALANUVCHI QARORI (kech47, tugma):
     "Ishlatilgan paytdagi narxda muzlatilsin".
 
@@ -1969,8 +1976,9 @@ def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
     kech47: penoplast 276 narxi x2 bo'lganda 2026-09 sof foydasi −11.38 mln
     so'mga siljidi; lokal `work/probe47.py`: narxlar x3 → tan narx x3).
 
-    Qaytaradi: {inventory_id: shu buyurtmada 1 birlik narxi} — faqat shu
-    buyurtmaning ombor harakatlarida uchragan materiallar uchun.
+    Qaytaradi: {inventory_id: (sof miqdor, shu buyurtmada 1 birlik narxi)} — faqat
+    shu buyurtmaning ombor harakatlarida uchragan materiallar uchun (kech107: miqdor
+    ham — hammasi qaytgan bo'lsa 0, narx — oxirgi ma'lum).
 
     Manba — shu buyurtmaning (`order_id`, korxona) harakatlari, `id` (vaqt)
     tartibida, O'RTACHA TANNARX usulida:
@@ -2057,11 +2065,40 @@ def _buyurtma_sarf_narxlari(db: Session, order) -> Dict:
     natija = {}
     for _iid_sn, (m, v, oxirgi) in hisob.items():
         if m > 1e-12:
-            natija[_iid_sn] = v / m
+            natija[_iid_sn] = (m, v / m)
         elif oxirgi is not None:
             # Hammasi qaytgan (jurnal bo'yicha) — oxirgi ma'lum narx.
-            natija[_iid_sn] = oxirgi
+            natija[_iid_sn] = (0.0, oxirgi)
     return natija
+
+
+def _buyurtma_zaxira_loyi(db: Session, order, recipe, sarf_hisobi: Dict) -> tuple:
+    """kech107 (36-band) — shu buyurtma qoplama loyining TAYYOR LOY ZAXIRASIDAN olingan qismi: (sof kg, 1 kg narxi).
+
+    Manba — buyurtmaning o'sha retsept tayyor loy pozitsiyasi harakatlari (`_buyurtma_sarf_hisobi` — o'rtacha tannarx
+    usuli, brak harakatlarisiz), narx — zaxiradan OLINGAN paytdagi retsept tannarxi (`take_loy_from_stock`). Pozitsiya
+    topilmasa, harakati yo'q yoki narxi noma'lum (tuzatishdan oldingi harakat — 0 / NULL) — (0.0, None): chaqiruvchi
+    butun loyni avvalgi qoidada baholaydi. Pozitsiya YARATILMAYDI (faqat o'qiladi)."""
+    from models import Inventory as _InvZ
+    if recipe is None or not sarf_hisobi:
+        return 0.0, None
+    _nom = recipe.name.value if hasattr(recipe.name, 'value') else str(recipe.name)
+    _cid = getattr(order, "company_id", None)
+    _kalit = (f"Tayyor loy ({_nom})", _cid)
+    _x_z = _hk_ol(db, "zaxira_loy", _kalit)
+    if _x_z is _HK_YOQ:
+        _zq = db.query(_InvZ.id).filter(_InvZ.item_name == _kalit[0])
+        if _cid is not None:
+            _zq = _zq.filter(_InvZ.company_id == _cid)
+        _zr = _zq.order_by(_InvZ.id).first()
+        _x_z = _zr[0] if _zr else None
+        _hk_qoy(db, "zaxira_loy", _kalit, _x_z)
+    if _x_z is None or _x_z not in sarf_hisobi:
+        return 0.0, None
+    _kg, _narx = sarf_hisobi[_x_z]
+    if not _narx or _narx <= 0 or _kg <= 1e-12:
+        return 0.0, None
+    return float(_kg), float(_narx)
 
 
 def _mrp_detal_tannarxi(db: Session, order, item, po_royxat) -> float:
@@ -2302,7 +2339,9 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
     default_penoplast = _hk_std_peno(db, getattr(order, "company_id", None))   # kech89: hisobotda bir marta
 
     # kech48 (K47-1): shu buyurtmada ishlatilgan paytdagi narxlar.
-    _sarf_narx = _buyurtma_sarf_narxlari(db, order)
+    # kech107 (36-band): hisob (sof miqdor + narx) bir marta — qoplamaning zaxira qismi uchun ham.
+    _sarf_hisob = _buyurtma_sarf_hisobi(db, order)
+    _sarf_narx = {_iid: _nx for _iid, (_mq, _nx) in _sarf_hisob.items()}
 
     def _narx(inv):
         """1 birlik narxi: shu buyurtmada muzlatilgan, bo'lmasa — joriy."""
@@ -2594,10 +2633,21 @@ def calculate_order_profit(db: Session, order_id: int, company_id: int = None, h
                     continue
                 narx_per_kg += (mat_kg / batch) * _ing_narx
 
-            qoplama_xarajat = loy_kg * narx_per_kg
+            # kech107 (36-band, O'LCHANGAN `work/probe107c.py`): tayyor loy ZAXIRASIDAN olingan qism — olingan paytdagi
+            # retsept tannarxida (ilgari butun loy ingredientlar narxida — to'liq zaxiradan qoplanganda JORIY narxda:
+            # narxlar x3 → tan narx 760 000 → 1 280 000). Qolgan qism — avvalgidek. Ishlatilgan loydan ko'p emas.
+            _zx_kg, _zx_narx = _buyurtma_zaxira_loyi(db, order, recipe, _sarf_hisob)
+            _zx = min(_zx_kg, loy_kg) if _zx_narx is not None else 0.0
+            qoplama_xarajat = _zx * (_zx_narx or 0.0) + (loy_kg - _zx) * narx_per_kg
             if qoplama_xarajat > 0:
+                if _zx > 1e-9:
+                    _qn = (f"Qoplama ({loy_kg:.1f} kg loy: {_zx:.1f} kg tayyor loy zaxirasidan × {_zx_narx:,.0f}"
+                           + (f" + {loy_kg - _zx:.1f} kg × {narx_per_kg:,.0f}" if loy_kg - _zx > 1e-9 else "")
+                           + " so'm/kg)")
+                else:
+                    _qn = f"Qoplama ({loy_kg:.1f} kg loy × {narx_per_kg:,.0f} so'm/kg)"
                 breakdown.append({
-                    "nomi": f"Qoplama ({loy_kg:.1f} kg loy × {narx_per_kg:,.0f} so'm/kg)",
+                    "nomi": _qn,
                     "summa": qoplama_xarajat
                 })
                 tan_narxi_jami += qoplama_xarajat
@@ -2910,21 +2960,32 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
             return None
         return ismlar.get(hid) or "O'chirilgan hodim"
 
+    # kech107 (49-band, egasi qarori "Bitta raqam"; O'LCHANGAN `work/probe107b.py`): taqsimot — shu oyning BRAK
+    # yozuvlari, qiymati HAQIQIY xomashyo narxi: buyurtma braki — unga bog'langan brak harakatlari
+    # (`crud.brak_yozuv_qiymatlari`, Moliya "Brak" qatori bilan bir qoida; ilgari yozuvdagi saqlangan, eski yozuvlarda
+    # taxminiy summa), ishlab chiqarish braki — `cost_amount` (uning harakatlari qiymati). Omborda tayyor turgan
+    # mahsulot yo'qotishi — brak EMAS: taqsimot va ulushga KIRMAYDI (ilgari kirardi — tahlil jami Moliyadan katta
+    # chiqardi), ro'yxatda (`yoqotishlar`) qoladi, jami — `tayyor_yoqotish_qiymati`.
+    _yozuv_qiymati = _cr.brak_yozuv_qiymatlari(db, [r.id for r in braklar], company_id=company_id)
     yozuvlar = []
     for r in braklar:
         yozuvlar.append({
             "nomi": r.item_name or "", "birlik": r.unit or "",
-            "miqdor": float(r.quantity or 0), "qiymat": float(r.refund_amount or 0),
+            "miqdor": float(r.quantity or 0), "qiymat": float(_yozuv_qiymati.get(r.id, 0.0)),
             "bosqich": r.brak_bosqich, "sabab": r.brak_sabab, "javobgar_id": r.brak_javobgar_id,
         })
     yoqotish_royxati = []
+    tayyor_yoqotish_qiymati = 0.0
     for l in yoqotishlar:
         ish_braki = (l.reason or "").startswith(_cr._ISH_BRAK_BELGI)
-        yozuvlar.append({
-            "nomi": l.product_name or "", "birlik": l.unit or "",
-            "miqdor": float(l.quantity or 0), "qiymat": float(l.cost_amount or 0),
-            "bosqich": l.brak_bosqich, "sabab": l.brak_sabab, "javobgar_id": l.brak_javobgar_id,
-        })
+        if ish_braki:
+            yozuvlar.append({
+                "nomi": l.product_name or "", "birlik": l.unit or "",
+                "miqdor": float(l.quantity or 0), "qiymat": float(l.cost_amount or 0),
+                "bosqich": l.brak_bosqich, "sabab": l.brak_sabab, "javobgar_id": l.brak_javobgar_id,
+            })
+        else:
+            tayyor_yoqotish_qiymati += float(l.cost_amount or 0)
         yoqotish_royxati.append({
             "id": l.id,
             "sana": l.lost_at.isoformat() if l.lost_at else None,
@@ -2941,6 +3002,14 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
         })
 
     jami_qiymat = sum(y["qiymat"] for y in yozuvlar)
+    # kech107 (49-band): Moliya "Brak" qatori (yaxlitlanmagan — o'sha funksiya, o'sha Toshkent oyi) − yozuvlar jami =
+    # yozuvga bog'lanmagan (bog'lamdan oldingi eski) brak harakatlari. Yangi ma'lumotda 0.
+    _b_boshi, _b_oxiri = _tashkent_oy_oraligi(year, month)
+    _moliya_brak = float(_cr.get_brak_material_summary(db, start_date=_b_boshi, end_date=_b_oxiri,
+                                                       company_id=company_id).get("total_value") or 0)
+    boglanmagan_qiymat = round(_moliya_brak - jami_qiymat, 2)
+    if abs(boglanmagan_qiymat) < 0.01:
+        boglanmagan_qiymat = 0.0
 
     def _ulush(q):
         return round(q / jami_qiymat * 100.0, 1) if jami_qiymat > 0 else 0.0
@@ -2985,6 +3054,8 @@ def get_brak_tahlil(db: Session, year: int, month: int, company_id: int = None,
         "ogohlantirish": (f"Brak me'yordan oshdi: {foiz:g} % (me'yor {meyor:g} %)" if oshdi else None),
         "yozuvlar_soni": len(yozuvlar),
         "yozuvlar_qiymati": round(jami_qiymat, 2),
+        "boglanmagan_qiymat": boglanmagan_qiymat,
+        "tayyor_yoqotish_qiymati": round(tayyor_yoqotish_qiymati, 2),
         "bosqichlar": _taqsimot("bosqich", lambda k: _cr.BRAK_BOSQICHLARI.get(k, k)),
         "sabablar": _taqsimot("sabab", lambda k: _cr.BRAK_SABABLARI.get(k, k)),
         "javobgarlar": _taqsimot("javobgar_id", _javobgar_ismi),
@@ -3397,8 +3468,10 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
     except Exception:
         brak_xarajat = 0.0
 
-    # Tayyor mahsulot brak/yo'qotishi (masalan sinib qolgan Gips mahsulot) —
-    # bu ham Brak xarajatiga qo'shiladi, xuddi xomashyo brak'i kabi.
+    # Tayyor mahsulot yo'qotishi (masalan omborda turganda sinib qolgan mahsulot) — xarajat. kech107 (49-band,
+    # egasi qarori "Bitta raqam"): ilgari "Brak" qatoriga QO'SHILARDI — karta / tahlil bilan uch xil raqam chiqardi;
+    # endi ALOHIDA qator (`fp_loss_xarajat` — "Tayyor mahsulot yo'qotishi (omborda)"), "Brak" = faqat brak harakatlari
+    # (haqiqiy xomashyo narxi — karta, bosh sahifa, tahlil bilan BITTA raqam). Jami xarajat va sof foyda O'ZGARMAYDI.
     # MUHIM (2026-09 chuqur audit — ikkinchi bosqich): "Ishlab chiqarish
     # jarayonidagi brak" (record_finished_product_production_brak, Tayyor
     # mahsulotlar sahifasi) uchun QO'SHIMCHA sarflangan xomashyo (Penoplast/
@@ -3427,7 +3500,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         float(l.cost_amount or 0) for l in fp_losses
         if not (l.reason or '').startswith(_PROD_BRAK_MARKER)
     )
-    brak_xarajat += fp_loss_xarajat
+    # kech107 (49-band): `brak_xarajat` ga QO'SHILMAYDI — jami xarajatga alohida qo'shiladi (pastda).
 
     # Jami xarajat (arenda/elektr/tushlik/soliq/reklama/kutilmagan va h.k. — hodim
     # to'lovi endi "Ustalar KPI / Hodimlar" bo'limida alohida hisoblanadi)
@@ -3450,6 +3523,7 @@ def get_monthly_report(db: Session, year: int, month: int, company_id: int = Non
         xarajatlar["soliqlar"] +
         qoshimcha_xarajat_jami +
         brak_xarajat +
+        fp_loss_xarajat +           # kech107 (49-band): tayyor mahsulot yo'qotishi — alohida qator, jami o'zgarmaydi
         transport_xarajat
     )
 
@@ -4963,11 +5037,24 @@ def take_loy_from_stock(db: Session, recipe, kg_needed: float, order=None, reaso
     stock.stock_quantity = available - taken
     if taken > 0:
         import crud as _crud
+        # kech107 (36-band, O'LCHANGAN `work/probe107c.py`): tayyor loy pozitsiyasi narxsiz — harakat 0 so'm bilan
+        # yozilardi: to'liq zaxiradan qoplangan buyurtma tannarxi keyingi narx o'zgarishi bilan siljirdi, brak esa zaxira
+        # loyini 0 ga baholardi. Endi — OLINGAN paytdagi retsept tannarxi (1 kg), "ishlatilgan paytdagi narx" qarori.
+        # Pozitsiyaga egasi narx qo'ygan bo'lsa (> 0) — o'sha narx (avvalgidek, `log_movement` joriy narxni oladi).
+        _zaxira_narxi = None
+        if not float(stock.price_per_unit or 0) > 0:
+            try:
+                _zaxira_narxi = float(get_loy_cost_per_kg(db, getattr(recipe, "id", None),
+                                                          company_id=getattr(stock, "company_id", None))
+                                      .get("cost_per_kg") or 0)
+            except Exception:
+                _zaxira_narxi = None
         _crud.log_movement(
             db, stock.id, stock.item_name, movement_type="out",
             quantity=taken, unit=stock.unit,
             reason=reason_override or f"Buyurtma {getattr(order, 'order_number', order.id) if order else '?'} (tayyor loy zaxirasidan)",
-            order_id=order.id if order else None
+            order_id=order.id if order else None,
+            unit_cost=_zaxira_narxi
         )
     if commit:
         db.commit()

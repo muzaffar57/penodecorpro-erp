@@ -1246,6 +1246,12 @@ class InventoryPurchase(Base):
     # Shu qatorga to'g'ri kelgan qo'shimcha xarajat ulushi (agar hujjatda
     # "tannarxga qo'shish" yoqilgan bo'lsa) — bir birlikka, tarix uchun saqlanadi
     extra_cost_per_unit = Column(Numeric(12, 4), default=0)
+    # kech107 (10f): shu xarid materialning O'RTACHA narxini qanday o'zgartirgani — `narx_oldin` (xariddan oldingi),
+    # `narx_keyin` (xariddan keyin yozilgan). Xarid / kirim hujjati bekor qilinganda material narxi hali `narx_keyin`
+    # ga teng bo'lsa — `narx_oldin` ga qaytadi (`crud._xarid_narxini_qaytar`). `default=` ATAYLAB YO'Q: eski
+    # (kech107 dan oldingi) xaridlarda NULL — narx tegilmaydi (avvalgi xulq).
+    narx_oldin = Column(Numeric(12, 2), nullable=True)
+    narx_keyin = Column(Numeric(12, 2), nullable=True)
 
     def __repr__(self):
         return f"<InventoryPurchase {self.item_name} {self.quantity}>"

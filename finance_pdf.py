@@ -347,6 +347,9 @@ def generate_finance_report_pdf(report: dict, expense_transactions: list,
         _add_row(f"Brak — {m.get('item_name', '—')}", m.get('value', 0))
     if not brak_by_material and report.get("brak_xarajat", 0):
         _add_row("Brak (yaroqsiz xomashyo)", report.get("brak_xarajat", 0))
+    # kech107 (49-band, "Bitta raqam"): omborda tayyor turgan mahsulot yo'qotishi — "Brak" dan ALOHIDA qator (jami
+    # xarajat ichida; ilgari "Brak" ichida edi, bu jadvalda qatori YO'Q edi — qatorlar yig'indisi JAMI dan kam chiqardi).
+    _add_row("Tayyor mahsulot yo'qotishi (omborda)", report.get("fp_loss_xarajat", 0))
 
     # 5b) kech106 (K106-2, O'LCHANGAN — `work/probe106m.py`): korxona to'lagan TRANSPORT — hisobotning JAMI XARAJAT i
     # ichida (kech87, 104-band), lekin bu jadvalda YO'Q edi (qatorlar yig'indisi JAMI dan kam chiqardi).

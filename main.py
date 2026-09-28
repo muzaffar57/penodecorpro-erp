@@ -4038,16 +4038,27 @@ def api_hodim_my_requests(db: Session = Depends(get_db), emp=Depends(auth.requir
 
 
 @app.post("/api/hodim/advance-request")
-def api_hodim_advance_request(amount: float = Form(...), requested_date: str = Form(...),
+def api_hodim_advance_request(amount: Optional[str] = Form(None), requested_date: Optional[str] = Form(None),
                                notes: str = Form(None), db: Session = Depends(get_db),
                                emp=Depends(auth.require_employee_login)):
-    if amount <= 0:
-        raise HTTPException(status_code=400, detail="Summa noto'g'ri")
+    """Hodim o'zi "avans oldim" deb yozadi (tasdiqlanmagan so'rov).
+
+    kech107 (10c, O'LCHANGAN `work/probe107h.py`, SQLite va PG): bu yo'l 17c qat'iy tekshiruvidan chetda qolgan edi —
+    `amount: float` faqat `<= 0` bilan rad etilardi: `inf` / `1e20` / `1e13` (SQLite) va `nan` (PG) SAQLANARDI, qolganlari
+    500 berardi; admin tasdiqlagach oylik hisobot, hodim avanslari va kutilayotganlar ro'yxati 500 bilan buzilardi;
+    0.001 → 0.00 lik so'rov, 0001 / 9999 yillar, cheksiz izoh ham yozilardi. Endi admin yo'li bilan BIR qoida —
+    `crud._clean_avans` (summa matn sifatida olinadi); sana majburiy. Xato — 400, sababi bilan (panel `detail` ni ko'rsatadi);
+    bo'sh maydon ham 400 (ilgari FastAPI 422 ro'yxatini qaytarardi — panel uni "[object Object]" deb ko'rsatardi)."""
     try:
-        rdate = datetime.strptime(requested_date, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Sana noto'g'ri")
-    req = crud.create_advance_request(db, emp.id, amount, rdate, notes)
+        toza = crud._clean_avans(amount, notes, requested_date)
+    except ValueError as e:
+        # Hodimga tushunarli nomlar (panel maydonlari: Summa, Sana, Izoh).
+        raise HTTPException(status_code=400, detail=str(e).replace("'amount'", "Summa")
+                            .replace("'adv_date'", "Sana").replace("'notes'", "Izoh"))
+    if toza["adv_date"] is None:
+        raise HTTPException(status_code=400, detail="Sana kiritilishi shart (YYYY-MM-DD)")
+    req = crud.create_advance_request(db, emp.id, toza["amount"], toza["adv_date"], toza["notes"],
+                                      company_id=emp.company_id)
     return {"status": "ok", "id": req.id}
 
 
@@ -4357,6 +4368,37 @@ def api_delete_purchase(purchase_id: int, db: Session = Depends(get_db), current
     if not crud.delete_purchase(db, purchase_id, company_id=auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok"}
+
+
+@app.get("/api/inventory/receipts/{receipt_id}/cancel-plan")
+def api_receipt_cancel_plan(receipt_id: int, db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """kech107 (10f): kirim hujjatini bekor qilish REJASI — hech narsa o'zgarmaydi (oynada ko'rsatiladi)."""
+    natija = crud.kirim_hujjatini_bekor_qilish(db, receipt_id, company_id=auth.company_id_of(current_user),
+                                               faqat_hisob=True)
+    if natija is None:
+        raise HTTPException(status_code=404, detail="Kirim hujjati topilmadi")
+    return natija
+
+
+@app.post("/api/inventory/receipts/{receipt_id}/cancel")
+def api_receipt_cancel(receipt_id: int, tolov: Optional[str] = None, db: Session = Depends(get_db),
+                       current_user=Depends(auth.admin_or_warehouse)):
+    """kech107 (10f): kirim hujjatini butunlay bekor qilish — BITTA tranzaksiyada (`crud.kirim_hujjatini_bekor_qilish`).
+    `tolov` — hujjat bilan to'langan pul: `ochirish` yoki `avans` (egasi qarori "Har safar so'rasin"; to'lov bor-u
+    berilmasa — 409 `receipt_has_payment`, hech narsa o'zgarmaydi)."""
+    who = current_user.full_name or current_user.username
+    try:
+        with crud.bitta_tranzaksiya(db):
+            natija = crud.kirim_hujjatini_bekor_qilish(db, receipt_id, company_id=auth.company_id_of(current_user),
+                                                       tolov=tolov, performed_by=who)
+            if natija is None:
+                raise HTTPException(status_code=404, detail="Kirim hujjati topilmadi")
+    except crud.KirimTolovTanloviKerak as e:
+        raise HTTPException(status_code=409, detail={"type": "receipt_has_payment", "message": e.xabar,
+                                                     "summa": e.summa})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return natija
 
 
 @app.post("/api/suppliers/{supplier_id}/payment")

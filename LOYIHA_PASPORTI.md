@@ -106,7 +106,8 @@ Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'li
 - `saas_migration.py` — VAQTINCHALIK: ko'p korxonali (SaaS) migratsiya sahifasi `/saas-migratsiya`
   (bosqichlar W1–W6, dry-run; `sinov` da BAJARILGAN, `main` da hali bajarilmagan).
 - `erp_backup_tekshiruv.py` — JSON zaxira faylini tekshiruvchi mustaqil skript (tiklamaydi).
-- `templates/` — 25 ta Jinja2 sahifa (`base.html` — umumiy qobiq va brauzer vaqti yordamchilari `tk*`); `static/` — CSS,
+- `templates/` — 24 ta Jinja2 sahifa (`base.html` — umumiy qobiq, brauzer vaqti yordamchilari `tk*`, server rad sababi
+  `xatoSababi` / `serverXatoSababi`; kech107 da hech bir handler ko'rsatmaydigan eski usta shabloni olib tashlandi); `static/` — CSS,
   logotiplar, `translit.js` (Kirill ↔ Lotin). Statik fayl o'zgarsa `main.py` dagi `static_version` ni oshiring (kesh).
 - `tools/` — testlar (`test_*.py`, `test_*.js`), `tenant_lint.py` (+ `tenant_lint_baseline.json`),
   `narx_etalon_baza.py` / `narx_etalon_jonli.json` (narx etaloni), `pasport_xarita.py` (shu faylning xaritasi),
@@ -129,7 +130,8 @@ Ekranda sonlar `toLocaleString('ru-RU')`; ko'rsatish uchun yaxlitlangan qiymat h
 
 **Atomiklik va poygalar.** Bir nechta jadvalga yozadigan amal `crud.bitta_tranzaksiya` ichida (nosozlikda hech
 narsa saqlanmaydi). Pul amallari `crud._pul_qulfi` (PostgreSQL advisory lock) ostida, qulfdan keyin qayta o'qish;
-takror yuborish himoyasi `crud.PUL_TAKROR_SONIYA` (8 s). Buyurtma yaratish loyiha bo'yicha qulflanadi
+takror yuborish himoyasi `crud.PUL_TAKROR_SONIYA` (8 s) — hodim panelidagi avans so'rovi ham (`crud.create_advance_request`,
+qulf 107 — hodim bo'yicha; kech107, 10c). Buyurtma yaratish loyiha bo'yicha qulflanadi
 (`crud.create_order`). Ombor qatori `with_for_update()` bilan — bunday modelga `lazy="joined"` qo'yilmaydi.
 
 **Vaqt.** Baza vaqtni UTC da (naive) saqlaydi (`datetime.utcnow`). Hisobotlarning kun / oy / yil chegaralari —
@@ -168,7 +170,31 @@ oddiy satr (Paragraph emas) belgilash sifatida o'qilmaydi. Hujjatning katta sarl
 xarajatlar ro'yxati (`buildExpDetail`) — hisobot (`services.get_monthly_report`) qismlaridan, JAMI XARAJAT bilan BIR manba:
 asosiy 4 turkum (`xarajatlar`), qo'shimcha turkumlar (`qoshimcha_xarajatlar` — tannarxga qo'shilgan kirim xarajatlari
 kirmaydi), transport (xarid va yuk — korxona hisobidan), usta KPI, hodimlar, Ehson, brak, ishlab chiqarish; "Boshqa" /
-"Kutilmagan" — izoh bo'yicha. Qatorlar yig'indisi = JAMI (tekshiruv shu xossa bilan).
+"Kutilmagan" — izoh bo'yicha; omborda tayyor turgan mahsulot yo'qotishi — "Brak" dan ALOHIDA qator (`fp_loss_xarajat`,
+kech107). Qatorlar yig'indisi = JAMI (tekshiruv shu xossa bilan).
+
+**Brak summasi — BITTA raqam (kech107, 49-band qarori).** Brak qiymati — brak chiqim harakatlari, chiqim paytidagi
+muzlatilgan narx bilan: `crud.get_brak_material_summary` (narx qoidasi — `crud._brak_harakat_narxi`, davr oxiri
+KIRMAYDI). Karta va bosh sahifa (`crud.get_return_stats` — shu oy Toshkent oyi, jami — hamma vaqt), Moliya "Brak"
+qatori (`services.get_monthly_report`) va brak tahlili (`services.get_brak_tahlil`) — shu BITTA funksiya. Tahlilda
+yozuv qiymati — unga bog'langan harakatlar (`crud.brak_yozuv_qiymatlari`), ishlab chiqarish braki — `cost_amount`,
+Moliyadan farq — `boglanmagan_qiymat`; omborda tayyor turgan yo'qotish brak EMAS (taqsimotga kirmaydi,
+`tayyor_yoqotish_qiymati`). Yozuvdagi saqlangan summa (`refund_amount`) hisobot uchun ishlatilmaydi va tegilmaydi.
+
+**Server rad sababi (UI, kech107, 10d).** Server 400 / 404 / 409 / 422 da sababni `detail` da beradi (matn, obyekt
+`{message}` / `{error}`, pydantic ro'yxati). Sahifada rad javobi FAQAT `templates/base.html` dagi `xatoSababi(javob,
+standart)` / `serverXatoSababi(res, standart)` bilan o'qiladi ("Xato yuz berdi", `r.detail?.message`, "[object
+Object]" — YO'Q); forma maydonlari `Optional[str] = Form(None)` + o'z tekshiruvi (bo'sh maydon 422 ro'yxati emas, 400 matn).
+
+**Kirim hujjatini bekor qilish (kech107, 10f).** `crud.kirim_hujjatini_bekor_qilish` — reja (`faqat_hisob=True`,
+`GET /api/inventory/receipts/{id}/cancel-plan`) va amal (`POST …/cancel?tolov=ochirish|avans`, bitta tranzaksiya)
+BITTA funksiya: har xarid qaytadi (qoldiq — arifmetik, o'rtacha narx — `crud._xarid_narxini_qaytar`: narx hali
+`narx_keyin` ga teng bo'lsa `narx_oldin` ga; oxirgi qatordan boshlab), hujjatning Moliyadagi qo'shimcha xarajatlari
+o'chadi, «hozir to'langan» to'lov — egasi tanlovi (tanlovsiz 409 `receipt_has_payment`, hech narsa o'zgarmaydi).
+Yakka xaridni o'chirish ham narxni shu qoida bilan qaytaradi.
+
+**Loyiha tahriri (kech107, 10a).** Tahrirda muddat o'zgaradi / olib tashlanadi; ixtiyoriy maydon `null` — tozalanadi
+(`crud.LOYIHA_TOZALANADIGAN`: telefon, manzil, tavsif, izoh (Telegram ID), muddat), `total_budget: null` — 0.
 
 **Buyurtma hayoti.** Holatlar: `draft` (qoralama) → `new` / `in_progress` (jarayonda) → `delivered` (hammasi topshirilgan,
 lekin «Tayyor» bosilmagan) → `ready` («Tayyor» — YAKUNIY, hisobotga kiradi); `cancelled`. Yuk xati (`crud.create_delivery`) —
@@ -185,6 +211,10 @@ foyda oynasi — hammasi shu). Tannarx ishlatilgan / olingan paytdagi narxda muz
 tayyor mahsulot birligi — `crud._fp_stable_unit_cost`, detal `fp_unit_cost`). Qaytarish hodisalari (pul, ombor)
 — `services._qaytarish_hodisalari` (hisobotda qaytarish bo'lgan oyda alohida qator). Detal tannarxi —
 `services.get_order_item_unit_cost`. Qoplama retsepti — `services.resolve_recipe`.
+Tayyor loy ZAXIRASIDAN olingan loy — olingan paytdagi retsept tannarxida (kech107, 36-band): `services.take_loy_from_stock`
+harakatga shu narxni yozadi (`crud.log_movement(unit_cost=…)`), buyurtma qoplamasining zaxira qismi — o'sha narxda
+(`services._buyurtma_zaxira_loyi`, hisob `services._buyurtma_sarf_hisobi`), qolgani — ingredientlar narxida; eski (narxi
+0 / NULL) zaxira harakati — avvalgi qoida. Brak ham zaxira loyini shu narxda baholaydi.
 
 **Turkumlar.** Doimiy (kodda): `profil`, `panel`, `dona`. Ixtiyoriy: `loy_sotish`; eskirgan: `blok` (faqat
 yoqilsa). `gips`, `termopanel` koddan olib tashlangan — kerak bo'lsa korxona MRP da o'z mahsulot turini
@@ -244,7 +274,7 @@ python3 -m pyflakes crud.py main.py schemas.py services.py
 Har test oxirida `NATIJA: o'tdi = N yiqildi = M jami = K`; talab — `yiqildi = 0` va chiqish kodi 0. PG testlarini
 parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayllarni tahrirlamang.
 
-**Kutilgan natija (kech106 o'lchovi, 2026-09-28, zip 101 fayllari bilan):** `bash tools/hammasi.sh` — 128 test fayli (Python va JS), jami **11 882** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **11 883** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 78 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 108); pyflakes — `crud.py` 63, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
+**Kutilgan natija (kech107 o'lchovi, 2026-09-28, zip 102 fayllari bilan):** `bash tools/hammasi.sh` — 137 test fayli (Python va JS), jami **12 119** tekshiruv, `fail=0`, `yomon_rc=0`; `TF=1 bash tools/hammasi.sh` — **12 120** (farq: `test_idor.py` TENANT_FILTER rejimida qo'shimcha tekshiruv); `PG_URL` bilan alohida yurgizilgan 83 ta PG testi + `tools/test_pul_query.py` / `tools/test_qaytarish_query.py` — hammasi 0 yiqilish; `tools/tenant_lint.py` — TOZA (ma'lum holatlar 108); pyflakes — `crud.py` 63, `main.py` + `schemas.py` 14, `services.py` 11 ta ESKI ogohlantirish (yangisi qo'shilmasin), testlar 0. Test qo'shilsa sonlar o'zgaradi — talab o'zgarmaydi: `fail=0`, `yomon_rc=0`.
 
 **Darvozalar (o'zgartirishdan keyin yiqilsa — sababini toping, testni "moslab" yashirmang):**
 
@@ -286,6 +316,14 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
 - PDF matni va sarlavhasi ("<" / "&" li foydalanuvchi matni — 7 PDF 200 va matn AYNAN; 2-korxona sarlavhasi; statik —
   `Paragraph` ga `_x`): `tools/test_pdf_matn.py`.
 - Moliya xarajatlar ro'yxati = JAMI (PDF va sahifa; 205 ta tranzaksiya — cheklovsiz; eski oylik shakl): `tools/test_moliya_tafsilot.py`.
+- Brak — bitta raqam (karta = Moliya = tahlil; tayyor turgan yo'qotish alohida; bog'lanmagan eski harakat; oy chegarasi;
+  PDF qatori; B korxona): `tools/test_brak_bitta_raqam.py`, `tools/test_brak_bitta_raqam_ui.js`.
+- Tayyor loy zaxirasi narxi (qoplama muzlaydi, brak zaxira loyini oladi, eski harakat — avvalgidek): `tools/test_zaxira_loy_narx.py`.
+- Kirim hujjatini bekor qilish (reja = amal, o'rtacha narx, to'lov tanlovi, izolyatsiya, PG poyga): `tools/test_kirim_bekor.py`,
+  `tools/test_kirim_bekor_ui.js`.
+- Server rad sababi — kpi / inventory / finished ning 29 joyi (matn, obyekt, ro'yxat): `tools/test_xato_sababi_ui.js`.
+- Loyiha tahriri (muddat, tozalash, izolyatsiya): `tools/test_loyiha_tahrir.py`, `tools/test_loyiha_tahrir_ui.js`;
+  hodim avans so'rovi (tekshiruv, takror, PG poyga): `tools/test_hodim_avans.py`.
 
 **Yangi o'zgarish tartibi:** (1) asl kodda nuqsonni o'lchash (probe — SQLite va PG); (2) tuzatish; (3) yangi test
 (asl kodga qarshi yiqiladi, QULAMAYDI); (4) mutatsiyalar; (5) `bash tools/hammasi.sh` (+ `TF=1`), PG testlari,
@@ -300,6 +338,8 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - (2026-09-20) `main` ga bosqichma-bosqich emas — hammasi `staging` da tugab, BIR marta ehtiyotkor ko'chirish;
   keyin sotuv. Istisno: `main` ga bugun zarar berayotgan narsa alohida kichik reliz bo'lishi mumkin.
 - (kech91) "Hammasini staging da" — mayda UX, o'lik kod, tezlik kuzatuvlari ham `main` dan OLDIN.
+- (kech107, 10g) "Boshqa bot" — ERP xabarlari (admin / mijoz / usta) katalog botidan EMAS, alohida botdan keladi:
+  «Telegram xavfsizligini yoqish» katalog botiga tegmaydi.
 - (kech105, K105-1) `main` shoxidagi 2026-09-24 xato yuklash oqibati (`main.py` 15-sentabr nusxasi: sovg'a davriga
   usta qo'shish «+ Qo'shish» va zaxiradan tiklash marshrutlari yo'q) — "Yo'q, katta ko'chirishda tuzalsin": hozir
   `main` ga tegilmaydi, bir martalik ko'chirishda tuzaladi.
@@ -358,6 +398,8 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - (kech51, 37 "A") Eski brak (narx yozilmagan) bugungi narxda bir marta muzlatilgan.
 - (kech54, 41) MRP detali brakining qoplama loyi — qoplama narxi ulushiga qarab (qimmat detal ko'proq).
 - (kech54, 42) Brak summasi qoidasi — eskisi o'zgarmaydi, faqat yangilari to'g'ri.
+- (kech107, 49 "Bitta raqam") Karta, bosh sahifa, tahlil va Moliya «Brak» qatori — BITTA haqiqiy xomashyo narxi;
+  omborda tayyor turgan mahsulot shikastlanishi — Moliyada ALOHIDA qator; jami xarajat o'zgarmaydi.
 
 **Moliya va ombor**
 - (kech87, 104) Xomashyo xaridida korxona to'lagan transport — to'langan oyning xarajati; mijozga yetkazishda
@@ -366,6 +408,8 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   kalendari (kun 00:00 da almashadi); hamma hisobot va "Bugun" bir xil; o'tgan oylarda tungi (00:00–05:00) yozuvlar
   to'g'ri kun / oyga ko'chadi.
 - (kech36) Ortgan loy (Tayyor loy) uchun minimal chegara shart emas — "kam qoldi" ogohlantirishiga kirmaydi.
+- (kech107, 10f "Har safar so'rasin") Kirim hujjatini bekor qilishda «hozir to'langan» to'lov — har safar tanlov:
+  to'lovni ham o'chirish yoki ta'minotchida avans qolsin; ombor, o'rtacha narx, qo'shimcha xarajatlar — avtomatik orqaga.
 - (2026-09-16) Joriy sovg'a davri ataylab yangi ustalar uchun (eski ustalar qatnashmaydi).
 
 ## 7. Ochiq masalalar
@@ -387,9 +431,18 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   buyurtmalar — bosh sahifa grafigidan chiqadi (oylik hisobot ularni allaqachon sanamaydi).
 - **`staging` da ✅ belgisiz qolgan eski bandlar (oxirgi TOPSHIRIQ, 5-bo'lim) — `main` dan OLDIN ko'rib chiqiladi:** 9 va 50 —
   YOPILDI (kech105 zip 100 — hisobot chegaralari; kech106 zip 101 — ko'rinish: PDF, Telegram, sahifalar, brauzer
-  standart sanalari va joriy oy — 4-bo'lim "Vaqt"); 10 — kech23 qoldiqlari (loyiha tahririda muddat, hodim
-  paneli, UI 400 sabablari, hech bir handler ko'rsatmaydigan `templates/masters.html`, "Kirim hujjatini bekor qilish", Telegram
-  dizayni xavfi); 26, 36, 49, 71 — hujjatlangan chegaralar (tuzatish rejalanmagan).
+  standart sanalari va joriy oy — 4-bo'lim "Vaqt"); 10 — kech23 qoldiqlari: YOPILDI kech107 (loyiha tahririda muddat,
+  hodim paneli avansi, UI 400 sabablari, o'lik usta shabloni, "Kirim hujjatini bekor qilish", Telegram — qaror "Boshqa
+  bot"); lint baseline (108) TOIFALANDI (kech107, kod o'qish — A 9, B 84, C 12, E 3; natija — oxirgi TOPSHIRIQ):
+  E-1 (eski ko'p-korxona MRP bandi — `crud._auto_release_mrp_reservations`) o'lchanadi; `main` dan OLDIN — TENANT_FILTER=1 da
+  `auth.create_user` band login uchun 500 (400 o'rniga), Telegram «Sovg'alar» boshqa korxona ustasiga "faol davr yo'q"; 36, 49 — YOPILDI kech107; 26 — hujjat (qaytarishda `to_stock: false`
+  faqat API, UI yubormaydi); 71 — O'LCHANDI kech107 (UI da yaratilgan buyurtma tahriri — narx AYNAN; `base_price` siz
+  (API / eski) buyurtma tahrirda saqlansa detal narxi 0 — `main` o'lchovi va himoya, oxirgi TOPSHIRIQ).
+- **`main` o'lchoviga (kech107):** `base_price` NULL va `price_per_m3` NULL (tayyor mahsulot / MRP emas) detalli buyurtmalar
+  soni (tahrirda narx 0 xavfi); brak yozuvlari summasi va harakatlari farqi ("Bitta raqam" dan keyin karta raqami
+  o'zgaradi — egasiga misol bilan ko'rsatiladi).
+- **SaaS / Telegram (kech107, 10g):** korxona sozlamasidagi bot — xabar YUBORADI, lekin usta menyusi (`/telegram/webhook`)
+  faqat muhit boti (`TELEGRAM_BOT_TOKEN`) uchun ishlaydi.
 - **Egasi hal qiladi:** brak mahsulotning keyingi taqdiri (chiqindi / tuzatildi / qayta ishlatildi / 2-nav);
   SaaS uchun alohida brend nomi, narx tariflari, mijoz bilan shartnoma (ma'lumot egaligi).
 - **Rus tili (i18n)** — `main` ko'chirishidan KEYIN (qaror kech104); kodda hali yo'q (faqat Kirill ↔ Lotin), 25 sahifaga tegadi.
@@ -450,6 +503,13 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   ma'lumotning oxirgi ">" ini ham o'chiradi — ~1–2 % oqim; kontent vaqtga bog'liq bo'lgani uchun vaqt sayohatida
   TASODIFAN yiqildi); `BT … ET` bloklarini TOKENLAB ajrating (satr ichidagi "ET" — "YETKAZISH" — `BT(.*?)ET` ni
   uzadi, qator jim tashlanadi). Har PDF o'quvchili testda o'quvchining o'zi uchun sun'iy PDF nazorati bor.
+- SQLite eng katta id li qator o'chirilsa, o'sha id ni QAYTA beradi (PG ketma-ketligi bermaydi): izohdagi "#N" bo'yicha
+  bog'lash ishonchsiz (kech107: bekor qilingan kirimning avans to'lovi izohi "Kirim to'lovi — #N" bilan boshlanmaydi).
+- FastAPI `Form(...)` bo'sh maydonni 422 (pydantic RO'YXATI) qiladi — sahifa "[object Object]" ko'rsatadi: matn maydoni
+  `Optional[str] = Form(None)` + o'z tekshiruvi (400, tushunarli matn).
+- Mutatsiya faqat STATIK tekshiruv bilan ushlansa — xulq tekshiruvini qo'shing (kech107: 8 ta UI joyi faqat statik ushlanardi;
+  bitta holatning ikki yurgizishi soxta DOM elementlarini bo'lishsa — birinchi natija ustiga yozilardi).
+- Bir raqamning uch ta'rifi (karta / Moliya / tahlil) — BITTA funksiyaga (49-band): ta'rif har joyda qayta yozilsa, ajraladi.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -562,7 +622,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /inventory` → `main.py:inventory_page` → `templates/inventory.html`
 - Qorovul: auth.inventory_view
 - Server chaqiruvlari: auth.company_id_of, crud.get_inventory, crud.get_suppliers, services.get_inventory_kpi
-- `inventory.html` API: `/api/inventory/full-stock-report`, `/api/inventory/low-stock-alert`, `/api/inventory/movements`, `/api/inventory/purchase-stats`, `/api/inventory/purchases`, `/api/inventory/purchases/{}`, `/api/inventory/{}`, `/api/inventory/{}/image`, `/api/inventory/{}/min-stock`, `/api/inventory/{}/price`, `/api/inventory/{}/set-default-penoplast`, `/api/inventory/{}/stock`
+- `inventory.html` API: `/api/inventory/full-stock-report`, `/api/inventory/low-stock-alert`, `/api/inventory/movements`, `/api/inventory/purchase-stats`, `/api/inventory/purchases`, `/api/inventory/purchases/{}`, `/api/inventory/receipts/{}/cancel`, `/api/inventory/receipts/{}/cancel-plan`, `/api/inventory/{}`, `/api/inventory/{}/image`, `/api/inventory/{}/min-stock`, `/api/inventory/{}/price`, `/api/inventory/{}/set-default-penoplast`, `/api/inventory/{}/stock`
 
 ### `GET /kpi` → `main.py:kpi_page` → `templates/kpi.html`
 - Qorovul: auth.admin_or_financier
@@ -636,7 +696,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 - Qorovul: auth.admin_or_manager
 - `masters_manage.html` API: `/api/masters`, `/api/masters/{}`
 
-Hech bir handler to'g'ridan-to'g'ri ko'rsatmaydigan shablonlar: `masters.html`
+Hech bir handler to'g'ridan-to'g'ri ko'rsatmaydigan shablonlar: yo'q
 <!-- AVTO:SAHIFALAR OXIRI -->
 
 ### 9.4 API marshrutlari
@@ -741,10 +801,10 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/health` → `main.py:health` · 🔓
 
 #### `/api/hodim` (2)
-- `POST /api/hodim/advance-request` → `main.py:api_hodim_advance_request` · 🔒 auth.require_employee_login · crud.create_advance_request
+- `POST /api/hodim/advance-request` → `main.py:api_hodim_advance_request` · 🔒 auth.require_employee_login · crud._clean_avans, crud.create_advance_request
 - `GET /api/hodim/my-requests` → `main.py:api_hodim_my_requests` · 🔒 auth.require_employee_login · crud.get_employee_own_requests
 
-#### `/api/inventory` (20)
+#### `/api/inventory` (22)
 - `GET /api/inventory` → `main.py:api_get_inventory` · 🔒 auth.inventory_view · auth.company_id_of, crud.get_inventory
 - `POST /api/inventory` → `main.py:api_create_item` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud._clean_create, crud.add_item
 - `POST /api/inventory/full-stock-report` → `main.py:api_full_stock_report` · 🔒 auth.admin_or_warehouse · auth.company_id_of
@@ -757,6 +817,8 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `PUT /api/inventory/purchases/{purchase_id}` → `main.py:api_update_purchase` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.purchase_of_company, crud.update_purchase
 - `DELETE /api/inventory/purchases/{purchase_id}` → `main.py:api_delete_purchase` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.purchase_of_company, crud.delete_purchase
 - `POST /api/inventory/receipt` → `main.py:api_create_inventory_receipt` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud._pul_yigindi, crud._require_inventory_of_company, crud._xarid_narx_jami, crud.bitta_tranzaksiya, crud.create_inventory_receipt, crud.get_supplier
+- `POST /api/inventory/receipts/{receipt_id}/cancel` → `main.py:api_receipt_cancel` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.bitta_tranzaksiya, crud.kirim_hujjatini_bekor_qilish
+- `GET /api/inventory/receipts/{receipt_id}/cancel-plan` → `main.py:api_receipt_cancel_plan` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.kirim_hujjatini_bekor_qilish
 - `PUT /api/inventory/{item_id}` → `main.py:api_update_inventory_item` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.inventory_of_company, crud._clean_update, crud.update_item
 - `DELETE /api/inventory/{item_id}` → `main.py:api_delete_item` · 🔒 auth.admin_only · auth.company_id_of, auth.inventory_of_company, crud.delete_item
 - `POST /api/inventory/{item_id}/image` → `main.py:api_upload_inventory_image` · 🔒 auth.admin_or_warehouse · auth.company_id_of, auth.inventory_of_company
@@ -1040,7 +1102,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.admin_or_manager
 
-Jami marshrutlar: 272 (main.py: 249, production_routes.py: 15, saas_migration.py: 8).
+Jami marshrutlar: 274 (main.py: 251, production_routes.py: 15, saas_migration.py: 8).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -1073,7 +1135,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `gift_periods` — `GiftPeriod` (`models.py`, 6) — o'z `company_id`
 - `inventory` — `Inventory` (`models.py`, 19) — o'z `company_id`
 - `inventory_movements` — `InventoryMovement` (`models.py`, 16) — o'z `company_id` + ota tekshiruvi (inventory_id→Inventory, order_id→Order, supplier_id→Supplier)
-- `inventory_purchases` — `InventoryPurchase` (`models.py`, 17) — ota orqali (inventory_id→Inventory, supplier_id→Supplier)
+- `inventory_purchases` — `InventoryPurchase` (`models.py`, 19) — ota orqali (inventory_id→Inventory, supplier_id→Supplier)
 - `inventory_receipts` — `InventoryReceipt` (`models.py`, 14) — o'z `company_id` + ota tekshiruvi (supplier_id→Supplier)
 - `login_history` — `LoginHistory` (`models.py`, 7) — o'z `company_id`
 - `master_gift_period_redemptions` — `MasterGiftPeriodRedemption` (`models.py`, 10) — ota orqali (period_id→GiftPeriod)
@@ -1116,6 +1178,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_brak_bekor.py` — xato yozilgan brakni bekor qilish.
 - `test_brak_belgi_himoya.py` · PG — K57-1 / 40-band darvozasi (kech57, 2026-09-24).
 - `test_brak_belgisi.py` · PG — 13-band 3-qadam darvozasi (kech52, 2026-09-24).
+- `test_brak_bitta_raqam.py` · PG — kech107, 49-band darvozasi: BRAK SUMMASI — "BITTA RAQAM" (egasi qarori, QAYTA SO'RALMAYDI).
 - `test_brak_bosqich.py` · PG — 13-band 1-qadam darvozasi (kech53, 2026-09-24).
 - `test_brak_mrp_loy.py` · PG — 13-band 5-qadam + 41-band + 42-band darvozasi (kech54, 2026-09-24).
 - `test_brak_narx.py` · PG — 13-band (brak tizimi) 2-qadam darvozasi (kech46, 2026-09-24).
@@ -1134,6 +1197,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_hisobot_korxona.py` · PG — kech79 darvozasi (2026-09-25, 101-band): Hisobotlar "Oyma-oy solishtirish" (`/api/reports/comparison`, `services.get_monthly_comparison`) va "Bashorat" (`/api/reports/foreca…
 - `test_hisobot_n1.py` · PG — kech97 (2026-09-27), 111-band (oylik hisobotda hodim / usta boshiga so'rovlar) + 116-band 2-qadam (majburiyatlar holati).
 - `test_hisobot_tayyor.py` · PG — kech76 darvozasi (2026-09-25, 97-band): hisobotlar FAQAT "Tayyor" (READY) buyurtmani sanaydi — 91-band FOYDALANUVCHI QARORI "B" ("to'liq topshirilgan buyurtma hisobotga / ust…
+- `test_hodim_avans.py` · PG — kech107 darvozasi (5-bo'lim 10-band, "hodim paneli"): hodim o'zi yozadigan "avans oldim" so'rovi (`POST /api/hodim/advance-request`, `/hodim` paneli — telefon + PIN) — QAT'IY te…
 - `test_hodim_oyligi.py` — Moslashuvchan hodim oyligi hisobi.
 - `test_html_escape.py` — STATIK DARVOZA — shablonlardagi escape qoidalari (5.2d 4-band, kech33).
 - `test_html_escape_dom.py` — DINAMIK innerHTML / HTML in'ektsiya darvozasi (5-bo'lim 2-band, kech29).
@@ -1142,6 +1206,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_kelishilgan_tahrir.py` · PG — kech43 darvozasi: 28-band (K42-2). Kelishilgan summani QAYTA hisoblaydigan joylar pul qaytarish kamaytirishini (`refund_agreed_delta`) yo'qotmasin.
 - `test_kesh_oquvchi.py` · PG — kech90 darvozasi (2026-09-26, 110-band: Moliyadan tashqaridagi N+1 o'quvchilar).
 - `test_kichik103.py` · PG — kech103 kichik bandlari darvozasi (server tomoni + shablonlar): 45, 63, 83, 90, 69 (+ 11, 25, 55, 64 — statik). UI funksiyalari (58 / 63 / 83 / 90 / 62 / 66 / K103-3 / K103-4) — `…
+- `test_kirim_bekor.py` · PG — kech107 darvozasi (5-bo'lim 10-band, "Kirim hujjatini bekor qilish"): Ombor KIRIM HUJJATINI butunlay bekor qilish va xarid o'chirilganda O'RTACHA NARXning qaytishi. UI qismi — `…
 - `test_kirim_qiymat.py` — 17b: ombor kirimi, kirim HUJJATI va retseptlar tanalarining QAT'IY tekshiruvi.
 - `test_kirim_tolov_chegara.py` · PG — kech96 (2026-09-27), 125-band (server + brauzer↔server paritet qismi).
 - `test_lint_taxallus.py` · PG — kech99 (2026-09-27), 113-band.
@@ -1151,6 +1216,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_loy_tenant.py` — loy (qoplama) retsepti bo'yicha korxonalararo darvoza.
 - `test_loyiha_foiz.py` · PG — kech101 darvozasi (2026-09-27, 139-band + K101-5).
 - `test_loyiha_izchillik.py` · PG — kech98 (2026-09-27), 130-band.
+- `test_loyiha_tahrir.py` · PG — kech107 darvozasi (5-bo'lim 10-band, "1a loyiha tahririda muddat"): LOYIHA TAHRIRI — muddat (deadline) va ixtiyoriy maydonlarni tozalash. UI qismi — `tools/test_loyiha_tahrir_…
 - `test_material_korxona.py` · PG — kech99 (2026-09-27), 112-band.
 - `test_mijozga_qaytarish.py` · PG — kech100 darvozasi (2026-09-27, 131-band, FOYDALANUVCHI QARORI "B" — "Kerak").
 - `test_moliya_tafsilot.py` · PG — kech106, K106-2 darvozasi: oylik moliya hisobotining xarajatlar ro'yxati (PDF "Xarajatlar tafsiloti" jadvali va Moliya sahifasidagi ro'yxat) JAMI XARAJAT bilan BIR xil bo'ls…
@@ -1219,11 +1285,15 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_xarid_tahrir.py` — 21-band: xarid TAHRIRI ombor bilan mos, va ta'minotchini o'chirish FK cheklovida yiqilmaydi.
 - `test_yashirin_material.py` · PG — K34-1 darvozasi (kech34, 2026-09-22).
 - `test_yetkazish_detal_tolov.py` · PG — 5-bo'lim 6-band va 13-band darvozasi (kech38, 2026-09-23).
+- `test_zaxira_loy_narx.py` · PG — kech107, 36-band darvozasi: TAYYOR LOY ZAXIRASIDAN olingan qoplama narxi.
+- `test_brak_bitta_raqam_ui.js` · JS — kech107, 49-band ("Bitta raqam", egasi qarori) UI darvozasi.
 - `test_brak_bosqich_ui.js` · JS — 13-band 1-qadam (kech53, 2026-09-24): brak BOSQICHI tanlovi UI si.
 - `test_brak_mrp_ui.js` · JS — 13-band 5-qadam (kech54, 2026-09-24): "Ishlab chiqarishda chiqdi" MRP tayyor mahsuloti (`category = 'dynamic_bom'`) uchun ham ochiladi.
 - `test_brak_tahlil_ui.js` · JS — 13-band 7-qadam (kech56, 2026-09-24): brak SABABI, JAVOBGAR hodim va BRAK TAHLILI UI si.
 - `test_kichik103_ui.js` · JS — kech103 kichik bandlari (UI) darvozasi.
+- `test_kirim_bekor_ui.js` · JS — kech107 darvozasi (10-band "Kirim hujjatini bekor qilish"): UI oqimi.
 - `test_loyiha_forma.js` · JS — Loyiha formalaridagi "Mijoz Telegram ID" va izoh.
+- `test_loyiha_tahrir_ui.js` · JS — kech107 darvozasi (10-band "1a"): LOYIHA TAHRIR OYNASI (`templates/projects.html`) — "Muddati" maydoni (`e-deadline`) va tozalangan maydonlar. Server qismi — `tools/test_lo…
 - `test_narx_frontend.js` · JS — BRAUZERDAGI narx formulalarining etaloni.
 - `test_narx_kiritish_ui.js` · JS — 118-band (kech94): pul / son kiritishning YAGONA qoidasi 9 sahifada (debts, finance, finished, hodim_panel, inventory, kpi, orders, supplier_receive, suppliers).
 - `test_ombor_chiqim.js` · JS — Ombor sahifasidagi "Chiqim" oynasi (`saveChiqim`).
@@ -1236,8 +1306,9 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_toshkent_korinish_ui.js` · JS — kech106, 9 + 50-band C qismi darvozasi (BRAUZER ko'rinishi). FOYDALANUVCHI QARORI (kech105, 2026-09-28): "Toshkent vaqti bo'yicha" — ekrandagi sana-vaqt, "bugun" standa…
 - `test_xarid_ochirish.js` · JS — Ta'minotchilar sahifasidagi xaridni o'chirish (`deletePurchase`, templates/suppliers.html).
 - `test_xarid_tahrir_ui.js` · JS — Ta'minotchilar sahifasidagi xaridni TAHRIRLASH (`editPurchase`) va server sababini ko'rsatish (`serverSababi`), templates/suppliers.html.
+- `test_xato_sababi_ui.js` · JS — kech107 darvozasi (5-bo'lim 10-band, "UI 400 sabablari kpi / inventory / finished").
 - `test_yetkazish_ui.js` · JS — 17g (2026-09-22): yetkazish va brak yozish UI si.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 
-Jami test fayllari: 128 (Python 109, JS 19).
+Jami test fayllari: 137 (Python 114, JS 23).
 <!-- AVTO:TESTLAR OXIRI -->
