@@ -68,6 +68,17 @@ def _retsept_materiallari(db: Session, items, company_id: int) -> None:
 # MAHSULOT TURLARI (ProductType)
 # ============================================================
 
+def _kim(current_user) -> str:
+    return current_user.full_name or current_user.username
+
+
+def _retsept_xulosa(bom, unit: str) -> str:
+    """Retsept qisqa tavsifi jurnal uchun (kech110, 2c): nom, partiya, materiallar soni."""
+    _n = len(list(bom.items or []))
+    return (f"«{bom.variant_name}»: partiya {service._son110(bom.batch_quantity)} {unit or ''}, "
+            f"{_n} ta material").replace(" ,", ",")
+
+
 @router.get("/product-types", response_model=list[schemas.ProductTypeRead])
 def list_product_types(db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     return db.query(ProductType).filter(
@@ -101,6 +112,10 @@ def create_product_type(data: dict = Body(...), db: Session = Depends(get_db), c
     _payload["name"] = _nom
     pt = ProductType(company_id=_cid, **_payload)
     db.add(pt)
+    db.flush()
+    # kech110 (2c): Faoliyat jurnali — amal bilan BITTA tranzaksiyada
+    crud.log_activity(db, "created", "product_type", pt.id, f"Mahsulot turi «{pt.name}»", _kim(current_user),
+                      new_value=f"birlik: {pt.unit}", company_id=_cid, commit=False)
     db.commit()
     db.refresh(pt)
     return pt
@@ -115,6 +130,9 @@ def deactivate_product_type(pt_id: int, db: Session = Depends(get_db), current_u
     if not pt:
         raise HTTPException(status_code=404, detail="Mahsulot turi topilmadi")
     pt.is_active = False
+    crud.log_activity(db, "deleted", "product_type", pt.id, f"Mahsulot turi «{pt.name}»", _kim(current_user),
+                      new_value="nofaol qilindi (eski retsept va ishlab chiqarish tarixi saqlanadi)",
+                      company_id=pt.company_id, commit=False)   # kech110 (2c)
     db.commit()
     return {"status": "ok"}
 
@@ -165,6 +183,11 @@ def create_bom(data: dict = Body(...), db: Session = Depends(get_db), current_us
         # Qoida #6 (Multi-tenancy): BOMItem endi to'g'ridan-to'g'ri
         # company_id'ga ega — ota-BOM orqali bilvosita emas.
         db.add(BOMItem(bom_id=bom.id, company_id=auth.company_id_of(current_user), **item_data.model_dump()))
+    db.flush()
+    db.refresh(bom)
+    # kech110 (2c): Faoliyat jurnali — amal bilan BITTA tranzaksiyada
+    crud.log_activity(db, "created", "bom", bom.id, f"Retsept «{bom.variant_name}» — {pt.name}", _kim(current_user),
+                      new_value=_retsept_xulosa(bom, pt.unit), company_id=bom.company_id, commit=False)
     db.commit()
     db.refresh(bom)
     return bom
@@ -193,12 +216,23 @@ def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db
         raise HTTPException(
             status_code=400,
             detail=f"Bu mahsulotda '{_vnom}' nomli boshqa retsept bor. Boshqa nom tanlang.")
+    _pt110 = db.query(ProductType).filter(ProductType.id == bom.product_type_id,
+                                          ProductType.company_id == bom.company_id).first()
+    _unit110 = _pt110.unit if _pt110 else ""
+    _eski110 = _retsept_xulosa(bom, _unit110)      # kech110 (2c): o'zgarishdan OLDINGI holat
     bom.variant_name = _vnom
     bom.batch_quantity = data.batch_quantity
     bom.notes = data.notes
     db.query(BOMItem).filter(BOMItem.bom_id == bom.id, BOMItem.company_id == auth.company_id_of(current_user)).delete()
     for item_data in data.items:
         db.add(BOMItem(bom_id=bom.id, company_id=auth.company_id_of(current_user), **item_data.model_dump()))
+    db.flush()
+    db.expire(bom, ["items"])
+    # kech110 (2c): Faoliyat jurnali — eski → yangi (amal bilan BITTA tranzaksiyada)
+    crud.log_activity(db, "updated", "bom", bom.id,
+                      f"Retsept «{bom.variant_name}» — {_pt110.name if _pt110 else 'mahsulot'}", _kim(current_user),
+                      old_value=_eski110, new_value=_retsept_xulosa(bom, _unit110),
+                      company_id=bom.company_id, commit=False)
     db.commit()
     db.refresh(bom)
     return bom
@@ -215,6 +249,12 @@ def deactivate_bom(bom_id: int, db: Session = Depends(get_db), current_user=Depe
     if not bom:
         raise HTTPException(status_code=404, detail="Retsept topilmadi")
     bom.is_active = False
+    _pt110 = db.query(ProductType).filter(ProductType.id == bom.product_type_id,
+                                          ProductType.company_id == bom.company_id).first()
+    crud.log_activity(db, "deleted", "bom", bom.id,
+                      f"Retsept «{bom.variant_name}» — {_pt110.name if _pt110 else 'mahsulot'}", _kim(current_user),
+                      new_value="nofaol qilindi (boshlangan ishlab chiqarishlar o'z suratidan foydalanadi)",
+                      company_id=bom.company_id, commit=False)   # kech110 (2c)
     db.commit()
     return {"status": "ok"}
 
@@ -304,7 +344,13 @@ def update_company_settings(allow_negative_stock: bool, db: Session = Depends(ge
     c = db.query(Company).filter(Company.id == auth.company_id_of(current_user)).first()
     if not c:
         raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    _eski110 = bool(c.allow_negative_stock)
     c.allow_negative_stock = allow_negative_stock
+    if _eski110 != bool(allow_negative_stock):
+        # kech110 (2c): xavfli sozlama — omborda yetmasa ham ishlab chiqarishga ruxsat
+        crud.log_activity(db, "updated", "company_settings", c.id, "Manfiy qoldiq bilan ishlab chiqarishga ruxsat",
+                          _kim(current_user), old_value=("ha" if _eski110 else "yo'q"),
+                          new_value=("ha" if allow_negative_stock else "yo'q"), company_id=c.id, commit=False)
     db.commit()
     return {"status": "ok"}
 

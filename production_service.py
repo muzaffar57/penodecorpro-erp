@@ -380,6 +380,33 @@ def get_mrp_order_items_status(db: Session, company_id: int, product_type_id: in
     return result
 
 
+_PO_HOLAT_NOMI = {"draft": "qoralama", "in_progress": "jarayonda", "completed": "yakunlangan", "cancelled": "bekor qilingan"}
+
+
+def _son110(x) -> str:
+    """Miqdor / summa jurnal matni uchun: 12.5 → "12.5", 1200000 → "1 200 000"."""
+    try:
+        x = float(x or 0)
+    except (TypeError, ValueError):
+        return str(x)
+    if abs(x - round(x)) < 1e-9:
+        return f"{int(round(x)):,}".replace(",", " ")
+    return f"{x:,.2f}".rstrip("0").rstrip(".").replace(",", " ")
+
+
+def _po_jurnal(db: Session, po, action: str, performed_by: str = None, new_value: str = None,
+               product_type=None) -> None:
+    """kech110 (5.2d 2c — 2026-09-18 audit: MRP amallari Faoliyat jurnalida YO'Q edi): ishlab chiqarish buyurtmasi
+    amali (yaratish / boshlash / yakunlash / bekor qilish) `/logs` «Audit jurnali» ga — amal bilan BITTA tranzaksiyada
+    (`crud.log_activity(commit=False)`: amal bekor bo'lsa, yozuv ham yo'q). Korxona — buyurtmaniki."""
+    if product_type is None:
+        product_type = db.query(ProductType).filter(
+            ProductType.id == po.product_type_id, ProductType.company_id == po.company_id).first()
+    _nom = product_type.name if product_type else "Noma'lum mahsulot"
+    crud.log_activity(db, action, "production_order", po.id, f"Ishlab chiqarish #{po.id} — {_nom}", performed_by,
+                      new_value=new_value, company_id=po.company_id, commit=False)
+
+
 def create_production_order(db: Session, company_id: int, data, created_by: str = None) -> dict:
     """Yangi ishlab chiqarish buyurtmasini DRAFT holatida yaratadi.
     Bu bosqichda OMBORGA HECH QANDAY TA'SIR YO'Q — faqat "reja" yozib
@@ -425,6 +452,7 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
         return {"success": False, "message": "Mijoz buyurtmasi asosida ishlab chiqarish uchun source_order_item_id shart"}
 
     source_order_id = data.source_order_id
+    _buyurtma_raqami110 = None
     if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value:
         from models import OrderItem
         # M2 (2026-09-18): detal SHU korxonaniki bo'lishi shart. Ilgari faqat
@@ -462,6 +490,7 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
         if data.quantity > remaining + 0.0001:
             return {"success": False, "message": f"Bu buyurtma-detali uchun endi faqat {remaining:g} {product_type.unit} kerak ({_mrp_kerak_izoh(_k)}) — {data.quantity:g} ko'p"}
         source_order_id = order_item.order_id
+        _buyurtma_raqami110 = getattr(getattr(order_item, "order", None), "order_number", None)
 
         # QO'SHILDI 2026-09-20 (11.0-band) — QOPLAMA AVTOMATIK BELGILANADI.
         # Detal buyurtmada "Qoplama: ha" bilan yozilgan bo'lsa, retseptdagi
@@ -496,6 +525,12 @@ def create_production_order(db: Session, company_id: int, data, created_by: str 
         notes=data.notes,
     )
     db.add(po)
+    db.flush()   # kech110 (2c): jurnal uchun id
+    _po_jurnal(db, po, "created", created_by,
+               new_value=(f"{_son110(po.quantity)} {product_type.unit}, retsept «{bom.variant_name}», "
+                          + (f"mijoz buyurtmasi {_buyurtma_raqami110 or ('#' + str(source_order_id))}"
+                             if data.source_type == ProductionSourceType.CUSTOMER_ORDER.value else "omborga")),
+               product_type=product_type)
     db.commit()
     db.refresh(po)
     return {"success": True, "production_order": po}
@@ -708,6 +743,13 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
         po.recipe_snapshot_json = json.dumps(snapshot, ensure_ascii=False)
         po.status = ProductionOrderStatus.IN_PROGRESS.value
         po.started_at = datetime.utcnow()
+        # kech110 (2c): Faoliyat jurnali — boshlash bilan BITTA tranzaksiyada
+        _po_jurnal(db, po, "activated", performed_by,
+                   new_value=(f"{_son110(po.quantity)} {fp.unit} — retsept surati olindi, "
+                              f"{sum(1 for _l in snapshot if _l.get('included'))} ta xomashyo qatori; "
+                              f"tayyor mahsulot #{fp.id} (ishlab chiqarilmoqda)"
+                              + (f"; xomashyo ogohlantirishi: {len(stock_warnings)} ta" if stock_warnings else "")),
+                   product_type=product_type)
         db.commit()
         db.refresh(po)
 
@@ -847,6 +889,13 @@ def complete_production_order(db: Session, po_id: int, company_id: int, performe
                 fp.production_status = FPStatus.READY
                 fp.finished_production_at = datetime.utcnow()
 
+        # kech110 (2c): Faoliyat jurnali — yakunlash (xomashyo yechilishi) bilan BITTA tranzaksiyada
+        _pt110 = db.query(ProductType).filter(
+            ProductType.id == po.product_type_id, ProductType.company_id == company_id).first()
+        _po_jurnal(db, po, "produced", performed_by,
+                   new_value=(f"{_son110(po.quantity)} {_pt110.unit if _pt110 else ''} — tannarx {_son110(total_cost)} so'm "
+                              f"(xomashyo {_son110(total_material_cost)}, qo'shimcha {_son110(total_extra_cost)})"),
+                   product_type=_pt110)
         db.commit()
         db.refresh(po)
         return {"success": True, "production_order": po}
@@ -879,6 +928,8 @@ def cancel_production_order(db: Session, po_id: int, company_id: int, performed_
     if po.status not in (ProductionOrderStatus.DRAFT.value, ProductionOrderStatus.IN_PROGRESS.value):
         return {"success": False, "message": f"'{po.status}' holatidagi buyurtmani bekor qilib bo'lmaydi"}
 
+    _eski_holat110 = _PO_HOLAT_NOMI.get(po.status, po.status)
+    _tm_ochdi110 = False
     try:
         if po.finished_product_id:
             fp = db.query(FinishedProduct).filter(
@@ -886,6 +937,7 @@ def cancel_production_order(db: Session, po_id: int, company_id: int, performed_
                 FinishedProduct.company_id == company_id,    # M4
             ).first()
             if fp:
+                _tm_ochdi110 = True
                 # 2026-09-18 (jonli sinovda aniqlangan HAQIQIY xato):
                 # `production_orders.finished_product_id` hali shu yozuvga
                 # ishora qilib turgani uchun, uni to'g'ridan-to'g'ri
@@ -905,6 +957,10 @@ def cancel_production_order(db: Session, po_id: int, company_id: int, performed_
 
         po.status = ProductionOrderStatus.CANCELLED.value
         po.cancelled_at = datetime.utcnow()
+        # kech110 (2c): Faoliyat jurnali — bekor qilish bilan BITTA tranzaksiyada
+        _po_jurnal(db, po, "cancelled", performed_by,
+                   new_value=(f"Holat: {_eski_holat110} → bekor qilindi"
+                              + ("; «ishlab chiqarilmoqda» tayyor mahsulot yozuvi o'chirildi" if _tm_ochdi110 else "")))
         db.commit()
         db.refresh(po)
         return {"success": True, "production_order": po}

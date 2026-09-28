@@ -646,6 +646,13 @@ class Order(Base):
     total_amount = Column(Numeric(12, 2), default=0)      # Jami summa (chegirmasiz)
     agreed_amount = Column(Numeric(12, 2), default=0)      # Kelishilgan summa (chegirmadan keyin)
     discount_percent = Column(Float, default=0.0)
+    # kech110 (K110-1, egasi QARORI "Kechirilgan so'mda qolsin"): to'lovda kechirilgan qarz (so'm, yig'indi) —
+    # `main._tolov_qoldigini_chegirmaga` qo'shadi. Kelishilgan summa = narx kelishuvi − shu summa: jami o'zgarganda
+    # (tahrir, qisman «Tayyor») kechirilgan summa so'mda saqlanadi (`crud.kelishilgan_qayta_hisob`). NULL — eski
+    # buyurtma, hali to'ldirilmagan (`main._migrate_kechirilgan_qarz` izohdagi `[WRITEOFF:…]` belgisidan to'ldiradi;
+    # kod NULL ni 0 deb o'qiydi — `kechirilgan`). `default=` ATAYLAB YO'Q (`sync_missing_columns` ustunni NULL bilan
+    # qo'shadi, migratsiya NULL qatorlarni to'ldiradi; yangi buyurtma — `crud.create_order` 0 yozadi).
+    kechirilgan_qarz = Column(Numeric(12, 2), nullable=True)
     payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.UNPAID, nullable=False)
     is_archived = Column(Boolean, default=False)           # Arxivga o'tdimi (to'lov to'liq yopilganda)
     is_deleted = Column(Boolean, default=False)             # "O'chirilgan" — lekin KPI/hisobot uchun saqlanadi
@@ -770,6 +777,11 @@ class Order(Base):
         if self.agreed_amount is not None:
             return float(self.agreed_amount)
         return float(self.total_amount or 0)
+
+    @property
+    def kechirilgan(self):
+        """kech110 (K110-1): to'lovda kechirilgan qarz (so'm, float). NULL (eski, hali to'ldirilmagan) — 0."""
+        return float(self.kechirilgan_qarz or 0)
 
     @property
     def debt_amount(self):

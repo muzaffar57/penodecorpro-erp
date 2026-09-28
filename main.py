@@ -2427,6 +2427,64 @@ def _migrate_kirim_tannarx_manba():
 
 _migrate_kirim_tannarx_manba()
 
+
+def _migrate_kechirilgan_qarz():
+    """kech110 (K110-1, egasi QARORI "Kechirilgan so'mda qolsin") — IDEMPOTENT, PG va SQLite.
+
+    `orders.kechirilgan_qarz` — to'lovda kechirilgan qarz (so'm). Ustun odatda `database.sync_missing_columns()`
+    bilan (NULL) qo'shiladi; yo'q bo'lsa shu yerda. Faqat NULL qatorlar to'ldiriladi (qayta ishga tushishda hech
+    narsa o'zgarmaydi): izohida `[WRITEOFF:N]` belgisi YO'Q — 0; bor — N (belgi butun so'mga yaxlitlangan, faqat
+    OXIRGI kechirish). Narx chegirmasi yo'q (`discount_percent` 0) buyurtmada kechirilgan summa aniq ma'lum —
+    jami − (kelishilgan + pul qaytarish kamaytirishi); u N dan 1 so'mdan kam farq qilsa (yaxlitlash) — shu aniq
+    qiymat (masalan `main` ORD-060-1: belgi 698, aniq 697.60). Zaxiradan tiklangan eski qatorlar ham keyingi ishga
+    tushishda shunday to'ldiriladi (kod NULL ni 0 deb o'qiydi — `Order.kechirilgan`)."""
+    import re as _re110
+    from sqlalchemy import text, inspect as _insp
+    from database import engine, SessionLocal as _SL110
+    from models import Order as _O110
+    try:
+        _i = _insp(engine)
+        if "orders" not in set(_i.get_table_names()):
+            return
+        if "kechirilgan_qarz" not in {c["name"] for c in _i.get_columns("orders")}:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN kechirilgan_qarz NUMERIC(12, 2)"))
+                conn.commit()
+                print("✓ orders.kechirilgan_qarz qo'shildi")
+        with engine.connect() as conn:
+            _n0 = conn.execute(text(
+                "UPDATE orders SET kechirilgan_qarz = 0 WHERE kechirilgan_qarz IS NULL "
+                "AND (notes IS NULL OR notes NOT LIKE '%[WRITEOFF:%')")).rowcount
+            conn.commit()
+    except Exception as e:
+        print(f"⚠ orders.kechirilgan_qarz tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    _d = _SL110()
+    try:
+        _n = 0
+        for _o in _d.query(_O110).filter(_O110.kechirilgan_qarz.is_(None)).order_by(_O110.id).all():
+            _m = _re110.search(r"\[WRITEOFF:([\d.]+)\]", _o.notes or "")
+            _x = float(_m.group(1)) if _m else 0.0
+            if _m and float(_o.discount_percent or 0) == 0:
+                _aniq = (float(_o.total_amount or 0) - _o.kelishilgan_summa
+                         - crud.pul_qaytarish_kamaytirgan(_d, _o))
+                if _aniq > 0 and abs(_aniq - _x) < 1:
+                    _x = _aniq
+            _o.kechirilgan_qarz = crud._pul2(max(0.0, _x))
+            _n += 1
+        if _n:
+            _d.commit()
+        if _n or _n0:
+            print(f"✓ orders.kechirilgan_qarz to'ldirildi: kechirilgan {_n} ta, qolganlari 0 ({_n0} ta)")
+    except Exception as e:
+        _d.rollback()
+        print(f"⚠ orders.kechirilgan_qarz to'ldirish o'tkazib yuborildi: {e}")
+    finally:
+        _d.close()
+
+
+_migrate_kechirilgan_qarz()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
@@ -4993,6 +5051,8 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         # `PUT /api/orders/{id}` uni oladi va kamaytirishni o'zi QAYTA ayiradi.
         "pul_qaytarish_kamaytirgan": _qkam,
         "kelishilgan_asl": round(order.kelishilgan_summa + _qkam, 2),
+        # kech110 (K110-1): to'lovda kechirilgan qarz (so'm) — tahrir formasi kelishilgan summani shu bilan qayta hisoblaydi
+        "kechirilgan_qarz": order.kechirilgan,
         "discount_percent": order.discount_percent or 0,
         "payment_status": order.payment_status.value if order.payment_status else "unpaid",
         "paid_amount": order.paid_amount,
@@ -6372,6 +6432,10 @@ def _tolov_qoldigini_chegirmaga(db: Session, order):
         # "Chegirma" esa (Jami - Kelishilgan) o'zi avtomatik kattalashadi —
         # boshidagi chegirma bilan bu "kechirilgan" summa TABIIY qo'shilib boradi.
         order.agreed_amount = order.kelishilgan_summa - remaining
+        # kech110 (K110-1, egasi QARORI "Kechirilgan so'mda qolsin"): kechirilgan summa alohida ustunda (yig'indi) —
+        # tahrir / qisman «Tayyor» da jami o'zgarsa u so'mda saqlanadi (`crud.kelishilgan_qayta_hisob`). Izohdagi
+        # `[WRITEOFF:…]` belgisi — faqat ko'rsatish uchun (oxirgisi, butun so'm).
+        order.kechirilgan_qarz = crud._pul2(order.kechirilgan + remaining)
         import re as _re
         base_notes = _re.sub(r'\s*\[WRITEOFF:[\d.]+\]', '', order.notes or '').strip()
         order.notes = (base_notes + f" [WRITEOFF:{remaining:.0f}]").strip()

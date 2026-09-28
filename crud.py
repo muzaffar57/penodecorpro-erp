@@ -1832,7 +1832,8 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
             master_id=order_data.master_id,
             deadline=getattr(order_data, 'deadline', None),
             notes=order_data.notes,
-            total_amount=0
+            total_amount=0,
+            kechirilgan_qarz=0     # kech110 (K110-1): yangi buyurtmada kechirilgan qarz yo'q (NULL — eski, to'ldirilmagan)
         )
         try:
             if _pg86:
@@ -2689,29 +2690,83 @@ def _buyurtma_sigim_tekshir(detallar):
     _jamilar_sigimi(jamilar)
 
 
-def _detal_ozgargach_buyurtma(db: Session, order, eski_jami: float, eski_chegirma: float) -> None:
+def _tiyin_float(v: float) -> float:
+    """Float ni tiyinga (2 xona) HALF_UP — brauzerdagi `_tiyin110` (`Math.floor(v * 100 + 0.5) / 100`) bilan AYNAN bir
+    xil amallar (musbat qiymatlar uchun; K110-1 — ko'rsatish / taqqoslash)."""
+    import math
+    return math.floor(float(v) * 100 + 0.5) / 100
+
+
+def _tiyinda(v) -> int:
+    """So'm → BUTUN tiyin (2 xonali pul qiymati uchun aniq; float `× 100` shovqini — 10 700 048.000000002 — yo'qoladi).
+    Brauzer `_tiyinda110` (`Math.round(v * 100)`) bilan AYNAN (qiymat hech qachon .5 tiyinda emas)."""
+    return int(round(float(v or 0) * 100))
+
+
+def kelishilgan_qayta_hisob(eski_jami, yangi_jami, eski_asl, kechirilgan=0.0):
+    """K110-1 (kech110) — buyurtma jami o'zgarganda KELISHILGAN summaning YAGONA qoidasi: to'liq tahrir
+    (`update_order_full`, summa qo'lda yozilmagan), detal tahriri / o'chirish (`_detal_ozgargach_buyurtma`),
+    qisman «Tayyor» / o'chirishda yakunlash (`finalize_partial_order_quantities`). Brauzerdagi nusxasi —
+    `templates/orders.html` `kelishilganQayta` (AYNAN shu butun sonli amallar; paritet — `tools/test_kelishilgan_nisbat.py`).
+
+    Kelishilgan summa (ASL — pul qaytarish kamaytirishidan OLDIN) = NARX KELISHUVI − kechirilgan qarz
+    (`Order.kechirilgan_qarz`). Narx kelishuvi P = ASL + kechirilgan: jamiga teng — chegirmasiz; kichik —
+    chegirma; katta — ustama.
+      * jami o'zgarmagan (tiyinda teng) — ASL o'zgarmaydi;
+      * chegirmasiz (yoki eski jami 0) — P = yangi jami (tiyinigacha);
+      * chegirma YOKI ustama — NISBAT saqlanadi: P = yangi jami × P / eski jami, butun so'mga HALF_UP (egasi
+        QARORLARI: chegirma — "foiz saqlanadi" (avvaldan); ustama — "Foizi saqlansin" (kech110));
+      * kechirilgan qarz SO'MDA ayiriladi (egasi QARORI "Kechirilgan so'mda qolsin", kech110); natija manfiy emas.
+    Hisob BUTUN tiyinlarda (Python int — brauzerda BigInt): float bilan `yangi × P / eski` .5 chegarasida 1 so'mga
+    adashardi (O'LCHANGAN: 736 334.90 / 368 167.45 (50 %), yangi jami 1 022 239 — aniq 511 119.5 → 511 120, float 511 119).
+
+    O'LCHANGAN (asl kod `ba6935c`, `work/probe110k2.py` — HAQIQIY brauzer, SQLite va PG): tahrirda chegirmasiz
+    400 000 li buyurtmadan 100 000 lik detal olib tashlansa kelishilgan 400 000 QOLARDI (mijoz qarzi 100 000 ga
+    ortiq), 10 → 15 dona — 400 000 (27 % "chegirma" o'z-o'zidan paydo bo'lardi); ustamali 450 000 — 450 000 qolardi
+    (jami 300 000); saqlangan chegirma foizi 2 xonaga yaxlitlangan (`discount_percent`) edi — nisbat endi aniq.
+    Qaytaradi: (yangi ASL, yangi narx kelishuvi P) — float."""
+    t0c = _tiyinda(eski_jami)
+    t1c = _tiyinda(yangi_jami)
+    xc = _tiyinda(kechirilgan)
+    p0c = _tiyinda(eski_asl) + xc
+    if t1c == t0c:
+        return float(eski_asl or 0), p0c / 100
+    if t0c <= 0 or p0c == t0c:
+        p1c = t1c
+    else:
+        _surat = t1c * p0c
+        _maxraj = t0c * 100
+        p1c = ((2 * _surat + _maxraj) // (2 * _maxraj)) * 100
+    return max(0.0, (p1c - xc) / 100), p1c / 100
+
+
+def _narx_chegirma_foizi(jami, narx_kelishuvi) -> float:
+    """`Order.discount_percent` — NARX chegirmasi (kechirilgan qarzsiz; ustamada 0), 2 xona (K110-1)."""
+    jami = float(jami or 0)
+    narx_kelishuvi = float(narx_kelishuvi or 0)
+    if jami > 0 and narx_kelishuvi < jami:
+        return round((jami - narx_kelishuvi) / jami * 100, 2)
+    return 0.0
+
+
+def _detal_ozgargach_buyurtma(db: Session, order, eski_jami: float) -> None:
     """Bitta detal tahriri / o'chirilishidan keyin buyurtma jami va KELISHILGAN summa (117-band, kech95).
 
     O'LCHANGAN (`work/probe117b.py` (6), SQLite = PG, asl kod): `PUT` / `DELETE /api/order-items`
     jamini qayta hisoblardi, kelishilgan summaga esa UMUMAN tegmasdi — chegirmasiz 12 000 li buyurtma
     detali kamaytirilib jami 6 000 bo'lganda kelishilgan 12 000 qolardi (mijoz qarzi 6 000 ga ortiq),
     20 % chegirmali 9 600 ham 9 600 qolardi. Endi to'liq tahrirdagi ("kelishilgan summa
-    yuborilmagan") qoida bilan BIR XIL (`update_order_full` 28-band): jami o'zgarmasa — kelishilgan
-    summa o'zgarmaydi; chegirma bo'lsa — foiz saqlanadi; aks holda kelishilgan = jami; pul qaytarish
-    kamaytirishi qayta ayiriladi. UI bu marshrutlarni chaqirmaydi (faqat API)."""
+    yuborilmagan") qoida bilan BIR XIL — `kelishilgan_qayta_hisob` (K110-1: chegirma / ustama nisbati,
+    kechirilgan qarz so'mda); pul qaytarish kamaytirishi qayta ayiriladi. UI bu marshrutlarni chaqirmaydi
+    (faqat API). Chaqiruvchi `order.agreed_amount` ga detal o'zgarishidan OLDIN tegmaydi — eski ASL shu yerda o'qiladi."""
     order.total_amount = _pul_yigindi(it.total_price for it in order.items)
     _yangi = float(order.total_amount)
     if abs(_yangi - float(eski_jami or 0)) > 0.005:
         _qk = pul_qaytarish_kamaytirgan(db, order)
-        if float(eski_chegirma or 0) > 0:
-            _asl = round(_yangi * (1 - float(eski_chegirma) / 100))
-        else:
-            _asl = _yangi
+        _asl, _narx = kelishilgan_qayta_hisob(eski_jami, _yangi, round(order.kelishilgan_summa + _qk, 2),
+                                              order.kechirilgan)
         order.agreed_amount = _pul2(max(0.0, _asl - _qk))
-        if _yangi > 0 and _asl < _yangi:
-            order.discount_percent = round((_yangi - _asl) / _yangi * 100, 2)
-        else:
-            order.discount_percent = 0.0
+        order.discount_percent = _narx_chegirma_foizi(_yangi, _narx)
     db.flush()
     db.refresh(order)
     _update_order_payment_status(db, order)
@@ -4150,9 +4205,9 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
     if order and order.is_deleted:
         return None
     is_draft = order.status == OrderStatus.DRAFT if order else False
-    # 117-band (kech95): tahrirdan / o'chirishdan OLDINGI jami va chegirma (`_detal_ozgargach_buyurtma`).
+    # 117-band (kech95): tahrirdan / o'chirishdan OLDINGI jami (`_detal_ozgargach_buyurtma`; K110-1 — eski kelishilgan
+    # summa u yerda o'qiladi).
     _eski_jami117 = float(order.total_amount or 0) if order else 0.0
-    _eski_chegirma117 = float(order.discount_percent or 0) if order else 0.0
 
     # 13-sizish: tana HECH NARSA yozilmasdan OLDIN tekshiriladi.
     item_data = _clean_order_item_update(item_data)
@@ -4269,7 +4324,7 @@ def update_order_item(db: Session, item_id: int, item_data: dict,
 
     # Order summasi va kelishilgan summa (117-band — `_detal_ozgargach_buyurtma`)
     if order:
-        _detal_ozgargach_buyurtma(db, order, _eski_jami117, _eski_chegirma117)
+        _detal_ozgargach_buyurtma(db, order, _eski_jami117)
 
     db.commit()
     db.refresh(db_item)
@@ -4363,11 +4418,14 @@ def set_setting(db: Session, key: str, value: str, company_id: int = None):
 def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
                   entity_label: str = None, performed_by: str = None,
                   old_value: str = None, new_value: str = None,
-                  company_id: int = None):
+                  company_id: int = None, commit: bool = True):
     """Muhim amallarni audit uchun yozib boradi (o'chirish/tiklash/yaratish/
     tahrirlash). old_value/new_value — ixtiyoriy, qisqa tavsif (masalan
     "Jami: 850 000 so'm, 3 ta detal") — har bir maydonni emas, faqat
-    tezda "nima o'zgargani"ni ko'rsatish uchun."""
+    tezda "nima o'zgargani"ni ko'rsatish uchun.
+
+    kech110 (2c): `commit=False` — yozuv chaqiruvchining tranzaksiyasiga qo'shiladi (amal bilan BIRGA saqlanadi yoki
+    birga bekor bo'ladi — MRP amallari: retsept, ishlab chiqarish boshlash / yakunlash / bekor qilish)."""
     from models import ActivityLog
     # M7 (2026-09-18) — TENANT: `ActivityLog`da company_id ustuni bor, lekin
     # ota-FK yo'q va model `_TENANT_RULES` da emas — shuning uchun qiymat
@@ -4381,7 +4439,8 @@ def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
         old_value=old_value, new_value=new_value
     )
     db.add(entry)
-    db.commit()
+    if commit:
+        db.commit()
 
 
 def get_activity_log(db: Session, limit: int = 100, company_id: int = None) -> List:
@@ -5144,9 +5203,9 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
     if order and order.is_deleted:
         return False
     is_draft = order.status == OrderStatus.DRAFT if order else False
-    # 117-band (kech95): tahrirdan / o'chirishdan OLDINGI jami va chegirma (`_detal_ozgargach_buyurtma`).
+    # 117-band (kech95): tahrirdan / o'chirishdan OLDINGI jami (`_detal_ozgargach_buyurtma`; K110-1 — eski kelishilgan
+    # summa u yerda o'qiladi).
     _eski_jami117 = float(order.total_amount or 0) if order else 0.0
-    _eski_chegirma117 = float(order.discount_percent or 0) if order else 0.0
 
     # O'chiriladigan detalning xomashyosini qaytaramiz
     if not is_draft:
@@ -5208,7 +5267,7 @@ def delete_order_item(db: Session, item_id: int, company_id: int = None) -> bool
 
     if order:
         # 117-band (kech95): jami va kelishilgan summa — `_detal_ozgargach_buyurtma`
-        _detal_ozgargach_buyurtma(db, order, _eski_jami117, _eski_chegirma117)
+        _detal_ozgargach_buyurtma(db, order, _eski_jami117)
 
     db.commit()
     return True
@@ -6626,11 +6685,9 @@ def update_order_agreed_amount(db: Session, order_id: int, agreed_amount: float)
     # chegirma foizi (narx chegirmasi) pul qaytarish kamaytirishisiz ASL summadan:
     # aks holda qaytarilgan tovar "chegirma" bo'lib, keyingi qaytarish narxi
     # tushib ketardi (4-band koeffitsienti).
+    # K110-1 (kech110): foiz — NARX chegirmasi, kechirilgan qarz (`Order.kechirilgan_qarz`) unga kirmaydi.
     _asl_qolda = float(agreed_amount) + pul_qaytarish_kamaytirgan(db, order)
-    if total > 0 and _asl_qolda < total:
-        order.discount_percent = round((total - _asl_qolda) / total * 100, 2)
-    else:
-        order.discount_percent = 0.0
+    order.discount_percent = _narx_chegirma_foizi(total, _asl_qolda + order.kechirilgan)
 
     _update_order_payment_status(db, order)
     db.commit()
@@ -6926,12 +6983,15 @@ def finalize_partial_order_quantities(db: Session, order, faqat_hisob: bool = Fa
     if not faqat_hisob:
         order.total_amount = new_total_amount
 
-    discount_pct = float(order.discount_percent or 0)
     # 28-band (kech43, O'LCHANGAN S5): 50 m berilgan, 20 m qaytib pul qaytarilgan
     # buyurtma "Tayyor" bosilganda summa 250 000 bo'lardi (to'g'risi 150 000) —
     # pul qaytarish kamaytirishi QAYTA ayiriladi (manfiy bo'lmaydi).
     _qaytgan_kam = pul_qaytarish_kamaytirgan(db, order)
-    new_agreed = _pul2(max(0.0, new_total_amount * (1 - discount_pct / 100) - _qaytgan_kam))
+    # K110-1 (kech110): tahrir bilan YAGONA qoida (`kelishilgan_qayta_hisob`) — ilgari `jami × (1 − discount_percent)`
+    # edi: ustama va kechirilgan qarz yo'qolardi, foiz 2 xonaga yaxlitlangan qiymatdan olinardi.
+    _asl110 = kelishilgan_qayta_hisob(old_total_amount, new_total_amount,
+                                      round(order.kelishilgan_summa + _qaytgan_kam, 2), order.kechirilgan)[0]
+    new_agreed = _pul2(max(0.0, _asl110 - _qaytgan_kam))
 
     paid = order.paid_amount
     overpaid = None
@@ -8170,32 +8230,26 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
     # `kelishilgan_asl`), saqlanganda pul qaytarish kamaytirishi QAYTA ayiriladi.
     # Chegirma foizi — faqat narx chegirmasi (ASL summadan).
     _qaytgan_kam = pul_qaytarish_kamaytirgan(db, order)
-    _eski_asl = order.kelishilgan_summa + _qaytgan_kam
+    _eski_asl = round(order.kelishilgan_summa + _qaytgan_kam, 2)
+    _kechirilgan = order.kechirilgan
     order.total_amount = total_amount
     order.base_price = getattr(order_data, 'base_price', None)
 
     agreed = getattr(order_data, 'agreed_amount', None)
 
     if agreed:
-        # Xodim qo'lda (ASL) summa kiritdi — shuni olamiz
+        # Xodim qo'lda (ASL) summa kiritdi — shuni olamiz (narx kelishuvi — kechirilgan qarz bilan)
         _asl = float(agreed)
-    elif abs(total_amount - old_total) <= 0.01:
-        # Jami o'zgarmadi — ASL kelishilgan summa O'ZGARMAYDI (chegirma, ustama,
-        # kechirilgan qarz saqlanadi; ilgari chegirma jim yo'qolardi)
-        _asl = _eski_asl
-    elif old_discount_pct > 0:
-        # Jami o'zgardi, chegirma foizi saqlanadi
-        _asl = round(total_amount * (1 - old_discount_pct / 100))
+        _narx = _asl + _kechirilgan
     else:
-        _asl = total_amount
+        # K110-1 (kech110): YAGONA qoida — jami o'zgarmasa ASL o'zgarmaydi (chegirma, ustama, kechirilgan qarz
+        # saqlanadi); chegirmasiz — jamiga teng; chegirma / ustama — nisbat; kechirilgan qarz — so'mda.
+        # Brauzer (`orders.html`) summani QO'LDA yozilmagan bo'lsa yubormaydi — shu qoida hal qiladi.
+        _asl, _narx = kelishilgan_qayta_hisob(old_total, total_amount, _eski_asl, _kechirilgan)
     order.agreed_amount = _pul2(max(0.0, _asl - _qaytgan_kam))
 
-    # Chegirma foizini qayta hisoblaymiz (ASL summadan)
-    if total_amount > 0 and _asl < total_amount:
-        order.discount_percent = round(
-            (total_amount - _asl) / total_amount * 100, 2)
-    else:
-        order.discount_percent = 0.0
+    # Chegirma foizi — NARX chegirmasi (kechirilgan qarzsiz; ustamada 0) — K110-1
+    order.discount_percent = _narx_chegirma_foizi(total_amount, _narx)
 
     db.flush()
 
@@ -8372,7 +8426,9 @@ def update_order_full(db: Session, order_id: int, order_data, confirm_shortage: 
             "new_total": total_amount,
             "old_discount_pct": old_discount_pct,
             "new_discount_pct": float(order.discount_percent or 0),
-            "auto_applied": (not agreed and old_discount_pct > 0 and abs(total_amount - old_total) > 0.01)
+            # K110-1: summa qo'lda yozilmagan, jami o'zgargan va chegirma / ustama NISBATI qo'llangan
+            "auto_applied": (not agreed and abs(total_amount - old_total) > 0.005
+                             and abs(_tiyin_float(_eski_asl + _kechirilgan) - old_total) > 0.005 and old_total > 0)
         }
     }
 
