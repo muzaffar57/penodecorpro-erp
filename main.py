@@ -23,6 +23,8 @@ import schemas
 import crud
 import services
 import auth
+# kech111 — platforma: korxona obunasi / bloklash / eslatma (YAGONA manba — `obuna.py`)
+import obuna as _obuna
 from models import UserRole, Inventory, OrderStatus
 
 # 2026-09-16: Dinamik Ishlab chiqarish (Production/MRP) moduli — ATAYLAB
@@ -2485,6 +2487,44 @@ def _migrate_kechirilgan_qarz():
 
 _migrate_kechirilgan_qarz()
 
+
+_OBUNA_USTUNLARI = (("bloklangan_at", "TIMESTAMP"), ("blok_sabab", "VARCHAR(100)"), ("blok_izoh", "VARCHAR(500)"),
+                    ("bloklagan", "VARCHAR(100)"), ("blok_avtomatik", "BOOLEAN"), ("obuna_boshi", "DATE"),
+                    ("obuna_tugash", "DATE"), ("obuna_turi", "VARCHAR(20)"), ("imtiyoz_gacha", "DATE"),
+                    ("eslatma_holati", "VARCHAR(40)"))
+
+
+def _migrate_platforma_obuna():
+    """kech111 (admin paneli — egasi QARORLARI kech109 / kech110 / kech111) — IDEMPOTENT, PG va SQLite.
+
+    `companies` ning obuna / blok ustunlari (`production_models.Company`). Odatda `database.sync_missing_columns()`
+    qo'shadi (NULL, standart qiymatsiz); yo'q bo'lsa shu yerda. TO'LDIRISH YO'Q: NULL — muddatsiz va bloklanmagan,
+    ya'ni mavjud korxonalar (`main` dagi yagona korxona ham) avvalgidek ishlaydi. Yangi korxona sinov davrini
+    platforma panelidan yaratilganda oladi (`obuna.sinov_ber`)."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "companies" not in set(_i.get_table_names()):
+            return
+        _bor = {c["name"] for c in _i.get_columns("companies")}
+    except Exception as e:
+        print(f"⚠ companies obuna ustunlari tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    for _u, _t in _OBUNA_USTUNLARI:
+        if _u in _bor:
+            continue
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE companies ADD COLUMN {_u} {_t}"))
+                conn.commit()
+            print(f"✓ companies.{_u} qo'shildi")
+        except Exception as e:
+            print(f"⚠ companies.{_u} qo'shilmadi: {e}")
+
+
+_migrate_platforma_obuna()
+
 from database import SessionLocal
 _db = SessionLocal()
 try:
@@ -2651,6 +2691,21 @@ from starlette.exceptions import HTTPException as _StarletteHTTPException
 
 @app.exception_handler(_StarletteHTTPException)
 async def custom_http_exception_handler(request: Request, exc: _StarletteHTTPException):
+    # kech111 — korxonasi bloklangan (platforma) foydalanuvchi / hodim: `auth._korxona_bloklanganmi` 403 ni belgi
+    # (`obuna.BLOK_SARLAVHA`) bilan beradi. API — JSON sababi bilan (belgisiz); sahifa — kirish sahifasiga, xabar bilan
+    # (`?b=1` qo'lda, `?b=2` muddat sababli); cookie o'chiriladi (sessiya bazada allaqachon o'chirilgan).
+    _blok = (exc.headers or {}).get(_obuna.BLOK_SARLAVHA) if exc.status_code == 403 else None
+    if _blok:
+        _yol = request.url.path
+        if _yol.startswith("/api/"):
+            return JSONResponse(status_code=403, content={"detail": exc.detail})
+        if _yol.startswith("/hodim"):
+            _r = RedirectResponse(url=f"/hodim/login?b={_blok}", status_code=302)
+            _r.delete_cookie("emp_session_token")
+            return _r
+        _r = RedirectResponse(url=f"/login?b={_blok}", status_code=302)
+        _r.delete_cookie("session_token")
+        return _r
     if exc.status_code == 401 and not request.url.path.startswith("/api/"):
         return RedirectResponse(url="/login", status_code=302)
     # Boshqa barcha holatlar uchun — FastAPI'ning standart javobi bilan bir xil
@@ -2849,6 +2904,24 @@ def cat_on(code, company_id=None):
 
 
 templates.env.globals["company_logo_of"] = company_logo_of
+
+
+def _obuna_banneri(user):
+    """kech111 — mijoz dasturidagi obuna ogohlantirishi (`obuna.banner`; qaror "Admin, keyin hamma"). Xato bo'lsa — yo'q."""
+    if not user:
+        return None
+    try:
+        from database import SessionLocal as _SL
+        _d = _SL()
+        try:
+            return _obuna.banner(_d, user)
+        finally:
+            _d.close()
+    except Exception:
+        return None
+
+
+templates.env.globals["obuna_banneri"] = _obuna_banneri
 templates.env.globals["cat_on"] = cat_on
 # 2026-09-17: statik fayllar (masalan translit.js) uchun cache-busting —
 # brauzer/Telegram WebApp eski nusxani abadiy keshlab qolmasligi uchun.
@@ -2904,16 +2977,145 @@ class ReliableStaticFiles(StaticFiles):
                 break
         return response
 
+    def lookup_path(self, path):
+        """kech111 — yuklangan fayllar (`static/uploads/…`) umumiy `/static` orqali HECH QACHON berilmaydi.
+
+        O'LCHANGAN (tools/test_platforma_obuna.py F6): himoyalangan marshrut (`/static/uploads/{papka}/{fayl}`) faqat
+        aniq ikki bo'lakli yo'lni ushlaydi; `/static/uploads/inventory/%2E/<fayl>`, `//`, qo'shimcha bo'lak kabi yo'llar
+        unga mos kelmay shu mount ga tushar va fayl LOGINSIZ berilardi. Endi mount diskdagi HAQIQIY yo'lni tekshiradi
+        (normallashtirish, `..`, `.` va symlink — hammasi realpath bilan): uploads ichida bo'lsa — topilmadi (404)."""
+        full_path, stat_result = super().lookup_path(path)
+        if full_path and stat_result is not None:
+            _yuklama = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "uploads"))
+            _haqiqiy = os.path.realpath(full_path)
+            if _haqiqiy == _yuklama or _haqiqiy.startswith(_yuklama + os.sep):
+                return "", None
+        return full_path, stat_result
+
 
 app.mount("/static", ReliableStaticFiles(directory=static_dir), name="static")
 
 
+# ============================================================
+# kech111 — YUKLANGAN FAYLLAR HIMOYASI (egasi QARORI kech110, qo'shimcha qamrov 1)
+# ============================================================
+# O'LCHANGAN (asl kod `286ca94`): buyurtma chizmasi, detal / material / retsept / loyiha / qaytarish rasmi va logotip
+# `static/uploads/<papka>/<tasodifiy nom>` ga yoziladi va `/static` orqali LOGINSIZ, korxona tekshiruvisiz ochilardi —
+# havolasi bor har kim (boshqa korxona ham) faylni ko'rardi. Endi `/static/uploads/…` shu marshrut orqali (umumiy
+# `/static` dan OLDIN — tartib pastda): (1) kirgan foydalanuvchi (bloklangan korxona — kirish sahifasiga); (2) fayl
+# SHU korxonaning yozuviga bog'langan bo'lishi SHART — begona yoki hech kimga bog'lanmagan fayl — 404 (borligi ham
+# oshkor qilinmaydi). ESKI havolalar o'zgarmaydi (URL shakli bir xil) — faqat egasi korxona ochadi. PDF lar faylni
+# diskdan o'qiydi (bu marshrutga bog'liq emas). Logotiplar ham `static/uploads/logos/` ga yoziladi (bir saqlash joyi).
+_YUKLAMA_NOM = __import__("re").compile(r"[A-Za-z0-9_-]{1,80}\.[A-Za-z0-9]{1,6}")
+_YUKLAMA_PAPKA = __import__("re").compile(r"[a-z_]{1,40}")
+
+
+def _yuklama_manbalari():
+    """(papka → [(model, ustun, korxona sharti yasovchisi)]) — faylga ishora qiluvchi hamma yozuvlar.
+    Bir fayl bir necha jadvalda bo'lishi mumkin (tayyor mahsulot detal rasmini nusxalaydi — `crud` 10816)."""
+    from models import (OrderItem as _OI, OrderAttachment as _OA, Order as _O, Inventory as _Inv,
+                        Recipe as _Rc, FinishedProduct as _FP, Project as _Pr, ReturnItem as _RI)
+    from production_models import Company as _Co
+
+    def oddiy(model, ustun):
+        return lambda db, url, cid: db.query(model.id).filter(getattr(model, ustun) == url,
+                                                              model.company_id == cid).first()
+
+    def biriktirma(db, url, cid):
+        return (db.query(_OA.id).join(_O, _O.id == _OA.order_id)
+                .filter(_OA.file_url == url, _O.company_id == cid).first())
+
+    def logo(db, url, cid):
+        return db.query(_Co.id).filter(_Co.logo_path == url.lstrip("/"), _Co.id == cid).first()
+
+    hammasi = {
+        "order_items": [oddiy(_OI, "image_url"), oddiy(_FP, "image_url")],
+        "order_attachments": [biriktirma],
+        "inventory": [oddiy(_Inv, "image_url")],
+        "recipes": [oddiy(_Rc, "image_url")],
+        "finished": [oddiy(_FP, "image_url"), oddiy(_OI, "image_url")],
+        "projects": [oddiy(_Pr, "image_url")],
+        "returns": [oddiy(_RI, "image_url")],
+        "logos": [logo],
+    }
+    return hammasi
+
+
+def yuklama_korxonanikimi(db, papka, fayl, company_id):
+    """Fayl (`/static/uploads/<papka>/<fayl>`) shu korxonaning biror yozuviga bog'langanmi (tizim so'rovi)."""
+    import tenant_context as _tc
+    url = f"/static/uploads/{papka}/{fayl}"
+    manbalar = _yuklama_manbalari()
+    birinchi = manbalar.get(papka, [])
+    qolgan = [f for k, v in manbalar.items() if k != papka for f in v]
+    with _tc.system_context(db):
+        for tekshir in birinchi + qolgan:
+            if tekshir(db, url, company_id) is not None:
+                return True
+    return False
+
+
+@app.get("/static/uploads/{papka}/{fayl}")
+def yuklangan_fayl(papka: str, fayl: str, request: Request, db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse as _FileResp
+    import mimetypes as _mt
+    user = auth.get_current_user(request, db)          # bloklangan korxona — 403 belgi bilan (kirish sahifasiga)
+    if not user:
+        raise HTTPException(status_code=401, detail="Iltimos, tizimga kiring")
+    if not _YUKLAMA_PAPKA.fullmatch(papka or "") or not _YUKLAMA_NOM.fullmatch(fayl or ""):
+        raise HTTPException(status_code=404, detail="Fayl topilmadi")
+    ildiz = os.path.realpath(os.path.join(static_dir, "uploads"))
+    yol = os.path.realpath(os.path.join(ildiz, papka, fayl))
+    if not yol.startswith(ildiz + os.sep) or not os.path.isfile(yol):
+        raise HTTPException(status_code=404, detail="Fayl topilmadi")
+    if not yuklama_korxonanikimi(db, papka, fayl, auth.company_id_of(user)):
+        raise HTTPException(status_code=404, detail="Fayl topilmadi")
+    turi = _mt.guess_type(fayl)[0] or "application/octet-stream"
+    # Tasodifiy (uuid) nomli fayl o'zgarmaydi — brauzer bir kun saqlaydi; logotip nomi doimiy — har safar tekshiradi.
+    kesh = "private, no-cache" if papka == "logos" else "private, max-age=86400"
+    return _FileResp(yol, media_type=turi, headers={"Cache-Control": kesh})
+
+
+# Marshrut umumiy `/static` mount dan OLDIN turishi SHART (aks holda mount uni ochiq xizmat qiladi — Starlette
+# marshrutlarni ro'yxat tartibida moslaydi).
+def _yuklama_marshrutini_oldinga():
+    _rs = app.router.routes
+    _r = next(r for r in _rs if getattr(r, "path", None) == "/static/uploads/{papka}/{fayl}")
+    _m = next(i for i, r in enumerate(_rs) if getattr(r, "name", None) == "static")
+    _rs.remove(_r)
+    _rs.insert(_m, _r)
+
+
+_yuklama_marshrutini_oldinga()
+
+
+def _blok_sahifa_xabari(db, b):
+    """kech111: `/login?b=…` / `/hodim/login?b=…` — bloklangan korxona xabari (`obuna.blok_xabari`); b: '1' qo'lda,
+    '2' obuna muddati sababli. Boshqa qiymat — xabar yo'q."""
+    if b not in ("1", "2"):
+        return None
+    try:
+        return _obuna.blok_xabari(db, {"avtomatik": b == "2"})
+    except Exception:
+        return None
+
+
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, db: Session = Depends(get_db)):
-    user = auth.get_current_user(request, db)
+async def login_page(request: Request, b: str = "", db: Session = Depends(get_db)):
+    try:
+        user = auth.get_current_user(request, db)
+    except HTTPException as _e:
+        # kech111: korxonasi bloklangan sessiya — sessiya o'chirildi, kirish sahifasi xabar bilan (qayta yo'naltirish halqasi yo'q)
+        if _e.status_code != 403 or not (_e.headers or {}).get(_obuna.BLOK_SARLAVHA):
+            raise
+        _r = templates.TemplateResponse(request, "login.html", {
+            "error": None, "username": "", "bloklangan": _e.detail})
+        _r.delete_cookie("session_token")
+        return _r
     if user:
         return RedirectResponse("/", status_code=302)
-    return templates.TemplateResponse(request, "login.html", {"error": None, "username": ""})
+    return templates.TemplateResponse(request, "login.html", {
+        "error": None, "username": "", "bloklangan": _blok_sahifa_xabari(db, b)})
 
 
 @app.post("/login")
@@ -2934,6 +3136,18 @@ async def login_submit(request: Request, username: str = Form(...), password: st
     if not user or not auth.verify_and_upgrade_password(db, user, password):
         crud.log_login_attempt(db, username, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "login.html", {"error": "Login yoki parol noto'g'ri!", "username": username})
+
+    # kech111 — korxonasi bloklangan (platforma bloki): parol TO'G'RI bo'lsa ham kirilmaydi, sabab xabari ko'rsatiladi.
+    # Xabar faqat to'g'ri parol bilan chiqadi (begona odam login yozib korxona holatini bila olmaydi); urinish
+    # "noto'g'ri" deb yozilmaydi — aks holda 5 urinishdan keyin mijozga "juda ko'p noto'g'ri urinish" chiqardi.
+    if not getattr(user, "is_platform_admin", False):
+        try:
+            _rad = _obuna.kirish_rad_sababi(db, user.company_id)
+        except Exception:
+            _rad = None
+        if _rad:
+            return templates.TemplateResponse(request, "login.html", {
+                "error": None, "username": username, "bloklangan": _rad[0]})
 
     crud.log_login_attempt(db, username, success=True, ip_address=ip, user_agent=ua)
     token = auth.create_session(db, user.id)
@@ -2976,6 +3190,21 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
         "activity_log": activity_log,
         "current_user": current_user, "active_page": "trash"
     })
+
+
+@app.get("/platforma", response_class=HTMLResponse)
+async def platforma_page(request: Request, db: Session = Depends(get_db)):
+    """kech111 — PLATFORMA PANELI (egasi QARORI kech110 "B — Kartochkalar"): mijoz korxonalar kartochkalari (holat,
+    obuna chizig'i, faollik), bloklash / ochish, muddatni uzaytirish, parolni tiklash, yangi korxona (30 kunlik sinov),
+    platforma raqamlari, hamma korxonalar xatolari, aloqa telefoni. FAQAT platforma admini: kirmagan — /login,
+    oddiy korxona foydalanuvchisi — bosh sahifaga (sahifa mavjudligi ham oshkor qilinmaydi)."""
+    user = auth.get_current_user(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if not getattr(user, "is_platform_admin", False):
+        return RedirectResponse("/", status_code=302)
+    return templates.TemplateResponse(request, "platforma.html", {
+        "current_user": user, "active_page": "platforma"})
 
 
 @app.get("/logs", response_class=HTMLResponse)
@@ -4047,11 +4276,20 @@ def api_set_employee_login(emp_id: int, phone: str = Form(...), pin: str = Form(
 # ============================================================
 
 @app.get("/hodim/login", response_class=HTMLResponse)
-async def hodim_login_page(request: Request, db: Session = Depends(get_db)):
-    emp = auth.get_current_employee(request, db)
+async def hodim_login_page(request: Request, b: str = "", db: Session = Depends(get_db)):
+    try:
+        emp = auth.get_current_employee(request, db)
+    except HTTPException as _e:
+        # kech111: korxonasi bloklangan hodim sessiyasi — o'chirildi, xabar bilan
+        if _e.status_code != 403 or not (_e.headers or {}).get(_obuna.BLOK_SARLAVHA):
+            raise
+        _r = templates.TemplateResponse(request, "hodim_login.html", {"error": None, "bloklangan": _e.detail})
+        _r.delete_cookie("emp_session_token")
+        return _r
     if emp:
         return RedirectResponse("/hodim", status_code=302)
-    return templates.TemplateResponse(request, "hodim_login.html", {"error": None})
+    return templates.TemplateResponse(request, "hodim_login.html", {
+        "error": None, "bloklangan": _blok_sahifa_xabari(db, b)})
 
 
 @app.post("/hodim/login")
@@ -4080,6 +4318,14 @@ async def hodim_login_submit(request: Request, phone: str = Form(...), pin: str 
     if not emp:
         crud.log_login_attempt(db, phone, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "hodim_login.html", {"error": "Telefon yoki PIN noto'g'ri!"})
+
+    # kech111 — korxonasi bloklangan: to'g'ri PIN bilan ham kirilmaydi (login_submit bilan bir xil qoida)
+    try:
+        _rad = _obuna.kirish_rad_sababi(db, _korxona.id)
+    except Exception:
+        _rad = None
+    if _rad:
+        return templates.TemplateResponse(request, "hodim_login.html", {"error": None, "bloklangan": _rad[0]})
 
     crud.log_login_attempt(db, phone, success=True, ip_address=ip, user_agent=ua)
     token = auth.create_employee_session(db, emp.id)
@@ -4693,6 +4939,12 @@ def api_cron_low_stock_check(secret: str = "", db: Session = Depends(get_db)):
     _all_lines, _sent_any = [], False
     _per_company = {}
     for _cid in _companies:
+        # kech111 — bloklangan korxonaga (platforma bloki) Telegram ogohlantirishi yuborilmaydi (bot yopiq)
+        try:
+            if _cid is not None and _obuna.kirish_rad_sababi(db, _cid):
+                continue
+        except Exception:
+            pass
         low_items = crud.get_low_stock_items(db, company_id=_cid)
         if not low_items:
             continue
@@ -6947,25 +7199,120 @@ def api_system_backup(db: Session = Depends(get_db),
 @app.get("/api/platform/companies")
 def api_platform_companies(db: Session = Depends(get_db),
                            current_user=Depends(auth.platform_admin_only)):
-    """Platformadagi barcha korxonalar ro'yxati (faqat platforma admini)."""
+    """Platformadagi barcha korxonalar (faqat platforma admini) — kech111: holat (obuna / blok) va faollik
+    (foydalanuvchilar, shu oy / jami buyurtmalar, oxirgi kirish). Hisob — `obuna.korxonalar_royxati` (YAGONA manba,
+    tizim so'rovlari — TENANT_FILTER=1 da ham hamma korxona; 2026-09-19 da filtr B korxonani "0 foydalanuvchi" qilib
+    ko'rsatgan edi). Eski maydonlar (id, name, code, users, created_at) o'zgarmagan."""
+    return _obuna.korxonalar_royxati(db)
+
+
+@app.get("/api/platform/summary")
+def api_platform_summary(db: Session = Depends(get_db),
+                         current_user=Depends(auth.platform_admin_only)):
+    """kech111 — platforma paneli tepasidagi raqamlar (mijoz korxonalar holati, bugungi kirishlar / xatolar),
+    aloqa telefoni va panel tanlovlari (bloklash sabablari, uzaytirish oylari)."""
+    return {"raqamlar": _obuna.platforma_raqamlari(db),
+            "aloqa_telefoni": _obuna.aloqa_telefoni(db),
+            "sabablar": list(_obuna.BLOK_SABABLARI),
+            "oylar": list(_obuna.UZAYTIRISH_OYLAR),
+            "sinov_kun": _obuna.SINOV_KUN, "imtiyoz_kun": _obuna.IMTIYOZ_KUN}
+
+
+def _platforma_korxonasi(db, company_id):
     from production_models import Company as _Co
-    from models import User as _U
-    import tenant_context as _tc
-    # MUHIM (2026-09-19, jonli sinovda aniqlangan): bu PLATFORMA amali —
-    # u ataylab BARCHA korxonalarni ko'rishi kerak. Global tenant filtri
-    # esa so'rovlarga joriy korxona shartini qo'shadi va boshqa
-    # korxonalarning yozuvlarini yashiradi (sinovda B korxona
-    # "0 foydalanuvchi" bo'lib ko'rindi). `system_context` shu filtrni
-    # SHU sessiyada vaqtincha o'chiradi.
-    with _tc.system_context(db):
-        rows = db.query(_Co).order_by(_Co.id).all()
-        out = []
-        for c in rows:
-            n_users = db.query(_U).filter(_U.company_id == c.id).count()
-            out.append({"id": c.id, "name": c.name, "code": c.code,
-                        "users": n_users,
-                        "created_at": c.created_at.isoformat() if c.created_at else None})
-    return out
+    c = db.query(_Co).filter(_Co.id == company_id).first()
+    if c is None:
+        raise HTTPException(status_code=404, detail="Korxona topilmadi")
+    return c
+
+
+def _platforma_kim(current_user):
+    return f"Platforma administratori ({current_user.username})"
+
+
+@app.post("/api/platform/companies/{company_id}/block")
+def api_platform_block_company(company_id: int, sabab: Optional[str] = Form(None),
+                               izoh: Optional[str] = Form(None),
+                               db: Session = Depends(get_db),
+                               current_user=Depends(auth.platform_admin_only)):
+    """kech111 — korxonani BLOKLASH (egasi QARORI kech109): kirish, API, hodim paneli va Telegram bot yopiladi, ochiq
+    sessiyalar darhol o'chiriladi; ma'lumot O'CHMAYDI. Platforma egasining o'z korxonasi bloklanmaydi (400). Amal
+    mijozning audit jurnaliga yoziladi (ochilgach ko'radi). Bitta tranzaksiya."""
+    c = _platforma_korxonasi(db, company_id)
+    try:
+        natija = _obuna.blokla(db, c, sabab, izoh, _platforma_kim(current_user))
+        db.commit()
+    except _obuna.ObunaXato as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"status": "ok", **natija, "holat": _obuna.holat_json(_obuna.holat(c))}
+
+
+@app.post("/api/platform/companies/{company_id}/unblock")
+def api_platform_unblock_company(company_id: int, db: Session = Depends(get_db),
+                                 current_user=Depends(auth.platform_admin_only)):
+    """kech111 — blokni OCHISH. Obuna muddati imtiyozdan ham o'tgan bo'lsa — 3 kunlik imtiyoz (egasi QARORI kech110):
+    shu kunlarda uzaytirilmasa, yana avtomatik yopiladi."""
+    c = _platforma_korxonasi(db, company_id)
+    try:
+        natija = _obuna.och(db, c, _platforma_kim(current_user))
+        db.commit()
+    except _obuna.ObunaXato as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"status": "ok", **natija, "holat": _obuna.holat_json(_obuna.holat(c))}
+
+
+@app.post("/api/platform/companies/{company_id}/extend")
+def api_platform_extend_company(company_id: int, oy: Optional[str] = Form(None),
+                                sana: Optional[str] = Form(None), korish: Optional[str] = Form(None),
+                                db: Session = Depends(get_db),
+                                current_user=Depends(auth.platform_admin_only)):
+    """kech111 — obunani UZAYTIRISH: +1 / +3 / +6 / +12 oy yoki aniq sana (YYYY-MM-DD). «Aralash» qoida (egasi QARORI
+    kech111): muddat hali tugamagan — eski sanadan davom etadi; tugagan — bugundan. Sinov davri tugaydi, avtomatik blok
+    ochiladi (qo'lda bloklangan — «Ochish» alohida). `korish=1` — faqat yangi sanani hisoblaydi (hech narsa yozilmaydi,
+    oyna oldindan ko'rsatishi uchun; formula shu yerda — brauzerda nusxasi yo'q)."""
+    c = _platforma_korxonasi(db, company_id)
+    _sana = (sana or "").strip() or None
+    _oy = (oy or "").strip() or None
+    try:
+        if (korish or "").strip() in ("1", "true"):
+            _egalar = _obuna.platforma_korxonalari(db)
+            if c.id in _egalar:
+                raise _obuna.ObunaXato("Platforma egasining o'z korxonasi bloklanmaydi va muddati yo'q")
+            yangi = _obuna.uzaytirish_sanasi(c, oylar=_oy, sana=_sana)
+            return {"status": "korish", "obuna_tugash": yangi.isoformat(),
+                    "matn": _obuna.sana_matn(yangi)}
+        natija = _obuna.uzaytir(db, c, _platforma_kim(current_user), oylar=_oy, sana=_sana)
+        db.commit()
+    except _obuna.ObunaXato as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"status": "ok", **natija, "holat": _obuna.holat_json(_obuna.holat(c))}
+
+
+@app.post("/api/platform/contact-phone")
+def api_platform_contact_phone(telefon: Optional[str] = Form(None), db: Session = Depends(get_db),
+                               current_user=Depends(auth.platform_admin_only)):
+    """kech111 — platforma «Aloqa telefoni» (egasi QARORI kech110 "Sozlamada yozaman"): bloklangan korxonaning kirish
+    sahifasi, hodim paneli, bot va mijoz ogohlantirishida ko'rsatiladi. Bo'sh — tozalanadi (u holda platforma egasi
+    korxonasining hujjatlardagi telefoni ishlatiladi)."""
+    try:
+        t = _obuna.aloqa_telefoni_saqla(db, auth.company_id_of(current_user), telefon)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"status": "ok", "aloqa_telefoni": _obuna.aloqa_telefoni(db), "saqlangan": t}
+
+
+@app.get("/api/platform/errors")
+def api_platform_errors(korxona: str = "", q: str = "", limit: int = 200, db: Session = Depends(get_db),
+                        current_user=Depends(auth.platform_admin_only)):
+    """kech111 — HAMMA korxonalarning texnik xatolari bitta ro'yxatda (korxona / matn filtri). Faqat platforma admini.
+    Jurnalga faqat kutilmagan (500) xatolar yoziladi — shuning uchun status kodi bo'yicha filtr yo'q."""
+    try:
+        return _obuna.xatolar(db, korxona=(korxona or None), qidiruv=q, limit=limit)
+    except _obuna.ObunaXato as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/platform/companies")
@@ -7020,6 +7367,9 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
 
     try:
         korxona = _Co(name=nom, code=kod)
+        # kech111 — yangi korxona 30 kunlik SINOV davri bilan (egasi QARORI kech110); tugagach — oddiy obuna kabi
+        # (eslatma → 3 kundan keyin avtomatik bloklash).
+        _obuna.sinov_ber(korxona)
         db.add(korxona)
         db.flush()                      # id kerak
         auth.create_user(db, login, parol, _UR.ADMIN,
@@ -7043,7 +7393,10 @@ def api_platform_create_company(name: str = Form(...), admin_username: str = For
         pass
 
     _clear_company_name_cache()
-    return {"status": "ok", "company": {"id": korxona.id, "name": nom, "code": kod},
+    return {"status": "ok", "company": {"id": korxona.id, "name": nom, "code": kod,
+                                        "obuna_tugash": (korxona.obuna_tugash.isoformat()
+                                                         if korxona.obuna_tugash else None),
+                                        "obuna_turi": korxona.obuna_turi},
             "admin": {"username": login, "password": parol},
             "eslatma": "Parol FAQAT SHU YERDA ko'rsatiladi — keyin tiklab bo'lmaydi."}
 
@@ -7218,7 +7571,7 @@ async def api_upload_company_logo(file: UploadFile = File(...),
                                   current_user=Depends(auth.admin_only)):
     """Korxona logotipini yuklaydi (hujjatlarda ishlatiladi).
 
-    Faqat rasm, 2 MB gacha. Fayl `static/logos/company_<id>.<kengaytma>`
+    Faqat rasm, 2 MB gacha. Fayl `static/uploads/logos/company_<id>.<kengaytma>`
     nomi bilan saqlanadi — ya'ni har korxonaning o'z fayli bor va
     bir-birining ustiga yozilmaydi."""
     import os as _os
@@ -7233,7 +7586,9 @@ async def api_upload_company_logo(file: UploadFile = File(...),
         raise HTTPException(status_code=400, detail="Fayl bo'sh")
 
     cid = auth.company_id_of(current_user)
-    papka = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static", "logos")
+    # kech111: logotip boshqa yuklangan fayllar bilan BIR joyda — `static/uploads/logos/` (himoyalangan marshrut,
+    # doimiy saqlash joyi bitta papka). Eski `static/logos/…` yo'llari o'zgarmaydi (qayta yuklanganda ko'chadi).
+    papka = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static", "uploads", "logos")
     _os.makedirs(papka, exist_ok=True)
     kengaytma = RUXSAT[file.content_type]
     nom = f"company_{cid}{kengaytma}"
@@ -7253,7 +7608,7 @@ async def api_upload_company_logo(file: UploadFile = File(...),
                     _os.remove(eski)
                 except OSError:
                     pass
-    row.logo_path = f"static/logos/{nom}"
+    row.logo_path = f"static/uploads/logos/{nom}"
     db.commit()
     return {"status": "ok", "logo_path": row.logo_path}
 
@@ -8175,6 +8530,21 @@ def _master_by_chat_id(db, chat_id):
                                  _Mst.is_active == True).all()
     if not rows:
         return None, None
+    # kech111 — korxonasi bloklangan (platforma bloki) ustaga bot menyusi ishlamaydi: faqat ochiq korxonalar
+    # ustalari tanlanadi; hammasi bloklangan bo'lsa — sabab xabari (login bilan bir xil matn).
+    _ochiq, _rad = [], None
+    for _m in rows:
+        try:
+            _r = _obuna.kirish_rad_sababi(db, getattr(_m, "company_id", None))
+        except Exception:
+            _r = None
+        if _r:
+            _rad = _rad or _r[0]
+        else:
+            _ochiq.append(_m)
+    if not _ochiq:
+        return None, _rad
+    rows = _ochiq
     if len(rows) == 1:
         return rows[0], None
     return None, ("Sizning Telegram hisobingiz bir nechta korxonada usta "
@@ -8613,11 +8983,28 @@ def run_daily_backup():
         db.close()
 
 
+def obuna_kunlik_ish():
+    """kech111 — kunlik obuna tekshiruvi (rejalashtiruvchi): imtiyozdan o'tgan korxona BAZADA bloklanadi (sessiyalar
+    yopiladi, mijoz jurnaliga yoziladi), egasiga Telegram eslatma — 7 / 1 kun qolganda, muddat tugaganda, avtomatik
+    bloklanganda (har bosqich bir marta). Kirish baribir HAR SO'ROVDA tekshiriladi — bu ish o'tkazib yuborilsa ham."""
+    db = SessionLocal()
+    try:
+        natija = _obuna.kunlik_tekshiruv(db, yubor=_send_telegram)
+        if natija:
+            print(f"✓ Obuna tekshiruvi: {len(natija)} ta amal")
+    except Exception as e:
+        print(f"⚠ Obuna tekshiruvi xatosi: {e}")
+    finally:
+        db.close()
+
+
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     _scheduler = BackgroundScheduler(timezone="Asia/Tashkent")
     # Har kuni tunda soat 23:30 da (Toshkent vaqti bilan) ishga tushadi
     _scheduler.add_job(run_daily_backup, "cron", hour=23, minute=30, id="daily_backup")
+    # kech111 — obuna: imtiyozdan o'tganni bloklash va egasiga eslatma (Toshkent 09:05, takrorsiz — `obuna.kunlik_tekshiruv`)
+    _scheduler.add_job(obuna_kunlik_ish, "cron", hour=9, minute=5, id="obuna_tekshiruvi")
     _scheduler.start()
     print("✓ Kunlik avtomatik backup rejalashtiruvchisi ishga tushdi (har kuni 23:30, Toshkent vaqti)")
 except Exception as e:

@@ -161,7 +161,38 @@ def get_current_user(
             set_current_company(db, getattr(user, "company_id", None))
         except Exception:
             pass
+        _korxona_bloklanganmi(db, getattr(user, "company_id", None),
+                              platforma=getattr(user, "is_platform_admin", False),
+                              yop=lambda: delete_session(db, token))
     return user
+
+
+def _korxona_bloklanganmi(db: Session, company_id, platforma=False, yop=None):
+    """kech111 — PLATFORMA bloki (egasi QARORI kech109 / kech110): korxonasi bloklangan (qo'lda yoki obuna
+    muddatidan 3 kun keyin avtomatik — `obuna.py`, YAGONA manba) foydalanuvchi / hodim so'rovi rad etiladi.
+
+    HAR SO'ROVDA tekshiriladi: ochiq sessiyalar ham darhol to'xtaydi (kunlik ish o'tkazib yuborilsa ham muddat
+    o'tgani kirishda hisoblanadi). Rad — 403, `obuna.BLOK_SARLAVHA` belgisi bilan: `/api/` — JSON sababi bilan,
+    sahifa — `/login?b=…` (hodim paneli — `/hodim/login?b=…`) ga yo'naltiriladi (`main.custom_http_exception_handler`).
+    Shu sessiya o'chiriladi (`yop`) — ochilgandan keyin qayta kiriladi. Platforma admini HECH QACHON bloklanmaydi.
+    Tekshiruvning o'zi xato bersa (baza nosozligi) — kirish TO'XTATILMAYDI: blok to'lov chorasi, xavfsizlik
+    chegarasi emas; bitta nosozlik barcha mijozlarni tashqarida qoldirmasin."""
+    if platforma or company_id is None:
+        return
+    try:
+        import obuna as _obuna
+        rad = _obuna.kirish_rad_sababi(db, company_id)
+    except Exception:
+        return
+    if not rad:
+        return
+    xabar, belgi = rad
+    if yop is not None:
+        try:
+            yop()
+        except Exception:
+            pass
+    raise HTTPException(status_code=403, detail=xabar, headers={_obuna.BLOK_SARLAVHA: belgi})
 
 
 def require_login(
@@ -529,6 +560,10 @@ def get_current_employee(request: Request, db: Session = Depends(get_db)) -> Opt
         Employee.id == session["employee_id"],
         Employee.is_active == True
     ).first()
+    if employee is not None:
+        # kech111 — korxonasi bloklangan hodim paneli ham yopiladi (`_korxona_bloklanganmi`).
+        _korxona_bloklanganmi(db, getattr(employee, "company_id", None),
+                              yop=lambda: delete_employee_session(db, token))
     return employee
 
 

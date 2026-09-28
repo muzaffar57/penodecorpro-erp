@@ -167,7 +167,7 @@ def get_db():
 
 def _sql_type_for_column(col):
     """SQLAlchemy ustun turini Postgres/SQLite uchun mos SQL turiga aylantiradi."""
-    from sqlalchemy import String, Integer, Float, Boolean, DateTime, Text, Numeric
+    from sqlalchemy import String, Integer, Float, Boolean, DateTime, Date, Text, Numeric
 
     t = col.type
     if isinstance(t, String):
@@ -187,6 +187,10 @@ def _sql_type_for_column(col):
         return f"NUMERIC({precision},{scale})"
     if isinstance(t, DateTime):
         return "TIMESTAMP"
+    # kech111: `Date` (kalendar kuni — `companies.obuna_tugash` va h.k.). Ilgari bu yerda yo'q edi va TEXT ga
+    # tushardi (PG da sana matn bo'lib saqlanardi — taqqoslash va tartib buzilardi).
+    if isinstance(t, Date):
+        return "DATE"
     return "TEXT"  # noma'lum tur bo'lsa, xavfsiz variant
 
 

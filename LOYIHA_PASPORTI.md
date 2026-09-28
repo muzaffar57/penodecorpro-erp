@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -76,6 +76,8 @@ jarayon) uniki — ularni misol (haqiqiy raqamlar) va tavsiya bilan, tugmali sav
   (Railway Backups tab yoki `pg_dump --format=custom`) — `main` ga har qanday ko'chirishdan OLDIN majburiy.
   `/api/system/backup` (JSON eksport) — PostgreSQL zaxirasi EMAS: foydalanuvchilar paroli olib tashlanadi va
   `POST /api/system/restore` faqat chaqiruvchi korxonasiga tiklaydi (`users` tiklanmaydi).
+  Yuklangan fayllar (chizma, rasm, logotip) bazada EMAS — `static/uploads/` da; ular Railway Volume da (`/app/static/uploads`)
+  turishi SHART, aks holda har deployda yo'qoladi (kech111); JSON zaxira va PITR ularni saqlamaydi.
 
 ## 3. Tuzilma
 
@@ -105,10 +107,14 @@ Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'li
   bilan (kech106, K106-1); har PDF moduli boshida `shriftlarni_ulash()`.
 - `saas_migration.py` — VAQTINCHALIK: ko'p korxonali (SaaS) migratsiya sahifasi `/saas-migratsiya`
   (bosqichlar W1–W6, dry-run; `sinov` da BAJARILGAN, `main` da hali bajarilmagan).
+- `obuna.py` — (kech111) PLATFORMA: korxona obunasi, bloklash / ochish, uzaytirish, sinov davri, kunlik tekshiruv (eslatma,
+  avtomatik bloklash), mijoz ogohlantirishi, platforma paneli ro'yxati / raqamlari / xatolari — YAGONA manba (4-bo'lim
+  "Platforma — obuna va bloklash"). Platforma moduli: so'rovlari ataylab korxonalararo (`system_context`), `tools/tenant_lint.py`
+  uni tekshirmaydi.
 - `saas_otish.py` — (kech109, K108-1) `main` ga BIR MARTALIK o'tish: ilova ishga tushishida, `init_database()` dan OLDIN,
   eski (to'lqinlarsiz) bazani aniqlab `saas_migration` to'lqinlarini SINOV → HAQIQIY bajaradi (4-bo'lim "`main` ko'chirishi").
 - `erp_backup_tekshiruv.py` — JSON zaxira faylini tekshiruvchi mustaqil skript (tiklamaydi).
-- `templates/` — 24 ta Jinja2 sahifa (`base.html` — umumiy qobiq, brauzer vaqti yordamchilari `tk*`, server rad sababi
+- `templates/` — 25 ta Jinja2 sahifa (kech111: `platforma.html` — platforma paneli; `base.html` — umumiy qobiq, brauzer vaqti yordamchilari `tk*`, server rad sababi
   `xatoSababi` / `serverXatoSababi`; kech107 da hech bir handler ko'rsatmaydigan eski usta shabloni olib tashlandi); `static/` — CSS,
   logotiplar, `translit.js` (Kirill ↔ Lotin). Statik fayl o'zgarsa `main.py` dagi `static_version` ni oshiring (kesh).
 - `tools/` — testlar (`test_*.py`, `test_*.js`), `tenant_lint.py` (+ `tenant_lint_baseline.json`),
@@ -252,6 +258,40 @@ nofaol qilish), ishlab chiqarish buyurtmasi (yaratildi / jarayonga olindi / ishl
 va «manfiy qoldiq bilan ishlab chiqarish» sozlamasi `/logs` «Audit jurnali» ga yoziladi — `crud.log_activity(commit=False)`:
 yozuv amal bilan BITTA tranzaksiyada (rad etilgan / yiqilgan amal — yozuv yo'q), korxona — amal korxonasi.
 
+**Platforma — obuna va bloklash (kech111; egasi QARORLARI kech109 / kech110 / kech111, 6-bo'lim).** Hisob — `obuna.py`
+(YAGONA manba); `companies` ustunlari (hammasi NULL, `default=` siz): `bloklangan_at`, `blok_sabab`, `blok_izoh`, `bloklagan`,
+`blok_avtomatik`, `obuna_boshi`, `obuna_tugash` (Date — OXIRGI to'langan kun; NULL — muddatsiz), `obuna_turi` ('sinov' / 'obuna'),
+`imtiyoz_gacha`, `eslatma_holati`. "Bugun" — Toshkent kuni (`obuna.bugun()` — testlar almashtiradi). Muddat E: E−7 … E —
+"yaqin" (sariq); E+1 … E+3 — imtiyoz ("otgan", kirish OCHIQ); E+4 dan — AVTOMATIK yopiq (`obuna.holat`). Bloklash
+(`obuna.blokla`): kirish (`auth.get_current_user` — HAR so'rovda, `auth._korxona_bloklanganmi`; sahifa → `/login?b=1|2`, API → 403
+sababi bilan, belgi `obuna.BLOK_SARLAVHA`, `main.custom_http_exception_handler`), login (to'g'ri parolda xabar, urinish
+"noto'g'ri" deb yozilmaydi), hodim paneli (`auth.get_current_employee`, `hodim_login_submit`), usta boti
+(`main._master_by_chat_id`), kunlik "kam qoldi" Telegram (`/api/cron/low-stock-check`) — yopiladi; ochiq sessiyalar
+o'chiriladi; ma'lumot O'CHMAYDI. Platforma admini hech qachon bloklanmaydi; platforma egasi korxonasi (platforma admini bor
+korxona) bloklanmaydi, muddati yo'q (API 400; kunlik ish o'tkazadi). «Ochish» (`obuna.och`) — muddat imtiyozdan ham o'tgan bo'lsa
+`imtiyoz_gacha` = bugun + 3 (3 kunlik imtiyoz). Uzaytirish (`obuna.uzaytirish_sanasi` / `obuna.uzaytir`, +1 / 3 / 6 / 12 oy yoki
+aniq sana) — «Aralash»: E ≥ bugun — E dan, aks holda bugundan; sinov tugaydi, imtiyoz / eslatma belgisi tozalanadi, AVTOMATIK
+blok ochiladi (qo'lda blok — «Ochish» bilan). Yangi korxona — 30 kunlik sinov (`obuna.sinov_ber`, `api_platform_create_company`).
+Kunlik ish (`main.obuna_kunlik_ish`, rejalashtiruvchi 09:05 Toshkent) — imtiyozdan o'tganni BAZADA bloklaydi va egasiga Telegram
+(`_send_telegram`, korxonasiz — platforma chati): 7 kun / 1 kun qolganda, muddat tugaganda, avtomatik bloklanganda — har bosqich
+shu muddat uchun BIR marta (`eslatma_holati` = "<E>:<bosqich>"). Mijoz ogohlantirishi (`obuna.banner`, Jinja `obuna_banneri`) —
+YUQORI PANELDA (sahifa joyini egallamaydi): ≤ 7 kun — faqat korxona ADMINIGA sariq; imtiyozda — HAMMAGA qizil; bosilsa to'liq
+matn va aloqa telefoni. Aloqa telefoni — platforma sozlamasi (`obuna.TELEFON_KALIT`, egasi korxonasining `company_settings`;
+bo'sh — egasi korxonasining hujjat telefoni). Platforma paneli — `/platforma` (`templates/platforma.html`, "B — Kartochkalar"):
+`GET /api/platform/companies` (holat + faollik), `/summary`, `POST …/{id}/block|unblock|extend` (`korish=1` — yangi sanani faqat
+hisoblaydi; brauzerda formula yo'q), `/contact-phone`, `GET /api/platform/errors` (hamma korxonalar xatolari; faqat 500 lar
+yoziladi — status filtri yo'q). Amallar mijozning audit jurnaliga yoziladi (`blocked` / `unblocked` / `extended`).
+Mijoz zaxirasiga / tiklashga `companies` KIRMAYDI — muddatni zaxira fayli orqali o'zgartirib bo'lmaydi.
+
+**Yuklangan fayllar himoyasi (kech111).** `static/uploads/<papka>/<fayl>` (buyurtma chizmasi, detal / material / retsept /
+loyiha / qaytarish rasmi, kech111 dan logotip ham — `static/uploads/logos/`) FAQAT `main.yuklangan_fayl` orqali: kirgan
+foydalanuvchi + fayl SHU korxonaning yozuviga bog'langan (`main.yuklama_korxonanikimi` — papka → jadval ustunlari, bir fayl bir
+necha jadvalda bo'lishi mumkin); begona / yetim — 404. Marshrut umumiy `/static` mount dan OLDIN (`_yuklama_marshrutini_oldinga`),
+mount esa (`ReliableStaticFiles.lookup_path`) uploads ichidagi HAQIQIY yo'lni (realpath) hech qachon bermaydi — `%2E`, `//`, `..`
+bilan aylanib o'tish yopiq. URL shakli o'zgarmagan (eski havolalar egasi korxonada ochiladi). SAQLASH JOYI: konteyner diski
+deployda yo'qoladi — Railway Volume `/app/static/uploads` ga ulangan (production `web-volume` — TASDIQLANGAN 2026-09-29,
+~21.09 dan beri; sinov `web` da volume YO'Q — 7-bo'lim).
+
 **Buyurtma hayoti.** Holatlar: `draft` (qoralama) → `new` / `in_progress` (jarayonda) → `delivered` (hammasi topshirilgan,
 lekin «Tayyor» bosilmagan) → `ready` («Tayyor» — YAKUNIY, hisobotga kiradi); `cancelled`. Yuk xati (`crud.create_delivery`) —
 qisman topshirish. «Tayyor» — `services.complete_order` (jarayondagi yoki topshirilgan buyurtmadan; bitta tranzaksiya;
@@ -380,6 +420,11 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
 - Server rad sababi — kpi / inventory / finished ning 29 joyi (matn, obyekt, ro'yxat): `tools/test_xato_sababi_ui.js`.
 - Loyiha tahriri (muddat, tozalash, izolyatsiya): `tools/test_loyiha_tahrir.py`, `tools/test_loyiha_tahrir_ui.js`;
   hodim avans so'rovi (tekshiruv, takror, PG poyga): `tools/test_hodim_avans.py`.
+- (kech111) Platforma admin paneli (holat chegaralari, uzaytirish «Aralash», ruxsat, sinov davri, qo'lda / avtomatik bloklash —
+  login, API, sessiyalar, hodim paneli, bot, kam qoldi cron; ochish va imtiyoz, kunlik eslatmalar takrorsiz, mijoz ogohlantirishi,
+  aloqa telefoni, raqamlar, xatolar, fayllar himoyasi va aylanib o'tish, logotip, migratsiya — SQLite, PG, TF1):
+  `tools/test_platforma_obuna.py`; panel sahifasi (HAQIQIY markup va JS, jsdom — kartochkalar, saralash, oynalar, in'ektsiya):
+  `tools/test_platforma_ui.js`.
 - (kech110) Tahrirda kelishilgan summa — yagona qoida, kechirilgan qarz, migratsiya, brauzer ↔ server paritet (SQLite, PG, TF1):
   `tools/test_kelishilgan_nisbat.py`; tahrir formasi (HAQIQIY `editSelected` qismi, `reapplyDiscount`, `updateOrder` tanasi):
   `tools/test_kelishilgan_tahrir_ui.js`; MRP amallari Faoliyat jurnalida (atomiklik, korxona, `/logs`): `tools/test_mrp_jurnal.py`.
@@ -478,6 +523,13 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - Obuna eslatmasi — "Sizga + mijozga": egasiga Telegram, mijozning o'z dasturida ogohlantirish. Muddat o'tsa — "3 kundan keyin
   avtomatik" bloklanadi (ochish — egasi); avtomatik bloklanganni muddatni uzaytirmasdan ochish — "3 kunlik imtiyoz" (uzaytirilmasa
   yana yopiladi). Bloklangan sahifadagi telefon — "Sozlamada yozaman" (platforma panelidagi «Aloqa telefoni»).
+- (kech110 oxiri, egasining «Super Admin» promptidan) Qo'shimcha qamrov: yuklangan fayllar himoyasi + doimiy saqlash joyi,
+  platforma raqamlari (korxonalar holati, bugungi kirishlar / xatolar) va hamma korxonalar xatolari bitta ro'yxatda, yangi
+  korxona — **30 kunlik sinov davri** (tugagach — oddiy obuna kabi: eslatma → 3 kundan keyin avtomatik bloklash). Foydalanuvchi
+  limiti — YO'Q. Tariflar, support tiketlari, versiya boshqaruvi, server resurslari, VIEW / EDIT ruxsatlari — hozir emas.
+- (kech111) Uzaytirish — "Aralash": muddat hali tugamagan — eski sanadan davom etadi (15.10 → +1 oy → 15.11); tugagan — bugundan
+  (20.09 tugagan, bugun 29.09 → 29.10); bloklangan kunlar uchun pul olinmaydi. Mijoz ogohlantirishi — "Admin, keyin hamma":
+  7 kun qolganda faqat korxona adminlari, muddat tugagach (imtiyoz) — barcha xodimlar.
 
 **Moliya va ombor**
 - (kech87, 104) Xomashyo xaridida korxona to'lagan transport — to'langan oyning xarajati; mijozga yetkazishda
@@ -516,6 +568,8 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   bazasida faqat o'qish o'lchovlari (eski ma'lumotdagi chekka holatlar — topilganlari egasiga BIZNES savoli),
   keyin kod (to'lqinlar — `saas_otish.py`, birinchi ishga tushishda avtomatik; hech kim ishlamayotgan paytda — eski ilova
   o'tish paytida bir necha soniya yozishda xato berishi mumkin: to'lqinlardan keyin DEFAULT 1 olib tashlanadi).
+  Ko'chirishdan keyin egasi: «Aloqa telefoni» ni yozadi (platforma), o'z logotipini (yuklagan bo'lsa) BIR MARTA qayta
+  yuklaydi (eski `static/logos/` volume da emas edi — kech111).
   Ko'chirishda: `TENANT_FILTER=1`, korxona nomi, `enabled_categories`, `projects.total_paid` sinxron
   migratsiyasi (farqli loyihalarni oldin ko'rsatish). To'liq ro'yxat — oxirgi TOPSHIRIQ hujjatining 6-bo'limi.
   (kech105, K105-1) `main` da hozir `main.py` ning 2026-09-15 nusxasi ishlaydi (24.09 da zip 51 ning `main.py` si
@@ -542,8 +596,18 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   kartasi 1 379 476 → 1 030 301 (egasiga ko'rsatildi).
 - **SaaS / Telegram (kech107, 10g):** korxona sozlamasidagi bot — xabar YUBORADI, lekin usta menyusi (`/telegram/webhook`)
   faqat muhit boti (`TELEGRAM_BOT_TOKEN`) uchun ishlaydi.
-- **Admin paneli (kech110 qarorlari, 6-bo'lim) — KOD YOZILMAGAN:** kartochkalar, bloklash (kirish, API, hodim paneli, Telegram
-  bot; ma'lumot o'chmaydi), obuna muddati + eslatma (egasi Telegram, mijoz banneri), muddatdan 3 kun keyin avtomatik bloklash.
+- **Admin paneli — BAJARILDI (kech111, zip 106; 4-bo'lim "Platforma — obuna va bloklash"):** kartochkalar, bloklash / ochish,
+  obuna + uzaytirish, 30 kunlik sinov, eslatma (egasiga Telegram, mijozga yuqori panelda), 3 kundan keyin avtomatik bloklash,
+  3 kunlik imtiyoz, aloqa telefoni, platforma raqamlari, hamma korxonalar xatolari, yuklangan fayllar himoyasi. Qolgani:
+  `main` da (ko'chirishdan keyin) egasi «Aloqa telefoni» ni yozadi; mavjud mijoz bo'lsa — muddatini qo'yadi (hozir hamma
+  mavjud korxona muddatsiz).
+- **Yuklangan fayllar saqlash joyi (kech111):** Railway Volume `/app/static/uploads` — production `web-volume` TASDIQLANDI
+  (egasi skrinshoti 2026-09-29; ~21.09 dan beri — 12.09 chizmasi undan oldin yo'qolgan, qaytmaydi). Sinov muhitida `web`
+  xizmatiga volume ULANMAGAN (egasi skrinshoti 2026-09-29: yagona volume — `postgres-volume`, `/var/lib/postgresql/data`) —
+  sinovga yuklangan fayllar har deployda o'chadi; sinov uchun maqbul (qaror: qo'shilmaydi). Shu sababli sinovda "fayl deploydan
+  keyin saqlandi" ni tekshirib bo'lmaydi — deploydan keyin eski rasm 404 bo'lishi XATO EMAS; himoya yangi yuklangan fayl bilan
+  tekshiriladi. Eski kod logotipni volume dan TASHQARIGA (`static/logos/`) yozgan — production da har deployda o'chgan
+  (`company_logo_of` fayl yo'q bo'lsa `None` qaytaradi — sahifa buzilmaydi); yangi kod `static/uploads/logos/` ga yozadi.
 - **Egasi hal qiladi:** brak mahsulotning keyingi taqdiri (chiqindi / tuzatildi / qayta ishlatildi / 2-nav);
   SaaS uchun alohida brend nomi, narx tariflari, mijoz bilan shartnoma (ma'lumot egaligi).
 - **Rus tili (i18n)** — `main` ko'chirishidan KEYIN (qaror kech104); kodda hali yo'q (faqat Kirill ↔ Lotin), 25 sahifaga tegadi.
@@ -628,6 +692,13 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   qo'llamaydi (K110-1): yuborishni foydalanuvchi haqiqatda yozganiga bog'lang, qolganini serverning yagona qoidasi hal qilsin.
 - Nisbatni float bilan hisoblash (`yangi × P / eski`) .5 chegarasida 1 so'mga adashadi (736 334.90 / 368 167.45, 1 022 239 →
   511 119, aniq 511 120) — pul nisbatlari butun tiyinlarda (int / BigInt) (K110-1).
+- (kech111) Aniq yo'lli himoyalangan marshrut (`/static/uploads/{papka}/{fayl}`) umumiy `StaticFiles` mount dan OLDIN tursa
+  ham yetmaydi: marshrutga mos kelmagan yo'l (`%2E`, `//`, qo'shimcha bo'lak) mount ga tushadi va u faylni normallashtirib LOGINSIZ
+  beradi — mount ning o'zida HAQIQIY yo'l (realpath) bo'yicha rad etish kerak.
+- (kech111) Kontent oqimiga (`{% block content %}` ustiga) qo'shilgan qator ko'p sahifani buzadi: ular `height: calc(100vh - 58px)`
+  bilan qurilgan va `.erp-main` `overflow: hidden` — pastki qismi ko'rinmay qoladi. Umumiy ogohlantirish — yuqori panelda.
+- (kech111) Testda sahifa matnini tekshirishda Jinja `'` ni `&#39;` qiladi (`to'xtatilgan`) — HTML dan oldin `html.unescape`.
+  `<script>` ichiga JSON qo'yilsa `</script>` bo'lagi skriptni yopadi — `<` → `\u003c`.
 - Tugmani CSS sinfining BIRINCHISI bilan topish (`querySelector('.btn-outline')`) — sahifaga boshqa shunday tugma qo'shilganda
   jimgina boshqasini topadi (K109-1, iyundan beri); tugmaga `id`.
 
@@ -688,13 +759,16 @@ bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sx
 23. `_migrate_buyurtma_raqam_hisoblagich` — kech86 (100-band, QAROR "A" — buyurtma raqami hech qachon qayta berilmaydi) — IDEMPOTENT, PG va SQLite.
 24. `_migrate_kirim_tannarx_manba` — kech87 (104-band) — IDEMPOTENT, PG va SQLite.
 25. `_migrate_kechirilgan_qarz` — kech110 (K110-1, egasi QARORI "Kechirilgan so'mda qolsin") — IDEMPOTENT, PG va SQLite.
-26. `auth.create_default_admin`
-27. `crud.backfill_employee_compensation_history`
-28. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
-29. `app.include_router(production_router)`
-30. `app.include_router(saas_migration_router)`
-31. `_scheduler.add_job`
-32. `_scheduler.start`
+26. `_migrate_platforma_obuna` — kech111 (admin paneli — egasi QARORLARI kech109 / kech110 / kech111) — IDEMPOTENT, PG va SQLite.
+27. `auth.create_default_admin`
+28. `crud.backfill_employee_compensation_history`
+29. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
+30. `app.include_router(production_router)`
+31. `app.include_router(saas_migration_router)`
+32. `_yuklama_marshrutini_oldinga`
+33. `_scheduler.add_job`
+34. `_scheduler.add_job`
+35. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -765,12 +839,17 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /logs` → `main.py:logs_page` → `templates/logs.html`
 - Qorovul: auth.admin_only
 - Server chaqiruvlari: auth.company_id_of, crud.get_activity_log, crud.get_error_logs, crud.get_login_history
-- `logs.html` API: `/api/platform/companies`, `/api/platform/companies/{}/reset-admin-password`, `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/system/backup`, `/api/system/health-check`
+- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/system/backup`, `/api/system/health-check`
 
 ### `GET /orders` → `main.py:orders_page` → `templates/orders.html`
 - Qorovul: auth.orders_page_access
 - Server chaqiruvlari: auth.company_id_of, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
 - `orders.html` API: `/api/deliveries`, `/api/deliveries/{}`, `/api/deliveries/{}/pdf`, `/api/finished`, `/api/finished/search`, `/api/loy-stock`, `/api/order-items/{}/image`, `/api/orders`, `/api/orders/attachments/{}`, `/api/orders/pinned`, `/api/orders/{}`, `/api/orders/{}/activate`, `/api/orders/{}/agreed-amount`, `/api/orders/{}/attachments`, `/api/orders/{}/coating-notify`, `/api/orders/{}/delivery-status`, `/api/orders/{}/pdf`, `/api/orders/{}/pin`, `/api/orders/{}/planned-loy`, `/api/orders/{}/profit`, `/api/orders/{}/ready`, `/api/orders/{}/summary-pdf`, `/api/payments`, `/api/payments/{}`, `/api/production/product-types`, `/api/warnings/low-stock`
+
+### `GET /platforma` → `main.py:platforma_page` → `templates/platforma.html`
+- Qorovul: — (tanada tekshiriladi yoki ochiq)
+- Server chaqiruvlari: auth.get_current_user
+- `platforma.html` API: `/api/platform/companies`, `/api/platform/companies/{}/block`, `/api/platform/companies/{}/extend`, `/api/platform/companies/{}/reset-admin-password`, `/api/platform/companies/{}/unblock`, `/api/platform/contact-phone`, `/api/platform/errors`, `/api/platform/summary`
 
 ### `GET /production` → `main.py:production_page` → `templates/production.html`
 - Qorovul: auth.admin_or_warehouse
@@ -1022,10 +1101,16 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/api/penoplasts` (1)
 - `GET /api/penoplasts` → `main.py:api_get_penoplasts` · 🔒 auth.admin_or_manager · auth.company_id_of, services.get_default_penoplast, services.get_penoplast_list
 
-#### `/api/platform` (3)
+#### `/api/platform` (9)
 - `GET /api/platform/companies` → `main.py:api_platform_companies` · 🔒 auth.platform_admin_only
 - `POST /api/platform/companies` → `main.py:api_platform_create_company` · 🔒 auth.platform_admin_only · auth.create_user, crud.set_setting
+- `POST /api/platform/companies/{company_id}/block` → `main.py:api_platform_block_company` · 🔒 auth.platform_admin_only
+- `POST /api/platform/companies/{company_id}/extend` → `main.py:api_platform_extend_company` · 🔒 auth.platform_admin_only
 - `POST /api/platform/companies/{company_id}/reset-admin-password` → `main.py:api_platform_reset_admin_password` · 🔒 auth.platform_admin_only · auth.hash_password, crud.log_activity
+- `POST /api/platform/companies/{company_id}/unblock` → `main.py:api_platform_unblock_company` · 🔒 auth.platform_admin_only
+- `POST /api/platform/contact-phone` → `main.py:api_platform_contact_phone` · 🔒 auth.platform_admin_only · auth.company_id_of
+- `GET /api/platform/errors` → `main.py:api_platform_errors` · 🔒 auth.platform_admin_only
+- `GET /api/platform/summary` → `main.py:api_platform_summary` · 🔒 auth.platform_admin_only
 
 #### `/api/production` (15)
 - `POST /api/production/boms` → `production_routes.py:create_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
@@ -1181,6 +1266,9 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/orders` (1)
 - `GET /orders` → `main.py:orders_page` · 🔒 auth.orders_page_access · auth.company_id_of, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
 
+#### `/platforma` (1)
+- `GET /platforma` → `main.py:platforma_page` · 🔓 · auth.get_current_user
+
 #### `/production` (1)
 - `GET /production` → `main.py:production_page` · 🔒 auth.admin_or_warehouse
 
@@ -1204,6 +1292,9 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /saas-migratsiya/sinov-tenant` → `saas_migration.py:panel_test_tenant` · 🔒 auth.admin_only
 - `POST /saas-migratsiya/sinov/{kalit}` → `saas_migration.py:panel_dry_run` · 🔒 auth.admin_only
 
+#### `/static` (1)
+- `GET /static/uploads/{papka}/{fayl}` → `main.py:yuklangan_fayl` · 🔓 · auth.company_id_of, auth.get_current_user
+
 #### `/suppliers` (2)
 - `GET /suppliers` → `main.py:suppliers_page` · 🔒 auth.admin_or_warehouse
 - `GET /suppliers/receive` → `main.py:supplier_receive_page` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.get_suppliers
@@ -1224,7 +1315,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.admin_or_manager
 
-Jami marshrutlar: 274 (main.py: 251, production_routes.py: 15, saas_migration.py: 8).
+Jami marshrutlar: 282 (main.py: 259, production_routes.py: 15, saas_migration.py: 8).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -1238,7 +1329,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `bom_items` — `BOMItem` (`production_models.py`, 12) — o'z `company_id`
 - `boms` — `BOM` (`production_models.py`, 9) — o'z `company_id`
 - `cash_transactions` — `CashTransaction` (`models.py`, 7) — o'z `company_id`
-- `companies` — `Company` (`production_models.py`, 10) — korxonasiz
+- `companies` — `Company` (`production_models.py`, 20) — korxonasiz
 - `company_settings` — `CompanySetting` (`models.py`, 4) — o'z `company_id`
 - `deliveries` — `Delivery` (`models.py`, 10) — ota orqali (order_id→Order)
 - `delivery_items` — `DeliveryItem` (`models.py`, 6) — ota orqali (delivery_id→Delivery)
@@ -1370,6 +1461,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_pdf_matn.py` · PG — kech106, K106-3 va K106-4 darvozasi: PDF hujjatlardagi foydalanuvchi matni va korxona nomi.
 - `test_pdf_shrift.py` · PG — kech106, K106-1 darvozasi: PDF hujjatlarda shriftda YO'Q belgi (QORA KVADRAT ■) chiqmasin.
 - `test_peno_tenant.py` — "asosiy penoplast" bo'yicha korxonalararo darvoza va `models._tenant_guard` ning filtr ostida ishlashi.
+- `test_platforma_obuna.py` · PG — kech111 darvozasi: PLATFORMA ADMIN PANELI (egasi QARORLARI kech109 / kech110 / kech111).
 - `test_pul_query.py` · PG — 17f-band: pul maydonlarining ANIQLIGI (1 tiyindan kichik musbat summa) va SIG'IMI (Numeric(12,2)), kirish transporti, mijoz to'lovi, sovg'a davri, xarid tahriri va xarid / kirim h…
 - `test_qarz_ochirilgan.py` · PG — kech100 darvozasi (2026-09-27, 134-band, FOYDALANUVCHI QARORI "A"; K100-4).
 - `test_qarz_tiyin.py` · PG — kech92 darvozasi (2026-09-26, 119-band / K91-1): mijoz buyurtmasining qarzi va to'lov holati tiyin aniqligida, 0.5 so'mdan oshmaydigan qoldiq — qarz YO'Q (`models.QARZ_BARDOSH`).
@@ -1432,6 +1524,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_narx_nol_himoya_ui.js` · JS — kech108, 71-band qoldig'i: buyurtma tahririda detal narxi JIM 0 ga tushmasin (templates/orders.html — `editSelected` / `collectItems` / `_narxiNolgaTushgan` / `updateOrde…
 - `test_ombor_chiqim.js` · JS — Ombor sahifasidagi "Chiqim" oynasi (`saveChiqim`).
 - `test_ombor_turkum_ui.js` · JS — kech105 (K105-2 / K105-3) UI darvozasi.
+- `test_platforma_ui.js` · JS — kech111: PLATFORMA PANELI sahifasi (templates/platforma.html) — HAQIQIY markup va HAQIQIY sahifa JavaScript'i jsdom da, `fetch` soxta (server javoblari fiksturadan).
 - `test_qaytarish_ochirish_ui.js` · JS — kech40 (2026-09-23), 5-bo'lim 22-band + K40-1: qaytarishni o'chirish va qaytgan tayyor mahsulotni o'chirish UI si.
 - `test_qoralama_tugma_ui.js` · JS — kech109, K109-1: buyurtma TAHRIRIDA «📝 Vaqtincha saqlash» tugmasi yashirilishi (templates/orders.html).
 - `test_standart_tiyin_ui.js` · JS — kech96 (2026-09-27), 125-band + K96-1 (brauzer qismi).
@@ -1446,5 +1539,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yetkazish_ui.js` · JS — 17g (2026-09-22): yetkazish va brak yozish UI si.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 
-Jami test fayllari: 151 (Python 123, JS 28).
+Jami test fayllari: 153 (Python 124, JS 29).
 <!-- AVTO:TESTLAR OXIRI -->

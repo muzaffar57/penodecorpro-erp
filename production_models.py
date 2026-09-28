@@ -56,7 +56,7 @@ from datetime import datetime
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, Text, DateTime,
+    Column, Integer, String, Float, Boolean, Text, DateTime, Date,
     ForeignKey, Numeric,
 )
 from sqlalchemy.orm import relationship
@@ -165,7 +165,23 @@ class Company(Base):
     slogan = Column(String(150), nullable=True)      # "Fasad bezaklari"
     phone = Column(String(60), nullable=True)        # "+998 97 999 57 57"
     address = Column(String(200), nullable=True)     # "Andijon"
-    logo_path = Column(String(255), nullable=True)   # "static/logos/company_1.png"
+    logo_path = Column(String(255), nullable=True)   # "static/uploads/logos/company_1.png" (kech111 dan; eskisi "static/logos/…")
+
+    # kech111 — PLATFORMA: obuna va bloklash (egasi QARORLARI kech109 / kech110 / kech111; hisob — `obuna.py`, YAGONA
+    # manba). HAMMASI NULL, `default=` ATAYLAB YO'Q: mavjud korxonalar (va `main` dagi yagona korxona) — muddatsiz,
+    # bloklanmagan; `database.sync_missing_columns` va `main._migrate_platforma_obuna` ustunlarni NULL bilan qo'shadi.
+    # Mijoz zaxirasiga / tiklashga KIRMAYDI (`companies` — platforma jadvali, `crud.export_full_backup`) — mijoz o'z
+    # muddatini zaxira fayli orqali o'zgartira olmaydi.
+    bloklangan_at = Column(DateTime, nullable=True)      # UTC; NULL — bloklanmagan (yoki faqat hisobda avtomatik)
+    blok_sabab = Column(String(100), nullable=True)      # obuna.BLOK_SABABLARI yoki obuna.AVTO_SABAB
+    blok_izoh = Column(String(500), nullable=True)       # faqat platforma egasi ko'radi
+    bloklagan = Column(String(100), nullable=True)       # kim bloklagan (platforma admini yoki "Tizim (avtomatik)")
+    blok_avtomatik = Column(Boolean, nullable=True)      # True — muddat sababli avtomatik
+    obuna_boshi = Column(Date, nullable=True)            # joriy davr boshi (kartochkadagi chiziq uchun)
+    obuna_tugash = Column(Date, nullable=True)           # OXIRGI to'langan kun (Toshkent kalendari); NULL — muddatsiz
+    obuna_turi = Column(String(20), nullable=True)       # 'sinov' (30 kunlik sinov davri) | 'obuna'
+    imtiyoz_gacha = Column(Date, nullable=True)          # «Ochish» dan keyingi 3 kunlik imtiyozning oxirgi kuni
+    eslatma_holati = Column(String(40), nullable=True)   # "<obuna_tugash>:<bosqich>" — egasiga eslatma takrorlanmasin
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
