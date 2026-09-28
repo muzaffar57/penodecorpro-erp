@@ -219,9 +219,10 @@ except Exception as e:                     # noqa: BLE001
     _rc = f"XATO {type(e).__name__}: {e}"
 check("R1 `tenant_lint.py` haqiqiy repo — TOZA (rc 0)", _rc == 0, _out.getvalue()[-600:])
 _bl = json.load(open(os.path.join(ROOT, "tools", "tenant_lint_baseline.json"), encoding="utf-8")).get("read", [])
-_tax_yoz = [x for x in _bl if any(t in x for t in ("db.query(_", "db.query(crud.")) or "log_db.query(_U_err" in x]
-check("R2 baseline da taxallusli so'rovlar yozilgan (20 ta — hammasi tahlil qilingan)", len(_tax_yoz) == 20,
-      (len(_tax_yoz), _tax_yoz[:3]))
+_tax_yoz = [x for x in _bl if (any(t in x for t in ("db.query(_", "db.query(crud.")) or "log_db.query(_U_err" in x)
+            and "db.query(_func." not in x]
+check("R2 baseline da taxallusli so'rovlar yozilgan (21 ta — hammasi tahlil qilingan; kech109: +1 K109-2 FK uzish)",
+      len(_tax_yoz) == 21, (len(_tax_yoz), _tax_yoz[:3]))
 try:
     with contextlib.redirect_stdout(io.StringIO()):
         _w, _r = TL.scan()

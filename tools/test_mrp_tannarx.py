@@ -219,7 +219,24 @@ bolim("G. Tenant — boshqa korxonaning mahsuloti")
 o7, it7 = buyurtma(100, 180000)
 # B korxonaning ishlab chiqarishi, A korxonaning detaliga ko'rsatilgan —
 # bunday "buzuq ma'lumot" ham olinmasligi kerak.
-ishlab_chiqarish(it7, 100, 5_000_000, cid=2)
+# kech109 (10b E-1): ORM qo'riqchisi endi bunday bog'lamni YOZMAYDI (TenantMismatchError). Eski (K93-1 dan oldingi)
+# ma'lumot taqlidi qo'riqchidan tashqari (Core INSERT) yoziladi — G tekshiruvi ma'nosi AYNAN.
+try:
+    ishlab_chiqarish(it7, 100, 5_000_000, cid=2)
+    _g0 = "QABUL"
+except Exception as _e:  # noqa: BLE001
+    db.rollback()
+    _g0 = type(_e).__name__
+check("G0 ORM bilan begona detalga ishlab chiqarish — RAD (TenantMismatchError)",
+      1 if _g0 == "TenantMismatchError" else 0, 1)
+_b7 = BOM(company_id=2, product_type_id=tur_b.id, variant_name="V-G7", batch_quantity=1)
+db.add(_b7)
+db.commit()
+db.execute(ProductionOrder.__table__.insert().values(
+    company_id=2, product_type_id=tur_b.id, bom_id=_b7.id, source_type="customer_order",
+    source_order_item_id=it7.id, quantity=100, status="completed", total_cost=5_000_000,
+    total_material_cost=5_000_000))
+db.commit()
 r = services.calculate_order_profit(db, o7.id, company_id=1)
 check("G boshqa korxonaning ishlab chiqarishi OLINMADI", r["tan_narxi"], 0)
 

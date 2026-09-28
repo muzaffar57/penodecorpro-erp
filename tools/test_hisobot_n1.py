@@ -415,7 +415,7 @@ def nazorat():
     try:
         with sanoq() as sq:
             for e in s.query(Employee).filter(Employee.company_id == 1).all():
-                crud.get_employee_compensation_for_month(s, e.id, Y, M)
+                crud.get_employee_compensation_for_month(s, e.id, Y, M, company_id=1)
                 services.get_employee_advances_total(s, e.id, Y, M)
                 s.query(EmployeeMonthlyAdjustment).filter(EmployeeMonthlyAdjustment.employee_id == e.id,
                                                           EmployeeMonthlyAdjustment.year == Y,
@@ -453,7 +453,7 @@ _ok_tur = _ok_av = _ok_adj = _ok_sum = True
 _det = []
 _kutilgan_royxat = []
 for e in _s.query(Employee).filter(Employee.company_id == 1, Employee.is_active == True).all():   # noqa: E712
-    comp = crud.get_employee_compensation_for_month(_s, e.id, Y, M)
+    comp = crud.get_employee_compensation_for_month(_s, e.id, Y, M, company_id=1)
     adj = _s.query(EmployeeMonthlyAdjustment).filter(EmployeeMonthlyAdjustment.employee_id == e.id,
                                                      EmployeeMonthlyAdjustment.year == Y,
                                                      EmployeeMonthlyAdjustment.month == M).order_by(
@@ -502,14 +502,14 @@ check("B5 summa va qolgan — mustaqil formula", _ok_sum, _det[:4])
 _e0 = _br.get(ID["hodim"][0])
 check("B6 bir oyda ikki tuzatish — BIRINCHISI (100 000.5 — 'kelmadi' EMAS, 11 111 — 'birinchi')",
       _e0 is not None and _e0["adjustment"] == 11_111 and _e0["adjustment_reason"] == "birinchi", _e0)
-_c_teng = crud.get_employee_compensation_for_month(_s, _e_teng, Y, M)
+_c_teng = crud.get_employee_compensation_for_month(_s, _e_teng, Y, M, company_id=1)
 check("B7 tarix: teng oyda ikki yozuv — kattaroq id (777 000); keyingi oy yozuvi (5 000 000) hali amal qilmaydi",
       float(_c_teng["fixed_amount"]) == 777_000 and _br.get(_e_teng, {}).get("amount") is not None, _c_teng)
 check("B7b tarix: shu oyda amal qiladigan yozuv (effective = joriy oy) olinadi — 1 234 567 (mustaqil qiymat)",
       _br.get(_e_joriy, {}).get("amount") == 1_234_567 and _br.get(_e_joriy, {}).get("pay_type") == "fixed",
       _br.get(_e_joriy))
 _e1 = ID["hodim"][1]
-_c1 = crud.get_employee_compensation_for_month(_s, _e1, Y, M)
+_c1 = crud.get_employee_compensation_for_month(_s, _e1, Y, M, company_id=1)
 check("B8 tarixsiz hodim — joriy qiymatlar (Employee jadvali)", float(_c1["percent_value"]) == 2.5, _c1)
 check("B9 hodimlar jami = breakdown summalari (round)", _emp["total"] == round(sum(
     b["amount"] for b in _emp["breakdown"])) or abs(_emp["total"] - sum(b["amount"] for b in _emp["breakdown"])) <= len(

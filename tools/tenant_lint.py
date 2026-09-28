@@ -235,9 +235,21 @@ def _filtrlanganmi(kod, i, zanjir, var, bosh, oxir, oramchilar=()):
     for _o in oramchilar:
         if re.search(rf"\b{re.escape(_o)}\(", zanjir):
             return True
+    tana = "\n".join(kod[bosh:oxir])
+    # kech109 (K107-3 b): `.filter(*filters)` — korxona sharti RO'YXAT ichida (`filters.append(… company_id …)`,
+    # `filters = [… company_id …]`, `filters += [… company_id …]`). O'LCHANGAN: `crud.search_finished_products` (№14)
+    # shu naqsh tufayli baseline da soxta signal edi.
+    # `.filter(*_mv_cid, …)` ham (ro'yxat birinchi argument, keyin boshqa shartlar); ro'yxat shartli ifodada ham
+    # (`_mv_cid = ([X.company_id == company_id] if company_id is not None else [])` — `services.get_inventory_kpi`).
+    for _ry in re.findall(r"\.filter\(\s*\*\s*([A-Za-z_]\w*)\s*[,)]", zanjir):
+        for naqsh in (
+            rf"\b{re.escape(_ry)}\s*\.\s*(?:append|extend)\([^\n]*company_id",
+            rf"\b{re.escape(_ry)}\s*\+?=\s*\(?\s*\[[^\]]*company_id",
+        ):
+            if re.search(naqsh, tana):
+                return True
     if not var:
         return False
-    tana = "\n".join(kod[bosh:oxir])
     # 3) shu o'zgaruvchiga bog'langan keyingi cheklov
     for naqsh in (
         rf"\b{re.escape(var)}\s*=\s*[^\n]*\b{re.escape(var)}\b[^\n]*company_id",
@@ -253,6 +265,38 @@ def _filtrlanganmi(kod, i, zanjir, var, bosh, oxir, oramchilar=()):
         if "company_id" in parcha.split("\n\n")[0]:
             return True
     return False
+
+
+def _argument_modeli(kod_lines, i, bosh, all_models, tax, tenant_any):
+    """kech109 (K107-3 a): `db.query(` ning qavs ichidagi matnidan (ko'p qatorli bo'lishi mumkin, 20 qatorgacha)
+    birinchi TENANT modelni qaytaradi: `Model.ustun`, `taxallus.ustun`, `modul.Model.ustun`. Topilmasa — None."""
+    matn = kod_lines[i][bosh:]
+    j = matn.find("(")
+    if j < 0:
+        return None
+    arg, d = [], 0
+    satrlar = [matn[j:]] + list(kod_lines[i + 1:i + 20])
+    for satr in satrlar:
+        for ch in satr:
+            if ch == "(":
+                d += 1
+                if d == 1:
+                    continue
+            elif ch == ")":
+                d -= 1
+                if d == 0:
+                    break
+            arg.append(ch)
+        if d == 0:
+            break
+        arg.append("\n")
+    matn_arg = "".join(arg)
+    for mm in re.finditer(r"(?<![\w])(?:[A-Za-z_]\w*\s*\.\s*)?([A-Za-z_]\w*)\s*\.\s*[A-Za-z_]\w*", matn_arg):
+        nom = mm.group(1)
+        model = nom if nom in all_models else tax.get(nom)
+        if model and model in tenant_any:
+            return model
+    return None
 
 
 def scan():
@@ -327,7 +371,11 @@ def scan():
                 elif _n2 and _n2 in all_models:
                     model = _n2
                 else:
-                    continue
+                    # kech109 (K107-3 a): `db.query(func.sum(Model.col))`, `db.query(case(...))` — birinchi nom
+                    # model emas; argument ICHIDAN birinchi tenant model (nom / taxallus / `modul.Model`).
+                    model = _argument_modeli(kod_lines, i, m.start(), all_models, tax, tenant_any)
+                    if model is None:
+                        continue
                 if model not in tenant_any:
                     continue
                 fn = _enclosing_function(lines, i + 1)

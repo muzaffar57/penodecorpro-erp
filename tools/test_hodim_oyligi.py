@@ -241,7 +241,7 @@ check("C5: calculate_monthly_employee_pay'da `jami_gips_gul` parametri yo'q",
       "jami_gips_gul" in _sig, False)
 
 _e1 = db.query(Employee).filter(Employee.name == "A1_Doimiy").first()
-comp = crud.get_employee_compensation_for_month(db, _e1.id, YIL, OY)
+comp = crud.get_employee_compensation_for_month(db, _e1.id, YIL, OY, company_id=A_CID)
 check("C6: comp lug'atida (tarixdan) `gul_rate` kaliti yo'q",
       "gul_rate" in comp, False)
 check("C6b: comp lug'ati boshqa maydonlarni beraveradi",
@@ -253,7 +253,7 @@ _hist = db.query(EmployeeCompensationHistory).filter(
 for h in _hist:
     db.delete(h)
 db.commit()
-comp2 = crud.get_employee_compensation_for_month(db, _e1.id, YIL, OY)
+comp2 = crud.get_employee_compensation_for_month(db, _e1.id, YIL, OY, company_id=A_CID)
 check("C7: zaxira yo'lda ham `gul_rate` kaliti yo'q", "gul_rate" in comp2, False)
 check("C7b: zaxira yo'l to'g'ri qiymat beradi",
       float(comp2["fixed_amount"]), 3_000_000)
