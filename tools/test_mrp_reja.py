@@ -18,7 +18,8 @@ NIMA UCHUN KERAK
     qatorda (5 + 3 kg), omborda 6 kg — «Boshlash» 200 (har qator alohida), «Yakunlash» 409 ("bor: 1").
 
 BO'LIMLAR: R — retsept tannarxi; Y — yangi ishlab chiqarish rejasi; G — reja ⇔ boshlash (chegarada); K — K113-1 / K113-2;
-  B — jarayondagilar bilan raqobat; M — mavjud ishlab chiqarish rejasi; L — ro'yxat; Q — so'rovlar soni; X — xabarlar;
+  B — jarayondagilar bilan raqobat; M — mavjud ishlab chiqarish rejasi; L — ro'yxat (K113-3 — o'chirilgan buyurtma ham);
+  Q — so'rovlar soni; X — xabarlar;
   N — reja hech narsa yozmaydi; P — sahifa; S — statik.
 REJIMLAR: SQLite (odatiy); `PG_URL` — har ishga YANGI PostgreSQL bazasi; `TENANT_FILTER=1` bilan ham.
     python3 tools/test_mrp_reja.py
@@ -659,6 +660,49 @@ check("L12 B korxona ro'yxati — faqat o'ziniki (A ning birorta ishlab chiqaris
       lambda: [x["id"] for x in _bl] == [ID["b_po"]] and _bl[0]["mahsulot_nomi"] == "MRJ B Travertin"
       and _bl[0]["xomashyo_holati"] == "yetadi" and yaqin(_bl[0]["taxminiy_tannarx"], 3 * 2 * 500), _bl)
 check("L13 menejer ro'yxatni ko'radi (200)", so(MN, "get", "/api/production/orders").status_code == 200)
+# K113-3 (JONLI sinovda topildi — 13 dan 10 tasi): buyurtma butunlay o'chirilganda ishlab chiqarish tarixiy yozuv bo'lib qoladi
+# (ikkala bog'lam uziladi — `crud.delete_order`); detal o'chirilsa faqat detal bog'lami uziladi; savatdagi buyurtma — o'chirilgan.
+_o3 = js(so(A, "post", "/api/orders", params={"confirm_shortage": "true"}, json={
+    "project_id": ID["loyiha"], "order_type": "product", "deadline": "2026-12-11", "is_draft": False,
+    "items": [{"name": "MRJ O'chiriladigan", "category": "mrp_product", "quantity": 3, "unit_price": 20000, "is_coated": False,
+               "product_type_id": ID["trav"]}]})) or {}
+PD, _ = po_yarat(A, {"product_type_id": ID["trav"], "bom_id": ID["trav_b"], "quantity": 2, "source_type": "customer_order",
+                     "source_order_item_id": ((_o3.get("items") or [{}])[0]).get("id")})
+_dl = so(A, "delete", f"/api/orders/{_o3.get('id')}")
+_ld = royxatda(A, PD, oy="hammasi")
+check("L14 buyurtma butunlay o'chirilgan: ishlab chiqarish qoladi, raqam / mijoz / detal yo'q, «o'chirilgan» (asl kodda — maydon yo'q)",
+      lambda: PD and _dl.status_code == 200 and _ld["source_type"] == "customer_order" and _ld["source_order_id"] is None
+      and _ld["manba_buyurtma_raqami"] is None and _ld["manba_mijoz"] is None and _ld["manba_detal"] is None
+      and _ld["manba_ochirilgan"] is True, (_dl.status_code, _ld))
+_o4 = js(so(A, "post", "/api/orders", params={"confirm_shortage": "true"}, json={
+    "project_id": ID["loyiha"], "order_type": "product", "deadline": "2026-12-12", "is_draft": False,
+    "items": [{"name": "MRJ Detali o'chadi", "category": "mrp_product", "quantity": 3, "unit_price": 20000, "is_coated": True,
+               "product_type_id": ID["trav"]}]})) or {}
+PE, _ = po_yarat(A, {"product_type_id": ID["trav"], "bom_id": ID["trav_b"], "quantity": 1, "source_type": "customer_order",
+                     "source_order_item_id": ((_o4.get("items") or [{}])[0]).get("id")})
+_s = SessionLocal()
+try:
+    _s.get(ProductionOrder, PE).source_order_item_id = None      # buyurtma tahririda detal o'chirilgandagi holat
+    _s.commit()
+finally:
+    _s.close()
+_le = royxatda(A, PE, oy="hammasi")
+check("L15 detal o'chirilgan, buyurtma bor: buyurtma raqami va mijoz KO'RINADI (ilgari detal orqali o'qilardi — yo'qolardi), detal yo'q",
+      lambda: _le["manba_buyurtma_raqami"] == _o4.get("order_number") and _le["manba_mijoz"] == "MRJ Mijoz"
+      and _le["manba_detal"] is None and _le["manba_qoplamali"] is None and _le["manba_ochirilgan"] is False, (_o4.get("order_number"), _le))
+_s = SessionLocal()
+try:
+    from models import Order as _Order113
+    _s.get(_Order113, _o4.get("id")).is_deleted = True               # savatda (yumshoq o'chirilgan)
+    _s.commit()
+finally:
+    _s.close()
+_le = royxatda(A, PE, oy="hammasi")
+check("L16 savatdagi (yumshoq o'chirilgan) buyurtma: raqami ko'rinadi, «o'chirilgan» = True",
+      lambda: _le["manba_buyurtma_raqami"] == _o4.get("order_number") and _le["manba_ochirilgan"] is True, _le)
+check("L17 oddiy mijoz buyurtmasi — «o'chirilgan» = False; omborga — None (maydon ma'nosiz)",
+      lambda: royxatda(A, PA, oy="hammasi")["manba_ochirilgan"] is False and royxatda(A, PY, oy="hammasi")["manba_ochirilgan"] is None,
+      (royxatda(A, PA, oy="hammasi").get("manba_ochirilgan"), royxatda(A, PY, oy="hammasi").get("manba_ochirilgan")))
 
 # ══════════════════════════════════════════════════════════════
 section("Q. So'rovlar soni ro'yxat uzunligiga bog'liq emas")

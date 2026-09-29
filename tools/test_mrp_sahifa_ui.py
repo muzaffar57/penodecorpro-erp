@@ -12,7 +12,8 @@ oynasida xomashyo yetadimi, «Miqdorni N qilish», «Boshlash» shu yerning o'zi
 matn (mahsulot, material, mijoz nomi) HTML bo'lib chizilmasligi SHART.
 
 BO'LIMLAR: U — yuklash va kartalar; R — ro'yxat va saralash; Y — yangi ishlab chiqarish oynasi; O — boshlash / yakunlash /
-batafsil / bekor oynalari; T — retsept oynasi; M — mahsulot turi oynasi; H — HTML in'ektsiya; X — xatolar.
+batafsil / bekor oynalari; T — retsept oynasi; M — mahsulot turi oynasi; K — jonli sinovda topilganlar (K113-3 — o'chirilgan
+buyurtma, K113-4 — kichik miqdorlar); H — HTML in'ektsiya; X — xatolar.
 REJIMLAR: SQLite (odatiy); `PG_URL` bilan ham. Asl kodga qarshi QULAMAYDI (sahifa funksiyalari yo'q — tekshiruvlar
 yiqiladi). ISHLATISH: NODE_PATH=$(npm root -g) python3 tools/test_mrp_sahifa_ui.py
 """
@@ -176,6 +177,20 @@ ID["p_yet"] = po({"quantity": 40})
 ID["p_mijoz"] = po({"quantity": 4, "source_type": "customer_order", "source_order_item_id": ID["d_q"]})
 ID["p_xss"] = po({"product_type_id": ID["xtur"], "bom_id": ID["xtur_b"], "quantity": 2})
 ID["p_vaqt"] = po({"quantity": 2})
+# K113-3: mijoz buyurtmasi keyin BUTUNLAY o'chirilgan ishlab chiqarish (jonli sinovda 13 dan 10 tasi shunday edi — «Buyurtma #?»)
+_o2 = js(req(C, "post", "/api/orders", params={"confirm_shortage": "true"}, json={
+    "project_id": ID["loyiha"], "order_type": "product", "deadline": "2026-12-11", "is_draft": False,
+    "items": [{"name": "MRU O'chiriladigan", "category": "mrp_product", "quantity": 3, "unit_price": 20000, "is_coated": False,
+               "product_type_id": ID["trav"]}]})) or {}
+ID["p_ochir"] = po({"quantity": 2, "source_type": "customer_order", "source_order_item_id": ((_o2.get("items") or [{}])[0]).get("id")})
+ID["o2_ochirildi"] = req(C, "delete", f"/api/orders/{_o2.get('id')}").status_code == 200 or None
+# K113-4: kichik miqdorlar (jonli: retsept 0,125 m² uchun, penoplast 0,00625 m³ — «0,13» / «0,01» bo'lib ko'rinardi)
+ID["qolip"] = (js(req(C, "post", "/api/production/product-types", json={
+    "name": "MRU Qolip", "unit": "m²", "input_template": "quantity_only", "pricing_formula": "unit_based"})) or {}).get("id")
+ID["qolip_b"] = (js(req(C, "post", "/api/production/boms", json={
+    "product_type_id": ID["qolip"], "variant_name": "Kichik", "batch_quantity": 0.125,
+    "items": [{"inventory_id": ID["qum"], "quantity": 0.00625}]})) or {}).get("id")
+ID["p_kichik"] = po({"product_type_id": ID["qolip"], "bom_id": ID["qolip_b"], "quantity": 1}, "start", "cancel")
 _s = SessionLocal()
 try:
     _p = _s.get(ProductionOrder, ID["p_vaqt"])
@@ -364,6 +379,10 @@ QADAMLAR = [
     q("bekor", amal="__tugma('#snapshot-tugmalar', 'Bekor qilish').click();",
       natija=f"return {{ochiq: __ochiq('snapshot-modal'), qator: __m(__qator({P['p_mijoz']})), msg: window.__msg.slice(-1)[0]}};"),
     q("bekor_batafsil", amal=f"__qator({P['p_bekor']}).querySelector('.po-amallar button').click();", natija="return __oyna();"),
+    q("kichik_batafsil", amal=f"closeModal('snapshot-modal'); __qator({P['p_kichik']}).querySelector('.po-amallar button').click();",
+      natija="return __oyna();"),
+    q("ochir_oyna", amal=f"closeModal('snapshot-modal'); __qator({P['p_ochir']}).querySelector('.po-uch').click();",
+      natija="return __oyna();"),
     q("xss_oyna", amal=f"closeModal('snapshot-modal'); __qator({P['p_xss']}).querySelector('.po-amallar .btn-dark').click();",
       natija="return __oyna();"),
     # ── Retsept oynasi ──
@@ -406,6 +425,11 @@ QADAMLAR = [
       natija="return {msg: window.__msg.slice(-1)[0], ochiq: __ochiq('bom-modal')};"),
     q("retsept_xss", amal=f"closeModal('bom-modal'); await openBomModal({X}, {P['xtur_b']});",
       natija="return {sarlavha: __m(document.getElementById('bom-modal-title')), tanlangan: __m(document.querySelector('#bom-items-wrap .bi-inventory').selectedOptions[0])};"),
+    q("retsept_kichik", amal=f"closeModal('bom-modal'); await openBomModal({P['qolip']}, {P['qolip_b']});",
+      natija=r"""return {tarkib: __m(document.getElementById('bom-tarkib-sarlavha')),
+        narx: __m(document.querySelector('#bom-items-wrap .bi-narx')), jami: __m(document.getElementById('bom-jami'))};"""),
+    q("yangi_kichik", amal=f"closeModal('bom-modal'); openProductionOrderModal(); __tanla('po-f-product-type', {P['qolip']});",
+      natija="return {bom: [...document.getElementById('po-f-bom').options].map(__m)};"),
     # ── Mahsulot turi ──
     q("tur_yangi", amal=r"""closeModal('bom-modal'); openProductTypeModal();
         document.getElementById('pt-f-name').value = 'MRU Yangi tur'; document.getElementById('pt-f-unit').value = 'm²';
@@ -695,6 +719,27 @@ check("M1 «150 000» va «2,5» — 150 000 so'm va ×2,5 saqlandi (ilgari pars
 check("M2 noto'g'ri narx «o'n ming» — saqlanmaydi, sabab aytiladi", lambda: n("tur_xato")["msg"][0].startswith("Qat'iy narxni to'g'ri kiriting")
       and n("tur_xato")["ochiq"] is True and not any(p.get("name") == "MRU Xato tur" for p in (js(req(C, "get", "/api/production/product-types")) or [])),
       n("tur_xato"))
+
+# ══════════════════════════════════════════════════════════════
+section("K. Jonli sinovda topilgan ko'rinish kamchiliklari (K113-3, K113-4)")
+# ══════════════════════════════════════════════════════════════
+_och = qator_matn(_q, ID["p_ochir"])
+check("K1 buyurtmasi butunlay o'chirilgan ishlab chiqarish: «Mijoz buyurtmasi», «buyurtma o'chirilgan» («Buyurtma #?» EMAS)",
+      ID.get("o2_ochirildi") is True and "Mijoz buyurtmasi" in _och and "buyurtma o'chirilgan" in _och and "#?" not in _och
+      and "Buyurtma #" not in _och, _och)
+check("K2 uning oynasi — «Mijoz buyurtmasi — buyurtma o'chirilgan»", lambda: "Mijoz buyurtmasi — buyurtma o'chirilgan" in n("ochir_oyna")["matn"]
+      and "#?" not in n("ochir_oyna")["matn"], n("ochir_oyna"))
+_qk = next((t for t in _y.get("turlar") or [] if t.startswith("MRU Qolip")), "")
+check("K3 kichik partiya — kartada «Kichik (0,125 m² uchun)» (ilgari «0,13»)", "Kichik (0,125 m² uchun)" in _qk, _qk)
+check("K4 retsept oynasi — «Tarkibi — 0,125 m² uchun», qator «0,00625 kg × 820» (ilgari «0,01» / 4 xona)",
+      lambda: n("retsept_kichik")["tarkib"] == "Tarkibi — 0,125 m² uchun" and "0,00625 kg × 820" in n("retsept_kichik")["narx"],
+      n("retsept_kichik"))
+check("K5 yangi ishlab chiqarish — retsept tanlovi «Kichik — 0,125 m² uchun, 1 ta material»",
+      lambda: n("yangi_kichik")["bom"] == ["Kichik — 0,125 m² uchun, 1 ta material"], n("yangi_kichik"))
+check("K6 batafsil (boshlanib bekor qilingan): «Retsept bo'yicha 0,00625 kg», «Rejada edi 0,05 kg», «xomashyo ombordan yechilmagan»",
+      lambda: any("0,00625 kg" in x and "0,05 kg" in x for x in n("kichik_batafsil")["jadval"])
+      and "Rejada edi" in n("kichik_batafsil")["jadval_bosh"] and "xomashyo ombordan yechilmagan" in n("kichik_batafsil")["matn"],
+      n("kichik_batafsil"))
 
 # ══════════════════════════════════════════════════════════════
 section("H. HTML in'ektsiya — foydalanuvchi matni HTML bo'lib chizilmaydi")
