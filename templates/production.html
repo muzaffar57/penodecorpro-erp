@@ -512,7 +512,16 @@ function sanaQisqa(v) {        // "29.09 11:20" (Toshkent)
   const s = tkSana(v, 'ru-RU', {day: '2-digit', month: '2-digit'});
   return s ? s + ' ' + tkVaqt(v, 'ru-RU') : '';
 }
-function birlikMatni(x, birlik) { return sonKorinish(x) + (birlik ? ' ' + birlik : ''); }
+function miqdorKorinish(x) {
+  // Miqdor (kech113, jonli ma'lumotda topildi): 1 dan kichik — 3 ta ma'noli raqamgacha (0,00625 m³ → "0,00625", 0,125 →
+  // "0,125", 0,17857 → "0,179"; ilgari 2 xonaga "0,01" / "0,13" bo'lib yaxlitlanardi), qolgani — 2 xonagacha.
+  const n = Number(x);
+  if (x === null || x === undefined || x === '' || !isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if (a > 0 && a < 1) return n.toLocaleString('ru-RU', {maximumSignificantDigits: 3});
+  return n.toLocaleString('ru-RU', {maximumFractionDigits: 2});
+}
+function birlikMatni(x, birlik) { return miqdorKorinish(x) + (birlik ? ' ' + birlik : ''); }
 function maksTavsiya(m) {       // "eng ko'pi" — butun songa (1 dan kichik bo'lsa — 0,01 gacha)
   const n = Number(m);
   if (!isFinite(n) || n <= 0) return 0;
@@ -610,7 +619,7 @@ async function loadProductTypes(){
       ${boms.map(b => `
         <div class="bom-row">
           <div>
-            <div>${escapeHtml(b.variant_name)} <span class="bom-item-mini">(${escapeHtml(sonKorinish(b.batch_quantity))} ${escapeHtml(pt.unit)} uchun)</span></div>
+            <div>${escapeHtml(b.variant_name)} <span class="bom-item-mini">(${escapeHtml(miqdorKorinish(b.batch_quantity))} ${escapeHtml(pt.unit)} uchun)</span></div>
             <div class="bom-item-mini">${b.items.length} ta material</div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id}, ${b.id})">Tahrirlash</button>
@@ -632,7 +641,7 @@ let bomBirlik = '';
 function bomSarlavhaYangila() {
   const partiyaMatn = document.getElementById('bom-f-batch').value;
   const partiya = String(partiyaMatn || '').trim() === '' ? 1 : sonOqi(partiyaMatn);
-  const matn = (partiya > 0 && isFinite(partiya)) ? sonKorinish(partiya) : '…';
+  const matn = (partiya > 0 && isFinite(partiya)) ? miqdorKorinish(partiya) : '…';
   document.getElementById('bom-tarkib-sarlavha').textContent = `Tarkibi — ${matn} ${bomBirlik} uchun`;
 }
 
@@ -907,7 +916,7 @@ function retseptHisobiChiz(natija, q) {
     summaEl.textContent = pulKorinish(l.summa);
     const miq = (l.unit !== l.stock_unit) ? l.ombor_miqdor : l.samarali;
     const birlik = (l.unit !== l.stock_unit) ? l.stock_unit : l.unit;
-    izohEl.textContent = Number(l.narx) > 0 ? `${sonKorinish(miq, 4)} ${birlik} × ${sonKorinish(l.narx)}` : 'narxi kiritilmagan';
+    izohEl.textContent = Number(l.narx) > 0 ? `${miqdorKorinish(miq)} ${birlik} × ${sonKorinish(l.narx, 0)}` : 'narxi kiritilmagan';
   });
   const birlik = bomBirlik || 'birlik';
   document.getElementById('bom-jami-sarlavha').textContent = `1 ${birlik} taxminiy tannarxi`;
@@ -979,7 +988,7 @@ async function onProductTypeChangeForPO(){
   document.getElementById('po-f-birlik').textContent = pt ? pt.unit : 'birlik';
   if (!ptId) { bomSel.innerHTML = '<option value="">— Avval mahsulot tanlang —</option>'; window.__poBoms = []; renderOptionalBomItems(); poRejaRejala(); return; }
   const boms = await fetch(`/api/production/product-types/${ptId}/boms`).then(r => r.ok ? r.json() : []);
-  bomSel.innerHTML = boms.map(b => `<option value="${b.id}">${escapeHtml(b.variant_name)} — ${escapeHtml(sonKorinish(b.batch_quantity))} ${escapeHtml(pt ? pt.unit : '')} uchun, ${b.items.length} ta material</option>`).join('') || '<option value="">Bu mahsulot uchun retsept yo\'q</option>';
+  bomSel.innerHTML = boms.map(b => `<option value="${b.id}">${escapeHtml(b.variant_name)} — ${escapeHtml(miqdorKorinish(b.batch_quantity))} ${escapeHtml(pt ? pt.unit : '')} uchun, ${b.items.length} ta material</option>`).join('') || '<option value="">Bu mahsulot uchun retsept yo\'q</option>';
   // 11.0-band: retseptning ixtiyoriy qatorlari katakcha qilib ko'rsatiladi.
   window.__poBoms = boms;
   renderOptionalBomItems();
@@ -1011,7 +1020,7 @@ async function loadEligibleOrderItemsForPO(){
   const pt = productTypesCache.find(p => String(p.id) === String(ptId));
   const birlik = pt ? pt.unit : '';
   sel.innerHTML = '<option value="">— Tanlang —</option>' + items.map(it =>
-    `<option value="${it.order_item_id}" data-remaining="${it.remaining_quantity}" data-coated="${it.is_coated ? '1' : '0'}">${escapeHtml(it.order_number || ('#' + it.order_id))} — ${escapeHtml(it.client_name || '')} · kerak ${escapeHtml(sonKorinish(it.remaining_quantity))} ${escapeHtml(birlik)}${it.is_coated ? ' · qoplamali' : ''}</option>`
+    `<option value="${it.order_item_id}" data-remaining="${it.remaining_quantity}" data-coated="${it.is_coated ? '1' : '0'}">${escapeHtml(it.order_number || ('#' + it.order_id))} — ${escapeHtml(it.client_name || '')} · kerak ${escapeHtml(miqdorKorinish(it.remaining_quantity))} ${escapeHtml(birlik)}${it.is_coated ? ' · qoplamali' : ''}</option>`
   ).join('');
   hint.textContent = '';
   sel.onchange = function(){
@@ -1021,7 +1030,7 @@ async function loadEligibleOrderItemsForPO(){
     renderOptionalBomItems();
     const remaining = opt ? parseFloat(opt.dataset.remaining) : null;
     if (remaining) {
-      hint.textContent = `Yana ${sonKorinish(remaining)} ${birlik} kerak — miqdor maydoniga shuni yozishingiz mumkin.`;
+      hint.textContent = `Yana ${miqdorKorinish(remaining)} ${birlik} kerak — miqdor maydoniga shuni yozishingiz mumkin.`;
       const qEl = document.getElementById('po-f-quantity');
       if (qEl && !qEl.value) qEl.value = remaining;
     } else {
@@ -1056,7 +1065,7 @@ function renderOptionalBomItems(){
     return `<label class="po-opt-yorliq">
       <input type="checkbox" class="po-opt" data-id="${i.id}" data-avto="${avto ? '1' : ''}" style="width:18px;height:18px"
              ${belgi ? 'checked' : ''} ${avto ? 'disabled' : ''}>
-      <span>${qoplama ? 'Qoplama qo\'shilsin — ' : ''}<b>${escapeHtml(i.item_name)}</b> ${escapeHtml(sonKorinish(i.quantity))} ${escapeHtml(i.unit || '')} (${escapeHtml(sonKorinish(bom.batch_quantity))} ${escapeHtml(birlik)} ga)${escapeHtml(qoshimcha)}</span>
+      <span>${qoplama ? 'Qoplama qo\'shilsin — ' : ''}<b>${escapeHtml(i.item_name)}</b> ${escapeHtml(miqdorKorinish(i.quantity))} ${escapeHtml(i.unit || '')} (${escapeHtml(miqdorKorinish(bom.batch_quantity))} ${escapeHtml(birlik)} ga)${escapeHtml(qoshimcha)}</span>
     </label>`;
   }).join('');
   list.querySelectorAll('.po-opt').forEach(c => c.addEventListener('change', poRejaRejala));
@@ -1338,9 +1347,14 @@ function poQatorHtml(po) {
   } else if (po.status === 'cancelled' && po.cancelled_at) {
     holatIzoh = `<div class="po-kichik">${escapeHtml(sanaQisqa(po.cancelled_at))}</div>`;
   }
-  const manba = po.source_type === 'customer_order'
-    ? `<div class="po-raqam">${escapeHtml(po.manba_buyurtma_raqami || ('Buyurtma #' + (po.source_order_id || '?')))}</div><div class="po-kichik">${escapeHtml([po.manba_mijoz, po.manba_qoplamali ? 'qoplamali' : ''].filter(Boolean).join(' · '))}</div>`
-    : '<div style="font-weight:600">Omborga</div><div class="po-kichik">Tayyor mahsulotlarga</div>';
+  // K113-3 (jonli ma'lumotda topildi): buyurtma butunlay o'chirilgan bo'lsa ishlab chiqarish tarixiy yozuv bo'lib qoladi —
+  // raqam va mijoz yo'q («Buyurtma #?» emas, aniq yozuv); savatdagi buyurtma — raqami bilan, «buyurtma o'chirilgan».
+  let manba = '<div style="font-weight:600">Omborga</div><div class="po-kichik">Tayyor mahsulotlarga</div>';
+  if (po.source_type === 'customer_order') {
+    manba = po.manba_buyurtma_raqami
+      ? `<div class="po-raqam">${escapeHtml(po.manba_buyurtma_raqami)}</div><div class="po-kichik">${escapeHtml([po.manba_mijoz, po.manba_qoplamali ? 'qoplamali' : '', po.manba_ochirilgan ? "buyurtma o'chirilgan" : ''].filter(Boolean).join(' · '))}</div>`
+      : `<div style="font-weight:600">Mijoz buyurtmasi</div><div class="po-kichik">buyurtma o'chirilgan</div>`;
+  }
   let tannarx = '<span class="po-kul">—</span>';
   const miqdor = Number(po.quantity) || 0;
   if (po.status === 'completed' && po.total_cost !== null && po.total_cost !== undefined) {
@@ -1419,7 +1433,9 @@ function tkSanaVaqtRu(v) {
 
 function poManbaMatni(po) {
   if (po.source_type !== 'customer_order') return 'Omborga — tayyor mahsulotlarga';
-  return 'Mijoz buyurtmasi ' + [po.manba_buyurtma_raqami || ('#' + (po.source_order_id || '?')), po.manba_mijoz, po.manba_qoplamali ? 'qoplamali' : ''].filter(Boolean).join(' · ');
+  if (!po.manba_buyurtma_raqami) return "Mijoz buyurtmasi — buyurtma o'chirilgan";
+  return 'Mijoz buyurtmasi ' + [po.manba_buyurtma_raqami, po.manba_mijoz, po.manba_qoplamali ? 'qoplamali' : '',
+    po.manba_ochirilgan ? "buyurtma o'chirilgan" : ''].filter(Boolean).join(' · ');
 }
 
 function poBatafsil(poId) { poOyna(poId, 'batafsil'); }
