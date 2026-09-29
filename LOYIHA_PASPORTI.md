@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -267,7 +267,8 @@ yozuv amal bilan BITTA tranzaksiyada (rad etilgan / yiqilgan amal — yozuv yo'q
 sababi bilan, belgi `obuna.BLOK_SARLAVHA`, `main.custom_http_exception_handler`), login (to'g'ri parolda xabar, urinish
 "noto'g'ri" deb yozilmaydi), hodim paneli (`auth.get_current_employee`, `hodim_login_submit`), usta boti
 (`main._master_by_chat_id`), kunlik "kam qoldi" Telegram (`/api/cron/low-stock-check`) — yopiladi; ochiq sessiyalar
-o'chiriladi; ma'lumot O'CHMAYDI. Platforma admini hech qachon bloklanmaydi; platforma egasi korxonasi (platforma admini bor
+bloklash paytida O'CHIRILMAYDI (`obuna.ochiq_sessiyalar` — faqat soni): keyingi so'rovda tekshiruv sessiyani o'chiradi va SABABNI
+ko'rsatadi (K112-2: oldin darhol o'chirilardi — ochiq oynadagi xodim sababsiz oddiy kirish sahifasiga tushardi); ma'lumot O'CHMAYDI. Platforma admini hech qachon bloklanmaydi; platforma egasi korxonasi (platforma admini bor
 korxona) bloklanmaydi, muddati yo'q (API 400; kunlik ish o'tkazadi). «Ochish» (`obuna.och`) — muddat imtiyozdan ham o'tgan bo'lsa
 `imtiyoz_gacha` = bugun + 3 (3 kunlik imtiyoz). Uzaytirish (`obuna.uzaytirish_sanasi` / `obuna.uzaytir`, +1 / 3 / 6 / 12 oy yoki
 aniq sana) — «Aralash»: E ≥ bugun — E dan, aks holda bugundan; sinov tugaydi, imtiyoz / eslatma belgisi tozalanadi, AVTOMATIK
@@ -276,7 +277,9 @@ Kunlik ish (`main.obuna_kunlik_ish`, rejalashtiruvchi 09:05 Toshkent) — imtiyo
 (`_send_telegram`, korxonasiz — platforma chati): 7 kun / 1 kun qolganda, muddat tugaganda, avtomatik bloklanganda — har bosqich
 shu muddat uchun BIR marta (`eslatma_holati` = "<E>:<bosqich>"). Mijoz ogohlantirishi (`obuna.banner`, Jinja `obuna_banneri`) —
 YUQORI PANELDA (sahifa joyini egallamaydi): ≤ 7 kun — faqat korxona ADMINIGA sariq; imtiyozda — HAMMAGA qizil; bosilsa to'liq
-matn va aloqa telefoni. Aloqa telefoni — platforma sozlamasi (`obuna.TELEFON_KALIT`, egasi korxonasining `company_settings`;
+matn va aloqa telefoni (tashqariga bosilsa yopiladi). Yuqori paneldagi ochiluvchi panellar (obuna, bildirishnomalar) ochilganda
+`base.html` `panelniJoyla` bilan EKRAN ICHIGA joylanadi (K112-1: tor ekranda tugmalar qatori chapga o'tib, `right: 0` li 340 px
+panel ekrandan chapga chiqib ketardi — 390 px da −232 px; bildirishnomalar paneli ham, telefonda hamma foydalanuvchida). Aloqa telefoni — platforma sozlamasi (`obuna.TELEFON_KALIT`, egasi korxonasining `company_settings`;
 bo'sh — egasi korxonasining hujjat telefoni). Platforma paneli — `/platforma` (`templates/platforma.html`, "B — Kartochkalar"):
 `GET /api/platform/companies` (holat + faollik), `/summary`, `POST …/{id}/block|unblock|extend` (`korish=1` — yangi sanani faqat
 hisoblaydi; brauzerda formula yo'q), `/contact-phone`, `GET /api/platform/errors` (hamma korxonalar xatolari; faqat 500 lar
@@ -424,7 +427,8 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   login, API, sessiyalar, hodim paneli, bot, kam qoldi cron; ochish va imtiyoz, kunlik eslatmalar takrorsiz, mijoz ogohlantirishi,
   aloqa telefoni, raqamlar, xatolar, fayllar himoyasi va aylanib o'tish, logotip, migratsiya — SQLite, PG, TF1):
   `tools/test_platforma_obuna.py`; panel sahifasi (HAQIQIY markup va JS, jsdom — kartochkalar, saralash, oynalar, in'ektsiya):
-  `tools/test_platforma_ui.js`.
+  `tools/test_platforma_ui.js`; yuqori panel ochiluvchi panellari ekran ichida (tor / keng / o'lcham o'zgarishi, tashqi bosish):
+  `tools/test_yuqori_panel_ui.js` (+ HAQIQIY brauzer o'lchovi — `work/k112/probe112panel.py`, 360–1400 px).
 - (kech110) Tahrirda kelishilgan summa — yagona qoida, kechirilgan qarz, migratsiya, brauzer ↔ server paritet (SQLite, PG, TF1):
   `tools/test_kelishilgan_nisbat.py`; tahrir formasi (HAQIQIY `editSelected` qismi, `reapplyDiscount`, `updateOrder` tanasi):
   `tools/test_kelishilgan_tahrir_ui.js`; MRP amallari Faoliyat jurnalida (atomiklik, korxona, `/logs`): `tools/test_mrp_jurnal.py`.
@@ -697,6 +701,14 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   beradi — mount ning o'zida HAQIQIY yo'l (realpath) bo'yicha rad etish kerak.
 - (kech111) Kontent oqimiga (`{% block content %}` ustiga) qo'shilgan qator ko'p sahifani buzadi: ular `height: calc(100vh - 58px)`
   bilan qurilgan va `.erp-main` `overflow: hidden` — pastki qismi ko'rinmay qoladi. Umumiy ogohlantirish — yuqori panelda.
+- (kech111, K112-1) Ochiluvchi panelni tugmaning o'ng chetiga (`right: 0`) bog'lash tor ekranda panelni ekrandan chiqarib
+  yuboradi (tugmalar qatori keyingi qatorga, chapga o'tadi) — keng ekrandagi skrinshot buni ko'rsatmaydi; ochilganda ekran
+  ichiga joylang va HAQIQIY brauzerda bir necha kenglikda (360 / 390 / 600 / 756 / 1024 / 1400) panel to'rtburchagini o'lchang.
+- (kech111, K112-2) "Darhol ta'sir" uchun sessiyani oldindan o'chirish foydalanuvchidan SABABNI yashiradi (keyingi so'rov oddiy
+  "kiring" bo'lib qoladi). Har so'rovda tekshiruv bo'lsa — sessiyani o'sha yerda, sabab bilan yoping. Testda faqat "kirish
+  yopildimi" emas, "foydalanuvchi NIMA ko'rdi" ni ham tekshiring (manzil `?b=1`, xabar, telefon).
+- (kech111) Loginsiz jonli so'rovni `cache: 'no-store'` bilan yuboring — aks holda brauzer oldingi sessiyali (private) javobni
+  keshdan beradi va himoya ishlamayotgandek ko'rinadi.
 - (kech111) Testda sahifa matnini tekshirishda Jinja `'` ni `&#39;` qiladi (`to'xtatilgan`) — HTML dan oldin `html.unescape`.
   `<script>` ichiga JSON qo'yilsa `</script>` bo'lagi skriptni yopadi — `<` → `\u003c`.
 - Tugmani CSS sinfining BIRINCHISI bilan topish (`querySelector('.btn-outline')`) — sahifaga boshqa shunday tugma qo'shilganda
@@ -1538,6 +1550,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_xato_sababi_ui.js` · JS — kech107 darvozasi (5-bo'lim 10-band, "UI 400 sabablari kpi / inventory / finished").
 - `test_yetkazish_ui.js` · JS — 17g (2026-09-22): yetkazish va brak yozish UI si.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
+- `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 153 (Python 124, JS 29).
+Jami test fayllari: 154 (Python 124, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->

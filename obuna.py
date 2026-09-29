@@ -238,20 +238,21 @@ def _jurnal(db, c, action, matn, kim, eski=None):
                       performed_by=kim, old_value=eski, new_value=matn, company_id=c.id, commit=False)
 
 
-def sessiyalarni_yop(db, company_id):
-    """Korxonaning BARCHA ochiq sessiyalari (foydalanuvchi va hodim paneli) o'chiriladi — bloklash darhol ta'sir qiladi."""
+def ochiq_sessiyalar(db, company_id):
+    """Korxonaning ochiq sessiyalari soni (foydalanuvchi va hodim paneli) — bloklash javobida ko'rsatiladi.
+
+    kech111 (K112-2, jonli sinovda topildi): bloklashda sessiyalar bu yerda O'CHIRILMAYDI. Ilgari darhol o'chirilardi —
+    ochiq oynadagi xodim keyingi bosishda SABABSIZ oddiy kirish sahifasiga tushardi (xabar va telefon faqat parolni qayta
+    yozganda chiqardi). Endi har so'rovdagi tekshiruv (`auth._korxona_bloklanganmi`) keyingi bosishda sessiyani o'chiradi va
+    sababni ko'rsatadi: sahifa — `/login?b=1|2` (xabar + aloqa telefoni), API — 403 JSON, hodim paneli — `/hodim/login?b=…`.
+    Ta'sir avvalgidek DARHOL: bloklangan korxonaning hech bir so'rovi tekshiruvdan o'tmaydi."""
     import tenant_context as _tc
     from models import User, UserSession, Employee, EmployeeSession
     with _tc.system_context(db):
         uids = [r[0] for r in db.query(User.id).filter(User.company_id == company_id).all()]
         eids = [r[0] for r in db.query(Employee.id).filter(Employee.company_id == company_id).all()]
-        n_u = n_e = 0
-        if uids:
-            n_u = (db.query(UserSession).filter(UserSession.user_id.in_(uids))
-                   .delete(synchronize_session=False))
-        if eids:
-            n_e = (db.query(EmployeeSession).filter(EmployeeSession.employee_id.in_(eids))
-                   .delete(synchronize_session=False))
+        n_u = db.query(UserSession).filter(UserSession.user_id.in_(uids)).count() if uids else 0
+        n_e = db.query(EmployeeSession).filter(EmployeeSession.employee_id.in_(eids)).count() if eids else 0
     return n_u, n_e
 
 
@@ -262,7 +263,7 @@ def _egasi_emas(db, c):
 
 def blokla(db, c, sabab, izoh, kim, avtomatik=False):
     """Korxonani bloklaydi: kirish, API, hodim paneli, Telegram bot yopiladi; ma'lumot O'CHMAYDI.
-    Commit — chaqiruvchida (bitta tranzaksiya)."""
+    Ochiq sessiyalar keyingi so'rovda sabab bilan yopiladi (`ochiq_sessiyalar` — K112-2). Commit — chaqiruvchida."""
     _egasi_emas(db, c)
     if getattr(c, "bloklangan_at", None) is not None:
         raise ObunaXato("Korxona allaqachon bloklangan")
@@ -277,7 +278,7 @@ def blokla(db, c, sabab, izoh, kim, avtomatik=False):
     c.blok_izoh = izoh or None
     c.bloklagan = AVTO_KIM if avtomatik else (kim or "")[:100]
     c.blok_avtomatik = bool(avtomatik)
-    n_u, n_e = sessiyalarni_yop(db, c.id)
+    n_u, n_e = ochiq_sessiyalar(db, c.id)
     matn = f"Bloklandi — sabab: {c.blok_sabab}"
     if c.obuna_tugash:
         matn += f"; obuna {sana_matn(_sana(c.obuna_tugash))} gacha edi"
