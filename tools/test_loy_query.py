@@ -359,8 +359,10 @@ tikla()
 c = login("LQ_admin")
 r = req(c, "post", f"/api/orders/{O_ID}/ready?loy_kg=")
 b = buyurtma(O_ID)
-check("C bo'sh loy_kg= → 200, reja bo'yicha (haqiqiy yozilmaydi), ombor o'zgarmaydi",
-      r.status_code == 200 and b.status == "ready" and b.actual is None
+# kech112 (K112-3): bo'sh loy — "reja bo'yicha": reja haqiqiy loy sifatida YOZILADI (ilgari `actual` bo'sh qolib, qoplama
+# xarajati foydadan tushib qolardi — `tools/test_tayyor_reja_loy.py`); ombor avvalgidek o'zgarmaydi.
+check("C bo'sh loy_kg= → 200, reja bo'yicha (haqiqiy = reja), ombor o'zgarmaydi",
+      r.status_code == 200 and b.status == "ready" and b.actual is not None and yaqin(b.actual, b.planned)
       and yaqin(sement(), 995.0), f"{r.status_code} {b} sem={sement()}")
 tikla()
 c = login("LQ_admin")
