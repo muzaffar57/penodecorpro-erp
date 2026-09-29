@@ -424,16 +424,22 @@ function qator(elementlar, dataset) {
                 'ap-notes': el(''), 'r-docnum': el(''), 'ap-opening-stock': el(''), 'ap-prod-type': el('umumiy'),
                 'ap-prod-type-toggle': el(''), 'receive-submit-btn': el(''), 'sum-products': el(''), 'sum-transport': el(''),
                 'sum-grand': el(''), 'sum-paid': el(''), 'sum-debt': el(''), 'rcv-basket-body': el(''),
-                'rcv-pos-count': el(''), 'rcv-pos-total': el('') };
+                'rcv-pos-count': el(''), 'rcv-pos-total': el(''),
+                // kech115 (G4-02 / G4-03): kirim sanasi (bugun) va xulosadagi ogohlantirishlar
+                'r-date': el('2026-09-30'), 'sum-opening-warn': el(''), 'sum-date-warn': el('') };
     const xabar = [], tanalar = [];
     const ctx = kontekst(Object.assign({ document: hujjat(e), showMsg: (m) => { xabar.push(String(m)); }, saveDraft: () => {},
       clearDraft: () => {}, loadHistoryForSupplier: () => {},
+      // kech115: bugun (sana tekshiruvi), tasdiq, saqlangach ro'yxatni qayta yuklash (K115-1)
+      tkISO: () => '2026-09-30', customConfirm: async () => true, loadInvItemsForAp: () => {},
       fetch: async (u, o) => { tanalar.push(JSON.parse(o.body)); return javob(200, { success: true }); } }, qo || {}));
     vm.runInContext('var apBasket = ' + jsn(qatorlar) + '; var invItems = []; var currentSupplierId = 7;'
       + ' var prodTypeChosen = true; var apCreatingNewItem = false; var isSubmittingReceive = false;'
       + ' async function apResolveItemId() { return null; }', ctx);
+    // kech115 (G4-01 / G4-03): submitReceive yozib qo'yilgan qatorni `apQatorniSavatga` orqali qo'shadi (takror — rad),
+    // xulosa sanani `sanaKorinishi` bilan ko'rsatadi — ular ham yuklanadi
     const yoq = yukla(ctx, SRC.receive, NARX118.concat(YORDAM, ['fmt', 'apGetExtraCosts', 'updateSummary', 'apPayFull',
-      'renderBasket', 'submitReceive']), 'supplier_receive');
+      'renderBasket', 'submitReceive', 'apQatorniSavatga', 'apTakrorQator', 'sanaKorinishi']), 'supplier_receive');
     return { ctx, e, xabar, tanalar, yoq };
   }
   const Q100 = [{ itemId: 21, itemName: 'A', unit: 'kg', qty: 100, price: 1000, total: 100000, isPenoplast: false, volumePerUnit: null }];
@@ -478,12 +484,19 @@ function qator(elementlar, dataset) {
     await ctx.apAddToBasket();
     tekshir('R9 savat qatori 1.5 × 0,03 → jami 0.05 (server qoidasi)', ctx.apBasket.length === 1 && ctx.apBasket[0].total === 0.05,
             jsn({ b: ctx.apBasket, yoq }));
+    // kech115 (G4-01): savatdagi qator bilan AYNAN bir xil yozib qo'yilgan qator — endi RAD (ilgari ikkinchi marta yuborilardi)
     e['ap-qty'].value = '1.5'; e['ap-price'].value = '0,03';
     e['ap-paid-now'].value = '0.1';
     await ctx.submitReceive();
-    tekshir('R10 yuborishdagi joriy qator ham server qoidasi (to\'lov 0.1, xabar "To\'landi: 0.1", qarz yo\'q)',
-            tanalar.length === 1 && tanalar[0].items.length === 2 && tanalar[0].paid_now === 0.1
-            && xabar.some(m => m.indexOf("To'landi: 0.1 so'm") >= 0 && m.indexOf('Qarz') < 0), jsn({ tanalar, xabar }));
+    tekshir('R11 (kech115) savatdagi qator yana yozilgan (1.5 × 0,03) — yuborilmaydi, «allaqachon bor»',
+            tanalar.length === 0 && xabar.some(m => m.indexOf('allaqachon bor') >= 0), jsn({ tanalar, xabar }));
+    // yozib qo'yilgan BOSHQA qator (2.5 × 0,03 = 0.075 → 0.08) — server qoidasi bilan qo'shilib yuboriladi
+    e['ap-qty'].value = '2.5'; e['ap-price'].value = '0,03';
+    e['ap-paid-now'].value = '0.13';
+    await ctx.submitReceive();
+    tekshir('R10 yuborishdagi joriy qator ham server qoidasi (2.5 × 0,03 → 0.08; to\'lov 0.13, xabar "To\'landi: 0.13", qarz yo\'q)',
+            tanalar.length === 1 && tanalar[0].items.length === 2 && tanalar[0].paid_now === 0.13
+            && xabar.some(m => m.indexOf("To'landi: 0.13 so'm") >= 0 && m.indexOf('Qarz') < 0), jsn({ tanalar, xabar }));
   } catch (x) { tekshir('R9–R10 kasrli miqdor ishga tushdi', false, x.message); }
 
   console.log('\n' + '='.repeat(66));

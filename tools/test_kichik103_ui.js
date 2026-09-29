@@ -423,13 +423,18 @@ const ESC = olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s)
     const holat = { modal: [], yubor: [] };
     const m = muhit({ elementlar: e, qsa: { '.detal': [row] }, javobFn: async () => javob(200, { success: true }),
       globallar: { editMode: false, currentEditOrderId: null, DEFAULT_PENO_ID: null,
-                   collectItems: () => [{ name: 'K', category: o.tur || 'profil', quantity: 1, is_coated: o.qoplama !== false }],
+                   // kech115 (G2-07): narxli detal — narxsiz detal tasdig'i (alohida test — test_a115_ui.py N) bu testga aralashmasin
+                   collectItems: () => [{ name: 'K', category: o.tur || 'profil', quantity: 1, unit_price: 100000, is_coated: o.qoplama !== false }],
                    showValidationModal: (x) => { holat.modal.push(x); },
                    submitOrderRequest: async (d, isDraft) => { holat.yubor.push({ d, isDraft }); } } });
     return { m, holat };
   }
-  const SO = olib(ORDERS, 'saveOrder');
-  const UO = olib(ORDERS, 'updateOrder');
+  // kech115 (G2-07): saveOrder / updateOrder narxsiz detal yordamchilarini chaqiradi — ular ham yuklanadi
+  const NARXSIZ = [olib(ORDERS, '_narxsizDetallar') || '', olib(ORDERS, '_narxsizTasdiq') || ''].join('\n');
+  const SO0 = olib(ORDERS, 'saveOrder');
+  const UO0 = olib(ORDERS, 'updateOrder');
+  const SO = SO0 ? NARXSIZ + '\n' + SO0 : SO0;
+  const UO = UO0 ? NARXSIZ + '\n' + UO0 : UO0;
   tekshir("I6 saveOrder / updateOrder topildi", !!SO && !!UO);
   for (const [nom, retsept, loy, draft, bloklanadi, ixt] of [
     ["I7 yaratish: qoplamali, loy 10, retseptsiz — saqlanmaydi, oynada retsept xatosi (asl: yuborilardi)", '', 10, false, true, {}],

@@ -253,9 +253,11 @@ for (const s of SAHIFALAR) {
   tekshir('A6 debts quickPayObligation: Math.round yo\'q, narxniOqi + narxKorinishi bor',
           !!dq && !/Math\.round\(/.test(dq) && /narxniOqi\(/.test(dq) && /narxKorinishi\(/.test(dq));
   const sr = SRC.supplier_receive;
-  tekshir('A6 supplier_receive ap-volume: parseFloat yo\'q (2 joyda parseNum)',
+  // kech115 (G4-01): savatga qo'shish ikki joydan BITTA yordamchiga (`apQatorniSavatga`) ko'chdi — hajm o'qish ham bitta
+  tekshir('A6 supplier_receive ap-volume: parseFloat yo\'q (parseNum — apQatorniSavatga da, bitta joy)',
           !/parseFloat\(\s*document\.getElementById\(['"]ap-volume['"]\)/.test(sr)
-          && (sr.match(/parseNum\(\s*document\.getElementById\(['"]ap-volume['"]\)\.value\)/g) || []).length === 2);
+          && (sr.match(/parseNum\(\s*document\.getElementById\(['"]ap-volume['"]\)\.value\)/g) || []).length === 1
+          && /function apQatorniSavatga\([\s\S]*?parseNum\(document\.getElementById\('ap-volume'\)\.value\)/.test(sr));
 }
 
 // ════════════════════════════════════════════════════════════════

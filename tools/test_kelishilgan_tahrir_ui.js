@@ -77,7 +77,9 @@ const QISM_YUKLASH = kes(EDIT, 'editUserTouched = false;', '// Loy rejasi');
 // oxiri: `calcDiscount();` + (yangi) yuklash eslatmasini saqlash + `editInitialLoadDone = true;`
 const QISM_OXIR = kes(EDIT, '    calcDiscount();\n', '\n  } catch');
 const FUNK = ['formatNum', 'parseNum', 'narxMatni', 'narxKorinishi', 'getNamedTotal', 'calcDiscount', 'calcDebt',
-  'reapplyDiscount', '_tiyin110', '_tiyinda110', 'kelishilganQayta', 'updateOrder'];
+  'reapplyDiscount', '_tiyin110', '_tiyinda110', 'kelishilganQayta', 'updateOrder',
+  // kech115 (G2-07): `updateOrder` yangi narxsiz qatorni tasdiqlatadi — yordamchilar ham yuklanadi
+  '_narxsizDetallar', '_narxsizTasdiq'];
 const KOD = {};
 for (const f of FUNK) KOD[f] = olib(SRC, f);
 

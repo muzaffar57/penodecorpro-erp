@@ -31,6 +31,13 @@
  *     node tools/test_tolov_ui.js
  *     node tools/test_tolov_ui.js boshqa/orders.html boshqa/debts.html   (mutatsiya uchun)
  *
+ * kech115 (A bosqich, G3-01 / G3-02): `debts.html` endi summani o'zi yozmaydi va HAR saqlashdan oldin tasdiq so'raydi
+ * (mijoz, buyurtma, summa; «qolganini chegirma qilish» belgisi bo'lsa — KECHIRILADIGAN summa alohida qatorda), natija
+ * xabarida kechirilgan summa; `orders.html` — belgi bilan to'lovdan keyin qarz qolsa kechiriladigan summa tasdiqda.
+ * Harness: chiqarib olish ro'yxatiga `narxKorinishi` / `narxMatni` / `payKechiriladi`, muhitga `selectedDebt`;
+ * tasdiq javobi ro'yxat bo'lishi mumkin (ketma-ket). Eski tekshiruvlar qoidasi o'sha — birinchi tasdiq (saqlashdan
+ * oldingi) hisobga olinib moslandi.
+ *
  * Chiqish kodi: 0 — hammasi o'tdi, 1 — kamida bittasi yiqildi.
  */
 'use strict';
@@ -105,8 +112,9 @@ function muhit(elementlar, javoblar, tasdiq, qoshimcha) {
       return j;
     },
     showMsg: (t, tur) => { xabarlar.push({ t: String(t), tur }); },
-    showConfirmModal: async (m, o) => { tasdiqlar.push({ m: String(m), o }); return tasdiq; },
-    customConfirm: async (m, o) => { tasdiqlar.push({ m: String(m), o }); return tasdiq; },
+    // kech115: `tasdiq` ro'yxat bo'lsa — ketma-ket javoblar (birinchi — saqlashdan oldingi tasdiq)
+    showConfirmModal: async (m, o) => { tasdiqlar.push({ m: String(m), o }); return Array.isArray(tasdiq) ? !!tasdiq[tasdiqlar.length - 1] : tasdiq; },
+    customConfirm: async (m, o) => { tasdiqlar.push({ m: String(m), o }); return Array.isArray(tasdiq) ? !!tasdiq[tasdiqlar.length - 1] : tasdiq; },
     alert: (m) => { alertlar.push(String(m)); },
     location: { reload: () => { reload++; } },
     setTimeout: () => 0,
@@ -134,7 +142,7 @@ async function ishga(m, kod, chaqiruv) {
 // ══════════════════════════════════════════════════════════════
 // kech95 (124-band): savePayment ortiqcha to'lov tekshiruvi uchun aniq qarzni `_joriyQarz` dan oladi —
 // u ham shablondan JONLI o'qiladi.
-const O_NOMLAR = ['parseNum', 'savePayment', 'tolovXatoSababi', '_joriyQarz'];
+const O_NOMLAR = ['parseNum', 'savePayment', 'tolovXatoSababi', '_joriyQarz', 'narxKorinishi', 'narxMatni'];
 const O_FN = O_NOMLAR.map((n) => olib(ORDERS, n));
 const O_KOD = O_FN.filter(Boolean).join('\n');
 
@@ -202,7 +210,8 @@ async function ordersBolimi() {
 
   const OVER = { detail: { type: 'overpayment_warning', message: 'Kiritilgan summa ko\'p. Shunday ham davom etasizmi?',
                            amount: 150000, debt: 100000, excess: 50000 } };
-  m = await oSina({ writeOff: true }, [javob(409, OVER), javob(200, { debt_amount: 0, is_archived: true })], true);
+  // kech115: sahifadagi qarz 100 000 < summa 150 000 — kechiriladigan summa yo'q, oldindan tasdiq so'ralmaydi
+  m = await oSina({ writeOff: true, qarz: '100 000 so\'m' }, [javob(409, OVER), javob(200, { debt_amount: 0, is_archived: true })], true);
   tekshir('O 409 overpayment (chegirmaga yozish belgilangan) → server savoli bilan tasdiq',
           !m.xato && m.tasdiqlar.length === 1 && m.tasdiqlar[0].m.includes('Shunday ham davom etasizmi?'),
           m.xato || JSON.stringify(m.tasdiqlar));
@@ -214,7 +223,7 @@ async function ordersBolimi() {
   tekshir('O 409 → tasdiq → 200: muvaffaqiyat xabari (arxiv)',
           m.xabarlar.length === 1 && m.xabarlar[0].tur === 'success', JSON.stringify(m.xabarlar));
 
-  m = await oSina({ writeOff: true }, [javob(409, OVER)], false);
+  m = await oSina({ writeOff: true, qarz: '100 000 so\'m' }, [javob(409, OVER)], false);
   tekshir('O 409 va "Bekor" → qayta yuborilmaydi, xato xabari yo\'q',
           !m.xato && m.sorovlar.length === 1 && m.xabarlar.length === 0,
           m.xato || JSON.stringify([m.sorovlar.length, m.xabarlar]));
@@ -239,17 +248,34 @@ async function ordersBolimi() {
   tekshir('O tarmoq xatosi → "❌ Server xatosi"',
           !m.xato && m.xabarlar.length === 1 && m.xabarlar[0].t === '❌ Server xatosi',
           m.xato || JSON.stringify(m.xabarlar));
+
+  // kech115 (G3-02): belgi bilan to'lovdan keyin qarz qolsa — kechiriladigan summa saqlashdan OLDIN tasdiqda
+  const bosh = (t) => String(t).replace(/[\s\u00a0\u202f]+/g, ' ');
+  m = await oSina({ writeOff: true, qarz: '1 000 000 so\'m' }, [javob(200, { debt_amount: 0, is_archived: true,
+    write_off: { amount: 850000, message: 'Qolgan 850000 so\'m chegirmaga qo\'shildi' } })], true);
+  tekshir('O kech115: belgi + qarz qoladi → tasdiqda «850 000 so\'m KECHIRILADI», danger',
+          !m.xato && m.tasdiqlar.length === 1 && bosh(m.tasdiqlar[0].m).includes("850 000 so'm KECHIRILADI")
+          && m.tasdiqlar[0].o && m.tasdiqlar[0].o.danger === true && m.sorovlar.length === 1
+          && m.sorovlar[0].url === '/api/payments?write_off_remainder=true',
+          m.xato || JSON.stringify([m.tasdiqlar, m.sorovlar.length]));
+  m = await oSina({ writeOff: true, qarz: '1 000 000 so\'m' }, [javob(200, { debt_amount: 0 })], false);
+  tekshir('O kech115: kechirish tasdig\'ida «Bekor» → so\'rov YO\'Q',
+          !m.xato && m.tasdiqlar.length === 1 && m.sorovlar.length === 0, m.xato || JSON.stringify(m.sorovlar));
+  m = await oSina({ writeOff: true, qarz: '150 000 so\'m' }, [javob(200, { debt_amount: 0, is_archived: true })], true);
+  tekshir('O kech115: belgi, lekin to\'lov qarzni to\'liq yopadi → tasdiq so\'ralmaydi',
+          !m.xato && m.tasdiqlar.length === 0 && m.sorovlar.length === 1, m.xato || JSON.stringify(m.tasdiqlar));
 }
 
 // ══════════════════════════════════════════════════════════════
 // debts.html
 // ══════════════════════════════════════════════════════════════
-const D_FN = ['parseNum', 'serverSababi', 'savePayment'].map((n) => olib(DEBTS, n));
+const D_NOMLAR = ['parseNum', 'serverSababi', 'savePayment', 'payKechiriladi', 'narxKorinishi', 'narxMatni'];
+const D_FN = D_NOMLAR.map((n) => olib(DEBTS, n));
 const D_KOD = D_FN.filter(Boolean).join('\n');
 
 function dElementlar(o) {
   const e = {
-    'pay-amount': element(o.summa || '250 000'),
+    'pay-amount': element(o.summa === undefined ? '250 000' : o.summa),   // kech115: bo'sh summa ham sinaladi
     'pay-writeoff': element(''),
     'pay-note': element(o.izoh || ''),
     'pay-msg': element(''),
@@ -262,14 +288,17 @@ function dElementlar(o) {
 
 async function dSina(o, javoblar, tasdiq = true) {
   const el = dElementlar(o);
-  const m = muhit(el, javoblar, tasdiq, { selectedOrderId: '55' });
+  // kech115: tanlangan qarz (tasdiq va kechiriladigan summa uchun — `selectOrderDebt` qo'yadi)
+  const m = muhit(el, javoblar, tasdiq, { selectedOrderId: '55',
+    selectedDebt: { debt: o.qarz === undefined ? 1000000 : o.qarz, client: 'Ali Valiyev', orderNumber: 'ORD-007-1' } });
   const xato = await ishga(m, D_KOD, 'savePayment()');
   return Object.assign(m, { xato, msg: el['pay-msg'] });
 }
 
 async function debtsBolimi() {
   bolim('debts.html — savePayment');
-  tekshir('D parseNum / serverSababi / savePayment topildi', D_FN.every(Boolean));
+  tekshir('D parseNum / serverSababi / savePayment (+ kech115 yordamchilari) topildi', D_FN.every(Boolean),
+          D_FN.map((f, i) => (f ? '' : D_NOMLAR[i])).join(' '));
 
   let m = await dSina({}, [javob(200, { status: 'ok' })]);
   tekshir('D muvaffaqiyat: bitta so\'rov, AYNAN tana, order_id butun son',
@@ -277,7 +306,8 @@ async function debtsBolimi() {
           && JSON.stringify(m.sorovlar[0].tana) === JSON.stringify({ order_id: 55, amount: 250000, notes: null }),
           m.xato || JSON.stringify(m.sorovlar));
   tekshir('D muvaffaqiyat: yashil xabar, sahifa yangilanadi',
-          m.msg.style.display === 'block' && m.msg.textContent.startsWith('✓') && m.msg.textContent.includes('250000'),
+          m.msg.style.display === 'block' && m.msg.textContent.startsWith('✓')
+          && m.msg.textContent.replace(/[\s\u00a0\u202f]/g, '').includes('250000'),
           JSON.stringify([m.msg.style, m.msg.textContent]));
 
   m = await dSina({}, [javob(400, { detail: "'amount' son bo'lishi kerak" })]);
@@ -291,8 +321,9 @@ async function debtsBolimi() {
 
   const OVER = { detail: { type: 'overpayment_warning', message: 'Qarzdan 50 000 so\'mga ko\'p. Shunday ham davom etasizmi?' } };
   m = await dSina({}, [javob(409, OVER), javob(200, { status: 'ok' })], true);
+  // kech115: birinchi tasdiq — saqlashdan oldingi (G3-01), ikkinchisi — server savoli
   tekshir('D 409 overpayment → server savoli bilan tasdiq (customConfirm)',
-          !m.xato && m.tasdiqlar.length === 1 && m.tasdiqlar[0].m.includes('Shunday ham davom etasizmi?'),
+          !m.xato && m.tasdiqlar.length === 2 && m.tasdiqlar[1].m.includes('Shunday ham davom etasizmi?'),
           m.xato || JSON.stringify(m.tasdiqlar));
   tekshir('D 409 tasdiqlandi → ikkinchi so\'rov: o\'sha tana + confirm_overpay true, o\'sha URL',
           m.sorovlar.length === 2 && m.sorovlar[1].url === '/api/payments?write_off_remainder=false'
@@ -302,20 +333,47 @@ async function debtsBolimi() {
   tekshir('D 409 → tasdiq → 200: yashil xabar',
           m.msg.style.display === 'block' && m.msg.textContent.startsWith('✓'), m.msg.textContent);
 
-  m = await dSina({ oldingiXabar: true }, [javob(409, OVER)], false);
+  m = await dSina({ oldingiXabar: true }, [javob(409, OVER)], [true, false]);
   tekshir('D 409 va "Bekor" → qayta yuborilmaydi, oldingi xabar ham yashiriladi',
           !m.xato && m.sorovlar.length === 1 && m.msg.style.display === 'none',
           m.xato || JSON.stringify([m.sorovlar.length, m.msg.style]));
 
   m = await dSina({}, [javob(409, { detail: { message: 'Boshqa to\'qnashuv' } })], true);
-  tekshir('D boshqa 409 (turi yo\'q) → tasdiq so\'ralmaydi, sabab ko\'rsatiladi',
-          !m.xato && m.tasdiqlar.length === 0 && m.sorovlar.length === 1
+  tekshir('D boshqa 409 (turi yo\'q) → server tasdig\'i so\'ralmaydi (faqat saqlashdan oldingi), sabab ko\'rsatiladi',
+          !m.xato && m.tasdiqlar.length === 1 && m.sorovlar.length === 1
           && m.msg.textContent === '❌ Boshqa to\'qnashuv', m.xato || m.msg.textContent);
 
   m = await dSina({ writeOff: true, izoh: 'naqd berdi' }, [javob(200, { status: 'ok' })]);
   tekshir('D chegirmaga yozish va izoh → URL true, izoh tanada',
           !m.xato && m.sorovlar[0] && m.sorovlar[0].url === '/api/payments?write_off_remainder=true'
           && m.sorovlar[0].tana.notes === 'naqd berdi', m.xato || JSON.stringify(m.sorovlar));
+
+  // ── kech115 (G3-01 / G3-02) ──
+  const bosh = (t) => String(t).replace(/[\s\u00a0\u202f]+/g, ' ');
+  m = await dSina({ summa: '' }, [javob(200, { status: 'ok' })], true);
+  tekshir('D kech115: summa bo\'sh → so\'rov yo\'q, xabar «Summani kiriting», brauzer alert YO\'Q',
+          !m.xato && m.sorovlar.length === 0 && m.msg.style.display === 'block' && m.msg.textContent.includes('Summani kiriting')
+          && m.alertlar.length === 0, m.xato || JSON.stringify([m.sorovlar.length, m.msg.textContent, m.alertlar]));
+  m = await dSina({ summa: '380 000', qarz: 380000 }, [javob(200, { status: 'ok' })], true);
+  tekshir('D kech115: saqlashdan OLDIN tasdiq — mijoz, buyurtma, summa (ilgari bir bosishda yozilardi)',
+          !m.xato && m.tasdiqlar.length === 1 && bosh(m.tasdiqlar[0].m).includes("Ali Valiyev · ORD-007-1: 380 000 so'm")
+          && !m.tasdiqlar[0].m.includes('KECHIRILADI') && m.sorovlar.length === 1, m.xato || JSON.stringify(m.tasdiqlar));
+  m = await dSina({ summa: '380 000', qarz: 380000 }, [javob(200, { status: 'ok' })], false);
+  tekshir('D kech115: tasdiqda «Bekor» → so\'rov YO\'Q', !m.xato && m.sorovlar.length === 0 && m.tasdiqlar.length === 1,
+          m.xato || JSON.stringify(m.sorovlar));
+  m = await dSina({ summa: '10 000', qarz: 380000, writeOff: true }, [javob(200, { status: 'ok', write_off:
+    { amount: 370000, message: "Qolgan 370000 so'm chegirmaga qo'shildi" } })], true);
+  tekshir('D kech115: belgi + 10 000 / 380 000 → tasdiqda «Qolgan 370 000 so\'m KECHIRILADI», danger',
+          !m.xato && m.tasdiqlar.length === 1 && bosh(m.tasdiqlar[0].m).includes("Qolgan 370 000 so'm KECHIRILADI")
+          && m.tasdiqlar[0].o && m.tasdiqlar[0].o.danger === true, m.xato || JSON.stringify(m.tasdiqlar));
+  tekshir('D kech115: natija xabarida kechirilgan summa (ilgari faqat «10 000 qabul qilindi»)',
+          bosh(m.msg.textContent).includes("370 000 so'm chegirma qilib kechirildi"), m.msg.textContent);
+  m = await dSina({ summa: '380 000', qarz: 380000, writeOff: true }, [javob(200, { status: 'ok', write_off: null })], true);
+  tekshir('D kech115: belgi, lekin to\'lov qarzni yopadi → tasdiqda kechirish YO\'Q',
+          !m.xato && m.tasdiqlar.length === 1 && !m.tasdiqlar[0].m.includes('KECHIRILADI'), m.xato || JSON.stringify(m.tasdiqlar));
+  m = await dSina({ summa: '379 999.6', qarz: 380000, writeOff: true }, [javob(200, { status: 'ok' })], true);
+  tekshir('D kech115: 0.4 so\'m qoldiq — qarz emas (0.5 bardosh), kechirish so\'ralmaydi',
+          !m.xato && m.tasdiqlar.length === 1 && !m.tasdiqlar[0].m.includes('KECHIRILADI'), m.xato || JSON.stringify(m.tasdiqlar));
 }
 
 (async () => {

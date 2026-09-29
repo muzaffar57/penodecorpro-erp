@@ -125,7 +125,8 @@ const S_BOR = [
    'if (upEl) upEl.value = formatNum(unitPrice);'],
   ['finished savatcha narxi', SRC.finished, 'class="batch-price" value="${narxKorinishi(it.price)}"',
    'class="batch-price" value="${fmt(it.price)}"'],
-  ['debts pay-amount', SRC.debts, "getElementById('pay-amount').value = narxKorinishi(debt)",
+  // kech115 (G3-01): summa o'zi yozilmaydi — «Butun qarz» (`payButunQarz`) aniq qarzni yozadi
+  ['debts pay-amount', SRC.debts, "getElementById('pay-amount').value = narxKorinishi(selectedDebt.debt)",
    "getElementById('pay-amount').value = fmt(debt)"],
   ['finance cashtx-amount', SRC.finance, "getElementById('cashtx-amount').value = narxKorinishi(amount)",
    "getElementById('cashtx-amount').value = fmtFull(amount)"],
@@ -362,14 +363,17 @@ async function tolovSina(summa, qarz) {
                   document: Object.assign(hujjat(e), { querySelectorAll: () => [] }),
                   escapeHtml: (x) => String(x), fmt: (n) => Math.round(n || 0).toLocaleString('ru-RU').replace(/,/g, ' ') };
     vm.createContext(ctx);
-    const yoq = yukla(ctx, SRC.debts, YORDAMCHI.concat(['selectOrderDebt']), 'debts');
+    // kech115 (G3-01): `selectOrderDebt` endi `payYozuv` ni chaqiradi; aniq qarz — «Butun qarz» (`payButunQarz`)
+    const yoq = yukla(ctx, SRC.debts, YORDAMCHI.concat(['selectOrderDebt', 'payYozuv', 'payKechiriladi', 'payButunQarz']), 'debts');
     vm.runInContext('var selectedOrderId = null;', ctx);
     const elOrder = { classList: { add() {}, remove() {} },
                       dataset: { id: '9', agreed: '6228752.75', paid: '5000000', debt: '1228752.75', client: 'M',
                                  orderNumber: 'ORD-1', project: 'L', phone: '', deadline: '' } };
     ctx.selectOrderDebt(elOrder);
-    tekshir('D debts to\'lov summasi "1 228 752.75" (asl: "1 228 753")', e['pay-amount'].value === '1 228 752.75',
-            jsn({ v: e['pay-amount'].value, yoq }));
+    const _bosh = e['pay-amount'].value;
+    ctx.payButunQarz();
+    tekshir('D debts: tanlanganda summa bo\'sh (kech115 G3-01), «Butun qarz» → "1 228 752.75" (asl: "1 228 753")',
+            _bosh === '' && e['pay-amount'].value === '1 228 752.75', jsn({ bosh: _bosh, v: e['pay-amount'].value, yoq }));
   } catch (x) { tekshir('D selectOrderDebt ishga tushdi', false, x.message); }
   try {
     const e = { 'tx-f-editing-id': el(''), 'tx-modal-title': el(''), 'tx-f-date': el(''), 'tx-f-category': el(''),

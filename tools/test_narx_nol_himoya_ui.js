@@ -61,7 +61,9 @@ function jinjasiz(kod) {
 }
 const NOL = olib(SRC, '_narxiNolgaTushgan');
 const COLLECT = olib(SRC, 'collectItems');
-const UPDATE = olib(SRC, 'updateOrder');
+// kech115 (G2-07): `updateOrder` yangi narxsiz qatorni ham tasdiqlatadi — yordamchilar `UPDATE` bilan birga yuklanadi
+const UPDATE = [olib(SRC, '_narxsizDetallar'), olib(SRC, '_narxsizTasdiq'), olib(SRC, 'updateOrder')].every(Boolean)
+  ? [olib(SRC, '_narxsizDetallar'), olib(SRC, '_narxsizTasdiq'), olib(SRC, 'updateOrder')].join('\n') : olib(SRC, 'updateOrder');
 const EDIT = olib(SRC, 'editSelected') || '';
 const FORMATNUM = olib(SRC, 'formatNum');
 
