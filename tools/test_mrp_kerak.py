@@ -531,10 +531,14 @@ _ro = manba(production_service, "get_mrp_order_items_status")
 check("H3 ro'yxat yordamchidan, filtr undan KEYIN (eski formula YO'Q)",
       tartibda(_ro, "k = mrp_detal_kerak(db, item)", 'remaining = k["kerak"]', "if remaining <= 0.0001:", "continue")
       and "- float(reserved)" not in _ro, _ro[-300:])
-_cr = manba(production_service, "create_production_order")
+# kech113: yaratish tekshiruvlari `_yaratish_tekshiruvi` ga AJRATILDI (yaratish va «Yangi ishlab chiqarish» rejasi — bitta
+# manba); qoida o'sha funksiyada, yaratish uni chaqiradi.
+_cr = manba(production_service, "_yaratish_tekshiruvi")
 check("H4 yaratish: yordamchi -> max(0, kerak) -> tekshiruv (eski formula YO'Q)",
       tartibda(_cr, "_k = mrp_detal_kerak(db, order_item)", 'remaining = max(0.0, _k["kerak"])',
-               "if data.quantity > remaining + 0.0001:") and "float(already_reserved)" not in _cr, _cr[:200])
+               "if data.quantity > remaining + 0.0001:") and "float(already_reserved)" not in _cr
+      and "_yaratish_tekshiruvi(" in manba(production_service, "create_production_order")
+      and "float(already_reserved)" not in manba(production_service, "create_production_order"), _cr[:200])
 _sp = manba(production_service, "start_production_order")
 check("H5 boshlash: detal QULFLANADI -> yordamchi -> tekshiruv -> rollback (eski formula YO'Q)",
       tartibda(_sp, "OrderItem.id == po.source_order_item_id", ").with_for_update().first()",

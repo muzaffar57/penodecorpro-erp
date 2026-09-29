@@ -495,9 +495,13 @@ _st = manba(PSV, "start_production_order")
 check("H1 complete: xarajat _qoshimcha_xarajat(... snapshot, total_material_cost ...) bilan; JORIY retsept sikli yo'q",
       "_qoshimcha_xarajat(db, po, snapshot, total_material_cost, company_id)" in _c
       and "for item in bom.items" not in _c, "")
+# kech113: surat qatorlari `_surat_qatorlari` ga AJRATILDI (boshlash va ishlab chiqarish rejasi — bitta manba);
+# xarajat kalitlari o'sha funksiyada, boshlash uni chaqiradi.
+_sq = manba(PSV, "_surat_qatorlari")
 check("H2 start: qatorga xarajat kalitlari yoziladi va sig'im tekshiruvi shu yordamchi bilan",
-      'line["fixed_cost_per_unit"] = float(item.fixed_cost_per_unit or 0)' in _st
-      and 'line["percentage_cost"] = float(item.percentage_cost or 0)' in _st
+      'line["fixed_cost_per_unit"] = float(item.fixed_cost_per_unit or 0)' in _sq
+      and 'line["percentage_cost"] = float(item.percentage_cost or 0)' in _sq
+      and "_surat_qatorlari(bom, po.quantity, selected_optional_ids)" in _st
       and "_qoshimcha_xarajat(db, po, snapshot, _tm, company_id)" in _st and "for _bi in bom.items" not in _st, "")
 _h = manba(PSV, "_qoshimcha_xarajat")
 check("H3 yordamchi: faqat included qatorlar (yangi va eski surat), eski suratda bom_item_id filtri",

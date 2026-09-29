@@ -855,10 +855,13 @@ _dd = manba(crud, "delete_delivery")
 check("S4 delete_delivery: qulf → qayta o'qish → READY → o'chirilgan rad → to'lov so'rovi",
       tartibda(_dd, "_pul_qulfi(db, 101, order.id)", "db.expire_all()", "if order.status == OrderStatus.READY:",
                "if order.is_deleted:", "raise ValueError(OCHIRILGAN_BUYURTMA_XABARI)", "if tolovlar and tolov is None:"), "")
-_cp = manba(production_service, "create_production_order")
+# kech113: yaratish tekshiruvlari `_yaratish_tekshiruvi` ga AJRATILDI (yaratish va «Yangi ishlab chiqarish» rejasi — bitta
+# manba); qoida o'sha funksiyada, yaratish uni chaqiradi.
+_cp = manba(production_service, "_yaratish_tekshiruvi")
 _sp = manba(production_service, "start_production_order")
 check("S5 ishlab chiqarish: yaratishda (detal topilgach) va boshlashda (qulflangan detal) o'chirilgan buyurtma rad",
       tartibda(_cp, "if not order_item:", "_ob101.is_deleted", "OCHIRILGAN_BUYURTMA_XABARI", "mrp_detal_kerak(")
+      and "_yaratish_tekshiruvi(" in manba(production_service, "create_production_order")
       and tartibda(_sp, ".with_for_update().first()", "if locked_item:", "_ob101.is_deleted", "db.rollback()",
                    "OCHIRILGAN_BUYURTMA_XABARI", "_k = mrp_detal_kerak(db, locked_item)"), "")
 _cd = manba(crud, "create_delivery")

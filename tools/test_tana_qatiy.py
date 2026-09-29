@@ -970,7 +970,10 @@ def js_funksiya(matn, nom_):
 _prod = open(os.path.join(ROOT, "templates", "production.html"), encoding="utf-8").read()
 _kpi = open(os.path.join(ROOT, "templates", "kpi.html"), encoding="utf-8").read()
 _usr = open(os.path.join(ROOT, "templates", "users.html"), encoding="utf-8").read()
-_fnlar = {n: js_funksiya(_prod, n) for n in ("saveProductType", "saveBom", "saveProductionOrder")}
+# kech113 (MRP dizayni, variant A): saqlash funksiyalari umumiy yordamchilardan foydalanadi — son o'qish (`sonOqi`,
+# "150 000" / "2,5") va retsept qatorlari (`retseptQatorlari` — saqlash va taxminiy tannarx uchun BITTA manba).
+_fnlar = {n: js_funksiya(_prod, n) for n in ("sonOqi", "retseptQatorlari", "saveProductType", "saveBom",
+                                             "saveProductionOrder")}
 _fnlar.update({n: js_funksiya(_kpi, n) for n in ("saveMasterKpi", "submitOpenGiftPeriod", "saveTierEdit",
                                                  "submitAddMasterToGiftPeriod", "submitCloseGiftPeriod", "parseNum", "fmt")})
 _fnlar.update({n: js_funksiya(_usr, n) for n in ("saveUser", "changePass", "changeMyPassword")})
@@ -1191,8 +1194,11 @@ _ssrc = manba(PSV, "start_production_order")
 check("H8 start: begona / yo'q detal — boshlanmaydi (else tarmog'i) va tannarx sig'imi erta",
       "Bog'langan buyurtma-detali topilmadi" in _ssrc and "_tannarx_sigimi_xatosi(" in _ssrc)
 check("H8 complete: tannarx sig'imi — yozishdan OLDIN", "_tannarx_sigimi_xatosi(total_cost" in manba(PSV, "complete_production_order"))
+# kech113: yaratish tekshiruvlari `_yaratish_tekshiruvi` ga AJRATILDI (yaratish va «Yangi ishlab chiqarish» rejasi — bitta
+# manba); qoida o'sha funksiyada, yaratish esa uni chaqiradi.
 check("H8 create_production_order: omborga — bog'lanishsiz",
-      "Omborga ishlab chiqarishda buyurtma yoki" in manba(PSV, "create_production_order"))
+      "Omborga ishlab chiqarishda buyurtma yoki" in manba(PSV, "_yaratish_tekshiruvi")
+      and "_yaratish_tekshiruvi(" in manba(PSV, "create_production_order"))
 
 print("\n" + "=" * 66)
 print(f"REJIM: {'PostgreSQL' if PG_URL else 'SQLite'}")
