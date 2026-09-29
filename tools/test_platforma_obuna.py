@@ -392,9 +392,10 @@ check("B3 mavjud bo'lmagan korxona — 404", r.status_code == 404, r.status_code
 r = req(CP, "post", f"/api/platform/companies/{_b}/block",
         data={"sabab": "To'lov qilinmagan", "izoh": "Sentabr obunasi to'lanmagan"})
 d = js(r) or {}
-check("B4 bloklash 200 — 2 foydalanuvchi va 1 hodim sessiyasi yopildi", r.status_code == 200
+check("B4 bloklash 200 — ochiq sessiyalar hisoblandi: 2 foydalanuvchi va 1 hodim (keyingi so'rovda yopiladi)", r.status_code == 200
       and d.get("sessiyalar") == 2 and d.get("hodim_sessiyalari") == 1, (r.status_code, r.text[:200]))
-check("B5 bazada: sessiyalar 0, bloklangan_at, sabab, izoh, kim, avtomatik=False", sessiyalar(_b) == (0, 0)
+check("B5 bazada: sessiyalar HALI o'chirilmagan (K112-2 — keyingi so'rovda SABAB bilan yopiladi), bloklangan_at, sabab, "
+      "izoh, kim, avtomatik=False", sessiyalar(_b) == (2, 1)
       and getattr(korxona(_b), "bloklangan_at", None) is not None
       and getattr(korxona(_b), "blok_sabab", None) == "To'lov qilinmagan"
       and getattr(korxona(_b), "blok_izoh", None) == "Sentabr obunasi to'lanmagan"
@@ -403,10 +404,22 @@ check("B5 bazada: sessiyalar 0, bloklangan_at, sabab, izoh, kim, avtomatik=False
 r = req(CP, "post", f"/api/platform/companies/{_b}/block", data={"sabab": "Boshqa"})
 check("B6 ikkinchi marta bloklash — 400 'allaqachon'", r.status_code == 400 and "allaqachon" in r.text, r.status_code)
 r = req(CB, "get", "/orders", follow_redirects=False)
-check("B7 ochiq sahifa sessiyasi — endi /login ga (sessiya yo'q)", r.status_code == 302
-      and (r.headers.get("location") or "").startswith("/login"), (r.status_code, r.headers.get("location")))
+check("B7 ochiq sahifa sessiyasi — /login?b=1 ga (qo'lda bloklangan), cookie o'chiriladi", r.status_code == 302
+      and r.headers.get("location") == "/login?b=1" and "session_token" in (r.headers.get("set-cookie") or ""),
+      (r.status_code, r.headers.get("location"), r.headers.get("set-cookie")))
+r = req(C0, "get", "/login?b=1")
+check("B7b o'sha kirish sahifasida — sabab (to'xtatilgan) va aloqa telefoni (sababsiz chiqarib yuborilmaydi)",
+      r.status_code == 200 and 'id="blokXabari"' in r.text and "vaqtincha to'xtatilgan" in matn(r)
+      and "+998 97 111 22 33" in r.text and "Obuna muddati tugagan" not in matn(r), r.text[-300:])
+check("B7c admin sessiyasi bazadan o'chirildi (menejer va hodimniki — hali ochiq)", sessiyalar(_b) == (1, 1), sessiyalar(_b))
+r = req(CBM, "get", "/api/orders")
+check("B8 menejerning ochiq sessiyasi — API 403, JSON sababi bilan (ma'lumot yo'q)", r.status_code == 403
+      and "vaqtincha to'xtatilgan" in ((js(r) or {}).get("detail") or "") and not isinstance(js(r), list),
+      (r.status_code, r.text[:160]))
+check("B8b menejer sessiyasi ham o'chirildi", sessiyalar(_b) == (0, 1), sessiyalar(_b))
 r = req(CB, "get", "/api/orders")
-check("B8 API — 401/403 (ma'lumot yo'q)", r.status_code in (401, 403), (r.status_code, r.text[:120]))
+check("B8c admin (cookie o'chgan) — API 401/403, ma'lumot yo'q", r.status_code in (401, 403) and not isinstance(js(r), list),
+      (r.status_code, r.text[:120]))
 _s = SessionLocal()
 _lh0 = _s.query(LoginHistory).filter(LoginHistory.username == "po_b_admin", LoginHistory.success == False).count()  # noqa: E712
 _s.close()
@@ -429,8 +442,9 @@ CH2, r = hodim_kir()
 check("B12 hodim paneli: to'g'ri PIN — kirilmaydi, blok xabari", r.status_code == 200 and "vaqtincha to'xtatilgan" in matn(r)
       and 'id="blokXabari"' in r.text, (r.status_code, r.text[-200:]))
 r = req(CH, "get", "/hodim", follow_redirects=False)
-check("B13 hodimning eski sessiyasi (yopilgan) — /hodim/login ga", r.status_code == 302
-      and "/hodim/login" in (r.headers.get("location") or ""), (r.status_code, r.headers.get("location")))
+check("B13 hodimning ochiq sessiyasi — /hodim/login?b=1 ga (sabab bilan)", r.status_code == 302
+      and (r.headers.get("location") or "") == "/hodim/login?b=1", (r.status_code, r.headers.get("location")))
+check("B13b hodim sessiyasi ham o'chirildi — B da ochiq sessiya qolmadi", sessiyalar(_b) == (0, 0), sessiyalar(_b))
 _s = SessionLocal()
 _mb = main._master_by_chat_id(_s, "777001")
 _ma = main._master_by_chat_id(_s, "777002")
@@ -584,7 +598,12 @@ check("K8 E+4 — BAZADA avtomatik bloklandi (bloklangan_at, avtomatik, sabab, '
       and getattr(_ce, "blok_sabab", None) == getattr(obuna, "AVTO_SABAB", "?")
       and "Tizim" in (getattr(_ce, "bloklagan", None) or "") and len(YUB) == 4 and "AVTOMATIK yopildi" in YUB[3],
       (_ce, YUB[3:]))
-check("K9 avtomatik bloklashda sessiyalar yopildi", sessiyalar(_e)[0] == 0, sessiyalar(_e))
+_se9 = sessiyalar(_e)[0]
+check("K9 avtomatik bloklashda sessiyalar O'CHIRILMAYDI (K112-2 — keyingi so'rovda sabab bilan)", _se9 >= 1, _se9)
+r = req(CE, "get", "/orders", follow_redirects=False)
+check("K9b E ning ochiq sessiyasi — /login?b=2 ga (muddat sababli xabar)", r.status_code == 302
+      and r.headers.get("location") == "/login?b=2", (r.status_code, r.headers.get("location")))
+check("K9c o'sha sessiya o'chirildi", sessiyalar(_e)[0] == _se9 - 1, (_se9, sessiyalar(_e)))
 kt(date(2026, 10, 25))
 check("K10 ertasi kuni — takror xabar yo'q", len(YUB) == 4, YUB)
 check("K11 platforma egasi korxonasi (1) va muddatsizlar — tegilmadi", getattr(korxona(1), "bloklangan_at", "x") is None
