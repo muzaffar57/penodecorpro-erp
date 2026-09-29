@@ -1463,9 +1463,9 @@ def retsept_tannarxi(db: Session, company_id: int, product_type, data) -> dict:
 def royxat_qoshimchalari(db: Session, company_id: int, rows: list) -> dict:
     """Ishlab chiqarish ro'yxati (kech113, dizayn 4-band) uchun qo'shimcha maydonlar — {po_id: {...}}. So'rovlar
     soni qator soniga BOG'LIQ EMAS: mahsulot turi nomi / birligi (nofaol tur ham), retsept nomi, mijoz buyurtmasi
-    raqami, mijoz ismi, detal nomi va qoplamasi, tanlangan ixtiyoriy qatorlar; qoralama uchun taxminiy tannarx va
-    xomashyo holati (`_reja_hisobi` — boshlash qoidasi, jarayondagi ishlab chiqarishlar kutayotgani hisobga olingan),
-    jarayondagi uchun taxminiy tannarx (qotgan surat — yakunlash hisobi)."""
+    raqami, mijoz ismi, buyurtma o'chirilganmi (K113-3), detal nomi va qoplamasi, tanlangan ixtiyoriy qatorlar;
+    qoralama uchun taxminiy tannarx va xomashyo holati (`_reja_hisobi` — boshlash qoidasi, jarayondagi ishlab
+    chiqarishlar kutayotgani hisobga olingan), jarayondagi uchun taxminiy tannarx (qotgan surat — yakunlash hisobi)."""
     from sqlalchemy.orm import selectinload
     from models import Inventory, OrderItem, Order, Project
     natija = {}
@@ -1474,20 +1474,29 @@ def royxat_qoshimchalari(db: Session, company_id: int, rows: list) -> dict:
     pt_idlar = sorted({po.product_type_id for po in rows if po.product_type_id})
     bom_idlar = sorted({po.bom_id for po in rows if po.bom_id})
     oi_idlar = sorted({po.source_order_item_id for po in rows if po.source_order_item_id})
+    ord_idlar = sorted({po.source_order_id for po in rows if po.source_order_id})
     turlar = {pt.id: pt for pt in db.query(ProductType).filter(
         ProductType.company_id == company_id, ProductType.id.in_(pt_idlar)).all()} if pt_idlar else {}
     retseptlar = {b.id: b for b in db.query(BOM).options(
         selectinload(BOM.items).selectinload(BOMItem.inventory)).filter(
         BOM.company_id == company_id, BOM.id.in_(bom_idlar)).all()} if bom_idlar else {}
+    # kech113 (K113-3, JONLI sinovda topildi — 13 dan 10 tasi): buyurtma BUTUNLAY o'chirilganda ishlab chiqarish TARIXIY
+    # yozuv bo'lib qoladi, ikkala bog'lam uziladi (`crud.delete_order` / `crud.permanent_delete_order`); detal o'chirilganda
+    # (buyurtma tahriri) faqat detal bog'lami uziladi. Shuning uchun buyurtma (raqam, mijoz, «o'chirilgan» — savatda) va
+    # detal (nomi, qoplama) ALOHIDA o'qiladi — detali yo'q buyurtma raqami ham ko'rinsin.
+    buyurtmalar = {}
+    if ord_idlar:
+        for o_id, raqam, mijoz, ochirilgan in db.query(
+                Order.id, Order.order_number, Project.client_name, Order.is_deleted).outerjoin(
+                Project, Project.id == Order.project_id).filter(
+                Order.company_id == company_id, Order.id.in_(ord_idlar)).all():
+            buyurtmalar[o_id] = {"raqam": raqam, "mijoz": mijoz, "ochirilgan": bool(ochirilgan)}
     detallar = {}
     if oi_idlar:
-        for oi_id, oi_nomi, oi_qoplamali, raqam, mijoz in db.query(
-                OrderItem.id, OrderItem.name, OrderItem.is_coated, Order.order_number, Project.client_name).join(
-                Order, Order.id == OrderItem.order_id).outerjoin(
-                Project, Project.id == Order.project_id).filter(
-                OrderItem.company_id == company_id, Order.company_id == company_id,
-                OrderItem.id.in_(oi_idlar)).all():
-            detallar[oi_id] = {"nomi": oi_nomi, "qoplamali": bool(oi_qoplamali), "raqam": raqam, "mijoz": mijoz}
+        for oi_id, oi_nomi, oi_qoplamali in db.query(
+                OrderItem.id, OrderItem.name, OrderItem.is_coated).filter(
+                OrderItem.company_id == company_id, OrderItem.id.in_(oi_idlar)).all():
+            detallar[oi_id] = {"nomi": oi_nomi, "qoplamali": bool(oi_qoplamali)}
 
     qoralamalar = [po for po in rows if po.status == ProductionOrderStatus.DRAFT.value and po.bom_id in retseptlar]
     band = _jarayondagi_band(db, company_id) if qoralamalar else {}
@@ -1512,6 +1521,8 @@ def royxat_qoshimchalari(db: Session, company_id: int, rows: list) -> dict:
         pt = turlar.get(po.product_type_id)
         bom = retseptlar.get(po.bom_id)
         d = detallar.get(po.source_order_item_id) if po.source_order_item_id else None
+        b = buyurtmalar.get(po.source_order_id) if po.source_order_id else None
+        mijozga = po.source_type == ProductionSourceType.CUSTOMER_ORDER.value
         try:
             tanlangan = json.loads(po.selected_optional_bom_item_ids_json or "[]")
         except (TypeError, ValueError):
@@ -1520,10 +1531,12 @@ def royxat_qoshimchalari(db: Session, company_id: int, rows: list) -> dict:
             "mahsulot_nomi": pt.name if pt else None,
             "birlik": pt.unit if pt else None,
             "retsept_nomi": bom.variant_name if bom else None,
-            "manba_buyurtma_raqami": d["raqam"] if d else None,
-            "manba_mijoz": d["mijoz"] if d else None,
+            "manba_buyurtma_raqami": b["raqam"] if b else None,
+            "manba_mijoz": b["mijoz"] if b else None,
             "manba_detal": d["nomi"] if d else None,
             "manba_qoplamali": d["qoplamali"] if d else None,
+            # mijoz buyurtmasiga: buyurtma butunlay o'chirilgan (bog'lam yo'q) yoki savatda — True; omborga — None
+            "manba_ochirilgan": ((b["ochirilgan"] if b else True) if mijozga else None),
             "ixtiyoriy_idlar": [x for x in tanlangan if isinstance(x, int)],
             "finished_product_id": po.finished_product_id,
             "taxminiy_tannarx": None,

@@ -232,7 +232,7 @@ class ProductionOrderRead(BaseModel):
 class ProductionOrderListItem(ProductionOrderRead):
     """kech113 (dizayn 4-band — ro'yxat): `GET /api/production/orders` qatori. `ProductionOrderRead` + ko'rsatish
     uchun qo'shimchalar (`production_service.royxat_qoshimchalari`): mahsulot turi nomi va birligi (nofaol tur ham),
-    retsept nomi, mijoz buyurtmasi raqami / mijoz / detal / qoplama, tanlangan ixtiyoriy qatorlar, tayyor mahsulot,
+    retsept nomi, mijoz buyurtmasi raqami / mijoz / detal / qoplama / o'chirilganmi, tanlangan ixtiyoriy qatorlar, tayyor mahsulot,
     qoralama va jarayondagi uchun taxminiy tannarx, qoralama uchun xomashyo holati."""
     mahsulot_nomi: Optional[str] = None
     birlik: Optional[str] = None
@@ -241,6 +241,7 @@ class ProductionOrderListItem(ProductionOrderRead):
     manba_mijoz: Optional[str] = None
     manba_detal: Optional[str] = None
     manba_qoplamali: Optional[bool] = None
+    manba_ochirilgan: Optional[bool] = None      # mijoz buyurtmasi butunlay o'chirilgan yoki savatda (K113-3)
     ixtiyoriy_idlar: List[int] = Field(default_factory=list)
     finished_product_id: Optional[int] = None
     taxminiy_tannarx: Optional[float] = None

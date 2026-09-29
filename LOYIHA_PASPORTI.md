@@ -352,6 +352,11 @@ qoldiq — `_qoldiq_keyin` (yakunlashda aniq yetgan qoldiq — 0; K113-2: bir ma
 boshlash ham yakunlash TARTIBIDA ketma-ket tekshiradi — ilgari boshlash har qatorni to'liq qoldiq bilan solishtirib o'tkazar,
 yakunlash "bor: 1" deb rad etardi). Boshqa jarayondagi ishlab chiqarishlar kutayotgan xomashyo — faqat ogohlantirish
 (`band_bilan_yetmaydi`); boshlash qoidasi o'zgarmagan (xomashyo «Yakunlash» da yechiladi, `Inventory` da "band" ustuni yo'q).
+Buyurtma butunlay o'chirilsa ishlab chiqarish TARIXIY yozuv bo'lib qoladi — ikkala bog'lam uziladi (`crud.delete_order`,
+`crud.permanent_delete_order`), detal o'chirilsa faqat detal bog'lami: ro'yxatda buyurtma raqami / mijoz buyurtmaning O'ZIDAN
+(`source_order_id`), bog'lam yo'q — «Mijoz buyurtmasi — buyurtma o'chirilgan», savatdagi — raqami bilan «buyurtma o'chirilgan»
+(`manba_ochirilgan`; K113-3 — jonli sinovda 13 dan 10 tasida «Buyurtma #?» edi). Miqdor ko'rinishi: 1 dan kichik — 3 ta ma'noli
+raqamgacha (0,00625 m³, 0,125 m²; K113-4), qolgani — 2 xonagacha.
 
 **Migratsiyalar.** Alembic YO'Q. `main.py` dagi `_migrate_*` funksiyalari server ishga tushganda (import paytida)
 ketma-ket yuradi — 9-bo'lim ISHGA_TUSHISH. Har biri IDEMPOTENT, o'z `try/except` va `conn.rollback()` bilan
@@ -449,10 +454,12 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
 - Loyiha tahriri (muddat, tozalash, izolyatsiya): `tools/test_loyiha_tahrir.py`, `tools/test_loyiha_tahrir_ui.js`;
   hodim avans so'rovi (tekshiruv, takror, PG poyga): `tools/test_hodim_avans.py`.
 - (kech113) MRP sahifasi — reja = amal (retsept tannarxi = yakunlangandagi tannarx; reja «mumkin» ⇔ boshlash / yakunlash
-  o'tadi; reja xatosi = yaratish / boshlash xabari AYNAN), K113-1, K113-2, jarayondagilar bilan raqobat, ro'yxat qo'shimchalari,
+  o'tadi; reja xatosi = yaratish / boshlash xabari AYNAN), K113-1, K113-2, jarayondagilar bilan raqobat, ro'yxat qo'shimchalari
+  (o'chirilgan / savatdagi buyurtma, o'chirilgan detal — K113-3),
   davr (Toshkent oyi chegarasi), so'rovlar soni, o'zbekcha xabarlar, reja hech narsa yozmaydi, korxona chegarasi (SQLite, PG,
   TF1): `tools/test_mrp_reja.py`; sahifa (HAQIQIY server + jsdom — ro'yxat, chiplar, saralash, yangi ishlab chiqarish,
-  boshlash / yakunlash / batafsil / bekor oynalari, retsept oynasi, mahsulot turi, in'ektsiya): `tools/test_mrp_sahifa_ui.py`
+  boshlash / yakunlash / batafsil / bekor oynalari, retsept oynasi, mahsulot turi, o'chirilgan buyurtma va kichik miqdorlar
+  ko'rinishi — K113-3 / K113-4, in'ektsiya): `tools/test_mrp_sahifa_ui.py`
   (+ HAQIQIY brauzer o'lchovi 360 / 390 / 768 / 1440 px — `work/k113/ekran113.py`).
 - (kech111) Platforma admin paneli (holat chegaralari, uzaytirish «Aralash», ruxsat, sinov davri, qo'lda / avtomatik bloklash —
   login, API, sessiyalar, hodim paneli, bot, kam qoldi cron; ochish va imtiyoz, kunlik eslatmalar takrorsiz, mijoz ogohlantirishi,
