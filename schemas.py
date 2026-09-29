@@ -162,6 +162,10 @@ class InventoryReceiptCreate(BaseModel):
     add_to_cost: bool = Field(default=False, description="Qo'shimcha xarajatlarni tannarxga qo'shish")
     notes: Optional[str] = None
     production_type: Optional[str] = Field(default=None, description="umumiy / penoplast / gips")
+    # kech115 (G4-03): formadagi «Sana» va «To'lov muddati» — ilgari serverga umuman yuborilmasdi (kirim doim bugungi
+    # sana bilan yozilardi, qarz muddati hech qayerda saqlanmasdi). YYYY-MM-DD; bo'sh — bugun / muddatsiz.
+    receipt_date: Optional[str] = Field(default=None, description="Kirim sanasi (YYYY-MM-DD, Toshkent kalendari)")
+    payment_due_date: Optional[str] = Field(default=None, description="Ta'minotchi qarzini to'lash muddati (YYYY-MM-DD)")
 
 
 class SupplierUpdate(BaseModel):

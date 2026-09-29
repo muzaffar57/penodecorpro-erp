@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -258,6 +258,38 @@ nofaol qilish), ishlab chiqarish buyurtmasi (yaratildi / jarayonga olindi / ishl
 va «manfiy qoldiq bilan ishlab chiqarish» sozlamasi `/logs` «Audit jurnali» ga yoziladi — `crud.log_activity(commit=False)`:
 yozuv amal bilan BITTA tranzaksiyada (rad etilgan / yiqilgan amal — yozuv yo'q), korxona — amal korxonasi.
 
+**Kirim hujjati — sana, to'lov muddati, takror qator (kech115, A bosqich G4-01 / G4-02 / G4-03).** `crud.kirim_sanalari` —
+kirim sanasi Toshkent kalendari bo'yicha: bugun / bo'sh — hozirgi vaqt; o'tgan kun — o'sha kunning 00:00 i (hujjat, xaridlar
+`purchased_at`, qo'shimcha xarajatlar, «hozir to'langan» to'lov shu kunga; ombor harakati jurnali — kiritilgan vaqtda qoladi);
+kelajak va `KIRIM_SANA_ORQAGA_KUN` (366) dan eski — rad; to'lov muddati kirim sanasidan oldin — rad, faqat nasiya qatoriga
+yoziladi (dashboard ogohlantirishi `get_supplier_payment_due_dates`). `crud.kirim_takror_qator` — AYNAN bir xil qator (material,
+miqdor, tiyinga yaxlitlangan narx, hajm, boshlang'ich belgisi) — rad (bir materialni boshqa narx / miqdorda — ruxsat, ikki
+partiya). Sahifa (`supplier_receive.html`): hamma tekshiruv (ta'minotchi, yo'nalish, sana) — yozib qo'yilgan qatorni savatga
+qo'shishdan OLDIN; qator faqat `apQatorniSavatga` orqali (maydonlar tozalanadi, takror rad); chala qator — to'xtaydi; sana
+bugun emas — tasdiq; saqlangach «boshlang'ich ombor» belgisi, hujjat raqami, sana tozalanadi, material ro'yxati qayta yuklanadi
+(K115-1); belgi turganda xulosa: to'langan / qarz 0 + ogohlantirish.
+
+**Mijoz to'lovi — tasdiq va kechirish (kech115, G3-01 / G3-02).** Qarzdorlar: summa o'zi yozilmaydi («Butun qarz» tugmasi);
+HAR saqlashdan oldin tasdiq (mijoz · buyurtma: summa); «Qolgan qarzni chegirma qilib yopish» belgisida kechiriladigan summa
+jonli ko'rinadi (`payKechiriladi` — butun tiyinlarda, 0.5 so'mdan kichigi qarz emas), tasdiqda alohida (danger), natija
+xabarida serverning `write_off.amount`. Buyurtmalar to'lov oynasida ham belgi bilan qarz qolsa — kechiriladigan summa
+tasdiqda. Server qoidasi o'zgarmagan (`main._tolov_qoldigini_chegirmaga` — chegarasiz; chegara kerak bo'lsa — egasi qarori).
+
+**«Tayyor» oynasi va sahifa xabarlari (kech115, G2-03 / G2-07).** «Tayyor» oynasi faqat MUVAFFAQIYATDA yopiladi; rad — oynada
+(`#readyModalXato`) va xabarda (`xatoSababi`), kutishda tugma o'chiq; to'lovni o'chirish rad etilsa — sabab. Yangi buyurtma
+(va tahrirda YANGI qo'shilgan qator) narxsiz (0) bo'lsa — tasdiq (`_narxsizDetallar` / `_narxsizTasdiq`; server 0 narxni
+qabul qiladi — tekin namuna mumkin).
+
+**Ko'rinish qoidalari (kech115, G3-10 / G1-04 / G1-01 / G1-06 / G4-06 / G6-01).** Qisqa summa — `base.html` `qisqaSumma`
+(chegara modul bo'yicha, ishora saqlanadi; Moliya va Dashboard `fmt`); Moliya «Pul oqimi» ishorasi bilan, manfiy rentabellik
+qizil. Taqqoslash (`services.get_monthly_comparison`): o'tgan oy 0 — `change_pct: None`, `holat` («malumot_yoq» /
+«ozgarmadi» / «oshdi» / «kamaydi»); sahifada BITTA ko'rinish qoidasi `ozgarishKorinishi` (xarajat o'sishi — qizil), zarar oyi —
+«Bu oy zarar». Korxona sog'ligi (`services.get_business_health`): ombor — kam / tugagan soni (`kam_qoldiq_sharti`), ishlab
+chiqarish — muddati o'tgan faol buyurtmalar (0 / 1–2 / 3+), ma'lumot yo'q — «gray», har baho `sabablar` bilan. Omborxona
+holat filtri — belgilar bilan bir xil (`data-holat`: yetarli / oz / kam / tugagan; «Kam qolganlar» = kam + tugagan = karta
+soni, karta bosilsa filtrlanadi). O'chirilganlar jurnali — faqat `crud.CHIQINDI_JURNAL_AMALLARI` (o'chirildi / tiklandi /
+butunlay o'chirildi), boshqa amallar — «Tizim jurnallari».
+
 **Platforma — obuna va bloklash (kech111; egasi QARORLARI kech109 / kech110 / kech111, 6-bo'lim).** Hisob — `obuna.py`
 (YAGONA manba); `companies` ustunlari (hammasi NULL, `default=` siz): `bloklangan_at`, `blok_sabab`, `blok_izoh`, `bloklagan`,
 `blok_avtomatik`, `obuna_boshi`, `obuna_tugash` (Date — OXIRGI to'langan kun; NULL — muddatsiz), `obuna_turi` ('sinov' / 'obuna'),
@@ -489,6 +521,15 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   (SQLite, PG, TF1): `tools/test_tayyor_guruh.py`; sahifalar (HAQIQIY server + jsdom — guruhlar, ochish / eslab qolish,
   tugagan partiya, statistika, MRP havolasi, turlar jadvali, `?po=`, «···» menyusi, «Shu buyurtma», namunalar, HTML
   in'ektsiya): `tools/test_dizayn114_ui.py`.
+- (kech115) A bosqich 1-qism: kirim (takror qator, sana / muddat chegaralari va pul yozuvlari sanasi, sahifa ssenariylari —
+  yo'nalishsiz bosish, tarmoq uzilishi, takror / chala qator, boshlang'ich ombor, o'tgan sana, K115-1 — SQLite, PG):
+  `tools/test_kirim_a115.py`; Qarzdorlar (bo'sh summa, «Butun qarz», kechiriladigan summa, tasdiq), «Tayyor» (rad, tarmoq,
+  muvaffaqiyat), to'lovni o'chirish sababi, narxsiz buyurtma, O'chirilganlar jurnali (HAQIQIY server + jsdom):
+  `tools/test_a115_ui.py`; taqqoslash, korxona sog'ligi, Hisobotlar / Omborxona / Moliya / Dashboard ko'rinishi:
+  `tools/test_a115_korinish.py`; to'lov funksiyalari (tasdiq bilan moslangan): `tools/test_tolov_ui.js`. Eski harness
+  testlari yangi yordamchilar bilan MOSLANDI (qoida o'sha): `test_standart_tiyin_ui.js` (R10 — boshqa qator, YANGI R11 — takror
+  qator rad), `test_tahrir_tiyin_ui.js` (summa «Butun qarz» da), `test_narx_kiritish_ui.js` A6 (hajm — bitta joy),
+  `test_kelishilgan_tahrir_ui.js`, `test_narx_nol_himoya_ui.js`, `test_kichik103_ui.js` (`_narxsizDetallar` / `_narxsizTasdiq`).
 - (kech113) MRP sahifasi — reja = amal (retsept tannarxi = yakunlangandagi tannarx; reja «mumkin» ⇔ boshlash / yakunlash
   o'tadi; reja xatosi = yaratish / boshlash xabari AYNAN), K113-1, K113-2, jarayondagilar bilan raqobat, ro'yxat qo'shimchalari
   (o'chirilgan / savatdagi buyurtma, o'chirilgan detal — K113-3),
@@ -617,6 +658,19 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   7 kun qolganda faqat korxona adminlari, muddat tugagach (imtiyoz) — barcha xodimlar.
 
 **Moliya va ombor**
+- (kech114, audit — 144 topilma) Tuzatish tartibi: «A — pul va ma'lumot xatolari» BIRINCHI, keyin A2 (yo'nalishlar bo'yicha
+  moliya), qolgan qarorlar, B–F, so'ng `main`.
+- (kech114) «Sof foyda» — BITTA raqam: Moliyadagi sof foyda asosiy; bo'lingan hisobot (yo'nalishlar) aynan shuni bo'ladi
+  (yig'indisi teng).
+- (kech114) «Pul oqimi» — HAQIQIY pul: kirim — shu oy mijozlardan olingan to'lovlar, chiqim — haqiqatda to'langan pul (xarid,
+  oylik, xarajat).
+- (kech114) «Loyiha qiymati» — buyurtmalardan: qiymat = loyiha buyurtmalari yig'indisi, qarz = buyurtmalar qarzi (byudjet
+  maydoni kerak emas).
+- (kech114, 00:08) Gips — moliyadan BUTUNLAY olib tashlanadi; har yo'nalishning o'z foyda hisobi — «Ha, alohida»; yo'nalishlarni
+  egasi o'zi nomlaydi va guruhlaydi (har mahsulot turi bittasiga; penoplast detallari — «Penoplast»); umumiy xarajatlar (ijara,
+  svet, soliq, umumiy hodimlar) — daromad ulushiga qarab; kassa — BITTA.
+- (kech114) MRP tayyor mahsuloti sotuv narxi — «Hozirgidek qo'lda» (narx 0 qoladi, sotishda yoziladi; «Ombor qiymati» narxsiz
+  partiyani tannarx bo'yicha qo'shadi).
 - (kech87, 104) Xomashyo xaridida korxona to'lagan transport — to'langan oyning xarajati; mijozga yetkazishda
   korxona to'lagan transport — to'langan oyda sof foydadan ayriladi.
 - (kech105, 2026-09-28, 9 va 50) "Toshkent vaqti bo'yicha": hisobotlarning kun / oy / yil chegaralari — Toshkent
@@ -825,6 +879,13 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - (kech114) `obuna.kunlik_tekshiruv` eslatma bosqichlari — 7 kun / 1 kun / tugadi / bloklandi («3 kun» bosqichi YO'Q);
   sinovda Telegram o'chiq — eslatma kelmasligi kutilgan. `_send_telegram` token yo'q bo'lsa istisno bermaydi — natijada
   `yuborildi: true` (faqat jurnal ma'lumoti).
+
+- (kech115) jsdom ssenariysida sahifaning FON so'rovlari (ta'minotchi tanlanganda material filtri ro'yxatni qayta chizadi)
+  keyingi qadamdan KEYIN tugasa, tanlangan qiymat jimgina birinchi variantga qaytadi — tanlovni `amal` ichida qiling (tarmoq
+  tinchishini kutadi), `natija` da emas. Chart.js (CDN) jsdom da yuklanmaydi va `base.html` o'rovchisi `window.Chart` ni
+  ushlaydi — soxta konstruktorni `beforeParse` da emas, resurs yuklovchi orqali CDN manzili o'rnida bering.
+- (kech115) Sahifadagi so'rov hisoblagichi URL prefiksi bilan (`/api/orders`) boshqa marshrutlarni ham sanaydi
+  (`/api/orders/5/ready`) — aniq yo'l yoki `?` bilan solishtiring.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -1513,6 +1574,8 @@ Jami jadvallar: 50.
 HAQIQIY JavaScript'i). Har biri oxirida `NATIJA: o'tdi = N yiqildi = M jami = K` chiqaradi; `yiqildi = 0` va chiqish kodi 0 — talab.
 Tavsif — faylning birinchi izoh xatboshisi.
 
+- `test_a115_korinish.py` · PG — kech115, A bosqich, ko'rinish guruhi: G3-10 / G1-04 (manfiy raqamlar), G1-01 (o'tgan oy 0 — «100 % oshdi»), G1-06 («Korxona sog'ligi»), G4-06 («Kam» filtri). Server funksiyala…
+- `test_a115_ui.py` · PG — kech115, A bosqich (pul va ma'lumot xatolari): «Qarzdorlar», «Buyurtmalar», «O'chirilganlar» sahifalari — HAQIQIY sahifalar (server bergan HTML, shablon + base.html skriptlari) jsdo…
 - `test_asosiy_penoplast.py` · PG — 18-band (K37-1) darvozasi (kech37, 2026-09-23).
 - `test_atomik_103.py` · PG — kech84 darvozasi (2026-09-27, 103-band): YOZADIGAN endpointlar atomik — nosozlik bo'lsa baza O'ZGARMAYDI, qayta urinish ishni BIR marta bajaradi.
 - `test_atomik_tolov.py` · PG — kech99 (2026-09-27), probe103 QOLDIG'I (G, H, I).
@@ -1551,6 +1614,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_kelishilgan_tahrir.py` · PG — kech43 darvozasi: 28-band (K42-2). Kelishilgan summani QAYTA hisoblaydigan joylar pul qaytarish kamaytirishini (`refund_agreed_delta`) yo'qotmasin.
 - `test_kesh_oquvchi.py` · PG — kech90 darvozasi (2026-09-26, 110-band: Moliyadan tashqaridagi N+1 o'quvchilar).
 - `test_kichik103.py` · PG — kech103 kichik bandlari darvozasi (server tomoni + shablonlar): 45, 63, 83, 90, 69 (+ 11, 25, 55, 64 — statik). UI funksiyalari (58 / 63 / 83 / 90 / 62 / 66 / K103-3 / K103-4) — `…
+- `test_kirim_a115.py` · PG — kech115, A bosqich (pul va ma'lumot xatolari), «Kirim qilish» guruhi: G4-01, G4-02, G4-03 va K115-1.
 - `test_kirim_bekor.py` · PG — kech107 darvozasi (5-bo'lim 10-band, "Kirim hujjatini bekor qilish"): Ombor KIRIM HUJJATINI butunlay bekor qilish va xarid o'chirilganda O'RTACHA NARXning qaytishi. UI qismi — `…
 - `test_kirim_qiymat.py` — 17b: ombor kirimi, kirim HUJJATI va retseptlar tanalarining QAT'IY tekshiruvi.
 - `test_kirim_tolov_chegara.py` · PG — kech96 (2026-09-27), 125-band (server + brauzer↔server paritet qismi).
@@ -1675,5 +1739,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 161 (Python 131, JS 30).
+Jami test fayllari: 164 (Python 134, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->

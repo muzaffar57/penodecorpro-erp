@@ -3182,8 +3182,10 @@ async def trash_page(request: Request, db: Session = Depends(get_db), current_us
     # audit jurnalini (kim nimani o'chirgani, usta/hodim nomlari) ko'rardi.
     # `crud.get_activity_log` da parametr ALLAQACHON bor edi, faqat shu
     # chaqiruvda unutilgan; `/logs` sahifasida to'g'ri uzatilgan.
+    # kech115 (G6-01): faqat o'chirish / tiklash / butunlay o'chirish (boshqa amallar — «Tizim jurnallari» da)
     activity_log = crud.get_activity_log(db, limit=50,
-                                         company_id=auth.company_id_of(current_user))
+                                         company_id=auth.company_id_of(current_user),
+                                         amallar=crud.CHIQINDI_JURNAL_AMALLARI)
     return templates.TemplateResponse(request, "trash.html", {
         "deleted_orders": deleted_orders, "deleted_projects": deleted_projects,
         "deleted_employees": deleted_employees,
@@ -3825,7 +3827,9 @@ def api_create_inventory_receipt(data: dict = Body(...), db: Session = Depends(g
                 add_to_cost=data.add_to_cost, supplier_id=data.supplier_id,
                 document_number=data.document_number, paid_now=_paid_now,
                 notes=data.notes, created_by=who, production_type=getattr(data, 'production_type', None),
-                company_id=auth.company_id_of(current_user)
+                company_id=auth.company_id_of(current_user),
+                # kech115 (G4-03): formadagi sana va to'lov muddati (ilgari yuborilmasdi / saqlanmasdi)
+                receipt_date=data.receipt_date, payment_due_date=data.payment_due_date
             )
         return result
     except (HTTPException, _TenantMismatchError):

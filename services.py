@@ -236,10 +236,20 @@ def get_monthly_comparison(db: Session, year: int, month: int, company_id: int =
     current = get_monthly_report(db, year, month, company_id=company_id)
     previous = get_monthly_report(db, prev_year, prev_month, company_id=company_id)
 
+    # kech115 (G1-01, O'LCHANGAN — audit bazasi: o'tgan oy 0 → change_pct DOIM 100.0 — zarar oyida ham «Sof foyda 100 %
+    # oshdi»; ikkalasi 0 — «0 % oshdi»): o'tgan oy 0 bo'lsa foiz YO'Q (None), `holat` — «malumot_yoq» / «ozgarmadi» /
+    # «oshdi» / «kamaydi» (sahifa matni shundan; ishora bo'yicha — foiz yaxlitlangani uchun emas).
     def pct_change(cur, prev):
         if not prev:
-            return 0.0 if not cur else 100.0
+            return None
         return round((cur - prev) / abs(prev) * 100, 1)
+
+    def holat(cur, prev):
+        if not prev:
+            return "ozgarmadi" if not cur else "malumot_yoq"
+        if cur == prev:
+            return "ozgarmadi"
+        return "oshdi" if cur > prev else "kamaydi"
 
     metrics = ["daromad", "jami_xarajat", "sof_foyda", "foyda_foiz"]
     comparison = {}
@@ -249,7 +259,8 @@ def get_monthly_comparison(db: Session, year: int, month: int, company_id: int =
         comparison[m] = {
             "current": cur_val,
             "previous": prev_val,
-            "change_pct": pct_change(cur_val, prev_val)
+            "change_pct": pct_change(cur_val, prev_val),
+            "holat": holat(cur_val, prev_val),
         }
     return comparison
 
@@ -370,13 +381,82 @@ def get_business_health(db: Session, company_id: int = None) -> dict:
     debt_ratio = total_debt / total_revenue * 100
     debt_status = "green" if debt_ratio < 15 else ("orange" if debt_ratio < 30 else "red")
 
+    # kech115 (G1-06, O'LCHANGAN — audit: «Ombor» va «Ishlab chiqarish» kodda DOIM "green" edi — Katta korxonada tepada
+    # «Material 018 tugadi», pastda «Ombor — Yaxshi»; yangi (bo'sh) korxonaga birinchi kuniyoq qizil «Rentabellik —
+    # Muammoli»). Endi: ombor — kam / tugagan materiallar soni (`crud.kam_qoldiq_sharti` — hamma joydagi YAGONA qoida);
+    # ishlab chiqarish — muddati o'tgan (tugallanmagan) buyurtmalar soni; ma'lumot yo'q bo'lsa — "gray" («Ma'lumot
+    # yetarli emas»); har bahoning sababi — `sabablar` (bir qator, sahifada ko'rinadi).
+    from models import Inventory as _Inv_bh, OrderStatus as _OS_bh
+    from database import tashkent_today_start_utc as _bugun_bh
+    _iq = db.query(_Inv_bh).filter(_Inv_bh.is_deleted.isnot(True), ~_Inv_bh.item_name.like("Tayyor loy (%"))
+    if company_id is not None:
+        _iq = _iq.filter(_Inv_bh.company_id == company_id)
+    _mat_soni = _iq.count()
+    _kam = _iq.filter(*_crud_qz134.kam_qoldiq_sharti()).all()
+    _tugagan = sum(1 for _m in _kam if float(_m.stock_quantity or 0) <= 0)
+    _faqat_kam = len(_kam) - _tugagan
+    if _mat_soni == 0:
+        ombor_status, ombor_sabab = "gray", "Omborda material yo'q"
+    elif _tugagan > 0:
+        ombor_status = "red"
+        ombor_sabab = f"{_tugagan} ta material tugagan" + (f", {_faqat_kam} tasi kam" if _faqat_kam else "")
+    elif _faqat_kam > 0:
+        ombor_status, ombor_sabab = "orange", f"{_faqat_kam} ta material kam qolgan"
+    else:
+        ombor_status, ombor_sabab = "green", f"Hammasi yetarli ({_mat_soni} ta material)"
+
+    _faol = db.query(Order).filter(
+        Order.is_deleted.isnot(True), Order.is_archived.isnot(True),
+        Order.status.in_([_OS_bh.NEW, _OS_bh.IN_PROGRESS, _OS_bh.COATING]))
+    if company_id is not None:
+        _faol = _faol.filter(Order.company_id == company_id)
+    _faol_soni = _faol.count()
+    _kechikkan = _faol.filter(Order.deadline.isnot(None), Order.deadline < _bugun_bh()).count()
+    if _faol_soni == 0:
+        ishlab_status, ishlab_sabab = "gray", "Jarayondagi buyurtma yo'q"
+    elif _kechikkan >= 3:
+        ishlab_status, ishlab_sabab = "red", f"{_kechikkan} ta buyurtmaning muddati o'tgan ({_faol_soni} tadan)"
+    elif _kechikkan > 0:
+        ishlab_status, ishlab_sabab = "orange", f"{_kechikkan} ta buyurtmaning muddati o'tgan ({_faol_soni} tadan)"
+    else:
+        ishlab_status, ishlab_sabab = "green", f"{_faol_soni} ta buyurtma — muddati o'tgani yo'q"
+
+    _daromad = float(report.get("daromad", 0) or 0)
+    _sof = float(report.get("sof_foyda", 0) or 0)
+    _jami_x = float(report.get("jami_xarajat", 0) or 0)
+    _naqd_x = float(report.get("naqd_xarajat_jami", 0) or 0)
+    _malumot = bool(_daromad or _jami_x or _naqd_x)
+    if not _malumot:
+        pul_status, pul_sabab = "gray", "Bu oy daromad va xarajat hali yo'q"
+    else:
+        pul_status = "green" if _sof >= 0 else "red"
+        pul_sabab = "Sof foyda bo'yicha: " + ("foyda" if _sof >= 0 else "zarar")
+    if _daromad <= 0:
+        rentabellik_status, rent_sabab = "gray", "Bu oy daromad yo'q — rentabellik hisoblanmaydi"
+    else:
+        rent_sabab = f"Rentabellik {foyda_foiz:g} % (yaxshi — 15 % dan yuqori)"
+    if not orders:
+        debt_status, qarz_sabab = "gray", "Qarz hisobidagi buyurtma yo'q"
+    else:
+        qarz_sabab = f"Qarz — sotuvning {debt_ratio:.0f} %"
+    if not _malumot:
+        sarf_status, sarf_sabab = "gray", "Bu oy xarid va daromad hali yo'q"
+    else:
+        sarf_status = "orange" if _naqd_x > (_daromad or 1) * 0.5 else "green"
+        sarf_sabab = "Xomashyo xaridi daromadning yarmidan " + ("ko'p" if sarf_status == "orange" else "kam")
+
     return {
-        "pul_oqimi": "green" if float(report.get("sof_foyda", 0) or 0) >= 0 else "red",
-        "ombor": "green",
+        "pul_oqimi": pul_status,
+        "ombor": ombor_status,
         "rentabellik": rentabellik_status,
         "qarzdorlik": debt_status,
-        "ishlab_chiqarish": "green",
-        "material_sarfi": "orange" if float(report.get("naqd_xarajat_jami", 0) or 0) > float(report.get("daromad", 1) or 1) * 0.5 else "green",
+        "ishlab_chiqarish": ishlab_status,
+        "material_sarfi": sarf_status,
+        # kech115 (G1-06): har bahoning sababi (sahifa kartada ko'rsatadi)
+        "sabablar": {
+            "pul_oqimi": pul_sabab, "ombor": ombor_sabab, "rentabellik": rent_sabab,
+            "qarzdorlik": qarz_sabab, "ishlab_chiqarish": ishlab_sabab, "material_sarfi": sarf_sabab,
+        },
     }
 
 

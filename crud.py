@@ -761,7 +761,7 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
                    supplier_id: int = None, is_credit: bool = False,
                    volume_per_unit: float = None, payment_due_date: str = None,
                    is_opening_stock: bool = False, extra_cost_per_unit: float = 0.0,
-                   company_id: int = None):
+                   company_id: int = None, sana: datetime = None):
     """Ombor kirimi — xarid narxi bilan. COMMIT QILMAYDI (chaqiruvchi
     o'zi, barcha ishlar tugagach, bitta marta commit qilishi kerak).
     O'rtacha vaznli narx hisoblanadi (eski qoldiq qayta baholanmaydi):
@@ -864,6 +864,10 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
         narx_oldin=round(old_price, 2),
         narx_keyin=round(float(db_item.price_per_unit or 0), 2)
     )
+    # kech115 (G4-03): kirim hujjatida tanlangan o'tgan sana (`kirim_sanalari`) — xarid shu kunga yoziladi (oylik
+    # hisobotdagi xomashyo xaridi `purchased_at` bo'yicha). Berilmasa — hozir (ustun standarti).
+    if sana is not None:
+        purchase.purchased_at = sana
     db.add(purchase)
     supplier_name = None
     if supplier_id:
@@ -891,12 +895,92 @@ def _purchase_stock_no_commit(db: Session, item_id: int, quantity: float, price_
     }
 
 
+# kech115 (G4-03): kirim sanasi necha kun orqaga bo'lishi mumkin — kiritishdagi yil xatosi (2025 o'rniga 2052 yoki
+# 2025) hisobotni jimgina boshqa yilga surmasin. Kelajak sanasi — rad.
+KIRIM_SANA_ORQAGA_KUN = 366
+
+
+def kirim_sanalari(receipt_date: str = None, payment_due_date: str = None):
+    """kech115 (G4-03): kirim hujjatining sanalari — tekshiruv va bazaga yoziladigan qiymat.
+
+    Qaytaradi: (kirim_vaqti, muddat). `kirim_vaqti` — None (bugun yoki berilmagan: hozirgi vaqt, ustun standarti) yoki
+    tanlangan O'TGAN kunning 00:00 i (naive; faqat sana kiritiladigan qiymatlar qoidasi — Toshkent kalendarida ham
+    o'sha kun: [kun−1 19:00, kun 19:00) UTC). `muddat` — 'YYYY-MM-DD' yoki None. Kun — TOSHKENT kalendari
+    (`database.tashkent_date`). Rad (ValueError): noto'g'ri shakl, kelajak sanasi, `KIRIM_SANA_ORQAGA_KUN` dan eski,
+    kirim sanasidan oldingi to'lov muddati."""
+    from datetime import date as _date_t, timedelta as _td_k
+
+    def _oqi(v, nomi):
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v.date()
+        if isinstance(v, _date_t):
+            return v
+        s = str(v).strip()
+        if not s:
+            return None
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            raise ValueError(f"{nomi} noto'g'ri: {s[:20]} (kutilgan shakl YYYY-MM-DD)")
+
+    bugun = _tashkent_date()
+    kun = _oqi(receipt_date, "Kirim sanasi")
+    if kun is not None and kun > bugun:
+        raise ValueError(f"Kirim sanasi kelajakda bo'lishi mumkin emas: {kun.strftime('%d.%m.%Y')} "
+                         f"(bugun {bugun.strftime('%d.%m.%Y')})")
+    if kun is not None and kun < bugun - _td_k(days=KIRIM_SANA_ORQAGA_KUN):
+        raise ValueError(f"Kirim sanasi juda eski: {kun.strftime('%d.%m.%Y')} — bir yildan eski sana bilan kirim "
+                         f"yozilmaydi, sanani tekshiring")
+    muddat = _oqi(payment_due_date, "To'lov muddati")
+    if muddat is not None and muddat < (kun or bugun):
+        raise ValueError(f"To'lov muddati ({muddat.strftime('%d.%m.%Y')}) kirim sanasidan "
+                         f"({(kun or bugun).strftime('%d.%m.%Y')}) oldin bo'lishi mumkin emas")
+    kirim_vaqti = None
+    if kun is not None and kun != bugun:
+        kirim_vaqti = datetime(kun.year, kun.month, kun.day)
+    return kirim_vaqti, (muddat.strftime("%Y-%m-%d") if muddat is not None else None)
+
+
+def kirim_takror_qator(db: Session, items: list, company_id: int = None):
+    """kech115 (G4-01): kirim hujjatida AYNAN bir xil qator (material, miqdor, tiyinga yaxlitlangan narx, hajm,
+    boshlang'ich belgisi) ikkinchi marta kelsa — ValueError (hech narsa yozilmaydi). Bir materialni BOSHQA narx yoki
+    miqdorda olish (ikki partiya — `_takror_material_yoq` izohi) — ruxsat."""
+    korilgan = {}
+    for i, it in enumerate(items):
+        g = it if isinstance(it, dict) else getattr(it, "__dict__", {})
+        _miq = float(g.get("quantity") or 0)
+        _narx2 = _xarid_narx_jami(_miq, float(g.get("price_per_unit") or 0))[0]
+        _hajm = g.get("volume_per_unit")
+        kalit = (g.get("inventory_id"), round(_miq, 6), _narx2,
+                 (round(float(_hajm), 4) if _hajm else None), bool(g.get("is_opening_stock", False)))
+        if kalit in korilgan:
+            _nom = None
+            try:
+                _nq = db.query(Inventory.item_name).filter(Inventory.id == g.get("inventory_id"))
+                if company_id is not None:
+                    _nq = _nq.filter(Inventory.company_id == company_id)
+                _r = _nq.first()
+                _nom = _r[0] if _r else None
+            except Exception:
+                _nom = None
+            raise ValueError(
+                f"{i + 1}-qator {korilgan[kalit] + 1}-qator bilan AYNAN bir xil"
+                + (f" («{_nom}», " if _nom else " (")
+                + f"{_miq:g} × {_narx2:,.2f}".replace(",", " ").replace(".00", "")
+                + ") — takror kiritilgan bo'lishi mumkin. Bittasini o'chiring; ikki partiya bo'lsa miqdorini "
+                  "bitta qatorga birlashtiring")
+        korilgan[kalit] = i
+
+
 def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0.0,
                               tushirish_cost: float = 0.0, yuklash_cost: float = 0.0,
                               boshqa_cost: float = 0.0, add_to_cost: bool = False,
                               supplier_id: int = None, document_number: str = None,
                               paid_now: float = 0.0, notes: str = None, created_by: str = None,
-                              production_type: str = None, company_id: int = None) -> dict:
+                              production_type: str = None, company_id: int = None,
+                              receipt_date: str = None, payment_due_date: str = None) -> dict:
     """Ombor Kirim hujjati — bir nechta mahsulotni, qo'shimcha xarajatlar
     (Transport, Tushirish/Grushchik, Yuklash, Boshqa) bilan birga, BITTA
     yagona tranzaksiya sifatida saqlaydi. Xato bo'lsa — HAMMASI (barcha
@@ -920,11 +1004,24 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
 
     SaaS uchun kengaytiriladigan: kelajakda yangi xarajat turi qo'shish uchun,
     shu funksiyaga yangi parametr va extra_costs ro'yxatiga yangi qator
-    qo'shish kifoya."""
+    qo'shish kifoya.
+
+    kech115 (G4-01, G4-03 — O'LCHANGAN `work/k115/probe_kirim.py`, SQLite = PG): (1) AYNAN bir xil qator (material,
+    miqdor, narx, hajm, boshlang'ich belgisi) ikki marta kelsa — hech narsa yozilmasdan rad (`kirim_takror_qator`):
+    sahifa oxirgi qatorni tekshiruvdan oldin savatga qo'shib, qayta bosishda IKKI marta yuborardi — ombor 200 kg,
+    ta'minotchi qarzi 600 000 (100 kg × 3 000 ikki marta). Bir materialni boshqa narxda (ikki partiya) olish —
+    avvalgidek mumkin. (2) `receipt_date` — kirim sanasi: o'tgan kun bo'lsa hujjat, xaridlar, qo'shimcha xarajatlar
+    va «hozir to'langan» to'lov shu kunga yoziladi (ombor harakati jurnali — kiritilgan vaqtda qoladi); bugun yoki
+    bo'sh — hozir. (3) `payment_due_date` — nasiya xaridlarining to'lov muddati (dashboard ogohlantirishi
+    `get_supplier_payment_due_dates` shunga tayanadi). Chegaralar — `kirim_sanalari`."""
     from models import InventoryReceipt, ExpenseTransaction, KIRIM_TANNARX_MANBA
 
     if not items:
         return {"success": False, "error": "Hech qanday mahsulot kiritilmagan"}
+
+    # kech115: HECH NARSA yozilishidan OLDIN — sana chegaralari va takror qator (ValueError → marshrutda 400).
+    _kirim_vaqti, _muddat = kirim_sanalari(receipt_date, payment_due_date)
+    kirim_takror_qator(db, items, company_id=company_id)
 
     try:
         # M8/F1: `InventoryReceipt`ning yagona ota-FK si (`supplier_id`)
@@ -939,6 +1036,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
             add_to_cost=add_to_cost, notes=notes, created_by=created_by,
             production_type=production_type
         )
+        if _kirim_vaqti is not None:          # kech115 (G4-03): tanlangan o'tgan sana
+            receipt.receipt_date = _kirim_vaqti
         db.add(receipt)
         db.flush()  # receipt.id kerak bo'ladi
 
@@ -968,10 +1067,13 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                 purchased_by=created_by, notes=it.get("notes") or notes,
                 supplier_id=supplier_id, is_credit=item_is_credit,
                 volume_per_unit=it.get("volume_per_unit"),
-                payment_due_date=it.get("payment_due_date"),
+                # kech115 (G4-03): hujjat muddati — faqat nasiyaga yoziladigan qatorda (boshlang'ich ombor /
+                # ta'minotchisiz qatorning qarzi yo'q, muddati ogohlantirish bermasin).
+                payment_due_date=(_muddat if item_is_credit else None),
                 is_opening_stock=is_opening,
                 extra_cost_per_unit=extra_per_unit,
                 company_id=company_id,
+                sana=_kirim_vaqti,
             )
             if result is None:
                 raise ValueError(f"Material topilmadi (id={it['inventory_id']})")
@@ -1033,6 +1135,8 @@ def create_inventory_receipt(db: Session, items: list, transport_cost: float = 0
                 paid_by=created_by,
                 notes=f"Kirim to'lovi — #{receipt.id}" + (f" ({document_number})" if document_number else "")
             )
+            if _kirim_vaqti is not None:      # kech115 (G4-03): to'lov kirim kunida
+                payment_created.paid_at = _kirim_vaqti
             db.add(payment_created)
 
         db.commit()
@@ -3704,6 +3808,10 @@ def _val_rules():
             "add_to_cost": ("bool", False),
             "notes": ("matn", False, matn),
             "production_type": ("tanlov", True, _ISHLAB_CHIQARISH_TURI),
+            # kech115 (G4-03): kirim sanasi va qarz muddati (sana haqiqiyligi shu yerda, chegaralar —
+            # `kirim_sanalari`).
+            "receipt_date": ("sana", True),
+            "payment_due_date": ("sana", True),
         },
         "RecipeIngredient": {
             "inventory_id": ("id", False),
@@ -4057,6 +4165,12 @@ def _clean_val(model: str, data) -> dict:
     # qaytariladi (sana haqiqiyligi allaqachon tasdiqlangan).
     if model == "Purchase" and isinstance(toza.get("payment_due_date"), datetime):
         toza["payment_due_date"] = toza["payment_due_date"].strftime("%Y-%m-%d")
+    # kech115 (G4-03): kirim hujjatining sanalari ham — `schemas.InventoryReceiptCreate` da MATN (`kirim_sanalari`
+    # ularni `%Y-%m-%d` bilan o'qiydi).
+    if model == "Receipt":
+        for _sk in ("receipt_date", "payment_due_date"):
+            if isinstance(toza.get(_sk), datetime):
+                toza[_sk] = toza[_sk].strftime("%Y-%m-%d")
     # kech93 (8-band): parol qoidalari — yaratishda VA almashtirishda BIR XIL
     # (eng kami 6 belgi — avval faqat almashtirishda edi; eng ko'pi 72 bayt —
     # sababi `_PAROL_MAX_BAYT` izohida).
@@ -4492,12 +4606,23 @@ def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
         db.commit()
 
 
-def get_activity_log(db: Session, limit: int = 100, company_id: int = None) -> List:
-    """So'nggi audit yozuvlari (M7 — tenant-safe)."""
+# kech115 (G6-01): «O'chirilganlar» sahifasi jurnalidagi amallar — faqat o'chirish / tiklash / butunlay o'chirish.
+CHIQINDI_JURNAL_AMALLARI = ("deleted", "restored", "permanently_deleted")
+
+
+def get_activity_log(db: Session, limit: int = 100, company_id: int = None, amallar=None) -> List:
+    """So'nggi audit yozuvlari (M7 — tenant-safe).
+
+    kech115 (G6-01, O'LCHANGAN — audit: «O'chirilganlar» jurnali filtrsiz 50 yozuv olib, «o'chirildi» / «tiklandi» dan
+    boshqa HAMMA amalni — buyurtma yaratildi, ishlab chiqarish boshlandi / yakunlandi, tahrir — «butunlay o'chirildi»
+    deb ko'rsatardi; o'chirilgan buyurtma 0 ta bo'lsa ham jurnal «ORD-001-5 butunlay o'chirildi» bilan to'la edi):
+    `amallar` berilsa — faqat shu amal turlari (`CHIQINDI_JURNAL_AMALLARI`)."""
     from models import ActivityLog
     q = db.query(ActivityLog)
     if company_id is not None:
         q = q.filter(ActivityLog.company_id == company_id)
+    if amallar:
+        q = q.filter(ActivityLog.action.in_(list(amallar)))
     return q.order_by(ActivityLog.created_at.desc()).limit(limit).all()
 
 
