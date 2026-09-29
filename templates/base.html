@@ -498,7 +498,7 @@ function jsAttrEscape(str) {
         {% if _obuna_b %}
         <div id="obunaWrap" style="position:relative;margin-right:10px">
           <button type="button" id="obunaBanner" aria-expanded="false" aria-controls="obunaPanel"
-                  onclick="var p=document.getElementById('obunaPanel');var o=p.style.display==='none';p.style.display=o?'block':'none';this.setAttribute('aria-expanded',o?'true':'false');"
+                  onclick="obunaPaneliniAlmashtir()"
                   style="height:36px;display:flex;align-items:center;gap:7px;padding:0 12px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:600;white-space:nowrap;
                          {% if _obuna_b.daraja == 'qizil' %}background:#FEE2E2;border:1px solid #F3C7C7;color:#7F1D1D{% else %}background:#FEF3C7;border:1px solid #F5D98B;color:#78350F{% endif %}">
             <i class="ti {% if _obuna_b.daraja == 'qizil' %}ti-lock{% else %}ti-calendar-plus{% endif %}" style="font-size:16px" aria-hidden="true"></i>
@@ -549,13 +549,63 @@ function jsAttrEscape(str) {
       };
       applyThemeIcon();
 
+      // kech111 (K112-1 — jonli sinovda topildi, HAQIQIY brauzerda o'lchandi): yuqori paneldagi ochiluvchi panellar
+      // (bildirishnomalar, obuna ogohlantirishi) tugmaning O'NG chetiga bog'langan edi (`right: 0`). Tor ekranda (telefon,
+      // 360–600 px; 756 px da ham uzun sarlavhali sahifada) tugmalar qatori keyingi qatorga, CHAPGA o'tadi va 340 px lik panel
+      // ekrandan chapga chiqib ketardi (390 px da chap cheti −232 px — matnning yarmi ko'rinmasdi). Endi panel OCHILGANDA
+      // ekran ichiga joylanadi: kengligi ≤ ekran − 24 px, chap cheti ≥ 12 px, o'ng cheti ekrandan chiqmaydi; joy bo'lsa —
+      // avvalgidek tugmaning o'ng chetiga tekislanadi (keng ekranda ko'rinish o'zgarmaydi). Oyna o'lchami o'zgarsa — qayta joylanadi.
+      function panelniJoyla(tugma, panel) {
+        if (!tugma || !panel) return;
+        var r = tugma.getBoundingClientRect();
+        var ekran = window.innerWidth || document.documentElement.clientWidth || 0;
+        var k = Math.max(0, Math.min(340, ekran - 24));
+        var chap = Math.round(r.right - k);
+        if (chap > ekran - k - 12) chap = ekran - k - 12;
+        if (chap < 12) chap = 12;
+        panel.style.position = 'fixed';
+        panel.style.right = 'auto';
+        panel.style.maxWidth = 'none';
+        panel.style.width = k + 'px';
+        panel.style.left = chap + 'px';
+        panel.style.top = Math.round(r.bottom + 8) + 'px';
+      }
+      window.panelniJoyla = panelniJoyla;
+
       function toggleNotifPanel() {
         const p = document.getElementById('notifPanel');
-        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+        const och = p.style.display === 'none';
+        if (och) panelniJoyla(document.getElementById('notifBell'), p);
+        p.style.display = och ? 'block' : 'none';
       }
       window.toggleNotifPanel = toggleNotifPanel;
 
+      // kech111 — obuna ogohlantirishi: bosilsa to'liq matn (telefon bilan), yana bosilsa yoki tashqariga bosilsa — yopiladi.
+      function obunaPaneliniAlmashtir() {
+        const p = document.getElementById('obunaPanel'), t = document.getElementById('obunaBanner');
+        if (!p || !t) return;
+        const och = p.style.display === 'none';
+        if (och) panelniJoyla(t, p);
+        p.style.display = och ? 'block' : 'none';
+        t.setAttribute('aria-expanded', och ? 'true' : 'false');
+      }
+      window.obunaPaneliniAlmashtir = obunaPaneliniAlmashtir;
+
+      window.addEventListener('resize', function() {
+        [['notifBell', 'notifPanel'], ['obunaBanner', 'obunaPanel']].forEach(function(j) {
+          const p = document.getElementById(j[1]);
+          if (p && p.style.display !== 'none') panelniJoyla(document.getElementById(j[0]), p);
+        });
+      });
+
       document.addEventListener('click', function(e) {
+        const ow = document.getElementById('obunaWrap');
+        const op = document.getElementById('obunaPanel');
+        if (ow && op && !ow.contains(e.target) && op.style.display !== 'none') {
+          op.style.display = 'none';
+          const ob = document.getElementById('obunaBanner');
+          if (ob) ob.setAttribute('aria-expanded', 'false');
+        }
         const wrap = document.getElementById('notifWrap');
         if (wrap && !wrap.contains(e.target)) document.getElementById('notifPanel').style.display = 'none';
       });
