@@ -3480,8 +3480,16 @@ async def production_page(request: Request, current_user=Depends(auth.admin_or_w
     """2026-09-16: yangi Dinamik Ishlab chiqarish (Production/MRP) sahifasi.
     Barcha ma'lumotlar (mahsulot turlari, retseptlar, buyurtmalar)
     frontendda AJAX orqali /api/production/... dan yuklanadi — shuning
-    uchun bu yerga hech qanday kontekst uzatish shart emas."""
-    return templates.TemplateResponse(request, "production.html", {"current_user": current_user, "active_page": "production"})
+    uchun bu yerga hech qanday kontekst uzatish shart emas.
+
+    kech113 (dizayn 4-band): `joriy_oy` — ro'yxat davri tanlovining standart qiymati SERVER Toshkent oyidan
+    (`database.tashkent_date`), brauzer soatidan EMAS: ro'yxat serverdagi oy bo'yicha filtrlanadi, sahifa ham shu
+    oyni so'rasin (kompyuter soati noto'g'ri bo'lsa ham, vaqt sayohati testlarida ham bir xil)."""
+    from database import tashkent_date as _t_sana
+    _bugun = _t_sana()
+    return templates.TemplateResponse(request, "production.html", {
+        "current_user": current_user, "active_page": "production",
+        "joriy_oy": f"{_bugun.year:04d}-{_bugun.month:02d}"})
 
 
 @app.get("/projects", response_class=HTMLResponse)

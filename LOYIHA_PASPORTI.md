@@ -338,6 +338,20 @@ MRP tayyor mahsuloti «qoplamali» (`finished_products.is_coated`) — faqat shu
 HAQIQATAN kiritilgan bo'lsa (kech112, K112-5; brak sarfi `services._mrp_birlik_sarfi` bilan bir qoida). Ilgari model
 standarti (True) qolardi: har MRP birligi (qoplamasiz travertin m², kafel kley kg ham) oylik hisobotdagi qoplamachi
 bonusiga va donabay hodim haqiga 1 000 so'mdan qo'shilardi.
+Ishlab chiqarish sahifasi (kech113, 6-bo'lim "A — Jadval + oynalar") hisobni OLDINDAN ko'rsatadi — AMAL bilan BITTA
+funksiyalardan (`production_service` 5-bo'lim, hech narsa yozmaydi): retsept oynasi — `retsept_tannarxi`
+(`POST /api/production/boms/preview`: `_compute_bom_line` + `_qoshimcha_xarajat`, tana — retsept yaratish kabi); yangi
+ishlab chiqarish — `ishlab_chiqarish_rejasi` (`GET /api/production/orders/preview`: tana `_tana("ProductionOrder")`,
+tekshiruvlar `_yaratish_tekshiruvi` — yaratish bilan bitta); boshlash / yakunlash oynasi — `mavjud_ishlab_chiqarish_rejasi`
+(`GET /api/production/orders/{id}/preview`: qoralama — boshlash qoidasi, jarayondagi — qotgan surat bilan yakunlash
+qoidasi); ro'yxat — `royxat_qoshimchalari` (mahsulot, birlik, buyurtma raqami, mijoz, taxminiy tannarx, qoralama
+xomashyo holati; so'rovlar soni qatorga bog'liq emas; `?oy=YYYY-MM` — shu Toshkent oyida yakunlangan / bekor qilingan va
+HAMMA ochiq ishlab chiqarishlar). Surat qatorlari — `_surat_qatorlari`; ombor solishtiruvi — `_yetmaydimi` (nisbiy 1e-9;
+K113-1: 1 kg + 10 % × 3 m² = 3,3000000000000003, omborda aniq 3,3 kg bo'lsa boshlash ham, yakunlash ham rad etardi);
+qoldiq — `_qoldiq_keyin` (yakunlashda aniq yetgan qoldiq — 0; K113-2: bir material retseptda bir necha qatorda bo'lsa,
+boshlash ham yakunlash TARTIBIDA ketma-ket tekshiradi — ilgari boshlash har qatorni to'liq qoldiq bilan solishtirib o'tkazar,
+yakunlash "bor: 1" deb rad etardi). Boshqa jarayondagi ishlab chiqarishlar kutayotgan xomashyo — faqat ogohlantirish
+(`band_bilan_yetmaydi`); boshlash qoidasi o'zgarmagan (xomashyo «Yakunlash» da yechiladi, `Inventory` da "band" ustuni yo'q).
 
 **Migratsiyalar.** Alembic YO'Q. `main.py` dagi `_migrate_*` funksiyalari server ishga tushganda (import paytida)
 ketma-ket yuradi — 9-bo'lim ISHGA_TUSHISH. Har biri IDEMPOTENT, o'z `try/except` va `conn.rollback()` bilan
@@ -434,6 +448,12 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
 - Server rad sababi — kpi / inventory / finished ning 29 joyi (matn, obyekt, ro'yxat): `tools/test_xato_sababi_ui.js`.
 - Loyiha tahriri (muddat, tozalash, izolyatsiya): `tools/test_loyiha_tahrir.py`, `tools/test_loyiha_tahrir_ui.js`;
   hodim avans so'rovi (tekshiruv, takror, PG poyga): `tools/test_hodim_avans.py`.
+- (kech113) MRP sahifasi — reja = amal (retsept tannarxi = yakunlangandagi tannarx; reja «mumkin» ⇔ boshlash / yakunlash
+  o'tadi; reja xatosi = yaratish / boshlash xabari AYNAN), K113-1, K113-2, jarayondagilar bilan raqobat, ro'yxat qo'shimchalari,
+  davr (Toshkent oyi chegarasi), so'rovlar soni, o'zbekcha xabarlar, reja hech narsa yozmaydi, korxona chegarasi (SQLite, PG,
+  TF1): `tools/test_mrp_reja.py`; sahifa (HAQIQIY server + jsdom — ro'yxat, chiplar, saralash, yangi ishlab chiqarish,
+  boshlash / yakunlash / batafsil / bekor oynalari, retsept oynasi, mahsulot turi, in'ektsiya): `tools/test_mrp_sahifa_ui.py`
+  (+ HAQIQIY brauzer o'lchovi 360 / 390 / 768 / 1440 px — `work/k113/ekran113.py`).
 - (kech111) Platforma admin paneli (holat chegaralari, uzaytirish «Aralash», ruxsat, sinov davri, qo'lda / avtomatik bloklash —
   login, API, sessiyalar, hodim paneli, bot, kam qoldi cron; ochish va imtiyoz, kunlik eslatmalar takrorsiz, mijoz ogohlantirishi,
   aloqa telefoni, raqamlar, xatolar, fayllar himoyasi va aylanib o'tish, logotip, migratsiya — SQLite, PG, TF1):
@@ -478,6 +498,10 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   `blok`, `gips`, `bazalt` — har korxona MRP da o'zi yaratadi.
 - Qoplama narxi koeffitsiyenti korxona bo'yicha MRP sozlamasi (kimdir ×2, kimdir ×2.5); detal qoplamali /
   qoplamasiz ekani saqlanadi. Hodimlarning gips to'lov birliklari kerak emas (`metr` / `dona` / `kg` yetarli).
+- (kech113, "MRP asosiy: 1–4") Ishlab chiqarish sahifasi dizayni — variant "A — Jadval + oynalar" (avval "B" tanlangan,
+  o'sha kuni A ga o'zgartirildi): ro'yxat — jadval (telefonda kartalar), holat chiplari, davr / mahsulot / qidiruv; yangi
+  ishlab chiqarish, retsept, boshlash / yakunlash / batafsil — oynalarda; qoralama qatorida «xomashyo yetadi / yetmaydi»
+  belgisi (C dan). «Tayyor — omborga kirim» tezkor tugmasi — "Kerak emas".
 
 **Buyurtma**
 - (kech85–86, "A") Buyurtma, yuk xati va loyiha raqami HECH QACHON qayta berilmaydi (faqat o'sadi, bo'shliq qoladi).
@@ -743,6 +767,11 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
 - (kech112) Claude in Chrome `javascript_tool`: `(async () => …)()` natijasi `{}` qaytadi — yuqori darajadagi `await` yozing.
   Ichki brauzer `read_console_messages` navigatsiyada tozalanmaydi (oldingi fetch 404 lari ham ko'rinadi) — `pattern`
   ("Uncaught", "Error") bilan o'qing.
+- (kech113) SQLite da vaqtni XOM SQL bilan yozish ORM saqlagan matn shaklidan farq qiladi (`'…19:00:00'` va
+  `'…19:00:00.000000'` — matn solishtiruvida birinchisi kichik): vaqt chegarasi testida sanani ORM orqali yozing, aks holda
+  aniq chegaradagi yozuv noto'g'ri oyga tushgandek ko'rinadi.
+- (kech113) Oldindan ko'rsatiladigan hisob (reja, taxminiy tannarx) — alohida formula EMAS, amalning o'z funksiyalari
+  (yordamchiga ajratib, ikkala joydan chaqiriladi); test — "reja = amal" (AYNAN xabar, AYNAN tannarx, «mumkin» ⇔ o'tadi).
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -895,7 +924,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `GET /production` → `main.py:production_page` → `templates/production.html`
 - Qorovul: auth.admin_or_warehouse
-- `production.html` API: `/api/inventory`, `/api/production/boms`, `/api/production/boms/{}`, `/api/production/mrp-order-items`, `/api/production/orders`, `/api/production/orders/{}/cancel`, `/api/production/orders/{}/complete`, `/api/production/orders/{}/start`, `/api/production/product-types`, `/api/production/product-types/{}/boms`
+- `production.html` API: `/api/inventory`, `/api/production/boms`, `/api/production/boms/preview`, `/api/production/boms/{}`, `/api/production/mrp-order-items`, `/api/production/orders`, `/api/production/orders/preview`, `/api/production/orders/{}/cancel`, `/api/production/orders/{}/complete`, `/api/production/orders/{}/preview`, `/api/production/orders/{}/start`, `/api/production/product-types`, `/api/production/product-types/{}/boms`
 
 ### `GET /projects` → `main.py:projects_page` → `templates/projects.html`
 - Qorovul: auth.admin_manager_accountant
@@ -1154,17 +1183,20 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/platform/errors` → `main.py:api_platform_errors` · 🔒 auth.platform_admin_only
 - `GET /api/platform/summary` → `main.py:api_platform_summary` · 🔒 auth.platform_admin_only
 
-#### `/api/production` (15)
+#### `/api/production` (18)
 - `POST /api/production/boms` → `production_routes.py:create_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
+- `POST /api/production/boms/preview` → `production_routes.py:preview_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, production_service.retsept_tannarxi
 - `PUT /api/production/boms/{bom_id}` → `production_routes.py:update_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
 - `DELETE /api/production/boms/{bom_id}` → `production_routes.py:deactivate_bom` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
 - `GET /api/production/company-settings` → `production_routes.py:get_company_settings` · 🔒 auth.admin_only · auth.company_id_of
 - `PUT /api/production/company-settings` → `production_routes.py:update_company_settings` · 🔒 auth.admin_only · auth.company_id_of, crud.log_activity
 - `GET /api/production/mrp-order-items` → `production_routes.py:list_mrp_order_items_pending` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.get_mrp_order_items_status
-- `GET /api/production/orders` → `production_routes.py:list_production_orders` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of
+- `GET /api/production/orders` → `production_routes.py:list_production_orders` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.royxat_qoshimchalari
 - `POST /api/production/orders` → `production_routes.py:create_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.create_production_order
+- `GET /api/production/orders/preview` → `production_routes.py:preview_production_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.ishlab_chiqarish_rejasi
 - `POST /api/production/orders/{po_id}/cancel` → `production_routes.py:cancel_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.cancel_production_order
 - `POST /api/production/orders/{po_id}/complete` → `production_routes.py:complete_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.complete_production_order
+- `GET /api/production/orders/{po_id}/preview` → `production_routes.py:preview_existing_production_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.mavjud_ishlab_chiqarish_rejasi
 - `POST /api/production/orders/{po_id}/start` → `production_routes.py:start_order` · 🔒 auth.admin_warehouse_or_manager · auth.company_id_of, production_service.start_production_order
 - `GET /api/production/product-types` → `production_routes.py:list_product_types` · 🔒 auth.admin_or_warehouse · auth.company_id_of
 - `POST /api/production/product-types` → `production_routes.py:create_product_type` · 🔒 auth.admin_or_warehouse · auth.company_id_of, crud.log_activity
@@ -1357,7 +1389,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.admin_or_manager
 
-Jami marshrutlar: 282 (main.py: 259, production_routes.py: 15, saas_migration.py: 8).
+Jami marshrutlar: 285 (main.py: 259, production_routes.py: 18, saas_migration.py: 8).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -1487,6 +1519,8 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_mrp_loy_ulush.py` · PG — 5-bo'lim 44-band + K62-1 darvozasi (kech62, 2026-09-24): MRP detali buyurtma LOYINI sarflamaydi — YAGONA qoida.
 - `test_mrp_ortiqcha.py` · PG — kech73 darvozasi (2026-09-25, 86-band / K72-1): MRP detalidan ORTIQCHA qaytarish.
 - `test_mrp_qoplama_belgi.py` · PG — kech112 darvozasi: K112-5 — MRP ishlab chiqargan tayyor mahsulot DOIM «qoplamali» bo'lardi.
+- `test_mrp_reja.py` · PG — kech113 darvozasi: Ishlab chiqarish (MRP) sahifasi dizayni — egasi qarori "MRP asosiy: 1–4", variant "A — Jadval + oynalar" (server qismi) va K113-1 / K113-2.
+- `test_mrp_sahifa_ui.py` · PG — kech113: Ishlab chiqarish (MRP) sahifasi, variant "A — Jadval + oynalar" — HAQIQIY sahifa (server bergan HTML, `templates/production.html` + `base.html` skriptlari) jsdom da,…
 - `test_mrp_tannarx.py` — MRP xarajati buyurtma foydasiga yetib boradimi.
 - `test_mrp_tayyorlik.py` · PG — kech80 darvozasi (2026-09-26, 88-band): buyurtmadagi «MRP: tayyor» belgisi va «Tayyor» tugmasi / yuk xati — BIR XIL shart.
 - `test_mrp_xarajat_surat.py` · PG — kech94 darvozasi (2026-09-27, 122-band): ishlab chiqarish buyurtmasini yakunlashdagi QO'SHIMCHA xarajat (`fixed_cost_per_unit` — 1 birlikka qat'iy summa, `percentage_cost`…
@@ -1585,5 +1619,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 157 (Python 127, JS 30).
+Jami test fayllari: 159 (Python 129, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->

@@ -11,14 +11,16 @@ migratsiyasi boshlanganda, bu joyga "joriy foydalanuvchining
 korxonasi" degan haqiqiy mantiq keladi.
 """
 
-from fastapi import APIRouter, Body, Depends, HTTPException
-from sqlalchemy import func
+from typing import List, Optional
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 import auth
 import crud
 from models import Inventory
-from database import get_db
+from database import get_db, tashkent_oyida
 import production_schemas as schemas
 import production_service as service
 from production_models import ProductType, BOM, BOMItem, ProductionOrder, Company
@@ -193,6 +195,21 @@ def create_bom(data: dict = Body(...), db: Session = Depends(get_db), current_us
     return bom
 
 
+@router.post("/boms/preview")
+def preview_bom(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
+    """kech113 (dizayn 2-band — retsept oynasi): SAQLANMAGAN retseptning taxminiy tannarxi (1 birlik uchun: oddiy,
+    qoplamali, hamma ixtiyoriy bilan) va har qator narxi — ishlab chiqarish suratidagi AYNAN hisob
+    (`production_service.retsept_tannarxi`). Tana — retsept yaratish bilan bir xil (qat'iy tekshiruv, materiallar —
+    shu korxonadan); hech narsa yozilmaydi."""
+    data = _tana("BOM", data, schemas.BOMCreate)
+    _cid = auth.company_id_of(current_user)
+    pt = db.query(ProductType).filter(ProductType.id == data.product_type_id, ProductType.company_id == _cid).first()
+    if not pt:
+        raise HTTPException(status_code=404, detail="Mahsulot turi topilmadi")
+    _retsept_materiallari(db, data.items, _cid)
+    return service.retsept_tannarxi(db, _cid, pt, data)
+
+
 @router.put("/boms/{bom_id}", response_model=schemas.BOMRead)
 def update_bom(bom_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_or_warehouse)):
     """MUHIM: bu FAQAT hali IN_PROGRESS/COMPLETED bo'lmagan kelajakdagi
@@ -263,13 +280,80 @@ def deactivate_bom(bom_id: int, db: Session = Depends(get_db), current_user=Depe
 # ISHLAB CHIQARISH BUYURTMALARI (ProductionOrder)
 # ============================================================
 
-@router.get("/orders", response_model=list[schemas.ProductionOrderRead])
-def list_production_orders(status: str = None, db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
-    q = db.query(ProductionOrder).filter(ProductionOrder.company_id == auth.company_id_of(current_user))
+def _oy_qiymati(oy: str):
+    """`oy` — "YYYY-MM" (Toshkent kalendar oyi) → (yil, oy). Noto'g'ri qiymat — 400 (matn bilan)."""
+    try:
+        yil_s, oy_s = str(oy).strip().split("-")
+        yil, oyn = int(yil_s), int(oy_s)
+        if len(yil_s) != 4 or not (2000 <= yil <= 2100) or not (1 <= oyn <= 12):
+            raise ValueError
+        return yil, oyn
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Davr «YYYY-MM» shaklida bo'lishi kerak (masalan 2026-09)")
+
+
+@router.get("/orders", response_model=list[schemas.ProductionOrderListItem])
+def list_production_orders(status: str = None, oy: str = None, db: Session = Depends(get_db),
+                           current_user=Depends(auth.admin_warehouse_or_manager)):
+    """kech113 (dizayn 4-band): `oy` = "YYYY-MM" — shu Toshkent oyida YAKUNLANGAN / BEKOR QILINGANLAR va HAMMA hali
+    ochiq (qoralama, jarayondagi) ishlab chiqarishlar (ochiq ish oy o'tsa ham ro'yxatdan tushib qolmasin);
+    `oy` yo'q yoki "hammasi" — hammasi (avvalgidek). Har qatorga ko'rsatish uchun qo'shimcha maydonlar —
+    `production_service.royxat_qoshimchalari` (so'rovlar soni qator soniga bog'liq emas)."""
+    _cid = auth.company_id_of(current_user)
+    q = db.query(ProductionOrder).filter(ProductionOrder.company_id == _cid)
     if status:
         q = q.filter(ProductionOrder.status == status)
-    rows = q.order_by(ProductionOrder.created_at.desc()).all()
-    return [_serialize_po(r) for r in rows]
+    if oy and str(oy).strip().lower() != "hammasi":
+        yil, oyn = _oy_qiymati(oy)
+        q = q.filter(or_(
+            ProductionOrder.status.in_([service.ProductionOrderStatus.DRAFT.value,
+                                        service.ProductionOrderStatus.IN_PROGRESS.value]),
+            and_(ProductionOrder.status == service.ProductionOrderStatus.COMPLETED.value,
+                 tashkent_oyida(ProductionOrder.completed_at, yil, oyn)),
+            and_(ProductionOrder.status == service.ProductionOrderStatus.CANCELLED.value,
+                 tashkent_oyida(ProductionOrder.cancelled_at, yil, oyn)),
+        ))
+    rows = q.order_by(ProductionOrder.created_at.desc(), ProductionOrder.id.desc()).all()
+    qoshimcha = service.royxat_qoshimchalari(db, _cid, rows)
+    natija = []
+    for r in rows:
+        d = _serialize_po(r)
+        d.update(qoshimcha.get(r.id, {}))
+        natija.append(d)
+    return natija
+
+
+@router.get("/orders/preview")
+def preview_production_order(product_type_id: int = Query(...), bom_id: int = Query(...), quantity: float = Query(...),
+                             source_type: str = Query("warehouse_stock"),
+                             source_order_item_id: Optional[int] = Query(None),
+                             selected_optional_bom_item_ids: List[int] = Query(default=[]),
+                             db: Session = Depends(get_db), current_user=Depends(auth.admin_warehouse_or_manager)):
+    """kech113 (dizayn 3-band — «Yangi ishlab chiqarish» oynasi): yaratish + boshlash natijasi OLDINDAN — xomashyo
+    yetadimi, qanchasi yetmaydi, eng ko'pi qancha chiqadi, taxminiy tannarx. Hech narsa yozilmaydi; tekshiruvlar
+    yaratish / boshlash bilan AYNAN (`production_service.ishlab_chiqarish_rejasi`). Qiymatlar YARATISH tanasi
+    kabi tekshiriladi (`_tana("ProductionOrder", …)` — chegaralar, manba turi, id lar): yaratish rad etadigan
+    qiymatga reja «mumkin» demasin."""
+    _xom = {"product_type_id": product_type_id, "bom_id": bom_id, "quantity": quantity, "source_type": source_type,
+            "selected_optional_bom_item_ids": list(selected_optional_bom_item_ids or [])}
+    if source_order_item_id is not None:
+        _xom["source_order_item_id"] = source_order_item_id
+    data = _tana("ProductionOrder", _xom, schemas.ProductionOrderCreate)
+    natija = service.ishlab_chiqarish_rejasi(db, auth.company_id_of(current_user), data)
+    if not natija.get("success"):
+        raise HTTPException(status_code=400, detail=natija.get("message") or "Reja hisoblanmadi")
+    return natija
+
+
+@router.get("/orders/{po_id}/preview")
+def preview_existing_production_order(po_id: int, db: Session = Depends(get_db),
+                                      current_user=Depends(auth.admin_warehouse_or_manager)):
+    """kech113 («Boshlash» / «Yakunlash» oynasi): qoralama — joriy retsept bilan boshlash rejasi, jarayondagi — qotgan
+    surat bilan yakunlash rejasi (`production_service.mavjud_ishlab_chiqarish_rejasi`). Hech narsa yozilmaydi."""
+    natija = service.mavjud_ishlab_chiqarish_rejasi(db, po_id, auth.company_id_of(current_user))
+    if not natija.get("success"):
+        raise HTTPException(status_code=natija.get("kod") or 409, detail=natija.get("message") or "Reja hisoblanmadi")
+    return natija
 
 
 @router.get("/mrp-order-items")

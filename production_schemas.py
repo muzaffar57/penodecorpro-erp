@@ -199,6 +199,10 @@ class ProductionOrderSnapshotLine(BaseModel):
     # qiymatlardan va faqat kiritilgan qatorlardan hisoblaydi). Eski suratda yo'q — None.
     fixed_cost_per_unit: Optional[float] = None
     percentage_cost: Optional[float] = None
+    # kech113 (dizayn 4-band): suratda kech54 dan beri bor, javobda endi ham — «Batafsil» oynasi qoplama qatorini
+    # ajratib ko'rsatsin. Eski suratda yo'q — None.
+    is_coating: Optional[bool] = None
+    bom_item_id: Optional[int] = None
 
 
 class ProductionOrderRead(BaseModel):
@@ -223,6 +227,26 @@ class ProductionOrderRead(BaseModel):
     recipe_snapshot: List[ProductionOrderSnapshotLine] = Field(default_factory=list, description="recipe_snapshot_json'dan parse qilingan")
 
     model_config = {"from_attributes": True}
+
+
+class ProductionOrderListItem(ProductionOrderRead):
+    """kech113 (dizayn 4-band — ro'yxat): `GET /api/production/orders` qatori. `ProductionOrderRead` + ko'rsatish
+    uchun qo'shimchalar (`production_service.royxat_qoshimchalari`): mahsulot turi nomi va birligi (nofaol tur ham),
+    retsept nomi, mijoz buyurtmasi raqami / mijoz / detal / qoplama, tanlangan ixtiyoriy qatorlar, tayyor mahsulot,
+    qoralama va jarayondagi uchun taxminiy tannarx, qoralama uchun xomashyo holati."""
+    mahsulot_nomi: Optional[str] = None
+    birlik: Optional[str] = None
+    retsept_nomi: Optional[str] = None
+    manba_buyurtma_raqami: Optional[str] = None
+    manba_mijoz: Optional[str] = None
+    manba_detal: Optional[str] = None
+    manba_qoplamali: Optional[bool] = None
+    ixtiyoriy_idlar: List[int] = Field(default_factory=list)
+    finished_product_id: Optional[int] = None
+    taxminiy_tannarx: Optional[float] = None
+    xomashyo_holati: Optional[str] = None
+    yetmaydi: List[str] = Field(default_factory=list)
+    maks_bosh: Optional[float] = None
 
 
 class StockValidationIssue(BaseModel):
