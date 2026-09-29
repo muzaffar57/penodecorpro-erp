@@ -682,7 +682,7 @@ document.getElementById('sel-month').value=now.oy;
 document.getElementById('sel-year').value=now.yil;
 
 const MONTH_NAMES=['','Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
-function fmt(n){if(n>=1e6)return(n/1e6).toFixed(1)+' mln';if(n>=1e3)return(n/1e3).toFixed(0)+' ming';return Math.round(n||0).toString();}
+function fmt(n){return qisqaSumma(n);}   // kech115 (G3-10): manfiy ham (base.html)
 function fmtFull(n){return Number(Math.round(n||0)).toLocaleString('ru-RU');}
 // ── 118-band (kech94): YAGONA son / narx kiritish qoidasi ──────────────────
 // parseNum / narxMatni / narxniOqi / narxKorinishi / formatPriceInput matni debts, finance,
@@ -824,6 +824,8 @@ async function loadReport(){
   document.getElementById('r-foyda').textContent=fmt(d.sof_foyda)+" so'm";
   document.getElementById('r-foyda').style.color=d.sof_foyda>=0?'#8E44AD':'#EF4444';
   document.getElementById('r-foiz').textContent=d.foyda_foiz+'%';
+  // kech115 (G1-04): manfiy rentabellik — qizil (ilgari doim yashil)
+  document.getElementById('r-foiz').style.color = (Number(d.foyda_foiz) || 0) < 0 ? 'var(--f-danger)' : 'var(--f-success)';
   document.getElementById('r-buyurtma').textContent=d.buyurtmalar_soni+' ta';
 
   if (invRes && invRes.ok) {
@@ -1229,8 +1231,10 @@ async function loadDailyFinance() {
 
     const oqim = d.sales.total - d.expenses.total;
     const oqimEl = document.getElementById('hero-oqim');
-    animateCounter(oqimEl, Math.abs(oqim), " so'm");
-    if (oqim < 0) oqimEl.style.color = 'var(--f-danger)';
+    // kech115 (G3-10, O'LCHANGAN — audit: 1 674 000 − 25 480 000 kartada «23 806 000 so'm» — minus tashlanardi, farqi faqat
+    // rangda): ishora saqlanadi
+    animateCounter(oqimEl, oqim, " so'm");
+    oqimEl.style.color = oqim < 0 ? 'var(--f-danger)' : '';
 
     // (Jami xarajat summasi allaqachon "hero-xarajat" kartasida ko'rsatilgan)
 

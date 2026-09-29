@@ -389,9 +389,10 @@ input[type=number]{-moz-appearance:textfield}
           <div style="font-size:13px;color:#64748B;margin-top:3px" id="readyModalSubtitle">Quyidagi ma'lumotlarni tekshiring</div>
         </div>
         <div id="readyModalBody" style="padding:20px 24px;display:flex;flex-direction:column;gap:16px"></div>
+        <div id="readyModalXato" role="alert" style="display:none;margin:0 24px 14px;padding:11px 13px;border-radius:10px;background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:13.5px;line-height:1.5"></div>
         <div style="padding:16px 24px 22px;display:flex;gap:10px;border-top:1px solid #F1F5F9">
           <button onclick="closeReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-weight:600;font-size:14px;cursor:pointer">Bekor qilish</button>
-          <button onclick="submitReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
+          <button id="readyModalOk" onclick="submitReadyModal()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#16A34A;color:#fff;font-weight:600;font-size:14px;cursor:pointer">✓ Tasdiqlash</button>
         </div>
       </div>
     </div>
@@ -2878,6 +2879,21 @@ async function savePayment() {
 
   const writeOff = document.getElementById('pf-writeoff')?.checked || false;
 
+  // kech115 (G3-02 — Qarzdorlar sahifasidagi xuddi shu belgi): «qolganini chegirma qilish» to'lovdan keyin qolgan BUTUN
+  // qarzni kechiradi (`main._tolov_qoldigini_chegirmaga`, chegarasiz) — ilgari tasdiqsiz edi. Endi kechiriladigan summa
+  // saqlashdan OLDIN aniq ko'rsatiladi (0.5 so'mdan kichigi qarz emas — `models.QARZ_BARDOSH`).
+  if (writeOff) {
+    const joriy = _joriyQarz();
+    const kechir = (Math.round(joriy * 100) - Math.round(amount * 100)) / 100;   // butun tiyinlarda
+    if (kechir > 0.5) {
+      const ha = await showConfirmModal(
+        `⚠️ ${formatNum(amount)} so'm to'lovdan keyin qolgan ${narxKorinishi(kechir)} so'm KECHIRILADI (chegirma) — mijozdan olinmaydi, foyda hisobotidan ayiriladi.\n\nDavom etasizmi?`,
+        {danger:true, okText:'Ha, kechirish'}
+      );
+      if (!ha) return;
+    }
+  }
+
   // Qarzdan ko'p summa kiritilsa — tasdiqlashni so'raymiz (tasodifiy xato bo'lishi mumkin,
   // lekin ba'zan mijoz qasddan ortiqcha to'laydi, shuning uchun QAT'IY bloklamaymiz)
   let overpayConfirmed = false;
@@ -2971,9 +2987,12 @@ async function deletePayment(paymentId) {
     if (res.ok) {
       loadPayments(selectedOrderId);
       showMsg('✓ To\'lov o\'chirildi', 'success');
+    } else {
+      // kech115 (G2-03 davomi): ilgari server rad etsa HECH NARSA ko'rsatilmasdi — to'lov o'chdi deb o'ylanardi
+      showMsg('❌ ' + await tolovXatoSababi(res, "To'lov o'chirilmadi"), 'error');
     }
   } catch(e) {
-    showMsg('❌ Xato', 'error');
+    showMsg("❌ Server bilan aloqa yo'q — to'lov o'chirilmadi", 'error');
   }
 }
 
@@ -4666,6 +4685,9 @@ async function saveOrder(isDraft = false) {
     return;
   }
 
+  // kech115 (G2-07): narxsiz detal — tasdiqsiz saqlanmaydi
+  if (!await _narxsizTasdiq(_narxsizDetallar(items, false), isDraft)) return;
+
   const finalPrice = parseNum(document.getElementById('final_price')?.value || '0');
   const zaklat = parseNum(document.getElementById('zaklat_amount')?.value || '0');
   const zaklatMethod = document.getElementById('zaklat_method')?.value || 'naqd';
@@ -5509,6 +5531,32 @@ function retseptMajburiyXatosi54(anyCoated, loyVal) {
 // kech108 (71-band qoldig'i, O'LCHANGAN kech107 `work/probe107u71.py`): `base_price` siz (API / eski) yaratilgan buyurtma
 // tahrirda o'zgarishsiz saqlansa detal narxi 200 000 → 0 (jami 0) — JIM edi. Saqlangan narxi > 0, yangi narxi 0 bo'lgan
 // detallar ro'yxati (nom, eski, yangi) — `updateOrder` ogohlantiradi.
+// kech115 (G2-07, O'LCHANGAN — audit: «1 m³ asosiy narxi» bo'sh qolsa buyurtma 0 so'm bilan OGOHLANTIRISHSIZ yaratilardi;
+// tahrirda faqat «narx 0 ga tushdi» tekshiruvi bor edi): narxi 0 (yoki yo'q) detallar — nom va turi. `faqatYangi` —
+// tahrirda faqat YANGI qo'shilgan qatorlar (saqlangan narxi yo'q; saqlangan narxi bor qator — `_narxiNolgaTushgan`).
+// Server 0 narxni qabul qiladi (ataylab — tekin namuna); sahifa faqat ogohlantiradi, bloklamaydi.
+function _narxsizDetallar(items, faqatYangi) {
+  return (items || []).filter(it => {
+    if (!it) return false;
+    const narx = parseFloat(it.unit_price);
+    if (narx > 0) return false;
+    if (faqatYangi) {
+      const r = it._qator;
+      return !(r && r.dataset && r.dataset.saqlanganNarx !== undefined && r.dataset.saqlanganNarx !== '');
+    }
+    return true;
+  }).map(it => String(it.name || '(nomsiz)'));
+}
+
+async function _narxsizTasdiq(nomlar, qoralama) {
+  if (!nomlar.length) return true;
+  const qatorlar = nomlar.slice(0, 12).map(n => `• ${n}`).join('\n') + (nomlar.length > 12 ? `\n… yana ${nomlar.length - 12} ta` : '');
+  return await showConfirmModal(
+    `Quyidagi detal(lar) narxi KIRITILMAGAN (0 so'm):\n\n${qatorlar}\n\nOdatda bu «1 m³ asosiy narxi» yoki detal narxi yozilmaganda bo'ladi — buyurtma summasi kam chiqadi.`
+    + (qoralama ? "\n\nQoralama shunday saqlansinmi?" : "\n\nShunday (0 narx bilan) saqlansinmi?") + "\n«Bekor» — hech narsa saqlanmaydi, narxni kiriting.",
+    {icon: '⚠️', title: 'Narx kiritilmagan', danger: true, okText: "Ha, 0 bilan saqlash"});
+}
+
 function _narxiNolgaTushgan(items) {
   return (items || []).filter(it => {
     const r = it && it._qator;
@@ -5558,6 +5606,9 @@ async function updateOrder(orderId) {
     if (!await showConfirmModal(`Quyidagi detal(lar) narxi 0 ga tushadi:\n\n${qatorlar108}\n\nOdatda bu «Asosiy narx (1 m³)» yoki detal narxi kiritilmaganda bo'ladi. Shunday saqlansinmi?\n«Bekor» — hech narsa o'zgarmaydi.`,
                                 {icon: '⚠️', title: 'Narx 0 ga tushadi', okText: 'Ha, 0 bilan saqlash'})) return;
   }
+
+  // kech115 (G2-07): tahrirda YANGI qo'shilgan narxsiz detal ham (saqlangan narxi 0 ga tushgani — yuqorida, 71-band)
+  if (!await _narxsizTasdiq(_narxsizDetallar(items, true), false)) return;
 
   if (!await showConfirmModal("O'zgarishlar saqlansinmi?\n\nOmbor faqat farq miqdorida to'g'rilanadi:\n• Ko'paysa — xomashyo qo'shimcha ayiriladi\n• Kamaysa — omborga qaytariladi", {icon:'💾', okText:'Saqlash'})) return;
 
@@ -5771,6 +5822,9 @@ async function markReadySelected() {
   }
 
   body.innerHTML = html;
+  // kech115 (G2-03): oldingi urinishning xatosi yangi ochilishda ko'rinmasin
+  const _xq = document.getElementById('readyModalXato');
+  if (_xq) { _xq.style.display = 'none'; _xq.innerHTML = ''; }
   document.getElementById('readyModalOverlay').style.display = 'flex';
 }
 
@@ -5778,10 +5832,24 @@ function closeReadyModal() {
   document.getElementById('readyModalOverlay').style.display = 'none';
 }
 
+// kech115 (G2-03, O'LCHANGAN — audit + `tools/test_a115_ui.py` B1): oyna so'rov yuborilishidan OLDIN yopilardi; server rad
+// etsa (MRP ishlab chiqarishi yakunlanmagan, omborda yetmaydi) xato matni yashirin `resultBox` ga yozilar, lekin quti
+// ko'rsatilmasdi — hodim hech narsa ko'rmay, buyurtma tayyor bo'ldi deb o'ylardi. Endi: oyna faqat MUVAFFAQIYATDA
+// yopiladi; rad sababi oynaning o'zida (qizil) va qalqib chiquvchi xabarda; kutish paytida tugma o'chiq (ikki bosish
+// yo'q); JSON bo'lmagan javob ham sabab bilan (`xatoSababi` — base.html).
+function _tayyorXatosi(html) {
+  const q = document.getElementById('readyModalXato');
+  if (q) { q.innerHTML = html; q.style.display = 'block'; }
+}
+
 async function submitReadyModal() {
   const loyKg = document.getElementById('rm-loy')?.value || '';
-
-  closeReadyModal();
+  const okBtn = document.getElementById('readyModalOk');
+  if (okBtn && okBtn.disabled) return;
+  const _xq = document.getElementById('readyModalXato');
+  if (_xq) { _xq.style.display = 'none'; _xq.innerHTML = ''; }
+  const _okMatn = okBtn ? okBtn.textContent : '';
+  if (okBtn) { okBtn.disabled = true; okBtn.textContent = 'Saqlanmoqda...'; }
 
   let url = `/api/orders/${selectedOrderId}/ready`;
   const qs = [];
@@ -5789,9 +5857,11 @@ async function submitReadyModal() {
   if (qs.length) url += '?' + qs.join('&');
   try {
     const res = await fetch(url, { method:'POST' });
-    const result = await res.json();
+    let result = null;
+    try { result = await res.clone().json(); } catch(e) { result = null; }
     const box = document.getElementById('resultBox');
-    if (res.ok) {
+    if (res.ok && result) {
+      closeReadyModal();
       let html = '<b>✓ Buyurtma tayyor!</b><br>';
       if (result.auto_delivery) {
         html += `<br>🚚 ${escapeHtml(result.auto_delivery.message)}`;
@@ -5822,12 +5892,25 @@ async function submitReadyModal() {
       box.style.display = 'block';
       setTimeout(()=>location.reload(), 6000);
     } else {
-      let html = '<b>❌ Xato!</b><br>';
-      if (result.detail?.shortages) html += result.detail.shortages.map(escapeHtml).join('<br>');
-      else html += escapeHtml(result.detail?.message || JSON.stringify(result.detail));
-      box.innerHTML = html; box.className = 'result-box error';
+      // kech115 (G2-03): rad — oyna OCHIQ qoladi, sabab oynada va xabarda
+      let html = '<b>❌ «Tayyor» saqlanmadi</b><br>';
+      let qisqa;
+      if (result && result.detail && Array.isArray(result.detail.shortages) && result.detail.shortages.length) {
+        html += result.detail.shortages.map(escapeHtml).join('<br>');
+        qisqa = String(result.detail.shortages[0]);
+      } else {
+        qisqa = xatoSababi(result, "«Tayyor» saqlanmadi");
+        html += escapeHtml(qisqa);
+      }
+      _tayyorXatosi(html);
+      showMsg('❌ ' + qisqa, 'error');
     }
-  } catch(e) { showMsg('Server xatosi', 'error'); }
+  } catch(e) {
+    _tayyorXatosi("<b>❌ Server bilan aloqa yo'q</b><br>Internetni tekshirib, qayta bosing — «Tayyor» saqlanmadi.");
+    showMsg("❌ Server bilan aloqa yo'q", 'error');
+  } finally {
+    if (okBtn) { okBtn.disabled = false; okBtn.textContent = _okMatn || '✓ Tasdiqlash'; }
+  }
 }
 
 // ── Foyda hisoblash ───────────────────────────────────────

@@ -82,7 +82,7 @@
 
   <div class="inv-kpi-grid">
     <div class="stat-card"><div class="stat-icon" style="background:#DBEAFE;color:#1D4ED8"><i class="ti ti-packages"></i></div><div class="stat-label">Jami xomashyo</div><div class="stat-val">{{ kpi.total_items }} tur</div></div>
-    <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
+    <div class="stat-card" id="kamQolganKarta" role="button" tabindex="0" title="Ro'yxatda ko'rsatish" style="cursor:pointer" onclick="kamQolganlarniKorsat()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();kamQolganlarniKorsat();}"><div class="stat-icon" style="background:#FEE2E2;color:#DC2626"><i class="ti ti-alert-triangle"></i></div><div class="stat-label">Kam qolganlar</div><div class="stat-val">{{ kpi.low_count }} ta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#DCFCE7;color:#166534"><i class="ti ti-arrow-down-left"></i></div><div class="stat-label">Bugungi kirim</div><div class="stat-val">{{ kpi.today_in_count }} marta</div></div>
     <div class="stat-card"><div class="stat-icon" style="background:#FEE2E2;color:#991B1B"><i class="ti ti-arrow-up-right"></i></div><div class="stat-label">Bugungi chiqim</div><div class="stat-val">{{ kpi.today_out_count }} marta</div></div>
     {% if current_user.role.value != 'manager' %}
@@ -98,11 +98,15 @@
       <option value="Kimyoviy qo'shimchalar">🧪 Kimyoviy qo'shimchalar</option>
       <option value="Qattiq qotishmalar">⛱️ Minerallar</option>
     </select>
+    {# kech115 (G4-06, O'LCHANGAN — audit: «Kam» filtri faqat «Oz» belgililarni, «Kam!» (chegaradan past) larni esa
+       «Tugagan» da ko'rsatardi; «Kam qolganlar N ta» kartasi aynan «Tugagan» ro'yxatini sanardi). Endi nomlar belgilar
+       bilan bir xil; «Kam qolganlar» = karta soni (chegaradan past + tugagan — `crud.kam_qoldiq_sharti`). #}
     <select id="statusFilter" onchange="filterMaterials()">
       <option value="">Barcha holat</option>
-      <option value="ok">Yetarli</option>
-      <option value="warn">Kam</option>
-      <option value="danger">Tugagan</option>
+      <option value="yetarli">Yetarli</option>
+      <option value="oz">Oz (chegaraga yaqin)</option>
+      <option value="kamqolgan">Kam qolganlar (chegaradan past + tugagan)</option>
+      <option value="tugagan">Tugagan (0)</option>
     </select>
     <select id="sortFilter" onchange="filterMaterials()">
       <option value="name">Nomi bo'yicha</option>
@@ -145,12 +149,12 @@
        (KPI "Kam qolganlar" ham uni sanamaydi — `services.get_inventory_kpi`) #}
     {# kech37 (21-band, foydalanuvchi qarori: "Ortgan loy uchun chegara shart emas"): Tayyor loy chizig'i
        chegaraga nisbatan EMAS — bor bo'lsa to'liq (100 %), bo'lmasa bo'sh (0 %); min > 0 qo'yilgan bo'lsa ham #}
-    {% if is_loy %}{% set st = 'neutral' if qty <= 0 else 'ok' %}{% set st_label = "Bo'sh" if qty <= 0 else 'Yetarli' %}{% set pct = 0 if qty <= 0 else 100 %}
-    {% elif qty <= minq %}{% set st = 'danger' %}{% set st_label = 'Tugagan' if qty <= 0 else 'Kam!' %}
-    {% elif qty <= minq * 1.5 %}{% set st = 'warn' %}{% set st_label = 'Oz' %}
-    {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% endif %}
+    {% if is_loy %}{% set st = 'neutral' if qty <= 0 else 'ok' %}{% set st_label = "Bo'sh" if qty <= 0 else 'Yetarli' %}{% set pct = 0 if qty <= 0 else 100 %}{% set holat = 'bosh' if qty <= 0 else 'yetarli' %}
+    {% elif qty <= minq %}{% set st = 'danger' %}{% set st_label = 'Tugagan' if qty <= 0 else 'Kam!' %}{% set holat = 'tugagan' if qty <= 0 else 'kam' %}
+    {% elif qty <= minq * 1.5 %}{% set st = 'warn' %}{% set st_label = 'Oz' %}{% set holat = 'oz' %}
+    {% else %}{% set st = 'ok' %}{% set st_label = 'Yetarli' %}{% set holat = 'yetarli' %}{% endif %}
     <div class="mat-row" style="animation-delay:{{ (loop.index0 % 20) * 0.02 }}s"
-         data-name="{{ item.item_name|lower }}" data-category="{{ item.category or '' }}" data-status="{{ st }}" data-qty="{{ qty }}">
+         data-name="{{ item.item_name|lower }}" data-category="{{ item.category or '' }}" data-status="{{ st }}" data-holat="{{ holat }}" data-qty="{{ qty }}">
       <div style="display:flex;gap:10px;align-items:stretch">
         <label class="mat-thumb" title="{{ '' if item.image_url else 'Rasm yuklash' }}">
           {% if item.image_url %}
@@ -1062,6 +1066,16 @@ async function deleteItem(id) {
   }
 }
 
+// kech115 (G4-06): «Kam qolganlar» kartasi bosilsa — shu ro'yxat filtrlanadi
+function kamQolganlarniKorsat() {
+  const sf = document.getElementById('statusFilter');
+  if (!sf) return;
+  sf.value = 'kamqolgan';
+  filterMaterials();
+  const l = document.getElementById('matList');
+  if (l && l.scrollIntoView) l.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
 // ── FILTRLASH / SARALASH ───────────────────────────────────
 function filterMaterials() {
   const q = document.getElementById('matSearch').value.trim().toLowerCase();
@@ -1075,7 +1089,9 @@ function filterMaterials() {
   rows.forEach(row => {
     const matchQ = !q || row.dataset.name.includes(q);
     const matchCat = !cat || row.dataset.category === cat;
-    const matchStatus = !status || row.dataset.status === status;
+    // kech115 (G4-06): holat — belgining o'zi (`data-holat`); «Kam qolganlar» — kam + tugagan (karta soni bilan bir)
+    const h = row.dataset.holat || '';
+    const matchStatus = !status || (status === 'kamqolgan' ? (h === 'kam' || h === 'tugagan') : h === status);
     const show = matchQ && matchCat && matchStatus;
     row.style.display = show ? '' : 'none';
     if (show) visibleCount++;

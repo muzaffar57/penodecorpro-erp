@@ -39,7 +39,8 @@
 .bi-health-card:hover{transform:translateY(-2px);box-shadow:var(--b-shadow-hover)}
 .bi-health-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px}
 .bi-health-label{font-size:12px;color:var(--b-text2);font-weight:600}
-.bi-health-status{font-size:11.5px;color:var(--b-text3);margin-top:4px;text-transform:capitalize}
+.bi-health-status{font-size:11.5px;color:var(--b-text3);margin-top:4px}   /* kech115: har so'z bosh harf bilan emas */
+.bi-health-sabab{font-size:11px;color:var(--b-text3);margin-top:3px;line-height:1.35}
 
 /* ── KPI kartalar (2-qator) ── */
 .bi-kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
@@ -365,7 +366,7 @@ const TITLES = {
 };
 
 const HEALTH_COLORS = {green:'#22C55E', orange:'#F59E0B', red:'#EF4444'};
-const HEALTH_LABELS = {green:'Yaxshi', orange:'Diqqat talab qiladi', red:'Muammoli'};
+const HEALTH_LABELS = {green:'Yaxshi', orange:'Diqqat talab qiladi', red:'Muammoli', gray:"Ma'lumot yetarli emas"};
 
 function setPeriod(days){
   currentDays = days;
@@ -382,6 +383,13 @@ async function loadHealth(){
       const label = document.getElementById(`h-${key}`);
       if (dot) dot.style.background = HEALTH_COLORS[status] || '#9CA3AF';
       if (label) label.textContent = HEALTH_LABELS[status] || status;
+      // kech115 (G1-06): baho sababi — bir qator
+      const sabab = h.sabablar && h.sabablar[key];
+      if (label && sabab) {
+        let z = label.parentElement.querySelector('.bi-health-sabab');
+        if (!z) { z = document.createElement('div'); z.className = 'bi-health-sabab'; label.after(z); }
+        z.textContent = sabab;
+      }
     });
   } catch(e) { console.error(e); }
 }
@@ -405,17 +413,17 @@ async function loadKpi(){
   // Taqqoslash bilan % o'zgarishni ham shu yerga qo'yamiz
   try {
     const comp = await fetch(`/api/reports/comparison?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
-    const setCh = (id, val) => {
+    const setCh = (id, key, v) => {
       const el = document.getElementById(id);
       if (!el) return;
-      const up = val >= 0;
-      el.innerHTML = `<i class="ti ti-arrow-${up?'up-right':'down-right'}"></i> ${Math.abs(val)}% o'tgan oyga nisbatan`;
-      el.style.color = up ? 'var(--b-success)' : 'var(--b-danger)';
+      const o = ozgarishKorinishi(key, v);
+      el.innerHTML = o.html + (o.foizli ? " o'tgan oyga nisbatan" : '');
+      el.style.color = o.rang;
     };
-    if (comp.daromad) setCh('kpi-daromad-ch', comp.daromad.change_pct);
-    if (comp.jami_xarajat) setCh('kpi-xarajat-ch', comp.jami_xarajat.change_pct);
-    if (comp.sof_foyda) setCh('kpi-foyda-ch', comp.sof_foyda.change_pct);
-    if (comp.foyda_foiz) setCh('kpi-foiz-ch', comp.foyda_foiz.change_pct);
+    if (comp.daromad) setCh('kpi-daromad-ch', 'daromad', comp.daromad);
+    if (comp.jami_xarajat) setCh('kpi-xarajat-ch', 'jami_xarajat', comp.jami_xarajat);
+    if (comp.sof_foyda) setCh('kpi-foyda-ch', 'sof_foyda', comp.sof_foyda);
+    if (comp.foyda_foiz) setCh('kpi-foiz-ch', 'foyda_foiz', comp.foyda_foiz);
   } catch(e) {}
 }
 
@@ -547,6 +555,26 @@ async function loadTopRankings(){
   } catch(e) { console.error(e); }
 }
 
+// kech115 (G1-01, O'LCHANGAN — audit: o'tgan oy 0 bo'lsa DOIM «↗ 100 %», zarar oyida «Sof foyda 100 % oshdi»; kartada
+// xarajat o'sishi yashil, pastda qizil): YAGONA ko'rinish qoidasi — server `holat` / `change_pct` dan. Foiz yo'q (o'tgan oy
+// 0) — «o'tgan oyda ma'lumot yo'q» (kulrang); o'zgarmadi — kulrang; rang — ko'rsatkich ma'nosi bo'yicha (xarajat o'sishi
+// — qizil, qolganlari — yashil).
+function ozgarishKorinishi(key, v) {
+  const kul = 'var(--b-text3)';
+  if (v && (v.holat === 'ozgarmadi' || (v.change_pct !== null && v.change_pct !== undefined && Number(v.change_pct) === 0))) {
+    return { html: "o'zgarmadi", rang: kul, foizli: false, matn: "o'zgarmadi" };
+  }
+  if (!v || v.holat === 'malumot_yoq' || v.change_pct === null || v.change_pct === undefined) {
+    return { html: "o'tgan oyda ma'lumot yo'q", rang: kul, foizli: false, matn: "o'tgan oyda ma'lumot yo'q" };
+  }
+  const up = v.holat ? v.holat === 'oshdi' : Number(v.change_pct) > 0;
+  const good = key === 'jami_xarajat' ? !up : up;
+  const foiz = Math.abs(Number(v.change_pct));
+  return { html: `<i class="ti ti-arrow-${up ? 'up-right' : 'down-right'}"></i> ${foiz}%`,
+           rang: good ? 'var(--b-success)' : 'var(--b-danger)', foizli: true,
+           matn: `${foiz}% ${up ? 'oshdi' : 'kamaydi'}`, yaxshi: good };
+}
+
 // ═══ 7. TAQQOSLASH ═══
 async function loadComparison(){
   const tk = tkHozir();     // kech106: joriy oy — Toshkent
@@ -555,11 +583,9 @@ async function loadComparison(){
     Object.entries(comp).forEach(([key, v]) => {
       const el = document.getElementById(`comp-${key}`);
       if (!el) return;
-      const up = v.change_pct >= 0;
-      const isCostMetric = key === 'jami_xarajat';
-      const good = isCostMetric ? !up : up;
-      el.innerHTML = `<i class="ti ti-arrow-${up?'up-right':'down-right'}"></i> ${Math.abs(v.change_pct)}%`;
-      el.style.color = good ? 'var(--b-success)' : 'var(--b-danger)';
+      const o = ozgarishKorinishi(key, v);     // kech115 (G1-01): kartadagi bilan BITTA qoida
+      el.innerHTML = o.html;
+      el.style.color = o.rang;
     });
   } catch(e) { console.error(e); }
 }
@@ -614,13 +640,19 @@ async function buildAiSummary(alerts){
   try {
     const comp = await fetch(`/api/reports/comparison?year=${tk.yil}&month=${tk.oy}`).then(r=>r.json());
     const lines = [];
-    if (comp.daromad) {
-      const d = comp.daromad.change_pct;
-      lines.push(`Daromad o'tgan oyga nisbatan ${d>=0?'<b style="color:#22C55E">'+d+'% oshdi</b>':'<b style="color:#EF4444">'+Math.abs(d)+'% kamaydi</b>'}`);
-    }
+    // kech115 (G1-01): foiz yo'q / o'zgarmadi — o'z matni; bu oy zarar bo'lsa — «zarar» (o'sish deb emas)
+    const qator = (nom, key, v) => {
+      const o = ozgarishKorinishi(key, v);
+      const rang = o.foizli ? (o.yaxshi ? '#22C55E' : '#EF4444') : '#6B7280';
+      return `${escapeHtml(nom)} o'tgan oyga nisbatan <b style="color:${rang}">${escapeHtml(o.matn)}</b>`;
+    };
+    if (comp.daromad) lines.push(qator('Daromad', 'daromad', comp.daromad));
     if (comp.sof_foyda) {
-      const f = comp.sof_foyda.change_pct;
-      lines.push(`Sof foyda ${f>=0?'<b style="color:#22C55E">'+f+'% oshdi</b>':'<b style="color:#EF4444">'+Math.abs(f)+'% kamaydi</b>'}`);
+      if (Number(comp.sof_foyda.current) < 0) {
+        lines.push(`Bu oy <b style="color:#EF4444">zarar: ${escapeHtml(fmtShort(comp.sof_foyda.current))} so'm</b>`);
+      } else {
+        lines.push(qator('Sof foyda', 'sof_foyda', comp.sof_foyda));
+      }
     }
     // kech30: `lines` — HTML qatorlar (yuqoridagi <b> lar); ogohlantirish matnida
     // foydalanuvchi kiritgan material nomi bor — shuning uchun escape qilinadi.

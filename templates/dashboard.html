@@ -438,7 +438,7 @@ const COLORS={gold:'#B9783F',green:'#22C55E',blue:'#0EA5E9',orange:'#F59E0B',red
 const ST_COLORS={'draft':'#95A5A6','new':COLORS.blue,'in_progress':COLORS.orange,'coating':COLORS.purple,'ready':COLORS.green,'delivered':COLORS.gold,'cancelled':COLORS.gray};
 const ST_LABELS={'draft':'Qoralama','new':'Yangi','in_progress':'Jarayonda','coating':'Qoplama','ready':'Tayyor','delivered':'Yetkazildi','cancelled':'Bekor'};
 let mC,sC;
-function fmt(n){if(n>=1e6)return(n/1e6).toFixed(1)+' mln';if(n>=1000)return(n/1000).toFixed(0)+' ming';return n.toFixed(0);}
+function fmt(n){return qisqaSumma(n);}   // kech115 (G3-10): manfiy ham ajratgichli (base.html)
 
 async function loadAll(){
   const [s,c,t]=await Promise.all([

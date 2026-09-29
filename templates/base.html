@@ -202,6 +202,20 @@ async function serverXatoSababi(res, standart) {
 // sahifa shu (Buyurtmalar sahifasidagi bilan bir xil ko'rinishdagi)
 // umumiy, bloklamaydigan bildirishnomadan foydalanishi mumkin — agar
 // sahifaning o'zida shu nomdagi funksiya bo'lsa, o'sha ustunlik qiladi.
+// kech115 (G3-10 / G1-04, O'LCHANGAN — audit: zarar oyida «−2618028 so'm» ajratgichsiz, «Pul oqimi» minussiz): qisqa
+// summa — YAGONA qoida (Moliya, Dashboard): chegara MODUL bo'yicha (manfiy son ham «mln» / «ming»), ishora saqlanadi,
+// 1 000 dan kichigi ajratgich bilan. Ishora — `toLocaleString('ru-RU')` dagi kabi «-».
+function qisqaSumma(n) {
+  const x = Number(n) || 0;
+  const a = Math.abs(x);
+  // chegara — ko'rinishdagi yaxlitlashdan keyin (999 999.6 → «1.0 mln», 999.6 → «1 ming», «1000 ming» / «1000» emas);
+  // yaxlitlanib 0 bo'lgan manfiy — «0» («-0» emas)
+  const b = (x < 0 && Math.round(a) !== 0) ? '-' : '';
+  if (a >= 999500) return b + (a / 1e6).toFixed(1) + ' mln';
+  if (a >= 999.5) return b + (a / 1e3).toFixed(0) + ' ming';
+  return b + Math.round(a).toString();
+}
+
 function showMsg(text, type) {
   const box = document.createElement('div');
   box.style.cssText = `position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:3000;

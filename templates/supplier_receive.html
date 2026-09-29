@@ -308,6 +308,8 @@
         <div class="rcv-card-body" style="padding-top:6px">
           <div class="rcv-summary-row"><span class="rcv-sum-label">To'langan summa</span><span class="rcv-sum-val" style="color:var(--r-success)" id="sum-paid">0 so'm</span></div>
           <div class="rcv-summary-row debt"><span class="rcv-sum-label" style="font-weight:700;color:var(--r-text)">Qarzga qoladi</span><span class="rcv-sum-val" id="sum-debt">0 so'm</span></div>
+          <div id="sum-opening-warn" style="display:none;margin-top:10px;padding:9px 11px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:12.5px;color:#92400E;line-height:1.45">⚠️ <b>Boshlang'ich ombor</b> belgilangan: ta'minotchiga qarz yozilmaydi, «Hozir to'langan summa» yuborilmaydi, Kassaga ta'sir qilmaydi. Yangi xarid bo'lsa — belgini olib tashlang.</div>
+          <div id="sum-date-warn" style="display:none;margin-top:10px;padding:9px 11px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:12.5px;color:#1E40AF;line-height:1.45"></div>
         </div>
       </div>
 
@@ -542,6 +544,7 @@ function saveDraft(){
     const draft = {
       supplierId: currentSupplierId,
       docNum: document.getElementById('r-docnum')?.value || '',
+      receiptDate: document.getElementById('r-date')?.value || '',
       dueDate: document.getElementById('ap-due-date')?.value || '',
       notes: document.getElementById('ap-notes')?.value || '',
       costTransport: document.getElementById('ap-cost-transport')?.value || '',
@@ -572,6 +575,7 @@ function restoreDraft(){
     if (sel.value == draft.supplierId) onSupplierChange();
   }
   if (document.getElementById('r-docnum')) document.getElementById('r-docnum').value = draft.docNum || '';
+  if (document.getElementById('r-date') && draft.receiptDate) document.getElementById('r-date').value = draft.receiptDate;
   if (document.getElementById('ap-due-date')) document.getElementById('ap-due-date').value = draft.dueDate || '';
   if (document.getElementById('ap-notes')) document.getElementById('ap-notes').value = draft.notes || '';
   if (document.getElementById('ap-cost-transport')) document.getElementById('ap-cost-transport').value = draft.costTransport || '';
@@ -871,15 +875,40 @@ async function apAddToBasket(){
   // saqlaydi (pastda), shuning uchun bir nechta TURLI plotnostni bir vaqtda
   // qo'shish xavfsiz — har biri o'z narxi/hajmi bilan to'g'ri hisoblanadi.
 
+  apQatorniSavatga(itemId, item, qty, price);
+}
+
+// kech115 (G4-01): savatdagi AYNAN bir xil qator (material, miqdor, tiyinga yaxlitlangan narx, hajm) — server ham rad
+// etadi (`crud.kirim_takror_qator`). Bir materialni boshqa narx / miqdorda (ikki partiya) qo'shish — mumkin.
+function apTakrorQator(itemId, qty, price, volumePerUnit){
+  const narx = buyurtmaJami(qty, price).narx;
+  return apBasket.findIndex(b => b.itemId === itemId && Number(b.qty) === Number(qty)
+    && buyurtmaJami(b.qty, b.price).narx === narx
+    && (b.volumePerUnit || null) === (volumePerUnit || null));
+}
+
+// kech115 (G4-01): qatorni savatga qo'shish — YAGONA joy («+ ro'yxatga qo'shish» va «Kirimni tasdiqlash» dagi
+// yozib qo'yilgan oxirgi qator). Qo'shilgach maydonlar tozalanadi — qayta bosishda qator ikkinchi marta qo'shilmaydi.
+// Qaytaradi: true — qo'shildi, false — takror (xabar chiqdi, hech narsa o'zgarmadi).
+function apQatorniSavatga(itemId, item, qty, price){
+  const volumePerUnit = parseNum(document.getElementById('ap-volume').value)||null;
+  const takror = apTakrorQator(itemId, qty, price, volumePerUnit);
+  if (takror >= 0) {
+    showMsg("❌ Bu qator ro'yxatda allaqachon bor (" + (takror + 1) + "-qator: " + (item ? item.item_name : '?') + ", "
+      + qty + " × " + narxKorinishi(price) + " so'm). Ikki partiya bo'lsa — miqdorini birlashtiring.", 'error');
+    return false;
+  }
   // 125-band (kech96): qator jamisi — server qoidasi bilan (`crud._xarid_narx_jami`, bazaga yoziladigan AYNAN summa)
-  apBasket.push({ itemId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:buyurtmaJami(qty, price).jami, isPenoplast: item?item.is_penoplast:false, volumePerUnit: parseNum(document.getElementById('ap-volume').value)||null });
+  apBasket.push({ itemId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:buyurtmaJami(qty, price).jami, isPenoplast: item?item.is_penoplast:false, volumePerUnit });
 
   document.getElementById('ap-item').value='';
   document.getElementById('ap-qty').value='';
   document.getElementById('ap-price').value='';
   document.getElementById('ap-total').value='—';
+  document.getElementById('ap-volume').value='';
   document.getElementById('ap-volume-wrap').style.display='none';
   renderBasket();
+  return true;
 }
 
 function apRemoveFromBasket(idx){ apBasket.splice(idx,1); renderBasket(); }
@@ -923,20 +952,44 @@ function apGetExtraCosts(){
 // ko'rindi), kassa −140 000 (transport IKKI marta). To'lovsiz holatda oyna "Qarzga qoladi 120 000" derdi, haqiqiy
 // qarz 100 000 edi. Summalar butun so'mga yaxlitlanardi (R1: 7 × 1 000,07 = 7 000.49 → "To'liq to'lash" 7 000,
 // 0.49 yashirin qarz). Endi: qarz va "To'liq to'lash" — mahsulotlar jami (server qoidasi, tiyingacha).
+// kech115 (G4-02): «Boshlang'ich ombor» belgisi turganda server ta'minotchiga qarz ham, to'lov ham yozmaydi
+// (`paid_now: 0`, qatorlar nasiya emas) — ilgari xulosa buni o'qimay «Qarzga qoladi 5 000 000» derdi, omborchi
+// belgi ishlayotganini ko'rmasdi. Endi to'langan / qarz — 0, ostida sariq ogohlantirish. Sana bugun bo'lmasa —
+// ko'k eslatma (G4-03).
 function updateSummary(){
   const productsTotal = pulYigindi(apBasket.map(b => b.total));
   const ec = apGetExtraCosts();
   const extraTotal = pulYigindi([ec.transport, ec.tushirish, ec.yuklash, ec.boshqa]);
   const grand = pulYigindi([productsTotal, extraTotal]);
-  const paid = parseNum(document.getElementById('ap-paid-now').value)||0;
-  const debt = Math.max(0, pulYigindi([productsTotal, -paid]));
+  const opening = document.getElementById('ap-opening-stock')?.checked || false;
+  const paid = opening ? 0 : (parseNum(document.getElementById('ap-paid-now').value)||0);
+  const debt = opening ? 0 : Math.max(0, pulYigindi([productsTotal, -paid]));
 
   document.getElementById('sum-products').textContent = narxKorinishi(productsTotal)+" so'm";
   document.getElementById('sum-transport').textContent = narxKorinishi(extraTotal)+" so'm";
   document.getElementById('sum-grand').textContent = narxKorinishi(grand)+" so'm";
   document.getElementById('sum-paid').textContent = narxKorinishi(paid)+" so'm";
   document.getElementById('sum-debt').textContent = narxKorinishi(debt)+" so'm";
+  const ow = document.getElementById('sum-opening-warn');
+  if (ow) ow.style.display = opening ? 'block' : 'none';
+  const dw = document.getElementById('sum-date-warn');
+  if (dw) {
+    const sana = document.getElementById('r-date')?.value || '';
+    if (sana && sana !== tkISO()) {
+      dw.textContent = "📅 Kirim sanasi: " + sanaKorinishi(sana) + " — bugun emas. Xarid, xarajat va to'lov shu kunga yoziladi.";
+      dw.style.display = 'block';
+    } else {
+      dw.textContent = '';
+      dw.style.display = 'none';
+    }
+  }
   saveDraft();
+}
+
+// kech115: 'YYYY-MM-DD' → 'DD.MM.YYYY' (faqat ko'rinish; sana — kiritilgan kalendar kuni, vaqt mintaqasi yo'q)
+function sanaKorinishi(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));
+  return m ? (m[3] + '.' + m[2] + '.' + m[1]) : String(iso||'');
 }
 
 function apPayFull(){
@@ -950,29 +1003,21 @@ document.getElementById('ap-paid-now').addEventListener('input', updateSummary);
 document.getElementById('r-docnum')?.addEventListener('input', saveDraft);
 document.getElementById('ap-due-date')?.addEventListener('input', saveDraft);
 document.getElementById('ap-notes')?.addEventListener('input', saveDraft);
-document.getElementById('ap-opening-stock')?.addEventListener('change', saveDraft);
+document.getElementById('ap-opening-stock')?.addEventListener('change', updateSummary);   // kech115 (G4-02): xulosa ham
+document.getElementById('r-date')?.addEventListener('change', updateSummary);             // kech115 (G4-03)
 
 // ── YAKUNIY SAQLASH ──
 let isSubmittingReceive = false;
+// kech115 (G4-01, O'LCHANGAN — audit: sahifaning o'z skripti node da): ilgari yozib qo'yilgan (savatga qo'shilmagan)
+// oxirgi qator TEKSHIRUVLARDAN OLDIN savatga qo'shilardi va maydonlar tozalanmasdi — yo'nalish tanlanmagani uchun
+// to'xtagach, qayta bosishda o'sha qator IKKINCHI marta qo'shilib serverga ikki qator bo'lib ketardi (ombor va
+// ta'minotchi qarzi ikki baravar). Endi: (1) hamma tekshiruv (ta'minotchi, yo'nalish, sana) — AVVAL; (2) yozib
+// qo'yilgan qator — to'liq bo'lsagina, `apQatorniSavatga` orqali (maydonlar tozalanadi, takror qator rad);
+// chala qator (miqdor yoki narx yozilgan, ikkinchisi yo'q / material tanlanmagan) — to'xtaydi, JIM tashlab
+// yuborilmaydi. Server xatosida savat saqlanadi, maydonlar bo'sh — qayta bosish qatorni ikkilamaydi.
 async function submitReceive(){
   if (!currentSupplierId) { showMsg('❌ Yetkazib beruvchini tanlang', 'error'); return; }
   if (isSubmittingReceive) return; // Ikki marta bosishdan himoya
-
-  const wasCreatingNew = apCreatingNewItem;
-  const pendingId = await (async () => {
-    const qty = parseFloat(document.getElementById('ap-qty').value)||0;
-    const price = parseNum(document.getElementById('ap-price').value)||0;
-    if (qty && price) return await apResolveItemId();
-    return null;
-  })();
-  if (pendingId) {
-    const item = invItems.find(i=>i.id===pendingId);
-    const qty = parseFloat(document.getElementById('ap-qty').value)||0;
-    const price = parseNum(document.getElementById('ap-price').value)||0;
-    apBasket.push({ itemId:pendingId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:buyurtmaJami(qty, price).jami, isPenoplast:item?item.is_penoplast:false, volumePerUnit: parseNum(document.getElementById('ap-volume').value)||null });
-  }
-
-  if (!apBasket.length) { showMsg('❌ Kamida bitta mahsulot qo\'shing', 'error'); return; }
 
   // Yo'nalish (Umumiy/Penoplast/Gips) ONGLI ravishda tanlanmagan bo'lsa —
   // endi bu MAJBURIY: davom etishga umuman ruxsat berilmaydi. ("Umumiy"ning
@@ -985,6 +1030,36 @@ async function submitReceive(){
     return;
   }
 
+  // kech115 (G4-03): kirim sanasi — bo'sh bo'lmasin, kelajakda bo'lmasin (server ham tekshiradi — `crud.kirim_sanalari`)
+  const receiptDate = document.getElementById('r-date').value || '';
+  const bugunISO = tkISO();
+  if (!receiptDate) { showMsg('❌ Kirim sanasini kiriting', 'error'); return; }
+  if (receiptDate > bugunISO) { showMsg('❌ Kirim sanasi kelajakda bo\'lishi mumkin emas: ' + sanaKorinishi(receiptDate), 'error'); return; }
+  const dueDate = document.getElementById('ap-due-date').value || null;
+  if (dueDate && dueDate < receiptDate) {
+    showMsg("❌ To'lov muddati (" + sanaKorinishi(dueDate) + ") kirim sanasidan (" + sanaKorinishi(receiptDate) + ") oldin bo'lishi mumkin emas", 'error');
+    return;
+  }
+
+  // Yozib qo'yilgan, lekin «+ ro'yxatga qo'shish» bosilmagan oxirgi qator
+  const qtyP = parseFloat(document.getElementById('ap-qty').value)||0;
+  const priceP = parseNum(document.getElementById('ap-price').value)||0;
+  if (qtyP || priceP) {
+    if (!qtyP || !priceP) { showMsg("❌ Oxirgi qator to'liq emas: miqdor va narxni kiriting (yoki maydonlarni tozalang)", 'error'); return; }
+    const wasCreatingNew = apCreatingNewItem;
+    const pendingId = await apResolveItemId();
+    if (!pendingId) { if (!wasCreatingNew) showMsg("❌ Oxirgi qator uchun materialni tanlang (yoki maydonlarni tozalang)", 'error'); return; }
+    const itemP = invItems.find(i=>i.id===pendingId);
+    if (!apQatorniSavatga(pendingId, itemP, qtyP, priceP)) return;
+  }
+
+  if (!apBasket.length) { showMsg('❌ Kamida bitta mahsulot qo\'shing', 'error'); return; }
+
+  if (receiptDate !== bugunISO) {
+    const ok = await customConfirm("Kirim sanasi — " + sanaKorinishi(receiptDate) + " (bugun emas). Xarid, qo'shimcha xarajatlar va to'lov shu kunga yoziladi. Davom etilsinmi?");
+    if (!ok) return;
+  }
+
   if (isSubmittingReceive) return; // Ikki marta bosishdan himoya (yuqoridagi await/confirm paytida ham bosilgan bo'lishi mumkin)
   isSubmittingReceive = true;
   const submitBtn = document.getElementById('receive-submit-btn');
@@ -993,7 +1068,6 @@ async function submitReceive(){
   const paidNowTotal = parseNum(document.getElementById('ap-paid-now').value)||0;
   const ec = apGetExtraCosts();
   const addToCost = document.getElementById('ap-add-to-cost')?.checked || false;
-  const dueDate = document.getElementById('ap-due-date').value || null;
   const notes = document.getElementById('ap-notes').value || '';
   const docNum = document.getElementById('r-docnum').value || '';
   const isOpeningStock = document.getElementById('ap-opening-stock')?.checked || false;
@@ -1013,7 +1087,10 @@ async function submitReceive(){
     yuklash_cost: ec.yuklash, boshqa_cost: ec.boshqa,
     add_to_cost: addToCost,
     notes: notes || "Kirim sahifasidan qo'shildi",
-    production_type: document.getElementById('ap-prod-type')?.value || null
+    production_type: document.getElementById('ap-prod-type')?.value || null,
+    // kech115 (G4-03): ilgari ikkalasi ham yuborilmasdi — kirim doim bugun, qarz muddati hech qayerda saqlanmasdi
+    receipt_date: receiptDate,
+    payment_due_date: isOpeningStock ? null : dueDate
   };
 
   let resultData;
@@ -1054,6 +1131,14 @@ async function submitReceive(){
   document.getElementById('ap-add-to-cost').checked = false;
   document.getElementById('ap-due-date').value = '';
   document.getElementById('ap-notes').value = '';
+  // kech115 (G4-02, O'LCHANGAN — audit: node da): «boshlang'ich ombor» belgisi va hujjat raqami ilgari tozalanmasdi —
+  // keyingi oddiy xarid ham jimgina boshlang'ich (qarzsiz, to'lov 0) bo'lib, o'sha hujjat raqami bilan yozilardi.
+  // Sana — yana bugun (G4-03).
+  document.getElementById('ap-opening-stock').checked = false;
+  document.getElementById('r-docnum').value = '';
+  document.getElementById('r-date').value = tkISO();
+  updateSummary();
+  clearDraft();
   // Yo'nalish tanlovini ham tozalaymiz — keyingi kirim uchun operator
   // qayta, ONGLI ravishda tanlashi kerak (avvalgi tanlov "meros" bo'lib qolmasin)
   prodTypeChosen = false;
@@ -1061,6 +1146,11 @@ async function submitReceive(){
   document.querySelectorAll('#ap-prod-type-toggle .rcv-cat-opt').forEach(o => o.classList.remove('active'));
   document.getElementById('ap-prod-type-toggle').classList.remove('rcv-cat-error');
   loadHistoryForSupplier();
+  // kech115 (K115-1, O'LCHANGAN — `tools/test_kirim_a115.py` U8): `invItems` yuqorida bo'shatiladi, lekin qayta
+  // yuklanmasdi — keyingi kirimda savat qatori «?» nomi bilan chiqardi, penoplast tanlansa hajm maydoni ochilmasdi
+  // (`is_penoplast` topilmaydi → `volume_per_unit` yuborilmaydi). Endi ro'yxat serverdan qayta olinadi (yangi
+  // qoldiq va narxlar bilan).
+  loadInvItemsForAp();
 }
 
 function showMsg(text, type){
