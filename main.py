@@ -3755,6 +3755,11 @@ def api_update_inventory_item(item_id: int, data: dict = Body(...), db: Session 
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
+    except IntegrityError:
+        # kech112 (K112-4): `crud.update_item` nom bandligini oldindan tekshiradi; bu — parallel so'rov (tekshiruv va
+        # yozish orasida boshqa material shu nomni olgan) uchun ikkinchi to'siq: 500 emas, aniq sabab.
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Bu nomli material allaqachon omborda mavjud — boshqa nom tanlang")
     if not updated:
         raise HTTPException(status_code=404, detail="Topilmadi")
     return {"status": "ok", "category": updated.category}

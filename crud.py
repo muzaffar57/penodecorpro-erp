@@ -199,6 +199,12 @@ def add_item(db: Session, item_data: InventoryCreate, company_id: int = None) ->
     ham SHU korxona ichida qidiradi."""
     # 15-band: qat'iy tekshiruv — HECH NARSA yozilmasdan OLDIN (ValueError → 400).
     _clean_create("Inventory", item_data.model_dump(exclude_unset=True))
+    # kech112 (K112-4): nom chetidagi bo'shliqlarsiz (" Akril " va "Akril" — bitta material; UI ham `trim` qiladi,
+    # API esa bo'shliqli nomni ALOHIDA material qilib yaratardi — O'LCHANGAN `work/k113/probe_nom.py`). Bo'shliqsiz
+    # uzunlik (kamida 2) yuqoridagi `_clean_create` da tekshirilgan.
+    _toza_nom = str(item_data.item_name or "").strip()
+    if _toza_nom != item_data.item_name:
+        item_data = item_data.model_copy(update={"item_name": _toza_nom})
     is_peno = getattr(item_data, 'is_penoplast', False)
     # kech105 (K105-3, O'LCHANGAN — work/probe105.py): turkum ANIQ "Penoplast", `is_penoplast` esa umuman
     # YUBORILMAGAN bo'lsa (Ta'minotchilar sahifasi shunday yuborardi) — bu penoplast (plotnost). Ilgari
@@ -1061,6 +1067,27 @@ def update_item(db: Session, item_id: int, item_data: InventoryUpdate) -> Option
     if update_data.get("is_penoplast") is False and db_item.is_default_penoplast:
         raise ValueError("Asosiy penoplastni oddiy materialga aylantirib bo'lmaydi — "
                          "avval boshqa penoplastni asosiy qiling")
+    # kech112 (K112-4, O'LCHANGAN — `work/k113/probe_nom.py`, SQLite = PG; jonli C zanjiri sizish tekshiruvida topildi):
+    # materialni shu korxonadagi BOSHQA material nomiga qayta nomlash `uq_inventory_company_item_name` ga urilib
+    # 500 ("Serverda kutilmagan xato") va xato jurnaliga yozuv berardi; nom bo'shliqlari bilan ("Akril ") saqlanardi.
+    # Endi: nom chetidagi bo'shliqlarsiz; bo'sh — rad; boshqa material (yashirilgani ham — u nomni band qiladi) shu
+    # nomda bo'lsa — hech narsa yozilmasdan 400 (yaratishdagi "allaqachon mavjud" xabari kabi).
+    if "item_name" in update_data and update_data["item_name"] is not None:
+        _yangi_nom = str(update_data["item_name"]).strip()
+        if len(_yangi_nom) < 2:
+            raise ValueError("Material nomi kamida 2 belgi bo'lishi kerak")
+        update_data["item_name"] = _yangi_nom
+        if _yangi_nom != db_item.item_name:
+            _band = db.query(Inventory).filter(
+                Inventory.company_id == db_item.company_id,
+                Inventory.id != db_item.id,
+                Inventory.item_name == _yangi_nom
+            ).first()
+            if _band is not None:
+                if _band.is_deleted:
+                    raise ValueError(f'"{_yangi_nom}" nomi avval o\'chirilgan (yashirilgan) materialda band — '
+                                     f'boshqa nom tanlang')
+                raise ValueError(f'"{_yangi_nom}" nomli material allaqachon omborda mavjud — boshqa nom tanlang')
     for field, value in update_data.items():
         setattr(db_item, field, value)
     db.commit()

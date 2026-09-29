@@ -1,6 +1,6 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
-*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2)). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+*Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -314,6 +314,10 @@ Tayyor loy ZAXIRASIDAN olingan loy — olingan paytdagi retsept tannarxida (kech
 harakatga shu narxni yozadi (`crud.log_movement(unit_cost=…)`), buyurtma qoplamasining zaxira qismi — o'sha narxda
 (`services._buyurtma_zaxira_loyi`, hisob `services._buyurtma_sarf_hisobi`), qolgani — ingredientlar narxida; eski (narxi
 0 / NULL) zaxira harakati — avvalgi qoida. Brak ham zaxira loyini shu narxda baholaydi.
+Qoplama xarajati foydaga `orders.actual_loy_kg` (yoki izohdagi `loy_kg=`) bo'yicha kiradi (kech112, K112-3): «Tayyor» da
+haqiqiy loy BO'SH qoldirilsa (API — `loy_kg` siz) `services.complete_order` rejani haqiqiy loy sifatida YOZADI —
+kiritilgan reja bilan AYNAN natija (ilgari "reja bo'yicha hisoblandi" deyilib, loy yozilmasdi va 20 kg (~30 000 so'm)
+qoplama foydadan tushib qolardi; `main` da bunday buyurtma yo'q — UI oynasi rejani oldindan to'ldiradi).
 
 **Turkumlar.** Doimiy (kodda): `profil`, `panel`, `dona`. Ixtiyoriy: `loy_sotish`; eskirgan: `blok` (faqat
 yoqilsa). `gips`, `termopanel` koddan olib tashlangan — kerak bo'lsa korxona MRP da o'z mahsulot turini
@@ -323,10 +327,17 @@ Ta'minotchilar va Kirim sahifalarida bir xil ro'yxat; turkum berilmasa nomidan �
 (plotnost) — `is_penoplast` BELGISI, nom emas: ro'yxat `services.get_penoplast_list`, asosiy —
 `services.get_default_penoplast` (nom bo'yicha faqat belgisi NULL eski qatorlar); turkum aniq "Penoplast", belgi
 yuborilmagan bo'lsa — `crud.add_item` penoplast qiladi (kech105, K105-3).
+Material nomi (kech112, K112-4): korxona ichida yagona (`uq_inventory_company_item_name` — yashirilgan material ham nomni
+band qiladi), chetidagi bo'shliqlarsiz saqlanadi (`crud.add_item`, `crud.update_item`); boshqa material nomiga qayta
+nomlash — 400 aniq sabab bilan (ilgari 500 va xato jurnali). Katta / kichik harf farqi — alohida nom (qoida o'zgarmagan).
 
 **MRP.** Ishlab chiqarish buyurtmasi retsept suratini boshlashda oladi (`production_service.start_production_order`),
 yakunlashda xomashyoni yechadi va yetmasa rad etadi (`production_service.complete_production_order`,
 `allow_negative_stock` o'chiq). Buyurtma detaliga ishlab chiqarilganidan ko'p yuk xati yozilmaydi.
+MRP tayyor mahsuloti «qoplamali» (`finished_products.is_coated`) — faqat shu ishlab chiqarish suratida qoplama qatori
+HAQIQATAN kiritilgan bo'lsa (kech112, K112-5; brak sarfi `services._mrp_birlik_sarfi` bilan bir qoida). Ilgari model
+standarti (True) qolardi: har MRP birligi (qoplamasiz travertin m², kafel kley kg ham) oylik hisobotdagi qoplamachi
+bonusiga va donabay hodim haqiga 1 000 so'mdan qo'shilardi.
 
 **Migratsiyalar.** Alembic YO'Q. `main.py` dagi `_migrate_*` funksiyalari server ishga tushganda (import paytida)
 ketma-ket yuradi — 9-bo'lim ISHGA_TUSHISH. Har biri IDEMPOTENT, o'z `try/except` va `conn.rollback()` bilan
@@ -600,6 +611,15 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   kartasi 1 379 476 → 1 030 301 (egasiga ko'rsatildi).
 - **SaaS / Telegram (kech107, 10g):** korxona sozlamasidagi bot — xabar YUBORADI, lekin usta menyusi (`/telegram/webhook`)
   faqat muhit boti (`TELEGRAM_BOT_TOKEN`) uchun ishlaydi.
+- **Ko'p korxonali YAKUNIY jonli sinov — BAJARILDI (kech112, `sinov`):** C korxonada (yangi mijoz, bo'sh) TO'LIQ ish zanjiri
+  (sozlama → ombor, rasm → ta'minotchi, kirim → qoplama retsepti → usta, hodim → loyiha → MRP: tur, retsept, 3 ishlab
+  chiqarish → 3 buyurtma: profil qoplamali + panel, donali + loy sotish + MRP, qoralama → jarayonga → zaklat, yuk xatlari,
+  to'lov → «Tayyor» → qaytarish + «Pulni qaytarish» → brak → tayyor mahsulot: sotuv, yo'qotish, ishlab chiqarish braki →
+  xarajat, transport, ta'minotchiga to'lov, avans, oylik tuzatma, usta KPI, majburiyat → 6 PDF → 20 sahifa): 100 qadam — 0
+  xato; jonli raqamlar lokal PG dagi aynan shu zanjir bilan AYNAN. Izolyatsiya: D → C 202, C → D 134, A (platforma admini)
+  → C, D 228, C → A 199 (faqat o'qish) tekshiruv — 0 sizish. Zanjir 3 kamchilik topdi (K112-3 / 4 / 5 — 4-bo'lim). Qolgani
+  (`main` dan oldin): korxona qo'shish (egasi, `/platforma`), dizayn. Sinovdagi eski MRP tayyor mahsulotlari (K112-5 dan oldin
+  yaratilgan) `is_coated` = True bo'lib qoldi — tuzatilmaydi (sinov ma'lumoti; `main` da MRP ma'lumoti yo'q).
 - **Admin paneli — BAJARILDI (kech111, zip 106; 4-bo'lim "Platforma — obuna va bloklash"):** kartochkalar, bloklash / ochish,
   obuna + uzaytirish, 30 kunlik sinov, eslatma (egasiga Telegram, mijozga yuqori panelda), 3 kundan keyin avtomatik bloklash,
   3 kunlik imtiyoz, aloqa telefoni, platforma raqamlari, hamma korxonalar xatolari, yuklangan fayllar himoyasi. Qolgani:
@@ -713,6 +733,16 @@ Egasining javoblari (sana, qisqa mazmun). Yangi savol faqat shu ro'yxatda YO'Q h
   `<script>` ichiga JSON qo'yilsa `</script>` bo'lagi skriptni yopadi — `<` → `\u003c`.
 - Tugmani CSS sinfining BIRINCHISI bilan topish (`querySelector('.btn-outline')`) — sahifaga boshqa shunday tugma qo'shilganda
   jimgina boshqasini topadi (K109-1, iyundan beri); tugmaga `id`.
+- (kech112) Yangi (bo'sh) korxonada TO'LIQ ish zanjiri — eng samarali jonli sinov: bir JS skript (`work/k112z/zanjir_c.js`)
+  avval lokal (Playwright + uvicorn, PG + TF1, platforma orqali yaratilgan korxona), so'ng jonli yuriladi va raqamlar
+  solishtiriladi (AYNAN bo'lishi shart) — 3 ta yangi kamchilik shu yo'l bilan topildi. Profil yetkazish miqdori — METR
+  (`/delivery-status` `remaining`), `quantity` emas: 1 yuborilsa «Tayyor» buyurtmani 1 m ga "yakunlaydi".
+- (kech112) Sizish skriptini egasining O'Z korxonasi (A) ga qarshi yurgizganda — faqat o'qish (`faqat_oqish`); yozish
+  urinishlari D ↔ C da (sinov korxonalari) tekshiriladi. Sizish skriptini hech qachon egasi korxonaning o'z sessiyasida
+  o'z ID lari bilan yurgizmang (o'zgartirish urinishlari HAQIQATAN bajariladi).
+- (kech112) Claude in Chrome `javascript_tool`: `(async () => …)()` natijasi `{}` qaytadi — yuqori darajadagi `await` yozing.
+  Ichki brauzer `read_console_messages` navigatsiyada tozalanmaydi (oldingi fetch 404 lari ham ko'rinadi) — `pattern`
+  ("Uncaught", "Error") bilan o'qing.
 
 ## 9. Xarita (AVTOMATIK)
 
@@ -1447,6 +1477,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_loyiha_izchillik.py` · PG — kech98 (2026-09-27), 130-band.
 - `test_loyiha_tahrir.py` · PG — kech107 darvozasi (5-bo'lim 10-band, "1a loyiha tahririda muddat"): LOYIHA TAHRIRI — muddat (deadline) va ixtiyoriy maydonlarni tozalash. UI qismi — `tools/test_loyiha_tahrir_…
 - `test_material_korxona.py` · PG — kech99 (2026-09-27), 112-band.
+- `test_material_nom.py` · PG — kech112 darvozasi: K112-4 — materialni (ombor) boshqa material nomiga qayta nomlash 500 berardi.
 - `test_mijozga_qaytarish.py` · PG — kech100 darvozasi (2026-09-27, 131-band, FOYDALANUVCHI QARORI "B" — "Kerak").
 - `test_moliya_tafsilot.py` · PG — kech106, K106-2 darvozasi: oylik moliya hisobotining xarajatlar ro'yxati (PDF "Xarajatlar tafsiloti" jadvali va Moliya sahifasidagi ro'yxat) JAMI XARAJAT bilan BIR xil bo'ls…
 - `test_mrp_band_korxona.py` · PG — kech109 darvozasi: MRP bandi va ishlab chiqarish bog'lamlari — korxona chegarasi (10b E-1) va buyurtma tahririda ishlab chiqarishga bog'langan detal (K109-2).
@@ -1455,6 +1486,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_mrp_kerak.py` · PG — kech72 darvozasi (2026-09-25, 85-band / K71-2): MRP detali uchun "hali ishlab chiqarish KERAK" miqdori — YAGONA qoida.
 - `test_mrp_loy_ulush.py` · PG — 5-bo'lim 44-band + K62-1 darvozasi (kech62, 2026-09-24): MRP detali buyurtma LOYINI sarflamaydi — YAGONA qoida.
 - `test_mrp_ortiqcha.py` · PG — kech73 darvozasi (2026-09-25, 86-band / K72-1): MRP detalidan ORTIQCHA qaytarish.
+- `test_mrp_qoplama_belgi.py` · PG — kech112 darvozasi: K112-5 — MRP ishlab chiqargan tayyor mahsulot DOIM «qoplamali» bo'lardi.
 - `test_mrp_tannarx.py` — MRP xarajati buyurtma foydasiga yetib boradimi.
 - `test_mrp_tayyorlik.py` · PG — kech80 darvozasi (2026-09-26, 88-band): buyurtmadagi «MRP: tayyor» belgisi va «Tayyor» tugmasi / yuk xati — BIR XIL shart.
 - `test_mrp_xarajat_surat.py` · PG — kech94 darvozasi (2026-09-27, 122-band): ishlab chiqarish buyurtmasini yakunlashdagi QO'SHIMCHA xarajat (`fixed_cost_per_unit` — 1 birlikka qat'iy summa, `percentage_cost`…
@@ -1498,6 +1530,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_tayyor_atomik.py` · PG — kech101 darvozasi (2026-09-27, 142-band + K101-1 … K101-4).
 - `test_tayyor_mahsulot.py` — Tayyor mahsulotning UCHTA ombor funksiyasi.
 - `test_tayyor_qiymat.py` — 17-band (17a) darvozasi: TAYYOR MAHSULOT qiymat yo'llari.
+- `test_tayyor_reja_loy.py` · PG — kech112 darvozasi: K112-3 — «Tayyor» da haqiqiy loy kiritilmasa, qoplama xarajati foydadan tushib qolardi.
 - `test_tayyor_yuk.py` · PG — kech75 darvozasi (2026-09-25, 91 / 92 / 93 / 94-band): "Tayyor" (READY) va yuk xati.
 - `test_telegram_tenant.py` — Telegram xabarnomalari va dashboard o'qishlari bo'yicha korxonalararo darvoza (9-sizish).
 - `test_tenant_isolation.py` — ikki korxonali avtomatik izolyatsiya testi.
@@ -1552,5 +1585,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 154 (Python 124, JS 30).
+Jami test fayllari: 157 (Python 127, JS 30).
 <!-- AVTO:TESTLAR OXIRI -->

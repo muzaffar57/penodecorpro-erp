@@ -735,6 +735,13 @@ def start_production_order(db: Session, po_id: int, company_id: int, performed_b
             # mahsulotga yozilmasdi — natijada liniya bo'yicha moliya
             # mahsulotning qaysi turdan ekanini bilolmasdi.
             product_type_id=po.product_type_id,
+            # kech112 (K112-5, O'LCHANGAN — jonli C zanjiri va `work/k113/probe_mrp_qoplama.py`, SQLite = PG):
+            # `is_coated` berilmasdi — model standarti True, ya'ni HAR MRP mahsuloti (qoplamasiz travertin m², kafel
+            # kley kg ham) "qoplamali" bo'lib, oylik hisobotdagi qoplamachi bonusiga va donabay hodim haqiga
+            # (`services.get_monthly_report` — "faqat HAQIQATAN qoplamali") har birligi 1 000 so'mdan qo'shilardi.
+            # Endi — shu ishlab chiqarishda qoplama qatori HAQIQATAN kiritilganmi (surat; brak sarfi
+            # `services._mrp_birlik_sarfi` bilan bir qoida).
+            is_coated=any(bool(_l.get("included")) and bool(_l.get("is_coating")) for _l in snapshot),
         )
         db.add(fp)
         db.flush()  # fp.id kerak, hali commit qilmasdan

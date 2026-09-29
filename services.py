@@ -1300,6 +1300,15 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                     "action": "teng",
                     "message": "Reja bo'yicha hisoblandi"
                 }
+                # kech112 (K112-3, O'LCHANGAN — `work/k113/probe_qoplama.py`, SQLite = PG; jonli C zanjiri): "reja bo'yicha"
+                # deyilardi, ombor ham rejani ishlatilgan deb qoldirardi, lekin haqiqiy loy YOZILMASDI — foyda
+                # (`calculate_order_profit`, u faqat `actual_loy_kg` / izohdagi `loy_kg=` ni o'qiydi) qoplama xarajatini
+                # 0 deb olardi: 20 kg loy (~30 000 so'm) tannarxdan tushib, buyurtma foydasi, oylik hisobot va usta KPI
+                # shuncha ortiq chiqardi. Endi kiritilgan miqdor kabi — reja haqiqiy loy sifatida yoziladi.
+                import re as _re_loy_reja
+                _reja_izoh = _re_loy_reja.sub(r',?\s*loy_kg=[\d.]+', '', order.notes or '').strip().strip(',').strip()
+                order.notes = (_reja_izoh + f", loy_kg={float(planned_loy)}").strip(', ')
+                order.actual_loy_kg = planned_loy
 
             db.commit()
 
