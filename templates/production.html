@@ -35,6 +35,44 @@
 .bom-row>div:first-child{flex:1;min-width:0}
 .bom-item-mini{font-size:11.5px;color:var(--text3)}
 
+/* kech114 (egasi QARORI «5B — Jadval»): mahsulot turlari — bitta jadval: tur, retseptlar va 1 birlik taxminiy
+   tannarxi (serverda — retsept oynasidagi AYNAN hisob), omborda / jarayonda / band. Tor maydonda — karta. */
+#panel-types{container-type:inline-size;container-name:turlar}
+.pt-jadval-qobiq{background:var(--white);border:1px solid var(--border);border-radius:13px;overflow:hidden}
+.pt-jadval{width:100%;border-collapse:collapse}
+.pt-jadval th{text-align:left;font-size:11.5px;font-weight:700;color:var(--text2);padding:10px 14px;background:#FAF8F5;border-bottom:1px solid var(--border2);text-transform:uppercase;letter-spacing:.3px}
+.pt-jadval td{padding:12px 14px;border-bottom:1px solid var(--border2);font-size:13px;vertical-align:top}
+.pt-jadval tr:last-child td{border-bottom:none}
+.pt-jadval .o{text-align:right;white-space:nowrap}
+.pt-tur-nomi{font-size:14px;font-weight:700;color:var(--text)}
+.pt-tur-izoh{font-size:12px;color:var(--text2);margin-top:3px}
+.pt-retsept{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px dashed var(--border2)}
+.pt-retsept:first-child{border-top:0;padding-top:0}
+.pt-retsept-nom{font-weight:600}
+.pt-retsept-tannarx{font-size:12.5px;color:#374151;margin-top:2px}
+.pt-retsept-tannarx b{color:var(--text)}
+.pt-retsept-ogoh{font-size:11.5px;color:#92400E;margin-top:2px}
+.pt-retsept-amal{display:flex;gap:6px;flex-shrink:0}
+.pt-son{font-size:14px;font-weight:700}
+.pt-son.bosh{color:#9CA3AF;font-weight:600}
+.pt-son.band{color:#1D4ED8}
+.pt-son.jarayon{color:#92400E}
+.pt-amallar{display:flex;gap:6px;justify-content:flex-end}
+.pt-amallar .btn,.pt-retsept-amal .btn{white-space:nowrap}
+@container turlar (max-width:860px){
+  .pt-jadval-qobiq{background:transparent;border:0;border-radius:0;overflow:visible}
+  .pt-jadval thead{display:none}
+  .pt-jadval,.pt-jadval tbody{display:block}
+  .pt-jadval tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px;background:var(--white);border:1px solid var(--border);border-radius:13px;padding:12px 14px;margin-bottom:10px}
+  .pt-jadval td{padding:0;border:0!important;min-width:0}
+  .pt-jadval td.pt-c-tur,.pt-jadval td.pt-c-retsept,.pt-jadval td.pt-c-amal{grid-column:1/-1}
+  .pt-jadval td.pt-c-amal .pt-amallar{justify-content:stretch}
+  .pt-jadval td.pt-c-amal .btn{flex:1;min-height:40px}
+  .pt-jadval .o{text-align:left}
+  .pt-jadval td[data-yorliq]::before{content:attr(data-yorliq);display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:2px}
+  .pt-retsept .btn{min-height:40px}
+}
+
 /* ── Ro'yxat ── */
 .po-filtr{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .po-chiplar{display:flex;gap:6px;flex-wrap:wrap}
@@ -248,7 +286,7 @@
 
 <!-- ═══ MAHSULOT TURLARI ═══ -->
 <div class="prod-panel active" id="panel-types">
-  <div id="pt-list" class="pt-grid"><div style="padding:30px;text-align:center;color:var(--text3)">Yuklanmoqda...</div></div>
+  <div id="pt-list" class="pt-jadval-qobiq"><div style="padding:30px;text-align:center;color:var(--text3)">Yuklanmoqda...</div></div>
 </div>
 
 <!-- ═══ ISHLAB CHIQARISH ═══ -->
@@ -590,45 +628,59 @@ function narxUsuliMatni(pt) {
   return NARX_NOMI[pt.pricing_formula] || String(pt.pricing_formula || '');
 }
 
+function turTavsifi(pt) {
+  const q = [pt.unit, KIRITISH_NOMI[pt.input_template] || pt.input_template, 'narx: ' + narxUsuliMatni(pt)];
+  return q.filter(Boolean).join(' · ');
+}
+function retseptTannarxMatni(b, pt) {
+  if (!b.tannarx) return '<span class="po-kul">tannarx hisoblanmadi</span>';
+  const u = escapeHtml(pt.unit || '');
+  let m = `1 ${u} ≈ <b>${escapeHtml(pulKorinish(b.tannarx.doim))}</b>`;
+  if (b.qoplama_bor) m += ` · qoplamali ≈ <b>${escapeHtml(pulKorinish(b.tannarx.qoplamali))}</b>`;
+  return m;
+}
+function turSoni(x, pt, sinf) {
+  const n = Number(x) || 0;
+  return n > 0 ? `<span class="pt-son ${sinf || ''}">${escapeHtml(birlikMatni(n, pt.unit))}</span>` : '<span class="pt-son bosh">—</span>';
+}
+
+// kech114 (egasi QARORI «5B — Jadval»): bitta so'rov — GET /api/production/product-types/xulosa (tur maydonlari +
+// omborda / band / jarayonda + har retseptning 1 birlik taxminiy tannarxi; ilgari har tur uchun alohida /boms so'rovi).
 async function loadProductTypes(){
-  const res = await fetch('/api/production/product-types');
+  const res = await fetch('/api/production/product-types/xulosa');
   productTypesCache = res.ok ? await res.json() : [];
   const wrap = document.getElementById('pt-list');
   if (!productTypesCache.length) {
-    wrap.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3);grid-column:1/-1">Hali mahsulot turi qo\'shilmagan</div>';
+    wrap.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3)">Hali mahsulot turi qo\'shilmagan</div>';
     return;
   }
-  wrap.innerHTML = '';
-  for (const pt of productTypesCache) {
-    const boms = await fetch(`/api/production/product-types/${pt.id}/boms`).then(r => r.ok ? r.json() : []);
-    const card = document.createElement('div');
-    card.className = 'pt-card';
-    card.innerHTML = `
-      <div class="pt-head">
+  const qatorlar = productTypesCache.map(pt => {
+    const retseptlar = (pt.retseptlar || []).map(b => `
+      <div class="pt-retsept">
         <div>
-          <div class="pt-name">${escapeHtml(pt.name)}</div>
-          <div class="pt-badges">
-            <span class="pt-chip">Birlik: ${escapeHtml(pt.unit)}</span>
-            <span class="pt-chip">Kiritish: ${escapeHtml(KIRITISH_NOMI[pt.input_template] || pt.input_template)}</span>
-            <span class="pt-chip">Narx: ${escapeHtml(narxUsuliMatni(pt))}</span>
-            ${pt.supports_coating ? `<span class="pt-chip pt-chip-oltin">Qoplama mumkin · ×${escapeHtml(sonKorinish(pt.coating_price_multiplier))}</span>` : ''}
-          </div>
+          <div><span class="pt-retsept-nom">${escapeHtml(b.variant_name)}</span> <span class="bom-item-mini">(${escapeHtml(miqdorKorinish(b.batch_quantity))} ${escapeHtml(pt.unit)} uchun · ${Number(b.materiallar) || 0} ta material)</span></div>
+          <div class="pt-retsept-tannarx">${retseptTannarxMatni(b, pt)}</div>
+          ${(b.narxsiz || []).length ? `<div class="pt-retsept-ogoh">Narxi yo'q: ${escapeHtml(b.narxsiz.join(', '))}</div>` : ''}
         </div>
-        <button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id})">+ Retsept</button>
-      </div>
-      ${boms.map(b => `
-        <div class="bom-row">
-          <div>
-            <div>${escapeHtml(b.variant_name)} <span class="bom-item-mini">(${escapeHtml(miqdorKorinish(b.batch_quantity))} ${escapeHtml(pt.unit)} uchun)</span></div>
-            <div class="bom-item-mini">${b.items.length} ta material</div>
-          </div>
+        <div class="pt-retsept-amal">
           <button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id}, ${b.id})">Tahrirlash</button>
           <button class="btn btn-outline btn-sm" style="color:#DC2626;border-color:#FCA5A5" onclick="deactivateBom(${b.id})" title="Retseptni yashirish (eski ishlab chiqarishlarga ta'sir qilmaydi)" aria-label="Retseptni yashirish"><i class="ti ti-trash"></i></button>
         </div>
-      `).join('') || '<div class="bom-item-mini" style="margin-top:10px">Hali retsept yo\'q</div>'}
-    `;
-    wrap.appendChild(card);
-  }
+      </div>`).join('') || '<div class="bom-item-mini">Hali retsept yo\'q</div>';
+    return `<tr>
+      <td class="pt-c-tur">
+        <div class="pt-tur-nomi">${escapeHtml(pt.name)}</div>
+        <div class="pt-tur-izoh">${escapeHtml(turTavsifi(pt))}</div>
+        ${pt.supports_coating ? `<div class="pt-badges"><span class="pt-chip pt-chip-oltin">Qoplama mumkin · ×${escapeHtml(sonKorinish(pt.coating_price_multiplier))}</span></div>` : ''}
+      </td>
+      <td class="pt-c-retsept">${retseptlar}</td>
+      <td class="o pt-c-ombor" data-yorliq="Omborda">${turSoni(pt.omborda, pt, '')}</td>
+      <td class="o pt-c-jarayon" data-yorliq="Jarayonda">${turSoni(pt.jarayonda, pt, 'jarayon')}</td>
+      <td class="o pt-c-band" data-yorliq="Band">${turSoni(pt.band, pt, 'band')}</td>
+      <td class="pt-c-amal"><div class="pt-amallar"><button class="btn btn-outline btn-sm" onclick="openBomModal(${pt.id})">+ Retsept</button></div></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table class="pt-jadval"><thead><tr><th>Mahsulot turi</th><th>Retseptlar va 1 birlik taxminiy tannarxi</th><th class="o">Omborda</th><th class="o">Jarayonda</th><th class="o">Band</th><th></th></tr></thead><tbody>${qatorlar}</tbody></table>`;
 }
 
 // ============================================================
@@ -1577,6 +1629,20 @@ function showSnapshot(snapshot, status, poId){
 // ============================================================
 poDavrTanloviniQur();
 loadProductTypes();
-loadProductionOrders();
+// kech114 (K114-1): «Tayyor mahsulotlar»dagi jarayondagi MRP qatori «Ishlab chiqarishda ochish» — /production?po=ID:
+// «Ishlab chiqarish» ro'yxati ochiladi va shu ishlab chiqarishning oynasi (yakunlash / bekor qilish shu yerda).
+(async function () {
+  let poId = null;
+  try { poId = parseInt(new URLSearchParams(location.search).get('po') || '', 10); } catch (e) { poId = null; }
+  if (poId > 0) {
+    document.getElementById('po-davr').value = 'hammasi';
+    switchProdTab('orders');
+  }
+  await loadProductionOrders();
+  if (poId > 0) {
+    if (poRoyxat.some(p => p.id === poId)) poBatafsil(poId);
+    else showMsg('Ishlab chiqarish topilmadi', 'error');
+  }
+})();
 </script>
 {% endblock %}

@@ -455,9 +455,11 @@ input[type=number]{-moz-appearance:textfield}
               <input type="text" id="base_price" placeholder="Masalan: 1 200 000" oninput="formatPriceInput(this);recalcAll()">
             </div>
             <div class="form-group" style="margin:0">
-              <label style="display:flex;align-items:center;gap:6px">Loy miqdori (kg) <span style="font-weight:400;color:var(--text3);font-size:11.5px">— qoplamali penoplast detallari uchun (MRP mahsuloti qoplamasi o'z retseptidan)</span></label>
+              <label for="loy_kg">Loy miqdori (kg)</label>
               <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
-                     oninput="checkLoyStock();updateLiveStats()" style="border-color:var(--gold)">
+                     oninput="checkLoyStock();updateLiveStats()" style="border-color:var(--gold)" aria-describedby="loy_kg_izoh">
+              {# kech114 (dizayn 9-band): yorliq qisqa, izoh — maydon ostida (ilgari yorliq 3 qatorga cho'zilardi) #}
+              <div id="loy_kg_izoh" style="font-size:11.5px;color:var(--text3);margin-top:5px">Faqat qoplamali penoplast detallari uchun (MRP mahsuloti qoplamasi o'z retseptidan)</div>
             </div>
           </div>
 
@@ -667,7 +669,7 @@ input[type=number]{-moz-appearance:textfield}
     <div id="emptyMid" class="card" style="display:flex;align-items:center;justify-content:center;flex:1;min-height:200px">
       <div style="text-align:center;color:#bbb">
         <div style="font-size:32px;margin-bottom:8px">🧾</div>
-        <div style="font-size:14px">Chapdan buyurtma tanlang yoki yangi yarating</div>
+        <div style="font-size:14px">Buyurtmani tanlang yoki yangi yarating</div>
       </div>
     </div>
 
@@ -764,8 +766,9 @@ input[type=number]{-moz-appearance:textfield}
       <div style="padding:12px" id="alertBody"></div>
     </div>
 
-    <!-- Buyurtmalar statistikasi -->
-    <div class="card">
+    <!-- Buyurtmalar statistikasi (kech114, dizayn 9-band: yangi / tahrir oynasi ochiq — «Shu buyurtma» paneli ko'rinadi,
+         bu umumiy panel yashiriladi: ilgari ikkalasi ham «Statistika» deb yonma-yon turardi) -->
+    <div class="card" id="umumiyStat">
       <div class="card-head" style="cursor:pointer" onclick="toggleSection('statBody','stat-toggle-ic')">
         <h3><span class="ico-badge purple"><i class="ti ti-chart-bar"></i></span> Statistika</h3>
         <button class="step-btn2" style="width:26px;height:26px" onclick="toggleSection('statBody','stat-toggle-ic')" title="Yig'ish/yoyish">
@@ -781,7 +784,7 @@ input[type=number]{-moz-appearance:textfield}
 
     <!-- Yangi buyurtma — Statistika (mavjud, hisoblangan qiymatlardan) -->
     <div class="card" id="liveStats" style="display:none">
-      <div class="card-head"><h3><span class="ico-badge blue"><i class="ti ti-chart-bar"></i></span> Statistika</h3></div>
+      <div class="card-head"><h3><span class="ico-badge blue"><i class="ti ti-chart-bar"></i></span> Shu buyurtma</h3></div>
       <div style="padding:12px">
         <div class="sum-item"><span class="si-l">Detallar soni</span><span class="si-v" id="ls-count">0 ta</span></div>
         <div class="sum-item"><span class="si-l">Umumiy uzunlik</span><span class="si-v" id="ls-length">0 m</span></div>
@@ -1752,8 +1755,7 @@ function selectOrder(id, el) {
   // bilan qolib ketishi mumkin edi. Ko'rish rejimiga o'tganda, buni
   // tozalab/yashirib qo'yamiz — aks holda eski, chalkashtiruvchi son
   // ko'rinib turaverar edi.
-  const liveStatsPanel = document.getElementById('liveStats');
-  if (liveStatsPanel) liveStatsPanel.style.display = 'none';
+  statPanellari(false);
 
   document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
@@ -3062,8 +3064,7 @@ function hideNewForm() {
   document.getElementById('newOrderForm').style.display = 'none';
   const livePanel = document.getElementById('liveTotal');
   if (livePanel) livePanel.style.display = 'none';
-  const statsPanel = document.getElementById('liveStats');
-  if (statsPanel) statsPanel.style.display = 'none';
+  statPanellari(false);
 }
 
 // ── Detal qo'shish ────────────────────────────────────────
@@ -4234,6 +4235,14 @@ function calculateItem(row) {
   updateDetalSummary(row);
 }
 
+// kech114 (dizayn 9-band): «Shu buyurtma» (#liveStats) ko'rinsa — umumiy «Statistika» (#umumiyStat) yashiriladi, va aksincha.
+function statPanellari(shuBuyurtma) {
+  const live = document.getElementById('liveStats');
+  if (live) live.style.display = shuBuyurtma ? 'block' : 'none';
+  const umumiy = document.getElementById('umumiyStat');
+  if (umumiy) umumiy.style.display = shuBuyurtma ? 'none' : '';
+}
+
 // Statistika paneli — mavjud, allaqachon hisoblangan qiymatlarni (dataset.volume,
 // dataset.price, loy_kg, final_price, zaklat_amount) o'qib, o'ng panelda ko'rsatadi.
 // Hech qanday yangi hisoblash formulasi yo'q — faqat mavjud ma'lumotni yig'ish.
@@ -4241,8 +4250,8 @@ function updateLiveStats() {
   const panel = document.getElementById('liveStats');
   const rows = document.querySelectorAll('.detal');
   if (!panel) return;
-  if (rows.length === 0) { panel.style.display = 'none'; return; }
-  panel.style.display = 'block';
+  if (rows.length === 0) { statPanellari(false); return; }
+  statPanellari(true);
 
   let totalVolume = 0, totalLength = 0, totalPrice = 0, namedCount = 0;
   rows.forEach(row => {

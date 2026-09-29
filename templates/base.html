@@ -256,6 +256,33 @@ function jsAttrEscape(str) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/tabler-icons.min.css">
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+  /* kech114 (egasi QARORI «6A — Bir qator + tugmalar»): telefonda yuqori panel 103–191 px edi (sarlavha, tungi rejim /
+     qo'ng'iroqcha / Кирилл va sahifa tugmalari alohida qatorlarda — `work/k114/olchov114.py`). Endi: 1-qator — menyu,
+     sarlavha, obuna belgisi, qo'ng'iroqcha, «···» (tungi rejim, Кирилл); 2-qator — sahifa tugmalari yonma-yon, teng. */
+  .tb-amallar{display:flex;gap:8px;align-items:center}
+  .tb-amallar:empty{display:none}
+  .tb-kop-wrap{display:none;position:relative}
+  #tbKop{width:38px;height:38px;border-radius:8px;border:1px solid var(--border);background:var(--white);color:var(--text2);font-weight:800;letter-spacing:1px;cursor:pointer}
+  #tbKop[aria-expanded="true"]{border-color:#D9B48C;background:var(--gold-tint);color:var(--gold-dark)}
+  #tbKopMenyu{position:absolute;top:44px;right:0;min-width:210px;background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-card);padding:6px;z-index:1000;display:flex;flex-direction:column}
+  #tbKopMenyu[hidden]{display:none}
+  #tbKopMenyu button{height:44px;text-align:left;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
+  #tbKopMenyu button:hover{background:var(--gold-tint)}
+  @media (max-width: 768px) {
+    .erp-topbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px}
+    .erp-topbar .tb-left{flex:1 1 0;min-width:0}
+    .erp-topbar .tb-left .page-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+    .erp-topbar .tb-right{display:contents}
+    .erp-topbar .tb-right>*{margin-right:0!important}
+    .erp-topbar .tb-keng{display:none!important}
+    .erp-topbar .tb-kop-wrap{display:block}
+    .erp-topbar .tb-amallar{order:10;flex:1 1 100%;display:flex;gap:8px}
+    .erp-topbar .tb-amallar:empty{display:none}
+    /* uzun yorliq («+ Yangi ishlab chiqarish», 360 px) kesilmaydi — tugma ichida ikki qatorga o'tadi (44 px ga sig'adi) */
+    .erp-topbar .tb-amallar>*{flex:1 1 0;min-width:0;min-height:44px;margin:0!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:normal;line-height:1.2;text-align:center;padding:4px 10px;overflow:hidden;box-sizing:border-box}
+  }
+  </style>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -487,7 +514,7 @@ function jsAttrEscape(str) {
         <div class="page-sub">{% block page_sub %}{% endblock %}</div>
       </div>
       <div class="tb-right">
-        <button id="themeToggle" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
+        <button id="themeToggle" class="tb-keng" onclick="toggleTheme()" style="width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-right:10px">
           <i class="ti ti-moon" id="themeIcon" style="font-size:16px"></i>
         </button>
         {# kech111 — obuna ogohlantirishi (egasi QARORI "Admin, keyin hamma": muddatga ≤ 7 kun — korxona adminiga sariq;
@@ -522,8 +549,19 @@ function jsAttrEscape(str) {
             </div>
           </div>
         </div>
-        <button class="btn btn-outline btn-sm" id="script-toggle-btn" onclick="toggleScript()" title="Kirill/Lotin" style="margin-right:8px">🔤 Кирилл</button>
-        {% block topbar_actions %}{% endblock %}
+        <button class="btn btn-outline btn-sm tb-keng" id="script-toggle-btn" onclick="toggleScript()" title="Kirill/Lotin" style="margin-right:8px">🔤 Кирилл</button>
+        {# kech114 (egasi QARORI «6A — Bir qator + tugmalar», telefon): tor ekranda tungi rejim va Кирилл shu «···»
+           menyusida (keng ekranda menyu yashirin, tugmalar avvalgidek); sahifa tugmalari — `.tb-amallar` (keng ekranda
+           avvalgi joyida, telefonda panelning ikkinchi qatorida yonma-yon, teng kenglikda). #}
+        <div id="tbKopWrap" class="tb-kop-wrap">
+          <button type="button" id="tbKop" aria-label="Boshqa: tungi rejim, Кирилл / Lotin" aria-haspopup="true"
+                  aria-expanded="false" aria-controls="tbKopMenyu" onclick="tbKopAlmashtir()">···</button>
+          <div id="tbKopMenyu" role="menu" hidden>
+            <button type="button" role="menuitem" id="tbKopTema" onclick="tbKopYop();toggleTheme()">Tungi rejim</button>
+            <button type="button" role="menuitem" id="tbKopYozuv" onclick="tbKopYop();toggleScript()">Кирилл</button>
+          </div>
+        </div>
+        <div class="tb-amallar">{% filter trim %}{% block topbar_actions %}{% endblock %}{% endfilter %}</div>
       </div>
     </header>
 
@@ -555,6 +593,34 @@ function jsAttrEscape(str) {
       // ekrandan chapga chiqib ketardi (390 px da chap cheti −232 px — matnning yarmi ko'rinmasdi). Endi panel OCHILGANDA
       // ekran ichiga joylanadi: kengligi ≤ ekran − 24 px, chap cheti ≥ 12 px, o'ng cheti ekrandan chiqmaydi; joy bo'lsa —
       // avvalgidek tugmaning o'ng chetiga tekislanadi (keng ekranda ko'rinish o'zgarmaydi). Oyna o'lchami o'zgarsa — qayta joylanadi.
+      // kech114 (6A): telefondagi «···» menyusi — tungi rejim va Кирилл / Lotin (yozuvlari joriy holatdan).
+      function tbKopYozuvlari() {
+        var tema = document.getElementById('tbKopTema');
+        if (tema) tema.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? 'Kunduzgi rejim' : 'Tungi rejim';
+        var yozuv = document.getElementById('tbKopYozuv');
+        var asl = document.getElementById('script-toggle-btn');
+        if (yozuv) yozuv.textContent = asl ? String(asl.textContent || '').replace('🔤', '').trim() : 'Кирилл';
+      }
+      window.tbKopYop = function () {
+        var m = document.getElementById('tbKopMenyu');
+        var t = document.getElementById('tbKop');
+        if (m) m.hidden = true;
+        if (t) t.setAttribute('aria-expanded', 'false');
+      };
+      window.tbKopAlmashtir = function () {
+        var m = document.getElementById('tbKopMenyu');
+        var t = document.getElementById('tbKop');
+        if (!m || !t) return;
+        var ochiq = m.hidden;
+        if (ochiq) tbKopYozuvlari();
+        m.hidden = !ochiq;
+        t.setAttribute('aria-expanded', ochiq ? 'true' : 'false');
+      };
+      document.addEventListener('click', function (e) {
+        var w = document.getElementById('tbKopWrap');
+        if (w && !w.contains(e.target)) window.tbKopYop();
+      });
+
       function panelniJoyla(tugma, panel) {
         if (!tugma || !panel) return;
         var r = tugma.getBoundingClientRect();
